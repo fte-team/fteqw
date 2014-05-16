@@ -164,10 +164,11 @@ typedef struct galiasinfo_s
 
 typedef struct
 {
-	int (QDECL *RegisterModelFormatText)(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
-	int (QDECL *RegisterModelFormatMagic)(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+	int version;
+	int (QDECL *RegisterModelFormatText)(const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+	int (QDECL *RegisterModelFormatMagic)(const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
 	void (QDECL *UnRegisterModelFormat)(int idx);
-	void (QDECL *UnRegisterAllModelFormats)(void *module);
+	void (QDECL *UnRegisterAllModelFormats)(void);
 
 	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, int size);
 
@@ -181,6 +182,7 @@ typedef struct
 	shader_t *(QDECL *RegisterSkin)  (const char *shadername, const char *modname);
 	void (QDECL *BuildDefaultTexnums)(texnums_t *tn, shader_t *shader);
 } modplugfuncs_t;
+#define MODPLUGFUNCS_VERSION 0
 
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);

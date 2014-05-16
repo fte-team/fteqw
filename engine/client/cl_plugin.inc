@@ -595,15 +595,40 @@ qintptr_t VARGS Plug_S_RawAudio(void *offset, quintptr_t mask, const qintptr_t *
 }
 
 #include "com_mesh.h"
+
+#ifdef SKELETALMODELS
+int QDECL Plug_RegisterModelFormatText(const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
+{
+	void *module = currentplug;
+	return Mod_RegisterModelFormatText(module, formatname, magictext, load);
+}
+int QDECL Plug_RegisterModelFormatMagic(const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
+{
+	void *module = currentplug;
+	return Mod_RegisterModelFormatMagic(module, formatname, magic, load);
+}
+void QDECL Plug_UnRegisterModelFormat(int idx)
+{
+	void *module = currentplug;
+	Mod_UnRegisterModelFormat(module, idx);
+}
+void QDECL Plug_UnRegisterAllModelFormats(void)
+{
+	void *module = currentplug;
+	Mod_UnRegisterAllModelFormats(module);
+}
+#endif
 qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 #ifdef SKELETALMODELS
 	static modplugfuncs_t funcs =
 	{
-		Mod_RegisterModelFormatText,
-		Mod_RegisterModelFormatMagic,
-		Mod_UnRegisterModelFormat,
-		Mod_UnRegisterAllModelFormats,
+		MODPLUGFUNCS_VERSION,
+		
+		Plug_RegisterModelFormatText,
+		Plug_RegisterModelFormatMagic,
+		Plug_UnRegisterModelFormat,
+		Plug_UnRegisterAllModelFormats,
 		ZG_Malloc,
 
 		R_ConcatTransforms,
@@ -616,7 +641,7 @@ qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, cons
 		R_RegisterSkin,
 		R_BuildDefaultTexnums
 	};
-	if (VM_LONG(arg[0]) == sizeof(funcs))
+	if (VM_LONG(arg[0]) >= sizeof(funcs))
 		return (qintptr_t)&funcs;
 	else
 #endif

@@ -23,65 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "particles.h"
 entity_state_t *CL_FindPacketEntity(int num);
 
-int
-	pt_muzzleflash=P_INVALID,
-	pt_gunshot=P_INVALID,
-	ptdp_gunshotquad=P_INVALID,
-	pt_spike=P_INVALID,
-	ptdp_spikequad=P_INVALID,
-	pt_superspike=P_INVALID,
-	ptdp_superspikequad=P_INVALID,
-	pt_wizspike=P_INVALID,
-	pt_knightspike=P_INVALID,
-	pt_explosion=P_INVALID,
-	ptdp_explosionquad=P_INVALID,
-	pt_tarexplosion=P_INVALID,
-	pt_teleportsplash=P_INVALID,
-	pt_lavasplash=P_INVALID,
-	ptdp_smallflash=P_INVALID,
-	ptdp_flamejet=P_INVALID,
-	ptdp_flame=P_INVALID,
-	ptdp_blood=P_INVALID,
-	ptdp_spark=P_INVALID,
-	ptdp_plasmaburn=P_INVALID,
-	ptdp_tei_g3=P_INVALID,
-	ptdp_tei_smoke=P_INVALID,
-	ptdp_tei_bigexplosion=P_INVALID,
-	ptdp_tei_plasmahit=P_INVALID,
-	ptdp_stardust=P_INVALID,
-	rt_rocket=P_INVALID,
-	rt_grenade=P_INVALID,
-	rt_blood=P_INVALID,
-	rt_wizspike=P_INVALID,
-	rt_slightblood=P_INVALID,
-	rt_knightspike=P_INVALID,
-	rt_vorespike=P_INVALID,
-	rtdp_neharasmoke=P_INVALID,
-	rtdp_nexuizplasma=P_INVALID,
-	rtdp_glowtrail=P_INVALID,
-
-	ptqw_blood=P_INVALID,
-	ptqw_lightningblood=P_INVALID,
-
-	ptq2_blood=P_INVALID,
-	rtq2_railtrail=P_INVALID,
-	rtq2_blastertrail=P_INVALID,
-	ptq2_blasterparticles=P_INVALID,
-	rtq2_bubbletrail=P_INVALID,
-	rtq2_gib=P_INVALID,
-	rtq2_rocket=P_INVALID,
-	rtq2_grenade=P_INVALID,
-
-	rtqw_railtrail=P_INVALID,
-	rtfte_lightning1=P_INVALID,
-	ptfte_lightning1_end=P_INVALID,
-	rtfte_lightning2=P_INVALID,
-	ptfte_lightning2_end=P_INVALID,
-	rtfte_lightning3=P_INVALID,
-	ptfte_lightning3_end=P_INVALID,
-	ptfte_bullet=P_INVALID,
-	ptfte_superbullet=P_INVALID;
-
 #ifdef Q2CLIENT
 typedef enum
 {
@@ -156,8 +97,9 @@ typedef enum
 	CRTE_STAIN,
 	CRTE_FIRE,
 	CRTE_CABLEGUT,
-	CRTE_SMOKE
+	CRTE_SMOKE,
 //CODERED
+	Q2TE_MAX
 } temp_event_t;
 
 #define Q2SPLASH_UNKNOWN		0
@@ -167,7 +109,149 @@ typedef enum
 #define Q2SPLASH_SLIME		4
 #define	Q2SPLASH_LAVA			5
 #define Q2SPLASH_BLOOD		6
+#define Q2SPLASH_MAX		7
+
+static const char	*q2efnames[] =
+{
+	"GUNSHOT",
+	"BLOOD",
+	"BLASTER",
+	"RAILTRAIL",
+	"SHOTGUN",
+	"EXPLOSION1",
+	"EXPLOSION2",
+	"ROCKET_EXPLOSION",
+	"GRENADE_EXPLOSION",
+	"SPARKS",
+	"SPLASH",
+	"BUBBLETRAIL",
+	"SCREEN_SPARKS",
+	"SHIELD_SPARKS",
+	"BULLET_SPARKS",
+	"LASER_SPARKS",
+	"PARASITE_ATTACK",
+	"ROCKET_EXPLOSION_WATER",
+	"GRENADE_EXPLOSION_WATER",
+	"MEDIC_CABLE_ATTACK",
+	"BFG_EXPLOSION",
+	"BFG_BIGEXPLOSION",
+	"BOSSTPORT",
+	"BFG_LASER",
+	"GRAPPLE_CABLE",
+	"WELDING_SPARKS",
+	"GREENBLOOD",
+	"BLUEHYPERBLASTER",
+	"PLASMA_EXPLOSION",
+	"TUNNEL_SPARKS",
+	"BLASTER2",
+	"RAILTRAIL2",
+	"FLAME",
+	"LIGHTNING",
+	"DEBUGTRAIL",
+	"PLAIN_EXPLOSION",
+	"FLASHLIGHT",
+	"FORCEWALL",
+	"HEATBEAM",
+	"MONSTER_HEATBEAM",
+	"STEAM",
+	"BUBBLETRAIL2",
+	"MOREBLOOD",
+	"HEATBEAM_SPARKS",
+	"HEATBEAM_STEAM",
+	"CHAINFIST_SMOKE",
+	"ELECTRIC_SPARKS",
+	"TRACKER_EXPLOSION",
+	"TELEPORT_EFFECT",
+	"DBALL_GOAL",
+	"WIDOWBEAMOUT",
+	"NUKEBLAST",
+	"WIDOWSPLASH",
+	"EXPLOSION1_BIG",
+	"EXPLOSION1_NP",
+	"FLECHETTE",
+	"CR_LEADERBLASTER",
+	"CR_BLASTER_MUZZLEFLASH",
+	"CR_BLUE_MUZZLEFLASH",
+	"CR_SMART_MUZZLEFLASH",
+	"CR_LEADERFIELD",
+	"CR_DEATHFIELD",
+	"CR_BLASTERBEAM",
+	"CR_STAIN",
+	"CR_FIRE",
+	"CR_CABLEGUT",
+	"CR_SMOKE",
+
+
+	//q2te_max+
+	"SPLASH_UNKNOWN",
+	"SPLASH_SPARKS",
+	"SPLASH_BLUE_WATER",
+	"SPLASH_BROWN_WATER",
+	"SPLASH_SLIME",
+	"SPLASH_LAVA",
+	"SPLASH_BLOOD",
+};
+int pt_q2[sizeof(q2efnames)/sizeof(q2efnames[0])];
 #endif
+
+int
+	pt_muzzleflash=P_INVALID,
+	pt_gunshot=P_INVALID,
+	ptdp_gunshotquad=P_INVALID,
+	pt_spike=P_INVALID,
+	ptdp_spikequad=P_INVALID,
+	pt_superspike=P_INVALID,
+	ptdp_superspikequad=P_INVALID,
+	pt_wizspike=P_INVALID,
+	pt_knightspike=P_INVALID,
+	pt_explosion=P_INVALID,
+	ptdp_explosionquad=P_INVALID,
+	pt_tarexplosion=P_INVALID,
+	pt_teleportsplash=P_INVALID,
+	pt_lavasplash=P_INVALID,
+	ptdp_smallflash=P_INVALID,
+	ptdp_flamejet=P_INVALID,
+	ptdp_flame=P_INVALID,
+	ptdp_blood=P_INVALID,
+	ptdp_spark=P_INVALID,
+	ptdp_plasmaburn=P_INVALID,
+	ptdp_tei_g3=P_INVALID,
+	ptdp_tei_smoke=P_INVALID,
+	ptdp_tei_bigexplosion=P_INVALID,
+	ptdp_tei_plasmahit=P_INVALID,
+	ptdp_stardust=P_INVALID,
+	rt_rocket=P_INVALID,
+	rt_grenade=P_INVALID,
+	rt_blood=P_INVALID,
+	rt_wizspike=P_INVALID,
+	rt_slightblood=P_INVALID,
+	rt_knightspike=P_INVALID,
+	rt_vorespike=P_INVALID,
+	rtdp_neharasmoke=P_INVALID,
+	rtdp_nexuizplasma=P_INVALID,
+	rtdp_glowtrail=P_INVALID,
+
+	ptqw_blood=P_INVALID,
+	ptqw_lightningblood=P_INVALID,
+
+	ptq2_blood=P_INVALID,
+	rtq2_railtrail=P_INVALID,
+	rtq2_blastertrail=P_INVALID,
+	ptq2_blasterparticles=P_INVALID,
+	rtq2_bubbletrail=P_INVALID,
+	rtq2_gib=P_INVALID,
+	rtq2_rocket=P_INVALID,
+	rtq2_grenade=P_INVALID,
+
+	rtqw_railtrail=P_INVALID,
+	rtfte_lightning1=P_INVALID,
+	ptfte_lightning1_end=P_INVALID,
+	rtfte_lightning2=P_INVALID,
+	ptfte_lightning2_end=P_INVALID,
+	rtfte_lightning3=P_INVALID,
+	ptfte_lightning3_end=P_INVALID,
+	ptfte_bullet=P_INVALID,
+	ptfte_superbullet=P_INVALID;
 
 typedef struct
 {
@@ -463,6 +547,9 @@ void CL_RegisterParticles(void)
 
 	if (cls.protocol == CP_QUAKE2)
 	{
+		for (i = 0; i < sizeof(pt_q2)/sizeof(pt_q2[0]); i++)
+			pt_q2[i] = P_FindParticleType(va("q2part.TEQ2_%s", q2efnames[i]));
+
 		ptq2_blood				= P_FindParticleType("q2part.TEQ2_BLOOD");
 		rtq2_railtrail			= P_FindParticleType("q2part.TR_RAILTRAIL");
 		rtq2_blastertrail		= P_FindParticleType("q2part.TR_BLASTERTRAIL");
@@ -474,6 +561,8 @@ void CL_RegisterParticles(void)
 	}
 	else
 	{
+		for (i = 0; i < sizeof(pt_q2)/sizeof(pt_q2[0]); i++)
+			pt_q2[i] = P_INVALID;
 		ptq2_blood				= P_INVALID;
 		rtq2_railtrail			= P_INVALID;
 		rtq2_blastertrail		= P_INVALID;
@@ -735,6 +824,11 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		mname = q2tentmodels[q2cl_mod_grapple_cable].modelname;
 		btype = P_FindParticleType("te_grapple_cable");
 		etype = P_FindParticleType("te_grapple_cable_end");
+		break;
+	case 6:
+		mname = "models/proj/beam/tris.md2";
+		btype = P_FindParticleType("te_heatbeam");
+		etype = P_FindParticleType("te_heatbeam_end");
 		break;
 #endif
 	}
@@ -2322,6 +2416,7 @@ void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float
 void CLQ2_ParseTEnt (void)
 {
 	int		type;
+	int		pt;
 	vec3_t	pos, pos2, dir;
 	explosion_t	*ex;
 	int		cnt;
@@ -2332,36 +2427,113 @@ void CLQ2_ParseTEnt (void)
 
 	type = MSG_ReadByte ();
 
+	if (type < sizeof(q2efnames)/sizeof(q2efnames[0]))
+		pt = pt_q2[type];
+	else
+		pt = P_INVALID;
+
+	if (pt == P_INVALID)
+		goto fixme;
 	switch (type)
 	{
-	case Q2TE_GUNSHOT:
+	case Q2TE_GUNSHOT:	//grey tall thing with smoke+sparks
+	case Q2TE_BLOOD:		//red tall thing
+	case Q2TE_SPARKS:		//orange tall thing (with not many particles)
+	case Q2TE_BLASTER:	//regular blaster
+	case Q2TE_SHOTGUN:	//gunshot with less particles
+	case Q2TE_SCREEN_SPARKS://green+grey tall
+	case Q2TE_SHIELD_SPARKS://blue+grey tall
+	case Q2TE_BULLET_SPARKS://orange+grey tall+smoke
+	case Q2TE_GREENBLOOD:	//yellow...
+	case Q2TE_BLASTER2:	//green version of te_blaster
+	case Q2TE_MOREBLOOD:	//te_blood*2
+	case Q2TE_HEATBEAM_SPARKS://white outwards puffs
+	case Q2TE_HEATBEAM_STEAM://orange outwards puffs
+	case Q2TE_ELECTRIC_SPARKS://blue tall
+	case Q2TE_FLECHETTE:	//grey version of te_blaster
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
-		P_RunParticleEffectTypeString(pos, dir, 1, "q2part.teq2_gunshot");
+		P_RunParticleEffectType(pos, dir, 1, pt);
 		break;
-	case Q2TE_BLOOD:
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		P_RunParticleEffectTypeString(pos, dir, 1, "q2part.teq2_blood");
-		break;
-	case Q2TE_SHOTGUN:
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		P_RunParticleEffectTypeString(pos, dir, 1, "q2part.teq2_shotgun");
-		break;
-	case Q2TE_BLASTER:
-		MSG_ReadPos (pos);
-		MSG_ReadDir (dir);
-		P_RunParticleEffectTypeString(pos, dir, 1, "q2part.teq2_blaster");
-		break;
-
-	case Q2TE_RAILTRAIL:			// railgun effect
+	case Q2TE_RAILTRAIL:	//blue spiral, grey particles
+	case Q2TE_BUBBLETRAIL:	//grey sparse trail, slow riser
+	case Q2TE_BFG_LASER:	//green lazor
+	case Q2TE_DEBUGTRAIL:	//long lived blue trail
+	case Q2TE_BUBBLETRAIL2:	//grey rising trail
+	case Q2TE_BLUEHYPERBLASTER:	//TE_BLASTER without model+light
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL))
-			P_ParticleTrailIndex(pos, pos2, 0x74, 8, NULL);
-		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/railgf1a.wav"), 1, ATTN_NORM, 0);
+		P_ParticleTrail(pos, pos2, pt, 0, NULL);
 		break;
+	case Q2TE_EXPLOSION1:	//column
+	case Q2TE_EXPLOSION2:	//splits
+	case Q2TE_ROCKET_EXPLOSION://top blob/column
+	case Q2TE_GRENADE_EXPLOSION://indistinguishable from TE_EXPLOSION2
+	case Q2TE_ROCKET_EXPLOSION_WATER://rocket but with different sound
+	case Q2TE_GRENADE_EXPLOSION_WATER://different sound
+	case Q2TE_BFG_EXPLOSION://green light+sprite
+	case Q2TE_BFG_BIGEXPLOSION://green+white fast particles
+	case Q2TE_BOSSTPORT://splitting+merging+upwards particles.
+	case Q2TE_PLASMA_EXPLOSION://looks like rocket explosion to me
+	case Q2TE_PLAIN_EXPLOSION://looks like rocket explosion to me
+	case Q2TE_CHAINFIST_SMOKE://small smoke
+	case Q2TE_TRACKER_EXPLOSION://black light, slow particles
+	case Q2TE_TELEPORT_EFFECT://q1-style teleport
+	case Q2TE_DBALL_GOAL://q1-style teleport
+	case Q2TE_NUKEBLAST://dome expansion (blue/white particles)
+	case Q2TE_WIDOWSPLASH://dome (orange+gravity)
+	case Q2TE_EXPLOSION1_BIG://buggy model
+	case Q2TE_EXPLOSION1_NP://looks like a rocket explosion to me
+		MSG_ReadPos (pos);
+		P_RunParticleEffectType(pos, NULL, 1, pt);
+		break;
+	case Q2TE_SPLASH:
+		cnt = MSG_ReadByte ();
+		MSG_ReadPos (pos);
+		MSG_ReadDir (dir);
+		r = MSG_ReadByte ();
+		if (r >= Q2SPLASH_MAX)
+			r = Q2SPLASH_UNKNOWN;
+		pt = pt_q2[Q2TE_MAX + r];
+		P_RunParticleEffectType(pos, NULL, 1, pt);
+		break;
+
+	case Q2TE_PARASITE_ATTACK:
+	case Q2TE_MEDIC_CABLE_ATTACK:
+		CL_ParseBeam (3);
+		break;
+	case Q2TE_HEATBEAM:
+	case Q2TE_MONSTER_HEATBEAM:
+		CL_ParseBeam (6);
+		break;
+	case Q2TE_GRAPPLE_CABLE:
+		CL_ParseBeam (4);
+		MSG_ReadPos (pos);
+		break;
+/*
+	case Q2TE_LASER_SPARKS:
+	case Q2TE_WELDING_SPARKS:
+	case Q2TE_TUNNEL_SPARKS:
+		break;
+
+	//Q2TE_RAILTRAIL2,	?
+	//Q2TE_FLAME,			?
+	case Q2TE_LIGHTNING:
+		break;
+
+	case Q2TE_FLASHLIGHT:
+		break;
+	case Q2TE_FORCEWALL:
+		break;
+
+	case Q2TE_STEAM:
+		break;
+	
+	case Q2TE_WIDOWBEAMOUT:
+		break;
+*/
+
+
 	default:
 		goto fixme;
 //		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
@@ -2579,6 +2751,7 @@ fixme:
 			ex->firstframe = 30;
 			ex->flags |= RF_TRANSLUCENT;
 			ex->numframes = 19;
+			ex->skinnum = -1;
 		}
 		break;
 /*
@@ -2675,6 +2848,7 @@ fixme:
 			else
 				ex->firstframe = 0;
 			ex->numframes = 15;
+			ex->skinnum = -1;
 		}
 		break;
 /*

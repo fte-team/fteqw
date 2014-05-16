@@ -475,7 +475,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 			if (!stricmp(resource, "A"))	//ascii
 			{
-				QueueMessage (cl, "200 asci selected.\r\n");
+				QueueMessage (cl, "200 ascii selected.\r\n");
 			}
 			else if (!stricmp(resource, "I"))	//binary
 			{
@@ -483,7 +483,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			}
 			else
 			{
-				QueueMessage (cl, "200 asci selected.\r\n");
+				QueueMessage (cl, "200 ascii selected.\r\n");
 			}
 		}
 		else if (!stricmp(mode, "PWD"))

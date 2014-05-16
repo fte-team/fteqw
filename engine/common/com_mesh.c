@@ -2810,7 +2810,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
 			if (TEXVALID(texture))
 			{
-				if (TEXVALID(texture) && r_fb_models.ival)
+				if (r_fb_models.ival)
 				{
 					snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadmodel->name, i);
 					fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
@@ -2823,18 +2823,23 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			}
 			else
 			{
+				//try with a stripped model name
 				snprintf(skinname, sizeof(skinname), "%s_%i.", loadname, i);
 				texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
-				if (TEXVALID(texture) && r_fb_models.ival)
+				if (TEXVALID(texture))
 				{
-					snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadname, i);
-					fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
+					if (r_fb_models.ival)
+					{
+						snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadname, i);
+						fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
+					}
+					if (r_loadbumpmapping)
+					{
+						snprintf(skinname, sizeof(skinname), "%s_%i_bump.", loadname, i);
+						bumptexture = R_LoadBumpmapTexture(skinname, "models");
+					}
 				}
-				if (TEXVALID(texture) && r_loadbumpmapping)
-				{
-					snprintf(skinname, sizeof(skinname), "%s_%i_bump.", loadname, i);
-					bumptexture = R_LoadBumpmapTexture(skinname, "models");
-				}
+				//else ...
 			}
 
 //but only preload it if we have no replacement.

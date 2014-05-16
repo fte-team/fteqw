@@ -729,7 +729,7 @@ static struct
 	qboolean (QDECL *load) (model_t *mod, void *buffer, size_t buffersize);
 } modelloaders[64];
 
-int QDECL Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
+int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
 {
 	int i, free = -1;
 	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
@@ -753,7 +753,7 @@ int QDECL Mod_RegisterModelFormatText(void *module, const char *formatname, char
 
 	return free+1;
 }
-int QDECL Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
 {
 	int i, free = -1;
 	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
@@ -780,10 +780,12 @@ int QDECL Mod_RegisterModelFormatMagic(void *module, const char *formatname, uns
 	return free+1;
 }
 
-void QDECL Mod_UnRegisterModelFormat(int idx)
+void Mod_UnRegisterModelFormat(void *module, int idx)
 {
 	idx--;
 	if ((unsigned int)(idx) >= sizeof(modelloaders)/sizeof(modelloaders[0]))
+		return;
+	if (modelloaders[idx].module != module)
 		return;
 
 	Z_Free(modelloaders[idx].ident);
@@ -797,13 +799,13 @@ void QDECL Mod_UnRegisterModelFormat(int idx)
 	//FS_Restart will be needed
 }
 
-void QDECL Mod_UnRegisterAllModelFormats(void *module)
+void Mod_UnRegisterAllModelFormats(void *module)
 {
 	int i;
 	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
 	{
 		if (modelloaders[i].module == module)
-			Mod_UnRegisterModelFormat(i+1);
+			Mod_UnRegisterModelFormat(module, i+1);
 	}
 }
 
@@ -1323,6 +1325,7 @@ static void Mod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 	qboolean alphaed;
 	int j;
 	int pixels = mt->width*mt->height/64*85;
+	qboolean using8bit = false;
 
 	if (!Q_strncmp(mt->name,"sky",3))
 	{
@@ -1350,7 +1353,10 @@ static void Mod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 				{
 					tn->base = R_LoadReplacementTexture(mt->name, "bmodels", alphaed?0:IF_NOALPHA);
 					if (base && !TEXVALID(tn->base))
+					{
 						tn->base = R_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, (alphaed?0:IF_NOALPHA));
+						using8bit = true;
+					}
 				}
 				BZ_Free(base);
 			}
@@ -1382,20 +1388,24 @@ static void Mod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 				{
 					tn->base = R_LoadReplacementTexture(mt->name, "bmodels", ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP);
 					if (!TEXVALID(tn->base))
+					{
 						tn->base = R_LoadTexture8 (mt->name, mipwidth, mipheight, mipbase, ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP, 1);
+						using8bit = true;
+					}
 				}
 			}
 
 			if (maps & LMT_FULLBRIGHT)
 			{
 				snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
-				if (gl_load24bit.value)
+				if (gl_load24bit.value)	//allows fullbright replacement without diffuse
 				{
 					tn->fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
 					if (!TEXVALID(tn->fullbright))
 						tn->fullbright = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
 				}
-				if ((*mt->name != '{') && !TEXVALID(tn->fullbright))	//generate one (if possible).
+				//only use 8bit luma if 8bit diffuse was also used.
+				if (using8bit && (*mt->name != '{') && !TEXVALID(tn->fullbright))	//generate one (if possible).
 					tn->fullbright = R_LoadTextureFB(altname, mipwidth, mipheight, mipbase, IF_NOGAMMA|IF_MIPCAP);
 			}
 		}
@@ -1408,19 +1418,19 @@ static void Mod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 				tn->bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
 			if (!TEXVALID(tn->bump))
 			{
-				if (gl_load24bit.value)
+				if (gl_load24bit.value)	//allows bumpmaps replacement without diffuse
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 					tn->bump = R_LoadBumpmapTexture(altname, loadname);
 					if (!TEXVALID(tn->bump))
 						tn->bump = R_LoadBumpmapTexture(altname, "bmodels");
 				}
-				else
-					snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 			}
 
-			if (!TEXVALID(tn->bump) && loadmodel->fromgame != fg_halflife)
+			//only use 8bit bumps if the 8bit diffuse was used.
+			if (using8bit && !TEXVALID(tn->bump) && loadmodel->fromgame != fg_halflife)
 			{
+				snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 				//no mip levels here, would be absurd.
 				base = (qbyte *)(mt+1);	//convert to greyscale.
 				for (j = 0; j < pixels; j++)
@@ -1428,15 +1438,15 @@ static void Mod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 
 				tn->bump = R_LoadTexture8BumpPal(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
 			}
+		}
 
-			//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
-			if (maps & LMT_SPEC && gl_load24bit.value)
-			{
-				snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
-				tn->specular = R_LoadHiResTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
-				if (!TEXVALID(tn->specular))
-					tn->specular = R_LoadHiResTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
-			}
+		//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
+		if ((maps & LMT_SPEC) && gl_load24bit.value)	//allows bumpmaps replacement without diffuse
+		{
+			snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
+			tn->specular = R_LoadHiResTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
+			if (!TEXVALID(tn->specular))
+				tn->specular = R_LoadHiResTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
 		}
 	}
 #endif

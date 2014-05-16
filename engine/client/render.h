@@ -434,10 +434,10 @@ void Mod_NowLoadExternal(void);
 void GLR_LoadSkys (void);
 void R_BloomRegister(void);
 
-int QDECL Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
-int QDECL Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
-void QDECL Mod_UnRegisterModelFormat(int idx);
-void QDECL Mod_UnRegisterAllModelFormats(void *module);
+int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+void Mod_UnRegisterModelFormat(void *module, int idx);
+void Mod_UnRegisterAllModelFormats(void *module);
 
 #ifdef RUNTIMELIGHTING
 void LightFace (int surfnum);

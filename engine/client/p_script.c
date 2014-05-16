@@ -923,7 +923,8 @@ static void P_ParticleEffect_f(void)
 		ptype = P_GetParticleType(config, var);
 
 	//'weak' configs do not replace 'strong' configs
-	if (!pe_script_enabled || (part_parseweak && ptype->loaded))
+	//we allow weak to replace weak as a solution to the +assoc chain thing (to add, we effectively need to 'replace').
+	if (!pe_script_enabled || (part_parseweak && ptype->loaded==2))
 	{
 		int depth = 1;
 		while(1)

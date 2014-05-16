@@ -1640,8 +1640,10 @@ void Key_Bind_f (void)
 
 	if (c == 2)
 	{
-		if (keybindings[b][0])
-			Con_Printf ("\"%s\" = \"%s\"\n", Cmd_Argv(1), keybindings[b][0] );
+		if (modifier == ~0)	//modifier unspecified. default to no modifier
+			modifier = 0;
+		if (keybindings[b][modifier])
+			Con_Printf ("\"%s\" = \"%s\"\n", Cmd_Argv(1), keybindings[b][modifier] );
 		else
 			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(1) );
 		return;

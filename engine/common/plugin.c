@@ -1649,6 +1649,7 @@ void Plug_Close(plugin_t *plug)
 	Media_UnregisterEncoder(plug, NULL);
 #endif
 	FS_UnRegisterFileSystemModule(plug);
+	Mod_UnRegisterAllModelFormats(plug);
 
 	//tell the plugin that everything is closed and that it should free up any lingering memory/stuff
 	//it is still allowed to create/have open files.

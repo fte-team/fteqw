@@ -231,6 +231,8 @@ void M_ToggleMenu_f (void)
 		return;
 	}
 	if (Key_Dest_Has(kdm_console))
+		Key_Dest_Remove(kdm_console);
+/*
 	{
 		if (cls.state != ca_active)
 		{
@@ -240,7 +242,7 @@ void M_ToggleMenu_f (void)
 		else
 			Con_ToggleConsole_Force ();
 	}
-	else
+	else*/
 	{
 		M_Menu_Main_f ();
 	}

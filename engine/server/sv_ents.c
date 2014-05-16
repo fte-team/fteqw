@@ -357,7 +357,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 		csqcmsgbuffer.cursize = 0;
 		csqcmsgbuffer.currentbit = 0;
 		//Ask CSQC to write a buffer for it.
-		G_INT(OFS_PARM0) = viewerent;
+		G_INT(OFS_PARM0) = pr_global_struct->other = viewerent;
 		G_FLOAT(OFS_PARM1) = 0xffffff;	//psudo compatibility with SendFlags (fte doesn't support properly)
 #endif
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);

@@ -2838,7 +2838,7 @@ void QCBUILTIN PF_getsoundtime (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	wedict_t	*entity	= G_WEDICT(prinst, OFS_PARM0);
 	int			channel	= G_FLOAT(OFS_PARM1);
 
-	G_FLOAT(OFS_RETURN) = S_GetSoundTime(entity, channel);
+	G_FLOAT(OFS_RETURN) = S_GetSoundTime(entity->entnum, channel);
 }
 static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

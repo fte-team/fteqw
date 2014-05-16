@@ -1595,10 +1595,12 @@ void MasterInfo_Refresh(void)
 			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake",		MT_MASTERHTTP,		MP_NQ, "gameaholic's NQ master");
 			Master_AddMasterHTTP("http://servers.quakeone.com/index.php?format=json",	MT_MASTERHTTPJSON,	MP_NQ, "quakeone's server listing");
 			Master_AddMaster("69.59.212.88:27950"/*"ghdigital.com:27950"*/,				MT_MASTERUDP,		MP_DP, "DarkPlaces Master 1"); // LordHavoc
-			Master_AddMaster("64.22.107.125:27950"/*"dpmaster.deathmask.net:27950"*/,	MT_MASTERUDP,		MP_DP, "DarkPlaces Master 2"); // Willis
+//			Master_AddMaster("64.22.107.125:27950"/*"dpmaster.deathmask.net:27950"*/,	MT_MASTERUDP,		MP_DP, "DarkPlaces Master 2"); // Willis
+//			Master_AddMaster("107.161.23.68:27950"/*"dpmaster.deathmask.net:27950"*/,	MT_MASTERUDP,		MP_DP, "DarkPlaces Master 2"); // Willis (dpmaster.deathmask.net)
 			Master_AddMaster("92.62.40.73:27950"/*"dpmaster.tchr.no:27950"*/,			MT_MASTERUDP,		MP_DP, "DarkPlaces Master 3"); // tChr
 #ifdef IPPROTO_IPV6
 			//Master_AddMaster("[2001:41d0:2:1628::4450]:27950",						MT_MASTERUDP,		MP_DP, "DarkPlaces Master 4"); // dpmaster.div0.qc.to (admin: divVerent)
+			//Master_AddMaster("[2604:180::4ac:98c1]:27950",							MT_MASTERUDP,		MP_DP, "DarkPlaces Master 4"); // dpmaster.deathmask.net (Willis)
 #endif
 			Master_AddMaster("255.255.255.255:26000",									MT_BCAST,			MP_NQ, "Nearby Quake1 servers");
 			Master_AddMaster("255.255.255.255:26000",									MT_BCAST,			MP_DP, "Nearby DarkPlaces servers");

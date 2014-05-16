@@ -1018,6 +1018,10 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 	int num;
 	num = op - pr_opcodes;
 
+	//never any emulated opcodes
+	if (num >= OP_NUMREALOPS)
+		return false;
+
 	switch(qcc_targetformat)
 	{
 	case QCF_STANDARD:
@@ -1037,18 +1041,11 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 	case QCF_FTEH2:
 	case QCF_FTE:
 	case QCF_FTEDEBUG:
-		//no emulated opcodes
-		if (num >= OP_NUMREALOPS)
-			return false;
 		return true;
 	case QCF_DARKPLACES:
 		//all id opcodes.
 		if (num < OP_MULSTORE_F)
 			return true;
-
-		//no emulated opcodes
-		if (num >= OP_NUMREALOPS)
-			return false;
 
 		//extended opcodes.
 		//DPFIXME: this is a list of the extended opcodes. I was conservative regarding supported ones.
@@ -3061,7 +3058,7 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
 
 		default:
-			QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target", op->name, op->opname);
+			QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target. Consider the use of: #pragma target fte\n", op->name, op->opname);
 			break;
 		}
 	}
@@ -3148,7 +3145,7 @@ QCC_statement_t *QCC_PR_SimpleStatement( int op, int var_a, int var_b, int var_c
 
 	if (!force && !QCC_OPCodeValid(pr_opcodes+op))
 	{
-		QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target\n", pr_opcodes[op].name, pr_opcodes[op].opname);
+		QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target. Consider the use of: #pragma target fte\n", pr_opcodes[op].name, pr_opcodes[op].opname);
 	}
 
 	statement = &statements[numstatements];
@@ -3170,7 +3167,7 @@ void QCC_PR_Statement3 ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, Q
 	{
 //		outputversion = op->extension;
 //		if (noextensions)
-		QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target\n", op->name, op->opname);
+		QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target. Consider the use of: #pragma target fte\n", op->name, op->opname);
 	}
 
 	statement = &statements[numstatements];
@@ -3314,7 +3311,7 @@ QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand)
 	if (operand->type == REF_GLOBAL || operand->type == REF_ARRAY)
 	{
 		if (!QCC_OPCodeValid(&pr_opcodes[OP_GLOBALADDRESS]))
-			QCC_PR_ParseError (ERR_BADEXTENSION, "Address-of operator is not supported in this form without extensions. Please use the FTE target.");
+			QCC_PR_ParseError (ERR_BADEXTENSION, "Address-of operator is not supported in this form without extensions. Consider the use of: #pragma target fte");
 
 		//&foo (or &((&foo)[5]), which is basically an array). the result is a temp and thus cannot be assigned to (but should be possible to dereference further).
 		return QCC_PR_BuildRef(retbuf,
@@ -3331,7 +3328,7 @@ QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand)
 		if (operand->index)
 		{
 			if (!QCC_OPCodeValid(&pr_opcodes[OP_ADD_PIW]))
-				QCC_PR_ParseError (ERR_BADEXTENSION, "Address-of operator is not supported in this form without extensions. Please use the FTE target.");
+				QCC_PR_ParseError (ERR_BADEXTENSION, "Address-of operator is not supported in this form without extensions. Consider the use of: #pragma target fte");
 			addr = QCC_PR_Statement(&pr_opcodes[OP_ADD_PIW], operand->base, QCC_SupplyConversion(operand->index, ev_integer, true), NULL);
 		}
 		else

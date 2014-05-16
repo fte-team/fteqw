@@ -10,10 +10,11 @@
 
 #define STRCMP(s1,s2) (((*s1)!=(*s2)) || strcmp(s1+1,s2+1))	//saves about 2-6 out of 120 - expansion of idea from fastqcc
 
-void QCC_PR_ConditionCompilation(void);
+void QCC_PR_PreProcessor_Define(pbool append);
 pbool QCC_PR_UndefineName(char *name);
 char *QCC_PR_CheckCompConstString(char *def);
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
+int QCC_PR_CheckCompConst(void);
 pbool QCC_Include(char *filename);
 
 char *compilingfile;
@@ -470,7 +471,13 @@ pbool QCC_PR_Precompiler(void)
 		if (!strncmp(directive, "define", 6))
 		{
 			pr_file_p = directive;
-			QCC_PR_ConditionCompilation();
+			QCC_PR_PreProcessor_Define(false);
+			QCC_PR_SkipToEndOfLine(true);
+		}
+		else if (!strncmp(directive, "append", 6))
+		{
+			pr_file_p = directive;
+			QCC_PR_PreProcessor_Define(true);
 			QCC_PR_SkipToEndOfLine(true);
 		}
 		else if (!strncmp(directive, "undef", 5))
@@ -726,22 +733,31 @@ pbool QCC_PR_Precompiler(void)
 		}
 		else if (!strncmp(directive, "includelist", 11))
 		{
+			int defines=0;
 			pr_file_p=directive+11;
 
-			while(qcc_iswhite(*pr_file_p))
-			{
-				if (*pr_file_p == '\n')
-					pr_source_line++;
-				pr_file_p++;
-			}
+			QCC_PR_SkipToEndOfLine(true);
 
 			while(1)
 			{
 				QCC_PR_LexWhitespace(false);
+				if (QCC_PR_CheckCompConst())
+				{
+					defines++;
+					continue;
+				}
 				if (!QCC_PR_SimpleGetToken())
 				{
 					if (!*pr_file_p)
+					{
+						if (defines>0)
+						{
+							defines--;
+							QCC_PR_UnInclude();
+							continue;
+						}
 						QCC_Error(ERR_EOF, "eof in includelist");
+					}
 					else
 					{
 						pr_file_p++;
@@ -760,7 +776,7 @@ pbool QCC_PR_Precompiler(void)
 				if (*pr_file_p == '\r')
 					pr_file_p++;
 
-				QCC_PR_SkipToEndOfLine(true);
+//				QCC_PR_SkipToEndOfLine(true);
 			}
 		}
 		else if (!strncmp(directive, "include", 7))
@@ -958,7 +974,7 @@ pbool QCC_PR_Precompiler(void)
 				int o;
 				extern pbool qcc_nopragmaoptimise;
 				if (pr_scope)
-					QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s: unable to change optimisation options mid-function", qcc_token, msg);
+					QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s: unable to change optimisation options mid-function", qcc_token);
 				else if (qcc_nopragmaoptimise)
 					QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s %s: overriden by commandline", qcc_token, msg);
 				else if (*msg >= '0' && *msg <= '3')
@@ -1038,14 +1054,14 @@ pbool QCC_PR_Precompiler(void)
 				else if (!QC_strcasecmp(qcc_token, "QTEST"))
 					newtype = QCF_QTEST;
 				else
-					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.", qcc_token);
+					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.\nValid targets are: ID, HEXEN2, FTE, FTEH2, KK7, DP(patched)", qcc_token);
 
 				if (numstatements > 1)
 				{
 					if ((qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2) && (newtype != QCF_HEXEN2 && newtype != QCF_FTEH2))
-						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
+						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\' after the first statement. Ignored.", msg);
 					if ((newtype == QCF_HEXEN2 || newtype == QCF_FTEH2) && (qcc_targetformat != QCF_HEXEN2 && qcc_targetformat != QCF_FTEH2))
-						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch to hexen2 target \'%s\'. Ignored.", msg);
+						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch to hexen2 target \'%s\' after the first statement. Ignored.", msg);
 				}
 
 				qcc_targetformat = newtype;
@@ -2004,6 +2020,8 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 				pr_file_p++;
 				if (!inhibitpreprocessor)
 					QCC_PR_NewLine (false);
+				else
+					pr_source_line++;
 				if (!pr_file_p)
 					return;
 			}
@@ -2023,6 +2041,8 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 				pr_file_p++;	//don't break on eof.
 			if (!inhibitpreprocessor)
 				QCC_PR_NewLine(false);
+			else
+				pr_source_line++;
 			continue;
 		}
 
@@ -2037,6 +2057,8 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor)
 				{
 					if (!inhibitpreprocessor)
 						QCC_PR_NewLine(true);
+					else
+						pr_source_line++;
 				}
 				if (pr_file_p[1] == 0)
 				{
@@ -2367,30 +2389,24 @@ void QCC_PR_Undefine(void)
 //		QCC_PR_ParseError("%s was not defined.", pr_token);
 }
 
-void QCC_PR_ConditionCompilation(void)
+void QCC_PR_PreProcessor_Define(pbool append)
 {
-	char *oldval;
 	char *d;
 	char *dbuf;
 	int dbuflen;
 	char *s;
 	int quote=false;
 	pbool preprocessorhack = false;
-	CompilerConstant_t *cnst;
+	CompilerConstant_t *cnst, *oldcnst;
 
 	QCC_PR_SimpleGetToken ();
 
 	if (!QCC_PR_SimpleGetToken ())
 		QCC_PR_ParseError(ERR_NONAME, "No name defined for compiler constant");
 
-	cnst = pHash_Get(&compconstantstable, pr_token);
-	if (cnst)
-	{
-		oldval = cnst->value;
-		Hash_Remove(&compconstantstable, pr_token);
-	}
-	else
-		oldval = NULL;
+	oldcnst = pHash_Get(&compconstantstable, pr_token);
+	if (oldcnst)
+		Hash_Remove(&compconstantstable, oldcnst->name);
 
 	cnst = QCC_PR_DefineName(pr_token);
 
@@ -2432,16 +2448,58 @@ void QCC_PR_ConditionCompilation(void)
 			}
 			if(!*pr_file_p++)
 			{
-				QCC_PR_ParseError(ERR_EXPECTED, "missing ) in macro parameter list", MAXCONSTANTPARAMS);
+				QCC_PR_ParseError(ERR_EXPECTED, "missing ) in macro parameter list");
 				break;
 			}
 		}
 	}
 	else cnst->numparams = -1;
 
+	//disable append mode if they're trying to do something stupid
+	if (append)
+	{
+		if (!oldcnst)
+			append = false;	//append with no previous define is treated as just a regular define. huzzah.
+		else if (cnst->numparams != oldcnst->numparams || cnst->varg != oldcnst->varg)
+		{
+			QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "different number of macro arguments in macro append");
+			append = false;
+		}
+		else
+		{
+			int i;
+			//arguments need to be specified, if only so that appends with arguments are still vaugely readable.
+			//argument names need to match because the expansion is too lame to cope if they're different.
+			for (i = 0; i < cnst->numparams; i++)
+			{
+				if (strcmp(cnst->params[i], oldcnst->params[i]))
+					break;
+			}
+			if (i < cnst->numparams)
+			{
+				QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "arguments differ in macro append");
+				append = false;
+			}
+			else
+				append = true;
+		}
+	}
+
 	s = pr_file_p;
 	d = dbuf = NULL;
 	dbuflen = 0;
+
+	if (append)
+	{
+		//start with the old value
+		int olen = strlen(oldcnst->value);
+		dbuflen = olen + 128;
+		dbuf = qccHunkAlloc(dbuflen);
+		memcpy(dbuf, oldcnst->value, olen);
+		d = dbuf + olen;
+		*d++ = ' ';
+	}
+
 	while(*s == ' ' || *s == '\t')
 		s++;
 	while(1)
@@ -2541,10 +2599,10 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 
 	cnst->value = dbuf;
 
-	if (oldval)
+	if (oldcnst && !append)
 	{	//we always warn if it was already defined
 		//we use different warning codes so that -Wno-mundane can be used to ignore identical redefinitions.
-		if (strcmp(oldval, cnst->value))
+		if (strcmp(oldcnst->value, cnst->value))
 			QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "Alternate precompiler definition of %s", pr_token);
 		else
 			QCC_PR_ParseWarning(WARN_IDENTICALPRECOMPILER, "Identical precompiler definition of %s", pr_token);
@@ -2821,76 +2879,64 @@ int QCC_PR_CheckCompConst(void)
 				expandedemptymacro = true;
 			QCC_PR_IncludeChunkEx(c->value, false, NULL, c);
 		}
-
-		QCC_PR_Lex();
 		return true;
 	}
 
 	if (!strncmp(pr_file_p, "__TIME__", 8))
 	{
-		static char retbuf[128];
+		char retbuf[128];
 
 		time_t long_time;
 		time( &long_time );
 		strftime( retbuf, sizeof(retbuf),
 			 "\"%H:%M\"", localtime( &long_time ));
 
-		pr_file_p = retbuf;
-		QCC_PR_Lex();	//translate the macro's value
-		pr_file_p = oldpr_file_p+8;
-
+		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
 		return true;
 	}
 	if (!strncmp(pr_file_p, "__DATE__", 8))
 	{
-		static char retbuf[128];
+		char retbuf[128];
 
 		time_t long_time;
 		time( &long_time );
 		strftime( retbuf, sizeof(retbuf),
 			 "\"%a %d %b %Y\"", localtime( &long_time ));
 
-		pr_file_p = retbuf;
-		QCC_PR_Lex();	//translate the macro's value
-		pr_file_p = oldpr_file_p+8;
+		pr_file_p += 8;
+		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
 
 		return true;
 	}
 	if (!strncmp(pr_file_p, "__FILE__", 8))
 	{
-		static char retbuf[256];
+		char retbuf[256];
 		sprintf(retbuf, "\"%s\"", strings + s_file);
-		pr_file_p = retbuf;
-		QCC_PR_Lex();	//translate the macro's value
-		pr_file_p = oldpr_file_p+8;
 
+		pr_file_p += 8;
+		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
 		return true;
 	}
 	if (!strncmp(pr_file_p, "__LINE__", 8))
 	{
-		static char retbuf[256];
+		char retbuf[256];
 		sprintf(retbuf, "\"%i\"", pr_source_line);
-		pr_file_p = retbuf;
-		QCC_PR_Lex();	//translate the macro's value
-		pr_file_p = oldpr_file_p+8;
+		pr_file_p += 8;
+		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
 		return true;
 	}
 	if (!strncmp(pr_file_p, "__FUNC__", 8))
 	{
-		static char retbuf[256];
+		char retbuf[256];
 		sprintf(retbuf, "\"%s\"",pr_scope?pr_scope->name:"<NO FUNCTION>");
-		pr_file_p = retbuf;
-		QCC_PR_Lex();	//translate the macro's value
-		pr_file_p = oldpr_file_p+8;
+		pr_file_p += 8;
+		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
 		return true;
 	}
 	if (!strncmp(pr_file_p, "__NULL__", 8))
 	{
-		static char retbuf[256];
-		sprintf(retbuf, "0i");
-		pr_file_p = retbuf;
-		QCC_PR_Lex();	//translate the macro's value
-		pr_file_p = oldpr_file_p+8;
+		pr_file_p += 8;
+		QCC_PR_IncludeChunkEx("0i", false, NULL, NULL);
 		return true;
 	}
 	return false;
@@ -3055,8 +3101,11 @@ void QCC_PR_Lex (void)
 			QCC_PR_ParseError(ERR_CONSTANTNOTDEFINED, "Explicit precompiler usage when not defined %s", pr_token);
 		}
 		else
+		{
+			QCC_PR_Lex();
 			if (pr_token_type == tt_eof)
 				QCC_PR_Lex();
+		}
 
 		return;
 	}
@@ -3066,6 +3115,9 @@ void QCC_PR_Lex (void)
 		if (flag_hashonly || !QCC_PR_CheckCompConst())	//look for a macro.
 			QCC_PR_LexName ();
 		else
+		{
+			//we expanded a macro. we need to read the tokens out of it now though
+			QCC_PR_Lex();
 			if (pr_token_type == tt_eof)
 			{
 				if (QCC_PR_UnInclude())
@@ -3075,6 +3127,7 @@ void QCC_PR_Lex (void)
 				}
 				pr_token_type = tt_eof;
 			}
+		}
 		return;
 	}
 

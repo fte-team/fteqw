@@ -4662,30 +4662,34 @@ void CL_LinkViewModel(void)
 	if (!CLHL_AnimateViewEntity(&ent))
 #endif
 	{
-		ent.framestate.g[FS_REG].frame[0] = pv->stats[STAT_WEAPONFRAME];
-		ent.framestate.g[FS_REG].frame[1] = pv->oldframe;
-
-		if (ent.framestate.g[FS_REG].frame[0] != pv->prevframe)
+		//if the model changed, reset everything.
+		if (ent.model != pv->vm.oldmodel)
 		{
-			pv->oldframe = ent.framestate.g[FS_REG].frame[1] = pv->prevframe;
-
-			pv->frameduration = (realtime - pv->lerptime);
-			if (pv->frameduration < 0.01)//no faster than 100 times a second... to avoid divide by zero
-				pv->frameduration = 0.01;
-			if (pv->frameduration > 0.2)	//no slower than 5 times a second
-				pv->frameduration = 0.2;
-			pv->lerptime = realtime;
+			pv->vm.oldmodel = ent.model;
+			pv->vm.oldframe = pv->vm.prevframe = pv->stats[STAT_WEAPONFRAME];
+			pv->vm.oldlerptime = pv->vm.lerptime = realtime;
+			pv->vm.frameduration = 0.1;
 		}
-		pv->prevframe = ent.framestate.g[FS_REG].frame[0];
-
-		if (ent.model != pv->oldmodel)
+		//if the frame changed, update the oldframe to lerp into the new frame
+		else if (pv->stats[STAT_WEAPONFRAME] != pv->vm.prevframe)
 		{
-			pv->oldmodel = ent.model;
-			pv->oldframe = ent.framestate.g[FS_REG].frame[1] = ent.framestate.g[FS_REG].frame[0];
-			pv->frameduration = 0.1;
-			pv->lerptime = realtime;
+			pv->vm.oldframe = pv->vm.prevframe;
+			pv->vm.prevframe = pv->stats[STAT_WEAPONFRAME];
+			pv->vm.oldlerptime = pv->vm.lerptime;
+
+			pv->vm.frameduration = (realtime - pv->vm.lerptime);
+			if (pv->vm.frameduration < 0.01)//no faster than 100 times a second... to avoid divide by zero
+				pv->vm.frameduration = 0.01;
+			if (pv->vm.frameduration > 0.2)	//no slower than 5 times a second
+				pv->vm.frameduration = 0.2;
+			pv->vm.lerptime = realtime;
 		}
-		ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-pv->lerptime)/pv->frameduration;
+		//work out the blend fraction
+		ent.framestate.g[FS_REG].frame[0] = pv->vm.prevframe;
+		ent.framestate.g[FS_REG].frame[1] = pv->vm.oldframe;
+		ent.framestate.g[FS_REG].frametime[0] = realtime - pv->vm.lerptime;
+		ent.framestate.g[FS_REG].frametime[1] = realtime - pv->vm.oldlerptime;
+		ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-pv->vm.lerptime)/pv->vm.frameduration;
 		ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
 	}
 

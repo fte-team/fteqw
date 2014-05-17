@@ -576,11 +576,15 @@ struct playerview_s
 	vec3_t		vw_axis[3];	//weapons should be positioned relative to this
 	vec3_t		vw_origin;	//weapons should be positioned relative to this
 //	entity_t	viewent;	// is this not utterly redundant yet?
-	struct model_s *oldmodel;
-	float lerptime;
-	float frameduration;
-	int prevframe;
-	int oldframe;
+	struct
+	{
+		struct model_s *oldmodel;
+		float lerptime;
+		float oldlerptime;
+		float frameduration;
+		int prevframe;
+		int oldframe;
+	} vm;
 };
 
 //

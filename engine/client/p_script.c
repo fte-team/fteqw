@@ -2137,7 +2137,7 @@ static void P_ExportAllEffects_f(void)
 	Con_Printf("Written %s\n", effect);
 }
 
-#if _DEBUG
+#if 1//_DEBUG
 // R_BeamInfo_f - debug junk
 static void P_BeamInfo_f (void)
 {
@@ -2694,10 +2694,10 @@ static qboolean PScript_InitParticles (void)
 	Cmd_AddCommand("r_importeffectinfo", P_ImportEffectInfo_f);
 	Cmd_AddCommand("r_exportalleffects", P_ExportAllEffects_f);
 
-#if _DEBUG
+//#if _DEBUG
 	Cmd_AddCommand("r_partinfo", P_PartInfo_f);
 	Cmd_AddCommand("r_beaminfo", P_BeamInfo_f);
-#endif
+//#endif
 
 
 	pt_pointfile		= P_AllocateParticleType("", "PT_POINTFILE");

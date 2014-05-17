@@ -1530,6 +1530,7 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 	qglGetShaderParameteriv_(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
 	if(!compiled)
 	{
+		char	*typedesc;
 		char	str[8192];
 
 		qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
@@ -1538,15 +1539,21 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 			switch (shadertype)
 			{
 			case GL_FRAGMENT_SHADER_ARB:
-				Con_Printf("Fragment shader (%s) compilation error:\n----------\n%s----------\n", name, str);
+				typedesc = "Fragment";
 				break;
 			case GL_VERTEX_SHADER_ARB:
-				Con_Printf("Vertex shader (%s) compilation error:\n----------\n%s----------\n", name, str);
+				typedesc = "Vertex";
 				break;
 			default:
-				Con_Printf("Shader_CreateShader: This shouldn't happen ever\n");
+				typedesc = "???";
 				break;
 			}
+			Con_Printf("%s shader (%s) compilation error:\n----------\n%s----------\n", typedesc, name, str);
+
+			//if there's no fixed function then failure to compile the default2d shader should be considered fatal. this should help avoid black screens on android.
+			if (gl_config.nofixedfunc && !strcmp(name, "default2d"))
+				Sys_Error("%s shader (%s) compilation error:\n----------\n%s----------\n", typedesc, name, str);
+
 			if (developer.ival)
 			{
 				qglGetShaderSource(shader, sizeof(str), NULL, str);

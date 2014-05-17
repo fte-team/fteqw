@@ -75,6 +75,7 @@ static void	Headless_R_PreNewMap				(void)
 //tray icon crap, so the user can still restore the game.
 LRESULT CALLBACK HeadlessWndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
+	extern cvar_t vid_renderer;
 	switch(msg)
 	{
 	case WM_USER:
@@ -83,7 +84,10 @@ LRESULT CALLBACK HeadlessWndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lpara
 		case WM_CONTEXTMENU:
 		case WM_USER+0:
 		case WM_RBUTTONUP:
-			Cbuf_AddText("vid_renderer \"\";vid_restart\n", RESTRICT_LOCAL);
+			if (!Q_strcasecmp(vid_renderer.string, "headless"))
+				Cbuf_AddText("vid_renderer \"\";vid_restart\n", RESTRICT_LOCAL);
+			else
+				Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
 			break;
 		default:
 			break;

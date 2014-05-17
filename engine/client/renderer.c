@@ -1420,18 +1420,32 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	newr->renderer = NULL;
 
 	rendererstring = COM_Parse(rendererstring);
-	for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+	if (!*com_token)
 	{
-		if (!rendererinfo[i]->description)
-			continue;	//not valid in this build. :(
-		for (j = 4-1; j >= 0; j--)
+		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 		{
-			if (!rendererinfo[i]->name[j])
-				continue;
-			if (!stricmp(rendererinfo[i]->name[j], com_token))
+			if (rendererinfo[i]->name[0] && stricmp(rendererinfo[i]->name[0], "none"))
 			{
 				newr->renderer = rendererinfo[i];
 				break;
+			}
+		}
+	}
+	else
+	{
+		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		{
+			if (!rendererinfo[i]->description)
+				continue;	//not valid in this build. :(
+			for (j = 4-1; j >= 0; j--)
+			{
+				if (!rendererinfo[i]->name[j])
+					continue;
+				if (!stricmp(rendererinfo[i]->name[j], com_token))
+				{
+					newr->renderer = rendererinfo[i];
+					break;
+				}
 			}
 		}
 	}
@@ -1488,38 +1502,12 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	return newr->renderer != NULL;
 }
 
-void R_RestartRenderer_f (void)
+void R_RestartRenderer (rendererstate_t *newr)
 {
 	rendererstate_t oldr;
-	rendererstate_t newr;
 	if (r_blockvidrestart)
 	{
 		Con_Printf("Ignoring vid_restart from config\n");
-		return;
-	}
-
-	memset(&newr, 0, sizeof(newr));
-
-TRACE(("dbg: R_RestartRenderer_f\n"));
-
-	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
-	if (!R_BuildRenderstate(&newr, vid_renderer.string))
-	{
-		int i;
-		if (*vid_renderer.string)
-			Con_Printf("vid_renderer \"%s\" unsupported. Using default.\n", vid_renderer.string);
-		else
-			Con_DPrintf("vid_renderer unset. Using default.\n");
-
-		//gotta do this after main hunk is saved off.
-		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
-		{
-			if (rendererinfo[i]->name[0] && stricmp(rendererinfo[i]->name[0], "none"))
-			{
-				Cmd_ExecuteString(va("setrenderer %s\n", rendererinfo[i]->name[0]), RESTRICT_LOCAL);
-				break;
-			}
-		}
 		return;
 	}
 
@@ -1529,7 +1517,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	TRACE(("dbg: R_RestartRenderer_f renderer %i\n", newr.renderer));
 
 	memcpy(&oldr, &currentrendererstate, sizeof(rendererstate_t));
-	if (!R_ApplyRenderer(&newr))
+	if (!R_ApplyRenderer(newr))
 	{
 		TRACE(("dbg: R_RestartRenderer_f failed\n"));
 		if (R_ApplyRenderer(&oldr))
@@ -1541,36 +1529,36 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 		{
 			int i;
 			qboolean failed = true;
-			rendererinfo_t *skip = newr.renderer;
+			rendererinfo_t *skip = newr->renderer;
 
-			if (newr.rate != 0)
+			if (newr->rate != 0)
 			{
 				Con_Printf(CON_NOTICE "Trying default refresh rate\n");
-				newr.rate = 0;
-				failed = !R_ApplyRenderer(&newr);
+				newr->rate = 0;
+				failed = !R_ApplyRenderer(newr);
 			}
 
-			if (failed && newr.width != DEFAULT_WIDTH && newr.height != DEFAULT_HEIGHT)
+			if (failed && newr->width != DEFAULT_WIDTH && newr->height != DEFAULT_HEIGHT)
 			{
 				Con_Printf(CON_NOTICE "Trying %i*%i\n", DEFAULT_WIDTH, DEFAULT_HEIGHT);
-				newr.width = DEFAULT_WIDTH;
-				newr.height = DEFAULT_HEIGHT;
-				failed = !R_ApplyRenderer(&newr);
+				newr->width = DEFAULT_WIDTH;
+				newr->height = DEFAULT_HEIGHT;
+				failed = !R_ApplyRenderer(newr);
 			}
 
 			for (i = 0; failed && i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
 			{
-				newr.renderer = rendererinfo[i];
-				if (newr.renderer && newr.renderer != skip)
+				newr->renderer = rendererinfo[i];
+				if (newr->renderer && newr->renderer != skip)
 				{
-					Con_Printf(CON_NOTICE "Trying %s\n", newr.renderer->description);
-					failed = !R_ApplyRenderer(&newr);
+					Con_Printf(CON_NOTICE "Trying %s\n", newr->renderer->description);
+					failed = !R_ApplyRenderer(newr);
 				}
 			}
 
 			//if we ended up resorting to our last choice (dedicated) then print some informative message about it
 			//fixme: on unixy systems, we should make sure we're actually printing to something (ie: that we're not running via some x11 shortcut with our stdout redirected to /dev/nul
-			if (!failed && newr.renderer == &dedicatedrendererinfo)
+			if (!failed && newr->renderer == &dedicatedrendererinfo)
 			{
 				Con_Printf(CON_ERROR "Video mode switch failed. Console forced.\n\nPlease change the following vars to something useable, and then use the setrenderer command.\n");
 				Con_Printf("%s: %s\n", vid_width.name, vid_width.string);
@@ -1591,6 +1579,23 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 	TRACE(("dbg: R_RestartRenderer_f success\n"));
 	M_Reinit();
+}
+
+void R_RestartRenderer_f (void)
+{
+	rendererstate_t newr;
+
+	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
+	if (!R_BuildRenderstate(&newr, vid_renderer.string))
+	{
+		Con_Printf("vid_renderer \"%s\" unsupported. Using default.\n", vid_renderer.string);
+
+		//gotta do this after main hunk is saved off.
+		Cmd_ExecuteString("setrenderer \"\"\n", RESTRICT_LOCAL);
+		return;
+	}
+
+	R_RestartRenderer(&newr);
 }
 
 void R_SetRenderer_f (void)
@@ -1621,10 +1626,11 @@ void R_SetRenderer_f (void)
 			Cvar_Set(&vid_bpp, Cmd_Argv(2));
 	}
 
-	Cvar_Set(&vid_renderer, param);
+	if (newr.renderer->rtype != QR_HEADLESS)	//don't save headless in the vid_renderer cvar via the setrenderer command. 'setrenderer headless;vid_restart' can then do what is most sane.
+		Cvar_Set(&vid_renderer, param);
 
 	if (!r_blockvidrestart)
-		R_RestartRenderer_f();
+		R_RestartRenderer(&newr);
 }
 
 

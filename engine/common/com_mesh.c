@@ -2225,8 +2225,8 @@ void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
 
 typedef struct
 {
-	int firstpose;
-	int posecount;
+	unsigned int firstpose;
+	unsigned int posecount;
 	float fps;
 	qboolean loop;
 	char name[MAX_QPATH];
@@ -5346,7 +5346,15 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			animmatrix = (float*)(group+numgroups);
 			for (j = 0; j < numgroups; j++)
 			{
-				//FIXME: bound check
+				/*bound check*/
+				if (frameinfo[j].firstpose+frameinfo[j].posecount > num_animkeys)
+					frameinfo[j].posecount = num_animkeys - frameinfo[j].firstpose;
+				if (frameinfo[j].firstpose >= num_animkeys)
+				{
+					frameinfo[j].firstpose = 0;
+					frameinfo[j].posecount = 1;
+				}
+
 				group[j].boneofs = animmatrix + 12*num_boneinfo*frameinfo[j].firstpose;
 				group[j].numposes = frameinfo[j].posecount;
 				if (*frameinfo[j].name)
@@ -6277,9 +6285,11 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	//now generate the animations.
 	for (i = 0; i < numgroups; i++)
 	{
-		if ((unsigned)framegroups[i].firstpose >= h->num_frames)
+		if (framegroups[i].firstpose + framegroups[i].posecount > h->num_frames)
+			framegroups[i].posecount = h->num_frames - framegroups[i].firstpose;
+		if (framegroups[i].firstpose >= h->num_frames)
 		{
-			//invalid/basepose
+			//invalid/basepose.
 			fgroup[i].skeltype = SKEL_ABSOLUTE;
 			fgroup[i].boneofs = oposebase;
 			fgroup[i].numposes = 1;
@@ -6290,6 +6300,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			fgroup[i].boneofs = opose + framegroups[i].firstpose*12*h->num_poses;
 			fgroup[i].numposes = framegroups[i].posecount;
 		}
+
 		fgroup[i].loop = framegroups[i].loop;
 		fgroup[i].rate = framegroups[i].fps;
 		Q_strncpyz(fgroup[i].name, framegroups[i].name, sizeof(fgroup[i].name));

@@ -889,7 +889,10 @@ reeval:
 		if ((unsigned int)i > prinst.addressableused-sizeof(int))
 		{
 			if (i == -1)
+			{
+				OPC->_int = 0;
 				break;
+			}
 			pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer read in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 		}
@@ -902,7 +905,10 @@ reeval:
 		if ((unsigned int)i > prinst.addressableused-sizeof(vec3_t))
 		{
 			if (i == -1)
+			{
+				OPC->_int = 0;
 				break;
+			}
 			pr_xstatement = st-pr_statements;
 			PR_RunError (&progfuncs->funcs, "bad pointer read in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 		}

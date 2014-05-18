@@ -35,8 +35,6 @@ import android.os.Vibrator;
 
 public class FTEDroidActivity extends Activity
 {
-	private static final int USE_GLES_VERSION = 1;  //valid values: 1 or 2. If set to 2, it'll still fall back to 1 if gles2 isn't supported on this device.
-
 	private SensorManager sensorman;
 	private Sensor sensoracc;
 	private FTEView view;
@@ -268,7 +266,7 @@ public class FTEDroidActivity extends Activity
 							public void run()
 							{
 								theview.setVisibility(theview.GONE);
-								AlertDialog ad = new AlertDialog.Builder(act).create();
+								AlertDialog ad = new AlertDialog.Builder(act);
 								ad.setTitle("FTE ERROR");
 								ad.setMessage(errormsg);
 								ad.setCancelable(false);

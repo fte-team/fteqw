@@ -682,7 +682,7 @@ pbool QCC_WriteData (int crc)
 	pbool debugtarget = false;
 	pbool types = false;
 	int outputsttype = PST_DEFAULT;
-	pbool warnedunref = false;
+	int warnedunref = 0;
 	int			*statement_linenums;
 
 	if (numstatements==1 && numfunctions==1 && numglobaldefs==1 && numfielddefs==1)
@@ -857,13 +857,16 @@ pbool QCC_WriteData (int crc)
 			if (strcmp(def->name, "IMMEDIATE"))
 			{
 				char typestr[256];
-				if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name))
+				if (warnedunref >= 10)
 				{
-					if (!warnedunref && wt == WARN_NOTREFERENCED)
-					{
-						QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "You can use the noref prefix or pragma to silence this message.");
-						warnedunref = true;
-					}
+					if (qccwarningaction[wt])
+						pr_warning_count++;
+				}
+				else if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name))
+				{
+					warnedunref++;
+					if (warnedunref == 10)
+						QCC_PR_Note(wt, NULL, 0, "Not reporting other unreferenced variables. You can use the noref prefix or pragma to silence these messages as you clearly don't care.");
 				}
 			}
 			pr_scope = NULL;

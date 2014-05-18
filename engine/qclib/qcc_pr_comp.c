@@ -4523,8 +4523,29 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 		np--;
 	if (arg < np)
 	{
-		QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "too few parameters on call to %s", func->name);
-		QCC_PR_ParsePrintDef (WARN_TOOFEWPARAMS, func);
+		if (arg+1==np && !strcmp(func->name, "makestatic"))
+		{
+			//vanilla QC sucks. I want fteextensions.qc to compile with vanilla, yet also result in errors for when the mod fucks up.
+			QCC_PR_ParseWarning (WARN_BADPARAMS, "too few parameters on call to %s. Passing 'self'.", func->name);
+			QCC_PR_ParsePrintDef (WARN_BADPARAMS, func);
+
+			param[arg] = QCC_PR_GetDef(NULL, "self", NULL, 0, 0, false);
+			paramtypes[arg] = param[arg]->type;
+		}
+		else if (arg+1==np && !strcmp(func->name, "ai_charge"))
+		{
+			//vanilla QC sucks. I want fteextensions.qc to compile with vanilla, yet also result in errors for when the mod fucks up.
+			QCC_PR_ParseWarning (WARN_BADPARAMS, "too few parameters on call to %s. Passing 0.", func->name);
+			QCC_PR_ParsePrintDef (WARN_BADPARAMS, func);
+
+			param[arg] = QCC_MakeFloatConst(0);
+			paramtypes[arg] = param[arg]->type;
+		}
+		else
+		{
+			QCC_PR_ParseWarning (WARN_TOOFEWPARAMS, "too few parameters on call to %s", func->name);
+			QCC_PR_ParsePrintDef (WARN_TOOFEWPARAMS, func);
+		}
 	}
 
 	return QCC_PR_GenerateFunctionCall(newself, func, param, paramtypes, arg);
@@ -6371,7 +6392,7 @@ QCC_def_t *QCC_LoadFromArray(QCC_def_t *base, QCC_def_t *index, QCC_type_t *t, p
 //reads a ref as required
 QCC_def_t *QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 {
-	QCC_def_t *tmp = NULL;
+	QCC_def_t *tmp = NULL, *idx;
 	QCC_def_t *ret = ref->base;
 	if (ref->postinc)
 	{
@@ -6448,7 +6469,11 @@ QCC_def_t *QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 		break;
 	case REF_POINTER:
 		tmp = QCC_GetTemp(ref->cast);
-		QCC_LoadFromPointer(tmp->ofs, ref->base->ofs, ref->index?ref->index->ofs:0, ref->cast);
+		if (ref->index)
+			idx = QCC_SupplyConversion(ref->index, ev_integer, true);
+		else
+			idx = NULL;
+		QCC_LoadFromPointer(tmp->ofs, ref->base->ofs, idx?idx->ofs:0, ref->cast);
 		if (freetemps)
 			QCC_PR_DiscardRef(ref);
 		return tmp;
@@ -10088,20 +10113,35 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 			{
 				if (pr_scope || typecmp_lax(def->type, type))
 				{
-					//unequal even when we're lax
-					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+					if (!strcmp("droptofloor", def->name))
+					{
+						//this is a hack. droptofloor was wrongly declared in vanilla qc, which causes problems with replacement extensions.qc.
+						//yes, this is a selfish lazy hack for this, there's probably a better way, but at least we spit out a warning still.
+						QCC_PR_ParseWarning (WARN_LAXCAST, "%s builtin was wrongly defined as %s. ignoring invalid dupe definition",name, TypeName(type, typebuf1, sizeof(typebuf1)));
+						QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
+					}
+					else
+					{
+						//unequal even when we're lax
+						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+					}
 				}
 				else
 				{
-					QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
-					QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
-
-					if (type->type == ev_function)
+					if (type->type != ev_function || type->num_parms != def->type->num_parms || !(def->type->vargs && !type->vargs))
 					{
-						//update the def's type to the new one if the mandatory argument count is longer
-						//FIXME: don't change the param names!
-						if (type->num_parms > def->type->num_parms)
-							def->type = type;
+						//if the second def simply has no ..., don't bother warning about it.
+
+						QCC_PR_ParseWarning (WARN_LAXCAST, "Optional arguments differ on redeclaration of %s. %s, should be %s",name, TypeName(type, typebuf1, sizeof(typebuf1)), TypeName(def->type, typebuf2, sizeof(typebuf2)));
+						QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
+
+						if (type->type == ev_function)
+						{
+							//update the def's type to the new one if the mandatory argument count is longer
+							//FIXME: don't change the param names!
+							if (type->num_parms > def->type->num_parms)
+								def->type = type;
+						}
 					}
 				}
 			}

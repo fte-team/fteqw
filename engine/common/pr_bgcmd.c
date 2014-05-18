@@ -1616,12 +1616,26 @@ void QCBUILTIN PF_fputs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 
 void PF_fcloseall (pubprogfuncs_t *prinst)
 {
+	qboolean write;
 	int i;
 	for (i = 0; i < MAX_QC_FILES; i++)
 	{
 		if (pf_fopen_files[i].prinst != prinst)
 			continue;
-		Con_Printf("qc file %s was still open\n", pf_fopen_files[i].name);
+
+		switch(pf_fopen_files[i].accessmode)
+		{
+		case FRIK_FILE_APPEND:
+		case FRIK_FILE_WRITE:
+		case FRIK_FILE_MMAP_RW:
+			write = true;
+			break;
+		default:
+			write = false;
+			break;
+		}
+		if (developer.ival || write)
+			Con_Printf("qc file %s was still open\n", pf_fopen_files[i].name);
 		PF_fclose_i(i);
 	}
 	tokenizeqc("", false);

@@ -1814,8 +1814,6 @@ func_t mp_keydown_function;
 func_t mp_keyup_function;
 func_t mp_toggle_function;
 
-float *mp_time;
-
 jmp_buf mp_abort;
 
 
@@ -1909,7 +1907,10 @@ qboolean MP_Init (void)
 	}
 
 	if (forceqmenu.value)
+	{
+		Con_DPrintf("menu.dat disabled\n");
 		return false;
+	}
 
 	MP_SetupBuiltins();
 
@@ -1982,9 +1983,9 @@ qboolean MP_Init (void)
 
 		PF_InitTempStrings(menu_world.progs);
 
-		mp_time = (float*)PR_FindGlobal(menu_world.progs, "time", 0, NULL);
-		if (mp_time)
-			*mp_time = Sys_DoubleTime();
+		menu_world.g.time = (float*)PR_FindGlobal(menu_world.progs, "time", 0, NULL);
+		if (menu_world.g.time)
+			*menu_world.g.time = Sys_DoubleTime();
 
 		menu_world.g.drawfont = (float*)PR_FindGlobal(menu_world.progs, "drawfont", 0, NULL);
 		menu_world.g.drawfontscale = (float*)PR_FindGlobal(menu_world.progs, "drawfontscale", 0, NULL);
@@ -2120,8 +2121,8 @@ void MP_Draw(void)
 		return;
 
 	menutime = Sys_DoubleTime();
-	if (mp_time)
-		*mp_time = menutime;
+	if (menu_world.g.time)
+		*menu_world.g.time = menutime;
 
 	inmenuprogs++;
 	if (mp_draw_function)
@@ -2160,8 +2161,8 @@ void MP_Keydown(int key, int unicode)
 	}
 
 	menutime = Sys_DoubleTime();
-	if (mp_time)
-		*mp_time = menutime;
+	if (menu_world.g.time)
+		*menu_world.g.time = menutime;
 
 	inmenuprogs++;
 	if (mp_keydown_function)
@@ -2185,8 +2186,8 @@ void MP_Keyup(int key, int unicode)
 		return;
 
 	menutime = Sys_DoubleTime();
-	if (mp_time)
-		*mp_time = menutime;
+	if (menu_world.g.time)
+		*menu_world.g.time = menutime;
 
 	inmenuprogs++;
 	if (mp_keyup_function)
@@ -2212,8 +2213,8 @@ qboolean MP_Toggle(void)
 		return false;
 
 	menutime = Sys_DoubleTime();
-	if (mp_time)
-		*mp_time = menutime;
+	if (menu_world.g.time)
+		*menu_world.g.time = menutime;
 
 	inmenuprogs++;
 	if (mp_toggle_function)

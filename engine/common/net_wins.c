@@ -1598,6 +1598,9 @@ void NET_SendLoopPacket (int sock, int length, const void *data, netadr_t *to)
 	sock &= 1;
 
 	loop = &loopbacks[sock^1];
+	if (!loop->inited)
+		return;
+
 	i = loop->send & (MAX_LOOPBACK-1);
 	if (length > loop->msgs[i].datamax)
 	{

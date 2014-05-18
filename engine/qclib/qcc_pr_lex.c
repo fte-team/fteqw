@@ -3673,7 +3673,7 @@ int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
 	}
 	if (a->num_parms > minargs)
 	{
-		for (t = 0; t < a->num_parms; t++)
+		for (t = minargs; t < a->num_parms; t++)
 		{
 			if (!a->params[t].optional)
 				return 1;
@@ -3681,7 +3681,7 @@ int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
 	}
 	if (b->num_parms > minargs)
 	{
-		for (t = 0; t < b->num_parms; t++)
+		for (t = minargs; t < b->num_parms; t++)
 		{
 			if (!b->params[t].optional)
 				return 1;

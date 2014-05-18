@@ -65,8 +65,12 @@ static skinfile_t **registeredskins;
 static skinid_t numregisteredskins;
 void Mod_WipeSkin(skinid_t id)
 {
-	skinfile_t *sk = registeredskins[id-1];
+	skinfile_t *sk;
 	int i;
+	id--;
+	if (id >= numregisteredskins)
+		return;	//invalid!
+	sk = registeredskins[id];
 	if (!sk)
 		return;
 

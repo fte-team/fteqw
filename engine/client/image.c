@@ -2500,8 +2500,17 @@ texid_tf GL_ReadBLPFile(const char *iname, unsigned char *buffer, int filesize, 
 			case 1:
 				//BGRX palette, 8bit
 				//1bit trailing alpha
-				for (i = 0; i < w*h; i++)
-					tmpmem[i] = (tmpmem[i] & 0xffffff) | (*in++?0xff000000:0);
+				for (i = 0; i < w*h; i+=8, in++)
+				{
+					tmpmem[i+0] = (tmpmem[i+0] & 0xffffff) | ((*in&0x01)?0xff000000:0);
+					tmpmem[i+1] = (tmpmem[i+1] & 0xffffff) | ((*in&0x02)?0xff000000:0);
+					tmpmem[i+2] = (tmpmem[i+2] & 0xffffff) | ((*in&0x04)?0xff000000:0);
+					tmpmem[i+3] = (tmpmem[i+3] & 0xffffff) | ((*in&0x08)?0xff000000:0);
+					tmpmem[i+4] = (tmpmem[i+4] & 0xffffff) | ((*in&0x10)?0xff000000:0);
+					tmpmem[i+5] = (tmpmem[i+5] & 0xffffff) | ((*in&0x20)?0xff000000:0);
+					tmpmem[i+6] = (tmpmem[i+6] & 0xffffff) | ((*in&0x40)?0xff000000:0);
+					tmpmem[i+7] = (tmpmem[i+7] & 0xffffff) | ((*in&0x80)?0xff000000:0);
+				}
 				break;
 			case 4:
 				//BGRX palette, 8bit

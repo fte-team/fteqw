@@ -1369,7 +1369,7 @@ static qbyte *R_MarkLeafSurfaces_Q1 (void)
 
 	vis = R_CalcVis_Q1();
 
-	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+	for (i=0 ; i<cl.worldmodel->numvisleafs ; i++)
 	{
 		if (vis[i>>3] & (1<<(i&7)))
 		{

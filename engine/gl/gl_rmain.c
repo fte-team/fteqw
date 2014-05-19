@@ -881,7 +881,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			int lnum, i, j;
 			float d;
 			vec3_t point;
-			int pvsbytes = (cl.worldmodel->numleafs+7)>>3;
+			int pvsbytes = (cl.worldmodel->numvisleafs+7)>>3;
 			if (pvsbytes > sizeof(newvis))
 				pvsbytes = sizeof(newvis);
 			r_refdef.forcevis = true;

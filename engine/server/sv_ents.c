@@ -3221,7 +3221,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 					if (sv.phs)
 					{
 						leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, host_client->edict->v->origin);
-						mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+						mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numvisleafs+31)>>5);
 
 						leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, ent->v->origin)-1;
 						if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )

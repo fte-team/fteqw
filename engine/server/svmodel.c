@@ -284,7 +284,7 @@ qbyte *Mod_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed)
 	qbyte	*out;
 	int		row;
 
-	row = (model->numleafs+7)>>3;
+	row = (model->numvisleafs+7)>>3;
 	out = decompressed;
 
 #if 0
@@ -1379,6 +1379,7 @@ qboolean Mod_LoadLeafs (lump_t *l, qboolean lm)
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
+		loadmodel->numvisleafs = count-1;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{

@@ -90,7 +90,7 @@ static void pp_flush(multicast_t to, vec3_t origin, void (*flushfunc)(client_t *
 			else
 			{
 				leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
-				mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+				mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numvisleafs+31)>>5);
 			}
 			break;
 
@@ -98,7 +98,7 @@ static void pp_flush(multicast_t to, vec3_t origin, void (*flushfunc)(client_t *
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
 			leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
-			mask = sv.pvs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+			mask = sv.pvs + leafnum * 4*((sv.world.worldmodel->numvisleafs+31)>>5);
 			break;
 
 		default:

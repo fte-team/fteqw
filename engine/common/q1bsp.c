@@ -1662,7 +1662,7 @@ qbyte *Q1BSP_DecompressVis (qbyte *in, model_t *model, qbyte *decompressed, unsi
 	qbyte	*out;
 	int		row;
 
-	row = (model->numleafs+7)>>3;
+	row = (model->numvisleafs+7)>>3;
 	out = decompressed;
 
 	if (buffersize < row)

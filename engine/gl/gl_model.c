@@ -3337,6 +3337,7 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
+		loadmodel->numvisleafs = count-1;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{
@@ -3399,6 +3400,7 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
+		loadmodel->numvisleafs = count-1;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{
@@ -3461,6 +3463,7 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
+		loadmodel->numvisleafs = count-1;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{

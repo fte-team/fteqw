@@ -10098,6 +10098,7 @@ void PR_DumpPlatform_f(void)
 	char dbgfname[MAX_OSPATH];
 	unsigned int targ = 0;
 	qboolean defines = false;
+	char *comment;
 
 	/*this list is here to ensure that the file can be used as a valid initial qc file (ignoring precompiler options)*/
 	knowndef_t knowndefs[] =
@@ -10341,7 +10342,7 @@ void PR_DumpPlatform_f(void)
 		{"MOVETYPE_BOUNCEMISSILE",	"const float", QW|NQ|CS, NULL, MOVETYPE_BOUNCEMISSILE},
 		{"MOVETYPE_FOLLOW",			"const float", QW|NQ|CS, NULL, MOVETYPE_FOLLOW},
 		{"MOVETYPE_WALLWALK",		"const float", QW|NQ|CS, "Players using this movetype will be able to orient themselves to walls, and then run up them.", MOVETYPE_WALLWALK},
-		{"MOVETYPE_PHYSICS",		"const float", QW|NQ|CS, NULL, MOVETYPE_PHYSICS},
+		{"MOVETYPE_PHYSICS",		"const float", QW|NQ|CS, "Enable the use of ODE physics upon this entity.", MOVETYPE_PHYSICS},
 
 		{"SOLID_NOT",				"const float", QW|NQ|CS, NULL, SOLID_NOT},
 		{"SOLID_TRIGGER",			"const float", QW|NQ|CS, NULL, SOLID_TRIGGER},
@@ -10407,7 +10408,7 @@ void PR_DumpPlatform_f(void)
 		{"CONTENT_SLIME",	"const float", QW|NQ|CS, NULL, Q1CONTENTS_SLIME},
 		{"CONTENT_LAVA",	"const float", QW|NQ|CS, NULL, Q1CONTENTS_LAVA},
 		{"CONTENT_SKY",		"const float", QW|NQ|CS, NULL, Q1CONTENTS_SKY},
-		{"CONTENT_LADDER",	"const float", QW|NQ|CS, NULL, Q1CONTENTS_LADDER},
+		{"CONTENT_LADDER",	"const float", QW|NQ|CS, "If this value is assigned to a solid_bsp's .skin field, the entity will become a ladder volume.", Q1CONTENTS_LADDER},
 
 		{"CHAN_AUTO",		"const float", QW|NQ|CS, "The automatic channel, play as many sounds on this channel as you want, and they'll all play, however the other channels will replace each other.", CHAN_AUTO},
 		{"CHAN_WEAPON",		"const float", QW|NQ|CS, NULL, CHAN_WEAPON},
@@ -10421,23 +10422,23 @@ void PR_DumpPlatform_f(void)
 		{"ATTN_STATIC",		"const float", QW|NQ|CS, "Even more attenuation to avoid torches drowing out everything else throughout the map.", 3},
 
 		//not putting other svcs here, qc shouldn't otherwise need to generate svcs directly.
-		{"SVC_CGAMEPACKET",		"const float", QW|NQ, "Direct ssqc->csqc message. Must only be multicast. The data triggers a CSQC_Parse_Event call in the csqc for the csqc to read the contents. The server *may* insert length information for clients connected via proxies which are not able to cope with custom csqc payloads.", svcfte_cgamepacket},
+		{"SVC_CGAMEPACKET",		"const float", QW|NQ, "Direct ssqc->csqc message. Must only be multicast. The data triggers a CSQC_Parse_Event call in the csqc for the csqc to read the contents. The server *may* insert length information for clients connected via proxies which are not able to cope with custom csqc payloads. This should only ever be used in conjunction with the MSG_MULTICAST destination.", svcfte_cgamepacket},
 
-		{"MSG_BROADCAST",		"const float", QW|NQ, NULL, MSG_BROADCAST},
-		{"MSG_ONE",				"const float", QW|NQ, NULL, MSG_ONE},
-		{"MSG_ALL",				"const float", QW|NQ, NULL, MSG_ALL},
-		{"MSG_INIT",			"const float", QW|NQ, NULL, MSG_INIT},
-		{"MSG_MULTICAST",		"const float", QW|NQ, NULL, MSG_MULTICAST},
-		{"MSG_ENTITY",			"const float", QW|NQ, NULL, MSG_CSQC},
+		{"MSG_BROADCAST",		"const float", QW|NQ, "The byte(s) will be unreliably sent to all players. MSG_ constants are valid arguments to the Write* builtin family.", MSG_BROADCAST},
+		{"MSG_ONE",				"const float", QW|NQ, "The byte(s) will be reliably sent to the player specified in the msg_entity global.", MSG_ONE},
+		{"MSG_ALL",				"const float", QW|NQ, "The byte(s) will be reliably sent to all players.", MSG_ALL},
+		{"MSG_INIT",			"const float", QW|NQ, "The byte(s) will be written into the signon buffer. Clients will see these messages when they connect later. This buffer is only flushed on map changes, so spamming it _WILL_ result in overflows.", MSG_INIT},
+		{"MSG_MULTICAST",		"const float", QW|NQ, "The byte(s) will be written into the multicast buffer for more selective sending. Messages sent this way will never be split across packets, and using this for csqc-only messages will not break protocol translation.", MSG_MULTICAST},
+		{"MSG_ENTITY",			"const float", QW|NQ, "The byte(s) will be written into the entity buffer. This is a special value used only inside 'SendEntity' functions.", MSG_CSQC},
 
-		{"MULTICAST_ALL",		"const float", QW|NQ, NULL, MULTICAST_ALL},
-		{"MULTICAST_PHS",		"const float", QW|NQ, NULL, MULTICAST_PHS},
-		{"MULTICAST_PVS",		"const float", QW|NQ, NULL, MULTICAST_PVS},
-		{"MULTICAST_ONE",		"const float", QW|NQ, NULL, MULTICAST_ONE},
-		{"MULTICAST_ALL_R",		"const float", QW|NQ, NULL, MULTICAST_ALL_R},
-		{"MULTICAST_PHS_R",		"const float", QW|NQ, NULL, MULTICAST_PHS_R},
-		{"MULTICAST_PVS_R",		"const float", QW|NQ, NULL, MULTICAST_PVS_R},
-		{"MULTICAST_ONE_R",		"const float", QW|NQ, NULL, MULTICAST_ONE_R},
+		{"MULTICAST_ALL",		"const float", QW|NQ, "The multicast message is unreliably sent to all players. MULTICAST_ constants are valid arguments for the multicast builtin, which ignores the specified origin when given this constant.", MULTICAST_ALL},
+		{"MULTICAST_PHS",		"const float", QW|NQ, "The multicast message is unreliably sent to only players that can potentially hear the specified origin. Its quite loose.", MULTICAST_PHS},
+		{"MULTICAST_PVS",		"const float", QW|NQ, "The multicast message is unreliably sent to only players that can potentially see the specified origin.", MULTICAST_PVS},
+		{"MULTICAST_ONE",		"const float", QW|NQ, "The multicast message is unreliably sent to the player specified in the msg_entity global. The specified origin is ignored.", MULTICAST_ONE},
+		{"MULTICAST_ALL_R",		"const float", QW|NQ, "The multicast message is reliably sent to all players. The specified origin is ignored.", MULTICAST_ALL_R},
+		{"MULTICAST_PHS_R",		"const float", QW|NQ, "The multicast message is reliably sent to only players that can potentially hear the specified origin. Players might still not receive it if they are out of range.", MULTICAST_PHS_R},
+		{"MULTICAST_PVS_R",		"const float", QW|NQ, "The multicast message is reliably sent to only players that can potentially see the specified origin. Players might still not receive it if they cannot see the event.", MULTICAST_PVS_R},
+		{"MULTICAST_ONE_R",		"const float", QW|NQ, "The multicast message is reliably sent to the player specified in the msg_entity global. The specified origin is ignored", MULTICAST_ONE_R},
 
 		{"PRINT_LOW",			"const float", QW, NULL, PRINT_LOW},
 		{"PRINT_MEDIUM",		"const float", QW, NULL, PRINT_MEDIUM},
@@ -10451,14 +10452,14 @@ void PR_DumpPlatform_f(void)
 		{"PVSF_NOREMOVE",		"const float", QW|NQ, "Once visible to a client, this entity will remain visible. This can be useful for csqc and corpses.", PVSF_NOREMOVE},
 
 		//most of these are there for documentation rather than anything else.
-		{"INFOKEY_P_IP",		"const string", QW|NQ, NULL, 0, "\"ip\""},
-		{"INFOKEY_P_REALIP",	"const string", QW|NQ, NULL, 0, "\"realip\""},
+		{"INFOKEY_P_IP",		"const string", QW|NQ, "The apparent ip address of the client. This may be a proxy's ip address.", 0, "\"ip\""},
+		{"INFOKEY_P_REALIP",	"const string", QW|NQ, "If sv_getrealip is set, this gives the ip as determine using that algorithm.", 0, "\"realip\""},
 		{"INFOKEY_P_CSQCACTIVE","const string", QW|NQ, "Client has csqc enabled. CSQC ents etc will be sent to this player.", 0, "\"csqcactive\""},
 		{"INFOKEY_P_SVPING",	"const string", QW|NQ, NULL, 0, "\"svping\""},
 		{"INFOKEY_P_GUID",		"const string", QW|NQ, "Some hash string which should be reasonably unique to this player's quake installation.", 0, "\"guid\""},
 		{"INFOKEY_P_CHALLENGE",	"const string", QW|NQ, NULL, 0, "\"challenge\""},
 		{"INFOKEY_P_USERID",	"const string", QW|NQ, NULL, 0, "\"*userid\""},
-		{"INFOKEY_P_DOWNLOADPCT","const string",QW|NQ, NULL, 0, "\"download\""},
+		{"INFOKEY_P_DOWNLOADPCT","const string",QW|NQ, "The client's download percentage for the current file. Additional files are not known.", 0, "\"download\""},
 		{"INFOKEY_P_TRUSTLEVEL","const string", QW|NQ, NULL, 0, "\"trustlevel\""},
 		{"INFOKEY_P_PROTOCOL",	"const string", QW|NQ, "The network protocol the client is using to connect to the server.", 0, "\"protocol\""},
 		{"INFOKEY_P_VIP",		"const string", QW|NQ, "1 if the player has the VIP 'penalty'.", 0, "\"*VIP\""},
@@ -10566,13 +10567,13 @@ void PR_DumpPlatform_f(void)
 		{"STAT_KILLEDMONSTERS",	"const float", CS, NULL, STAT_MONSTERS},
 		{"STAT_ITEMS",			"const float", CS, NULL, STAT_ITEMS},
 		{"STAT_VIEWHEIGHT",		"const float", CS, NULL, STAT_VIEWHEIGHT},
-		{"STAT_VIEW2",			"const float", CS, NULL, STAT_VIEW2},
+		{"STAT_VIEW2",			"const float", CS, "This stat contains the number of the entity in the server's .view2 field.", STAT_VIEW2},
 		{"STAT_VIEWZOOM",		"const float", CS, NULL, STAT_VIEWZOOM},
 
-		{"VF_MIN",				"const float", CS, NULL, VF_MIN},
+		{"VF_MIN",				"const float", CS, "The top-left of the 3d viewport in screenspace. The VF_ values are used via the setviewprop/getviewprop builtins.", VF_MIN},
 		{"VF_MIN_X",			"const float", CS, NULL, VF_MIN_X},
 		{"VF_MIN_Y",			"const float", CS, NULL, VF_MIN_Y},
-		{"VF_SIZE",				"const float", CS, NULL, VF_SIZE},
+		{"VF_SIZE",				"const float", CS, "The width+height of the 3d viewport in screenspace.", VF_SIZE},
 		{"VF_SIZE_X",			"const float", CS, NULL, VF_SIZE_X},
 		{"VF_SIZE_Y",			"const float", CS, NULL, VF_SIZE_Y},
 		{"VF_VIEWPORT",			"const float", CS, "vector+vector. Two argument shortcut for VF_MIN and VF_SIZE", VF_VIEWPORT},
@@ -10623,17 +10624,17 @@ void PR_DumpPlatform_f(void)
 		{"IE_ACCELEROMETER",	"const float", CS, NULL, CSIE_ACCELEROMETER},
 		{"IE_FOCUS",			"const float", CS, "Specifies that input focus was given. parama says mouse focus, paramb says keyboard focus. If either are -1, then it is unchanged.", CSIE_FOCUS},
 
-		{"CLIENTTYPE_DISCONNECTED","const float", QW|NQ, NULL, CLIENTTYPE_DISCONNECTED},
-		{"CLIENTTYPE_REAL",		"const float", QW|NQ, NULL, CLIENTTYPE_REAL},
-		{"CLIENTTYPE_BOT",		"const float", QW|NQ, NULL, CLIENTTYPE_BOT},
-		{"CLIENTTYPE_NOTACLIENT","const float",QW|NQ, NULL, CLIENTTYPE_NOTACLIENT},
+		{"CLIENTTYPE_DISCONNECTED","const float", QW|NQ, "Return value from clienttype() builtin. This entity is a player slot that is currently empty.", CLIENTTYPE_DISCONNECTED},
+		{"CLIENTTYPE_REAL",		"const float", QW|NQ, "This is a real player, and not a bot.", CLIENTTYPE_REAL},
+		{"CLIENTTYPE_BOT",		"const float", QW|NQ, "This player slot does not correlate to a real player, any messages sent to this client will be ignored.", CLIENTTYPE_BOT},
+		{"CLIENTTYPE_NOTACLIENT","const float",QW|NQ, "This entity is not even a player slot. This is typically an error condition.", CLIENTTYPE_NOTACLIENT},
 
-		{"FILE_READ",			"const float", ALL, NULL, FRIK_FILE_READ},
-		{"FILE_APPEND",			"const float", ALL, NULL, FRIK_FILE_APPEND},
-		{"FILE_WRITE",			"const float", ALL, NULL, FRIK_FILE_WRITE},
-		{"FILE_READNL",			"const float", QW|NQ|CS, NULL, FRIK_FILE_READNL},
-		{"FILE_MMAP_READ",		"const float", QW|NQ|CS, NULL, FRIK_FILE_MMAP_READ},
-		{"FILE_MMAP_RW",		"const float", QW|NQ|CS, NULL, FRIK_FILE_MMAP_RW},
+		{"FILE_READ",			"const float", ALL, "The file may be read via fgets to read a single line at a time.", FRIK_FILE_READ},
+		{"FILE_APPEND",			"const float", ALL, "Like FILE_WRITE, but writing starts at the end of the file.", FRIK_FILE_APPEND},
+		{"FILE_WRITE",			"const float", ALL, "fputs will be used to write to the file.", FRIK_FILE_WRITE},
+		{"FILE_READNL",			"const float", QW|NQ|CS, "Like FILE_READ, except newlines are not special. fgets reads the entire file into a tempstring.", FRIK_FILE_READNL},
+		{"FILE_MMAP_READ",		"const float", QW|NQ|CS, "The file will be loaded into memory. fgets returns a pointer to the first byte (and will always return the same value for this file). Cast this to your datatype.", FRIK_FILE_MMAP_READ},
+		{"FILE_MMAP_RW",		"const float", QW|NQ|CS, "Like FILE_MMAP_READ, except any changes to the data will be written back to disk once the file is closed.", FRIK_FILE_MMAP_RW},
 
 		{"MASK_ENGINE",			"const float", CS, "Valid as an argument for addentities. If specified, all non-csqc entities will be added to the scene.", MASK_DELTA},
 		{"MASK_VIEWMODEL",		"const float", CS, "Valid as an argument for addentities. If specified, the regular engine viewmodel will be added to the scene.", MASK_STDVIEWMODEL},
@@ -10895,30 +10896,39 @@ void PR_DumpPlatform_f(void)
 				}
 			}
 		}
+		if (knowndefs[i].desc)
+		{
+			if (!strncmp(knowndefs[i].type, "//", 2))
+				comment = va("\n/* %s */", knowndefs[i].desc);
+			else
+				comment = va("\t/* %s */", knowndefs[i].desc);
+		}
+		else
+			comment = "";
 		if (!strcmp(knowndefs[i].type, "const float"))
 		{
 			if (defines)
-				VFS_PRINTF(f, "#define %s %i\n", knowndefs[i].name, knowndefs[i].value);
+				VFS_PRINTF(f, "#define %s %i%s\n", knowndefs[i].name, knowndefs[i].value, comment);
 			else
-				VFS_PRINTF(f, "%s %s = %i;\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value);
+				VFS_PRINTF(f, "%s %s = %i;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
 		}
 		else if (!strcmp(knowndefs[i].type, "const string"))
 		{
 			if (defines)
-				VFS_PRINTF(f, "#define %s %s\n", knowndefs[i].name, knowndefs[i].valuestr);
+				VFS_PRINTF(f, "#define %s %s%s\n", knowndefs[i].name, knowndefs[i].valuestr, comment);
 			else
-				VFS_PRINTF(f, "%s %s = %s;\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr);
+				VFS_PRINTF(f, "%s %s = %s;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr, comment);
 		}
 		else if (knowndefs[i].valuestr)
 		{
-			VFS_PRINTF(f, "%s %s = %s;\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr);
+			VFS_PRINTF(f, "%s %s = %s;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].valuestr, comment);
 		}
 		else if (knowndefs[i].value)
 		{
-			VFS_PRINTF(f, "%s %s = %i;\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value);
+			VFS_PRINTF(f, "%s %s = %i;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
 		}
 		else
-			VFS_PRINTF(f, "%s %s;\n", knowndefs[i].type, knowndefs[i].name);
+			VFS_PRINTF(f, "%s %s;%s\n", knowndefs[i].type, knowndefs[i].name, comment);
 	}
 	for (i = 0; BuiltinList[i].name; i++)
 	{

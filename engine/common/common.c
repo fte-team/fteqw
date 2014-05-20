@@ -2821,10 +2821,11 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 				if (!--outsize)
 					break;
-				*out++ = ']';
 
+				*out++ = ']'|CON_HIDDEN|CON_LINKSPECIAL;
+				
 				//its a valid link, so we can hide it all now
-				*linkstart++ |= CON_HIDDEN;	//leading [ is hidden
+				*linkstart++ |= CON_HIDDEN|CON_LINKSPECIAL;	//leading [ is hidden
 				while(linkstart < out-1 && (*linkstart&CON_CHARMASK) != '\\')	//link text is NOT hidden
 					linkstart++;
 				while(linkstart < out)	//but the infostring behind it is, as well as the terminator

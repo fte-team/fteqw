@@ -33,7 +33,7 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 
 #define CON_NONCLEARBG		0x00800000	//disabled if CON_RICHFORECOLOUR
 #define CON_HALFALPHA		0x00400000	//disabled if CON_RICHFORECOLOUR
-#define CON_UNUSED2			0x00200000	//disabled if CON_RICHFORECOLOUR
+#define CON_LINKSPECIAL		0x00200000	//disabled if CON_RICHFORECOLOUR
 #define CON_UNUSED1			0x00100000	//disabled if CON_RICHFORECOLOUR
 #define CON_HIDDEN			0x00080000
 #define CON_BLINKTEXT		0x00040000
@@ -46,20 +46,20 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 
 #define CON_FGMASK			0x0F000000
 #define CON_BGMASK			0xF0000000
-#define CON_FGSHIFT 24
-#define CON_BGSHIFT 28
+#define CON_FGSHIFT 24		//second highest nibble
+#define CON_BGSHIFT 28		//high nibble
 #define CON_RICHFOREMASK	0xFFF00000
-#define CON_RICHBSHIFT 20
+#define CON_RICHBSHIFT 20	//
 #define CON_RICHGSHIFT 24
-#define CON_RICHRSHIFT 28
+#define CON_RICHRSHIFT 28	//high nibble
 
 #define CON_Q3MASK			0x0F100000
 #define CON_WHITEMASK		0x0F000000 // must be constant. things assume this
 
 #define CON_DEFAULTCHAR		(CON_WHITEMASK | 32)
 
-#define CON_LINKSTART		(CON_HIDDEN | '[')
-#define CON_LINKEND			(CON_HIDDEN | ']')
+#define CON_LINKSTART		(CON_LINKSPECIAL | CON_HIDDEN | '[')
+#define CON_LINKEND			(CON_LINKSPECIAL | CON_HIDDEN | ']')
 
 // RGBI standard colors
 #define COLOR_BLACK			0

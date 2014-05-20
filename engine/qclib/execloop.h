@@ -126,13 +126,26 @@ reeval:
 		break;
 
 	case OP_DIV_F:
-		OPC->_float = OPA->_float / OPB->_float;
+/*		if (!OPB->_float)
+		{
+			pr_xstatement = st-pr_statements;
+			printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_StackTrace (&progfuncs->funcs);
+		}
+*/		OPC->_float = OPA->_float / OPB->_float;
 		break;
 	case OP_DIV_VF:
 		tmpf = OPB->_float;
-		OPC->_vector[0] = tmpf / OPA->_vector[0];
-		OPC->_vector[1] = tmpf / OPA->_vector[1];
-		OPC->_vector[2] = tmpf / OPA->_vector[2];
+/*		if (!tmpf)
+		{
+			pr_xstatement = st-pr_statements;
+			printf ("Division by 0 in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_StackTrace (&progfuncs->funcs);
+		}
+*/
+		OPC->_vector[0] = OPA->_vector[0] / tmpf;
+		OPC->_vector[1] = OPA->_vector[1] / tmpf;
+		OPC->_vector[2] = OPA->_vector[2] / tmpf;
 		break;
 
 	case OP_BITAND_F:

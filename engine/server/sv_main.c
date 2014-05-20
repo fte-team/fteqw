@@ -427,7 +427,7 @@ void SV_DropClient (client_t *drop)
 		return;
 	}
 
-	if (!drop->controller && drop->netchan.remote_address.type != NA_LOOPBACK)
+	if (!drop->controller && drop->netchan.remote_address.type != NA_INVALID && drop->netchan.remote_address.type != NA_LOOPBACK)
 	{
 		// add the disconnect
 		if (drop->state < cs_connected)

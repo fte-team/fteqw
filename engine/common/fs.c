@@ -3551,6 +3551,16 @@ void FS_BeginManifestUpdates(void)
 }
 #endif
 
+qboolean FS_FoundManifest(void *usr, ftemanifest_t *man)
+{
+	if (!*(ftemanifest_t**)usr)
+	{
+		*(ftemanifest_t**)usr = man;
+		return true;
+	}
+	return false;
+}
+
 //this is potentially unsafe. needs lots of testing.
 qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 {
@@ -3611,6 +3621,10 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 				man = FS_GenerateLegacyManifest(newbasedir, sizeof(newbasedir), fixedbasedir, game);
 		}
 
+		if (!man && isDedicated)
+		{	//dedicated servers have no menu code, so just pick the first fmf we could find.
+			FS_EnumerateKnownGames(FS_FoundManifest, &man);
+		}
 		if (!man)
 		{
 			man = FS_Manifest_Parse(NULL,

@@ -1095,18 +1095,19 @@ void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 typedef struct
 {
 	pubprogfuncs_t *prinst;
-	qboolean dupestrings;
+	etype_t defaulttype;
 	hashtable_t tab;
 	void *bucketmem;
 } pf_hashtab_t;
 typedef struct 
 {
-	bucket_t buck;
-	char *name;
+	bucket_t	buck;
+	char		*name;
+	etype_t		type;
 	union
 	{
-		vec3_t data;
-		char *stringdata;
+		vec3_t	data;
+		char	*stringdata;
 	};
 } pf_hashentry_t;
 pf_hashtab_t pf_hashtab[MAX_QC_HASHTABLES];
@@ -1148,7 +1149,14 @@ void QCBUILTIN PF_hash_delete (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		ent = Hash_Get(&tab->tab, name);
 		if (ent)
 		{
-			memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
+			if (ent->type == ev_string)
+			{
+				G_INT(OFS_RETURN+2) = 0;
+				G_INT(OFS_RETURN+1) = 0;
+				RETURN_TSTRING(ent->stringdata);
+			}
+			else
+				memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
 			Hash_RemoveData(&tab->tab, name, ent);
 			BZ_Free(ent);
 		}
@@ -1158,13 +1166,26 @@ void QCBUILTIN PF_hash_get (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
 	const char *name = PR_GetStringOfs(prinst, OFS_PARM1);
+	void *dflt = G_VECTOR(OFS_PARM2);
+	int type = (prinst->callargc>3)?G_FLOAT(OFS_PARM3):0;
+	int index = (prinst->callargc>4)?G_FLOAT(OFS_PARM4):0;
 	pf_hashentry_t *ent = NULL;
 	if (tab)
 	{
 		ent = Hash_Get(&tab->tab, name);
+		//skip ones that are the wrong type.
+		while (type != 0 && ent && ent->type != type)
+			ent = Hash_GetNext(&tab->tab, name, ent);
+		//and ones that are not the match that we're after.
+		while(index-->0 && ent)
+		{
+			ent = Hash_GetNext(&tab->tab, name, ent);
+			while (type != 0 && ent && ent->type != type)
+				ent = Hash_GetNext(&tab->tab, name, ent);
+		}
 		if (ent)
 		{
-			if (tab->dupestrings)
+			if (ent->type == ev_string)
 			{
 				G_INT(OFS_RETURN+2) = 0;
 				G_INT(OFS_RETURN+1) = 0;
@@ -1174,7 +1195,7 @@ void QCBUILTIN PF_hash_get (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 				memcpy(G_VECTOR(OFS_RETURN), ent->data, sizeof(vec3_t));
 		}
 		else
-			memcpy(G_VECTOR(OFS_RETURN), G_VECTOR(OFS_PARM2), sizeof(vec3_t));
+			memcpy(G_VECTOR(OFS_RETURN), dflt, sizeof(vec3_t));
 	}
 }
 void QCBUILTIN PF_hash_getcb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1199,19 +1220,23 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
 	const char *name = PR_GetStringOfs(prinst, OFS_PARM1);
 	void *data = G_VECTOR(OFS_PARM2);
-	qboolean replace = (prinst->callargc>3)?G_FLOAT(OFS_PARM3):false;
+	int flags = (prinst->callargc>3)?G_FLOAT(OFS_PARM3):0;
+	int type = (prinst->callargc>4)?G_FLOAT(OFS_PARM4):0;
 	pf_hashentry_t *ent = NULL;
 	if (tab)
 	{
-		if (replace)
+		if (!type)
+			type = tab->defaulttype;
+		if (flags & 1)
 			Hash_Remove(&tab->tab, name);
-		if (tab->dupestrings)
-		{
+		if (type == ev_string)
+		{	//strings copy their value out.
 			const char *value = PR_GetStringOfs(prinst, OFS_PARM2);
 			int nlen = strlen(name);
 			int vlen = strlen(data);
 			ent = BZ_Malloc(sizeof(*ent) + nlen+1 + vlen+1);
 			ent->name = (char*)(ent+1);
+			ent->type = ev_string;
 			ent->stringdata = ent->name+(nlen+1);
 			memcpy(ent->name, name, nlen+1);
 			memcpy(ent->stringdata, value, vlen+1);
@@ -1222,6 +1247,7 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 			int nlen = strlen(name);
 			ent = BZ_Malloc(sizeof(*ent) + nlen + 1);
 			ent->name = (char*)(ent+1);
+			ent->type = type;
 			memcpy(ent->name, name, nlen+1);
 			memcpy(ent->data, data, sizeof(vec3_t));
 			Hash_Add(&tab->tab, ent->name, ent, &ent->buck);
@@ -1247,13 +1273,16 @@ void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *p
 	int i;
 	int numbuckets = G_FLOAT(OFS_PARM0);
 	qboolean dupestrings = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):false;
+	etype_t type = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):ev_vector;
+	if (!type)
+		type = ev_vector;
 	if (numbuckets < 4)
 		numbuckets = 64;
 	for (i = 0; i < MAX_QC_HASHTABLES; i++)
 	{
 		if (!pf_hashtab[i].prinst)
 		{
-			pf_hashtab[i].dupestrings = dupestrings;
+			pf_hashtab[i].defaulttype = type;
 			pf_hashtab[i].prinst = prinst;
 			pf_hashtab[i].bucketmem = Z_Malloc(Hash_BytesForBuckets(numbuckets));
 			Hash_InitTable(&pf_hashtab[i].tab, numbuckets, pf_hashtab[i].bucketmem);
@@ -1263,6 +1292,19 @@ void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *p
 	}
 	G_FLOAT(OFS_RETURN) = 0;
 	return;
+}
+
+void pf_hash_savegame(void)	//write the persistant table to a saved game.
+{
+}
+void pf_hash_loadgame(void)	//(re)load the persistant table.
+{
+}
+void pf_hash_preserve(void)	//map changed, make sure it can be reset properly.
+{
+}
+void pf_hash_purge(void)	//restart command was used. revert to the state at the start of the map.
+{
 }
 
 //hash table stuff
@@ -2751,7 +2793,7 @@ void QCBUILTIN PF_strlennocol (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	const char *in = PR_GetStringOfs(prinst, OFS_PARM0);
 	char result[8192];
-	unsigned int flagged[8192];
+	conchar_t flagged[8192];
 	unsigned int len = 0;
 	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged), false);
 	COM_DeFunString(flagged, NULL, result, sizeof(result), true);
@@ -2767,7 +2809,7 @@ void QCBUILTIN PF_strdecolorize (pubprogfuncs_t *prinst, struct globalvars_s *pr
 {
 	const char *in = PR_GetStringOfs(prinst, OFS_PARM0);
 	char result[8192];
-	unsigned int flagged[8192];
+	conchar_t flagged[8192];
 	COM_ParseFunString(CON_WHITEMASK, in, flagged, sizeof(flagged), false);
 	COM_DeFunString(flagged, NULL, result, sizeof(result), true);
 

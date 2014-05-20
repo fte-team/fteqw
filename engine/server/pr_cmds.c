@@ -9361,13 +9361,13 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"frametoname",		PF_frametoname,		0,		0,		0,		284,	"string(float modidx, float framenum)"},
 	{"skintoname",		PF_skintoname,		0,		0,		0,		285,	"string(float modidx, float skin)"},
 //	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		286,	"void(string cvarname, optional string value)"},
-	{"hash_createtab",	PF_hash_createtab,	0,		0,		0,		287,	D("float(float tabsize, float stringsonly)", "Creates a hash table object with at least 'tabsize' slots. stringsonly affects the behaviour of the other hash builtins. hash table with index 0 is a game-persistant table and will NEVER be returned by this builtin (except as an error return)")},
+	{"hash_createtab",	PF_hash_createtab,	0,		0,		0,		287,	D("float(float tabsize, optional float defaulttype)", "Creates a hash table object with at least 'tabsize' slots. hash table with index 0 is a game-persistant table and will NEVER be returned by this builtin (except as an error return).")},
 	{"hash_destroytab",	PF_hash_destroytab,	0,		0,		0,		288,	D("void(float table)", "Destroys a hash table object.")},
-	{"hash_add",		PF_hash_add,		0,		0,		0,		289,	D("void(float table, string name, __variant value, optional float replace)", "Adds the given key with the given value to the table. stringsonly=1: the value MUST be a string type, and will be internally copied. stringsonly=0: the value can be any type including vectors with the single exception that temp strings are not supported if their scope doesn't last as long as the string table. Its always okay to pass temp strings for 'name' though.\nreplace=0: Multiple values may be added for a single key, they won't overwrite.\nreplace=1: previous values with this key will be discarded first.")},
-	{"hash_get",		PF_hash_get,		0,		0,		0,		290,	D("__variant(float table, string name, __variant deflt)", "looks up the specified key name in the hash table. returns deflt if key was not found. If stringsonly=1, the return value will be in the form of a tempstring, otherwise it'll be the original value argument exactly as it was.")},
+	{"hash_add",		PF_hash_add,		0,		0,		0,		289,	D("void(float table, string name, __variant value, optional float flags, optional float type)", "Adds the given key with the given value to the table.\nIf flags&HASH_REPLACE, the old value will be removed, if not set then multiple values may be added for a single key, they won't overwrite.\nThe type argument describes how the value should be stored and saved to files. While you can claim that all variables are just vectors, being more precise can result in less issues with tempstrings or saved games.")},
+	{"hash_get",		PF_hash_get,		0,		0,		0,		290,	D("__variant(float table, string name, __variant deflt, optional float requiretype, optional float index)", "looks up the specified key name in the hash table. returns deflt if key was not found. If stringsonly=1, the return value will be in the form of a tempstring, otherwise it'll be the original value argument exactly as it was. If requiretype is specified, then values not of the specified type will be ignored. Hurrah for multiple types with the same name.")},
 	{"hash_delete",		PF_hash_delete,		0,		0,		0,		291,	D("__variant(float table, string name)", "removes the named key. returns the value of the object that was destroyed, or 0 on error.")},
 	{"hash_getkey",		PF_hash_getkey,		0,		0,		0,		292,	D("string(float table, float idx)", "gets some random key name. add+delete can change return values of this, so don't blindly increment the key index if you're removing all.")},
-	{"hash_getcb",		PF_hash_getcb,		0,		0,		0,		293,	D("void(float table, void(string keyname, __variant val) callback, optional string name)", "For each item in the table that matches the name, call the callback. if name is omitted, will enumerate ALL keys.")},
+	{"hash_getcb",		PF_hash_getcb,		0,		0,		0,		293,	D("void(float table, void(string keyname, __variant val) callback, optional string name)", "For each item in the table that matches the name, call the callback. if name is omitted, will enumerate ALL keys."), true},
 	{"checkcommand",	PF_checkcommand,	0,		0,		0,		294,	D("float(string name)", "Checks to see if the supplied name is a valid command, cvar, or alias. Returns 0 if it does not exist.")},
 	{"argescape",		PF_argescape,		0,		0,		0,		295,	D("string(string s)", "Marks up a string so that it can be reliably tokenized as a single argument later.")},
 
@@ -10550,6 +10550,10 @@ void PR_DumpPlatform_f(void)
 //		{"EV_VARIANT",			"const float", QW|NQ, NULL, ev_variant},
 //		{"EV_STRUCT",			"const float", QW|NQ, NULL, ev_struct},
 //		{"EV_UNION",			"const float", QW|NQ, NULL, ev_union},
+
+		{"HASHT_PERSISTANT",	"const float", ALL, "Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted).", 0},
+		{"HASH_REPLACE",		"const float", ALL, "Used with hash_add. Attempts to remove the old value instead of adding two values for a single key.", 1},
+		{"HASH_STRING",			"const float", ALL, "Used with hash_add. Specifies that the contents of the string argument should be internally zoned.", 2},
 
 		{"STAT_HEALTH",			"const float", CS, NULL, STAT_HEALTH},
 		{"STAT_WEAPON",			"const float", CS, NULL, STAT_WEAPON},

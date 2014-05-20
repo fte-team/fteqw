@@ -1107,6 +1107,8 @@ void SV_Savegame (char *savename)
 		FS_FlushFSHashReally();
 	}
 #endif
+
+	FS_FlushFSHashReally();
 }
 
 void SV_Savegame_f (void)

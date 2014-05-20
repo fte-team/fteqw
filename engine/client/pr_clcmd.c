@@ -342,7 +342,15 @@ void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s 
 #ifdef CLIENTONLY
 	G_FLOAT(OFS_RETURN) = false;
 #else
-	G_FLOAT(OFS_RETURN) = sv.state != ss_dead;
+	if (sv.state != ss_dead)
+	{
+		if (sv.allocated_client_slots > 1)
+			G_FLOAT(OFS_RETURN) = true;
+		else
+			G_FLOAT(OFS_RETURN) = 0.5;	//give some half-way value if we're singleplayer. NOTE: DP returns 0 in this case, which is kinda useless for things like deciding whether a 'save' menu option can be used.
+	}
+	else
+		G_FLOAT(OFS_RETURN) = false;
 #endif
 }
 

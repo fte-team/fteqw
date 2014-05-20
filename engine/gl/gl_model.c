@@ -4456,7 +4456,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 		LightLoadEntities(lightmodel->entities);
 #endif
 TRACE(("LoadBrushModel %i\n", __LINE__));
-	if (1)
+	if (!isDedicated)
 		Mod_FixupMinsMaxs();
 TRACE(("LoadBrushModel %i\n", __LINE__));
 

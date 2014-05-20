@@ -1092,12 +1092,12 @@ void QCBUILTIN PF_cl_setkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	{
 	case 0:
 		// key_game
-		if (cls.state == ca_disconnected)
-			Key_Dest_Add(kdm_console);
 		if (Key_Dest_Has(kdm_menu))
 		{
 			Key_Dest_Remove(kdm_menu);
-			Key_Dest_Remove(kdm_message);
+//			Key_Dest_Remove(kdm_message);
+			if (cls.state == ca_disconnected)
+				Key_Dest_Add(kdm_console);
 		}
 		break;
 	case 2:

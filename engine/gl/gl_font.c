@@ -253,6 +253,7 @@ static texid_t font_texture;
 static int font_colourmask;
 static byte_vec4_t font_forecolour;
 static byte_vec4_t font_backcolour;
+static vec4_t font_foretint;
 
 static struct font_s *curfont;
 static float curfont_scale[2];
@@ -1618,14 +1619,18 @@ void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end)
 correct usage of this function thus requires calling this with 1111 before Font_EndString*/
 void Font_ForceColour(float r, float g, float b, float a)
 {
+	if (font_foretint[0] == r && font_foretint[1] == b && font_foretint[2] == b && font_foretint[3] == a)
+		return;
+
 	if (font_colourmask & CON_NONCLEARBG)
 		Font_Flush();
 	font_colourmask = CON_WHITEMASK;
 
-	font_forecolour[0] = r*255;
-	font_forecolour[1] = g*255;
-	font_forecolour[2] = b*255;
-	font_forecolour[3] = a*255;
+	font_foretint[0] = r;
+	font_foretint[1] = g;
+	font_foretint[2] = b;
+	font_foretint[3] = a;
+	Vector4Scale(font_foretint, 255, font_forecolour);
 
 	font_backcolour[3] = 0;
 
@@ -1633,8 +1638,7 @@ void Font_ForceColour(float r, float g, float b, float a)
 }
 void Font_InvalidateColour(void)
 {
-	Font_Flush();
-	font_colourmask = ~0;
+	Font_ForceColour(1,1,1,1);
 }
 
 //draw a character from the current font at a pixel location.
@@ -1691,26 +1695,40 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 		col = charcode & (CON_2NDCHARSETTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
 		if (col != font_colourmask)
 		{
+			vec4_t rgba;
 			if (font_colourmask & CON_NONCLEARBG)
 				Font_Flush();
 			font_colourmask = col;
 
-			font_forecolour[0] = ((col>>CON_RICHRSHIFT)&0xf)*0x11;
-			font_forecolour[1] = ((col>>CON_RICHGSHIFT)&0xf)*0x11;
-			font_forecolour[2] = ((col>>CON_RICHBSHIFT)&0xf)*0x11;
-			font_forecolour[3] = 255;
+			rgba[0] = ((col>>CON_RICHRSHIFT)&0xf)*0x11;
+			rgba[1] = ((col>>CON_RICHGSHIFT)&0xf)*0x11;
+			rgba[2] = ((col>>CON_RICHBSHIFT)&0xf)*0x11;
+			rgba[3] = 255;
 
 			font_backcolour[0] = 0;
 			font_backcolour[1] = 0;
 			font_backcolour[2] = 0;
 			font_backcolour[3] = 0;
-
 			if (charcode & CON_2NDCHARSETTEXT)
 			{
-				font_forecolour[0] = min(font_forecolour[0]*1.16, 255);
-				font_forecolour[1] *= 0.54;
-				font_forecolour[2] *= 0.41;
+				rgba[0] *= font->alttint[0];
+				rgba[1] *= font->alttint[1];
+				rgba[2] *= font->alttint[2];
 			}
+			else
+			{
+				rgba[0] *= font->tint[0];
+				rgba[1] *= font->tint[1];
+				rgba[2] *= font->tint[2];
+			}
+			rgba[0] *= font_foretint[0];
+			rgba[1] *= font_foretint[1];
+			rgba[2] *= font_foretint[2];
+			rgba[3] *= font_foretint[3];
+			font_forecolour[0] = min(rgba[0], 255);
+			font_forecolour[1] = min(rgba[1], 255);
+			font_forecolour[2] = min(rgba[2], 255);
+			font_forecolour[3] = min(rgba[3], 255);
 		}
 	}
 	else
@@ -1718,15 +1736,16 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 		col = charcode & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
 		if (col != font_colourmask)
 		{
+			vec4_t rgba;
 			if ((col ^ font_colourmask) & CON_NONCLEARBG)
 				Font_Flush();
 			font_colourmask = col;
 
 			col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
-			font_forecolour[0] = consolecolours[col].fr*255;
-			font_forecolour[1] = consolecolours[col].fg*255;
-			font_forecolour[2] = consolecolours[col].fb*255;
-			font_forecolour[3] = (charcode & CON_HALFALPHA)?127:255;
+			rgba[0] = consolecolours[col].fr*255;
+			rgba[1] = consolecolours[col].fg*255;
+			rgba[2] = consolecolours[col].fb*255;
+			rgba[3] = (charcode & CON_HALFALPHA)?127:255;
 
 			col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
 			font_backcolour[0] = consolecolours[col].fr*255;
@@ -1736,16 +1755,24 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 
 			if (charcode & CON_2NDCHARSETTEXT)
 			{
-				font_forecolour[0] = min(font_forecolour[0]*font->alttint[0], 255);
-				font_forecolour[1] = min(font_forecolour[1]*font->alttint[1], 255);
-				font_forecolour[2] = min(font_forecolour[2]*font->alttint[2], 255);
+				rgba[0] *= font->alttint[0];
+				rgba[1] *= font->alttint[1];
+				rgba[2] *= font->alttint[2];
 			}
 			else
 			{
-				font_forecolour[0] = min(font_forecolour[0]*font->tint[0], 255);
-				font_forecolour[1] = min(font_forecolour[1]*font->tint[1], 255);
-				font_forecolour[2] = min(font_forecolour[2]*font->tint[2], 255);
+				rgba[0] *= font->tint[0];
+				rgba[1] *= font->tint[1];
+				rgba[2] *= font->tint[2];
 			}
+			rgba[0] *= font_foretint[0];
+			rgba[1] *= font_foretint[1];
+			rgba[2] *= font_foretint[2];
+			rgba[3] *= font_foretint[3];
+			font_forecolour[0] = min(rgba[0], 255);
+			font_forecolour[1] = min(rgba[1], 255);
+			font_forecolour[2] = min(rgba[2], 255);
+			font_forecolour[3] = min(rgba[3], 255);
 		}
 	}
 
@@ -1873,14 +1900,15 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 		col = charcode & (CON_2NDCHARSETTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
 		if (col != font_colourmask)
 		{
+			vec4_t rgba;
 			if (font_backcolour[3])
 				Font_Flush();
 			font_colourmask = col;
 
-			font_forecolour[0] = ((col>>CON_RICHRSHIFT)&0xf)*0x11;
-			font_forecolour[1] = ((col>>CON_RICHGSHIFT)&0xf)*0x11;
-			font_forecolour[2] = ((col>>CON_RICHBSHIFT)&0xf)*0x11;
-			font_forecolour[3] = 255;
+			rgba[0] = ((col>>CON_RICHRSHIFT)&0xf)*0x11;
+			rgba[1] = ((col>>CON_RICHGSHIFT)&0xf)*0x11;
+			rgba[2] = ((col>>CON_RICHBSHIFT)&0xf)*0x11;
+			rgba[3] = 255;
 
 			font_backcolour[0] = 0;
 			font_backcolour[1] = 0;
@@ -1889,10 +1917,24 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 
 			if (charcode & CON_2NDCHARSETTEXT)
 			{
-				font_forecolour[0] = min(font_forecolour[0]*1.16, 255);
-				font_forecolour[1] *= 0.54;
-				font_forecolour[2] *= 0.41;
+				rgba[0] *= font->alttint[0];
+				rgba[1] *= font->alttint[1];
+				rgba[2] *= font->alttint[2];
 			}
+			else
+			{
+				rgba[0] *= font->tint[0];
+				rgba[1] *= font->tint[1];
+				rgba[2] *= font->tint[2];
+			}
+			rgba[0] *= font_foretint[0];
+			rgba[1] *= font_foretint[1];
+			rgba[2] *= font_foretint[2];
+			rgba[3] *= font_foretint[3];
+			font_forecolour[0] = min(rgba[0], 255);
+			font_forecolour[1] = min(rgba[1], 255);
+			font_forecolour[2] = min(rgba[2], 255);
+			font_forecolour[3] = min(rgba[3], 255);
 		}
 	}
 	else
@@ -1900,15 +1942,16 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 		col = charcode & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
 		if (col != font_colourmask)
 		{
+			vec4_t rgba;
 			if (font_backcolour[3] != ((charcode & CON_NONCLEARBG)?127:0))
 				Font_Flush();
 			font_colourmask = col;
 
 			col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
-			font_forecolour[0] = consolecolours[col].fr*255;
-			font_forecolour[1] = consolecolours[col].fg*255;
-			font_forecolour[2] = consolecolours[col].fb*255;
-			font_forecolour[3] = (charcode & CON_HALFALPHA)?127:255;
+			rgba[0] = consolecolours[col].fr*255;
+			rgba[1] = consolecolours[col].fg*255;
+			rgba[2] = consolecolours[col].fb*255;
+			rgba[3] = (charcode & CON_HALFALPHA)?127:255;
 
 			col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
 			font_backcolour[0] = consolecolours[col].fr*255;
@@ -1918,16 +1961,24 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 
 			if (charcode & CON_2NDCHARSETTEXT)
 			{
-				font_forecolour[0] = min(font_forecolour[0]*font->alttint[0], 255);
-				font_forecolour[1] = min(font_forecolour[1]*font->alttint[1], 255);
-				font_forecolour[2] = min(font_forecolour[2]*font->alttint[2], 255);
+				rgba[0] *= font->alttint[0];
+				rgba[1] *= font->alttint[1];
+				rgba[2] *= font->alttint[2];
 			}
 			else
 			{
-				font_forecolour[0] = min(font_forecolour[0]*font->tint[0], 255);
-				font_forecolour[1] = min(font_forecolour[1]*font->tint[1], 255);
-				font_forecolour[2] = min(font_forecolour[2]*font->tint[2], 255);
+				rgba[0] *= font->tint[0];
+				rgba[1] *= font->tint[1];
+				rgba[2] *= font->tint[2];
 			}
+			rgba[0] *= font_foretint[0];
+			rgba[1] *= font_foretint[1];
+			rgba[2] *= font_foretint[2];
+			rgba[3] *= font_foretint[3];
+			font_forecolour[0] = min(rgba[0], 255);
+			font_forecolour[1] = min(rgba[1], 255);
+			font_forecolour[2] = min(rgba[2], 255);
+			font_forecolour[3] = min(rgba[3], 255);
 		}
 	}
 

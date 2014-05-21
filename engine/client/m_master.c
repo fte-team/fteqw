@@ -138,7 +138,17 @@ static qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
 	if (sortkey == SLKEY_ADDRESS)
 		return true;
 
-	Master_SetSortField(sortkey, Master_GetSortField()!=sortkey||!Master_GetSortDescending());
+	switch(sortkey)
+	{
+	case SLKEY_NUMPLAYERS:
+		//favour descending order (low first)
+		Master_SetSortField(sortkey, Master_GetSortField()!=sortkey||!Master_GetSortDescending());
+		break;
+	default:
+		//favour ascending order (low first)
+		Master_SetSortField(sortkey, Master_GetSortField()==sortkey&&!Master_GetSortDescending());
+		break;
+	}
 	return true;
 }
 
@@ -679,7 +689,7 @@ void M_Menu_ServerList2_f(void)
 
 	CalcFilters(menu);
 
-	Master_SetSortField(SLKEY_PING, true);
+	Master_SetSortField(SLKEY_PING, false);
 
 	MasterInfo_Refresh();
 }

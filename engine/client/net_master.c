@@ -373,7 +373,7 @@ void Master_ShowServer(serverinfo_t *server)
 		return;
 	}
 
-	if (!decreasingorder)
+	if (decreasingorder)
 	{
 		for (i = 0; i < numvisibleservers; i++)
 		{

@@ -877,7 +877,12 @@ void QCBUILTIN PF_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
 	if (cv)
-		RETURN_CSTRING(cv->string);
+	{
+		if(cv->latched_string)
+			RETURN_CSTRING(cv->latched_string);
+		else
+			RETURN_CSTRING(cv->string);
+	}
 	else
 		G_INT(OFS_RETURN) = 0;
 }

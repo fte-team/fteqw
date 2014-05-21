@@ -79,6 +79,80 @@ int PDECL QCC_FileSize (const char *fname)
 #include "../libs/zlib.h"
 #endif
 
+pbool PDECL QCC_WriteFileW (const char *name, wchar_t *data, int chars)
+{
+	char *u8start = malloc(3+chars*4+1);
+	char *u8 = u8start;
+	int offset;
+	pbool result = false;
+	unsigned int inc;
+	FILE *f;
+
+	//start with the bom
+	//lets just always write a BOM when the file contains something outside ascii. it'll just be more robust when microsoft refuse to use utf8 by default.
+	//its just much less likely to fuck up when people use notepad/wordpad. :s
+	inc = 0xfeff;
+	*u8++ = ((inc>>12) & 0xf) | 0xe0;
+	*u8++ = ((inc>>6) & 0x3f) | 0x80;
+	*u8++ = ((inc>>0) & 0x3f) | 0x80;
+	offset = u8-u8start;	//assume its not needed. will set to 0 if it is.
+
+	while(*data)
+	{
+		inc = *data++;
+		//handle surrogates
+		if (inc >= 0xd800u && inc < 0xdc00u)
+		{
+			unsigned int l = *data;
+			if (l >= 0xdc00u && l < 0xe000u)
+			{
+				data++;
+				inc = (((inc & 0x3ffu)<<10) | (l & 0x3ffu)) + 0x10000;
+			}
+		}
+		if (inc <= 127)
+			*u8++ = inc;
+		else 
+		{
+			offset = 0;
+			if (inc <= 0x7ff)
+			{
+				*u8++ = ((inc>>6) & 0x1f) | 0xc0;
+				*u8++ = ((inc>>0) & 0x3f) | 0x80;
+			}
+			else if (inc <= 0xffff)
+			{
+				*u8++ = ((inc>>12) & 0xf) | 0xe0;
+				*u8++ = ((inc>>6) & 0x3f) | 0x80;
+				*u8++ = ((inc>>0) & 0x3f) | 0x80;
+			}
+			else if (inc <= 0x1fffff)
+			{
+				*u8++ = ((inc>>18) & 0x07) | 0xf0;
+				*u8++ = ((inc>>12) & 0x3f) | 0x80;
+				*u8++ = ((inc>> 6) & 0x3f) | 0x80;
+				*u8++ = ((inc>> 0) & 0x3f) | 0x80;
+			}
+			else
+			{
+				inc = 0xFFFD;
+				*u8++ = ((inc>>12) & 0xf) | 0xe0;
+				*u8++ = ((inc>>6) & 0x3f) | 0x80;
+				*u8++ = ((inc>>0) & 0x3f) | 0x80;
+			}
+		}
+	}
+
+	f = fopen(name, "wb");
+	if (f)
+	{
+		result = fwrite(u8start+offset, 1, u8-(u8start+offset), f) == (u8-(u8start+offset));
+		fclose(f);
+	}
+	free(u8start);
+	return result;
+}
+
 pbool PDECL QCC_WriteFile (const char *name, void *data, int len)
 {
 	long    length;
@@ -303,9 +377,9 @@ HWND CreateAnEditControl(HWND parent)
 	if (!richedit)
 		richedit = LoadLibrary("RICHED32.DLL");
 
-	newc=CreateWindowEx(WS_EX_CLIENTEDGE,
-		richedit?RICHEDIT_CLASS:"EDIT",
-		"",
+	newc=CreateWindowExW(WS_EX_CLIENTEDGE,
+		richedit?RICHEDIT_CLASSW:L"EDIT",
+		L"",
 		WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | 
 		WS_HSCROLL | WS_VSCROLL | ES_LEFT | ES_WANTRETURN |
 		ES_MULTILINE | ES_AUTOVSCROLL,
@@ -1147,6 +1221,7 @@ int Rehighlight(editor_t *edit)
 }
 #endif
 
+unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen);
 void EditorReload(editor_t *editor)
 {
 	struct stat sbuf;
@@ -1157,7 +1232,10 @@ void EditorReload(editor_t *editor)
 	if (flen >= 0)
 	{
 		file = malloc(flen+1);
+
 		QCC_ReadFile(editor->filename, file, flen);
+
+
 		file[flen] = 0;
 	}
 	else
@@ -1171,14 +1249,16 @@ void EditorReload(editor_t *editor)
 
 	if (file)
 	{
-		if (!fl_autohighlight)
+		char msg[1024];
+		wchar_t *ch = QCC_makeutf16(file, flen, NULL);
+		Edit_SetSel(editor->editpane,0,0);
+		SetWindowTextW(editor->editpane, ch);
+		/*if (errors)
 		{
-			GUIPrint(editor->editpane, file);
-		}
-		else
-		{
-			GUIFormattingPrint(editor->editpane, file);
-		}
+			QC_snprintfz(msg, sizeof(msg), "%s contains encoding errors. Invalid bytes have been converted to the 0xe000 private use area.", editor->filename);
+			MessageBox(editor->editpane, msg, "Encoding errors.", MB_ICONWARNING);
+		}*/
+		free(ch);
 		free(file);
 	}
 
@@ -1321,16 +1401,16 @@ int EditorSave(editor_t *edit)
 	char title[2048];
 	struct stat sbuf;
 	int len;
-	char *file;
-	len = Edit_GetTextLength(edit->editpane);
-	file = malloc(len+1);
+	wchar_t *file;
+	len = GetWindowTextLengthW(edit->editpane);
+	file = malloc((len+1)*2);
 	if (!file)
 	{
 		MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
 		return false;
 	}
-	Edit_GetText(edit->editpane, file, len+1);
-	if (!QCC_WriteFile(edit->filename, file, len))
+	GetWindowTextW(edit->editpane, file, len+1);
+	if (!QCC_WriteFileW(edit->filename, file, len))
 	{
 		MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
 		return false;
@@ -1361,8 +1441,10 @@ char *GUIReadFile(const char *fname, void *buffer, int blen)
 	{
 		if (e->window && !strcmp(e->filename, fname))
 		{
-			int elen = Edit_GetTextLength(e->editpane);
-			Edit_GetText(e->editpane, buffer, blen);
+//			int elen = GetWindowTextLengthW(e->editpane);
+			//our qcc itself is fine with utf-16, so long as it has a BOM.
+			*(short*)buffer = 0xfeff;
+			GetWindowTextW(e->editpane, (short*)buffer+1, blen);
 			return buffer;
 		}
 	}
@@ -1377,7 +1459,7 @@ int GUIFileSize(const char *fname)
 	{
 		if (e->window && !strcmp(e->filename, fname))
 		{
-			int len = Edit_GetTextLength(e->editpane);
+			int len = (GetWindowTextLengthW(e->editpane)+1)*2;
 			return len;
 		}
 	}
@@ -1639,7 +1721,7 @@ HWND optionsmenu;
 HWND hexen2item;
 HWND nokeywords_coexistitem;
 HWND autoprototype_item;
-HWND autohighlight_item;
+//HWND autohighlight_item;
 HWND extraparmsitem;
 #ifdef EMBEDDEBUG
 HWND w_enginebinary;
@@ -1681,7 +1763,7 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				else
 					compiler_flag[i].flags &= ~FLAG_SETINGUI;
 			}
-			fl_autohighlight = Button_GetCheck(autohighlight_item);
+			fl_autohighlight = false;//Button_GetCheck(autohighlight_item);
 			Edit_GetText(extraparmsitem, parameters, sizeof(parameters)-1);
 #ifdef EMBEDDEBUG
 			Edit_GetText(w_enginebinary, enginebinary, sizeof(enginebinary)-1);
@@ -2086,7 +2168,7 @@ void OptionsDialog(void)
 	else
 		Button_SetCheck(wnd, 0);
 
-	autohighlight_item = wnd = CreateWindow("BUTTON","Syntax Highlighting",
+/*	autohighlight_item = wnd = CreateWindow("BUTTON","Syntax Highlighting",
 		   WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
 		   408,y,200-16,16,
 		   optionsmenu,
@@ -2098,7 +2180,7 @@ void OptionsDialog(void)
 		Button_SetCheck(wnd, 1);
 	else
 		Button_SetCheck(wnd, 0);
-
+*/
 	x = 408;
 	my = y;
 	for (i = 0; compiler_flag[i].enabled; i++)

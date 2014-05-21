@@ -874,9 +874,54 @@ enum
 	UTF32LE,
 	UTF32BE,
 };
+
+//return 0 if the input is not valid utf-8.
+unsigned int utf8_check(const void *in, unsigned int *value)
+{
+	//uc is the output unicode char
+	unsigned int uc = 0xfffdu;	//replacement character
+	const unsigned char *str = in;
+
+	if (!(*str & 0x80))
+	{
+		*value = *str;
+		return 1;
+	}
+	else if ((*str & 0xe0) == 0xc0)
+	{
+		if ((str[1] & 0xc0) == 0x80)
+		{
+			*value = uc = ((str[0] & 0x1f)<<6) | (str[1] & 0x3f);
+			if (!uc || uc >= (1u<<7))	//allow modified utf-8
+				return 2;
+		}
+	}
+	else if ((*str & 0xf0) == 0xe0)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80)
+		{
+			*value = uc = ((str[0] & 0x0f)<<12) | ((str[1] & 0x3f)<<6) | ((str[2] & 0x3f)<<0);
+			if (uc >= (1u<<11))
+				return 3;
+		}
+	}
+	else if ((*str & 0xf8) == 0xf0)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80)
+		{
+			*value = uc = ((str[0] & 0x07)<<18) | ((str[1] & 0x3f)<<12) | ((str[2] & 0x3f)<<6) | ((str[3] & 0x3f)<<0);
+			if (uc >= (1u<<16))	//overlong
+				if (uc <= 0x10ffff)	//aand we're not allowed to exceed utf-16 surrogates.
+					return 4;
+		}
+	}
+	*value = 0xFFFD;
+	return 0;
+}
+
 //read utf-16 chars and output the 'native' utf-8.
 //we don't expect essays written in code, so we don't need much actual support for utf-8.
-static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, int *outlen)
+static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, int *outlen, pbool usemalloc)
 {
 	char *utf8, *start;
 	unsigned int inc;
@@ -905,7 +950,10 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, in
 		return inputf;
 	}
 	chars = inbytes / w;
-	utf8 = start = qccHunkAlloc(chars * maxperchar + 2);
+	if (usemalloc)
+		utf8 = start = malloc(chars * maxperchar + 2);
+	else
+		utf8 = start = qccHunkAlloc(chars * maxperchar + 2);
 	for (i = 0; i < chars; i++)
 	{
 		switch(type)
@@ -981,6 +1029,62 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, in
 	return start;
 }
 
+//the gui is a windows program.
+//this means that its fucked.
+//on the plus side, its okay with a bom...
+unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen)
+{
+	unsigned int code;
+	int l;
+	unsigned short *out, *outstart;
+	//sanitise the input.
+	if (len >= 4 && mem[0] == '\xff' && mem[1] == '\xfe' && mem[2] == '\x00' && mem[3] == '\x00')
+		mem = decodeUTF(UTF32LE, (unsigned char*)mem+4, len-4, &len, true);
+	else if (len >= 4 && mem[0] == '\x00' && mem[1] == '\x00' && mem[2] == '\xfe' && mem[3] == '\xff')
+		mem = decodeUTF(UTF32BE, (unsigned char*)mem+4, len-4, &len, true);
+	else if (len >= 2 && mem[0] == '\xff' && mem[1] == '\xfe')
+	{
+		//already utf8, just return it as-is
+		out = malloc(len+3);
+		memcpy(out, mem, len);
+		out[len/2] = 0;
+		return out;
+		//mem = decodeUTF(UTF16LE, (unsigned char*)mem+2, len-2, &len, false);
+	}
+	else if (len >= 2 && mem[0] == '\xfe' && mem[1] == '\xff')
+		mem = decodeUTF(UTF16BE, (unsigned char*)mem+2, len-2, &len, false);
+	//utf-8 BOM, for compat with broken text editors (like windows notepad).
+	else if (len >= 3 && mem[0] == '\xef' && mem[1] == '\xbb' && mem[2] == '\xbf')
+	{
+		mem += 3;
+		len -= 3;
+	}
+
+	outstart = malloc(len*2+3);
+	out = outstart;
+	while(len)
+	{
+		l = utf8_check(mem, &code);
+		if (!l)
+		{l = 1; code = 0xe000|(unsigned char)*mem;}//fucked up. convert to 0xe000 private-use range.
+		len -= l;
+		mem += l;
+
+		if (code > 0xffff)
+		{
+			code -= 0x10000;
+			*out++ = 0xd800u | ((code>>10) & 0x3ff);
+//			*out++ = 0xdc00u | ((code>>00) & 0x3ff);
+		}
+		else
+			*out++ = code;
+	}
+	if (outlen)
+		*outlen = out - outstart;
+	*out++ = 0;
+	return outstart;
+}
+
 long	QCC_LoadFile (char *filename, void **bufferptr)
 {
 	char *mem;
@@ -1002,13 +1106,13 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 	externs->ReadFile(filename, mem, len+2);
 
 	if (len >= 4 && mem[0] == '\xff' && mem[1] == '\xfe' && mem[2] == '\x00' && mem[3] == '\x00')
-		mem = decodeUTF(UTF32LE, (unsigned char*)mem+4, len-4, &len);
+		mem = decodeUTF(UTF32LE, (unsigned char*)mem+4, len-4, &len, false);
 	else if (len >= 4 && mem[0] == '\x00' && mem[1] == '\x00' && mem[2] == '\xfe' && mem[3] == '\xff')
-		mem = decodeUTF(UTF32BE, (unsigned char*)mem+4, len-4, &len);
+		mem = decodeUTF(UTF32BE, (unsigned char*)mem+4, len-4, &len, false);
 	else if (len >= 2 && mem[0] == '\xff' && mem[1] == '\xfe')
-		mem = decodeUTF(UTF16LE, (unsigned char*)mem+2, len-2, &len);
+		mem = decodeUTF(UTF16LE, (unsigned char*)mem+2, len-2, &len, false);
 	else if (len >= 2 && mem[0] == '\xfe' && mem[1] == '\xff')
-		mem = decodeUTF(UTF16BE, (unsigned char*)mem+2, len-2, &len);
+		mem = decodeUTF(UTF16BE, (unsigned char*)mem+2, len-2, &len, false);
 	//utf-8 BOM, for compat with broken text editors (like windows notepad).
 	else if (len >= 3 && mem[0] == '\xef' && mem[1] == '\xbb' && mem[2] == '\xbf')
 	{

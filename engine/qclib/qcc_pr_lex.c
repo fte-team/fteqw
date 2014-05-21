@@ -392,6 +392,12 @@ static void QCC_PR_SkipToEndOfLine(pbool errorifnonwhite)
 		{
 			handleccomments = false;
 			pr_file_p += 2;
+			/*while(*pr_file_p)
+			{
+				if (*pr_file_p == '\n')
+					break;
+				pr_file_p++;
+			}*/
 		}
 		else if (*pr_file_p == '\\' && pr_file_p[1] == '\r' && pr_file_p[2] == '\n')
 		{	/*windows endings*/
@@ -1329,6 +1335,7 @@ void QCC_PR_LexString (void)
 	char	*end, *cnst;
 	int		raw;
 	char	rawdelim[64];
+	int		code;
 
 	int texttype;
 	pbool first = true;
@@ -1388,6 +1395,14 @@ void QCC_PR_LexString (void)
 			c = *pr_file_p++;
 			if (!c)
 				QCC_PR_ParseError (ERR_EOF, "EOF inside quote");
+
+			if (!qccwarningaction[WARN_NOTUTF8] && c < 0 && utf8_check(&pr_token[c-1], &code))
+			{
+				//convert 0xe000 private-use area to quake's charset (if they don't have the utf-8 warning enabled)
+				//note: this may have a small false-positive risk.
+				if (code >= 0xe000 && code <= 0xe0ff)
+					pr_file_p += utf8_check(&pr_token[c-1], &code)-1;
+			}
 
 /*			//these two conditions are generally part of the C preprocessor.
 			if (c == '\\' && *pr_file_p == '\r' && pr_file_p[1] == '\n')
@@ -1651,42 +1666,15 @@ void QCC_PR_LexString (void)
 
 	if (qccwarningaction[WARN_NOTUTF8])
 	{
-		len = 0;
-		//this doesn't do over-long checks.
 		for (c = 0; pr_token[c]; c++)
 		{
-			if (len)
+			len = utf8_check(&pr_token[c], &code);
+			if (!len)
 			{
-				if ((pr_token[c] & 0xc0) != 0x80)
-					break;
-				len--;
-			}
-			else if (pr_token[c] & 0x80)
-			{
-				if (!(pr_token[c] & 0x40))
-				{
-					//error.
-					len = 1;
-					break;
-				}
-				else if (!(pr_token[c] & 0x20))
-					len = 2;
-				else if (!(pr_token[c] & 0x10))
-					len = 3;
-				else if (!(pr_token[c] & 0x08))
-					len = 4;
-				else if (!(pr_token[c] & 0x04))
-					len = 5;
-				else if (!(pr_token[c] & 0x02))
-					len = 6;
-				else if (!(pr_token[c] & 0x01))
-					len = 7;
-				else
-					len = 8;
+				QCC_PR_ParseWarning(WARN_NOTUTF8, "String constant is not valid utf-8");
+				break;
 			}
 		}
-		if (len)
-			QCC_PR_ParseWarning(WARN_NOTUTF8, "String constant is not valid utf-8");
 	}
 }
 #endif
@@ -1955,15 +1943,43 @@ void QCC_PR_LexName (void)
 	int		len;
 
 	len = 0;
-	c = *pr_file_p;
 	do
 	{
-		pr_token[len] = c;
-		len++;
-		pr_file_p++;
+		int b = utf8_check(pr_file_p, &c);
+		if (!b)
+		{
+			unsigned char lead = *pr_file_p++;
+			char *o;
+			while(*pr_file_p && !utf8_check(pr_file_p, &c))
+				pr_file_p++;
+			o = pr_file_p;
+			while (qcc_iswhite(*pr_file_p))
+			{
+				if (*pr_file_p == '\n')
+					break;
+				pr_file_p++;
+			}
+			if (*pr_file_p == '\n')
+				QCC_PR_ParseError(ERR_NOTANAME, "Invalid UTF-8 code sequence at end of line. Lead byte was %#2x", lead);
+			else
+			{
+				len = 0;
+				while (*pr_file_p && !qcc_iswhite(*pr_file_p))
+					pr_token[len++] = *pr_file_p++;
+				pr_token[len++] = 0;
+				pr_file_p = o;
+				QCC_PR_ParseError(ERR_NOTANAME, "Invalid UTF-8 code sequence before %s. Lead byte was %#2x", pr_token, lead);
+			}
+			return;
+		}
+		while(b-->0)
+		{
+			pr_token[len] = *pr_file_p++;
+			len++;
+		}
 		c = *pr_file_p;
 	} while ( (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
-	|| (c >= '0' && c <= '9'));
+	|| (c >= '0' && c <= '9') || c & 0x80);
 
 	pr_token[len] = 0;
 	pr_token_type = tt_name;
@@ -1997,7 +2013,13 @@ void QCC_PR_LexPunctuation (void)
 		}
 	}
 
-	QCC_PR_ParseError (ERR_UNKNOWNPUCTUATION, "Unknown punctuation");
+	if ((unsigned char)*pr_file_p == (unsigned char)0xa0)
+		QCC_PR_ParseWarning (ERR_UNKNOWNPUCTUATION, "Unknown punctuation: '\\x%x' - non-breaking space", (unsigned char)*pr_file_p);
+	else
+		QCC_PR_ParseWarning (ERR_UNKNOWNPUCTUATION, "Unknown punctuation: '\\x%x'", *pr_file_p);
+	pr_file_p++;
+
+	QCC_PR_Lex();
 }
 
 
@@ -2159,7 +2181,7 @@ pbool QCC_PR_SimpleGetToken (void)
 	}
 
 	i = 0;
-	while ((c = *pr_file_p) && !qcc_iswhite(c) && c != ',' && c != ';' && c != ')' && c != '(' && c != ']')
+	while ((c = *pr_file_p) && !qcc_iswhite(c) && c != ',' && c != ';' && c != ')' && c != '(' && c != ']' && !(c == '/' && pr_file_p[1] == '/'))
 	{
 		if (i == sizeof(qcc_token)-1)
 			QCC_Error (ERR_INTERNAL, "token exceeds %i chars", i);
@@ -2908,6 +2930,20 @@ int QCC_PR_CheckCompConst(void)
 
 		return true;
 	}
+	if (!strncmp(pr_file_p, "__QCCVER__", 8))
+	{
+		char retbuf[128];
+
+		time_t long_time;
+		time( &long_time );
+		strftime( retbuf, sizeof(retbuf),
+			 "\"%a %d %b %Y\"", localtime( &long_time ));
+
+		pr_file_p += 10;
+		QCC_PR_IncludeChunkEx("FTEQCC "__DATE__","__TIME__"", true, NULL, NULL);
+
+		return true;
+	}
 	if (!strncmp(pr_file_p, "__FILE__", 8))
 	{
 		char retbuf[256];
@@ -3110,7 +3146,7 @@ void QCC_PR_Lex (void)
 		return;
 	}
 
-	if ( (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' )
+	if ( (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || (c & 0x80))
 	{
 		if (flag_hashonly || !QCC_PR_CheckCompConst())	//look for a macro.
 			QCC_PR_LexName ();

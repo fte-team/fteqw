@@ -499,7 +499,6 @@ D3DQUAKE_OBJS =		\
 D3DGL_OBJS =		\
 	gl_font.o \
 	gl_ngraph.o		\
-	gl_model.o	\
 	gl_shader.o	\
 	gl_shadow.o	\
 	gl_rlight.o	\
@@ -568,11 +567,9 @@ SERVER_OBJS = 		\
 	httpserver.o
 
 SERVERONLY_OBJS =		\
-	svmodel.o		\
 	sv_sys_unix.o
 
 WINDOWSSERVERONLY_OBJS = \
-	svmodel.o	\
 	net_ssl_winsspi.o \
 	sv_sys_win.o	\
 	sys_win_threads.o
@@ -592,6 +589,7 @@ WINDOWS_OBJS = \
 COMMON_OBJS = \
 	gl_alias.o		\
 	gl_heightmap.o		\
+	gl_model.o	\
 	com_mesh.o	\
 	com_phys_ode.o	\
 	common.o 		\
@@ -1198,7 +1196,7 @@ ifeq ($(FTE_TARGET),droid)
 	SV_CFLAGS=
 	SV_LDFLAGS=
 	SV_DIR=sv_droid-$(DROID_ARCH)
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) svmodel.o sys_droid.o 
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) sys_droid.o 
 	SV_EXE_NAME=libftedroid.so
 
 	GL_CFLAGS=$(GLCFLAGS)
@@ -1231,7 +1229,7 @@ ifeq ($(FTE_TARGET),web)
 
 	SV_DIR=sv_web
 	#SV_LDFLAGS=-lz
-	#SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) svmodel.o
+	#SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS)
 	SV_EXE_NAME=../libftesv.js
 
 	#SV_LDFLAGS=

@@ -3697,14 +3697,15 @@ void Heightmap_MarkLights			(dlight_t *light, int bit, mnode_t *node)
 {
 }
 
-qbyte *Heightmap_LeafnumPVS	(model_t *model, int num, qbyte *buffer, unsigned int buffersize)
+qbyte *Heightmap_ClusterPVS	(model_t *model, int num, qbyte *buffer, unsigned int buffersize)
 {
-	static qbyte heightmappvs = 255;
-	return &heightmappvs;
+	return NULL;
+//	static qbyte heightmappvs = 255;
+//	return &heightmappvs;
 }
-int	Heightmap_LeafForPoint	(model_t *model, vec3_t point)
+int	Heightmap_ClusterForPoint	(model_t *model, vec3_t point)
 {
-	return 0;
+	return -1;
 }
 
 #ifndef SERVERONLY
@@ -4572,8 +4573,8 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 	mod->funcs.StainNode			= Heightmap_StainNode;
 	mod->funcs.MarkLights			= Heightmap_MarkLights;
 
-	mod->funcs.LeafnumForPoint		= Heightmap_LeafForPoint;
-	mod->funcs.LeafPVS				= Heightmap_LeafnumPVS;
+	mod->funcs.ClusterForPoint		= Heightmap_ClusterForPoint;
+	mod->funcs.ClusterPVS			= Heightmap_ClusterPVS;
 
 #ifndef CLIENTONLY
 	mod->funcs.FindTouchedLeafs		= Heightmap_FindTouchedLeafs;

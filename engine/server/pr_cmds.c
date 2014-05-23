@@ -3250,13 +3250,14 @@ static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s 
 qbyte	checkpvsbuffer[MAX_MAP_LEAFS/8];
 qbyte	*checkpvs;
 vec3_t	checkorg;
+extern cvar_t sv_nopvs;
 
 int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 {
 	int		i;
 //	qbyte	*pvs;
 	edict_t	*ent;
-	int		leaf;
+	int		cluster;
 
 // cycle to the next one
 
@@ -3272,7 +3273,7 @@ int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 
 	for ( ;  ; i++)
 	{
-		if (i == sv.allocated_client_slots+1)
+		if (i >= sv.allocated_client_slots+1)
 			i = 1;
 
 		ent = EDICT_NUM(prinst, i);
@@ -3293,12 +3294,12 @@ int PF_newcheckclient (pubprogfuncs_t *prinst, int check)
 
 // get the PVS for the entity
 	VectorAdd (ent->v->origin, ent->v->view_ofs, checkorg);
-	if (sv.world.worldmodel->type == mod_heightmap)
+	if (sv.world.worldmodel->type == mod_heightmap || sv_nopvs.ival)
 		checkpvs = NULL;
 	else
 	{
-		leaf = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, checkorg);
-		checkpvs = sv.world.worldmodel->funcs.LeafPVS (sv.world.worldmodel, leaf, checkpvsbuffer, sizeof(checkpvsbuffer));
+		cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, checkorg);
+		checkpvs = sv.world.worldmodel->funcs.ClusterPVS (sv.world.worldmodel, cluster, checkpvsbuffer, sizeof(checkpvsbuffer));
 	}
 
 	return i;
@@ -3324,7 +3325,7 @@ int c_invis, c_notvis;
 int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 {
 	edict_t	*ent, *self;
-	int		l;
+	int		clust;
 	vec3_t	view;
 	vec3_t	dist;
 	world_t *w = &sv.world;
@@ -3353,8 +3354,8 @@ int PF_checkclient_Internal (pubprogfuncs_t *prinst)
 
 	if (checkpvs)
 	{
-		l = w->worldmodel->funcs.LeafnumForPoint(w->worldmodel, view)-1;
-		if ( (l<0) || !(checkpvs[l>>3] & (1<<(l&7)) ) )
+		clust = w->worldmodel->funcs.ClusterForPoint(w->worldmodel, view);
+		if ( (clust<0) || !(checkpvs[clust>>3] & (1<<(clust&7)) ) )
 		{
 	c_notvis++;
 			return 0;

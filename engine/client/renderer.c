@@ -2030,7 +2030,7 @@ qbyte *R_CalcVis_Q1 (void)
 			int c;
 			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, curframevis, sizeof(curframevis));
 			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, sizeof(curframevis));
-			c = (cl.worldmodel->numvisleafs+31)/32;
+			c = (cl.worldmodel->numclusters+31)/32;
 			for (i=0 ; i<c ; i++)
 				((int *)curframevis)[i] |= ((int *)vis)[i];
 			vis = curframevis;
@@ -2080,7 +2080,7 @@ qbyte *R_MarkLeaves_Q1 (void)
 		if (r_novis.ival)
 		{
 			vis = cvis[portal] = fatvis[portal];
-			memset (fatvis[portal], 0xff, (cl.worldmodel->numvisleafs+7)>>3);
+			memset (fatvis[portal], 0xff, (cl.worldmodel->numclusters+7)>>3);
 
 			r_oldviewleaf = NULL;
 			r_oldviewleaf2 = NULL;
@@ -2090,7 +2090,7 @@ qbyte *R_MarkLeaves_Q1 (void)
 			int c;
 			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis[portal], sizeof(fatvis[portal]));
 			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
-			c = (cl.worldmodel->numvisleafs+31)/32;
+			c = (cl.worldmodel->numclusters+31)/32;
 			for (i=0 ; i<c ; i++)
 				((int *)fatvis[portal])[i] |= ((int *)vis)[i];
 
@@ -2104,7 +2104,7 @@ qbyte *R_MarkLeaves_Q1 (void)
 
 	r_visframecount++;
 
-	for (i=0 ; i<cl.worldmodel->numvisleafs ; i++)
+	for (i=0 ; i<cl.worldmodel->numclusters ; i++)
 	{
 		if (vis[i>>3] & (1<<(i&7)))
 		{

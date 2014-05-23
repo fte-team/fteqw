@@ -876,12 +876,12 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		//use the player's origin for r_viewleaf, because there's not much we can do anyway*/
 		VectorCopy(r_origin, r_refdef.pvsorigin);
 
-		if (cl.worldmodel && cl.worldmodel->funcs.LeafPVS && !r_novis.ival)
+		if (cl.worldmodel && cl.worldmodel->funcs.ClusterPVS && !r_novis.ival)
 		{
-			int lnum, i, j;
+			int clust, i, j;
 			float d;
 			vec3_t point;
-			int pvsbytes = (cl.worldmodel->numvisleafs+7)>>3;
+			int pvsbytes = (cl.worldmodel->numclusters+7)>>3;
 			if (pvsbytes > sizeof(newvis))
 				pvsbytes = sizeof(newvis);
 			r_refdef.forcevis = true;
@@ -897,16 +897,16 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 				d += 0.1;	//an epsilon on the far side
 				VectorMA(point, d, plane.normal, point);
 
-				lnum = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, point);
+				clust = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, point);
 				if (i == batch->firstmesh)
-					r_refdef.forcedvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, lnum, newvis, sizeof(newvis));
+					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, newvis, sizeof(newvis));
 				else
 				{
 					if (r_refdef.forcedvis != newvis)
 					{
 						memcpy(newvis, r_refdef.forcedvis, pvsbytes);
 					}
-					r_refdef.forcedvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, lnum, NULL, sizeof(newvis));
+					r_refdef.forcedvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clust, NULL, sizeof(newvis));
 
 					for (j = 0; j < pvsbytes; j+= 4)
 					{

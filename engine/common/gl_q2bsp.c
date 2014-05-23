@@ -57,6 +57,7 @@ void Mod_LoadLighting (lump_t *l);
 static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
 static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
+static int CM_PointCluster (model_t *mod, vec3_t p);
 extern mplane_t	*box_planes;
 
 
@@ -3739,10 +3740,12 @@ void CMQ3_CalcPHS (void)
 }
 #endif
 
+/*
 static qbyte *CM_LeafnumPVS (model_t *model, int leafnum, qbyte *buffer, unsigned int buffersize)
 {
 	return CM_ClusterPVS(model, CM_LeafCluster(model, leafnum), buffer, buffersize);
 }
+*/
 
 #ifndef SERVERONLY
 #define GLQ2BSP_LightPointValues GLQ1BSP_LightPointValues
@@ -4079,8 +4082,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
 		loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
 #endif
-		loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-		loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
+		loadmodel->funcs.ClusterPVS				= CM_ClusterPVS;
+		loadmodel->funcs.ClusterForPoint		= CM_PointCluster;
 
 #ifndef SERVERONLY
 		loadmodel->funcs.LightPointValues		= GLQ3_LightGrid;
@@ -4170,8 +4173,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			loadmodel->funcs.LightPointValues		= NULL;
 			loadmodel->funcs.StainNode				= NULL;
 			loadmodel->funcs.MarkLights				= NULL;
-			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
+			loadmodel->funcs.ClusterPVS				= CM_ClusterPVS;
+			loadmodel->funcs.ClusterForPoint		= CM_PointCluster;
 			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
 			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
 			loadmodel->funcs.NativeContents			= CM_NativeContents;
@@ -4220,8 +4223,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			loadmodel->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
 			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
-			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
-			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
+			loadmodel->funcs.ClusterPVS				= CM_ClusterPVS;
+			loadmodel->funcs.ClusterForPoint		= CM_PointCluster;
 			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
 			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
 			loadmodel->funcs.NativeContents			= CM_NativeContents;
@@ -4416,8 +4419,8 @@ void CM_InitBoxHull (void)
 #ifndef SERVERONLY
 	box_model.funcs.MarkLights			= Q2BSP_MarkLights;
 #endif
-	box_model.funcs.LeafPVS				= CM_LeafnumPVS;
-	box_model.funcs.LeafnumForPoint		= CM_PointLeafnum;
+	box_model.funcs.ClusterPVS			= CM_ClusterPVS;
+	box_model.funcs.ClusterForPoint		= CM_PointCluster;
 	box_model.funcs.NativeContents		= CM_NativeContents;
 	box_model.funcs.NativeTrace			= CM_NativeTrace;
 
@@ -4516,7 +4519,7 @@ CM_PointLeafnum_r
 
 ==================
 */
-int CM_PointLeafnum_r (model_t *mod, vec3_t p, int num)
+static int CM_PointLeafnum_r (model_t *mod, vec3_t p, int num)
 {
 	float		d;
 	mnode_t		*node;
@@ -4545,6 +4548,13 @@ int CM_PointLeafnum (model_t *mod, vec3_t p)
 	if (!mod || mod->needload)
 		return 0;		// sound may call this without map loaded
 	return CM_PointLeafnum_r (mod, p, 0);
+}
+
+static int CM_PointCluster (model_t *mod, vec3_t p)
+{
+	if (!mod || mod->needload)
+		return 0;		// sound may call this without map loaded
+	return CM_LeafCluster(mod, CM_PointLeafnum_r (mod, p, 0));
 }
 
 /*

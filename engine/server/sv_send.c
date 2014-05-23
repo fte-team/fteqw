@@ -545,10 +545,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 {
 	client_t	*client;
 	qbyte		*mask;
-	int			leafnum;
+	int			cluster;
 	int			j;
 	qboolean	reliable;
-	int pnum = 0;
+	int pnum = -1;
 
 	if (to == MULTICAST_INIT)
 	{
@@ -580,7 +580,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 #ifdef Q2BSPS
 	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
 	{
-		int			area1, area2, cluster;
+		int			area1, area2, leafnum;
 
 		reliable = false;
 
@@ -656,12 +656,12 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 			}
 
-			if (!mask)
+			if (pnum >= 0)
 			{
 				if (pnum != j)
 					continue;
 			}
-			else 
+			else if (mask)
 			{
 #ifdef Q2SERVER
 				if (ge)
@@ -743,26 +743,32 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_ALL_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_ALL:
-			mask = sv.pvs;		// leaf 0 is everything;
+			mask = NULL;
 			break;
 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
 			if (!sv.phs)	/*broadcast if no pvs*/
-				mask = sv.pvs;
+				mask = NULL;
 			else
 			{
-				leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
-				mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+				cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
+				if (cluster >= 0)
+					mask = sv.phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+				else
+					mask = NULL;
 			}
 			break;
 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
-			leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
-			mask = sv.pvs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
+			if (cluster >= 0)
+				mask = sv.pvs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+			else
+				mask = NULL;
 			break;
 
 		case MULTICAST_ONE_R:
@@ -804,7 +810,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 			}
 
-			if (!mask)
+			if (pnum >= 0)
 			{
 				if (pnum != j)
 					continue;
@@ -814,6 +820,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				if (!((int)client->edict->xv->dimension_see & dimension_mask))
 					continue;
 
+				if (!mask)	//no pvs? broadcast.
+					goto inrange;
+
 				if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
 				{
 					vec3_t delta;
@@ -822,13 +831,11 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 						goto inrange;
 				}
 
-				if (mask != sv.pvs)	//leaf 0 is the solid see-all region, so no point figuring out where the players are
 				{
 					vec3_t pos;
 					VectorAdd(client->edict->v->origin, client->edict->v->view_ofs, pos);
-					// -1 is because pvs rows are 1 based, not 0 based like leafs
-					leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, pos)-1;
-					if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
+					cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos);
+					if (cluster>= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )
 					{
 		//				Con_Printf ("PVS supressed multicast\n");
 						continue;

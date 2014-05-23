@@ -3337,7 +3337,7 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
-		loadmodel->numvisleafs = count-1;
+		loadmodel->numclusters = count-1;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{
@@ -3400,7 +3400,7 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
-		loadmodel->numvisleafs = count-1;
+		loadmodel->numclusters = count-1;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{
@@ -3463,7 +3463,7 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 
 		loadmodel->leafs = out;
 		loadmodel->numleafs = count;
-		loadmodel->numvisleafs = count-1;
+		loadmodel->numclusters = count-1;
 
 		for ( i=0 ; i<count ; i++, in++, out++)
 		{
@@ -4424,7 +4424,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 
 		mod->radius = RadiusFromBounds (mod->mins, mod->maxs);
 
-		mod->numvisleafs = bm->visleafs;
+		mod->numclusters = bm->visleafs;
 
 		memset(&mod->batches, 0, sizeof(mod->batches));
 		mod->vbos = NULL;

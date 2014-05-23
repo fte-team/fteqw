@@ -2733,7 +2733,7 @@ unsigned int Q2BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int 
 {//fixme: this doesn't add
 	int		leafnum;
 	leafnum = CM_PointLeafnum (mod, org);
-	clientarea = CM_LeafArea (mod, leafnum);
+///	clientarea = CM_LeafArea (mod, leafnum);
 
 	return SV_Q2BSP_FatPVS (mod, org, buffer, buffersize, add);
 }
@@ -3216,17 +3216,24 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 				}
 				else if ((pvsflags & PVSF_MODE_MASK) == PVSF_USEPHS && sv.world.worldmodel->fromgame == fg_quake)
 				{
-					int leafnum;
+					int cluster;
 					unsigned char *mask;
 					if (sv.phs)
 					{
-						leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, host_client->edict->v->origin);
-						mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numvisleafs+31)>>5);
-
-						leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, ent->v->origin)-1;
-						if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
+						//FIXME: this lookup should be cachable or something.
+						if (client->edict)
+							cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, client->edict->v->origin);
+						else
+							cluster = -1;	//mvd
+						if (cluster >= 0)
 						{
-							continue;
+							mask = sv.phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+
+							cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, ent->v->origin);
+							if (cluster >= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )
+							{
+								continue;
+							}
 						}
 					}
 					tracecullent = NULL;
@@ -3243,11 +3250,11 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 
 		//DP_SV_NODRAWONLYTOCLIENT
 		if (ent->xv->nodrawtoclient)	//DP extension.
-			if (ent->xv->nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
+			if (client->edict && ent->xv->nodrawtoclient == EDICT_TO_PROG(svprogfuncs, client->edict))
 				continue;
 		//DP_SV_DRAWONLYTOCLIENT
 		if (ent->xv->drawonlytoclient)
-			if (ent->xv->drawonlytoclient != EDICT_TO_PROG(svprogfuncs, client->edict))
+			if (!client->edict || ent->xv->drawonlytoclient != EDICT_TO_PROG(svprogfuncs, client->edict))
 			{
 				client_t *split;
 				for (split = client->controlled; split; split=split->controlled)

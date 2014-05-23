@@ -449,7 +449,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 	unsigned int lb;
 	sh_vertnum = 0;
 
-	lb = (cl.worldmodel->numvisleafs+7)/8;
+	lb = (cl.worldmodel->numclusters+7)/8;
 	if (!dl->die || !dl->key)
 	{
 		sh_shmesh = dl->worldshadowmesh;
@@ -978,7 +978,7 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis, unsigned char *v
 	{
 		//static
 		//variation on mark leaves
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numvisleafs ; i++, leaf++)
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
 			if (cluster == -1)
@@ -1000,7 +1000,7 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis, unsigned char *v
 	{
 		//dynamic lights will be discarded after this frame anyway, so only include leafs that are visible
 		//variation on mark leaves
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numvisleafs ; i++, leaf++)
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
 			if (cluster == -1)
@@ -1027,8 +1027,11 @@ static void SHM_MarkLeavesQ1(dlight_t *dl, unsigned char *lvis)
 	int i;
 	sh_shadowframe++;
 
+	if (!lvis)
+		return;
+
 	//variation on mark leaves
-	for (i=0 ; i<cl.worldmodel->numvisleafs ; i++)
+	for (i=0 ; i<cl.worldmodel->numclusters ; i++)
 	{
 		if (lvis[i>>3] & (1<<(i&7)))
 		{
@@ -1395,9 +1398,9 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 
 	if (!lvis)
 	{
-		int leaf;
-		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+		int clus;
+		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
 	}
 
 	firstedge=0;
@@ -1512,9 +1515,9 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
 {
 	int i, m;
-	if (!v2)
+	if (!v2 || !v1)
 		return false;
-	m = (cl.worldmodel->numvisleafs+7)>>3;
+	m = (cl.worldmodel->numclusters+7)>>3;
 
 	for (i=(m&~3) ; i<m ; i++)
 	{
@@ -2502,9 +2505,11 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 		}
 		else
 		{
-			int leaf;
-			leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, l->origin);
-			lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+			int clus;
+			clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, l->origin);
+			lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
+			//FIXME: surely we can use the phs for this?
+
 			if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 			{
 				RQuantAdd(RQUANT_RTLIGHT_CULL_PVS, 1);
@@ -2816,7 +2821,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 {
 	int sref;
-	int leaf;
+	int clus;
 	qbyte *lvis;
 	srect_t rect;
 
@@ -2849,8 +2854,8 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 	else
 	{
-		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
 
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
@@ -3073,11 +3078,11 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 	else
 	{
-		int leaf;
+		int clus;
 		qbyte *lvis;
 
-		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
-		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+		clus = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+		lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, clus, lvisb, sizeof(lvisb));
 
 		SHM_BuildShadowMesh(dl, lvis, vvis, SMT_SHADOWLESS);
 
@@ -3255,8 +3260,8 @@ void Sh_PreGenerateLights(void)
 				else
 					shadowtype = SMT_STENCILVOLUME;
 
-				leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
-				lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+				leaf = cl.worldmodel->funcs.ClusterForPoint(cl.worldmodel, dl->origin);
+				lvis = cl.worldmodel->funcs.ClusterPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
 
 				SHM_BuildShadowMesh(dl, lvis, NULL, shadowtype);
 				continue;

@@ -79,26 +79,32 @@ static void pp_flush(multicast_t to, vec3_t origin, void (*flushfunc)(client_t *
 		case MULTICAST_ALL_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_ALL:
-			mask = sv.pvs;		// leaf 0 is everything;
+			mask = NULL;
 			break;
 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
 			if (!sv.phs)
-				mask = sv.pvs;
+				mask = NULL;
 			else
 			{
-				leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
-				mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numvisleafs+31)>>5);
+				cluster = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
+				if (cluster >= 0)
+					mask = sv.phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+				else
+					mask = NULL;
 			}
 			break;
 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
-			leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
-			mask = sv.pvs + leafnum * 4*((sv.world.worldmodel->numvisleafs+31)>>5);
+			cluster = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
+			if (cluster >= 0)
+				mask = sv.pvs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+			else
+				mask = NULL;
 			break;
 
 		default:
@@ -125,11 +131,10 @@ static void pp_flush(multicast_t to, vec3_t origin, void (*flushfunc)(client_t *
 					goto inrange;
 			}
 
-			// -1 is because pvs rows are 1 based, not 0 based like leafs
-			if (mask != sv.pvs)
+			if (mask)
 			{
-				leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, client->edict->v->origin)-1;
-				if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
+				cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, client->edict->v->origin);
+				if (cluster >= 0 && !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
 				{
 					continue;
 				}

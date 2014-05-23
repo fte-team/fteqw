@@ -216,8 +216,8 @@ typedef struct {
 	void (*StainNode)			(struct mnode_s *node, float *parms);
 	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
 
-	qbyte *(*LeafPVS)			(struct model_s *model, int num, qbyte *buffer, unsigned int buffersize);
-	int	(*LeafnumForPoint)		(struct model_s *model, vec3_t point);
+	int	(*ClusterForPoint)		(struct model_s *model, vec3_t point);	//pvs index. may be negative (ie: no pvs).
+	qbyte *(*ClusterPVS)		(struct model_s *model, int cluster, qbyte *buffer, unsigned int buffersize);
 } modelfuncs_t;
 
 
@@ -501,9 +501,6 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, struct trace_s *trace);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
-unsigned int Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add);
-qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct pvscache_s *ent, qbyte *pvs);
-void Q1BSP_FindTouchedLeafs(struct model_s *mod, struct pvscache_s *ent, float *mins, float *maxs);
 qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize);
 
 /*
@@ -874,7 +871,7 @@ typedef struct model_s
 	int			numplanes;
 	mplane_t	*planes;
 
-	int			numvisleafs;
+	int			numclusters;
 	int			numleafs;		// number of visible leafs, not counting 0
 	mleaf_t		*leafs;
 

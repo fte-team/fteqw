@@ -2705,6 +2705,11 @@ void Media_Send_GetSize(cin_t *cin, int *x, int *y)
 		return;
 	cin->getsize(cin, x, y);
 }
+void Media_Send_Reset(cin_t *cin)
+{
+	if (!cin || !cin->rewind)
+		cin->rewind(cin);
+}
 
 
 

@@ -358,42 +358,54 @@ void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s 
 
 #ifndef NOMEDIA
 
-// #487 float(string name) gecko_create( string name )
+// #487 float(string name) gecko_create
 void QCBUILTIN PF_cs_gecko_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shadername = PR_GetStringOfs(prinst, OFS_PARM0);
 	cin_t *cin;
 	cin = R_ShaderGetCinematic(R_RegisterShader(shadername, SUF_2D,
 				"{\n"
+					"program default2d\n"
 					"{\n"
 						"videomap http:\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"blendfunc blend\n"
+						"nodepth\n"
 					"}\n"
 				"}\n"
 			));
 
-	if (!cin)
-		G_FLOAT(OFS_RETURN) = 0;
-	else
+	if (cin)
+	{
 		G_FLOAT(OFS_RETURN) = 1;
+		Media_Send_Reset(cin);
+	}
+	else
+		G_FLOAT(OFS_RETURN) = 0;
 }
-// #488 void(string name) gecko_destroy( string name )
+// #488 void(string name) gecko_destroy
 void QCBUILTIN PF_cs_gecko_destroy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	cin_t *cin;
+	cin = R_ShaderFindCinematic(shader);
+	if (!cin)
+		return;
+	Media_Send_Reset(cin);	//FIXME
 }
-// #489 void(string name) gecko_navigate( string name, string URI )
+// #489 void(string name, string URI) gecko_navigate
 void QCBUILTIN PF_cs_gecko_navigate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *command = PR_GetStringOfs(prinst, OFS_PARM1);
 	cin_t *cin;
 	cin = R_ShaderFindCinematic(shader);
-
 	if (!cin)
 		return;
-
 	Media_Send_Command(cin, command);
 }
-// #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
+// #490 float(string name, float key, float eventtype) gecko_keyevent
 void QCBUILTIN PF_cs_gecko_keyevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -401,12 +413,11 @@ void QCBUILTIN PF_cs_gecko_keyevent (pubprogfuncs_t *prinst, struct globalvars_s
 	int eventtype = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
 	cin = R_ShaderFindCinematic(shader);
-
 	if (!cin)
 		return;
 	Media_Send_KeyEvent(cin, MP_TranslateQCtoFTECodes(key), (key>127)?0:key, eventtype);
 }
-// #491 void gecko_mousemove( string name, float x, float y )
+// #491 void(string name, float x, float y) gecko_mousemove
 void QCBUILTIN PF_cs_gecko_mousemove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -414,12 +425,11 @@ void QCBUILTIN PF_cs_gecko_mousemove (pubprogfuncs_t *prinst, struct globalvars_
 	float posy = G_FLOAT(OFS_PARM2);
 	cin_t *cin;
 	cin = R_ShaderFindCinematic(shader);
-
 	if (!cin)
 		return;
 	Media_Send_MouseMove(cin, posx, posy);
 }
-// #492 void gecko_resize( string name, float w, float h )
+// #492 void(string name, float w, float h) gecko_resize
 void QCBUILTIN PF_cs_gecko_resize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -431,7 +441,7 @@ void QCBUILTIN PF_cs_gecko_resize (pubprogfuncs_t *prinst, struct globalvars_s *
 		return;
 	Media_Send_Resize(cin, sizex, sizey);
 }
-// #493 vector gecko_get_texture_extent( string name )
+// #493 vector(string name) gecko_get_texture_extent
 void QCBUILTIN PF_cs_gecko_get_texture_extent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);

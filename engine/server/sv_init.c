@@ -407,7 +407,7 @@ void SV_CalcPHS (void)
 		return;
 	}
 
-	num = sv.world.worldmodel->numleafs;
+	num = sv.world.worldmodel->numclusters;
 	rowwords = (num+31)>>5;
 	rowbytes = rowwords*4;
 
@@ -417,7 +417,7 @@ void SV_CalcPHS (void)
 		scan = sv.pvs;
 		for (i=0 ; i<num ; i++, scan+=rowbytes)
 		{
-			lf = sv.world.worldmodel->funcs.LeafPVS(sv.world.worldmodel, i, scan, rowbytes);
+			lf = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, i, scan, rowbytes);
 			if (lf != scan)
 				memcpy (scan, lf, rowbytes);
 		}
@@ -432,7 +432,7 @@ void SV_CalcPHS (void)
 	vcount = 0;
 	for (i=0 ; i<num ; i++, scan+=rowbytes)
 	{
-		lf = sv.world.worldmodel->funcs.LeafPVS(sv.world.worldmodel, i, scan, rowbytes);
+		lf = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, i, scan, rowbytes);
 		if (lf != scan)
 			memcpy (scan, lf, rowbytes);
 		if (i == 0)
@@ -488,7 +488,8 @@ void SV_CalcPHS (void)
 					continue;
 				// or this pvs row into the phs
 				// +1 because pvs is 1 based
-				index = ((j<<3)+k+1);
+				//except we now use clusters internally, which are 0-based (ie: leaf 0 is invalid and maps to cluster -1)
+				index = ((j<<3)+k);
 				if (index >= num)
 					continue;
 				src = (unsigned *)sv.pvs + index*rowwords;

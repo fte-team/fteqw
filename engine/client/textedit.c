@@ -630,7 +630,7 @@ void Editor_Key(int key, int unicode)
 		break;
 	case K_F6:
 		if (editprogfuncs)
-			PR_StackTrace(editprogfuncs);
+			PR_StackTrace(editprogfuncs, 2);
 		break;
 	case K_F7: /*save+recompile*/
 		EditorSaveFile(OpenEditorFile);

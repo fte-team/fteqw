@@ -553,6 +553,7 @@ extern pbool opt_stripfunctions;
 extern pbool opt_locals_overlapping;
 extern pbool opt_logicops;
 extern pbool opt_vectorcalls;
+extern pbool opt_classfields;
 
 extern int optres_shortenifnots;
 extern int optres_overlaptemps;
@@ -836,6 +837,7 @@ void QCC_PR_NewLine (pbool incomment);
 #define GDF_STATIC	2
 #define GDF_CONST	4
 #define GDF_STRIP	8	//always stripped, regardless of optimisations. used for class member fields
+#define GDF_SILENT	16	//used by the gui, to suppress ALL warnings.
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize, unsigned int flags);
 char *QCC_PR_CheckCompConstTooltip(char *word, char *outstart, char *outend);
 

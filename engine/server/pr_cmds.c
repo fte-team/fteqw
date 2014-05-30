@@ -221,7 +221,7 @@ pbool PDECL ED_CanFree (edict_t *ed)
 		if (developer.value)
 		{
 			Con_TPrintf("cannot free world entity\n");
-			PR_StackTrace(svprogfuncs);
+			PR_StackTrace(svprogfuncs, false);
 			svprogfuncs->pr_trace = 1;
 		}
 		return false;
@@ -229,7 +229,7 @@ pbool PDECL ED_CanFree (edict_t *ed)
 	if (NUM_FOR_EDICT(svprogfuncs, ed) <= sv.allocated_client_slots)
 	{
 		Con_TPrintf("cannot free player entities\n");
-		PR_StackTrace(svprogfuncs);
+		PR_StackTrace(svprogfuncs, false);
 		svprogfuncs->pr_trace = 1;
 		return false;
 	}
@@ -442,61 +442,6 @@ void PDECL PR_SSQC_Relocated(pubprogfuncs_t *pr, char *oldb, char *newb, int old
 void QC_Clear(void);
 builtin_t pr_builtin[];
 extern int pr_numbuiltins;
-
-int QCLibEditor(pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);
-int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms)
-{
-#ifdef TEXTEDITOR
-	static char oldfuncname[64];
-
-	if (!parms)
-		return QCLibEditor(prinst, filename, line, statement, nump, parms);
-	else
-	{
-		if (!nump && !strncmp(oldfuncname, *parms, sizeof(oldfuncname)))
-		{
-			Con_Printf("Executing %s: %s\n", *parms, filename);
-			Q_strncpyz(oldfuncname, *parms, sizeof(oldfuncname));
-		}
-		return line;
-	}
-#else
-	int i;
-	char buffer[8192];
-	char *r;
-	vfsfile_t *f;
-
-	if (line == -1)
-		return line;
-	SV_EndRedirect();
-	if (developer.value)
-	{
-		f = FS_OpenVFS(filename, "rb", FS_GAME);
-	}
-	else
-		f = NULL;	//faster.
-	if (!f)
-	{
-		Q_snprintfz(buffer, sizeof(buffer), "%s/%s", pr_sourcedir.string, filename);
-		f = FS_OpenVFS(buffer, "rb", FS_GAME);
-	}
-	if (!f)
-		Con_Printf("-%s - %i\n", filename, line);
-	else
-	{
-		for (i = 0; i < line; i++)
-		{
-			VFS_GETS(f, buffer, sizeof(buffer));
-		}
-		if ((r = strchr(buffer, '\r')))
-		{ r[0] = '\n';r[1]='\0';}
-		Con_Printf("-%s", buffer);
-		VFS_CLOSE(f);
-	}
-//PF_break(NULL);
-	return line;
-#endif
-}
 
 model_t *SVPR_GetCModel(world_t *w, int modelindex)
 {
@@ -2245,7 +2190,7 @@ static void QCBUILTIN PF_objerror (pubprogfuncs_t *prinst, struct globalvars_s *
 		else
 		{
 			ED_Free (prinst, ed);
-			PR_StackTrace(prinst);
+			PR_StackTrace(prinst, true);
 			PR_AbortStack(prinst);
 		}
 
@@ -3681,7 +3626,7 @@ static void QCBUILTIN PF_Remove (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		if (developer.value)
 		{
 			Con_Printf("Tried removing free entity at:\n");
-			PR_StackTrace(prinst);
+			PR_StackTrace(prinst, false);
 		}
 		return;	//yeah, alright, so this is hacky.
 	}
@@ -8965,7 +8910,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"changelevel",		PF_Fixme,			0,		0,		0,		64,	"void(string map)"},
 	{"localsound",		PF_Fixme,			0,		0,		0,		65,	"void(string sample)"},
 	{"getmousepos",		PF_Fixme,			0,		0,		0,		66,	"vector()"},
-	{"gettime",			PF_Fixme,			0,		0,		0,		67,	"float()"},
+	{"gettime",			PF_Fixme,			0,		0,		0,		67,	"float(optional float timetype)"},
 	{"loadfromdata",	PF_Fixme,			0,		0,		0,		68,	"void(string data)"},
 	{"loadfromfile",	PF_Fixme,			0,		0,		0,		69,	"void(string data)"},
 	{"mod",				PF_Fixme,			0,		0,		0,		70,	"float(float val, float m)"},
@@ -8987,6 +8932,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findflags",		PF_Fixme,			0,		0,		0,		87,	"entity(entity start, .float field, float match)"},
 	{"findchainflags",	PF_Fixme,			0,		0,		0,		88,	"entity(.float field, float match)"},
 	{"mcvar_defstring",	PF_Fixme,			0,		0,		0,		89,	"string(string name)" STUB},
+
+	{"setmodel",		PF_Fixme,			0,		0,		0,		90, D("void(entity ent, string mname)",	"Menuqc-specific version.")},
+	{"precache_model",	PF_Fixme,			0,		0,		0,		91, D("void(string mname)",				"Menuqc-specific version.")},
+	{"setorigin",		PF_Fixme,			0,		0,		0,		92, D("void(entity ent, vector neworg)","Menuqc-specific version.")},
 	//end menu-only 'standard'
 #endif
 										  //nq		qw		h2		ebfs
@@ -9669,7 +9618,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	"float(float idx)"},
 	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(float strbuf)"},
 	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	"string(string cvarname)"},
-	{"gettime",			PF_Fixme,			0,		0,		0,		519,	"float(optional float timetype)"},
+	{"gettime",			PF_gettime,			0,		0,		0,		519,	"float(optional float timetype)"},
 	{"keynumtostring_omgwtf",PF_Fixme,		0,		0,		0,		520,	"string(float keynum)"},	//excessive third version in dp's csqc.
 	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	"string(string command, optional float bindmap)"},
 //	{"initparticlespawner",PF_Fixme,		0,		0,		0,		522,	"void(float max_themes)"},
@@ -10575,24 +10524,24 @@ void PR_DumpPlatform_f(void)
 		{"STAT_VIEW2",			"const float", CS, "This stat contains the number of the entity in the server's .view2 field.", STAT_VIEW2},
 		{"STAT_VIEWZOOM",		"const float", CS, NULL, STAT_VIEWZOOM},
 
-		{"VF_MIN",				"const float", CS, "The top-left of the 3d viewport in screenspace. The VF_ values are used via the setviewprop/getviewprop builtins.", VF_MIN},
-		{"VF_MIN_X",			"const float", CS, NULL, VF_MIN_X},
-		{"VF_MIN_Y",			"const float", CS, NULL, VF_MIN_Y},
-		{"VF_SIZE",				"const float", CS, "The width+height of the 3d viewport in screenspace.", VF_SIZE},
-		{"VF_SIZE_X",			"const float", CS, NULL, VF_SIZE_X},
-		{"VF_SIZE_Y",			"const float", CS, NULL, VF_SIZE_Y},
-		{"VF_VIEWPORT",			"const float", CS, "vector+vector. Two argument shortcut for VF_MIN and VF_SIZE", VF_VIEWPORT},
-		{"VF_FOV",				"const float", CS, "sets both fovx and fovy. consider using afov instead.", VF_FOV},
-		{"VF_FOVX",				"const float", CS, "horizontal field of view. does not consider aspect at all.", VF_FOVX},
-		{"VF_FOVY",				"const float", CS, "vertical field of view. does not consider aspect at all.", VF_FOVY},
-		{"VF_ORIGIN",			"const float", CS, "The origin of the view. Not of the player.", VF_ORIGIN},
-		{"VF_ORIGIN_X",			"const float", CS, NULL, VF_ORIGIN_X},
-		{"VF_ORIGIN_Y",			"const float", CS, NULL, VF_ORIGIN_Y},
-		{"VF_ORIGIN_Z",			"const float", CS, NULL, VF_ORIGIN_Z},
-		{"VF_ANGLES",			"const float", CS, "The angles the view will be drawn at. Not the angle the client reports to the server.", VF_ANGLES},
-		{"VF_ANGLES_X",			"const float", CS, NULL, VF_ANGLES_X},
-		{"VF_ANGLES_Y",			"const float", CS, NULL, VF_ANGLES_Y},
-		{"VF_ANGLES_Z",			"const float", CS, NULL, VF_ANGLES_Z},
+		{"VF_MIN",				"const float", CS|MENU, "The top-left of the 3d viewport in screenspace. The VF_ values are used via the setviewprop/getviewprop builtins.", VF_MIN},
+		{"VF_MIN_X",			"const float", CS|MENU, NULL, VF_MIN_X},
+		{"VF_MIN_Y",			"const float", CS|MENU, NULL, VF_MIN_Y},
+		{"VF_SIZE",				"const float", CS|MENU, "The width+height of the 3d viewport in screenspace.", VF_SIZE},
+		{"VF_SIZE_X",			"const float", CS|MENU, NULL, VF_SIZE_X},
+		{"VF_SIZE_Y",			"const float", CS|MENU, NULL, VF_SIZE_Y},
+		{"VF_VIEWPORT",			"const float", CS|MENU, "vector+vector. Two argument shortcut for VF_MIN and VF_SIZE", VF_VIEWPORT},
+		{"VF_FOV",				"const float", CS|MENU, "sets both fovx and fovy. consider using afov instead.", VF_FOV},
+		{"VF_FOVX",				"const float", CS|MENU, "horizontal field of view. does not consider aspect at all.", VF_FOVX},
+		{"VF_FOVY",				"const float", CS|MENU, "vertical field of view. does not consider aspect at all.", VF_FOVY},
+		{"VF_ORIGIN",			"const float", CS|MENU, "The origin of the view. Not of the player.", VF_ORIGIN},
+		{"VF_ORIGIN_X",			"const float", CS|MENU, NULL, VF_ORIGIN_X},
+		{"VF_ORIGIN_Y",			"const float", CS|MENU, NULL, VF_ORIGIN_Y},
+		{"VF_ORIGIN_Z",			"const float", CS|MENU, NULL, VF_ORIGIN_Z},
+		{"VF_ANGLES",			"const float", CS|MENU, "The angles the view will be drawn at. Not the angle the client reports to the server.", VF_ANGLES},
+		{"VF_ANGLES_X",			"const float", CS|MENU, NULL, VF_ANGLES_X},
+		{"VF_ANGLES_Y",			"const float", CS|MENU, NULL, VF_ANGLES_Y},
+		{"VF_ANGLES_Z",			"const float", CS|MENU, NULL, VF_ANGLES_Z},
 		{"VF_DRAWWORLD",		"const float", CS, "boolean. If set to 1, the engine will draw the world and static/persistant rtlights. If 0, the world will be skipped and everything will be fullbright.", VF_DRAWWORLD},
 		{"VF_DRAWENGINESBAR",	"const float", CS, "boolean. If set to 1, the sbar will be drawn, and viewsize will be honoured automatically.", VF_ENGINESBAR},
 		{"VF_DRAWCROSSHAIR",	"const float", CS, "boolean. If set to 1, the engine will draw its default crosshair.", VF_DRAWCROSSHAIR},
@@ -10602,22 +10551,22 @@ void PR_DumpPlatform_f(void)
 		{"VF_CL_VIEWANGLES_Y",	"const float", CS, NULL, VF_CL_VIEWANGLES_Y},
 		{"VF_CL_VIEWANGLES_Z",	"const float", CS, NULL, VF_CL_VIEWANGLES_Z},
 
-		{"VF_PERSPECTIVE",		"const float", CS, "1: regular rendering. Fov specifies the angle. 0: isometric-style. Fov specifies the number of Quake Units each side of the viewport.", VF_PERSPECTIVE},
+		{"VF_PERSPECTIVE",		"const float", CS|MENU, "1: regular rendering. Fov specifies the angle. 0: isometric-style. Fov specifies the number of Quake Units each side of the viewport.", VF_PERSPECTIVE},
 		{"VF_LPLAYER",			"const float", CS, "The 'seat' number, used when running splitscreen.", VF_LPLAYER},
-		{"VF_AFOV",				"const float", CS, "Aproximate fov. Matches the 'fov' cvar. The engine handles the aspect ratio for you.", VF_AFOV},
-		{"VF_SCREENVSIZE",		"const float", CS, "Provides a reliable way to retrieve the current virtual screen size (even if the screen is automatically scaled to retain aspect).", VF_SCREENVSIZE},
-		{"VF_SCREENPSIZE",		"const float", CS, "Provides a reliable way to retrieve the current physical screen size (cvars need vid_restart for them to take effect).", VF_SCREENPSIZE},
+		{"VF_AFOV",				"const float", CS|MENU, "Aproximate fov. Matches the 'fov' cvar. The engine handles the aspect ratio for you.", VF_AFOV},
+		{"VF_SCREENVSIZE",		"const float", CS|MENU, "Provides a reliable way to retrieve the current virtual screen size (even if the screen is automatically scaled to retain aspect).", VF_SCREENVSIZE},
+		{"VF_SCREENPSIZE",		"const float", CS|MENU, "Provides a reliable way to retrieve the current physical screen size (cvars need vid_restart for them to take effect).", VF_SCREENPSIZE},
 		{"VF_VIEWENTITY",		"const float", CS, "Changes the RF_EXTERNALMODEL flag on entities to match the new selection, and removes entities flaged with RF_VIEWENTITY. Requires cunning use of .entnum and typically requires calling addentities(MASK_VIEWMODEL) too.", VF_VIEWENTITY},
 
-		{"VF_RT_DESTCOLOUR",	"const float", CS, "The FrameBuffer texture index to write colour info into. 1-based. Additional arguments are: format (rgba8=1,rgba16f=2,rgba32f=3), sizexy. Written to by both 3d and 2d rendering.", VF_RT_DESTCOLOUR},
-		{"VF_RT_SOURCECOLOUR",	"const float", CS, "The FrameBuffer texture index to use with shaders that specify a $sourcecolour map.", VF_RT_SOURCECOLOUR},
-		{"VF_RT_DEPTH",			"const float", CS, "The FrameBuffer texture index to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16=4,24=5,32=6), sizexy.", VF_RT_DEPTH},
-		{"VF_RT_RIPPLE",		"const float", CS, "The FrameBuffer texture index to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy.", VF_RT_RIPPLE},
+		{"VF_RT_DESTCOLOUR",	"const float", CS|MENU, "The FrameBuffer texture index to write colour info into. 1-based. Additional arguments are: format (rgba8=1,rgba16f=2,rgba32f=3), sizexy. Written to by both 3d and 2d rendering.", VF_RT_DESTCOLOUR},
+		{"VF_RT_SOURCECOLOUR",	"const float", CS|MENU, "The FrameBuffer texture index to use with shaders that specify a $sourcecolour map.", VF_RT_SOURCECOLOUR},
+		{"VF_RT_DEPTH",			"const float", CS|MENU, "The FrameBuffer texture index to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16=4,24=5,32=6), sizexy.", VF_RT_DEPTH},
+		{"VF_RT_RIPPLE",		"const float", CS|MENU, "The FrameBuffer texture index to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy.", VF_RT_RIPPLE},
 
 		{"RF_VIEWMODEL",		"const float", CS, "Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob.", CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, "Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible.", CSQCRF_EXTERNALMODEL},
-		{"RF_DEPTHHACK",		"const float", CS, "Hacks the depth values such that the entity uses depth values as if it were closer to the screen. This is useful when combined with viewmodels to avoid weapons poking in to walls.", CSQCRF_DEPTHHACK},
-		{"RF_ADDITIVE",			"const float", CS, "Shaders from this entity will temporarily be hacked to use an additive blend mode instead of their normal blend mode.", CSQCRF_ADDITIVE},
+		{"RF_DEPTHHACK",		"const float", CS|MENU, "Hacks the depth values such that the entity uses depth values as if it were closer to the screen. This is useful when combined with viewmodels to avoid weapons poking in to walls.", CSQCRF_DEPTHHACK},
+		{"RF_ADDITIVE",			"const float", CS|MENU, "Shaders from this entity will temporarily be hacked to use an additive blend mode instead of their normal blend mode.", CSQCRF_ADDITIVE},
 		{"RF_USEAXIS",			"const float", CS, "The entity will be oriented according to the current v_forward+v_right+v_up vector values instead of the entity's .angles field.", CSQCRF_USEAXIS},
 		{"RF_NOSHADOW",			"const float", CS, "This entity will not cast shadows. Often useful on view models.", CSQCRF_NOSHADOW},
 		{"RF_FRAMETIMESARESTARTTIMES","const float", CS, "Specifies that the frame1time, frame2time field are timestamps (denoting the start of the animation) rather than time into the animation.", CSQCRF_FRAMETIMESARESTARTTIMES},

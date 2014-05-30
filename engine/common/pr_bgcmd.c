@@ -71,6 +71,124 @@ char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_g
 	}
 	return out;
 }
+
+extern int debuggerresume;
+extern int debuggerresumeline;
+extern int isPlugin;	//if 2, we were invoked by a debugger, and we need to give it debug locations (and it'll feed us continue/steps/breakpoints)
+static int debuggerstacky;
+
+#ifdef _WIN32
+#include <windows.h>
+void INS_UpdateGrabs(int fullscreen, int activeapp);
+#endif
+int QCLibEditor(pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);
+void QCLoadBreakpoints(const char *vmname, const char *progsname)
+{	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
+#if defined(_WIN32) && !defined(SERVERONLY)
+	extern int				isPlugin;
+	if (isPlugin == 2)
+	{
+		Sys_SendKeyEvents();
+		debuggerresume = false;
+		printf("qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
+		fflush(stdout);
+		INS_UpdateGrabs(false, false);
+		while(debuggerresume != 2)
+		{
+			Sleep(10);
+			Sys_SendKeyEvents();
+		}
+	}
+#endif
+}
+extern cvar_t pr_sourcedir;
+int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms)
+{
+#if defined(_WIN32) && !defined(SERVERONLY)
+	if (isPlugin == 2)
+	{
+		if (!*filename)	//don't try editing an empty line, it won't work
+			return line;
+		Sys_SendKeyEvents();
+		debuggerresume = false;
+		debuggerresumeline = line;
+		printf("qcstep \"%s\":%i\n", filename, line);
+		fflush(stdout);
+		INS_UpdateGrabs(false, false);
+		while(!debuggerresume)
+		{
+			Sleep(10);
+			Sys_SendKeyEvents();
+
+			//FIXME: display a stack trace and locals instead
+			R2D_ImageColours((sin(Sys_DoubleTime())+1)*0.5,0, 0, 1);
+			R2D_FillBlock(0, 0, vid.width, vid.height);
+			Con_DrawConsole(vid.height/2, true);	//draw console at half-height
+			debuggerstacky = vid.height/2;
+			if (debuggerstacky)
+				PR_StackTrace(prinst, 2);
+			debuggerstacky = 0;
+			VID_SwapBuffers();
+		}
+		if (debuggerresume == 2)
+			prinst->pr_trace = false;
+		return debuggerresumeline;
+	}
+#endif
+
+#ifdef TEXTEDITOR
+	if (!parms)
+		return QCLibEditor(prinst, filename, line, statement, nump, parms);
+	else
+	{
+		static char oldfuncname[64];
+		if (!nump && !strncmp(oldfuncname, *parms, sizeof(oldfuncname)))
+		{
+			Con_Printf("Executing %s: %s\n", *parms, filename);
+			Q_strncpyz(oldfuncname, *parms, sizeof(oldfuncname));
+		}
+		return line;
+	}
+#else
+	{
+		int i;
+		char buffer[8192];
+		char *r;
+		vfsfile_t *f;
+
+		if (line == -1)
+			return line;
+		SV_EndRedirect();
+		if (developer.value)
+		{
+			f = FS_OpenVFS(filename, "rb", FS_GAME);
+		}
+		else
+			f = NULL;	//faster.
+		if (!f)
+		{
+			Q_snprintfz(buffer, sizeof(buffer), "%s/%s", pr_sourcedir.string, filename);
+			f = FS_OpenVFS(buffer, "rb", FS_GAME);
+		}
+		if (!f)
+			Con_Printf("-%s - %i\n", filename, line);
+		else
+		{
+			for (i = 0; i < line; i++)
+			{
+				VFS_GETS(f, buffer, sizeof(buffer));
+			}
+			if ((r = strchr(buffer, '\r')))
+			{ r[0] = '\n';r[1]='\0';}
+			Con_Printf("-%s", buffer);
+			VFS_CLOSE(f);
+		}
+	}
+//PF_break(NULL);
+	return line;
+#endif
+}
+
 //tag warnings/errors for easier debugging.
 int PR_Printf (const char *fmt, ...)
 {
@@ -90,6 +208,20 @@ int PR_Printf (const char *fmt, ...)
 		if (nl)
 			*nl = 0;
 		*file = 0;
+
+		/*when we're debugging, stack dumps should appear directly on-screen instead of being shoved on the console*/
+#ifndef SERVERONLY
+		if (debuggerstacky)
+		{
+			Draw_FunString(0, debuggerstacky, msg);
+			debuggerstacky += 8;
+			if (nl)
+				memmove(msg, nl+1, strlen(nl+1)+1);
+			else
+				break;
+			continue;
+		}
+#endif
 
 		ls = strchr(msg, ':');
 		if (ls)
@@ -187,7 +319,7 @@ void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...)
 	}
 	else
 	{
-		PR_StackTrace(progfuncs);
+		PR_StackTrace(progfuncs, false);
 		PR_AbortStack(progfuncs);
 		progfuncs->parms->Abort ("%s", string);
 	}
@@ -4336,7 +4468,7 @@ void QCBUILTIN PF_error (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	ED_Print (ed);
 */
 
-	PR_StackTrace(prinst);
+	PR_StackTrace(prinst, false);
 
 	Con_Printf("%s\n", s);
 
@@ -4367,6 +4499,29 @@ void QCBUILTIN PF_localcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		Cbuf_AddText ("sv_mintic 0\n", RESTRICT_INSECURE);	//hmm... do this better...
 	else
 		Cbuf_AddText (str, RESTRICT_INSECURE);
+}
+
+void QCBUILTIN PF_gettime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int timer = (prinst->callargc > 0)?G_FLOAT(OFS_PARM0):0;
+	switch(timer)
+	{
+	default:
+	case 0:		//cached time at start of frame
+		G_FLOAT(OFS_RETURN) = realtime;
+		break;
+	case 1:		//actual time
+		G_FLOAT(OFS_RETURN) = Sys_DoubleTime();
+		break;
+	//case 2:	//highres.. looks like time into the frame
+	//case 3:	//uptime
+	//case 4:	//cd track
+#ifndef SERVERONLY
+	case 5:		//sim time
+		G_FLOAT(OFS_RETURN) = cl.time;
+		break;
+#endif
+	}
 }
 
 void QCBUILTIN PF_calltimeofday (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4982,6 +5137,8 @@ void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
 		PO_Close(pofile);
 	}
 	prinst->FindPrefixGlobals (prinst, newprogs, "autocvar_", PR_FoundAutoCvarGlobal, NULL);
+
+	QCLoadBreakpoints("", modulename);
 }
 
 lh_extension_t QSG_Extensions[] = {
@@ -5086,6 +5243,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
 	{"DP_QC_MULTIPLETEMPSTRINGS"},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
+	{"DP_QC_RENDER_SCENE"},	//clear+addentity+setviewprop+renderscene+setmodel are available to menuqc.
 	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
 	{"DP_QC_STRFTIME",					1,	NULL, {"strftime"}},
 	{"DP_QC_STRING_CASE_FUNCTIONS",		2,	NULL, {"strtolower", "strtoupper"}},
@@ -5150,7 +5308,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"EXT_DIMENSION_GHOST"},
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
-	{"FTE_CSQC_ALTCONSOLES_WIP",		4,	NULL, {"con_getset", "con_print", "con_draw", "con_input"}},
+	{"FTE_CSQC_ALTCONSOLES_WIP",		4,	NULL, {"con_getset", "con_printf", "con_draw", "con_input"}},
 	{"FTE_CSQC_BASEFRAME"},				//control for all skeletal models
 	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
 	{"FTE_CSQC_SERVERBROWSER",			12,	NULL, {	"gethostcachevalue", "gethostcachestring", "resethostcachemasks", "sethostcachemaskstring", "sethostcachemasknumber",

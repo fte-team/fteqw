@@ -238,18 +238,80 @@ char *QC_ucase(char *str)
 	return s;
 }
 
-//#define STACKTRACE
-void PDECL PR_StackTrace (pubprogfuncs_t *ppf)
+static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
+{
+	//scan for op_address/op_load instructions within the function
+	int st, st2;
+	int op;
+	dstatement16_t *st16 = current_progstate->statements;
+	int line;
+	if (!current_progstate->linenums || current_progstate->structtype != PST_DEFAULT)
+		return;
+
+	line = current_progstate->linenums[pr_xstatement];
+	for (st = pr_xfunction->first_statement; st16[st].op != OP_DONE; st++)
+	{
+		if (current_progstate->linenums[st] < line - 2 || current_progstate->linenums[st] > line + 2)
+			continue;	//don't go crazy with this.
+		op = st16[st].op & ~0x8000;
+		if (op == OP_ADDRESS || (op >= OP_LOAD_F && op <= OP_LOAD_FNC) || op == OP_LOAD_I || op == OP_LOAD_P)
+		{
+			ddef16_t *ent = ED_GlobalAtOfs16(progfuncs, st16[st].a);
+			ddef16_t *fld = ED_GlobalAtOfs16(progfuncs, st16[st].b);
+			pbool skip = false;
+			edictrun_t *ed;
+			eval_t *ptr;
+			fdef_t *fdef;
+			fdef_t *cnfd;
+			char *classname;
+			if (!ent || !fld)
+				continue;
+			//all this extra code to avoid printing dupes...
+			for (st2 = st-1; st2 >= pr_xfunction->first_statement; st2--)
+			{
+				if (current_progstate->linenums[st2] < line - 2 || current_progstate->linenums[st2] > line + 2)
+					continue;
+				op = st16[st2].op & ~0x8000;
+				if (op == OP_ADDRESS || (op >= OP_LOAD_F && op <= OP_LOAD_FNC) || op == OP_LOAD_I || op == OP_LOAD_P)
+					if (st16[st].a == st16[st2].a && st16[st].b == st16[st2].b)
+					{
+						skip = true;
+						break;
+					}
+			}
+			if (skip)
+				continue;
+			ed = PROG_TO_EDICT(progfuncs, ((eval_t *)&pr_globals[st16[st].a])->edict);
+			ptr = (eval_t *)(((int *)edvars(ed)) + ((eval_t *)&pr_globals[st16[st].b])->_int + progfuncs->funcs.fieldadjust);
+
+			cnfd = ED_FindField(progfuncs, "classname");
+			if (cnfd)
+			{
+				string_t *v = (string_t *)((char *)edvars(ed) + cnfd->ofs*4);
+				classname = PR_StringToNative(&progfuncs->funcs, *v);
+			}
+			else
+				classname = "";
+			if (*classname)
+				fdef = ED_ClassFieldAtOfs(progfuncs, ((eval_t *)&pr_globals[st16[st].b])->_int, classname);
+			else
+				fdef = ED_FieldAtOfs(progfuncs, ((eval_t *)&pr_globals[st16[st].b])->_int);
+			if (fdef)
+				printf("    %s.%s: %s\n", ent->s_name+progfuncs->funcs.stringtable, fld->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, fdef->type, ptr, false));
+			else
+				printf("    %s.%s: BAD FIELD DEF - %#x\n", ent->s_name+progfuncs->funcs.stringtable, fld->s_name+progfuncs->funcs.stringtable, ptr->_int);
+		}
+	}
+}
+
+void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 {
 	progfuncs_t *progfuncs = (progfuncs_t *)ppf;
 	const dfunction_t	*f;
 	int			i;
 	int progs;
-
-#ifdef STACKTRACE
 	int arg;
 	int *globalbase;
-#endif
 	progs = -1;
 
 	if (pr_depth == 0)
@@ -258,9 +320,8 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf)
 		return;
 	}
 
-#ifdef STACKTRACE
-	globalbase = (int *)pr_globals + pr_xfunction->parm_start - pr_xfunction->locals;
-#endif
+	//point this to the function's locals
+	globalbase = (int *)pr_globals + pr_xfunction->parm_start + pr_xfunction->locals;
 
 	pr_stack[pr_depth].f = pr_xfunction;
 	pr_stack[pr_depth].s = pr_xstatement;
@@ -274,6 +335,8 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf)
 		}
 		else
 		{
+			globalbase -= f->locals;
+
 			if (pr_stack[i].progsnum != progs)
 			{
 				progs = pr_stack[i].progsnum;
@@ -290,8 +353,10 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf)
 					printf ("%12s : %s\n", f->s_file+progfuncs->funcs.stringtable, f->s_name+progfuncs->funcs.stringtable);
 			}
 
-#ifdef STACKTRACE
-			if (i == pr_depth)
+			//locals:0 = no locals
+			//locals:1 = top only
+			//locals:2 = ALL locals.
+			if ((i == pr_depth && showlocals == 1) || showlocals >= 2)
 			for (arg = 0; arg < f->locals; arg++)
 			{
 				ddef16_t *local;
@@ -302,17 +367,18 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf)
 				}
 				else
 				{
-					printf("    %s: %s\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg), false));
+					printf("    %s: %s\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase+arg), false));
 					if (local->type == ev_vector)
 						arg+=2;
 				}
 			}
+			if (i == pr_depth)
+			{	//scan for op_address/op_load instructions within the function
+				PR_PrintRelevantLocals(progfuncs);
+			}
 
 			if (i == pr_depth)
 				globalbase = localstack + localstack_used;
-			else
-				globalbase -= f->locals;
-#endif
 		}
 	}
 }
@@ -379,7 +445,7 @@ void VARGS PR_RunError (pubprogfuncs_t *progfuncs, char *error, ...)
 //	}
 
 //	PR_PrintStatement (pr_statements + pr_xstatement);
-	PR_StackTrace (progfuncs);
+	PR_StackTrace (progfuncs, true);
 	progfuncs->parms->Printf ("\n");
 
 //editbadfile(pr_strings + pr_xfunction->s_file, -1);
@@ -400,7 +466,7 @@ pbool PR_RunWarning (pubprogfuncs_t *progfuncs, char *error, ...)
 	va_end (argptr);
 
 	progfuncs->parms->Printf ("%s, %s\n", string, ((progfuncs->pr_trace)?"ignoring":"enabling trace"));
-	PR_StackTrace (progfuncs);
+	PR_StackTrace (progfuncs, false);
 
 	if (progfuncs->pr_trace++ == 0)
 		return true;
@@ -434,7 +500,7 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsn
 	if (pr_depth == MAX_STACK_DEPTH)
 	{
 		pr_depth--;
-		PR_StackTrace (&progfuncs->funcs);
+		PR_StackTrace (&progfuncs->funcs, false);
 
 		printf ("stack overflow on call to %s (depth %i)\n", progfuncs->funcs.stringtable+f->s_name, pr_depth);
 
@@ -1105,6 +1171,7 @@ static char *lastfile = 0;
 	int pn = pr_typecurrent;
 	int i;
 	const dfunction_t *f = pr_xfunction;
+	pr_xstatement = statement;
 
 	if (!externs->useeditor)
 	{
@@ -1163,7 +1230,7 @@ static char *lastfile = 0;
 	{											\
 		pr_xstatement = st-pr_statements;		\
 		PR_RunError (&progfuncs->funcs, "runaway loop error\n");\
-		PR_StackTrace(&progfuncs->funcs);		\
+		PR_StackTrace(&progfuncs->funcs,false);	\
 		printf ("runaway loop error\n");		\
 		while(pr_depth > prinst.exitdepth)		\
 			PR_LeaveFunction(progfuncs);		\
@@ -1197,7 +1264,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 #ifdef FTE_TARGET_WEB
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
 		pr_xstatement = st-pr_statements;
-		PR_RunError (&progfuncs->funcs, "runaway loop error\n");
+		PR_RunError (&progfuncs->funcs, "This platform does not support QC debugging.\n");
 		PR_StackTrace(&progfuncs->funcs);
 		return -1;
 #else
@@ -1244,8 +1311,8 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 #ifdef FTE_TARGET_WEB
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
 		pr_xstatement = st-pr_statements;
-		PR_RunError (&progfuncs->funcs, "runaway loop error\n");
-		PR_StackTrace(&progfuncs->funcs);
+		PR_RunError (&progfuncs->funcs, "This platform does not support QC debugging.\n");
+		PR_StackTrace(&progfuncs->funcs, false);
 		return -1;
 #else
 		#define DEBUGABLE

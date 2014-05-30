@@ -1146,7 +1146,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 					{
 						ssqc_deprecated_warned = true;
 						Con_Printf("NQWriteByte: invalid tempentity %i. Future errors will be dprinted. You may need to enable sv_csqcdebug.\n", data);
-						PR_StackTrace(svprogfuncs);
+						PR_StackTrace(svprogfuncs, false);
 					}
 					else
 						Con_DPrintf("NQWriteByte: unknown tempentity %i\n", data);

@@ -637,7 +637,7 @@ pbool OpAssignsToB(unsigned int op)
 		return true;
 	if(op >= OP_MULSTORE_F && op <= OP_SUBSTOREP_V)
 		return true;
-	if(op >= OP_STORE_F && op <= OP_STOREP_FNC)
+	if((op >= OP_STORE_F && op <= OP_STOREP_FNC) || op == OP_STOREP_P || op == OP_STORE_P)
 		return true;
 	return false;
 }
@@ -4983,14 +4983,13 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 //	QCC_PR_EmitFieldsForMembers(basetype, basictypefield);
 
 
-
-
+	pr_source_line = 0;
 	pr_scope = scope;
 
 	df = &functions[numfunctions];
 	numfunctions++;
 
-	df->s_file = scope->s_file;
+	df->s_file = 0;
 	df->s_name = QCC_CopyString(scope->name);
 	df->first_statement = numstatements;
 	df->parm_size[0] = 1;
@@ -6525,8 +6524,8 @@ QCC_def_t *QCC_StoreToRef(QCC_ref_t *dest, QCC_def_t *source, pbool readable, pb
 				break;
 			t = t->parentclass;
 		}
-		if (!t)
-		{
+		if (!t && !(source->type->type == ev_pointer && dest->cast->type == ev_pointer && (source->type->aux_type->type == ev_void || source->type->aux_type->type == ev_variant)))
+		{	//extra check to allow void*->any*
 			char typea[256];
 			char typeb[256];
 			TypeName(source->type, typea, sizeof(typea));
@@ -9597,17 +9596,17 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *thearray, char *ar
 	QCC_def_t *fasttrackpossible;
 	int numslots;
 
-	if (flag_fasttrackarrays)
+	if (thearray->type->type == ev_vector)
+		numslots = thearray->arraysize;
+	else
+		numslots = thearray->arraysize*thearray->type->size;
+
+	if (flag_fasttrackarrays && numslots > 6)
 		fasttrackpossible = QCC_PR_GetDef(type_float, "__ext__fasttrackarrays", NULL, true, 0, false);
 	else
 		fasttrackpossible = NULL;
 
 	s_file = scope->s_file;
-
-	if (thearray->type->type == ev_vector)
-		numslots = thearray->arraysize;
-	else
-		numslots = thearray->arraysize*thearray->type->size;
 
 	if (numslots >= 15 && thearray->type->type != ev_vector)
 		vectortrick = QCC_PR_EmitArrayGetVector(thearray);
@@ -9774,18 +9773,18 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *thearray, char *ar
 	QCC_def_t *fasttrackpossible;
 	int numslots;
 
-	if (flag_fasttrackarrays)
+	if (thearray->type->type == ev_vector)
+		numslots = thearray->arraysize;
+	else
+		numslots = thearray->arraysize*thearray->type->size;
+
+	if (flag_fasttrackarrays && numslots > 6)
 		fasttrackpossible = QCC_PR_GetDef(type_float, "__ext__fasttrackarrays", NULL, true, 0, false);
 	else
 		fasttrackpossible = NULL;
 
 	s_file = scope->s_file;
 	pr_scope = scope;
-
-	if (thearray->type->type == ev_vector)
-		numslots = thearray->arraysize;
-	else
-		numslots = thearray->arraysize*thearray->type->size;
 
 	if (numfunctions >= MAX_FUNCTIONS)
 		QCC_Error(ERR_INTERNAL, "Too many function defs");
@@ -10164,7 +10163,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 		}
 	}
 
-	if (foundstatic && !allocate)
+	if (foundstatic && !allocate && !(flags & GDF_SILENT))
 	{
 		QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "%s defined static", name);
 		QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, foundstatic);

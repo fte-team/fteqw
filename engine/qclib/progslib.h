@@ -117,7 +117,7 @@ struct pubprogfuncs_s
 
 	int		pr_trace;	//start calling the editor for each line executed	
 
-	void	(PDECL *StackTrace)					(pubprogfuncs_t *prinst);
+	void	(PDECL *StackTrace)					(pubprogfuncs_t *prinst, int showlocals);
 	
 	int		(PDECL *ToggleBreak)				(pubprogfuncs_t *prinst, char *filename, int linenum, int mode);
 
@@ -265,7 +265,7 @@ typedef union eval_s
 #define PR_StartCompile(pf,argc,argv)						(*pf->StartCompile)			(pf,argc,argv)
 #define PR_ContinueCompile(pf)								(*pf->ContinueCompile)		(pf)
 
-#define PR_StackTrace(pf)									(*pf->StackTrace)			(pf)
+#define PR_StackTrace(pf,locals)							(*pf->StackTrace)			(pf,locals)
 #define PR_AbortStack(pf)									(*pf->AbortStack)			(pf)
 
 #define PR_RunError(pf,str)									(*pf->RunError)				(pf,str)

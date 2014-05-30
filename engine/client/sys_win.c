@@ -1988,6 +1988,8 @@ void Sys_CloseTerminal (void)
 //
 ////////////////////////////
 
+int debuggerresume;
+int debuggerresumeline;
 void Sys_SendKeyEvents (void)
 {
     MSG        msg;
@@ -2014,6 +2016,8 @@ void Sys_SendKeyEvents (void)
 			if (ReadFile(input, text+textpos, avail, &avail, NULL))
 			{
 				textpos += avail;
+				if (textpos > sizeof(text)-1)
+					Sys_Error("No.");
 				while(1)
 				{
 					text[textpos] = 0;
@@ -2030,7 +2034,51 @@ void Sys_SendKeyEvents (void)
 							sys_parentheight = strtoul(Cmd_Argv(4), NULL, 0); 
 							sys_parentwindow = (HWND)(intptr_t)strtoull(Cmd_Argv(5), NULL, 16);
 						}
-						Cmd_ExecuteString(text, RESTRICT_LOCAL);
+						else if ((!strncmp(text, "qcstep", 6) && (text[6] == 0 || text[6] == ' ')) || (!strncmp(text, "qcresume", 8) && (text[8] == 0 || text[8] == ' ')))
+						{
+							int l;
+							if (text[2] == 's')
+							{
+								debuggerresume = true;
+								l = atoi(text+7);
+							}
+							else
+							{
+								l = atoi(text+9);
+								debuggerresume = 2;
+							}
+							if (l)
+								debuggerresumeline = l;
+						}
+						else if (!strncmp(text, "qcbreakpoint ", 13))
+						{
+							extern world_t csqc_world, menu_world;
+							int mode;
+							char *filename;
+							int line;
+							Cmd_TokenizeString(text, false, false);
+							mode = strtoul(Cmd_Argv(1), NULL, 0);
+							filename = Cmd_Argv(2);
+							line = strtoul(Cmd_Argv(3), NULL, 0);
+							//togglebreakpoint just finds the first statement (via the function table for file names) with the specified line number, and sets some unused high bit that causes it to be an invalid opcode.
+#ifdef CSQC_DAT
+							if (csqc_world.progs && csqc_world.progs->ToggleBreak)
+								csqc_world.progs->ToggleBreak(csqc_world.progs, filename, line, mode);
+#endif
+#ifdef MENU_DAT
+							if (menu_world.progs && menu_world.progs->ToggleBreak)
+								menu_world.progs->ToggleBreak(menu_world.progs, filename, line, mode);
+#endif
+#ifndef CLIENTONLY
+							if (sv.world.progs && sv.world.progs->ToggleBreak)
+								sv.world.progs->ToggleBreak(sv.world.progs, filename, line, mode);
+#endif
+						}
+						else
+						{
+							Cbuf_AddText(text, RESTRICT_LOCAL);
+							Cbuf_AddText("\n", RESTRICT_LOCAL);
+						}
 						memmove(text, nl, textpos - (nl - text));
 						textpos -= (nl - text);
 					}
@@ -3013,10 +3061,11 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	int delay = 0;
 	char lang[32];
 	char ctry[32];
+	int c;
 
 	/* previous instances do not exist in Win32 */
-    if (hPrevInstance)
-        return 0;
+	if (hPrevInstance)
+		return 0;
 
 	/* determine if we're on nt early, so we don't do the wrong thing when checking commandlines */
 	{
@@ -3112,7 +3161,16 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (Sys_CheckUpdated())
 			return true;
 
-		isPlugin = !!COM_CheckParm("-plugin");
+		c = COM_CheckParm("-plugin");
+		if (c)
+		{
+			if (c < com_argc && !strcmp(com_argv[c+1], "qcdebug"))
+				isPlugin = 2;
+			else
+				isPlugin = 1;
+		}
+		else
+			isPlugin = 0;
 
 		if (COM_CheckParm("-register_types"))
 		{

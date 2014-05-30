@@ -205,6 +205,7 @@ typedef struct
 	float		fov_x, fov_y, afov;
 
 	qboolean	drawsbar;
+	qboolean	drawcrosshair;
 	int			flags;	//(Q2)RDF_ flags
 	int			dirty;
 

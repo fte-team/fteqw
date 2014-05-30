@@ -218,7 +218,7 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 		if (b < 0 || b+sizeof(qcmemfreeblock_t) >= prinst.addressableused)
 		{
 			printf("PF_memalloc: memory corruption\n");
-			PR_StackTrace(&progfuncs->funcs);
+			PR_StackTrace(&progfuncs->funcs, false);
 			return NULL;
 		}
 		p = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + b);
@@ -230,7 +230,7 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 				p->prev >= b)
 			{
 				printf("PF_memalloc: memory corruption\n");
-				PR_StackTrace(&progfuncs->funcs);
+				PR_StackTrace(&progfuncs->funcs, false);
 				return NULL;
 			}
 
@@ -274,7 +274,7 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 		if (!ub)
 		{
 			printf("PF_memalloc: memory exausted\n");
-			PR_StackTrace(&progfuncs->funcs);
+			PR_StackTrace(&progfuncs->funcs, false);
 			return NULL;
 		}
 	}
@@ -309,7 +309,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 		}
 		else
 			printf("PF_memfree: pointer invalid - out of range (%x >= %x)\n", ptr, (unsigned int)prinst.addressableused);
-		PR_StackTrace(&progfuncs->funcs);
+		PR_StackTrace(&progfuncs->funcs, false);
 		return;
 	}
 
@@ -319,7 +319,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 	if (ub->marker != MARKER || ub->size <= sizeof(*ub) || ptr + ub->size > (unsigned int)prinst.addressableused)
 	{
 		printf("PR_memfree: pointer lacks marker - double-freed?\n");
-		PR_StackTrace(&progfuncs->funcs);
+		PR_StackTrace(&progfuncs->funcs, false);
 		return;
 	}
 	ub->marker = 0;
@@ -330,7 +330,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 		if (na < 0 || na >= prinst.addressableused)
 		{
 			printf("PF_memfree: memory corruption\n");
-			PR_StackTrace(&progfuncs->funcs);
+			PR_StackTrace(&progfuncs->funcs, false);
 			return;
 		}
 		if (!na || na >= ptr)
@@ -339,7 +339,7 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 			if (pa && pa+np->size>ptr)
 			{
 				printf("PF_memfree: double free\n");
-				PR_StackTrace(&progfuncs->funcs);
+				PR_StackTrace(&progfuncs->funcs, false);
 				return;
 			}
 
@@ -797,7 +797,7 @@ struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
 		printf("Bad entity index %i\n", progs);
 		if (pr_depth)
 		{
-			PR_StackTrace (ppf);
+			PR_StackTrace (ppf, false);
 //			progfuncs->funcs.pr_trace += 1;
 		}
 		progs = 0;
@@ -904,7 +904,7 @@ char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 		if (i >= prinst.numallocedstrings)
 		{
 			printf("invalid string %x\n", str);
-			PR_StackTrace(&progfuncs->funcs);
+			PR_StackTrace(&progfuncs->funcs, false);
 			progfuncs->funcs.pr_trace = 1;
 			return "";
 		}
@@ -913,7 +913,7 @@ char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 		else
 		{
 			printf("invalid string %x\n", str);
-			PR_StackTrace(&progfuncs->funcs);
+			PR_StackTrace(&progfuncs->funcs, false);
 			progfuncs->funcs.pr_trace = 1;
 			return "";	//urm, was freed...
 		}
@@ -924,7 +924,7 @@ char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 		if (i >= prinst.numtempstrings)
 		{
 			printf("invalid temp string %x\n", str);
-			PR_StackTrace(&progfuncs->funcs);
+			PR_StackTrace(&progfuncs->funcs, false);
 			progfuncs->funcs.pr_trace = 1;
 			return "";
 		}
@@ -934,7 +934,7 @@ char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 	if ((unsigned int)str >= (unsigned int)prinst.addressableused)
 	{
 		printf("invalid string offset %x\n", str);
-		PR_StackTrace(&progfuncs->funcs);
+		PR_StackTrace(&progfuncs->funcs, false);
 		progfuncs->funcs.pr_trace = 1;
 		return "";
 	}

@@ -74,7 +74,7 @@ pbool PreCompile(void)
 	return !!qcchunk;
 }
 
-void QCC_main (int argc, char **argv);
+pbool QCC_main (int argc, char **argv);
 void QCC_ContinueCompile(void);
 void QCC_FinishCompile(void);
 
@@ -99,9 +99,8 @@ pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms)
 		return false;
 	}
 
-	if (!PreCompile())
+	if (!QCC_main(nump, parms))
 		return false;
-	QCC_main(nump, parms);
 
 	while(qcc_compileactive)
 		QCC_ContinueCompile();
@@ -124,9 +123,8 @@ int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, char **parms)
 		return false;
 	}
 
-	if (!PreCompile())
+	if (!QCC_main(nump, parms))
 		return false;
-	QCC_main(nump, parms);
 
 	return true;
 }

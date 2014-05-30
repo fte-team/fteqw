@@ -1272,8 +1272,38 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 	R_Upload(*tex, "fog", TF_RGBA32, fogdata, NULL, FOGS, FOGT, IF_CLAMP|IF_NOMIPMAP);
 }
 
+void GLBE_DestroyFBOs(void)
+{
+	GLBE_FBO_Destroy(&shaderstate.fbo_2dfbo);
+	GLBE_FBO_Destroy(&shaderstate.fbo_reflectrefrac);
+	GLBE_FBO_Destroy(&shaderstate.fbo_lprepass);
+
+	if (shaderstate.tex_reflection.num)
+	{
+		R_DestroyTexture(shaderstate.tex_reflection);
+		shaderstate.tex_reflection = r_nulltex;
+	}
+	if (shaderstate.tex_refraction.num)
+	{
+		R_DestroyTexture(shaderstate.tex_refraction);
+		shaderstate.tex_refraction = r_nulltex;
+	}
+	if (shaderstate.tex_refractiondepth.num)
+	{
+		R_DestroyTexture(shaderstate.tex_refractiondepth);
+		shaderstate.tex_refractiondepth = r_nulltex;
+	}
+	if (shaderstate.temptexture.num)
+	{
+		R_DestroyTexture(shaderstate.temptexture);
+		shaderstate.temptexture = r_nulltex;
+	}
+}
+
 void GLBE_Shutdown(void)
 {
+	GLBE_DestroyFBOs();
+
 	BZ_Free(shaderstate.wbatches);
 	shaderstate.wbatches = NULL;
 	shaderstate.maxwbatches = 0;
@@ -4482,7 +4512,7 @@ void GLBE_BaseEntTextures(void)
 
 void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
 {
-	unsigned int width, height;
+	unsigned int width = 0, height = 0;
 	if (destchanged)
 	{
 		if (r_refdef.rt_destcolour)
@@ -4492,6 +4522,7 @@ void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
 		}
 		else
 			GLBE_FBO_Push(NULL);
+
 		GL_Set2D(false);
 	}
 	else
@@ -4889,30 +4920,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	}
 	if (shaderstate.oldwidth != vid.pixelwidth || shaderstate.oldheight != vid.pixelheight)
 	{
-		GLBE_FBO_Destroy(&shaderstate.fbo_2dfbo);
-		GLBE_FBO_Destroy(&shaderstate.fbo_reflectrefrac);
-		GLBE_FBO_Destroy(&shaderstate.fbo_lprepass);
-
-		if (shaderstate.tex_reflection.num)
-		{
-			R_DestroyTexture(shaderstate.tex_reflection);
-			shaderstate.tex_reflection = r_nulltex;
-		}
-		if (shaderstate.tex_refraction.num)
-		{
-			R_DestroyTexture(shaderstate.tex_refraction);
-			shaderstate.tex_refraction = r_nulltex;
-		}
-		if (shaderstate.tex_refractiondepth.num)
-		{
-			R_DestroyTexture(shaderstate.tex_refractiondepth);
-			shaderstate.tex_refractiondepth = r_nulltex;
-		}
-		if (shaderstate.temptexture.num)
-		{
-			R_DestroyTexture(shaderstate.temptexture);
-			shaderstate.temptexture = r_nulltex;
-		}
+		GLBE_DestroyFBOs();	//will be recreated on demand
 		shaderstate.oldwidth = vid.pixelwidth;
 		shaderstate.oldheight = vid.pixelheight;
 

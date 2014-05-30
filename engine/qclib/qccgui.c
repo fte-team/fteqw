@@ -9,9 +9,11 @@
 #include "qcc.h"
 #include "gui.h"
 
-//#define EMBEDDEBUG
+#define EMBEDDEBUG
 
 void AddSourceFile(char *format, ...);
+void GUI_ParseCommandLine(char *args);
+void GUI_RevealOptions(void);
 
 #ifndef TVM_SETBKCOLOR
 #define TVM_SETBKCOLOR              (TV_FIRST + 29)
@@ -37,6 +39,187 @@ void AddSourceFile(char *format, ...);
 #ifndef TTM_TRACKPOSITION
 #define TTM_TRACKPOSITION	(WM_USER + 18)
 #endif
+
+
+//scintilla stuff
+#define SCI_GETLENGTH 2006
+#define SCI_GETCURRENTPOS 2008
+#define SCI_SETSAVEPOINT 2014
+#define SCI_GETCURLINE 2027
+#define SCI_SETCODEPAGE 2037
+#define SCI_MARKERADD 2043
+#define SCI_MARKERDELETE 2044
+#define SCI_MARKERDELETEALL 2045
+#define SCI_MARKERGET 2046
+#define SCI_MARKERNEXT 2047
+#define SCI_STYLECLEARALL 2050
+#define SCI_STYLESETFORE 2051
+#define SCI_AUTOCSHOW 2100
+#define SCI_AUTOCCANCEL 2101
+#define SCI_AUTOCACTIVE 2102
+#define SCI_AUTOCSETFILLUPS 2112
+#define SCI_GETLINE 2153
+#define SCI_LINEFROMPOSITION 2166
+#define SCI_POSITIONFROMLINE 2167
+#define SCI_SETTEXT 2181
+#define SCI_GETTEXT 2182
+#define SCI_CALLTIPSHOW 2200
+#define SCI_CALLTIPCANCEL 2201
+#define SCI_SETMARGINSENSITIVEN 2246
+#define SCI_SETMOUSEDWELLTIME 2264
+#define SCI_LINELENGTH 2350
+#define SCI_AUTOCSETORDER 2660
+#define SCI_SETLEXER 4001
+#define SCI_SETPROPERTY 4004
+#define SCI_SETKEYWORDS 4005
+
+#define SC_ORDER_PERFORMSORT 1
+
+#define SC_CP_UTF8 65001
+#define SCLEX_CPP 3
+
+#define SCE_C_DEFAULT 0
+#define SCE_C_COMMENT 1
+#define SCE_C_COMMENTLINE 2
+#define SCE_C_COMMENTDOC 3
+#define SCE_C_NUMBER 4
+#define SCE_C_WORD 5
+#define SCE_C_STRING 6
+#define SCE_C_CHARACTER 7
+#define SCE_C_UUID 8
+#define SCE_C_PREPROCESSOR 9
+#define SCE_C_OPERATOR 10
+#define SCE_C_IDENTIFIER 11
+#define SCE_C_STRINGEOL 12
+#define SCE_C_VERBATIM 13
+#define SCE_C_REGEX 14
+#define SCE_C_COMMENTLINEDOC 15
+#define SCE_C_WORD2 16
+#define SCE_C_COMMENTDOCKEYWORD 17
+#define SCE_C_COMMENTDOCKEYWORDERROR 18
+#define SCE_C_GLOBALCLASS 19
+#define SCE_C_STRINGRAW 20
+#define SCE_C_TRIPLEVERBATIM 21
+#define SCE_C_HASHQUOTEDSTRING 22
+#define SCE_C_PREPROCESSORCOMMENT 23
+#define SCE_C_PREPROCESSORCOMMENTDOC 24
+#define SCE_C_USERLITERAL 25
+#define SCE_C_TASKMARKER 26
+#define SCE_C_ESCAPESEQUENCE 27
+
+#define SCN_CHARADDED 2001
+#define SCN_SAVEPOINTREACHED 2002
+#define SCN_SAVEPOINTLEFT 2003
+#define SCN_MARGINCLICK 2010
+#define SCN_DWELLSTART 2016
+#define SCN_DWELLEND 2017
+#define SCN_FOCUSOUT 2029
+
+struct SCNotification {
+	NMHDR nmhdr;
+	int position;
+	int ch;
+	int modifiers;
+	int modificationType;
+	const char *text;
+	int length;
+	int linesAdded;
+	int message;
+	DWORD_PTR wParam;
+	LONG_PTR lParam;
+	int line;
+	int foldLevelNow;
+	int foldLevelPrev;
+	int margin;
+	int listType;
+	int x;
+	int y;
+	int token;
+	int annotationLinesAdded;
+	int updated;
+};
+
+
+//these all run on the main thread
+typedef struct editor_s {
+	char filename[MAX_PATH];	//abs
+	HWND window;
+	HWND editpane;
+	HWND tooltip;
+	char tooltiptext[1024];
+	int curline;
+	pbool modified;
+	pbool scintilla;
+	time_t filemodifiedtime;
+	struct editor_s *next;
+} editor_t;
+editor_t *editors;
+
+//the engine thread simply sits waiting for responses from the engine
+typedef struct
+{
+	int pipeclosed;
+	DWORD tid;
+	HWND window;
+	HANDLE thread;
+	HANDLE pipefromengine;
+	HANDLE pipetoengine;
+} enginewindow_t;
+
+void EngineCommand(enginewindow_t *ctx, char *message, ...)
+{
+	//qcresume			- resume running
+	//qcinto			- singlestep. execute-with-debugging child functions
+	//qcover			- singlestep. execute-without-debugging child functions
+	//qcout				- singlestep. leave current function and enter parent.
+	//qcbreak "$loc"	- set breakpoint
+	//qcwatch "$var"	- set watchpoint
+	//qcstack			- force-report stack trace
+	va_list		va;
+	char		finalmessage[1024];
+	va_start (va, message);
+	vsnprintf (finalmessage, sizeof(finalmessage)-1, message, va);
+	va_end (va);
+	if (ctx->pipetoengine)
+	{
+		DWORD written = 0;
+		WriteFile(ctx->pipetoengine, finalmessage, strlen(finalmessage), &written, NULL);
+	}
+}
+
+
+static pbool QCC_RegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
+{
+	pbool result = false;
+	HKEY subkey;
+	DWORD type = REG_NONE;
+	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	{
+		DWORD dwlen = datalen-1;
+		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &dwlen);
+		datalen = dwlen;
+		RegCloseKey (subkey);
+	}
+
+	if (type == REG_SZ || type == REG_EXPAND_SZ)
+		((char*)data)[datalen] = 0;
+	else
+		((char*)data)[0] = 0;
+	return result;
+}
+static pbool QCC_RegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
+{
+	pbool result = false;
+	HKEY subkey;
+
+	if (RegCreateKeyEx(base, keyname, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subkey, NULL) == ERROR_SUCCESS)
+	{
+		if (ERROR_SUCCESS == RegSetValueEx(subkey, valuename, 0, type, data, datalen))
+			result = true;
+		RegCloseKey (subkey);
+	}
+	return result;
+}
 
 /*
 ==============
@@ -79,9 +262,9 @@ int PDECL QCC_FileSize (const char *fname)
 #include "../libs/zlib.h"
 #endif
 
-pbool PDECL QCC_WriteFileW (const char *name, wchar_t *data, int chars)
+pbool PDECL QCC_WriteFileW (const char *name, wchar_t *data, int maxchars)
 {
-	char *u8start = malloc(3+chars*4+1);
+	char *u8start = malloc(3+maxchars*4+1);
 	char *u8 = u8start;
 	int offset;
 	pbool result = false;
@@ -287,15 +470,16 @@ void GUIPrint(HWND wnd, char *msg);
 
 char finddef[256];
 char greptext[256];
-char enginebinary[MAX_PATH] = "fteglqw.exe";
-char enginebasedir[MAX_PATH] = "../..";
-char enginecommandline[8192] = "-game test -window +map start";
+char enginebinary[MAX_PATH];
+char enginebasedir[MAX_PATH];
+char enginecommandline[8192];
 
 void RunCompiler(char *args);
 void RunEngine(void);
 
 HINSTANCE ghInstance;
 HMODULE richedit;
+HMODULE scintilla;
 
 pbool resetprogssrc;	//progs.src was changed, reload project info.
 
@@ -322,7 +506,7 @@ struct{
 	{"Compile"},
 	{"Progs.src"},
 #ifdef EMBEDDEBUG
-	{"Run"},
+	{"Debug"},
 #endif
 	{"Options"},
 	{"Quit"}
@@ -363,31 +547,96 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 		}
 		if (wParam == VK_F5)
 		{
-			RunEngine();
+			if (gamewindow)
+			{
+				enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+				EngineCommand(e, "qcresume\n");
+			}
+			else
+				RunEngine();
+			return 0;
+		}
+		if (wParam == VK_F9)
+		{
+			editor_t *editor;
+			int mode;
+			for (editor = editors; editor; editor = editor->next)
+			{
+				if (editor->editpane == hWnd)
+					break;
+			}
+			if (editor->scintilla)
+			{
+				mode = !(SendMessage(editor->editpane, SCI_MARKERGET, editor->curline, 0) & 1);
+				SendMessage(editor->editpane, mode?SCI_MARKERADD:SCI_MARKERDELETE, editor->curline, 0);
+			}
+			else
+				mode = 2;
+
+			if (gamewindow)
+			{
+				enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+				EngineCommand(e, "qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, editor->curline+1);
+			}
+			return 0;
+		}
+		if (wParam == VK_F11)
+		{
+			if (gamewindow)
+			{
+				enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+				EngineCommand(e, "qcstep\n");
+			}
 			return 0;
 		}
 	}
 	return pDefSubclassProc(hWnd, uMsg, wParam, lParam);
 }
 
-HWND CreateAnEditControl(HWND parent)
+HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 {
-	HWND newc;
+	HWND newc = NULL;
+
+	if (!scintilla && scintillaokay)
+		scintilla = LoadLibrary("SciLexer.dll");
 
 	if (!richedit)
 		richedit = LoadLibrary("RICHED32.DLL");
 
-	newc=CreateWindowExW(WS_EX_CLIENTEDGE,
-		richedit?RICHEDIT_CLASSW:L"EDIT",
-		L"",
-		WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | 
-		WS_HSCROLL | WS_VSCROLL | ES_LEFT | ES_WANTRETURN |
-		ES_MULTILINE | ES_AUTOVSCROLL,
-		0, 0, 0, 0,
-		parent,
-		NULL,
-		ghInstance,
-		NULL);
+	if (!newc && scintilla && scintillaokay)
+	{
+		newc=CreateWindowEx(WS_EX_CLIENTEDGE,
+			"Scintilla",
+			"",
+			WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | 
+			WS_HSCROLL | WS_VSCROLL | ES_LEFT | ES_WANTRETURN |
+			ES_MULTILINE | ES_AUTOVSCROLL,
+			0, 0, 0, 0,
+			parent,
+			NULL,
+			ghInstance,
+			NULL);
+	}
+	if (newc)
+		*scintillaokay = true;
+	else if (scintillaokay)
+	{
+		*scintillaokay = false;
+		scintillaokay = NULL;
+	}
+
+	if (!newc)
+		newc=CreateWindowExW(WS_EX_CLIENTEDGE,
+			richedit?RICHEDIT_CLASSW:L"EDIT",
+			L"",
+			WS_CHILD /*| ES_READONLY*/ | WS_VISIBLE | 
+			WS_HSCROLL | WS_VSCROLL | ES_LEFT | ES_WANTRETURN |
+			ES_MULTILINE | ES_AUTOVSCROLL,
+			0, 0, 0, 0,
+			parent,
+			NULL,
+			ghInstance,
+			NULL);
 
 	if (!newc)
 		newc=CreateWindowEx(WS_EX_CLIENTEDGE,
@@ -418,9 +667,63 @@ HWND CreateAnEditControl(HWND parent)
 			ghInstance,
 			NULL);
 	}
+	if (!newc)
+		return NULL;
 
-	//go to lucidia console, 10pt
+	if (scintillaokay)
 	{
+		SendMessage(newc, SCI_SETCODEPAGE, SC_CP_UTF8, 0);
+		SendMessage(newc, SCI_SETLEXER,		SCLEX_CPP,						0);
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_DEFAULT,					RGB(0x00, 0x00, 0x00));
+		SendMessage(newc, SCI_STYLECLEARALL,0,								0);
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_COMMENT,					RGB(0x00, 0x80, 0x00));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_COMMENTLINE,				RGB(0x00, 0x80, 0x00));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_COMMENTDOC,				RGB(0x00, 0x80, 0x00));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_NUMBER,					RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_WORD,						RGB(0x00, 0x00, 0xFF));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_STRING,					RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_CHARACTER,				RGB(0xA0, 0x10, 0x10));
+//		SendMessage(newc, SCI_STYLESETFORE, SCE_C_UUID,						RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_PREPROCESSOR,				RGB(0x00, 0x00, 0xFF));
+//		SendMessage(newc, SCI_STYLESETFORE, SCE_C_OPERATOR,					RGB(0x00, 0x00, 0x00));
+//		SendMessage(newc, SCI_STYLESETFORE, SCE_C_IDENTIFIER,				RGB(0x00, 0x00, 0x00));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_STRINGEOL,				RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_VERBATIM,					RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_REGEX,					RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_COMMENTLINEDOC,			RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_WORD2,					RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_COMMENTDOCKEYWORD,		RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_COMMENTDOCKEYWORDERROR,	RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_GLOBALCLASS,				RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_STRINGRAW,				RGB(0xA0, 0x00, 0x00));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_TRIPLEVERBATIM,			RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_HASHQUOTEDSTRING,			RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_PREPROCESSORCOMMENT,		RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_PREPROCESSORCOMMENTDOC,	RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_USERLITERAL,				RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_TASKMARKER,				RGB(0xA0, 0x10, 0x10));
+		SendMessage(newc, SCI_STYLESETFORE, SCE_C_ESCAPESEQUENCE,			RGB(0xA0, 0x10, 0x10));
+
+		SendMessage(newc, SCI_SETKEYWORDS,	0,	(LPARAM)
+					"if else for do not while asm break case const continue "
+					"default entity enum enumflags extern "
+					"float goto int integer noref "
+					"nosave shared state optional string "
+					"struct switch thinktime until loop "
+					"typedef union var vector void "
+					"virtual nonvirtual class static nonstatic local return"
+					);
+
+		SendMessage(newc, SCI_SETPROPERTY,  (WPARAM)"fold", (LPARAM)"1");
+		SendMessage(newc, SCI_SETMOUSEDWELLTIME, 1000, 0);
+		SendMessage(newc, SCI_AUTOCSETORDER, SC_ORDER_PERFORMSORT, 0);
+		SendMessage(newc, SCI_AUTOCSETFILLUPS, 0, (LPARAM)".,[<>(*/+-=\t\n");
+
+		SendMessage(newc, SCI_SETMARGINSENSITIVEN, 1, (LPARAM)true);
+	}
+	else
+	{
+		//go to lucidia console, 10pt
 		CHARFORMAT cf;
 		memset(&cf, 0, sizeof(cf));
 		cf.cbSize = sizeof(cf);
@@ -429,11 +732,11 @@ HWND CreateAnEditControl(HWND parent)
 		cf.yHeight = 5;
 
 		SendMessage(newc, EM_SETCHARFORMAT, SCF_ALL, (WPARAM)&cf);
-	}
-
-	if (richedit)
-	{
-		SendMessage(newc, EM_EXLIMITTEXT, 0, 1<<20);
+	
+		if (richedit)
+		{
+			SendMessage(newc, EM_EXLIMITTEXT, 0, 1<<20);
+		}
 	}
 
 	if (!pDefSubclassProc || !pSetWindowSubclass)
@@ -492,20 +795,6 @@ enum {
 
 	IDM_FIRSTCHILD
 };
-
-
-typedef struct editor_s {
-	char filename[MAX_PATH];	//abs
-	HWND window;
-	HWND editpane;
-	HWND tooltip;
-	char tooltiptext[1024];
-	pbool modified;
-	time_t filemodifiedtime;
-	struct editor_s *next;
-} editor_t;
-
-editor_t *editors;
 
 void EditorReload(editor_t *editor);
 int EditorSave(editor_t *edit);
@@ -624,22 +913,39 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 	}
 }
 
-char *WordUnderCursor(editor_t *editor, char *buffer, int buffersize)
+char *WordUnderCursor(editor_t *editor, char *buffer, int buffersize, int position)
 {
 	unsigned char linebuf[1024];
 	DWORD charidx;
 	DWORD lineidx;
 	POINT pos;
 	RECT rect;
-	GetCursorPos(&pos);
-	GetWindowRect(editor->editpane, &rect);
-	pos.x -= rect.left;
-	pos.y -= rect.top;
-	charidx = SendMessage(editor->editpane, EM_CHARFROMPOS, 0, (LPARAM)&pos);
-	lineidx = SendMessage(editor->editpane, EM_LINEFROMCHAR, charidx, 0);
-	charidx -= SendMessage(editor->editpane, EM_LINEINDEX, lineidx, 0);
+	if (editor->scintilla)
+	{
+		DWORD len;
 
-	Edit_GetLine(editor->editpane, lineidx, linebuf, sizeof(linebuf));
+		lineidx = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, position, 0);
+		charidx = position - SendMessage(editor->editpane, SCI_POSITIONFROMLINE, lineidx, 0);
+
+		len = SendMessage(editor->editpane, SCI_LINELENGTH, lineidx, 0);
+		if (len >= sizeof(linebuf))
+			return "";
+		len = SendMessage(editor->editpane, SCI_GETLINE, lineidx, (LPARAM)linebuf);
+		linebuf[len] = 0;
+		if (charidx >= len)
+			charidx = len-1;
+	}
+	else
+	{
+		GetCursorPos(&pos);
+		GetWindowRect(editor->editpane, &rect);
+		pos.x -= rect.left;
+		pos.y -= rect.top;
+		charidx = SendMessage(editor->editpane, EM_CHARFROMPOS, 0, (LPARAM)&pos);
+		lineidx = SendMessage(editor->editpane, EM_LINEFROMCHAR, charidx, 0);
+		charidx -= SendMessage(editor->editpane, EM_LINEINDEX, lineidx, 0);
+		Edit_GetLine(editor->editpane, lineidx, linebuf, sizeof(linebuf));
+	}
 
 	//skip back to the start of the word
 	while(charidx > 0 && (
@@ -671,12 +977,42 @@ char *WordUnderCursor(editor_t *editor, char *buffer, int buffersize)
 	buffer[lineidx++] = 0;
 	return buffer;
 }
-char *GetTooltipText(editor_t *editor)
+
+pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
+{
+	QCC_def_t *def;
+	int prefixlen = strlen(prefix);
+	int usedbuffer = 0;
+	int l;
+	for (def = pr.def_head.next; def; def = def->next)
+	{
+		if (def->scope)
+			continue;	//ignore locals, because we don't know where we are, and they're probably irrelevent.
+
+		//make sure it has the right prefix
+		if (!strncmp(def->name, prefix, prefixlen))
+		//but ignore it if its one of those special things that you're not meant to know about.
+		if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
+		{
+			l = strlen(def->name);
+			if (l && usedbuffer+2+l < buffersize)
+			{
+				if (usedbuffer)
+					buffer[usedbuffer++] = ' ';
+				memcpy(buffer+usedbuffer, def->name, l);
+				usedbuffer += l;
+			}
+		}
+	}
+	buffer[usedbuffer] = 0;
+	return usedbuffer>0;
+}
+char *GetTooltipText(editor_t *editor, int pos)
 {
 	static char buffer[1024];
 	char wordbuf[256];
 	char *defname;
-	defname = WordUnderCursor(editor, wordbuf, sizeof(wordbuf));
+	defname = WordUnderCursor(editor, wordbuf, sizeof(wordbuf), pos);
 	if (!*defname)
 		return NULL;
 	else if (globalstable.numbuckets)
@@ -686,7 +1022,7 @@ char *GetTooltipText(editor_t *editor)
 		if (macro && *macro)
 			return macro;
 
-		def = QCC_PR_GetDef(NULL, defname, NULL, false, 0, false);
+		def = QCC_PR_GetDef(NULL, defname, NULL, false, 0, GDF_SILENT);
 		if (def)
 		{
 			char typebuf[1024];
@@ -761,7 +1097,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		}
 		goto gdefault;
 	case WM_CREATE:
-		editor->editpane = CreateAnEditControl(hWnd);
+		editor->editpane = CreateAnEditControl(hWnd, &editor->scintilla);
 		if (richedit)
 		{
 			SendMessage(editor->editpane, EM_EXLIMITTEXT, 0, 1<<31);
@@ -795,6 +1131,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		return TRUE;
 		break;
 	case WM_SETCURSOR:
+		if (!editor->scintilla)
 		{
 			POINT pos;
 			char *newtext;
@@ -803,7 +1140,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 			toolInfo.hwnd = hWnd;
 			toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS | TTF_TRACK | TTF_ABSOLUTE;
 			toolInfo.uId = (UINT_PTR)editor->editpane;
-			newtext = GetTooltipText(editor);
+			newtext = GetTooltipText(editor, -1);
 			toolInfo.lpszText = editor->tooltiptext;
 			if (!newtext)
 				newtext = "";
@@ -829,7 +1166,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 	case WM_COMMAND:
 		if (HIWORD(wParam) == EN_CHANGE && (HWND)lParam == editor->editpane)
 		{
-			if (!editor->modified)
+			if (!editor->modified && !editor->scintilla)
 			{
 				char title[2048];
 				CHARRANGE chrg;
@@ -841,10 +1178,11 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 
 
 				SendMessage(editor->editpane, EM_EXGETSEL, 0, (LPARAM) &chrg);
+				editor->curline = Edit_LineFromChar(editor->editpane, chrg.cpMin);
 				if (editor->modified)
-					sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+Edit_LineFromChar(editor->editpane, chrg.cpMin));
+					sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
 				else
-					sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+Edit_LineFromChar(editor->editpane, chrg.cpMin));
+					sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
 				SetWindowText(editor->window, title);
 			}
 		}
@@ -858,19 +1196,88 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 	case WM_NOTIFY:
 		{
 		    NMHDR *nmhdr;
-			SELCHANGE *sel;
 			char title[2048];
+			char *s;
 			nmhdr = (NMHDR *)lParam;
-			switch(nmhdr->code)
+			if (editor->scintilla)
 			{
-			case EN_SELCHANGE:
-				sel = (SELCHANGE *)nmhdr;
+				struct SCNotification *not = (struct SCNotification*)nmhdr;
+				int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
+				int l = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
+				int mode;
+				if (editor->curline != l)
+					editor->curline = l;
+				switch(nmhdr->code)
+				{
+				case SCN_MARGINCLICK:
+					/*fixme: should we scan the statements to ensure the line is valid? this applies to the f9 key too*/
+					l = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, not->position, 0);
+					mode = !(SendMessage(editor->editpane, SCI_MARKERGET, l, 0) & 1);
+					SendMessage(editor->editpane, mode?SCI_MARKERADD:SCI_MARKERDELETE, l, 0);
+					if (gamewindow)
+					{
+						enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+						EngineCommand(e, "qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, l+1);
+					}
+					break;
+				case SCN_CHARADDED:
+					if (not->ch == '(')
+					{
+						char *s = GetTooltipText(editor, pos-1);
+						if (s)
+							SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)pos, (LPARAM)s);
+					}
+					else if (!SendMessage(editor->editpane, SCI_AUTOCACTIVE, 0, 0))
+					{
+						char buffer[65536];
+						char prefixbuffer[128];
+						char *pre = WordUnderCursor(editor, prefixbuffer, sizeof(prefixbuffer), SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0));
+						if (pre && *pre)
+							if (GenAutoCompleteList(pre, buffer, sizeof(buffer)))
+								SendMessage(editor->editpane, SCI_AUTOCSHOW, strlen(pre), (LPARAM)buffer);
+					}
+					break;
+				case SCN_SAVEPOINTREACHED:
+					editor->modified = false;
+					break;
+				case SCN_SAVEPOINTLEFT:
+					editor->modified = true;
+
+					if (EditorModified(editor))
+						if (MessageBox(NULL, "warning: file was modified externally. reload?", "Modified!", MB_YESNO) == IDYES)
+							EditorReload(editor);
+					break;
+				case SCN_DWELLSTART:
+					s = GetTooltipText(editor, not->position);
+					if (s)
+						SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)not->position, (LPARAM)s);
+					break;
+				case SCN_DWELLEND:
+				case SCN_FOCUSOUT:
+					SendMessage(editor->editpane, SCI_CALLTIPCANCEL, 0, 0);
+					break;
+				}
 				if (editor->modified)
-					sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+Edit_LineFromChar(editor->editpane, sel->chrg.cpMin));
+					sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
 				else
-					sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+Edit_LineFromChar(editor->editpane, sel->chrg.cpMin));
+					sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
 				SetWindowText(editor->window, title);
-				break;
+			}
+			else
+			{
+				SELCHANGE *sel;
+				switch(nmhdr->code)
+				{
+				case EN_SELCHANGE:
+					sel = (SELCHANGE *)nmhdr;
+					editor->curline = Edit_LineFromChar(editor->editpane, sel->chrg.cpMin);
+					if (editor->modified)
+						sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
+					else
+						sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+editor->curline);
+					SetWindowText(editor->window, title);
+					break;
+				}
 			}
 		}
 	default:
@@ -1235,38 +1642,49 @@ void EditorReload(editor_t *editor)
 
 		QCC_ReadFile(editor->filename, file, flen);
 
-
 		file[flen] = 0;
 	}
 	else
 		file = NULL;
 
-	SendMessage(editor->editpane, EM_SETEVENTMASK, 0, 0);
-
-	/*clear it out*/
-	Edit_SetSel(editor->editpane,0,Edit_GetTextLength(editor->editpane));
-	Edit_ReplaceSel(editor->editpane,"");
-
-	if (file)
-	{
-		char msg[1024];
-		wchar_t *ch = QCC_makeutf16(file, flen, NULL);
-		Edit_SetSel(editor->editpane,0,0);
-		SetWindowTextW(editor->editpane, ch);
-		/*if (errors)
-		{
-			QC_snprintfz(msg, sizeof(msg), "%s contains encoding errors. Invalid bytes have been converted to the 0xe000 private use area.", editor->filename);
-			MessageBox(editor->editpane, msg, "Encoding errors.", MB_ICONWARNING);
-		}*/
-		free(ch);
-		free(file);
-	}
-
-	editor->modified = false;
 	stat(editor->filename, &sbuf);
 	editor->filemodifiedtime = sbuf.st_mtime;
 
-	SendMessage(editor->editpane, EM_SETEVENTMASK, 0, ENM_SELCHANGE|ENM_CHANGE);
+	if (editor->scintilla)
+	{
+//		SendMessage(editor->editpane, SCI_SETUNDOCOLLECTION, 0, 0);
+		SendMessage(editor->editpane, SCI_SETTEXT, 0, (LPARAM)file);
+//		SendMessage(editor->editpane, SCI_SETUNDOCOLLECTION, 1, 0);
+		SendMessage(editor->editpane, EM_EMPTYUNDOBUFFER, 0, 0);
+		SendMessage(editor->editpane, SCI_SETSAVEPOINT, 0, 0);
+	}
+	else
+	{
+		SendMessage(editor->editpane, EM_SETEVENTMASK, 0, 0);
+
+		/*clear it out*/
+		Edit_SetSel(editor->editpane,0,Edit_GetTextLength(editor->editpane));
+		Edit_ReplaceSel(editor->editpane,"");
+
+		if (file)
+		{
+//			char msg[1024];
+			wchar_t *ch = QCC_makeutf16(file, flen, NULL);
+			Edit_SetSel(editor->editpane,0,0);
+			SetWindowTextW(editor->editpane, ch);
+			/*if (errors)
+			{
+				QC_snprintfz(msg, sizeof(msg), "%s contains encoding errors. Invalid bytes have been converted to the 0xe000 private use area.", editor->filename);
+				MessageBox(editor->editpane, msg, "Encoding errors.", MB_ICONWARNING);
+			}*/
+			free(ch);
+		}
+		SendMessage(editor->editpane, EM_SETEVENTMASK, 0, ENM_SELCHANGE|ENM_CHANGE);
+	}
+
+	free(file);
+
+	editor->modified = false;
 }
 
 void EditFile(char *name, int line)
@@ -1379,6 +1797,7 @@ void EditFile(char *name, int line)
 		MessageBox(NULL, "Failed to create editor window", "Error", 0);
 		return;
 	}
+	SetWindowLongPtr(neweditor->window, GWLP_USERDATA, (LONG_PTR)neweditor);
 
 	EditorReload(neweditor);
 
@@ -1402,18 +1821,33 @@ int EditorSave(editor_t *edit)
 	struct stat sbuf;
 	int len;
 	wchar_t *file;
-	len = GetWindowTextLengthW(edit->editpane);
-	file = malloc((len+1)*2);
-	if (!file)
+	if (edit->scintilla)
 	{
-		MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
-		return false;
+		len = SendMessage(edit->editpane, SCI_GETLENGTH, 0, 0)+1;
+		file = malloc(len);
+		SendMessage(edit->editpane, SCI_GETTEXT, len, (LPARAM)file);
+		if (!QCC_WriteFile(edit->filename, file, len))
+		{
+			MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
+			return false;
+		}
+		SendMessage(edit->editpane, SCI_SETSAVEPOINT, 0, 0);
 	}
-	GetWindowTextW(edit->editpane, file, len+1);
-	if (!QCC_WriteFileW(edit->filename, file, len))
+	else
 	{
-		MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
-		return false;
+		len = GetWindowTextLengthW(edit->editpane);
+		file = malloc((len+1)*2);
+		if (!file)
+		{
+			MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
+			return false;
+		}
+		GetWindowTextW(edit->editpane, file, len+1);
+		if (!QCC_WriteFileW(edit->filename, file, len))
+		{
+			MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
+			return false;
+		}
 	}
 	free(file);
 
@@ -1443,8 +1877,33 @@ char *GUIReadFile(const char *fname, void *buffer, int blen)
 		{
 //			int elen = GetWindowTextLengthW(e->editpane);
 			//our qcc itself is fine with utf-16, so long as it has a BOM.
-			*(short*)buffer = 0xfeff;
-			GetWindowTextW(e->editpane, (short*)buffer+1, blen);
+			if (e->scintilla)
+			{
+				SendMessage(e->editpane, SCI_GETTEXT, blen, (LPARAM)buffer);
+			}
+			else
+			{
+				*(wchar_t*)buffer = 0xfeff;
+				GetWindowTextW(e->editpane, (wchar_t*)buffer+1, blen);
+			}
+
+			if (e->modified)
+			{
+				if (EditorModified(e))
+				{
+					if (MessageBox(e->window, "File was modified on disk. Overwrite?", e->filename, MB_YESNO) == IDYES)
+					{
+						if (e->scintilla)
+						{
+							QCC_WriteFile(e->filename, buffer, blen);
+							SendMessage(e->editpane, SCI_SETSAVEPOINT, 0, 0);	//tell the control that it was saved.
+						}
+						else
+							QCC_WriteFileW(e->filename, (wchar_t*)buffer+1, blen);
+					}
+				}
+			}
+
 			return buffer;
 		}
 	}
@@ -1459,7 +1918,11 @@ int GUIFileSize(const char *fname)
 	{
 		if (e->window && !strcmp(e->filename, fname))
 		{
-			int len = (GetWindowTextLengthW(e->editpane)+1)*2;
+			int len;
+			if (e->scintilla)
+				len = SendMessage(e->editpane, SCI_GETLENGTH, 0, 0)+1;
+			else
+				len = (GetWindowTextLengthW(e->editpane)+1)*2;
 			return len;
 		}
 	}
@@ -1477,43 +1940,98 @@ pbool EditorModified(editor_t *e)
 	return false;
 }
 
-
-
-
-//the engine thread simply sits waiting for responses from the engine
-typedef struct
+char *COM_ParseOut (const char *data, char *out, int outlen)
 {
-	int pipeclosed;
-	DWORD tid;
-	HWND window;
-	HANDLE thread;
-	HANDLE pipefromengine;
-	HANDLE pipetoengine;
-} enginewindow_t;
+	int		c;
+	int		len;
 
-void EngineCommand(enginewindow_t *ctx, char *message, ...)
-{
-	//qcresume			- resume running
-	//qcinto			- singlestep. execute-with-debugging child functions
-	//qcover			- singlestep. execute-without-debugging child functions
-	//qcout				- singlestep. leave current function and enter parent.
-	//qcbreak "$loc"	- set breakpoint
-	//qcwatch "$var"	- set watchpoint
-	//qcstack			- force-report stack trace
-	va_list		va;
-	char		finalmessage[1024];
-	va_start (va, message);
-	vsnprintf (finalmessage, sizeof(finalmessage)-1, message, va);
-	va_end (va);
-	if (ctx->pipetoengine)
+	len = 0;
+	out[0] = 0;
+
+	if (!data)
+		return NULL;
+
+// skip whitespace
+skipwhite:
+	while ( (c = *data) <= ' ')
 	{
-		DWORD written = 0;
-		WriteFile(ctx->pipetoengine, finalmessage, strlen(finalmessage), &written, NULL);
+		if (c == 0)
+			return NULL;			// end of file;
+		data++;
 	}
+
+// skip // comments
+	if (c=='/')
+	{
+		if (data[1] == '/')
+		{
+			while (*data && *data != '\n')
+				data++;
+			goto skipwhite;
+		}
+	}
+
+//skip / * comments
+	if (c == '/' && data[1] == '*')
+	{
+		data+=2;
+		while(*data)
+		{
+			if (*data == '*' && data[1] == '/')
+			{
+				data+=2;
+				goto skipwhite;
+			}
+			data++;
+		}
+		goto skipwhite;
+	}
+
+// handle quoted strings specially
+	if (c == '\"')
+	{
+		data++;
+		while (1)
+		{
+			if (len >= outlen-1)
+			{
+				out[len] = 0;
+				return (char*)data;
+			}
+
+			c = *data++;
+			if (c=='\"' || !c)
+			{
+				out[len] = 0;
+				return (char*)data;
+			}
+			out[len] = c;
+			len++;
+		}
+	}
+
+// parse a regular word
+	do
+	{
+		if (len >= outlen-1)
+		{
+			out[len] = 0;
+			return (char*)data;
+		}
+
+		out[len] = c;
+		data++;
+		len++;
+		c = *data;
+	} while (c>32);
+
+	out[len] = 0;
+	return (char*)data;
 }
 
 unsigned int WINAPI threadwrapper(void *args)
 {
+	static char filenamebuffer[256];
 	enginewindow_t *ctx = args;
 	{
 		PROCESS_INFORMATION childinfo;
@@ -1536,7 +2054,7 @@ unsigned int WINAPI threadwrapper(void *args)
 		SetHandleInformation(ctx->pipefromengine, HANDLE_FLAG_INHERIT, 0);
 		SetHandleInformation(ctx->pipetoengine, HANDLE_FLAG_INHERIT, 0);
 
-		EngineCommand(ctx, "vid_recenter %i %i %i %i %#p\n", 0, 0, 640, 480, (void*)ctx->window);
+//		EngineCommand(ctx, "vid_recenter %i %i %i %i %#p\n", 0, 0, 640, 480, (void*)ctx->window);
 
 		CreateProcess(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, enginebasedir, &startinfo, &childinfo);
 
@@ -1590,21 +2108,25 @@ unsigned int WINAPI threadwrapper(void *args)
 						//stack "$func" "$loc"
 						//local $depth
 					}
-					else if (!strncmp(buffer, "qcstep ", 5))
+					else if (!strncmp(buffer, "qcstep ", 7))
 					{
-						//qcvm stepped to the line specified, often dupes
-						//qcstep "$location"
-						EngineCommand(ctx, "qcstep\n");	//moves on to the next statement
+						//post it, because of thread ownership issues.
+						char *l = COM_ParseOut(buffer+7, filenamebuffer, sizeof(filenamebuffer));
+						if (*l == ':')
+							l++;
+						while(*l == ' ')
+							l++;
+						PostMessage(ctx->window, WM_USER, atoi(l), (LPARAM)filenamebuffer);	//and tell the owning window to try to close it again
 					}
 					else if (!strncmp(buffer, "qcvalue ", 6))
 					{
 						//qcvalue "$variableformula" "$value"
 					}
-					else if (!strncmp(buffer, "qcreloaded ", 6))
+					else if (!strncmp(buffer, "qcreloaded ", 10))
 					{
 						//so we can resend any breakpoint commands
 						//qcreloaded "$vmname" "$progsname"
-						EngineCommand(ctx, "qcresume\n");
+						PostMessage(ctx->window, WM_USER+1, 0, 0);	//and tell the owning window to try to close it again
 					}
 					else
 					{
@@ -1631,6 +2153,7 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
 	enginewindow_t *e;
+	editor_t *editor;
 	switch (message)
 	{
 	case WM_CREATE:
@@ -1666,6 +2189,32 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 		free(e);
 		if (hWnd == gamewindow)
 			gamewindow = NULL;
+		break;
+	case WM_USER:
+		//engine broke. show code.
+		EditFile((char*)lParam, wParam-1);
+		break;
+	case WM_USER+1:
+		//engine loaded a progs, reset breakpoints.
+		e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+		for (editor = editors; editor; editor = editor->next)
+		{
+			int line = -1;
+			if (!editor->scintilla)
+				continue;
+
+			for (;;)
+			{
+				line = SendMessage(editor->editpane, SCI_MARKERNEXT, line, 1);
+				if (line == -1)
+					break;	//no more.
+				line++;
+
+				EngineCommand(e, "qcbreakpoint 1 \"%s\" %i\n", editor->filename, line);
+			}
+		}
+		//and now let the engine continue
+		EngineCommand(e, "qcresume\n");
 		break;
 
 	default:
@@ -1706,13 +2255,13 @@ void RunEngine(void)
 		mcs.lParam = 0;
 
 		gamewindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, (LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
-		ShowWindow(gamewindow, SW_SHOW);
+	//	ShowWindow(gamewindow, SW_SHOW);
 	}
 	else
 	{
 		enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
 	}
-	SendMessage(mdibox, WM_MDIACTIVATE, (WPARAM)gamewindow, 0);
+//	SendMessage(mdibox, WM_MDIACTIVATE, (WPARAM)gamewindow, 0);
 }
 
 
@@ -1769,6 +2318,10 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 			Edit_GetText(w_enginebinary, enginebinary, sizeof(enginebinary)-1);
 			Edit_GetText(w_enginebasedir, enginebasedir, sizeof(enginebasedir)-1);
 			Edit_GetText(w_enginecommandline, enginecommandline, sizeof(enginecommandline)-1);
+
+			QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebinary", REG_SZ, enginebinary, strlen(enginebinary));
+			QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebasedir", REG_SZ, enginebasedir, strlen(enginebasedir));
+			QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginecommandline", REG_SZ, enginecommandline, strlen(enginecommandline));
 #endif
 
 			if (wParam == IDI_O_USE)
@@ -2456,7 +3009,7 @@ static LRESULT CALLBACK OutputWindowProc(HWND hWnd,UINT message,
 		outputbox = NULL;
 		break;
 	case WM_CREATE:
-		outputbox = CreateAnEditControl(hWnd);
+		outputbox = CreateAnEditControl(hWnd, NULL);
 	case WM_SIZE:
 		GetClientRect(hWnd, &rect);
 		SetWindowPos(outputbox, NULL, 0, 0, rect.right-rect.left, rect.bottom-rect.top, 0);
@@ -2706,7 +3259,7 @@ void RunCompiler(char *args)
 		if (gamewindow)
 		{
 			enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
-			EngineCommand(e, "restart\n");
+			EngineCommand(e, "qcresume\nmenu_restart\nrestart\n");
 		}
 	}
 
@@ -2926,6 +3479,13 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	GUI_SetDefaultOpts();
 
+	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebinary", enginebinary, sizeof(enginebinary)))
+		strcpy(enginebinary, "fteglqw.exe");
+	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebasedir", enginebasedir, sizeof(enginebasedir)))
+		strcpy(enginebasedir, "../..");
+	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginecommandline", enginecommandline, sizeof(enginecommandline)))
+		strcpy(enginecommandline, "-window +map start -nohome");
+
 	if(strstr(lpCmdLine, "-stdout"))
 	{
 		GUI_ParseCommandLine(lpCmdLine);
@@ -3063,7 +3623,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 */
 
 	if (!mdibox)
-		outputbox = CreateAnEditControl(mainwindow);
+		outputbox = CreateAnEditControl(mainwindow, NULL);
 
 	for (i = 0; i < NUMBUTTONS; i++)
 	{
@@ -3172,6 +3732,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 						else if (!strncmp(line, "Including: ", 11))
 							EditFile(line+11, -1);
 					}
+					else if (!strncmp(line, "including ", 10))
+						EditFile(line+10, -1);
 					else if (!strncmp(line, "compiling ", 10))
 						EditFile(line+10, -1);
 					else if (!strncmp(line, "prototyping ", 12))

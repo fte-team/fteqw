@@ -10,8 +10,6 @@ struct edict_s;
 #define NOENDIAN
 #endif
 
-
-fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
 pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int fldtype, char *s);
 
 /*
@@ -239,6 +237,25 @@ fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs)
 			return &prinst.field[i];
 	}
 	return NULL;
+}
+fdef_t *ED_ClassFieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs, const char *classname)
+{
+	int classnamelen = strlen(classname);
+	unsigned int j;
+	char *mname;
+	for (j = 0; j < prinst.numfields; j++)
+	{
+		if (prinst.field[j].ofs == ofs)
+		{
+			mname = prinst.field[j].name;
+			if (!strncmp(mname, classname, classnamelen) && mname[classnamelen] == ':')
+			{
+				//okay, we have a match...
+				return &prinst.field[j];
+			}
+		}
+	}
+	return ED_FieldAtOfs(progfuncs, ofs);
 }
 fdef_t *PDECL ED_FieldInfo (pubprogfuncs_t *ppf, unsigned int *count)
 {

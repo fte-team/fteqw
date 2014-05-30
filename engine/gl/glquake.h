@@ -375,6 +375,7 @@ qboolean R_ShouldDraw(entity_t *e);
 #ifdef GLQUAKE
 void R_RotateForEntity (float *modelmatrix, float *modelviewmatrix, const entity_t *e, const model_t *mod);
 
+void GL_ShutdownPostProcessing(void);
 void GL_InitSceneProcessingShaders (void);
 void GL_SetupSceneProcessingTextures (void);
 #endif

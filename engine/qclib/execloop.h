@@ -681,7 +681,7 @@ reeval:
 				PR_SwitchProgsParms(progfuncs, callerprogs);
 
 				//break/skip the instruction.
-				PR_StackTrace(&progfuncs->funcs);
+				PR_StackTrace(&progfuncs->funcs, 0);
 				printf(msg, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 
 				glob = pr_globals;

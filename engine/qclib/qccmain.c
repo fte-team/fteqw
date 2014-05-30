@@ -242,6 +242,7 @@ optimisations_t optimisations[] =
 	{&opt_stripfunctions,			"sf",	3,	FLAG_KILLSDEBUGGERS,	"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games. This can affect FTE_MULTIPROGS."},
 	{&opt_locals_overlapping,		"lo",	3,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
 	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,	"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
+	{&opt_classfields,				"cf",	2,	FLAG_KILLSDEBUGGERS,	"class_fields",		"Strip class field names. This will harm debugging and can result in 'gibberish' names appearing in saved games. Has no effect on engines other than FTEQW, which will not recognise these anyway."},
 	{NULL}
 };
 
@@ -3070,7 +3071,7 @@ int qcc_compileactive = false;
 extern int accglobalsblock;
 extern int qcc_debugflag;
 char *originalqccmsrc;	//for autoprototype.
-void QCC_main (int argc, char **argv)	//as part of the quake engine
+pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 {
 	extern int			pr_bracelevel, tempsused;
 	time_t long_time;
@@ -3082,6 +3083,15 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	char	destfile2[1024], *s2;
 #endif
 	char *s;
+
+	if (numsourcefiles && currentsourcefile == numsourcefiles)
+	{
+		numsourcefiles = 0;
+		return false;
+	}
+
+	if (!PreCompile())
+		return false;
 
 	SetEndian();
 
@@ -3292,7 +3302,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		printf ("-Fsubscope to make locals specific to their subscope\n");
 
 		qcc_compileactive = false;
-		return;
+		return true;
 	}
 
 	if (flag_caseinsensitive)
@@ -3353,7 +3363,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 			qcc_compileactive = false;
 			numsourcefiles = 0;
 			currentsourcefile = 0;
-			return;
+			return true;
 		}
 
 		if (currentsourcefile)
@@ -3364,7 +3374,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 		if (QCC_LoadFile (qccmprogsdat, (void *)&qccmsrc) == -1)
 		{
-			return;
+			return true;
 		}
 	}
 
@@ -3402,7 +3412,7 @@ newstyle:
 		newstylesource = true;
 		originalqccmsrc = qccmsrc;
 		StartNewStyleCompile();
-		return;
+		return true;
 	}
 
 	pr_file_p = qccmsrc;
@@ -3473,7 +3483,7 @@ newstyle:
 			{
 				printf("No changes\n");
 				qcc_compileactive = false;
-				return;
+				return true;
 			}
 			else
 			{
@@ -3489,6 +3499,7 @@ newstyle:
 	currentchunk = NULL;
 
 	originalqccmsrc = qccmsrc;
+	return true;
 }
 
 void new_QCC_ContinueCompile(void);
@@ -3531,9 +3542,8 @@ void QCC_ContinueCompile(void)
 
 		if (currentsourcefile < numsourcefiles)
 		{
-			if (!PreCompile())
+			if (!QCC_main(myargc, myargv))
 				return;
-			QCC_main(myargc, myargv);
 		}
 		else
 		{
@@ -3773,9 +3783,8 @@ void new_QCC_ContinueCompile(void)
 			QCC_FinishCompile();
 
 			PostCompile();
-			if (!PreCompile())
+			if (!QCC_main(myargc, myargv))
 				return;
-			QCC_main(myargc, myargv);
 			return;
 		}
 	}

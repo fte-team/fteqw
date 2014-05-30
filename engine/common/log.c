@@ -114,8 +114,12 @@ void Log_String (logtype_t lognum, char *s)
 			if (log_timestamps.ival)
 			{
 				time_t unixtime = time(NULL);
-				strftime(t, utf8+sizeof(utf8)-1-t, "%Y-%m-%d %H:%M:%S ", localtime(&unixtime));
-				t += strlen(t);
+				int bufferspace = utf8+sizeof(utf8)-1-t;
+				if (bufferspace > 0)
+				{
+					strftime(t, bufferspace, "%Y-%m-%d %H:%M:%S ", localtime(&unixtime));
+					t += strlen(t);
+				}
 			}
 			log_newline[lognum] = false;
 		}

@@ -873,14 +873,18 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 
 // fudge position around to keep amount of weapon visible
 // roughly equal with different FOV
-	if (scr_viewsize.value == 110)
-		pv->vw_origin[2] += 1;
-	else if (scr_viewsize.value == 100)
-		pv->vw_origin[2] += 2;
-	else if (scr_viewsize.value == 90)
-		pv->vw_origin[2] += 1;
-	else if (scr_viewsize.value == 80)
-		pv->vw_origin[2] += 0.5;
+//FIXME: should use y fov, not viewsize.
+	if (r_refdef.drawsbar)	//no sbar = no viewsize cvar.
+	{
+		if (scr_viewsize.value == 110)
+			pv->vw_origin[2] += 1;
+		else if (scr_viewsize.value == 100)
+			pv->vw_origin[2] += 2;
+		else if (scr_viewsize.value == 90)
+			pv->vw_origin[2] += 1;
+		else if (scr_viewsize.value == 80)
+			pv->vw_origin[2] += 0.5;
+	}
 }
 
 /*

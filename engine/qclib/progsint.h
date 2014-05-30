@@ -281,7 +281,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *progfuncs, char *mem, int *size, int max
 int PDECL PR_LoadEnts(pubprogfuncs_t *progfuncs, const char *file, float killonspawnflags);
 char *PDECL PR_SaveEnt (pubprogfuncs_t *progfuncs, char *buf, int *size, int maxsize, struct edict_s *ed);
 struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *progfuncs, const char *buf, int *size, struct edict_s *ed);
-void PDECL PR_StackTrace (pubprogfuncs_t *progfuncs);
+void PDECL PR_StackTrace (pubprogfuncs_t *progfuncs, int showlocals);
 
 extern int noextensions;
 
@@ -475,6 +475,7 @@ ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, const char *name
 ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum);
 ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum);
 fdef_t *ED_FindField (progfuncs_t *progfuncs, const char *name);
+fdef_t *ED_ClassFieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs, const char *classname);
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
 dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum_t *pnum, progsnum_t fromprogs);
 func_t PDECL PR_FindFunc(pubprogfuncs_t *progfncs, const char *funcname, progsnum_t pnum);

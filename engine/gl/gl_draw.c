@@ -546,6 +546,7 @@ void GLDraw_DeInit (void)
 	GL_GAliasFlushSkinCache();
 
 	draw_disc = NULL;
+	GL_ShutdownPostProcessing();
 
 	if (uploadmemorybuffer)
 		BZ_Free(uploadmemorybuffer);	//free the mem

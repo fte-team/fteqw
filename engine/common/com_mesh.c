@@ -1266,6 +1266,7 @@ static int Alias_FindRawSkelData(galiasinfo_t *inf, framestate_t *fstate, skelle
 		lerps->endbone = endbone;
 		cbone = endbone;
 		numbonegroups++;
+		lerps++;
 	}
 	return numbonegroups;
 }
@@ -1366,7 +1367,7 @@ const float *Alias_GetBoneInformation(galiasinfo_t *inf, framestate_t *framestat
 				for (; bone < endbone; bone++, out+=12, pose1+=12, pose2+=12)
 				{
 					for (k = 0; k < 12; k++)	//please please unroll!
-						out[k] = pose1[k]*frac1	+ frac2*pose2[k];
+						out[k] = (pose1[k]*frac1) + (frac2*pose2[k]);
 				}
 			}
 			break;
@@ -1376,10 +1377,10 @@ const float *Alias_GetBoneInformation(galiasinfo_t *inf, framestate_t *framestat
 				float *out = targetbuffer + bone*12;
 				float *pose1 = lerp->pose[0] + bone*12, *pose2 = lerp->pose[1] + bone*12, *pose3 = lerp->pose[2] + bone*12;
 				float frac1 = lerp->frac[0], frac2 = lerp->frac[1], frac3 = lerp->frac[2];
-				for (; bone < endbone; bone++)
+				for (; bone < endbone; bone++, out+=12, pose1+=12, pose2+=12, pose3+=12)
 				{
 					for (k = 0; k < 12; k++)	//please please unroll!
-						out[k] = pose1[k]*frac1 + frac2*pose2[k] + pose3[k]*frac3;
+						out[k] = (pose1[k]*frac1) + (frac2*pose2[k]) + (pose3[k]*frac3);
 				}
 			}
 			break;
@@ -1389,10 +1390,10 @@ const float *Alias_GetBoneInformation(galiasinfo_t *inf, framestate_t *framestat
 				float *out = targetbuffer + bone*12;
 				float *pose1 = lerp->pose[0] + bone*12, *pose2 = lerp->pose[1] + bone*12, *pose3 = lerp->pose[2] + bone*12, *pose4 = lerp->pose[3] + bone*12;
 				float frac1 = lerp->frac[0], frac2 = lerp->frac[1], frac3 = lerp->frac[2], frac4 = lerp->frac[3];
-				for (; bone < endbone; bone++)
+				for (; bone < endbone; bone++, out+=12, pose1+=12, pose2+=12, pose3+=12, pose4+=12)
 				{
 					for (k = 0; k < 12; k++)	//please please unroll!
-						out[k] = pose1[k]*frac1 + frac2*pose2[k] + pose3[k]*frac3 + frac4*pose4[k];
+						out[k] = (pose1[k]*frac1) + (frac2*pose2[k]) + (pose3[k]*frac3) + (frac4*pose4[k]);
 				}
 			}
 			break;
@@ -1462,7 +1463,7 @@ static void Alias_BuildSkeletalVPositionsPose(float *xyzout, skeltype_t bonetype
 #ifndef SERVERONLY
 #ifdef GLQUAKE
 #include "glquake.h"
-static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount)
+static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount, int basebone)
 {
 	PPL_RevertToKnownState();
 	BE_SelectEntity(currententity);
@@ -1473,7 +1474,17 @@ static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int 
 		vec3_t org, dest;
 
 		qglBegin(GL_LINES);
-		for (i = 0; i < bonecount; i++)
+		qglColor3f(0, 0, 1);
+		for (i = 0; i < basebone; i++)
+		{
+			p = bones[i].parent;
+			if (p < 0)
+				p = 0;
+			qglVertex3f(bonepose[i*12+3], bonepose[i*12+7], bonepose[i*12+11]);
+			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
+		}
+		qglColor3f(1, 0, 0);
+		for (; i < bonecount; i++)
 		{
 			p = bones[i].parent;
 			if (p < 0)
@@ -1483,7 +1494,7 @@ static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int 
 		}
 		qglEnd();
 		qglColor3f(1, 1, 1);
-		qglBegin(GL_LINES);
+/*		qglBegin(GL_LINES);
 		for (i = 0; i < bonecount; i++)
 		{
 			p = bones[i].parent;
@@ -1515,7 +1526,7 @@ static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int 
 			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
 		}
 		qglEnd();
-
+*/
 //		mesh->numindexes = 0;	//don't draw this mesh, as that would obscure the bones. :(
 	}
 }
@@ -1712,7 +1723,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 					meshcache.usebonepose = Alias_GetBoneInformation(inf, &e->framestate, meshcache.bonecachetype=SKEL_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
 				if (qrenderer == QR_OPENGL)
 				{
-					Alias_GLDrawSkeletalBones(inf->ofsbones, (float *)meshcache.usebonepose, inf->numbones);
+					Alias_GLDrawSkeletalBones(inf->ofsbones, (float *)meshcache.usebonepose, inf->numbones, e->framestate.g[0].endbone);
 				}
 #endif
 			}

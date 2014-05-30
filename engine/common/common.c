@@ -102,7 +102,7 @@ qboolean	com_modified;	// set true if using non-id files
 qboolean		static_registered = true;	// only for startup check, then set
 
 qboolean		msg_suppress_1 = false;
-qboolean		isPlugin;
+int				isPlugin;	//if 2, we qcdebug to external program
 
 void COM_Path_f (void);
 void COM_Dir_f (void);

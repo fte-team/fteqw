@@ -900,7 +900,24 @@ typedef struct menuedict_s
 
 
 
-evalc_t menuc_eval_chain;
+static struct
+{
+	evalc_t chain;
+	evalc_t model;
+	evalc_t mins;
+	evalc_t maxs;
+	evalc_t origin;
+	evalc_t angles;
+	evalc_t skin;
+	evalc_t colormap;
+	evalc_t frame1;
+	evalc_t frame2;
+	evalc_t lerpfrac;
+	evalc_t frame1time;
+	evalc_t frame2time;
+	evalc_t renderflags;
+} menuc_eval;
+static playerview_t menuview;
 
 int menuentsize;
 
@@ -1016,7 +1033,7 @@ void QCBUILTIN PF_nonfatalobjerror (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	s = PF_VarString(prinst, 0, pr_globals);
 
-	PR_StackTrace(prinst);
+	PR_StackTrace(prinst, true);
 
 	selfp = PR_FindGlobal(prinst, "self", PR_CURRENT, NULL);
 	if (selfp && selfp->_int)
@@ -1168,7 +1185,7 @@ static void QCBUILTIN PF_Remove_ (pubprogfuncs_t *prinst, struct globalvars_s *p
 	if (ed->isfree)
 	{
 		Con_DPrintf("Tried removing free entity\n");
-		PR_StackTrace(prinst);
+		PR_StackTrace(prinst, false);
 		return;
 	}
 
@@ -1209,11 +1226,6 @@ void QCBUILTIN PF_menu_checkextension (pubprogfuncs_t *prinst, struct globalvars
 	}
 }
 
-void QCBUILTIN PF_gettime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	G_FLOAT(OFS_RETURN) = *prinst->parms->gametime;
-}
-
 void QCBUILTIN PF_CL_precache_file (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
@@ -1244,7 +1256,7 @@ void QCBUILTIN PF_menu_findchain (pubprogfuncs_t *prinst, struct globalvars_s *p
 		if (strcmp(PR_GetString(prinst, t), s))
 			continue;
 
-		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", &menuc_eval_chain);
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", &menuc_eval.chain);
 		if (val)
 			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
@@ -1273,7 +1285,7 @@ void QCBUILTIN PF_menu_findchainfloat (pubprogfuncs_t *prinst, struct globalvars
 		if (((float *)ent->fields)[f] != s)
 			continue;
 
-		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", NULL);
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", &menuc_eval.chain);
 		if (val)
 			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
@@ -1302,7 +1314,7 @@ void QCBUILTIN PF_menu_findchainflags (pubprogfuncs_t *prinst, struct globalvars
 		if ((int)((float *)ent->fields)[f] & s)
 			continue;
 
-		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", NULL);
+		val = prinst->GetEdictFieldValue(prinst, (void*)ent, "chain", &menuc_eval.chain);
 		if (val)
 			val->edict = EDICT_TO_PROG(prinst, (void*)chain);
 		chain = ent;
@@ -1504,6 +1516,136 @@ void QCBUILTIN PF_crypto_getmyidfp(pubprogfuncs_t *prinst, struct globalvars_s *
 	G_INT(OFS_RETURN) = 0;
 }
 
+static void QCBUILTIN PF_m_precache_model(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
+	Mod_ForName(modelname, MLV_WARN);
+}
+static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	menuedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
+	string_t modelname = G_INT(OFS_PARM1);	//FIXME: zone it or something?
+	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)ent, "model", &menuc_eval.model);
+	eval_t *minsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "mins", &menuc_eval.mins);
+	eval_t *maxsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "maxs", &menuc_eval.maxs);
+	model_t *mod = Mod_ForName(prinst->StringToNative(prinst, modelname), MLV_WARN);
+	if (modelval)
+		modelval->string = modelname;
+	if (mod && minsval)
+		VectorCopy(mod->mins, minsval->_vector);
+	if (mod && maxsval)
+		VectorCopy(mod->maxs, maxsval->_vector);
+}
+//trivially basic
+static void QCBUILTIN PF_m_setorigin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	menuedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
+	float *org = G_VECTOR(OFS_PARM1);
+	eval_t *val = prinst->GetEdictFieldValue(prinst, (void*)ent, "origin", &menuc_eval.origin);
+	if (val)
+		VectorCopy(org, val->_vector);
+}
+static void QCBUILTIN PF_m_clearscene(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+//	CL_DecayLights ();
+
+#if defined(SKELETALOBJECTS) || defined(RAGDOLLS)
+	skel_dodelete(prinst);
+#endif
+	CL_ClearEntityLists();
+
+	V_ClearRefdef(&menuview);
+	r_refdef.drawsbar = false;
+	r_refdef.drawcrosshair = false;
+	V_CalcRefdef(&menuview);	//set up the defaults
+	r_refdef.flags |= RDF_NOWORLDMODEL;
+}
+static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, entity_t *out)
+{
+	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)in, "model", &menuc_eval.model);
+	eval_t *originval = prinst->GetEdictFieldValue(prinst, (void*)in, "origin", &menuc_eval.origin);
+	eval_t *anglesval = prinst->GetEdictFieldValue(prinst, (void*)in, "angles", &menuc_eval.angles);
+	eval_t *skinval = prinst->GetEdictFieldValue(prinst, (void*)in, "skin", &menuc_eval.skin);
+	eval_t *frame1val = prinst->GetEdictFieldValue(prinst, (void*)in, "frame", &menuc_eval.frame1);
+	eval_t *frame2val = prinst->GetEdictFieldValue(prinst, (void*)in, "frame2", &menuc_eval.frame2);
+	eval_t *lerpfracval = prinst->GetEdictFieldValue(prinst, (void*)in, "lerpfrac", &menuc_eval.lerpfrac);
+	eval_t *frame1timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame1time", &menuc_eval.frame1time);
+	eval_t *frame2timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame2time", &menuc_eval.frame2time);
+	eval_t *colormapval = prinst->GetEdictFieldValue(prinst, (void*)in, "colormap", &menuc_eval.colormap);
+	eval_t *renderflagsval = prinst->GetEdictFieldValue(prinst, (void*)in, "renderflags", &menuc_eval.renderflags);
+	int ival;
+	int rflags;
+
+	rflags = renderflagsval?renderflagsval->_float:0;
+
+	memset(out, 0, sizeof(*out));
+	if (modelval)
+		out->model = Mod_ForName(prinst->StringToNative(prinst, modelval->_int), MLV_WARN);
+	if (originval)
+		VectorCopy(originval->_vector, out->origin);
+	if (!anglesval)anglesval = (eval_t*)vec3_origin;
+	AngleVectors(anglesval->_vector, out->axis[0], out->axis[1], out->axis[2]);
+	VectorInverse(out->axis[1]);
+
+	out->scale = 1;
+	out->skinnum = skinval?skinval->_float:0;
+	out->framestate.g[FS_REG].frame[0] = frame1val?frame1val->_float:0;
+	out->framestate.g[FS_REG].frame[1] = frame2val?frame2val->_float:0;
+	out->framestate.g[FS_REG].lerpfrac = lerpfracval?lerpfracval->_float:0;
+	out->framestate.g[FS_REG].frametime[0] = frame1timeval?frame1timeval->_float:0;
+	out->framestate.g[FS_REG].frametime[1] = frame2timeval?frame2timeval->_float:0;
+
+	//FIXME: colourmap
+	ival = colormapval?colormapval->_float:0;
+	out->playerindex = -1;
+	if (ival >= 1024)
+	{
+		//DP COLORMAP extension
+		out->topcolour = (ival>>4) & 0x0f;
+		out->bottomcolour = ival & 0xf;
+	}
+/*	else if (ival > 0 && ival <= MAX_CLIENTS)
+	{	//FIXME: tie to the current skin/topcolor/bottomcolor cvars somehow?
+		out->playerindex = ival - 1;
+		out->topcolour = cl.players[ival-1].ttopcolor;
+		out->bottomcolour = cl.players[ival-1].tbottomcolor;
+	}*/
+	else
+	{
+		out->topcolour = TOP_DEFAULT;
+		out->bottomcolour = BOTTOM_DEFAULT;
+	}
+
+	if (rflags & CSQCRF_ADDITIVE)
+		out->flags |= RF_ADDITIVE;
+	if (rflags & CSQCRF_DEPTHHACK)
+		out->flags |= RF_DEPTHHACK;
+
+	if (out->model)
+		return true;
+	return false;
+}
+static void QCBUILTIN PF_m_addentity(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	menuedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
+	entity_t ent;
+	if (in->isfree || in->entnum == 0)
+	{
+		Con_Printf("Tried drawing a free/removed/world entity\n");
+		return;
+	}
+
+	if (CopyMenuEdictToEntity(prinst, in, &ent))
+		V_AddAxisEntity(&ent);
+}
+static void QCBUILTIN PF_m_renderscene(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	V_ApplyRefdef();
+	R_RenderView();
+}
+void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 static struct {
 	char *name;
 	builtin_t bifunc;
@@ -1598,6 +1740,9 @@ static struct {
 	{"findflags",				PF_FindFlags,				87},
 	{"findchainflags",			PF_menu_findchainflags,		88},
 	{"mcvar_defstring",			PF_cvar_defstring,			89},
+	{"setmodel",				PF_m_setmodel,				90},
+	{"precache_model",			PF_m_precache_model,		91},
+	{"setorigin",				PF_m_setorigin,				92},
 															//gap
 	{"abort",					PF_Abort,					211},
 															//gap
@@ -1623,7 +1768,22 @@ static struct {
 	{"hash_getkey",				PF_hash_getkey,				292},
 	{"hash_getcb",				PF_hash_getcb,				293},
 	{"checkcommand",			PF_checkcommand,			294},
+	{"argescape",				PF_argescape,				295},
 															//gap
+	{"clearscene",				PF_m_clearscene,			300},
+															//no addentities
+	{"addentity",				PF_m_addentity,				302},//FIXME: needs setmodel, origin, angles, colormap(eep), frame etc, skin, 
+	{"setproperty",				PF_R_SetViewFlag,			303},//should be okay to share
+	{"renderscene",				PF_m_renderscene,			304},//too module-specific
+//	{"dynamiclight_add",		PF_R_DynamicLight_Add,		305},//should be okay to share
+	{"R_BeginPolygon",			PF_R_PolygonBegin,			306},//useful for 2d stuff
+	{"R_PolygonVertex",			PF_R_PolygonVertex,			307},
+	{"R_EndPolygon",			PF_R_PolygonEnd,			308},
+	{"getproperty",				PF_R_GetViewFlag,			309},//should be okay to share
+//unproject													310
+//project													311
+
+
 	{"print_csqc",				PF_print,					339},
 	{"keynumtostring_csqc",		PF_cl_keynumtostring,		340},
 	{"stringtokeynum_csqc",		PF_cl_stringtokeynum,		341},
@@ -1641,6 +1801,10 @@ static struct {
 	{"memgetval",				PF_memgetval,				388},
 	{"memsetval",				PF_memsetval,				389},
 	{"memptradd",				PF_memptradd,				390},
+	{"con_getset",				PF_SubConGetSet,			391},
+	{"con_printf",				PF_SubConPrintf,			392},
+	{"con_draw",				PF_SubConDraw,				393},
+	{"con_input",				PF_SubConInput,				394},
 															//gap
 	{"buf_create",				PF_buf_create,				440},
 	{"buf_del",					PF_buf_del,					441},
@@ -1652,7 +1816,7 @@ static struct {
 	{"bufstr_set",				PF_bufstr_set,				447},
 	{"bufstr_add",				PF_bufstr_add,				448},
 	{"bufstr_free",				PF_bufstr_free,				449},
-															//gap
+															//450
 	{"iscachedpic",				PF_CL_is_cached_pic,		451},
 	{"precache_pic",			PF_CL_precache_pic,			452},
 	{"free_pic",				PF_CL_free_pic,				453},
@@ -1672,7 +1836,7 @@ static struct {
 	{"drawstring",				PF_CL_drawcolouredstring,	467},
 	{"stringwidth",				PF_CL_stringwidth,			468},
 	{"drawsubpic",				PF_CL_drawsubpic,			469},
-															//gap
+															//470
 //MERGES WITH CLIENT+SERVER BUILTIN MAPPINGS BELOW
 	{"asin",					PF_asin,					471},
 	{"acos",					PF_acos,					472},
@@ -1686,10 +1850,10 @@ static struct {
 	{"strtolower",				PF_strtolower,				480},
 	{"strtoupper",				PF_strtoupper,				481},
 	{"cvar_defstring",			PF_cvar_defstring,			482},
-															//gap
+															//483
 	{"strreplace",				PF_strreplace,				484},
 	{"strireplace",				PF_strireplace,				485},
-															//gap
+															//486
 	{"gecko_create",			PF_cs_gecko_create,			487},
 	{"gecko_destroy",			PF_cs_gecko_destroy,		488},
 	{"gecko_navigate",			PF_cs_gecko_navigate,		489},
@@ -1914,7 +2078,7 @@ qboolean MP_Init (void)
 
 	MP_SetupBuiltins();
 
-	memset(&menuc_eval_chain, 0, sizeof(menuc_eval_chain));
+	memset(&menuc_eval, 0, sizeof(menuc_eval));
 
 
 	menuprogparms.progsversion = PROGSTRUCT_VERSION;
@@ -1986,6 +2150,7 @@ qboolean MP_Init (void)
 		menu_world.g.time = (float*)PR_FindGlobal(menu_world.progs, "time", 0, NULL);
 		if (menu_world.g.time)
 			*menu_world.g.time = Sys_DoubleTime();
+		menu_world.g.frametime = (float*)PR_FindGlobal(menu_world.progs, "frametime", 0, NULL);
 
 		menu_world.g.drawfont = (float*)PR_FindGlobal(menu_world.progs, "drawfont", 0, NULL);
 		menu_world.g.drawfontscale = (float*)PR_FindGlobal(menu_world.progs, "drawfontscale", 0, NULL);
@@ -2123,6 +2288,8 @@ void MP_Draw(void)
 	menutime = Sys_DoubleTime();
 	if (menu_world.g.time)
 		*menu_world.g.time = menutime;
+	if (menu_world.g.frametime)
+		*menu_world.g.frametime = host_frametime;
 
 	inmenuprogs++;
 	if (mp_draw_function)

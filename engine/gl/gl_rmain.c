@@ -126,6 +126,11 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 	}
 }
 
+void GL_ShutdownPostProcessing(void)
+{
+	GLBE_FBO_Destroy(&fbo_gameview);
+}
+
 void GL_InitSceneProcessingShaders (void)
 {
 	if (gl_config.arb_shader_objects)

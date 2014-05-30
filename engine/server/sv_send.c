@@ -574,6 +574,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PVS:
 			to = MULTICAST_ALL;
 			break;
+		default:
+			break;
 		}
 	}
 

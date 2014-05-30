@@ -4571,7 +4571,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//actually, that seems pointless.
 			sprintf(membername, "%s::"MEMBERFIELDNAME, classname, parmname);
 //			printf("define %s -> %s\n", membername, d->name);
-			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d->ofs, true, (isnull?0:GDF_CONST)|GDF_STRIP);
+			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d->ofs, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
 			d->references++;	//always referenced, so you can inherit safely.
 		}
 

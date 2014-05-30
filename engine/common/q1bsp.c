@@ -1735,7 +1735,7 @@ static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, qbyte *buffer, unsi
 		buffersize = sizeof(decompressed);
 	}
 
-	return Q1BSP_DecompressVis (model->leafs[cluster+1].compressed_vis, model, buffer, buffersize);
+	return Q1BSP_DecompressVis (model->leafs[cluster].compressed_vis, model, buffer, buffersize);
 }
 
 //returns the leaf number, which is used as a bit index into the pvs.

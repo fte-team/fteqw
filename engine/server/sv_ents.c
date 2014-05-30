@@ -1029,7 +1029,7 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 			MSG_WriteByte(msg, state->skinnum);
 	}
 	if (bits & UF_COLORMAP)
-		MSG_WriteByte(msg, state->colormap);
+		MSG_WriteByte(msg, state->colormap & 0xff);
 
 	if (bits & UF_SOLID)
 		MSG_WriteShort(msg, state->solid);

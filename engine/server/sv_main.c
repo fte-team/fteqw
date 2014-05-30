@@ -2852,7 +2852,7 @@ client_t *SVC_DirectConnect(void)
 	}
 
 	{
-		char *banreason = SV_BannedReason(&adr);
+		char *banreason = SV_BannedReason(&net_from);
 		if (banreason)
 		{
 			if (*banreason)

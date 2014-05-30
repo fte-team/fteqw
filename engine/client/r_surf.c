@@ -1996,9 +1996,6 @@ void Surf_SetupFrame(void)
 		r_viewleaf->contents = Q1CONTENTS_EMPTY;
 		r_viewleaf2 = NULL;
 
-		r_oldviewcluster = r_viewcluster;
-		r_oldviewcluster2 = r_viewcluster2;
-
 		leaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
 		r_viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, pvsorg);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;

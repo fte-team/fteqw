@@ -4447,9 +4447,10 @@ void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
+	short val = (((int)G_FLOAT(OFS_PARM1))&0xffff);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
-		MSG_WriteShort(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		MSG_WriteShort(&csqcmsgbuffer, val);
 		return;
 	}
 
@@ -4462,13 +4463,13 @@ void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteShort(dest, (short)(int)G_FLOAT(OFS_PARM1));
+		NPP_NQWriteShort(dest, val);
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteShort(dest, (short)(int)G_FLOAT(OFS_PARM1));
+		NPP_QWWriteShort(dest, val);
 		return;
 	}
 #else
@@ -4478,10 +4479,10 @@ void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		if (!cl)
 			return;
 		ClientReliableCheckBlock(cl, 2);
-		ClientReliableWrite_Short(cl, G_FLOAT(OFS_PARM1));
+		ClientReliableWrite_Short(cl, val);
 	}
 	else
-		MSG_WriteShort (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
+		MSG_WriteShort (QWWriteDest(dest), val);
 #endif
 }
 

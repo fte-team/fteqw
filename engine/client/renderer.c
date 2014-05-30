@@ -1847,7 +1847,7 @@ mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 int r_visframecount;
 mleaf_t		*r_vischain;		// linked list of visible leafs
-static qbyte	curframevis[MAX_MAP_LEAFS/8];
+static qbyte	curframevis[R_MAX_RECURSE][MAX_MAP_LEAFS/8];
 
 /*
 ===============
@@ -1857,15 +1857,17 @@ R_MarkLeaves
 #ifdef Q3BSPS
 qbyte *R_MarkLeaves_Q3 (void)
 {
-	static qbyte	*vis;
+	static qbyte	*cvis[R_MAX_RECURSE];
+	qbyte *vis;
 	int		i;
 
 	int cluster;
 	mleaf_t	*leaf;
 	mnode_t *node;
+	int portal = r_refdef.recurse;
 
 	if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
-		return vis;
+		return cvis[portal];
 
 	// development aid to let you run around and see exactly where
 	// the pvs ends
@@ -1903,7 +1905,7 @@ qbyte *R_MarkLeaves_Q3 (void)
 	}
 	else
 	{
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis, sizeof(curframevis));
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis[portal], sizeof(curframevis));
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
@@ -1927,6 +1929,7 @@ qbyte *R_MarkLeaves_Q3 (void)
 #endif
 			}
 		}
+		cvis[portal] = vis;
 	}
 	return vis;
 }
@@ -1935,29 +1938,40 @@ qbyte *R_MarkLeaves_Q3 (void)
 #ifdef Q2BSPS
 qbyte *R_MarkLeaves_Q2 (void)
 {
-	static qbyte	*vis;
+	static qbyte	*cvis[R_MAX_RECURSE];
 	mnode_t	*node;
 	int		i;
 
 	int cluster;
 	mleaf_t	*leaf;
+	qbyte *vis;
 
 	int c;
+	int portal = r_refdef.recurse;
 
 	if (r_refdef.forcevis)
 	{
-		vis = r_refdef.forcedvis;
+		vis = cvis[portal] = r_refdef.forcedvis;
 
-		r_oldviewcluster = 0;
-		r_oldviewcluster2 = 0;
+		r_oldviewcluster = -1;
+		r_oldviewcluster2 = -1;
 	}
 	else
 	{
-		if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
-			return vis;
+		vis = cvis[portal];
+		if (!portal)
+		{
+			if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
+				return vis;
 
-		r_oldviewcluster = r_viewcluster;
-		r_oldviewcluster2 = r_viewcluster2;
+			r_oldviewcluster = r_viewcluster;
+			r_oldviewcluster2 = r_viewcluster2;
+		}
+		else
+		{
+			r_oldviewcluster = -1;
+			r_oldviewcluster2 = -1;
+		}
 
 		if (r_novis.ival == 2)
 			return vis;
@@ -1972,16 +1986,17 @@ qbyte *R_MarkLeaves_Q2 (void)
 			return vis;
 		}
 
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis, sizeof(curframevis));
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis[portal], sizeof(curframevis));
 		// may have to combine two clusters because of solid water boundaries
 		if (r_viewcluster2 != r_viewcluster)
 		{
 			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL, sizeof(curframevis));
 			c = (cl.worldmodel->numleafs+31)/32;
 			for (i=0 ; i<c ; i++)
-				((int *)curframevis)[i] |= ((int *)vis)[i];
-			vis = curframevis;
+				((int *)curframevis[portal])[i] |= ((int *)vis)[i];
+			vis = curframevis[portal];
 		}
+		cvis[portal] = vis;
 	}
 
 	r_visframecount++;
@@ -2007,6 +2022,7 @@ qbyte *R_MarkLeaves_Q2 (void)
 }
 #endif
 
+#if 0
 qbyte *R_CalcVis_Q1 (void)
 {
 	unsigned int i;
@@ -2040,10 +2056,10 @@ qbyte *R_CalcVis_Q1 (void)
 	}
 	return vis;
 }
+#endif
 
 qbyte *R_MarkLeaves_Q1 (void)
 {
-	static qbyte	fatvis[R_MAX_RECURSE][MAX_MAP_LEAFS/8];
 	static qbyte	*cvis[R_MAX_RECURSE];
 	qbyte *vis;
 	mnode_t	*node;
@@ -2079,8 +2095,8 @@ qbyte *R_MarkLeaves_Q1 (void)
 
 		if (r_novis.ival)
 		{
-			vis = cvis[portal] = fatvis[portal];
-			memset (fatvis[portal], 0xff, (cl.worldmodel->numclusters+7)>>3);
+			vis = cvis[portal] = curframevis[portal];
+			memset (curframevis[portal], 0xff, (cl.worldmodel->numclusters+7)>>3);
 
 			r_oldviewleaf = NULL;
 			r_oldviewleaf2 = NULL;
@@ -2088,17 +2104,17 @@ qbyte *R_MarkLeaves_Q1 (void)
 		else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
 		{
 			int c;
-			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis[portal], sizeof(fatvis[portal]));
+			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, curframevis[portal], sizeof(curframevis[portal]));
 			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
 			c = (cl.worldmodel->numclusters+31)/32;
 			for (i=0 ; i<c ; i++)
-				((int *)fatvis[portal])[i] |= ((int *)vis)[i];
+				((int *)curframevis[portal])[i] |= ((int *)vis)[i];
 
-			vis = cvis[portal] = fatvis[portal];
+			vis = cvis[portal] = curframevis[portal];
 		}
 		else
 		{
-			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, fatvis[portal], sizeof(fatvis[portal]));
+			vis = cvis[portal] = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, curframevis[portal], sizeof(curframevis[portal]));
 		}
 	}
 

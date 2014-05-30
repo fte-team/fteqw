@@ -1989,6 +1989,7 @@ qboolean CModQ2_LoadVisibility (lump_t *l)
 		map_q2vis->bitofs[i][0] = LittleLong (map_q2vis->bitofs[i][0]);
 		map_q2vis->bitofs[i][1] = LittleLong (map_q2vis->bitofs[i][1]);
 	}
+	loadmodel->numclusters = map_q2vis->numclusters;
 
 	return true;
 }
@@ -3435,6 +3436,7 @@ qboolean CModQ3_LoadVisibility (lump_t *l)
 		numclusters = map_q3pvs->numclusters = LittleLong (map_q3pvs->numclusters);
 		map_q3pvs->rowsize = LittleLong (map_q3pvs->rowsize);
 	}
+	loadmodel->numclusters = numclusters;
 
 	return true;
 }

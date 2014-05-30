@@ -718,7 +718,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		out->forcedshader = NULL;
 	out->customskin = (in->skinobject<0)?-in->skinobject:in->skinobject;
 
-	if (in->xv->entnum)
+	if (in->xv->entnum && !in->xv->camera_transform)	//yes, camera_transform is this hacky
 		out->keynum = in->xv->entnum;
 	else
 		out->keynum = -in->entnum;

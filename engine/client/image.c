@@ -1228,9 +1228,10 @@ fill_input_buffer (j_decompress_ptr cinfo)
 	memcpy(src->buffer, &src->infile[src->currentpos], nbytes);
 	src->currentpos+=nbytes;
 
-	if (nbytes <= 0) {
+	if (nbytes <= 0)
+	{
 		if (src->start_of_file)	/* Treat empty input file as fatal error */
-		ERREXIT(cinfo, JERR_INPUT_EMPTY);
+			ERREXIT(cinfo, JERR_INPUT_EMPTY);
 		WARNMS(cinfo, JWRN_JPEG_EOF);
 		/* Insert a fake EOI marker */
 		src->buffer[0] = (JOCTET) 0xFF;
@@ -1322,6 +1323,8 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
 	/* More stuff */
 	JSAMPARRAY buffer;		/* Output row buffer */
 	int size_stride;		/* physical row width in output buffer */
+
+	memset(&cinfo, 0, sizeof(cinfo));
 
 	if (!LIBJPEG_LOADED())
 		return NULL;
@@ -2308,6 +2311,7 @@ texid_tf GL_ReadTextureDDS(const char *iname, unsigned char *buffer, int filesiz
 	int pad;
 	unsigned int w, h;
 	int divsize, blocksize;
+	qboolean warned = false;
 
 	ddsheader fmtheader;
 	if (*(int*)buffer != *(int*)"DDS " || qrenderer != QR_OPENGL)
@@ -2346,7 +2350,10 @@ texid_tf GL_ReadTextureDDS(const char *iname, unsigned char *buffer, int filesiz
 		blocksize = 16;
 	}
 	else
+	{
+		Con_Printf("Unsupported dds fourcc in %s\n", iname);
 		return r_nulltex;
+	}
 
 	if (!qglCompressedTexImage2DARB)
 		return r_nulltex;
@@ -2365,14 +2372,15 @@ texid_tf GL_ReadTextureDDS(const char *iname, unsigned char *buffer, int filesiz
 		datasize = max(divsize, w)/divsize * max(divsize, h)/divsize * blocksize;
 		qglCompressedTexImage2DARB(GL_TEXTURE_2D, mipnum, intfmt, w, h, 0, datasize, buffer);
 		if (qglGetError())
-			Con_Printf("Incompatible dds file %s (mip %i)\n", iname, mipnum);
+		{
+			if (!warned)
+				Con_Printf("Incompatible dds file %s (mip %i)\n", iname, mipnum);
+			warned = true;
+		}
 		buffer += datasize;
 		w = (w+1)>>1;
 		h = (h+1)>>1;
 	}
-	if (qglGetError())
-		Con_Printf("Incompatible dds file %s\n", iname);
-
 
 	if (nummips>1)
 	{
@@ -2383,6 +2391,13 @@ texid_tf GL_ReadTextureDDS(const char *iname, unsigned char *buffer, int filesiz
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+	}
+
+	if (qglGetError())
+	{
+		if (!warned)
+			Con_Printf("Incompatible dds file %s\n", iname);
+		warned = true;
 	}
 
 	return texnum;
@@ -2745,7 +2760,7 @@ qboolean R_LoadTextureFromMemory(texid_t *tex, int flags, const char *iname, cha
 		if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 			BoostGamma(rgbadata, image_width, image_height);
 
-		if (hasalpha)
+		if (hasalpha) 
 			flags &= ~IF_NOALPHA;
 		else if (!(flags & IF_NOALPHA))
 		{
@@ -2754,11 +2769,11 @@ qboolean R_LoadTextureFromMemory(texid_t *tex, int flags, const char *iname, cha
 			unsigned char *alphadata;
 			char *alph;
 			COM_StripExtension(fname, aname, sizeof(aname));
-			Q_strncatz(aname, "_alpha", sizeof(aname));
+			Q_strncatz(aname, "_alpha.", sizeof(aname));
 			Q_strncatz(aname, COM_FileExtension(fname), sizeof(aname));
 			if ((alph = COM_LoadFile (aname, 5)))
 			{
-				if ((alphadata = Read32BitImageFile(alph, filesize, &alpha_width, &alpha_height, &hasalpha, aname)))
+				if ((alphadata = Read32BitImageFile(alph, com_filesize, &alpha_width, &alpha_height, &hasalpha, aname)))
 				{
 					if (alpha_width == image_width && alpha_height == image_height)
 					{

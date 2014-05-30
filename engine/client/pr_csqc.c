@@ -3455,7 +3455,28 @@ static void QCBUILTIN PF_cs_OpenPortal (pubprogfuncs_t *prinst, struct globalvar
 {
 #ifdef Q2BSPS
 	if (cl.worldmodel->fromgame == fg_quake2)
-		CMQ2_SetAreaPortalState(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+	{
+		int portal;
+		int state	= G_FLOAT(OFS_PARM1)!=0;
+		if (G_INT(OFS_PARM1) >= MAX_EDICTS)
+			portal = G_FLOAT(OFS_PARM0);	//old legacy crap.
+		else
+			portal = G_EDICT(prinst, OFS_PARM0)->xv->style;	//read the func_areaportal's style field.
+		CMQ2_SetAreaPortalState(portal, state);
+	}
+#endif
+#ifdef Q3BSPS
+	if (cl.worldmodel->fromgame == fg_quake3)
+	{
+		int i;
+		int state	= G_FLOAT(OFS_PARM1)!=0;
+		client_t *client;
+		edict_t *portal = G_EDICT(prinst, OFS_PARM0);
+		int area1 = portal->pvsinfo.areanum, area2 = portal->pvsinfo.areanum2;
+		if (area1 == area2 || !area1 || !area2)
+			return;
+		CMQ3_SetAreaPortalState(portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
+	}
 #endif
 }
 

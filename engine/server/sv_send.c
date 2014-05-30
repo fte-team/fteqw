@@ -985,7 +985,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 
 // find precache number for sound
 	if (!*sample)
-		sound_num = 0;
+		return;
 	else
 	{
 		for (sound_num=1 ; sound_num<MAX_SOUNDS

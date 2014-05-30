@@ -6154,7 +6154,7 @@ static void	FloodAreaConnections (void)
 void	VARGS CMQ2_SetAreaPortalState (int portalnum, qboolean open)
 {
 	if (mapisq3)
-		Host_Error ("CMQ2_SetAreaPortalState on q3 map");
+		return;
 	if (portalnum > numareaportals)
 		Host_Error ("areaportal > numareaportals");
 

@@ -6229,9 +6229,13 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 {
 	if (sv.world.worldmodel->fromgame == fg_quake2)
 	{
-		int i, portal	= G_FLOAT(OFS_PARM0);
+		int i, portal;
 		int state	= G_FLOAT(OFS_PARM1)!=0;
 		client_t *client;
+		if (G_INT(OFS_PARM1) >= MAX_EDICTS)
+			portal = G_FLOAT(OFS_PARM0);	//old legacy crap.
+		else
+			portal = G_EDICT(prinst, OFS_PARM0)->xv->style;	//read the func_areaportal's style field.
 		for (client = svs.clients, i = 0; i < sv.allocated_client_slots; i++, client++)
 		{
 			if (client->state >= cs_connected)
@@ -6243,7 +6247,29 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 					ClientReliableWrite_Short(client, portal);
 			}
 		}
-		CMQ2_SetAreaPortalState(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+		CMQ2_SetAreaPortalState(portal, state);
+	}
+	else if (sv.world.worldmodel->fromgame == fg_quake3)
+	{
+		int i;
+		int state	= G_FLOAT(OFS_PARM1)!=0;
+		client_t *client;
+		edict_t *portal = G_EDICT(prinst, OFS_PARM0);
+		int area1 = portal->pvsinfo.areanum, area2 = portal->pvsinfo.areanum2;
+		if (area1 == area2 || !area1 || !area2)
+			return;
+		/*for (client = svs.clients, i = 0; i < sv.allocated_client_slots; i++, client++)
+		{
+			if (client->state >= cs_connected)
+			{
+				ClientReliableWrite_Begin(client, svc_setportalstate, 3);
+				if (state)
+					ClientReliableWrite_Short(client, portal | (state<<15));
+				else
+					ClientReliableWrite_Short(client, portal);
+			}
+		}*/
+		CMQ3_SetAreaPortalState(portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
 	}
 }
 #endif
@@ -9204,8 +9230,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"externset",		PF_externset,		0,		0,		0,		204,	D("void(float prnum, __variant newval, string varname)", "Sets a global in the named progs by name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
 	{"externrefcall",	PF_externrefcall,	0,		0,		0,		205,	D("__variant(float prnum, void() func, ...)","Calls a function between progs by its reference. No longer needed as direct function calls now switch progs context automatically, and have done for a long time. There is no remaining merit for this function."), true},
 	{"instr",			PF_instr,			0,		0,		0,		206,	D("float(string input, string token)", "Returns substring(input, strstrpot(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos.")},
-#ifdef Q2BSPS
-	{"openportal",		PF_OpenPortal,		0,		0,		0,		207,	D("void(float portal, float state)", "Q2BSP: Sets the portal state attached to doors. portal is your portal id from the map.\nstate=0 means that the pvs will be blocked. entities on the other side will not be seen/sent.\nstate=1 means the portal should be open, and things beyond will now be seen.")},
+#if defined(Q2BSPS) || defined(Q3BSPS)
+	{"openportal",		PF_OpenPortal,		0,		0,		0,		207,	D("void(entity portal, float state)", "Opens or closes the portals associated with a door or some such on q2 or q3 maps. On Q2BSPs, the entity should be the 'func_areaportal' entity - its style field will say which portal to open. On Q3BSPs, the entity is the door itself, the portal will be determined by the two areas found from a preceding setorigin call.")},
 #endif
 
 	{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208,	"float(float attributes, string effectname, ...)"},

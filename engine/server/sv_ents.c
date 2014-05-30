@@ -85,10 +85,15 @@ unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsig
 	for (i=0 ; i<count ; i++)
 		leafs[i] = CM_LeafCluster(mod, leafs[i]);
 
-	CM_ClusterPVS(mod, leafs[0], resultbuf, buffersize);
+//	CM_ClusterPVS(mod, leafs[0], resultbuf, buffersize);
 
 
-	if (!add)
+	if (count == 1 && leafs[0] == -1)
+	{
+		memset(resultbuf, 0xff, longs<<2);
+		i = count;
+	}
+	else if (!add)
 	{
 		memcpy (resultbuf, CM_ClusterPVS(mod, leafs[0], NULL, 0), longs<<2);
 		i = 1;
@@ -2730,10 +2735,10 @@ qboolean SV_GibFilter(edict_t	*ent)
 static int		clientarea;
 
 unsigned int Q2BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add)
-{//fixme: this doesn't add
+{//fixme: this doesn't add areas
 	int		leafnum;
 	leafnum = CM_PointLeafnum (mod, org);
-///	clientarea = CM_LeafArea (mod, leafnum);
+	clientarea = CM_LeafArea (mod, leafnum);
 
 	return SV_Q2BSP_FatPVS (mod, org, buffer, buffersize, add);
 }

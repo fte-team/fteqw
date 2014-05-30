@@ -105,6 +105,7 @@ pbool opt_stripfunctions;		//if a functions is only ever called directly or by e
 pbool opt_locals_overlapping;	//make the local vars of all functions occupy the same globals.
 pbool opt_logicops;				//don't make conditions enter functions if the return value will be discarded due to a previous value. (C style if statements)
 pbool opt_vectorcalls;			//vectors can be packed into 3 floats, which can yield lower numpr_globals, but cost two more statements per call (only works for q1 calling conventions).
+pbool opt_classfields;
 pbool opt_simplifiedifs;		//if (f != 0) -> if_f (f). if (f == 0) -> ifnot_f (f)
 //bool opt_comexprremoval;
 

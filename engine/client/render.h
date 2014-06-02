@@ -236,6 +236,8 @@ typedef struct
 	int			rt_ripplemap;		/*read by 2d. used by 3d (internal ripplemap buffer used if not set)*/
 
 	qbyte		*forcedvis;
+	qboolean	areabitsknown;
+	qbyte		areabits[MAX_MAP_AREA_BYTES];
 
 	struct
 	{

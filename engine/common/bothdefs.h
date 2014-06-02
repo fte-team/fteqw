@@ -264,11 +264,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(_WIN32) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
 		#define MULTITHREAD
 #endif
-
-//these things were moved to plugins.
 	#endif
 
 #endif
+
+//#define QUAKESPYAPI //define this if you want the engine to be usable via gamespy/quakespy, which has been dead for a long time now.
 
 #ifdef FTE_TARGET_WEB
 	//try to trim the fat

@@ -1337,6 +1337,7 @@ void Sys_Init (void)
 	Cvar_Register(&sys_disableTaskSwitch, "System vars");
 	Cmd_AddCommandD("sys_register_file_associations", Sys_Register_File_Associations_f, "Register FTE as the system handler for .bsp .mvd .qwd .dem files. Also register the qw:// URL protocol. This command will probably trigger a UAC prompt in Windows Vista and up. Deny it for current-user-only asociations (will also prevent listing in windows' 'default programs' ui due to microsoft bugs/limitations).");
 
+#ifdef QUAKESPYAPI
 #ifndef CLIENTONLY
 	if (!isDedicated && !COM_CheckParm("-nomutex"))
 #else
@@ -1361,6 +1362,7 @@ void Sys_Init (void)
 			1,            // Maximum count
 			"qwcl"); // Semaphore name
 	}
+#endif
 #endif
 
 #if 0

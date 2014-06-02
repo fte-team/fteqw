@@ -6091,7 +6091,6 @@ AREAPORTALS
 static void FloodArea_r (q2carea_t *area, int floodnum)
 {
 	int		i;
-	q2dareaportal_t	*p;
 
 	if (area->floodvalid == floodvalid)
 	{
@@ -6102,11 +6101,22 @@ static void FloodArea_r (q2carea_t *area, int floodnum)
 
 	area->floodnum = floodnum;
 	area->floodvalid = floodvalid;
-	p = &map_areaportals[area->firstareaportal];
-	for (i=0 ; i<area->numareaportals ; i++, p++)
+	if (mapisq3)
 	{
-		if (portalopen[p->portalnum])
-			FloodArea_r (&map_q2areas[p->otherarea], floodnum);
+		for (i=1 ; i<numareas ; i++)
+		{
+			if (map_q3areas[area - map_q2areas].numareaportals[i]>0)
+				FloodArea_r (&map_q2areas[i], floodnum);
+		}
+	}
+	else
+	{
+		q2dareaportal_t	*p = &map_areaportals[area->firstareaportal];
+		for (i=0 ; i<area->numareaportals ; i++, p++)
+		{
+			if (portalopen[p->portalnum])
+				FloodArea_r (&map_q2areas[p->otherarea], floodnum);
+		}
 	}
 }
 
@@ -6119,21 +6129,9 @@ FloodAreaConnections
 */
 static void	FloodAreaConnections (void)
 {
-	int		i, j;
+	int		i;
 	q2carea_t	*area;
 	int		floodnum;
-
-	if (mapisq3)
-	{
-		// area 0 is not used
-		for (i=1 ; i<numareas ; i++)
-		{
-			for (  j = 1; j < numareas; j++ ) {
-				map_q3areas[i].numareaportals[j] = ( j == i );
-			}
-		}
-		return;
-	}
 
 	// all current floods are now invalid
 	floodvalid++;
@@ -6151,7 +6149,7 @@ static void	FloodAreaConnections (void)
 
 }
 
-void	VARGS CMQ2_SetAreaPortalState (int portalnum, qboolean open)
+void	VARGS CMQ2_SetAreaPortalState (unsigned int portalnum, qboolean open)
 {
 	if (mapisq3)
 		return;
@@ -6166,7 +6164,7 @@ void	VARGS CMQ2_SetAreaPortalState (int portalnum, qboolean open)
 	return;
 }
 
-void	CMQ3_SetAreaPortalState (int area1, int area2, qboolean open)
+void	CMQ3_SetAreaPortalState (unsigned int area1, unsigned int area2, qboolean open)
 {
 	if (!mapisq3)
 		return;
@@ -6185,9 +6183,11 @@ void	CMQ3_SetAreaPortalState (int area1, int area2, qboolean open)
 		map_q3areas[area1].numareaportals[area2]--;
 		map_q3areas[area2].numareaportals[area1]--;
 	}
+
+	FloodAreaConnections();
 }
 
-qboolean	VARGS CM_AreasConnected (model_t *mod, int area1, int area2)
+qboolean	VARGS CM_AreasConnected (model_t *mod, unsigned int area1, unsigned int area2)
 {
 	if (map_noareas.value)
 		return true;
@@ -6195,21 +6195,8 @@ qboolean	VARGS CM_AreasConnected (model_t *mod, int area1, int area2)
 	if (area1 > numareas || area2 > numareas)
 		Host_Error ("area > numareas");
 
-	if (mapisq3)
-	{
-		int		i;
-		for (i=1 ; i<numareas ; i++)
-		{
-			if ( map_q3areas[i].numareaportals[area1] &&
-				map_q3areas[i].numareaportals[area2] )
-				return true;
-		}
-	}
-	else
-	{
-		if (map_q2areas[area1].floodnum == map_q2areas[area2].floodnum)
-			return true;
-	}
+	if (map_q2areas[area1].floodnum == map_q2areas[area2].floodnum)
+		return true;
 	return false;
 }
 
@@ -6240,40 +6227,16 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area)
 	{
 		memset (buffer, 0, bytes);
 
-		if (mapisq3)
+		floodnum = map_q2areas[area].floodnum;
+		for (i=1 ; i<numareas ; i++)
 		{
-			for (i=0 ; i<numareas ; i++)
-			{
-				if (!area || CM_AreasConnected (mod, i, area ) || i == area)
-					buffer[i>>3] |= 1<<(i&7);
-			}
-		}
-		else
-		{
-			floodnum = map_q2areas[area].floodnum;
-			for (i=0 ; i<numareas ; i++)
-			{
-				if (map_q2areas[i].floodnum == floodnum || !area)
-					buffer[i>>3] |= 1<<(i&7);
-			}
+			if (map_q2areas[i].floodnum == floodnum || !area)
+				buffer[i>>3] |= 1<<(i&7);
 		}
 	}
 
 	return bytes;
 }
-
-#ifndef CLIENTONLY
-void	CM_InitPortalState(void)
-{
-	int i;
-	//if we're not running q2, force all q2 portals open.
-	if (svs.gametype != GT_QUAKE2 && !mapisq3)
-	{
-		for (i = 0; i < numareas; i++)
-			map_q2areas[i].floodnum = 0;
-	}
-}
-#endif
 
 /*
 ===================

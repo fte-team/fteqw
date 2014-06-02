@@ -94,12 +94,14 @@ cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol 
 
 cvar_t	cl_threadedphysics = CVAR("cl_threadedphysics", "0");
 
+#ifdef QUAKESPYAPI
 cvar_t  localid = SCVAR("localid", "");
+static qboolean allowremotecmd = true;
+#endif
 
 cvar_t	r_drawflame = CVARD("r_drawflame", "1", "Set to -1 to disable ALL static entities. Set to 0 to disable only wall torches and standing flame. Set to 1 for everything drawn as normal.");
 
 qboolean forcesaveprompt;
-static qboolean allowremotecmd = true;
 
 extern int			total_loading_size, current_loading_size, loading_stage;
 
@@ -2760,7 +2762,9 @@ client_connect:	//fixme: make function
 		cls.state = ca_connected;
 		if (cls.netchan.remote_address.type != NA_LOOPBACK)
 			Con_TPrintf ("Connected.\n");
+#ifdef QUAKESPYAPI
 		allowremotecmd = false; // localid required now for remote cmds
+#endif
 
 		total_loading_size = 100;
 		current_loading_size = 0;
@@ -2770,6 +2774,7 @@ client_connect:	//fixme: make function
 
 		return;
 	}
+#ifdef QUAKESPYAPI
 	// remote command from gui front end
 	if (c == A2C_CLIENT_COMMAND)	//man I hate this.
 	{
@@ -2815,6 +2820,7 @@ client_connect:	//fixme: make function
 		allowremotecmd = false;
 		return;
 	}
+#endif
 	// print command from somewhere
 	if (c == 'p')
 	{
@@ -2910,7 +2916,9 @@ void CLNQ_ConnectionlessPacket(void)
 		current_loading_size = 0;
 		SCR_SetLoadingStage(LS_CLIENT);
 
+#ifdef QUAKESPYAPI
 		allowremotecmd = false; // localid required now for remote cmds
+#endif
 
 		//send a dummy packet.
 		//this makes our local nat think we initialised the conversation.
@@ -3476,7 +3484,9 @@ void CL_Init (void)
 	Cvar_Register (&cl_predict_players_frac,	cl_predictiongroup);
 	Cvar_Register (&cl_solid_players,	cl_predictiongroup);
 
+#ifdef QUAKESPYAPI
 	Cvar_Register (&localid,	cl_controlgroup);
+#endif
 
 	Cvar_Register (&cl_muzzleflash, cl_controlgroup);
 
@@ -4724,9 +4734,10 @@ void CL_ExecInitialConfigs(char *resetcommand)
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
-
+#ifdef QUAKESPYAPI
 	if (COM_FCheckExists ("frontend.cfg"))
 		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
+#endif
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 
 	com_parseutf8.ival = com_parseutf8.value;

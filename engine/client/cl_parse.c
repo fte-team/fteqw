@@ -5375,6 +5375,43 @@ void CL_DumpPacket(void)
 	}
 }
 
+void CL_ParsePortalState(void)
+{
+	qboolean open = false;
+	int mode = MSG_ReadByte();
+	int a1, a2;
+
+	switch(mode)
+	{
+	case 0x80:
+		if (mode&2)
+			a1 = MSG_ReadShort();
+		else
+			a1 = MSG_ReadByte();
+		CMQ2_SetAreaPortalState(a1, !!(mode&1));
+		break;
+	case 0xc0:
+		if (mode&2)
+		{
+			a1 = MSG_ReadShort();
+			a2 = MSG_ReadShort();
+		}
+		else
+		{
+			a1 = MSG_ReadByte();
+			a2 = MSG_ReadByte();
+		}
+		CMQ3_SetAreaPortalState(a1, a2, !!(mode&1));
+		break;
+
+	default:
+		//to be phased out.
+		mode |= MSG_ReadByte()<<8;
+		CMQ2_SetAreaPortalState(mode & 0x7fff, !!(mode&0x8000));
+		break;
+	}
+}
+
 #define SHOWNET(x) if(cl_shownet.value>=2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
 #define SHOWNET2(x, y) if(cl_shownet.value>=2)Con_Printf ("%3i:%3i:%s\n", msg_readcount-1, y, x);
 /*
@@ -5855,15 +5892,9 @@ void CLQW_ParseServerMessage (void)
 //		case svc_ftesetclientpersist:
 //			CL_ParseClientPersist();
 //			break;
-#ifdef Q2BSPS
 		case svc_setportalstate:
-			i = MSG_ReadByte();
-			j = MSG_ReadByte();
-			i *= j & 127;
-			j &= ~128;
-			CMQ2_SetAreaPortalState(i, j!=0);
+			CL_ParsePortalState();
 			break;
-#endif
 
 		case svcfte_showpic:
 			SCR_ShowPic_Create();

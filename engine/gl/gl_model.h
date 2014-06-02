@@ -1002,7 +1002,7 @@ void CM_Init(void);
 
 qboolean	CM_SetAreaPortalState (struct model_s *mod, int portalnum, qboolean open);
 qboolean	CM_HeadnodeVisible (struct model_s *mod, int nodenum, qbyte *visbits);
-qboolean	VARGS CM_AreasConnected (struct model_s *mod, int area1, int area2);
+qboolean	VARGS CM_AreasConnected (struct model_s *mod, unsigned int area1, unsigned int area2);
 int		CM_NumClusters (struct model_s *mod);
 int		CM_ClusterSize (struct model_s *mod);
 int		CM_LeafContents (struct model_s *mod, int leafnum);
@@ -1019,8 +1019,8 @@ int		CM_HeadnodeForBox (struct model_s *mod, vec3_t mins, vec3_t maxs);
 struct trace_s	CM_TransformedBoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask, vec3_t origin, vec3_t angles);
 struct model_s *CM_TempBoxModel(vec3_t mins, vec3_t maxs);
 
-void	VARGS CMQ2_SetAreaPortalState (int portalnum, qboolean open);
-void	CMQ3_SetAreaPortalState (int area1, int area2, qboolean open);
+void	VARGS CMQ2_SetAreaPortalState (unsigned int portalnum, qboolean open);
+void	CMQ3_SetAreaPortalState (unsigned int area1, unsigned int area2, qboolean open);
 #endif
 
 

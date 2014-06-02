@@ -640,7 +640,8 @@ static void CL_ClearExplosion(explosion_t *exp, vec3_t org)
 	VectorClear(exp->velocity);
 	VectorClear(exp->angles);
 	VectorClear(exp->avel);
-	P_DelinkTrailstate(&(exp->trailstate));
+	if (pe)
+		P_DelinkTrailstate(&(exp->trailstate));
 	exp->traileffect = P_INVALID;
 	VectorCopy(org, exp->origin);
 	VectorCopy(org, exp->oldorigin);

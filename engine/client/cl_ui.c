@@ -577,6 +577,7 @@ struct q3refdef_s {
 void D3D9_Set2D (void);
 void VQ3_RenderView(const q3refdef_t *ref)
 {
+	int i;
 	extern cvar_t r_torch;
 	VectorCopy(ref->vieworg, r_refdef.vieworg);
 	r_refdef.viewangles[0] = -(atan2(ref->viewaxis[0][2], sqrt(ref->viewaxis[0][1]*ref->viewaxis[0][1]+ref->viewaxis[0][0]*ref->viewaxis[0][0])) * 180 / M_PI);
@@ -610,7 +611,9 @@ void VQ3_RenderView(const q3refdef_t *ref)
 		VectorCopy(ref->viewaxis[2], dl->axis[2]);
 	}
 
-	memcpy(cl.q2frame.areabits, ref->areamask, sizeof(cl.q2frame.areabits));
+	r_refdef.areabitsknown = true;
+	for (i = 0; i < sizeof(cl.q2frame.areabits)/sizeof(int); i++)
+		((int*)r_refdef.areabits)[i] = ((int*)ref->areamask)[i] ^ ~0;
 	R_RenderView();
 	r_refdef.playerview = NULL;
 #ifdef GLQUAKE

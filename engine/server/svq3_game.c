@@ -283,7 +283,7 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 		{
 			clusters[i] = CM_LeafCluster(sv.world.worldmodel, leafs[i]);
 			area = CM_LeafArea(sv.world.worldmodel, leafs[i]);
-			if(area >= 0)
+			if(area > 0)	//FIXME: this should be >=
 			{
 				// doors may legally straggle two areas,
 				// but nothing should ever need more than that
@@ -752,6 +752,8 @@ static int SVQ3_BotGetSnapshotEntity(int client, int entnum)
 static void SVQ3_Adjust_Area_Portal_State(q3sharedEntity_t *ge, qboolean open)
 {
 	q3serverEntity_t *se = SENTITY_FOR_GENTITY(ge);
+	if (se->areanum == -1 || se->areanum2 == -1) //not linked properly.
+		return;
 	CMQ3_SetAreaPortalState(se->areanum, se->areanum2, open);
 }
 

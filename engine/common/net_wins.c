@@ -2537,7 +2537,7 @@ qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a)
 	port = strtoul(s, &e, 10);
 	if (*e)	//if *e then its not just a single number in there, so treat it as a proper address.
 		return NET_StringToAdr(s, 0, a);
-	else if (port)
+	else if (e != s)	//if we actually read something (even a 0)
 	{
 		memset(a, 0, sizeof(*a));
 		a->port = htons((unsigned short)port);
@@ -2662,7 +2662,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	//
 	// determine my name & address if we don't already know it
 	//
-	if (net_local_cl_ipadr.type == NA_INVALID)
+	if (!isserver && net_local_cl_ipadr.type == NA_INVALID)
 		NET_GetLocalAddress (newsocket, &net_local_cl_ipadr);
 
 	newcon = Z_Malloc(sizeof(*newcon));
@@ -5362,10 +5362,10 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 
 	if (!notvalid)
 	{
-		Con_TPrintf("IP address %s\n", NET_AdrToString (adrbuf, sizeof(adrbuf), out) );
+//		Con_TPrintf("Client IP address %s\n", NET_AdrToString (adrbuf, sizeof(adrbuf), out) );
 		return;
 	}
-	Con_Printf("Couldn't detect local ip\n");
+//	Con_Printf("Couldn't detect local ip\n");
 #endif
 
 	out->type = NA_INVALID;
@@ -5492,7 +5492,12 @@ void NET_InitClient(void)
 {
 	const char *port;
 	int p;
+
+#ifdef QUAKESPYAPI
 	port = STRINGIFY(PORT_QWCLIENT);
+#else
+	port = "0";
+#endif
 
 	p = COM_CheckParm ("-clport");
 	if (p && p < com_argc)
@@ -5520,7 +5525,7 @@ void NET_InitClient(void)
 	net_message.maxsize = sizeof(net_message_buffer);
 	net_message.data = net_message_buffer;
 
-	Con_TPrintf("Client port Initialized\n");
+//	Con_TPrintf("Client port Initialized\n");
 }
 #endif
 

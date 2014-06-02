@@ -1836,6 +1836,9 @@ void CLQ2_CalcViewValues (void)
 	q2player_state_t	*ps, *ops;
 	extern cvar_t gl_cshiftenabled;
 
+	r_refdef.areabitsknown = true;
+	memcpy(r_refdef.areabits, cl.q2frame.areabits, sizeof(r_refdef.areabits));
+
 	r_refdef.useperspective = true;
 
 	// find the previous frame to interpolate from

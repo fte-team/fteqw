@@ -266,7 +266,7 @@ public class FTEDroidActivity extends Activity
 							public void run()
 							{
 								theview.setVisibility(theview.GONE);
-								AlertDialog ad = new AlertDialog.Builder(act);
+								AlertDialog ad = new AlertDialog.Builder(act).create();
 								ad.setTitle("FTE ERROR");
 								ad.setMessage(errormsg);
 								ad.setCancelable(false);

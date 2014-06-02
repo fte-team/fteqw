@@ -1209,6 +1209,8 @@ void V_ClearRefdef(playerview_t *pv)
 	r_refdef.drawsbar = !cl.intermission;
 	r_refdef.flags = 0;
 
+	r_refdef.areabitsknown = false;
+
 //	memset(r_refdef.postprocshader, 0, sizeof(r_refdef.postprocshader));
 //	memset(r_refdef.postprocsize, 0, sizeof(r_refdef.postprocsize));
 //	r_refdef.postproccube = 0;

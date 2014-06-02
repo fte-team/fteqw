@@ -209,8 +209,8 @@ typedef struct
 	int		(VARGS *pointcontents) (vec3_t point);
 	qboolean	(VARGS *inPVS) (vec3_t p1, vec3_t p2);
 	qboolean	(VARGS *inPHS) (vec3_t p1, vec3_t p2);
-	void		(VARGS *SetAreaPortalState) (int portalnum, qboolean open);
-	qboolean	(VARGS *AreasConnected) (int area1, int area2);
+	void		(VARGS *SetAreaPortalState) (unsigned int portalnum, qboolean open);
+	qboolean	(VARGS *AreasConnected) (unsigned int area1, unsigned int area2);
 
 	// an entity will never be sent to a client or used for collision
 	// if it is not passed to linkentity.  If the size, position, or

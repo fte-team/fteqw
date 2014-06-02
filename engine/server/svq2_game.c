@@ -452,7 +452,7 @@ static qboolean VARGS PFQ2_inPHS (vec3_t p1, vec3_t p2)
 	return true;
 }
 
-qboolean VARGS PFQ2_AreasConnected(int area1, int area2)
+qboolean VARGS PFQ2_AreasConnected(unsigned int area1, unsigned int area2)
 {
 	//FIXME: requires q2/q3 bsp
 	return CM_AreasConnected(sv.world.worldmodel, area1, area2);

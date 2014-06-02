@@ -3468,9 +3468,7 @@ static void QCBUILTIN PF_cs_OpenPortal (pubprogfuncs_t *prinst, struct globalvar
 #ifdef Q3BSPS
 	if (cl.worldmodel->fromgame == fg_quake3)
 	{
-		int i;
 		int state	= G_FLOAT(OFS_PARM1)!=0;
-		client_t *client;
 		edict_t *portal = G_EDICT(prinst, OFS_PARM0);
 		int area1 = portal->pvsinfo.areanum, area2 = portal->pvsinfo.areanum2;
 		if (area1 == area2 || !area1 || !area2)

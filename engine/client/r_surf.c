@@ -30,7 +30,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t r_ambient;
 
 static vec3_t			modelorg;	/*set before recursively entering the visible surface finder*/
-static qbyte			areabits[MAX_Q2MAP_AREAS/8];
 
 model_t		*currentmodel;
 
@@ -1634,11 +1633,12 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 		pleaf = (mleaf_t *)node;
 
 		// check for door connected areas
-//		if (areabits)
-		{
-			if (! (areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
-				return;		// not visible
-		}
+		if (! (r_refdef.areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
+			return;		// not visible
+
+		c = pleaf->cluster;
+		if (c >= 0)
+			frustumvis[c>>3] |= 1<<(c&7);
 
 		mark = pleaf->firstmarksurface;
 		c = pleaf->nummarksurfaces;
@@ -1698,7 +1698,7 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 		if ( (surf->flags & SURF_PLANEBACK) != sidebit )
 			continue;		// wrong side
 
-		surf->visframe = r_framecount+1;//-1;
+		surf->visframe = 0;//r_framecount+1;//-1;
 
 		Surf_RenderDynamicLightmaps (surf);
 
@@ -1830,8 +1830,12 @@ start:
 	{
 		pleaf = (mleaf_t *)node;
 
-		if (! (areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
+		if (! (r_refdef.areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
 			return;		// not visible
+
+		c = pleaf->cluster;
+		if (c >= 0)
+			frustumvis[c>>3] |= 1<<(c&7);
 
 		mark = pleaf->firstmarksurface;
 		for (c = pleaf->nummarksurfaces; c; c--)
@@ -2286,19 +2290,15 @@ void Surf_DrawWorld (void)
 #ifdef Q2BSPS
 		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
 		{
-			int leafnum;
-			int clientarea;
-#ifdef Q2CLIENT
-			if (cls.protocol == CP_QUAKE2)	//we can get server sent info
-			{
-				memcpy(areabits, cl.q2frame.areabits, sizeof(areabits));
-			}
-			else
-#endif
-			{	//generate the info each frame.
-				leafnum = CM_PointLeafnum (cl.worldmodel, r_refdef.vieworg);
-				clientarea = CM_LeafArea (cl.worldmodel, leafnum);
-				CM_WriteAreaBits(cl.worldmodel, areabits, clientarea);
+			frustumvis = frustumvis_;
+			memset(frustumvis, 0, (cl.worldmodel->numclusters + 7)>>3);
+
+			if (!r_refdef.areabitsknown)
+			{	//generate the info each frame, as the gamecode didn't tell us what to use.
+				int leafnum = CM_PointLeafnum (cl.worldmodel, r_refdef.vieworg);
+				int clientarea = CM_LeafArea (cl.worldmodel, leafnum);
+				CM_WriteAreaBits(cl.worldmodel, r_refdef.areabits, clientarea);
+				r_refdef.areabitsknown = true;
 			}
 #ifdef Q3BSPS
 			if (cl.worldmodel->fromgame == fg_quake3)
@@ -2314,6 +2314,8 @@ void Surf_DrawWorld (void)
 				VectorCopy (r_refdef.vieworg, modelorg);
 				Surf_RecursiveQ2WorldNode (cl.worldmodel->nodes);
 			}
+
+			surfvis = frustumvis;
 		}
 		else
 #endif
@@ -2351,7 +2353,7 @@ void Surf_DrawWorld (void)
 					VectorCopy (r_origin, modelorg);
 
 				frustumvis = frustumvis_;
-				memset(frustumvis, 0, (cl.worldmodel->numleafs + 7)>>3);
+				memset(frustumvis, 0, (cl.worldmodel->numclusters + 7)>>3);
 
 				if (r_refdef.useperspective)
 					Surf_RecursiveWorldNode (cl.worldmodel->nodes, 0x1f);

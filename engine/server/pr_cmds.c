@@ -6224,9 +6224,9 @@ static void QCBUILTIN PF_log(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 }
 
 
-#ifdef Q2BSPS
 static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef Q2BSPS
 	if (sv.world.worldmodel->fromgame == fg_quake2)
 	{
 		int i, portal;
@@ -6240,16 +6240,29 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 		{
 			if (client->state >= cs_connected)
 			{
-				ClientReliableWrite_Begin(client, svc_setportalstate, 3);
-				if (state)
-					ClientReliableWrite_Short(client, portal | (state<<15));
+				ClientReliableWrite_Begin(client, svc_setportalstate, 4);
+				if (portal >= 0x80)
+				{	//new pathway, to be enabled at some point
+					if (portal > 0xff)
+					{
+						ClientReliableWrite_Byte(client, 0x80 | 2 | state);
+						ClientReliableWrite_Short(client, portal);
+					}
+					else
+					{
+						ClientReliableWrite_Byte(client, 0x80 | 0 | state);
+						ClientReliableWrite_Byte(client, portal);
+					}
+				}
 				else
-					ClientReliableWrite_Short(client, portal);
+					ClientReliableWrite_Short(client, portal | (state<<15));
 			}
 		}
 		CMQ2_SetAreaPortalState(portal, state);
 	}
-	else if (sv.world.worldmodel->fromgame == fg_quake3)
+#endif
+#ifdef Q3BSPS
+	if (sv.world.worldmodel->fromgame == fg_quake3)
 	{
 		int i;
 		int state	= G_FLOAT(OFS_PARM1)!=0;
@@ -6258,21 +6271,29 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 		int area1 = portal->pvsinfo.areanum, area2 = portal->pvsinfo.areanum2;
 		if (area1 == area2 || !area1 || !area2)
 			return;
-		/*for (client = svs.clients, i = 0; i < sv.allocated_client_slots; i++, client++)
+		for (client = svs.clients, i = 0; i < sv.allocated_client_slots; i++, client++)
 		{
 			if (client->state >= cs_connected)
 			{
-				ClientReliableWrite_Begin(client, svc_setportalstate, 3);
-				if (state)
-					ClientReliableWrite_Short(client, portal | (state<<15));
+				ClientReliableWrite_Begin(client, svc_setportalstate, 6);
+				if (area1 > 0xff || area2 > 0xff)
+				{
+					ClientReliableWrite_Byte(client, 0xc0 | 2 | state);
+					ClientReliableWrite_Short(client, area1);
+					ClientReliableWrite_Short(client, area2);
+				}
 				else
-					ClientReliableWrite_Short(client, portal);
+				{
+					ClientReliableWrite_Byte(client, 0x80 | 0 | state);
+					ClientReliableWrite_Byte(client, area1);
+					ClientReliableWrite_Byte(client, area2);
+				}
 			}
-		}*/
+		}
 		CMQ3_SetAreaPortalState(portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
 	}
-}
 #endif
+}
 
 
 //EXTENSION: DP_QC_COPYENTITY

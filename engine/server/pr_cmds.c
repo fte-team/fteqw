@@ -6284,7 +6284,7 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 				}
 				else
 				{
-					ClientReliableWrite_Byte(client, 0x80 | 0 | state);
+					ClientReliableWrite_Byte(client, 0xc0 | 0 | state);
 					ClientReliableWrite_Byte(client, area1);
 					ClientReliableWrite_Byte(client, area2);
 				}

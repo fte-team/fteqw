@@ -5103,7 +5103,11 @@ void R_RemapShader(const char *sourcename, const char *destname, float timeoffse
 	if (o)
 	{
 		if (!n)
-			n = o;
+		{
+			n = R_LoadShader (destname, SUF_2D, NULL, NULL);
+			if (!n)
+				n = o;
+		}
 		o->remapto = n;
 		o->remaptime = timeoffset;
 	}
@@ -5115,7 +5119,7 @@ void Shader_RemapShader_f(void)
 	char *destname = Cmd_Argv(2);
 	float timeoffset = atof(Cmd_Argv(3));
 	
-	if (!Cmd_FromGamecode() && !atoi(Info_ValueForKey(cl.serverinfo, "*cheats")))
+	if (!Cmd_FromGamecode() && strcmp(Info_ValueForKey(cl.serverinfo, "*cheats"), "ON"))
 	{
 		Con_Printf("%s may only be used from gamecode, or when cheats are enabled\n", Cmd_Argv(0));
 		return;

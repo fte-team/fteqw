@@ -702,6 +702,7 @@ static void BE_EnableShaderAttributes(unsigned int progattrmask, int usevao)
 
 		shaderstate.sha_attr = progattrmask;
 
+/*
 #ifndef FORCESTATE
 		if (shaderstate.currentebo != shaderstate.sourcevbo->indicies.gl.vbo)
 #endif
@@ -709,6 +710,7 @@ static void BE_EnableShaderAttributes(unsigned int progattrmask, int usevao)
 			shaderstate.currentebo = shaderstate.sourcevbo->indicies.gl.vbo;
 			qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, shaderstate.currentebo);
 		}
+*/
 	}
 
 	if (bitstochange || bitstoendisable)
@@ -2609,105 +2611,110 @@ static void BE_SubmitMeshChain(void)
 	int startv, starti, endv, endi;
 	int m;
 	mesh_t *mesh;
-	int batchtype = GL_TRIANGLES;
+	int batchtype = (shaderstate.flags & BEF_LINES)?GL_LINES:GL_TRIANGLES;
 
-	if (shaderstate.flags & BEF_LINES)
-		batchtype = GL_LINES;
+	if (!shaderstate.streamvbo[0])	//only if we're not forcing vbos elsewhere.
+	{
+		//q3map2 sucks. it splits static meshes randomly rather than with any pvs consistancy, and then splays them out over 1000 different surfaces.
+		//this means we end up needing a boatload of draw calls whenever the batch got split.
+		//so skip all that and splurge out a usable index list on demand.
+		if (shaderstate.meshcount == 1)
+		{
+			GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
+			mesh = shaderstate.meshes[0];
+			qglDrawRangeElements(batchtype, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes, mesh->numindexes, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + mesh->vbofirstelement);
+			RQuantAdd(RQUANT_DRAWS, 1);
+			RQuantAdd(RQUANT_PRIMITIVES, mesh->numindexes);
+			return;
+		}
+		else
+		{
+			index_t *fte_restrict ilst; //FIXME: this should be cached for multiple-pass shaders.
+			GL_SelectEBO(0);
 
-#if 0
-	if (!shaderstate.currentebo)
-	{
-	if (shaderstate.meshcount == 1)
-	{
-		mesh = shaderstate.meshes[0];
-		qglDrawRangeElements(batchtype, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes, mesh->numindexes, GL_INDEX_TYPE, shaderstate.sourcevbo->indicies + mesh->vbofirstelement);
-		RQuantAdd(RQUANT_DRAWS, 1);
+			mesh = shaderstate.meshes[0];
+			startv = mesh->vbofirstvert;
+			endv = startv + mesh->numvertexes;
+			endi = mesh->numindexes;
+			for (m = 1; m < shaderstate.meshcount; m++)
+			{
+				mesh = shaderstate.meshes[m];
+				endi += mesh->numindexes;
+
+				if (startv > mesh->vbofirstvert)
+					startv = mesh->vbofirstvert;
+				if (endv < mesh->vbofirstvert+mesh->numvertexes)
+					endv = mesh->vbofirstvert+mesh->numvertexes;
+			}
+
+			ilst = alloca(endi*sizeof(index_t));
+			endi = 0;
+			for (m = 0; m < shaderstate.meshcount; m++)
+			{
+				mesh = shaderstate.meshes[m];
+				for (starti = 0; starti < mesh->numindexes; )
+					ilst[endi++] = mesh->vbofirstvert + mesh->indexes[starti++];
+			}
+			qglDrawRangeElements(batchtype, startv, endv, endi, GL_INDEX_TYPE, ilst);
+			RQuantAdd(RQUANT_DRAWS, 1);
+			RQuantAdd(RQUANT_PRIMITIVES, endi);
+		}
 		return;
 	}
 	else
 	{
-		index_t *ilst;
-		mesh = shaderstate.meshes[0];
-		startv = mesh->vbofirstvert;
-		endv = startv + mesh->numvertexes;
-		endi = mesh->numindexes;
-		for (m = 1; m < shaderstate.meshcount; m++)
-		{
-			mesh = shaderstate.meshes[m];
-			endi += mesh->numindexes;
-
-			if (startv > mesh->vbofirstvert)
-				startv = mesh->vbofirstvert;
-			if (endv < mesh->vbofirstvert+mesh->numvertexes)
-				endv = mesh->vbofirstvert+mesh->numvertexes;
-		}
-
-
-		ilst = alloca(endi*sizeof(index_t));
-		endi = 0;
-		for (m = 0; m < shaderstate.meshcount; m++)
-		{
-			mesh = shaderstate.meshes[m];
-			for (starti = 0; starti < mesh->numindexes; )
-				ilst[endi++] = mesh->vbofirstvert + mesh->indexes[starti++];
-		}
-		qglDrawRangeElements(batchtype, startv, endv, endi, GL_INDEX_TYPE, ilst);
-		RQuantAdd(RQUANT_DRAWS, 1);
-	}
-
-
-	return;
-	}
-#endif
+		GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
 
 /*
-	if (qglLockArraysEXT)
-	{
-		endv = 0;
-		startv = 0x7fffffff;
-		for (m = 0; m < shaderstate.meshcount; m++)
+		if (qglLockArraysEXT)
 		{
-			mesh = shaderstate.meshes[m];
-			starti = mesh->vbofirstvert;
-			if (starti < startv)
-				startv = starti;
-			endi = mesh->vbofirstvert+mesh->numvertexes;
-			if (endi > endv)
-				endv = endi;
+			endv = 0;
+			startv = 0x7fffffff;
+			for (m = 0; m < shaderstate.meshcount; m++)
+			{
+				mesh = shaderstate.meshes[m];
+				starti = mesh->vbofirstvert;
+				if (starti < startv)
+					startv = starti;
+				endi = mesh->vbofirstvert+mesh->numvertexes;
+				if (endi > endv)
+					endv = endi;
+			}
+			qglLockArraysEXT(startv, endv);
 		}
-		qglLockArraysEXT(startv, endv);
-	}
 */
 
-	for (m = 0, mesh = shaderstate.meshes[0]; m < shaderstate.meshcount; )
-	{
-		startv = mesh->vbofirstvert;
-		starti = mesh->vbofirstelement;
-
-		endv = startv+mesh->numvertexes;
-		endi = starti+mesh->numindexes;
-
-		//find consecutive surfaces
-		for (++m; m < shaderstate.meshcount; m++)
+		for (m = 0, mesh = shaderstate.meshes[0]; m < shaderstate.meshcount; )
 		{
-			mesh = shaderstate.meshes[m];
-			if (endi == mesh->vbofirstelement)
+			startv = mesh->vbofirstvert;
+			starti = mesh->vbofirstelement;
+
+			endv = startv+mesh->numvertexes;
+			endi = starti+mesh->numindexes;
+
+			//find consecutive surfaces
+			for (++m; m < shaderstate.meshcount; m++)
 			{
-				endv = mesh->vbofirstvert+mesh->numvertexes;
-				endi = mesh->vbofirstelement+mesh->numindexes;
+				mesh = shaderstate.meshes[m];
+				if (endi == mesh->vbofirstelement)
+				{
+					endv = mesh->vbofirstvert+mesh->numvertexes;
+					endi = mesh->vbofirstelement+mesh->numindexes;
+				}
+				else
+				{
+					break;
+				}
 			}
-			else
-			{
-				break;
-			}
-		}
-		qglDrawRangeElements(batchtype, startv, endv, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
-		RQuantAdd(RQUANT_DRAWS, 1);
- 	}
+			qglDrawRangeElements(batchtype, startv, endv, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
+			RQuantAdd(RQUANT_DRAWS, 1);
+			RQuantAdd(RQUANT_PRIMITIVES, endi-starti);
+ 		}
 /*
-	if (qglUnlockArraysEXT)
-		qglUnlockArraysEXT();
+		if (qglUnlockArraysEXT)
+			qglUnlockArraysEXT();
 */
+	}
 }
 
 static void DrawPass(const shaderpass_t *pass)

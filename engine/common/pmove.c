@@ -874,7 +874,7 @@ void PM_CategorizePosition (void)
 		VectorMA (pmove.origin, 24, flatforward, fwd1);
 
 		pmove.physents[0].model->funcs.NativeTrace(pmove.physents[0].model, 0, 0, NULL, pmove.origin, fwd1, pmove.player_mins, pmove.player_maxs, MASK_PLAYERSOLID, &t);
-		if (t.surface->flags & Q3SURF_LADDER)
+		if (t.surface && t.surface->flags & Q3SURF_LADDER)
 		{
 			pmove.onladder = true;
 			pmove.onground = false;	// too steep

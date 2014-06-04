@@ -35,6 +35,7 @@ void RSpeedShow(void)
 	int i;
 	static int samplerspeeds[RSPEED_MAX];
 	static int samplerquant[RQUANT_MAX];
+	int savedsamplerquant[RQUANT_MAX];	//so we don't count the r_speeds debug spam in draw counts.
 	char *RSpNames[RSPEED_MAX];
 	char *RQntNames[RQUANT_MAX];
 	char *s;
@@ -66,8 +67,9 @@ void RSpeedShow(void)
 
 	memset(RQntNames, 0, sizeof(RQntNames));
 	RQntNames[RQUANT_MSECS] = "Microseconds";
-	RQntNames[RQUANT_EPOLYS] = "Entity Polys";
-	RQntNames[RQUANT_WPOLYS] = "World Polys";
+#ifdef _DEBUG
+	RQntNames[RQUANT_PRIMITIVES] = "Draw Indicies";
+#endif
 	RQntNames[RQUANT_DRAWS] = "Draw Calls";
 	RQntNames[RQUANT_2DBATCHES] = "2d Batches";
 	RQntNames[RQUANT_WORLDBATCHES] = "World Batches";
@@ -82,6 +84,7 @@ void RSpeedShow(void)
 	RQntNames[RQUANT_RTLIGHT_CULL_PVS] = "Lights PVS Culled";
 	RQntNames[RQUANT_RTLIGHT_CULL_SCISSOR] = "Lights Scissored";
 
+	memcpy(savedsamplerquant, rquant, sizeof(savedsamplerquant));
 	if (r_speeds.ival > 1)
 	{
 		for (i = 0; i < RSPEED_MAX; i++)
@@ -97,9 +100,10 @@ void RSpeedShow(void)
 	}
 	if (r_speeds.ival > 1)
 	{
-		s = va("%f %-20s", 100000000.0f/(samplerspeeds[RSPEED_TOTALREFRESH]+samplerspeeds[RSPEED_FINISH]), "Framerate");
+		s = va("%f %-20s", 100000000.0f/(samplerspeeds[RSPEED_TOTALREFRESH]+samplerspeeds[RSPEED_FINISH]), "Framerate (refresh only)");
 		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 	}
+	memcpy(rquant, savedsamplerquant, sizeof(rquant));
 
 	if (++framecount>=100)
 	{

@@ -5381,7 +5381,7 @@ void CL_ParsePortalState(void)
 	int mode = MSG_ReadByte();
 	int a1, a2;
 
-	switch(mode)
+	switch(mode&0xc0)
 	{
 	case 0x80:
 		if (mode&2)

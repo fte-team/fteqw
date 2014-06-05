@@ -782,6 +782,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 
 	shaderstate.sourcevbo = &shaderstate.dummyvbo;
 	shaderstate.dummyvbo.indicies.gl.vbo = ibo;
+	GL_SelectEBO(ibo);
 
 	if (shaderstate.allblackshader)
 	{

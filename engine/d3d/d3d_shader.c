@@ -141,7 +141,7 @@ static dllhandle_t *shaderlib;
     (This)->lpVtbl -> Release(This)
 #endif
 
-static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, unsigned int permu, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean silent, vfsfile_t *blobfile)
+static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean silent, vfsfile_t *blobfile)
 {
 	D3DXMACRO defines[64];
 	LPD3DXBUFFER code = NULL, errors = NULL;

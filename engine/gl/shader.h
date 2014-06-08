@@ -633,7 +633,7 @@ typedef struct
 
 	void	 (*pDeleteProg)		(program_t *prog, unsigned int permu);
 	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);
-	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
+	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 	void	 (*pProgAutoFields)	(program_t *prog, char **cvarnames, int *cvartypes);
 } sh_config_t;
 extern sh_config_t sh_config;

@@ -325,7 +325,7 @@ static qboolean D3D11Shader_LoadBlob(program_t *prog, const char *name, unsigned
 	return success;
 }
 
-qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned int permu, const char **precompilerconstants, const char *vert, const char *hull, const char *domain, const char *frag, qboolean silenterrors, vfsfile_t *blobfile)
+qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *hull, const char *domain, const char *frag, qboolean silenterrors, vfsfile_t *blobfile)
 {
 	char *vsformat;
 	char *hsformat = NULL;

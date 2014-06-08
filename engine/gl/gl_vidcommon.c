@@ -1686,11 +1686,14 @@ GLhandleARB GLSlang_CreateProgram(const char *name, int ver, const char **precom
 	return handle;
 }
 
-qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned int permu, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
+qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
 {
-	int ver = gl_config.gles?100:110;
-	if (permu & PERMUTATION_SKELETAL)
-		ver = 120;
+	if (!ver)
+	{
+		ver = gl_config.gles?100:110;
+		if (permu & PERMUTATION_SKELETAL)
+			ver = 120;
+	}
 	prog->permu[permu].handle.glsl = GLSlang_CreateProgram(name, ver, precompilerconstants, vert, frag, noerrors, blobfile);
 	if (prog->permu[permu].handle.glsl)
 		return true;

@@ -893,6 +893,8 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	qboolean onefailed = false;
 	extern cvar_t gl_specular;
 
+	ver = 0;
+
 	if (qrenderer != qrtype)
 	{
 		return false;
@@ -1031,14 +1033,14 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	{
 		unsigned int magic;
 		unsigned int corrupt = false;
-		char ver[MAX_QPATH];
-		char *thisver = version_string();
+		char ever[MAX_QPATH];
+		char *thisever = version_string();
 		corrupt |= VFS_READ(blobfile, &magic, sizeof(magic)) != sizeof(magic);
 		corrupt |= magic != *(unsigned int*)"FBLB";
 		corrupt |= VFS_READ(blobfile, &blobheaderoffset, sizeof(blobheaderoffset)) != sizeof(blobheaderoffset);
-		corrupt |= VFS_READ(blobfile, ver, sizeof(ver)) != sizeof(ver);
+		corrupt |= VFS_READ(blobfile, ever, sizeof(ever)) != sizeof(ever);
 
-		corrupt |= strcmp(ver, thisver);
+		corrupt |= strcmp(ever, thisever);
 		//if the magic or header didn't read properly then the file is corrupt
 		if (corrupt)
 		{
@@ -1051,9 +1053,9 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				VFS_SEEK(blobfile, 0);
 				magic = *(unsigned int*)"FBLB";	//magic
 				VFS_WRITE(blobfile, &magic, sizeof(magic));
-				memset(ver, 0, sizeof(ver));	//make sure we don't leak stuff.
-				Q_strncpyz(ver, thisver, sizeof(ver));
-				VFS_WRITE(blobfile, ver, sizeof(ver));
+				memset(ever, 0, sizeof(ever));	//make sure we don't leak stuff.
+				Q_strncpyz(ever, thisever, sizeof(ever));
+				VFS_WRITE(blobfile, ever, sizeof(ever));
 				blobheaderoffset = 0;
 			}
 		}
@@ -1200,7 +1202,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			initoffset = VFS_GETLEN(blobfile);
 			VFS_SEEK(blobfile, initoffset);
 		}
-		if (!sh_config.pCreateProgram(prog, name, p, permutationdefines, script, tess?script:NULL, tess?script:NULL, script, (p & PERMUTATION_SKELETAL)?true:onefailed, blobfile))
+		if (!sh_config.pCreateProgram(prog, name, p, ver, permutationdefines, script, tess?script:NULL, tess?script:NULL, script, (p & PERMUTATION_SKELETAL)?true:onefailed, blobfile))
 		{
 			if (!(p & PERMUTATION_SKELETAL))
 				onefailed = true;	//don't flag it if skeletal failed.

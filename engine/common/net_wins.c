@@ -5310,7 +5310,6 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 {
 #if defined(_WIN32) && defined(HAVE_PACKET)
 	char	buff[512];
-	char	adrbuf[MAX_ADR_SIZE];
 	struct sockaddr_qstorage	address;
 	int		namelen;
 	netadr_t adr = {0};
@@ -5362,6 +5361,7 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 
 	if (!notvalid)
 	{
+//		char	adrbuf[MAX_ADR_SIZE];
 //		Con_TPrintf("Client IP address %s\n", NET_AdrToString (adrbuf, sizeof(adrbuf), out) );
 		return;
 	}

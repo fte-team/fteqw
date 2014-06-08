@@ -4391,9 +4391,9 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 		else if (!strcmp("defaultgroundheight", key))
 			heightmap->defaultgroundheight = atof(com_token);
 		else if (!strcmp("defaultgroundtexture", key))
-			Q_strncpyz(heightmap->defaultgroundtexture, key, sizeof(heightmap->defaultgroundtexture));
+			Q_strncpyz(heightmap->defaultgroundtexture, com_token, sizeof(heightmap->defaultgroundtexture));
 		else if (!strcmp("defaultwatertexture", key))
-			Q_strncpyz(heightmap->defaultwatershader, key, sizeof(heightmap->defaultwatershader));
+			Q_strncpyz(heightmap->defaultwatershader, com_token, sizeof(heightmap->defaultwatershader));
 		else if (!strcmp("tiles", key))
 		{
 			char *d;

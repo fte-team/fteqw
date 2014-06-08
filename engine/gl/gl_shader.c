@@ -797,6 +797,8 @@ static void Shader_SurfaceParm ( shader_t *shader, shaderpass_t *pass, char **pt
 	token = Shader_ParseString ( ptr );
 	if ( !Q_stricmp( token, "nodraw" ) )
 		shader->flags |= SHADER_NODRAW;
+	else if ( !Q_stricmp( token, "nodraw2" ) )
+		shader->flags |= SHADER_NODRAW;
 	else if ( !Q_stricmp( token, "nodlight" ) )
 		shader->flags |= SHADER_NODLIGHT;
 }

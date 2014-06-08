@@ -5388,7 +5388,9 @@ void CL_ParsePortalState(void)
 			a1 = MSG_ReadShort();
 		else
 			a1 = MSG_ReadByte();
+#ifdef Q2BSPS
 		CMQ2_SetAreaPortalState(a1, !!(mode&1));
+#endif
 		break;
 	case 0xc0:
 		if (mode&2)
@@ -5401,13 +5403,17 @@ void CL_ParsePortalState(void)
 			a1 = MSG_ReadByte();
 			a2 = MSG_ReadByte();
 		}
+#ifdef Q3BSPS
 		CMQ3_SetAreaPortalState(a1, a2, !!(mode&1));
+#endif
 		break;
 
 	default:
 		//to be phased out.
 		mode |= MSG_ReadByte()<<8;
+#ifdef Q2BSPS
 		CMQ2_SetAreaPortalState(mode & 0x7fff, !!(mode&0x8000));
+#endif
 		break;
 	}
 }

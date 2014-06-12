@@ -537,7 +537,7 @@ void CL_CalcClientTime(void)
 	extern float demtime;
 	if (!cls.state)
 		cl.servertime += host_frametime;
-	else if (cls.protocol != CP_QUAKE3)
+	else// if (cls.protocol != CP_QUAKE3)
 	{
 		float oldst = realtime;
 
@@ -549,7 +549,7 @@ void CL_CalcClientTime(void)
 			f = bound(0, f, 1);
 			cl.servertime = cl.gametime*f + cl.oldgametime*(1-f);
 		}
-		else if (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !cls.demoplayback))
+		else if (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !cls.demoplayback)))
 		{
 			float f;
 			f = cl.gametime - cl.oldgametime;

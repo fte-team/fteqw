@@ -2746,10 +2746,16 @@ unsigned int Q2BSP_FatPVS(model_t *mod, vec3_t org, qbyte *buffer, unsigned int 
 qboolean Q2BSP_EdictInFatPVS(model_t *mod, pvscache_t *ent, qbyte *pvs)
 {
 	int i,l;
-	if (!CM_AreasConnected (mod, clientarea, ent->areanum))
+	int nullarea = (mod->fromgame == fg_quake2)?0:-1;
+	if (clientarea == ent->areanum)
+	{
+		if (clientarea == nullarea)
+			return false;
+	}
+	else  if (!CM_AreasConnected (mod, clientarea, ent->areanum))
 	{	// doors can legally straddle two areas, so
 		// we may need to check another one
-		if (!ent->areanum2
+		if (ent->areanum2 == nullarea
 			|| !CM_AreasConnected (mod, clientarea, ent->areanum2))
 			return false;		// blocked by a door
 	}

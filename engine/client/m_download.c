@@ -500,7 +500,7 @@ void M_Download_UpdateStatus(struct menu_s *m)
 	dlmenu_t *info = m->data;
 	int i;
 
-	while (!cls.downloadmethod && (info->parsedsourcenum==-1 || info->parsedsourcenum < numdownloadablelists))
+	while (!cls.download && (info->parsedsourcenum==-1 || info->parsedsourcenum < numdownloadablelists))
 	{	//done downloading
 		char basename[64];
 

@@ -1571,20 +1571,20 @@ void SCR_DrawLoading (qboolean opaque)
 	}
 	R2D_ImageColours(1, 1, 1, 1);
 
-	if (cl.downloadlist || cls.downloadmethod)
+	if (cl.downloadlist || cls.download)
 	{
 		unsigned int fcount;
-		unsigned int tsize;
+		qofs_t tsize;
 		qboolean sizeextra;
 
 		x = vid.width/2 - 160;
 
 		CL_GetDownloadSizes(&fcount, &tsize, &sizeextra);
 		//downloading files?
-		if (cls.downloadmethod)
+		if (cls.download)
 			Draw_FunString(x+8, y+4, va("Downloading %s... %i%%",
-				cls.downloadlocalname,
-				(int)cls.downloadpercent));
+				cls.download->localname,
+				(int)cls.download->percent));
 
 		if (tsize > 1024*1024*16)
 		{
@@ -2017,7 +2017,7 @@ void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
 
 	if (!draw_chars)
 	{
-		draw_chars = W_GetLumpName("conchars");
+		draw_chars = W_SafeGetLumpName("conchars");
 		if (!draw_chars)
 			return;
 	}

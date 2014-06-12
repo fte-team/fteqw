@@ -604,7 +604,7 @@ void SVNQ_New_f (void)
 
 // set view
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);
-	MSG_WriteEntity (&host_client->netchan.message, host_client - svs.clients);//NUM_FOR_EDICT(svprogfuncs, host_client->edict));
+	MSG_WriteEntity (&host_client->netchan.message, (host_client - svs.clients)+1);//NUM_FOR_EDICT(svprogfuncs, host_client->edict));
 
 	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
 	MSG_WriteByte (&host_client->netchan.message, 1);
@@ -3063,7 +3063,7 @@ void SV_StopDownload_f(void)
 		host_client->download = NULL;
 	}
 	else
-		SV_ClientPrintf(host_client, PRINT_HIGH, "But you're not downloading anything\n");
+		SV_ClientPrintf(host_client, PRINT_HIGH, "Can't stop download - not downloading anything\n");
 
 	host_client->downloadstarted = false;
 }

@@ -1663,7 +1663,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	if (!runningindepphys)
 	{
 		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
-		if (cls.state < ca_active && !cls.downloadmethod)
+		if (cls.state < ca_active && !cls.download)
 		{
 			#ifdef IRCCONNECT	//don't spam irc.
 			if (cls.netchan.remote_address.type == NA_IRC)

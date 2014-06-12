@@ -1385,12 +1385,13 @@ static int Con_DrawProgress(int left, int right, int y)
 
 	// draw the download bar
 	// figure out width
-	if (cls.downloadmethod)
+	if (cls.download)
 	{
-		unsigned int count, total;
+		unsigned int count;
+		qofs_t total;
 		qboolean extra;
-		progresstext = cls.downloadlocalname;
-		progresspercent = cls.downloadpercent;
+		progresstext = cls.download->localname;
+		progresspercent = cls.download->percent;
 
 		CL_GetDownloadSizes(&count, &total, &extra);
 
@@ -1398,7 +1399,7 @@ static int Con_DrawProgress(int left, int right, int y)
 			sprintf(progresspercenttext, " %5.1f%% (%ukbps)", progresspercent, CL_DownloadRate()/1000);
 		else
 		{
-			sprintf(progresspercenttext, " %5.1f%% (%u%skb)", progresspercent, total/1024, extra?"+":"");
+			sprintf(progresspercenttext, " %5.1f%% (%u%skb)", progresspercent, (int)(total/1024), extra?"+":"");
 		}
 	}
 #ifdef RUNTIMELIGHTING

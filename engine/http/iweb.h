@@ -103,6 +103,8 @@ struct dl_download
 	unsigned int user_num;
 	void *user_ctx;
 
+	qdownload_t qdownload;
+
 	/*stream config*/
 	char url[MAX_OSPATH];	/*original url*/
 	char redir[MAX_OSPATH];	/*current redirected url*/

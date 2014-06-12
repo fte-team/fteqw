@@ -283,7 +283,7 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 		{
 			clusters[i] = CM_LeafCluster(sv.world.worldmodel, leafs[i]);
 			area = CM_LeafArea(sv.world.worldmodel, leafs[i]);
-			if(area > 0)	//FIXME: this should be >=
+			if(area >= 0)
 			{
 				// doors may legally straggle two areas,
 				// but nothing should ever need more than that
@@ -2982,9 +2982,36 @@ void SVQ3_UpdateUserinfo_f(client_t *cl)
 		VM_Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, (int)(cl-svs.clients));
 }
 
-void SVQ3_Drop_f(client_t *cl)
+static void SVQ3_Drop_f(client_t *cl)
 {
 	SV_DropClient(cl);
+}
+
+//part of the sv_pure mechanism. verifies the client's pack list and kicks if they're wrong.
+//safe to ignore, if you're okay with potential cheats.
+static void SVQ3_ClientPacks_f(client_t *cl)
+{
+}
+
+static void SVQ3_Download_f(client_t *cl)
+{
+	//clients might end up waiting for the download which will never come.
+	//kick them so that doesn't happen. downloads are not supported at this time. not even reporting failure! :s
+	SV_DropClient(cl);
+//	short 0
+//	long -1
+}
+static void SVQ3_NextDL_f(client_t *cl)
+{
+	//send next chunk
+}
+static void SVQ3_StopDL_f(client_t *cl)
+{
+	//abort/close current download, if any
+}
+static void SVQ3_DoneDL_f(client_t *cl)
+{
+	//send new gamestate
 }
 
 typedef struct ucmd_s
@@ -2998,11 +3025,11 @@ static const ucmd_t ucmds[] =
 	{"userinfo",		SVQ3_UpdateUserinfo_f},
 	{"disconnect",		SVQ3_Drop_f},
 
-	{"cp",				NULL},
-	{"download",		NULL},
-	{"nextdl",			NULL},
-	{"stopdl",			NULL},
-	{"donedl",			NULL},
+	{"cp",				SVQ3_ClientPacks_f},
+	{"download",		SVQ3_Download_f},
+	{"nextdl",			SVQ3_NextDL_f},
+	{"stopdl",			SVQ3_StopDL_f},
+	{"donedl",			SVQ3_DoneDL_f},
 
 	{NULL,				NULL}
 };

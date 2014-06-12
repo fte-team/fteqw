@@ -519,10 +519,13 @@ qboolean GLInitialise (char *renderer)
 RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int parentwidth, unsigned int parentheight, unsigned int cwidth, unsigned int cheight)
 {
 	RECT r;
-	if (!vid_width.ival)
-		cwidth = parentwidth;
-	if (!vid_height.ival)
-		cheight = parentwidth;
+	if (modestate!=MS_WINDOWED)
+	{
+		if (!vid_width.ival)
+			cwidth = parentwidth;
+		if (!vid_height.ival)
+			cheight = parentwidth;
+	}
 
 	if (parentwidth < cwidth)
 	{
@@ -556,6 +559,8 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	HDC				hdc;
 	int				wwidth, wheight, pleft, ptop, pwidth, pheight;
 	RECT			rect;
+
+	modestate = MS_WINDOWED;
 
 	hdc = GetDC(NULL);
 	if (GetDeviceCaps(hdc, RASTERCAPS) & RC_PALETTE)
@@ -670,8 +675,6 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 
 //	ShowWindow (dibwindow, SW_SHOWDEFAULT);
 //	UpdateWindow (dibwindow);
-
-	modestate = MS_WINDOWED;
 
 // because we have set the background brush for the window to NULL
 // (to avoid flickering when re-sizing the window on the desktop),

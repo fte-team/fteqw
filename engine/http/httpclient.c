@@ -894,21 +894,13 @@ struct dl_download *DL_Create(const char *url)
 
 	return newdl;
 }
-static struct dl_download *showndownload;
 
 /*destroys an entire download context*/
 void DL_Close(struct dl_download *dl)
 {
 #ifndef NPFTE
-	if (showndownload == dl)
-	{
-		if (cls.downloadmethod == DL_HTTP)
-		{
-			cls.downloadmethod = DL_NONE;
-			*cls.downloadlocalname = *cls.downloadremotename = 0;
-		}
-		showndownload = NULL;
-	}
+	if (cls.download == &dl->qdownload)
+		cls.download = NULL;
 #endif
 
 #ifdef MULTITHREAD
@@ -930,7 +922,6 @@ void DL_Close(struct dl_download *dl)
 #ifndef NPFTE
 
 static struct dl_download *activedownloads;
-unsigned int shownbytestart;
 /*create a download context and add it to the list, for lazy people. not threaded*/
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl))
 {
@@ -995,34 +986,27 @@ void HTTP_CL_Think(void)
 		}
 		link = &dl->next;
 
-		if (!cls.downloadmethod)
+		if (!cls.download)
 		{
-			cls.downloadmethod = DL_HTTP;
-			showndownload = dl;
+			cls.download = &dl->qdownload;
+			dl->qdownload.method = DL_HTTP;
 			if (*dl->localname)
-				strcpy(cls.downloadlocalname, dl->localname);
+				strcpy(dl->qdownload.localname, dl->localname);
 			else
-				strcpy(cls.downloadlocalname, dl->url);
-			strcpy(cls.downloadremotename, dl->url);
-			cls.downloadstarttime = Sys_DoubleTime();
-			cls.downloadedbytes = 0;
-			shownbytestart = dl->completed;
+				strcpy(dl->qdownload.localname, dl->url);
+			strcpy(dl->qdownload.remotename, dl->url);
+			dl->qdownload.starttime = Sys_DoubleTime();
 		}
-		if (cls.downloadmethod == DL_HTTP)
-		{
-			if (showndownload == dl)
-			{
-				if (dl->status == DL_FINISHED)
-					cls.downloadpercent = 100;
-				else if (dl->status != DL_ACTIVE)
-					cls.downloadpercent = 0;
-				else if (dl->totalsize <= 0)
-					cls.downloadpercent = 50;
-				else
-					cls.downloadpercent = dl->completed*100.0f/dl->totalsize;
-				cls.downloadedbytes = dl->completed;
-			}
-		}
+
+		if (dl->status == DL_FINISHED)
+			dl->qdownload.percent = 100;
+		else if (dl->status != DL_ACTIVE)
+			dl->qdownload.percent = 0;
+		else if (dl->totalsize <= 0)
+			dl->qdownload.percent = 50;
+		else
+			dl->qdownload.percent = dl->completed*100.0f/dl->totalsize;
+		dl->qdownload.completedbytes = dl->completed;
 	}
 }
 #endif

@@ -245,7 +245,8 @@ typedef struct
 {
 	fsbucket_t bucket;
 	char	name[MAX_QPATH];
-	qofs_t	localpos, filelen;
+	qofs_t	localpos;	//location of local header
+	qofs_t	filelen;	//uncompressed size
 	unsigned int		crc;
 	unsigned int		flags;
 } zpackfile_t;
@@ -1094,9 +1095,8 @@ static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *
 	return success;
 }
 
-static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip)
+static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip, struct zipinfo *info)
 {
-	struct zipinfo info;
 	qboolean result = false;
 	//zip comment is capped to 65k or so, so we can use a single buffer for this
 	qbyte traildata[0x10000 + SIZE_ENDOFCENTRALDIRECTORY+SIZE_ZIP64ENDOFCENTRALDIRECTORYLOCATOR];
@@ -1108,7 +1108,7 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip)
 	VFS_SEEK(zip->raw, zip->rawsize - trailsize);
 	VFS_READ(zip->raw, traildata, trailsize);
 
-	memset(&info, 0, sizeof(info));
+	memset(info, 0, sizeof(*info));
 
 	for (magic = traildata+trailsize-SIZE_ENDOFCENTRALDIRECTORY; magic >= traildata; magic--)
 	{
@@ -1117,15 +1117,15 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip)
 			magic[2] == 5 && 
 			magic[3] == 6)
 		{
-			info.centraldir_end = (zip->rawsize-trailsize)+(magic-traildata);
+			info->centraldir_end = (zip->rawsize-trailsize)+(magic-traildata);
 
-			info.thisdisk					= LittleU2FromPtr(magic+4);
-			info.centraldir_startdisk		= LittleU2FromPtr(magic+6);
-			info.centraldir_numfiles_disk	= LittleU2FromPtr(magic+8);
-			info.centraldir_numfiles_all	= LittleU2FromPtr(magic+10);
-			info.centraldir_size			= LittleU4FromPtr(magic+12);
-			info.centraldir_offset			= LittleU4FromPtr(magic+16);
-			info.commentlength				= LittleU2FromPtr(magic+20);
+			info->thisdisk					= LittleU2FromPtr(magic+4);
+			info->centraldir_startdisk		= LittleU2FromPtr(magic+6);
+			info->centraldir_numfiles_disk	= LittleU2FromPtr(magic+8);
+			info->centraldir_numfiles_all	= LittleU2FromPtr(magic+10);
+			info->centraldir_size			= LittleU4FromPtr(magic+12);
+			info->centraldir_offset			= LittleU4FromPtr(magic+16);
+			info->commentlength				= LittleU2FromPtr(magic+20);
 
 			result = true;
 			break;
@@ -1148,17 +1148,17 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip)
 		{
 			qbyte z64eocd[SIZE_ZIP64ENDOFCENTRALDIRECTORY];
 
-			info.zip64_centraldirend_disk	= LittleU4FromPtr(magic+4);
-			info.zip64_centraldirend_offset	= LittleU8FromPtr(magic+8);
-			info.zip64_diskcount			= LittleU4FromPtr(magic+16);
+			info->zip64_centraldirend_disk		= LittleU4FromPtr(magic+4);
+			info->zip64_centraldirend_offset	= LittleU8FromPtr(magic+8);
+			info->zip64_diskcount				= LittleU4FromPtr(magic+16);
 
-			if (info.zip64_diskcount != 1 || info.zip64_centraldirend_disk != 0)
+			if (info->zip64_diskcount != 1 || info->zip64_centraldirend_disk != 0)
 			{
 				Con_Printf("zip: archive is spanned\n");
 				return false;
 			}
 
-			VFS_SEEK(zip->raw, info.zip64_centraldirend_offset);
+			VFS_SEEK(zip->raw, info->zip64_centraldirend_offset);
 			VFS_READ(zip->raw, z64eocd, sizeof(z64eocd));
 
 			if (z64eocd[0] == 'P' &&
@@ -1166,27 +1166,27 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip)
 				z64eocd[2] == 6 &&
 				z64eocd[3] == 6)
 			{
-				info.zip64_eocdsize						= LittleU8FromPtr(z64eocd+4) + 12;
-				info.zip64_version_madeby				= LittleU2FromPtr(z64eocd+12);
-				info.zip64_version_needed       		= LittleU2FromPtr(z64eocd+14);
-				info.thisdisk             				= LittleU4FromPtr(z64eocd+16);
-				info.centraldir_startdisk				= LittleU4FromPtr(z64eocd+20);
-				info.centraldir_numfiles_disk  			= LittleU8FromPtr(z64eocd+24);
-				info.centraldir_numfiles_all			= LittleU8FromPtr(z64eocd+32);
-				info.centraldir_size   					= LittleU8FromPtr(z64eocd+40);
-				info.centraldir_offset					= LittleU8FromPtr(z64eocd+48);
+				info->zip64_eocdsize						= LittleU8FromPtr(z64eocd+4) + 12;
+				info->zip64_version_madeby					= LittleU2FromPtr(z64eocd+12);
+				info->zip64_version_needed       			= LittleU2FromPtr(z64eocd+14);
+				info->thisdisk             					= LittleU4FromPtr(z64eocd+16);
+				info->centraldir_startdisk					= LittleU4FromPtr(z64eocd+20);
+				info->centraldir_numfiles_disk  			= LittleU8FromPtr(z64eocd+24);
+				info->centraldir_numfiles_all				= LittleU8FromPtr(z64eocd+32);
+				info->centraldir_size   					= LittleU8FromPtr(z64eocd+40);
+				info->centraldir_offset						= LittleU8FromPtr(z64eocd+48);
 
-				if (info.zip64_eocdsize >= 84)
+				if (info->zip64_eocdsize >= 84)
 				{
-					info.centraldir_compressionmethod		= LittleU2FromPtr(z64eocd+56);
-//					info.zip64_2_centraldir_csize			= LittleU8FromPtr(z64eocd+58);
-//					info.zip64_2_centraldir_usize			= LittleU8FromPtr(z64eocd+66);
-					info.centraldir_algid					= LittleU2FromPtr(z64eocd+74);
+					info->centraldir_compressionmethod		= LittleU2FromPtr(z64eocd+56);
+//					info->zip64_2_centraldir_csize			= LittleU8FromPtr(z64eocd+58);
+//					info->zip64_2_centraldir_usize			= LittleU8FromPtr(z64eocd+66);
+					info->centraldir_algid					= LittleU2FromPtr(z64eocd+74);
 //					info.zip64_2_bitlen						= LittleU2FromPtr(z64eocd+76);
-//					info.zip64_2_flags						= LittleU2FromPtr(z64eocd+78);
-//					info.zip64_2_hashid						= LittleU2FromPtr(z64eocd+80);
-//					info.zip64_2_hashlength					= LittleU2FromPtr(z64eocd+82);
-					//info.zip64_2_hashdata					= LittleUXFromPtr(z64eocd+84, info.zip64_2_hashlength);
+//					info->zip64_2_flags						= LittleU2FromPtr(z64eocd+78);
+//					info->zip64_2_hashid					= LittleU2FromPtr(z64eocd+80);
+//					info->zip64_2_hashlength				= LittleU2FromPtr(z64eocd+82);
+					//info->zip64_2_hashdata				= LittleUXFromPtr(z64eocd+84, info->zip64_2_hashlength);
 				}
 			}
 			else
@@ -1199,28 +1199,17 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip)
 		}
 	}
 
-	if (info.thisdisk || info.centraldir_startdisk || info.centraldir_numfiles_disk != info.centraldir_numfiles_all)
+	if (info->thisdisk || info->centraldir_startdisk || info->centraldir_numfiles_disk != info->centraldir_numfiles_all)
 	{
 		Con_Printf("zip: archive is spanned\n");
 		result = false;
 	}
-	if (info.centraldir_compressionmethod || info.centraldir_algid)
+	if (info->centraldir_compressionmethod || info->centraldir_algid)
 	{
 		Con_Printf("zip: encrypted centraldir\n");
 		result = false;
 	}
 
-	if (result)
-	{
-		result = FSZIP_EnumerateCentralDirectory(zip, &info);
-		if (!result && !info.zip64_diskcount)
-		{
-			//uh oh... the central directory wasn't where it was meant to be!
-			//assuming that the endofcentraldir is packed at the true end of the centraldir (and that we're not zip64 and thus don't have an extra block), then we can guess based upon the offset difference
-			info.zipoffset = info.centraldir_end - (info.centraldir_offset+info.centraldir_size);
-			result = FSZIP_EnumerateCentralDirectory(zip, &info);
-		}
-	}
 	return result;
 }
 
@@ -1237,42 +1226,46 @@ of the list so they override previous pack files.
 searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *desc)
 {
 	zipfile_t *zip;
+	struct zipinfo info;
 
 	zip = Z_Malloc(sizeof(zipfile_t));
 	Q_strncpyz(zip->filename, desc, sizeof(zip->filename));
 	zip->raw = packhandle;
 	zip->rawsize = VFS_GETLEN(zip->raw);
 
-	if (!FSZIP_FindEndCentralDirectory(zip))
+	//find the footer
+	if (!FSZIP_FindEndCentralDirectory(zip, &info))
 	{
 		Z_Free(zip);
 		Con_TPrintf ("Failed opening zipfile \"%s\" corrupt?\n", desc);
 		return NULL;
 	}
 
-/*
-	for (i = 0; i < zip->numfiles; i++)
+	//find the central directory.
+	if (!FSZIP_FindEndCentralDirectory(zip, &info))
 	{
-		if (unzGetCurrentFileInfo (zip->handle, &file_info, newfiles[i].name, sizeof(newfiles[i].name), NULL, 0, NULL, 0) != UNZ_OK)
-			Con_Printf("Zip Error\n");
-		Q_strlwr(newfiles[i].name);
-		if (!*newfiles[i].name || newfiles[i].name[strlen(newfiles[i].name)-1] == '/')
-			newfiles[i].filelen = -1;
-		else
-			newfiles[i].filelen = file_info.uncompressed_size;
-		newfiles[i].filepos = file_info.c_offset;
-
-		nextfileziphandle = unzGoToNextFile (zip->handle);
-		if (nextfileziphandle == UNZ_END_OF_LIST_OF_FILE)
-			break;
-		else if (nextfileziphandle != UNZ_OK)
-			Con_Printf("Zip Error\n");
+		Z_Free(zip);
+		Con_TPrintf ("Failed opening zipfile \"%s\" corrupt?\n", desc);
+		return NULL;
 	}
-	*/
+
+	//now read it.
+	if (!FSZIP_EnumerateCentralDirectory(zip, &info) && !info.zip64_diskcount)
+	{
+		//uh oh... the central directory wasn't where it was meant to be!
+		//assuming that the endofcentraldir is packed at the true end of the centraldir (and that we're not zip64 and thus don't have an extra block), then we can guess based upon the offset difference
+		info.zipoffset = info.centraldir_end - (info.centraldir_offset+info.centraldir_size);
+		if (FSZIP_EnumerateCentralDirectory(zip, &info))
+		{
+			Z_Free(zip);
+			Con_TPrintf ("zipfile \"%s\" appears to be missing its central directory\n", desc);
+			return NULL;
+		}
+	}
 
 	zip->references = 1;
 
-	Con_TPrintf ("Added zipfile %s (%i files)\n", desc, zip->numfiles);
+//	Con_TPrintf ("Added zipfile %s (%i files)\n", desc, zip->numfiles);
 
 	zip->pub.fsver				= FSVER;
 	zip->pub.GetPathDetails		= FSZIP_GetPathDetails;
@@ -1285,6 +1278,145 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 	zip->pub.OpenVFS			= FSZIP_OpenVFS;
 	return &zip->pub;
 }
+
+
+
+
+
+#if 0
+
+
+typedef struct
+{
+	struct archivedeltafuncs_s
+	{
+		//called when the downloader needs to know a new target region. each call should return a new region, eventually returning the entire file as data is injected from elsewhere
+		//return false on error.
+		qboolean (*GetNextRange) (struct archivedeltafuncs_s *archive, qofs_t *start, qofs_t *end);
+
+		//called when the download completes/aborts. frees memory.
+		void (*Finish) (struct archivedeltafuncs_s);
+	} pub;
+
+	qdownload_t *dl;
+
+	enum
+	{
+		step_eocd,
+		step_cd,
+		step_file
+	} step;
+
+	struct
+	{
+		qofs_t start;
+		qofs_t end;
+	} eocd;
+
+	zipfile_t *old;
+
+	zipfile_t zip;
+	struct zipinfo info;
+} ziparchivedelta_t;
+
+void FSZIPDL_Finish(struct archivedeltafuncs_s *archive)
+{
+	ziparchivedelta_t *za = (ziparchivedelta_t*)archive;
+
+	za->old->pub.ClosePath(&za->old->pub);
+
+	if (za->zip.files)
+		Z_Free(za->zip.files);
+
+	Z_Free(za);
+}
+qboolean FSZIPDL_GetNextRange(struct archivedeltafuncs_s *archive, qofs_t *start, qofs_t *end)
+{
+	flocation_t loc;
+	int i;
+	ziparchivedelta_t *za = (ziparchivedelta_t*)archive;
+	switch(za->step)
+	{
+	case step_eocd:
+		//find the header (actually, the trailer)
+		*start = za->eocd.start;
+		*end = za->eocd.end;
+		za->step++;
+		break;
+	case step_cd:
+		if (!FSZIP_FindEndCentralDirectory(&za->zip, &za->info))
+			return false;	//corrupt/unusable.
+
+		//central directory should be located at this position
+		*start = za->info.centraldir_offset+za->info.zipoffset;
+		*end = za->info.centraldir_end+za->info.zipoffset;
+		za->step++;
+		break;
+	case step_file:
+		if (FSZIP_EnumerateCentralDirectory(&za->zip, &za->info))
+		{
+			return false;	//couldn't find the central directory properly (fixme: this can happen with zip32 self-extractors)
+		}
+
+		//walk through the central directory looking for matching files in the existing versions of the zip
+		for (i = 0; i < za->zip.numfiles; i++)
+			if (FSZIP_FLocate(&za->old->pub, &loc, za->zip.files[i].name, NULL) != FF_NOTFOUND)
+			{
+				if (za->old->files[loc.index].crc == za->zip.files[i].crc)
+				{
+					qofs_t datastart, datasize;
+					if (FSZIP_ValidateLocalHeader(za->old, &za->old->files[loc.index], &datastart, &datasize))
+					{
+						size_t chunk;
+						datastart = za->old->files[loc.index].localpos;
+
+						//tell the download context that we already know this data region
+						DL_Completed(za->dl, datastart, datastart + datasize);
+						//and inject the data into the downloaded file.
+						VFS_SEEK(za->old->raw, datastart);
+						VFS_SEEK(za->dl->file, za->zip.files[i].localpos);
+						for(;datasize;)
+						{
+							char copybuffer[0x10000];
+							chunk = datasize;
+							if (chunk > sizeof(copybuffer))
+								chunk = sizeof(copybuffer);
+
+							VFS_READ(za->old->raw, copybuffer, chunk);
+							datasize -= chunk;
+						}
+						//FIXME: graphics/progress updates.
+					}
+				}
+			}
+
+		//anything we didn't receive yet needs to be completed. the download code is meant to track the holes.
+		*start = 0;
+		*end = za->eocd.end;
+		za->step++;
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+struct archivedeltafuncs_s *FSZIP_OpenDeltaZip(qdownload_t *dl)
+{
+	ziparchivedelta_t *za;
+	unsigned int trailsize = 0x10000 + SIZE_ENDOFCENTRALDIRECTORY+SIZE_ZIP64ENDOFCENTRALDIRECTORYLOCATOR;
+	za->eocd.end = dl->size;
+	if (dl->size < trailsize)
+		za->eocd.start = 0;
+	else
+		za->eocd.start = dl->size - trailsize;
+
+	za->dl = dl;
+	za->zip.rawsize = dl->size;
+	za->zip.raw = dl->file;
+	za->pub.GetNextRange = FSZIPDL_GetNextRange;
+	return &za->pub;
+}
+#endif
 
 #endif
 

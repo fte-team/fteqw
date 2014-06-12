@@ -6269,7 +6269,7 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 		client_t *client;
 		edict_t *portal = G_EDICT(prinst, OFS_PARM0);
 		int area1 = portal->pvsinfo.areanum, area2 = portal->pvsinfo.areanum2;
-		if (area1 == area2 || !area1 || !area2)
+		if (area1 == area2 || area1<0 || area2<0)
 			return;
 		for (client = svs.clients, i = 0; i < sv.allocated_client_slots; i++, client++)
 		{

@@ -2301,6 +2301,8 @@ void BE_GenPolyBatches(batch_t **batches)
 			return;
 
 		shader = cl_stris[i].shader;
+		if (!shader)
+			continue;
 
 		b->buildmeshes = R_DB_Poly;
 		b->ent = &r_worldentity;

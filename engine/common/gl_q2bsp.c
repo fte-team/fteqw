@@ -3218,7 +3218,7 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 			out->minmaxs[3+j] = LittleLong(in->maxs[j]);
 		}
 		out->cluster = LittleLong(in->cluster);
-		out->area = LittleLong(in->area) + 1;
+		out->area = LittleLong(in->area);
 //		out->firstleafface = LittleLong(in->firstleafsurface);
 //		out->numleaffaces = LittleLong(in->num_leafsurfaces);
 		out->contents = 0;
@@ -6103,7 +6103,7 @@ static void FloodArea_r (q2carea_t *area, int floodnum)
 	area->floodvalid = floodvalid;
 	if (mapisq3)
 	{
-		for (i=1 ; i<numareas ; i++)
+		for (i=0 ; i<numareas ; i++)
 		{
 			if (map_q3areas[area - map_q2areas].numareaportals[i]>0)
 				FloodArea_r (&map_q2areas[i], floodnum);
@@ -6138,7 +6138,7 @@ static void	FloodAreaConnections (void)
 	floodnum = 0;
 
 	// area 0 is not used
-	for (i=1 ; i<numareas ; i++)
+	for (i=0 ; i<numareas ; i++)
 	{
 		area = &map_q2areas[i];
 		if (area->floodvalid == floodvalid)
@@ -6170,7 +6170,7 @@ void	CMQ3_SetAreaPortalState (unsigned int area1, unsigned int area2, qboolean o
 		return;
 //		Host_Error ("CMQ3_SetAreaPortalState on non-q3 map");
 
-	if (area1 > numareas || area2 > numareas)
+	if (area1 >= numareas || area2 >= numareas)
 		Host_Error ("CMQ3_SetAreaPortalState: area > numareas");
 
 	if (open)
@@ -6192,6 +6192,8 @@ qboolean	VARGS CM_AreasConnected (model_t *mod, unsigned int area1, unsigned int
 	if (map_noareas.value)
 		return true;
 
+	if (area1 == ~0 || area2 == ~0)
+		return area1 == area2;
 	if (area1 > numareas || area2 > numareas)
 		Host_Error ("area > numareas");
 
@@ -6228,7 +6230,7 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area)
 		memset (buffer, 0, bytes);
 
 		floodnum = map_q2areas[area].floodnum;
-		for (i=1 ; i<numareas ; i++)
+		for (i=0 ; i<numareas ; i++)
 		{
 			if (map_q2areas[i].floodnum == floodnum || !area)
 				buffer[i>>3] |= 1<<(i&7);

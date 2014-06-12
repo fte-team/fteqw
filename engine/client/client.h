@@ -324,6 +324,58 @@ typedef enum {
 	dl_singlestuffed
 } dltype_t;		// download type
 
+typedef struct qdownload_s
+{
+	enum {DL_QW, DL_QWCHUNKS, DL_Q3, DL_DARKPLACES, DL_QWPENDING, DL_HTTP, DL_FTP} method;
+	vfsfile_t		*file;		// file transfer from server
+	char			dclname[MAX_OSPATH];	//file to read/write the chunklist from, for download resumption.
+	char			tempname[MAX_OSPATH];	//file its currently writing to.
+	char			localname[MAX_OSPATH];	//file its going to be renamed to.
+	int				prefixbytes;			//number of bytes that prefix the above names (ie: package/ or nothing).
+	char			remotename[MAX_OSPATH];	//file its coming from.
+	float			percent;				//for progress indicator.
+	float			starttime;				//for speed info
+	qofs_t			completedbytes;			//number of bytes downloaded, for progress/speed info
+	qofs_t			size;					//total size (may be a guess)
+	qboolean		sizeunknown;			//says that size is a guess
+	unsigned int	filesequence;			//unique file id.
+	enum fs_relative fsroot;				//where the local+temp file is meant to be relative to.
+
+	double			ratetime;
+	int				rate;
+	int				ratebytes;
+	unsigned int	flags;
+
+	//chunked downloads uses this
+	struct dlblock_s
+	{
+		qofs_t start;
+		qofs_t end;
+		enum
+		{
+			DLB_MISSING,
+			DLB_PENDING,
+			DLB_RECEIVED
+		} state:16;
+		unsigned int sequence;	//sequence is only valid on pending blocks.
+
+		struct dlblock_s *next;
+	} *dlblocks;
+} qdownload_t;
+enum qdlabort
+{
+	QDL_FAILED,		//delete file, tell server.
+	QDL_DISCONNECT,	//delete file, don't tell server.
+	QDL_COMPLETED,	//rename file, tell server.
+};
+qboolean DL_Begun(qdownload_t *dl);
+void DL_Completed(qdownload_t *dl, qofs_t start, qofs_t end);	//notifies the download logic that a chunk of the file is no longer needed.
+void DL_Abort(qdownload_t *dl, enum qdlabort aborttype);		//just frees the download's resources. does not delete the temp file.
+
+//chunked downloads
+void DLC_Poll(qdownload_t *dl);
+
+
 //
 // the client_static_t structure is persistant through an arbitrary number
 // of server connections
@@ -384,15 +436,7 @@ typedef struct
 
 	struct ftenet_connections_s *sockets;
 
-	enum {DL_NONE, DL_QW, DL_QWCHUNKS, DL_Q3, DL_DARKPLACES, DL_QWPENDING, DL_HTTP, DL_FTP} downloadmethod;
-	vfsfile_t		*downloadqw;		// file transfer from server
-	char			downloadtempname[MAX_OSPATH];	//file its currently writing to.
-	char			downloadlocalname[MAX_OSPATH];	//file its going to be renamed to.
-	char			downloadremotename[MAX_OSPATH];	//file its coming from.
-	float			downloadpercent;	//for progress indicator.
-	int				downloadchunknum;	//for QW downloads only.
-	float			downloadstarttime;	//for speed info
-	unsigned int	downloadedbytes;	//number of bytes downloaded, for progress/speed info
+	qdownload_t *download;
 
 // demo loop control
 	int			demonum;		// -1 = don't play demos
@@ -452,13 +496,15 @@ typedef struct downloadlist_s {
 	char localname[128];
 	unsigned int size;
 	unsigned int flags;
-#define DLLF_VERBOSE 1			//tell the user that its downloading
-#define DLLF_REQUIRED 2			//means that it won't load models etc until its downloaded (ie: requiredownloads 0 makes no difference)
-#define DLLF_OVERWRITE 4		//overwrite it even if it already exists
-#define DLLF_SIZEUNKNOWN 8		//download's size isn't known
-#define DLLF_IGNOREFAILED 16	//
-#define DLLF_NONGAME 32			//means the requested download filename+localname is gamedir explicit (so id1/foo.txt is distinct from qw/foo.txt)
-#define DLLF_TEMPORARY 64		//download it, but don't actually save it (DLLF_OVERWRITE doesn't actually overwrite, but does ignore any local files)
+#define DLLF_VERBOSE		(1u<<0)		//tell the user that its downloading
+#define DLLF_REQUIRED		(1u<<1)		//means that it won't load models etc until its downloaded (ie: requiredownloads 0 makes no difference)
+#define DLLF_OVERWRITE		(1u<<2)		//overwrite it even if it already exists
+#define DLLF_SIZEUNKNOWN	(1u<<3)		//download's size isn't known
+#define DLLF_IGNOREFAILED	(1u<<4)		//
+#define DLLF_NONGAME		(1u<<5)		//means the requested download filename+localname is gamedir explicit (so id1/foo.txt is distinct from qw/foo.txt)
+#define DLLF_TEMPORARY		(1u<<6)		//download it, but don't actually save it (DLLF_OVERWRITE doesn't actually overwrite, but does ignore any local files)
+
+#define DLLF_BEGUN			(1u<<7)		//server has confirmed that the file exists, is readable, and we've opened a file. should not be set on new requests.
 	struct downloadlist_s *next;
 } downloadlist_t;
 
@@ -1033,11 +1079,11 @@ void CL_NewTranslation (int slot);
 int CL_IsDownloading(const char *localname);
 qboolean CL_CheckOrEnqueDownloadFile (const char *filename, const char *localname, unsigned int flags);
 qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned int flags);
-downloadlist_t *CL_DownloadFailed(const char *name, qboolean cancel);
+downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl);
 int CL_DownloadRate(void);
-void CL_GetDownloadSizes(unsigned int *filecount, unsigned int *totalsize, qboolean *somesizesunknown);
+void CL_GetDownloadSizes(unsigned int *filecount, qofs_t *totalsize, qboolean *somesizesunknown);
 qboolean CL_ParseOOBDownload(void);
-void CL_DownloadFinished(void);
+void CL_DownloadFinished(qdownload_t *dl);
 void CL_RequestNextDownload (void);
 void CL_SendDownloadReq(sizebuf_t *msg);
 void Sound_CheckDownload(const char *s); /*checkorenqueue a sound file*/

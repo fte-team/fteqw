@@ -505,6 +505,8 @@ static searchpath_t	*com_purepaths;
 static searchpath_t	*com_base_searchpaths;	// without gamedirs
 
 static int fs_puremode;				//0=deprioritise pure, 1=prioritise pure, 2=pure only.
+static char *fs_refnames;			//list of allowed packages
+static char *fs_refcrcs;			//list of crcs for those packages. one token per package.
 static char *fs_purenames;			//list of allowed packages
 static char *fs_purecrcs;			//list of crcs for those packages. one token per package.
 static unsigned int fs_pureseed;	//used as a key so the server knows we're obeying. completely unreliable/redundant in an open source project, but needed for q3 network compat.
@@ -1673,6 +1675,7 @@ void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, qofs
 
 void COM_FlushTempoaryPacks(void)
 {
+#if 0
 	searchpath_t *sp, **link;
 	link = &com_searchpaths;
 	while (*link)
@@ -1691,6 +1694,7 @@ void COM_FlushTempoaryPacks(void)
 			link = &sp->next;
 	}
 	com_purepaths = NULL;
+#endif
 }
 
 qboolean COM_LoadMapPackFile (const char *filename, qofs_t ofs)
@@ -2535,26 +2539,31 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 	return NULL;
 }
 
-
-void FS_PureMode(int puremode, char *packagenames, char *packagecrcs, int pureseed)
+void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refnamelist, char *refcrclist, int pureseed)
 {
 	qboolean pureflush;
 
 	if (puremode == fs_puremode && fs_pureseed == pureseed)
 	{
-		if ((!packagenames && !fs_purenames) || !strcmp(fs_purenames?fs_purenames:"", packagenames?packagenames:""))
-			if ((!packagecrcs && !fs_purecrcs) || !strcmp(fs_purecrcs?fs_purecrcs:"", packagecrcs?packagecrcs:""))
-				return;
+		if ((!purenamelist && !fs_purenames) || !strcmp(fs_purenames?fs_purenames:"", purenamelist?purenamelist:""))
+			if ((!purecrclist && !fs_purecrcs) || !strcmp(fs_purecrcs?fs_purecrcs:"", purecrclist?purecrclist:""))
+				if ((!refnamelist && !fs_refnames) || !strcmp(fs_refnames?fs_refnames:"", refnamelist?refnamelist:""))
+					if ((!refcrclist && !fs_refcrcs) || !strcmp(fs_refcrcs?fs_refcrcs:"", refcrclist?refcrclist:""))
+						return;
 	}
 
 	Z_Free(fs_purenames);
 	Z_Free(fs_purecrcs);
+	Z_Free(fs_refnames);
+	Z_Free(fs_refcrcs);
 
 	pureflush = (fs_puremode != 2 && puremode == 2);
 	fs_puremode = puremode;
-	fs_purenames = packagenames?Z_StrDup(packagenames):NULL;
-	fs_purecrcs = packagecrcs?Z_StrDup(packagecrcs):NULL;
+	fs_purenames = purenamelist?Z_StrDup(purenamelist):NULL;
+	fs_purecrcs = purecrclist?Z_StrDup(purecrclist):NULL;
 	fs_pureseed = pureseed;
+	fs_refnames = refnamelist?Z_StrDup(refnamelist):NULL;
+	fs_refcrcs = refcrclist?Z_StrDup(refcrclist):NULL;
 
 	FS_ChangeGame(fs_manifest, false);
 
@@ -2717,6 +2726,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	{
 		char crctok[64];
 		char nametok[MAX_QPATH];
+		char nametok2[MAX_QPATH];
 		searchpath_t *sp, *lastpure = NULL;
 		char *names = fs_purenames, *pname;
 		char *crcs = fs_purecrcs;
@@ -2748,6 +2758,27 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				continue;
 
 			pname = nametok;
+
+			if (fs_refnames && fs_refcrcs)
+			{	//q3 is annoying as hell
+				int r;
+				int crc2;
+				char *rc = fs_refcrcs;
+				char *rn = fs_refnames;
+				pname = "";
+				for (; rc && rn; )
+				{
+					rc = COM_ParseOut(rc, crctok, sizeof(crctok));
+					rn = COM_ParseOut(rn, nametok2, sizeof(nametok2));
+					crc2 = strtoul(crctok, NULL, 0);
+					if (crc2 == crc)
+					{
+						COM_DefaultExtension(nametok2, ".pk3", sizeof(nametok2));
+						pname = nametok2;
+						break;
+					}
+				}
+			}
 			if (*pname == '*')	// * means that its 'referenced' (read: actually useful) thus should be downloaded, which is not relevent here.
 				pname++;
 
@@ -2778,7 +2809,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				}
 			}
 			//if its not already loaded (via wildcards), load it from the download cache, if we can
-			if (!sp)
+			if (!sp && *pname)
 			{
 				char local[MAX_OSPATH];
 				vfsfile_t *vfs;
@@ -2787,7 +2818,28 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 				int i;
 
 				if (FS_GenCachedPakName(pname, va("%i", crc), local, sizeof(local)))
+				{
+					unsigned int keptflags;
+					handle = FS_GetOldPath(&oldpaths, local, &keptflags);
+					if (handle)
+					{
+						sp = FS_AddPathHandle(&oldpaths, pname, local, handle, SPF_COPYPROTECTED|SPF_TEMPORARY|keptflags, (unsigned int)-1);
+						if (sp->crc_check == crc)
+						{
+							if (fs_puremode)
+							{
+								if (lastpure)
+									lastpure->nextpure = sp;
+								else
+									com_purepaths = sp;
+								sp->nextpure = NULL;
+								lastpure = sp;
+							}
+						}
+						continue;
+					}
 					vfs = FS_OpenVFS(local, "rb", FS_ROOT);
+				}
 				else
 					vfs = NULL;
 				if (vfs)

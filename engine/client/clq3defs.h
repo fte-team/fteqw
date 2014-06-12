@@ -186,7 +186,6 @@ typedef struct clientSnap_s {
 	int				serverMessageNum;
 	int				serverCommandNum;
 	int				serverTime;		// server time the message is valid for (in msec)
-	int				localTime;
 	int				deltaFrame;
 	qbyte			areabits[MAX_MAP_AREA_BYTES];		// portalarea visibility bits
 	q3playerState_t	playerstate;
@@ -224,7 +223,6 @@ typedef struct {
 	int numClientCommands;
 
 	int				serverMessageNum;
-	int serverTime;
 
 	int downloadchunknum;
 

@@ -320,16 +320,16 @@ typedef struct {
 	qbyte			weapon;           // weapon
 	signed char	forwardmove, rightmove, upmove;
 } q3usercmd_t;
-#define CMD_MASK Q3UPDATE_MASK
+#define CMD_BACKUP UPDATE_BACKUP
+#define CMD_MASK UPDATE_MASK
 qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 {
 	usercmd_t *cmd;
-	cmdNumber--;
 
 	if (cmdNumber > cl.movesequence)
 		Host_EndGame("CL_GetUserCmd: cmdNumber > ccs.currentUserCmdNumber");
 
-	if (cl.movesequence - cmdNumber > CMD_MASK)
+	if (cl.movesequence - cmdNumber >= CMD_BACKUP)
 		return false; // too old
 
 	cmd = &cl.outframes[(cmdNumber) & CMD_MASK].cmd[0];
@@ -956,7 +956,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		VALIDATEPOINTER(arg[0], sizeof(int));
 		VALIDATEPOINTER(arg[1], sizeof(int));
 		*(int *)VM_POINTER(arg[0]) = ccs.snap.serverMessageNum;
-		*(int *)VM_POINTER(arg[1]) = ccs.snap.serverTime;// + Sys_DoubleTime()*1000-ccs.snap.localTime;
+		*(int *)VM_POINTER(arg[1]) = ccs.snap.serverTime;
 		break;
 
 	case CG_GETSNAPSHOT:
@@ -965,7 +965,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_GETCURRENTCMDNUMBER:
-		VM_LONG(ret) = cl.movesequence;
+		VM_LONG(ret) = cl.movesequence-1;
 		break;
 	case CG_GETUSERCMD:
 		VALIDATEPOINTER(arg[1], sizeof(q3usercmd_t));
@@ -1143,7 +1143,7 @@ int CG_Refresh(void)
 	if (!cgvm)
 		return false;
 
-	time = ccs.serverTime;
+	time = cl.time*1000;
 	VM_Call(cgvm, CG_DRAW_ACTIVE_FRAME, time, 0, false);
 
 	R2D_ImageColours(1, 1, 1, 1);

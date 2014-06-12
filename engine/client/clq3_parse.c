@@ -8,7 +8,8 @@
 
 #include "clq3defs.h"
 
-#define CMD_MASK Q3UPDATE_MASK
+#define CMD_BACKUP UPDATE_BACKUP
+#define CMD_MASK UPDATE_MASK
 
 #define SHOWSTRING(s) if(cl_shownet.value==2)Con_Printf ("%s\n", s);
 #define SHOWNET(x) if(cl_shownet.value==2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
@@ -263,7 +264,12 @@ void CLQ3_ParseSnapshot(void)
 	snap.serverMessageNum = ccs.serverMessageNum;
 	snap.serverCommandNum = ccs.lastServerCommandNum;
 	snap.serverTime = MSG_ReadLong();
-	snap.localTime = Sys_Milliseconds();
+
+	//so we can delta to it properly.
+	cl.oldgametime = cl.gametime;
+	cl.oldgametimemark = cl.gametimemark;
+	cl.gametime = snap.serverTime / 1000.0f;
+	cl.gametimemark = Sys_DoubleTime();
 
 	// If the frame is delta compressed from data that we
 	// no longer have available, we must suck up the rest of
@@ -327,9 +333,9 @@ void CLQ3_ParseSnapshot(void)
 	// Find last usercmd server has processed and calculate snap.ping
 
 	snap.ping = 3;
-	for (i=cls.netchan.outgoing_sequence-1 ; i>cls.netchan.outgoing_sequence-Q3UPDATE_BACKUP ; i--)
+	for (i=cls.netchan.outgoing_sequence-1 ; i>cls.netchan.outgoing_sequence-CMD_BACKUP ; i--)
 	{
-		frame = &cl.outframes[i & Q3UPDATE_MASK];
+		frame = &cl.outframes[i & CMD_MASK];
 		if (frame->server_message_num == snap.deltaFrame)
 		{
 			snap.ping = Sys_Milliseconds() - frame->client_time;
@@ -343,37 +349,34 @@ void CLQ3_ParseSnapshot(void)
 	SHOWSTRING(va("snapshot:%i  delta:%i  ping:%i", snap.serverMessageNum, snap.deltaFrame, snap.ping));
 }
 
-#define MAXCHUNKSIZE 2048
+#define MAXCHUNKSIZE 65536
 void CLQ3_ParseDownload(void)
 {
+	qdownload_t *dl = cls.download;
 	unsigned int chunknum;
-	static unsigned int downloadsize;
 	unsigned int chunksize;
 	unsigned char chunkdata[MAXCHUNKSIZE];
 	int i;
 	char *s;
 
 	chunknum = (unsigned short) MSG_ReadShort();
-
-	if (downloadsize >= MAXCHUNKSIZE*0xffff)
-	{
-		chunknum |= ccs.downloadchunknum&0x10000;		//add the chunk number, truncated by the network protocol.
-	}
+	chunknum |= ccs.downloadchunknum&~0xffff;		//add the chunk number, truncated by the network protocol.
 
 	if (!chunknum)
 	{
-		downloadsize = MSG_ReadLong();
-		Cvar_SetValue( Cvar_Get("cl_downloadSize", "0", 0, "Download stuff"), downloadsize );
+		dl->size = (unsigned int)MSG_ReadLong();
+		Cvar_SetValue( Cvar_Get("cl_downloadSize", "0", 0, "Download stuff"), dl->size );
 	}
 
-	if (downloadsize == (unsigned int)-1)
+	if (dl->size == (unsigned int)-1)
 	{
 		s = MSG_ReadString();
 		Con_Printf("\nDownload refused:\n %s\n", s);
+		CL_DownloadFailed(dl->remotename, dl);
 		return;
 	}
 
-	chunksize = MSG_ReadShort();
+	chunksize = (unsigned short)MSG_ReadShort();
 	if (chunksize > MAXCHUNKSIZE)
 		Host_EndGame("Server sent a download chunk of size %i (it's too damn big!)\n", chunksize);
 
@@ -387,53 +390,102 @@ void CLQ3_ParseDownload(void)
 	}
 	ccs.downloadchunknum++;
 
-	if (!cls.downloadqw)
+	if (!dl || dl->method != DL_Q3)
 	{
-		if (!*cls.downloadtempname)
-		{
-			Con_Printf("Server sending download, but no download was requested\n");
-			CLQ3_SendClientCommand("stopdl");
-			cls.downloadmethod = DL_NONE;
-			return;
-		}
+		Con_Printf("Server sending download, but no download was requested\n");
+		CLQ3_SendClientCommand("stopdl");
+		return;
+	}
 
-		FS_CreatePath(cls.downloadtempname, FS_ROOT);
-		cls.downloadqw = FS_OpenVFS(cls.downloadtempname, "wb", FS_ROOT);
-		if (!cls.downloadqw)
+	if (!dl->file)
+	{
+		if (!DL_Begun(dl))
 		{
-			Con_Printf("Couldn't write to temporary file %s - stopping download\n", cls.downloadtempname);
-			CLQ3_SendClientCommand("stopdl");
-			cls.downloadmethod = DL_NONE;
+			CL_DownloadFailed(dl->remotename, dl);
 			return;
 		}
 	}
 
-	Con_Printf("dl: chnk %i, size %i, csize %i\n", chunknum, downloadsize, chunksize);
+	Con_DPrintf("dl: chnk %u, size %u, csize %u\n", (unsigned int)chunknum, (unsigned int)dl->size, (unsigned int)chunksize);
 
 	if (!chunksize)
 	{
-		VFS_CLOSE(cls.downloadqw);
-		cls.downloadqw = NULL;
-		FS_Rename(cls.downloadtempname, cls.downloadlocalname, FS_ROOT);	// ->
-		*cls.downloadtempname = *cls.downloadlocalname = *cls.downloadremotename = 0;
-		cls.downloadmethod = DL_NONE;
+		CL_DownloadFinished(dl);
 
 		FS_ReloadPackFiles();
 
 		cl.servercount = -1;	//make sure the server resends us that vital gamestate.
 		ccs.downloadchunknum = -1;
+		return;
 	}
 	else
 	{
-		VFS_WRITE(cls.downloadqw, chunkdata, chunksize);
-		chunksize=VFS_TELL(cls.downloadqw);
+		VFS_WRITE(dl->file, chunkdata, chunksize);
+		dl->ratebytes += chunksize;
+		chunksize=VFS_TELL(dl->file);
 //		Con_Printf("Recieved %i\n", chunksize);
 
-		cls.downloadpercent = (100.0 * chunksize) / downloadsize;
+		dl->percent = (100.0 * chunksize) / dl->size;
 	}
 
 
-	CLQ3_SendClientCommand("nextdl %i", chunknum);
+	CLQ3_SendClientCommand("nextdl %u", chunknum);
+}
+
+static qboolean CLQ3_SendDownloads(char *rc, char *rn)
+{
+	while(rn)
+	{
+		qdownload_t *dl;
+		char localname[MAX_QPATH];
+		char tempname[MAX_QPATH];
+		char crc[64];
+		vfsfile_t *f;
+		rc = COM_ParseOut(rc, crc, sizeof(crc));
+		rn = COM_Parse(rn);
+		if (!*com_token)
+			break;
+
+		if (!strchr(com_token, '/'))	//don't let some muppet tell us to download quake3.exe
+			break;
+
+		//as much as I'd like to use COM_FCheckExists, this stuf is relative to root, not the gamedir.
+		f = FS_OpenVFS(va("%s.pk3", com_token), "rb", FS_ROOT);
+		if (f)
+		{
+			VFS_CLOSE(f);
+			continue;
+		}
+		if (!FS_GenCachedPakName(va("%s.pk3", com_token), crc, localname, sizeof(localname)))
+			continue;
+		f = FS_OpenVFS(localname, "rb", FS_ROOT);
+		if (f)
+		{
+			VFS_CLOSE(f);
+			continue;
+		}
+
+		if (!FS_GenCachedPakName(va("%s.tmp", com_token), crc, tempname, sizeof(tempname)))
+			continue;
+
+		//fixme: request to download it
+		Con_Printf("Sending request to download %s\n", com_token);
+		CLQ3_SendClientCommand("download %s.pk3", com_token);
+		ccs.downloadchunknum = 0;
+		dl = Z_Malloc(sizeof(*dl));
+		//q3's downloads are relative to root, but they do at least force a pk3 extension.
+		Q_snprintfz(dl->localname, sizeof(dl->localname), "package/%s", localname);
+		Q_snprintfz(dl->tempname, sizeof(dl->tempname), "package/%s", tempname);
+		dl->prefixbytes = 8;
+		dl->fsroot = FS_ROOT;
+
+		Q_snprintfz(dl->remotename, sizeof(dl->remotename), "%s.pk3", com_token);
+		dl->method = DL_Q3;
+		dl->percent = 0;
+		cls.download = dl;
+		return true;
+	}
+	return false;
 }
 
 qboolean CLQ3_SystemInfoChanged(char *str)
@@ -466,63 +518,14 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 		COM_FlushFSCache();
 	}
 
-	if (usingpure)
-	{
-		rc = Info_ValueForKey(str, "sv_referencedPaks");	//the ones that we should download.
-		rn = Info_ValueForKey(str, "sv_referencedPakNames");
+	rc = Info_ValueForKey(str, "sv_referencedPaks");	//the ones that we should download.
+	rn = Info_ValueForKey(str, "sv_referencedPakNames");
+	if (CLQ3_SendDownloads(rc, rn))
+		return false;
 
-
-
-		while(rn)
-		{
-			char crc[64];
-			vfsfile_t *f;
-			rc = COM_ParseOut(rc, crc, sizeof(crc));
-			rn = COM_Parse(rn);
-			if (!*com_token)
-				break;
-
-			if (!strchr(com_token, '/'))	//don't let some muppet tell us to download quake3.exe
-				break;
-
-			//as much as I'd like to use COM_FCheckExists, this stuf is relative to root, not the gamedir.
-			f = FS_OpenVFS(va("%s.pk3", com_token), "rb", FS_ROOT);
-			if (f)
-			{
-				VFS_CLOSE(f);
-				continue;
-			}
-			if (!FS_GenCachedPakName(va("%s.pk3", com_token), crc, cls.downloadlocalname, sizeof(cls.downloadlocalname)))
-				continue;
-			f = FS_OpenVFS(cls.downloadlocalname, "rb", FS_ROOT);
-			if (f)
-			{
-				VFS_CLOSE(f);
-				continue;
-			}
-
-			if (!FS_GenCachedPakName(va("%s.tmp", com_token), crc, cls.downloadtempname, sizeof(cls.downloadtempname)))
-				continue;
-
-			//fixme: request to download it
-			Con_Printf("Sending request to download %s\n", com_token);
-			CLQ3_SendClientCommand("download %s.pk3", com_token);
-			ccs.downloadchunknum = 0;
-			//q3's downloads are relative to root, but they do at least force a pk3 extension.
-			snprintf(cls.downloadremotename, sizeof(cls.downloadremotename), "%s.pk3", com_token);
-			cls.downloadmethod = DL_Q3;
-			cls.downloadpercent = 0;
-			return false;
-		}
-
-		pc = Info_ValueForKey(str, "sv_paks");		//the ones that we are allowed to use (in order!)
-		pn = Info_ValueForKey(str, "sv_pakNames");
-		FS_PureMode(2, pn, pc, ccs.fs_key);
-	}
-	else
-	{
-		FS_PureMode(0, NULL, NULL, ccs.fs_key);
-	}
+	pc = Info_ValueForKey(str, "sv_paks");		//the ones that we are allowed to use (in order!)
+	pn = Info_ValueForKey(str, "sv_pakNames");
+	FS_PureMode(usingpure?2:0, pn, pc, rn, rc, ccs.fs_key);
 
 	return true;	//yay, we're in
 }
@@ -597,7 +600,10 @@ void CLQ3_ParseGameState(void)
 	ccs.fs_key = MSG_ReadLong();
 
 	if (!CLQ3_SystemInfoChanged(CG_GetConfigString(CFGSTR_SYSINFO)))
+	{
+		UI_Restart_f();
 		return;
+	}
 
 	CG_Restart_f();
 	UI_Restart_f();
@@ -900,13 +906,8 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		CLQ3_SendClientCommand("userinfo \"%s\"", cls.userinfo[0]);
 	}
 
-	ccs.serverTime = ccs.snap.serverTime + (Sys_Milliseconds()-ccs.snap.localTime);
-	cl.servertime = ccs.serverTime / 1000.0f;
-
-	cl.gametime = cl.oldgametime = cl.servertime;
-
 	//reuse the q1 array
-	cmd->servertime = ccs.serverTime;
+	cmd->servertime = cl.servertime*1000;
 	cmd->weapon = ccs.selected_weapon;
 
 	cmd->forwardmove *= 127/400.0f;
@@ -933,17 +934,14 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	if (Key_Dest_Has(~kdm_game) || (keycatcher&3))
 		cmd->buttons |= 2;	//add in the 'at console' button
 
-	cl.outframes[cl.movesequence&Q3UPDATE_MASK].cmd[0] = *cmd;
-	cl.movesequence++;
+	cl.outframes[cl.movesequence&CMD_MASK].cmd[0] = *cmd;
 
 
-
-	frame = &cl.outframes[cls.netchan.outgoing_sequence & Q3UPDATE_MASK];
-	frame->cmd_sequence = cl.movesequence;
+	frame = &cl.outframes[cls.netchan.outgoing_sequence & CMD_MASK];
+	frame->cmd_sequence = cl.movesequence++;
 	frame->server_message_num = ccs.serverMessageNum;
 	frame->server_time = cl.gametime;
 	frame->client_time = Sys_DoubleTime()*1000;
-
 
 	memset(&msg, 0, sizeof(msg));
 	msg.maxsize = sizeof(data);
@@ -965,11 +963,11 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		MSG_WriteBits(&msg, 0, 8);
 	}
 
-	i = (cls.netchan.outgoing_sequence - 1);
-	oldframe = &cl.outframes[i & Q3UPDATE_MASK];
+	i = (cls.netchan.outgoing_sequence-1);
+	oldframe = &cl.outframes[i & CMD_MASK];
 	cmdcount = cl.movesequence - oldframe->cmd_sequence;
-	if (cmdcount > Q3UPDATE_MASK)
-		cmdcount = Q3UPDATE_MASK;
+	if (cmdcount > CMD_MASK)
+		cmdcount = CMD_MASK;
 	// begin a client move command, if any
 	if( cmdcount )
 	{
@@ -990,7 +988,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		// send this and the previous cmds in the message, so
 		// if the last packet was dropped, it can be recovered
 		from = &nullcmd;
-		for (i = oldframe->cmd_sequence; i < cl.movesequence; i++)
+		for (i = cl.movesequence-cmdcount; i < cl.movesequence; i++)
 		{
 			to = &cl.outframes[i&CMD_MASK].cmd[0];
 			MSG_Q3_WriteDeltaUsercmd( &msg, key, from, to );

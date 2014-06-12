@@ -554,6 +554,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 #ifdef Q3CLIENT
 	if (connectinfo.protocol == CP_QUAKE3)
 	{	//q3 requires some very strange things.
+		cls.challenge = connectinfo.challenge;
 		CLQ3_SendConnectPacket(to);
 		return;
 	}
@@ -1483,7 +1484,7 @@ void CL_Disconnect (void)
 
 	CL_ClearState();
 
-	FS_PureMode(0, NULL, NULL, 0);
+	FS_PureMode(0, NULL, NULL, NULL, NULL, 0);
 
 	Alias_WipeStuffedAliases();
 
@@ -1660,6 +1661,7 @@ void CL_PakDownloads(int mode)
 	mode=0 no downloads (forced to 1 for pure)
 	mode=1 archived names so local stuff is not poluted
 	mode=2 downloaded packages will always be present. Use With Caution.
+	mode&4 download even packages that are not referenced.
 	*/
 	char local[256];
 	char *pname;
@@ -1678,10 +1680,10 @@ void CL_PakDownloads(int mode)
 		//'*' prefix means 'referenced'. so if the server isn't using any files from it, don't bother downloading it.
 		if (*pname == '*')
 			pname++;
-		else
+		else if (!(mode & 4))
 			continue;
 
-		if (mode != 2)
+		if ((mode&3) != 2)
 		{
 			/*if we already have such a file, this is a no-op*/
 			if (CL_CheckDLFile(va("package/%s", pname)))
@@ -1709,7 +1711,7 @@ void CL_CheckServerPacks(void)
 	if (pure != oldpure || cl.serverpakschanged)
 	{
 		CL_PakDownloads((pure && !cl_download_packages.ival)?1:cl_download_packages.ival);
-		FS_PureMode(pure, cl.serverpaknames, cl.serverpakcrcs, cls.challenge);
+		FS_PureMode(pure, cl.serverpaknames, cl.serverpakcrcs, NULL, NULL, cls.challenge);
 
 		if (pure)
 		{
@@ -2290,7 +2292,7 @@ drop to full console
 void CL_Changing_f (void)
 {
 	char *mapname = Cmd_Argv(1);
-	if (cls.downloadqw)  // don't change when downloading
+	if (cls.download)  // don't change when downloading
 		return;
 
 	if (*mapname)
@@ -2323,7 +2325,7 @@ The server is changing levels
 */
 void CL_Reconnect_f (void)
 {
-	if (cls.downloadqw)  // don't change when downloading
+	if (cls.download)  // don't change when downloading
 		return;
 #ifdef NQPROT
 	if (cls.protocol == CP_NETQUAKE && Cmd_FromGamecode())
@@ -2430,6 +2432,7 @@ void CL_ConnectionlessPacket (void)
 					Con_Printf ("junk on the end of the packet\n");
 					CL_Disconnect_f();
 				}
+				cls.netchan.last_received = realtime;	//in case there's some virus scanner running on the server making it stall... for instance...
 			}
 			return;
 		}
@@ -3171,6 +3174,7 @@ void CL_Download_f (void)
 
 	if (Cmd_IsInsecure())	//mark server specified downloads.
 	{
+		//don't let gamecode order us to download random junk
 		if (!CL_AllowArbitaryDownload(url))
 			return;
 
@@ -3198,14 +3202,14 @@ void CL_DownloadSize_f(void)
 	if (!strcmp(size, "e"))
 	{
 		Con_Printf("Download of \"%s\" failed. Not found.\n", rname);
-		CL_DownloadFailed(rname, false);
+		CL_DownloadFailed(rname, NULL);
 	}
 	else if (!strcmp(size, "p"))
 	{
-		if (stricmp(cls.downloadremotename, rname))
+		if (cls.download && stricmp(cls.download->remotename, rname))
 		{
 			Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
-			CL_DownloadFailed(rname, false);
+			CL_DownloadFailed(rname, NULL);
 		}
 	}
 	else if (!strcmp(size, "r"))
@@ -3215,7 +3219,7 @@ void CL_DownloadSize_f(void)
 		if (!CL_AllowArbitaryDownload(redirection))
 			return;
 
-		dl = CL_DownloadFailed(rname, false);
+		dl = CL_DownloadFailed(rname, NULL);
 		Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
 		CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
 	}
@@ -3234,42 +3238,26 @@ void CL_DownloadSize_f(void)
 }
 
 void CL_FinishDownload(char *filename, char *tempname);
-void CL_ForceStopDownload (qboolean finish)
+void CL_ForceStopDownload (qdownload_t *dl, qboolean finish)
 {
 	if (Cmd_IsInsecure())
 	{
 		Con_Printf(CON_WARNING "Execution from server rejected for %s\n", Cmd_Argv(0));
 		return;
 	}
+	if (!dl)
+		return;
 
-	if (!cls.downloadqw)
+	if (!dl->file)
 	{
 		Con_Printf("No files downloading by QW protocol\n");
 		return;
 	}
 
-	VFS_CLOSE (cls.downloadqw);
-	cls.downloadqw = NULL;
-
 	if (finish)
-		CL_DownloadFinished();
+		DL_Abort(dl, QDL_COMPLETED);
 	else
-	{
-		char *tempname;
-
-		if (*cls.downloadtempname)
-			tempname = cls.downloadtempname;
-		else
-			tempname = cls.downloadlocalname;
-
-		if (strncmp(tempname,"skins/",6))
-			FS_Remove(tempname, FS_GAME);
-		else
-			FS_Remove(tempname, FS_PUBBASEGAMEONLY);
-	}
-	*cls.downloadlocalname = '\0';
-	*cls.downloadremotename = '\0';
-	cls.downloadpercent = 0;
+		DL_Abort(dl, QDL_FAILED);
 
 	// get another file if needed
 	CL_RequestNextDownload ();
@@ -3277,12 +3265,12 @@ void CL_ForceStopDownload (qboolean finish)
 
 void CL_SkipDownload_f (void)
 {
-	CL_ForceStopDownload(false);
+	CL_ForceStopDownload(cls.download, false);
 }
 
 void CL_FinishDownload_f (void)
 {
-	CL_ForceStopDownload(true);
+	CL_ForceStopDownload(cls.download, true);
 }
 
 #if defined(_WIN32) && !defined(WINRT)
@@ -4332,6 +4320,10 @@ double Host_Frame (double time)
 		Key_Dest_Has(kdm_editor) ||
 		cl.paused;
 	// TODO: check if minimized or unfocused
+
+	//read packets early and always, so we don't have stuff waiting for reception quite so often.
+	//should smooth out a few things, and increase download speeds.
+	CL_ReadPackets ();
 
 	if (idle && cl_idlefps.value > 0)
 	{

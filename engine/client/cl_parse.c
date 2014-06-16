@@ -2152,7 +2152,9 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 
 			if (dl->flags & DLLF_TEMPORARY)
 			{
+#ifdef TERRAIN
 				if (!Terr_DownloadedSection(dl->tempname+dl->prefixbytes))
+#endif
 					Con_Printf("Downloaded unusable temporary file\n");
 				FS_Remove(dl->tempname+dl->prefixbytes, dl->fsroot);
 			}

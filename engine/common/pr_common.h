@@ -644,15 +644,18 @@ enum terrainedit_e
 	ter_lower,			//vector pos, float radius, float heightchange
 	ter_tex_kill,		//vector pos, void junk, void junk, string texname
 	ter_tex_get,		//vector pos, void junk, float imagenum
-	ter_mix_paint,		//vector pos, float radius, float percent, string texname
-	ter_mix_concentrate,	//vector pos, float radius, float percent
-	ter_mix_noise,		//vector pos, float radius, float percent
-	ter_mix_blur,		//vector pos, float radius, float percent
+	ter_tex_blend,		//vector pos, float radius, float percent, string texname
+	ter_tex_concentrate,	//vector pos, float radius, float percent
+	ter_tex_noise,		//vector pos, float radius, float percent
+	ter_tex_blur,		//vector pos, float radius, float percent
 	ter_water_set,		//vector pos, float radius, float newwaterheight
 	ter_mesh_add,		//entity ent
 	ter_mesh_kill,		//vector pos, float radius
 	ter_tint,			//vector pos, float radius, float percent, vector newcol, float newalph
 	ter_height_flatten,	//vector pos, float radius, float percent
+	ter_tex_replace,	//vector pos, float radius, string texname
+	ter_reset,			//vector pos, float radius
+	ter_reloadsect,		//vector pos, float radius
 //	ter_poly_add,		//add a poly, woo
 //	ter_poly_remove,	//remove polys
 

@@ -23,6 +23,8 @@ vector mousediff;
 vector originalmousepos;
 float mousedown;
 float shiftdown;
+vector mousenear;
+vector mousefar;
 
 string pointedshadername;
 vector pointedsurfacenormal;
@@ -36,11 +38,21 @@ void() wrap_renderscene =
 	vector col;
 	local float i;
 
+	//don't do anything if this is a subview. this avoids getting confused.
+	if (!(float)getproperty(VF_DRAWWORLD))
+	{
+		renderscene();
+		return;
+	}
+
 	vidsize = getproperty(VF_SCREENVSIZE);
 
 	/*inactive? then show nothing*/
 	if (!autocvar_ca_show)
 	{
+		mousefar = unproject((vidsize*0.5) + '0 0 8192');
+		mousenear = unproject(vidsize*0.5);
+
 		if (isdemo())
 			spline_overrides(gettime(5));
 		renderscene();
@@ -103,6 +115,9 @@ void() wrap_renderscene =
 	/*hide hud and crosshair*/
 	setproperty(VF_DRAWENGINESBAR, 0);
 	setproperty(VF_DRAWCROSSHAIR, 0);
+
+	mousefar = unproject(curmousepos + '0 0 8192');
+	mousenear = unproject(curmousepos);
 
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_add();
@@ -276,8 +291,8 @@ void() CSQC_Input_Frame =
 	vector t, o;
 	if ((input_buttons & 1) && pointedshadername == "")
 	{
-		t = unproject((vidsize*0.5) + '0 0 8192');
-		o = unproject(vidsize*0.5);
+		t = mousefar;
+		o = mousenear;
 		if (vlen(o - t) > 8192)
 			t = o + normalize(t)*8192;
 		traceline(o, t, TRUE, world);
@@ -318,8 +333,8 @@ void() CSQC_Input_Frame =
 		}
 		else
 		{
-			t = unproject((vidsize*0.5) + '0 0 8192');
-			o = unproject(vidsize*0.5);
+			t = mousefar;
+			o = mousenear;
 			if (vlen(o - t) > 8192)
 				t = o + normalize(t)*8192;
 			traceline(o, t, TRUE, world);

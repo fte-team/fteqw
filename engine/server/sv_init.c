@@ -917,7 +917,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		for (i = 1; exts[i]; i++)
 		{
 			depth = COM_FDepthFile(va(exts[i], server), false);
-			if (depth < 0)
+			if (depth < bestdepth)
 			{
 				bestdepth = depth;
 				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[i], server);

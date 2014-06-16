@@ -1,3 +1,14 @@
+/*
+a)
+b) Make a version of Mix Paint that just draws the texture onto tiles and replaces any other texture there instead of mixing, call it Tex Paint Single
+b2) Rename Mix Paint to Tex Paint Mix
+c) Add 2 buttons to incr/decrease Percentage setting
+d) Add option to switch from circular selection reticle to square
+e) Make reticle follow mouse properly (I can see it moving on the sonar map up above, but it's definitely not where I'm pointing the mouse)
+f) Make Tex Kill choose the circular or square reticle you selected (suggestion D), right now it only uses square
+g) Possibly an option to manually shrink the world bounds from the outside in (for eliminating unwanted space)
+*/
+
 enum
 {
 	ter_reload,		//reload the entire thing
@@ -11,14 +22,17 @@ enum
 	ter_height_lower,	//lower the terrain in a bell (negative value to raise)
 	ter_tex_kill,		//set section texture
 	ter_tex_get,		//get section texture
-	ter_mixpaint,		//paint a specific texture
+	ter_tex_paint,		//paint a specific texture with gracefulish blending.
+	ter_tex_paint_single,	//paint a texture with 100% opacity and no attenuation (other than radius)
 	ter_mixconcentrate,	//figure out which is the strongest mixed texture and make it stronger
 	ter_mixnoise,		//add random noise to the affected samples
 	ter_mixblur,		//blur the texture mixture
 	ter_water_set,		//lower the terrain in a bell (negative value to raise)
 	ter_mesh_add,		//add a mesh
 	ter_mesh_kill,		//remove meshes within the radius
-	ter_tint,			//pants new colour modifiers/tints
+	ter_tint,			//paints new colour modifiers/tints
+	ter_reset,			//destroy's the entire section completely, resetting it to default.
+	ter_reloadsect,		//reload a section, reverting changes.
 	ter_blank,
 	ter_radius,
 	ter_quant,
@@ -26,15 +40,18 @@ enum
 	ter_mesh,
 	ter_tintval,
 	ter_tex,
+	ter_roundpegsquarehole,
 	ter_count
 };
 static var float eradius = 256;
 static var float equant = 8;
 static var float epercent = 40;
+static var float squaretool = 0;
 static string tex[8];
 static var string tint[8] = {"1 1 1", "1.2 0.9 0.9", "0 1 0"};
 static string meshname;
 static var float curtool = ter_blank;
+static var float lasttool = ter_blank;
 static int painttex;
 static float mautorepeattime;
 static entity tempent;
@@ -60,14 +77,17 @@ static string toolname[ter_count] =
 	"height lower",
 	"tex kill",
 	"tex get",
-	"mix paint",
-	"mix concentrate",
-	"mix noise",
-	"mix blur",
+	"tex paint blend",
+	"tex paint single",
+	"tex concentrate",
+	"tex noise",
+	"tex blur",
 	"water set",
 	"mesh add",
 	"mesh kill",
-	"mesh tint",
+	"tex tint",
+	"revert to default",
+	"reload single section",
 	"",
 	"rad",
 	"quant",
@@ -82,8 +102,8 @@ __variant(float action, ...) terrain_edit = #278;
 
 void(vector m) editor_do =
 {
-	vector t = unproject(m + '0 0 8192');
-	vector o = unproject(m);
+	vector t = mousefar;
+	vector o = mousenear;
 	if (vlen(o - t) > 8192)
 		t = o + normalize(t)*8192;
 	traceline(o, t, TRUE, world);
@@ -163,11 +183,18 @@ void(vector m) editor_do =
 //	case ter_mixset:
 //		terrain_edit(curtool, trace_endpos, eradius, equant, emix);
 //		break;
-	case ter_mixpaint:
+	case ter_tex_paint:
 		if (autocvar_mod_terrain_networked && !isserver())
-			sendevent("teredit", "fvffs", TEREDIT_MIX_PAINT, trace_endpos, eradius, epercent/100.0, tex[painttex]);
+			sendevent("teredit", "fvffs", TEREDIT_TEX_BLEND, trace_endpos, eradius, epercent/100.0, tex[painttex]);
 		else
-			terrain_edit(TEREDIT_MIX_PAINT, trace_endpos, eradius, epercent/100.0, tex[painttex]);
+			terrain_edit(TEREDIT_TEX_BLEND, trace_endpos, eradius, epercent/100.0, tex[painttex]);
+		break;
+	case ter_tex_paint_single:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvfs", TEREDIT_TEX_REPLACE, trace_endpos, eradius, tex[painttex]);
+		else
+			terrain_edit(TEREDIT_TEX_REPLACE, trace_endpos, eradius, tex[painttex]);
+		break;
 		break;
 	case ter_tex_kill:
 		if (autocvar_mod_terrain_networked && !isserver())
@@ -175,23 +202,35 @@ void(vector m) editor_do =
 		else
 			terrain_edit(TEREDIT_TEX_KILL, trace_endpos, eradius, equant, tex[painttex]);
 		break;
+	case ter_reset:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvf", TEREDIT_RESET_SECT, trace_endpos, eradius);
+		else
+			terrain_edit(TEREDIT_RESET_SECT, trace_endpos, eradius);
+		break;
+	case ter_reloadsect:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvf", TEREDIT_RELOAD_SECT, trace_endpos, eradius);
+		else
+			terrain_edit(TEREDIT_RELOAD_SECT, trace_endpos, eradius);
+		break;
 	case ter_mixconcentrate:
 		if (autocvar_mod_terrain_networked && !isserver())
-			sendevent("teredit", "fvff", TEREDIT_MIX_UNIFY, trace_endpos, eradius, equant);
+			sendevent("teredit", "fvff", TEREDIT_TEX_UNIFY, trace_endpos, eradius, equant);
 		else
-			terrain_edit(TEREDIT_MIX_UNIFY, trace_endpos, eradius, equant);
+			terrain_edit(TEREDIT_TEX_UNIFY, trace_endpos, eradius, equant);
 		break;
 	case ter_mixnoise:
 		if (autocvar_mod_terrain_networked && !isserver())
-			sendevent("teredit", "fvff", TEREDIT_MIX_NOISE, trace_endpos, eradius, equant);
+			sendevent("teredit", "fvff", TEREDIT_TEX_NOISE, trace_endpos, eradius, equant);
 		else
-			terrain_edit(TEREDIT_MIX_NOISE, trace_endpos, eradius, equant);
+			terrain_edit(TEREDIT_TEX_NOISE, trace_endpos, eradius, equant);
 		break;
 	case ter_mixblur:
 		if (autocvar_mod_terrain_networked && !isserver())
-			sendevent("teredit", "fvff", TEREDIT_MIX_BLUR, trace_endpos, eradius, equant);
+			sendevent("teredit", "fvff", TEREDIT_TEX_BLUR, trace_endpos, eradius, equant);
 		else
-			terrain_edit(TEREDIT_MIX_BLUR, trace_endpos, eradius, equant);
+			terrain_edit(TEREDIT_TEX_BLUR, trace_endpos, eradius, equant);
 		break;
 
 	case ter_tint:
@@ -215,16 +254,17 @@ void(vector m) editor_do =
 
 float(float keyc, float unic, vector m) editor_terrain_key =
 {
+	float nt;
 	if (curtool >= ter_radius && curtool <= ter_tex)
 	{
 		string txt = "";
-		float nt = curtool;
+		nt = curtool;
 		if (curtool == ter_tex)
 		{
 			if (keyc == 512 && m_x > 128)
 			{
 				txt = texturesearchhighlighted;
-				nt = ter_mixpaint;
+				nt = ter_tex_paint;
 			}
 			if (keyc == 515)
 				texturesearchfirst += floor((vidsize_x)/128) - 1;
@@ -233,7 +273,7 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 		}
 
 		if (curtool == ter_radius)
-			txt = itos((int)eradius);
+			txt = itos((int)fabs(eradius));
 		if (curtool == ter_quant)
 			txt = itos((int)equant);
 		if (curtool == ter_strength)
@@ -246,14 +286,7 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 			txt = tex[painttex];
 			
 		if (keyc == 10 || keyc == 13)
-		{
-			if (curtool == ter_mesh)
-				nt = ter_mesh_add;
-			else if (curtool == ter_tintval)
-				nt = ter_tint;
-			else
-				nt = ter_mixpaint;
-		}
+			nt = lasttool;
 		else if (keyc == 127)
 			txt = substring(txt, 0, -2);
 		else if (keyc == 8)
@@ -262,7 +295,11 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 			txt = strcat(txt, chr2str(unic));
 
 		if (curtool == ter_radius)
-			eradius = stof(txt);
+		{
+			eradius = fabs(stof(txt));
+			if (squaretool)
+				eradius *= -1;
+		}
 		if (curtool == ter_quant)
 			equant = stof(txt);
 		if (curtool == ter_strength)
@@ -286,21 +323,46 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 			tint[painttex] = txt;
 		}
 
-		curtool = nt;
+		if (curtool != nt)
+		{
+			lasttool = curtool;
+			curtool = nt;
+		}
 	}
 	else if (keyc == 13 || (keyc == 512 && m_x < 128))
 	{
 		if (m_x < 128)
-			curtool = floor((m_y-16) / 8);
+		{
+			nt = floor((m_y-16) / 8);
+			if (nt != curtool)
+			{
+				if (nt == ter_roundpegsquarehole)
+				{
+					squaretool = !squaretool;
+					eradius = fabs(eradius);
+					if (squaretool) eradius *= -1;
+				}
+				else
+				{
+					lasttool = curtool;
+					curtool = nt;
+				}
+			}
+		}
 		else if (keyc == 13)
 		{
 			editor_do(m);
 		}
 	}
 	else if (unic == '+' || unic == '=')
-		eradius += 16;
+		eradius += squaretool?-16:16;
 	else if (unic == '-')
-		eradius -= 16;
+	{
+		eradius = fabs(eradius) - 16;
+		if (eradius < 0)
+			eradius = 0;
+		if (squaretool) eradius *= -1;
+	}
 	else if (curtool == ter_mesh_add && tempent)
 	{
 		if (unic == '[')
@@ -330,6 +392,10 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 		else
 			return FALSE;
 	}
+	else if (unic == '(')
+		epercent -= 10;
+	else if (unic == ')')
+		epercent += 10;
 	else if (unic == '[')
 		equant -= 1;
 	else if (unic == ']')
@@ -374,8 +440,8 @@ void(vector mousepos) editor_terrain_add =
 	if (mousepos_x < 128)
 		return;
 
-	vector t = unproject(mousepos + '0 0 8192');
-	vector o = unproject(mousepos);
+	vector t = mousefar;
+	vector o = mousenear;
 	if (vlen(o - t) > 8192)
 		t = o + normalize(t)*8192;
 	traceline(o, t, TRUE, world);
@@ -466,13 +532,15 @@ void(vector mousepos) editor_terrain_overlay =
 			colour = '1 1 1';
 
 		if (i == ter_radius)
-			drawstring(pos, sprintf("radius: %g", eradius), '8 8 0', colour, 1, 0);
+			drawstring(pos, sprintf("radius: %g", fabs(eradius)), '8 8 0', colour, 1, 0);
 		else if (i == ter_quant)
 			drawstring(pos, sprintf("quantity: %g", equant), '8 8 0', colour, 1, 0);
 		else if (i == ter_strength)
 			drawstring(pos, sprintf("percent: %g%%", epercent), '8 8 0', colour, 1, 0);
 		else if (i == ter_mesh)
 			drawstring(pos, sprintf("mesh: %s", meshname), '8 8 0', colour, 1, 0);
+		else if (i == ter_roundpegsquarehole)
+			drawstring(pos, sprintf("shape: %s", (squaretool?"square peg":"round")), '8 8 0', colour, 1, 0);
 		else if (i == ter_tex)
 		{
 			if (curtool == ter_tex_get)

@@ -18,3 +18,6 @@ void() csfixups =
 	ptr_self				= (entity*)externvalue(0, "&self");
 };
 
+
+vector mousenear;
+vector mousefar;

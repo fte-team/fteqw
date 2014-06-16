@@ -89,7 +89,7 @@ enum
 	TSF_COMPRESSED	= 1u<<31,
 
 	//these flags should not be found on disk
-	TSF_FAILEDLOAD	= 1u<<27,	//placeholder to avoid excess disk access in border regions
+	TSF_FAILEDLOAD	= 1u<<27,	//placeholder to avoid excess disk access in border regions, means it still has default settings (unless edited). not saved unless its edited.
 	TSF_NOTIFY		= 1u<<28,	//modified on server, waiting for clients to be told about the change.
 	TSF_RELIGHT		= 1u<<29,	//height edited, needs relighting.
 	TSF_DIRTY		= 1u<<30,	//its heightmap has changed, the mesh needs rebuilding
@@ -1736,7 +1736,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 			for (x = 0; x < SECTIONSPERBLOCK; x++)
 			{
 				s = Terr_GetSection(hm, sx+x, sy+y, TGS_LOAD);
-				if (s)
+				if (s && (s->flags & (TSF_EDITED|TSF_FAILEDLOAD)) != TSF_FAILEDLOAD)
 				{
 					dbh.offset[y*SECTIONSPERBLOCK + x] = VFS_TELL(f);
 					Terr_Save(hm, s, f, sx+x, sy+y, writever);
@@ -1756,6 +1756,9 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 	{
 		dsection_t dsh;
 		fname = Terr_DiskSectionName(hm, sx, sy);
+
+		if (s && (s->flags & (TSF_EDITED|TSF_FAILEDLOAD)) != TSF_FAILEDLOAD)
+			return FS_Remove(fname, FS_GAMEONLY);	//delete the file if the section got reverted to default, and wasn't later modified.
 
 		FS_CreatePath(fname, FS_GAMEONLY);
 		f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
@@ -1910,14 +1913,27 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 }
 #endif
 
-void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusable)
+void Terr_ClearSection(hmsection_t *s)
 {
+	struct hmwater_s *w;
 	int i;
-	RemoveLink(&s->recycle);
-
 	for (i = 0; i < s->numents; i++)
 		s->ents[i]->refs-=1;
 	s->numents = 0;
+
+	while(s->water)
+	{
+		w = s->water;
+		s->water = w->next;
+		Z_Free(w);
+	}
+}
+
+void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusable)
+{
+	RemoveLink(&s->recycle);
+
+	Terr_ClearSection(s);
 
 #ifndef SERVERONLY
 	if (s->lightmap >= 0)
@@ -3856,7 +3872,7 @@ static void ted_waterset(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 	//FIXME: what about holes?
 }
 
-static void ted_mixconcentrate(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+static void ted_texconcentrate(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
 	unsigned char *lm = ted_getlightmap(s, idx);
 	s->flags |= TSF_NOTIFY|TSF_EDITED;
@@ -3888,7 +3904,7 @@ static void ted_mixconcentrate(void *ctx, hmsection_t *s, int idx, float wx, flo
 	}
 }
 
-static void ted_mixnoise(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+static void ted_texnoise(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
 	unsigned char *lm = ted_getlightmap(s, idx);
 	vec4_t v;
@@ -3909,7 +3925,7 @@ static void ted_mixnoise(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 	lm[2] = lm[2]*(1-w) + (v[2]*(w));
 }
 
-static void ted_mixpaint(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+static void ted_texpaint(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
 	unsigned char *lm = ted_getlightmap(s, idx);
 	const char *texname = ctx;
@@ -3968,8 +3984,14 @@ static void ted_mixpaint(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 	}
 }
 
+static void ted_texreplace(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+{
+	if (w > 0)
+		ted_texpaint(ctx, s, idx, wx, wy, 1);
+}
+
 /*
-static void ted_mixlight(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+static void ted_texlight(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
 	unsigned char *lm = ted_getlightmap(s, idx);
 	vec3_t pos, pos2;
@@ -4006,7 +4028,7 @@ static void ted_mixlight(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 	lm[3] = d*255;
 }
 */
-static void ted_mixset(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+static void ted_texset(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
 	unsigned char *lm = ted_getlightmap(s, idx);
 	if (w > 1)
@@ -4018,7 +4040,7 @@ static void ted_mixset(void *ctx, hmsection_t *s, int idx, float wx, float wy, f
 	lm[0] = lm[0]*(1-w) + (255*((float*)ctx)[2]*(w));
 }
 
-static void ted_mixtally(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+static void ted_textally(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
 	unsigned char *lm = ted_getlightmap(s, idx);
 	((float*)ctx)[0] += lm[0]*w;
@@ -4043,7 +4065,9 @@ static void ted_tint(void *ctx, hmsection_t *s, int idx, float wx, float wy, flo
 enum
 {
 	tid_linear,
-	tid_exponential
+	tid_exponential,
+	tid_square_linear,
+	tid_square_exponential,
 };
 //calls 'func' for each tile upon the terrain. the 'tile' can be either height or texel
 static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float radius, float strength, int steps, void(*func)(void *ctx, hmsection_t *s, int idx, float wx, float wy, float strength), void *ctx)
@@ -4055,6 +4079,12 @@ static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float ra
 	int sx,sy;
 	hmsection_t *s;
 	float w, xd, yd;
+
+	if (radius < 0)
+	{
+		radius *= -1;
+		distribution |= 2;
+	}
 
 	min[0] = floor((pos[0] - radius)/(hm->sectionsize) - 1.5);
 	min[1] = floor((pos[1] - radius)/(hm->sectionsize) - 1.5);
@@ -4091,14 +4121,30 @@ static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float ra
 //					if (xd < 0)
 //						xd = 0;
 
-					if (radius*radius >= (xd*xd+yd*yd))
+					switch(distribution)
 					{
-						if (distribution == tid_exponential)
-							w = sqrt((radius*radius) - ((xd*xd)+(yd*yd)));
-						else
-							w = radius - sqrt(xd*xd+yd*yd);
+					case tid_exponential:
+						w = radius*radius - (xd*xd+yd*yd);
+						if (w > 0)
+							func(ctx, s, tx+ty*steps, wx, wy, sqrt(w)*strength/(radius));
+						break;
+					case tid_linear:
+						w = radius - sqrt(xd*xd+yd*yd);
 						if (w > 0)
 							func(ctx, s, tx+ty*steps, wx, wy, w*strength/(radius));
+						break;
+					case tid_square_exponential:
+						w = max(fabs(xd), fabs(yd));
+						w = radius*radius - w*w;
+						if (w > 0)
+							func(ctx, s, tx+ty*steps, wx, wy, sqrt(w)*strength/(radius));
+						break;
+					case tid_square_linear:
+						w = max(fabs(xd), fabs(yd));
+						w = radius - w;
+						if (w > 0)
+							func(ctx, s, tx+ty*steps, wx, wy, w*strength/(radius));
+						break;
 					}
 				}
 			}
@@ -4259,20 +4305,23 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 //	case ter_mixset:
 //		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixset, G_VECTOR(OFS_PARM4));
 //		break;
-	case ter_mix_paint:
-		ted_itterate(hm, tid_exponential, pos, radius, quant/10, SECTTEXSIZE, ted_mixpaint, (void*)PR_GetStringOfs(prinst, OFS_PARM4));
+	case ter_tex_blend:
+		ted_itterate(hm, tid_exponential, pos, radius, quant/10, SECTTEXSIZE, ted_texpaint, (void*)PR_GetStringOfs(prinst, OFS_PARM4));
 		break;
-	case ter_mix_concentrate:
-		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixconcentrate, NULL);
+	case ter_tex_replace:
+		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_texreplace, (void*)PR_GetStringOfs(prinst, OFS_PARM3));
 		break;
-	case ter_mix_noise:
-		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixnoise, NULL);
+	case ter_tex_concentrate:
+		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_texconcentrate, NULL);
 		break;
-	case ter_mix_blur:
+	case ter_tex_noise:
+		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_texnoise, NULL);
+		break;
+	case ter_tex_blur:
 		Vector4Set(tally, 0, 0, 0, 0);
-		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_mixtally, &tally);
+		ted_itterate(hm, tid_exponential, pos, radius, 1, SECTTEXSIZE, ted_textally, &tally);
 		VectorScale(tally, 1/(tally[3]*255), tally);
-		ted_itterate(hm, tid_exponential, pos, radius, quant, SECTTEXSIZE, ted_mixset, &tally);
+		ted_itterate(hm, tid_exponential, pos, radius, quant, SECTTEXSIZE, ted_texset, &tally);
 		break;
 	case ter_tex_get:
 		{
@@ -4299,6 +4348,23 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 
 			ted_texkill(Terr_GetSection(hm, x, y, TGS_FORCELOAD), PR_GetStringOfs(prinst, OFS_PARM4));
+		}
+		break;
+	case ter_reset:
+		{
+			int x, y;
+			hmsection_t *s;
+			x = pos[0] / hm->sectionsize;
+			y = pos[1] / hm->sectionsize;
+			x = bound(hm->firstsegx, x, hm->maxsegx-1);
+			y = bound(hm->firstsegy, y, hm->maxsegy-1);
+			s = Terr_GetSection(hm, x, y, TGS_LOAD);
+			if (s)
+			{
+				s->flags = (s->flags & ~TSF_EDITED) | TSF_FAILEDLOAD;
+				Terr_ClearSection(s);
+				Terr_GenerateDefault(hm, s);
+			}
 		}
 		break;
 	case ter_mesh_add:

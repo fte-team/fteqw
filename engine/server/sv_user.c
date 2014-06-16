@@ -6970,7 +6970,11 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 		SV_PostRunCmd();
 	}
 	else
+	{
+		if (i)
+			host_client->edict->v->impulse = i;
 		host_client->isindependant = false;
+	}
 }
 
 void SVNQ_ExecuteClientMessage (client_t *cl)

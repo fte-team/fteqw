@@ -1471,7 +1471,7 @@ static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int 
 	{
 		int i;
 		int p;
-		vec3_t org, dest;
+//		vec3_t org, dest;
 
 		qglBegin(GL_LINES);
 		qglColor3f(0, 0, 1);
@@ -3796,33 +3796,22 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 #ifdef SKELETALMODELS
 	if (inf->numbones)
 	{
-		galiasbone_t *bone;
-		galiasgroup_t *g1, *g2;
+		galiasbone_t *bone = inf->ofsbones;
 
 		float tempmatrix[12];			//flipped between this and bonematrix
 		float *matrix;	//the matrix for a single bone in a single pose.
 		float m[12];	//combined interpolated version of 'matrix'.
 		int b, k;	//counters
 
-		float *pose[4];	//the per-bone matricies (one for each pose)
-		float plerp[4];	//the ammount of that pose to use (must combine to 1)
-		int numposes = 0;
-
-		int frame1, frame2;
-		float f1time, f2time;
-		float f2ness;
-
-#ifdef warningmsg
-#pragma warningmsg("fixme: no baseframe info")
-#endif
+		int numbonegroups = 0;
+		skellerps_t lerps[FS_COUNT], *lerp;
 
 		if (tagnum <= 0 || tagnum > inf->numbones)
 			return false;
 		tagnum--;	//tagnum 0 is 'use my angles/org'
 
-		bone = inf->ofsbones;
-
-		if (fstate->bonestate)
+		//data comes from skeletal object, if possible
+		if (!numbonegroups && fstate->bonestate)
 		{
 			if (tagnum >= fstate->bonecount)
 				return false;
@@ -3833,91 +3822,32 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 				return true;
 			}
 
-			pose[0] = fstate->bonestate;
-			plerp[0] = 1;
-			numposes = 1;
+			lerps[0].pose[0] = fstate->bonestate;
+			lerps[0].frac[0] = 1;
+			lerps[0].lerpcount = 1;
+			lerps[0].firstbone = 0;
+			lerps[0].endbone = fstate->bonecount;
+			numbonegroups = 1;
 		}
-		else
+
+		//try getting the data from the frame state
+		if (!numbonegroups)
+			numbonegroups = Alias_FindRawSkelData(inf, fstate, lerps, 0, inf->numbones);
+
+		//try base pose?
+		if (!numbonegroups && inf->baseframeofs)
 		{
-			frame1 = fstate->g[FS_REG].frame[0];
-			frame2 = fstate->g[FS_REG].frame[1];
-			f1time = fstate->g[FS_REG].frametime[0];
-			f2time = fstate->g[FS_REG].frametime[1];
-			f2ness = fstate->g[FS_REG].lerpfrac;
-
-			if (frame1 < 0 || frame1 >= inf->groups)
-				return false;
-			if (frame2 < 0 || frame2 >= inf->groups)
-			{
-				f2ness = 0;
-				frame2 = frame1;
-			}
-
-	//the higher level merges old/new anims, but we still need to blend between automated frame-groups.
-			g1 = &inf->groupofs[frame1];
-			g2 = &inf->groupofs[frame2];
-
-			if (f2ness != 1)
-			{
-				f1time *= g1->rate;
-				if (g1->loop)
-				{
-					frame1 = (int)f1time%g1->numposes;
-					frame2 = ((int)f1time+1)%g1->numposes;
-					f1time = f1time - (int)f1time;
-				}
-				else
-				{
-					frame1 = (int)f1time;
-					frame2 = ((int)f1time+1);
-					f1time = f1time - (int)f1time;
-					if (frame2 >= g1->numposes)
-					{
-						frame1 = frame2 = g1->numposes-1;
-						f1time = 0;
-					}
-				}
-				pose[numposes] = g1->boneofs + inf->numbones*12*frame1;
-				plerp[numposes] = (1-f1time) * (1-f2ness);
-				numposes++;
-				if (frame1 != frame2)
-				{
-					pose[numposes] = g1->boneofs + inf->numbones*12*frame2;
-					plerp[numposes] = f1time * (1-f2ness);
-					numposes++;
-				}
-			}
-			if (f2ness)
-			{
-				f2time *= g2->rate;
-				if (g2->loop)
-				{
-					frame1 = (int)f2time%g2->numposes;
-					frame2 = ((int)f2time+1)%g2->numposes;
-					f2time = f2time - (int)f2time;
-				}
-				else
-				{
-					frame1 = (int)f2time;
-					frame2 = ((int)f2time+1);
-					f2time = f2time - (int)f2time;
-					if (frame2 >= g2->numposes)
-					{
-						frame1 = frame2 = g2->numposes-1;
-						f2time = 0;
-					}
-				}
-				pose[numposes] = g2->boneofs + inf->numbones*12*frame1;
-				plerp[numposes] = (1-f2time) * f2ness;
-				numposes++;
-				if (frame1 != frame2)
-				{
-					pose[numposes] = g2->boneofs + inf->numbones*12*frame2;
-					plerp[numposes] = f2time * f2ness;
-					numposes++;
-				}
-			}
+			lerps[0].pose[0] = inf->baseframeofs;
+			lerps[0].frac[0] = 1;
+			lerps[0].lerpcount = 1;
+			lerps[0].firstbone = 0;
+			lerps[0].endbone = inf->numbones;
+			numbonegroups = 1;
 		}
+
+		//make sure it was all okay.
+		if (!numbonegroups || tagnum >= lerps[numbonegroups-1].endbone)
+			return false;
 
 		//set up the identity matrix
 		for (k = 0;k < 12;k++)
@@ -3927,15 +3857,23 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 		result[10] = 1;
 		while(tagnum >= 0)
 		{
+			for (lerp = lerps; tagnum < lerp->endbone; lerp++)
+				;
 			//set up the per-bone transform matrix
+			matrix = lerp->pose[0] + tagnum*12;
 			for (k = 0;k < 12;k++)
-				m[k] = 0;
-			for (b = 0;b < numposes;b++)
+				m[k] = matrix[k] * lerp->frac[0];
+			for (b = 1;b < lerp->lerpcount;b++)
 			{
-				matrix = pose[b] + tagnum*12;
-
+				matrix = lerp->pose[b] + tagnum*12;
 				for (k = 0;k < 12;k++)
-					m[k] += matrix[k] * plerp[b];
+					m[k] += matrix[k] * lerp->frac[b];
+			}
+
+			if (lerp->skeltype == SKEL_ABSOLUTE)
+			{
+				memcpy(result, m, sizeof(tempmatrix));
+				return true;
 			}
 
 			memcpy(tempmatrix, result, sizeof(tempmatrix));

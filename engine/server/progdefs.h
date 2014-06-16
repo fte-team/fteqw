@@ -109,31 +109,31 @@ and the extension fields are added on the end and can have extra vm-specific stu
 */
 /*DO NOT ADD TO THIS STRUCTURE (base-qw-compat for q1qvm)*/
 #define comqcfields	\
-	comfieldfloat(modelindex,NULL)\
-	comfieldvector(absmin,NULL)\
-	comfieldvector(absmax,NULL)\
-	comfieldfloat(ltime,NULL)\
-	comfieldfloat(lastruntime,NULL)	/*type doesn't match the qc, we use a hidden double instead. this is dead.*/ 	\
-	comfieldfloat(movetype,NULL)\
-	comfieldfloat(solid,NULL)\
-	comfieldvector(origin,NULL)\
-	comfieldvector(oldorigin,NULL)\
-	comfieldvector(velocity,NULL)\
-	comfieldvector(angles,NULL)\
-	comfieldvector(avelocity,NULL)\
-	comfieldstring(classname,NULL)\
-	comfieldstring(model,NULL)\
-	comfieldfloat(frame,NULL)\
-	comfieldfloat(skin,NULL)\
-	comfieldfloat(effects,NULL)\
-	comfieldvector(mins,NULL)\
-	comfieldvector(maxs,NULL)\
-	comfieldvector(size,NULL)\
+	comfieldfloat(modelindex,"This is the model precache index for the model that was set on the entity, instead of having to look up the model according to the .model field. Use setmodel to change it.")\
+	comfieldvector(absmin,"Set by the engine when the entity is relinked (by setorigin, setsize, or setmodel). This is in world coordinates.")\
+	comfieldvector(absmax,"Set by the engine when the entity is relinked (by setorigin, setsize, or setmodel). This is in world coordinates.")\
+	comfieldfloat(ltime,"On MOVETYPE_PUSH entities, this is used as an alternative to the 'time' global, and .nextthink is synced to this instead of time. This allows time to effectively freeze if the entity is blocked, ensuring the think happens when the entity reaches the target point instead of randomly.")\
+	comfieldfloat(lastruntime,"This field used to be used to avoid running an entity multiple times in a single frame due to quakeworld's out-of-order thinks. It is no longer used by FTE due to precision issues, but may still be updated for compatibility reasons.")	/*type doesn't match the qc, we use a hidden double instead. this is dead.*/ 	\
+	comfieldfloat(movetype,"Describes how the entity moves. One of the MOVETYPE_ constants.")\
+	comfieldfloat(solid,"Describes whether the entity is solid or not, and any special properties infered by that. Must be one of the SOLID_ constants")\
+	comfieldvector(origin,"The current location of the entity in world space. Inline bsp entities (ie: ones placed by a mapper) will typically have a value of '0 0 0' in their neutral pose, as the geometry is offset from that. It is the reference point of the entity rather than the center of its geometry, for non-bsp models, this is often not a significant distinction.")\
+	comfieldvector(oldorigin,"This is often used on players to reset the player back to where they were last frame if they somehow got stuck inside something due to fpu precision. Never change a player's oldorigin field to inside a solid, because that might cause them to become pemanently stuck.")\
+	comfieldvector(velocity,"The direction and speed that the entity is moving in world space.")\
+	comfieldvector(angles,"The eular angles the entity is facing in, in pitch, yaw, roll order. Note that non-bsp models use a negated pitch due to a widely-proliferated-and-thus-unfixable legacy bug.")\
+	comfieldvector(avelocity,"The amount the entity's angles change by each frame. Note that this is direct eular angles, and thus the angular change is non-linear and often just looks buggy.")\
+	comfieldstring(classname,"Identifies the class/type of the entity. Useful for debugging, also used for loading, but its value is not otherwise significant to the engine, this leaves the mod free to set it to whatever it wants and randomly test strings for values in whatever inefficient way it chooses fit.")\
+	comfieldstring(model,"The model name that was set via setmodel, in theory. Often, this is cleared to null to prevent the engine from being seen by clients while not changing modelindex. This behaviour allows inline models to remain solid yet be invisible.")\
+	comfieldfloat(frame,"The current frame the entity is meant to be displayed in. In CSQC, note the lerpfrac and frame2 fields as well. if it specifies a framegroup, the framegroup will autoanimate in ssqc, but not in csqc.")\
+	comfieldfloat(skin,"The skin index to use. on a bsp entity, setting this to 1 will switch to the 'activated' texture instead. A negative value will be understood as a replacement contents value, so setting it to CONTENTS_WATER will make a movable pool of water.")\
+	comfieldfloat(effects,"Lots of random flags that change random effects.")\
+	comfieldvector(mins,"The minimum extent of the model (ie: the bottom-left coordinate relative to the entity's origin). Change via setsize. May also be changed by setmodel.")\
+	comfieldvector(maxs,"like mins, but in the other direction.")\
+	comfieldvector(size,"maxs-mins. Updated when the entity is relinked (by setorigin, setsize, setmodel)")\
 	comfieldfunction(touch, ".void()",NULL)\
 	comfieldfunction(use, ".void()",NULL)\
 	comfieldfunction(think, ".void()",NULL)\
 	comfieldfunction(blocked, ".void()",NULL)\
-	comfieldfloat(nextthink,NULL)\
+	comfieldfloat(nextthink,"The time at which the entity is next scheduled to fire its think event. For MOVETYPE_PUSH entities, this is relative to that entity's ltime field, for all other entities it is relative to the time gloal.")\
 	comfieldentity(groundentity,NULL)\
 	comfieldfloat(health,NULL)\
 	comfieldfloat(frags,NULL)\
@@ -191,15 +191,15 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldvector(punchangle,NULL) /*std in nq*/\
 	comfieldfloat(gravity,NULL)	/*added in quake 1.09 (for hipnotic)*/\
 	comfieldfloat(hull,"Overrides the hull used by the entity for walkmove/movetogoal and not traceline/tracebox.")/*PEXT_HEXEN2*/\
-	comfieldentity(movechain,NULL)/*hexen2*/\
-	comfieldfunction(chainmoved, ".void()",NULL)/*hexen2*/\
+	comfieldentity(movechain,"This is a linked list of entities which will be moved whenever this entity moves, logically they are attached to this entity.")/*hexen2*/\
+	comfieldfunction(chainmoved, ".void()","Called when the entity is moved as a result of being part of another entity's .movechain")/*hexen2*/\
 	comfieldfunction(contentstransition, ".void(float old, float new)","This function is called when the entity moves between water and air. If specified, default splash sounds will be disabled allowing you to provide your own.")/*ENTITYCONTENTSTRANSITION*/\
 	comfieldfloat(dimension_solid,"This is the bitmask of dimensions which the entity is solid within.")/*EXT_DIMENSION_PHYSICS*/\
 	comfieldfloat(dimension_hit,"This is the bitmask of dimensions which the entity will be blocked by. If other.dimension_solid & self.dimension_hit, our traces will impact and not proceed. If its false, the traces will NOT impact, allowing self to pass straight through.")/*EXT_DIMENSION_PHYSICS*/\
 	comfieldfloat(hitcontentsmask,NULL)\
-	comfieldfloat(scale,NULL)/*DP_ENT_SCALE*/\
-	comfieldfloat(fatness,NULL)/*FTE_PEXT_FATNESS*/\
-	comfieldfloat(alpha,NULL)/*DP_ENT_ALPHA*/\
+	comfieldfloat(scale,"Multiplier that resizes the entity. 1 is normal sized, 2 is double sized. scale 0 is remapped to 1. In SSQC, this is limited to 1/16th precision, with a maximum just shy of 16.")/*DP_ENT_SCALE*/\
+	comfieldfloat(fatness,"How many QuakeUnits to push the entity's verticies along their normals by.")/*FTE_PEXT_FATNESS*/\
+	comfieldfloat(alpha,"The transparency of the entity. 1 means opaque, 0.0001 means virtually invisible. 0 is remapped to 1, for compatibility.")/*DP_ENT_ALPHA*/\
 	comfieldentity(tag_entity,NULL)\
 	comfieldfloat(tag_index,NULL)\
 	comfieldfloat(skeletonindex,"This object serves as a container for the skeletal bone states used to override the animation data.")		/*FTE_CSQC_SKELETONOBJECTS*/\
@@ -222,12 +222,12 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(maxspeed,NULL)/*added in quake 1.09*/\
 	comfieldfloat(items2,NULL)		/*added in quake 1.09 (for hipnotic)*/\
 	comfieldentity(view2,NULL)/*FTE_PEXT_VIEW2*/\
-	comfieldvector(movement,NULL)\
+	comfieldvector(movement,"These are the directions that the player is currently trying to move in (ie: which +forward/+moveright/+moveup etc buttons they have held), expressed relative to that player's angles. Order is forward, right, up.")\
 	comfieldfloat(vw_index,NULL)\
-	comfieldentity(nodrawtoclient,NULL)\
-	comfieldentity(drawonlytoclient,NULL)\
-	comfieldentity(viewmodelforclient,NULL)/*DP_ENT_VIEWMODEL*/\
-	comfieldentity(exteriormodeltoclient,NULL)\
+	comfieldentity(nodrawtoclient,"This entity will not be sent to the player named by this field. They will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.")\
+	comfieldentity(drawonlytoclient,"This entity will be sent *only* to the player named by this field. To other players they will be invisible and not emit dlights/particles. Does not work in MVD-recorded game.")\
+	comfieldentity(viewmodelforclient,"This entity will be sent only to the player named by this field, and this entity will be attached to the player's view as an additional weapon model.")/*DP_ENT_VIEWMODEL*/\
+	comfieldentity(exteriormodeltoclient,"This entity will be invisible to the player named by this field, except in mirrors or mirror-like surfaces, where it will be visible as normal. It may still cast shadows as normal, and generate lights+particles, depending on client settings. Does not affect how other players see the entity.")\
 	comfieldfloat(button3,"DP_INPUTBUTTONS (note in qw, we set 1 to equal 3, to match zquake/fuhquake/mvdsv)")\
 	comfieldfloat(button4,NULL)\
 	comfieldfloat(button5,NULL)\
@@ -238,10 +238,10 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(glow_size,NULL)\
 	comfieldfloat(glow_color,NULL)\
 	comfieldfloat(glow_trail,NULL)\
-	comfieldfloat(traileffectnum,NULL)/*DP_ENT_TRAILEFFECTNUM*/\
-	comfieldvector(color,NULL)/*Hexen2 has a .float color, the warnings should be benign*/ \
-	comfieldfloat(light_lev,NULL)\
-	comfieldfloat(style,NULL)\
+	comfieldfloat(traileffectnum,"This should be set to the result of particleeffectnum, in order to attach a custom trail effect to an entity as it moves.")/*DP_ENT_TRAILEFFECTNUM*/\
+	comfieldvector(color,"This affects the colour of realtime lights that were enabled via the pflags field.")/*Hexen2 has a .float color, the warnings should be benign*/ \
+	comfieldfloat(light_lev,"This is the radius of an entity's light. This is not normally used by the engine, but is used for realtime lights (ones that are enabled with the pflags field).")\
+	comfieldfloat(style,"Used by the light util to decide how an entity's light should animate. On an entity with pflags set, this also affects realtime lights.")\
 	comfieldfloat(pflags,"Realtime lighting flags")\
 	comfieldfloat(clientcolors,NULL)\
 	comfieldfloat(dimension_see,"This is the dimension mask (bitfield) that the client is allowed to see. Entities and events not in this dimension mask will be invisible.")/*EXT_DIMENSION_VISIBLE*/\
@@ -251,44 +251,44 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(playerclass,NULL)/*hexen2 requirements*/\
 	comfieldfloat(drawflags,"Various flags that affect lighting values and scaling. Typically set to 96 in quake for proper compatibility with DP_QC_SCALE.")/*hexen2*/\
 	comfieldfloat(hasted,NULL)/*hexen2 uses this AS WELL as maxspeed*/\
-	comfieldfloat(light_level,NULL)/*hexen2's grabbing light level from client*/\
+	comfieldfloat(light_level,"Used by hexen2 to indicate the light level where the player is standing.")\
 	comfieldfloat(abslight,"Allows overriding light levels. Use drawflags to state that this field should actually be used.")/*hexen2's force a lightlevel*/\
-	comfieldfunction(SendEntity, ".float(entity playerent, float changedflags)",NULL)/*EXT_CSQC*/\
-	comfieldfloat(SendFlags,NULL)/*EXT_CSQC_1 (one of the DP guys came up with it)*/\
+	comfieldfunction(SendEntity, ".float(entity playerent, float changedflags)","Called by the engine whenever an entity needs to be (re)sent to a client's csprogs, either because SendFlags was set or because data was lost. Must write its data to the MSG_ENTITY buffer. Will be called at the engine's leasure.")/*EXT_CSQC*/\
+	comfieldfloat(SendFlags,"Indicates that something in the entity has been changed, and that it needs to be updated to all players that can see it. The engine will clear it at some point, with the cleared bits appearing in the 'changedflags' argument of the SendEntity method.")/*EXT_CSQC_1 (one of the DP guys came up with it)*/\
 	comfieldfloat(Version,"Obsolete, set a SendFlags bit instead.")/*EXT_CSQC (obsolete)*/\
 	comfieldfloat(pvsflags,"Reconfigures when the entity is visible to clients")/*EXT_CSQC_1*/\
-	comfieldfloat(modelflags,NULL)\
-	comfieldfloat(uniquespawnid,NULL)/*FTE_ENT_UNIQUESPAWNID*/\
-	comfieldfunction(customizeentityforclient, ".float()",NULL)
+	comfieldfloat(modelflags,"Used to override the flags set in the entity's model. Should be set according to the MF_ constants. Use effects|=EF_NOMODELFLAGS to ignore the model's flags completely. The traileffectnum field is more versatile.")\
+	comfieldfloat(uniquespawnid,"Incremented by 1 whenever the entity is respawned. Persists across remove calls, for when the two-second grace period is insufficient.")/*FTE_ENT_UNIQUESPAWNID*/\
+	comfieldfunction(customizeentityforclient, ".float()","Called just before an entity is sent to a client (non-csqc protocol). This gives you a chance to tailor 'self' according to what 'other' should see.")
 
 //this is the list for all the csqc fields.
 //(the #define is so the list always matches the ones pulled out)
 #define csqcextfields	\
-	comfieldfloat(entnum,NULL)		\
-	comfieldfloat(frame2,NULL)		/*EXT_CSQC_1*/\
-	comfieldfloat(frame1time,NULL)	/*EXT_CSQC_1*/\
-	comfieldfloat(frame2time,NULL)	/*EXT_CSQC_1*/\
-	comfieldfloat(lerpfrac,NULL)	/*EXT_CSQC_1*/\
+	comfieldfloat(entnum,"This is the number of the entity that the ssqc is using.")		\
+	comfieldfloat(frame2,"This is typically the old frame of the entity. if lerpfrac is 1, .frame will be ignored and .frame2 will be used solely. lerpfrac 0.5 will give an even 50/50 blend.")		/*EXT_CSQC_1*/\
+	comfieldfloat(frame1time,"This controls the time into the framegroup/animation named by .frame, you should increment this value according to frametime or to distance moved, depending on the sort of animation you're attempting. You may wish to avoid incrementing this while lerpfrac is still changing, to avoid wasting parts of the animation.")	/*EXT_CSQC_1*/\
+	comfieldfloat(frame2time,".frame2 equivelent of frame1time.")	/*EXT_CSQC_1*/\
+	comfieldfloat(lerpfrac,"The value 0 means the entity will animate using only .frame, which will be jerky. As this value is incremented, more of frame2 will be used. If you wish to use .frame2 as the 'old' frame, it is generally recommended to start this field with the value 1, to decrement it by frametime, and when it drops below 0 add 1 to it and update .frame2 and .frame to lerp into the new frame.")	/*EXT_CSQC_1*/\
 	comfieldfloat(renderflags,NULL)\
 	comfieldfloat(forceshader,"Contains a shader handle used to replace all surfaces upon the entity.")/*FTE_CSQC_SHADERS*/\
 							\
-	comfieldfloat(baseframe,NULL)	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(baseframe2,NULL)	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(baseframe1time,NULL)	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(baseframe2time,NULL)	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(baselerpfrac,NULL)	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(basebone,NULL)	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baseframe,"See basebone")	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baseframe2,"See basebone")	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baseframe1time,"See basebone")	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baseframe2time,"See basebone")	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(baselerpfrac,"See basebone")	/*FTE_CSQC_BASEFRAME*/\
+	comfieldfloat(basebone,"The base* frame animations are equivelent to their non-base versions, except that they only affect bone numbers below the 'basebone' value. This means that the base* animation can affect the legs of a skeletal model independantly of the normal animation fields affecting the torso area. For more complex animation than this, use skeletal objects.")	/*FTE_CSQC_BASEFRAME*/\
 							\
-  	comfieldfloat(bonecontrol1,NULL)	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol2,NULL)	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol3,NULL)	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol4,NULL)	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol5,NULL)	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(subblendfrac,NULL)	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(basesubblendfrac,NULL)	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
+  	comfieldfloat(bonecontrol1,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol2,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol3,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol4,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol5,"Halflife model format bone controller. This typically affects the mouth.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(subblendfrac,"Weird animation value specific to halflife models. On player models, this typically affects the spine's pitch.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(basesubblendfrac,"See basebone")	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
 							\
-	comfieldfloat(drawmask,NULL)	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
-	comfieldfunction(predraw, ".float()",NULL)	/*If present, is called just before it's drawn.*/	
+	comfieldfloat(drawmask, "Matces the bitmask passed to the addentities builtin, to easily submit entities to the renderer. Not otherwise meaningful.")	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
+	comfieldfunction(predraw, ".float()","Called as part of the addentities builtin. Returns one of the PREDRAW_ constants. This gives you a chance to interpolate or animate entities as desired.")	/*If present, is called just before it's drawn.*/	
 
 typedef struct stdentvars_s //standard = standard for qw
 {

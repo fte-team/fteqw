@@ -299,11 +299,12 @@ void Q2BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, float *mins,
 	int			topnode;
 	int i, j;
 	int			area;
+	int nullarea = (model->fromgame == fg_quake2)?0:-1;
 
 	//ent->num_leafs == q2's ent->num_clusters
 	ent->num_leafs = 0;
-	ent->areanum = 0;
-	ent->areanum2 = 0;
+	ent->areanum = nullarea;
+	ent->areanum2 = nullarea;
 
 	if (!mins || !maxs)
 		return;
@@ -317,7 +318,7 @@ void Q2BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, float *mins,
 	{
 		clusters[i] = CM_LeafCluster (model, leafs[i]);
 		area = CM_LeafArea (model, leafs[i]);
-		if (area)
+		if (area != nullarea)
 		{	// doors may legally straggle two areas,
 			// but nothing should ever need more than that
 			if (ent->areanum && ent->areanum != area)
@@ -1041,6 +1042,8 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	{
 		//solid_portal cares only about origins and as such has no mins/max
 		TransformedTrace(model, 0, ent->v->frame, start, end, vec3_origin, vec3_origin, &trace, eorg, ent->v->angles, hitcontentsmask);
+		if (trace.startsolid)	//portals should not block traces. this prevents infinite looping
+			trace.startsolid = trace.allsolid = false;
 		hitmodel = false;
 	}
 	else if (ent->v->solid != SOLID_BSP)
@@ -1362,6 +1365,74 @@ void WorldQ2_ClipMoveToEntities (world_t *w, moveclip_t *clip )
 #endif
 //===========================================================================
 
+//a portal is flush with a world surface behind it.
+//this causes problems. namely that we can't pass through the portal plane if the bsp behind it prevents out origin from getting through.
+//so if the trace was clipped and ended infront of the portal, continue the trace to the edges of the portal cutout instead.
+void World_PortalCSG(wedict_t *portal, float trminz, float trmaxz, vec3_t start, vec3_t end, trace_t *trace)
+{
+	vec4_t planes[6];	//far, near, right, left, up, down
+	int plane;
+	vec3_t worldpos;
+	float portalradius = portal->v->impulse;
+	//only run this code if we impacted on the portal's parent.
+	if (trace->fraction == 1 && !trace->startsolid)
+		return;
+	if (!portalradius)
+		return;
+	
+	if (trace->startsolid)
+		VectorCopy(start, worldpos);	//make sure we use a sane valid position.
+	else
+		VectorCopy(trace->endpos, worldpos);
+
+	//determine the csg area. normals should be facing in
+	AngleVectors(portal->v->angles, planes[1], planes[3], planes[5]);
+	VectorNegate(planes[1], planes[0]);
+	VectorNegate(planes[3], planes[2]);
+	VectorNegate(planes[5], planes[4]);
+
+	trminz = fabs(trminz);
+	portalradius/=2;
+	planes[0][3] = DotProduct(portal->v->origin, planes[0]) - trminz-16;
+	planes[1][3] = DotProduct(portal->v->origin, planes[1]) - (1.0/32);	//an epsilon beyond the portal
+	planes[2][3] = DotProduct(portal->v->origin, planes[2]) - portalradius+trminz;
+	planes[3][3] = DotProduct(portal->v->origin, planes[3]) - portalradius+trminz;
+	planes[4][3] = DotProduct(portal->v->origin, planes[4]) - portalradius+trminz;
+	planes[5][3] = DotProduct(portal->v->origin, planes[5]) - portalradius+trminz;
+
+	//if we're actually inside the csg region
+	for (plane = 0; plane < 6; plane++)
+	{
+		float d = DotProduct(worldpos, planes[plane]);
+		if (d - planes[plane][3] >= 0)
+			continue;	//endpos is inside
+		else
+			return;		//end is already outside
+	}
+	//yup, we're inside, the trace shouldn't end where it actually did
+	trace->fraction = 1;
+	trace->startsolid = trace->allsolid = false;
+	VectorInterpolate(start, 1, end, trace->endpos);
+	for (plane = 0; plane < 6; plane++)
+	{
+		float ds = DotProduct(start, planes[plane]) - planes[plane][3];
+		float de = DotProduct(end, planes[plane]) - planes[plane][3];
+		float frac;
+		if (ds > 0 && de < 0)
+		{
+			frac = (ds-(1.0/32)) / (ds - de);
+			if (frac < trace->fraction)
+			{
+				if (frac < 0)
+					frac = 0;
+				trace->fraction = frac;
+				VectorInterpolate(start, frac, end, trace->endpos);
+				VectorCopy(planes[plane], trace->plane.normal);
+				trace->plane.dist = planes[plane][3];
+			}
+		}
+	}
+}
 
 /*
 ====================
@@ -1420,14 +1491,20 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 			continue;	// points never interact
 
 	// might intersect, so do an exact clip
-		if (clip->trace.allsolid)
-			return;
+//		if (clip->trace.allsolid)
+//			return;
 		if (clip->passedict)
 		{
 		 	if ((wedict_t*)PROG_TO_EDICT(w->progs, touch->v->owner) == clip->passedict)
 				continue;	// don't clip against own missiles
 			if ((wedict_t*)PROG_TO_EDICT(w->progs, clip->passedict->v->owner) == touch)
 				continue;	// don't clip against owner
+		}
+
+		if (touch->v->solid == SOLID_PORTAL)
+		{
+			//make sure we don't hit the world if we're inside the portal
+			World_PortalCSG(touch, clip->mins[2], clip->maxs[2], clip->start, clip->end, &clip->trace);
 		}
 
 		if ((int)touch->v->flags & FL_MONSTER)
@@ -1531,13 +1608,16 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 				continue;	// don't clip against owner
 		}
 
+		if (touch->v->solid == SOLID_PORTAL)
+		{
+			//make sure we don't hit the world if we're inside the portal
+			World_PortalCSG(touch, clip->mins[2], clip->maxs[2], clip->start, clip->end, &clip->trace);
+		}
+
 		if ((int)touch->v->flags & FL_MONSTER)
 			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
 		else
 			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
-
-		if (trace.startsolid && touch->v->solid == SOLID_PORTAL)
-			continue;
 
 		if (trace.allsolid || trace.startsolid ||
 		trace.fraction < clip->trace.fraction)

@@ -154,6 +154,7 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 
 		memcpy(&((struct sockaddr_in6*)s)->sin6_addr, a->address.ip6, sizeof(struct in6_addr));
 		((struct sockaddr_in6*)s)->sin6_port = a->port;
+		((struct sockaddr_in6 *)s)->sin6_scope_id = a->scopeid;
 		return sizeof(struct sockaddr_in6);
 #endif
 #ifdef USEIPX
@@ -202,6 +203,7 @@ void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a)
 		a->type = NA_IPV6;
 		memcpy(&a->address.ip6, &((struct sockaddr_in6 *)s)->sin6_addr, sizeof(a->address.ip6));
 		a->port = ((struct sockaddr_in6 *)s)->sin6_port;
+		a->scopeid = ((struct sockaddr_in6 *)s)->sin6_scope_id;
 		break;
 #endif
 #ifdef USEIPX
@@ -542,6 +544,13 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 				}
 				p += strlen(p);
 			}
+		}
+
+		if (a->scopeid)
+		{
+			snprintf (p, len-strlen(s), "%%%u",
+				a->scopeid);
+			p += strlen(p);
 		}
 
 		if (a->port)

@@ -8821,7 +8821,6 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		(pr_global_struct->input_movevalues)[1] = ucmd->sidemove;
 		(pr_global_struct->input_movevalues)[2] = ucmd->upmove;
 		pr_global_struct->input_buttons = ucmd->buttons;
-//		pr_global_struct->input_impulse = ucmd->impulse;
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
 		PR_ExecuteProgram(svprogfuncs, gfuncs.RunClientCommand);
@@ -9547,7 +9546,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getsurfacenormal",PF_getsurfacenormal,0,		0,		0,		436,	"vector(entity e, float s)"},// (DP_QC_GETSURFACE)
 	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437,	"string(entity e, float s)"},// (DP_QC_GETSURFACE)
 	{"getsurfacenearpoint",PF_getsurfacenearpoint,0,0,		0,		438,	"float(entity e, vector p)"},// (DP_QC_GETSURFACE)
-	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439,	"vector(entity e, float s, vector p)" STUB},// (DP_QC_GETSURFACE)
+	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439,	"vector(entity e, float s, vector p)"},// (DP_QC_GETSURFACE)
 
 #ifndef SERVERONLY
 	//begin menu-only
@@ -10243,6 +10242,11 @@ void PR_DumpPlatform_f(void)
 		{"end_sys_fields",		"void", QW|NQ|CS|MENU},
 
 		{"time",				"float", MENU,	"The current local time. Increases while paused."},
+		{"input_timelength",	"float", QW|NQ},
+		{"input_angles",		"vector", QW|NQ},
+		{"input_movevalues",	"vector", QW|NQ},
+		{"input_buttons",		"float", QW|NQ},
+		{"input_impulse",		"float", QW|NQ},
 
 #define comfieldfloat(name,desc) {#name, ".float", FL, desc},
 #define comfieldvector(name,desc) {#name, ".vector", FL, desc},

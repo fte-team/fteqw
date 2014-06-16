@@ -279,7 +279,7 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 	VectorCopy(G_VECTOR(OFS_RETURN), org);
 	VectorCopy(w->g.v_forward, ent->v->velocity);
 	VectorCopy(w->g.v_right, move);
-	VectorCopy(w->g.v_up, ent->xv->gravitydir);
+//	VectorCopy(w->g.v_up, ent->xv->gravitydir);
 
 
 	//transform the angles too

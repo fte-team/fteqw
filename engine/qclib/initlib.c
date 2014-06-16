@@ -902,19 +902,25 @@ char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 	{
 		int i = str & ~STRING_SPECMASK;
 		if (i >= prinst.numallocedstrings)
-		{
-			printf("invalid string %x\n", str);
-			PR_StackTrace(&progfuncs->funcs, false);
-			progfuncs->funcs.pr_trace = 1;
+		{	
+			if (!progfuncs->funcs.pr_trace)
+			{
+				printf("invalid string %x\n", str);
+				progfuncs->funcs.pr_trace = 1;
+				PR_StackTrace(&progfuncs->funcs, false);
+			}
 			return "";
 		}
 		if (prinst.allocedstrings[i])
 			return prinst.allocedstrings[i];
 		else
 		{
-			printf("invalid string %x\n", str);
-			PR_StackTrace(&progfuncs->funcs, false);
-			progfuncs->funcs.pr_trace = 1;
+			if (!progfuncs->funcs.pr_trace)
+			{
+				printf("invalid string %x\n", str);
+				progfuncs->funcs.pr_trace = 1;
+				PR_StackTrace(&progfuncs->funcs, false);
+			}
 			return "";	//urm, was freed...
 		}
 	}
@@ -923,9 +929,12 @@ char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 		int i = str & ~STRING_SPECMASK;
 		if (i >= prinst.numtempstrings)
 		{
-			printf("invalid temp string %x\n", str);
-			PR_StackTrace(&progfuncs->funcs, false);
-			progfuncs->funcs.pr_trace = 1;
+			if (!progfuncs->funcs.pr_trace)
+			{
+				printf("invalid temp string %x\n", str);
+				progfuncs->funcs.pr_trace = 1;
+				PR_StackTrace(&progfuncs->funcs, false);
+			}
 			return "";
 		}
 		return prinst.tempstrings[i];
@@ -933,9 +942,12 @@ char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 
 	if ((unsigned int)str >= (unsigned int)prinst.addressableused)
 	{
-		printf("invalid string offset %x\n", str);
-		PR_StackTrace(&progfuncs->funcs, false);
-		progfuncs->funcs.pr_trace = 1;
+		if (!progfuncs->funcs.pr_trace)
+		{
+			printf("invalid string offset %x\n", str);
+			progfuncs->funcs.pr_trace = 1;
+			PR_StackTrace(&progfuncs->funcs, false);
+		}
 		return "";
 	}
 	return progfuncs->funcs.stringtable + str;

@@ -910,14 +910,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 	{
 		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", NULL};
-		strcpy (sv.name, server);
+		int depth, bestdepth;
+		Q_strncpyz (sv.name, server, sizeof(sv.name));
 		Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[0], server);
-		if (!COM_FCheckExists(sv.modelname))
+		bestdepth = COM_FDepthFile(sv.modelname, false);
+		for (i = 1; exts[i]; i++)
 		{
-			if (COM_FCheckExists(va(exts[1], server)))
-				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[1], server);
-			else if (COM_FCheckExists(va(exts[2], server)))
-				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[2], server);
+			depth = COM_FDepthFile(va(exts[i], server), false);
+			if (depth < 0)
+			{
+				bestdepth = depth;
+				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[i], server);
+			}
 		}
 		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);
 	}

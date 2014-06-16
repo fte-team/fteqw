@@ -2761,7 +2761,6 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 
 			if (fs_refnames && fs_refcrcs)
 			{	//q3 is annoying as hell
-				int r;
 				int crc2;
 				char *rc = fs_refcrcs;
 				char *rn = fs_refnames;

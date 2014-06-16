@@ -816,14 +816,13 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 {
 	entity_t *view;
 //	GLdouble glplane[4];
-	plane_t plane;
+	plane_t plane, oplane;
 	float vmat[16];
 	refdef_t oldrefdef;
 	vec3_t r;
 	int i;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
 	qbyte newvis[(MAX_MAP_LEAFS+7)/8];
-	plane_t oplane;
 	float ivmat[16], trmat[16];
 
 	if (r_refdef.recurse >= R_MAX_RECURSE-1)
@@ -837,7 +836,28 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	{
 		VectorCopy(mesh->normals_array[0], plane.normal);
 	}
-	plane.dist = DotProduct(mesh->xyz_array[0], plane.normal);
+
+	if (batch->ent == &r_worldentity)
+	{
+		plane.dist = DotProduct(mesh->xyz_array[0], plane.normal);
+	}
+	else
+	{
+		vec3_t point, vel;
+		VectorCopy(plane.normal, oplane.normal);
+		//rotate the surface normal around its entity's matrix
+		plane.normal[0] = oplane.normal[0]*batch->ent->axis[0][0] + oplane.normal[1]*batch->ent->axis[1][0] + oplane.normal[2]*batch->ent->axis[2][0];
+		plane.normal[1] = oplane.normal[0]*batch->ent->axis[0][1] + oplane.normal[1]*batch->ent->axis[1][1] + oplane.normal[2]*batch->ent->axis[2][1];
+		plane.normal[2] = oplane.normal[0]*batch->ent->axis[0][2] + oplane.normal[1]*batch->ent->axis[1][2] + oplane.normal[2]*batch->ent->axis[2][2];
+
+		//rotate some point on the mesh around its entity's matrix
+		point[0] = mesh->xyz_array[0][0]*batch->ent->axis[0][0] + mesh->xyz_array[0][1]*batch->ent->axis[1][0] + mesh->xyz_array[0][2]*batch->ent->axis[2][0] + batch->ent->origin[0];
+		point[1] = mesh->xyz_array[0][0]*batch->ent->axis[0][1] + mesh->xyz_array[0][1]*batch->ent->axis[1][1] + mesh->xyz_array[0][2]*batch->ent->axis[2][1] + batch->ent->origin[1];
+		point[2] = mesh->xyz_array[0][0]*batch->ent->axis[0][2] + mesh->xyz_array[0][1]*batch->ent->axis[1][2] + mesh->xyz_array[0][2]*batch->ent->axis[2][2] + batch->ent->origin[2];
+
+		//now we can figure out the plane dist
+		plane.dist = DotProduct(point, plane.normal);
+	}
 
 	//if we're too far away from the surface, don't draw anything
 	if (batch->shader->flags & SHADER_AGEN_PORTAL)

@@ -3074,28 +3074,17 @@ client_t *SVC_DirectConnect(void)
 					Con_TPrintf("%s: diff prot connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 				else
 					Con_TPrintf("%s:dup connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
-
-				cl->protocol = SCP_BAD;	//make sure the netchan doesn't try sending anything.
-				SV_DropClient(cl);
-				cl->protocol = protocol;
-				/*
-				nextuserid--;
-				return NULL;
-				*/
 			}
 			/*else if (cl->state == cs_zombie)
 			{
 				Con_Printf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
-				//need to make sure they're really gone (free memory from this client now that we know they're not a zombie.
-				cl->protocol = SCP_BAD;
-				SV_DropClient (cl);
-				cl->protocol = protocol;
 			}*/
 			else
-			{
-//				Con_TPrintf ("%s:%s:reconnect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
-				SV_DropClient (cl);
-			}
+				Con_TPrintf ("%s:%s:reconnect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+			//silently drop the old connection, without causing the old client to get a disconnect or anything stupid like that.
+			cl->protocol = SCP_BAD;
+			SV_DropClient (cl);
+			cl->protocol = protocol;
 			break;
 		}
 	}
@@ -3190,7 +3179,10 @@ client_t *SVC_DirectConnect(void)
 		/*single player logic*/
 		if (sv.allocated_client_slots == 1 && net_from.type == NA_LOOPBACK)
 			if (svs.clients[0].state >= cs_connected)
+			{
+				Con_Printf("Kicking %s to make space for local client\n", svs.clients[0].name);
 				SV_DropClient(svs.clients);
+			}
 
 		// if at server limits, refuse connection
 		if ( maxclients.ival > MAX_CLIENTS )

@@ -808,15 +808,10 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo)
 {
 	DWORD foo = EXCEPTION_CONTINUE_SEARCH;
-	//only bother with fatal non-continuable errors.
-	if (ExceptionInfo->ExceptionRecord->ExceptionFlags & EXCEPTION_NONCONTINUABLE)
-	{
-		foo = CrashExceptionHandler(false, ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
-
-		//we have no handler. thus we handle it by exiting.
-		if (foo == EXCEPTION_EXECUTE_HANDLER)
-			exit(1);
-	}
+	foo = CrashExceptionHandler(false, ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
+	//we have no handler. thus we handle it by exiting.
+	if (foo == EXCEPTION_EXECUTE_HANDLER)
+		exit(1);
 	return foo;
 }
 

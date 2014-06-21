@@ -63,6 +63,7 @@ cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	"sv_stepheight", CVAR_SERV
 cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = CVARFD("pm_bunnyspeedcap", "", CVAR_SERVERINFO, "0 or 1, ish. If the player is traveling faster than this speed while turning, their velocity will be gracefully reduced to match their current maxspeed. You can still rocket-jump to gain high velocity, but turning will reduce your speed back to the max. This can be used to disable bunny hopping.");
 cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "This is the speed that players will sink at while inactive in water. Empty means 60.");
+cvar_t	pm_flyfriction		= CVARFD("pm_flyfriction", "", CVAR_SERVERINFO, "Amount of friction that applies in fly or 6dof mode. Empty means 4.");
 cvar_t	pm_slidefix			 = CVARF("pm_slidefix", "", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = CVARF("pm_slidyslopes", "", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = CVARF("pm_airstep", "", CVAR_SERVERINFO);
@@ -281,13 +282,17 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 	VectorCopy(w->g.v_right, move);
 //	VectorCopy(w->g.v_up, ent->xv->gravitydir);
 
+	//monsters get their gravitydir set if it isn't already, to ensure that they still work (angle issues).
+	if ((int)ent->v->flags & FL_MONSTER)
+		if (!ent->xv->gravitydir[0] && !ent->xv->gravitydir[1] && !ent->xv->gravitydir[2])
+			ent->xv->gravitydir[2] = -1;
+
 
 	//transform the angles too
 	VectorCopy(org, G_VECTOR(OFS_PARM0));
 	if (ent->entnum <= svs.allocated_client_slots)
 	{
 		VectorCopy(ent->v->v_angle, ent->v->angles);
-		ent->v->fixangle = true;
 	}
 	else
 		ent->v->angles[0] *= -1;
@@ -295,8 +300,36 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 	AngleVectors(ent->v->angles, w->g.v_forward, w->g.v_right, w->g.v_up);
 	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
 	VectorAngles(w->g.v_forward, w->g.v_up, ent->v->angles);
-	if (ent->entnum <= svs.allocated_client_slots)
+	if (ent->entnum > 0 && ent->entnum <= svs.allocated_client_slots)
+	{
+		client_t *cl = &svs.clients[ent->entnum-1];
+		int i;
+		vec3_t delta;
 		ent->v->angles[0] *= -1;
+		if (!cl->lockangles && (cl->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
+		{
+			cl = ClientReliableWrite_BeginSplit(cl, svcfte_setangledelta, 7);
+
+			VectorSubtract(ent->v->angles, ent->v->v_angle, delta);
+			delta[2] = anglemod(delta[2]);
+			if (delta[2] > 90 && delta[2] < 270)
+			{
+				delta[2] -= 180;
+				delta[1] -= 180;
+				delta[0] -= -180;
+			}
+			for (i=0 ; i < 3 ; i++)
+				ClientReliableWrite_Angle16 (cl, delta[i]);
+		}
+		else
+		{
+			cl = ClientReliableWrite_BeginSplit (cl, svc_setangle, 7);
+			for (i=0 ; i < 3 ; i++)
+				ClientReliableWrite_Angle (cl, ent->v->angles[i]);
+		}
+		VectorCopy(ent->v->angles, ent->v->v_angle);
+		ent->v->angles[0] *= -1;
+	}
 
 	/*
 	avelocity is horribly dependant upon eular angles. trying to treat it as a matrix is folly.
@@ -2491,5 +2524,6 @@ void SV_SetMoveVars(void)
 	movevars.entgravity			= 1.0;
 	movevars.stepheight			= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
 	movevars.watersinkspeed		= *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
+	movevars.flyfriction		= *pm_flyfriction.string?pm_flyfriction.value:60;
 }
 #endif

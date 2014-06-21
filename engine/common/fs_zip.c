@@ -995,8 +995,22 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 		entry->flags |= ZFL_CORRUPT;
 	else if (entry->cmethod == 0)
 		entry->flags |= ZFL_STORED;
+	//1: shrink
+	//2-5: reduce
+	//6: implode
+	//7: tokenize
 	else if (entry->cmethod == 8)
 		entry->flags |= ZFL_DEFLATED;
+	//8: deflate64 - patented. sometimes written by microsoft's crap. only minor improvements.
+	//10: implode
+	//12: bzip2
+//	else if (entry->cmethod == 12)
+//		entry->flags |= ZFL_BZIP2;
+//	else if (entry->cmethod == 14)
+//		entry->flags |= ZFL_LZMA;
+	//19: lz77
+	//97: wavpack
+	//98: ppmd
 	else 
 		entry->flags |= ZFL_CORRUPT;	//unsupported compression method.
 	return true;

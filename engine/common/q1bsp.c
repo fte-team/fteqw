@@ -798,6 +798,48 @@ void Q1BSP_LoadBrushes(model_t *model)
 	model->engineflags |= MDLF_HASBRUSHES;
 }
 
+hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, vec3_t mins, vec3_t maxs, vec3_t offset)
+{
+	hull_t *hull;
+	vec3_t size;
+	VectorSubtract (maxs, mins, size);
+	if (forcehullnum >= 1 && forcehullnum <= MAX_MAP_HULLSM && model->hulls[forcehullnum-1].available)
+		hull = &model->hulls[forcehullnum-1];
+	else
+	{
+		if (model->hulls[5].available)
+		{	//choose based on hexen2 sizes.
+
+			if (size[0] < 3) // Point
+				hull = &model->hulls[0];
+			else if (size[0] <= 8.1 && model->hulls[4].available)
+				hull = &model->hulls[4];	//Pentacles
+			else if (size[0] <= 32.1 && size[2] <= 28.1)  // Half Player
+				hull = &model->hulls[3];
+			else if (size[0] <= 32.1)  // Full Player
+				hull = &model->hulls[1];
+			else // Golumn
+				hull = &model->hulls[5];
+		}
+		else
+		{
+			if (size[0] < 3 || !model->hulls[1].available)
+				hull = &model->hulls[0];
+			else if (size[0] <= 32.1)
+			{
+				if (size[2] < 54.1 && model->hulls[3].available)
+					hull = &model->hulls[3]; // 32x32x36 (half-life's crouch)
+				else
+					hull = &model->hulls[1];
+			}
+			else
+				hull = &model->hulls[2];
+		}
+	}
+
+	VectorSubtract (hull->clip_mins, mins, offset);
+	return hull;
+}
 qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, trace_t *trace)
 {
 	hull_t *hull;
@@ -805,7 +847,6 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 	vec3_t start_l, end_l;
 	vec3_t offset;
 
-	VectorSubtract (maxs, mins, size);
 	if ((model->engineflags & MDLF_HASBRUSHES))// && (size[0] || size[1] || size[2]))
 	{
 		struct traceinfo_s traceinfo;
@@ -846,42 +887,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 	trace->fraction = 1;
 	trace->allsolid = true;
 
-	if (forcehullnum >= 1 && forcehullnum <= MAX_MAP_HULLSM && model->hulls[forcehullnum-1].available)
-		hull = &model->hulls[forcehullnum-1];
-	else
-	{
-		if (model->hulls[5].available)
-		{	//choose based on hexen2 sizes.
-
-			if (size[0] < 3) // Point
-				hull = &model->hulls[0];
-			else if (size[0] <= 8.1 && model->hulls[4].available)
-				hull = &model->hulls[4];	//Pentacles
-			else if (size[0] <= 32.1 && size[2] <= 28.1)  // Half Player
-				hull = &model->hulls[3];
-			else if (size[0] <= 32.1)  // Full Player
-				hull = &model->hulls[1];
-			else // Golumn
-				hull = &model->hulls[5];
-		}
-		else
-		{
-			if (size[0] < 3 || !model->hulls[1].available)
-				hull = &model->hulls[0];
-			else if (size[0] <= 32.1)
-			{
-				if (size[2] < 54.1 && model->hulls[3].available)
-					hull = &model->hulls[3]; // 32x32x36 (half-life's crouch)
-				else
-					hull = &model->hulls[1];
-			}
-			else
-				hull = &model->hulls[2];
-		}
-	}
-
-// calculate an offset value to center the origin
-	VectorSubtract (hull->clip_mins, mins, offset);
+	hull = Q1BSP_ChooseHull(model, forcehullnum, mins, maxs, offset);
 
 //	offset[0] = 0;
 //	offset[1] = 0;

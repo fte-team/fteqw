@@ -2889,6 +2889,13 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		Z_Free(oldpaths);
 		oldpaths = next;
 	}
+
+
+#ifndef SERVERONLY
+	Shader_NeedReload(true);
+#endif
+//	Mod_ClearAll();
+//	Cache_Flush();
 }
 
 void FS_UnloadPackFiles(void)

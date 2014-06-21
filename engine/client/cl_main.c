@@ -1809,6 +1809,8 @@ void CL_CheckServerInfo(void)
 	movevars.stepheight = *s?Q_atof(s):PM_DEFAULTSTEPHEIGHT;
 	s = Info_ValueForKey(cl.serverinfo, "pm_watersinkspeed");
 	movevars.watersinkspeed = *s?Q_atof(s):60;
+	s = Info_ValueForKey(cl.serverinfo, "pm_flyfriction");
+	movevars.flyfriction = *s?Q_atof(s):4;
 
 	// Initialize cl.maxpitch & cl.minpitch
 	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)
@@ -3655,9 +3657,11 @@ void CL_Init (void)
 	Cmd_AddCommand ("god", NULL);	//cheats
 	Cmd_AddCommand ("give", NULL);
 	Cmd_AddCommand ("noclip", NULL);
-	Cmd_AddCommand ("notarget", NULL);
+	Cmd_AddCommand ("6dof", NULL);
+	Cmd_AddCommand ("spiderpig", NULL);
 	Cmd_AddCommand ("fly", NULL);
 	Cmd_AddCommand ("setpos", NULL);
+	Cmd_AddCommand ("notarget", NULL);
 
 	Cmd_AddCommand ("topten", NULL);
 

@@ -34,8 +34,6 @@ void PM_Init (void)
 
 #define	MIN_STEP_NORMAL	0.7		// roughly 45 degrees
 
-#define pm_flyfriction 4
-
 #define	STOP_EPSILON	0.1
 #define BLOCKED_FLOOR	1
 #define BLOCKED_STEP	2
@@ -118,7 +116,6 @@ static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t
 
 		//transform the angles too
 		VectorCopy(org, G_VECTOR(OFS_PARM0));
-		pmove.angles[0] *= -1;
 		VectorCopy(pmove.angles, G_VECTOR(OFS_PARM1));
 		AngleVectors(pmove.angles, w->g.v_forward, w->g.v_right, w->g.v_up);
 		PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
@@ -128,6 +125,36 @@ static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t
 
 	*w->g.self = oself;
 	return okay;
+}
+
+static trace_t	PM_PlayerTracePortals(vec3_t start, vec3_t end, unsigned int solidmask, float *tookportal)
+{
+	trace_t trace = PM_PlayerTrace (start, end, MASK_PLAYERSOLID);
+	if (tookportal)
+		*tookportal = 0;
+	if (trace.entnum >= 0 && pmove.world)
+	{
+		physent_t *impact = &pmove.physents[trace.entnum];
+		if (impact->isportal)
+		{
+			vec3_t move;
+			vec3_t from;
+
+			VectorCopy(trace.endpos, from);	//just in case
+			VectorSubtract(end, trace.endpos, move);
+			if (PM_PortalTransform(pmove.world, impact->info, from, move))
+			{
+				VectorAdd(from, move, end);
+				
+				//if we follow the portal, then we basically need to restart from the other side.
+				if (tookportal)
+					*tookportal = trace.fraction;
+				
+				trace = PM_PlayerTrace (from, end, MASK_PLAYERSOLID);
+			}
+		}
+	}
+	return trace;
 }
 
 /*
@@ -152,6 +179,7 @@ int PM_SlideMove (void)
 	vec3_t		end;
 	float		time_left;
 	int			blocked;
+	float		tookportal;
 
 	numbumps = 4;
 
@@ -169,31 +197,14 @@ int PM_SlideMove (void)
 		for (i=0 ; i<3 ; i++)
 			end[i] = pmove.origin[i] + time_left * pmove.velocity[i];
 
-		trace = PM_PlayerTrace (pmove.origin, end, MASK_PLAYERSOLID);
-
-		if (trace.entnum >= 0 && pmove.world)
+		trace = PM_PlayerTracePortals (pmove.origin, end, MASK_PLAYERSOLID, &tookportal);
+		if (tookportal)
 		{
-			physent_t *impact = &pmove.physents[trace.entnum];
-			if (impact->isportal)
-			{
-				vec3_t move;
-				vec3_t from;
-
-				VectorCopy(trace.endpos, from);	//just in case
-				VectorSubtract(end, trace.endpos, move);
-				if (PM_PortalTransform(pmove.world, impact->info, from, move))
-				{
-					VectorAdd(from, move, end);
-					
-					//if we follow the portal, then we basically need to restart from the other side.
-					time_left -= time_left * trace.fraction;
-					VectorCopy (pmove.velocity, primal_velocity);
-					VectorCopy (pmove.velocity, original_velocity);
-					numplanes = 0;
-					
-					trace = PM_PlayerTrace (from, end, MASK_PLAYERSOLID);
-				}
-			}
+			//made progress, but hit a portal
+			time_left -= time_left * tookportal;
+			VectorCopy (pmove.velocity, primal_velocity);
+			VectorCopy (pmove.velocity, original_velocity);
+			numplanes = 0;
 		}
 
 
@@ -344,6 +355,7 @@ int PM_StepSlideMove (qboolean in_air)
 
 		// adjust stepsize, otherwise it would be possible to walk up a
 		// a step higher than STEPSIZE
+		//FIXME gravitydir, portals
 		stepsize = movevars.stepheight - (org[2] - trace.endpos[2]);
 	}
 	else
@@ -357,12 +369,13 @@ int PM_StepSlideMove (qboolean in_air)
 
 // move up a stair height
 	VectorMA (pmove.origin, -stepsize, pmove.gravitydir, dest);
-	trace = PM_PlayerTrace (pmove.origin, dest, MASK_PLAYERSOLID);
+	trace = PM_PlayerTracePortals (pmove.origin, dest, MASK_PLAYERSOLID, NULL);
 	if (!trace.startsolid && !trace.allsolid)
 	{
 		VectorCopy (trace.endpos, pmove.origin);
 	}
 
+	//FIXME gravitydir
 	if (in_air && originalvel[2] < 0)
 		VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 
@@ -370,7 +383,7 @@ int PM_StepSlideMove (qboolean in_air)
 
 // press down the stepheight
 	VectorMA (pmove.origin, stepsize, pmove.gravitydir, dest);
-	trace = PM_PlayerTrace (pmove.origin, dest, MASK_PLAYERSOLID);
+	trace = PM_PlayerTracePortals (pmove.origin, dest, MASK_PLAYERSOLID, NULL);
 	if (trace.fraction != 1 && -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
 		goto usedown;
 	if (!trace.startsolid && !trace.allsolid)
@@ -441,7 +454,7 @@ void PM_Friction (void)
 //fixme: gravitydir fix needed
 		pmove.velocity[0] = 0;
 		pmove.velocity[1] = 0;
-		if (pmove.pm_type == PM_FLY)
+		if (pmove.pm_type == PM_FLY || pmove.pm_type == PM_6DOF)
 			pmove.velocity[2] = 0;
 		return;
 	}
@@ -449,9 +462,9 @@ void PM_Friction (void)
 	if (pmove.waterlevel >= 2)
 		// apply water friction, even if in fly mode
 		drop = speed*movevars.waterfriction*pmove.waterlevel*frametime;
-	else if (pmove.pm_type == PM_FLY) {
+	else if (pmove.pm_type == PM_FLY || pmove.pm_type == PM_6DOF) {
 		// apply flymode friction
-		drop = speed * pm_flyfriction * frametime;
+		drop = speed * movevars.flyfriction * frametime;
 	}
 	else if (pmove.onground) {
 		// apply ground friction
@@ -460,6 +473,7 @@ void PM_Friction (void)
 		// if the leading edge is over a dropoff, increase friction
 		start[0] = stop[0] = pmove.origin[0] + pmove.velocity[0]/speed*16;
 		start[1] = stop[1] = pmove.origin[1] + pmove.velocity[1]/speed*16;
+		//FIXME: gravitydir.
 		start[2] = pmove.origin[2] + pmove.player_mins[2];
 		stop[2] = start[2] - 34;
 		trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
@@ -619,10 +633,18 @@ void PM_FlyMove (void)
 	float	wishspeed;
 	vec3_t	wishdir;
 
-	for (i=0 ; i<3 ; i++)
-		wishvel[i] = forward[i]*pmove.cmd.forwardmove + right[i]*pmove.cmd.sidemove;
+	if (pmove.pm_type == PM_6DOF)
+	{
+		for (i=0 ; i<3 ; i++)
+			wishvel[i] = forward[i]*pmove.cmd.forwardmove + right[i]*pmove.cmd.sidemove + up[i]*pmove.cmd.upmove;
+	}
+	else
+	{
+		for (i=0 ; i<3 ; i++)
+			wishvel[i] = forward[i]*pmove.cmd.forwardmove + right[i]*pmove.cmd.sidemove;
 
-	VectorMA(wishvel, -pmove.cmd.upmove, pmove.gravitydir, wishvel);
+		VectorMA(wishvel, -pmove.cmd.upmove, pmove.gravitydir, wishvel);
+	}
 
 	VectorCopy (wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
@@ -815,7 +837,7 @@ void PM_CategorizePosition (void)
 	}
 	else
 	{
-		trace = PM_PlayerTrace (pmove.origin, point, MASK_PLAYERSOLID);
+		trace = PM_PlayerTracePortals (pmove.origin, point, MASK_PLAYERSOLID, NULL);
 		if (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
 			pmove.onground = false;
 		else
@@ -837,6 +859,7 @@ void PM_CategorizePosition (void)
 	pmove.waterlevel = 0;
 	pmove.watertype = FTECONTENTS_EMPTY;
 
+	//FIXME: gravitydir
 	point[2] = pmove.origin[2] + pmove.player_mins[2] + 1;
 	cont = PM_PointContents (point);
 
@@ -1220,7 +1243,7 @@ void PM_PlayerMove (float gamespeed)
 
 	if (pmove.waterlevel >= 2)
 		PM_WaterMove ();
-	else if (pmove.pm_type == PM_FLY)
+	else if (pmove.pm_type == PM_FLY || pmove.pm_type == PM_6DOF)
 		PM_FlyMove ();
 	else if (pmove.onladder)
 		PM_LadderMove ();

@@ -3592,16 +3592,6 @@ static void QCBUILTIN PF_rotatevectorsbytag (pubprogfuncs_t *prinst, struct glob
 
 
 
-//fixme merge with ssqc
-static void QCBUILTIN PF_cs_checkbottom (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	csqcedict_t	*ent;
-
-	ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-
-	G_FLOAT(OFS_RETURN) = World_CheckBottom (&csqc_world, (wedict_t*)ent);
-}
-
 static void QCBUILTIN PF_cs_break (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf ("break statement\n");
@@ -3613,14 +3603,16 @@ static void QCBUILTIN PF_cs_break (pubprogfuncs_t *prinst, struct globalvars_s *
 //fixme merge with ssqc
 static void QCBUILTIN PF_cs_walkmove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	csqcedict_t	*ent;
+	wedict_t	*ent;
 	float	yaw, dist;
 	vec3_t	move;
 //	dfunction_t	*oldf;
 	int 	oldself;
 	qboolean settrace;
+	vec3_t axis[3];
+	float s;
 
-	ent = (csqcedict_t*)PROG_TO_EDICT(prinst, *csqcg.self);
+	ent = PROG_TO_WEDICT(prinst, *csqcg.self);
 	yaw = G_FLOAT(OFS_PARM0);
 	dist = G_FLOAT(OFS_PARM1);
 	if (prinst->callargc >= 3 && G_FLOAT(OFS_PARM2))
@@ -3634,16 +3626,19 @@ static void QCBUILTIN PF_cs_walkmove (pubprogfuncs_t *prinst, struct globalvars_
 		return;
 	}
 
+	World_GetEntGravityAxis(ent, axis);
+
 	yaw = yaw*M_PI*2 / 360;
 
-	move[0] = cos(yaw)*dist;
-	move[1] = sin(yaw)*dist;
-	move[2] = 0;
+	s = cos(yaw)*dist;
+	VectorScale(axis[0], s, move);
+	s = sin(yaw)*dist;
+	VectorMA(move, s, axis[1], move);
 
 // save program state, because CS_movestep may call other progs
 	oldself = *csqcg.self;
 
-	G_FLOAT(OFS_RETURN) = World_movestep(&csqc_world, (wedict_t*)ent, move, true, false, settrace?cs_settracevars:NULL, pr_globals);
+	G_FLOAT(OFS_RETURN) = World_movestep(&csqc_world, (wedict_t*)ent, move, axis, true, false, settrace?cs_settracevars:NULL, pr_globals);
 
 // restore program state
 	*csqcg.self = oldself;
@@ -4386,7 +4381,7 @@ static struct {
 	{"ceil",					PF_ceil,	38},				// #38 float(float f) ceil (QUAKE)
 //	{"?",						PF_Fixme,	39},				// #39
 //40
-	{"checkbottom",				PF_cs_checkbottom,	40},	// #40 float(entity e) checkbottom (QUAKE)
+	{"checkbottom",				PF_checkbottom,	40},	// #40 float(entity e) checkbottom (QUAKE)
 	{"pointcontents",			PF_cs_pointcontents,	41},	// #41 float(vector org) pointcontents (QUAKE)
 //	{"?",						PF_Fixme,	42},				// #42
 	{"fabs",					PF_fabs,	43},				// #43 float(float f) fabs (QUAKE)

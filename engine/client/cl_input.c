@@ -39,6 +39,7 @@ cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
 cvar_t	cl_run = CVARD("cl_run", "0", "Enables autorun, inverting the state of the +speed key.");
 cvar_t	cl_fastaccel = CVARD("cl_fastaccel", "1", "Begin moving at full speed instantly, instead of waiting a frame or so.");
+extern cvar_t cl_rollspeed;
 
 cvar_t	cl_prydoncursor = CVAR("cl_prydoncursor", "");	//for dp protocol
 cvar_t	cl_instantrotate = CVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
@@ -143,7 +144,7 @@ kbutton_t	in_mlook, in_klook;
 kbutton_t	in_left, in_right, in_forward, in_back;
 kbutton_t	in_lookup, in_lookdown, in_moveleft, in_moveright;
 kbutton_t	in_strafe, in_speed, in_use, in_jump, in_attack;
-kbutton_t	in_up, in_down;
+kbutton_t	in_rollleft, in_rollright, in_up, in_down;
 
 kbutton_t	in_button3, in_button4, in_button5, in_button6, in_button7, in_button8;
 
@@ -252,6 +253,10 @@ void IN_MoveleftDown(void) {KeyDown(&in_moveleft);}
 void IN_MoveleftUp(void) {KeyUp(&in_moveleft);}
 void IN_MoverightDown(void) {KeyDown(&in_moveright);}
 void IN_MoverightUp(void) {KeyUp(&in_moveright);}
+void IN_RollLeftDown(void) {KeyDown(&in_rollleft);}
+void IN_RollLeftUp(void) {KeyUp(&in_rollleft);}
+void IN_RollRightDown(void) {KeyDown(&in_rollright);}
+void IN_RollRightUp(void) {KeyUp(&in_rollright);}
 
 void IN_SpeedDown(void) {KeyDown(&in_speed);}
 void IN_SpeedUp(void) {KeyUp(&in_speed);}
@@ -546,6 +551,10 @@ void CL_AdjustAngles (int pnum, double frametime)
 		cl.playerview[pnum].viewanglechange[PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum, false);
 		cl.playerview[pnum].viewanglechange[PITCH] += speed*quant * CL_KeyState (&in_back, pnum, false);
 	}
+
+	quant = cl_rollspeed.ival;
+	cl.playerview[pnum].viewanglechange[ROLL] -= speed*quant * CL_KeyState (&in_rollleft, pnum, false);
+	cl.playerview[pnum].viewanglechange[ROLL] += speed*quant * CL_KeyState (&in_rollright, pnum, false);
 	
 	up = CL_KeyState (&in_lookup, pnum, false);
 	down = CL_KeyState(&in_lookdown, pnum, false);
@@ -604,15 +613,15 @@ void CL_ClampPitch (int pnum)
 	float roll;
 	static float oldtime;
 	float timestep = realtime - oldtime;
+	playerview_t *pv = &cl.playerview[pnum];
 	oldtime = realtime;
 
 	if (cl.intermission)
 	{
-		memset(cl.playerview[pnum].viewanglechange, 0, sizeof(cl.playerview[pnum].viewanglechange));
+		memset(pv->viewanglechange, 0, sizeof(pv->viewanglechange));
 		return;
 	}
-#if 0
-	if (cl.pmovetype[pnum] == PM_WALLWALK)
+	if (pv->pmovetype == PM_6DOF)
 	{
 		vec3_t impact;
 		vec3_t norm;
@@ -620,16 +629,20 @@ void CL_ClampPitch (int pnum)
 		vec3_t cross;
 		vec3_t view[4];
 		float dot;
-		AngleVectors(cl.viewangles[pnum], view[0], view[1], view[2]);
+		AngleVectors(pv->viewangles, view[0], view[1], view[2]);
 		Matrix4x4_RM_FromVectors(mat, view[0], view[1], view[2], vec3_origin);
 
-		Matrix4_Multiply(Matrix4x4_CM_NewRotation(-cl.viewanglechange[pnum][PITCH], 0, 1, 0), mat, mat2);
-		Matrix4_Multiply(Matrix4x4_CM_NewRotation(cl.viewanglechange[pnum][YAW], 0, 0, 1), mat2, mat);
-
+		Matrix4_Multiply(Matrix4x4_CM_NewRotation(-pv->viewanglechange[PITCH], 0, 1, 0), mat, mat2);
+		Matrix4_Multiply(Matrix4x4_CM_NewRotation(pv->viewanglechange[YAW], 0, 0, 1), mat2, mat);
+#if 1
+		//roll angles
+		Matrix4_Multiply(Matrix4x4_CM_NewRotation(pv->viewanglechange[ROLL], 1, 0, 0), mat, mat2);
+#else
+		//auto-roll
 		Matrix3x4_RM_ToVectors(mat, view[0], view[1], view[2], view[3]);
 
-		VectorMA(cl.simorg[pnum], -48, view[2], view[3]);
-		if (!TraceLineN(cl.simorg[pnum], view[3], impact, norm))
+		VectorMA(pv->simorg, -48, view[2], view[3]);
+		if (!TraceLineN(pv->simorg, view[3], impact, norm))
 		{
 			norm[0] = 0;
 			norm[1] = 0;
@@ -641,17 +654,16 @@ void CL_ClampPitch (int pnum)
 		dot = DotProduct(view[0], cross);
 		roll = timestep * 360 * -(dot);
 		Matrix4_Multiply(Matrix4x4_CM_NewRotation(roll, 1, 0, 0), mat, mat2);
-
+#endif
 		Matrix3x4_RM_ToVectors(mat2, view[0], view[1], view[2], view[3]);
-		VectorAngles(view[0], view[2], cl.viewangles[pnum]);
-		cl.viewangles[pnum][PITCH]=360 - cl.viewangles[pnum][PITCH];
-		VectorClear(cl.viewanglechange[pnum]);
+		VectorAngles(view[0], view[2], pv->viewangles);
+		pv->viewangles[PITCH]=360 - pv->viewangles[PITCH];
+		VectorClear(pv->viewanglechange);
 
 		return;
 	}
-#endif
 #if 1
-	if ((cl.playerview[pnum].gravitydir[2] != -1 || cl.playerview[pnum].viewangles[2]))
+	if ((pv->gravitydir[2] != -1 || pv->viewangles[2]))
 	{
 		float surfm[16], invsurfm[16];
 		float viewm[16];
@@ -661,17 +673,17 @@ void CL_ClampPitch (int pnum)
 		void PerpendicularVector( vec3_t dst, const vec3_t src );
 
 		/*calc current view matrix relative to the surface*/
-		AngleVectors(cl.playerview[pnum].viewangles, view[0], view[1], view[2]);
+		AngleVectors(pv->viewangles, view[0], view[1], view[2]);
 		VectorNegate(view[1], view[1]);
 
 		/*calculate the surface axis with up from the pmove code and right/forwards relative to the player's directions*/
-		if (!cl.playerview[pnum].gravitydir[0] && !cl.playerview[pnum].gravitydir[1] && !cl.playerview[pnum].gravitydir[2])
+		if (!pv->gravitydir[0] && !pv->gravitydir[1] && !pv->gravitydir[2])
 		{
 			VectorSet(surf[2], 0, 0, 1);
 		}
 		else
 		{
-			VectorNegate(cl.playerview[pnum].gravitydir, surf[2]);
+			VectorNegate(pv->gravitydir, surf[2]);
 		}
 		VectorNormalize(surf[2]);
 		PerpendicularVector(surf[1], surf[2]);
@@ -691,8 +703,8 @@ void CL_ClampPitch (int pnum)
 		vang[PITCH] *= -1;
 
 		/*edit it*/
-		vang[PITCH] += cl.playerview[pnum].viewanglechange[PITCH];
-		vang[YAW] += cl.playerview[pnum].viewanglechange[YAW];
+		vang[PITCH] += pv->viewanglechange[PITCH];
+		vang[YAW] += pv->viewanglechange[YAW];
 		if (vang[PITCH] <= -180)
 			vang[PITCH] += 360;
 		if (vang[PITCH] > 180)
@@ -705,7 +717,7 @@ void CL_ClampPitch (int pnum)
 		/*keep the player looking relative to their ground (smoothlyish)*/
 		if (!vang[ROLL])
 		{
-			if (!cl.playerview[pnum].viewanglechange[PITCH] && !cl.playerview[pnum].viewanglechange[YAW] && !cl.playerview[pnum].viewanglechange[ROLL])
+			if (!pv->viewanglechange[PITCH] && !pv->viewanglechange[YAW] && !pv->viewanglechange[ROLL])
 				return;
 		}
 		else
@@ -723,7 +735,7 @@ void CL_ClampPitch (int pnum)
 				vang[ROLL] += host_frametime*180;
 			}
 		}
-		VectorClear(cl.playerview[pnum].viewanglechange);
+		VectorClear(pv->viewanglechange);
 		/*clamp pitch*/
 		if (vang[PITCH] > cl.maxpitch)
 			vang[PITCH] = cl.maxpitch;
@@ -741,19 +753,19 @@ void CL_ClampPitch (int pnum)
 		VectorAngles(view[0], view[2], cl.playerview[pnum].viewangles);
 		cl.playerview[pnum].viewangles[PITCH] *= -1;
 
-		if (cl.playerview[pnum].viewangles[ROLL] >= 360)
-			cl.playerview[pnum].viewangles[ROLL] -= 360;
-		if (cl.playerview[pnum].viewangles[ROLL] < 0)
-			cl.playerview[pnum].viewangles[ROLL] += 360;
-		if (cl.playerview[pnum].viewangles[PITCH] < -180)
-			cl.playerview[pnum].viewangles[PITCH] += 360;
+		if (pv->viewangles[ROLL] >= 360)
+			pv->viewangles[ROLL] -= 360;
+		if (pv->viewangles[ROLL] < 0)
+			pv->viewangles[ROLL] += 360;
+		if (pv->viewangles[PITCH] < -180)
+			pv->viewangles[PITCH] += 360;
 		return;
 	}
 #endif
-	cl.playerview[pnum].viewangles[PITCH] += cl.playerview[pnum].viewanglechange[PITCH];
-	cl.playerview[pnum].viewangles[YAW] += cl.playerview[pnum].viewanglechange[YAW];
-	cl.playerview[pnum].viewangles[ROLL] += cl.playerview[pnum].viewanglechange[ROLL];
-	VectorClear(cl.playerview[pnum].viewanglechange);
+	pv->viewangles[PITCH] += pv->viewanglechange[PITCH];
+	pv->viewangles[YAW] += pv->viewanglechange[YAW];
+	pv->viewangles[ROLL] += pv->viewanglechange[ROLL];
+	VectorClear(pv->viewanglechange);
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
@@ -763,15 +775,15 @@ void CL_ClampPitch (int pnum)
 		if (pitch > 180)
 			pitch -= 360;
 
-		if (cl.playerview[pnum].viewangles[PITCH] + pitch < -360)
-			cl.playerview[pnum].viewangles[PITCH] += 360; // wrapped
-		if (cl.playerview[pnum].viewangles[PITCH] + pitch > 360)
-			cl.playerview[pnum].viewangles[PITCH] -= 360; // wrapped
+		if (pv->viewangles[PITCH] + pitch < -360)
+			pv->viewangles[PITCH] += 360; // wrapped
+		if (pv->viewangles[PITCH] + pitch > 360)
+			pv->viewangles[PITCH] -= 360; // wrapped
 
-		if (cl.playerview[pnum].viewangles[PITCH] + pitch > cl.maxpitch)
-			cl.playerview[pnum].viewangles[PITCH] = cl.maxpitch - pitch;
-		if (cl.playerview[pnum].viewangles[PITCH] + pitch < cl.minpitch)
-			cl.playerview[pnum].viewangles[PITCH] = cl.minpitch - pitch;
+		if (pv->viewangles[PITCH] + pitch > cl.maxpitch)
+			pv->viewangles[PITCH] = cl.maxpitch - pitch;
+		if (pv->viewangles[PITCH] + pitch < cl.minpitch)
+			pv->viewangles[PITCH] = cl.minpitch - pitch;
 	}
 	else
 #endif
@@ -783,21 +795,21 @@ void CL_ClampPitch (int pnum)
 	else
 #endif
 	{
-		if (cl.playerview[pnum].viewangles[PITCH] > cl.maxpitch)
-			cl.playerview[pnum].viewangles[PITCH] = cl.maxpitch;
-		if (cl.playerview[pnum].viewangles[PITCH] < cl.minpitch)
-			cl.playerview[pnum].viewangles[PITCH] = cl.minpitch;
+		if (pv->viewangles[PITCH] > cl.maxpitch)
+			pv->viewangles[PITCH] = cl.maxpitch;
+		if (pv->viewangles[PITCH] < cl.minpitch)
+			pv->viewangles[PITCH] = cl.minpitch;
 	} 
 
 //	if (cl.viewangles[pnum][ROLL] > 50)
 //		cl.viewangles[pnum][ROLL] = 50;
 //	if (cl.viewangles[pnum][ROLL] < -50)
 //		cl.viewangles[pnum][ROLL] = -50;
-	roll = timestep*cl.playerview[pnum].viewangles[ROLL]*30;
-	if ((cl.playerview[pnum].viewangles[ROLL]-roll < 0) != (cl.playerview[pnum].viewangles[ROLL]<0))
-		cl.playerview[pnum].viewangles[ROLL] = 0;
+	roll = timestep*pv->viewangles[ROLL]*30;
+	if ((pv->viewangles[ROLL]-roll < 0) != (pv->viewangles[ROLL]<0))
+		pv->viewangles[ROLL] = 0;
 	else
-		cl.playerview[pnum].viewangles[ROLL] -= timestep*cl.playerview[pnum].viewangles[ROLL]*3;
+		pv->viewangles[ROLL] -= timestep*pv->viewangles[ROLL]*3;
 }
 
 /*
@@ -1977,6 +1989,10 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("-moveleft",	IN_MoveleftUp);
 	Cmd_AddCommand ("+moveright",	IN_MoverightDown);
 	Cmd_AddCommand ("-moveright",	IN_MoverightUp);
+	Cmd_AddCommand ("+rollleft",	IN_RollLeftDown);
+	Cmd_AddCommand ("-rollleft",	IN_RollLeftUp);
+	Cmd_AddCommand ("+rollright",	IN_RollRightDown);
+	Cmd_AddCommand ("-rollright",	IN_RollRightUp);
 	Cmd_AddCommand ("+speed",		IN_SpeedDown);
 	Cmd_AddCommand ("-speed",		IN_SpeedUp);
 	Cmd_AddCommand ("+attack",		IN_AttackDown);

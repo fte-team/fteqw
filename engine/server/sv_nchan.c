@@ -70,6 +70,33 @@ void ClientReliableWrite_Begin(client_t *cl, int c, int maxsize)
 	ClientReliableWrite_Byte(cl, c);
 }
 
+client_t *ClientReliableWrite_BeginSplit(client_t *cl, int svc, int svclen)
+{
+	if (cl->controller)
+	{	//this is a slave client.
+		//find the right number and send.
+		client_t *sp;
+		int pnum = 0;
+		for (sp = cl->controller; sp; sp = sp->controlled)
+		{
+			if (sp == cl)
+				break;
+			pnum++;
+		}
+		sp = cl->controller;
+
+		ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 2+svclen);
+		ClientReliableWrite_Byte (sp, pnum);
+		ClientReliableWrite_Byte (sp, svc);
+		return sp;
+	}
+	else
+	{
+		ClientReliableWrite_Begin (cl, svc, svclen);
+		return cl;
+	}
+}
+
 void ClientReliable_FinishWrite(client_t *cl)
 {
 	if (cl->num_backbuf)

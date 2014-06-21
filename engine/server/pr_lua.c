@@ -1011,6 +1011,7 @@ static int bi_lua_walkmove(lua_State *L)
 	float	yaw, dist;
 	vec3_t	move;
 	int 	oldself;
+	vec3_t	axis;
 
 	ent = PROG_TO_WEDICT(prinst, *world->g.self);
 	yaw = lua.tonumberx(L, 1, NULL);
@@ -1022,16 +1023,17 @@ static int bi_lua_walkmove(lua_State *L)
 		return 1;
 	}
 
+	World_GetEntGravityAxis(ent, axis);
+
 	yaw = yaw*M_PI*2 / 360;
 
-	move[0] = cos(yaw)*dist;
-	move[1] = sin(yaw)*dist;
-	move[2] = 0;
+	VectorScale(axis[0], cos(yaw)*dist, move);
+	VectorMA(move, sin(yaw)*dist, axis[1], move);
 
 // save program state, because World_movestep may call other progs
 	oldself = *world->g.self;
 
-	lua.pushboolean(L, World_movestep(world, ent, move, true, false, NULL, NULL));
+	lua.pushboolean(L, World_movestep(world, ent, move, axis, true, false, NULL, NULL));
 
 // restore program state
 	*world->g.self = oldself;

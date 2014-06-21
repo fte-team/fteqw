@@ -2820,6 +2820,7 @@ void Shader_FlushCache(void)
 	for (i = 0; i < HASH_SIZE; i++)
 	{
 		cache = shader_hash[i];
+		shader_hash[i] = NULL;
 
 		for (; cache; cache = cache_next)
 		{
@@ -4962,6 +4963,8 @@ void Shader_DoReload(void)
 
 	if (shader_rescan_needed && ruleset_allow_shaders.ival)
 	{
+		Shader_FlushCache();
+
 		COM_EnumerateFiles("materials/*.mtr", Shader_InitCallback, NULL);
 		COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
 		COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);

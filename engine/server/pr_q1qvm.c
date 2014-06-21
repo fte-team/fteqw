@@ -734,17 +734,20 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case G_WALKMOVE:
 		{
-			edict_t *ed = EDICT_NUM(svprogfuncs, arg[0]);
+			wedict_t *ed = WEDICT_NUM(svprogfuncs, arg[0]);
 			float yaw = VM_FLOAT(arg[1]);
 			float dist = VM_FLOAT(arg[2]);
 			vec3_t move;
+			vec3_t axis[3];
+
+			World_GetEntGravityAxis(ed, axis);
 
 			yaw = yaw*M_PI*2 / 360;
 			move[0] = cos(yaw)*dist;
 			move[1] = sin(yaw)*dist;
 			move[2] = 0;
 
-			return World_movestep(&sv.world, (wedict_t*)ed, move, true, false, NULL, NULL);
+			return World_movestep(&sv.world, (wedict_t*)ed, move, axis, true, false, NULL, NULL);
 		}
 
 	case G_DROPTOFLOOR:
@@ -780,7 +783,10 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case G_CHECKBOTTOM:
-		return World_CheckBottom(&sv.world, (wedict_t*)EDICT_NUM(svprogfuncs, VM_LONG(arg[0])));
+		{
+			vec3_t up = {0,0,1};
+			return World_CheckBottom(&sv.world, (wedict_t*)EDICT_NUM(svprogfuncs, VM_LONG(arg[0])), up);
+		}
 
 	case G_POINTCONTENTS:
 		{

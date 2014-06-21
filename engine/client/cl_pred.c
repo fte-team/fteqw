@@ -720,6 +720,9 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 	case MOVETYPE_WALLWALK:
 		pmtype = PM_WALLWALK;
 		break;
+	case MOVETYPE_6DOF:
+		pmtype = PM_6DOF;
+		break;
 	default:
 		pmtype = PM_NORMAL;
 		break;

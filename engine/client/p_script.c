@@ -3622,6 +3622,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	part_type_t *ptype = &part_type[typenum];
 	int i, j, k, l, spawnspc;
 	float m, pcount, orgadd, veladd;
+	vec3_t axis[3]={{1,0,0},{0,1,0},{0,0,-1}};
 	particle_t	*p;
 	beamseg_t *b, *bfirst;
 	vec3_t ofsvec, arsvec; // offsetspread vec, areaspread vec
@@ -3889,6 +3890,17 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			break;
 		}
 
+		if (dir)
+		{
+			void PerpendicularVector( vec3_t dst, const vec3_t src );
+			VectorCopy(dir, axis[2]);
+			VectorNormalize(axis[2]);
+			PerpendicularVector(axis[0], axis[2]);
+			VectorNormalize(axis[0]);
+			CrossProduct(axis[2], axis[0], axis[1]);
+			VectorNormalize(axis[1]);
+		}
+
 		// time limit (for completeness)
 		if (ptype->spawntime && ts)
 		{
@@ -4112,30 +4124,43 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				}
 				break;
 			default: // SM_BALL, SM_CIRCLE
-				ofsvec[0] = hrandom();
-				ofsvec[1] = hrandom();
-				if (ptype->areaspreadvert)
-					ofsvec[2] = hrandom();
-				else
-					ofsvec[2] = 0;
+				{
+					ofsvec[0] = hrandom();
+					ofsvec[1] = hrandom();
+					if (ptype->areaspreadvert)
+						ofsvec[2] = hrandom();
+					else
+						ofsvec[2] = 0;
 
-				VectorNormalize(ofsvec);
-				if (ptype->spawnmode != SM_CIRCLE)
-					VectorScale(ofsvec, frandom(), ofsvec);
+					VectorNormalize(ofsvec);
+					if (ptype->spawnmode != SM_CIRCLE)
+						VectorScale(ofsvec, frandom(), ofsvec);
 
-				arsvec[0] = ofsvec[0]*ptype->areaspread;
-				arsvec[1] = ofsvec[1]*ptype->areaspread;
-				arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
+					arsvec[0] = ofsvec[0]*ptype->areaspread;
+					arsvec[1] = ofsvec[1]*ptype->areaspread;
+					arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
+				}
 				break;
 			}
-
-			p->org[0] = org[0] + arsvec[0];
-			p->org[1] = org[1] + arsvec[1];
-			p->org[2] = org[2] + arsvec[2];
 
 			// apply arsvec+ofsvec
 			orgadd = ptype->orgadd + frandom()*ptype->randomorgadd;
 			veladd = ptype->veladd + frandom()*ptype->randomveladd;
+#if 1
+			if (dir)
+				veladd *= VectorLength(dir);
+			VectorMA(p->vel, ofsvec[0]*ptype->spawnvel, axis[0], p->vel);
+			VectorMA(p->vel, ofsvec[1]*ptype->spawnvel, axis[1], p->vel);
+			VectorMA(p->vel, veladd+ofsvec[2]*ptype->spawnvelvert, axis[2], p->vel);
+			
+			VectorCopy(org, p->org);
+			VectorMA(p->org, arsvec[0], axis[0], p->org);
+			VectorMA(p->org, arsvec[1], axis[1], p->org);
+			VectorMA(p->org, orgadd+arsvec[2], axis[2], p->org);
+#else
+			p->org[0] = org[0] + arsvec[0];
+			p->org[1] = org[1] + arsvec[1];
+			p->org[2] = org[2] + arsvec[2];
 			if (dir)
 			{
 				p->vel[0] += dir[0]*veladd+ofsvec[0]*ptype->spawnvel;
@@ -4154,7 +4179,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 
 				p->org[2] -= orgadd;
 			}
-
+#endif
 			VectorAdd(p->org, ptype->orgbias, p->org);
 
 			p->die = particletime + ptype->die - p->die;

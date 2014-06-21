@@ -141,6 +141,7 @@ typedef struct
 			qbyte		lightstylecolours[MAX_LIGHTSTYLES];
 		};
 	} strings;
+	char		h2miditrack[MAX_QPATH];
 	qbyte		h2cdtrack;
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
@@ -1190,6 +1191,7 @@ void SV_CSQC_DropAll(client_t *client);
 void ClientReliableCheckBlock(client_t *cl, int maxsize);
 void ClientReliable_FinishWrite(client_t *cl);
 void ClientReliableWrite_Begin(client_t *cl, int c, int maxsize);
+client_t *ClientReliableWrite_BeginSplit(client_t *cl, int svc, int svclen);
 void ClientReliableWrite_Angle(client_t *cl, float f);
 void ClientReliableWrite_Angle16(client_t *cl, float f);
 void ClientReliableWrite_Byte(client_t *cl, int c);

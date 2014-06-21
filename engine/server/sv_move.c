@@ -23,7 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pr_common.h"
 
 #if defined(CSQC_DAT) || !defined(CLIENTONLY)
-
 /*
 =============
 SV_CheckBottom
@@ -35,26 +34,59 @@ is not a staircase.
 */
 int c_yes, c_no;
 
-qboolean World_CheckBottom (world_t *world, wedict_t *ent)
+hull_t *Q1BSP_ChooseHull(model_t *model, int hullnum, vec3_t mins, vec3_t maxs, vec3_t offset);
+
+//this function is axial. major axis determines ground. if it switches slightly, a new axis may become the ground...
+qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up)
 {
 	int savedhull;
 	vec3_t	mins, maxs, start, stop;
 	trace_t	trace;
 	int		x, y;
-	float	mid, bottom;
+	float	mid;
+
+	int a0,a1,a2;	//logical x, y, z
+	int sign;
+
+	mins[0] = fabs(up[0]);
+	mins[1] = fabs(up[1]);
+	mins[2] = fabs(up[2]);
+	if (mins[2] > mins[0] && mins[2] > mins[1])
+	{
+		a0 = 0;
+		a1 = 1;
+		a2 = 2;
+	}
+	else
+	{
+		a2 = mins[1] > mins[0];
+		a0 = 1 - a2;
+		a1 = 2;
+	}
+	sign = (up[a2]>0)?1:-1;
 	
 	VectorAdd (ent->v->origin, ent->v->mins, mins);
-	VectorAdd (ent->v->origin, ent->v->maxs, maxs);
+	if (world->worldmodel->fromgame == fg_quake)
+	{
+		//quake's hulls are weird. sizes are defined as from mins to mins+hullsize. the actual maxs is ignored other than for its size.
+		hull_t *hull;
+		hull = Q1BSP_ChooseHull(world->worldmodel, ent->xv->hull, ent->v->mins, ent->v->maxs, start);
+		VectorAdd (mins, start, mins);
+		VectorSubtract (mins, hull->clip_mins, maxs);
+		VectorAdd (maxs, hull->clip_maxs, maxs);
+	}
+	else
+		VectorAdd (ent->v->origin, ent->v->maxs, maxs);
 
 // if all of the points under the corners are solid world, don't bother
 // with the tougher checks
 // the corners must be within 16 of the midpoint
-	start[2] = mins[2] - 1;
+	start[a2] = (sign<0)?maxs[a2]:mins[a2] - sign;
 	for	(x=0 ; x<=1 ; x++)
 		for	(y=0 ; y<=1 ; y++)
 		{
-			start[0] = x ? maxs[0] : mins[0];
-			start[1] = y ? maxs[1] : mins[1];
+			start[a0] = x ? maxs[a0] : mins[a0];
+			start[a1] = y ? maxs[a1] : mins[a1];
 			if (!(World_PointContents (world, start) & FTECONTENTS_SOLID))
 				goto realcheck;
 		}
@@ -67,12 +99,12 @@ realcheck:
 //
 // check it for real...
 //
-	start[2] = mins[2];
+	start[a2] = (sign<0)?maxs[a2]:mins[a2];
 	
 // the midpoint must be within 16 of the bottom
-	start[0] = stop[0] = (mins[0] + maxs[0])*0.5;
-	start[1] = stop[1] = (mins[1] + maxs[1])*0.5;
-	stop[2] = start[2] - 2*movevars.stepheight;
+	start[a0] = stop[a0] = (mins[a0] + maxs[a0])*0.5;
+	start[a1] = stop[a1] = (mins[a1] + maxs[a1])*0.5;
+	stop[a2] = start[a2] - 2*movevars.stepheight*sign;
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;	//stop the hull from breaking tracelines
 	trace = World_Move (world, start, vec3_origin, vec3_origin, stop, true, ent);
@@ -82,20 +114,20 @@ realcheck:
 		ent->xv->hull = savedhull;
 		return false;
 	}
-	mid = bottom = trace.endpos[2];
+	mid = trace.endpos[2];
+
+	mid = (mid-start[a2]-(movevars.stepheight*sign)) / (stop[a2]-start[a2]);
 	
 // the corners must be within 16 of the midpoint	
 	for	(x=0 ; x<=1 ; x++)
 		for	(y=0 ; y<=1 ; y++)
 		{
-			start[0] = stop[0] = x ? maxs[0] : mins[0];
-			start[1] = stop[1] = y ? maxs[1] : mins[1];
+			start[a0] = stop[a0] = x ? maxs[a0] : mins[a0];
+			start[a1] = stop[a1] = y ? maxs[a1] : mins[a1];
 			
 			trace = World_Move (world, start, vec3_origin, vec3_origin, stop, true, ent);
 	
-			if (trace.fraction != 1.0 && trace.endpos[2] > bottom)
-				bottom = trace.endpos[2];
-			if (trace.fraction == 1.0 || mid - trace.endpos[2] > movevars.stepheight)
+			if (trace.fraction == 1.0 || trace.fraction > mid)//mid - trace.endpos[2] > movevars.stepheight)
 			{
 				ent->xv->hull = savedhull;
 				return false;
@@ -117,7 +149,7 @@ possible, no move is done, false is returned, and
 pr_global_struct->trace_normal is set to the normal of the blocking wall
 =============
 */
-qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, void (*set_move_trace)(trace_t *trace, struct globalvars_s *pr_globals), struct globalvars_s *set_trace_globs)
+qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis[3], qboolean relink, qboolean noenemy, void (*set_move_trace)(trace_t *trace, struct globalvars_s *pr_globals), struct globalvars_s *set_trace_globs)
 {
 	float		dz;
 	vec3_t		oldorg, neworg, end;
@@ -125,6 +157,14 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 	int			i;
 	wedict_t	*enemy = world->edicts;
 	int eflags = ent->v->flags;
+	vec3_t		eaxis[3];
+
+	if (!axis)
+	{
+		//fixme?
+		World_GetEntGravityAxis(ent, eaxis);
+		axis = eaxis;
+	}
 
 #ifndef CLIENTONLY
 	if (progstype != PROG_H2 || world != &sv.world)
@@ -147,13 +187,14 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 				enemy = (wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy);
 				if (i == 0 && enemy->entnum)
 				{
-					dz = ent->v->origin[2] - ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->origin[2];
+					VectorSubtract(ent->v->origin, ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->origin, end);
+					dz = DotProduct(end, axis[2]);
 					if (eflags & FLH2_HUNTFACE) /*get the ent's origin_z to match its victims face*/
 						dz += ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->view_ofs[2];
 					if (dz > 40)
-						neworg[2] -= 8;
+						VectorMA(neworg, -8, axis[2], neworg);
 					if (dz < 30)
-						neworg[2] += 8;
+						VectorMA(neworg, 8, axis[2], neworg);
 				}
 			}
 			trace = World_Move (world, ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
@@ -179,9 +220,8 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 	}
 
 // push down from a step height above the wished position
-	neworg[2] += movevars.stepheight;
-	VectorCopy (neworg, end);
-	end[2] -= movevars.stepheight*2;
+	VectorMA(neworg, movevars.stepheight, axis[2], neworg);
+	VectorMA(neworg, movevars.stepheight*-2, axis[2], end);
 
 	trace = World_Move (world, neworg, ent->v->mins, ent->v->maxs, end, false, ent);
 	if (set_move_trace)
@@ -192,7 +232,8 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 
 	if (trace.startsolid)
 	{
-		neworg[2] -= movevars.stepheight;
+		//move up by an extra step, if needed
+		VectorMA(neworg, -movevars.stepheight, axis[2], neworg);
 		trace = World_Move (world, neworg, ent->v->mins, ent->v->maxs, end, false, ent);
 		if (set_move_trace)
 			set_move_trace(&trace, set_trace_globs);
@@ -218,7 +259,7 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 // check point traces down for dangling corners
 	VectorCopy (trace.endpos, ent->v->origin);
 	
-	if (!World_CheckBottom (world, ent))
+	if (!World_CheckBottom (world, ent, axis[2]))
 	{
 		if ( (int)ent->v->flags & FL_PARTIALGROUND )
 		{	// entity had floor mostly pulled out from underneath it
@@ -247,6 +288,28 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 
 //============================================================================
 
+qboolean World_GetEntGravityAxis(wedict_t *ent, vec3_t axis[3])
+{
+	if (ent->xv->gravitydir[0] || ent->xv->gravitydir[1] || ent->xv->gravitydir[2])
+	{
+		void PerpendicularVector( vec3_t dst, const vec3_t src );
+		VectorNegate(ent->xv->gravitydir, axis[2]);
+		VectorNormalize(axis[2]);
+		PerpendicularVector(axis[0], axis[2]);
+		VectorNormalize(axis[0]);
+		CrossProduct(axis[2], axis[0], axis[1]);
+		VectorNormalize(axis[1]);
+		return true;
+	}
+	else
+	{
+		VectorSet(axis[0], 1, 0, 0);
+		VectorSet(axis[1], 0, 1, 0);
+		VectorSet(axis[2], 0, 0, 1);
+		return false;
+	}
+}
+
 /*
 ==============
 PF_changeyaw
@@ -254,9 +317,80 @@ PF_changeyaw
 This was a major timewaster in progs, so it was converted to C
 ==============
 */
-void World_changeyaw (wedict_t *ent)
+float World_changeyaw (wedict_t *ent)
 {
 	float		ideal, current, move, speed;
+	vec3_t surf[3];
+	if (World_GetEntGravityAxis(ent, surf))
+	{
+		//complex matrix stuff
+		float mat[16];
+		float surfm[16], invsurfm[16];
+		float viewm[16];
+		vec3_t view[4];
+		vec3_t vang;
+
+		/*calc current view matrix relative to the surface*/
+		ent->v->angles[PITCH] *= -1;
+		AngleVectors(ent->v->angles, view[0], view[1], view[2]);
+		VectorNegate(view[1], view[1]);
+
+		World_GetEntGravityAxis(ent, surf);
+
+		Matrix4x4_RM_FromVectors(surfm, surf[0], surf[1], surf[2], vec3_origin);
+		Matrix3x4_InvertTo4x4_Simple(surfm, invsurfm);
+
+		/*calc current view matrix relative to the surface*/
+		Matrix4x4_RM_FromVectors(viewm, view[0], view[1], view[2], vec3_origin);
+		Matrix4_Multiply(viewm, invsurfm, mat);
+		/*convert that back to angles*/
+		Matrix3x4_RM_ToVectors(mat, view[0], view[1], view[2], view[3]);
+		VectorAngles(view[0], view[2], vang);
+
+		/*edit it*/
+
+		ideal = ent->v->ideal_yaw;
+		speed = ent->v->yaw_speed;
+		move = ideal - anglemod(vang[YAW]);
+		if (move > 180)
+			move -= 360;
+		else if (move < -180)
+			move += 360;
+		if (move > 0)
+		{
+			if (move > speed)
+				move = speed;
+		}
+		else
+		{
+			if (move < -speed)
+				move = -speed;
+		}
+		vang[YAW] = anglemod(vang[YAW] + move);
+
+		/*clamp pitch, kill roll. monsters don't pitch/roll.*/
+		vang[PITCH] = 0;
+		vang[ROLL] = 0;
+
+		move = ideal - vang[YAW];
+
+		/*turn those angles back to a matrix*/
+		AngleVectors(vang, view[0], view[1], view[2]);
+		VectorNegate(view[1], view[1]);
+		Matrix4x4_RM_FromVectors(mat, view[0], view[1], view[2], vec3_origin);
+		/*rotate back into world space*/
+		Matrix4_Multiply(mat, surfm, viewm);
+		/*and figure out the final result*/
+		Matrix3x4_RM_ToVectors(viewm, view[0], view[1], view[2], view[3]);
+		VectorAngles(view[0], view[2], ent->v->angles);
+
+		//make sure everything is sane
+		ent->v->angles[PITCH] = anglemod(ent->v->angles[PITCH]);
+		ent->v->angles[YAW] = anglemod(ent->v->angles[YAW]);
+		ent->v->angles[ROLL] = anglemod(ent->v->angles[ROLL]);
+		return move;
+	}
+
 
 	//FIXME: gravitydir. reorient the angles to change the yaw with respect to the current ground surface.
 
@@ -265,7 +399,7 @@ void World_changeyaw (wedict_t *ent)
 	speed = ent->v->yaw_speed;
 
 	if (current == ideal)
-		return;
+		return 0;
 	move = ideal - current;
 	if (ideal > current)
 	{
@@ -289,6 +423,8 @@ void World_changeyaw (wedict_t *ent)
 	}
 
 	ent->v->angles[1] = anglemod (current + move);
+
+	return ideal - ent->v->angles[1];
 }
 
 /*
@@ -300,29 +436,31 @@ facing it.
 
 ======================
 */
-qboolean World_StepDirection (world_t *world, wedict_t *ent, float yaw, float dist)
+qboolean World_StepDirection (world_t *world, wedict_t *ent, float yaw, float dist, vec3_t axis[3])
 {
 	vec3_t		move, oldorigin;
-	float		delta;
+	float		delta, s;
 	
 	ent->v->ideal_yaw = yaw;
 
-	World_changeyaw(ent);
+	delta = World_changeyaw(ent);
 
 	yaw = yaw*M_PI*2 / 360;
-	//FIXME: gravitydir
-	move[0] = cos(yaw)*dist;
-	move[1] = sin(yaw)*dist;
-	move[2] = 0;
+
+	s = cos(yaw)*dist;
+	VectorScale(axis[0], s, move);
+	s = sin(yaw)*dist;
+	VectorMA(move, s, axis[1], move);
 
 	//FIXME: Hexen2: ent flags & FL_SET_TRACE
 
 	VectorCopy (ent->v->origin, oldorigin);
-	if (World_movestep (world, ent, move, false, false, NULL, NULL))
+	if (World_movestep (world, ent, move, axis, false, false, NULL, NULL))
 	{
-		delta = ent->v->angles[YAW] - ent->v->ideal_yaw;
+		delta = anglemod(delta);
 		if (delta > 45 && delta < 315)
-		{		// not turned far enough, so don't take the step
+		{	// not turned far enough, so don't take the step
+			//FIXME: surely this is noticably inefficient?
 			VectorCopy (oldorigin, ent->v->origin);
 		}
 		World_LinkEdict (world, ent, true);
@@ -356,7 +494,7 @@ SV_NewChaseDir
 */
 #define	DI_NODIR	-1
 
-void World_NewChaseDir (world_t *world, wedict_t *actor, wedict_t *enemy, float dist)
+void World_NewChaseDir (world_t *world, wedict_t *actor, wedict_t *enemy, float dist, vec3_t axis[3])
 {
 	float		deltax,deltay;
 	float			d[3];
@@ -365,8 +503,9 @@ void World_NewChaseDir (world_t *world, wedict_t *actor, wedict_t *enemy, float 
 	olddir = anglemod( (int)(actor->v->ideal_yaw/45)*45 );
 	turnaround = anglemod(olddir - 180);
 
-	deltax = enemy->v->origin[0] - actor->v->origin[0];
-	deltay = enemy->v->origin[1] - actor->v->origin[1];
+	VectorSubtract(enemy->v->origin, actor->v->origin, d);
+	deltax = DotProduct(d, axis[0]);
+	deltay = DotProduct(d, axis[1]);
 	if (deltax>10)
 		d[1]= 0;
 	else if (deltax<-10)
@@ -388,7 +527,7 @@ void World_NewChaseDir (world_t *world, wedict_t *actor, wedict_t *enemy, float 
 		else
 			tdir = d[2] == 90 ? 135 : 215;
 			
-		if (tdir != turnaround && World_StepDirection(world, actor, tdir, dist))
+		if (tdir != turnaround && World_StepDirection(world, actor, tdir, dist, axis))
 			return;
 	}
 
@@ -401,32 +540,32 @@ void World_NewChaseDir (world_t *world, wedict_t *actor, wedict_t *enemy, float 
 	}
 
 	if (d[1]!=DI_NODIR && d[1]!=turnaround 
-	&& World_StepDirection(world, actor, d[1], dist))
+	&& World_StepDirection(world, actor, d[1], dist, axis))
 			return;
 
 	if (d[2]!=DI_NODIR && d[2]!=turnaround
-	&& World_StepDirection(world, actor, d[2], dist))
+	&& World_StepDirection(world, actor, d[2], dist, axis))
 			return;
 
 /* there is no direct path to the player, so pick another direction */
 
-	if (olddir!=DI_NODIR && World_StepDirection(world, actor, olddir, dist))
+	if (olddir!=DI_NODIR && World_StepDirection(world, actor, olddir, dist, axis))
 			return;
 
 	if (rand()&1) 	/*randomly determine direction of search*/
 	{
 		for (tdir=0 ; tdir<=315 ; tdir += 45)
-			if (tdir!=turnaround && World_StepDirection(world, actor, tdir, dist) )
+			if (tdir!=turnaround && World_StepDirection(world, actor, tdir, dist, axis) )
 					return;
 	}
 	else
 	{
 		for (tdir=315 ; tdir >=0 ; tdir -= 45)
-			if (tdir!=turnaround && World_StepDirection(world, actor, tdir, dist) )
+			if (tdir!=turnaround && World_StepDirection(world, actor, tdir, dist, axis) )
 					return;
 	}
 
-	if (turnaround != DI_NODIR && World_StepDirection(world, actor, turnaround, dist) )
+	if (turnaround != DI_NODIR && World_StepDirection(world, actor, turnaround, dist, axis) )
 			return;
 
 	actor->v->ideal_yaw = olddir;		// can't move
@@ -434,7 +573,7 @@ void World_NewChaseDir (world_t *world, wedict_t *actor, wedict_t *enemy, float 
 // if a bridge was pulled out from underneath a monster, it may not have
 // a valid standing position at all
 
-	if (!World_CheckBottom (world, actor))
+	if (!World_CheckBottom (world, actor, axis[2]))
 		World_FixCheckBottom (actor);
 
 }
@@ -468,6 +607,7 @@ SV_MoveToGoal
 qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist)
 {
 	wedict_t	*goal;
+	vec3_t axis[3];
 
 	ent = (wedict_t*)PROG_TO_EDICT(world->progs, *world->g.self);	
 	goal = (wedict_t*)PROG_TO_EDICT(world->progs, ent->v->goalentity);
@@ -481,11 +621,14 @@ qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist)
 	if ( PROG_TO_EDICT(world->progs, ent->v->enemy) != (edict_t*)world->edicts && World_CloseEnough (ent, goal, dist) )
 		return true;
 
+
+	World_GetEntGravityAxis(ent, axis);
+
 // bump around...
 	if ( (rand()&3)==1 ||
-	!World_StepDirection (world, ent, ent->v->ideal_yaw, dist))
+	!World_StepDirection (world, ent, ent->v->ideal_yaw, dist, axis))
 	{
-		World_NewChaseDir (world, ent, goal, dist);
+		World_NewChaseDir (world, ent, goal, dist, axis);
 	}
 	return true;
 }

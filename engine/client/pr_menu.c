@@ -509,14 +509,14 @@ void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *
 		pic = R2D_SafePicFromWad(str);
 	else
 	{
-		if (cls.state
+		pic = R2D_SafeCachePic(str);
+
+		if ((!pic || (pic->flags & SHADER_NOIMAGE)) && cls.state
 #ifndef CLIENTONLY
 			&& !sv.active
 #endif
-			)
+			&& strchr(str, '.'))	//only try to download it if it looks as though it contains a path.
 			CL_CheckOrEnqueDownloadFile(str, str, 0);
-
-		pic = R2D_SafeCachePic(str);
 	}
 
 	if (pic)

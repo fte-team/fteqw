@@ -90,6 +90,7 @@ extern cvar_t	pm_slidyslopes;
 extern cvar_t	pm_airstep;
 extern cvar_t	pm_walljump;
 extern cvar_t	pm_watersinkspeed;
+extern cvar_t	pm_flyfriction;
 cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
 
 //yes, realip cvars need to be fully initialised or realip will be disabled
@@ -938,6 +939,9 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				ClientReliableWrite_Byte (client, track);
 				if (ISNQCLIENT(client))
 					ClientReliableWrite_Byte (client, track);
+
+				if (!track && *sv.h2miditrack)
+					SV_StuffcmdToClient(client, va("cd loop \"%s\"\n"));
 			}
 			else if (client->prespawn_idx == 2)
 			{
@@ -4140,6 +4144,34 @@ void Cmd_Give_f (void)
 	}
 }
 
+void Cmd_Spiderpig_f(void)
+{
+	if (!SV_MayCheat())
+	{
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		return;
+	}
+
+	if (!svprogfuncs)
+		return;
+
+	SV_LogPlayer(host_client, "spiderpig cheat");
+	if (sv_player->v->movetype != MOVETYPE_WALLWALK)
+	{
+		sv_player->v->movetype = MOVETYPE_WALLWALK;
+		sv_player->v->solid = SOLID_TRIGGER;
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "Spider-Pig, Spider-Pig, does whatever a Spider-Pig does...\n");
+	}
+	else
+	{
+		sv_player->v->movetype = MOVETYPE_WALK;
+		if (sv_player->v->health > 0)
+			sv_player->v->solid = SOLID_SLIDEBOX;
+		else
+			sv_player->v->solid = SOLID_NOT;
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "Spider-Pig, Spider-Pig!\n");
+	}
+}
 void Cmd_Noclip_f (void)
 {
 	if (!SV_MayCheat())
@@ -4166,6 +4198,34 @@ void Cmd_Noclip_f (void)
 		else
 			sv_player->v->solid = SOLID_NOT;
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "noclip OFF\n");
+	}
+}
+
+void Cmd_6dof_f (void)
+{
+	if (!SV_MayCheat())
+	{
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		return;
+	}
+
+	if (!svprogfuncs)
+		return;
+
+	SV_LogPlayer(host_client, "6dof cheat");
+	if (sv_player->v->movetype != MOVETYPE_6DOF)
+	{
+		sv_player->v->movetype = MOVETYPE_6DOF;
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "6dof mode ON\n");
+	}
+	else
+	{
+		sv_player->v->movetype = MOVETYPE_WALK;
+		if (sv_player->v->health > 0)
+			sv_player->v->solid = SOLID_SLIDEBOX;
+		else
+			sv_player->v->solid = SOLID_NOT;
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "6dof mode OFF\n");
 	}
 }
 
@@ -5066,6 +5126,8 @@ ucmd_t ucmds[] =
 	{"god", Cmd_God_f},
 	{"give", Cmd_Give_f},
 	{"noclip", Cmd_Noclip_f},
+	{"spiderpig", Cmd_Spiderpig_f},
+	{"6dof", Cmd_6dof_f},
 	{"fly", Cmd_Fly_f},
 	{"notarget", Cmd_Notarget_f},
 	{"setpos", Cmd_SetPos_f},
@@ -5635,6 +5697,9 @@ int SV_PMTypeForClient (client_t *cl)
 
 	case MOVETYPE_WALLWALK:
 		return PM_WALLWALK;
+	
+	case MOVETYPE_6DOF:
+		return PM_6DOF;
 
 	case MOVETYPE_FLY:
 		return PM_FLY;
@@ -5785,6 +5850,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		movevars.walljump = (pm_walljump.value);
 		movevars.slidyslopes = (pm_slidyslopes.value!=0);
 		movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
+		movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
 
 		for (i=0 ; i<3 ; i++)
 		{
@@ -5977,6 +6043,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.walljump = (pm_walljump.value);
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
+	movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
 
 	if (sv_player->xv->hasted)
 		movevars.maxspeed*=sv_player->xv->hasted;
@@ -6015,6 +6082,19 @@ if (sv_player->v->health > 0 && before && !after )
 #endif
 	pmove.world = NULL;
 
+	{
+		vec3_t delta;
+		VectorSubtract (pmove.angles, sv_player->v->v_angle, delta);
+
+		if (delta[0] || delta[1] || delta[2])
+		{
+			client_t *cl = ClientReliableWrite_BeginSplit(host_client, svcfte_setangledelta, 7);
+			for (i=0 ; i < 3 ; i++)
+				ClientReliableWrite_Angle16 (cl, delta[i]);
+		}
+
+	}
+
 	host_client->jump_held = pmove.jump_held;
 	if (progstype != PROG_QW)	//this is just annoying.
 	{
@@ -6049,7 +6129,7 @@ if (sv_player->v->health > 0 && before && !after )
 	VectorCopy (pmove.origin, sv_player->v->origin);
 	VectorCopy (pmove.angles, sv_player->v->v_angle);
 
-	VectorCopy (pmove.gravitydir, sv_player->xv->gravitydir);
+//	VectorCopy (pmove.gravitydir, sv_player->xv->gravitydir);
 	if (pmove.gravitydir[0] || pmove.gravitydir[1] || (pmove.gravitydir[2] && pmove.gravitydir[2] != -1))
 	{
 		if (!sv_player->v->fixangle)

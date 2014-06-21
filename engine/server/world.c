@@ -1043,7 +1043,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 		//solid_portal cares only about origins and as such has no mins/max
 		TransformedTrace(model, 0, ent->v->frame, start, end, vec3_origin, vec3_origin, &trace, eorg, ent->v->angles, hitcontentsmask);
 		if (trace.startsolid)	//portals should not block traces. this prevents infinite looping
-			trace.startsolid = trace.allsolid = false;
+			trace.startsolid = false;
 		hitmodel = false;
 	}
 	else if (ent->v->solid != SOLID_BSP)
@@ -1368,7 +1368,7 @@ void WorldQ2_ClipMoveToEntities (world_t *w, moveclip_t *clip )
 //a portal is flush with a world surface behind it.
 //this causes problems. namely that we can't pass through the portal plane if the bsp behind it prevents out origin from getting through.
 //so if the trace was clipped and ended infront of the portal, continue the trace to the edges of the portal cutout instead.
-void World_PortalCSG(wedict_t *portal, float trminz, float trmaxz, vec3_t start, vec3_t end, trace_t *trace)
+void World_PortalCSG(wedict_t *portal, float *trmin, float *trmax, vec3_t start, vec3_t end, trace_t *trace)
 {
 	vec4_t planes[6];	//far, near, right, left, up, down
 	int plane;
@@ -1391,19 +1391,26 @@ void World_PortalCSG(wedict_t *portal, float trminz, float trmaxz, vec3_t start,
 	VectorNegate(planes[3], planes[2]);
 	VectorNegate(planes[5], planes[4]);
 
-	trminz = fabs(trminz);
 	portalradius/=2;
-	planes[0][3] = DotProduct(portal->v->origin, planes[0]) - trminz-16;
+	planes[0][3] = DotProduct(portal->v->origin, planes[0]) - (1.0/32);
 	planes[1][3] = DotProduct(portal->v->origin, planes[1]) - (1.0/32);	//an epsilon beyond the portal
-	planes[2][3] = DotProduct(portal->v->origin, planes[2]) - portalradius+trminz;
-	planes[3][3] = DotProduct(portal->v->origin, planes[3]) - portalradius+trminz;
-	planes[4][3] = DotProduct(portal->v->origin, planes[4]) - portalradius+trminz;
-	planes[5][3] = DotProduct(portal->v->origin, planes[5]) - portalradius+trminz;
+	planes[2][3] = DotProduct(portal->v->origin, planes[2]) - portalradius;
+	planes[3][3] = DotProduct(portal->v->origin, planes[3]) - portalradius;
+	planes[4][3] = DotProduct(portal->v->origin, planes[4]) - portalradius;
+	planes[5][3] = DotProduct(portal->v->origin, planes[5]) - portalradius;
 
 	//if we're actually inside the csg region
 	for (plane = 0; plane < 6; plane++)
 	{
+		vec3_t nearest;
 		float d = DotProduct(worldpos, planes[plane]);
+		int k;
+		for (k = 0; k < 3; k++)
+			nearest[k] = (planes[plane][k]>=0)?trmax[k]:trmin[k];
+		if (!plane)	//front plane gets further away with side
+			planes[plane][3] -= DotProduct(nearest, planes[plane]);
+		else if (plane>1)	//side planes get nearer with size
+			planes[plane][3] += DotProduct(nearest, planes[plane]);
 		if (d - planes[plane][3] >= 0)
 			continue;	//endpos is inside
 		else
@@ -1418,7 +1425,7 @@ void World_PortalCSG(wedict_t *portal, float trminz, float trmaxz, vec3_t start,
 		float ds = DotProduct(start, planes[plane]) - planes[plane][3];
 		float de = DotProduct(end, planes[plane]) - planes[plane][3];
 		float frac;
-		if (ds > 0 && de < 0)
+		if (ds >= 0 && de < 0)
 		{
 			frac = (ds-(1.0/32)) / (ds - de);
 			if (frac < trace->fraction)
@@ -1504,7 +1511,7 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 		if (touch->v->solid == SOLID_PORTAL)
 		{
 			//make sure we don't hit the world if we're inside the portal
-			World_PortalCSG(touch, clip->mins[2], clip->maxs[2], clip->start, clip->end, &clip->trace);
+			World_PortalCSG(touch, clip->mins, clip->maxs, clip->start, clip->end, &clip->trace);
 		}
 
 		if ((int)touch->v->flags & FL_MONSTER)
@@ -1611,7 +1618,7 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 		if (touch->v->solid == SOLID_PORTAL)
 		{
 			//make sure we don't hit the world if we're inside the portal
-			World_PortalCSG(touch, clip->mins[2], clip->maxs[2], clip->start, clip->end, &clip->trace);
+			World_PortalCSG(touch, clip->mins, clip->maxs, clip->start, clip->end, &clip->trace);
 		}
 
 		if ((int)touch->v->flags & FL_MONSTER)

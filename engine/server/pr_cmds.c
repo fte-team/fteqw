@@ -369,8 +369,11 @@ pbool PDECL SV_BadField(pubprogfuncs_t *inst, edict_t *foo, const char *keyname,
 	{
 		/*hexen2 midi - just mute it, we don't support it*/
 		if (!stricmp(keyname, "MIDI"))
+		{
+			Q_strncpyz(sv.h2miditrack, value, sizeof(sv.h2miditrack));
 			return true;
-		/*hexen2 does cd tracks slightly differently too*/
+		}
+		/*hexen2 does cd tracks slightly differently too, so there's consistancy for you*/
 		if (!stricmp(keyname, "CD"))
 		{
 			sv.h2cdtrack = atoi(value);
@@ -3915,14 +3918,16 @@ float(float yaw, float dist) walkmove
 */
 static void QCBUILTIN PF_walkmove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	edict_t	*ent;
+	wedict_t	*ent;
 	float	yaw, dist;
 	vec3_t	move;
 //	dfunction_t	*oldf;
 	int 	oldself;
 	qboolean settrace;
+	vec3_t	axis[3];
+	float s;
 
-	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
+	ent = PROG_TO_WEDICT(prinst, pr_global_struct->self);
 	yaw = G_FLOAT(OFS_PARM0);
 	dist = G_FLOAT(OFS_PARM1);
 	if (svprogfuncs->callargc >= 3 && G_FLOAT(OFS_PARM2))
@@ -3937,10 +3942,12 @@ static void QCBUILTIN PF_walkmove (pubprogfuncs_t *prinst, struct globalvars_s *
 	}
 
 	yaw = yaw*M_PI*2 / 360;
+	World_GetEntGravityAxis(ent, axis);
 
-	move[0] = cos(yaw)*dist;
-	move[1] = sin(yaw)*dist;
-	move[2] = 0;
+	s = cos(yaw)*dist;
+	VectorScale(axis[0], s, move);
+	s = sin(yaw)*dist;
+	VectorMA(move, s, axis[1], move);
 
 // save program state, because SV_movestep may call other progs
 //	oldf = pr_xfunction;
@@ -3952,7 +3959,7 @@ static void QCBUILTIN PF_walkmove (pubprogfuncs_t *prinst, struct globalvars_s *
 //	}
 //	else if (!SV_TestEntityPosition(ent))
 //	{
-		G_FLOAT(OFS_RETURN) = World_movestep(&sv.world, (wedict_t*)ent, move, true, false, settrace?set_trace_globals:NULL, pr_globals);
+		G_FLOAT(OFS_RETURN) = World_movestep(&sv.world, (wedict_t*)ent, move, axis, true, false, settrace?set_trace_globals:NULL, pr_globals);
 //		if (SV_TestEntityPosition(ent))
 //			Con_Printf("Entity became stuck\n");
 //	}
@@ -4095,20 +4102,6 @@ static void QCBUILTIN PF_lightstylestatic (pubprogfuncs_t *prinst, struct global
 	val = styleDefs[num];
 
 	PF_applylightstyle(style, val, col);
-}
-
-/*
-=============
-PF_checkbottom
-=============
-*/
-static void QCBUILTIN PF_checkbottom (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	edict_t	*ent;
-
-	ent = G_EDICT(prinst, OFS_PARM0);
-
-	G_FLOAT(OFS_RETURN) = World_CheckBottom (&sv.world, (wedict_t*)ent);
 }
 
 /*
@@ -6869,7 +6862,7 @@ static void QCBUILTIN PF_h2movestep (pubprogfuncs_t *prinst, struct globalvars_s
 // save program state, because SV_movestep may call other progs
 	oldself = pr_global_struct->self;
 
-	G_INT(OFS_RETURN) = World_movestep (&sv.world, (wedict_t*)ent, v, false, true, set_trace?set_trace_globals:NULL, pr_globals);
+	G_INT(OFS_RETURN) = World_movestep (&sv.world, (wedict_t*)ent, v, NULL, false, true, set_trace?set_trace_globals:NULL, pr_globals);
 
 // restore program state
 	pr_global_struct->self = oldself;
@@ -8402,33 +8395,6 @@ static void QCBUILTIN PF_setcolors (pubprogfuncs_t *prinst, struct globalvars_s 
 	SV_ExtractFromUserinfo (client, true);
 }
 
-
-static client_t *DirectSplit(client_t *cl, int svc, int svclen)
-{
-	if (cl->controller)
-	{	//this is a slave client.
-		//find the right number and send.
-		client_t *sp;
-		int pnum = 0;
-		for (sp = cl->controller; sp; sp = sp->controlled)
-		{
-			if (sp == cl)
-				break;
-			pnum++;
-		}
-		sp = cl->controller;
-
-		ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 2+svclen);
-		ClientReliableWrite_Byte (sp, pnum);
-		ClientReliableWrite_Byte (sp, svc);
-		return sp;
-	}
-	else
-	{
-		ClientReliableWrite_Begin (cl, svc, svclen);
-		return cl;
-	}
-}
 static void ParamNegateFix ( float * xx, float * yy, int Zone )
 {
 	float x,y;
@@ -8466,7 +8432,7 @@ static void QCBUILTIN PF_ShowPic(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		cl = DirectSplit(&svs.clients[entnum], svcfte_showpic, 8 + strlen(slot)+strlen(picname));
+		cl = ClientReliableWrite_BeginSplit(&svs.clients[entnum], svcfte_showpic, 8 + strlen(slot)+strlen(picname));
 		ClientReliableWrite_Byte(cl, zone);
 		ClientReliableWrite_String(cl, slot);
 		ClientReliableWrite_String(cl, picname);
@@ -8499,7 +8465,7 @@ static void QCBUILTIN PF_HidePic(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		cl = DirectSplit(&svs.clients[entnum], svcfte_hidepic, 2 + strlen(slot));
+		cl = ClientReliableWrite_BeginSplit(&svs.clients[entnum], svcfte_hidepic, 2 + strlen(slot));
 		ClientReliableWrite_String(cl, slot);
 	}
 	else
@@ -8534,7 +8500,7 @@ static void QCBUILTIN PF_MovePic(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		cl = DirectSplit(&svs.clients[entnum], svcfte_movepic, 6 + strlen(slot));
+		cl = ClientReliableWrite_BeginSplit(&svs.clients[entnum], svcfte_movepic, 6 + strlen(slot));
 		ClientReliableWrite_String(cl, slot);
 		ClientReliableWrite_Byte(cl, zone);
 		ClientReliableWrite_Short(cl, x);
@@ -8567,7 +8533,7 @@ static void QCBUILTIN PF_ChangePic(pubprogfuncs_t *prinst, struct globalvars_s *
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
 
-		cl = DirectSplit(&svs.clients[entnum], svcfte_updatepic, 3 + strlen(slot)+strlen(newpic));
+		cl = ClientReliableWrite_BeginSplit(&svs.clients[entnum], svcfte_updatepic, 3 + strlen(slot)+strlen(newpic));
 		ClientReliableWrite_String(cl, slot);
 		ClientReliableWrite_String(cl, newpic);
 	}
@@ -9000,7 +8966,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"error",			PF_error,			10,		10,		10,		0,	D("void(string e)", "Ends the game with an easily readable error message.")},
 	{"objerror",		PF_objerror,		11,		11,		11,		0,	D("void(string e)", "Displays a non-fatal easily readable error message concerning the self entity, including a field dump. self will be removed!")},
 	{"vlen",			PF_vlen,			12,		12,		12,		0,	D("float(vector v)", "Returns the square root of the dotproduct of a vector with itself. Or in other words the length of a distance vector, in quake units.")},
-	{"vectoyaw",		PF_vectoyaw,		13,		13,		13,		0,	D("float(vector v)", "Given a direction vector, returns the yaw (_y) angle in which that direction vector points.")},
+	{"vectoyaw",		PF_vectoyaw,		13,		13,		13,		0,	D("float(vector v, optional entity reference)", "Given a direction vector, returns the yaw angle in which that direction vector points. If an entity is passed, the yaw angle will be relative to that entity's gravity direction.")},
 	{"spawn",			PF_Spawn,			14,		14,		14,		0,	D("entity()", "Adds a brand new entity into the world! Hurrah, you're now a parent!")},
 	{"remove",			PF_Remove,			15,		15,		15,		0,	D("void(entity e)", "Destroys the given entity and clears some limited fields (including model, modelindex, solid, classname). Any references to the entity following the call are an error. After two seconds, the entity will be reused, in the interim you can unfortunatly still read its fields to see if the reference is no longer valid.")},
 	{"traceline",		PF_svtraceline,		16,		16,		16,		0,	D("void(vector v1, vector v2, float flags, entity ent)", "Traces an infinitely thin line through the world from v1 towards v2.\nWill not collide with ent, ent.owner, or any entity who's owner field refers to ent.\nThere are no side effects beyond the trace_* globals being written.\nflags&MOVE_NOMONSTERS will not impact on non-bsp entities.\nflags&MOVE_MISSILE will impact with increased size.\nflags&MOVE_HITMODEL will impact upon model meshes, instead of their bounding boxes.\nflags&MOVE_TRIGGERS will also stop on triggers\nflags&MOVE_EVERYTHING will stop if it hits anything, even non-solid entities.\nflags&MOVE_LAGGED will backdate entity positions for the purposes of this builtin according to the indicated player ent's latency, to provide lag compensation.")},

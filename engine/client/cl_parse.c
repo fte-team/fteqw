@@ -6088,6 +6088,7 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_cdtrack:
 			{
+				//quakeworld got a crippled svc_cdtrack.
 				unsigned int firsttrack;
 				firsttrack = MSG_ReadByte ();
 				Media_NumberedTrack (firsttrack, firsttrack);

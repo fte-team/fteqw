@@ -4092,6 +4092,27 @@ void QCBUILTIN PF_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 }
 
+/*
+=============
+PF_checkbottom
+=============
+*/
+void QCBUILTIN PF_checkbottom (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	wedict_t	*ent;
+	vec3_t		gravup;
+
+	ent = G_WEDICT(prinst, OFS_PARM0);
+
+	if (ent->xv->gravitydir[0] || ent->xv->gravitydir[1] || ent->xv->gravitydir[2])
+		VectorNegate(ent->xv->gravitydir, gravup);
+	else
+		VectorSet(gravup, 0, 0, 1);
+
+	G_FLOAT(OFS_RETURN) = World_CheckBottom (world, ent, gravup);
+}
+
 ////////////////////////////////////////////////////
 //Vector functions
 
@@ -4118,12 +4139,16 @@ This was a major timewaster in progs, so it was converted to C
 FIXME: add gravitydir support
 ==============
 */
+float World_changeyaw (wedict_t *ent);
 void QCBUILTIN PF_changeyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	edict_t		*ent;
-	float		ideal, current, move, speed;
+	wedict_t		*ent;
+//	float		ideal, current, move, speed;
 
-	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
+	ent = PROG_TO_WEDICT(prinst, pr_global_struct->self);
+
+	World_changeyaw(ent);
+	/*
 	current = anglemod( ent->v->angles[1] );
 	ideal = ent->v->ideal_yaw;
 	speed = ent->v->yaw_speed;
@@ -4153,6 +4178,7 @@ void QCBUILTIN PF_changeyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	}
 
 	ent->v->angles[1] = anglemod (current + move);
+*/
 }
 
 //void() changepitch = #63;
@@ -4194,20 +4220,33 @@ void QCBUILTIN PF_changepitch (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	ent->v->angles[1] = anglemod (current + move);
 }
 
-//float vectoyaw(vector)
-//FIXME: support gravitydir
+//float vectoyaw(vector, optional entity reference)
 void QCBUILTIN PF_vectoyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*value1;
+	float	x, y;
 	float	yaw;
 
 	value1 = G_VECTOR(OFS_PARM0);
 
-	if (value1[1] == 0 && value1[0] == 0)
+	if (prinst->callargc >= 2)
+	{
+		vec3_t axis[3];
+		World_GetEntGravityAxis(G_WEDICT(prinst, OFS_PARM1), axis);
+		x = DotProduct(value1, axis[0]);
+		y = DotProduct(value1, axis[1]);
+	}
+	else
+	{
+		x = value1[0];
+		y = value1[1];
+	}
+
+	if (y == 0 && x == 0)
 		yaw = 0;
 	else
 	{
-		yaw = (int) (atan2(value1[1], value1[0]) * 180 / M_PI);
+		yaw = (int) (atan2(y, x) * 180 / M_PI);
 		if (yaw < 0)
 			yaw += 360;
 	}

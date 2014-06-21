@@ -1307,7 +1307,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	if (client->chokecount)
 	{
 		MSG_WriteByte (msg, svc_chokecount);
-		MSG_WriteByte (msg, client->chokecount);
+		MSG_WriteByte (msg, bound(0, client->chokecount, 255));
 		client->chokecount = 0;
 	}
 

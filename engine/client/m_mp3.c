@@ -445,7 +445,10 @@ void CD_f (void)
 
 	if (Q_strcasecmp(command, "loop") == 0)
 	{
-		Media_BackgroundTrack(Cmd_Argv(2), NULL);
+		if (Cmd_Argc() < 4)
+			Media_BackgroundTrack(Cmd_Argv(2), NULL);
+		else
+			Media_BackgroundTrack(Cmd_Argv(2), Cmd_Argv(3));
 		return;
 	}
 

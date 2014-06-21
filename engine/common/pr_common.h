@@ -125,6 +125,7 @@ void QCBUILTIN PF_dupstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 void QCBUILTIN PF_forgetstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_Spawn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_checkbottom (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_min (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_max (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_registercvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -481,6 +482,7 @@ pbool QDECL ED_CanFree (edict_t *ed);
 #define MOVETYPE_FOLLOW			12		// track movement of aiment
 #define MOVETYPE_H2PUSHPULL		13		// pushable/pullable object
 #define MOVETYPE_H2SWIM			14		// should keep the object in water
+#define MOVETYPE_6DOF			30		// flightsim mode
 #define MOVETYPE_WALLWALK		31		// walks up walls and along ceilings
 #define MOVETYPE_PHYSICS		32
 

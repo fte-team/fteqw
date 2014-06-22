@@ -529,8 +529,9 @@ struct shader_s
 		SHADER_HASREFRACTDEPTH	= 1 << 21,	//refraction generation needs to generate a depth texture too.
 		SHADER_HASNORMALMAP		= 1 << 22,	//says that we need to load a normalmap texture
 		SHADER_HASRIPPLEMAP		= 1 << 23,	//water surface disturbances for water splashes
-		SHADER_HASGLOSS			= 1 << 24,	//
+		SHADER_HASGLOSS			= 1 << 24,	//needs a _spec texture, if possible.
 		SHADER_NOSHADOWS		= 1 << 25,	//don't cast shadows
+		SHADER_HASFULLBRIGHT	= 1 << 26,	//needs a fullbright texture, if possible.
 	} flags;
 
 	program_t *prog;

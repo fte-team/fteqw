@@ -1954,6 +1954,7 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		pass->texgen = T_GEN_FULLBRIGHT;
 		pass->tcgen = TC_GEN_BASE;
+		shader->flags |= SHADER_HASFULLBRIGHT;
 	}
 	else if (!Q_stricmp (tname, "$upperoverlay"))
 	{
@@ -3929,8 +3930,16 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		}
 		TEXASSIGN(shader->defaulttextures.specular, tn->specular);
 	}
+
 	if (!TEXVALID(shader->defaulttextures.fullbright))
+	{
+		if ((shader->flags & SHADER_HASFULLBRIGHT) && r_fb_bmodels.value && gl_load24bit.value)
+		{
+			if (!TEXVALID(tn->fullbright))
+				tn->specular = R_LoadHiResTexture(va("%s_luma", imagename), NULL, 0);
+		}
 		TEXASSIGN(shader->defaulttextures.fullbright, tn->fullbright);
+	}
 }
 
 void Shader_DefaultScript(const char *shortname, shader_t *s, const void *args)

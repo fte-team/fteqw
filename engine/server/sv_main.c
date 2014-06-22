@@ -5899,7 +5899,7 @@ void SV_ExecInitialConfigs(char *defaultexec)
 	if (COM_FileSize("server.cfg") != -1)
 		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
 	else
-		Cbuf_InsertText ("cl_warncmd 0\nexec quake.rc\nexec ftesrv.cfg\ncl_warncmd 1\n", RESTRICT_LOCAL, false);
+		Cbuf_InsertText ("cl_warncmd 0\nexec quake.rc\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
 
 // process command line arguments
 	Cbuf_Execute ();

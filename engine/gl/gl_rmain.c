@@ -843,7 +843,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	}
 	else
 	{
-		vec3_t point, vel;
+		vec3_t point;
 		VectorCopy(plane.normal, oplane.normal);
 		//rotate the surface normal around its entity's matrix
 		plane.normal[0] = oplane.normal[0]*batch->ent->axis[0][0] + oplane.normal[1]*batch->ent->axis[1][0] + oplane.normal[2]*batch->ent->axis[2][0];

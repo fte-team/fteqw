@@ -623,12 +623,12 @@ void CL_ClampPitch (int pnum)
 	}
 	if (pv->pmovetype == PM_6DOF)
 	{
-		vec3_t impact;
-		vec3_t norm;
+//		vec3_t impact;
+//		vec3_t norm;
 		float mat2[16];
-		vec3_t cross;
+//		vec3_t cross;
 		vec3_t view[4];
-		float dot;
+//		float dot;
 		AngleVectors(pv->viewangles, view[0], view[1], view[2]);
 		Matrix4x4_RM_FromVectors(mat, view[0], view[1], view[2], vec3_origin);
 

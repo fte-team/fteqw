@@ -4357,9 +4357,10 @@ extern sizebuf_t csqcmsgbuffer;
 void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
+	qbyte val = (qbyte)G_FLOAT(OFS_PARM1);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
-		MSG_WriteByte(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		MSG_WriteByte(&csqcmsgbuffer, val);
 		return;
 	}
 
@@ -4373,13 +4374,13 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteByte(dest, (qbyte)G_FLOAT(OFS_PARM1));
+		NPP_NQWriteByte(dest, val);
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteByte(dest, (qbyte)G_FLOAT(OFS_PARM1));
+		NPP_QWWriteByte(dest, val);
 		return;
 	}
 #else
@@ -4389,19 +4390,20 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		if (!cl)
 			return;
 		ClientReliableCheckBlock(cl, 1);
-		ClientReliableWrite_Byte(cl, G_FLOAT(OFS_PARM1));
+		ClientReliableWrite_Byte(cl, val);
 	}
 	else
-		MSG_WriteByte (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteByte (QWWriteDest(dest), val);
 #endif
 }
 
 void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
+	char val = (char)G_FLOAT(OFS_PARM1);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
-		MSG_WriteChar(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		MSG_WriteChar(&csqcmsgbuffer, val);
 		return;
 	}
 
@@ -4414,13 +4416,13 @@ void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteChar(dest, (char)G_FLOAT(OFS_PARM1));
+		NPP_NQWriteChar(dest, val);
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteChar(dest, (char)G_FLOAT(OFS_PARM1));
+		NPP_QWWriteChar(dest, val);
 		return;
 	}
 #else
@@ -4430,10 +4432,10 @@ void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		if (!cl)
 			return;
 		ClientReliableCheckBlock(cl, 1);
-		ClientReliableWrite_Char(cl, G_FLOAT(OFS_PARM1));
+		ClientReliableWrite_Char(cl, val);
 	}
 	else
-		MSG_WriteChar (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
+		MSG_WriteChar (QWWriteDest(dest), val);
 #endif
 }
 

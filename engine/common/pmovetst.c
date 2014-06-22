@@ -263,7 +263,7 @@ static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t en
 //a portal is flush with a world surface behind it.
 //this causes problems. namely that we can't pass through the portal plane if the bsp behind it prevents out origin from getting through.
 //so if the trace was clipped and ended infront of the portal, continue the trace to the edges of the portal cutout instead.
-void PM_PortalCSG(physent_t *portal, float trminz, float trmaxz, vec3_t start, vec3_t end, trace_t *trace)
+void PM_PortalCSG(physent_t *portal, float *trmin, float *trmax, vec3_t start, vec3_t end, trace_t *trace)
 {
 	vec4_t planes[6];	//far, near, right, left, up, down
 	int plane;
@@ -286,19 +286,26 @@ void PM_PortalCSG(physent_t *portal, float trminz, float trmaxz, vec3_t start, v
 	VectorNegate(planes[3], planes[2]);
 	VectorNegate(planes[5], planes[4]);
 
-	trminz = fabs(trminz);
 	portalradius/=2;
-	planes[0][3] = DotProduct(portal->origin, planes[0]) - (trminz+fabs(trmaxz)+16);
-	planes[1][3] = DotProduct(portal->origin, planes[1]) - (64.0/32);	//an epsilon beyond the portal
-	planes[2][3] = DotProduct(portal->origin, planes[2]) - portalradius+trminz;
-	planes[3][3] = DotProduct(portal->origin, planes[3]) - portalradius+trminz;
-	planes[4][3] = DotProduct(portal->origin, planes[4]) - portalradius+trminz;
-	planes[5][3] = DotProduct(portal->origin, planes[5]) - portalradius+trminz;
+	planes[0][3] = DotProduct(portal->origin, planes[0]) - (1.1/32);
+	planes[1][3] = DotProduct(portal->origin, planes[1]) - (1.1/32);	//an epsilon beyond the portal
+	planes[2][3] = DotProduct(portal->origin, planes[2]) - portalradius;
+	planes[3][3] = DotProduct(portal->origin, planes[3]) - portalradius;
+	planes[4][3] = DotProduct(portal->origin, planes[4]) - portalradius;
+	planes[5][3] = DotProduct(portal->origin, planes[5]) - portalradius;
 
 	//if we're actually inside the csg region
 	for (plane = 0; plane < 6; plane++)
 	{
+		vec3_t nearest;
 		float d = DotProduct(worldpos, planes[plane]);
+		int k;
+		for (k = 0; k < 3; k++)
+			nearest[k] = (planes[plane][k]>=0)?trmax[k]:trmin[k];
+		if (!plane)	//front plane gets further away with side
+			planes[plane][3] -= DotProduct(nearest, planes[plane]);
+		else if (plane>1)	//side planes get nearer with size
+			planes[plane][3] += DotProduct(nearest, planes[plane]);
 		if (d - planes[plane][3] >= 0)
 			continue;	//endpos is inside
 		else
@@ -370,7 +377,7 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 				{
 					pe = &pmove.physents[j];
 					if (pe->isportal)
-						PM_PortalCSG(pe, pmove.player_mins[2], pmove.player_maxs[2], pos, pos, &trace);
+						PM_PortalCSG(pe, pmove.player_mins, pmove.player_maxs, pos, pos, &trace);
 				}
 				if (trace.allsolid)
 					return false;
@@ -434,7 +441,7 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end, unsigned int solidmask)
 		else if (pe->isportal)
 		{
 			//make sure we don't hit the world if we're inside the portal
-			PM_PortalCSG(pe, pmove.player_mins[2], pmove.player_maxs[2], start, end, &total);
+			PM_PortalCSG(pe, pmove.player_mins, pmove.player_maxs, start, end, &total);
 
 			// trace a line through the apropriate clipping hull
 			if (!PM_TransformedHullCheck (pe->model, start, end, vec3_origin, vec3_origin, &trace, pe->origin, pe->angles))
@@ -452,7 +459,7 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end, unsigned int solidmask)
 				{
 					pe = &pmove.physents[j];
 					if (pe->isportal)
-						PM_PortalCSG(pe, pmove.player_mins[2], pmove.player_maxs[2], start, end, &trace);
+						PM_PortalCSG(pe, pmove.player_mins, pmove.player_maxs, start, end, &trace);
 				}
 				pe = &pmove.physents[i];
 			}

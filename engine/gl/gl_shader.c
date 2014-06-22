@@ -3933,6 +3933,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 
 	if (!TEXVALID(shader->defaulttextures.fullbright))
 	{
+		extern cvar_t r_fb_bmodels;
 		if ((shader->flags & SHADER_HASFULLBRIGHT) && r_fb_bmodels.value && gl_load24bit.value)
 		{
 			if (!TEXVALID(tn->fullbright))

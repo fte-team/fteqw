@@ -644,18 +644,6 @@ void CL_DownloadFinished(qdownload_t *dl)
 
 	COM_RefreshFSCache_f();
 
-	// rename the temp file to it's final name
-	if (tempname)
-	{
-#ifdef TERRAIN
-		if (!strncmp(tempname, "temp/", 5) && Terr_DownloadedSection(tempname))
-		{
-			FS_Remove(tempname, dl->fsroot);
-			return;
-		}
-#endif
-	}
-
 	ext = COM_FileExtension(filename);
 
 

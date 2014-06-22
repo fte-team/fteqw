@@ -8612,12 +8612,12 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	VectorCopy(ent->v->maxs, pmove.player_maxs);
 	VectorCopy(ent->v->mins, pmove.player_mins);
 
+	pmove.skipent = -1;
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.world.worldmodel;
 
 	for (i=0 ; i<3 ; i++)
 	{
-		extern vec3_t	pmove_mins, pmove_maxs;
 		pmove_mins[i] = pmove.origin[i] - 256;
 		pmove_maxs[i] = pmove.origin[i] + 256;
 	}

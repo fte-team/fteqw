@@ -1398,6 +1398,7 @@ void SV_CheckTimer(void);
 
 void SV_LogPlayer(client_t *cl, char *msg);
 
+extern vec3_t pmove_mins, pmove_maxs;	//abs min/max extents
 void AddLinksToPmove ( edict_t *player, areanode_t *node );
 
 

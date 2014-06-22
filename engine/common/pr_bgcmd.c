@@ -366,7 +366,10 @@ void QCBUILTIN PF_getsurfacenumpoints(pubprogfuncs_t *prinst, struct globalvars_
 	else
 	{
 		surfnum += model->firstmodelsurface;
-		G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numvertexes;
+		if (!model->surfaces[surfnum].mesh)
+			G_FLOAT(OFS_RETURN) = 0;	//not loaded properly.
+		else
+			G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numvertexes;
 	}
 }
 // #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
@@ -718,7 +721,7 @@ void QCBUILTIN PF_getsurfacepointattribute(pubprogfuncs_t *prinst, struct global
 	if (model && model->type == mod_brush && surfnum < model->nummodelsurfaces)
 	{
 		surfnum += model->firstmodelsurface;
-
+		if (model->surfaces[surfnum].mesh)
 		if (pointnum < model->surfaces[surfnum].mesh->numvertexes)
 		{
 			switch(attribute)

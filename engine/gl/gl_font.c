@@ -1548,9 +1548,9 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 	// scan the width of the line
 		for (px=0, l=0 ; px <= maxpixelwidth; )
 		{
-			l++;
-			if (start+l >= end || (start[l-1]&(CON_CHARMASK|CON_HIDDEN)) == '\n')
+			if (start+l >= end || (start[l]&(CON_CHARMASK|CON_HIDDEN)) == '\n')
 				break;
+			l++;
 			px = Font_CharEndCoord(font, px, start[l]);
 		}
 		//if we did get to the end
@@ -1576,7 +1576,7 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 		if (start == end)
 			break;
 
-		if ((*start&(CON_CHARMASK|CON_HIDDEN)) == '\n'||!l)
+		if ((*start&(CON_CHARMASK|CON_HIDDEN)) == '\n')
 			start++;                // skip the \n
 	}
 

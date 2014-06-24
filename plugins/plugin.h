@@ -74,13 +74,24 @@ void BadBuiltin(void);
 #include <math.h>
 
 #ifndef _VM_H
-#ifdef _WIN64
-typedef long long qintptr_t;
-typedef unsigned long long quintptr_t;
-#else
-typedef long qintptr_t;
-typedef unsigned long quintptr_t;
-#endif
+	#if __STDC_VERSION__ >= 199901L
+		//C99 has a stdint header which hopefully contains an intptr_t
+		//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
+		#include <stdint.h>
+		#define qintptr_t intptr_t
+		#define quintptr_t uintptr_t
+	#else
+		#ifdef _WIN64
+			typedef long long qintptr_t;
+			typedef unsigned long long quintptr_t;
+		#else
+			#ifndef _MSC_VER
+				#define __w64
+			#endif
+			typedef long __w64 qintptr_t;
+			typedef unsigned long __w64 quintptr_t;
+		#endif
+	#endif
 #endif
 
 #ifndef _WIN32

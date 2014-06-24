@@ -8838,6 +8838,14 @@
 					RelativePath="..\client\in_generic.c"
 					>
 					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
 						ExcludedFromBuild="true"
 						>
@@ -11183,6 +11191,14 @@
 				<File
 					RelativePath="..\client\pr_clcmd.c"
 					>
+					<FileConfiguration
+						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
 						ExcludedFromBuild="true"
@@ -16807,6 +16823,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21320,7 +21337,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|Win32"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"

@@ -570,6 +570,7 @@ void PO_Close(struct po_s *po);
 typedef enum {
 	LOG_CONSOLE,
 	LOG_PLAYER,
+	LOG_RCON,
 	LOG_TYPES
 } logtype_t;
 void Log_Dir_Callback (struct cvar_s *var, char *oldvalue);

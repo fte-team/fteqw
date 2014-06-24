@@ -26,6 +26,7 @@ cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
 cvar_t dpcompat_set         = SCVAR("dpcompat_set", "0");
 int	Cmd_ExecLevel;
 qboolean cmd_didwait;
+qboolean cmd_blockwait;
 
 void Cmd_ForwardToServer (void);
 
@@ -161,6 +162,9 @@ bind g "impulse 5 ; +attack ; wait ; -attack ; impulse 2"
 */
 void Cmd_Wait_f (void)
 {
+	if (cmd_blockwait)
+		return;
+
 #ifndef CLIENTONLY
 	if (cmd_didwait && sv.state)
 		Con_DPrintf("waits without server frames\n");

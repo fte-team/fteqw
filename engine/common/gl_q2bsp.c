@@ -5691,6 +5691,10 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	if (0)
 	{	//treat *ALL* tests against the actual geometry instead of using any brushes.
 		//also ignores the bsp etc. not fast. testing only.
+
+		trace_ispoint = trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0
+		&& trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0;
+	
 		for (i = 0; i < mod->numsurfaces; i++)
 		{
 			CM_ClipBoxToMesh(trace_mins, trace_maxs, trace_start, trace_end, &trace_trace, mod->surfaces[i].mesh);
@@ -5699,6 +5703,9 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	else
 	if (0)
 	{
+				trace_ispoint = trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0
+		&& trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0;
+	
 		for (i = 0; i < mod->numleafs; i++)
 			CM_TraceToLeaf(&mod->leafs[i]);
 	}

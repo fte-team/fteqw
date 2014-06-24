@@ -2007,7 +2007,7 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 	}
 }
 
-void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
+static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum, int chunks)
 {
 #define CHUNKSIZE 1024
 	char buffer[CHUNKSIZE];
@@ -2015,16 +2015,20 @@ void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 	sizebuf_t *msg, msg_oob;
 	int i;
 	int error = false;
+//can't support this yet. at least forcing to 1 avoids too bad infinite loops. this can be a nasty dos attack on a server.  	if (chunks < 1)
+		chunks = 1;
 
 	msg = &host_client->datagram;
 
-	if (chunknum*CHUNKSIZE > host_client->downloadsize)
+	if (chunknum == -1)
+		error = 2;	//silent, don't report it
+	else if (chunknum*CHUNKSIZE > host_client->downloadsize)
 	{
 		SV_ClientTPrintf (host_client, PRINT_HIGH, "Warning: Invalid file chunk requested %u to %u of %u.\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
 		error = 2;
 	}
 
-	if (!error && VFS_SEEK (host_client->download, chunknum*CHUNKSIZE) == false)
+	if (!error && VFS_SEEK (host_client->download, (qofs_t)chunknum*CHUNKSIZE) == false)
 		error = true;
 	else
 	{
@@ -2032,58 +2036,63 @@ void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 			host_client->downloadcount = chunknum*CHUNKSIZE;
 	}
 
-	if ((host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize) || (host_client->datagram.cursize + CHUNKSIZE+5 > 1400))
+	
+	while (!error && chunks > 0)
 	{
-		//would overflow the packet, or result in (ethernet) fragmentation and high packet loss.
-		msg = &msg_oob;
+		if ((host_client->datagram.cursize + CHUNKSIZE+5+50 > host_client->datagram.maxsize) || (host_client->datagram.cursize + CHUNKSIZE+5 > 1400))
+		{
+			//would overflow the packet, or result in (ethernet) fragmentation and high packet loss.
+			msg = &msg_oob;
 
-		if (!ezfilenum)
-			return;
+			if (!ezfilenum)	//can't oob it
+				return;
 
-		if (host_client->waschoked)
-			return;	//don't let chunked downloads flood out the standard packets.
+			if (host_client->waschoked)
+				return;	//don't let chunked downloads flood out the standard packets.
 
-		if (!Netchan_CanPacket(&host_client->netchan, SV_RateForClient(host_client)))
-			return;
-	}
+			if (!Netchan_CanPacket(&host_client->netchan, SV_RateForClient(host_client)))
+				return;
+		}
 
-	if (error)
-		i = 0;
-	else
 		i = VFS_READ (host_client->download, buffer, CHUNKSIZE);
 
-	if (i > 0)
-	{
-		if (msg == &msg_oob)
+		if (i > 0)
 		{
-			msg = &msg_oob;
-			msg->cursize = 0;
-			msg->maxsize = sizeof(oobdata);
-			msg->currentbit = 0;
-			msg->packing = SZ_RAWBYTES;
-			msg->allowoverflow = 0;
-			msg->overflowed = 0;
-			msg->data = oobdata;
-			MSG_WriteByte(msg, A2C_PRINT);
-			SZ_Write(msg, "\\chunk", 6);
-			MSG_WriteLong(msg, ezfilenum);	//echoing the file num is used so the packets don't go out of sync.
+			if (msg == &msg_oob)
+			{
+				msg = &msg_oob;
+				msg->cursize = 0;
+				msg->maxsize = sizeof(oobdata);
+				msg->currentbit = 0;
+				msg->packing = SZ_RAWBYTES;
+				msg->allowoverflow = 0;
+				msg->overflowed = 0;
+				msg->data = oobdata;
+				MSG_WriteByte(msg, A2C_PRINT);
+				SZ_Write(msg, "\\chunk", 6);
+				MSG_WriteLong(msg, ezfilenum);	//echoing the file num is used so the packets don't go out of sync.
+			}
+
+			if (i != CHUNKSIZE)
+				memset(buffer+i, 0, CHUNKSIZE-i);
+
+			MSG_WriteByte(msg, svc_download);
+			MSG_WriteLong(msg, chunknum);
+			SZ_Write(msg, buffer, CHUNKSIZE);
+
+			if (msg == &msg_oob)
+			{
+				Netchan_OutOfBand(NS_SERVER, &host_client->netchan.remote_address, msg_oob.cursize, msg_oob.data);
+				Netchan_Block(&host_client->netchan, msg_oob.cursize, SV_RateForClient(host_client));
+				host_client->netchan.bytesout += msg_oob.cursize;
+			}
 		}
+		else if (i < 0)
+			error = true;
 
-		if (i != CHUNKSIZE)
-			memset(buffer+i, 0, CHUNKSIZE-i);
-
-		MSG_WriteByte(msg, svc_download);
-		MSG_WriteLong(msg, chunknum);
-		SZ_Write(msg, buffer, CHUNKSIZE);
-
-		if (msg == &msg_oob)
-		{
-			Netchan_OutOfBand(NS_SERVER, &host_client->netchan.remote_address, msg_oob.cursize, msg_oob.data);
-			Netchan_Block(&host_client->netchan, msg_oob.cursize, SV_RateForClient(host_client));
-		}
+		chunks--;
+		chunknum++;
 	}
-	else if (i < 0)
-		error = true;
 
 	if (error)
 	{
@@ -2122,9 +2131,9 @@ void SV_NextDownload_f (void)
 	if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
 	{
 		if (Cmd_Argc() < 2)
-			SV_NextChunkedDownload(atoi(Cmd_Argv(1)), atoi(Cmd_Argv(2)), atoi(Cmd_Argv(3)));
+			SV_NextChunkedDownload(atoi(Cmd_Argv(1)), atoi(Cmd_Argv(2)), atoi(Cmd_Argv(3)), atoi(Cmd_Argv(4)));
 		else
-			SV_NextChunkedDownload(atoi(Cmd_Argv(1)), atoi(Cmd_Argv(2)), atoi(Cmd_Argv(3)));
+			SV_NextChunkedDownload(atoi(Cmd_Argv(1)), atoi(Cmd_Argv(2)), atoi(Cmd_Argv(3)), atoi(Cmd_Argv(4)));
 		return;
 	}
 #endif
@@ -2596,6 +2605,7 @@ qboolean SV_AllowDownload (const char *name)
 	extern	cvar_t	allow_download_root;
 	extern	cvar_t	allow_download_configs;
 	extern	cvar_t	allow_download_copyrighted;
+	extern	cvar_t	allow_download_other;
 	char cleanname[MAX_QPATH];
 	int i=0;
 	if (strlen(name) >= MAX_QPATH)
@@ -2618,6 +2628,9 @@ qboolean SV_AllowDownload (const char *name)
 	if (*name == '/')	//no absolute.
 		return false;
 	if (strchr(name, '\\'))	//no windows paths - grow up lame windows users.
+		return false;
+
+	if (!Q_strcasecmp("log", COM_FileExtension(name)))
 		return false;
 
 	if (!strncmp(name, "package/", 8))
@@ -2677,12 +2690,13 @@ qboolean SV_AllowDownload (const char *name)
 	//root of gamedir
 	if (!strchr(name, '/') && !allow_download_root.value)
 	{
-		if (strcmp(name, "csprogs.dat"))	//we always allow csprogs.dat to be downloaded (if downloads are permitted).
-			return false;
+		if (!strcmp(name, "csprogs.dat"))	//we always allow csprogs.dat to be downloaded (if downloads are permitted).
+			return true;
+		return false;
 	}
 
 	//any other subdirs are allowed
-	return true;
+	return !!allow_download_other.value;;
 }
 
 static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementname, qboolean redirectpaks)
@@ -3036,9 +3050,16 @@ void SV_BeginDownload_f(void)
 			host_client->download = tmp;
 		}
 
-		ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(host_client->downloadfn));
+		ClientReliableWrite_Begin (host_client, svc_download, 18+strlen(host_client->downloadfn));
 		ClientReliableWrite_Long (host_client, -1);
-		ClientReliableWrite_Long (host_client, host_client->downloadsize);
+		if (host_client->downloadsize >= 0x7fffffff)
+		{	//avoid unsigned values.
+			ClientReliableWrite_Long (host_client, 0x80000000);	//signal that its 64bit
+			ClientReliableWrite_Long (host_client, qofs_Low(host_client->downloadsize));
+			ClientReliableWrite_Long (host_client, qofs_High(host_client->downloadsize));
+		}
+		else
+			ClientReliableWrite_Long (host_client, host_client->downloadsize);
 		ClientReliableWrite_String (host_client, host_client->downloadfn);
 	}
 	else
@@ -5333,8 +5354,11 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 				return;
 			}
 
+			Log_String(LOG_RCON, va("cmd from %s - %s:\n%s\n"
+				, NET_AdrToString (adr, sizeof(adr), &net_from), host_client->name, s));
+
 			Con_TPrintf ("cmd from %s:\n%s\n"
-				, host_client->name, net_message.data+4);
+				, host_client->name, s);
 
 			SV_BeginRedirect (RD_CLIENT, host_client->language);
 
@@ -5351,8 +5375,8 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 						, NET_AdrToString (adr, sizeof(adr), &net_from), "Was too long - possible buffer overflow attempt");
 					return;
 				}
-				strcat (remaining, Cmd_Argv(i) );
-				strcat (remaining, " ");
+				Q_strncatz(remaining, Cmd_Argv(i), sizeof(remaining));
+				Q_strncatz(remaining, " ", sizeof(remaining));
 			}
 
 			Cmd_ExecuteString (remaining, stats.trustlevel);

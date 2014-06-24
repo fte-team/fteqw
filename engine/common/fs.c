@@ -1051,7 +1051,7 @@ qboolean FS_GetPackageDownloadable(const char *package)
 
 	for (search = com_searchpaths ; search ; search = search->next)
 	{
-		if (!strcmp(package, search->purepath))
+		if (!Q_strcasecmp(package, search->purepath))
 			return !(search->flags & SPF_COPYPROTECTED);
 	}
 	return false;
@@ -3943,6 +3943,10 @@ void FS_ChangeGame_f(void)
 {
 	int i;
 	char *arg = Cmd_Argv(1);
+
+	//don't execute this if we're executing rcon commands, as this can change game directories.
+	if (cmd_blockwait)
+		return;
 
 	if (!*arg)
 	{

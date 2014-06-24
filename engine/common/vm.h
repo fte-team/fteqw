@@ -19,8 +19,11 @@
 		#define FTE_WORDSIZE 64
 		#define quintptr_t unsigned qintptr_t
 	#elif defined(_WIN32)
-		typedef __int32 qintptr_t;	//add __w64 if you need msvc to shut up about unsafe type conversions
-		typedef unsigned __int32 quintptr_t;
+		#ifndef _MSC_VER
+			#define __w64
+		#endif
+		typedef __int32 __w64 qintptr_t;	//add __w64 if you need msvc to shut up about unsafe type conversions
+		typedef unsigned __int32 __w64 quintptr_t;
 //		#define qintptr_t __int32
 //		#define quintptr_t unsigned qintptr_t
 		#define FTE_WORDSIZE 32

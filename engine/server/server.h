@@ -457,11 +457,11 @@ typedef struct client_s
 
 	char			downloadfn[MAX_QPATH];
 	vfsfile_t		*download;			// file being downloaded
-	unsigned int	downloadsize;		// total bytes
-	unsigned int	downloadcount;		// bytes sent
+	qofs_t			downloadsize;		// total bytes
+	qofs_t			downloadcount;		// bytes sent
 
-	int				downloadacked;		//DP-specific
-	int				downloadstarted;	//DP-specific
+	qofs_t			downloadacked;		//DP-specific
+	qofs_t			downloadstarted;	//DP-specific
 
 	int				spec_track;			// entnum of player tracking
 
@@ -1161,7 +1161,7 @@ void SVM_Think(int port);
 //
 // svonly.c
 //
-typedef enum {RD_NONE, RD_CLIENT, RD_PACKET, RD_OBLIVION, RD_MASTER} redirect_t;	//oblivion is provided so people can read the output before the buffer is wiped.
+typedef enum {RD_NONE, RD_CLIENT, RD_PACKET, RD_PACKET_LOG, RD_OBLIVION, RD_MASTER} redirect_t;	//oblivion is provided so people can read the output before the buffer is wiped.
 void SV_BeginRedirect (redirect_t rd, int lang);
 void SV_EndRedirect (void);
 

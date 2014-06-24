@@ -124,6 +124,7 @@ cvar_t	allow_download_refpackages = CVARD("allow_download_refpackages", "1", "If
 cvar_t	allow_download_wads = CVAR("allow_download_wads", "1");
 cvar_t	allow_download_configs = CVAR("allow_download_configs", "0");
 cvar_t	allow_download_copyrighted = CVAR("allow_download_copyrighted", "0");
+cvar_t	allow_download_other = CVAR("allow_download_other", "0");
 
 cvar_t sv_serverip = CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
 cvar_t sv_public = CVAR("sv_public", "0");
@@ -3697,6 +3698,7 @@ void SVC_RemoteCommand (void)
 
 	if (!Rcon_Validate ())
 	{
+/*
 #ifdef SVRANKING
 		if (cmd_allowaccess.value)	//try and find a username, match the numeric password
 		{
@@ -3727,7 +3729,7 @@ void SVC_RemoteCommand (void)
 					Con_TPrintf ("Rcon from %s:\n%s\n"
 						, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4);
 
-					SV_BeginRedirect (RD_PACKET, svs.language);
+					SV_BeginRedirect (RD_PACKET_LOG, svs.language);
 
 					remaining[0] = 0;
 
@@ -3753,22 +3755,32 @@ void SVC_RemoteCommand (void)
 			}
 		}
 #endif
+*/
 
-		Con_TPrintf ("Bad rcon from %s:\n%s\n"
+		Log_String(LOG_RCON, va("Bad rcon from %s:\t%s\n"
+			, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4));
+
+		Con_TPrintf ("Bad rcon from %s:\t%s\n"
 			, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4);
 
 		SV_BeginRedirect (RD_PACKET, svs.language);
 
-		Con_TPrintf ("Bad rcon_password.\n");
-
+		Con_TPrintf ("Bad rcon_password. Passwords might be logged. Be careful.\n");
 	}
 	else
 	{
+		//make sure stuff is flushed
+		cmd_blockwait = true;
+		Cbuf_ExecuteLevel(rcon_level.ival);
+		cmd_blockwait = false;
 
-		Con_TPrintf ("Rcon from %s:\n%s\n"
+		Log_String(LOG_RCON, va("\n\nRcon from %s:\t%s\n"
+			, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4));
+
+		Con_TPrintf ("Rcon from %s:\t%s\n"
 			, NET_AdrToString (adr, sizeof(adr), &net_from), net_message.data+4);
 
-		SV_BeginRedirect (RD_PACKET, svs.language);
+		SV_BeginRedirect (RD_PACKET_LOG, svs.language);
 
 		remaining[0] = 0;
 
@@ -3778,16 +3790,19 @@ void SVC_RemoteCommand (void)
 			{
 				Con_TPrintf("Rcon was too long\n");
 				SV_EndRedirect ();
-				Con_TPrintf ("Rcon from %s:\n%s\n"
+				Con_TPrintf ("Rcon from %s:\t%s\n"
 					, NET_AdrToString (adr, sizeof(adr), &net_from), "Was too long - possible buffer overflow attempt");
 				return;
 			}
-			strcat (remaining, Cmd_Argv(i) );
-			strcat (remaining, " ");
+			Q_strncatz(remaining, Cmd_Argv(i), sizeof(remaining));
+			Q_strncatz(remaining, " ", sizeof(remaining));
 		}
 
-		Cmd_ExecuteString (remaining, rcon_level.ival);
-
+		//make sure the wait command can't be used to fuck up our logs.
+		cmd_blockwait = true;
+		Cbuf_AddText(remaining, rcon_level.ival);
+		Cbuf_ExecuteLevel(rcon_level.ival);
+		cmd_blockwait = false;
 	}
 
 	SV_EndRedirect ();
@@ -5278,6 +5293,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_wads,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_root,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_copyrighted,	cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_other,	cvargroup_serverpermissions);
 	Cvar_Register (&secure,	cvargroup_serverpermissions);
 
 	Cvar_Register (&sv_highchars,	cvargroup_servercontrol);

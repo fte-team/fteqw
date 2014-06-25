@@ -843,7 +843,6 @@ hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, vec3_t mins, vec3_t m
 qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, trace_t *trace)
 {
 	hull_t *hull;
-	vec3_t size;
 	vec3_t start_l, end_l;
 	vec3_t offset;
 

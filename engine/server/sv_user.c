@@ -1531,12 +1531,15 @@ void SVQW_Spawn_f (void)
 				if (!sv.strings.lightstyles[i])
 					continue;
 #ifdef PEXT_LIGHTSTYLECOL
-			if ((host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && sv.strings.lightstylecolours[i]!=7 && sv.strings.lightstyles[i])
+			if ((host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (sv.strings.lightstylecolours[i][0]!=1||sv.strings.lightstylecolours[i][1]!=1||sv.strings.lightstylecolours[i][2]!=1) && sv.strings.lightstyles[i])
 			{
 				ClientReliableWrite_Begin (host_client, svcfte_lightstylecol,
-					3 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
+					10 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
 				ClientReliableWrite_Byte (host_client, (char)i);
-				ClientReliableWrite_Char (host_client, sv.strings.lightstylecolours[i]);
+				ClientReliableWrite_Char (host_client, 0x87);
+				ClientReliableWrite_Short (host_client, sv.strings.lightstylecolours[i][0]*1024);
+				ClientReliableWrite_Short (host_client, sv.strings.lightstylecolours[i][1]*1024);
+				ClientReliableWrite_Short (host_client, sv.strings.lightstylecolours[i][2]*1024);
 				ClientReliableWrite_String (host_client, sv.strings.lightstyles[i]);
 			}
 			else
@@ -2317,7 +2320,7 @@ void SV_VoiceReadPacket(void)
 	bytes = MSG_ReadShort();
 	ring = &voice.ring[voice.write & (VOICE_RING_SIZE-1)];
 	//voice data does not get echoed to the sender unless sv_voip_echo is on too, which is rarely the case, so no worries about leaking the mute+deaf talking-to-yourself thing
-	if (bytes > sizeof(ring->data) || host_client->ismuted || !sv_voip.ival)
+	if (bytes > sizeof(ring->data) || (host_client->penalties & BAN_MUTE) || !sv_voip.ival)
 	{
 		MSG_ReadSkip(bytes);
 		return;
@@ -2349,7 +2352,7 @@ void SV_VoiceReadPacket(void)
 			if (!cl->spectator)
 				continue;
 
-		if (cl->isdeaf)
+		if (cl->penalties & BAN_DEAF)
 			continue;
 
 		if (vt == VT_TEAM)
@@ -3112,7 +3115,7 @@ void SV_SayOne_f (void)
 	if (Cmd_Argc () < 3)
 		return;
 
-	if (host_client->ismuted && !host_client->isdeaf)
+	if ((host_client->penalties & BAN_MUTE) && !(host_client->penalties & BAN_DEAF))
 	{
 		SV_ClientTPrintf(host_client, PRINT_CHAT, "You are muted\n");
 		return;
@@ -3120,7 +3123,7 @@ void SV_SayOne_f (void)
 
 	while((to = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		if (host_client->ismuted)
+		if ((host_client->penalties & BAN_MUTE))
 			continue;
 		if (host_client->spectator)
 		{
@@ -3132,7 +3135,7 @@ void SV_SayOne_f (void)
 		else
 			Q_snprintfz (text, sizeof(text), "{%s}:", host_client->name);
 
-		if (to->isdeaf)
+		if (to->penalties & BAN_DEAF)
 			continue;
 
 		for (i = 2; ; i++)
@@ -3246,7 +3249,7 @@ void SV_Say (qboolean team)
 	if (Cmd_Argc () < 2)
 		return;
 
-	if (!host_client->ismuted)
+	if (!(host_client->penalties & BAN_MUTE))
 		Sys_ServerActivity();
 
 	memset(sent, 0, sizeof(sent));
@@ -3263,7 +3266,7 @@ void SV_Say (qboolean team)
 	else
 		Q_snprintfz (text, sizeof(text), "%s: ", host_client->name);
 
-	if (host_client->ismuted && !host_client->isdeaf)
+	if ((host_client->penalties & BAN_MUTE) && !(host_client->penalties & BAN_DEAF))
 	{
 		SV_ClientTPrintf(host_client, PRINT_CHAT, "You cannot chat while muted\n");
 		return;
@@ -3321,7 +3324,7 @@ void SV_Say (qboolean team)
 
 	Q_strcat(text, "\n");
 
-	if (!host_client->ismuted)
+	if (!(host_client->penalties & BAN_MUTE))
 		Sys_Printf ("%s", text);
 
 	mvdrecording = sv.mvdrecording;
@@ -3347,12 +3350,12 @@ void SV_Say (qboolean team)
 			}
 		}
 
-		if (host_client->ismuted)
+		if (host_client->penalties & BAN_MUTE)
 		{
 			if (client != host_client)
 				continue;
 		}
-		else if (client->isdeaf)
+		else if (client->penalties & BAN_DEAF)
 			continue;
 
 		cls |= 1 << j;
@@ -3970,12 +3973,12 @@ void SV_Vote_f (void)
 	int totalusers = 0;
 	qboolean passes;
 
-	if (!votelevel.value || (host_client->ismuted && host_client->isdeaf))
+	if (!votelevel.value || ((host_client->penalties & (BAN_MUTE|BAN_DEAF)) == (BAN_MUTE|BAN_DEAF)))
 	{
 		SV_ClientTPrintf(host_client, PRINT_HIGH, "Voting was dissallowed\n");
 		return;
 	}
-	if (host_client->ismuted)
+	if (host_client->penalties & BAN_MUTE)
 	{
 		SV_ClientTPrintf(host_client, PRINT_HIGH, "Sorry, you cannot vote when muted as it may allow you to send a message.\n");
 		return;
@@ -5924,7 +5927,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	if (ucmd->impulse && SV_FilterImpulse(ucmd->impulse, host_client->trustlevel))
 		sv_player->v->impulse = ucmd->impulse;
 
-	if (host_client->iscuffed)
+	if (host_client->penalties & BAN_CUFF)
 	{
 		sv_player->v->impulse = 0;
 		sv_player->v->button0 = 0;
@@ -6488,7 +6491,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 					cl->delay = bound(0, cl->delay, 1);	//but make sure things don't go crazy
 				}
 			}
-			if (cl->islagged)
+			if (cl->penalties & BAN_LAGGED)
 				if (cl->delay < 0.2)
 					cl->delay = 0.2;
 		}
@@ -6623,7 +6626,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 					}
 				}
 
-				if (split->iscrippled)
+				if (split->penalties & BAN_CRIPPLED)
 				{
 					split->lastcmd.forwardmove = 0;	//hmmm.... does this work well enough?
 					oldest.forwardmove = 0;
@@ -6891,7 +6894,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 				return;
 			}
 
-			if (cl->iscrippled)
+			if (cl->penalties & BAN_CRIPPLED)
 			{
 				cl->lastcmd.forwardmove = 0;	//hmmm.... does this work well enough?
 				oldest.forwardmove = 0;

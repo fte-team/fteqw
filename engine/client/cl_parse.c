@@ -3765,15 +3765,12 @@ void CLQ2_ParseConfigString (void)
 	}
 	else if (i >= Q2CS_LIGHTS && i < Q2CS_LIGHTS+Q2MAX_LIGHTSTYLES)
 	{
-		cl_lightstyle[i - Q2CS_LIGHTS].colour = 7;	//white
-		Q_strncpyz (cl_lightstyle[i - Q2CS_LIGHTS].map,  s, sizeof(cl_lightstyle[i-Q2CS_LIGHTS].map));
-		cl_lightstyle[i - Q2CS_LIGHTS].length = Q_strlen(cl_lightstyle[i - Q2CS_LIGHTS].map);
-
+		R_UpdateLightStyle(i, s, 1, 1, 1);
 	}
 	else if (i == Q2CS_CDTRACK)
 	{
 //		if (cl.refresh_prepped)
-			Media_NumberedTrack (atoi(s), atoi(s));
+			Media_BackgroundTrack (s, NULL);
 	}
 	else if (i >= Q2CS_MODELS && i < Q2CS_MODELS+Q2MAX_MODELS)
 	{
@@ -5928,9 +5925,7 @@ void CLQW_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i >= MAX_LIGHTSTYLES)
 				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
-			cl_lightstyle[i].colour = 7;	//white
-			Q_strncpyz (cl_lightstyle[i].map,  MSG_ReadString(), sizeof(cl_lightstyle[i].map));
-			cl_lightstyle[i].length = Q_strlen(cl_lightstyle[i].map);
+			R_UpdateLightStyle(i, MSG_ReadString(), 1, 1, 1);
 			break;
 #ifdef PEXT_LIGHTSTYLECOL
 		case svcfte_lightstylecol:
@@ -5939,9 +5934,24 @@ void CLQW_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i >= MAX_LIGHTSTYLES)
 				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
-			cl_lightstyle[i].colour = MSG_ReadByte();
-			Q_strncpyz (cl_lightstyle[i].map,  MSG_ReadString(), sizeof(cl_lightstyle[i].map));
-			cl_lightstyle[i].length = Q_strlen(cl_lightstyle[i].map);
+			{
+				int bits;
+				vec3_t rgb;
+				bits = MSG_ReadByte();
+				if (bits & 0x80)
+				{
+					rgb[0] = MSG_ReadShort()/1024.0;
+					rgb[1] = MSG_ReadShort()/1024.0;
+					rgb[1] = MSG_ReadShort()/1024.0;
+				}
+				else
+				{
+					rgb[0] = (bits&1)?1:0;
+					rgb[1] = (bits&2)?1:0;
+					rgb[2] = (bits&4)?1:0;
+				}
+				R_UpdateLightStyle(i, MSG_ReadString(), rgb[0], rgb[1], rgb[2]);
+			}
 			break;
 #endif
 
@@ -6915,9 +6925,7 @@ void CLNQ_ParseServerMessage (void)
 				MSG_ReadString();
 				break;
 			}
-			cl_lightstyle[i].colour = 7;	//white
-			Q_strncpyz (cl_lightstyle[i].map,  MSG_ReadString(), sizeof(cl_lightstyle[i].map));
-			cl_lightstyle[i].length = Q_strlen(cl_lightstyle[i].map);
+			R_UpdateLightStyle(i, MSG_ReadString(), 1, 1, 1);
 			break;
 
 		case svcnq_updatestatlong:

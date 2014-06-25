@@ -658,7 +658,9 @@ static int bi_lua_precache_sound(lua_State *L)
 }
 static int bi_lua_lightstyle(lua_State *L)
 {
-	PF_applylightstyle(lua.tointegerx(L, 1, NULL), lua.tolstring(L, 2, NULL), 7);
+	vec3_t rgb;
+	lua_readvector(L, 3, rgb);
+	PF_applylightstyle(lua.tointegerx(L, 1, NULL), lua.tolstring(L, 2, NULL), rgb);
 	return 0;
 }
 static int bi_lua_spawn(lua_State *L)

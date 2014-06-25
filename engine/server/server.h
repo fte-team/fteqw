@@ -138,7 +138,7 @@ typedef struct
 			char		particle_precache[MAX_SSPARTICLESPRE][MAX_QPATH];	// NULL terminated
 			char		sound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
 			const char		*lightstyles[MAX_LIGHTSTYLES];
-			qbyte		lightstylecolours[MAX_LIGHTSTYLES];
+			vec3_t		lightstylecolours[MAX_LIGHTSTYLES];
 		};
 	} strings;
 	char		h2miditrack[MAX_QPATH];
@@ -481,13 +481,14 @@ typedef struct client_s
 #endif
 
 	//true/false/persist
-	qbyte		ismuted;
+	unsigned int	penalties;
+/*	qbyte		ismuted;
 	qbyte		iscuffed;
 	qbyte		iscrippled;
 	qbyte		isdeaf;
 	qbyte		islagged;
 	qbyte		isvip;
-
+*/
 	qbyte		istobeloaded;	//loadgame creates place holders for clients to connect to. Effectivly loading a game reconnects all clients, but has precreated ents.
 
 	double			floodprotmessage;
@@ -745,7 +746,9 @@ typedef struct
 #define	BAN_CRIPPLED	(1u<<4)	//can't move
 #define	BAN_DEAF		(1u<<5)	//can't see say/say_team
 #define	BAN_LAGGED		(1u<<6)	//given an extra 200ms
-#define BAN_VIP			(1u<<7)	//mods might give the user special rights
+#define BAN_VIP			(1u<<7)	//mods might give the user special rights, via the *VIP infokey. the engine itself currently does not do anything but track it.
+#define BAN_BLIND		(1u<<8)	//player's pvs is wiped.
+#define BAN_SPECONLY	(1u<<9) //player is forced to spectate
 
 typedef struct bannedips_s {
 	unsigned int banflags;

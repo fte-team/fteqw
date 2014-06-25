@@ -384,8 +384,8 @@ typedef struct msurface_s
 	qbyte		styles[MAXQ1LIGHTMAPS];
 	qbyte		vlstyles[MAXRLIGHTMAPS];
 	int			cached_light[MAXQ1LIGHTMAPS];	// values currently used in lightmap
+	int			cached_colour[MAXQ1LIGHTMAPS];
 	qboolean	cached_dlight;				// true if dynamic light in cache
-	qbyte		cached_colour[MAXQ1LIGHTMAPS];
 #ifndef NOSTAINS
 	qboolean stained;
 #endif

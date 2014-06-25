@@ -982,11 +982,11 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 					{
 						scale = d_lightstylevalue[surf->styles[maps]];
 						surf->cached_light[maps] = scale;	// 8.8 fraction
-						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
 
 						if (scale)
 						{
-							if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
+							if (cl_lightstyle[surf->styles[maps]].colours[0] == 1 && cl_lightstyle[surf->styles[maps]].colours[1] == 1 && cl_lightstyle[surf->styles[maps]].colours[2] == 1)	//hopefully a faster alternative.
 							{
 								bl = blocklights;
 								for (i=0 ; i<size*3 ; i++)
@@ -996,15 +996,24 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 							}
 							else
 							{
-								if (cl_lightstyle[surf->styles[maps]].colour & 1)
+								if (cl_lightstyle[surf->styles[maps]].colours[0])
+								{
+									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[0];
 									for (i=0 ; i<size ; i++)
 										blocklights[i+0]	+= lightmap[i*3+0] * scale;
-								if (cl_lightstyle[surf->styles[maps]].colour & 2)
+								}
+								if (cl_lightstyle[surf->styles[maps]].colours[1])
+								{
+									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[1];
 									for (i=0 ; i<size ; i++)
 										blocklights[i+1]	+= lightmap[i*3+1] * scale;
-								if (cl_lightstyle[surf->styles[maps]].colour & 4)
+								}
+								if (cl_lightstyle[surf->styles[maps]].colours[2])
+								{
+									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[2];
 									for (i=0 ; i<size ; i++)
 										blocklights[i+2]	+= lightmap[i*3+2] * scale;
+								}
 								lightmap += size*3;	// skip to next lightmap
 							}
 						}
@@ -1018,9 +1027,9 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 					{
 						scale = d_lightstylevalue[surf->styles[maps]];
 						surf->cached_light[maps] = scale;	// 8.8 fraction
-						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
 
-						if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
+						if (cl_lightstyle[surf->styles[maps]].colours[0] == 1 && cl_lightstyle[surf->styles[maps]].colours[1] == 1 && cl_lightstyle[surf->styles[maps]].colours[2] == 1)	//hopefully a faster alternative.
 						{
 							bl = blocklights;
 							for (i=0 ; i<size ; i++)
@@ -1033,15 +1042,24 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 						}
 						else
 						{
-							if (cl_lightstyle[surf->styles[maps]].colour & 1)
+							if (cl_lightstyle[surf->styles[maps]].colours[0])
+							{
+								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[0];
 								for (i=0, bl = blocklights; i<size; i++, bl+=3)
 									*bl += lightmap[i] * scale;
-							if (cl_lightstyle[surf->styles[maps]].colour & 2)
+							}
+							if (cl_lightstyle[surf->styles[maps]].colours[1])
+							{
+								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[1];
 								for (i=0, bl = blocklights+1; i<size; i++, bl+=3)
 									*bl += lightmap[i] * scale;
-							if (cl_lightstyle[surf->styles[maps]].colour & 4)
+							}
+							if (cl_lightstyle[surf->styles[maps]].colours[2])
+							{
+								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[2];
 								for (i=0, bl = blocklights+2; i<size; i++, bl+=3)
 									*bl += lightmap[i] * scale;
+							}
 							lightmap += size;	// skip to next lightmap
 						}
 					}
@@ -1098,7 +1116,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 				blocklights[i] = 255*256;
 			}
 			surf->cached_light[0] = d_lightstylevalue[0];
-			surf->cached_colour[0] = cl_lightstyle[0].colour;
+			surf->cached_colour[0] = cl_lightstyle[0].colourkey;
 		}
 		else if (r_fullbright.ival)
 		{
@@ -1120,7 +1138,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]/3;
 						surf->cached_light[maps] = scale;	// 8.8 fraction
-						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
 						for (i=0 ; i<size ; i++)
 							blocklights[i] += (lightmap[i*3]+lightmap[i*3+1]+lightmap[i*3+2]) * scale;
 						lightmap += size*3;	// skip to next lightmap
@@ -1132,7 +1150,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 					{
 						scale = d_lightstylevalue[surf->styles[maps]];
 						surf->cached_light[maps] = scale;	// 8.8 fraction
-						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
 						for (i=0 ; i<size ; i++)
 							blocklights[i] += lightmap[i] * scale;
 						lightmap += size;	// skip to next lightmap
@@ -1187,7 +1205,7 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 		for (maps = 0 ; maps < MAXQ1LIGHTMAPS && fa->styles[maps] != 255 ;
 			 maps++)
 			if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps]
-				|| cl_lightstyle[fa->styles[maps]].colour != fa->cached_colour[maps])
+				|| cl_lightstyle[fa->styles[maps]].colourkey != fa->cached_colour[maps])
 				goto dynamic;
 	}
 

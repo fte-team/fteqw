@@ -469,12 +469,12 @@ void SV_DropClient (client_t *drop)
 				rs.deaths += drop->deaths;
 
 				rs.flags1 &= ~(RANK_CUFFED|RANK_MUTED|RANK_CRIPPLED);
-				if (drop->iscuffed==2)
-					rs.flags1 |= RANK_CUFFED;
-				if (drop->ismuted==2)
-					rs.flags1 |= RANK_MUTED;
-				if (drop->iscrippled==2)
-					rs.flags1 |= RANK_CRIPPLED;
+//				if (drop->iscuffed==2)
+//					rs.flags1 |= RANK_CUFFED;
+//				if (drop->ismuted==2)
+//					rs.flags1 |= RANK_MUTED;
+//				if (drop->iscrippled==2)
+//					rs.flags1 |= RANK_CRIPPLED;
 				drop->kills=0;
 				drop->deaths=0;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
@@ -5659,12 +5659,12 @@ qboolean ReloadRanking(client_t *cl, const char *newname)
 			rs.deaths += cl->deaths;
 
 			rs.flags1 &= ~(RANK_CUFFED|RANK_MUTED|RANK_CRIPPLED);
-			if (cl->iscuffed==2)
-				rs.flags1 |= RANK_CUFFED;
-			if (cl->ismuted==2)
-				rs.flags1 |= RANK_MUTED;
-			if (cl->iscrippled==2)
-				rs.flags1 |= RANK_CRIPPLED;
+//			if (cl->iscuffed==2)
+//				rs.flags1 |= RANK_CUFFED;
+//			if (cl->ismuted==2)
+//				rs.flags1 |= RANK_MUTED;
+//			if (cl->iscrippled==2)
+//				rs.flags1 |= RANK_CRIPPLED;
 			cl->kills=0;
 			cl->deaths=0;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
@@ -5680,17 +5680,11 @@ qboolean ReloadRanking(client_t *cl, const char *newname)
 			return false;
 		cl->rankid = newid;
 		if (rs.flags1 & RANK_CUFFED)
-			cl->iscuffed=2;
-		else if (cl->iscuffed)	//continue being cuffed, but don't inflict the new user with persistant cuffing.
-			cl->iscuffed=1;
+			cl->penalties |= BAN_CUFF;
 		if (rs.flags1 & RANK_MUTED)
-			cl->ismuted=2;
-		else if (cl->ismuted)
-			cl->ismuted=1;
+			cl->penalties |= BAN_MUTE;
 		if (rs.flags1 & RANK_CRIPPLED)
-			cl->iscrippled=2;
-		else if (cl->iscrippled)
-			cl->iscrippled=1;
+			cl->penalties |= BAN_CRIPPLED;
 
 		cl->trustlevel = rs.trustlevel;
 		return true;
@@ -5768,7 +5762,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 
 	if (strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
 	{
-		if (cl->ismuted && *cl->name && verbose)	//!verbose is a gamecode-forced update, where the gamecode is expected to know what its doing.
+		if ((cl->penalties & BAN_MUTE) && *cl->name && verbose)	//!verbose is a gamecode-forced update, where the gamecode is expected to know what its doing.
 			SV_ClientTPrintf (cl, PRINT_HIGH, "Muted players may not change their names\n");
 		else
 		{

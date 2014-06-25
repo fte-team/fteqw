@@ -597,7 +597,10 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case G_LIGHTSTYLE:
-		PF_applylightstyle(VM_LONG(arg[0]), VM_POINTER(arg[1]), 7);
+		{
+			vec3_t rgb = {1,1,1};
+			PF_applylightstyle(VM_LONG(arg[0]), VM_POINTER(arg[1]), rgb);
+		}
 		break;
 
 	case G_SETORIGIN:

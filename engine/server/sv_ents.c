@@ -2290,6 +2290,10 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 		if (cl->state != cs_spawned && !(cl->state == cs_free && cl->name[0]))	//this includes bots, and nq bots
 			continue;
 
+		if ((client->penalties & BAN_BLIND) && client != cl)
+			continue;
+
+
 		isbot = (!cl->name[0] || cl->protocol == SCP_BAD);
 		ent = cl->edict;
 		if (cl->viewent && ent == clent)
@@ -3139,6 +3143,12 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 
 	limit = min(client->max_net_ents, sv.world.num_edicts);
 
+	if (client->penalties & BAN_BLIND)
+	{
+		e = client->edict->entnum;
+		limit = e+1;
+	}
+
 	for ( ; e<limit ; e++)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
@@ -3496,10 +3506,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	SV_Snapshot_Clear(pack);
 
 	if (!pack->entities)
-	{
-		Con_Printf("DON'T PANIC!\n");
 		return;
-	}
 
 	// put other visible entities into either a packet_entities or a nails message
 

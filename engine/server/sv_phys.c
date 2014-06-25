@@ -403,14 +403,15 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 			VectorSubtract(end, trace.endpos, move);
 			WPhys_PortalTransform(w, ent, impact, from, move);
 			VectorAdd(from, move, end);
-			
+
 			//if we follow the portal, then we basically need to restart from the other side.
 			time_left -= time_left * trace.fraction;
 			VectorCopy (ent->v->velocity, primal_velocity);
 			VectorCopy (ent->v->velocity, original_velocity);
 			numplanes = 0;
-			
+
 			trace = World_Move (w, from, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
+			impact = trace.ent;
 		}
 
 		if (trace.startsolid)

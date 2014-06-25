@@ -669,6 +669,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			}
 			else if (mask)
 			{
+				if (client->penalties & BAN_BLIND)
+					continue;
 #ifdef Q2SERVER
 				if (ge)
 					leafnum = CM_PointLeafnum (sv.world.worldmodel, client->q2edict->s.origin);
@@ -828,6 +830,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 				if (!mask)	//no pvs? broadcast.
 					goto inrange;
+
+				if (client->penalties & BAN_BLIND)
+					continue;
 
 				if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
 				{

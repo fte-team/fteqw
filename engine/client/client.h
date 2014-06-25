@@ -296,7 +296,8 @@ typedef struct
 {
 	int		length;
 	char	map[MAX_STYLESTRING];
-	int colour;
+	vec3_t	colours;
+	int		colourkey;
 } lightstyle_t;
 
 

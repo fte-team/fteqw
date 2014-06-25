@@ -3970,7 +3970,7 @@ static void QCBUILTIN PF_walkmove (pubprogfuncs_t *prinst, struct globalvars_s *
 	pr_global_struct->self = oldself;
 }
 
-void QCBUILTIN PF_applylightstyle(int style, const char *val, int col)
+void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 {
 	client_t	*client;
 	int			j;
@@ -3990,7 +3990,7 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, int col)
 	sv.strings.lightstyles[style] = Z_StrDup(val);
 
 #ifdef PEXT_LIGHTSTYLECOL
-	sv.strings.lightstylecolours[style] = col;
+	VectorCopy(rgb, sv.strings.lightstylecolours[style]);
 #endif
 
 // send message to all clients on this server
@@ -4007,11 +4007,14 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, int col)
 				if (!*val)
 					continue;
 #ifdef PEXT_LIGHTSTYLECOL
-			if ((client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && col!=7)
+			if ((client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (rgb[0] != 1 || rgb[1] != 1 || rgb[2] != 1))
 			{
 				ClientReliableWrite_Begin (client, svcfte_lightstylecol, strlen(val)+4);
 				ClientReliableWrite_Byte (client, style);
-				ClientReliableWrite_Char (client, col);
+				ClientReliableWrite_Char (client, 0x87);
+				ClientReliableWrite_Short (client, rgb[0]*1024);
+				ClientReliableWrite_Short (client, rgb[1]*1024);
+				ClientReliableWrite_Short (client, rgb[2]*1024);
 				ClientReliableWrite_String (client, val);
 			}
 			else
@@ -4038,22 +4041,17 @@ static void QCBUILTIN PF_lightstyle (pubprogfuncs_t *prinst, struct globalvars_s
 {
 	int		style;
 	const char	*val;
+	vec3_t rgb = {1,1,1};
 
 #ifdef PEXT_LIGHTSTYLECOL
-	int col;
 	if (svprogfuncs->callargc >= 3)
-	{
-		col = G_FLOAT(OFS_PARM2);
-		if (IS_NAN(col) || !col || col > 0x111)
-			col = 7;
-	}
-	else col = 7;
+		VectorCopy(G_VECTOR(OFS_PARM2), rgb);
 #endif
 
 	style = G_FLOAT(OFS_PARM0);
 	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	PF_applylightstyle(style, val, col);
+	PF_applylightstyle(style, val, rgb);
 }
 
 static void QCBUILTIN PF_lightstylevalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4081,16 +4079,11 @@ static void QCBUILTIN PF_lightstylestatic (pubprogfuncs_t *prinst, struct global
 		"o", "p", "q", "r", "s", "t", "u",
 		"v", "w", "x", "y", "z"
 	};
+	vec3_t rgb = {1,1,1};
 
 #ifdef PEXT_LIGHTSTYLECOL
-	int col;
 	if (svprogfuncs->callargc >= 3)
-	{
-		col = G_FLOAT(OFS_PARM2);
-		if (IS_NAN(col) || !col || col > 0x111)
-			col = 7;
-	}
-	else col = 7;
+		VectorCopy(G_VECTOR(OFS_PARM2), rgb);
 #endif
 
 	style = G_FLOAT(OFS_PARM0);
@@ -4101,7 +4094,7 @@ static void QCBUILTIN PF_lightstylestatic (pubprogfuncs_t *prinst, struct global
 		num = 'z'-'a'-1;
 	val = styleDefs[num];
 
-	PF_applylightstyle(style, val, col);
+	PF_applylightstyle(style, val, rgb);
 }
 
 /*
@@ -4357,7 +4350,7 @@ extern sizebuf_t csqcmsgbuffer;
 void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
-	qbyte val = (qbyte)G_FLOAT(OFS_PARM1);
+	qbyte val = 0xff & (int)G_FLOAT(OFS_PARM1);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteByte(&csqcmsgbuffer, val);
@@ -4400,7 +4393,7 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dest = G_FLOAT(OFS_PARM0);
-	char val = (char)G_FLOAT(OFS_PARM1);
+	char val = 0xff & (int)G_FLOAT(OFS_PARM1);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteChar(&csqcmsgbuffer, val);
@@ -5236,17 +5229,17 @@ char *PF_infokey_Internal (int entnum, const char *key)
 				value = "";
 		}
 		else if (!strcmp(key, "*VIP"))
-			value = svs.clients[entnum-1].isvip?"1":"";
+			value = (svs.clients[entnum-1].penalties & BAN_VIP)?"1":"";
 		else if (!strcmp(key, "*ismuted"))
-			value = svs.clients[entnum-1].ismuted?"1":"";
+			value = (svs.clients[entnum-1].penalties & BAN_MUTE)?"1":"";
 		else if (!strcmp(key, "*isdeaf"))
-			value = svs.clients[entnum-1].isdeaf?"1":"";
+			value = (svs.clients[entnum-1].penalties & BAN_DEAF)?"1":"";
 		else if (!strcmp(key, "*iscrippled"))
-			value = svs.clients[entnum-1].iscrippled?"1":"";
+			value = (svs.clients[entnum-1].penalties & BAN_CRIPPLED)?"1":"";
 		else if (!strcmp(key, "*iscuffed"))
-			value = svs.clients[entnum-1].iscuffed?"1":"";
+			value = (svs.clients[entnum-1].penalties & BAN_CUFF)?"1":"";
 		else if (!strcmp(key, "*islagged"))
-			value = svs.clients[entnum-1].islagged?"1":"";
+			value = (svs.clients[entnum-1].penalties & BAN_LAGGED)?"1":"";
 		else
 			value = Info_ValueForKey (svs.clients[entnum-1].userinfo, key);
 	} else
@@ -8614,6 +8607,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	VectorCopy(ent->v->maxs, pmove.player_maxs);
 	VectorCopy(ent->v->mins, pmove.player_mins);
 
+	pmove.world = &sv.world;
 	pmove.skipent = -1;
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.world.worldmodel;
@@ -8644,6 +8638,8 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		VectorCopy(pmove.origin, ent->v->origin);
 		VectorCopy(pmove.velocity, ent->v->velocity);
 
+
+		VectorCopy(pmove.angles, sv_player->v->v_angle);
 
 
 		ent->v->waterlevel = pmove.waterlevel;
@@ -8694,6 +8690,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 {
 	if (gfuncs.RunClientCommand)
 	{
+		vec3_t startangle;
 #ifdef SVCHAT
 		if (SV_ChatMove(ucmd->impulse))
 		{
@@ -8709,6 +8706,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 			sv_player->v->v_angle[1] = SHORT2ANGLE(ucmd->angles[1]);
 			sv_player->v->v_angle[2] = SHORT2ANGLE(ucmd->angles[2]);
 		}
+		VectorCopy(sv_player->v->v_angle, startangle);
 
 		if (progstype == PROG_H2)
 			sv_player->xv->light_level = 128;	//hmm... HACK!!!
@@ -8725,7 +8723,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		if (ucmd->impulse && SV_FilterImpulse(ucmd->impulse, host_client->trustlevel))
 			sv_player->v->impulse = ucmd->impulse;
 
-		if (host_client->iscuffed)
+		if (host_client->penalties & BAN_CUFF)
 		{
 			sv_player->v->impulse = 0;
 			sv_player->v->button0 = 0;
@@ -8792,6 +8790,23 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
 		PR_ExecuteProgram(svprogfuncs, gfuncs.RunClientCommand);
+
+
+		if (!sv_player->v->fixangle)
+		{
+			int i;
+			vec3_t delta;
+			VectorSubtract (sv_player->v->v_angle, startangle, delta);
+
+			if (delta[0] || delta[1] || delta[2])
+			{
+				//eular angle changes suck
+				client_t *cl = ClientReliableWrite_BeginSplit(client, svcfte_setangledelta, 7);
+				for (i=0 ; i < 3 ; i++)
+					ClientReliableWrite_Angle16 (cl, delta[i]);
+			}
+
+		}
  		return true;
 	}
 	return false;
@@ -8960,7 +8975,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setmodel",		PF_setmodel,		3,		3,		3,		0,	D("void(entity e, string m)","Looks up m in the model precache list, and sets both e.model and e.modelindex to match. BSP models will set e.mins and e.maxs accordingly, other models depend upon the value of sv_gameplayfix_setmodelrealbox - for compatibility you should always call setsize after all pickups or non-bsp models. Also relinks collision state.")},
 	{"setsize",			PF_setsize,			4,		4,		4,		0,	D("void(entity e, vector min, vector max)", "Sets the e's mins and maxs fields. Also relinks collision state, which sets absmin and absmax too.")},
 	{"qtest_setabssize",PF_setsize,			5,		0,		0,		0,	D("void(entity e, vector min, vector max)", "qtest"), true},
-	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5,	D("void(float style, float val)", "Sets the lightstyle to an explicit numerical level. From Hexen2.")},
+	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5,	D("void(float style, float val, optional vector rgb)", "Sets the lightstyle to an explicit numerical level. From Hexen2.")},
 	{"breakpoint",		PF_break,			6,		6,		6,		0,	D("void()", "Trigger a debugging event. FTE will break into the qc debugger. Other engines may crash with a debug execption.")},
 	{"random",			PF_random,			7,		7,		7,		0,	D("float()", "Returns a random value between 0 and 1. Be warned, this builtin can return 1 in most engines, which can break arrays.")},
 	{"sound",			PF_sound,			8,		8,		8,		0,	D("void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags)", "Starts a sound centered upon the given entity.\nchan is the entity sound channel to use, channel 0 will allow you to mix many samples at once, others will replace the old sample\n'samp' must have been precached first\nif specified, 'speedpct' should normally be around 100 (or =0), 200 for double speed or 50 for half speed.\nflags&1 means the sound should be sent reliably.")},
@@ -8997,7 +9012,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"qtest_flymove",	NULL,	33},	// float(vector dir) flymove = #33;
 //qbism super8's 'private'sound #33
 	{"droptofloor",		PF_droptofloor,		34,		34,		34,		0,	D("float()", "Instantly moves the entity downwards until it hits the ground. If the entity would need to drop more than 'pr_droptofloorunits' quake units, its position will be considered invalid and the builtin will abort.")},
-	{"lightstyle",		PF_lightstyle,		35,		35,		35,		0,	D("void(float lightstyle, string stylestring, optional float channels)", "Specifies an auto-animating string that specifies the light intensity for entities using that lightstyle.\na is off, z is fully lit. Should be lower case only.\nchannels&1 enables red light.\nchannels&2 enables green light.\nchannels&4 enables blue light.\n")},
+	{"lightstyle",		PF_lightstyle,		35,		35,		35,		0,	D("void(float lightstyle, string stylestring, optional vector rgb)", "Specifies an auto-animating string that specifies the light intensity for entities using that lightstyle.\na is off, z is fully lit. Should be lower case only.\nrgb will recolour all lights using that lightstyle.\n")},
 	{"rint",			PF_rint,			36,		36,		36,		0,	D("float(float)", "Rounds the given float up or down to the closest integeral value. X.5 rounds away from 0")},
 	{"floor",			PF_floor,			37,		37,		37,		0,	D("float(float)", "Rounds the given float downwards, even when negative.")},
 	{"ceil",			PF_ceil,			38,		38,		38,		0,	D("float(float)", "Rounds the given float upwards, even when negative.")},

@@ -3406,18 +3406,9 @@ void Sh_DrawLights(qbyte *vis)
 		colour[2] = dl->color[2];
 		if (dl->style)
 		{
-			if (cl_lightstyle[dl->style-1].colour & 1)
-				colour[0] *= d_lightstylevalue[dl->style-1]/255.0f;
-			else
-				colour[0] = 0;
-			if (cl_lightstyle[dl->style-1].colour & 2)
-				colour[1] *= d_lightstylevalue[dl->style-1]/255.0f;
-			else
-				colour[1] = 0;
-			if (cl_lightstyle[dl->style-1].colour & 4)
-				colour[2] *= d_lightstylevalue[dl->style-1]/255.0f;
-			else
-				colour[2] = 0;
+			colour[0] *= cl_lightstyle[dl->style-1].colours[0] * d_lightstylevalue[dl->style-1]/255.0f;
+			colour[1] *= cl_lightstyle[dl->style-1].colours[1] * d_lightstylevalue[dl->style-1]/255.0f;
+			colour[2] *= cl_lightstyle[dl->style-1].colours[2] * d_lightstylevalue[dl->style-1]/255.0f;
 		}
 
 		if (colour[0] < 0.001 && colour[1] < 0.001 && colour[2] < 0.001)

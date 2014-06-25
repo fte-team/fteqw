@@ -3010,16 +3010,17 @@ static void QCBUILTIN PF_cs_lightstyle (pubprogfuncs_t *prinst, struct globalvar
 {
 	int stnum = G_FLOAT(OFS_PARM0);
 	const char *str = PR_GetStringOfs(prinst, OFS_PARM1);
-	int colourflags = 7;
+	vec3_t rgb = {1,1,1};
+	
+	if (prinst->callargc >= 3)	//fte is a quakeworld engine
+		VectorCopy(G_VECTOR(OFS_PARM2), rgb);
 
 	if ((unsigned)stnum >= MAX_LIGHTSTYLES)
 	{
 		Con_Printf ("PF_cs_lightstyle: stnum > MAX_LIGHTSTYLES");
 		return;
 	}
-	cl_lightstyle[stnum].colour = colourflags;
-	Q_strncpyz (cl_lightstyle[stnum].map,  str, sizeof(cl_lightstyle[stnum].map));
-	cl_lightstyle[stnum].length = Q_strlen(cl_lightstyle[stnum].map);
+	R_UpdateLightStyle(stnum, str, rgb[0],rgb[1],rgb[2]);
 }
 
 //entity(string field, float match) findchainflags = #450

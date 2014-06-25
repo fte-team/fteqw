@@ -30,6 +30,26 @@ extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 int	r_dlightframecount;
 int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
+void R_UpdateLightStyle(unsigned int style, const char *stylestring, float r, float g, float b)
+{
+	if (style >= MAX_LIGHTSTYLES)
+		return;
+
+	if (!stylestring)
+		stylestring = "";
+
+	Q_strncpyz (cl_lightstyle[style].map,  stylestring, sizeof(cl_lightstyle[style].map));
+	cl_lightstyle[style].length = Q_strlen(cl_lightstyle[style].map);
+	if (!cl_lightstyle[style].length)
+	{
+		d_lightstylevalue[style] = 256;
+		VectorSet(cl_lightstyle[style].colours, 1,1,1);
+	}
+	else
+		VectorSet(cl_lightstyle[style].colours, r,g,b);
+	cl_lightstyle[style].colourkey = (int)(cl_lightstyle[style].colours[0]*0x400) ^ (int)(cl_lightstyle[style].colours[1]*0x100000) ^ (int)(cl_lightstyle[style].colours[2]*0x40000000);
+}
+
 /*
 ==================
 R_AnimateLight
@@ -52,13 +72,9 @@ void R_AnimateLight (void)
 	for (j=0 ; j<MAX_LIGHTSTYLES ; j++)
 	{
 		int v1, v2, vd;
-
 		if (!cl_lightstyle[j].length)
-		{
-			d_lightstylevalue[j] = 256;
-			cl_lightstyle[j].colour = 7;
 			continue;
-		}
+
 		v1 = i % cl_lightstyle[j].length;
 		v1 = cl_lightstyle[j].map[v1] - 'a';
 
@@ -1330,12 +1346,9 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
-						if (cl_lightstyle[surf->styles[maps]].colour & 1)
-							l[0] += lightmap[0] * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 2)
-							l[1] += lightmap[1] * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 4)
-							l[2] += lightmap[2] * scale;
+						l[0] += lightmap[0] * scale * cl_lightstyle[surf->styles[maps]].colours[0];
+						l[1] += lightmap[1] * scale * cl_lightstyle[surf->styles[maps]].colours[1];
+						l[2] += lightmap[2] * scale * cl_lightstyle[surf->styles[maps]].colours[2];
 
 						l[3] += (deluxmap[0]-127)*scale;
 						l[4] += (deluxmap[1]-127)*scale;
@@ -1359,12 +1372,9 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
-						if (cl_lightstyle[surf->styles[maps]].colour & 1)
-							l[0] += *lightmap * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 2)
-							l[1] += *lightmap * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 4)
-							l[2] += *lightmap * scale;
+						l[0] += *lightmap * scale * cl_lightstyle[surf->styles[maps]].colours[0];
+						l[1] += *lightmap * scale * cl_lightstyle[surf->styles[maps]].colours[1];
+						l[2] += *lightmap * scale * cl_lightstyle[surf->styles[maps]].colours[2];
 
 						l[3] += deluxmap[0]*scale;
 						l[4] += deluxmap[1]*scale;
@@ -1388,12 +1398,9 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
-						if (cl_lightstyle[surf->styles[maps]].colour & 1)
-							l[0] += lightmap[0] * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 2)
-							l[1] += lightmap[1] * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 4)
-							l[2] += lightmap[2] * scale;
+						l[0] += lightmap[0] * scale * cl_lightstyle[surf->styles[maps]].colours[0];
+						l[1] += lightmap[1] * scale * cl_lightstyle[surf->styles[maps]].colours[1];
+						l[2] += lightmap[2] * scale * cl_lightstyle[surf->styles[maps]].colours[2];
 
 						lightmap += ((surf->extents[0]>>4)+1) *
 								((surf->extents[1]>>4)+1) * 3;
@@ -1408,12 +1415,9 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 					{
 						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
 
-						if (cl_lightstyle[surf->styles[maps]].colour & 1)
-							l[0] += *lightmap * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 2)
-							l[1] += *lightmap * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 4)
-							l[2] += *lightmap * scale;
+						l[0] += *lightmap * scale * cl_lightstyle[surf->styles[maps]].colours[0];
+						l[1] += *lightmap * scale * cl_lightstyle[surf->styles[maps]].colours[1];
+						l[2] += *lightmap * scale * cl_lightstyle[surf->styles[maps]].colours[2];
 
 						lightmap += ((surf->extents[0]>>4)+1) *
 								((surf->extents[1]>>4)+1);

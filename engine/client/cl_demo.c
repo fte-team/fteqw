@@ -1402,11 +1402,14 @@ void CL_Record_f (void)
 					continue;
 
 #ifdef PEXT_LIGHTSTYLECOL
-			if ((cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && cl_lightstyle[i].colour!=7 && *cl_lightstyle[i].map)
+			if ((cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (cl_lightstyle[i].colours[0]!=1||cl_lightstyle[i].colours[1]!=1||cl_lightstyle[i].colours[2]!=1) && *cl_lightstyle[i].map)
 			{
 				MSG_WriteByte (&buf, svcfte_lightstylecol);
 				MSG_WriteByte (&buf, (unsigned char)i);
-				MSG_WriteByte (&buf, cl_lightstyle[i].colour);
+				MSG_WriteByte (&buf, 0x87);
+				MSG_WriteShort (&buf, cl_lightstyle[i].colours[0]*1024);
+				MSG_WriteShort (&buf, cl_lightstyle[i].colours[1]*1024);
+				MSG_WriteShort (&buf, cl_lightstyle[i].colours[2]*1024);
 				MSG_WriteString (&buf, cl_lightstyle[i].map);
 			}
 			else

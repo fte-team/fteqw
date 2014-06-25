@@ -316,7 +316,7 @@ static void SV_Give_f (void)
 		return;
 	}
 
-	if (developer.value)
+/*	if (developer.value)
 	{
 		int oldself;
 		oldself = pr_global_struct->self;
@@ -324,7 +324,7 @@ static void SV_Give_f (void)
 		Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 		pr_global_struct->self = oldself;
 	}
-
+*/
 	if (!SV_SetPlayer ())
 	{
 		return;
@@ -363,7 +363,7 @@ static void SV_Give_f (void)
 	case 'c':
 		sv_player->v->ammo_cells = v;
 		break;
-	default:
+/*	default:
 		{
 			int oldself;
 			oldself = pr_global_struct->self;
@@ -372,6 +372,7 @@ static void SV_Give_f (void)
 			Con_TPrintf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 			pr_global_struct->self = oldself;
 		}
+*/
 	}
 }
 
@@ -765,18 +766,14 @@ void SV_KickSlot_f (void)
 void SV_EvaluatePenalties(client_t *cl)
 {
 	bannedips_t *banip;
-	bannedips_t *cuff = NULL;
-	bannedips_t *mute = NULL;
-	bannedips_t *cripple = NULL;
-	bannedips_t *deaf = NULL;
-	bannedips_t *lagged = NULL;
-	bannedips_t *vip = NULL;
-	bannedips_t *safe = NULL;
-	bannedips_t *banned = NULL;
-	char *penalties[8];
-	char *reasons[8];
+	unsigned int penalties = 0, delta, p;
+	char *penaltyreason[10];
+	char *activepenalties[10];
+	char *reasons[10] = {NULL};
+	char *penaltynames[10] = {"ban", "safe", "cuff", "mute", "crippled", "deaf", "lag", "vip", "blind", "spec"};
 	int numpenalties = 0;
 	int numreasons = 0;
+	int i;
 
 	if (cl->realip.type != NA_INVALID)
 	{
@@ -784,22 +781,16 @@ void SV_EvaluatePenalties(client_t *cl)
 		{
 			if (NET_CompareAdrMasked(&cl->realip, &banip->adr, &banip->adrmask))
 			{
-				if ((banip->banflags & BAN_CUFF) && !cuff)
-					cuff = banip;
-				if ((banip->banflags & BAN_MUTE) && !mute)
-					mute = banip;
-				if ((banip->banflags & BAN_CRIPPLED) && !cripple)
-					cripple = banip;
-				if ((banip->banflags & BAN_DEAF) && !deaf)
-					deaf = banip;
-				if ((banip->banflags & BAN_LAGGED) && !lagged)
-					lagged = banip;
-				if ((banip->banflags & BAN_BAN) && !banned)
-					banned = banip;
-				if ((banip->banflags & BAN_PERMIT) && !safe)
-					safe = banip;
-				if ((banip->banflags & BAN_VIP) && !vip)
-					vip = banip;
+				for (i = 0; i < sizeof(penaltyreason)/sizeof(penaltyreason[0]); i++)
+				{
+					p = 1u<<i;
+					if (banip->banflags & p)
+					{
+						if (!penaltyreason[i])
+							penaltyreason[i] = banip->reason;
+						penalties |= p;
+					}
+				}
 			}
 		}
 	}
@@ -807,164 +798,80 @@ void SV_EvaluatePenalties(client_t *cl)
 	{
 		if (NET_CompareAdrMasked(&cl->netchan.remote_address, &banip->adr, &banip->adrmask))
 		{
-			if ((banip->banflags & BAN_CUFF) && !cuff)
-				cuff = banip;
-			if ((banip->banflags & BAN_MUTE) && !mute)
-				mute = banip;
-			if ((banip->banflags & BAN_CRIPPLED) && !cripple)
-				cripple = banip;
-			if ((banip->banflags & BAN_DEAF) && !deaf)
-				deaf = banip;
-			if ((banip->banflags & BAN_LAGGED) && !lagged)
-				lagged = banip;
-			if ((banip->banflags & BAN_BAN) && !banned)
-				banned = banip;
-			if ((banip->banflags & BAN_PERMIT) && !safe)
-				safe = banip;
-			if ((banip->banflags & BAN_VIP) && !vip)
-				vip = banip;
+			for (i = 0; i < sizeof(penaltyreason)/sizeof(penaltyreason[0]); i++)
+			{
+				p = 1u<<i;
+				if (banip->banflags & p)
+				{
+					if (!penaltyreason[i])
+						penaltyreason[i] = banip->reason;
+					penalties |= p;
+				}
+			}
 		}
 	}
 
-	if (banned && !safe)
+	delta = cl->penalties ^ penalties;
+	cl->penalties = penalties;
+
+	if ((penalties & (BAN_BAN | BAN_PERMIT)) == BAN_BAN)
 	{
-		if (*banned->reason)
-			SV_BroadcastPrintf(PRINT_HIGH, va("%s was banned: %s\n", cl->name, banned->reason));
+		//we should only reach here by a player getting banned mid-game.
+		if (penaltyreason[0])
+			SV_BroadcastPrintf(PRINT_HIGH, va("%s was banned: %s\n", cl->name, penaltyreason[0]));
 		else
 			SV_BroadcastPrintf(PRINT_HIGH, va("%s was banned\n", cl->name));
 		cl->drop = true;
 	}
 
-	if (cuff)
-	{
-		if (!cl->iscuffed)
-		{
-			cl->iscuffed = true;
-			penalties[numpenalties++] = "cuffed";
-			reasons[numreasons++] = cuff->reason;
-		}
-	}
-	else
-	{
-		if (cl->iscuffed == true)
-		{
-			cl->iscuffed = false;
-			SV_PrintToClient(cl, PRINT_HIGH, "Cuff expired\n");
-		}
-	}
+	//don't announce these now.
+	delta &= ~(BAN_BAN | BAN_PERMIT);
 
-	if (cripple)
-	{
-		if (!cl->iscrippled)
-		{
-			cl->iscrippled = true;
-			penalties[numpenalties++] = "crippled";
-			reasons[numreasons++] = cripple->reason;
-		}
-	}
-	else
-	{
-		if (cl->iscrippled == true)
-		{
-			cl->iscrippled = false;
-			SV_PrintToClient(cl, PRINT_HIGH, "Cripple expired\n");
-		}
-	}
-
-	if (mute)
-	{
-		if (!cl->ismuted)
-		{
-			cl->ismuted = true;
-			if (!deaf)
-			{
-				penalties[numpenalties++] = "muted";
-				reasons[numreasons++] = mute->reason;
-			}
-		}
-	}
-	else
-	{
-		if (cl->ismuted == true)
-		{
-			cl->ismuted = false;
-
-			if (!cl->isdeaf)
-				SV_PrintToClient(cl, PRINT_HIGH, "Mute expired\n");
-			if (!deaf && cl->isdeaf == true)
-				cl->isdeaf = false;	//don't let them know that they were ever mute+deaf.
-		}
-	}
-	if (deaf)
-	{
-		if (!cl->isdeaf)
-		{
-			cl->isdeaf = true;
-			if (!mute)
-			{
-				penalties[numpenalties++] = "deaf";
-				reasons[numreasons++] = deaf->reason;
-			}
-		}
-	}
-	else
-	{
-		if (cl->isdeaf == true)
-		{
-			cl->isdeaf = false;
-			SV_PrintToClient(cl, PRINT_HIGH, "Deafness expired\n");
-		}
-	}
-	if (lagged)
-	{
-		if (!cl->islagged)
-		{
-			cl->islagged = true;
-			penalties[numpenalties++] = "lagged";
-			reasons[numreasons++] = lagged->reason;
-		}
-	}
-	else
-	{
-		if (cl->islagged == true)
-		{
-			cl->islagged = false;
-			SV_PrintToClient(cl, PRINT_HIGH, "Lag penalty expired\n");
-		}
-	}
-	if (vip)
-	{
-		if (!cl->isvip)
-		{
-			cl->isvip = true;
-			penalties[numpenalties++] = "vip";
-			reasons[numreasons++] = deaf->reason;
-		}
-	}
-	else
-	{
-		if (cl->isvip == true)
-		{
-			cl->isvip = false;
-			SV_PrintToClient(cl, PRINT_HIGH, "VIP expired\n");
-		}
-	}
+	//deaf+mute sees no (other) penalty messages
+	if (((penalties|delta) & (BAN_MUTE|BAN_DEAF)) == (BAN_MUTE|BAN_DEAF))
+		delta = 0;
 
 	if (cl->controller)
-		return;	//don't spam it for every player in a splitscreen client.
+		delta = 0;	//don't spam it for every player in a splitscreen client.
+
+	if (delta & BAN_VIP)
+	{
+		delta &= ~BAN_VIP;	//don't refer to this as a penalty
+		if (penalties & p)
+			SV_PrintToClient(cl, PRINT_HIGH, "You are a VIP, apparently\n");
+		else
+			SV_PrintToClient(cl, PRINT_HIGH, "VIP expired\n");
+	}
+
+	for (i = 0; i < sizeof(penaltyreason)/sizeof(penaltyreason[0]); i++)
+	{
+		p = 1u<<i;
+		if (delta & p)
+		{
+			if (penalties & p)
+			{
+				if (penaltynames[i])
+					activepenalties[numpenalties++] = penaltynames[i];
+				if (reasons[i] && *reasons[i])
+					reasons[numreasons++] = reasons[i];
+			}
+			else
+				SV_PrintToClient(cl, PRINT_HIGH, va("Penalty expired: %s\n", penaltynames[i]));
+		}
+	}
 
 	if (numpenalties)
 	{
 		char penaltystring[1024];
 		int i, j;
-		Q_strncpyz(penaltystring, "You are ", sizeof(penaltystring));
+		Q_strncpyz(penaltystring, "You are penalised: ", sizeof(penaltystring));
 		for (i = 0; i < numpenalties; i++)
 		{
 			if (i && i == numpenalties-1)
 				Q_strncatz(penaltystring, " and ", sizeof(penaltystring));
 			else if (i)
 				Q_strncatz(penaltystring, ", ", sizeof(penaltystring));
-			Q_strncatz(penaltystring, penalties[i], sizeof(penaltystring));
+			Q_strncatz(penaltystring, activepenalties[i], sizeof(penaltystring));
 		}
 		Q_strncatz(penaltystring, "\n", sizeof(penaltystring));
 		SV_PrintToClient(cl, PRINT_HIGH, penaltystring);
@@ -1200,6 +1107,8 @@ static void SV_FilterIP_f (void)
 			proto.banflags |= BAN_LAGGED;
 		else if (!Q_strcasecmp(com_token, "vip"))
 			proto.banflags |= BAN_VIP;
+		else if (!Q_strcasecmp(com_token, "blind"))
+			proto.banflags |= BAN_BLIND;
 		else
 			Con_Printf("Unknown ban/penalty flag: %s. ignoring.\n", com_token);
 	}
@@ -1266,6 +1175,7 @@ static void SV_FilterList_f (void)
 		"deaf",
 		"lag",
 		"vip",
+		"blind",
 		NULL
 	};
 
@@ -1380,6 +1290,12 @@ static void SV_Unfilter_f (void)
 
 	if (!all && !found)
 		Con_Printf("address was not filtered\n");
+
+	if (found)
+	{
+		reevaluatebans = true;
+		SV_KillExpiredBans();
+	}
 }
 static void SV_PenaltyToggle (unsigned int banflag, char *penaltyname)
 {
@@ -1905,7 +1821,7 @@ void SV_ConSay_f(void)
 	{
 		if (client->state == cs_free)
 			continue;
-		if (client->isdeaf)
+		if (client->penalties & BAN_DEAF)
 			continue;
 		SV_ClientPrintf(client, PRINT_CHAT, "%s\n", text);
 	}
@@ -2245,17 +2161,17 @@ void SV_User_f (void)
 		if (cl->download)
 			Con_Printf ("download: \"%s\" %ik/%ik (%i%%)", cl->downloadfn, cl->downloadcount/1024, cl->downloadsize/1024, (cl->downloadcount*100)/cl->downloadsize);
 
-		if (cl->iscrippled)
+		if (cl->penalties & BAN_CRIPPLED)
 			Con_Printf("crippled\n");
-		if (cl->iscuffed)
+		if (cl->penalties & BAN_CUFF)
 			Con_Printf("cuffed\n");
-		if (cl->isdeaf)
+		if (cl->penalties & BAN_DEAF)
 			Con_Printf("deaf\n");
-		if (cl->islagged)
+		if (cl->penalties & BAN_LAGGED)
 			Con_Printf("lagged\n");
-		if (cl->ismuted)
+		if (cl->penalties & BAN_MUTE)
 			Con_Printf("muted\n");
-		if (cl->isvip)
+		if (cl->penalties & BAN_VIP)
 			Con_Printf("vip\n");
 
 		SV_CalcNetRates(cl, &ftime, &frames, &minf, &maxf);

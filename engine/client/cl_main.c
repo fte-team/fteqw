@@ -1336,7 +1336,7 @@ void CL_ClearState (void)
 //	memset (cl_dlights, 0, sizeof(cl_dlights));
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
 	for (i = 0; i < MAX_LIGHTSTYLES; i++)
-		cl_lightstyle[i].colour = 7;
+		R_UpdateLightStyle(i, NULL, 1, 1, 1);
 
 	rtlights_first = rtlights_max = RTL_FIRST;
 

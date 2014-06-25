@@ -150,7 +150,7 @@ static trace_t	PM_PlayerTracePortals(vec3_t start, vec3_t end, unsigned int soli
 				if (tookportal)
 					*tookportal = trace.fraction;
 				
-				trace = PM_PlayerTrace (from, end, MASK_PLAYERSOLID);
+				return PM_PlayerTrace (from, end, MASK_PLAYERSOLID);
 			}
 		}
 	}

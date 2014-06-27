@@ -1210,6 +1210,7 @@ qboolean CSQC_ConsoleCommand(char *cmd);
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid);
 qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid);
 qboolean CSQC_MousePosition(float xabs, float yabs, int devid);
+qboolean CSQC_JoystickAxis(int axis, float value, int devid);
 qboolean CSQC_Accelerometer(float x, float y, float z);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod);
 void CSQC_ParseEntities(void);

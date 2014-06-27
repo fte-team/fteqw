@@ -632,6 +632,7 @@ enum csqc_input_event
 	CSIE_MOUSEABS = 3,		/*x, y, devid				*/
 	CSIE_ACCELEROMETER = 4,	/*x, y, z*/
 	CSIE_FOCUS = 5,			/*mouse, key, devid.		if has, the game window has focus. (true/false/-1)*/
+	CSIE_JOYAXIS = 6,		/*axis, value, devid*/
 };
 
 enum terrainedit_e

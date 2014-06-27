@@ -5996,6 +5996,21 @@ qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid)
 	return G_FLOAT(OFS_RETURN);
 }
 
+qboolean CSQC_JoystickAxis(int axis, float value, int devid)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.input_event)
+		return false;
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+
+	G_FLOAT(OFS_PARM0) = CSIE_JOYAXIS;
+	G_FLOAT(OFS_PARM1) = axis;
+	G_FLOAT(OFS_PARM2) = value;
+	G_FLOAT(OFS_PARM3) = devid;
+	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
+	return G_FLOAT(OFS_RETURN);
+}
+
 qboolean CSQC_Accelerometer(float x, float y, float z)
 {
 	void *pr_globals;

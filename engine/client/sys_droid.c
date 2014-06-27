@@ -159,7 +159,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_newglcontext(JNIEnv *env, j
 	if (sys_running)
 		sys_running = 2;
 
-	//fixme: wipe image handles
+	//fixme: wipe image handles, and vbos
 }
 
 //called when the user tries to use us to open one of our file types

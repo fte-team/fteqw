@@ -10612,6 +10612,7 @@ void PR_DumpPlatform_f(void)
 		{"IE_MOUSEABS",			"const float", CS, "Specifies that a mouse cursor or touch event was moved to a specific location relative to the virtual screen space. Second argument is the new X position, third argument is the new Y position. Fourth argument is which mouse or touch event triggered the event.", CSIE_MOUSEABS},
 		{"IE_ACCELEROMETER",	"const float", CS, NULL, CSIE_ACCELEROMETER},
 		{"IE_FOCUS",			"const float", CS, "Specifies that input focus was given. parama says mouse focus, paramb says keyboard focus. If either are -1, then it is unchanged.", CSIE_FOCUS},
+		{"IE_JOYAXIS",			"const float", CS, "Specifies that what value a joystick/controller axis currently specifies. x=axis, y=value. Will be called multiple times, once for each axis of each active controller.", CSIE_JOYAXIS},
 
 		{"CLIENTTYPE_DISCONNECTED","const float", QW|NQ, "Return value from clienttype() builtin. This entity is a player slot that is currently empty.", CLIENTTYPE_DISCONNECTED},
 		{"CLIENTTYPE_REAL",		"const float", QW|NQ, "This is a real player, and not a bot.", CLIENTTYPE_REAL},

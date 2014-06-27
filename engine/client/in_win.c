@@ -1869,8 +1869,10 @@ void INS_JoyMove (float *movements, int pnum)
 		// convert range from -32768..32767 to -1..1
 		fAxisValue /= 32768.0;
 
+#ifdef CSQC_DAT
 		if (CSQC_JoystickAxis(i, fAxisValue, 0))
 			continue;
+#endif
 
 		switch (dwAxisMap[i])
 		{

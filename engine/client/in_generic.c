@@ -205,9 +205,11 @@ void IN_Commands(void)
 			Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, ev->type == IEV_KEYDOWN); 
 			break;
 		case IEV_JOYAXIS:
+#ifdef CSQC_DAT
 			if (CSQC_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
 				joy[ev->devid].axis[ev->joy.axis] = 0;
 			else
+#endif
 				joy[ev->devid].axis[ev->joy.axis] = ev->joy.value;
 			break;
 		case IEV_MOUSEDELTA:

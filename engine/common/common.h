@@ -444,6 +444,7 @@ qboolean FS_Remove(const char *fname, enum fs_relative relativeto);	//0 on succe
 qboolean FS_Copy(const char *source, const char *dest, enum fs_relative relativesource, enum fs_relative relativedest);
 qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
 qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto);
+void *FS_MallocFile(const char *filename, enum fs_relative relativeto, qofs_t *filesize);
 vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);
 vfsfile_t *FS_OpenTemp(void);
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);

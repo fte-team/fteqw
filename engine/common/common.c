@@ -2684,6 +2684,186 @@ static unsigned int koi2wc (unsigned char uc)
 		return uc;
 }
 
+enum
+{
+	BIDI_NEUTRAL,
+	BIDI_LTR,
+	BIDI_RTL,
+};
+static char *bidi_chartype;
+static unsigned int bidi_charcount;
+
+
+//semi-colon delimited tokens
+char *COM_ParseStringSetSep (const char *data, char sep)
+{
+	int	c;
+	size_t	len;
+
+	len = 0;
+	com_token[0] = 0;
+
+	if (data)
+	for (;*data;)
+	{
+		if (len >= sizeof(com_token)-1)
+		{
+			com_token[len] = 0;
+			return (char*)data;
+		}
+		c = *data++;
+		if (c == ';')
+			break;
+		com_token[len++] = c;
+	}
+
+	com_token[len] = 0;
+	return (char*)data;
+}
+void COM_BiDi_Setup(void)
+{
+	char *file;
+	char *line;
+	char *end;
+	char *tok;
+	unsigned int c;
+	qofs_t size;
+
+	file = FS_MallocFile("bidi.dat", FS_ROOT, &size);
+	if (file)
+	{
+		bidi_chartype = file;
+		bidi_charcount = size;
+		return;
+	}
+
+	file = FS_MallocFile("UnicodeData.txt", FS_ROOT, NULL);
+	if (!file)
+		return;
+
+	bidi_charcount = 0xffff;
+	bidi_chartype = BZ_Malloc(bidi_charcount);
+	if (!bidi_chartype)
+		bidi_charcount = 0;
+	else
+	{
+		for (c = 0; c < bidi_charcount; c++)
+			bidi_chartype[c] = BIDI_NEUTRAL;
+		for(line = file; line; line = end)
+		{
+			end = strchr(line, '\n');
+			if (end)
+				*end++ = 0;
+
+			tok = COM_ParseStringSetSep(line,';');	//number
+			c = strtoul(com_token, NULL, 16);
+			tok = COM_ParseStringSetSep(tok,';');	//name
+			tok = COM_ParseStringSetSep(tok,';');	//class?
+			tok = COM_ParseStringSetSep(tok,';');	//?
+			tok = COM_ParseStringSetSep(tok,';');	//bidi
+			if (c < bidi_charcount)
+			{
+				if (!Q_strcasecmp(com_token, "R") || !Q_strcasecmp(com_token, "AL"))
+					bidi_chartype[c] = BIDI_RTL;
+				else if (!Q_strcasecmp(com_token, "L"))
+					bidi_chartype[c] = BIDI_LTR;
+				else
+					bidi_chartype[c] = BIDI_NEUTRAL;
+			}
+		}
+
+		//trim
+		while(bidi_charcount>0 && bidi_chartype[bidi_charcount-1] == BIDI_NEUTRAL)
+			bidi_charcount--;
+		FS_WriteFile("bidi.dat", bidi_chartype, bidi_charcount, FS_ROOT);
+	}
+	BZ_Free(file);
+}
+//bi-direction text is fun.
+//the text is specified in input order. the first in the string is the first entered on the keyboard.
+//this makes switching direction mid-line quite awkward. so lets hope you don't do that too often, mmkay?
+void COM_BiDi_Parse(conchar_t *fte_restrict start, size_t length)
+{
+	char fl[2048], next, run, prev, para = BIDI_LTR;
+	size_t i, runstart, j, k;
+	unsigned int c;
+	conchar_t swap;
+	if (!bidi_charcount || !length || length > sizeof(fl))
+		return;
+
+	for (i = 0; i < length; i++)
+	{
+		c = start[i] & CON_CHARMASK;
+		if (c >= bidi_charcount)
+			fl[i] = BIDI_NEUTRAL;
+		else
+			fl[i] = bidi_chartype[c];
+	}
+	
+	//de-neutralise it
+	prev = fl[0];
+	for (i = 0; i < length; )
+	{
+		if (fl[i] == BIDI_NEUTRAL)
+		{
+			next = prev;	//trailing weak chars can just use the first side
+			for (runstart = i; i < length; i++)
+			{
+				next = fl[i];
+				if (next != BIDI_NEUTRAL)
+				{
+					i--;
+					break;
+				}
+			}
+			//this can happen if the only text is neutral
+			if (prev == BIDI_NEUTRAL)
+				run = next;
+			//if the strong cars are the same direction on both side, we can just use that direction
+			else if (prev == next)
+				run = prev;
+			//if the strong chars differ, we revert to the paragraph's direction.
+			else
+				run = para;
+
+			while(runstart <= i)
+				fl[runstart++] = run;
+			i++;
+		}
+		else
+		{
+			prev = fl[i];
+			i++;
+		}
+	}
+
+	for (run = para, runstart = 0, i = 0; i <= length; i++) 
+	{
+		if (i >= length)
+			next = para;
+		else
+			next = fl[i];
+		if (next != run)
+		{
+			if (run == BIDI_NEUTRAL)
+				break;
+			if (run == BIDI_RTL)
+			{	//now swap the rtl text
+				k = (i-runstart)/2;
+				for (j = 0; j < k; j++)
+				{
+					//FIXME: ( -> ) and vice versa.
+					swap = start[runstart+j];
+					start[runstart+j] = start[i-j-1];
+					start[i-j-1] = swap;
+				}
+			}
+			run = next;
+			runstart = i;
+		}
+	}
+}
+
 //Takes a q3-style fun string, and returns an expanded string-with-flags (actual return value is the null terminator)
 //outsize parameter is in _BYTES_ (so sizeof is safe).
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int flags)
@@ -2698,6 +2878,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 	conchar_t *linkstart = NULL;
 
 	conchar_t ext;
+	conchar_t *oldout = out;
 
 	if (flags & PFS_FORCEUTF8)
 		utf8 = 2;
@@ -3113,6 +3294,8 @@ messedup:
 		}
 	}
 	*out = 0;
+
+	COM_BiDi_Parse(oldout, out - oldout);
 	return out;
 }
 
@@ -3272,7 +3455,7 @@ char *COM_ParseStringSet (const char *data)
 		com_token[len] = c;
 		data++;
 		len++;
-		c = *data;
+		c = *(unsigned char*)data;
 	} while (c>32 && c != ';');
 
 	com_token[len] = 0;
@@ -4361,6 +4544,8 @@ void COM_Init (void)
 	com_parseutf8.ival = 1;
 
 	TranslateInit();
+
+	COM_BiDi_Setup();
 
 
 	nullentitystate.hexen2flags = SCALE_ORIGIN_ORIGIN;

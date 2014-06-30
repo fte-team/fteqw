@@ -580,7 +580,10 @@ static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 	s->water = w;
 #ifndef SERVERONLY
 	if (!isDedicated)
+	{
 		w->shader = R_RegisterCustom (s->hmmod->defaultwatershader, SUF_NONE, Shader_DefaultWaterShader, NULL);
+		R_BuildDefaultTexnums(NULL, w->shader);	//this might get expensive. hideously so.
+	}
 #endif
 	w->simple = true;
 	w->contentmask = FTECONTENTS_WATER;

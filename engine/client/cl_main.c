@@ -1299,6 +1299,12 @@ void CL_ClearState (void)
 
 	if (cl.lerpents)
 		BZ_Free(cl.lerpents);
+	if (cl.particle_ssprecaches)
+	{
+		for (i = 0; i < MAX_SSPARTICLESPRE; i++)
+			if (cl.particle_ssname[i])
+				free(cl.particle_ssname[i]);
+	}
 
 	{
 		downloadlist_t *next;

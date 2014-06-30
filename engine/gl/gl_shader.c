@@ -3015,7 +3015,7 @@ void Shader_Shutdown (void)
 	for (i = 0; i < r_numshaders; i++)
 	{
 		shader = r_shaders[i];
-		if (!shader || !shader->uses)
+		if (!shader)
 			continue;
 
 		Shader_Free(shader);
@@ -4886,6 +4886,9 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 		f = r_numshaders;
 		if (f == r_maxshaders)
 		{
+			if (!r_maxshaders)
+				Sys_Error( "R_LoadShader: shader system not inited.");
+
 			nm = r_maxshaders * 2;
 			n = realloc(r_shaders, nm*sizeof(*n));
 			if (!n)

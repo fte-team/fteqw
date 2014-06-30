@@ -599,6 +599,7 @@ void SV_UpdateMaxPlayers(int newmax)
 	int i;
 	if (newmax != svs.allocated_client_slots)
 	{
+		client_t *old = svs.clients;
 		for (i = newmax; i < svs.allocated_client_slots; i++)
 		{
 			if (svs.clients[i].state)
@@ -617,6 +618,19 @@ void SV_UpdateMaxPlayers(int newmax)
 			memset(&svs.clients[i], 0, sizeof(svs.clients[i]));
 			svs.clients[i].name = svs.clients[i].namebuf;
 			svs.clients[i].team = svs.clients[i].teambuf;
+		}
+		for (i = 0; i < min(newmax, svs.allocated_client_slots); i++)
+		{
+			if (svs.clients[i].netchan.message.data)
+				svs.clients[i].netchan.message.data = (qbyte*)&svs.clients[i] + (svs.clients[i].netchan.message.data - (qbyte*)&old[i]);
+			if (svs.clients[i].datagram.data)
+				svs.clients[i].datagram.data = (qbyte*)&svs.clients[i] + (svs.clients[i].datagram.data - (qbyte*)&old[i]);
+			if (svs.clients[i].backbuf.data)
+				svs.clients[i].backbuf.data = (qbyte*)&svs.clients[i] + (svs.clients[i].backbuf.data - (qbyte*)&old[i]);
+			if (svs.clients[i].controlled)
+				svs.clients[i].controlled = svs.clients + (svs.clients[i].controlled - old);
+			if (svs.clients[i].controller)
+				svs.clients[i].controller = svs.clients + (svs.clients[i].controller - old);
 		}
 		svs.allocated_client_slots = sv.allocated_client_slots = newmax;
 	}
@@ -852,7 +866,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (allow_download_refpackages.ival)
 		FS_ReferenceControl(1, 1);
 
-	strcpy (sv.name, server);
+	Q_strncpyz (sv.name, server, sizeof(sv.name));
 #ifndef SERVERONLY
 	current_loading_size+=10;
 	//SCR_BeginLoadingPlaque();
@@ -900,8 +914,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 		extern model_t *loadmodel;
 
-		strcpy (sv.name, server);
-		strcpy (sv.modelname, "");
+		Q_strncpyz (sv.name, server, sizeof(sv.name));
+		Q_strncpyz (sv.modelname, "", sizeof(sv.modelname));
 
 		loadmodel = sv.world.worldmodel = Mod_FindName (sv.modelname);
 		loadmodel->needload = !Mod_LoadQ2BrushModel (sv.world.worldmodel, NULL);

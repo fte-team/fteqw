@@ -1482,6 +1482,29 @@ void FS_CreatePath(const char *pname, enum fs_relative relativeto)
 	COM_CreatePath(fullname);
 }
 
+void *FS_MallocFile(const char *filename, enum fs_relative relativeto, qofs_t *filesize)
+{
+	vfsfile_t *f;
+	qbyte *buf;
+	qofs_t len;
+
+	f = FS_OpenVFS(filename, "rb", relativeto);
+	if (!f)
+		return NULL;
+	len = VFS_GETLEN(f);
+	if (filesize)
+		*filesize = len;
+
+	buf = (qbyte*)BZ_Malloc(len+1);
+	if (!buf)
+		Sys_Error ("FS_MallocFile: out of memory loading %s", filename);
+
+	((qbyte *)buf)[len] = 0;
+
+	VFS_READ(f, buf, len);
+	VFS_CLOSE(f);
+	return buf;
+}
 qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto)
 {
 	vfsfile_t *f;

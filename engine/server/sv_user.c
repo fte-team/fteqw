@@ -4402,6 +4402,12 @@ void Cmd_Join_f (void)
 		return;
 	}
 
+	if (host_client->penalties & BAN_SPECONLY)
+	{
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "You are banned from joining the game.\n");
+		return;
+	}
+
 	// count players already on server
 	numclients = 0;
 	seats = 0;

@@ -837,7 +837,7 @@ void SV_EvaluatePenalties(client_t *cl)
 	if (delta & BAN_VIP)
 	{
 		delta &= ~BAN_VIP;	//don't refer to this as a penalty
-		if (penalties & p)
+		if (penalties & BAN_VIP)
 			SV_PrintToClient(cl, PRINT_HIGH, "You are a VIP, apparently\n");
 		else
 			SV_PrintToClient(cl, PRINT_HIGH, "VIP expired\n");
@@ -1068,7 +1068,7 @@ static void SV_FilterIP_f (void)
 	if (Cmd_Argc() < 2)
 	{
 		Con_Printf("%s <address/mask|adress/maskbits> [flags] [+time] [reason]\n", Cmd_Argv(0));
-		Con_Printf("allowed flags: ban,safe,cuff,mute,cripple,deaf,lag. time is in seconds (omitting the plus will be taken to mean unix time).\n", Cmd_Argv(0));
+		Con_Printf("allowed flags: ban,safe,cuff,mute,cripple,deaf,lag,blind,spec. time is in seconds (omitting the plus will be taken to mean unix time).\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -1109,6 +1109,8 @@ static void SV_FilterIP_f (void)
 			proto.banflags |= BAN_VIP;
 		else if (!Q_strcasecmp(com_token, "blind"))
 			proto.banflags |= BAN_BLIND;
+		else if (!Q_strcasecmp(com_token, "spec"))
+			proto.banflags |= BAN_SPECONLY;
 		else
 			Con_Printf("Unknown ban/penalty flag: %s. ignoring.\n", com_token);
 	}
@@ -1176,6 +1178,7 @@ static void SV_FilterList_f (void)
 		"lag",
 		"vip",
 		"blind",
+		"spec",
 		NULL
 	};
 
@@ -1256,12 +1259,16 @@ static void SV_Unfilter_f (void)
 			banflags |= BAN_LAGGED;
 		else if (!Q_strcasecmp(com_token, "vip"))
 			banflags |= BAN_VIP;
+		else if (!Q_strcasecmp(com_token, "blind"))
+			banflags |= BAN_BLIND;
+		else if (!Q_strcasecmp(com_token, "spec"))
+			banflags |= BAN_SPECONLY;
 		else
 			Con_Printf("Unknown ban/penalty flag: %s. ignoring.\n", com_token);
 	}
 	//if no flags were specified, assume all
 	if (!banflags)
-		banflags = BAN_BAN|BAN_PERMIT|BAN_CUFF|BAN_MUTE|BAN_CRIPPLED|BAN_DEAF|BAN_LAGGED|BAN_VIP;
+		banflags = BAN_BAN|BAN_PERMIT|BAN_CUFF|BAN_MUTE|BAN_CRIPPLED|BAN_DEAF|BAN_LAGGED|BAN_VIP|BAN_BLIND|BAN_SPECONLY;
 
 	for (link = &svs.bannedips ; (nb = *link) ; )
 	{

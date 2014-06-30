@@ -68,8 +68,8 @@ sv_masterlist_t sv_masterlist[] = {
 	{MP_QUAKEWORLD, CVARC("sv_master8", "", SV_Masterlist_Callback)},
 
 	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra1", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra2", "masterserver.exhale.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra3", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//german. admin bigfoot
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra2", ""/*"masterserver.exhale.de:27000" seems dead*/, SV_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra3", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//germany. admin bigfoot
 	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra4", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
 	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra5", "qwmaster.fodquake.net:27000", SV_Masterlist_Callback)},
 
@@ -3576,6 +3576,14 @@ client_t *SVC_DirectConnect(void)
 #endif
 
 	SV_EvaluatePenalties(newcl);
+
+	if (newcl->penalties & BAN_SPECONLY)
+	{
+		if (spectators >= maxspectators.ival)
+			newcl->drop = true;	//oops.
+		newcl->spectator = spectator = true;
+		Info_SetValueForStarKey (cl->userinfo, "*spectator", "1", sizeof(cl->userinfo));
+	}
 
 	newcl->fteprotocolextensions &= ~PEXT_SPLITSCREEN;
 	for (clients = 1; clients < numssclients; clients++)

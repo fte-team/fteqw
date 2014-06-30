@@ -266,6 +266,12 @@ void SV_Shutdown (void)
 		BZ_Free(sv_staticentities);
 		sv_staticentities = NULL;
 	}
+	while (svs.free_lagged_packet)
+	{
+		laggedpacket_t *lp = svs.free_lagged_packet;
+		svs.free_lagged_packet = lp->next;
+		Z_Free(lp);
+	}
 
 	T_FreeStrings();
 
@@ -4474,7 +4480,7 @@ qboolean SV_ReadPackets (float *delay)
 	}
 
 #ifdef SERVER_DEMO_PLAYBACK
-	while (giveup-- > 0 && SV_GetPacket())
+	while (giveup-- > 0 && SV_GetPacket()>=0)
 #else
 	while (giveup-- > 0 && (cookie=NET_GetPacket (NS_SERVER, cookie)) >= 0)
 #endif
@@ -4573,9 +4579,12 @@ dominping:
 				if (!cl->laggedpacket)
 					cl->laggedpacket_last = cl->laggedpacket = svs.free_lagged_packet;
 				else
-					cl->laggedpacket_last = cl->laggedpacket_last->next = svs.free_lagged_packet;
-				cl->laggedpacket_last->next = NULL;
+				{
+					cl->laggedpacket_last->next = svs.free_lagged_packet;
+					cl->laggedpacket_last = cl->laggedpacket_last->next;
+				}
 				svs.free_lagged_packet = svs.free_lagged_packet->next;
+				cl->laggedpacket_last->next = NULL;
 
 				cl->laggedpacket_last->time = realtime + cl->delay;
 				memcpy(cl->laggedpacket_last->data, net_message.data, net_message.cursize);

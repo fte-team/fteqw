@@ -182,6 +182,7 @@ QCC_pr_info_t	pr;
 
 QCC_def_t		*pr_scope;		// the function being parsed, or NULL
 QCC_type_t		*pr_classtype;	// the class that the current function is part of.
+QCC_type_t		*pr_assumetermtype;	//undefined things get this time, with no warning about being undeclared (used for the state function, so prototypes are not needed)
 pbool	pr_dumpasm;
 QCC_string_t	s_file, s_file2;			// filename for function definition
 
@@ -5613,6 +5614,12 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 			od = QCC_PR_GetDef(NULL, "self", NULL, true, 0, false);
 			d = QCC_PR_DummyDef(assumeclass->parentclass, "super", pr_scope, 0, od->ofs, true, GDF_CONST);
 		}
+		else if (pr_assumetermtype)
+		{
+			d = QCC_PR_GetDef (pr_assumetermtype, name, pr_scope, true, 0, false);
+			if (!d)
+				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
+		}
 		else
 		{
 			d = QCC_PR_GetDef (type_variant, name, pr_scope, true, 0, false);
@@ -8209,7 +8216,6 @@ set frame, nextthink (implicitly), and think (allowing forward definitions).
 */
 void QCC_PR_ParseState (void)
 {
-	char	*name;
 	QCC_def_t	*s1, *def, *sc = pr_scope;
 
 	if (QCC_PR_CheckToken("++") || QCC_PR_CheckToken("--"))
@@ -8285,15 +8291,28 @@ void QCC_PR_ParseState (void)
 		return;
 	}
 
-	if (pr_token_type != tt_immediate || pr_immediate_type != type_float)
-		QCC_PR_ParseError (ERR_STATETYPEMISMATCH, "state frame must be a number");
-	s1 = QCC_PR_ParseImmediate ();
+	s1 = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+	s1 = QCC_SupplyConversion(s1, ev_float, true);
 
-	QCC_PR_CheckToken (",");
+	QCC_PR_Expect (",");
 
-	name = QCC_PR_ParseName ();
 	pr_scope = NULL;
-	def = QCC_PR_GetDef (type_function, name, NULL, true, 0, false);
+	pr_assumetermtype = type_function;
+	def = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+	if (typecmp(def->type, type_function))
+	{
+		if (def->type->type == ev_float && def->constant && G_FLOAT(def->ofs) == 0)
+			;
+		else if (def->type->type == ev_integer && def->constant && G_INT(def->ofs) == 0)
+			;
+		else
+		{
+			char typebuf1[256];
+			char typebuf2[256];
+			QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCH, def, "Type mismatch: %s, should be %s", TypeName(def->type, typebuf1, sizeof(typebuf1)), TypeName(type_function, typebuf2, sizeof(typebuf2)));
+		}
+	}
+	pr_assumetermtype = NULL;
 	pr_scope = sc;
 
 	QCC_PR_Expect ("]");
@@ -10611,6 +10630,8 @@ void QCC_PR_ParseDefs (char *classname)
 	int arraysize;
 	unsigned int gd_flags;
 
+	pr_assumetermtype = NULL;
+
 	while (QCC_PR_CheckToken(";"))
 		;
 
@@ -11482,6 +11503,7 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 		s_file = s_file2 = QCC_CopyString (filename);
 	}
 	pr_file_p = string;
+	pr_assumetermtype = NULL;
 
 	pr_source_line = 0;
 

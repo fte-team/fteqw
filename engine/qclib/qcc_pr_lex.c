@@ -2222,7 +2222,7 @@ pbool QCC_PR_LexMacroName(void)
 	}
 
 	i = 0;
-	while ( (c = *pr_file_p) > ' ' && c != '\n' && c != ',' && c != ';' && c != ')' && c != '(' && c != ']' && !(pr_file_p[0] == '.' && pr_file_p[1] == '.'))
+	while ( (c = *pr_file_p) > ' ' && c != '\n' && c != ',' && c != ';' && c != '&' && c != '|' && c != ')' && c != '(' && c != ']' && !(pr_file_p[0] == '.' && pr_file_p[1] == '.'))
 	{
 		if (i == sizeof(qcc_token)-1)
 			QCC_Error (ERR_INTERNAL, "token exceeds %i chars", i);

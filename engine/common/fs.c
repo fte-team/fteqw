@@ -915,7 +915,12 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 			found = search->handle->FindFile(search->handle, loc, filename, pf);
 			if (found)
 			{
-				search->flags |= fs_referencetype;
+				if (returntype != FSLFRT_DEPTH_OSONLY && returntype != FSLFRT_DEPTH_ANYPATH)
+				{
+					if ((search->flags & fs_referencetype) != fs_referencetype)
+						Con_DPrintf("%s became referenced due to %s\n", search->purepath, filename);
+					search->flags |= fs_referencetype;
+				}
 				loc->search = search;
 
 				com_file_copyprotected = !!(search->flags & SPF_COPYPROTECTED);
@@ -935,7 +940,12 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 			found = search->handle->FindFile(search->handle, loc, filename, pf);
 			if (found)
 			{
-				search->flags |= fs_referencetype;
+				if (returntype != FSLFRT_DEPTH_OSONLY && returntype != FSLFRT_DEPTH_ANYPATH)
+				{
+					if ((search->flags & fs_referencetype) != fs_referencetype)
+						Con_DPrintf("%s became referenced due to %s\n", search->purepath, filename);
+					search->flags |= fs_referencetype;
+				}
 				loc->search = search;
 				com_file_copyprotected = !!(search->flags & SPF_COPYPROTECTED);
 				com_file_untrusted = !!(search->flags & SPF_UNTRUSTED);

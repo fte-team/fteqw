@@ -937,6 +937,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[i], server);
 			}
 		}
+		COM_FCheckExists(sv.modelname);
 		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);
 	}
 	if (!sv.world.worldmodel || sv.world.worldmodel->needload)

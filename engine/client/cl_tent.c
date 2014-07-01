@@ -454,8 +454,10 @@ void CL_ClearTEntParticleState (void)
 	int i;
 	for (i = 0; i < cl_beams_max; i++)
 	{
-		P_DelinkTrailstate(&(cl_beams[i].trailstate));
-		P_DelinkTrailstate(&(cl_beams[i].emitstate));
+		if (cl_beams[i].trailstate)
+			P_DelinkTrailstate(&(cl_beams[i].trailstate));
+		if (cl_beams[i].emitstate)
+			P_DelinkTrailstate(&(cl_beams[i].emitstate));
 	}
 }
 

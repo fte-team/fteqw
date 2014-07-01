@@ -657,6 +657,7 @@ void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				"map $whiteimage\n"
 				"rgbgen exactvertex\n"
 				"alphagen vertex\n"
+				"blendfunc blend\n"
 			"}\n"
 		"}\n");
 

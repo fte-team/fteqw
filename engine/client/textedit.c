@@ -1306,7 +1306,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 			IN_Commands ();
 			S_ExtraUpdate();
 
-			NET_Sleep(20, false);	//any os.
+			NET_Sleep(20/1000.0, false);	//any os.
 		}
 		realtime = oldrealtime;
 

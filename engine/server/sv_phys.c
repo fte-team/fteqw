@@ -2525,6 +2525,6 @@ void SV_SetMoveVars(void)
 	movevars.entgravity			= 1.0;
 	movevars.stepheight			= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
 	movevars.watersinkspeed		= *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
-	movevars.flyfriction		= *pm_flyfriction.string?pm_flyfriction.value:60;
+	movevars.flyfriction		= *pm_flyfriction.string?pm_flyfriction.value:4;
 }
 #endif

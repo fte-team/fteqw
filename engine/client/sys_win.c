@@ -3055,7 +3055,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	double			time, oldtime, newtime;
 	char	cwd[1024], bindir[1024];
 	const char *qtvfile = NULL;
-	int delay = 0;
+	float delay = 0;
 	char lang[32];
 	char ctry[32];
 	int c;
@@ -3308,7 +3308,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #ifndef CLIENTONLY
 		if (isDedicated)	//compleate denial to switch to anything else - many of the client structures are not initialized.
 		{
-			int delay;
+			float delay;
 
 			SV_Init (&parms);
 
@@ -3381,7 +3381,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				time = newtime - oldtime;
 				oldtime = newtime;
 
-				delay = 1000*SV_Frame ();
+				delay = SV_Frame ();
 	#else
 				Sys_Error("wut?");
 	#endif

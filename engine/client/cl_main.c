@@ -3388,6 +3388,14 @@ void CL_CrashMeEndgame_f(void)
 	Host_EndGame("crashme!");
 }
 
+void CL_Status_f(void)
+{
+	float pi, po, bi, bo;
+	NET_PrintAddresses(cls.sockets);
+	if (NET_GetRates(cls.sockets, &pi, &po, &bi, &bo))
+		Con_Printf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
+}
+
 void CL_Skygroup_f(void);
 /*
 =================
@@ -3607,6 +3615,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("skins", Skin_Skins_f);
 	Cmd_AddCommand ("allskins", Skin_AllSkins_f);
 
+	Cmd_AddCommand ("cl_status", CL_Status_f);
 	Cmd_AddCommand ("quit", CL_Quit_f);
 
 	Cmd_AddCommandD ("connect", CL_Connect_f, "connect scheme://address:port\nConnect to a server. Use a scheme of tcp:// or tls:// to connect via non-udp protocols."

@@ -6121,9 +6121,18 @@ if (sv_player->v->health > 0 && before && !after )
 
 		if (delta[0] || delta[1] || delta[2])
 		{
-			client_t *cl = ClientReliableWrite_BeginSplit(host_client, svcfte_setangledelta, 7);
-			for (i=0 ; i < 3 ; i++)
-				ClientReliableWrite_Angle16 (cl, delta[i]);
+			if (host_client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA)
+			{
+				client_t *cl = ClientReliableWrite_BeginSplit(host_client, svcfte_setangledelta, 7);
+				for (i=0 ; i < 3 ; i++)
+					ClientReliableWrite_Angle16 (cl, delta[i]);
+			}
+			else
+			{
+				client_t *cl = ClientReliableWrite_BeginSplit(host_client, svc_setangle, 7);
+				for (i=0 ; i < 3 ; i++)
+					ClientReliableWrite_Angle (cl, pmove.angles[i]);
+			}
 		}
 
 	}

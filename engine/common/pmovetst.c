@@ -358,15 +358,13 @@ PM_TestPlayerPosition
 Returns false if the given player position is not valid (in solid)
 ================
 */
-qboolean PM_TestPlayerPosition (vec3_t pos)
+qboolean PM_TestPlayerPosition (vec3_t pos, qboolean ignoreportals)
 {
 	int			i, j;
 	physent_t	*pe;
 	vec3_t		mins, maxs;
 	hull_t		*hull;
 	trace_t		trace;
-
-	trace.allsolid = false;
 
 	for (i=0 ; i< pmove.numphysent ; i++)
 	{
@@ -375,38 +373,61 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 		if (pe->info == pmove.skipent)
 			continue;
 
-		if (pe->nonsolid || pe->isportal)
+		if (pe->nonsolid)
 			continue;
 
 		if (pe->forcecontentsmask && !(pe->forcecontentsmask & MASK_PLAYERSOLID))
 			continue;
 
 	// get the clipping hull
-		if (pe->model)
+		if (pe->isportal)
 		{
-			if (!PM_TransformedHullCheck (pe->model, pos, pos, pmove.player_mins, pmove.player_maxs, &trace, pe->origin, pe->angles))
+			if (ignoreportals)
 				continue;
-			if (trace.allsolid)
+			//if the trace ended up inside a portal region, then its not valid.
+			if (pe->model)
 			{
-				for (j = i+1; j < pmove.numphysent && trace.allsolid; j++)
-				{
-					pe = &pmove.physents[j];
-					if (pe->isportal)
-						PM_PortalCSG(pe, j, pmove.player_mins, pmove.player_maxs, pos, pos, &trace);
-				}
+				if (!PM_TransformedHullCheck (pe->model, pos, pos, vec3_origin, vec3_origin, &trace, pe->origin, pe->angles))
+					continue;
 				if (trace.allsolid)
+					return false;
+			}
+			else
+			{
+				hull = PM_HullForBox (pe->mins, pe->maxs);
+				VectorSubtract(pos, pe->origin, mins);
+				if (Q1BSP_HullPointContents(hull, mins) & MASK_PLAYERSOLID)
 					return false;
 			}
 		}
 		else
 		{
-			VectorSubtract (pe->mins, pmove.player_maxs, mins);
-			VectorSubtract (pe->maxs, pmove.player_mins, maxs);
-			hull = PM_HullForBox (mins, maxs);
-			VectorSubtract(pos, pe->origin, mins);
+			if (pe->model)
+			{
+				if (!PM_TransformedHullCheck (pe->model, pos, pos, pmove.player_mins, pmove.player_maxs, &trace, pe->origin, pe->angles))
+					continue;
+				if (trace.allsolid)
+				{
+					for (j = i+1; j < pmove.numphysent && trace.allsolid; j++)
+					{
+						pe = &pmove.physents[j];
+						if (pe->isportal)
+							PM_PortalCSG(pe, j, pmove.player_mins, pmove.player_maxs, pos, pos, &trace);
+					}
+					if (trace.allsolid)
+						return false;
+				}
+			}
+			else
+			{
+				VectorSubtract (pe->mins, pmove.player_maxs, mins);
+				VectorSubtract (pe->maxs, pmove.player_mins, maxs);
+				hull = PM_HullForBox (mins, maxs);
+				VectorSubtract(pos, pe->origin, mins);
 
-			if (Q1BSP_HullPointContents(hull, mins) & MASK_PLAYERSOLID)
-				return false;
+				if (Q1BSP_HullPointContents(hull, mins) & MASK_PLAYERSOLID)
+					return false;
+			}
 		}
 	}
 
@@ -482,9 +503,10 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end, unsigned int solidmask)
 
 		if (trace.allsolid)
 			trace.startsolid = true;
-
 		if (trace.startsolid && pe->isportal)
 			trace.startsolid = false;
+//		if (trace.startsolid)
+//			trace.fraction = 0;
 
 	// did we clip the move?
 		if (trace.fraction < total.fraction || (trace.startsolid && !total.startsolid))
@@ -493,9 +515,11 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end, unsigned int solidmask)
 			total = trace;
 			total.entnum = i;
 		}
-
 	}
 
+	//this is needed to avoid *2 friction. some id bug.
+	if (total.startsolid)
+		total.fraction = 0;
 	return total;
 }
 

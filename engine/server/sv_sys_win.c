@@ -1192,7 +1192,7 @@ int servicecontrol;
 void ServerMainLoop(void)
 {
 	double			newtime, time, oldtime;
-	int delay = 1;
+	float delay = 0.001;
 //
 // main loop
 //
@@ -1205,7 +1205,7 @@ void ServerMainLoop(void)
 		newtime = Sys_DoubleTime ();
 		time = newtime - oldtime;
 		oldtime = newtime;
-		delay = SV_Frame()*1000;
+		delay = SV_Frame();
 
 
 #ifdef USESERVICE
@@ -1330,7 +1330,6 @@ SERVICE_TABLE_ENTRY   DispatchTable[] =
 };
 #endif
 
-qboolean NET_Sleep(int msec, qboolean stdinissocket);
 int main (int argc, char **argv)
 {
 #ifdef USESERVICE

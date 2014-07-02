@@ -125,7 +125,7 @@ int PM_HullPointContents (hull_t *hull, int num, vec3_t p);
 
 int PM_ExtraBoxContents (vec3_t p);	//Peeks for HL-style water.
 int PM_PointContents (vec3_t point);
-qboolean PM_TestPlayerPosition (vec3_t point);
+qboolean PM_TestPlayerPosition (vec3_t point, qboolean ignoreportals);
 #ifndef __cplusplus
 struct trace_s PM_PlayerTrace (vec3_t start, vec3_t stop, unsigned int solidmask);
 #endif

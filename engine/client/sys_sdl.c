@@ -460,7 +460,7 @@ int QDECL main(int argc, char **argv)
 {
 	float time, newtime, oldtime;
 	quakeparms_t	parms;
-	int delay = 1;
+	float delay = 0.001;
 
 	memset(&parms, 0, sizeof(parms));
 
@@ -497,7 +497,7 @@ int QDECL main(int argc, char **argv)
 			time = newtime - oldtime;
 			oldtime = newtime;
 			
-			delay = SV_Frame()*1000;
+			delay = SV_Frame();
 		}
 		else
 #endif

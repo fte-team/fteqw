@@ -681,7 +681,7 @@ main
 */
 int main(int argc, char *argv[])
 {
-	int maxsleep;
+	float maxsleep;
 	quakeparms_t	parms;
 //	fd_set	fdset;
 //	extern	int		net_socket;
@@ -717,7 +717,7 @@ int main(int argc, char *argv[])
 	SV_Init (&parms);
 
 // run one frame immediately for first heartbeat
-	maxsleep = SV_Frame()*1000;
+	maxsleep = SV_Frame();
 
 //
 // main loop
@@ -732,7 +732,7 @@ int main(int argc, char *argv[])
 			stdin_ready = false;
 		}
 
-		maxsleep = SV_Frame()*1000;
+		maxsleep = SV_Frame();
 
 	// extrasleep is just a way to generate a fucked up connection on purpose
 		if (sys_extrasleep.value)

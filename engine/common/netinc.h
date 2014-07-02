@@ -275,6 +275,15 @@ typedef struct ftenet_generic_connection_s {
 typedef struct ftenet_connections_s
 {
 	qboolean islisten;
+	unsigned int packetsin;
+	unsigned int packetsout;
+	unsigned int bytesin;
+	unsigned int bytesout;
+	unsigned int timemark;
+	float packetsinrate;
+	float packetsoutrate;
+	float bytesinrate;
+	float bytesoutrate;
 	ftenet_generic_connection_t *conn[MAX_CONNECTIONS];
 } ftenet_connections_t;
 

@@ -4723,11 +4723,23 @@ static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolea
 }
 #endif
 
+qboolean NET_GetRates(ftenet_connections_t *collection, float *pi, float *po, float *bi, float *bo)
+{
+	if (!collection)
+		return false;
+
+	*pi = collection->packetsinrate;
+	*po = collection->packetsoutrate;
+	*bi = collection->bytesinrate;
+	*bo = collection->bytesoutrate;
+	return true;
+}
 
 /*firstsock is a cookie*/
 int NET_GetPacket (netsrc_t netsrc, int firstsock)
 {
 	ftenet_connections_t *collection;
+	unsigned int ctime;
 	if (netsrc == NS_SERVER)
 	{
 #ifdef CLIENTONLY
@@ -4762,11 +4774,28 @@ int NET_GetPacket (netsrc_t netsrc, int firstsock)
 					continue;
 			}
 
+			collection->bytesin += net_message.cursize;
+			collection->packetsin += 1;
 			net_from.connum = firstsock+1;
 			return firstsock;
 		}
 
 		firstsock += 1;
+	}
+
+	ctime = Sys_Milliseconds();
+	if ((ctime - collection->timemark) > 1000)
+	{
+		float secs = (ctime - collection->timemark) / 1000.0f;
+		collection->packetsinrate = collection->packetsin * secs;
+		collection->packetsoutrate = collection->packetsout * secs;
+		collection->bytesinrate = collection->bytesin * secs;
+		collection->bytesoutrate = collection->bytesout * secs;
+		collection->packetsin = 0;
+		collection->packetsout = 0;
+		collection->bytesin = 0;
+		collection->bytesout = 0;
+		collection->timemark = ctime;
 	}
 
 	return -1;
@@ -4818,14 +4847,22 @@ qboolean NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t
 	if (net_fakeloss.value)
 	{
 		if (frandom () < net_fakeloss.value)
+		{
+			collection->bytesout += length;
+			collection->packetsout += 1;
 			return true;
+		}
 	}
 
 	if (to->connum)
 	{
 		if (collection->conn[to->connum-1])
 			if (collection->conn[to->connum-1]->SendPacket(collection->conn[to->connum-1], length, data, to))
+			{
+				collection->bytesout += length;
+				collection->packetsout += 1;
 				return true;
+			}
 	}
 
 	for (i = 0; i < MAX_CONNECTIONS; i++)
@@ -4833,7 +4870,11 @@ qboolean NET_SendPacket (netsrc_t netsrc, int length, const void *data, netadr_t
 		if (!collection->conn[i])
 			continue;
 		if (collection->conn[i]->SendPacket(collection->conn[i], length, data, to))
+		{
+			collection->bytesout += length;
+			collection->packetsout += 1;
 			return true;
+		}
 	}
 
 //	Con_Printf("No route to %s - try reconnecting\n", NET_AdrToString(buffer, sizeof(buffer), to));
@@ -5261,13 +5302,14 @@ void IPX_CloseSocket (int socket)
 //stdin can sometimes be a socket. As a result,
 //we give the option to select it for nice console imput with timeouts.
 #ifndef CLIENTONLY
-qboolean NET_Sleep(int msec, qboolean stdinissocket)
+qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 {
 #ifdef HAVE_PACKET
     struct timeval timeout;
 	fd_set	fdset;
 	int maxfd;
 	int con, sock;
+	unsigned int usec;
 
 	FD_ZERO(&fdset);
 
@@ -5298,10 +5340,14 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 		}
 	}
 
-	timeout.tv_sec = msec/1000;
-	timeout.tv_usec = (msec%1000)*1000;
+	if (seconds > 4000)	//realy? oh well.
+		seconds = 4000;
+	usec = seconds*1000*1000;
+	usec += 1000;	//slight extra delay, to ensure we don't wake up with nothing to do.
+	timeout.tv_sec = usec/(1000*1000);
+	timeout.tv_usec = usec;
 	if (!maxfd)
-		Sys_Sleep(msec/1000.0);
+		Sys_Sleep(seconds);
 	else
 		select(maxfd+1, &fdset, NULL, NULL, &timeout);
 

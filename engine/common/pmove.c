@@ -104,7 +104,7 @@ static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t
 	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
 
 	//make sure the new origin is okay for the player. back out if its invalid.
-	if (!PM_TestPlayerPosition(G_VECTOR(OFS_RETURN)))
+	if (!PM_TestPlayerPosition(G_VECTOR(OFS_RETURN), true))
 		okay = false;
 	else
 	{
@@ -180,6 +180,7 @@ int PM_SlideMove (void)
 	float		time_left;
 	int			blocked;
 	float		tookportal;
+	vec3_t		start;
 
 	numbumps = 4;
 
@@ -197,7 +198,8 @@ int PM_SlideMove (void)
 		for (i=0 ; i<3 ; i++)
 			end[i] = pmove.origin[i] + time_left * pmove.velocity[i];
 
-		trace = PM_PlayerTracePortals (pmove.origin, end, MASK_PLAYERSOLID, &tookportal);
+		VectorCopy(pmove.origin, start);
+		trace = PM_PlayerTracePortals (start, end, MASK_PLAYERSOLID, &tookportal);
 		if (tookportal)
 		{
 			//made progress, but hit a portal
@@ -474,6 +476,7 @@ void PM_Friction (void)
 		start[0] = stop[0] = pmove.origin[0] + pmove.velocity[0]/speed*16;
 		start[1] = stop[1] = pmove.origin[1] + pmove.velocity[1]/speed*16;
 		//FIXME: gravitydir.
+		//id bug: this is a tracebox, NOT a traceline.
 		start[2] = pmove.origin[2] + pmove.player_mins[2];
 		stop[2] = start[2] - 34;
 		trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
@@ -1071,7 +1074,7 @@ void PM_NudgePosition (void)
 		base[i] = ((int)(base[i]*8)) * 0.125;
 
 	if (pmove.velocity[0] || pmove.velocity[1])
-		if (PM_TestPlayerPosition (pmove.origin))
+		if (PM_TestPlayerPosition (pmove.origin, false))
 			return;
 
 	for (z=0 ; z<=4 ; z++)
@@ -1083,7 +1086,7 @@ void PM_NudgePosition (void)
 				pmove.origin[0] = base[0] + (sign[x] * 1.0/8);
 				pmove.origin[1] = base[1] + (sign[y] * 1.0/8);
 				pmove.origin[2] = base[2] + (sign[z] * 1.0/8);
-				if (PM_TestPlayerPosition (pmove.origin))
+				if (PM_TestPlayerPosition (pmove.origin, false))
 					return;
 			}
 		}
@@ -1189,6 +1192,9 @@ were contacted during the move.
 */
 void PM_PlayerMove (float gamespeed)
 {
+	int i;
+	int tmp;	//for rounding
+
 	frametime = pmove.cmd.msec * 0.001*gamespeed;
 	pmove.numtouch = 0;
 
@@ -1259,5 +1265,14 @@ void PM_PlayerMove (float gamespeed)
 		&& DotProduct(pmove.velocity, groundplane.normal) < -0.1)
 	{
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
+	}
+
+	//round to network precision
+	for (i = 0; i < 3; i++)
+	{
+		tmp = floor(pmove.velocity[i]*8 + 0.5);
+		pmove.velocity[i] = tmp/8.0;
+		tmp = floor(pmove.origin[i]*8 + 0.5);
+		pmove.origin[i] = tmp/8.0;
 	}
 }

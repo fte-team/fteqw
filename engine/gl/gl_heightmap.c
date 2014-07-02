@@ -4114,15 +4114,11 @@ static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float ra
 			{
 				wy = (sy*(steps-1.0) + ty)*sc[1];
 				yd = wy - pos[1];// - sc[1]/4;
-//				if (yd < 0)
-//					yd = 0;
 				for (tx = 0; tx < steps; tx++)
 				{
 					/*both heights and textures have an overlapping/matching sample at the edge, there's no need for any half-pixels or anything here*/
 					wx = (sx*(steps-1.0) + tx)*sc[0];
 					xd = wx - pos[0];// - sc[0]/4;
-//					if (xd < 0)
-//						xd = 0;
 
 					switch(distribution)
 					{

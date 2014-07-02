@@ -8584,10 +8584,13 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	else
 		pmove.pm_type = PM_NORMAL;
 
-	pmove.jump_msec = 0;//(cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
+	pmove.jump_msec = 0;
 
 	pmove.jump_held = ((int)ent->xv->pmove_flags)&PMF_JUMP_HELD;
-	pmove.waterjumptime = ent->v->teleport_time;
+	if (progstype != PROG_QW)	//this is just annoying.
+		pmove.waterjumptime = sv_player->v->teleport_time - sv.time;
+	else
+		pmove.waterjumptime = ent->v->teleport_time;
 
 //set up the movement command
 	msecs = pr_global_struct->input_timelength*1000 + 0.5f;
@@ -8606,11 +8609,19 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	VectorCopy(ent->v->velocity, pmove.velocity);
 	VectorCopy(ent->v->maxs, pmove.player_maxs);
 	VectorCopy(ent->v->mins, pmove.player_mins);
+	VectorCopy(ent->xv->gravitydir, pmove.gravitydir);
 
+	pmove.numtouch = 0;
 	pmove.world = &sv.world;
 	pmove.skipent = -1;
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.world.worldmodel;
+
+	pmove.onladder = false;
+	pmove.onground = false;
+	pmove.groundent = 0;
+	pmove.waterlevel = 0;
+	pmove.watertype = 0;
 
 	for (i=0 ; i<3 ; i++)
 	{
@@ -8634,7 +8645,10 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		ent->xv->pmove_flags = 0;
 		ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
 		ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
-		ent->v->teleport_time = pmove.waterjumptime;
+		if (progstype != PROG_QW)	//this is just annoying.
+			sv_player->v->teleport_time = sv.time + pmove.waterjumptime;
+		else
+			ent->v->teleport_time = pmove.waterjumptime;
 		VectorCopy(pmove.origin, ent->v->origin);
 		VectorCopy(pmove.velocity, ent->v->velocity);
 

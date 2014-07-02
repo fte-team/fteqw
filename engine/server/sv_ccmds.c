@@ -1624,6 +1624,7 @@ static void SV_Status_f (void)
 	float		cpu, avg, pak;
 	char		*s;
 	char		adr[MAX_ADR_SIZE];
+	float pi, po, bi, bo;
 
 	int columns = 80;
 	extern cvar_t sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
@@ -1655,6 +1656,8 @@ static void SV_Status_f (void)
 	Con_Printf("cpu utilization  : %3i%%\n",(int)cpu);
 	Con_Printf("avg response time: %i ms\n",(int)avg);
 	Con_Printf("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
+	if (NET_GetRates(svs.sockets, &pi, &po, &bi, &bo))
+		Con_Printf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
 	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
 	if (sv.state == ss_clustermode)
 		return;

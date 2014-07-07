@@ -587,8 +587,10 @@ static void X_ShutdownUnicode(void)
 {
 	if (x11.unicodecontext)
 		x11.pXDestroyIC(x11.unicodecontext);
+	x11.unicodecontext = NULL;
 	if (x11.inputmethod)
 		x11.pXCloseIM(x11.inputmethod);
+	x11.inputmethod = NULL;
 	x11.dounicode = false;
 }
 #include <locale.h>

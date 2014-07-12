@@ -358,7 +358,7 @@ PM_TestPlayerPosition
 Returns false if the given player position is not valid (in solid)
 ================
 */
-int PM_TestPlayerPosition (vec3_t pos, qboolean ignoreportals)
+qboolean PM_TestPlayerPosition (vec3_t pos, qboolean ignoreportals)
 {
 	int			i, j;
 	physent_t	*pe;

@@ -5364,14 +5364,13 @@ void SV_InitLocal (void)
 	// init fraglog stuff
 	svs.logsequence = 1;
 	svs.logtime = realtime;
-	svs.log[0].data = svs.log_buf[0];
-	svs.log[0].maxsize = sizeof(svs.log_buf[0]);
-	svs.log[0].cursize = 0;
-	svs.log[0].allowoverflow = true;
-	svs.log[1].data = svs.log_buf[1];
-	svs.log[1].maxsize = sizeof(svs.log_buf[1]);
-	svs.log[1].cursize = 0;
-	svs.log[1].allowoverflow = true;
+	for (i = 0; i < FRAGLOG_BUFFERS; i++)
+	{
+		svs.log[i].data = svs.log_buf[i];
+		svs.log[i].maxsize = sizeof(svs.log_buf[i]);
+		svs.log[i].cursize = 0;
+		svs.log[i].allowoverflow = true;
+	}
 
 	svs.free_lagged_packet = NULL;
 }

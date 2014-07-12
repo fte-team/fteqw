@@ -358,13 +358,14 @@ PM_TestPlayerPosition
 Returns false if the given player position is not valid (in solid)
 ================
 */
-qboolean PM_TestPlayerPosition (vec3_t pos, qboolean ignoreportals)
+int PM_TestPlayerPosition (vec3_t pos, qboolean ignoreportals)
 {
 	int			i, j;
 	physent_t	*pe;
 	vec3_t		mins, maxs;
 	hull_t		*hull;
 	trace_t		trace;
+	int			csged = false;
 
 	for (i=0 ; i< pmove.numphysent ; i++)
 	{
@@ -416,6 +417,7 @@ qboolean PM_TestPlayerPosition (vec3_t pos, qboolean ignoreportals)
 					}
 					if (trace.allsolid)
 						return false;
+					csged = true;
 				}
 			}
 			else
@@ -429,6 +431,13 @@ qboolean PM_TestPlayerPosition (vec3_t pos, qboolean ignoreportals)
 					return false;
 			}
 		}
+	}
+
+	if (!csged && !ignoreportals)
+	{
+		//the point the player is returned to if the portal dissipates
+		pmove.safeorigin_known = true;
+		VectorCopy (pmove.origin, pmove.safeorigin);
 	}
 
 	return true;

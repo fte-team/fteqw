@@ -2512,6 +2512,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	pmove.cmd.sidemove = csqcg.input_movevalues[1];
 	pmove.cmd.upmove = csqcg.input_movevalues[2];
 	pmove.cmd.buttons = *csqcg.input_buttons;
+	pmove.safeorigin_known = false;
 
 	if (ent)
 	{

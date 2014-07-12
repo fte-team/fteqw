@@ -84,12 +84,15 @@ void PM_ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
 }
 
 #include "pr_common.h"
-static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t move)
+static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t move, vec3_t newang, vec3_t newvel)
 {
+	vec3_t rounded;
 	qboolean okay = true;
 	wedict_t *portal = WEDICT_NUM(w->progs, portalnum);
 	int oself = *w->g.self;
 	void *pr_globals = PR_globals(w->progs, PR_CURRENT);
+	int i;
+	int tmp;
 
 	*w->g.self = EDICT_TO_PROG(w->progs, portal);
 	//transform origin+velocity etc
@@ -103,15 +106,20 @@ static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t
 
 	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
 
+	for (i = 0; i < 3; i++)
+	{
+		tmp = floor(G_VECTOR(OFS_RETURN)[i]*8 + 0.5);
+		rounded[i] = tmp/8.0;
+	}
 	//make sure the new origin is okay for the player. back out if its invalid.
-	if (!PM_TestPlayerPosition(G_VECTOR(OFS_RETURN), true))
+	if (!PM_TestPlayerPosition(rounded, true))
 		okay = false;
 	else
 	{
-		VectorCopy(G_VECTOR(OFS_RETURN), org);
-		VectorCopy(w->g.v_forward, pmove.velocity);
+		VectorCopy(rounded, org);
+		VectorCopy(w->g.v_forward, newvel);
 		VectorCopy(w->g.v_right, move);
-		VectorCopy(w->g.v_up, pmove.gravitydir);
+//		VectorCopy(w->g.v_up, pmove.gravitydir);
 
 
 		//transform the angles too
@@ -119,8 +127,8 @@ static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t
 		VectorCopy(pmove.angles, G_VECTOR(OFS_PARM1));
 		AngleVectors(pmove.angles, w->g.v_forward, w->g.v_right, w->g.v_up);
 		PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
-		VectorAngles(w->g.v_forward, w->g.v_up, pmove.angles);
-		pmove.angles[0] *= -1;
+		VectorAngles(w->g.v_forward, w->g.v_up, newang);
+		newang[0] *= -1;
 	}
 
 	*w->g.self = oself;
@@ -139,18 +147,32 @@ static trace_t	PM_PlayerTracePortals(vec3_t start, vec3_t end, unsigned int soli
 		{
 			vec3_t move;
 			vec3_t from;
+			vec3_t newang, newvel;
 
 			VectorCopy(trace.endpos, from);	//just in case
 			VectorSubtract(end, trace.endpos, move);
-			if (PM_PortalTransform(pmove.world, impact->info, from, move))
+			if (PM_PortalTransform(pmove.world, impact->info, from, move, newang, newvel))
 			{
+				trace_t exit;
+				int i, tmp;
 				VectorAdd(from, move, end);
 				
 				//if we follow the portal, then we basically need to restart from the other side.
-				if (tookportal)
-					*tookportal = trace.fraction;
-				
-				return PM_PlayerTrace (from, end, MASK_PLAYERSOLID);
+				exit = PM_PlayerTrace (from, end, MASK_PLAYERSOLID);
+
+				for (i = 0; i < 3; i++)
+				{
+					tmp = floor(exit.endpos[i]*8 + 0.5);
+					exit.endpos[i] = tmp/8.0;
+				}
+				if (PM_TestPlayerPosition(exit.endpos, false))
+				{
+					if (tookportal)
+						*tookportal = trace.fraction;
+					VectorCopy(newang, pmove.angles);
+					VectorCopy(newvel, pmove.velocity);
+					return exit;
+				}
 			}
 		}
 	}
@@ -1073,15 +1095,16 @@ void PM_NudgePosition (void)
 	for (i=0 ; i<3 ; i++)
 		base[i] = ((int)(base[i]*8)) * 0.125;
 
-	if (pmove.velocity[0] || pmove.velocity[1])
+	//if we're moving, allow that spot without snapping to any grid
+	if (pmove.velocity[0] || pmove.velocity[1] || pmove.velocity[2])
 		if (PM_TestPlayerPosition (pmove.origin, false))
 			return;
 
-	for (z=0 ; z<=4 ; z++)
+	for (z=0 ; z<sizeof(sign)/sizeof(sign[0]) ; z++)
 	{
-		for (x=0 ; x<=4 ; x++)
+		for (x=0 ; x<sizeof(sign)/sizeof(sign[0]) ; x++)
 		{
-			for (y=0 ; y<=4 ; y++)
+			for (y=0 ; y<sizeof(sign)/sizeof(sign[0]) ; y++)
 			{
 				pmove.origin[0] = base[0] + (sign[x] * 1.0/8);
 				pmove.origin[1] = base[1] + (sign[y] * 1.0/8);
@@ -1091,7 +1114,10 @@ void PM_NudgePosition (void)
 			}
 		}
 	}
-	VectorCopy (base, pmove.origin);
+	if (pmove.safeorigin_known)
+		VectorCopy (pmove.safeorigin, pmove.origin);
+	else
+		VectorCopy (base, pmove.origin);
 //	Com_DPrintf ("NudgePosition: stuck\n");
 }
 
@@ -1267,6 +1293,7 @@ void PM_PlayerMove (float gamespeed)
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
 	}
 
+/*
 	//round to network precision
 	for (i = 0; i < 3; i++)
 	{
@@ -1275,4 +1302,5 @@ void PM_PlayerMove (float gamespeed)
 		tmp = floor(pmove.origin[i]*8 + 0.5);
 		pmove.origin[i] = tmp/8.0;
 	}
+*/
 }

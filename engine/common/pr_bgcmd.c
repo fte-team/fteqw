@@ -3019,6 +3019,13 @@ void QCBUILTIN PF_strftime (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		tm = localtime(&ctime);
 	else
 		tm = gmtime(&ctime);
+
+	//msvc sucks.
+	if (!strcmp(in, "%R"))
+		in = "%H:%M";
+	else if (!strcmp(in, "%F"))
+		in = "%Y-%m-%d";
+
 	strftime(result, sizeof(result), in, tm);
 	unicode_strtoupper(result, uresult, sizeof(uresult), VMUTF8MARKUP);
 

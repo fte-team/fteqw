@@ -2133,6 +2133,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	if (key_repeats[key] > 1)
 		return;
 
+	//first player is normally assumed anyway.
 	if (devid)
 		Q_snprintfz (p, sizeof(p), "p %i ", devid+1);
 	else

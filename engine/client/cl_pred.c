@@ -405,6 +405,7 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 	movevars.maxspeed = cl.playerview[pnum].maxspeed;
 	movevars.bunnyspeedcap = cl.bunnyspeedcap;
 	pmove.onladder = false;
+	pmove.safeorigin_known = false;
 
 	VectorCopy(from->szmins, pmove.player_mins);
 	VectorCopy(from->szmaxs, pmove.player_maxs);

@@ -8605,6 +8605,8 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	pmove.cmd.upmove = (pr_global_struct->input_movevalues)[2];
 	pmove.cmd.buttons = pr_global_struct->input_buttons;
 
+	pmove.safeorigin_known = true;
+	VectorCopy(ent->v->oldorigin, pmove.safeorigin);
 	VectorCopy(ent->v->origin, pmove.origin);
 	VectorCopy(ent->v->velocity, pmove.velocity);
 	VectorCopy(ent->v->maxs, pmove.player_maxs);
@@ -8630,6 +8632,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	}
 	AddLinksToPmove(ent, sv.world.areanodes);
 //	AddAllEntsToPmove();
+	AddLinksToPmove_Force ( ent, &sv.world.portallist );
 
 	SV_PreRunCmd();
 
@@ -8650,6 +8653,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		else
 			ent->v->teleport_time = pmove.waterjumptime;
 		VectorCopy(pmove.origin, ent->v->origin);
+		VectorCopy(pmove.safeorigin, ent->v->oldorigin);
 		VectorCopy(pmove.velocity, ent->v->velocity);
 
 
@@ -10607,9 +10611,9 @@ void PR_DumpPlatform_f(void)
 		{"VF_SCREENPSIZE",		"const float", CS|MENU, "Provides a reliable way to retrieve the current physical screen size (cvars need vid_restart for them to take effect).", VF_SCREENPSIZE},
 		{"VF_VIEWENTITY",		"const float", CS, "Changes the RF_EXTERNALMODEL flag on entities to match the new selection, and removes entities flaged with RF_VIEWENTITY. Requires cunning use of .entnum and typically requires calling addentities(MASK_VIEWMODEL) too.", VF_VIEWENTITY},
 
-		{"VF_RT_DESTCOLOUR",	"const float", CS|MENU, "The FrameBuffer texture index to write colour info into. 1-based. Additional arguments are: format (rgba8=1,rgba16f=2,rgba32f=3), sizexy. Written to by both 3d and 2d rendering.", VF_RT_DESTCOLOUR},
+		{"VF_RT_DESTCOLOUR",	"const float", CS|MENU, "The FrameBuffer texture index to write colour info into. 1-based. Additional arguments are: format (rgba8=1,rgba16f=2,rgba32f=3), sizexy. Written to by both 3d and 2d rendering. Note that any rendertargets may be destroyed on video mode changes or so.", VF_RT_DESTCOLOUR},
 		{"VF_RT_SOURCECOLOUR",	"const float", CS|MENU, "The FrameBuffer texture index to use with shaders that specify a $sourcecolour map.", VF_RT_SOURCECOLOUR},
-		{"VF_RT_DEPTH",			"const float", CS|MENU, "The FrameBuffer texture index to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16=4,24=5,32=6), sizexy.", VF_RT_DEPTH},
+		{"VF_RT_DEPTH",			"const float", CS|MENU, "The FrameBuffer texture index to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16bit=4,24bit=5,32bit=6), sizexy.", VF_RT_DEPTH},
 		{"VF_RT_RIPPLE",		"const float", CS|MENU, "The FrameBuffer texture index to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy.", VF_RT_RIPPLE},
 
 		{"RF_VIEWMODEL",		"const float", CS, "Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob.", CSQCRF_VIEWMODEL},

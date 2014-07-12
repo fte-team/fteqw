@@ -56,6 +56,7 @@ typedef struct
 
 	// player state
 	vec3_t		origin;
+	vec3_t		safeorigin;
 	vec3_t		angles;
 	vec3_t		velocity;
 	vec3_t		basevelocity;
@@ -75,6 +76,7 @@ typedef struct
 	usercmd_t	cmd;
 
 	qboolean onladder;
+	qboolean safeorigin_known;
 
 	// results
 	int			skipent;

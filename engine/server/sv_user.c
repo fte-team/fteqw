@@ -5488,6 +5488,71 @@ float V_CalcRoll (vec3_t angles, vec3_t velocity)
 
 vec3_t	pmove_mins, pmove_maxs;
 
+static qboolean AddEntityToPmove(edict_t *player, edict_t *check)
+{
+	physent_t	*pe;
+	int			solid = check->v->solid;
+	int			q1contents;
+
+	if (pmove.numphysent == MAX_PHYSENTS)
+		return false;
+	pe = &pmove.physents[pmove.numphysent];
+	pe->notouch = !((int)player->xv->dimension_solid & (int)check->xv->dimension_hit);
+	if (!((int)player->xv->dimension_hit & (int)check->xv->dimension_solid))
+		return true;
+	if (!check->v->size[0])	//points are not meant to be solid
+		return true;
+	pmove.numphysent++;
+
+	VectorCopy (check->v->origin, pe->origin);
+	pe->info = NUM_FOR_EDICT(svprogfuncs, check);
+	pe->nonsolid = solid == SOLID_TRIGGER;
+	pe->isportal = solid == SOLID_PORTAL;
+	q1contents = (int)check->v->skin;
+	if (solid == SOLID_LADDER)
+		q1contents = Q1CONTENTS_LADDER;	//legacy crap
+	switch(q1contents)
+	{
+	case Q1CONTENTS_WATER:
+		pe->nonsolid = true;
+		pe->forcecontentsmask = FTECONTENTS_WATER;
+		break;
+	case Q1CONTENTS_LAVA:
+		pe->nonsolid = true;
+		pe->forcecontentsmask = FTECONTENTS_LAVA;
+		break;
+	case Q1CONTENTS_SLIME:
+		pe->nonsolid = true;
+		pe->forcecontentsmask = FTECONTENTS_SLIME;
+		break;
+	case Q1CONTENTS_SKY:
+		pe->nonsolid = true;
+		pe->forcecontentsmask = FTECONTENTS_SKY;
+		break;
+	case Q1CONTENTS_LADDER:
+		pe->nonsolid = true;
+		pe->forcecontentsmask = FTECONTENTS_LADDER;
+		break;
+	default:
+		pe->forcecontentsmask = 0;
+		break;
+	}
+	if (solid == SOLID_PORTAL || solid == SOLID_BSP)
+	{
+		if(progstype != PROG_H2)
+			pe->angles[0]*=-1;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
+		pe->model = sv.models[(int)(check->v->modelindex)];
+		VectorCopy (check->v->angles, pe->angles);
+	}
+	else
+	{
+		pe->model = NULL;
+		VectorCopy (check->v->mins, pe->mins);
+		VectorCopy (check->v->maxs, pe->maxs);
+		VectorClear (pe->angles);
+	}
+	return true;
+}
 /*
 ====================
 AddLinksToPmove
@@ -5502,9 +5567,6 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 	int			pl;
 	int			i;
 	int			solid;
-	physent_t	*pe;
-
-	model_t *model;
 
 	pl = EDICT_TO_PROG(svprogfuncs, player);
 
@@ -5525,6 +5587,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			|| solid == SOLID_PORTAL
 			|| solid == SOLID_BBOX
 			|| solid == SOLID_SLIDEBOX
+			|| solid == SOLID_LADDER
 			//|| (solid == SOLID_PHASEH2 && progstype == PROG_H2) //logically matches hexen2, but I hate it
 			)
 		{
@@ -5536,92 +5599,8 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			if (i != 3)
 				continue;
 
-			if (pmove.numphysent == MAX_PHYSENTS)
+			if (!AddEntityToPmove(player, check))
 				break;
-			pe = &pmove.physents[pmove.numphysent];
-			pe->notouch = !((int)player->xv->dimension_solid & (int)check->xv->dimension_hit);
-			if (!((int)player->xv->dimension_hit & (int)check->xv->dimension_solid))
-				continue;
-			if (!check->v->size[0])	//points are not meant to be solid
-				continue;
-			pmove.numphysent++;
-
-			VectorCopy (check->v->origin, pe->origin);
-			pe->info = NUM_FOR_EDICT(svprogfuncs, check);
-			pe->nonsolid = solid == SOLID_TRIGGER;
-			pe->isportal = solid == SOLID_PORTAL;
-			switch((int)check->v->skin)
-			{
-			case Q1CONTENTS_WATER:
-				pe->nonsolid = true;
-				pe->forcecontentsmask = FTECONTENTS_WATER;
-				break;
-			case Q1CONTENTS_LAVA:
-				pe->nonsolid = true;
-				pe->forcecontentsmask = FTECONTENTS_LAVA;
-				break;
-			case Q1CONTENTS_SLIME:
-				pe->nonsolid = true;
-				pe->forcecontentsmask = FTECONTENTS_SLIME;
-				break;
-			case Q1CONTENTS_SKY:
-				pe->nonsolid = true;
-				pe->forcecontentsmask = FTECONTENTS_SKY;
-				break;
-			case Q1CONTENTS_LADDER:
-				pe->nonsolid = true;
-				pe->forcecontentsmask = FTECONTENTS_LADDER;
-				break;
-			default:
-				pe->forcecontentsmask = 0;
-				break;
-			}
-			if (solid == SOLID_PORTAL || solid == SOLID_BSP)
-			{
-				if(progstype != PROG_H2)
-					pe->angles[0]*=-1;	//quake is wierd. I guess someone fixed it hexen2... or my code is buggy or something...
-				pe->model = sv.models[(int)(check->v->modelindex)];
-				VectorCopy (check->v->angles, pe->angles);
-			}
-			else
-			{
-				pe->model = NULL;
-				VectorCopy (check->v->mins, pe->mins);
-				VectorCopy (check->v->maxs, pe->maxs);
-				VectorClear (pe->angles);
-			}
-		}
-	}
-	if (player->v->mins[2] != 24)	//crouching/dead
-	for (l = node->edicts.next ; l != &node->edicts ; l = next)
-	{
-		next = l->next;
-		check = (edict_t*)EDICT_FROM_AREA(l);
-
-		if (check->v->owner == pl)
-			continue;		// player's own missile
-		if (check->v->solid == SOLID_LADDER)
-		{
-			for (i=0 ; i<3 ; i++)
-				if (check->v->absmin[i] > pmove_maxs[i]
-				|| check->v->absmax[i] < pmove_mins[i])
-					break;
-			if (i != 3)
-				continue;
-
-			if (!((int)player->xv->dimension_hit & (int)check->xv->dimension_solid))
-				continue;
-
-			model = sv.models[(int)check->v->modelindex];
-			if (model)
-			{
-				vec3_t axis[3];
-				AngleVectors(check->v->angles, axis[0], axis[1], axis[2]);
-				VectorNegate(axis[1], axis[1]);
-	// test the point
-				if (model->funcs.PointContents (model, axis, player->v->origin) == FTECONTENTS_SOLID)
-					player->xv->pmove_flags = (int)player->xv->pmove_flags | PMF_LADDER;	//touch that ladder!
-			}
 		}
 	}
 
@@ -5635,6 +5614,54 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 		AddLinksToPmove (player, node->children[1]);
 }
 
+//ignores mins/maxs.
+//portals are expected to be weird. player movement code is nasty.
+void AddLinksToPmove_Force ( edict_t *player, areanode_t *node )
+{
+	link_t		*l, *next;
+	edict_t		*check;
+	int			pl;
+	int			i;
+	int			solid;
+
+	pl = EDICT_TO_PROG(svprogfuncs, player);
+
+	// touch linked edicts
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
+	{
+		next = l->next;
+		check = (edict_t*)EDICT_FROM_AREA(l);
+
+		if (check->v->owner == pl)
+			continue;		// player's own missile
+		if (check == player)
+			continue;
+		solid = check->v->solid;
+		if (
+			(solid == SOLID_TRIGGER && check->v->skin < 0)
+			|| solid == SOLID_BSP
+			|| solid == SOLID_PORTAL
+			|| solid == SOLID_BBOX
+			|| solid == SOLID_SLIDEBOX
+			|| solid == SOLID_LADDER
+			//|| (solid == SOLID_PHASEH2 && progstype == PROG_H2) //logically matches hexen2, but I hate it
+			)
+		{
+			if (!AddEntityToPmove(player, check))
+				break;
+		}
+	}
+
+// recurse down both sides
+	if (node->axis == -1)
+		return;
+
+	if (pmove_maxs[node->axis] > node->dist)
+		AddLinksToPmove_Force (player, node->children[0]);
+	if (pmove_mins[node->axis] < node->dist)
+		AddLinksToPmove_Force (player, node->children[1]);
+}
+
 
 /*
 ================
@@ -5643,15 +5670,14 @@ AddAllEntsToPmove
 For debugging
 ================
 */
-void AddAllEntsToPmove (void)
+void AddAllEntsToPmove (edict_t *player)
 {
 	int			e;
 	edict_t		*check;
 	int			i;
-	physent_t	*pe;
 	int			pl;
 
-	pl = EDICT_TO_PROG(svprogfuncs, sv_player);
+	pl = EDICT_TO_PROG(svprogfuncs, player);
 	for (e=1 ; e<sv.world.num_edicts ; e++)
 	{
 		check = EDICT_NUM(svprogfuncs, e);
@@ -5663,7 +5689,7 @@ void AddAllEntsToPmove (void)
 			|| check->v->solid == SOLID_BBOX
 			|| check->v->solid == SOLID_SLIDEBOX)
 		{
-			if (check == sv_player)
+			if (check == player)
 				continue;
 
 			for (i=0 ; i<3 ; i++)
@@ -5672,24 +5698,8 @@ void AddAllEntsToPmove (void)
 					break;
 			if (i != 3)
 				continue;
-			pe = &pmove.physents[pmove.numphysent];
 
-			VectorCopy (check->v->origin, pe->origin);
-			pmove.physents[pmove.numphysent].info = e;
-			if (check->v->solid == SOLID_BSP)
-			{
-				VectorCopy (check->v->angles, pe->angles);
-				pe->model = sv.models[(int)(check->v->modelindex)];
-			}
-			else
-			{
-				pe->angles[0] = pe->angles[1] = pe->angles[2] = 0;
-				pe->model = NULL;
-				VectorCopy (check->v->mins, pe->mins);
-				VectorCopy (check->v->maxs, pe->maxs);
-			}
-
-			if (++pmove.numphysent == MAX_PHYSENTS)
+			if (!AddEntityToPmove(player, check))
 				break;
 		}
 	}
@@ -6048,9 +6058,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	pmove.player_maxs[2] = sv_player->v->maxs[2];
 
 	VectorCopy(sv_player->xv->gravitydir, pmove.gravitydir);
-
-	for (i=0 ; i<3 ; i++)
-		pmove.origin[i] = sv_player->v->origin[i];// + (sv_player->v->mins[i] - player_mins[i]);
+	VectorCopy(sv_player->v->origin, pmove.origin);
+	VectorCopy(sv_player->v->oldorigin, pmove.safeorigin);
+	pmove.safeorigin_known = true;
 
 	VectorCopy (sv_player->v->velocity, pmove.velocity);
 	VectorCopy (sv_player->v->v_angle, pmove.angles);
@@ -6090,8 +6100,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 #if 1
 	AddLinksToPmove ( sv_player, sv.world.areanodes );
 #else
-	AddAllEntsToPmove ();
+	AddAllEntsToPmove (sv_player);
 #endif
+	AddLinksToPmove_Force ( sv_player, &sv.world.portallist );
 
 	if ((int)sv_player->xv->pmove_flags & PMF_LADDER)
 		pmove.onladder = true;
@@ -6168,6 +6179,7 @@ if (sv_player->v->health > 0 && before && !after )
 	else
 		sv_player->v->flags = (int)sv_player->v->flags & ~FL_ONGROUND;
 
+	VectorCopy (pmove.safeorigin, sv_player->v->oldorigin);
 	VectorCopy (pmove.origin, sv_player->v->origin);
 	VectorCopy (pmove.angles, sv_player->v->v_angle);
 

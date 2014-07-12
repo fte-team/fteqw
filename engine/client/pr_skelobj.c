@@ -1129,7 +1129,7 @@ qboolean rag_animate(skelobject_t *sko, doll_t *doll, float *emat)
 	int i;
 	for (i = 0; i < sko->numbodies; i++)
 	{
-		if (!doll->body[i].animate)
+		if (!sko->body[i].animstrength)
 			continue;
 		rag_genbodymatrix(sko, &doll->body[i], emat, sko->body[i].animmatrix);
 	}
@@ -1370,7 +1370,7 @@ void rag_doallanimations(world_t *world)
 
 		for (j = 0; j < sko->numbodies; j++)
 		{
-			if (!doll->body[j].animate)
+			if (!sko->body[j].animstrength)
 				continue;
 			World_ODE_RagMatrixToBody(&sko->body[j].odebody, sko->body[j].animmatrix);
 		}
@@ -1606,7 +1606,7 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 	else if (!doll)
 	{
-		G_FLOAT(OFS_RETURN) = 1;	//technically success.
+		G_FLOAT(OFS_RETURN) = !!*ragname;	//technically success.
 		return;
 	}
 	else if (sko->numanimated)

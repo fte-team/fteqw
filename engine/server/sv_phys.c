@@ -1989,7 +1989,7 @@ void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *init
 		for(i=16;i && movechain != w->edicts && !movechain->isfree;i--, movechain = PROG_TO_WEDICT(w->progs, movechain->xv->movechain))
 		{
 			if ((int)movechain->v->flags & FL_MOVECHAIN_ANGLE)
-				VectorAdd(movechain->v->angles, moveang, movechain->v->angles);
+				VectorAdd(movechain->v->angles, moveang, movechain->v->angles);	//FIXME: axial only
 			VectorAdd(movechain->v->origin, moveorg, movechain->v->origin);
 
 			if (movechain->xv->chainmoved && callfunc)

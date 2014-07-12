@@ -228,15 +228,8 @@ Netchan_Init
 */
 void Netchan_Init (void)
 {
+	static char qportstr[16];
 	int		port;
-
-	Cvar_Register (&pext_nqpredinfo, "Protocol Extensions");
-	Cvar_Register (&pext_replacementdeltas, "Protocol Extensions");
-	Cvar_Register (&showpackets, "Networking");
-	Cvar_Register (&showdrop, "Networking");
-	Cvar_Register (&qport, "Networking");
-	Cvar_Register (&net_mtu, "Networking");
-	Cvar_Register (&net_compress, "Networking");
 
 	// pick a port value that should be nice and random
 #ifdef _WIN32
@@ -246,8 +239,16 @@ void Netchan_Init (void)
 #else
 	port = ((int)(getpid()+getuid()*1000) * time(NULL)) & 0xffff;
 #endif
+	Q_snprintfz(qportstr, sizeof(qportstr), "%i", port);
+	qport.string = qportstr;
 
-	Cvar_SetValue (&qport, port);
+	Cvar_Register (&pext_nqpredinfo, "Protocol Extensions");
+	Cvar_Register (&pext_replacementdeltas, "Protocol Extensions");
+	Cvar_Register (&showpackets, "Networking");
+	Cvar_Register (&showdrop, "Networking");
+	Cvar_Register (&qport, "Networking");
+	Cvar_Register (&net_mtu, "Networking");
+	Cvar_Register (&net_compress, "Networking");
 }
 
 /*

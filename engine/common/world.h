@@ -167,6 +167,7 @@ struct world_s
 	model_t			*worldmodel;
 	areanode_t	areanodes[AREA_NODES];
 	int			numareanodes;
+	areanode_t	portallist;
 
 	double		physicstime;		// the last time global physics were run
 	unsigned int    framenum;

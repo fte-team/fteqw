@@ -3857,7 +3857,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 		result[10] = 1;
 		while(tagnum >= 0)
 		{
-			for (lerp = lerps; tagnum < lerp->endbone; lerp++)
+			for (lerp = lerps; tagnum < lerp->firstbone; lerp++)
 				;
 			//set up the per-bone transform matrix
 			matrix = lerp->pose[0] + tagnum*12;

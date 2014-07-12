@@ -181,6 +181,10 @@ void World_ClearWorld (world_t *w)
 {
 	World_InitBoxHull ();
 	
+	memset (&w->portallist, 0, sizeof(w->portallist));
+	ClearLink (&w->portallist.edicts);
+	w->portallist.axis = -1;
+
 	memset (w->areanodes, 0, sizeof(w->areanodes));
 	w->numareanodes = 0;
 	if (!w->worldmodel)
@@ -473,17 +477,22 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	}
 
 // find the first node that the ent's box crosses
-	node = w->areanodes;
-	while (1)
+	if (ent->v->solid == SOLID_PORTAL)
+		node = &w->portallist;
+	else
 	{
-		if (node->axis == -1)
-			break;
-		if (ent->v->absmin[node->axis] > node->dist)
-			node = node->children[0];
-		else if (ent->v->absmax[node->axis] < node->dist)
-			node = node->children[1];
-		else
-			break;		// crosses the node
+		node = w->areanodes;
+		while (1)
+		{
+			if (node->axis == -1)
+				break;
+			if (ent->v->absmin[node->axis] > node->dist)
+				node = node->children[0];
+			else if (ent->v->absmax[node->axis] < node->dist)
+				node = node->children[1];
+			else
+				break;		// crosses the node
+		}
 	}
 	
 // link it in	
@@ -1966,6 +1975,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		}
 		else
 			World_ClipToLinks (w, w->areanodes, &clip );
+		World_ClipToLinks(w, &w->portallist, &clip);
 	}
 
 //	if (clip.trace.startsolid)

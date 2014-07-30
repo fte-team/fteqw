@@ -224,7 +224,7 @@ sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, 
 				dec->srcchannels,
 				snd_linearresample_stream.ival);
 
-			bytesread = (int)floor(bytesread / scale) & ~0x1;
+			bytesread = (int)floor(bytesread / scale) & ~(2 * dec->srcchannels - 1);
 		}
 
 		dec->decodedbytecount += bytesread;

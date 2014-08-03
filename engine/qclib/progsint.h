@@ -473,7 +473,7 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, con
 			{
 				struct timespec c;
 				clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &c);
-				return (c.tv_sec*1000000000ull) + tc.tv_nsec;
+				return (c.tv_sec*1000000000ull) + c.tv_nsec;
 			}
 			static unsigned long long Sys_GetClockRate(void)
 			{

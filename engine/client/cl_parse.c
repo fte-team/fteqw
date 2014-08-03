@@ -2424,10 +2424,10 @@ void CLDP_ParseDownloadBegin(char *s)
 {
 	qdownload_t *dl = cls.download;
 	char buffer[8192];
-	unsigned int size, pos, chunk;
+	qofs_t size, pos, chunk;
 	char *fname;
 	Cmd_TokenizeString(s+1, false, false);
-	size = (unsigned int)atoi(Cmd_Argv(1));
+	size = (qofs_t)strtoull(Cmd_Argv(1), NULL, 0);
 	fname = Cmd_Argv(2);
 
 	if (!dl || strcmp(fname, dl->remotename))

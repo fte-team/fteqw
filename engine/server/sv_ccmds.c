@@ -762,6 +762,28 @@ void SV_KickSlot_f (void)
 		Con_Printf("Client %i is not active\n", clnum);
 }
 
+//ipv4ify if its an ipv6 ipv4-mapped address.
+netadr_t *NET_IPV4ify(netadr_t *a, netadr_t *tmp)
+{
+	if (a->type == NA_IPV6 &&
+		!*(int*)&a->address.ip6[0] &&
+		!*(int*)&a->address.ip6[4] &&
+		!*(short*)&a->address.ip6[8] &&
+		*(short*)&a->address.ip6[10]==(short)0xffff)
+	{
+		tmp->type = NA_IP;
+		tmp->connum = a->connum;
+		tmp->scopeid = a->scopeid;
+		tmp->port = a->port;
+		tmp->address.ip[0] = a->address.ip6[12];
+		tmp->address.ip[1] = a->address.ip6[13];
+		tmp->address.ip[2] = a->address.ip6[14];
+		tmp->address.ip[3] = a->address.ip6[15];
+		a = tmp;
+	}
+	return a;
+}
+
 //will kick clients if they got banned (without being safe)
 void SV_EvaluatePenalties(client_t *cl)
 {
@@ -774,12 +796,14 @@ void SV_EvaluatePenalties(client_t *cl)
 	int numpenalties = 0;
 	int numreasons = 0;
 	int i;
+	netadr_t tmp, *a;
 
 	if (cl->realip.type != NA_INVALID)
 	{
+		a = NET_IPV4ify(&cl->realip, &tmp);
 		for (banip = svs.bannedips; banip; banip=banip->next)
 		{
-			if (NET_CompareAdrMasked(&cl->realip, &banip->adr, &banip->adrmask))
+			if (NET_CompareAdrMasked(a, &banip->adr, &banip->adrmask))
 			{
 				for (i = 0; i < sizeof(penaltyreason)/sizeof(penaltyreason[0]); i++)
 				{
@@ -794,9 +818,10 @@ void SV_EvaluatePenalties(client_t *cl)
 			}
 		}
 	}
+	a = NET_IPV4ify(&cl->netchan.remote_address, &tmp);
 	for (banip = svs.bannedips; banip; banip=banip->next)
 	{
-		if (NET_CompareAdrMasked(&cl->netchan.remote_address, &banip->adr, &banip->adrmask))
+		if (NET_CompareAdrMasked(a, &banip->adr, &banip->adrmask))
 		{
 			for (i = 0; i < sizeof(penaltyreason)/sizeof(penaltyreason[0]); i++)
 			{
@@ -1037,9 +1062,12 @@ char *SV_BannedReason (netadr_t *a)
 {
 	char *reason = filterban.value?NULL:"";	//"" = banned with no explicit reason
 	bannedips_t *banip;
+	netadr_t tmp;
 
 	if (NET_IsLoopBackAddress(a))
 		return NULL; // never filter loopback
+
+	a = NET_IPV4ify(a, &tmp);
 
 	for (banip = svs.bannedips; banip; banip=banip->next)
 	{
@@ -1788,7 +1816,7 @@ static void SV_Status_f (void)
 				, cl->netchan.qport);
 			if (cl->download)
 			{
-				Con_Printf (" %3i %4i", (cl->downloadcount*100)/cl->downloadsize, cl->downloadsize/1024);
+				Con_Printf (" %3g %4u", (cl->downloadcount*100.0)/cl->downloadsize, (unsigned int)(cl->downloadsize/1024));
 			}
 			if (cl->spectator)
 				Con_Printf(" (s)\n");
@@ -2169,7 +2197,7 @@ void SV_User_f (void)
 		if (*cl->guid)
 			Con_Printf("guid: %s\n", cl->guid);
 		if (cl->download)
-			Con_Printf ("download: \"%s\" %ik/%ik (%i%%)", cl->downloadfn, cl->downloadcount/1024, cl->downloadsize/1024, (cl->downloadcount*100)/cl->downloadsize);
+			Con_Printf ("download: \"%s\" %uk/%uk (%g%%)", cl->downloadfn, (unsigned int)(cl->downloadcount/1024), (unsigned int)(cl->downloadsize/1024), (cl->downloadcount*100.0)/cl->downloadsize);
 
 		if (cl->penalties & BAN_CRIPPLED)
 			Con_Printf("crippled\n");

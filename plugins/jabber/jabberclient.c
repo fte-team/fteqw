@@ -2883,20 +2883,53 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 
 		if (!strcmp(type, "error"))
 		{
+			char *reason = NULL;
+			ot = XML_ChildOfTree(tree, "error", 0);
+			if (ot->child)
+				reason = ot->child->name;
+			if (XML_ChildOfTree(ot, "remote-server-not-found", 0))		reason = "Remote Server Not Found";
+			if (XML_ChildOfTree(ot, "bad-request", 0))					reason = "Bad Request";
+			if (XML_ChildOfTree(ot, "conflict", 0))						reason = "Conflict Error";
+			if (XML_ChildOfTree(ot, "feature-not-implemented", 0))		reason = "feature-not-implemented";
+			if (XML_ChildOfTree(ot, "forbidden", 0))					reason = "forbidden";
+			if (XML_ChildOfTree(ot, "gone", 0))							reason = "'gone' Error";
+			if (XML_ChildOfTree(ot, "internal-server-error", 0))		reason = "internal-server-error";
+			if (XML_ChildOfTree(ot, "item-not-found", 0))				reason = "item-not-found";
+			if (XML_ChildOfTree(ot, "jid-malformed", 0))				reason = "jid-malformed";
+			if (XML_ChildOfTree(ot, "not-acceptable", 0))				reason = "not-acceptable";
+			if (XML_ChildOfTree(ot, "not-allowed", 0))					reason = "not-allowed";
+			if (XML_ChildOfTree(ot, "not-authorized", 0))				reason = "not-authorized";
+			if (XML_ChildOfTree(ot, "policy-violation", 0))				reason = "policy-violation";
+			if (XML_ChildOfTree(ot, "recipient-unavailable", 0))		reason = "recipient-unavailable";
+			if (XML_ChildOfTree(ot, "redirect", 0))						reason = "'redirect' Error";
+			if (XML_ChildOfTree(ot, "registration-required", 0))		reason = "registration-required";
+			if (XML_ChildOfTree(ot, "remote-server-not-found", 0))		reason = "remote-server-not-found";
+			if (XML_ChildOfTree(ot, "remote-server-timeout", 0))		reason = "remote-server-timeout";
+			if (XML_ChildOfTree(ot, "resource-constraint", 0))			reason = "resource-constraint";
+			if (XML_ChildOfTree(ot, "service-unavailable", 0))			reason = "service-unavailable";
+			if (XML_ChildOfTree(ot, "subscription-required", 0))		reason = "subscription-required";
+			if (XML_ChildOfTree(ot, "undefined-condition", 0))			reason = "undefined-condition";
+			if (XML_ChildOfTree(ot, "unexpected-request", 0))			reason = "unexpected-request";
+
 			ot = XML_ChildOfTree(tree, "body", 0);
 			if (ot)
 			{
 				unparsable = false;
+				if (reason)
+					Con_SubPrintf(ctx, "^1Error: %s (%s): ", reason, f);
+				else
+					Con_SubPrintf(ctx, "^1error sending message to %s: ", f);
 				if (f)
 				{
 					if (!strncmp(ot->body, "/me ", 4))
-						Con_SubPrintf(ctx, "* ^2%s^7%s\n", f, ot->body+3);
+						Con_SubPrintf(ctx, "* ^2%s^7%s\n", ((!strcmp(jcl->localalias, ">>"))?"me":jcl->localalias), ot->body+3);
 					else
-						Con_SubPrintf(ctx, "^2%s^7: %s\n", f, ot->body);
+						Con_SubPrintf(ctx, "%s\n", ot->body);
 				}
 			}
 			else
-				Con_SubPrintf(ctx, "error sending message: %s\r", f);
+				Con_SubPrintf(ctx, "error sending message to %s\r", f);
+			return;
 		}
 
 		if (f)
@@ -4665,16 +4698,20 @@ void JCL_Command(int accid, char *console)
 		else if (!strcmp(arg[0]+1, "friend")) 
 		{
 			//FIXME: validate the name. deal with xml markup.
+			//try and make sense of the name given
+			JCL_ToJID(jcl, arg[1], arg[3], sizeof(arg[3]), false);
+			if (!strchr(arg[3], '@'))
+				Con_SubPrintf(console, "Missing @ character. Trying anyway, but this will be assumed to be a server rather than a user.\n", arg[0]);
 
 			//can also rename. We should probably read back the groups for the update.
-			JCL_SendIQf(jcl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' name='%s'></item></query>", arg[1], arg[2]);
+			JCL_SendIQf(jcl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' name='%s'></item></query>", arg[3], arg[2]);
 
 			//start looking for em
-			JCL_AddClientMessagef(jcl, "<presence to='%s' type='subscribe'/>", arg[1]);
+			JCL_AddClientMessagef(jcl, "<presence to='%s' type='subscribe'/>", arg[13]);
 
 			//let em see us
 			if (jcl->preapproval)
-				JCL_AddClientMessagef(jcl, "<presence to='%s' type='subscribed'/>", arg[1]);
+				JCL_AddClientMessagef(jcl, "<presence to='%s' type='subscribed'/>", arg[3]);
 		}
 		else if (!strcmp(arg[0]+1, "unfriend")) 
 		{

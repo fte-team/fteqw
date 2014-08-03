@@ -93,10 +93,10 @@ void GL_UploadFmt(texid_t tex, const char *name, enum uploadfmt fmt, void *data,
 		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP, GL_DEPTH_COMPONENT32_ARB);
 		break;
 	case TF_RGBA16F:
-		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP, GL_RGBA16F_ARB);
+		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP|IF_CLAMP, GL_RGBA16F_ARB);
 		break;
 	case TF_RGBA32F:
-		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP, GL_RGBA32F_ARB);
+		GL_Upload32_Int(name, NULL, width, height, flags|IF_NOMIPMAP|IF_CLAMP, GL_RGBA32F_ARB);
 		break;
 
 	default:
@@ -590,11 +590,11 @@ void GL_Set2D (qboolean flipped)
 	float rad, ang;
 	float tmp[16], tmp2[16];
 	float w = vid.width, h = vid.height;
-	qboolean fbo = !!r_refdef.rt_destcolour;
+	qboolean fbo = !!*r_refdef.rt_destcolour[0].texname;
 
 	if (fbo)
 	{
-		R2D_RT_GetTexture(r_refdef.rt_destcolour, &vid.fbpwidth, &vid.fbpheight);
+		R2D_RT_GetTexture(r_refdef.rt_destcolour[0].texname, &vid.fbpwidth, &vid.fbpheight);
 		vid.fbvwidth = vid.fbpwidth;
 		vid.fbvheight = vid.fbpheight;
 	}
@@ -1241,6 +1241,12 @@ static void GL_Upload32_Int (const char *name, unsigned *data, int width, int he
 		glcolormode = GL_DEPTH_COMPONENT;
 		type = GL_UNSIGNED_BYTE;
 	}
+	else if (glcolormode == GL_RGBA16F_ARB || glcolormode == GL_RGBA32F_ARB)
+	{
+		samples = glcolormode;
+		glcolormode = GL_RGBA;
+		type = GL_FLOAT;
+	}
 	else if (gl_config.gles)
 	{
 		glcolormode = GL_RGBA; /*our input is RGBA or RGBX, with the internal format restriction, we must therefore always have an alpha value*/
@@ -1319,7 +1325,8 @@ static void GL_Upload32_Int (const char *name, unsigned *data, int width, int he
 	GL_Texturemode_Apply(targ, flags);
 
 	if (!data)
-		qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
+		scaled = NULL;
+//		qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
 	else if (scaled_width == width && scaled_height == height)
 	{
 		if (((flags&IF_NOMIPMAP)||gl_config.sgis_generate_mipmap) && !(flags & IF_PREMULTIPLYALPHA))	//gotta love this with NPOT textures... :)
@@ -1330,7 +1337,7 @@ static void GL_Upload32_Int (const char *name, unsigned *data, int width, int he
 			else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
 				GL_8888to4444(targface, (unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
 			else
-				qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
+				qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, type, data);
 			goto done;
 		}
 		memcpy (scaled, data, width*height*4);
@@ -1367,7 +1374,7 @@ static void GL_Upload32_Int (const char *name, unsigned *data, int width, int he
 	else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
 		GL_8888to4444(targface, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
 	else
-		qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
+		qglTexImage2D (targface, 0, samples, scaled_width, scaled_height, 0, glcolormode, type, scaled);
 	if (!(flags&IF_NOMIPMAP) && !gl_config.sgis_generate_mipmap)
 	{
 		miplevel = 0;

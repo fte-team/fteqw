@@ -512,6 +512,23 @@ typedef struct
 	qbyte	parm_size[MAX_PARMS];
 } QCC_dfunction_t;
 
+typedef struct
+{
+	int		first_statement;	// negative numbers are builtins
+	int		parm_start;
+	int		locals;				// total ints of parms + locals
+	
+	int		profile;						//number of qc instructions executed.
+	unsigned long long profiletime;			//total time inside (cpu cycles)
+	unsigned long long profilechildtime;	//time inside children (excluding builtins, cpu cycles)
+	
+	string_t	s_name;
+	string_t	s_file;			// source file defined in
+	
+	int		numparms;
+	qbyte	parm_size[MAX_PARMS];
+} mfunction_t;
+
 #define PROG_QTESTVERSION	3
 #define	PROG_VERSION	6
 #define PROG_KKQWSVVERSION 7

@@ -143,6 +143,7 @@ cvar_t sv_minping = CVARF("sv_minping", "", CVAR_SERVERINFO);
 cvar_t sv_bigcoords = CVARFD("sv_bigcoords", "", CVAR_SERVERINFO, "Uses floats for coordinates instead of 16bit values. Affects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
 cvar_t sv_calcphs = CVARFD("sv_calcphs", "2", CVAR_LATCH, "Enables culling of sound effects. 0=always skip phs. Sounds are globally broadcast. 1=always generate phs. Sounds are always culled. On large maps the phs will be dumped to disk. 2=On large single-player maps, generation of phs is skipped. Otherwise like option 1.");
 
+cvar_t sv_showconnectionlessmessages = CVARD("sv_showconnectionlessmessages", "0", "Display a line describing each connectionless message that arrives on the server. Primarily a debugging feature, but also potentially useful to admins.");
 cvar_t sv_cullplayers_trace = CVARFD("sv_cullplayers_trace", "", CVAR_SERVERINFO, "Attempt to cull player entities using tracelines as an anti-wallhack.");
 cvar_t sv_cullentities_trace = CVARFD("sv_cullentities_trace", "", CVAR_SERVERINFO, "Attempt to cull non-player entities using tracelines as an extreeme anti-wallhack.");
 cvar_t sv_phs = CVARD("sv_phs", "1", "If 1, do not use the phs. It is generally better to use sv_calcphs instead, and leave this as 1.");
@@ -3954,6 +3955,9 @@ qboolean SV_ConnectionlessPacket (void)
 
 	c = Cmd_Argv(0);
 
+	if (sv_showconnectionlessmessages.ival)
+		Con_Printf("%s: %s\n", NET_AdrToString (adr, sizeof(adr), &net_from), s);
+
 	if (!strcmp(c, "ping") || ( c[0] == A2A_PING && (c[1] == 0 || c[1] == '\n')) )
 		SVC_Ping ();
 	else if (c[0] == A2A_ACK && (c[1] == 0 || c[1] == '\n') )
@@ -4645,8 +4649,8 @@ dominping:
 			continue;
 
 		// packet is not from a known client
-		//	Con_Printf ("%s:sequenced packet without connection\n"
-		// ,NET_AdrToString(net_from));
+		if (sv_showconnectionlessmessages.ival)
+			Con_Printf ("%s:sequenced packet without connection\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));	//hack: com_token cos we need some random temp buffer.
 	}
 
 	return received;
@@ -5289,7 +5293,8 @@ void SV_InitLocal (void)
 #endif
 		Cvar_Set(&sv_public, "1");
 
-	Cvar_Register (&sv_banproxies, "Server Permissions");
+	Cvar_Register (&sv_showconnectionlessmessages, cvargroup_servercontrol);
+	Cvar_Register (&sv_banproxies, cvargroup_serverpermissions);
 	Cvar_Register (&sv_master,	cvargroup_servercontrol);
 	Cvar_Register (&sv_masterport,	cvargroup_servercontrol);
 

@@ -8853,6 +8853,14 @@
 							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\in_win.c"
@@ -11201,6 +11209,14 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -16872,6 +16888,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|x64"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21383,7 +21400,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|x64"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"

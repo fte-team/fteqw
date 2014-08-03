@@ -697,7 +697,7 @@ reeval:
 #endif
 			}
 
-			newf = &pr_functions[fnum & ~0xff000000];
+			newf = &pr_cp_functions[fnum & ~0xff000000];
 
 			if (newf->first_statement < 0)
 			{	// negative statements are built in functions
@@ -968,11 +968,11 @@ reeval:
 		break;
 
 	case OP_CSTATE:
-		externs->cstateop(&progfuncs->funcs, OPA->_float, OPB->_float, pr_xfunction - pr_functions);
+		externs->cstateop(&progfuncs->funcs, OPA->_float, OPB->_float, pr_xfunction - pr_cp_functions);
 		break;
 
 	case OP_CWSTATE:
-		externs->cwstateop(&progfuncs->funcs, OPA->_float, OPB->_float, pr_xfunction - pr_functions);
+		externs->cwstateop(&progfuncs->funcs, OPA->_float, OPB->_float, pr_xfunction - pr_cp_functions);
 		break;
 
 	case OP_THINKTIME:

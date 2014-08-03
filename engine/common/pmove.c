@@ -1218,8 +1218,8 @@ were contacted during the move.
 */
 void PM_PlayerMove (float gamespeed)
 {
-	int i;
-	int tmp;	//for rounding
+//	int i;
+//	int tmp;	//for rounding
 
 	frametime = pmove.cmd.msec * 0.001*gamespeed;
 	pmove.numtouch = 0;

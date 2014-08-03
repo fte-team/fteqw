@@ -1324,15 +1324,15 @@ void Plug_Initialise(qboolean fromgamedir)
 		Plug_Client_Init();
 	}
 
-	if (!fromgamedir)
+	if (plug_loaddefault.value)
 	{
-		FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
-		Con_DPrintf("Loading plugins from \"%s\"\n", nat);
-		Sys_EnumerateFiles(nat, "fteplug_*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
-	}
-	if (fromgamedir)
-	{
-		if (plug_loaddefault.value)
+		if (!fromgamedir)
+		{
+			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
+			Con_DPrintf("Loading plugins from \"%s\"\n", nat);
+			Sys_EnumerateFiles(nat, "fteplug_*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+		}
+		if (fromgamedir)
 		{
 			COM_EnumerateFiles("plugins/*.qvm",		Plug_Emumerated, ".qvm");
 		}

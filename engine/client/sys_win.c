@@ -1536,7 +1536,7 @@ void Sys_Quit (void)
 }
 
 
-#if 1
+#if 0
 /*
 ================
 Sys_DoubleTime

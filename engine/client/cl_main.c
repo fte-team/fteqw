@@ -1511,6 +1511,8 @@ void CL_Disconnect_f (void)
 	CL_Disconnect ();
 
 	connectinfo.trying = false;
+
+	CSQC_UnconnectedInit();
 }
 
 /*

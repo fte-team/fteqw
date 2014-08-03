@@ -189,6 +189,11 @@ typedef struct
 void CL_BlendFog(fogstate_t *result, fogstate_t *oldf, float time, fogstate_t *newf);
 void CL_ResetFog(void);
 
+typedef struct {
+	char texname[MAX_QPATH];
+} rtname_t;
+#define R_MAX_RENDERTARGETS 8
+
 #define R_MAX_RECURSE	6
 #define R_POSTPROC_PASSES 6
 #define RDFD_FOV 1
@@ -230,10 +235,10 @@ typedef struct
 	unsigned int	flipcull;	/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0)*/
 	qboolean	useperspective; /*not orthographic*/
 
-	int 		rt_destcolour;		/*used for 2d. written by 3d*/
-	int			rt_sourcecolour;	/*read by 2d. not used for 3d. */
-	int			rt_depth;			/*read by 2d. used by 3d (renderbuffer used if not set)*/
-	int			rt_ripplemap;		/*read by 2d. used by 3d (internal ripplemap buffer used if not set)*/
+	rtname_t	rt_destcolour[R_MAX_RENDERTARGETS];	/*used for 2d. written by 3d*/
+	rtname_t	rt_sourcecolour;	/*read by 2d. not used for 3d. */
+	rtname_t	rt_depth;			/*read by 2d. used by 3d (renderbuffer used if not set)*/
+	rtname_t	rt_ripplemap;		/*read by 2d. used by 3d (internal ripplemap buffer used if not set)*/
 
 	qbyte		*forcedvis;
 	qboolean	areabitsknown;
@@ -357,6 +362,8 @@ enum imageflags
 	IF_UIPIC = 1<<10,	//subject to texturemode2d
 	IF_LINEAR = 1<<11,
 	IF_PREMULTIPLYALPHA = 1<<12,	//rgb *= alpha
+
+	IF_RENDERTARGET = 1<<28,	/*never loaded from disk, loading can't fail*/
 	IF_EXACTEXTENSION = 1<<29,
 	IF_REPLACE = 1<<30,
 	IF_SUBDIRONLY = 1<<31

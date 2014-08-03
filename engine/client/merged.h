@@ -312,7 +312,7 @@ typedef struct rendererinfo_s {
 	texid_tf (*IMG_LoadCompressed)		(const char *name);
 	texid_tf (*IMG_FindTexture)			(const char *identifier, unsigned int flags);
 	texid_tf (*IMG_AllocNewTexture)		(const char *identifier, int w, int h, unsigned int flags);
-	void    (*IMG_Upload)				(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
+	void    (*IMG_Upload)				(texid_t tex, const char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 	void    (*IMG_DestroyTexture)		(texid_t tex);
 
 	void	(*R_Init)					(void); //FIXME - merge implementations
@@ -398,7 +398,7 @@ typedef struct rendererinfo_s {
 
 #define BE_RenderToTextureUpdate2d rf->BE_RenderToTextureUpdate2d
 
-texid_t R2D_RT_Configure(unsigned int id, int width, int height, uploadfmt_t rtfmt);
-texid_t R2D_RT_GetTexture(unsigned int id, unsigned int *width, unsigned int *height);
-texid_t R2D_RT_DetachTexture(unsigned int id);
+texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfmt);
+texid_t R2D_RT_GetTexture(const char *id, unsigned int *width, unsigned int *height);
+
 

@@ -235,7 +235,7 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 				if (b->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 			for (; i < 12; i++)
-				if (b->address.ip6[i] != 0xff && b->address.ip6[i] != 0x00)	//0x00 is depricated
+				if (b->address.ip6[i] != 0xff)// && b->address.ip6[i] != 0x00)	//0x00 is depricated
 					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
 			for (i = 0; i < 4; i++)
 			{
@@ -251,7 +251,7 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 
 			for (; i < 12; i++)
-				if (a->address.ip6[i] != 0xff && a->address.ip6[i] != 0x00)	//0x00 is depricated
+				if (a->address.ip6[i] != 0xff)// && a->address.ip6[i] != 0x00)	//0x00 is depricated
 					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
 
 			for (i = 0; i < 4; i++)
@@ -1297,6 +1297,8 @@ qboolean NET_StringToAdrMasked (const char *s, netadr_t *a, netadr_t *amask)
 
 // NET_CompareAdrMasked: given 3 addresses, 2 to compare with a complimentary mask,
 // returns true or false if they match
+//WARNING: a is typically an ipv6 address, even if its an ipv4-mapped address.
+//so ipv4ify first.
 qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask)
 {
 	int i;
@@ -1318,7 +1320,7 @@ qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask)
 				if (b->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 			for (; i < 12; i++)
-				if (b->address.ip6[i] != 0xff && b->address.ip6[i] != 0x00)	//0x00 is depricated
+				if (b->address.ip6[i] != 0xff)// && b->address.ip6[i] != 0x00)	//0x00 is depricated
 					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
 			for (i = 0; i < 4; i++)
 			{
@@ -1334,7 +1336,7 @@ qboolean NET_CompareAdrMasked(netadr_t *a, netadr_t *b, netadr_t *mask)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 
 			for (; i < 12; i++)
-				if (a->address.ip6[i] != 0xff && a->address.ip6[i] != 0x00)	//0x00 is depricated
+				if (a->address.ip6[i] != 0xff)// && a->address.ip6[i] != 0x00)	//0x00 is depricated
 					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
 
 			for (i = 0; i < 4; i++)

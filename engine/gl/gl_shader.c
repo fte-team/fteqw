@@ -594,7 +594,17 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 
 	while (name)
 	{
-		if (!Q_strnicmp(*name, "$3d:", 4))
+		if (!Q_strnicmp(*name, "$rt:", 4))
+		{
+			*name += 4;
+			flags |= IF_RENDERTARGET;
+		}
+		else if (!Q_strnicmp(*name, "$clamp:", 7))
+		{
+			*name += 7;
+			flags |= IF_CLAMP;
+		}
+		else if (!Q_strnicmp(*name, "$3d:", 4))
 		{
 			*name+=4;
 			flags = (flags&~IF_TEXTYPE) | IF_3DMAP;
@@ -642,6 +652,13 @@ static texid_t Shader_FindImage ( char *name, int flags )
 	{
 		if (!Q_stricmp (name, "$whiteimage"))
 			return r_whiteimage;
+	}
+	if (flags & IF_RENDERTARGET)
+	{
+		texid_t tid = R_FindTexture(name, (flags&~IF_RENDERTARGET)|IF_NOMIPMAP);
+		if (!TEXVALID(tid))
+			tid = R_AllocNewTexture(name, 0, 0, (flags&~IF_RENDERTARGET)|IF_NOMIPMAP);
+		return tid;
 	}
 	return R_LoadHiResTexture(name, NULL, flags);
 }

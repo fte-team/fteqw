@@ -49,7 +49,7 @@ static texid_tf Headless_IMG_AllocNewTexture	(const char *identifier, int w, int
 {
 	return dummytex;
 }
-static void    Headless_IMG_Upload				(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags)
+static void    Headless_IMG_Upload				(texid_t tex, const char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
 }
 static void    Headless_IMG_DestroyTexture		(texid_t tex)

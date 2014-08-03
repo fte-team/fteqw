@@ -1499,7 +1499,7 @@ r_refdef must be set before the first call
 */
 void GLR_RenderView (void)
 {
-	int dofbo = r_refdef.rt_destcolour || r_refdef.rt_depth;
+	int dofbo = *r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname;
 	double	time1 = 0, time2;
 
 	checkglerror();
@@ -1525,18 +1525,27 @@ void GLR_RenderView (void)
 	if (dofbo)
 	{
 		unsigned int flags = 0;
-		texid_t col = r_nulltex, depth = r_nulltex;
+		texid_t col[R_MAX_RENDERTARGETS], depth = r_nulltex;
 		unsigned int cw=0, ch=0, dw=0, dh=0;
+		int mrt;
 		//3d views generally ignore source colour+depth.
 		//FIXME: support depth with no colour
-		if (r_refdef.rt_destcolour)
-			col = R2D_RT_GetTexture(r_refdef.rt_destcolour, &cw, &ch);
-		if (r_refdef.rt_depth)
-			depth = R2D_RT_GetTexture(r_refdef.rt_depth, &dw, &dh);
+		for (mrt = 0; mrt < R_MAX_RENDERTARGETS; mrt++)
+		{
+			if (*r_refdef.rt_destcolour[mrt].texname)
+				col[mrt] = R2D_RT_GetTexture(r_refdef.rt_destcolour[mrt].texname, &cw, &ch);
+			else
+			{
+				col[mrt] = r_nulltex;
+				break;
+			}
+		}
+		if (*r_refdef.rt_depth.texname)
+			depth = R2D_RT_GetTexture(r_refdef.rt_depth.texname, &dw, &dh);
 
-		if (r_refdef.rt_destcolour)
+		if (mrt)
 		{ 	//colour (with or without depth)
-			if (r_refdef.rt_depth && (dw != cw || dh != dh))
+			if (*r_refdef.rt_depth.texname && (dw != cw || dh != dh))
 			{
 				Con_Printf("RT: destcolour and depth render targets are of different sizes\n");	//should check rgb/depth modes too I guess.
 				depth = r_nulltex;
@@ -1549,13 +1558,13 @@ void GLR_RenderView (void)
 			vid.fbvwidth = vid.fbpwidth = dw;
 			vid.fbvheight = vid.fbpheight = dh;
 		}
-		if (TEXVALID(col))
+		if (TEXVALID(col[0]))
 			flags |= FBO_TEX_COLOUR;
 		if (TEXVALID(depth))
 			flags |= FBO_TEX_DEPTH;
 		else
 			flags |= FBO_RB_DEPTH;
-		GLBE_FBO_Update(&fbo_gameview, true, flags, col, depth, vid.fbpwidth, vid.fbpheight);
+		GLBE_FBO_Update(&fbo_gameview, true, flags, col[0], depth, vid.fbpwidth, vid.fbpheight);
 	}
 	else 
 	{

@@ -92,7 +92,7 @@ int logprintf(const char *format, ...)
 
 int main (int argc, char **argv)
 {
-	int sucess;
+	pbool sucess;
 	progexterns_t ext;
 	progfuncs_t funcs;
 	progfuncs = &funcs;
@@ -113,5 +113,5 @@ int main (int argc, char **argv)
 #ifdef _WIN32
 //	fgetc(stdin);	//wait for keypress
 #endif
-	return !sucess;
+	return sucess?EXIT_SUCCESS:EXIT_FAILURE;
 }

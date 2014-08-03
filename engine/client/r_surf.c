@@ -215,7 +215,7 @@ void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius)
 	for (i=1 ; i< pmove.numphysent ; i++)	//0 is world...
 	{
 		pe = &pmove.physents[i];
-		if (pe->model && pe->model->surfaces == cl.worldmodel->surfaces)
+		if (pe->model && pe->model->surfaces == cl.worldmodel->surfaces && !pe->model->needload)
 		{
 			parms[1] = org[0] - pe->origin[0];
 			parms[2] = org[1] - pe->origin[1];

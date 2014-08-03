@@ -3510,6 +3510,13 @@ void CL_LinkPacketEntities (void)
 			CL_RotateAroundTag(ent, state->number, state->tagentity, state->tagindex);
 		}
 
+#ifdef RAGDOLL
+		if (model && model->dollinfo)
+			rag_updatedeltaent(ent, le);
+		ent->framestate.g[FS_REG].frame[0] &= ~0x8000;
+		ent->framestate.g[FS_REG].frame[1] &= ~0x8000;
+#endif
+
 		CLQ1_AddShadow(ent);
 		CLQ1_AddPowerupShell(ent, false, state->effects);
 
@@ -3526,11 +3533,6 @@ void CL_LinkPacketEntities (void)
 
 			VectorMA(dl->origin, 16, dl->axis[0], dl->origin);
 		}
-
-#ifdef RAGDOLL
-		if (model && model->dollinfo)
-			rag_updatedeltaent(ent, le);
-#endif
 
 		if (model2)
 			CL_AddVWeapModel (ent, model2);

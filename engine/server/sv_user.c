@@ -3070,7 +3070,8 @@ void SV_BeginDownload_f(void)
 
 	if (ISNQCLIENT(host_client))
 	{
-		char *s = va("\ncl_downloadbegin %i %s\n", host_client->downloadsize, host_client->downloadfn);
+		//FIXME support 64bit files
+		char *s = va("\ncl_downloadbegin %u %s\n", (unsigned int)host_client->downloadsize, host_client->downloadfn);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
 		ClientReliableWrite_String (host_client, s);
 		host_client->send_message = true;
@@ -5621,7 +5622,7 @@ void AddLinksToPmove_Force ( edict_t *player, areanode_t *node )
 	link_t		*l, *next;
 	edict_t		*check;
 	int			pl;
-	int			i;
+//	int			i;
 	int			solid;
 
 	pl = EDICT_TO_PROG(svprogfuncs, player);

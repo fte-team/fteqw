@@ -3209,12 +3209,13 @@ QCC_def_t	*QCC_PR_ParseImmediate (void)
 	if (pr_immediate_type == type_string)
 	{
 		char tmp[8192];
-		strcpy(tmp, pr_immediate_string);
+		strncpy(tmp, pr_immediate_string, sizeof(tmp)-1);
+		tmp[sizeof(tmp)-1] = 0;
 
 		for(;;)
 		{
 			QCC_PR_Lex ();
-			if (pr_token_type == tt_immediate && pr_token_type == tt_immediate)
+			if (pr_token_type == tt_immediate && pr_immediate_type == type_string)
 				strcat(tmp, pr_immediate_string);
 			else
 				break;

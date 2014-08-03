@@ -436,9 +436,9 @@ unsigned int *ED_FindGlobalOfsFromProgs (progfuncs_t *progfuncs, char *name, pro
 ED_FindFunction
 ============
 */
-dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum_t *prnum, progsnum_t fromprogs)
+mfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum_t *prnum, progsnum_t fromprogs)
 {
-	dfunction_t		*func;
+	mfunction_t		*func;
 	unsigned int				i;
 	char *sep;
 
@@ -507,7 +507,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 {
 	static char	line[4096];
 	fdef_t			*fielddef;
-	dfunction_t	*f;
+	mfunction_t	*f;
 
 #ifdef DEF_SAVEGLOBAL
 	type &= ~DEF_SAVEGLOBAL;
@@ -620,7 +620,7 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	static char	line[4096];
 	fdef_t		*fielddef;
-	dfunction_t	*f;
+	mfunction_t	*f;
 	int i, j;
 
 #ifdef DEF_SAVEGLOBAL
@@ -732,7 +732,7 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 {
 	static char	line[4096];
 	fdef_t		*fielddef;
-	dfunction_t	*f;
+	mfunction_t	*f;
 
 #ifdef DEF_SAVEGLOBAL
 	type &= ~DEF_SAVEGLOBAL;
@@ -1107,7 +1107,7 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 	fdef_t	*def;
 	char	*v, *w;
 	string_t st;
-	dfunction_t	*func;
+	mfunction_t	*func;
 
 	switch (type & ~DEF_SAVEGLOBAL)
 	{
@@ -1189,7 +1189,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int
 	fdef_t	*def;
 	char	*v, *w;
 	string_t st;
-	dfunction_t	*func;
+	mfunction_t	*func;
 	int type = fldtype & ~DEF_SAVEGLOBAL;
 	qcptr += fldofs*sizeof(int);
 
@@ -1596,7 +1596,7 @@ char *SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax)
 {
 #define AddS(str) PR_Cat(buf, str, bufofs, bufmax)
 	char buffer[8192];
-	const dfunction_t	*f;
+	const mfunction_t	*f;
 	int			i;
 	int progs;
 
@@ -1915,7 +1915,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			if (!resethunk)
 			{
-				dfunction_t *f;
+				mfunction_t *f;
 				if ((var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "classname", NULL)))
 				{
 					f = ED_FindFunction(progfuncs, var->string + progfuncs->funcs.stringtable, NULL, -1);
@@ -1923,7 +1923,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 					{
 						var = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
 						var->edict = EDICT_TO_PROG(progfuncs, ed);
-						PR_ExecuteProgram(&progfuncs->funcs, f-pr_functions);
+						PR_ExecuteProgram(&progfuncs->funcs, f-pr_cp_functions);
 					}
 				}
 			}
@@ -2502,7 +2502,7 @@ PR_LoadProgs
 */
 int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, int headercrc, progstate_t *progstate, pbool complain)
 {
-	unsigned int		i, type;
+	unsigned int		i, j, type;
 //	extensionbuiltin_t *eb;
 //	float	fl;
 	int len;
@@ -2521,6 +2521,7 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, int header
 	ddef16_t *gd16, *fld16;
 	float *glob;
 	dfunction_t *fnc;
+	mfunction_t *fnc2;
 	dstatement16_t *st16;
 
 	int hmark=0xffffffff;
@@ -2676,7 +2677,7 @@ retry:
 		return false;
 	}
 
-	fnc = pr_functions = (dfunction_t *)((qbyte *)pr_progs + pr_progs->ofs_functions);
+	fnc = (dfunction_t *)((qbyte *)pr_progs + pr_progs->ofs_functions);
 	pr_strings = ((char *)pr_progs + pr_progs->ofs_strings);
 	current_progstate->globaldefs = *(void**)&gd16 = (void *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);
 	current_progstate->fielddefs = *(void**)&fld16 = (void *)((qbyte *)pr_progs + pr_progs->ofs_fielddefs);
@@ -2753,9 +2754,9 @@ retry:
 		{
 			len=sizeof(dfunction_t)*pr_progs->numfunctions;
 			s = PRHunkAlloc(progfuncs, len, "dfunctiontable");
-			QC_decode(progfuncs, PRLittleLong(*(int *)pr_functions), len, 2, (char *)(((int *)pr_functions)+1), s);
+			QC_decode(progfuncs, PRLittleLong(*(int *)fnc), len, 2, (char *)(((int *)fnc)+1), s);
 
-			fnc = pr_functions = (dfunction_t *)s;
+			fnc = (dfunction_t *)s;
 		}
 		if (pr_progs->blockscompressed & 16)	//string table
 		{
@@ -2839,7 +2840,7 @@ retry:
 		}
 	}
 
-	pr_functions = fnc;
+	pr_cp_functions = NULL;
 //	pr_strings = ((char *)pr_progs + pr_progs->ofs_strings);
 	gd16 = *(ddef16_t**)&current_progstate->globaldefs = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_globaldefs);
 	fld16 = (ddef16_t *)((qbyte *)pr_progs + pr_progs->ofs_fielddefs);
@@ -2855,45 +2856,50 @@ retry:
 
 	current_progstate->edict_size = pr_progs->entityfields * 4 + externs->edictsize;
 
+	if (sizeof(mfunction_t) > sizeof(qtest_function_t))
+		Sys_Error("assumption no longer works");
+
 // byte swap the lumps
 	switch(current_progstate->structtype)
 	{
 	case PST_QTEST:
 		// qtest needs a struct remap
+		pr_cp_functions = (mfunction_t*)fnc;
+		fnc2 = pr_cp_functions;
 		for (i=0 ; i<pr_progs->numfunctions; i++)
 		{
-			int j;
+			//qtest functions are bigger, so we can just do this in-place
 			qtest_function_t qtfunc = ((qtest_function_t*)fnc)[i];
 
-			fnc[i].first_statement	= PRLittleLong (qtfunc.first_statement);
-			fnc[i].parm_start	= PRLittleLong (qtfunc.parm_start);
-			fnc[i].s_name	= (string_t)PRLittleLong (qtfunc.s_name);
-			fnc[i].s_file	= (string_t)PRLittleLong (qtfunc.s_file);
-			fnc[i].numparms	= PRLittleLong (qtfunc.numparms);
-			fnc[i].locals	= PRLittleLong (qtfunc.locals);
+			fnc2[i].first_statement	= PRLittleLong (qtfunc.first_statement);
+			fnc2[i].parm_start	= PRLittleLong (qtfunc.parm_start);
+			fnc2[i].s_name	= (string_t)PRLittleLong (qtfunc.s_name);
+			fnc2[i].s_file	= (string_t)PRLittleLong (qtfunc.s_file);
+			fnc2[i].numparms	= PRLittleLong (qtfunc.numparms);
+			fnc2[i].locals	= PRLittleLong (qtfunc.locals);
 
 			for (j=0; j<MAX_PARMS;j++)
-				fnc[i].parm_size[j] = PRLittleLong (qtfunc.parm_size[j]);
+				fnc2[i].parm_size[j] = PRLittleLong (qtfunc.parm_size[j]);
 
-			fnc[i].s_name += stringadjust;
-			fnc[i].s_file += stringadjust;
+			fnc2[i].s_name += stringadjust;
+			fnc2[i].s_file += stringadjust;
 		}
 		break;
 	case PST_KKQWSV:
 	case PST_DEFAULT:
 	case PST_FTE32:
-		for (i=0 ; i<pr_progs->numfunctions; i++)
+		pr_cp_functions = PRHunkAlloc(progfuncs, sizeof(*pr_cp_functions)*pr_progs->numfunctions, "mfunctions");
+		for (i=0,fnc2=pr_cp_functions; i<pr_progs->numfunctions; i++, fnc2++)
 		{
-#ifndef NOENDIAN
-			fnc[i].first_statement	= PRLittleLong (fnc[i].first_statement);
-			fnc[i].parm_start	= PRLittleLong (fnc[i].parm_start);
-			fnc[i].s_name	= (string_t)PRLittleLong ((long)fnc[i].s_name);
-			fnc[i].s_file	= (string_t)PRLittleLong ((long)fnc[i].s_file);
-			fnc[i].numparms	= PRLittleLong (fnc[i].numparms);
-			fnc[i].locals	= PRLittleLong (fnc[i].locals);
-#endif
-			fnc[i].s_name += stringadjust;
-			fnc[i].s_file += stringadjust;
+			fnc2->first_statement	= PRLittleLong (fnc[i].first_statement);
+			fnc2->parm_start	= PRLittleLong (fnc[i].parm_start);
+			fnc2->s_name	= (string_t)PRLittleLong ((long)fnc[i].s_name) + stringadjust;
+			fnc2->s_file	= (string_t)PRLittleLong ((long)fnc[i].s_file) + stringadjust;
+			fnc2->numparms	= PRLittleLong (fnc[i].numparms);
+			fnc2->locals	= PRLittleLong (fnc[i].locals);
+
+			for (j=0; j<MAX_PARMS;j++)
+				fnc2->parm_size[j] = fnc[i].parm_size[j];
 		}
 		break;
 	default:

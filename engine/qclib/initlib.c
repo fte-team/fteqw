@@ -547,7 +547,7 @@ int PDECL PR_GetFuncArgCount(pubprogfuncs_t *ppf, func_t func)
 
 	unsigned int pnum;
 	unsigned int fnum;
-	dfunction_t *f;
+	mfunction_t *f;
 
 	pnum = (func & 0xff000000)>>24;
 	fnum = (func & 0x00ffffff);
@@ -566,7 +566,7 @@ int PDECL PR_GetFuncArgCount(pubprogfuncs_t *ppf, func_t func)
 func_t PDECL PR_FindFunc(pubprogfuncs_t *ppf, const char *funcname, progsnum_t pnum)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	dfunction_t *f=NULL;
+	mfunction_t *f=NULL;
 	if (pnum == PR_ANY)
 	{
 		for (pnum = 0; (unsigned)pnum < maxprogs; pnum++)
@@ -1041,10 +1041,12 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	struct progstate_s *ps;
 	unsigned int i, f, j, s;
+	unsigned long long cpufrequency;
 	struct
 	{
 		char *fname;
 		int profile;
+		unsigned long long profiletime;
 	} *sorted, t;
 	if (!prinst.profiling)
 	{
@@ -1052,6 +1054,8 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 		prinst.profiling = true;
 		return true;
 	}
+
+	cpufrequency = Sys_GetClockRate();
 
 	for (i = 0; i < maxprogs; i++)
 	{
@@ -1068,14 +1072,16 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 				continue;
 			sorted[s].fname = ps->functions[f].s_name+progfuncs->funcs.stringtable;
 			sorted[s].profile = ps->functions[f].profile;
+			sorted[s].profiletime = ps->functions[f].profiletime - ps->functions[f].profilechildtime;
 			ps->functions[f].profile = 0;
+			ps->functions[f].profiletime = 0;
 			s++;
 		}
 
 		// good 'ol bubble sort
 		for (f = 0; f < s; f++)
 			for (j = f; j < s; j++)
-				if (sorted[f].profile > sorted[j].profile)
+				if (sorted[f].profiletime > sorted[j].profiletime)
 				{
 					t = sorted[f];
 					sorted[f] = sorted[j];
@@ -1084,7 +1090,7 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 
 		//print it out
 		for (f = 0; f < s; f++)
-			printf("%s: %u\n", sorted[f].fname, sorted[f].profile);
+			printf("%s: %u %g\n", sorted[f].fname, sorted[f].profile, (float)(((double)sorted[f].profiletime) / cpufrequency));
 		free(sorted);
 	}
 	return true;

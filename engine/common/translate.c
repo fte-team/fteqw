@@ -127,6 +127,10 @@ void TL_InitLanguages(void)
 	lang = strrchr(sys_language, '.');
 	if (lang)
 		*lang = 0;
+	//we also only support the single primary locale (no fallbacks, we're just using the language[+territory])
+	lang = strrchr(sys_language, ':');
+	if (lang)
+		*lang = 0;
 	//but we do support territories.
 	
 #ifndef CLIENTONLY

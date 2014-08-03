@@ -1671,7 +1671,7 @@ void SV_ClearQCStats(void)
 }
 
 extern cvar_t dpcompat_stats;
-void SV_UpdateQCStats(edict_t	*ent, int *statsi, const char **statss, float *statsf)
+void SV_UpdateQCStats(edict_t	*ent, int *statsi, char const** statss, float *statsf)
 {
 	const char *s;
 	int i;
@@ -1722,13 +1722,13 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, const char **statss, float *sta
 }
 
 /*this function calculates the current stat values for the given client*/
-void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], char *statss[MAX_CL_STATS])
+void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], char const **statss)
 {
 	edict_t *ent;
 	ent = client->edict;
 	memset (statsi, 0, sizeof(int)*MAX_CL_STATS);
 	memset (statsf, 0, sizeof(float)*MAX_CL_STATS);
-	memset (statss, 0, sizeof(char*)*MAX_CL_STATS);
+	memset ((void*)statss, 0, sizeof(char const*)*MAX_CL_STATS);	//cast needed to get msvc to behave.
 
 	// if we are a spectator and we are tracking a player, we get his stats
 	// so our status bar reflects his

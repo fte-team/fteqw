@@ -2913,6 +2913,7 @@ int QCC_PR_CheckCompConst(void)
 		strftime( retbuf, sizeof(retbuf),
 			 "\"%H:%M\"", localtime( &long_time ));
 
+		pr_file_p += 8;
 		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
 		return true;
 	}
@@ -2930,15 +2931,17 @@ int QCC_PR_CheckCompConst(void)
 
 		return true;
 	}
-	if (!strncmp(pr_file_p, "__QCCVER__", 8))
+	if (!strncmp(pr_file_p, "__RAND__", 8))
 	{
 		char retbuf[128];
+		QC_snprintfz(retbuf, sizeof(retbuf), "%i", rand());
 
-		time_t long_time;
-		time( &long_time );
-		strftime( retbuf, sizeof(retbuf),
-			 "\"%a %d %b %Y\"", localtime( &long_time ));
-
+		pr_file_p += 8;
+		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
+		return true;
+	}
+	if (!strncmp(pr_file_p, "__QCCVER__", 8))
+	{
 		pr_file_p += 10;
 		QCC_PR_IncludeChunkEx("FTEQCC "__DATE__","__TIME__"", true, NULL, NULL);
 
@@ -2947,7 +2950,7 @@ int QCC_PR_CheckCompConst(void)
 	if (!strncmp(pr_file_p, "__FILE__", 8))
 	{
 		char retbuf[256];
-		sprintf(retbuf, "\"%s\"", strings + s_file);
+		QC_snprintfz(retbuf, sizeof(retbuf), "\"%s\"", strings + s_file);
 
 		pr_file_p += 8;
 		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
@@ -2956,7 +2959,7 @@ int QCC_PR_CheckCompConst(void)
 	if (!strncmp(pr_file_p, "__LINE__", 8))
 	{
 		char retbuf[256];
-		sprintf(retbuf, "\"%i\"", pr_source_line);
+		QC_snprintfz(retbuf, sizeof(retbuf), "\"%i\"", pr_source_line);
 		pr_file_p += 8;
 		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
 		return true;
@@ -2964,7 +2967,7 @@ int QCC_PR_CheckCompConst(void)
 	if (!strncmp(pr_file_p, "__FUNC__", 8))
 	{
 		char retbuf[256];
-		sprintf(retbuf, "\"%s\"",pr_scope?pr_scope->name:"<NO FUNCTION>");
+		QC_snprintfz(retbuf, sizeof(retbuf), "\"%s\"",pr_scope?pr_scope->name:"<NO FUNCTION>");
 		pr_file_p += 8;
 		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
 		return true;

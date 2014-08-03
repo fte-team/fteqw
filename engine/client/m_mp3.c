@@ -4226,7 +4226,7 @@ typedef struct
 	qbyte srcdata[1];
 } mp3decoder_t;
 
-void S_MP3_Abort(sfx_t *sfx)
+static void S_MP3_Abort(sfx_t *sfx)
 {
 	mp3decoder_t *dec = sfx->decoder.buf;
 

@@ -4523,9 +4523,9 @@ void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
 	unsigned int width = 0, height = 0;
 	if (destchanged)
 	{
-		if (r_refdef.rt_destcolour)
+		if (*r_refdef.rt_destcolour[0].texname)
 		{
-			texid_t tex = R2D_RT_GetTexture(r_refdef.rt_destcolour, &width, &height);
+			texid_t tex = R2D_RT_GetTexture(r_refdef.rt_destcolour[0].texname, &width, &height);
 			GLBE_FBO_Update(&shaderstate.fbo_2dfbo, true, FBO_TEX_COLOUR, tex, r_nulltex, width, height);
 		}
 		else
@@ -4535,8 +4535,8 @@ void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
 	}
 	else
 	{
-		shaderstate.tex_sourcecol = R2D_RT_GetTexture(r_refdef.rt_sourcecolour, &width, &height);
-		shaderstate.tex_sourcedepth = R2D_RT_GetTexture(r_refdef.rt_depth, &width, &height);
+		shaderstate.tex_sourcecol = R2D_RT_GetTexture(r_refdef.rt_sourcecolour.texname, &width, &height);
+		shaderstate.tex_sourcedepth = R2D_RT_GetTexture(r_refdef.rt_depth.texname, &width, &height);
 	}
 }
 void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth)

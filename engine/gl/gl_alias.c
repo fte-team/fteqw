@@ -63,6 +63,12 @@ static hashtable_t skincolourmapped;
 //q3 .skin support
 static skinfile_t **registeredskins;
 static skinid_t numregisteredskins;
+struct cctx_s
+{
+	texid_t diffuse;
+	int width;
+	int height;
+};
 void Mod_WipeSkin(skinid_t id)
 {
 	skinfile_t *sk;
@@ -99,7 +105,7 @@ skinfile_t *Mod_LookupSkin(skinid_t id)
 		return registeredskins[id];
 	return NULL;
 }
-static void Mod_ComposeSkin(char *texture)
+static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
 {
 	float x=0, y=0;
 	float w, h;
@@ -121,19 +127,13 @@ static void Mod_ComposeSkin(char *texture)
 
 	//load the image and set some default sizes, etc.
 	sourceimg = R2D_SafeCachePic(tname);
-	if (!sourceimg)	//no shader? no point in doing anything.
-		return;
-	w = sourceimg->width;
-	h = sourceimg->height;
-
-	//create a render target if one is not already selected
-	if (!r_refdef.rt_destcolour)
+	if (sourceimg)	//no shader? no point in doing anything.
 	{
-		r_refdef.rt_destcolour = 1;	//fixme: this 1 here is a technicality. it will destroy this render target slot. we should find/make a free one instead.
-		R2D_RT_Configure(r_refdef.rt_destcolour, x+w, y+h, TF_RGBA32);
-		BE_RenderToTextureUpdate2d(true);
+		w = sourceimg->width;
+		h = sourceimg->height;
 	}
-
+	else
+		w = h = 0;
 
 	while(*s)
 	{
@@ -171,6 +171,21 @@ static void Mod_ComposeSkin(char *texture)
 		}
 	}
 
+	if (!w || !h)
+		return;
+
+	//create a render target if one is not already selected
+	if (!TEXVALID(cctx->diffuse))
+	{
+		strcpy(r_refdef.rt_destcolour[0].texname, "-");
+		cctx->width = x+w;
+		cctx->height = y+h;
+		cctx->diffuse = R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, cctx->width, cctx->height, TF_RGBA32);
+		BE_RenderToTextureUpdate2d(true);
+	}
+
+	if (!sourceimg)
+		return;
 
 	R2D_ImageColours(r,g,b,a);
 	R2D_Image(x, 512-(y+h), w, h, 0, 1, 1, 0, sourceimg);
@@ -233,6 +248,9 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 			//body
 			if (com_tokentype != TTP_LINEENDING)
 			{
+				struct cctx_s cctx;
+				memset(&cctx, 0, sizeof(cctx));
+
 				Q_strncpyz(skin->mappings[skin->nummappings].surface, com_token, sizeof(skin->mappings[skin->nummappings].surface));
 				skintext = COM_ParseToken(skintext, NULL);
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
@@ -249,14 +267,14 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 					else
 						break;
 					skintext = COM_Parse(skintext);
-					Mod_ComposeSkin(com_token);
+					Mod_ComposeSkin(com_token, &cctx);
 				}
 
 				skin->mappings[skin->nummappings].needsfree = 1;
-				skin->mappings[skin->nummappings].texnums.base = R2D_RT_DetachTexture(r_refdef.rt_destcolour);
+				skin->mappings[skin->nummappings].texnums.base = cctx.diffuse;
 				skin->nummappings++;
 
-				r_refdef.rt_destcolour = 0;
+				*r_refdef.rt_destcolour[0].texname = 0;
 				BE_RenderToTextureUpdate2d(true);
 			}
 		}

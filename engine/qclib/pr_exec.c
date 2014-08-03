@@ -31,7 +31,6 @@
 	#endif
 #endif
 
-
 //=============================================================================
 
 /*
@@ -307,7 +306,7 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 {
 	progfuncs_t *progfuncs = (progfuncs_t *)ppf;
-	const dfunction_t	*f;
+	const mfunction_t	*f;
 	int			i;
 	int progs;
 	int arg;
@@ -488,7 +487,7 @@ PR_EnterFunction
 Returns the new program statement counter
 ====================
 */
-int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
+int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsnum)
 {
 	int		i, j, c, o;
 
@@ -496,6 +495,10 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsn
 	pr_stack[pr_depth].f = pr_xfunction;
 	pr_stack[pr_depth].progsnum = progsnum;
 	pr_stack[pr_depth].pushed = pr_spushed;
+	if (prinst.profiling)
+	{
+		pr_stack[pr_depth].timestamp = Sys_GetClock();
+	}
 	pr_depth++;
 	if (pr_depth == MAX_STACK_DEPTH)
 	{
@@ -563,9 +566,21 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 
 // up stack
 	pr_depth--;
+
 	PR_SwitchProgsParms(progfuncs, pr_stack[pr_depth].progsnum);
-	pr_xfunction = pr_stack[pr_depth].f;
 	pr_spushed = pr_stack[pr_depth].pushed;
+
+	if (prinst.profiling)
+	{
+		unsigned long long cycles;
+		cycles = Sys_GetClock() - pr_stack[pr_depth].timestamp;
+		pr_xfunction->profiletime += cycles;
+		pr_xfunction = pr_stack[pr_depth].f;
+		if (pr_depth)
+			pr_xfunction->profilechildtime += cycles;
+	}
+	else
+		pr_xfunction = pr_stack[pr_depth].f;
 
 	localstack_used -= pr_spushed;
 	return pr_stack[pr_depth].s;
@@ -911,7 +926,7 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 
 		case ev_function:
 			{
-				dfunction_t *func;
+				mfunction_t *func;
 				int i;
 				int progsnum = -1;
 				char *s = assignment;
@@ -962,7 +977,7 @@ void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 {
 	int pn = pr_typecurrent;
 	int snum;
-	const dfunction_t *f = pr_xfunction;
+	const mfunction_t *f = pr_xfunction;
 
 	switch(current_progstate->structtype)
 	{
@@ -998,7 +1013,7 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, char *filename, int linenum, 
 	unsigned int fl;
 	unsigned int i;
 	int pn = pr_typecurrent;
-	dfunction_t *f;
+	mfunction_t *f;
 	int op = 0; //warning about not being initialized before use
 
 	for (pn = 0; (unsigned)pn < maxprogs; pn++)
@@ -1170,7 +1185,7 @@ static char *lastfile = 0;
 
 	int pn = pr_typecurrent;
 	int i;
-	const dfunction_t *f = pr_xfunction;
+	const mfunction_t *f = pr_xfunction;
 	pr_xstatement = statement;
 
 	if (!externs->useeditor)
@@ -1244,7 +1259,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 
 	int swtchtype = 0; //warning about not being initialized before use
 	const dstatement16_t	*fte_restrict st;
-	dfunction_t	*fte_restrict newf;
+	mfunction_t	*fte_restrict newf;
 	int		i;
 	edictrun_t	*ed;
 	eval_t	*ptr;
@@ -1291,7 +1306,7 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 
 	int swtchtype = 0; //warning about not being initialized before use
 	const dstatement32_t	*fte_restrict st;
-	dfunction_t	*fte_restrict newf;
+	mfunction_t	*fte_restrict newf;
 	int		i;
 	edictrun_t	*ed;
 	eval_t	*ptr;
@@ -1406,7 +1421,7 @@ static void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	dfunction_t	*f;
+	mfunction_t	*f;
 	int		i;
 	unsigned int initial_progs;
 	int		oldexitdepth;
@@ -1446,7 +1461,7 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 
 	oldexitdepth = prinst.exitdepth;
 
-	f = &pr_functions[fnum & ~0xff000000];
+	f = &pr_cp_functions[fnum & ~0xff000000];
 
 	if (f->first_statement < 0)
 	{	// negative statements are built in functions
@@ -1519,7 +1534,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 	int ed = prinst.exitdepth;
 	int localsoffset, baselocalsoffset;
 	qcthread_t *thread = externs->memalloc(sizeof(qcthread_t));
-	const dfunction_t *f;
+	const mfunction_t *f;
 
 	//copy out the functions stack.
 	for (i = 0,localsoffset=0; i < ed; i++)
@@ -1584,7 +1599,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	dfunction_t	*f, *oldf;
+	mfunction_t	*f, *oldf;
 	int		i,l,ls;
 	progsnum_t initial_progs;
 	int		oldexitdepth;
@@ -1628,7 +1643,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 		}
 
 		if (i+1 == thread->fstackdepth)
-			f = &pr_functions[fnum];
+			f = &pr_cp_functions[fnum];
 		else
 			f = pr_progstate[thread->fstack[i+1].progsnum].functions + thread->fstack[i+1].fnum;
 		for (l = 0; l < f->locals; l++)
@@ -1644,7 +1659,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 		PR_RunError(&progfuncs->funcs, "Thread stores incorrect locals count\n");
 
 
-	f = &pr_functions[fnum];
+	f = &pr_cp_functions[fnum];
 
 //	thread->lstackused -= f->locals;	//the current function is the odd one out.
 

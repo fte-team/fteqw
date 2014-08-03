@@ -61,9 +61,10 @@ typedef struct sharedvar_s
 typedef struct
 {
 	int				s;
-	dfunction_t		*f;
+	mfunction_t		*f;
 	int				progsnum;
-	int pushed;
+	int				pushed;
+	unsigned long long	timestamp;
 } prstack_t;
 
 typedef struct prinst_s
@@ -130,7 +131,7 @@ int reorganisefields;
 	int exitdepth;
 
 	pbool profiling;
-	dfunction_t	*pr_xfunction;
+	mfunction_t	*pr_xfunction;
 #define pr_xfunction prinst.pr_xfunction
 	int pr_xstatement;
 #define pr_xstatement prinst.pr_xstatement
@@ -297,7 +298,7 @@ typedef enum
 typedef struct progstate_s
 {
 	dprograms_t		*progs;
-	dfunction_t		*functions;
+	mfunction_t		*functions;
 	char			*strings;
 	union {
 		ddefXX_t		*globaldefs;
@@ -342,7 +343,7 @@ typedef struct extensionbuiltin_s {
 
 
 #define pr_progs			current_progstate->progs
-#define	pr_functions		current_progstate->functions
+#define	pr_cp_functions		current_progstate->functions
 #define	pr_strings			current_progstate->strings
 #define	pr_globaldefs16		((ddef16_t*)current_progstate->globaldefs)
 #define	pr_globaldefs32		((ddef32_t*)current_progstate->globaldefs)
@@ -443,6 +444,49 @@ fdef_t *PDECL ED_FieldInfo (pubprogfuncs_t *progfuncs, unsigned int *count);
 char *PDECL PR_UglyValueString (pubprogfuncs_t *progfuncs, etype_t type, eval_t *val);
 pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, const char *s);
 
+
+//cpu clock stuff (glorified rdtsc), for profile timing only
+#if !defined(Sys_GetClock) && defined(_WIN32)
+	//windows has some specific functions for this (traditionally wrapping rdtsc)
+	//note: on some systems, you may need to force cpu affinity to a single core via task manager
+	static unsigned long long Sys_GetClock(void)
+	{
+		LARGE_INTEGER li;
+		QueryPerformanceCounter(&li);
+		return li.QuadPart;
+	}
+	static unsigned long long Sys_GetClockRate(void)
+	{
+		LARGE_INTEGER li;
+		QueryPerformanceFrequency(&li);
+		return li.QuadPart;
+	}
+#endif
+
+#if !defined(Sys_GetClock) && defined(__unix__)
+	//linux/unix has some annoying abstraction and shows time in nanoseconds rather than cycles. lets hope we don't waste too much time  reading it.
+	#include <unistd.h>
+	#if defined(_POSIX_TIMERS) && _POSIX_TIMERS >= 0
+		static unsigned long long Sys_GetClock(void)
+		{
+			struct timespec c;
+			clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &c);
+			return (c.tv_sec*1000000000ull) + tc.tv_nsec;
+		}
+		static unsigned long long Sys_GetClockRate(void)
+		{
+			return 1000000000ull;
+		}
+	#endif
+#endif
+
+#ifndef Sys_GetClock
+	//other systems have no choice but to omit this feature in some way. this is just for profiling, so we can get away with stubs.
+	#define Sys_GetClock() 0
+	#define Sys_GetClockRate() 1
+#endif
+
+
 #endif
 
 
@@ -477,7 +521,7 @@ ddef32_t *ED_FindGlobalFromProgs32 (progfuncs_t *progfuncs, const char *name, pr
 fdef_t *ED_FindField (progfuncs_t *progfuncs, const char *name);
 fdef_t *ED_ClassFieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs, const char *classname);
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
-dfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum_t *pnum, progsnum_t fromprogs);
+mfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum_t *pnum, progsnum_t fromprogs);
 func_t PDECL PR_FindFunc(pubprogfuncs_t *progfncs, const char *funcname, progsnum_t pnum);
 //void PDECL PR_Configure (pubprogfuncs_t *progfncs, size_t addressable_size, int max_progs);
 int PDECL PR_InitEnts(pubprogfuncs_t *progfncs, int maxents);

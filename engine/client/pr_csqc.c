@@ -1557,44 +1557,47 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		r_refdef.useperspective = *p;
 		break;
 
-	case VF_RT_DESTCOLOUR:
-		if (prinst->callargc >= 4)
+	case VF_RT_DESTCOLOUR0:
 		{
-			float fmt = G_FLOAT(OFS_PARM2);
-			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(*p, size[0], size[1], fmt);
+			int i = parametertype - VF_RT_DESTCOLOUR0;
+			Q_strncpyz(r_refdef.rt_destcolour[i].texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_destcolour[i].texname));
+			if (prinst->callargc >= 4 && *r_refdef.rt_destcolour[i].texname)
+			{
+				float fmt = G_FLOAT(OFS_PARM2);
+				float *size = G_VECTOR(OFS_PARM3);
+				R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], fmt);
+			}
+			BE_RenderToTextureUpdate2d(true);
 		}
-		r_refdef.rt_destcolour = *p;
-		BE_RenderToTextureUpdate2d(true);
 		break;
 	case VF_RT_SOURCECOLOUR:
-		if (prinst->callargc >= 4)
+		Q_strncpyz(r_refdef.rt_sourcecolour.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_sourcecolour));
+		if (prinst->callargc >= 4 && *r_refdef.rt_sourcecolour.texname)
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(*p, size[0], size[1], fmt);
+			R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], fmt);
 		}
-		r_refdef.rt_sourcecolour = *p;
 		BE_RenderToTextureUpdate2d(false);
 		break;
 	case VF_RT_DEPTH:
-		if (prinst->callargc >= 4)
+		Q_strncpyz(r_refdef.rt_depth.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_depth.texname));
+		if (prinst->callargc >= 4 && *r_refdef.rt_depth.texname)
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(*p, size[0], size[1], fmt);
+			R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], fmt);
 		}
-		r_refdef.rt_depth = *p;
 		BE_RenderToTextureUpdate2d(false);
 		break;
 	case VF_RT_RIPPLE:
-		if (prinst->callargc >= 4)
+		Q_strncpyz(r_refdef.rt_ripplemap.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_ripplemap.texname));
+		if (prinst->callargc >= 4 && *r_refdef.rt_ripplemap.texname)
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(*p, size[0], size[1], fmt);
+			R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], fmt);
 		}
-		r_refdef.rt_ripplemap = *p;
 		BE_RenderToTextureUpdate2d(false);
 		break;
 
@@ -2452,16 +2455,19 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 	/*outgoing_sequence says how many packets have actually been sent, but there's an extra pending packet which has not been sent yet - be warned though, its data will change in the coming frames*/
 	if (f == cl.movesequence)
 	{
+		int i;
 		cmd = &independantphysics[seat];
-		for (f=0 ; f<3 ; f++)
-			cmd->angles[f] = ((int)(csqc_playerview->viewangles[f]*65536.0/360)&65535);
 
+		tmp = *cmd;
+		cmd = &tmp;
+		for (i=0 ; i<3 ; i++)
+			cmd->angles[i] = ((int)(csqc_playerview->viewangles[i]*65536.0/360)&65535);
 		if (!cmd->msec)
 		{
-			tmp = *cmd;
-			cmd = &tmp;
-			CL_BaseMove (&tmp, seat, 0, 72);
+//			*cmd = cl.outframes[(f-1)&UPDATE_MASK].cmd[seat];
+			CL_BaseMove (cmd, seat, 0, 72);
 		}
+		cmd->msec = (realtime - cl.outframes[(f-1)&UPDATE_MASK].senttime)*1000;
 	}
 	else
 	{

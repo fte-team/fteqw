@@ -149,7 +149,17 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 
 	Con_Printf("Initing OSS sound device %s\n", snddev);
 
+#ifdef __linux__
+	//linux is a pile of shit.
+	//nonblock is needed to get around issues with the old/buggy linux oss3 clone implementation, as well as because this code is too lame to thread audio.
+	sc->audio_fd = open(snddev, O_RDWR | O_NONBLOCK);	//try the primary device
+	//fixme: the following is desired once threading is supported.
+	//int flags = fcntl(fd, F_GETFL, 0);
+	//fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
+#else
+	//FIXME: remove non-block if we're using threads.
 	sc->audio_fd = open(snddev, O_WRONLY | O_NONBLOCK);	//try the primary device
+#endif
 	if (sc->audio_fd < 0)
 	{
 		perror(snddev);

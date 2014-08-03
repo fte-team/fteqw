@@ -463,7 +463,7 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, con
 	}
 #endif
 
-#if !defined(Sys_GetClock) && defined(__unix__)
+#if 0//!defined(Sys_GetClock) && defined(__unix__)
 	//linux/unix has some annoying abstraction and shows time in nanoseconds rather than cycles. lets hope we don't waste too much time  reading it.
 	#include <unistd.h>
 	#if defined(_POSIX_TIMERS) && _POSIX_TIMERS >= 0
@@ -481,6 +481,18 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, con
 			}
 		#endif
 	#endif
+#endif
+
+#if !defined(Sys_GetClock) && defined(__unix__)
+	#include <time.h>
+	static unsigned long long Sys_GetClock(void)
+	{
+		return clock();
+	}
+	static unsigned long long Sys_GetClockRate(void)
+	{
+		return CLOCKS_PER_SEC;
+	}
 #endif
 
 #ifndef Sys_GetClock

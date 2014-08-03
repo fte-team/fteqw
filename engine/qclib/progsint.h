@@ -467,16 +467,19 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, con
 	//linux/unix has some annoying abstraction and shows time in nanoseconds rather than cycles. lets hope we don't waste too much time  reading it.
 	#include <unistd.h>
 	#if defined(_POSIX_TIMERS) && _POSIX_TIMERS >= 0
-		static unsigned long long Sys_GetClock(void)
-		{
-			struct timespec c;
-			clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &c);
-			return (c.tv_sec*1000000000ull) + tc.tv_nsec;
-		}
-		static unsigned long long Sys_GetClockRate(void)
-		{
-			return 1000000000ull;
-		}
+		#include <time.h>
+		#ifdef CLOCK_PROCESS_CPUTIME_ID
+			static unsigned long long Sys_GetClock(void)
+			{
+				struct timespec c;
+				clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &c);
+				return (c.tv_sec*1000000000ull) + tc.tv_nsec;
+			}
+			static unsigned long long Sys_GetClockRate(void)
+			{
+				return 1000000000ull;
+			}
+		#endif
 	#endif
 #endif
 

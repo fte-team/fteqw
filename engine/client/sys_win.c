@@ -740,8 +740,8 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 		}
 		else
 		{
-			if (MessageBoxA(NULL, "KABOOM! We crashed!\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNO) != IDYES)
-				return EXCEPTION_EXECUTE_HANDLER;
+			MessageBoxA(NULL, "We crashed.\nUnable to load dbghelp library. Stack info is not available", DISTRIBUTION " Sucks", MB_ICONSTOP);
+			return EXCEPTION_EXECUTE_HANDLER;
 		}
 	}
 

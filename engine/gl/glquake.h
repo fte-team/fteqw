@@ -421,7 +421,7 @@ void D3_GenerateAreas(model_t *mod);
 #ifdef GLQUAKE
 void R_BloomRegister(void);
 void R_BloomBlend(void);
-void R_InitBloomTextures(void);
+void R_BloomShutdown(void);
 #endif
 
 //

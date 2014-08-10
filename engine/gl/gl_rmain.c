@@ -129,6 +129,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 void GL_ShutdownPostProcessing(void)
 {
 	GLBE_FBO_Destroy(&fbo_gameview);
+	R_BloomShutdown();
 }
 
 void GL_InitSceneProcessingShaders (void)
@@ -387,7 +388,7 @@ void R_SetupGL (float stereooffset)
 		//
 		// set up viewpoint
 		//
-		if (r_refdef.rt_destcolour)
+		if (*r_refdef.rt_destcolour[0].texname)
 		{
 			//with fbo rendering, we disable all virtual scaling.
 			x = r_refdef.vrect.x;

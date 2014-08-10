@@ -60,7 +60,22 @@ static int scrwidth, scrheight;
 static int texwidth[MAXLEVELS], texheight[MAXLEVELS];
 
 
+static void R_InitBloomTextures(void)
+{
+	int i;
 
+	bloomfilter = NULL;
+	bloomblur = NULL;
+	bloomfinal = NULL;
+	scrwidth = 0, scrheight = 0;
+
+	scrtex = r_nulltex;
+	for (i = 0; i < MAXLEVELS; i++)
+	{
+		pingtex[0][i] = r_nulltex;
+		pingtex[1][i] = r_nulltex;
+	}
+}
 void R_BloomRegister(void)
 {
 	Cvar_Register (&r_bloom, "bloom");
@@ -244,16 +259,11 @@ void R_BloomBlend (void)
 	GLBE_FBO_Sources(scrtex, r_nulltex);
 	R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y + r_refdef.vrect.height, r_refdef.vrect.width, -r_refdef.vrect.height, bloomfinal);
 }
-void R_InitBloomTextures(void)
+void R_BloomShutdown(void)
 {
-	bloomfilter = NULL;
-	bloomblur = NULL;
-	bloomfinal = NULL;
-	scrwidth = 0, scrheight = 0;
+	GLBE_FBO_Destroy(&fbo_bloom);
 
-	if (!gl_config.ext_framebuffer_objects)
-		return;
-
+	R_InitBloomTextures();
 }
 
 #elif defined(GLQUAKE)

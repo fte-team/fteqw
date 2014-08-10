@@ -4068,7 +4068,8 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 
 	if (entnum >= cl.maxlerpents || !cl.lerpentssequence || cl.lerpents[entnum].sequence != cl.lerpentssequence)
 	{
-		Con_DPrintf("PF_getentity: entity %i is not valid\n", entnum);
+		if (fldnum != GE_ACTIVE)
+			Con_DPrintf("PF_getentity: entity %i is not valid\n", entnum);
 		VectorCopy(vec3_origin, G_VECTOR(OFS_RETURN));
 		return;
 	}

@@ -244,8 +244,6 @@ R_Init
 void GLR_ReInit (void)
 {
 	R_NetgraphInit();
-
-	R_InitBloomTextures();
 }
 
 #if 1

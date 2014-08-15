@@ -215,7 +215,7 @@ void R_BloomBlend (void)
 		if (i == 0)
 		{
 			/*filter the screen into a downscaled image*/
-			oldfbo = GLBE_FBO_Update(&fbo_bloom, true, FBO_TEX_COLOUR, pingtex[0][0], r_nulltex, 0, 0);
+			oldfbo = GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[0][0], 1, r_nulltex, 0, 0);
 			GLBE_FBO_Sources(scrtex, r_nulltex);
 			qglViewport (0, 0, texwidth[0], texheight[0]);
 			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomfilter);
@@ -223,7 +223,7 @@ void R_BloomBlend (void)
 		else
 		{
 			/*simple downscale that multiple times*/
-			GLBE_FBO_Update(&fbo_bloom, true, FBO_TEX_COLOUR, pingtex[0][i], r_nulltex, 0, 0);
+			GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[0][i], 1, r_nulltex, 0, 0);
 			GLBE_FBO_Sources(pingtex[0][i-1], r_nulltex);
 			qglViewport (0, 0, texwidth[i], texheight[i]);
 			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomrescale);
@@ -237,14 +237,14 @@ void R_BloomBlend (void)
 		*/
 		r_worldentity.glowmod[0] = 1.2 / texwidth[i];
 		r_worldentity.glowmod[1] = 0;
-		GLBE_FBO_Update(&fbo_bloom, true, FBO_TEX_COLOUR, pingtex[1][i], r_nulltex, 0, 0);
+		GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[1][i], 1, r_nulltex, 0, 0);
 		GLBE_FBO_Sources(pingtex[0][i], r_nulltex);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
 
 		r_worldentity.glowmod[0] = 0;
 		r_worldentity.glowmod[1] = 1.2 / texheight[i];
-		GLBE_FBO_Update(&fbo_bloom, true, FBO_TEX_COLOUR, pingtex[0][i], r_nulltex, 0, 0);
+		GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[0][i], 1, r_nulltex, 0, 0);
 		GLBE_FBO_Sources(pingtex[1][i], r_nulltex);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);

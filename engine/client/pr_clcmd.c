@@ -486,9 +486,8 @@ qboolean M_Vid_GetMode(int num, int *w, int *h);
 //a bit pointless really
 void QCBUILTIN PF_cl_getresolution (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-//	extern cvar_t vid_fullscreen;
 	float mode = G_FLOAT(OFS_PARM0);
-	qboolean fixedmodes = (prinst->callargc >= 2)?!G_FLOAT(OFS_PARM1):false; //if true, we should return sane-sized modes suitable for a window... or the mod could make up its own, but whatever.
+//	qboolean fixedmodes = (prinst->callargc >= 2)?!G_FLOAT(OFS_PARM1):false; //if true, we should return sane-sized modes suitable for a window... or the mod could make up its own, but whatever.
 	float *ret = G_VECTOR(OFS_RETURN);
 	int w, h;
 

@@ -29,7 +29,7 @@ lights are then added over the top based upon the diffusemap, bumpmap and specul
 
 #ifndef SHADER_H
 #define SHADER_H
-typedef void (shader_gen_t)(char *name, shader_t*, const void *args);
+typedef void (shader_gen_t)(const char *name, shader_t*, const void *args);
 
 #define SHADER_TMU_MAX 16
 #define SHADER_PASS_MAX	8
@@ -608,11 +608,9 @@ typedef struct
 	texid_t colour;
 	unsigned int enables;
 } fbostate_t;
-#define FBO_RB_COLOUR		1
 #define FBO_RB_DEPTH		2
 #define FBO_RB_STENCIL		4
 #define FBO_RESET			8	//resize all renderbuffers / free any that are not active. implied if the sizes differ
-#define FBO_TEX_COLOUR		16	//internal
 #define FBO_TEX_DEPTH		32	//internal
 #define FBO_TEX_STENCIL		64	//internal
 
@@ -667,7 +665,7 @@ void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth);
 int GLBE_FBO_Push(fbostate_t *state);
 void GLBE_FBO_Pop(int oldfbo);
 void GLBE_FBO_Destroy(fbostate_t *state);
-int GLBE_FBO_Update(fbostate_t *state, qboolean bind, unsigned int enables, texid_t destcol, texid_t destdepth, int width, int height);
+int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, int colourbuffers, texid_t destdepth, int width, int height);
 #endif
 #ifdef D3D9QUAKE
 void D3D9BE_Init(void);

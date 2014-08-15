@@ -3140,7 +3140,7 @@ void SVQ3_ParseClientMessage(client_t *client)
 	//
 	while(1)
 	{
-		if(client->state < ca_connected)
+		if(client->state < cs_connected)
 			return; // parsed command caused client to disconnect
 
 		if(msg_readcount > net_message.cursize)

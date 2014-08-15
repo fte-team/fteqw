@@ -2113,7 +2113,6 @@ static void DLC_RequestDownloadChunks(qdownload_t *dl, float frametime)
 
 void DLC_Poll(qdownload_t *dl)
 {
-	extern cvar_t drate;
 	static float lasttime;
 	DLC_RequestDownloadChunks(dl, realtime - lasttime);
 	lasttime = realtime;
@@ -5673,7 +5672,6 @@ void CL_DumpPacket(void)
 
 void CL_ParsePortalState(void)
 {
-	qboolean open = false;
 	int mode = MSG_ReadByte();
 	int a1, a2;
 

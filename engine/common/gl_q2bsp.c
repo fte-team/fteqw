@@ -4934,12 +4934,12 @@ static void CM_ClipBoxToPlanes (vec3_t trmins, vec3_t trmaxs, vec3_t p1, vec3_t 
 //	q2cbrushside_t	*side, *leadside;
 	static mplane_t	bboxplanes[6] = //we change the dist, but nothing else
 	{
-		{1, 0, 0},
-		{0, 1, 0},
-		{0, 0, 1},
-		{-1, 0, 0},
-		{0, -1, 0},
-		{0, 0, -1},
+		{{1, 0, 0}},
+		{{0, 1, 0}},
+		{{0, 0, 1}},
+		{{-1, 0, 0}},
+		{{0, -1, 0}},
+		{{0, 0, -1}},
 	};
 
 	float nearfrac=0;

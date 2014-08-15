@@ -7467,7 +7467,7 @@ void QCC_PR_ParseStatement (void)
 		int old_numstatements;
 		int numtemp, i;
 
-		QCC_statement_t		temp[32];
+		QCC_statement_t		temp[256];
 
 		continues = num_continues;
 		breaks = num_breaks;

@@ -1226,7 +1226,7 @@ static float *FTableForFunc ( unsigned int func )
 	return NULL;
 }
 
-void Shader_LightPass(char *shortname, shader_t *s, const void *args)
+void Shader_LightPass(const char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
 	sprintf(shadertext, LIGHTPASS_SHADER, "");
@@ -2598,13 +2598,17 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 			qglDisable(GL_PN_TRIANGLES_ATI);
 	}
 
-	if (delta & SBITS_AFFINE)
+#ifdef GL_PERSPECTIVE_CORRECTION_HINT
+	if ((delta & SBITS_AFFINE) && qglHint)
 	{
-		if (sbits & SBITS_AFFINE)
+		if (!qglHint || (gl_config.gles && gl_config.glversion >= 2) || (!gl_config.gles && gl_config.nofixedfunc))
+			;	//doesn't exist in gles2 nor gl3+core contexts
+		else if (sbits & SBITS_AFFINE)
 			qglHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
 		else
 			qglHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
 	}
+#endif
 }
 
 static void BE_SubmitMeshChain(void)
@@ -4285,7 +4289,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
-				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, true, FBO_TEX_COLOUR|FBO_RB_DEPTH, shaderstate.tex_reflection, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
+				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_RB_DEPTH, &shaderstate.tex_reflection, 1, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
 				r_refdef.vrect.width = vid.fbvwidth/2;
@@ -4334,11 +4338,11 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 						}
-						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, true, FBO_TEX_COLOUR|FBO_TEX_DEPTH, shaderstate.tex_refraction, shaderstate.tex_refractiondepth, vid.pixelwidth/2, vid.pixelheight/2);
+						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_TEX_DEPTH, &shaderstate.tex_refraction, 1, shaderstate.tex_refractiondepth, vid.pixelwidth/2, vid.pixelheight/2);
 					}
 					else
 					{
-						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, true, FBO_TEX_COLOUR|FBO_RB_DEPTH, shaderstate.tex_refraction, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
+						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_RB_DEPTH, &shaderstate.tex_refraction, 1, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
 					}
 
 					r_refdef.vrect.x = 0;
@@ -4380,7 +4384,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
-				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, true, FBO_TEX_COLOUR, shaderstate.tex_ripplemap, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
+				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, 0, &shaderstate.tex_ripplemap, 1, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
 				r_refdef.vrect.width = vid.fbvwidth/2;
@@ -4526,7 +4530,7 @@ void GLBE_RenderToTextureUpdate2d(qboolean destchanged)
 		if (*r_refdef.rt_destcolour[0].texname)
 		{
 			texid_t tex = R2D_RT_GetTexture(r_refdef.rt_destcolour[0].texname, &width, &height);
-			GLBE_FBO_Update(&shaderstate.fbo_2dfbo, true, FBO_TEX_COLOUR, tex, r_nulltex, width, height);
+			GLBE_FBO_Update(&shaderstate.fbo_2dfbo, 0, &tex, 1, r_nulltex, width, height);
 		}
 		else
 			GLBE_FBO_Push(NULL);
@@ -4589,20 +4593,18 @@ void GLBE_FBO_Destroy(fbostate_t *state)
 }
 
 //state->colour is created if usedepth is set and it doesn't previously exist
-int GLBE_FBO_Update(fbostate_t *state, qboolean bind, unsigned int enables, texid_t destcol, texid_t destdepth, int width, int height)
+int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, int mrt, texid_t destdepth, int width, int height)
 {
+	int i;
 	int old;
 
-	if (TEXVALID(destcol))
-	{
-		enables |= FBO_TEX_COLOUR;
-		enables &= ~FBO_RB_COLOUR;
-	}
 	if (TEXVALID(destdepth))
 	{
 		enables |= FBO_TEX_DEPTH;
 		enables &= ~FBO_RB_DEPTH;
 	}
+
+	enables |= (mrt<<16);
 
 	if ((state->enables ^ enables) & ~FBO_RESET)
 	{
@@ -4638,7 +4640,7 @@ int GLBE_FBO_Update(fbostate_t *state, qboolean bind, unsigned int enables, texi
 
 		enables |= FBO_RESET;
 
-		if (enables & (FBO_TEX_COLOUR|FBO_RB_COLOUR))
+		if (mrt)
 		{
 			qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 			qglReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
@@ -4687,8 +4689,8 @@ int GLBE_FBO_Update(fbostate_t *state, qboolean bind, unsigned int enables, texi
 		}
 	}
 
-	if (enables & FBO_TEX_COLOUR)
-		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, destcol.num, 0);
+	for (i = 0; i < mrt; i++)
+		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT+i, GL_TEXTURE_2D, destcol[i].num, 0);
 	return old;
 }
 /*
@@ -4857,7 +4859,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	}
 
 	/*set the FB up to draw surface info*/
-	oldfbo = GLBE_FBO_Update(&shaderstate.fbo_lprepass, true, FBO_TEX_COLOUR|FBO_RB_DEPTH, shaderstate.tex_normals, r_nulltex, vid.pixelwidth, vid.pixelheight);
+	oldfbo = GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_normals, 1, r_nulltex, vid.pixelwidth, vid.pixelheight);
 	GL_ForceDepthWritable();
 	//FIXME: should probably clear colour buffer too.
 	qglClear(GL_DEPTH_BUFFER_BIT);
@@ -4873,7 +4875,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 
 	/*reconfigure - now drawing diffuse light info using the previous fb image as a source image*/
 	GLBE_FBO_Sources(shaderstate.tex_normals, r_nulltex);
-	GLBE_FBO_Update(&shaderstate.fbo_lprepass, true, FBO_TEX_COLOUR|FBO_RB_DEPTH, shaderstate.tex_diffuse, r_nulltex, vid.pixelwidth, vid.pixelheight);
+	GLBE_FBO_Update(&shaderstate.fbo_lprepass, FBO_RB_DEPTH, &shaderstate.tex_diffuse, 1, r_nulltex, vid.pixelwidth, vid.pixelheight);
 
 	BE_SelectMode(BEM_STANDARD);
 	qglClearColor (0,0,0,1);

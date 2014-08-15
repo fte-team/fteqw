@@ -321,8 +321,8 @@ void R_RenderDlights (void)
 		if (l->key == -(r_refdef.playerview->viewentity))
 			continue;	//was a muzzleflash
 
-		coronastyle = (l->flags & (LFLAG_NORMALMODE|LFLAG_REALTIMEMODE));
-		flashstyle = ((l->flags & LFLAG_FLASHBLEND) && r_flashblend.ival);
+		coronastyle = (l->flags & (LFLAG_NORMALMODE|LFLAG_REALTIMEMODE)) && r_coronas.value;
+		flashstyle = ((l->flags & LFLAG_FLASHBLEND) && r_flashblend.value);
 
 		if (!coronastyle && !flashstyle)
 			continue;

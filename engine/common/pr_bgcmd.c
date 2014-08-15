@@ -1437,8 +1437,8 @@ void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *p
 {
 	int i;
 	int numbuckets = G_FLOAT(OFS_PARM0);
-	qboolean dupestrings = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):false;
-	etype_t type = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):ev_vector;
+//	qboolean dupestrings = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):false;
+	etype_t type = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):ev_vector;
 	if (!type)
 		type = ev_vector;
 	if (numbuckets < 4)
@@ -1516,7 +1516,7 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	const char *name = PR_GetStringOfs(prinst, OFS_PARM0);
 	int fmode = G_FLOAT(OFS_PARM1);
 	int fsize = G_FLOAT(OFS_PARM2);
-	char *fallbackread;
+	const char *fallbackread;
 	int i;
 
 	for (i = 0; i < MAX_QC_FILES; i++)
@@ -3409,7 +3409,7 @@ void QCBUILTIN PF_buf_loadfile  (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	int bufno = G_FLOAT(OFS_PARM1)-BUFSTRBASE;
 	vfsfile_t *file;
 	char line[8192];
-	char *fallback;
+	const char *fallback;
 
 	G_FLOAT(OFS_RETURN) = 0;
 

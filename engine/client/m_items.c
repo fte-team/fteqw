@@ -1852,10 +1852,11 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 	if (key == K_ESCAPE)
 	{
 		extern int m_save_demonum;
+		extern cvar_t cl_demoreel;
 		Key_Dest_Remove(kdm_menu);
 		m_state = m_none;
 		cls.demonum = m_save_demonum;
-		if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected && COM_CheckParm("-demos"))
+		if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected && cl_demoreel.ival)
 			CL_NextDemo ();
 		return true;
 	}

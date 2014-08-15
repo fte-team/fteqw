@@ -283,6 +283,7 @@ void SV_Shutdown (void)
 	IWebShutdown();
 #endif
 
+	COM_BiDi_Shutdown();
 	Memory_DeInit();
 }
 

@@ -937,19 +937,19 @@ void M_Menu_Quit_f (void)
 	}
 	else if (!strcmp(arg, "save"))
 		mode = 2;
-	else if (!strcmp(arg, "prompt"))
-	{	//always prompt, though it might be about saving.
-		if (Cvar_UnsavedArchive())
-			mode = 2;
-		else
-			mode = 1;
-	}
 	else
 	{	//prompt to save, but not otherwise.
 		if (Cvar_UnsavedArchive())
 			mode = 2;
 		else
-			mode = 0;
+		{
+			if (!strcmp(arg, "prompt"))
+				mode = 1;
+			else if (!strcmp(arg, "noprompt"))
+				mode = 1;
+			else
+				mode = 0;
+		}
 	}
 
 	switch(mode)

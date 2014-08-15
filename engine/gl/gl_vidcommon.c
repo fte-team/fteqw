@@ -1639,7 +1639,7 @@ GLhandleARB GLSlang_CreateProgram(const char *name, int ver, const char **precom
 	GLhandleARB handle;
 	GLhandleARB vs;
 	GLhandleARB fs;
-	char *nullconstants = NULL;
+	const char *nullconstants = NULL;
 
 	if (!gl_config.arb_shader_objects)
 		return 0;
@@ -2044,7 +2044,10 @@ void GL_Init(void *(*getglfunction) (char *name))
 	if (qglDebugMessageControlARB)
 		qglDebugMessageControlARB(0, 0, 0, 0, NULL, true);
 	if (qglDebugMessageCallbackARB)
+	{
 		qglDebugMessageCallbackARB(myGLDEBUGPROCAMD, NULL);
+		qglEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
+	}
 	qglGetError();	/*suck up the invalid operation error for non-debug contexts*/
 #endif
 

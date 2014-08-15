@@ -349,7 +349,7 @@ void M_Menu_Audio_f (void)
 		"6",
 		NULL
 	};
-
+#ifdef VOICECHAT
 	static const char *voipcodecoptions[] = {
 		"Speex (ez-compat)",
 //		"Raw (11025)",
@@ -379,7 +379,7 @@ void M_Menu_Audio_f (void)
 		"2",
 		NULL
 	};
-
+#endif
 	menubulk_t bulk[] = {
 		MB_REDTEXT("Sound Options", false),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
@@ -530,51 +530,57 @@ const char *presetname[] =
 {
 	"286",		//everything turned off to make it as fast as possible, even if you're crippled without it
 	"Fast",		//typical deathmatch settings.
-	"Normal",	//some extra effects
+	"Vanilla",	//vanilla effects enabled, no content replacement.
+	"Normal",	//content replacement enabled
 	"Nice",		//potentially expensive, but not painful
 	"Realtime",	//everything on
 	NULL
 };
-#define PRESET_NUM 5
+#define PRESET_NUM 6
 
 // this is structured like this for a possible future feature
 // also don't include cvars that need a restart here
 const char *presetexec[] =
 {
 	// 286 options (also the first commands to be execed in the chain)
-	"m_preset_chosen 1;"
-	"gl_texturemode nn;"
-	"gl_blendsprites 0;"
-	"r_particlesystem null;"
-	"r_particledesc \"\";"
-	"r_stains 0;"
-	"r_drawflat 1;"
-	"r_nolerp 1;"
-	"r_nolightdir 1;"
-	"r_dynamic 0;"
-	"gl_polyblend 0;"
-	"gl_flashblend 0;"
-	"gl_specular 0;"
-	"r_loadlit 0;"
-	"r_fastsky 1;"
-	"r_drawflame 0;"
-	"r_waterstyle 0;"
-	"r_lavastyle 0;"
-	"r_coronas 0;"
-	"r_shadow_realtime_dlight 0;"
-	"r_shadow_realtime_world 0;"
-	"r_glsl_offsetmapping 0;"
-//	"gl_detail 0;"
-	"gl_load24bit 0;"
-	"r_replacemodels \"\";"
-	"r_waterwarp 0;"
-	"r_lightstylesmooth 0;"
-	"r_part_density 0.25;"
-	"cl_nolerp 1;"
-	"r_lerpmuzzlehack 0;"
-	"v_gunkick 0;"
-	"cl_rollangle 0;"
-	"cl_bob 0;"
+	"seta m_preset_chosen 1;"
+	"seta gl_texturemode nn;"
+	"seta gl_blendsprites 0;"
+	"seta r_particlesystem null;"
+	"seta r_particledesc \"\";"
+	"seta r_part_classic_square 0;"
+	"seta r_stains 0;"
+	"seta r_drawflat 1;"
+	"seta r_nolerp 1;"
+	"seta r_nolightdir 1;"
+	"seta r_dynamic 0;"
+	"seta gl_polyblend 0;"
+	"seta gl_flashblend 0;"
+	"seta gl_specular 0;"
+	"seta r_loadlit 0;"
+	"seta r_fastsky 1;"
+	"seta r_drawflame 0;"
+	"seta r_waterstyle 1;"
+	"seta r_lavastyle 1;"		//defer to water
+//	"seta r_slimestyle \"\";"	//defer to water
+	"seta r_coronas 0;"
+	"seta r_shadow_realtime_dlight 0;"
+	"seta r_shadow_realtime_world 0;"
+	"seta r_glsl_offsetmapping 0;"
+//	"seta gl_detail 0;"
+	"seta gl_load24bit 0;"
+	"seta r_replacemodels \"\";"
+	"seta r_waterwarp 0;"
+	"seta r_lightstylesmooth 0;"
+	"seta r_part_density 0.25;"
+	"seta cl_nolerp 1;"
+	"seta r_lerpmuzzlehack 0;"
+	"seta v_gunkick 0;"
+	"seta cl_rollangle 0;"
+	"seta cl_bob 0;"
+	"seta cl_sbar 0;"
+	"seta sv_nqplayerphysics 0;"	//server settings in a preset might be bad.
+	"seta cl_demoreel 0;"
 
 	, // fast options
 	"gl_texturemode ln;"
@@ -589,6 +595,25 @@ const char *presetexec[] =
 	"r_lavastyle 1;"
 	"r_nolightdir 0;"
 
+	, //vanilla options.
+	"r_part_density 1;"
+	"gl_polyblend 1;"
+	"r_dynamic 1;"
+	"gl_flashblend 0;"
+	"cl_nolerp 0;"
+	"r_waterwarp 1;"
+	"r_drawflame 1;"
+	"v_gunkick 1;"
+	"cl_rollangle 2.0;"
+	"cl_bob 0.02;"
+	//these things are perhaps a little extreme
+	"gl_texturemode nn;"		//yup, we went there.
+	"r_part_classic_square 1;"	//blocky baby!
+	"cl_sbar 1;"				//its a style thing
+	"sv_nqplayerphysics 1;"		//gb wanted this
+	"cl_demoreel 1;"			//yup, arcadey
+	//"d_mipcap \"0 3\";"		//logically correct, but will fuck up on ATI drivers if increased mid-map, because ATI will just ignore any levels that are not currently enabled.
+
 	, // normal (faithful) options, but with content replacement thrown in
 #ifdef MINIMAL
 	"r_particlesystem classic;"
@@ -596,20 +621,15 @@ const char *presetexec[] =
 	"r_particlesystem script;"
 	"r_particledesc classic;"
 #endif
-	"r_part_density 1;"
-	"gl_polyblend 1;"
-	"r_dynamic 1;"
-	"gl_flashblend 0;"
+	"r_part_classic_square 0;"
 	"gl_load24bit 1;"
 	"r_replacemodels \"md3 md2\";"
-	"r_waterwarp 1;"
-	"r_drawflame 1;"
 	"r_coronas 1;"
-	"cl_nolerp 0;"
 	"r_lerpmuzzlehack 1;"
-	"v_gunkick 1;"
-	"cl_rollangle 2.0;"
-	"cl_bob 0.02;"
+	"gl_texturemode ln;"
+	"cl_sbar 0;"
+	"sv_nqplayerphysics 0;"
+	"cl_demoreel 0;"
 
 	, // nice options
 	"r_stains 0.75;"
@@ -663,9 +683,10 @@ void M_Menu_Preset_f (void)
 	{
 		MB_REDTEXT("Please Choose Preset", false),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
-		MB_CONSOLECMD("286     (untextured)",	"fps_preset 286;menupop\n",		"Lacks textures, particles, pretty much everything."),
+		MB_CONSOLECMD("simple  (untextured)",	"fps_preset 286;menupop\n",		"Lacks textures, particles, pretty much everything."),
 		MB_CONSOLECMD("fast    (deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
-		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"This is for purists!"),
+		MB_CONSOLECMD("vanilla  (softwarey)",	"fps_preset vanilla;menupop\n",		"This is for purists! Party like its 1995! No sanity spared!"),
+		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"An updated but still faithful appearance, using content replacements where applicable"),
 		MB_CONSOLECMD("nice       (dynamic)",	"fps_preset nice;menupop\n",		"For people who like nice things, but still want to actually play"),
 		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
 		MB_END()
@@ -2623,7 +2644,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		galiasbone_t *b = Mod_GetBoneInfo(ent.model, &bonecount);
 		if (b && bonecount)
 		{
-			Draw_FunString(0, y, va("Bones: ", mods->skingroup, fname));
+			Draw_FunString(0, y, va("Bones: "));
 			y+=8;
 			M_BoneDisplay(&ent, b, &y, 0, -1, 0, bonecount);
 		}

@@ -339,7 +339,7 @@ typedef enum {
 
 
 
-static char *q1qvmentstring;
+static const char *q1qvmentstring;
 static vm_t *q1qvm;
 static pubprogfuncs_t q1qvmprogfuncs;
 static edict_t *q1qvmedicts[MAX_Q1QVM_EDICTS];
@@ -465,7 +465,7 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf)
 	return (struct edict_s *)e;
 }
 
-static int QDECL Q1QVMPF_LoadEnts(pubprogfuncs_t *pf, char *mapstring, float spawnflags)
+static int QDECL Q1QVMPF_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, float spawnflags)
 {
 	q1qvmentstring = mapstring;
 	VM_Call(q1qvm, GAME_LOADENTS);
@@ -500,7 +500,7 @@ static string_t QDECL Q1QVMPF_StringToProgs(pubprogfuncs_t *prinst, const char *
 	return ret;
 }
 
-static char *ASMCALL QDECL Q1QVMPF_StringToNative(pubprogfuncs_t *prinst, string_t str)
+static const char *ASMCALL QDECL Q1QVMPF_StringToNative(pubprogfuncs_t *prinst, string_t str)
 {
 	char *ret = (char*)VM_MemoryBase(q1qvm) + str;
 	if (!ret)	//qvms can never return a null. make sure native code can't crash things either.
@@ -1534,7 +1534,7 @@ void Q1QVM_ClientConnect(client_t *cl)
 	if (cl->edict->v->netname)
 	{
 		strcpy(cl->namebuf, cl->name);
-		cl->name = Q1QVMPF_StringToNative(svprogfuncs, cl->edict->v->netname);
+		cl->name = (char*)Q1QVMPF_StringToNative(svprogfuncs, cl->edict->v->netname);
 		//FIXME: check this pointer
 		strcpy(cl->name, cl->namebuf);
 	}

@@ -144,6 +144,8 @@ cvar_t r_walltexture						= CVARF ("r_walltexture", "",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
 cvar_t r_wateralpha							= CVARF  ("r_wateralpha", "1",
 												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
+cvar_t r_lavaalpha							= CVARF  ("r_lavaalpha", "",
+												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_waterwarp							= CVARF ("r_waterwarp", "1",
 												CVAR_ARCHIVE);
 
@@ -327,7 +329,7 @@ cvar_t gl_texture_anisotropic_filtering		= CVARFC("gl_texture_anisotropic_filter
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texture_Anisotropic_Filtering_Callback);
 cvar_t gl_texturemode						= CVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK | CVAR_SAVE,
 												GL_Texturemode_Callback);
 cvar_t gl_mipcap							= CVARFC("d_mipcap", "0 1000",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
@@ -696,6 +698,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fastsky, GRAPHICALNICETIES);
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
+	Cvar_Register (&r_lavaalpha, GRAPHICALNICETIES);
 	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_clear, GLRENDEREROPTIONS);
@@ -2496,10 +2499,17 @@ void R_InitParticleTexture (void)
 				data[y*32+x][3] = 255;
 		}
 	}
-
 	particlecqtexture = R_LoadTexture32("classicparticle", 32, 32, data, IF_NOMIPMAP|IF_NOPICMIP);
 
-
+	//draw a square in the top left. still a triangle.
+	for (x=0 ; x<16 ; x++)
+	{
+		for (y=0 ; y<16 ; y++)
+		{
+			data[y*32+x][3] = 255;
+		}
+	}
+	R_LoadTexture32("classicparticle_square", 32, 32, data, IF_NOMIPMAP|IF_NOPICMIP);
 
 
 

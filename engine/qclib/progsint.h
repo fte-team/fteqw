@@ -461,6 +461,7 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, con
 		QueryPerformanceFrequency(&li);
 		return li.QuadPart;
 	}
+	#define Sys_GetClock Sys_GetClock
 #endif
 
 #if 0//!defined(Sys_GetClock) && defined(__unix__)
@@ -475,24 +476,16 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, con
 				clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &c);
 				return (c.tv_sec*1000000000ull) + c.tv_nsec;
 			}
-			static unsigned long long Sys_GetClockRate(void)
-			{
-				return 1000000000ull;
-			}
+			#define Sys_GetClock Sys_GetClock
+			#define Sys_GetClockRate() 1000000000ull
 		#endif
 	#endif
 #endif
 
 #if !defined(Sys_GetClock) && defined(__unix__)
 	#include <time.h>
-	static unsigned long long Sys_GetClock(void)
-	{
-		return clock();
-	}
-	static unsigned long long Sys_GetClockRate(void)
-	{
-		return CLOCKS_PER_SEC;
-	}
+	#define Sys_GetClock() clock()
+	#define Sys_GetClockRate() CLOCKS_PER_SEC
 #endif
 
 #ifndef Sys_GetClock
@@ -551,7 +544,7 @@ ddef32_t *ED_FindGlobal32 (progfuncs_t *progfuncs, char *name);
 ddef32_t *ED_GlobalAtOfs32 (progfuncs_t *progfuncs, unsigned int ofs);
 
 string_t PDECL PR_StringToProgs			(pubprogfuncs_t *inst, const char *str);
-char *ASMCALL PR_StringToNative				(pubprogfuncs_t *inst, string_t str);
+const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *inst, string_t str);
 
 void PR_FreeTemps			(progfuncs_t *progfuncs, int depth);
 

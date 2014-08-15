@@ -474,7 +474,7 @@ typedef struct
 	qboolean	allow_rearview;
 	qboolean	allow_skyboxes;
 	qboolean	allow_mirrors;
-	qboolean	allow_watervis;
+	qboolean	allow_watervis;	//fixme: not checked any more
 	float		allow_fbskins;	//fraction of allowance
 	qboolean	allow_postproc;
 	qboolean	allow_cheats;

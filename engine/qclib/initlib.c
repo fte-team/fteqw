@@ -895,7 +895,7 @@ char *PDECL PR_RemoveProgsString				(pubprogfuncs_t *ppf, string_t str)
 	return NULL;
 }
 
-char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
+const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	if (((unsigned int)str & STRING_SPECMASK) == STRING_STATIC)

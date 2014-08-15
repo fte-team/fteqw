@@ -434,6 +434,7 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 //Used when cl_nopred is 1 to determine whether we are on ground, otherwise stepup smoothing code produces ugly jump physics
 void CL_CatagorizePosition (playerview_t *pv, float *org)
 {
+	//fixme: in nq, we are told by the server and should skip this, which avoids needing to know the player's size.
 	if (cl.spectator)
 	{
 		pv->onground = false;	// in air
@@ -1056,7 +1057,12 @@ void CL_PredictMovePNum (int seat)
 
 	cmdto = &cl.outframes[cl.ackedmovesequence & UPDATE_MASK].cmd[seat];
 
-	if (!nopred)
+	if (nopred)
+	{	//still need the player's size for onground detection and bobbing.
+		VectorCopy(tostate->szmins, pmove.player_mins);
+		VectorCopy(tostate->szmaxs, pmove.player_maxs);
+	}
+	else
 	{
 		for (i=1 ; i<UPDATE_BACKUP-1 && cl.ackedmovesequence+i < cl.movesequence; i++)
 		{
@@ -1119,7 +1125,7 @@ void CL_PredictMovePNum (int seat)
 
 				cmdto->msec = bound(0, msec, 250);
 
-//				Con_DPrintf(" extrap %i: %f-%f\n", toframe, fromtime, simtime);
+//				Con_DPrintf(" extrap %i: %f-%f (%g)\n", toframe, fromtime, simtime, simtime-fromtime);
 				CL_PredictUsercmd (seat, pv->viewentity, fromstate, tostate, cmdto);
 			}
 		}

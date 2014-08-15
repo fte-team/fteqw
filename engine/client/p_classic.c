@@ -264,15 +264,19 @@ static qboolean PClassic_InitParticles (void)
 		"{\n"
 			"program defaultsprite\n"
 			"nomipmaps\n"
+			"surfaceparm nodlight\n"
 			"{\n"
-				"map $diffuse\n"
+				"if r_part_classic_square\n"
+					"map classicparticle_square\n"
+				"else\n"
+					"map classicparticle\n"
+				"endif\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
 				"blendfunc blend\n"
 			"}\n"
 		"}\n"
 		);
-	TEXASSIGN(classicshader->defaulttextures.base, particlecqtexture);
 
 	return true;
 }

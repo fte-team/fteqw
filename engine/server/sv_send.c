@@ -1157,9 +1157,14 @@ void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char 
 			//be warned that it does mean you might be able to hear people triggering stuff on the other side of the map however.
 			channel |= 256;
 		}
-		else
-		{
+		else if (progstype == PROG_QW)
+		{	//quakeworld puts the sound ONLY at the entity's actual origin. this is annoying and stupid. I'm not really sure what to do here. it seems wrong.
 			VectorCopy (entity->v->origin, origin);
+		}
+		else
+		{	//nq (and presumably h2) always put the sound in the middle of the ent's bbox. this is needed to avoid triggers breaking (like trigger_secret).
+			for (i=0 ; i<3 ; i++)
+				origin[i] = entity->v->origin[i]+0.5*(entity->v->mins[i]+entity->v->maxs[i]);
 		}
 	}
 

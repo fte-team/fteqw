@@ -642,7 +642,7 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 		{
 			char *outs = line;
 			int outb = sizeof(line)-2;
-			char *ins = PR_StringToNative(&progfuncs->funcs, val->string);
+			const char *ins = PR_StringToNative(&progfuncs->funcs, val->string);
 			//markup the output string.
 			while(*ins && outb > 0)
 			{
@@ -2226,7 +2226,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			if (!resethunk)
 			{
-				char *eclassname;
+				const char *eclassname;
 				func_t f;
 				if (!CheckSpawn)
 					CheckSpawn = PR_FindFunc(&progfuncs->funcs, "CheckSpawn", -2);
@@ -2327,7 +2327,7 @@ char *PDECL PR_SaveEnt (pubprogfuncs_t *ppf, char *buf, int *size, int maxsize, 
 	int		*v;
 	unsigned int		i;unsigned int j;
 	char	*name, *mname;
-	char	*classname = NULL;
+	const char	*classname = NULL;
 	int		classnamelen = 0;
 	int		type;
 

@@ -304,6 +304,8 @@ unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen, qboole
 unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
 unsigned int COM_DeQuake(conchar_t chr);
 
+void COM_BiDi_Shutdown(void);
+
 //small macro to tell COM_ParseFunString (and related functions like con_printf) that the input is a utf-8 string.
 #define U8(s) "=`u8:"s"`="
 

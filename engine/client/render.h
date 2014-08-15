@@ -535,6 +535,7 @@ extern	cvar_t	r_editlights_import_diffuse;
 extern	cvar_t	r_editlights_import_specular;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
+extern	cvar_t	r_lavaalpha;
 extern	cvar_t	r_waterstyle;
 extern	cvar_t	r_slimestyle;
 extern	cvar_t	r_lavastyle;

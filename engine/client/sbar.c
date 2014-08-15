@@ -2550,7 +2550,11 @@ void Sbar_Draw (playerview_t *pv)
 				if (pv == cl.playerview)
 				{
 					if (!cls.deathmatch)
+					{
+						if (cl_sbar.value)
+							Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
 						Sbar_CoopScoreboard ();
+					}
 					else
 						Sbar_SoloScoreboard ();
 				}

@@ -65,7 +65,7 @@ static void J_ControllerAdded(int enumid)
 	char *cname;
 	int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++)
-		if (j_controller[i] == NULL)
+		if (sdljoy[i].controller == NULL)
 			break;
 	if (i == MAX_JOYSTICKS)
 		return;
@@ -233,14 +233,14 @@ static void J_Kill(int jid, qboolean verbose)
 	{
 		for (i = 0; i < 32; i++)
 			J_ControllerButton(jid, i, false);
-		Con_Printf("Controller unplugged(%i): %s\n", joy - sdljoy, joy->devname);
+		Con_Printf("Controller unplugged(%i): %s\n", (int)(joy - sdljoy), joy->devname);
 		SDL_GameControllerClose(joy->controller);
 	}
 	else
 	{
 		for (i = 0; i < 32; i++)
 			J_JoystickButton(jid, i, false);
-		Con_Printf("Joystick unplugged(%i): %s\n", joy - sdljoy, joy->devname);
+		Con_Printf("Joystick unplugged(%i): %s\n", (int)(joy - sdljoy), joy->devname);
 		SDL_JoystickClose(joy->joystick);
 	}
 	joy->controller = NULL;

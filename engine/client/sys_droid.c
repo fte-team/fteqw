@@ -207,8 +207,6 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 			"",
 			""
 		};
-		char *basepack;
-		int align;
 		quakeparms_t parms;
 		Sys_Printf("reinit\n");
 		if (sys_memheap)

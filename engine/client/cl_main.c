@@ -88,6 +88,7 @@ cvar_t	qtvcl_forceversion1 = CVAR("qtvcl_forceversion1", "0");
 cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
 
 cvar_t cl_demospeed = CVARAF("cl_demospeed", "1", "demo_setspeed", 0);
+cvar_t	cl_demoreel = CVARFD("cl_demoreel", "0", CVAR_SAVE, "When enabled, the engine will begin playing a demo loop on startup.");
 
 cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol to use for single-player/the internal client. Should be one of: qw, qwid, nqid, nq, fitz, dp6, dp7. If empty, will use qw protocols for qw mods, and nq protocols for nq mods.");
 
@@ -110,7 +111,7 @@ extern int			total_loading_size, current_loading_size, loading_stage;
 //
 cvar_t	password	= CVARAF("password",	"",	"pq_password", CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy... added pq_password alias because baker seems to be using this for user accounts.
 cvar_t	spectator	= CVARF("spectator",	"",			CVAR_USERINFO);
-cvar_t	name		= CVARFC("name",		"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
+cvar_t	name		= CVARFC("name",		"Player",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
 cvar_t	team		= CVARF("team",			"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	skin		= CVARF("skin",			"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	model		= CVARF("model",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
@@ -1198,14 +1199,13 @@ void CL_Rcon_f (void)
 
 void CL_BlendFog(fogstate_t *result, fogstate_t *oldf, float time, fogstate_t *newf)
 {
-	float nfrac, ofrac;
+	float nfrac;
 	if (time >= newf->time)
 		nfrac = 1;
 	else if (time < oldf->time)
 		nfrac = 0;
 	else
 		nfrac = (time - oldf->time) / (newf->time - oldf->time);
-	ofrac = 1 - nfrac;
 
 	FloatInterpolate(oldf->alpha, nfrac, newf->alpha, result->alpha);
 	FloatInterpolate(oldf->depthbias, nfrac, newf->depthbias, result->depthbias);
@@ -1742,7 +1742,7 @@ void CL_CheckServerInfo(void)
 
 	oldteamplay = cl.teamplay;
 	cl.teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
-	cl.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));
+	cls.deathmatch = cl.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));
 
 	cls.allow_cheats = false;
 	cls.allow_semicheats=true;
@@ -1802,8 +1802,6 @@ void CL_CheckServerInfo(void)
 	cls.maxfps = atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
 	if (cls.maxfps < 20)
 		cls.maxfps = 72;
-
-	cls.deathmatch = atoi(Info_ValueForKey(cl.serverinfo, "deathmatch"));
 
 	cls.z_ext = atoi(Info_ValueForKey(cl.serverinfo, "*z_ext"));
 
@@ -2194,10 +2192,10 @@ void CL_NextDemo (void)
 {
 	char	str[1024];
 
-	if (cls.demonum == -1)
+	if (cls.demonum < 0)
 		return;		// don't play demos
 
-	if (!cls.demos[cls.demonum][0] || cls.demonum == MAX_DEMOS)
+	if (!cls.demos[cls.demonum][0] || cls.demonum >= MAX_DEMOS)
 	{
 		cls.demonum = 0;
 		if (!cls.demos[cls.demonum][0])
@@ -2214,6 +2212,9 @@ void CL_NextDemo (void)
 		Q_snprintfz (str, sizeof(str), "playdemo %s\n", cls.demos[cls.demonum]);
 	Cbuf_InsertText (str, RESTRICT_LOCAL, false);
 	cls.demonum++;
+
+	if (!cls.state)
+		cls.state = ca_demostart;
 }
 
 /*
@@ -2245,17 +2246,8 @@ void CL_Startdemos_f (void)
 	for (i=1 ; i<c+1 ; i++)
 		Q_strncpyz (cls.demos[i-1], Cmd_Argv(i), sizeof(cls.demos[0]));
 
-	if (
-#ifndef CLIENTONLY
-		!sv.state &&
-#endif
-		cls.demonum != -1 && cls.demoplayback==DPB_NONE && !Media_PlayingFullScreen() && COM_CheckParm("-demos"))
-	{
-		cls.demonum = 0;
-		CL_NextDemo ();
-	}
-	else
-		cls.demonum = -1;
+	cls.demonum = 0;
+	//don't start it here - we might have been given a +connect or whatever argument.
 }
 
 
@@ -2470,7 +2462,7 @@ void CL_ConnectionlessPacket (void)
 		else if (!strcmp(s, "reject"))
 		{	//generic rejection. stop trying.
 			char *data = MSG_ReadStringLine();
-			Con_Printf ("reject\n%s\n", s);
+			Con_Printf ("reject\n%s\n", data);
 			connectinfo.trying = false;
 			return;
 		}
@@ -3540,6 +3532,8 @@ void CL_Init (void)
 	Cvar_Register (&noaim,						cl_controlgroup);
 	Cvar_Register (&b_switch,					cl_controlgroup);
 	Cvar_Register (&w_switch,					cl_controlgroup);
+
+	Cvar_Register (&cl_demoreel,				cl_controlgroup);
 
 	Cvar_Register (&cl_nofake,					cl_controlgroup);
 	Cvar_Register (&cl_chatsound,					cl_controlgroup);
@@ -4672,7 +4666,12 @@ void CL_StartCinematicOrMenu(void)
 #endif
 		{
 			if (qrenderer > QR_NONE && !m_state)
-				M_ToggleMenu_f();
+			{
+				if (cl_demoreel.ival)
+					CL_NextDemo();
+				if (!cls.state)
+					M_ToggleMenu_f();
+			}
 			//Con_ForceActiveNow();
 		}
 	}
@@ -4972,6 +4971,7 @@ void Host_Shutdown(void)
 #endif
 
 	Con_Shutdown();
+	COM_BiDi_Shutdown();
 	Memory_DeInit();
 
 #ifndef CLIENTONLY

@@ -601,6 +601,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "gl_Position = skeletaltransform_n(n);\n"
 "#endif\n"
 
+"float d = dot(n,e_light_dir);\n"
+"if (d < 0.0)  //vertex shader. this might get ugly, but I don't really want to make it per vertex.\n"
+"d = 0.0; //this avoids the dark side going below the ambient level.\n"
 "light = e_light_ambient + (dot(n,e_light_dir)*e_light_mul);\n"
 "tc = v_texcoord;\n"
 "}\n"
@@ -1605,7 +1608,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "nst = (1.0 + nst) / 2.0;\n"
 "vec4 l = texture2D(s_t0, nst)*5.0;\n"
 "vec4 c = texture2D(s_t1, tc);\n"
-"vec3 lmsamp = texture2D(s_t2, lm).rgb*lmscale;\n"
+"vec3 lmsamp = texture2D(s_t2, lm).rgb*e_lmscale;\n"
 "vec3 diff = l.rgb;\n"
 "vec3 chrom = diff / (0.001 + dot(diff, vec3(0.3, 0.59, 0.11)));\n"
 "vec3 spec = chrom * l.a;\n"

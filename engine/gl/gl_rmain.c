@@ -1268,11 +1268,11 @@ void GLR_SetupFog (void)
 
 static void R_RenderMotionBlur(void)
 {
+#if !defined(ANDROID) && !defined(NACL)
 	int vwidth = 1, vheight = 1;
 	float vs, vt, cs, ct;
 	shader_t *shader;
 
-#if !defined(ANDROID) && !defined(NACL)
 	//figure out the size of our texture.
 	if (r_config.texture_non_power_of_two)
 	{	//we can use any size, supposedly
@@ -1534,7 +1534,11 @@ void GLR_RenderView (void)
 		for (mrt = 0; mrt < R_MAX_RENDERTARGETS; mrt++)
 		{
 			if (*r_refdef.rt_destcolour[mrt].texname)
+			{
 				col[mrt] = R2D_RT_GetTexture(r_refdef.rt_destcolour[mrt].texname, &cw, &ch);
+				if (!TEXVALID(col[mrt]))
+					break;
+			}
 			else
 			{
 				col[mrt] = r_nulltex;
@@ -1559,13 +1563,11 @@ void GLR_RenderView (void)
 			vid.fbvwidth = vid.fbpwidth = dw;
 			vid.fbvheight = vid.fbpheight = dh;
 		}
-		if (TEXVALID(col[0]))
-			flags |= FBO_TEX_COLOUR;
 		if (TEXVALID(depth))
 			flags |= FBO_TEX_DEPTH;
 		else
 			flags |= FBO_RB_DEPTH;
-		GLBE_FBO_Update(&fbo_gameview, true, flags, col[0], depth, vid.fbpwidth, vid.fbpheight);
+		GLBE_FBO_Update(&fbo_gameview, flags, col, mrt, depth, vid.fbpwidth, vid.fbpheight);
 	}
 	else 
 	{

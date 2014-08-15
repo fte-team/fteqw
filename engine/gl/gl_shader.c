@@ -878,7 +878,6 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 	shader->flags |= SHADER_ENTITY_MERGABLE;
 }
 
-static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvartypes);
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
 static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *script, int qrtype, int ver, char *blobfilename)
 {
@@ -895,7 +894,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		NULL
 	};
 #define MAXMODIFIERS 64
-	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + MAXMODIFIERS + 1];
+	const char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + MAXMODIFIERS + 1];
 	unsigned int nopermutation = ~0u;
 	int nummodifiers = 0;
 	int p, n, pn;
@@ -1088,22 +1087,22 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	}
 	for (end = strchr(name, '#'); end && *end; )
 	{
-		char *start = end+1;
+		char *start = end+1, *d;
 		end = strchr(start, '#');
 		if (!end)
 			end = start + strlen(start);
 		if (nummodifiers < MAXMODIFIERS)
 		{
-			permutationdefines[nummodifiers] = BZ_Malloc(10 + end - start);
-			memcpy(permutationdefines[nummodifiers], "#define ", 8);
-			memcpy(permutationdefines[nummodifiers]+8, start, end - start);
-			memcpy(permutationdefines[nummodifiers]+8+(end-start), "\n", 2);
+			permutationdefines[nummodifiers] = d = BZ_Malloc(10 + end - start);
+			memcpy(d, "#define ", 8);
+			memcpy(d+8, start, end - start);
+			memcpy(d+8+(end-start), "\n", 2);
 
-			start = strchr(permutationdefines[nummodifiers]+8, '=');
+			start = strchr(d+8, '=');
 			if (start)
 				*start = ' ';
 
-			for (start = permutationdefines[nummodifiers]+8; *start; start++)
+			for (start = d+8; *start; start++)
 				*start = toupper(*start);
 			nummodifiers++;
 			permutationdefines[nummodifiers] = NULL;
@@ -1114,7 +1113,8 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	{
 		unsigned int next;
 		unsigned int argsz;
-		char *args, *mp, *mv;
+		char *args, *mp;
+		const char *mv;
 		int ml, mi;
 		unsigned int bloblink = 4;
 
@@ -1235,7 +1235,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		}
 	}
 	while(nummodifiers)
-		Z_Free(permutationdefines[--nummodifiers]);
+		Z_Free((char*)permutationdefines[--nummodifiers]);
 
 	if (sh_config.pProgAutoFields)
 		sh_config.pProgAutoFields(prog, cvarnames, cvartypes);
@@ -3418,12 +3418,12 @@ void Shader_Programify (shader_t *s)
 {
 	char *prog = NULL;
 	const char *mask;
-	enum
+/*	enum
 	{
 		T_UNKNOWN,
 		T_WALL,
 		T_MODEL
-	} type = 0;
+	} type = 0;*/
 	int i;
 	shaderpass_t *pass, *lightmap = NULL, *modellighting = NULL;
 	for (i = 0; i < s->numpasses; i++)
@@ -4177,13 +4177,14 @@ void Shader_DefaultSkybox(const char *shortname, shader_t *s, const void *args)
 char *Shader_DefaultBSPWater(const char *shortname)
 {
 	int wstyle;
+	int islava = !strncmp(shortname, "*lava", 5);
 
-	if (r_wateralpha.value == 0)
+	if (((islava && *r_lavaalpha.string)?r_lavaalpha.value:r_wateralpha.value) <= 0)
 		wstyle = -1;
 	else if (r_fastturb.ival)
 		wstyle = 0;
 #ifdef GLQUAKE
-	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && !strncmp(shortname, "*lava", 5) && *r_lavastyle.string)
+	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && islava && *r_lavastyle.string)
 		wstyle = r_lavastyle.ival;
 	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && !strncmp(shortname, "*slime", 5) && *r_slimestyle.string)
 		wstyle = r_slimestyle.ival;
@@ -4231,27 +4232,54 @@ char *Shader_DefaultBSPWater(const char *shortname)
 		);
 	default:
 	case 1:	//vanilla style
-		return (
-			"{\n"
-				"program defaultwarp\n"
+		if (islava && *r_lavaalpha.string)
+		{
+			return (
 				"{\n"
-					"map $diffuse\n"
-					"tcmod turb 0.02 0.1 0.5 0.1\n"
-					"if !$#ALPHA\n"
-						"if r_wateralpha < 1\n"
-							"alphagen const $r_wateralpha\n"
-							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+					"program defaultwarp\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod turb 0.02 0.1 0.5 0.1\n"
+						"if !$#ALPHA\n"
+							"if r_lavaalpha < 1\n"
+								"alphagen const $r_lavaalpha\n"
+								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+							"endif\n"
+						"else\n"
+							"if $#ALPHA < 1\n"
+								"alphagen const $#ALPHA\n"
+								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+							"endif\n"
 						"endif\n"
-					"else\n"
-						"if $#ALPHA < 1\n"
-							"alphagen const $#ALPHA\n"
-							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-						"endif\n"
-					"endif\n"
+					"}\n"
+					"surfaceparm nodlight\n"
 				"}\n"
-				"surfaceparm nodlight\n"
-			"}\n"
-		);
+			);
+		}
+		else
+		{
+			return (
+				"{\n"
+					"program defaultwarp\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod turb 0.02 0.1 0.5 0.1\n"
+						"if !$#ALPHA\n"
+							"if r_wateralpha < 1\n"
+								"alphagen const $r_wateralpha\n"
+								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+							"endif\n"
+						"else\n"
+							"if $#ALPHA < 1\n"
+								"alphagen const $#ALPHA\n"
+								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+							"endif\n"
+						"endif\n"
+					"}\n"
+					"surfaceparm nodlight\n"
+				"}\n"
+			);
+		}
 	case 2:	//refraction of the underwater surface, with a fresnel
 		return (
 			"{\n"
@@ -4518,7 +4546,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 		Shader_DefaultBSPLM(shortname, s, args);
 }
 
-void Shader_DefaultBSPVertex(char *shortname, shader_t *s, const void *args)
+void Shader_DefaultBSPVertex(const char *shortname, shader_t *s, const void *args)
 {
 	shaderpass_t *pass;
 
@@ -4555,7 +4583,7 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s, const void *args)
 	s->sort = SHADER_SORT_OPAQUE;
 	s->uses = 1;
 }
-void Shader_DefaultBSPFlare(char *shortname, shader_t *s, const void *args)
+void Shader_DefaultBSPFlare(const char *shortname, shader_t *s, const void *args)
 {
 	shaderpass_t *pass;
 	if (Shader_ParseShader("defaultflare", s))
@@ -4586,7 +4614,7 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s, const void *args)
 
 	s->flags |= SHADER_NODRAW;
 }
-void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
+void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args)
 {
 	if (Shader_ParseShader("defaultskin", s))
 		return;
@@ -4657,7 +4685,7 @@ void Shader_DefaultSkinShell(const char *shortname, shader_t *s, const void *arg
 		"}\n"
 		);
 }
-void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
+void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 {
 	if (Shader_ParseShader("default2d", s))
 		return;

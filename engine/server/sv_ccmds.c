@@ -1090,13 +1090,12 @@ static void SV_FilterIP_f (void)
 {
 	bannedips_t proto;
 	extern cvar_t filterban;
-	int arg=2;
 	char *s;
 
 	if (Cmd_Argc() < 2)
 	{
 		Con_Printf("%s <address/mask|adress/maskbits> [flags] [+time] [reason]\n", Cmd_Argv(0));
-		Con_Printf("allowed flags: ban,safe,cuff,mute,cripple,deaf,lag,blind,spec. time is in seconds (omitting the plus will be taken to mean unix time).\n", Cmd_Argv(0));
+		Con_Printf("allowed flags: ban,safe,cuff,mute,cripple,deaf,lag,blind,spec. time is in seconds (omitting the plus will be taken to mean unix time).\n");
 		return;
 	}
 
@@ -1178,7 +1177,7 @@ static void SV_BanList_f (void)
 		{
 			*middlebit = 0;
 			if (nb->expiretime)
-				Q_strncatz(middlebit, va(",\t%+llu", (unsigned long long)nb->expiretime - bantime), sizeof(middlebit));
+				Q_strncatz(middlebit, va(",\t+%llu", (unsigned long long)nb->expiretime - bantime), sizeof(middlebit));
 			if (nb->reason[0])
 				Q_strncatz(middlebit, ",\t", sizeof(middlebit));
 			Con_Printf("%s%s%s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), middlebit, nb->reason);
@@ -1334,7 +1333,7 @@ static void SV_Unfilter_f (void)
 }
 static void SV_PenaltyToggle (unsigned int banflag, char *penaltyname)
 {
-	char *name = Cmd_Argv(1);
+	char *clname = Cmd_Argv(1);
 	char *duration = Cmd_Argv(2);
 	char *reason = Cmd_Argv(3);
 	bannedips_t proto;
@@ -1356,7 +1355,7 @@ static void SV_PenaltyToggle (unsigned int banflag, char *penaltyname)
 		reason = duration;
 
 	memset(&proto.adrmask.address, 0xff, sizeof(proto.adrmask.address));
-	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
+	while((cl = SV_GetClientForString(clname, &clnum)))
 	{
 		found = true;
 		proto.adr = cl->netchan.remote_address;

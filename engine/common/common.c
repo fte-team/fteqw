@@ -2720,7 +2720,13 @@ char *COM_ParseStringSetSep (const char *data, char sep)
 	com_token[len] = 0;
 	return (char*)data;
 }
-void COM_BiDi_Setup(void)
+void COM_BiDi_Shutdown(void)
+{
+	bidi_charcount = 0;
+	BZ_Free(bidi_chartype);
+	bidi_chartype = NULL;
+}
+static void COM_BiDi_Setup(void)
 {
 	char *file;
 	char *line;
@@ -2782,7 +2788,7 @@ void COM_BiDi_Setup(void)
 //bi-direction text is fun.
 //the text is specified in input order. the first in the string is the first entered on the keyboard.
 //this makes switching direction mid-line quite awkward. so lets hope you don't do that too often, mmkay?
-void COM_BiDi_Parse(conchar_t *fte_restrict start, size_t length)
+static void COM_BiDi_Parse(conchar_t *fte_restrict start, size_t length)
 {
 	char fl[2048], next, run, prev, para = BIDI_LTR;
 	size_t i, runstart, j, k;

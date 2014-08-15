@@ -593,21 +593,11 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 		return;
 #endif
 
-	// this hack is necessary to ensure Quake 2 maps get their
-	// default skybox
+	// this hack is necessary to ensure Quake 2 maps get their default skybox, without breaking q1 etc
 	if (wmodel->fromgame == fg_quake2)
 		strcpy(cl.skyname, "unit1_");
 	else
 		cl.skyname[0] = '\0';
-
-	for (msky = mapskies; msky; msky = msky->next)
-	{
-		if (!strcmp(msky->mapname, mapname))
-		{
-			Q_strncpyz(cl.skyname, msky->skyname, sizeof(cl.skyname));
-			break;
-		}
-	}
 
 	if (data)
 	if ((data=COM_Parse(data)))	//read the map info.
@@ -636,7 +626,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 		{
 			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));
 		}
-		else if (!strcmp("fog", key))
+		else if (!strcmp("fog", key))	//q1 extension. FIXME: should be made temporary.
 		{
 			int oel = Cmd_ExecLevel;
 			void CL_Fog_f(void);
@@ -648,15 +638,20 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 			CL_Fog_f();
 			Cmd_ExecLevel=oel;
 		}
+		else if (!strcmp("wateralpha", key)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).
+		{
+			Cvar_LockFromServer(&r_wateralpha, com_token);
+			Cvar_LockFromServer(&r_waterstyle, "1");	//force vanilla-style water too.
+		}
 		else if (!strcmp("sky", key)) // for Quake2 maps
 		{
 			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));
 		}
-		else if (!strcmp("skyrotate", key))
+		else if (!strcmp("skyrotate", key))	//q2 feature
 		{
 			cl.skyrotate = atof(com_token);
 		}
-		else if (!strcmp("skyaxis", key))
+		else if (!strcmp("skyaxis", key))	//q2 feature
 		{
 			char *s;
 			Q_strncpyz(key, com_token, sizeof(key));
@@ -673,6 +668,17 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 						cl.skyaxis[2] = atof(s);
 				}
 			}
+		}
+	}
+
+
+	//map-specific sky override feature
+	for (msky = mapskies; msky; msky = msky->next)
+	{
+		if (!strcmp(msky->mapname, mapname))
+		{
+			Q_strncpyz(cl.skyname, msky->skyname, sizeof(cl.skyname));
+			break;
 		}
 	}
 }

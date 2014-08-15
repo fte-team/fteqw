@@ -1158,6 +1158,11 @@ void SV_Loadgame_f (void)
 		SV_Loadgame_Legacy(filename, f, version);
 		return;
 	}
+#ifndef SERVERONLY
+	if (cls.state)
+		CL_Disconnect_f();
+#endif
+
 	gametype = version - FTESAVEGAME_VERSION;
 	VFS_GETS(f, str, sizeof(str)-1);
 #ifndef SERVERONLY

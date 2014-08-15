@@ -10,7 +10,7 @@ extern PP_Instance pp_instance;
 
 static PPB_Audio_Callback audio_callback;
 
-extern int GetSoundtime(soundcardinfo_t *sc);
+extern int S_GetMixerTime(soundcardinfo_t *sc);
 
 static void PPAPI_audio_callback(void *sample_buffer, uint32_t len, void *user_data)
 {
@@ -18,7 +18,7 @@ static void PPAPI_audio_callback(void *sample_buffer, uint32_t len, void *user_d
 	unsigned int framesz;
 	if (sc)
 	{
-		int curtime = GetSoundtime(sc);
+		int curtime = S_GetMixerTime(sc);
 		framesz = sc->sn.numchannels * sc->sn.samplebits/8;
 
 		//might as well dump it directly...

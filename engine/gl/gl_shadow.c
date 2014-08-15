@@ -578,6 +578,9 @@ static struct {
 	int prev;
 } edge[MAX_MAP_EDGES];
 static int firstedge;
+//} *edge;
+//static int firstedge;
+//static int maxedge;
 
 static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 {
@@ -1404,6 +1407,11 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	}
 
 	firstedge=0;
+//	if (maxedge < cl.worldmodel->numedges)
+//	{
+//		maxedge = cl.worldmodel->numedges;
+//		edge = realloc(edge, sizeof(*edge) * maxedge);
+//	}
 
 	if (cl.worldmodel->type == mod_brush)
 	{
@@ -3192,7 +3200,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 
 	BE_Scissor(NULL);
 
-	oldfbo = GLBE_FBO_Update(&crepuscular_fbo, true, FBO_TEX_COLOUR, crepuscular_texture_id, r_nulltex, vid.pixelwidth, vid.pixelheight);
+	oldfbo = GLBE_FBO_Update(&crepuscular_fbo, 0, &crepuscular_texture_id, 1, r_nulltex, vid.pixelwidth, vid.pixelheight);
 
 	BE_SelectMode(BEM_CREPUSCULAR);
 	BE_SelectDLight(dl, colours, LSHADER_STANDARD);

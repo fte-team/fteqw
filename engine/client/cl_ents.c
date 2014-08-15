@@ -2874,7 +2874,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		snew = &newpack->entities[newpnum];
 
 		sold = NULL;
-		for ( ; oldpnum<oldpack->num_entities ; oldpnum)
+		for ( ; oldpnum<oldpack->num_entities ; )
 		{
 			sold = &oldpack->entities[oldpnum++];
 			if (sold->number >= snew->number)

@@ -262,7 +262,7 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 			eval_t *ptr;
 			fdef_t *fdef;
 			fdef_t *cnfd;
-			char *classname;
+			const char *classname;
 			if (!ent || !fld)
 				continue;
 			//all this extra code to avoid printing dupes...
@@ -1358,7 +1358,6 @@ PR_ExecuteProgram
 */
 static void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 {
-	int swtchtype = 0; //warning about not being initialized before use
 	int		runaway;
 
 	if (prinst.watch_ptr && prinst.watch_ptr->_int != prinst.watch_old._int)

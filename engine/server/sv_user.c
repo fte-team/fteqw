@@ -941,7 +941,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					ClientReliableWrite_Byte (client, track);
 
 				if (!track && *sv.h2miditrack)
-					SV_StuffcmdToClient(client, va("cd loop \"%s\"\n"));
+					SV_StuffcmdToClient(client, va("cd loop \"%s\"\n", sv.h2miditrack));
 			}
 			else if (client->prespawn_idx == 2)
 			{
@@ -1999,7 +1999,7 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 			pos += csize;
 		}
 
-		s = va("\ncl_downloadfinished %i %i \"\"\n", host_client->downloadsize, crc);
+		s = va("\ncl_downloadfinished %u %i \"\"\n", (unsigned int)host_client->downloadsize, crc);
 		ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen(s));
 		ClientReliableWrite_String(cl, s);
 

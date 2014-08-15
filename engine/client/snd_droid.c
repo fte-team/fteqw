@@ -27,6 +27,7 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_audioinfo(JNIEnv *env, jcla
 	}
 }
 
+extern int S_GetMixerTime(soundcardinfo_t *sc);
 //transfer the 'dma' buffer into the buffer it requests, called from a dedicated sound thread created by the java code.
 JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_paintaudio(JNIEnv *env, jclass this, jbyteArray stream, jint len)
 {
@@ -38,7 +39,7 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_paintaudio(JNIEnv *env, jcl
 	{
 		int buffersize = sc->sn.samples*sc->sn.samplebits/8;
 
-		int curtime = GetSoundtime(sc);
+		int curtime = S_GetMixerTime(sc);
 		framesz = sc->sn.numchannels * sc->sn.samplebits/8;
 
 		S_PaintChannels (sc, curtime + (len / framesz));

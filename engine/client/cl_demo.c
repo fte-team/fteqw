@@ -1537,6 +1537,9 @@ void CL_PlayDemo_f (void)
 		return;
 	}
 
+	if (cls.state == ca_demostart)
+		cls.state = ca_disconnected;
+
 #ifdef WEBCLIENT
 #ifdef warningmsg
 #pragma warningmsg("playdemo http://blah is broken right now")

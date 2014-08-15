@@ -2813,7 +2813,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 	S_Update_(sc);
 }
 
-int GetSoundtime(soundcardinfo_t *sc)
+int S_GetMixerTime(soundcardinfo_t *sc)
 {
 	int		samplepos;
 	int		fullsamples;
@@ -2896,7 +2896,7 @@ static void S_Update_(soundcardinfo_t *sc)
 	int				samps;
 
 // Updates DMA time
-	soundtime = GetSoundtime(sc);
+	soundtime = S_GetMixerTime(sc);
 
 	if (sc->samplequeue)
 	{

@@ -5943,7 +5943,9 @@ qboolean CSQC_DrawView(void)
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 {
 	void *pr_globals;
+#ifdef TEXTEDITOR
 	extern qboolean editormodal;
+#endif
 
 	if (!csqcprogs || !csqcg.input_event)
 		return false;

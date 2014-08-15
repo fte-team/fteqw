@@ -899,7 +899,6 @@ static int DSOUND_InitCard_Internal (soundcardinfo_t *sc, char *cardname)
 
 
 #ifdef MULTITHREAD
-int GetSoundtime(soundcardinfo_t *sc);
 static int DSOUND_Thread(void *arg)
 {
 	soundcardinfo_t *sc = arg;

@@ -404,7 +404,6 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 
 void SCR_CPrint_f(void)
 {
-	char *s = Cmd_Args();
 	if (Cmd_Argc() == 2)
 		SCR_CenterPrint(0, Cmd_Argv(1), true);
 	else
@@ -1031,13 +1030,7 @@ void SCR_CrosshairPosition(playerview_t *pview, float *x, float *y)
 		tr.fraction = 1;
 		cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, MASK_WORLDSOLID, &tr);
 		start[2]-=16;
-		if (tr.fraction == 1)
-		{
-			*x = rect.x + rect.width/2 + cl_crossx.value;
-			*y = rect.y + rect.height/2 + cl_crossy.value;
-			return;
-		}
-		else
+		if (tr.fraction != 1)
 		{
 			adj=pview->viewheight;
 			if (v_viewheight.value < -7)
@@ -1049,17 +1042,14 @@ void SCR_CrosshairPosition(playerview_t *pview, float *x, float *y)
 
 			start[2]+=adj;
 			Matrix4x4_CM_Project(tr.endpos, end, pview->simangles, start, r_refdef.fov_x, r_refdef.fov_y);
-			*x = rect.x+rect.width*end[0];
-			*y = rect.y+rect.height*(1-end[1]);
+			*x = rect.x+rect.width*end[0] + cl_crossx.value;
+			*y = rect.y+rect.height*(1-end[1]) + cl_crossy.value;
 			return;
 		}
 	}
-	else
-	{
-		*x = rect.x + rect.width/2 + cl_crossx.value;
-		*y = rect.y + rect.height/2 + cl_crossy.value;
-		return;
-	}
+
+	*x = rect.x + rect.width/2 + cl_crossx.value;
+	*y = rect.y + rect.height/2 + cl_crossy.value;
 }
 
 /*
@@ -1594,7 +1584,7 @@ void SCR_DrawLoading (qboolean opaque)
 		{
 			Draw_FunString(x+8, y+8+4, va("%5ukbps %8umb%s remaining (%i files)",
 				(unsigned int)(CL_DownloadRate()/1000.0f),
-				tsize/(1024*1024),
+				(unsigned int)(tsize/(1024*1024)),
 				sizeextra?"+":"",
 				fcount));
 		}
@@ -1602,7 +1592,7 @@ void SCR_DrawLoading (qboolean opaque)
 		{
 			Draw_FunString(x+8, y+8+4, va("%5ukbps %8ukb%s remaining (%i files)",
 				(unsigned int)(CL_DownloadRate()/1000.0f),
-				tsize/1024,
+				(unsigned int)(tsize/1024),
 				sizeextra?"+":"",
 				fcount));
 		}
@@ -1719,7 +1709,7 @@ void SCR_SetUpToDrawConsole (void)
 		if ((!Key_Dest_Has(~(kdm_console|kdm_game))) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload))
 		{
 			//force console to fullscreen if we're loading stuff
-			Key_Dest_Add(kdm_console);
+//			Key_Dest_Add(kdm_console);
 			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
 		}
 		else if (!Key_Dest_Has(kdm_menu) && (!Key_Dest_Has(~(kdm_console|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))

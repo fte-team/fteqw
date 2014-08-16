@@ -1730,7 +1730,9 @@ void CL_PlayDemo(char *demoname)
 		//work out if the first line is a int for the track number.
 		while ((VFS_READ(f, &chr, 1)==1) && (chr != '\n'))
 		{
-			if (chr == '-')
+			if (chr == ' ')
+				;
+			else if (chr == '-')
 				neg = true;
 			else if (chr < '0' || chr > '9')
 				break;

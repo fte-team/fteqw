@@ -922,6 +922,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 
 	if (!bufferlen)	//new message section
 	{
+		majortype = data;
 		switch(data)
 		{
 		case svcdp_showlmp:
@@ -997,16 +998,74 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = sizeof(buffer);
 			break;
 		default:
-			Con_DPrintf("NQWriteByte: bad protocol %i\n", (int)data);
-			protocollen = sizeof(buffer);
+			if (data & 128)
+			{
+				majortype = 128;	//nq 'fast update'
+				ignoreprotocol = true;
+				//this handling is explicitly for hipnotic.
+				//hipnotic sends a camera entity this way so that svc_setview knows where to position itself.
+				//we emulate this with quakeworld protocols, so we don't necessarily need to support it other than to strip it.
+				//we're probably screwed if we're acting as an nq server, but few people will use that.
+			}
+			else
+			{
+				Con_DPrintf("NQWriteByte: bad protocol %i\n", (int)data);
+				protocollen = sizeof(buffer);
+			}
 			break;
 		}
-		majortype = data;
 	}
 	if (bufferlen == 1 && !protocollen)	//some of them depend on the following bytes for size.
 	{
 		switch(majortype)
 		{
+		case 128:
+			{
+				unsigned int bits = buffer[0];
+				protocollen = 1;
+				if (bits & NQU_MOREBITS)
+				{
+					bits |= data<<8;
+					protocollen+=1;
+				}
+
+				if (bits != (NQU_SIGNAL|NQU_MOREBITS|NQU_ORIGIN1|NQU_ORIGIN2|NQU_ORIGIN3|NQU_LONGENTITY))
+				{	//this mask is what hipnotic uses. warn if anyone else tries it.
+					Con_Printf("fast update will be stripped\n");
+					PR_StackTrace(svprogfuncs, false);
+				}
+				if (bits & NQU_ORIGIN1)
+					protocollen+=2;
+				if (bits & NQU_ORIGIN2)
+					protocollen+=2;
+				if (bits & NQU_ORIGIN3)
+					protocollen+=2;
+				if (bits & NQU_ANGLE2)
+					protocollen+=1;
+				//nolerp no data
+				if (bits & NQU_FRAME)
+					protocollen+=1;
+
+				if (bits & NQU_ANGLE1)
+					protocollen+=1;
+				if (bits & NQU_ANGLE3)
+					protocollen+=1;
+				if (bits & NQU_MODEL)
+					protocollen+=1;
+				if (bits & NQU_COLORMAP)
+					protocollen+=1;
+				if (bits & NQU_SKIN)
+					protocollen+=1;
+				if (bits & NQU_EFFECTS)
+					protocollen+=1;
+				if (bits & NQU_LONGENTITY)
+					protocollen+=2;
+				else
+					protocollen+=1;
+				if (bits & DPU_EXTEND1)
+					Con_DPrintf("NQWriteByte: fast update with extension bits is not supported\n");
+			}
+			break;
 		case svc_sound:
 			protocollen = 5+destprim->coordsize*3;
 			if (data & NQSND_VOLUME)
@@ -1174,6 +1233,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svcdp_hidelmp:
 		case svc_stufftext:
 		case svc_centerprint:
+		case svc_cutscene:
 			if (!data)
 				protocollen = bufferlen;
 			break;
@@ -1383,6 +1443,7 @@ void NPP_NQWriteString(int dest, const char *data)	//replacement write func (nq 
 		case svc_updatename:
 		case svc_stufftext:
 		case svc_centerprint:
+		case svc_cutscene:
 			protocollen = bufferlen;
 			break;
 		}

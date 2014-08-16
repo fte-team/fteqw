@@ -3419,7 +3419,7 @@ void CLNQ_ParseClientdata (void)
 //			cl.mvelocity[0][i] = 0;
 	}
 
-	if (bits & SU_ITEMS)
+	if ((bits & SU_ITEMS) || cls.protocol_nq == CPNQ_ID)	//hipnotic bug - hipnotic demos don't always have SU_ITEMS set, yet they update STAT_ITEMS anyway.
 		CL_SetStatInt(0, STAT_ITEMS, MSG_ReadLong());
 
 //	cl.onground = (bits & SU_ONGROUND) != 0;

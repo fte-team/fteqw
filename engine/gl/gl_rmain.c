@@ -159,8 +159,8 @@ void GL_SetupSceneProcessingTextures (void)
 	if (!gl_config.arb_shader_objects)
 		return;
 
-	TEXASSIGN(scenepp_texture_warp, GL_AllocNewTexture("***postprocess_warp***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_NOMIPMAP|IF_NOGAMMA));
-	TEXASSIGN(scenepp_texture_edge, GL_AllocNewTexture("***postprocess_edge***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_NOMIPMAP|IF_NOGAMMA));
+	TEXASSIGN(scenepp_texture_warp, GL_AllocNewTexture("***postprocess_warp***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_NOMIPMAP|IF_NOGAMMA|IF_LINEAR));
+	TEXASSIGN(scenepp_texture_edge, GL_AllocNewTexture("***postprocess_edge***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_NOMIPMAP|IF_NOGAMMA|IF_LINEAR));
 
 	// init warp texture - this specifies offset in
 	for (y=0; y<PP_WARP_TEX_SIZE; y++)

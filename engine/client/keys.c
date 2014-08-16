@@ -2076,10 +2076,26 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 //
 // during demo playback, most keys bring up the main menu
 //
-	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && down && conkey && key != K_TAB && !Key_Dest_Has(~kdm_game))
+	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && down && conkey && !Key_Dest_Has(~kdm_game))
 	{
-		M_ToggleMenu_f ();
-		return;
+		switch (key)
+		{	//these keys don't force the menu to appear while playing the demo reel
+		case K_LSHIFT:
+		case K_RSHIFT:
+		case K_LALT:
+		case K_RALT:
+		case K_LCTRL:
+//		case K_RCTRL:
+			break;
+		default:
+			dc = keybindings[key][modifierstate];
+			//toggleconsole or +showFOO keys should do their regular bind action
+			if (!dc || (strcmp(dc, "toggleconsole") && strncmp(dc, "+show", 5)))
+			{
+				M_ToggleMenu_f ();
+				return;
+			}
+		}
 	}
 
 //

@@ -6056,14 +6056,14 @@ void CLQW_ParseServerMessage (void)
 		case svcqw_updatestatbyte:
 			i = MSG_ReadByte ();
 			j = MSG_ReadByte ();
-			CL_SetStatInt (destsplit, i, j);
 			CL_SetStatFloat (destsplit, i, j);
+			CL_SetStatInt (destsplit, i, j);
 			break;
 		case svcqw_updatestatlong:
 			i = MSG_ReadByte ();
 			j = MSG_ReadLong ();	//make qbyte if nq compatability?
-			CL_SetStatInt (destsplit, i, j);
 			CL_SetStatFloat (destsplit, i, j);
+			CL_SetStatInt (destsplit, i, j);
 			break;
 
 		case svcfte_updatestatstring:

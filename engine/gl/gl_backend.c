@@ -1002,23 +1002,25 @@ int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, fl
 static void T_Gen_CurrentRender(int tmu)
 {
 	int vwidth, vheight;
+	int pwidth = vid.fbpwidth;
+	int pheight = vid.fbpheight;
 	if (r_refdef.recurse)
 		return;
 
 	if (r_config.texture_non_power_of_two)
 	{
-		vwidth = vid.pixelwidth;
-		vheight = vid.pixelheight;
+		vwidth = pwidth;
+		vheight = pheight;
 	}
 	else
 	{
 		vwidth = 1;
 		vheight = 1;
-		while (vwidth < vid.pixelwidth)
+		while (vwidth < pwidth)
 		{
 			vwidth *= 2;
 		}
-		while (vheight < vid.pixelheight)
+		while (vheight < pheight)
 		{
 			vheight *= 2;
 		}

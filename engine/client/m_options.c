@@ -545,6 +545,7 @@ const char *presetexec[] =
 	// 286 options (also the first commands to be execed in the chain)
 	"seta m_preset_chosen 1;"
 	"seta gl_texturemode nn;"
+	"seta gl_texturemode2d n;"
 	"seta gl_blendsprites 0;"
 	"seta r_particlesystem null;"
 	"seta r_particledesc \"\";"
@@ -584,6 +585,7 @@ const char *presetexec[] =
 
 	, // fast options
 	"gl_texturemode ln;"
+	"gl_texturemode2d n;"
 	"r_particlesystem classic;"
 	"r_particledesc classic;"
 	"r_drawflat 0;"
@@ -607,7 +609,9 @@ const char *presetexec[] =
 	"cl_rollangle 2.0;"
 	"cl_bob 0.02;"
 	//these things are perhaps a little extreme
+	"r_loadlit 0;"
 	"gl_texturemode nn;"		//yup, we went there.
+	"gl_texturemode2d n;"		//yeah, 2d too.
 	"r_part_classic_square 1;"	//blocky baby!
 	"cl_sbar 1;"				//its a style thing
 	"sv_nqplayerphysics 1;"		//gb wanted this
@@ -627,9 +631,11 @@ const char *presetexec[] =
 	"r_coronas 1;"
 	"r_lerpmuzzlehack 1;"
 	"gl_texturemode ln;"
+	"gl_texturemode2d l;"
 	"cl_sbar 0;"
 	"sv_nqplayerphysics 0;"
 	"cl_demoreel 0;"
+	"r_loadlit 1;"
 
 	, // nice options
 	"r_stains 0.75;"

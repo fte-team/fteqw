@@ -717,7 +717,6 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 	PR_LoadGlabalStruct();
 
-	pr_global_struct->serverflags = svs.serverflags;
 	pr_global_struct->time = sv.time = sv.world.physicstime = time;
 	sv.starttime = Sys_DoubleTime() - sv.time;
 
@@ -1094,6 +1093,8 @@ void SV_Savegame (char *savename)
 
 	VFS_PRINTF (f, "%s\n", sv.name);
 
+	VFS_PRINTF (f, "%g\n", (float)svs.serverflags);
+
 	VFS_CLOSE(f);
 
 #ifdef Q2SERVER
@@ -1225,9 +1226,9 @@ void SV_Loadgame_f (void)
 				for (trim = str+strlen(str)-1; trim>=str && *trim <= ' '; trim--)
 					*trim='\0';
 				for (trim = str; *trim <= ' ' && *trim; trim++)
-
-				if (*str == '(')
-					cl->spawn_parms[len] = atof(str);
+					;
+				if (*trim == '(')
+					cl->spawn_parms[len] = atof(trim+1);
 				else
 				{
 					version = atoi(str);
@@ -1319,6 +1320,10 @@ void SV_Loadgame_f (void)
 		*trim='\0';
 	for (trim = str; *trim <= ' ' && *trim; trim++)
 		;
+
+	//serverflags is reset on restart, so we need to read the value as it was at the start of the current map.
+	VFS_GETS(f, filename, sizeof(filename)-1);
+	svs.serverflags = atof(filename);
 
 	VFS_CLOSE(f);
 

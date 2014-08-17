@@ -5084,7 +5084,7 @@ void CSQC_Event_Think(world_t *w, wedict_t *s)
 		PR_ExecuteProgram (w->progs, s->v->think);
 }
 
-void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, char *sample, int volume, float attenuation, int pitchadj)
+void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj)
 {
 	int i;
 	vec3_t originbuf;

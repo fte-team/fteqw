@@ -13,6 +13,7 @@ void M_Menu_MultiPlayer_f (void)
 	menu_t *menu;
 	mpic_t *p;
 	int mgt;
+	static menuresel_t resel;
 
 	p = NULL;
 	Key_Dest_Add(kdm_menu);
@@ -47,7 +48,7 @@ void M_Menu_MultiPlayer_f (void)
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
 
-		menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, 48, 64);
+		menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, &resel, 48, 64);
 		return;
 	}
 	else if (QBigFontWorks())
@@ -63,7 +64,7 @@ void M_Menu_MultiPlayer_f (void)
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
 
-		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
+		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
 		return;
 	}
 	else
@@ -98,7 +99,7 @@ void M_Menu_MultiPlayer_f (void)
 		b->common.width = p?p->width:320;
 	}
 
-	menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
+	menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
 }
 
 extern cvar_t	team, skin;
@@ -324,11 +325,12 @@ void M_Menu_Setup_f (void)
 	menu_t *menu;
 	menucustom_t *ci;
 	menubutton_t *b;
+	static menuresel_t resel;
 
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
-		if (R2D_SafeCachePic("pics/m_banner_plauer_setup"))
+		if (R2D_SafeCachePic("pics/m_banner_player_setup"))
 		{
 			static const char *modeloptions[] =
 			{
@@ -359,30 +361,7 @@ void M_Menu_Setup_f (void)
 			cu->draw = MSetupQ2_TransDraw;
 			cu->key = MSetupQ2_ChangeSkin;
 
-/*			MC_AddSelectablePicture(mainm, 68, 13, "pics/m_main_game");
-			MC_AddSelectablePicture(mainm, 68, 53, "pics/m_main_multiplayer");
-			MC_AddSelectablePicture(mainm, 68, 93, "pics/m_main_options");
-			MC_AddSelectablePicture(mainm, 68, 133, "pics/m_main_video");
-			MC_AddSelectablePicture(mainm, 68, 173, "pics/m_main_quit");
-
-			b = MC_AddConsoleCommand	(mainm, 68, 13,	"", "menu_single\n");
-			mainm->selecteditem = (menuoption_t *)b;
-			b->common.width = 12*20;
-			b->common.height = 20;
-			b = MC_AddConsoleCommand	(mainm, 68, 53,	"", "menu_multi\n");
-			b->common.width = 12*20;
-			b->common.height = 20;
-			b = MC_AddConsoleCommand	(mainm, 68, 93,	"", "menu_options\n");
-			b->common.width = 12*20;
-			b->common.height = 20;
-			b = MC_AddConsoleCommand	(mainm, 68, 133,	"", "menu_video\n");
-			b->common.width = 12*20;
-			b->common.height = 20;
-			b = MC_AddConsoleCommand	(mainm, 68, 173,	"", "menu_quit\n");
-			b->common.width = 12*20;
-			b->common.height = 20;
-*/
-			menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, 32, NULL, false);
+			menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
 		}
 		return;
 	}
@@ -431,7 +410,7 @@ void M_Menu_Setup_f (void)
 	b->common.tooltip = "Change network and client prediction settings.";
 	b = MC_AddConsoleCommand(menu, 64, 160, 176, "Teamplay Settings", "menu_teamplay\n");
 	b->common.tooltip = "Change teamplay macro settings.";
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
 
 
 	info->lowercolour = bottomcolor.value;
@@ -672,8 +651,9 @@ void M_Menu_Teamplay_f (void)
 		MB_CONSOLECMD("Item Names", "menu_teamplay_items\n", "Modify messages for items in team play macros."),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu_t *menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Locations_f (void)
@@ -706,8 +686,9 @@ void M_Menu_Teamplay_Locations_f (void)
 		//MB_CONSOLECMD("\x7f Teamplay", "menu_teamplay\n", "Return to the teamplay menu."),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Needs_f (void)
@@ -732,8 +713,9 @@ void M_Menu_Teamplay_Needs_f (void)
 		MB_EDITCVARSLIM("Weapon", "tp_need_weapon", "Need weapon preference order:\n8 = Lightning Gun\n7 = Rocket Launcher\n6 = Grenade Launcher\n5 = Super Nailgun\n4 = Nailgun\n3 = Super Shotgun\n2 = Shotgun\n1 = Axe"),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_f (void)
@@ -752,8 +734,9 @@ void M_Menu_Teamplay_Items_f (void)
 		MB_CONSOLECMD("Status/Location/Misc", "menu_teamplay_status_location_misc\n", "Modify status, location, and miscellaneous team play macro names."),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 224, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 224, y);
 }
 
 void M_Menu_Teamplay_Items_Armor_f (void)
@@ -774,8 +757,9 @@ void M_Menu_Teamplay_Items_Armor_f (void)
 		MB_EDITCVARSLIM("Red Armor", "tp_name_ra", "Short name for Red Armor"),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Weapons_f (void)
@@ -798,8 +782,9 @@ void M_Menu_Teamplay_Items_Weapons_f (void)
 		MB_EDITCVARSLIM("Lightning Gun", "tp_name_lg", "Short name for Lightning Gun"),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Powerups_f (void)
@@ -825,8 +810,9 @@ void M_Menu_Teamplay_Items_Powerups_f (void)
 		MB_EDITCVARSLIM("Regen Rune", "tp_name_rune_4", "Short name for Regeneration Rune"),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Ammo_Health_f (void)
@@ -847,8 +833,9 @@ void M_Menu_Teamplay_Items_Ammo_Health_f (void)
 		MB_EDITCVARSLIM("Mega Health", "tp_name_mh", "Short name for Mega Health"),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Team_Fortress_f (void)
@@ -864,8 +851,9 @@ void M_Menu_Teamplay_Items_Team_Fortress_f (void)
 		MB_EDITCVARSLIM("Flag", "tp_name_flag", "Short name for Flag"),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
@@ -891,8 +879,9 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 		MB_EDITCVARSLIM("Yellow Status", "tp_name_status_yellow", "Macro for Status Yellow in teamplay 'status' & 'location' reports"),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 void M_Menu_Network_f (void)
@@ -915,6 +904,7 @@ void M_Menu_Network_f (void)
 	extern cvar_t cl_download_csprogs, cl_download_redirection, requiredownloads, cl_solid_players;
 	extern cvar_t cl_splitscreen, cl_predict_players, cl_predict_smooth, cl_predict_extrapolate;
 	menu_t *menu;
+	static menuresel_t resel;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -936,5 +926,5 @@ void M_Menu_Network_f (void)
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }

@@ -129,6 +129,7 @@ void M_Menu_SinglePlayer_f (void)
 	menubutton_t *b;
 	mpic_t *p;
 #endif
+	static menuresel_t resel;
 
 	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
@@ -305,7 +306,7 @@ void M_Menu_SinglePlayer_f (void)
 		MC_AddConsoleCommand	(menu, 64, y+=8,	"Save Game", "menu_save\n");
 		*/
 
-		menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, 56, menu->selecteditem?menu->selecteditem->common.posy:0);
+		menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, &resel, 56, menu->selecteditem?menu->selecteditem->common.posy:0);
 
 		return;
 	}
@@ -320,7 +321,7 @@ void M_Menu_SinglePlayer_f (void)
 		MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"Save Game", "menu_save\n");
 
-		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
+		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
 		return;
 	}
 	else
@@ -353,7 +354,7 @@ void M_Menu_SinglePlayer_f (void)
 		b->common.width = p->width;
 		b->common.height = 20;
 
-		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, 54, 32);
+		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
 	}
 #endif
 }

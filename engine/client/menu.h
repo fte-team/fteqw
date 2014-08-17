@@ -136,6 +136,7 @@ typedef enum {
 	mt_picture,
 	mt_picturesel,
 	mt_menudot,
+	mt_menucursor,
 	mt_custom
 } menutype_t;
 
@@ -260,6 +261,11 @@ typedef struct menutooltip_s {
 	int columns;
 } menutooltip_t;
 
+typedef struct menuresel_s	//THIS STRUCT MUST BE STATICALLY ALLOCATED.
+{
+	int x, y;
+} menuresel_t;
+
 typedef struct menu_s {
 	int xpos;
 	int ypos;
@@ -267,6 +273,7 @@ typedef struct menu_s {
 	int height;
 	qboolean dontexpand;
 	int numoptions;
+	menuresel_t *reselection;	//stores some info to restore selection properly.
 
 	qboolean iszone;
 	qboolean exclusive;
@@ -298,7 +305,8 @@ menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height);
 menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname);
 menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname);
 menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picname);
-menupicture_t *MC_AddCursor(menu_t *menu, int x, int y);
+menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *resel, int x, int y);
+menuoption_t *MC_AddCursorSmall(menu_t *menu, menuresel_t *reselection, int x, int y);
 menuslider_t *MC_AddSlider(menu_t *menu, int tx, int sx, int y, const char *text, cvar_t *var, float min, float max, float delta);
 menucheck_t *MC_AddCheckBox(menu_t *menu, int tx, int cx, int y, const char *text, cvar_t *var, int cvarbitmask);
 menucheck_t *MC_AddCheckBoxFunc(menu_t *menu, int tx, int cx, int y, const char *text, qboolean (*func) (menucheck_t *option, menu_t *menu, chk_set_t set), int bits);
@@ -355,7 +363,7 @@ typedef struct menubulk_s {
 #define MB_SPACING(space) 											{mt_text, 2, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, NULL, space}
 #define MB_END() 													{mt_text, -1}
 
-int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, int y);
+int MC_AddBulk(struct menu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y);
 
 
 

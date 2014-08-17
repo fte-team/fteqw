@@ -13,6 +13,7 @@ extern cvar_t cl_cursorbias;
 extern cvar_t m_preset_chosen;
 menu_t *currentmenu;
 menu_t *firstmenu;
+menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old);
 
 void Draw_TextBox (int x, int y, int width, int lines)
 {
@@ -409,9 +410,13 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 		if (!option->common.ishidden)
 		switch(option->common.type)
 		{
+		case mt_menucursor:
+			if ((int)(realtime*4)&1)
+				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
+			break;
 		case mt_text:
 			if (!option->text.text)
-			{	//blinking cursor image hack
+			{	//blinking cursor image hack (FIXME)
 				if ((int)(realtime*4)&1)
 					Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
 			}
@@ -809,10 +814,45 @@ menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picnam
 	return MC_AddPicture(menu, x, y, width, height, picname);
 }
 
-menupicture_t *MC_AddCursor(menu_t *menu, int x, int y)
+menuoption_t *MC_AddCursorSmall(menu_t *menu, menuresel_t *reselection, int x, int y)
+{
+	menuoption_t *n = Z_Malloc(sizeof(menucommon_t));
+	if (reselection)
+		menu->reselection = reselection;
+	n->common.type = mt_menucursor;
+	n->common.iszone = true;
+	n->common.posx = x;
+	n->common.posy = y;
+
+	n->common.next = menu->options;
+	menu->options = (menuoption_t *)n;
+
+
+	if (menu->reselection)
+	{
+		menuoption_t *sel, *firstsel = M_NextSelectableItem(menu, NULL);
+		for (sel = firstsel; sel; )
+		{
+			if (sel->common.posx == menu->reselection->x && sel->common.posy == menu->reselection->y)
+			{
+				menu->selecteditem = sel;
+				n->common.posy = sel->common.posy;
+				break;
+			}
+			sel = M_NextSelectableItem(menu, sel);
+			if (sel == firstsel)
+				break;
+		}
+	}
+	return n;
+}
+
+menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *reselection, int x, int y)
 {
 	int mgt;
 	menupicture_t *n = Z_Malloc(sizeof(menupicture_t));
+	if (reselection)
+		menu->reselection = reselection;
 	n->common.type = mt_menudot;
 	n->common.iszone = true;
 	n->common.posx = x;
@@ -843,6 +883,23 @@ menupicture_t *MC_AddCursor(menu_t *menu, int x, int y)
 		mindot = 1;
 		maxdots = 6;
 		dotofs=0;
+	}
+
+	if (menu->reselection)
+	{
+		menuoption_t *sel, *firstsel = M_NextSelectableItem(menu, NULL);
+		for (sel = firstsel; sel; )
+		{
+			if (sel->common.posx == menu->reselection->x && sel->common.posy == menu->reselection->y)
+			{
+				menu->selecteditem = sel;
+				n->common.posy = sel->common.posy;
+				break;
+			}
+			sel = M_NextSelectableItem(menu, sel);
+			if (sel == firstsel)
+				break;
+		}
 	}
 	return n;
 }
@@ -1462,6 +1519,12 @@ void M_HideMenu (menu_t *menu)
 void M_RemoveMenu (menu_t *menu)
 {
 	menuoption_t *op, *oop;
+	if (menu->reselection)
+	{
+		menu->reselection->x = menu->selecteditem->common.posx;
+		menu->reselection->y = menu->selecteditem->common.posy;
+	}
+
 	if (menu->remove)
 		menu->remove(menu);
 	if (menu == firstmenu)
@@ -1869,6 +1932,7 @@ void M_Menu_Main_f (void)
 	menubutton_t *b;
 	menu_t *mainm;
 	mpic_t *p;
+	static menuresel_t resel;
 
 	int mgt;
 
@@ -1957,7 +2021,7 @@ void M_Menu_Main_f (void)
 			b->common.width = 12*20;
 			b->common.height = 32;
 
-			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 42, mainm->selecteditem->common.posy);
+			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 42, mainm->selecteditem->common.posy);
 		}
 	}
 	else if (mgt == MGT_HEXEN2)
@@ -1998,7 +2062,7 @@ void M_Menu_Main_f (void)
 		b->common.width = 12*20;
 		b->common.height = 20;
 
-		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 56, mainm->selecteditem->common.posy);
+		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 56, mainm->selecteditem->common.posy);
 	}
 	else if (QBigFontWorks())
 	{
@@ -2032,7 +2096,7 @@ void M_Menu_Main_f (void)
 			MC_AddConsoleCommandQBigFont(mainm, 72, 92,	"Help       ", "help\n");
 		MC_AddConsoleCommandQBigFont	(mainm, 72, 112,"Quit       ", "menu_quit\n");
 
-		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 54, 32);
+		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
 	}
 	else
 	{
@@ -2090,14 +2154,14 @@ void M_Menu_Main_f (void)
 		b->common.width = p->width;
 		b->common.height = 20;
 
-		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 54, 32);
+		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
 	}
 
 	if (!m_preset_chosen.ival)
 		M_Menu_Preset_f();
 }
 
-int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, int y)
+int MC_AddBulk(struct menu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y)
 {
 	int selectedy = y;
 	menuoption_t *selected = NULL;
@@ -2202,6 +2266,6 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 	menu->selecteditem = selected;
 	if (selected)
 		selectedy = selected->common.posy;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, xtextend + 8, 0, selectedy, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, resel, xtextend + 8, selectedy);
 	return y;
 }

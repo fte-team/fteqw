@@ -122,8 +122,8 @@ void M_Menu_Options_f (void)
 		MB_END()
 	};
 	menu_t *menu = M_Options_Title(&y, 0);
-
-	MC_AddBulk(menu, bulk, 16, 216, y);
+	static menuresel_t resel;
+	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 }
 
 #ifndef __CYGWIN__
@@ -425,8 +425,8 @@ void M_Menu_Audio_f (void)
 		//MB_CONSOLECMD("Speaker Test", "menu_speakers\n", "Test speaker setup output."),
 		MB_END()
 	};
-
-	MC_AddBulk(menu, bulk, 16, 216, y);
+	static menuresel_t resel;
+	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 }
 
 #else
@@ -520,10 +520,10 @@ void M_Menu_Particles_f (void)
 		// removed particle beams
 		MB_END()
 	};
+	static menuresel_t resel;
 
 	menu = M_Options_Title(&y, 0);
-
-	MC_AddBulk(menu, bulk, 16, 200, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
 
 const char *presetname[] =
@@ -697,8 +697,9 @@ void M_Menu_Preset_f (void)
 		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
 		MB_END()
 	};
+	static menuresel_t resel;
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 216, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 	//bottoms up! highlight 'normal' as the default option
 	menu->selecteditem = menu->options->common.next->common.next->common.next;
 	menu->cursoritem->common.posy = menu->selecteditem->common.posy;
@@ -797,7 +798,7 @@ void M_Menu_FPS_f (void)
 	fpsmenuinfo_t *info;
 
 	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp;
-
+	static menuresel_t resel;
 	int y;
 	menu = M_Options_Title(&y, sizeof(fpsmenuinfo_t));
 	info = (fpsmenuinfo_t *)menu->data;
@@ -823,7 +824,7 @@ void M_Menu_FPS_f (void)
 			MB_EDITCVAR("Skybox", "r_skybox"),
 			MB_END()
 		};
-		MC_AddBulk(menu, bulk, 16, 216, y);
+		MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 	}
 }
 
@@ -849,6 +850,7 @@ void M_Menu_Render_f (void)
 #ifdef GLQUAKE
 	extern cvar_t r_bloom;
 #endif
+	static menuresel_t resel;
 
 	int y;
 	menubulk_t bulk[] =
@@ -872,7 +874,7 @@ void M_Menu_Render_f (void)
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 216, y);
+	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 }
 
 #ifdef GLQUAKE
@@ -967,7 +969,8 @@ void M_Menu_Textures_f (void)
 		MB_END()
 	};
 	menu_t *menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 216, y);
+	static menuresel_t resel;
+	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 }
 #endif
 
@@ -1202,7 +1205,8 @@ void M_Menu_Lighting_f (void)
 			MB_COMBOCVAR("Model Fullbrights", r_fb_models, fb_models_opts, fb_models_values, "Affects loading of fullbrights on models/polymeshes."),
 			MB_END()
 		};
-		MC_AddBulk(menu, bulk, 16, 216, y);
+		static menuresel_t resel;
+		MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 	}
 }
 
@@ -2389,7 +2393,7 @@ void M_Menu_Video_f (void)
 	videomenuinfo_t *info;
 	static char current3dres[32]; // enough to fit 1920x1200
 
-
+	static menuresel_t resel;
 	int y;
 	int resmodechoice, res2dmodechoice;
 	int reschoices[ASPECT_RATIOS], res2dchoices[ASPECT_RATIOS];
@@ -2463,7 +2467,7 @@ void M_Menu_Video_f (void)
 			MB_SLIDER("Contrast", v_contrast, 0.8, 3, 0.05, NULL),
 			MB_END()
 		};
-		MC_AddBulk(menu, bulk, 16, 200, y);
+		MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 	}
 
 	/*

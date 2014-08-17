@@ -1116,7 +1116,7 @@ void PM_NudgePosition (void)
 	}
 
 	//be more aggresssive at moving up, to match NQ
-	for (z=0 ; z<movevars.stepheight ; z++)
+	for (z=1 ; z<movevars.stepheight ; z++)
 	{
 		for (x=0 ; x<3 ; x++)
 		{

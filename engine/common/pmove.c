@@ -1114,6 +1114,23 @@ void PM_NudgePosition (void)
 			}
 		}
 	}
+
+	//be more aggresssive at moving up, to match NQ
+	for (z=0 ; z<movevars.stepheight ; z++)
+	{
+		for (x=0 ; x<3 ; x++)
+		{
+			for (y=0 ; y<3 ; y++)
+			{
+				pmove.origin[0] = base[0] + (sign[x] * 1.0/8);
+				pmove.origin[1] = base[1] + (sign[y] * 1.0/8);
+				pmove.origin[2] = base[2] + z;
+				if (PM_TestPlayerPosition (pmove.origin, false))
+					return;
+			}
+		}
+	}
+
 	if (pmove.safeorigin_known)
 		VectorCopy (pmove.safeorigin, pmove.origin);
 	else

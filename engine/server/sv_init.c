@@ -1506,7 +1506,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_ImageName(server);
 #endif
 	// run two frames to allow everything to settle
+	//these frames must be at 1.0 then 1.1 (and 0.1 frametime)
+	//(bug: starting less than that gives time for the scrag to fall on end)
 	realtime += 0.1;
+	sv.world.physicstime = 1.0;
+	sv.time = 1.1;
 	SV_Physics ();
 #ifndef SERVERONLY
 	current_loading_size+=10;
@@ -1514,9 +1518,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_ImageName(server);
 #endif
 	realtime += 0.1;
+//	sv.world.physicstime = 1.1;
 	sv.time += 0.1;
 	sv.starttime -= 0.1;
 	SV_Physics ();
+	sv.time += 0.1;
 
 #ifndef SERVERONLY
 	current_loading_size+=10;

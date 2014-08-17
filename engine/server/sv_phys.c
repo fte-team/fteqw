@@ -845,7 +845,7 @@ SV_Push
 */
 static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove)
 {
-#define PUSHABLE_LIMIT 32768
+#define PUSHABLE_LIMIT 8192
 	int			i, e;
 	wedict_t	*check, *block;
 	vec3_t		mins, maxs;
@@ -862,8 +862,8 @@ static qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t am
 
 	for (i=0 ; i<3 ; i++)
 	{
-		mins[i] = pusher->v->absmin[i] + move[i];
-		maxs[i] = pusher->v->absmax[i] + move[i];
+		mins[i] = pusher->v->absmin[i] + move[i]-(1/32.0);
+		maxs[i] = pusher->v->absmax[i] + move[i]+(1/32.0);
 	}
 
 	VectorCopy (pusher->v->origin, pushorig);
@@ -2462,7 +2462,6 @@ qboolean SV_Physics (void)
 		}
 		if (!host_frametime)
 			continue;
-		sv.world.physicstime += host_frametime;
 
 		moved = true;
 
@@ -2507,6 +2506,7 @@ qboolean SV_Physics (void)
 
 		NPP_Flush();	//flush it just in case there was an error and we stopped preparsing. This is only really needed while debugging.
 
+		sv.world.physicstime += host_frametime;
 	}
 	return moved;
 }

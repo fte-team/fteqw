@@ -476,6 +476,9 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
 	}
 
+//	if (ent->v->solid == SOLID_NOT && !sv_gameplayfix_nolinknonsolid.ival)
+//		return;
+
 // find the first node that the ent's box crosses
 	if (ent->v->solid == SOLID_PORTAL)
 		node = &w->portallist;
@@ -897,7 +900,7 @@ wedict_t	*World_TestEntityPosition (world_t *w, wedict_t *ent)
 
 	trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, ent->v->origin, ((ent->v->solid == SOLID_NOT || ent->v->solid == SOLID_TRIGGER)?MOVE_NOMONSTERS:0), ent);
 	
-	if (trace.startsolid)
+	if (trace.startsolid || trace.allsolid)
 		return trace.ent?trace.ent:w->edicts;
 		
 	return NULL;
@@ -1649,9 +1652,12 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 		else
 			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
 
-		if (trace.allsolid || trace.startsolid ||
-		trace.fraction < clip->trace.fraction)
+		if (trace.fraction < clip->trace.fraction)
 		{
+			//trace traveled less, but don't forget if we started in a solid.
+			trace.startsolid |= clip->trace.startsolid;
+			trace.allsolid |= clip->trace.allsolid;
+
 			if (clip->type & MOVE_ENTCHAIN)
 			{
 				touch->v->chain = EDICT_TO_PROG(w->progs, clip->trace.ent?clip->trace.ent:w->edicts);
@@ -1659,9 +1665,20 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 			}
 			else
 			{
-				trace.ent = touch;
+				if (clip->trace.startsolid && !trace.startsolid)
+					trace.ent = clip->trace.ent;	//something else hit earlier, that one gets the trace entity, but not the fraction. yeah, combining traces like this was always going to be weird.
+				else
+					trace.ent = touch;
 				clip->trace = trace;
 			}
+		}
+		else if (trace.startsolid || trace.allsolid)
+		{
+			//even if the trace traveled less, we still care if it was in a solid.
+			clip->trace.startsolid |= trace.startsolid;
+			clip->trace.allsolid |= trace.allsolid;
+			if (!clip->trace.ent)
+				clip->trace.ent = touch;
 		}
 	}
 	

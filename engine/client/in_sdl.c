@@ -104,6 +104,7 @@ static void J_JoystickAdded(int enumid)
 }
 static struct sdljoy_s *J_DevId(int jid)
 {
+	int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++)
 		if (sdljoy[i].joystick && sdljoy[i].id == jid)
 			return &sdljoy[i];

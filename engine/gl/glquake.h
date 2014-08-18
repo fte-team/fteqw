@@ -76,6 +76,9 @@ extern r_config_t r_config;
 	#elif defined(__MACOSX__)
 		//apple, you suck.
 		#include <AGL/agl.h>
+	#elif defined(__APPLE__)
+		#include <OpenGL/gl.h>	//tuna says use this.
+		//apple really do suck.
 	#elif defined(NACL) || defined(FTE_TARGET_WEB)
 		#include <GLES2/gl2.h>
 		#define GLclampd GLclampf

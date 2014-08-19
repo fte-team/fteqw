@@ -3373,6 +3373,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 void CLNQ_ParseClientdata (void)
 {
 	int		i;
+	player_state_t *pl = &cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[0].playernum];
 
 	unsigned int bits;
 
@@ -3393,7 +3394,6 @@ void CLNQ_ParseClientdata (void)
 	/*else
 		cl.idealpitch = 0;*/
 
-//	VectorCopy (cl.mvelocity[0], cl.mvelocity[1]);
 	for (i=0 ; i<3 ; i++)
 	{
 		if (bits & (SU_PUNCH1<<i) )
@@ -3408,21 +3408,21 @@ void CLNQ_ParseClientdata (void)
 //		else
 //			cl.punchvector[i] = 0;
 
-		if (bits & (SU_VELOCITY1<<i) )
+		if (bits & (SU_VELOCITY1<<i))
 		{
 			if (CPNQ_IS_DP)
-				/*cl.simvel[0][i] =*/ MSG_ReadFloat();
+				pl->velocity[i] = MSG_ReadFloat();
 			else
-			/*cl.mvelocity[0][i] =*/ MSG_ReadChar()/**16*/;
+				pl->velocity[i] = MSG_ReadChar()*16;
 		}
-//		else
-//			cl.mvelocity[0][i] = 0;
+		else
+			pl->velocity[i] = 0;
 	}
 
 	if ((bits & SU_ITEMS) || cls.protocol_nq == CPNQ_ID)	//hipnotic bug - hipnotic demos don't always have SU_ITEMS set, yet they update STAT_ITEMS anyway.
 		CL_SetStatInt(0, STAT_ITEMS, MSG_ReadLong());
 
-//	cl.onground = (bits & SU_ONGROUND) != 0;
+	pl->onground = (bits & SU_ONGROUND) != 0;
 //	cl.inwater = (bits & SU_INWATER) != 0;
 
 	if (cls.protocol_nq == CPNQ_DP5)

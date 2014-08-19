@@ -1301,9 +1301,9 @@ texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfm
 	}
 	else
 	{
-		tid = R_FindTexture(id, IF_NOMIPMAP);
+		tid = R_FindTexture(id, IF_NOMIPMAP|IF_CLAMP|IF_LINEAR);
 		if (!TEXVALID(tid))
-			tid = R_AllocNewTexture(id, 0, 0, IF_NOMIPMAP);
+			tid = R_AllocNewTexture(id, 0, 0, IF_NOMIPMAP|IF_CLAMP|IF_LINEAR);
 	}
 	if (rtfmt)
 	{
@@ -1317,7 +1317,7 @@ texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfm
 		case 6: rtfmt = TF_DEPTH32;	break;
 		default:rtfmt = TF_INVALID;	break;
 		}
-		R_Upload(tid, id, rtfmt, NULL, NULL, width, height, IF_NOMIPMAP);
+		R_Upload(tid, id, rtfmt, NULL, NULL, width, height, IF_NOMIPMAP|IF_CLAMP|IF_LINEAR);
 		tid.ref->width = width;
 		tid.ref->height = height;
 	}

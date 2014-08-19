@@ -98,6 +98,7 @@ texid_t scenepp_postproc_cube;
 int scenepp_postproc_cube_size;
 
 fbostate_t fbo_gameview;
+fbostate_t fbo_postproc;
 
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
@@ -111,7 +112,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 			"{\n"
 				"program underwaterwarp\n"
 				"{\n"
-					"map $currentrender\n"
+					"map $sourcecolour\n"
 				"}\n"
 				"{\n"
 					"map $upperoverlay\n"
@@ -129,6 +130,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 void GL_ShutdownPostProcessing(void)
 {
 	GLBE_FBO_Destroy(&fbo_gameview);
+	GLBE_FBO_Destroy(&fbo_postproc);
 	R_BloomShutdown();
 }
 
@@ -388,7 +390,16 @@ void R_SetupGL (float stereooffset)
 		//
 		// set up viewpoint
 		//
-		if (*r_refdef.rt_destcolour[0].texname)
+		if (r_refdef.flags & (RDF_ALLPOSTPROC))
+		{
+			//with fbo postprocessing, we disable all viewport.
+			r_refdef.pxrect.x = 0;
+			r_refdef.pxrect.y = 0;
+			r_refdef.pxrect.width = vid.fbpwidth;
+			r_refdef.pxrect.height = vid.fbpheight;
+			r_refdef.pxrect.maxheight = vid.fbpheight;
+		}
+		else if (*r_refdef.rt_destcolour[0].texname)
 		{
 			//with fbo rendering, we disable all virtual scaling.
 			x = r_refdef.vrect.x;
@@ -407,18 +418,18 @@ void R_SetupGL (float stereooffset)
 		}
 		else
 		{
-			x = r_refdef.vrect.x * (int)vid.pixelwidth/(int)vid.width;
-			x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.pixelwidth/(int)vid.width;
-			y = (r_refdef.vrect.y) * (int)vid.pixelheight/(int)vid.height;
-			y2 = (r_refdef.vrect.y + r_refdef.vrect.height) * (int)vid.pixelheight/(int)vid.height;
+			x = r_refdef.vrect.x * (int)vid.fbpwidth/(int)vid.width;
+			x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.fbpwidth/(int)vid.width;
+			y = (r_refdef.vrect.y) * (int)vid.fbpheight/(int)vid.height;
+			y2 = (r_refdef.vrect.y + r_refdef.vrect.height) * (int)vid.fbpheight/(int)vid.height;
 
 
 			// fudge around because of frac screen scale
 			if (x > 0)
 				x--;
-			if (x2 < vid.pixelwidth)
+			if (x2 < vid.fbpwidth)
 				x2++;
-			if (y2 < vid.pixelheight)
+			if (y2 < vid.fbpheight)
 				y2++;
 			if (y > 0)
 				y--;
@@ -430,21 +441,21 @@ void R_SetupGL (float stereooffset)
 			{
 				w /= 2;
 				if (stereooffset > 0)
-					x += vid.pixelwidth/2;
+					x += vid.fbpwidth/2;
 			}
 
 			r_refdef.pxrect.x = x;
 			r_refdef.pxrect.y = y;
 			r_refdef.pxrect.width = w;
 			r_refdef.pxrect.height = h;
-			r_refdef.pxrect.maxheight = vid.pixelheight;
+			r_refdef.pxrect.maxheight = vid.fbpheight;
 		}
 		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
 		GL_ViewportUpdate();
 
-		if ((r_waterwarp.value<0 || (r_waterwarp.value && !R_GameRectIsFullscreen())) && (r_viewcontents & FTECONTENTS_FLUID))
+		if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
 		{
 			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
@@ -510,6 +521,7 @@ void R_SetupGL (float stereooffset)
 }
 
 void Surf_SetupFrame(void);
+
 /*
 ================
 R_RenderScene
@@ -524,8 +536,6 @@ void R_RenderScene (void)
 	int stereomode;
 	int i;
 	int tmpvisents = cl_numvisedicts;	/*world rendering is allowed to add additional ents, but we don't want to keep them for recursive views*/
-	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
-		r_refdef.flags |= RDF_NOWORLDMODEL;
 
 	stereomode = r_stereo_method.ival;
 	if (stereomode == 1)
@@ -569,7 +579,7 @@ void R_RenderScene (void)
 				qglDrawBuffer(GL_BACK_RIGHT);
 			break;
 #endif
-		case 2:	//red/cyan
+		case 2:	//red/cyan(green+blue)
 			if (stereooffset[i] < 0)
 				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
 			else
@@ -592,8 +602,6 @@ void R_RenderScene (void)
 		}
 		if (i)
 			qglClear (GL_DEPTH_BUFFER_BIT);
-
-		Surf_SetupFrame();
 
 		TRACE(("dbg: calling R_SetupGL\n"));
 		R_SetupGL (stereooffset[i]);
@@ -1320,6 +1328,7 @@ static void R_RenderMotionBlur(void)
 #endif
 }
 
+#if 0
 /*FIXME: we could use geometry shaders to draw to all 6 faces at once*/
 qboolean R_RenderScene_Cubemap(void)
 {
@@ -1490,6 +1499,34 @@ qboolean R_RenderScene_Cubemap(void)
 */
 	return true;
 }
+#endif
+
+texid_t R_RenderPostProcess (texid_t sourcetex, int type, shader_t *shader, char *restexname)
+{
+	if (r_refdef.flags & type)
+	{
+		r_refdef.flags &= ~type;
+		GLBE_FBO_Sources(sourcetex, r_nulltex);
+
+		if (r_refdef.flags & RDF_ALLPOSTPROC)
+		{	//there's other post-processing passes that still need to be applied.
+			//thus we need to write this output to a texture.
+			int w = (r_refdef.vrect.width * vid.pixelwidth) / vid.width;
+			int h = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
+			sourcetex = R2D_RT_Configure(restexname, w, h, TF_RGBA32);
+			GLBE_FBO_Update(&fbo_postproc, 0, &sourcetex, 1, r_nulltex, w, h);
+			R2D_ScalePic(0, vid.pixelheight-r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height, scenepp_waterwarp);
+			GLBE_RenderToTextureUpdate2d(true);
+		}
+		else
+		{	//yay, dump it to the screen
+			//update stuff now that we're not rendering the 3d scene
+			R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, scenepp_waterwarp);
+		}
+	}
+
+	return sourcetex;
+}
 
 /*
 ================
@@ -1502,12 +1539,16 @@ void GLR_RenderView (void)
 {
 	int dofbo = *r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname;
 	double	time1 = 0, time2;
+	texid_t sourcetex = r_nulltex;
+	shader_t *custompostproc = NULL;
 
 	checkglerror();
 
 	if (r_norefresh.value || !vid.pixelwidth || !vid.pixelheight)
 		return;
 
+	//when loading/bugged, its possible that the world is still loading.
+	//in this case, don't act as a wallhack (unless the world is meant to be hidden anyway)
 	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 	{
 		//FIXME: fbo stuff
@@ -1521,6 +1562,43 @@ void GLR_RenderView (void)
 		}
 //		Sys_Error ("R_RenderView: NULL worldmodel");
 	}
+
+	//check if we're underwater (this also limits damage from stereo wallhacks).
+	Surf_SetupFrame();
+	r_refdef.flags &= ~RDF_ALLPOSTPROC;
+
+	//if bloom is 
+	if (R_CanBloom())
+		r_refdef.flags |= RDF_BLOOM;
+
+	//check if we can do underwater warp
+	if (cls.protocol != CP_QUAKE2)	//quake2 tells us directly
+	{
+		if (r_viewcontents & FTECONTENTS_FLUID)
+			r_refdef.flags |= RDF_UNDERWATER;
+		else
+			r_refdef.flags &= ~RDF_UNDERWATER;
+	}
+	if (r_refdef.flags & RDF_UNDERWATER)
+	{
+		if (!r_waterwarp.value)
+			r_refdef.flags &= ~RDF_UNDERWATER;	//no warp at all
+		else if (r_waterwarp.value > 0 && scenepp_waterwarp)
+			r_refdef.flags |= RDF_WATERWARP;	//try fullscreen warp instead if we can
+	}
+
+	//
+	if (*r_postprocshader.string)
+	{
+		custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
+		if (custompostproc)
+			r_refdef.flags |= RDF_CUSTOMPOSTPROC;
+	}
+
+	//disable stuff if its simply not supported.
+	if (dofbo || !gl_config.arb_shader_objects || !gl_config.ext_framebuffer_objects || !r_config.texture_non_power_of_two)
+		r_refdef.flags &= ~(RDF_ALLPOSTPROC);	//block all of this stuff
+
 
 	BE_Scissor(NULL);
 	if (dofbo)
@@ -1569,7 +1647,18 @@ void GLR_RenderView (void)
 			flags |= FBO_RB_DEPTH;
 		GLBE_FBO_Update(&fbo_gameview, flags, col, mrt, depth, vid.fbpwidth, vid.fbpheight);
 	}
-	else 
+	else if (r_refdef.flags & (RDF_ALLPOSTPROC))
+	{
+		//the game needs to be drawn to a texture for post processing
+		vid.fbvwidth = vid.fbpwidth = (r_refdef.vrect.width * vid.pixelwidth) / vid.width;
+		vid.fbvheight = vid.fbpheight = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
+
+		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, TF_RGBA32);
+
+		GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight);
+		dofbo = true;
+	}
+	else
 	{
 		vid.fbvwidth = vid.width;
 		vid.fbvheight = vid.height;
@@ -1604,11 +1693,11 @@ void GLR_RenderView (void)
 		time1 = Sys_DoubleTime ();
 	}
 
-	if (!dofbo && !(r_refdef.flags & RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
-	{
-
-	}
-	else
+//	if (!dofbo && !(r_refdef.flags & RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
+//	{
+//
+//	}
+//	else
 	{
 		GL_SetShaderState2D(false);
 
@@ -1643,40 +1732,17 @@ void GLR_RenderView (void)
 		GL_Set2D (false);
 	}
 
-	//FIXME: support bloom+waterwarp even when drawing to an fbo?
-	//FIXME: force waterwarp to a temp fbo always
-	if ((r_refdef.flags & RDF_NOWORLDMODEL) || dofbo)
-		return;
-
-	if (!R_GameRectIsFullscreen())
-		return;
-
-	if (r_bloom.value)
-		R_BloomBlend();
-
 	// SCENE POST PROCESSING
-	// we check if we need to use any shaders - currently it's just waterwarp
-	if ((r_waterwarp.value>0 && (r_viewcontents & FTECONTENTS_WATER)))
-	{
-		if (scenepp_waterwarp)
-		{
-			R2D_ScalePic(0, 0, vid.width, vid.height, scenepp_waterwarp);
-		}
-	}
 
+	sourcetex = R_RenderPostProcess (sourcetex, RDF_WATERWARP, scenepp_waterwarp, "rt/$waterwarped");
+	sourcetex = R_RenderPostProcess (sourcetex, RDF_CUSTOMPOSTPROC, custompostproc, "rt/$postproced");
+	if (r_refdef.flags & RDF_BLOOM)
+		R_BloomBlend(sourcetex, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
 
+	GLBE_FBO_Sources(r_nulltex, r_nulltex);
 
-	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
-		R_RenderMotionBlur();
-
-	if (*r_postprocshader.string)
-	{
-		shader_t *postproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
-		if (postproc)
-		{
-			R2D_ScalePic(0, 0, vid.width, vid.height, postproc);
-		}
-	}
+//	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
+//		R_RenderMotionBlur();
 
 	checkglerror();
 }

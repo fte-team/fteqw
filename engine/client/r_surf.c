@@ -1986,6 +1986,9 @@ void Surf_SetupFrame(void)
 	mleaf_t	*leaf;
 	vec3_t	temp, pvsorg;
 
+	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
+		r_refdef.flags |= RDF_NOWORLDMODEL;
+
 	R_AnimateLight();
 	r_framecount++;
 

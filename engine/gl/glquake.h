@@ -423,7 +423,8 @@ void D3_GenerateAreas(model_t *mod);
 //gl_bloom.c
 #ifdef GLQUAKE
 void R_BloomRegister(void);
-void R_BloomBlend(void);
+qboolean R_CanBloom(void);
+void R_BloomBlend (texid_t source, int x, int y, int w, int h);
 void R_BloomShutdown(void);
 #endif
 

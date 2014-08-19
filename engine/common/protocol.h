@@ -1153,13 +1153,19 @@ typedef struct q1usercmd_s
 #define RF_FORCECOLOURMOD		(1u<<22)	//forces BEF_FORCECOLOURMOD
 
 // player_state_t->refdef flags
-#define	Q2RDF_UNDERWATER		1		// warp the screen as apropriate
-#define RDF_NOWORLDMODEL		2		// used for player configuration screen
+#define	RDF_UNDERWATER			(1u<<0)		// warp the screen as apropriate (fov trick)
+#define RDF_NOWORLDMODEL		(1u<<1)		// used for player configuration screen
+//ROGUE
+#define	Q2RDF_IRGOGGLES			(1u<<2)		//ents with Q2RF_IR_VISIBLE show up pure red.
+#define Q2RDF_UVGOGGLES			(1u<<3)		//usused / reserved
+//ROGUE
+#define RDF_BLOOM				(1u<<16)
+#define RDF_FISHEYE				(1u<<17)
+#define RDF_WATERWARP			(1u<<18)
+#define RDF_CUSTOMPOSTPROC		(1u<<19)
 
-//ROGUE
-#define	Q2RDF_IRGOGGLES			4		//ents with Q2RF_IR_VISIBLE show up pure red.
-#define Q2RDF_UVGOGGLES			8		//usused / reserved
-//ROGUE
+#define RDF_ALLPOSTPROC			(RDF_BLOOM|RDF_FISHEYE|RDF_WATERWARP|RDF_CUSTOMPOSTPROC)	//these flags require rendering to an fbo for the various different post-processing shaders.
+
 
 
 

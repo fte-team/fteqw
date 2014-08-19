@@ -699,6 +699,9 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 {
 	vec3_t a;
 	int pmtype;
+	qboolean onground = plstate->onground;
+	vec3_t vel;
+	VectorCopy(plstate->velocity, vel);
 	memset(plstate, 0, sizeof(*plstate));
 	switch(state->u.q1.pmovetype)
 	{
@@ -732,7 +735,13 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 
 	plstate->pm_type = pmtype;
 	VectorCopy(state->origin, plstate->origin);
-	VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
+	if (cls.protocol == CP_NETQUAKE && !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+	{	//nq is annoying, this stuff wasn't part of the entity state, so don't break it
+		VectorCopy(vel, plstate->velocity);
+		plstate->onground = onground;
+	}
+	else
+		VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
 	VectorCopy(state->angles, plstate->viewangles);
 	plstate->viewangles[0] *= -3;
 
@@ -1178,7 +1187,10 @@ void CL_PredictMovePNum (int seat)
 			}
 		}
 	}
-	CL_CatagorizePosition(pv, tostate->origin);
+	if (cls.protocol == CP_NETQUAKE && nopred)
+		pv->onground = tostate->onground;
+	else
+		CL_CatagorizePosition(pv, tostate->origin);
 
 	if (le)
 	{

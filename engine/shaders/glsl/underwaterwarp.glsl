@@ -12,7 +12,7 @@ uniform float e_time;
 void main ()
 {
 	gl_Position = ftetransform();
-	v_stc = (1.0+(gl_Position.xy / gl_Position.w))/2.0;
+	v_stc = vec2(v_texcoord.x, 1.0-v_texcoord.y);
 	v_warp.s = e_time * 0.25 + v_texcoord.s;
 	v_warp.t = e_time * 0.25 + v_texcoord.t;
 	v_edge = v_texcoord.xy;

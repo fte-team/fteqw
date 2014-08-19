@@ -2291,7 +2291,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "void main ()\n"
 "{\n"
 "gl_Position = ftetransform();\n"
-"v_stc = (1.0+(gl_Position.xy / gl_Position.w))/2.0;\n"
+"v_stc = vec2(v_texcoord.x, 1.0-v_texcoord.y);\n"
 "v_warp.s = e_time * 0.25 + v_texcoord.s;\n"
 "v_warp.t = e_time * 0.25 + v_texcoord.t;\n"
 "v_edge = v_texcoord.xy;\n"

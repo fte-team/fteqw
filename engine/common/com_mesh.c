@@ -623,7 +623,7 @@ const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *sourcedat
 	}
 
 	if (sourcetype != desttype)
-		Sys_Error("Alias_ConvertBoneData: %i->%i not supported\n", sourcetype, desttype);
+		Sys_Error("Alias_ConvertBoneData: %i->%i not supported\n", (int)sourcetype, (int)desttype);
 
 	return sourcedata;
 }
@@ -6033,7 +6033,10 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	}
 
 	if (!h->num_meshes)
+	{
+		Con_Printf("%s: IQM has no meshes\n", mod->name);
 		return NULL;
+	}
 
 	//a mesh must contain vertex coords or its not much of a mesh.
 	//we also require texcoords because we can.
@@ -6048,7 +6051,16 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	if (noweights)
 	{
 		if (h->num_frames || h->num_anims || h->num_joints)
+		{
+			Con_Printf("%s: animated IQM lacks bone weights\n", mod->name);
 			return NULL;
+		}
+	}
+
+	if (h->num_joints > MAX_BONES)
+	{
+		Con_Printf("%s: IQM has %u joints, max supported is %u.\n", mod->name, h->num_joints, MAX_BONES);
+		return NULL;
 	}
 
 	strings = buffer + h->ofs_text;

@@ -4397,6 +4397,18 @@ void Cmd_Join_f (void)
 		return;
 	}
 
+	if (!host_client->spectator)
+	{
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "You are not currently spectating.\n");
+		return;
+	}
+	if (host_client->joinobservelockeduntil > realtime)
+	{
+		SV_TPrintToClient(host_client, PRINT_HIGH, va("Please wait %.1g more seconds\n", host_client->joinobservelockeduntil-realtime));
+		return;
+	}
+	host_client->joinobservelockeduntil = realtime + 2;
+
 	if (password.string[0] && stricmp(password.string, "none"))
 	{
 		SV_ClientTPrintf(host_client, PRINT_HIGH, "This server requires a %s password. Please disconnect, set the password and reconnect as %s.\n", "player", "player");
@@ -4512,6 +4524,18 @@ void Cmd_Observe_f (void)
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Your game client doesn't support this command\n");
 		return;
 	}
+
+	if (host_client->spectator)
+	{
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "You are already spectating.\n");
+		return;
+	}
+	if (host_client->joinobservelockeduntil > realtime)
+	{
+		SV_TPrintToClient(host_client, PRINT_HIGH, va("Please wait %.1g more seconds\n", host_client->joinobservelockeduntil-realtime));
+		return;
+	}
+	host_client->joinobservelockeduntil = realtime + 2;
 
 	if (spectator_password.string[0] && stricmp(spectator_password.string, "none"))
 	{

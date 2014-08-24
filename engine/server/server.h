@@ -494,6 +494,7 @@ typedef struct client_s
 	double			floodprotmessage;
 	double			lastspoke;
  	double			lockedtill;
+	float			joinobservelockeduntil;
 
 	qboolean		upgradewarn;		// did we warn him?
 
@@ -983,6 +984,7 @@ int SV_ModelIndex (const char *name);
 void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
 void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext);
 
+void SV_GetNewSpawnParms(client_t *cl);
 void SV_SaveSpawnparms (void);
 void SV_SaveSpawnparmsClient(client_t *client, float *transferparms);	//if transferparms, calls SetTransferParms instead, and does not modify the player.
 void SV_SaveLevelCache(char *savename, qboolean dontharmgame);

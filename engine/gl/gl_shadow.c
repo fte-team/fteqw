@@ -3329,7 +3329,10 @@ void Sh_CheckSettings(void)
 	case QR_DIRECT3D11:
 		canshadowless = true;	//all feature levels
 		if (D3D11_BeginShadowMap(0, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2))
+		{
+			D3D11_EndShadowMap();
 			cansmap = true;		//tends to not work properly until feature level 10 for one error or another.
+		}
 		break;
 #endif
 	default:

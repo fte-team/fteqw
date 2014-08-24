@@ -2553,6 +2553,7 @@ const char *Mod_FrameNameForNum(model_t *model, int num);
 const char *Mod_SkinNameForNum(model_t *model, int num);
 
 #include "com_mesh.h"
+#ifdef SKELETALMODELS
 static void M_BoneDisplay(entity_t *e, galiasbone_t *b, int *y, int depth, int parent, int first, int last)
 {
 	int i;
@@ -2571,6 +2572,7 @@ static void M_BoneDisplay(entity_t *e, galiasbone_t *b, int *y, int depth, int p
 		}
 	}
 }
+#endif
 static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 {
 	static playerview_t pv;
@@ -2649,6 +2651,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	Draw_FunString(0, y, va("%i: %s", mods->skingroup, fname));
 	y+=8;
 
+#ifdef SKELETALMODELS
 	{
 		int bonecount;
 		galiasbone_t *b = Mod_GetBoneInfo(ent.model, &bonecount);
@@ -2659,6 +2662,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			M_BoneDisplay(&ent, b, &y, 0, -1, 0, bonecount);
 		}
 	}
+#endif
 }
 static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int key)
 {
@@ -2672,6 +2676,11 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 	}
 	else if (key == 's')
 		mods->dist /= 0.9;
+	else if (key == 'r')
+	{
+		mods->framechangetime = realtime;
+		mods->skinchangetime = realtime;
+	}
 	else if (key == K_UPARROW)
 		mods->pitch += 5;
 	else if (key == K_DOWNARROW)

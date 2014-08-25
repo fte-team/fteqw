@@ -279,8 +279,9 @@ void SV_SaveSpawnparmsClient(client_t *client, float *transferparms)
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
 		Q1QVM_SetChangeParms();
 	}
+	else
 #endif
-	else if (pr_global_ptrs->SetChangeParms)
+		if (pr_global_ptrs->SetChangeParms)
 	{
 		func_t setparms = 0;
 		if (transferparms)
@@ -343,7 +344,7 @@ void SV_SaveSpawnparmsClient(client_t *client, float *transferparms)
 			rs.deaths += client->deaths;
 			client->kills=0;
 			client->deaths=0;
-			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+			for (j=0 ; j<NUM_RANK_SPAWN_PARMS ; j++)
 			{
 				rs.parm[j] = client->spawn_parms[j];
 			}
@@ -381,6 +382,32 @@ void SV_SaveSpawnparms (void)
 			continue;
 
 		SV_SaveSpawnparmsClient(host_client, NULL);
+	}
+}
+
+void SV_GetNewSpawnParms(client_t *cl)
+{
+	int i;
+
+	if (svprogfuncs)	//q2 dlls don't use parms in this manner. It's all internal to the dll.
+	{
+		// call the progs to get default spawn parms for the new client
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_SetNewParms();
+		else
+#endif
+		{
+			if (pr_global_ptrs->SetNewParms)
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
+		}
+		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+		{
+			if (pr_global_ptrs->spawnparamglobals[i])
+				cl->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
+			else
+				cl->spawn_parms[i] = 0;
+		}
 	}
 }
 
@@ -970,11 +997,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		Info_SetValueForStarKey(svs.info, "*bspversion", "46", MAX_SERVERINFO_STRING);
 	else
 		Info_SetValueForStarKey(svs.info, "*bspversion", "", MAX_SERVERINFO_STRING);
-
-	if (startspot)
-		Info_SetValueForStarKey(svs.info, "*startspot", startspot, MAX_SERVERINFO_STRING);
-	else
-		Info_SetValueForStarKey(svs.info, "*startspot", "", MAX_SERVERINFO_STRING);
+	Info_SetValueForStarKey(svs.info, "*startspot", (startspot?startspot:""), MAX_SERVERINFO_STRING);
 
 	//
 	// init physics interaction links

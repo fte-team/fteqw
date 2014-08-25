@@ -73,15 +73,6 @@ void Log_String (logtype_t lognum, char *s)
 	conchar_t cline[2048], *c;
 	unsigned int u;
 
-	if (!log_enable[lognum].value)
-		return;
-
-	// get directory/filename
-	if (log_dir.string[0])
-		d = log_dir.string;
-	else
-		d = "";//gamedirfile;
-
 	f = NULL;
 	switch(lognum)
 	{
@@ -95,8 +86,18 @@ void Log_String (logtype_t lognum, char *s)
 		f = "rcon";
 		break;
 	default:
-		break;
+		return;
 	}
+
+	if (!log_enable[lognum].value)
+		return;
+
+	// get directory/filename
+	if (log_dir.string[0])
+		d = log_dir.string;
+	else
+		d = "";//gamedirfile;
+
 	if (log_name[lognum].string[0])
 		f = log_name[lognum].string;
 

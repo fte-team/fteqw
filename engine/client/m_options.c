@@ -263,12 +263,16 @@ void M_Menu_Audio_Remove(menu_t *menu)
 	struct audiomenuinfo *info = menu->data;
 	for (i = 0; info->outdevnames[i]; i++)
 		Z_Free(info->outdevnames[i]);
+	Z_Free(info->outdevnames);
 	for (i = 0; info->outdevdescs[i]; i++)
 		Z_Free(info->outdevdescs[i]);
+	Z_Free(info->outdevdescs);
 	for (i = 0; info->capdevnames[i]; i++)
 		Z_Free(info->capdevnames[i]);
+	Z_Free(info->capdevnames);
 	for (i = 0; info->capdevdescs[i]; i++)
 		Z_Free(info->capdevdescs[i]);
+	Z_Free(info->capdevdescs);
 }
 struct audiomenuinfo *M_Menu_Audio_Setup(menu_t *menu)
 {

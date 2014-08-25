@@ -637,6 +637,14 @@ typedef struct
 } sh_config_t;
 extern sh_config_t sh_config;
 
+#ifdef GLSLONLY
+#define gl_config_nofixedfunc true
+#define gl_config_gles true
+#else
+#define gl_config_nofixedfunc gl_config.nofixedfunc
+#define gl_config_gles gl_config.gles
+#endif
+
 #ifdef GLQUAKE
 void GLBE_Init(void);
 void GLBE_Shutdown(void);

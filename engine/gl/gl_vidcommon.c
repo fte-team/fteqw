@@ -58,11 +58,6 @@ void (APIENTRY *qglStencilOpSeparateATI) (GLenum face, GLenum fail, GLenum zfail
 void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid* *pointer);
 
-//GL_OES_get_program_binary
-void (APIENTRY *qglGetProgramBinary)(GLuint program, GLsizei bufSize, GLsizei *length, GLenum *binaryFormat, GLvoid *binary);
-void (APIENTRY *qglProgramBinary)(GLuint program, GLenum binaryFormat, const GLvoid *binary, GLint length);
-#define GL_PROGRAM_BINARY_LENGTH	0x8741
-
 //quick hack that made quake work on both 1+ext and 1.1 gl implementations.
 BINDTEXFUNCPTR qglBindTexture;
 
@@ -87,8 +82,6 @@ FTEPFNGLBINDATTRIBLOCATIONARBPROC	qglBindAttribLocationARB;
 FTEPFNGLGETATTRIBLOCATIONARBPROC	qglGetAttribLocationARB;
 FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
 FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4fvARB;
-FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix3x4fv;
-FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4x3fv;
 FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
 FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
 FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;
@@ -98,6 +91,14 @@ FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
 FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 FTEPFNGLGETSHADERSOURCEARBPROC		qglGetShaderSource;
 #endif
+FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix3x4fv;
+FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4x3fv;
+
+//GL_OES_get_program_binary
+void (APIENTRY *qglGetProgramBinary)(GLuint program, GLsizei bufSize, GLsizei *length, GLenum *binaryFormat, GLvoid *binary);
+void (APIENTRY *qglProgramBinary)(GLuint program, GLenum binaryFormat, const GLvoid *binary, GLint length);
+#define GL_PROGRAM_BINARY_LENGTH	0x8741
+
 //standard 1.1 opengl calls
 void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);
 void (APIENTRY *qglBegin) (GLenum mode);
@@ -412,6 +413,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	{
 		gl_config.gles = true;
 		webgl = true;
+
+		if (!strcmp(gl_renderer, "Internet Explorer"))
+			gl_config.webgl_ie = true;
 	}
 	else if (!strncmp(gl_version, "OpenGL ES", 9))
 		gl_config.gles = true;
@@ -1377,6 +1381,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 	const GLchar *prstrings[64+16];
 	GLint length[sizeof(prstrings)/sizeof(prstrings[0])];
 	int strings = 0;
+	char verline[64];
 
 	if (ver)
 	{
@@ -1388,7 +1393,8 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 		if (ver != 100)
 #endif
 		{
-			prstrings[strings] = va("#version %u\n", ver);
+			Q_snprintfz(verline, sizeof(verline), "#version %u\n", ver);
+			prstrings[strings] = verline;
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
@@ -1449,9 +1455,9 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 					"#else\n"
 					"#define v_position v_position1\n"
 					"#endif\n"
-					"vec4 ftetransform() { return m_modelviewprojection * vec4(v_position, 1.0); }\n"
-//					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 					"uniform mat4 m_modelviewprojection;\n"
+//					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
+					"vec4 ftetransform() { return m_modelviewprojection * vec4(v_position, 1.0); }\n"
 				;
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
@@ -1463,12 +1469,12 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 					"attribute vec3 v_position2;\n"
 					"uniform vec2 e_vblend;\n"
 					"#define v_position (gl_Vertex.xyz*e_vblend.x+v_position2*e_vblend.y)\n"
-					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 					"uniform mat4 m_modelviewprojection;\n"
+					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 					"#else\n"
 					"#define v_position gl_Vertex.xyz\n"
-					"#define ftetransform ftransform\n"
 					"uniform mat4 m_modelviewprojection;\n"
+					"#define ftetransform ftransform\n"
 					"#endif\n"
 				;
 			length[strings] = strlen(prstrings[strings]);
@@ -1827,10 +1833,12 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 		found = false;
 		for (p = 0; p < PERMUTATIONS; p++)
 		{
+			char uniformname[64];
 			if (!prog->permu[p].handle.glsl)
 				continue;
 			GL_SelectProgram(prog->permu[p].handle.glsl);
-			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, va("cvar_%s", tmpname));
+			Q_snprintfz(uniformname, sizeof(uniformname), "cvar_%s", tmpname);
+			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, uniformname);
 			if (uniformloc != -1)
 			{
 				//qglUniform1fARB(uniformloc, cvar->value);
@@ -1851,7 +1859,8 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 		GLSlang_UseProgram(prog->permu[p].handle.glsl);
 		for (i = 0; i < 8; i++)
 		{
-			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, va("s_t%i", i));
+			Q_snprintfz(tmpname, sizeof(tmpname), "s_t%i", i);
+			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, tmpname);
 			if (uniformloc != -1)
 				qglUniform1iARB(uniformloc, i);
 		}
@@ -2072,7 +2081,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	}
 
 	sh_config.progs_supported	= gl_config.arb_shader_objects;
-	sh_config.progs_required	= gl_config.nofixedfunc;
+	sh_config.progs_required	= gl_config_nofixedfunc;
 
 	sh_config.pDeleteProg		= GLSlang_DeleteProg;
 	sh_config.pLoadBlob			= qglProgramBinary?GLSlang_LoadBlob:NULL;

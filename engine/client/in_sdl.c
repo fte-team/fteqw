@@ -62,7 +62,7 @@ static struct sdljoy_s
 //the enumid is the value for the open function rather than the working id.
 static void J_ControllerAdded(int enumid)
 {
-	char *cname;
+	const char *cname;
 	int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++)
 		if (sdljoy[i].controller == NULL)
@@ -84,7 +84,7 @@ static void J_ControllerAdded(int enumid)
 }
 static void J_JoystickAdded(int enumid)
 {
-	char *cname;
+	const char *cname;
 	int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++)
 		if (sdljoy[i].joystick == NULL)

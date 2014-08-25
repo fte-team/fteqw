@@ -511,8 +511,9 @@ void R_SetupGL (float stereooffset)
 			qglDisable(GL_DITHER);
 		}
 	}
-	if (vid_srgb.modified)
+	if (vid_srgb.modified && !gl_config_gles)
 	{
+		vid_srgb.modified = false;
 		if (vid_srgb.ival)
 			qglEnable(GL_FRAMEBUFFER_SRGB);
 		else
@@ -1567,9 +1568,9 @@ void GLR_RenderView (void)
 	Surf_SetupFrame();
 	r_refdef.flags &= ~RDF_ALLPOSTPROC;
 
-	//if bloom is 
-	if (R_CanBloom())
-		r_refdef.flags |= RDF_BLOOM;
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+		if (R_CanBloom())
+			r_refdef.flags |= RDF_BLOOM;
 
 	//check if we can do underwater warp
 	if (cls.protocol != CP_QUAKE2)	//quake2 tells us directly
@@ -1587,8 +1588,7 @@ void GLR_RenderView (void)
 			r_refdef.flags |= RDF_WATERWARP;	//try fullscreen warp instead if we can
 	}
 
-	//
-	if (*r_postprocshader.string)
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && (*r_postprocshader.string))
 	{
 		custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
 		if (custompostproc)

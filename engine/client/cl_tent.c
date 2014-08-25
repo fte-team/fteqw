@@ -496,7 +496,7 @@ void CL_RefreshCustomTEnts(void);
 void CL_RegisterParticles(void)
 {
 	model_t *mod;
-	extern model_t	mod_known[];
+	extern model_t	*mod_known;
 	extern int		mod_numknown;
 	int i;
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
@@ -2092,7 +2092,7 @@ void CL_RefreshCustomTEnts(void)
 
 	if (cl.particle_ssprecaches)
 	{
-		for (i = 0; i <= MAX_SSPARTICLESPRE; i++)
+		for (i = 0; i < MAX_SSPARTICLESPRE; i++)
 		{
 			if (cl.particle_ssname[i])
 				cl.particle_ssprecache[i] = P_FindParticleType(cl.particle_ssname[i]);
@@ -2102,7 +2102,7 @@ void CL_RefreshCustomTEnts(void)
 	}
 	if (cl.particle_csprecaches)
 	{
-		for (i = 0; i <= MAX_CSPARTICLESPRE; i++)
+		for (i = 0; i < MAX_CSPARTICLESPRE; i++)
 		{
 			if (cl.particle_csname[i])
 				cl.particle_csprecache[i] = P_FindParticleType(cl.particle_csname[i]);
@@ -2427,7 +2427,7 @@ void CLQ2_ParseTEnt (void)
 	int		cnt;
 	int		color;
 	int		r;
-//	int		ent;
+	int		ent;
 //	int		magnitude;
 
 	type = MSG_ReadByte ();
@@ -2515,6 +2515,21 @@ void CLQ2_ParseTEnt (void)
 		CL_ParseBeam (4);
 		MSG_ReadPos (pos);
 		break;
+
+	case Q2TE_LIGHTNING:
+		ent = MSGCL_ReadEntity ();
+		/*toent =*/ MSGCL_ReadEntity ();
+		pos[0] = MSG_ReadCoord ();
+		pos[1] = MSG_ReadCoord ();
+		pos[2] = MSG_ReadCoord ();
+		pos2[0] = MSG_ReadCoord ();
+		pos2[1] = MSG_ReadCoord ();
+		pos2[2] = MSG_ReadCoord ();
+		CL_AddBeam(0, ent, pos, pos2);
+		break;
+
+
+
 /*
 	case Q2TE_LASER_SPARKS:
 	case Q2TE_WELDING_SPARKS:

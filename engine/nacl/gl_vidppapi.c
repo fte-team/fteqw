@@ -14,7 +14,6 @@ extern PPB_Graphics3D* graphics3d_interface;
 extern PP_Instance pp_instance;
 static PP_Resource glcontext;
 extern PPB_Instance* instance_interface;
-int delayedswap = false;
 qboolean swappending;
 
 extern cvar_t		vid_vsync;
@@ -33,42 +32,27 @@ void swap_callback(void* user_data, int32_t result)
 		FrameEvent(NULL, 0);
 	}
 }
-void GL_BeginRendering (void)
+
+void GLVID_SwapBuffers(void)
 {
-}
-void GL_EndRendering (void)
-{
-	delayedswap = true;
+	qboolean vsync = vid_vsync.ival || !*vid_vsync.string;
+	struct PP_CompletionCallback ccb = { swap_callback, NULL, vsync?PP_COMPLETIONCALLBACK_FLAG_NONE:PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
 	glFlush();
 
-//	if (!gl_lateswap.value)
-//		GL_DoSwap();
-}
-
-void GL_DoSwap(void)
-{
-	if (delayedswap)
+	switch(graphics3d_interface->SwapBuffers(glcontext, ccb))
 	{
-		qboolean vsync = vid_vsync.ival || !*vid_vsync.string;
-		struct PP_CompletionCallback ccb = { swap_callback, NULL, vsync?PP_COMPLETIONCALLBACK_FLAG_NONE:PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
-		glFlush();
-		delayedswap = false;
-
-		switch(graphics3d_interface->SwapBuffers(glcontext, ccb))
-		{
-		case PP_OK_COMPLETIONPENDING:
-			swappending |= vsync;
-			break;
-		case PP_OK:
-			break;
-		case PP_ERROR_INPROGRESS:
-			Con_DPrintf("chrome still can't handle vid_wait 0. forcing vsync\n");
-			vid_vsync.ival = 1;
-			break;
-		default:
-			Con_DPrintf("unknown error on SwapBuffers call\n");
-			break;
-		}
+	case PP_OK_COMPLETIONPENDING:
+		swappending |= vsync;
+		break;
+	case PP_OK:
+		break;
+	case PP_ERROR_INPROGRESS:
+		Con_DPrintf("chrome still can't handle vid_wait 0. forcing vsync\n");
+		vid_vsync.ival = 1;
+		break;
+	default:
+		Con_DPrintf("unknown error on SwapBuffers call\n");
+		break;
 	}
 }
 

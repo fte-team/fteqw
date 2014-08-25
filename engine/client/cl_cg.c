@@ -19,7 +19,7 @@ void CG_Command_f(void);
 
 #define CGTAGNUM 5423
 
-extern model_t mod_known[];
+extern model_t *mod_known;
 extern int mod_numknown;
 #define VM_FROMMHANDLE(a) ((a&&((unsigned int)a)<=mod_numknown)?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)

@@ -281,7 +281,7 @@ netadr_t ui_pings[MAX_PINGREQUESTS];
 
 #define UITAGNUM 2452
 
-extern model_t mod_known[];
+extern model_t *mod_known;
 #define VM_FROMMHANDLE(a) (a?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 

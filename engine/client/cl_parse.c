@@ -664,7 +664,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 		{
 /*
 			extern int mod_numknown;
-			extern model_t	mod_known[];
+			extern model_t	*mod_known;
 			for (i = 0; i < mod_numknown; i++)	//go and load this model now.
 			{
 				if (!strcmp(mod_known[i].name, filename))
@@ -5940,7 +5940,7 @@ void CLQW_ParseServerMessage (void)
 				{
 					rgb[0] = MSG_ReadShort()/1024.0;
 					rgb[1] = MSG_ReadShort()/1024.0;
-					rgb[1] = MSG_ReadShort()/1024.0;
+					rgb[2] = MSG_ReadShort()/1024.0;
 				}
 				else
 				{

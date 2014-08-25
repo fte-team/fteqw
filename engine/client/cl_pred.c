@@ -787,6 +787,8 @@ void CL_PredictEntityMovement(entity_state_t *estate, float age)
 		VectorCopy(estate->origin, estate->u.q1.predorg);
 	else
 	{
+		VectorClear(startstate.velocity);
+		startstate.onground = false;
 		CL_EntStateToPlayerState(&startstate, estate);
 		CL_EntStateToPlayerCommand(&cmd, estate, age);
 

@@ -43,16 +43,19 @@ mergeInto(LibraryManager.library,
 								event.movementX = event.webkitMovementX;
 								event.movementY = event.webkitMovementY;
 							}
-							Runtime.dynCall('viiffff', FTEC.evcb.mouse, [0, false, event.movementX, event.movementY, 0, 0]);
+							Runtime.dynCall('viidddd', FTEC.evcb.mouse, [0, false, event.movementX, event.movementY, 0, 0]);
 						}
 						else
-							Runtime.dynCall('viiffff', FTEC.evcb.mouse, [0, true, event.pageX, event.pageY, 0, 0]);
+							Runtime.dynCall('viidddd', FTEC.evcb.mouse, [0, true, event.pageX, event.pageY, 0, 0]);
 					}
 					break;
 				case 'mousedown':
+					if (Browser.isFullScreen == 0)
+					{
+						Browser.requestFullScreen(true, true);
+						Module['canvas'].requestPointerLock();
+					}
 				case 'mouseup':
-					Browser.requestFullScreen(true, true);
-					Module['canvas'].requestPointerLock();
 					if (FTEC.evcb.button != 0)
 					{
 						Runtime.dynCall('viii', FTEC.evcb.button, [0, event.type=='mousedown', event.button]);
@@ -63,7 +66,7 @@ mergeInto(LibraryManager.library,
 				case 'wheel':
 					if (FTEC.evcb.button != 0)
 					{
-						Runtime.dynCall('viii', FTEC.evcb.button, [0, 3, event.deltaY]);
+						Runtime.dynCall('viii', FTEC.evcb.button, [0, 2, event.deltaY]);
 						event.preventDefault();
 					}
 					break;
@@ -284,6 +287,8 @@ console.log('deleted '+name);
 	emscriptenfte_buf_write : function(handle, offset, data, len)
 	{
 		var b = FTEH.h[handle];
+		if (len < 0)
+			len = 0;
 		if (offset+len > b.m)
 		{	//extend it if needed.
 			b.m = offset + len + 4095;
@@ -292,9 +297,6 @@ console.log('deleted '+name);
 			nd.set(b.d, 0);
 			b.d = nd;
 		}
-		if (len < 0)
-			len = 0;
-console.log('deleted '+name);
 		b.d.set(HEAPU8.subarray(data, data+len), offset);
 		if (offset + len > b.l)
 			b.l = offset + len;
@@ -376,7 +378,7 @@ console.log('deleted '+name);
 
 		http.onload = function(e)
 		{
-		console.log("onload: " + _url + " status " + http.status);
+//		console.log("onload: " + _url + " status " + http.status);
 			if (http.status == 200)
 			{
 				var bar = new Uint8Array(http.response);
@@ -394,7 +396,7 @@ console.log('deleted '+name);
 
 		http.onerror = function(e)
 		{
-		console.log("onerror: " + _url + " status " + http.status);
+//		console.log("onerror: " + _url + " status " + http.status);
 			if (onerror)
 				Runtime.dynCall('vii', onerror, [ctx, http.status]);
 		};

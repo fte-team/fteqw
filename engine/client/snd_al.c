@@ -13,6 +13,62 @@ FIXME: a capture device would be useful (voice chat).
 
 #ifdef AVAIL_OPENAL
 
+#ifdef FTE_TARGET_WEB
+//our javascript port doesn't support dynamic linking.
+#define OPENAL_STATIC
+#endif
+
+#ifdef OPENAL_STATIC
+#include <AL/al.h>	//output
+#include <AL/alc.h>	//input
+
+#ifndef AL_API
+#define AL_API
+#endif
+#ifndef AL_APIENTRY
+#define AL_APIENTRY
+#endif
+
+#define palGetError		alGetError
+#define palSourcef		alSourcef
+#define palSourcei		alSourcei
+#define palSourcePlayv	alSourcePlayv
+#define palSourceStopv	alSourceStopv
+#define palSourcePlay		alSourcePlay
+#define palSourceStop		alSourceStop
+#define palDopplerFactor	alDopplerFactor
+#define palGenBuffers		alGenBuffers
+#define palIsBuffer		alIsBuffer
+#define palBufferData		alBufferData
+#define palDeleteBuffers	alDeleteBuffers
+#define palListenerfv		alListenerfv
+#define palSourcefv		alSourcefv
+#define palGetString		alGetString
+#define palGenSources		alGenSources
+#define palListenerf		alListenerf
+#define palDeleteBuffers	alDeleteBuffers
+#define palDeleteSources	alDeleteSources
+#define palSpeedOfSound	alSpeedOfSound
+#define palDistanceModel	alDistanceModel
+#define palGetSourcei		alGetSourcei
+#define palSourceQueueBuffers	alSourceQueueBuffers
+#define palSourceUnqueueBuffers	alSourceUnqueueBuffers
+
+
+#define palcOpenDevice		alcOpenDevice
+#define palcCloseDevice		alcCloseDevice
+#define palcCreateContext		alcCreateContext
+#define palcDestroyContext		alcDestroyContext
+#define palcMakeContextCurrent	alcMakeContextCurrent
+#define palcProcessContext		alcProcessContext
+#define palcGetString			alcGetString
+#define palcIsExtensionPresent	alcIsExtensionPresent
+
+#ifdef FTE_TARGET_WEB	//emscripten sucks.
+AL_API void (AL_APIENTRY alSpeedOfSound)( ALfloat value ) {}
+#endif
+#else
+
 #if defined(_WIN32)
  #define AL_APIENTRY __cdecl
 #else
@@ -143,7 +199,23 @@ static ALC_API ALCboolean      (ALC_APIENTRY *palcIsExtensionPresent)( ALCdevice
 //#include "AL/al.h"
 //#include "AL/alext.h"
 
+//capture-specific stuff
+static ALC_API void           (ALC_APIENTRY *palcGetIntegerv)( ALCdevice *device, ALCenum param, ALCsizei size, ALCint *data );
+static ALC_API ALCdevice *    (ALC_APIENTRY *palcCaptureOpenDevice)( const ALCchar *devicename, ALCuint frequency, ALCenum format, ALCsizei buffersize );
+static ALC_API ALCboolean     (ALC_APIENTRY *palcCaptureCloseDevice)( ALCdevice *device );
+static ALC_API void           (ALC_APIENTRY *palcCaptureStart)( ALCdevice *device );
+static ALC_API void           (ALC_APIENTRY *palcCaptureStop)( ALCdevice *device );
+static ALC_API void           (ALC_APIENTRY *palcCaptureSamples)( ALCdevice *device, ALCvoid *buffer, ALCsizei samples );
+#define ALC_CAPTURE_DEVICE_SPECIFIER             0x310
+#define ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER     0x311
+#define ALC_CAPTURE_SAMPLES                      0x312
+
+#endif
+
+
+
 //efx
+#ifdef USEEFX
 #define AL_AUXILIARY_SEND_FILTER                 0x20006
 #define AL_FILTER_NULL                           0x0000
 #define AL_EFFECTSLOT_EFFECT                     0x0001
@@ -202,20 +274,7 @@ static AL_API ALvoid (AL_APIENTRY *palEffecti)(ALuint effect, ALenum param, ALin
 static AL_API ALvoid (AL_APIENTRY *palEffectiv)(ALuint effect, ALenum param, const ALint *piValues);
 static AL_API ALvoid (AL_APIENTRY *palEffectf)(ALuint effect, ALenum param, ALfloat flValue);
 static AL_API ALvoid (AL_APIENTRY *palEffectfv)(ALuint effect, ALenum param, const ALfloat *pflValues);
-
-//capture-specific stuff
-static ALC_API void           (ALC_APIENTRY *palcGetIntegerv)( ALCdevice *device, ALCenum param, ALCsizei size, ALCint *data );
-static ALC_API ALCdevice *    (ALC_APIENTRY *palcCaptureOpenDevice)( const ALCchar *devicename, ALCuint frequency, ALCenum format, ALCsizei buffersize );
-static ALC_API ALCboolean     (ALC_APIENTRY *palcCaptureCloseDevice)( ALCdevice *device );
-static ALC_API void           (ALC_APIENTRY *palcCaptureStart)( ALCdevice *device );
-static ALC_API void           (ALC_APIENTRY *palcCaptureStop)( ALCdevice *device );
-static ALC_API void           (ALC_APIENTRY *palcCaptureSamples)( ALCdevice *device, ALCvoid *buffer, ALCsizei samples );
-#define ALC_CAPTURE_DEVICE_SPECIFIER             0x310
-#define ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER     0x311
-#define ALC_CAPTURE_SAMPLES                      0x312
-
-
-
+#endif
 
 #define SOUNDVARS "OpenAL variables"
 
@@ -477,8 +536,14 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	{
 		if (src)
 		{
+#ifdef FTE_TARGET_WEB
+			//emscripten's webaudio wrapper spams error messages after alDeleteSources has been called, if the context isn't also killed.
+			if (!schanged)
+				palSourceStop(src);
+#else
 			palDeleteSources(1, &src);
 			oali->source[chnum] = 0;
+#endif
 		}
 		return;
 	}
@@ -549,10 +614,12 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		pitch = (float)chan->rate/(1<<PITCHSHIFT);
 		palSourcef(src, AL_PITCH, pitch);
 
+#ifdef USEEFX
 		if (chan->entnum == -2)	//don't do the underwater thing on static sounds. it sounds like arse with all those sources.
 			palSource3i(src, AL_AUXILIARY_SEND_FILTER, 0, 0, AL_FILTER_NULL);
 		else
 			palSource3i(src, AL_AUXILIARY_SEND_FILTER, oali->effectslot, 0, AL_FILTER_NULL);
+#endif
 
 		palSourcei(src, AL_LOOPING, chan->looping?AL_TRUE:AL_FALSE);
 		if (chan->entnum == -1 || chan->entnum == cl.playerview[0].viewentity)
@@ -607,6 +674,9 @@ static void S_Info (void)
 
 static qboolean OpenAL_InitLibrary(void)
 {
+#ifdef OPENAL_STATIC
+	return true;
+#else
 	static dllfunction_t openalfuncs[] =
 	{
 		{(void*)&palGetError, "alGetError"},
@@ -630,7 +700,9 @@ static qboolean OpenAL_InitLibrary(void)
 		{(void*)&palSpeedOfSound, "alSpeedOfSound"},
 		{(void*)&palDistanceModel, "alDistanceModel"},
 
+#ifdef USEEFX
 		{(void*)&palGetProcAddress, "alGetProcAddress"},
+#endif
 		{(void*)&palGetSourcei, "alGetSourcei"},
 		{(void*)&palSourceQueueBuffers, "alSourceQueueBuffers"},
 		{(void*)&palSourceUnqueueBuffers, "alSourceUnqueueBuffers"},
@@ -652,6 +724,7 @@ static qboolean OpenAL_InitLibrary(void)
 		openallib = Sys_LoadLibrary("OpenAL32", openalfuncs);
 	}
 	return !!openallib;
+#endif
 }
 
 static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
@@ -760,6 +833,7 @@ static void OpenAL_UnlockBuffer (soundcardinfo_t *sc, void *buffer)
 
 static void OpenAL_SetUnderWater (soundcardinfo_t *sc, qboolean underwater)
 {
+#ifdef USEEFX
 	oalinfo_t *oali = sc->handle;
 
 	if (!oali->effectslot)
@@ -772,6 +846,7 @@ static void OpenAL_SetUnderWater (soundcardinfo_t *sc, qboolean underwater)
 	palAuxiliaryEffectSloti(oali->effectslot, AL_EFFECTSLOT_EFFECT, oali->effecttype[oali->cureffect]);
 	PrintALError("postunderwater");
 	//Con_Printf("OpenAL: SetUnderWater %i\n", underwater);
+#endif
 }
 
 /*stub should not be called*/
@@ -804,8 +879,10 @@ static void OpenAL_Shutdown (soundcardinfo_t *sc)
 		}
 	}
 
+#ifdef USEEFX
 	palDeleteAuxiliaryEffectSlots(1, &oali->effectslot);
 	palDeleteEffects(1, &oali->effecttype[1]);
+#endif
 
 	palcDestroyContext(oali->OpenAL_Context);
 	palcCloseDevice(oali->OpenAL_Device);
@@ -843,9 +920,10 @@ typedef struct {
     { 0.3645f, 1.0000f, 0.3162f, 0.0100f, 1.0000f, 1.4900f, 0.1000f, 1.0000f, 0.5963f, 0.0070f, { 0.0000f, 0.0000f, 0.0000f }, 7.0795f, 0.0110f, { 0.0000f, 0.0000f, 0.0000f }, 0.2500f, 0.0000f, 1.1800f, 0.3480f, 0.9943f, 5000.0000f, 250.0000f, 0.0000f, 0x1 }
 ALuint OpenAL_LoadEffect(const EFXEAXREVERBPROPERTIES *reverb)
 {
-	ALuint effect;
+	ALuint effect = 0;
+#ifdef AL_EFFECT_EAXREVERB
 	palGenEffects(1, &effect);
-	if(1)//alGetEnumValue("AL_EFFECT_EAXREVERB") != 0)
+	if(alGetEnumValue("AL_EFFECT_EAXREVERB") != 0)
 	{
 		/* EAX Reverb is available. Set the EAX effect type then load the
 		 * reverb properties. */
@@ -895,15 +973,18 @@ ALuint OpenAL_LoadEffect(const EFXEAXREVERBPROPERTIES *reverb)
 		palEffectf(effect, AL_REVERB_ROOM_ROLLOFF_FACTOR, reverb->flRoomRolloffFactor);
 		palEffecti(effect, AL_REVERB_DECAY_HFLIMIT, reverb->iDecayHFLimit);
 	}
+#endif
 	return effect;
 }
 
 static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 {
 	oalinfo_t *oali;
+#ifndef OPENAL_STATIC
 	//no default support, because we're buggy as fuck
 	if (!devname)
 		return false;
+#endif
 
 	if (!devname || !*devname)
 		devname = palcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
@@ -939,6 +1020,7 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 	Cvar_ForceCallback(&s_al_dopplerfactor);
 	Cvar_ForceCallback(&s_al_max_distance);
 
+#ifdef USEEFX
 	PrintALError("preeffects");
 	palSource3i = palGetProcAddress("alSource3i");
 	palAuxiliaryEffectSloti = palGetProcAddress("alAuxiliaryEffectSloti");
@@ -960,6 +1042,7 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 		oali->effecttype[1] = OpenAL_LoadEffect(&uw);
 	}
 	PrintALError("posteffects");
+#endif
 	return true;
 }
 
@@ -1032,8 +1115,10 @@ qboolean QDECL OPENAL_Capture_Enumerate (void (QDECL *callback) (const char *dri
 //fte's capture api specifies mono 16.
 void *QDECL OPENAL_Capture_Init (int samplerate, const char *device)
 {
+#ifndef OPENAL_STATIC
 	if (!device)	//no default devices please, too buggy for that.
 		return NULL;
+#endif
 
 	if (!OpenAL_InitCapture())
 		return NULL; //enumerate nothing if al is disabled

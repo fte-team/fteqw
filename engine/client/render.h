@@ -194,8 +194,9 @@ typedef struct {
 } rtname_t;
 #define R_MAX_RENDERTARGETS 8
 
+#ifndef R_MAX_RECURSE
 #define R_MAX_RECURSE	6
-#define R_POSTPROC_PASSES 6
+#endif
 #define RDFD_FOV 1
 typedef struct
 {
@@ -536,9 +537,12 @@ extern	cvar_t	r_editlights_import_specular;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_lavaalpha;
+extern	cvar_t	r_slimealpha;
+extern	cvar_t	r_telealpha;
 extern	cvar_t	r_waterstyle;
-extern	cvar_t	r_slimestyle;
 extern	cvar_t	r_lavastyle;
+extern	cvar_t	r_slimestyle;
+extern	cvar_t	r_telestyle;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;

@@ -388,7 +388,7 @@ void GL_MTBind(int tmu, int target, texid_t texnum)
 #ifndef FORCESTATE
 	shaderstate.curtexturetype[tmu] != target &&
 #endif
- !gl_config.nofixedfunc)
+ !gl_config_nofixedfunc)
 	{
 
 		if (shaderstate.curtexturetype[tmu])
@@ -415,7 +415,7 @@ void GL_LazyBind(int tmu, int target, texid_t texnum)
 		{
 			if (shaderstate.curtexturetype[tmu])
 				qglBindTexture (shaderstate.curtexturetype[tmu], 0);
-			if (gl_config.nofixedfunc)
+			if (gl_config_nofixedfunc)
 			{
 				shaderstate.curtexturetype[tmu] = target;
 			}
@@ -723,9 +723,9 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic)
 	{
 		qglGenVertexArrays(1, &vbo->vao);
 
-		if ((vaostatic & VATTR_VERTEX1) && !gl_config.nofixedfunc)
+		if ((vaostatic & VATTR_VERTEX1) && !gl_config_nofixedfunc)
 			vaostatic = (vaostatic & ~VATTR_VERTEX1) | VATTR_LEG_VERTEX;
-		if ((vaodynamic & VATTR_VERTEX1) && !gl_config.nofixedfunc)
+		if ((vaodynamic & VATTR_VERTEX1) && !gl_config_nofixedfunc)
 			vaodynamic = (vaodynamic & ~VATTR_VERTEX1) | VATTR_LEG_VERTEX;
 
 		shaderstate.curvertexpointer = NULL;
@@ -788,7 +788,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 	{
 		GL_SelectProgram(shaderstate.allblackshader);
 
-		BE_EnableShaderAttributes(gl_config.nofixedfunc?(1u<<VATTR_VERTEX1):(1u<<VATTR_LEG_VERTEX), 0);
+		BE_EnableShaderAttributes(gl_config_nofixedfunc?(1u<<VATTR_VERTEX1):(1u<<VATTR_LEG_VERTEX), 0);
 
 		if (shaderstate.allblackshader != shaderstate.lastuniform && shaderstate.allblack_mvp != -1)
 		{
@@ -928,7 +928,7 @@ static void RevertToKnownState(void)
 	GL_SelectTexture(0);
 
 
-	if (!gl_config.nofixedfunc)
+	if (!gl_config_nofixedfunc)
 	{
 		BE_SetPassBlendMode(0, PBM_REPLACE);
 		qglColor3f(1,1,1);
@@ -1326,7 +1326,7 @@ void GLBE_Init(void)
 	shaderstate.curentity = &r_worldentity;
 	be_maxpasses = gl_mtexarbable;
 	gl_stencilbits = 0;
-	if (gl_config.glversion >= 3.0 && gl_config.nofixedfunc)
+	if (gl_config.glversion >= 3.0 && gl_config_nofixedfunc)
 	{
 		//docs say this line should be okay in gl3+. nvidia do not seem to agree. GL_STENCIL_BITS is depricated however. so for now, just assume.
 		//qglGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER_EXT, GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &gl_stencilbits);
@@ -1374,7 +1374,7 @@ void GLBE_Init(void)
 
 	gl_overbright.modified = true; /*in case the d3d renderer does the same*/
 	/*lock the cvar down if the backend can't actually do it*/
-	if (!gl_config.tex_env_combine && !gl_config.nofixedfunc && gl_overbright.ival)
+	if (!gl_config.tex_env_combine && !gl_config_nofixedfunc && gl_overbright.ival)
 		Cvar_ApplyLatchFlag(&gl_overbright, "0", CVAR_RENDERERLATCH);
 	shaderstate.shaderbits = ~SBITS_ATEST_BITS;
 	BE_SendPassBlendDepthMask(0);
@@ -1411,7 +1411,7 @@ void GLBE_Init(void)
 	R_InitFlashblends();
 
 	//only do this where we have to.
-	if (qglBufferDataARB && gl_config.nofixedfunc)
+	if (qglBufferDataARB && gl_config_nofixedfunc)
 	{
 		memset(&shaderstate.streamvbo, 0, sizeof(shaderstate.streamvbo));
 		memset(&shaderstate.streamebo, 0, sizeof(shaderstate.streamebo));
@@ -1425,6 +1425,7 @@ void GLBE_Init(void)
 
 //end tables
 
+#ifndef GLSLONLY
 #define MAX_ARRAY_VERTS 65535
 static avec4_t		coloursarray[MAX_ARRAY_VERTS];
 static float		texcoordarray[SHADER_PASS_MAX][MAX_ARRAY_VERTS*2];
@@ -2442,6 +2443,7 @@ static void BE_GeneratePassTC(const shaderpass_t *pass, int tmu)
 		GenerateTCMods(pass, tmu);
 	}
 }
+#endif
 
 static void BE_SendPassBlendDepthMask(unsigned int sbits)
 {
@@ -2527,7 +2529,7 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 	}
 
 #ifdef GL_ALPHA_TEST	//alpha test doesn't exist in gles2
-	if ((delta & SBITS_ATEST_BITS) && !gl_config.nofixedfunc)
+	if ((delta & SBITS_ATEST_BITS) && !gl_config_nofixedfunc)
 	{
 		switch (sbits & SBITS_ATEST_BITS)
 		{
@@ -2603,7 +2605,7 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 #ifdef GL_PERSPECTIVE_CORRECTION_HINT
 	if ((delta & SBITS_AFFINE) && qglHint)
 	{
-		if (!qglHint || (gl_config.gles && gl_config.glversion >= 2) || (!gl_config.gles && gl_config.nofixedfunc))
+		if (!qglHint || (gl_config_gles && gl_config.glversion >= 2) || (!gl_config_gles && gl_config_nofixedfunc))
 			;	//doesn't exist in gles2 nor gl3+core contexts
 		else if (sbits & SBITS_AFFINE)
 			qglHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
@@ -2724,6 +2726,7 @@ static void BE_SubmitMeshChain(void)
 	}
 }
 
+#ifndef GLSLONLY
 static void DrawPass(const shaderpass_t *pass)
 {
 	int i, j, k;
@@ -2844,6 +2847,7 @@ static void DrawPass(const shaderpass_t *pass)
 
 	BE_SubmitMeshChain();
 }
+#endif
 
 static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, qboolean entunchanged)
 {
@@ -3217,7 +3221,23 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 
 	BE_SendPassBlendDepthMask(pass->shaderbits);
 	BE_EnableShaderAttributes(p->permu[perm].attrmask, shaderstate.sourcevbo->vao);
-	if (p->nofixedcompat)
+#ifndef GLSLONLY
+	if (!p->nofixedcompat)
+	{
+		GenerateColourMods(pass);
+		for (i = 0; i < pass->numMergedPasses; i++)
+		{
+			Shader_BindTextureForPass(i, pass+i);
+			BE_GeneratePassTC(pass+i, i);
+		}
+		for (; i < shaderstate.lastpasstmus; i++)
+		{
+			GL_LazyBind(i, 0, r_nulltex);
+		}
+		shaderstate.lastpasstmus = pass->numMergedPasses;
+	}
+	else
+#endif
 	{
 		for (i = 0; i < pass->numMergedPasses; i++)
 		{
@@ -3247,20 +3267,6 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			}
 			shaderstate.lastpasstmus = pass->numMergedPasses;
 		}
-	}
-	else
-	{
-		GenerateColourMods(pass);
-		for (i = 0; i < pass->numMergedPasses; i++)
-		{
-			Shader_BindTextureForPass(i, pass+i);
-			BE_GeneratePassTC(pass+i, i);
-		}
-		for (; i < shaderstate.lastpasstmus; i++)
-		{
-			GL_LazyBind(i, 0, r_nulltex);
-		}
-		shaderstate.lastpasstmus = pass->numMergedPasses;
 	}
 	BE_SubmitMeshChain();
 }
@@ -3330,10 +3336,10 @@ void GLBE_SelectMode(backendmode_t mode)
 			/*BEM_STENCIL doesn't support mesh writing*/
 			GLBE_PushOffsetShadow(false);
 
-			if (gl_config.nofixedfunc && !shaderstate.allblackshader)
+			if (gl_config_nofixedfunc && !shaderstate.allblackshader)
 			{
-				char *defs[] = {NULL};
-				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config.gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
+				const char *defs[] = {NULL};
+				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
 				shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection");
 			}
 
@@ -3342,7 +3348,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			{
 				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 			}
-			if (!gl_config.nofixedfunc)
+			if (!gl_config_nofixedfunc)
 			{
 				GL_DeSelectProgram();
 
@@ -3587,7 +3593,7 @@ void GLBE_PushOffsetShadow(qboolean pushdepth)
 	}
 }
 
-#ifdef RTLIGHTS
+#if defined(RTLIGHTS) && !defined(GLSLONLY)
 texid_t GenerateNormalisationCubeMap(void);
 static void BE_LegacyLighting(void)
 {
@@ -3755,11 +3761,13 @@ static void DrawMeshes(void)
 		}
 	}
 
+#ifndef GLSLONLY
 	if (shaderstate.sourcevbo->coord2.gl.addr && (shaderstate.curshader->numdeforms || !shaderstate.curshader->prog))
 		GenerateVertexBlends(shaderstate.curshader);
 	else if (shaderstate.curshader->numdeforms)
 		GenerateVertexDeforms(shaderstate.curshader);
 	else
+#endif
 	{
 		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord.gl.addr;
 		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
@@ -3785,8 +3793,10 @@ static void DrawMeshes(void)
 			altshader = shaderstate.shader_light[shaderstate.lightmode];
 		if (altshader && altshader->prog)
 			BE_RenderMeshProgram(altshader, altshader->passes);
+#ifndef GLSLONLY
 		else
 			BE_LegacyLighting();
+#endif
 		break;
 	case BEM_DEPTHNORM:
 		altshader = shaderstate.curshader->bemoverrides[bemoverride_prelight];
@@ -3825,11 +3835,13 @@ static void DrawMeshes(void)
 		break;
 
 	case BEM_FOG:
+#ifndef GLSLONLY
 		GL_DeSelectProgram();
 
 		GenerateTCFog(0, NULL);
 		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX), 0);
 		BE_SubmitMeshChain();
+#endif
 		break;
 
 	case BEM_WIREFRAME:
@@ -3850,14 +3862,14 @@ static void DrawMeshes(void)
 		BE_SubmitMeshChain();
 		break;
 	case BEM_DEPTHDARK:
-		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright) && !gl_config.nofixedfunc)
+		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright) && !gl_config_nofixedfunc)
 		{
 			if (gl_config.arb_shader_objects)
 			{
 				if (!shaderstate.allblackshader)
 				{
 					const char *defs[] = {NULL};
-					shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config.gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
+					shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
 					shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection");
 				}
 
@@ -3900,7 +3912,10 @@ static void DrawMeshes(void)
 		{
 			BE_RenderMeshProgram(shaderstate.curshader, shaderstate.curshader->passes);
 		}
-		else if (gl_config.nofixedfunc)
+#ifdef GLSLONLY
+		break;
+#else
+		else if (gl_config_nofixedfunc)
 			break;
 		else
 		{
@@ -3940,6 +3955,7 @@ static void DrawMeshes(void)
 			BE_SubmitMeshChain();
 		}
 		break;
+#endif
 	}
 }
 

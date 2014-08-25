@@ -1533,32 +1533,6 @@ void SVC_GetChallenge (void)
 //				svs.challenges[i].challenge);
 }
 
-void SV_GetNewSpawnParms(client_t *cl)
-{
-	int i;
-
-	if (svprogfuncs)	//q2 dlls don't use parms in this mannor. It's all internal to the dll.
-	{
-		// call the progs to get default spawn parms for the new client
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-			Q1QVM_SetNewParms();
-		else
-#endif
-		{
-			if (pr_global_ptrs->SetNewParms)
-				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
-		}
-		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
-		{
-			if (pr_global_ptrs->spawnparamglobals[i])
-				cl->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
-			else
-				cl->spawn_parms[i] = 0;
-		}
-	}
-}
-
 void VARGS SV_OutOfBandPrintf (int q2, netadr_t *adr, char *format, ...)
 {
 	va_list		argptr;
@@ -6000,7 +5974,10 @@ void SV_Init (quakeparms_t *parms)
 #ifdef SVRANKING
 	Rank_RegisterCommands();
 #endif
-	Cbuf_AddText("alias restart \"map .\"\nalias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
+	Cbuf_AddText(
+			"alias restart \"changelevel .\"\n"
+			"alias startmap_sp \"map start\"\n",
+			RESTRICT_LOCAL);
 
 #ifndef SERVERONLY
 	if (isDedicated)

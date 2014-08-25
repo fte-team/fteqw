@@ -1277,10 +1277,12 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	while (progfuncs->funcs.pr_trace || prinst.watch_ptr || prinst.profiling)
 	{
 #ifdef FTE_TARGET_WEB
+		cont16:
+		reeval16:
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
-		pr_xstatement = st-pr_statements;
+		pr_xstatement = st-pr_statements16;
 		PR_RunError (&progfuncs->funcs, "This platform does not support QC debugging.\n");
-		PR_StackTrace(&progfuncs->funcs);
+		PR_StackTrace(&progfuncs->funcs, false);
 		return -1;
 #else
 		#define DEBUGABLE
@@ -1302,6 +1304,14 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 
 static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *fte_restrict runaway)
 {
+#ifdef FTE_TARGET_WEB
+	//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
+	pr_xstatement = s;
+	PR_RunError (&progfuncs->funcs, "32bit qc statement support was disabled for this platform.\n");
+	PR_StackTrace(&progfuncs->funcs, false);
+	return -1;
+#else
+
 	eval_t	*t, *swtch=NULL;
 
 	int swtchtype = 0; //warning about not being initialized before use
@@ -1323,13 +1333,6 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	st = &pr_statements32[s];
 	while (progfuncs->funcs.pr_trace || prinst.watch_ptr || prinst.profiling)
 	{
-#ifdef FTE_TARGET_WEB
-		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
-		pr_xstatement = st-pr_statements;
-		PR_RunError (&progfuncs->funcs, "This platform does not support QC debugging.\n");
-		PR_StackTrace(&progfuncs->funcs, false);
-		return -1;
-#else
 		#define DEBUGABLE
 		#ifdef SEPARATEINCLUDES
 			#include "execloop32d.h"
@@ -1337,7 +1340,6 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 			#include "execloop.h"
 		#endif
 		#undef DEBUGABLE
-#endif
 	}
 
 	while(1)
@@ -1349,6 +1351,7 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 		#endif
 	}
 #undef INTSIZE
+#endif
 }
 
 /*
@@ -1446,7 +1449,7 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 	{
 //		if (pr_global_struct->self)
 //			ED_Print (PROG_TO_EDICT(pr_global_struct->self));
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(FTE_TARGET_WEB)
 		printf("PR_ExecuteProgram: NULL function from exe (address %p)\n", __builtin_return_address(0));
 #else
 		printf("PR_ExecuteProgram: NULL function from exe\n");

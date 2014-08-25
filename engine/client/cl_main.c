@@ -2297,6 +2297,8 @@ void CL_Changing_f (void)
 	if (cls.download)  // don't change when downloading
 		return;
 
+	cls.demoseeking = false;	//don't seek over it
+
 	if (*mapname)
 		SCR_ImageName(mapname);
 	else
@@ -3324,6 +3326,7 @@ void CL_FTP_f(void)
 #endif
 */
 
+//fixme: make a cvar
 void CL_Fog_f(void)
 {
 	if ((cl.fog_locked && !Cmd_FromGamecode()) || Cmd_Argc() <= 1)
@@ -3362,15 +3365,13 @@ void CL_Fog_f(void)
 			cl.fog.time += 1;
 
 		//fitz:
-		//if (Cmd_Argc() >= 6) cl.fog_time = atof(Cmd_Argv(5));
+		//if (Cmd_Argc() >= 6) cl.fog_time += atof(Cmd_Argv(5));
 		//dp:
 		if (Cmd_Argc() >= 6) cl.fog.alpha = atof(Cmd_Argv(5));
 		if (Cmd_Argc() >= 7) cl.fog.depthbias = atof(Cmd_Argv(6));
-		/*
-		if (Cmd_Argc() >= 8) cl.fog.end = atof(Cmd_Argv(7));
-		if (Cmd_Argc() >= 9) cl.fog.height = atof(Cmd_Argv(8));
-		if (Cmd_Argc() >= 10) cl.fog.fadedepth = atof(Cmd_Argv(9));
-		*/
+		//if (Cmd_Argc() >= 8) cl.fog.end = atof(Cmd_Argv(7));
+		//if (Cmd_Argc() >= 9) cl.fog.height = atof(Cmd_Argv(8));
+		//if (Cmd_Argc() >= 10) cl.fog.fadedepth = atof(Cmd_Argv(9));
 
 		if (Cmd_FromGamecode())
 			cl.fog_locked = !!cl.fog.density;
@@ -3846,8 +3847,13 @@ void Host_RunFileNotify(struct dl_download *dl)
 #include "fs.h"
 #define HRF_OVERWRITE	(1<<0)
 #define HRF_NOOVERWRITE	(1<<1)
+//						(1<<2)
 #define HRF_ABORT		(1<<3)
+
 #define HRF_OPENED		(1<<4)
+//						(1<<5)
+//						(1<<6)
+//						(1<<7)
 
 #define HRF_DEMO_MVD	(1<<8)
 #define HRF_DEMO_QWD	(1<<9)
@@ -3925,6 +3931,7 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 			f->flags |= HRF_PACKAGE;
 		else
 		{
+			Con_Printf("file extension of %s not recognised\n", f->fname);
 			//file type not guessable from extension either.
 			f->flags |= HRF_ABORT;
 			Host_DoRunFile(f);
@@ -4043,6 +4050,7 @@ void Host_DoRunFile(hrf_t *f)
 		//if we still don't know what it is, give up.
 		if (!(f->flags & HRF_FILETYPES))
 		{
+			Con_Printf("Host_DoRunFile: unknown filetype\n");
 			f->flags |= HRF_ABORT;
 			Host_DoRunFile(f);
 			return;
@@ -4085,14 +4093,23 @@ void Host_DoRunFile(hrf_t *f)
 			{
 				ftemanifest_t *man;
 				int len = VFS_GETLEN(f->srcfile);
+				int foo;
 				char *fdata = BZ_Malloc(len+1);
-				VFS_READ(f->srcfile, fdata, len);
+				foo = VFS_READ(f->srcfile, fdata, len);
 				fdata[len] = 0;
-				man = FS_Manifest_Parse(NULL, fdata);
-				if (!man->updateurl)
-					man->updateurl = Z_StrDup(f->fname);
-				BZ_Free(fdata);
-				FS_ChangeGame(man, true);
+				if (foo != len)
+				{
+					Con_Printf("Host_DoRunFile: unable to read file properly\n");
+					BZ_Free(fdata);
+				}
+				else
+				{
+					man = FS_Manifest_Parse(NULL, fdata);
+					if (!man->updateurl)
+						man->updateurl = Z_StrDup(f->fname);
+					BZ_Free(fdata);
+					FS_ChangeGame(man, true);
+				}
 
 				f->flags |= HRF_ABORT;
 				Host_DoRunFile(f);
@@ -4102,6 +4119,7 @@ void Host_DoRunFile(hrf_t *f)
 	}
 	else if (!(f->flags & HRF_QTVINFO))
 	{
+		Con_Printf("Host_DoRunFile: filetype not handled\n");
 		f->flags |= HRF_ABORT;
 		Host_DoRunFile(f);
 		return;
@@ -4241,7 +4259,7 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 		fname = utf8;
 		nlen = strlen(fname);
 	}
-#else
+#elif !defined(FTE_TARGET_WEB)
 	//unix file urls are fairly consistant.
 	if (nlen >= 8 && !strncmp(fname, "file:///", 8))
 	{

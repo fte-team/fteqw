@@ -183,7 +183,7 @@ static void PR_memvalidate (progfuncs_t *progfuncs)
 		if (b < 0 || b >= prinst.addressableused)
 		{
 			printf("PF_memalloc: memory corruption\n");
-			PR_StackTrace(&progfuncs->funcs);
+			PR_StackTrace(&progfuncs->funcs, false);
 			return;
 		}
 		p = (qcmemfreeblock_t*)(progfuncs->funcs.stringtable + b);
@@ -195,7 +195,7 @@ static void PR_memvalidate (progfuncs_t *progfuncs)
 			p->prev >= b)
 		{
 			printf("PF_memalloc: memory corruption\n");
-			PR_StackTrace(&progfuncs->funcs);
+			PR_StackTrace(&progfuncs->funcs, false);
 			return;
 		}
 		l = b;

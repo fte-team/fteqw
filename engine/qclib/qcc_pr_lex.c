@@ -653,9 +653,8 @@ pbool QCC_PR_Precompiler(void)
 		else if (!strncmp(directive, "error", 5))
 		{
 			pr_file_p = directive+5;
-			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\t' && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
-
 			msg[a] = '\0';
 
 			QCC_PR_SkipToEndOfLine(false);
@@ -665,10 +664,9 @@ pbool QCC_PR_Precompiler(void)
 		else if (!strncmp(directive, "warning", 7))
 		{
 			pr_file_p = directive+7;
-			for (a = 0; a < 1023 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < 1023 && pr_file_p[a] != '\r' && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
-
-			msg[a-1] = '\0';
+			msg[a] = '\0';
 
 			QCC_PR_SkipToEndOfLine(false);
 
@@ -677,10 +675,9 @@ pbool QCC_PR_Precompiler(void)
 		else if (!strncmp(directive, "message", 7))
 		{
 			pr_file_p = directive+7;
-			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\r' && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
-
-			msg[a-1] = '\0';
+			msg[a] = '\0';
 
 			if (flag_msvcstyle)
 				printf ("%s(%i) : #message: %s\n", strings + s_file, pr_source_line, msg);
@@ -691,10 +688,9 @@ pbool QCC_PR_Precompiler(void)
 		else if (!strncmp(directive, "copyright", 9))
 		{
 			pr_file_p = directive+9;
-			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && qcc_iswhite(pr_file_p[a]) && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
-
-			msg[a-1] = '\0';
+			msg[a] = '\0';
 
 			QCC_PR_SkipToEndOfLine(false);
 
@@ -715,10 +711,9 @@ pbool QCC_PR_Precompiler(void)
 					ifmode = 1;
 				pr_file_p++;
 			}
-			for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
+			for (a = 0; a < sizeof(msg)-1 && qcc_iswhite(pr_file_p[a]) && pr_file_p[a] != '\0'; a++)
 				msg[a] = pr_file_p[a];
-
-			msg[a-1] = '\0';
+			msg[a] = '\0';
 
 			QCC_PR_SkipToEndOfLine(true);
 

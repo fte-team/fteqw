@@ -628,26 +628,26 @@ void QCBUILTIN PF_cl_getextresponse(pubprogfuncs_t *prinst, struct globalvars_s 
 	G_INT(OFS_RETURN) = 0;
 }
 #else
-void PF_cl_gethostcachevalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
-void PF_cl_gethostcachestring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals) {G_INT(OFS_RETURN) = 0;}
+void QCBUILTIN PF_cl_gethostcachevalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
+void QCBUILTIN PF_cl_gethostcachestring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals) {G_INT(OFS_RETURN) = 0;}
 //void 	resethostcachemasks(void) = #615;
-void PF_cl_resethostcachemasks(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
+void QCBUILTIN PF_cl_resethostcachemasks(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
 //void 	sethostcachemaskstring(float mask, float fld, string str, float op) = #616;
-void PF_cl_sethostcachemaskstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
+void QCBUILTIN PF_cl_sethostcachemaskstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
 //void	sethostcachemasknumber(float mask, float fld, float num, float op) = #617;
-void PF_cl_sethostcachemasknumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
+void QCBUILTIN PF_cl_sethostcachemasknumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
 //void 	resorthostcache(void) = #618;
-void PF_cl_resorthostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
+void QCBUILTIN PF_cl_resorthostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
 //void	sethostcachesort(float fld, float descending) = #619;
-void PF_cl_sethostcachesort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
+void QCBUILTIN PF_cl_sethostcachesort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
 //void	refreshhostcache(void) = #620;
-void PF_cl_refreshhostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals) {}
+void QCBUILTIN PF_cl_refreshhostcache(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals) {}
 //float	gethostcachenumber(float fld, float hostnr) = #621;
-void PF_cl_gethostcachenumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
+void QCBUILTIN PF_cl_gethostcachenumber(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
 //float	gethostcacheindexforkey(string key) = #622;
-void PF_cl_gethostcacheindexforkey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
+void QCBUILTIN PF_cl_gethostcacheindexforkey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){G_FLOAT(OFS_RETURN) = 0;}
 //void	addwantedhostcachekey(string key) = #623;
-void PF_cl_addwantedhostcachekey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
+void QCBUILTIN PF_cl_addwantedhostcachekey(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals){}
 #endif
 
 

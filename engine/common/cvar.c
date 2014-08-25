@@ -688,7 +688,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		return NULL;
 	}
 
-	if (var->flags & CVAR_SERVEROVERRIDE && !force)
+	if (0)//var->flags & CVAR_SERVEROVERRIDE && !force)
 		latch = "variable %s is under server control - latched\n";
 	else if (var->flags & CVAR_LATCH && (sv_state || cls_state))
 		latch = "variable %s is latched and will be applied for the start of the next map\n";

@@ -82,7 +82,7 @@ void DestClose(mvddest_t *d, qboolean destroyfiles)
 		VFS_CLOSE(d->file);
 #ifdef HAVE_TCP
 	if (d->socket)
-		UDP_CloseSocket(d->socket);
+		closesocket(d->socket);
 #endif
 
 	if (destroyfiles)

@@ -149,7 +149,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	{
 		SDL_Surface *iconsurf;
 		#include "bymorphed.h"
-		iconsurf = SDL_CreateRGBSurfaceFrom(icon.pixel_data, icon.width, icon.height, 32, 4*icon.height, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);	//RGBA byte order on a little endian machine, at least...
+		iconsurf = SDL_CreateRGBSurfaceFrom((void*)icon.pixel_data, icon.width, icon.height, 32, 4*icon.height, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);	//RGBA byte order on a little endian machine, at least...
 		SDL_SetWindowIcon(sdlwindow, iconsurf);
 		SDL_FreeSurface(iconsurf);
 	}

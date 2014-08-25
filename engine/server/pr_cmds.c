@@ -5050,7 +5050,7 @@ void QCBUILTIN PF_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		if ((int)pr_global_struct->serverflags & (16|32))
 		{
 			COM_QuotedString(va("*%s", PR_GetStringOfs(prinst, OFS_PARM0)), newmap, sizeof(newmap));
-			Cbuf_AddText (va("\nmap %s %s\n", newmap, startspot), RESTRICT_LOCAL);
+			Cbuf_AddText (va("\nchangelevel %s %s\n", newmap, startspot), RESTRICT_LOCAL);
 		}
 		else
 		{
@@ -5067,7 +5067,7 @@ void QCBUILTIN PF_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			Cbuf_AddText (va("\nchangelevel %s %s\n", newmap, startspot), RESTRICT_LOCAL);
 		}
 		else
-			Cbuf_AddText (va("\nmap %s\n", newmap), RESTRICT_LOCAL);
+			Cbuf_AddText (va("\nchangelevel %s\n", newmap), RESTRICT_LOCAL);
 	}
 }
 
@@ -7423,7 +7423,7 @@ static void QCBUILTIN PF_h2rain_go(pubprogfuncs_t *prinst, struct globalvars_s *
 	//used by (tomed) icemace.hc 
 	float *min = G_VECTOR(OFS_PARM0);
 	float *max = G_VECTOR(OFS_PARM1);
-	float *size = G_VECTOR(OFS_PARM2);
+//unused	float *size = G_VECTOR(OFS_PARM2);
 	float *dir = G_VECTOR(OFS_PARM3);
 	float colour = G_FLOAT(OFS_PARM4);
 	float count = G_FLOAT(OFS_PARM5);
@@ -9472,7 +9472,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"particleeffectquery",PF_Fixme,0,		0,		0,		374,	D("string(float efnum, float body)", "Retrieves either the name or the body of the effect with the given number. The effect body is regenerated from internal state, and can be changed before being reapplied via the localcmd builtin.")},
 
 	{"adddecal",		PF_Fixme,	0,		0,		0,		375,	D("void(string shadername, vector origin, vector up, vector side, vector rgb, float alpha)", "Adds a temporary clipped decal shader to the scene, centered at the given point with given orientation. Will be drawn by the next renderscene call, and freed by the next clearscene call.")},
-	{"setcustomskin",	PF_Fixme,	0,		0,		0,		376,	D("float(entity e, string skinfilename, optional string skindata)", "Sets an entity's skin overrides. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:\nsurfacename,shadername - makes the named surface use the named shader\nreplace \"surfacename\" \"shadername\" - same.\ncompose \"surfacename\" \"shader\" \"imagename@x,y:w,h?r,g,b,a\" - compose a skin texture from multiple images. The texture is determined to be sufficient to hold the first named image, additional images can be named as extra tokens on the same line. Use a + at the end of the line to continue reading image tokens from the next line also, the named shader must use 'map $diffuse' to read the composed texture (compatible with the defaultskin shader).")},
+	{"setcustomskin",	PF_Fixme,	0,		0,		0,		376,	D("void(entity e, string skinfilename, optional string skindata)", "Sets an entity's skin overrides. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:\nsurfacename,shadername - makes the named surface use the named shader\nreplace \"surfacename\" \"shadername\" - same.\ncompose \"surfacename\" \"shader\" \"imagename@x,y:w,h?r,g,b,a\" - compose a skin texture from multiple images. The texture is determined to be sufficient to hold the first named image, additional images can be named as extra tokens on the same line. Use a + at the end of the line to continue reading image tokens from the next line also, the named shader must use 'map $diffuse' to read the composed texture (compatible with the defaultskin shader).")},
 //END EXT_CSQC
 
 	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	D("__variant*(int size)", "Allocate an arbitary block of memory")},
@@ -9693,9 +9693,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"matchpattern",	PF_Fixme,			0,		0,		0,		538,	"float(string s, string pattern, float matchrule)"},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		539,	""},
 
+#ifdef USEODE
 	{"physics_enable",	PF_physics_enable,	0,		0,		0,		540,	D("void(entity e, float physics_enabled)", "Enable or disable the physics attached to a MOVETYPE_PHYSICS entity. Entities which have been disabled in this way will stop taking so much cpu time.")},
 	{"physics_addforce",PF_physics_addforce,0,		0,		0,		541,	D("void(entity e, vector force, vector relative_ofs)", "Apply some impulse directional force upon a MOVETYPE_PHYSICS entity.")},
 	{"physics_addtorque",PF_physics_addtorque,0,	0,		0,		542,	D("void(entity e, vector torque)", "Apply some impulse rotational force upon a MOVETYPE_PHYSICS entity.")},
+#endif
 
 	{"setkeydest",		PF_Fixme,			0,		0,		0,		601,	"void(float dest)"},
 	{"getkeydest",		PF_Fixme,			0,		0,		0,		602,	"float()"},

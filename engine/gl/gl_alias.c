@@ -751,7 +751,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			{
 				int i, j;
 				unsigned translate32[256];
-				static unsigned	pixels[512*512];	//FIXME: too big for stack, so lets just chuck it in the bss, yay! because that sounds like a good idea! not.
+				unsigned	*pixels;
 				unsigned	*out;
 				unsigned	frac, fracstep;
 
@@ -860,6 +860,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					}
 				}
 
+				pixels = malloc(sizeof(*pixels) * scaled_height*scaled_width);
 				out = pixels;
 				fracstep = tinwidth*0x10000/scaled_width;
 				for (i=0 ; i<scaled_height ; i++, out += scaled_width)
@@ -961,6 +962,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 									scaled_width, scaled_height, TF_RGBA32, pixels, IF_NOMIPMAP);
 
 				}
+				free(pixels);
 			}
 			else
 			{

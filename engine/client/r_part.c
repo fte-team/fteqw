@@ -29,7 +29,7 @@ void R_Rockettrail_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
 	model_t *mod;
-	extern model_t	mod_known[];
+	extern model_t	*mod_known;
 	extern int		mod_numknown;
 
 	if (cls.state == ca_disconnected)
@@ -47,7 +47,7 @@ void R_Grenadetrail_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
 	model_t *mod;
-	extern model_t	mod_known[];
+	extern model_t	*mod_known;
 	extern int		mod_numknown;
 
 	if (cls.state == ca_disconnected)

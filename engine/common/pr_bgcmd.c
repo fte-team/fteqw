@@ -77,14 +77,14 @@ extern int debuggerresumeline;
 extern int isPlugin;	//if 2, we were invoked by a debugger, and we need to give it debug locations (and it'll feed us continue/steps/breakpoints)
 static int debuggerstacky;
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 #include <windows.h>
 void INS_UpdateGrabs(int fullscreen, int activeapp);
 #endif
 int QCLibEditor(pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);
 void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
-#if defined(_WIN32) && !defined(SERVERONLY)
+#if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
 	extern int				isPlugin;
 	if (isPlugin == 2)
 	{
@@ -104,7 +104,7 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 extern cvar_t pr_sourcedir;
 int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms)
 {
-#if defined(_WIN32) && !defined(SERVERONLY)
+#if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
 	if (isPlugin == 2)
 	{
 		if (!*filename)	//don't try editing an empty line, it won't work

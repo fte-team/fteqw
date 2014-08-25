@@ -313,15 +313,24 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 	}
 	else
 	{
+		float lhs;
 		cv = Cvar_Get(token, "", 0, "Shader Conditions");
-		if (!cv)
+		if (cv)
 		{
-			Con_Printf("Shader_EvaluateCondition: '%s' is not a cvar\n", token);
-			return conditiontrue;
+			cv->flags |= CVAR_SHADERSYSTEM;
+			lhs = cv->value;
+		}
+		else
+		{
+			if (*token < '0' || *token > '9')
+			{
+				Con_Printf("Shader_EvaluateCondition: '%s' is not a cvar\n", token);
+				return conditiontrue;
+			}
+			lhs = strtod(token, NULL);
 		}
 		if (*token)
 			token = COM_ParseExt(ptr, false, false);
-		cv->flags |= CVAR_SHADERSYSTEM;
 		if (*token)
 		{
 			float rhs;
@@ -330,17 +339,17 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 			token = COM_ParseExt(ptr, false, false);
 			rhs = atof(token);
 			if (!strcmp(cmp, "!="))
-				conditiontrue = cv->value != rhs;
+				conditiontrue = lhs != rhs;
 			else if (!strcmp(cmp, "=="))
-				conditiontrue = cv->value == rhs;
+				conditiontrue = lhs == rhs;
 			else if (!strcmp(cmp, "<"))
-				conditiontrue = cv->value < rhs;
+				conditiontrue = lhs < rhs;
 			else if (!strcmp(cmp, "<="))
-				conditiontrue = cv->value <= rhs;
+				conditiontrue = lhs <= rhs;
 			else if (!strcmp(cmp, ">"))
-				conditiontrue = cv->value > rhs;
+				conditiontrue = lhs > rhs;
 			else if (!strcmp(cmp, ">="))
-				conditiontrue = cv->value >= rhs;
+				conditiontrue = lhs >= rhs;
 			else
 				conditiontrue = false;
 		}
@@ -1323,7 +1332,10 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 	else
 	{
 		if (sh_config.progpath)
-			FS_LoadFile(va(sh_config.progpath, basicname), &file);
+		{
+			Q_snprintfz(blobname, sizeof(blobname), sh_config.progpath, basicname);
+			FS_LoadFile(blobname, &file);
+		}
 		else
 			file = NULL;
 		if (sh_config.blobpath && r_shaderblobs.ival)
@@ -4174,24 +4186,37 @@ void Shader_DefaultSkybox(const char *shortname, shader_t *s, const void *args)
 	);
 }
 
-char *Shader_DefaultBSPWater(const char *shortname)
+char *Shader_DefaultBSPWater(shader_t *s, const char *shortname)
 {
 	int wstyle;
-	int islava = !strncmp(shortname, "*lava", 5);
+	int type;
+	float alpha;
+	qboolean explicitalpha = false;
+	cvar_t *alphavars[] = {	&r_wateralpha, &r_lavaalpha, &r_slimealpha, &r_telealpha};
+	cvar_t *stylevars[] = {	&r_waterstyle, &r_lavastyle, &r_slimestyle, &r_telestyle};
+	if (!strncmp(shortname, "*lava", 5))
+		type = 1;
+	else if (!strncmp(shortname, "*slime", 6))
+		type = 2;
+	else if (!strncmp(shortname, "*tele", 5))
+		type = 3;
+	else
+		type = 0;
+	alpha = Shader_FloatArgument(s, "ALPHA");
+	if (alpha)
+		explicitalpha = true;
+	else
+		alpha = *alphavars[type]->string?alphavars[type]->value:alphavars[0]->value;
 
-	if (((islava && *r_lavaalpha.string)?r_lavaalpha.value:r_wateralpha.value) <= 0)
+	if (alpha <= 0)
 		wstyle = -1;
 	else if (r_fastturb.ival)
 		wstyle = 0;
 #ifdef GLQUAKE
-	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && islava && *r_lavastyle.string)
-		wstyle = r_lavastyle.ival;
-	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && !strncmp(shortname, "*slime", 5) && *r_slimestyle.string)
-		wstyle = r_slimestyle.ival;
-	else if (!strncmp(shortname, "*lava", 5))
-		wstyle = -2;
-	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && strncmp(shortname, "*lava", 5))
-		wstyle = r_waterstyle.ival<1?1:r_waterstyle.ival;
+	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && *stylevars[type]->string)
+		wstyle = stylevars[type]->ival;
+	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && stylevars[0]->ival > 0)
+		wstyle = stylevars[0]->ival;
 #endif
 	else
 		wstyle = 1;
@@ -4232,54 +4257,20 @@ char *Shader_DefaultBSPWater(const char *shortname)
 		);
 	default:
 	case 1:	//vanilla style
-		if (islava && *r_lavaalpha.string)
-		{
-			return (
+		return va(
 				"{\n"
-					"program defaultwarp\n"
+					"program defaultwarp%s\n"
 					"{\n"
 						"map $diffuse\n"
 						"tcmod turb 0.02 0.1 0.5 0.1\n"
-						"if !$#ALPHA\n"
-							"if r_lavaalpha < 1\n"
-								"alphagen const $r_lavaalpha\n"
-								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-							"endif\n"
-						"else\n"
-							"if $#ALPHA < 1\n"
-								"alphagen const $#ALPHA\n"
-								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-							"endif\n"
+						"if %g < 1\n"
+							"alphagen const %g\n"
+							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 						"endif\n"
 					"}\n"
 					"surfaceparm nodlight\n"
 				"}\n"
-			);
-		}
-		else
-		{
-			return (
-				"{\n"
-					"program defaultwarp\n"
-					"{\n"
-						"map $diffuse\n"
-						"tcmod turb 0.02 0.1 0.5 0.1\n"
-						"if !$#ALPHA\n"
-							"if r_wateralpha < 1\n"
-								"alphagen const $r_wateralpha\n"
-								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-							"endif\n"
-						"else\n"
-							"if $#ALPHA < 1\n"
-								"alphagen const $#ALPHA\n"
-								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-							"endif\n"
-						"endif\n"
-					"}\n"
-					"surfaceparm nodlight\n"
-				"}\n"
-			);
-		}
+				, explicitalpha?"":va("#ALPHA=%g",alpha), alpha, alpha);
 	case 2:	//refraction of the underwater surface, with a fresnel
 		return (
 			"{\n"
@@ -4367,7 +4358,7 @@ char *Shader_DefaultBSPWater(const char *shortname)
 
 void Shader_DefaultWaterShader(const char *shortname, shader_t *s, const void *args)
 {
-	Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(shortname));
+	Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(s, shortname));
 }
 void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 {
@@ -4382,7 +4373,7 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 	}
 	else if (!strncmp(shortname, "warp/", 5) || !strncmp(shortname, "warp33/", 7) || !strncmp(shortname, "warp66/", 7))
 	{
-		Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(shortname));
+		Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(s, shortname));
 	}
 	else if (!strncmp(shortname, "trans/", 6))
 		Shader_DefaultScript(shortname, s,
@@ -4433,7 +4424,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 
 	if (!builtin && (*shortname == '*'))
 	{
-		builtin = Shader_DefaultBSPWater(shortname);
+		builtin = Shader_DefaultBSPWater(s, shortname);
 	}
 	if (!builtin && !strncmp(shortname, "sky", 3))
 	{

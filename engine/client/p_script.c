@@ -1985,6 +1985,9 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		case SM_DISTBALL:
 			Q_strncatz(outstr, va("spawnmode distball %g %g\n", ptype->spawnparam1, ptype->spawnparam2), outstrlen);
 			break;
+		case SM_BOX:
+			Q_strncatz(outstr, va("spawnmode box %g %g\n", ptype->spawnparam1, ptype->spawnparam2), outstrlen);
+			break;
 		}
 		if (ptype->spawnvel || ptype->spawnvelvert)
 			Q_strncatz(outstr, va("spawnvel %g %g\n", ptype->spawnvel, ptype->spawnvelvert), outstrlen);
@@ -2624,8 +2627,7 @@ static void P_ImportEffectInfo(char *config, char *line)
 
 static void P_ImportEffectInfo_f(void)
 {
-	char *file, *line;
-	int args = 0;
+	char *file;
 	char *config = "effectinfo";
 
 	FS_LoadFile(va("%s.txt", config), (void**)&file);
@@ -2635,7 +2637,6 @@ static void P_ImportEffectInfo_f(void)
 		Con_Printf("effectinfo.txt not found\n");
 		return;
 	}
-	line = file;
 	P_ImportEffectInfo(config, file);
 	FS_FreeFile(file);
 }
@@ -3373,8 +3374,11 @@ static void PScript_ApplyOrgVel(vec3_t oorg, vec3_t ovel, vec3_t eforg, vec3_t e
 	case SM_FIELD:
 		if (!avelocities[0][0])
 		{
-			for (j=0 ; j<NUMVERTEXNORMALS*2 ; j++)
-				avelocities[0][j] = (rand()&255) * 0.01;
+			for (j=0 ; j<NUMVERTEXNORMALS ; j++)
+			{
+				avelocities[j][0] = (rand()&255) * 0.01;
+				avelocities[j][1] = (rand()&255) * 0.01;
+			}
 		}
 
 		j = 0;
@@ -3879,8 +3883,11 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		case SM_FIELD:
 			if (!avelocities[0][0])
 			{
-				for (j=0 ; j<NUMVERTEXNORMALS*2 ; j++)
-					avelocities[0][j] = (rand()&255) * 0.01;
+				for (j=0 ; j<NUMVERTEXNORMALS ; j++)
+				{
+					avelocities[j][0] = (rand()&255) * 0.01;
+					avelocities[j][1] = (rand()&255) * 0.01;
+				}
 			}
 
 			j = 0;

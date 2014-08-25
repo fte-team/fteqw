@@ -4901,9 +4901,12 @@ static struct {
 //	{"bufstr_find",				PF_Fixme,					537},
 //	{"matchpattern",			PF_Fixme,					538},
 //	{"undefined",				PF_Fixme,					539},
+
+#ifdef USEODE
 	{"physics_enable",			PF_physics_enable,			540},
 	{"physics_addforce",		PF_physics_addforce,		541},
 	{"physics_addtorque",		PF_physics_addtorque,		542},
+#endif
 
 	{"setmousetarget",			PF_cl_setmousetarget,		603},
 	{"getmousetarget",			PF_cl_getmousetarget,		604},

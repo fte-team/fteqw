@@ -406,7 +406,7 @@ void Sbar_ExecuteLayoutString (char *s)
 
 			p = R2D_SafeCachePic(va("players/%s_i.pcx", cl.players[value].skin->name));
 			if (!p)	//display a default if the icon couldn't be found.
-				p = R2D_SafeCachePic(va("players/male/grunt_i.pcx", cl.players[value].skin->name));
+				p = R2D_SafeCachePic("players/male/grunt_i.pcx");
 			R2D_ScalePic (x, y, 32, 32, p);
 			continue;
 		}

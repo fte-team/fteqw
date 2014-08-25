@@ -281,6 +281,15 @@ void R2D_Init(void)
 	shader_menutint = R_RegisterShader("menutint", SUF_NONE,
 		"{\n"
 			"affine\n"
+#ifdef FTE_TARGET_WEB
+				//currentrender is problematic here, so avoid using it.
+				"program default2d\n"
+				"{\n"
+					"map $whiteimage\n"
+					"blendfunc gl_dst_color gl_zero\n"
+					"rgbgen const $r_menutint\n"
+				"}\n"
+#else
 			"if $glsl && gl_menutint_shader != 0\n"
 				"program menutint\n"
 				"{\n"
@@ -293,6 +302,7 @@ void R2D_Init(void)
 					"rgbgen const $r_menutint\n"
 				"}\n"
 			"endif\n"
+#endif
 		"}\n"
 	);
 	shader_crosshair = R_RegisterShader("crosshairshader", SUF_NONE,

@@ -185,7 +185,7 @@ void IN_Commands(void)
 			{
 				if (Key_MouseShouldBeFree())
 					ptr[ev->devid].down = 0;
-				else
+				else if (ptr[ev->devid].down)
 				{
 					if (ev->type == IEV_KEYDOWN)
 						Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, ev->type == IEV_KEYDOWN); 

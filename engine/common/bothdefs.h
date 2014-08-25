@@ -295,6 +295,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q2SERVER	//requires a dll anyway.
 	#undef Q3CLIENT
 	#undef Q3SERVER //trying to trim memory use
+	#undef Q2BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
+	#undef Q3BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
+	#undef PSET_SCRIPT	//bss+size
+	#define GLSLONLY	//pointless having the junk
+	#define R_MAX_RECURSE 2 //less bss
+	#undef RTLIGHTS
 #endif
 #ifdef WINRT
 	#undef TCPCONNECT	//err...
@@ -594,8 +600,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 // per-level limits
 //
+#ifdef FTE_TARGET_WEB
+#define MAX_EDICTS		((1<<15)-1)
+#else
 //#define	MAX_EDICTS		((1<<22)-1)			// expandable up to 22 bits
 #define	MAX_EDICTS		((1<<18)-1)			// expandable up to 22 bits
+#endif
 #define	MAX_LIGHTSTYLES	255
 #define MAX_STANDARDLIGHTSTYLES 64
 #define	MAX_MODELS		1024			// these are sent over the net as bytes

@@ -576,11 +576,9 @@ static struct {
 	short count2;
 	int next;
 	int prev;
-} edge[MAX_MAP_EDGES];
+} *edge;
 static int firstedge;
-//} *edge;
-//static int firstedge;
-//static int maxedge;
+static int maxedge;
 
 static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 {
@@ -1407,11 +1405,12 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	}
 
 	firstedge=0;
-//	if (maxedge < cl.worldmodel->numedges)
-//	{
-//		maxedge = cl.worldmodel->numedges;
-//		edge = realloc(edge, sizeof(*edge) * maxedge);
-//	}
+	if (maxedge < cl.worldmodel->numedges)
+	{
+		maxedge = cl.worldmodel->numedges;
+		free(edge);
+		edge = malloc(sizeof(*edge) * maxedge);
+	}
 
 	if (cl.worldmodel->type == mod_brush)
 	{
@@ -3229,6 +3228,8 @@ void Sh_PurgeShadowMeshes(void)
 			dl->rebuildcache = true;
 		}
 	}
+	free(edge);
+	edge = NULL;
 }
 
 void Sh_PreGenerateLights(void)

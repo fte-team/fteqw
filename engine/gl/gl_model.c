@@ -66,7 +66,7 @@ void Mod_LoadDoomSprite (model_t *mod);
 #endif
 
 #define	MAX_MOD_KNOWN	8192
-model_t	mod_known[MAX_MOD_KNOWN];
+model_t	*mod_known;
 int		mod_numknown;
 
 extern cvar_t r_loadlits;
@@ -514,6 +514,7 @@ Mod_Init
 */
 void Mod_Init (qboolean initial)
 {
+	mod_known = malloc(MAX_MOD_KNOWN * sizeof(*mod_known));
 	if (!initial)
 	{
 		Mod_ClearAll();	//shouldn't be needed
@@ -581,13 +582,17 @@ void Mod_Shutdown (qboolean final)
 	{
 		Mod_ClearAll();
 		Mod_Purge(MP_RESET);
-		mod_numknown = 0;
 
 		Cmd_RemoveCommand("mod_memlist");
 		Cmd_RemoveCommand("mod_batchlist");
 		Cmd_RemoveCommand("mod_texturelist");
 		Cmd_RemoveCommand("mod_usetexture");
 	}
+	free(mod_known);
+	mod_known = NULL;
+	mod_numknown = 0;
+
+	r_worldentity.model = NULL;	//just in case.
 }
 
 /*
@@ -2624,6 +2629,7 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 	int styles = mod->lightmaps.surfstyles;
 	char *ptr;
 
+	memset(&vbo, 0, sizeof(vbo));
 	vbo.indicies.dummy = ZG_Malloc(&loadmodel->memgroup, sizeof(index_t) * maxindicies);
 	ptr = ZG_Malloc(&loadmodel->memgroup, (sizeof(vecV_t)+sizeof(vec2_t)*(1+styles)+sizeof(vec3_t)*3+sizeof(vec4_t)*styles)* maxverts);
 	vbo.coord.dummy = ptr;

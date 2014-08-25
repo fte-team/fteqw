@@ -608,7 +608,8 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	f = FS_OpenVFS(name, "rb", FS_GAME);
 	if (!f)
 	{
-		Con_Printf ("ERROR: Couldn't load \"%s\"\n", name);
+		if (isloadgame)
+			Con_Printf ("ERROR: Couldn't load \"%s\"\n", name);
 		return false;
 	}
 

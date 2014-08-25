@@ -146,6 +146,10 @@ cvar_t r_wateralpha							= CVARF  ("r_wateralpha", "1",
 												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_lavaalpha							= CVARF  ("r_lavaalpha", "",
 												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
+cvar_t r_slimealpha							= CVARF  ("r_slimealpha", "",
+												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
+cvar_t r_telealpha							= CVARF  ("r_telealpha", "",
+												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_waterwarp							= CVARF ("r_waterwarp", "1",
 												CVAR_ARCHIVE);
 
@@ -361,6 +365,7 @@ cvar_t r_glsl_turbscale						= CVARFD  ("r_glsl_turbscale", "1", CVAR_ARCHIVE, "
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
 cvar_t r_slimestyle							= CVARFD ("r_slimestyle", "", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only slime. If empty, defers to r_waterstyle.");
 cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
+cvar_t r_telestyle							= CVARFD ("r_telestyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
 
 cvar_t r_vertexdlights						= CVARD	("r_vertexdlights", "0", "Determine model lighting with respect to nearby dlights. Poor-man's rtlights.");
 
@@ -639,8 +644,9 @@ void Renderer_Init(void)
 	Sh_RegisterCvars();
 
 	Cvar_Register (&r_waterstyle, GRAPHICALNICETIES);
-	Cvar_Register (&r_slimestyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_lavastyle, GRAPHICALNICETIES);
+	Cvar_Register (&r_slimestyle, GRAPHICALNICETIES);
+	Cvar_Register (&r_telestyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
 	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_separation, GRAPHICALNICETIES);
@@ -699,6 +705,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
 	Cvar_Register (&r_lavaalpha, GRAPHICALNICETIES);
+	Cvar_Register (&r_slimealpha, GRAPHICALNICETIES);
+	Cvar_Register (&r_telealpha, GRAPHICALNICETIES);
 	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_clear, GLRENDEREROPTIONS);

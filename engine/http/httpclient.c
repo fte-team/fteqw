@@ -17,8 +17,9 @@
 #include <emscripten/emscripten.h>
 #endif
 
-static void DL_Abort(struct dl_download *dl)
+static void DL_Cancel(struct dl_download *dl)
 {
+	//FIXME: clear out the callbacks somehow
 	dl->ctx = NULL;
 }
 static void DL_OnLoad(void *c, void *data, int datasize)
@@ -73,6 +74,7 @@ static void DL_OnError(void *c)
 static void DL_OnProgress(void *c, int position, int totalsize)
 {
 	struct dl_download *dl = c;
+
 	dl->completed = position;
 	dl->totalsize = totalsize;
 }
@@ -86,22 +88,24 @@ qboolean DL_Decide(struct dl_download *dl)
 
 	if (dl->postdata)
 	{
-		DL_Abort(dl);
+		DL_Cancel(dl);
 		return false;	//safe to destroy it now
 	}
 
 	if (dl->ctx)
 	{
-		if (dl->status == DL_FAILED || dl->status == DL_FINISHED)
+		if (dl->status == DL_FINISHED)
+			return false;
+		if (dl->status == DL_FAILED)
 		{
-			DL_Abort(dl);
-			return false;	//safe to destroy it now
+			DL_Cancel(dl);
+			return false;
 		}
 	}
 	else
 	{
 		dl->status = DL_ACTIVE;
-		dl->abort = DL_Abort;
+		dl->abort = DL_Cancel;
 		dl->ctx = dl;
 
 #if MYJS

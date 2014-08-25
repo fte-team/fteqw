@@ -207,6 +207,7 @@ typedef struct {
 	int maxglslversion;
 	qboolean nofixedfunc;
 	qboolean gles;
+	qboolean webgl_ie;	//workaround ie webgl bugs/omissions.
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;

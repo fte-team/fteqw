@@ -406,11 +406,11 @@ map <mapname>
 command from the console or progs.
 
 quirks:
-a leading '*' means new unit, meaning all old state is flushed regardless of startspot
+a leading '*' means new unit, meaning all old map state is flushed regardless of startspot
 a '+' means 'set nextmap cvar to the following value and otherwise ignore, for q2 compat. only applies if there's also a '.' and the specified bsp doesn't exist, for q1 compat.
 just a '.' is taken to mean 'restart'. parms are not changed from their current values, startspot is also unchanged.
 
-'map' will change map, for most games. note that NQ kicks everyone (NQ expects you to use changelevel for that).
+'map' will change map, for most games. strips parms+serverflags+cache. note that NQ kicks everyone (NQ expects you to use changelevel for that).
 'changelevel' will not flush the level cache, for h2 compat (won't save current level state in such a situation, as nq would prefer not)
 'gamemap' will save the game to 'save0' after loading, for q2 compat
 'spmap' is for q3 and sets 'gametype' to '2', otherwise identical to 'map'. all other map commands will reset it to '0' if its '2' at the time.
@@ -422,12 +422,14 @@ void SV_Map_f (void)
 	char	spot[MAX_QPATH];
 	char	expanded[MAX_QPATH];
 	char	*nextserver;
-	qboolean isrestart = false;
-	qboolean newunit = false;
-	qboolean cinematic = false;
-	qboolean waschangelevel = false;
-	qboolean wasspmap = false;
-	qboolean wasgamemap = false;
+	qboolean isrestart		= false;	//don't hurt settings
+	qboolean newunit		= false;	//no hubcache
+	qboolean flushparms		= false;	//flush parms+serverflags
+	qboolean cinematic		= false;	//new map is .cin / .roq or something
+	qboolean q2savetos0		= false;
+	qboolean q3singleplayer	= false;	//forces g_gametype to 2 (otherwise clears if it was 2).
+
+	qboolean waschangelevel	= false;
 	int i;
 	char *startspot;
 
@@ -436,14 +438,15 @@ void SV_Map_f (void)
 #ifndef SERVERONLY
 	if (!Renderer_Started() && !isDedicated)
 	{
-		Cbuf_AddText(va("wait;map %s\n", Cmd_Args()), Cmd_ExecLevel);
+		Cbuf_AddText(va("wait;%s %s\n", Cmd_Argv(0), Cmd_Args()), Cmd_ExecLevel);
 		return;
 	}
 #endif
 
+
 	if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
 	{
-		Con_TPrintf ("map <levelname> : continue game on a new level\n");
+		Con_TPrintf ("%s <levelname> <startspot>: change the level\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -452,9 +455,10 @@ void SV_Map_f (void)
 	Q_strncpyz (level, Cmd_Argv(1), sizeof(level));
 	startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));
 
-	waschangelevel = !strcmp(Cmd_Argv(0), "changelevel");
-	wasspmap = !strcmp(Cmd_Argv(0), "spmap");
-	wasgamemap = !strcmp(Cmd_Argv(0), "gamemap");
+	q2savetos0 = !strcmp(Cmd_Argv(0), "gamemap") && !isDedicated;	//q2
+	q3singleplayer = !strcmp(Cmd_Argv(0), "spmap");
+	flushparms = !strcmp(Cmd_Argv(0), "map") || !strcmp(Cmd_Argv(0), "spmap");
+	newunit = flushparms || (!strcmp(Cmd_Argv(0), "changelevel") && !startspot);
 
 	if (strcmp(level, "."))	//restart current
 	{
@@ -489,6 +493,9 @@ void SV_Map_f (void)
 		//grab the current map name
 		COM_StripExtension(COM_SkipPath(sv.modelname), level, sizeof(level));
 		isrestart = true;
+		flushparms = false;
+		newunit = false;
+		q2savetos0 = false;
 
 		if (!*level)
 		{
@@ -581,7 +588,9 @@ void SV_Map_f (void)
 	if (!isrestart)
 		SV_SaveSpawnparms ();
 
-	if (startspot && !isrestart && !newunit)
+	if (newunit)
+		SV_FlushLevelCache();	//forget all on new unit
+	else if (startspot && !isrestart && !newunit)
 	{
 #ifdef Q2SERVER
 		if (ge)
@@ -613,7 +622,7 @@ void SV_Map_f (void)
 
 		gametype = Cvar_Get("g_gametype", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
 		gametype->callback = gtcallback;
-		if (wasspmap)
+		if (q3singleplayer)
 			Cvar_ForceSet(gametype, "2");//singleplayer
 		else if (gametype->value == 2)
 			Cvar_ForceSet(gametype, "");//force to ffa deathmatch
@@ -647,6 +656,9 @@ void SV_Map_f (void)
 	}
 	SV_SendMessagesToAll ();
 
+	if (flushparms)
+		svs.serverflags = 0;
+
 	SCR_SetLoadingFile("spawnserver");
 	if (newunit || !startspot || cinematic || !SV_LoadLevelCache(NULL, level, startspot, false))
 	{
@@ -665,6 +677,16 @@ void SV_Map_f (void)
 		host_client->ratetime = 0;
 		if (host_client->pendingentbits)
 			host_client->pendingentbits[0] = UF_REMOVE;
+
+		if (flushparms)
+		{
+			if (host_client->spawninfo)
+				Z_Free(host_client->spawninfo);
+			host_client->spawninfo = NULL;
+			memset(host_client->spawn_parms, 0, sizeof(host_client->spawn_parms));
+			SV_GetNewSpawnParms(host_client);
+		}
+
 		if (host_client->controller)
 			continue;
 		if (host_client->state>=cs_connected)
@@ -691,7 +713,7 @@ void SV_Map_f (void)
 			Cvar_Set(nsv, "");
 	}
 
-	if (wasgamemap)
+	if (q2savetos0)
 	{
 		SV_Savegame("s0");
 	}

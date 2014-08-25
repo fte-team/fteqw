@@ -1250,9 +1250,13 @@ static void GL_Upload32_Int (const char *name, unsigned *data, int width, int he
 	else if (gl_config.gles)
 	{
 		glcolormode = GL_RGBA; /*our input is RGBA or RGBX, with the internal format restriction, we must therefore always have an alpha value*/
-		type = GL_UNSIGNED_BYTE;
 
-		if (flags & IF_NOALPHA)
+		if (gl_config.webgl_ie)
+		{
+			type = GL_UNSIGNED_BYTE;
+			glcolormode = GL_RGBA;	//I hope its 1. note that samples matching colormode means we can't use packed formats, and I'm too lazy to strip it
+		}
+		else if (flags & IF_NOALPHA)
 		{
 			/*no alpha there, yay*/
 			type = GL_UNSIGNED_SHORT_5_6_5;

@@ -294,7 +294,7 @@ int readdemobytes(int *readpos, void *data, int len)
 	if (*readpos+len > demobuffersize)
 	{
 		if (i < 0)
-		{	//0 means no data available yet
+		{	//0 means no data available yet, don't error on that.
 			endofdemo = true;
 			return 0;
 		}
@@ -366,7 +366,10 @@ void CL_DemoJump_f(void)
 	char *colon = strchr(s, ':');
 
 	if (!cls.demoplayback)
+	{
+		Con_Printf("not playing a demo, cannot jump.\n");
 		return;
+	}
 
 	if (*s == '+' || *s == '-')
 	{
@@ -478,7 +481,15 @@ qboolean CL_GetDemoMessage (void)
 				return 0;
 			}
 			cls.netchan.last_received = realtime;
-			if ((cls.timedemo && host_framecount == demoframe) || (!cls.timedemo && demtime<= cl.gametime && cl.gametime))// > dem_lasttime+demtime)
+			if (cls.demoseeking)
+			{
+				if (cl.gametime > cls.demoseektime)
+				{
+					cls.demoseeking = false;
+					return 0;
+				}
+			}
+			else if ((cls.timedemo && host_framecount == demoframe) || (!cls.timedemo && demtime < cl.gametime && cl.gametime))// > dem_lasttime+demtime)
 			{
 				if (demtime <= cl.gametime-1)
 					demtime = cl.gametime;

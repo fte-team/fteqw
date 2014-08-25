@@ -15,12 +15,13 @@ typedef struct {
 } webpath_t;
 typedef struct {
 	vfsfile_t funcs;
-	int offset;
+	qofs_t offset;
 	int handle;
 } vfswebfile_t;
 static int QDECL VFSWEB_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
 	vfswebfile_t *intfile = (vfswebfile_t*)file;
+	memset(buffer, 'e', bytestoread);
 	int len = emscriptenfte_buf_read(intfile->handle, intfile->offset, buffer, bytestoread);
 	intfile->offset += len;
 	return len;
@@ -32,7 +33,7 @@ static int QDECL VFSWEB_WriteBytes (struct vfsfile_s *file, const void *buffer, 
 	intfile->offset += len;
 	return len;
 }
-static qboolean QDECL VFSWEB_Seek (struct vfsfile_s *file, unsigned long pos)
+static qboolean QDECL VFSWEB_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	vfswebfile_t *intfile = (vfswebfile_t*)file;
 	if (pos < 0)
@@ -40,7 +41,7 @@ static qboolean QDECL VFSWEB_Seek (struct vfsfile_s *file, unsigned long pos)
 	intfile->offset = pos;
 	return true;
 }
-static unsigned long QDECL VFSWEB_Tell (struct vfsfile_s *file)
+static qofs_t QDECL VFSWEB_Tell (struct vfsfile_s *file)
 {
 	vfswebfile_t *intfile = (vfswebfile_t*)file;
 	return intfile->offset;
@@ -49,18 +50,19 @@ static void QDECL VFSWEB_Flush(struct vfsfile_s *file)
 {
 	vfswebfile_t *intfile = (vfswebfile_t*)file;
 }
-static unsigned long QDECL VFSWEB_GetSize (struct vfsfile_s *file)
+static qofs_t QDECL VFSWEB_GetSize (struct vfsfile_s *file)
 {
 	vfswebfile_t *intfile = (vfswebfile_t*)file;
 	unsigned long l;
 	l = emscriptenfte_buf_getsize(intfile->handle);
 	return l;
 }
-static void QDECL VFSWEB_Close(vfsfile_t *file)
+static qboolean QDECL VFSWEB_Close(vfsfile_t *file)
 {
 	vfswebfile_t *intfile = (vfswebfile_t*)file;
 	emscriptenfte_buf_release(intfile->handle);
 	Z_Free(file);
+	return true;
 }
 
 vfsfile_t *FSWEB_OpenTemp(void)
@@ -161,7 +163,7 @@ static qboolean QDECL FSWEB_PollChanges(searchpathfuncs_t *handle)
 //	webpath_t *np = handle;
 	return true;	//can't verify that or not, so we have to assume the worst
 }
-static int QDECL FSWEB_RebuildFSHash(const char *filename, int filesize, void *data, searchpathfuncs_t *spath)
+static int QDECL FSWEB_RebuildFSHash(const char *filename, qofs_t filesize, void *data, searchpathfuncs_t *spath)
 {
 	webpath_t *sp = (void*)spath;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
@@ -235,7 +237,7 @@ static void QDECL FSWEB_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, ch
 
 	VFS_CLOSE(f);
 }
-static int QDECL FSWEB_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, int, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL FSWEB_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t *spath), void *parm)
 {
 	webpath_t *sp = (webpath_t*)handle;
 	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);

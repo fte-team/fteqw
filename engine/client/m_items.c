@@ -1912,15 +1912,21 @@ static qboolean MC_GuiKey(int key, menu_t *menu)
 
 qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 {
-	if (key == K_ESCAPE)
+	if (key == K_ESCAPE || key == K_MOUSE2)
 	{
 		extern int m_save_demonum;
-		extern cvar_t cl_demoreel;
+		extern cvar_t cl_demoreel, con_stayhidden;
+		if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected && cl_demoreel.ival)
+			CL_NextDemo ();
+
+		//don't spam menu open+close events if we're not going to be allowing the console to appear
+		if (con_stayhidden.ival && cls.state == ca_disconnected)
+			if (!CL_TryingToConnect())
+				return true;
+
 		Key_Dest_Remove(kdm_menu);
 		m_state = m_none;
 		cls.demonum = m_save_demonum;
-		if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected && cl_demoreel.ival)
-			CL_NextDemo ();
 		return true;
 	}
 	return false;
@@ -2087,14 +2093,18 @@ void M_Menu_Main_f (void)
 		MC_AddCenterPicture(mainm, 4, 24, "gfx/ttl_main.lmp");
 
 		mainm->selecteditem = (menuoption_t *)
-		MC_AddConsoleCommandQBigFont	(mainm, 72, 32,	"Single     ", "menu_single\n");
-		MC_AddConsoleCommandQBigFont	(mainm, 72, 52,	"Multiplayer", "menu_multi\n");
-		MC_AddConsoleCommandQBigFont	(mainm, 72, 72,	"Options    ", "menu_options\n");
+		MC_AddConsoleCommandQBigFont	(mainm, 72, 32,	"Single       ", "menu_single\n");
+		MC_AddConsoleCommandQBigFont	(mainm, 72, 52,	"Multiplayer  ", "menu_multi\n");
+		MC_AddConsoleCommandQBigFont	(mainm, 72, 72,	"Options      ", "menu_options\n");
 		if (m_helpismedia.value)
-			MC_AddConsoleCommandQBigFont(mainm, 72, 92,	"Media      ", "menu_media\n");
+			MC_AddConsoleCommandQBigFont(mainm, 72, 92,	"Media        ", "menu_media\n");
 		else
-			MC_AddConsoleCommandQBigFont(mainm, 72, 92,	"Help       ", "help\n");
-		MC_AddConsoleCommandQBigFont	(mainm, 72, 112,"Quit       ", "menu_quit\n");
+			MC_AddConsoleCommandQBigFont(mainm, 72, 92,	"Help         ", "help\n");
+#ifdef FTE_TARGET_WEB
+		MC_AddConsoleCommandQBigFont	(mainm, 72, 112,"Save Settings", "menu_quit\n");
+#else
+		MC_AddConsoleCommandQBigFont	(mainm, 72, 112,"Quit         ", "menu_quit\n");
+#endif
 
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
 	}
@@ -2150,7 +2160,11 @@ void M_Menu_Main_f (void)
 		b->common.width = p->width;
 		b->common.height = 20;
 		b=MC_AddConsoleCommand	(mainm, 72, 312, 112,	"", "menu_quit\n");
+#ifdef FTE_TARGET_WEB
+		b->common.tooltip = "Save settings to local storage.";
+#else
 		b->common.tooltip = "Exit to DOS.";
+#endif
 		b->common.width = p->width;
 		b->common.height = 20;
 

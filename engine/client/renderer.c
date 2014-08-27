@@ -14,8 +14,6 @@ entity_t	*currententity;	//nnggh
 int			r_framecount;
 struct texture_s	*r_notexture_mip;
 
-r_config_t	r_config;
-
 qboolean	r_blockvidrestart;
 int r_regsequence;
 
@@ -1036,8 +1034,6 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 	pmove.numphysent = 0;
 
-	memset(&r_config, 0, sizeof(r_config));
-
 	if (qrenderer != QR_NONE)	//graphics stuff only when not dedicated
 	{
 		qbyte *data;
@@ -1169,17 +1165,16 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 TRACE(("dbg: R_ApplyRenderer: reloading server map\n"));
 		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_WARN);
 TRACE(("dbg: R_ApplyRenderer: loaded\n"));
-		if (sv.world.worldmodel->needload)
-		{
-			SV_Error("Bsp went missing on render restart\n");
-		}
+
 TRACE(("dbg: R_ApplyRenderer: doing that funky phs thang\n"));
 		SV_CalcPHS ();
 
 TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 		World_ClearWorld (&sv.world);
 
-		if (svs.gametype == GT_PROGS)
+		if (sv.world.worldmodel->needload)
+			SV_UnspawnServer();
+		else if (svs.gametype == GT_PROGS)
 		{
 			for (i = 0; i < MAX_MODELS; i++)
 			{

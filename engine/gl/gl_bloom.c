@@ -114,7 +114,7 @@ static void R_SetupBloomTextures(int w, int h)
 			if (!TEXVALID(pingtex[i][j]))
 			{
 				sprintf(name, "***bloom*%c*%i***", 'a'+i, j);
-				TEXASSIGN(pingtex[i][j], GL_AllocNewTexture(name, texwidth[j], texheight[j], IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
+				TEXASSIGN(pingtex[i][j], GL_AllocNewTexture(name, texwidth[j], texheight[j], IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
 			}
 			GL_MTBind(0, GL_TEXTURE_2D, pingtex[i][j]);
 			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, texwidth[j], texheight[j], 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
@@ -180,7 +180,7 @@ qboolean R_CanBloom(void)
 		return false;
 	if (!gl_config.arb_shader_objects)
 		return false;
-	if (!r_config.texture_non_power_of_two)
+	if (!gl_config.texture_non_power_of_two_limited)
 		return false;
 
 	return true;

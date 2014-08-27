@@ -573,7 +573,7 @@ void M_Menu_Help_f (void)
 	{
 		for (i = 0; i < sizeof(helpstyles)/sizeof(helpstyles[0]); i++)
 		{
-			if (COM_FDepthFile(va(helpstyles[i].pattern, num_help_pages+helpstyles[i].base), true))
+			if (COM_FCheckExists(va(helpstyles[i].pattern, num_help_pages+helpstyles[i].base)))
 				break;
 		}
 		if (i == sizeof(helpstyles)/sizeof(helpstyles[0]))
@@ -602,11 +602,13 @@ void M_Help_Key (int key)
 	switch (key)
 	{
 	case K_ESCAPE:
+	case K_MOUSE2:
 		M_Menu_Main_f ();
 		break;
 
 	case K_UPARROW:
 	case K_RIGHTARROW:
+	case K_MOUSE1:
 		S_LocalSound ("misc/menu2.wav");
 		if (++help_page >= num_help_pages)
 			help_page = 0;
@@ -893,7 +895,10 @@ qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 {
 	switch (key)
 	{
+	case 'o':
+	case 'O':
 	case K_ESCAPE:
+	case K_MOUSE2:
 		M_RemoveMenu(menu);
 		break;
 
@@ -902,16 +907,20 @@ qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 	case 'n':
 	case 'N':
 		M_RemoveMenu(menu);
+#ifndef FTE_TARGET_WEB
 		CL_Disconnect ();
 		Sys_Quit ();
+#endif
 		break;
 
 	case 'Y':
 	case 'y':
 		M_RemoveMenu(menu);
 		Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
+#ifndef FTE_TARGET_WEB
 		CL_Disconnect ();
 		Sys_Quit ();
+#endif
 		break;
 
 	default:
@@ -921,6 +930,7 @@ qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 	return true;
 }
 
+//quit menu
 void M_Menu_Quit_f (void)
 {
 	menu_t *quitmenu;
@@ -946,17 +956,19 @@ void M_Menu_Quit_f (void)
 			if (!strcmp(arg, "prompt"))
 				mode = 1;
 			else if (!strcmp(arg, "noprompt"))
-				mode = 1;
-			else
 				mode = 0;
+			else
+				mode = 1;
 		}
 	}
 
 	switch(mode)
 	{
 	case 0:
+#ifndef FTE_TARGET_WEB
 		CL_Disconnect ();
 		Sys_Quit ();
+#endif
 		break;
 	case 2:
 		Key_Dest_Add(kdm_menu);
@@ -971,9 +983,14 @@ void M_Menu_Quit_f (void)
 		MC_AddWhiteText(quitmenu, 64, 0, 100,	 "      save them now?      ", false);
 
 		quitmenu->selecteditem = (menuoption_t *)
+#ifdef FTE_TARGET_WEB
+		MC_AddConsoleCommand    (quitmenu, 64, 0, 116, "Yes",							"cfg_save; menupop\n");
+		MC_AddConsoleCommand    (quitmenu, 224,0, 116,                     "Cancel",	"menupop\n");
+#else
 		MC_AddConsoleCommand    (quitmenu, 64, 0, 116, "Yes",							"menu_quit forcesave\n");
 		MC_AddConsoleCommand    (quitmenu, 144,0, 116,           "No",					"menu_quit force\n");
 		MC_AddConsoleCommand    (quitmenu, 224,0, 116,                     "Cancel",	"menupop\n");
+#endif
 
 		MC_AddBox (quitmenu, 56, 76, 25, 5);
 		break;
@@ -986,17 +1003,25 @@ void M_Menu_Quit_f (void)
 		quitmenu->key = MC_Quit_Key;
 
 
-		i = rand()&7;
+#ifdef FTE_TARGET_WEB
 
+//		MC_AddWhiteText(quitmenu, 64, 0, 84,	 "                          ", false);
+		MC_AddWhiteText(quitmenu, 64, 0, 92,	 " There is nothing to save ", false);
+//		MC_AddWhiteText(quitmenu, 64, 0, 100,	 "                          ", false);
+
+		quitmenu->selecteditem = (menuoption_t *)
+		MC_AddConsoleCommand    (quitmenu, 120, 0, 116,        "Oh",			       "menupop\n");
+#else
+		i = rand()&7;
 		MC_AddWhiteText(quitmenu, 64, 0, 84, quitMessage[i*4+0], false);
 		MC_AddWhiteText(quitmenu, 64, 0, 92, quitMessage[i*4+1], false);
 		MC_AddWhiteText(quitmenu, 64, 0, 100, quitMessage[i*4+2], false);
 		MC_AddWhiteText(quitmenu, 64, 0, 108, quitMessage[i*4+3], false);
 
 		quitmenu->selecteditem = (menuoption_t *)
-		MC_AddConsoleCommand    (quitmenu, 120, 0, 116,        "Yes",			       "menu_quit force\n");
-		MC_AddConsoleCommand    (quitmenu, 208, 0, 116,                   "No",               "menupop\n");
-
+		MC_AddConsoleCommand    (quitmenu, 100, 0, 116,        "Quit",			       "menu_quit force\n");
+		MC_AddConsoleCommand    (quitmenu, 194, 0, 116,                   "Cancel",        "menupop\n");
+#endif
 		MC_AddBox (quitmenu, 56, 76, 24, 5);
 		break;
 	}

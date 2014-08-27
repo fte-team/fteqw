@@ -3851,8 +3851,8 @@ void Host_RunFileNotify(struct dl_download *dl)
 #define HRF_ABORT		(1<<3)
 
 #define HRF_OPENED		(1<<4)
-//						(1<<5)
-//						(1<<6)
+#define HRF_DOWNLOADED	(1<<5)	//file was actually downloaded, and not from the local system
+#define HRF_WAITING		(1<<6)	//file looks important enough that we should wait for it to start to download or something to see what file type it is.
 //						(1<<7)
 
 #define HRF_DEMO_MVD	(1<<8)
@@ -3893,6 +3893,12 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 {
 	//at this point the file is still downloading, so don't copy it out just yet.
 	hrf_t *f = dl->user_ctx;
+
+	if (f->flags & HRF_WAITING)
+	{
+		f->flags &= ~HRF_WAITING;
+		waitingformanifest--;
+	}
 
 	if (mimetype && !(f->flags & HRF_FILETYPES))
 	{
@@ -3988,6 +3994,14 @@ void Host_RunFilePrompted(void *ctx, int button)
 	Host_DoRunFile(f);
 }
 
+static qboolean isurl(char *url)
+{
+#ifdef FTE_TARGET_WEB
+	return true;	//assume EVERYTHING is a url, because the local filesystem is pointless.
+#endif
+	return !strncmp(url, "http://", 7) || !strncmp(url, "https://", 8);
+}
+
 void Host_DoRunFile(hrf_t *f)
 {
 	char qname[MAX_QPATH];
@@ -3995,6 +4009,12 @@ void Host_DoRunFile(hrf_t *f)
 	char loadcommand[MAX_OSPATH];
 	qboolean isnew = false;
 	qboolean haschanged = false;
+
+	if (f->flags & HRF_WAITING)
+	{
+		f->flags &= ~HRF_WAITING;
+		waitingformanifest--;
+	}
 	
 	if (f->flags & HRF_ABORT)
 	{
@@ -4014,15 +4034,17 @@ void Host_DoRunFile(hrf_t *f)
 		char *ext;
 
 #ifdef WEBCLIENT
-		if ((!strncmp(f->fname, "http://", 7) || !strncmp(f->fname, "https://", 8)) && !f->srcfile)
+		if (isurl(f->fname) && !f->srcfile)
 		{
 			if (!(f->flags & HRF_OPENED))
 			{
 				struct dl_download *dl;
-				f->flags |= HRF_OPENED;
+				f->flags |= HRF_OPENED|HRF_DOWNLOADED|HRF_WAITING;
 				dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
 				dl->notifystarted = Host_BeginFileDownload;
 				dl->user_ctx = f;
+
+				waitingformanifest++;
 				return;
 			}
 		}
@@ -4105,10 +4127,20 @@ void Host_DoRunFile(hrf_t *f)
 				else
 				{
 					man = FS_Manifest_Parse(NULL, fdata);
-					if (!man->updateurl)
-						man->updateurl = Z_StrDup(f->fname);
-					BZ_Free(fdata);
-					FS_ChangeGame(man, true);
+					if (man)
+					{
+						if (!man->updateurl)
+							man->updateurl = Z_StrDup(f->fname);
+//						if (f->flags & HRF_DOWNLOADED)
+						man->blockupdate = true;
+						BZ_Free(fdata);
+						FS_ChangeGame(man, true);
+					}
+					else
+					{
+						Con_Printf("Manifest file %s does not appear valid\n", f->fname);
+						BZ_Free(fdata);
+					}
 				}
 
 				f->flags |= HRF_ABORT;
@@ -4132,7 +4164,7 @@ void Host_DoRunFile(hrf_t *f)
 		if (!f->srcfile)
 		{
 #ifdef WEBCLIENT
-			if (!strncmp(f->fname, "http://", 7))
+			if (isurl(f->fname))
 			{
 				struct dl_download *dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
 				dl->notifystarted = Host_BeginFileDownload;
@@ -4288,6 +4320,8 @@ Runs all active servers
 extern cvar_t cl_netfps;
 extern cvar_t cl_sparemsec;
 
+qboolean startuppending;
+void CL_StartCinematicOrMenu(void);
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
 double Host_Frame (double time)
@@ -4336,6 +4370,8 @@ double Host_Frame (double time)
 		Host_FinishLoading();
 		return 0;
 	}
+	if (startuppending)
+		CL_StartCinematicOrMenu();
 
 #ifdef PLUGINS
 	Plug_Tick();
@@ -4629,9 +4665,19 @@ void CL_ReadCDKey(void)
 
 //============================================================================
 
-
 void CL_StartCinematicOrMenu(void)
 {
+	if (cls.download)
+	{
+		startuppending = true;
+		return;
+	}
+	if (startuppending)
+	{
+		startuppending = false;
+		Key_Dest_Remove(kdm_console);	//make sure console doesn't stay up weirdly.
+	}
+
 	//start up the ui now we have a renderer
 #ifdef VM_UI
 	UI_Start();
@@ -4685,9 +4731,11 @@ void CL_StartCinematicOrMenu(void)
 		{
 			if (qrenderer > QR_NONE && !m_state)
 			{
-				if (cl_demoreel.ival)
+				if (!cls.state && !m_state && !*FS_GetGamedir(false))
+					M_Menu_Mods_f();
+				if (!cls.state && !m_state && cl_demoreel.ival)
 					CL_NextDemo();
-				if (!cls.state)
+				if (!cls.state && !m_state)
 					M_ToggleMenu_f();
 			}
 			//Con_ForceActiveNow();

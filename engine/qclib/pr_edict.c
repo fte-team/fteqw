@@ -2295,7 +2295,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 			}
 		}
 		else
-			Sys_Error("Command %s not recognised", qcc_token);
+			Sys_Error("Bad entity lump: '%s' not recognised (last ent was %i)", qcc_token, ed?ed->entnum:0);
 	}
 	if (resethunk)
 	{

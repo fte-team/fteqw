@@ -1968,7 +1968,8 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	if (key == K_ESCAPE)
 		if (shift_down)
 		{
-			if (down)
+			extern cvar_t con_stayhidden;
+			if (down && con_stayhidden.ival < 3)
 			{
 				if (!Key_Dest_Has(kdm_console))	//don't toggle it when the console is already down. this allows typing blind to not care if its already active.
 					Con_ToggleConsole_Force();

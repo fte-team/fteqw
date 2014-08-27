@@ -772,7 +772,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					tinheight = inheight;
 
 				//don't make scaled width any larger than it needs to be
-				if (r_config.texture_non_power_of_two)
+				if (gl_config.texture_non_power_of_two)
 				{
 					scaled_width = tinwidth;
 					scaled_height = tinheight;

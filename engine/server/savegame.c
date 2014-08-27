@@ -891,7 +891,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	}
 #endif
 
-	f = FS_OpenVFS (name, "wb", FS_GAMEONLY);
+	f = FS_OpenVFS (name, "wbp", FS_GAMEONLY);
 	if (!f)
 	{
 		Con_TPrintf ("ERROR: couldn't open %s.\n", name);

@@ -7,6 +7,11 @@
 !!cvardf r_glsl_pcf
 
 
+#ifndef USE_ARB_SHADOW
+//fall back on regular samplers if we must
+#define sampler2DShadow sampler2D
+#endif
+
 //this is the main shader responsible for realtime dlights.
 
 //texture units:
@@ -18,7 +23,7 @@
 //CUBESHADOW
 
 #ifndef r_glsl_pcf
-#error r_glsl_pcf wasn't defined
+#error r_glsl_pcf wasnt defined
 #endif
 #if r_glsl_pcf < 1
 	#undef r_glsl_pcf
@@ -40,12 +45,15 @@ varying vec3 lightvector;
 #if defined(SPECULAR) || defined(OFFSETMAPPING)
 varying vec3 eyevector;
 #endif
-
 #if defined(PCF) || defined(CUBE) || defined(SPOT)
 varying vec4 vtexprojcoord;
+#endif
+
+
+#ifdef VERTEX_SHADER
+#if defined(PCF) || defined(CUBE) || defined(SPOT)
 uniform mat4 l_cubematrix;
 #endif
-#ifdef VERTEX_SHADER
 #include "sys/skeletal.h"
 uniform vec3 l_lightposition;
 attribute vec2 v_texcoord;
@@ -184,7 +192,13 @@ float ShadowmapFilter(void)
 		return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0));	//blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.
 
 	#else
+#ifdef USE_ARB_SHADOW
+		//with arb_shadow, we can benefit from hardware acclerated pcf, for smoother shadows
 		#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r
+#else
+		//this will probably be a bit blocky.
+		#define dosamp(x,y) float(texture2D(s_t4, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)
+#endif
 		float s = 0.0;
 		#if r_glsl_pcf >= 1 && r_glsl_pcf < 5
 			s += dosamp(0.0, 0.0);
@@ -285,3 +299,4 @@ void main ()
 	gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);
 }
 #endif
+

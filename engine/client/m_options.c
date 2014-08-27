@@ -1438,9 +1438,10 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	cursorpositionY = (y + 24);
 
 	#ifndef CLIENTONLY
-	currentskill = skill.value;
-	if ( !currentskill )
+	if ( !*skill.string )
 		currentskill = 4; // no skill selected
+	else
+		currentskill = skill.value;
 
 	for (currentmap = sizeof(maplist_q1)/sizeof(maplist_q1[0]) - 1; currentmap > 0; currentmap--)
 		if (!strcmp(host_mapname.string, maplist_q1[currentmap]))
@@ -1551,10 +1552,10 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	cursorpositionY = (y + 24);
 
 	#ifndef CLIENTONLY
-	currentskill = skill.value;
-
-	if ( !currentskill )
-		currentskill = 4; // no skill selected
+	if ( !*skill.string )
+		currentskill = 3; // no skill selected
+	else
+		currentskill = skill.value;
 
 	for (currentmap = sizeof(maplist_q2)/sizeof(maplist_q2[0]) - 1; currentmap > 0; currentmap--)
 		if (!strcmp(host_mapname.string, maplist_q2[currentmap]))
@@ -1835,10 +1836,10 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 	cursorpositionY = (y + 24);
 
 	#ifndef CLIENTONLY
-	currentskill = skill.value;
-
-	if ( !currentskill )
+	if ( !*skill.string )
 		currentskill = 4; // no skill selected
+	else
+		currentskill = skill.value;
 	#endif
 
 	if ( strcmp ( host_mapname.string, "" ) == 0)

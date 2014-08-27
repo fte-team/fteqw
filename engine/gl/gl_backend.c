@@ -230,6 +230,7 @@ static void BE_PolyOffset(qboolean pushdepth)
 	}
 }
 
+#ifndef GLSLONLY
 void GL_TexEnv(GLenum mode)
 {
 #ifndef FORCESTATE
@@ -302,6 +303,7 @@ static void BE_SetPassBlendMode(int tmu, int pbm)
 		}
 	}
 }
+#endif
 
 /*OpenGL requires glDepthMask(GL_TRUE) or glClear(GL_DEPTH_BUFFER_BIT) will fail*/
 void GL_ForceDepthWritable(void)
@@ -927,7 +929,7 @@ static void RevertToKnownState(void)
 	}
 	GL_SelectTexture(0);
 
-
+#ifndef GLSLONLY
 	if (!gl_config_nofixedfunc)
 	{
 		BE_SetPassBlendMode(0, PBM_REPLACE);
@@ -935,6 +937,7 @@ static void RevertToKnownState(void)
 
 		GL_DeSelectProgram();
 	}
+#endif
 
 	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY|SBITS_MASK_BITS|SBITS_AFFINE);
 	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
@@ -989,7 +992,6 @@ int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, fl
 
 	if (qglShadeModel)
 		qglShadeModel(GL_FLAT);
-	BE_SetPassBlendMode(0, PBM_REPLACE);
 	GL_ForceDepthWritable();
 //	qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
@@ -1007,7 +1009,7 @@ static void T_Gen_CurrentRender(int tmu)
 	if (r_refdef.recurse)
 		return;
 
-	if (r_config.texture_non_power_of_two)
+	if (gl_config.texture_non_power_of_two_limited)
 	{
 		vwidth = pwidth;
 		vheight = pheight;
@@ -3040,7 +3042,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			break;
 
 		case SP_RENDERTEXTURESCALE:
-			if (r_config.texture_non_power_of_two)
+			if (gl_config.texture_non_power_of_two_limited)
 			{
 				param4[0] = 1;
 				param4[1] = 1;
@@ -3317,7 +3319,20 @@ void GLBE_SelectMode(backendmode_t mode)
 		default:
 			break;
 		case BEM_DEPTHONLY:
-			GL_DeSelectProgram();
+#ifndef GLSLONLY
+			if (!gl_config_nofixedfunc)
+			{
+				BE_SetPassBlendMode(0, PBM_REPLACE);
+				GL_DeSelectProgram();
+			}
+			else
+#endif
+				if (!shaderstate.allblackshader)
+			{
+				const char *defs[] = {NULL};
+				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
+				shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection");
+			}
 			/*BEM_DEPTHONLY does support mesh writing, but its not the only way its used... FIXME!*/
 			while(shaderstate.lastpasstmus>0)
 			{
@@ -3327,7 +3342,6 @@ void GLBE_SelectMode(backendmode_t mode)
 			//we don't write or blend anything (maybe alpha test... but mneh)
 			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHWRITE | SBITS_MASK_BITS);
 
-			BE_SetPassBlendMode(0, PBM_REPLACE);
 			GL_CullFace(SHADER_CULL_FRONT);
 			break;
 
@@ -3348,6 +3362,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			{
 				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 			}
+#ifndef GLSLONLY
 			if (!gl_config_nofixedfunc)
 			{
 				GL_DeSelectProgram();
@@ -3355,6 +3370,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			//replace mode please
 				BE_SetPassBlendMode(0, PBM_REPLACE);
 			}
+#endif
 
 			//we don't write or blend anything (maybe alpha test... but mneh)
 			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHCLOSERONLY | SBITS_MASK_BITS);
@@ -3400,7 +3416,10 @@ void GLBE_SelectMode(backendmode_t mode)
 			Vector4Set(shaderstate.pendingcolourflat, 1, 1, 1, 1);
 			shaderstate.pendingcolourvbo = 0;
 			shaderstate.pendingcolourpointer = NULL;
-			BE_SetPassBlendMode(0, PBM_MODULATE);
+#ifndef GLSLONLY
+			if (!gl_config_nofixedfunc)
+				BE_SetPassBlendMode(0, PBM_MODULATE);
+#endif
 			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_DEPTHEQUALONLY);
 			break;
 		}
@@ -3451,10 +3470,12 @@ static qboolean GLBE_RegisterLightShader(int mode)
 {
 	if (!shaderstate.inited_shader_light[mode])
 	{
-		char *name = va("rtlight%s%s%s", 
+		char *name = va("rtlight%s%s%s%s", 
 			(mode & LSHADER_SMAP)?"#PCF":"",
 			(mode & LSHADER_SPOT)?"#SPOT":"",
-			(mode & LSHADER_CUBE)?"#CUBE":"");
+			(mode & LSHADER_CUBE)?"#CUBE":"",
+			(gl_config.arb_shadow && (mode & (LSHADER_SMAP|LSHADER_SPOT|LSHADER_CUBE)))?"#USE_ARB_SHADOW":""
+			);
 
 		shaderstate.inited_shader_light[mode] = true;
 		shaderstate.shader_light[mode] = R_RegisterCustom(name, SUF_NONE, Shader_LightPass, NULL);
@@ -3847,7 +3868,18 @@ static void DrawMeshes(void)
 	case BEM_WIREFRAME:
 		//FIXME: do this with a shader instead? its not urgent as we can draw the shader normally anyway, just faster.
 		//FIXME: we need to use a shader for vertex blending. not really an issue with mdl, but more significant with iqms (base pose!).
-		GL_DeSelectProgram();
+#ifndef GLSLONLY
+		if (!gl_config_nofixedfunc)
+		{
+			BE_SetPassBlendMode(0, PBM_REPLACE);
+			GL_DeSelectProgram();
+		}
+		else
+#endif
+		{
+			break;
+		}
+
 		shaderstate.pendingcolourvbo = 0;
 		shaderstate.pendingcolourpointer = NULL;
 		Vector4Set(shaderstate.pendingcolourflat, 1, 1, 1, 1);
@@ -3855,14 +3887,13 @@ static void DrawMeshes(void)
 		{
 			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 		}
-		BE_SetPassBlendMode(0, PBM_REPLACE);
 		BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits | SBITS_MISC_NODEPTHTEST);
 
 		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
 		BE_SubmitMeshChain();
 		break;
 	case BEM_DEPTHDARK:
-		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright) && !gl_config_nofixedfunc)
+		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright))
 		{
 			if (gl_config.arb_shader_objects)
 			{
@@ -3875,7 +3906,7 @@ static void DrawMeshes(void)
 
 				GL_SelectProgram(shaderstate.allblackshader);
 				BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits);
-				BE_EnableShaderAttributes(1u<<VATTR_LEG_VERTEX, 0);
+				BE_EnableShaderAttributes(gl_config_nofixedfunc?(1u<<VATTR_VERTEX1):(1u<<VATTR_LEG_VERTEX), 0);
 				if (shaderstate.allblackshader != shaderstate.lastuniform && shaderstate.allblack_mvp != -1)
 				{
 					float m16[16];
@@ -3885,8 +3916,10 @@ static void DrawMeshes(void)
 				BE_SubmitMeshChain();
 
 				shaderstate.lastuniform = shaderstate.allblackshader;
+				break;
 			}
-			else
+#ifndef GLSLONLY
+			else if (!gl_config_nofixedfunc)
 			{
 				GL_DeSelectProgram();
 				shaderstate.pendingcolourvbo = 0;
@@ -3902,8 +3935,9 @@ static void DrawMeshes(void)
 
 				BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
 				BE_SubmitMeshChain();
+				break;
 			}
-			break;
+#endif
 		}
 		//fallthrough
 	case BEM_STANDARD:
@@ -4613,6 +4647,8 @@ void GLBE_FBO_Destroy(fbostate_t *state)
 //state->colour is created if usedepth is set and it doesn't previously exist
 int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, int mrt, texid_t destdepth, int width, int height)
 {
+	GLenum allcolourattachments[] ={GL_COLOR_ATTACHMENT0_EXT,GL_COLOR_ATTACHMENT1_EXT,GL_COLOR_ATTACHMENT2_EXT,GL_COLOR_ATTACHMENT3_EXT,
+									GL_COLOR_ATTACHMENT4_EXT,GL_COLOR_ATTACHMENT5_EXT,GL_COLOR_ATTACHMENT6_EXT,GL_COLOR_ATTACHMENT7_EXT};
 	int i;
 	int old;
 
@@ -4635,12 +4671,10 @@ int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, i
 	{
 		qglGenFramebuffersEXT(1, &state->fbo);
 		old = GLBE_FBO_Push(state);
-
 		enables |= FBO_RESET;
 	}
 	else
 		old = GLBE_FBO_Push(state);
-
 	if (state->rb_size[0] != width || state->rb_size[1] != height || (enables & FBO_RESET))
 	{
 		if (state->rb_depth && !(enables & FBO_RB_DEPTH))
@@ -4657,19 +4691,25 @@ int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, i
 		state->rb_size[1] = height;
 
 		enables |= FBO_RESET;
-
 		if (mrt)
-		{
-			qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
-			qglReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
+		{	//be careful here, gles2 doesn't support glDrawBuffer. hopefully it'll make things up, but this is worrying.
+			if (qglDrawBuffers)
+				qglDrawBuffers(mrt, allcolourattachments);
+			else if (qglDrawBuffer)
+				qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+			if (qglReadBuffer)
+				qglReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
 		}
 		else
 		{
-			qglDrawBuffer(GL_NONE);
-			qglReadBuffer(GL_NONE);
+			if (qglDrawBuffers)
+				qglDrawBuffers(0, NULL);
+			else if (qglDrawBuffer)
+				qglDrawBuffer(GL_NONE);
+			if (qglReadBuffer)
+				qglReadBuffer(GL_NONE);
 		}
 	}
-
 	if (enables & FBO_TEX_DEPTH)
 	{
 		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, destdepth.num, 0);
@@ -4681,9 +4721,8 @@ int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, i
 		{
 			//create an unnamed depth buffer
 			qglGenRenderbuffersEXT(1, &state->rb_depth);
-			qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, state->rb_depth);
-			if (!gl_config.ext_packed_depth_stencil)
-				qglGenRenderbuffersEXT(1, &state->rb_stencil);
+//			if (!gl_config.ext_packed_depth_stencil)
+//				qglGenRenderbuffersEXT(1, &state->rb_stencil);
 			enables |= FBO_RESET;	//make sure it gets instanciated
 		}
 
@@ -4694,10 +4733,9 @@ int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, i
 				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT, state->rb_size[0], state->rb_size[1]);
 			else
 			{
-				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, state->rb_size[0], state->rb_size[1]);
-
-				qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, state->rb_stencil);
-				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_STENCIL_INDEX8_EXT, state->rb_size[0], state->rb_size[1]);
+				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT16_ARB, state->rb_size[0], state->rb_size[1]);
+//				qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, state->rb_stencil);
+//				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_STENCIL_INDEX8_EXT, state->rb_size[0], state->rb_size[1]);
 			}
 			qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, state->rb_depth);
 			if (gl_config.ext_packed_depth_stencil)
@@ -4709,6 +4747,38 @@ int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, i
 
 	for (i = 0; i < mrt; i++)
 		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT+i, GL_TEXTURE_2D, destcol[i].num, 0);
+
+	i = qglCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
+	if (GL_FRAMEBUFFER_COMPLETE_EXT != i)
+	{
+		switch(i)
+		{
+		case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT:
+			Con_Printf("glCheckFramebufferStatus reported GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT\n");
+			break;
+		case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT:
+			Con_Printf("glCheckFramebufferStatus reported GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT\n");
+			break;
+		case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT:
+			Con_Printf("glCheckFramebufferStatus reported GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS\n");
+			break;
+		case GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT:
+			Con_Printf("glCheckFramebufferStatus reported GL_FRAMEBUFFER_INCOMPLETE_FORMATS\n");
+			break;
+		case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT:
+			Con_Printf("glCheckFramebufferStatus reported GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER\n");
+			break;
+		case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT:
+			Con_Printf("glCheckFramebufferStatus reported GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER\n");
+			break;
+		case GL_FRAMEBUFFER_UNSUPPORTED_EXT:
+			Con_Printf("glCheckFramebufferStatus reported GL_FRAMEBUFFER_UNSUPPORTED\n");
+			break;
+		default:
+			Con_Printf("glCheckFramebufferStatus returned %#x\n", i);
+			break;
+		}
+	}
 	return old;
 }
 /*

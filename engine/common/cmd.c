@@ -2855,7 +2855,7 @@ void Cmd_WriteConfig_f(void)
 		snprintf(fname, sizeof(fname), "fte.cfg");
 		FS_NativePath(fname, FS_GAMEONLY, sysname, sizeof(sysname));
 		FS_CreatePath(fname, FS_GAMEONLY);
-		f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+		f = FS_OpenVFS(fname, "wbp", FS_GAMEONLY);
 	}
 	else
 	{
@@ -2869,7 +2869,7 @@ void Cmd_WriteConfig_f(void)
 
 		FS_NativePath(fname, FS_BASEGAMEONLY, sysname, sizeof(sysname));
 		FS_CreatePath(fname, FS_BASEGAMEONLY);
-		f = FS_OpenVFS(fname, "wb", FS_BASEGAMEONLY);
+		f = FS_OpenVFS(fname, "wbp", FS_BASEGAMEONLY);
 	}
 	if (!f)
 	{

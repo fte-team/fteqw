@@ -35,7 +35,7 @@ static unsigned int domkeytoquake(unsigned int code)
 		/*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
 		/* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
 		/* 32*/ ' ',K_PGUP,K_PGDN,K_END,K_HOME,K_LEFTARROW,K_UPARROW,K_RIGHTARROW,              K_DOWNARROW,0,0,0,K_PRINTSCREEN,K_INS,K_DEL,0,
-		/* 48*/ '0','1','2','3','4','5','6','7',                '8','9',0,0,0,0,0,0,
+		/* 48*/ '0','1','2','3','4','5','6','7',                '8','9',0,0,0,'=',0,0,
 
 		/* 64*/ 0,'a','b','c','d','e','f','g',          'h','i','j','k','l','m','n','o',
 		/* 80*/ 'p','q','r','s','t','u','v','w',                'x','y','z',K_LWIN,K_RWIN,K_APP,0,0,
@@ -43,7 +43,7 @@ static unsigned int domkeytoquake(unsigned int code)
 		/*112*/ K_F1,K_F2,K_F3,K_F4,K_F5,K_F6,K_F7,K_F8,K_F9,K_F10,K_F11,K_F12,0,0,0,0,
 		/*128*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
 		/*144*/ K_KP_NUMLOCK,K_SCRLCK,0,0,0,0,0,0,              0,0,0,0,0,0,0,0,
-		/*160*/ 0,0,0,'#',0,0,0,0,                0,0,0,0,0,0,0,0,
+		/*160*/ 0,0,0,'#',0,0,0,0,                0,0,0,0,0,'-',0,0,
 		/*176*/ 0,0,0,0,0,0,0,0,                0,0,';','=',',','-','.','/',
 		/*192*/ '`',0,0,0,0,0,0,0,             0,0,0,0,0,0,0,0,
 		/*208*/ 0,0,0,0,0,0,0,0,                0,0,0,'[','\\',']','\'','`',
@@ -70,7 +70,7 @@ static unsigned int domkeytoshift(unsigned int code)
 		/*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
 		/* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
 		/* 32*/ ' ',K_PGUP,K_PGDN,K_END,K_HOME,K_LEFTARROW,K_UPARROW,K_RIGHTARROW,              K_DOWNARROW,0,0,0,K_PRINTSCREEN,K_INS,K_DEL,0,
-		/* 48*/ ')','!','\"',0/*£*/,'$','%','^','&',                '*','(',0,0,0,0,0,0,
+		/* 48*/ ')','!','\"',0/*£*/,'$','%','^','&',                '*','(',0,0,0,'+',0,0,
 
 		/* 64*/ 0,'A','B','C','D','E','F','G',          'H','I','J','K','L','M','N','O',
 		/* 80*/ 'P','Q','R','S','T','U','V','W',                'X','Y','Z',K_LWIN,K_RWIN,K_APP,0,0,
@@ -78,7 +78,7 @@ static unsigned int domkeytoshift(unsigned int code)
 		/*112*/ K_F1,K_F2,K_F3,K_F4,K_F5,K_F6,K_F7,K_F8,K_F9,K_F10,K_F11,K_F12,0,0,0,0,
 		/*128*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
 		/*144*/ K_KP_NUMLOCK,K_SCRLCK,0,0,0,0,0,0,              0,0,0,0,0,0,0,0,
-		/*160*/ 0,0,0,'~',0,0,0,0,                0,0,0,0,0,0,0,0,
+		/*160*/ 0,0,0,'~',0,0,0,0,                0,0,0,0,0,'_',0,0,
 		/*176*/ 0,0,0,0,0,0,0,0,                0,0,':','+','<','_','>','?',
 		/*192*/ '`',0,0,0,0,0,0,0,             0,0,0,0,0,0,0,0,
 		/*208*/ 0,0,0,0,0,0,0,0,                0,0,0,'{','|','}','@','`',
@@ -151,7 +151,11 @@ static void DOM_ButtonEvent(int devid, int down, int button)
 		IN_KeyEvent(0, down, K_MOUSE1+button, 0);
 	}
 }
-
+void DOM_HashChanged(char *loc)
+{
+	//try and open it. generally downloading it from the server.
+	Host_RunFile(loc+1, strlen(loc+1), NULL);
+}
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	int flags;
@@ -164,7 +168,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		VID_Resized,
 		IN_MouseMove,
 		DOM_ButtonEvent,
-		DOM_KeyEvent
+		DOM_KeyEvent,
+		DOM_HashChanged
 		))
 	{
 		Con_Printf("Couldn't set up canvas\n");
@@ -177,6 +182,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 
+	VID_Resized(vid.pixelwidth, vid.pixelheight);
+
 	mouseactive = false;
 
 	return true;
@@ -186,7 +193,7 @@ void GLVID_DeInit (void)
 {
 	ActiveApp = false;
 
-	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL);
+	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL);
 }
 
 

@@ -181,8 +181,9 @@ void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
 const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
 void (APIENTRY * qglGetPointerv) (GLenum pname, GLvoid **parms);
 
+void (APIENTRY *qglDrawBuffers)(GLsizei n, GLsizei *ids);	//gl2
 #ifndef GL_STATIC
-void (APIENTRY *qglGenRenderbuffersEXT)(GLsizei n, GLuint* ids);
+void (APIENTRY *qglGenRenderbuffersEXT)(GLsizei n, GLuint *ids);
 void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
 void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
 void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
@@ -442,8 +443,20 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			s++;
 		gl_minor_version = atoi(s);
 	}
-	if (webgl)
-		gl_major_version+=1;
+	if (webgl)	//webgl version 1 equates to gles 2.
+	{
+		if (gl_major_version < 1)
+		{	//ie reports a bollocks version. don't try using fixed function stuff.
+			gl_major_version = 2;
+			gl_minor_version = 0;
+		}
+		else if (gl_major_version == 1)
+			gl_major_version += 1;
+		//webgl2 is not defined yet. either 2 will be gles3 or they'll skip it or something I don't know.
+		//so assume webgl2 is still equivelent to gles2, to avoid confusions.
+	}
+	//FIXME: verify gles3 works properly.
+
 	//yes, I know, this can't cope with minor versions of 10+... I don't care yet.
 	gl_config.glversion += gl_major_version + (gl_minor_version/10.f);
 
@@ -577,22 +590,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	qglGenProgramsARB = NULL;
 */
 
-	r_config.texture_non_power_of_two = false;
-	gl_config.sgis_generate_mipmap = false;
-
-	gl_config.tex_env_combine = false;
-	gl_config.env_add = false;
-	gl_config.nv_tex_env_combine4 = false;
-
-	gl_config.arb_texture_env_combine = false;
-	gl_config.arb_texture_env_dot3 = false;
-	gl_config.arb_texture_cube_map = false;
-
-	gl_config.arb_shader_objects = false;
-	gl_config.ext_framebuffer_objects = false;
-
-	gl_config.ext_texture_filter_anisotropic = 0;
-
 	gl_config.ext_packed_depth_stencil = GL_CheckExtension("GL_EXT_packed_depth_stencil");
 
 	if (GL_CheckExtension("GL_EXT_texture_filter_anisotropic"))
@@ -603,7 +600,10 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 
 	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two") || GL_CheckExtension("GL_OES_texture_npot"))
-		r_config.texture_non_power_of_two = true;
+		gl_config.texture_non_power_of_two = true;
+	//gles2 has limited npot as standard, which is sufficient to make the hud not look like poo. lets use it.
+	if ((gl_config.gles && gl_config.glversion >= 2) || gl_config.texture_non_power_of_two)
+		gl_config.texture_non_power_of_two_limited = true;
 //	if (GL_CheckExtension("GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
 //		gl_config.sgis_generate_mipmap = true;
 
@@ -950,11 +950,25 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglBindVertexArray	= NULL;
 	}
 
+	if (gl_config.gles)
+	{	//gles has different TexImage2D arguments for specifying quality.
+		gl_config.arb_depth_texture = GL_CheckExtension("GL_OES_depth_texture");	//gles2
+		gl_config.arb_depth_texture |= GL_CheckExtension("GL_CHROMIUM_depth_texture");	//nacl
+		gl_config.arb_depth_texture |= GL_CheckExtension("GL_WEBGL_depth_texture");	//webgl. duh.
+	}
+	else
+	{
+		gl_config.arb_depth_texture = GL_CheckExtension("GL_ARB_depth_texture");
+	}
 	gl_config.arb_shadow = GL_CheckExtension("GL_ARB_shadow");
-	gl_config.arb_shadow |= GL_CheckExtension("GL_EXT_shadow_samplers");	//gles2
+	//gl_config.arb_shadow |= GL_CheckExtension("GL_EXT_shadow_samplers");	//gles2. nvidia fucks up. depend on brute-force. :s
 
-#ifndef GL_STATIC
-	if (GL_CheckExtension("GL_ARB_framebuffer_object"))
+#ifdef GL_STATIC
+	gl_config.ext_framebuffer_objects = true;				//exists as core in gles2
+#else
+	if ((gl_config.gles && gl_config.glversion >= 2) ||		//exists as core in gles2
+		(!gl_config.gles && gl_config.glversion >= 3) ||	//exists as core in gl3
+		GL_CheckExtension("GL_ARB_framebuffer_object"))		//exists as an extension in gl2
 	{
 		gl_config.ext_framebuffer_objects = true;
 		qglGenFramebuffersEXT			= (void *)getglext("glGenFramebuffers");
@@ -2012,13 +2026,19 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 	GL_CheckExtensions (getglfunction);
 
+	if ((gl_config.gles && gl_config.glversion >= 3) || (!gl_config.gles && gl_config.glversion >= 2))
+		qglDrawBuffers = (void *)getglext("glDrawBuffers");
+	else
+		qglDrawBuffers = NULL;
+
 	if (gl_config.gles && gl_config.glversion >= 2)
 	{
-		/*no matricies in gles, so don't try!*/
+		/*these functions do not exist in gles2, they only exist on some platforms because they were provided for gl1*/
 		qglLoadMatrixf = NULL;
 		qglPolygonMode = NULL;
 		qglShadeModel = NULL;
 		qglDepthRange = NULL;
+		qglDrawBuffer = NULL;
 
 		qglEnableClientState = GL_ClientStateStub;
 		qglDisableClientState = GL_ClientStateStub;
@@ -2031,6 +2051,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 		qglPolygonMode = NULL;
 		qglShadeModel = NULL;
 		qglDepthRange = NULL;
+		qglDrawBuffer = NULL;
 
 		qglEnableClientState = GL_ClientStateStub;
 		qglDisableClientState = GL_ClientStateStub;
@@ -2043,11 +2064,6 @@ void GL_Init(void *(*getglfunction) (char *name))
 		qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
 	if (qglShadeModel)
 		qglShadeModel (GL_FLAT);
-
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
 #ifdef DEBUG
 	if (qglDebugMessageControlARB)

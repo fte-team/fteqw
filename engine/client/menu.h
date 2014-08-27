@@ -108,6 +108,7 @@ void M_Keydown (int key, int unicode);
 void M_Keyup (int key, int unicode);
 void M_Draw (int uimenu);
 void M_ToggleMenu_f (void);
+void M_Menu_Mods_f (void);	//used at startup if the current gamedirs look dodgy.
 mpic_t	*M_CachePic (char *path);
 void M_DrawTextBox (int x, int y, int width, int lines);
 void M_Menu_Quit_f (void);

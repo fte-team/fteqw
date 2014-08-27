@@ -297,10 +297,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q3SERVER //trying to trim memory use
 	#undef Q2BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
 	#undef Q3BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
-	#undef PSET_SCRIPT	//bss+size
+//	#undef PSET_SCRIPT	//bss+size
 	#define GLSLONLY	//pointless having the junk
+	#define GLESONLY	//should reduce the conditions a little
 	#define R_MAX_RECURSE 2 //less bss
-	#undef RTLIGHTS
+//	#undef RTLIGHTS
 #endif
 #ifdef WINRT
 	#undef TCPCONNECT	//err...
@@ -319,6 +320,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef VOICECHAT
 	#endif
 	#undef TEXTEDITOR
+	#define GLESONLY	//should reduce the conditions a little
 #endif
 #if defined(NACL)
 	#undef SUPPORT_ICE
@@ -327,6 +329,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBSERVER	//no sockets support (certainly no servers)
 	#undef TCPCONNECT
 	#undef IRCCONNECT
+	#define GLSLONLY	//pointless having the junk
+	#define GLESONLY	//should reduce the conditions a little
 #endif
 
 #ifndef MULTITHREAD

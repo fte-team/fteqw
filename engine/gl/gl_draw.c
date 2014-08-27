@@ -1075,9 +1075,13 @@ static qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_heigh
 
 void GL_RoundDimensions(int *scaled_width, int *scaled_height, unsigned int flags)
 {
-	if (r_config.texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	if (gl_config.texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
 	{
 		TRACE(("dbg: GL_RoundDimensions: GL_ARB_texture_non_power_of_two\n"));
+	}
+	else if (gl_config.texture_non_power_of_two_limited && (flags&IF_NOMIPMAP) && (flags&IF_CLAMP))
+	{
+		//clamped mipless textures will work as-is in gles2/webgl
 	}
 	else
 	{
@@ -1089,6 +1093,7 @@ void GL_RoundDimensions(int *scaled_width, int *scaled_height, unsigned int flag
 			;
 
 		/*round npot textures down if we're running on an embedded system*/
+		/*
 		if (gl_config.gles)
 		{
 			if (*scaled_width != width)
@@ -1096,6 +1101,7 @@ void GL_RoundDimensions(int *scaled_width, int *scaled_height, unsigned int flag
 			if (*scaled_height != height)
 				*scaled_height >>= 1;
 		}
+		*/
 	}
 
 	if (flags & IF_NOMIPMAP)
@@ -1251,10 +1257,10 @@ static void GL_Upload32_Int (const char *name, unsigned *data, int width, int he
 	{
 		glcolormode = GL_RGBA; /*our input is RGBA or RGBX, with the internal format restriction, we must therefore always have an alpha value*/
 
-		if (gl_config.webgl_ie)
-		{
+		if (1)//gl_config.webgl_ie)
+		{	//fixme: I think my npot mips don't work properly.
 			type = GL_UNSIGNED_BYTE;
-			glcolormode = GL_RGBA;	//I hope its 1. note that samples matching colormode means we can't use packed formats, and I'm too lazy to strip it
+			glcolormode = GL_RGBA;	//I hope alpha is 1. note that samples matching colormode means we can't use packed formats, and I'm too lazy to strip it
 		}
 		else if (flags & IF_NOALPHA)
 		{

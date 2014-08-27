@@ -52,12 +52,6 @@ void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
 
-//optional features common to all renderers, so I don't have to check to see which one it is all the time.
-typedef struct {
-	qboolean texture_non_power_of_two;
-} r_config_t;
-extern r_config_t r_config;
-
 #ifdef GLQUAKE
 	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/
 		#if 1
@@ -218,10 +212,14 @@ typedef struct {
 	qboolean arb_texture_env_dot3;
 	qboolean arb_texture_cube_map;
 
+	qboolean texture_non_power_of_two;			//full npot support.
+	qboolean texture_non_power_of_two_limited;	//mipless,clamped npot works, but generic npot doesn't.
 	qboolean arb_texture_compression;
+
 //	qboolean arb_fragment_program;
 	qboolean arb_shader_objects;
 	qboolean arb_shadow;
+	qboolean arb_depth_texture;
 	qboolean ext_framebuffer_objects;
 	qboolean ext_stencil_wrap;
 	qboolean ext_packed_depth_stencil;
@@ -731,6 +729,7 @@ extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
 extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
 #endif
+extern void (APIENTRY *qglDrawBuffers)(GLsizei n, GLsizei *ids);	//gl2
 
 //non-gles2 gl functions
 extern void (APIENTRY *qglAccum) (GLenum op, GLfloat value);

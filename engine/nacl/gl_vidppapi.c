@@ -265,7 +265,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	GL_EndRendering();
-	GL_DoSwap();
+	GLVID_SwapBuffers();
 
 //	vid.pixelwidth = info->width;
 //	vid.pixelheight = info->height;
@@ -280,7 +280,7 @@ void	GLVID_Shutdown (void)
 	glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	GL_EndRendering();
-	GL_DoSwap();
+	GLVID_SwapBuffers();
 
 	ppb_core->ReleaseResource(glcontext);
 //	glTerminatePPAPI();

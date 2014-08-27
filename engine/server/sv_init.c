@@ -1325,7 +1325,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef VM_Q1
 		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
 #endif
-			svprogfuncs->SetStringField(svprogfuncs, ent, &ent->v->model, sv.world.worldmodel->name, true);
+			svprogfuncs->SetStringField(svprogfuncs, ent, &ent->v->model, sv.strings.model_precache[1], true);
 		ent->v->modelindex = 1;		// world model
 		ent->v->solid = SOLID_BSP;
 		ent->v->movetype = MOVETYPE_PUSH;
@@ -1400,6 +1400,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	// load and spawn all other entities
 	SCR_SetLoadingFile("entities");
+	if (!deathmatch.value && !*skill.string)	//skill was left blank so it doesn't polute serverinfo on deathmatch servers. in single player, we ensure that it gets a proper value.
+		Cvar_Set(&skill, "1");
 	if (progstype == PROG_H2)
 	{
 		extern cvar_t coop;

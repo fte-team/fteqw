@@ -52,23 +52,23 @@ cvar_t r_shadow_shadowmapping_nearclip = CVAR("r_shadow_shadowmapping_nearclip",
 cvar_t r_shadow_shadowmapping_bias = CVAR("r_shadow_shadowmapping_bias", "0.03");
 cvar_t r_shadow_scissor = CVAR("r_shadow_scissor", "1");
 
-cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
+cvar_t r_shadow_realtime_world				= CVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world_shadows		= CVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world_lightmaps	= CVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
 #ifdef FTE_TARGET_WEB
-cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "0", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_dlight				= CVARF ("r_shadow_realtime_dlight", "0", CVAR_ARCHIVE);
 #else
-cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_dlight				= CVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
 #endif
-cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_dlight_ambient		= SCVAR ("r_shadow_realtime_dlight_ambient", "0");
-cvar_t r_shadow_realtime_dlight_diffuse		= SCVAR ("r_shadow_realtime_dlight_diffuse", "1");
-cvar_t r_shadow_realtime_dlight_specular	= SCVAR ("r_shadow_realtime_dlight_specular", "4");	//excessive, but noticable. its called stylized, okay? shiesh, some people
-cvar_t r_editlights_import_radius			= SCVAR ("r_editlights_import_radius", "1");
-cvar_t r_editlights_import_ambient			= SCVAR ("r_editlights_import_ambient", "0");
-cvar_t r_editlights_import_diffuse			= SCVAR ("r_editlights_import_diffuse", "1");
-cvar_t r_editlights_import_specular			= SCVAR ("r_editlights_import_specular", "1");	//excessive, but noticable. its called stylized, okay? shiesh, some people
-cvar_t r_shadow_shadowmapping				= SCVARF ("r_shadow_shadowmapping", "1", 0);
+cvar_t r_shadow_realtime_dlight_shadows		= CVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_dlight_ambient		= CVAR ("r_shadow_realtime_dlight_ambient", "0");
+cvar_t r_shadow_realtime_dlight_diffuse		= CVAR ("r_shadow_realtime_dlight_diffuse", "1");
+cvar_t r_shadow_realtime_dlight_specular	= CVAR ("r_shadow_realtime_dlight_specular", "4");	//excessive, but noticable. its called stylized, okay? shiesh, some people
+cvar_t r_editlights_import_radius			= CVAR ("r_editlights_import_radius", "1");
+cvar_t r_editlights_import_ambient			= CVAR ("r_editlights_import_ambient", "0");
+cvar_t r_editlights_import_diffuse			= CVAR ("r_editlights_import_diffuse", "1");
+cvar_t r_editlights_import_specular			= CVAR ("r_editlights_import_specular", "1");	//excessive, but noticable. its called stylized, okay? shiesh, some people
+cvar_t r_shadow_shadowmapping				= CVARD ("r_shadow_shadowmapping", "1", "Enables soft shadows");
 cvar_t r_shadow_shadowmapping_precision		= CVARD ("r_shadow_shadowmapping_precision", "1", "Scales the shadowmap detail level up or down.");
 extern cvar_t r_shadow_shadowmapping_nearclip;
 extern cvar_t r_shadow_shadowmapping_bias;
@@ -88,7 +88,7 @@ void Sh_Reset(void)
 #ifdef GLQUAKE
 	if (shadow_fbo_id)
 	{
-		qglDeleteRenderbuffersEXT(1, &shadow_fbo_id);
+		qglDeleteFramebuffersEXT(1, &shadow_fbo_id);
 		shadow_fbo_id = 0;
 		shadow_fbo_depth_num = 0;
 	}
@@ -109,7 +109,7 @@ void Sh_Reset(void)
 	}
 	if (crepuscular_fbo_id)
 	{
-		qglDeleteRenderbuffersEXT(1, &crepuscular_fbo_id);
+		qglDeleteFramebuffersEXT(1, &crepuscular_fbo_id);
 		crepuscular_fbo_id = 0;
 	}
 #endif
@@ -772,6 +772,7 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 	SHM_RecursiveWorldNodeQ1_r (dl, node->children[!side]);
 }
 
+#ifdef Q2BSPS
 static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 {
 	int			c, side;
@@ -966,7 +967,6 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 	SHM_RecursiveWorldNodeQ2_r (dl, node->children[!side]);
 }
 
-#ifdef Q2BSPS
 static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis, unsigned char *vvis)
 {
 	mnode_t *node;
@@ -2025,8 +2025,10 @@ void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 //			qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2);
 //			qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, drb);
 
-			qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
-			qglReadBuffer(GL_NONE);
+			if (qglDrawBuffer)
+				qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+			if (qglReadBuffer)
+				qglReadBuffer(GL_NONE);
 		}
 		else
 			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
@@ -2044,8 +2046,12 @@ void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 		{
 			qglGenFramebuffersEXT(1, &shadow_fbo_id);
 			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
-			qglDrawBuffer(GL_NONE);
-			qglReadBuffer(GL_NONE);
+			if (qglDrawBuffers)
+				qglDrawBuffers(0, NULL);
+			else if (qglDrawBuffer)
+				qglDrawBuffer(GL_NONE);
+			if (qglReadBuffer)
+				qglReadBuffer(GL_NONE);
 		}
 		else
 			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
@@ -2370,24 +2376,28 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 	#ifdef DBG_COLOURNOTDEPTH
 				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 	#else
-				qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+				if (gl_config.gles)
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
+				else
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16_ARB, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, NULL);
 	#endif
 			}
-
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	#if 1//def DBG_COLOURNOTDEPTH
+	#if 0//def DBG_COLOURNOTDEPTH
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	#else
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	#endif
-
 			//in case we're using shadow samplers
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_R_TO_TEXTURE_ARB);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
-			qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_LUMINANCE);
+			if (gl_config.arb_shadow)
+			{
+				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_R_TO_TEXTURE_ARB);
+				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
+				qglTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE_ARB, GL_LUMINANCE);
+			}
 		}
 
 		/*set framebuffer*/
@@ -3230,6 +3240,7 @@ void Sh_PurgeShadowMeshes(void)
 	}
 	free(edge);
 	edge = NULL;
+	maxedge = 0;
 }
 
 void Sh_PreGenerateLights(void)
@@ -3309,8 +3320,14 @@ void Sh_CheckSettings(void)
 	{
 #ifdef GLQUAKE
 	case QR_OPENGL:
-		canshadowless = true; //falls back to crappy texture env
-		if (gl_config.arb_shader_objects && gl_config.ext_framebuffer_objects && gl_config.arb_shadow)
+		canshadowless = gl_config.arb_shader_objects || !gl_config_nofixedfunc; //falls back to crappy texture env
+		if (!gl_config.arb_shader_objects)
+			Con_Printf("No arb_shader_objects\n");
+		if (!gl_config.ext_framebuffer_objects)
+			Con_Printf("No ext_framebuffer_objects\n");
+		if (!gl_config.arb_depth_texture)
+			Con_Printf("No arb_depth_texture\n");
+		if (gl_config.arb_shader_objects && gl_config.ext_framebuffer_objects && gl_config.arb_depth_texture)// && gl_config.arb_shadow)
 			cansmap = true;
 		if (gl_stencilbits)
 			canstencil = true;
@@ -3337,14 +3354,12 @@ void Sh_CheckSettings(void)
 		break;
 #endif
 	default:
-		r_shadow_realtime_world.ival = 0;
-		r_shadow_realtime_dlight.ival = 0;
-		return;
+		break;
 	}
 
 	if (!canstencil && !cansmap && !canshadowless)
 	{
-		//no shadow methods available at all.
+		//can't even do lighting
 		if (r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival)
 			Con_Printf("Missing driver extensions: realtime lighting is not possible.\n");
 		r_shadow_realtime_world.ival = 0;

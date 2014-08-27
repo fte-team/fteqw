@@ -2319,14 +2319,6 @@ void MP_Keydown(int key, int unicode)
 			return;
 		}
 	}
-	if (key == K_ESCAPE)
-	{
-		if (keydown[K_LSHIFT] || keydown[K_RSHIFT])
-		{
-			Con_ToggleConsole_Force();
-			return;
-		}
-	}
 
 	menutime = Sys_DoubleTime();
 	if (menu_world.g.time)

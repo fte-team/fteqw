@@ -1,5 +1,4 @@
 !!cvarf r_bloom
-uniform float cvar_r_bloom;
 //add them together
 //optionally apply tonemapping
 
@@ -18,6 +17,7 @@ uniform sampler2D s_t0;
 uniform sampler2D s_t1;
 uniform sampler2D s_t2;
 uniform sampler2D s_t3;
+uniform float cvar_r_bloom;
 void main ()
 {
 	gl_FragColor = 

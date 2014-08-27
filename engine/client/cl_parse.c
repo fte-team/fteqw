@@ -1458,7 +1458,7 @@ void CL_RequestNextDownload (void)
 		current_loading_size = cl.contentstage;
 		if (stage < 0)
 			return;
-		SCR_SetLoadingFile("prespawn");
+		SCR_SetLoadingFile("receiving game state");
 		cl.sendprespawn = false;
 #ifdef warningmsg
 #pragma warningmsg("timedemo timer should start here")

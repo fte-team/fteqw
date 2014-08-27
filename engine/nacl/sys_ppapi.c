@@ -319,7 +319,7 @@ void startquake(char *manif)
 		args[parms.argc++] = manif;
 	}
 
-	Sys_Printf("Starting up\n");
+	Sys_Printf("Starting up (Built "__DATE__ ", " __TIME__")\n");
 
 	COM_InitArgv(parms.argc, parms.argv);
 	TL_InitLanguages();

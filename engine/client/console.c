@@ -453,6 +453,7 @@ void Con_ToggleConsole_Force(void)
 }
 void Con_ToggleConsole_f (void)
 {
+	extern cvar_t con_stayhidden;
 #ifdef CSQC_DAT
 	if (!(key_dest_mask & kdm_editor) && CSQC_ConsoleCommand("toggleconsole"))
 	{
@@ -460,6 +461,9 @@ void Con_ToggleConsole_f (void)
 		return;
 	}
 #endif
+
+	if (con_stayhidden.ival >= 2)
+		return;	//its hiding!
 
 	Con_ToggleConsole_Force();
 }

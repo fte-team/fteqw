@@ -12,7 +12,7 @@
 #include "winquake.h"
 #endif
 
-void fs_game_callback(cvar_t *var, char *oldvalue);
+static void fs_game_callback(cvar_t *var, char *oldvalue);
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
 qboolean fs_readonly;
@@ -28,7 +28,7 @@ static int fs_referencetype;
 int fs_finds;
 void COM_CheckRegistered (void);
 
-void fs_game_callback(cvar_t *var, char *oldvalue)
+static void fs_game_callback(cvar_t *var, char *oldvalue)
 {
 	static qboolean runaway = false;
 	char buf[MAX_OSPATH];
@@ -1363,13 +1363,15 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 	if (!filename)
 		return NULL;
 
-
+#ifdef _DEBUG
 	if (strcmp(mode, "rb"))
 		if (strcmp(mode, "r+b"))
 			if (strcmp(mode, "wb"))
 				if (strcmp(mode, "w+b"))
 					if (strcmp(mode, "ab"))
-						return NULL; //urm, unable to write/append
+						if (strcmp(mode, "wbp"))
+							return NULL; //urm, unable to write/append
+#endif
 
 	//if there can only be one file (eg: write access) find out where it is.
 	switch (relativeto)
@@ -1538,7 +1540,7 @@ qboolean FS_Copy(const char *source, const char *dest, enum fs_relative relative
 	s = FS_OpenVFS(source, "rb", relativesource);
 	if (s)
 	{
-		d = FS_OpenVFS(dest, "wb", relativedest);
+		d = FS_OpenVFS(dest, "wbp", relativedest);
 		if (d)
 		{
 			result = true;
@@ -2027,11 +2029,16 @@ void COM_FlushFSCache(void)
 		}
 	}
 
-	if (com_fs_cache.ival)
+#ifdef FTE_TARGET_WEB
+	//web target doesn't support filesystem enumeration, so make sure the cache is kept invalid and disabled.
+	com_fschanged = true;
+#else
+	if (com_fs_cache.ival && com_fschanged)
 	{
 		//rebuild it if needed
 		FS_RebuildFSHash();
 	}
+#endif
 }
 
 /*since should start as 0, otherwise this can be used to poll*/
@@ -2210,128 +2217,6 @@ void COM_Gamedir (const char *dir)
 		Z_Free(dup);
 	}
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival);
-
-#if 0
-	char thispath[64];
-	searchpath_t	*next;
-	qboolean isbase;
-
-	//don't allow leading dots, hidden files are evil.
-	//don't allow complex paths. those are evil too.
-	if (!*dir || *dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
-		|| strstr(dir, "\\") || strstr(dir, ":") )
-	{
-		Con_TPrintf (TL_GAMEDIRAINTPATH);
-		return;
-	}
-
-	isbase = false;
-	for (next = com_searchpaths; next; next = next->next)
-	{
-		if (next == com_base_searchpaths)
-			isbase = true;
-
-		if (next->funcs == &osfilefuncs)
-		{
-			FS_CleanDir(next->purepath, thispath, sizeof(thispath));
-			if (!strcmp(dir, thispath))
-			{
-				if (isbase && com_searchpaths == com_base_searchpaths)
-				{
-					Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
-					return;
-				}
-				if (!isbase)
-					return;
-				break;
-			}
-		}
-	}
-
-	FS_ForceToPure(NULL, NULL, 0);
-
-#ifndef SERVERONLY
-//	Host_WriteConfiguration();	//before we change anything.
-#endif
-
-	Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
-
-#ifndef CLIENTONLY
-	sv.gamedirchanged = true;
-#endif
-#ifndef SERVERONLY
-	cl.gamedirchanged = true;
-#endif
-
-	FS_FlushFSHashReally();
-
-	//
-	// free up any current game dir info
-	//
-	while (com_searchpaths != com_base_searchpaths)
-	{
-		com_searchpaths->handle->ClosePath(com_searchpaths->handle);
-		next = com_searchpaths->next;
-		Z_Free (com_searchpaths);
-		com_searchpaths = next;
-	}
-
-	com_fschanged = true;
-
-	//
-	// flush all data, so it will be forced to reload
-	//
-	Cache_Flush ();
-
-	if (strchr(dir, ';'))
-	{
-		//separate case because parsestringset splits by whitespace too
-		while ((dir = COM_ParseStringSet(dir)))
-		{
-			if (!strcmp(dir, ";"))
-				continue;
-			if (!*dir)
-				continue;
-
-			FS_AddGameDirectory(dir, va("%s%s", com_gamepath, com_token), ~0, SPF_EXPLICIT);
-			if (com_homepathenabled)
-				FS_AddGameDirectory(dir, va("%s%s", com_homepath, com_token), ~0, SPF_EXPLICIT);
-		}
-	}
-	else
-	{
-		FS_AddGameDirectory(dir, va("%s%s", com_gamepath, dir), ~0, SPF_EXPLICIT);
-		if (com_homepathenabled)
-			FS_AddGameDirectory(dir, va("%s%s", com_homepath, dir), ~0, SPF_EXPLICIT);
-	}
-
-
-#ifndef SERVERONLY
-	if (!isDedicated)
-	{
-//		if (qrenderer != QR_NONE)	//only do this if we have already started the renderer
-//			Cbuf_InsertText("vid_restart\n", RESTRICT_LOCAL);
-
-
-		if (COM_FDepthFile("config.cfg", true) <= (com_homepathenabled?1:0))
-		{
-			Cbuf_InsertText("cl_warncmd 0\n"
-							"exec config.cfg\n"
-							"exec fte.cfg\n"
-							"cl_warncmd 1\n", RESTRICT_LOCAL, false);
-		}
-	}
-
-	Shader_Init();	//FIXME!
-
-	COM_Effectinfo_Clear();
-
-	Validation_FlushFileList();	//prevent previous hacks from making a difference.
-
-	//FIXME: load new palette, if different cause a vid_restart.
-
-#endif
-#endif
 }
 
 #define QCFG "set allow_download_refpackages 0\n"
@@ -3722,7 +3607,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 				"FTEMANIFEST 1\n"
 				"game \"\"\n"
 				"name \"" FULLENGINENAME "\"\n"
-				"defaultexec \\\"vid_fullscreen 0; gl_font cour;vid_width 640; vid_height 480; menu_mods\"\n"
+				"defaultexec \\\"vid_fullscreen 0; gl_font cour;vid_width 640; vid_height 480\"\n"
 				);
 		}
 	}

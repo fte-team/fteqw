@@ -2,7 +2,6 @@
 //the bloom filter
 //filter out any texels which are not to bloom
 
-uniform vec3 cvar_r_bloom_filter;
 varying vec2 tc;
 
 #ifdef VERTEX_SHADER
@@ -14,6 +13,7 @@ void main ()
 }
 #endif
 #ifdef FRAGMENT_SHADER
+uniform vec3 cvar_r_bloom_filter;
 uniform sampler2D s_t0;
 void main ()
 {

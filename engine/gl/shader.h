@@ -638,11 +638,14 @@ typedef struct
 extern sh_config_t sh_config;
 
 #ifdef GLSLONLY
-#define gl_config_nofixedfunc true
-#define gl_config_gles true
+	#define gl_config_nofixedfunc true
 #else
-#define gl_config_nofixedfunc gl_config.nofixedfunc
-#define gl_config_gles gl_config.gles
+	#define gl_config_nofixedfunc gl_config.nofixedfunc
+#endif
+#ifdef GLESONLY
+	#define gl_config_gles true
+#else
+	#define gl_config_gles gl_config.gles
 #endif
 
 #ifdef GLQUAKE

@@ -11,13 +11,14 @@ mergeInto(LibraryManager.library,
 
 	$FTEC:
 	{
+		linebuffer:'',
 		w: -1,
 		h: -1,
 		donecb:0,
 		evcb: {
 			resize:0,
 			mouse:0,
-			key:0,
+			key:0
 		},
 
 		handleevent : function(event)
@@ -101,12 +102,13 @@ mergeInto(LibraryManager.library,
 		}
 	},
 	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser'],
-	emscriptenfte_setupcanvas : function(nw,nh,evresz,evm,evb,evk)
+	emscriptenfte_setupcanvas : function(nw,nh,evresz,evm,evb,evk,evh)
 	{
 		FTEC.evcb.resize = evresz;
 		FTEC.evcb.mouse = evm;
 		FTEC.evcb.button = evb;
 		FTEC.evcb.key = evk;
+		FTEC.evcb.hashchange = evh;
 		if (!FTEC.donecb)
 		{
 			FTEC.donecb = 1;
@@ -128,20 +130,35 @@ mergeInto(LibraryManager.library,
     		var ctx = Browser.createContext(Module['canvas'], true, true);
 		if (!ctx)
 			return 0;
-		Browser.setCanvasSize(nw, nh, false);
+//		Browser.setCanvasSize(nw, nh, false);
 
 		window.onresize = function()
 		{
 			//emscripten's browser library will revert sizes wrongly or something when we're fullscreen, so make sure that doesn't happen.
-			if (Browser.isFullScreen)
-			{
-				Browser.windowedWidth = window.innerWidth;
-				Browser.windowedHeight = window.innerHeight;
-			}
-			else
+//			if (Browser.isFullScreen)
+//			{
+//				Browser.windowedWidth = window.innerWidth;
+//				Browser.windowedHeight = window.innerHeight;
+//			}
+//			else
 				Browser.setCanvasSize(window.innerWidth, window.innerHeight, false);
+			if (FTEC.evcb.resize != 0)
+				Runtime.dynCall('vii', FTEC.evcb.resize, [Module['canvas'].width, Module['canvas'].height]);
 		};
 		window.onresize();
+
+		if (FTEC.evcb.hashchange)
+		window.onhashchange = function()
+		{
+			if (FTEC.evcb.hashchange != 0)
+			{
+				var val = location.hash;
+				var ptr = _malloc(val.length);
+				writeStringToMemory(val, ptr);
+				Runtime.dynCall('vi', FTEC.evcb.hashchange, [ptr]);
+				_free(ptr);
+			}
+		};
 
 		return 1;
 	},
@@ -161,7 +178,15 @@ mergeInto(LibraryManager.library,
 	//FIXME: split+merge by \n
 	emscriptenfte_print : function(msg)
 	{
-		console.log(Pointer_stringify(msg));
+		FTEC.linebuffer += Pointer_stringify(msg);
+		for(;;)
+		{
+			nl = FTEC.linebuffer.indexOf("\n");
+			if (nl == -1)
+				break;
+			console.log(FTEC.linebuffer.substring(0, nl));
+			FTEC.linebuffer = FTEC.linebuffer.substring(nl+1);
+		}
 	},
 	emscriptenfte_ticks_ms : function()
 	{
@@ -192,7 +217,7 @@ mergeInto(LibraryManager.library,
 		b.h = _emscriptenfte_handle_alloc(b);
 		return b.h;
 	},
-	//temp files
+	//filesystem emulation
 	emscriptenfte_buf_open__deps : ['emscriptenfte_buf_create'],
 	emscriptenfte_buf_open : function(name, createifneeded)
 	{
@@ -201,6 +226,25 @@ mergeInto(LibraryManager.library,
 		var r = -1;
 		if (f == null)
 		{
+			if (window.localStorage && createifneeded != 2)
+			{
+				var str = window.localStorage.getItem(name);
+				if (str != null)
+				{
+					console.log('read file '+name+': ' + str);
+
+					var len = str.length;
+					var buf = new Uint8Array(len);
+					for (var i = 0; i < len; i++)
+						buf[i] = str.charCodeAt(i);
+
+					var b = {h:-1, r:2, l:len,m:len,d:buf, n:name};
+					r = b.h = _emscriptenfte_handle_alloc(b);
+					FTEH.f[name] = b;
+					return b.h;
+				}
+			}
+
 			if (createifneeded)
 				r = _emscriptenfte_buf_create();
 			if (r != -1)
@@ -218,6 +262,8 @@ mergeInto(LibraryManager.library,
 			f.r+=1;
 			r = f.h;
 		}
+		if (f != null && createifneeded == 2)
+			f.l = 0;  //truncate it.
 		return r;
 	},
 	emscriptenfte_buf_rename : function(oldname, newname)
@@ -247,6 +293,30 @@ console.log('deleted '+name);
 			return 1;
 		}
 		return 0;
+	},
+	emscriptenfte_buf_pushtolocalstore : function(handle)
+	{
+		var b = FTEH.h[handle];
+		if (b == null)
+		{
+			Module.printError('emscriptenfte_buf_pushtolocalstore with invalid handle');
+			return;
+		}
+		if (b.n == null)
+			return;
+		var data = b.d;
+		var len = b.l;
+		if (window.localStorage)
+		{
+			var foo = "";
+			//use a divide and conquer implementation instead for speed?
+			for (var i = 0; i < len; i++)
+				foo += String.fromCharCode(data[i]);
+			window.localStorage.setItem(b.n, foo);
+console.log('saved '+b.n+' persistantly: '+foo);
+		}
+		else
+			console.log('local storage not supported');
 	},
 	emscriptenfte_buf_release : function(handle)
 	{

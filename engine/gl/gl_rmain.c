@@ -544,7 +544,7 @@ void R_RenderScene (void)
 #ifdef GL_STEREO
 		GLint glb;
 		qglGetIntegerv(GL_STEREO, &glb);
-		if (!glb)
+		if (!glb || !qglDrawBuffer)
 #endif
 			stereomode = 0;	//we are not a stereo context, so no stereoscopic rendering (this encourages it to otherwise be left enabled, which means the user is more likely to spot that they asked it to give a slower context.
 	}
@@ -1283,7 +1283,7 @@ static void R_RenderMotionBlur(void)
 	shader_t *shader;
 
 	//figure out the size of our texture.
-	if (r_config.texture_non_power_of_two)
+	if (gl_config.texture_non_power_of_two_limited)
 	{	//we can use any size, supposedly
 		vwidth = vid.pixelwidth;
 		vheight = vid.pixelheight;
@@ -1402,7 +1402,7 @@ qboolean R_RenderScene_Cubemap(void)
 //	prect.y = (vrect.y * vid.pixelheight)/vid.height;
 //	prect.height = (vrect.height * vid.pixelheight)/vid.height;
 
-	if (r_config.texture_non_power_of_two)
+	if (r_config.texture_non_power_of_two_limited)
 	{
 		if (prect.width < prect.height)
 			cmapsize = prect.width;
@@ -1596,7 +1596,7 @@ void GLR_RenderView (void)
 	}
 
 	//disable stuff if its simply not supported.
-	if (dofbo || !gl_config.arb_shader_objects || !gl_config.ext_framebuffer_objects || !r_config.texture_non_power_of_two)
+	if (dofbo || !gl_config.arb_shader_objects || !gl_config.ext_framebuffer_objects || !gl_config.texture_non_power_of_two_limited)
 		r_refdef.flags &= ~(RDF_ALLPOSTPROC);	//block all of this stuff
 
 

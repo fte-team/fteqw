@@ -64,6 +64,15 @@ static qboolean QDECL VFSWEB_Close(vfsfile_t *file)
 	Z_Free(file);
 	return true;
 }
+static qboolean QDECL VFSWEB_ClosePersist(vfsfile_t *file)
+{
+	vfswebfile_t *intfile = (vfswebfile_t*)file;
+#ifdef _DEBUG
+	Con_DPrintf("Persisting file %s\n", file->dbgname);
+#endif
+	emscriptenfte_buf_pushtolocalstore(intfile->handle);
+	return VFSWEB_Close(file);
+}
 
 vfsfile_t *FSWEB_OpenTemp(void)
 {
@@ -99,11 +108,13 @@ vfsfile_t *VFSWEB_Open(const char *osname, const char *mode, qboolean *needsflus
 	vfswebfile_t *file;
 	//qboolean read = !!strchr(mode, 'r');
 	qboolean write = !!strchr(mode, 'w');
+	qboolean update = !!strchr(mode, '+');
 	qboolean append = !!strchr(mode, 'a');
+	qboolean persist = !!strchr(mode, 'p');
 
 	if (needsflush)
 		*needsflush = false;
-	f = emscriptenfte_buf_open(osname, write||append);
+	f = emscriptenfte_buf_open(osname, (write && !update)?2:(write||append));
 	if (f == -1)
 		return NULL;
 
@@ -122,7 +133,10 @@ vfsfile_t *VFSWEB_Open(const char *osname, const char *mode, qboolean *needsflus
 	file->funcs.Seek = VFSWEB_Seek;
 	file->funcs.Tell = VFSWEB_Tell;
 	file->funcs.GetLen = VFSWEB_GetSize;
-	file->funcs.Close = VFSWEB_Close;
+	if (persist && (write || append))
+		file->funcs.Close = VFSWEB_ClosePersist;
+	else
+		file->funcs.Close = VFSWEB_Close;
 	file->funcs.Flush = VFSWEB_Flush;
 	file->handle = f;
 
@@ -233,7 +247,7 @@ static void QDECL FSWEB_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, ch
 	result = VFS_READ(f, buffer, loc->len); // do soemthing with result
 
 	if (result != loc->len)
-		Con_Printf("FSWEB_ReadFile() fread: Filename: %s, expected %i, result was %u \n",loc->rawname,loc->len,(unsigned int)result);
+		Con_Printf("FSWEB_ReadFile() fread: Filename: %s, expected %u, result was %u \n",loc->rawname,(unsigned int)loc->len,(unsigned int)result);
 
 	VFS_CLOSE(f);
 }

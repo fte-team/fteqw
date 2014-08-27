@@ -13,8 +13,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //modifier: RIPPLEMAP (s_t3 contains a ripplemap
 //modifier: TINT    (some colour value)
 
-"uniform float cvar_r_glsl_turbscale;\n"
-
 "#ifndef FRESNEL\n"
 "#define FRESNEL 5.0\n"
 "#endif\n"
@@ -49,6 +47,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
+"uniform float cvar_r_glsl_turbscale;\n"
 "uniform sampler2D s_t0; //refract\n"
 "uniform sampler2D s_t1; //normalmap\n"
 "uniform sampler2D s_t2; //diffuse/reflection\n"
@@ -176,7 +175,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //the bloom filter
 //filter out any texels which are not to bloom
 
-"uniform vec3 cvar_r_bloom_filter;\n"
 "varying vec2 tc;\n"
 
 "#ifdef VERTEX_SHADER\n"
@@ -188,6 +186,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
+"uniform vec3 cvar_r_bloom_filter;\n"
 "uniform sampler2D s_t0;\n"
 "void main ()\n"
 "{\n"
@@ -199,7 +198,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "bloom_final",
 "!!cvarf r_bloom\n"
-"uniform float cvar_r_bloom;\n"
 //add them together
 //optionally apply tonemapping
 
@@ -218,6 +216,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_t1;\n"
 "uniform sampler2D s_t2;\n"
 "uniform sampler2D s_t3;\n"
+"uniform float cvar_r_bloom;\n"
 "void main ()\n"
 "{\n"
 "gl_FragColor = \n"
@@ -1695,6 +1694,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvardf r_glsl_pcf\n"
 
 
+"#ifndef USE_ARB_SHADOW\n"
+//fall back on regular samplers if we must
+"#define sampler2DShadow sampler2D\n"
+"#endif\n"
+
 //this is the main shader responsible for realtime dlights.
 
 //texture units:
@@ -1706,7 +1710,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //CUBESHADOW
 
 "#ifndef r_glsl_pcf\n"
-"#error r_glsl_pcf wasn't defined\n"
+"#error r_glsl_pcf wasnt defined\n"
 "#endif\n"
 "#if r_glsl_pcf < 1\n"
 "#undef r_glsl_pcf\n"
@@ -1728,12 +1732,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
-
 "#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
 "varying vec4 vtexprojcoord;\n"
+"#endif\n"
+
+
+"#ifdef VERTEX_SHADER\n"
+"#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
 "uniform mat4 l_cubematrix;\n"
 "#endif\n"
-"#ifdef VERTEX_SHADER\n"
 "#include \"sys/skeletal.h\"\n"
 "uniform vec3 l_lightposition;\n"
 "attribute vec2 v_texcoord;\n"
@@ -1872,7 +1879,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0)); //blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.\n"
 
 "#else\n"
+"#ifdef USE_ARB_SHADOW\n"
+//with arb_shadow, we can benefit from hardware acclerated pcf, for smoother shadows
 "#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r\n"
+"#else\n"
+//this will probably be a bit blocky.
+"#define dosamp(x,y) float(texture2D(s_t4, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)\n"
+"#endif\n"
 "float s = 0.0;\n"
 "#if r_glsl_pcf >= 1 && r_glsl_pcf < 5\n"
 "s += dosamp(0.0, 0.0);\n"
@@ -1973,6 +1986,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);\n"
 "}\n"
 "#endif\n"
+
 },
 #endif
 #ifdef D3D9QUAKE

@@ -226,6 +226,7 @@ void SCR_ScreenShot_f (void);
 void SCR_RSShot_f (void);
 void SCR_CPrint_f(void);
 
+cvar_t	con_stayhidden = CVARFD("con_stayhidden", "0", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
 cvar_t	show_fps	= SCVARF("show_fps", "0", CVAR_ARCHIVE);
 cvar_t	show_fps_x	= SCVAR("show_fps_x", "-1");
 cvar_t	show_fps_y	= SCVAR("show_fps_y", "-1");
@@ -245,6 +246,7 @@ void CLSCR_Init(void)
 {
 	Cmd_AddCommand("cprint", SCR_CPrint_f);
 
+	Cvar_Register(&con_stayhidden, cl_screengroup);
 	Cvar_Register(&scr_loadingrefresh, cl_screengroup);
 	Cvar_Register(&show_fps, cl_screengroup);
 	Cvar_Register(&show_fps_x, cl_screengroup);
@@ -1425,7 +1427,7 @@ void SCR_SetLoadingStage(int stage)
 		SCR_SetLoadingFile("starting server...");
 		break;
 	case LS_CLIENT:
-		SCR_SetLoadingFile("initial state");
+		SCR_SetLoadingFile("receiving map info");
 		break;
 	}
 	loading_stage = stage;
@@ -1706,7 +1708,7 @@ void SCR_SetUpToDrawConsole (void)
 		//android has an onscreen imm that we don't want to obscure
 		fullscreenpercent = scr_consize.value;
 #endif
-		if ((!Key_Dest_Has(~(kdm_console|kdm_game))) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload))
+		if (!con_stayhidden.ival && (!Key_Dest_Has(~(kdm_console|kdm_game))) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload))
 		{
 			//force console to fullscreen if we're loading stuff
 //			Key_Dest_Add(kdm_console);
@@ -1720,9 +1722,25 @@ void SCR_SetUpToDrawConsole (void)
 				scr_con_current = scr_conlines = 0;
 			else
 #endif
+			{
 				if (cls.state < ca_demostart)
-					Key_Dest_Add(kdm_console);
-			if (Key_Dest_Has(kdm_console))
+				{
+					if (con_stayhidden.ival)
+					{
+						extern qboolean startuppending;
+						if (SCR_GetLoadingStage() == LS_NONE)
+						{
+							if (CL_TryingToConnect())	//if we're trying to connect, make sure there's a loading/connecting screen showing instead of forcing the menu visible
+								SCR_SetLoadingStage(LS_CONNECTION);
+							else if (!m_state && !startuppending)	//don't force anything until the startup stuff has been done
+								M_ToggleMenu_f();
+						}
+					}
+					else
+						Key_Dest_Add(kdm_console);
+				}
+			}
+			if (!con_stayhidden.ival && Key_Dest_Has(kdm_console))
 				scr_con_current = scr_conlines = vid.height * fullscreenpercent;
 		}
 		else if (Key_Dest_Has(kdm_console) || scr_chatmode)

@@ -6,8 +6,6 @@
 //modifier: RIPPLEMAP (s_t3 contains a ripplemap
 //modifier: TINT    (some colour value)
 
-uniform float cvar_r_glsl_turbscale;
-
 #ifndef FRESNEL
 #define FRESNEL 5.0
 #endif
@@ -42,6 +40,7 @@ void main (void)
 }
 #endif
 #ifdef FRAGMENT_SHADER
+uniform float cvar_r_glsl_turbscale;
 uniform sampler2D s_t0;	//refract
 uniform sampler2D s_t1;	//normalmap
 uniform sampler2D s_t2;	//diffuse/reflection

@@ -754,6 +754,7 @@ ifeq ($(FTE_TARGET),nacl)
 	BASELDFLAGS = -lm -lppapi_gles2 -lnosys -lppapi
 	IMAGELDFLAGS =
 
+	GL_CFLAGS=$(GLCFLAGS)
 	GL_CFLAGS+=$(SPEEXCFLAGS)
 	GL_CFLAGS+=-I$(realpath $(NACL_SDK_ROOT)/include)
 	BASELDFLAGS+=-L$(realpath $(NACL_SDK_ROOT)/lib/$(NACLLIBS))

@@ -865,9 +865,9 @@ void SV_EvaluatePenalties(client_t *cl)
 	{
 		//we should only reach here by a player getting banned mid-game.
 		if (penaltyreason[0])
-			SV_BroadcastPrintf(PRINT_HIGH, va("%s was banned: %s\n", cl->name, penaltyreason[0]));
+			SV_BroadcastPrintf(PRINT_HIGH, "%s was banned: %s\n", cl->name, penaltyreason[0]);
 		else
-			SV_BroadcastPrintf(PRINT_HIGH, va("%s was banned\n", cl->name));
+			SV_BroadcastPrintf(PRINT_HIGH, "%s was banned\n", cl->name);
 		cl->drop = true;
 	}
 

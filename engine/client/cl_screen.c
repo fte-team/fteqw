@@ -226,7 +226,7 @@ void SCR_ScreenShot_f (void);
 void SCR_RSShot_f (void);
 void SCR_CPrint_f(void);
 
-cvar_t	con_stayhidden = CVARFD("con_stayhidden", "0", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
+cvar_t	con_stayhidden = CVARFD("con_stayhidden", "1", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
 cvar_t	show_fps	= SCVARF("show_fps", "0", CVAR_ARCHIVE);
 cvar_t	show_fps_x	= SCVAR("show_fps_x", "-1");
 cvar_t	show_fps_y	= SCVAR("show_fps_y", "-1");

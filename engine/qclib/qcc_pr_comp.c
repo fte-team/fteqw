@@ -6404,14 +6404,13 @@ QCC_def_t *QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	QCC_def_t *ret = ref->base;
 	if (ref->postinc)
 	{
-		QCC_def_t *origv;
 		int inc = ref->postinc;
 		ref->postinc = 0;
 		//read the value, without preventing the store later
 		ret = QCC_RefToDef(ref, false);
 		//archive off the old value
 		tmp = QCC_GetTemp(ret->type);
-		origv = QCC_CollapseStore(tmp, ret, ret->type, true, !freetemps);
+		QCC_StoreToDef(tmp, ret, ret->type, false, true);
 		ret = tmp;
 		//update the value
 		switch(ref->cast->type)
@@ -6432,11 +6431,11 @@ QCC_def_t *QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 		}
 		//hack any following uses of the ref to refer to the temp
 		ref->type = REF_GLOBAL;
-		ref->base = origv;
+		ref->base = ret;
 		ref->index = NULL;
 		ref->readonly = true;
 
-		return origv;
+		return ret;
 	}
 
 	switch(ref->type)

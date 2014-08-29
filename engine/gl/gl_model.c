@@ -592,7 +592,9 @@ void Mod_Shutdown (qboolean final)
 	mod_known = NULL;
 	mod_numknown = 0;
 
+#ifndef SERVERONLY
 	r_worldentity.model = NULL;	//just in case.
+#endif
 }
 
 /*

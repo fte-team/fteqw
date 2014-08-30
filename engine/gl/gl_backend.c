@@ -3554,7 +3554,8 @@ void GLBE_Scissor(srect_t *rect)
 	{
 		qglScissor(
 			floor(r_refdef.pxrect.x + rect->x*r_refdef.pxrect.width),
-			floor(r_refdef.pxrect.y + rect->y*r_refdef.pxrect.height),// - r_refdef.pxrect.maxheight),
+//			floor(r_refdef.pxrect.y + rect->y*r_refdef.pxrect.height),// - r_refdef.pxrect.maxheight),
+			floor(rect->y*r_refdef.pxrect.height + (r_refdef.pxrect.maxheight-r_refdef.pxrect.y)-r_refdef.pxrect.height),
 			ceil(rect->width * r_refdef.pxrect.width),
 			ceil(rect->height * r_refdef.pxrect.height));
 		qglEnable(GL_SCISSOR_TEST);

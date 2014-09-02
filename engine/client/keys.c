@@ -2207,7 +2207,10 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 				bl = bindcmdlevel[bkey][modifierstate];
 			}
 			else
+			{
+				key_repeats[key] = 0;
 				return;
+			}
 		}
 	}
 

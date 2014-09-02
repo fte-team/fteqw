@@ -82,6 +82,7 @@ struct mouse_s
 	float wheeldelta;
 	int down;
 } ptr[MAXPOINTERS];
+int touchcursor;	//the cursor follows whichever finger was most recently pressed in preference to any mouse also on the same system
 
 #define MAXJOYAXIS 6
 #define MAXJOYSTICKS 4
@@ -176,6 +177,7 @@ void IN_Commands(void)
 	while (events_used != events_avail)
 	{
 		ev = &eventlist[events_used & (EVENTQUEUELENGTH-1)];
+
 		switch(ev->type)
 		{
 		case IEV_KEYDOWN:
@@ -183,6 +185,18 @@ void IN_Commands(void)
 			//on touchscreens, mouse1 is used as up/down state. we have to emulate actual mouse clicks based upon distance moved, so we can get movement events.
 			if (ev->keyboard.scancode == K_MOUSE1 && ev->devid < MAXPOINTERS && (ptr[ev->devid].type == M_TOUCH))
 			{
+				if (ev->type == IEV_KEYDOWN)
+				{
+					float fl;
+					touchcursor = ev->devid;
+					fl = ptr[ev->devid].oldpos[0] * vid.width / vid.pixelwidth;
+					mousecursor_x = bound(0, fl, vid.width-1);
+					fl = ptr[ev->devid].oldpos[1] * vid.height / vid.pixelheight;
+					mousecursor_y = bound(0, fl, vid.height-1);
+				}
+				else if (touchcursor == ev->devid)
+					touchcursor = 0;	//revert it to the mouse, or whatever device was 0.
+
 				if (Key_MouseShouldBeFree())
 					ptr[ev->devid].down = 0;
 				else if (ptr[ev->devid].down)
@@ -191,7 +205,7 @@ void IN_Commands(void)
 						Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, ev->type == IEV_KEYDOWN); 
 					else
 					{
-						if (ptr[ev->devid].down == 1 || ptr[ev->devid].moveddist < m_slidethreshold.value)
+						if (ptr[ev->devid].down == 1 && ptr[ev->devid].moveddist < m_slidethreshold.value)
 						{
 							ptr[ev->devid].down = 2;
 							Key_Event(ev->devid, K_MOUSE1, 0, true);
@@ -205,12 +219,15 @@ void IN_Commands(void)
 			Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, ev->type == IEV_KEYDOWN); 
 			break;
 		case IEV_JOYAXIS:
+			if (ev->devid < MAXJOYSTICKS && ev->joy.axis < MAXJOYAXIS)
+			{
 #ifdef CSQC_DAT
-			if (CSQC_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
-				joy[ev->devid].axis[ev->joy.axis] = 0;
-			else
+				if (CSQC_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
+					joy[ev->devid].axis[ev->joy.axis] = 0;
+				else
 #endif
-				joy[ev->devid].axis[ev->joy.axis] = ev->joy.value;
+					joy[ev->devid].axis[ev->joy.axis] = ev->joy.value;
+			}
 			break;
 		case IEV_MOUSEDELTA:
 			if (ev->devid < MAXPOINTERS)
@@ -237,7 +254,7 @@ void IN_Commands(void)
 			break;
 		case IEV_MOUSEABS:
 			/*mouse cursors only really work with one pointer*/
-			if (ev->devid == 0)
+			if (ev->devid == touchcursor)
 			{
 				float fl;
 				fl = ev->mouse.x * vid.width / vid.pixelwidth;
@@ -347,7 +364,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 
 	if (Key_MouseShouldBeFree())
 	{
-		if (mx || my)
+		if ((mx || my) && mouse->type != M_TOUCH)
 		{
 			mousecursor_x += mx;
 			mousecursor_y += my;
@@ -364,15 +381,14 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 				mousecursor_y = vid.height - 1;
 			mx=my=0;
 		}
-
-#ifdef PEXT_CSQC
-		CSQC_MousePosition(mousecursor_x, mousecursor_y, mouse->qdeviceid);
-#endif
 	}
 	else
 	{
-		mousecursor_x += mx;
-		mousecursor_y += my;
+		if (mouse->type != M_TOUCH)
+		{
+			mousecursor_x += mx;
+			mousecursor_y += my;
+		}
 #ifdef VM_UI
 		if (UI_MousePosition(mx, my))
 		{

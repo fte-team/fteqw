@@ -117,8 +117,30 @@ mergeInto(LibraryManager.library,
 							event.preventDefault();
 					}
 					break;
+				case 'touchstart':
+				case 'touchend':
+				case 'touchcancel':
+				case 'touchleave':
+				case 'touchmove':
+					var touches = event.changedTouches;
+					for (var i = 0; i < touches.length; i++)
+					{
+						var t = touches[i];
+						if (FTEC.evcb.mouse)
+							Runtime.dynCall('viidddd', FTEC.evcb.mouse, [t.identifier+1, true, t.pageX, t.pageY, 0, Math.sqrt(t.radiusX*t.radiusX+t.radiusY*t.radiusY)]);
+						if (FTEC.evcb.button)
+						{
+							if (event.type == 'touchstart')
+								Runtime.dynCall('viii', FTEC.evcb.button, [t.identifier+1, 1, 0]);
+							else if (event.type != 'touchmove')
+								Runtime.dynCall('viii', FTEC.evcb.button, [t.identifier+1, 0, 0]);
+						}
+					}
+					event.preventDefault();
+					break;
 				default:
 					console.log(event);
+					break;
 			}
 		}
 	},
@@ -133,7 +155,7 @@ mergeInto(LibraryManager.library,
 		if (!FTEC.donecb)
 		{
 			FTEC.donecb = 1;
-			['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup'].forEach(function(event)
+			['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup', 'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove'].forEach(function(event)
 			{
 				Module['canvas'].addEventListener(event, FTEC.handleevent, true);
 			});

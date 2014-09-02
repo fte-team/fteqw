@@ -501,6 +501,7 @@ void R_SetupGL (float stereooffset)
 		qglLoadMatrixf(r_refdef.m_view);
 	}
 
+#ifdef GL_LINE_SMOOTH
 	if (!gl_config.gles && r_wireframe_smooth.modified)
 	{
 		r_wireframe_smooth.modified = false;
@@ -517,6 +518,7 @@ void R_SetupGL (float stereooffset)
 				qglHint(GL_LINE_SMOOTH_HINT, GL_FASTEST);
 		}
 	}
+#endif
 	if (!gl_config.gles && gl_dither.modified)
 	{
 		gl_dither.modified = false;

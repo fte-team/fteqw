@@ -131,12 +131,12 @@ static void DOM_ButtonEvent(int devid, int down, int button)
 		//fixme: the event is a float. we ignore that.
 		while(button < 0)
 		{
-			IN_KeyEvent(0, true, K_MWHEELUP, 0);
+			IN_KeyEvent(devid, true, K_MWHEELUP, 0);
 			button += 1;
 		}
 		while(button > 0)
 		{
-			IN_KeyEvent(0, true, K_MWHEELDOWN, 0);
+			IN_KeyEvent(devid, true, K_MWHEELDOWN, 0);
 			button -= 1;
 		}
 	}
@@ -148,7 +148,7 @@ static void DOM_ButtonEvent(int devid, int down, int button)
 		else if (button == 1)
 			button = 2;
 
-		IN_KeyEvent(0, down, K_MOUSE1+button, 0);
+		IN_KeyEvent(devid, down, K_MOUSE1+button, 0);
 	}
 }
 void DOM_HashChanged(char *loc)

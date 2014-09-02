@@ -1351,7 +1351,8 @@ void M_Keydown (int key, int unicode)
 		return;
 
 	case m_complex:
-		M_Complex_Key (key, unicode);
+		if (key != K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
+			M_Complex_Key (key, unicode);
 		return;
 #endif
 
@@ -1379,6 +1380,12 @@ void M_Keyup (int key, int unicode)
 {
 	switch (m_state)
 	{
+#ifndef NOBUITINMENUS
+	case m_complex:
+		if (key == K_MOUSE1)
+			M_Complex_Key (key, unicode);
+		return;
+#endif
 #ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (2, key);

@@ -3510,7 +3510,8 @@ qboolean Sh_StencilShadowsActive(void)
 	//if shadowmapping is forced on all lights then we don't need special depth stuff
 //	if (r_shadow_shadowmapping.ival)
 //		return false;
-
+	if (isDedicated)
+		return false;
 	return	(r_shadow_realtime_dlight.ival && r_shadow_realtime_dlight_shadows.ival) ||
 			(r_shadow_realtime_world.ival && r_shadow_realtime_world_shadows.ival);
 #else

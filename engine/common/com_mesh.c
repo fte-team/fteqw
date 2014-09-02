@@ -1808,7 +1808,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 		lerpcutoff = inf->lerpcutoff * r_lerpmuzzlehack.value;
 
-		if (Sh_StencilShadowsActive() || qrenderer != QR_OPENGL || e->fatness || lerpcutoff)
+#ifndef SERVERONLY
+		if (qrenderer != QR_OPENGL || Sh_StencilShadowsActive() || e->fatness || lerpcutoff)
 		{
 			mesh->xyz2_array = NULL;
 			mesh->xyz_blendw[0] = 1;
@@ -1816,6 +1817,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			R_LerpFrames(mesh,	&g1->poseofs[frame1], &g2->poseofs[frame2], 1-lerp, e->fatness, lerpcutoff);
 		}
 		else
+#endif
 		{
 			galiaspose_t *p1 = &g1->poseofs[frame1];
 			galiaspose_t *p2 = &g2->poseofs[frame2];
@@ -2225,6 +2227,7 @@ static void Mod_BuildTriangleNeighbours ( int *neighbours, index_t *indexes, int
 }
 void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
 {
+#ifndef SERVERONLY
 	if (Sh_StencilShadowsActive())
 	{
 		int *neighbours;
@@ -2232,6 +2235,7 @@ void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
 		galias->ofs_trineighbours = neighbours;
 		Mod_BuildTriangleNeighbours(neighbours, galias->ofs_indexes, galias->numindexes/3);
 	}
+#endif
 }
 
 typedef struct

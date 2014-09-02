@@ -2439,6 +2439,7 @@ static void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct global
 		m->scale = (prinst->callargc>2)?G_FLOAT(OFS_PARM2+2):0;
 		if (m->scale <= 0)
 			m->scale = 1;
+		m->dirty = true;
 	}
 }
 

@@ -554,7 +554,7 @@ RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int pa
 }
 
 
-void *WIN_CreateCursor(char *filename, int hotx, int hoty)
+void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale)
 {
 	int width, height;
 	BITMAPV5HEADER bi;
@@ -567,6 +567,8 @@ void *WIN_CreateCursor(char *filename, int hotx, int hoty)
 	void *filedata;
 	int filelen;
 	if (!filename || !*filename)
+		return NULL;
+	if (scale != 1)	//rescaling cursors is not supported at this time.
 		return NULL;
 	filelen = FS_LoadFile(filename, &filedata);
 	if (!filedata)

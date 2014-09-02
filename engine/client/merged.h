@@ -327,7 +327,7 @@ typedef struct rendererinfo_s {
 	void	(*VID_SwapBuffers)			(void);	//force a buffer swap, regardless of what's displayed.
 	qboolean (*VID_ApplyGammaRamps)		(unsigned short *ramps);
 
-	void *(*VID_CreateCursor)			(char *filename, int hotx, int hoty);	//may be null, stub returns null
+	void *(*VID_CreateCursor)			(char *filename, float hotx, float hoty, float scale);	//may be null, stub returns null
 	qboolean (*VID_SetCursor)			(void *cursor);	//may be null
 	void (*VID_DestroyCursor)			(void *cursor);	//may be null
 

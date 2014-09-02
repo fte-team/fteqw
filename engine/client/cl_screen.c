@@ -676,10 +676,12 @@ void SCR_DrawCursor(void)
 		oldcurs = key_customcursor[cmod].handle;
 		if (rf->VID_CreateCursor)
 		{
-			key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1]);
+			key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
 			if (!key_customcursor[cmod].handle)
-				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.lmp", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1]);	//try the fallback
+				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.lmp", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
 		}
+		else
+			key_customcursor[cmod].handle = NULL;
 	}
 
 	if (scr_curcursor != key_customcursor[cmod].handle)

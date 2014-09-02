@@ -425,6 +425,7 @@ int CL_IsDownloading(const char *localname)
 //returns true if the download is going to be downloaded after the call.
 qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned int flags)
 {
+	extern cvar_t cl_downloads;
 	char *ext;
 	downloadlist_t *dl;
 	qboolean webdl = false;
@@ -447,6 +448,13 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 	if (!stricmp(ext, "dll") || !stricmp(ext, "so") || strchr(localname, '\\') || strchr(localname, ':') || strstr(localname, ".."))
 	{
 		Con_Printf("Denying download of \"%s\"\n", filename);
+		return false;
+	}
+
+	if (!(flags & DLLF_USEREXPLICIT) && !cl_downloads.ival)
+	{
+		if (flags & DLLF_VERBOSE)
+			Con_Printf("cl_downloads setting prevents download of \"%s\"\n", filename);
 		return false;
 	}
 
@@ -5819,8 +5827,7 @@ void CLQW_ParseServerMessage (void)
 			}
 			else if (cls.state == ca_connected)
 			{
-				Host_EndGame ("Server disconnected\n"
-					"Server version may not be compatible");
+				Host_EndGame ("Server disconnected\n");
 			}
 			else
 				Host_EndGame ("Server disconnected");

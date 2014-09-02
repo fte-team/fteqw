@@ -2030,6 +2030,9 @@ rendererinfo_t eglrendererinfo =
 	GLVID_SwapBuffers,
 	GLVID_ApplyGammaRamps,
 
+	NULL,
+	NULL,
+	NULL,
 	GLVID_SetCaption,       //setcaption
 	GLVID_GetRGBInfo,
 

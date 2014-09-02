@@ -320,6 +320,8 @@ enum clustercmdops_e
 			//string message
 	ccmd_acceptserver,
 			//serverid
+	ccmd_lostplayer,	//player dropped/timed out
+			//long plid
 	ccmd_takeplayer,	//master->server, saying to allocate a slot for a player.
 			//long plid
 			//long fromsvid (0=no reply needed)
@@ -347,8 +349,13 @@ enum clustercmdops_e
 			//byte statcount
 			//float stats[statcount]
 	ccmd_serveraddress,	//server->master, contains a few net addresses
-			//string address[]
+			//string addresses[]
 			//byte 0
+	ccmd_stringcmd,
+			//string dest (black = broadcast to all)
+			//string source (player name)
+			//string cmd (type of event, handled by receiving server/forwarded to client)
+			//string msg (extra info, like the typed text)
 };
 
 

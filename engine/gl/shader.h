@@ -626,6 +626,7 @@ typedef struct
 	unsigned int minver;		//lowest glsl version usable
 	unsigned int maxver;		//highest glsl version usable
 
+	qboolean texture_non_power_of_two;
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;

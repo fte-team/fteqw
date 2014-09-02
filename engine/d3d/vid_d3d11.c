@@ -1447,6 +1447,9 @@ rendererinfo_t d3d11rendererinfo =
 	D3D11_VID_DeInit,
 	D3D11_PresentOrCrash,
 	D3D11_VID_ApplyGammaRamps,
+	NULL,
+	NULL,
+	NULL,
 	D3D11_VID_SetWindowCaption,
 	D3D11_VID_GetRGBInfo,
 

@@ -2429,6 +2429,17 @@ static void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct global
 		key_dest_absolutemouse |= world->keydestmask;
 	else
 		key_dest_absolutemouse &= ~world->keydestmask;
+
+	if (prinst->callargc>1)
+	{
+		struct key_cursor_s *m = &key_customcursor[(world->keydestmask==kdm_game)?kc_game:kc_menu];
+		Q_strncpyz(m->name, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(m->name));
+		m->hotspot[0] = (prinst->callargc>2)?G_FLOAT(OFS_PARM2+0):0;
+		m->hotspot[1] = (prinst->callargc>2)?G_FLOAT(OFS_PARM2+1):0;
+		m->scale = (prinst->callargc>2)?G_FLOAT(OFS_PARM2+2):0;
+		if (m->scale <= 0)
+			m->scale = 1;
+	}
 }
 
 //get the input commands, and stuff them into some globals.
@@ -4644,7 +4655,7 @@ static struct {
 	{"stringtokeynum",			PF_cl_stringtokeynum,			341},	// #341 float(string keyname) stringtokeynum (EXT_CSQC)
 	{"getkeybind",				PF_cl_getkeybind,				342},	// #342 string(float keynum) getkeybind (EXT_CSQC)
 
-	{"setcursormode",			PF_cl_setcursormode,			343},	// #343 This is a DP extension
+	{"setcursormode",			PF_cl_setcursormode,			343},	// #343 This is originally a DP extension
 	{"getmousepos",				PF_cl_getmousepos,				344},	// #344 This is a DP extension
 
 	{"getinputstate",			PF_cs_getinputstate,			345},	// #345 float(float framenum) getinputstate (EXT_CSQC)

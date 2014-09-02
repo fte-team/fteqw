@@ -9,8 +9,29 @@ mergeInto(LibraryManager.library,
 		f: {}
 	},
 
+	//FIXME: split+merge by \n
+	emscriptenfte_print : function(msg)
+	{
+		FTEC.linebuffer += Pointer_stringify(msg);
+		for(;;)
+		{
+			nl = FTEC.linebuffer.indexOf("\n");
+			if (nl == -1)
+				break;
+			console.log(FTEC.linebuffer.substring(0, nl));
+			FTEC.linebuffer = FTEC.linebuffer.substring(nl+1);
+		}
+	},
+	emscriptenfte_alert : function(msg)
+	{
+		msg = Pointer_stringify(msg);
+		console.log(msg);
+		alert(msg);
+	},
+
 	$FTEC:
 	{
+		ctxwarned:0,
 		linebuffer:'',
 		w: -1,
 		h: -1,
@@ -127,9 +148,20 @@ mergeInto(LibraryManager.library,
 				});
 			});
 		}
-    		var ctx = Browser.createContext(Module['canvas'], true, true);
-		if (!ctx)
+		if (Module.print === undefined)
+			Module.print = function(msg){console.log(msg);};
+			var ctx = Browser.createContext(Module['canvas'], true, true);
+		if (ctx == null)
+		{
+			var msg = "Unable to set up webgl context.\n\nPlease use a browser that supports it and has it enabled\nYour graphics drivers may also be blacklisted, so try updating those too. woo, might as well update your entire operating system while you're at it.\nIt'll be expensive, but hey, its YOUR money, not mine.\nYou can probably just disable the blacklist, but please don't moan at me when your computer blows up, seriously, make sure those drivers are not too buggy.\nI knew a guy once. True story. Boring, but true.\nYou're probably missing out on something right now. Don't you just hate it when that happens?\nMeh, its probably just tinkertoys, right?\n\nYou know, you could always try Internet Explorer, you never know, hell might have frozen over.\nDon't worry, I wasn't serious.\n\nTum te tum. Did you get it working yet?\nDude, fix it already.\n\nThis message was brought to you by Sleep Deprivation, sponsoring quake since I don't know when";
+			if (FTEC.ctxwarned == 0)
+			{
+				FTEC.ctxwarned = 1;
+				console.log(msg);
+				alert(msg);
+			}
 			return 0;
+		}
 //		Browser.setCanvasSize(nw, nh, false);
 
 		window.onresize = function()
@@ -168,26 +200,7 @@ mergeInto(LibraryManager.library,
 		msg = Pointer_stringify(msg);
 		throw 'oh noes! something bad happened in ' + msg + '!';
 	},
-	emscriptenfte_alert : function(msg)
-	{
-		msg = Pointer_stringify(msg);
-		console.log(msg);
-		alert(msg);
-	},
 
-	//FIXME: split+merge by \n
-	emscriptenfte_print : function(msg)
-	{
-		FTEC.linebuffer += Pointer_stringify(msg);
-		for(;;)
-		{
-			nl = FTEC.linebuffer.indexOf("\n");
-			if (nl == -1)
-				break;
-			console.log(FTEC.linebuffer.substring(0, nl));
-			FTEC.linebuffer = FTEC.linebuffer.substring(nl+1);
-		}
-	},
 	emscriptenfte_ticks_ms : function()
 	{
 		return Date.now();
@@ -231,7 +244,7 @@ mergeInto(LibraryManager.library,
 				var str = window.localStorage.getItem(name);
 				if (str != null)
 				{
-					console.log('read file '+name+': ' + str);
+//					console.log('read file '+name+': ' + str);
 
 					var len = str.length;
 					var buf = new Uint8Array(len);
@@ -289,7 +302,6 @@ mergeInto(LibraryManager.library,
 			delete FTEH.f[name];
 			f.n = null;
 			emscriptenfte_buf_release(f.h);
-console.log('deleted '+name);
 			return 1;
 		}
 		return 0;
@@ -313,7 +325,6 @@ console.log('deleted '+name);
 			for (var i = 0; i < len; i++)
 				foo += String.fromCharCode(data[i]);
 			window.localStorage.setItem(b.n, foo);
-console.log('saved '+b.n+' persistantly: '+foo);
 		}
 		else
 			console.log('local storage not supported');

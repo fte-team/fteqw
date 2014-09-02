@@ -13,8 +13,8 @@ cvar_t		log_enable[LOG_TYPES]	= {	CVARF("log_enable", "0", CVAR_NOTFROMSERVER),
 										CVARF("log_enable_rcon", "1", CVAR_NOTFROMSERVER)
 								};
 cvar_t		log_name[LOG_TYPES] = { CVARFC("log_name", "", CVAR_NOTFROMSERVER, Log_Name_Callback),
-									CVARFC("log_name_players", "", CVAR_NOTFROMSERVER, Log_Name_Callback),
-									CVARFC("log_name_rcon", "", CVAR_NOTFROMSERVER, Log_Name_Callback)};
+									CVARFC("log_name_players", "players", CVAR_NOTFROMSERVER, Log_Name_Callback),
+									CVARFC("log_name_rcon", "rcon", CVAR_NOTFROMSERVER, Log_Name_Callback)};
 cvar_t		log_dir = CVARFC("log_dir", "", CVAR_NOTFROMSERVER, Log_Dir_Callback);
 cvar_t		log_readable = CVARFD("log_readable", "7", CVAR_NOTFROMSERVER, "Bitfield describing what to convert/strip. If 0, exact byte representation will be used.\n&1: Dequakify text.\n&2: Strip special markup.\n&4: Strip ansi control codes.");
 cvar_t		log_developer = CVARF("log_developer", "0", CVAR_NOTFROMSERVER);

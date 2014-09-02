@@ -96,7 +96,13 @@ void M_SomeInitialisationFunctionCalledAtStartup(void)
 }
 */
 
+typedef enum {m_none, m_complex, m_help, m_media, m_plugin, m_menu_dat} m_state_t;
+extern m_state_t m_state;
+void M_DrawTextBox (int x, int y, int width, int lines);
 
+#define NOMEDIAMENU
+
+#ifndef NOBUITINMENUS
 
 //
 // menus
@@ -110,15 +116,11 @@ void M_Draw (int uimenu);
 void M_ToggleMenu_f (void);
 void M_Menu_Mods_f (void);	//used at startup if the current gamedirs look dodgy.
 mpic_t	*M_CachePic (char *path);
-void M_DrawTextBox (int x, int y, int width, int lines);
 void M_Menu_Quit_f (void);
 void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2, char *m3, char *optionyes, char *optionno, char *optioncancel);
 
 struct menu_s;
 
-
-typedef enum {m_none, m_complex, m_help, m_media, m_plugin, m_menu_dat} m_state_t;
-extern m_state_t m_state;
 
 typedef enum {
 	mt_childwindow,
@@ -401,6 +403,7 @@ void M_Menu_Search_f (void);
 void M_Menu_ServerList_f (void);
 void M_Menu_Media_f (void);
 
+/*
 void M_Main_Draw (void);
 	void M_SinglePlayer_Draw (void);
 		void M_Load_Draw (void);
@@ -416,7 +419,6 @@ void M_LanConfig_Draw (void);
 void M_GameOptions_Draw (void);
 void M_Search_Draw (void);
 void M_ServerList_Draw (void);
-void M_Media_Draw (void);
 
 void M_Main_Key (int key);
 	void M_SinglePlayer_Key (int key);
@@ -433,7 +435,7 @@ void M_LanConfig_Key (int key);
 void M_GameOptions_Key (int key);
 void M_Search_Key (int key);
 void M_ServerList_Key (int key);
-void M_Media_Key (int key);
+*/
 
 void MasterInfo_Refresh(void);
 void M_DrawServers(void);
@@ -447,8 +449,26 @@ void M_PrintWhite (int cx, int cy, qbyte *str);
 void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic);
 
 
-void M_FindKeysForCommand (int pnum, const char *command, int *twokeys);
 void M_UnbindCommand (const char *command);
+
+#else
+//no builtin menu code.
+//stubs
+#define M_Menu_Prompt(cb,ctx,m1,m2,m3,optionyes,optionno,optioncancel) (cb)(ctx,-1)
+#define M_ToggleMenu_f() Cbuf_AddText("togglemenu\n",RESTRICT_LOCAL)
+//#define M_Shutdown(t) MP_Shutdown()
+
+void M_Init (void);
+void M_Reinit(void);
+void M_Shutdown(qboolean total);
+void M_Keydown (int key, int unicode);
+void M_Keyup (int key, int unicode);
+void M_Draw (int uimenu);
+#endif
+void M_FindKeysForCommand (int pnum, const char *command, int *twokeys);
+
+void M_Media_Draw (void);
+void M_Media_Key (int key);
 
 void MP_CvarChanged(cvar_t *var);
 qboolean MP_Init (void);

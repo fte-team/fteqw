@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include <conio.h>
 
-#if (defined(_DEBUG) || defined(DEBUG)) && !defined(SERVERONLY)
+#if (defined(_DEBUG) || defined(DEBUG))
 #define CATCHCRASH
 LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo);
 
@@ -346,7 +346,7 @@ pubsubserver_t *Sys_ForkServer(void)
 
 	GetModuleFileName(NULL, exename, sizeof(exename));
 	GetCurrentDirectory(sizeof(curdir), curdir);
-	Q_snprintfz(cmdline, sizeof(cmdline), "foo -clusterslave %s", FS_GetManifestArgs());	//fixme: include which manifest is in use, so configs get set up the same.
+	Q_snprintfz(cmdline, sizeof(cmdline), "foo -noreset -clusterslave %s", FS_GetManifestArgs());	//fixme: include which manifest is in use, so configs get set up the same.
 
 	memset(&startinfo, 0, sizeof(startinfo));
 	startinfo.cb = sizeof(startinfo);

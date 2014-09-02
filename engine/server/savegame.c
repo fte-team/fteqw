@@ -163,6 +163,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 			cl->state = cs_loadzombie;
 			cl->connection_started = realtime+20;
 			cl->istobeloaded = true;
+			cl->userid = 0;
 
 			//probably should be 32, rather than NUM_SPAWN_PARMS(64)
 			for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
@@ -1218,6 +1219,7 @@ void SV_Loadgame_f (void)
 			cl->state = cs_loadzombie;
 			cl->connection_started = realtime+20;
 			cl->istobeloaded = true;
+			cl->userid = 0;
 			loadzombies++;
 			memset(&cl->netchan, 0, sizeof(cl->netchan));
 

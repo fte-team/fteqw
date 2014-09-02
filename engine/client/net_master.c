@@ -36,6 +36,10 @@ typedef int SOCKET;
 
 cvar_t slist_cacheinfo = SCVAR("slist_cacheinfo", "0");	//this proves dangerous, memory wise.
 cvar_t slist_writeserverstxt = SCVAR("slist_writeservers", "0");
+cvar_t	sb_hidequake2		= SCVARF("sb_hidequake2",	"1",	CVAR_ARCHIVE);
+cvar_t	sb_hidequake3		= SCVARF("sb_hidequake3",	"1",	CVAR_ARCHIVE);
+cvar_t	sb_hidenetquake		= SCVARF("sb_hidenetquake",	"1",	CVAR_ARCHIVE);
+cvar_t	sb_hidequakeworld	= SCVARF("sb_hidequakeworld","0",	CVAR_ARCHIVE);
 
 void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
 void CL_QueryServers(void);
@@ -1586,7 +1590,7 @@ void MasterInfo_Refresh(void)
 //			Master_AddMaster("masterserver.exhale.de:27000",			MT_MASTERUDP,	MP_QW, "team exhale");
 			Master_AddMaster("qwmaster.fodquake.net:27000",				MT_MASTERUDP,	MP_QW, "Fodquake master server.");
 			Master_AddMaster("qwmaster.ocrana.de:27000",				MT_MASTERUDP,	MP_QW, "Ocrana2 master server.");
-			Master_AddMaster("255.255.255.255:27500",					MT_BCAST,		MP_QW, "Nearby QuakeWorld UDP servers.");
+			Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_QWSERVER),MT_BCAST,		MP_QW, "Nearby QuakeWorld UDP servers.");
 		}
 
 //		if (q1servers)	//nq master servers
@@ -1602,8 +1606,8 @@ void MasterInfo_Refresh(void)
 			//Master_AddMaster("[2001:41d0:2:1628::4450]:27950",						MT_MASTERUDP,		MP_DP, "DarkPlaces Master 4"); // dpmaster.div0.qc.to (admin: divVerent)
 			//Master_AddMaster("[2604:180::4ac:98c1]:27950",							MT_MASTERUDP,		MP_DP, "DarkPlaces Master 4"); // dpmaster.deathmask.net (Willis)
 #endif
-			Master_AddMaster("255.255.255.255:26000",									MT_BCAST,			MP_NQ, "Nearby Quake1 servers");
-			Master_AddMaster("255.255.255.255:26000",									MT_BCAST,			MP_DP, "Nearby DarkPlaces servers");
+			Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_NQSERVER),				MT_BCAST,			MP_NQ, "Nearby Quake1 servers");
+			Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_NQSERVER),				MT_BCAST,			MP_DP, "Nearby DarkPlaces servers");
 		}
 
 //		if (q2servers)	//q2
@@ -1616,7 +1620,7 @@ void MasterInfo_Refresh(void)
 //			Master_AddMaster("masterserver.exhale.de:27900",							MT_MASTERUDP,		MP_Q2, "team exhale");
 			Master_AddMaster("255.255.255.255:27910",									MT_BCAST,			MP_Q2, "Nearby Quake2 UDP servers.");
 #ifdef USEIPX
-			Master_AddMaster("00000000:ffffffffffff:27910",								MT_BCAST,			MP_Q2, "Nearby Quake2 IPX servers.");
+			Master_AddMaster("00000000:ffffffffffff:"STRINGIFY(PORT_Q2SERVER),								MT_BCAST,			MP_Q2, "Nearby Quake2 IPX servers.");
 #endif
 		}
 
@@ -1626,7 +1630,7 @@ void MasterInfo_Refresh(void)
 			Master_AddMaster("master.quake3arena.com:27950",							MT_MASTERUDP,		MP_Q3, "Quake3 master server.");
 //			Master_AddMaster("masterserver.exhale.de:27950",							MT_MASTERUDP,		MP_Q3, "team exhale");
 			//Master_AddMaster("master3.quake3arena.com:27950",							MT_MASTERUDP,		MP_Q3, "Quake3 master3 server.");
-			Master_AddMaster("255.255.255.255:27960",									MT_BCAST,		MP_Q3, "Nearby Quake3 UDP servers.");
+			Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_Q3SERVER),									MT_BCAST,		MP_Q3, "Nearby Quake3 UDP servers.");
 		}
 	}
 

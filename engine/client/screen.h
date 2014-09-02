@@ -63,7 +63,7 @@ void SCR_DrawNet (void);
 void SCR_DrawTurtle (void);
 void SCR_DrawPause (void);
 void SCR_VRectForPlayer(vrect_t *vrect, int pnum);	//returns a region for the player's view
-void SCR_DrawCursor(int prydoncursornum);
+qboolean SCR_HardwareCursorIsActive(void);
 
 void CLSCR_Init(void);	//basically so I can register a few friendly cvars.
 

@@ -4,6 +4,8 @@
 #include "winquake.h"
 #include "shader.h"
 
+#ifndef NOBUITINMENUS
+
 extern cvar_t maxclients;
 
 /* MULTIPLAYER MENU */
@@ -928,3 +930,4 @@ void M_Menu_Network_f (void)
 	menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 200, y);
 }
+#endif

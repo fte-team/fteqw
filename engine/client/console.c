@@ -462,7 +462,7 @@ void Con_ToggleConsole_f (void)
 	}
 #endif
 
-	if (con_stayhidden.ival >= 2)
+	if (con_stayhidden.ival >= 3)
 		return;	//its hiding!
 
 	Con_ToggleConsole_Force();

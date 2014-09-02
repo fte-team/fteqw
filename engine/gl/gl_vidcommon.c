@@ -2096,6 +2096,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 		sh_config.shadernamefmt = "%s_glsl";
 	}
 
+	sh_config.texture_non_power_of_two = gl_config.texture_non_power_of_two;
 	sh_config.progs_supported	= gl_config.arb_shader_objects;
 	sh_config.progs_required	= gl_config_nofixedfunc;
 
@@ -2334,6 +2335,9 @@ rendererinfo_t openglrendererinfo = {
 	GLVID_DeInit,
 	GLVID_SwapBuffers,
 	GLVID_ApplyGammaRamps,
+	NULL,
+	NULL,
+	NULL,
 	GLVID_SetCaption,	//setcaption
 	GLVID_GetRGBInfo,
 

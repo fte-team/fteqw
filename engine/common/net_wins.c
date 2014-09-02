@@ -5307,18 +5307,21 @@ void IPX_CloseSocket (int socket)
 qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 {
 #ifdef HAVE_PACKET
-    struct timeval timeout;
+	struct timeval timeout;
 	fd_set	fdset;
-	int maxfd;
+	qintptr_t maxfd = -1;
 	int con, sock;
 	unsigned int usec;
 
 	FD_ZERO(&fdset);
 
 	if (stdinissocket)
-		FD_SET(0, &fdset);	//stdin tends to be socket 0
+	{
+		sock = 0;	//stdin tends to be socket/filehandle 0 in unix
+		FD_SET(sock, &fdset);
+		maxfd = sock;
+	}
 
-	maxfd = 0;
 	if (svs.sockets)
 	for (con = 0; con < MAX_CONNECTIONS; con++)
 	{
@@ -5348,7 +5351,7 @@ qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 	usec += 1000;	//slight extra delay, to ensure we don't wake up with nothing to do.
 	timeout.tv_sec = usec/(1000*1000);
 	timeout.tv_usec = usec;
-	if (!maxfd)
+	if (maxfd == -1)
 		Sys_Sleep(seconds);
 	else
 		select(maxfd+1, &fdset, NULL, NULL, &timeout);
@@ -5449,7 +5452,7 @@ void SVNET_AddPort_f(void)
 	{
 		svs.sockets = FTENET_CreateCollection(true);
 #ifndef SERVERONLY
-		FTENET_AddToCollection(svs.sockets, "SVLoopback", "27500", NA_LOOPBACK, true);
+		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, true);
 #endif
 	}
 
@@ -5606,7 +5609,7 @@ void SV_Port_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, true);
 }
-cvar_t  sv_port_ipv4 = CVARC("sv_port", "27500", SV_Port_Callback);
+cvar_t  sv_port_ipv4 = CVARC("sv_port", STRINGIFY(PORT_QWSERVER), SV_Port_Callback);
 #endif
 #ifdef IPPROTO_IPV6
 void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)

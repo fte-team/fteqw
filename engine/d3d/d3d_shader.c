@@ -377,6 +377,7 @@ void D3D9Shader_Init(void)
 	sh_config.pCreateProgram	= D3D9Shader_CreateProgram;
 	sh_config.pProgAutoFields	= D3D9Shader_ProgAutoFields;
 
+	sh_config.texture_non_power_of_two = 0;
 	sh_config.tex_env_combine		= 1;
 	sh_config.nv_tex_env_combine4	= 1;
 	sh_config.env_add				= 1;

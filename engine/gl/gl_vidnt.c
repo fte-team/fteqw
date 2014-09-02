@@ -112,6 +112,7 @@ static qboolean vid_canalttab = false;
 static qboolean vid_wassuspended = false;
 extern qboolean	mouseactive;  // from in_win.c
 static HICON	hIcon;
+static HCURSOR	hArrowCursor, hCustomCursor;
 extern qboolean vid_isfullscreen;
 
 unsigned short originalgammaramps[3][256];
@@ -550,6 +551,101 @@ RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int pa
 	}
 
 	return r;
+}
+
+
+void *WIN_CreateCursor(char *filename, int hotx, int hoty)
+{
+	int width, height;
+	BITMAPV5HEADER bi;
+	DWORD x,y;
+	HCURSOR hAlphaCursor = NULL;
+	ICONINFO ii;
+
+	qbyte *rgbadata, *rgbadata_start, *bgradata, *bgradata_start;
+	qboolean hasalpha;
+	void *filedata;
+	int filelen;
+	if (!filename || !*filename)
+		return NULL;
+	filelen = FS_LoadFile(filename, &filedata);
+	if (!filedata)
+		return NULL;
+
+	rgbadata_start = Read32BitImageFile(filedata, filelen, &width, &height, &hasalpha, "cursor");
+	FS_FreeFile(filedata);
+	if (!rgbadata_start)
+		return NULL;
+
+	memset(&bi,0, sizeof(BITMAPV5HEADER));
+	bi.bV5Size			= sizeof(BITMAPV5HEADER);
+	bi.bV5Width			= width;
+	bi.bV5Height		= height;
+	bi.bV5Planes		= 1;
+	bi.bV5BitCount		= 32;
+	bi.bV5Compression	= BI_BITFIELDS;
+	// The following mask specification specifies a supported 32 BPP
+	// alpha format for Windows XP.
+	bi.bV5RedMask		= 0x00FF0000;
+	bi.bV5GreenMask		= 0x0000FF00;
+	bi.bV5BlueMask		= 0x000000FF;
+	bi.bV5AlphaMask		= 0xFF000000; 
+
+	// Create the DIB section with an alpha channel.
+	ii.hbmColor = CreateDIBSection(maindc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, (void **)&bgradata_start, NULL, 0);
+
+	if (!ii.hbmColor)
+	{
+		BZ_Free(rgbadata_start);
+		return NULL;
+	}
+
+	for (rgbadata=rgbadata_start,y=0;y<height;y++)
+	{
+		bgradata = bgradata_start + (height-1-y)*width*4;
+		for (x=0;x<width;x++)
+		{
+			bgradata[0] = rgbadata[2];
+			bgradata[1] = rgbadata[1];
+			bgradata[2] = rgbadata[0];
+			bgradata[3] = rgbadata[3];
+			bgradata+=4;
+			rgbadata+=4;
+		}
+	}
+
+	BZ_Free(rgbadata_start);
+
+	ii.fIcon = FALSE;  // Change fIcon to TRUE to create an alpha icon
+	ii.xHotspot = hotx;
+	ii.yHotspot = hoty;
+	ii.hbmMask = CreateBitmap(width,height,1,1,NULL);
+
+	// Create the alpha cursor with the alpha DIB section.
+	hAlphaCursor = CreateIconIndirect(&ii);
+
+	DeleteObject(ii.hbmColor);          
+	DeleteObject(ii.hbmMask); 
+
+	return hAlphaCursor;
+}
+
+qboolean WIN_SetCursor(void *cursor)
+{
+	static POINT		current_pos;	//static to avoid bugs in vista(32) with largeaddressaware (this is fixed in win7). fixed exe base address prevents this from going above 2gb.
+
+	hCustomCursor = cursor;
+
+	//move the cursor to ensure the WM_SETCURSOR thing is invoked properly.
+	//this ensures all the nastyness of random programs randomly setting the current global cursor is handled by microsoft's code instead of mine.
+	//if you're using rawinput there'll be no lost inpuit problems, yay...
+	GetCursorPos(&current_pos);
+	SetCursorPos(current_pos.x, current_pos.y);
+	return true;
+}
+void WIN_DestroyCursor(void *cursor)
+{
+	DestroyIcon(cursor);
 }
 
 qboolean VID_SetWindowedMode (rendererstate_t *info)
@@ -1893,12 +1989,12 @@ static void Win_Touch_Event(int points, HTOUCHINPUT ti)
 
 /* main window procedure */
 LONG WINAPI GLMainWndProc (
-    HWND    hWnd,
-    UINT    uMsg,
-    WPARAM  wParam,
-    LPARAM  lParam)
+	HWND	hWnd,
+	UINT	uMsg,
+	WPARAM	wParam,
+	LPARAM	lParam)
 {
-    LONG    lRet = 1;
+	LONG	lRet = 1;
 //	int		fActive, fMinimized;
 	int 	temp;
 	extern unsigned int uiWheelMessage;
@@ -1906,8 +2002,8 @@ LONG WINAPI GLMainWndProc (
 	if ( uMsg == uiWheelMessage )
 		uMsg = WM_MOUSEWHEEL;
 
-    switch (uMsg)
-    {
+	switch (uMsg)
+	{
 		case WM_COPYDATA:
 			{
 				COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
@@ -2055,16 +2151,16 @@ LONG WINAPI GLMainWndProc (
 				mmi->ptMinTrackSize.y = 200 + ((windowrect.bottom - windowrect.top) - (clientrect.bottom - clientrect.top));
 			}
 			return 0;
-    	case WM_SIZE:
+		case WM_SIZE:
 			vid.isminimized  = (wParam==SIZE_MINIMIZED);
 			if (!vid_initializing)
 			{
 				VID_UpdateWindowStatus (hWnd);
 				Cvar_ForceCallback(&vid_conautoscale);
 			}
-            break;
+			break;
 
-   	    case WM_CLOSE:
+		case WM_CLOSE:
 			if (!vid_initializing)
 				if (MessageBox (mainwindow, "Are you sure you want to quit?", "Confirm Exit",
 							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION) == IDYES)
@@ -2072,7 +2168,7 @@ LONG WINAPI GLMainWndProc (
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
 				}
 
-	        break;
+			break;
 
 		case WM_ACTIVATE:
 //			fActive = LOWORD(wParam);
@@ -2089,25 +2185,41 @@ LONG WINAPI GLMainWndProc (
 
 			break;
 
-   	    case WM_DESTROY:
-        {
+		case WM_DESTROY:
 			if (dibwindow)
 				DestroyWindow (dibwindow);
-        }
-        break;
-
-		case MM_MCINOTIFY:
-            lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
+			break;
+		case WM_SETCURSOR:
+			//only use a custom cursor if the cursor is inside the client area
+			switch(lParam&0xffff)
+			{
+			case 0:
+				break;
+			case HTCLIENT:
+				if (hCustomCursor)	//custom cursor enabled
+					SetCursor(hCustomCursor);
+				else				//fallback on an arrow cursor, just so we have something visible at startup or so
+					SetCursor(hArrowCursor);
+				lRet = TRUE;
+				break;
+			default:
+				lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
+				break;
+			}
 			break;
 
-    	default:
-            /* pass all unhandled messages to DefWindowProc */
-            lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
-        break;
-    }
+		case MM_MCINOTIFY:
+			lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
+			break;
 
-    /* return 1 if handled message, 0 if not */
-    return lRet;
+		default:
+			/* pass all unhandled messages to DefWindowProc */
+			lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
+			break;
+	}
+
+	/* return 1 if handled message, 0 if not */
+	return lRet;
 }
 
 
@@ -2176,6 +2288,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	memset(&devmode, 0, sizeof(devmode));
 
 	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
+	hArrowCursor = LoadCursor (NULL,IDC_ARROW);
+
+	rf->VID_CreateCursor = WIN_CreateCursor;
+	rf->VID_DestroyCursor = WIN_DestroyCursor;
+	rf->VID_SetCursor = WIN_SetCursor;
 
 	/* Register the frame class */
     wc.style         = CS_OWNDC;
@@ -2184,7 +2301,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
     wc.cbWndExtra    = 0;
     wc.hInstance     = global_hInstance;
     wc.hIcon         = hIcon;
-    wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
+    wc.hCursor       = hArrowCursor;
 	wc.hbrBackground = NULL;
     wc.lpszMenuName  = 0;
     wc.lpszClassName = WINDOW_CLASS_NAME;

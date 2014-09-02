@@ -554,6 +554,7 @@ SERVER_OBJS = 		\
 	sv_sql.o		\
 	sv_mvd.o		\
 	sv_ccmds.o 		\
+	sv_cluster.o		\
 	sv_rankin.o 	\
 	sv_chat.o 		\
 	sv_demo.o		\

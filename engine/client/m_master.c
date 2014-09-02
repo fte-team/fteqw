@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#ifdef CL_MASTER
+#if defined(CL_MASTER) && !defined(NOBUITINMENUS)
 #include "cl_master.h"
 
 //filtering
@@ -8,10 +8,10 @@ static cvar_t	sb_hideempty		= SCVARF("sb_hideempty",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidenotempty		= SCVARF("sb_hidenotempty",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidefull			= SCVARF("sb_hidefull",		"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidedead			= SCVARF("sb_hidedead",		"1",	CVAR_ARCHIVE);
-cvar_t	sb_hidequake2		= SCVARF("sb_hidequake2",	"1",	CVAR_ARCHIVE);
-cvar_t	sb_hidequake3		= SCVARF("sb_hidequake3",	"1",	CVAR_ARCHIVE);
-cvar_t	sb_hidenetquake		= SCVARF("sb_hidenetquake",	"1",	CVAR_ARCHIVE);
-cvar_t	sb_hidequakeworld	= SCVARF("sb_hidequakeworld","0",	CVAR_ARCHIVE);
+extern cvar_t	sb_hidequake2;
+extern cvar_t	sb_hidequake3;
+extern cvar_t	sb_hidenetquake;
+extern cvar_t	sb_hidequakeworld;
 
 static cvar_t	sb_showping			= SCVARF("sb_showping",		"1",	CVAR_ARCHIVE);
 static cvar_t	sb_showaddress		= SCVARF("sb_showaddress",	"0",	CVAR_ARCHIVE);

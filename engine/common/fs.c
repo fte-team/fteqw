@@ -2135,10 +2135,11 @@ char *FS_GetGamedir(qboolean publicpathonly)
 //returns the commandline arguments required to duplicate the fs details
 char *FS_GetManifestArgs(void)
 {
+	char *homearg = com_homepathenabled?"-usehome ":"-nohome ";
 	if (fs_manifest->updatefile)
-		return va("-manifest %s -basedir %s", fs_manifest->updatefile, com_gamepath);
+		return va("%s-manifest %s -basedir %s -outputdebugstring", homearg, fs_manifest->updatefile, com_gamepath);
 	
-	return va("-game %s -basedir %s", pubgamedirfile, com_gamepath);
+	return va("%s-game %s -basedir %s -outputdebugstring", homearg, pubgamedirfile, com_gamepath);
 }
 
 //given a 'c:/foo/bar/' path, will extract 'bar'.
@@ -3361,6 +3362,7 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 	}
 	Sys_remove (fspdl_temppath);
 
+	fs_restarts++;
 	FS_ChangeGame(fs_manifest, true);
 
 	FS_BeginNextPackageDownload();

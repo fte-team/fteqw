@@ -3,18 +3,6 @@
 #include "quakedef.h"
 #include "shader.h"
 
-int omousex;
-int omousey;
-qboolean mousemoved;
-qboolean bindingactive;
-extern cvar_t cl_cursor;
-extern cvar_t cl_cursorsize;
-extern cvar_t cl_cursorbias;
-extern cvar_t m_preset_chosen;
-menu_t *currentmenu;
-menu_t *firstmenu;
-menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old);
-
 void Draw_TextBox (int x, int y, int width, int lines)
 {
 	mpic_t	*p;
@@ -87,6 +75,20 @@ void Draw_TextBox (int x, int y, int width, int lines)
 	if (p)
 		R2D_ScalePic (cx, cy+8, 8, 8, p);
 }
+
+#ifndef NOBUITINMENUS
+
+int omousex;
+int omousey;
+qboolean mousemoved;
+qboolean bindingactive;
+extern cvar_t cl_cursor;
+extern cvar_t cl_cursorsize;
+extern cvar_t cl_cursorbias;
+extern cvar_t m_preset_chosen;
+menu_t *currentmenu;
+menu_t *firstmenu;
+menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old);
 
 void Draw_Hexen2BigFontString(int x, int y, const char *text)
 {
@@ -2283,3 +2285,4 @@ int MC_AddBulk(struct menu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xs
 	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, resel, xtextend + 8, selectedy);
 	return y;
 }
+#endif

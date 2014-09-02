@@ -1280,7 +1280,9 @@
 				AdditionalIncludeDirectories="../libs/speex,..\client,../libs/freetype2/include,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include"
 				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;SERVERONLY;MULTITHREAD"
 				MinimalRebuild="true"
+				BasicRuntimeChecks="3"
 				RuntimeLibrary="0"
+				EnableFunctionLevelLinking="true"
 				FloatingPointModel="2"
 				UsePrecompiledHeader="2"
 				PrecompiledHeaderThrough="quakedef.h"
@@ -3021,6 +3023,10 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\server\sv_cluster.c"
+					>
 				</File>
 				<File
 					RelativePath="..\server\sv_demo.c"
@@ -27232,6 +27238,13 @@
 				<File
 					RelativePath="..\common\net_ssl_winsspi.c"
 					>
+					<FileConfiguration
+						Name="MinGLRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\net_wins.c"
@@ -30034,6 +30047,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -30198,6 +30212,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -30362,6 +30377,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -30526,6 +30542,7 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="MinGLRelease|Win32"
+						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"

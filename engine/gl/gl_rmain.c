@@ -54,6 +54,7 @@ cvar_t	r_norefresh = SCVAR("r_norefresh","0");
 
 extern cvar_t	gl_part_flame;
 extern cvar_t	r_bloom;
+extern cvar_t	r_wireframe_smooth;
 
 cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
@@ -141,6 +142,7 @@ void GL_InitSceneProcessingShaders (void)
 		GL_InitSceneProcessingShaders_WaterWarp();
 	}
 
+	r_wireframe_smooth.modified = true;
 	gl_dither.modified = true;	//fixme: bad place for this, but hey
 	vid_srgb.modified = true;
 }
@@ -499,6 +501,22 @@ void R_SetupGL (float stereooffset)
 		qglLoadMatrixf(r_refdef.m_view);
 	}
 
+	if (!gl_config.gles && r_wireframe_smooth.modified)
+	{
+		r_wireframe_smooth.modified = false;
+		if (r_wireframe_smooth.ival)
+		{
+			qglEnable(GL_LINE_SMOOTH);
+			if (qglHint)
+				qglHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+		}
+		else
+		{
+			qglDisable(GL_LINE_SMOOTH);
+			if (qglHint)
+				qglHint(GL_LINE_SMOOTH_HINT, GL_FASTEST);
+		}
+	}
 	if (!gl_config.gles && gl_dither.modified)
 	{
 		gl_dither.modified = false;

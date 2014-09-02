@@ -829,7 +829,7 @@ void GenericMenu(WPARAM wParam)
 		break;
 
 	case IDM_ABOUT:
-		MessageBox(NULL, "FTE QuakeC Compiler\nWritten by Forethough Entertainment.\n\nIt has a few cool features, like a semi-useful IDE.\n\nSupports:\nPrecompiler (with macros)\nArrays\n+= / -= / *= / /= operations.\nSwitch statements\nfor loops\nLots of optimisations.", "About", 0);
+		MessageBox(NULL, "FTE QuakeC Compiler ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment.\n\nIt has a few cool features, like a semi-useful IDE.\n\nSupports:\nPrecompiler (with macros)\nArrays\n+= / -= / *= / /= operations.\nSwitch statements\nfor loops\nLots of optimisations.", "About", 0);
 		break;
 
 	case IDM_CASCADE:

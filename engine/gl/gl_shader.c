@@ -356,8 +356,7 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 		}
 		else
 		{
-			if (cv)
-				conditiontrue = conditiontrue == !!lhs;
+			conditiontrue = conditiontrue == !!lhs;
 		}
 	}
 	if (*token)

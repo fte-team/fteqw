@@ -113,6 +113,7 @@ void InsertLinkAfter (link_t *l, link_t *after);
 // FIXME: remove this mess!
 #define	STRUCT_FROM_LINK(l,t,m) ((t *)((qbyte *)l - (qbyte*)&(((t *)0)->m)))
 
+#define FOR_EACH_LINK(l,node) for (l = node.next ; l != &node ; l = l->next)
 //============================================================================
 
 #ifndef NULL

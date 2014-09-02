@@ -74,7 +74,7 @@ typedef struct cparticle_s
 #define ABSOLUTE_MAX_PARTICLES	8192
 static int r_numparticles;
 static cparticle_t	*particles, *active_particles, *free_particles;
-extern cvar_t r_part_density;
+extern cvar_t r_part_density, r_part_classic_expgrav;
 
 extern qbyte default_quakepal[]; /*for ramps more than anything else*/
 static int	ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
@@ -501,7 +501,7 @@ static void PClassic_DrawParticles(void)
 				p->rgb = qpal(ramp1[(int) p->ramp]);
 			for (i = 0; i < 3; i++)
 				p->vel[i] += p->vel[i] * dvel;
-			p->vel[2] -= grav*10;
+			p->vel[2] -= grav*r_part_classic_expgrav.value;
 			break;
 		case pt_explode2:
 			p->ramp += time3;
@@ -511,7 +511,7 @@ static void PClassic_DrawParticles(void)
 				p->rgb = qpal(ramp2[(int) p->ramp]);
 			for (i = 0; i < 3; i++)
 				p->vel[i] -= p->vel[i] * frametime;
-			p->vel[2] -= grav*10;
+			p->vel[2] -= grav*r_part_classic_expgrav.value;
 			break;
 		case pt_blob:
 			for (i = 0; i < 3; i++)

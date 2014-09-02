@@ -378,9 +378,6 @@ typedef struct client_s
 	int challenge;
 	int				userid;							// identifying number
 	char			userinfo[EXTENDED_INFO_STRING];		// infostring
-#ifdef SUBSERVERS
-	unsigned int	previousserver;
-#endif
 
 	usercmd_t		lastcmd;			// for filling in big drops and partial predictions
 	double			localtime;			// of last message
@@ -1024,13 +1021,22 @@ void SSV_PollSlaves(void);
 void SSV_InstructMaster(sizebuf_t *cmd);
 void SSV_PrintToMaster(char *s);
 void SSV_ReadFromControlServer(void);
-void SSV_SavePlayerStats(client_t *cl, unsigned int previousserver);
+void SSV_SavePlayerStats(client_t *cl, int reason);	//initial, periodic (in case of node crashes), part
 
 void Sys_InstructSlave(pubsubserver_t *s, sizebuf_t *cmd);
 int Sys_SubServerRead(pubsubserver_t *s);	//1: yes. 0: no. -1: error
 pubsubserver_t *Sys_ForkServer(void);
 
 #define SSV_IsSubServer() isClusterSlave
+
+
+void MSV_SubServerCommand_f(void);
+void MSV_SubServerCommand_f(void);
+void MSV_MapCluster_f(void);
+void SSV_Send(const char *dest, const char *src, const char *cmd, const char *msg);
+qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize);
+void MSV_PollSlaves(void);
+void MSV_Status(void);
 #else
 #define SSV_UpdateAddresses() false
 #define MSV_ClusterLogin(guid,info,infosize) false
@@ -1040,7 +1046,6 @@ pubsubserver_t *Sys_ForkServer(void);
 //
 // sv_init.c
 //
-void SV_SpawnClusterMode(void);
 void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean usecinematic);
 void SV_UnspawnServer (void);
 void SV_FlushSignon (void);

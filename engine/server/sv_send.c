@@ -60,8 +60,6 @@ void SV_FlushRedirect (void)
 	if (!*outputbuf)
 		return;
 
-	Log_String(LOG_CONSOLE, va("{\n%s}\n", outputbuf)); 
-
 	if (sv_redirected == RD_PACKET || sv_redirected == RD_PACKET_LOG)
 	{
 		//log it to the rcon log if its not just a status response

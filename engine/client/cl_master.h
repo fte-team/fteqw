@@ -179,6 +179,7 @@ serverinfo_t *Master_InfoForNum (int num);
 unsigned int Master_TotalCount(void);
 unsigned int Master_NumPolled(void);
 void Master_SetupSockets(void);
+void MasterInfo_Refresh(void);
 void Master_QueryServer(serverinfo_t *server);
 void MasterInfo_WriteServers(void);
 

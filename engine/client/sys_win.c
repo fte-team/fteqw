@@ -726,7 +726,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 #ifdef _MSC_VER
 			if (MessageBoxA(0, stacklog, "KABOOM!", MB_ICONSTOP|MB_YESNO) != IDYES)
 			{
-				if (pIsDebuggerPresent ())
+				if (pIsDebuggerPresent && pIsDebuggerPresent ())
 				{
 					//its possible someone attached a debugger while we were showing that message
 					return EXCEPTION_CONTINUE_SEARCH;
@@ -3312,14 +3312,14 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 			SV_Init (&parms);
 
-			delay = SV_Frame()*1000;
+			delay = SV_Frame();
 
 			while (1)
 			{
 				if (!isDedicated)
 					Sys_Error("Dedicated was cleared");
 				NET_Sleep(delay, false);
-				delay = SV_Frame()*1000;
+				delay = SV_Frame();
 			}
 			return TRUE;
 		}

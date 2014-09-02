@@ -4282,6 +4282,20 @@ void Cmd_Fly_f (void)
 	}
 }
 
+#ifdef SUBSERVERS
+void Cmd_Transfer_f(void)
+{
+	char *dest = Cmd_Argv(1);
+	if (!SV_MayCheat())
+	{
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		return;
+	}
+
+	SSV_InitiatePlayerTransfer(host_client, dest);
+}
+#endif
+
 /*
 ====================
 Host_SetPos_f  UDC
@@ -5186,6 +5200,9 @@ ucmd_t ucmds[] =
 	{"fly", Cmd_Fly_f},
 	{"notarget", Cmd_Notarget_f},
 	{"setpos", Cmd_SetPos_f},
+#ifdef SUBSERVERS
+	{"transfer", Cmd_Transfer_f},	//transfer the player to a different map/server
+#endif
 
 #ifdef NQPROT
 	{"name",		SVNQ_NQInfo_f},

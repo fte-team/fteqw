@@ -664,7 +664,7 @@ void SV_UpdateMaxPlayers(int newmax)
 	sv.allocated_client_slots = svs.allocated_client_slots;
 }
 
-static void SV_SetupNetworkBuffers(qboolean bigcoords)
+void SV_SetupNetworkBuffers(qboolean bigcoords)
 {
 	int i;
 
@@ -740,31 +740,6 @@ static void SV_SetupNetworkBuffers(qboolean bigcoords)
 	sv.signon.prim = svs.netprim;
 	sv.num_signon_buffers = 1;
 }
-
-#ifdef SUBSERVERS
-void SV_SpawnClusterMode(void)
-{
-	char *sqlparams[] =
-	{
-		"",
-		"",
-		"",
-		"login",
-	};
-	if (sv.state)
-		SV_UnspawnServer();
-	NET_InitServer();
-
-	//child processes return 0 and fall through
-	memset(&sv, 0, sizeof(sv));
-	sv.state = ss_clustermode;
-	sv.logindatabase = -1;//SQL_NewServer("sqlite", sqlparams);
-
-	//and for legacy clients, we need some server stuff inited.
-	SV_SetupNetworkBuffers(false);
-	SV_UpdateMaxPlayers(32);
-}
-#endif
 
 /*
 ================

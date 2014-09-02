@@ -146,6 +146,7 @@ cvar_t  cl_gunangley			= CVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez			= CVAR("cl_gunanglez", "0");
 
 cvar_t	cl_sendguid				= CVARD("cl_sendguid", "0", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.");
+cvar_t	cl_downloads			= CVARFD("cl_downloads", "1", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
 cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
 cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. 2 allows redirection only to named packages files. Also allows the server to send nearly arbitary download commands.");
 cvar_t  cl_download_mapsrc		= CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
@@ -2454,7 +2455,7 @@ void CL_ConnectionlessPacket (void)
 			netadr_t adr;
 			char *data = MSG_ReadStringLine();
 			Con_TPrintf ("redirect to %s\n", data);
-			NET_StringToAdr(data, 27500, &adr);
+			NET_StringToAdr(data, PORT_QWSERVER, &adr);
 			data = "\xff\xff\xff\xffgetchallenge\n";
 			connectinfo.istransfer = true;
 			connectinfo.adr = adr;
@@ -3186,7 +3187,7 @@ void CL_Download_f (void)
 		return;
 	}
 
-	CL_EnqueDownload(url, url, DLLF_IGNOREFAILED|DLLF_REQUIRED|DLLF_OVERWRITE|DLLF_VERBOSE);
+	CL_EnqueDownload(url, url, DLLF_USEREXPLICIT|DLLF_IGNOREFAILED|DLLF_REQUIRED|DLLF_OVERWRITE|DLLF_VERBOSE);
 }
 
 void CL_DownloadSize_f(void)
@@ -3512,6 +3513,7 @@ void CL_Init (void)
 
 	Cvar_Register (&r_drawflame, "Item effects");
 
+	Cvar_Register (&cl_downloads, cl_controlgroup);
 	Cvar_Register (&cl_download_csprogs, cl_controlgroup);
 	Cvar_Register (&cl_download_redirection, cl_controlgroup);
 	Cvar_Register (&cl_download_packages, cl_controlgroup);
@@ -3617,7 +3619,7 @@ void CL_Init (void)
 
 	Cmd_AddCommandD ("connect", CL_Connect_f, "connect scheme://address:port\nConnect to a server. Use a scheme of tcp:// or tls:// to connect via non-udp protocols."
 #if defined(NQPROT) || defined(Q2CLIENT) || defined(Q3CLIENT)
-		"\nDefault port is port 27500."
+		"\nDefault port is port "STRINGIFY(PORT_QWSERVER)"."
 #ifdef NQPROT
 		" NQ:"STRINGIFY(PORT_NQSERVER)"."
 #endif
@@ -4731,8 +4733,10 @@ void CL_StartCinematicOrMenu(void)
 		{
 			if (qrenderer > QR_NONE && !m_state)
 			{
+#ifndef NOBUITINMENUS
 				if (!cls.state && !m_state && !*FS_GetGamedir(false))
 					M_Menu_Mods_f();
+#endif
 				if (!cls.state && !m_state && cl_demoreel.ival)
 					CL_NextDemo();
 				if (!cls.state && !m_state)

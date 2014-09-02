@@ -1382,7 +1382,6 @@ void GLBE_Init(void)
 	BE_SendPassBlendDepthMask(0);
 	currententity = &r_worldentity;
 
-
 	shaderstate.fogtexture = r_nulltex;
 
 	shaderstate.depthonlyshader = R_RegisterShader("depthonly", SUF_NONE,
@@ -3318,6 +3317,8 @@ void GLBE_SelectMode(backendmode_t mode)
 		{
 		default:
 			break;
+		case BEM_WIREFRAME:
+			break;
 		case BEM_DEPTHONLY:
 #ifndef GLSLONLY
 			if (!gl_config_nofixedfunc)
@@ -3888,7 +3889,7 @@ static void DrawMeshes(void)
 		{
 			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 		}
-		BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits | SBITS_MISC_NODEPTHTEST);
+		BE_SendPassBlendDepthMask((shaderstate.curshader->passes[0].shaderbits & ~SBITS_BLEND_BITS) | SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_NODEPTHTEST);
 
 		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
 		BE_SubmitMeshChain();

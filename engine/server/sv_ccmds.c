@@ -1708,8 +1708,15 @@ static void SV_Status_f (void)
 	if (NET_GetRates(svs.sockets, &pi, &po, &bi, &bo))
 		Con_Printf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
 	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
+	Con_Printf("public           : %s\n", sv_public.value?"yes":"no");
+	Con_Printf("client types     :%s%s%s%s\n", sv_listen_qw.ival?" QW":"", sv_listen_nq.ival?" NQ":"", sv_listen_dp.ival?" DP":"", sv_listen_q3.ival?" Q3":"");
+#ifdef SUBSERVERS
 	if (sv.state == ss_clustermode)
+	{
+		MSV_Status();
 		return;
+	}
+#endif
 	Con_Printf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
 	//show the current map+name (but hide name if its too long or would be ugly)
 	if (columns >= 80 && *sv.mapname && strlen(sv.mapname) < 45 && !strchr(sv.mapname, '\n'))
@@ -1735,8 +1742,6 @@ static void SV_Status_f (void)
 		Con_Printf("csqc debug       : true\n");
 	if (sv.mvdrecording)
 		Con_Printf("recording        : %s\n", SV_Demo_CurrentOutput());
-	Con_Printf("public           : %s\n", sv_public.value?"yes":"no");
-	Con_Printf("client types     :%s%s%s%s\n", sv_listen_qw.ival?" QW":"", sv_listen_nq.ival?" NQ":"", sv_listen_dp.ival?" DP":"", sv_listen_q3.ival?" Q3":"");
 
 // min fps lat drp
 	if (columns < 80)

@@ -2,6 +2,99 @@
 
 #include "quakedef.h"
 #include "winquake.h"
+
+
+static const char *res4x3[] =
+{
+	"640x480",
+	"800x600",
+	"960x720",
+	"1024x768",
+	"1152x864",
+	"1280x960",
+	"1440x1080",
+	"1600x1200",
+//	"1792x1344",
+//	"1856x1392",
+	"1920x1440",
+	"2048x1536",
+	NULL
+};
+static const char *res5x4[] =
+{
+	"1280x1024",
+	"1800x1440",
+	"2560x2048",
+	NULL
+};
+static const char *res16x9[] =
+{
+	"856x480",
+	"1024x576",
+	"1280x720",
+	"1366x768",
+	"1600x900",
+	"1920x1080",
+	"2048x1152",
+	"2560x1440",
+	"3840x2160",
+	"4096x2304",
+	NULL
+};
+static const char *res16x10[] =
+{
+	"1024x640",
+	"1152x720",
+	"1280x800",
+	"1440x900",
+	"1680x1050",
+	"1920x1200",
+	"2304x1440",
+	"2560x1600",
+	NULL
+};
+#define ASPECT_RATIOS 4
+static const char **resaspects[ASPECT_RATIOS] =
+{
+	res4x3,
+	res5x4,
+	res16x9,
+	res16x10
+};
+#define ASPECT_LIST "4:3", "5:4", "16:9", "16:10",
+
+qboolean M_Vid_GetMode(int num, int *w, int *h)
+{
+	int i;
+
+	for (i = 0; i < 4; i++)
+	{
+		const char **v = resaspects[i];
+		while (*v && num)
+		{
+			v++;
+			num--;
+		}
+		if (*v)
+		{
+			const char *c = *v;
+			const char *s = strchr(c, 'x');
+			if (s)
+			{
+				*w = atoi(c);
+				*h = atoi(s + 1);
+				return true;
+			}
+			return false;
+		}
+	}
+	return false;
+}
+
+
+
+#ifndef NOBUITINMENUS
+
 extern qboolean forcesaveprompt;
 extern cvar_t pr_debugger;
 
@@ -554,6 +647,7 @@ const char *presetexec[] =
 	"seta r_particlesystem null;"
 	"seta r_particledesc \"\";"
 	"seta r_part_classic_square 0;"
+	"seta r_part_classic_expgrav 10;"
 	"seta r_stains 0;"
 	"seta r_drawflat 1;"
 	"seta r_nolerp 1;"
@@ -617,6 +711,7 @@ const char *presetexec[] =
 	"gl_texturemode nn;"		//yup, we went there.
 	"gl_texturemode2d n;"		//yeah, 2d too.
 	"r_part_classic_square 1;"	//blocky baby!
+	"r_part_classic_expgrav 1;"	//vanillaery
 	"cl_sbar 1;"				//its a style thing
 	"sv_nqplayerphysics 1;"		//gb wanted this
 	"cl_demoreel 1;"			//yup, arcadey
@@ -630,6 +725,7 @@ const char *presetexec[] =
 	"r_particledesc classic;"
 #endif
 	"r_part_classic_square 0;"
+	"r_part_classic_expgrav 10;"	//gives a slightly more dynamic feel to them
 	"gl_load24bit 1;"
 	"r_replacemodels \"md3 md2\";"
 	"r_coronas 1;"
@@ -1989,93 +2085,6 @@ void M_Menu_Singleplayer_Cheats_f (void)
 #define MULTIRENDERER // allow options for selecting renderer
 #endif
 
-static const char *res4x3[] =
-{
-	"640x480",
-	"800x600",
-	"960x720",
-	"1024x768",
-	"1152x864",
-	"1280x960",
-	"1440x1080",
-	"1600x1200",
-//	"1792x1344",
-//	"1856x1392",
-	"1920x1440",
-	"2048x1536",
-	NULL
-};
-static const char *res5x4[] =
-{
-	"1280x1024",
-	"1800x1440",
-	"2560x2048",
-	NULL
-};
-static const char *res16x9[] =
-{
-	"856x480",
-	"1024x576",
-	"1280x720",
-	"1366x768",
-	"1600x900",
-	"1920x1080",
-	"2048x1152",
-	"2560x1440",
-	"3840x2160",
-	"4096x2304",
-	NULL
-};
-static const char *res16x10[] =
-{
-	"1024x640",
-	"1152x720",
-	"1280x800",
-	"1440x900",
-	"1680x1050",
-	"1920x1200",
-	"2304x1440",
-	"2560x1600",
-	NULL
-};
-#define ASPECT_RATIOS 4
-static const char **resaspects[ASPECT_RATIOS] =
-{
-	res4x3,
-	res5x4,
-	res16x9,
-	res16x10
-};
-#define ASPECT_LIST "4:3", "5:4", "16:9", "16:10",
-
-qboolean M_Vid_GetMode(int num, int *w, int *h)
-{
-	int i;
-
-	for (i = 0; i < 4; i++)
-	{
-		const char **v = resaspects[i];
-		while (*v && num)
-		{
-			v++;
-			num--;
-		}
-		if (*v)
-		{
-			const char *c = *v;
-			const char *s = strchr(c, 'x');
-			if (s)
-			{
-				*w = atoi(c);
-				*h = atoi(s + 1);
-				return true;
-			}
-			return false;
-		}
-	}
-	return false;
-}
-
 typedef struct {
 	menucombo_t *resmode;
 	menuedit_t *width;
@@ -2850,3 +2859,4 @@ void M_Menu_Mods_f (void)
 		menu->remove = Mods_Remove;
 	}
 }
+#endif

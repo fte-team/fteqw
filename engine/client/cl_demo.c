@@ -1802,7 +1802,9 @@ void CL_QTVPoll (void)
 	int len;
 	qboolean streamavailable = false;
 	qboolean saidheader = false;
+#ifndef NOBUITINMENUS
 	menu_t *sourcesmenu = NULL;
+#endif
 	int sourcenum = 0;
 
 	int streamid;
@@ -1969,6 +1971,7 @@ void CL_QTVPoll (void)
 			{
 				streamid = atoi(colon);
 
+#ifndef NOBUITINMENUS
 				//now put it on a menu
 				if (!sourcesmenu)
 				{
@@ -1983,6 +1986,7 @@ void CL_QTVPoll (void)
 					MC_AddConsoleCommand(sourcesmenu, 42, 170, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
 				//else
 				//	FIXME: add error message here
+#endif
 			}
 			//end of sourcelist entry
 

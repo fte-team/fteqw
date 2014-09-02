@@ -2608,7 +2608,7 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean
 		int w = LittleLong(((int*)buf)[0]);
 		int h = LittleLong(((int*)buf)[1]);
 		int i;
-		if (w >= 3 && h >= 4 && w*h+sizeof(int)*2 == com_filesize)
+		if (w >= 3 && h >= 4 && w*h+sizeof(int)*2 == len)
 		{
 			qboolean foundalpha = false;
 			qbyte *in = (qbyte*)((int*)buf+2);

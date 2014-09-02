@@ -538,10 +538,13 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 		grabmouse = false;
 
 	//visiblity
-	if (grabmouse || (activeapp && mousecursor_x > 0 && mousecursor_y > 0 && mousecursor_x < vid.pixelwidth-1 && mousecursor_y < vid.pixelheight-1))
+	if (!SCR_HardwareCursorIsActive() && (grabmouse || (activeapp && mousecursor_x > 0 && mousecursor_y > 0 && mousecursor_x < vid.pixelwidth-1 && mousecursor_y < vid.pixelheight-1)))
 		INS_HideMouse();
 	else
+	{
 		INS_ShowMouse();
+		grabmouse = false;
+	}
 
 #ifdef HLCLIENT
 	//halflife gamecode does its own mouse control... yes this is vile.
@@ -1341,7 +1344,7 @@ potentially called multiple times per frame.
 */
 void INS_Accumulate (void)
 {
-	static POINT		current_pos;	//static to avoid bugs in vista with largeaddressaware (this is fixed in win7). fixed exe base address prevents this from going above 2gb.
+	static POINT		current_pos;	//static to avoid bugs in vista(32) with largeaddressaware (this is fixed in win7). fixed exe base address prevents this from going above 2gb.
 
 	if (mouseactive && !dinput)
 	{

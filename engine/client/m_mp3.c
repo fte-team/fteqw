@@ -579,7 +579,7 @@ void Media_Next_f (void)
 
 
 
-
+#ifndef NOMEDIAMENU
 
 void M_Menu_Media_f (void)
 {
@@ -742,7 +742,14 @@ void M_Media_Key (int key)
 {
 	int dir;
 	if (key == K_ESCAPE)
+	{
+#ifndef NOBUITINMENUS
 		M_Menu_Main_f();
+#else
+		m_state = m_none;
+		Key_Dest_Remove(kdm_menu);
+#endif
+	}
 	else if (key == K_RIGHTARROW || key == K_LEFTARROW)
 	{
 		if (key == K_RIGHTARROW)
@@ -1022,6 +1029,7 @@ void Media_LoadTrackNames (char *listname)
 		}
 	}
 }
+#endif
 
 //safeprints only.
 char *Media_NextTrack(int musicchannelnum)
@@ -1039,8 +1047,10 @@ char *Media_NextTrack(int musicchannelnum)
 	if (!fakecdactive)
 		Media_EndedTrack();
 
+#ifndef NOMEDIAMENU
 	if (!loadedtracknames)
 		Media_LoadTrackNames("sound/media.m3u");
+#endif
 	if (!tracks && !fakecdactive)
 	{
 		*currenttrack.filename='\0';
@@ -1057,7 +1067,6 @@ char *Media_NextTrack(int musicchannelnum)
 //	}
 	return currenttrack.filename;
 }
-
 
 
 

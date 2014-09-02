@@ -144,6 +144,7 @@ struct {
 	func_t UserInfo_Changed;
 	func_t localinfoChanged;
 
+	func_t ParseClusterEvent;	//FTE_SV_CLUSTER
 	func_t ParseClientCommand;	//KRIMZON_SV_PARSECLIENTCOMMAND
 	func_t ParseConnectionlessPacket;	//FTE_QC_SENDPACKET
 
@@ -773,6 +774,7 @@ void PR_LoadGlabalStruct(void)
 	SpectatorDisconnect = PR_FindFunction(svprogfuncs, "SpectatorDisconnect", PR_ANY);
 	SpectatorThink = PR_FindFunction(svprogfuncs, "SpectatorThink", PR_ANY);
 
+	gfuncs.ParseClusterEvent = PR_FindFunction(svprogfuncs, "SV_ParseClusterEvent", PR_ANY);
 	gfuncs.ParseClientCommand = PR_FindFunction(svprogfuncs, "SV_ParseClientCommand", PR_ANY);
 	gfuncs.ParseConnectionlessPacket = PR_FindFunction(svprogfuncs, "SV_ParseConnectionlessPacket", PR_ANY);
 
@@ -1764,6 +1766,27 @@ qboolean PR_GameCodePacket(char *s)
 	G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, s);
 	PR_ExecuteProgram (svprogfuncs, gfuncs.ParseConnectionlessPacket);
 	return G_FLOAT(OFS_RETURN);
+}
+
+qboolean PR_ParseClusterEvent(char *dest, char *source, char *cmd, char *info)
+{
+	globalvars_t *pr_globals;
+
+	if (svprogfuncs && gfuncs.ParseClusterEvent)
+	{
+		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+		pr_global_struct->time = sv.world.physicstime;
+		pr_global_struct->self = 0;
+
+		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, dest);
+		G_INT(OFS_PARM1) = (int)PR_TempString(svprogfuncs, source);
+		G_INT(OFS_PARM2) = (int)PR_TempString(svprogfuncs, cmd);
+		G_INT(OFS_PARM3) = (int)PR_TempString(svprogfuncs, info);
+		PR_ExecuteProgram (svprogfuncs, gfuncs.ParseClusterEvent);
+		return true;
+	}
+
+	return false;
 }
 
 qboolean PR_KrimzonParseCommand(char *s)
@@ -8307,13 +8330,14 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 
 		if (!strcmp(key, "*spectator"))
 			svs.clients[entnum-1].spectator = !!atoi(value);
-#ifdef SUBSERVERS
 		if (!strcmp(key, "*transfer"))
+		{
+#ifdef SUBSERVERS
 			SSV_InitiatePlayerTransfer(&svs.clients[entnum-1], value);
 #else
-		if (*value)
 			PF_ForceInfoKey_Internal(entnum, key, "");
 #endif
+		}
 
 		return 1;
 	}
@@ -8874,6 +8898,16 @@ static void QCBUILTIN PF_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s 
 	NET_SendPacket(NS_SERVER, strlen(contents), contents, &to);
 }
 
+static void QCBUILTIN PF_clusterevent(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifdef SUBSERVERS
+	const char *dest = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *src = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *cmd = PR_GetStringOfs(prinst, OFS_PARM2);
+	const char *info = PF_VarString(prinst, 13, pr_globals);
+	SSV_Send(dest, src, cmd, info);
+#endif
+}
 
 
 #define STUB ,NULL,true
@@ -9368,6 +9402,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"hash_getcb",		PF_hash_getcb,		0,		0,		0,		293,	D("void(float table, void(string keyname, __variant val) callback, optional string name)", "For each item in the table that matches the name, call the callback. if name is omitted, will enumerate ALL keys."), true},
 	{"checkcommand",	PF_checkcommand,	0,		0,		0,		294,	D("float(string name)", "Checks to see if the supplied name is a valid command, cvar, or alias. Returns 0 if it does not exist.")},
 	{"argescape",		PF_argescape,		0,		0,		0,		295,	D("string(string s)", "Marks up a string so that it can be reliably tokenized as a single argument later.")},
+	{"clusterevent",	PF_clusterevent,	0,		0,		0,		296,	D("void(string dest, string from, string cmd, string info)", "Only functions in mapcluster mode. Sends an event to whichever server the named player is on. The destination server can then dispatch the event to the client or handle it itself via the SV_ParseClusterEvent entrypoint. If dest is empty, the event is broadcast to ALL servers. If the named player can't be found, the event will be returned to this server with the cmd prefixed with 'error:'.")},
 
 
 	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	D("void()", "Forgets all rentities, polygons, and temporary dlights. Resets all view properties to their default values.")},// (EXT_CSQC)
@@ -9431,7 +9466,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"stringtokeynum_csqc",	PF_Fixme,0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (found in menuqc)
 	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum)", "Finds the current binding for the given key (ignores modifiers like shift/alt/ctrl).")},// (EXT_CSQC)
 
-	{"setcursormode",	PF_Fixme,	0,		0,		0,		343,	D("void(float usecursor)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking)")},	// #343 This is a DP extension
+	{"setcursormode",	PF_Fixme,	0,		0,		0,		343,	D("void(float usecursor, optional string cursorimage, optional vector hotspot, optional float scale)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking). If the image name is specified, the engine will use that image for a cursor (use an empty string to clear it again), in a way that will not conflict with the console. Images specified this way will be hardware accelerated, if supported by the platform/port.")},
 	{"getmousepos",		PF_Fixme,	0,		0,		0,		344,	D("vector()", "Nasty convoluted DP extension. Typically returns deltas instead of positions. Use CSQC_InputEvent for such things in csqc mods.")},	// #344 This is a DP extension
 
 	{"getinputstate",	PF_Fixme,	0,		0,		0,		345,	D("float(float inputsequencenum)", "Looks up an input frame from the log, setting the input_* globals accordingly.\nThe sequence number range used for prediction should normally be servercommandframe < sequence <= clientcommandframe.\nThe sequence equal to clientcommandframe will change between input frames.")},// (EXT_CSQC)
@@ -10077,7 +10112,7 @@ typedef struct
 
 	char *desc;
 
-	int value;
+	float value;
 	char *valuestr;
 	qboolean misc;
 } knowndef_t;
@@ -10279,15 +10314,16 @@ void PR_DumpPlatform_f(void)
 		{"SpectatorDisconnect",		"noref void()", QW|NQ, "Called when a spectator disconnects from the game."},
 		{"SpectatorThink",			"noref void()", QW|NQ, "Called each frame for each spectator."},
 		{"SV_ParseClientCommand",	"noref void(string cmd)", QW|NQ, "Provides QC with a way to intercept 'cmd foo' commands from the client. Very handy. Self will be set to the sending client, while the 'cmd' argument can be tokenize()d and each element retrieved via argv(argno). Unrecognised cmds MUST be passed on to the clientcommand builtin."},
+		{"SV_ParseClusterEvent",	"noref void(string dest, string from, string cmd, string info)", QW|NQ, "Part of cluster mode. Handles cross-node events that were sent via clusterevent, on behalf of the named client."},
 		{"SV_ParseConnectionlessPacket", "noref float(string sender, string body)", QW|NQ, "Provides QC with a way to communicate between servers, or with client server browsers. Sender is the sender's ip. Body is the body of the message. You'll need to add your own password/etc support as required. Self is not valid."},
 		{"SV_PausedTic",			"noref void(float pauseduration)", QW|NQ, "For each frame that the server is paused, this function will be called to give the gamecode a chance to unpause the server again. the pauseduration argument says how long the server has been paused for (the time global is frozen and will not increment while paused). Self is not valid."},
 		{"SV_ShouldPause",			"noref float(float newstatus)", QW|NQ, "Called to give the qc a change to block pause/unpause requests. Return false for the pause request to be ignored. newstatus is 1 if the user is trying to pause the game. For the duration of the call, self will be set to the player who tried to pause, or to world if it was triggered by a server-side event."},
-		{"ClassChangeWeapon",		"noref void()", H2, "Hexen2 support. Called when cl_playerclass changes. Self is set to the player who is changing class."},
 		{"SV_RunClientCommand",		"noref void()", QW|NQ, "Called each time a player movement packet was received from a client. Self is set to the player entity which should be updated, while the input_* globals specify the various properties stored within the input packet. The contents of this function should be somewaht identical to the equivelent function in CSQC, or prediction misses will occur. If you're feeling lazy, you can simply call 'runstandardplayerphysics' after modifying the inputs."},
 		{"SV_AddDebugPolygons",		"noref void()", QW|NQ, "Called each video frame. This is the only place where ssqc is allowed to call the R_BeginPolygon/R_PolygonVertex/R_EndPolygon builtins. This is exclusively for debugging, and will break in anything but single player as it will not be called if the engine is not running both a client and a server."},
 		{"SV_PlayerPhysics",		"noref void()", QW|NQ, "Legacy method to tweak player input that does not reliably work with prediction (prediction WILL break). Mods that care about prediction should use SV_RunClientCommand instead. If pr_no_playerphysics is set to 1, this function will never be called, which will either fix prediction or completely break player movement depending on whether the feature was even useful."},
 		{"EndFrame",				"noref void()", QW|NQ, "Called after non-player entities have been run at the end of the physics frame. Player physics is performed out of order and can/will still occur between EndFrame and BeginFrame."},
 		{"SV_CheckRejectConnection","noref string(string addr, string uinfo, string features) ", QW|NQ, "Called to give the mod a chance to ignore connection requests based upon client protocol support or other properties. Use infoget to read the uinfo and features arguments."},
+		{"ClassChangeWeapon",		"noref void()", H2, "Hexen2 support. Called when cl_playerclass changes. Self is set to the player who is changing class."},
 		/* //mvdsv compat
 		{"UserInfo_Changed",		"//noref void()", QW},
 		{"localinfoChanged",		"//noref void()", QW},
@@ -10928,9 +10964,9 @@ void PR_DumpPlatform_f(void)
 		if (!strcmp(knowndefs[i].type, "const float"))
 		{
 			if (defines)
-				VFS_PRINTF(f, "#define %s %i%s\n", knowndefs[i].name, knowndefs[i].value, comment);
+				VFS_PRINTF(f, "#define %s %g%s\n", knowndefs[i].name, knowndefs[i].value, comment);
 			else
-				VFS_PRINTF(f, "%s %s = %i;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
+				VFS_PRINTF(f, "%s %s = %g;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
 		}
 		else if (!strcmp(knowndefs[i].type, "const string"))
 		{
@@ -10945,7 +10981,7 @@ void PR_DumpPlatform_f(void)
 		}
 		else if (knowndefs[i].value)
 		{
-			VFS_PRINTF(f, "%s %s = %i;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
+			VFS_PRINTF(f, "%s %s = %g;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
 		}
 		else
 			VFS_PRINTF(f, "%s %s;%s\n", knowndefs[i].type, knowndefs[i].name, comment);

@@ -21,98 +21,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include "shader.h"
 
-void M_Menu_Audio_f (void);
-void M_Menu_Demos_f (void);
-void M_Menu_Mods_f (void);
-void M_Menu_ModelViewer_f(void);
-
 m_state_t m_state;
 
-extern menu_t *menu_script;
-
-qboolean	m_recursiveDraw;
-
-void M_ConfigureNetSubsystem(void);
-
-cvar_t m_helpismedia = SCVAR("m_helpismedia", "0");
-cvar_t m_preset_chosen = CVARF("m_preset_chosen", "0", CVAR_ARCHIVE);
-
-//=============================================================================
-/* Support Routines */
-
-void M_Print (int cx, int cy, qbyte *str)
-{
-	Draw_AltFunString(cx + ((vid.width - 320)>>1), cy, str);
-}
-void M_PrintWhite (int cx, int cy, qbyte *str)
-{
-	Draw_FunString(cx + ((vid.width - 320)>>1), cy, str);
-}
 void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic)
 {
 	R2D_ScalePic (x + ((vid.width - 320)>>1), y, w, h, pic);
 }
-
-void M_BuildTranslationTable(int top, int bottom, unsigned int *translationTable)
-{
-	int		j;
-
-	int pc = Cvar_Get("cl_playerclass", "1", 0, "Hexen2")->value;
-	if (h2playertranslations && pc)
-	{
-		int i;
-		unsigned int color_offsets[5] = {2*14*256,0,1*14*256,2*14*256,2*14*256};
-		unsigned char *colorA, *colorB, *sourceA, *sourceB;
-		colorA = h2playertranslations + 256 + color_offsets[pc-1];
-		colorB = colorA + 256;
-		sourceA = colorB + (top * 256);
-		sourceB = colorB + (bottom * 256);
-		for(i=0;i<255;i++)
-		{
-			if (bottom > 0 && (colorB[i] != 255))
-				translationTable[i] = d_8to24rgbtable[sourceB[i]] | 0xff000000;
-			else if (top > 0 && (colorA[i] != 255))
-				translationTable[i] = d_8to24rgbtable[sourceA[i]] | 0xff000000;
-			else
-				translationTable[i] = d_8to24rgbtable[i] | 0xff000000;
-		}
-	}
-	else
-	{
-		for(j=0;j<255;j++)
-		{
-			if (j >= TOP_RANGE && j < TOP_RANGE + (1<<4))
-			{
-				if (top >= 16)
-				{
-					*((unsigned char*)&translationTable[j]+0) = (((top&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[j&15]+0))>>8;
-					*((unsigned char*)&translationTable[j]+1) = (((top&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[j&15]+1))>>8;
-					*((unsigned char*)&translationTable[j]+2) = (((top&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[j&15]+2))>>8;
-					*((unsigned char*)&translationTable[j]+3) = 0xff;
-				}
-				else
-					translationTable[j] = d_8to24rgbtable[top<8?j-TOP_RANGE+(top<<4):(top<<4)+15-(j-TOP_RANGE)] | 0xff000000;
-			}
-			else if (j >= BOTTOM_RANGE && j < BOTTOM_RANGE + (1<<4))
-			{
-				if (bottom >= 16)
-				{
-					*((unsigned char*)&translationTable[j]+0) = (((bottom&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[j&15]+0))>>8;
-					*((unsigned char*)&translationTable[j]+1) = (((bottom&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[j&15]+1))>>8;
-					*((unsigned char*)&translationTable[j]+2) = (((bottom&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[j&15]+2))>>8;
-					*((unsigned char*)&translationTable[j]+3) = 0xff;
-				}
-				else
-					translationTable[j] = d_8to24rgbtable[bottom<8?j-BOTTOM_RANGE+(bottom<<4):(bottom<<4)+15-(j-BOTTOM_RANGE)] | 0xff000000;
-			}
-			else
-				translationTable[j] = d_8to24rgbtable[j] | 0xff000000;
-		}
-	}
-	translationTable[255] = 0;	//alpha
-}
-
-
 void M_DrawTextBox (int x, int y, int width, int lines)
 {
 	mpic_t	*p;
@@ -180,6 +94,151 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 	p = R2D_SafeCachePic ("gfx/box_br.lmp");
 	if (p)
 		M_DrawScalePic (cx, cy+8, 8, 8, p);
+}
+
+int M_FindKeysForBind (char *command, int *keylist, int total)
+{
+	int		count;
+	int		j;
+	int		l;
+	char	*b;
+
+	for (count = 0; count < total; count++)
+		keylist[count] = -1;
+	l = strlen(command);
+	count = 0;
+
+	for (j=0 ; j<256 ; j++)
+	{
+		b = keybindings[j][0];
+		if (!b)
+			continue;
+		if (!strncmp (b, command, l) && (!b[l] || b[l] == ' ' || b[l] == ';'))
+		{
+			keylist[count] = j;
+			count++;
+			if (count == total)
+				break;
+		}
+	}
+	return count;
+}
+void M_FindKeysForCommand (int pnum, const char *command, int *twokeys)
+{
+	char prefix[5];
+
+	if (*command == '+' || *command == '-')
+	{
+		prefix[0] = *command;
+		prefix[1] = 0;
+		if (pnum != 0)
+		{
+			prefix[1] = 'p';
+			prefix[2] = '0'+pnum;
+			prefix[3] = ' ';
+			prefix[4] = 0;
+		}
+		command++;
+	}
+	else
+	{
+		prefix[0] = 0;
+		if (pnum != 0)
+		{
+			prefix[0] = 'p';
+			prefix[1] = '0'+pnum;
+			prefix[2] = ' ';
+			prefix[3] = 0;
+		}
+	}
+	M_FindKeysForBind(va("%s%s", prefix, command), twokeys, 2);
+}
+
+#ifndef NOBUITINMENUS
+
+void M_Menu_Audio_f (void);
+void M_Menu_Demos_f (void);
+void M_Menu_Mods_f (void);
+void M_Menu_ModelViewer_f(void);
+
+extern menu_t *menu_script;
+
+qboolean	m_recursiveDraw;
+
+void M_ConfigureNetSubsystem(void);
+
+cvar_t m_helpismedia = SCVAR("m_helpismedia", "0");
+cvar_t m_preset_chosen = CVARF("m_preset_chosen", "0", CVAR_ARCHIVE);
+
+//=============================================================================
+/* Support Routines */
+
+void M_Print (int cx, int cy, qbyte *str)
+{
+	Draw_AltFunString(cx + ((vid.width - 320)>>1), cy, str);
+}
+void M_PrintWhite (int cx, int cy, qbyte *str)
+{
+	Draw_FunString(cx + ((vid.width - 320)>>1), cy, str);
+}
+
+void M_BuildTranslationTable(int top, int bottom, unsigned int *translationTable)
+{
+	int		j;
+
+	int pc = Cvar_Get("cl_playerclass", "1", 0, "Hexen2")->value;
+	if (h2playertranslations && pc)
+	{
+		int i;
+		unsigned int color_offsets[5] = {2*14*256,0,1*14*256,2*14*256,2*14*256};
+		unsigned char *colorA, *colorB, *sourceA, *sourceB;
+		colorA = h2playertranslations + 256 + color_offsets[pc-1];
+		colorB = colorA + 256;
+		sourceA = colorB + (top * 256);
+		sourceB = colorB + (bottom * 256);
+		for(i=0;i<255;i++)
+		{
+			if (bottom > 0 && (colorB[i] != 255))
+				translationTable[i] = d_8to24rgbtable[sourceB[i]] | 0xff000000;
+			else if (top > 0 && (colorA[i] != 255))
+				translationTable[i] = d_8to24rgbtable[sourceA[i]] | 0xff000000;
+			else
+				translationTable[i] = d_8to24rgbtable[i] | 0xff000000;
+		}
+	}
+	else
+	{
+		for(j=0;j<255;j++)
+		{
+			if (j >= TOP_RANGE && j < TOP_RANGE + (1<<4))
+			{
+				if (top >= 16)
+				{
+					*((unsigned char*)&translationTable[j]+0) = (((top&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[j&15]+0))>>8;
+					*((unsigned char*)&translationTable[j]+1) = (((top&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[j&15]+1))>>8;
+					*((unsigned char*)&translationTable[j]+2) = (((top&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[j&15]+2))>>8;
+					*((unsigned char*)&translationTable[j]+3) = 0xff;
+				}
+				else
+					translationTable[j] = d_8to24rgbtable[top<8?j-TOP_RANGE+(top<<4):(top<<4)+15-(j-TOP_RANGE)] | 0xff000000;
+			}
+			else if (j >= BOTTOM_RANGE && j < BOTTOM_RANGE + (1<<4))
+			{
+				if (bottom >= 16)
+				{
+					*((unsigned char*)&translationTable[j]+0) = (((bottom&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[j&15]+0))>>8;
+					*((unsigned char*)&translationTable[j]+1) = (((bottom&0x00ff00)>> 8)**((unsigned char*)&d_8to24rgbtable[j&15]+1))>>8;
+					*((unsigned char*)&translationTable[j]+2) = (((bottom&0x0000ff)>> 0)**((unsigned char*)&d_8to24rgbtable[j&15]+2))>>8;
+					*((unsigned char*)&translationTable[j]+3) = 0xff;
+				}
+				else
+					translationTable[j] = d_8to24rgbtable[bottom<8?j-BOTTOM_RANGE+(bottom<<4):(bottom<<4)+15-(j-BOTTOM_RANGE)] | 0xff000000;
+			}
+			else
+				translationTable[j] = d_8to24rgbtable[j] | 0xff000000;
+		}
+	}
+	translationTable[255] = 0;	//alpha
 }
 
 //=============================================================================
@@ -462,65 +521,6 @@ void M_Menu_Keys_f (void)
 
 		bindnames++;
 	}
-}
-
-int M_FindKeysForBind (char *command, int *keylist, int total)
-{
-	int		count;
-	int		j;
-	int		l;
-	char	*b;
-
-	for (count = 0; count < total; count++)
-		keylist[count] = -1;
-	l = strlen(command);
-	count = 0;
-
-	for (j=0 ; j<256 ; j++)
-	{
-		b = keybindings[j][0];
-		if (!b)
-			continue;
-		if (!strncmp (b, command, l) && (!b[l] || b[l] == ' ' || b[l] == ';'))
-		{
-			keylist[count] = j;
-			count++;
-			if (count == total)
-				break;
-		}
-	}
-	return count;
-}
-
-void M_FindKeysForCommand (int pnum, const char *command, int *twokeys)
-{
-	char prefix[5];
-
-	if (*command == '+' || *command == '-')
-	{
-		prefix[0] = *command;
-		prefix[1] = 0;
-		if (pnum != 0)
-		{
-			prefix[1] = 'p';
-			prefix[2] = '0'+pnum;
-			prefix[3] = ' ';
-			prefix[4] = 0;
-		}
-		command++;
-	}
-	else
-	{
-		prefix[0] = 0;
-		if (pnum != 0)
-		{
-			prefix[0] = 'p';
-			prefix[1] = '0'+pnum;
-			prefix[2] = ' ';
-			prefix[3] = 0;
-		}
-	}
-	M_FindKeysForBind(va("%s%s", prefix, command), twokeys, 2);
 }
 
 void M_UnbindCommand (const char *command)
@@ -1076,7 +1076,9 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("menu_keys", M_Menu_Keys_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
+#ifndef NOMEDIAMENU
 	Cmd_AddCommand ("menu_media", M_Menu_Media_f);
+#endif
 	Cmd_AddCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
 	Cmd_AddCommand ("menu_mods", M_Menu_Mods_f);
 	Cmd_AddCommand ("modelviewer", M_Menu_ModelViewer_f);
@@ -1146,7 +1148,9 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_keys");
 	Cmd_RemoveCommand ("help");
 	Cmd_RemoveCommand ("menu_quit");
+#ifndef NOMEDIAMENU
 	Cmd_RemoveCommand ("menu_media");
+#endif
 	Cmd_RemoveCommand ("menu_mediafiles");
 
 #ifdef CL_MASTER
@@ -1180,7 +1184,7 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_download");
 
 
-	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab give us main and not quit.
+	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab gives us main and not quit.
 	Cmd_RemoveCommand ("quickconnect");
 }
 
@@ -1228,6 +1232,31 @@ void M_Init (void)
 
 	M_Reinit();
 }
+//end builtin-menu code.
+#else
+void M_Init_Internal (void){}
+void M_DeInit_Internal (void){}
+void M_Shutdown(qboolean total)
+{
+#ifdef MENU_DAT
+	MP_Shutdown();
+#endif
+}
+void M_Reinit(void)
+{
+#ifdef MENU_DAT
+	if (!MP_Init())
+#endif
+	{
+		CSQC_UnconnectedInit();
+	}
+}
+void M_Init (void)
+{
+	Media_Init();
+	M_Reinit();
+}
+#endif
 
 
 void M_Draw (int uimenu)
@@ -1241,10 +1270,13 @@ void M_Draw (int uimenu)
 #endif
 	}
 
+#ifndef NOBUITINMENUS
 	if (m_state != m_complex)
 	{
 		M_RemoveAllMenus();
 	}
+#endif
+
 	if (!Key_Dest_Has(kdm_menu))
 	{
 		m_state = m_none;
@@ -1254,6 +1286,7 @@ void M_Draw (int uimenu)
 	if (m_state == m_none || m_state == m_menu_dat)
 		return;
 
+#ifndef NOBUITINMENUS
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
 	{
 		extern menu_t *firstmenu;
@@ -1266,6 +1299,7 @@ void M_Draw (int uimenu)
 	{
 		m_recursiveDraw = false;
 	}
+#endif
 
 	R2D_ImageColours(1, 1, 1, 1);
 
@@ -1274,17 +1308,22 @@ void M_Draw (int uimenu)
 	case m_none:
 		break;
 
+#ifndef NOBUITINMENUS
 	case m_help:
 		M_Help_Draw ();
-		break;
-
-	case m_media:
-		M_Media_Draw ();
 		break;
 
 	case m_complex:
 		M_Complex_Draw ();
 		break;
+#endif
+
+#ifndef NOMEDIAMENU
+	case m_media:
+		M_Media_Draw ();
+		break;
+#endif
+
 #ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (0, (int)(realtime*1000));
@@ -1306,18 +1345,22 @@ void M_Keydown (int key, int unicode)
 	case m_none:
 		Key_Dest_Remove(kdm_menu);
 		return;
-
+#ifndef NOBUITINMENUS
 	case m_help:
 		M_Help_Key (key);
-		return;
-
-	case m_media:
-		M_Media_Key (key);
 		return;
 
 	case m_complex:
 		M_Complex_Key (key, unicode);
 		return;
+#endif
+
+#ifndef NOMEDIAMENU
+	case m_media:
+		M_Media_Key (key);
+		return;
+#endif
+
 #ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (1, key);

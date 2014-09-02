@@ -52,8 +52,9 @@ cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",
 cvar_t con_ocranaleds						= CVAR  ("con_ocranaleds", "2");
 
 cvar_t cl_cursor							= CVAR  ("cl_cursor", "");
-cvar_t cl_cursorsize						= CVAR  ("cl_cursorsize", "32");
-cvar_t cl_cursorbias						= CVAR  ("cl_cursorbias", "4");
+cvar_t cl_cursorscale						= CVAR  ("cl_cursor_scale", "0.2");
+cvar_t cl_cursorbiasx						= CVAR  ("cl_cursor_bias_x", "7.5");
+cvar_t cl_cursorbiasy						= CVAR  ("cl_cursor_bias_y", "0.8");
 
 cvar_t gl_nocolors							= CVARF  ("gl_nocolors", "0", CVAR_ARCHIVE);
 cvar_t gl_part_flame						= CVARFD  ("gl_part_flame", "1", CVAR_ARCHIVE, "Enable particle emitting from models. Mainly used for torch and flame effects.");
@@ -77,6 +78,7 @@ cvar_t r_drawflat							= CVARF ("r_drawflat", "0",
 												CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t r_wireframe							= CVARF ("r_wireframe", "0",
 												CVAR_CHEAT);
+cvar_t r_wireframe_smooth					= CVAR ("r_wireframe_smooth", "0");
 cvar_t r_refract_fbo						= CVARD ("r_refract_fbo", "1", "Use an fbo for refraction. If 0, just renders as a portal and uses a copy of the current framebuffer.");
 cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
 cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
@@ -168,8 +170,8 @@ cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
 cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
 // 10 - 170
-cvar_t scr_fov								= CVARFDC("fov", "108",
-												CVAR_ARCHIVE, "field of vision, 1-170 degrees, standard fov is 90, nquake.",
+cvar_t scr_fov								= CVARFDC("fov", "90",
+												CVAR_ARCHIVE, "field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.",
 												SCR_Fov_Callback);
 cvar_t scr_printspeed						= SCVAR  ("scr_printspeed", "8");
 cvar_t scr_showpause						= SCVAR  ("showpause", "1");
@@ -646,6 +648,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_slimestyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_telestyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_wireframe, GRAPHICALNICETIES);
+	Cvar_Register (&r_wireframe_smooth, GRAPHICALNICETIES);
 	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_separation, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_method, GRAPHICALNICETIES);
@@ -659,8 +662,9 @@ void Renderer_Init(void)
 	Cvar_Register (&scr_sshot_prefix, SCREENOPTIONS);
 
 	Cvar_Register(&cl_cursor,	SCREENOPTIONS);
-	Cvar_Register(&cl_cursorsize,	SCREENOPTIONS);
-	Cvar_Register(&cl_cursorbias,	SCREENOPTIONS);
+	Cvar_Register(&cl_cursorscale,	SCREENOPTIONS);
+	Cvar_Register(&cl_cursorbiasx,	SCREENOPTIONS);
+	Cvar_Register(&cl_cursorbiasy,	SCREENOPTIONS);
 
 
 //screen
@@ -821,6 +825,9 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL, //VID_DeInit,
 	NULL, //VID_SwapBuffers
 	NULL, //VID_ApplyGammaRamps,
+	NULL,
+	NULL,
+	NULL,
 	NULL,	//set caption
 	NULL, //VID_GetRGBInfo,
 

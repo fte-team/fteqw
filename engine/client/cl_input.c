@@ -865,15 +865,6 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 		cmd->impulse = 0;
 }
 
-void CL_DrawPrydonCursor(void)
-{
-	if (cursor_active && cl_prydoncursor.ival > 0)
-	{
-		SCR_DrawCursor(cl_prydoncursor.ival);
-		V_StopPitchDrift (0);
-	}
-}
-
 void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t cursor_start, vec3_t cursor_impact, int *entnum)
 {
 	vec3_t cursor_end;
@@ -1479,8 +1470,6 @@ qboolean CLQW_SendCmd (sizebuf_t *buf)
 		MSG_WriteFloat(buf, cursor_impact[2]);
 		MSG_WriteEntity(buf, cursor_entitynumber);
 	}
-	else
-		cursor_active = false;
 
 	MSG_WriteByte (buf, clc_move);
 
@@ -1563,6 +1552,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 	if (cls.demoplayback != DPB_NONE || cls.netchan.remote_address.type == NA_INVALID)
 	{
+		cursor_active = false;
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
 			extern cvar_t cl_splitscreen;
@@ -1786,6 +1776,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			msecs -= (double)msecstouse;
 			return;
 		}
+		cursor_active = false;
 		switch (cls.protocol)
 		{
 #ifdef NQPROT

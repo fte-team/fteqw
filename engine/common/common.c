@@ -96,6 +96,25 @@ cvar_t	com_modname = CVARD("com_modname", "", "dpmaster information");
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger remote exploits in any engine (including "FULLENGINENAME"which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.\n");
+#ifdef FTE_TARGET_WEB
+cvar_t	sys_platform = CVAR("sys_platform", "web");
+#elif defined(NACL)
+cvar_t	sys_platform = CVAR("sys_platform", "nacl");
+#elif defined(ANDROID)
+cvar_t	sys_platform = CVAR("sys_platform", "android");
+#elif defined(FTE_SDL)
+cvar_t	sys_platform = CVAR("sys_platform", "sdl");
+#elif defined(_WIN64)
+cvar_t	sys_platform = CVAR("sys_platform", "win64");
+#elif defined(_WIN32)
+cvar_t	sys_platform = CVAR("sys_platform", "win32");
+#elif defined(__linux__)
+cvar_t	sys_platform = CVAR("sys_platform", "linux");
+#elif defined(__APPLE__)
+cvar_t	sys_platform = CVAR("sys_platform", "mac");
+#else
+cvar_t	sys_platform = CVAR("sys_platform", "");
+#endif
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -4540,6 +4559,7 @@ void COM_Init (void)
 	Cmd_AddCommand ("errorme", COM_ErrorMe_f);
 	COM_InitFilesystem ();
 
+	Cvar_Register (&sys_platform, "Gamecode");
 	Cvar_Register (&registered, "Copy protection");
 	Cvar_Register (&gameversion, "Gamecode");
 	Cvar_Register (&gameversion_min, "Gamecode");

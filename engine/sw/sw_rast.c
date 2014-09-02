@@ -1043,6 +1043,9 @@ rendererinfo_t swrendererinfo =
 	SW_VID_DeInit,
 	SW_VID_SwapBuffers,
 	SW_VID_ApplyGammaRamps,
+	NULL,
+	NULL,
+	NULL,
 	SW_VID_SetWindowCaption,
 	SW_VID_GetRGBInfo,
 

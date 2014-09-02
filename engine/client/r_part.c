@@ -149,6 +149,7 @@ cvar_t r_part_sparks_textured = CVAR("r_part_sparks_textured", "1");
 cvar_t r_part_beams = CVAR("r_part_beams", "1");
 cvar_t r_part_contentswitch = CVARFD("r_part_contentswitch", "1", CVAR_ARCHIVE, "Enable particle effects to change based on content (ex. water).");
 cvar_t r_part_density = CVARF("r_part_density", "1", CVAR_ARCHIVE);
+cvar_t r_part_classic_expgrav = CVARFD("r_part_classic_expgrav", "10", CVAR_ARCHIVE, "Scaler for how fast classic explosion particles should accelerate due to gravity. 1 for like vanilla, 10 for like zquake.");
 
 
 particleengine_t *pe;
@@ -174,6 +175,7 @@ void P_InitParticleSystem(void)
 	Cvar_Register(&r_part_beams, particlecvargroupname);
 	Cvar_Register(&r_part_contentswitch, particlecvargroupname);
 	Cvar_Register(&r_part_density, particlecvargroupname);
+	Cvar_Register(&r_part_classic_expgrav, particlecvargroupname);
 
 	Cvar_Register (&gl_part_flame, particlecvargroupname);
 

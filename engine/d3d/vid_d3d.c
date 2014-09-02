@@ -1257,6 +1257,9 @@ rendererinfo_t d3d9rendererinfo =
 	D3D9_VID_DeInit,
 	D3D9_VID_SwapBuffers,
 	D3D9_VID_ApplyGammaRamps,
+	NULL,
+	NULL,
+	NULL,
 	D3D9_VID_SetWindowCaption,
 	D3D9_VID_GetRGBInfo,
 

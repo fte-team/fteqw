@@ -504,8 +504,9 @@ typedef struct downloadlist_s {
 #define DLLF_IGNOREFAILED	(1u<<4)		//
 #define DLLF_NONGAME		(1u<<5)		//means the requested download filename+localname is gamedir explicit (so id1/foo.txt is distinct from qw/foo.txt)
 #define DLLF_TEMPORARY		(1u<<6)		//download it, but don't actually save it (DLLF_OVERWRITE doesn't actually overwrite, but does ignore any local files)
+#define DLLF_USEREXPLICIT	(1u<<7)		//use explicitly requested it, ignore the cl_downloads cvar.
 
-#define DLLF_BEGUN			(1u<<7)		//server has confirmed that the file exists, is readable, and we've opened a file. should not be set on new requests.
+#define DLLF_BEGUN			(1u<<8)		//server has confirmed that the file exists, is readable, and we've opened a file. should not be set on new requests.
 	struct downloadlist_s *next;
 } downloadlist_t;
 

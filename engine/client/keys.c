@@ -43,6 +43,8 @@ unsigned int key_dest_mask;
 qboolean key_dest_console;
 unsigned int key_dest_absolutemouse;
 
+struct key_cursor_s key_customcursor[kc_max];
+
 int		key_count;			// incremented every key event
 
 char	*keybindings[K_MAX][KEY_MODIFIERSTATES];
@@ -1969,7 +1971,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		if (shift_down)
 		{
 			extern cvar_t con_stayhidden;
-			if (down && con_stayhidden.ival < 3)
+			if (down && con_stayhidden.ival < 2)
 			{
 				if (!Key_Dest_Has(kdm_console))	//don't toggle it when the console is already down. this allows typing blind to not care if its already active.
 					Con_ToggleConsole_Force();

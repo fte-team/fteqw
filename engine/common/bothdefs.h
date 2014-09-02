@@ -84,6 +84,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define NO_JPEG
 		#define NO_ZLIB
 		#define NO_OGG
+	#else
+		#define AVAIL_OPENAL
+		#define AVAIL_FREETYPE
 	#endif
 
 	#define AVAIL_OGGVORBIS
@@ -96,9 +99,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define AVAIL_OGGVORBIS
 	#endif
 
-	#define AVAIL_OPENAL
-	#define AVAIL_FREETYPE
-
 #if !defined(NO_DIRECTX) && !defined(NODIRECTX) && defined(_WIN32)
 	#define AVAIL_DINPUT
 	#define AVAIL_DDRAW
@@ -106,10 +106,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_D3D
 #endif
 
+#ifndef MINIMAL
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
 	#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
 #elif defined(__linux__) || defined(__CYGWIN__)
 	#define HAVE_GNUTLS		//currently disabled as it does not validate the server's certificate, beware the mitm attack.
+#endif
 #endif
 #if defined(HAVE_WINSSPI) || defined(HAVE_GNUTLS)
 	#define HAVE_SSL
@@ -168,7 +170,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#undef AVAIL_JPEGLIB	//no jpeg support
 		#undef AVAIL_PNGLIB		//no png support
-		#undef USE_MADLIB		//no internal mp3 playing
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 
 		#define SPRMODELS		//quake1 sprite models
@@ -216,7 +217,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define Q2BSPS			//quake 2 bsp support
 		#define Q3BSPS			//quake 3 bsp support
 		#define TERRAIN			//heightmap support
-		#define SV_MASTER		//starts up a master server
+//		#define SV_MASTER		//starts up a master server
 		#define SVCHAT			//serverside npc chatting. see sv_chat.c
 		#define Q2SERVER		//server can run a q2 game dll and switches to q2 network and everything else.
 		#define Q2CLIENT		//client can connect to q2 servers
@@ -268,6 +269,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #endif
 
+#ifdef QUAKETC
+	#define NOBUITINMENUS	//kill engine menus (should be replaced with ewither csqc or menuqc)
+	#undef Q2CLIENT	//not useful
+	#undef Q2SERVER	//not useful
+	#undef Q3CLIENT	//not useful
+	#undef Q3SERVER	//not useful
+	#undef HLCLIENT	//not useful
+	#undef HLSERVER	//not useful
+	#undef VM_Q1	//not useful
+	#undef VM_LUA	//not useful
+	#undef HALFLIFEMODELS	//yuck
+	#undef RUNTIMELIGHTING	//presumably not useful
+#endif
+
 //#define QUAKESPYAPI //define this if you want the engine to be usable via gamespy/quakespy, which has been dead for a long time now.
 
 #ifdef FTE_TARGET_WEB
@@ -287,7 +302,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef MAP_PROC		//meh
 	#undef HALFLIFEMODELS	//blurgh
 	#undef WEBSERVER	//hah, yeah, right
-	#undef SUPPORT_ICE	//kinda requires udp, but whatever
+	#undef SUPPORT_ICE	//kinda requires udp, so not usable
 
 	//extra features stripped to try to reduce memory footprints
 	#undef RUNTIMELIGHTING	//too slow anyway
@@ -353,10 +368,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define MULTITHREAD
 		#define WEBCLIENT
 	#endif
-#endif
-
-#if defined(RTLIGHTS) && !defined(GLQUAKE) && !defined(D3D9QUAKE)
-	#undef RTLIGHTS
 #endif
 
 #ifndef _WIN32

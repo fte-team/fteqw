@@ -241,6 +241,8 @@ cvar_t	show_speed_x	= SCVAR("show_speed_x", "-1");
 cvar_t	show_speed_y	= SCVAR("show_speed_y", "-9");
 cvar_t	scr_loadingrefresh = SCVAR("scr_loadingrefresh", "0");
 
+void *scr_curcursor;
+
 extern char cl_screengroup[];
 void CLSCR_Init(void)
 {
@@ -261,6 +263,12 @@ void CLSCR_Init(void)
 	Cvar_Register(&show_speed_x, cl_screengroup);
 	Cvar_Register(&show_speed_y, cl_screengroup);
 	Cvar_Register(&scr_neticontimeout, cl_screengroup);
+
+
+	memset(&key_customcursor, 0, sizeof(key_customcursor));
+	scr_curcursor = NULL;
+	if (rf && rf->VID_SetCursor)
+		rf->VID_SetCursor(scr_curcursor);
 }
 
 /*
@@ -612,33 +620,87 @@ void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int 
 	SCR_DrawCenterString(&r, &p, font_default);
 }
 
-void SCR_DrawCursor(int prydoncursornum)
+qboolean SCR_HardwareCursorIsActive(void)
 {
-	extern cvar_t cl_cursor, cl_cursorbias, cl_cursorsize;
+	if (Key_MouseShouldBeFree())
+		return !!scr_curcursor;
+	return false;
+}
+void SCR_DrawCursor(void)
+{
+	extern cvar_t cl_cursor, cl_cursorbiasx, cl_cursorbiasy, cl_cursorscale, cl_prydoncursor;
 	mpic_t *p;
+	char *newc;
+	int prydoncursornum = 0;
+	extern qboolean cursor_active;
+	int cmod = kc_console;
+	void *oldcurs = NULL;
 
-	if (key_dest_absolutemouse & kdm_game)
+	if (cursor_active && cl_prydoncursor.ival > 0)
+		prydoncursornum = cl_prydoncursor.ival;
+	else if (!Key_MouseShouldBeFree())
+		return;
+
+	//choose the cursor based upon the module that has primary focus
+	if (key_dest_mask & key_dest_absolutemouse & (kdm_console|kdm_editor))
+		cmod = kc_console;
+	else if ((key_dest_mask & key_dest_absolutemouse & kdm_menu))
 	{
-		//if the game is meant to be drawing a cursor, don't draw one over the top.
-		key_dest_absolutemouse &= ~kdm_game;
-		if (!Key_MouseShouldBeFree())
-		{	//unless something else wants a cursor too.
-			key_dest_absolutemouse |= kdm_game;
-			return;
+		if (m_state == m_menu_dat)
+			cmod = kc_menu;
+		else
+			cmod = kc_console;
+	}
+	else// if (key_dest_mask & key_dest_absolutemouse)
+		cmod = prydoncursornum?kc_console:kc_game;
+
+	if (cmod == kc_console)
+	{
+		if (!*cl_cursor.string || prydoncursornum>1)
+			newc = va("gfx/prydoncursor%03i.lmp", prydoncursornum);
+		else
+			newc = cl_cursor.string;
+		if (strcmp(key_customcursor[kc_console].name, newc) || key_customcursor[kc_console].hotspot[0] != cl_cursorbiasx.value || key_customcursor[kc_console].hotspot[1] != cl_cursorbiasy.value || key_customcursor[kc_console].scale != cl_cursorscale.value)
+		{
+			key_customcursor[kc_console].dirty = true;
+			Q_strncpyz(key_customcursor[cmod].name, newc, sizeof(key_customcursor[cmod].name));
+			key_customcursor[kc_console].hotspot[0] = cl_cursorbiasx.value;
+			key_customcursor[kc_console].hotspot[1] = cl_cursorbiasy.value;
+			key_customcursor[kc_console].scale = cl_cursorscale.value;
 		}
-		key_dest_absolutemouse |= kdm_game;
 	}
 
-	if (!*cl_cursor.string || prydoncursornum>1)
-		p = R2D_SafeCachePic(va("gfx/prydoncursor%03i.lmp", prydoncursornum));
-	else
-		p = R2D_SafeCachePic(cl_cursor.string);
+	if (key_customcursor[cmod].dirty)
+	{
+		key_customcursor[cmod].dirty = false;
+		oldcurs = key_customcursor[cmod].handle;
+		if (rf->VID_CreateCursor)
+		{
+			key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1]);
+			if (!key_customcursor[cmod].handle)
+				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.lmp", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1]);	//try the fallback
+		}
+	}
+
+	if (scr_curcursor != key_customcursor[cmod].handle)
+	{
+		scr_curcursor = key_customcursor[cmod].handle;
+		rf->VID_SetCursor(scr_curcursor);
+	}
+	if (oldcurs)
+		rf->VID_DestroyCursor(oldcurs);
+
+	if (scr_curcursor)
+		return;
+	//system doesn't support a hardware cursor, so try to draw a software one.
+
+	p = R2D_SafeCachePic(key_customcursor[cmod].name);
 	if (!p)
 		p = R2D_SafeCachePic("gfx/cursor.lmp");
 	if (p)
 	{
 		R2D_ImageColours(1, 1, 1, 1);
-		R2D_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
+		R2D_Image(mousecursor_x-key_customcursor[cmod].hotspot[0], mousecursor_y-key_customcursor[cmod].hotspot[1], p->width*cl_cursorscale.value, p->height*cl_cursorscale.value, 0, 0, 1, 1, p);
 	}
 	else
 	{
@@ -1714,7 +1776,7 @@ void SCR_SetUpToDrawConsole (void)
 //			Key_Dest_Add(kdm_console);
 			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
 		}
-		else if (!Key_Dest_Has(kdm_menu) && (!Key_Dest_Has(~(kdm_console|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
+		else if (!Key_Dest_Has(kdm_menu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
 		{
 			//go fullscreen if we're not doing anything
 #ifdef VM_UI
@@ -1728,6 +1790,7 @@ void SCR_SetUpToDrawConsole (void)
 					if (con_stayhidden.ival)
 					{
 						extern qboolean startuppending;
+						scr_conlines = 0;
 						if (SCR_GetLoadingStage() == LS_NONE)
 						{
 							if (CL_TryingToConnect())	//if we're trying to connect, make sure there's a loading/connecting screen showing instead of forcing the menu visible
@@ -2275,8 +2338,6 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			SCR_DrawTurtle ();
 			SCR_DrawPause ();
 			SCR_ShowPics_Draw();
-
-			CL_DrawPrydonCursor();
 		}
 		else
 		{
@@ -2304,8 +2365,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	if (consolefocused)
 		SCR_DrawConsole (false);
 
-	if (Key_MouseShouldBeFree())
-		SCR_DrawCursor(0);
+	SCR_DrawCursor();
 	SCR_DrawSimMTouchCursor();
 
 	RSpeedEnd(RSPEED_2D);

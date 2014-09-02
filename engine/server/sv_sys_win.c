@@ -41,10 +41,8 @@ static HANDLE hconsoleout;
 
 qboolean	WinNT;	//if true, use utf-16 file paths. if false, hope that paths are in ascii.
 
-#ifdef _DEBUG
-#if _MSC_VER >= 1300
+#if defined(_DEBUG) || defined(DEBUG)
 #define CATCHCRASH
-#endif
 #endif
 
 
@@ -71,18 +69,197 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	HMODULE hKernel;
 	BOOL (WINAPI *pIsDebuggerPresent)(void);
 
+	DWORD (WINAPI *pSymSetOptions)(DWORD SymOptions);
+	BOOL (WINAPI *pSymInitialize)(HANDLE hProcess, PSTR UserSearchPath, BOOL fInvadeProcess);
+	BOOL (WINAPI *pSymFromAddr)(HANDLE hProcess, DWORD64 Address, PDWORD64 Displacement, PSYMBOL_INFO Symbol);
+
+#ifdef _WIN64
+#define DBGHELP_POSTFIX "64"
+	BOOL (WINAPI *pStackWalkX)(DWORD MachineType, HANDLE hProcess, HANDLE hThread, LPSTACKFRAME64 StackFrame, PVOID ContextRecord, PREAD_PROCESS_MEMORY_ROUTINE64 ReadMemoryRoutine, PFUNCTION_TABLE_ACCESS_ROUTINE64 FunctionTableAccessRoutine, PGET_MODULE_BASE_ROUTINE64 GetModuleBaseRoutine, PTRANSLATE_ADDRESS_ROUTINE64 TranslateAddress);
+	PVOID (WINAPI *pSymFunctionTableAccessX)(HANDLE hProcess, DWORD64 AddrBase);
+	DWORD64 (WINAPI *pSymGetModuleBaseX)(HANDLE hProcess, DWORD64 qwAddr);
+	BOOL (WINAPI *pSymGetLineFromAddrX)(HANDLE hProcess, DWORD64 qwAddr, PDWORD pdwDisplacement, PIMAGEHLP_LINE64 Line64);
+	BOOL (WINAPI *pSymGetModuleInfoX)(HANDLE hProcess, DWORD64 qwAddr, PIMAGEHLP_MODULE64 ModuleInfo);
+	#define STACKFRAMEX STACKFRAME64
+	#define IMAGEHLP_LINEX IMAGEHLP_LINE64
+	#define IMAGEHLP_MODULEX IMAGEHLP_MODULE64
+#else
+#define DBGHELP_POSTFIX ""
+	BOOL (WINAPI *pStackWalkX)(DWORD MachineType, HANDLE hProcess, HANDLE hThread, LPSTACKFRAME StackFrame, PVOID ContextRecord, PREAD_PROCESS_MEMORY_ROUTINE ReadMemoryRoutine, PFUNCTION_TABLE_ACCESS_ROUTINE FunctionTableAccessRoutine, PGET_MODULE_BASE_ROUTINE GetModuleBaseRoutine, PTRANSLATE_ADDRESS_ROUTINE TranslateAddress);
+	PVOID (WINAPI *pSymFunctionTableAccessX)(HANDLE hProcess, DWORD AddrBase);
+	DWORD (WINAPI *pSymGetModuleBaseX)(HANDLE hProcess, DWORD dwAddr);
+	BOOL (WINAPI *pSymGetLineFromAddrX)(HANDLE hProcess, DWORD dwAddr, PDWORD pdwDisplacement, PIMAGEHLP_LINE Line);
+	BOOL (WINAPI *pSymGetModuleInfoX)(HANDLE hProcess, DWORD dwAddr, PIMAGEHLP_MODULE ModuleInfo);
+	#define STACKFRAMEX STACKFRAME
+	#define IMAGEHLP_LINEX IMAGEHLP_LINE
+	#define IMAGEHLP_MODULEX IMAGEHLP_MODULE
+#endif
+	dllfunction_t debughelpfuncs[] =
+	{
+		{(void*)&pSymFromAddr,				"SymFromAddr"},
+		{(void*)&pSymSetOptions,			"SymSetOptions"},
+		{(void*)&pSymInitialize,			"SymInitialize"},
+		{(void*)&pStackWalkX,				"StackWalk"DBGHELP_POSTFIX},
+		{(void*)&pSymFunctionTableAccessX,	"SymFunctionTableAccess"DBGHELP_POSTFIX},
+		{(void*)&pSymGetModuleBaseX,		"SymGetModuleBase"DBGHELP_POSTFIX},
+		{(void*)&pSymGetLineFromAddrX,		"SymGetLineFromAddr"DBGHELP_POSTFIX},
+		{(void*)&pSymGetModuleInfoX,		"SymGetModuleInfo"DBGHELP_POSTFIX},
+		{NULL, NULL}
+	};
+
+		switch(exceptionCode)
+	{
+	case EXCEPTION_ACCESS_VIOLATION:
+	case EXCEPTION_DATATYPE_MISALIGNMENT:
+	case EXCEPTION_BREAKPOINT:
+	case EXCEPTION_SINGLE_STEP:
+	case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+	case EXCEPTION_FLT_DENORMAL_OPERAND:
+	case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+	case EXCEPTION_FLT_INEXACT_RESULT:
+	case EXCEPTION_FLT_INVALID_OPERATION:
+	case EXCEPTION_FLT_OVERFLOW:
+	case EXCEPTION_FLT_STACK_CHECK:
+	case EXCEPTION_FLT_UNDERFLOW:
+	case EXCEPTION_INT_DIVIDE_BY_ZERO:
+	case EXCEPTION_INT_OVERFLOW:
+	case EXCEPTION_PRIV_INSTRUCTION:
+	case EXCEPTION_IN_PAGE_ERROR:
+	case EXCEPTION_ILLEGAL_INSTRUCTION:
+	case EXCEPTION_NONCONTINUABLE_EXCEPTION:
+	case EXCEPTION_STACK_OVERFLOW:
+	case EXCEPTION_INVALID_DISPOSITION:
+	case EXCEPTION_GUARD_PAGE:
+	case EXCEPTION_INVALID_HANDLE:
+//	case EXCEPTION_POSSIBLE_DEADLOCK:
+		break;
+	default:
+		//because windows is a steaming pile of shite, we have to ignore any software-generated exceptions, because most of them are not in fact fatal, *EVEN IF THEY CLAIM TO BE NON-CONTINUABLE*
+		return exceptionCode;
+	}
+
 	hKernel = LoadLibrary ("kernel32");
 	pIsDebuggerPresent = (void*)GetProcAddress(hKernel, "IsDebuggerPresent");
 
+	if (pIsDebuggerPresent && pIsDebuggerPresent())
+		return EXCEPTION_CONTINUE_SEARCH;
 #ifdef GLQUAKE
 	GLVID_Crashed();
 #endif
 
-	if (pIsDebuggerPresent ())
+#if 1//ndef _MSC_VER
 	{
-		/*if we have a current window, minimize it to bring us out of fullscreen*/
-		return EXCEPTION_CONTINUE_SEARCH;
+		if (Sys_LoadLibrary("DBGHELP", debughelpfuncs))
+		{
+			STACKFRAMEX stack;
+			CONTEXT *pcontext = exceptionInfo->ContextRecord;
+			IMAGEHLP_LINEX line;
+			IMAGEHLP_MODULEX module;
+			struct
+			{
+				SYMBOL_INFO sym;
+				char name[1024];
+			} sym;
+			int frameno;
+			char stacklog[8192];
+			int logpos, logstart;
+			char *logline;
+
+			stacklog[logpos=0] = 0;
+
+			pSymInitialize(hProc, NULL, TRUE);
+			pSymSetOptions(SYMOPT_LOAD_LINES);
+
+			memset(&stack, 0, sizeof(stack));
+#ifdef _WIN64
+			#define IMAGE_FILE_MACHINE_THIS IMAGE_FILE_MACHINE_AMD64
+			stack.AddrPC.Mode = AddrModeFlat;
+			stack.AddrPC.Offset = pcontext->Rip;
+			stack.AddrFrame.Mode = AddrModeFlat;
+			stack.AddrFrame.Offset = pcontext->Rbp;
+			stack.AddrStack.Mode = AddrModeFlat;
+			stack.AddrStack.Offset = pcontext->Rsp;
+#else
+			#define IMAGE_FILE_MACHINE_THIS IMAGE_FILE_MACHINE_I386
+			stack.AddrPC.Mode = AddrModeFlat;
+			stack.AddrPC.Offset = pcontext->Eip;
+			stack.AddrFrame.Mode = AddrModeFlat;
+			stack.AddrFrame.Offset = pcontext->Ebp;
+			stack.AddrStack.Mode = AddrModeFlat;
+			stack.AddrStack.Offset = pcontext->Esp;
+#endif
+
+			Q_strncpyz(stacklog+logpos, FULLENGINENAME " or dependancy has crashed. The following stack dump been copied to your windows clipboard.\n"
+#ifdef _MSC_VER
+				"Would you like to generate a core dump too?\n"
+#endif
+				"\n", sizeof(stacklog)-logpos);
+			logstart = logpos += strlen(stacklog+logpos);
+
+			//so I know which one it is
+#if defined(DEBUG) || defined(_DEBUG)
+	#define BUILDDEBUGREL "Debug"
+#else
+	#define BUILDDEBUGREL "Optimised"
+#endif
+#ifdef MINIMAL
+	#define BUILDMINIMAL "Min"
+#else
+	#define BUILDMINIMAL ""
+#endif
+#if defined(GLQUAKE) && !defined(D3DQUAKE)
+	#define BUILDTYPE "GL"
+#elif !defined(GLQUAKE) && defined(D3DQUAKE)
+	#define BUILDTYPE "D3D"
+#else
+	#define BUILDTYPE "Merged"
+#endif
+
+			Q_snprintfz(stacklog+logpos, sizeof(stacklog)-logpos, "Build: %s %s %s: %s\r\n", BUILDDEBUGREL, PLATFORM, BUILDMINIMAL BUILDTYPE, version_string());
+			logpos += strlen(stacklog+logpos);
+
+			for(frameno = 0; ; frameno++)
+			{
+				DWORD64 symdisp;
+				DWORD linedisp;
+				DWORD_PTR symaddr;
+				if (!pStackWalkX(IMAGE_FILE_MACHINE_THIS, hProc, GetCurrentThread(), &stack, pcontext, NULL, pSymFunctionTableAccessX, pSymGetModuleBaseX, NULL))
+					break;
+				memset(&module, 0, sizeof(module));
+				module.SizeOfStruct = sizeof(module);
+				pSymGetModuleInfoX(hProc, stack.AddrPC.Offset, &module);
+				memset(&line, 0, sizeof(line));
+				line.SizeOfStruct = sizeof(line);
+				symdisp = 0;
+				memset(&sym, 0, sizeof(sym));
+				sym.sym.MaxNameLen = sizeof(sym.name);
+				symaddr = stack.AddrPC.Offset;
+				sym.sym.SizeOfStruct = sizeof(sym.sym);
+				if (pSymFromAddr(hProc, symaddr, &symdisp, &sym.sym))
+				{
+					if (pSymGetLineFromAddrX(hProc, stack.AddrPC.Offset, &linedisp, &line))
+						logline = va("%-20s - %s:%i (%s)\r\n", sym.sym.Name, line.FileName, (int)line.LineNumber, module.LoadedImageName);
+					else
+						logline = va("%-20s+%#x (%s)\r\n", sym.sym.Name, (unsigned int)symdisp, module.LoadedImageName);
+				}
+				else
+					logline = va("0x%p (%s)\r\n", (void*)(DWORD_PTR)stack.AddrPC.Offset, module.LoadedImageName);
+				Q_strncpyz(stacklog+logpos, logline, sizeof(stacklog)-logpos);
+				logpos += strlen(stacklog+logpos);
+				if (logpos+1 >= sizeof(stacklog))
+					break;
+			}
+			Sys_Printf("%s", stacklog+logstart);
+			return EXCEPTION_EXECUTE_HANDLER;
+		}
+		else
+		{
+			Sys_Printf("We crashed.\nUnable to load dbghelp library. Stack info is not available\n");
+			return EXCEPTION_EXECUTE_HANDLER;
+		}
 	}
+#endif
+
 
 	hDbgHelp = LoadLibrary ("DBGHELP");
 	if (hDbgHelp)
@@ -123,6 +300,16 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	else
 		MessageBox(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
 	return EXCEPTION_EXECUTE_HANDLER;
+}
+
+LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo)
+{
+	DWORD foo = EXCEPTION_CONTINUE_SEARCH;
+	foo = CrashExceptionHandler(/*false, */ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
+	//we have no handler. thus we handle it by exiting.
+	if (foo == EXCEPTION_EXECUTE_HANDLER)
+		exit(1);
+	return foo;
 }
 #endif
 
@@ -584,7 +771,10 @@ void Sys_Error (const char *error, ...)
 #endif
 
 	if (COM_CheckParm("-noreset"))
+	{
 		Sys_Quit();
+		exit(1);
+	}
 
 	Sys_Printf ("A new server will be started in 10 seconds unless you press a key\n");
 
@@ -595,7 +785,10 @@ void Sys_Error (const char *error, ...)
 	{
 		Sleep(500); // don't burn up CPU with polling
 		if (_kbhit())
+		{
 			Sys_Quit();
+			exit(1);
+		}
 	}
 
 	Sys_Printf("\nLoading new instance of FTE...\n\n\n");
@@ -1332,18 +1525,26 @@ SERVICE_TABLE_ENTRY   DispatchTable[] =
 
 int main (int argc, char **argv)
 {
-#ifdef USESERVICE
-	if (StartServiceCtrlDispatcher( DispatchTable))
-	{
-		return true;
-	}
-#endif
-
 #ifdef CATCHCRASH
+#ifdef _MSC_VER
 	__try
+#else
+	AddVectoredExceptionHandler(true, nonmsvc_CrashExceptionHandler);
+#endif
 #endif
 	{
 		COM_InitArgv (argc, (const char **)argv);
+
+#ifdef SUBSERVERS
+		isClusterSlave = COM_CheckParm("-clusterslave");
+#endif
+#ifdef USESERVICE
+		if (!SSV_IsSubServer() && StartServiceCtrlDispatcher( DispatchTable))
+		{
+			return true;
+		}
+#endif
+
 	#ifdef USESERVICE
 		if (COM_CheckParm("-register"))
 		{
@@ -1366,18 +1567,17 @@ int main (int argc, char **argv)
 		}
 	#endif
 
-#ifdef SUBSERVERS
-		isClusterSlave = COM_CheckParm("-clusterslave");
-#endif
 		StartQuakeServer();
 
 		ServerMainLoop();
 	}
 #ifdef CATCHCRASH
+#ifdef _MSC_VER
 	__except (CrashExceptionHandler(GetExceptionCode(), GetExceptionInformation()))
 	{
 		return 1;
 	}
+#endif
 #endif
 
 	return true;

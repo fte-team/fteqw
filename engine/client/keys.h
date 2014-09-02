@@ -192,6 +192,22 @@ extern	int		key_repeats[K_MAX];
 extern	int		key_count;			// incremented every key event
 extern	int		key_lastpress;
 
+enum
+{
+	kc_game,
+	kc_menu,
+	kc_console,
+	kc_max
+};
+extern struct key_cursor_s
+{
+	char name[MAX_QPATH];
+	float hotspot[2];
+	float scale;
+	qboolean dirty;
+	void *handle;
+} key_customcursor[kc_max];
+
 extern unsigned char *chat_buffer;
 extern	int chat_bufferpos;
 extern	qboolean	chat_team;

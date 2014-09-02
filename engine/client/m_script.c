@@ -3,6 +3,8 @@
 #include "quakedef.h"
 #include "shader.h"
 
+#ifndef NOBUITINMENUS
+
 int selectitem;
 menu_t *menu_script;
 
@@ -436,3 +438,4 @@ void M_Script_Init(void)
 	Cmd_AddCommand("menucomboi",	M_MenuS_Comboi_f);
 	Cmd_AddCommand("menucombos",	M_MenuS_Combos_f);
 }
+#endif

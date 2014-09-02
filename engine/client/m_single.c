@@ -3,6 +3,7 @@
 #include "quakedef.h"
 #include "winquake.h"
 #include "shader.h"
+#ifndef NOBUITINMENUS
 #ifndef CLIENTONLY
 //=============================================================================
 /* LOAD/SAVE MENU */
@@ -811,5 +812,4 @@ void M_Menu_MediaFiles_f (void)
 
 	ShowDemoMenu(menu, "");
 }
-
-
+#endif

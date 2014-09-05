@@ -2665,14 +2665,77 @@ static void QCC_PR_ExpandStrCat(char **buffer, size_t *bufferlen, size_t *buffer
 	/*no null terminator, remember to cat one if required*/
 }
 
+static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t retbufsize)
+{
+	if (!strcmp(constname, "__TIME__"))
+	{
+		time_t long_time;
+		time( &long_time );
+		strftime( retbuf, retbufsize,	"\"%H:%M\"", localtime( &long_time ));
+		return retbuf;
+	}
+	if (!strcmp(constname, "__DATE__"))
+	{
+		time_t long_time;
+		time( &long_time );
+		strftime( retbuf, retbufsize,	"\"%a %d %b %Y\"", localtime( &long_time ));
+		return retbuf;
+	}
+	if (!strcmp(constname, "__RAND__"))
+	{
+		QC_snprintfz(retbuf, retbufsize, "%i", rand());
+		return retbuf;
+	}
+	if (!strcmp(constname, "__QCCVER__"))
+	{
+		return "FTEQCC "__DATE__","__TIME__"";
+	}
+	if (!strcmp(constname, "__FILE__"))
+	{
+		QC_snprintfz(retbuf, retbufsize, "\"%s\"", strings + s_file);
+		return retbuf;
+	}
+	if (!strcmp(constname, "__LINE__"))
+	{
+		QC_snprintfz(retbuf, retbufsize, "%i", pr_source_line);
+		return retbuf;
+	}
+	if (!strcmp(constname, "__LINESTR__"))
+	{
+		QC_snprintfz(retbuf, retbufsize, "\"%i\"", pr_source_line);
+		return retbuf;
+	}
+	if (!strcmp(constname, "__FUNC__"))
+	{
+		QC_snprintfz(retbuf, retbufsize, "\"%s\"",pr_scope?pr_scope->name:"<NO FUNCTION>");
+		return retbuf;
+	}
+	if (!strcmp(constname, "__NULL__"))
+	{
+		return "0i";
+	}
+	return NULL;	//didn't match
+}
+
+#define PASTE2(a,b) a##b
+#define PASTE(a,b) PASTE2(a,b)
+#define STRINGIFY2(a) #a
+#define STRINGIFY(a) STRINGIFY2(a)
+#define spam(x) /*static float PASTE(spam,__LINE__);*/ if (PASTE2(spam,__LINE__) != x) {dprint(#x " chaned in " __FILE__ " on line " STRINGIFY2(__LINE__) "\n");  PASTE2(spam,__LINE__) = x;}
+#define dprint printf
+
 int QCC_PR_CheckCompConst(void)
 {
 	char		*oldpr_file_p = pr_file_p;
-	int whitestart;
+	int whitestart = 5;
 
 	CompilerConstant_t *c;
 
-	char *end;
+	char *end, *tok;
+	char retbuf[256];
+
+//	spam(whitestart);
+
 	for (end = pr_file_p; ; end++)
 	{
 		if (!*end || qcc_iswhite(*end))
@@ -2725,6 +2788,7 @@ int QCC_PR_CheckCompConst(void)
 				char *paramoffset[MAXCONSTANTPARAMS+1];
 				int param=0;
 				int plevel=0;
+				pbool noargexpand;
 
 				pr_file_p++;
 				QCC_PR_LexWhitespace(false);
@@ -2785,6 +2849,7 @@ int QCC_PR_CheckCompConst(void)
 				pr_file_p = c->value;
 				for(;;)
 				{
+					noargexpand = false;
 					whitestart = bufferlen;
 					starttok = pr_file_p;
 					/*while(qcc_iswhite(*pr_file_p))	//copy across whitespace
@@ -2818,6 +2883,7 @@ int QCC_PR_CheckCompConst(void)
 						{	//concatinate (strip out whitespace before the token)
 							bufferlen = whitestart;
 							pr_file_p+=2;
+							noargexpand = true;
 						}
 						else
 						{	//stringify
@@ -2847,6 +2913,7 @@ int QCC_PR_CheckCompConst(void)
 						}
 					}
 
+					end = qcc_token;
 					pr_file_p = QCC_COM_Parse2(pr_file_p);
 					if (!pr_file_p)
 						break;
@@ -2855,7 +2922,43 @@ int QCC_PR_CheckCompConst(void)
 					{
 						if (!STRCMP(qcc_token, c->params[p]))
 						{
-							QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   paramoffset[p], strlen(paramoffset[p]));
+							char *argstart, *argend;
+
+							for (start = pr_file_p; qcc_iswhite(*start); start++)
+								;
+							if (noargexpand || (start[0] == '#' && start[1] == '#'))
+								QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   paramoffset[p], strlen(paramoffset[p]));
+							else
+							{
+								for (argstart = paramoffset[p]; *argstart; argstart = argend)
+								{
+									argend = argstart;
+									while (qcc_iswhite(*argend))
+										argend++;
+									if (*argend == '\"')
+									{
+										do
+										{
+											argend++;
+										} while( (argend[-1] == '\\' || argend[0] != '\"') && *argend && *argend != '\n' );
+										if(*argend == '\"')
+											argend++;
+										end = NULL;
+									}
+									else
+									{
+										argend = QCC_COM_Parse2(argend);
+										if (!argend)
+											break;
+										end = QCC_PR_CheckBuiltinCompConst(qcc_token, retbuf, sizeof(retbuf));
+									}
+									//FIXME: we should be testing all defines instead of just built-in ones.
+									if (end)
+										QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   end, strlen(end));
+									else
+										QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   argstart, argend-argstart);
+								}
+							}
 							break;
 						}
 					}
@@ -2899,78 +3002,11 @@ int QCC_PR_CheckCompConst(void)
 		return true;
 	}
 
-	if (!strncmp(pr_file_p, "__TIME__", 8))
+	tok = QCC_PR_CheckBuiltinCompConst(pr_token, retbuf, sizeof(retbuf));
+	if (tok)
 	{
-		char retbuf[128];
-
-		time_t long_time;
-		time( &long_time );
-		strftime( retbuf, sizeof(retbuf),
-			 "\"%H:%M\"", localtime( &long_time ));
-
-		pr_file_p += 8;
-		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
-		return true;
-	}
-	if (!strncmp(pr_file_p, "__DATE__", 8))
-	{
-		char retbuf[128];
-
-		time_t long_time;
-		time( &long_time );
-		strftime( retbuf, sizeof(retbuf),
-			 "\"%a %d %b %Y\"", localtime( &long_time ));
-
-		pr_file_p += 8;
-		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
-
-		return true;
-	}
-	if (!strncmp(pr_file_p, "__RAND__", 8))
-	{
-		char retbuf[128];
-		QC_snprintfz(retbuf, sizeof(retbuf), "%i", rand());
-
-		pr_file_p += 8;
-		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
-		return true;
-	}
-	if (!strncmp(pr_file_p, "__QCCVER__", 8))
-	{
-		pr_file_p += 10;
-		QCC_PR_IncludeChunkEx("FTEQCC "__DATE__","__TIME__"", true, NULL, NULL);
-
-		return true;
-	}
-	if (!strncmp(pr_file_p, "__FILE__", 8))
-	{
-		char retbuf[256];
-		QC_snprintfz(retbuf, sizeof(retbuf), "\"%s\"", strings + s_file);
-
-		pr_file_p += 8;
-		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
-		return true;
-	}
-	if (!strncmp(pr_file_p, "__LINE__", 8))
-	{
-		char retbuf[256];
-		QC_snprintfz(retbuf, sizeof(retbuf), "\"%i\"", pr_source_line);
-		pr_file_p += 8;
-		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
-		return true;
-	}
-	if (!strncmp(pr_file_p, "__FUNC__", 8))
-	{
-		char retbuf[256];
-		QC_snprintfz(retbuf, sizeof(retbuf), "\"%s\"",pr_scope?pr_scope->name:"<NO FUNCTION>");
-		pr_file_p += 8;
-		QCC_PR_IncludeChunkEx(retbuf, true, NULL, NULL);
-		return true;
-	}
-	if (!strncmp(pr_file_p, "__NULL__", 8))
-	{
-		pr_file_p += 8;
-		QCC_PR_IncludeChunkEx("0i", false, NULL, NULL);
+		pr_file_p = end;
+		QCC_PR_IncludeChunkEx(tok, true, NULL, NULL);
 		return true;
 	}
 	return false;
@@ -3612,7 +3648,53 @@ a new one and copies it out.
 ============
 */
 
-//0 if same
+//requires EVERYTHING to be the same
+int typecmp_strict(QCC_type_t *a, QCC_type_t *b)
+{
+	int i;
+	if (a == b)
+		return 0;
+	if (!a || !b)
+		return 1;	//different (^ and not both null)
+
+	if (a->type != b->type)
+		return 1;
+	if (a->num_parms != b->num_parms)
+		return 1;
+	if (a->vargs != b->vargs)
+		return 1;
+	if (a->vargcount != b->vargcount)
+		return 1;
+
+	if (a->size != b->size)
+		return 1;
+
+	if (a->getarr != b->getarr ||
+		a->getptr != b->getptr ||
+		a->setarr != b->setarr || 
+		a->setptr != b->setptr ||
+		a->getlength != b->getlength)
+		return 1;
+
+	if (STRCMP(a->name, b->name))
+		return 1;
+
+	if (typecmp_strict(a->aux_type, b->aux_type))
+		return 1;
+
+	i = a->num_parms;
+	while(i-- > 0)
+	{
+		if (STRCMP(a->params[i].paramname, b->params[i].paramname))
+			return 1;
+		if (typecmp_strict(a->params[i].type, b->params[i].type))
+			return 1;
+	}
+
+	return 0;
+}
+
+//reports if they're functionally equivelent (allows assignments) 
 int typecmp(QCC_type_t *a, QCC_type_t *b)
 {
 	int i;
@@ -3659,6 +3741,7 @@ int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
 {
 	unsigned int minargs = 0;
 	unsigned int t;
+
 	if (a == b)
 		return 0;
 	if (!a || !b)
@@ -3666,6 +3749,12 @@ int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
 
 	if (a->type != b->type)
 	{
+		if (a->type == ev_accessor && a->parentclass)
+			if (!typecmp_lax(a->parentclass, b))
+				return 0;
+		if (b->type == ev_accessor && b->parentclass)
+			if (!typecmp_lax(a, b->parentclass))
+				return 0;
 		if (a->type != ev_variant && b->type != ev_variant)
 			return 1;
 	}
@@ -3845,9 +3934,8 @@ QCC_type_t *QCC_PR_FindType (QCC_type_t *type)
 	for (t = 0; t < numtypeinfos; t++)
 	{
 //		check = &qcc_typeinfo[t];
-		if (typecmp(&qcc_typeinfo[t], type))
+		if (typecmp_strict(&qcc_typeinfo[t], type))
 			continue;
-
 
 //		c2 = check->next;
 //		n2 = type->next;
@@ -4208,6 +4296,141 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	}
 
 	name = QCC_PR_CheckCompConstString(pr_token);
+
+	//accessors
+	if (QCC_PR_CheckKeyword (keyword_class, "accessor"))
+	{
+		char *accessorname;
+		char *funcname;
+
+		newt = NULL;
+
+		funcname = QCC_PR_ParseName();
+		accessorname = qccHunkAlloc(strlen(funcname)+1);
+		strcpy(accessorname, funcname);
+
+		/* Look to see if this type is already defined */
+		for(i=0;i<numtypeinfos;i++)
+		{
+			if (!qcc_typeinfo[i].typedefed)
+				continue;
+			if (STRCMP(qcc_typeinfo[i].name, accessorname) == 0 && qcc_typeinfo[i].type == ev_accessor)
+			{
+				newt = &qcc_typeinfo[i];
+				break;
+			}
+		}
+
+		if (QCC_PR_CheckToken(":"))
+		{
+			char *parentname = QCC_PR_ParseName();
+			type = QCC_TypeForName(parentname);
+
+			if (!type || type->type == ev_struct || type->type == ev_union)
+				QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s cannot be based upon %s", accessorname, parentname);
+		}
+
+		if (!newt)
+		{
+			newt = QCC_PR_NewType(accessorname, ev_accessor, true);
+			newt->size=type->size;
+		}
+		if (!newt->parentclass)
+			newt->parentclass = type;
+		else if (type != newt->parentclass)
+			QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s basic type mismatch", accessorname);
+
+		if (QCC_PR_CheckToken(":"))
+		{
+			char *parentname = QCC_PR_ParseName();
+			if (newt->aux_type)
+				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Accessor %s was already defined", accessorname);
+			newt->aux_type = QCC_TypeForName(parentname);
+			if (!newt->parentclass || newt->parentclass->type == ev_struct || newt->parentclass->type == ev_union || newt->size != newt->parentclass->size)
+				QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s cannot be based upon %s", accessorname, parentname);
+
+			if (QCC_PR_CheckToken("["))
+			{
+				newt->vargcount = true;
+				QCC_PR_Expect("]");
+			}
+
+			QCC_PR_Expect("{");
+
+			do
+			{
+				if (QCC_PR_CheckName("length"))
+				{
+					QCC_PR_Expect("=");
+					funcname = QCC_PR_ParseName();
+					newt->getlength = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
+					if (!newt->getlength)
+						QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
+					else if (newt->getlength->type->type != ev_function || newt->getlength->type->num_parms != 1)
+						QCC_PR_ParseError (ERR_UNKNOWNVALUE, "length function unsuitable \"%s\"", funcname);
+				}
+				else if (QCC_PR_CheckName("get"))
+				{
+					pbool stareq = QCC_PR_CheckToken("*=");
+					if (stareq || QCC_PR_CheckToken("*"))
+					{
+						if (!stareq) QCC_PR_Expect("=");
+						funcname = QCC_PR_ParseName();
+						newt->getptr = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
+						if (!newt->getptr)
+							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
+						else if (newt->getptr->type->type != ev_function || (newt->getptr->type->num_parms != 1 && !(newt->getptr->type->num_parms > 1 && newt->getptr->type->params[1].optional)))
+							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "get* function unsuitable \"%s\"", funcname);
+					}
+					else
+					{
+						if (QCC_PR_CheckToken("["))
+							QCC_PR_Expect("]");
+						QCC_PR_Expect("=");
+						funcname = QCC_PR_ParseName();
+						newt->getarr = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
+						if (!newt->getarr)
+							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
+						else if (newt->getarr->type->type != ev_function || (newt->getarr->type->num_parms != 2 && !(newt->getarr->type->num_parms > 2 && newt->getarr->type->params[2].optional)))
+							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "get[] function unsuitable \"%s\"", funcname);
+					}
+				}
+				else if (QCC_PR_CheckName("set"))
+				{
+					pbool stareq = QCC_PR_CheckToken("*=");
+					if (stareq || QCC_PR_CheckToken("*"))
+					{
+						if (!stareq) QCC_PR_Expect("=");
+						funcname = QCC_PR_ParseName();
+						newt->setptr = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
+						if (!newt->setptr)
+							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
+						else if (newt->setptr->type->type != ev_function || (newt->setptr->type->num_parms != 2 && !(newt->setptr->type->num_parms > 2 && newt->setptr->type->params[2].optional)))
+							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "set* function unsuitable \"%s\"", funcname);
+					}
+					else
+					{
+						if (QCC_PR_CheckToken("["))
+							QCC_PR_Expect("]");
+						QCC_PR_Expect("=");
+						funcname = QCC_PR_ParseName();
+						newt->setarr = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
+						if (!newt->setarr)
+							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
+						else if (newt->setarr->type->type != ev_function || (newt->setarr->type->num_parms != 3 && !(newt->setarr->type->num_parms > 3 && newt->setarr->type->params[3].optional)))
+							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "set[] function unsuitable \"%s\"", funcname);
+					}
+				}
+				else
+					break;
+			} while (QCC_PR_CheckToken(",") || QCC_PR_CheckToken(";"));
+			QCC_PR_Expect("}");
+		}
+
+		if (newtype)
+			newt = QCC_PR_DuplicateType(newt, false);
+		return newt;
+	}
 
 	if (QCC_PR_CheckKeyword (keyword_class, "class"))
 	{

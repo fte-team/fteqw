@@ -875,7 +875,7 @@ reeval:
 	case OP_SUB_S:	//(float)c = (char*)a - (char*)b
 		OPC->_int = OPA->_int - OPB->_int;
 		break;
-	case OP_LOADP_C:	//load character from a string
+	case OP_LOADP_C:	//load character from a string/pointer
 		i = (unsigned int)OPA->_int + (unsigned int)OPB->_float;
 		if ((unsigned int)i > prinst.addressableused-sizeof(char))
 		{
@@ -914,7 +914,7 @@ reeval:
 		break;
 
 	case OP_LOADP_V:
-		i = OPA->_int + OPB->_int*4;
+		i = OPA->_int + OPB->_int*4;	//NOTE: inconsistant!
 		if ((unsigned int)i > prinst.addressableused-sizeof(vec3_t))
 		{
 			if (i == -1)

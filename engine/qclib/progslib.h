@@ -49,7 +49,7 @@ typedef struct {
 	int spare[2];
 } evalc_t;
 #define sizeofevalc sizeof(evalc_t)
-typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_variant, ev_struct, ev_union} etype_t;
+typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_variant, ev_struct, ev_union, ev_accessor} etype_t;
 
 typedef struct fdef_s
 {

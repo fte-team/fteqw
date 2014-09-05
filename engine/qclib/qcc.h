@@ -308,7 +308,6 @@ typedef struct QCC_type_s
 	etype_t			type;
 
 	struct QCC_type_s	*parentclass;	//type_entity...
-//	struct QCC_type_s	*next;
 // function types are more complex
 	struct QCC_type_s	*aux_type;	// return type or field type
 	
@@ -321,6 +320,12 @@ typedef struct QCC_type_s
 	pbool vargcount:1;
 	char *name;
 	char *aname;
+
+	struct QCC_def_s	*getptr;
+	struct QCC_def_s	*getarr;
+	struct QCC_def_s	*setptr;
+	struct QCC_def_s	*setarr;
+	struct QCC_def_s	*getlength;
 } QCC_type_t;
 int typecmp(QCC_type_t *a, QCC_type_t *b);
 int typecmp_lax(QCC_type_t *a, QCC_type_t *b);
@@ -378,7 +383,8 @@ typedef struct
 		REF_POINTER,//*(pointerdef+wordindex)	- maths...
 		REF_FIELD,	//(entity.field)			- reading is a single load, writing requires address+storep
 		REF_STRING,	//"hello"[1]=='e'			- special opcodes, or str2chr builtin, or something
-		REF_NONVIRTUAL	//(global.ofs)			- identical to global except for function calls, where index can be used to provide the 'newself' for the call.
+		REF_NONVIRTUAL,	//(global.ofs)			- identical to global except for function calls, where index can be used to provide the 'newself' for the call.
+		REF_ACCESSOR //buf_create()[5]
 	} type;
 
 	QCC_def_t *base;
@@ -681,6 +687,7 @@ enum {
 	WARN_EVILPREPROCESSOR,		//exploited by nexuiz, and generally unsafe.
 	WARN_UNARYNOTSCOPE,			//!foo & bar  the ! applies to the result of &. This is unlike C.
 	WARN_STRICTTYPEMISMATCH,	//self.think = T_Damage; both are functions, but the arguments/return types/etc differ.
+	WARN_MISUSEDAUTOCVAR,		//various issues with autocvar definitions.
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 

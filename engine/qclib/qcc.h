@@ -302,6 +302,15 @@ struct QCC_typeparam_s
 	unsigned int arraysize;
 	char *paramname;
 };
+struct accessor_s
+{
+	struct accessor_s *next;
+	struct QCC_type_s *type;
+	struct QCC_type_s *indexertype;	//null if not indexer
+	struct QCC_def_s *get;
+	struct QCC_def_s *set;
+	char *fieldname;
+};
 
 typedef struct QCC_type_s
 {
@@ -321,11 +330,7 @@ typedef struct QCC_type_s
 	char *name;
 	char *aname;
 
-	struct QCC_def_s	*getptr;
-	struct QCC_def_s	*getarr;
-	struct QCC_def_s	*setptr;
-	struct QCC_def_s	*setarr;
-	struct QCC_def_s	*getlength;
+	struct accessor_s *accessors;
 } QCC_type_t;
 int typecmp(QCC_type_t *a, QCC_type_t *b);
 int typecmp_lax(QCC_type_t *a, QCC_type_t *b);
@@ -390,6 +395,7 @@ typedef struct
 	QCC_def_t *base;
 	QCC_def_t *index;
 	QCC_type_t *cast;	//entity.float is float, not pointer.
+	struct accessor_s *accessor;	//the accessor field of base that we're trying to use
 	int		postinc;	//+1 or -1
 	pbool	readonly;	//for whatever reason, like base being a const
 } QCC_ref_t;

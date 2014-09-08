@@ -43,6 +43,11 @@ CompilerConstant_t *CompilerConstant;
 int numCompilerConstants;
 extern pbool expandedemptymacro;
 
+//really these should not be in here
+extern unsigned int locals_end, locals_start;
+extern QCC_type_t *pr_classtype;
+QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type);
+
 
 static void Q_strlcpy(char *dest, const char *src, int sizeofdest)
 {
@@ -3669,11 +3674,7 @@ int typecmp_strict(QCC_type_t *a, QCC_type_t *b)
 	if (a->size != b->size)
 		return 1;
 
-	if (a->getarr != b->getarr ||
-		a->getptr != b->getptr ||
-		a->setarr != b->setarr || 
-		a->setptr != b->setptr ||
-		a->getlength != b->getlength)
+	if (a->accessors != b->accessors)
 		return 1;
 
 	if (STRCMP(a->name, b->name))
@@ -4228,6 +4229,28 @@ QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)
 	ptype->size = ptype->aux_type->size;
 	return QCC_PR_FindType (ptype);
 }
+QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, QCC_type_t **args, char **argnames, int numargs)
+{
+	int i;
+	struct QCC_typeparam_s *p;
+	QCC_type_t *ftype;
+	ftype = QCC_PR_NewType("$func", ev_function, false);
+	ftype->aux_type = rettype;
+	ftype->num_parms = numargs;
+	ftype->params = p = qccHunkAlloc(sizeof(*ftype->params)*numargs);
+	ftype->vargs = false;
+	ftype->vargcount = false;
+	for (i = 0; i < numargs; i++, p++)
+	{
+		p->paramname = qccHunkAlloc(strlen(argnames[i])+1);
+		strcpy(p->paramname, argnames[i]);
+		p->type = args[i];
+		p->optional = false;
+		p->ofs = 0;
+		p->arraysize = 0;
+	}
+	return QCC_PR_FindType (ftype);
+}
 
 extern char *basictypenames[];
 extern QCC_type_t **basictypes[];
@@ -4300,6 +4323,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	//accessors
 	if (QCC_PR_CheckKeyword (keyword_class, "accessor"))
 	{
+		char *parentname;
 		char *accessorname;
 		char *funcname;
 
@@ -4323,12 +4347,14 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 		if (QCC_PR_CheckToken(":"))
 		{
-			char *parentname = QCC_PR_ParseName();
+			parentname = QCC_PR_ParseName();
 			type = QCC_TypeForName(parentname);
 
 			if (!type || type->type == ev_struct || type->type == ev_union)
 				QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s cannot be based upon %s", accessorname, parentname);
 		}
+		else
+			type = NULL;
 
 		if (!newt)
 		{
@@ -4336,93 +4362,163 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			newt->size=type->size;
 		}
 		if (!newt->parentclass)
+		{
 			newt->parentclass = type;
+			if (!newt->parentclass || newt->parentclass->type == ev_struct || newt->parentclass->type == ev_union || newt->size != newt->parentclass->size)
+				QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s cannot be based upon %s", accessorname, parentname);
+		}
 		else if (type != newt->parentclass)
 			QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s basic type mismatch", accessorname);
 
-		if (QCC_PR_CheckToken(":"))
+		if (QCC_PR_CheckToken("{"))
 		{
-			char *parentname = QCC_PR_ParseName();
-			if (newt->aux_type)
-				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Accessor %s was already defined", accessorname);
-			newt->aux_type = QCC_TypeForName(parentname);
-			if (!newt->parentclass || newt->parentclass->type == ev_struct || newt->parentclass->type == ev_union || newt->size != newt->parentclass->size)
-				QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s cannot be based upon %s", accessorname, parentname);
+			struct accessor_s  *acc;
+			pbool setnotget;
+			char *fieldtypename;
+			QCC_type_t *fieldtype;
+			QCC_type_t *indextype;
+			QCC_def_t *def;
+			QCC_type_t *functype;
+			char *argname[3];
+			QCC_type_t *arg[3];
+			int args;
+			char *indexname;
 
-			if (QCC_PR_CheckToken("["))
-			{
-				newt->vargcount = true;
-				QCC_PR_Expect("]");
-			}
-
-			QCC_PR_Expect("{");
 
 			do
 			{
-				if (QCC_PR_CheckName("length"))
-				{
-					QCC_PR_Expect("=");
-					funcname = QCC_PR_ParseName();
-					newt->getlength = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
-					if (!newt->getlength)
-						QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
-					else if (newt->getlength->type->type != ev_function || newt->getlength->type->num_parms != 1)
-						QCC_PR_ParseError (ERR_UNKNOWNVALUE, "length function unsuitable \"%s\"", funcname);
-				}
+				if (QCC_PR_CheckName("set"))
+					setnotget = true;
 				else if (QCC_PR_CheckName("get"))
+					setnotget = false;
+				else
+					break;
+
+				fieldtypename = QCC_PR_ParseName();
+				fieldtype = QCC_TypeForName(fieldtypename);
+				if (!fieldtype)
+					QCC_PR_ParseError(ERR_NOTATYPE, "Invalid type: %s", fieldtypename);
+
+				if (pr_token_type != tt_punct)
 				{
-					pbool stareq = QCC_PR_CheckToken("*=");
-					if (stareq || QCC_PR_CheckToken("*"))
+					funcname = QCC_PR_ParseName();
+					accessorname = qccHunkAlloc(strlen(funcname)+1);
+					strcpy(accessorname, funcname);
+				}
+				else
+					accessorname = "";
+
+				indextype = NULL;
+				indexname = "index";
+				if (QCC_PR_CheckToken("["))
+				{
+					fieldtypename = QCC_PR_ParseName();
+					indextype = QCC_TypeForName(fieldtypename);
+
+					if (!QCC_PR_CheckToken("]"))
 					{
-						if (!stareq) QCC_PR_Expect("=");
-						funcname = QCC_PR_ParseName();
-						newt->getptr = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
-						if (!newt->getptr)
-							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
-						else if (newt->getptr->type->type != ev_function || (newt->getptr->type->num_parms != 1 && !(newt->getptr->type->num_parms > 1 && newt->getptr->type->params[1].optional)))
-							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "get* function unsuitable \"%s\"", funcname);
-					}
-					else
-					{
-						if (QCC_PR_CheckToken("["))
-							QCC_PR_Expect("]");
-						QCC_PR_Expect("=");
-						funcname = QCC_PR_ParseName();
-						newt->getarr = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
-						if (!newt->getarr)
-							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
-						else if (newt->getarr->type->type != ev_function || (newt->getarr->type->num_parms != 2 && !(newt->getarr->type->num_parms > 2 && newt->getarr->type->params[2].optional)))
-							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "get[] function unsuitable \"%s\"", funcname);
+						indexname = QCC_PR_ParseName();
+						QCC_PR_Expect("]");
 					}
 				}
-				else if (QCC_PR_CheckName("set"))
+
+				QCC_PR_Expect("=");
+
+				args = 0;
+				strcpy (pr_parm_names[args], "this");
+				argname[args] = "this";
+				arg[args++] = newt;
+				if (indextype)
 				{
-					pbool stareq = QCC_PR_CheckToken("*=");
-					if (stareq || QCC_PR_CheckToken("*"))
-					{
-						if (!stareq) QCC_PR_Expect("=");
-						funcname = QCC_PR_ParseName();
-						newt->setptr = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
-						if (!newt->setptr)
-							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
-						else if (newt->setptr->type->type != ev_function || (newt->setptr->type->num_parms != 2 && !(newt->setptr->type->num_parms > 2 && newt->setptr->type->params[2].optional)))
-							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "set* function unsuitable \"%s\"", funcname);
-					}
+					strcpy (pr_parm_names[args], indexname);
+					argname[args] = indexname;
+					arg[args++] = indextype;
+				}
+				if (setnotget)
+				{
+					strcpy (pr_parm_names[args], "value");
+					argname[args] = "value";
+					arg[args++] = fieldtype;
+				}
+				functype = QCC_PR_GenFunctionType(setnotget?type_void:fieldtype, arg, argname, args);
+
+				if (pr_token_type != tt_name)
+				{
+					QCC_function_t *f;
+					QCC_dfunction_t *df;
+					char funcname[256];
+					QC_snprintfz(funcname, sizeof(funcname), "%s::%s_%s", newt->name, setnotget?"set":"get", accessorname);
+
+					def = QCC_PR_GetDef(functype, funcname, NULL, true, 0, GDF_CONST);
+
+					pr_scope = def;
+					//pr_classtype = newt;
+					f = QCC_PR_ParseImmediateStatements (functype);
+					pr_classtype = NULL;
+					pr_scope = NULL;
+					G_FUNCTION(def->ofs) = numfunctions;
+					f->def = def;
+					def->initialized = 1;
+
+					if (numfunctions >= MAX_FUNCTIONS)
+						QCC_Error(ERR_INTERNAL, "Too many function defs");
+
+					// fill in the dfunction
+					df = &functions[numfunctions];
+					numfunctions++;
+					if (f->builtin)
+						df->first_statement = -f->builtin;
 					else
+						df->first_statement = f->code;
+
+					if (f->builtin && opt_function_names)
+						optres_function_names += strlen(f->def->name);
+					else
+						df->s_name = QCC_CopyString (f->def->name);
+					df->s_file = s_file;
+					df->numparms =  f->def->type->num_parms;
+					df->locals = locals_end - locals_start;
+					df->parm_start = locals_start;
+					for (i=0 ; i<df->numparms ; i++)
 					{
-						if (QCC_PR_CheckToken("["))
-							QCC_PR_Expect("]");
-						QCC_PR_Expect("=");
-						funcname = QCC_PR_ParseName();
-						newt->setarr = QCC_PR_GetDef(NULL, funcname, NULL, false, 0, 0);
-						if (!newt->setarr)
-							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", funcname);
-						else if (newt->setarr->type->type != ev_function || (newt->setarr->type->num_parms != 3 && !(newt->setarr->type->num_parms > 3 && newt->setarr->type->params[3].optional)))
-							QCC_PR_ParseError (ERR_UNKNOWNVALUE, "set[] function unsuitable \"%s\"", funcname);
+						df->parm_size[i] = functype->params[i].type->size;
 					}
 				}
 				else
-					break;
+				{
+					funcname = QCC_PR_ParseName();
+					def = QCC_PR_GetDef(functype, funcname, NULL, true, 0, 0);
+					if (!def)
+						QCC_Error(ERR_NOFUNC, "%s::set_%s: %s was not defined", newt->name, accessorname, funcname);
+				}
+				if (!def)
+					QCC_Error(ERR_NOFUNC, "%s::%s_%s function invalid", newt->name, setnotget?"set":"get", accessorname);
+				
+				for (acc = newt->accessors; acc; acc = acc->next)
+					if (!strcmp(acc->fieldname, accessorname))
+						break;
+				if (!acc)
+				{
+					acc = qccHunkAlloc(sizeof(*acc));
+					acc->fieldname = accessorname;
+					acc->next = newt->accessors;
+					acc->type = fieldtype;
+					acc->indexertype = indextype;
+					newt->accessors = acc;
+				}
+
+				if (setnotget)
+				{
+					if (acc->set)
+						QCC_Error(ERR_TOOMANYINITIALISERS, "%s::set_%s already declared", newt->name, accessorname);
+					acc->set = def;
+				}
+				else
+				{
+					if (acc->get)
+						QCC_Error(ERR_TOOMANYINITIALISERS, "%s::get_%s already declared", newt->name, accessorname);
+					acc->get = def;
+				}
 			} while (QCC_PR_CheckToken(",") || QCC_PR_CheckToken(";"));
 			QCC_PR_Expect("}");
 		}
@@ -4606,10 +4702,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						QCC_Error(ERR_INTERNAL, "Can only initialise member functions");
 					else
 					{
-						extern unsigned int locals_end, locals_start;
-						extern QCC_type_t *pr_classtype;
-						QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type);
-
 						if (autoprototype)
 						{
 							QCC_PR_Expect("{");

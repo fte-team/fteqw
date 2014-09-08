@@ -156,6 +156,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 QCC_ref_t *QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbool allowarrayassign, pbool expandmemberfields, pbool makearraypointers);
 QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *refbuf, QCC_ref_t *d, pbool allowarrayassign, pbool makestructpointers);
 QCC_ref_t *QCC_PR_BuildRef(QCC_ref_t *retbuf, unsigned int reftype, QCC_def_t *base, QCC_def_t *index, QCC_type_t *cast, pbool	readonly);
+QCC_ref_t *QCC_PR_BuildAccessorRef(QCC_ref_t *retbuf, QCC_def_t *base, QCC_def_t *index, struct accessor_s *accessor, pbool readonly);
 QCC_def_t *QCC_StoreToRef(QCC_ref_t *dest, QCC_def_t *source, pbool readable, pbool preservedest);
 void QCC_PR_DiscardRef(QCC_ref_t *ref);
 
@@ -3102,19 +3103,19 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 		case OP_ADD_FI:
 			numstatements--;
 			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
-			return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], var_a, var_c, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
 		case OP_BITAND_FI:
 			numstatements--;
 			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
-			return QCC_PR_StatementFlags(&pr_opcodes[OP_BITAND_F], var_a, var_c, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_BITAND_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
 		case OP_BITOR_FI:
 			numstatements--;
 			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
-			return QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_F], var_a, var_c, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
 		case OP_LT_FI:
 			numstatements--;
 			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
-			return QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], var_a, var_c, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
 		//statements where the lhs is a const int and can be swapped with a float
 		case OP_ADD_IF:
 			numstatements--;
@@ -5264,26 +5265,35 @@ static QCC_ref_t *QCC_PR_ParseField(QCC_ref_t *refbuf, QCC_ref_t *lhs)
 
 		lhs = QCC_PR_ParseField(refbuf, lhs);
 	}
-	else if (t->type == ev_accessor && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
+	else if (t->accessors && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
 	{
+		QCC_def_t *index = NULL;
 		char *fieldname = QCC_PR_ParseName();
-		if (!t->aux_type)
-			QCC_PR_ParseError(ERR_INTERNAL, "Accessor %s was not defined yet", t->name);
-		else if (!strcmp(fieldname, "length"))
-		{
-			QCC_def_t *obj = QCC_RefToDef(lhs, true);
-			obj = QCC_PR_GenerateFunctionCall(NULL, t->getlength, &obj, &t->parentclass, 1);
-			lhs = QCC_PR_BuildRef(refbuf, REF_GLOBAL, obj, NULL, obj->type, true);
-			lhs = QCC_PR_ParseField(refbuf, lhs);
-		}
-		else
-		{
-			//these are not defs, but weird crap.
-			QCC_def_t *index = QCC_MakeStringConst(fieldname);
-			pbool noset = !t->setarr && !t->setptr;
-			lhs = QCC_PR_BuildRef(refbuf, REF_ACCESSOR, QCC_RefToDef(lhs, true), index, t->aux_type, lhs->readonly || noset);
-			lhs = QCC_PR_ParseField(refbuf, lhs);
-		}
+		struct accessor_s *acc;
+
+		for (acc = t->accessors; acc; acc = acc->next)
+			if (!strcmp(acc->fieldname, fieldname))
+			{
+				if (acc->indexertype)
+				{
+					QCC_PR_Expect("[");
+					index = QCC_PR_Expression (TOP_PRIORITY, 0);
+					QCC_PR_Expect("]");
+				}
+				break;
+			}
+		if (!acc)
+			for (acc = t->accessors; acc; acc = acc->next)
+				if (!*acc->fieldname && acc->indexertype)
+				{
+					index = QCC_MakeStringConst(fieldname);
+					break;
+				}
+		if (!acc)
+			QCC_PR_ParseError(ERR_INTERNAL, "%s is not a member of %s", fieldname, t->name);
+
+		lhs = QCC_PR_BuildAccessorRef(refbuf, QCC_RefToDef(lhs, true), index, acc, lhs->readonly);
+		lhs = QCC_PR_ParseField(refbuf, lhs);
 	}
 	return lhs;
 }
@@ -5325,7 +5335,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 						(t->type == ev_string) ||	//strings are effectively pointers
 						(t->type == ev_vector) ||	//vectors are mini arrays
 						(t->type == ev_field && t->aux_type->type == ev_vector) ||	//as are field vectors
-						(t->type == ev_accessor);	//custom accessors
+						(!arraysize&&t->accessors);	//custom accessors
 		}
 
 		if (allowarray && QCC_PR_CheckToken("["))
@@ -5333,12 +5343,17 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 			tmp = QCC_PR_Expression (TOP_PRIORITY, 0);
 			QCC_PR_Expect("]");
 
-			if (!arraysize && t->type == ev_accessor)
+			if (!arraysize && t->accessors)
 			{
-				if (!t->aux_type)
-					QCC_PR_ParseError(ERR_INTERNAL, "Accessor %s was not defined yet", t->name);
-				r = QCC_PR_BuildRef(retbuf, REF_ACCESSOR, QCC_RefToDef(r, true), tmp, t->aux_type, r->readonly || (!t->setarr && !t->setptr));
-				return QCC_PR_ParseRefArrayPointer(retbuf, r, allowarrayassign, makearraypointers);
+				struct accessor_s *acc;
+				for (acc = t->accessors; acc; acc = acc->next)
+					if (!*acc->fieldname)
+						break;
+				if(acc)
+				{
+					r = QCC_PR_BuildAccessorRef(retbuf, QCC_RefToDef(r, true), tmp, acc, r->readonly);
+					return QCC_PR_ParseRefArrayPointer(retbuf, r, allowarrayassign, makearraypointers);
+				}
 			}
 
 			/*if its a pointer that got dereferenced, follow the type*/
@@ -5930,10 +5945,14 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 			e = QCC_PR_Expression (UNARY_PRIORITY, EXPR_DISALLOW_COMMA);
 			if (e->type->type == ev_pointer)
 				return QCC_PR_BuildRef(retbuf, REF_POINTER, e, NULL, e->type->aux_type, false);
-			else if (e->type->type == ev_accessor)
-				return QCC_PR_BuildRef(retbuf, REF_ACCESSOR, e, NULL, e->type->aux_type, !e->type->setptr);
-			else
-				QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCH, e, "Unable to dereference non-pointer type.");
+			else if (e->type->accessors)
+			{
+				struct accessor_s *acc;
+				for (acc = e->type->accessors; acc; acc = acc->next)
+					if (!strcmp(acc->fieldname, ""))
+						return QCC_PR_BuildAccessorRef(retbuf, e, NULL, acc, e->constant);
+			}
+			QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCH, e, "Unable to dereference non-pointer type.");
 		}
 		if (QCC_PR_CheckToken ("-"))
 		{
@@ -6095,6 +6114,17 @@ QCC_PR_RefExpression
 ==============
 */
 
+QCC_ref_t *QCC_PR_BuildAccessorRef(QCC_ref_t *retbuf, QCC_def_t *base, QCC_def_t *index, struct accessor_s *accessor, pbool readonly)
+{
+	retbuf->postinc = 0;
+	retbuf->type = REF_ACCESSOR;
+	retbuf->base = base;
+	retbuf->index = index;
+	retbuf->accessor = accessor;
+	retbuf->cast = accessor->type;
+	retbuf->readonly = readonly;
+	return retbuf;
+}
 QCC_ref_t *QCC_PR_BuildRef(QCC_ref_t *retbuf, unsigned int reftype, QCC_def_t *base, QCC_def_t *index, QCC_type_t *cast, pbool	readonly)
 {
 	retbuf->postinc = 0;
@@ -6624,18 +6654,17 @@ QCC_def_t *QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	case REF_STRING:
 		return QCC_PR_StatementFlags(&pr_opcodes[OP_LOADP_C], ref->base, ref->index, NULL, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
 	case REF_ACCESSOR:
-		if (!ref->index && ref->base->type->getptr)
+		if (ref->accessor && ref->accessor->get)
 		{
-			QCC_def_t *arg[] = {ref->base};
-			return QCC_PR_GenerateFunctionCall(NULL, ref->base->type->getptr, arg, NULL, 1);
-		}
-		else if (ref->base->type->getarr)
-		{
-			QCC_def_t *arg[] = {ref->base, ref->index?QCC_SupplyConversion(ref->index, ref->base->type->aux_type->type, true):QCC_MakeIntConst(0)};
-			return QCC_PR_GenerateFunctionCall(NULL, ref->base->type->getarr, arg, NULL, 2);
+			int args = 0;
+			QCC_def_t *arg[2] = {NULL, NULL};
+			arg[args++] = ref->base;
+			if (ref->accessor->indexertype)
+				arg[args++] = ref->index?QCC_SupplyConversion(ref->index, ref->accessor->indexertype->type, true):QCC_MakeIntConst(0);
+			return QCC_PR_GenerateFunctionCall(NULL, ref->accessor->get, arg, NULL, args);
 		}
 		else
-			QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, ref->base, "Accessor has no appropriate get function");
+			QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, ref->base, "Accessor %s has no get function", ref->accessor?ref->accessor->fieldname:"");
 		break;
 	}
 	if (ref->cast != ret->type)
@@ -6777,18 +6806,19 @@ QCC_def_t *QCC_StoreToRef(QCC_ref_t *dest, QCC_def_t *source, pbool readable, pb
 			}
 			break;
 		case REF_ACCESSOR:
-			if (!dest->index && dest->base->type->setptr)
+			if (dest->accessor && dest->accessor->set)
 			{
-				QCC_def_t *arg[] = {dest->base, source};
-				QCC_FreeTemp(QCC_PR_GenerateFunctionCall(NULL, dest->base->type->setptr, arg, NULL/*argt*/, 2));
-			}
-			else if (dest->index && dest->base->type->setarr)
-			{
-				QCC_def_t *arg[] = {dest->base, dest->index?QCC_SupplyConversion(dest->index, dest->base->type->setarr->type->params[1].type->type, true):QCC_MakeIntConst(0), source};
-				QCC_FreeTemp(QCC_PR_GenerateFunctionCall(NULL, dest->base->type->setarr, arg, NULL/*argt*/, 2));
+				int args = 0;
+				QCC_def_t *arg[3] = {NULL, NULL, NULL};
+				arg[args++] = dest->base;
+				if (dest->accessor->indexertype)
+					arg[args++] = dest->index?QCC_SupplyConversion(dest->index, dest->accessor->indexertype->type, true):QCC_MakeIntConst(0);
+				arg[args++] = source;
+
+				QCC_FreeTemp(QCC_PR_GenerateFunctionCall(NULL, dest->accessor->set, arg, NULL/*argt*/, args));
 			}
 			else
-				QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, dest->base, "Accessor has no suitable set function");
+				QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, dest->base, "Accessor has no set function");
 			break;
 		case REF_FIELD:
 //			{

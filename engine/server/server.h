@@ -1022,6 +1022,7 @@ void SSV_InstructMaster(sizebuf_t *cmd);
 void SSV_PrintToMaster(char *s);
 void SSV_ReadFromControlServer(void);
 void SSV_SavePlayerStats(client_t *cl, int reason);	//initial, periodic (in case of node crashes), part
+void SSV_RequestShutdown(void); //asks the cluster to not send us new players
 
 void Sys_InstructSlave(pubsubserver_t *s, sizebuf_t *cmd);
 int Sys_SubServerRead(pubsubserver_t *s);	//1: yes. 0: no. -1: error

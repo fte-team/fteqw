@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#if defined(CL_MASTER) && !defined(NOBUITINMENUS)
+#if defined(CL_MASTER) && !defined(NOBUILTINMENUS)
 #include "cl_master.h"
 
 //filtering

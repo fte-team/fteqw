@@ -569,6 +569,9 @@ void SV_Map_f (void)
 #ifndef SERVERONLY
 				SCR_SetLoadingStage(LS_NONE);
 #endif
+
+				if (SSV_IsSubServer())
+					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
 				return;
 			}
 		}

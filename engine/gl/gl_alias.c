@@ -69,6 +69,17 @@ struct cctx_s
 	int width;
 	int height;
 };
+void Mod_FlushSkin(skinid_t id)
+{
+	skinfile_t *sk;
+	id--;
+	if (id >= numregisteredskins)
+		return;	//invalid!
+	sk = registeredskins[id];
+	if (!sk)
+		return;
+	sk->qwskin = NULL;
+}
 void Mod_WipeSkin(skinid_t id)
 {
 	skinfile_t *sk;
@@ -89,14 +100,22 @@ void Mod_WipeSkin(skinid_t id)
 	Z_Free(registeredskins[id]);
 	registeredskins[id] = NULL;
 }
-static void Mod_WipeAllSkins(void)
+static void Mod_WipeAllSkins(qboolean final)
 {
 	skinid_t id;
-	for (id = 0; id < numregisteredskins; )
-		Mod_WipeSkin(++id);
-	Z_Free(registeredskins);
-	registeredskins = NULL;
-	numregisteredskins = 0;
+	if (final)
+	{
+		for (id = 0; id < numregisteredskins; )
+			Mod_WipeSkin(++id);
+		Z_Free(registeredskins);
+		registeredskins = NULL;
+		numregisteredskins = 0;
+	}
+	else
+	{
+		for (id = 0; id < numregisteredskins; )
+			Mod_FlushSkin(++id);
+	}
 }
 skinfile_t *Mod_LookupSkin(skinid_t id)
 {
@@ -295,6 +314,11 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 		{
 			//ignore it. matches q3.
 		}
+		else if (!strcmp(com_token, "qwskin"))
+		{
+			skintext = COM_ParseToken(skintext, NULL);
+			Q_strncpyz(skin->qwskinname, com_token, sizeof(skin->qwskinname));
+		}
 		else
 		{
 			while(*skintext == ' ' || *skintext == '\t')
@@ -467,7 +491,10 @@ void GL_GAliasFlushOneSkin(char *skinname)
 		}
 	}
 }*/
-void GL_GAliasFlushSkinCache(void)
+
+//final is set when the renderer is going down.
+//if not set, this is mid-map, and everything should be regeneratable.
+void R_GAliasFlushSkinCache(qboolean final)
 {
 	int i;
 	bucket_t *b;
@@ -494,14 +521,14 @@ void GL_GAliasFlushSkinCache(void)
 	numFacing = 0;
 #endif
 
-	Mod_WipeAllSkins();
+	Mod_WipeAllSkins(final);
 }
 
 static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, entity_t *e, texnums_t **forcedtex)
 {
 	galiasskin_t *skins;
 	shader_t *shader;
-	skin_t *plskin;
+	qwskin_t *plskin = NULL;
 	int frame;
 	unsigned int subframe;
 	extern int cl_playerindex;	//so I don't have to strcmp
@@ -528,6 +555,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					return sk->mappings[i].shader;
 				}
 			}
+			if (!sk->qwskin && *sk->qwskinname)
+				sk->qwskin = Skin_Lookup(sk->qwskinname);
+			plskin = sk->qwskin;
 		}
 	}
 
@@ -552,14 +582,23 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 	if (!gl_nocolors.ival || forced)
 	{
-		if (e->playerindex >= 0 && e->playerindex <= MAX_CLIENTS)
+		if (!plskin || plskin->failedload)
 		{
-			if (!cl.players[e->playerindex].skin)
-				Skin_Find(&cl.players[e->playerindex]);
-			plskin = cl.players[e->playerindex].skin;
+			if (e->playerindex >= 0 && e->playerindex <= MAX_CLIENTS)
+			{
+				//heads don't get skinned, only players (and weaponless players), they do still get recoloured.
+				if (model==cl.model_precache[cl_playerindex] || model==cl.model_precache_vwep[0])
+				{
+					if (!cl.players[e->playerindex].qwskin)
+						Skin_Find(&cl.players[e->playerindex]);
+					plskin = cl.players[e->playerindex].qwskin;
+				}
+				else
+					plskin = NULL;
+			}
+			else
+				plskin = NULL;
 		}
-		else
-			plskin = NULL;
 		tc = e->topcolour;
 		bc = e->bottomcolour;
 		pc = e->h2playerclass;
@@ -667,27 +706,13 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 				if (plskin)
 				{
-					if (cls.protocol == CP_QUAKE2)
+					original = Skin_Cache8(plskin);
+					if (original)
 					{
-						original = Skin_Cache32(plskin);
-						if (original)
-						{
-							inwidth = plskin->width;
-							inheight = plskin->height;
-							cm->texnum.base = R_LoadTexture32(plskin->name, inwidth, inheight, (unsigned int*)original, IF_NOALPHA|IF_NOGAMMA);
-							return shader;
-						}
-					}
-					else
-					{
-						original = Skin_Cache8(plskin);
-						if (original)
-						{
-							inwidth = plskin->width;
-							inheight = plskin->height;
-							cm->texnum.base = R_LoadTexture8(plskin->name, inwidth, inheight, original, IF_NOALPHA|IF_NOGAMMA, 1);
-							return shader;
-						}
+						inwidth = plskin->width;
+						inheight = plskin->height;
+						cm->texnum.base = R_LoadTexture8(plskin->name, inwidth, inheight, original, IF_NOALPHA|IF_NOGAMMA, 1);
+						return shader;
 					}
 
 					if (TEXVALID(plskin->textures.base))
@@ -707,7 +732,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			}
 
 			cm->texnum.bump = shader->defaulttextures.bump;	//can't colour bumpmapping
-			if (cls.protocol != CP_QUAKE2 && ((model==cl.model_precache[cl_playerindex] || model==cl.model_precache_vwep[0]) && plskin))
+			if (plskin)
 			{
 				/*q1 only reskins the player model, not gibbed heads (which have the same colourmap)*/
 				original = Skin_Cache8(plskin);

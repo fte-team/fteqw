@@ -30,8 +30,8 @@ extern cvar_t	cl_enemyskin;
 extern cvar_t	r_fb_models;
 
 char		allskins[128];
-#define	MAX_CACHED_SKINS		128
-skin_t		skins[MAX_CACHED_SKINS];
+#define	MAX_CACHED_SKINS		256	//max_clients is 255. hopefully this will not be reached, but hey.
+qwskin_t		skins[MAX_CACHED_SKINS];
 int			numskins;
 
 //returns the name
@@ -108,6 +108,37 @@ char *Skin_FindName (player_info_t *sc)
 	return name;
 }
 
+qwskin_t *Skin_Lookup (char *fullname)
+{
+	int i;
+	qwskin_t *skin;
+	char cleanname[sizeof(skin->name)];
+	COM_StripExtension (fullname, cleanname, sizeof(cleanname));
+
+	for (i=0 ; i<numskins ; i++)
+	{
+		if (!strcmp (cleanname, skins[i].name))
+		{
+			skin = &skins[i];
+			Skin_Cache8 (skin);
+			return skin;
+		}
+	}
+
+	//FIXME: this is stupid.
+	if (numskins == MAX_CACHED_SKINS)
+	{	// ran out of spots, so flush everything
+		Skin_Skins_f ();
+	}
+
+	skin = &skins[numskins];
+	numskins++;
+
+	memset (skin, 0, sizeof(*skin));
+	Q_strncpyz(skin->name, cleanname, sizeof(skin->name));
+	Skin_Cache8 (skin);
+	return skin;
+}
 /*
 ================
 Skin_Find
@@ -119,52 +150,35 @@ Skin_Find
 */
 void Skin_Find (player_info_t *sc)
 {
-	skin_t		*skin;
+	qwskin_t		*skin;
 	int			i;
 	char		name[128], *s;
-	model_t		*model;
 
 	if (allskins[0])
 		s = allskins;
 	else
 		s = Info_ValueForKey (sc->userinfo, "skin");
 
+	sc->model = NULL;
+	sc->skinid = 0;
+	sc->qwskin = NULL;
+
 	if (!*s)
 		s = baseskin.string;
 	if (!*s)
-		s = "default";
+		return;
+//		s = "default";
 
 	s = Skin_FindName(sc);
 	COM_StripExtension (s, name, sizeof(name));
 
-	s = strchr(name, '/');
-	if (s)
-	{
-		*s = '\0';
-#ifdef Q2CLIENT
-		if (cls.protocol == CP_QUAKE2)
-			model = Mod_ForName(va("players/%s/tris.md2", name), MLV_SILENT);
-		else
-#endif
-			model = NULL;//Mod_ForName(va("models/players/%s.mdl", name), false);
-		if (model && model->type == mod_dummy)
-			model = NULL;
-		*s = '/';
-	}
-	else
-		model = NULL;
-
-	sc->model = model;
 
 	for (i=0 ; i<numskins ; i++)
 	{
 		if (!strcmp (name, skins[i].name))
 		{
-			sc->skin = &skins[i];
-			if (cls.protocol == CP_QUAKE2)
-				Skin_Cache32 (sc->skin);
-			else
-				Skin_Cache8 (sc->skin);
+			sc->qwskin = &skins[i];
+			Skin_Cache8 (sc->qwskin);
 			return;
 		}
 	}
@@ -176,7 +190,7 @@ void Skin_Find (player_info_t *sc)
 	}
 
 	skin = &skins[numskins];
-	sc->skin = skin;
+	sc->qwskin = skin;
 	numskins++;
 
 	memset (skin, 0, sizeof(*skin));
@@ -191,7 +205,7 @@ Skin_Cache
 Returns a pointer to the skin bitmap, or NULL to use the default
 ==========
 */
-qbyte	*Skin_Cache8 (skin_t *skin)
+qbyte	*Skin_Cache8 (qwskin_t *skin)
 {
 	char	name[1024];
 	qbyte	*raw;
@@ -251,12 +265,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 		return out;
 	}
 
-#ifdef Q2CLIENT
-	if (cls.protocol == CP_QUAKE2)
-		skinpath = "players";
-	else
-#endif
-		skinpath = "skins";
+	skinpath = "skins";
 
 	//favour 24bit+recoloured skins if gl_load24bit is enabled.
 	Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
@@ -431,106 +440,6 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	return out;
 }
 
-qbyte	*Skin_Cache32 (skin_t *skin)
-{
-	char	name[1024];
-	qbyte	*raw;
-	qbyte	*out, *pix;
-	char *path;
-	qboolean hasalpha;
-
-	if (noskins.value==1) // JACK: So NOSKINS > 1 will show skins, but
-		return NULL;	  // not download new ones.
-
-	if (skin->failedload)
-		return NULL;
-
-	out = skin->skindata;
-	if (out)
-		return out;
-
-	if (cls.protocol == CP_QUAKE2)
-		path = "players/";
-	else
-		path = "skins/";
-
-//
-// load the pic from disk
-//
-	Q_snprintfz (name, sizeof(name), "%s%s.tga", path, skin->name);
-	raw = COM_LoadTempFile (name);
-	if (raw)
-	{
-		pix = ReadTargaFile(raw, com_filesize, &skin->width, &skin->height, &hasalpha, false);
-		if (pix)
-		{
-			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
-			memcpy(out, pix, skin->width*skin->height*4);
-			BZ_Free(pix);
-			return out;
-		}
-	}
-	Q_snprintfz (name, sizeof(name), "%s%s.pcx", path, skin->name);
-	raw = COM_LoadTempFile (name);
-	if (raw)
-	{
-		pix = ReadPCXFile(raw, com_filesize, &skin->width, &skin->height);
-		if (pix)
-		{
-			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
-			memcpy(out, pix, skin->width*skin->height*4);
-			BZ_Free(pix);
-			return out;
-		}
-	}
-#ifdef AVAIL_PNGLIB
-	Q_snprintfz (name, sizeof(name), "%s%s.png", path, skin->name);
-	raw = COM_LoadTempFile (name);
-	if (raw)
-	{
-		pix = ReadPNGFile(raw, com_filesize, &skin->width, &skin->height, name);
-		if (pix)
-		{
-			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
-			memcpy(out, pix, skin->width*skin->height*4);
-			BZ_Free(pix);
-			return out;
-		}
-	}
-#endif
-#ifdef AVAIL_JPEGLIB
-	Q_snprintfz (name, sizeof(name), "%s%s.jpeg", path, skin->name);
-	raw = COM_LoadTempFile (name);
-	if (raw)
-	{
-		pix = ReadJPEGFile(raw, com_filesize, &skin->width, &skin->height);
-		if (pix)
-		{
-			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
-			memcpy(out, pix, skin->width*skin->height*4);
-			BZ_Free(pix);
-			return out;
-		}
-	}
-	Q_snprintfz (name, sizeof(name), "%s%s.jpg", path, skin->name);	//jpegs are gready with 2 extensions...
-	raw = COM_LoadTempFile (name);
-	if (raw)
-	{
-		pix = ReadJPEGFile(raw, com_filesize, &skin->width, &skin->height);
-		if (pix)
-		{
-			skin->skindata = out = BZ_Malloc(skin->width*skin->height*4);
-			memcpy(out, pix, skin->width*skin->height*4);
-			BZ_Free(pix);
-			return out;
-		}
-	}
-#endif
-
-	skin->failedload = true;
-	return NULL;
-}
-
 /*
 =================
 Skin_NextDownload
@@ -542,62 +451,61 @@ void Skin_NextDownload (void)
 	int			i;
 
 	//Con_Printf ("Checking skins...\n");
-
+	if (cls.protocol == CP_QUAKE2)
+	{
+		int j;
+		char *slash;
+		char *skinname;
+		for (i = 0; i != MAX_CLIENTS; i++)
+		{
+			sc = &cl.players[i];
+			if (!sc->name[0])
+				continue;
+			skinname = Info_ValueForKey(sc->userinfo, "skin");
+			slash = strchr(skinname, '/');
+			if (slash)
+			{
+				*slash = 0;
+				CL_CheckOrEnqueDownloadFile(va("players/%s/tris.md2", skinname), NULL, 0);
+				for (j = 0; j < MAX_MODELS; j++)
+				{
+					if (cl.model_name[j][0] == '#')
+						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", skinname, cl.model_name[j]+1), NULL, 0);
+				}
+				for (j = 0; j < MAX_SOUNDS; j++)
+				{
+					if (cl.sound_name[j][0] == '*')
+						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", skinname, cl.sound_name[j]+1), NULL, 0);
+				}
+				*slash = '/';
+				CL_CheckOrEnqueDownloadFile(va("players/%s.pcx", skinname), NULL, 0);
+			}
+		}
+		return;
+	}
 	for (i = 0; i != MAX_CLIENTS; i++)
 	{
 		sc = &cl.players[i];
 		if (!sc->name[0])
 			continue;
 		Skin_Find (sc);
-		if (noskins.ival)
+		if (noskins.ival || !sc->qwskin)
 			continue;
-
-		if (strchr(sc->skin->name, ' '))	//skip over skins using a space
+		if (strchr(sc->qwskin->name, ' '))	//skip over skins using a space
 			continue;
-
-		if (!*sc->skin->name)
+		if (!*sc->qwskin->name)
 			continue;
-
-		if (cls.protocol == CP_QUAKE2)
-		{
-			int j;
-			char *slash;
-			slash = strchr(sc->skin->name, '/');
-			if (slash)
-			{
-				*slash = 0;
-				CL_CheckOrEnqueDownloadFile(va("players/%s/tris.md2", sc->skin->name), NULL, 0);
-				for (j = 0; j < MAX_MODELS; j++)
-				{
-					if (cl.model_name[j][0] == '#')
-						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", sc->skin->name, cl.model_name[j]+1), NULL, 0);
-				}
-				for (j = 0; j < MAX_SOUNDS; j++)
-				{
-					if (cl.sound_name[j][0] == '*')
-						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", sc->skin->name, cl.sound_name[j]+1), NULL, 0);
-				}
-				*slash = '/';
-				CL_CheckOrEnqueDownloadFile(va("players/%s.pcx", sc->skin->name), NULL, 0);
-			}
-		}
-		else
-			CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL, 0);
+		CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->qwskin->name), NULL, 0);
 	}
 
 	// now load them in for real
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
 		sc = &cl.players[i];
-		if (!sc->name[0])
+		if (!sc->name[0] || !sc->qwskin)
 			continue;
-		if (cls.protocol == CP_QUAKE2)
-			Skin_Cache32(sc->skin);
-		else
-			Skin_Cache8 (sc->skin);
-#ifdef GLQUAKE
-		sc->skin = NULL;
-#endif
+		Skin_Cache8 (sc->qwskin);
+		//sc->qwskin = NULL;
 	}
 }
 
@@ -607,7 +515,7 @@ void Skin_FlushPlayers(void)
 {	//wipe the skin info
 	int i;
 	for (i = 0; i < cl.allocated_client_slots; i++)
-		cl.players[i].skin = NULL;
+		cl.players[i].qwskin = NULL;
 
 	for (i = 0; i < cl.allocated_client_slots; i++)
 		CL_NewTranslation(i);
@@ -643,7 +551,7 @@ void	Skin_Skins_f (void)
 		return;
 	}
 
-	GL_GAliasFlushSkinCache();
+	R_GAliasFlushSkinCache(false);
 	for (i=0 ; i<numskins ; i++)
 	{
 		if (skins[i].skindata)

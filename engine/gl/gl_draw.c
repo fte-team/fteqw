@@ -543,7 +543,7 @@ void GLDraw_DeInit (void)
 
 	R2D_Shutdown();
 
-	GL_GAliasFlushSkinCache();
+	R_GAliasFlushSkinCache(true);
 
 	draw_disc = NULL;
 	GL_ShutdownPostProcessing();

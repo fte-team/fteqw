@@ -76,7 +76,7 @@ void Draw_TextBox (int x, int y, int width, int lines)
 		R2D_ScalePic (cx, cy+8, 8, 8, p);
 }
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 
 int omousex;
 int omousey;

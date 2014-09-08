@@ -29,6 +29,33 @@ mergeInto(LibraryManager.library,
 		alert(msg);
 	},
 
+	emscriptenfte_handle_alloc__deps : ['$FTEH'],
+	emscriptenfte_handle_alloc : function(h)
+	{
+		for (var i = 0; FTEH.h.length; i+=1)
+		{
+			if (FTEH.h[i] == null)
+			{
+				FTEH.h[i] = h;
+				return i;
+			}
+		}
+		i = FTEH.h.length;
+		FTEH.h[i] = h;
+		return i;
+	},
+
+	//temp files
+	emscriptenfte_buf_createfromarraybuf__deps : ['emscriptenfte_handle_alloc'],
+	emscriptenfte_buf_createfromarraybuf : function(buf)
+	{
+		var len = buf.length;
+		var b = {h:-1, r:1, l:len,m:len,d:new Uint8Array(buf), n:null};
+		b.h = _emscriptenfte_handle_alloc(b);
+		return b.h;
+	},
+
+	$FTEC__deps : ['emscriptenfte_buf_createfromarraybuf'],
 	$FTEC:
 	{
 		ctxwarned:0,
@@ -40,6 +67,20 @@ mergeInto(LibraryManager.library,
 			resize:0,
 			mouse:0,
 			key:0
+		},
+
+		loadurl : function(url, arraybuf)
+		{
+			if (FTEC.evcb.loadfile != 0)
+			{
+				var handle = -1;
+				if (arraybuf !== undefined)
+					handle = _emscriptenfte_buf_createfromarraybuf(arraybuf);	
+				var ptr = _malloc(url.length);
+				writeStringToMemory(url, ptr);
+				Runtime.dynCall('vii', FTEC.evcb.loadfile, [ptr, handle]);
+				_free(ptr);
+			}
 		},
 
 		handleevent : function(event)
@@ -138,28 +179,49 @@ mergeInto(LibraryManager.library,
 					}
 					event.preventDefault();
 					break;
+				case 'dragenter':
+				case 'dragover':
+					event.stopPropagation();
+					event.preventDefault();
+					break;
+				case 'drop':
+					event.stopPropagation();
+					event.preventDefault();
+					var files = event.dataTransfer.files;
+					for (var i = 0; i < files.length; i++)
+					{
+						var file = files[i];
+						var reader = new FileReader();
+						reader.onload = function(evt)
+						{
+							FTEC.loadurl(file.name, evt.target.result);
+						};
+						reader.readAsArrayBuffer(file);
+					}
+					break;
 				default:
 					console.log(event);
 					break;
 			}
 		}
 	},
-	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser'],
-	emscriptenfte_setupcanvas : function(nw,nh,evresz,evm,evb,evk,evh)
+	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
+	emscriptenfte_setupcanvas : function(nw,nh,evresz,evm,evb,evk,evf)
 	{
 		FTEC.evcb.resize = evresz;
 		FTEC.evcb.mouse = evm;
 		FTEC.evcb.button = evb;
 		FTEC.evcb.key = evk;
-		FTEC.evcb.hashchange = evh;
+		FTEC.evcb.loadfile = evf;
 		if (!FTEC.donecb)
 		{
 			FTEC.donecb = 1;
-			['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup', 'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove'].forEach(function(event)
+			var events = ['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup', 'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove', 'dragenter', 'dragover', 'drop'];
+			events.forEach(function(event)
 			{
 				Module['canvas'].addEventListener(event, FTEC.handleevent, true);
 			});
-			['keydown', 'keyup', 'keypress'].forEach(function(event)
+			events.forEach(function(event)
 			{
 				document.addEventListener(event, FTEC.handleevent, true);
 			});
@@ -172,7 +234,7 @@ mergeInto(LibraryManager.library,
 		}
 		if (Module.print === undefined)
 			Module.print = function(msg){console.log(msg);};
-			var ctx = Browser.createContext(Module['canvas'], true, true);
+		var ctx = Browser.createContext(Module['canvas'], true, true);
 		if (ctx == null)
 		{
 			var msg = "Unable to set up webgl context.\n\nPlease use a browser that supports it and has it enabled\nYour graphics drivers may also be blacklisted, so try updating those too. woo, might as well update your entire operating system while you're at it.\nIt'll be expensive, but hey, its YOUR money, not mine.\nYou can probably just disable the blacklist, but please don't moan at me when your computer blows up, seriously, make sure those drivers are not too buggy.\nI knew a guy once. True story. Boring, but true.\nYou're probably missing out on something right now. Don't you just hate it when that happens?\nMeh, its probably just tinkertoys, right?\n\nYou know, you could always try Internet Explorer, you never know, hell might have frozen over.\nDon't worry, I wasn't serious.\n\nTum te tum. Did you get it working yet?\nDude, fix it already.\n\nThis message was brought to you by Sleep Deprivation, sponsoring quake since I don't know when";
@@ -202,17 +264,12 @@ mergeInto(LibraryManager.library,
 		window.onresize();
 
 		if (FTEC.evcb.hashchange)
-		window.onhashchange = function()
 		{
-			if (FTEC.evcb.hashchange != 0)
+			window.onhashchange = function()
 			{
-				var val = location.hash;
-				var ptr = _malloc(val.length);
-				writeStringToMemory(val, ptr);
-				Runtime.dynCall('vi', FTEC.evcb.hashchange, [ptr]);
-				_free(ptr);
-			}
-		};
+				FTEC.loadurl(location.hash.substring(1));
+			};
+		}
 
 		return 1;
 	},
@@ -228,23 +285,6 @@ mergeInto(LibraryManager.library,
 		return Date.now();
 	},
 
-	emscriptenfte_handle_alloc__deps : ['$FTEH'],
-	emscriptenfte_handle_alloc : function(h)
-	{
-		for (var i = 0; FTEH.h.length; i+=1)
-		{
-			if (FTEH.h[i] == null)
-			{
-				FTEH.h[i] = h;
-				return i;
-			}
-		}
-		i = FTEH.h.length;
-		FTEH.h[i] = h;
-		return i;
-	},
-
-	//temp files
 	emscriptenfte_buf_create__deps : ['emscriptenfte_handle_alloc'],
 	emscriptenfte_buf_create : function()
 	{
@@ -481,7 +521,7 @@ mergeInto(LibraryManager.library,
 
 		http.onload = function(e)
 		{
-//		console.log("onload: " + _url + " status " + http.status);
+console.log("onload: " + _url + " status " + http.status);
 			if (http.status == 200)
 			{
 				var bar = new Uint8Array(http.response);
@@ -499,7 +539,7 @@ mergeInto(LibraryManager.library,
 
 		http.onerror = function(e)
 		{
-//		console.log("onerror: " + _url + " status " + http.status);
+console.log("onerror: " + _url + " status " + http.status);
 			if (onerror)
 				Runtime.dynCall('vii', onerror, [ctx, http.status]);
 		};

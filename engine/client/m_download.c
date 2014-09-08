@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#if defined(WEBCLIENT) && !defined(NOBUITINMENUS)
+#if defined(WEBCLIENT) && !defined(NOBUILTINMENUS)
 #define DOWNLOADMENU
 #endif
 

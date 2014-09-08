@@ -743,7 +743,7 @@ void M_Media_Key (int key)
 	int dir;
 	if (key == K_ESCAPE)
 	{
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 		M_Menu_Main_f();
 #else
 		m_state = m_none;

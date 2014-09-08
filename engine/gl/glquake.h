@@ -134,9 +134,6 @@ void GL_InitFogTexture(void);
 #define GL_BeginRendering()
 #define GL_EndRendering()
 
-void GL_FlushSkinCache(void);
-void GL_GAliasFlushSkinCache(void);
-
 // Function prototypes for the Texture Object Extension routines
 typedef GLboolean (APIENTRY *ARETEXRESFUNCPTR)(GLsizei, const GLuint *,
                     const GLboolean *);

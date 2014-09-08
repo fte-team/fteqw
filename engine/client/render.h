@@ -148,6 +148,8 @@ typedef struct
 	int nummappings;
 	int maxmappings;
 	qbyte geomset[MAX_GEOMSETS];	//allows selecting a single set of geometry from alternatives. this might be a can of worms.
+	char qwskinname[MAX_QPATH];
+	struct qwskin_s *qwskin;
 	struct
 	{
 		char surface[MAX_QPATH];
@@ -266,7 +268,7 @@ extern	entity_t	r_worldentity;
 void BE_GenModelBatches(struct batch_s **batches, const struct dlight_s *dl, unsigned int bemode);	//if dl, filters based upon the dlight.
 
 //gl_alias.c
-void GL_GAliasFlushSkinCache(void);
+void R_GAliasFlushSkinCache(qboolean final);
 void R_GAlias_DrawBatch(struct batch_s *batch);
 void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
 void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);

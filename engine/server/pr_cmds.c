@@ -1017,6 +1017,7 @@ void PR_Decompile_f(void)
 }
 void PR_Compile_f(void)
 {
+	qboolean killondone = false;
 	int argc=3;
 	double time = Sys_DoubleTime();
 	char *argv[64] = {"", "-src", pr_sourcedir.string, "-srcfile", "progs.src"};
@@ -1054,9 +1055,15 @@ void PR_Compile_f(void)
 	}
 
 	if (!svprogfuncs)
+	{
 		Q_SetProgsParms(true);
+		killondone = true;
+	}
 	if (PR_StartCompile(svprogfuncs, argc, argv))
 		while(PR_ContinueCompile(svprogfuncs));
+
+	if (killondone)
+		PR_Deinit();
 
 	time = Sys_DoubleTime() - time;
 
@@ -8904,7 +8911,7 @@ static void QCBUILTIN PF_clusterevent(pubprogfuncs_t *prinst, struct globalvars_
 	const char *dest = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *src = PR_GetStringOfs(prinst, OFS_PARM1);
 	const char *cmd = PR_GetStringOfs(prinst, OFS_PARM2);
-	const char *info = PF_VarString(prinst, 13, pr_globals);
+	const char *info = PF_VarString(prinst, 3, pr_globals);
 	SSV_Send(dest, src, cmd, info);
 #endif
 }
@@ -8973,10 +8980,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bound",			PF_Fixme,			0,		0,		0,		45,	"float(float min,float value,float max)"},
 	{"pow",				PF_Fixme,			0,		0,		0,		46,	"float(float,float)"},
 	{"copyentity",		PF_Fixme,			0,		0,		0,		47,	"void(entity src, entity dst)"},
-	{"fopen",			PF_Fixme,			0,		0,		0,		48,	"float(string filename, float mode)"},
-	{"fclose",			PF_Fixme,			0,		0,		0,		49,	"void(float fhandle)"},
-	{"fgets",			PF_Fixme,			0,		0,		0,		50,	"string(float fhandle)"},
-	{"fputs",			PF_Fixme,			0,		0,		0,		51,	"void(float fhandle, string s)"},
+	{"fopen",			PF_Fixme,			0,		0,		0,		48,	"filestream(string filename, float mode)"},
+	{"fclose",			PF_Fixme,			0,		0,		0,		49,	"void(filestream fhandle)"},
+	{"fgets",			PF_Fixme,			0,		0,		0,		50,	"string(filestream fhandle)"},
+	{"fputs",			PF_Fixme,			0,		0,		0,		51,	"void(filestream fhandle, string s)"},
 	{"strlen",			PF_Fixme,			0,		0,		0,		52,	"float(string)"},
 	{"strcat",			PF_Fixme,			0,		0,		0,		53,	"string(string, optional string, optional string, optional string, optional string, optional string, optional string, optional string)"},
 	{"substring",		PF_Fixme,			0,		0,		0,		54,	"string(string s, float start, float length)"},
@@ -8999,10 +9006,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cvar_string",		PF_Fixme,			0,		0,		0,		71,	"string(string name)"},
 	{"crash",			PF_Fixme,			0,		0,		0,		72,	"void()"},
 	{"stackdump",		PF_Fixme,			0,		0,		0,		73,	"void()"},
-	{"search_begin",	PF_Fixme,			0,		0,		0,		74,	"float(string pattern, float caseinsensitive, float quiet)"},
-	{"search_end",		PF_Fixme,			0,		0,		0,		75,	"void(float handle)"},
-	{"search_getsize",	PF_Fixme,			0,		0,		0,		76,	"float(float handle)"},
-	{"search_getfilename",PF_Fixme,			0,		0,		0,		77,	"string(float handle, float num)"},
+	{"search_begin",	PF_Fixme,			0,		0,		0,		74,	"searchhandle(string pattern, float caseinsensitive, float quiet)"},
+	{"search_end",		PF_Fixme,			0,		0,		0,		75,	"void(searchhandle handle)"},
+	{"search_getsize",	PF_Fixme,			0,		0,		0,		76,	"float(searchhandle handle)"},
+	{"search_getfilename",PF_Fixme,			0,		0,		0,		77,	"string(searchhandle handle, float num)"},
 	{"etof",			PF_Fixme,			0,		0,		0,		79,	"float(entity)"},
 	{"ftoe",			PF_Fixme,			0,		0,		0,		80,	"entity(float)"},
 	{"validstring",		PF_Fixme,			0,		0,		0,		81,	"float(string)"},
@@ -9161,10 +9168,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 // Tomaz - QuakeC String Manipulation End
 
 // Tomaz - QuakeC File System Begin (new mods use frik_file instead)
-	{"tq_fopen",		PF_fopen,			0,		0,		0,		86, D("float(string filename, float mode)",NULL), true},// (QSG_FILE)
-	{"tq_fclose",		PF_fclose,			0,		0,		0,		87, D("void(float fhandle)",NULL), true},// (QSG_FILE)
-	{"tq_fgets",		PF_fgets,			0,		0,		0,		88, D("string(float fhandle)",NULL), true},// (QSG_FILE)
-	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, D("void(float fhandle, string s)",NULL), true},// (QSG_FILE)
+	{"tq_fopen",		PF_fopen,			0,		0,		0,		86, D("filestream(string filename, float mode)",NULL), true},// (QSG_FILE)
+	{"tq_fclose",		PF_fclose,			0,		0,		0,		87, D("void(filestream fhandle)",NULL), true},// (QSG_FILE)
+	{"tq_fgets",		PF_fgets,			0,		0,		0,		88, D("string(filestream fhandle)",NULL), true},// (QSG_FILE)
+	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, D("void(filestream fhandle, string s)",NULL), true},// (QSG_FILE)
 // Tomaz - QuakeC File System End
 
 	{"rain_go",			PF_h2rain_go,		0,		0,		80,		0},	//80
@@ -9260,10 +9267,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //End TEU_SHOWLMP2
 
 //frik file
-	{"fopen",			PF_fopen,			0,		0,		0,		110, "float(string filename, float mode, optional float mmapminsize)"},	// (FRIK_FILE)
-	{"fclose",			PF_fclose,			0,		0,		0,		111, "void(float fhandle)"},	// (FRIK_FILE)
-	{"fgets",			PF_fgets,			0,		0,		0,		112, "string(float fhandle)"},	// (FRIK_FILE)
-	{"fputs",			PF_fputs,			0,		0,		0,		113, "void(float fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},	// (FRIK_FILE)
+	{"fopen",			PF_fopen,			0,		0,		0,		110, "filestream(string filename, float mode, optional float mmapminsize)"},	// (FRIK_FILE)
+	{"fclose",			PF_fclose,			0,		0,		0,		111, "void(filestream fhandle)"},	// (FRIK_FILE)
+	{"fgets",			PF_fgets,			0,		0,		0,		112, "string(filestream fhandle)"},	// (FRIK_FILE)
+	{"fputs",			PF_fputs,			0,		0,		0,		113, "void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},	// (FRIK_FILE)
 	{"strlen",			PF_strlen,			0,		0,		0,		114, "float(string s)"},	// (FRIK_FILE)
 	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, ...)"},	// (FRIK_FILE)
 	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
@@ -9284,7 +9291,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"externvalue",		PF_externvalue,		0,		0,		0,		203,	D("__variant(float prnum, string varname)", "Reads a global in the named progs by the name of that global.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
 	{"externset",		PF_externset,		0,		0,		0,		204,	D("void(float prnum, __variant newval, string varname)", "Sets a global in the named progs by name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
 	{"externrefcall",	PF_externrefcall,	0,		0,		0,		205,	D("__variant(float prnum, void() func, ...)","Calls a function between progs by its reference. No longer needed as direct function calls now switch progs context automatically, and have done for a long time. There is no remaining merit for this function."), true},
-	{"instr",			PF_instr,			0,		0,		0,		206,	D("float(string input, string token)", "Returns substring(input, strstrpot(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos.")},
+	{"instr",			PF_instr,			0,		0,		0,		206,	D("float(string input, string token)", "Returns substring(input, strstrpos(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos.")},
 #if defined(Q2BSPS) || defined(Q3BSPS)
 	{"openportal",		PF_OpenPortal,		0,		0,		0,		207,	D("void(entity portal, float state)", "Opens or closes the portals associated with a door or some such on q2 or q3 maps. On Q2BSPs, the entity should be the 'func_areaportal' entity - its style field will say which portal to open. On Q3BSPs, the entity is the door itself, the portal will be determined by the two areas found from a preceding setorigin call.")},
 #endif
@@ -9317,8 +9324,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"chr2str",			PF_chr2str,			0,		0,		0,		223,	D("string(float chr, ...)", "The input floats are considered character values, and are concatenated.")},
 	{"strconv",			PF_strconv,			0,		0,		0,		224,	D("string(float ccase, float redalpha, float redchars, string str, ...)", "Converts quake chars in the input string amongst different representations.\nccase specifies the new case for letters.\n 0: not changed.\n 1: forced to lower case.\n 2: forced to upper case.\nredalpha and redchars switch between colour ranges.\n 0: no change.\n 1: Forced white.\n 2: Forced red.\n 3: Forced gold(low) (numbers only).\n 4: Forced gold (high) (numbers only).\n 5+6: Forced to white and red alternately.\nYou should not use this builtin in combination with UTF-8.")},
 	{"strpad",			PF_strpad,			0,		0,		0,		225,	D("string(float pad, string str1, ...)", "Pads the string with spaces, to ensure its a specific length (so long as a fixed-width font is used, anyway). If pad is negative, the spaces are added on the left. If positive the padding is on the right.")},	//will be moved
-	{"infoadd",			PF_infoadd,			0,		0,		0,		226,	D("string(string old, string key, string value)", "Returns a new tempstring infostring with the named value changed (or added if it was previously unspecified). Key and value may not contain the \\ character.")},
-	{"infoget",			PF_infoget,			0,		0,		0,		227,	D("string(string info, string key)", "Reads a named value from an infostring. The returned value is a tempstring")},
+	{"infoadd",			PF_infoadd,			0,		0,		0,		226,	D("string(infostring old, string key, string value)", "Returns a new tempstring infostring with the named value changed (or added if it was previously unspecified). Key and value may not contain the \\ character.")},
+	{"infoget",			PF_infoget,			0,		0,		0,		227,	D("string(infostring info, string key)", "Reads a named value from an infostring. The returned value is a tempstring")},
 //	{"strcmp",			PF_strncmp,			0,		0,		0,		228,	D("float(string s1, string s2)", "Compares the two strings exactly. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if the two strings are equal, a negative value if s1 appears numerically lower, and positive if s1 appears numerically higher.")},
 	{"strncmp",			PF_strncmp,			0,		0,		0,		228,	D("#define strcmp strncmp\nfloat(string s1, string s2, optional float len, optional float s1ofs, optional float s2ofs)", "Compares up to 'len' chars in the two strings. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if the two strings are equal, a negative value if s1 appears numerically lower, and positive if s1 appears numerically higher.")},
 	{"strcasecmp",		PF_strncasecmp,		0,		0,		0,		229,	D("float(string s1, string s2)",  "Compares the two strings without case sensitivity.\nReturns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon.")},
@@ -9393,13 +9400,13 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"frametoname",		PF_frametoname,		0,		0,		0,		284,	"string(float modidx, float framenum)"},
 	{"skintoname",		PF_skintoname,		0,		0,		0,		285,	"string(float modidx, float skin)"},
 //	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		286,	"void(string cvarname, optional string value)"},
-	{"hash_createtab",	PF_hash_createtab,	0,		0,		0,		287,	D("float(float tabsize, optional float defaulttype)", "Creates a hash table object with at least 'tabsize' slots. hash table with index 0 is a game-persistant table and will NEVER be returned by this builtin (except as an error return).")},
-	{"hash_destroytab",	PF_hash_destroytab,	0,		0,		0,		288,	D("void(float table)", "Destroys a hash table object.")},
-	{"hash_add",		PF_hash_add,		0,		0,		0,		289,	D("void(float table, string name, __variant value, optional float flags, optional float type)", "Adds the given key with the given value to the table.\nIf flags&HASH_REPLACE, the old value will be removed, if not set then multiple values may be added for a single key, they won't overwrite.\nThe type argument describes how the value should be stored and saved to files. While you can claim that all variables are just vectors, being more precise can result in less issues with tempstrings or saved games.")},
-	{"hash_get",		PF_hash_get,		0,		0,		0,		290,	D("__variant(float table, string name, __variant deflt, optional float requiretype, optional float index)", "looks up the specified key name in the hash table. returns deflt if key was not found. If stringsonly=1, the return value will be in the form of a tempstring, otherwise it'll be the original value argument exactly as it was. If requiretype is specified, then values not of the specified type will be ignored. Hurrah for multiple types with the same name.")},
-	{"hash_delete",		PF_hash_delete,		0,		0,		0,		291,	D("__variant(float table, string name)", "removes the named key. returns the value of the object that was destroyed, or 0 on error.")},
-	{"hash_getkey",		PF_hash_getkey,		0,		0,		0,		292,	D("string(float table, float idx)", "gets some random key name. add+delete can change return values of this, so don't blindly increment the key index if you're removing all.")},
-	{"hash_getcb",		PF_hash_getcb,		0,		0,		0,		293,	D("void(float table, void(string keyname, __variant val) callback, optional string name)", "For each item in the table that matches the name, call the callback. if name is omitted, will enumerate ALL keys."), true},
+	{"hash_createtab",	PF_hash_createtab,	0,		0,		0,		287,	D("hashtable(float tabsize, optional float defaulttype)", "Creates a hash table object with at least 'tabsize' slots. hash table with index 0 is a game-persistant table and will NEVER be returned by this builtin (except as an error return).")},
+	{"hash_destroytab",	PF_hash_destroytab,	0,		0,		0,		288,	D("void(hashtable table)", "Destroys a hash table object.")},
+	{"hash_add",		PF_hash_add,		0,		0,		0,		289,	D("void(hashtable table, string name, __variant value, optional float typeandflags)", "Adds the given key with the given value to the table.\nIf flags&HASH_REPLACE, the old value will be removed, if not set then multiple values may be added for a single key, they won't overwrite.\nThe type argument describes how the value should be stored and saved to files. While you can claim that all variables are just vectors, being more precise can result in less issues with tempstrings or saved games.")},
+	{"hash_get",		PF_hash_get,		0,		0,		0,		290,	D("__variant(hashtable table, string name, optional __variant deflt, optional float requiretype, optional float index)", "looks up the specified key name in the hash table. returns deflt if key was not found. If stringsonly=1, the return value will be in the form of a tempstring, otherwise it'll be the original value argument exactly as it was. If requiretype is specified, then values not of the specified type will be ignored. Hurrah for multiple types with the same name.")},
+	{"hash_delete",		PF_hash_delete,		0,		0,		0,		291,	D("__variant(hashtable table, string name)", "removes the named key. returns the value of the object that was destroyed, or 0 on error.")},
+	{"hash_getkey",		PF_hash_getkey,		0,		0,		0,		292,	D("string(hashtable table, float idx)", "gets some random key name. add+delete can change return values of this, so don't blindly increment the key index if you're removing all.")},
+	{"hash_getcb",		PF_hash_getcb,		0,		0,		0,		293,	D("void(hashtable table, void(string keyname, __variant val) callback, optional string name)", "For each item in the table that matches the name, call the callback. if name is omitted, will enumerate ALL keys."), true},
 	{"checkcommand",	PF_checkcommand,	0,		0,		0,		294,	D("float(string name)", "Checks to see if the supplied name is a valid command, cvar, or alias. Returns 0 if it does not exist.")},
 	{"argescape",		PF_argescape,		0,		0,		0,		295,	D("string(string s)", "Marks up a string so that it can be reliably tokenized as a single argument later.")},
 	{"clusterevent",	PF_clusterevent,	0,		0,		0,		296,	D("void(string dest, string from, string cmd, string info)", "Only functions in mapcluster mode. Sends an event to whichever server the named player is on. The destination server can then dispatch the event to the client or handle it itself via the SV_ParseClusterEvent entrypoint. If dest is empty, the event is broadcast to ALL servers. If the named player can't be found, the event will be returned to this server with the cmd prefixed with 'error:'.")},
@@ -9586,16 +9593,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 #ifndef SERVERONLY
 	//begin menu-only
-	{"buf_create",		PF_Fixme,			0,		0,		0,		440,	"float()"},//DP_QC_STRINGBUFFERS
-	{"buf_del",			PF_Fixme,			0,		0,		0,		441,	"void(float bufhandle)"},//DP_QC_STRINGBUFFERS
-	{"buf_getsize",		PF_Fixme,			0,		0,		0,		442,	"float(float bufhandle)"},//DP_QC_STRINGBUFFERS
-	{"buf_copy",		PF_Fixme,			0,		0,		0,		443,	"void(float bufhandle_from, float bufhandle_to)"},//DP_QC_STRINGBUFFERS
-	{"buf_sort",		PF_Fixme,			0,		0,		0,		444,	"void(float bufhandle, float sortprefixlen, float backward)"},//DP_QC_STRINGBUFFERS
-	{"buf_implode",		PF_Fixme,			0,		0,		0,		445,	"string(float bufhandle, string glue)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_get",		PF_Fixme,			0,		0,		0,		446,	"string(float bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_set",		PF_Fixme,			0,		0,		0,		447,	"void(float bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_add",		PF_Fixme,			0,		0,		0,		448,	"float(float bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_free",		PF_Fixme,			0,		0,		0,		449,	"void(float bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
+	{"buf_create",		PF_Fixme,			0,		0,		0,		440,	"strbuf()"},//DP_QC_STRINGBUFFERS
+	{"buf_del",			PF_Fixme,			0,		0,		0,		441,	"void(strbuf bufhandle)"},//DP_QC_STRINGBUFFERS
+	{"buf_getsize",		PF_Fixme,			0,		0,		0,		442,	"float(strbuf bufhandle)"},//DP_QC_STRINGBUFFERS
+	{"buf_copy",		PF_Fixme,			0,		0,		0,		443,	"void(strbuf bufhandle_from, float bufhandle_to)"},//DP_QC_STRINGBUFFERS
+	{"buf_sort",		PF_Fixme,			0,		0,		0,		444,	"void(strbuf bufhandle, float sortprefixlen, float backward)"},//DP_QC_STRINGBUFFERS
+	{"buf_implode",		PF_Fixme,			0,		0,		0,		445,	"string(strbuf bufhandle, string glue)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_get",		PF_Fixme,			0,		0,		0,		446,	"string(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_set",		PF_Fixme,			0,		0,		0,		447,	"void(strbuf bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_add",		PF_Fixme,			0,		0,		0,		448,	"float(strbuf bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_free",		PF_Fixme,			0,		0,		0,		449,	"void(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
 	{"iscachedpic",		PF_Fixme,			0,		0,		0,		451,	"float(string name)"},// (EXT_CSQC)
 	{"precache_pic",	PF_Fixme,			0,		0,		0,		452,	"string(string name, optional float trywad)"},// (EXT_CSQC)
 	{"freepic",			PF_Fixme,			0,		0,		0,		453,	"void(string name)"},// (EXT_CSQC)
@@ -9622,10 +9629,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441,	"float(string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"argv",			PF_ArgV,			0,		0,		0,		442,	"string(float n)"},// (KRIMZON_SV_PARSECLIENTCOMMAND
 	{"setattachment",	PF_setattachment,	0,		0,		0,		443,	"void(entity e, entity tagentity, string tagname)"},// (DP_GFX_QUAKE3MODELTAGS)
-	{"search_begin",	PF_search_begin,	0,		0,		0,		444,	D("float(string pattern, float caseinsensitive, float quiet)", "initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle.")},
-	{"search_end",		PF_search_end,		0,		0,		0,		445,	"void(float handle)"},
-	{"search_getsize",	PF_search_getsize,	0,		0,		0,		446,	D("float(float handle)", "Retrieves the number of files that were found.")},
-	{"search_getfilename", PF_search_getfilename,0,	0,		0,		447,	D("string(float handle, float num)", "Retrieves name of one of the files that was found by the initial search.")},
+	{"search_begin",	PF_search_begin,	0,		0,		0,		444,	D("searchhandle(string pattern, float caseinsensitive, float quiet)", "initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle.")},
+	{"search_end",		PF_search_end,		0,		0,		0,		445,	"void(searchhandle handle)"},
+	{"search_getsize",	PF_search_getsize,	0,		0,		0,		446,	D("float(searchhandle handle)", "Retrieves the number of files that were found.")},
+	{"search_getfilename", PF_search_getfilename,0,	0,		0,		447,	D("string(searchhandle handle, float num)", "Retrieves name of one of the files that was found by the initial search.")},
 	{"cvar_string",		PF_cvar_string,		0,		0,		0,		448,	"string(string cvarname)"},//DP_QC_CVAR_STRING
 	{"findflags",		PF_FindFlags,		0,		0,		0,		449,	"entity(entity start, .float fld, float match)"},//DP_QC_FINDFLAGS
 	{"findchainflags",	PF_sv_findchainflags,0,		0,		0,		450,	"entity(.float fld, float match)"},//DP_QC_FINDCHAINFLAGS
@@ -9638,16 +9645,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"te_flamejet",		PF_te_flamejet,		0,		0,		0,		457,	"void(vector org, vector vel, float howmany)"},//DP_TE_FLAMEJET
 //	{"undefined",		PF_Fixme,			0,		0,		0,		458,	""},
 	{"edict_num",		PF_edict_for_num,	0,		0,		0,		459,	"entity(float entnum)"},//DP_QC_EDICT_NUM
-	{"buf_create",		PF_buf_create,		0,		0,		0,		460,	"float()"},//DP_QC_STRINGBUFFERS
-	{"buf_del",			PF_buf_del,			0,		0,		0,		461,	"void(float bufhandle)"},//DP_QC_STRINGBUFFERS
-	{"buf_getsize",		PF_buf_getsize,		0,		0,		0,		462,	"float(float bufhandle)"},//DP_QC_STRINGBUFFERS
-	{"buf_copy",		PF_buf_copy,		0,		0,		0,		463,	"void(float bufhandle_from, float bufhandle_to)"},//DP_QC_STRINGBUFFERS
-	{"buf_sort",		PF_buf_sort,		0,		0,		0,		464,	"void(float bufhandle, float sortprefixlen, float backward)"},//DP_QC_STRINGBUFFERS
-	{"buf_implode",		PF_buf_implode,		0,		0,		0,		465,	"string(float bufhandle, string glue)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_get",		PF_bufstr_get,		0,		0,		0,		466,	"string(float bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_set",		PF_bufstr_set,		0,		0,		0,		467,	"void(float bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_add",		PF_bufstr_add,		0,		0,		0,		468,	"float(float bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
-	{"bufstr_free",		PF_bufstr_free,		0,		0,		0,		469,	"void(float bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
+	{"buf_create",		PF_buf_create,		0,		0,		0,		460,	"strbuf()"},//DP_QC_STRINGBUFFERS
+	{"buf_del",			PF_buf_del,			0,		0,		0,		461,	"void(strbuf bufhandle)"},//DP_QC_STRINGBUFFERS
+	{"buf_getsize",		PF_buf_getsize,		0,		0,		0,		462,	"float(strbuf bufhandle)"},//DP_QC_STRINGBUFFERS
+	{"buf_copy",		PF_buf_copy,		0,		0,		0,		463,	"void(strbuf bufhandle_from, strbuf bufhandle_to)"},//DP_QC_STRINGBUFFERS
+	{"buf_sort",		PF_buf_sort,		0,		0,		0,		464,	"void(strbuf bufhandle, float sortprefixlen, float backward)"},//DP_QC_STRINGBUFFERS
+	{"buf_implode",		PF_buf_implode,		0,		0,		0,		465,	"string(strbuf bufhandle, string glue)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_get",		PF_bufstr_get,		0,		0,		0,		466,	"string(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_set",		PF_bufstr_set,		0,		0,		0,		467,	"void(strbuf bufhandle, float string_index, string str)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_add",		PF_bufstr_add,		0,		0,		0,		468,	"float(strbuf bufhandle, string str, float order)"},//DP_QC_STRINGBUFFERS
+	{"bufstr_free",		PF_bufstr_free,		0,		0,		0,		469,	"void(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
 	//end non-menu
 
 //	{"undefined",		PF_Fixme,			0,		0,		0,		470,	""},
@@ -9699,7 +9706,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	"float(string str)"},
 	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515,	"float(float idx)"},
 	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	"float(float idx)"},
-	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(float strbuf)"},
+	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(strbuf strbuf)"},
 	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	"string(string cvarname)"},
 	{"gettime",			PF_gettime,			0,		0,		0,		519,	"float(optional float timetype)"},
 	{"keynumtostring_omgwtf",PF_Fixme,		0,		0,		0,		520,	"string(float keynum)"},	//excessive third version in dp's csqc.
@@ -9722,8 +9729,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"log",				PF_Fixme,			0,		0,		0,		532,	"float(string mname)", true},
 	{"getsoundtime",	PF_Ignore,			0,		0,		0,		533,	"float(entity e, float channel)"},
 	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	"float(string sample)"},
-	{"buf_loadfile",	PF_buf_loadfile,	0,		0,		0,		535,	"float(string filename, float bufhandle)"},
-	{"buf_writefile",	PF_buf_writefile,	0,		0,		0,		536,	"float(float filehandle, float bufhandle, optional float startpos, optional float numstrings)"},
+	{"buf_loadfile",	PF_buf_loadfile,	0,		0,		0,		535,	"float(string filename, strbuf bufhandle)"},
+	{"buf_writefile",	PF_buf_writefile,	0,		0,		0,		536,	"float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)"},
 //	{"bufstr_find",		PF_Fixme,			0,		0,		0,		537,	"float(float bufhandle, string match, float matchrule, float startpos)"},
 //	{"matchpattern",	PF_Fixme,			0,		0,		0,		538,	"float(string s, string pattern, float matchrule)"},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		539,	""},
@@ -9739,7 +9746,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setmousetarget",	PF_Fixme,			0,		0,		0,		603,	"void(float trg)"},
 	{"getmousetarget",	PF_Fixme,			0,		0,		0,		604,	"float()"},
 	{"callfunction",	PF_callfunction,	0,		0,		0,		605,	D("void(.../*, string funcname*/)", "Invokes the named function. The function name is always passed as the last parameter and must always be present. The others are passed to the named function as-is")},
-	{"writetofile",		PF_writetofile,		0,		0,		0,		606,	D("void(float fh, entity e)", "Writes an entity's fields to the named frik_file file handle.")},
+	{"writetofile",		PF_writetofile,		0,		0,		0,		606,	D("void(filestream fh, entity e)", "Writes an entity's fields to the named frik_file file handle.")},
 	{"isfunction",		PF_isfunction,		0,		0,		0,		607,	"float(string s)"},
 	{"getresolution",	PF_Fixme,			0,		0,		0,		608,	"vector(float vidmode, optional float forfullscreen)"},
 	{"keynumtostring_menu",PF_Fixme,		0,		0,		0,		609,	"string(float keynum)"},	//third copy of this builtin in dp's csqc.
@@ -10133,6 +10140,7 @@ void PR_DumpPlatform_f(void)
 	char dbgfname[MAX_OSPATH];
 	unsigned int targ = 0;
 	qboolean defines = false;
+	qboolean accessors = false;
 	char *comment;
 
 	/*this list is here to ensure that the file can be used as a valid initial qc file (ignoring precompiler options)*/
@@ -10369,7 +10377,7 @@ void PR_DumpPlatform_f(void)
 
 		{"TRUE",					"const float", ALL, NULL, 1},
 		{"FALSE",					"const float", ALL, "File not found...", 0},
-		{"M_PI",					"const float", ALL, "File not found...", M_PI},
+		{"M_PI",					"const float", ALL, NULL, M_PI},
 
 		{"MOVETYPE_NONE",			"const float", QW|NQ|CS, NULL, MOVETYPE_NONE},
 		{"MOVETYPE_WALK",			"const float", QW|NQ|CS, NULL, MOVETYPE_WALK},
@@ -10585,16 +10593,15 @@ void PR_DumpPlatform_f(void)
 		{"EV_VECTOR",			"const float", QW|NQ, NULL, ev_vector},
 		{"EV_ENTITY",			"const float", QW|NQ, NULL, ev_entity},
 //		{"EV_FIELD",			"const float", QW|NQ, NULL, ev_field},
-//		{"EV_FUNCTION",			"const float", QW|NQ, NULL, ev_function},
-//		{"EV_POINTER",			"const float", QW|NQ, NULL, ev_pointer},
+		{"EV_FUNCTION",			"const float", QW|NQ, NULL, ev_function},
+		{"EV_POINTER",			"const float", QW|NQ, NULL, ev_pointer},
 		{"EV_INTEGER",			"const float", QW|NQ, NULL, ev_integer},
-//		{"EV_VARIANT",			"const float", QW|NQ, NULL, ev_variant},
+		{"EV_VARIANT",			"const float", QW|NQ, NULL, ev_variant},
 //		{"EV_STRUCT",			"const float", QW|NQ, NULL, ev_struct},
 //		{"EV_UNION",			"const float", QW|NQ, NULL, ev_union},
 
-		{"HASHT_PERSISTANT",	"const float", ALL, "Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted).", 0},
-		{"HASH_REPLACE",		"const float", ALL, "Used with hash_add. Attempts to remove the old value instead of adding two values for a single key.", 1},
-		{"HASH_STRING",			"const float", ALL, "Used with hash_add. Specifies that the contents of the string argument should be internally zoned.", 2},
+		{"gamestate",			"hashtable", ALL, "Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted).", 0},
+		{"HASH_REPLACE",		"const float", ALL, "Used with hash_add. Attempts to remove the old value instead of adding two values for a single key.", 256},
 
 		{"STAT_HEALTH",			"const float", CS, NULL, STAT_HEALTH},
 		{"STAT_WEAPON",			"const float", CS, NULL, STAT_WEAPON},
@@ -10779,6 +10786,10 @@ void PR_DumpPlatform_f(void)
 			defines = true;
 		if (!stricmp(Cmd_Argv(i), "-Fnodefines"))
 			defines = false;
+		if (!stricmp(Cmd_Argv(i), "-Faccessors"))
+			accessors = true;
+		if (!stricmp(Cmd_Argv(i), "-Fnoaccessors"))
+			accessors = false;
 		if (!stricmp(Cmd_Argv(i), "-O"))
 			fname = Cmd_Argv(++i);
 	}
@@ -10808,6 +10819,7 @@ void PR_DumpPlatform_f(void)
 					"-Tcs        - dump specifically CSQC fields\n"
 					"-Tmenu      - dump specifically menuqc fields\n"
 					"-Fdefines   - generate #defines instead of constants\n"
+					"-Faccessors - use accessors instead of basic types via defines\n"
 					"-O          - write to a different qc file\n"
 					"*/\n"
 					, FULLENGINENAME, FTE_VER_MAJOR, FTE_VER_MINOR, Cmd_Argv(0), Cmd_Args());
@@ -10876,6 +10888,25 @@ void PR_DumpPlatform_f(void)
 							"#define SSQC\n"
 						"#endif\n"
 						);
+
+
+	if (accessors)
+	{
+		VFS_PRINTF(f, "accessor strbuf : float;\n");
+		VFS_PRINTF(f, "accessor searchhandle : float;\n");
+		VFS_PRINTF(f, "accessor hashtable : float;\n");
+		VFS_PRINTF(f, "accessor infostring : string;\n");
+		VFS_PRINTF(f, "accessor filestream : float;\n");
+	}
+	else
+	{
+		VFS_PRINTF(f, "#define strbuf float\n");
+		VFS_PRINTF(f, "#define searchhandle float\n");
+		VFS_PRINTF(f, "#define hashtable float\n");
+		VFS_PRINTF(f, "#define infostring string\n");
+		VFS_PRINTF(f, "#define filestream float\n");
+	}
+
 
 	for (i = 0; knowndefs[i].name; i++)
 	{
@@ -10963,10 +10994,20 @@ void PR_DumpPlatform_f(void)
 			comment = "";
 		if (!strcmp(knowndefs[i].type, "const float"))
 		{
-			if (defines)
-				VFS_PRINTF(f, "#define %s %g%s\n", knowndefs[i].name, knowndefs[i].value, comment);
+			if (knowndefs[i].value >= (1<<23))
+			{
+				if (defines)
+					VFS_PRINTF(f, "#define %s %i%s\n", knowndefs[i].name, (int)knowndefs[i].value, comment);
+				else
+					VFS_PRINTF(f, "%s %s = %i;%s\n", knowndefs[i].type, knowndefs[i].name, (int)knowndefs[i].value, comment);
+			}
 			else
-				VFS_PRINTF(f, "%s %s = %g;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
+			{
+				if (defines)
+					VFS_PRINTF(f, "#define %s %g%s\n", knowndefs[i].name, knowndefs[i].value, comment);
+				else
+					VFS_PRINTF(f, "%s %s = %g;%s\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value, comment);
+			}
 		}
 		else if (!strcmp(knowndefs[i].type, "const string"))
 		{
@@ -11198,6 +11239,42 @@ void PR_DumpPlatform_f(void)
 		VFS_PRINTF(f, "#endif\n");
 	}
 
+	if (accessors)
+	{
+		VFS_PRINTF(f,
+			"accessor strbuf : float\n{\n"
+				"\tget float asfloat[float idx] = {return stof(bufstr_get(this, idx));};\n"
+				"\tset float asfloat[float idx] = {bufstr_set(this, idx, ftos(value));};\n"
+				"\tget string[float] = bufstr_get;\n"
+				"\tset string[float] = bufstr_set;\n"
+				"\tget float length = buf_getsize;\n"
+			"};\n");
+		VFS_PRINTF(f,
+			"accessor searchhandle : float\n{\n"
+				"\tget string[float] = search_getfilename;\n"
+				"\tget float length = search_getsize;\n"
+			"};\n");
+		VFS_PRINTF(f,
+			"accessor hashtable : float\n{\n"
+				"\tget vector v[string key] = {return hash_get(this, key, '0 0 0', EV_VECTOR);};\n"
+				"\tset vector v[string key] = {hash_add(this, key, value, 1, EV_VECTOR);};\n"
+				"\tget string s[string key] = {return hash_get(this, key, \"\", EV_STRING);};\n"
+				"\tset string s[string key] = {hash_add(this, key, value, 1, EV_STRING);};\n"
+				"\tget string f[string key] = {return hash_get(this, key, 0.0, EV_FLOAT);};\n"
+				"\tset string f[string key] = {hash_add(this, key, value, 1, EV_FLOAT);};\n"
+				"\tget __variant[string key] = {return hash_get(this, key, __NULL__);};\n"
+				"\tset __variant[string key] = {hash_add(this, key, value, 1);};\n"
+			"};\n");
+		VFS_PRINTF(f,
+			"accessor infostring : string\n{\n"
+				"\tget string[string] = infoget;\n"
+			"};\n");
+		VFS_PRINTF(f,
+			"accessor filestream : float\n{\n"
+				"\tget string = fgets;\n"
+				"\tset string = {fputs(this,value);};\n"
+			"};\n");
+	}
 
 	VFS_PRINTF(f, "#pragma noref 0\n");
 

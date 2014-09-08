@@ -74,12 +74,10 @@ static qboolean QDECL VFSWEB_ClosePersist(vfsfile_t *file)
 	return VFSWEB_Close(file);
 }
 
-vfsfile_t *FSWEB_OpenTemp(void)
+vfsfile_t *FSWEB_OpenTempHandle(int f)
 {
-	int f;
 	vfswebfile_t *file;
 
-	f = emscriptenfte_buf_create();
 	if (f == -1)
 	{
 		Con_Printf("FSWEB_OpenTemp failed\n");
@@ -100,6 +98,11 @@ vfsfile_t *FSWEB_OpenTemp(void)
 	file->handle = f;
 
 	return &file->funcs;
+}
+
+vfsfile_t *FSWEB_OpenTemp(void)
+{
+	return FSWEB_OpenTempHandle(emscriptenfte_buf_create());
 }
 
 vfsfile_t *VFSWEB_Open(const char *osname, const char *mode, qboolean *needsflush)

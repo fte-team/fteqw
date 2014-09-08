@@ -4,7 +4,7 @@
 #include "winquake.h"
 #include "shader.h"
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 
 extern cvar_t maxclients;
 

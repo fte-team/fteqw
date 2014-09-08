@@ -189,6 +189,7 @@ void HTTP_ServerShutdown(void)
 
 typedef struct HTTP_active_connections_s {
 	SOCKET datasock;
+	char peername[256];
 	vfsfile_t *file;
 	struct HTTP_active_connections_s *next;
 
@@ -242,6 +243,7 @@ void HTTP_RunExisting (void)
 	char *msg, *nl;
 	char buf2[2560];	//short lived temp buffer.
 	char resource[2560];
+	char host[256];
 	char mode[80];
 	qboolean hostspecified;
 	unsigned int contentlen;
@@ -260,7 +262,7 @@ void HTTP_RunExisting (void)
 
 		if (cl->closereason)
 		{
-			IWebPrintf("Closing connection: %s\n", cl->closereason);
+			IWebPrintf("%s: Closing connection: %s\n", cl->peername, cl->closereason);
 
 			*link = cl->next;
 			closesocket(cl->datasock);
@@ -342,6 +344,9 @@ cont:
 				continue;
 			}
 
+			host[0] = '?';
+			host[1] = 0;
+
 			hostspecified = false;
 			if (!strnicmp(resource, "http://", 7))
 			{	//groan... 1.1 compliance requires parsing this correctly, without the client ever specifiying it.
@@ -351,7 +356,14 @@ cont:
 				if (!slash)
 					strcpy(resource, "/");
 				else
+				{
+					int hlen = slash-(resource+7);
+					if (hlen > sizeof(host)-1)
+						hlen = sizeof(host)-1;
+					memcpy(host, resource+7, hlen);
+					host[hlen] = 0;
 					memmove(resource, slash, strlen(slash+1));	//just get rid of the http:// stuff.
+				}
 			}
 
 			if (!strcmp(resource, "/"))
@@ -397,7 +409,16 @@ cont:
 						msg++;
 
 					if (!strnicmp(msg, "Host: ", 6))	//parse needed header fields
+					{
+						int l = 0;
+						msg += 6;
+						while (*msg == ' ' || *msg == '\t')
+							msg++;
+						while (*msg != '\r' && *msg != '\n' && l < sizeof(host)-1)
+							host[l++] = *msg++;
+						host[l] = 0;
 						hostspecified = true;
+					}
 					else if (!strnicmp(msg, "Content-Length: ", 16))	//parse needed header fields
 						contentlen = strtoul(msg+16, NULL, 0);
 					else if (!strnicmp(msg, "Accept-Encoding:", 16))	//parse needed header fields
@@ -491,7 +512,7 @@ cont:
 					resource[0] = '/';
 					resource[1] = 0;	//I'm lazy, they need to comply
 				}
-				IWebPrintf("Download request for \"%s\"\n", resource+1);
+				IWebPrintf("%s: Download request for \"http://%s/%s\"\n", cl->peername, host, resource+1);
 
 				if (!strnicmp(mode, "P", 1))	//when stuff is posted, data is provided. Give an error message if we couldn't do anything with that data.
 					cl->file = IWebGenerateFile(resource+1, content, contentlen);
@@ -519,7 +540,7 @@ cont:
 				}
 				if (!cl->file)
 				{
-					IWebPrintf("Download rejected\n");
+					IWebPrintf("%s: Download rejected\n", cl->peername);
 
 					if (HTTPmarkup >= 3)
 						msg = "HTTP/1.1 404 Not Found\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 15\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n"	"404 Bad address";
@@ -611,7 +632,7 @@ notimplemented:
 						VFS_CLOSE(cl->file);
 						cl->file = NULL;
 
-						IWebPrintf("Download complete\n");
+						IWebPrintf("%s: Download complete\n", cl->peername);
 					}
 					else
 						cl->outbufferused+=ammount;
@@ -663,14 +684,24 @@ notimplemented:
 	}
 }
 
+#ifdef WEBSVONLY
+void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
+{
+	va_list args;
+	va_start (args, fmt);
+	vsnprintf (dest, size-1, fmt, args);
+	va_end (args);
+	//make sure its terminated.
+	dest[size-1] = 0;
+}
+#endif
+
 qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while true
 {
 	struct sockaddr_qstorage	from;
 	int		fromlen;
 	int clientsock;
 	int _true = true;
-	char buf[128];
-	netadr_t na;
 
 	HTTP_active_connections_t *cl;
 
@@ -712,7 +743,7 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 		}
 
 
-		Con_Printf ("NET_GetPacket: %s\n", strerror(e));
+		IWebPrintf ("NET_GetPacket: %s\n", strerror(e));
 		return false;
 	}
 
@@ -723,14 +754,18 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 		return false;
 	}
 
-#ifndef WEBSVONLY
-	SockadrToNetadr(&from, &na);
-	IWebPrintf("New http connection from %s\n", NET_AdrToString(buf, sizeof(buf), &na));
-#else
-	IWebPrintf("New http connection from %s\n", inet_ntoa(((struct sockaddr_in*)&from)->sin_addr));
-#endif
-
 	cl = IWebMalloc(sizeof(HTTP_active_connections_t));
+
+#ifndef WEBSVONLY
+	{
+		netadr_t na;
+		SockadrToNetadr(&from, &na);
+		NET_AdrToString(cl->peername, sizeof(cl->peername), &na);
+	}
+#else
+	Q_snprintfz(cl->peername, sizeof(cl->peername), "%s:%i", inet_ntoa(((struct sockaddr_in*)&from)->sin_addr), ntohs(((struct sockaddr_in*)&from)->sin_port));
+#endif
+	IWebPrintf("%s: New http connection\n", cl->peername);
 
 	cl->datasock = clientsock;
 

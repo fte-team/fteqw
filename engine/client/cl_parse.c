@@ -4341,7 +4341,7 @@ CL_NewTranslation
 void CL_NewTranslation (int slot)
 {
 	int		top, bottom;
-		int local;
+	int local;
 
 	char *s;
 	player_info_t	*player;
@@ -4351,10 +4351,33 @@ void CL_NewTranslation (int slot)
 
 	player = &cl.players[slot];
 
+	if (cls.protocol == CP_QUAKE2)
+	{
+		char *mod, *skin;
+		player->qwskin = NULL;
+		player->skinid = 0;
+		player->model = NULL;
+		player->ttopcolor = TOP_DEFAULT;
+		player->tbottomcolor = BOTTOM_DEFAULT;
+
+		mod = Info_ValueForKey(player->userinfo, "skin");
+		skin = strchr(mod, '/');
+		if (skin)
+			*skin++ = 0;
+
+		player->model = Mod_ForName(va("players/%s/tris.md2", mod), 0);
+		player->skinid = Mod_RegisterSkinFile(va("players/%s/%s.skin", mod,skin));
+		if (!player->skinid)
+			player->skinid = Mod_ReadSkinFile(va("players/%s/%s.skin", mod,skin), va("replace \"\" \"players/%s/%s.pcx\"", mod,skin));
+		return;
+	}
+
 	s = Skin_FindName (player);
 	COM_StripExtension(s, s, MAX_QPATH);
-	if (player->skin && !stricmp(s, player->skin->name))
-		player->skin = NULL;
+	if (player->qwskin && !stricmp(s, player->qwskin->name))
+		player->qwskin = NULL;
+	player->skinid = 0;
+	player->model = NULL;
 
 
 

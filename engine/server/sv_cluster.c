@@ -14,12 +14,6 @@ void VARGS SV_RejectMessage(int protocol, char *format, ...);
 
 void MSV_UpdatePlayerStats(unsigned int playerid, unsigned int serverid, int numstats, float *stats);
 
-static char *knownmaps[] =
-{
-	"",
-	"start"
-};
-
 typedef struct {
 	//fixme: hash tables
 	unsigned int	playerid;
@@ -93,11 +87,7 @@ pubsubserver_t *MSV_StartSubServer(unsigned int id, const char *mapname)
 	if (s)
 	{
 		if (!id)
-		{
-			if (nextserverid < sizeof(knownmaps)/sizeof(knownmaps[0]))
-				nextserverid = sizeof(knownmaps)/sizeof(knownmaps[0]);
-			id = nextserverid++;
-		}
+			id = ++nextserverid;
 		s->id = id;
 		s->next = subservers;
 		subservers = s;
@@ -125,33 +115,54 @@ pubsubserver_t *MSV_FindSubServer(unsigned int id)
 			return s;
 	}
 
-	if (!s && id >= 1 && id < sizeof(knownmaps)/sizeof(knownmaps[0]))
-		s = MSV_StartSubServer(id, knownmaps[id]);
-
-	return s;
+	return NULL;
 }
-pubsubserver_t *MSV_FindSubServerName(const char *mapname)
+
+//"5" finds server 5 only
+//"5:dm4" finds server 5, and will start it if not known (even if a different node is running the same map)
+//"0:dm4" starts a new server running dm4, even if its already running
+//":dm4" finds any server running dm4. starts a new one if needed.
+pubsubserver_t *MSV_FindSubServerName(const char *servername)
 {
 	pubsubserver_t *s;
-	unsigned int to;
-	for (to = 1; to < sizeof(knownmaps)/sizeof(knownmaps[0]); to++)
-	{
-		if (!strcmp(knownmaps[to], mapname))
-			return MSV_FindSubServer(to);
-	}
+	unsigned int id;
+	qboolean forcenew = false;
+	char *mapname;
 
-	for (s = subservers; s; s = s->next)
+	id = strtoul(servername, &mapname, 0);
+	if (*mapname == ':')
 	{
-		if (!strcmp(s->name, mapname))
+		if (!id && servername != mapname)
+			forcenew = true;
+		mapname++;
+	}
+	else
+		mapname = "";
+
+	if (id)
+	{
+		s = MSV_FindSubServer(id);
+		if (s)
 			return s;
 	}
 
-	return MSV_StartSubServer(0, mapname);
-}
-qboolean MSV_AddressForMap(netadr_t *ret, int natype, int serverid)
-{
-	pubsubserver_t *s = MSV_FindSubServer(serverid);
+	if (*mapname)
+	{
+		if (!forcenew)
+		{
+			for (s = subservers; s; s = s->next)
+			{
+				if (!strcmp(s->name, mapname))
+					return s;
+			}
+		}
 
+		return MSV_StartSubServer(id, mapname);
+	}
+	return NULL;
+}
+qboolean MSV_AddressForServer(netadr_t *ret, int natype, pubsubserver_t *s)
+{
 	if (s)
 	{
 		if (natype == s->addrv6.type)
@@ -458,7 +469,7 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 			send.cursize = 2;
 
 			NET_StringToAdr(claddr, 0, &cladr);
-			MSV_AddressForMap(&svadr, cladr.type, s->id);
+			MSV_AddressForServer(&svadr, cladr.type, s);
 			if (!to)
 			{
 				if (svadr.type != NA_INVALID)
@@ -522,6 +533,13 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 
 			if (!*dest)	//broadcast if no dest
 			{
+				for (s = subservers; s; s = s->next)
+					Sys_InstructSlave(s, &send);
+			}
+			else if (*dest == '\\')
+			{
+				//send to a specific server (backslashes should not be valid in infostrings, and thus not in names.
+				//FIXME: broadcasting for now.
 				for (s = subservers; s; s = s->next)
 					Sys_InstructSlave(s, &send);
 			}
@@ -940,15 +958,15 @@ qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serv
 {
 	char tmpbuf[256];
 	netadr_t serveraddr;
+	pubsubserver_t *s = NULL;
 
-	if (!serverid)
-		serverid = 1;
+	if (!s)
+		s = MSV_FindSubServerName(":start");
 
-	if (!MSV_AddressForMap(&serveraddr, clientaddr->type, serverid) && !MSV_AddressForMap(&serveraddr, clientaddr->type, serverid=1))
+	if (!s || !MSV_AddressForServer(&serveraddr, clientaddr->type, s))
 		SV_RejectMessage(SCP_QUAKEWORLD, "Unable to find lobby.\n");
 	else
 	{
-		pubsubserver_t *s;
 		sizebuf_t	send;
 		qbyte		send_buf[MAX_QWMSGLEN];
 		clusterplayer_t *pl;
@@ -963,7 +981,7 @@ qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serv
 		NET_AdrToString(pl->address, sizeof(pl->address), clientaddr);
 		pl->playerid = playerid;
 		InsertLinkBefore(&pl->allplayers, &clusterplayers);
-		pl->server = s = MSV_FindSubServer(serverid);
+		pl->server = s;
 		
 		MSG_WriteByte(&send, ccmd_takeplayer);
 		MSG_WriteLong(&send, playerid);

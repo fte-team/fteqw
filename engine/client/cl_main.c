@@ -3908,6 +3908,8 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 			f->flags |= HRF_QTVINFO;
 		else if (!strcmp(mimetype, "text/x-quaketvident"))
 			f->flags |= HRF_QTVINFO;
+		else if (!strcmp(mimetype, "application/x-fteplugin"))
+			f->flags |= HRF_MANIFEST;
 		else if (!strcmp(mimetype, "application/x-ftemanifest"))
 			f->flags |= HRF_MANIFEST;
 		else if (!strcmp(mimetype, "application/x-multiviewdemo"))
@@ -3916,6 +3918,9 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 //			f->flags |= HRF_BSP;
 //		else if (!strcmp(mimetype, "application/x-ftepackage"))
 //			f->flags |= HRF_PACKAGE;
+
+		if (f->flags & HRF_MANIFEST)
+			waitingformanifest++;
 	}
 
 	if (!(f->flags & HRF_FILETYPES))
@@ -4001,7 +4006,7 @@ static qboolean isurl(char *url)
 #ifdef FTE_TARGET_WEB
 	return true;	//assume EVERYTHING is a url, because the local filesystem is pointless.
 #endif
-	return !strncmp(url, "http://", 7) || !strncmp(url, "https://", 8);
+	return /*!strncmp(url, "data:", 5) || */!strncmp(url, "http://", 7) || !strncmp(url, "https://", 8);
 }
 
 void Host_DoRunFile(hrf_t *f)
@@ -4041,13 +4046,17 @@ void Host_DoRunFile(hrf_t *f)
 			if (!(f->flags & HRF_OPENED))
 			{
 				struct dl_download *dl;
-				f->flags |= HRF_OPENED|HRF_DOWNLOADED|HRF_WAITING;
+				f->flags |= HRF_OPENED;
 				dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
-				dl->notifystarted = Host_BeginFileDownload;
-				dl->user_ctx = f;
+				if (dl)
+				{
+					f->flags |= HRF_WAITING|HRF_DOWNLOADED;
+					dl->notifystarted = Host_BeginFileDownload;
+					dl->user_ctx = f;
 
-				waitingformanifest++;
-				return;
+					waitingformanifest++;
+					return;
+				}
 			}
 		}
 #endif
@@ -4169,9 +4178,12 @@ void Host_DoRunFile(hrf_t *f)
 			if (isurl(f->fname))
 			{
 				struct dl_download *dl = HTTP_CL_Get(f->fname, NULL, Host_RunFileDownloaded);
-				dl->notifystarted = Host_BeginFileDownload;
-				dl->user_ctx = f;
-				return;
+				if (dl)
+				{
+					dl->notifystarted = Host_BeginFileDownload;
+					dl->user_ctx = f;
+					return;
+				}
 			}
 #endif
 			f->srcfile = VFSOS_Open(f->fname, "rb");	//input file is a system path, or something.
@@ -4733,7 +4745,7 @@ void CL_StartCinematicOrMenu(void)
 		{
 			if (qrenderer > QR_NONE && !m_state)
 			{
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 				if (!cls.state && !m_state && !*FS_GetGamedir(false))
 					M_Menu_Mods_f();
 #endif

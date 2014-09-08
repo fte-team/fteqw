@@ -154,7 +154,7 @@ void M_FindKeysForCommand (int pnum, const char *command, int *twokeys)
 	M_FindKeysForBind(va("%s%s", prefix, command), twokeys, 2);
 }
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 
 void M_Menu_Audio_f (void);
 void M_Menu_Demos_f (void);
@@ -1270,7 +1270,7 @@ void M_Draw (int uimenu)
 #endif
 	}
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 	if (m_state != m_complex)
 	{
 		M_RemoveAllMenus();
@@ -1286,7 +1286,7 @@ void M_Draw (int uimenu)
 	if (m_state == m_none || m_state == m_menu_dat)
 		return;
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
 	{
 		extern menu_t *firstmenu;
@@ -1308,7 +1308,7 @@ void M_Draw (int uimenu)
 	case m_none:
 		break;
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 	case m_help:
 		M_Help_Draw ();
 		break;
@@ -1345,7 +1345,7 @@ void M_Keydown (int key, int unicode)
 	case m_none:
 		Key_Dest_Remove(kdm_menu);
 		return;
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 	case m_help:
 		M_Help_Key (key);
 		return;
@@ -1380,7 +1380,7 @@ void M_Keyup (int key, int unicode)
 {
 	switch (m_state)
 	{
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 	case m_complex:
 		if (key == K_MOUSE1)
 			M_Complex_Key (key, unicode);

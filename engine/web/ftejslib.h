@@ -36,6 +36,6 @@ int emscriptenfte_setupcanvas(
 	void(*Mouse)(int devid,int abs,float x,float y,float z,float size),
 	void(*Button)(int devid, int down, int mbutton),
 	int(*Keyboard)(int devid, int down, int keycode, int unicode),
-	void(*Hash)(char *newhash)
+	void(*LoadFile)(char *newhash, int filehandle)
 	);
 

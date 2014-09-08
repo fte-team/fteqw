@@ -1281,7 +1281,17 @@ pf_hashtab_t pf_reverthashtab;		//pf_peristanthashtab as it was at map start, fo
 static pf_hashtab_t *PF_hash_findtab(pubprogfuncs_t *prinst, int idx)
 {
 	if (!idx)
+	{
+		if (!pf_peristanthashtab.tab.numbuckets)
+		{
+			int numbuckets = 256;
+			pf_peristanthashtab.defaulttype = ev_string;
+			pf_peristanthashtab.prinst = NULL;
+			pf_peristanthashtab.bucketmem = Z_Malloc(Hash_BytesForBuckets(numbuckets));
+			Hash_InitTable(&pf_peristanthashtab.tab, numbuckets, pf_peristanthashtab.bucketmem);
+		}
 		return &pf_peristanthashtab;
+	}
 	idx -= 1;
 	if (idx >= 0 && idx < MAX_QC_HASHTABLES && pf_hashtab[idx].prinst)
 		return &pf_hashtab[idx];
@@ -1331,7 +1341,7 @@ void QCBUILTIN PF_hash_get (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	pf_hashtab_t *tab = PF_hash_findtab(prinst, G_FLOAT(OFS_PARM0));
 	const char *name = PR_GetStringOfs(prinst, OFS_PARM1);
-	void *dflt = G_VECTOR(OFS_PARM2);
+	void *dflt = (prinst->callargc>2)?G_VECTOR(OFS_PARM2):vec3_origin;
 	int type = (prinst->callargc>3)?G_FLOAT(OFS_PARM3):0;
 	int index = (prinst->callargc>4)?G_FLOAT(OFS_PARM4):0;
 	pf_hashentry_t *ent = NULL;
@@ -1386,19 +1396,26 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	const char *name = PR_GetStringOfs(prinst, OFS_PARM1);
 	void *data = G_VECTOR(OFS_PARM2);
 	int flags = (prinst->callargc>3)?G_FLOAT(OFS_PARM3):0;
-	int type = (prinst->callargc>4)?G_FLOAT(OFS_PARM4):0;
+	int type = flags & 0xff;
 	pf_hashentry_t *ent = NULL;
 	if (tab)
 	{
 		if (!type)
 			type = tab->defaulttype;
-		if (flags & 1)
-			Hash_Remove(&tab->tab, name);
+		if (flags & 256)
+		{
+			ent = Hash_Get(&tab->tab, name);
+			if (ent)
+			{
+				Hash_RemoveData(&tab->tab, name, ent);
+				BZ_Free(ent);
+			}
+		}
 		if (type == ev_string)
 		{	//strings copy their value out.
 			const char *value = PR_GetStringOfs(prinst, OFS_PARM2);
 			int nlen = strlen(name);
-			int vlen = strlen(data);
+			int vlen = strlen(value);
 			ent = BZ_Malloc(sizeof(*ent) + nlen+1 + vlen+1);
 			ent->name = (char*)(ent+1);
 			ent->type = ev_string;
@@ -4452,7 +4469,7 @@ void QCBUILTIN PF_externcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		prinst->pr_trace++;	//continue debugging
 		PR_ExecuteProgram(prinst, f);
 	}
-	else if (!f)
+	else
 	{
 		f = PR_FindFunction(prinst, "MissingFunc", progsnum);
 		if (!f)

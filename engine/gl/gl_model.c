@@ -32,7 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
 extern cvar_t gl_lightmap_average;
-
+cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .vis patches for quake maps, allowing transparent water to work properly.");
 #ifdef SERVERONLY
 cvar_t gl_overbright, gl_specular, gl_load24bit, r_replacemodels, gl_miptexLevel, r_fb_bmodels;	//all of these can/should default to 0
 cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
@@ -529,6 +529,8 @@ void Mod_Init (qboolean initial)
 		Cmd_AddCommand("mod_usetexture", Mod_BlockTextureColour_f);
 #endif
 	}
+	else
+		Cvar_Register(&mod_external_vis, "Graphical Nicaties");
 
 	if (initial)
 	{
@@ -2065,15 +2067,20 @@ void Mod_LoadLighting (lump_t *l)
 Mod_LoadVisibility
 =================
 */
-void Mod_LoadVisibility (lump_t *l)
+void Mod_LoadVisibility (lump_t *l, qbyte *ptr, size_t len)
 {
-	if (!l->filelen)
+	if (!ptr)
+	{
+		ptr = mod_base + l->fileofs;
+		len = l->filelen;
+	}
+	if (!len)
 	{
 		loadmodel->visdata = NULL;
 		return;
 	}
-	loadmodel->visdata = ZG_Malloc(&loadmodel->memgroup, l->filelen);	
-	memcpy (loadmodel->visdata, mod_base + l->fileofs, l->filelen);
+	loadmodel->visdata = ZG_Malloc(&loadmodel->memgroup, len);	
+	memcpy (loadmodel->visdata, ptr, len);
 }
 
 
@@ -3321,21 +3328,27 @@ qboolean Mod_LoadNodes (lump_t *l, int lm)
 Mod_LoadLeafs
 =================
 */
-qboolean Mod_LoadLeafs (lump_t *l, int lm)
+qboolean Mod_LoadLeafs (lump_t *l, int lm, qbyte *ptr, size_t len)
 {
 	mleaf_t 	*out;
 	int			i, j, count, p;
 
+	if (!ptr)
+	{
+		ptr = mod_base + l->fileofs;
+		len = l->filelen;
+	}
+
 	if (lm==2)
 	{
 		dl2leaf_t 	*in;
-		in = (void *)(mod_base + l->fileofs);
-		if (l->filelen % sizeof(*in))
+		in = (void *)ptr;
+		if (len % sizeof(*in))
 		{
 			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 			return false;
 		}
-		count = l->filelen / sizeof(*in);
+		count = len / sizeof(*in);
 		if (count > MAX_MAP_LEAFS)
 		{
 			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, MAX_MAP_LEAFS);
@@ -3392,13 +3405,13 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 	else if (lm)
 	{
 		dl1leaf_t 	*in;
-		in = (void *)(mod_base + l->fileofs);
-		if (l->filelen % sizeof(*in))
+		in = (void *)(ptr);
+		if (len % sizeof(*in))
 		{
 			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 			return false;
 		}
-		count = l->filelen / sizeof(*in);
+		count = len / sizeof(*in);
 		if (count > MAX_MAP_LEAFS)
 		{
 			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, MAX_MAP_LEAFS);
@@ -3455,13 +3468,13 @@ qboolean Mod_LoadLeafs (lump_t *l, int lm)
 	else
 	{
 		dsleaf_t 	*in;
-		in = (void *)(mod_base + l->fileofs);
-		if (l->filelen % sizeof(*in))
+		in = (void *)(ptr);
+		if (len % sizeof(*in))
 		{
 			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 			return false;
 		}
-		count = l->filelen / sizeof(*in);
+		count = len / sizeof(*in);
 		if (count > MAX_MAP_LEAFS)
 		{
 			Con_Printf (CON_ERROR "Mod_LoadLeafs: %s has more than %i leafs\n",loadmodel->name, MAX_MAP_LEAFS);
@@ -4195,6 +4208,79 @@ static void Mod_FixupMinsMaxs(void)
 	Mod_FixupNodeMinsMaxs (loadmodel->nodes, NULL);	// sets nodes and leafs
 }
 
+struct vispatch_s
+{
+	void *fileptr;
+	size_t filelen;
+
+	void *visptr;
+	int vislen;
+
+	void *leafptr;
+	int leaflen;
+};
+
+void Mod_FindVisPatch(struct vispatch_s *patch, model_t *mod, size_t leaflumpsize)
+{
+	char patchname[MAX_QPATH];
+	int *lenptr, len;
+	int ofs;
+	qbyte *file;
+	memset(patch, 0, sizeof(*patch));
+
+	if (!mod_external_vis.ival)
+		return;
+
+	COM_StripExtension(mod->name, patchname, sizeof(patchname));
+	Q_strncatz(patchname, ".vis", sizeof(patchname));
+
+	//ignore the patch file if its in a different gamedir.
+	//this file format sucks too much for other verification.
+	if (FS_FLocateFile(mod->name,FSLFRT_DEPTH_OSONLY, NULL) != FS_FLocateFile(patchname,FSLFRT_DEPTH_OSONLY, NULL))
+		return;
+
+	patch->filelen = FS_LoadFile(patchname, &patch->fileptr);
+	if (!patch->fileptr)
+		return;
+	ofs = 0;
+	while (ofs+36 <= patch->filelen)
+	{
+		file = patch->fileptr;
+		file += ofs;
+		memcpy(patchname, file, 32);
+		patchname[32] = 0;
+		file += 32;
+		lenptr = (int*)file;
+		file += sizeof(int);
+		len = LittleLong(*lenptr);
+		if (ofs+36+len > patch->filelen)
+			break;
+
+//		if (!Q_strcasecmp(patchname, "foo"))
+		{
+			lenptr = (int*)file;
+			patch->vislen = LittleLong(*lenptr);
+			file += sizeof(int);
+			patch->visptr = file;
+			file += patch->vislen;
+
+			lenptr = (int*)file;
+			patch->leaflen = LittleLong(*lenptr);
+			file += sizeof(int);
+			patch->leafptr = file;
+			file += patch->leaflen;
+
+			if (sizeof(int)*2 + patch->vislen + patch->leaflen != len || patch->leaflen != leaflumpsize)
+			{
+				Con_Printf("Vis patch is unsuitable\n");
+				patch->visptr = NULL;
+				patch->leafptr = NULL;
+			}
+		}
+		ofs += 36+len;
+	}
+}
+
 /*
 =================
 Mod_LoadBrushModel
@@ -4202,6 +4288,7 @@ Mod_LoadBrushModel
 */
 qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 {
+	struct vispatch_s vispatch;
 	int			i, j;
 	dheader_t	*header;
 	mmodel_t 	*bm;
@@ -4306,6 +4393,8 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 
 	crouchhullfile = NULL;
 
+	Mod_FindVisPatch(&vispatch, loadmodel, header->lumps[LUMP_LEAFS].filelen);
+
 	TRACE(("Loading info\n"));
 #ifndef SERVERONLY
 	if (!isnotmap)
@@ -4354,9 +4443,9 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	if (noerrors)
 	{
 		TRACE(("Loading Vis\n"));
-		Mod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
+		Mod_LoadVisibility (&header->lumps[LUMP_VISIBILITY], vispatch.visptr, vispatch.vislen);
 	}
-	noerrors = noerrors && Mod_LoadLeafs (&header->lumps[LUMP_LEAFS], longm);
+	noerrors = noerrors && Mod_LoadLeafs (&header->lumps[LUMP_LEAFS], longm, vispatch.leafptr, vispatch.leaflen);
 	TRACE(("Loading Nodes\n"));
 	noerrors = noerrors && Mod_LoadNodes (&header->lumps[LUMP_NODES], longm);
 	TRACE(("Loading Clipnodes\n"));
@@ -4378,6 +4467,8 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 		FS_FreeFile(crouchhullfile);
 		crouchhullfile=NULL;
 	}
+
+	BZ_Free(vispatch.fileptr);
 
 	if (!noerrors)
 	{

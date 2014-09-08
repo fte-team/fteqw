@@ -93,7 +93,7 @@ qboolean M_Vid_GetMode(int num, int *w, int *h)
 
 
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 
 extern qboolean forcesaveprompt;
 extern cvar_t pr_debugger;
@@ -712,6 +712,7 @@ const char *presetexec[] =
 	"gl_texturemode2d n;"		//yeah, 2d too.
 	"r_part_classic_square 1;"	//blocky baby!
 	"r_part_classic_expgrav 1;"	//vanillaery
+	"r_particlesystem script;"	//q2 or hexen2 particle effects need to be loadable
 	"cl_sbar 1;"				//its a style thing
 	"sv_nqplayerphysics 1;"		//gb wanted this
 	"cl_demoreel 1;"			//yup, arcadey

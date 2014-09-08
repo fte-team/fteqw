@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "particles.h"
 
-typedef struct
+typedef struct qwskin_s
 {
 	char		name[64];
 	int			width;
@@ -32,7 +32,7 @@ typedef struct
 
 	qboolean	failedload;		// the name isn't a valid skin
 	void		*skindata;
-} skin_t;
+} qwskin_t;
 
 // player_state_t is the information needed by a player entity
 // to do move prediction and to generate a drawable entity
@@ -168,8 +168,9 @@ typedef struct player_info_s
 	unsigned int		ttopcolor;	//team, according to colour forcing
 	unsigned int		tbottomcolor;
 
-	int		spectator;
-	skin_t	*skin;
+	int			spectator;
+	qwskin_t	*qwskin;
+	skinid_t	skinid;
 
 	struct model_s	*model;
 
@@ -1314,10 +1315,10 @@ typedef struct
 qbyte *ReadPCXData(qbyte *buf, int length, int width, int height, qbyte *result);
 
 
+qwskin_t *Skin_Lookup (char *fullname);
 char *Skin_FindName (player_info_t *sc);
 void	Skin_Find (player_info_t *sc);
-qbyte	*Skin_Cache8 (skin_t *skin);
-qbyte	*Skin_Cache32 (skin_t *skin);
+qbyte	*Skin_Cache8 (qwskin_t *skin);
 void	Skin_Skins_f (void);
 void	Skin_FlushSkin(char *name);
 void	Skin_AllSkins_f (void);

@@ -151,15 +151,22 @@ static void DOM_ButtonEvent(int devid, int down, int button)
 		IN_KeyEvent(devid, down, K_MOUSE1+button, 0);
 	}
 }
-void DOM_HashChanged(char *loc)
+vfsfile_t *FSWEB_OpenTempHandle(int f);
+void DOM_LoadFile(char *loc, int handle)
 {
+	vfsfile_t *file = NULL;
+	Con_Printf("DOM_LoadFile: %s %i\n", loc, handle);
+	if (handle != -1)
+		file = FSWEB_OpenTempHandle(handle);
 	//try and open it. generally downloading it from the server.
-	Host_RunFile(loc+1, strlen(loc+1), NULL);
+	if (!Host_RunFile(loc, strlen(loc), file))
+	{
+		if (file)
+			VFS_CLOSE(file);
+	}
 }
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
-	int flags;
-
 	vid_isfullscreen = true;
 
 	if (!emscriptenfte_setupcanvas(
@@ -169,7 +176,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		IN_MouseMove,
 		DOM_ButtonEvent,
 		DOM_KeyEvent,
-		DOM_HashChanged
+		DOM_LoadFile
 		))
 	{
 		Con_Printf("Couldn't set up canvas\n");

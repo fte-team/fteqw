@@ -3764,41 +3764,42 @@ void SV_SetInfo_f (void)
 		return;
 	}
 
-	if (Cmd_Argv(1)[0] == '*')
+	key = Cmd_Argv(1);
+
+	if (key[0] == '*')
 		return;		// don't set priveledged values
 
-	if (strstr(Cmd_Argv(1), "\\") || strstr(Cmd_Argv(2), "\\"))
+	if (strstr(key, "\\") || strstr(Cmd_Argv(2), "\\"))
 		return;		// illegal char
 
-	Q_strncpyz(oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)), sizeof(oldval));
+	Q_strncpyz(oldval, Info_ValueForKey(host_client->userinfo, key), sizeof(oldval));
 
 #ifdef VM_Q1
 	if (Q1QVM_UserInfoChanged(sv_player))
 		return;
 #endif
 
-	Info_SetValueForKey (host_client->userinfo, Cmd_Argv(1), Cmd_Argv(2), sizeof(host_client->userinfo));
+	Info_SetValueForKey (host_client->userinfo, key, Cmd_Argv(2), sizeof(host_client->userinfo));
 // name is extracted below in ExtractFromUserInfo
 //	strncpy (host_client->name, Info_ValueForKey (host_client->userinfo, "name")
 //		, sizeof(host_client->name)-1);
 //	SV_FullClientUpdate (host_client, &sv.reliable_datagram);
 //	host_client->sendinfo = true;
 
-	if (!strcmp(Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)), oldval))
+	if (!strcmp(Info_ValueForKey(host_client->userinfo, key), oldval))
 		return; // key hasn't changed
 
 	// process any changed values
 	SV_ExtractFromUserinfo (host_client, true);
 
-	if (progstype != PROG_QW && !strcmp(Cmd_Argv(1), "bottomcolor"))
+	if (progstype != PROG_QW && !strcmp(key, "bottomcolor"))
 	{	//team fortress has a nasty habit of booting people without this
 		sv_player->v->team = atoi(Cmd_Argv(2))+1;
 	}
 
-	if (*Cmd_Argv(1) != '_')
+	if (*key != '_')
 	{
 		i = host_client - svs.clients;
-		key = Cmd_Argv(1);
 		val = Info_ValueForKey(host_client->userinfo, key);
 
 		basic = SV_UserInfoIsBasic(key);
@@ -3845,9 +3846,11 @@ void SV_SetInfo_f (void)
 		}
 	}
 
-	SV_LogPlayer(host_client, "userinfo changed");
+	//doh't spam chat changes. they're not interesting, and just spammy.
+	if (strcmp(key, "chat"))
+		SV_LogPlayer(host_client, "userinfo changed");
 
-	PR_ClientUserInfoChanged(Cmd_Argv(1), oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)));
+	PR_ClientUserInfoChanged(key, oldval, Info_ValueForKey(host_client->userinfo, key));
 }
 
 /*

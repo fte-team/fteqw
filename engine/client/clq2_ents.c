@@ -1228,6 +1228,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		ent.bottomcolour = 1;
 		ent.h2playerclass = 0;
 		ent.playerindex = -1;
+		ent.customskin = 0;
 
 			// set frame
 		if (effects & Q2EF_ANIM01)
@@ -1315,11 +1316,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				ent.model = player->model;
 				if (!ent.model || ent.model->needload)	//we need to do better than this
 				{
-					if (!ent.model || ent.model->needload)
-						ent.model = Mod_ForName("players/male/tris.md2", MLV_SILENT);
+					ent.model = Mod_ForName("players/male/tris.md2", MLV_SILENT);
+					ent.customskin = Mod_RegisterSkinFile("players/male/grunt.skin");
+					if (!ent.customskin)
+						ent.customskin = Mod_ReadSkinFile("players/male/grunt.skin", "replace \"\" \"players/male/grunt.pcx\"");
 				}
+				else
+					ent.customskin = player->skinid;
 				ent.playerindex = (s1->skinnum&0xff)%cl.allocated_client_slots;
-				player->model = ent.model;
 /*				ci = &cl.clientinfo[s1->skinnum & 0xff];
 //				ent.skin = ci->skin;
 				ent.model = ci->model;
@@ -1813,6 +1817,8 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	else
 		gun.framestate.g[FS_REG].frame[1] = ops->gunframe;
 
+	gun.playerindex = -1;
+
 	gun.flags = Q2RF_MINLIGHT | RF_DEPTHHACK | RF_WEAPONMODEL;
 	gun.framestate.g[FS_REG].lerpfrac = 1-cl.lerpfrac;
 	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
@@ -1926,6 +1932,7 @@ Emits all entities, particles, and lights to the refresh
 */
 void CLQ2_AddEntities (void)
 {
+	extern cvar_t chase_active, chase_back, chase_up;
 	if (cls.state != ca_active)
 		return;
 
@@ -1952,6 +1959,22 @@ void CLQ2_AddEntities (void)
 	CLQ2_AddProjectiles ();
 #endif
 	CL_UpdateTEnts ();
+
+
+	if (chase_active.ival)
+	{
+		playerview_t *pv = &cl.playerview[0];
+		vec3_t axis[3];
+		vec3_t camorg;
+		trace_t tr;
+		AngleVectors(r_refdef.viewangles, axis[0], axis[1], axis[2]);
+		VectorMA(r_refdef.vieworg, -chase_back.value, axis[0], camorg);
+		VectorMA(camorg, -chase_up.value, pv->gravitydir, camorg);
+//		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, MASK_WORLDSOLID, &tr))
+		VectorCopy(camorg, r_refdef.vieworg);
+
+		CL_EditExternalModels(0, NULL, 0);
+	}
 }
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang)

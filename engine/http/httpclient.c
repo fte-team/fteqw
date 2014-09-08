@@ -814,12 +814,190 @@ qboolean HTTPDL_Poll(struct dl_download *dl)
 	return true;
 }
 
+/*
+//decode a base64 byte to a 0-63 value. Cannot cope with =.
+static unsigned int Base64_DecodeByte(char byt)
+{
+    if (byt >= 'A' && byt <= 'Z')
+        return (byt-'A') + 0;
+    if (byt >= 'a' && byt <= 'z')
+        return (byt-'a') + 26;
+    if (byt >= '0' && byt <= '9')
+        return (byt-'0') + 52;
+    if (byt == '+')
+        return 62;
+    if (byt == '/')
+        return 63;
+    return -1;
+}
+//FIXME: we should be able to skip whitespace.
+static int Base64_Decode(char *out, int outlen, char **srcout, int *srclenout)
+{
+	int len = 0;
+	unsigned int result;
+
+	char *src = *srcout;
+	int srclen = *srclenout;
+
+	//4 input chars give 3 output chars
+	while(srclen >= 4)
+	{
+		if (len+3 > outlen)
+		{
+			//ran out of space in the output buffer
+			*srcout = src;
+			*srclenout = srclen;
+			return len;
+		}
+		result = Base64_DecodeByte(src[0])<<18;
+		result |= Base64_DecodeByte(src[1])<<12;
+		out[len++] = (result>>16)&0xff;
+		if (src[2] != '=')
+		{
+			result |= Base64_DecodeByte(src[2])<<6;
+			out[len++] = (result>>8)&0xff;
+			if (src[3] != '=')
+			{
+				result |= Base64_DecodeByte(src[3])<<0;
+				out[len++] = (result>>0)&0xff;
+			}
+		}
+		if (result & 0xff000000)
+			return 0;	//some kind of invalid char
+
+		src += 4;
+		srclen -= 4;
+	}
+
+	//end of string
+	*srcout = src;
+	*srclenout = srclen;
+
+	//some kind of error
+	if (srclen)
+	{
+		if (srclen != 1 || *src)
+			return 0;
+	}
+	
+	return len;
+}
+
+qboolean DataScheme_Decode(struct dl_download *dl)
+{
+	char block[8192];
+	int remaining, blocksize;
+	char mimetype[256];
+	char baseval[256];
+	char charsetval[256];
+	char *url;
+	char *data;
+	char *charset;
+	char *base;
+	//failed previously
+	if (dl->status == DL_FAILED)
+		return false;
+
+	//data:[<MIME-type>][;charset=<encoding>][;base64],<data>
+
+	*mimetype = 0;
+	*baseval = 0;
+	*charsetval = 0;
+
+	url = dl->url;
+	if (!strncmp(url, "data:", 5))
+		url+=5;	//should always match
+	data = strchr(url, ',');
+	if (!data)
+		return false;
+	charset = memchr(url, ';', data-url);
+	if (charset)
+	{
+		base = memchr(charset+1, ';', data-charset);
+		if (base)
+		{
+			if (data-(base+1) >= sizeof(baseval))
+				return false;
+			memcpy(baseval, base+1, data-(base+1));
+			baseval[data-(base+1)] = 0;
+		}
+		else
+			base = data;
+		if (base-(charset+1) >= sizeof(charsetval))
+			return false;
+		memcpy(charsetval, charset+1, base-(charset+1));
+		charsetval[base-(charset+1)] = 0;
+
+		if (!strchr(charsetval, '='))
+		{
+			strcpy(baseval, charsetval);
+			*charsetval = 0;
+		}
+	}
+	else
+		charset = data;
+	if (charset-(url) >= sizeof(charsetval))
+		return false;
+	memcpy(mimetype, url, charset-(url));
+	mimetype[charset-(url)] = 0;
+
+	if (!*mimetype)
+		Q_strncpyz(mimetype, "text/plain", sizeof(mimetype));
+	if (!*charsetval)
+		Q_strncpyz(charsetval, "charset=US-ASCII", sizeof(charsetval));
+
+	if (dl->notifystarted)
+		dl->notifystarted(dl, *mimetype?mimetype:NULL);
+
+	if (!dl->file)
+	{
+#ifndef NPFTE
+		if (*dl->localname)
+		{
+			FS_CreatePath(dl->localname, FS_GAME);
+			dl->file = FS_OpenVFS(dl->localname, "w+b", FS_GAME);
+		}
+		else
+			dl->file = FS_OpenTemp();
+#endif
+		if (!dl->file)
+		{
+			if (*dl->localname)
+				Con_Printf("HTTP: Couldn't open file \"%s\"\n", dl->localname);
+			else
+				Con_Printf("HTTP: Couldn't open temporary file\n");
+			dl->status = DL_FAILED;
+			return false;
+		}
+	}
+
+	data++;
+	remaining = strlen(data);
+	while(remaining > 0)
+	{
+		blocksize = Base64_Decode(block, sizeof(block), &data, &remaining);
+		if (!blocksize)
+		{
+			dl->status = DL_FAILED;
+			return false;
+		}
+		VFS_WRITE(dl->file, block, blocksize);
+	}
+
+	dl->status = DL_FINISHED;
+	return false;
+}
+*/
+
 qboolean DL_Decide(struct dl_download *dl)
 {
 	const char *url = dl->redir;
 	if (!*url)
 		url = dl->url;
 
+	/*if (!strnicmp(url, "data:", 5))
+		dl->poll = DataScheme_Decode;
+	else*/
 	if (!strnicmp(url, "http://", 7))
 		dl->poll = HTTPDL_Poll;
 	else
@@ -883,11 +1061,12 @@ qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyF
 struct dl_download *DL_Create(const char *url)
 {
 	struct dl_download *newdl;
-	newdl = malloc(sizeof(*newdl));
+	newdl = malloc(sizeof(*newdl) + strlen(url)+1);
 	if (!newdl)
 		return NULL;
 	memset(newdl, 0, sizeof(*newdl));
-	Q_strncpyz(newdl->url, url, sizeof(newdl->url));
+	newdl->url = (char*)(newdl+1);
+	strcpy(newdl->url, url);
 	newdl->poll = DL_Decide;
 
 	if (!newdl->poll(newdl))
@@ -995,10 +1174,10 @@ void HTTP_CL_Think(void)
 			cls.download = &dl->qdownload;
 			dl->qdownload.method = DL_HTTP;
 			if (*dl->localname)
-				strcpy(dl->qdownload.localname, dl->localname);
+				Q_strncpyz(dl->qdownload.localname, dl->localname, sizeof(dl->qdownload.localname));
 			else
-				strcpy(dl->qdownload.localname, dl->url);
-			strcpy(dl->qdownload.remotename, dl->url);
+				Q_strncpyz(dl->qdownload.localname, dl->url, sizeof(dl->qdownload.localname));
+			Q_strncpyz(dl->qdownload.remotename, dl->url, sizeof(dl->qdownload.remotename));
 			dl->qdownload.starttime = Sys_DoubleTime();
 		}
 

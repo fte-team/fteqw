@@ -102,7 +102,7 @@ void M_DrawTextBox (int x, int y, int width, int lines);
 
 #define NOMEDIAMENU
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 
 //
 // menus

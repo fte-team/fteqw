@@ -10,7 +10,7 @@ qboolean SV_AllowDownload (const char *name)
 {
 	return true;
 }
-char		com_token[1024];
+char		com_token[sizeof(com_token)];
 com_tokentype_t com_tokentype;
 int		com_argc;
 const char	**com_argv;
@@ -103,7 +103,7 @@ int main(int argc, char **argv)
 }
 
 
-void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *, searchpathfuncs_t *f), void *parm)
+void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *f), void *parm)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;	

@@ -95,6 +95,10 @@ cvar_t	v_projectionmode = SCVAR("v_projectionmode", "0");
 
 cvar_t	scr_autoid = SCVAR("scr_autoid", "1");
 
+cvar_t	chase_active = CVAR("chase_active", "0");
+cvar_t	chase_back = CVAR("chase_back", "48");
+cvar_t	chase_up = CVAR("chase_up", "24");
+
 
 extern cvar_t cl_chasecam;
 
@@ -1295,12 +1299,23 @@ void V_CalcRefdef (playerview_t *pv)
 
 	r_refdef.time = cl.servertime;
 
-// smooth out stair step ups
-
-
 	{
 		extern model_t *loadmodel;
 		loadmodel = cl.worldmodel;
+	}
+
+	if (chase_active.ival)
+	{
+		vec3_t axis[3];
+		vec3_t camorg;
+		trace_t tr;
+		AngleVectors(r_refdef.viewangles, axis[0], axis[1], axis[2]);
+		VectorMA(r_refdef.vieworg, -chase_back.value, axis[0], camorg);
+		VectorMA(camorg, -chase_up.value, pv->gravitydir, camorg);
+//		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, MASK_WORLDSOLID, &tr))
+		VectorCopy(camorg, r_refdef.vieworg);
+
+		CL_EditExternalModels(0, NULL, 0);
 	}
 }
 
@@ -1471,6 +1486,11 @@ void V_RenderPlayerViews(playerview_t *pv)
 	DropPunchAngle (pv);
 
 	Cam_SelfTrack(pv);
+
+	oldnuments = cl_numvisedicts;
+	oldstris = cl_numstris;
+	CL_LinkViewModel ();
+
 	if (cl.intermission)
 	{	// intermission / finale rendering
 		V_CalcIntermissionRefdef (pv);
@@ -1481,10 +1501,6 @@ void V_RenderPlayerViews(playerview_t *pv)
 		V_CalcRefdef (pv);
 	}
 	V_ApplyRefdef();
-
-	oldnuments = cl_numvisedicts;
-	oldstris = cl_numstris;
-	CL_LinkViewModel ();
 
 	R_RenderView ();
 	R2D_PolyBlend ();
@@ -1758,4 +1774,8 @@ void V_Init (void)
 	Cvar_Register (&v_gamma, VIEWVARS);
 	Cvar_Register (&v_contrast, VIEWVARS);
 	Cvar_Register (&v_brightness, VIEWVARS);
+
+//	Cvar_Register (&chase_active, VIEWVARS);
+//	Cvar_Register (&chase_back, VIEWVARS);
+//	Cvar_Register (&chase_up, VIEWVARS);
 }

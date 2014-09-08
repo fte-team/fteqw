@@ -9,7 +9,7 @@ model meshes are interpolated multiple times per frame
 //#define DBG_COLOURNOTDEPTH
 
 
-#ifdef RTLIGHTS
+#if defined(RTLIGHTS) && !defined(SERVERONLY)
 
 #include "glquake.h"
 #include "shader.h"
@@ -3506,7 +3506,7 @@ void Sh_DrawLights(qbyte *vis)
 //so this little function is used to check if its needed or not.
 qboolean Sh_StencilShadowsActive(void)
 {
-#ifdef RTLIGHTS
+#if defined(RTLIGHTS) && !defined(SERVERONLY)
 	//if shadowmapping is forced on all lights then we don't need special depth stuff
 //	if (r_shadow_shadowmapping.ival)
 //		return false;
@@ -3521,7 +3521,7 @@ qboolean Sh_StencilShadowsActive(void)
 
 void Sh_RegisterCvars(void)
 {
-#ifdef RTLIGHTS
+#if defined(RTLIGHTS) && !defined(SERVERONLY)
 #define REALTIMELIGHTING "Realtime Lighting"
 	Cvar_Register (&r_shadow_scissor,					REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_realtime_world,			REALTIMELIGHTING);

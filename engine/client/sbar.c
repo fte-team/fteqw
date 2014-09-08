@@ -411,7 +411,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			Draw_FunString (x+32, y+16, va("Ping:  %i", ping));
 			Draw_FunString (x+32, y+24, va("Time:  %i", time));
 
-			p = R2D_SafeCachePic(va("players/%s_i.pcx", cl.players[value].skin->name));
+			p = R2D_SafeCachePic(va("players/%s_i.pcx", cl.players[value].qwskin->name));
 			if (!p)	//display a default if the icon couldn't be found.
 				p = R2D_SafeCachePic("players/male/grunt_i.pcx");
 			R2D_ScalePic (x, y, 32, 32, p);

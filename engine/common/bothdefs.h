@@ -270,7 +270,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef QUAKETC
-	#define NOBUITINMENUS	//kill engine menus (should be replaced with ewither csqc or menuqc)
+	#define NOBUILTINMENUS	//kill engine menus (should be replaced with ewither csqc or menuqc)
 	#undef Q2CLIENT	//not useful
 	#undef Q2SERVER	//not useful
 	#undef Q3CLIENT	//not useful

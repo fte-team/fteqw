@@ -3,7 +3,7 @@
 #include "quakedef.h"
 #include "shader.h"
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 
 int selectitem;
 menu_t *menu_script;

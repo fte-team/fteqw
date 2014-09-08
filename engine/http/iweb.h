@@ -106,7 +106,7 @@ struct dl_download
 	qdownload_t qdownload;
 
 	/*stream config*/
-	char url[MAX_OSPATH];	/*original url*/
+	char *url;	/*original url*/
 	char redir[MAX_OSPATH];	/*current redirected url*/
 	char localname[MAX_OSPATH]; /*leave empty for a temp file*/
 	struct vfsfile_s *file;	/*downloaded to, if not already set when starting will open localname or a temp file*/

@@ -1802,7 +1802,7 @@ void CL_QTVPoll (void)
 	int len;
 	qboolean streamavailable = false;
 	qboolean saidheader = false;
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 	menu_t *sourcesmenu = NULL;
 #endif
 	int sourcenum = 0;
@@ -1971,7 +1971,7 @@ void CL_QTVPoll (void)
 			{
 				streamid = atoi(colon);
 
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 				//now put it on a menu
 				if (!sourcesmenu)
 				{

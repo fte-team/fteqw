@@ -1440,6 +1440,12 @@ qboolean X_CheckWMFullscreenAvailable(void)
 	qboolean success = false;
 	unsigned char *wmname;
 	int i;
+
+	if (!COM_CheckParm("-nowmfullscreen"))
+	{
+		Con_Printf("Window manager fullscreen support disabled. Will attempt to hide from it instead.\n");
+		return success;
+	}
 	
 
 	if (x11.pXGetWindowProperty(vid_dpy, vid_root, xa_net_supporting_wm_check, 0, 16384, False, AnyPropertyType, &type, &format, &nitems, &bytes_after, &prop) != Success || prop == NULL)

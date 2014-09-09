@@ -5276,9 +5276,14 @@ static QCC_ref_t *QCC_PR_ParseField(QCC_ref_t *refbuf, QCC_ref_t *lhs)
 			{
 				if (acc->indexertype)
 				{
-					QCC_PR_Expect("[");
-					index = QCC_PR_Expression (TOP_PRIORITY, 0);
-					QCC_PR_Expect("]");
+					if (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->"))
+						index = QCC_MakeStringConst(QCC_PR_ParseName());
+					else
+					{
+						QCC_PR_Expect("[");
+						index = QCC_PR_Expression (TOP_PRIORITY, 0);
+						QCC_PR_Expect("]");
+					}
 				}
 				break;
 			}

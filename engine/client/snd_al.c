@@ -572,10 +572,10 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 				if (!sbuf.length && (chan->pos>>PITCHSHIFT) == sbuf.soundoffset)
 				{
 					chan->sfx = NULL;
-					if (sfx->decoder.abort)
+					if (sfx->decoder.ended)
 					{
 						if (!S_IsPlayingSomewhere(sfx))
-							sfx->decoder.abort(sfx);
+							sfx->decoder.ended(sfx);
 					}
 				}
 				sbuf.soundoffset = 0;

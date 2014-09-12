@@ -162,10 +162,10 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 						else if (!ch->looping)
 						{
 							ch->sfx = NULL;
-							if (s->decoder.abort)
+							if (s->decoder.ended)
 							{
 								if (!S_IsPlayingSomewhere(s))
-									s->decoder.abort(s);
+									s->decoder.ended(s);
 							}
 						}
 					}
@@ -265,10 +265,10 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 					else
 					{	// channel just stopped
 						ch->sfx = NULL;
-						if (s->decoder.abort)
+						if (s->decoder.ended)
 						{
 							if (!S_IsPlayingSomewhere(s))
-								s->decoder.abort(s);
+								s->decoder.ended(s);
 						}
 						break;
 					}

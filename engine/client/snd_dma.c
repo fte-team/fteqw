@@ -2067,8 +2067,10 @@ void S_Purge(qboolean retaintouched)
 			continue;
 
 		/*stop the decoder first*/
-		if (sfx->decoder.abort)
-			sfx->decoder.abort(sfx);
+		if (sfx->decoder.purge)
+			sfx->decoder.purge(sfx);
+		else if (sfx->decoder.ended)
+			sfx->decoder.ended(sfx);
 
 		/*if there's any data associated still, kill it. if present, it should be a single sfxcache_t (with data in same alloc)*/
 		if (sfx->decoder.buf)
@@ -2421,10 +2423,10 @@ void S_StopAllSounds(qboolean clear)
 			{
 				s = sc->channel[i].sfx;
 				sc->channel[i].sfx = NULL;
-				if (s->decoder.abort)
+				if (s->decoder.ended)
 				if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
 				{
-					s->decoder.abort(s);
+					s->decoder.ended(s);
 				}
 				if (sc->ChannelUpdate)
 					sc->ChannelUpdate(sc, &sc->channel[i], true);
@@ -2540,14 +2542,8 @@ void S_Music_Clear(sfx_t *onlyifsample)
 			sc->channel[i].pos = 0;
 			sc->channel[i].sfx = NULL;
 
-			if (s)
-			if (s->decoder.abort)
-			if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
-			{
-				s->decoder.abort(s);
-//				if (s->cache.data)
-//					Cache_Free(&s->cache);
-			}
+			if (s && s->decoder.ended && !S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
+				s->decoder.ended(s);
 		}
 	}
 }

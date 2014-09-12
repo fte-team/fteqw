@@ -780,6 +780,8 @@ static qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const q
 	int maxcount = VM_LONG(arg[2]);
 
 	netadr_t a;
+	if (!currentplug)
+		return -3;	//streams depend upon current plugin context. which isn't valid in a thread.
 	if (!localip)
 		localip = "0.0.0.0";	//pass "[::]" for ipv6
 
@@ -840,7 +842,7 @@ static qintptr_t VARGS Plug_Net_Accept(void *offset, quintptr_t mask, const qint
 	int _true = 1;
 	char adr[MAX_ADR_SIZE];
 
-	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug || pluginstreamarray[handle].type != STREAM_SOCKET)
+	if (!currentplug || handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug || pluginstreamarray[handle].type != STREAM_SOCKET)
 		return -2;
 	sock = pluginstreamarray[handle].socket;
 
@@ -880,7 +882,7 @@ qintptr_t VARGS Plug_Net_TCPConnect(void *offset, quintptr_t mask, const qintptr
 
 	int handle;
 	vfsfile_t *stream = FS_OpenTCP(remoteip, remoteport);
-	if (!stream)
+	if (!currentplug || !stream)
 		return -1;
 	handle = Plug_NewStreamHandle(STREAM_VFS);
 	pluginstreamarray[handle].vfs = stream;
@@ -938,6 +940,8 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 
 	if (VM_OOB(arg[1], sizeof(int)))
 		return -2;
+	if (!currentplug)
+		return -3;	//streams depend upon current plugin context. which isn't valid in a thread.
 	ret = VM_POINTER(arg[1]);
 	*ret = -1;
 

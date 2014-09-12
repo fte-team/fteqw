@@ -4202,7 +4202,7 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname)
 		type = 3;
 	else
 		type = 0;
-	alpha = Shader_FloatArgument(s, "ALPHA");
+	alpha = Shader_FloatArgument(s, "#ALPHA");
 	if (alpha)
 		explicitalpha = true;
 	else

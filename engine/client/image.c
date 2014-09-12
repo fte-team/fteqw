@@ -2266,8 +2266,6 @@ void BoostGamma(qbyte *rgba, int width, int height)
 
 
 
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-
 #ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
 #define GL_COMPRESSED_RGB_S3TC_DXT1_EXT                   0x83F0
 #define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT                  0x83F1
@@ -3107,8 +3105,6 @@ texid_t R_LoadBumpmapTexture(const char *name, const char *subpath)
 	}
 	return r_nulltex;
 }
-
-#endif
 
 // ocrana led functions
 static int ledcolors[8][3] =

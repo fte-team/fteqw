@@ -93,7 +93,8 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	buffer->s = s;
 	s->decoder.buf = buffer;
 	s->decoder.decodedata = OV_DecodeSome;
-	s->decoder.abort = OV_CancelDecoder;
+	s->decoder.purge = OV_CancelDecoder;
+	s->decoder.ended = OV_CancelDecoder;
 
 	if (!OV_StartDecode(data, datalen, buffer))
 	{
@@ -248,7 +249,8 @@ void OV_CancelDecoder(sfx_t *s)
 
 	dec = s->decoder.buf;
 	s->decoder.buf = NULL;
-	s->decoder.abort = NULL;
+	s->decoder.purge = NULL;
+	s->decoder.ended = NULL;
 	s->decoder.decodedata = NULL;
 	p_ov_clear (&dec->vf);	//close the decoder
 

@@ -40,19 +40,22 @@ typedef struct
 
 typedef struct {
 	struct sfxcache_s *(*decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length);	//retrurn true when done.
-	void (*abort) (struct sfx_s *sfx);	//it's not playing elsewhere. free entirly
+	void (*ended) (struct sfx_s *sfx);	//sound stopped playing and is now silent (allow rewinding or something).
+	void (*purge) (struct sfx_s *sfx);	//sound is being purged from memory. destroy everything.
 	void *buf;
 } sfxdecode_t;
 
 typedef struct sfx_s
 {
 	char 	name[MAX_OSPATH];
+	sfxdecode_t		decoder;
+
+	qboolean failedload:1; //no more super-spammy
+	qboolean touched:1; //if the sound is still relevent
+
 #ifdef AVAIL_OPENAL
 	unsigned int	openal_buffer;
 #endif
-	qboolean failedload:1; //no more super-spammy
-	qboolean touched:1; //if the sound is still relevent
-	sfxdecode_t		decoder;
 } sfx_t;
 
 // !!! if this is changed, it much be changed in asm_i386.h too !!!

@@ -1409,19 +1409,18 @@ int M_GameType (void)
 
 	if (FS_Restarted(&cachedrestarts))
 	{
+		int q1 = COM_FDepthFile("gfx/sp_menu.lmp", true);
+		int h2 = COM_FDepthFile("gfx/menu/title2.lmp", true);
 #if defined(Q2CLIENT)
-		int q1, h2, q2;
-
-		q1 = COM_FDepthFile("gfx/sp_menu.lmp", true);
-		h2 = COM_FDepthFile("gfx/menu/title2.lmp", true);
-		q2 = COM_FDepthFile("pics/m_banner_game.pcx", true);
+		int q2 = COM_FDepthFile("pics/m_banner_game.pcx", true);
 
 		if (q2 < h2 && q2 < q1)
 			cached = MGT_QUAKE2;
-		else if (h2 < q1)
-			cached = MGT_HEXEN2;
 		else
 #endif
+			if (h2 < q1)
+			cached = MGT_HEXEN2;
+		else
 			cached = MGT_QUAKE1;
 	}
 

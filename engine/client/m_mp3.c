@@ -4235,12 +4235,13 @@ typedef struct
 	qbyte srcdata[1];
 } mp3decoder_t;
 
-static void S_MP3_Abort(sfx_t *sfx)
+static void S_MP3_Purge(sfx_t *sfx)
 {
 	mp3decoder_t *dec = sfx->decoder.buf;
 
 	sfx->decoder.buf = NULL;
-	sfx->decoder.abort = NULL;
+	sfx->decoder.ended = NULL;
+	sfx->decoder.purge = NULL;
 	sfx->decoder.decodedata = NULL;
 
 	qacmStreamClose(dec->acm, 0);
@@ -4374,7 +4375,8 @@ qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	memcpy(dec->srcdata, data, datalen);
 	dec->srclen = datalen;
 	s->decoder.buf = dec;
-	s->decoder.abort = S_MP3_Abort;
+	s->decoder.ended = S_MP3_Purge;
+	s->decoder.purge = S_MP3_Purge;
 	s->decoder.decodedata = S_MP3_Locate;
 	
 	dec->dstdata = NULL;

@@ -438,13 +438,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 //remove any options that depend upon GL.
-#ifndef SERVERONLY
-	// undefine things not supported yet for D3D
-	#if defined(D3DQUAKE) && !defined(GLQUAKE)
-		#undef IMAGEFMT_DDS // this is dumb
-		#undef IMAGEFMT_BLP // this is dumb
-	#endif
-
+#if !defined(GLQUAKE)
+	#undef IMAGEFMT_DDS // this is dumb
+	#undef IMAGEFMT_BLP // this is dumb
 #endif
 
 #if !defined(Q3BSPS)

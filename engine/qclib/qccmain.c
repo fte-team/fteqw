@@ -896,7 +896,7 @@ pbool QCC_WriteData (int crc)
 //				else
 //					QCC_PR_Warning(WARN_DEADCODE, strings + def->s_file, def->s_line, "%s is never directly called", def->name);
 			}
-			if (opt_stripfunctions && def->timescalled >= def->references-1)	//make sure it's not copied into a different var.
+			if (opt_stripfunctions && def->constant && def->timescalled >= def->references-1)	//make sure it's not copied into a different var.
 			{								//if it ever does self.think then it could be needed for saves.
 				optres_stripfunctions++;	//if it's only ever called explicitly, the engine doesn't need to know.
 				continue;

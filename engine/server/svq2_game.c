@@ -798,20 +798,6 @@ qboolean SVQ2_InitGameProgs(void)
 	if (sv.world.worldmodel && (sv.world.worldmodel->fromgame == fg_quake || sv.world.worldmodel->fromgame == fg_halflife))
 	{
 		return false;
-		/*
-		import.linkentity			= SVQ2_Q1BSP_LinkEdict;
-		import.unlinkentity			= SVQ2_Q1BSP_UnlinkEdict;
-		import.BoxEdicts			= SVQ2_Q1BSP_AreaEdicts;
-		import.trace				= SVQ2_Q1BSP_Trace;
-		import.pointcontents		= SVQ2_Q1BSP_PointContents;
-		import.setmodel				= PFQ2_Q1BSP_setmodel;
-		import.inPVS				= PFQ2_Q1BSP_inPVS;
-		import.inPHS				= PFQ2_Q1BSP_inPHS;
-		import.Pmove				= Q2_Pmove;
-
-		import.AreasConnected		= PFQ2_Q1BSP_AreasConnected;
-		import.SetAreaPortalState	= CMQ2_Q1BSP_SetAreaPortalState;
-	*/
 	}
 
 	ge = (game_export_t *)SVQ2_GetGameAPI ((game_import_t*)&import);

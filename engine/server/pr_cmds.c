@@ -575,6 +575,7 @@ void PR_Deinit(void)
 		PR_Common_Shutdown(svprogfuncs, false);
 		if (svprogfuncs->CloseProgs)
 			svprogfuncs->CloseProgs(svprogfuncs);
+		sv.world.progs = NULL;
 		svprogfuncs=NULL;
 
 		for (i = 0; i < MAX_LIGHTSTYLES; i++)

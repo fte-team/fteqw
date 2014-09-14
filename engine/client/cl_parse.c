@@ -2864,6 +2864,8 @@ void CLQW_ParseServerData (void)
 			Host_EndGame("Server sent us too many alternate clients\n");
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
+			if (cls.z_ext & Z_EXT_VIEWHEIGHT)
+				cl.playerview[pnum].viewheight = 0;
 			cl.playerview[pnum].playernum = MSG_ReadByte();
 			if (cl.playerview[pnum].playernum >= cl.allocated_client_slots)
 				Host_EndGame("unsupported local player slot\n");
@@ -2878,6 +2880,8 @@ void CLQW_ParseServerData (void)
 		{
 			if (clnum == MAX_SPLITS)
 				Host_EndGame("Server sent us too many alternate clients\n");
+			if (cls.z_ext & Z_EXT_VIEWHEIGHT)
+				cl.playerview[pnum].viewheight = 0;
 			cl.playerview[clnum].playernum = pnum;
 			if (cl.playerview[clnum].playernum & 128)
 			{

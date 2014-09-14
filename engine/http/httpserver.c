@@ -498,6 +498,8 @@ cont:
 			{
 				msg = "HTTP/1.1 400 Bad Request\r\n"	/*"Content-Type: application/octet-stream\r\n"*/		"Content-Length: 69\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n"	"400 Bad Request\r\nYour client failed to provide the host header line";
 
+				IWebPrintf("%s: no host specified\n", cl->peername);
+
 				ammount = strlen(msg);
 				ExpandOutBuffer(cl, ammount, true);
 				memcpy(cl->outbuffer, msg, ammount);
@@ -540,7 +542,7 @@ cont:
 				}
 				if (!cl->file)
 				{
-					IWebPrintf("%s: Download rejected\n", cl->peername);
+					IWebPrintf("%s: 404 - not found\n", cl->peername);
 
 					if (HTTPmarkup >= 3)
 						msg = "HTTP/1.1 404 Not Found\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 15\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n"	"404 Bad address";
@@ -603,6 +605,7 @@ notimplemented:
 					msg = NULL;
 					cl->closereason = "unsupported http version";
 				}
+				IWebPrintf("%s: 501 - not implemented\n", cl->peername);
 
 				if (msg)
 				{

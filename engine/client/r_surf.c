@@ -2180,7 +2180,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 
 // calculate dynamic lighting for bmodel if it's not an
 // instanced model
-	if (model->fromgame != fg_quake3 && model->fromgame != fg_doom3)
+	if (model->fromgame != fg_quake3 && model->fromgame != fg_doom3 && lightmap)
 	{
 		int k;
 

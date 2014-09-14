@@ -1526,6 +1526,7 @@ SERVICE_TABLE_ENTRY   DispatchTable[] =
 int main (int argc, char **argv)
 {
 #ifdef CATCHCRASH
+	LoadLibrary ("DBGHELP");	//heap corruption can prevent loadlibrary from working properly, so do this in advance.
 #ifdef _MSC_VER
 	__try
 #else

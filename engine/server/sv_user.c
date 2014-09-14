@@ -3530,7 +3530,8 @@ void SV_Kill_f (void)
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientKill);
+	if (pr_global_ptrs->ClientKill)
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientKill);
 }
 
 /*
@@ -4327,6 +4328,9 @@ void Cmd_SetPos_f(void)
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
 		SV_TPrintToClient(host_client, PRINT_HIGH, "noclip on\n");
 	}
+
+	//make sure they're not going to whizz away from it
+	VectorClear(sv_player->v->velocity);
 
 	sv_player->v->origin[0] = atof(Cmd_Argv(1));
 	sv_player->v->origin[1] = atof(Cmd_Argv(2));

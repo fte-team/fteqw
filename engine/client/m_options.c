@@ -2752,7 +2752,7 @@ void M_Menu_ModelViewer_f(void)
 #else
 void M_Menu_ModelViewer_f(void)
 {
-	Con_Printf("no.\n");
+	Con_Printf("modelviewer: not in this build\n");
 }
 #endif
 
@@ -2771,6 +2771,9 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 	ym = y+c->common.height;
 
 	mods->y = y;
+
+	if (!mods->nummanifests)
+		Draw_FunString(x, y, "No games or mods known");
 
 	for (i = 0; y+8 <= ym && i < mods->nummanifests; y+=8, i++)
 	{

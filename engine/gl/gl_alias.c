@@ -2448,7 +2448,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			switch(ent->model->type)
 			{
 			case mod_brush:
-				if (r_drawentities.ival == 2 || !lightmap)
+				if (r_drawentities.ival == 2)
 					continue;
 				Surf_GenBrushBatches(batches, ent);
 				break;

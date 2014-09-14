@@ -3117,6 +3117,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 
 #ifdef CATCHCRASH
+	LoadLibrary ("DBGHELP");	//heap corruption can prevent loadlibrary from working properly, so do this in advance.
 #ifdef _MSC_VER
 	__try
 #else

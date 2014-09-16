@@ -2882,6 +2882,7 @@ void CLNQ_ConnectionlessPacket(void)
 	switch(MSG_ReadByte())
 	{
 	case CCREP_ACCEPT:
+		connectinfo.trying = false;
 		if (cls.state >= ca_connected)
 		{
 			if (cls.demoplayback == DPB_NONE)
@@ -2934,6 +2935,7 @@ void CLNQ_ConnectionlessPacket(void)
 		return;
 
 	case CCREP_REJECT:
+		connectinfo.trying = false;
 		s = MSG_ReadString();
 		Con_Printf("Connect failed\n%s\n", s);
 		return;

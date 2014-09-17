@@ -575,7 +575,7 @@ static model_t *CSQC_GetModelForIndex(int index)
 {
 	if (index == 0)
 		return NULL;
-	else if (index > 0 && index < MAX_MODELS)
+	else if (index > 0 && index < MAX_PRECACHE_MODELS)
 		return cl.model_precache[index];
 	else if (index < 0 && index > -MAX_CSMODELS)
 	{
@@ -1899,7 +1899,7 @@ static int FindModel(const char *name, int *free)
 		if (!strcmp(cl.model_csqcname[i], name))
 			return -i;
 	}
-	for (i = 1; i < MAX_MODELS; i++)
+	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
 	{
 		if (!strcmp(cl.model_name[i], name))
 			return i;
@@ -1923,7 +1923,7 @@ static void csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int modelind
 	}
 	else
 	{
-		if (modelindex >= MAX_MODELS)
+		if (modelindex >= MAX_PRECACHE_MODELS)
 			return;
 		ent->v->model = PR_SetString(prinst, cl.model_name[modelindex]);
 		model = cl.model_precache[modelindex];
@@ -1981,7 +1981,7 @@ static void QCBUILTIN PF_cs_PrecacheModel(pubprogfuncs_t *prinst, struct globalv
 		return;
 	}
 
-	for (i = 1; i < MAX_MODELS; i++)	//Make sure that the server specified model is loaded..
+	for (i = 1; i < MAX_PRECACHE_MODELS; i++)	//Make sure that the server specified model is loaded..
 	{
 		if (!*cl.model_name[i])
 			break;
@@ -2531,6 +2531,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	pmove.cmd.upmove = csqcg.input_movevalues[2];
 	pmove.cmd.buttons = *csqcg.input_buttons;
 	pmove.safeorigin_known = false;
+	pmove.capsule = false;	//FIXME
 
 	if (ent)
 	{
@@ -3853,8 +3854,8 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 //	ent->v->effects = srcp->effects;
 }
 
-unsigned int deltaflags[MAX_MODELS];
-func_t deltafunction[MAX_MODELS];
+unsigned int deltaflags[MAX_PRECACHE_MODELS];
+func_t deltafunction[MAX_PRECACHE_MODELS];
 
 typedef struct
 {
@@ -3878,7 +3879,7 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 {
 	func_t func;
 
-	if (!state || state->modelindex <= 0 || state->modelindex >= MAX_MODELS)
+	if (!state || state->modelindex <= 0 || state->modelindex >= MAX_PRECACHE_MODELS)
 	{
 		if (csqcdelta_playerents[playernum])
 		{
@@ -4045,7 +4046,7 @@ static void QCBUILTIN PF_DeltaListen(pubprogfuncs_t *prinst, struct globalvars_s
 	if (!strcmp(mname, "*"))
 	{
 		//yes, even things that are not allocated yet
-		for (i = 0; i < MAX_MODELS; i++)
+		for (i = 0; i < MAX_PRECACHE_MODELS; i++)
 		{
 			deltafunction[i] = func;
 			deltaflags[i] = flags;
@@ -4053,7 +4054,7 @@ static void QCBUILTIN PF_DeltaListen(pubprogfuncs_t *prinst, struct globalvars_s
 	}
 	else
 	{
-		for (i = 1; i < MAX_MODELS; i++)
+		for (i = 1; i < MAX_PRECACHE_MODELS; i++)
 		{
 			if (!*cl.model_name[i])
 				break;
@@ -5490,8 +5491,6 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		CSQC_FindGlobals();
 
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csqc_maxedicts.value);
-
-		ED_Alloc(csqcprogs);	//we need a world entity.
 
 		//world edict becomes readonly
 		worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);

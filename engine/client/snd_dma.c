@@ -1758,7 +1758,7 @@ void S_DoRestart (void)
 	S_StopAllSounds (true);
 
 
-	for (i=1 ; i<MAX_SOUNDS ; i++)
+	for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
 	{
 		if (!cl.sound_name[i][0])
 			break;

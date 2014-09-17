@@ -3911,11 +3911,7 @@ void QCBUILTIN PF_argescape(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 void QCBUILTIN PF_random (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float		num;
-
-	num = (rand ()&0x7fff) / ((float)0x8000);
-
-	G_FLOAT(OFS_RETURN) = num;
+	G_FLOAT(OFS_RETURN) = (rand ()&0x7fff) / ((float)0x8000);
 }
 
 //float(float number, float quantity) bitshift = #218;
@@ -4284,15 +4280,14 @@ void QCBUILTIN PF_vectoyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 //float(vector) vlen
 void QCBUILTIN PF_vlen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	float	*value1;
-	float	newv;
-
-	value1 = G_VECTOR(OFS_PARM0);
-
-	newv = value1[0] * value1[0] + value1[1] * value1[1] + value1[2]*value1[2];
-	newv = sqrt(newv);
-
-	G_FLOAT(OFS_RETURN) = newv;
+	float	*value1 = G_VECTOR(OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = sqrt(DotProduct(value1, value1));
+}
+//float(vector) vhlen
+void QCBUILTIN PF_vhlen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float	*value1 = G_VECTOR(OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = sqrt(DotProduct2(value1, value1));
 }
 
 //vector vectoangles(vector)

@@ -46,7 +46,8 @@ typedef struct
 #ifdef Q2SERVER
 	q2edict_t	*q2passedict;
 #endif
-	int hullnum;
+	int			hullnum;
+	qboolean	capsule;
 } moveclip_t;
 
 /*
@@ -119,6 +120,26 @@ hull_t	*World_HullForBox (vec3_t mins, vec3_t maxs)
 	return &box_hull;
 }
 
+model_t mod_capsule;
+qboolean World_BoxTrace(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace)
+{
+	//bbox vs bbox (NYI)
+	//capsule vs bbox (NYI)
+	return false;
+}
+qboolean World_CapsuleTrace(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
+{
+	//bbox vs capsule (NYI)
+	//capsule vs capsule (NYI)
+	return false;
+}
+model_t *World_CapsuleForBox(vec3_t mins, vec3_t maxs)
+{
+	VectorCopy(mins, mod_capsule.mins);
+	VectorCopy(maxs, mod_capsule.maxs);
+	mod_capsule.funcs.NativeTrace = World_CapsuleTrace;
+	return &mod_capsule;
+}
 /*
 ===============================================================================
 
@@ -910,7 +931,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 
 //wrapper function. Rotates the start and end positions around the angles if needed.
 //qboolean TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_t *trace, vec3_t angles)
-qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask)
+qboolean World_TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask)
 {
 	vec3_t		start_l, end_l;
 	vec3_t		axis[3];
@@ -930,70 +951,22 @@ qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, v
 	}
 
 	// don't rotate non bsp ents. Too small to bother.
-	if (model && !model->needload)
-	{
-		VectorSubtract (start, origin, start_l);
-		VectorSubtract (end, origin, end_l);
-
-		if (angles[0] || angles[1] || angles[2])
-		{
-			AngleVectors (angles, axis[0], axis[1], axis[2]);
-			VectorNegate(axis[1], axis[1]);
-			result = model->funcs.NativeTrace (model, hulloverride, frame, axis, start_l, end_l, mins, maxs, hitcontentsmask, trace);
-		}
-		else
-		{
-			result = model->funcs.NativeTrace (model, hulloverride, frame, NULL, start_l, end_l, mins, maxs, hitcontentsmask, trace);
-		}
-
-		VectorAdd (trace->endpos, origin, trace->endpos);
-	}
-	else
-	{
-		hull_t *hull = &box_hull;
-
-		memset (trace, 0, sizeof(trace_t));
-		trace->fraction = 1;
-		trace->allsolid = true;
-
-		VectorSubtract (start, origin, start_l);
-		VectorSubtract (end, origin, end_l);
-		VectorCopy (end_l, trace->endpos);
-		result = Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
-		VectorAdd (trace->endpos, origin, trace->endpos);
-	}
-
-	return result;
-}
-
-qboolean TransformedNativeTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace, vec3_t origin, vec3_t angles)
-{
-	vec3_t		start_l, end_l;
-	vec3_t		axis[3];
-	qboolean	result;
-
-	memset (trace, 0, sizeof(trace_t));
-	trace->fraction = 1;
-	trace->allsolid = false;
-	trace->startsolid = false;
-	trace->inopen = true;	//probably wrong...
-	VectorCopy (end, trace->endpos);
-
-	// don't rotate non bsp ents. Too small to bother.
 	if (model)
 	{
 		VectorSubtract (start, origin, start_l);
 		VectorSubtract (end, origin, end_l);
+
 		if (angles[0] || angles[1] || angles[2])
 		{
 			AngleVectors (angles, axis[0], axis[1], axis[2]);
 			VectorNegate(axis[1], axis[1]);
-			result = model->funcs.NativeTrace (model, hulloverride, frame, axis, start_l, end_l, mins, maxs, against, trace);
+			result = model->funcs.NativeTrace (model, hulloverride, frame, axis, start_l, end_l, mins, maxs, capsule, hitcontentsmask, trace);
 		}
 		else
 		{
-			result = model->funcs.NativeTrace (model, hulloverride, frame, NULL, start_l, end_l, mins, maxs, against, trace);
+			result = model->funcs.NativeTrace (model, hulloverride, frame, NULL, start_l, end_l, mins, maxs, capsule, hitcontentsmask, trace);
 		}
+
 		VectorAdd (trace->endpos, origin, trace->endpos);
 	}
 	else
@@ -1022,7 +995,7 @@ Handles selection or creation of a clipping hull, and offseting (and
 eventually rotation) of the end points
 ==================
 */
-static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hullnum, qboolean hitmodel, unsigned int hitcontentsmask)	//hullnum overrides min/max for q1 style bsps
+static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hullnum, qboolean hitmodel, qboolean capsule, unsigned int hitcontentsmask)	//hullnum overrides min/max for q1 style bsps
 {
 	trace_t		trace;
 	model_t		*model;
@@ -1041,19 +1014,23 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	else
 		model = NULL;
 
-	if (!model)
+	if (!model || model->needload)
 	{
 		vec3_t boxmins, boxmaxs;
+		model = NULL;
 		VectorSubtract (ent->v->mins, maxs, boxmins);
 		VectorSubtract (ent->v->maxs, mins, boxmaxs);
-		World_HullForBox(boxmins, boxmaxs);
+		if (ent->xv->geomtype == GEOMTYPE_CAPSULE && !hitmodel)
+			model = World_CapsuleForBox(boxmins, boxmaxs);
+		else
+			World_HullForBox(boxmins, boxmaxs);
 	}
 
 // trace a line through the apropriate clipping hull
 	if (ent->v->solid == SOLID_PORTAL)
 	{
 		//solid_portal cares only about origins and as such has no mins/max
-		TransformedTrace(model, 0, ent->v->frame, start, end, vec3_origin, vec3_origin, &trace, eorg, ent->v->angles, hitcontentsmask);
+		World_TransformedTrace(model, 0, ent->v->frame, start, end, vec3_origin, vec3_origin, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
 		if (trace.startsolid)	//portals should not block traces. this prevents infinite looping
 			trace.startsolid = false;
 		hitmodel = false;
@@ -1061,24 +1038,24 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	else if (ent->v->solid != SOLID_BSP)
 	{
 		ent->v->angles[0]*=-1;	//carmack made bsp models rotate wrongly.
-		TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles, hitcontentsmask);
+		World_TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
 		ent->v->angles[0]*=-1;
 	}
 	else
 	{
-		TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles, hitcontentsmask);
+		World_TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
 	}
 
 // if using hitmodel, we know it hit the bounding box, so try a proper trace now.
-	if (hitmodel && trace.fraction != 1 && ent->v->solid != SOLID_BSP && mdlidx != 0)
+	if (hitmodel && trace.fraction != 1 && !model)
 	{
 		//okay, we hit the bbox
 		model = w->Get_CModel(w, mdlidx);
 
-		if (model && model->funcs.NativeTrace)
+		if (model && model->funcs.NativeTrace && !model->needload)
 		{
-			//do the second trace
-			TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles, hitcontentsmask);
+			//do the second trace, using the actual mesh.
+			World_TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
 		}
 	}
 
@@ -1092,16 +1069,13 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 static trace_t WorldQ2_ClipMoveToEntity (world_t *w, q2edict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, unsigned int hitcontentsmask)
 {
 	trace_t		trace;
-	model_t		*model;
+	model_t		*model = NULL;
 
 // get the clipping hull
 	if (ent->s.solid == Q2SOLID_BSP)
-	{
 		model = w->Get_CModel(w, ent->s.modelindex);
-		if (!model || model->type != mod_brush)
-			SV_Error("SOLID_BSP with non bsp model");
-	}
-	else
+
+	if (!model || model->type != mod_brush || model->needload)
 	{
 		vec3_t boxmins, boxmaxs;
 		VectorSubtract (ent->mins, maxs, boxmins);
@@ -1111,7 +1085,7 @@ static trace_t WorldQ2_ClipMoveToEntity (world_t *w, q2edict_t *ent, vec3_t star
 	}
 
 // trace a line through the apropriate clipping hull
-	TransformedTrace(model, 0, 0, start, end, mins, maxs, &trace, ent->s.origin, ent->s.angles, hitcontentsmask);
+	World_TransformedTrace(model, 0, 0, start, end, mins, maxs, false, &trace, ent->s.origin, ent->s.angles, hitcontentsmask);
 
 // did we clip the move?
 	if (trace.fraction < 1 || trace.startsolid  )
@@ -1541,9 +1515,9 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 		}
 
 		if ((int)touch->v->flags & FL_MONSTER)
-			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->capsule, clip->hitcontentsmask);
 		else
-			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->capsule, clip->hitcontentsmask);
 		if (trace.allsolid || trace.startsolid ||
 				trace.fraction < clip->trace.fraction)
 		{
@@ -1648,9 +1622,9 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 		}
 
 		if ((int)touch->v->flags & FL_MONSTER)
-			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->capsule, clip->hitcontentsmask);
 		else
-			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->capsule, clip->hitcontentsmask);
 
 		if (trace.fraction < clip->trace.fraction)
 		{
@@ -1841,16 +1815,17 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		clip.hitcontentsmask = MASK_BOXSOLID;	/*impacts playerclip*/
 	else
 		clip.hitcontentsmask = MASK_POINTSOLID;		/*ignores playerclip but hits everything else*/
+	clip.capsule = (passedict->xv->geomtype == GEOMTYPE_CAPSULE);
 
 	if (type & MOVE_ONLYENT)
 	{
 		if (!passedict)
 			passedict = w->edicts;
-		return World_ClipMoveToEntity (w, passedict, passedict->v->origin, start, mins, maxs, end, hullnum, clip.type & MOVE_HITMODEL, clip.hitcontentsmask);
+		return World_ClipMoveToEntity (w, passedict, passedict->v->origin, start, mins, maxs, end, hullnum, type & MOVE_HITMODEL, clip.capsule, clip.hitcontentsmask);
 	}
 
 // clip to world
-	clip.trace = World_ClipMoveToEntity (w, w->edicts, w->edicts->v->origin, start, mins, maxs, end, hullnum, false, clip.hitcontentsmask);
+	clip.trace = World_ClipMoveToEntity (w, w->edicts, w->edicts->v->origin, start, mins, maxs, end, hullnum, false, clip.capsule, clip.hitcontentsmask);
 
 	clip.start = start;
 	clip.end = end;
@@ -1973,7 +1948,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 						continue;	// don't clip against owner
 				}
 
-				trace = World_ClipMoveToEntity (w, touch, lp, clip.start, clip.mins, clip.maxs, clip.end, clip.hullnum, clip.type & MOVE_HITMODEL, clip.hitcontentsmask);
+				trace = World_ClipMoveToEntity (w, touch, lp, clip.start, clip.mins, clip.maxs, clip.end, clip.hullnum, clip.type & MOVE_HITMODEL, clip.capsule, clip.hitcontentsmask);
 
 				if (trace.allsolid || trace.startsolid || trace.fraction < clip.trace.fraction)
 				{
@@ -2011,7 +1986,7 @@ trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
 // clip to world
-	w->worldmodel->funcs.NativeTrace(w->worldmodel, 0, 0, NULL, start, end, mins, maxs, hitcontentsmask, &clip.trace);
+	w->worldmodel->funcs.NativeTrace(w->worldmodel, 0, 0, NULL, start, end, mins, maxs, false, hitcontentsmask, &clip.trace);
 	clip.trace.ent = ge->edicts;
 
 	if (clip.trace.fraction == 0)

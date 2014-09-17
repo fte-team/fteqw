@@ -3370,7 +3370,6 @@ entity_t *CL_NewTempEntity (void)
 	ent->playerindex = -1;
 	ent->topcolour = TOP_DEFAULT;
 	ent->bottomcolour = BOTTOM_DEFAULT;
-	ent->h2playerclass = 0;
 
 #ifdef PEXT_SCALE
 	ent->scale = 1;

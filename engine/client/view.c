@@ -1165,6 +1165,9 @@ void V_ApplyRefdef (void)
 		V_ApplyAFov(r_refdef.playerview);
 
 	r_refdef.dirty = 0;
+
+	if (chase_active.ival && cls.allow_cheats)
+		CL_EditExternalModels(0, NULL, 0);
 }
 
 //if the view entities differ, removes all externalmodel flags except for adding it to the new entity, and removes weaponmodels.
@@ -1304,18 +1307,38 @@ void V_CalcRefdef (playerview_t *pv)
 		loadmodel = cl.worldmodel;
 	}
 
-	if (chase_active.ival)
+	if (chase_active.ival && cls.allow_cheats)	//cheat restriction might be lifted some time when any wallhacks are solved.
 	{
 		vec3_t axis[3];
-		vec3_t camorg;
+		vec3_t camorg, camdir;
 		trace_t tr;
+		float len;
 		AngleVectors(r_refdef.viewangles, axis[0], axis[1], axis[2]);
-		VectorMA(r_refdef.vieworg, -chase_back.value, axis[0], camorg);
-		VectorMA(camorg, -chase_up.value, pv->gravitydir, camorg);
-//		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, MASK_WORLDSOLID, &tr))
-		VectorCopy(camorg, r_refdef.vieworg);
-
-		CL_EditExternalModels(0, NULL, 0);
+		VectorScale(axis[0], -chase_back.value, camdir);
+		VectorMA(camdir, -chase_up.value, pv->gravitydir, camdir);
+		len = VectorLength(camdir);
+		VectorMA(r_refdef.vieworg, (len+128)/len, camdir, camorg);	//push it 128qu further
+		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace)
+		{
+			cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, true, MASK_WORLDSOLID, &tr);
+			if (!tr.startsolid)
+			{
+				float extralen;
+				if (tr.fraction < 1)
+				{
+					//we found a plane, bisect it weirdly to push 4qu infront
+					float d1,d2, frac;
+					VectorMA(r_refdef.vieworg, 1, camdir, camorg);
+					d1 = DotProduct(r_refdef.vieworg, tr.plane.normal) - (tr.plane.dist+4);
+					d2 = DotProduct(camorg, tr.plane.normal) - (tr.plane.dist+4);
+					frac = d1 / (d1-d2);
+					frac = bound(0, frac, 1);
+					VectorMA(r_refdef.vieworg, frac, camdir, r_refdef.vieworg);
+				}
+				else
+					VectorMA(r_refdef.vieworg, 1, camdir, r_refdef.vieworg);
+			}
+		}
 	}
 }
 
@@ -1775,7 +1798,7 @@ void V_Init (void)
 	Cvar_Register (&v_contrast, VIEWVARS);
 	Cvar_Register (&v_brightness, VIEWVARS);
 
-//	Cvar_Register (&chase_active, VIEWVARS);
-//	Cvar_Register (&chase_back, VIEWVARS);
-//	Cvar_Register (&chase_up, VIEWVARS);
+	Cvar_Register (&chase_active, VIEWVARS);
+	Cvar_Register (&chase_back, VIEWVARS);
+	Cvar_Register (&chase_up, VIEWVARS);
 }

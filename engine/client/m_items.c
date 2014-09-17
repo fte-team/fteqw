@@ -2034,15 +2034,16 @@ void M_Menu_Main_f (void)
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
+		p = R2D_SafeCachePic("gfx/menu/title0.lmp");
+		if (!p)
+			return;
+
 		m_state = m_complex;
 		Key_Dest_Add(kdm_menu);
 		mainm = M_CreateMenu(0);
 		mainm->key = MC_Main_Key;
 
 		MC_AddPicture(mainm, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
-		p = R2D_SafeCachePic("gfx/menu/title0.lmp");
-		if (!p)
-			return;
 		MC_AddCenterPicture(mainm, 0, 60, "gfx/menu/title0.lmp");
 
 #ifndef CLIENTONLY

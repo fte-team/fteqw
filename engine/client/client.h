@@ -175,7 +175,9 @@ typedef struct player_info_s
 	struct model_s	*model;
 
 //	unsigned short vweapindex;
+#ifdef HEXEN2
 	unsigned char h2playerclass;
+#endif
 
 	int prevcount;
 
@@ -724,14 +726,14 @@ typedef struct
 // information that is static for the entire time connected to a server
 //
 	char		model_name_vwep[MAX_VWEP_MODELS][MAX_QPATH];
-	char		model_name[MAX_MODELS][MAX_QPATH];
-	char		sound_name[MAX_SOUNDS][MAX_QPATH];
+	char		model_name[MAX_PRECACHE_MODELS][MAX_QPATH];
+	char		sound_name[MAX_PRECACHE_SOUNDS][MAX_QPATH];
 	char		*particle_ssname[MAX_SSPARTICLESPRE];
 	char		image_name[Q2MAX_IMAGES][MAX_QPATH];
 
 	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
-	struct model_s		*model_precache[MAX_MODELS];
-	struct sfx_s		*sound_precache[MAX_SOUNDS];
+	struct model_s		*model_precache[MAX_PRECACHE_MODELS];
+	struct sfx_s		*sound_precache[MAX_PRECACHE_SOUNDS];
 	int					particle_ssprecache[MAX_SSPARTICLESPRE];	//these are actually 1-based, so 0 can be used to lazy-init them. I cheat.
 
 	char				model_csqcname[MAX_CSMODELS][MAX_QPATH];

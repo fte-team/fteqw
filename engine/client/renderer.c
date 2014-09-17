@@ -1093,9 +1093,11 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 			BZ_Free(colormap);
 		}
 
+#ifdef HEXEN2
 		if (h2playertranslations)
 			BZ_Free(h2playertranslations);
 		h2playertranslations = FS_LoadMallocFile ("gfx/player.lmp");
+#endif
 
 		if (vid.fullbright < 2)
 			vid.fullbright = 0;	//transparent colour doesn't count.
@@ -1183,7 +1185,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 			SV_UnspawnServer();
 		else if (svs.gametype == GT_PROGS)
 		{
-			for (i = 0; i < MAX_MODELS; i++)
+			for (i = 0; i < MAX_PRECACHE_MODELS; i++)
 			{
 				if (sv.strings.model_precache[i] && *sv.strings.model_precache[i] && (!strcmp(sv.strings.model_precache[i] + strlen(sv.strings.model_precache[i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
 					sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
@@ -1211,7 +1213,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 #ifdef Q2SERVER
 		else if (svs.gametype == GT_QUAKE2)
 		{
-			for (i = 0; i < MAX_MODELS; i++)
+			for (i = 0; i < MAX_PRECACHE_MODELS; i++)
 			{
 				if (sv.strings.configstring[Q2CS_MODELS+i] && *sv.strings.configstring[Q2CS_MODELS+i] && (!strcmp(sv.strings.configstring[Q2CS_MODELS+i] + strlen(sv.strings.configstring[Q2CS_MODELS+i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
 					sv.models[i] = Mod_FindName(sv.strings.configstring[Q2CS_MODELS+i]);
@@ -1276,7 +1278,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 
 		//FIXME: this code should not be here. call CL_LoadModels instead? that does csqc loading etc though. :s
 TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
-		for (i=1 ; i<MAX_MODELS ; i++)
+		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 		{
 			if (!cl.model_name[i][0])
 				break;
@@ -1364,7 +1366,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 			}
 			else
 			{
-				if (cl_static_entities[i].mdlidx < MAX_MODELS)
+				if (cl_static_entities[i].mdlidx < MAX_PRECACHE_MODELS)
 					cl_static_entities[i].ent.model = cl.model_precache[cl_static_entities[i].mdlidx];
 			}
 		}

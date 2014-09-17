@@ -135,11 +135,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define BOTLIB_STATIC
 #endif
 
-#ifdef _WIN32
-//needs testing on other platforms
-//#define AVAIL_OPENAL
-#endif
-
 #define ODE_DYNAMIC
 
 #ifdef NO_OPENAL
@@ -223,6 +218,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define Q2CLIENT		//client can connect to q2 servers
 		#define Q3CLIENT
 		#define Q3SERVER
+		#define HEXEN2			//technically server only
 //		#define HLCLIENT 7		//we can run HL gamecode (not protocol compatible, set to 6 or 7)
 //		#define HLSERVER 140	//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
@@ -269,6 +265,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #endif
 
+//#define QUAKETC
+
 #ifdef QUAKETC
 	#define NOBUILTINMENUS	//kill engine menus (should be replaced with ewither csqc or menuqc)
 	#undef Q2CLIENT	//not useful
@@ -281,6 +279,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef VM_LUA	//not useful
 	#undef HALFLIFEMODELS	//yuck
 	#undef RUNTIMELIGHTING	//presumably not useful
+	#undef HEXEN2
 #endif
 
 //#define QUAKESPYAPI //define this if you want the engine to be usable via gamespy/quakespy, which has been dead for a long time now.
@@ -473,7 +472,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // defs common to client and server
 
 #ifndef PLATFORM
-	#if defined(_WIN32)
+	#if defined(FTE_TARGET_WEB)
+		#define PLATFORM		"Web"
+	#elif defined(NACL)
+		#define PLATFORM		"Nacl"
+	#elif defined(_WIN32)
 		#if defined(__amd64__)
 			#define PLATFORM	"Win64"
 		#else
@@ -619,8 +622,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #define	MAX_LIGHTSTYLES	255
 #define MAX_STANDARDLIGHTSTYLES 64
-#define	MAX_MODELS		1024			// these are sent over the net as bytes
-#define	MAX_SOUNDS		1024			// so they cannot be blindly increased
+#define	MAX_PRECACHE_MODELS		2048			// these are sent over the net as bytes/shorts
+#define	MAX_PRECACHE_SOUNDS		1024			// so they cannot be blindly increased
 #define MAX_SSPARTICLESPRE 1024			// precached particle effect names, for server-side pointparticles/trailparticles.
 #define MAX_VWEP_MODELS 32
 

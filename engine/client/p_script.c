@@ -3739,7 +3739,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 					VectorSubtract(org, t2, tangent);
 					VectorAdd(org, t2, t2);
 
-					if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace (cl.worldmodel, 0, 0, NULL, tangent, t2, vec3_origin, vec3_origin, MASK_WORLDSOLID, &tr))
+					if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace (cl.worldmodel, 0, 0, NULL, tangent, t2, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &tr))
 					{
 						if (tr.fraction < dist)
 						{

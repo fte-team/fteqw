@@ -134,9 +134,9 @@ typedef struct
 #endif
 		struct {
 			const char		*vw_model_precache[32];
-			const char	*model_precache[MAX_MODELS];	// NULL terminated
+			const char	*model_precache[MAX_PRECACHE_MODELS];	// NULL terminated
 			char		particle_precache[MAX_SSPARTICLESPRE][MAX_QPATH];	// NULL terminated
-			char		sound_precache[MAX_SOUNDS][MAX_QPATH];	// NULL terminated
+			char		sound_precache[MAX_PRECACHE_SOUNDS][MAX_QPATH];	// NULL terminated
 			const char		*lightstyles[MAX_LIGHTSTYLES];
 			vec3_t		lightstylecolours[MAX_LIGHTSTYLES];
 		};
@@ -148,7 +148,7 @@ typedef struct
 	int			spawned_client_slots; //number of PLAYER slots which are active (ie: putclientinserver was called)
 	int			spawned_observer_slots;
 
-	model_t	*models[MAX_MODELS];
+	model_t	*models[MAX_PRECACHE_MODELS];
 	qbyte		*pvs, *phs;			// fully expanded and decompressed
 
 	struct client_s	*skipbprintclient;	//SV_BroadcastPrint skips this client
@@ -949,7 +949,7 @@ extern	client_t	*host_client;
 
 extern	edict_t		*sv_player;
 
-extern	char		localmodels[MAX_MODELS][5];	// inline model names for precache
+//extern	char		localmodels[MAX_MODELS][5];	// inline model names for precache
 
 extern	char		localinfo[MAX_LOCALINFO_STRING+1];
 
@@ -1094,7 +1094,6 @@ trace_t WPhys_Trace_Toss (world_t *w, wedict_t *ent, wedict_t *ignore);
 void SV_ProgStartFrame (void);
 void WPhys_RunEntity (world_t *w, wedict_t *ent);
 qboolean WPhys_RunThink (world_t *w, wedict_t *ent);
-void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *initial_origin, float *initial_angle); /*here for player movement to do movechains too*/
 
 //
 // sv_send.c
@@ -1398,8 +1397,6 @@ void DestFlush(qboolean compleate);
 void SV_FlushLevelCache(void);
 
 int SV_RateForClient(client_t *cl);
-
-qboolean TransformedNativeTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace, vec3_t origin, vec3_t angles);
 
 void SVVC_Frame (qboolean enabled);
 void SV_CalcPHS (void);

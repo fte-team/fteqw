@@ -1281,7 +1281,9 @@ void CL_ClearState (void)
 	CL_ClearTEnts();
 	CL_ClearCustomTEnts();
 	Surf_ClearLightmaps();
+#ifdef HEXEN2
 	T_FreeInfoStrings();
+#endif
 	SCR_ShowPic_Clear(false);
 
 	if (cl.playerview[0].playernum == -1)
@@ -2935,7 +2937,6 @@ void CLNQ_ConnectionlessPacket(void)
 		return;
 
 	case CCREP_REJECT:
-		connectinfo.trying = false;
 		s = MSG_ReadString();
 		Con_Printf("Connect failed\n%s\n", s);
 		return;

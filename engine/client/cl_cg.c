@@ -577,8 +577,13 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			unsigned int pc;
 			unsigned int modhandle = VM_LONG(arg[1]);
 			model_t *mod;
-			if (modhandle >= MAX_MODELS)
-				mod = &box_model;
+			if (modhandle >= MAX_PRECACHE_MODELS)
+			{
+//				if (modhandle == MAX_PRECACHE_MODELS+1)
+//					mod = &capsule_model;
+//				else
+					mod = &box_model;
+			}
 			else
 				mod = cl.model_precache[modhandle+1];
 			if (mod && !mod->needload)
@@ -597,7 +602,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			float *origin = VM_POINTER(arg[2]);
 			float *angles = VM_POINTER(arg[3]);
 			model_t *mod;
-			if (modhandle >= MAX_MODELS)
+			if (modhandle >= MAX_PRECACHE_MODELS)
 				mod = &box_model;
 			else
 				mod = cl.model_precache[modhandle+1];
@@ -626,6 +631,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		}
 		break;
 
+	case CG_CM_TRANSFORMEDCAPSULETRACE:
 	case CG_CM_TRANSFORMEDBOXTRACE:
 //		void		trap_CM_BoxTrace( trace_t *results, const vec3_t start, const vec3_t end,
 //					  const vec3_t mins, const vec3_t maxs,
@@ -643,7 +649,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			float *origin		= VM_POINTER(arg[7]);
 			float *angles		= VM_POINTER(arg[8]);
 			model_t *mod;
-			if (modhandle >= MAX_MODELS)
+			if (modhandle >= MAX_PRECACHE_MODELS)
 				mod = &box_model;
 			else
 				mod = cl.model_precache[modhandle+1];
@@ -656,15 +662,15 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				origin = vec3_origin;
 			if (!angles)
 				angles = vec3_origin;
-			if (mod)
-#ifndef CLIENTONLY
-				TransformedNativeTrace(mod, 0, 0, start, end, mins, maxs, brushmask, &tr, origin, angles);
+			if (mod && !mod->needload)
+#if !defined(CLIENTONLY) || defined(CSQC_DAT)
+				World_TransformedTrace(mod, 0, 0, start, end, mins, maxs, fn==CG_CM_TRANSFORMEDCAPSULETRACE, &tr, origin, angles, brushmask);
 #else
 			{
 #ifdef warningmsg
-#pragma warningmsg("FIXME: G3 CGame requires TransformedNativeTrace!")
+#pragma warningmsg("FIXME: G3 CGame requires World_TransformedTrace!")
 #endif
-								memset(&tr, 0, sizeof(tr));
+				memset(&tr, 0, sizeof(tr));
 				tr.allsolid = tr.startsolid = true;
 				tr.contents = 1;
 			}
@@ -685,6 +691,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			memcpy(&results->plane, &tr.plane, sizeof(cplane_t));
 		}
 		break;
+	case CG_CM_CAPSULETRACE:
 	case CG_CM_BOXTRACE:
 //		void		trap_CM_BoxTrace( trace_t *results, const vec3_t start, const vec3_t end,
 //					  const vec3_t mins, const vec3_t maxs,
@@ -700,7 +707,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			unsigned int modhandle		= VM_LONG(arg[5]);
 			int brushmask			= VM_LONG(arg[6]);
 			model_t *mod;
-			if (modhandle >= MAX_MODELS)
+			if (modhandle >= MAX_PRECACHE_MODELS)
 				mod = &box_model;
 			else
 				mod = cl.model_precache[modhandle+1];
@@ -709,7 +716,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				mins = vec3_origin;
 			if (!maxs)
 				maxs = vec3_origin;
-			mod->funcs.NativeTrace(mod, 0, 0, NULL, start, end, mins, maxs, brushmask, &tr);
+			mod->funcs.NativeTrace(mod, 0, 0, NULL, start, end, mins, maxs, fn==CG_CM_CAPSULETRACE, brushmask, &tr);
 			results->allsolid = tr.allsolid;
 			results->contents = tr.contents;
 			results->fraction = tr.fraction;
@@ -754,7 +761,11 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case CG_CM_TEMPBOXMODEL:
 		CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
-		VM_LONG(ret) = MAX_MODELS;
+		VM_LONG(ret) = MAX_PRECACHE_MODELS;
+		break;
+	case CG_CM_TEMPCAPSULEMODEL:
+		CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		VM_LONG(ret) = MAX_PRECACHE_MODELS+1;
 		break;
 
 	case CG_R_MODELBOUNDS:

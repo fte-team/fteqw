@@ -707,7 +707,7 @@ static int	VARGS SVQ2_AreaEdicts (vec3_t mins, vec3_t maxs, q2edict_t **list,	in
 
 static model_t *SVQ2_GetCModel(world_t *w, int modelindex)
 {
-	if ((unsigned int)modelindex < MAX_MODELS)
+	if ((unsigned int)modelindex < MAX_PRECACHE_MODELS)
 		return sv.models[modelindex];
 	else
 		return NULL;

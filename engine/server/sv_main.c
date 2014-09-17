@@ -275,7 +275,9 @@ void SV_Shutdown (void)
 		Z_Free(lp);
 	}
 
+#ifdef HEXEN2
 	T_FreeStrings();
+#endif
 
 	SV_GibFilterPurge();
 
@@ -1745,7 +1747,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 
 		//you need to reconnect for this to update, of course. so make sure its not *too* low...
 		client->max_net_ents =  bound(512, pr_maxedicts.ival, MAX_EDICTS);
-		client->maxmodels = MAX_MODELS;	//protocol limited to 14 bits.
+		client->maxmodels = MAX_PRECACHE_MODELS;	//protocol limited to 14 bits.
 	}
 	else if (ISQWCLIENT(client))	//readd?
 	{
@@ -1757,7 +1759,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 			client->max_net_ents += 1024;
 	
 		if (client->fteprotocolextensions & PEXT_MODELDBL)
-			client->maxmodels = MAX_MODELS;
+			client->maxmodels = MAX_PRECACHE_MODELS;
 	}
 	else if (ISDPCLIENT(client))
 	{
@@ -4546,9 +4548,6 @@ void SV_InitLocal (void)
 
 	SV_MVDInit();
 
-	for (i=0 ; i<MAX_MODELS ; i++)
-		sprintf (localmodels[i], "*%i", i);
-
 	Info_SetValueForStarKey (svs.info, "*version", version_string(), MAX_SERVERINFO_STRING);
 
 	Info_SetValueForStarKey (svs.info, "*z_ext", va("%i", SUPPORTED_Z_EXTENSIONS), MAX_SERVERINFO_STRING);
@@ -5034,11 +5033,13 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	else
 		cl->drate = cl->rate;	//0 disables the downloading check
 
+#ifdef HEXEN2
 	val = Info_ValueForKey (cl->userinfo, "cl_playerclass");
 	if (val)
 	{
 		PRH2_SetPlayerClass(cl, atoi(val), false);
 	}
+#endif
 
 	// msg command
 	val = Info_ValueForKey (cl->userinfo, "msg");

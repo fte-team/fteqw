@@ -3,7 +3,7 @@
 #include "quakedef.h"
 #include "winquake.h"
 #include "shader.h"
-#ifndef NOBUITINMENUS
+#ifndef NOBUILTINMENUS
 #ifndef CLIENTONLY
 //=============================================================================
 /* LOAD/SAVE MENU */

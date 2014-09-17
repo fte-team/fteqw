@@ -893,11 +893,11 @@ typedef struct
 #define	MAX_ENT_LEAFS	32
 typedef struct pvscache_s
 {
-	int			num_leafs;
-	short		leafnums[MAX_ENT_LEAFS];
+	int				num_leafs;
+	unsigned short	leafnums[MAX_ENT_LEAFS];
 #if defined(Q2BSPS) || defined(TERRAIN)
-	int areanum;	//q2bsp
-	int areanum2;	//q2bsp
-	int headnode;	//q2bsp
+	int				areanum;	//q2bsp
+	int				areanum2;	//q2bsp
+	int				headnode;	//q2bsp
 #endif
 } pvscache_t;

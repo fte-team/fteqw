@@ -67,6 +67,7 @@ typedef struct
 	int			pm_type;
 	vec3_t		player_mins;
 	vec3_t		player_maxs;
+	qboolean	capsule;
 
 	// world state
 	int			numphysent;

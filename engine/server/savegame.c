@@ -77,7 +77,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	int filelen, filepos;
 	char *file;
 
-	char *modelnames[MAX_MODELS];
+	char *modelnames[MAX_PRECACHE_MODELS];
 
 	if (version != 667 && version != 5 && version != 6)	//5 for NQ, 6 for ZQ/FQ
 	{
@@ -241,7 +241,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	}
 
 	//model names are pointers to vm-accessible memory. as that memory is going away, we need to destroy and recreate, which requires preserving them.
-	for (i = 1; i < MAX_MODELS; i++)
+	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
 	{
 		if (!sv.strings.model_precache[i])
 		{
@@ -268,7 +268,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	}
 
 	//reload model names.
-	for (i = 1; i < MAX_MODELS; i++)
+	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
 	{
 		if (!modelnames[i])
 			break;
@@ -480,7 +480,7 @@ void LoadModelsAndSounds(vfsfile_t *f)
 	int i;
 
 	sv.strings.model_precache[0] = PR_AddString(svprogfuncs, "", 0, false);
-	for (i=1; i < MAX_MODELS; i++)
+	for (i=1; i < MAX_PRECACHE_MODELS; i++)
 	{
 		VFS_GETS(f, str, sizeof(str));
 		if (!*str)
@@ -488,17 +488,17 @@ void LoadModelsAndSounds(vfsfile_t *f)
 
 		sv.strings.model_precache[i] = PR_AddString(svprogfuncs, str, 0, false);
 	}
-	if (i == MAX_MODELS)
+	if (i == MAX_PRECACHE_MODELS)
 	{
 		VFS_GETS(f, str, sizeof(str));
 		if (*str)
 			SV_Error("Too many model precaches in loadgame cache");
 	}
-	for (; i < MAX_MODELS; i++)
+	for (; i < MAX_PRECACHE_MODELS; i++)
 		sv.strings.model_precache[i] = NULL;
 
 //	sv.sound_precache[0] = PR_AddString(svprogfuncs, "", 0);
-	for (i=1; i < MAX_SOUNDS; i++)
+	for (i=1; i < MAX_PRECACHE_SOUNDS; i++)
 	{
 		VFS_GETS(f, str, sizeof(str));
 		if (!*str)
@@ -506,13 +506,13 @@ void LoadModelsAndSounds(vfsfile_t *f)
 
 //		sv.sound_precache[i] = PR_AddString(svprogfuncs, str, 0);
 	}
-	if (i == MAX_SOUNDS)
+	if (i == MAX_PRECACHE_SOUNDS)
 	{
 		VFS_GETS(f, str, sizeof(str));
 		if (*str)
 			SV_Error("Too many sound precaches in loadgame cache");
 	}
-	for (; i < MAX_SOUNDS; i++)
+	for (; i < MAX_PRECACHE_SOUNDS; i++)
 		*sv.strings.sound_precache[i] = 0;
 }
 
@@ -944,7 +944,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		VFS_PRINTF (f, "%s\n", sv.strings.lightstyles[i]?sv.strings.lightstyles[i]:"");
 	}
 
-	for (i=1 ; i<MAX_MODELS ; i++)
+	for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 	{
 		if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
 			VFS_PRINTF (f, "%s\n", sv.strings.model_precache[i]);
@@ -952,7 +952,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 			break;
 	}
 	VFS_PRINTF (f,"\n");
-	for (i=1 ; i<MAX_SOUNDS ; i++)
+	for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
 	{
 		if (*sv.strings.sound_precache[i])
 			VFS_PRINTF (f, "%s\n", sv.strings.sound_precache[i]);

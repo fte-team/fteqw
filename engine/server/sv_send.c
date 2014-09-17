@@ -995,15 +995,15 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		return;
 	else
 	{
-		for (sound_num=1 ; sound_num<MAX_SOUNDS
+		for (sound_num=1 ; sound_num<MAX_PRECACHE_SOUNDS
 			&& *sv.strings.sound_precache[sound_num] ; sound_num++)
 			if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
 				break;
 	}
 
-	if ( sound_num == MAX_SOUNDS || !*sv.strings.sound_precache[sound_num] )
+	if ( sound_num == MAX_PRECACHE_SOUNDS || !*sv.strings.sound_precache[sound_num] )
 	{
-		if (sound_num < MAX_SOUNDS)
+		if (sound_num < MAX_PRECACHE_SOUNDS)
 		{
 			Con_Printf("WARNING: SV_StartSound: sound %s not precached\n", sample);
 			//late precache it. use multicast to ensure that its sent NOW (and to all). normal reliables would mean it would arrive after the svc_sound
@@ -1187,7 +1187,7 @@ void SV_FindModelNumbers (void)
 	sv_supernailmodel = -1;
 	sv_playermodel = -1;
 
-	for (i=0 ; i<MAX_MODELS ; i++)
+	for (i=0 ; i<MAX_PRECACHE_MODELS ; i++)
 	{
 		if (!sv.strings.model_precache[i])
 			break;
@@ -1750,7 +1750,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		statsi[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
 		if (client->fteprotocolextensions & PEXT_MODELDBL)
 		{
-			if ((unsigned)statsi[STAT_WEAPON] >= MAX_MODELS)
+			if ((unsigned)statsi[STAT_WEAPON] >= MAX_PRECACHE_MODELS)
 				statsi[STAT_WEAPON] = 0;
 		}
 		else

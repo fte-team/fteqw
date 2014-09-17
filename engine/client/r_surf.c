@@ -2224,12 +2224,12 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 	bef = BEF_PUSHDEPTH;
 	if (ent->flags & RF_ADDITIVE)
 		bef |= BEF_FORCEADDITIVE;
-	else if (ent->drawflags & DRF_TRANSLUCENT && r_wateralpha.value != 1)
+	else if ((ent->drawflags & DRF_TRANSLUCENT) && r_wateralpha.value != 1)
 	{
 		bef |= BEF_FORCETRANSPARENT;
 		ent->shaderRGBAf[3] = r_wateralpha.value;
 	}
-	else if (ent->flags & RF_TRANSLUCENT && cls.protocol != CP_QUAKE3)
+	else if ((ent->flags & RF_TRANSLUCENT) && cls.protocol != CP_QUAKE3)
 		bef |= BEF_FORCETRANSPARENT;
 	if (ent->flags & RF_NODEPTHTEST)
 		bef |= BEF_FORCENODEPTH;
@@ -2827,7 +2827,7 @@ void Surf_BuildLightmaps (void)
 	r_oldviewcluster2 = -1;
 	numlightmaps = 0;
 
-	for (j=1 ; j<MAX_MODELS ; j++)
+	for (j=1 ; j<MAX_PRECACHE_MODELS ; j++)
 	{
 		m = cl.model_precache[j];
 		if (!m)

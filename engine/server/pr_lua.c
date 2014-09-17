@@ -1940,7 +1940,6 @@ static qboolean Lua_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldw
 	return false;	//always do legacy behaviour
 }
 
-void PR_SV_FillWorldGlobals(world_t *w);
 static void Lua_SetupGlobals(world_t *world)
 {
 	int flds;

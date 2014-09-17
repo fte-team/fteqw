@@ -1655,6 +1655,7 @@ extern cvar_t temp1;
 	pmove.physents[0].info = 0;
 	pmove.skipent = -1;
 	pmove.onladder = false;
+	pmove.capsule = false;
 
 	if (ed->v.flags & (1<<24))
 	{

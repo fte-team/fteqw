@@ -170,7 +170,7 @@ q2trace_t	VARGS CLQ2_PMTrace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end
 	trace_t		t;
 
 	// check against world
-	cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, start, end, mins, maxs, MASK_PLAYERSOLID, &t);
+	cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, start, end, mins, maxs, false, MASK_PLAYERSOLID, &t);
 	if (t.fraction < 1.0)
 		t.ent = (struct edict_s *)1;
 
@@ -406,6 +406,7 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 	movevars.bunnyspeedcap = cl.bunnyspeedcap;
 	pmove.onladder = false;
 	pmove.safeorigin_known = false;
+	pmove.capsule = false;	//FIXME
 
 	VectorCopy(from->szmins, pmove.player_mins);
 	VectorCopy(from->szmaxs, pmove.player_maxs);
@@ -666,7 +667,7 @@ static void CL_DecodeStateSize(unsigned short solid, int modelindex, vec3_t mins
 {
 	if (solid == ES_SOLID_BSP)
 	{
-		if (modelindex < MAX_MODELS && cl.model_precache[modelindex] && !cl.model_precache[modelindex]->needload)
+		if (modelindex < MAX_PRECACHE_MODELS && cl.model_precache[modelindex] && !cl.model_precache[modelindex]->needload)
 		{
 			VectorCopy(cl.model_precache[modelindex]->mins, mins);
 			VectorCopy(cl.model_precache[modelindex]->maxs, maxs);

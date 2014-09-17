@@ -1331,7 +1331,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	if (trace.allsolid)
 	{
 		if (progstype != PROG_H2)
-			trace.fraction = 0;
+			trace.fraction = 0;	//traces that start in solid report a fraction of 0. this is to prevent things from dropping out of the world completely. at least this way they ought to still be shootable etc
 
 #pragma warningmsg("The following line might help boost framerates a lot in rmq, not sure if they violate expected behaviour in other mods though - check that they're safe.")
 		VectorNegate(gravitydir, trace.plane.normal);
@@ -1976,6 +1976,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 }
 #endif
 
+#ifdef HEXEN2
 void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *initial_origin, float *initial_angle)
 {
 	qboolean callfunc;
@@ -2006,6 +2007,7 @@ void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *init
 		}
 	}
 }
+#endif
 
 /*
 ================
@@ -2015,8 +2017,10 @@ SV_RunEntity
 */
 void WPhys_RunEntity (world_t *w, wedict_t *ent)
 {
+#ifdef HEXEN2
 	wedict_t	*movechain;
 	vec3_t	initial_origin = {0},initial_angle = {0}; // warning: ‘initial_?[?]’ may be used uninitialized in this function
+#endif
 	const float *gravitydir;
 
 #ifndef CLIENTONLY
@@ -2071,13 +2075,14 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	}
 
 
-
+#ifdef HEXEN2
 	movechain = PROG_TO_WEDICT(w->progs, ent->xv->movechain);
 	if (movechain != w->edicts)
 	{
 		VectorCopy(ent->v->origin,initial_origin);
 		VectorCopy(ent->v->angles,initial_angle);
 	}
+#endif
 
 	switch ( (int)ent->v->movetype)
 	{
@@ -2140,10 +2145,10 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		break;
 	}
 
+#ifdef HEXEN2
 	if (movechain != w->edicts)
-	{
 		WPhys_MoveChain(w, ent, movechain, initial_origin, initial_angle);
-	}
+#endif
 
 #ifndef CLIENTONLY
 	if (svent)

@@ -3200,6 +3200,7 @@ typedef struct {
 	vec4_t plane;
 	vec3_t mins;
 	vec3_t maxs;
+	qboolean capsule;
 	float frac;
 	float htilesize;
 	heightmap_t *hm;
@@ -3357,7 +3358,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			//do the trace
 			memset(&etr, 0, sizeof(etr));
 			etr.fraction = 1;
-			model->funcs.NativeTrace (model, 0, frame, s->ents[i]->ent.axis, start_l, end_l, tr->mins, tr->maxs, tr->hitcontentsmask, &etr);
+			model->funcs.NativeTrace (model, 0, frame, s->ents[i]->ent.axis, start_l, end_l, tr->mins, tr->maxs, tr->capsule, tr->hitcontentsmask, &etr);
 
 			tr->result->startsolid |= etr.startsolid;
 			tr->result->allsolid |= etr.allsolid;
@@ -3528,7 +3529,7 @@ Why is recursion good?
 
 Obviously, we don't care all that much about 1
 */
-qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace)
+qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec3_t mataxis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
 	vec2_t pos, npos;
 	qboolean nudge[2];
@@ -3551,6 +3552,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	hmtrace.plane[1] = 0;
 	hmtrace.plane[2] = 0;
 	hmtrace.plane[3] = 0;
+	hmtrace.capsule = capsule;
 
 	memset(trace, 0, sizeof(*trace));
 	trace->fraction = 1;

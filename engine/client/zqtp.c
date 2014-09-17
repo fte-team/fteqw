@@ -2479,7 +2479,7 @@ static item_t	tp_items[] = {
 
 #define NUMITEMS (sizeof(tp_items) / sizeof(tp_items[0]))
 
-static item_t	*model2item[MAX_MODELS];
+static item_t	*model2item[MAX_PRECACHE_MODELS];
 
 static void TP_FindModelNumbers (void)
 {
@@ -2487,7 +2487,7 @@ static void TP_FindModelNumbers (void)
 	char	*s;
 	item_t	*item;
 
-	for (i=0 ; i<MAX_MODELS ; i++) {
+	for (i=0 ; i<MAX_PRECACHE_MODELS ; i++) {
 		model2item[i] = NULL;
 		s = cl.model_name[i];
 		if (!s)

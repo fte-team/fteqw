@@ -47,8 +47,6 @@ oh, wait, ktx no longer supports those properly.
 #define MAX_Q1QVM_EDICTS	768 //according to ktx at api version 12 (fte's protocols go to 2048)
 #define MAPNAME_LEN 64
 
-#define VMFSID_Q1QVM 57235	//a cookie
-
 void PR_SV_FillWorldGlobals(world_t *w);
 
 #if GAME_API_VERSION >= 13
@@ -561,7 +559,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case G_GetEntityToken:
 		{
-			if (VM_OOB(arg[0], arg[1]))
+			if (VM_OOB(arg[0], arg[1]) || !arg[1])
 				return false;
 			if (q1qvmentstring)
 			{
@@ -573,7 +571,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 			else
 			{
 				char *ret = VM_POINTER(arg[0]);
-				strcpy(ret, "");
+				*ret = '\0';
 				return false;
 			}
 		}

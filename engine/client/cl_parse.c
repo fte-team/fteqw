@@ -682,7 +682,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 				}
 			}
 */
-			for (i = 0; i < MAX_MODELS; i++)	//go and load this model now.
+			for (i = 0; i < MAX_PRECACHE_MODELS; i++)	//go and load this model now.
 			{
 				if (!strcmp(cl.model_name[i], filename))
 				{
@@ -1134,7 +1134,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	}
 	else
 	{
-		for (i=1 ; i<MAX_MODELS ; i++)
+		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 		{
 			if (!cl.model_name[i][0])
 				continue;
@@ -1285,7 +1285,7 @@ int CL_LoadSounds(int stage, qboolean dontactuallyload)
 //#define atstage() ((cl.contentstage == stage++)?++cl.contentstage:false)
 //#define endstage() if (giveuptime<Sys_DoubleTime()) return -1;
 
-	for (i=1 ; i<MAX_SOUNDS ; i++)
+	for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
 	{
 		if (!cl.sound_name[i][0])
 			break;
@@ -3255,7 +3255,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		str = MSG_ReadString ();
 		if (!str[0])
 			break;
-		if (nummodels==MAX_MODELS)
+		if (nummodels==MAX_PRECACHE_MODELS)
 		{
 			Con_TPrintf ("Server sent too many model precaches\n");
 			return;
@@ -3272,7 +3272,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		str = MSG_ReadString ();
 		if (!str[0])
 			break;
-		if (numsounds==MAX_SOUNDS)
+		if (numsounds==MAX_PRECACHE_SOUNDS)
 		{
 			Con_TPrintf ("Server sent too many sound precaches\n");
 			return;
@@ -3553,7 +3553,7 @@ void CL_ParseSoundlist (qboolean lots)
 		if (!str[0])
 			break;
 		numsounds++;
-		if (numsounds >= MAX_SOUNDS)
+		if (numsounds >= MAX_PRECACHE_SOUNDS)
 			Host_EndGame ("Server sent too many sound_precache");
 
 //		if (strlen(str)>4)
@@ -3626,7 +3626,7 @@ void CL_ParseModellist (qboolean lots)
 		if (!str[0])
 			break;
 		nummodels++;
-		if (nummodels>=MAX_MODELS)
+		if (nummodels>=MAX_PRECACHE_MODELS)
 			Host_EndGame ("Server sent too many model_precache");
 		strcpy (cl.model_name[nummodels], str);
 
@@ -4466,12 +4466,14 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 */
 	player->model = NULL;
 
+#ifdef HEXEN2
 	/*if we're running hexen2, they have to be some class...*/
 	player->h2playerclass = atoi(Info_ValueForKey (player->userinfo, "cl_playerclass"));
 	if (player->h2playerclass > 5)
 		player->h2playerclass = 5;
 	if (player->h2playerclass < 1)
 		player->h2playerclass = 1;
+#endif
 
 	player->colourised = TP_FindColours(player->name);
 
@@ -5625,7 +5627,7 @@ void CL_ParsePrecache(void)
 	switch(code & PC_TYPE)
 	{
 	case PC_MODEL:
-		if (i >= 1 && i < MAX_MODELS)
+		if (i >= 1 && i < MAX_PRECACHE_MODELS)
 		{
 			model_t *model;
 			CL_CheckOrEnqueDownloadFile(s, s, 0);
@@ -5638,12 +5640,12 @@ void CL_ParsePrecache(void)
 			cl.model_precaches_added = true;
 		}
 		else
-			Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_MODELS);
+			Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_PRECACHE_MODELS);
 		break;
 	case PC_UNUSED:
 		break;
 	case PC_SOUND:
-		if (i >= 1 && i < MAX_SOUNDS)
+		if (i >= 1 && i < MAX_PRECACHE_SOUNDS)
 		{
 			sfx_t *sfx;
 			if (S_HaveOutput())
@@ -5655,7 +5657,7 @@ void CL_ParsePrecache(void)
 			Q_strncpyz (cl.sound_name[i], s, sizeof(cl.sound_name[i]));
 		}
 		else
-			Con_Printf("svc_precache: sound index %i outside range %i...%i\n", i, 1, MAX_SOUNDS);
+			Con_Printf("svc_precache: sound index %i outside range %i...%i\n", i, 1, MAX_PRECACHE_SOUNDS);
 		break;
 	case PC_PARTICLE:
 		if (i >= 1 && i < MAX_SSPARTICLESPRE)

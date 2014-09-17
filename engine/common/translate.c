@@ -147,7 +147,7 @@ void TL_InitLanguages(void)
 
 
 
-//#ifndef CLIENTONLY
+#ifdef HEXEN2
 //this stuff is for hexen2 translation strings.
 //(hexen2 is uuuuggllyyyy...)
 static char *strings_list;
@@ -213,7 +213,6 @@ char *T_GetString(int num)
 
 	return strings_table[num];
 }
-//#endif
 
 #ifndef SERVERONLY
 //for hexen2's objectives and stuff.
@@ -280,6 +279,7 @@ char *T_GetInfoString(int num)
 
 	return info_strings_table[num];
 }
+#endif
 #endif
 
 struct poline_s

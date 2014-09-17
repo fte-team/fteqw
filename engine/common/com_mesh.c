@@ -1463,8 +1463,70 @@ static void Alias_BuildSkeletalVPositionsPose(float *xyzout, skeltype_t bonetype
 #ifndef SERVERONLY
 #ifdef GLQUAKE
 #include "glquake.h"
-static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount, int basebone)
+#endif
+static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount, int basebone)
 {
+#ifndef GLQUAKE
+	scenetris_t *t;
+	int flags = BEF_NODLIGHT|BEF_NOSHADOWS|BEF_LINES;
+	int first;
+
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == flags)
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = shader;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+		t->flags = flags;
+	}
+	if (cl_numstrisvert + bonecount*2 > cl_maxstrisvert)
+	{
+		cl_maxstrisvert = cl_numstrisvert + bonecount*2;
+
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
+	}
+	if (cl_maxstrisidx < cl_numstrisidx+bonecount*2)
+	{
+		cl_maxstrisidx = cl_numstrisidx+bonecount*2;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+	first = cl_numstrisvert-t->firstvert;
+	for (i = 0; i < bonecount; i++)
+	{
+		//fixme: transform by model matrix
+		cl_strisvertv[cl_numstrisvert][0] = bonepose[i*12+3];
+		cl_strisvertv[cl_numstrisvert][1] = bonepose[i*12+7];
+		cl_strisvertv[cl_numstrisvert][2] = bonepose[i*12+11];
+		cl_strisvertt[cl_numstrisvert][0] = 0;
+		cl_strisvertt[cl_numstrisvert][1] = 0;
+		cl_strisvertc[cl_numstrisvert][0] = (i < basebone)?0:1;
+		cl_strisvertc[cl_numstrisvert][1] = (i < basebone)?0:0;
+		cl_strisvertc[cl_numstrisvert][2] = (i < basebone)?1:0;
+		cl_strisvertc[cl_numstrisvert][3] = 1;
+		cl_numstrisvert++;
+
+		p = bones[i].parent;
+		if (p < 0)
+			p = 0;
+		cl_strisidx[cl_numstrisidx++] = first+i;
+		cl_strisidx[cl_numstrisidx++] = first+p;
+	}
+
+	t->numvert += bonecount;
+	t->numidx = cl_numstrisidx - t->firstidx;
+#else
 	PPL_RevertToKnownState();
 	BE_SelectEntity(currententity);
 	qglColor3f(1, 0, 0);
@@ -1529,8 +1591,8 @@ static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int 
 */
 //		mesh->numindexes = 0;	//don't draw this mesh, as that would obscure the bones. :(
 	}
+#endif
 }
-#endif	//GLQUAKE
 #endif	//!SERVERONLY
 #endif	//SKELETALMODELS
 
@@ -1723,7 +1785,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 					meshcache.usebonepose = Alias_GetBoneInformation(inf, &e->framestate, meshcache.bonecachetype=SKEL_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
 				if (qrenderer == QR_OPENGL)
 				{
-					Alias_GLDrawSkeletalBones(inf->ofsbones, (float *)meshcache.usebonepose, inf->numbones, e->framestate.g[0].endbone);
+					Alias_DrawSkeletalBones(inf->ofsbones, (float *)meshcache.usebonepose, inf->numbones, e->framestate.g[0].endbone);
 				}
 #endif
 			}
@@ -2042,7 +2104,7 @@ qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, v
 }
 
 //The whole reason why model loading is supported in the server.
-qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentsmask, trace_t *trace)
+qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contentsmask, trace_t *trace)
 {
 	galiasinfo_t *mod = Mod_Extradata(model);
 	galiasgroup_t *group;
@@ -2592,6 +2654,7 @@ extern float	r_avertexnormals[NUMVERTEXNORMALS][3];
 static void Alias_LoadPose(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype)
 {
 	int j;
+#ifdef HEXEN2
 	if (mdltype == 2)
 	{
 		for (j = 0; j < galias->numverts; j++)
@@ -2605,6 +2668,7 @@ static void Alias_LoadPose(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t 
 		}
 	}
 	else
+#endif
 	{
 		for (j = 0; j < pq1inmodel->numverts; j++)
 		{
@@ -3062,7 +3126,6 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 	int i, onseams;
 	dstvert_t *pinstverts;
 	dtriangle_t *pinq1triangles;
-	dh2triangle_t *pinh2triangles;
 	int *seamremap;
 	index_t *indexes;
 	daliasskintype_t *skinstart;
@@ -3072,7 +3135,10 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 	unsigned int hdrsize;
 	void *end;
 	qboolean qtest = false;
+#ifdef HEXEN2
+	dh2triangle_t *pinh2triangles;
 	qboolean rapo = false;
+#endif
 
 	loadmodel=mod;
 
@@ -3088,11 +3154,13 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		hdrsize = (size_t)&((dmdl_t*)NULL)->flags;
 		qtest = true;
 	}
+#ifdef HEXEN2
 	else if (version == 50)
 	{
 		hdrsize = sizeof(dmdl_t);
 		rapo = true;
 	}
+#endif
 	else if (version != ALIAS_VERSION)
 	{
 		Con_Printf (CON_ERROR "%s has wrong version number (%i should be %i)\n",
@@ -3162,6 +3230,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		break;
 	}
 
+#ifdef HEXEN2
 	if (rapo)
 	{
 		/*each triangle can use one coord and one st, for each vert, that's a lot of combinations*/
@@ -3248,6 +3317,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		BZ_Free(seamremap);
 	}
 	else
+#endif
 	{
 		/*onseam means +=skinwidth/2
 		verticies that are marked as onseam potentially generate two output verticies.
@@ -7206,7 +7276,9 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 void Alias_Register(void)
 {
 	Mod_RegisterModelFormatMagic(NULL, "Quake1 Model (mdl)",				IDPOLYHEADER,							Mod_LoadQ1Model);
+#ifdef HEXEN2
 	Mod_RegisterModelFormatMagic(NULL, "Hexen2 Model (mdl)",				RAPOLYHEADER,							Mod_LoadQ1Model);
+#endif
 #ifdef MD2MODELS
 	Mod_RegisterModelFormatMagic(NULL, "Quake2 Model (md2)",				MD2IDALIASHEADER,						Mod_LoadQ2Model);
 #endif

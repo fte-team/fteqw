@@ -227,10 +227,10 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 			{
 				AngleVectors(pe->angles, axis[0], axis[1], axis[2]);
 				VectorNegate(axis[1], axis[1]);
-				pe->model->funcs.NativeTrace(pe->model, 0, 0, axis, ts, te, vec3_origin, vec3_origin, MASK_WORLDSOLID, &trace);
+				pe->model->funcs.NativeTrace(pe->model, 0, 0, axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
 			}
 			else
-				pe->model->funcs.NativeTrace(pe->model, 0, 0, NULL, ts, te, vec3_origin, vec3_origin, MASK_WORLDSOLID, &trace);
+				pe->model->funcs.NativeTrace(pe->model, 0, 0, NULL, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
 			if (trace.fraction<1)
 			{
 				VectorSubtract(trace.endpos, ts, delta);

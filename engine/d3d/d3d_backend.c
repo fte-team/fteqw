@@ -2614,6 +2614,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 	if (e->scale != 1 && e->scale != 0)	//hexen 2 stuff
 	{
+#ifdef HEXEN2
 		float z;
 		float escale;
 		escale = e->scale;
@@ -2649,6 +2650,11 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 				break;
 			}
 		}
+#else
+		VectorScale((m+0), e->scale, (m+0));
+		VectorScale((m+4), e->scale, (m+4));
+		VectorScale((m+8), e->scale, (m+8));
+#endif
 	}
 	else if (mod && !strcmp(mod->name, "progs/eyes.mdl"))
 	{

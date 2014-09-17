@@ -205,7 +205,7 @@ typedef struct {
 	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 
 	//deals with whatever is native for the bsp (gamecode is expected to distinguish this).
-	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace);
+	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
 	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 
 	unsigned int (*FatPVS)		(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge);
@@ -499,7 +499,6 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, struct trace_s *trace);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
 qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize);
 
@@ -976,7 +975,7 @@ void Terr_FreeModel(model_t *mod);
 void Terr_PurgeTerrainModel(model_t *hm, qboolean lightmapsonly, qboolean lightmapreusable);
 void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force);	//call this after loading a bsp
 qboolean Terrain_LocateSection(char *name, flocation_t *loc);	//used on servers to generate sections for download.
-qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentmask, struct trace_s *trace);
+qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contentmask, struct trace_s *trace);
 unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org);
 struct fragmentdecal_s;
 void Terrain_ClipDecal(struct fragmentdecal_s *dec, float *center, float radius, model_t *model);

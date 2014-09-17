@@ -662,17 +662,19 @@ void NPP_NQFlush(void)
 			{
 				if (cl->state == cs_spawned && ISQWCLIENT(cl))
 				{
+#ifdef HEXEN2
 					char *h2finale = NULL;
 					char *h2title = NULL;
+/*
 					if (cl->zquake_extensions & Z_EXT_SERVERTIME)
 					{
-/*						ClientReliableCheckBlock(cl, 6);
+						ClientReliableCheckBlock(cl, 6);
 						ClientReliableWrite_Byte(cl, svc_updatestatlong);
 						ClientReliableWrite_Byte(cl, STAT_TIME);
 						ClientReliableWrite_Long(cl, (int)(sv.world.physicstime * 1000));
 						cl->nextservertimeupdate = sv.world.physicstime+10;
-*/					}
-
+					}
+*/
 					if (progstype == PROG_H2)
 					{
 						/*hexen2 does something like this in the client, but we don't support those protocols, so translate to something usable*/
@@ -699,6 +701,7 @@ void NPP_NQFlush(void)
 						ClientReliableWrite_String(cl, h2finale);
 					}
 					else
+#endif
 					{
 						ClientReliableCheckBlock(cl, 16);
 						ClientReliableWrite_Byte(cl, svc_intermission);

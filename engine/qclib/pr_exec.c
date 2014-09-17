@@ -755,7 +755,7 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 		ed = PROG_TO_EDICT(progfuncs, val->_int);
 		if (!ed)
 			return false;
-		if (fofs < 0 || fofs >= max_fields_size)
+		if (fofs < 0 || fofs >= (int)max_fields_size)
 			return false;
 		val = (eval_t *) (((char *)ed->fields) + fofs*4);
 	}
@@ -1240,6 +1240,41 @@ static char *lastfile = 0;
 	return statement;
 }
 
+static pbool casecmp_f(progfuncs_t *progfuncs, eval_t *ref, eval_t *val)	{return ref->_float == val->_float;}
+static pbool casecmp_i(progfuncs_t *progfuncs, eval_t *ref, eval_t *val)	{return ref->_int == val->_int;}
+static pbool casecmp_v(progfuncs_t *progfuncs, eval_t *ref, eval_t *val)	{return ref->_vector[0] == val->_vector[0] && 
+																					ref->_vector[1] == val->_vector[1] &&
+																					ref->_vector[2] == val->_vector[2];}
+static pbool casecmp_s(progfuncs_t *progfuncs, eval_t *ref, eval_t *val)	{	const char *refs = PR_StringToNative(&progfuncs->funcs, ref->string);
+																				const char *vals = PR_StringToNative(&progfuncs->funcs, val->string);
+																				return !strcmp(refs, vals);}
+static pbool casecmprange_f(progfuncs_t *progfuncs, eval_t *ref, eval_t *min, eval_t *max)	{return ref->_float >= min->_float && ref->_float <= max->_float;}
+static pbool casecmprange_i(progfuncs_t *progfuncs, eval_t *ref, eval_t *min, eval_t *max)	{return ref->_int >= min->_int && ref->_int <= max->_int;}
+static pbool casecmprange_v(progfuncs_t *progfuncs, eval_t *ref, eval_t *min, eval_t *max)	{return ref->_vector[0] >= min->_vector[0] && ref->_vector[0] <= max->_vector[0] &&
+																									ref->_vector[1] >= min->_vector[1] && ref->_vector[1] <= max->_vector[1] &&
+																									ref->_vector[2] >= min->_vector[2] && ref->_vector[2] <= max->_vector[2];}
+static pbool casecmprange_bad(progfuncs_t *progfuncs, eval_t *ref, eval_t *min, eval_t *max){	PR_RunError (&progfuncs->funcs, "OP_CASERANGE type not supported");//BUG: pr_xstatement will not be correct.
+																								return false;}
+typedef pbool (*casecmp_t)(progfuncs_t *progfuncs, eval_t *ref, eval_t *val);
+typedef pbool (*casecmprange_t)(progfuncs_t *progfuncs, eval_t *ref, eval_t *min, eval_t *max);
+static casecmp_t casecmp[] =
+{
+	casecmp_f,	//float
+	casecmp_v,	//vector
+	casecmp_s,	//string
+	casecmp_i,	//ent
+	casecmp_i	//func
+	//pointer, field, int, etc are emulated with func or something. I dunno
+};
+static casecmprange_t casecmprange[] =
+{
+	casecmprange_f,	//float
+	casecmprange_v,	//vector - I'm using a bbox, not really sure what it should be
+	casecmprange_bad,	//string - should it use stof? string ranges don't relly make sense, at all.
+	casecmprange_i,	//ent - doesn't really make sense, but as ints/pointers/fields/etc might be emulated with this, allow it anyway, as an int type.
+	casecmprange_i	//func
+};
+
 #define RUNAWAYCHECK()							\
 	if (!--*runaway)								\
 	{											\
@@ -1255,9 +1290,7 @@ static char *lastfile = 0;
 
 static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *fte_restrict runaway)
 {
-	eval_t	*t, *swtch=NULL;
-
-	int swtchtype = 0; //warning about not being initialized before use
+	unsigned int switchcomparison = 0;
 	const dstatement16_t	*fte_restrict st;
 	mfunction_t	*fte_restrict newf;
 	int		i;
@@ -1267,6 +1300,8 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	float *fte_restrict glob = pr_globals;
 	float tmpf;
 	int tmpi;
+
+	eval_t	*switchref = (eval_t*)glob;
 
 #define OPA ((eval_t *)&glob[st->a])
 #define OPB ((eval_t *)&glob[st->b])
@@ -1312,9 +1347,7 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	return -1;
 #else
 
-	eval_t	*t, *swtch=NULL;
-
-	int swtchtype = 0; //warning about not being initialized before use
+	unsigned int switchcomparison = 0;
 	const dstatement32_t	*fte_restrict st;
 	mfunction_t	*fte_restrict newf;
 	int		i;
@@ -1324,6 +1357,7 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	float *fte_restrict glob = pr_globals;
 	float tmpf;
 	int tmpi;
+	eval_t	*switchref = (eval_t*)glob;
 
 #define OPA ((eval_t *)&glob[st->a])
 #define OPB ((eval_t *)&glob[st->b])

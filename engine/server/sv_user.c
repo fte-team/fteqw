@@ -983,7 +983,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			int maxclientsupportedsounds = 256;
 	#ifdef PEXT_SOUNDDBL
 			if (client->fteprotocolextensions & PEXT_SOUNDDBL)
-				maxclientsupportedsounds = MAX_SOUNDS;
+				maxclientsupportedsounds = MAX_PRECACHE_SOUNDS;
 	#endif
 			started = false;
 
@@ -5932,6 +5932,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		pmove.physents[0].model = sv.world.worldmodel;
 		pmove.cmd = *ucmd;
 		pmove.hullnum = SV_HullNumForPlayer(0, player_mins, player_maxs);
+		pmove.capsule = (sv_player->xv->geomtype == GEOMTYPE_CAPSULE);
 
 		movevars.entgravity = 0;
 		movevars.maxspeed = 0;
@@ -6125,6 +6126,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	pmove.physents[0].model = sv.world.worldmodel;
 	pmove.cmd = *ucmd;
 	pmove.skipent = -1;
+	pmove.capsule = (sv_player->xv->geomtype == GEOMTYPE_CAPSULE);
 
 	movevars.entgravity = host_client->entgravity/movevars.gravity;
 	movevars.maxspeed = host_client->maxspeed;

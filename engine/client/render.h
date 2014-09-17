@@ -104,7 +104,9 @@ typedef struct entity_s
 	int						playerindex;	//for qw skins
 	int						topcolour;		//colourmapping
 	int						bottomcolour;	//colourmapping
+#ifdef HEXEN2
 	int						h2playerclass;	//hexen2's quirky colourmapping
+#endif
 
 //	struct efrag_s			*efrag;			// linked list of efrags (FIXME)
 //	int						visframe;		// last frame this entity was

@@ -18,7 +18,6 @@
 #define fakeop fakeop16
 #define dstatement_t dstatement16_t
 #define sofs signed short
-#define uofs unsigned short
 #elif INTSIZE == 32
 #define cont cont32
 #define reeval reeval32
@@ -26,7 +25,6 @@
 #define fakeop fakeop32
 #define dstatement_t dstatement32_t
 #define sofs signed int
-#define uofs unsigned int
 #elif INTSIZE == 24
 #error INTSIZE should be set to 32.
 #else
@@ -396,109 +394,6 @@ reeval:
 		ptr = QCPOINTER(OPB);
 		*(unsigned char *)ptr = (char)OPA->_float;
 		break;
-
-	case OP_MULSTORE_F: // f *= f
-		OPB->_float *= OPA->_float;
-		break;
-	case OP_MULSTORE_VF: // v *= f
-		tmpf = OPA->_float;
-		OPB->_vector[0] *= tmpf;
-		OPB->_vector[1] *= tmpf;
-		OPB->_vector[2] *= tmpf;
-		break;
-	case OP_MULSTOREP_F: // e.f *= f
-		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
-		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
-		}
-		ptr = QCPOINTER(OPB);
-		OPC->_float = (ptr->_float *= OPA->_float);
-		break;
-	case OP_MULSTOREP_VF: // e.v *= f
-		if (QCPOINTERWRITEFAIL(OPB, sizeof(vec3_t)))
-		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
-		}
-		tmpf = OPA->_float;
-		ptr = QCPOINTER(OPB);
-		OPC->_vector[0] = (ptr->_vector[0] *= tmpf);
-		OPC->_vector[1] = (ptr->_vector[1] *= tmpf);
-		OPC->_vector[2] = (ptr->_vector[2] *= tmpf);
-		break;
-
-	case OP_DIVSTORE_F: // f /= f
-		OPB->_float /= OPA->_float;
-		break;
-	case OP_DIVSTOREP_F: // e.f /= f
-		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
-		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
-		}
-		ptr = QCPOINTER(OPB);
-		OPC->_float = (ptr->_float /= OPA->_float);
-		break;
-
-	case OP_ADDSTORE_F: // f += f
-		OPB->_float += OPA->_float;
-		break;
-	case OP_ADDSTORE_V: // v += v
-		OPB->_vector[0] += OPA->_vector[0];
-		OPB->_vector[1] += OPA->_vector[1];
-		OPB->_vector[2] += OPA->_vector[2];
-		break;
-	case OP_ADDSTOREP_F: // e.f += f
-		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
-		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
-		}
-		ptr = QCPOINTER(OPB);
-		OPC->_float = (ptr->_float += OPA->_float);
-		break;
-	case OP_ADDSTOREP_V: // e.v += v
-		if (QCPOINTERWRITEFAIL(OPB, sizeof(vec3_t)))
-		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
-		}
-		ptr = QCPOINTER(OPB);
-		OPC->_vector[0] = (ptr->_vector[0] += OPA->_vector[0]);
-		OPC->_vector[1] = (ptr->_vector[1] += OPA->_vector[1]);
-		OPC->_vector[2] = (ptr->_vector[2] += OPA->_vector[2]);
-		break;
-
-	case OP_SUBSTORE_F: // f -= f
-		OPB->_float -= OPA->_float;
-		break;
-	case OP_SUBSTORE_V: // v -= v
-		OPB->_vector[0] -= OPA->_vector[0];
-		OPB->_vector[1] -= OPA->_vector[1];
-		OPB->_vector[2] -= OPA->_vector[2];
-		break;
-	case OP_SUBSTOREP_F: // e.f -= f
-		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
-		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
-		}
-		ptr = QCPOINTER(OPB);
-		OPC->_float = (ptr->_float -= OPA->_float);
-		break;
-	case OP_SUBSTOREP_V: // e.v -= v
-		if (QCPOINTERWRITEFAIL(OPB, sizeof(vec3_t)))
-		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
-		}
-		ptr = QCPOINTER(OPB);
-		OPC->_vector[0] = (ptr->_vector[0] -= OPA->_vector[0]);
-		OPC->_vector[1] = (ptr->_vector[1] -= OPA->_vector[1]);
-		OPC->_vector[2] = (ptr->_vector[2] -= OPA->_vector[2]);
-		break;
-
 
 	//get a pointer to a field var
 	case OP_ADDRESS:
@@ -941,30 +836,31 @@ reeval:
 		OPC->_int = OPA->_int << OPB->_int;
 		break;
 
-
+	//hexen2 arrays contain a prefix global set to (arraysize-1) inserted before the actual array data
+	//for vectors, this prefix is the number of vectors rather than the number of globals. this can cause issues with using OP_FETCH_GBL_V within structs.
 	case OP_FETCH_GBL_F:
 	case OP_FETCH_GBL_S:
 	case OP_FETCH_GBL_E:
 	case OP_FETCH_GBL_FNC:
-		i = (int)OPB->_float;
-		if(i < 0 || i > ((eval_t *)&glob[st->a-1])->_int)
+		i = OPB->_float;
+		if((unsigned)i > (unsigned)((eval_t *)&glob[st->a-1])->_int)
 		{
+			pr_xstatement = st-pr_statements;
 			PR_RunError(&progfuncs->funcs, "array index out of bounds: %s[%d] (max %d)", PR_GlobalStringNoContents(progfuncs, st->a), i, ((eval_t *)&glob[st->a-1])->_int);
 		}
-		t = (eval_t *)&glob[(uofs)st->a + i];
-		OPC->_int = t->_int;
+		OPC->_int = ((eval_t *)&glob[st->a + i])->_int;
 		break;
 	case OP_FETCH_GBL_V:
-		i = (int)OPB->_float;
-		if(i < 0 || i > ((eval_t *)&glob[st->a-1])->_int)
+		i = OPB->_float;
+		if((unsigned)i > (unsigned)((eval_t *)&glob[st->a-1])->_int)
 		{
 			pr_xstatement = st-pr_statements;
 			PR_RunError(&progfuncs->funcs, "array index out of bounds: %s[%d]", PR_GlobalStringNoContents(progfuncs, st->a), i);
 		}
-		t = (eval_t *)&glob[(uofs)st->a + i*3];
-		OPC->_vector[0] = t->_vector[0];
-		OPC->_vector[1] = t->_vector[1];
-		OPC->_vector[2] = t->_vector[2];
+		ptr = (eval_t *)&glob[st->a + i*3];
+		OPC->_vector[0] = ptr->_vector[0];
+		OPC->_vector[1] = ptr->_vector[1];
+		OPC->_vector[2] = ptr->_vector[2];
 		break;
 
 	case OP_CSTATE:
@@ -979,146 +875,186 @@ reeval:
 		externs->thinktimeop(&progfuncs->funcs, (struct edict_s *)PROG_TO_EDICT(progfuncs, OPA->edict), OPB->_float);
 		break;
 
-
-	case OP_BITSETSTORE_F: // b (+) a
-		OPB->_float = (float)((int)OPB->_float | (int)OPA->_float);
+	case OP_MULSTORE_F:
+		/*OPC->_float = */OPB->_float *= OPA->_float;
 		break;
-	case OP_BITSETSTOREP_F: // .b (+) a
+	case OP_MULSTORE_VF:
+		tmpf = OPA->_float;	//don't break on vec*=vec_x;
+		/*OPC->_vector[0] = */OPB->_vector[0] *= tmpf;
+		/*OPC->_vector[1] = */OPB->_vector[1] *= tmpf;
+		/*OPC->_vector[2] = */OPB->_vector[2] *= tmpf;
+		break;
+	case OP_MULSTOREP_F:
 		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
-		ptr->_float = (float)((int)ptr->_float | (int)OPA->_float);
+		OPC->_float = ptr->_float *= OPA->_float;
 		break;
-	case OP_BITCLRSTORE_F: // b (-) a
-		OPB->_float = (float)((int)OPB->_float & ~((int)OPA->_float));
-		break;
-	case OP_BITCLRSTOREP_F: // .b (-) a
+	case OP_MULSTOREP_VF:
 		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
-		ptr->_float = (float)((int)ptr->_float & ~((int)OPA->_float));
+		tmpf = OPA->_float;	//don't break on vec*=vec_x;
+		OPC->_vector[0] = ptr->_vector[0] *= tmpf;
+		OPC->_vector[1] = ptr->_vector[1] *= tmpf;
+		OPC->_vector[2] = ptr->_vector[2] *= tmpf;
+		break;
+	case OP_DIVSTORE_F:
+		/*OPC->_float = */OPB->_float /= OPA->_float;
+		break;
+	case OP_DIVSTOREP_F:
+		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = QCPOINTER(OPB);
+		OPC->_float = ptr->_float /= OPA->_float;
+		break;
+	case OP_ADDSTORE_F:
+		/*OPC->_float = */OPB->_float += OPA->_float;
+		break;
+	case OP_ADDSTORE_V:
+		/*OPC->_vector[0] =*/ OPB->_vector[0] += OPA->_vector[0];
+		/*OPC->_vector[1] =*/ OPB->_vector[1] += OPA->_vector[1];
+		/*OPC->_vector[2] =*/ OPB->_vector[2] += OPA->_vector[2];
+		break;
+	case OP_ADDSTOREP_F:
+		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = QCPOINTER(OPB);
+		OPC->_float = ptr->_float += OPA->_float;
+		break;
+	case OP_ADDSTOREP_V:
+		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = QCPOINTER(OPB);
+		OPC->_vector[0] = ptr->_vector[0] += OPA->_vector[0];
+		OPC->_vector[1] = ptr->_vector[1] += OPA->_vector[1];
+		OPC->_vector[2] = ptr->_vector[2] += OPA->_vector[2];
+		break;
+	case OP_SUBSTORE_F:
+		/*OPC->_float = */OPB->_float -= OPA->_float;
+		break;
+	case OP_SUBSTORE_V:
+		/*OPC->_vector[0] = */OPB->_vector[0] -= OPA->_vector[0];
+		/*OPC->_vector[1] = */OPB->_vector[1] -= OPA->_vector[1];
+		/*OPC->_vector[2] = */OPB->_vector[2] -= OPA->_vector[2];
+		break;
+	case OP_SUBSTOREP_F:
+		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = QCPOINTER(OPB);
+		OPC->_float = ptr->_float -= OPA->_float;
+		break;
+	case OP_SUBSTOREP_V:
+		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = QCPOINTER(OPB);
+		OPC->_vector[0] = ptr->_vector[0] -= OPA->_vector[0];
+		OPC->_vector[1] = ptr->_vector[1] -= OPA->_vector[1];
+		OPC->_vector[2] = ptr->_vector[2] -= OPA->_vector[2];
+		break;
+	case OP_BITSETSTORE_F:
+		OPB->_float = (int)OPB->_float | (int)OPA->_float;
+		break;
+	case OP_BITSETSTOREP_F:
+		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = QCPOINTER(OPB);
+		ptr->_float = (int)ptr->_float | (int)OPA->_float;
+		break;
+	case OP_BITCLRSTORE_F:
+		OPB->_float = (int)OPB->_float & ~(int)OPA->_float;
+		break;
+	case OP_BITCLRSTOREP_F:
+		if (QCPOINTERWRITEFAIL(OPB, sizeof(float)))
+		{
+			pr_xstatement = st-pr_statements;
+			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+		}
+		ptr = QCPOINTER(OPB);
+		ptr->_float = (int)ptr->_float & ~(int)OPA->_float;
 		break;
 
+	//for scaler randoms, prevent the random value from ever reaching 1
+	//this avoids issues when array[random()*array.length]
 	case OP_RAND0:
-		OPC->_float = (rand()&0x7fff)/((float)0x7fff);
+		OPC->_float = (rand ()&0x7fff) / ((float)0x8000);
 		break;
 	case OP_RAND1:
-		OPC->_float = (rand()&0x7fff)/((float)0x7fff)*OPA->_float;
+		OPC->_float = (rand ()&0x7fff) / ((float)0x8000)*OPA->_float;
 		break;
-	case OP_RAND2:
-		if(OPA->_float < OPB->_float)
-		{
-			OPC->_float = OPA->_float+((rand()&0x7fff)/((float)0x7fff)
-				*(OPB->_float-OPA->_float));
-		}
-		else
-		{
-			OPC->_float = OPB->_float+((rand()&0x7fff)/((float)0x7fff)
-				*(OPA->_float-OPB->_float));
-		}
+	case OP_RAND2:	//backwards range shouldn't matter (except that it is b that is never reached, rather than the higher of the two)
+		OPC->_float = OPA->_float + (rand ()&0x7fff) / ((float)0x8000)*(OPB->_float-OPA->_float);
 		break;
+	//random vectors DO result in 0 to 1 inclusive, to try to ensure a more balanced range
 	case OP_RANDV0:
-		OPC->_vector[0] = (rand()&0x7fff)/((float)0x7fff);
-		OPC->_vector[1] = (rand()&0x7fff)/((float)0x7fff);
-		OPC->_vector[2] = (rand()&0x7fff)/((float)0x7fff);
+		OPC->_vector[0] = (rand ()&0x7fff) / ((float)0x7fff);
+		OPC->_vector[1] = (rand ()&0x7fff) / ((float)0x7fff);
+		OPC->_vector[2] = (rand ()&0x7fff) / ((float)0x7fff);
 		break;
 	case OP_RANDV1:
-		OPC->_vector[0] = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[0];
-		OPC->_vector[1] = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[1];
-		OPC->_vector[2] = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[2];
+		OPC->_vector[0] = (rand ()&0x7fff) / ((float)0x7fff)*OPA->_vector[0];
+		OPC->_vector[1] = (rand ()&0x7fff) / ((float)0x7fff)*OPA->_vector[1];
+		OPC->_vector[2] = (rand ()&0x7fff) / ((float)0x7fff)*OPA->_vector[2];
 		break;
-	case OP_RANDV2:
-		for(i = 0; i < 3; i++)
-		{
-			if(OPA->_vector[i] < OPB->_vector[i])
-			{
-				OPC->_vector[i] = OPA->_vector[i]+((rand()&0x7fff)/((float)0x7fff)
-					*(OPB->_vector[i]-OPA->_vector[i]));
-			}
-			else
-			{
-				OPC->_vector[i] = OPB->_vector[i]+(rand()*(1.0f/RAND_MAX)
-					*(OPA->_vector[i]-OPB->_vector[i]));
-			}
-		}
+	case OP_RANDV2:	//backwards range shouldn't matter
+		OPC->_vector[0] = OPA->_vector[0] + (rand ()&0x7fff) / ((float)0x7fff)*(OPB->_vector[0]-OPA->_vector[0]);
+		OPC->_vector[1] = OPA->_vector[1] + (rand ()&0x7fff) / ((float)0x7fff)*(OPB->_vector[1]-OPA->_vector[1]);
+		OPC->_vector[2] = OPA->_vector[2] + (rand ()&0x7fff) / ((float)0x7fff)*(OPB->_vector[2]-OPA->_vector[2]);
 		break;
-
 
 	case OP_SWITCH_F:
 	case OP_SWITCH_V:
 	case OP_SWITCH_S:
 	case OP_SWITCH_E:
 	case OP_SWITCH_FNC:
-		swtch = OPA;
-		swtchtype = OPCODE;
+		//the case opcodes depend upon the preceding switch.
+		//otherwise the switch itself is much like a goto
+		//don't embed the case/caserange checks directly into the switch so that custom caseranges can be potentially be implemented with hybrid emulation.
+		switchcomparison = OPCODE - OP_SWITCH_F;
+		switchref = OPA;
 		RUNAWAYCHECK();
-		st += (sofs)st->b - 1;	// offset the st++
+		st += (sofs)st->b - 1;	// offset the s++
 		break;
 	case OP_CASE:
-		switch(swtchtype)
+		//if the comparison is true, jump (back up) to the relevent code block
+		if (casecmp[switchcomparison](progfuncs, switchref, OPA))
 		{
-		case OP_SWITCH_F:
-			if (swtch->_float == OPA->_float)
-			{
-				RUNAWAYCHECK();
-				st += (sofs)st->b-1; // -1 to offset the s++
-			}
-			break;
-		case OP_SWITCH_E:
-		case OP_SWITCH_FNC:
-			if (swtch->_int == OPA->_int)
-			{
-				RUNAWAYCHECK();
-				st += (sofs)st->b-1; // -1 to offset the s++
-			}
-			break;
-		case OP_SWITCH_S:
-			if (swtch->_int == OPA->_int)
-			{
-				RUNAWAYCHECK();
-				st += (sofs)st->b-1; // -1 to offset the s++
-			}
-			if ((!swtch->_int && PR_StringToNative(&progfuncs->funcs, OPA->string)) || (!OPA->_int && PR_StringToNative(&progfuncs->funcs, swtch->string)))	//one is null (cannot be not both).
-				break;
-			if (!strcmp(PR_StringToNative(&progfuncs->funcs, swtch->string), PR_StringToNative(&progfuncs->funcs, OPA->string)))
-			{
-				RUNAWAYCHECK();
-				st += (sofs)st->b-1; // -1 to offset the s++
-			}
-			break;
-		case OP_SWITCH_V:
-			if (swtch->_vector[0] == OPA->_vector[0] && swtch->_vector[1] == OPA->_vector[1] && swtch->_vector[2] == OPA->_vector[2])
-			{
-				RUNAWAYCHECK();
-				st += (sofs)st->b-1; // -1 to offset the s++
-			}
-			break;
-		default:
-			PR_RunError (&progfuncs->funcs, "OP_CASE with bad/missing OP_SWITCH %i", swtchtype);
-			break;
+			RUNAWAYCHECK();
+			st += (sofs)st->b-1; // -1 to offset the s++
 		}
 		break;
 	case OP_CASERANGE:
-		switch(swtchtype)
+		//if the comparison is true, jump (back up) to the relevent code block
+		if (casecmprange[switchcomparison](progfuncs, switchref, OPA, OPC))
 		{
-		case OP_SWITCH_F:
-			if (swtch->_float >= OPA->_float && swtch->_float <= OPB->_float)
-			{
-				RUNAWAYCHECK();
-				st += (sofs)st->c-1; // -1 to offset the s++
-			}
-			break;
-		default:
-			PR_RunError (&progfuncs->funcs, "OP_CASERANGE with bad/missing OP_SWITCH %i", swtchtype);
+			RUNAWAYCHECK();
+			st += (sofs)st->c-1; // -1 to offset the s++
 		}
 		break;
-
 
 
 
@@ -1316,7 +1252,6 @@ reeval:
 #undef fakeop
 #undef dstatement_t
 #undef sofs
-#undef uofs
 #undef OPCODE
 
 #undef ENGINEPOINTER

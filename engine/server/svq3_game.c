@@ -156,7 +156,7 @@ static void Q3G_UnlinkEntity(q3sharedEntity_t *ent)
 
 static model_t *Q3G_GetCModel(unsigned int modelindex)
 {
-	if ((unsigned int)modelindex < MAX_MODELS)
+	if ((unsigned int)modelindex < MAX_PRECACHE_MODELS)
 	{
 		if (!sv.models[modelindex])
 		{
@@ -416,7 +416,7 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 	if (!maxs)
 		maxs = vec3_origin;
 
-	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, 0, NULL, start, end, mins, maxs, contentmask, &tr);
+	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, 0, NULL, start, end, mins, maxs, capsule, contentmask, &tr);
 	result->allsolid = tr.allsolid;
 	result->contents = tr.contents;
 	VectorCopy(tr.endpos, result->endpos);
@@ -476,7 +476,6 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 
 		if (es->r.bmodel)
 		{
-			//FIXME, this is inefficient.
 			mod = Q3G_GetCModel(es->s.modelindex);
 			if (!mod)
 				continue;
@@ -484,9 +483,11 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 		}
 		else
 		{
-			mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
+			if (es->r.svFlags & SVF_CAPSULE)
+				mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
+			else
+				mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
 			tr = CM_TransformedBoxTrace(mod, start, end, mins, maxs, contentmask, es->r.currentOrigin, es->r.currentAngles);
-//			mod->funcs.Trace(mod, 0, 0, start, end, mins, maxs, &tr);
 		}
 		if (tr.fraction < result->fraction)
 		{

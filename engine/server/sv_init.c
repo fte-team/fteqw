@@ -31,8 +31,6 @@ server_t		sv;					// local server
 entity_state_t *sv_staticentities;
 int sv_max_staticentities;
 
-char	localmodels[MAX_MODELS][5];	// inline model names for precache
-
 char localinfo[MAX_LOCALINFO_STRING+1]; // local game info
 
 extern cvar_t	skill, sv_loadentfiles;
@@ -57,12 +55,12 @@ int SV_ModelIndex (const char *name)
 	if (!name || !name[0])
 		return 0;
 
-	for (i=1 ; i<MAX_MODELS && sv.strings.model_precache[i] ; i++)
+	for (i=1 ; i<MAX_PRECACHE_MODELS && sv.strings.model_precache[i] ; i++)
 		if (!strcmp(sv.strings.model_precache[i], name))
 			return i;
-	if (i==MAX_MODELS || !sv.strings.model_precache[i])
+	if (i==MAX_PRECACHE_MODELS || !sv.strings.model_precache[i])
 	{
-		if (i!=MAX_MODELS)
+		if (i!=MAX_PRECACHE_MODELS)
 		{
 #ifdef VM_Q1
 			if (svs.gametype == GT_Q1QVM)
@@ -98,10 +96,10 @@ int SV_SafeModelIndex (char *name)
 	if (!name || !name[0])
 		return 0;
 
-	for (i=1 ; i<MAX_MODELS && sv.strings.model_precache[i] ; i++)
+	for (i=1 ; i<MAX_PRECACHE_MODELS && sv.strings.model_precache[i] ; i++)
 		if (!strcmp(sv.strings.model_precache[i], name))
 			return i;
-	if (i==MAX_MODELS || !sv.strings.model_precache[i])
+	if (i==MAX_PRECACHE_MODELS || !sv.strings.model_precache[i])
 	{
 		return 0;
 	}
@@ -817,7 +815,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				Z_Free(svs.clients[i].spawninfo);
 			svs.clients[i].spawninfo = NULL;
 		}
+#ifdef HEXEN2
 		T_FreeStrings();
+#endif
 	}
 
 	for (i = 0; i < svs.allocated_client_slots; i++)
@@ -1093,14 +1093,25 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
 	{
+		int subs;
 		strcpy(sv.strings.sound_precache[0], "");
 		sv.strings.model_precache[0] = "";
 
-		sv.strings.model_precache[1] = sv.modelname;	//the qvm doesn't have access to this array
-		for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
+		subs = sv.world.worldmodel->numsubmodels;
+		if (subs > MAX_PRECACHE_MODELS-2)
 		{
-			sv.strings.model_precache[1+i] = localmodels[i];
-			sv.models[i+1] = Mod_ForName (localmodels[i], MLV_WARN);
+			Con_Printf("Warning: worldmodel has too many submodels\n");
+			subs = MAX_PRECACHE_MODELS-2;
+		}
+
+		sv.strings.model_precache[1] = sv.modelname;	//the qvm doesn't have access to this array
+		for (i=1 ; i<subs ; i++)
+		{
+			char *z, *s = va("*%u", i);
+			z = Z_TagMalloc(strlen(s)+1, VMFSID_Q1QVM);
+			strcpy(z, s);
+			sv.strings.model_precache[1+i] = z;
+			sv.models[i+1] = Mod_ForName (z, MLV_WARN);
 		}
 
 		//check player/eyes models for hacks
@@ -1115,14 +1126,22 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 		)
 	{
+		int subs;
 		strcpy(sv.strings.sound_precache[0], "");
 		sv.strings.model_precache[0] = "";
 
 		sv.strings.model_precache[1] = PR_AddString(svprogfuncs, sv.modelname, 0, false);
-		for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
+
+		subs = sv.world.worldmodel->numsubmodels;
+		if (subs > MAX_PRECACHE_MODELS-2)
 		{
-			sv.strings.model_precache[1+i] = PR_AddString(svprogfuncs, localmodels[i], 0, false);
-			sv.models[i+1] = Mod_ForName (localmodels[i], MLV_WARN);
+			Con_Printf("Warning: worldmodel has too many submodels\n");
+			subs = MAX_PRECACHE_MODELS-2;
+		}
+		for (i=1 ; i<subs ; i++)
+		{
+			sv.strings.model_precache[1+i] = PR_AddString(svprogfuncs, va("*%u", i), 0, false);
+			sv.models[i+1] = Mod_ForName (sv.strings.model_precache[1+i], MLV_WARN);
 		}
 
 		//check player/eyes models for hacks
@@ -1132,6 +1151,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef Q2SERVER
 	else if (svs.gametype == GT_QUAKE2)
 	{
+		int subs;
 		extern int map_checksum;
 		extern cvar_t sv_airaccelerate;
 
@@ -1148,11 +1168,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		else
 			strcpy(sv.strings.configstring[Q2CS_MAPCHECKSUM], "0");
 
+		subs = sv.world.worldmodel->numsubmodels;
+		if (subs > Q2MAX_MODELS-2)
+		{
+			Con_Printf("Warning: worldmodel has too many submodels\n");
+			subs = Q2MAX_MODELS-2;
+		}
+
 		strcpy(sv.strings.configstring[Q2CS_MODELS+1], sv.modelname);
 		for (i=1; i<sv.world.worldmodel->numsubmodels; i++)
 		{
-			strcpy(sv.strings.configstring[Q2CS_MODELS+1+i], localmodels[i]);
-			sv.models[i+1] = Mod_ForName (localmodels[i], MLV_WARN);
+			Q_snprintfz(sv.strings.configstring[Q2CS_MODELS+1+i], sizeof(sv.strings.configstring[Q2CS_MODELS+1+i]), "*%u", i);
+			sv.models[i+1] = Mod_ForName (sv.strings.configstring[Q2CS_MODELS+1+i], MLV_WARN);
 		}
 	}
 #endif
@@ -1480,9 +1507,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		val = svprogfuncs->GetEdictFieldValue(svprogfuncs, ent, "message", NULL);
 		if (val)
 		{
+#ifdef HEXEN2
 			if (progstype == PROG_H2)
 				snprintf(sv.mapname, sizeof(sv.mapname), "%s", T_GetString(val->_float-1));
 			else
+#endif
 				snprintf(sv.mapname, sizeof(sv.mapname), "%s", PR_GetString(svprogfuncs, val->string));
 		}
 		else

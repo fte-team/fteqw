@@ -116,7 +116,9 @@ qboolean	sb_showscores;
 qboolean	sb_showteamscores;
 
 qboolean	sbarfailed;
+#ifdef HEXEN2
 qboolean	sbar_hexen2;
+#endif
 
 vrect_t		sbar_rect;	//screen area that the sbar must fit.
 float		sbar_rect_left;
@@ -832,8 +834,10 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 		sb_nums[1][i] = Sbar_PicFromWad (va("anum_%i",i));
 	}
 
+#ifdef HEXEN2
 	if (sb_nums[0][0] && sb_nums[0][0]->width < 13)
 		sbar_hexen2 = true;
+#endif
 
 	sb_nums[0][10] = Sbar_PicFromWad ("num_minus");
 	sb_nums[1][10] = Sbar_PicFromWad ("anum_minus");
@@ -2065,6 +2069,7 @@ void Sbar_DrawScoreboard (void)
 }
 
 
+#ifdef HEXEN2
 static void Sbar_Hexen2DrawActiveStuff(playerview_t *pv)
 {
 	int x = r_refdef.grect.x + r_refdef.grect.width;
@@ -2368,7 +2373,7 @@ static void Sbar_Hexen2DrawMinimal(playerview_t *pv)
 
 	Sbar_Hexen2DrawNum(38, y+18, pv->stats[STAT_HEALTH], 3);
 }
-
+#endif
 
 static void Sbar_DrawTeamStatus(playerview_t *pv)
 {
@@ -2593,7 +2598,7 @@ void Sbar_Draw (playerview_t *pv)
 
 	sb_updates++;
 
-
+#ifdef HEXEN2
 	if (sbar_hexen2)
 	{
 		//hexen2 hud
@@ -2611,7 +2616,9 @@ void Sbar_Draw (playerview_t *pv)
 
 		Sbar_Hexen2DrawActiveStuff(pv);
 	}
-	else if (sbarfailed)	//files failed to load.
+	else
+#endif
+		if (sbarfailed)	//files failed to load.
 	{
 		//fallback hud
 		if (pv->stats[STAT_HEALTH] > 0)	//when dead, show nothing

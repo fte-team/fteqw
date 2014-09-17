@@ -1291,10 +1291,10 @@ void CL_Record_f (void)
 
 			MSG_WriteByte (&buf, svc_spawnstatic);
 
-			for (j = 1; j < MAX_MODELS; j++)
+			for (j = 1; j < MAX_PRECACHE_MODELS; j++)
 				if (ent->model == cl.model_precache[j])
 					break;
-			if (j == MAX_MODELS)
+			if (j == MAX_PRECACHE_MODELS)
 				MSG_WriteByte (&buf, 0);
 			else
 				MSG_WriteByte (&buf, j);

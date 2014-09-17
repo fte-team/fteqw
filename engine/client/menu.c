@@ -185,7 +185,7 @@ void M_PrintWhite (int cx, int cy, qbyte *str)
 void M_BuildTranslationTable(int top, int bottom, unsigned int *translationTable)
 {
 	int		j;
-
+#ifdef HEXEN2
 	int pc = Cvar_Get("cl_playerclass", "1", 0, "Hexen2")->value;
 	if (h2playertranslations && pc)
 	{
@@ -207,6 +207,7 @@ void M_BuildTranslationTable(int top, int bottom, unsigned int *translationTable
 		}
 	}
 	else
+#endif
 	{
 		for(j=0;j<255;j++)
 		{

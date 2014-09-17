@@ -601,7 +601,11 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		}
 		tc = e->topcolour;
 		bc = e->bottomcolour;
+#ifdef HEXEN2
 		pc = e->h2playerclass;
+#else
+		pc = 0;
+#endif
 
 		if (forced || tc != TOP_DEFAULT || bc != BOTTOM_DEFAULT || plskin)
 		{
@@ -690,7 +694,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			Hash_Add(&skincolourmapped, cm->name, cm, &cm->bucket);
 			cm->tcolour = tc;
 			cm->bcolour = bc;
-			cm->pclass = pc;
+			cm->pclass = pc;	//is this needed? surely it'll be baked as part of the modelname?
 			cm->skinnum = e->skinnum;
 			cm->subframe = subframe;
 			cm->texnum.fullbright = r_nulltex;
@@ -828,6 +832,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				if (scaled_height < 4)
 					scaled_height = 4;
 
+#ifdef HEXEN2
 				if (h2playertranslations && pc)
 				{
 					unsigned int color_offsets[5] = {2*14*256,0,1*14*256,2*14*256,2*14*256};
@@ -847,6 +852,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					translate32[0] = 0;
 				}
 				else
+#endif
 				{
 					for (i=0 ; i<256 ; i++)
 						translate32[i] = d_8to24rgbtable[i];

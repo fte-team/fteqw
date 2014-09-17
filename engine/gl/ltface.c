@@ -61,7 +61,7 @@ vec_t CastRay (vec3_t p1, vec3_t p2)
 	trace_t	trace;
 	vec3_t move;
 
-	lightmodel->funcs.NativeTrace (lightmodel, 0, 0, NULL, p1, p2, vec3_origin, vec3_origin, FTECONTENTS_SOLID, &trace);
+	lightmodel->funcs.NativeTrace (lightmodel, 0, 0, NULL, p1, p2, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &trace);
 	if (trace.fraction < 1)
 		return -1;	
 

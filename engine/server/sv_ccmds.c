@@ -392,10 +392,10 @@ static void SV_MapList_f(void)
 	COM_EnumerateFiles("maps/*.hmp", ShowMapList, NULL);
 }
 
-static void gtcallback(struct cvar_s *var, char *oldvalue)
-{
-	Con_Printf("g_gametype changed\n");
-}
+//static void gtcallback(struct cvar_s *var, char *oldvalue)
+//{
+//	Con_Printf("g_gametype changed\n");
+//}
 
 /*
 ======================
@@ -624,7 +624,7 @@ void SV_Map_f (void)
 		Cvar_ForceSet(gametype, level);
 
 		gametype = Cvar_Get("g_gametype", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
-		gametype->callback = gtcallback;
+//		gametype->callback = gtcallback;
 		if (q3singleplayer)
 			Cvar_ForceSet(gametype, "2");//singleplayer
 		else if (gametype->value == 2)
@@ -1731,14 +1731,14 @@ static void SV_Status_f (void)
 	{
 		int count = 0;
 		Con_Printf("entities         : %i/%i (mem: %i/%i)\n", sv.world.num_edicts, sv.world.max_edicts, sv.world.progs->stringtablesize, sv.world.progs->stringtablemaxsize);
-		for (count = 1; count < MAX_MODELS; count++)
+		for (count = 1; count < MAX_PRECACHE_MODELS; count++)
 			if (!sv.strings.model_precache[count])
 				break;
-		Con_Printf("models           : %i/%i\n", count, MAX_MODELS);
-		for (count = 1; count < MAX_SOUNDS; count++)
+		Con_Printf("models           : %i/%i\n", count, MAX_PRECACHE_MODELS);
+		for (count = 1; count < MAX_PRECACHE_SOUNDS; count++)
 			if (!*sv.strings.sound_precache[count])
 				break;
-		Con_Printf("sounds           : %i/%i\n", count, MAX_SOUNDS);
+		Con_Printf("sounds           : %i/%i\n", count, MAX_PRECACHE_SOUNDS);
 	}
 	Con_Printf("gamedir          : %s\n", FS_GetGamedir(true));
 	if (sv.csqcdebug)

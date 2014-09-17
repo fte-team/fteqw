@@ -54,7 +54,7 @@ qboolean Mod_LoadSurfedges (lump_t *l);
 void Mod_LoadLighting (lump_t *l);
 
 
-static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
+static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
 static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 static int CM_PointCluster (model_t *mod, vec3_t p);
@@ -180,7 +180,12 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 extern model_t	*loadmodel;
 extern qbyte *mod_base;
 
-
+#define capsuledist(dist,plane,mins,maxs)					\
+		case shape_iscapsule:								\
+			dist = DotProduct(trace_up, plane->normal);		\
+			dist = dist*(trace_capsulesize[(dist<0)?1:2]) - trace_capsulesize[0];	\
+			dist = plane->dist - dist;						\
+			break;
 
 
 unsigned char d_q28to24table[1024];
@@ -4796,12 +4801,19 @@ static vec3_t	trace_start, trace_end;
 static vec3_t	trace_mins, trace_maxs;
 static vec3_t	trace_extents;
 static vec3_t	trace_absmins, trace_absmaxs;
+static vec3_t	trace_up;	//capsule points upwards in this direction
+static vec3_t	trace_capsulesize;	//radius, up, down
 static float	trace_truefraction;
 static float	trace_nearfraction;
 
 static trace_t	trace_trace;
 static int		trace_contents;
-static qboolean	trace_ispoint;		// optimized case
+static enum
+{
+	shape_isbox,
+	shape_iscapsule,
+	shape_ispoint
+} trace_shape;		// optimized case
 
 /*
 ================
@@ -4838,11 +4850,10 @@ static void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 		side = brush->brushside+i;
 		plane = side->plane;
 
-		// FIXME: special case for axial
-
-		if (!trace_ispoint)
-		{	// general box case
-
+		switch(trace_shape)
+		{
+		default:
+		case shape_isbox: // general box case
 			// push the plane out apropriately for mins/maxs
 
 			// FIXME: use signbits into 8 way lookup for each mins/maxs
@@ -4855,10 +4866,11 @@ static void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 			}
 			dist = DotProduct (ofs, plane->normal);
 			dist = plane->dist - dist;
-		}
-		else
-		{	// special point case
+			break;
+		capsuledist(dist,plane,mins,maxs)
+		case shape_ispoint: // special point case
 			dist = plane->dist;
+			break;
 		}
 
 		d1 = DotProduct (p1, plane->normal) - dist;
@@ -4953,12 +4965,13 @@ static void CM_ClipBoxToPlanes (vec3_t trmins, vec3_t trmaxs, vec3_t p1, vec3_t 
 
 	for (i=0 ; i<numplanes ; i++, plane++)
 	{
-		// FIXME: special case for axial
-		if (!trace_ispoint)
-		{	// general box case
-
+		switch(trace_shape)
+		{
+		default:
+		case shape_isbox:	// general box case
 			// push the plane out apropriately for mins/maxs
 
+			// FIXME: special case for axial
 			// FIXME: use signbits into 8 way lookup for each mins/maxs
 			for (j=0 ; j<3 ; j++)
 			{
@@ -4969,10 +4982,11 @@ static void CM_ClipBoxToPlanes (vec3_t trmins, vec3_t trmaxs, vec3_t p1, vec3_t 
 			}
 			dist = DotProduct (ofs, plane->normal);
 			dist = plane->dist - dist;
-		}
-		else
-		{	// special point case
+			break;
+		capsuledist(dist,plane,trmins,trmaxs)
+		case shape_ispoint:	// special point case
 			dist = plane->dist;
+			break;
 		}
 
 		d1 = DotProduct (p1, plane->normal) - dist;
@@ -5187,11 +5201,11 @@ static void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 		side = brush->brushside+i;
 		plane = side->plane;
 
-		if (!trace_ispoint)
-		{	// general box case
-
-			// push the plane out apropriately for mins/maxs
-
+		// push the plane out apropriately for mins/maxs
+		switch(trace_shape)
+		{
+		default:
+		case shape_isbox:	// general box case
 			// FIXME: use signbits into 8 way lookup for each mins/maxs
 			for (j=0 ; j<3 ; j++)
 			{
@@ -5202,10 +5216,11 @@ static void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 			}
 			dist = DotProduct (ofs, plane->normal);
 			dist = plane->dist - dist;
-		}
-		else
-		{	// special point case
+			break;
+		capsuledist(dist,plane,mins,maxs)
+		case shape_ispoint:	// special point case
 			dist = plane->dist;
+			break;
 		}
 
 		d1 = DotProduct (p1, plane->normal) - dist;
@@ -5290,22 +5305,29 @@ static void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 		side = brush->brushside+i;
 		plane = side->plane;
 
-		// FIXME: special case for axial
-
-		// general box case
-
-		// push the plane out apropriately for mins/maxs
-
-		// FIXME: use signbits into 8 way lookup for each mins/maxs
-		for (j=0 ; j<3 ; j++)
+		switch(trace_shape)
 		{
-			if (plane->normal[j] < 0)
-				ofs[j] = maxs[j];
-			else
-				ofs[j] = mins[j];
+		default:
+		case shape_isbox:	// general box case
+
+			// push the plane out apropriately for mins/maxs
+
+			// FIXME: use signbits into 8 way lookup for each mins/maxs
+			for (j=0 ; j<3 ; j++)
+			{
+				if (plane->normal[j] < 0)
+					ofs[j] = maxs[j];
+				else
+					ofs[j] = mins[j];
+			}
+			dist = DotProduct (ofs, plane->normal);
+			dist = plane->dist - dist;
+			break;
+		capsuledist(dist,plane,mins,maxs)
+		case shape_ispoint:
+			dist = plane->dist;
+			break;
 		}
-		dist = DotProduct (ofs, plane->normal);
-		dist = plane->dist - dist;
 
 		d1 = DotProduct (p1, plane->normal) - dist;
 
@@ -5339,21 +5361,31 @@ static void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 		side = brush->brushside+i;
 		plane = side->plane;
 
-		// general box case
-
-		// push the plane out apropriately for mins/maxs
-
-		// FIXME: use signbits into 8 way lookup for each mins/maxs
-		for (j=0 ; j<3 ; j++)
+		switch(trace_shape)
 		{
-			if (plane->normal[j] < 0)
-				ofs[j] = maxs[j];
-			else
-				ofs[j] = mins[j];
-		}
+		default:
+		case shape_isbox:
+			// general box case
 
-		dist = DotProduct (ofs, plane->normal);
-		dist = plane->dist - dist;
+			// push the plane out apropriately for mins/maxs
+
+			// FIXME: use signbits into 8 way lookup for each mins/maxs
+			for (j=0 ; j<3 ; j++)
+			{
+				if (plane->normal[j] < 0)
+					ofs[j] = maxs[j];
+				else
+					ofs[j] = mins[j];
+			}
+
+			dist = DotProduct (ofs, plane->normal);
+			dist = plane->dist - dist;
+			break;
+		capsuledist(dist,plane,mins,maxs)
+		case shape_ispoint:
+			dist = plane->dist;
+			break;
+		}
 
 		d1 = DotProduct (p1, plane->normal) - dist;
 
@@ -5567,7 +5599,7 @@ static void CM_RecursiveHullCheck (model_t *mod, int num, float p1f, float p2f, 
 	{
 		t1 = DotProduct (plane->normal, p1) - plane->dist;
 		t2 = DotProduct (plane->normal, p2) - plane->dist;
-		if (trace_ispoint)
+		if (trace_shape == shape_ispoint)
 			offset = 0;
 		else
 			offset = fabs(trace_extents[0]*plane->normal[0]) +
@@ -5651,7 +5683,7 @@ CM_BoxTrace
 ==================
 */
 static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
-						  vec3_t mins, vec3_t maxs,
+						  vec3_t mins, vec3_t maxs, qboolean capsule,
 						  int brushmask)
 {
 	int		i;
@@ -5679,21 +5711,65 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 
 	// build a bounding box of the entire move (for patches)
 	ClearBounds (trace_absmins, trace_absmaxs);
-	VectorAdd (start, trace_mins, point);
-	AddPointToBounds (point, trace_absmins, trace_absmaxs);
-	VectorAdd (start, trace_maxs, point);
-	AddPointToBounds (point, trace_absmins, trace_absmaxs);
-	VectorAdd (end, trace_mins, point);
-	AddPointToBounds (point, trace_absmins, trace_absmaxs);
-	VectorAdd (end, trace_maxs, point);
-	AddPointToBounds (point, trace_absmins, trace_absmaxs);
 
+	//determine the type of trace that we're going to use, and the max extents
+	if (trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0 && trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0)
+	{
+		trace_shape = shape_ispoint;
+		VectorSet (trace_extents, 1/32.0, 1/32.0, 1/32.0);
+		//acedemic
+		AddPointToBounds (start, trace_absmins, trace_absmaxs);
+		AddPointToBounds (end, trace_absmins, trace_absmaxs);
+	}
+	else if (capsule)
+	{
+		float ext;
+		trace_shape = shape_iscapsule;
+		//determine the capsule sizes
+		trace_capsulesize[0] = ((maxs[0]-mins[0]) + (maxs[1]-mins[1]))/4.0;
+		trace_capsulesize[1] = maxs[2];
+		trace_capsulesize[2] = mins[2];
+		ext = (trace_capsulesize[1] > -trace_capsulesize[2])?trace_capsulesize[1]:-trace_capsulesize[2];
+		trace_capsulesize[1] -= trace_capsulesize[0];
+		trace_capsulesize[2] += trace_capsulesize[0];
+		trace_extents[0] = ext+1;
+		trace_extents[1] = ext+1;
+		trace_extents[2] = ext+1;
+
+		//determine the total range
+		VectorSubtract (start, trace_extents, point);
+		AddPointToBounds (point, trace_absmins, trace_absmaxs);
+		VectorAdd (start, trace_extents, point);
+		AddPointToBounds (point, trace_absmins, trace_absmaxs);
+		VectorSubtract (end, trace_extents, point);
+		AddPointToBounds (point, trace_absmins, trace_absmaxs);
+		VectorAdd (end, trace_extents, point);
+		AddPointToBounds (point, trace_absmins, trace_absmaxs);
+	}
+	else
+	{
+		VectorAdd (start, trace_mins, point);
+		AddPointToBounds (point, trace_absmins, trace_absmaxs);
+		VectorAdd (start, trace_maxs, point);
+		AddPointToBounds (point, trace_absmins, trace_absmaxs);
+		VectorAdd (end, trace_mins, point);
+		AddPointToBounds (point, trace_absmins, trace_absmaxs);
+		VectorAdd (end, trace_maxs, point);
+		AddPointToBounds (point, trace_absmins, trace_absmaxs);
+
+		trace_shape = shape_isbox;
+		trace_extents[0] = ((-trace_mins[0] > trace_maxs[0]) ? -trace_mins[0] : trace_maxs[0])+1;
+		trace_extents[1] = ((-trace_mins[1] > trace_maxs[1]) ? -trace_mins[1] : trace_maxs[1])+1;
+		trace_extents[2] = ((-trace_mins[2] > trace_maxs[2]) ? -trace_mins[2] : trace_maxs[2])+1;
+	}
+
+#if 0
 	if (0)
 	{	//treat *ALL* tests against the actual geometry instead of using any brushes.
 		//also ignores the bsp etc. not fast. testing only.
 
 		trace_ispoint = trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0
-		&& trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0;
+				&& trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0;
 	
 		for (i = 0; i < mod->numsurfaces; i++)
 		{
@@ -5703,13 +5779,14 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	else
 	if (0)
 	{
-				trace_ispoint = trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0
-		&& trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0;
+		trace_ispoint = trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0
+				&& trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0;
 	
 		for (i = 0; i < mod->numleafs; i++)
 			CM_TraceToLeaf(&mod->leafs[i]);
 	}
 	else
+#endif
 	//
 	// check for position test special case
 	//
@@ -5739,24 +5816,10 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		return trace_trace;
 	}
 	//
-	// check for point special case
-	//
-	else if (trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0
-		&& trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0)
-	{
-		trace_ispoint = true;
-		VectorClear (trace_extents);
-		CM_RecursiveHullCheck (mod, mod->hulls[0].firstclipnode, 0, 1, trace_start, trace_end);
-	}
-	//
 	// general aabb trace
 	//
 	else
 	{
-		trace_ispoint = false;
-		trace_extents[0] = ((-trace_mins[0] > trace_maxs[0]) ? -trace_mins[0] : trace_maxs[0])+1;
-		trace_extents[1] = ((-trace_mins[1] > trace_maxs[1]) ? -trace_mins[1] : trace_maxs[1])+1;
-		trace_extents[2] = ((-trace_mins[2] > trace_maxs[2]) ? -trace_mins[2] : trace_maxs[2])+1;
 		CM_RecursiveHullCheck (mod, mod->hulls[0].firstclipnode, 0, 1, trace_start, trace_end);
 	}
 
@@ -5776,7 +5839,7 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	return trace_trace;
 }
 
-static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
+static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
 {
 	if (axis)
 	{
@@ -5788,12 +5851,13 @@ static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3
 		end_l[0] = DotProduct(end, axis[0]);
 		end_l[1] = DotProduct(end, axis[1]);
 		end_l[2] = DotProduct(end, axis[2]);
-		*trace = CM_BoxTrace(model, start_l, end_l, mins, maxs, contents);
+		VectorSet(trace_up, axis[0][2], -axis[1][2], axis[2][2]);
+		*trace = CM_BoxTrace(model, start_l, end_l, mins, maxs, capsule, contents);
 #ifdef TERRAIN
 		if (model->terrain)
 		{
 			trace_t hmt;
-			Heightmap_Trace(model, forcehullnum, frame, NULL, start, end, mins, maxs, contents, &hmt);
+			Heightmap_Trace(model, forcehullnum, frame, NULL, start, end, mins, maxs, capsule, contents, &hmt);
 			if (hmt.fraction < trace->fraction)
 				*trace = hmt;
 		}
@@ -5819,12 +5883,13 @@ static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3
 	}
 	else
 	{
-		*trace = CM_BoxTrace(model, start, end, mins, maxs, contents);
+		VectorSet(trace_up, 0, 0, 1);
+		*trace = CM_BoxTrace(model, start, end, mins, maxs, capsule, contents);
 #ifdef TERRAIN
 		if (model->terrain)
 		{
 			trace_t hmt;
-			Heightmap_Trace(model, forcehullnum, frame, NULL, start, end, mins, maxs, contents, &hmt);
+			Heightmap_Trace(model, forcehullnum, frame, NULL, start, end, mins, maxs, capsule, contents, &hmt);
 			if (hmt.fraction < trace->fraction)
 				*trace = hmt;
 		}
@@ -5860,6 +5925,7 @@ trace_t		CM_TransformedBoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	vec3_t		forward, right, up;
 	vec3_t		temp;
 	qboolean	rotated;
+	qboolean	capsule = false;
 
 	// subtract origin offset
 	VectorSubtract (start, origin, start_l);
@@ -5885,10 +5951,16 @@ trace_t		CM_TransformedBoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		end_l[0] = DotProduct (temp, forward);
 		end_l[1] = -DotProduct (temp, right);
 		end_l[2] = DotProduct (temp, up);
+
+		VectorSet(trace_up, forward[2], -right[2], up[2]);
+	}
+	else
+	{
+		VectorSet(trace_up, 0, 0, 1);
 	}
 
 	// sweep the box through the model
-	trace = CM_BoxTrace (mod, start_l, end_l, mins, maxs, brushmask);
+	trace = CM_BoxTrace (mod, start_l, end_l, mins, maxs, capsule, brushmask);
 
 	if (rotated && trace.fraction != 1.0)
 	{

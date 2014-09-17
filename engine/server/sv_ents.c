@@ -1238,7 +1238,13 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 //	Con_Printf("Gen sequence %i\n", sequence);
 	MSG_WriteFloat(msg, sv.world.physicstime);
 
-	for(j = 0; j < client->sentents.num_entities; j++)
+	if (client->pendingentbits[0] & UF_REMOVE)
+	{
+		SV_EmitDeltaEntIndex(msg, 0, true, true);
+		resendbits[outno] = UF_REMOVE;
+		resendnum[outno++] = 0;
+	}
+	for(j = 1; j < client->sentents.num_entities; j++)
 	{
 		bits = client->pendingentbits[j];
 		if (!(bits & ~UF_RESET2))	//skip while there's nothing to send (skip reset2 if there's no other changes, its only to reduce chances of the client getting 'new' entities containing just an origin)*/
@@ -2019,7 +2025,7 @@ qboolean Cull_Traceline(pvscamera_t *cameras, edict_t *seen)
 	for (c = 0; c < cameras->numents; c++)
 	{
 		tr.fraction = 1;
-		if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, cameras->org[c], seen->v->origin, vec3_origin, vec3_origin, FTECONTENTS_SOLID, &tr))
+		if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, cameras->org[c], seen->v->origin, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &tr))
 			return false;	//wasn't blocked
 	}
 
@@ -2033,7 +2039,7 @@ qboolean Cull_Traceline(pvscamera_t *cameras, edict_t *seen)
 			end[2] = seen->v->origin[2] + ((i&4)?seen->v->mins[2]+0.1:seen->v->maxs[2]);
 
 			tr.fraction = 1;
-			if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, cameras->org[c], end, vec3_origin, vec3_origin, FTECONTENTS_SOLID, &tr))
+			if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, cameras->org[c], end, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &tr))
 				return false;	//this trace went through, so don't cull
 		}
 	}
@@ -2898,7 +2904,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	else if (ent->v->solid == SOLID_BBOX || ent->v->solid == SOLID_SLIDEBOX || ent->v->skin < 0)
 	{
 		unsigned int mdl = ent->v->modelindex;
-		if (mdl < MAX_MODELS && sv.models[mdl] && sv.models[mdl]->type == mod_brush)
+		if (mdl < MAX_PRECACHE_MODELS && sv.models[mdl] && sv.models[mdl]->type == mod_brush)
 			state->solid = ES_SOLID_BSP;
 		else
 		{

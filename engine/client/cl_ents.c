@@ -1790,7 +1790,6 @@ void V_ClearEntity(entity_t *e)
 	e->playerindex = -1;
 	e->topcolour = TOP_DEFAULT;
 	e->bottomcolour = BOTTOM_DEFAULT;
-	e->h2playerclass = 0;
 }
 entity_t *V_AddEntity(entity_t *in)
 {
@@ -2478,10 +2477,29 @@ void CLQ1_AddVisibleBBoxes(void)
 		}
 		else
 		{
-			VectorCopy(e->v->absmin, min);
-			VectorCopy(e->v->absmax, max);
+			if (e->v->solid == SOLID_BSP)
+			{
+				VectorCopy(e->v->absmin, min);
+				VectorCopy(e->v->absmax, max);
+			}
+			else
+			{
+				VectorAdd(e->v->origin, e->v->mins, min);
+				VectorAdd(e->v->origin, e->v->maxs, max);
+			}
 		}
-		CLQ1_AddOrientedCube(s, min, max, NULL, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
+		if (e->xv->geomtype == GEOMTYPE_CAPSULE)
+		{
+			float rad = ((e->v->maxs[0]-e->v->mins[0]) + (e->v->maxs[1]-e->v->mins[1]))/4.0;
+			float height = (e->v->maxs[2]-e->v->mins[2])/2;
+			float matrix[12] = {1,0,0,0,0,1,0,0,0,0,1,0};
+			matrix[3] = e->v->origin[0];
+			matrix[7] = e->v->origin[1];
+			matrix[11] = e->v->origin[2] + (e->v->maxs[2]-height);
+			CLQ1_AddOrientedCylinder(s, rad*2, height*2, true, matrix, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
+		}
+		else
+			CLQ1_AddOrientedCube(s, min, max, NULL, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
 	}
 }
 
@@ -3276,7 +3294,9 @@ void CL_LinkPacketEntities (void)
 		ent->customskin = 0;
 		ent->topcolour = TOP_DEFAULT;
 		ent->bottomcolour = BOTTOM_DEFAULT;
+#ifdef HEXEN2
 		ent->h2playerclass = 0;
+#endif
 		ent->light_known = 0;
 		ent->forcedshader = NULL;
 
@@ -3593,12 +3613,15 @@ void CL_LinkPacketEntities (void)
 #ifdef warningmsg
 #pragma warningmsg("Replace this flag on load for hexen2 models")
 #endif
+#ifdef HEXEN2
 				if (strncmp(model->name, "models/sflesh", 13))
+#endif
 				{	//hmm. hexen spider gibs...
 					rad = 200;
 					rad += r_lightflicker.value?((flicker + state->number)&31):0;
 				}
 			}
+#ifdef HEXEN2
 			else if (modelflags & MFH2_FIREBALL)
 			{
 				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
@@ -3618,6 +3641,7 @@ void CL_LinkPacketEntities (void)
 				dclr[2] = -dclr[2];
 				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
 			}
+#endif
 
 			if (rad)
 			{
@@ -3736,7 +3760,9 @@ void CL_LinkProjectiles (void)
 		ent->playerindex = -1;
 		ent->topcolour = TOP_DEFAULT;
 		ent->bottomcolour = BOTTOM_DEFAULT;
+#ifdef HEXEN2
 		ent->h2playerclass = 0;
+#endif
 #ifdef PEXT_SCALE
 		ent->scale = 1;
 #endif
@@ -4457,7 +4483,9 @@ void CL_LinkPlayers (void)
 		ent->playerindex = j;
 		ent->topcolour	  = info->ttopcolor;
 		ent->bottomcolour = info->tbottomcolor;
+#ifdef HEXEN2
 		ent->h2playerclass = info->h2playerclass;
+#endif
 
 #ifdef PEXT_SCALE
 		ent->scale = state->scale;
@@ -4617,7 +4645,7 @@ void CL_LinkViewModel(void)
 	if (cl.intermission)
 		return;
 
-	if (pv->stats[STAT_WEAPON] <= 0 || pv->stats[STAT_WEAPON] >= MAX_MODELS)
+	if (pv->stats[STAT_WEAPON] <= 0 || pv->stats[STAT_WEAPON] >= MAX_PRECACHE_MODELS)
 		return;
 
 	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)

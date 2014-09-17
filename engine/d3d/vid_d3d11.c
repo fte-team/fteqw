@@ -1296,7 +1296,7 @@ static void	(D3D11_R_Init)					(void)
 }
 static void	(D3D11_R_DeInit)					(void)
 {
-	GL_GAliasFlushSkinCache();
+	R_GAliasFlushSkinCache(true);
 	Surf_DeInit();
 	Shader_Shutdown();
 	D3D11_Image_Shutdown();

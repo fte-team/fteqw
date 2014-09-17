@@ -1108,6 +1108,7 @@ static void	(D3D9_R_Init)					(void)
 }
 static void	(D3D9_R_DeInit)					(void)
 {
+	R_GAliasFlushSkinCache(true);
 	Surf_DeInit();
 	Shader_Shutdown();
 	D3D9_Image_Shutdown();

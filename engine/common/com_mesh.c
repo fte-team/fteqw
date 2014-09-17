@@ -1463,7 +1463,6 @@ static void Alias_BuildSkeletalVPositionsPose(float *xyzout, skeltype_t bonetype
 #ifndef SERVERONLY
 #ifdef GLQUAKE
 #include "glquake.h"
-#endif
 static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount, int basebone)
 {
 #ifndef GLQUAKE
@@ -1593,6 +1592,7 @@ static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bo
 	}
 #endif
 }
+#endif
 #endif	//!SERVERONLY
 #endif	//SKELETALMODELS
 

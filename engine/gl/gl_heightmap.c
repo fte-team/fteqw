@@ -648,7 +648,7 @@ static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t ep
 				continue;
 			if (e->ent.model != mod || e->ent.scale != scale)
 				continue;
-			if (memcmp(axis, e->ent.axis, sizeof(axis)))
+			if (memcmp(axis, e->ent.axis, sizeof(e->ent.axis)))
 				continue;
 			break;	//looks like a match.
 		}
@@ -2672,7 +2672,7 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 	vec3_t mins, maxs;
 	hmsection_t *s;
 	struct hmwater_s *wa;
-	int i;
+	int i, j;
 	batch_t *b;
 	heightmap_t *hm = ctx->hm;
 
@@ -2804,9 +2804,8 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 		b->texture = NULL;
 		b->vbo = &s->vbo;
 		b->lightmap[0] = s->lightmap;
-		b->lightmap[1] = -1;
-		b->lightmap[2] = -1;
-		b->lightmap[3] = -1;
+		for (j = 1; j < MAXRLIGHTMAPS; j++)
+			b->lightmap[j] = -1;
 
 		b->next = ctx->batches[b->shader->sort];
 		ctx->batches[b->shader->sort] = b;
@@ -2853,7 +2852,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 	model_t *m = e->model;
 	heightmap_t *hm = m->terrain;
 	batch_t *b;
-	int bounds[4];
+	int bounds[4], j;
 	struct tdibctx tdibctx;
 
 	if (!r_refdef.recurse)
@@ -2876,10 +2875,8 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 		b = BE_GetTempBatch();
 		if (b)
 		{
-			b->lightmap[0] = -1;
-			b->lightmap[1] = -1;
-			b->lightmap[2] = -1;
-			b->lightmap[3] = -1;
+			for (j = 0; j < MAXRLIGHTMAPS; j++)
+				b->lightmap[j] = -1;
 			b->ent = e;
 			b->shader = hm->skyshader;
 			b->flags = 0;

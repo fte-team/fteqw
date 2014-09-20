@@ -1391,7 +1391,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 	model_t *clmodel;
 	shader_t *shader, *regshader;
 	batch_t *b;
-	int surfnum;
+	int surfnum, j;
 	shadersort_t sort;
 
 	texnums_t *skin;
@@ -1462,10 +1462,8 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			b->skin = skin;
 			b->texture = NULL;
 			b->shader = shader;
-			b->lightmap[0] = -1;
-			b->lightmap[1] = -1;
-			b->lightmap[2] = -1;
-			b->lightmap[3] = -1;
+			for (j = 0; j < MAXRLIGHTMAPS; j++)
+				b->lightmap[0] = -1;
 			b->surf_first = surfnum;
 			b->flags = 0;
 			sort = shader->sort;
@@ -2248,6 +2246,7 @@ static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfu
 	shader_t *shader = NULL;
 	batch_t *b;
 	shadersort_t sort;
+	int j;
 
 	if (!e->model || e->model->type != mod_sprite || e->forcedshader)
 	{
@@ -2310,10 +2309,8 @@ static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfu
 	b->skin = &shader->defaulttextures;
 	b->texture = NULL;
 	b->shader = shader;
-	b->lightmap[0] = -1;
-	b->lightmap[1] = -1;
-	b->lightmap[2] = -1;
-	b->lightmap[3] = -1;
+	for (j = 0; j < MAXRLIGHTMAPS; j++)
+		b->lightmap[j] = -1;
 	b->surf_first = 0;
 	b->flags |= BEF_NODLIGHT|BEF_NOSHADOWS;
 	b->vbo = NULL;
@@ -2340,7 +2337,7 @@ void BE_GenPolyBatches(batch_t **batches)
 {
 	shader_t *shader = NULL;
 	batch_t *b;
-	unsigned int i = cl_numstris;
+	unsigned int i = cl_numstris, j;
 
 	while (i-- > 0)
 	{
@@ -2363,10 +2360,8 @@ void BE_GenPolyBatches(batch_t **batches)
 		b->skin = &shader->defaulttextures;
 		b->texture = NULL;
 		b->shader = shader;
-		b->lightmap[0] = -1;
-		b->lightmap[1] = -1;
-		b->lightmap[2] = -1;
-		b->lightmap[3] = -1;
+		for (j = 0; j < MAXRLIGHTMAPS; j++)
+			b->lightmap[j] = -1;
 		b->surf_first = i;
 		b->flags = BEF_NODLIGHT|BEF_NOSHADOWS | cl_stris[i].flags;
 		b->vbo = 0;

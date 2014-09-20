@@ -1654,7 +1654,7 @@ void GLR_RenderView (void)
 
 		if (mrt)
 		{ 	//colour (with or without depth)
-			if (*r_refdef.rt_depth.texname && (dw != cw || dh != dh))
+			if (*r_refdef.rt_depth.texname && (dw != cw || dh != ch))
 			{
 				Con_Printf("RT: destcolour and depth render targets are of different sizes\n");	//should check rgb/depth modes too I guess.
 				depth = r_nulltex;

@@ -209,7 +209,7 @@ static int QDECL VFSPAK_WriteBytes (struct vfsfile_s *vfs, const void *buffer, i
 static qboolean QDECL VFSPAK_Seek (struct vfsfile_s *vfs, qofs_t pos)
 {
 	vfspack_t *vfsp = (vfspack_t*)vfs;
-	if (pos < 0 || pos > vfsp->length)
+	if (pos > vfsp->length)
 		return false;
 	vfsp->currentpos = pos + vfsp->startpos;
 

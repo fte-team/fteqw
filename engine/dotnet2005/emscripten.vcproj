@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="Windows-1252"?>
+<VisualStudioProject
+	ProjectType="Visual C++"
+	Version="8.00"
+	Name="emscripten"
+	ProjectGUID="{75D91BDE-CC30-4C53-BF33-5F69EF13A61B}"
+	RootNamespace="empscripten"
+	Keyword="MakeFileProj"
+	>
+	<Platforms>
+		<Platform
+			Name="Win32"
+		/>
+	</Platforms>
+	<ToolFiles>
+	</ToolFiles>
+	<Configurations>
+		<Configuration
+			Name="Debug|Win32"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="0"
+			>
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make web-dbg -j8"
+				ReBuildCommandLine=""
+				CleanCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make clean -j8"
+				Output=""
+				PreprocessorDefinitions="ANDROID;DEBUG"
+				IncludeSearchPath=""
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
+		</Configuration>
+		<Configuration
+			Name="Release|Win32"
+			OutputDirectory="$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="0"
+			>
+			<Tool
+				Name="VCNMakeTool"
+				BuildCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make web-rel -j8 FTE_TARGET=web"
+				ReBuildCommandLine=""
+				CleanCommandLine="cd $(InputDir)\.. &amp;&amp; vcify make clean -j8 FTE_TARGET=web"
+				Output=""
+				PreprocessorDefinitions="ANDROID;NDEBUG"
+				IncludeSearchPath=""
+				ForcedIncludes=""
+				AssemblySearchPath=""
+				ForcedUsingAssemblies=""
+				CompileAsManaged=""
+			/>
+		</Configuration>
+	</Configurations>
+	<References>
+	</References>
+	<Files>
+	</Files>
+	<Globals>
+	</Globals>
+</VisualStudioProject>

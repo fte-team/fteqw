@@ -123,14 +123,74 @@ hull_t	*World_HullForBox (vec3_t mins, vec3_t maxs)
 model_t mod_capsule;
 qboolean World_BoxTrace(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace)
 {
-	//bbox vs bbox (NYI)
+	hull_t *hull = &box_hull;
+
+	//bbox vs bbox
 	//capsule vs bbox (NYI)
-	return false;
+
+	memset (trace, 0, sizeof(trace_t));
+	trace->fraction = 1;
+	trace->allsolid = true;
+
+	VectorCopy (p2, trace->endpos);
+	return Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, p1, p2, trace);
 }
 qboolean World_CapsuleTrace(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace)
 {
 	//bbox vs capsule (NYI)
 	//capsule vs capsule (NYI)
+
+	memset (trace, 0, sizeof(trace_t));
+	trace->fraction = 1;
+	trace->allsolid = false;
+	VectorCopy(p2, trace->endpos);
+
+	if (capsule)
+	{	//capsule vs capsule.
+		//no orientation support on either (ignore axis)
+		float sr = ((model->maxs[0]-model->mins[0]) + (model->maxs[1]-model->mins[1]))/4.0;
+		float sh = (model->maxs[2]-model->mins[2]) - sr*2;
+		float mr = ((maxs[0]-mins[0]) + (maxs[1]-mins[1]))/4.0;
+		float mh = (maxs[2]-mins[2]) - mr*2;
+		vec3_t sup = {0, 0, 1};
+		vec3_t dir, sright;
+		vec4_t nearestplane;
+		float d1, d2;
+		vec3_t nearestpoint;
+		float neardist;
+
+		//expand the static capsule's height+radius by the mover's height+radius, so that its point+capsule instead
+		sr += mr;
+		sh += mh;
+
+		VectorSubtract(p1, p2, dir);
+		d2=VectorNormalize(dir);
+		CrossProduct(sup, dir, sright);
+		VectorNormalize(sright);
+		CrossProduct(sup, sright, nearestplane);
+		VectorNormalize(nearestplane);
+		nearestplane[3] = DotProduct(vec3_origin, nearestplane);	//capsule is at 0 0 0
+		d1 = DotProduct(nearestplane, p1) - nearestplane[3];
+		d2 = DotProduct(nearestplane, p2) - nearestplane[3];
+		d2 = -d1 /(d1+d2);
+		VectorInterpolate(p1, d2, p2, nearestpoint);
+
+		neardist = VectorLength(nearestpoint);
+		if (neardist < sr)
+		{
+			float x, y, oz, nz;
+			//sqrt(h*h-(x*x+y*y))=z
+			//change the hypotenuse from the messed up value to the actual radius
+			//and update z to match the changed h
+			x = DotProduct(sup, nearestpoint) - 0;
+			y = DotProduct(sright, nearestpoint) - 0;
+			oz = DotProduct(nearestplane, nearestpoint) - nearestplane[3];
+			nz = sqrt(sr*sr - (x*x+y*y));
+
+			VectorMA(nearestpoint, nz-oz, dir, trace->endpos);
+			trace->fraction = 0;
+		}
+	}
 	return false;
 }
 model_t *World_CapsuleForBox(vec3_t mins, vec3_t maxs)
@@ -1020,9 +1080,9 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 		model = NULL;
 		VectorSubtract (ent->v->mins, maxs, boxmins);
 		VectorSubtract (ent->v->maxs, mins, boxmaxs);
-		if (ent->xv->geomtype == GEOMTYPE_CAPSULE && !hitmodel)
-			model = World_CapsuleForBox(boxmins, boxmaxs);
-		else
+//		if (ent->xv->geomtype == GEOMTYPE_CAPSULE && !hitmodel)
+//			model = World_CapsuleForBox(boxmins, boxmaxs);
+//		else
 			World_HullForBox(boxmins, boxmaxs);
 	}
 

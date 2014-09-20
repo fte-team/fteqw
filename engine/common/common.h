@@ -466,7 +466,7 @@ qbyte *COM_LoadTempMoreFile (const char *path);	//allocates a little bit more wi
 //qbyte *COM_LoadHunkFile (const char *path);
 qbyte *COM_LoadMallocFile (const char *path);
 
-searchpathfuncs_t *COM_IteratePaths (void **iterator, char *buffer, int buffersize);
+searchpathfuncs_t *COM_IteratePaths (void **iterator, char *pathbuffer, int pathbuffersize, char *dirname, int dirnamesize);
 void COM_FlushFSCache(void);	//a file was written using fopen
 void COM_RefreshFSCache_f(void);
 qboolean FS_Restarted(unsigned int *since);

@@ -988,8 +988,9 @@ static void QCBUILTIN PF_menu_cvar (pubprogfuncs_t *prinst, struct globalvars_s 
 	{
 		str = RemapCvarNameFromDPToFTE(str);
 		var = Cvar_Get(str, "", 0, "menu cvars");
-		if (var)
+		if (var && !(var->flags & CVAR_NOUNSAFEEXPAND))
 		{
+			//menuqc sees desired settings, not latched settings.
 			if (var->latched_string)
 				G_FLOAT(OFS_RETURN) = atof(var->latched_string);
 			else
@@ -1009,6 +1010,11 @@ static void QCBUILTIN PF_menu_cvar_set (pubprogfuncs_t *prinst, struct globalvar
 	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	var = Cvar_Get(var_name, val, 0, "QC variables");
+	if (var->flags & CVAR_NOTFROMSERVER)
+	{
+		//fixme: menuqc needs some way to display a prompt to allow it anyway.
+		return;
+	}
 	Cvar_Set (var, val);
 }
 static void QCBUILTIN PF_menu_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1017,10 +1023,12 @@ static void QCBUILTIN PF_menu_cvar_string (pubprogfuncs_t *prinst, struct global
 	cvar_t *cv = Cvar_Get(RemapCvarNameFromDPToFTE(str), "", 0, "QC variables");
 	if (!cv)
 		G_INT(OFS_RETURN) = 0;
+	else if (cv->flags & CVAR_NOUNSAFEEXPAND)
+		G_INT(OFS_RETURN) = 0;
 	else if (cv->latched_string)
-		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cv->latched_string);
+		G_INT(OFS_RETURN) = (int)PR_TempString(prinst, cv->latched_string);
 	else
-		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cv->string);
+		G_INT(OFS_RETURN) = (int)PR_TempString(prinst, cv->string);
 }
 
 

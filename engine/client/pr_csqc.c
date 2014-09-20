@@ -534,7 +534,7 @@ static void QCBUILTIN PF_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	else
 	{
 		var = Cvar_Get(str, "", 0, "csqc cvars");
-		if (var)
+		if (var && !(var->flags & CVAR_NOUNSAFEEXPAND))
 			G_FLOAT(OFS_RETURN) = var->value;
 		else
 			G_FLOAT(OFS_RETURN) = 0;

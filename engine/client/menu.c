@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 
 m_state_t m_state;
+qboolean menu_mousedown;
 
 void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic)
 {
@@ -1275,6 +1276,7 @@ void M_Draw (int uimenu)
 	if (m_state != m_complex)
 	{
 		M_RemoveAllMenus();
+		menu_mousedown = false;
 	}
 #endif
 
@@ -1352,7 +1354,9 @@ void M_Keydown (int key, int unicode)
 		return;
 
 	case m_complex:
-		if (key != K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
+		if (key == K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
+			menu_mousedown = true;
+		else
 			M_Complex_Key (key, unicode);
 		return;
 #endif
@@ -1383,8 +1387,9 @@ void M_Keyup (int key, int unicode)
 	{
 #ifndef NOBUILTINMENUS
 	case m_complex:
-		if (key == K_MOUSE1)
+		if (key == K_MOUSE1 && menu_mousedown)
 			M_Complex_Key (key, unicode);
+		menu_mousedown = false;
 		return;
 #endif
 #ifdef PLUGINS

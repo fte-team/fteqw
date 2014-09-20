@@ -2098,7 +2098,9 @@ void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, const ch
 	FS_AddPathHandle(oldpaths, puredir, dir, handle, flags|keptflags, loadstuff);
 }
 
-searchpathfuncs_t *COM_IteratePaths (void **iterator, char *buffer, int buffersize)
+//if syspath, something like c:\quake\baseq2
+//otherwise just baseq2. beware of dupes.
+searchpathfuncs_t *COM_IteratePaths (void **iterator, char *pathbuffer, int pathbuffersize, char *dirname, int dirnamesize)
 {
 	searchpath_t	*s;
 	void			*prev;
@@ -2112,15 +2114,28 @@ searchpathfuncs_t *COM_IteratePaths (void **iterator, char *buffer, int buffersi
 		if (*iterator == prev)
 		{
 			*iterator = s->handle;
-			Q_strncpyz(buffer, s->logicalpath, buffersize-1);
-			FS_CleanDir(buffer, buffersize);
-			return s->handle;
+			if (!strchr(s->purepath, '/'))
+			{
+				if (pathbuffer)
+				{
+					Q_strncpyz(pathbuffer, s->logicalpath, pathbuffersize-1);
+					FS_CleanDir(pathbuffer, pathbuffersize);
+				}
+				if (dirname)
+				{
+					Q_strncpyz(dirname, s->purepath, dirnamesize-1);
+				}
+				return s->handle;
+			}
 		}
 		prev = s->handle;
 	}
 
 	*iterator = NULL;
-	*buffer = 0;
+	if (pathbuffer)
+		*pathbuffer = 0;
+	if (dirname)
+		*dirname = 0;
 	return NULL;
 }
 

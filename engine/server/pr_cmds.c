@@ -3569,7 +3569,10 @@ static void QCBUILTIN PF_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			cv = Cvar_Get(str, def, 0, "QC variables");
 			Con_Printf("^3Creating cvar %s\n", str);
 		}
-		G_FLOAT(OFS_RETURN) = cv->value;
+		if (cv->flags & CVAR_NOUNSAFEEXPAND)
+			G_FLOAT(OFS_RETURN) = 0;
+		else
+			G_FLOAT(OFS_RETURN) = cv->value;
 	}
 }
 
@@ -5111,9 +5114,11 @@ logfrag (killer, killee)
 */
 void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	extern cvar_t fraglog_details;
 	edict_t	*ent1, *ent2;
 	int		e1, e2;
-	char	*s;
+	char	s[2048];
+	int slen;
 	sizebuf_t *sz;
 
 	ent1 = G_EDICT(prinst, OFS_PARM0);
@@ -5132,11 +5137,51 @@ void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	svs.clients[e2].deaths += 1;
 #endif
 
-	s = va("\\%s\\%s\\\n",svs.clients[e1].name, svs.clients[e2].name);
+	if (!fraglog_details.ival)
+		return;	//not logging any details
+	else if (fraglog_details.ival == 7)
+	{	//compat with mvdsv.
+		time_t t = time (NULL);
+		struct tm *tm = gmtime(&t);
+		Q_snprintfz(s, sizeof(s)-2, "\\frag\\");
+	}
+	else if (fraglog_details.ival == 1)
+		strcpy(s, "\\");//vanilla compat
+	else	//specify what info is actually in there
+		Q_snprintfz(s, sizeof(s)-2, "\\\\%u\\", fraglog_details.ival);
+	slen = strlen(s);
+	if (fraglog_details.ival & 1)
+	{
+		Q_snprintfz(s+slen, sizeof(s)-2-slen, "%s\\%s\\", svs.clients[e1].name, svs.clients[e2].name);
+		slen += strlen(s+slen);
+	}
+	if (fraglog_details.ival & 2)
+	{
+		Q_snprintfz(s+slen, sizeof(s)-2-slen, "%s\\%s\\", svs.clients[e1].team, svs.clients[e2].team);
+		slen += strlen(s+slen);
+	}
+	if (fraglog_details.ival & 4)
+	{
+		time_t t = time (NULL);
+		struct tm *tm = gmtime(&t);
+		Q_snprintfz(s+slen, sizeof(s)-2-slen, "%d-%d-%d %d:%d:%d\\", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+		slen += strlen(s+slen);
+	}
+	if (fraglog_details.ival & 8)
+	{
+		Q_snprintfz(s+slen, sizeof(s)-2-slen, "%g\\", ent1->v->weapon);
+		slen += strlen(s+slen);
+	}
+	if (fraglog_details.ival & 16)
+	{
+		Q_snprintfz(s+slen, sizeof(s)-2-slen, "%s\\%s\\", svs.clients[e1].guid, svs.clients[e2].guid);
+		slen += strlen(s+slen);
+	}
+	s[slen++] = '\n';
 
 	//print it to the fraglog buffer for masters/etc to query
 	sz = &svs.log[svs.logsequence&(FRAGLOG_BUFFERS-1)];
-	if (sz->cursize && sz->cursize+strlen(s)+1 >= sz->maxsize)
+	if (sz->cursize && sz->cursize+slen+1 >= sz->maxsize)
 	{
 		// swap buffers and bump sequence
 		svs.logtime = realtime;
@@ -5145,7 +5190,7 @@ void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 		sz->cursize = 0;
 		Con_TPrintf ("beginning fraglog sequence %i\n", svs.logsequence);
 	}
-	SZ_Print (sz, s);
+	SZ_Write(sz, s, slen);
 
 	//print it to our local fraglog file.
 	if (sv_fraglogfile)

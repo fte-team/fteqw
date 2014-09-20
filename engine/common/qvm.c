@@ -103,7 +103,7 @@ dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_
 		{
 			// run through the search paths
 			iterator = NULL;
-			while (!hVM && COM_IteratePaths(&iterator, gpath, sizeof(gpath)))
+			while (!hVM && COM_IteratePaths(&iterator, gpath, sizeof(gpath), NULL, false))
 			{
 				if (!hVM)
 				{

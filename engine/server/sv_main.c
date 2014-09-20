@@ -93,6 +93,7 @@ cvar_t	sv_limittics = CVARD("sv_limittics","3", "The maximum number of ticks tha
 cvar_t	sv_nailhack = CVARD("sv_nailhack","0", "If set to 1, disables the nail entity networking optimisation. This hack was popularised by qizmo which recommends it for better compression. Also allows clients to interplate nail positions and add trails.");
 cvar_t	sv_nopvs	= CVARD("sv_nopvs", "0", "Set to 1 to ignore pvs on the server. This can make wallhacks more dangerous, so should only be used for debugging.");
 cvar_t	fraglog_public = CVARD("fraglog_public", "1", "Enables support for connectionless fraglog requests");
+cvar_t	fraglog_details = CVARD("fraglog_details", "1", "Bitmask\n1: killer+killee names.\n2: killer+killee teams\n4:timestamp.\n8:killer weapon\n16:killer+killee guid.\nFor compatibility, use 1(vanilla) or 7(mvdsv).");
 
 cvar_t	timeout = SCVAR("timeout","65");		// seconds without any message
 cvar_t	zombietime = SCVAR("zombietime", "2");	// seconds to sink messages
@@ -1307,10 +1308,12 @@ void SVC_Log (void)
 	unsigned int	seq;
 	char	data[MAX_DATAGRAM+64];
 	char	adr[MAX_ADR_SIZE];
+	char *av;
 
-	if (Cmd_Argc() == 2)
+	av = Cmd_Argv(1);
+	if (*av)
 	{
-		seq = strtoul(Cmd_Argv(1), NULL, 0);
+		seq = strtoul(av, NULL, 0);
 		//seq is the last one that the client already has
 
 		if (seq < svs.logsequence-(FRAGLOG_BUFFERS-1))
@@ -1338,7 +1341,12 @@ void SVC_Log (void)
 
 	Con_DPrintf ("sending log %i to %s\n", seq, NET_AdrToString(adr, sizeof(adr), &net_from));
 
-	Q_snprintfz(data, sizeof(data), "stdlog %i\n%s", seq, (char *)svs.log_buf[seq&(FRAGLOG_BUFFERS-1)]);
+	//cookie support, to avoid spoofing
+	av = Cmd_Argv(2);
+	if (*av)
+		Q_snprintfz(data, sizeof(data), "stdlog %i %s\n%s", seq, av, (char *)svs.log_buf[seq&(FRAGLOG_BUFFERS-1)]);
+	else
+		Q_snprintfz(data, sizeof(data), "stdlog %i\n%s", seq, (char *)svs.log_buf[seq&(FRAGLOG_BUFFERS-1)]);
 	NET_SendPacket (NS_SERVER, strlen(data)+1, data, &net_from);
 }
 
@@ -5098,11 +5106,6 @@ void SV_InitNet (void)
 //	NET_StringToAdr ("192.246.40.70:27000", &idmaster_adr);
 }
 
-void SV_IgnoreCommand_f(void)
-{
-}
-
-
 /*
 ====================
 SV_Init
@@ -5239,8 +5242,10 @@ void SV_Init (quakeparms_t *parms)
 		}
 		if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp"))
 			Cmd_ExecuteString ("map start", RESTRICT_LOCAL);	//regular q1
+	#ifdef HEXEN2
 		if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp"))
 			Cmd_ExecuteString ("map demo1", RESTRICT_LOCAL);	//regular h2 sp
+	#endif
 	#ifdef Q2SERVER
 		if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp"))
 			Cmd_ExecuteString ("map base1", RESTRICT_LOCAL);	//regular q2 sp

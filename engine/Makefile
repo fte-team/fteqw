@@ -666,7 +666,7 @@ BOTLIB_OBJS = 			\
 	l_struct.o	
 
 #the defaults for sdl come first
-CC_MACHINE:=$(shell $(CC) -dumpmachine)
+#CC_MACHINE:=$(shell TESTamch $(CC) -dumpmachine)
 ifeq ($(FTE_TARGET),SDL2)
 	SDLCONFIG?=sdl2-config
 	FTE_FULLTARGET?=sdl2$(BITS)
@@ -796,7 +796,7 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
 	EXEPOSTFIX=.exe
 
-	CC_MACHINE:=$(shell $(CC) -dumpmachine)
+	CC_MACHINE:=$(shell TESTaseh $(CC) -dumpmachine)
 	ARCH_PREDEP=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)/bin/sdl2-config
 	SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)
 	ARCH_CFLAGS=`$(SDLCONFIG) --cflags`
@@ -1226,11 +1226,11 @@ ifeq ($(FTE_TARGET),web)
 	JSLIBS=--js-library web/ftejslib.js -s LEGACY_GL_EMULATION=0
 	EMCC_ARGS=$(JSLIBS) $(WEB_PREJS) --shell-file web/fteshell.html  -s ERROR_ON_UNDEFINED_SYMBOLS=1
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
-	DEBUG_CFLAGS=-g -g4 -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
+	DEBUG_CFLAGS=-g -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
 	RELEASE_LDFLAGS=-s ASM_JS=1 -O3	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS)
 #	RELEASE_LDFLAGS=-s ASM_JS=0 -O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
-	DEBUG_LDLAGS=-O0 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
-	CC=emcc
+	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_ARGS)
+	CC?=emcc
 	#BASELDFLAGS=
 	PRECOMPHEADERS=
 
@@ -1291,6 +1291,7 @@ releases:
 #	-$(MAKE) FTE_TARGET=linux64 relcl
 #	-$(MAKE) FTE_TARGET=win32 relcl
 	-$(MAKE) droid-rel
+	-$(MAKE) web-rel
 	-$(MAKE) FTE_TARGET=win32 npfte-rel
 
 autoconfig: clean
@@ -1329,7 +1330,7 @@ $(OUT_DIR)/npplug.o : ftequake/npplug.rc
 
 $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.c
 ifneq ($(DEPCC),)
-	@set -e; rm -f $@.d; \
+	@-set -e; rm -f $@.d; \
 	 $(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.o[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
@@ -1339,7 +1340,7 @@ endif
 
 $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.cpp
 ifneq ($(DEPCC),)
-	@set -e; rm -f $@.d; \
+	@-set -e; rm -f $@.d; \
 	$(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	sed 's,\($*\)\.o[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
@@ -1349,7 +1350,7 @@ endif
 
 $(OUT_DIR)/%.oo $(OUT_DIR)/%.d : %.c
 ifneq ($(DEPCC),)
-	@set -e; rm -f $@.d; \
+	@-set -e; rm -f $@.d; \
 	 $(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.oo[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
@@ -1358,7 +1359,7 @@ endif
 	$(DO_CC) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
-	@set -e; rm -f $@.d; \
+	@-set -e; rm -f $@.d; \
 	 $(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
 	 sed 's,\($*\)\.mo[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
 	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
@@ -1542,6 +1543,7 @@ help:
 	@-echo "'mcl-???' (currently broken)"
 	@-echo "'glcl-???' (currently broken)"
 	@-echo "'droid-???' (cross compiles Android package)"
+	@-echo "'web-???' (compiles javascript/emscripten page)"
 	@-echo "'npfte-???' (cross compiles QuakeTV Firefox/Netscape browser plugin)"
 	@-echo "'nacl-???' (cross compiles QuakeTV Firefox/Netscape browser plugin)"
 	@-echo ""
@@ -1616,6 +1618,27 @@ nacl-dbg:
 	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=x86_64
 	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=arm
 	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=pnacl
+
+#################################################
+#webgl helpers
+
+#just adds some extra paths (WINDOWS HOST ONLY)
+#assumes you installed the emscripten 1.22.0 sdk to EMSCRIPTENROOT
+#if you have a different version installed, you will need to fix up the paths yourself (or just use fte_target explicitly yourself).
+EMSCRIPTENROOT?=C:/Games/tools/Emscripten
+EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/e1.22.0_64bit):$(realpath $(EMSCRIPTENROOT)/node/0.10.17_64bit):$(realpath $(EMSCRIPTENROOT)/python/2.7.5.3_64bit):$(realpath $(EMSCRIPTENROOT)/emscripten/1.22.0):$(PATH)
+
+web-rel:
+	@$(MAKE) gl-rel FTE_TARGET=web	PATH="$(EMSCRIPTENPATH)" CC="emcc.bat"
+	@gzip -f $(RELEASE_DIR)/ftewebgl.html
+	@gzip -f $(RELEASE_DIR)/ftewebgl.js
+	@gzip -f $(RELEASE_DIR)/ftewebgl.html.mem
+
+web-dbg:
+	@$(MAKE) gl-dbg FTE_TARGET=web	PATH="$(EMSCRIPTENPATH)" CC="emcc.bat"
+	@gzip -f $(DEBUG_DIR)/ftewebgl.html
+	@gzip -f $(DEBUG_DIR)/ftewebgl.js
+	@gzip -f $(DEBUG_DIR)/ftewebgl.html.map
 
 #################################################
 #android

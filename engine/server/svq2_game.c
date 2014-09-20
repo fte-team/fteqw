@@ -28,10 +28,13 @@ void *SVQ2_GetGameAPI (void *parms)
 	};
 
 	char name[MAX_OSPATH];
-	char searchpath[MAX_OSPATH];
+	char syspath[MAX_OSPATH];
+	char gamepath[MAX_OSPATH];
 	void *iterator;
 	int o;
 	const char *gamename[] = {
+		"",
+		"",
 #ifdef _DEBUG
 		"debug/game" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX,
 #endif
@@ -42,21 +45,37 @@ void *SVQ2_GetGameAPI (void *parms)
 		"game" ARCH_DL_POSTFIX,
 		NULL
 	};
-
 	void *ret;
 
 #ifdef _DEBUG
-	Con_DPrintf("Searching for %s\n", gamename[1]);
+	Con_DPrintf("Searching for %s\n", gamename[3]);
 #else
-	Con_DPrintf("Searching for %s\n", gamename[0]);
+	Con_DPrintf("Searching for %s\n", gamename[2]);
 #endif
 
 	iterator = NULL;
-	while(COM_IteratePaths(&iterator, searchpath, sizeof(searchpath)))
+	while(COM_IteratePaths(&iterator, syspath, sizeof(syspath), gamepath, sizeof(gamepath)))
 	{
 		for (o = 0; gamename[o]; o++)
 		{
-			snprintf(name, sizeof(name), "%s%s", searchpath, gamename[o]);
+			if (o == 0)
+			{	//nice and specific
+				if (!host_parms.binarydir)
+					continue;
+				Q_snprintfz(name, sizeof(name), "%sq2game"ARCH_CPU_POSTFIX"_%s"ARCH_DL_POSTFIX, host_parms.binarydir, gamepath);
+			}
+			else if (o == 1)
+			{	//because some people don't like knowing what cpu arch they're compiling for
+				if (!host_parms.binarydir)
+					continue;
+				Q_snprintfz(name, sizeof(name), "%slibgame_%s"ARCH_DL_POSTFIX, host_parms.binarydir, gamepath);
+			}
+			else
+			{
+				if (com_nogamedirnativecode.ival)
+					continue;
+				Q_snprintfz(name, sizeof(name), "%s%s", syspath, gamename[o]);
+			}
 
 			q2gamedll = Sys_LoadLibrary(name, funcs);
 			if (q2gamedll)

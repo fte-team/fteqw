@@ -573,7 +573,7 @@ void GLR_TimeRefresh_f (void)
 {
 	int			i;
 	float		start, stop, time;
-	qboolean	finish;
+	int			finish;
 	int			frames = 128;
 
 	finish = atoi(Cmd_Argv(1));

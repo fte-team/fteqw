@@ -1036,7 +1036,7 @@ void QCBUILTIN PF_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
-	if (cv)
+	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
 	{
 		if(cv->latched_string)
 			RETURN_CSTRING(cv->latched_string);
@@ -1052,7 +1052,7 @@ void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *p
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
-	if (cv)
+	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
 		RETURN_CSTRING(cv->defaultstr);
 	else
 		G_INT(OFS_RETURN) = 0;
@@ -1063,7 +1063,7 @@ void QCBUILTIN PF_cvar_description (pubprogfuncs_t *prinst, struct globalvars_s 
 {
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(str, "", 0, "QC variables");
-	if (cv)
+	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
 		RETURN_CSTRING(cv->description);
 	else
 		G_INT(OFS_RETURN) = 0;
@@ -1077,7 +1077,7 @@ void QCBUILTIN PF_cvar_type (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	cvar_t *v;
 
 	v = Cvar_FindVar(str);
-	if (v)
+	if (v && !(v->flags & CVAR_NOUNSAFEEXPAND))
 	{
 		ret |= 1; // CVAR_EXISTS
 		if(v->flags & CVAR_ARCHIVE)
@@ -1102,7 +1102,7 @@ void QCBUILTIN PF_cvar_set (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	var = Cvar_Get(var_name, val, 0, "QC variables");
-	if (!var)
+	if (!var || (var->flags & CVAR_NOTFROMSERVER))
 		return;
 	Cvar_Set (var, val);
 }
@@ -1116,7 +1116,7 @@ void QCBUILTIN PF_cvar_setlatch (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	val = PR_GetStringOfs(prinst, OFS_PARM1);
 
 	var = Cvar_Get(var_name, val, 0, "QC variables");
-	if (!var)
+	if (!var || (var->flags & CVAR_NOTFROMSERVER))
 		return;
 	Cvar_LockFromServer(var, val);
 }
@@ -1131,10 +1131,9 @@ void QCBUILTIN PF_cvar_setf (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	val = G_FLOAT(OFS_PARM1);
 
 	var = Cvar_FindVar(var_name);
-	if (!var)
-		Con_Printf("PF_cvar_set: variable %s not found\n", var_name);
-	else
-		Cvar_SetValue (var, val);
+	if (!var || (var->flags & CVAR_NOTFROMSERVER))
+		return;
+	Cvar_SetValue (var, val);
 }
 
 //float(string name, string value) registercvar
@@ -5120,6 +5119,10 @@ void PR_AutoCvar(pubprogfuncs_t *prinst, cvar_t *var)
 	eval_t *val;
 	etype_t type;
 	int n, p;
+
+	if (var->flags & CVAR_NOUNSAFEEXPAND)
+		return;
+
 	for (n = 0; n < 2; n++)
 	{
 		gname = n?var->name2:var->name;
@@ -5167,7 +5170,7 @@ void PDECL PR_FoundAutoCvarGlobal(pubprogfuncs_t *progfuncs, char *name, eval_t 
 		return;
 	}
 	var = Cvar_Get(name, vals, 0, "autocvars");
-	if (!var)
+	if (!var || (var->flags & CVAR_NOUNSAFEEXPAND))
 		return;
 
 	var->flags |= CVAR_TELLGAMECODE;

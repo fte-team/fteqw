@@ -1139,7 +1139,7 @@ static void GetEvent(void)
 		if ((fullscreenflags & FULLSCREEN_LEGACY) && (fullscreenflags & FULLSCREEN_ACTIVE))
 			mw = vid_decoywindow;
 
-		if (event.xfocus.window == mw)
+		if (event.xfocus.window == mw || event.xfocus.window == vid_window)
 		{
 			ActiveApp = false;
 			if (old_windowed_mouse)
@@ -1393,13 +1393,16 @@ void X_GoFullscreen(void)
 	xev.xclient.data.l[0] = 1;	//add
 	xev.xclient.data.l[1] = x11.pXInternAtom(vid_dpy, "_NET_WM_STATE_FULLSCREEN", False);
 	xev.xclient.data.l[2] = 0;
-	x11.pXSync(vid_dpy, False);
-	x11.pXSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
-	x11.pXSync(vid_dpy, False);
 
 	//for any other window managers, and broken NETWM
 	x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
 	x11.pXSync(vid_dpy, False);
+	x11.pXSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
+	x11.pXSync(vid_dpy, False);
+	x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+	x11.pXSync(vid_dpy, False);
+
+Con_Printf("Gone fullscreen\n");
 }
 void X_GoWindowed(void)
 {
@@ -1418,7 +1421,8 @@ void X_GoWindowed(void)
 	x11.pXSendEvent(vid_dpy, DefaultRootWindow(vid_dpy), False, SubstructureNotifyMask, &xev);
 	x11.pXSync(vid_dpy, False);
 
-	//x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, 640, 480);
+	x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, 640, 480);
+Con_Printf("Gone windowed\n");
 }
 qboolean X_CheckWMFullscreenAvailable(void)
 {
@@ -1480,6 +1484,11 @@ qboolean X_CheckWMFullscreenAvailable(void)
 			}
 			if (!success)
 				Con_Printf("Window manager \"%s\" does not appear to support fullscreen\n", wmname);
+			else if (!strcmp(wmname, "Fluxbox"))
+			{
+				Con_Printf("Window manager \"%s\" claims to support fullscreen, but is known buggy\n", wmname);
+				success = false;
+			}
 			else
 				Con_Printf("Window manager \"%s\" supports fullscreen\n", wmname);
 			x11.pXFree(prop);
@@ -1828,16 +1837,16 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		Con_DPrintf("Using X11 mouse\n");
 	}
 
+	x11.pXRaiseWindow(vid_dpy, vid_window);
+	if (fullscreenflags & FULLSCREEN_LEGACY)
+		x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
 	if (Cvar_Get("vidx_grabkeyboard", "0", 0, "Additional video options")->value)
 		x11.pXGrabKeyboard(vid_dpy, vid_window,
 				  False,
 				  GrabModeAsync, GrabModeAsync,
 				  CurrentTime);
-	else
-		x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
-	x11.pXRaiseWindow(vid_dpy, vid_window);
-	if (fullscreenflags & FULLSCREEN_LEGACY)
-		x11.pXMoveResizeWindow(vid_dpy, vid_window, 0, 0, fullscreenwidth, fullscreenheight);
+	else if (fullscreenflags & FULLSCREEN_LEGACY)
+		x11.pXSetInputFocus(vid_dpy, vid_window, RevertToNone, CurrentTime);
 
 	return true;
 }

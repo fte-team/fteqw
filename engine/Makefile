@@ -211,11 +211,18 @@ ifeq ($(FTE_TARGET),morphos)
 	endif
 endif
 
-#if you have an x86, you can get gcc to build 32bit or 64bit specific builds, instead of builds for the native platform
+#if you have an x86, you can get gcc to build binaries using 3 different ABIs, instead of builds for just the default ABI
 ifeq ($(FTE_TARGET),linux32)
 	FTE_TARGET=linux
 	CC=gcc -m32
 	BITS=32
+endif
+ifeq ($(FTE_TARGET),linuxx32)
+	#note: the x32 abi is still not finished or something.
+	#at the current time, you will need to edit your kernel's commandline to allow this stuff to run
+	FTE_TARGET=linux
+	CC=gcc -mx32
+	BITS=x32
 endif
 ifeq ($(FTE_TARGET),linux64)
 	FTE_TARGET=linux

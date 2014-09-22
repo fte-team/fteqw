@@ -940,10 +940,10 @@ qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg
 
 	if (VM_OOB(arg[1], sizeof(int)))
 		return -2;
-	if (!currentplug)
-		return -3;	//streams depend upon current plugin context. which isn't valid in a thread.
 	ret = VM_POINTER(arg[1]);
 	*ret = -1;
+	if (!currentplug)
+		return -3;	//streams depend upon current plugin context. which isn't valid in a thread.
 
 	switch(arg[2])
 	{

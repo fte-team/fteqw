@@ -36,8 +36,8 @@ static int QDECL VFSWEB_WriteBytes (struct vfsfile_s *file, const void *buffer, 
 static qboolean QDECL VFSWEB_Seek (struct vfsfile_s *file, qofs_t pos)
 {
 	vfswebfile_t *intfile = (vfswebfile_t*)file;
-	if (pos < 0)
-		return 0;
+//	if (pos < 0)
+//		return 0;
 	intfile->offset = pos;
 	return true;
 }

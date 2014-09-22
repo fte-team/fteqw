@@ -855,7 +855,7 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 	enum lightfield_e field = G_FLOAT(OFS_PARM1);
 	if (lno >= rtlights_max)
 	{
-		if (field == -1)
+		if ((int)field == -1)
 			G_FLOAT(OFS_RETURN) = rtlights_max;
 		else
 			G_INT(OFS_RETURN) = 0;

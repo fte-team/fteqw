@@ -145,6 +145,7 @@ void Sys_Shutdown(void)
 
 int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 {
+	return 0;
 };
 
 
@@ -175,10 +176,7 @@ void Sys_MainLoop(void)
 
 int QDECL main(int argc, char **argv)
 {
-	float time, newtime, oldtime;
 	quakeparms_t	parms;
-	int				t;
-	int delay = 1;
 
 	memset(&parms, 0, sizeof(parms));
 
@@ -194,9 +192,6 @@ int QDECL main(int argc, char **argv)
 
 	Sys_Printf ("Host_Init\n");
 	Host_Init (&parms);
-
-	oldtime = Sys_DoubleTime ();
-
 
 	//-1 fps should give vsync
 	emscripten_set_main_loop(Sys_MainLoop, -1, false);
@@ -370,6 +365,7 @@ Uint8 SDL_GetAppState(void)
 	return SDL_APPACTIVE;
 }
 #define socklen_t int
+/*
 int getsockname(int socket, struct sockaddr *address, socklen_t *address_len)
 {
 	return -1;
@@ -382,4 +378,4 @@ ssize_t sendto(int socket, const void *message, size_t length, int flags, const 
 {
 	return -1;
 }
-
+*/

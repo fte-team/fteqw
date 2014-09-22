@@ -392,7 +392,7 @@ void R_GenDlightMesh(struct batch_s *batch)
 }
 void R_GenDlightBatches(batch_t *batches[])
 {
-	int i, sort;
+	int i, j, sort;
 	dlight_t	*l;
 	batch_t		*b;
 	if (!lpplight_shader)
@@ -431,10 +431,8 @@ void R_GenDlightBatches(batch_t *batches[])
 		b->skin = &lpplight_shader->defaulttextures;
 		b->texture = NULL;
 		b->shader = lpplight_shader;
-		b->lightmap[0] = -1;
-		b->lightmap[1] = -1;
-		b->lightmap[2] = -1;
-		b->lightmap[3] = -1;
+		for (j = 0; j < MAXRLIGHTMAPS; j++)
+			b->lightmap[j] = -1;
 		b->surf_first = i;
 		b->flags |= BEF_NOSHADOWS;
 		b->vbo = NULL;

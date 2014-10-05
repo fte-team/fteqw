@@ -426,9 +426,9 @@ int CL_IsDownloading(const char *localname)
 qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned int flags)
 {
 	extern cvar_t cl_downloads;
-	char *ext;
 	downloadlist_t *dl;
 	qboolean webdl = false;
+	char ext[8];
 	if (!strncmp(filename, "http://", 7))
 	{
 		if (!localname)
@@ -444,7 +444,7 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 		if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
 			return false;
 	}
-	ext = COM_FileExtension(localname);
+	COM_FileExtension(localname, ext, sizeof(ext));
 	if (!stricmp(ext, "dll") || !stricmp(ext, "so") || strchr(localname, '\\') || strchr(localname, ':') || strstr(localname, ".."))
 	{
 		Con_Printf("Denying download of \"%s\"\n", filename);
@@ -640,7 +640,7 @@ void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int f
 void CL_DownloadFinished(qdownload_t *dl)
 {
 	int i;
-	char *ext;
+	char ext[8];
 
 	char filename[MAX_QPATH];
 	char tempname[MAX_QPATH];
@@ -652,7 +652,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 
 	COM_RefreshFSCache_f();
 
-	ext = COM_FileExtension(filename);
+	COM_FileExtension(filename, ext, sizeof(ext));
 
 
 	//should probably ask the filesytem code if its a package format instead.
@@ -757,6 +757,7 @@ Returns true if the file exists, returns false if it triggered a download.
 
 qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localname, unsigned int flags)
 {	//returns false if we don't have the file yet.
+	COM_AssertMainThread("CL_CheckOrEnqueDownloadFile");
 	if (flags & DLLF_NONGAME)
 	{
 		/*pak/pk3 downloads have an explicit leading package/ as an internal/network marker*/
@@ -976,10 +977,9 @@ Model_NextDownload
 */
 void Model_CheckDownloads (void)
 {
-//	char *twf;
 	char	*s;
 	int		i;
-//	extern	char gamedirfile[];
+	char ext[8];
 
 //	Con_TPrintf (TLC_CHECKINGMODELS);
 
@@ -1006,7 +1006,7 @@ void Model_CheckDownloads (void)
 		if (s[0] == '*')
 			continue;	// inline brush model
 
-		if (!stricmp(COM_FileExtension(s), "dsp"))	//doom sprites are weird, and not really downloadable via this system
+		if (!stricmp(COM_FileExtension(s, ext, sizeof(ext)), "dsp"))	//doom sprites are weird, and not really downloadable via this system
 			continue;
 
 #ifdef Q2CLIENT
@@ -1022,7 +1022,7 @@ void Model_CheckDownloads (void)
 	{
 		s = cl.model_name_vwep[i];
 
-		if (!stricmp(COM_FileExtension(s), "dsp"))	//doom sprites are weird, and not really downloadable via this system
+		if (!stricmp(COM_FileExtension(s, ext, sizeof(ext)), "dsp"))	//doom sprites are weird, and not really downloadable via this system
 			continue;
 
 		if (!*s)
@@ -1035,10 +1035,9 @@ void Model_CheckDownloads (void)
 
 int CL_LoadModels(int stage, qboolean dontactuallyload)
 {
-	extern model_t *loadmodel;
 	int i;
 
-	float giveuptime = Sys_DoubleTime()+0.3;	//small things get padded into a single frame
+	float giveuptime = Sys_DoubleTime()+1;	//small things get padded into a single frame
 
 #define atstage() ((cl.contentstage == stage++ && !dontactuallyload)?++cl.contentstage:false)
 #define endstage() if (!cls.timedemo && giveuptime<Sys_DoubleTime()) return -1;
@@ -1120,10 +1119,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	if (atstage())
 	{
 		SCR_SetLoadingFile("prenewmap");
-		loadmodel = cl.worldmodel;
-
-		if (R_PreNewMap)
-			R_PreNewMap();
+		Surf_PreNewMap();
 
 		endstage();
 	}
@@ -1141,6 +1137,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 			if (atstage())
 			{
+#if 0
 				SCR_SetLoadingFile(cl.model_name[i]);
 #ifdef CSQC_DAT
 				if (i == 1)
@@ -1148,12 +1145,13 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 				else
 					CSQC_LoadResource(cl.model_name[i], "model");
 #endif
+#endif
 #ifdef Q2CLIENT
 				if (cls.protocol == CP_QUAKE2 && *cl.model_name[i] == '#')
 					cl.model_precache[i] = NULL;
 				else
 #endif
-					cl.model_precache[i] = Mod_ForName (cl.model_name[i], MLV_WARN);
+					cl.model_precache[i] = Mod_ForName (Mod_FixName(cl.model_name[i], cl.model_name[1]), MLV_WARN);
 
 				S_ExtraUpdate();
 
@@ -1167,9 +1165,11 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 			if (atstage())
 			{
+#if 0
 				SCR_SetLoadingFile(cl.model_name_vwep[i]);
 #ifdef CSQC_DAT
 				CSQC_LoadResource(cl.model_name_vwep[i], "vwep");
+#endif
 #endif
 				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], MLV_WARN);
 				endstage();
@@ -1206,12 +1206,14 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 			continue;
 		if (atstage())
 		{
+#if 0
 			SCR_SetLoadingFile(cl.model_csqcname[i]);
 #ifdef CSQC_DAT
 			if (i == 1)
 				CSQC_LoadResource(cl.model_csqcname[i], "map");
 			else
 				CSQC_LoadResource(cl.model_csqcname[i], "model");
+#endif
 #endif
 			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], MLV_WARN);
 
@@ -1232,10 +1234,10 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	if (atstage())
 	{
 		SCR_SetLoadingFile("external textures");
-		loadmodel = cl.worldmodel;
-//		if (!loadmodel || loadmodel->type == mod_dummy)
-//			Host_EndGame("No worldmodel was loaded\n");
-		Mod_NowLoadExternal();
+		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
+		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
+			Mod_NowLoadExternal(cl.worldmodel);
 
 		endstage();
 	}
@@ -1245,11 +1247,10 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	if (atstage())
 	{
 		SCR_SetLoadingFile("newmap");
-		loadmodel = cl.worldmodel;
-//		if (!loadmodel || loadmodel->type == mod_dummy)
+//		if (!cl.worldmodel || cl.worldmodel->type == mod_dummy)
 //			Host_EndGame("No worldmodel was loaded\n");
 		cl.model_precaches_added = false;
-		R_NewMap ();
+		Surf_NewMap ();
 
 		pmove.physents[0].model = cl.worldmodel;
 
@@ -1292,9 +1293,11 @@ int CL_LoadSounds(int stage, qboolean dontactuallyload)
 
 		if (atstage())
 		{
+#if 0
 			SCR_SetLoadingFile(cl.sound_name[i]);
 #ifdef CSQC_DAT
 			CSQC_LoadResource(cl.sound_name[i], "sound");
+#endif
 #endif
 			cl.sound_precache[i] = S_PrecacheSound (cl.sound_name[i]);
 
@@ -1466,13 +1469,23 @@ void CL_RequestNextDownload (void)
 		current_loading_size = cl.contentstage;
 		if (stage < 0)
 			return;
+		if (requiredownloads.ival && COM_HasWork())
+		{
+			SCR_SetLoadingFile("loading content");
+			return;
+		}
 		SCR_SetLoadingFile("receiving game state");
+
 		cl.sendprespawn = false;
+
+		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
+
 #ifdef warningmsg
 #pragma warningmsg("timedemo timer should start here")
 #endif
 
-		if (!cl.worldmodel || cl.worldmodel->needload)
+		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		{
 			Con_Printf("\n\n-------------\nCouldn't download %s - cannot fully connect\n", cl.worldmodel->name);
 			SCR_SetLoadingStage(LS_NONE);
@@ -2794,7 +2807,6 @@ void CLQW_ParseServerData (void)
 #ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", str, MAX_SERVERINFO_STRING);
 #endif
-		COM_FlushFSCache();
 		Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 	}
 
@@ -3025,7 +3037,6 @@ void CLQ2_ParseServerData (void)
 		COM_Gamedir("baseq2");
 	else
 		COM_Gamedir(str);
-	COM_FlushFSCache();
 //	if ((*str && (!fs_gamedirvar->string || !*fs_gamedirvar->string || strcmp(fs_gamedirvar->string, str))) || (!*str && (fs_gamedirvar->string || *fs_gamedirvar->string)))
 //		Cvar_Set("game", str);
 
@@ -3079,8 +3090,7 @@ void CLQ2_ParseServerData (void)
 
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
-	if (R_PreNewMap)
-		R_PreNewMap();
+	Surf_PreNewMap();
 }
 #endif
 
@@ -3246,8 +3256,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	SCR_BeginLoadingPlaque();
 
-	if (R_PreNewMap)
-		R_PreNewMap();
+	Surf_PreNewMap();
 
 	memset (cl.model_name, 0, sizeof(cl.model_name));
 	for (nummodels=1 ; ; nummodels++)
@@ -3341,6 +3350,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 	{
 	case 1:
 		cl.sendprespawn = true;
+		SCR_SetLoadingFile("loading data");
 		CL_RequestNextDownload();
 		break;
 
@@ -3583,6 +3593,7 @@ void CL_ParseSoundlist (qboolean lots)
 		CL_AllowIndependantSendCmd(false);	//stop it now, the indep stuff *could* require model tracing.
 
 		cl.sendprespawn = true;
+		SCR_SetLoadingFile("loading data");
 	}
 	else
 #endif
@@ -3681,6 +3692,7 @@ void CL_ParseModellist (qboolean lots)
 
 	//set the flag to load models and send prespawn
 	cl.sendprespawn = true;
+	SCR_SetLoadingFile("loading data");
 }
 
 void CL_ProcessUserInfo (int slot, player_info_t *player);
@@ -3925,6 +3937,7 @@ void CLQ2_Precache_f (void)
 
 	cl.contentstage = 0;
 	cl.sendprespawn = true;
+	SCR_SetLoadingFile("loading data");
 
 #ifdef VM_CG
 	CG_Start();
@@ -3998,6 +4011,7 @@ void CL_ParseStatic (int version)
 	cl_static_entities[i].mdlidx = es.modelindex;
 	cl_static_entities[i].emit = NULL;
 
+	cl_static_entities[i].state = es;
 	ent = &cl_static_entities[i].ent;
 	V_ClearEntity(ent);
 	memset(&cl_static_entities[i].pvscache, 0, sizeof(cl_static_entities[i].pvscache));
@@ -4041,7 +4055,7 @@ void CL_ParseStatic (int version)
 	AngleVectors(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	VectorInverse(ent->axis[1]);
 
-	if (!cl.worldmodel || cl.worldmodel->needload)
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 	{
 		Con_TPrintf ("Warning: Parsestatic and no map loaded yet\n");
 		return;
@@ -4161,6 +4175,7 @@ void CLQ2_ParseStartSoundPacket(void)
     float 	attenuation;
 	int		flags;
 	float	ofs;
+	sfx_t	*sfx;
 
 	flags = MSG_ReadByte ();
 	sound_num = MSG_ReadByte ();
@@ -4211,20 +4226,25 @@ void CLQ2_ParseStartSoundPacket(void)
 	if (!cl.sound_precache[sound_num])
 		return;
 
-	if (cl.sound_precache[sound_num]->name[0] == '*' && ent > 0 && ent <= MAX_CLIENTS)
+	sfx = cl.sound_precache[sound_num];
+	if (sfx->name[0] == '*')
 	{	//a 'sexed' sound
-		char *model = Info_ValueForKey(cl.players[ent-1].userinfo, "skin");
-		char *skin;
-		skin = strchr(model, '/');
-		if (skin)
-			*skin = '\0';
-		if (*model)
+		if (ent > 0 && ent <= MAX_CLIENTS)
 		{
-			S_StartSound (ent, channel, S_PrecacheSound(va("players/%s/%s", model, cl.sound_precache[sound_num]->name+1)), pos, volume, attenuation, ofs, 0);
-			return;
+			char *model = Info_ValueForKey(cl.players[ent-1].userinfo, "skin");
+			char *skin;
+			skin = strchr(model, '/');
+			if (skin)
+				*skin = '\0';
+			if (*model)
+				sfx = S_PrecacheSound(va("players/%s/%s", model, cl.sound_precache[sound_num]->name+1));
 		}
+		//fall back to male if it failed to load.
+		//note: threaded loading can still make it silent the first time we hear it.
+		if (sfx->loadstate == SLS_FAILED)
+			sfx = S_PrecacheSound(va("players/male/%s", cl.sound_precache[sound_num]->name+1));
 	}
-	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume, attenuation, ofs, 0);
+	S_StartSound (ent, channel, sfx, pos, volume, attenuation, ofs, 0);
 }
 #endif
 
@@ -4801,7 +4821,7 @@ void CL_MuzzleFlash (int entnum)
 	if (!dlightkey)
 		return;
 
-	if (P_RunParticleEffectType(org, NULL, 1, pt_muzzleflash))
+	if (P_RunParticleEffectType(org, axis[0], 1, pt_muzzleflash))
 	{
 		dl = CL_AllocDlight (dlightkey);
 		VectorMA (org, 15, axis[0], dl->origin);
@@ -5411,12 +5431,12 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 			con_chat = Con_Create("chat", CONF_HIDDEN|CONF_NOTIFY|CONF_NOTIFY_BOTTOM);
 		if (con_chat)
 		{
-			Con_PrintCon(con_chat, fullchatmessage);
+			Con_PrintCon(con_chat, fullchatmessage, con_chat->parseflags);
 
 			if (con_separatechat.ival == 1)
 			{
 				con_main.flags |= CONF_NOTIMES;
-				Con_PrintCon(&con_main, fullchatmessage);
+				Con_PrintCon(&con_main, fullchatmessage, con_main.parseflags);
 				con_main.flags &= CONF_NOTIMES;
 				return;
 			}
@@ -5631,7 +5651,7 @@ void CL_ParsePrecache(void)
 		{
 			model_t *model;
 			CL_CheckOrEnqueDownloadFile(s, s, 0);
-			model = Mod_ForName(s, (i == 1)?MLV_ERROR:MLV_WARN);
+			model = Mod_ForName(Mod_FixName(s, cl.model_name[1]), (i == 1)?MLV_ERROR:MLV_WARN);
 			if (!model)
 				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
 			cl.model_precache[i] = model;
@@ -6777,17 +6797,17 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_setview:
+			i=MSGCL_ReadEntity();
 			if (!cl.playerview[destsplit].viewentity)
 			{
-				cl.playerview[destsplit].playernum = (cl.playerview[destsplit].viewentity = MSGCL_ReadEntity())-1;
+				cl.playerview[destsplit].playernum = (unsigned int)i;
 				if (cl.playerview[destsplit].playernum >= cl.allocated_client_slots)
 				{
-					Con_Printf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n", cl.playerview[destsplit].playernum);
+					Con_DPrintf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n", i);
 					cl.playerview[destsplit].playernum = cl.allocated_client_slots;	//pretend it's an mvd (we have that spare slot)
 				}
 			}
-			else
-				cl.playerview[destsplit].viewentity=MSGCL_ReadEntity();
+			cl.playerview[destsplit].viewentity = i;
 			break;
 
 		case svc_signonnum:

@@ -70,12 +70,13 @@ ver=2
 */
 
 #define TGS_NOLOAD			0
-#define TGS_LOAD			1	//always try to load it.
-#define TGS_FORCELOAD		2	//load it even if it doesn't exist (for editing). will otherwise be unusable
-#define TGS_LAZYLOAD		4	//only try to load it if its the only one we loaded this frame.
-#define TGS_NODOWNLOAD		8	//don't queue it for download
-#define TGS_NORENDER		16	//don't upload any textures or whatever
-#define TGS_IGNOREFAILED	32	//grab the section even if its invalid, used for loading/overwriting 
+#define TGS_LAZYLOAD		1	//see if its available, if not, queue it. don't create too much work at once. peace man
+#define TGS_TRYLOAD			2	//try and get it, but don't stress if its not available yet
+#define TGS_WAITLOAD		4	//load it, wait for it if needed.
+#define TGS_ANYSTATE		8	//returns the section regardless of its current state, even if its loading.
+#define TGS_NODOWNLOAD		16	//don't queue it for download
+#define TGS_NORENDER		32	//don't upload any textures or whatever
+#define TGS_DEFAULTONFAIL	64	//if it failed to load, generate a default anyway
 
 enum
 {
@@ -89,13 +90,12 @@ enum
 	TSF_COMPRESSED	= 1u<<31,
 
 	//these flags should not be found on disk
-	TSF_FAILEDLOAD	= 1u<<27,	//placeholder to avoid excess disk access in border regions, means it still has default settings (unless edited). not saved unless its edited.
 	TSF_NOTIFY		= 1u<<28,	//modified on server, waiting for clients to be told about the change.
 	TSF_RELIGHT		= 1u<<29,	//height edited, needs relighting.
 	TSF_DIRTY		= 1u<<30,	//its heightmap has changed, the mesh needs rebuilding
 	TSF_EDITED		= 1u<<31	//says it needs to be written if saved
 
-#define TSF_INTERNAL	(TSF_RELIGHT|TSF_DIRTY|TSF_EDITED|TSF_NOTIFY|TSF_FAILEDLOAD)
+#define TSF_INTERNAL	(TSF_RELIGHT|TSF_DIRTY|TSF_EDITED|TSF_NOTIFY)
 };
 enum
 {
@@ -166,14 +166,25 @@ struct hmwater_s
 	qboolean simple;	//no holes, one height
 	float minheight;
 	float maxheight;
+	char shadername[MAX_QPATH];
 	shader_t *shader;
 	qbyte holes[8];
 	float heights[9*9];
+};
+enum
+{
+	TSLS_NOTLOADED,
+	TSLS_LOADING1,	//section is queued to the worker (and may be loaded as part of another section)
+	TSLS_LOADING2,	//waiting for main thread to finish, worker will ignore
+	TSLS_LOADED,
+	TSLS_FAILED
 };
 typedef struct
 {
 	link_t recycle;
 	int sx, sy;
+
+	int loadstate;
 
 	float heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
 	unsigned char holes[8];
@@ -211,6 +222,8 @@ typedef struct
 typedef struct heightmap_s
 {
 	char path[MAX_QPATH];
+	char skyname[MAX_QPATH];
+	char groundshadername[MAX_QPATH];
 	char defaultwatershader[MAX_QPATH];	//typically the name of the ocean or whatever.
 	float defaultwaterheight;
 	float defaultgroundheight;
@@ -224,7 +237,7 @@ typedef struct heightmap_s
 	mesh_t skymesh;
 	mesh_t *askymesh;
 	unsigned int exteriorcontents;
-	qboolean beinglazy;	//only load one section per frame, if its the renderer doing the loading. this helps avoid nasty stalls, in theory.
+	unsigned int loadingsections;	//number of sections currently being loaded. avoid loading extras while non-zero.
 	size_t traceseq;
 	size_t drawnframe;
 	enum
@@ -254,6 +267,7 @@ typedef struct heightmap_s
 
 		struct hmentity_s *next;	//used for freeing/allocating an entity
 	} *entities;
+	void *entitylock;	//lock this if you're going to read/write entities of any kind.
 
 #ifndef SERVERONLY
 	unsigned int numusedlmsects;	//to track leaks and stats
@@ -279,6 +293,10 @@ static void ted_dorelight(heightmap_t *hm);
 #endif
 static qboolean Terr_Collect(heightmap_t *hm);
 static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int flags);
+static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b);
+static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b);
+static void Terr_WorkerLoadedSection(void *ctx, void *data, size_t a, size_t b);
+static void Terr_WorkerFailedSection(void *ctx, void *data, size_t a, size_t b);
 
 #ifndef SERVERONLY
 static texid_t Terr_LoadTexture(char *name)
@@ -304,6 +322,7 @@ static void Terr_LoadSectionTextures(hmsection_t *s)
 {
 #ifndef SERVERONLY
 	extern texid_t missing_texture;
+	struct hmwater_s *w;
 	if (isDedicated)
 		return;
 	//CL_CheckOrEnqueDownloadFile(s->texname[0], NULL, 0);
@@ -328,6 +347,11 @@ static void Terr_LoadSectionTextures(hmsection_t *s)
 		s->textures.bump			= *s->texname[0]?R_LoadHiResTexture(va("%s_norm", s->texname[0]), NULL, 0):r_nulltex;
 		s->textures.specular		= *s->texname[0]?R_LoadHiResTexture(va("%s_spec", s->texname[0]), NULL, 0):r_nulltex;
 		break;
+	}
+	for (w = s->water; w; w = w->next)
+	{
+		w->shader = R_RegisterCustom (w->shadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
+		R_BuildDefaultTexnums(NULL, w->shader);	//this might get expensive. hideously so.
 	}
 #endif
 }
@@ -387,12 +411,6 @@ static qboolean Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 			}
 			lm += (HMLMSTRIDE)*lightmap_bytes;
 		}
-
-		lightmap[s->lightmap]->modified = true;
-		lightmap[s->lightmap]->rectchange.l = 0;
-		lightmap[s->lightmap]->rectchange.t = 0;
-		lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
-		lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
 	}
 
 	if (s->lightmap >= 0)
@@ -408,7 +426,7 @@ static qboolean Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 }
 #endif
 
-char *genextendedhex(int n, char *buf)
+static char *genextendedhex(int n, char *buf)
 {
 	char *ret;
 	static char nibble[16] = "0123456789abcdef";
@@ -426,7 +444,7 @@ char *genextendedhex(int n, char *buf)
 	*buf++ = 0;
 	return ret;
 }
-static char *Terr_DiskBlockName(heightmap_t *hm, int sx, int sy)
+static char *Terr_DiskBlockName(heightmap_t *hm, int sx, int sy, char *out, size_t outsize)
 {
 	char xpart[9];
 	char ypart[9];
@@ -442,16 +460,18 @@ static char *Terr_DiskBlockName(heightmap_t *hm, int sx, int sy)
 		sx |= 0xffffff00;
 	if (sy >= CHUNKBIAS/SECTIONSPERBLOCK)
 		sy |= 0xffffff00;
-	return va("maps/%s/block_%s_%s.hms", hm->path, genextendedhex(sx, xpart), genextendedhex(sy, ypart));
+	Q_snprintfz(out, outsize, "maps/%s/block_%s_%s.hms", hm->path, genextendedhex(sx, xpart), genextendedhex(sy, ypart));
+	return out;
 }
-static char *Terr_DiskSectionName(heightmap_t *hm, int sx, int sy)
+static char *Terr_DiskSectionName(heightmap_t *hm, int sx, int sy, char *out, size_t outsize)
 {
 	sx -= CHUNKBIAS;
 	sy -= CHUNKBIAS;
 	//wrap cleanly
 	sx &= CHUNKLIMIT-1;
 	sy &= CHUNKLIMIT-1;
-	return va("maps/%s/sect_%03x_%03x.hms", hm->path, sx, sy);
+	Q_snprintfz(out, outsize, "maps/%s/sect_%03x_%03x.hms", hm->path, sx, sy);
+	return out;
 }
 #ifndef SERVERONLY
 static char *Terr_TempDiskSectionName(heightmap_t *hm, int sx, int sy)
@@ -528,45 +548,55 @@ static qboolean Terr_IsSectionFName(heightmap_t *hm, char *fname, int *sx, int *
 	return true;
 }
 
-static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy)
+static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy, qboolean scheduleload)
 {
 	hmsection_t *s;
 	hmcluster_t *cluster;
 	int clusternum = (sx/MAXSECTIONS) + (sy/MAXSECTIONS)*MAXCLUSTERS;
+
+#ifdef LOADERTHREAD
+	Sys_LockMutex(com_resourcemutex);
+#endif
 	cluster = hm->cluster[clusternum];
 	if (!cluster)
 		cluster = hm->cluster[clusternum] = Z_Malloc(sizeof(*cluster));
 	s = cluster->section[(sx%MAXSECTIONS) + (sy%MAXSECTIONS)*MAXSECTIONS];
 	if (!s)
 	{
-		/*link_t *l;
-		l = hm->collected.next;
-		if (l != &hm->collected)
+		s = Z_Malloc(sizeof(*s));
+		if (!s)
 		{
-			s = (hmsection_t*)l;
-			RemoveLink(&s->recycle);
-		}
-		else*/
-		{
-			s = Z_Malloc(sizeof(*s));
-			if (!s)
-				return NULL;
-#ifndef SERVERONLY
-			s->lightmap = -1;
+#ifdef LOADERTHREAD
+			Sys_UnlockMutex(com_resourcemutex);
 #endif
+			return NULL;
 		}
+#ifndef SERVERONLY
+		s->lightmap = -1;
+#endif
+		
+#ifndef SERVERONLY
+		s->numents = 0;
+#endif
 
-		InsertLinkBefore(&s->recycle, &hm->recycle);
 		s->sx = sx;
 		s->sy = sy;
 		cluster->section[(sx%MAXSECTIONS) + (sy%MAXSECTIONS)*MAXSECTIONS] = s;
 		hm->activesections++;
 		s->hmmod = hm;
+
+		s->flags = TSF_DIRTY;
+
+		hm->loadingsections+=1;
+
+		s->loadstate = TSLS_LOADING1;
+
+		if (scheduleload)
+			COM_AddWork(1, Terr_LoadSectionWorker, s, hm, sx, sy);
 	}
-#ifndef SERVERONLY
-	s->numents = 0;
+#ifdef LOADERTHREAD
+	Sys_UnlockMutex(com_resourcemutex);
 #endif
-	s->flags = TSF_DIRTY;
 	return s;
 }
 
@@ -578,13 +608,7 @@ static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 	w = Z_Malloc(sizeof(*s->water));
 	w->next = s->water;
 	s->water = w;
-#ifndef SERVERONLY
-	if (!isDedicated)
-	{
-		w->shader = R_RegisterCustom (s->hmmod->defaultwatershader, SUF_NONE, Shader_DefaultWaterShader, NULL);
-		R_BuildDefaultTexnums(NULL, w->shader);	//this might get expensive. hideously so.
-	}
-#endif
+	Q_strncpyz(w->shadername, s->hmmod->defaultwatershader, sizeof(w->shadername));
 	w->simple = true;
 	w->contentmask = FTECONTENTS_WATER;
 	memset(w->holes, 0, sizeof(w->holes));
@@ -637,6 +661,7 @@ static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t ep
 		max[1] = bound(hm->firstsegy, max[1], hm->maxsegy-1);
 	}
 
+	Sys_LockMutex(hm->entitylock);
 	//try to find the ent if it already exists (don't do dupes)
 	for (e = hm->entities; e; e = e->next)
 	{
@@ -681,7 +706,7 @@ static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t ep
 	{
 		for (coord[1] = min[1]; coord[1] <= max[1]; coord[1]++)
 		{
-			s = Terr_GetSection(hm, coord[0], coord[1], loadflags);
+			s = Terr_GetSection(hm, coord[0], coord[1], loadflags|TGS_ANYSTATE);
 			if (!s)
 				continue;
 
@@ -694,8 +719,11 @@ static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t ep
 			if (i < s->numents)
 				continue;
 
+			//FIXME: while technically correct, this causes issues with the v1 format.
 			s->flags |= TSF_EDITED;
 
+			//FIXME: race condition - main thread might be walking the entity list.
+			//FIXME: even worse: the editor might be running through this routine adding/removing entities at the same time as the loader.
 			if (s->maxents == s->numents)
 			{
 				s->maxents++;
@@ -705,6 +733,7 @@ static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t ep
 			e->refs++;
 		}
 	}
+	Sys_UnlockMutex(hm->entitylock);
 }
 
 static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
@@ -712,6 +741,7 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 #ifndef SERVERONLY
 	dsmesh_v1_t *dm;
 	float *colours;
+	qbyte *lmstart;
 #endif
 	dsection_v1_t *ds = ptr;
 	int i;
@@ -746,33 +776,10 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	Q_strncpyz(s->texname[2], ds->texname[2], sizeof(s->texname[2]));
 	Q_strncpyz(s->texname[3], ds->texname[3], sizeof(s->texname[3]));
 
-	if (*s->texname[0])
-		CL_CheckOrEnqueDownloadFile(s->texname[0], NULL, 0);
-	if (*s->texname[1])
-		CL_CheckOrEnqueDownloadFile(s->texname[1], NULL, 0);
-	if (*s->texname[2])
-		CL_CheckOrEnqueDownloadFile(s->texname[2], NULL, 0);
-	if (*s->texname[3])
-		CL_CheckOrEnqueDownloadFile(s->texname[3], NULL, 0);
-
 	/*load in the mixture/lighting*/
-	if (s->lightmap >= 0)
-	{
-		qbyte *lm;
-
-		lm = lightmap[s->lightmap]->lightmaps;
-		lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
-		for (i = 0; i < SECTTEXSIZE; i++)
-		{
-			memcpy(lm, ds->texmap + i, sizeof(ds->texmap[0]));
-			lm += (HMLMSTRIDE)*lightmap_bytes;
-		}
-		lightmap[s->lightmap]->modified = true;
-		lightmap[s->lightmap]->rectchange.l = 0;
-		lightmap[s->lightmap]->rectchange.t = 0;
-		lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
-		lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
-	}
+	lmstart = BZ_Malloc(SECTTEXSIZE*SECTTEXSIZE*4);
+	memcpy(lmstart, ds->texmap, SECTTEXSIZE*SECTTEXSIZE*4);
+	COM_AddWork(0, Terr_WorkerLoadedSectionLightmap, hm, lmstart, s->sx, s->sy);
 
 	s->mesh.colors4f_array[0] = s->colours;
 	if (flags & TSF_HASCOLOURS)
@@ -1044,6 +1051,7 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 		}
 	}
 
+	Sys_LockMutex(hm->entitylock);
 	Terr_Write_SInt(&strm, s->numents);
 	for (i = 0; i < s->numents; i++)
 	{
@@ -1079,11 +1087,35 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 		if (mf & TMF_SCALE)
 			Terr_Write_Float(&strm, s->ents[i]->ent.scale);
 	}
+	Sys_UnlockMutex(hm->entitylock);
 
 	//reset it in case the buffer is getting a little full
 	strm.pos = (strm.pos + sizeof(int)-1) & ~(sizeof(int)-1);
 	VFS_WRITE(f, strm.buffer, strm.pos);
 	strm.pos = 0;
+}
+static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b)
+{
+	heightmap_t *hm = ctx;
+	hmsection_t *s = Terr_GetSection(hm, a, b, TGS_NOLOAD|TGS_ANYSTATE);
+	qbyte *inlm = data;
+	qbyte *outlm;
+	int y;
+
+	if (s)
+	if (lightmap_bytes == 4 && Terr_InitLightmap(s, false))
+	{
+		outlm = lightmap[s->lightmap]->lightmaps;
+		outlm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+		for (y = 0; y < SECTTEXSIZE; y++)
+		{
+			memcpy(outlm, inlm, SECTTEXSIZE*4);
+			inlm += SECTTEXSIZE*4;
+			outlm += (HMLMSTRIDE)*lightmap_bytes;
+		}
+	}
+
+	BZ_Free(data);
 }
 #endif
 static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
@@ -1093,7 +1125,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	qbyte last;
 	int y;
 	qboolean present;
-	qbyte *lm, delta;
+	qbyte *lmstart = NULL, *lm, delta;
 #endif
 	struct terrstream_s strm = {ptr, len, 0};
 	float f;
@@ -1128,20 +1160,15 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	for (i = 0; i < j; i++)
 	{
 		struct hmwater_s *w = Z_Malloc(sizeof(*w));
-		char shadername[MAX_QPATH];
 		int fl = Terr_Read_SInt(&strm);
 		w->next = s->water;
 		s->water = w;
 		w->simple = true;
 		w->contentmask = Terr_Read_SInt(&strm);
 		if (fl & 1)
-			Terr_Read_String(&strm, shadername, sizeof(shadername));
+			Terr_Read_String(&strm, w->shadername, sizeof(w->shadername));
 		else
-			Q_strncpyz(shadername, hm->defaultwatershader, sizeof(shadername));
-#ifndef SERVERONLY
-//		CL_CheckOrEnqueDownloadFile(shadername, NULL, 0);
-		w->shader = R_RegisterCustom (shadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
-#endif
+			Q_strncpyz(w->shadername, hm->defaultwatershader, sizeof(w->shadername));
 		if (fl & 2)
 		{
 			for (x = 0; x < 8; x++)
@@ -1197,43 +1224,41 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 		else
 			present = !!(*s->texname[2-j]);
 
+		//should be able to skip this if no shadows or textures
+		if (!lmstart)
+			lmstart = BZ_Malloc(SECTTEXSIZE*SECTTEXSIZE*4);
+
 		if (present)
 		{
 			//read the channel
-			if (s->lightmap >= 0)
+			last = 0;
+			lm = lmstart;
+			for (y = 0; y < SECTTEXSIZE; y++)
 			{
-				last = 0;
-				lm = lightmap[s->lightmap]->lightmaps;
-				lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
-				for (y = 0; y < SECTTEXSIZE; y++)
+				for (x = 0; x < SECTTEXSIZE; x++)
 				{
-					for (x = 0; x < SECTTEXSIZE; x++)
-					{
-						delta = Terr_Read_Byte(&strm);
-						last = (last+delta)&0xff;
-						lm[x*4+j] = last;
-					}
-					lm += (HMLMSTRIDE)*lightmap_bytes;
+					delta = Terr_Read_Byte(&strm);
+					last = (last+delta)&0xff;
+					lm[x*4+j] = last;
 				}
-			}
-			else
-			{
-				strm.pos += SECTTEXSIZE*SECTTEXSIZE;
+				lm += x*4;
 			}
 		}
-		else if (s->lightmap >= 0)
+		else
 		{
 			last = ((j==3)?255:0);
-			lm = lightmap[s->lightmap]->lightmaps;
-			lm += (s->lmy * HMLMSTRIDE + s->lmx) * lightmap_bytes;
+			lm = lmstart;
 			for (y = 0; y < SECTTEXSIZE; y++)
 			{
 				for (x = 0; x < SECTTEXSIZE; x++)
 					lm[x*4+j] = last;
-				lm += (HMLMSTRIDE)*lightmap_bytes;
+				lm += x*4;
 			}
 		}
 	}
+
+	if (lmstart)
+		COM_AddWork(0, Terr_WorkerLoadedSectionLightmap, hm, lmstart, s->sx, s->sy);
 
 	/*load any static ents*/
 	j = Terr_Read_SInt(&strm);
@@ -1272,11 +1297,28 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 
 //#include "gl_adt.inc"
 
+static void Terr_ClearSection(hmsection_t *s)
+{
+	struct hmwater_s *w;
+	int i;
+	Sys_LockMutex(s->hmmod->entitylock);
+	for (i = 0; i < s->numents; i++)
+		s->ents[i]->refs-=1;
+	s->numents = 0;
+	Sys_UnlockMutex(s->hmmod->entitylock);
+
+	while(s->water)
+	{
+		w = s->water;
+		s->water = w->next;
+		Z_Free(w);
+	}
+}
+
 static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 {
 	int i;
 
-	s->flags |= TSF_FAILEDLOAD;
 	memset(s->holes, 0, sizeof(s->holes));
 
 #ifndef SERVERONLY
@@ -1410,42 +1452,49 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 	}
 #endif
 }
-static hmsection_t *Terr_ReadSection(heightmap_t *hm, int ver, int sx, int sy, void *filebase, unsigned int filelen)
+
+static void Terr_WorkerLoadedSection(void *ctx, void *data, size_t a, size_t b)
 {
+	hmsection_t *s = ctx;
+	Terr_LoadSectionTextures(s);
+	COM_AssertMainThread("foo");
+	InsertLinkBefore(&s->recycle, &s->hmmod->recycle);
+	s->hmmod->loadingsections-=1;
+	s->flags &= ~TSF_EDITED;
+	s->loadstate = TSLS_LOADED;
+}
+static void Terr_WorkerFailedSection(void *ctx, void *data, size_t a, size_t b)
+{
+	hmsection_t *s = ctx;
+	Terr_WorkerLoadedSection(ctx, data, a, b);
+	s->flags &= ~TSF_EDITED;
+	s->loadstate = TSLS_FAILED;
+}
+
+static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int ver, void *filebase, unsigned int filelen)
+{
+	qboolean failed = false;
 	void *ptr = filebase;
 
-	hmsection_t *s;
-	hmcluster_t *cluster;
-	int clusternum = (sx/MAXSECTIONS) + (sy/MAXSECTIONS)*MAXCLUSTERS;
-	cluster = hm->cluster[clusternum];
-	if (!cluster)
-		cluster = hm->cluster[clusternum] = Z_Malloc(sizeof(*cluster));
-	s = cluster->section[(sx%MAXSECTIONS) + (sy%MAXSECTIONS)*MAXSECTIONS];
-
-	if (!s)
-	{
-		s = Terr_GenerateSection(hm, sx, sy);
-		if (!s)
-			return NULL;
-	}
-
-#ifndef SERVERONLY
-	Terr_InitLightmap(s, false);
-#endif
-
-	s->flags &= ~TSF_FAILEDLOAD;
 	if (ptr && ver == 1)
 		Terr_ReadV1(hm, s, ptr, filelen);
 	else if (ptr && ver == 2)
 		Terr_ReadV2(hm, s, ptr, filelen);
 	else
 	{
-		s->flags |= TSF_FAILEDLOAD;
 //		s->flags |= TSF_RELIGHT;
 		Terr_GenerateDefault(hm, s);
+
+		failed = true;
 	}
 
-	Terr_LoadSectionTextures(s);
+	s->flags &= ~TSF_EDITED;	//its just been loaded (and was probably edited by the loader), make sure it doesn't get saved or whatever
+
+	s->loadstate = TSLS_LOADING2;
+	if (failed)
+		COM_AddWork(0, Terr_WorkerFailedSection, s, NULL, s->sx, s->sy);
+	else
+		COM_AddWork(0, Terr_WorkerLoadedSection, s, NULL, s->sx, s->sy);
 
 	return s;
 }
@@ -1453,6 +1502,7 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, int ver, int sx, int sy, v
 #ifndef SERVERONLY
 qboolean Terr_DownloadedSection(char *fname)
 {
+/*
 	qofs_t len;
 	dsection_t *fileptr;
 	int x, y;
@@ -1478,31 +1528,50 @@ qboolean Terr_DownloadedSection(char *fname)
 			FS_FreeFile(fileptr);
 		return true;
 	}
-
+*/
 	return false;
 }
 #endif
 
 static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, unsigned int flags)
 {
-	void *diskimage;
-	qofs_t len;
 #ifndef SERVERONLY
 	//when using networked terrain, the client will never load a section from disk, but will only load it from the server
 	//one section at a time.
 	if (mod_terrain_networked.ival && !sv.state)
 	{
+		char fname[MAX_QPATH];
 		if (flags & TGS_NODOWNLOAD)
 			return;
 		//try to download it now...
 		if (!cl.downloadlist)
-			CL_CheckOrEnqueDownloadFile(Terr_DiskSectionName(hm, sx, sy), Terr_TempDiskSectionName(hm, sx, sy), DLLF_OVERWRITE|DLLF_TEMPORARY);
+			CL_CheckOrEnqueDownloadFile(Terr_DiskSectionName(hm, sx, sy, fname, sizeof(fname)), Terr_TempDiskSectionName(hm, sx, sy), DLLF_OVERWRITE|DLLF_TEMPORARY);
 		return;
 	}
 #endif
 
+	if (!s)
+	{
+		Terr_GenerateSection(hm, sx, sy, true);
+	}
+}
+static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b)
+{
+	heightmap_t *hm = data;
+	hmsection_t *s = ctx;
+	int sx = a;
+	int sy = b;
+	int flags = 0;
+	void *diskimage;
+	qofs_t len;
+	char fname[MAX_QPATH];
+
+	//already processed, or not otherwise valid
+	if (s->loadstate != TSLS_LOADING1)
+		return;
+
 #if SECTIONSPERBLOCK > 1
-	len = FS_LoadFile(Terr_DiskBlockName(hm, sx, sy), (void**)&diskimage);
+	len = FS_LoadFile(Terr_DiskBlockName(hm, sx, sy, fname, sizeof(fname)), (void**)&diskimage);
 	if (!qofs_Error(len))
 	{
 		int offset;
@@ -1512,7 +1581,7 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 		if (block->magic != SECTION_MAGIC || !(block->ver & 0x80000000))
 		{
 			//give it a dummy so we don't constantly hit the disk
-			Terr_ReadSection(hm, 0, sx, sy, NULL, 0);
+			Terr_ReadSection(hm, s, 0, NULL, 0);
 		}
 		else
 		{
@@ -1524,18 +1593,14 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 				for (x = 0; x < SECTIONSPERBLOCK; x++)
 				{
 					//noload avoids recursion.
-					s = Terr_GetSection(hm, sx+x, sy+y, TGS_NOLOAD|TGS_NODOWNLOAD|TGS_IGNOREFAILED);
-					if (!s || s->flags & TSF_FAILEDLOAD 
-#ifndef SERVERONLY
-						|| s->lightmap < 0
-#endif
-						)
+					s = Terr_GenerateSection(hm, sx+x, sy+y, false);
+					if (s->loadstate == TSLS_LOADING1)
 					{
 						offset = block->offset[x + y*SECTIONSPERBLOCK];
 						if (!offset)
-							Terr_ReadSection(hm, ver, sx+x, sy+y, NULL, 0);	//no data in the file for this section
+							Terr_ReadSection(hm, s, ver, NULL, 0);	//no data in the file for this section
 						else
-							Terr_ReadSection(hm, ver, sx+x, sy+y, (char*)diskimage + offset, len - offset);
+							Terr_ReadSection(hm, s, ver, (char*)diskimage + offset, len - offset);
 					}
 				}
 		}
@@ -1545,13 +1610,13 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 #endif
 
 	//legacy one-section-per-file format.
-	len = FS_LoadFile(Terr_DiskSectionName(hm, sx, sy), (void**)&diskimage);
+	len = FS_LoadFile(Terr_DiskSectionName(hm, sx, sy, fname, sizeof(fname)), (void**)&diskimage);
 	if (!qofs_Error(len))
 	{
 		dsection_t *h = diskimage;
 		if (len >= sizeof(*h) && h->magic == SECTION_MAGIC)
 		{
-			Terr_ReadSection(hm, h->ver, sx, sy, h+1, len-sizeof(*h));
+			Terr_ReadSection(hm, s, h->ver, h+1, len-sizeof(*h));
 			FS_FreeFile(diskimage);
 			return;
 		}
@@ -1565,13 +1630,7 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 #endif
 
 	//generate a dummy one
-	Terr_ReadSection(hm, 0, sx, sy, NULL, 0);
-
-	//download it if it couldn't be loaded.
-#ifndef SERVERONLY
-	if (!cl.downloadlist && !(flags & TGS_NODOWNLOAD))
-		CL_CheckOrEnqueDownloadFile(Terr_DiskSectionName(hm, sx, sy), NULL, 0);
-#endif
+	Terr_ReadSection(hm, s, 0, NULL, 0);
 }
 
 #ifndef SERVERONLY
@@ -1650,6 +1709,7 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	ds.waterheight = w?w->heights[4*8+4]:s->minh;
 	ds.minh = s->minh;
 	ds.maxh = s->maxh;
+	Sys_LockMutex(hm->entitylock);
 	ds.ents_num = s->numents;
 
 	VFS_WRITE(f, &ds, sizeof(ds));
@@ -1676,6 +1736,7 @@ static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 		if (pad)
 			VFS_WRITE(f, &nothing, pad);
 	}
+	Sys_UnlockMutex(hm->entitylock);
 }
 
 static void Terr_Save(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, int sy, int ver)
@@ -1694,7 +1755,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 	return true;
 #else
 	vfsfile_t *f;
-	char *fname;
+	char fname[MAX_QPATH];
 	int x, y;
 	int writever = mod_terrain_savever.ival;
 	if (!writever)
@@ -1715,13 +1776,16 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 		{
 			for (x = 0; x < SECTIONSPERBLOCK; x++)
 			{
-				s = Terr_GetSection(hm, sx+x, sy+y, TGS_LOAD);
+				s = Terr_GetSection(hm, sx+x, sy+y, TGS_WAITLOAD|TGS_NODOWNLOAD);
 				if (s)
 					s->flags |= TSF_EDITED;	//stop them from getting reused for something else.
 			}
 		}
 
-		fname = Terr_DiskBlockName(hm, sx, sy);
+		//make sure all lightmap info was loaded.
+		COM_WorkerFullSync();
+
+		Terr_DiskBlockName(hm, sx, sy, fname, sizeof(fname));
 		FS_CreatePath(fname, FS_GAMEONLY);
 		f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 		if (!f)
@@ -1738,8 +1802,8 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 		{
 			for (x = 0; x < SECTIONSPERBLOCK; x++)
 			{
-				s = Terr_GetSection(hm, sx+x, sy+y, TGS_LOAD);
-				if (s && (s->flags & (TSF_EDITED|TSF_FAILEDLOAD)) != TSF_FAILEDLOAD)
+				s = Terr_GetSection(hm, sx+x, sy+y, TGS_WAITLOAD|TGS_NODOWNLOAD);
+				if (s && s->loadstate == TSLS_LOADED)
 				{
 					dbh.offset[y*SECTIONSPERBLOCK + x] = VFS_TELL(f);
 					Terr_Save(hm, s, f, sx+x, sy+y, writever);
@@ -1758,10 +1822,13 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 #endif
 	{
 		dsection_t dsh;
-		fname = Terr_DiskSectionName(hm, sx, sy);
+		Terr_DiskSectionName(hm, sx, sy, fname, sizeof(fname));
 
-		if (s && (s->flags & (TSF_EDITED|TSF_FAILEDLOAD)) != TSF_FAILEDLOAD)
-			return FS_Remove(fname, FS_GAMEONLY);	//delete the file if the section got reverted to default, and wasn't later modified.
+//		if (s && (s->flags & (TSF_EDITED|TSF_FAILEDLOAD)) != TSF_FAILEDLOAD)
+//			return FS_Remove(fname, FS_GAMEONLY);	//delete the file if the section got reverted to default, and wasn't later modified.
+
+		//make sure all lightmap info was loaded.
+		COM_WorkerFullSync();
 
 		FS_CreatePath(fname, FS_GAMEONLY);
 		f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
@@ -1793,51 +1860,56 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int 
 	int sy = y & (MAXSECTIONS-1);
 	cluster = hm->cluster[cx + cy*MAXCLUSTERS];
 	if (!cluster)
-	{
-		if (flags & (TGS_LOAD|TGS_FORCELOAD|TGS_LAZYLOAD))
-		{
-			cluster = Z_Malloc(sizeof(*cluster));
-			if (!cluster)
-				return NULL;
-			hm->cluster[cx + cy*MAXCLUSTERS] = cluster;
-		}
-		else
-			return NULL;
-	}
-	section = cluster->section[sx + sy*MAXSECTIONS];
+		section = NULL;
+	else
+		section = cluster->section[sx + sy*MAXSECTIONS];
 	if (!section)
 	{
-		if (flags & (TGS_LOAD|TGS_FORCELOAD|TGS_LAZYLOAD))
+		if (flags & (TGS_LAZYLOAD|TGS_TRYLOAD|TGS_WAITLOAD))
 		{
-			if ((flags & TGS_LAZYLOAD) && hm->beinglazy)
+			if ((flags & TGS_LAZYLOAD) && hm->loadingsections)
 				return NULL;
-			hm->beinglazy = true;
-//			while (hm->activesections > TERRAINACTIVESECTIONS)
-//				Terr_Collect(hm);
-			Terr_LoadSection(hm, section, x, y, flags);
-			section = cluster->section[sx + sy*MAXSECTIONS];
+			section = Terr_GenerateSection(hm, x, y, true);
 		}
 	}
 #ifndef SERVERONLY
 	//when using networked terrain, the client will never load a section from disk, but only loading it from the server
+	//this means we need to send a new request to download the section if it was flagged as modified.
 	if (!(flags & TGS_NODOWNLOAD))
 	if (section && (section->flags & TSF_NOTIFY) && mod_terrain_networked.ival && !sv.state)
 	{
 		//try to download it now...
 		if (!cl.downloadlist)
 		{
-			CL_CheckOrEnqueDownloadFile(Terr_DiskSectionName(hm, x, y), Terr_TempDiskSectionName(hm, x, y), DLLF_OVERWRITE|DLLF_TEMPORARY);
+			char fname[MAX_QPATH];
+			CL_CheckOrEnqueDownloadFile(Terr_DiskSectionName(hm, x, y, fname, sizeof(fname)), Terr_TempDiskSectionName(hm, x, y), DLLF_OVERWRITE|DLLF_TEMPORARY);
 
 			section->flags &= ~TSF_NOTIFY;
 		}
 	}
 #endif
 
-	if (section && (section->flags & TSF_FAILEDLOAD))
+	if (section)
 	{
-		if (flags & TGS_FORCELOAD)
-			section->flags &= ~TSF_FAILEDLOAD;
-		else
+		//wait for it to load if we're meant to be doing that.
+		if (section->loadstate == TSLS_LOADING1 && (flags & TGS_WAITLOAD))
+		{
+			//process the load
+			COM_WorkerPartialSync(section, &section->loadstate, TSLS_LOADING1);
+		}
+		if (section->loadstate == TSLS_LOADING2 && (flags & TGS_WAITLOAD))
+			COM_MainThreadFlush();	//make sure any associated lightmaps also got read+handled
+
+		//if it failed, generate a default (for editing)
+		if (section->loadstate == TSLS_FAILED && (flags & TGS_DEFAULTONFAIL))
+		{
+			section->flags = (section->flags & ~TSF_EDITED);
+			Terr_ClearSection(section);
+			Terr_GenerateDefault(hm, section);
+		}
+
+
+		if ((section->loadstate != TSLS_LOADED) && !(flags & TGS_ANYSTATE))
 			section = NULL;
 	}
 
@@ -1847,8 +1919,8 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int 
 /*save all currently loaded sections*/
 int Heightmap_Save(heightmap_t *hm)
 {
-	hmsection_t *s, *os;
-	int x, y, sx, sy;
+	hmsection_t *s;
+	int x, y;
 	int sectionssaved = 0;
 	for (x = hm->firstsegx; x < hm->maxsegx; x++)
 	{
@@ -1859,17 +1931,17 @@ int Heightmap_Save(heightmap_t *hm)
 				continue;
 			if (s->flags & TSF_EDITED)
 			{
-				//make sure all the parts are loaded before trying to write them, so we don't try reading partial files, which would be bad, mmkay?
+/*				//make sure all the parts are loaded before trying to write them, so we don't try reading partial files, which would be bad, mmkay?
 				for (sy = y&~(SECTIONSPERBLOCK-1); sy < y+SECTIONSPERBLOCK && sy < hm->maxsegy; sy++)
 				{
 					for (sx = x&~(SECTIONSPERBLOCK-1); sx < x+SECTIONSPERBLOCK && sx < hm->maxsegx; sx++)
 					{
-						os = Terr_GetSection(hm, sx, sy, TGS_LOAD|TGS_NODOWNLOAD|TGS_NORENDER);
+						os = Terr_GetSection(hm, sx, sy, TGS_WAITLOAD|TGS_NODOWNLOAD|TGS_NORENDER);
 						if (os)
 							os->flags |= TSF_EDITED;
 					}
 				}
-
+*/
 
 				if (Terr_SaveSection(hm, s, x, y, true))
 				{
@@ -1890,6 +1962,7 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 	heightmap_t *hm;
 	hmsection_t *s;
 	int x, y;
+	char fname[MAX_QPATH];
 
 	//reject if its not in maps
 	if (strncmp(name, "maps/", 5))
@@ -1902,7 +1975,7 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 		return false;
 
 	//verify that its valid
-	if (strcmp(name, Terr_DiskSectionName(hm, x, y)))
+	if (strcmp(name, Terr_DiskSectionName(hm, x, y, fname, sizeof(fname))))
 		return false;
 
 	s = Terr_GetSection(hm, x, y, TGS_NOLOAD);
@@ -1916,24 +1989,13 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 }
 #endif
 
-void Terr_ClearSection(hmsection_t *s)
-{
-	struct hmwater_s *w;
-	int i;
-	for (i = 0; i < s->numents; i++)
-		s->ents[i]->refs-=1;
-	s->numents = 0;
-
-	while(s->water)
-	{
-		w = s->water;
-		s->water = w->next;
-		Z_Free(w);
-	}
-}
-
 void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusable)
 {
+	if (s && s->loadstate == TSLS_LOADING1)
+		COM_WorkerPartialSync(s, &s->loadstate, TSLS_LOADING1);
+	if (s && s->loadstate == TSLS_LOADING2)
+		COM_MainThreadFlush();	//make sure any associated lightmaps also got read+handled
+
 	RemoveLink(&s->recycle);
 
 	Terr_ClearSection(s);
@@ -1979,6 +2041,9 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 
 #ifndef SERVERONLY
 //dedicated servers do not support editing. no lightmap info causes problems.
+
+//when a terrain section has the notify flag set on the server, the server needs to go through and set out notifications to replicate it to the various clients
+//so the clients know to re-download the section.
 static void Terr_DoEditNotify(heightmap_t *hm)
 {
 	int i;
@@ -2029,7 +2094,7 @@ static qboolean Terr_Collect(heightmap_t *hm)
 	for (ln = &hm->recycle; ln->next != &hm->recycle; )
 	{
 		s = (hmsection_t*)ln->next;
-		if (s->flags & TSF_EDITED)
+		if ((s->flags & TSF_EDITED) || s->loadstate == TSLS_LOADING1 || s->loadstate == TSLS_LOADING2)
 			ln = &s->recycle;
 		else
 		{
@@ -2586,6 +2651,8 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 		return;
 	}
 
+	if (s->maxh_cull < s->maxh)
+		s->maxh_cull = s->maxh;
 	{
 		vec3_t mins, maxs;
 		mins[0] = (x-CHUNKBIAS) * hm->sectionsize;
@@ -2721,56 +2788,63 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 		if (ctx->pvs && !ctx->wmodel->funcs.EdictInFatPVS(ctx->wmodel, &s->pvscache, ctx->pvs))
 			return;	//this section isn't in any visible bsp leafs
 
-		//chuck out any batches for models in this section
-		for (i = 0; i < s->numents; i++)
+		if (s->numents)
 		{
-			vec3_t dist;
-			float a;
-			model_t *model;
-			//skip the entity if its already been added to some batch this frame.
-			if (s->ents[i]->drawnframe == hm->drawnframe)
-				continue;
-			s->ents[i]->drawnframe = hm->drawnframe;
-
-			model = s->ents[i]->ent.model;
-			if (!model)
-				continue;
-
-			if (model->needload == 1)
+			Sys_LockMutex(hm->entitylock);
+			//chuck out any batches for models in this section
+			for (i = 0; i < s->numents; i++)
 			{
-				if (hm->beinglazy)
+				vec3_t dist;
+				float a, dmin, dmax;
+				model_t *model;
+				//skip the entity if its already been added to some batch this frame.
+				if (s->ents[i]->drawnframe == hm->drawnframe)
 					continue;
-				hm->beinglazy = true;
-				Mod_LoadModel(model, MLV_WARN);
-			}
-			if (model->needload)
-				continue;
+				s->ents[i]->drawnframe = hm->drawnframe;
 
-			VectorSubtract(s->ents[i]->ent.origin, r_origin, dist);
-			a = VectorLength(dist);
-			a = 1024 - a + model->radius*16;
-			a /= model->radius;
-			if (a < 0)
-				continue;
-			if (a >= 1)
-			{
-				a = 1;
-				s->ents[i]->ent.flags &= ~RF_TRANSLUCENT;
+				model = s->ents[i]->ent.model;
+				if (!model)
+					continue;
+
+				if (model->loadstate == MLS_NOTLOADED)
+				{
+	//				if (hm->beinglazy)
+	//					continue;
+	//				hm->beinglazy = true;
+					Mod_LoadModel(model, MLV_WARN);
+				}
+				if (model->loadstate != MLS_LOADED)
+					continue;
+
+				VectorSubtract(s->ents[i]->ent.origin, r_origin, dist);
+				a = VectorLength(dist);
+				dmin = 1024 + model->radius*160;
+				dmax = dmin + 1024;
+				a = (a - dmin) / (dmax - dmin);
+				a = 1-a;
+				if (a < 0)
+					continue;
+				if (a >= 1)
+				{
+					a = 1;
+					s->ents[i]->ent.flags &= ~RF_TRANSLUCENT;
+				}
+				else
+					s->ents[i]->ent.flags |= RF_TRANSLUCENT;
+				s->ents[i]->ent.shaderRGBAf[3] = a;
+				switch(model->type)
+				{
+				case mod_alias:
+					R_GAlias_GenerateBatches(&s->ents[i]->ent, ctx->batches);
+					break;
+				case mod_brush:
+					Surf_GenBrushBatches(ctx->batches, &s->ents[i]->ent);
+					break;
+				default:	//FIXME: no sprites! oh noes!
+					break;
+				}
 			}
-			else
-				s->ents[i]->ent.flags |= RF_TRANSLUCENT;
-			s->ents[i]->ent.shaderRGBAf[3] = a;
-			switch(model->type)
-			{
-			case mod_alias:
-				R_GAlias_GenerateBatches(&s->ents[i]->ent, ctx->batches);
-				break;
-			case mod_brush:
-				Surf_GenBrushBatches(ctx->batches, &s->ents[i]->ent);
-				break;
-			default:	//FIXME: no sprites! oh noes!
-				break;
-			}
+			Sys_UnlockMutex(hm->entitylock);
 		}
 
 		for (wa = s->water; wa; wa = wa->next)
@@ -2862,11 +2936,14 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 //			if (!Terr_Collect(hm))
 //				break;
 		while (hm->activesections > TERRAINACTIVESECTIONS)
+		{
 			if (!Terr_Collect(hm))
 				break;
+			break;
+		}
 	}
 	
-	hm->beinglazy = false;
+//	hm->beinglazy = false;
 	if (hm->relight)
 		ted_dorelight(hm);
 
@@ -2965,7 +3042,7 @@ void Terrain_ClipDecal(fragmentdecal_t *dec, float *center, float radius, model_
 	{
 		for (x = min[0]; x < max[0]; x++)
 		{
-			s = Terr_GetSection(hm, x, y, TGS_LOAD);
+			s = Terr_GetSection(hm, x, y, TGS_WAITLOAD);
 			if (!s)
 				continue;
 
@@ -3051,7 +3128,7 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 		return hm->exteriorcontents;
 	if (sx >= hm->maxsegx || sy >= hm->maxsegy)
 		return hm->exteriorcontents;
-	s = Terr_GetSection(hm, sx, sy, TGS_LOAD);
+	s = Terr_GetSection(hm, sx, sy, TGS_TRYLOAD);
 	if (!s)
 	{
 		return FTECONTENTS_SOLID;
@@ -3148,7 +3225,7 @@ void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 		return;
 	if (sx >= hm->maxsegx || sy >= hm->maxsegy)
 		return;
-	s = Terr_GetSection(hm, sx, sy, TGS_LOAD);
+	s = Terr_GetSection(hm, sx, sy, TGS_TRYLOAD);
 	if (!s)
 		return;
 
@@ -3305,7 +3382,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	else if (sy < tr->hm->firstsegy || sy >= tr->hm->maxsegy)
 		s = NULL;
 	else
-		s = Terr_GetSection(tr->hm, sx, sy, TGS_LOAD);
+		s = Terr_GetSection(tr->hm, sx, sy, TGS_TRYLOAD|TGS_WAITLOAD);
 
 	if (!s)
 	{
@@ -3319,9 +3396,10 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 		return;
 	}
 
-	if (s->traceseq != tr->hm->traceseq)
+	if (s->traceseq != tr->hm->traceseq && s->numents)
 	{
 		s->traceseq = tr->hm->traceseq;
+		Sys_LockMutex(tr->hm->entitylock);
 		for (i = 0; i < s->numents; i++)
 		{
 			vec3_t start_l, end_l;
@@ -3333,7 +3411,8 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			s->ents[i]->traceseq = tr->hm->traceseq;
 			model = s->ents[i]->ent.model;
 			frame = s->ents[i]->ent.framestate.g[FS_REG].frame[0];
-			if (!model || model->needload || !model->funcs.NativeTrace)
+			//FIXME: IGNORE the entity if it isn't loaded yet? surely that's bad?
+			if (!model || model->loadstate != MLS_LOADED || !model->funcs.NativeTrace)
 				continue;
 			//figure out where on the submodel the trace is.
 			VectorSubtract (tr->start, s->ents[i]->ent.origin, start_l);
@@ -3369,6 +3448,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 				tr->plane[2] = etr.plane.normal[2];
 			}
 		}
+		Sys_UnlockMutex(tr->hm->entitylock);
 	}
 
 	sx = tx - CHUNKBIAS*(SECTHEIGHTSIZE-1);
@@ -3796,7 +3876,7 @@ static void ted_dorelight(heightmap_t *hm)
 //		lm[0] = norm[0]*127 + 128;
 //		lm[1] = norm[1]*127 + 128;
 //		lm[2] = norm[2]*127 + 128;
-		lm[3] = d*255;
+		lm[3] = 127 + d*128;
 	}
 
 	lightmap[s->lightmap]->modified = true;
@@ -4070,6 +4150,7 @@ enum
 	tid_exponential,
 	tid_square_linear,
 	tid_square_exponential,
+	tid_flat
 };
 //calls 'func' for each tile upon the terrain. the 'tile' can be either height or texel
 static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float radius, float strength, int steps, void(*func)(void *ctx, hmsection_t *s, int idx, float wx, float wy, float strength), void *ctx)
@@ -4105,7 +4186,7 @@ static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float ra
 	{
 		for (sx = min[0]; sx < max[0]; sx++)
 		{
-			s = Terr_GetSection(hm, sx, sy, TGS_FORCELOAD);
+			s = Terr_GetSection(hm, sx, sy, TGS_WAITLOAD|TGS_DEFAULTONFAIL);
 			if (!s)
 				continue;
 
@@ -4142,6 +4223,12 @@ static void ted_itterate(heightmap_t *hm, int distribution, float *pos, float ra
 						w = radius - w;
 						if (w > 0)
 							func(ctx, s, tx+ty*steps, wx, wy, w*strength/(radius));
+						break;
+					case tid_flat:
+						w = max(fabs(xd), fabs(yd));
+						w = radius - w;
+						if (w > 0)
+							func(ctx, s, tx+ty*steps, wx, wy, strength);
 						break;
 					}
 				}
@@ -4185,7 +4272,7 @@ void ted_texkill(hmsection_t *s, const char *killtex)
 					else
 					{
 						if (to != 3)
-							lm[to] += lm[t];
+							lm[to] = (lm[to]+lm[t])&0xff;
 						lm[t] = 0;
 					}
 				}
@@ -4330,7 +4417,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(hm->firstsegx, x, hm->maxsegx-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 		
-			s = Terr_GetSection(hm, x, y, TGS_LOAD);
+			s = Terr_GetSection(hm, x, y, TGS_WAITLOAD|TGS_DEFAULTONFAIL);
 			if (!s)
 				return;
 			x = bound(0, quant, 3);
@@ -4345,7 +4432,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(hm->firstsegx, x, hm->maxsegx-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 
-			ted_texkill(Terr_GetSection(hm, x, y, TGS_FORCELOAD), PR_GetStringOfs(prinst, OFS_PARM4));
+			ted_texkill(Terr_GetSection(hm, x, y, TGS_WAITLOAD|TGS_DEFAULTONFAIL), PR_GetStringOfs(prinst, OFS_PARM4));
 		}
 		break;
 	case ter_reset:
@@ -4356,10 +4443,10 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			y = pos[1] / hm->sectionsize;
 			x = bound(hm->firstsegx, x, hm->maxsegx-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
-			s = Terr_GetSection(hm, x, y, TGS_LOAD);
+			s = Terr_GetSection(hm, x, y, TGS_WAITLOAD|TGS_DEFAULTONFAIL);
 			if (s)
 			{
-				s->flags = (s->flags & ~TSF_EDITED) | TSF_FAILEDLOAD;
+				s->flags = (s->flags & ~TSF_EDITED);
 				Terr_ClearSection(s);
 				Terr_GenerateDefault(hm, s);
 			}
@@ -4371,7 +4458,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			wedict_t *ed = G_WEDICT(prinst, OFS_PARM1);
 			//FIXME: modeltype pitch inversion
 			AngleVectorsFLU(ed->v->angles, axis[0], axis[1], axis[2]);
-			Terr_AddMesh(hm, TGS_FORCELOAD, vmw->Get_CModel(vmw, ed->v->modelindex), ed->v->origin, axis, ed->xv->scale);
+			Terr_AddMesh(hm, TGS_WAITLOAD|TGS_DEFAULTONFAIL, vmw->Get_CModel(vmw, ed->v->modelindex), ed->v->origin, axis, ed->xv->scale);
 		}
 		break;
 	case ter_mesh_kill:
@@ -4386,10 +4473,12 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(hm->firstsegx, x, hm->maxsegx-1);
 			y = bound(hm->firstsegy, y, hm->maxsegy-1);
 		
-			s = Terr_GetSection(hm, x, y, TGS_FORCELOAD);
+			s = Terr_GetSection(hm, x, y, TGS_WAITLOAD|TGS_DEFAULTONFAIL);
 			if (!s)
 				return;
 
+			Sys_LockMutex(hm->entitylock);
+			//FIXME: this doesn't work properly.
 			if (s->numents)
 			{
 				for (i = 0; i < s->numents; i++)
@@ -4397,11 +4486,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				s->flags |= TSF_EDITED;
 				s->numents = 0;
 			}
-
-			/*for (i = 0; i < s->numents; i++)
-			{
-
-			}*/
+			Sys_UnlockMutex(hm->entitylock);
 		}
 		break;
 	}
@@ -4416,53 +4501,52 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 {
 	char key[128];
+	char value[2048];
 
 	heightmap->sectionsize = 1024;
 	heightmap->mode = HMM_TERRAIN;
 
 	heightmap->defaultgroundheight = 0;
 	heightmap->defaultwaterheight = 0;
-	Q_strncpyz(heightmap->defaultwatershader, va("water/%s", heightmap->path), sizeof(heightmap->defaultwatershader));
+	Q_snprintfz(heightmap->defaultwatershader, sizeof(heightmap->defaultwatershader), "water/%s", heightmap->path);
 	Q_strncpyz(heightmap->defaultgroundtexture, "", sizeof(heightmap->defaultgroundtexture));
 
 	if (data)
-	if ((data=COM_Parse(data)))	//read the map info.
-	if (com_token[0] == '{')
+	if ((data=COM_ParseOut(data, key, sizeof(key))))	//read the map info.
+	if (key[0] == '{')
 	while (1)
 	{
-		if (!(data=COM_Parse(data)))
+		if (!(data=COM_ParseOut(data, key, sizeof(key))))
 			break; // error
-		if (com_token[0] == '}')
+		if (key[0] == '}')
 			break; // end of worldspawn
-		if (com_token[0] == '_')
-			strcpy(key, com_token + 1);	//_ vars are for comments/utility stuff that arn't visible to progs and for compat. We want to support these stealth things.
-		else
-			strcpy(key, com_token);
-		if (!((data=COM_Parse(data))))
+		if (key[0] == '_')
+			memmove(key, key+1, strlen(key)); //_ vars are for comments/utility stuff that arn't visible to progs and for compat. We want to support these stealth things.
+		if (!((data=COM_ParseOut(data, value, sizeof(value)))))
 			break; // error		
 		if (!strcmp("segmentsize", key))
-			heightmap->sectionsize = atof(com_token);
+			heightmap->sectionsize = atof(value);
 		else if (!strcmp("minxsegment", key))
-			heightmap->firstsegx = atoi(com_token);
+			heightmap->firstsegx = atoi(value);
 		else if (!strcmp("minysegment", key))
-			heightmap->firstsegy = atoi(com_token);
+			heightmap->firstsegy = atoi(value);
 		else if (!strcmp("maxxsegment", key))
-			heightmap->maxsegx = atoi(com_token);
+			heightmap->maxsegx = atoi(value);
 		else if (!strcmp("maxysegment", key))
-			heightmap->maxsegy = atoi(com_token);
+			heightmap->maxsegy = atoi(value);
 		else if (!strcmp("defaultwaterheight", key))
-			heightmap->defaultwaterheight = atof(com_token);
+			heightmap->defaultwaterheight = atof(value);
 		else if (!strcmp("defaultgroundheight", key))
-			heightmap->defaultgroundheight = atof(com_token);
+			heightmap->defaultgroundheight = atof(value);
 		else if (!strcmp("defaultgroundtexture", key))
-			Q_strncpyz(heightmap->defaultgroundtexture, com_token, sizeof(heightmap->defaultgroundtexture));
+			Q_strncpyz(heightmap->defaultgroundtexture, value, sizeof(heightmap->defaultgroundtexture));
 		else if (!strcmp("defaultwatertexture", key))
-			Q_strncpyz(heightmap->defaultwatershader, com_token, sizeof(heightmap->defaultwatershader));
+			Q_strncpyz(heightmap->defaultwatershader, value, sizeof(heightmap->defaultwatershader));
 		else if (!strcmp("tiles", key))
 		{
 			char *d;
 			heightmap->mode = HMM_BLOCKS;
-			d = com_token;
+			d = value;
 			d = COM_ParseOut(d, key, sizeof(key));
 			heightmap->tilepixcount[0] = atoi(key);
 			d = COM_ParseOut(d, key, sizeof(key));
@@ -4489,13 +4573,14 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 		heightmap->maxsegy = CHUNKLIMIT;
 }
 
-void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
+void Terr_FinishTerrain(model_t *mod)
 {
+	heightmap_t *hm = mod->terrain;
 #ifndef SERVERONLY
 	if (qrenderer != QR_NONE)
 	{
-		if (skyname)
-			hm->skyshader = R_RegisterCustom(va("skybox_%s", skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
+		if (*hm->skyname)
+			hm->skyshader = R_RegisterCustom(va("skybox_%s", hm->skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
 		else
 			hm->skyshader = NULL;
 
@@ -4511,7 +4596,7 @@ void Terr_FinishTerrain(heightmap_t *hm, char *shadername, char *skyname)
 				);
 			break;
 		case HMM_TERRAIN:
-			hm->shader = R_RegisterShader(shadername, SUF_LIGHTMAP,
+			hm->shader = R_RegisterShader(hm->groundshadername, SUF_LIGHTMAP,
 					"{\n"
 						"bemode rtlight\n"
 							"{\n"
@@ -4587,16 +4672,11 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 {
 	heightmap_t *hm;
 
-	char shadername[MAX_QPATH];
-	char skyname[MAX_QPATH];
+	char token[MAX_QPATH];
 	int sectsize = 0;
 
-	COM_FileBase(mod->name, shadername, sizeof(shadername));
-	strcpy(shadername, "terrainshader");
-	strcpy(skyname, "sky1");
-
-	buffer = COM_Parse(buffer);
-	if (strcmp(com_token, "terrain"))
+	buffer = COM_ParseOut(buffer, token, sizeof(token));
+	if (strcmp(token, "terrain"))
 	{
 		Con_Printf(CON_ERROR "%s wasn't terrain map\n", mod->name);	//shouldn't happen
 		return false;
@@ -4612,6 +4692,10 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 	mod->entities = ZG_Malloc(&mod->memgroup, strlen(buffer)+1);
 	strcpy(mod->entities, buffer);
 
+	strcpy(hm->groundshadername, "terrainshader");
+	strcpy(hm->skyname, "sky1");
+
+	hm->entitylock = Sys_CreateMutex();
 	hm->sectionsize = sectsize;
 	hm->firstsegx = -1;
 	hm->firstsegy = -1;
@@ -4653,8 +4737,6 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 
 	mod->terrain = hm;
 
-	Terr_FinishTerrain(hm, shadername, skyname);
-
 	return true;
 }
 
@@ -4682,19 +4764,26 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force)
 		potential.maxsegy = bound(CHUNKBIAS+1, potential.maxsegy, CHUNKLIMIT);
 
 		if (!force)
-			if (!COM_FCheckExists(va("maps/%s/sect_%03x_%03x.hms", loadname, potential.firstsegx + (potential.maxsegx-potential.firstsegx)/2, potential.firstsegy + (potential.maxsegy-potential.firstsegy)/2)))
-				if (!COM_FCheckExists(va("maps/%s/block_00_00.hms", loadname)))
+		{
+			char sect[MAX_QPATH];
+			Q_snprintfz(sect, sizeof(sect), "maps/%s/sect_%03x_%03x.hms", loadname, potential.firstsegx + (potential.maxsegx-potential.firstsegx)/2, potential.firstsegy + (potential.maxsegy-potential.firstsegy)/2);
+			if (!COM_FCheckExists(sect))
+			{
+				Q_snprintfz(sect, sizeof(sect), "maps/%s/block_00_00.hms", loadname);
+				if (!COM_FCheckExists(sect))
 					return NULL;
+			}
+		}
 	}
 
 	hm = Z_Malloc(sizeof(*hm));
 	*hm = potential;
+	hm->entitylock = Sys_CreateMutex();
 	ClearLink(&hm->recycle);
 	Q_strncpyz(hm->path, loadname, sizeof(hm->path));
+	Q_strncpyz(hm->groundshadername, "terrainshader", sizeof(hm->groundshadername));
 
 	hm->exteriorcontents = FTECONTENTS_EMPTY;	//bsp geometry outside the heightmap
-
-	Terr_FinishTerrain(hm, "terrainshader", NULL);
 
 	return hm;
 }
@@ -4771,7 +4860,7 @@ void Mod_Terrain_Convert_f(void)
 				{
 					for (sx = x; sx < x+SECTIONSPERBLOCK && sx < hm->maxsegx; sx++)
 					{
-						s = Terr_GetSection(hm, sx, sy, TGS_LOAD|TGS_NODOWNLOAD|TGS_NORENDER);
+						s = Terr_GetSection(hm, sx, sy, TGS_WAITLOAD|TGS_NODOWNLOAD|TGS_NORENDER);
 						if (s)
 						{
 							if (*texkill)
@@ -4784,7 +4873,7 @@ void Mod_Terrain_Convert_f(void)
 				{
 					for (sx = x; sx < x+SECTIONSPERBLOCK && sx < hm->maxsegx; sx++)
 					{
-						s = Terr_GetSection(hm, sx, sy, TGS_LOAD|TGS_NODOWNLOAD|TGS_NORENDER);
+						s = Terr_GetSection(hm, sx, sy, TGS_WAITLOAD|TGS_NODOWNLOAD|TGS_NORENDER);
 						if (s)
 						{
 							if (s->flags & TSF_EDITED)

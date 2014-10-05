@@ -73,7 +73,7 @@ float SV_ChatFunc(const char *func);
 void Chat_GetTag(const char *filename, float tag, char **text, char **condition, char **options)
 {	
 	char *file; char *s;
-	file = COM_LoadTempFile(va("dialog/%s.dlg", filename));
+	file = COM_LoadTempFile(va("dialog/%s.dlg", filename), NULL);
 	if (!file)
 	{
 		*text = "ERROR: File not found";

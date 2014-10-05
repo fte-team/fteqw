@@ -290,16 +290,19 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 
 	//transform the angles too
 	VectorCopy(org, G_VECTOR(OFS_PARM0));
-	if (ent->entnum <= svs.allocated_client_slots)
+#ifndef CLIENTONLY
+	if (w == &sv.world && ent->entnum <= svs.allocated_client_slots)
 	{
 		VectorCopy(ent->v->v_angle, ent->v->angles);
 	}
 	else
+#endif
 		ent->v->angles[0] *= -1;
 	VectorCopy(ent->v->angles, G_VECTOR(OFS_PARM1));
 	AngleVectors(ent->v->angles, w->g.v_forward, w->g.v_right, w->g.v_up);
 	PR_ExecuteProgram (w->progs, portal->xv->camera_transform);
 	VectorAngles(w->g.v_forward, w->g.v_up, ent->v->angles);
+#ifndef CLIENTONLY
 	if (ent->entnum > 0 && ent->entnum <= svs.allocated_client_slots)
 	{
 		client_t *cl = &svs.clients[ent->entnum-1];
@@ -330,6 +333,7 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 		VectorCopy(ent->v->angles, ent->v->v_angle);
 		ent->v->angles[0] *= -1;
 	}
+#endif
 
 	/*
 	avelocity is horribly dependant upon eular angles. trying to treat it as a matrix is folly.
@@ -682,6 +686,7 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 	World_LinkEdict (w, pusher, false);
 
 // see if any solid entities are inside the final position
+	if (pusher->v->movetype != MOVETYPE_H2PUSHPULL)
 	for (e = 1; e < w->num_edicts; e++)
 	{
 		check = WEDICT_NUM(w->progs, e);
@@ -1330,7 +1335,9 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 	if (trace.allsolid)
 	{
+#ifndef CLIENTONLY
 		if (progstype != PROG_H2)
+#endif
 			trace.fraction = 0;	//traces that start in solid report a fraction of 0. this is to prevent things from dropping out of the world completely. at least this way they ought to still be shootable etc
 
 #pragma warningmsg("The following line might help boost framerates a lot in rmq, not sure if they violate expected behaviour in other mods though - check that they're safe.")
@@ -2084,7 +2091,10 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	}
 #endif
 
-	switch ( (int)ent->v->movetype)
+
+	if (ent->xv->customphysics)
+		PR_ExecuteProgram (w->progs, ent->xv->customphysics);
+	else switch ( (int)ent->v->movetype)
 	{
 	case MOVETYPE_PUSH:
 		WPhys_Physics_Pusher (w, ent);
@@ -2097,8 +2107,15 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	case MOVETYPE_ANGLENOCLIP:
 		WPhys_Physics_Noclip (w, ent);
 		break;
-	case MOVETYPE_STEP:
 	case MOVETYPE_H2PUSHPULL:
+#if defined(HEXEN2) && !defined(CLIENTONLY)
+		if (w == &sv.world && progstype == PROG_H2)
+			WPhys_Physics_Step (w, ent);	//hexen2 pushable object (basically exactly movetype_step)
+		else
+#endif
+			WPhys_Physics_Pusher (w, ent);	//non-solid pusher, for tenebrae compat
+		break;
+	case MOVETYPE_STEP:
 		WPhys_Physics_Step (w, ent);
 		break;
 	case MOVETYPE_FOLLOW:

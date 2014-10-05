@@ -19,6 +19,7 @@ cvar_t pr_droptofloorunits = CVAR("pr_droptofloorunits", "");
 cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
 cvar_t pr_tempstringcount = CVAR("pr_tempstringcount", "");//"16");
 cvar_t pr_tempstringsize = CVAR("pr_tempstringsize", "4096");
+cvar_t	pr_sourcedir = CVARD("pr_sourcedir", "src", "Subdirectory where your qc source is located. Used by the internal compiler and qc debugging functionality.");
 cvar_t pr_enable_uriget = CVAR("pr_enable_uriget", "1");
 cvar_t pr_enable_profiling = CVARD("pr_enable_profiling", "0", "Enables profiling support. Will run more slowly. Change the map and then use the profile_ssqc/profile_csqc commands to see the results.");
 int tokenizeqc(const char *str, qboolean dpfuckage);
@@ -34,6 +35,7 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
 	Cvar_Register (&pr_enable_uriget, cvargroup_progs);
 	Cvar_Register (&pr_enable_profiling, cvargroup_progs);
+	Cvar_Register (&pr_sourcedir, cvargroup_progs);
 
 #ifdef RAGDOLL
 	Cmd_AddCommand("skel_info", skel_info_f);
@@ -158,7 +160,9 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 
 		if (line == -1)
 			return line;
+#ifndef CLIENTONLY
 		SV_EndRedirect();
+#endif
 		if (developer.value)
 		{
 			f = FS_OpenVFS(filename, "rb", FS_GAME);
@@ -320,7 +324,7 @@ void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...)
 	else
 	{
 		PR_StackTrace(progfuncs, false);
-		PR_AbortStack(progfuncs);
+//		PR_AbortStack(progfuncs);
 		progfuncs->parms->Abort ("%s", string);
 	}
 }
@@ -776,8 +780,10 @@ void QCBUILTIN PF_checkpvs(pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	float *viewpos = G_VECTOR(OFS_PARM0);
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM1);
 
-	if (!world->worldmodel || world->worldmodel->needload)
+	if (!world->worldmodel || world->worldmodel->loadstate != MLS_LOADED)
 		G_FLOAT(OFS_RETURN) = false;
+	else if (!world->worldmodel->funcs.FatPVS)
+		G_FLOAT(OFS_RETURN) = true;
 	else
 	{
 		//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
@@ -1511,6 +1517,8 @@ pf_fopen_files_t pf_fopen_files[MAX_QC_FILES];
 //fallbackread can be NULL, if the qc is not allowed to read that (original) file at all.
 qboolean QC_FixFileName(const char *name, const char **result, const char **fallbackread)
 {
+	char ext[8];
+
 	if (strchr(name, ':') ||	//dos/win absolute path, ntfs ADS, amiga drives. reject them all.
 		strchr(name, '\\') ||	//windows-only paths.
 		*name == '/' ||	//absolute path was given - reject
@@ -1521,7 +1529,7 @@ qboolean QC_FixFileName(const char *name, const char **result, const char **fall
 
 	*fallbackread = name;
 	//if its a user config, ban any fallback locations so that csqc can't read passwords or whatever.
-	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) && !stricmp(COM_FileExtension(name), "cfg"))
+	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) && !stricmp(COM_FileExtension(name, ext, sizeof(ext)), "cfg"))
 		*fallbackread = NULL;
 	*result = va("data/%s", name);
 	return true;
@@ -1534,6 +1542,7 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	int fsize = G_FLOAT(OFS_PARM2);
 	const char *fallbackread;
 	int i;
+	size_t insize;
 
 	for (i = 0; i < MAX_QC_FILES; i++)
 		if (!pf_fopen_files[i].data)
@@ -1596,11 +1605,11 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		break;
 	case FRIK_FILE_READ:	//read
 	case FRIK_FILE_READNL:	//read whole file
-		pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
+		fsize = FS_LoadFile(pf_fopen_files[i].name, &pf_fopen_files[i].data);
 		if (!pf_fopen_files[i].data && fallbackread)
 		{
 			Q_strncpyz(pf_fopen_files[i].name, fallbackread, sizeof(pf_fopen_files[i].name));
-			pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
+			fsize = FS_LoadFile(pf_fopen_files[i].name, &pf_fopen_files[i].data);
 		}
 
 		if (pf_fopen_files[i].data)
@@ -1611,12 +1620,12 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		else
 			G_FLOAT(OFS_RETURN) = -1;
 
-		pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
+		pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = fsize;
 		pf_fopen_files[i].ofs = 0;
 		break;
 	case FRIK_FILE_APPEND:	//append
-		pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
-		pf_fopen_files[i].ofs = pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
+		pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name, &insize);
+		pf_fopen_files[i].ofs = pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = insize;
 		if (pf_fopen_files[i].data)
 		{
 			G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
@@ -1691,7 +1700,7 @@ void QCBUILTIN PF_fclose (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
-		Con_Printf("PF_fclose: File out of range\n");
+		Con_Printf("PF_fclose: File out of range (%g)\n", G_FLOAT(OFS_PARM0));
 		return;	//out of range
 	}
 
@@ -2105,7 +2114,7 @@ void QCBUILTIN PF_callfunction (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_loadfromfile (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char	*filename = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char *file = COM_LoadTempFile(filename);
+	const char *file = COM_LoadTempFile(filename, NULL);
 
 	int size;
 
@@ -4086,7 +4095,7 @@ void QCBUILTIN PF_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	const float *gravitydir;
 	extern const vec3_t standardgravity;
 
-	ent = PROG_TO_WEDICT(prinst, pr_global_struct->self);
+	ent = PROG_TO_WEDICT(prinst, *world->g.self);
 
 	if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
 		gravitydir = ent->xv->gravitydir;
@@ -4164,10 +4173,11 @@ FIXME: add gravitydir support
 float World_changeyaw (wedict_t *ent);
 void QCBUILTIN PF_changeyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
 	wedict_t		*ent;
 //	float		ideal, current, move, speed;
 
-	ent = PROG_TO_WEDICT(prinst, pr_global_struct->self);
+	ent = PROG_TO_WEDICT(prinst, *w->g.self);
 
 	World_changeyaw(ent);
 	/*
@@ -4207,10 +4217,11 @@ void QCBUILTIN PF_changeyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 //FIXME: support gravitydir
 void QCBUILTIN PF_changepitch (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	edict_t		*ent;
+	world_t *w = prinst->parms->user;
+	wedict_t		*ent;
 	float		ideal, current, move, speed;
 
-	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
+	ent = PROG_TO_WEDICT(prinst, *w->g.self);
 	current = anglemod( ent->v->angles[1] );
 	ideal = ent->xv->idealpitch;
 	speed = ent->xv->pitch_speed;

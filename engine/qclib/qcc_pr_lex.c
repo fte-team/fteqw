@@ -4383,6 +4383,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			QCC_type_t *arg[3];
 			int args;
 			char *indexname;
+			pbool isref;
 
 
 			do
@@ -4393,6 +4394,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					setnotget = false;
 				else
 					break;
+				isref = QCC_PR_CheckToken("*");
 
 				fieldtypename = QCC_PR_ParseName();
 				fieldtype = QCC_TypeForName(fieldtypename);
@@ -4427,7 +4429,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				args = 0;
 				strcpy (pr_parm_names[args], "this");
 				argname[args] = "this";
-				arg[args++] = newt;
+				if (isref)
+					arg[args++] = QCC_PointerTypeTo(newt);
+				else
+					arg[args++] = newt;
 				if (indextype)
 				{
 					strcpy (pr_parm_names[args], indexname);
@@ -4507,18 +4512,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					newt->accessors = acc;
 				}
 
-				if (setnotget)
-				{
-					if (acc->set)
-						QCC_Error(ERR_TOOMANYINITIALISERS, "%s::set_%s already declared", newt->name, accessorname);
-					acc->set = def;
-				}
-				else
-				{
-					if (acc->get)
-						QCC_Error(ERR_TOOMANYINITIALISERS, "%s::get_%s already declared", newt->name, accessorname);
-					acc->get = def;
-				}
+				if (acc->getset_func[setnotget])
+					QCC_Error(ERR_TOOMANYINITIALISERS, "%s::%s_%s already declared", newt->name, setnotget?"set":"get", accessorname);
+				acc->getset_func[setnotget] = def;
 			} while (QCC_PR_CheckToken(",") || QCC_PR_CheckToken(";"));
 			QCC_PR_Expect("}");
 		}

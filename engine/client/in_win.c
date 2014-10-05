@@ -1613,7 +1613,10 @@ void INS_StartupJoystick (void)
 		}
 	}
 
-	Con_Printf ("found %i joysticks\n", joy_count);
+	if (joy_count)
+		Con_Printf ("found %i joysticks\n", joy_count);
+	else
+		Con_DPrintf ("found no joysticks\n");
 }
 
 /*

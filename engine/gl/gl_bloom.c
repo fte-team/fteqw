@@ -114,7 +114,8 @@ static void R_SetupBloomTextures(int w, int h)
 			if (!TEXVALID(pingtex[i][j]))
 			{
 				sprintf(name, "***bloom*%c*%i***", 'a'+i, j);
-				TEXASSIGN(pingtex[i][j], GL_AllocNewTexture(name, texwidth[j], texheight[j], IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
+				TEXASSIGN(pingtex[i][j], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
+				qglGenTextures(1, &pingtex[i][j]->num);
 			}
 			GL_MTBind(0, GL_TEXTURE_2D, pingtex[i][j]);
 			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, texwidth[j], texheight[j], 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);

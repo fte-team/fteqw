@@ -17,6 +17,7 @@ hashtable_t filesystemhash;
 qboolean com_fschanged = true;
 qboolean fs_readonly;
 static unsigned int fs_restarts;
+void *fs_thread_mutex;
 
 cvar_t com_fs_cache			= CVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
 cvar_t cfg_reload_on_gamedir = CVAR("cfg_reload_on_gamedir", "1");
@@ -86,19 +87,22 @@ void FS_UnRegisterFileSystemModule(void *module)
 {
 	int i;
 	qboolean found = false;
-	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
+	if (Sys_LockMutex(fs_thread_mutex))
 	{
-		if (searchpathformats[i].module == module)
+		for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
 		{
-			searchpathformats[i].OpenNew = NULL;
-			searchpathformats[i].module = NULL;
-			found = true;
+			if (searchpathformats[i].module == module)
+			{
+				searchpathformats[i].OpenNew = NULL;
+				searchpathformats[i].module = NULL;
+				found = true;
+			}
 		}
-	}
-
-	if (found)
-	{
-		Cmd_ExecuteString("fs_restart", RESTRICT_LOCAL);
+		Sys_UnlockMutex(fs_thread_mutex);
+		if (found)
+		{
+			Cmd_ExecuteString("fs_restart", RESTRICT_LOCAL);
+		}
 	}
 }
 
@@ -158,7 +162,6 @@ char	pubgamedirfile[MAX_OSPATH];	//like gamedirfile, but not set to the fte-only
 
 
 //the various COM_LoadFiles set these on return
-int	com_filesize;
 qboolean com_file_copyprotected;//file should not be available for download.
 qboolean com_file_untrusted;	//file was downloaded inside a package
 
@@ -462,7 +465,11 @@ ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data)
 	{	//every manifest should have an internal name specified, so we can guess the correct basedir
 		//if we don't recognise it, then we'll typically prompt (or just use the working directory), but always assuming a default at least ensures things are sane.
 		//fixme: we should probably fill in the basegame here (and share that logic with the legacy manifest generation code)
+#ifdef BRANDING_NAME
+		data = Cmd_TokenizeString((char*)"game "STRINGIFY(BRANDING_NAME), false, false);
+#else
 		data = Cmd_TokenizeString((char*)"game quake", false, false);
+#endif
 		FS_Manifest_ParseTokens(man);
 	}
 
@@ -494,6 +501,7 @@ typedef struct searchpath_s
 	char purepath[256];	//server tracks the path used to load them so it can tell the client
 	int crc_check;	//client sorts packs according to this checksum
 	int crc_reply;	//client sends a different crc back to the server, for the paks it's actually loaded.
+	int orderkey;	//used to check to see if the paths were actually changed or not.
 
 	struct searchpath_s *next;
 	struct searchpath_s *nextpure;
@@ -750,23 +758,30 @@ struct fsbucketblock
 };
 static struct fsbucketblock *fs_hash_filebuckets;
 
-void FS_FlushFSHashReally(void)
+void FS_FlushFSHashReally(qboolean domutexes)
 {
-	if (filesystemhash.numbuckets)
+	COM_AssertMainThread("FS_FlushFSHashReally");
+	if (!domutexes || Sys_LockMutex(fs_thread_mutex))
 	{
-		int i;
-		for (i = 0; i < filesystemhash.numbuckets; i++)
-			filesystemhash.bucket[i] = NULL;
-	}
+		com_fschanged = true;
 
-	while (fs_hash_filebuckets)
-	{
-		struct fsbucketblock *n = fs_hash_filebuckets->prev;
-		Z_Free(fs_hash_filebuckets);
-		fs_hash_filebuckets = n;
-	}
+		if (filesystemhash.numbuckets)
+		{
+			int i;
+			for (i = 0; i < filesystemhash.numbuckets; i++)
+				filesystemhash.bucket[i] = NULL;
+		}
 
-	com_fschanged = true;
+		while (fs_hash_filebuckets)
+		{
+			struct fsbucketblock *n = fs_hash_filebuckets->prev;
+			Z_Free(fs_hash_filebuckets);
+			fs_hash_filebuckets = n;
+		}
+
+		if (domutexes)
+			Sys_UnlockMutex(fs_thread_mutex);
+	}
 }
 void FS_FlushFSHashWritten(void)
 {
@@ -774,7 +789,7 @@ void FS_FlushFSHashWritten(void)
 }
 void FS_FlushFSHashRemoved(void)
 {
-	FS_FlushFSHashReally();
+	FS_FlushFSHashReally(true);
 }
 
 static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle)
@@ -819,12 +834,17 @@ static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *fileh
 	fs_hash_files++;
 }
 
-void FS_RebuildFSHash(void)
+void FS_RebuildFSHash(qboolean domutex)
 {
 	int depth = 1;
 	searchpath_t	*search;
 	if (!com_fschanged)
 		return;
+
+	COM_AssertMainThread("FS_RebuildFSHash");
+	if (domutex && !Sys_LockMutex(fs_thread_mutex))
+		return;	//amg!
+	
 
 	if (!filesystemhash.numbuckets)
 	{
@@ -833,7 +853,7 @@ void FS_RebuildFSHash(void)
 	}
 	else
 	{
-		FS_FlushFSHashRemoved();
+		FS_FlushFSHashReally(false);
 	}
 	Hash_InitTable(&filesystemhash, filesystemhash.numbuckets, filesystemhash.bucket);
 
@@ -856,6 +876,9 @@ void FS_RebuildFSHash(void)
 	}
 
 	com_fschanged = false;
+
+	if (domutex)
+		Sys_UnlockMutex(fs_thread_mutex);
 
 	Con_DPrintf("%i unique files, %i duplicates\n", fs_hash_files, fs_hash_dups);
 }
@@ -1578,12 +1601,11 @@ Filename are reletive to the quake directory.
 Always appends a 0 qbyte to the loaded data.
 ============
 */
-qbyte *COM_LoadFile (const char *path, int usehunk)
+qbyte *COM_LoadFile (const char *path, int usehunk, size_t *filesize)
 {
 	vfsfile_t *f;
 	qbyte *buf;
 	qofs_t len;
-	char	base[MAX_OSPATH];
 	flocation_t loc;
 	FS_FLocateFile(path, FSLFRT_LENGTH, &loc);
 
@@ -1597,9 +1619,12 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 	if (!f)
 		return NULL;
 
-	com_filesize = len = VFS_GETLEN(f);
-	// extract the filename base name for hunk tag
-	COM_FileBase (path, base, sizeof(base));
+	len = VFS_GETLEN(f);
+	if (filesize)
+		*filesize = len;
+
+	if (usehunk == 2 || usehunk == 4 || usehunk == 6)
+		COM_AssertMainThread("COM_LoadFile+hunk");
 
 	if (usehunk == 0)
 		buf = (qbyte*)Z_Malloc (len+1);
@@ -1633,12 +1658,12 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 	return buf;
 }
 
-qbyte *FS_LoadMallocFile (const char *path)
+qbyte *FS_LoadMallocFile (const char *path, size_t *fsize)
 {
-	return COM_LoadFile (path, 5);
+	return COM_LoadFile (path, 5, fsize);
 }
 
-void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path)
+void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path, size_t *fsize)
 {
 	char *mem = NULL;
 	vfsfile_t *f = FS_OpenVFS(path, "rb", FS_GAME);
@@ -1650,7 +1675,7 @@ void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path)
 		{
 			mem[len] = 0;
 			if (VFS_READ(f, mem, len) == len)
-				com_filesize = len;
+				*fsize = len;
 			else
 				mem = NULL;
 		}
@@ -1660,23 +1685,25 @@ void *FS_LoadMallocGroupFile(zonegroup_t *ctx, char *path)
 	return mem;
 }
 
-qbyte *COM_LoadTempFile (const char *path)
+qbyte *COM_LoadTempFile (const char *path, size_t *fsize)
 {
-	return COM_LoadFile (path, 2);
+	return COM_LoadFile (path, 2, fsize);
 }
-qbyte *COM_LoadTempMoreFile (const char *path)
+qbyte *COM_LoadTempMoreFile (const char *path, size_t *fsize)
 {
-	return COM_LoadFile (path, 6);
+	return COM_LoadFile (path, 6, fsize);
 }
 
 // uses temp hunk if larger than bufsize
-qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize)
+qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize, size_t *fsize)
 {
 	qbyte	*buf;
 
+	COM_AssertMainThread("COM_LoadStackFile");
+
 	loadbuf = (qbyte *)buffer;
 	loadsize = bufsize;
-	buf = COM_LoadFile (path, 4);
+	buf = COM_LoadFile (path, 4, fsize);
 
 	return buf;
 }
@@ -1685,10 +1712,11 @@ qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize)
 /*warning: at some point I'll change this function to return only read-only buffers*/
 qofs_t FS_LoadFile(const char *name, void **file)
 {
-	*file = FS_LoadMallocFile(name);
+	size_t fsz;
+	*file = COM_LoadFile (name, 5, &fsz);
 	if (!*file)
 		return (qofs_t)-1;
-	return com_filesize;
+	return fsz;
 }
 void FS_FreeFile(void *file)
 {
@@ -1825,7 +1853,8 @@ searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, const char *pakname)
 {
 	searchpathfuncs_t *pak;
 	int j;
-	char *ext = COM_FileExtension(pakname);
+	char ext[8];
+	COM_FileExtension(pakname, ext, sizeof(ext));
 	for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
 	{
 		if (!searchpathformats[j].extension || !searchpathformats[j].OpenNew)
@@ -1899,7 +1928,8 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 		ptlen = strlen(purepath);
 		for (i = 0; i < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); i++)
 		{
-			if (fs_manifest->package[i].path && !strcmp(COM_FileExtension(fs_manifest->package[i].path), extension))
+			char ext[8];
+			if (fs_manifest->package[i].path && !strcmp(COM_FileExtension(fs_manifest->package[i].path, ext, sizeof(ext)), extension))
 			{
 				palen = strlen(fs_manifest->package[i].path);
 				if (palen > ptlen && (fs_manifest->package[i].path[ptlen] == '/' || fs_manifest->package[i].path[ptlen] == '\\' )&& !strncmp(purepath, fs_manifest->package[i].path, ptlen))
@@ -2017,7 +2047,8 @@ void COM_RefreshFSCache_f(void)
 	com_fschanged=true;
 }
 
-void COM_FlushFSCache(void)
+//optionally purges the cache and rebuilds it
+void COM_FlushFSCache(qboolean purge, qboolean domutex)
 {
 	searchpath_t *search;
 	if (com_fs_cache.ival && com_fs_cache.ival != 2)
@@ -2036,7 +2067,7 @@ void COM_FlushFSCache(void)
 	if (com_fs_cache.ival && com_fschanged)
 	{
 		//rebuild it if needed
-		FS_RebuildFSHash();
+		FS_RebuildFSHash(domutex);
 	}
 #endif
 }
@@ -2218,16 +2249,17 @@ void COM_Gamedir (const char *dir)
 	FS_Manifest_PurgeGamedirs(man);
 	if (*dir)
 	{
-		char *dup = Z_StrDup(dir);
+		char token[MAX_QPATH];
+		char *dup = Z_StrDup(dir);	//FIXME: is this really needed?
 		dir = dup;
-		while ((dir = COM_ParseStringSet(dir)))
+		while ((dir = COM_ParseStringSet(dir, token, sizeof(token))))
 		{
 			if (!strcmp(dir, ";"))
 				continue;
-			if (!*com_token)
+			if (!*token)
 				continue;
 
-			Cmd_TokenizeString(va("gamedir \"%s\"", com_token), false, false);
+			Cmd_TokenizeString(va("gamedir \"%s\"", token), false, false);
 			FS_Manifest_ParseTokens(man);
 		}
 		Z_Free(dup);
@@ -2243,7 +2275,7 @@ void COM_Gamedir (const char *dir)
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
-#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
+#define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
 /*yay q2!*/
 #define Q2CFG "com_nogamedirnativecode 0\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
@@ -2288,32 +2320,38 @@ const gamemode_info_t gamemode_info[] = {
 														 "basesj/pak0.pak"},	NULL,	{"basesj",						         },	"Scouts Journey"},
 	{"-rmq",		"rmq",		"RMQ",					{NULL},					RMQCFG,	{"id1",		"qw",	"rmq",		"*fte"},		"Remake Quake"},
 
-	//supported commercial mods (some are currently only partially supported)
+#ifdef HEXEN2
+	//hexen2's mission pack generally takes precedence if both are installed.
 	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
 														 "portals/pak3.pak"},	HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP"},
 	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},		HEX2CFG,{"data1",						"*fteh2"},	"Hexen II"},
+#endif
+#if defined(Q2CLIENT) || defined(Q2SERVER)
 	{"-quake2",		"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},	Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II"},
-	{"-quake3",		"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},	Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena"},
-
 	//mods of the above that should generally work.
 	{"-dday",		"dday",		"FTE-Quake2",			{"dday/pak0.pak"},		Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
+#endif
 
-	//can run in windows, needs 
-	{"-halflife",	"hl",		"FTE-HalfLife",			{"valve/liblist.gam"},	NULL,	{"valve",						"*ftehl"},	"Half-Life"},
-
+#if defined(Q3CLIENT) || defined(Q3SERVER)
+	{"-quake3",		"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},	Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena"},
 	//the rest are not supported in any real way. maps-only mostly, if that
 	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
-	{"-et",			"et",		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},	NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},
+	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},	NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},
 
 	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},	NULL,	{"base",						"*ftejk2"},	"Jedi Knight II: Jedi Outcast"},
 	{"-warsow",		"warsow",	"FTE-Warsow",			{"basewsw/pak0.pk3"},	NULL,	{"basewsw",						"*ftewsw"},	"Warsow"},
-
+#endif
+#if !defined(QUAKETC) && !defined(MINIMAL)
 	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},			NULL,	{"*",							"*ftedoom"},	"Doom"},
 	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},			NULL,	{"*",							"*ftedoom"},	"Doom2"},
 	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},			NULL,	{"based3",						"*ftedoom3"},"Doom3"},
 
 	//for the luls
 	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},		NULL,	{"*",							"*fted2"},	"Diablo 2"},
+
+	//can run in windows, needs hl gamecode enabled.
+	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},	NULL,	{"valve",						"*ftehl"},	"Half-Life"},
+#endif
 
 	{NULL}
 };
@@ -2401,7 +2439,7 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 	vfsfile_t *f;
 	flocation_t loc;
 	char e, *n;
-	char *ext;
+	char ext[8];
 	char *end;
 	int i;
 
@@ -2429,7 +2467,7 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 		}
 		else
 		{
-			ext = COM_FileExtension(name);
+			COM_FileExtension(name, ext, sizeof(ext));
 			for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
 			{
 				if (!searchpathformats[i].extension || !searchpathformats[i].OpenNew)
@@ -2556,8 +2594,19 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	searchpath_t	*oldpaths;
 	searchpath_t	*next;
 	int i;
+	int orderkey;
+	char syspath[MAX_OSPATH];
 
-	FS_FlushFSHashReally();
+	COM_AssertMainThread("FS_ReloadPackFilesFlags");
+	COM_WorkerFullSync();
+
+	orderkey = 0;
+	if (com_purepaths)
+		for (next = com_purepaths; next; next = next->nextpure)
+			next->orderkey = ++orderkey;
+	if (fs_puremode < 2)
+		for (next = com_purepaths; next; next = next->nextpure)
+			next->orderkey = ++orderkey;
 
 	oldpaths = com_searchpaths;
 	com_searchpaths = NULL;
@@ -2616,15 +2665,23 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			else if (*dir == '*')
 			{
 				//paths with a leading * are private, and not announced to clients that ask what the current gamedir is.
-				FS_AddGameDirectory(&oldpaths, dir+1, va("%s%s", com_gamepath, dir+1), reloadflags, SPF_EXPLICIT|SPF_PRIVATE);
+				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, dir+1);
+				FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE);
 				if (com_homepathenabled)
-					FS_AddGameDirectory(&oldpaths, dir+1, va("%s%s", com_homepath, dir+1), reloadflags, SPF_EXPLICIT|SPF_PRIVATE);
+				{
+					Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, dir+1);
+					FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE);
+				}
 			}
 			else
 			{
-				FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_gamepath, dir), reloadflags, SPF_EXPLICIT);
+				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, dir);
+				FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT);
 				if (com_homepathenabled)
-					FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_homepath, dir), reloadflags, SPF_EXPLICIT);
+				{
+					Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, dir);
+					FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT);
+				}
 			}
 		}
 	}
@@ -2746,9 +2803,10 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			{
 				char local[MAX_OSPATH];
 				vfsfile_t *vfs;
-				char *ext = COM_FileExtension(pname);
+				char ext[8];
 				void *handle;
 				int i;
+				COM_FileExtension(pname, ext, sizeof(ext));
 
 				if (FS_GenCachedPakName(pname, va("%i", crc), local, sizeof(local)))
 				{
@@ -2825,6 +2883,21 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	}
 
 
+	i = orderkey;
+	orderkey = 0;
+	next = NULL;
+	if (com_purepaths)
+		for (next = com_purepaths; next; next = next->nextpure)
+			if (next->orderkey != ++orderkey)
+				break;
+	if (!next && fs_puremode < 2)
+		for (next = com_purepaths; next; next = next->nextpure)
+			if (next->orderkey != ++orderkey)
+				break;
+
+	if (next || i != orderkey)//some path changed. make sure the fs cache is flushed.
+		FS_FlushFSHashReally(false);
+
 #ifndef SERVERONLY
 	Shader_NeedReload(true);
 #endif
@@ -2834,20 +2907,32 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 
 void FS_UnloadPackFiles(void)
 {
-	FS_ReloadPackFilesFlags(1);
+	if (Sys_LockMutex(fs_thread_mutex))
+	{
+		FS_ReloadPackFilesFlags(1);
+		Sys_UnlockMutex(fs_thread_mutex);
+	}
 }
 
 void FS_ReloadPackFiles(void)
 {
-	FS_ReloadPackFilesFlags(~0);
+	if (Sys_LockMutex(fs_thread_mutex))
+	{
+		FS_ReloadPackFilesFlags(~0);
+		Sys_UnlockMutex(fs_thread_mutex);
+	}
 }
 
 void FS_ReloadPackFiles_f(void)
 {
-	if (atoi(Cmd_Argv(1)))
-		FS_ReloadPackFilesFlags(atoi(Cmd_Argv(1)));
-	else
-		FS_ReloadPackFilesFlags(~0);
+	if (Sys_LockMutex(fs_thread_mutex))
+	{
+		if (atoi(Cmd_Argv(1)))
+			FS_ReloadPackFilesFlags(atoi(Cmd_Argv(1)));
+		else
+			FS_ReloadPackFilesFlags(~0);
+		Sys_UnlockMutex(fs_thread_mutex);
+	}
 }
 
 #if defined(_WIN32) && !defined(WINRT)
@@ -3120,10 +3205,10 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 }
 #endif
 
-void FS_Shutdown(void)
+static void FS_FreePaths(void)
 {
 	searchpath_t *next;
-	FS_FlushFSHashReally();
+	FS_FlushFSHashReally(true);
 
 	//
 	// free up any current game dir info
@@ -3148,6 +3233,12 @@ void FS_Shutdown(void)
 
 	FS_Manifest_Free(fs_manifest);
 	fs_manifest = NULL;
+}
+void FS_Shutdown(void)
+{
+	FS_FreePaths();
+	Sys_DestroyMutex(fs_thread_mutex);
+	fs_thread_mutex = NULL;
 }
 
 //returns false if the directory is not suitable.
@@ -3591,7 +3682,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 		if (!man)
 		{
 			vfsfile_t *f;
-			f = VFSOS_Open(va("%sdefault.fmf", newbasedir), "rb");
+#ifdef BRANDING_NAME
+			f = VFSOS_Open(va("%s"STRINGIFY(BRANDING_NAME)".fmf", newbasedir), "rb");
+			if (!f)
+#endif
+				f = VFSOS_Open(va("%sdefault.fmf", newbasedir), "rb");
 			if (f)
 			{
 				size_t len = VFS_GETLEN(f);
@@ -3641,7 +3736,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	}
 	else
 	{
-		FS_Shutdown();
+		FS_FreePaths();
 
 		reloadconfigs = true;
 	}
@@ -3714,47 +3809,52 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	}
 #endif
 
-	FS_ReloadPackFilesFlags(~0);
-
-	FS_BeginManifestUpdates();
-
-	COM_CheckRegistered();
-
-	if (allowreloadconfigs)
+	if (Sys_LockMutex(fs_thread_mutex))
 	{
-		for (i = 0; conffile[i]; i++)
+		FS_ReloadPackFilesFlags(~0);
+
+		FS_BeginManifestUpdates();
+
+		COM_CheckRegistered();
+
+		Sys_UnlockMutex(fs_thread_mutex);
+
+		if (allowreloadconfigs)
 		{
-			FS_FLocateFile(conffile[i], FSLFRT_IFFOUND, &loc);
-			if (confpath[i] != (loc.search?loc.search->handle:NULL))
+			for (i = 0; conffile[i]; i++)
 			{
-				reloadconfigs = true;
-				Con_DPrintf("Reloading configs because %s has changed\n", conffile[i]);
+				FS_FLocateFile(conffile[i], FSLFRT_IFFOUND, &loc);
+				if (confpath[i] != (loc.search?loc.search->handle:NULL))
+				{
+					reloadconfigs = true;
+					Con_DPrintf("Reloading configs because %s has changed\n", conffile[i]);
+				}
+			}
+
+			if (reloadconfigs)
+			{
+				//FIXME: flag this instead and do it after a delay
+				Cvar_ForceSet(&fs_gamename, man->formalname?man->formalname:"FTE");
+				Cvar_ForceSet(&com_protocolname, man->protocolname?man->protocolname:"FTE");
+
+				if (isDedicated)
+				{
+	#ifndef CLIENTONLY
+					SV_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
+	#endif
+				}
+				else
+				{
+	#ifndef SERVERONLY
+					CL_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
+	#endif
+				}
 			}
 		}
 
-		if (reloadconfigs)
-		{
-			//FIXME: flag this instead and do it after a delay
-			Cvar_ForceSet(&fs_gamename, man->formalname?man->formalname:"FTE");
-			Cvar_ForceSet(&com_protocolname, man->protocolname?man->protocolname:"FTE");
-
-			if (isDedicated)
-			{
-#ifndef CLIENTONLY
-				SV_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
-#endif
-			}
-			else
-			{
-#ifndef SERVERONLY
-				CL_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
-#endif
-			}
-		}
+		//rebuild the cache now, should be safe to waste some cycles on it
+		COM_FlushFSCache(false, true);
 	}
-
-	//rebuild the cache now, should be safe to waste some cycles on it
-	FS_RebuildFSHash();
 
 //	COM_Effectinfo_Clear();
 #ifndef SERVERONLY
@@ -3916,6 +4016,33 @@ void FS_ShowManifest_f(void)
 	else
 		Con_Printf("no manifest loaded...\n");
 }
+
+int FS_ThreadTest(void*arg)
+{
+	vfsfile_t *f = NULL;
+	char startdata[256];
+	char lastdata[256];
+	while(!f)
+	{
+		if (Sys_LockMutex(fs_thread_mutex))
+		{
+			f = FS_OpenVFS("gfx/pop.lmp", "rb", FS_GAME);
+			Sys_UnlockMutex(fs_thread_mutex);
+		}
+	}
+	VFS_READ(f, startdata, sizeof(startdata));
+	VFS_CLOSE(f);
+	for(;;)
+	{
+		Sys_LockMutex(fs_thread_mutex);
+		f = FS_OpenVFS("gfx/pop.lmp", "rb", FS_GAME);
+		Sys_UnlockMutex(fs_thread_mutex);
+		VFS_READ(f, lastdata, sizeof(lastdata));
+		VFS_CLOSE(f);
+		if (memcmp(startdata, lastdata, sizeof(lastdata)))
+			Con_Printf("FS_ThreadTest failed\n");
+	}
+}
 /*
 ================
 COM_InitFilesystem
@@ -4074,6 +4201,8 @@ void COM_InitFilesystem (void)
 
 	if (com_homepathenabled)
 		Con_TPrintf("Using home directory \"%s\"\n", com_homepath);
+
+	fs_thread_mutex = Sys_CreateMutex();
 
 #ifdef PLUGINS
 	Plug_Initialise(false);

@@ -33,7 +33,7 @@ int sv_max_staticentities;
 
 char localinfo[MAX_LOCALINFO_STRING+1]; // local game info
 
-extern cvar_t	skill, sv_loadentfiles;
+extern cvar_t	skill;
 extern cvar_t	sv_cheats;
 extern cvar_t	sv_bigcoords;
 extern cvar_t	sv_gamespeed;
@@ -69,7 +69,7 @@ int SV_ModelIndex (const char *name)
 #endif
 				sv.strings.model_precache[i] = PR_AddString(svprogfuncs, name, 0, false);
 			if (!strcmp(name + strlen(name) - 4, ".bsp"))
-				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
+				sv.models[i] = Mod_FindName(Mod_FixName(sv.strings.model_precache[i], sv.strings.model_precache[1]));
 
 			Con_DPrintf("WARNING: SV_ModelIndex: model %s not precached\n", name);
 
@@ -89,6 +89,7 @@ int SV_ModelIndex (const char *name)
 	return i;
 }
 
+//looks up a name->index without caching it
 int SV_SafeModelIndex (char *name)
 {
 	int		i;
@@ -549,17 +550,19 @@ void SV_CalcPHS (void)
 
 unsigned SV_CheckModel(char *mdl)
 {
-	qbyte	stackbuf[1024];		// avoid dirtying the cache heap
+	size_t fsize;
 	qbyte *buf;
 	unsigned short crc;
 //	int len;
 
-	buf = (qbyte *)COM_LoadStackFile (mdl, stackbuf, sizeof(stackbuf));
+	buf = (qbyte *)COM_LoadFile (mdl, 5, &fsize);
 	if (!buf)
 		return 0;
-	crc = QCRC_Block(buf, com_filesize);
+	crc = QCRC_Block(buf, fsize);
 //	for (len = com_filesize; len; len--, buf++)
 //		CRC_ProcessByte(&crc, *buf);
+
+	BZ_Free(buf);
 
 	return crc;
 }
@@ -765,6 +768,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	int			i, j;
 	int spawnflagmask;
 	extern int sv_allow_cheats;
+	size_t fsz;
 
 #ifndef SERVERONLY
 	if (!isDedicated && qrenderer == QR_NONE)
@@ -840,8 +844,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	r_worldentity.model = NULL;
 	if (0)
 	cls.state = ca_connected;
-	if (R_PreNewMap)
-		R_PreNewMap();
+	Surf_PreNewMap();
 #ifdef VM_CG
 	CG_Stop();
 #endif
@@ -914,13 +917,15 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (usecinematic)
 	{
 		qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
-		extern model_t *loadmodel;
 
 		Q_strncpyz (sv.name, server, sizeof(sv.name));
 		Q_strncpyz (sv.modelname, "", sizeof(sv.modelname));
 
-		loadmodel = sv.world.worldmodel = Mod_FindName (sv.modelname);
-		loadmodel->needload = !Mod_LoadQ2BrushModel (sv.world.worldmodel, NULL);
+		sv.world.worldmodel = Mod_FindName (sv.modelname);
+		if (Mod_LoadQ2BrushModel (sv.world.worldmodel, NULL))
+			sv.world.worldmodel->loadstate = MLS_LOADED;
+		else
+			sv.world.worldmodel->loadstate = MLS_FAILED;
 	}
 	else
 #endif
@@ -942,7 +947,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		COM_FCheckExists(sv.modelname);
 		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);
 	}
-	if (!sv.world.worldmodel || sv.world.worldmodel->needload)
+	if (!sv.world.worldmodel || sv.world.worldmodel->loadstate != MLS_LOADED)
 		Sys_Error("\"%s\" is missing or corrupt\n", sv.modelname);
 	if (sv.world.worldmodel->type != mod_brush && sv.world.worldmodel->type != mod_heightmap)
 		Sys_Error("\"%s\" is not a bsp model\n", sv.modelname);
@@ -981,17 +986,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	//do we allow csprogs?
 #ifdef PEXT_CSQC
+	fsz = 0;
 	if (*sv_csqc_progname.string)
-		file = COM_LoadTempFile(sv_csqc_progname.string);
+		file = COM_LoadTempFile(sv_csqc_progname.string, &fsz);
 	else
 		file = NULL;
 	if (file)
 	{
 		char text[64];
-		sv.csqcchecksum = Com_BlockChecksum(file, com_filesize);
+		sv.csqcchecksum = Com_BlockChecksum(file, fsz);
 		sprintf(text, "0x%x", sv.csqcchecksum);
 		Info_SetValueForStarKey(svs.info, "*csprogs", text, MAX_SERVERINFO_STRING);
-		sprintf(text, "0x%x", com_filesize);
+		sprintf(text, "0x%x", fsz);
 		Info_SetValueForStarKey(svs.info, "*csprogssize", text, MAX_SERVERINFO_STRING);
 		if (strcmp(sv_csqc_progname.string, "csprogs.dat"))
 			Info_SetValueForStarKey(svs.info, "*csprogsname", sv_csqc_progname.string, MAX_SERVERINFO_STRING);
@@ -1111,7 +1117,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			z = Z_TagMalloc(strlen(s)+1, VMFSID_Q1QVM);
 			strcpy(z, s);
 			sv.strings.model_precache[1+i] = z;
-			sv.models[i+1] = Mod_ForName (z, MLV_WARN);
+			sv.models[i+1] = Mod_ForName (Mod_FixName(z, sv.modelname), MLV_WARN);
 		}
 
 		//check player/eyes models for hacks
@@ -1141,7 +1147,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		for (i=1 ; i<subs ; i++)
 		{
 			sv.strings.model_precache[1+i] = PR_AddString(svprogfuncs, va("*%u", i), 0, false);
-			sv.models[i+1] = Mod_ForName (sv.strings.model_precache[1+i], MLV_WARN);
+			sv.models[i+1] = Mod_ForName (Mod_FixName(sv.strings.model_precache[1+i], sv.modelname), MLV_WARN);
 		}
 
 		//check player/eyes models for hacks
@@ -1179,7 +1185,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		for (i=1; i<sv.world.worldmodel->numsubmodels; i++)
 		{
 			Q_snprintfz(sv.strings.configstring[Q2CS_MODELS+1+i], sizeof(sv.strings.configstring[Q2CS_MODELS+1+i]), "*%u", i);
-			sv.models[i+1] = Mod_ForName (sv.strings.configstring[Q2CS_MODELS+1+i], MLV_WARN);
+			sv.models[i+1] = Mod_ForName (Mod_FixName(sv.strings.configstring[Q2CS_MODELS+1+i], sv.modelname), MLV_WARN);
 		}
 	}
 #endif
@@ -1355,6 +1361,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		pr_global_struct->serverflags = svs.serverflags;
 		pr_global_struct->time = 0.1;	//HACK!!!! A few QuakeC mods expect time to be non-zero in spawn funcs - like prydon gate...
 
+#ifdef HEXEN2
 		if (progstype == PROG_H2)
 		{
 			cvar_t *cv;
@@ -1377,6 +1384,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			if (eval && cv) eval->_float = cv->value;
 		}
 		else
+#endif
 		{
 			if (pr_global_ptrs->coop && coop.value)
 				pr_global_struct->coop = coop.value;
@@ -1404,6 +1412,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_SetLoadingFile("entities");
 	if (!deathmatch.value && !*skill.string)	//skill was left blank so it doesn't polute serverinfo on deathmatch servers. in single player, we ensure that it gets a proper value.
 		Cvar_Set(&skill, "1");
+#ifdef HEXEN2
 	if (progstype == PROG_H2)
 	{
 		extern cvar_t coop;
@@ -1437,7 +1446,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 		//don't filter based on player class. we're lame and don't have any real concept of player classes.
 	}
-	else if (!deathmatch.value)	//decide if we are to inhibit single player game ents instead
+	else
+#endif
+		if (!deathmatch.value)	//decide if we are to inhibit single player game ents instead
 	{
 		if (skill.value < 0.5)
 			spawnflagmask = SPAWNFLAG_NOT_EASY;
@@ -1449,23 +1460,18 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	else
 		spawnflagmask = SPAWNFLAG_NOT_DEATHMATCH;
 //do this and get the precaches/start up the game
-	if (sv_loadentfiles.value)
-		file = FS_LoadMallocFile(va("maps/%s.ent", server));
-	else
-		file = NULL;
-	if (file)
+	if (sv.world.worldmodel->entitiescrc)
 	{
 		char crc[12];
-		sprintf(crc, "%i", QCRC_Block(file, com_filesize));
+		sprintf(crc, "%i", sv.world.worldmodel->entitiescrc);
 		Info_SetValueForStarKey(svs.info, "*entfile", crc, MAX_SERVERINFO_STRING);
 	}
 	else
 		Info_SetValueForStarKey(svs.info, "*entfile", "", MAX_SERVERINFO_STRING);
 
+	file = sv.world.worldmodel->entities;
 	if (!file)
-		file = sv.world.worldmodel->entities;
-	if (!file)
-		file = Z_StrDup("");
+		file = "";
 
 	switch(svs.gametype)
 	{
@@ -1488,9 +1494,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		break;
 #endif
 	}
-
-	if (file != sv.world.worldmodel->entities)
-		Z_Free(file);
 
 #ifndef SERVERONLY
 	current_loading_size+=10;
@@ -1627,7 +1630,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 					extent = ne;
 			}
 		}
-		if (extent > (1u<<15)/8)
+		if (extent > (1u<<15)/8 
+#ifdef TERRAIN
+			|| sv.world.worldmodel->terrain
+#endif
+			)
 		{
 			if (sv.num_signon_buffers > 1 || sv.signon.cursize)
 				Con_Printf("Cannot auto-enable extended coords as the init buffer was used\n");

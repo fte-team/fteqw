@@ -68,14 +68,22 @@ typedef struct FTE_DEPRECATED
 //we can't be bothered with animating skins.
 //We'll load up to four of them but after that you're on your own
 #ifndef SERVERONLY
+
+typedef struct
+{
+	shader_t *shader;
+	qbyte *texels;	//this is 8bit for frame 0 only. only valid in q1 models without replacement textures, used for colourising player skins.
+	char *defaultshader;
+	char shadername[MAX_QPATH];
+	texnums_t texnums;
+} skinframe_t;
 typedef struct
 {
 	int skinwidth;
 	int skinheight;
-	qbyte **ofstexels;	//this is 8bit for frame 0 only. only valid in q1 models without replacement textures, used for colourising player skins.
 	float skinspeed;
-	int numshaders;
-	shader_t **ofsshaders;
+	int numframes;
+	skinframe_t *frame;
 	char name[MAX_QPATH];
 } galiasskin_t;
 
@@ -170,28 +178,27 @@ typedef struct
 	void (QDECL *UnRegisterModelFormat)(int idx);
 	void (QDECL *UnRegisterAllModelFormats)(void);
 
-	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, int size);
+	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, int size);	//ctx=&mod->memgroup and the data will be freed when the model is freed.
 
 	void (QDECL *ConcatTransforms) (float in1[3][4], float in2[3][4], float out[3][4]);
 	void (QDECL *M3x4_Invert) (const float *in1, float *out);
 	void (QDECL *StripExtension) (const char *in, char *out, int outlen);
 	void (QDECL *GenMatrixPosQuat4Scale)(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
 	void (QDECL *ForceConvertBoneData)(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
-
-	shader_t *(QDECL *RegisterShader) (const char *name, unsigned int usageflags, const char *shaderscript);
-	shader_t *(QDECL *RegisterSkin)  (const char *shadername, const char *modname);
-	void (QDECL *BuildDefaultTexnums)(texnums_t *tn, shader_t *shader);
 } modplugfuncs_t;
-#define MODPLUGFUNCS_VERSION 0
+#define MODPLUGFUNCS_VERSION 1
 
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);
 void QDECL Alias_ForceConvertBoneData(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
 #endif
 qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean allowskel);
+void Mod_DestroyMesh(galiasinfo_t *galias);
 void Alias_FlushCache(void);
 void Alias_Shutdown(void);
 void Alias_Register(void);
+shader_t *Mod_ShaderForSkin(model_t *model, int num);
+const char *Mod_SkinNameForNum(model_t *model, int num);
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 

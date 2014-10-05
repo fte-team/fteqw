@@ -382,7 +382,13 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 			p->flags |= CPRINT_PERSIST | CPRINT_BACKGROUND;
 			p->flags &= ~CPRINT_TALIGN;
 		}
-		else if (str[1] == 'O')
+		else if (str[1] == 'W')	//wait between each char
+			p->flags ^= CPRINT_TYPEWRITER;
+		else if (str[1] == 'S')	//Stay
+			p->flags ^= CPRINT_PERSIST;
+		else if (str[1] == 'M')	//'Mask' the background so that its readable.
+			p->flags ^= CPRINT_BACKGROUND;
+		else if (str[1] == 'O')	//Obituaries are shown at the bottom, ish.
 			p->flags ^= CPRINT_OBITUARTY;
 		else if (str[1] == 'B')
 			p->flags ^= CPRINT_BALIGN;	//Note: you probably want to add some blank lines...
@@ -506,9 +512,11 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 	{
 		if (!(p->flags & CPRINT_BACKGROUND))
 		{
+			int w, h;
+			R_GetShaderSizes(pic, &w, &h, false);
 			y+= 16;
-			R2D_ScalePic ( (vid.width-pic->width)/2, 16, pic->width, pic->height, pic);
-			y+= pic->height;
+			R2D_ScalePic ( (vid.width-w)/2, 16, w, h, pic);
+			y+= h;
 			y+= 8;
 		}
 	}
@@ -526,7 +534,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		y = (bottom-top - Font_CharHeight()*linecount) * 0.65 + top;
 	else
 	{
-		if (linecount <= 4)
+		if (linecount <= 5)
 		{
 			//small messages appear above and away from the crosshair
 			y = (bottom-top - Font_CharHeight()*linecount) * 0.35 + top;
@@ -616,6 +624,7 @@ void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int 
 	p.charcount = COM_ParseFunString(defaultmask, text, p.string, sizeof(p.string), false) - p.string;
 	p.time_off = scr_centertime.value;
 	p.time_start = cl.time;
+	*p.titleimage = 0;
 
 	SCR_DrawCenterString(&r, &p, font_default);
 }
@@ -678,6 +687,10 @@ void SCR_DrawCursor(void)
 		{
 			key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
 			if (!key_customcursor[cmod].handle)
+				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.tga", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
+			if (!key_customcursor[cmod].handle)
+				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.png", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
+			if (!key_customcursor[cmod].handle)
 				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.lmp", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
 		}
 		else
@@ -697,9 +710,9 @@ void SCR_DrawCursor(void)
 	//system doesn't support a hardware cursor, so try to draw a software one.
 
 	p = R2D_SafeCachePic(key_customcursor[cmod].name);
-	if (!p)
+	if (!p || !R_GetShaderSizes(p, NULL, NULL, false))
 		p = R2D_SafeCachePic("gfx/cursor.lmp");
-	if (p)
+	if (p && R_GetShaderSizes(p, NULL, NULL, false))
 	{
 		R2D_ImageColours(1, 1, 1, 1);
 		R2D_Image(mousecursor_x-key_customcursor[cmod].hotspot[0], mousecursor_y-key_customcursor[cmod].hotspot[1], p->width*cl_cursorscale.value, p->height*cl_cursorscale.value, 0, 0, 1, 1, p);
@@ -1209,6 +1222,17 @@ void SCR_DrawTurtle (void)
 	R2D_ScalePic (scr_vrect.x, scr_vrect.y, 64, 64, scr_turtle);
 }
 
+void SCR_DrawDisk (void)
+{
+	if (!draw_disc)
+		return;
+
+	if (!COM_HasWork())
+		return;
+
+	R2D_ScalePic (scr_vrect.x + vid.width-24, scr_vrect.y, 24, 24, draw_disc);
+}
+
 /*
 ==============
 SCR_DrawNet
@@ -1498,6 +1522,9 @@ void SCR_SetLoadingStage(int stage)
 }
 void SCR_SetLoadingFile(char *str)
 {
+	if (loadingfile && !strcmp(loadingfile, str))
+		return;
+
 	if (loadingfile)
 		Z_Free(loadingfile);
 	loadingfile = Z_Malloc(strlen(str)+1);
@@ -1511,7 +1538,7 @@ void SCR_SetLoadingFile(char *str)
 
 void SCR_DrawLoading (qboolean opaque)
 {
-	int sizex, x, y;
+	int sizex, x, y, w, h;
 	mpic_t  *pic;
 	char *s;
 	int qdepth;
@@ -1522,6 +1549,7 @@ void SCR_DrawLoading (qboolean opaque)
 	if (*levelshotname)
 	{
 		pic = R2D_SafeCachePic (levelshotname);
+		R_GetShaderSizes(pic, NULL, NULL, true);
 		R2D_ImageColours(1, 1, 1, 1);
 		R2D_ScalePic (0, 0, vid.width, vid.height, pic);
 	}
@@ -1535,13 +1563,13 @@ void SCR_DrawLoading (qboolean opaque)
 	{	//quake files
 
 		pic = R2D_SafeCachePic ("gfx/loading.lmp");
-		if (pic)
+		if (R_GetShaderSizes(pic, &w, &h, true))
 		{
-			x = (vid.width - pic->width)/2;
-			y = (vid.height - 48 - pic->height)/2;
-			R2D_ScalePic (x, y, pic->width, pic->height, pic);
+			x = (vid.width - w)/2;
+			y = (vid.height - 48 - h)/2;
+			R2D_ScalePic (x, y, w, h, pic);
 			x = (vid.width/2) - 96;
-			y += pic->height + 8;
+			y += h + 8;
 		}
 		else
 		{
@@ -1586,15 +1614,15 @@ void SCR_DrawLoading (qboolean opaque)
 	else
 	{	//hexen2 files
 		pic = R2D_SafeCachePic ("gfx/menu/loading.lmp");
-		if (pic)
+		if (R_GetShaderSizes(pic, &w, &h, true))
 		{
 			int		size, count, offset;
 
 			if (!scr_drawloading && loading_stage == 0)
 				return;
 
-			offset = (vid.width - pic->width)/2;
-			R2D_ScalePic (offset, 0, pic->width, pic->height, pic);
+			offset = (vid.width - w)/2;
+			R2D_ScalePic (offset, 0, w, h, pic);
 
 			if (loading_stage == LS_NONE)
 				return;
@@ -1693,10 +1721,10 @@ void SCR_BeginLoadingPlaque (void)
 // redraw with no console and the loading plaque
 	Sbar_Changed ();
 	scr_drawloading = true;
+	scr_disabled_for_loading = true;
 	SCR_UpdateScreen ();
 	scr_drawloading = false;
 
-	scr_disabled_for_loading = true;
 	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....
 }
 
@@ -1719,7 +1747,7 @@ void SCR_ImageName (char *mapname)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		if (!R2D_SafeCachePic (levelshotname))
+		if (!R_GetShaderSizes(R2D_SafeCachePic (levelshotname), NULL, NULL, true))
 		{
 			*levelshotname = '\0';
 			return;
@@ -1772,7 +1800,7 @@ void SCR_SetUpToDrawConsole (void)
 		//android has an onscreen imm that we don't want to obscure
 		fullscreenpercent = scr_consize.value;
 #endif
-		if (!con_stayhidden.ival && (!Key_Dest_Has(~(kdm_console|kdm_game))) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload))
+		if (!con_stayhidden.ival && (!Key_Dest_Has(~(kdm_console|kdm_game))) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->loadstate != MLS_LOADED))
 		{
 			//force console to fullscreen if we're loading stuff
 //			Key_Dest_Add(kdm_console);
@@ -1932,9 +1960,9 @@ qboolean SCR_ScreenShot (char *filename, void *rgb_buffer, int width, int height
 	extern cvar_t scr_sshot_compression;
 #endif
 
-	char *ext;
+	char ext[8];
 
-	ext = COM_FileExtension(filename);
+	COM_FileExtension(filename, ext, sizeof(ext));
 
 	if (!rgb_buffer)
 		return false;
@@ -2333,6 +2361,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			R2D_DrawCrosshair();
 
 			SCR_DrawNet ();
+			SCR_DrawDisk();
 			SCR_DrawFPS ();
 			SCR_DrawUPS ();
 			SCR_DrawClock();

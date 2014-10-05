@@ -298,7 +298,7 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 		}
 	}
 	else
-		MessageBox(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
+		MessageBox(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", FULLENGINENAME " Sucks", 0);
 	return EXCEPTION_EXECUTE_HANDLER;
 }
 

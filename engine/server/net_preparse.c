@@ -735,10 +735,20 @@ void NPP_NQFlush(void)
 //		bufferlen = 0;
 		break;
 	case svcdp_hidelmp:
+		if (progstype == PROG_UNKNOWN)
+		{
+			bufferlen = 0;
+			break;
+		}
 		requireextension = PEXT_SHOWPIC;
 		buffer[0] = svcfte_hidepic;
 		break;
 	case svcdp_showlmp:
+		if (progstype == PROG_UNKNOWN)
+		{
+			bufferlen = 0;
+			break;
+		}
 		requireextension = PEXT_SHOWPIC;
 		memmove(buffer+2, buffer+1, bufferlen-1);
 		bufferlen++;
@@ -1233,16 +1243,37 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svc_updatename:
 			if (bufferlen < 2)
 				break;	//don't truncate the name if the mod is sending the slot number
-		case svcdp_hidelmp:
 		case svc_stufftext:
 		case svc_centerprint:
 		case svc_cutscene:
 			if (!data)
 				protocollen = bufferlen;
 			break;
-		case svcdp_showlmp:			// [string] slotname [string] lmpfilename [byte] x [byte] y
-									//note: nehara uses bytes!
-									//and the rest of dp uses shorts. how nasty is that?
+		case svcdp_hidelmp:
+			//tenebrae compat:
+			if (progstype == PROG_UNKNOWN)
+			{
+				//svc, coord6, byte, long, long, effectname
+				if (bufferlen >= sizeof(qbyte)*2+destprim->coordsize*6+sizeof(int)*2 && !data)
+					protocollen = bufferlen;
+				break;
+			}
+			//nehahra/dp compat
+			if (!data)
+				protocollen = bufferlen;
+			break;
+		case svcdp_showlmp:
+			//tenebrae compat:
+			if (progstype == PROG_UNKNOWN)
+			{
+				//svc, coord3, byte, effectname
+				if (bufferlen >= sizeof(qbyte)*2+destprim->coordsize*3 && !data)
+					protocollen = bufferlen;
+				break;
+			}
+			// [string] slotname [string] lmpfilename [byte] x [byte] y
+			//note: nehara uses bytes!
+			//and the rest of dp uses shorts. how nasty is that?
 			if (!data)
 			{	//second string, plus 2 bytes.
 				int i;
@@ -3100,7 +3131,7 @@ void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast)	//replacement wri
 
 void NPP_Flush(void)
 {
-	if (progstype == PROG_NQ)
+	if (progstype != PROG_QW)
 		NPP_NQFlush();
 #ifdef NQPROT
 	else

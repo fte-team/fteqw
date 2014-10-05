@@ -42,7 +42,9 @@ typedef struct {
 	char subrenderer[MAX_QPATH];
 	struct rendererinfo_s *renderer;
 } rendererstate_t;
+#ifndef SERVERONLY
 extern rendererstate_t currentrendererstate;
+#endif
 
 typedef struct vrect_s
 {

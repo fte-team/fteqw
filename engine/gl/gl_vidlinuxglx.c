@@ -2024,21 +2024,13 @@ rendererinfo_t eglrendererinfo =
 	GLDraw_Init,
 	GLDraw_DeInit,
 
-	GL_LoadTextureFmt,
-	GL_LoadTexture8Pal24,
-	GL_LoadTexture8Pal32,
-	GL_LoadCompressed,
-	GL_FindTexture,
-	GL_AllocNewTexture,
-	GL_UploadFmt,
+	GL_UpdateFiltering,
+	GL_LoadTextureMips,
 	GL_DestroyTexture,
 
 	GLR_Init,
 	GLR_DeInit,
 	GLR_RenderView,
-
-	GLR_NewMap,
-	GLR_PreNewMap,
 
 	EGLVID_Init,
 	GLVID_DeInit,

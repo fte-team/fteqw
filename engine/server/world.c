@@ -552,7 +552,7 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	}
 	
 // link to PVS leafs
-	if (w->worldmodel && !w->worldmodel->needload)
+	if (w->worldmodel && w->worldmodel->loadstate == MLS_LOADED && w->worldmodel->funcs.FindTouchedLeafs)
 	{
 		w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
 	}
@@ -1011,7 +1011,7 @@ qboolean World_TransformedTrace (struct model_s *model, int hulloverride, int fr
 	}
 
 	// don't rotate non bsp ents. Too small to bother.
-	if (model)
+	if (model && model->loadstate == MLS_LOADED)
 	{
 		VectorSubtract (start, origin, start_l);
 		VectorSubtract (end, origin, end_l);
@@ -1074,7 +1074,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	else
 		model = NULL;
 
-	if (!model || model->needload)
+	if (!model || model->loadstate != MLS_LOADED)
 	{
 		vec3_t boxmins, boxmaxs;
 		model = NULL;
@@ -1112,7 +1112,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 		//okay, we hit the bbox
 		model = w->Get_CModel(w, mdlidx);
 
-		if (model && model->funcs.NativeTrace && !model->needload)
+		if (model && model->funcs.NativeTrace && model->loadstate == MLS_LOADED)
 		{
 			//do the second trace, using the actual mesh.
 			World_TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, capsule, &trace, eorg, ent->v->angles, hitcontentsmask);
@@ -1135,7 +1135,7 @@ static trace_t WorldQ2_ClipMoveToEntity (world_t *w, q2edict_t *ent, vec3_t star
 	if (ent->s.solid == Q2SOLID_BSP)
 		model = w->Get_CModel(w, ent->s.modelindex);
 
-	if (!model || model->type != mod_brush || model->needload)
+	if (!model || model->type != mod_brush || model->loadstate != MLS_LOADED)
 	{
 		vec3_t boxmins, boxmaxs;
 		VectorSubtract (ent->mins, maxs, boxmins);
@@ -1331,7 +1331,8 @@ static model_t *WorldQ2_ModelForEntity (world_t *w, q2edict_t *ent)
 		if (!model)
 			SV_Error ("Q2SOLID_BSP with a non bsp model");
 
-		return model;
+		if (model->loadstate == MLS_LOADED)
+			return model;
 	}
 
 	// create a temp hull from bounding box sizes

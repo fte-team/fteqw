@@ -30,7 +30,7 @@ typedef struct qwskin_s
 	//for hardware 32bit texture overrides
 	texnums_t	textures;
 
-	qboolean	failedload;		// the name isn't a valid skin
+	qbyte		failedload;		// the name isn't a valid skin
 	void		*skindata;
 } qwskin_t;
 
@@ -268,6 +268,7 @@ typedef struct dlight_s
 	int		key;				// so entities can reuse same entry
 	vec3_t	origin;
 	vec3_t	axis[3];
+	vec3_t	rotation;			//cubemap/spotlight rotation
 	float	radius;
 	float	die;				// stop lighting after this time
 	float	decay;				// drop this each second
@@ -851,7 +852,9 @@ extern	cvar_t	m_side;
 
 extern cvar_t		_windowed_mouse;
 
+#ifndef SERVERONLY
 extern	cvar_t	name;
+#endif
 
 
 extern cvar_t ruleset_allow_playercount;
@@ -873,6 +876,7 @@ extern	client_state_t	cl;
 typedef struct
 {
 	entity_t		ent;
+	entity_state_t	state;
 	trailstate_t   *emit;
 	int	mdlidx;	/*negative are csqc indexes*/
 	pvscache_t		pvscache;
@@ -1218,6 +1222,7 @@ qboolean CSQC_JoystickAxis(int axis, float value, int devid);
 qboolean CSQC_Accelerometer(float x, float y, float z);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod);
 void CSQC_ParseEntities(void);
+void CSQC_ResetTrails(void);
 
 qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state);
 void CSQC_DeltaStart(float time);
@@ -1455,6 +1460,7 @@ int qm_strcmp(char *s1, char *s2);
 int qm_stricmp(char *s1, char *s2);
 void Stats_ParsePrintLine(char *line);
 void Stats_NewMap(void);
+void Stats_Clear(void);
 
 enum uploadfmt;
 typedef struct

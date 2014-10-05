@@ -75,6 +75,12 @@ void R_AnimateLight (void)
 		if (!cl_lightstyle[j].length)
 			continue;
 
+		if (cl_lightstyle[j].map[0] == '=')
+		{
+			d_lightstylevalue[j] = atof(cl_lightstyle[j].map+1)*256;
+			continue;
+		}
+
 		v1 = i % cl_lightstyle[j].length;
 		v1 = cl_lightstyle[j].map[v1] - 'a';
 
@@ -164,7 +170,7 @@ void R_GenerateFlashblendTexture(void)
 			pixels[y][x][3] = 255;
 		}
 	}
-	R_LoadTexture32("***flashblend***", 32, 32, pixels, 0);
+	R_LoadReplacementTexture("***flashblend***", NULL, 0, pixels, 32, 32, TF_RGBA32);
 }
 void R_InitFlashblends(void)
 {
@@ -368,7 +374,7 @@ void R_GenDlightMesh(struct batch_s *batch)
 	static mesh_t *meshptr;
 	dlight_t	*l = cl_dlights + batch->surf_first;
 
-	BE_SelectDLight(l, l->color, 0);
+	BE_SelectDLight(l, l->color, l->axis, 0);
 
 	if (!R_BuildDlightMesh (l, 2, 1, 2))
 	{
@@ -686,6 +692,12 @@ void R_ImportRTLights(char *entlump)
 				light[2] = 1;
 				light[3] = atof(value);
 			}
+			else if (entnum == 0 && !strcmp("noautolight", key))
+			{
+				//tenebrae compat. don't generate rtlights automagically if the world entity specifies this.
+				if (atoi(value))
+					return;
+			}
 		}
 		if (!islight)
 			continue;
@@ -743,7 +755,7 @@ void R_ImportRTLights(char *entlump)
 			dl->lightcolourscales[1] = r_editlights_import_diffuse.value;
 			dl->lightcolourscales[2] = r_editlights_import_specular.value;
 			if (skin >= 16)
-				snprintf(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", skin);
+				R_LoadNumberedLightTexture(dl, skin);
 		}
 	}
 }
@@ -760,6 +772,8 @@ void R_LoadRTLights(void)
 	vec3_t org;
 	float radius;
 	vec3_t rgb;
+	vec3_t avel;
+	float fov;
 	unsigned int flags;
 
 	float coronascale;
@@ -774,7 +788,7 @@ void R_LoadRTLights(void)
 	COM_StripExtension(cl.worldmodel->name, fname, sizeof(fname));
 	strncat(fname, ".rtlights", MAX_QPATH-1);
 
-	file = COM_LoadTempFile(fname);
+	file = COM_LoadTempFile(fname, NULL);
 	if (file)
 	while(1)
 	{
@@ -831,7 +845,7 @@ void R_LoadRTLights(void)
 		angles[2] = file?atof(com_token):0;
 
 		file = COM_Parse(file);
-		//corrona scale
+		//corona scale
 		coronascale = file?atof(com_token):0.25;
 
 		file = COM_Parse(file);
@@ -849,6 +863,20 @@ void R_LoadRTLights(void)
 		file = COM_Parse(file);
 		flags |= file?atoi(com_token):LFLAG_REALTIMEMODE;
 
+		fov = avel[0] = avel[1] = avel[2] = 0;
+		while(file)
+		{
+			file = COM_Parse(file);
+			if (!strncmp(com_token, "rotx=", 5))
+				avel[0] = file?atof(com_token+5):0;
+			else if (!strncmp(com_token, "roty=", 5))
+				avel[1] = file?atof(com_token+5):0;
+			else if (!strncmp(com_token, "rotz=", 5))
+				avel[2] = file?atof(com_token+5):0;
+			else if (!strncmp(com_token, "fov=", 4))
+				fov = file?atof(com_token+4):0;
+		}
+
 		if (radius)
 		{
 			dl = CL_AllocSlight();
@@ -862,15 +890,16 @@ void R_LoadRTLights(void)
 			dl->coronascale = coronascale;
 			dl->die = 0;
 			dl->flags = flags;
+			dl->fov = fov;
 			dl->lightcolourscales[0] = ambientscale;
 			dl->lightcolourscales[1] = diffusescale;
 			dl->lightcolourscales[2] = specularscale;
-			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
-			VectorInverse(dl->axis[1]);
+			AngleVectorsFLU(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+			VectorCopy(avel, dl->rotation);
 
 			Q_strncpyz(dl->cubemapname, cubename, sizeof(dl->cubemapname));
 			if (*dl->cubemapname)
-				dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP);
+				dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP, NULL, 0, 0, TF_INVALID);
 			else
 				dl->cubetexture = r_nulltex;
 
@@ -912,6 +941,7 @@ void R_SaveRTLights_f(void)
 			"\"%s\" %f "
 			"%f %f %f "
 			"%f %f %f %f %i "
+			"rotx=%g roty=%g rotz=%g fov=%g "
 			"\n"
 			,
 			(light->flags & LFLAG_NOSHADOWS)?"!":"", light->origin[0], light->origin[1], light->origin[2],
@@ -919,7 +949,8 @@ void R_SaveRTLights_f(void)
 			light->style-1,
 			light->cubemapname, light->corona,
 			ang[0], ang[1], ang[2],
-			light->coronascale, light->lightcolourscales[0], light->lightcolourscales[1], light->lightcolourscales[2], light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE|LFLAG_CREPUSCULAR)
+			light->coronascale, light->lightcolourscales[0], light->lightcolourscales[1], light->lightcolourscales[2], light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE|LFLAG_CREPUSCULAR),
+			light->rotation[0],light->rotation[1],light->rotation[2],light->fov
 			));
 	}
 	VFS_CLOSE(f);
@@ -928,8 +959,50 @@ void R_SaveRTLights_f(void)
 	Con_Printf("rtlights saved to %s\n", sysname);
 }
 
+void R_StaticEntityToRTLight(int i)
+{
+	entity_state_t *state = &cl_static_entities[i].state;
+	dlight_t *dl;
+	if (!(state->lightpflags&(PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)))
+		return;
+	dl = CL_AllocSlight();
+	if (!dl)
+		return;
+	VectorCopy(state->origin, dl->origin);
+	AngleVectors(state->angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+	VectorInverse(dl->axis[1]);
+	dl->radius = state->light[3];
+	if (!dl->radius)
+		dl->radius = 350;
+	VectorScale(state->light, 1.0/1024, dl->color);
+	if (!state->light[0] && !state->light[1] && !state->light[2])
+		VectorSet(dl->color, 1, 1, 1);
+	dl->flags = 0;
+	dl->flags |= LFLAG_REALTIMEMODE;
+	dl->flags |= (state->lightpflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
+	if (state->lightpflags & PFLAGS_CORONA)
+		dl->corona = 1;
+	dl->style = state->lightstyle+1;
+	if (state->lightpflags & PFLAGS_FULLDYNAMIC)
+	{
+		dl->lightcolourscales[0] = r_editlights_import_ambient.value;
+		dl->lightcolourscales[1] = r_editlights_import_diffuse.value;
+		dl->lightcolourscales[2] = r_editlights_import_specular.value;
+	}
+	else
+	{	//corona-only light
+		dl->lightcolourscales[0] = 0;
+		dl->lightcolourscales[1] = 0;
+		dl->lightcolourscales[2] = 0;
+	}
+	if (state->skinnum >= 16)
+		R_LoadNumberedLightTexture(dl, state->skinnum);
+}
+
 void R_ReloadRTLights_f(void)
 {
+	int i;
+
 	if (!cl.worldmodel)
 	{
 		Con_Printf("Cannot reload lights at this time\n");
@@ -946,6 +1019,11 @@ void R_ReloadRTLights_f(void)
 		R_LoadRTLights();
 		if (rtlights_first == rtlights_max)
 			R_ImportRTLights(cl.worldmodel->entities);
+	}
+
+	for (i = 0; i < cl.num_statics; i++)
+	{
+		R_StaticEntityToRTLight(i);
 	}
 }
 #endif

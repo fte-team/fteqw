@@ -255,6 +255,7 @@ static void SCR_DrawField (float x, float y, int color, float width, int value)
 	int		l;
 	int		frame;
 	mpic_t *p;
+	int pw,ph;
 
 	if (width < 1)
 		return;
@@ -278,8 +279,8 @@ static void SCR_DrawField (float x, float y, int color, float width, int value)
 			frame = *ptr -'0';
 
 		p = Sbar_Q2CachePic(q2sb_nums[color][frame]);
-		if (p)
-			R2D_ScalePic (x,y,p->width, p->height, p);
+		if (p && R_GetShaderSizes(p, &pw, &ph, false)>0)
+			R2D_ScalePic (x,y,pw, ph, p);
 		x += CHAR_WIDTH;
 		ptr++;
 		l--;
@@ -311,6 +312,7 @@ void Sbar_ExecuteLayoutString (char *s)
 	int		value;
 	int		width;
 	int		index;
+	int pw, ph;
 //	q2clientinfo_t	*ci;
 	mpic_t *p;
 
@@ -342,7 +344,7 @@ void Sbar_ExecuteLayoutString (char *s)
 		if (!strcmp(com_token, "xv"))
 		{
 			s = COM_Parse (s);
-			x = sbar_rect.x + sbar_rect.width/2 - 160 + atoi(com_token);
+			x = sbar_rect.x + (sbar_rect.width-320)/2 + atoi(com_token);
 			continue;
 		}
 
@@ -361,7 +363,7 @@ void Sbar_ExecuteLayoutString (char *s)
 		if (!strcmp(com_token, "yv"))
 		{
 			s = COM_Parse (s);
-			y = sbar_rect.y + sbar_rect.height/2 - 120 + atoi(com_token);
+			y = sbar_rect.y + (sbar_rect.height-240)/2 + atoi(com_token);
 			continue;
 		}
 
@@ -376,8 +378,8 @@ void Sbar_ExecuteLayoutString (char *s)
 //				SCR_AddDirtyPoint (x, y);
 //				SCR_AddDirtyPoint (x+23, y+23);
 				p = Sbar_Q2CachePic(Get_Q2ConfigString(Q2CS_IMAGES+value));
-				if (p)
-					R2D_ScalePic (x, y, p->width, p->height, p);
+				if (p && R_GetShaderSizes(p, &pw, &ph, false)>0)
+					R2D_ScalePic (x, y, pw, ph, p);
 			}
 			continue;
 		}
@@ -414,7 +416,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			Draw_FunString (x+32, y+24, va("Time:  %i", time));
 
 			p = R2D_SafeCachePic(va("players/%s_i.pcx", cl.players[value].qwskin->name));
-			if (!p)	//display a default if the icon couldn't be found.
+			if (!p || !R_GetShaderSizes(p, NULL, NULL, false))	//display a default if the icon couldn't be found.
 				p = R2D_SafeCachePic("players/male/grunt_i.pcx");
 			R2D_ScalePic (x, y, 32, 32, p);
 			continue;
@@ -460,8 +462,8 @@ void Sbar_ExecuteLayoutString (char *s)
 //			SCR_AddDirtyPoint (x, y);
 //			SCR_AddDirtyPoint (x+23, y+23);
 			p = Sbar_Q2CachePic(com_token);
-			if (p)
-				R2D_ScalePic (x, y, p->width, p->height, p);
+			if (p && R_GetShaderSizes(p, &pw, &ph, false)>0)
+				R2D_ScalePic (x, y, pw, ph, p);
 			continue;
 		}
 
@@ -491,8 +493,8 @@ void Sbar_ExecuteLayoutString (char *s)
 			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 1)
 			{
 				p = Sbar_Q2CachePic("field_3");
-				if (p)
-					R2D_ScalePic (x, y, p->width, p->height, p);
+				if (p && R_GetShaderSizes(p, &pw, &ph, false)>0)
+					R2D_ScalePic (x, y, pw, ph, p);
 			}
 
 			SCR_DrawField (x, y, color, width, value);
@@ -515,8 +517,8 @@ void Sbar_ExecuteLayoutString (char *s)
 			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 4)
 			{
 				p = Sbar_Q2CachePic("field_3");
-				if (p)
-					R2D_ScalePic (x, y, p->width, p->height, p);
+				if (p && R_GetShaderSizes(p, &pw, &ph, false)>0)
+					R2D_ScalePic (x, y, pw, ph, p);
 			}
 
 			SCR_DrawField (x, y, color, width, value);
@@ -791,7 +793,6 @@ Sbar_Init
 
 static qboolean sbar_loaded;
 
-static qboolean failedpic;
 mpic_t *Sbar_PicFromWad(char *name)
 {
 	mpic_t *ret;
@@ -802,7 +803,6 @@ mpic_t *Sbar_PicFromWad(char *name)
 	if (ret)
 		return ret;
 
-	failedpic = true;
 	return NULL;
 }
 void Sbar_Flush (void)
@@ -817,14 +817,13 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 
 	sbar_loaded = true;
 
+	COM_FlushFSCache(false, true);	//make sure the fs cache is built if needed. there's lots of loading here.
+
 	if (!wad_base)	//the wad isn't loaded. This is an indication that it doesn't exist.
 	{
 		sbarfailed = true;
 		return;
 	}
-	failedpic = false;
-
-	COM_FlushFSCache();	//make sure the fs cache is built if needed. there's lots of loading here.
 
 	sbarfailed = false;
 
@@ -835,8 +834,10 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 	}
 
 #ifdef HEXEN2
-	if (sb_nums[0][0] && sb_nums[0][0]->width < 13)
+	if (W_SafeGetLumpName("tinyfont"))
 		sbar_hexen2 = true;
+//	if (sb_nums[0][0] && sb_nums[0][0]->width < 13)
+//		sbar_hexen2 = true;
 #endif
 
 	sb_nums[0][10] = Sbar_PicFromWad ("num_minus");
@@ -909,66 +910,57 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 	sb_face_invis_invuln = Sbar_PicFromWad ("face_inv2");
 	sb_face_quad = Sbar_PicFromWad ("face_quad");
 
-	sb_sbar = Sbar_PicFromWad ("sbar");
 	sb_ibar = Sbar_PicFromWad ("ibar");
+	sb_sbar = Sbar_PicFromWad ("sbar");
 	sb_scorebar = Sbar_PicFromWad ("scorebar");
 
-	if (failedpic)
-		sbarfailed = true;
 	//try to detect rogue wads, and thus the stats we will be getting from the server.
-	failedpic = false;
-
-	rsb_invbar[0] = Sbar_PicFromWad ("r_invbar1");
-	rsb_invbar[1] = Sbar_PicFromWad ("r_invbar2");
-
-	rsb_weapons[0] = Sbar_PicFromWad ("r_lava");
-	rsb_weapons[1] = Sbar_PicFromWad ("r_superlava");
-	rsb_weapons[2] = Sbar_PicFromWad ("r_gren");
-	rsb_weapons[3] = Sbar_PicFromWad ("r_multirock");
-	rsb_weapons[4] = Sbar_PicFromWad ("r_plasma");
-
-	rsb_items[0] = Sbar_PicFromWad ("r_shield1");
-	rsb_items[1] = Sbar_PicFromWad ("r_agrav1");
-
-	rsb_teambord = Sbar_PicFromWad ("r_teambord");
-
-	rsb_ammo[0] = Sbar_PicFromWad ("r_ammolava");
-	rsb_ammo[1] = Sbar_PicFromWad ("r_ammomulti");
-	rsb_ammo[2] = Sbar_PicFromWad ("r_ammoplasma");
-
-	if (!failedpic || COM_CheckParm("-rogue"))
-		sbar_rogue = true;
-	else
-		sbar_rogue = false;
-
-	//try to detect hipnotic wads, and thus the stats we will be getting from the server.
-	failedpic = false;
-
-	hsb_weapons[0][0] = Sbar_PicFromWad ("inv_laser");
-	hsb_weapons[0][1] = Sbar_PicFromWad ("inv_mjolnir");
-	hsb_weapons[0][2] = Sbar_PicFromWad ("inv_gren_prox");
-	hsb_weapons[0][3] = Sbar_PicFromWad ("inv_prox_gren");
-	hsb_weapons[0][4] = Sbar_PicFromWad ("inv_prox");
-	hsb_weapons[1][0] = Sbar_PicFromWad ("inv2_laser");
-	hsb_weapons[1][1] = Sbar_PicFromWad ("inv2_mjolnir");
-	hsb_weapons[1][2] = Sbar_PicFromWad ("inv2_gren_prox");
-	hsb_weapons[1][3] = Sbar_PicFromWad ("inv2_prox_gren");
-	hsb_weapons[1][4] = Sbar_PicFromWad ("inv2_prox");
-	for (i=0 ; i<5 ; i++)
+	sbar_rogue = COM_CheckParm("-rogue") || !!W_SafeGetLumpName("r_lava");
+	if (sbar_rogue)
 	{
-		hsb_weapons[2+i][0] = Sbar_PicFromWad (va("inva%i_laser",i+1));
-		hsb_weapons[2+i][1] = Sbar_PicFromWad (va("inva%i_mjolnir",i+1));
-		hsb_weapons[2+i][2] = Sbar_PicFromWad (va("inva%i_gren_prox",i+1));
-		hsb_weapons[2+i][3] = Sbar_PicFromWad (va("inva%i_prox_gren",i+1));
-		hsb_weapons[2+i][4] = Sbar_PicFromWad (va("inva%i_prox",i+1));
-	}
-	hsb_items[0] = Sbar_PicFromWad ("sb_wsuit");
-	hsb_items[1] = Sbar_PicFromWad ("sb_eshld");
+		rsb_invbar[0] = Sbar_PicFromWad ("r_invbar1");
+		rsb_invbar[1] = Sbar_PicFromWad ("r_invbar2");
 
-	if (!failedpic || COM_CheckParm("-hipnotic"))
-		sbar_hipnotic = true;
-	else
-		sbar_hipnotic = false;
+		rsb_weapons[0] = Sbar_PicFromWad ("r_lava");
+		rsb_weapons[1] = Sbar_PicFromWad ("r_superlava");
+		rsb_weapons[2] = Sbar_PicFromWad ("r_gren");
+		rsb_weapons[3] = Sbar_PicFromWad ("r_multirock");
+		rsb_weapons[4] = Sbar_PicFromWad ("r_plasma");
+
+		rsb_items[0] = Sbar_PicFromWad ("r_shield1");
+		rsb_items[1] = Sbar_PicFromWad ("r_agrav1");
+
+		rsb_teambord = Sbar_PicFromWad ("r_teambord");
+
+		rsb_ammo[0] = Sbar_PicFromWad ("r_ammolava");
+		rsb_ammo[1] = Sbar_PicFromWad ("r_ammomulti");
+		rsb_ammo[2] = Sbar_PicFromWad ("r_ammoplasma");
+	}
+
+	sbar_hipnotic = COM_CheckParm("-hipnotic") || !!W_SafeGetLumpName("inv_mjolnir");
+	if (sbar_hipnotic)
+	{
+		hsb_weapons[0][0] = Sbar_PicFromWad ("inv_laser");
+		hsb_weapons[0][1] = Sbar_PicFromWad ("inv_mjolnir");
+		hsb_weapons[0][2] = Sbar_PicFromWad ("inv_gren_prox");
+		hsb_weapons[0][3] = Sbar_PicFromWad ("inv_prox_gren");
+		hsb_weapons[0][4] = Sbar_PicFromWad ("inv_prox");
+		hsb_weapons[1][0] = Sbar_PicFromWad ("inv2_laser");
+		hsb_weapons[1][1] = Sbar_PicFromWad ("inv2_mjolnir");
+		hsb_weapons[1][2] = Sbar_PicFromWad ("inv2_gren_prox");
+		hsb_weapons[1][3] = Sbar_PicFromWad ("inv2_prox_gren");
+		hsb_weapons[1][4] = Sbar_PicFromWad ("inv2_prox");
+		for (i=0 ; i<5 ; i++)
+		{
+			hsb_weapons[2+i][0] = Sbar_PicFromWad (va("inva%i_laser",i+1));
+			hsb_weapons[2+i][1] = Sbar_PicFromWad (va("inva%i_mjolnir",i+1));
+			hsb_weapons[2+i][2] = Sbar_PicFromWad (va("inva%i_gren_prox",i+1));
+			hsb_weapons[2+i][3] = Sbar_PicFromWad (va("inva%i_prox_gren",i+1));
+			hsb_weapons[2+i][4] = Sbar_PicFromWad (va("inva%i_prox",i+1));
+		}
+		hsb_items[0] = Sbar_PicFromWad ("sb_wsuit");
+		hsb_items[1] = Sbar_PicFromWad ("sb_eshld");
+	}
 }
 
 void Sbar_Init (void)
@@ -1065,7 +1057,7 @@ void Draw_TinyString (float x, float y, const qbyte *str)
 
 	if (!font_tiny)
 	{
-		font_tiny = Font_LoadFont(6, "gfx/tinyfont");
+		font_tiny = Font_LoadFont(8, "gfx/tinyfont");
 		if (!font_tiny)
 			return;
 	}
@@ -1090,6 +1082,18 @@ void Sbar_DrawTinyString (float x, float y, char *str)
 {
 	Draw_TinyString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
 }
+void Sbar_DrawTinyStringf (float x, float y, char *fmt, ...)
+{
+	va_list		argptr;
+	char		string[256];
+
+	va_start (argptr, fmt);
+	vsnprintf (string, sizeof(string)-1, fmt, argptr);
+	va_end (argptr);
+	
+	Draw_TinyString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, string);
+}
+
 
 void Sbar_FillPC (float x, float y, float w, float h, unsigned int pcolour)
 {
@@ -2210,26 +2214,26 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 
 	Sbar_DrawTinyString (11, 48, pclassname[pclass]);
 
-	Sbar_DrawTinyString (11, 58, va("int"));
-	Sbar_DrawTinyString (33, 58, va("%02d", pv->stats[STAT_H2_INTELLIGENCE]));
+	Sbar_DrawTinyString (11, 58, "int");
+	Sbar_DrawTinyStringf (33, 58, "%02d", pv->stats[STAT_H2_INTELLIGENCE]);
 
-	Sbar_DrawTinyString (11, 64, va("wis"));
-	Sbar_DrawTinyString (33, 64, va("%02d", pv->stats[STAT_H2_WISDOM]));
+	Sbar_DrawTinyString (11, 64, "wis");
+	Sbar_DrawTinyStringf (33, 64, "%02d", pv->stats[STAT_H2_WISDOM]);
 
-	Sbar_DrawTinyString (11, 70, va("dex"));
-	Sbar_DrawTinyString (33, 70, va("%02d", pv->stats[STAT_H2_DEXTERITY]));
+	Sbar_DrawTinyString (11, 70, "dex");
+	Sbar_DrawTinyStringf (33, 70, "%02d", pv->stats[STAT_H2_DEXTERITY]);
 
 
-	Sbar_DrawTinyString (58, 58, va("str"));
-	Sbar_DrawTinyString (80, 58, va("%02d", pv->stats[STAT_H2_STRENGTH]));
+	Sbar_DrawTinyString (58, 58, "str");
+	Sbar_DrawTinyStringf (80, 58, "%02d", pv->stats[STAT_H2_STRENGTH]);
 
-	Sbar_DrawTinyString (58, 64, va("lvl"));
-	Sbar_DrawTinyString (80, 64, va("%02d", pv->stats[STAT_H2_LEVEL]));
+	Sbar_DrawTinyString (58, 64, "lvl");
+	Sbar_DrawTinyStringf (80, 64, "%02d", pv->stats[STAT_H2_LEVEL]);
 
-	Sbar_DrawTinyString (58, 70, va("exp"));
-	Sbar_DrawTinyString (80, 70, va("%06d", pv->stats[STAT_H2_EXPERIENCE]));
+	Sbar_DrawTinyString (58, 70, "exp");
+	Sbar_DrawTinyStringf (80, 70, "%06d", pv->stats[STAT_H2_EXPERIENCE]);
 
-	Sbar_DrawTinyString (11, 79, va("abilities"));
+	Sbar_DrawTinyString (11, 79, "abilities");
 	if (pv->stats[STAT_H2_FLAGS] & (1<<22))
 		Sbar_DrawTinyString (8, 89, T_GetString(400 + 2*(pclass-1) + 0));
 	if (pv->stats[STAT_H2_FLAGS] & (1<<23))
@@ -2240,7 +2244,7 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 		if (pv->stats[STAT_H2_ARMOUR1+i] > 0)
 		{
 			Sbar_DrawPic (164+i*40, 115, 28, 19, R2D_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
-			Sbar_DrawTinyString (168+i*40, 136, va("+%d", pv->stats[STAT_H2_ARMOUR1+i]));
+			Sbar_DrawTinyStringf (168+i*40, 136, "+%d", pv->stats[STAT_H2_ARMOUR1+i]);
 		}
 	}
 	for (i = 0; i < 4; i++)
@@ -2261,7 +2265,7 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 	slot = 0;
 	for (i = 0; i < 8; i++)
 	{
-		if (pv->statsstr[STAT_H2_PUZZLE1+i])
+		if (pv->statsstr[STAT_H2_PUZZLE1+i] && *pv->statsstr[STAT_H2_PUZZLE1+i])
 		{
 			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, 26, 26, R2D_SafeCachePic(va("gfx/puzzle/%s.lmp", pv->statsstr[STAT_H2_PUZZLE1+i])));
 			slot++;
@@ -2319,7 +2323,7 @@ static void Sbar_Hexen2DrawBasic(playerview_t *pv)
 	maxval = pv->stats[STAT_H2_MAXMANA];
 	val = pv->stats[STAT_H2_BLUEMANA];
 	val = bound(0, val, maxval);
-	Sbar_DrawTinyString(201, 22, va("%03d", val));
+	Sbar_DrawTinyStringf(201, 22, "%03d", val);
 	if(val)
 	{
 		Sbar_DrawPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, R2D_SafeCachePic("gfx/bmana.lmp"));
@@ -2330,7 +2334,7 @@ static void Sbar_Hexen2DrawBasic(playerview_t *pv)
 	maxval = pv->stats[STAT_H2_MAXMANA];
 	val = pv->stats[STAT_H2_GREENMANA];
 	val = bound(0, val, maxval);
-	Sbar_DrawTinyString(243, 22, va("%03d", val));
+	Sbar_DrawTinyStringf(243, 22, "%03d", val);
 	if(val)
 	{
 		Sbar_DrawPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, R2D_SafeCachePic("gfx/gmana.lmp"));
@@ -2368,8 +2372,8 @@ static void Sbar_Hexen2DrawMinimal(playerview_t *pv)
 	Sbar_DrawPic(3, y, 31, 17, R2D_SafeCachePic("gfx/bmmana.lmp"));
 	Sbar_DrawPic(3, y+18, 31, 17, R2D_SafeCachePic("gfx/gmmana.lmp"));
 
-	Sbar_DrawTinyString(10, y+6, va("%03d", pv->stats[STAT_H2_BLUEMANA]));
-	Sbar_DrawTinyString(10, y+18+6, va("%03d", pv->stats[STAT_H2_GREENMANA]));
+	Sbar_DrawTinyStringf(10, y+6, "%03d", pv->stats[STAT_H2_BLUEMANA]);
+	Sbar_DrawTinyStringf(10, y+18+6, "%03d", pv->stats[STAT_H2_GREENMANA]);
 
 	Sbar_Hexen2DrawNum(38, y+18, pv->stats[STAT_HEALTH], 3);
 }
@@ -2786,6 +2790,7 @@ void Sbar_TeamOverlay (void)
 	char			num[12];
 	team_t *tm;
 	int plow, phigh, pavg;
+	int pw,ph;
 	playerview_t *pv = r_refdef.playerview;
 
 	if (!pv)
@@ -2803,9 +2808,9 @@ void Sbar_TeamOverlay (void)
 	if (scr_scoreboard_drawtitle.ival)
 	{
 		pic = R2D_SafeCachePic ("gfx/ranking.lmp");
-		if (pic)
+		if (pic && R_GetShaderSizes(pic, &pw, &ph, false)>0)
 		{
-			k = (pic->width * 24) / pic->height;
+			k = (pw * 24) / ph;
 			R2D_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
 		}
 		y += 24;
@@ -3033,8 +3038,12 @@ void Sbar_DeathmatchOverlay (int start)
 			pic = R2D_SafeCachePic ("gfx/ranking.lmp");
 			if (pic)
 			{
-				k = (pic->width * 24) / pic->height;
-				R2D_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
+				int w, h;
+				if (R_GetShaderSizes(pic, &w, &h, false)>0)
+				{
+					k = (w * 24) / h;
+					R2D_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
+				}
 			}
 			y += 24;
 		}

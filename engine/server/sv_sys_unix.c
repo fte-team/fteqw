@@ -931,6 +931,7 @@ void Sys_DestroyMutex(void *mutex)
 /* Conditional wait calls */
 typedef struct condvar_s
 {
+	//FIXME: these should not be pointers.
 	pthread_mutex_t *mutex;
 	pthread_cond_t *cond;
 } condvar_t;

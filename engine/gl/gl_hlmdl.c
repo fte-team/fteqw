@@ -71,7 +71,6 @@ void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float
     Mod_LoadHLModel - read in the model's constituent parts
  =======================================================================================================================
  */
-extern char loadname[];
 qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 {
     /*~~*/

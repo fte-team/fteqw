@@ -111,7 +111,7 @@ int Script_Read(int handle, struct pc_token_s *token)
 
 			if (sc->originalfilestack[sc->stackdepth])
 				BZ_Free(sc->originalfilestack[sc->stackdepth]);
-			sc->filestack[sc->stackdepth] = sc->originalfilestack[sc->stackdepth] = FS_LoadMallocFile(com_token);
+			sc->filestack[sc->stackdepth] = sc->originalfilestack[sc->stackdepth] = FS_LoadMallocFile(com_token, NULL);
 			Q_strncpyz(sc->filename[sc->stackdepth], com_token, MAX_QPATH);
 			sc->stackdepth++;
 			continue;
@@ -205,7 +205,7 @@ int Script_LoadFile(char *filename)
 	
 	sc = scripts+i;
 	memset(sc, 0, sizeof(*sc));
-	sc->filestack[0] = sc->originalfilestack[0] = FS_LoadMallocFile(filename);
+	sc->filestack[0] = sc->originalfilestack[0] = FS_LoadMallocFile(filename, NULL);
 	Q_strncpyz(sc->filename[sc->stackdepth], filename, MAX_QPATH);
 	sc->stackdepth = 1;
 
@@ -639,13 +639,14 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 	} in;
 	int i;
 	char name[MAX_QPATH];
+	size_t sz;
 	#define readInt() LittleLong(*in.i++)
 	#define readFloat() LittleFloat(*in.f++)
 
 	snprintf(name, sizeof(name), "fonts/fontImage_%i.dat",pointSize);
 
-	in.c = COM_LoadTempFile(name);
-	if (com_filesize == sizeof(fontInfo_t))
+	in.c = COM_LoadTempFile(name, &sz);
+	if (sz == sizeof(fontInfo_t))
 	{
 		for(i=0; i<GLYPHS_PER_FONT; i++)
 		{
@@ -678,7 +679,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 
 
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to ui trap %i passes invalid pointer\n", (int)fn);	//out of bounds.
+#define VALIDATEPOINTER(o,l) if ((quintptr_t)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to ui trap %i passes invalid pointer\n", (int)fn);	//out of bounds.
 
 static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
@@ -846,7 +847,9 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			char *name = VM_POINTER(arg[0]);
 			model_t *mod;
 			mod = Mod_ForName(name, MLV_SILENT);
-			if (mod->needload || mod->type == mod_dummy)
+			if (mod && mod->loadstate == MLS_LOADING)
+				COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+			if (!mod || mod->loadstate != MLS_LOADED || mod->type == mod_dummy)
 				VM_LONG(ret) = 0;
 			else
 				VM_LONG(ret) = VM_TOMHANDLE(mod);
@@ -922,7 +925,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case UI_S_REGISTERSOUND:
 		{
 			sfx_t *sfx;
-			sfx = S_PrecacheSound(va("../%s", (char*)VM_POINTER(arg[0])));
+			sfx = S_PrecacheSound(va("%s", (char*)VM_POINTER(arg[0])));
 			if (sfx)
 				VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);	//return handle is the parameter they just gave
 			else
@@ -1000,7 +1003,38 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case UI_GETCLIENTSTATE:	//get client state
 		//fixme: we need to fill in a structure.
-		Con_Printf("ui_getclientstate\n");
+//		Con_Printf("ui_getclientstate\n");
+		VALIDATEPOINTER(arg[0], sizeof(uiClientState_t));
+		{
+			uiClientState_t *state = VM_POINTER(arg[0]);
+			state->connectPacketCount = 0;//clc.connectPacketCount;
+
+			switch(cls.state)
+			{
+			case ca_disconnected:
+				if (CL_TryingToConnect())
+					state->connState = Q3CA_CONNECTING;
+				else
+					state->connState = Q3CA_DISCONNECTED;
+				break;
+			case ca_demostart:
+				state->connState = Q3CA_CONNECTING;
+				break;
+			case ca_connected:
+				state->connState = Q3CA_CONNECTED;
+				break;
+			case ca_onserver:
+				state->connState = Q3CA_PRIMED;
+				break;
+			case ca_active:
+				state->connState = Q3CA_ACTIVE;
+				break;
+			}
+			Q_strncpyz( state->servername, cls.servername, sizeof( state->servername ) );
+			Q_strncpyz( state->updateInfoString, "FTE!", sizeof( state->updateInfoString ) );	//warning/motd message from update server
+			Q_strncpyz( state->messageString, "", sizeof( state->messageString ) );				//error message from game server
+			state->clientNum = cl.playerview[0].playernum;
+		}
 		break;
 
 	case UI_GETCONFIGSTRING:
@@ -1553,6 +1587,11 @@ void UI_Stop (void)
 		VM_Destroy(uivm);
 		VM_fcloseall(0);
 		uivm = NULL;
+
+		//mimic Q3 and save the config if anything got changed.
+		//note that q3 checks every frame. we only check when the ui is closed.
+		if (Cvar_UnsavedArchive())
+			Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
 	}
 }
 
@@ -1612,7 +1651,7 @@ qboolean UI_OpenMenu(void)
 qboolean UI_Command(void)
 {
 	if (uivm)
-		return VM_Call(uivm, UI_CONSOLE_COMMAND);
+		return VM_Call(uivm, UI_CONSOLE_COMMAND, (int)(realtime * 1000));
 	return false;
 }
 

@@ -656,7 +656,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 lc = texture2D(s_t1, tc);\n"
 "col.rgb += lc.rgb*e_lowercolour*lc.a;\n"
 "#endif\n"
-"col.rgb *= light;\n"
 
 "#if defined(BUMP) && defined(SPECULAR)\n"
 "vec3 bumps = normalize(vec3(texture2D(s_t4, tc)) - 0.5);\n"
@@ -666,6 +665,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);\n"
 "col.rgb += cvar_gl_specular * spec * specs.rgb;\n"
 "#endif\n"
+
+"col.rgb *= light;\n"
 
 "#ifdef FULLBRIGHT\n"
 "vec4 fb = texture2D(s_t3, tc);\n"
@@ -1726,6 +1727,14 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define LOWER\n"
 "#endif\n"
 
+//if there's no vertex normals known, disable some stuff.
+//FIXME: this results in dupe permutations.
+"#ifdef NOBUMP\n"
+"#undef SPECULAR\n"
+"#undef BUMP\n"
+"#undef OFFSETMAPPING\n"
+"#endif\n"
+
 
 "varying vec2 tcbase;\n"
 "varying vec3 lightvector;\n"
@@ -1753,9 +1762,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
 "tcbase = v_texcoord; //pass the texture coords straight through\n"
 "vec3 lightminusvertex = l_lightposition - w.xyz;\n"
+"#ifdef NOBUMP\n"
+//the only important thing is distance
+"lightvector = lightminusvertex;\n"
+"#else\n"
+//the light direction relative to the surface normal, for bumpmapping.
 "lightvector.x = dot(lightminusvertex, s.xyz);\n"
 "lightvector.y = dot(lightminusvertex, t.xyz);\n"
 "lightvector.z = dot(lightminusvertex, n.xyz);\n"
+"#endif\n"
 "#if defined(SPECULAR)||defined(OFFSETMAPPING)\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
 "eyevector.x = dot(eyeminusvertex, s.xyz);\n"
@@ -1817,8 +1832,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef SPOT\n"
 //bias it. don't bother figuring out which side or anything, its not needed
 //l_projmatrix contains the light's projection matrix so no other magic needed
-"vtexprojcoord.z -= 0.015;\n"
-"return (vtexprojcoord.xyz/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
+"return ((vtexprojcoord.xyz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
 //#elif defined(CUBESHADOW)
 //	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
 //	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
@@ -1941,14 +1955,19 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 specs = texture2D(s_t2, tcbase);\n"
 "#endif\n"
 
-"vec3 nl = normalize(lightvector);\n"
 "float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);\n"
 "vec3 diff;\n"
+"#ifdef NOBUMP\n"
+//surface can only support ambient lighting, even for lights that try to avoid it.
+"diff = bases * (l_lightcolourscale.x+l_lightcolourscale.y);\n"
+"#else\n"
+"vec3 nl = normalize(lightvector);\n"
 "#ifdef BUMP\n"
 "diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));\n"
 "#else\n"
 //we still do bumpmapping even without bumps to ensure colours are always sane. light.exe does it too.
 "diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));\n"
+"#endif\n"
 "#endif\n"
 
 

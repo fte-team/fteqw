@@ -348,6 +348,9 @@ char *COM_ParseOut (const char *data, char *out, int outlen)
 	int		c;
 	int		len;
 
+	if (out == com_token)
+		COM_AssertMainThread("COM_ParseOut: com_token");
+
 	len = 0;
 	out[0] = 0;
 

@@ -1750,12 +1750,11 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 		{
 			if (!pr_progstate[a].progs)
 				continue;
-			PR_SwitchProgs(progfuncs, a);
 			{
 				AddS (qcva("progs %i {\n", a));
 				AddS (qcva("\"filename\" \"%s\"\n", pr_progstate[a].filename));
-				AddS (qcva("\"crc\" \"%i\"\n", pr_progs->crc));
-				AddS (qcva("\"numbuiltins\" \"%i\"\n", current_progstate->numbuiltins));
+				AddS (qcva("\"crc\" \"%i\"\n", pr_progstate[a].progs->crc));
+				AddS (qcva("\"numbuiltins\" \"%i\"\n", pr_progstate[a].numbuiltins));
 				AddS ("}\n");
 			}
 		}
@@ -1959,7 +1958,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 					Sys_Error("Bad key \"%s\" in progs block", qcc_token);
 			}
 
-			PR_ReallyLoadProgs(progfuncs, filename, header_crc, &pr_progstate[num], true);
+			PR_ReallyLoadProgs(progfuncs, filename, &pr_progstate[num], true);
 			if (!externs->builtinsfor)
 			{
 			//	Sys_Error("Couldn't reset the builtin functions");
@@ -2500,7 +2499,7 @@ char *decode(int complen, int len, int method, char *info, char *buffer);
 PR_LoadProgs
 ===============
 */
-int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, int headercrc, progstate_t *progstate, pbool complain)
+int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain)
 {
 	unsigned int		i, j, type;
 //	extensionbuiltin_t *eb;
@@ -2523,6 +2522,7 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, int header
 	dfunction_t *fnc;
 	mfunction_t *fnc2;
 	dstatement16_t *st16;
+	size_t fsz;
 
 	int hmark=0xffffffff;
 
@@ -2577,7 +2577,7 @@ retry:
 
 	hmark = PRHunkMark(progfuncs);
 	pr_progs = PRHunkAlloc(progfuncs, len+1, "proginfo");
-	if (!externs->ReadFile(filename, pr_progs, len+1))
+	if (!externs->ReadFile(filename, pr_progs, len+1, &fsz))
 	{
 		if (!complain)
 			return false;
@@ -2660,8 +2660,7 @@ retry:
 	if (!trysleft)	//the progs exists, let's just be happy about it.
 		printf("Progs is out of date and uncompilable\n");
 
-	if (headercrc != -1 && headercrc != 0)
-	if (pr_progs->crc != headercrc && pr_progs->crc != 0)	//This shouldn't affect us. However, it does adjust expectations and usage of builtins.
+	if (externs->CheckHeaderCrc && !externs->CheckHeaderCrc(&progfuncs->funcs, pr_typecurrent, pr_progs->crc))
 	{
 //		printf ("%s system vars have been modified, progdefs.h is out of date\n", filename);
 		PRHunkFree(progfuncs, hmark);
@@ -2822,7 +2821,7 @@ retry:
 		if ((len=externs->FileSize(lnoname))>0)
 		{
 			file = PRHunkAlloc(progfuncs, len+1, "line numbers");
-			if (externs->ReadFile(lnoname, file, len+1))
+			if (externs->ReadFile(lnoname, file, len+1, &fsz))
 			{
 				if (	file[0] != lnotype
 					||	file[1] != version
@@ -2928,9 +2927,6 @@ retry:
 			pr_types[i].name += stringadjust;
 		}
 	}
-
-	if (reorg)
-		reorg = (headercrc != -1);
 
 	QC_FlushProgsOffsets(progfuncs);
 	switch(current_progstate->structtype)
@@ -3154,7 +3150,7 @@ retry:
 		break;
 	}
 
-
+/*
 	if (headercrc == -1)
 	{
 		isfriked = true;
@@ -3162,7 +3158,7 @@ retry:
 			Sys_Error("Decompiling a bigprogs");
 		return true;
 	}
-
+*/
 	progstype = current_progstate-pr_progstate;
 
 //	QC_StartShares(progfuncs);

@@ -98,9 +98,12 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 void Sys_SetThreadName(unsigned int dwThreadID, char *threadName);
 #endif
 
+void Sys_ThreadsInit(void);
+qboolean Sys_IsThread(void *thread);
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize);
 void Sys_WaitOnThread(void *thread);
 void Sys_DetachThread(void *thread);
+void Sys_ThreadAbort(void);
 
 #define THREADP_IDLE -5
 #define THREADP_NORMAL 0
@@ -116,10 +119,16 @@ void Sys_DestroyMutex(void *mutex);
 void *Sys_CreateConditional(void);
 qboolean Sys_LockConditional(void *condv);
 qboolean Sys_UnlockConditional(void *condv);
-qboolean Sys_ConditionWait(void *condv);
-qboolean Sys_ConditionSignal(void *condv);
-qboolean Sys_ConditionBroadcast(void *condv);
+qboolean Sys_ConditionWait(void *condv);		//lock first
+qboolean Sys_ConditionSignal(void *condv);		//lock first
+qboolean Sys_ConditionBroadcast(void *condv);	//lock first
 void Sys_DestroyConditional(void *condv);
+#else
+#define Sys_CreateMutex() NULL
+#define Sys_LockMutex(m) true
+#define Sys_UnlockMutex(m) true
+#define Sys_DestroyMutex(m)
+#define Sys_IsThread(t) !t
 #endif
 
 void Sys_Sleep(double seconds);

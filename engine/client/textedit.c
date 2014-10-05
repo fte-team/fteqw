@@ -16,6 +16,7 @@ F11 will step through.
 
 #include "quakedef.h"
 #ifdef TEXTEDITOR
+#include "pr_common.h"
 
 #ifdef _WIN32
 #define editaddcr_default "1"
@@ -361,6 +362,7 @@ static void EditorOpenFile(char *name, qboolean readonly)
 				firstblock->flags |= FB_BREAK;
 			}
 		}
+#ifndef CLIENTONLY
 		else
 		{
 			if (svprogfuncs)
@@ -371,6 +373,7 @@ static void EditorOpenFile(char *name, qboolean readonly)
 				}
 			}
 		}
+#endif
 
 		i++;
 	}

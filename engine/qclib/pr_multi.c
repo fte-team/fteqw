@@ -94,7 +94,7 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 
 	return PR_SwitchProgs(progfuncs, newpr);
 }
 
-progsnum_t PDECL PR_LoadProgs(pubprogfuncs_t *ppf, const char *s, int headercrc, builtin_t *builtins, int numbuiltins)
+progsnum_t PDECL PR_LoadProgs(pubprogfuncs_t *ppf, const char *s, builtin_t *builtins, int numbuiltins)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int a;
@@ -106,7 +106,7 @@ progsnum_t PDECL PR_LoadProgs(pubprogfuncs_t *ppf, const char *s, int headercrc,
 		{
 			pr_typecurrent = a;
 			current_progstate = &pr_progstate[a];
-			if (PR_ReallyLoadProgs(progfuncs, s, headercrc, &pr_progstate[a], false))	//try and load it			
+			if (PR_ReallyLoadProgs(progfuncs, s, &pr_progstate[a], false))	//try and load it			
 			{
 				current_progstate->builtins = builtins;
 				current_progstate->numbuiltins = numbuiltins;

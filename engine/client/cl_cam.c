@@ -340,7 +340,7 @@ static void Cam_CheckHighTarget(playerview_t *pv)
 void Cam_SelfTrack(playerview_t *pv)
 {
 	vec3_t vec;
-	if (!cl.worldmodel || cl.worldmodel->needload)
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
 	if (selfcam == 1)
@@ -405,7 +405,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	if (cl_hightrack.value && !pv->cam_locked)
 		Cam_CheckHighTarget(pv);
 
-	if (!pv->cam_auto || cls.state != ca_active || cl.worldmodel || cl.worldmodel->needload)
+	if (!pv->cam_auto || cls.state != ca_active || cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
 	if (pv->cam_locked && (!cl.players[pv->cam_spec_track].name[0] || cl.players[pv->cam_spec_track].spectator))

@@ -307,8 +307,8 @@ struct accessor_s
 	struct accessor_s *next;
 	struct QCC_type_s *type;
 	struct QCC_type_s *indexertype;	//null if not indexer
-	struct QCC_def_s *get;
-	struct QCC_def_s *set;
+	struct QCC_def_s *getset_func[2];
+	pbool *getset_isref[2];
 	char *fieldname;
 };
 

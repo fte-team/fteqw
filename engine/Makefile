@@ -50,6 +50,11 @@ NATIVE_BASE_DIR?=$(BASE_DIR)
 NATIVE_RELEASE_DIR?=$(RELEASE_DIR)
 NATIVE_DEBUG_DIR?=$(DEBUG_DIR)
 
+#include the appropriate games.
+ifneq (,$(BRANDING))
+	CFLAGS+=-DBRANDING_INC=../game_$(BRANDING).h
+	-include game_$(BRANDING).mak
+endif
 
 #correct the gcc build when cross compiling
 ifneq (,$(findstring win32,$(FTE_TARGET)))
@@ -1322,11 +1327,11 @@ endif
 
 # This is for linking the FTE icon to the MinGW target
 $(OUT_DIR)/resources.o : winquake.rc
-	@$(WINDRES) -I$(CLIENT_DIR) -O coff $< $@
+	@$(WINDRES) $(CFLAGS) -I$(CLIENT_DIR) -O coff $< $@
 
 #npAPI stuff requires some extra resources
 $(OUT_DIR)/npplug.o : ftequake/npplug.rc
-	@$(WINDRES) -I$(CLIENT_DIR) -O coff $< $@
+	@$(WINDRES) $(CFLAGS) -I$(CLIENT_DIR) -O coff $< $@
 
 
 #$(OUT_DIR)/%.d: %.c

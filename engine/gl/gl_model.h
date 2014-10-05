@@ -285,6 +285,7 @@ typedef struct texture_s
 	qbyte	alphaed;	//gl_blend needed on this surface.
 
 	struct shader_s	*shader;
+	texnums_t texnums;
 
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
@@ -344,6 +345,7 @@ typedef struct mtexinfo_s
 
 typedef struct mfog_s
 {
+	char			shadername[MAX_QPATH];
 	struct shader_s		*shader;
 
 	mplane_t		*visibleplane;
@@ -516,6 +518,7 @@ typedef struct mspriteframe_s
 {
 	float	up, down, left, right;
 	shader_t *shader;
+	image_t *image;
 } mspriteframe_t;
 
 mspriteframe_t *R_GetSpriteFrame (entity_t *currententity);
@@ -779,32 +782,33 @@ typedef struct {
 typedef enum {mod_brush, mod_sprite, mod_alias, mod_dummy, mod_halflife, mod_heightmap} modtype_t;
 typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom, fg_doom3} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
 
-#define	MF_ROCKET	1			// leave a trail
-#define	MF_GRENADE	2			// leave a trail
-#define	MF_GIB		4			// leave a trail
-#define	MF_ROTATE	8			// rotate (bonus items)
-#define	MF_TRACER	16			// green split trail
-#define	MF_ZOMGIB	32			// small blood trail
-#define	MF_TRACER2	64			// orange split trail + rotate
-#define	MF_TRACER3	128			// purple trail
+#define	MF_ROCKET				(1u<<0)			// leave a trail
+#define	MF_GRENADE				(1u<<1)			// leave a trail
+#define	MF_GIB					(1u<<2)			// leave a trail
+#define	MF_ROTATE				(1u<<3)			// rotate (bonus items)
+#define	MF_TRACER				(1u<<4)			// green split trail
+#define	MF_ZOMGIB				(1u<<5)			// small blood trail
+#define	MF_TRACER2				(1u<<6)			// orange split trail + rotate
+#define	MF_TRACER3				(1u<<7)			// purple trail
 
 //hexen2 support.
-#define  MFH2_FIREBALL		 256			// Yellow transparent trail in all directions
-#define  MFH2_ICE				 512			// Blue-white transparent trail, with gravity
-#define  MFH2_MIP_MAP			1024			// This model has mip-maps
-#define  MFH2_SPIT			2048			// Black transparent trail with negative light
-#define  MFH2_TRANSPARENT		4096			// Transparent sprite
-#define  MFH2_SPELL           8192			// Vertical spray of particles
-#define  MFH2_HOLEY		   16384			// Solid model with color 0
-#define  MFH2_SPECIAL_TRANS  32768			// Translucency through the particle table
-#define  MFH2_FACE_VIEW	   65536			// Poly Model always faces you
-#define  MFH2_VORP_MISSILE  131072			// leave a trail at top and bottom of model
-#define  MFH2_SET_STAFF     262144			// slowly move up and left/right
-#define  MFH2_MAGICMISSILE  524288            // a trickle of blue/white particles with gravity
-#define  MFH2_BONESHARD    1048576           // a trickle of brown particles with gravity
-#define  MFH2_SCARAB       2097152           // white transparent particles with little gravity
-#define  MFH2_ACIDBALL	 4194304			// Green drippy acid shit
-#define  MFH2_BLOODSHOT	 8388608			// Blood rain shot trail
+#define  MFH2_FIREBALL			(1u<<8)			// Yellow transparent trail in all directions
+#define  MFH2_ICE				(1u<<9)			// Blue-white transparent trail, with gravity
+#define  MFH2_MIP_MAP			(1u<<10)		// This model has mip-maps
+#define  MFH2_SPIT				(1u<<11)		// Black transparent trail with negative light
+#define  MFH2_TRANSPARENT		(1u<<12)		// Transparent sprite
+#define  MFH2_SPELL				(1u<<13)		// Vertical spray of particles
+#define  MFH2_HOLEY				(1u<<14)		// Solid model with color 0
+#define  MFH2_SPECIAL_TRANS		(1u<<15)		// Translucency through the particle table
+#define  MFH2_FACE_VIEW			(1u<<16)		// Poly Model always faces you
+#define  MFH2_VORP_MISSILE		(1u<<17)		// leave a trail at top and bottom of model
+#define  MFH2_SET_STAFF			(1u<<18)		// slowly move up and left/right
+#define  MFH2_MAGICMISSILE		(1u<<19)		// a trickle of blue/white particles with gravity
+#define  MFH2_BONESHARD			(1u<<20)		// a trickle of brown particles with gravity
+#define  MFH2_SCARAB			(1u<<21)		// white transparent particles with little gravity
+#define  MFH2_ACIDBALL			(1u<<22)		// Green drippy acid shit
+#define  MFH2_BLOODSHOT			(1u<<23)		// Blood rain shot trail
+#define  MFH2_ROCKET			(1u<<31)		// spider blood (remapped from MF_ROCKET, to avoid dlight issues)
 
 typedef union {
 	struct {
@@ -826,11 +830,18 @@ typedef struct
 	vec4_t *points;
 } portal_t;
 
+enum
+{
+	MLS_NOTLOADED,
+	MLS_LOADING,
+	MLS_LOADED,
+	MLS_FAILED
+};
 typedef struct model_s
 {
 	char		name[MAX_QPATH];
 	int			datasequence;
-	int			needload;		// if needload is set, the model is not currently valid. 0=false, 1=true, 2 means it was never valid (and please don't spam about it still being invalid). most code should treat this as a simple boolean.
+	int			loadstate;//MLS_
 	qboolean	tainted;
 	qboolean	pushdepth;		// bsp submodels have this flag set so you don't get z fighting on co-planar surfaces.
 
@@ -910,7 +921,10 @@ typedef struct model_s
 	qbyte		*lightdata;
 	qbyte		*deluxdata;
 	q3lightgridinfo_t *lightgrid;
+	mfog_t		*fogs;
+	int			numfogs;
 	char		*entities;
+	int			entitiescrc;
 
 	struct doll_s		*dollinfo;
 
@@ -972,6 +986,7 @@ typedef struct model_s
 void Terr_Init(void);
 void Terr_DrawTerrainModel (batch_t **batch, entity_t *e);
 void Terr_FreeModel(model_t *mod);
+void Terr_FinishTerrain(model_t *model);
 void Terr_PurgeTerrainModel(model_t *hm, qboolean lightmapsonly, qboolean lightmapreusable);
 void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force);	//call this after loading a bsp
 qboolean Terrain_LocateSection(char *name, flocation_t *loc);	//used on servers to generate sections for download.

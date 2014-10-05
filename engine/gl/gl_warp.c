@@ -768,17 +768,14 @@ void R_InitSky (struct texnums_s *tn, texture_t *mt, qbyte *src)
 			b += ((qbyte *)rgba)[2];
 		}
 
+	Q_snprintfz(name, sizeof(name), "%s_solid", mt->name);
+	Q_strlwr(name);
+	tn->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, trans, 128, 128, TF_RGBX32);
+
 	((qbyte *)&transpix)[0] = r/(128*128);
 	((qbyte *)&transpix)[1] = g/(128*128);
 	((qbyte *)&transpix)[2] = b/(128*128);
 	((qbyte *)&transpix)[3] = 0;
-
-	Q_snprintfz(name, sizeof(name), "%s_solid", mt->name);
-	Q_strlwr(name);
-	tn->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA);
-	if (!TEXVALID(tn->base))
-		tn->base = R_LoadTexture32(name, 128, 128, trans, IF_NOALPHA|IF_NOGAMMA);
-
 	alphamask = LittleLong(0x7fffffff);
 	for (i=0 ; i<128 ; i++)
 		for (j=0 ; j<128 ; j++)
@@ -790,16 +787,9 @@ void R_InitSky (struct texnums_s *tn, texture_t *mt, qbyte *src)
 				trans[(i*128) + j] = d_8to24rgbtable[p] & alphamask;
 		}
 
-	Q_snprintfz(name, sizeof(name), "%s_trans", mt->name);
+	//FIXME: support _trans
+	Q_snprintfz(name, sizeof(name), "%s_alpha", mt->name);
 	Q_strlwr(name);
-	tn->fullbright = R_LoadReplacementTexture(name, NULL, 0);
-	if (!TEXVALID(tn->fullbright))
-	{
-		Q_snprintfz(name, sizeof(name), "%s_alpha", mt->name);
-		Q_strlwr(name);
-		tn->fullbright = R_LoadReplacementTexture(name, NULL, 0);
-	}
-	if (!TEXVALID(tn->fullbright))
-		tn->fullbright = R_LoadTexture32(name, 128, 128, trans, IF_NOGAMMA);
+	tn->fullbright = R_LoadReplacementTexture(name, NULL, 0, trans, 128, 128, TF_RGBA32);
 }
 #endif

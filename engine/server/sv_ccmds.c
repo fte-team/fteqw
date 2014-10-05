@@ -527,7 +527,7 @@ void SV_Map_f (void)
 	#define SCR_SetLoadingFile(s)
 #endif
 
-	COM_FlushFSCache();
+	COM_FlushFSCache(false, true);
 
 	if (strlen(level) > 4 &&
 		(!strcmp(level + strlen(level)-4, ".cin") ||
@@ -1730,7 +1730,7 @@ static void SV_Status_f (void)
 	if (svs.gametype == GT_PROGS)
 	{
 		int count = 0;
-		Con_Printf("entities         : %i/%i (mem: %i/%i)\n", sv.world.num_edicts, sv.world.max_edicts, sv.world.progs->stringtablesize, sv.world.progs->stringtablemaxsize);
+		Con_Printf("entities         : %i/%i (mem: %u/%u)\n", sv.world.num_edicts, sv.world.max_edicts, sv.world.progs->stringtablesize, sv.world.progs->stringtablemaxsize);
 		for (count = 1; count < MAX_PRECACHE_MODELS; count++)
 			if (!sv.strings.model_precache[count])
 				break;

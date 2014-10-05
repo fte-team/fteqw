@@ -204,10 +204,10 @@ typedef struct
 
 	unsigned int curlmode;
 	shader_t	*shader_rtlight[LSHADER_MODES];
-	texid_t		curtex[MAX_TMUS];
+	unsigned int texflags[MAX_TMUS];
 	unsigned int tmuflags[MAX_TMUS];
 	ID3D11SamplerState *cursamplerstate[MAX_TMUS];
-	ID3D11SamplerState *sampstate[(SHADER_PASS_NEAREST|SHADER_PASS_CLAMP|SHADER_PASS_DEPTHCMP)+1];
+	ID3D11SamplerState *sampstate[(SHADER_PASS_IMAGE_FLAGS|SHADER_PASS_DEPTHCMP)+1];
 	ID3D11DepthStencilState *depthstates[1u<<4];	//index, its fairly short.
 	blendstates_t *blendstates;	//list. this could get big.
 
@@ -254,28 +254,38 @@ static d3d11backend_t shaderstate;
 
 extern int be_maxpasses;
 
-static void BE_CreateSamplerStates(void)
+void D3D11_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
 {
 	D3D11_SAMPLER_DESC sampdesc;
 	int flags;
-	for (flags = 0; flags <= (SHADER_PASS_CLAMP|SHADER_PASS_NEAREST|SHADER_PASS_DEPTHCMP); flags++)
+	for (flags = 0; flags <= (SHADER_PASS_IMAGE_FLAGS|SHADER_PASS_DEPTHCMP); flags++)
 	{
-		if (flags & SHADER_PASS_DEPTHCMP)
-		{
-			if (flags & SHADER_PASS_NEAREST)
-				sampdesc.Filter = D3D11_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT;
-			else
-				sampdesc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
-			sampdesc.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
-		}
+		int *filter;
+		sampdesc.Filter = 0;
+		filter = (flags & SHADER_PASS_UIPIC)?filterpic:filtermip;
+		if ((filter[2] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
+			sampdesc.Filter |= D3D11_FILTER_TYPE_LINEAR<<D3D11_MAG_FILTER_SHIFT;
 		else
-		{
-			if (flags & SHADER_PASS_NEAREST)
-				sampdesc.Filter = D3D11_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
-			else
-				sampdesc.Filter = /*D3D11_FILTER_MIN_MAG_MIP_POINT;*/D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;/*D3D11_FILTER_MIN_MAG_MIP_LINEAR*/;
+			sampdesc.Filter |= D3D11_FILTER_TYPE_POINT<<D3D11_MAG_FILTER_SHIFT;
+		//d3d11 has no no-mip feature
+		if ((filter[1]==1 && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
+			sampdesc.Filter |= D3D11_FILTER_TYPE_LINEAR<<D3D11_MIP_FILTER_SHIFT;
+		else
+			sampdesc.Filter |= D3D11_FILTER_TYPE_POINT<<D3D11_MIP_FILTER_SHIFT;
+		if ((filter[0] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
+			sampdesc.Filter |= D3D11_FILTER_TYPE_LINEAR<<D3D11_MIN_FILTER_SHIFT;
+		else
+			sampdesc.Filter |= D3D11_FILTER_TYPE_POINT<<D3D11_MIN_FILTER_SHIFT;
+		//switch to anisotropic filtering if all three filters are linear and anis is set
+		if (sampdesc.Filter == D3D11_FILTER_MIN_MAG_MIP_LINEAR && anis > 1)
+			sampdesc.Filter = D3D11_FILTER_ANISOTROPIC;
+		if (flags & SHADER_PASS_DEPTHCMP)
+			sampdesc.Filter |= D3D11_COMPARISON_FILTERING_BIT;
+
+		if (flags & SHADER_PASS_DEPTHCMP)
+			sampdesc.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+		else
 			sampdesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-		}
 		if (flags & SHADER_PASS_CLAMP)
 		{
 			sampdesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -289,14 +299,27 @@ static void BE_CreateSamplerStates(void)
 			sampdesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 		}
 		sampdesc.MipLODBias = 0.0f;
-		sampdesc.MaxAnisotropy = 1;
+		sampdesc.MaxAnisotropy = bound(1, anis, 16);
 		sampdesc.BorderColor[0] = 0;
 		sampdesc.BorderColor[1] = 0;
 		sampdesc.BorderColor[2] = 0;
 		sampdesc.BorderColor[3] = 0;
-		sampdesc.MinLOD = 0;
-		sampdesc.MaxLOD = D3D11_FLOAT32_MAX;
+		if (flags & SHADER_PASS_NOMIPMAP)
+		{	//only ever use the biggest mip if multiple are present
+			sampdesc.MinLOD = 0;
+			sampdesc.MaxLOD = 0;
+		}
+		else
+		{
+			sampdesc.MinLOD = mipcap[0];
+			sampdesc.MaxLOD = mipcap[1];
+		}
 
+		if (shaderstate.sampstate[flags])
+			ID3D11SamplerState_Release(shaderstate.sampstate[flags]);
+		shaderstate.sampstate[flags] = NULL;
+
+		//returns the same pointer for dupes, supposedly, so no need to check that
 		ID3D11Device_CreateSamplerState(pD3DDev11, &sampdesc, &shaderstate.sampstate[flags]);
 	}
 }
@@ -313,7 +336,7 @@ static void BE_DestroyVariousStates(void)
 	if (d3ddevctx && i)
 		ID3D11DeviceContext_PSSetSamplers(d3ddevctx, 0, i, shaderstate.cursamplerstate);
 
-	for (flags = 0; flags <= (SHADER_PASS_CLAMP|SHADER_PASS_NEAREST|SHADER_PASS_DEPTHCMP); flags++)
+	for (flags = 0; flags <= (SHADER_PASS_IMAGE_FLAGS|SHADER_PASS_DEPTHCMP); flags++)
 	{
 		if (shaderstate.sampstate[flags])
 			ID3D11SamplerState_Release(shaderstate.sampstate[flags]);
@@ -384,7 +407,8 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 {
 	ID3D11SamplerState *nstate;
 
-	flags = flags & (SHADER_PASS_CLAMP|SHADER_PASS_NEAREST|SHADER_PASS_DEPTHCMP);
+	flags = (flags & (SHADER_PASS_IMAGE_FLAGS|SHADER_PASS_DEPTHCMP));
+	flags |= shaderstate.texflags[tu];
 	nstate = shaderstate.sampstate[flags];
 	if (nstate != shaderstate.cursamplerstate[tu])
 	{
@@ -717,7 +741,7 @@ void D3D11BE_Init(void)
 	for (i = 0; i < MAXRLIGHTMAPS; i++)
 		shaderstate.dummybatch.lightmap[i] = -1;
 
-	BE_CreateSamplerStates();
+//	BE_CreateSamplerStates();
 
 //	FTable_Init();
 
@@ -856,14 +880,16 @@ static unsigned int allocindexbuffer(void **dest, unsigned int entries)
 }
 #endif
 
-ID3D11ShaderResourceView *D3D11_Image_View(const texid_t *id);
-static void BindTexture(unsigned int tu, const texid_t *id)
+ID3D11ShaderResourceView *D3D11_Image_View(const texid_t id);
+static void BindTexture(unsigned int tu, const texid_t id)
 {
 	ID3D11ShaderResourceView *view = D3D11_Image_View(id);
 	if (shaderstate.pendingtextures[tu] != view)
 	{
 		shaderstate.textureschanged = true;
 		shaderstate.pendingtextures[tu] = view;
+		if (id)
+			shaderstate.texflags[tu] = id->flags&SHADER_PASS_IMAGE_FLAGS;
 	}
 }
 
@@ -882,52 +908,51 @@ void D3D11BE_UnbindAllTextures(void)
 static void SelectPassTexture(unsigned int tu, const shaderpass_t *pass)
 {
 	extern texid_t r_whiteimage, missing_texture_gloss, missing_texture_normal;
-	texid_t foo;
 	switch(pass->texgen)
 	{
 	default:
 
 	case T_GEN_DIFFUSE:
-		BindTexture(tu, &shaderstate.curtexnums->base);
+		BindTexture(tu, shaderstate.curtexnums->base);
 		break;
 	case T_GEN_NORMALMAP:
 		if (TEXVALID(shaderstate.curtexnums->bump))
-			BindTexture(tu, &shaderstate.curtexnums->bump);
+			BindTexture(tu, shaderstate.curtexnums->bump);
 		else
-			BindTexture(tu, &missing_texture_normal);
+			BindTexture(tu, missing_texture_normal);
 		break;
 	case T_GEN_SPECULAR:
 		if (TEXVALID(shaderstate.curtexnums->specular))
-			BindTexture(tu, &shaderstate.curtexnums->specular);
+			BindTexture(tu, shaderstate.curtexnums->specular);
 		else
-			BindTexture(tu, &missing_texture_gloss);
+			BindTexture(tu, missing_texture_gloss);
 		break;
 	case T_GEN_UPPEROVERLAY:
-		BindTexture(tu, &shaderstate.curtexnums->upperoverlay);
+		BindTexture(tu, shaderstate.curtexnums->upperoverlay);
 		break;
 	case T_GEN_LOWEROVERLAY:
-		BindTexture(tu, &shaderstate.curtexnums->loweroverlay);
+		BindTexture(tu, shaderstate.curtexnums->loweroverlay);
 		break;
 	case T_GEN_FULLBRIGHT:
-		BindTexture(tu, &shaderstate.curtexnums->fullbright);
+		BindTexture(tu, shaderstate.curtexnums->fullbright);
 		break;
 	case T_GEN_ANIMMAP:
-		BindTexture(tu, &pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes]);
+		BindTexture(tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes]);
 		break;
 	case T_GEN_3DMAP:
 	case T_GEN_CUBEMAP:
 	case T_GEN_SINGLEMAP:
-		BindTexture(tu, &pass->anim_frames[0]);
+		BindTexture(tu, pass->anim_frames[0]);
 		break;
 	case T_GEN_DELUXMAP:
 		{
 			int lmi = shaderstate.curbatch->lightmap[0];
 			if (lmi < 0 || !lightmap[lmi]->hasdeluxe)
-				BindTexture(tu, &r_nulltex);
+				BindTexture(tu, r_nulltex);
 			else
 			{
 				lmi+=1;
-				BindTexture(tu, &lightmap[lmi]->lightmap_texture);
+				BindTexture(tu, lightmap[lmi]->lightmap_texture);
 			}
 		}
 		break;
@@ -935,9 +960,9 @@ static void SelectPassTexture(unsigned int tu, const shaderpass_t *pass)
 		{
 			int lmi = shaderstate.curbatch->lightmap[0];
 			if (lmi < 0)
-				BindTexture(tu, &r_whiteimage);
+				BindTexture(tu, r_whiteimage);
 			else
-				BindTexture(tu, &lightmap[lmi]->lightmap_texture);
+				BindTexture(tu, lightmap[lmi]->lightmap_texture);
 		}
 		break;
 
@@ -948,28 +973,26 @@ static void SelectPassTexture(unsigned int tu, const shaderpass_t *pass)
 #ifndef NOMEDIA
 		if (pass->cin)
 		{
-			foo = Media_UpdateForShader(pass->cin);
-			BindTexture(tu, &foo);
+			BindTexture(tu, Media_UpdateForShader(pass->cin));
 			break;
 		}
 #endif
-		BindTexture(tu, &r_nulltex);
+		BindTexture(tu, r_nulltex);
 		break;
 
 	case T_GEN_LIGHTCUBEMAP:	//light's projected cubemap
-		BindTexture(tu, &shaderstate.curdlight->cubetexture);
+		BindTexture(tu, shaderstate.curdlight->cubetexture);
 		break;
 
 	case T_GEN_SHADOWMAP:	//light's depth values.
 #ifdef RTLIGHTS
 		if (shaderstate.curdlight)
 		{
-			foo = D3D11_GetShadowMap(shaderstate.curdlight->fov>0);
-			BindTexture(tu, &foo);
+			BindTexture(tu, D3D11_GetShadowMap(shaderstate.curdlight->fov>0));
 			break;
 		}
 #endif
-		BindTexture(tu, &r_nulltex);
+		BindTexture(tu, r_nulltex);
 		break;
 
 	case T_GEN_CURRENTRENDER://copy the current screen to a texture, and draw that
@@ -983,7 +1006,7 @@ static void SelectPassTexture(unsigned int tu, const shaderpass_t *pass)
 	case T_GEN_RIPPLEMAP:	//ripplemap image (water surface distortions-as-fbo)
 
 	case T_GEN_SOURCECUBE:	//used for render-to-texture targets
-		BindTexture(tu, &r_nulltex);
+		BindTexture(tu, r_nulltex);
 		break;
 	}
 
@@ -1899,7 +1922,6 @@ static void BE_RenderMeshProgram(const shader_t *s, unsigned int vertcount, unsi
 
 	BE_ApplyUniforms(p, perm);
 
-
 	D3D11BE_ApplyShaderBits(s->passes->shaderbits, &s->passes->becache);
 
 	/*activate tmus*/
@@ -2156,7 +2178,7 @@ qboolean D3D11BE_GenerateRTLightShader(unsigned int lmode)
 		return false;
 	return true;
 }
-qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode)
+qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode)
 {
 	if (!D3D11BE_GenerateRTLightShader(lmode))
 	{

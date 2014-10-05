@@ -416,13 +416,13 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				else if (!strnicmp(msg, "Content-Type:", 13))
 				{
 					*nl = '\0';
-					Q_strncpyz(mimetype, COM_TrimString(msg+13), sizeof(mimetype));
+					COM_TrimString(msg+13, mimetype, sizeof(mimetype));
 					*nl = '\n';
 				}
 				else if (!strnicmp(msg, "Location: ", 10))
 				{
 					*nl = '\0';
-					Q_strncpyz(Location, COM_TrimString(msg+10), sizeof(Location));
+					COM_TrimString(msg+10, Location, sizeof(Location));
 					*nl = '\n';
 				}
 				else if (!strnicmp(msg, "Content-Encoding: ", 18))
@@ -458,10 +458,11 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 			if (!stricmp(buffer, "301") || !stricmp(buffer, "302") || !stricmp(buffer, "303"))
 			{
+				char trimmed[256];
 				nl = strchr(msg, '\n');
 				if (nl)
 					*nl = '\0';
-				Con_Printf("HTTP: %s %s\n", buffer, COM_TrimString(msg));
+				Con_Printf("HTTP: %s %s\n", buffer, COM_TrimString(msg, trimmed, sizeof(trimmed)));
 				if (!*Location)
 					Con_Printf("Server redirected to null location\n");
 				else

@@ -69,7 +69,7 @@ struct pubprogfuncs_s
 	void	(PDECL *CloseProgs)					(pubprogfuncs_t *inst);
 
 	void	(PDECL *Configure)					(pubprogfuncs_t *prinst, size_t addressablesize, int max_progs, pbool enableprofiling);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
-	progsnum_t	(PDECL *LoadProgs)				(pubprogfuncs_t *prinst, const char *s, int headercrc, builtin_t *builtins, int numbuiltins);	//load a progs
+	progsnum_t	(PDECL *LoadProgs)				(pubprogfuncs_t *prinst, const char *s, builtin_t *builtins, int numbuiltins);	//load a progs
 	int		(PDECL *InitEnts)					(pubprogfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
 	void	(PDECL *ExecuteProgram)				(pubprogfuncs_t *prinst, func_t fnum);	//start execution
 	struct globalvars_s	*(PDECL *globals)		(pubprogfuncs_t *prinst, progsnum_t num);	//get the globals of a progs
@@ -95,8 +95,8 @@ struct pubprogfuncs_s
 	int		(PDECL *StartCompile)				(pubprogfuncs_t *prinst, int argv, char **argc);	//1 if can compile, 0 if failed to compile
 	int		(PDECL *ContinueCompile)			(pubprogfuncs_t *prinst);	//2 if finished, 1 if more to go, 0 if failed
 
-	char	*(PDECL *filefromprogs)				(pubprogfuncs_t *prinst, progsnum_t prnum, char *fname, int *size, char *buffer);	//reveals encoded/added files from already loaded progs
-	char	*(PDECL *filefromnewprogs)			(pubprogfuncs_t *prinst, char *prname, char *fname, int *size, char *buffer);	//reveals encoded/added files from a progs on the disk somewhere
+	char	*(PDECL *filefromprogs)				(pubprogfuncs_t *prinst, progsnum_t prnum, char *fname, size_t *size, char *buffer);	//reveals encoded/added files from already loaded progs
+	char	*(PDECL *filefromnewprogs)			(pubprogfuncs_t *prinst, char *prname, char *fname, size_t *size, char *buffer);	//reveals encoded/added files from a progs on the disk somewhere
 
 	void	(PDECL *ED_Print)					(pubprogfuncs_t *prinst, struct edict_s *ed);
 	char	*(PDECL *save_ents)					(pubprogfuncs_t *prinst, char *buf, int *size, int maxsize, int mode);	//dump the entire progs info into one big self allocated string
@@ -177,30 +177,32 @@ struct pubprogfuncs_s
 typedef struct progexterns_s {
 	int progsversion;	//PROGSTRUCT_VERSION
 
-	unsigned char *(PDECL *ReadFile) (const char *fname, void *buffer, int len);
-	int (PDECL *FileSize) (const char *fname);	//-1 if file does not exist
-	pbool (PDECL *WriteFile) (const char *name, void *data, int len);
-	int (VARGS *Printf) (const char *, ...) LIKEPRINTF(1);
-	void (VARGS *Sys_Error) (const char *, ...) LIKEPRINTF(1);
-	void (VARGS *Abort) (char *, ...) LIKEPRINTF(1);
-	int edictsize;	//size of edict_t
+	unsigned char *(PDECL *ReadFile)	(const char *fname, void *buffer, int len, size_t *sz);
+	int (PDECL *FileSize)				(const char *fname);	//-1 if file does not exist
+	pbool (PDECL *WriteFile)			(const char *name, void *data, int len);
+	int (VARGS *Printf)					(const char *, ...) LIKEPRINTF(1);
+	void (VARGS *Sys_Error)				(const char *, ...) LIKEPRINTF(1);
+	void (VARGS *Abort)					(char *, ...) LIKEPRINTF(1);
+	pbool (PDECL *CheckHeaderCrc)		(pubprogfuncs_t *inst, progsnum_t idx, int crc);
 
-	void (PDECL *entspawn) (struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
-	pbool (PDECL *entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
-	void (ASMCALL *stateop) (pubprogfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
-	void (ASMCALL *cstateop) (pubprogfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.
-	void (ASMCALL *cwstateop) (pubprogfuncs_t *prinst, float vara, float varb, func_t currentfunc);	//a hexen2 opcode.
-	void (ASMCALL *thinktimeop) (pubprogfuncs_t *prinst, struct edict_s *ent, float varb);			//a hexen2 opcode.
+	void (PDECL *entspawn)				(struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
+	pbool (PDECL *entcanfree)			(struct edict_s *ent);	//return true to stop ent from being freed
+	void (ASMCALL *stateop)				(pubprogfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
+	void (ASMCALL *cstateop)			(pubprogfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.
+	void (ASMCALL *cwstateop)			(pubprogfuncs_t *prinst, float vara, float varb, func_t currentfunc);	//a hexen2 opcode.
+	void (ASMCALL *thinktimeop)			(pubprogfuncs_t *prinst, struct edict_s *ent, float varb);			//a hexen2 opcode.
 
 
 	//used when loading a game
-	builtin_t *(PDECL *builtinsfor) (int num, int headercrc);	//must return a pointer to the builtins that were used before the state was saved.
-	void (PDECL *loadcompleate) (int edictsize);	//notification to reset any pointers.
-	pbool (PDECL *badfield)(pubprogfuncs_t *prinst, struct edict_s *ent, const char *keyname, const char *value);	//called for any fields that are not registered
+	builtin_t *(PDECL *builtinsfor)		(int num, int headercrc);	//must return a pointer to the builtins that were used before the state was saved.
+	void (PDECL *loadcompleate)			(int edictsize);	//notification to reset any pointers.
+	pbool (PDECL *badfield)				(pubprogfuncs_t *prinst, struct edict_s *ent, const char *keyname, const char *value);	//called for any fields that are not registered
 
-	void *(VARGS *memalloc) (int size);	//small string allocation	malloced and freed randomly by the executor. (use malloc if you want)
-	void (VARGS *memfree) (void * mem);
+	void *(VARGS *memalloc)				(int size);	//small string allocation	malloced and freed randomly by the executor. (use malloc if you want)
+	void (VARGS *memfree)				(void * mem);
 
+	int (PDECL *useeditor)				(pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
+	void (PDECL *addressablerelocated)	(pubprogfuncs_t *progfuncs, char *oldb, char *newb, int oldlen);	//called when the progs memory was resized. you must fix up all pointers to globals, strings, fields, addressable blocks.
 
 	builtin_t *globalbuiltins;	//these are available to all progs
 	int numglobalbuiltins;
@@ -211,9 +213,7 @@ typedef struct progexterns_s {
 
 	struct edict_s **sv_edicts;	//pointer to the engine's reference to world.
 	unsigned int *sv_num_edicts;		//pointer to the engine's edict count.
-
-	int (PDECL *useeditor) (pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
-	void (PDECL *addressablerelocated) (pubprogfuncs_t *progfuncs, char *oldb, char *newb, int oldlen);	//called when the progs memory was resized. you must fix up all pointers to globals, strings, fields, addressable blocks.
+	int edictsize;	//size of edict_t
 
 	void *user;	/*contains the owner's world reference in FTE*/
 } progparms_t, progexterns_t;
@@ -237,12 +237,12 @@ typedef union eval_s
 #define PR_CURRENT	-1
 #define PR_ANY	-2	//not always valid. Use for finding funcs
 #define PR_ANYBACK -3
-#define PROGSTRUCT_VERSION 2
+#define PROGSTRUCT_VERSION 3
 
 
 #ifndef DLL_PROG
 #define PR_Configure(pf, memsize, max_progs, profiling)		(*pf->Configure)			(pf, memsize, max_progs, profiling)
-#define PR_LoadProgs(pf, s, headercrc, builtins, numb)		(*pf->LoadProgs)			(pf, s, headercrc, builtins, numb)
+#define PR_LoadProgs(pf, s, builtins, numb)					(*pf->LoadProgs)			(pf, s, builtins, numb)
 #define PR_InitEnts(pf, maxents)							(*pf->InitEnts)				(pf, maxents)
 #define PR_ExecuteProgram(pf, fnum)							(*pf->ExecuteProgram)		(pf, fnum)
 #define PR_globals(pf, num)									(*pf->globals)				(pf, num)

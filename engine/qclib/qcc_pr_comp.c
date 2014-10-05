@@ -6653,14 +6653,22 @@ QCC_def_t *QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	case REF_STRING:
 		return QCC_PR_StatementFlags(&pr_opcodes[OP_LOADP_C], ref->base, ref->index, NULL, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
 	case REF_ACCESSOR:
-		if (ref->accessor && ref->accessor->get)
+		if (ref->accessor && ref->accessor->getset_func[0])
 		{
 			int args = 0;
 			QCC_def_t *arg[2] = {NULL, NULL};
-			arg[args++] = ref->base;
+			if (ref->accessor->getset_isref[0])
+			{
+				if (ref->base->temp)
+					QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, ref->base, "Accessor %s(get) cannot be used on a temporary accessor reference", ref->accessor?ref->accessor->fieldname:"");
+				//there shouldn't really be any need for this, but its problematic if the accessor is a field.
+				arg[args++] = QCC_PR_Statement(&pr_opcodes[OP_GLOBALADDRESS], ref->base, NULL, NULL);
+			}
+			else
+				arg[args++] = ref->base;
 			if (ref->accessor->indexertype)
 				arg[args++] = ref->index?QCC_SupplyConversion(ref->index, ref->accessor->indexertype->type, true):QCC_MakeIntConst(0);
-			return QCC_PR_GenerateFunctionCall(NULL, ref->accessor->get, arg, NULL, args);
+			return QCC_PR_GenerateFunctionCall(NULL, ref->accessor->getset_func[0], arg, NULL, args);
 		}
 		else
 			QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, ref->base, "Accessor %s has no get function", ref->accessor?ref->accessor->fieldname:"");
@@ -6805,16 +6813,24 @@ QCC_def_t *QCC_StoreToRef(QCC_ref_t *dest, QCC_def_t *source, pbool readable, pb
 			}
 			break;
 		case REF_ACCESSOR:
-			if (dest->accessor && dest->accessor->set)
+			if (dest->accessor && dest->accessor->getset_func[1])
 			{
 				int args = 0;
 				QCC_def_t *arg[3] = {NULL, NULL, NULL};
-				arg[args++] = dest->base;
+				if (dest->accessor->getset_isref[1])
+				{
+					if (dest->base->temp)
+						QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, dest->base, "Accessor %s(set) cannot be used on a temporary accessor reference", dest->accessor?dest->accessor->fieldname:"");
+					//there shouldn't really be any need for this, but its problematic if the accessor is a field.
+					arg[args++] = QCC_PR_Statement(&pr_opcodes[OP_GLOBALADDRESS], dest->base, NULL, NULL);
+				}
+				else
+					arg[args++] = dest->base;
 				if (dest->accessor->indexertype)
 					arg[args++] = dest->index?QCC_SupplyConversion(dest->index, dest->accessor->indexertype->type, true):QCC_MakeIntConst(0);
 				arg[args++] = source;
 
-				QCC_FreeTemp(QCC_PR_GenerateFunctionCall(NULL, dest->accessor->set, arg, NULL/*argt*/, args));
+				QCC_FreeTemp(QCC_PR_GenerateFunctionCall(NULL, dest->accessor->getset_func[1], arg, NULL/*argt*/, args));
 			}
 			else
 				QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, dest->base, "Accessor has no set function");

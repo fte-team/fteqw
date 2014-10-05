@@ -819,7 +819,7 @@ typedef struct
 
 	bannedips_t *bannedips;
 
-	char progsnames[MAX_PROGS][32];
+	char progsnames[MAX_PROGS][MAX_QPATH];
 	progsnum_t progsnum[MAX_PROGS];
 	int numprogs;
 
@@ -1082,18 +1082,6 @@ void SVQ3_SendMessage(client_t *client);
 qboolean SVQ3_Command(void);
 #endif
 
-
-//
-// sv_phys.c
-//
-void SV_SetMoveVars(void);
-void WPhys_RunNewmis (world_t *w);
-qboolean SV_Physics (void);
-void WPhys_CheckVelocity (world_t *w, wedict_t *ent);
-trace_t WPhys_Trace_Toss (world_t *w, wedict_t *ent, wedict_t *ignore);
-void SV_ProgStartFrame (void);
-void WPhys_RunEntity (world_t *w, wedict_t *ent);
-qboolean WPhys_RunThink (world_t *w, wedict_t *ent);
 
 //
 // sv_send.c
@@ -1431,3 +1419,4 @@ qboolean HLSV_ClientCommand(client_t *client);
 void SVHL_DropClient(client_t *drop);
 void SVHL_ShutdownGame(void);
 #endif
+

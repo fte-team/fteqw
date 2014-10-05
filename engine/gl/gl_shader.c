@@ -40,8 +40,10 @@ extern texid_t missing_texture;
 texid_t r_whiteimage;
 static qboolean shader_reload_needed;
 static qboolean shader_rescan_needed;
+static char **saveshaderbody;
 
 sh_config_t sh_config;
+r_config_t r_config;
 
 //cvars that affect shader generation
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
@@ -553,11 +555,13 @@ qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *ima
 				for (ss = 0; ss < sizeof(skyname_suffix)/sizeof(skyname_suffix[0]); ss++)
 				{
 					Q_snprintfz ( path, sizeof(path), skyname_pattern[sp], texturename, skyname_suffix[ss][i] );
-					images[i] = R_LoadHiResTexture ( path, NULL, IF_NOALPHA|IF_CLAMP);
-					if (TEXVALID(images[i]))
+					images[i] = R_LoadHiResTexture ( path, NULL, IF_NOALPHA|IF_CLAMP|IF_NOWORKER);
+					if (images[i]->status == TEX_LOADING)	//FIXME: unsafe, as it can recurse through shader loading and mess up internal parse state.
+						COM_WorkerPartialSync(images[i], &images[i]->status, TEX_LOADING);
+					if (TEXLOADED(images[i]))
 						break;
 				}
-				if (TEXVALID(images[i]))
+				if (TEXLOADED(images[i]))
 					break;
 			}
 			if (!TEXVALID(images[i]))
@@ -663,12 +667,7 @@ static texid_t Shader_FindImage ( char *name, int flags )
 			return r_whiteimage;
 	}
 	if (flags & IF_RENDERTARGET)
-	{
-		texid_t tid = R_FindTexture(name, (flags&~IF_RENDERTARGET)|IF_NOMIPMAP);
-		if (!TEXVALID(tid))
-			tid = R_AllocNewTexture(name, 0, 0, (flags&~IF_RENDERTARGET)|IF_NOMIPMAP);
-		return tid;
-	}
+		return R2D_RT_Configure(name, 0, 0, 0);
 	return R_LoadHiResTexture(name, NULL, flags);
 }
 
@@ -827,6 +826,8 @@ static void Shader_SurfaceParm ( shader_t *shader, shaderpass_t *pass, char **pt
 		shader->flags |= SHADER_NODRAW;
 	else if ( !Q_stricmp( token, "nodlight" ) )
 		shader->flags |= SHADER_NODLIGHT;
+	else if ( !Q_stricmp( token, "noshadows" ) )
+		shader->flags |= SHADER_NOSHADOWS;
 }
 
 static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
@@ -926,6 +927,8 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	{
 		return false;
 	}
+	if (!sh_config.pCreateProgram && !sh_config.pLoadBlob)
+		return false;
 
 	cvarnames[cvarcount] = NULL;
 
@@ -1077,9 +1080,11 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 
 			if (blobfile)
 			{
+				blobheaderoffset = 0;
 				VFS_SEEK(blobfile, 0);
 				magic = *(unsigned int*)"FBLB";	//magic
 				VFS_WRITE(blobfile, &magic, sizeof(magic));
+				VFS_WRITE(blobfile, &blobheaderoffset, sizeof(blobheaderoffset));
 				memset(ever, 0, sizeof(ever));	//make sure we don't leak stuff.
 				Q_strncpyz(ever, thisever, sizeof(ever));
 				VFS_WRITE(blobfile, ever, sizeof(ever));
@@ -1225,16 +1230,44 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				continue;	//blob was loaded from disk, yay.
 			//otherwise fall through.
 		}
+		if (blobfile && !sh_config.pValidateProgram)
+		{
+			initoffset = VFS_GETLEN(blobfile);
+			VFS_SEEK(blobfile, initoffset);
+		}
+		if (!sh_config.pCreateProgram(prog, name, p, ver, permutationdefines, script, tess?script:NULL, tess?script:NULL, script, (p & PERMUTATION_SKELETAL)?true:onefailed, sh_config.pValidateProgram?NULL:blobfile))
+		{
+			if (!(p & PERMUTATION_SKELETAL))
+				onefailed = true;	//don't flag it if skeletal failed.
+			if (!p)	//give up if permutation 0 failed. that one failing is fatal.
+				break;
+		}
+		if (!sh_config.pValidateProgram && blobfile && initoffset != VFS_GETLEN(blobfile))
+		{
+			permuoffsets[p] = initoffset;
+			blobadded = true;
+		}
+	}
+	while(nummodifiers)
+		Z_Free((char*)permutationdefines[--nummodifiers]);
+
+	//extra loop to validate the programs actually linked properly.
+	//delaying it like this gives certain threaded drivers a chance to compile them all while we're messing around with other junk
+	if (sh_config.pValidateProgram)
+	for (p = 0; p < PERMUTATIONS; p++)
+	{
+		if (nopermutation & p)
+			continue;
 		if (blobfile)
 		{
 			initoffset = VFS_GETLEN(blobfile);
 			VFS_SEEK(blobfile, initoffset);
 		}
-		if (!sh_config.pCreateProgram(prog, name, p, ver, permutationdefines, script, tess?script:NULL, tess?script:NULL, script, (p & PERMUTATION_SKELETAL)?true:onefailed, blobfile))
+		if (!sh_config.pValidateProgram(prog, name, p, (p & PERMUTATION_SKELETAL)?true:onefailed, blobfile))
 		{
 			if (!(p & PERMUTATION_SKELETAL))
 				onefailed = true;	//don't flag it if skeletal failed.
-			if (!p)	//give up if permutation 0 failed. that one failing is fatal.
+			if (!p)
 				break;
 		}
 		if (blobfile && initoffset != VFS_GETLEN(blobfile))
@@ -1243,8 +1276,6 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			blobadded = true;
 		}
 	}
-	while(nummodifiers)
-		Z_Free((char*)permutationdefines[--nummodifiers]);
 
 	if (sh_config.pProgAutoFields)
 		sh_config.pProgAutoFields(prog, cvarnames, cvartypes);
@@ -1373,14 +1404,6 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 		}
 	}
 }
-static void Shader_ReloadGenerics(void)
-{
-	sgeneric_t *g;
-	for (g = sgenerics; g; g = g->next)
-	{
-		Shader_LoadGeneric(g, qrenderer);
-	}
-}
 static program_t *Shader_FindGeneric(char *name, int qrtype)
 {
 	sgeneric_t *g;
@@ -1415,7 +1438,23 @@ static program_t *Shader_FindGeneric(char *name, int qrtype)
 	g->prog.refs++;
 	return &g->prog;
 }
+static void Shader_ReloadGenerics(void)
+{
+	sgeneric_t *g;
+	for (g = sgenerics; g; g = g->next)
+	{
+		Shader_LoadGeneric(g, qrenderer);
+	}
 
+	//this shader can take a while to load due to its number of permutations.
+	//because this all happens on the main thread, try to avoid random stalls by pre-loading it.
+	if (sh_config.progs_supported)
+	{
+		program_t *p = Shader_FindGeneric("defaultskin", qrenderer);
+		if (p)	//generics get held on to in order to avoid so much churn. so we can just release the reference we just created and it'll be held until shutdown anyway.
+			p->refs--;
+	}
+}
 void Shader_WriteOutGenerics_f(void)
 {
 	int i;
@@ -1873,11 +1912,17 @@ static void Shader_BEMode(shader_t *shader, shaderpass_t *pass, char **ptr)
 		{
 			if ((mode & LSHADER_CUBE) && (mode & LSHADER_SPOT))
 				continue;
-			shader->bemoverrides[mode] = R_RegisterCustom(va("%s%s%s%s", 
+			shader->bemoverrides[mode] = R_RegisterCustom(va("%s%s%s%s%s", 
 																tokencopy,
 																(mode & LSHADER_SMAP)?"#PCF":"",
 																(mode & LSHADER_SPOT)?"#SPOT":"",
-																(mode & LSHADER_CUBE)?"#CUBE":"")
+																(mode & LSHADER_CUBE)?"#CUBE":"",
+#ifdef GLQUAKE
+																(qrenderer == QR_OPENGL && gl_config.arb_shadow && (mode & (LSHADER_SMAP|LSHADER_SPOT)))?"#USE_ARB_SHADOW":""
+#else
+																""
+#endif
+																)
 														, shader->usageflags, embed?Shader_DefaultScript:NULL, embed);
 		}
 	}
@@ -1965,7 +2010,6 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		pass->texgen = T_GEN_DIFFUSE;
 		pass->tcgen = TC_GEN_BASE;
-		shader->flags |= SHADER_NOIMAGE;
 	}
 	else if (!Q_stricmp (tname, "$normalmap"))
 	{
@@ -2051,6 +2095,12 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 		shader->flags |= SHADER_HASRIPPLEMAP;
 		pass->texgen = T_GEN_RIPPLEMAP;
 		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+	}
+	else if (!Q_stricmp (tname, "$null"))
+	{
+		pass->tcgen = TC_GEN_BASE;
+		pass->flags |= SHADER_PASS_NOMIPMAP|SHADER_PASS_DETAIL;
+		pass->texgen = T_GEN_SINGLEMAP;
 	}
 	else
 		return false;
@@ -3021,6 +3071,8 @@ void Shader_Reset(shader_t *s)
 	Shader_Free(s);
 	memset(s, 0, sizeof(*s));
 
+	s->flags |= SHADER_IMAGEPENDING;
+
 	s->remapto = s;
 	s->id = id;
 	s->width = w;
@@ -3527,9 +3579,6 @@ void Shader_Finish (shader_t *s)
 		}
 	}
 
-	if (TEXVALID(s->defaulttextures.base))
-		s->flags &= ~SHADER_NOIMAGE;
-
 	if (!s->numpasses && s->sort != SHADER_SORT_PORTAL && !(s->flags & (SHADER_NODRAW|SHADER_SKY)) && !s->fog_dist && !s->prog)
 	{
 		pass = &s->passes[s->numpasses++];
@@ -3889,14 +3938,20 @@ void Shader_UpdateRegistration (void)
 }
 */
 
+void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args);
 void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 {
 	char *h;
 	char imagename[MAX_QPATH];
+	char *subpath = NULL;
 	strcpy(imagename, shader->name);
 	h = strchr(imagename, '#');
 	if (h)
 		*h = 0;
+
+	//skins can use an alternative path in certain cases, to work around dodgy models.
+	if (shader->generator == Shader_DefaultSkin)
+		subpath = shader->genargs;
 
 	if (!tn)
 		tn = &shader->defaulttextures;
@@ -3905,10 +3960,8 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		/*dlights/realtime lighting needs some stuff*/
 		if (!TEXVALID(tn->base))
 		{
-			tn->base = R_LoadHiResTexture(imagename, NULL, IF_NOALPHA);
+			tn->base = R_LoadHiResTexture(imagename, subpath, IF_NOALPHA);
 		}
-		if (TEXVALID(tn->base))
-			shader->flags &= ~SHADER_NOIMAGE;
 
 		TEXASSIGN(shader->defaulttextures.base, tn->base);
 	}
@@ -3920,11 +3973,11 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if (r_loadbumpmapping)
 		{
 			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("%s_norm", imagename), NULL, IF_NOALPHA);
+				tn->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, IF_NOALPHA);
 			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("%s_bump", imagename), NULL, IF_NOALPHA);
+				tn->bump = R_LoadHiResTexture(va("%s_bump", imagename), subpath, IF_NOALPHA);
 			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("normalmaps/%s", imagename), NULL, IF_NOALPHA);
+				tn->bump = R_LoadHiResTexture(va("normalmaps/%s", imagename), subpath, IF_NOALPHA);
 		}
 		TEXASSIGN(shader->defaulttextures.bump, tn->bump);
 	}
@@ -3934,7 +3987,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if (shader->flags & SHADER_HASTOPBOTTOM)
 		{
 			if (!TEXVALID(tn->loweroverlay))
-				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", imagename), NULL, 0);	/*how rude*/
+				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", imagename), subpath, 0);	/*how rude*/
 		}
 		TEXASSIGN(shader->defaulttextures.loweroverlay, tn->loweroverlay);
 	}
@@ -3944,7 +3997,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if (shader->flags & SHADER_HASTOPBOTTOM)
 		{
 			if (!TEXVALID(tn->upperoverlay))
-				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", imagename), NULL, 0);
+				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", imagename), subpath, 0);
 		}
 		TEXASSIGN(shader->defaulttextures.upperoverlay, tn->upperoverlay);
 	}
@@ -3955,7 +4008,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if ((shader->flags & SHADER_HASGLOSS) && gl_specular.value && gl_load24bit.value)
 		{
 			if (!TEXVALID(tn->specular))
-				tn->specular = R_LoadHiResTexture(va("%s_gloss", imagename), NULL, 0);
+				tn->specular = R_LoadHiResTexture(va("%s_gloss", imagename), subpath, 0);
 		}
 		TEXASSIGN(shader->defaulttextures.specular, tn->specular);
 	}
@@ -3966,7 +4019,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if ((shader->flags & SHADER_HASFULLBRIGHT) && r_fb_bmodels.value && gl_load24bit.value)
 		{
 			if (!TEXVALID(tn->fullbright))
-				tn->specular = R_LoadHiResTexture(va("%s_luma", imagename), NULL, 0);
+				tn->specular = R_LoadHiResTexture(va("%s_luma", imagename), subpath, 0);
 		}
 		TEXASSIGN(shader->defaulttextures.fullbright, tn->fullbright);
 	}
@@ -4541,9 +4594,9 @@ void Shader_DefaultBSPVertex(const char *shortname, shader_t *s, const void *arg
 {
 	shaderpass_t *pass;
 
-	s->defaulttextures.base = R_LoadHiResTexture(va("%s_d.tga", shortname), NULL, 0);
+//	s->defaulttextures.base = R_LoadHiResTexture(va("%s_d.tga", shortname), NULL, 0);
 
-	if (Shader_ParseShader("defaultflare", s))
+	if (Shader_ParseShader("defaultvertexlit", s))
 		return;
 
 	pass = &s->passes[0];
@@ -4554,23 +4607,21 @@ void Shader_DefaultBSPVertex(const char *shortname, shader_t *s, const void *arg
 	pass->numMergedPasses = 1;
 	Shader_SetBlendmode(pass);
 
-	if (TEXVALID(s->defaulttextures.base))
+/*	if (TEXVALID(s->defaulttextures.base))
 	{
 		pass->texgen = T_GEN_DIFFUSE;
 	}
-	else
+	else*/
 	{
-		pass->anim_frames[0] = R_LoadHiResTexture(shortname, NULL, 0);
-		if (!TEXVALID(pass->anim_frames[0]))
-		{
+		s->defaulttextures.base = R_LoadHiResTexture(shortname, NULL, 0);
+		pass->texgen = T_GEN_DIFFUSE;
+		if (!TEXVALID(s->defaulttextures.base))
 			Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-			pass->anim_frames[0] = missing_texture;
-		}
 	}
 
 	s->numpasses = 1;
 	s->numdeforms = 0;
-	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
+	s->flags = SHADER_IMAGEPENDING|SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
 	s->sort = SHADER_SORT_OPAQUE;
 	s->uses = 1;
 }
@@ -4581,7 +4632,7 @@ void Shader_DefaultBSPFlare(const char *shortname, shader_t *s, const void *args
 		return;
 
 	pass = &s->passes[0];
-	pass->flags = SHADER_PASS_NOCOLORARRAY;
+	pass->flags = SHADER_IMAGEPENDING|SHADER_PASS_NOCOLORARRAY;
 	pass->shaderbits |= SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ONE;
 	pass->anim_frames[0] = R_LoadHiResTexture(shortname, NULL, 0);
 	pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
@@ -4599,7 +4650,7 @@ void Shader_DefaultBSPFlare(const char *shortname, shader_t *s, const void *args
 
 	s->numpasses = 1;
 	s->numdeforms = 0;
-	s->flags = SHADER_FLARE;
+	s->flags = SHADER_IMAGEPENDING|SHADER_FLARE;
 	s->sort = SHADER_SORT_ADDITIVE;
 	s->uses = 1;
 
@@ -4648,8 +4699,6 @@ void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args)
 			"endif\n"
 		"}\n"
 		);
-
-	s->flags |= SHADER_NOIMAGE;
 }
 void Shader_DefaultSkinShell(const char *shortname, shader_t *s, const void *args)
 {
@@ -4697,19 +4746,7 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 		"}\n"
 		);
 
-	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(shortname, NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
-	if (!TEXVALID(s->defaulttextures.base))
-	{
-		unsigned char data[4*4] = {0};
-		TEXASSIGN(s->defaulttextures.base, R_LoadTexture8("black", 4, 4, data, 0, 0));
-		s->flags |= SHADER_NOIMAGE;
-	}
-	else
-	{
-		s->flags &= ~SHADER_NOIMAGE;
-		s->width = image_width;
-		s->height = image_height;
-	}
+	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(s->name, NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
 }
 
 qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode, int *conddepth, int maxconddepth, int *cond)
@@ -4817,11 +4854,19 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 	int cond[8];
 	cond[0] = 0;
 
+	//querying the shader body often requires generating the shader, which then gets parsed.
+	if (saveshaderbody)
+	{
+		Z_Free(*saveshaderbody);
+		*saveshaderbody = Z_StrDup(shadersource);
+		saveshaderbody = NULL;
+	}
+
 	memset(&parsestate, 0, sizeof(parsestate));
 	parsestate.mode = parsemode;
 
 // set defaults
-	s->flags = SHADER_CULL_FRONT;
+	s->flags = SHADER_IMAGEPENDING|SHADER_CULL_FRONT;
 	s->uses = 1;
 
 	while (Shader_ReadShaderTerms(s, &shadersource, parsemode, &conddepth, sizeof(cond)/sizeof(cond[0]), cond))
@@ -4883,6 +4928,8 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 
 	if (!*name)
 		name = "gfx/unspecified";
+
+	COM_AssertMainThread("R_LoadShader");
 
 	Q_strncpyz(cleanname, name, sizeof(cleanname));
 	COM_CleanUpPath(cleanname);
@@ -4968,15 +5015,15 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 	{
 		if (sh_config.shadernamefmt)
 		{
-			if (Shader_ParseShader(va(sh_config.shadernamefmt, shortname), s))
-			{
+			char drivername[MAX_QPATH];
+			Q_snprintfz(drivername, sizeof(drivername), sh_config.shadernamefmt, cleanname);
+			if (Shader_ParseShader(drivername, s))
 				return s;
-			}
 		}
-		if (Shader_ParseShader(shortname, s))
-		{
+		if (Shader_ParseShader(cleanname, s))
 			return s;
-		}
+		if (Shader_ParseShader(shortname, s))
+			return s;
 	}
 
 	// make a default shader
@@ -5002,11 +5049,59 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 	return NULL;
 }
 
+char *Shader_GetShaderBody(shader_t *s)
+{
+	char *adr;
+	char cleanname[MAX_QPATH];
+	char shortname[MAX_QPATH];
+	int oldsort;
+	qboolean resort = false;
+	if (!s || !s->uses)
+		return NULL;
+
+	adr = Z_StrDup("UNKNOWN BODY");
+	saveshaderbody = &adr;
+
+	strcpy(cleanname, s->name);
+	COM_StripExtension (cleanname, shortname, sizeof(shortname));
+	if (ruleset_allow_shaders.ival)
+	{
+		if (sh_config.shadernamefmt)
+		{
+			char drivername[MAX_QPATH];
+			Q_snprintfz(drivername, sizeof(drivername), sh_config.shadernamefmt, cleanname);
+			if (Shader_ParseShader(drivername, s))
+				return adr;
+		}
+		if (Shader_ParseShader(cleanname, s))
+			return adr;
+		if (Shader_ParseShader(shortname, s))
+			return adr;
+	}
+	if (s->generator)
+	{
+		oldsort = s->sort;
+		Shader_Reset(s);
+
+		s->generator(shortname, s, s->genargs);
+
+		if (s->sort != oldsort)
+			resort = true;
+	}
+
+	if (resort)
+	{
+		Mod_ResortShaders();
+	}
+	return adr;
+}
+
 void Shader_DoReload(void)
 {
 	shader_t *s;
 	unsigned int i;
 	char shortname[MAX_QPATH];
+	char cleanname[MAX_QPATH];
 	int oldsort;
 	qboolean resort = false;
 
@@ -5035,10 +5130,18 @@ void Shader_DoReload(void)
 		if (!s || !s->uses)
 			continue;
 
-		strcpy(shortname, s->name);
+		strcpy(cleanname, s->name);
+		COM_StripExtension (cleanname, shortname, sizeof(shortname));
 		if (ruleset_allow_shaders.ival)
 		{
-			if (sh_config.shadernamefmt && Shader_ParseShader(va(sh_config.shadernamefmt, shortname), s))
+			if (sh_config.shadernamefmt)
+			{
+				char drivername[MAX_QPATH];
+				Q_snprintfz(drivername, sizeof(drivername), sh_config.shadernamefmt, cleanname);
+				if (Shader_ParseShader(drivername, s))
+					continue;
+			}
+			if (Shader_ParseShader(cleanname, s))
 				continue;
 			if (Shader_ParseShader(shortname, s))
 				continue;
@@ -5188,27 +5291,79 @@ void Shader_RemapShader_f(void)
 	R_RemapShader(sourcename, destname, timeoffset);
 }
 
+//blocks
+int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blocktillloaded)
+{
+	if (!shader)
+		return false;
+	if (shader->flags &	SHADER_IMAGEPENDING)
+	{
+		int i;
+		if (width)
+			*width = 0;
+		if (height)
+			*height = 0;
+		for (i = 0; i < shader->numpasses; i++)
+		{
+			if (shader->passes[i].texgen == T_GEN_SINGLEMAP && shader->passes[i].anim_frames[0] && shader->passes[i].anim_frames[0]->status == TEX_LOADING)
+			{
+				if (!blocktillloaded)
+					return -1;
+				COM_WorkerPartialSync(shader->passes[i].anim_frames[0], &shader->passes[i].anim_frames[0]->status, TEX_LOADING);
+			}
+			if (shader->passes[i].texgen == T_GEN_DIFFUSE && (shader->defaulttextures.base && shader->defaulttextures.base->status == TEX_LOADING))
+			{
+				if (!blocktillloaded)
+					return -1;
+				COM_WorkerPartialSync(shader->defaulttextures.base, &shader->defaulttextures.base->status, TEX_LOADING);
+			}
+		}
+
+		shader->flags &= ~SHADER_IMAGEPENDING;
+		for (i = 0; i < shader->numpasses; i++)
+		{
+			if (shader->passes[i].texgen == T_GEN_SINGLEMAP)
+			{
+				if (shader->passes[i].anim_frames[0] && shader->passes[i].anim_frames[0]->status == TEX_LOADED)
+				{
+					shader->width = shader->passes[i].anim_frames[0]->width;
+					shader->height = shader->passes[i].anim_frames[0]->height;
+				}
+				break;
+			}
+			if (shader->passes[i].texgen == T_GEN_DIFFUSE && shader->defaulttextures.base)
+			{
+				if (shader->defaulttextures.base->status == TEX_LOADED)
+				{
+					shader->width = shader->defaulttextures.base->width;
+					shader->height = shader->defaulttextures.base->height;
+				}
+				break;
+			}
+		}
+	}
+	if (shader->width && shader->height)
+	{
+		if (width)
+			*width = shader->width;
+		if (height)
+			*height = shader->height;
+		return true;	//final size
+	}
+	else
+	{
+		//fill with dummy values
+		if (width)
+			*width = 64;
+		if (height)
+			*height = 64;
+		return false;
+	}
+}
 shader_t *R_RegisterPic (const char *name)
 {
 	shader_t *shader;
-
-	/*don't get confused by other shaders*/
-	image_width = 64;
-	image_height = 64;
-
 	shader = R_LoadShader (name, SUF_2D, Shader_Default2D, NULL);
-
-	/*worth a try*/
-	if (shader->width <= 0)
-		shader->width = image_width;
-	if (shader->height <= 0)
-		shader->height = image_height;
-
-	/*last ditch attempt*/
-	if (shader->width <= 0)
-		shader->width = 64;
-	if (shader->height <= 0)
-		shader->height = 64;
 	return shader;
 }
 
@@ -5234,31 +5389,32 @@ shader_t *R_RegisterShader_Flare (const char *name)
 
 shader_t *QDECL R_RegisterSkin (const char *shadername, const char *modname)
 {
+	char newsname[MAX_QPATH];
 	shader_t *shader;
 #ifdef _DEBUG
 	if (shadername == com_token)
 		Con_Printf("R_RegisterSkin was passed com_token. that will bug out.\n");
 #endif
 
+	newsname[0] = 0;
 	if (modname && !strchr(shadername, '/') && *shadername)
 	{
-		char newsname[MAX_QPATH];
 		char *b = COM_SkipPath(modname);
 		if (b != modname && b-modname + strlen(shadername)+1 < sizeof(newsname))
 		{
+			b--;	//no trailing /
 			memcpy(newsname, modname, b - modname);
-			memcpy(newsname + (b-modname), shadername, strlen(shadername)+1);
-			/*if the specified shader does not contain a path, try and load one relative to the name of the model*/
-			shader = R_LoadShader (newsname, 0, Shader_DefaultSkin, NULL);
-
-			R_BuildDefaultTexnums(&shader->defaulttextures, shader);
-
-			/*if its a valid shader with valid textures, use it*/
-			if (!(shader->flags & SHADER_NOIMAGE))
-				return shader;
+			newsname[b-modname] = 0;
 		}
 	}
-	shader = R_LoadShader (shadername, 0, Shader_DefaultSkin, NULL);
+	if (*newsname)
+	{
+		int l = strlen(newsname);
+		Q_strncpyz(newsname+l, ":models", sizeof(newsname)-l);
+	}
+	else
+		Q_strncpyz(newsname, "models", sizeof(newsname));
+	shader = R_LoadShader (shadername, 0, Shader_DefaultSkin, newsname);
 	return shader;
 }
 shader_t *R_RegisterCustom (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args)

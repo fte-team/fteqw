@@ -25,6 +25,7 @@ void M_Menu_MultiPlayer_f (void)
 
 	menu = M_CreateMenu(0);
 
+#ifdef Q2CLIENT
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_multiplayer");
@@ -39,7 +40,10 @@ void M_Menu_MultiPlayer_f (void)
 		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 0, 40, NULL, false);
 		return;
 	}
-	else if (mgt == MGT_HEXEN2)
+	else
+#endif
+#ifdef HEXEN2
+		if (mgt == MGT_HEXEN2)
 	{
 		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title4.lmp");
 
@@ -53,7 +57,9 @@ void M_Menu_MultiPlayer_f (void)
 		menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, &resel, 48, 64);
 		return;
 	}
-	else if (QBigFontWorks())
+	else
+#endif
+		if (QBigFontWorks())
 	{
 		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
 		MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
@@ -112,12 +118,14 @@ typedef struct {
 	menuedit_t *nameedit;
 	menuedit_t *teamedit;
 	menuedit_t *skinedit;
+#ifdef HEXEN2
 	menucombo_t *classedit;
+	int ticlass;
+#endif
 	menucombo_t *modeledit;
 	int topcolour;
 	int lowercolour;
 
-	int ticlass;
 	int tiwidth, tiheight;
 	qbyte translationimage[128*128];
 } setupmenu_t;
@@ -130,8 +138,10 @@ qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key
 	Cvar_Set(&team, info->teamedit->text);
 	if (info->skinedit)
 		Cvar_Set(&skin, info->skinedit->text);
+#ifdef HEXEN2
 	if (info->classedit)
 		Cvar_SetValue(Cvar_FindVar("cl_playerclass"), info->classedit->selectedoption+1);
+#endif
 	Cbuf_AddText(va("color %i %i\n", info->lowercolour, info->topcolour), RESTRICT_LOCAL);
 	S_LocalSound ("misc/menu2.wav");
 	M_RemoveMenu(menu);
@@ -281,19 +291,23 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		info->skinedit->modified = false;
 		reloadtimage = true;
 	}
+#ifdef HEXEN2
 	if (info->classedit && info->classedit->selectedoption != info->ticlass)
 	{
 		info->ticlass = info->classedit->selectedoption;
 		reloadtimage = true;
 	}
+#endif
 
 	if (reloadtimage)
 	{
+#ifdef HEXEN2
 		if (info->classedit)	//quake2 main menu.
 		{
 			FS_LoadFile(va("gfx/menu/netp%i.lmp", info->ticlass+1), &f);
 		}
 		else
+#endif
 		{
 			FS_LoadFile(va("gfx/player/%s.lmp", info->skinedit->text), &f);
 			if (!f)
@@ -330,6 +344,7 @@ void M_Menu_Setup_f (void)
 	static menuresel_t resel;
 
 	mgt = M_GameType();
+#ifdef Q2CLIENT
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
 		if (R2D_SafeCachePic("pics/m_banner_player_setup"))
@@ -367,6 +382,7 @@ void M_Menu_Setup_f (void)
 		}
 		return;
 	}
+#endif
 
 	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
@@ -383,6 +399,8 @@ void M_Menu_Setup_f (void)
 	menu->selecteditem = (menuoption_t*)
 	(info->nameedit = MC_AddEdit(menu, 64, 160, 40, "Your name", name.string));
 	(info->teamedit = MC_AddEdit(menu, 64, 160, 56, "Your team", team.string));
+#ifdef HEXEN2
+	info->ticlass = -1;
 	if (mgt == MGT_HEXEN2)
 	{
 		static const char *classnames[] =
@@ -398,6 +416,7 @@ void M_Menu_Setup_f (void)
 		(info->classedit = MC_AddCombo(menu, 64, 160, 72, "Your class", (const char **)classnames, pc->ival-1));
 	}
 	else
+#endif
 		(info->skinedit = MC_AddEdit(menu, 64, 160, 72, "Your skin", skin.string));
 
 	ci = MC_AddCustom(menu, 172+32, 88, NULL, 0);
@@ -419,7 +438,6 @@ void M_Menu_Setup_f (void)
 	info->topcolour = topcolor.value;
 	if (info->skinedit)
 		info->skinedit->modified = true;
-	info->ticlass = -1;
 }
 
 

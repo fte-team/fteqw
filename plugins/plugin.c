@@ -194,6 +194,11 @@ BUILTIN(void, Menu_Control, (int mnum));
 BUILTINR(int, Key_GetKeyCode, (char *keyname));
 #undef ARGNAMES
 
+#if !defined(Q3_VM) && defined(FTEPLUGIN)
+#define ARGNAMES ,name,handle,mode
+BUILTINR(qboolean, VFS_Open, (char *name, vfsfile_t **handle, char *mode));//opens a direct vfs file. no access checks, and so can be used in threaded plugins
+#undef ARGNAMES
+#endif
 #define ARGNAMES ,name,handle,mode
 BUILTINR(int, FS_Open, (char *name, qhandle_t *handle, int mode));
 #undef ARGNAMES
@@ -350,6 +355,9 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Cvar_Update);
 
 	//file system
+#if !defined(Q3_VM) && defined(FTEPLUGIN)
+	CHECKBUILTIN(VFS_Open);
+#endif
 	CHECKBUILTIN(FS_Open);
 	CHECKBUILTIN(FS_Read);
 	CHECKBUILTIN(FS_Write);

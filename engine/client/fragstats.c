@@ -327,7 +327,7 @@ static void Stats_StatMessage(fragfilemsgtypes_t type, int wid, char *token1, ch
 		fragstats.readkills = true;
 }
 
-static void Stats_Clear(void)
+void Stats_Clear(void)
 {
 	int i;
 	statmessage_t *ms;
@@ -364,7 +364,7 @@ static void Stats_LoadFragFile(char *name)
 	strcpy(filename, name);
 	COM_DefaultExtension(filename, ".dat", sizeof(filename));
 
-	file = COM_LoadTempFile(filename);
+	file = COM_LoadTempFile(filename, NULL);
 	if (!file || !*file)
 	{
 		Con_DPrintf("Couldn't load %s\n", filename);

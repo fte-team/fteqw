@@ -253,7 +253,8 @@ void QDECL Q_strncpyz(char*d, const char*s, int n);
 #endif*/
 
 
-/*replacement functions which do not care for locale in text formatting ('C' locale)*/
+/*replacement functions which do not care for locale in text formatting ('C' locale), or are non-standard*/
+char *Q_strcasestr(const char *haystack, const char *needle);
 int Q_strncasecmp (const char *s1, const char *s2, int n);
 int Q_strcasecmp (const char *s1, const char *s2);
 int	Q_atoi (const char *str);
@@ -274,11 +275,11 @@ extern	qboolean	com_eof;
 //char *COM_Parse (const char *data);
 #define COM_Parse(d) COM_ParseOut(d,com_token, sizeof(com_token))
 char *COM_ParseOut (const char *data, char *out, int outlen);
-char *COM_ParseStringSet (const char *data);
+char *COM_ParseStringSet (const char *data, char *out, size_t outlen);
 char *COM_ParseCString (const char *data, char *out, size_t maxoutlen, size_t *writtenlen);
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);
 char *COM_ParseToken (const char *data, const char *punctuation);
-char *COM_TrimString(char *str);
+char *COM_TrimString(char *str, char *buffer, int buffersize);
 const char *COM_QuotedString(const char *string, char *buf, int buflen);	//inverse of COM_StringParse
 
 
@@ -291,13 +292,14 @@ void COM_AddParm (const char *parm);
 
 void COM_Init (void);
 void COM_InitArgv (int argc, const char **argv);
-void COM_ParsePlusSets (void);
+void COM_ParsePlusSets (qboolean docbuf);
 
 typedef unsigned int conchar_t;
 char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags);
-#define PFS_KEEPMARKUP 1	//leave markup in the final string (but do parse it)
-#define PFS_FORCEUTF8 2		//force utf-8 decoding
-#define PFS_NOMARKUP 4		//strip markup completely
+#define PFS_KEEPMARKUP		1	//leave markup in the final string (but do parse it)
+#define PFS_FORCEUTF8		2	//force utf-8 decoding
+#define PFS_NOMARKUP		4	//strip markup completely
+#define PFS_EZQUAKEMARKUP	8	//aim for compat with ezquake instead of q3 compat
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 unsigned int utf8_decode(int *error, const void *in, char **out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
@@ -326,7 +328,7 @@ void COM_FileBase (const char *in, char *out, int outlen);
 int QDECL COM_FileSize(const char *path);
 void COM_DefaultExtension (char *path, char *extension, int maxlen);
 qboolean COM_RequireExtension(char *path, char *extension, int maxlen);
-char *COM_FileExtension (const char *in);
+char *COM_FileExtension (const char *in, char *result, size_t sizeofresult);
 void COM_CleanUpPath(char *str);
 
 char	*VARGS va(const char *format, ...) LIKEPRINTF(1);
@@ -335,7 +337,6 @@ char	*VARGS va(const char *format, ...) LIKEPRINTF(1);
 //============================================================================
 
 extern qboolean com_file_copyprotected;
-extern int com_filesize;
 extern qboolean com_file_untrusted;
 struct cache_user_s;
 
@@ -386,15 +387,6 @@ char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean
 qboolean FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);	//returns false if the name is invalid.
 void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 
-FTE_DEPRECATED int COM_FOpenFile (const char *filename, FILE **file);
-FTE_DEPRECATED int COM_FOpenWriteFile (const char *filename, FILE **file);
-
-//#ifdef _MSC_VER	//this is enough to annoy me, without conflicting with other (more bizzare) platforms.
-//#define fopen dont_use_fopen
-//#endif
-
-FTE_DEPRECATED void COM_CloseFile (FILE *h);
-
 #define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,ignorepacks?FSLFRT_DEPTH_OSONLY:FSLFRT_DEPTH_ANYPATH, NULL)
 #define COM_FCheckExists(filename) FS_FLocateFile(filename,FSLFRT_IFFOUND, NULL)
 
@@ -437,7 +429,7 @@ enum fs_relative{
 	FS_SYSTEM		//a system path. absolute paths are explicitly allowed and expected.
 };
 
-void FS_FlushFSHashReally(void);
+void FS_FlushFSHashReally(qboolean domutexes);
 void FS_FlushFSHashWritten(void);
 void FS_FlushFSHashRemoved(void);
 void FS_CreatePath(const char *pname, enum fs_relative relativeto);
@@ -460,14 +452,14 @@ void FS_PureMode(int mode, char *purenamelist, char *purecrclist, char *refnamel
 //recursively tries to open files until it can get a zip.
 vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name);
 
-qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize);
-qbyte *COM_LoadTempFile (const char *path);
-qbyte *COM_LoadTempMoreFile (const char *path);	//allocates a little bit more without freeing old temp
+qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize, size_t *fsize);
+qbyte *COM_LoadTempFile (const char *path, size_t *fsize);
+qbyte *COM_LoadTempMoreFile (const char *path, size_t *fsize);	//allocates a little bit more without freeing old temp
 //qbyte *COM_LoadHunkFile (const char *path);
-qbyte *COM_LoadMallocFile (const char *path);
+qbyte *COM_LoadMallocFile (const char *path, size_t *fsize);
 
 searchpathfuncs_t *COM_IteratePaths (void **iterator, char *pathbuffer, int pathbuffersize, char *dirname, int dirnamesize);
-void COM_FlushFSCache(void);	//a file was written using fopen
+void COM_FlushFSCache(qboolean purge, qboolean domutex);	//a file was written using fopen
 void COM_RefreshFSCache_f(void);
 qboolean FS_Restarted(unsigned int *since);
 
@@ -510,12 +502,12 @@ char *FS_GetBasedir(void);
 char *FS_GetManifestArgs(void);
 
 struct zonegroup_s;
-void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path);
-qbyte *FS_LoadMallocFile (const char *path);
+void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path, size_t *fsize);
+qbyte *FS_LoadMallocFile (const char *path, size_t *fsize);
 qofs_t FS_LoadFile(const char *name, void **file);
 void FS_FreeFile(void *file);
 
-qbyte *COM_LoadFile (const char *path, int usehunk);
+qbyte *COM_LoadFile (const char *path, int usehunk, size_t *filesize);
 
 qboolean COM_LoadMapPackFile(const char *name, qofs_t offset);
 void COM_FlushTempoaryPacks(void);

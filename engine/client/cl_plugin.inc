@@ -138,7 +138,7 @@ qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, const qin
 //	char *mimetype = VM_POINTER(arg[1]);
 	void *codeddata = VM_POINTER(arg[2]);
 	unsigned int datalength = VM_LONG(arg[3]);
-	texid_t t;
+	image_t *t;
 	qbyte *rgbdata;
 	unsigned int width, height;
 	
@@ -148,12 +148,13 @@ qintptr_t VARGS Plug_Draw_LoadImageData(void *offset, quintptr_t mask, const qin
 	if ((rgbdata = Read32BitImageFile(codeddata, datalength, &width, &height, NULL, name)))
 	{
 		name = va("%s/", name);
-		t = R_FindTexture(name, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+		
+		t = Image_FindTexture(name, NULL, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 		if (!TEXVALID(t))
-			t = R_AllocNewTexture(name, width, height, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+			t = Image_CreateTexture(name, NULL, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 		if (TEXVALID(t))
 		{
-			R_Upload(t, name, TF_RGBA32, rgbdata, NULL, width, height, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+			Image_Upload(t, TF_RGBA32, rgbdata, NULL, width, height, IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 			ret = Plug_Draw_LoadImage(name, 3, NULL);
 		}
 		
@@ -506,7 +507,7 @@ qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t
 		}
 	}
 
-	Con_PrintCon(con, text);
+	Con_PrintCon(con, text, con->parseflags);
 
 	return 1;
 }
@@ -635,11 +636,7 @@ qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, cons
 		Matrix3x4_Invert_Simple,
 		COM_StripExtension,
 		GenMatrixPosQuat4Scale,
-		Alias_ForceConvertBoneData,
-
-		R_RegisterShader,
-		R_RegisterSkin,
-		R_BuildDefaultTexnums
+		Alias_ForceConvertBoneData
 	};
 	if (VM_LONG(arg[0]) >= sizeof(funcs))
 		return (qintptr_t)&funcs;

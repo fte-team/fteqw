@@ -1550,10 +1550,10 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 	CL_ProxyMenuHooks();
 
-	if (cls.demoplayback != DPB_NONE || cls.netchan.remote_address.type == NA_INVALID)
+	if (cls.demoplayback != DPB_NONE || !cls.state)
 	{
 		cursor_active = false;
-		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		if (!cls.state || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
 			extern cvar_t cl_splitscreen;
 			cl.ackedmovesequence = cl.movesequence;
@@ -1601,6 +1601,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 				Cam_FinishMove(&cl.playerview[plnum], cmd);
 
+#ifdef CSQC_DAT
+				CSQC_Input_Frame(plnum, cmd);
+#endif
+
+				if (cls.state == ca_active)
 				{
 					player_state_t *from, *to;
 					playerview_t *pv = &cl.playerview[plnum];

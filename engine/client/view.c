@@ -1302,10 +1302,6 @@ void V_CalcRefdef (playerview_t *pv)
 
 	r_refdef.time = cl.servertime;
 
-	{
-		extern model_t *loadmodel;
-		loadmodel = cl.worldmodel;
-	}
 
 	if (chase_active.ival && cls.allow_cheats)	//cheat restriction might be lifted some time when any wallhacks are solved.
 	{
@@ -1323,7 +1319,6 @@ void V_CalcRefdef (playerview_t *pv)
 			cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, true, MASK_WORLDSOLID, &tr);
 			if (!tr.startsolid)
 			{
-				float extralen;
 				if (tr.fraction < 1)
 				{
 					//we found a plane, bisect it weirdly to push 4qu infront
@@ -1675,7 +1670,7 @@ void V_RenderView (void)
 		}
 		else
 		{
-			if (r_worldentity.model && !r_worldentity.model->needload)
+			if (r_worldentity.model && r_worldentity.model->loadstate == MLS_LOADED)
 			{
 				RSpeedMark();
 

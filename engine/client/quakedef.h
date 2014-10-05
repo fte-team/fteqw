@@ -256,6 +256,7 @@ extern	cvar_t		com_protocolname;
 extern	cvar_t		com_modname;
 extern	cvar_t		com_nogamedirnativecode;
 extern	cvar_t		com_parseutf8;
+extern	cvar_t		com_parseezquake;
 extern	cvar_t		sys_ticrate;
 extern	cvar_t		sys_nostdout;
 extern	cvar_t		developer;
@@ -275,6 +276,7 @@ void Host_InitCommands (void);
 void Host_Init (quakeparms_t *parms);
 void Host_FinishInit(void);
 void Host_Shutdown(void);
+qboolean com_fatalerror;	//supresses shutdown prints+threads
 NORETURN void VARGS Host_Error (char *error, ...) LIKEPRINTF(1);
 NORETURN void VARGS Host_EndGame (char *message, ...) LIKEPRINTF(1);
 qboolean Host_SimulationTime(float time);
@@ -283,6 +285,36 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file);
 void Host_Quit_f (void);
 void VARGS Host_ClientCommands (char *fmt, ...) LIKEPRINTF(1);
 void Host_ShutdownServer (qboolean crash);
+
+#ifdef LOADERTHREAD
+extern cvar_t worker_flush;
+qboolean COM_DoWork(int thread, qboolean leavelocked);
+#define COM_MainThreadWork() while (COM_DoWork(0, false) && worker_flush.ival) /*called each frame to do any gl uploads or whatever*/
+#define COM_MainThreadFlush() while (COM_DoWork(0, false))	/*make sure the main thread has done ALL work pending*/
+void COM_AddWork(int thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);
+qboolean COM_HasWork(void);
+void COM_WorkerFullSync(void);
+void COM_DestroyWorkerThread(void);
+void COM_WorkerPartialSync(void *priorityctx, int *address, int value);
+void *com_resourcemutex;	//random mutex to simplify resource creation type stuff.
+void COM_WorkerAbort(char *message);	//calls sys_error on the main thread, if running on a worker.
+#ifdef _DEBUG
+void COM_AssertMainThread(const char *msg);
+#else
+#define COM_AssertMainThread(msg)
+#endif
+#else
+#define COM_AddWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
+#define COM_WorkerPartialSync(c,a,v)
+#define COM_WorkerFullSync()
+#define COM_HasWork() false
+#define COM_DoWork(t,l) false
+#define COM_AssertMainThread(msg)
+#define COM_MainThreadWork()
+#define COM_MainThreadFlush()
+#define COM_DestroyWorkerThread()
+#define COM_WorkerAbort(m)
+#endif
 
 extern qboolean		msg_suppress_1;		// suppresses resolution and cache size console output
 										//  an fullscreen DIB focus gain/loss

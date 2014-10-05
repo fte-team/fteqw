@@ -740,6 +740,18 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	{
 	}
 
+	r_config.texture_non_power_of_two = flevel>=D3D_FEATURE_LEVEL_10_0;	//npot MUST be supported on all d3d10+ cards.
+	r_config.texture_non_power_of_two_pic = true;	//always supported in d3d11, supposedly.
+	r_config.npot_rounddown = false;
+	if (flevel>=D3D_FEATURE_LEVEL_11_0)
+		r_config.maxtexturesize = 16384;
+	else if (flevel>=D3D_FEATURE_LEVEL_10_0)
+		r_config.maxtexturesize = 8192;
+	else if (flevel>=D3D_FEATURE_LEVEL_9_3)
+		r_config.maxtexturesize = 4096;
+	else
+		r_config.maxtexturesize = 2048;
+
 	vid.numpages = scd.BufferCount;
 	if (!D3D11Shader_Init(flevel))
 	{
@@ -900,43 +912,6 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 	return true;
 }
 #endif
-
-/*a new model has been loaded*/
-static void	(D3D11_R_NewMap)					(void)
-{
-	r_worldentity.model = cl.worldmodel;
-
-#ifdef MAP_PROC
-	if (cl.worldmodel && cl.worldmodel->fromgame == fg_doom3)
-		D3_GenerateAreas(cl.worldmodel);
-#endif
-
-	/*wipe any lingering particles*/
-	P_ClearParticles();
-	CL_RegisterParticles();
-
-	R_AnimateLight();
-	Surf_DeInit();
-	Surf_WipeStains();
-	Surf_BuildLightmaps();
-
-	TP_NewMap();
-	R_SetSky(cl.skyname);
-
-#ifdef RTLIGHTS
-	Sh_PreGenerateLights();
-#endif
-}
-
-extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
-extern mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
-static void	(D3D11_R_PreNewMap)				(void)
-{
-	r_viewleaf = NULL;
-	r_oldviewleaf = NULL;
-	r_viewleaf2 = NULL;
-	r_oldviewleaf2 = NULL;
-}
 
 static void	 (D3D11_VID_DeInit)				(void)
 {
@@ -1282,24 +1257,23 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 
 
 
-static void	(D3D11_Draw_Init)				(void)
+static void	D3D11_Draw_Init				(void)
 {
 	R2D_Init();
 }
-static void	(D3D11_Draw_Shutdown)				(void)
+static void	D3D11_Draw_Shutdown				(void)
 {
 	R2D_Shutdown();
 }
 
-static void	(D3D11_R_Init)					(void)
+static void	D3D11_R_Init					(void)
 {
 }
-static void	(D3D11_R_DeInit)					(void)
+static void	D3D11_R_DeInit					(void)
 {
 	R_GAliasFlushSkinCache(true);
 	Surf_DeInit();
 	Shader_Shutdown();
-	D3D11_Image_Shutdown();
 }
 
 
@@ -1389,7 +1363,7 @@ static void	(D3D11_R_RenderView)				(void)
 //	}
 	
 	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-		if (!r_worldentity.model || r_worldentity.model->needload || !cl.worldmodel)
+		if (!r_worldentity.model || r_worldentity.model->loadstate != MLS_LOADED || !cl.worldmodel)
 		{
 			D3D11_Set2D ();
 			R2D_ImageColours(0, 0, 0, 1);
@@ -1427,6 +1401,10 @@ rendererinfo_t d3d11rendererinfo =
 	D3D11_Draw_Init,
 	D3D11_Draw_Shutdown,
 
+	D3D11_UpdateFiltering,
+	D3D11_LoadTextureMips,
+	D3D11_DestroyTexture,
+/*
 	D3D11_LoadTexture,
 	D3D11_LoadTexture8Pal24,
 	D3D11_LoadTexture8Pal32,
@@ -1435,13 +1413,10 @@ rendererinfo_t d3d11rendererinfo =
 	D3D11_AllocNewTexture,
 	D3D11_Upload,
 	D3D11_DestroyTexture,
-
+*/
 	D3D11_R_Init,
 	D3D11_R_DeInit,
 	D3D11_R_RenderView,
-
-	D3D11_R_NewMap,
-	D3D11_R_PreNewMap,
 
 	D3D11_VID_Init,
 	D3D11_VID_DeInit,

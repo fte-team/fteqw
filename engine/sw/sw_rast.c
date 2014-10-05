@@ -103,19 +103,19 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 	*/
 
 	/*reorder the verticies for height*/
-	if (v1->vcoord[1] > v2->vcoord[1])
+	if (v1->scoord[1] > v2->scoord[1])
 	{
 		vt = v1;
 		v1 = v2;
 		v2 = vt;
 	}
-	if (v1->vcoord[1] > v3->vcoord[1])
+	if (v1->scoord[1] > v3->scoord[1])
 	{
 		vt = v1;
 		v1 = v3;
 		v3 = vt;
 	}
-	if (v2->vcoord[1] > v3->vcoord[1])
+	if (v2->scoord[1] > v3->scoord[1])
 	{
 		vt = v3;
 		v3 = v2;
@@ -132,26 +132,26 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 		//reject triangles with any point offscreen, for now
 		for (i = 0; i < 3; i++)
 		{
-			if (v[i]->vcoord[0] < 0 || v[i]->vcoord[0] >= th->vpwidth)
+			if (v[i]->scoord[0] < 0 || v[i]->scoord[0] > th->vpwidth)
 				return;
-			if (v[i]->vcoord[1] < 0 || v[i]->vcoord[1] >= th->vpheight)
+			if (v[i]->scoord[1] < 0 || v[i]->scoord[1] > th->vpheight)
 				return;
-//			if (v[i]->vcoord[3] < 0)
+//			if (v[i]->scoord[3] < 0)
 //				return;
 		}
 
 		for (i = 0; i < 2; i++)
 		{
-			if (v[i]->vcoord[1] > v[i+1]->vcoord[1])
+			if (v[i]->scoord[1] > v[i+1]->scoord[1])
 				return;
 		}
 	}
 
-	fdx1 = v2->vcoord[0] - v1->vcoord[0];
-	fdy1 = v2->vcoord[1] - v1->vcoord[1];
+	fdx1 = v2->scoord[0] - v1->scoord[0];
+	fdy1 = v2->scoord[1] - v1->scoord[1];
 
-	fdx2 = v3->vcoord[0] - v1->vcoord[0];
-	fdy2 = v3->vcoord[1] - v1->vcoord[1];
+	fdx2 = v3->scoord[0] - v1->scoord[0];
+	fdy2 = v3->scoord[1] - v1->scoord[1];
 
 	fz = fdx1*fdy2 - fdx2*fdy1;
 
@@ -187,12 +187,13 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 
 	ti = img->data;
 
-	y = v1->vcoord[1];
+	y = v1->scoord[1];
 
 	for (secondhalf = 0; secondhalf <= 1; secondhalf++)
 	{
 		if (secondhalf)
 		{
+		//	return;
 			if (numspans < 0)
 			{
 				interlace = -numspans;
@@ -241,7 +242,7 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 			}
 
 			//flip the triangle to keep it facing the screen (we swapped the verts almost randomly)
-			numspans = v3->vcoord[1] - y;
+			numspans = v3->scoord[1] - y;
 		}
 		else
 		{
@@ -261,24 +262,24 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 			recalcside = 3;
 
 			//flip the triangle to keep it facing the screen (we swapped the verts almost randomly)
-			numspans = v2->vcoord[1] - y;
+			numspans = v2->scoord[1] - y;
 		}
 
 		if (recalcside & 1)
 		{
-			dx = (vlb->vcoord[0] - vlt->vcoord[0]);
-			dy = (vlb->vcoord[1] - vlt->vcoord[1]);
+			dx = (vlb->scoord[0] - vlt->scoord[0]);
+			dy = (vlb->scoord[1] - vlt->scoord[1]);
 			if (dy > 0)
 				xld = (dx<<16) / dy;
 			else
 				xld = 0;
-			xl = (int)vlt->vcoord[0]<<16;
+			xl = (int)vlt->scoord[0]<<16;
 
 #ifdef SPAN_ST
 			sl = vlt->tccoord[0] * (img->pwidth<<16);
-			sld = sld + (((long long)sd*xld)>>16);
+			sld = sld + (((long long)sd*xld+32767)>>16);
 			tl = vlt->tccoord[1] * (img->pheight<<16);
-			tld = tld + (((long long)td*xld)>>16);
+			tld = tld + (((long long)td*xld+32767)>>16);
 #endif
 #ifdef SPAN_Z
 			zl = vlt->vcoord[3] * (1<<16);
@@ -288,19 +289,17 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 
 		if (recalcside & 2)
 		{
-			dx = (vrb->vcoord[0] - vrt->vcoord[0]);
-			dy = (vrb->vcoord[1] - vrt->vcoord[1]);
+			dx = (vrb->scoord[0] - vrt->scoord[0]);
+			dy = (vrb->scoord[1] - vrt->scoord[1]);
 			if (dy)
 				xrd = (dx<<16) / dy;
 			else
 				xrd = 0;
-			xr = (int)vrt->vcoord[0]<<16;
+			xr = (int)vrt->scoord[0]<<16;
 		}
 
-
-
-		if (y + numspans >= th->vpheight)
-			numspans = th->vpheight - y - 1;
+		if (y + numspans > th->vpheight)
+			numspans = th->vpheight - y;
 
 		if (numspans <= 0)
 			continue;
@@ -389,18 +388,20 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 static void WT_Clip_Top(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	(1 - in->vcoord[1]) /
-			(out->vcoord[1] - in->vcoord[1]);
-	Vector4Interpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+	frac =	(1 - in->scoord[1]) /
+			(out->scoord[1] - in->scoord[1]);
+	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
+	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
 //	result->vcoord[1] = 0;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
 static void WT_Clip_Bottom(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	((th->vpheight-2) - in->vcoord[1]) /
+	frac =	((th->vpheight) - in->vcoord[1]) /
 			(out->vcoord[1] - in->vcoord[1]);
-	Vector4Interpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
+	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
 //	result->vcoord[1] = vid.pixelheight-1;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
@@ -409,16 +410,18 @@ static void WT_Clip_Left(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *
 	float frac;
 	frac =	(1 - in->vcoord[0]) /
 			(out->vcoord[0] - in->vcoord[0]);
-	Vector4Interpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
+	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
 //	result->vcoord[0] = 0;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
 static void WT_Clip_Right(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	((th->vpwidth-2) - in->vcoord[0]) /
+	frac =	((th->vpwidth) - in->vcoord[0]) /
 			(out->vcoord[0] - in->vcoord[0]);
-	Vector4Interpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
+	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
 //	result->vcoord[0] = vid.pixelwidth-1;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
@@ -428,7 +431,8 @@ static void WT_Clip_Near(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *
 	double frac;
 	frac =	(nearclip - in->vcoord[3]) /
 			(out->vcoord[3] - in->vcoord[3]);
-	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
+	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
 	result->vcoord[3] = nearclip;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
@@ -439,7 +443,8 @@ static void WT_Clip_Far(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *r
 	double frac;
 	frac =	(farclip - in->vcoord[3]) /
 			(out->vcoord[3] - in->vcoord[3]);
-	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
+	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
 	result->vcoord[3] = farclip;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
@@ -468,18 +473,18 @@ static int WT_ClipPoly(swthread_t *th, int incount, swvert_t *inv, swvert_t *out
 				clip(th, &inv[p], &inv[c], &outv[result]);
 			outv[result].clipflags = 0;
 
-			if (outv[result].vcoord[0] < 0)
+			if (outv[result].scoord[0] < 0)
 				outv[result].clipflags |= CLIP_LEFT_FLAG;
-			if (outv[result].vcoord[0] >= th->vpwidth)
+			if (outv[result].scoord[0] > th->vpwidth)
 				outv[result].clipflags |= CLIP_RIGHT_FLAG;
-			if (outv[result].vcoord[1] < 0)
+			if (outv[result].scoord[1] < 0)
 				outv[result].clipflags |= CLIP_TOP_FLAG;
-			if (outv[result].vcoord[1] >= th->vpheight)
+			if (outv[result].scoord[1] > th->vpheight)
 				outv[result].clipflags |= CLIP_BOTTOM_FLAG;
 
-			if (outv[result].vcoord[3] < 0)
+			if (outv[result].scoord[3] < 0)
 				outv[result].clipflags |= CLIP_NEAR_FLAG;
-			if (outv[result].vcoord[3] > 1)
+			if (outv[result].scoord[3] > 1)
 				outv[result].clipflags |= CLIP_FAR_FLAG;
 
 			result++;
@@ -506,16 +511,16 @@ static int WT_TransformVertXY(swthread_t *th, swvert_t *v)
 		tr[2] /= tr[3];
 	}
 
-	v->vcoord[0] = (tr[0]+1)/2 * th->vpwidth;
-	if (v->vcoord[0] < 0)
+	v->scoord[0] = (tr[0]+1)/2 * th->vpwidth;
+	if (v->scoord[0] < 0)
 		result |= CLIP_LEFT_FLAG;
-	if (v->vcoord[0] >= th->vpwidth)
+	if (v->scoord[0] > th->vpwidth)
 		result |= CLIP_RIGHT_FLAG;
 
-	v->vcoord[1] = (tr[1]+1)/2 * th->vpheight;
-	if (v->vcoord[1] < 0)
+	v->scoord[1] = (tr[1]+1)/2 * th->vpheight;
+	if (v->scoord[1] < 0)
 		result |= CLIP_TOP_FLAG;
-	if (v->vcoord[1] >= th->vpheight)
+	if (v->scoord[1] > th->vpheight)
 		result |= CLIP_BOTTOM_FLAG;
 	v->clipflags = result;
 
@@ -1023,21 +1028,13 @@ rendererinfo_t swrendererinfo =
 	SW_Draw_Init,
 	SW_Draw_Shutdown,
 
-	SW_LoadTexture,
-	SW_LoadTexture8Pal24,
-	SW_LoadTexture8Pal32,
-	SW_LoadCompressed,
-	SW_FindTexture,
-	SW_AllocNewTexture,
-	SW_Upload,
+	SW_UpdateFiltering,
+	SW_LoadTextureMips,
 	SW_DestroyTexture,
 
 	SW_R_Init,
 	SW_R_DeInit,
 	SW_R_RenderView,
-
-	SW_R_NewMap,
-	SW_R_PreNewMap,
 
 	SW_VID_Init,
 	SW_VID_DeInit,

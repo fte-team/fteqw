@@ -879,7 +879,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		if (!FS_NativePath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
 		ge->WriteLevel(syspath);
-		FS_FlushFSHashReally();
+		FS_FlushFSHashReally(true);
 		return;
 	}
 #endif
@@ -1107,11 +1107,14 @@ void SV_Savegame (char *savename)
 		if (!FS_NativePath(va("saves/%s/game.gsv", savename), FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
 		ge->WriteGame(syspath, false);
-		FS_FlushFSHashReally();
+		FS_FlushFSHashReally(true);
 	}
+	else
 #endif
-
-	FS_FlushFSHashReally();
+	{
+		//fixme
+		FS_FlushFSHashReally(true);
+	}
 }
 
 void SV_Savegame_f (void)

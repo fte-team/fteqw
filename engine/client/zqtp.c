@@ -1392,7 +1392,7 @@ static void TP_LoadLocFile (char *filename, qbool quiet)
 	Q_snprintfz (fullpath, sizeof(fullpath) - 4, "locs/%s", filename);
 	COM_DefaultExtension (fullpath, ".loc", sizeof(fullpath));
 
-	buf = (char *) COM_LoadTempFile (fullpath);
+	buf = (char *) COM_LoadTempFile (fullpath, NULL);
 	if (!buf)
 	{
 		if (!quiet)

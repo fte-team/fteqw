@@ -813,32 +813,33 @@ enum clcq2_ops_e
 // temp entity events
 //
 enum {
-	TE_SPIKE			= 0,
-	TE_SUPERSPIKE		= 1,
-	TE_GUNSHOT			= 2,
-	TE_EXPLOSION		= 3,
-	TE_TAREXPLOSION		= 4,
-	TE_LIGHTNING1		= 5,
-	TE_LIGHTNING2		= 6,
-	TE_WIZSPIKE			= 7,
-	TE_KNIGHTSPIKE		= 8,
-	TE_LIGHTNING3		= 9,
-	TE_LAVASPLASH		= 10,
-	TE_TELEPORT			= 11,
+	TE_SPIKE				= 0,
+	TE_SUPERSPIKE			= 1,
+	TE_GUNSHOT				= 2,
+	TE_EXPLOSION			= 3,
+	TE_TAREXPLOSION			= 4,
+	TE_LIGHTNING1			= 5,
+	TE_LIGHTNING2			= 6,
+	TE_WIZSPIKE				= 7,
+	TE_KNIGHTSPIKE			= 8,
+	TE_LIGHTNING3			= 9,
+	TE_LAVASPLASH			= 10,
+	TE_TELEPORT				= 11,
 
-	TEQW_BLOOD			= 12,	//implemented as a particle() in nq
-	TENQ_EXPLOSION2		= 12,	//remapped to TEQW_EXPLOSION2 for qw
-	TEQW_LIGHTNINGBLOOD	= 13,	//implemented as a particle() in nq
-	TENQ_BEAM			= 13,	//remapped to TEQW_BEAM for qw
+	TEQW_BLOOD				= 12,	//implemented as a particle() in nq
+	TENQ_EXPLOSION2			= 12,	//remapped to TEQW_EXPLOSION2 for qw
+	TEQW_LIGHTNINGBLOOD		= 13,	//implemented as a particle() in nq
+	TENQ_BEAM				= 13,	//remapped to TEQW_BEAM for qw
 
 #ifdef PEXT_TE_BULLET
-	TE_BULLET			= 14,
-	TE_SUPERBULLET		= 15,
+	TE_BULLET				= 14,
+	TE_SUPERBULLET			= 15,
 #endif
 
-	TE_RAILTRAIL		= 17,	//use the builtin, luke.
-	TEQW_BEAM			= 18,	//use the builtin, luke.
-	TEQW_EXPLOSION2		= 19,	//use the builtin, luke.
+	TE_RAILTRAIL			= 17,	//use the builtin, luke.
+	TEQW_BEAM				= 18,	//use the builtin, luke.
+	TEQW_EXPLOSION2			= 19,	//use the builtin, luke.
+	TE_EXPLOSIONNOSPRITE	= 20,	//use the builtin, luke.
 
 	// hexen 2
 	TEH2_STREAM_LIGHTNING_SMALL	= 24,

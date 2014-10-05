@@ -114,11 +114,13 @@ menu_t *M_Options_Title(int *y, int infosize)
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_options");
 		*y += 32;
 		break;
+#ifdef HEXEN2
 	case MGT_HEXEN2://h2
 		MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
 		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title3.lmp");
 		*y += 32;
 		break;
+#endif
 	default: //q1
 		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
 		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
@@ -708,8 +710,8 @@ const char *presetexec[] =
 	"cl_bob 0.02;"
 	//these things are perhaps a little extreme
 	"r_loadlit 0;"
-	"gl_texturemode nn;"		//yup, we went there.
-	"gl_texturemode2d n;"		//yeah, 2d too.
+	"gl_texturemode nnl;"		//yup, we went there.
+	"gl_texturemode2d n.l;"		//yeah, 2d too.
 	"r_part_classic_square 1;"	//blocky baby!
 	"r_part_classic_expgrav 1;"	//vanillaery
 	"r_particlesystem script;"	//q2 or hexen2 particle effects need to be loadable
@@ -1547,7 +1549,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	#endif
 
 	MC_AddRedText(menu, 16, 170, y, 			"     Quake Singleplayer Cheats", false); y+=8;
-	MC_AddWhiteText(menu, 16, 170, y,		"     €‚ ", false); y+=8;
+	MC_AddWhiteText(menu, 16, 170, y,		"     ^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
 	y+=8;
 	#ifndef CLIENTONLY
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
@@ -1661,7 +1663,7 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	#endif
 
 	MC_AddRedText(menu, 16, 170, y, 		"Quake2 Singleplayer Cheats", false); y+=8;
-	MC_AddWhiteText(menu, 16, 170, y,		"€‚ ", false); y+=8;
+	MC_AddWhiteText(menu, 16, 170, y,		"^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false); y+=8;
 	y+=8;
 	#ifndef CLIENTONLY
 	info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
@@ -2019,7 +2021,7 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 		currentmap = 0;
 
 		MC_AddRedText(menu, 16, 170, y, 		"Hexen2 Singleplayer Cheats", false); y+=8;
-		MC_AddWhiteText(menu, 16, 170, y,		"€‚ ", false); y+=8;
+		MC_AddWhiteText(menu, 16, 170, y,		"^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082 ", false); y+=8;
 		y+=8;
 		#ifndef CLIENTONLY
 		info->skillcombo = MC_AddCombo(menu,16,170, y,	"Difficulty", skilloptions, currentskill);	y+=8;
@@ -2072,12 +2074,16 @@ void M_Menu_Singleplayer_Cheats_f (void)
 	case MGT_QUAKE1:
 		M_Menu_Singleplayer_Cheats_Quake();
 		break;
+#ifdef Q2CLIENT
 	case MGT_QUAKE2:
 		M_Menu_Singleplayer_Cheats_Quake2();
 		break;
+#endif
+#ifdef HEXEN2
 	case MGT_HEXEN2:
 		M_Menu_Singleplayer_Cheats_Hexen2();
 		break;
+#endif
 	}
 }
 
@@ -2527,6 +2533,11 @@ void M_Menu_Video_f (void)
 #ifndef MINIMAL
 typedef struct
 {
+	enum {
+		MV_NONE,
+		MV_BONES,
+		MV_SHADER
+	} mode;
 	int skingroup;
 	int framegroup;
 	double framechangetime;
@@ -2536,6 +2547,8 @@ typedef struct
 	float dist;
 	char modelname[MAX_QPATH];
 	char forceshader[MAX_QPATH];
+
+	char *shadertext;
 } modelview_t;
 
 static unsigned int genhsv(float h_, float s, float v)
@@ -2666,18 +2679,50 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	Draw_FunString(0, y, va("%i: %s", mods->skingroup, fname));
 	y+=8;
 
-#ifdef SKELETALMODELS
+	switch(mods->mode)
 	{
-		int bonecount;
-		galiasbone_t *b = Mod_GetBoneInfo(ent.model, &bonecount);
-		if (b && bonecount)
+	case MV_NONE:
+		R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, 
+			"arrows: pitch/rotate\n"
+			"w: zoom in\n"
+			"s: zoom out\n"
+			"m: mode\n"
+			"r: reset times\n"
+			"home: skin-=1\n"
+			"end: skin+=1\n"
+			"pgup: frame+=1\n"
+			"pgdn: frame-=1\n"
+			, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN);
+		break;
+	case MV_BONES:
+#ifdef SKELETALMODELS
 		{
-			Draw_FunString(0, y, va("Bones: "));
-			y+=8;
-			M_BoneDisplay(&ent, b, &y, 0, -1, 0, bonecount);
+			int bonecount;
+			galiasbone_t *b = Mod_GetBoneInfo(ent.model, &bonecount);
+			if (b && bonecount)
+			{
+				Draw_FunString(0, y, va("Bones: "));
+				y+=8;
+				M_BoneDisplay(&ent, b, &y, 0, -1, 0, bonecount);
+			}
+			else
+				R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, "No bones in model", CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN);
 		}
-	}
 #endif
+		break;
+	case MV_SHADER:
+		{
+			if (!mods->shadertext)
+			{
+				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->skingroup));
+				mods->shadertext = Z_StrDup(body);
+			}
+			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+16, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN);
+
+			//fixme: draw the shader's textures.
+		}
+		break;
+	}
 }
 static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int key)
 {
@@ -2691,6 +2736,17 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 	}
 	else if (key == 's')
 		mods->dist /= 0.9;
+	else if (key == 'm')
+	{
+		Z_Free(mods->shadertext);
+		mods->shadertext = NULL;
+		switch (mods->mode)
+		{
+		case MV_NONE:	mods->mode = MV_BONES;	break; 
+		case MV_BONES:	mods->mode = MV_SHADER;	break;
+		case MV_SHADER: mods->mode = MV_NONE;	break;
+		}
+	}
 	else if (key == 'r')
 	{
 		mods->framechangetime = realtime;
@@ -2853,8 +2909,11 @@ void M_Menu_Mods_f (void)
 
 		menu = M_CreateMenu(sizeof(modmenu_t));
 		*(modmenu_t*)menu->data = mods;
-		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
+		if (COM_FCheckExists("gfx/p_option.lmp"))
+		{
+			MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+			MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
+		}
 
 		c = MC_AddCustom(menu, 64, 32, menu->data, 0);
 		menu->cursoritem = (menuoption_t*)c;

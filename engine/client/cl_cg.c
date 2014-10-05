@@ -586,7 +586,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			}
 			else
 				mod = cl.model_precache[modhandle+1];
-			if (mod && !mod->needload)
+			if (mod && mod->loadstate == MLS_LOADED)
 				pc = mod->funcs.NativeContents(mod, 0, 0, NULL, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 			else
 				pc = 1;//FTECONTENTS_SOLID;
@@ -603,11 +603,16 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			float *angles = VM_POINTER(arg[3]);
 			model_t *mod;
 			if (modhandle >= MAX_PRECACHE_MODELS)
-				mod = &box_model;
+			{
+//				if (modhandle == MAX_PRECACHE_MODELS+1)
+//					mod = &capsule_model;
+//				else
+					mod = &box_model;
+			}
 			else
 				mod = cl.model_precache[modhandle+1];
 
-			if (mod)
+			if (mod && mod->loadstate == MLS_LOADED)
 			{
 				vec3_t		p_l;
 				vec3_t		axis[3];
@@ -650,7 +655,12 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			float *angles		= VM_POINTER(arg[8]);
 			model_t *mod;
 			if (modhandle >= MAX_PRECACHE_MODELS)
-				mod = &box_model;
+			{
+//				if (modhandle == MAX_PRECACHE_MODELS+1)
+//					mod = &capsule_model;
+//				else
+					mod = &box_model;
+			}
 			else
 				mod = cl.model_precache[modhandle+1];
 
@@ -662,7 +672,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				origin = vec3_origin;
 			if (!angles)
 				angles = vec3_origin;
-			if (mod && !mod->needload)
+			if (mod && mod->loadstate == MLS_LOADED)
 #if !defined(CLIENTONLY) || defined(CSQC_DAT)
 				World_TransformedTrace(mod, 0, 0, start, end, mins, maxs, fn==CG_CM_TRANSFORMEDCAPSULETRACE, &tr, origin, angles, brushmask);
 #else
@@ -708,9 +718,24 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			int brushmask			= VM_LONG(arg[6]);
 			model_t *mod;
 			if (modhandle >= MAX_PRECACHE_MODELS)
-				mod = &box_model;
+			{
+//				if (modhandle == MAX_PRECACHE_MODELS+1)
+//					mod = &capsule_model;
+//				else
+					mod = &box_model;
+			}
 			else
 				mod = cl.model_precache[modhandle+1];
+
+			if (mod->loadstate != MLS_LOADED)
+			{
+				if (mod->loadstate == MLS_NOTLOADED)
+					Mod_LoadModel(mod, MLV_SILENT);
+				if (mod->loadstate == MLS_LOADING)
+					COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+				if (mod->loadstate != MLS_LOADED)
+					mod = &box_model;	//stop crashes, even if this is wrong.
+			}
 
 			if (!mins)
 				mins = vec3_origin;
@@ -737,14 +762,16 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			int i;
 			char *mapname = VM_POINTER(arg[0]);
 			strcpy(cl.model_name[1], mapname);
-			cl.worldmodel = cl.model_precache[1] = Mod_ForName(mapname, MLV_SILENT);
-			if (cl.worldmodel->needload)
+			cl.worldmodel = cl.model_precache[1] = Mod_ForName(Mod_FixName(mapname, mapname), MLV_SILENT);
+			if (cl.worldmodel->loadstate == MLS_LOADING)
+				COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
+			if (cl.worldmodel->loadstate != MLS_LOADED)
 				Host_EndGame("Couldn't load map %s", mapname);
 
 			for (i=1 ; i<cl.model_precache[1]->numsubmodels ; i++)
 			{
 				strcpy(cl.model_name[1+i], va("*%i", i));
-				cl.model_precache[i+1] = Mod_ForName (cl.model_name[i+1], MLV_SILENT);
+				cl.model_precache[i+1] = Mod_ForName (Mod_FixName(cl.model_name[i+1], mapname), MLV_SILENT);
 			}
 		}
 
@@ -775,6 +802,9 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			model_t *mod = VM_FROMMHANDLE(arg[0]);
 			if (mod)
 			{
+				if (mod->loadstate == MLS_LOADING)
+					COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+
 				VectorCopy(mod->mins, ((float*)VM_POINTER(arg[1])));
 				VectorCopy(mod->maxs, ((float*)VM_POINTER(arg[2])));
 			}
@@ -785,8 +815,13 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			char *name = VM_POINTER(arg[0]);
 			model_t *mod;
-			mod = Mod_ForName(name, MLV_SILENT);
-			if (mod->needload || mod->type == mod_dummy)
+			mod = Mod_ForName(Mod_FixName(name, cl.model_name[1]), MLV_SILENT);
+			if (mod->loadstate == MLS_LOADING)
+			{	//needed to ensure it really is missing
+				if (!COM_FCheckExists(mod->name))
+					COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+			}
+			if (mod->loadstate == MLS_FAILED || mod->type == mod_dummy)
 				VM_LONG(ret) = 0;
 			else
 				VM_LONG(ret) = VM_TOMHANDLE(mod);
@@ -1091,7 +1126,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_FTE_SPAWNPARTICLEEFFECT:
 		return pe->RunParticleEffectState(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]));
 	case CG_FTE_SPAWNPARTICLETRAIL:
-		return pe->ParticleTrail(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0, VM_POINTER(arg[3]));
+		return pe->ParticleTrail(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0, NULL, VM_POINTER(arg[3]));
 	case CG_FTE_FREEPARTICLESTATE:
 		pe->DelinkTrailstate(VM_POINTER(arg[0]));
 		break;

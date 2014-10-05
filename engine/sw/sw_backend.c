@@ -431,7 +431,7 @@ void SWBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, struct vbo_s *vbo, str
 	{
 		com = SWRast_BeginCommand(&commandqueue, WTC_TRIFAN, mesh->numvertexes*sizeof(swvert_t) + sizeof(com->trifan) - sizeof(com->trifan.verts));
 
-		com->trifan.texture = texnums->base.ptr;
+		com->trifan.texture = texnums->base->ptr;
 		com->trifan.numverts = mesh->numvertexes;
 
 		SWBE_TransformVerticies(com->trifan.verts, mesh);
@@ -442,7 +442,7 @@ void SWBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, struct vbo_s *vbo, str
 	{
 		com = SWRast_BeginCommand(&commandqueue, WTC_TRISOUP, (mesh->numvertexes*sizeof(swvert_t)) + sizeof(com->trisoup) - sizeof(com->trisoup.verts) + (sizeof(index_t)*mesh->numindexes));
 		
-		com->trisoup.texture = texnums->base.ptr;
+		com->trisoup.texture = texnums->base->ptr;
 		com->trisoup.numverts = mesh->numvertexes;
 		com->trisoup.numidx = mesh->numindexes;
 
@@ -616,6 +616,8 @@ void SWBE_DrawWorld(qboolean drawworld, qbyte *vis)
 }
 void SWBE_Init(void)
 {
+	memset(&r_config, 0, sizeof(r_config));
+	r_config.maxtexturesize = 512;
 	BE_InitTables();
 }
 void SWBE_GenBrushModelVBO(struct model_s *mod)
@@ -652,7 +654,7 @@ void SWBE_SelectEntity(struct entity_s *ent)
 
 	SWBE_UpdateUniforms();
 }
-qboolean SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour, unsigned int lmode)
+qboolean SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode)
 {
 	return false;
 }

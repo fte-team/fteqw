@@ -66,7 +66,7 @@ void	GLR_InitTextures (void)
 
 
 
-#if 1
+#ifdef RTLIGHTS
 texid_t GenerateNormalisationCubeMap(void)
 {
 	texid_t normalisationCubeMap;
@@ -81,7 +81,8 @@ texid_t GenerateNormalisationCubeMap(void)
 
 	int i, j;
 	
-	normalisationCubeMap = R_AllocNewTexture("normalisationcubemap", 32, 32, 0);
+	normalisationCubeMap = Image_CreateTexture("normalisationcubemap", NULL, IF_CUBEMAP);
+	qglGenTextures(1, &normalisationCubeMap->num);
 	GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 
 	//positive x
@@ -232,7 +233,6 @@ texid_t GenerateNormalisationCubeMap(void)
 	return normalisationCubeMap;
 }
 
-
 texid_t normalisationCubeMap;
 #endif
 
@@ -246,7 +246,7 @@ void GLR_ReInit (void)
 	R_NetgraphInit();
 }
 
-#if 1
+#if 0
 typedef struct
 {
    long offset;                 	// Position of the entry in WAD
@@ -454,7 +454,7 @@ void GLR_DeInit (void)
 {
 	Cmd_RemoveCommand ("timerefresh");
 
-	Cmd_RemoveCommand ("makewad");
+//	Cmd_RemoveCommand ("makewad");
 
 	Cvar_Unhook(&r_skyboxname);
 	Cvar_Unhook(&vid_conautoscale);
@@ -476,7 +476,7 @@ void GLR_Init (void)
 {	
 	Cmd_AddCommand ("timerefresh", GLR_TimeRefresh_f);
 
-	Cmd_AddCommand ("makewad", R_MakeTexWad_f);
+//	Cmd_AddCommand ("makewad", R_MakeTexWad_f);
 
 //	Cvar_Hook(&r_floortexture, GLR_Floortexture_Callback);
 //	Cvar_Hook(&r_walltexture, GLR_Walltexture_Callback);
@@ -484,83 +484,6 @@ void GLR_Init (void)
 
 	GLR_ReInit();
 }
-
-/*
-===============
-R_NewMap
-===============
-*/
-void GLR_NewMap (void)
-{
-	char namebuf[MAX_QPATH];
-	extern cvar_t host_mapname;
-	int		i;
-	
-	for (i=0 ; i<256 ; i++)
-		d_lightstylevalue[i] = 264;		// normal light value
-
-	memset (&r_worldentity, 0, sizeof(r_worldentity));
-	AngleVectors(r_worldentity.angles, r_worldentity.axis[0], r_worldentity.axis[1], r_worldentity.axis[2]);
-	VectorInverse(r_worldentity.axis[1]);
-	r_worldentity.model = cl.worldmodel;
-	Vector4Set(r_worldentity.shaderRGBAf, 1, 1, 1, 1);
-	VectorSet(r_worldentity.light_avg, 1, 1, 1);
-
-
-	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf, sizeof(namebuf));
-	Cvar_Set(&host_mapname, namebuf);
-
-	Surf_DeInit();
-
-	r_viewleaf = NULL;
-	r_oldviewleaf = NULL;
-	r_viewcluster = -1;
-	r_oldviewcluster = 0;
-	r_viewcluster2 = -1;
-
-	Mod_ParseInfoFromEntityLump(cl.worldmodel, cl.worldmodel->entities, cl.worldmodel->name);
-
-	if (!pe)
-		Cvar_ForceCallback(&r_particlesystem);
-TRACE(("dbg: GLR_NewMap: clear particles\n"));
-	P_ClearParticles ();
-TRACE(("dbg: GLR_NewMap: wiping them stains (getting the cloth out)\n"));
-	Surf_WipeStains();
-	CL_RegisterParticles();
-TRACE(("dbg: GLR_NewMap: building lightmaps\n"));
-	Surf_BuildLightmaps ();
-
-
-TRACE(("dbg: GLR_NewMap: ui\n"));
-#ifdef VM_UI
-	UI_Reset();
-#endif
-TRACE(("dbg: GLR_NewMap: tp\n"));
-	TP_NewMap();
-	R_SetSky(cl.skyname);
-
-#ifdef MAP_PROC
-	if (cl.worldmodel->fromgame == fg_doom3)
-		D3_GenerateAreas(cl.worldmodel);
-#endif
-
-#ifdef RTLIGHTS
-	Sh_PreGenerateLights();
-#endif
-}
-
-void GLR_PreNewMap(void)
-{
-	r_loadbumpmapping = r_deluxemapping.ival || r_glsl_offsetmapping.ival;
-#ifdef RTLIGHTS
-	r_loadbumpmapping |= r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival;
-#endif
-	r_viewleaf = NULL;
-	r_oldviewleaf = NULL;
-	r_viewleaf2 = NULL;
-	r_oldviewleaf2 = NULL;
-}
-
 
 /*
 ====================

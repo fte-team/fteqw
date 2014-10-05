@@ -2,44 +2,45 @@
 
 #include "com_mesh.h"
 
-extern model_t *loadmodel;
-extern char loadname[];
 qboolean		r_loadbumpmapping;
 extern cvar_t dpcompat_psa_ungroup;
 extern cvar_t r_noframegrouplerp;
 cvar_t r_lerpmuzzlehack						= CVARF  ("r_lerpmuzzlehack", "1", CVAR_ARCHIVE);
+
+#ifndef SERVERONLY
+void Mod_UpdateCRC(void *ctx, void *data, size_t a, size_t b)
+{
+	char st[40];
+	Q_snprintfz(st, sizeof(st), "%d", (int) a);
+	if (strcmp(st, Info_ValueForKey(cls.userinfo[0], ctx)))
+	{
+		Info_SetValueForKey (cls.userinfo[0], ctx, st, sizeof(cls.userinfo[0]));
+		if (cls.state >= ca_connected)
+			CL_SendClientCommand(true, "setinfo %s %s", (char*)ctx, st);
+	}
+}
+#endif
 
 //Common loader function.
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 {
 #ifndef SERVERONLY
 	//we've got to have this bit
-	if (loadmodel->engineflags & MDLF_DOCRC)
+	if (mod->engineflags & MDLF_DOCRC)
 	{
 		unsigned short crc;
 		qbyte *p;
 		int len;
-		char st[40];
 
 		QCRC_Init(&crc);
 		for (len = buffersize, p = buffer; len; len--, p++)
 			QCRC_ProcessByte(&crc, *p);
 
-		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo[0],
-			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-			st, sizeof(cls.userinfo[0]));
+		COM_AddWork(0, Mod_UpdateCRC, (mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name, NULL, crc, 0);
 
-		if (cls.state >= ca_connected)
-		{
-			CL_SendClientCommand(true, "setinfo %s %d",
-				(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-				(int)crc);
-		}
-
-		if (!(loadmodel->engineflags & MDLF_PLAYER))
+		if (!(mod->engineflags & MDLF_PLAYER))
 		{	//eyes
-			loadmodel->tainted = (crc != 6967);
+			mod->tainted = (crc != 6967);
 		}
 	}
 #endif
@@ -1665,6 +1666,15 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #endif
 	mesh->trneighbors = inf->ofs_trineighbours;
 
+#ifdef SKELETALMODELS
+	if (!inf->numbones)
+		usebones = false;
+	else if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
+		usebones = false;
+	else if (e->fatness || !inf->ofs_skel_idx || inf->numswtransforms || inf->numbones > MAX_GPU_BONES)
+#endif
+		usebones = false;
+
 	if (meshcache.ent == e)
 	{
 		if (meshcache.vertgroup == inf->shares_verts && meshcache.ent == e && usebones == meshcache.usebones)
@@ -1725,8 +1735,6 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		*vbop = NULL;
 	if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 	{
-		usebones = false;
-
 		//if we have skeletal xyz info, but no skeletal weights, then its a partial model that cannot possibly be animated.
 		meshcache.usebonepose = NULL;
 		mesh->xyz_array = inf->ofs_skel_xyz;
@@ -1749,7 +1757,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			meshcache.vbo.colours[0] = inf->vborgba;
 			meshcache.vbo.bonenums = inf->vbo_skel_bonenum;
 			meshcache.vbo.boneweights = inf->vbo_skel_bweight;
-			if (meshcache.vbo.indicies.dummy)
+			if (meshcache.vbo.indicies.sysptr)
 				*vbop = meshcache.vbop = &meshcache.vbo;
 		}
 	}
@@ -1757,9 +1765,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	{
 		mesh->xyz2_array = NULL;	//skeltal animations blend bones, not verticies.
 
-		if (e->fatness || !inf->ofs_skel_idx || !usebones || inf->numswtransforms || inf->numbones > MAX_GPU_BONES)
+		if (!usebones)
 		{
-			usebones = false;
 			if (inf->numindexes)
 			{
 				//software bone animation
@@ -1805,8 +1812,6 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	else
 #endif
 	{
-		usebones = false;
-
 		frame1 = e->framestate.g[FS_REG].frame[0];
 		frame2 = e->framestate.g[FS_REG].frame[1];
 		lerp = e->framestate.g[FS_REG].lerpfrac;
@@ -1919,7 +1924,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 				mesh->xyz2_array = p2->ofsverts;
 			}
 #endif
-			if (vbop && meshcache.vbo.indicies.dummy)
+			if (vbop && meshcache.vbo.indicies.sysptr)
 				*vbop = meshcache.vbop = &meshcache.vbo;
 		}
 	}
@@ -2287,7 +2292,7 @@ static void Mod_BuildTriangleNeighbours ( int *neighbours, index_t *indexes, int
 		n[2] = R_FindTriangleWithEdge (indexes, numtris, index[0], index[2], i);
 	}
 }
-void Mod_CompileTriangleNeighbours(galiasinfo_t *galias)
+void Mod_CompileTriangleNeighbours(model_t *loadmodel, galiasinfo_t *galias)
 {
 #ifndef SERVERONLY
 	if (Sh_StencilShadowsActive())
@@ -2312,36 +2317,147 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 {
 	int count = 0;
 	int maxcount = 0;
-	const char *line;
+	char *line, *eol;
 	char *file;
 	frameinfo_t *frames = NULL;
-	line = file = FS_LoadMallocFile(va("%s.framegroups", modelname));
+	char fname[MAX_QPATH];
+	char tok[64];
+	size_t fsize;
+	Q_snprintfz(fname, sizeof(fname), "%s.framegroups", modelname);
+	line = file = COM_LoadFile(fname, 5, &fsize);
 	if (!file)
 		return NULL;
 	while(line && *line)
 	{
-		line = Cmd_TokenizeString(line, false, false);
-		if (Cmd_Argc())
+		eol = strchr(line, '\n');
+		if (eol)
+			*eol = 0;
+			
+		if (count == maxcount)
 		{
-			if (count == maxcount)
-			{
-				maxcount += 32;
-				frames = realloc(frames, sizeof(*frames)*maxcount);
-			}
-
-			frames[count].firstpose = atoi(Cmd_Argv(0));
-			frames[count].posecount = atoi(Cmd_Argv(1));
-			frames[count].fps = atof(Cmd_Argv(2));
-			frames[count].loop = !!atoi(Cmd_Argv(3));
-			Q_strncpyz(frames[count].name, Cmd_Argv(4), sizeof(frames[count].name));
-			count++;
+			maxcount += 32;
+			frames = realloc(frames, sizeof(*frames)*maxcount);
 		}
+
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		frames[count].firstpose = atoi(tok);
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		frames[count].posecount = atoi(tok);
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		frames[count].fps = atof(tok);
+		line = COM_ParseOut(line, tok, sizeof(tok));
+		frames[count].loop = !!atoi(tok);
+		line = COM_ParseOut(line, frames[count].name, sizeof(frames[count].name));
+		if (frames[count].posecount>0 && frames[count].fps)
+			count++;
+
+		if (eol)
+			line = eol+1;
+		else
+			break;
 	}
 	BZ_Free(file);
 
 	*numgroups = count;
 	return frames;
 }
+
+void Mod_DestroyMesh(galiasinfo_t *galias)
+{
+#ifndef SERVERONLY
+	if (!BE_VBO_Destroy)
+		return;
+	while(galias)
+	{
+		BE_VBO_Destroy(&galias->vbotexcoords);
+		BE_VBO_Destroy(&galias->vboindicies);
+		galias = galias->nextsurf;
+	}
+#endif
+}
+
+void Mod_GenerateMeshVBO(galiasinfo_t *galias)
+//vec3_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx, int numverts)
+{
+#ifndef SERVERONLY
+	int i, p;
+	galiasgroup_t *group;
+	galiaspose_t *pose;
+	int vbospace = 0;
+	vbobctx_t vboctx;
+
+	//don't fail on dedicated servers
+	if (!BE_VBO_Begin)
+		return;
+
+	group = galias->groupofs;
+
+	//determine the amount of space we need for our vbos.
+	if (galias->ofs_st_array)
+		vbospace += sizeof(*galias->ofs_st_array) * galias->numverts;
+	if (galias->ofs_rgbaf)
+		vbospace += sizeof(*galias->ofs_rgbaf) * galias->numverts;
+	else if (galias->ofs_rgbaub)
+		vbospace += sizeof(*galias->ofs_rgbaub) * galias->numverts;
+#ifdef SKELETALMODELS
+	if (galias->ofs_skel_xyz)
+		vbospace += sizeof(*galias->ofs_skel_xyz) * galias->numverts;
+	if (galias->ofs_skel_norm)
+		vbospace += sizeof(*galias->ofs_skel_norm) * galias->numverts;
+	if (galias->ofs_skel_svect)
+		vbospace += sizeof(*galias->ofs_skel_svect) * galias->numverts;
+	if (galias->ofs_skel_tvect)
+		vbospace += sizeof(*galias->ofs_skel_tvect) * galias->numverts;
+	if (galias->ofs_skel_idx)
+		vbospace += sizeof(*galias->ofs_skel_idx) * galias->numverts;
+	if (galias->ofs_skel_weight)
+		vbospace += sizeof(*galias->ofs_skel_weight) * galias->numverts;
+#endif
+	for (i = 0; i < galias->groups; i++)
+	{
+		if (group->poseofs)
+			vbospace += group[i].numposes * galias->numverts * (sizeof(vecV_t)+sizeof(vec3_t)*3);
+	}
+	BE_VBO_Begin(&vboctx, vbospace);
+	if (galias->ofs_st_array)
+		BE_VBO_Data(&vboctx, galias->ofs_st_array, sizeof(*galias->ofs_st_array) * galias->numverts, &galias->vbotexcoords);
+	if (galias->ofs_rgbaf)
+		BE_VBO_Data(&vboctx, galias->ofs_rgbaf, sizeof(*galias->ofs_rgbaf) * galias->numverts, &galias->vborgba);
+	else if (galias->ofs_rgbaub)
+		BE_VBO_Data(&vboctx, galias->ofs_rgbaub, sizeof(*galias->ofs_rgbaub) * galias->numverts, &galias->vborgba);
+#ifdef SKELETALMODELS
+	if (galias->ofs_skel_xyz)
+		BE_VBO_Data(&vboctx, galias->ofs_skel_xyz, sizeof(*galias->ofs_skel_xyz) * galias->numverts, &galias->vbo_skel_verts);
+	if (galias->ofs_skel_norm)
+		BE_VBO_Data(&vboctx, galias->ofs_skel_norm, sizeof(*galias->ofs_skel_norm) * galias->numverts, &galias->vbo_skel_normals);
+	if (galias->ofs_skel_svect)
+		BE_VBO_Data(&vboctx, galias->ofs_skel_svect, sizeof(*galias->ofs_skel_svect) * galias->numverts, &galias->vbo_skel_svector);
+	if (galias->ofs_skel_tvect)
+		BE_VBO_Data(&vboctx, galias->ofs_skel_tvect, sizeof(*galias->ofs_skel_tvect) * galias->numverts, &galias->vbo_skel_tvector);
+	if (galias->ofs_skel_idx)
+		BE_VBO_Data(&vboctx, galias->ofs_skel_idx, sizeof(*galias->ofs_skel_idx) * galias->numverts, &galias->vbo_skel_bonenum);
+	if (galias->ofs_skel_weight)
+		BE_VBO_Data(&vboctx, galias->ofs_skel_weight, sizeof(*galias->ofs_skel_weight) * galias->numverts, &galias->vbo_skel_bweight);
+#endif
+
+	for (i = 0; i < galias->groups; i++, group++)
+	{
+		pose = group->poseofs;
+		if (pose)
+		for (p = 0; p < group->numposes; p++, pose++)
+		{
+			BE_VBO_Data(&vboctx, pose->ofsverts, sizeof(*pose->ofsverts) * galias->numverts, &pose->vboverts);
+			BE_VBO_Data(&vboctx, pose->ofsnormals, sizeof(*pose->ofsnormals) * galias->numverts, &pose->vbonormals);
+			if (pose->ofssvector)
+				BE_VBO_Data(&vboctx, pose->ofssvector, sizeof(*pose->ofssvector) * galias->numverts, &pose->vbosvector);
+			if (pose->ofstvector)
+				BE_VBO_Data(&vboctx, pose->ofstvector, sizeof(*pose->ofstvector) * galias->numverts, &pose->vbotvector);
+		}
+	}
+	BE_VBO_Finish(&vboctx, galias->ofs_indexes, sizeof(*galias->ofs_indexes) * galias->numindexes, &galias->vboindicies);
+#endif
+}
+
 
 //called for non-skeletal model formats.
 void Mod_BuildTextureVectors(galiasinfo_t *galias)
@@ -2356,7 +2472,6 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 	vec2_t *tc;
 	index_t *idx;
 	int vbospace = 0;
-	vbobctx_t vboctx;
 
 	//don't fail on dedicated servers
 	if (!BE_VBO_Begin)
@@ -2365,15 +2480,6 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 	idx = galias->ofs_indexes;
 	tc = galias->ofs_st_array;
 	group = galias->groupofs;
-
-	//determine the amount of space we need for our vbos.
-	vbospace += sizeof(*tc) * galias->numverts;
-	for (i = 0; i < galias->groups; i++)
-	{
-		vbospace += group[i].numposes * galias->numverts * (sizeof(vecV_t)+sizeof(vec3_t)*3);
-	}
-	BE_VBO_Begin(&vboctx, vbospace);
-	BE_VBO_Data(&vboctx, tc, sizeof(*tc) * galias->numverts, &galias->vbotexcoords);
 
 	for (i = 0; i < galias->groups; i++, group++)
 	{
@@ -2390,19 +2496,8 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 				Mod_AccumulateTextureVectors(vc, tc, nv, sv, tv, idx, galias->numindexes);
 				Mod_NormaliseTextureVectors(nv, sv, tv, galias->numverts);
 			}
-			else
-			{	//shouldn't really happen... make error?
-				sv = NULL;
-				tv = NULL;
-			}
-
-			BE_VBO_Data(&vboctx, vc, sizeof(*vc) * galias->numverts, &pose->vboverts);
-			BE_VBO_Data(&vboctx, nv, sizeof(*nv) * galias->numverts, &pose->vbonormals);
-			BE_VBO_Data(&vboctx, sv, sizeof(*sv) * galias->numverts, &pose->vbosvector);
-			BE_VBO_Data(&vboctx, tv, sizeof(*tv) * galias->numverts, &pose->vbotvector);
 		}
 	}
-	BE_VBO_Finish(&vboctx, idx, sizeof(*idx) * galias->numindexes, &galias->vboindicies);
 #endif
 }
 
@@ -2481,154 +2576,101 @@ static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 	}
 }
 
-skinid_t *skinfilelist;
-int skinfilecount;
-
-static qboolean VARGS Mod_TryAddSkin(qboolean force, const char *skinname, ...)
-{
-	va_list		argptr;
-	char		string[MAX_QPATH];
-	char		*filedata;
-
-	//make sure we don't add it twice
-	int i;
-
-
-	va_start (argptr, skinname);
-	vsnprintf (string,sizeof(string)-1, skinname,argptr);
-	va_end (argptr);
-	string[MAX_QPATH-1] = '\0';
-
-	for (i = 0; i < skinfilecount; i++)
-	{
-		if (!strcmp(Mod_LookupSkin(skinfilelist[i])->skinname, string))
-			return true;	//already added
-	}
-
-	filedata = FS_LoadMallocFile(string);
-	if (!filedata && !force)
-		return false;
-
-	skinfilelist = BZ_Realloc(skinfilelist, sizeof(*skinfilelist)*(skinfilecount+1));
-	skinfilelist[skinfilecount++] = Mod_ReadSkinFile(string, filedata);
-	Z_Free(filedata);
-	return true;
-}
-
-int QDECL Mod_EnumerateSkins(const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
-{
-	Mod_TryAddSkin(false, name);
-	return true;
-}
-
 //looks for foo.md3_0.skin files, for dp compat
-int Mod_BuildSkinFileList(qboolean forcedefault, char *modelname)
+//also try foo_0.skin, because people appear to use that too. *sigh*.
+int Mod_CountSkinFiles(char *modelname)
 {
 	int i;
 	char skinfilename[MAX_QPATH];
-
-	//flush the old list
-	for (i = 0; i < skinfilecount; i++)
-	{
-		Mod_WipeSkin(skinfilelist[i]);
-		skinfilelist[i] = ~0u;
-	}
-	skinfilecount=0;
-
-	COM_StripExtension(modelname, skinfilename, sizeof(skinfilename));
-
 	//try and add numbered skins, and then try fixed names.
 	for (i = 0; ; i++)
 	{
-		if (!Mod_TryAddSkin(false, "%s_%i.skin", modelname, i))
+		Q_snprintfz(skinfilename, sizeof(skinfilename), "%s_%i.skin", modelname, i);
+		if (!COM_FCheckExists(skinfilename))
 		{
-			/*FIXME: only use this logic in q1, and not q3.
-			if (i == 0)
-			{
-				if (!Mod_TryAddSkin(forcedefault, "%s_default.skin", skinfilename, i))
-					break;
-			}
-			else if (i == 1)
-			{
-				if (!Mod_TryAddSkin(false, "%s_blue.skin", skinfilename, i))
-					break;
-			}
-			else if (i == 2)
-			{
-				if (!Mod_TryAddSkin(false, "%s_red.skin", skinfilename, i))
-					break;
-			}
-			else if (i == 3)
-			{
-				if (!Mod_TryAddSkin(false, "%s_green.skin", skinfilename, i))
-					break;
-			}
-			else if (i == 4)
-			{
-				if (!Mod_TryAddSkin(false, "%s_yellow.skin", skinfilename, i))
-					break;
-			}
-			else*/
+			COM_StripExtension(modelname, skinfilename, sizeof(skinfilename));
+			Q_snprintfz(skinfilename+strlen(skinfilename), sizeof(skinfilename)-strlen(skinfilename), "_%i.skin", i);
+			if (!COM_FCheckExists(skinfilename))
 				break;
 		}
 	}
-
-	COM_EnumerateFiles(va("%s_*.skin", modelname), Mod_EnumerateSkins, NULL);
-//	COM_EnumerateFiles(va("%s_*.skin", skinfilename), Mod_EnumerateSkins, NULL);
-
-	return skinfilecount;
+	return i;
 }
 
-
 //support for foo.md3_0.skin
-shader_t *Mod_ShaderFromQ3SkinFile(char *out, galiasinfo_t *surf, char *modelname, int skinnum, char *skinfilename)
+shader_t *Mod_ShaderFromQ3SkinFile(galiasinfo_t *surf, char *modelname, int skinnum)
 {
+	shader_t *result = NULL;
+	skinid_t skinid;
 	skinfile_t *skinfile;
 	int i;
+	char *filedata;
+	char skinfilename[MAX_QPATH];
 
 	if (qrenderer == QR_NONE)
 		return NULL;
 
-	if (skinnum < skinfilecount)
+	Q_snprintfz(skinfilename, sizeof(skinfilename), "%s_%i.skin", modelname, skinnum);
+	filedata = FS_LoadMallocFile(skinfilename, NULL);
+	if (!filedata)
 	{
-		skinfile = Mod_LookupSkin(skinfilelist[skinnum]);
+		COM_StripExtension(modelname, skinfilename, sizeof(skinfilename));
+		Q_snprintfz(skinfilename+strlen(skinfilename), sizeof(skinfilename)-strlen(skinfilename), "_%i.skin", skinnum);
+		filedata = FS_LoadMallocFile(skinfilename, NULL);
+	}
+	if (filedata)
+	{
+		skinid = Mod_ReadSkinFile(skinfilename, filedata);
+		Z_Free(filedata);
 
-		if (skinfilename)
-			strcpy(skinfilename, skinfile->skinname);
-
-		//check if this skinfile has a mapping.
-		for (i = 0; i < skinfile->nummappings; i++)
+		skinfile = Mod_LookupSkin(skinid);
+		if (skinfile)
 		{
-			if (!strcmp(surf->surfacename, skinfile->mappings[i].surface))
+			//check if this skinfile has a mapping.
+			for (i = 0; i < skinfile->nummappings; i++)
 			{
-				skinfile->mappings[i].shader->uses++;	//so it doesn't blow up when the skin gets freed.
-				return skinfile->mappings[i].shader;
+				if (!strcmp(surf->surfacename, skinfile->mappings[i].surface))
+				{
+					skinfile->mappings[i].shader->uses++;	//so it doesn't blow up when the skin gets freed.
+					result = skinfile->mappings[i].shader;
+					break;
+				}
 			}
+			Mod_WipeSkin(skinid);
 		}
 	}
 
-	return NULL;
+	return result;
 }
 
-shader_t *Mod_LoadSkinFile(char *defaultshadername, galiasinfo_t *surf, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette, char *outskinname)
+void Mod_LoadAliasShaders(model_t *mod)
 {
-	shader_t *shader;
-	char shadername[MAX_QPATH];
-	Q_strncpyz(shadername, defaultshadername?defaultshadername:surf->surfacename, sizeof(shadername));
-
-	shader = Mod_ShaderFromQ3SkinFile(shadername, surf, loadmodel->name, skinnumber, outskinname);
-	if (!shader)
-		shader = R_RegisterSkin(defaultshadername, loadmodel->name);
-	if (!shader)
-		shader = R_RegisterSkin(surf->surfacename, loadmodel->name);
-	if (shader)
+	galiasinfo_t *ai = mod->meshinfo;
+	galiasskin_t *s;
+	skinframe_t *f;
+	int i, j;
+	for (ai = mod->meshinfo; ai; ai = ai->nextsurf)
 	{
-		R_BuildDefaultTexnums(&shader->defaulttextures, shader);
-		if (shader->flags & SHADER_NOIMAGE)
-			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", shader->name, loadmodel->name);
+		Mod_GenerateMeshVBO(ai);	//FIXME: shares verts
+		for (i = 0, s = ai->ofsskins; i < ai->numskins; i++, s++)
+		{
+			for (j = 0, f = s->frame; j < s->numframes; j++, f++)
+			{
+				if (j == 0)
+					f->shader = Mod_ShaderFromQ3SkinFile(ai, mod->name, i);
+				else
+					f->shader = NULL;
+				if (!f->shader)
+				{
+					if (!f->defaultshader)
+						f->shader = R_RegisterSkin(f->shadername, mod->name);
+					else
+						f->shader = R_RegisterShader(f->shadername, SUF_NONE, f->defaultshader);
+				}
+				R_BuildDefaultTexnums(&f->texnums, f->shader);
+			}
+		}
 	}
-
-	return shader;
 }
 #endif
 
@@ -2688,7 +2730,7 @@ static void Alias_LoadPose(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t 
 		}
 	}
 }
-static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps, int mdltype)
+static void *Alias_LoadFrameGroup (model_t *loadmodel, daliasframetype_t *pframetype, int *seamremaps, int mdltype)
 {
 	galiaspose_t *pose;
 	galiasgroup_t *frame = galias->groupofs;
@@ -2856,11 +2898,11 @@ static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, unsigned int skintran
 }
 
 #ifndef SERVERONLY
-static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintranstype)
+static void *Q1_LoadSkins_GL (model_t *loadmodel, daliasskintype_t *pskintype, uploadfmt_t skintranstype)
 {
-	shader_t **shaders;
-	qbyte **ofstexels;
+	skinframe_t *frames;
 	char skinname[MAX_QPATH];
+	char alttexpath[MAX_QPATH];
 	int i;
 	int s, t;
 	float sinter;
@@ -2868,10 +2910,26 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 	daliasskininterval_t *intervals;
 	qbyte *data, *saved;
 	galiasskin_t *outskin = galias->ofsskins;
+	const char *slash;
+	unsigned int texflags;
 
-	texid_t texture;
-	texid_t fbtexture;
-	texid_t bumptexture;
+	char basename[32];
+	COM_FileBase(loadmodel->name, basename, sizeof(basename));
+
+	if (loadmodel->engineflags & MDLF_NOTREPLACEMENTS)
+		texflags = IF_NOREPLACE;
+	else
+		texflags = 0;
+
+	slash = COM_SkipPath(loadmodel->name);
+	if (slash != loadmodel->name && slash-loadmodel->name < sizeof(alttexpath))
+	{
+		slash--;
+		memcpy(alttexpath, loadmodel->name, slash-loadmodel->name);
+		Q_strncpyz(alttexpath+(slash-loadmodel->name), ":models", sizeof(alttexpath)-(slash-loadmodel->name));	//fuhquake compat
+	}
+	else
+		strcpy(alttexpath, "models");	//fuhquake compat
 
 	s = pq1inmodel->skinwidth*pq1inmodel->skinheight;
 	for (i = 0; i < pq1inmodel->numskins; i++)
@@ -2883,7 +2941,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			outskin->skinheight = pq1inmodel->skinheight;
 
 			//LH's naming scheme ("models" is likly to be ignored)
-			fbtexture = r_nulltex;
+/*			fbtexture = r_nulltex;
 			bumptexture = r_nulltex;
 			snprintf(skinname, sizeof(skinname), "%s_%i.", loadmodel->name, i);
 			texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
@@ -2903,102 +2961,102 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			else
 			{
 				//try with a stripped model name
-				snprintf(skinname, sizeof(skinname), "%s_%i.", loadname, i);
+				snprintf(skinname, sizeof(skinname), "%s_%i.", basename, i);
 				texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
 				if (TEXVALID(texture))
 				{
 					if (r_fb_models.ival)
 					{
-						snprintf(skinname, sizeof(skinname), "%s_%i_luma.", loadname, i);
+						snprintf(skinname, sizeof(skinname), "%s_%i_luma.", basename, i);
 						fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
 					}
 					if (r_loadbumpmapping)
 					{
-						snprintf(skinname, sizeof(skinname), "%s_%i_bump.", loadname, i);
+						snprintf(skinname, sizeof(skinname), "%s_%i_bump.", basename, i);
 						bumptexture = R_LoadBumpmapTexture(skinname, "models");
 					}
 				}
 				//else ...
 			}
-
+*/
 //but only preload it if we have no replacement.
-			if (!TEXVALID(texture) || (loadmodel->engineflags & MDLF_NOTREPLACEMENTS))
+			if (1 || /*!TEXVALID(texture) ||*/ (loadmodel->engineflags & MDLF_NOTREPLACEMENTS))
 			{
 				//we're not using 24bits
-				shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders)+sizeof(*ofstexels)+s);
-				ofstexels = (qbyte**)(shaders+1);
-				saved = (qbyte*)(ofstexels+1);
-				outskin->ofstexels = ofstexels;
-				ofstexels[0] = saved;
+				frames = ZG_Malloc(&loadmodel->memgroup, sizeof(*frames)+s);
+				saved = (qbyte*)(frames+1);
+				frames[0].texels = saved;
 				memcpy(saved, pskintype+1, s);
 				Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 
+#if 0
 //the extra underscore is to stop replacement matches
 				if (!TEXVALID(texture))
 				{
-					snprintf(skinname, sizeof(skinname), "%s__%i.", loadname, i);
+					snprintf(skinname, sizeof(skinname), "%s__%i.", basename, i);
 					switch (skintranstype)
 					{
 					default:
-						texture = R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_SOLID8, saved, IF_NOALPHA|IF_NOGAMMA);
+						texture = r_nulltex;//R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_SOLID8, saved, IF_NOALPHA|IF_NOGAMMA);
 						if (r_fb_models.ival)
 						{
-							snprintf(skinname, sizeof(skinname), "%s__%i_luma.", loadname, i);
-							fbtexture = R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
+							snprintf(skinname, sizeof(skinname), "%s__%i_luma.", basename, i);
+							fbtexture = r_nulltex;//R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
 						}
 						if (r_loadbumpmapping)
 						{
-							snprintf(skinname, sizeof(skinname), "%s__%i_bump.", loadname, i);
-							bumptexture = R_LoadTexture8BumpPal(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
+							snprintf(skinname, sizeof(skinname), "%s__%i_bump.", basename, i);
+							bumptexture = r_nulltex;//R_LoadTexture8BumpPal(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
 						}
 						break;
 					case 2:
-						texture = R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_T7G1, saved, IF_NOGAMMA);
+						texture = r_nulltex;//R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_T7G1, saved, IF_NOGAMMA);
 						break;
 					case 3:
-						texture = R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_TRANS8_0, saved, IF_NOGAMMA);
+						texture = r_nulltex;//R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_TRANS8_0, saved, IF_NOGAMMA);
 						break;
 					case 4:
-						texture = R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_T4A4, saved, IF_NOGAMMA);
+						texture = r_nulltex;//R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_T4A4, saved, IF_NOGAMMA);
 						break;
 					}
 				}
+#endif
 			}
 			else
-				shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders));
-			outskin->numshaders=1;
+				frames = ZG_Malloc(&loadmodel->memgroup, sizeof(*frames));
+			outskin->numframes=1;
 
-			outskin->ofsshaders = shaders;
+			outskin->frame = frames;
 
+			frames[0].shader = NULL;
+			frames[0].defaultshader = NULL;
+			Q_snprintfz(frames[0].shadername, sizeof(frames[0].shadername), "%s_%i.lmp", basename, i);
 
+			Q_snprintfz(skinname, sizeof(skinname), "%s_%i.lmp", loadmodel->name, i);
+			frames[0].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, skintranstype);
+			if (r_fb_models.ival)
+			{
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_luma.lmp", loadmodel->name, i);
+				frames[0].texnums.fullbright = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_TRANS8_FULLBRIGHT);
+			}
+			if (r_loadbumpmapping)
+			{
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_norm.lmp", loadmodel->name, i);
+				frames[0].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
+			}
+			Q_snprintfz(skinname, sizeof(skinname), "%s_%i_shirt.lmp", loadmodel->name, i);
+			frames[0].texnums.upperoverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
+			Q_snprintfz(skinname, sizeof(skinname), "%s_%i_pants.lmp", loadmodel->name, i);
+			frames[0].texnums.loweroverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
 
-			Q_snprintfz(skinname, sizeof(skinname), "%s_%i.", loadname, i);
-			if (skintranstype == 4)
-				shaders[0] = R_RegisterShader(skinname, SUF_NONE,
-					"{\n"
-						"{\n"
-							"map $diffuse\n"
-							"blendfunc gl_one_minus_src_alpha gl_src_alpha\n"
-							"alphagen entity\n"
-							"rgbgen lightingDiffuse\n"
-							"cull disable\n"
-							"depthwrite\n"
-						"}\n"
-					"}\n");
-			else if (skintranstype == 3)
-				shaders[0] = R_RegisterShader(skinname, SUF_NONE,
-					"{\n"
-						"{\n"
-							"map $diffuse\n"
-							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-							"alphafunc ge128\n"
-							"rgbgen lightingDiffuse\n"
-							"alphagen entity\n"
-							"depthwrite\n"
-						"}\n"
-					"}\n");
-			else if (skintranstype)
-				shaders[0] = R_RegisterShader(skinname, SUF_NONE,
+			switch(skintranstype)
+			{
+			default:	//urk
+			case TF_SOLID8:
+				frames[0].defaultshader = NULL;
+				break;
+			case TF_H2_T7G1:
+				frames[0].defaultshader =
 					"{\n"
 //						"program defaultskin\n"
 						"{\n"
@@ -3008,15 +3066,37 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 							"rgbgen lightingDiffuse\n"
 							"depthwrite\n"
 						"}\n"
-					"}\n");
-			else
-				shaders[0] = R_RegisterSkin(skinname, loadmodel->name);
-
-			shaders[0]->defaulttextures.base = texture;
-			shaders[0]->defaulttextures.fullbright = fbtexture;
-			shaders[0]->defaulttextures.bump = bumptexture;
-
-			//13/4/08 IMPLEMENTME
+					"}\n";
+				break;
+			case TF_H2_TRANS8_0:
+				frames[0].defaultshader =
+					"{\n"
+						"{\n"
+							"map $diffuse\n"
+							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+							"alphafunc ge128\n"
+							"rgbgen lightingDiffuse\n"
+							"alphagen entity\n"
+							"depthwrite\n"
+						"}\n"
+					"}\n";
+				break;
+			case TF_H2_T4A4:
+				frames[0].defaultshader =
+					"{\n"
+						"{\n"
+							"map $diffuse\n"
+							"blendfunc gl_one_minus_src_alpha gl_src_alpha\n"
+							"alphagen entity\n"
+							"rgbgen lightingDiffuse\n"
+							"cull disable\n"
+							"depthwrite\n"
+						"}\n"
+					"}\n";
+				break;
+			}
+	
+/*			//13/4/08 IMPLEMENTME
 			if (r_skin_overlays.ival)
 			{
 				snprintf(skinname, sizeof(skinname), "%s_%i_pants.", loadname, i);
@@ -3025,9 +3105,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 				snprintf(skinname, sizeof(skinname), "%s_%i_shirt.", loadname, i);
 				shaders[0]->defaulttextures.upperoverlay = R_LoadReplacementTexture(skinname, "models", 0);
 			}
-
-			R_BuildDefaultTexnums(&shaders[0]->defaulttextures, shaders[0]);
-
+*/
 			pskintype = (daliasskintype_t *)((char *)(pskintype+1)+s);
 			break;
 
@@ -3036,75 +3114,40 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			outskin->skinheight = pq1inmodel->skinheight;
 			count = (daliasskingroup_t*)(pskintype+1);
 			intervals = (daliasskininterval_t *)(count+1);
-			outskin->numshaders = LittleLong(count->numskins);
-			data = (qbyte *)(intervals + outskin->numshaders);
-			shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders)*outskin->numshaders + sizeof(*ofstexels)*outskin->numshaders);
-			ofstexels = (qbyte**)(shaders+outskin->numshaders);
-			outskin->ofsshaders = shaders;
-			outskin->ofstexels = ofstexels;
+			outskin->numframes = LittleLong(count->numskins);
+			data = (qbyte *)(intervals + outskin->numframes);
+			frames = ZG_Malloc(&loadmodel->memgroup, sizeof(*frames)*outskin->numframes);
+			outskin->frame = frames;
 			sinter = LittleFloat(intervals[0].interval);
 			if (sinter <= 0)
 				sinter = 0.1;
 			outskin->skinspeed = 1/sinter;
 
-			for (t = 0; t < outskin->numshaders; t++,data+=s)
+			for (t = 0; t < outskin->numframes; t++,data+=s)
 			{
-				texture = r_nulltex;
-				fbtexture = r_nulltex;
+				frames[t].texels = ZG_Malloc(&loadmodel->memgroup, s);
+				memcpy(frames[t].texels, data, s);
+				Mod_FloodFillSkin(frames[t].texels, outskin->skinwidth, outskin->skinheight);
 
-				//LH naming scheme
-				if (!TEXVALID(texture))
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i.lmp", loadmodel->name, i, t);
+				frames[t].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[t].texels, outskin->skinwidth, outskin->skinheight, skintranstype);
+				if (r_fb_models.ival)
 				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i.", loadmodel->name, i, t);
-					texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma.lmp", loadmodel->name, i, t);
+					frames[t].texnums.fullbright = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[t].texels, outskin->skinwidth, outskin->skinheight, TF_TRANS8_FULLBRIGHT);
 				}
-				if (!TEXVALID(fbtexture) && r_fb_models.ival)
+				if (r_loadbumpmapping)
 				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma.", loadmodel->name, i, t);
-					fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_norm.lmp", loadmodel->name, i, t);
+					frames[t].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP, frames[t].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
 				}
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_shirt.lmp", loadmodel->name, i, t);
+				frames[t].texnums.upperoverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_pants.lmp", loadmodel->name, i, t);
+				frames[t].texnums.loweroverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
 
-				//Fuhquake naming scheme
-				if (!TEXVALID(texture))
-				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i.", loadname, i, t);
-					texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
-				}
-				if (!TEXVALID(fbtexture) && r_fb_models.ival)
-				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma.", loadname, i, t);
-					fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
-				}
-
-				if (!TEXVALID(texture) || (!TEXVALID(fbtexture) && r_fb_models.ival))
-				{
-					saved = ZG_Malloc(&loadmodel->memgroup, s);
-					ofstexels[t] = saved;
-					memcpy(saved, data, s);
-					Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
-					if (!TEXVALID(texture))
-					{
-						Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i.", loadname, i, t);
-						texture = R_LoadTexture8(skinname, outskin->skinwidth, outskin->skinheight, saved, (skintranstype?0:IF_NOALPHA)|IF_NOGAMMA, skintranstype);
-					}
-
-
-					if (!TEXVALID(fbtexture) && r_fb_models.value)
-					{
-						Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma.", loadname, i, t);
-						fbtexture = R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
-					}
-				}
-
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i.", loadname, i, t);
-				shaders[t] = R_RegisterSkin(skinname, loadmodel->name);
-
-				TEXASSIGN(shaders[t]->defaulttextures.base, texture);
-				TEXASSIGN(shaders[t]->defaulttextures.fullbright, fbtexture);
-				TEXASSIGN(shaders[t]->defaulttextures.loweroverlay, r_nulltex);
-				TEXASSIGN(shaders[t]->defaulttextures.upperoverlay, r_nulltex);
-
-				R_BuildDefaultTexnums(&shaders[t]->defaulttextures, shaders[t]);
+				Q_snprintfz(frames[t].shadername, sizeof(frames[t].shadername), "%s_%i_%i.lmp", basename, i, t);
+				frames[t].defaultshader = NULL;
 			}
 			pskintype = (daliasskintype_t *)data;
 			break;
@@ -3129,7 +3172,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 	int *seamremap;
 	index_t *indexes;
 	daliasskintype_t *skinstart;
-	int skintranstype;
+	uploadfmt_t skintranstype;
 
 	int size;
 	unsigned int hdrsize;
@@ -3140,13 +3183,11 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 	qboolean rapo = false;
 #endif
 
-	loadmodel=mod;
-
 	pq1inmodel = (dmdl_t *)buffer;
 
 	hdrsize = sizeof(dmdl_t) - sizeof(int);
 
-	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
+	mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 
 	version = LittleLong(pq1inmodel->version);
 	if (version == QTESTALIAS_VERSION)
@@ -3197,32 +3238,32 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 #endif
 		+ pq1inmodel->numframes*sizeof(galiasgroup_t);
 
-	galias = ZG_Malloc(&loadmodel->memgroup, size);
+	galias = ZG_Malloc(&mod->memgroup, size);
 	galias->groupofs = (galiasgroup_t*)(galias+1);
 #ifndef SERVERONLY
 	galias->ofsskins = (galiasskin_t*)(galias->groupofs+pq1inmodel->numframes);
 #endif
 	galias->nextsurf = 0;
 
-	loadmodel->numframes = pq1inmodel->numframes;
+	mod->numframes = pq1inmodel->numframes;
 
 //skins
 	skinstart = (daliasskintype_t *)((char*)pq1inmodel+hdrsize);
 
 	if( mod->flags & MFH2_TRANSPARENT )
-		skintranstype = 2;	//hexen2
+		skintranstype = TF_H2_T7G1;	//hexen2
 	else if( mod->flags & MFH2_HOLEY )
-		skintranstype = 3;	//hexen2
+		skintranstype = TF_H2_TRANS8_0;	//hexen2
 	else if( mod->flags & MFH2_SPECIAL_TRANS )
-		skintranstype = 4;	//hexen2
+		skintranstype = TF_H2_T4A4;	//hexen2
 	else
-		skintranstype = 0;
+		skintranstype = TF_SOLID8;
 
 	switch(qrenderer)
 	{
 	default:
 #ifndef SERVERONLY
-		pinstverts = (dstvert_t *)Q1_LoadSkins_GL(skinstart, skintranstype);
+		pinstverts = (dstvert_t *)Q1_LoadSkins_GL(mod, skinstart, skintranstype);
 		break;
 #endif
 	case QR_NONE:
@@ -3242,7 +3283,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 		galias->numverts = pq1inmodel->numverts;
 		galias->numindexes = pq1inmodel->numtris*3;
-		indexes = ZG_Malloc(&loadmodel->memgroup, galias->numindexes*sizeof(*indexes));
+		indexes = ZG_Malloc(&mod->memgroup, galias->numindexes*sizeof(*indexes));
 		galias->ofs_indexes = indexes;
 		for (i = 0; i < pq1inmodel->numverts; i++)
 			seamremap[i] = i;
@@ -3263,7 +3304,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 		/*output the indicies as we figure out which verts we want*/
 		galias->numindexes = pq1inmodel->numtris*3;
-		indexes = ZG_Malloc(&loadmodel->memgroup, galias->numindexes*sizeof(*indexes));
+		indexes = ZG_Malloc(&mod->memgroup, galias->numindexes*sizeof(*indexes));
 		galias->ofs_indexes = indexes;
 		for (i = 0; i < pq1inmodel->numtris; i++)
 		{
@@ -3288,7 +3329,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 			}
 		}
 
-		st_array = ZG_Malloc(&loadmodel->memgroup, sizeof(*st_array)*(galias->numverts));
+		st_array = ZG_Malloc(&mod->memgroup, sizeof(*st_array)*(galias->numverts));
 		galias->ofs_st_array = st_array;
 		/*generate our st_array now we know which vertexes we want*/
 		for (k = 0; k < galias->numverts; k++)
@@ -3307,10 +3348,10 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 #endif
 		end = &pinh2triangles[pq1inmodel->numtris];
 
-		if (Alias_LoadFrameGroup((daliasframetype_t *)end, seamremap, 2) == NULL)
+		if (Alias_LoadFrameGroup(mod, (daliasframetype_t *)end, seamremap, 2) == NULL)
 		{
 			BZ_Free(seamremap);
-			ZG_FreeGroup(&loadmodel->memgroup);
+			ZG_FreeGroup(&mod->memgroup);
 			return false;
 		}
 
@@ -3336,7 +3377,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 		//st
 #ifndef SERVERONLY
-		st_array = ZG_Malloc(&loadmodel->memgroup, sizeof(*st_array)*(pq1inmodel->numverts+onseams));
+		st_array = ZG_Malloc(&mod->memgroup, sizeof(*st_array)*(pq1inmodel->numverts+onseams));
 		galias->ofs_st_array = st_array;
 		for (j=pq1inmodel->numverts,i = 0; i < pq1inmodel->numverts; i++)
 		{
@@ -3364,7 +3405,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		pinq1triangles = (dtriangle_t *)&pinstverts[pq1inmodel->numverts];
 
 		galias->numindexes = pq1inmodel->numtris*3;
-		indexes = ZG_Malloc(&loadmodel->memgroup, galias->numindexes*sizeof(*indexes));
+		indexes = ZG_Malloc(&mod->memgroup, galias->numindexes*sizeof(*indexes));
 		galias->ofs_indexes = indexes;
 		for (i=0 ; i<pq1inmodel->numtris ; i++)
 		{
@@ -3384,17 +3425,17 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		end = &pinq1triangles[pq1inmodel->numtris];
 
 		//frames
-		if (Alias_LoadFrameGroup((daliasframetype_t *)end, seamremap, qtest ? 1 : 0) == NULL)
+		if (Alias_LoadFrameGroup(mod, (daliasframetype_t *)end, seamremap, qtest ? 1 : 0) == NULL)
 		{
 			BZ_Free(seamremap);
-			ZG_FreeGroup(&loadmodel->memgroup);
+			ZG_FreeGroup(&mod->memgroup);
 			return false;
 		}
 		BZ_Free(seamremap);
 	}
 
 
-	Mod_CompileTriangleNeighbours(galias);
+	Mod_CompileTriangleNeighbours(mod, galias);
 	Mod_BuildTextureVectors(galias);
 
 	VectorCopy (pq1inmodel->scale_origin, mod->mins);
@@ -3421,6 +3462,10 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		galias->lerpcutoff = 30;
 	else if (!strcmp(mod->name, "progs/v_light.mdl"))
 		galias->lerpcutoff = 30;
+#ifdef HEXEN2
+	if ((mod->flags == MF_ROCKET) && !strncmp(mod->name, "models/sflesh", 13))
+		mod->flags = MFH2_ROCKET;
+#endif
 
 	return true;
 }
@@ -3429,6 +3474,8 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 int Mod_ReadFlagsFromMD1(char *name, int md3version)
 {
+	int result = 0;
+	size_t fsize;
 	dmdl_t				*pinmodel;
 	char fname[MAX_QPATH];
 	COM_StripExtension(name, fname, sizeof(fname));
@@ -3441,16 +3488,15 @@ int Mod_ReadFlagsFromMD1(char *name, int md3version)
 		return 0;
 	}
 
-	pinmodel = (dmdl_t *)COM_LoadTempFile(fname);
-
-	if (!pinmodel)	//not found
-		return 0;
-
-	if (LittleLong(pinmodel->ident) != IDPOLYHEADER)
-		return 0;
-	if (LittleLong(pinmodel->version) != ALIAS_VERSION)
-		return 0;
-	return LittleLong(pinmodel->flags);
+	pinmodel = (dmdl_t *)COM_LoadFile(fname, 5, &fsize);
+	if (pinmodel)
+	{
+		if (fsize >= sizeof(dmdl_t) && LittleLong(pinmodel->ident) == IDPOLYHEADER)			
+			if (LittleLong(pinmodel->version) == ALIAS_VERSION)
+				result = LittleLong(pinmodel->flags);
+		BZ_Free(pinmodel);
+	}
+	return result;
 }
 
 #ifdef MD2MODELS
@@ -3471,23 +3517,21 @@ typedef struct
 #define Q2NUMVERTEXNORMALS	162
 extern vec3_t	bytedirs[Q2NUMVERTEXNORMALS];
 
-static void Q2_LoadSkins(md2_t *pq2inmodel, char *skins)
+static void Q2_LoadSkins(model_t *mod, md2_t *pq2inmodel, char *skins)
 {
 #ifndef SERVERONLY
 	int i;
-	shader_t **shaders;
+	skinframe_t *frames;
 	galiasskin_t *outskin = galias->ofsskins;
 
 	for (i = 0; i < LittleLong(pq2inmodel->num_skins); i++, outskin++)
 	{
-		shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders));
-		outskin->ofsshaders = shaders;
-		outskin->numshaders=1;
+		frames = ZG_Malloc(&mod->memgroup, sizeof(*frames));
+		outskin->frame = frames;
+		outskin->numframes=1;
 
 		COM_CleanUpPath(skins);	//blooming tanks.
-		shaders[0] = R_RegisterSkin(skins, loadmodel->name);
-		TEXASSIGN(shaders[0]->defaulttextures.base, R_LoadReplacementTexture(skins, "models", IF_NOALPHA));
-		R_BuildDefaultTexnums(NULL, shaders[0]);
+		Q_strncpyz(frames->shadername, skins, sizeof(frames->shadername));
 
 		outskin->skinwidth = 0;
 		outskin->skinheight = 0;
@@ -3545,10 +3589,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 
 	int size;
 
-
-	loadmodel=mod;
-
-	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
+	mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 
 	pq2inmodel = (md2_t *)buffer;
 
@@ -3574,7 +3615,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 
 	mod->flags = 0;
 
-	loadmodel->numframes = LittleLong(pq2inmodel->num_frames);
+	mod->numframes = LittleLong(pq2inmodel->num_frames);
 
 	size = sizeof(galiasinfo_t)
 #ifndef SERVERONLY
@@ -3582,7 +3623,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 #endif
 		+ LittleLong(pq2inmodel->num_frames)*sizeof(galiasgroup_t);
 
-	galias = ZG_Malloc(&loadmodel->memgroup, size);
+	galias = ZG_Malloc(&mod->memgroup, size);
 	galias->groupofs = (galiasgroup_t*)(galias+1);
 #ifndef SERVERONLY
 	galias->ofsskins = (galiasskin_t*)(galias->groupofs + LittleLong(pq2inmodel->num_frames));
@@ -3590,7 +3631,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 	galias->nextsurf = 0;
 
 //skins
-	Q2_LoadSkins(pq2inmodel, ((char *)pq2inmodel+LittleLong(pq2inmodel->ofs_skins)));
+	Q2_LoadSkins(mod, pq2inmodel, ((char *)pq2inmodel+LittleLong(pq2inmodel->ofs_skins)));
 
 	//trianglelists;
 	pintri = (dmd2triangle_t *)((char *)pq2inmodel + LittleLong(pq2inmodel->ofs_tris));
@@ -3606,7 +3647,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 	}
 
 	numindexes = galias->numindexes = LittleLong(pq2inmodel->num_tris)*3;
-	indexes = ZG_Malloc(&loadmodel->memgroup, galias->numindexes*sizeof(*indexes));
+	indexes = ZG_Malloc(&mod->memgroup, galias->numindexes*sizeof(*indexes));
 	galias->ofs_indexes = indexes;
 	memset ( indremap, -1, sizeof(indremap) );
 	numverts=0;
@@ -3655,7 +3696,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 // s and t vertices
 #ifndef SERVERONLY
 	pinstverts = ( dmd2stvert_t * ) ( ( qbyte * )pq2inmodel + LittleLong (pq2inmodel->ofs_st) );
-	st_array = ZG_Malloc(&loadmodel->memgroup, sizeof(*st_array)*(numverts));
+	st_array = ZG_Malloc(&mod->memgroup, sizeof(*st_array)*(numverts));
 	galias->ofs_st_array = st_array;
 
 	for (j=0 ; j<numindexes; j++)
@@ -3676,7 +3717,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 #ifndef SERVERONLY
 		size += 3*sizeof(vec3_t)*numverts;
 #endif
-		pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, size);
+		pose = (galiaspose_t *)ZG_Malloc(&mod->memgroup, size);
 		poutframe->poseofs = pose;
 		poutframe->numposes = 1;
 		galias->groups++;
@@ -3730,7 +3771,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 
 
 
-	Mod_CompileTriangleNeighbours(galias);
+	Mod_CompileTriangleNeighbours(mod, galias);
 	Mod_BuildTextureVectors(galias);
 	/*
 	VectorCopy (pq2inmodel->scale_origin, mod->mins);
@@ -4159,6 +4200,22 @@ qboolean Mod_FrameInfoForNum(model_t *model, int num, char **name, int *numframe
 	return true;
 }
 
+#ifndef SERVERONLY
+shader_t *Mod_ShaderForSkin(model_t *model, int num)
+{
+	galiasinfo_t *inf;
+	galiasskin_t *skin;
+
+	if (!model || model->type != mod_alias)
+		return NULL;
+	inf = Mod_Extradata(model);
+
+	if (num >= inf->numskins)
+		return NULL;
+	skin = inf->ofsskins;
+	return skin[num].frame[0].shader;
+}
+#endif
 const char *Mod_SkinNameForNum(model_t *model, int num)
 {
 #ifdef SERVERONLY
@@ -4174,7 +4231,10 @@ const char *Mod_SkinNameForNum(model_t *model, int num)
 	if (num >= inf->numskins)
 		return NULL;
 	skin = inf->ofsskins;
-	return skin[num].name;
+	if (!*skin[num].name)
+		return skin[num].frame[0].shadername;
+	else
+		return skin[num].name;
 #endif
 }
 
@@ -4275,7 +4335,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 {
 #ifndef SERVERONLY
 	galiasskin_t	*skin;
-	shader_t	**shaders;
+	skinframe_t	*frames;
 	float lat, lng;
 	md3St_t			*inst;
 	vec3_t *normals;
@@ -4308,9 +4368,6 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 	md3Header_t		*header;
 	md3Surface_t	*surf;
 
-
-	loadmodel=mod;
-
 	header = buffer;
 
 //	if (header->version != sdfs)
@@ -4320,7 +4377,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 	root = NULL;
 
 #ifndef SERVERONLY
-	externalskins = Mod_BuildSkinFileList(false, mod->name);
+	externalskins = Mod_CountSkinFiles(mod->name);
 #else
 	externalskins = 0;
 #endif
@@ -4334,7 +4391,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 		if (LittleLong(surf->ident) != MD3_IDENT)
 			Con_Printf(CON_WARNING "Warning: md3 sub-surface doesn't match ident\n");
 		size = sizeof(galiasinfo_t) + sizeof(galiasgroup_t)*LittleLong(header->numFrames);
-		galias = ZG_Malloc(&loadmodel->memgroup, size);
+		galias = ZG_Malloc(&mod->memgroup, size);
 		galias->groupofs = (galiasgroup_t*)(galias+1);	//frame groups
 		galias->groups = LittleLong(header->numFrames);
 		galias->numverts = LittleLong(surf->numVerts);
@@ -4349,7 +4406,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 		Q_strncpyz(galias->surfacename, surf->name, sizeof(galias->surfacename));
 
 #ifndef SERVERONLY
-		st_array = ZG_Malloc(&loadmodel->memgroup, sizeof(vec2_t)*galias->numindexes);
+		st_array = ZG_Malloc(&mod->memgroup, sizeof(vec2_t)*galias->numindexes);
 		galias->ofs_st_array = st_array;
 		inst = (md3St_t*)((qbyte*)surf + LittleLong(surf->ofsSt));
 		for (i = 0; i < galias->numverts; i++)
@@ -4359,7 +4416,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 		}
 #endif
 
-		indexes = ZG_Malloc(&loadmodel->memgroup, sizeof(*indexes)*galias->numindexes);
+		indexes = ZG_Malloc(&mod->memgroup, sizeof(*indexes)*galias->numindexes);
 		galias->ofs_indexes = indexes;
 		intris = (md3Triangle_t *)((qbyte*)surf + LittleLong(surf->ofsTriangles));
 		for (i = 0; i < LittleLong(surf->numTriangles); i++)
@@ -4377,7 +4434,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 #ifndef SERVERONLY
 			size += 3*sizeof(vec3_t)*LittleLong(surf->numVerts);
 #endif
-			pose = (galiaspose_t *)ZG_Malloc(&loadmodel->memgroup, size);
+			pose = (galiaspose_t *)ZG_Malloc(&mod->memgroup, size);
 
 			verts = (vecV_t*)(pose+1);
 			pose->ofsverts = verts;
@@ -4432,40 +4489,22 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 			externalskins = LittleLong(surf->numShaders);
 		if (externalskins)
 		{
-			char shadname[1024];
-
-			skin = ZG_Malloc(&loadmodel->memgroup, (externalskins)*((sizeof(galiasskin_t)+sizeof(shader_t*))));
+			skin = ZG_Malloc(&mod->memgroup, (externalskins)*((sizeof(galiasskin_t)+sizeof(skinframe_t))));
 			galias->ofsskins = skin;
-			shaders = (shader_t **)(skin + externalskins);
+			frames = (skinframe_t *)(skin + externalskins);
 			inshader = (md3Shader_t *)((qbyte *)surf + LittleLong(surf->ofsShaders));
 			for (i = 0; i < externalskins; i++)
 			{
-				skin->numshaders = 1;
-				skin->ofsshaders = &shaders[i];
-				skin->ofstexels = 0;
+				skin->numframes = 1;
+				skin->frame = &frames[i];
 				skin->skinwidth = 0;
 				skin->skinheight = 0;
 				skin->skinspeed = 0;
 
-				shadname[0] = '\0';
-
-				shaders[i] = Mod_ShaderFromQ3SkinFile(shadname, galias, loadmodel->name, i, skin->name);
-
-				if (!shaders[i])
-				{
-					if (i >= LittleLong(surf->numShaders))
-						Q_strncpyz(shadname, "", sizeof(shadname));	//this shouldn't be possible
-					else
-						Q_strncpyz(shadname, inshader->name, sizeof(shadname));
-
-					Q_strncpyz(skin->name, shadname, sizeof(skin->name));
-					shaders[i] = R_RegisterSkin(shadname, loadmodel->name);
-	
-					R_BuildDefaultTexnums(NULL, shaders[i]);
-
-					if ((shaders[i]->flags & SHADER_NOIMAGE) && *shadname)
-						Con_Printf("Unable to load texture for shader \"%s\" on mesh \"%s\" for model \"%s\"\n", shaders[i]->name, surf->name, loadmodel->name);
-				}
+				if (i >= LittleLong(surf->numShaders))
+					Q_strncpyz(frames->shadername, "", sizeof(frames->shadername));	//this shouldn't be possible
+				else
+					Q_strncpyz(frames->shadername, inshader->name, sizeof(frames->shadername));
 
 				inshader++;
 				skin++;
@@ -4474,22 +4513,22 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 		}
 #endif
 
-		VectorCopy(min, loadmodel->mins);
-		VectorCopy(max, loadmodel->maxs);
+		VectorCopy(min, mod->mins);
+		VectorCopy(max, mod->maxs);
 
 
-		Mod_CompileTriangleNeighbours (galias);
+		Mod_CompileTriangleNeighbours (mod, galias);
 		Mod_BuildTextureVectors(galias);
 
 		surf = (md3Surface_t *)((qbyte *)surf + LittleLong(surf->ofsEnd));
 	}
 
 	if (!root)
-		root = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasinfo_t));
+		root = ZG_Malloc(&mod->memgroup, sizeof(galiasinfo_t));
 
 	root->numtagframes = LittleLong(header->numFrames);
 	root->numtags = LittleLong(header->numTags);
-	root->ofstags = ZG_Malloc(&loadmodel->memgroup, LittleLong(header->numTags)*sizeof(md3tag_t)*LittleLong(header->numFrames));
+	root->ofstags = ZG_Malloc(&mod->memgroup, LittleLong(header->numTags)*sizeof(md3tag_t)*LittleLong(header->numFrames));
 
 	{
 		md3tag_t *src;
@@ -4603,7 +4642,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 {
 #ifndef SERVERONLY
 	galiasskin_t *skin;
-	shader_t **shaders;
+	skinframe_t *skinframe;
 	int skinfiles;
 	int j;
 #endif
@@ -4634,9 +4673,6 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 	index_t *indexes;
 
 	char *surfname;
-
-
-	loadmodel=mod;
 
 	header = buffer;
 
@@ -4670,10 +4706,10 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 	VectorCopy(header->mins, mod->mins);
 	VectorCopy(header->maxs, mod->maxs);
 
-	root = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasinfo_t)*header->numsurfaces);
+	root = ZG_Malloc(&mod->memgroup, sizeof(galiasinfo_t)*header->numsurfaces);
 
 	root->numswtransforms = header->lump_verts.length/sizeof(zymvertex_t);
-	transforms = ZG_Malloc(&loadmodel->memgroup, root->numswtransforms*sizeof(*transforms));
+	transforms = ZG_Malloc(&mod->memgroup, root->numswtransforms*sizeof(*transforms));
 	root->ofsswtransforms = transforms;
 
 	vertbonecounts = (int *)((char*)header + header->lump_vertbonecounts.start);
@@ -4716,7 +4752,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 	root->numverts = v+1;
 
 	root->numbones = header->numbones;
-	bone = ZG_Malloc(&loadmodel->memgroup, root->numswtransforms*sizeof(*transforms));
+	bone = ZG_Malloc(&mod->memgroup, root->numswtransforms*sizeof(*transforms));
 	inbone = (zymbone_t*)((char*)header + header->lump_bones.start);
 	for (i = 0; i < root->numbones; i++)
 	{
@@ -4730,7 +4766,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 	{
 		count = BigLong(*renderlist++);
 		count *= 3;
-		indexes = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*indexes));
+		indexes = ZG_Malloc(&mod->memgroup, count*sizeof(*indexes));
 		root[i].ofs_indexes = indexes;
 		root[i].numindexes = count;
 		while(count)
@@ -4748,15 +4784,15 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 		return false;
 	}
 
-	grp = ZG_Malloc(&loadmodel->memgroup, sizeof(*grp)*header->numscenes*header->numsurfaces);
-	matrix = ZG_Malloc(&loadmodel->memgroup, header->lump_poses.length);
+	grp = ZG_Malloc(&mod->memgroup, sizeof(*grp)*header->numscenes*header->numsurfaces);
+	matrix = ZG_Malloc(&mod->memgroup, header->lump_poses.length);
 	inmatrix = (float*)((char*)header + header->lump_poses.start);
 	for (i = 0; i < header->lump_poses.length/4; i++)
 		matrix[i] = BigFloat(inmatrix[i]);
 	inscene = (zymscene_t*)((char*)header + header->lump_scenes.start);
 	surfname = ((char*)header + header->lump_surfnames.start);
 
-	stcoords = ZG_Malloc(&loadmodel->memgroup, root[0].numverts*sizeof(vec2_t));
+	stcoords = ZG_Malloc(&mod->memgroup, root[0].numverts*sizeof(vec2_t));
 	inst = (vec2_t *)((char *)header + header->lump_texcoords.start);
 	for (i = 0; i < header->lump_texcoords.length/8; i++)
 	{
@@ -4765,7 +4801,7 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 	}
 
 #ifndef SERVERONLY
-	skinfiles = Mod_BuildSkinFileList(true, loadmodel->name);
+	skinfiles = Mod_CountSkinFiles(mod->name);
 #endif
 
 	for (i = 0; i < header->numsurfaces; i++, surfname+=32)
@@ -4781,14 +4817,14 @@ qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fsize)
 		root[i].ofs_st_array = stcoords;
 		root[i].numskins = skinfiles;
 
-		skin = ZG_Malloc(&loadmodel->memgroup, (sizeof(galiasskin_t)+sizeof(shader_t*))*skinfiles);
-		shaders = (shader_t**)(skin+skinfiles);
-		for (j = 0; j < skinfiles; j++, shaders++)
+		skin = ZG_Malloc(&mod->memgroup, (sizeof(galiasskin_t)+sizeof(skinframe_t*))*skinfiles);
+		skinframe = (skinframe_t*)(skin+skinfiles);
+		for (j = 0; j < skinfiles; j++, skinframe++)
 		{
-			skin[j].numshaders = 1;	//non-sequenced skins.
-			skin[j].ofsshaders = shaders;
+			skin[j].numframes = 1;	//non-sequenced skins.
+			skin[j].frame = skinframe;
 
-			shaders[0] = Mod_LoadSkinFile(NULL, &root[i], j, NULL, 0, 0, NULL, skin->name);
+//			shaders[0] = Mod_LoadSkinFile(NULL, &root[i], j, NULL, 0, 0, NULL, skin->name);
 		}
 
 		root[i].ofsskins = skin;
@@ -4955,12 +4991,13 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	unsigned int i, j;
 	qboolean fail = false;
 	char basename[MAX_QPATH];
+	char psaname[MAX_QPATH];
 
 	galiasinfo_t *gmdl;
 #ifndef SERVERONLY
 	vec2_t *stcoord;
 	galiasskin_t *skin;
-	shader_t **gshaders;
+	skinframe_t *sframes;
 #endif
 	galiasbone_t *bones;
 	galiasgroup_t *group;
@@ -4969,6 +5006,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	float vrad;
 	int bonemap[MAX_BONES];
 	char *e;
+	size_t psasize;
 
 	pskpnts_t *pnts = NULL;
 	pskvtxw_t *vtxw = NULL;
@@ -4994,7 +5032,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 #endif
 
 	/*load the psk*/
-	while (pos < com_filesize && !fail)
+	while (pos < fsize && !fail)
 	{
 		chunk = (pskchunk_t*)((char*)buffer + pos);
 		chunk->version = LittleLong(chunk->version);
@@ -5107,12 +5145,13 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		fail = true;
 
 	/*attempt to load a psa file. don't die if we can't find one*/
-	COM_StripExtension(mod->name, basename, sizeof(basename));
-	buffer = COM_LoadTempMoreFile(va("%s.psa", basename));
+	COM_StripExtension(mod->name, psaname, sizeof(psaname));
+	Q_strncatz(psaname, ".psa", sizeof(psaname));
+	buffer = COM_LoadFile(psaname, 5, &psasize);
 	if (buffer)
 	{
 		pos = 0;
-		while (pos < com_filesize && !fail)
+		while (pos < psasize && !fail)
 		{
 			chunk = (pskchunk_t*)((char*)buffer + pos);
 			chunk->version = LittleLong(chunk->version);
@@ -5220,6 +5259,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			num_animkeys = 0;
 			fail = false;
 		}
+		BZ_Free(buffer);
 	}
 
 	if (fail)
@@ -5227,10 +5267,10 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		return false;
 	}
 
-	gmdl = ZG_Malloc(&loadmodel->memgroup, sizeof(*gmdl)*num_matt);
+	gmdl = ZG_Malloc(&mod->memgroup, sizeof(*gmdl)*num_matt);
 
 	/*bones!*/
-	bones = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasbone_t) * num_boneinfo);
+	bones = ZG_Malloc(&mod->memgroup, sizeof(galiasbone_t) * num_boneinfo);
 	for (i = 0; i < num_boneinfo; i++)
 	{
 		Q_strncpyz(bones[i].name, boneinfo[i].name, sizeof(bones[i].name));
@@ -5247,7 +5287,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		}
 	}
 
-	basematrix = ZG_Malloc(&loadmodel->memgroup, num_boneinfo*sizeof(float)*12);
+	basematrix = ZG_Malloc(&mod->memgroup, num_boneinfo*sizeof(float)*12);
 	for (i = 0; i < num_boneinfo; i++)
 	{
 		float tmp[12];
@@ -5280,7 +5320,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			}
 		}
 	}
-	trans = ZG_Malloc(&loadmodel->memgroup, sizeof(*trans)*num_trans);
+	trans = ZG_Malloc(&mod->memgroup, sizeof(*trans)*num_trans);
 	num_trans = 0;
 	for (i = 0; i < num_vtxw; i++)
 	{
@@ -5347,7 +5387,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 
 #ifndef SERVERONLY
 	/*st coords, all share the same list*/
-	stcoord = ZG_Malloc(&loadmodel->memgroup, sizeof(vec2_t)*num_vtxw);
+	stcoord = ZG_Malloc(&mod->memgroup, sizeof(vec2_t)*num_vtxw);
 	for (i = 0; i < num_vtxw; i++)
 	{
 		stcoord[i][0] = vtxw[i].texcoord[0];
@@ -5356,7 +5396,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 #endif
 
 	/*allocate faces in a single block, as we at least know an upper bound*/
-	indexes = ZG_Malloc(&loadmodel->memgroup, sizeof(index_t)*num_face*3);
+	indexes = ZG_Malloc(&mod->memgroup, sizeof(index_t)*num_face*3);
 
 	if (animinfo && animkeys)
 	{
@@ -5365,7 +5405,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		if (numgroups)
 		{
 			/*externally supplied listing of frames. ignore all framegroups in the model and use only the pose info*/
-			group = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*numgroups + num_animkeys*sizeof(float)*12);
+			group = ZG_Malloc(&mod->memgroup, sizeof(galiasgroup_t)*numgroups + num_animkeys*sizeof(float)*12);
 			animmatrix = (float*)(group+numgroups);
 			for (j = 0; j < numgroups; j++)
 			{
@@ -5397,7 +5437,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			iframe = 0;
 			for (i = 0; i < num_animinfo; i++)
 				iframe += animinfo[i].numframes;
-			group = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*iframe + num_animkeys*sizeof(float)*12);
+			group = ZG_Malloc(&mod->memgroup, sizeof(galiasgroup_t)*iframe + num_animkeys*sizeof(float)*12);
 			animmatrix = (float*)(group+iframe);
 			iframe = 0;
 			for (j = 0; j < num_animinfo; j++)
@@ -5418,7 +5458,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		else
 		{
 			/*keep each framegroup as a group*/
-			group = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*num_animinfo + num_animkeys*sizeof(float)*12);
+			group = ZG_Malloc(&mod->memgroup, sizeof(galiasgroup_t)*num_animinfo + num_animkeys*sizeof(float)*12);
 			animmatrix = (float*)(group+num_animinfo);
 			for (i = 0; i < num_animinfo; i++)
 			{
@@ -5447,7 +5487,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	{
 		num_animinfo = 1;
 		/*build a base pose*/
-		group = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t) + num_boneinfo*sizeof(float)*12);
+		group = ZG_Malloc(&mod->memgroup, sizeof(galiasgroup_t) + num_boneinfo*sizeof(float)*12);
 		animmatrix = basematrix;
 		group->boneofs = animmatrix;
 		group->numposes = 1;
@@ -5458,18 +5498,16 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	}
 
 #ifndef SERVERONLY
-	skin = ZG_Malloc(&loadmodel->memgroup, num_matt * (sizeof(galiasskin_t) + sizeof(shader_t*)));
-	gshaders = (shader_t**)(skin + num_matt);
+	skin = ZG_Malloc(&mod->memgroup, num_matt * (sizeof(galiasskin_t) + sizeof(skinframe_t)));
+	sframes = (skinframe_t*)(skin + num_matt);
 	for (i = 0; i < num_matt; i++, skin++)
 	{
-		skin->ofsshaders = &gshaders[i];
-		skin->numshaders = 1;
+		skin->frame = &sframes[i];
+		skin->numframes = 1;
 		skin->skinspeed = 10;
 		Q_strncpyz(skin->name, matt[i].name, sizeof(skin->name));
-		gshaders[i] = R_RegisterSkin(matt[i].name, mod->name);
-		R_BuildDefaultTexnums(NULL, gshaders[i]);
-		if (gshaders[i]->flags & SHADER_NOIMAGE)
-			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", gshaders[i]->name, loadmodel->name);
+		Q_strncpyz(sframes[i].shadername, matt[i].name, sizeof(sframes[i].shadername));
+		sframes[i].shader = NULL;
 
 		gmdl[i].ofsskins = skin;
 		gmdl[i].numskins = 1;
@@ -5633,7 +5671,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 {
 #ifndef SERVERONLY
 	galiasskin_t *skin;
-	shader_t **shaders;
+	skinframe_t *skinframe;
 	int skinfiles;
 	float *inst;
 	float *outst;
@@ -5661,9 +5699,6 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 
 	int numtransforms;
 	int numverts;
-
-
-	loadmodel=mod;
 
 	header = buffer;
 
@@ -5702,7 +5737,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 	VectorCopy(header->mins, mod->mins);
 	VectorCopy(header->maxs, mod->maxs);
 
-	root = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasinfo_t)*header->num_meshs);
+	root = ZG_Malloc(&mod->memgroup, sizeof(galiasinfo_t)*header->num_meshs);
 
 	mesh = (dpmmesh_t*)((char*)buffer + header->ofs_meshs);
 	for (i = 0; i < header->num_meshs; i++, mesh++)
@@ -5731,9 +5766,9 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 
 		m = &root[i];
 #ifdef SERVERONLY
-		transforms = ZG_Malloc(&loadmodel->memgroup, numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
+		transforms = ZG_Malloc(&mod->memgroup, numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
 #else
-		outst = ZG_Malloc(&loadmodel->memgroup, numverts*sizeof(vec2_t) + numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
+		outst = ZG_Malloc(&mod->memgroup, numverts*sizeof(vec2_t) + numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
 		m->ofs_st_array = (vec2_t*)outst;
 		m->numverts = mesh->num_verts;
 		inst = (float*)((char*)buffer + mesh->ofs_texcoords);
@@ -5776,7 +5811,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 		}
 	}
 
-	outbone = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasbone_t)*header->num_bones);
+	outbone = ZG_Malloc(&mod->memgroup, sizeof(galiasbone_t)*header->num_bones);
 	inbone = (dpmbone_t*)((char*)buffer + header->ofs_bones);
 	for (i = 0; i < header->num_bones; i++)
 	{
@@ -5791,7 +5826,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 		//throw away the flags.
 	}
 
-	outgroups = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*header->num_frames + sizeof(float)*header->num_frames*header->num_bones*12);
+	outgroups = ZG_Malloc(&mod->memgroup, sizeof(galiasgroup_t)*header->num_frames + sizeof(float)*header->num_frames*header->num_bones*12);
 	outposedata = (float*)(outgroups+header->num_frames);
 
 	inframes = (dpmframe_t*)((char*)buffer + header->ofs_frames);
@@ -5820,7 +5855,9 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 	}
 
 #ifndef SERVERONLY
-	skinfiles = Mod_BuildSkinFileList(true, loadmodel->name);
+	skinfiles = Mod_CountSkinFiles(mod->name);
+	if (skinfiles < 1)
+		skinfiles = 1;
 #endif
 
 	mesh = (dpmmesh_t*)((char*)buffer + header->ofs_meshs);
@@ -5845,14 +5882,12 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 #else
 		m->numskins = skinfiles;
 
-		skin = ZG_Malloc(&loadmodel->memgroup, (sizeof(galiasskin_t)+sizeof(shader_t*))*skinfiles);
-		shaders = (shader_t**)(skin+skinfiles);
-		for (j = 0; j < skinfiles; j++, shaders++)
+		skin = ZG_Malloc(&mod->memgroup, (sizeof(galiasskin_t)+sizeof(skinframe_t*))*skinfiles);
+		skinframe = (skinframe_t*)(skin+skinfiles);
+		for (j = 0; j < skinfiles; j++, skinframe++)
 		{
-			skin[j].numshaders = 1;	//non-sequenced skins.
-			skin[j].ofsshaders = shaders;
-
-			shaders[0] = Mod_LoadSkinFile(NULL, m, j, NULL, 0, 0, NULL, skin->name);
+			skin[j].numframes = 1;	//non-sequenced skins.
+			skin[j].frame = skinframe;
 		}
 
 		m->ofsskins = skin;
@@ -6022,7 +6057,7 @@ galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, f
 }
 */
 
-galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
+galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 {
 	struct iqmheader *h = (struct iqmheader *)buffer;
 	struct iqmmesh *mesh;
@@ -6052,7 +6087,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	galiasinfo_t *gai=NULL;
 #ifndef SERVERONLY
 	galiasskin_t *skin=NULL;
-	shader_t **shaders=NULL;
+	skinframe_t *frame=NULL;
 	int skinfiles;
 #endif
 	galiasgroup_t *fgroup=NULL;
@@ -6073,9 +6108,9 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		Con_Printf("%s: unsupported IQM version\n", mod->name);
 		return NULL;
 	}
-	if (h->filesize != com_filesize)
+	if (h->filesize != fsize)
 	{
-		Con_Printf("%s: size (%u != %u)\n", mod->name, h->filesize, com_filesize);
+		Con_Printf("%s: size (%u != %u)\n", mod->name, h->filesize, fsize);
 		return NULL;
 	}
 
@@ -6118,7 +6153,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	//we don't require weights, but such models won't animate.
 	if (h->num_vertexes > 0 && (!vpos || !vtcoord))
 	{
-		Con_Printf("%s is missing vertex array data\n", loadmodel->name);
+		Con_Printf("%s is missing vertex array data\n", mod->name);
 		return NULL;
 	}
 	noweights = !vbone || !vweight;
@@ -6143,7 +6178,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	numgroups = 0;
 	framegroups = NULL;
 	if (!numgroups)
-		framegroups = ParseFrameInfo(loadmodel->name, &numgroups);
+		framegroups = ParseFrameInfo(mod->name, &numgroups);
 	if (!numgroups && h->num_anims)
 	{
 		/*use the model's framegroups*/
@@ -6174,7 +6209,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	mesh = (struct iqmmesh*)(buffer + h->ofs_meshes);
 
 #ifndef SERVERONLY
-	skinfiles = Mod_BuildSkinFileList(true, loadmodel->name);
+	skinfiles = Mod_CountSkinFiles(mod->name);
 	if (skinfiles < 1)
 		skinfiles = 1;	//iqms have 1 skin and one skin only and always. make sure its loaded.
 #endif
@@ -6185,7 +6220,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	for (i = 0, memsize = 0, obase = NULL; i < 2; i++)
 	{
 		if (i)
-			obase = ZG_Malloc(&loadmodel->memgroup, memsize);
+			obase = ZG_Malloc(&mod->memgroup, memsize);
 		memsize = 0;
 		dalloc(gai, h->num_meshes);
 		dalloc(bones, h->num_joints);
@@ -6213,7 +6248,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		else
 			orgbaf = NULL;
 		dalloc(skin, h->num_meshes*skinfiles);
-		dalloc(shaders, h->num_meshes*skinfiles);
+		dalloc(frame, h->num_meshes*skinfiles);
 #endif
 		dalloc(fgroup, numgroups);
 		dalloc(oposebase, 12*h->num_joints);
@@ -6374,13 +6409,12 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		{
 			skin->skinwidth = 1;
 			skin->skinheight = 1;
-			skin->ofstexels = 0; /*doesn't support 8bit colourmapping*/
 			skin->skinspeed = 10; /*something to avoid div by 0*/
-			skin->numshaders = 1;	//non-sequenced skins.
-			skin->ofsshaders = shaders;
+			skin->numframes = 1;	//non-sequenced skins.
+			skin->frame = frame;
 			skin++;
 
-			*shaders++ = Mod_LoadSkinFile(strings+mesh[i].material, &gai[i], j, NULL, 0, 0, NULL, skin->name);
+			Q_strncpyz(frame[j].shadername, strings+mesh[i].material, sizeof(frame[j].shadername));
 		}
 #endif
 
@@ -6388,7 +6422,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		tris = (struct iqmtriangle*)(buffer + LittleLong(h->ofs_triangles));
 		tris += LittleLong(mesh[i].first_triangle);
 		gai[i].numindexes = nt*3;
-		idx = ZG_Malloc(&loadmodel->memgroup, sizeof(*idx)*gai[i].numindexes);
+		idx = ZG_Malloc(&mod->memgroup, sizeof(*idx)*gai[i].numindexes);
 		gai[i].ofs_indexes = idx;
 		for (t = 0; t < nt; t++)
 		{
@@ -6464,7 +6498,7 @@ qboolean QDECL Mod_LoadInterQuakeModel(model_t *mod, void *buffer, size_t fsize)
 	galiasinfo_t *root;
 	struct iqmheader *h = (struct iqmheader *)buffer;
 
-	root = Mod_ParseIQMMeshModel(mod, buffer);
+	root = Mod_ParseIQMMeshModel(mod, buffer, fsize);
 	if (!root)
 	{
 		return false;
@@ -6491,7 +6525,7 @@ qboolean QDECL Mod_LoadInterQuakeModel(model_t *mod, void *buffer, size_t fsize)
 
 #ifdef MD5MODELS
 
-qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
+qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
 {
 #define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return false; }
 #define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return false; }
@@ -6545,7 +6579,7 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 	boneflags = BZ_Malloc(sizeof(unsigned char)*numjoints);
 	baseframe = BZ_Malloc(sizeof(float)*12*numjoints);
 
-	*poseofs = posedata = ZG_Malloc(&loadmodel->memgroup, sizeof(float)*12*numjoints*numframes);
+	*poseofs = posedata = ZG_Malloc(&mod->memgroup, sizeof(float)*12*numjoints*numframes);
 
 	if (prototype->numbones)
 	{
@@ -6555,7 +6589,7 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 	}
 	else
 	{
-		bonelist = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasbone_t)*numjoints);
+		bonelist = ZG_Malloc(&mod->memgroup, sizeof(galiasbone_t)*numjoints);
 		prototype->ofsbones = bonelist;
 	}
 
@@ -6597,19 +6631,19 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 	{
 		EXPECT("(");
 		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f < loadmodel->mins[0]) loadmodel->mins[0] = f;
+		if (f < mod->mins[0]) mod->mins[0] = f;
 		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f < loadmodel->mins[1]) loadmodel->mins[1] = f;
+		if (f < mod->mins[1]) mod->mins[1] = f;
 		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f < loadmodel->mins[2]) loadmodel->mins[2] = f;
+		if (f < mod->mins[2]) mod->mins[2] = f;
 		EXPECT(")");
 		EXPECT("(");
 		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f > loadmodel->maxs[0]) loadmodel->maxs[0] = f;
+		if (f > mod->maxs[0]) mod->maxs[0] = f;
 		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f > loadmodel->maxs[1]) loadmodel->maxs[1] = f;
+		if (f > mod->maxs[1]) mod->maxs[1] = f;
 		buffer = COM_Parse(buffer);f=atoi(com_token);
-		if (f > loadmodel->maxs[2]) loadmodel->maxs[2] = f;
+		if (f > mod->maxs[2]) mod->maxs[2] = f;
 		EXPECT(")");
 	}
 	EXPECT("}");
@@ -6701,7 +6735,7 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 #undef EXPECT
 }
 
-galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
+galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *modname)
 {
 #define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return NULL; }
 #define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return NULL; }
@@ -6717,7 +6751,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 	float *posedata;
 #ifndef SERVERONLY
 	galiasskin_t *skin;
-	shader_t **shaders;
+	skinframe_t *frames;
 #endif
 	char *filestart = buffer;
 
@@ -6732,7 +6766,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 		MD5ERROR0PARAM("MD5 model with unsupported MD5Version");
 
 
-	root = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasinfo_t));
+	root = ZG_Malloc(&mod->memgroup, sizeof(galiasinfo_t));
 	lastsurf = NULL;
 
 	for(;;)
@@ -6744,8 +6778,8 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 		if (!strcmp(com_token, "numFrames"))
 		{
 			void *poseofs;
-			galiasgroup_t *grp = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t));
-			Mod_ParseMD5Anim(filestart, root, &poseofs, grp);
+			galiasgroup_t *grp = ZG_Malloc(&mod->memgroup, sizeof(galiasgroup_t));
+			Mod_ParseMD5Anim(mod, filestart, root, &poseofs, grp);
 			root->groupofs = grp;
 			root->groups = 1;
 			grp->poseofs = poseofs;
@@ -6783,9 +6817,9 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 			if (!numjoints)
 				MD5ERROR0PARAM("MD5MESH: joints section before (or without) numjoints");
 
-			bones = ZG_Malloc(&loadmodel->memgroup, sizeof(*bones) * numjoints);
-			pose = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t));
-			posedata = ZG_Malloc(&loadmodel->memgroup, sizeof(float)*12 * numjoints);
+			bones = ZG_Malloc(&mod->memgroup, sizeof(*bones) * numjoints);
+			pose = ZG_Malloc(&mod->memgroup, sizeof(galiasgroup_t));
+			posedata = ZG_Malloc(&mod->memgroup, sizeof(float)*12 * numjoints);
 			pose->skeltype = SKEL_ABSOLUTE;
 			pose->rate = 1;
 			pose->numposes = 1;
@@ -6864,7 +6898,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 			}
 			else
 			{
-				inf = ZG_Malloc(&loadmodel->memgroup, sizeof(*inf));
+				inf = ZG_Malloc(&mod->memgroup, sizeof(*inf));
 				lastsurf->nextsurf = inf;
 				lastsurf = inf;
 			}
@@ -6876,13 +6910,13 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 			inf->baseframeofs = pose->boneofs;
 
 #ifndef SERVERONLY
-			skin = ZG_Malloc(&loadmodel->memgroup, sizeof(*skin));
-			shaders = ZG_Malloc(&loadmodel->memgroup, sizeof(*shaders));
+			skin = ZG_Malloc(&mod->memgroup, sizeof(*skin));
+			frames = ZG_Malloc(&mod->memgroup, sizeof(*frames));
 			inf->numskins = 1;
 			inf->ofsskins = skin;
-			skin->numshaders = 1;
+			skin->numframes = 1;
 			skin->skinspeed = 1;
-			skin->ofsshaders = shaders;
+			skin->frame = frames;
 #endif
 			EXPECT("{");
 			for(;;)
@@ -6896,10 +6930,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 					buffer = COM_Parse(buffer);
 #ifndef SERVERONLY
 					//FIXME: we probably want to support multiple skins some time
-					shaders[0] = R_RegisterSkin(com_token, modname);
-					R_BuildDefaultTexnums(NULL, shaders[0]);
-					if (shaders[0]->flags & SHADER_NOIMAGE)
-						Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", shaders[0]->name, loadmodel->name);
+					Q_strncpyz(frames[0].shadername, com_token, sizeof(frames[0].shadername));
 #endif
 				}
 				else if (!strcmp(com_token, "numverts"))
@@ -6914,7 +6945,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 					firstweightlist = Z_Malloc(sizeof(*firstweightlist) * numverts);
 					numweightslist = Z_Malloc(sizeof(*numweightslist) * numverts);
 #ifndef SERVERONLY
-					stcoord = ZG_Malloc(&loadmodel->memgroup, sizeof(float)*2*numverts);
+					stcoord = ZG_Malloc(&mod->memgroup, sizeof(float)*2*numverts);
 					inf->ofs_st_array = (vec2_t*)stcoord;
 					inf->numverts = numverts;
 #endif
@@ -6955,7 +6986,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 					if (numtris < 0)
 						MD5ERROR0PARAM("MD5MESH: numverts cannot be negative");
 
-					indexes = ZG_Malloc(&loadmodel->memgroup, sizeof(int)*3*numtris);
+					indexes = ZG_Malloc(&mod->memgroup, sizeof(int)*3*numtris);
 					inf->ofs_indexes = indexes;
 					inf->numindexes = numtris*3;
 				}
@@ -7015,7 +7046,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 
 			}
 
-			trans = ZG_Malloc(&loadmodel->memgroup, sizeof(*trans)*numusableweights);
+			trans = ZG_Malloc(&mod->memgroup, sizeof(*trans)*numusableweights);
 			inf->ofsswtransforms = trans;
 
 			for (num = 0, vnum = 0; num < numverts; num++)
@@ -7065,10 +7096,7 @@ qboolean QDECL Mod_LoadMD5MeshModel(model_t *mod, void *buffer, size_t fsize)
 {
 	galiasinfo_t *root;
 
-
-	loadmodel=mod;
-
-	root = Mod_ParseMD5MeshModel(buffer, mod->name);
+	root = Mod_ParseMD5MeshModel(mod, buffer, mod->name);
 	if (root == NULL)
 	{
 		return false;
@@ -7111,12 +7139,6 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 	float **poseofs;
 	char com_token[8192];
 
-
-	loadmodel=mod;
-
-
-
-
 	buffer = COM_Parse(buffer);
 	if (strcmp(com_token, "EXTERNALANIM"))
 	{
@@ -7128,7 +7150,7 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 	if (!strcmp(com_token, "model"))
 	{
 		buffer = COM_Parse(buffer);
-		file = COM_LoadTempMoreFile(com_token);
+		file = COM_LoadTempMoreFile(com_token, NULL);
 
 		if (!file)	//FIXME: make non fatal somehow..
 		{
@@ -7136,7 +7158,7 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 			return false;
 		}
 
-		root = Mod_ParseMD5MeshModel(file, mod->name);
+		root = Mod_ParseMD5MeshModel(mod, file, mod->name);
 		if (root == NULL)
 		{
 			return false;
@@ -7170,12 +7192,12 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 			grouplist = BZ_Realloc(grouplist, sizeof(galiasgroup_t)*(numgroups+1));
 			poseofs = BZ_Realloc(poseofs, sizeof(*poseofs)*(numgroups+1));
 			buffer = COM_Parse(buffer);
-			file = COM_LoadTempMoreFile(com_token);
+			file = COM_LoadTempMoreFile(com_token, NULL);
 			if (file)	//FIXME: make non fatal somehow..
 			{
 				char namebkup[MAX_QPATH];
 				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
-				if (!Mod_ParseMD5Anim(file, root, (void**)&poseofs[numgroups], &grouplist[numgroups]))
+				if (!Mod_ParseMD5Anim(mod, file, root, (void**)&poseofs[numgroups], &grouplist[numgroups]))
 				{
 					return false;
 				}
@@ -7188,12 +7210,12 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 			grouplist = BZ_Realloc(grouplist, sizeof(galiasgroup_t)*(numgroups+1));
 			poseofs = BZ_Realloc(poseofs, sizeof(*poseofs)*(numgroups+1));
 			buffer = COM_Parse(buffer);
-			file = COM_LoadTempMoreFile(com_token);
+			file = COM_LoadTempMoreFile(com_token, NULL);
 			if (file)	//FIXME: make non fatal somehow..
 			{
 				char namebkup[MAX_QPATH];
 				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
-				if (!Mod_ParseMD5Anim(file, root, (void**)&poseofs[numgroups], &grouplist[numgroups]))
+				if (!Mod_ParseMD5Anim(mod, file, root, (void**)&poseofs[numgroups], &grouplist[numgroups]))
 				{
 					return false;
 				}
@@ -7208,12 +7230,12 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 			void *np;
 
 			buffer = COM_Parse(buffer);
-			file = COM_LoadTempMoreFile(com_token);
+			file = COM_LoadTempMoreFile(com_token, NULL);
 			if (file)	//FIXME: make non fatal somehow..
 			{
 				char namebkup[MAX_QPATH];
 				Q_strncpyz(namebkup, com_token, sizeof(namebkup));
-				if (!Mod_ParseMD5Anim(file, root, &np, &ng))
+				if (!Mod_ParseMD5Anim(mod, file, root, &np, &ng))
 				{
 					return false;
 				}
@@ -7244,7 +7266,7 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 	}
 
 	newgroup = grouplist;
-	grouplist = ZG_Malloc(&loadmodel->memgroup, sizeof(galiasgroup_t)*numgroups);
+	grouplist = ZG_Malloc(&mod->memgroup, sizeof(galiasgroup_t)*numgroups);
 	for(surf = root;;)
 	{
 		surf->groupofs = grouplist;

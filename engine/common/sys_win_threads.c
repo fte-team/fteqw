@@ -33,40 +33,17 @@ PVOID WINAPI AddVectoredExceptionHandler(ULONG FirstHandler, PVECTORED_EXCEPTION
 #endif
 #endif
 
-#if !defined(WINRT) && defined(MULTITHREAD)
-#include <process.h>
-/* Thread creation calls */
-typedef struct threadwrap_s
-{
-	int (*func)(void *);
-	void *args;
-} threadwrap_t;
 
-// the thread call is wrapped so we don't need WINAPI everywhere
-unsigned int WINAPI threadwrapper(void *args)
-{
-	threadwrap_t tw;
-	tw.func = ((threadwrap_t *)args)->func;
-	tw.args = ((threadwrap_t *)args)->args;
-
-	free(args);
-	tw.func(tw.args);
-
-#ifndef WIN32CRTDLL
-	_endthreadex(0);
-#endif
-	return 0;
-}
 
 #if defined(_DEBUG) && defined(_MSC_VER)
 const DWORD MS_VC_EXCEPTION=0x406D1388;
 #pragma pack(push,8)
 typedef struct tagTHREADNAME_INFO
 {
-   DWORD dwType; // Must be 0x1000.
-   LPCSTR szName; // Pointer to name (in user addr space).
-   DWORD dwThreadID; // Thread ID (-1=caller thread).
-   DWORD dwFlags; // Reserved for future use, must be zero.
+	DWORD dwType; // Must be 0x1000.
+	LPCSTR szName; // Pointer to name (in user addr space).
+	DWORD dwThreadID; // Thread ID (-1=caller thread).
+	DWORD dwFlags; // Reserved for future use, must be zero.
 } THREADNAME_INFO;
 #pragma pack(pop)
 void Sys_SetThreadName(unsigned int dwThreadID, char *threadName)
@@ -87,9 +64,42 @@ void Sys_SetThreadName(unsigned int dwThreadID, char *threadName)
 }
 #endif
 
+#if !defined(WINRT) && defined(MULTITHREAD)
+#include <process.h>
+/* Thread creation calls */
+typedef struct threadwrap_s
+{
+	int (*func)(void *);
+	void *args;
+	char name[1];
+} threadwrap_t;
+
+// the thread call is wrapped so we don't need WINAPI everywhere
+unsigned int WINAPI threadwrapper(void *args)
+{
+	threadwrap_t tw;
+	tw.func = ((threadwrap_t *)args)->func;
+	tw.args = ((threadwrap_t *)args)->args;
+
+#if defined(_DEBUG) && defined(_MSC_VER)
+	Sys_SetThreadName(GetCurrentThreadId(), ((threadwrap_t *)args)->name);
+#endif
+#ifdef CATCHCRASH
+	AddVectoredExceptionHandler(true, nonmsvc_CrashExceptionHandler);
+#endif
+
+	free(args);
+	tw.func(tw.args);
+
+#ifndef WIN32CRTDLL
+	_endthreadex(0);
+#endif
+	return 0;
+}
+
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
-	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t));
+	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t)+strlen(name));
 	HANDLE handle;
 	unsigned int tid;
 
@@ -99,6 +109,7 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 	stacksize += 128; // wrapper overhead, also prevent default stack size
 	tw->func = func;
 	tw->args = args;
+	strcpy(tw->name, name);
 #ifdef WIN32CRTDLL
 	handle = (HANDLE)CreateThread(NULL, stacksize, &threadwrapper, (void *)tw, 0, &tid);
 #else
@@ -110,12 +121,7 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 		return NULL;
 	}
 
-#if defined(_DEBUG) && defined(_MSC_VER)
-	Sys_SetThreadName(tid, name);
-#endif
-#ifdef CATCHCRASH
-	AddVectoredExceptionHandler(true, nonmsvc_CrashExceptionHandler);
-#endif
+
 
 	return (void *)handle;
 }
@@ -131,30 +137,94 @@ void Sys_WaitOnThread(void *thread)
 	CloseHandle((HANDLE)thread);
 }
 
+//used on fatal errors.
+void Sys_ThreadAbort(void)
+{
+	ExitThread(0);
+}
+
+static DWORD mainthread;
+void Sys_ThreadsInit(void)
+{
+	mainthread = GetCurrentThreadId();
+}
+qboolean Sys_IsThread(void *thread)
+{
+	if (!thread)
+		return mainthread == GetCurrentThreadId();
+	return GetThreadId(thread) == GetCurrentThreadId();
+}
+
 /* Mutex calls */
+/*
+Note that a 'mutex' in win32 terminology is a cross-process/kernel object
+A critical section is a single-process object, and thus can be provided more cheaply
+*/
 void *Sys_CreateMutex(void)
 {
-	return (void *)CreateMutex(NULL, 0, NULL);
+#ifdef _DEBUG
+	//linux's pthread code doesn't like me recursively locking mutexes, so add some debug-only code to catch that on windows too so that we don't get nasty surprises.
+	CRITICAL_SECTION *mutex = malloc(sizeof(*mutex)+sizeof(int));
+	*(int*)(1+(CRITICAL_SECTION*)mutex) = 0;
+#else
+	CRITICAL_SECTION *mutex = malloc(sizeof(*mutex));
+#endif
+	InitializeCriticalSection(mutex);
+	return (void *)mutex;
 }
 
 qboolean Sys_TryLockMutex(void *mutex)
 {
-	return WaitForSingleObject(mutex, 0) == WAIT_OBJECT_0;
+#ifdef _DEBUG
+	if (!mutex)
+	{
+		Con_Printf("Invalid mutex\n");
+		return false;
+	}
+#endif
+	if (TryEnterCriticalSection(mutex))
+	{
+#ifdef _DEBUG
+		if (*(int*)(1+(CRITICAL_SECTION*)mutex))
+			Con_Printf("Double lock\n");
+		*(int*)(1+(CRITICAL_SECTION*)mutex)+=1;
+#endif
+		return true;
+	}
+	return false;
 }
 
 qboolean Sys_LockMutex(void *mutex)
 {
-	return WaitForSingleObject(mutex, INFINITE) == WAIT_OBJECT_0;
+#ifdef _DEBUG
+	if (!mutex)
+	{
+		Con_Printf("Invalid mutex\n");
+		return false;
+	}
+#endif
+	EnterCriticalSection(mutex);
+#ifdef _DEBUG
+	if (*(int*)(1+(CRITICAL_SECTION*)mutex))
+		Con_Printf("Double lock\n");
+	*(int*)(1+(CRITICAL_SECTION*)mutex)+=1;
+#endif
+	return true;
 }
 
 qboolean Sys_UnlockMutex(void *mutex)
 {
-	return !!ReleaseMutex(mutex);
+#ifdef _DEBUG
+	*(int*)(1+(CRITICAL_SECTION*)mutex)-=1;
+#endif
+	LeaveCriticalSection(mutex);
+	return true;
 }
 
 void Sys_DestroyMutex(void *mutex)
 {
-	CloseHandle(mutex);
+	DeleteCriticalSection(mutex);
+	free(mutex);
 }
 
 /* Conditional wait calls */
@@ -164,19 +234,17 @@ http://msdn.microsoft.com/en-us/library/ms682052(VS.85).aspx
 Note this uses Slim Reader/Writer locks (Vista+ exclusive)
 or critical sections.
 
-The condition variable implementation is based on the libSDL implementation.
-This code could probably be made more efficient with the use of events or
-different mechanisms but for now the main concern is a correct and
-complete solution.
+The condition variable implementation is based on http://www.cs.wustl.edu/~schmidt/win32-cv-1.html.
+(the libsdl-based stuff was too buggy)
 */
 typedef struct condvar_s
 {
-    int waiting;
-    int signals;
-    CRITICAL_SECTION countlock;
+	int waiters;
+	int release;
+	int waitgeneration;
+	CRITICAL_SECTION countlock;
 	CRITICAL_SECTION mainlock;
-    HANDLE wait_sem;
-    HANDLE wait_done;
+	HANDLE evnt;
 } condvar_t;
 
 void *Sys_CreateConditional(void)
@@ -187,21 +255,17 @@ void *Sys_CreateConditional(void)
 	if (!cv)
 		return NULL;
 
-	cv->waiting = 0;
-	cv->signals = 0;
+	cv->waiters = 0;
+	cv->release = 0;
+	cv->waitgeneration = 0;
 	InitializeCriticalSection (&cv->mainlock);
 	InitializeCriticalSection (&cv->countlock);
-	cv->wait_sem = CreateSemaphore (NULL, 0, 0x7fffffff, NULL);
-	cv->wait_done = CreateSemaphore (NULL, 0, 0x7fffffff, NULL);
+	cv->evnt = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-	if (cv->wait_sem && cv->wait_done)
+	if (cv->evnt)
 		return (void *)cv;
 
 	// something failed so deallocate everything
-	if (cv->wait_done)
-		CloseHandle(cv->wait_done);
-	if (cv->wait_sem)
-		CloseHandle(cv->wait_sem);
 	DeleteCriticalSection(&cv->countlock);
 	DeleteCriticalSection(&cv->mainlock);
 	free(cv);
@@ -223,87 +287,94 @@ qboolean Sys_UnlockConditional(void *condv)
 
 qboolean Sys_ConditionWait(void *condv)
 {
+	qboolean done;
 	condvar_t *cv = (condvar_t *)condv;
 	qboolean success;
-	DWORD status;
+	int mygen;
 
 	// increase count for non-signaled waiting threads
 	EnterCriticalSection(&cv->countlock);
-	cv->waiting++;
+	cv->waiters++;
+	mygen = cv->waitgeneration;
 	LeaveCriticalSection(&cv->countlock);
 
 	LeaveCriticalSection(&cv->mainlock); // unlock as per condition variable definition
 
 	// wait on a signal
-#if 0
-	success = (WaitForSingleObject(cv->wait_sem, INFINITE) != WAIT_FAILED);
+	for(;;)
+	{
+#if 1
+		success = (WaitForSingleObject(cv->evnt, INFINITE) != WAIT_FAILED);
 #else
-	do
-	{
-		MSG msg;
-		while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE))
-      		DispatchMessage (&msg);
-		status = MsgWaitForMultipleObjects(1, &cv->wait_sem, FALSE, INFINITE, QS_SENDMESSAGE|QS_POSTMESSAGE);
-	} while (status == (WAIT_OBJECT_0+1));
-	success = status != WAIT_FAILED;
+		do
+		{
+			MSG msg;
+			while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE))
+				DispatchMessage (&msg);
+			status = MsgWaitForMultipleObjects(1, &cv->evnt, FALSE, INFINITE, QS_SENDMESSAGE|QS_POSTMESSAGE);
+		} while (status == (WAIT_OBJECT_0+1));
+		success = status != WAIT_FAILED;
 #endif
-
-	// update waiting count and alert signaling thread that we're done to avoid the deadlock condition
-	EnterCriticalSection(&cv->countlock);
-	if (cv->signals > 0)
-	{
-		ReleaseSemaphore(cv->wait_done, cv->signals, NULL);
-		cv->signals = 0;
+		EnterCriticalSection(&cv->countlock);
+		done = cv->release > 0 && cv->waitgeneration != mygen;
+		LeaveCriticalSection(&cv->countlock);
+		if (done)
+			break;
 	}
-	cv->waiting--;
-	LeaveCriticalSection(&cv->countlock);
 
 	EnterCriticalSection(&cv->mainlock); // lock as per condition variable definition
 
-	return success;
+	// update waiting count and alert signaling thread that we're done to avoid the deadlock condition
+	EnterCriticalSection(&cv->countlock);
+	cv->waiters--;
+	cv->release--;
+	done = cv->release == 0;
+	LeaveCriticalSection(&cv->countlock);
+
+	if (done)
+		ResetEvent(cv->evnt);
+
+	return true;
 }
 
 qboolean Sys_ConditionSignal(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
 
+	EnterCriticalSection(&cv->mainlock);
+
 	// if there are non-signaled waiting threads, we signal one and wait on the response
 	EnterCriticalSection(&cv->countlock);
-	if (cv->waiting > cv->signals)
+	if (cv->waiters > cv->release)
 	{
-		cv->signals++;
-		ReleaseSemaphore(cv->wait_sem, 1, NULL);
-		LeaveCriticalSection(&cv->countlock);
-		WaitForSingleObject(cv->wait_done, INFINITE);
+		SetEvent(cv->evnt);
+		cv->release++;
+		cv->waitgeneration++;
 	}
-	else
-		LeaveCriticalSection(&cv->countlock);
+	LeaveCriticalSection(&cv->countlock);
 
-    return true;
+	LeaveCriticalSection(&cv->mainlock);
+
+	return true;
 }
 
 qboolean Sys_ConditionBroadcast(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
 
+	EnterCriticalSection(&cv->mainlock);
+
 	// if there are non-signaled waiting threads, we signal all of them and wait on all the responses back
 	EnterCriticalSection(&cv->countlock);
-	if (cv->waiting > cv->signals)
+	if (cv->waiters > 0)
 	{
-		int i, num_waiting;
-
-		num_waiting = (cv->waiting - cv->signals);
-		cv->signals = cv->waiting;
-
-		ReleaseSemaphore(cv->wait_sem, num_waiting, NULL);
-		LeaveCriticalSection(&cv->countlock);
-		// there's no call to wait for the same object multiple times so we need to loop through
-		// and burn up the semaphore count
-		for (i = 0; i < num_waiting; i++)
-			WaitForSingleObject(cv->wait_done, INFINITE);
+		SetEvent(cv->evnt);
+		cv->release = cv->waiters;
+		cv->waitgeneration++;
 	}
-	else
-		LeaveCriticalSection(&cv->countlock);
+	LeaveCriticalSection(&cv->countlock);
+
+	LeaveCriticalSection(&cv->mainlock);
 
 	return true;
 }
@@ -312,8 +383,11 @@ void Sys_DestroyConditional(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
 
-	CloseHandle(cv->wait_done);
-	CloseHandle(cv->wait_sem);
+	//make sure noone is still trying to poke it while shutting down
+//	Sys_LockConditional(condv);
+//	Sys_UnlockConditional(condv);
+
+	CloseHandle(cv->evnt);
 	DeleteCriticalSection(&cv->countlock);
 	DeleteCriticalSection(&cv->mainlock);
 	free(cv);

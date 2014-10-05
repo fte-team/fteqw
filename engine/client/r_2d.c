@@ -143,7 +143,7 @@ void R2D_Init(void)
 	int i;
 	unsigned int glossval;
 	unsigned int normval;
-	extern cvar_t gl_specular_fallback;
+	extern cvar_t gl_specular_fallback, gl_specular_fallbackexp;
 	conback = NULL;
 
 	Shader_Init();
@@ -166,7 +166,7 @@ void R2D_Init(void)
 
 	glossval = min(gl_specular_fallback.value*255, 255);
 	glossval *= 0x10101;
-	glossval |= 0xff000000;
+	glossval |= 0x01000000 * bound(0, (int)(gl_specular_fallbackexp.value*255), 255);
 	glossval = LittleLong(glossval);
 	normval = 0xffff8080;
 	normval = LittleLong(normval);
@@ -352,8 +352,6 @@ mpic_t	*R2D_SafeCachePic (const char *path)
 	if (!qrenderer)
 		return NULL;
 	s = R_RegisterPic(path);
-	if (s->flags & SHADER_NOIMAGE)
-		return NULL;
 	return s;
 }
 
@@ -367,15 +365,16 @@ mpic_t *R2D_SafePicFromWad (const char *name)
 	snprintf(newnamewad, sizeof(newnamewad), "wad/%s", name);
 	snprintf(newnamegfx, sizeof(newnamegfx), "gfx/%s", name);
 
+	/*
 	s = R_RegisterPic(newnamewad);
 	if (!(s->flags & SHADER_NOIMAGE))
 		return s;
-	
+	*/
 	s = R_RegisterPic(newnamegfx);
-	if (!(s->flags & SHADER_NOIMAGE))
+//	if (!(s->flags & SHADER_NOIMAGE))
 		return s;
 
-	return NULL;
+//	return NULL;
 }
 
 
@@ -403,8 +402,18 @@ void R2D_ImagePaletteColour(unsigned int i, float a)
 //awkward and weird to use
 void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic)
 {
+	int i;
 	if (!pic)
 		return;
+
+	//don't draw pics if they have an image which is still loading.
+	for (i = 0; i < pic->numpasses; i++)
+	{
+		if (pic->passes[i].texgen == T_GEN_SINGLEMAP && pic->passes[i].anim_frames[0] && pic->passes[i].anim_frames[0]->status == TEX_LOADING)
+			return;
+		if (pic->passes[i].texgen == T_GEN_DIFFUSE && pic->defaulttextures.base && pic->defaulttextures.base->status == TEX_LOADING)
+			return;
+	}
 
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
@@ -485,7 +494,7 @@ void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic,
 
 	if (!TEXVALID(translate_texture))
 	{
-		translate_texture = R_AllocNewTexture("***translatedpic***", 64, 64, 0);
+		translate_texture = Image_CreateTexture("***translatedpic***", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 		translate_shader = R_RegisterShader("translatedpic", SUF_2D,
 			"{\n"
 				"if $nofixed\n"
@@ -502,7 +511,7 @@ void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic,
 		translate_shader->defaulttextures.base = translate_texture;
 	}
 	/* could avoid reuploading already translated textures but this func really isn't used enough anyway */
-	R_Upload(translate_texture, NULL, TF_RGBA32, trans, NULL, 64, 64, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	Image_Upload(translate_texture, TF_RGBA32, trans, NULL, 64, 64, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	R2D_ScalePic(x, y, width, height, translate_shader);
 }
 
@@ -537,7 +546,7 @@ void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 		h>>=1;
 		w>>=1;
 	}
-	if (!conback)
+	if (R_GetShaderSizes(conback, NULL, NULL, false) <= 0)
 	{
 		R2D_ImageColours(0, 0, 0, a);
 		R2D_FillBlock(0, lastline-(int)vid.height, w, h);
@@ -615,14 +624,17 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 
 	if (*var->string)
 		conback = R_RegisterPic(var->string);
-	if (!conback || conback->flags & SHADER_NOIMAGE)
+	if (!R_GetShaderSizes(conback, NULL, NULL, true))
 	{
-		conback = R_RegisterCustom("console", SUF_2D, NULL, NULL);
-		if (!conback || conback->flags & SHADER_NOIMAGE)
+		conback = R_RegisterCustom("console", SUF_2D, NULL, NULL);	//quake3
+		if (!R_GetShaderSizes(conback, NULL, NULL, true))
 		{
+#ifdef HEXEN2
 			if (M_GameType() == MGT_HEXEN2)
 				conback = R_RegisterPic("gfx/menu/conback.lmp");
-			else if (M_GameType() == MGT_QUAKE2)
+			else
+#endif
+				if (M_GameType() == MGT_QUAKE2)
 				conback = R_RegisterPic("pics/conback.pcx");
 			else
 				conback = R_RegisterPic("gfx/conback.lmp");
@@ -1187,7 +1199,7 @@ void R2D_Crosshair_Update(void)
 	c = c % (sizeof(crosshair_pixels) / (CS_HEIGHT*sizeof(*crosshair_pixels)));
 
 	if (!TEXVALID(ch_int_texture))
-		ch_int_texture = R_AllocNewTexture("***crosshair***", CS_WIDTH, CS_HEIGHT, IF_UIPIC|IF_NOMIPMAP);
+		ch_int_texture = Image_CreateTexture("***crosshair***", NULL, IF_UIPIC|IF_NOMIPMAP);
 	shader_crosshair->defaulttextures.base = ch_int_texture;
 
 	Q_memset(crossdata, 0, sizeof(crossdata));
@@ -1204,7 +1216,7 @@ void R2D_Crosshair_Update(void)
 		}
 	}
 
-	R_Upload(ch_int_texture, NULL, TF_RGBA32, crossdata, NULL, CS_WIDTH, CS_HEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	Image_Upload(ch_int_texture, TF_RGBA32, crossdata, NULL, CS_WIDTH, CS_HEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 
 }
 
@@ -1299,6 +1311,7 @@ void R2D_DrawCrosshair(void)
 	R2D_ImageColours(1, 1, 1, 1);
 }
 
+#define RT_IMAGEFLAGS IF_NOMIPMAP|IF_CLAMP|IF_LINEAR
 static texid_t internalrt;
 //resize a texture for a render target and specify the format of it.
 //pass TF_INVALID and sizes=0 to get without configuring (shaders that hardcode an $rt1 etc).
@@ -1307,14 +1320,15 @@ texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfm
 	texid_t tid;
 	if (!strcmp(id, "-"))
 	{
-		internalrt = tid = R_AllocNewTexture("", 0, 0, IF_NOMIPMAP);
+		internalrt = tid = Image_CreateTexture("", NULL, RT_IMAGEFLAGS);
 	}
 	else
 	{
-		tid = R_FindTexture(id, IF_NOMIPMAP|IF_CLAMP|IF_LINEAR);
+		tid = Image_FindTexture(id, NULL, RT_IMAGEFLAGS);
 		if (!TEXVALID(tid))
-			tid = R_AllocNewTexture(id, 0, 0, IF_NOMIPMAP|IF_CLAMP|IF_LINEAR);
+			tid = Image_CreateTexture(id, NULL, RT_IMAGEFLAGS);
 	}
+
 	if (rtfmt)
 	{
 		switch(rtfmt)
@@ -1327,9 +1341,9 @@ texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfm
 		case 6: rtfmt = TF_DEPTH32;	break;
 		default:rtfmt = TF_INVALID;	break;
 		}
-		R_Upload(tid, id, rtfmt, NULL, NULL, width, height, IF_NOMIPMAP|IF_CLAMP|IF_LINEAR);
-		tid.ref->width = width;
-		tid.ref->height = height;
+		Image_Upload(tid, rtfmt, NULL, NULL, width, height, RT_IMAGEFLAGS);
+		tid->width = width;
+		tid->height = height;
 	}
 	return tid;
 }
@@ -1337,14 +1351,17 @@ texid_t R2D_RT_GetTexture(const char *id, unsigned int *width, unsigned int *hei
 {
 	texid_t tid;
 	if (!strcmp(id, "-"))
-		tid = internalrt;
-	else
-		tid = R_FindTexture(id, IF_NOMIPMAP);
-
-	if (tid.ref)
 	{
-		*width = tid.ref->width;
-		*height = tid.ref->height;
+		tid = internalrt;
+		internalrt = r_nulltex;
+	}
+	else
+		tid = Image_FindTexture(id, NULL, RT_IMAGEFLAGS);
+
+	if (tid)
+	{
+		*width = tid->width;
+		*height = tid->height;
 	}
 	else
 	{

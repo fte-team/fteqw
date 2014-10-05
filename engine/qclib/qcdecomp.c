@@ -62,11 +62,6 @@ QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed);
 jmp_buf decompilestatementfailure;
 
 #if 0
-pbool QC_Decompile(progfuncs_t *progfuncs, char *fname)
-{
-	return false;
-}
-#else
 
 QCC_type_t **ofstype;
 qbyte *ofsflags;
@@ -859,7 +854,7 @@ pbool PDECL QC_Decompile(pubprogfuncs_t *ppf, char *fname)
 	qccprogfuncs = progfuncs;
 	op=current_progstate;
 
-	if (!PR_ReallyLoadProgs(progfuncs, fname, -1, &progs, false))
+	if (!PR_ReallyLoadProgs(progfuncs, fname, &progs, false))
 	{
 		return false;
 	}

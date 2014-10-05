@@ -2665,8 +2665,8 @@ texid_tf Media_UpdateForShader(cin_t *cin)
 	if (!cin->outunchanged)
 	{
 		if (!TEXVALID(cin->texture))
-			TEXASSIGN(cin->texture, R_AllocNewTexture("***cin***", cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA));
-		R_Upload(cin->texture, "cin", cin->outtype, cin->outdata, cin->outpalette, cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
+			TEXASSIGN(cin->texture, Image_CreateTexture("***cin***", NULL, IF_NOMIPMAP|IF_NOALPHA));
+		Image_Upload(cin->texture, cin->outtype, cin->outdata, cin->outpalette, cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
 	}
 
 	if (cin->doneframe)
@@ -4365,7 +4365,8 @@ qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	HACMDRIVER drv = NULL;
 	mp3decoder_t *dec;
 
-	char *ext = COM_FileExtension(s->name);
+	char ext[8];
+	COM_FileExtension(s->name, ext, sizeof(ext));
 	if (stricmp(ext, "mp3"))
 		return false;
 

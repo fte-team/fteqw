@@ -30,7 +30,7 @@ static void S_StopAllSounds_f (void);
 
 static void S_UpdateCard(soundcardinfo_t *sc);
 static void S_ClearBuffer (soundcardinfo_t *sc);
-static sfx_t *S_FindName (const char *name);
+sfx_t *S_FindName (const char *name, qboolean create);
 
 // =======================================================================
 // Internal sound data & structures
@@ -1762,7 +1762,7 @@ void S_DoRestart (void)
 	{
 		if (!cl.sound_name[i][0])
 			break;
-		cl.sound_precache[i] = S_FindName (cl.sound_name[i]);
+		cl.sound_precache[i] = S_FindName (cl.sound_name[i], true);
 	}
 }
 
@@ -1993,6 +1993,14 @@ void S_Shutdown(qboolean final)
 	Z_Free(known_sfx);
 	known_sfx = NULL;
 	num_sfx = 0;
+
+#ifdef MULTITHREAD
+	if (final && mixermutex)
+	{
+		Sys_DestroyMutex(mixermutex);
+		mixermutex = NULL;
+	}
+#endif
 }
 
 
@@ -2007,7 +2015,7 @@ S_FindName
 also touches it
 ==================
 */
-static sfx_t *S_FindName (const char *name)
+sfx_t *S_FindName (const char *name, qboolean create)
 {
 	int		i;
 	sfx_t	*sfx;
@@ -2029,11 +2037,16 @@ static sfx_t *S_FindName (const char *name)
 	if (num_sfx == MAX_SFX)
 		Sys_Error ("S_FindName: out of sfx_t");
 
-	sfx = &known_sfx[i];
-	strcpy (sfx->name, name);
-	known_sfx[i].touched = true;
+	if (create)
+	{
+		sfx = &known_sfx[i];
+		strcpy (sfx->name, name);
+		known_sfx[i].touched = true;
 
-	num_sfx++;
+		num_sfx++;
+	}
+	else
+		sfx = NULL;
 
 	return sfx;
 }
@@ -2057,15 +2070,18 @@ void S_Purge(qboolean retaintouched)
 	for (i=0 ; i < num_sfx ; i++)
 	{
 		sfx = &known_sfx[i];
+		/*don't hurt sounds if they're being processed by a worker thread*/
+		if (sfx->loadstate == SLS_LOADING)
+			continue;
 
 		/*don't purge the file if its still relevent*/
 		if (retaintouched && sfx->touched)
 			continue;
 
+		sfx->loadstate = SLS_NOTLOADED;
 		/*nothing to do if there's no data within*/
 		if (!sfx->decoder.buf)
 			continue;
-
 		/*stop the decoder first*/
 		if (sfx->decoder.purge)
 			sfx->decoder.purge(sfx);
@@ -2084,7 +2100,10 @@ void S_ResetFailedLoad(void)
 {
 	int i;
 	for (i=0 ; i < num_sfx ; i++)
-		known_sfx[i].failedload = false;
+	{
+		if (known_sfx[i].loadstate == SLS_FAILED)
+			known_sfx[i].loadstate = SLS_NOTLOADED;
+	}
 }
 
 void S_UntouchAll(void)
@@ -2105,7 +2124,7 @@ void S_TouchSound (char *name)
 	if (!sound_started)
 		return;
 
-	S_FindName (name);
+	S_FindName (name, true);
 }
 
 /*
@@ -2118,10 +2137,10 @@ sfx_t *S_PrecacheSound (const char *name)
 {
 	sfx_t	*sfx;
 
-	if (nosound.ival || !known_sfx)
+	if (nosound.ival || !known_sfx || !*name)
 		return NULL;
 
-	sfx = S_FindName (name);
+	sfx = S_FindName (name, true);
 
 // cache it in
 	if (precache.ival && sndcardinfo)
@@ -2597,7 +2616,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 			{
 				newmusic = S_PrecacheSound(nexttrack);
 
-				if (newmusic && !newmusic->failedload)
+				if (newmusic && newmusic->loadstate != SLS_FAILED)
 				{
 					chan->sfx = newmusic;
 					chan->rate = 1<<PITCHSHIFT;

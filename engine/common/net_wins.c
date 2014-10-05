@@ -5701,7 +5701,7 @@ void NET_CloseServer(void)
 
 void NET_InitServer(void)
 {
-	if (sv_listen_nq.value || sv_listen_dp.value || sv_listen_qw.value || sv_listen_q3.value)
+	if (sv_listen_nq.value || sv_listen_dp.value || sv_listen_qw.value || sv_listen_q3.ival)
 	{
 		if (!svs.sockets)
 		{

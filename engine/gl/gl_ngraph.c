@@ -139,7 +139,7 @@ void R_NetGraph (void)
 	Draw_FunString(8, y, st);
 	y += 8;
 
-	R_Upload(netgraphtexture, "***netgraph***", TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
+	Image_Upload(netgraphtexture, TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
 	x=8;
 	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
 }
@@ -172,14 +172,14 @@ void R_FrameTimeGraph (int frametime)
 
 	y += 8;
 
-	R_Upload(netgraphtexture, "***netgraph***", TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
+	Image_Upload(netgraphtexture, TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
 	x=8;
 	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
 }
 
 void R_NetgraphInit(void)
 {
-	TEXASSIGN(netgraphtexture, R_AllocNewTexture("***netgraph***", NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP));
+	TEXASSIGN(netgraphtexture, Image_CreateTexture("***netgraph***", NULL, IF_UIPIC|IF_NOMIPMAP));
 	netgraphshader = R_RegisterShader("netgraph", SUF_NONE,
 		"{\n"
 			"program default2d\n"

@@ -99,7 +99,6 @@ void main ()
 	vec4 lc = texture2D(s_t1, tc);
 	col.rgb += lc.rgb*e_lowercolour*lc.a;
 #endif
-	col.rgb *= light;
 
 #if defined(BUMP) && defined(SPECULAR)
 	vec3 bumps = normalize(vec3(texture2D(s_t4, tc)) - 0.5);
@@ -109,6 +108,8 @@ void main ()
 	float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);
 	col.rgb += cvar_gl_specular * spec * specs.rgb;
 #endif
+
+	col.rgb *= light;
 
 #ifdef FULLBRIGHT
 	vec4 fb = texture2D(s_t3, tc);

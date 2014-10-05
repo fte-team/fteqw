@@ -39,6 +39,14 @@
 #define LOWER
 #endif
 
+//if there's no vertex normals known, disable some stuff.
+//FIXME: this results in dupe permutations.
+#ifdef NOBUMP
+#undef SPECULAR
+#undef BUMP
+#undef OFFSETMAPPING
+#endif
+
 
 varying vec2 tcbase;
 varying vec3 lightvector;
@@ -66,9 +74,15 @@ void main ()
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
 	tcbase = v_texcoord;	//pass the texture coords straight through
 	vec3 lightminusvertex = l_lightposition - w.xyz;
+#ifdef NOBUMP
+	//the only important thing is distance
+	lightvector = lightminusvertex;
+#else
+	//the light direction relative to the surface normal, for bumpmapping.
 	lightvector.x = dot(lightminusvertex, s.xyz);
 	lightvector.y = dot(lightminusvertex, t.xyz);
 	lightvector.z = dot(lightminusvertex, n.xyz);
+#endif
 #if defined(SPECULAR)||defined(OFFSETMAPPING)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
 	eyevector.x = dot(eyeminusvertex, s.xyz);
@@ -130,8 +144,7 @@ vec3 ShadowmapCoord(void)
 #ifdef SPOT
 	//bias it. don't bother figuring out which side or anything, its not needed
 	//l_projmatrix contains the light's projection matrix so no other magic needed
-	vtexprojcoord.z -= 0.015;
-	return (vtexprojcoord.xyz/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);
+	return ((vtexprojcoord.xyz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);
 //#elif defined(CUBESHADOW)
 //	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
 //	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
@@ -254,14 +267,19 @@ void main ()
 	vec4 specs = texture2D(s_t2, tcbase);
 #endif
 
-	vec3 nl = normalize(lightvector);
 	float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);
 	vec3 diff;
-#ifdef BUMP
-	diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));
+#ifdef NOBUMP
+	//surface can only support ambient lighting, even for lights that try to avoid it.
+	diff = bases * (l_lightcolourscale.x+l_lightcolourscale.y);
 #else
-	//we still do bumpmapping even without bumps to ensure colours are always sane. light.exe does it too.
-	diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));
+	vec3 nl = normalize(lightvector);
+	#ifdef BUMP
+		diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));
+	#else
+		//we still do bumpmapping even without bumps to ensure colours are always sane. light.exe does it too.
+		diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));
+	#endif
 #endif
 
 

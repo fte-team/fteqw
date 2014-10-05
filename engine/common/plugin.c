@@ -921,6 +921,17 @@ qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, quintptr_t mask, const qintp
 #endif
 #endif
 
+qintptr_t VARGS Plug_VFS_Open(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *fname = VM_POINTER(arg[0]);
+	vfsfile_t **handle = VM_POINTER(arg[1]);
+	char *mode = VM_POINTER(arg[2]);
+	*handle = FS_OpenVFS(fname, mode, FS_GAME);
+	if (*handle)
+		return true;
+	return false;
+}
+
 qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	//modes:
@@ -1307,6 +1318,8 @@ void Plug_Initialise(qboolean fromgamedir)
 		Plug_RegisterBuiltin("Net_Close",				Plug_Net_Close, 0);
 #endif
 
+
+		Plug_RegisterBuiltin("VFS_Open",				Plug_VFS_Open, PLUG_BIF_DLLONLY);
 		Plug_RegisterBuiltin("FS_Open",					Plug_FS_Open, 0);
 		Plug_RegisterBuiltin("FS_Read",					Plug_Net_Recv, 0);
 		Plug_RegisterBuiltin("FS_Write",				Plug_Net_Send, 0);
@@ -1645,7 +1658,8 @@ void Plug_Close(plugin_t *plug)
 		prev->next = plug->next;
 	}
 
-	Con_Printf("Closing plugin %s\n", plug->name);
+	if (!com_fatalerror)
+		Con_Printf("Closing plugin %s\n", plug->name);
 
 	//ensure any active contexts provided by the plugin are closed (stuff with destroy callbacks)
 #if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)

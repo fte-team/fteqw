@@ -143,7 +143,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 		for (i=0; i<sc->total_chans ; i++, ch++)
 		{
 			s = ch->sfx;
-			if (!s)
+			if (!s || s->loadstate == SLS_LOADING)
 				continue;
 			if (!ch->vol[0] && !ch->vol[1] && !ch->vol[2] && !ch->vol[3] && !ch->vol[4] && !ch->vol[5])
 			{

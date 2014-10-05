@@ -1356,6 +1356,8 @@ void CL_ClearState (void)
 	{
 		VectorSet(cl.playerview[i].gravitydir, 0, 0, -1);
 		cl.playerview[i].viewheight = DEFAULT_VIEWHEIGHT;
+		cl.playerview[i].maxspeed = 320;
+		cl.playerview[i].entgravity = 1;
 	}
 	cl.minpitch = -70;
 	cl.maxpitch = 80;
@@ -3123,7 +3125,8 @@ qboolean CL_AllowArbitaryDownload(char *localfile)
 	allow = cl_download_redirection.ival;
 	if (allow == 2)
 	{
-		char *ext = COM_FileExtension(localfile);
+		char ext[8];
+		COM_FileExtension(localfile, ext, sizeof(ext));
 		if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4"))
 			return true;
 		else
@@ -3707,6 +3710,8 @@ void CL_Init (void)
 #endif
 
 	Ignore_Init();
+
+	CL_ClearState();	//make sure the cl.* fields are set properly if there's no ssqc or whatever.
 }
 
 
@@ -3722,11 +3727,14 @@ void VARGS Host_EndGame (char *message, ...)
 	va_list		argptr;
 	char		string[1024];
 
-	SCR_EndLoadingPlaque();
-
 	va_start (argptr,message);
 	vsnprintf (string,sizeof(string)-1, message,argptr);
 	va_end (argptr);
+
+	COM_AssertMainThread(string);
+
+	SCR_EndLoadingPlaque();
+
 	Con_TPrintf ("^&C0Host_EndGame: %s\n", string);
 	Con_Printf ("\n");
 
@@ -3931,7 +3939,8 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 
 	if (!(f->flags & HRF_FILETYPES))
 	{
-		char *ext = COM_FileExtension(f->fname);
+		char ext[8];
+		COM_FileExtension(f->fname, ext, sizeof(ext));
 		if (!strcmp(ext, "qwd"))
 			f->flags |= HRF_DEMO_QWD;
 		else if (!strcmp(ext, "mvd"))
@@ -4044,7 +4053,7 @@ void Host_DoRunFile(hrf_t *f)
 
 	if (!(f->flags & HRF_FILETYPES))
 	{
-		char *ext;
+		char ext[8];
 
 #ifdef WEBCLIENT
 		if (isurl(f->fname) && !f->srcfile)
@@ -4068,7 +4077,7 @@ void Host_DoRunFile(hrf_t *f)
 #endif
 
 		//if we get here, we have no mime type to give us any clues.
-		ext = COM_FileExtension(f->fname);
+		COM_FileExtension(f->fname, ext, sizeof(ext));
 		if (!strcmp(ext, "qwd"))
 			f->flags |= HRF_DEMO_QWD;
 		else if (!strcmp(ext, "mvd"))
@@ -4393,6 +4402,8 @@ double Host_Frame (double time)
 	if (startuppending)
 		CL_StartCinematicOrMenu();
 
+	COM_MainThreadWork();
+
 #ifdef PLUGINS
 	Plug_Tick();
 #endif
@@ -4429,6 +4440,8 @@ double Host_Frame (double time)
 				RSpeedEnd(RSPEED_SERVER);
 			}
 #endif
+			while(COM_DoWork(0, false))
+				;
 			return idlesec - (realtime - oldrealtime);
 		}
 	}
@@ -4471,7 +4484,11 @@ double Host_Frame (double time)
 //		realtime += spare/1000;	//don't use it all!
 		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
 		if (!spare)
+		{
+			while(COM_DoWork(0, false))
+				;
 			return (cl_yieldcpu.ival || vid.isminimized)? (1.0 / maxfps - (realtime - oldrealtime)) : 0;
+		}
 		if (spare < 0 || cls.state < ca_onserver)
 			spare = 0;	//uncapped.
 		if (spare > cl_sparemsec.ival)
@@ -4666,7 +4683,7 @@ void CL_ReadCDKey(void)
 {	//q3 cdkey
 	//you don't need one, just use a server without sv_strictauth set to 0.
 	char *buffer;
-	buffer = COM_LoadTempFile("q3key");
+	buffer = COM_LoadTempFile("q3key", NULL);
 	if (buffer)	//a cdkey is meant to be 16 chars
 	{
 		char *chr;
@@ -4807,6 +4824,8 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
 	SCR_ShowPic_Clear(true);
 
+	Cbuf_AddText("alias restart \"changelevel .\"\n",RESTRICT_LOCAL);
+	Cbuf_AddText("alias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("unbindall\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind volup \"inc volume 0.1\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind voldown \"inc volume -0.1\"\n", RESTRICT_LOCAL);
@@ -4815,6 +4834,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults
 	Cbuf_AddText(resetcommand, RESTRICT_LOCAL);
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
+	COM_ParsePlusSets(true);
 
 	//who should we imitate?
 	qrc = COM_FDepthFile("quake.rc", true);	//q1
@@ -4835,7 +4855,9 @@ void CL_ExecInitialConfigs(char *resetcommand)
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
+#ifndef QUAKETC
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
+#endif
 #ifdef QUAKESPYAPI
 	if (COM_FCheckExists ("frontend.cfg"))
 		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
@@ -4922,7 +4944,7 @@ void Host_Init (quakeparms_t *parms)
 
 	Sys_Init();
 
-	COM_ParsePlusSets();
+	COM_ParsePlusSets(false);
 	Cbuf_Init ();
 	Cmd_Init ();
 	V_Init ();
@@ -5044,15 +5066,20 @@ void Host_Shutdown(void)
 	NET_Shutdown ();
 #endif
 
+	Stats_Clear();
+
 #ifdef Q3CLIENT
 	VMQ3_FlushStringHandles();
 #endif
+
+	COM_DestroyWorkerThread();
 
 	Cvar_Shutdown();
 	Validation_FlushFileList();
 
 	Cmd_Shutdown();
 	Key_Unbindall_f();
+	Con_History_Save();	//do this outside of the console code so that the filesystem is still running at this point but still allowing the filesystem to make console prints (you might not see them, but they should be visible to sys_printf still, for debugging).
 
 	FS_Shutdown();
 

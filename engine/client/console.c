@@ -204,12 +204,6 @@ qboolean Con_NameForNum(int num, char *buffer, int buffersize)
 	return false;
 }
 
-/*print text to a console*/
-void Con_PrintCon (console_t *con, char *txt);
-
-
-
-
 #ifdef QTERM
 void QT_Update(void)
 {
@@ -506,8 +500,8 @@ void Cmd_ConEcho_f(void)
 	if (con)
 	{
 		Cmd_ShiftArgs(1, false);
-		Con_PrintCon(con, Cmd_Args());
-		Con_PrintCon(con, "\n");
+		Con_PrintCon(con, Cmd_Args(), con->parseflags);
+		Con_PrintCon(con, "\n", con->parseflags);
 	}
 }
 
@@ -580,7 +574,7 @@ void Con_Init (void)
 	Q_strncpyz(con_main.title, "MAIN", sizeof(con_main.title));
 
 	con_initialized = true;
-	Con_TPrintf ("Console initialized.\n");
+//	Con_TPrintf ("Console initialized.\n");
 
 //
 // register our commands
@@ -617,8 +611,6 @@ void Con_Init (void)
 void Con_Shutdown(void)
 {
 	int i;
-
-	Con_History_Save();
 
 	for (i = 0; i <= CON_EDIT_LINES_MASK; i++)
 	{
@@ -674,14 +666,14 @@ void Con_PrintConChars (console_t *con, conchar_t *c, int len)
 	con->current->length+=len;
 }
 
-void Con_PrintCon (console_t *con, char *txt)
+void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 {
 	conchar_t expanded[4096];
 	conchar_t *c;
 	conline_t *oc;
 	conline_t *reuse;
 
-	COM_ParseFunString(con->defaultcharbits, txt, expanded, sizeof(expanded), con->parseflags);
+	COM_ParseFunString(con->defaultcharbits, txt, expanded, sizeof(expanded), parseflags);
 
 	c = expanded;
 	if (*c)
@@ -796,7 +788,13 @@ void Con_PrintCon (console_t *con, char *txt)
 
 void Con_Print (char *txt)
 {
-	Con_PrintCon(&con_main, txt);	//client console
+	Con_PrintCon(&con_main, txt, con_main.parseflags);	//client console
+}
+void Con_PrintFlags(char *txt, unsigned int setflags, unsigned int clearflags)
+{
+	setflags |= con_main.parseflags;
+	setflags &= ~clearflags;
+	Con_PrintCon(&con_main, txt, setflags);
 }
 
 void Con_CycleConsole(void)
@@ -830,6 +828,12 @@ void SV_FlushRedirect (void);
 #endif
 
 #define	MAXPRINTMSG	4096
+static void Con_PrintFromThread (void *ctx, void *data, size_t a, size_t b)
+{
+	Con_Printf("%s", data);
+	BZ_Free(data);
+}
+
 // FIXME: make a buffer size safe vsprintf?
 void VARGS Con_Printf (const char *fmt, ...)
 {
@@ -839,6 +843,12 @@ void VARGS Con_Printf (const char *fmt, ...)
 	va_start (argptr,fmt);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
+
+	if (!Sys_IsThread(NULL))
+	{
+		COM_AddWork(0, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		return;
+	}
 
 #ifndef CLIENTONLY
 	// add to redirected message
@@ -939,7 +949,7 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 	else
 	{
 		Sys_Printf ("%s", msg);	// also echo to debugging console
-		Con_PrintCon(&con_main, msg);
+		Con_PrintCon(&con_main, msg, con_main.parseflags);
 	}
 }
 

@@ -377,7 +377,9 @@ static void VARGS PFQ2_setmodel (q2edict_t *ent, char *name)
 // if it is an inline model, get the size information for it
 	if (name[0] == '*')
 	{
-		mod = Mod_FindName (name);
+		mod = Mod_FindName (Mod_FixName(name, sv.modelname));
+		if (mod->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);	//wait for it if needed
 		VectorCopy (mod->mins, ent->mins);
 		VectorCopy (mod->maxs, ent->maxs);
 		WorldQ2_LinkEdict (&sv.world, ent);

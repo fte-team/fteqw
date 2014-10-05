@@ -534,6 +534,26 @@ pbool QDECL ED_CanFree (edict_t *ed);
 #define CLIENTTYPE_BOT			2
 #define CLIENTTYPE_NOTACLIENT	3
 
+enum
+{
+	RESSTATE_NOTKNOWN = 0,
+	RESSTATE_NOTLOADED = 1,
+	RESSTATE_LOADING = 2,
+	RESSTATE_FAILED = 3,
+	RESSTATE_LOADED = 4,
+
+	RESSTATE_UNSUPPORTED = -1
+};
+enum
+{
+	RESTYPE_MODEL,
+	RESTYPE_SOUND,
+	RESTYPE_PARTICLE,
+	RESTYPE_SHADER,
+	RESTYPE_SKIN,
+	RESTYPE_TEXTURE
+};
+
 //shared constants
 typedef enum
 {
@@ -629,7 +649,8 @@ enum lightfield_e
 	lfield_cubemapname=9,
 	lfield_ambientscale=10,
 	lfield_diffusescale=11,
-	lfield_specularscale=12
+	lfield_specularscale=12,
+	lfield_rotation=13
 };
 enum csqc_input_event
 {

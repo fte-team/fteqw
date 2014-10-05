@@ -363,8 +363,8 @@ typedef struct extensionbuiltin_s {
 void PR_Init (void);
 
 void PDECL PR_ExecuteProgram (pubprogfuncs_t *progfuncs, func_t fnum);
-int PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, const char *s, int headercrc, builtin_t *builtins, int numbuiltins);
-int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, int headercrc, progstate_t *progstate, pbool complain);
+int PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, const char *s, builtin_t *builtins, int numbuiltins);
+int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain);
 
 void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, char *name);
 

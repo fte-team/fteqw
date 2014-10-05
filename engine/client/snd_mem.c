@@ -715,7 +715,7 @@ qboolean S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	info = GetWavinfo (s->name, data, datalen);
 	if (info.numchannels < 1 || info.numchannels > 2)
 	{
-		s->failedload = true;
+		s->loadstate = SLS_FAILED;
 		Con_Printf ("%s has an unsupported quantity of channels.\n",s->name);
 		return false;
 	}
@@ -762,26 +762,19 @@ S_LoadSound
 ==============
 */
 
-qboolean S_LoadSound (sfx_t *s)
+qboolean S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 {
-	char stackbuf[65536];
+	sfx_t *s = ctx;
     char	namebuffer[256];
 	qbyte	*data;
 	int i;
 	size_t result;
 	char *name = s->name;
-
-	if (s->failedload)
-		return false;	//it failed to load once before, don't bother trying again.
-
-// see if still in memory
-	if (s->decoder.buf || s->decoder.decodedata)
-		return true;
+	size_t filesize;
 
 	if (name[1] == ':' && name[2] == '\\')
 	{
 		vfsfile_t *f;
-		int fsize;
 #ifndef _WIN32	//convert from windows to a suitable alternative.
 		char unixname[128];
 		Q_snprintfz(unixname, sizeof(unixname), "/mnt/%c/%s", name[0]-'A'+'a', name+3);
@@ -798,18 +791,19 @@ qboolean S_LoadSound (sfx_t *s)
 		
 		if ((f = VFSOS_Open(name, "rb")))
 		{
-			fsize = VFS_GETLEN(f);
-			data = Hunk_TempAlloc (fsize);
-			result = VFS_READ(f, data, fsize);
+			filesize = VFS_GETLEN(f);
+			data = BZ_Malloc (filesize);
+			result = VFS_READ(f, data, filesize);
 
-			if (result != fsize)
-				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected %i, result was %u\n", name, fsize, (unsigned int)result);
+			if (result != filesize)
+				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected %i, result was %u\n", name, filesize, (unsigned int)result);
 
 			VFS_CLOSE(f);
 		}
 		else
 		{
 			Con_SafePrintf ("Couldn't load %s\n", namebuffer);
+			s->loadstate = SLS_FAILED;
 			return false;
 		}
 	}
@@ -819,12 +813,12 @@ qboolean S_LoadSound (sfx_t *s)
 	// load it in
 
 		data = NULL;
+		filesize = 0;
 		if (*name == '*')	//q2 sexed sounds
 		{
-			//clq2_parsestartsound detects this also
-			//here we just precache the male sound name, which provides us with our default
-			Q_strcpy(namebuffer, "players/male/");	//q2
-			Q_strcat(namebuffer, name+1);	//q2
+			//clq2_parsestartsound detects this also, and should not try playing these sounds.
+			s->loadstate = SLS_FAILED;
+			return false;
 		}
 		else if (name[0] == '.' && name[1] == '.' && name[2] == '/')
 		{
@@ -836,19 +830,19 @@ qboolean S_LoadSound (sfx_t *s)
 			//q1 behaviour, relative to sound/
 			Q_strcpy(namebuffer, "sound/");
 			Q_strcat(namebuffer, name);
-			data = COM_LoadStackFile(name, stackbuf, sizeof(stackbuf));
+			data = COM_LoadFile(namebuffer, 5, &filesize);
 		}
 
 	//	Con_Printf ("loading %s\n",namebuffer);
 
 		if (!data)
-			data = COM_LoadStackFile(namebuffer, stackbuf, sizeof(stackbuf));
+			data = COM_LoadFile(name, 5, &filesize);
 		if (!data)
 		{
 			char altname[sizeof(namebuffer)];
 			COM_StripExtension(namebuffer, altname, sizeof(altname));
 			COM_DefaultExtension(altname, ".ogg", sizeof(altname));
-			data = COM_LoadStackFile(altname, stackbuf, sizeof(stackbuf));
+			data = COM_LoadFile(altname, 5, &filesize);
 			if (data)
 				Con_DPrintf("found a mangled name\n");
 		}
@@ -858,31 +852,43 @@ qboolean S_LoadSound (sfx_t *s)
 	{
 		//FIXME: check to see if queued for download.
 		Con_DPrintf ("Couldn't load %s\n", namebuffer);
-		s->failedload = true;
+		s->loadstate = SLS_FAILED;
 		return false;
 	}
-
-	s->failedload = false;
 
 	for (i = sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0])-1; i >= 0; i--)
 	{
 		if (AudioInputPlugins[i])
 		{
-			if (AudioInputPlugins[i](s, data, com_filesize, snd_speed))
+			if (AudioInputPlugins[i](s, data, filesize, snd_speed))
 			{
+				s->loadstate = SLS_LOADED;
+				BZ_Free(data);
 				return true;
 			}
 		}
 	}
 
-	if (!s->failedload)
+	if (s->loadstate != SLS_FAILED)
 		Con_Printf ("Format not recognised: %s\n", namebuffer);
 
-	s->failedload = true;
+	s->loadstate = SLS_FAILED;
+	BZ_Free(data);
 	return false;
 }
 
+qboolean S_LoadSound (sfx_t *s)
+{
+	if (s->loadstate == SLS_NOTLOADED && sndcardinfo)
+	{
+		s->loadstate = SLS_LOADING;
+		COM_AddWork(1, S_LoadSoundWorker, s, NULL, 0, 0);
+	}
+	if (s->loadstate == SLS_FAILED)
+		return false;	//it failed to load once before, don't bother trying again.
 
+	return true;	//loaded okay, or still loading
+}
 
 /*
 ===============================================================================

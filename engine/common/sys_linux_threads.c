@@ -28,6 +28,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /* Thread creation calls */
 typedef void *(*pfunction_t)(void *);
 
+static pthread_t mainthread;
+
+void Sys_ThreadsInit(void)
+{
+	mainthread = pthread_self();
+}
+qboolean Sys_IsThread(void *thread)
+{
+	if (!thread)
+		thread = &mainthread;
+	return pthread_equal(pthread_self(), *(pthread_t*)thread);
+}
+void Sys_ThreadAbort(void)
+{
+	pthread_exit(NULL);
+}
+
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
 	pthread_t *thread;

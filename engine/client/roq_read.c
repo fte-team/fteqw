@@ -307,7 +307,6 @@ vfsfile_t *fp;
 roq_info *ri;
 int i;
 
-//	if (COM_FOpenFile(fname, &fp)==-1)
 	if((fp = FS_OpenVFS(fname, "rb", FS_GAME)) == NULL)
 	{
 		return NULL;
@@ -321,9 +320,7 @@ int i;
 
 	memset(ri, 0, sizeof(roq_info));
 
-	com_filesize = VFS_GETLEN(fp);
-
-	ri->maxpos = VFS_TELL(fp)+com_filesize;//no adds/subracts for fileoffset here
+	ri->maxpos = VFS_TELL(fp)+VFS_GETLEN(fp);//no adds/subracts for fileoffset here
 
 	ri->fp = fp;
 	if(roq_parse_file(fp, ri))

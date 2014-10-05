@@ -14,45 +14,26 @@ static texid_tf dummytex;
 
 static void Headless_Draw_Init(void)
 {
-	//we always return some valid texture. this avoids having to hit the disk for each and every possibility until it fails, thus 'loading' textures much faster (hurrah for findtexture always finding one).
-	static texcom_t dummytexinfo;
-	dummytexinfo.width = 64;
-	dummytexinfo.height = 64;
-	dummytex.ref = &dummytexinfo;
 	R2D_Init();
 }
 static void Headless_Draw_Shutdown(void)
 {
 	Shader_Shutdown();
 }
-static texid_tf Headless_IMG_LoadTexture		(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags)
-{
-	return dummytex;
-}
-static texid_tf Headless_IMG_LoadTexture8Pal24	(const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
-{
-	return dummytex;
-}
-static texid_tf Headless_IMG_LoadTexture8Pal32	(const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
-{
-	return dummytex;
-}
-static texid_tf Headless_IMG_LoadCompressed		(const char *name)
-{
-	return dummytex;
-}
-static texid_tf Headless_IMG_FindTexture		(const char *identifier, unsigned int flags)
-{
-	return dummytex;
-}
-static texid_tf Headless_IMG_AllocNewTexture	(const char *identifier, int w, int h, unsigned int flags)
-{
-	return dummytex;
-}
-static void    Headless_IMG_Upload				(texid_t tex, const char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags)
+static void		Headless_IMG_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
 {
 }
-static void    Headless_IMG_DestroyTexture		(texid_t tex)
+static qboolean	Headless_IMG_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips)
+{
+	int i;
+	for (i = 0; i < mips->mipcount; i++)
+		if (mips->mip[i].needfree)
+			Z_Free(mips->mip[i].data);
+	if (mips->extrafree)
+		Z_Free(mips->extrafree);
+	return true;
+}
+static void		Headless_IMG_DestroyTexture		(texid_t tex)
 {
 }
 static void	Headless_R_Init					(void)
@@ -64,13 +45,6 @@ static void	Headless_R_DeInit					(void)
 static void	Headless_R_RenderView				(void)
 {
 }
-static void	Headless_R_NewMap					(void)
-{
-}
-static void	Headless_R_PreNewMap				(void)
-{
-}
-
 #ifdef _WIN32
 //tray icon crap, so the user can still restore the game.
 LRESULT CALLBACK HeadlessWndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -202,7 +176,7 @@ static void Headless_BE_UploadAllLightmaps	(void)
 static void Headless_BE_SelectEntity	(struct entity_s *ent)
 {
 }
-static qboolean Headless_BE_SelectDLight	(struct dlight_s *dl, vec3_t colour, unsigned int lmode)
+static qboolean Headless_BE_SelectDLight	(struct dlight_s *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode)
 {
 	return false;
 }
@@ -237,19 +211,12 @@ rendererinfo_t headlessrenderer =
 
 	Headless_Draw_Init,
 	Headless_Draw_Shutdown,
-	Headless_IMG_LoadTexture,
-	Headless_IMG_LoadTexture8Pal24,
-	Headless_IMG_LoadTexture8Pal32,
-	Headless_IMG_LoadCompressed,
-	Headless_IMG_FindTexture,
-	Headless_IMG_AllocNewTexture,
-	Headless_IMG_Upload,
+	Headless_IMG_UpdateFiltering,
+	Headless_IMG_LoadTextureMips,
 	Headless_IMG_DestroyTexture,
 	Headless_R_Init,
 	Headless_R_DeInit,
 	Headless_R_RenderView,
-	Headless_R_NewMap,
-	Headless_R_PreNewMap,
 	Headless_VID_Init,
 	Headless_VID_DeInit,
 	Headless_VID_SwapBuffers,

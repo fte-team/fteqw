@@ -1243,6 +1243,8 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		SV_EmitDeltaEntIndex(msg, 0, true, true);
 		resendbits[outno] = UF_REMOVE;
 		resendnum[outno++] = 0;
+
+		client->pendingentbits[0] &= ~UF_REMOVE;
 	}
 	for(j = 1; j < client->sentents.num_entities; j++)
 	{
@@ -2695,7 +2697,7 @@ void SV_GibFilterInit(void)
 	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
 		return;
 
-	file = COM_LoadStackFile("gibfiltr.cfg", buffer, sizeof(buffer));
+	file = COM_LoadStackFile("gibfiltr.cfg", buffer, sizeof(buffer), NULL);
 	if (!file)
 	{
 		Con_DPrintf("gibfiltr.cfg file was not found. Using defaults\n");
@@ -3010,6 +3012,14 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 				state->hexen2flags = 0;
 			}
 		}
+		else if (progstype == PROG_UNKNOWN)
+		{
+			if (state->effects & 16)
+			{
+				state->effects &= ~16;
+				state->lightpflags |= PFLAGS_FULLDYNAMIC;
+			}
+		}
 		else
 		{
 			if (state->effects & NQEF_NODRAW)
@@ -3018,6 +3028,20 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 
 		if (state->number <= sv.allocated_client_slots) // clear only client ents
 			state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
+
+		if ((state->effects & EF_DIMLIGHT) && !(state->effects & (EF_RED|EF_BLUE)))
+		{
+			int it = ent->v->items;
+			state->effects &= ~EF_DIMLIGHT;
+			if ((it & (IT_INVULNERABILITY|IT_QUAD)) == (IT_INVULNERABILITY|IT_QUAD))
+				state->effects |= EF_RED|EF_BLUE;
+			else if (it & IT_INVULNERABILITY)
+				state->effects |= EF_RED;
+			else if (it & IT_QUAD)
+				state->effects |= EF_BLUE;
+			else
+				state->effects |= EF_DIMLIGHT;
+		}
 	}
 
 	if (!ent->xv->colormod[0] && !ent->xv->colormod[1] && !ent->xv->colormod[2])

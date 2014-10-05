@@ -99,7 +99,7 @@ struct msurface_s;
 void P_InitParticleSystem(void);
 void P_Shutdown(void);
 void P_LoadedModel(struct model_s *mod);	/*checks a model's various effects*/
-void P_DefaultTrail (struct model_s *model);
+void P_DefaultTrail (unsigned int modelflags, int *trailid, int *trailpalidx);
 void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);//this is just a wrapper
 
 #define P_FindParticleType pe->FindParticleType
@@ -129,7 +129,7 @@ typedef struct {
 	qboolean (*ParticleQuery) (int type, int body, char *outstr, int outstrlen);
 
 	int (*RunParticleEffectTypeString) (vec3_t org, vec3_t dir, float count, char *name);
-	int (*ParticleTrail) (vec3_t startpos, vec3_t end, int type, int dlkey, trailstate_t **tsk);
+	int (*ParticleTrail) (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t dlaxis[3], trailstate_t **tsk);
 	int (*RunParticleEffectState) (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk);
 	void (*RunParticleWeather) (vec3_t minb, vec3_t maxb, vec3_t dir, float count, int colour, char *efname);
 	void (*RunParticleCube) (int typenum, vec3_t minb, vec3_t maxb, vec3_t dir_min, vec3_t dir_max, float count, int colour, qboolean gravity, float jitter); //typenum may be P_INVALID

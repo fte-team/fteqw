@@ -1,9 +1,6 @@
 
 typedef struct
 {
-	texcom_t com;
-
-	char name[64];
 	int pwidth;
 	int pheight;
 	int pwidthmask;
@@ -42,6 +39,7 @@ typedef struct
 
 typedef struct
 {
+	int scoord[2];
 	vec4_t vcoord;
 	vec2_t tccoord;
 	vec2_t lmcoord;
@@ -158,14 +156,9 @@ void SW_VID_UpdateViewport(wqcom_t *com);
 
 
 
-texid_tf SW_LoadTexture(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
-texid_tf SW_LoadTexture8Pal24(const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-texid_tf SW_LoadTexture8Pal32(const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_tf SW_LoadCompressed(const char *name);
-texid_tf SW_FindTexture(const char *identifier, unsigned int flags);
-texid_tf SW_AllocNewTexture(const char *identifier, int w, int h, unsigned int flags);
-void SW_Upload(texid_t tex, const char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
-void SW_DestroyTexture(texid_t tex);
+void		SW_UpdateFiltering		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+qboolean	SW_LoadTextureMips		(texid_t tex, struct pendingtextureinfo *mips);
+void		SW_DestroyTexture		(texid_t tex);
 
 
 void SWBE_SelectMode(backendmode_t mode);
@@ -179,7 +172,7 @@ void SWBE_GenBrushModelVBO(struct model_s *mod);
 void SWBE_ClearVBO(struct vbo_s *vbo);
 void SWBE_UploadAllLightmaps(void);
 void SWBE_SelectEntity(struct entity_s *ent);
-qboolean SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour, unsigned int lmode);
+qboolean SWBE_SelectDLight(struct dlight_s *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
 qboolean SWBE_LightCullModel(vec3_t org, struct model_s *model);
 void SWBE_RenderToTextureUpdate2d(qboolean destchanged);
 void SWBE_Set2D(void);

@@ -497,6 +497,8 @@ qboolean CL_GetDemoMessage (void)
 			}
 			demoframe = host_framecount;
 		}
+		if (cls.signon < 4)
+			demtime = 0;
 		if (readdemobytes(&demopos, &msglength, 4) != 4)
 		{
 			return 0;
@@ -956,7 +958,7 @@ void CL_RecordMap_f (void)
 {
 	char demoname[MAX_QPATH];
 	char mapname[MAX_QPATH];
-	char *demoext;
+	char demoext[8];
 	Q_strncpyz(demoname, Cmd_Argv(1), sizeof(demoname));
 	Q_strncpyz(mapname, Cmd_Argv(2), sizeof(mapname));
 	CL_Disconnect_f();
@@ -964,7 +966,7 @@ void CL_RecordMap_f (void)
 	SV_SpawnServer (mapname, NULL, false, false);
 
 	COM_DefaultExtension(demoname, ".mvd", sizeof(demoname));
-	demoext = COM_FileExtension(demoname);
+	COM_FileExtension(demoname, demoext, sizeof(demoext));
 
 	if (!strcmp(demoext, "mvd"))
 	{

@@ -438,7 +438,6 @@ void M_Menu_Keys_f (void)
 {
 	int y;
 	menu_t *menu;
-	int mgt;
 	extern cvar_t cl_splitscreen, cl_forcesplitclient;
 	vfsfile_t *bindslist;
 
@@ -446,27 +445,27 @@ void M_Menu_Keys_f (void)
 	m_state = m_complex;
 
 	menu = M_CreateMenu(0);
-	mgt = M_GameType();
-#ifdef Q2CLIENT
-	if (mgt == MGT_QUAKE2)	//quake2 main menu.
+	switch(M_GameType())
 	{
+#ifdef Q2CLIENT
+	case MGT_QUAKE2:
+		//fixme: no art?
 		y = 48;
 		bindnames = q2bindnames;
-	}
-	else
+		break;
 #endif
-	if (mgt == MGT_HEXEN2)
-	{
+#ifdef HEXEN2
+	case MGT_HEXEN2:
 		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title6.lmp");
 		y = 64;
 		bindnames = h2bindnames;
-	}
-	else
-	{
+		break;
+#endif
+	default:
 		MC_AddCenterPicture(menu, 4, 24, "gfx/ttl_cstm.lmp");
 		y = 48;
-
 		bindnames = qwbindnames;
+		break;
 	}
 
 	if (cl_splitscreen.ival)
@@ -591,7 +590,11 @@ void M_Help_Draw (void)
 	int i;
 	mpic_t *pic = NULL;
 	for (i = 0; i < sizeof(helpstyles)/sizeof(helpstyles[0]) && !pic; i++)
+	{
 		pic = R2D_SafeCachePic(va(helpstyles[i].pattern, help_page+helpstyles[i].base));
+		if (R_GetShaderSizes(pic, NULL, NULL, true) <= 0)
+			pic = NULL;
+	}
 	if (!pic)
 		M_Menu_Main_f ();
 	else
@@ -1415,19 +1418,33 @@ int M_GameType (void)
 
 	if (FS_Restarted(&cachedrestarts))
 	{
-		int q1 = COM_FDepthFile("gfx/sp_menu.lmp", true);
-		int h2 = COM_FDepthFile("gfx/menu/title2.lmp", true);
-#if defined(Q2CLIENT)
-		int q2 = COM_FDepthFile("pics/m_banner_game.pcx", true);
-
-		if (q2 < h2 && q2 < q1)
-			cached = MGT_QUAKE2;
-		else
+		struct
+		{
+			int gametype;
+			char *path;
+		} configs[] =
+		{
+			{MGT_QUAKE1, "gfx/sp_menu.lmp"},
+#ifdef Q2CLIENT
+			{MGT_QUAKE2, "pics/m_banner_game.pcx"},
 #endif
-			if (h2 < q1)
-			cached = MGT_HEXEN2;
-		else
-			cached = MGT_QUAKE1;
+#ifdef HEXEN2
+			{MGT_HEXEN2, "gfx/menu/title2.lmp"},
+#endif
+			{0, NULL}
+		};
+		int bd = COM_FDepthFile(configs[0].path, true);
+		int i;
+		cached = configs[0].gametype;
+		for (i = 1; configs[i].path; i++)
+		{
+			int gd = COM_FDepthFile(configs[i].path, true);
+			if (bd > gd)
+			{
+				bd = gd;
+				cached = configs[i].gametype;
+			}
+		}
 	}
 
 	return cached;

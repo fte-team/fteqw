@@ -1475,7 +1475,7 @@ void SVHL_SpawnEntities(char *entstring)
 	for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 	{
 		sv.strings.model_precache[1+i] = localmodels[i];
-		sv.models[i+1] = Mod_ForName (localmodels[i], false);
+		sv.models[i+1] = Mod_ForName (Mod_FixName(localmodels[i], sv.modelname), false);
 	}
 
 	while (entstring)

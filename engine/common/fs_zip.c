@@ -264,13 +264,12 @@ typedef struct zipfile_s
 	unsigned int	numfiles;
 	zpackfile_t		*files;
 
-#ifdef HASH_FILESYSTEM
-	hashtable_t		hash;
-#endif
-
+	//info about the underlying file
+	void			*mutex;
 	qofs_t			curpos;	//cache position to avoid excess seeks
 	qofs_t			rawsize;
 	vfsfile_t		*raw;
+
 	int				references;	//number of files open inside, so things don't crash if is closed in the wrong order.
 } zipfile_t;
 
@@ -286,12 +285,18 @@ static void QDECL FSZIP_GetPathDetails(searchpathfuncs_t *handle, char *out, siz
 }
 static void QDECL FSZIP_ClosePath(searchpathfuncs_t *handle)
 {
+	qboolean stillopen;
 	zipfile_t *zip = (void*)handle;
 
-	if (--zip->references > 0)
-		return;	//not yet time
+	if (!Sys_LockMutex(zip->mutex))
+		return;	//ohnoes
+	stillopen = --zip->references > 0;
+	Sys_UnlockMutex(zip->mutex);
+	if (stillopen)
+		return;	//not free yet
 
 	VFS_CLOSE(zip->raw);
+	Sys_DestroyMutex(zip->mutex);
 	if (zip->files)
 		Z_Free(zip->files);
 	Z_Free(zip);
@@ -483,8 +488,14 @@ qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, qofs_t b
 			if (sz)
 			{
 				//feed it.
-				VFS_SEEK(st->source->raw, st->cofs);
-				st->strm.avail_in = VFS_READ(st->source->raw, st->inbuffer, sz);
+				if (Sys_LockMutex(st->source->mutex))
+				{
+					VFS_SEEK(st->source->raw, st->cofs);
+					st->strm.avail_in = VFS_READ(st->source->raw, st->inbuffer, sz);
+					Sys_UnlockMutex(st->source->mutex);
+				}
+				else
+					st->strm.avail_in = 0;
 				st->strm.next_in = st->inbuffer;
 				st->cofs += st->strm.avail_in;
 			}
@@ -532,13 +543,16 @@ static int QDECL VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int byt
 	{
 		read = FSZIP_Decompress_Read(vfsz->decompress, buffer, bytestoread);
 	}
-	else
+	else if (Sys_LockMutex(vfsz->parent->mutex))
 	{
 		VFS_SEEK(vfsz->parent->raw, vfsz->pos+vfsz->startpos);
 		if (vfsz->pos + bytestoread > vfsz->length)
 			bytestoread = max(0, vfsz->length - vfsz->pos);
 		read = VFS_READ(vfsz->parent->raw, buffer, bytestoread);
+		Sys_UnlockMutex(vfsz->parent->mutex);
 	}
+	else
+		read = 0;
 
 	vfsz->pos += read;
 	return read;
@@ -677,7 +691,18 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 		}
 	}
 
-	zip->references++;
+	if (Sys_LockMutex(zip->mutex))
+	{
+		zip->references++;
+		Sys_UnlockMutex(zip->mutex);
+	}
+	else
+	{
+		if (vfsz->decompress)
+			FSZIP_Decompress_Destroy(vfsz->decompress);
+		Z_Free(vfsz);
+		return NULL;
+	}
 
 	return (vfsfile_t*)vfsz;
 }
@@ -784,8 +809,12 @@ static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qo
 	qbyte localdata[SIZE_LOCALENTRY];
 	qofs_t localstart = zfile->localpos;
 
+	
+	if (!Sys_LockMutex(zip->mutex))
+		return false;	//ohnoes
 	VFS_SEEK(zip->raw, localstart);
 	VFS_READ(zip->raw, localdata, sizeof(localdata));
+	Sys_UnlockMutex(zip->mutex);
 
 	//make sure we found the right sort of table.
 	if (localdata[0] != 'P' ||
@@ -818,8 +847,11 @@ static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qo
 		unsigned short extrachunk_tag;
 		unsigned short extrachunk_len;
 
+		if (!Sys_LockMutex(zip->mutex))
+			return false;	//ohnoes
 		VFS_SEEK(zip->raw, localstart);
 		VFS_READ(zip->raw, extradata, sizeof(extradata));
+		Sys_UnlockMutex(zip->mutex);
 
 
 		while(extra+4 < extraend)
@@ -1278,6 +1310,7 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 	}
 
 	zip->references = 1;
+	zip->mutex = Sys_CreateMutex();
 
 //	Con_TPrintf ("Added zipfile %s (%i files)\n", desc, zip->numfiles);
 

@@ -22,7 +22,7 @@ typedef struct {
 
 typedef struct {
 	vfsfile_t *fp;
-	unsigned int maxpos;	//addition for pack files. all seeks add this, all tells subtract this.
+	qofs_t maxpos;	//addition for pack files. all seeks add this, all tells subtract this.
 	int buf_size;
 	unsigned char *buf;
 	roq_cell cells[256];

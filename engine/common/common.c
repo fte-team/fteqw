@@ -94,8 +94,9 @@ cvar_t	fs_gamemanifest = CVARFD("fs_gamemanifest", "", CVAR_NOSET, "A small upda
 cvar_t	com_protocolname = CVARD("com_gamename", "", "The game name used for dpmaster queries");
 cvar_t	com_modname = CVARD("com_modname", "", "dpmaster information");
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
+cvar_t	com_parseezquake = CVARD("com_parseezquake", "0", "Treat chevron chars from configs as a per-character flag. You should use this only for compat with nquake's configs.");
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
-cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger remote exploits in any engine (including "FULLENGINENAME"which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.\n");
+cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger remote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.\n");
 cvar_t	sys_platform = CVAR("sys_platform", PLATFORM);
 
 qboolean	com_modified;	// set true if using non-id files
@@ -367,6 +368,45 @@ int Q_strcasecmp (const char *s1, const char *s2)
 int QDECL Q_stricmp (const char *s1, const char *s2)
 {
 	return Q_strncasecmp (s1, s2, 99999);
+}
+
+char *Q_strcasestr(const char *haystack, const char *needle)
+{
+	int c1, c2, c2f;
+	int i;
+	c2f = *needle;
+	if (c2f >= 'a' && c2f <= 'z')
+		c2f -= ('a' - 'A');
+	if (!c2f)
+		return (char*)haystack;
+	while (1)
+	{
+		c1 = *haystack;
+		if (!c1)
+			return NULL;
+		if (c1 >= 'a' && c1 <= 'z')
+			c1 -= ('a' - 'A');
+		if (c1 == c2f)
+		{
+			for (i = 1; ; i++)
+			{
+				c1 = haystack[i];
+				c2 = needle[i];
+				if (c1 >= 'a' && c1 <= 'z')
+					c1 -= ('a' - 'A');
+				if (c2 >= 'a' && c2 <= 'z')
+					c2 -= ('a' - 'A');
+				if (!c2)
+					return (char*)haystack;	//end of needle means we found a complete match
+				if (!c1)	//end of haystack means we can't possibly find needle in it any more
+					return NULL;
+				if (c1 != c2)	//mismatch means no match starting at haystack[0]
+					break;
+			}
+		}
+		haystack++;
+	}
+	return NULL;	//didn't find it
 }
 
 int QDECL Q_vsnprintf(char *buffer, int size, const char *format, va_list argptr)
@@ -1719,14 +1759,13 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 
 //============================================================================
 
-char *COM_TrimString(char *str)
+char *COM_TrimString(char *str, char *buffer, int buffersize)
 {
 	int i;
-	static char buffer[256];
 	while (*str <= ' ' && *str>'\0')
 		str++;
 
-	for (i = 0; i < 255; i++)
+	for (i = 0; i < buffersize-1; i++)
 	{
 		if (*str <= ' ')
 			break;
@@ -1806,23 +1845,25 @@ void COM_StripAllExtensions (char *in, char *out, int outlen)
 COM_FileExtension
 ============
 */
-char *COM_FileExtension (const char *in)
+char *COM_FileExtension (const char *in, char *result, size_t sizeofresult)
 {
-	static char exten[8];
 	int		i;
 	const char *dot;
 
 	for (dot = in + strlen(in); dot >= in && *dot != '.'; dot--)
 		;
 	if (dot < in)
-		return "";
+	{
+		*result = 0;
+		return result;
+	}
 	in = dot;
 
 	in++;
-	for (i=0 ; i<7 && *in ; i++,in++)
-		exten[i] = *in;
-	exten[i] = 0;
-	return exten;
+	for (i=0 ; i<sizeofresult-1 && *in ; i++,in++)
+		result[i] = *in;
+	result[i] = 0;
+	return result;
 }
 
 //Quake 2's tank model has a borked skin (or two).
@@ -2880,13 +2921,19 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 	unsigned int uc;
 	int utf8 = com_parseutf8.ival;
 	conchar_t linkinitflags = CON_WHITEMASK;/*doesn't need the init, but msvc is stupid*/
-	qboolean keepmarkup = flags & PFS_KEEPMARKUP;
+	qboolean keepmarkup = !!(flags & PFS_KEEPMARKUP);
 	qboolean linkkeep = keepmarkup;
+	qboolean ezquakemess = false;
 	conchar_t *linkstart = NULL;
 
 	conchar_t ext;
 	conchar_t *oldout = out;
 
+	if (flags & PFS_EZQUAKEMARKUP)
+	{
+		ezquakemess = true;
+		utf8 = 0;
+	}
 	if (flags & PFS_FORCEUTF8)
 		utf8 = 2;
 
@@ -2936,7 +2983,14 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				continue;
 			}
 		}
-		if (*str == '^' && !(flags & PFS_NOMARKUP))
+		if (ezquakemess && *str == '^')
+		{
+			str++;
+			uc = (unsigned char)(*str++);
+			*out++ = (uc | ext) ^ CON_2NDCHARSETTEXT;
+			continue;
+		}
+		else if (*str == '^' && !(flags & PFS_NOMARKUP))
 		{
 			if (str[1] >= '0' && str[1] <= '9')
 			{
@@ -3366,6 +3420,9 @@ char *COM_Parse (const char *data)
 	int		c;
 	int		len;
 
+	if (out == com_token)
+		COM_AssertMainThread("COM_ParseOut: com_token");
+
 	len = 0;
 	com_token[0] = 0;
 
@@ -3431,13 +3488,16 @@ skipwhite:
 #endif
 
 //semi-colon delimited tokens
-char *COM_ParseStringSet (const char *data)
+char *COM_ParseStringSet (const char *data, char *out, size_t outsize)
 {
 	int	c;
 	int	len;
 
+	if (out == com_token)
+		COM_AssertMainThread("COM_ParseOut: com_token");
+
 	len = 0;
-	com_token[0] = 0;
+	out[0] = 0;
 
 	if (!data)
 		return NULL;
@@ -3453,19 +3513,19 @@ char *COM_ParseStringSet (const char *data)
 // parse a regular word
 	do
 	{
-		if (len >= TOKENSIZE-1)
+		if (len >= outsize-1)
 		{
-			com_token[len] = 0;
+			out[len] = 0;
 			return (char*)data;
 		}
 
-		com_token[len] = c;
+		out[len] = c;
 		data++;
 		len++;
 		c = *(unsigned char*)data;
 	} while (c>32 && c != ';');
 
-	com_token[len] = 0;
+	out[len] = 0;
 	return (char*)data;
 }
 
@@ -3474,6 +3534,9 @@ char *COM_ParseOut (const char *data, char *out, int outlen)
 {
 	int		c;
 	int		len;
+
+	if (out == com_token)
+		COM_AssertMainThread("COM_ParseOut: com_token");
 
 	len = 0;
 	out[0] = 0;
@@ -3568,6 +3631,9 @@ char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qbo
 
 	len = 0;
 	token[0] = 0;
+
+	if (token == com_token)
+		COM_AssertMainThread("COM_ParseOut: com_token");
 
 	if (!data)
 		return NULL;
@@ -3774,6 +3840,8 @@ char *COM_ParseToken (const char *data, const char *punctuation)
 	if (!punctuation)
 		punctuation = DEFAULT_PUNCTUATION;
 
+	COM_AssertMainThread("COM_ParseOut: com_token");
+
 	len = 0;
 	com_token[0] = 0;
 
@@ -3953,6 +4021,9 @@ char *COM_ParseCString (const char *data, char *token, size_t sizeoftoken, size_
 	len = 0;
 	token[0] = 0;
 
+	if (token == com_token)
+		COM_AssertMainThread("COM_ParseCString: com_token");
+
 	if (lengthwritten)
 		*lengthwritten = 0;
 
@@ -4103,7 +4174,7 @@ functions may use the cvar before anything's loaded.
 This isn't really needed, but might make some thing nicer.
 ===============
 */
-void COM_ParsePlusSets (void)
+void COM_ParsePlusSets (qboolean docbuf)
 {
 	int i;
 	for (i=1 ; i<com_argc-2 ; i++)
@@ -4120,10 +4191,25 @@ void COM_ParsePlusSets (void)
 		if (*com_argv[i+2] == '-' || *com_argv[i+2] == '+')
 			continue;	//erm
 
-		if (!strcmp(com_argv[i], "+set"))
-			Cvar_Get(com_argv[i+1], com_argv[i+2], 0, "Cvars set on commandline");
-		else if (!strcmp(com_argv[i], "+seta"))
-			Cvar_Get(com_argv[i+1], com_argv[i+2], CVAR_ARCHIVE, "Cvars set on commandline");
+		if (docbuf)
+		{
+			if (!strcmp(com_argv[i], "+set") || !strcmp(com_argv[i], "+seta"))
+			{
+				Cbuf_AddText(com_argv[i]+1, RESTRICT_LOCAL);
+				Cbuf_AddText(" ", RESTRICT_LOCAL);
+				Cbuf_AddText(com_argv[i+1], RESTRICT_LOCAL);
+				Cbuf_AddText(" ", RESTRICT_LOCAL);
+				Cbuf_AddText(com_argv[i+2], RESTRICT_LOCAL);
+				Cbuf_AddText("\n", RESTRICT_LOCAL);
+			}
+		}
+		else
+		{
+			if (!strcmp(com_argv[i], "+set"))
+				Cvar_Get(com_argv[i+1], com_argv[i+2], 0, "Cvars set on commandline");
+			else if (!strcmp(com_argv[i], "+seta"))
+				Cvar_Get(com_argv[i+1], com_argv[i+2], CVAR_ARCHIVE, "Cvars set on commandline");
+		}
 		i+=2;
 	}
 }
@@ -4299,16 +4385,28 @@ void COM_Version_f (void)
 #endif
 #ifdef SERVERONLY
 	Con_Printf("dedicated server build\n");
-#endif
-
+#else
+	Con_Printf("Renderers:");
 #ifdef GLQUAKE
-	Con_Printf("OpenGL available\n");
+#ifdef GLESONLY
+	Con_Printf(" OpenGLES");
+#else
+	Con_Printf(" OpenGL");
+#endif
+#ifdef GLSLONLY
+	Con_Printf("(GLSL)");
+#endif
 #endif
 #ifdef D3D9QUAKE
-	Con_Printf("Direct3D9 available\n");
+	Con_Printf(" Direct3D9");
 #endif
 #ifdef D3D11QUAKE
-	Con_Printf("Direct3D11 available\n");
+	Con_Printf(" Direct3D11");
+#endif
+#ifdef SWQUAKE
+	Con_Printf(" Software");
+#endif
+	Con_Printf("\n");
 #endif
 
 #ifdef QCJIT
@@ -4405,7 +4503,11 @@ void COM_Version_f (void)
 #endif
 
 #ifdef MULTITHREAD
-	Con_Printf("multithreading: enabled\n");
+#ifdef LOADERTHREAD
+	Con_Printf("multithreading: enabled (loader enabled)\n");
+#else
+	Con_Printf("multithreading: enabled (no loader)\n");
+#endif
 #else
 	Con_Printf("multithreading: disabled\n");
 #endif
@@ -4418,9 +4520,8 @@ void COM_Version_f (void)
 #endif
 
 
-
-	//but print client ones only if we're not dedicated
 #ifndef SERVERONLY
+	//but print client ones only if we're not dedicated
 #ifndef AVAIL_PNGLIB
 	Con_Printf("libpng disabled\n");
 #else
@@ -4431,46 +4532,79 @@ void COM_Version_f (void)
 #else
 	Con_Printf("libjpeg: %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
 #endif
-#ifdef SPEEX_STATIC
-	Con_Printf("speex: static\n");
-#elif defined(VOICECHAT)
-	Con_Printf("speex: dynamic\n");
+
+	Con_Printf("VoiceChat:");
+#if !defined(VOICECHAT)
+	Con_Printf(" disabled");
 #else
-	Con_Printf("speex: disabled\n");
+	#ifdef SPEEX_STATIC
+		Con_Printf(" speex(static)");
+	#else
+		Con_Printf(" speex(dynamic)");
+	#endif
+	#ifdef OPUS_STATIC
+		Con_Printf(" opus(static)");
+	#else
+		Con_Printf(" opus(dynamic)");
+	#endif
 #endif
-#ifdef ODE_STATIC
-	Con_Printf("ODE: static\n");
-#elif defined(USEODE)
-	Con_Printf("ODE: dynamic\n");
-#else
-	Con_Printf("ODE: disabled\n");
-#endif
+	Con_Printf("\n");
+
+	Con_Printf("Audio Decoders:");
 #ifndef AVAIL_OGGVORBIS
-	Con_Printf("Ogg Vorbis: disabled\n");
+	Con_Printf(" ^h(disabled: Ogg Vorbis)^7");
 #elif defined(LIBVORBISFILE_STATIC)
-	Con_Printf("Ogg Vorbis: static\n");
+	Con_Printf(" Ogg Vorbis(static)");
 #else
-	Con_Printf("Ogg Vorbis: dynamic\n");
+	Con_Printf(" Ogg Vorbis(dynamic)");
 #endif
-#ifdef USE_MYSQL
-	Con_Printf("mySQL: dynamic\n");
+#if defined(_WIN32) && !defined(WINRT) && !defined(NOMEDIA)
+	Con_Printf(" mp3(system)");
+#endif
+	Con_Printf("\n");
+#endif
+
+#ifdef SQL
+	Con_Printf("Databases:");
+	#ifdef USE_MYSQL
+		Con_Printf(" mySQL(dynamic)");
+	#else
+		Con_Printf(" ^h(disabled: mySQL)^7");
+	#endif
+	#ifdef USE_SQLITE
+		Con_Printf(" sqlite(dynamic)");
+	#else
+		Con_Printf(" ^h(disabled: sqlite)^7");
+	#endif
+	Con_Printf("\n");
+#endif
+
+	Con_Printf("Misc:");
+#ifdef ODE_STATIC
+	Con_Printf(" ODE(static)");
+#elif defined(USEODE)
+	Con_Printf(" ODE(dynamic)");
 #else
-	Con_Printf("mySQL: disabled\n");
+	Con_Printf(" ^h(disabled: ODE)^7");
 #endif
-#ifdef USE_SQLITE
-	Con_Printf("sqlite: dynamic\n");
+#ifdef SUBSERVERS
+	Con_Printf(" mapcluster(enabled)");
 #else
-	Con_Printf("sqlite: disabled\n");
+	Con_Printf(" ^h(disabled: mapcluster)^7");
 #endif
-#ifndef AVAIL_OGGVORBIS
-	Con_Printf("libvorbis disabled\n");
+#ifndef SERVERONLY
+#ifdef AVAIL_FREETYPE
+	Con_Printf(" freetype2");
+#else
+	Con_Printf(" ^h(disabled: freetype2)^7");
 #endif
-#ifndef AVAIL_FREETYPE
-	Con_Printf("freetype2 disabled\n");
+#ifdef AVAIL_OPENAL
+	Con_Printf(" openal");
+#else
+	Con_Printf(" ^h(disabled: openal)^7");
 #endif
-#ifndef AVAIL_OPENAL
-	Con_Printf("openal disabled\n");
 #endif
+	Con_Printf("\n");
 
 #ifdef _WIN32
 	#ifndef AVAIL_DINPUT
@@ -4486,7 +4620,56 @@ void COM_Version_f (void)
 		Con_Printf("DirectDraw disabled\n");
 	#endif
 #endif
+
+	Con_Printf("Games:");
+#if defined(Q3SERVER) && defined(Q3CLIENT)
+	Con_Printf(" Quake3");
+#elif defined(Q3SERVER)
+	Con_Printf(" Quake3(server)");
+#elif defined(Q3CLIENT)
+	Con_Printf(" Quake3(client)");
+#elif defined(Q3BSPS)
+	Con_Printf(" Quake3(bsp only)");
+#else
+	Con_Printf(" ^h(disabled: Quake3)^7");
 #endif
+#if defined(Q2SERVER) && defined(Q2CLIENT)
+	Con_Printf(" Quake2");
+#elif defined(Q2SERVER)
+	Con_Printf(" Quake2(server)");
+#elif defined(Q2CLIENT)
+	Con_Printf(" Quake2(client)");
+#elif defined(Q2BSPS)
+	Con_Printf(" Quake2(bsp only)");
+#else
+	Con_Printf(" ^h(disabled: Quake2)^7");
+#endif
+#if defined(HEXEN2)
+	Con_Printf(" Hexen2");
+#else
+	Con_Printf(" ^h(disabled: Hexen2)^7");
+#endif
+#if defined(NQPROT)
+	Con_Printf(" NetQuake");
+#else
+	Con_Printf(" ^h(disabled: NetQuake)");
+#endif
+#if defined(VM_Q1)
+	Con_Printf(" ssq1qvm");
+#endif
+#if defined(VM_LUA)
+	Con_Printf(" ssq1lua(dynamic)");
+#endif
+#if defined(MENU_DAT)
+	Con_Printf(" menuqc");
+#endif
+#if defined(CSQC_DAT)
+	Con_Printf(" csqc");
+#endif
+#ifndef CLIENTONLY
+	Con_Printf(" ssqc");
+#endif
+	Con_Printf("\n");
 }
 
 void COM_CrashMe_f(void)
@@ -4500,6 +4683,325 @@ void COM_ErrorMe_f(void)
 {
 	Sys_Error("\"errorme\" command used");
 }
+
+
+
+#ifdef LOADERTHREAD
+/*multithreading worker thread stuff*/
+static void *com_workercondition[2];
+static qboolean com_workerdone[2];
+static void *com_workerthread;
+static unsigned int mainthreadid;
+qboolean com_fatalerror;
+static struct com_work_s
+{
+	struct com_work_s *next;
+	void(*func)(void *ctx, void *data, size_t a, size_t b);
+	void *ctx;
+	void *data;
+	size_t a;
+	size_t b;
+} *com_work_head[2], *com_work_tail[2];
+static void Sys_ErrorThread(void *ctx, void *data, size_t a, size_t b)
+{
+	Sys_Error(data);
+}
+void COM_WorkerAbort(char *message)
+{
+	struct com_work_s work;
+	com_fatalerror = true;
+	if (Sys_IsThread(NULL))
+		return;
+
+	work.func = Sys_ErrorThread;
+	work.ctx = NULL;
+	work.data = message;
+	work.a = 0;
+	work.b = 0;
+
+	Sys_LockConditional(com_workercondition[0]);
+	if (com_work_tail[0])
+	{
+		com_work_tail[0]->next = &work;
+		com_work_tail[0] = &work;
+	}
+	else
+		com_work_head[0] = com_work_tail[0] = &work;
+	Sys_ConditionSignal(com_workercondition[0]);
+	Sys_UnlockConditional(com_workercondition[0]);
+
+	while(com_fatalerror)
+		Sys_Sleep(0.1);
+	Sys_ThreadAbort();
+}
+//return if there's *any* loading that needs to be done anywhere.
+qboolean COM_HasWork(void)
+{
+	return com_work_head[0] || com_work_head[1];
+}
+//thread==0 is main thread, thread==1 is a worker thread
+void COM_AddWork(int thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
+{
+	//build the work
+	struct com_work_s *work = Z_Malloc(sizeof(*work));
+	work->func = func;
+	work->ctx = ctx;
+	work->data = data;
+	work->a = a;
+	work->b = b;
+
+	if (!com_workerthread || com_fatalerror)
+		thread = 0;
+
+	//queue it (fifo)
+	Sys_LockConditional(com_workercondition[thread]);
+	if (com_work_tail[thread])
+	{
+		com_work_tail[thread]->next = work;
+		com_work_tail[thread] = work;
+	}
+	else
+		com_work_head[thread] = com_work_tail[thread] = work;
+
+//	Sys_Printf("%x: Queued work %p (%s)\n", thread, work->ctx, work->ctx?(char*)work->ctx:"?");
+
+	Sys_ConditionSignal(com_workercondition[thread]);
+	Sys_UnlockConditional(com_workercondition[thread]);
+
+	if (!com_workerthread)
+		while(COM_DoWork(0, false))
+			;
+}
+//leavelocked = false == poll mode.
+//leavelocked = true == safe sleeping
+qboolean COM_DoWork(int thread, qboolean leavelocked)
+{
+	struct com_work_s *work;
+	if (!leavelocked)
+	{
+		//skip the locks if it looks like we can be lazy.
+		if (!com_work_head[thread])
+			return false;
+		Sys_LockConditional(com_workercondition[thread]);
+	}
+	work = com_work_head[thread];
+	if (work)
+		com_work_head[thread] = work->next;
+	if (!com_work_head[thread])
+		com_work_head[thread] = com_work_tail[thread] = NULL;
+
+	if (work)
+	{
+//		Sys_Printf("%x: Doing work %p (%s)\n", thread, work->ctx, work->ctx?(char*)work->ctx:"?");
+		Sys_UnlockConditional(com_workercondition[thread]);
+
+		work->func(work->ctx, work->data, work->a, work->b);
+		Z_Free(work);
+
+		if (leavelocked)
+			Sys_LockConditional(com_workercondition[thread]);
+
+		return true;	//did something, check again
+	}
+
+	if (!leavelocked)
+		Sys_UnlockConditional(com_workercondition[thread]);
+
+	//nothing going on, if leavelocked then noone can add anything until we sleep.
+	return false;
+}
+static int COM_WorkerThread(void *arg)
+{
+	int thread = *(int*)arg;
+	Sys_LockConditional(com_workercondition[thread]);
+	do
+	{
+		while(COM_DoWork(thread, true))
+			;
+		if (com_workerdone[thread])
+			break;
+	} while (Sys_ConditionWait(com_workercondition[thread]));
+	Sys_UnlockConditional(com_workercondition[thread]);
+	return 0;
+}
+static void COM_WorkerSync_Stop(void *ctx, void *data, size_t a, size_t b)
+{
+	Sys_LockConditional(com_workercondition[a]);
+	com_workerdone[a] = true;
+	Sys_ConditionSignal(com_workercondition[a]);
+	Sys_UnlockConditional(com_workercondition[a]);
+}
+#ifndef COM_AssertMainThread
+void COM_AssertMainThread(const char *msg)
+{
+	if (com_resourcemutex && !Sys_IsThread(NULL))
+	{
+		Sys_Error("Not on main thread: %s", msg);
+	}
+}
+#endif
+void COM_DestroyWorkerThread(void)
+{
+	com_fatalerror = false;
+	if (com_workerthread)
+	{
+		//send it the terminate message
+		COM_AddWork(1, COM_WorkerSync_Stop, NULL, NULL, 1, 0);
+		Sys_WaitOnThread(com_workerthread);
+		com_workerthread = NULL;
+	}
+
+	if (com_workercondition[0])
+		Sys_DestroyConditional(com_workercondition[0]);
+	com_workercondition[0] = NULL;
+
+	if (com_workercondition[1])
+		Sys_DestroyConditional(com_workercondition[1]);
+	com_workercondition[1] = NULL;
+
+	if (com_resourcemutex)
+		Sys_DestroyMutex(com_resourcemutex);
+	com_resourcemutex = NULL;
+}
+
+//partial means we're waiting for an explicit response. the caller will need to check when that response arrives.
+void COM_WorkerFullSync(void)
+{
+	qboolean repeat;
+	if (!com_workerthread)
+		return;
+
+	//main thread asks worker thread to set main thread's 'done' flag.
+	//the worker might be posting work to the main thread and back (shaders with texures) so make sure that the only work we do before the reply is the reply itself.
+	do
+	{
+		int cmds = 0;
+		com_workerdone[0] = false;
+		repeat = COM_HasWork();
+		COM_AddWork(1, COM_WorkerSync_Stop, NULL, NULL, 0, 0);
+		Sys_LockConditional(com_workercondition[0]);
+		do
+		{
+			if (com_fatalerror)
+				break;
+			while(COM_DoWork(0, true))
+				cmds++;
+			if (com_workerdone[0])
+				break;
+		} while (Sys_ConditionWait(com_workercondition[0]));
+		Sys_UnlockConditional(com_workercondition[0]);
+		if (com_fatalerror)
+			break;
+		if (cmds > 1)
+			repeat = true;
+	} while (COM_DoWork(0, false) || repeat);	//outer loop ensures there isn't anything pingponging between
+}
+//main thread wants a specific object to be prioritised.
+//an ancestor of the work must be pending on either the main thread or the worker thread.
+//typically the worker gives us a signal to handle the final activation of the object.
+//the address should be the load status. the value is the current value.
+//the work that we're waiting for will be considered complete when the address is no longer set to value.
+void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
+{
+	struct com_work_s **link, *work, *prev;
+	double time1 = Sys_DoubleTime();
+	int thread = 1;
+
+//	Con_Printf("waiting for %p %s\n", priorityctx, priorityctx);
+
+	//boost the priority of the object that we're waiting for on the other thread, if we can find it.
+	//this avoids waiting for everything.
+	//if we can't find it, then its probably currently being processed anyway.
+	//main thread is meant to do all loadstate value changes anyway, ensuring that we're woken up properly in this case.
+	if (priorityctx)
+	{
+		qboolean found = false;
+		Sys_LockConditional(com_workercondition[thread]);
+		for (link = &com_work_head[thread], work = NULL; *link; link = &(*link)->next)
+		{
+			prev = work;
+			work = *link;
+			if (work->ctx == priorityctx)
+			{	//unlink it
+
+				*link = work->next;
+				if (!work->next)
+					com_work_tail[thread] = prev;
+				//link it in at the head, so its the next thing seen.
+				work->next = com_work_head[thread];
+				com_work_head[thread] = work;
+				if (!work->next)
+					com_work_tail[thread] = work;
+				found = true;
+
+				break;	//found it, nothing else to do.
+			}
+		}
+		if (!found)
+			Con_DPrintf("Might be in for a long wait for %s\n", priorityctx);
+		//we've not actually added any work, so no need to signal
+		Sys_UnlockConditional(com_workercondition[thread]);
+	}
+
+	Sys_LockConditional(com_workercondition[0]);
+	do
+	{
+		if (com_fatalerror)
+			break;
+		while(COM_DoWork(0, true))
+		{
+			//give up as soon as we're done
+			if (*address != value)
+				break;
+		}
+		//if our object's state has changed, we're done
+		if (*address != value)
+			break;
+	} while (Sys_ConditionWait(com_workercondition[0]));
+	Sys_UnlockConditional(com_workercondition[0]);
+
+//	Con_Printf("Waited %f for %s\n", Sys_DoubleTime() - time1, priorityctx);
+}
+
+static void COM_WorkerPing(void *ctx, void *data, size_t a, size_t b)
+{
+	double *timestamp = data;
+	if (!b)
+		COM_AddWork(0, COM_WorkerPing, ctx, data	, 0, 1);
+	else
+	{
+		Con_Printf("Ping: %g\n", Sys_DoubleTime() - *timestamp);
+	}
+}
+static void COM_WorkerTest_f(void)
+{
+	if (com_workerthread)
+	{
+		double *timestamp = Z_Malloc(sizeof(*timestamp));
+		*timestamp = Sys_DoubleTime();
+		COM_AddWork(1, COM_WorkerPing, NULL, timestamp, 0, 0);
+	}
+	else
+		Con_Printf("Worker is not active.\n");
+}
+
+
+cvar_t worker_flush = CVARD("worker_flush", "1", "Is set, process the entire load queue, loading stuff faster but at the risk of stalling.");
+static void COM_InitWorkerThread(void)
+{
+	static int tid = 1;
+
+	//in theory, we could run multiple workers, signalling a different one in turn for each bit of work.
+	com_resourcemutex = Sys_CreateMutex();
+	com_workercondition[0] = Sys_CreateConditional();
+	com_workercondition[1] = Sys_CreateConditional();
+	if (!COM_CheckParm("-noworker"))
+		com_workerthread = Sys_CreateThread("loadworker", COM_WorkerThread, &tid, 0, 256*1024);
+
+	Cmd_AddCommand ("worker_test", COM_WorkerTest_f);
+	Cvar_Register(&worker_flush, NULL);
+}
+#endif
 
 /*
 ================
@@ -4532,6 +5034,13 @@ void COM_Init (void)
 		LittleFloat = FloatSwap;
 	}
 
+#ifdef MULTITHREAD
+	Sys_ThreadsInit();
+#endif
+#ifdef LOADERTHREAD
+	COM_InitWorkerThread();
+#endif
+
 	Cmd_AddCommand ("path", COM_Path_f);		//prints a list of current search paths.
 	Cmd_AddCommand ("dir", COM_Dir_f);			//q3 like
 	Cmd_AddCommand ("flocate", COM_Locate_f);	//prints the pak or whatever where this file can be found.
@@ -4548,6 +5057,7 @@ void COM_Init (void)
 	Cvar_Register (&gameversion_max, "Gamecode");
 	Cvar_Register (&com_nogamedirnativecode, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
+	Cvar_Register (&com_parseezquake, NULL);
 	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;
 
@@ -4584,6 +5094,8 @@ char	*VARGS va(const char *format, ...)
 	va_list		argptr;
 	static char		string[VA_BUFFERS][1024];
 	static int bufnum;
+
+	COM_AssertMainThread("va");
 
 	bufnum++;
 	bufnum &= (VA_BUFFERS-1);
@@ -4843,6 +5355,8 @@ char *Info_ValueForKey (const char *s, const char *key)
 								// work without stomping on each other
 	static	int	valueindex;
 	char	*o;
+
+	COM_AssertMainThread("Info_ValueForKey");
 
 	valueindex = (valueindex + 1) % 4;
 	if (*s == '\\')

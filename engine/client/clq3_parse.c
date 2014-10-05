@@ -515,7 +515,6 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 #ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", value, MAX_SERVERINFO_STRING);
 #endif
-		COM_FlushFSCache();
 	}
 
 	rc = Info_ValueForKey(str, "sv_referencedPaks");	//the ones that we should download.
@@ -612,7 +611,7 @@ void CLQ3_ParseGameState(void)
 		Host_EndGame("CGame didn't set a map.\n");
 
 	cl.model_precaches_added = false;
-	R_NewMap ();
+	Surf_NewMap ();
 
 	SCR_EndLoadingPlaque();
 

@@ -36,12 +36,7 @@ extern int gl_anisotropy_factor;
 // callbacks used for cvars
 void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
 void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
-#if defined(GLQUAKE)
-void GL_Mipcap_Callback (struct cvar_s *var, char *oldvalue);
-void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue);
-void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue);
-void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
-#endif
+void Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
 
 cvar_t vid_vsync							= CVARAF  ("vid_wait", "0",
 													   "vid_vsync", CVAR_ARCHIVE);
@@ -325,23 +320,22 @@ cvar_t	gl_maxdist							= CVARD	("gl_maxdist", "8192", "The distance of the far 
 #ifdef SPECULAR
 cvar_t gl_specular							= CVARF  ("gl_specular", "1", CVAR_ARCHIVE);
 cvar_t gl_specular_fallback					= CVARF  ("gl_specular_fallback", "0.05", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
+cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 #endif
 
 // The callbacks are not in D3D yet (also ugly way of seperating this)
-#ifdef GLQUAKE
 cvar_t gl_texture_anisotropic_filtering		= CVARFC("gl_texture_anisotropic_filtering", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
-												GL_Texture_Anisotropic_Filtering_Callback);
-cvar_t gl_texturemode						= CVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST",
+												Image_TextureMode_Callback);
+cvar_t gl_texturemode						= CVARFDC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK | CVAR_SAVE,
-												GL_Texturemode_Callback);
+												"Specifies how world/model textures appear. Typically 3 letters eg lln.\nFirst letter can be l(inear) or n(earest) and says how to sample from the mip (when downsampling).\nThe middle letter can . to disable mipmaps, or l or n to describe whether to blend between mipmaps.\nThe third letter says what to do when the texture is too low resolution and is thus the most noticable with low resolution textures, a n will make it look like lego, while an l will keep it smooth.", Image_TextureMode_Callback);
 cvar_t gl_mipcap							= CVARFC("d_mipcap", "0 1000",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
-												GL_Mipcap_Callback);
-cvar_t gl_texturemode2d						= CVARFC("gl_texturemode2d", "GL_LINEAR",
+												Image_TextureMode_Callback);
+cvar_t gl_texturemode2d						= CVARFDC("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
-												GL_Texturemode2d_Callback);
-#endif
+												"Specifies how 2d images are sampled. format is a 3-tupple ", Image_TextureMode_Callback);
 
 cvar_t vid_triplebuffer						= CVARAFD ("vid_triplebuffer", "1", "gl_triplebuffer", CVAR_ARCHIVE, "Specifies whether the hardware is forcing tripplebuffering on us, this is the number of extra page swaps required before old data has been completely overwritten.");
 
@@ -453,10 +447,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_picmip2d, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_shaderblobs, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_savecompressedtex, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);
 //	Cvar_Register (&gl_detail, GRAPHICALNICETIES);
@@ -640,6 +630,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_flashblendscale, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular_fallback, GRAPHICALNICETIES);
+	Cvar_Register (&gl_specular_fallbackexp, GRAPHICALNICETIES);
 
 	Sh_RegisterCvars();
 
@@ -715,6 +706,10 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_miptexLevel, GRAPHICALNICETIES);
+	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
 
@@ -776,9 +771,6 @@ void	(*R_Init)					(void);
 void	(*R_DeInit)					(void);
 void	(*R_RenderView)				(void);		// must set r_refdef first
 
-void	(*R_NewMap)					(void);
-void	(*R_PreNewMap)				(void);
-
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (*VID_DeInit)				(void);
 char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
@@ -805,21 +797,13 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//Draw_Init;
 	NULL,	//Draw_Shutdown;
 
-	NULL,	//R_LoadTexture
-	NULL,	//R_LoadTexture8Pal24
-	NULL,	//R_LoadTexture8Pal32
-	NULL,	//R_LoadCompressed
-	NULL,	//R_FindTexture
-	NULL,	//R_AllocNewTexture
-	NULL,	//R_Upload
-	NULL,	//R_DestroyTexture
+	NULL,	//IMG_UpdateFiltering
+	NULL,	//IMG_LoadTextureMips
+	NULL,	//IMG_DestroyTexture
 
 	NULL,	//R_Init;
 	NULL,	//R_DeInit;
 	NULL,	//R_RenderView;
-
-	NULL,	//R_NewMap;
-	NULL,	//R_PreNewMap
 
 	NULL, //VID_Init,
 	NULL, //VID_DeInit,
@@ -915,8 +899,6 @@ void R_SetRenderer(rendererinfo_t *ri)
 	R_Init					= ri->R_Init;
 	R_DeInit				= ri->R_DeInit;
 	R_RenderView			= ri->R_RenderView;
-	R_NewMap				= ri->R_NewMap;
-	R_PreNewMap				= ri->R_PreNewMap;
 
 	VID_Init				= ri->VID_Init;
 	VID_DeInit				= ri->VID_DeInit;
@@ -951,6 +933,9 @@ void D3DSucks(void)
 
 void R_ShutdownRenderer(qboolean videotoo)
 {
+	//make sure the worker isn't still loading stuff
+	COM_WorkerFullSync();
+
 	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
 
 	P_Shutdown();
@@ -1010,12 +995,17 @@ void R_GenPaletteLookup(void)
 
 qboolean R_ApplyRenderer (rendererstate_t *newr)
 {
+	double time;
 	if (newr->bpp == -1)
 		return false;
 	if (!newr->renderer)
 		return false;
 
+	time = Sys_DoubleTime();
+	M_Shutdown(false);
+	Media_CaptureDemoEnd();
 	R_ShutdownRenderer(true);
+	Con_DPrintf("video shutdown took %f seconds\n", Sys_DoubleTime() - time);
 
 	if (qrenderer == QR_NONE)
 	{
@@ -1025,17 +1015,19 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		Sys_CloseTerminal ();
 	}
 
+	time = Sys_DoubleTime();
 	R_SetRenderer(newr->renderer);
+	Con_DPrintf("video startup took %f seconds\n", Sys_DoubleTime() - time);
 
 	return R_ApplyRenderer_Load(newr);
 }
 qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 {
 	int i, j;
-	extern model_t *loadmodel;
+	double start = Sys_DoubleTime();
 
 	Cache_Flush();
-	COM_FlushFSCache();	//make sure the fs cache is built if needed. there's lots of loading here.
+	COM_FlushFSCache(false, true);	//make sure the fs cache is built if needed. there's lots of loading here.
 
 	TRACE(("dbg: R_ApplyRenderer: old renderer closed\n"));
 
@@ -1043,6 +1035,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 	if (qrenderer != QR_NONE)	//graphics stuff only when not dedicated
 	{
+		size_t sz;
 		qbyte *data;
 #ifndef CLIENTONLY
 		isDedicated = false;
@@ -1052,15 +1045,17 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 		if (host_basepal)
 			BZ_Free(host_basepal);
-		host_basepal = (qbyte *)FS_LoadMallocFile ("gfx/palette.lmp");
+		host_basepal = (qbyte *)FS_LoadMallocFile ("gfx/palette.lmp", &sz);
 		if (!host_basepal)
-			host_basepal = (qbyte *)FS_LoadMallocFile ("wad/playpal");
-		if (!host_basepal)
+			host_basepal = (qbyte *)FS_LoadMallocFile ("wad/playpal", &sz);
+		if (!host_basepal || sz != 768)
 		{
 			qbyte *pcx=NULL;
+			if (host_basepal)
+				Z_Free(host_basepal);
 			host_basepal = BZ_Malloc(768);
-			pcx = COM_LoadTempFile("pics/colormap.pcx");
-			if (!pcx || !ReadPCXPalette(pcx, com_filesize, host_basepal))
+			pcx = COM_LoadTempFile("pics/colormap.pcx", &sz);
+			if (!pcx || !ReadPCXPalette(pcx, sz, host_basepal))
 			{
 				memcpy(host_basepal, default_quakepal, 768);
 			}
@@ -1072,7 +1067,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		}
 
 		{
-			qbyte *colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp");
+			qbyte *colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", NULL);
 			if (!colormap)
 			{
 				vid.fullbright=0;
@@ -1096,7 +1091,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 #ifdef HEXEN2
 		if (h2playertranslations)
 			BZ_Free(h2playertranslations);
-		h2playertranslations = FS_LoadMallocFile ("gfx/player.lmp");
+		h2playertranslations = FS_LoadMallocFile ("gfx/player.lmp", NULL);
 #endif
 
 		if (vid.fullbright < 2)
@@ -1116,6 +1111,7 @@ TRACE(("dbg: R_ApplyRenderer: vid applied\n"));
 
 		W_LoadWadFile("gfx.wad");
 TRACE(("dbg: R_ApplyRenderer: wad loaded\n"));
+		Image_Init();
 		Draw_Init();
 TRACE(("dbg: R_ApplyRenderer: draw inited\n"));
 		R_Init();
@@ -1156,12 +1152,9 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 
 //	host_hunklevel = Hunk_LowMark();
 
-	if (R_PreNewMap)
-	if (cl.worldmodel)
-	{
-		TRACE(("dbg: R_ApplyRenderer: R_PreNewMap (how handy)\n"));
-		R_PreNewMap();
-	}
+
+	TRACE(("dbg: R_ApplyRenderer: R_PreNewMap (how handy)\n"));
+	Surf_PreNewMap();
 
 #ifndef CLIENTONLY
 	if (sv.world.worldmodel)
@@ -1172,27 +1165,28 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 #endif
 
 TRACE(("dbg: R_ApplyRenderer: reloading server map\n"));
-		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_WARN);
+		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);
 TRACE(("dbg: R_ApplyRenderer: loaded\n"));
-
+		if (sv.world.worldmodel->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(sv.world.worldmodel, &sv.world.worldmodel->loadstate, MLS_LOADING);
 TRACE(("dbg: R_ApplyRenderer: doing that funky phs thang\n"));
 		SV_CalcPHS ();
 
 TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
-		World_ClearWorld (&sv.world);
 
-		if (sv.world.worldmodel->needload)
+		if (sv.world.worldmodel->loadstate != MLS_LOADED)
 			SV_UnspawnServer();
 		else if (svs.gametype == GT_PROGS)
 		{
 			for (i = 0; i < MAX_PRECACHE_MODELS; i++)
 			{
 				if (sv.strings.model_precache[i] && *sv.strings.model_precache[i] && (!strcmp(sv.strings.model_precache[i] + strlen(sv.strings.model_precache[i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
-					sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
+					sv.models[i] = Mod_FindName(Mod_FixName(sv.strings.model_precache[i], sv.strings.model_precache[1]));
 				else
 					sv.models[i] = NULL;
 			}
 
+			World_ClearWorld (&sv.world);
 			ent = sv.world.edicts;
 //			ent->v->model = PR_NewString(svprogfuncs, sv.worldmodel->name);	//FIXME: is this a problem for normal ents?
 			for (i=0 ; i<sv.world.num_edicts ; i++)
@@ -1216,11 +1210,12 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 			for (i = 0; i < MAX_PRECACHE_MODELS; i++)
 			{
 				if (sv.strings.configstring[Q2CS_MODELS+i] && *sv.strings.configstring[Q2CS_MODELS+i] && (!strcmp(sv.strings.configstring[Q2CS_MODELS+i] + strlen(sv.strings.configstring[Q2CS_MODELS+i]) - 4, ".bsp") || i-1 < sv.world.worldmodel->numsubmodels))
-					sv.models[i] = Mod_FindName(sv.strings.configstring[Q2CS_MODELS+i]);
+					sv.models[i] = Mod_FindName(Mod_FixName(sv.strings.configstring[Q2CS_MODELS+i], sv.modelname));
 				else
 					sv.models[i] = NULL;
 			}
 
+			World_ClearWorld (&sv.world);
 			q2ent = ge->edicts;
 			for (i=0 ; i<ge->num_edicts ; i++, q2ent = (q2edict_t *)((char *)q2ent + ge->edict_size))
 			{
@@ -1240,6 +1235,8 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 #ifdef Q3SERVER
 		else if (svs.gametype == GT_QUAKE3)
 		{
+			memset(&sv.models, 0, sizeof(sv.models));
+			sv.models[1] = Mod_FindName(sv.modelname);
 			//traditionally a q3 server can just keep hold of its world cmodel and nothing is harmed.
 			//this means we just need to reload the worldmodel and all is fine...
 			//there are some edge cases however, like lingering pointers refering to entities.
@@ -1261,13 +1258,17 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	if (newr)
 		memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 
+	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
+	if (!isDedicated)
+		S_DoRestart();
+
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
 	{
 		CG_Stop();
 		CG_Start();
 		if (cl.worldmodel)
-			R_NewMap();
+			Surf_NewMap();
 	}
 	else
 #endif
@@ -1290,7 +1291,10 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 				cl.model_precache[i] = NULL;
 			else
 #endif
-				cl.model_precache[i] = Mod_ForName (cl.model_name[i], MLV_SILENT);
+				if (i == 1)
+					cl.model_precache[i] = Mod_ForName (cl.model_name[i], MLV_SILENT);
+				else
+					cl.model_precache[i] = Mod_FindName (Mod_FixName(cl.model_name[i], cl.model_name[1]));
 
 			if ((!cl.model_precache[i] || cl.model_precache[i]->type == mod_dummy) && i == 1)
 			{
@@ -1322,7 +1326,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 
 			cl.model_csqcprecache[i] = NULL;
 			TRACE(("dbg: R_ApplyRenderer: reloading csqc model %s\n", cl.model_csqcname[i]));
-			cl.model_csqcprecache[i] = Mod_ForName (cl.model_csqcname[i], MLV_SILENT);
+			cl.model_csqcprecache[i] = Mod_ForName (Mod_FixName(cl.model_csqcname[i], cl.model_name[1]), MLV_SILENT);
 
 			if (!cl.model_csqcprecache[i])
 			{
@@ -1339,23 +1343,26 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 		}
 #endif
 
-		loadmodel = cl.worldmodel = cl.model_precache[1];
+		cl.worldmodel = cl.model_precache[1];
+
+		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
+
 TRACE(("dbg: R_ApplyRenderer: done the models\n"));
-		if (loadmodel->needload)
+		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		{
 				CL_Disconnect ();
 #ifdef VM_UI
 				UI_Reset();
 #endif
-				memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
+				if (newr)
+					memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 				return true;
 		}
 
 TRACE(("dbg: R_ApplyRenderer: checking any wad textures\n"));
-		Mod_NowLoadExternal();
-TRACE(("dbg: R_ApplyRenderer: R_NewMap\n"));
-		R_NewMap();
-TRACE(("dbg: R_ApplyRenderer: efrags\n"));
+		Mod_NowLoadExternal(cl.worldmodel);
+
 		for (i = 0; i < cl.num_statics; i++)	//make the static entities reappear.
 		{
 			cl_static_entities[i].ent.model = NULL;
@@ -1370,6 +1377,10 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 					cl_static_entities[i].ent.model = cl.model_precache[cl_static_entities[i].mdlidx];
 			}
 		}
+
+TRACE(("dbg: R_ApplyRenderer: Surf_NewMap\n"));
+		Surf_NewMap();
+TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 		Skin_FlushAll();
 
@@ -1389,18 +1400,18 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		Con_TPrintf("%s renderer initialized\n", newr->renderer->description);
 	}
 
-	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
-	if (!isDedicated)
-		S_DoRestart();
-
 	TRACE(("dbg: R_ApplyRenderer: done\n"));
 
+
+	Con_DPrintf("video restart took %f seconds\n", Sys_DoubleTime() - start);
 	return true;
 }
 
 void R_ReloadRenderer_f (void)
 {
+	float time = Sys_DoubleTime();
 	R_ShutdownRenderer(false);
+	Con_DPrintf("teardown = %f\n", Sys_DoubleTime() - time);
 	//reloads textures without destroying video context.
 	R_ApplyRenderer_Load(NULL);
 }
@@ -1477,7 +1488,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 		int dbpp, dheight, dwidth, drate;
 		extern qboolean isPlugin;
 
-		if ((!newr->fullscreen && !vid_desktopsettings.value && !isPlugin) || !Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
+		if ((!newr->fullscreen && !isPlugin) || (!vid_desktopsettings.value && !isPlugin) || !Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
 		{
 			// force default values for systems not supporting desktop parameters
 			dwidth = DEFAULT_WIDTH;
@@ -1525,9 +1536,6 @@ void R_RestartRenderer (rendererstate_t *newr)
 		Con_Printf("Ignoring vid_restart from config\n");
 		return;
 	}
-
-	M_Shutdown(false);
-	Media_CaptureDemoEnd();
 
 	TRACE(("dbg: R_RestartRenderer_f renderer %i\n", newr.renderer));
 
@@ -1598,6 +1606,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 
 void R_RestartRenderer_f (void)
 {
+	double time;
 	rendererstate_t newr;
 
 	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
@@ -1610,7 +1619,11 @@ void R_RestartRenderer_f (void)
 		return;
 	}
 
+	time = Sys_DoubleTime();
 	R_RestartRenderer(&newr);
+	Con_DPrintf("main thread video restart took %f secs\n", Sys_DoubleTime() - time);
+//	COM_WorkerFullSync();
+//	Con_Printf("full video restart took %f secs\n", Sys_DoubleTime() - time);
 }
 
 void R_SetRenderer_f (void)
@@ -2487,7 +2500,7 @@ void R_InitParticleTexture (void)
 		}
 	}
 
-	TEXASSIGN(particletexture, R_LoadTexture32("", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP));
+	TEXASSIGN(particletexture, R_LoadTexture32("dotparticle", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP));
 
 
 	//
@@ -2574,7 +2587,7 @@ void R_InitParticleTexture (void)
 			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
 		}
 	}
-	beamtexture = R_LoadTexture32("", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+	beamtexture = R_LoadTexture32("beamparticle", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
 
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)
 	{
@@ -2592,6 +2605,6 @@ void R_InitParticleTexture (void)
 			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d/2;
 		}
 	}
-	ptritexture = R_LoadTexture32("", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
+	ptritexture = R_LoadTexture32("ptritexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
 }
 

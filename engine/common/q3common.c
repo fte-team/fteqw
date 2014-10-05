@@ -20,6 +20,7 @@ vm_fopen_files_t vm_fopen_files[MAX_VM_FILES];
 int VM_fopen (char *name, int *handle, int fmode, int owner)
 {
 	int i;
+	size_t insize;
 
 	if (!handle)
 		return FS_FLocateFile(name, FSLFRT_IFFOUND, NULL);
@@ -45,8 +46,8 @@ int VM_fopen (char *name, int *handle, int fmode, int owner)
 	switch (fmode)
 	{
 	case VM_FS_READ:
-		vm_fopen_files[i].data = FS_LoadMallocFile(name);
-		vm_fopen_files[i].bufferlen = vm_fopen_files[i].len = com_filesize;
+		vm_fopen_files[i].data = FS_LoadMallocFile(name, &insize);
+		vm_fopen_files[i].bufferlen = vm_fopen_files[i].len = insize;
 		vm_fopen_files[i].ofs = 0;
 		if (vm_fopen_files[i].data)
 			break;

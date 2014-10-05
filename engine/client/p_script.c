@@ -273,7 +273,7 @@ typedef struct part_type_s {
 	float stainonimpact;
 
 	vec3_t dl_rgb;
-	float dl_radius;
+	float dl_radius[2];
 	float dl_time;
 	vec4_t dl_decay;
 	float dl_corona_intensity;
@@ -622,6 +622,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 						"alphagen vertex\n"
 					"}\n"
 					"polygonoffset\n"
+					"surfaceparm noshadows\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 				;
 			break;
@@ -638,6 +640,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 						"alphagen vertex\n"
 					"}\n"
 					"polygonoffset\n"
+					"surfaceparm noshadows\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 				;
 			break;
@@ -655,6 +659,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 						"alphagen vertex\n"
 					"}\n"
 					"polygonoffset\n"
+					"surfaceparm noshadows\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 				;
 			break;
@@ -672,6 +678,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 						"alphagen vertex\n"
 					"}\n"
 					"polygonoffset\n"
+					"surfaceparm noshadows\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 				;
 			break;
@@ -689,6 +697,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 						"alphagen vertex\n"
 					"}\n"
 					"polygonoffset\n"
+					"surfaceparm noshadows\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 				;
 			break;
@@ -706,6 +716,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 						"alphagen vertex\n"
 					"}\n"
 					"polygonoffset\n"
+					"surfaceparm noshadows\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 				;
 			break;
@@ -723,6 +735,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 						"alphagen vertex\n"
 					"}\n"
 					"polygonoffset\n"
+					"surfaceparm noshadows\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 				;
 			break;
@@ -739,14 +753,23 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 						"alphagen vertex\n"
 					"}\n"
 					"polygonoffset\n"
+					"surfaceparm noshadows\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 				;
 			break;
 		}
 
 		memset(&tn, 0, sizeof(tn));
-		tn.base = R_LoadHiResTexture(ptype->texname, "particles", IF_NOMIPMAP|(ptype->looks.premul?IF_PREMULTIPLYALPHA:0));	//mipmapping breaks particlefont stuff
-		if (!TEXVALID(tn.base))
+		if (*ptype->texname)
+		{
+			tn.base = R_LoadHiResTexture(ptype->texname, "particles", IF_NOMIPMAP|(ptype->looks.premul?IF_PREMULTIPLYALPHA:0));	//mipmapping breaks particlefont stuff
+			if (tn.base && tn.base->status == TEX_LOADING)
+				COM_WorkerPartialSync(tn.base, &tn.base->status, TEX_LOADING);
+		}
+		else
+			tn.base = NULL;
+		if (!TEXLOADED(tn.base))
 		{
 			/*okay, so the texture they specified wasn't valid either. use a fully default one*/
 
@@ -1719,7 +1742,12 @@ static void P_ParticleEffect_f(void)
 			ptype->flags |= PT_NOSPREADLAST;
 
 		else if (!strcmp(var, "lightradius"))
-			ptype->dl_radius = atof(value);
+		{	//float version
+			ptype->dl_radius[0] = ptype->dl_radius[1] = atof(value);
+			if (Cmd_Argc()>3)
+				ptype->dl_radius[1] = atof(Cmd_Argv(2));
+			ptype->dl_radius[1] -= ptype->dl_radius[0];
+		}
 		else if (!strcmp(var, "lightradiusfade"))
 			ptype->dl_decay[3] = atof(value);
 		else if (!strcmp(var, "lightrgb"))
@@ -1805,7 +1833,7 @@ static void P_ParticleEffect_f(void)
 		ptype->alphachange = (-ptype->alphachange / ptype->die) * ptype->alpha;
 
 	if (!ptype->dl_time && ptype->dl_decay[3])
-		ptype->dl_time = ptype->dl_radius / ptype->dl_decay[3];
+		ptype->dl_time = ptype->dl_radius[0] / ptype->dl_decay[3];
 
 	if (ptype->rampmode && !ptype->ramp)
 	{
@@ -2009,7 +2037,7 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 
 		if (ptype->dl_radius)
 		{
-			Q_strncatz(outstr, va("lightradius %g\n", ptype->dl_radius), outstrlen);
+			Q_strncatz(outstr, va("lightradius %g\n", ptype->dl_radius[0]), outstrlen);
 			Q_strncatz(outstr, va("lightradiusfade %g\n", ptype->dl_decay[3]), outstrlen);
 			Q_strncatz(outstr, va("lightrgb %g %g %g\n", ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]), outstrlen);
 			Q_strncatz(outstr, va("lightrgbfade %g %g %g\n", ptype->dl_decay[0], ptype->dl_decay[1], ptype->dl_decay[2]), outstrlen);
@@ -2243,7 +2271,7 @@ void FinishParticleType(part_type_t *ptype)
 			ptype->die = 15;
 	}
 	if (ptype->dl_decay[3] && !ptype->dl_time)
-		ptype->dl_time = ptype->dl_radius / ptype->dl_decay[3];
+		ptype->dl_time = ptype->dl_radius[0] / ptype->dl_decay[3];
 	if (ptype->looks.scalefactor > 1 && !ptype->looks.invscalefactor)
 	{
 		ptype->scale *= ptype->looks.scalefactor;
@@ -2561,7 +2589,10 @@ static void P_ImportEffectInfo(char *config, char *line)
 				Con_Printf("effectinfo 'orientation %s' not supported\n", arg[1]);
 		}
 		else if (!strcmp(arg[0], "lightradius") && args == 2)
-			ptype->dl_radius = atof(arg[1]);
+		{
+			ptype->dl_radius[0] = atof(arg[1]);
+			ptype->dl_radius[1] = 0;
+		}
 		else if (!strcmp(arg[0], "lightradiusfade") && args == 2)
 			ptype->dl_decay[3] = atof(arg[1]);
 		else if (!strcmp(arg[0], "lightcolor") && args == 4)
@@ -2986,6 +3017,7 @@ static void R_Particles_KillAllEffects(void)
 
 static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 {
+	char token[256];
 	qboolean		first;
 
 	char *c;
@@ -2996,12 +3028,12 @@ static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 	R_Particles_KillAllEffects();
 
 	first = true;
-	for (c = COM_ParseStringSet(var->string); com_token[0]; c = COM_ParseStringSet(c))
+	for (c = COM_ParseStringSet(var->string, token, sizeof(token)); token[0]; c = COM_ParseStringSet(c, token, sizeof(token)))
 	{
 		/*set up a default*/
-		if (first && !*com_token)
-			strcpy(com_token, "faithful");
-		P_LoadParticleSet(com_token, false);
+		if (first && !*token)
+			strcpy(token, "classic");
+		P_LoadParticleSet(token, false);
 		first = false;
 	}
 
@@ -3556,8 +3588,10 @@ static void PScript_ApplyOrgVel(vec3_t oorg, vec3_t ovel, vec3_t eforg, vec3_t e
 	VectorAdd(oorg, ptype->orgbias, oorg);
 }
 
-static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, int dlkey, float countscale)
+static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3], int dlkey, float countscale)
 {
+	extern cvar_t r_rocketlight;
+	extern cvar_t r_lightflicker;
 	if (ptype->nummodels)
 	{
 		int count = ptype->countextra + countscale*(ptype->count+ptype->countrand*frandom());
@@ -3570,17 +3604,30 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 			mod = &ptype->models[rand() % ptype->nummodels];
 			if (!mod->model)
 				mod->model = Mod_ForName(mod->name, MLV_WARN);
-			if (mod->model && !mod->model->needload)
+			if (mod->model && mod->model->loadstate == MLS_LOADED)
 			{
 				vec3_t morg, mdir;
-				PScript_ApplyOrgVel(morg, mdir, org, dir, i, count, ptype);
-				CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?dir:NULL, mod->model, mod->framestart, (mod->frameend?mod->frameend:(mod->model->numframes - mod->framestart)), mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION);
+				PScript_ApplyOrgVel(morg, mdir, org, axis[0], i, count, ptype);
+				CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?axis[0]:NULL, mod->model, mod->framestart, (mod->frameend?mod->frameend:(mod->model->numframes - mod->framestart)), mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION);
 			}
 		}
 	}
-	if (ptype->dl_radius)
+	if (ptype->dl_radius)// && r_rocketlight.value)
 	{
-		dlight_t *dl = CL_NewDlight(dlkey, org, ptype->dl_radius, ptype->dl_time, ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]);
+		float radius;
+		dlight_t *dl;
+
+		static int flickertime;
+		static int flicker;
+		int i = realtime*20;
+		if (flickertime != i)
+		{
+			flickertime = i;
+			flicker = rand();
+		}
+		radius = ptype->dl_radius[0] + (r_lightflicker.ival?((flicker + dlkey*2000)&0xffff)*(1.0f/0xffff):0.5)*ptype->dl_radius[1];
+
+		dl = CL_NewDlight(dlkey, org, radius, ptype->dl_time, ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]);
 		dl->channelfade[0]	= ptype->dl_decay[0];
 		dl->channelfade[1]	= ptype->dl_decay[1];
 		dl->channelfade[2]	= ptype->dl_decay[2];
@@ -3595,7 +3642,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 		if (ptype->flags & PT_NODLSHADOW)
 			dl->flags |= LFLAG_NOSHADOWS;
 		if (ptype->dl_cubemapnum)
-			snprintf(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", ptype->dl_cubemapnum);
+			Q_snprintfz(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", ptype->dl_cubemapnum);
 	}
 	if (ptype->numsounds)
 	{
@@ -3695,8 +3742,17 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				goto skip;
 		}
 
-
-		PScript_EffectSpawned(ptype, org, dir, 0, count);
+		if (dir)
+		{
+			void PerpendicularVector( vec3_t dst, const vec3_t src );
+			VectorCopy(dir, axis[2]);
+			VectorNormalize(axis[2]);
+			PerpendicularVector(axis[0], axis[2]);
+			VectorNormalize(axis[0]);
+			CrossProduct(axis[2], axis[0], axis[1]);
+			VectorNormalize(axis[1]);
+		}
+		PScript_EffectSpawned(ptype, org, axis, 0, count);
 
 		if (ptype->looks.type == PT_CDECAL)
 		{
@@ -3895,17 +3951,6 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			break;
 		default:	//others don't need intitialisation
 			break;
-		}
-
-		if (dir)
-		{
-			void PerpendicularVector( vec3_t dst, const vec3_t src );
-			VectorCopy(dir, axis[2]);
-			VectorNormalize(axis[2]);
-			PerpendicularVector(axis[0], axis[2]);
-			VectorNormalize(axis[0]);
-			CrossProduct(axis[2], axis[0], axis[1]);
-			VectorNormalize(axis[1]);
 		}
 
 		// time limit (for completeness)
@@ -4497,7 +4542,7 @@ static void PScript_RunParticleWeather(vec3_t minb, vec3_t maxb, vec3_t dir, flo
 	}
 }
 
-static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype, trailstate_t **tsk, int dlkey)
+static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype, trailstate_t **tsk, int dlkey, vec3_t dlaxis[3])
 {
 	vec3_t	vec, vstep, right, up, start;
 	float	len;
@@ -4546,14 +4591,14 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	else
 		ts = NULL;
 
-	PScript_EffectSpawned(ptype, start, vec3_origin, dlkey, 1);
+	PScript_EffectSpawned(ptype, start, dlaxis, dlkey, 1);
 
 	if (ptype->assoc>=0)
 	{
 		if (ts)
-			P_ParticleTrail(start, end, ptype->assoc, dlkey, &(ts->assoc));
+			P_ParticleTrail(start, end, ptype->assoc, dlkey, NULL, &(ts->assoc));
 		else
-			P_ParticleTrail(start, end, ptype->assoc, dlkey, NULL);
+			P_ParticleTrail(start, end, ptype->assoc, dlkey, NULL, NULL);
 	}
 
 	if (r_part_contentswitch.ival && (ptype->flags & (PT_TRUNDERWATER | PT_TROVERWATER)) && cl.worldmodel)
@@ -4989,14 +5034,14 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	return;
 }
 
-static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, trailstate_t **tsk)
+static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t axis[3], trailstate_t **tsk)
 {
 	part_type_t *ptype = &part_type[type];
 
 	// TODO: fallback particle system won't have a decent trailstate which will mess up
 	// high fps trails
 	if (type >= FALLBACKBIAS && fallback)
-		return fallback->ParticleTrail(startpos, end, type-FALLBACKBIAS, dlkey, NULL);
+		return fallback->ParticleTrail(startpos, end, type-FALLBACKBIAS, dlkey, axis, NULL);
 
 	if (type < 0 || type >= numparticletypes)
 		return 1;	//bad value
@@ -5014,7 +5059,7 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlk
 			ptype = &part_type[ptype->inwater];
 	}
 
-	P_ParticleTrailDraw (startpos, end, ptype, tsk, dlkey);
+	P_ParticleTrailDraw (startpos, end, ptype, tsk, dlkey, axis);
 	return 0;
 }
 
@@ -5022,7 +5067,7 @@ static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int
 {
 	part_type[pe_defaulttrail].colorindex = color;
 	part_type[pe_defaulttrail].colorrand = crnd;
-	P_ParticleTrail(start, end, pe_defaulttrail, 0, tsk);
+	P_ParticleTrail(start, end, pe_defaulttrail, 0, NULL, tsk);
 }
 
 static vec3_t pright, pup;
@@ -5766,7 +5811,7 @@ static void PScript_DrawParticleTypes (void)
 	{
 		if (type->clippeddecals)
 		{
-			if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
+			if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader && cl_stris[cl_numstris-1].flags == 0)
 				scenetri = &cl_stris[cl_numstris-1];
 			else
 			{
@@ -5777,7 +5822,7 @@ static void PScript_DrawParticleTypes (void)
 				}
 				scenetri = &cl_stris[cl_numstris++];
 				scenetri->shader = type->looks.shader;
-				scenetri->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+				scenetri->flags = 0;
 				scenetri->firstidx = cl_numstrisidx;
 				scenetri->firstvert = cl_numstrisvert;
 				scenetri->numvert = 0;
@@ -5890,7 +5935,7 @@ static void PScript_DrawParticleTypes (void)
 
 		if (!tdraw || type->looks.shader->sort == SHADER_SORT_BLEND)
 			scenetri = NULL;
-		else if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
+		else if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader && cl_stris[cl_numstris-1].flags == 0)
 			scenetri = &cl_stris[cl_numstris-1];
 		else
 		{
@@ -5903,7 +5948,7 @@ static void PScript_DrawParticleTypes (void)
 			scenetri->shader = type->looks.shader;
 			scenetri->firstidx = cl_numstrisidx;
 			scenetri->firstvert = cl_numstrisvert;
-			scenetri->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+			scenetri->flags = 0;
 			scenetri->numvert = 0;
 			scenetri->numidx = 0;
 		}
@@ -6139,7 +6184,7 @@ static void PScript_DrawParticleTypes (void)
 			if (type->emit >= 0)
 			{
 				if (type->emittime < 0)
-					P_ParticleTrail(oldorg, p->org, type->emit, 0, &p->state.trailstate);
+					P_ParticleTrail(oldorg, p->org, type->emit, 0, NULL, &p->state.trailstate);
 				else if (p->state.nextemit < particletime)
 				{
 					p->state.nextemit = particletime + type->emittime + frandom()*type->emitrand;

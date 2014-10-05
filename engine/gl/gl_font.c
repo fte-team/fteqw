@@ -287,7 +287,7 @@ void Font_Init(void)
 
 	for (i = 0; i < FONTPLANES; i++)
 	{
-		TEXASSIGN(fontplanes.texnum[i], R_AllocNewTexture("***fontplane***", PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA));
+		TEXASSIGN(fontplanes.texnum[i], Image_CreateTexture("***fontplane***", NULL, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA));
 	}
 
 	fontplanes.shader = R_RegisterShader("ftefont", SUF_NONE,
@@ -327,7 +327,7 @@ static void Font_Flush(void)
 		return;
 	if (fontplanes.planechanged)
 	{
-		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
 
 		fontplanes.planechanged = false;
 	}
@@ -350,7 +350,7 @@ static int Font_BeginChar(texid_t tex)
 {
 	int fvert;
 
-	if (font_foremesh.numindexes == FONT_CHAR_BUFFER*6 || font_texture.ref != tex.ref)
+	if (font_foremesh.numindexes == FONT_CHAR_BUFFER*6 || font_texture != tex)
 	{
 		Font_Flush();
 		TEXASSIGNF(font_texture, tex);
@@ -393,7 +393,7 @@ void Font_FlushPlane(void)
 
 	if (fontplanes.planechanged)
 	{
-		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
 
 		fontplanes.planechanged = false;
 	}
@@ -857,16 +857,19 @@ static texid_t Font_LoadReplacementConchars(void)
 {
 	texid_t tex;
 	//q1 replacement
-	tex = R_LoadReplacementTexture("gfx/conchars.lmp", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
-	if (TEXVALID(tex))
+	tex = R_LoadReplacementTexture("gfx/conchars.lmp", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, NULL, 0, 0, TF_INVALID);
+	TEXDOWAIT(tex);
+	if (TEXLOADED(tex))
 		return tex;
 	//q2
 	tex = R_LoadHiResTexture("pics/conchars.pcx", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
-	if (TEXVALID(tex))
+	TEXDOWAIT(tex);
+	if (TEXLOADED(tex))
 		return tex;
 	//q3
 	tex = R_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
-	if (TEXVALID(tex))
+	TEXDOWAIT(tex);
+	if (TEXLOADED(tex))
 		return tex;
 	return r_nulltex;
 }
@@ -1010,16 +1013,22 @@ static texid_t Font_LoadDefaultConchars(void)
 {
 	texid_t tex;
 	tex = Font_LoadReplacementConchars();
-	if (TEXVALID(tex))
+	if (TEXLOADED(tex))
 		return tex;
 	tex = Font_LoadQuakeConchars();
-	if (TEXVALID(tex))
+	if (tex && tex->status == TEX_LOADING)
+		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
+	if (TEXLOADED(tex))
 		return tex;
 	tex = Font_LoadHexen2Conchars(true);
-	if (TEXVALID(tex))
+	if (tex && tex->status == TEX_LOADING)
+		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
+	if (TEXLOADED(tex))
 		return tex;
 	tex = Font_LoadFallbackConchars();
-	if (TEXVALID(tex))
+	if (tex && tex->status == TEX_LOADING)
+		COM_WorkerPartialSync(tex, &tex->status, TEX_LOADING);
+	if (TEXLOADED(tex))
 		return tex;
 	Sys_Error("Unable to load any conchars\n");
 }
@@ -1207,12 +1216,14 @@ struct font_s *Font_LoadFont(int vheight, const char *fontfilename)
 			for (x = 0; x < 128; x++)
 				img[x + y*PLANEWIDTH] = w[x + y*128]?d_8to24rgbtable[w[x + y*128]]:0;
 
-		f->singletexture = R_LoadTexture(fontfilename,PLANEWIDTH,PLANEWIDTH,TF_RGBA32,img,IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
+		f->singletexture = R_LoadTexture("tinyfont",PLANEWIDTH,PLANEWIDTH,TF_RGBA32,img,IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
+		if (f->singletexture->status == TEX_LOADING)
+			COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
 		Z_Free(img);
 
 		for (i = 0x00; i <= 0xff; i++)
 		{
-			f->chars[i].advance = height;
+			f->chars[i].advance = (height*3)/4;
 			f->chars[i].left = 0;
 			f->chars[i].top = 0;
 			f->chars[i].nextchar = 0;	//these chars are not linked in
@@ -1298,7 +1309,11 @@ struct font_s *Font_LoadFont(int vheight, const char *fontfilename)
 	{
 		//default to only map the ascii-compatible chars from the quake font.
 		if (*fontfilename)
+		{
 			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts", IF_UIPIC|IF_NOMIPMAP);
+			if (f->singletexture->status == TEX_LOADING)
+				COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
+		}
 
 		for ( ; i < 32; i++)
 		{
@@ -1321,9 +1336,9 @@ struct font_s *Font_LoadFont(int vheight, const char *fontfilename)
 	}
 
 	defaultplane = BITMAPPLANE;/*assume the bitmap plane - don't use the fallback as people don't think to use com_parseutf8*/
-	if (!TEXVALID(f->singletexture))
+	if (!TEXLOADED(f->singletexture))
 	{
-		if (!TEXVALID(f->singletexture) && !TEXVALID(fontplanes.defaultfont))
+		if (!TEXLOADED(fontplanes.defaultfont))
 			fontplanes.defaultfont = Font_LoadDefaultConchars();
 
 		if (!strcmp(fontfilename, "gfx/hexen2"))
@@ -1331,7 +1346,7 @@ struct font_s *Font_LoadFont(int vheight, const char *fontfilename)
 			f->singletexture = Font_LoadHexen2Conchars(false);
 			defaultplane = DEFAULTPLANE;
 		}
-		if (!TEXVALID(f->singletexture))
+		if (!TEXLOADED(f->singletexture))
 			f->singletexture = fontplanes.defaultfont;
 	}
 

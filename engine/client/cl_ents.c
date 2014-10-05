@@ -2822,7 +2822,7 @@ void CL_LinkStaticEntities(void *pvs)
 		stat = &cl_static_entities[i].ent;
 
 		clmodel = stat->model;
-		if (!clmodel || clmodel->needload)
+		if (!clmodel || clmodel->loadstate != MLS_LOADED)
 			continue;
 
 		if ((!r_drawflame.ival) && (clmodel->engineflags & MDLF_FLAME))
@@ -3238,6 +3238,7 @@ void CL_TransitionEntities (void)
 
 void CL_LinkPacketEntities (void)
 {
+	extern cvar_t gl_part_flame;
 	entity_t			*ent;
 	packet_entities_t	*pack;
 	entity_state_t		*state;
@@ -3252,7 +3253,7 @@ void CL_LinkPacketEntities (void)
 	vec3_t				angles;
 	static int flickertime;
 	static int flicker;
-	int trailef;
+	int trailef, trailidx;
 	int modelflags;
 
 	pack = cl.currentpackentities;
@@ -3382,15 +3383,17 @@ void CL_LinkPacketEntities (void)
 			dl->style = state->lightstyle;
 			dl->flags &= ~LFLAG_FLASHBLEND;
 			dl->flags |= (state->lightpflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
+#ifdef RTLIGHTS
 			if (state->skinnum)
 			{
-				VectorCopy(ent->angles, angles);
-				angles[0]*=-1;	//pflags matches alias models.
+				VectorCopy(le->angles, angles);
+				//if (model && model->type == mod_alias)
+					angles[0]*=-1;	//pflags matches alias models.
 				AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 				VectorInverse(dl->axis[1]);
-				snprintf(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", state->skinnum);
-				dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP);
+				R_LoadNumberedLightTexture(dl, state->skinnum);
 			}
+#endif
 		}
 
 		// if set to invisible, skip
@@ -3417,7 +3420,7 @@ void CL_LinkPacketEntities (void)
 
 		if (cl.model_precache_vwep[0])
 		{
-			if (state->modelindex == cl_playerindex && !cl.model_precache_vwep[0]->needload)
+			if (state->modelindex == cl_playerindex && !cl.model_precache_vwep[0]->loadstate != MLS_LOADED)
 			{
 				model = cl.model_precache_vwep[0];
 				model2 = cl.model_precache_vwep[state->modelindex2];
@@ -3582,24 +3585,23 @@ void CL_LinkPacketEntities (void)
 			}
 		}
 
+		//figure out which trail this entity is using
 		trailef = model->particletrail;
+		trailidx = model->traildefaultindex;
+		if (state->effects & 0xff800000)
+			P_DefaultTrail (modelflags, &trailef, &trailidx);
 		if (state->u.q1.traileffectnum)
 			trailef = CL_TranslateParticleFromServer(state->u.q1.traileffectnum);
 
-		if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, ent->keynum, &(le->trailstate)))
+		//and emit it
+		if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, ent->keynum, ent->axis, &(le->trailstate)))
 			if (model->traildefaultindex >= 0)
-				pe->ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &(le->trailstate));
-
-		{
-			extern cvar_t gl_part_flame;
-			if (model->particleeffect != P_INVALID && cls.allow_anyparticles && gl_part_flame.ival)
-			{
-				P_EmitEffect (ent->origin, model->particleeffect, &(le->emitstate));
-			}
-		}
+				pe->ParticleTrailIndex(old_origin, ent->origin, trailidx, 0, &(le->trailstate));
+		if (model->particleeffect != P_INVALID && cls.allow_anyparticles && gl_part_flame.ival)
+			P_EmitEffect (ent->origin, model->particleeffect, &(le->emitstate));
 
 		//dlights are not so customisable.
-		if (r_rocketlight.value)
+		if (r_rocketlight.value && (modelflags & MF_ROCKET))
 		{
 			float rad = 0;
 			vec3_t dclr;
@@ -3607,55 +3609,17 @@ void CL_LinkPacketEntities (void)
 			dclr[0] = 2.0;
 			dclr[1] = 1.0;
 			dclr[2] = 0.25;
+			rad = 200;
+			rad += r_lightflicker.value?((flicker + state->number)&31):0;
 
+			dl = CL_AllocDlight (state->number);
+			memcpy(dl->axis, ent->axis, sizeof(dl->axis));
+			VectorCopy (ent->origin, dl->origin);
+			dl->die = (float)cl.time;
 			if (modelflags & MF_ROCKET)
-			{
-#ifdef warningmsg
-#pragma warningmsg("Replace this flag on load for hexen2 models")
-#endif
-#ifdef HEXEN2
-				if (strncmp(model->name, "models/sflesh", 13))
-#endif
-				{	//hmm. hexen spider gibs...
-					rad = 200;
-					rad += r_lightflicker.value?((flicker + state->number)&31):0;
-				}
-			}
-#ifdef HEXEN2
-			else if (modelflags & MFH2_FIREBALL)
-			{
-				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
-			}
-			else if (modelflags & MFH2_ACIDBALL)
-			{
-				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
-				dclr[0] = 0.5;
-				dclr[1] = 1;
-				dclr[2] = 0.25;
-			}
-			else if (modelflags & MFH2_SPIT)
-			{
-				// as far as I can tell this effect inverses the light...
-				dclr[0] = -dclr[0];
-				dclr[1] = -dclr[1];
-				dclr[2] = -dclr[2];
-				rad = 120 - (r_lightflicker.value?(rand() % 20):10);
-			}
-#endif
-
-			if (rad)
-			{
-				dl = CL_AllocDlight (state->number);
-				memcpy(dl->axis, ent->axis, sizeof(dl->axis));
-				VectorCopy (ent->origin, dl->origin);
-				dl->die = (float)cl.time;
-				if (modelflags & MF_ROCKET)
-					dl->origin[2] += 1; // is this even necessary
-				dl->radius = rad * r_rocketlight.value;
-				VectorCopy(dclr, dl->color);
-			}
-
-
+				dl->origin[2] += 1; // is this even necessary
+			dl->radius = rad * r_rocketlight.value;
+			VectorCopy(dclr, dl->color);
 		}
 	}
 #ifdef CSQC_DAT
@@ -4337,7 +4301,7 @@ void CL_LinkPlayers (void)
 	float			predictmsmult = 1000*cl_predict_players_frac.value;
 	int				modelindex2;
 
-	if (!cl.worldmodel || cl.worldmodel->needload)
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
 	if (cl.paused)
@@ -4474,6 +4438,7 @@ void CL_LinkPlayers (void)
 		ent->flags = 0;
 		ent->model = model;
 		ent->forcedshader = NULL;
+		ent->customskin = 0;
 
 		ent->skinnum = state->skinnum;
 
@@ -4881,7 +4846,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	if (playertime > realtime)
 		playertime = realtime;
 
-	if (cl_nopred.value || /*cls.demoplayback ||*/ cl.paused || cl.worldmodel->needload)
+	if (cl_nopred.value || /*cls.demoplayback ||*/ cl.paused || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
 	frame = &cl.inframes[cl.parsecount&UPDATE_MASK];

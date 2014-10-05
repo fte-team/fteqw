@@ -81,7 +81,7 @@ void W_LoadWadFile (char *filename)
 	if (wad_base)
 		Z_Free(wad_base);
 	
-	wad_base = COM_LoadFile (filename, 0);
+	wad_base = COM_LoadFile (filename, 0, NULL);
 	if (!wad_base)
 	{
 		wad_numlumps = 0;
@@ -432,7 +432,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 	miptex_t *tex;
 	qbyte *data;
 
-	if (!strncmp(name, "gfx/", 4))
+	if ((!strncmp(name, "gfx/", 4) || !strncmp(name, "wad/", 4)) && strcmp(name, "gfx/conchars"))
 	{
 		qpic_t *p;
 		p = W_SafeGetLumpName(name+4);
@@ -580,6 +580,7 @@ void CL_Skygroup_f(void)
 char wads[4096];
 void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//actually, this should be in the model code.
 {
+	char token[4096];
 	char key[128];
 	mapskys_t *msky;
 
@@ -600,31 +601,31 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 		cl.skyname[0] = '\0';
 
 	if (data)
-	if ((data=COM_Parse(data)))	//read the map info.
-	if (com_token[0] == '{')
+	if ((data=COM_ParseOut(data, token, sizeof(token))))	//read the map info.
+	if (token[0] == '{')
 	while (1)
 	{
-		if (!(data=COM_Parse(data)))
+		if (!(data=COM_ParseOut(data, token, sizeof(token))))
 			break; // error
-		if (com_token[0] == '}')
+		if (token[0] == '}')
 			break; // end of worldspawn
-		if (com_token[0] == '_')
-			strcpy(key, com_token + 1);	//_ vars are for comments/utility stuff that arn't visible to progs. Ignore them.
+		if (token[0] == '_')
+			Q_strncpyz(key, token + 1, sizeof(key));	//_ vars are for comments/utility stuff that arn't visible to progs. Ignore them.
 		else
-			strcpy(key, com_token);
-		if (!((data=COM_Parse(data))))
+			Q_strncpyz(key, token, sizeof(key));
+		if (!((data=COM_ParseOut(data, token, sizeof(token)))))
 			break; // error		
 		if (!strcmp("wad", key)) // for HalfLife maps
 		{
 			if (wmodel->fromgame == fg_halflife)
 			{
-				strncat(wads, ";", 4095);	//cache it for later (so that we don't play with any temp memory yet)
-				strncat(wads, com_token, 4095);	//cache it for later (so that we don't play with any temp memory yet)
+				Q_strncatz(wads, ";", sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
+				Q_strncatz(wads, token, sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
 			}
 		}
 		else if (!strcmp("skyname", key)) // for HalfLife maps
 		{
-			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));
+			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
 		}
 		else if (!strcmp("fog", key))	//q1 extension. FIXME: should be made temporary.
 		{
@@ -632,7 +633,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 			void CL_Fog_f(void);
 			key[0] = 'f';
 			key[1] = ' ';
-			Q_strncpyz(key+2, com_token, sizeof(key)-2);
+			Q_strncpyz(key+2, token, sizeof(key)-2);
 			Cmd_TokenizeString(key, false, false);
 			Cmd_ExecLevel=RESTRICT_LOCAL;
 			CL_Fog_f();
@@ -666,25 +667,25 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 		}
 		else if (!strcmp("sky", key)) // for Quake2 maps
 		{
-			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));
+			Q_strncpyz(cl.skyname, token, sizeof(cl.skyname));
 		}
 		else if (!strcmp("skyrotate", key))	//q2 feature
 		{
-			cl.skyrotate = atof(com_token);
+			cl.skyrotate = atof(token);
 		}
 		else if (!strcmp("skyaxis", key))	//q2 feature
 		{
 			char *s;
-			Q_strncpyz(key, com_token, sizeof(key));
-			s = COM_Parse(key);
+			Q_strncpyz(key, token, sizeof(key));
+			s = COM_ParseOut(key, token, sizeof(token));
 			if (s)
 			{
 				cl.skyaxis[0] = atof(s);
-				s = COM_Parse(s);
+				s = COM_ParseOut(s, token, sizeof(token));
 				if (s)
 				{
 					cl.skyaxis[1] = atof(s);
-					COM_Parse(s);
+					COM_ParseOut(s, token, sizeof(token));
 					if (s)
 						cl.skyaxis[2] = atof(s);
 				}

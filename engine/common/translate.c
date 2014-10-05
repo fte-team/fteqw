@@ -171,7 +171,7 @@ void T_LoadString(void)
 	//count new lines
 	strings_loaded = true;
 	strings_count = 0;
-	strings_list = FS_LoadMallocFile("strings.txt");
+	strings_list = FS_LoadMallocFile("strings.txt", NULL);
 	if (!strings_list)
 		return;
 
@@ -237,7 +237,7 @@ void T_LoadInfoString(void)
 	//count new lines
 	info_strings_loaded = true;
 	info_strings_count = 0;
-	info_strings_list = FS_LoadMallocFile("infolist.txt");
+	info_strings_list = FS_LoadMallocFile("infolist.txt", NULL);
 	if (!info_strings_list)
 		return;
 

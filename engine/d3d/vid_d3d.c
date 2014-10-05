@@ -734,43 +734,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	return true;
 }
 
-/*a new model has been loaded*/
-static void	(D3D9_R_NewMap)					(void)
-{
-	r_worldentity.model = cl.worldmodel;
-
-#ifdef MAP_PROC
-	if (cl.worldmodel && cl.worldmodel->fromgame == fg_doom3)
-		D3_GenerateAreas(cl.worldmodel);
-#endif
-
-	/*wipe any lingering particles*/
-	P_ClearParticles();
-	CL_RegisterParticles();
-
-	R_AnimateLight();
-	Surf_DeInit();
-	Surf_WipeStains();
-	Surf_BuildLightmaps();
-
-	TP_NewMap();
-	R_SetSky(cl.skyname);
-
-#ifdef RTLIGHTS
-	Sh_PreGenerateLights();
-#endif
-}
-
-extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
-extern mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
-static void	(D3D9_R_PreNewMap)				(void)
-{
-	r_viewleaf = NULL;
-	r_oldviewleaf = NULL;
-	r_viewleaf2 = NULL;
-	r_oldviewleaf2 = NULL;
-}
-
 static void	 (D3D9_VID_DeInit)				(void)
 {
 	/*final shutdown, kill the video stuff*/
@@ -1111,7 +1074,6 @@ static void	(D3D9_R_DeInit)					(void)
 	R_GAliasFlushSkinCache(true);
 	Surf_DeInit();
 	Shader_Shutdown();
-	D3D9_Image_Shutdown();
 }
 
 
@@ -1238,21 +1200,13 @@ rendererinfo_t d3d9rendererinfo =
 	D3D9_Draw_Init,
 	D3D9_Draw_Shutdown,
 
-	D3D9_LoadTexture,
-	D3D9_LoadTexture8Pal24,
-	D3D9_LoadTexture8Pal32,
-	D3D9_LoadCompressed,
-	D3D9_FindTexture,
-	D3D9_AllocNewTexture,
-	D3D9_Upload,
+	D3D9_UpdateFiltering,
+	D3D9_LoadTextureMips,
 	D3D9_DestroyTexture,
 
 	D3D9_R_Init,
 	D3D9_R_DeInit,
 	D3D9_R_RenderView,
-
-	D3D9_R_NewMap,
-	D3D9_R_PreNewMap,
 
 	D3D9_VID_Init,
 	D3D9_VID_DeInit,

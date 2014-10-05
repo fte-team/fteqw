@@ -25,15 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define FTE_VER_MAJOR 1
 #define FTE_VER_MINOR 3
 
-//#define	VERSION		2.56
-#ifndef DISTRIBUTION
-	#define DISTRIBUTION "FTE"	//short name used to identify this engine. must be a single word
-	#define DISTRIBUTIONLONG "Forethought Entertainment"	//effectively the 'company' name
-	#define FULLENGINENAME "FTE QuakeWorld"	//the posh name for the engine
-	#define ENGINEWEBSITE "http://www.fteqw.com"	//url for program
-#endif
-
-
 #if defined(__APPLE__) && defined(__MACH__)
 	#define MACOSX
 #endif
@@ -159,6 +150,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //set any additional defines or libs in win32
 	#define SVRANKING
+	#define LOADERTHREAD
 
 	#ifdef MINIMAL
 		#define CL_MASTER		//this is useful
@@ -191,7 +183,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
 
-		#define DSPMODELS		//doom sprites (only needs DOOMWADS to generate the right wad file names)
+//		#define DSPMODELS		//doom sprites (only needs DOOMWADS to generate the right wad file names)
 		#define SPRMODELS		//quake1 sprite models
 		#define SP2MODELS		//quake2 sprite models
 		#define MD2MODELS		//quake2 alias models
@@ -200,7 +192,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define ZYMOTICMODELS	//zymotic skeletal models.
 		#define DPMMODELS		//darkplaces model format (which I've never seen anyone use)
 		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
-		#define HALFLIFEMODELS	//halflife model support (experimental)
+//		#define HALFLIFEMODELS	//halflife model support (experimental)
 		#define INTERQUAKEMODELS
 		#define RAGDOLL
 
@@ -265,7 +257,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #endif
 
-//#define QUAKETC
+
+//include a file to update the various configurations for game-specific configs (hopefully just names)
+#ifdef BRANDING_INC
+	#define STRINGIFY2(s) #s
+	#define STRINGIFY(s) STRINGIFY2(s)
+	#include STRINGIFY(BRANDING_INC)
+#endif
+#ifndef DISTRIBUTION
+	#define DISTRIBUTION "FTE"	//short name used to identify this engine. must be a single word
+#endif
+#ifndef DISTRIBUTIONLONG
+	#define DISTRIBUTIONLONG "Forethought Entertainment"	//effectively the 'company' name
+#endif
+#ifndef FULLENGINENAME
+	#define FULLENGINENAME "FTE QuakeWorld"	//the posh name for the engine
+#endif
+#ifndef ENGINEWEBSITE
+	#define ENGINEWEBSITE "http://www.fteqw.com"	//url for program
+#endif
 
 #ifdef QUAKETC
 	#define NOBUILTINMENUS	//kill engine menus (should be replaced with ewither csqc or menuqc)
@@ -348,6 +358,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifndef MULTITHREAD
+	//database code requires threads to do stuff async.
 	#undef USE_SQLITE
 	#undef USE_MYSQL
 #endif
@@ -367,6 +378,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define MULTITHREAD
 		#define WEBCLIENT
 	#endif
+#endif
+
+#if (defined(NOLOADERTHREAD) || !defined(MULTITHREAD)) && defined(LOADERTHREAD)
+	#undef LOADERTHREAD
 #endif
 
 #ifndef _WIN32

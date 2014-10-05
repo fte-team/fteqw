@@ -469,7 +469,7 @@ void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	const char *sample = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	sfx_t *sfx = S_PrecacheSound(sample);
-	if (!sfx || sfx->failedload)
+	if (!sfx || sfx->loadstate != SLS_LOADED)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{

@@ -197,7 +197,7 @@ void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius)
 	int i;
 
 	float parms[7];
-	if (!cl.worldmodel || cl.worldmodel->needload || r_stains.value <= 0)
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || r_stains.value <= 0)
 		return;
 	parms[0] = radius;
 	parms[1] = org[0];
@@ -210,12 +210,12 @@ void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius)
 
 	cl.worldmodel->funcs.StainNode(cl.worldmodel->rootnode, parms);
 
-	//now stain bsp models other than world.
+	//now stain inline bsp models other than world.
 
 	for (i=1 ; i< pmove.numphysent ; i++)	//0 is world...
 	{
 		pe = &pmove.physents[i];
-		if (pe->model && pe->model->surfaces == cl.worldmodel->surfaces && !pe->model->needload)
+		if (pe->model && pe->model->surfaces == cl.worldmodel->surfaces && pe->model->loadstate == MLS_LOADED)
 		{
 			parms[1] = org[0] - pe->origin[0];
 			parms[2] = org[1] - pe->origin[1];
@@ -1190,7 +1190,7 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 	lightmapinfo_t *lm, *dlm;
 
 	//surfaces without lightmaps
-	if (fa->lightmaptexturenums[0]<0)
+	if (fa->lightmaptexturenums[0]<0 || !lightmap)
 		return;
 
 	// check for lightmap modification
@@ -2005,7 +2005,7 @@ void Surf_SetupFrame(void)
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
 	{
 	}
-	else if (!cl.worldmodel || cl.worldmodel->needload || cl.worldmodel->fromgame == fg_doom3 )
+	else if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || cl.worldmodel->fromgame == fg_doom3 )
 	{
 		r_viewleaf = NULL;
 		r_viewleaf2 = NULL;
@@ -2292,7 +2292,7 @@ void Surf_DrawWorld (void)
 		BE_DrawWorld(false, NULL);
 		return;
 	}
-	if (!cl.worldmodel || cl.worldmodel->needload)
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 	{
 		/*Don't act as a wallhack*/
 		return;
@@ -2602,8 +2602,10 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 		Q_snprintfz(nname, sizeof(nname), filepattern, i - numlightmaps);
 
 		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, 0));
-		lightmap[i]->width = image_width;
-		lightmap[i]->height = image_height;
+		if (lightmap[i]->lightmap_texture->status == TEX_LOADING)
+			COM_WorkerPartialSync(lightmap[i]->lightmap_texture, &lightmap[i]->lightmap_texture->status, TEX_LOADING);
+		lightmap[i]->width = lightmap[i]->lightmap_texture->width;
+		lightmap[i]->height = lightmap[i]->lightmap_texture->height;
 	}
 
 	if (odd)
@@ -2636,6 +2638,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 		return;
 
 #ifdef TERRAIN
+	//easiest way to deal with heightmap lightmaps is to just purge the entire thing.
 	if (m->terrain)
 		Terr_PurgeTerrainModel(m, true, false);
 #endif
@@ -2645,7 +2648,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 
 	if (!m->lightmaps.count)
 		return;
-	if (m->needload)
+	if (m->loadstate != MLS_LOADED)
 		return;
 
 	currentmodel = m;
@@ -2653,7 +2656,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 
 	if (*m->name == '*' && m->fromgame == fg_quake3)	//FIXME: should be all bsp formats
 	{
-		if (!cl.model_precache[1] || cl.model_precache[1]->needload)
+		if (!cl.model_precache[1] || cl.model_precache[1]->loadstate != MLS_LOADED)
 			return;
 		newfirst = cl.model_precache[1]->lightmaps.first;
 	}
@@ -2752,11 +2755,11 @@ void Surf_BuildModelLightmaps (model_t *m)
 		lightmapinfo_t *lm, *dlm;
 		qbyte *deluxemap;
 
-		if (*m->name == '*')
-		{
-			if (!cl.worldmodel || cl.worldmodel->needload)
-				return;
-		}
+//		if (*m->name == '*')
+//		{
+//			if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
+//				return;
+//		}
 		//fixup surface lightmaps, and paint
 		for (i=0; i<m->nummodelsurfaces; i++)
 		{
@@ -2809,6 +2812,9 @@ void Surf_BuildLightmaps (void)
 	int		i, j;
 	model_t	*m;
 
+	extern model_t	*mod_known;
+	extern int		mod_numknown;
+
 	r_framecount = 1;		// no dlightcache
 
 	for (i = 0; i < numlightmaps; i++)
@@ -2832,7 +2838,7 @@ void Surf_BuildLightmaps (void)
 		m = cl.model_precache[j];
 		if (!m)
 			break;
-		if (m->needload)
+		if (m->loadstate != MLS_LOADED)
 			continue;
 		Surf_BuildModelLightmaps(m);
 	}
@@ -2845,4 +2851,102 @@ void Surf_BuildLightmaps (void)
 	}
 	BE_UploadAllLightmaps();
 }
+
+
+
+/*
+===============
+Surf_NewMap
+===============
+*/
+void Surf_NewMap (void)
+{
+	char namebuf[MAX_QPATH];
+	extern cvar_t host_mapname;
+	int		i;
+	
+	for (i=0 ; i<256 ; i++)
+		d_lightstylevalue[i] = 264;		// normal light value
+
+	memset (&r_worldentity, 0, sizeof(r_worldentity));
+	AngleVectors(r_worldentity.angles, r_worldentity.axis[0], r_worldentity.axis[1], r_worldentity.axis[2]);
+	VectorInverse(r_worldentity.axis[1]);
+	r_worldentity.model = cl.worldmodel;
+	Vector4Set(r_worldentity.shaderRGBAf, 1, 1, 1, 1);
+	VectorSet(r_worldentity.light_avg, 1, 1, 1);
+
+
+	if (cl.worldmodel)
+		COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf, sizeof(namebuf));
+	else
+		*namebuf = '\0';
+	Cvar_Set(&host_mapname, namebuf);
+
+	Surf_DeInit();
+
+	r_viewleaf = NULL;
+	r_oldviewleaf = NULL;
+	r_viewcluster = -1;
+	r_oldviewcluster = 0;
+	r_viewcluster2 = -1;
+
+	if (cl.worldmodel)
+	{
+		if (cl.worldmodel->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
+		Mod_ParseInfoFromEntityLump(cl.worldmodel, cl.worldmodel->entities, cl.worldmodel->name);
+	}
+
+	if (!pe)
+		Cvar_ForceCallback(&r_particlesystem);
+TRACE(("dbg: Surf_NewMap: clear particles\n"));
+	P_ClearParticles ();
+TRACE(("dbg: Surf_NewMap: wiping them stains (getting the cloth out)\n"));
+	Surf_WipeStains();
+	CL_RegisterParticles();
+TRACE(("dbg: Surf_NewMap: building lightmaps\n"));
+	Surf_BuildLightmaps ();
+
+
+TRACE(("dbg: Surf_NewMap: ui\n"));
+#ifdef VM_UI
+	UI_Reset();
+#endif
+TRACE(("dbg: Surf_NewMap: tp\n"));
+	TP_NewMap();
+	R_SetSky(cl.skyname);
+
+#ifdef MAP_PROC
+	if (cl.worldmodel->fromgame == fg_doom3)
+		D3_GenerateAreas(cl.worldmodel);
+#endif
+
+	for (i = 0; i < cl.num_statics; i++)
+	{
+		vec3_t mins, maxs;
+		//fixme: no rotation
+		VectorAdd(cl_static_entities[i].ent.origin, cl_static_entities[i].ent.model->mins, mins);
+		VectorAdd(cl_static_entities[i].ent.origin, cl_static_entities[i].ent.model->maxs, maxs);
+		cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
+		cl_static_entities[i].emit = NULL;
+	}
+
+#ifdef RTLIGHTS
+	Sh_PreGenerateLights();
+#endif
+}
+
+void Surf_PreNewMap(void)
+{
+	r_loadbumpmapping = r_deluxemapping.ival || r_glsl_offsetmapping.ival;
+#ifdef RTLIGHTS
+	r_loadbumpmapping |= r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival;
+#endif
+	r_viewleaf = NULL;
+	r_oldviewleaf = NULL;
+	r_viewleaf2 = NULL;
+	r_oldviewleaf2 = NULL;
+}
+
+
 #endif

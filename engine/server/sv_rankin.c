@@ -168,7 +168,7 @@ qboolean Rank_OpenRankings(void)
 
 		if (!created && (rankfileheader.version != RANKFILE_VERSION || rankfileheader.ident != RANKFILE_IDENT))
 		{
-			Con_Printf("Rank file is version %i not %i\nEither delete the file or use an equivelent version of " DISTRIBUTION "\n", rankfileheader.version, RANKFILE_VERSION);
+			Con_Printf("Rank file is version %i not %i\nEither delete the file or use an equivelent version of " FULLENGINENAME "\n", rankfileheader.version, RANKFILE_VERSION);
 			VFS_CLOSE(rankfile);
 			rankfile = NULL;
 

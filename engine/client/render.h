@@ -35,7 +35,7 @@ struct model_s;
 struct texnums_s;
 struct texture_s;
 
-static const texid_t r_nulltex = {{0}};
+static const texid_t r_nulltex = NULL;
 
 
 #if 1 || defined(MINIMAL) || defined(D3DQUAKE) || defined(ANDROID)
@@ -280,6 +280,8 @@ void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and call
 void R_InitSky (struct texnums_s *ret, struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/
 
 //r_surf.c
+void Surf_NewMap (void);
+void Surf_PreNewMap(void);
 void Surf_SetupFrame(void);	//determine pvs+viewcontents
 void Surf_DrawWorld(void);
 void Surf_GenBrushBatches(struct batch_s **batches, entity_t *ent);
@@ -335,9 +337,6 @@ void GLR_RenderView (void);		// must set r_refdef first
 								// called whenever r_refdef or vid change
 void GLR_DrawPortal(struct batch_s *batch, struct batch_s **blist, struct batch_s *depthmasklist[2], int portaltype);
 
-void GLR_PreNewMap(void);
-void GLR_NewMap (void);
-
 void GLR_PushDlights (void);
 void GLR_DrawWaterSurfaces (void);
 
@@ -352,67 +351,62 @@ void R_RenderDlights (void);
 enum imageflags
 {
 	/*warning: many of these flags only apply the first time it is requested*/
-	IF_CLAMP = 1<<0,
-	IF_NEAREST = 1<<1,
-	IF_NOPICMIP = 1<<2,
-	IF_NOMIPMAP = 1<<3,
-	IF_NOALPHA = 1<<4,
-	IF_NOGAMMA = 1<<5,
-	IF_3DMAP = 1<<6,	/*waning - don't test directly*/
-	IF_CUBEMAP = 1<<7,	/*waning - don't test directly*/
-	IF_CUBEMAPEXTRA = 1<<8,
-	IF_TEXTYPE = (1<<6) | (1<<7) | (1<<8), /*0=2d, 1=3d, 2-7=cubeface*/
-	IF_TEXTYPESHIFT = 6, /*0=2d, 1=3d, 2-7=cubeface*/
-	IF_MIPCAP = 1<<9,
-	IF_UIPIC = 1<<10,	//subject to texturemode2d
-	IF_LINEAR = 1<<11,
-	IF_PREMULTIPLYALPHA = 1<<12,	//rgb *= alpha
+	IF_CLAMP = 1<<0,	//disable texture coord wrapping.
+	IF_NOMIPMAP = 1<<1,	//disable mipmaps.
+	IF_NEAREST = 1<<2,	//force nearest
+	IF_LINEAR = 1<<3,	//force linear
+	IF_UIPIC = 1<<4,	//subject to texturemode2d
+	/*WARNING: If the above are changed, be sure to change shader pass flags*/
 
+	IF_NOPICMIP = 1<<5,
+	IF_NOALPHA = 1<<6,
+	IF_NOGAMMA = 1<<7,
+	IF_3DMAP = 1<<8,	/*waning - don't test directly*/
+	IF_CUBEMAP = 1<<9,	/*waning - don't test directly*/
+	IF_TEXTYPE = (1<<8) | (1<<9), /*0=2d, 1=3d, 2=cubeface, 3=?*/
+	IF_TEXTYPESHIFT = 8, /*0=2d, 1=3d, 2-7=cubeface*/
+	IF_MIPCAP = 1<<10,
+	IF_PREMULTIPLYALPHA = 1<<12,	//rgb *= alpha
+	IF_NOPCX = 1<<26,			/*block pcx format. meaning qw skins can use team colours and cropping*/
+	IF_TRYBUMP = 1<<27,			/*attempt to load _bump if the specified _norm texture wasn't found*/
 	IF_RENDERTARGET = 1<<28,	/*never loaded from disk, loading can't fail*/
-	IF_EXACTEXTENSION = 1<<29,
-	IF_REPLACE = 1<<30,
-	IF_SUBDIRONLY = 1<<31
+	IF_EXACTEXTENSION = 1<<29,	/*don't mangle extensions, use what is specified and ONLY that*/
+	IF_NOREPLACE = 1<<30,		/*don't load a replacement, for some reason*/
+	IF_NOWORKER = 1u<<31		/*don't pass the work to a loader thread. this gives synchronous loading.*/
 };
 
-#define R_LoadTexture8(id,w,h,d,f,t)		R_LoadTexture(id,w,h,t?TF_TRANS8:TF_SOLID8,d,f)
-#define R_LoadTexture32(id,w,h,d,f)			R_LoadTexture(id,w,h,TF_RGBA32,d,f)
-#define R_LoadTextureFB(id,w,h,d,f)			R_LoadTexture(id,w,h,TF_TRANS8_FULLBRIGHT,d,f)
-#define R_LoadTexture8BumpPal(id,w,h,d,f)	R_LoadTexture(id,w,h,TF_HEIGHT8PAL,d,f)
-#define R_LoadTexture8Bump(id,w,h,d,f)		R_LoadTexture(id,w,h,TF_HEIGHT8,d,f)
+#define R_LoadTexture8(id,w,h,d,f,t)		Image_GetTexture(id, NULL, f, d, NULL, w, h, t?TF_TRANS8:TF_SOLID8)
+#define R_LoadTexture32(id,w,h,d,f)			Image_GetTexture(id, NULL, f, d, NULL, w, h, TF_RGBA32)
+#define R_LoadTextureFB(id,w,h,d,f)			Image_GetTexture(id, NULL, f, d, NULL, w, h, TF_TRANS8_FULLBRIGHT)
+#define R_LoadTexture(id,w,h,fmt,d,fl)		Image_GetTexture(id, NULL, fl, d, NULL, w, h, fmt)
 
-/*it seems a little excessive to have to include glquake (and windows headers), just to load some textures/shaders for the backend*/
-#ifdef GLQUAKE
-texid_tf GL_AllocNewTexture(const char *name, int w, int h, unsigned int flags);
-void GL_UploadFmt(texid_t tex, const char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
-texid_tf GL_LoadTextureFmt (const char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
-void GL_DestroyTexture(texid_t tex);
+image_t *Image_FindTexture	(const char *identifier, const char *subpath, unsigned int flags);
+image_t *Image_CreateTexture(const char *identifier, const char *subpath, unsigned int flags);
+image_t *Image_GetTexture	(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
+void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
+void Image_Init(void);
+void Image_Shutdown(void);
+
+image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
+
+#define R_DestroyTexture(id)	//FIXME
+
+#ifdef D3D9QUAKE
+void		D3D9_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+qboolean	D3D9_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips);
+void		D3D9_DestroyTexture		(texid_t tex);
 #endif
-#ifdef D3DQUAKE
-texid_t D3D9_LoadTexture (const char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
-texid_t D3D9_LoadTexture8Pal24 (const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-texid_t D3D9_LoadTexture8Pal32 (const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_t D3D9_LoadCompressed (const char *name);
-texid_t D3D9_FindTexture (const char *identifier, unsigned int flags);
-texid_t D3D9_AllocNewTexture(const char *ident, int width, int height, unsigned int flags);
-void    D3D9_Upload (texid_t tex, const char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
-void    D3D9_DestroyTexture (texid_t tex);
-void D3D9_Image_Shutdown(void);
-
-texid_t D3D11_LoadTexture (const char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
-texid_t D3D11_LoadTexture8Pal24 (const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-texid_t D3D11_LoadTexture8Pal32 (const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_t D3D11_LoadCompressed (const char *name);
-texid_t D3D11_FindTexture (const char *identifier, unsigned int flags);
-texid_t D3D11_AllocNewTexture(const char *ident, int width, int height, unsigned int flags);
-void    D3D11_Upload (texid_t tex, const char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
-void    D3D11_DestroyTexture (texid_t tex);
-void D3D11_Image_Shutdown(void);
+#ifdef D3D11QUAKE
+void		D3D11_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+qboolean	D3D11_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips);
+void		D3D11_DestroyTexture	(texid_t tex);
 #endif
 
-extern int image_width, image_height;
-texid_tf R_LoadReplacementTexture(const char *name, const char *subpath, unsigned int flags);
+//extern int image_width, image_height;
+texid_t R_LoadReplacementTexture(const char *name, const char *subpath, unsigned int flags, void *lowres, int lowreswidth, int lowresheight, uploadfmt_t fmt);
 texid_tf R_LoadHiResTexture(const char *name, const char *subpath, unsigned int flags);
 texid_tf R_LoadBumpmapTexture(const char *name, const char *subpath);
+void R_LoadNumberedLightTexture(struct dlight_s *dl, int cubetexnum);
 
 qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
 
@@ -445,7 +439,7 @@ void Mod_RebuildLightmaps (void);
 struct mleaf_s *Mod_PointInLeaf (struct model_s *model, float *p);
 
 void Mod_Think (void);
-void Mod_NowLoadExternal(void);
+void Mod_NowLoadExternal(struct model_s *loadmodel);
 void GLR_LoadSkys (void);
 void R_BloomRegister(void);
 
@@ -453,6 +447,7 @@ int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magi
 int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
 void Mod_UnRegisterModelFormat(void *module, int idx);
 void Mod_UnRegisterAllModelFormats(void *module);
+void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b);
 
 #ifdef RUNTIMELIGHTING
 void LightFace (int surfnum);
@@ -532,7 +527,7 @@ extern	cvar_t	r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
 extern	cvar_t	r_shadow_realtime_dlight_ambient;
 extern	cvar_t	r_shadow_realtime_dlight_diffuse;
 extern	cvar_t	r_shadow_realtime_dlight_specular;
-extern	cvar_t	r_shadow_realtime_world, r_shadow_realtime_world_shadows;
+extern	cvar_t	r_shadow_realtime_world, r_shadow_realtime_world_shadows, r_shadow_realtime_world_lightmaps;
 extern	cvar_t	r_shadow_shadowmapping;
 extern	cvar_t	r_editlights_import_radius;
 extern	cvar_t	r_editlights_import_ambient;

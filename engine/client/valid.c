@@ -66,9 +66,8 @@ static void Validation_Version(void)
 	char authbuf[256];
 	char *auth = authbuf;
 
-	extern cvar_t r_shadow_realtime_world, r_drawflat;
+	extern cvar_t r_drawflat;
 
-	s = sr;
 	//print certain allowed 'cheat' options.
 	//realtime lighting (shadows can show around corners)
 	//drawflat is just lame
@@ -174,7 +173,7 @@ void Validation_CheckIfResponse(char *text)
 	}
 
 	{
-		char *match = DISTRIBUTION"Quake v";
+		char *match = DISTRIBUTION" v";
 		if (strncmp(versionstring, match, strlen(match)))
 			return;	//this is not us
 	}

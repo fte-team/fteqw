@@ -205,9 +205,6 @@ unsigned int sidedefsc;
 unsigned int vertexesc;
 unsigned int vertexsglbase;
 
-extern model_t	*loadmodel;
-extern char loadname[];
-
 
 typedef struct
 {

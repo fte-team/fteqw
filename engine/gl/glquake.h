@@ -52,6 +52,23 @@ void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
 
+typedef struct builddata_s
+{
+	void (*buildfunc)(model_t *mod, msurface_t *surf, struct builddata_s *bd);
+	void *facedata;
+} builddata_t;
+void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b);	//data === builddata_t
+
+
+//optional features common to all renderers, so I don't have to check to see which one it is all the time.
+typedef struct {
+	qboolean texture_non_power_of_two;		//all npot is okay
+	qboolean texture_non_power_of_two_pic;	//npot only works with clamp-to-edge mipless images.
+	qboolean npot_rounddown;				//memory limited systems can say that they want to use less ram.
+	int maxtexturesize;						//biggest image size supported
+} r_config_t;
+extern r_config_t r_config;
+
 #ifdef GLQUAKE
 	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/
 		#if 1
@@ -228,26 +245,10 @@ extern gl_config_t gl_config;
 
 extern	float	gldepthmin, gldepthmax;
 
-/*
-void GL_Upload32 (char *name, unsigned *data, int width, int height, unsigned int flags);	//name was added for texture compression output
-void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height, unsigned int flags);	//name was added for texture compression output
-void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int flags, unsigned int alphatype);
-void GL_Upload24BGR_Flip (char *name, qbyte *data, int width, int height, unsigned int flags);
-void GL_Upload24BGR (char *name, qbyte *data, int width, int height, unsigned int flags);
-#ifdef GL_EXT_paletted_texture
-void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
-#endif
-*/
-texid_tf GL_LoadTexture (const char *identifier, int width, int height, qbyte *data, unsigned int flags, unsigned int transtype);
-texid_tf GL_LoadTexture8Bump (const char *identifier, int width, int height, unsigned char *data, unsigned int flags, float bumpscale);
-texid_tf GL_LoadTexture8Pal24 (const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-texid_tf GL_LoadTexture8Pal32 (const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_tf GL_LoadTexture32 (const char *identifier, int width, int height, void *data, unsigned int flags);
-texid_tf GL_LoadCompressed(const char *name);
-texid_tf GL_FindTexture (const char *identifier, unsigned int flags);
+void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips);
+void GL_DestroyTexture(texid_t tex);
 
-texid_tf GL_LoadTextureFB (const char *identifier, int width, int height, qbyte *data, unsigned int flags);
-void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags);
 /*
 typedef struct
 {

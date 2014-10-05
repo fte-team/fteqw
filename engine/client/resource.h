@@ -5,6 +5,7 @@
 #define IDC_STATIC    -1
 #define IDI_ICON1                       1
 #define IDI_ICON2                       2
+#define IDI_ICON3                       3
 
 // Next default values for new objects
 // 

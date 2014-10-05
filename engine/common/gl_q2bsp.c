@@ -47,11 +47,11 @@ cvar_t q3bsp_surf_meshcollision_force = CVARD("q3bsp_surf_meshcollision_force", 
 extern cvar_t r_shadow_bumpscale_basetexture;
 
 //these are in model.c (or gl_model.c)
-qboolean Mod_LoadVertexes (lump_t *l);
-qboolean Mod_LoadEdges (lump_t *l, qboolean lm);
-qboolean Mod_LoadMarksurfaces (lump_t *l, qboolean lm);
-qboolean Mod_LoadSurfedges (lump_t *l);
-void Mod_LoadLighting (lump_t *l);
+qboolean Mod_LoadVertexes (model_t *loadmodel, qbyte *mod_base, lump_t *l);
+qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
+qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
+qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l);
+void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 
 
 static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
@@ -60,10 +60,6 @@ static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 static int CM_PointCluster (model_t *mod, vec3_t p);
 extern mplane_t	*box_planes;
 
-
-extern char	loadname[32];
-extern model_t	*loadmodel;
-void Mod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie);
 float RadiusFromBounds (vec3_t mins, vec3_t maxs)
 {
 	int		i;
@@ -77,7 +73,7 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs)
 	return Length (corner);
 }
 
-void CalcSurfaceExtents (msurface_t *s)
+void CalcSurfaceExtents (model_t *mod, msurface_t *s)
 {
 	float	mins[2], maxs[2], val;
 	int		i,j, e;
@@ -92,11 +88,11 @@ void CalcSurfaceExtents (msurface_t *s)
 
 	for (i=0 ; i<s->numedges ; i++)
 	{
-		e = loadmodel->surfedges[s->firstedge+i];
+		e = mod->surfedges[s->firstedge+i];
 		if (e >= 0)
-			v = &loadmodel->vertexes[loadmodel->edges[e].v[0]];
+			v = &mod->vertexes[mod->edges[e].v[0]];
 		else
-			v = &loadmodel->vertexes[loadmodel->edges[-e].v[1]];
+			v = &mod->vertexes[mod->edges[-e].v[1]];
 
 		for (j=0 ; j<2 ; j++)
 		{
@@ -146,22 +142,22 @@ void ClearBounds (vec3_t mins, vec3_t maxs)
 }
 
 
-void Mod_SortShaders(void)
+void Mod_SortShaders(model_t *mod)
 {
 	//surely this isn't still needed?
 	texture_t *textemp;
 	int i, j;
 
 	//sort loadmodel->textures
-	for (i = 0; i < loadmodel->numtextures; i++)
+	for (i = 0; i < mod->numtextures; i++)
 	{
-		for (j = i+1; j < loadmodel->numtextures; j++)
+		for (j = i+1; j < mod->numtextures; j++)
 		{
-			if ((loadmodel->textures[i]->shader && loadmodel->textures[j]->shader) && (loadmodel->textures[j]->shader->sort < loadmodel->textures[i]->shader->sort))
+			if ((mod->textures[i]->shader && mod->textures[j]->shader) && (mod->textures[j]->shader->sort < mod->textures[i]->shader->sort))
 			{
-				textemp = loadmodel->textures[j];
-				loadmodel->textures[j] = loadmodel->textures[i];
-				loadmodel->textures[i] = textemp;
+				textemp = mod->textures[j];
+				mod->textures[j] = mod->textures[i];
+				mod->textures[i] = textemp;
 			}
 		}
 	}
@@ -177,7 +173,6 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 #define Host_Error SV_Error
 #endif
 
-extern model_t	*loadmodel;
 extern qbyte *mod_base;
 
 #define capsuledist(dist,plane,mins,maxs)					\
@@ -186,7 +181,6 @@ extern qbyte *mod_base;
 			dist = dist*(trace_capsulesize[(dist<0)?1:2]) - trace_capsulesize[0];	\
 			dist = plane->dist - dist;						\
 			break;
-
 
 unsigned char d_q28to24table[1024];
 
@@ -327,13 +321,9 @@ typedef struct cmodel_s
 /*used to trace*/
 static int			checkcount;
 
-static mfog_t		*map_fogs;
-static int			map_numfogs;
-
 static int			numbrushsides;
 static q2cbrushside_t *map_brushsides;
 
-static int numtexinfo;
 static q2mapsurface_t	*map_surfaces;
 
 static int			numleafbrushes;
@@ -378,7 +368,6 @@ static q2mapsurface_t	nullsurface;
 static int			floodvalid;
 
 static qbyte	portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qbyte, really it should be a qboolean
-
 
 static int	mapisq3;
 cvar_t		map_noareas			= SCVAR("map_noareas", "0");	//1 for lack of mod support.
@@ -830,7 +819,7 @@ static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numver
 /*
 * CM_CreatePatch
 */
-static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec_t *verts, const int *patch_cp )
+static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec_t *verts, const int *patch_cp )
 {
 	int step[2], size[2], flat[2];
 	int i, j, k ,u, v;
@@ -952,7 +941,7 @@ static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const 
 CM_CreatePatchesForLeafs
 =================
 */
-qboolean CM_CreatePatchesForLeafs (void)
+qboolean CM_CreatePatchesForLeafs (model_t *loadmodel)
 {
 	int i, j, k;
 	mleaf_t *leaf;
@@ -1098,7 +1087,7 @@ qboolean CM_CreatePatchesForLeafs (void)
 					checkout[k] = numpatches++;
 
 	//gcc warns without this cast
-					CM_CreatePatch ( patch, surf, (const vec_t *)(map_verts + face->firstvert), face->patch.cp );
+					CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(map_verts + face->firstvert), face->patch.cp );
 				}
 				leaf->contents |= patch->surface->c.value;
 				leaf->numleafpatches++;
@@ -1122,20 +1111,18 @@ qboolean CM_CreatePatchesForLeafs (void)
 ===============================================================================
 */
 
-qbyte	*cmod_base;
-
 /*
 =================
 CMod_LoadSubmodels
 =================
 */
-qboolean CModQ2_LoadSubmodels (lump_t *l)
+qboolean CModQ2_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	q2dmodel_t	*in;
 	cmodel_t	*out;
 	int			i, j, count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1182,13 +1169,13 @@ qboolean CModQ2_LoadSubmodels (lump_t *l)
 CMod_LoadSurfaces
 =================
 */
-qboolean CModQ2_LoadSurfaces (lump_t *l)
+qboolean CModQ2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q2texinfo_t	*in;
 	q2mapsurface_t	*out;
 	int			i, count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1203,8 +1190,8 @@ qboolean CModQ2_LoadSurfaces (lump_t *l)
 //	if (count > MAX_Q2MAP_TEXINFO)
 //		Host_Error ("Map has too many surfaces");
 
-	numtexinfo = count;
-	out = map_surfaces = ZG_Malloc(&loadmodel->memgroup, count * sizeof(*map_surfaces));
+	mod->numtexinfo = count;
+	out = map_surfaces = ZG_Malloc(&mod->memgroup, count * sizeof(*map_surfaces));
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1217,31 +1204,21 @@ qboolean CModQ2_LoadSurfaces (lump_t *l)
 	return true;
 }
 #ifndef SERVERONLY
-texture_t *Mod_LoadWall(char *name, char *sname, unsigned int imageflags)
+texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *walname, char *shadername, unsigned int imageflags)
 {
 	q2miptex_t replacementwal;
-	qbyte *in, *oin;
 	texture_t *tex;
 	q2miptex_t *wal;
-	int j;
-	char ln[32];
-	texnums_t tn;
-	memset(&tn, 0, sizeof(tn));
 
-	COM_FileBase(name, ln, sizeof(ln));
-
-	wal = (void *)FS_LoadMallocFile (name);
+	wal = (void *)FS_LoadMallocFile (walname, NULL);
 	if (!wal)
 	{
-		tn.base = R_LoadReplacementTexture(name, loadname, imageflags);
 		wal = &replacementwal;
 		memset(wal, 0, sizeof(*wal));
-		Q_strncpyz(wal->name, name, sizeof(wal->name));
-		wal->width = image_width;
-		wal->height = image_height;
+		Q_strncpyz(wal->name, walname, sizeof(wal->name));
+		wal->width = 64;
+		wal->height = 64;
 	}
-	else
-		tn.base = R_LoadReplacementTexture(wal->name, loadname, imageflags);
 
 	wal->width = LittleLong(wal->width);
 	wal->height = LittleLong(wal->height);
@@ -1262,40 +1239,30 @@ texture_t *Mod_LoadWall(char *name, char *sname, unsigned int imageflags)
 	tex->width = wal->width;
 	tex->height = wal->height;
 
-	if (!TEXVALID(tn.base))
-	{
-		tn.base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags);
-		if (!TEXVALID(tn.base))
-		{
-			if (!wal->offsets[0])
-			{
-				//they will download eventually...
-				CL_CheckOrEnqueDownloadFile(name, NULL, 0);
-				return NULL;
-			}
-			tn.base = R_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, imageflags);
-		}
-	}
-
 	if (wal->offsets[0])
+		tex->texnums.base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags, (qbyte *)wal+wal->offsets[0], wal->width, wal->height, TF_SOLID8);
+	else
+		tex->texnums.base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags, NULL, 0, 0, TF_INVALID);
+
+	if (wal == &replacementwal)
 	{
-		in = Hunk_TempAllocMore(wal->width*wal->height);
-		oin = (qbyte *)wal+wal->offsets[0];
-		for (j = 0; j < wal->width*wal->height; j++)
-			in[j] = (d_q28to24table[oin[j]*3+0] + d_q28to24table[oin[j]*3+1] + d_q28to24table[oin[j]*3+2])/3;
-		tn.bump = R_LoadTexture8BumpPal (va("%s_bump", wal->name), tex->width, tex->height, in, true);
+/*		FIXME: worker needs the texture to have already been loaded. it can't sync with itself however.
+		if (tex->texnums.base->status == TEX_LOADING)
+			COM_WorkerPartialSync(tex, &tex->texnums.base->status, TEX_LOADING);
+		if (tex->texnums.base->status == TEX_LOADED)
+		{
+			tex->width = tex->texnums.base->width;
+			tex->height = tex->texnums.base->height;
+		}
+*/
 	}
-
-	if (wal != &replacementwal)
+	else
 		BZ_Free(wal);
-
-	tex->shader = R_RegisterCustom (sname, SUF_LIGHTMAP, Shader_DefaultBSPQ2, NULL);
-	R_BuildDefaultTexnums(&tn, tex->shader);
 
 	return tex;
 }
 
-qboolean CModQ2_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
+qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *mapname)	//yes I know these load from the same place
 {
 	q2texinfo_t *in;
 	mtexinfo_t *out;
@@ -1305,20 +1272,20 @@ qboolean CModQ2_LoadTexInfo (lump_t *l)	//yes I know these load from the same pl
 	float	len1, len2;
 	int texcount;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n", mod->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+	out = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
 
-	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t *)*count);
+	mod->textures = ZG_Malloc(&mod->memgroup, sizeof(texture_t *)*count);
 	texcount = 0;
 
-	loadmodel->texinfo = out;
-	loadmodel->numtexinfo = count;
+	mod->texinfo = out;
+	mod->numtexinfo = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1355,9 +1322,9 @@ qboolean CModQ2_LoadTexInfo (lump_t *l)	//yes I know these load from the same pl
 		//compact the textures.
 		for (j=0; j < texcount; j++)
 		{
-			if (!strcmp(sname, loadmodel->textures[j]->name))
+			if (!strcmp(sname, mod->textures[j]->name))
 			{
-				out->texture = loadmodel->textures[j];
+				out->texture = mod->textures[j];
 				break;
 			}
 		}
@@ -1370,10 +1337,10 @@ qboolean CModQ2_LoadTexInfo (lump_t *l)	//yes I know these load from the same pl
 			}
 			snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
 
-			out->texture = Mod_LoadWall (name, sname, (out->flags&TEX_SPECIAL)?0:IF_NOALPHA);
+			out->texture = Mod_LoadWall (mod, mapname, name, sname, (out->flags&TEX_SPECIAL)?0:IF_NOALPHA);
 			if (!out->texture || !out->texture->width || !out->texture->height)
 			{
-				out->texture = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
+				out->texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
 				Con_Printf (CON_WARNING "Couldn't load %s\n", name);
 				memcpy(out->texture, r_notexture_mip, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
@@ -1381,17 +1348,17 @@ qboolean CModQ2_LoadTexInfo (lump_t *l)	//yes I know these load from the same pl
 
 			Q_strncpyz(out->texture->name, sname, sizeof(out->texture->name));
 
-			loadmodel->textures[texcount++] = out->texture;
+			mod->textures[texcount++] = out->texture;
 		}
 
 		if (in->nexttexinfo != -1)
 		{
-			Con_DPrintf("FIXME: %s should animate to %s\n", in->texture, (in->nexttexinfo+(q2texinfo_t *)(cmod_base + l->fileofs))->texture);
+			Con_DPrintf("FIXME: %s should animate to %s\n", in->texture, (in->nexttexinfo+(q2texinfo_t *)(mod_base + l->fileofs))->texture);
 		}
 	}
 
-	in = (void *)(cmod_base + l->fileofs);
-	out = loadmodel->texinfo;
+	in = (void *)(mod_base + l->fileofs);
+	out = mod->texinfo;
 	for (i=0 ; i<count ; i++)
 	{
 		if (in[i].nexttexinfo >= 0 && in[i].nexttexinfo < count)
@@ -1408,9 +1375,9 @@ qboolean CModQ2_LoadTexInfo (lump_t *l)	//yes I know these load from the same pl
 			out[i].texture->anim_total++;
 	}
 
-	loadmodel->numtextures = texcount;
+	mod->numtextures = texcount;
 
-	Mod_SortShaders();
+	Mod_SortShaders(mod);
 	return true;
 }
 #endif
@@ -1469,7 +1436,7 @@ Mod_LoadFaces
 =================
 */
 #ifndef SERVERONLY
-qboolean CModQ2_LoadFaces (lump_t *l)
+qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	dsface_t		*in;
 	msurface_t 	*out;
@@ -1477,17 +1444,17 @@ qboolean CModQ2_LoadFaces (lump_t *l)
 	int			planenum, side;
 	int			ti;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n",mod->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = ZG_Malloc(&loadmodel->memgroup, (count+6)*sizeof(*out));	//spare for skybox
+	out = ZG_Malloc(&mod->memgroup, (count+6)*sizeof(*out));	//spare for skybox
 
-	loadmodel->surfaces = out;
-	loadmodel->numsurfaces = count;
+	mod->surfaces = out;
+	mod->numsurfaces = count;
 
 	for ( surfnum=0 ; surfnum<count ; surfnum++, in++, out++)
 	{
@@ -1500,15 +1467,15 @@ qboolean CModQ2_LoadFaces (lump_t *l)
 		if (side)
 			out->flags |= SURF_PLANEBACK;
 
-		out->plane = loadmodel->planes + planenum;
+		out->plane = mod->planes + planenum;
 
 		ti = LittleShort (in->texinfo);
-		if (ti < 0 || ti >= loadmodel->numtexinfo)
+		if (ti < 0 || ti >= mod->numtexinfo)
 		{
 			Con_Printf (CON_ERROR "MOD_LoadBmodel: bad texinfo number\n");
 			return false;
 		}
-		out->texinfo = loadmodel->texinfo + ti;
+		out->texinfo = mod->texinfo + ti;
 
 #ifndef SERVERONLY
 		if (out->texinfo->flags & TI_SKY)
@@ -1521,7 +1488,7 @@ qboolean CModQ2_LoadFaces (lump_t *l)
 		}
 #endif
 
-		CalcSurfaceExtents (out);
+		CalcSurfaceExtents (mod, out);
 
 	// lighting info
 
@@ -1531,7 +1498,7 @@ qboolean CModQ2_LoadFaces (lump_t *l)
 		if (i == -1)
 			out->samples = NULL;
 		else
-			out->samples = loadmodel->lightdata + i;
+			out->samples = mod->lightdata + i;
 
 	// set the drawing flags
 
@@ -1566,14 +1533,14 @@ CMod_LoadNodes
 
 =================
 */
-qboolean CModQ2_LoadNodes (lump_t *l)
+qboolean CModQ2_LoadNodes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q2dnode_t		*in;
 	int			child;
 	mnode_t		*out;
 	int			i, j, count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1592,10 +1559,10 @@ qboolean CModQ2_LoadNodes (lump_t *l)
 		return false;
 	}
 
-	out = ZG_Malloc(&loadmodel->memgroup, sizeof(mnode_t)*count);
+	out = ZG_Malloc(&mod->memgroup, sizeof(mnode_t)*count);
 
-	loadmodel->nodes = out;
-	loadmodel->numnodes = count;
+	mod->nodes = out;
+	mod->numnodes = count;
 
 	for (i=0 ; i<count ; i++, out++, in++)
 	{
@@ -1607,7 +1574,7 @@ qboolean CModQ2_LoadNodes (lump_t *l)
 			out->minmaxs[3+j] = LittleShort (in->maxs[j]);
 		}
 
-		out->plane = loadmodel->planes + LittleLong(in->planenum);
+		out->plane = mod->planes + LittleLong(in->planenum);
 
 		out->firstsurface = LittleShort (in->firstface);
 		out->numsurfaces = LittleShort (in->numfaces);
@@ -1618,13 +1585,13 @@ qboolean CModQ2_LoadNodes (lump_t *l)
 			child = LittleLong (in->children[j]);
 			out->childnum[j] = child;
 			if (child < 0)
-				out->children[j] = (mnode_t *)(loadmodel->leafs + -1-child);
+				out->children[j] = (mnode_t *)(mod->leafs + -1-child);
 			else
-				out->children[j] = loadmodel->nodes + child;
+				out->children[j] = mod->nodes + child;
 		}
 	}
 
-	CMod_SetParent (loadmodel->nodes, NULL);	// sets nodes and leafs
+	CMod_SetParent (mod->nodes, NULL);	// sets nodes and leafs
 
 	return true;
 }
@@ -1635,13 +1602,13 @@ CMod_LoadBrushes
 
 =================
 */
-qboolean CModQ2_LoadBrushes (lump_t *l)
+qboolean CModQ2_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q2dbrush_t	*in;
 	q2cbrush_t	*out;
 	int			i, count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1655,7 +1622,7 @@ qboolean CModQ2_LoadBrushes (lump_t *l)
 		return false;
 	}
 
-	map_brushes = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * (count+1));
+	map_brushes = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
 
 	out = map_brushes;
 
@@ -1677,14 +1644,14 @@ qboolean CModQ2_LoadBrushes (lump_t *l)
 CMod_LoadLeafs
 =================
 */
-qboolean CModQ2_LoadLeafs (lump_t *l)
+qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	mleaf_t		*out;
 	q2dleaf_t 	*in;
 	int			count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1704,11 +1671,11 @@ qboolean CModQ2_LoadLeafs (lump_t *l)
 		return false;
 	}
 
-	out = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * (count+1));
+	out = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
 	numclusters = 0;
 
-	loadmodel->leafs = out;
-	loadmodel->numleafs = count;
+	mod->leafs = out;
+	mod->numleafs = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1729,14 +1696,14 @@ qboolean CModQ2_LoadLeafs (lump_t *l)
 		out->firstleafbrush = (unsigned short)LittleShort (in->firstleafbrush);
 		out->numleafbrushes = (unsigned short)LittleShort (in->numleafbrushes);
 
-		out->firstmarksurface = loadmodel->marksurfaces +
+		out->firstmarksurface = mod->marksurfaces +
 			(unsigned short)LittleShort(in->firstleafface);
 		out->nummarksurfaces = (unsigned short)LittleShort(in->numleaffaces);
 
 		if (out->cluster >= numclusters)
 			numclusters = out->cluster + 1;
 	}
-	out = loadmodel->leafs;
+	out = mod->leafs;
 
 	if (out[0].contents != Q2CONTENTS_SOLID)
 	{
@@ -1752,7 +1719,7 @@ qboolean CModQ2_LoadLeafs (lump_t *l)
 CMod_LoadPlanes
 =================
 */
-qboolean CModQ2_LoadPlanes (lump_t *l)
+qboolean CModQ2_LoadPlanes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -1760,7 +1727,7 @@ qboolean CModQ2_LoadPlanes (lump_t *l)
 	int			count;
 	int			bits;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1780,8 +1747,8 @@ qboolean CModQ2_LoadPlanes (lump_t *l)
 		return false;
 	}
 
-	loadmodel->planes = out = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * count);
-	loadmodel->numplanes = count;
+	mod->planes = out = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
+	mod->numplanes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1806,14 +1773,14 @@ qboolean CModQ2_LoadPlanes (lump_t *l)
 CMod_LoadLeafBrushes
 =================
 */
-qboolean CModQ2_LoadLeafBrushes (lump_t *l)
+qboolean CModQ2_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i;
 	q2cbrush_t	**out;
 	unsigned short 	*in;
 	int			count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1847,7 +1814,7 @@ qboolean CModQ2_LoadLeafBrushes (lump_t *l)
 CMod_LoadBrushSides
 =================
 */
-qboolean CModQ2_LoadBrushSides (lump_t *l)
+qboolean CModQ2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	q2cbrushside_t	*out;
@@ -1855,7 +1822,7 @@ qboolean CModQ2_LoadBrushSides (lump_t *l)
 	int			count;
 	int			num;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1870,15 +1837,15 @@ qboolean CModQ2_LoadBrushSides (lump_t *l)
 		return false;
 	}
 
-	out = map_brushsides = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * count);
+	out = map_brushsides = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
 	numbrushsides = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
 		num = LittleShort (in->planenum);
-		out->plane = &loadmodel->planes[num];
+		out->plane = &mod->planes[num];
 		j = LittleShort (in->texinfo);
-		if (j >= numtexinfo)
+		if (j >= mod->numtexinfo)
 		{
 			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
 			return false;
@@ -1894,14 +1861,14 @@ qboolean CModQ2_LoadBrushSides (lump_t *l)
 CMod_LoadAreas
 =================
 */
-qboolean CModQ2_LoadAreas (lump_t *l)
+qboolean CModQ2_LoadAreas (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i;
 	q2carea_t		*out;
 	q2darea_t 	*in;
 	int			count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1934,14 +1901,14 @@ qboolean CModQ2_LoadAreas (lump_t *l)
 CMod_LoadAreaPortals
 =================
 */
-qboolean CModQ2_LoadAreaPortals (lump_t *l)
+qboolean CModQ2_LoadAreaPortals (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i;
 	q2dareaportal_t		*out;
 	q2dareaportal_t 	*in;
 	int			count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -1972,7 +1939,7 @@ qboolean CModQ2_LoadAreaPortals (lump_t *l)
 CMod_LoadVisibility
 =================
 */
-qboolean CModQ2_LoadVisibility (lump_t *l)
+qboolean CModQ2_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int		i;
 
@@ -1983,10 +1950,10 @@ qboolean CModQ2_LoadVisibility (lump_t *l)
 //		return false;
 //	}
 
-	map_q2vis = ZG_Malloc(&loadmodel->memgroup, l->filelen);
-	memcpy (map_q2vis, cmod_base + l->fileofs, l->filelen);
+	map_q2vis = ZG_Malloc(&mod->memgroup, l->filelen);
+	memcpy (map_q2vis, mod_base + l->fileofs, l->filelen);
 
-	loadmodel->vis = map_q2vis;
+	mod->vis = map_q2vis;
 
 	map_q2vis->numclusters = LittleLong (map_q2vis->numclusters);
 	for (i=0 ; i<map_q2vis->numclusters ; i++)
@@ -1994,7 +1961,7 @@ qboolean CModQ2_LoadVisibility (lump_t *l)
 		map_q2vis->bitofs[i][0] = LittleLong (map_q2vis->bitofs[i][0]);
 		map_q2vis->bitofs[i][1] = LittleLong (map_q2vis->bitofs[i][1]);
 	}
-	loadmodel->numclusters = map_q2vis->numclusters;
+	mod->numclusters = map_q2vis->numclusters;
 
 	return true;
 }
@@ -2004,19 +1971,17 @@ qboolean CModQ2_LoadVisibility (lump_t *l)
 CMod_LoadEntityString
 =================
 */
-void CMod_LoadEntityString (lump_t *l)
+void CMod_LoadEntityString (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 //	if (l->filelen > MAX_Q2MAP_ENTSTRING)
 //		Host_Error ("Map has too large entity lump");
 
-	loadmodel->entities = ZG_Malloc(&loadmodel->memgroup, l->filelen+1);
-	memcpy (loadmodel->entities, cmod_base + l->fileofs, l->filelen);
+	mod->entities = ZG_Malloc(&mod->memgroup, l->filelen+1);
+	memcpy (mod->entities, mod_base + l->fileofs, l->filelen);
 }
 
-
-
-
-qboolean CModQ3_LoadMarksurfaces (lump_t *l)
+#ifdef Q3BSPS
+qboolean CModQ3_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int		i, j, count;
 	int		*in;
@@ -2048,7 +2013,7 @@ qboolean CModQ3_LoadMarksurfaces (lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadSubmodels (lump_t *l)
+qboolean CModQ3_LoadSubmodels (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q3dmodel_t	*in;
 	cmodel_t	*out;
@@ -2056,7 +2021,7 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 	q2cbrush_t **leafbrush;
 	mleaf_t		*bleaf;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -2075,11 +2040,11 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 		return false;
 	}
 
-	out = map_cmodels = ZG_Malloc(&loadmodel->memgroup, count * sizeof(*map_cmodels));
+	out = map_cmodels = ZG_Malloc(&mod->memgroup, count * sizeof(*map_cmodels));
 	numcmodels = count;
 
 	if (count > 1)
-		bleaf = ZG_Malloc(&loadmodel->memgroup, (count-1) * sizeof(*bleaf));
+		bleaf = ZG_Malloc(&mod->memgroup, (count-1) * sizeof(*bleaf));
 	else
 		bleaf = NULL;
 
@@ -2097,7 +2062,7 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 		out->numsurfaces = LittleLong (in->num_surfaces);
 		if (!i)
 		{
-			out->headnode = loadmodel->nodes;
+			out->headnode = mod->nodes;
 			out->headleaf = NULL;
 		}
 		else
@@ -2125,19 +2090,19 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 		//submodels
 	}
 
-	AddPointToBounds(map_cmodels[0].mins, loadmodel->mins, loadmodel->maxs);
-	AddPointToBounds(map_cmodels[0].maxs, loadmodel->mins, loadmodel->maxs);
+	AddPointToBounds(map_cmodels[0].mins, mod->mins, mod->maxs);
+	AddPointToBounds(map_cmodels[0].maxs, mod->mins, mod->maxs);
 
 	return true;
 }
 
-qboolean CModQ3_LoadShaders (lump_t *l)
+qboolean CModQ3_LoadShaders (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	dq3shader_t	*in;
 	q2mapsurface_t	*out;
 	int				i, count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -2153,27 +2118,38 @@ qboolean CModQ3_LoadShaders (lump_t *l)
 //	else if (count > MAX_Q2MAP_TEXINFO)
 //		Host_Error ("Map has too many shaders");
 
-	numtexinfo = count;
-	out = map_surfaces = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+	mod->numtexinfo = count;
+	out = map_surfaces = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
 
-	loadmodel->texinfo = ZG_Malloc(&loadmodel->memgroup, sizeof(mtexinfo_t)*count);
-	loadmodel->numtextures = count;
-	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t*)*count);
+	mod->texinfo = ZG_Malloc(&mod->memgroup, sizeof(mtexinfo_t)*(count*2+1));	//+1 is 'noshader' for flares.
+	mod->numtextures = count*2+1;
+	mod->textures = ZG_Malloc(&mod->memgroup, sizeof(texture_t*)*(count*2+1));
 
 	for ( i=0 ; i<count ; i++, in++, out++ )
 	{
-		loadmodel->texinfo[i].texture = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
-		Q_strncpyz(loadmodel->texinfo[i].texture->name, in->shadername, sizeof(loadmodel->texinfo[i].texture->name));
-		loadmodel->textures[i] = loadmodel->texinfo[i].texture;
+		mod->texinfo[i].texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t));
+		Q_strncpyz(mod->texinfo[i].texture->name, in->shadername, sizeof(mod->texinfo[i].texture->name));
+		mod->textures[i] = mod->texinfo[i].texture;
 
 		out->c.flags = LittleLong ( in->surfflags );
 		out->c.value = LittleLong ( in->contents );
 	}
+	for ( i=0, in-=count ; i<count ; i++, in++ )
+	{
+		mod->texinfo[i+count].texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t));
+		Q_strncpyz(mod->texinfo[i+count].texture->name, in->shadername, sizeof(mod->texinfo[i+count].texture->name));
+		mod->textures[i+count] = mod->texinfo[i+count].texture;
+	}
+
+	//and for flares, which are not supported at this time.
+	mod->texinfo[count*2].texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t));
+	Q_strncpyz(mod->texinfo[count*2].texture->name, "noshader", sizeof(mod->texinfo[count*2].texture->name));
+	mod->textures[count*2] = mod->texinfo[count*2].texture;
 
 	return true;
 }
 
-qboolean CModQ3_LoadVertexes (lump_t *l)
+qboolean CModQ3_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q3dvertex_t	*in;
 	vecV_t		*out;
@@ -2183,7 +2159,7 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 	vec2_t		*lmout, *stout;
 	vec4_t *cout;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "CMOD_LoadVertexes: funny lump size\n");
@@ -2197,13 +2173,13 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 		return false;
 	}
 
-	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
-	stout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*stout));
-	lmout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*lmout));
-	cout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*cout));
-	nout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
-//	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
-//	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
+	out = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
+	stout = ZG_Malloc(&mod->memgroup, count*sizeof(*stout));
+	lmout = ZG_Malloc(&mod->memgroup, count*sizeof(*lmout));
+	cout = ZG_Malloc(&mod->memgroup, count*sizeof(*cout));
+	nout = ZG_Malloc(&mod->memgroup, count*sizeof(*nout));
+//	sout = ZG_Malloc(&mod->memgroup, count*sizeof(*nout));
+//	tout = ZG_Malloc(&mod->memgroup, count*sizeof(*nout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	for (i = 0; i < MAXRLIGHTMAPS; i++)
@@ -2237,7 +2213,7 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 	return true;
 }
 
-qboolean CModRBSP_LoadVertexes (lump_t *l)
+qboolean CModRBSP_LoadVertexes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	rbspvertex_t	*in;
 	vecV_t		*out;
@@ -2248,7 +2224,7 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 	vec4_t *cout;
 	int sty;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "CMOD_LoadVertexes: funny lump size\n");
@@ -2262,13 +2238,13 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 		return false;
 	}
 
-	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
-	stout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*stout));
-	lmout = ZG_Malloc(&loadmodel->memgroup, MAXRLIGHTMAPS*count*sizeof(*lmout));
-	cout = ZG_Malloc(&loadmodel->memgroup, MAXRLIGHTMAPS*count*sizeof(*cout));
-	nout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*nout));
-//	sout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*sout));
-//	tout = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*tout));
+	out = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
+	stout = ZG_Malloc(&mod->memgroup, count*sizeof(*stout));
+	lmout = ZG_Malloc(&mod->memgroup, MAXRLIGHTMAPS*count*sizeof(*lmout));
+	cout = ZG_Malloc(&mod->memgroup, MAXRLIGHTMAPS*count*sizeof(*cout));
+	nout = ZG_Malloc(&mod->memgroup, count*sizeof(*nout));
+//	sout = ZG_Malloc(&mod->memgroup, count*sizeof(*sout));
+//	tout = ZG_Malloc(&mod->memgroup, count*sizeof(*tout));
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
@@ -2307,7 +2283,7 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 }
 
 
-qboolean CModQ3_LoadIndexes (lump_t *l)
+qboolean CModQ3_LoadIndexes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int		i, count;
 	int		*in;
@@ -2343,13 +2319,13 @@ qboolean CModQ3_LoadIndexes (lump_t *l)
 CMod_LoadFaces
 =================
 */
-qboolean CModQ3_LoadFaces (lump_t *l)
+qboolean CModQ3_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q3dface_t		*in;
 	q3cface_t		*out;
 	int			i, count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -2387,18 +2363,18 @@ qboolean CModQ3_LoadFaces (lump_t *l)
 		}
 	}
 
-	loadmodel->numsurfaces = i;
+	mod->numsurfaces = i;
 
 	return true;
 }
 
-qboolean CModRBSP_LoadFaces (lump_t *l)
+qboolean CModRBSP_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	rbspface_t		*in;
 	q3cface_t		*out;
 	int			i, count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -2436,7 +2412,7 @@ qboolean CModRBSP_LoadFaces (lump_t *l)
 		}
 	}
 
-	loadmodel->numsurfaces = i;
+	mod->numsurfaces = i;
 	return true;
 }
 
@@ -2447,7 +2423,7 @@ qboolean CModRBSP_LoadFaces (lump_t *l)
 Mod_LoadFogs
 =================
 */
-qboolean CModQ3_LoadFogs (lump_t *l)
+qboolean CModQ3_LoadFogs (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	dfog_t 	*in;
 	mfog_t 	*out;
@@ -2458,14 +2434,14 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n", mod->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
+	out = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
 
-	map_fogs = out;
-	map_numfogs = count;
+	mod->fogs = out;
+	mod->numfogs = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -2479,38 +2455,31 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 		visibleside = brushsides + LittleLong ( in->visibleSide );
 
 		out->visibleplane = visibleside->plane;
-		out->shader = R_RegisterShader_Lightmap ( in->shader );
-		R_BuildDefaultTexnums(&out->shader->defaulttextures, out->shader);
+		Q_strncpyz(out->shadername, in->shader, sizeof(out->shadername));
 		out->numplanes = brush->numsides;
-		out->planes = ZG_Malloc(&loadmodel->memgroup, out->numplanes*sizeof(cplane_t *));
+		out->planes = ZG_Malloc(&mod->memgroup, out->numplanes*sizeof(cplane_t *));
 
 		for ( j = 0; j < out->numplanes; j++ )
 		{
 			out->planes[j] = brushsides[j].plane;
-		}
-
-		if (!out->shader->fog_dist)
-		{
-			//invalid fog shader, don't use.
-			out->shader = NULL;
-			out->numplanes = 0;
 		}
 	}
 
 	return true;
 }
 
-mfog_t *CM_FogForOrigin(vec3_t org)
+mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org)
 {
 	int i, j;
-	mfog_t 	*ret = map_fogs;
+	mfog_t 	*ret;
 	float dot;
-	if (!map_numfogs || !cl.worldmodel || cl.worldmodel->fromgame != fg_quake3)
+
+	if (!wmodel || wmodel->loadstate != MLS_LOADED)
 		return NULL;
 
-	for ( i=0 ; i<map_numfogs ; i++, ret++)
+	for ( i=0 , ret=wmodel->fogs ; i<wmodel->numfogs ; i++, ret++)
 	{
-		if (!ret->numplanes)
+		if (!ret->shader)
 			continue;
 		for (j = 0; j < ret->numplanes; j++)
 		{
@@ -2668,16 +2637,16 @@ void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patc
 	memcpy (mesh->indexes, tempIndexesArray, numindexes * sizeof(index_t) );
 }
 
-void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
+void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 {
-	rbspface_t *in = cookie;
-	int idx = out - loadmodel->surfaces;
+	rbspface_t *in = (rbspface_t*)(bd+1);
+	int idx = (out - mod->surfaces) - mod->firstmodelsurface;
 	int sty;
 	in += idx;
 
 	if (LittleLong(in->facetype) == MST_PATCH)
 	{
-		GL_CreateMeshForPatch(loadmodel, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+		GL_CreateMeshForPatch(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 	}
 	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 	{
@@ -2741,15 +2710,15 @@ void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
 }
 
-void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
+void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 {
-	q3dface_t *in = cookie;
-	int idx = out - loadmodel->surfaces;
+	q3dface_t *in = (q3dface_t*)(bd+1);
+	int idx = (out - mod->surfaces) - mod->firstmodelsurface;
 	in += idx;
 
 	if (LittleLong(in->facetype) == MST_PATCH)
 	{
-		GL_CreateMeshForPatch(loadmodel, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+		GL_CreateMeshForPatch(mod, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 	}
 	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 	{
@@ -2810,12 +2779,14 @@ void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
 	Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
 }
 
-qboolean CModQ3_LoadRFaces (lump_t *l)
+qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	extern cvar_t r_vertexlight;
 	q3dface_t *in;
 	msurface_t *out;
 	mplane_t *pl;
 
+	int facetype;
 	int count;
 	int surfnum;
 
@@ -2827,21 +2798,28 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",mod->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
-	pl = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*pl));//create a new array of planes for speed.
-	mesh = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*mesh));
+	out = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
+	pl = ZG_Malloc(&mod->memgroup, count*sizeof(*pl));//create a new array of planes for speed.
+	mesh = ZG_Malloc(&mod->memgroup, count*sizeof(*mesh));
 
-	loadmodel->surfaces = out;
-	loadmodel->numsurfaces = count;
+	mod->surfaces = out;
+	mod->numsurfaces = count;
 
 	for (surfnum = 0; surfnum < count; surfnum++, out++, in++, pl++)
 	{
 		out->plane = pl;
-		out->texinfo = loadmodel->texinfo + LittleLong(in->shadernum);
+		
+		facetype = LittleLong(in->facetype);
+		out->texinfo = mod->texinfo + LittleLong(in->shadernum);
+		if (in->facetype == MST_FLARE)
+			out->texinfo = mod->texinfo + mod->numtexinfo*2;
+		else if (in->facetype == MST_TRIANGLE_SOUP || r_vertexlight.value)
+			out->texinfo += mod->numtexinfo;	//soup/vertex light uses a different version of the same shader (with all the lightmaps collapsed)
+
 		out->lightmaptexturenums[0] = LittleLong(in->lightmapnum);
 		out->light_s[0] = LittleLong(in->lightmap_x);
 		out->light_t[0] = LittleLong(in->lightmap_y);
@@ -2855,8 +2833,8 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<4;
 		out->samples=NULL;
 
-		if (loadmodel->lightmaps.count < out->lightmaptexturenums[0]+1)
-			loadmodel->lightmaps.count = out->lightmaptexturenums[0]+1;
+		if (mod->lightmaps.count < out->lightmaptexturenums[0]+1)
+			mod->lightmaps.count = out->lightmaptexturenums[0]+1;
 
 		fv = LittleLong(in->firstvertex);
 		{
@@ -2872,26 +2850,13 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
-		if (loadmodel->texinfo[LittleLong(in->shadernum)].flags & TI_SKY)
+		if (mod->texinfo[LittleLong(in->shadernum)].flags & TI_SKY)
 			out->flags |= SURF_DRAWSKY;
 
-		if (!out->texinfo->texture->shader)
-		{
-			extern cvar_t r_vertexlight;
-			if (LittleLong(in->facetype) == MST_FLARE)
-				out->texinfo->texture->shader = R_RegisterShader_Flare (out->texinfo->texture->name);
-			else if (LittleLong(in->facetype) == MST_TRIANGLE_SOUP || r_vertexlight.value)
-				out->texinfo->texture->shader = R_RegisterShader_Vertex (out->texinfo->texture->name);
-			else
-				out->texinfo->texture->shader = R_RegisterShader_Lightmap(out->texinfo->texture->name);
-
-			R_BuildDefaultTexnums(&out->texinfo->texture->shader->defaulttextures, out->texinfo->texture->shader);
-		}
-
-		if (LittleLong(in->fognum) == -1 || !map_numfogs)
+		if (LittleLong(in->fognum) == -1 || !mod->numfogs)
 			out->fog = NULL;
 		else
-			out->fog = map_fogs + LittleLong(in->fognum);
+			out->fog = mod->fogs + LittleLong(in->fognum);
 
 		if (map_surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
@@ -2899,12 +2864,12 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 			out->mesh->numindexes = 0;
 			out->mesh->numvertexes = 0;
 		}
-		else if (LittleLong(in->facetype) == MST_PATCH)
+		else if (facetype == MST_PATCH)
 		{
 			out->mesh = &mesh[surfnum];
 			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 		}
-		else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
+		else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 		{
 			out->mesh = &mesh[surfnum];
 			out->mesh->numindexes = LittleLong(in->num_indexes);
@@ -2921,15 +2886,17 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 		}
 	}
 
-	Mod_SortShaders();
+	Mod_SortShaders(mod);
 	return true;
 }
 
-qboolean CModRBSP_LoadRFaces (lump_t *l)
+qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	extern cvar_t r_vertexlight;
 	rbspface_t *in;
 	msurface_t *out;
 	mplane_t *pl;
+	int facetype;
 
 	int count;
 	int surfnum;
@@ -2943,22 +2910,26 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",mod->name);
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));
-	pl = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*pl));//create a new array of planes for speed.
-	mesh = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*mesh));
+	out = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
+	pl = ZG_Malloc(&mod->memgroup, count*sizeof(*pl));//create a new array of planes for speed.
+	mesh = ZG_Malloc(&mod->memgroup, count*sizeof(*mesh));
 
-	loadmodel->surfaces = out;
-	loadmodel->numsurfaces = count;
+	mod->surfaces = out;
+	mod->numsurfaces = count;
 
 	for (surfnum = 0; surfnum < count; surfnum++, out++, in++, pl++)
 	{
 		out->plane = pl;
-		out->texinfo = loadmodel->texinfo + LittleLong(in->shadernum);
-		in->facetype = LittleLong(in->facetype);
+		facetype = LittleLong(in->facetype);
+		out->texinfo = mod->texinfo + LittleLong(in->shadernum);
+		if (facetype == MST_FLARE)
+			out->texinfo = mod->texinfo + mod->numtexinfo*2;
+		else if (facetype == MST_TRIANGLE_SOUP || r_vertexlight.value)
+			out->texinfo += mod->numtexinfo;	//soup/vertex light uses a different version of the same shader (with all the lightmaps collapsed)
 		for (j = 0; j < 4 && j < MAXRLIGHTMAPS; j++)
 		{
 			out->lightmaptexturenums[j] = LittleLong(in->lightmapnum[j]);
@@ -2966,8 +2937,8 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 			out->light_t[j] = LittleLong(in->lightmap_offs[1][j]);
 			out->styles[j] = in->lm_styles[j];
 
-			if (loadmodel->lightmaps.count < out->lightmaptexturenums[j]+1)
-				loadmodel->lightmaps.count = out->lightmaptexturenums[j]+1;
+			if (mod->lightmaps.count < out->lightmaptexturenums[j]+1)
+				mod->lightmaps.count = out->lightmaptexturenums[j]+1;
 		}
 		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<4;
 		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<4;
@@ -2987,26 +2958,13 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
-		if (loadmodel->texinfo[in->shadernum].flags & TI_SKY)
+		if (mod->texinfo[in->shadernum].flags & TI_SKY)
 			out->flags |= SURF_DRAWSKY;
 
-		if (!out->texinfo->texture->shader)
-		{
-			extern cvar_t r_vertexlight;
-			if (in->facetype == MST_FLARE)
-				out->texinfo->texture->shader = R_RegisterShader_Flare (out->texinfo->texture->name);
-			else if (in->facetype == MST_TRIANGLE_SOUP || r_vertexlight.value)
-				out->texinfo->texture->shader = R_RegisterShader_Vertex (out->texinfo->texture->name);
-			else
-				out->texinfo->texture->shader = R_RegisterShader_Lightmap(out->texinfo->texture->name);
-
-			R_BuildDefaultTexnums(&out->texinfo->texture->shader->defaulttextures, out->texinfo->texture->shader);
-		}
-
-		if (in->fognum < 0 || in->fognum >= map_numfogs || !map_fogs[in->fognum].shader)
+		if (in->fognum < 0 || in->fognum >= mod->numfogs)
 			out->fog = NULL;
 		else
-			out->fog = map_fogs + in->fognum;
+			out->fog = mod->fogs + in->fognum;
 
 		if (map_surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
@@ -3014,12 +2972,12 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 			out->mesh->numindexes = 0;
 			out->mesh->numvertexes = 0;
 		}
-		else if (LittleLong(in->facetype) == MST_PATCH)
+		else if (facetype == MST_PATCH)
 		{
 			out->mesh = &mesh[surfnum];
 			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 		}
-		else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
+		else if (facetype == MST_PLANAR || facetype == MST_TRIANGLE_SOUP)
 		{
 			out->mesh = &mesh[surfnum];
 			out->mesh->numindexes = LittleLong(in->num_indexes);
@@ -3036,18 +2994,18 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		}
 	}
 	
-	Mod_SortShaders();
+	Mod_SortShaders(mod);
 	return true;
 }
 #endif
 
-qboolean CModQ3_LoadLeafFaces (lump_t *l)
+qboolean CModQ3_LoadLeafFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int		i, j, count;
 	int		*in;
 	int		*out;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -3081,7 +3039,7 @@ qboolean CModQ3_LoadLeafFaces (lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadNodes (lump_t *l)
+qboolean CModQ3_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int			i, j, count, p;
 	q3dnode_t	*in;
@@ -3142,14 +3100,14 @@ qboolean CModQ3_LoadNodes (lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadBrushes (lump_t *l)
+qboolean CModQ3_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	q3dbrush_t	*in;
 	q2cbrush_t	*out;
 	int			i, count;
 	int			shaderref;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -3163,7 +3121,7 @@ qboolean CModQ3_LoadBrushes (lump_t *l)
 		return false;
 	}
 
-	map_brushes = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * (count+1));
+	map_brushes = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
 
 	out = map_brushes;
 
@@ -3180,7 +3138,7 @@ qboolean CModQ3_LoadBrushes (lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadLeafs (lump_t *l)
+qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	mleaf_t		*out;
@@ -3188,7 +3146,7 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 	int			count;
 	q2cbrush_t	*brush;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -3209,11 +3167,11 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 		return false;
 	}
 
-	out = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * (count+1));
+	out = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
 	numclusters = 0;
 
-	loadmodel->leafs = out;
-	loadmodel->numleafs = count;
+	mod->leafs = out;
+	mod->numleafs = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -3230,7 +3188,7 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 		out->firstleafbrush = LittleLong(in->firstleafbrush);
 		out->numleafbrushes = LittleLong(in->num_leafbrushes);
 
-		out->firstmarksurface = loadmodel->marksurfaces + LittleLong(in->firstleafsurface);
+		out->firstmarksurface = mod->marksurfaces + LittleLong(in->firstleafsurface);
 		out->nummarksurfaces = LittleLong(in->num_leafsurfaces);
 
 		if (out->minmaxs[0] > out->minmaxs[3+0] || out->minmaxs[1] > out->minmaxs[3+1] ||
@@ -3254,7 +3212,7 @@ qboolean CModQ3_LoadLeafs (lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadPlanes (lump_t *l)
+qboolean CModQ3_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -3292,14 +3250,14 @@ qboolean CModQ3_LoadPlanes (lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadLeafBrushes (lump_t *l)
+qboolean CModQ3_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i;
 	q2cbrush_t  **out;
 	int 	*in;
 	int			count;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -3328,7 +3286,7 @@ qboolean CModQ3_LoadLeafBrushes (lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadBrushSides (lump_t *l)
+qboolean CModQ3_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	q2cbrushside_t	*out;
@@ -3336,7 +3294,7 @@ qboolean CModQ3_LoadBrushSides (lump_t *l)
 	int			count;
 	int			num;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -3351,15 +3309,15 @@ qboolean CModQ3_LoadBrushSides (lump_t *l)
 		return false;
 	}
 
-	out = map_brushsides = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * count);
+	out = map_brushsides = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
 	numbrushsides = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
 		num = LittleLong (in->planenum);
-		out->plane = &loadmodel->planes[num];
+		out->plane = &mod->planes[num];
 		j = LittleLong (in->texinfo);
-		if (j >= numtexinfo)
+		if (j >= mod->numtexinfo)
 		{
 			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
 			return false;
@@ -3370,7 +3328,7 @@ qboolean CModQ3_LoadBrushSides (lump_t *l)
 	return true;
 }
 
-qboolean CModRBSP_LoadBrushSides (lump_t *l)
+qboolean CModRBSP_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	int			i, j;
 	q2cbrushside_t	*out;
@@ -3378,7 +3336,7 @@ qboolean CModRBSP_LoadBrushSides (lump_t *l)
 	int			count;
 	int			num;
 
-	in = (void *)(cmod_base + l->fileofs);
+	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
 	{
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
@@ -3393,15 +3351,15 @@ qboolean CModRBSP_LoadBrushSides (lump_t *l)
 		return false;
 	}
 
-	out = map_brushsides = ZG_Malloc(&loadmodel->memgroup, sizeof(*out) * count);
+	out = map_brushsides = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
 	numbrushsides = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
 		num = LittleLong (in->planenum);
-		out->plane = &loadmodel->planes[num];
+		out->plane = &mod->planes[num];
 		j = LittleLong (in->texinfo);
-		if (j >= numtexinfo)
+		if (j >= mod->numtexinfo)
 		{
 			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
 			return false;
@@ -3412,19 +3370,19 @@ qboolean CModRBSP_LoadBrushSides (lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadVisibility (lump_t *l)
+qboolean CModQ3_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	if (l->filelen == 0)
 	{
 		int i;
 		numclusters = 0;
-		for (i = 0; i < loadmodel->numleafs; i++)
-			if (numclusters <= loadmodel->leafs[i].cluster)
-				numclusters = loadmodel->leafs[i].cluster+1;
+		for (i = 0; i < mod->numleafs; i++)
+			if (numclusters <= mod->leafs[i].cluster)
+				numclusters = mod->leafs[i].cluster+1;
 
 		numclusters++;
 
-		map_q3pvs = ZG_Malloc(&loadmodel->memgroup, sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
+		map_q3pvs = ZG_Malloc(&mod->memgroup, sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
 		memset (map_q3pvs, 0xff, sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
 		map_q3pvs->numclusters = numclusters;
 		numvisibility = 0;
@@ -3434,20 +3392,20 @@ qboolean CModQ3_LoadVisibility (lump_t *l)
 	{
 		numvisibility = l->filelen;
 
-		map_q3pvs = ZG_Malloc(&loadmodel->memgroup, l->filelen);
-		loadmodel->vis = (q2dvis_t *)map_q3pvs;
-		memcpy (map_q3pvs, cmod_base + l->fileofs, l->filelen);
+		map_q3pvs = ZG_Malloc(&mod->memgroup, l->filelen);
+		mod->vis = (q2dvis_t *)map_q3pvs;
+		memcpy (map_q3pvs, mod_base + l->fileofs, l->filelen);
 
 		numclusters = map_q3pvs->numclusters = LittleLong (map_q3pvs->numclusters);
 		map_q3pvs->rowsize = LittleLong (map_q3pvs->rowsize);
 	}
-	loadmodel->numclusters = numclusters;
+	mod->numclusters = numclusters;
 
 	return true;
 }
 
 #ifndef SERVERONLY
-void CModQ3_LoadLighting (lump_t *l)
+void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	qbyte *in = mod_base + l->fileofs;
 	qbyte *out;
@@ -3502,7 +3460,7 @@ void CModQ3_LoadLighting (lump_t *l)
 	}
 }
 
-qboolean CModQ3_LoadLightgrid (lump_t *l)
+qboolean CModQ3_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	dq3gridlight_t 	*in;
 	dq3gridlight_t 	*out;
@@ -3528,7 +3486,7 @@ qboolean CModQ3_LoadLightgrid (lump_t *l)
 
 	return true;
 }
-qboolean CModRBSP_LoadLightgrid (lump_t *elements, lump_t *indexes)
+qboolean CModRBSP_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lump_t *elements, lump_t *indexes)
 {
 	unsigned short	*iin;
 	rbspgridlight_t	*ein;
@@ -3569,20 +3527,21 @@ qboolean CModRBSP_LoadLightgrid (lump_t *elements, lump_t *indexes)
 	return true;
 }
 #endif
-
+#endif
 
 #ifndef SERVERONLY
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 int CM_GetQ2Palette (void)
 {
 	char *f;
-	FS_LoadFile("pics/colormap.pcx", (void**)&f);
+	size_t sz;
+	sz = FS_LoadFile("pics/colormap.pcx", (void**)&f);
 	if (!f)
 	{
 		Con_Printf (CON_WARNING "Couldn't find pics/colormap.pcx\n");
 		return -1;
 	}
-	if (!ReadPCXPalette(f, com_filesize, d_q28to24table))
+	if (!ReadPCXPalette(f, sz, d_q28to24table))
 	{
 		Con_Printf (CON_WARNING "Couldn't read pics/colormap.pcx\n");
 		FS_FreeFile(f);
@@ -3667,7 +3626,7 @@ void CM_OpenAllPortals(char *ents)	//this is a compleate hack. About as compleat
 
 
 #ifndef CLIENTONLY
-void CMQ3_CalcPHS (void)
+void CMQ3_CalcPHS (model_t *mod)
 {
 	int		rowbytes, rowwords;
 	int		i, j, k, l, index;
@@ -3680,7 +3639,7 @@ void CMQ3_CalcPHS (void)
 
 	Con_DPrintf ("Building PHS...\n");
 
-	map_q3phs = ZG_Malloc(&loadmodel->memgroup, sizeof(*map_q3phs) + map_q3pvs->rowsize * map_q3pvs->numclusters);
+	map_q3phs = ZG_Malloc(&mod->memgroup, sizeof(*map_q3phs) + map_q3pvs->rowsize * map_q3pvs->numclusters);
 
 	rowwords = map_q3pvs->rowsize / sizeof(int);
 	rowbytes = map_q3pvs->rowsize;
@@ -3695,7 +3654,7 @@ void CMQ3_CalcPHS (void)
 	vcount = 0;
 	for (i=0 ; i<numclusters ; i++)
 	{
-		scan = CM_ClusterPVS (sv.world.worldmodel, i, NULL, 0);
+		scan = CM_ClusterPVS (mod, i, NULL, 0);
 		for (j=0 ; j<numclusters ; j++)
 		{
 			if ( scan[j>>3] & (1<<(j&7)) )
@@ -3865,7 +3824,7 @@ CM_LoadMap
 Loads in the map and all submodels
 ==================
 */
-cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *checksum)
+static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboolean clientload, unsigned *checksum)
 {
 	unsigned		*buf;
 	int				i;
@@ -3873,27 +3832,32 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	int				length;
 	static unsigned	last_checksum;
 	qboolean noerrors = true;
-	model_t *im = loadmodel;
+	model_t			*wmod = mod;
+	char			loadname[32];
+	qbyte			*mod_base = (qbyte *)filein;
 
 	void (*buildmeshes)(model_t *mod, msurface_t *surf, void *cookie) = NULL;
-	void *buildcookie = NULL;
+	qbyte *facedata = NULL;
+	unsigned int facesize = 0;
+
+	COM_FileBase (mod->name, loadname, sizeof(loadname));
 
 	// free old stuff
 	numcmodels = 0;
 	numvisibility = 0;
 	box_planes = NULL;	//so its rebuilt
 
-	loadmodel->type = mod_brush;
+	mod->type = mod_brush;
 
-	if (!name || !name[0])
+	if (!mod->name[0])
 	{
-		map_cmodels = ZG_Malloc(&loadmodel->memgroup, 1 * sizeof(*map_cmodels));
-		loadmodel->leafs = ZG_Malloc(&loadmodel->memgroup, 1 * sizeof(*loadmodel->leafs));
+		map_cmodels = ZG_Malloc(&mod->memgroup, 1 * sizeof(*map_cmodels));
+		mod->leafs = ZG_Malloc(&mod->memgroup, 1 * sizeof(*mod->leafs));
 		numcmodels = 1;
 		numclusters = 1;
 		numareas = 1;
 		*checksum = 0;
-		map_cmodels[0].headnode = (mnode_t*)loadmodel->leafs;	//directly start with the empty leaf
+		map_cmodels[0].headnode = (mnode_t*)mod->leafs;	//directly start with the empty leaf
 		return &map_cmodels[0];			// cinematic servers won't have anything at all
 	}
 
@@ -3901,10 +3865,10 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	// load the file
 	//
 	buf = (unsigned	*)filein;
-	length = com_filesize;
+	length = filelen;
 	if (!buf)
 	{
-		Con_Printf (CON_ERROR "Couldn't load %s\n", name);
+		Con_Printf (CON_ERROR "Couldn't load %s\n", mod->name);
 		return NULL;
 	}
 
@@ -3915,26 +3879,24 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	header.ident = LittleLong(header.ident);
 	header.version = LittleLong(header.version);
 
-	cmod_base = mod_base = (qbyte *)buf;
-
 	if (header.ident == (('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24)))
 	{
-		loadmodel->lightmaps.width = 512;
-		loadmodel->lightmaps.height = 512;
+		mod->lightmaps.width = 512;
+		mod->lightmaps.height = 512;
 	}
 	else
 	{
-		loadmodel->lightmaps.width = 128;
-		loadmodel->lightmaps.height = 128;
+		mod->lightmaps.width = 128;
+		mod->lightmaps.height = 128;
 	}
 
-	ClearBounds(loadmodel->mins, loadmodel->maxs);
+	ClearBounds(mod->mins, mod->maxs);
 
 	switch(header.version)
 	{
 	default:
 		Con_Printf (CON_ERROR "Quake 2 or Quake 3 based BSP with unknown header (%s: %i should be %i or %i)\n"
-			, name, header.version, Q2BSPVERSION, Q3BSPVERSION);
+			, mod->name, header.version, Q2BSPVERSION, Q3BSPVERSION);
 		return NULL;
 		break;
 #ifdef Q3BSPS
@@ -3942,7 +3904,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	case Q3BSPVERSION+1:	//rtcw
 	case Q3BSPVERSION:
 		mapisq3 = true;
-		loadmodel->fromgame = fg_quake3;
+		mod->fromgame = fg_quake3;
 		for (i=0 ; i<Q3LUMPS_TOTAL ; i++)
 		{
 			if (i == RBSPLUMP_LIGHTINDEXES && header.version != 1)
@@ -3955,10 +3917,10 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 				header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
 				header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
 
-				if (header.lumps[i].filelen && header.lumps[i].fileofs + header.lumps[i].filelen > com_filesize)
+				if (header.lumps[i].filelen && header.lumps[i].fileofs + header.lumps[i].filelen > filelen)
 				{
-					Con_Printf (CON_ERROR "WARNING: q3bsp %s truncated (lump %i, %i+%i > %i)\n", name, i, header.lumps[i].fileofs, header.lumps[i].filelen, com_filesize);
-					header.lumps[i].filelen = com_filesize - header.lumps[i].fileofs;
+					Con_Printf (CON_ERROR "WARNING: q3bsp %s truncated (lump %i, %i+%i > %i)\n", mod->name, i, header.lumps[i].fileofs, header.lumps[i].filelen, filelen);
+					header.lumps[i].filelen = filelen - header.lumps[i].fileofs;
 					if (header.lumps[i].filelen < 0)
 						header.lumps[i].filelen = 0;
 				}
@@ -3966,114 +3928,109 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		}
 		/*
 		#ifndef SERVERONLY
-			GLMod_LoadVertexes		(&header.lumps[Q3LUMP_DRAWVERTS]);
-//			GLMod_LoadEdges			(&header.lumps[Q3LUMP_EDGES]);
-//			GLMod_LoadSurfedges		(&header.lumps[Q3LUMP_SURFEDGES]);
-			GLMod_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);
+			GLMod_LoadVertexes		(mod, cmod_base, &header.lumps[Q3LUMP_DRAWVERTS]);
+//			GLMod_LoadEdges			(mod, cmod_base, &header.lumps[Q3LUMP_EDGES]);
+//			GLMod_LoadSurfedges		(mod, cmod_base, &header.lumps[Q3LUMP_SURFEDGES]);
+			GLMod_LoadLighting		(mod, cmod_base, &header.lumps[Q3LUMP_LIGHTMAPS]);
 		#endif
-			CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
-			CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
-			CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
-			CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
-			CModQ3_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
+			CModQ3_LoadShaders		(mod, cmod_base, &header.lumps[Q3LUMP_SHADERS]);
+			CModQ3_LoadPlanes		(mod, cmod_base, &header.lumps[Q3LUMP_PLANES]);
+			CModQ3_LoadLeafBrushes	(mod, cmod_base, &header.lumps[Q3LUMP_LEAFBRUSHES]);
+			CModQ3_LoadBrushes		(mod, cmod_base, &header.lumps[Q3LUMP_BRUSHES]);
+			CModQ3_LoadBrushSides	(mod, cmod_base, &header.lumps[Q3LUMP_BRUSHSIDES]);
 		#ifndef SERVERONLY
-			CMod_LoadTexInfo		(&header.lumps[Q3LUMP_SHADERS]);
-			CMod_LoadFaces			(&header.lumps[Q3LUMP_SURFACES]);
-//			GLMod_LoadMarksurfaces	(&header.lumps[Q3LUMP_LEAFFACES]);
+			CMod_LoadTexInfo		(mod, cmod_base, &header.lumps[Q3LUMP_SHADERS]);
+			CMod_LoadFaces			(mod, cmod_base, &header.lumps[Q3LUMP_SURFACES]);
+//			GLMod_LoadMarksurfaces	(mod, cmod_base, &header.lumps[Q3LUMP_LEAFFACES]);
 		#endif
-			CMod_LoadVisibility		(&header.lumps[Q3LUMP_VISIBILITY]);
-			CModQ3_LoadSubmodels	(&header.lumps[Q3LUMP_MODELS]);
-			CModQ3_LoadLeafs		(&header.lumps[Q3LUMP_LEAFS]);
-			CModQ3_LoadNodes		(&header.lumps[Q3LUMP_NODES]);
-//			CMod_LoadAreas			(&header.lumps[Q3LUMP_AREAS]);
-//			CMod_LoadAreaPortals	(&header.lumps[Q3LUMP_AREAPORTALS]);
-			CMod_LoadEntityString	(&header.lumps[Q3LUMP_ENTITIES]);
+			CMod_LoadVisibility		(mod, cmod_base, &header.lumps[Q3LUMP_VISIBILITY]);
+			CModQ3_LoadSubmodels	(mod, cmod_base, &header.lumps[Q3LUMP_MODELS]);
+			CModQ3_LoadLeafs		(mod, cmod_base, &header.lumps[Q3LUMP_LEAFS]);
+			CModQ3_LoadNodes		(mod, cmod_base, &header.lumps[Q3LUMP_NODES]);
+//			CMod_LoadAreas			(mod, cmod_base, &header.lumps[Q3LUMP_AREAS]);
+//			CMod_LoadAreaPortals	(mod, cmod_base, &header.lumps[Q3LUMP_AREAPORTALS]);
+			CMod_LoadEntityString	(mod, cmod_base, &header.lumps[Q3LUMP_ENTITIES]);
 */
 
 		map_faces = NULL;
 		map_leaffaces = NULL;
 
-		Q1BSPX_Setup(loadmodel, mod_base, com_filesize, header.lumps, Q3LUMPS_TOTAL);
+		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, Q3LUMPS_TOTAL);
 
 		mapisq3 = true;
-		noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
-		noerrors = noerrors && CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
+		noerrors = noerrors && CModQ3_LoadShaders				(mod, mod_base, &header.lumps[Q3LUMP_SHADERS]);
+		noerrors = noerrors && CModQ3_LoadPlanes				(mod, mod_base, &header.lumps[Q3LUMP_PLANES]);
 		if (header.version == 1)
 		{
-			noerrors = noerrors && CModRBSP_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
-			noerrors = noerrors && CModRBSP_LoadVertexes	(&header.lumps[Q3LUMP_DRAWVERTS]);
+			noerrors = noerrors && CModRBSP_LoadBrushSides		(mod, mod_base, &header.lumps[Q3LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CModRBSP_LoadVertexes		(mod, mod_base, &header.lumps[Q3LUMP_DRAWVERTS]);
 		}
 		else
 		{
-			noerrors = noerrors && CModQ3_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
-			noerrors = noerrors && CModQ3_LoadVertexes		(&header.lumps[Q3LUMP_DRAWVERTS]);
+			noerrors = noerrors && CModQ3_LoadBrushSides		(mod, mod_base, &header.lumps[Q3LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CModQ3_LoadVertexes			(mod, mod_base, &header.lumps[Q3LUMP_DRAWVERTS]);
 		}
-		noerrors = noerrors && CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
-		noerrors = noerrors && CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
+		noerrors = noerrors && CModQ3_LoadBrushes				(mod, mod_base, &header.lumps[Q3LUMP_BRUSHES]);
+		noerrors = noerrors && CModQ3_LoadLeafBrushes			(mod, mod_base, &header.lumps[Q3LUMP_LEAFBRUSHES]);
 		if (header.version == 1)
-			noerrors = noerrors && CModRBSP_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
+			noerrors = noerrors && CModRBSP_LoadFaces			(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
 		else
-			noerrors = noerrors && CModQ3_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
+			noerrors = noerrors && CModQ3_LoadFaces				(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
 #ifndef SERVERONLY
 		if (qrenderer != QR_NONE)
 		{
 			if (header.version == 1)
-				noerrors = noerrors && CModRBSP_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID], &header.lumps[RBSPLUMP_LIGHTINDEXES]);
+				noerrors = noerrors && CModRBSP_LoadLightgrid	(mod, mod_base, &header.lumps[Q3LUMP_LIGHTGRID], &header.lumps[RBSPLUMP_LIGHTINDEXES]);
 			else
-				noerrors = noerrors && CModQ3_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID]);
-			noerrors = noerrors && CModQ3_LoadIndexes		(&header.lumps[Q3LUMP_DRAWINDEXES]);
+				noerrors = noerrors && CModQ3_LoadLightgrid		(mod, mod_base, &header.lumps[Q3LUMP_LIGHTGRID]);
+			noerrors = noerrors && CModQ3_LoadIndexes			(mod, mod_base, &header.lumps[Q3LUMP_DRAWINDEXES]);
 
 			if (header.version != Q3BSPVERSION+1)
-				noerrors = noerrors && CModQ3_LoadFogs			(&header.lumps[Q3LUMP_FOGS]);
+				noerrors = noerrors && CModQ3_LoadFogs			(mod, mod_base, &header.lumps[Q3LUMP_FOGS]);
 			else
-				map_numfogs = 0;
+				mod->numfogs = 0;
 
-			buildcookie = (void *)(mod_base + header.lumps[Q3LUMP_SURFACES].fileofs);
+			facedata = (void *)(mod_base + header.lumps[Q3LUMP_SURFACES].fileofs);
 			if (header.version == 1)
 			{
-				noerrors = noerrors && CModRBSP_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
+				noerrors = noerrors && CModRBSP_LoadRFaces		(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
 				buildmeshes = CModRBSP_BuildSurfMesh;
-				loadmodel->lightmaps.surfstyles = 4;
+				facesize = sizeof(rbspface_t);
+				mod->lightmaps.surfstyles = 4;
 			}
 			else
 			{
-				noerrors = noerrors && CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
+				noerrors = noerrors && CModQ3_LoadRFaces		(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
 				buildmeshes = CModQ3_BuildSurfMesh;
-				loadmodel->lightmaps.surfstyles = 1;
+				facesize = sizeof(q3dface_t);
+				mod->lightmaps.surfstyles = 1;
 			}
-			noerrors = noerrors && CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
+			noerrors = noerrors && CModQ3_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
 
-			/*make sure all textures have a shader*/
-			for (i=0; i<loadmodel->numtextures; i++)
+			if (noerrors && mod->fromgame == fg_quake3)
 			{
-				if (!loadmodel->textures[i]->shader)
-					loadmodel->textures[i]->shader = R_RegisterShader_Lightmap(loadmodel->textures[i]->name);
-			}
+				i = header.lumps[Q3LUMP_LIGHTMAPS].filelen / (mod->lightmaps.width*mod->lightmaps.height*3);
+				mod->lightmaps.deluxemapping = !(i&1);
+				mod->lightmaps.count = max(mod->lightmaps.count, i);
 
-			if (noerrors && loadmodel->fromgame == fg_quake3)
-			{
-				i = header.lumps[Q3LUMP_LIGHTMAPS].filelen / (loadmodel->lightmaps.width*loadmodel->lightmaps.height*3);
-				loadmodel->lightmaps.deluxemapping = !(i&1);
-				loadmodel->lightmaps.count = max(loadmodel->lightmaps.count, i);
-
-				for (i = 0; i < loadmodel->numsurfaces && loadmodel->lightmaps.deluxemapping; i++)
+				for (i = 0; i < mod->numsurfaces && mod->lightmaps.deluxemapping; i++)
 				{
-					if (loadmodel->surfaces[i].lightmaptexturenums[0] >= 0 && (loadmodel->surfaces[i].lightmaptexturenums[0] & 1))
-						loadmodel->lightmaps.deluxemapping = false;
+					if (mod->surfaces[i].lightmaptexturenums[0] >= 0 && (mod->surfaces[i].lightmaptexturenums[0] & 1))
+						mod->lightmaps.deluxemapping = false;
 				}
 			}
 
 			if (noerrors)
-				CModQ3_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
+				CModQ3_LoadLighting								(mod, mod_base, &header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
 		}
 #endif
-		noerrors = noerrors && CModQ3_LoadLeafFaces	(&header.lumps[Q3LUMP_LEAFSURFACES]);
-		noerrors = noerrors && CModQ3_LoadLeafs		(&header.lumps[Q3LUMP_LEAFS]);
-		noerrors = noerrors && CModQ3_LoadNodes		(&header.lumps[Q3LUMP_NODES]);
-		noerrors = noerrors && CModQ3_LoadSubmodels	(&header.lumps[Q3LUMP_MODELS]);
-		noerrors = noerrors && CModQ3_LoadVisibility	(&header.lumps[Q3LUMP_VISIBILITY]);
+		noerrors = noerrors && CModQ3_LoadLeafFaces				(mod, mod_base, &header.lumps[Q3LUMP_LEAFSURFACES]);
+		noerrors = noerrors && CModQ3_LoadLeafs					(mod, mod_base, &header.lumps[Q3LUMP_LEAFS]);
+		noerrors = noerrors && CModQ3_LoadNodes					(mod, mod_base, &header.lumps[Q3LUMP_NODES]);
+		noerrors = noerrors && CModQ3_LoadSubmodels				(mod, mod_base, &header.lumps[Q3LUMP_MODELS]);
+		noerrors = noerrors && CModQ3_LoadVisibility			(mod, mod_base, &header.lumps[Q3LUMP_VISIBILITY]);
 		if (noerrors)
-			CMod_LoadEntityString	(&header.lumps[Q3LUMP_ENTITIES]);
+			CMod_LoadEntityString								(mod, mod_base, &header.lumps[Q3LUMP_ENTITIES]);
 
 		if (!noerrors)
 		{
@@ -4085,28 +4042,28 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		}
 
 #ifndef CLIENTONLY
-		loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
-		loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
-		loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
+		mod->funcs.FatPVS					= Q2BSP_FatPVS;
+		mod->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
+		mod->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
 #endif
-		loadmodel->funcs.ClusterPVS				= CM_ClusterPVS;
-		loadmodel->funcs.ClusterForPoint		= CM_PointCluster;
+		mod->funcs.ClusterPVS				= CM_ClusterPVS;
+		mod->funcs.ClusterForPoint		= CM_PointCluster;
 
 #ifndef SERVERONLY
-		loadmodel->funcs.LightPointValues		= GLQ3_LightGrid;
-		loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
-		loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
+		mod->funcs.LightPointValues		= GLQ3_LightGrid;
+		mod->funcs.StainNode				= GLR_Q2BSP_StainNode;
+		mod->funcs.MarkLights				= Q2BSP_MarkLights;
 #endif
-		loadmodel->funcs.PointContents			= Q2BSP_PointContents;
-		loadmodel->funcs.NativeTrace			= CM_NativeTrace;
-		loadmodel->funcs.NativeContents			= CM_NativeContents;
+		mod->funcs.PointContents			= Q2BSP_PointContents;
+		mod->funcs.NativeTrace			= CM_NativeTrace;
+		mod->funcs.NativeContents			= CM_NativeContents;
 
 #ifndef SERVERONLY
 		//light grid info
-		if (loadmodel->lightgrid)
+		if (mod->lightgrid)
 		{
 			float maxs;
-			q3lightgridinfo_t *lg = loadmodel->lightgrid;
+			q3lightgridinfo_t *lg = mod->lightgrid;
 			if ( lg->gridSize[0] < 1 || lg->gridSize[1] < 1 || lg->gridSize[2] < 1 )
 			{
 				lg->gridSize[0] = 64;
@@ -4125,14 +4082,14 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		}
 #endif
 
-		if (!CM_CreatePatchesForLeafs ())	//for clipping
+		if (!CM_CreatePatchesForLeafs (mod))	//for clipping
 		{
 			BZ_Free(map_faces);
 			BZ_Free(map_leaffaces);
 			return NULL;
 		}
 #ifndef CLIENTONLY
-		CMQ3_CalcPHS();
+		CMQ3_CalcPHS(mod);
 #endif
 //			BZ_Free(map_verts);
 		BZ_Free(map_faces);
@@ -4141,14 +4098,14 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 #endif
 	case Q2BSPVERSION:
 		mapisq3 = false;
-		loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
+		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 		for (i=0 ; i<Q2HEADER_LUMPS ; i++)
 		{
 			header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
 			header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
 		}
 
-		Q1BSPX_Setup(loadmodel, mod_base, com_filesize, header.lumps, Q2HEADER_LUMPS);
+		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, Q2HEADER_LUMPS);
 
 #ifndef SERVERONLY
 		if (CM_GetQ2Palette())
@@ -4158,33 +4115,33 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		switch(qrenderer)
 		{
 		case QR_NONE:	//dedicated only
-			noerrors = noerrors && CModQ2_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CModQ2_LoadPlanes			(&header.lumps[Q2LUMP_PLANES]);
-			noerrors = noerrors && CModQ2_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
-			noerrors = noerrors && CModQ2_LoadBrushSides		(&header.lumps[Q2LUMP_BRUSHSIDES]);
-			noerrors = noerrors && CModQ2_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
-			noerrors = noerrors && CModQ2_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
-			noerrors = noerrors && CModQ2_LoadLeafs			(&header.lumps[Q2LUMP_LEAFS]);
-			noerrors = noerrors && CModQ2_LoadNodes			(&header.lumps[Q2LUMP_NODES]);
-			noerrors = noerrors && CModQ2_LoadSubmodels		(&header.lumps[Q2LUMP_MODELS]);
-			noerrors = noerrors && CModQ2_LoadAreas			(&header.lumps[Q2LUMP_AREAS]);
-			noerrors = noerrors && CModQ2_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
+			noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
+			noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
+			noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
+			noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[Q2LUMP_BRUSHES]);
+			noerrors = noerrors && CModQ2_LoadLeafBrushes	(mod, mod_base, &header.lumps[Q2LUMP_LEAFBRUSHES]);
+			noerrors = noerrors && CModQ2_LoadLeafs			(mod, mod_base, &header.lumps[Q2LUMP_LEAFS]);
+			noerrors = noerrors && CModQ2_LoadNodes			(mod, mod_base, &header.lumps[Q2LUMP_NODES]);
+			noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[Q2LUMP_MODELS]);
+			noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[Q2LUMP_AREAS]);
+			noerrors = noerrors && CModQ2_LoadAreaPortals	(mod, mod_base, &header.lumps[Q2LUMP_AREAPORTALS]);
 			if (noerrors)
-				CMod_LoadEntityString	(&header.lumps[Q2LUMP_ENTITIES]);
+				CMod_LoadEntityString						(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
 
 #ifndef CLIENTONLY
-			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
-			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
-			loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
+			mod->funcs.FatPVS				= Q2BSP_FatPVS;
+			mod->funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
+			mod->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
 #endif
-			loadmodel->funcs.LightPointValues		= NULL;
-			loadmodel->funcs.StainNode				= NULL;
-			loadmodel->funcs.MarkLights				= NULL;
-			loadmodel->funcs.ClusterPVS				= CM_ClusterPVS;
-			loadmodel->funcs.ClusterForPoint		= CM_PointCluster;
-			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
-			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
-			loadmodel->funcs.NativeContents			= CM_NativeContents;
+			mod->funcs.LightPointValues		= NULL;
+			mod->funcs.StainNode			= NULL;
+			mod->funcs.MarkLights			= NULL;
+			mod->funcs.ClusterPVS			= CM_ClusterPVS;
+			mod->funcs.ClusterForPoint		= CM_PointCluster;
+			mod->funcs.PointContents		= Q2BSP_PointContents;
+			mod->funcs.NativeTrace			= CM_NativeTrace;
+			mod->funcs.NativeContents		= CM_NativeContents;
 
 			break;
 #if defined(GLQUAKE) || defined(D3DQUAKE)
@@ -4193,48 +4150,48 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		case QR_OPENGL:
 		// load into heap
 		#ifndef SERVERONLY
-			noerrors = noerrors && Mod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
-			noerrors = noerrors && Mod_LoadEdges			(&header.lumps[Q2LUMP_EDGES], false);
-			noerrors = noerrors && Mod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
+			noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[Q2LUMP_VERTEXES]);
+			noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
+			noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
 			if (noerrors)
-				Mod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
+				Mod_LoadLighting							(mod, mod_base, &header.lumps[Q2LUMP_LIGHTING]);
 		#endif
-			noerrors = noerrors && CModQ2_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CModQ2_LoadPlanes			(&header.lumps[Q2LUMP_PLANES]);
+			noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
+			noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
 		#ifndef SERVERONLY
-			noerrors = noerrors && CModQ2_LoadTexInfo		(&header.lumps[Q2LUMP_TEXINFO]);
-			noerrors = noerrors && CModQ2_LoadFaces			(&header.lumps[Q2LUMP_FACES]);
-			noerrors = noerrors && Mod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES], false);
+			noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);
+			noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES]);
+			noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
 		#endif
-			noerrors = noerrors && CModQ2_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
-			noerrors = noerrors && CModQ2_LoadBrushSides		(&header.lumps[Q2LUMP_BRUSHSIDES]);
-			noerrors = noerrors && CModQ2_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
-			noerrors = noerrors && CModQ2_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
-			noerrors = noerrors && CModQ2_LoadLeafs			(&header.lumps[Q2LUMP_LEAFS]);
-			noerrors = noerrors && CModQ2_LoadNodes			(&header.lumps[Q2LUMP_NODES]);
-			noerrors = noerrors && CModQ2_LoadSubmodels		(&header.lumps[Q2LUMP_MODELS]);
-			noerrors = noerrors && CModQ2_LoadAreas			(&header.lumps[Q2LUMP_AREAS]);
-			noerrors = noerrors && CModQ2_LoadAreaPortals	(&header.lumps[Q2LUMP_AREAPORTALS]);
+			noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
+			noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);
+			noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[Q2LUMP_BRUSHES]);
+			noerrors = noerrors && CModQ2_LoadLeafBrushes	(mod, mod_base, &header.lumps[Q2LUMP_LEAFBRUSHES]);
+			noerrors = noerrors && CModQ2_LoadLeafs			(mod, mod_base, &header.lumps[Q2LUMP_LEAFS]);
+			noerrors = noerrors && CModQ2_LoadNodes			(mod, mod_base, &header.lumps[Q2LUMP_NODES]);
+			noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[Q2LUMP_MODELS]);
+			noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[Q2LUMP_AREAS]);
+			noerrors = noerrors && CModQ2_LoadAreaPortals	(mod, mod_base, &header.lumps[Q2LUMP_AREAPORTALS]);
 			if (noerrors)
-				CMod_LoadEntityString	(&header.lumps[Q2LUMP_ENTITIES]);
+				CMod_LoadEntityString						(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
 
 			if (!noerrors)
 			{
 				return NULL;
 			}
 #ifndef CLIENTONLY
-			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
-			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
-			loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
+			mod->funcs.FatPVS				= Q2BSP_FatPVS;
+			mod->funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
+			mod->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
 #endif
-			loadmodel->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
-			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
-			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
-			loadmodel->funcs.ClusterPVS				= CM_ClusterPVS;
-			loadmodel->funcs.ClusterForPoint		= CM_PointCluster;
-			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
-			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
-			loadmodel->funcs.NativeContents			= CM_NativeContents;
+			mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
+			mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
+			mod->funcs.MarkLights			= Q2BSP_MarkLights;
+			mod->funcs.ClusterPVS			= CM_ClusterPVS;
+			mod->funcs.ClusterForPoint		= CM_PointCluster;
+			mod->funcs.PointContents		= Q2BSP_PointContents;
+			mod->funcs.NativeTrace			= CM_NativeTrace;
+			mod->funcs.NativeContents		= CM_NativeContents;
 			break;
 #endif
 		default:
@@ -4244,7 +4201,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	}
 
 #ifndef SERVERONLY
-	Mod_ParseInfoFromEntityLump(loadmodel, loadmodel->entities, loadname);	//only done for client's world model (or server if the server is loading it for client)
+	Mod_ParseInfoFromEntityLump(mod, mod->entities, loadname);	//only done for client's world model (or server if the server is loading it for client)
 #endif
 
 	CM_InitBoxHull ();
@@ -4255,79 +4212,91 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		memset (portalopen, 0, sizeof(portalopen));	//make them start closed.
 	FloodAreaConnections ();
 
-	loadmodel->checksum = loadmodel->checksum2 = *checksum;
+	mod->checksum = mod->checksum2 = *checksum;
 
-	loadmodel->nummodelsurfaces = loadmodel->numsurfaces;
-	memset(&loadmodel->batches, 0, sizeof(loadmodel->batches));
-	loadmodel->vbos = NULL;
+	mod->nummodelsurfaces = mod->numsurfaces;
+	memset(&mod->batches, 0, sizeof(mod->batches));
+	mod->vbos = NULL;
+
+	mod->numsubmodels = CM_NumInlineModels(mod);
+
+	mod->hulls[0].firstclipnode = map_cmodels[0].headnode-mod->nodes;
+	mod->rootnode = map_cmodels[0].headnode;
+	mod->nummodelsurfaces = map_cmodels[0].numsurfaces;
+
 #ifndef SERVERONLY
 	if (qrenderer != QR_NONE)
-		Mod_Batches_Build(NULL, loadmodel, buildmeshes, buildcookie);
-#endif
-
-	loadmodel->numsubmodels = CM_NumInlineModels(loadmodel);
 	{
-		model_t	*wmod = loadmodel;
-		model_t	*mod = loadmodel;
-
-		mod->hulls[0].firstclipnode = map_cmodels[0].headnode-mod->nodes;
-		mod->rootnode = map_cmodels[0].headnode;
-		mod->nummodelsurfaces = map_cmodels[0].numsurfaces;
-
-		for (i=1 ; i< loadmodel->numsubmodels ; i++)
+		builddata_t *bd = NULL;
+		if (buildmeshes)
 		{
-			cmodel_t	*bm;
-
-			char	name[10];
-
-			sprintf (name, "*%i", i);
-			loadmodel = Mod_FindName (name);
-			*loadmodel = *mod;
-			strcpy (loadmodel->name, name);
-			mod = loadmodel;
-			memset(&mod->memgroup, 0, sizeof(mod->memgroup));
-
-			bm = CM_InlineModel (name);
-
-
-			
-			mod->hulls[0].firstclipnode = -1;	//no nodes, 
-			if (bm->headleaf)
-			{
-				mod->leafs = bm->headleaf;
-				mod->nodes = NULL;
-				mod->hulls[0].firstclipnode = -1;	//make it refer directly to the first leaf, for things that still use numbers. 
-				mod->rootnode = (mnode_t*)bm->headleaf;
-			}
-			else
-			{
-				mod->leafs = wmod->leafs;
-				mod->nodes = wmod->nodes;
-				mod->hulls[0].firstclipnode = bm->headnode - mod->nodes;	//determine the correct node index
-				mod->rootnode = bm->headnode;
-			}
-			mod->nummodelsurfaces = bm->numsurfaces;
-			mod->firstmodelsurface = bm->firstsurface;
-
-			memset(&mod->batches, 0, sizeof(mod->batches));
-			mod->vbos = NULL;
-#ifndef SERVERONLY
-			if (qrenderer != QR_NONE)
-				Mod_Batches_Build(NULL, mod, buildmeshes, buildcookie);
-#endif
-
-			VectorCopy (bm->maxs, mod->maxs);
-			VectorCopy (bm->mins, mod->mins);
-#ifndef SERVERONLY
-			mod->radius = RadiusFromBounds (mod->mins, mod->maxs);
-
-			P_DefaultTrail(mod);
-#endif
+			bd = BZ_Malloc(sizeof(*bd) + facesize*mod->nummodelsurfaces);
+			bd->buildfunc = buildmeshes;
+			memcpy(bd+1, facedata + mod->firstmodelsurface*facesize, facesize*mod->nummodelsurfaces);
 		}
+		COM_AddWork(0, ModBrush_LoadGLStuff, mod, bd, 0, 0);
+	}
+#endif
+
+	for (i=1 ; i< mod->numsubmodels ; i++)
+	{
+		cmodel_t	*bm;
+
+		char	name[MAX_QPATH];
+
+		Q_snprintfz (name, sizeof(name), "*%i:%s", i, wmod->name);
+		mod = Mod_FindName (name);
+		*mod = *wmod;
+		Q_strncpyz(mod->name, name, sizeof(mod->name));
+		memset(&mod->memgroup, 0, sizeof(mod->memgroup));
+
+		bm = CM_InlineModel (name);
+
+
+		
+		mod->hulls[0].firstclipnode = -1;	//no nodes, 
+		if (bm->headleaf)
+		{
+			mod->leafs = bm->headleaf;
+			mod->nodes = NULL;
+			mod->hulls[0].firstclipnode = -1;	//make it refer directly to the first leaf, for things that still use numbers. 
+			mod->rootnode = (mnode_t*)bm->headleaf;
+		}
+		else
+		{
+			mod->leafs = wmod->leafs;
+			mod->nodes = wmod->nodes;
+			mod->hulls[0].firstclipnode = bm->headnode - mod->nodes;	//determine the correct node index
+			mod->rootnode = bm->headnode;
+		}
+		mod->nummodelsurfaces = bm->numsurfaces;
+		mod->firstmodelsurface = bm->firstsurface;
+
+		memset(&mod->batches, 0, sizeof(mod->batches));
+		mod->vbos = NULL;
+
+		VectorCopy (bm->maxs, mod->maxs);
+		VectorCopy (bm->mins, mod->mins);
+#ifndef SERVERONLY
+		mod->radius = RadiusFromBounds (mod->mins, mod->maxs);
+
+		if (qrenderer != QR_NONE)
+		{
+			builddata_t *bd = NULL;
+			if (buildmeshes)
+			{
+				bd = BZ_Malloc(sizeof(*bd) + facesize*mod->nummodelsurfaces);
+				bd->buildfunc = buildmeshes;
+				memcpy(bd+1, facedata + mod->firstmodelsurface*facesize, facesize*mod->nummodelsurfaces);
+			}
+			COM_AddWork(0, ModBrush_LoadGLStuff, mod, bd, i, 0);
+		}
+#endif
+		COM_AddWork(0, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
 	}
 
 #ifdef TERRAIN
-	im->terrain = Mod_LoadTerrainInfo(im, loadname, false);
+	mod->terrain = Mod_LoadTerrainInfo(mod, loadname, false);
 #endif
 
 	return &map_cmodels[0];
@@ -4451,6 +4420,7 @@ void CM_InitBoxHull (void)
 	box_model.leafs = box_leaf;
 
 	box_model.rootnode = box_model.nodes;
+	box_model.loadstate = MLS_LOADED;
 
 	map_leafbrushes[numleafbrushes] = box_brush;
 
@@ -4552,14 +4522,14 @@ static int CM_PointLeafnum_r (model_t *mod, vec3_t p, int num)
 
 int CM_PointLeafnum (model_t *mod, vec3_t p)
 {
-	if (!mod || mod->needload)
+	if (!mod || mod->loadstate != MLS_LOADED)
 		return 0;		// sound may call this without map loaded
 	return CM_PointLeafnum_r (mod, p, 0);
 }
 
 static int CM_PointCluster (model_t *mod, vec3_t p)
 {
-	if (!mod || mod->needload)
+	if (!mod || mod->loadstate != MLS_LOADED)
 		return 0;		// sound may call this without map loaded
 	return CM_LeafCluster(mod, CM_PointLeafnum_r (mod, p, 0));
 }
@@ -4659,7 +4629,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 
 	i = CM_PointLeafnum_r (mod, p, mod->hulls[0].firstclipnode);
 
-	if (!mapisq3)
+	if (mod->fromgame == fg_quake2)
 		contents = mod->leafs[i].contents;	//q2 is simple.
 	else
 	{
@@ -4723,8 +4693,8 @@ unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int fram
 		for (k--; k >= 0; k--)
 		{
 			leaf = &model->leafs[leaflist[k]];
-			if (mapisq3)
-			{
+			if (model->fromgame != fg_quake2)
+			{	//q3 is more complex
 				for (i = 0; i < leaf->numleafbrushes; i++)
 				{
 					brush = map_leafbrushes[leaf->firstleafbrush + i];
@@ -4745,7 +4715,7 @@ unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int fram
 						contents |= brush->contents;
 				}
 			}
-			else
+			else	//q2 is simple
 				contents |= leaf->contents;
 		}
 	}
@@ -6116,7 +6086,7 @@ qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer, unsigned int buf
 	if (buffersize < (numclusters+7)>>3)
 		Sys_Error("CM_ClusterPVS with too small a buffer\n");
 
-	if (mapisq3)
+	if (mod->fromgame != fg_quake2)
 	{
 		if (cluster != -1 && map_q3pvs->numclusters)
 		{
@@ -6138,7 +6108,7 @@ qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer, unsigned int buf
 
 qbyte	*CM_ClusterPHS (model_t *mod, int cluster)
 {
-	if (mapisq3)	//phs not working yet.
+	if (mod->fromgame != fg_quake2)
 	{
 		if (cluster != -1 && map_q3phs->numclusters)
 		{
@@ -6396,10 +6366,10 @@ unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p)
 
 
 int map_checksum;
-qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer)
+qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize)
 {
 	mod->fromgame = fg_quake2;
-	return CM_LoadMap(mod->name, buffer, true, &map_checksum) != NULL;
+	return CM_LoadMap(mod, buffer, fsize, true, &map_checksum) != NULL;
 }
 
 void CM_Init(void)	//register cvars.

@@ -216,24 +216,17 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 	int		runLength;
 	int fbremap[256];
 	char *skinpath;
+	size_t	pcxsize;
 
 	if (noskins.value==1) // JACK: So NOSKINS > 1 will show skins, but
 		return NULL;	  // not download new ones.
 
-	if (skin->failedload)
+	if (skin->failedload==true)
 		return NULL;
-
-	TEXASSIGN(skin->textures.base, r_nulltex);
-	TEXASSIGN(skin->textures.loweroverlay, r_nulltex);
-	TEXASSIGN(skin->textures.upperoverlay, r_nulltex);
 
 	out = skin->skindata;
 	if (out)
 		return out;
-
-	// TODO: we build a fullbright remap.. can we get rid of this?
-	for (x = 0; x < vid.fullbright; x++)
-		fbremap[x] = x + (256-vid.fullbright);	//fullbrights don't exist, so don't loose palette info.
 
 //
 // load the pic from disk
@@ -267,63 +260,60 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 
 	skinpath = "skins";
 
-	//favour 24bit+recoloured skins if gl_load24bit is enabled.
-	Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
-	TEXASSIGN(skin->textures.upperoverlay, R_LoadReplacementTexture(name, skinpath, 0));
-	Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
-	TEXASSIGN(skin->textures.loweroverlay, R_LoadReplacementTexture(name, skinpath, 0));
-	if (TEXVALID(skin->textures.upperoverlay) || TEXVALID(skin->textures.loweroverlay))
+	//2 is used to try to force the skin if it load24bit is false.
+	if (gl_load24bit.ival || skin->failedload==2)
 	{
-		TEXASSIGN(skin->textures.base, R_LoadReplacementTexture(skin->name, skinpath, IF_NOALPHA));
-		if (TEXVALID(skin->textures.base))
+		if (!skin->textures.base)
+			skin->textures.base = R_LoadHiResTexture(skin->name, skinpath, IF_NOALPHA|IF_NOPCX);
+		if (skin->textures.base->status == TEX_LOADING)
+			return NULL;	//don't spam the others until we actually know this one will load.
+		if (skin->failedload == 2)
+			skin->failedload = 1;
+		if (TEXLOADED(skin->textures.base))
 		{
-			Q_snprintfz (name, sizeof(name), "%s_luma", skin->name);
-			TEXASSIGN(skin->textures.fullbright, R_LoadReplacementTexture(skin->name, skinpath, IF_NOALPHA));
-			Q_snprintfz (name, sizeof(name), "%s_gloss", skin->name);
-			TEXASSIGN(skin->textures.specular, R_LoadReplacementTexture(skin->name, skinpath, 0));
-			skin->failedload = true;
-			return NULL;
+			if (!skin->textures.upperoverlay)
+			{
+				Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
+				TEXASSIGN(skin->textures.upperoverlay, R_LoadHiResTexture(name, skinpath, 0));
+			}
+			if (!skin->textures.loweroverlay)
+			{
+				Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
+				TEXASSIGN(skin->textures.loweroverlay, R_LoadHiResTexture(name, skinpath, 0));
+			}
+			if (!skin->textures.fullbright)
+			{
+				Q_snprintfz (name, sizeof(name), "%s_luma", skin->name);
+				TEXASSIGN(skin->textures.fullbright, R_LoadHiResTexture(skin->name, skinpath, 0));
+			}
+			if (!skin->textures.specular)
+			{
+				Q_snprintfz (name, sizeof(name), "%s_gloss", skin->name);
+				TEXASSIGN(skin->textures.specular, R_LoadHiResTexture(skin->name, skinpath, 0));
+			}
+			skin->failedload = 1;
+			return NULL;	//can use the high-res textures instead.
 		}
 	}
 
 	Q_snprintfz (name, sizeof(name), "%s/%s.pcx", skinpath, skin->name);
-	raw = COM_LoadTempFile (name);
+	raw = COM_LoadTempFile (name, &pcxsize);
 	if (!raw)
 	{
 		//use 24bit skins even if gl_load24bit is failed
 		if (strcmp(skin->name, baseskin.string))
 		{
-//			if (!gl_load24bit.value)
-			{
-				TEXASSIGN(skin->textures.base, R_LoadHiResTexture(skin->name, skinpath, IF_NOALPHA));
-				if (TEXVALID(skin->textures.base))
-				{
-					Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
-					TEXASSIGN(skin->textures.upperoverlay, R_LoadHiResTexture(name, skinpath, 0));
-					Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
-					TEXASSIGN(skin->textures.loweroverlay, R_LoadHiResTexture(name, skinpath, 0));
-
-					if (!TEXVALID(skin->textures.upperoverlay) && !TEXVALID(skin->textures.loweroverlay))
-						Con_DPrintf("skin \"%s\" has no colourmapping info\n", skin->name);
-
-					Q_snprintfz (name, sizeof(name), "%s_luma", skin->name);
-					TEXASSIGN(skin->textures.fullbright, R_LoadHiResTexture(skin->name, skinpath, IF_NOALPHA));
-					Q_snprintfz (name, sizeof(name), "%s_gloss", skin->name);
-					TEXASSIGN(skin->textures.specular, R_LoadHiResTexture(skin->name, skinpath, 0));
-
-					skin->failedload = true;
-					return NULL;
-				}
-			}
-
 			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
 			Con_Printf ("Couldn't load skin %s\n", name);
 			Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
-			raw = COM_LoadTempFile (name);
+			raw = COM_LoadTempFile (name, &pcxsize);
 		}
 		if (!raw)
 		{
-			skin->failedload = true;
+			if (skin->failedload)
+				skin->failedload = true;
+			else
+				skin->failedload = 2;
 			return NULL;
 		}
 	}
@@ -366,6 +356,11 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 	if (!out)
 		Sys_Error ("Skin_Cache: couldn't allocate");
 
+	// TODO: we build a fullbright remap.. can we get rid of this?
+	for (x = 0; x < vid.fullbright; x++)
+		fbremap[x] = x + (256-vid.fullbright);	//fullbrights don't exist, so don't loose palette info.
+
+
 	pix = out;
 //	memset (out, 0, skin->width*skin->height);
 
@@ -374,7 +369,7 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 	{
 		for (x=0 ; x < srcw ; )
 		{
-			if (raw - (qbyte*)pcx > com_filesize) 
+			if (raw - (qbyte*)pcx > pcxsize) 
 			{
 				BZ_Free(skin->skindata);
 				skin->skindata = NULL;
@@ -387,7 +382,7 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 			if((dataByte & 0xC0) == 0xC0)
 			{
 				runLength = dataByte & 0x3F;
-				if (raw - (qbyte*)pcx > com_filesize) 
+				if (raw - (qbyte*)pcx > pcxsize) 
 				{
 					BZ_Free(skin->skindata);
 					skin->skindata = NULL;
@@ -426,7 +421,7 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 		for (x = 0; x < skin->width; )
 			pix[x++] = dataByte;
 
-	if ( raw - (qbyte *)pcx > com_filesize)
+	if ( raw - (qbyte *)pcx > pcxsize)
 	{
 		BZ_Free(skin->skindata);
 		skin->skindata = NULL;

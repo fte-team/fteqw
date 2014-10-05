@@ -32,6 +32,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning( disable : 4229 )  // mgraph gets this
 #endif
 
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0400
+#endif
 #define WIN32_LEAN_AND_MEAN
 #define byte winbyte
 #include <windows.h>

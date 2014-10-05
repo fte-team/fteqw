@@ -377,7 +377,7 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 		CL_PredictUsercmd (pnum, entnum, &temp, to, &split);
 		return;
 	}
-	if (!cl.worldmodel || cl.worldmodel->needload)
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
 	VectorCopy (from->origin, pmove.origin);
@@ -667,7 +667,7 @@ static void CL_DecodeStateSize(unsigned short solid, int modelindex, vec3_t mins
 {
 	if (solid == ES_SOLID_BSP)
 	{
-		if (modelindex < MAX_PRECACHE_MODELS && cl.model_precache[modelindex] && !cl.model_precache[modelindex]->needload)
+		if (modelindex < MAX_PRECACHE_MODELS && cl.model_precache[modelindex] && cl.model_precache[modelindex]->loadstate == MLS_LOADED)
 		{
 			VectorCopy(cl.model_precache[modelindex]->mins, mins);
 			VectorCopy(cl.model_precache[modelindex]->maxs, maxs);
@@ -869,7 +869,7 @@ void CL_PredictMovePNum (int seat)
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
-		if (!cl.worldmodel || cl.worldmodel->needload)
+		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 			return;
 		pv->crouch = 0;
 		CLQ2_PredictMovement();

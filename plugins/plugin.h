@@ -251,6 +251,9 @@ EBUILTIN(void, S_RawAudio, (int sourceid, void *data, int speed, int samples, in
 EBUILTIN(int, ReadInputBuffer, (void *inputbuffer, int buffersize));
 EBUILTIN(int, UpdateInputBuffer, (void *inputbuffer, int bytes));
 
+#if !defined(Q3_VM) && defined(FTEPLUGIN)
+EBUILTIN(qboolean, VFS_Open, (char *name, vfsfile_t **handle, char *mode));//opens a direct vfs file. no access checks, and so can be used in threaded plugins
+#endif
 EBUILTIN(int, FS_Open, (char *name, qhandle_t *handle, int mode));
 EBUILTIN(void, FS_Close, (qhandle_t handle));
 EBUILTIN(int, FS_Write, (qhandle_t handle, void *data, int len));

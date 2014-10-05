@@ -1103,7 +1103,7 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 	qcc_sourcefile = (qcc_cachedsourcefile_t*)mem;
 	mem += sizeof(qcc_cachedsourcefile_t);
 
-	externs->ReadFile(filename, mem, len+2);
+	externs->ReadFile(filename, mem, len+2, NULL);
 
 	if (len >= 4 && mem[0] == '\xff' && mem[1] == '\xfe' && mem[2] == '\x00' && mem[3] == '\x00')
 		mem = decodeUTF(UTF32LE, (unsigned char*)mem+4, len-4, &len, false);
@@ -1152,7 +1152,7 @@ void	QCC_AddFile (char *filename)
 	qcc_sourcefile->file = mem;
 	qcc_sourcefile->type = FT_DATA;
 
-	externs->ReadFile(filename, mem, len+1);
+	externs->ReadFile(filename, mem, len+1, NULL);
 	mem[len] = '\0';
 }
 void *FS_ReadToMem(char *filename, void *mem, int *len)
@@ -1162,7 +1162,7 @@ void *FS_ReadToMem(char *filename, void *mem, int *len)
 		*len = externs->FileSize(filename);
 		mem = externs->memalloc(*len);
 	}
-	return externs->ReadFile(filename, mem, *len);
+	return externs->ReadFile(filename, mem, *len, NULL);
 }
 
 void FS_CloseFromMem(void *mem)

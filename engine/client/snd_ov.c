@@ -108,7 +108,7 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 		buffer->decodedbytecount = 0;
 		Z_Free(s->decoder.buf);
 		s->decoder.buf = NULL;
-		s->failedload = true;
+		s->loadstate = SLS_FAILED;	//failed!
 		return false;
 	}
 

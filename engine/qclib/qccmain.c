@@ -3120,12 +3120,12 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	compressoutput = 0;
 
 	p = externs->FileSize("qcc.cfg");
-	if (p < 0)
-		p = externs->FileSize("src/qcc.cfg");
+//	if (p < 0)
+//		p = externs->FileSize("src/qcc.cfg");
 	if (p>0)
 	{
 		s = qccHunkAlloc(p+1);
-		s = externs->ReadFile("qcc.cfg", s, p);
+		s = externs->ReadFile("qcc.cfg", s, p, NULL);
 
 		while(1)
 		{

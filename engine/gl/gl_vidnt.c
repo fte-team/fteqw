@@ -553,7 +553,7 @@ RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int pa
 	return r;
 }
 
-
+void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight);
 void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale)
 {
 	int width, height;
@@ -568,8 +568,6 @@ void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale)
 	int filelen;
 	if (!filename || !*filename)
 		return NULL;
-	if (scale != 1)	//rescaling cursors is not supported at this time.
-		return NULL;
 	filelen = FS_LoadFile(filename, &filedata);
 	if (!filedata)
 		return NULL;
@@ -578,6 +576,22 @@ void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale)
 	FS_FreeFile(filedata);
 	if (!rgbadata_start)
 		return NULL;
+
+	if (scale != 1)
+	{
+		int nw,nh;
+		qbyte *nd;
+		nw = width * scale;
+		nh = height * scale;
+		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128)	//don't go crazy.
+			return NULL;
+		nd = BZ_Malloc(nw*nh*4);
+		Image_ResampleTexture((unsigned int*)rgbadata_start, width, height, (unsigned int*)nd, nw, nh);
+		width = nw;
+		height = nh;
+		BZ_Free(rgbadata_start);
+		rgbadata_start = nd;
+	}
 
 	memset(&bi,0, sizeof(BITMAPV5HEADER));
 	bi.bV5Size			= sizeof(BITMAPV5HEADER);
@@ -588,6 +602,7 @@ void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale)
 	bi.bV5Compression	= BI_BITFIELDS;
 	// The following mask specification specifies a supported 32 BPP
 	// alpha format for Windows XP.
+	//FIXME: can we not just specify it as RGBA? meh.
 	bi.bV5RedMask		= 0x00FF0000;
 	bi.bV5GreenMask		= 0x0000FF00;
 	bi.bV5BlueMask		= 0x000000FF;
@@ -2115,7 +2130,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_MOUSEWHEEL:
 			if (!vid_initializing)
 			{
-				if ((short) HIWORD(wParam) > 0)
+				if ((short) HIWORD(wParam&0xffffffff) > 0)
 				{
 					Key_Event(0, K_MWHEELUP, 0, true);
 					Key_Event(0, K_MWHEELUP, 0, false);

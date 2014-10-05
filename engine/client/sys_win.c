@@ -29,6 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <conio.h>
 #include <io.h>
 #include <direct.h>
+#include "pr_common.h"
 
 //#define RESTARTTEST
 
@@ -591,8 +592,8 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	}
 
 #ifdef PRINTGLARRAYS
-	if (!iswatchdog && qrenderer == QR_OPENGL)
-		DumpGLState();
+//	if (!iswatchdog && qrenderer == QR_OPENGL)
+//		DumpGLState();
 #endif
 
 	hKernel = LoadLibrary ("kernel32");
@@ -1428,7 +1429,6 @@ void Sys_Shutdown(void)
 	}
 }
 
-
 void VARGS Sys_Error (const char *error, ...)
 {
 	va_list		argptr;
@@ -1439,6 +1439,8 @@ void VARGS Sys_Error (const char *error, ...)
  	va_start (argptr, error);
 	vsnprintf (text, sizeof(text), error, argptr);
 	va_end (argptr);
+
+	COM_WorkerAbort(text);
 
 #ifndef SERVERONLY
 	SetHookState(false);
@@ -2472,6 +2474,7 @@ void Win7_TaskListInit(void)
 					link->lpVtbl->Release(link);
 				}
 				break;
+#ifdef HEXEN2
 			case MGT_HEXEN2:
 				link = CreateShellLink("+menu_servers", "", "Hexen2 Server List", "Pick a multiplayer server to join");
 				if (link)
@@ -2486,6 +2489,7 @@ void Win7_TaskListInit(void)
 					link->lpVtbl->Release(link);
 				}
 				break;
+#endif
 			}
 
 			if (SUCCEEDED(col->lpVtbl->QueryInterface(col, &qIID_IObjectArray, (void**)&arr)))

@@ -135,7 +135,6 @@ cvar_t sv_listen_dp = CVAR("sv_listen_dp", "0"); /*kinda fucked right now*/
 cvar_t sv_listen_q3 = CVAR("sv_listen_q3", "0");
 cvar_t sv_reportheartbeats = CVAR("sv_reportheartbeats", "1");
 cvar_t sv_highchars = CVAR("sv_highchars", "1");
-cvar_t sv_loadentfiles = CVAR("sv_loadentfiles", "1");
 cvar_t sv_maxrate = CVAR("sv_maxrate", "30000");
 cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "100000",
 							"sv_maxdownloadrate", 0);
@@ -283,6 +282,9 @@ void SV_Shutdown (void)
 	SV_GibFilterPurge();
 
 	NET_Shutdown ();
+
+	COM_DestroyWorkerThread();
+
 #ifdef WEBSERVER
 	IWebShutdown();
 #endif
@@ -1416,7 +1418,7 @@ void SVC_GetChallenge (void)
 	int		oldest;
 	int		oldestTime;
 
-	if (!sv_listen_qw.value && !sv_listen_dp.value && !sv_listen_q3.value)
+	if (!sv_listen_qw.value && !sv_listen_dp.value && !sv_listen_q3.ival)
 		return;
 
 	oldest = 0;
@@ -1531,7 +1533,7 @@ void SVC_GetChallenge (void)
 #ifdef Q3SERVER
 		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 		{
-			if (sv_listen_q3.value)
+			if (sv_listen_q3.ival)
 			{
 				buf = va("challengeResponse %i", svs.challenges[i].challenge);
 				Netchan_OutOfBand(NS_SERVER, &net_from, strlen(buf), buf);
@@ -1922,7 +1924,7 @@ client_t *SVC_DirectConnect(void)
 	{	//connect "\key\val"
 
 		//this is used by q3 (note, we already decrypted the huffman connection packet in a hack)
-		if (!sv_listen_q3.value)
+		if (!sv_listen_q3.ival)
 		{
 			if (!sv_listen_nq.value)
 				SV_RejectMessage (SCP_DARKPLACES6, "Server is not accepting quake3 clients at this time.\n", version_string());
@@ -3181,7 +3183,7 @@ qboolean SV_ConnectionlessPacket (void)
 			return true;
 		}
 
-		if (sv_listen_q3.value)
+		if (sv_listen_q3.ival)
 		{
 			if (!strstr(s, "\\name\\"))
 			{	//if name isn't in the string, assume they're q3
@@ -3198,7 +3200,7 @@ qboolean SV_ConnectionlessPacket (void)
 #endif
 			if (secure.value)	//FIXME: possible problem for nq clients when enabled
 		{
-			Netchan_OutOfBandTPrintf (NS_SERVER, &net_from, svs.language, "%c\nThis server requires client validation.\nPlease use the "DISTRIBUTION" validation program\n", A2C_PRINT);
+			Netchan_OutOfBandTPrintf (NS_SERVER, &net_from, svs.language, "%c\nThis server requires client validation.\nPlease use the "FULLENGINENAME" validation program\n", A2C_PRINT);
 		}
 		else
 		{
@@ -4135,6 +4137,8 @@ float SV_Frame (void)
 	float timedelta;
 	float delay;
 
+	COM_MainThreadWork();
+
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
 	end = start;
@@ -4449,7 +4453,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&zombietime,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_pupglow,	cvargroup_serverinfo);
-	Cvar_Register (&sv_loadentfiles,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_bigcoords,			cvargroup_serverphysics);
 
@@ -5142,7 +5145,7 @@ void SV_Init (quakeparms_t *parms)
 
 		Sys_Init();
 
-		COM_ParsePlusSets();
+		COM_ParsePlusSets(false);
 
 		Cbuf_Init ();
 		Cmd_Init ();
@@ -5190,10 +5193,6 @@ void SV_Init (quakeparms_t *parms)
 #ifdef SVRANKING
 	Rank_RegisterCommands();
 #endif
-	Cbuf_AddText(
-			"alias restart \"changelevel .\"\n"
-			"alias startmap_sp \"map start\"\n",
-			RESTRICT_LOCAL);
 
 #ifndef SERVERONLY
 	if (isDedicated)

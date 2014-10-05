@@ -1,6 +1,15 @@
 #include "hash.h"
 
+/*
+Threading:
+When the main thread will harm the filesystem tree/hash, it will first lock fs_thread_mutex (FIXME: make a proper rwlock).
+Worker threads must thus lock that mutex for any opens (to avoid it changing underneath it), but can unlock it as soon as the open call returns.
+Files may be shared between threads, but not simultaneously.
+The filesystem driver is responsible for closing the pak/pk3 once all files are closed, and must ensure that opens+reads+closes as well as archive closure are thread safe.
+*/
+
 #define FSVER 2
+
 
 #define FF_NOTFOUND		(0u)	//file wasn't found
 #define FF_FOUND		(1u<<0u)	//file was found
@@ -16,6 +25,7 @@ extern hashtable_t filesystemhash;	//this table is the one to build your hash re
 extern int fs_hash_dups;	//for tracking efficiency. no functional use.
 extern int fs_hash_files;	//for tracking efficiency. no functional use.
 extern qboolean fs_readonly;	//if true, fopen(, "w") should always fail.
+extern void *fs_thread_mutex;
 
 struct searchpath_s;
 struct searchpathfuncs_s

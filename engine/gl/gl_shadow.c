@@ -92,17 +92,17 @@ void Sh_Reset(void)
 		shadow_fbo_id = 0;
 		shadow_fbo_depth_num = 0;
 	}
-	if (shadowmap[0].num)
+	if (shadowmap[0])
 	{
 		R_DestroyTexture(shadowmap[0]);
 		shadowmap[0] = r_nulltex;
 	}
-	if (shadowmap[1].num)
+	if (shadowmap[1])
 	{
 		R_DestroyTexture(shadowmap[1]);
 		shadowmap[1] = r_nulltex;
 	}
-	if (crepuscular_texture_id.num)
+	if (crepuscular_texture_id)
 	{
 		R_DestroyTexture(crepuscular_texture_id);
 		crepuscular_texture_id = r_nulltex;
@@ -1408,8 +1408,8 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	if (maxedge < cl.worldmodel->numedges)
 	{
 		maxedge = cl.worldmodel->numedges;
-		free(edge);
-		edge = malloc(sizeof(*edge) * maxedge);
+		Z_Free(edge);
+		edge = Z_Malloc(sizeof(*edge) * maxedge);
 	}
 
 	if (cl.worldmodel->type == mod_brush)
@@ -2056,11 +2056,11 @@ void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 		else
 			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
 
-		if (shadow_fbo_depth_num != depthtexture.num)
+		if (shadow_fbo_depth_num != depthtexture->num)
 		{
-			shadow_fbo_depth_num = depthtexture.num;
+			shadow_fbo_depth_num = depthtexture->num;
 			if (TEXVALID(depthtexture))
-				qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, depthtexture.num, 0);
+				qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_TEXTURE_2D, depthtexture->num, 0);
 		}
 	}
 }
@@ -2083,7 +2083,7 @@ void D3D11BE_BeginShadowmapFace(void);
 
 //determine the 5 bounding points of a shadowmap light projection side
 //needs to match Sh_GenShadowFace
-static void Sh_LightFrustumPlanes(dlight_t *l, vec4_t *planes, int face)
+static void Sh_LightFrustumPlanes(dlight_t *l, vec3_t axis[3], vec4_t *planes, int face)
 {
 	vec3_t tmp;
 	int axis0, axis1, axis2;
@@ -2097,15 +2097,15 @@ static void Sh_LightFrustumPlanes(dlight_t *l, vec4_t *planes, int face)
 
 	//center point is always the same
 	VectorCopy(l->origin, planes[4]);
-	VectorScale(l->axis[axis0], dir, planes[4]);
+	VectorScale(axis[axis0], dir, planes[4]);
 	VectorNormalize(planes[4]);
 	planes[4][3] = r_shadow_shadowmapping_nearclip.value + DotProduct(planes[4], l->origin);
 
 	for (i = 0; i < 4; i++)
 	{
-		VectorScale(l->axis[axis0], dir, tmp);
-		VectorMA(tmp,		((i&1)?1:-1), l->axis[axis1], tmp);
-		VectorMA(tmp,		((i&2)?1:-1), l->axis[axis2], planes[i]);
+		VectorScale(axis[axis0], dir, tmp);
+		VectorMA(tmp,		((i&1)?1:-1), axis[axis1], tmp);
+		VectorMA(tmp,		((i&2)?1:-1), axis[axis2], planes[i]);
 		VectorNormalize(planes[i]);
 		planes[i][3] = DotProduct(planes[i], l->origin);
 	}
@@ -2113,7 +2113,7 @@ static void Sh_LightFrustumPlanes(dlight_t *l, vec4_t *planes, int face)
 
 //culling for the face happens in the caller.
 //these faces should thus match Sh_LightFrustumPlanes
-static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int smsize, float proj[16])
+static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], shadowmesh_t *smesh, int face, int smsize, float proj[16])
 {
 	vec3_t t1,t2,t3;
 	texture_t *tex;
@@ -2128,51 +2128,51 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, int sms
 	{
 	case 0:
 		//down
-		VectorCopy(l->axis[0], t1);
-		VectorCopy(l->axis[1], t2);
-		VectorCopy(l->axis[2], t3);
+		VectorCopy(axis[0], t1);
+		VectorCopy(axis[1], t2);
+		VectorCopy(axis[2], t3);
 		Matrix4x4_CM_LightMatrixFromAxis(r_refdef.m_view, t1, t2, t3, l->origin);
 		r_refdef.flipcull = 0;
 		break;
 	case 1:
 		//back
-		VectorCopy(l->axis[2], t1);
-		VectorCopy(l->axis[1], t2);
-		VectorCopy(l->axis[0], t3);
+		VectorCopy(axis[2], t1);
+		VectorCopy(axis[1], t2);
+		VectorCopy(axis[0], t3);
 		Matrix4x4_CM_LightMatrixFromAxis(r_refdef.m_view, t1, t2, t3, l->origin);
 		r_refdef.flipcull = SHADER_CULL_FLIP;
 		break;
 	case 2:
 		//right
-		VectorCopy(l->axis[0], t1);
-		VectorCopy(l->axis[2], t2);
-		VectorCopy(l->axis[1], t3);
+		VectorCopy(axis[0], t1);
+		VectorCopy(axis[2], t2);
+		VectorCopy(axis[1], t3);
 		Matrix4x4_CM_LightMatrixFromAxis(r_refdef.m_view, t1, t2, t3, l->origin);
 		r_refdef.flipcull = SHADER_CULL_FLIP;
 		break;
 	case 3:
 		//up
-		VectorCopy(l->axis[0], t1);
-		VectorCopy(l->axis[1], t2);
-		VectorCopy(l->axis[2], t3);
+		VectorCopy(axis[0], t1);
+		VectorCopy(axis[1], t2);
+		VectorCopy(axis[2], t3);
 		VectorNegate(t3, t3);
 		Matrix4x4_CM_LightMatrixFromAxis(r_refdef.m_view, t1, t2, t3, l->origin);
 		r_refdef.flipcull = SHADER_CULL_FLIP;
 		break;
 	case 4:
 		//forward
-		VectorCopy(l->axis[2], t1);
-		VectorCopy(l->axis[1], t2);
-		VectorCopy(l->axis[0], t3);
+		VectorCopy(axis[2], t1);
+		VectorCopy(axis[1], t2);
+		VectorCopy(axis[0], t3);
 		VectorNegate(t3, t3);
 		Matrix4x4_CM_LightMatrixFromAxis(r_refdef.m_view, t1, t2, t3, l->origin);
 		r_refdef.flipcull = 0;
 		break;
 	case 5:
 		//left
-		VectorCopy(l->axis[0], t1);
-		VectorCopy(l->axis[2], t2);
-		VectorCopy(l->axis[1], t3);
+		VectorCopy(axis[0], t1);
+		VectorCopy(axis[2], t2);
+		VectorCopy(axis[1], t3);
 		VectorNegate(t3, t3);
 		Matrix4x4_CM_LightMatrixFromAxis(r_refdef.m_view, t1, t2, t3, l->origin);
 		r_refdef.flipcull = 0;
@@ -2291,7 +2291,7 @@ void D3D11_EndShadowMap(void);
 
 void D3D11BE_SetupForShadowMap(dlight_t *dl, qboolean isspot, int texwidth, int texheight, float shadowscale);
 
-qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
+qboolean Sh_GenShadowMap (dlight_t *l, vec3_t axis[3], qbyte *lvis, int smsize)
 {
 	int restorefbo = 0;
 	int f;
@@ -2314,7 +2314,7 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 			vec4_t planes[5];
 			float dist;
 			int fp,lp;
-			Sh_LightFrustumPlanes(l, planes, f);
+			Sh_LightFrustumPlanes(l, axis, planes, f);
 			for (fp = 0; fp < r_refdef.frustum_numplanes; fp++)
 			{
 				vec3_t nearest;
@@ -2361,7 +2361,8 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 		{
 			if (isspot)
 			{
-				shadowmap[isspot] = GL_AllocNewTexture("***shadowmap2dspot***", SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0);
+				shadowmap[isspot] = Image_CreateTexture("***shadowmap2dspot***", NULL, 0);
+				qglGenTextures(1, &shadowmap[isspot]->num);
 				GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
 	#ifdef DBG_COLOURNOTDEPTH
 				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOWMAP_SIZE, SHADOWMAP_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
@@ -2371,7 +2372,8 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 			}
 			else
 			{
-				shadowmap[isspot] = GL_AllocNewTexture("***shadowmap2dcube***", SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0);
+				shadowmap[isspot] = Image_CreateTexture("***shadowmap2dcube***", NULL, 0);
+				qglGenTextures(1, &shadowmap[isspot]->num);
 				GL_MTBind(0, GL_TEXTURE_2D, shadowmap[isspot]);
 	#ifdef DBG_COLOURNOTDEPTH
 				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
@@ -2438,7 +2440,7 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 		if (sidevisible & (1u<<f))
 		{
 			RQuantAdd(RQUANT_SHADOWSIDES, 1);
-			Sh_GenShadowFace(l, smesh, f, smsize, r_refdef.m_projection);
+			Sh_GenShadowFace(l, axis, smesh, f, smsize, r_refdef.m_projection);
 		}
 	}
 
@@ -2480,7 +2482,7 @@ qboolean Sh_GenShadowMap (dlight_t *l,  qbyte *lvis, int smsize)
 	return true;
 }
 
-static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
+static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, vec3_t axis[3], qbyte *vvis)
 {
 	vec3_t mins, maxs;
 	qbyte *lvis;
@@ -2561,9 +2563,9 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 		D3D11BE_SetupForShadowMap(l, isspot, isspot?smsize:smsize*3, isspot?smsize:smsize*2, (smsize-4) / (float)SHADOWMAP_SIZE);
 #endif
 
-	if (!BE_SelectDLight(l, colour, isspot?LSHADER_SPOT:LSHADER_SMAP))
+	if (!BE_SelectDLight(l, colour, axis, isspot?LSHADER_SPOT:LSHADER_SMAP))
 		return;
-	if (!Sh_GenShadowMap(l, lvis, smsize))
+	if (!Sh_GenShadowMap(l, axis, lvis, smsize))
 		return;
 
 	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
@@ -2826,6 +2828,9 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 			Sh_DrawBrushModelShadow (dl, ent);
 			break;
 
+		case mod_sprite:	//never any shadows on sprites, it doesn't really make sense.
+			break;
+
 		default:
 			break;
 		}
@@ -2835,7 +2840,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 
 //draws a light using stencil shadows.
 //redraws world geometry up to 3 times per light...
-static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
+static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], qbyte *vvis)
 {
 	int sref;
 	int clus;
@@ -2889,7 +2894,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
 
-	BE_SelectDLight(dl, colour, LSHADER_STANDARD);
+	BE_SelectDLight(dl, colour, axis, LSHADER_STANDARD);
 	BE_SelectMode(BEM_STENCIL);
 
 	//The backend doesn't maintain scissor state.
@@ -3073,7 +3078,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	return true;
 }
 
-static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
+static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], qbyte *vvis)
 {
 	vec3_t mins, maxs;
 	srect_t rect;
@@ -3131,7 +3136,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
 
-	BE_SelectDLight(dl, colour, LSHADER_STANDARD);
+	BE_SelectDLight(dl, colour, axis, LSHADER_STANDARD);
 	BE_SelectMode(BEM_LIGHT);
 	Sh_DrawEntLighting(dl, colour);
 }
@@ -3185,7 +3190,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 
 	//fixme: we should add an extra few pixels each side to the fbo, to avoid too much weirdness at screen edges.
 
-	if (!crepuscular_texture_id.num)
+	if (!crepuscular_texture_id)
 	{
 		/*FIXME: requires npot*/
 		crepuscular_shader = R_RegisterShader("crepuscular_screen", SUF_NONE,
@@ -3198,7 +3203,8 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 			"}\n"
 			);
 
-		crepuscular_texture_id = GL_AllocNewTexture("***crepusculartexture***", vid.pixelwidth, vid.pixelheight, 0);
+		crepuscular_texture_id = Image_CreateTexture("***crepusculartexture***", NULL, 0);
+		qglGenTextures(1, &crepuscular_texture_id->num);
 		GL_MTBind(0, GL_TEXTURE_2D, crepuscular_texture_id);
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -3212,7 +3218,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 	oldfbo = GLBE_FBO_Update(&crepuscular_fbo, 0, &crepuscular_texture_id, 1, r_nulltex, vid.pixelwidth, vid.pixelheight);
 
 	BE_SelectMode(BEM_CREPUSCULAR);
-	BE_SelectDLight(dl, colours, LSHADER_STANDARD);
+	BE_SelectDLight(dl, colours, dl->axis, LSHADER_STANDARD);
 	GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
 
 	GLBE_FBO_Pop(oldfbo);
@@ -3238,7 +3244,7 @@ void Sh_PurgeShadowMeshes(void)
 			dl->rebuildcache = true;
 		}
 	}
-	free(edge);
+	Z_Free(edge);
 	edge = NULL;
 	maxedge = 0;
 }
@@ -3388,8 +3394,11 @@ void Sh_CheckSettings(void)
 	}
 }
 
+int drawdlightnum;
 void Sh_DrawLights(qbyte *vis)
 {
+	vec3_t rotated[3];
+	vec3_t *axis;
 	vec3_t colour;
 	dlight_t *dl;
 	int i;
@@ -3441,19 +3450,32 @@ void Sh_DrawLights(qbyte *vis)
 		if (colour[0] < 0.001 && colour[1] < 0.001 && colour[2] < 0.001)
 			continue;	//just switch these off.
 
+		if (dl->rotation[0] || dl->rotation[1] || dl->rotation[2])
+		{
+			vec3_t rot;
+			vec3_t rotationaxis[3];
+			VectorScale(dl->rotation, cl.time, rot);
+			AngleVectorsFLU(rot, rotationaxis[0], rotationaxis[1], rotationaxis[2]);
+			Matrix3_Multiply(dl->axis, rotationaxis, rotated);
+			axis = rotated;
+		}
+		else
+			axis = dl->axis;
+
+		drawdlightnum++;
 		if (dl->flags & LFLAG_CREPUSCULAR)
 			Sh_DrawCrepuscularLight(dl, colour);
 		else if (((i >= RTL_FIRST)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
 		{
-			Sh_DrawShadowlessLight(dl, colour, vis);
+			Sh_DrawShadowlessLight(dl, colour, axis, vis);
 		}
 		else if ((dl->flags & LFLAG_SHADOWMAP) || r_shadow_shadowmapping.ival)
 		{
-			Sh_DrawShadowMapLight(dl, colour, vis);
+			Sh_DrawShadowMapLight(dl, colour, axis, vis);
 		}
 		else
 		{
-			Sh_DrawStencilLight(dl, colour, vis);
+			Sh_DrawStencilLight(dl, colour, axis, vis);
 		}
 	}
 
@@ -3499,6 +3521,8 @@ void Sh_DrawLights(qbyte *vis)
 //	if (developer.value)
 //	Con_Printf("%i lights drawn, %i frustum culled, %i pvs culled, %i scissor culled\n", bench.numlights, bench.numfrustumculled, bench.numpvsculled, bench.numscissorculled);
 //	memset(&bench, 0, sizeof(bench));
+
+	drawdlightnum = -1;
 }
 #endif
 

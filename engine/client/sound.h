@@ -50,7 +50,12 @@ typedef struct sfx_s
 	char 	name[MAX_OSPATH];
 	sfxdecode_t		decoder;
 
-	qboolean failedload:1; //no more super-spammy
+	enum {
+		SLS_NOTLOADED,	//not tried to load it
+		SLS_LOADING,	//loading it on a worker thread.
+		SLS_LOADED,		//currently in memory and usable.
+		SLS_FAILED		//already tried to load it. it won't work. not found, invalid format, etc
+	} loadstate; //no more super-spammy
 	qboolean touched:1; //if the sound is still relevent
 
 #ifdef AVAIL_OPENAL
@@ -136,6 +141,7 @@ qboolean S_HaveOutput(void);
 void S_Music_Clear(sfx_t *onlyifsample);
 void S_Music_Seek(float time);
 
+sfx_t *S_FindName (const char *name, qboolean create);
 sfx_t *S_PrecacheSound (const char *sample);
 void S_TouchSound (char *sample);
 void S_UntouchAll(void);

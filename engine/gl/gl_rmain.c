@@ -153,18 +153,18 @@ void GL_InitSceneProcessingShaders (void)
 void GL_SetupSceneProcessingTextures (void)
 {
 	int i, x, y;
-	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*3];
-	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*3];
+	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*4];
+	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*4];
 
 	scenepp_postproc_cube = r_nulltex;
 
-	TEXASSIGN(sceneblur_texture, GL_AllocNewTexture("***postprocess_blur***", 0, 0, 0));
+	TEXASSIGN(sceneblur_texture, Image_CreateTexture("***postprocess_blur***", NULL, 0));
 
 	if (!gl_config.arb_shader_objects)
 		return;
 
-	TEXASSIGN(scenepp_texture_warp, GL_AllocNewTexture("***postprocess_warp***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_NOMIPMAP|IF_NOGAMMA|IF_LINEAR));
-	TEXASSIGN(scenepp_texture_edge, GL_AllocNewTexture("***postprocess_edge***", PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_NOMIPMAP|IF_NOGAMMA|IF_LINEAR));
+	TEXASSIGN(scenepp_texture_warp, Image_CreateTexture("***postprocess_warp***", NULL, IF_NOMIPMAP|IF_NOGAMMA|IF_LINEAR));
+	TEXASSIGN(scenepp_texture_edge, Image_CreateTexture("***postprocess_edge***", NULL, IF_NOMIPMAP|IF_NOGAMMA|IF_LINEAR));
 
 	// init warp texture - this specifies offset in
 	for (y=0; y<PP_WARP_TEX_SIZE; y++)
@@ -173,7 +173,7 @@ void GL_SetupSceneProcessingTextures (void)
 		{
 			float fx, fy;
 
-			i = (x + y*PP_WARP_TEX_SIZE) * 3;
+			i = (x + y*PP_WARP_TEX_SIZE) * 4;
 
 			fx = sin(((double)y / PP_WARP_TEX_SIZE) * M_PI * 2);
 			fy = cos(((double)x / PP_WARP_TEX_SIZE) * M_PI * 2);
@@ -181,13 +181,11 @@ void GL_SetupSceneProcessingTextures (void)
 			pp_warp_tex[i  ] = (fx+1.0f)*127.0f;
 			pp_warp_tex[i+1] = (fy+1.0f)*127.0f;
 			pp_warp_tex[i+2] = 0;
+			pp_warp_tex[i+3] = 0xff;
 		}
 	}
 
-	GL_MTBind(0, GL_TEXTURE_2D, scenepp_texture_warp);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
+	Image_Upload(scenepp_texture_warp, TF_RGBX32, pp_warp_tex, NULL, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
 
 	// TODO: init edge texture - this is ampscale * 2, with ampscale calculated
 	// init warp texture - this specifies offset in
@@ -197,7 +195,7 @@ void GL_SetupSceneProcessingTextures (void)
 		{
 			float fx = 1, fy = 1;
 
-			i = (x + y*PP_AMP_TEX_SIZE) * 3;
+			i = (x + y*PP_AMP_TEX_SIZE) * 4;
 
 			if (x < PP_AMP_TEX_BORDER)
 			{
@@ -227,15 +225,11 @@ void GL_SetupSceneProcessingTextures (void)
 			pp_edge_tex[i  ] = fx * 255;
 			pp_edge_tex[i+1] = fy * 255;
 			pp_edge_tex[i+2] = 0;
+			pp_edge_tex[i+3] = 0xff;
 		}
 	}
 
-//	scenepp_texture_edge = R_LoadTexture32("***postprocess_edge***", PP_AMP_TEX_SIZE, PP_AMP_TEX_SIZE, pp_edge_tex, IF_NOMIPMAP|IF_NOGAMMA|IF_NOPICMIP);
-
-	GL_MTBind(0, GL_TEXTURE_2D, scenepp_texture_edge);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
+	Image_Upload(scenepp_texture_edge, TF_RGBX32, pp_edge_tex, NULL, PP_AMP_TEX_SIZE, PP_AMP_TEX_SIZE, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
 }
 
 void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const model_t *mod)
@@ -1448,9 +1442,11 @@ qboolean R_RenderScene_Cubemap(void)
 
 	if (!TEXVALID(scenepp_postproc_cube) || cmapsize != scenepp_postproc_cube_size)
 	{
-		if (TEXVALID(scenepp_postproc_cube))
-			GL_DestroyTexture(scenepp_postproc_cube);
-		scenepp_postproc_cube = GL_AllocNewTexture("***fish***", cmapsize, cmapsize, 0);
+		if (!TEXVALID(scenepp_postproc_cube))
+		{
+			scenepp_postproc_cube = Image_CreateTexture("***fish***", IF_CUBEMAP);
+			qglGenTextures(1, &scenepp_postproc_cube->num);
+		}
 
 		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
 		for (i = 0; i < 6; i++)
@@ -1579,7 +1575,7 @@ void GLR_RenderView (void)
 	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 	{
 		//FIXME: fbo stuff
-		if (!r_worldentity.model || r_worldentity.model->needload || !cl.worldmodel)
+		if (!r_worldentity.model || r_worldentity.model->loadstate != MLS_LOADED || !cl.worldmodel)
 		{
 			GL_Set2D (false);
 			R2D_ImageColours(0, 0, 0, 1);

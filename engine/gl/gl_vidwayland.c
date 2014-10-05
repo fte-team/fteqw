@@ -418,21 +418,13 @@ rendererinfo_t waylandrendererinfo =
     GLDraw_Init,
     GLDraw_DeInit,
 
-    GL_LoadTextureFmt,
-    GL_LoadTexture8Pal24,
-    GL_LoadTexture8Pal32,
-    GL_LoadCompressed,
-    GL_FindTexture,
-    GL_AllocNewTexture,
-    GL_UploadFmt,
-    GL_DestroyTexture,
+	GL_UpdateFiltering,
+	GL_LoadTextureMips,
+	GL_DestroyTexture,
 
     GLR_Init,
     GLR_DeInit,
     GLR_RenderView,
-
-    GLR_NewMap,
-    GLR_PreNewMap,
 
     WL_Init,
     WL_DeInit,

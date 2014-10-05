@@ -546,9 +546,19 @@ void Cmd_Exec_f (void)
 		Con_DPrintf("Ignoring UTF-8 BOM\n");
 		s+=3;
 	}
+
+	if (!strcmp(name, "config.cfg") || !strcmp(name, "fte.cfg"))
+	{
+		//if the config is from id1 and the default.cfg was from some mod, make sure the default.cfg overrides the config.
+		//we won't just exec the default instead, because we can at least retain things which are not specified (ie: a few binds)
+		int cfgdepth = COM_FDepthFile(name, true);
+		int defdepth = COM_FDepthFile("default.cfg", true);
+		if (defdepth < cfgdepth)
+			Cbuf_InsertText("exec default.cfg\n", ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), false);
+	}
 	// don't execute anything if it was from server (either the stuffcmd/localcmd, or the file)
 	if (!strcmp(name, "default.cfg") && !(Cmd_FromGamecode() || com_file_untrusted))
-		Cbuf_InsertText ("\ncvar_lockdefaults 1\n", ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), true);
+		Cbuf_InsertText ("\ncvar_lockdefaults 1\n", ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), false);
 	Cbuf_InsertText (s, ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), true);
 	FS_FreeFile(f);
 }
@@ -566,7 +576,13 @@ void Cmd_Echo_f (void)
 	int		i;
 
 	for (i=1 ; i<Cmd_Argc() ; i++)
-		Con_Printf ("%s ",Cmd_Argv(i));
+	{
+#ifdef SERVERONLY
+		Con_Printf ("%s", Cmd_Argv(i));
+#else
+		Con_PrintFlags (Cmd_Argv(i), (com_parseezquake.ival?PFS_EZQUAKEMARKUP:0), 0);
+#endif
+	}
 	Con_Printf ("\n");
 }
 
@@ -1847,6 +1863,53 @@ void Cmd_List_f (void)
 		Con_Printf("\n");
 }
 
+//I'm not personally keen on this name, but its somewhat standard in both DP and suse (which lh uses, hence why DP uses that name). oh well.
+void Cmd_Apropos_f (void)
+{
+	extern cvar_group_t *cvar_groups;
+	cmd_function_t	*cmd;
+	cvar_group_t	*grp;
+	cvar_t	*var;
+	char *name;
+	char escapedvalue[1024];
+	char latchedvalue[1024];
+	char *query = Cmd_Argv(1);
+
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	for (var=grp->cvars ; var ; var=var->next)
+	{
+		if (var->name && Q_strcasestr(var->name, query))
+			name = var->name;
+		else if (var->name2 && Q_strcasestr(var->name2, query))
+			name = var->name2;
+		else if (var->description && Q_strcasestr(var->description, query))
+			name = var->name;
+		else
+			continue;
+		
+		COM_QuotedString(var->string, escapedvalue, sizeof(escapedvalue));
+
+		if (var->latched_string)
+		{
+			COM_QuotedString(var->latched_string, latchedvalue, sizeof(latchedvalue));
+			Con_Printf("cvar ^2%s^7: %s (effective %s): %s\n", name, latchedvalue, escapedvalue, var->description?var->description:"no description");
+		}
+		else
+			Con_Printf("cvar ^2%s^7: %s : %s\n", name, escapedvalue, var->description?var->description:"no description");
+	}
+
+	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
+	{
+		if (cmd->name && Q_strcasestr(cmd->name, query))
+			;
+		else if (cmd->description && strstr(cmd->description, query))
+			;
+		else
+			continue;
+			Con_Printf("command ^2%s^7: %s\n", cmd->name, cmd->description?cmd->description:"no description");
+	}
+	//FIXME: add aliases.
+}
 
 #ifndef SERVERONLY		// FIXME
 /*
@@ -1997,7 +2060,11 @@ void	Cmd_ExecuteString (char *text, int level)
 					return;
 #endif
 				if (Cmd_AliasExist(cmd_argv[0], level))
-					break;	//server stuffed an alias for a command that it would already have received. use that instead.
+					return;	//server stuffed an alias for a command that it would already have received. use that instead.
+#if defined(CSQC_DAT) && !defined(SERVERONLY)
+				if (CSQC_ConsoleCommand(text))
+					return;	//let the csqc handle it if it wants.
+#endif
 				Cmd_ForwardToServer ();
 			}
 			else
@@ -2852,7 +2919,11 @@ void Cmd_WriteConfig_f(void)
 	filename = Cmd_Argv(1);
 	if (!*filename)
 	{
+#ifdef QUAKETC
+		snprintf(fname, sizeof(fname), "config.cfg");
+#else
 		snprintf(fname, sizeof(fname), "fte.cfg");
+#endif
 		FS_NativePath(fname, FS_GAMEONLY, sysname, sizeof(sysname));
 		FS_CreatePath(fname, FS_GAMEONLY);
 		f = FS_OpenVFS(fname, "wbp", FS_GAMEONLY);
@@ -3112,6 +3183,8 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("cvar_lockdefaults", Cvar_LockDefaults_f);
 	Cmd_AddCommand ("cvar_purgedefaults", Cvar_PurgeDefaults_f);
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
+
+	Cmd_AddCommandD ("apropos", Cmd_Apropos_f, "Lists all cvars or commands with the specified substring somewhere in their name or descrition.");
 
 	Cmd_AddMacro("time", Macro_Time, true);
 	Cmd_AddMacro("ukdate", Macro_UKDate, false);

@@ -313,7 +313,7 @@ sfx_t			*cl_sfx_ric2;
 sfx_t			*cl_sfx_ric3;
 sfx_t			*cl_sfx_r_exp3;
 
-cvar_t	cl_expsprite = CVARFD("cl_expsprite", "0", CVAR_ARCHIVE, "Display a central sprite in explosion effects. QuakeWorld typically does so, NQ mods should not.");
+cvar_t	cl_expsprite = CVARFD("cl_expsprite", "0", CVAR_ARCHIVE, "Display a central sprite in explosion effects. QuakeWorld typically does so, NQ mods should not (which is problematic when played with the qw protocol).");
 cvar_t  r_explosionlight = CVARFC("r_explosionlight", "1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
 cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
@@ -400,8 +400,8 @@ void CL_AssociateEffect_f(void)
 		associatedeffect = ae;
 	}
 
-	//FIXME: overkill
-	CL_RegisterParticles();
+	if (pe)
+		CL_RegisterParticles();
 }
 
 void CL_InitTEntSounds (void)
@@ -467,7 +467,7 @@ void P_LoadedModel(model_t *mod)
 
 	mod->particleeffect = P_INVALID;
 	mod->particletrail = P_INVALID;
-	mod->engineflags &= ~(MDLF_NODEFAULTTRAIL | MDLF_ENGULPHS);
+	mod->engineflags &= ~MDLF_ENGULPHS;
 	for(ae = associatedeffect; ae; ae = ae->next)
 	{
 		if (!strcmp(ae->mname, mod->name))
@@ -489,7 +489,7 @@ void P_LoadedModel(model_t *mod)
 		}
 	}
 	if (mod->particletrail == P_INVALID)
-		P_DefaultTrail(mod);
+		P_DefaultTrail(mod->flags, &mod->particletrail, &mod->traildefaultindex);
 }
 
 void CL_RefreshCustomTEnts(void);
@@ -501,7 +501,7 @@ void CL_RegisterParticles(void)
 	int i;
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
 	{
-		if (!mod->needload)
+		if (mod->loadstate == MLS_LOADED)
 		{
 			P_LoadedModel(mod);
 		}
@@ -790,7 +790,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		if (ent < 0 && ent >= -512)	//a zquake concept. ent between -1 and -maxplayers is to be taken to be a railtrail from a particular player instead of a beam.
 		{
 			// TODO: add support for those finnicky colored railtrails...
-			if (P_ParticleTrail(start, end, rtqw_railtrail, -ent, NULL))
+			if (P_ParticleTrail(start, end, rtqw_railtrail, -ent, NULL, NULL))
 				P_ParticleTrailIndex(start, end, 208, 8, NULL);
 			return;
 		}
@@ -844,7 +844,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	else
 		m = Mod_ForName(mname, MLV_WARN);
 
-	if (m && m->needload)
+	if (m && m->loadstate != MLS_LOADED)
 		CL_CheckOrEnqueDownloadFile(m->name, NULL, 0);
 
 	// save end position for truelightning
@@ -1104,6 +1104,9 @@ void CL_ParseTEnt (void)
 		case TENQ_BEAM:
 			type = TEQW_BEAM;
 			break;
+		case TE_EXPLOSION:
+			type = TE_EXPLOSIONNOSPRITE;
+			break;
 		default:
 			break;
 		}
@@ -1332,7 +1335,8 @@ void CL_ParseTEnt (void)
 			ex->endalpha = ex->startalpha;	//don't fade out
 		}
 		break;
-	case TE_EXPLOSION:			// rocket explosion
+	case TE_EXPLOSIONNOSPRITE:	//nq-style, no sprite
+	case TE_EXPLOSION:				//qw-style, with (optional) sprite
 	// particles
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1364,7 +1368,7 @@ void CL_ParseTEnt (void)
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0);
 
 	// sprite
-		if (cl_expsprite.ival && !nqprot) // temp hopefully
+		if (type == TE_EXPLOSION && cl_expsprite.ival) // temp hopefully
 		{
 			explosion_t *ex = CL_AllocExplosion (pos);
 			ex->start = cl.time;
@@ -1554,8 +1558,8 @@ void CL_ParseTEnt (void)
 		pos2[1] = MSG_ReadCoord ();
 		pos2[2] = MSG_ReadCoord ();
 
-		if (P_ParticleTrail(pos, pos2, rtqw_railtrail, 0, NULL))
-			if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL))
+		if (P_ParticleTrail(pos, pos2, rtqw_railtrail, 0, NULL, NULL))
+			if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL, NULL))
 				P_ParticleTrailIndex(pos, pos2, 208, 8, NULL);
 		break;
 
@@ -1692,7 +1696,7 @@ void CL_ParseTEnt (void)
 		// stain (Hopefully this is close to how DP does it)
 		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 30);
 
-		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_plasmaburn"), 0, NULL))
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_plasmaburn"), 0, NULL, NULL))
 			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
@@ -1710,7 +1714,7 @@ void CL_ParseTEnt (void)
 		MSG_ReadCoord ();
 		MSG_ReadCoord ();
 
-		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_nexbeam"), 0, NULL))
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_nexbeam"), 0, NULL, NULL))
 			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
@@ -1887,7 +1891,7 @@ void CL_SpawnCustomTEnt(custtentinst_t *info)
 			}
 		}
 		else
-			failed = P_ParticleTrail(info->pos, info->pos2, t->particleeffecttype, 0, NULL);
+			failed = P_ParticleTrail(info->pos, info->pos2, t->particleeffecttype, 0, NULL, NULL);
 	}
 	else
 	{
@@ -2110,6 +2114,9 @@ void CL_RefreshCustomTEnts(void)
 				cl.particle_csprecache[i] = P_INVALID;
 		}
 	}
+#ifdef CSQC_DAT
+	CSQC_ResetTrails();
+#endif
 }
 void CL_ClearCustomTEnts(void)
 {
@@ -2174,8 +2181,8 @@ void CL_ParseTrailParticles(void)
 	else
 		ts = NULL;
 
-	if (P_ParticleTrail(start, end, effectindex, entityindex, ts))
-		P_ParticleTrail(start, end, rt_blood, entityindex, ts);
+	if (P_ParticleTrail(start, end, effectindex, entityindex, NULL, ts))
+		P_ParticleTrail(start, end, rt_blood, entityindex, NULL, ts);
 }
 
 void CL_ParsePointParticles(qboolean compact)
@@ -2468,7 +2475,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BLUEHYPERBLASTER:	//TE_BLASTER without model+light
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		P_ParticleTrail(pos, pos2, pt, 0, NULL);
+		P_ParticleTrail(pos, pos2, pt, 0, NULL, NULL);
 		break;
 	case Q2TE_EXPLOSION1:	//column
 	case Q2TE_EXPLOSION2:	//splits
@@ -2722,7 +2729,7 @@ fixme:
 	case Q2TE_RAILTRAIL:			// railgun effect
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL))
+		if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL, NULL))
 			P_ParticleTrailIndex(pos, pos2, 0x74, 8, NULL);
 		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/railgf1a.wav"), 1, ATTN_NORM, 0);
 		break;
@@ -2930,7 +2937,7 @@ fixme:
 	case Q2TE_BUBBLETRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, rtq2_bubbletrail, 0, NULL))
+		if (P_ParticleTrail(pos, pos2, rtq2_bubbletrail, 0, NULL, NULL))
 			P_ParticleTrailIndex(pos, pos2, 4, 8, NULL);
 		break;
 
@@ -3103,7 +3110,7 @@ fixme:
 	case Q2TE_DEBUGTRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_debugtrail"), 0, NULL))
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_debugtrail"), 0, NULL, NULL))
 			P_ParticleTrailIndex(pos, pos2, 116, 8, NULL);
 		break;
 
@@ -3381,6 +3388,7 @@ entity_t *CL_NewTempEntity (void)
 	return ent;
 }
 
+void CSQC_GetEntityOrigin(unsigned int csqcent, float *out);
 
 /*
 =================
@@ -3503,6 +3511,12 @@ void CL_UpdateBeams (void)
 				}
 			}
 		}
+#ifdef CSQC_DAT
+		else if ((b->bflags & 1) && b->entity > MAX_EDICTS)
+		{
+			CSQC_GetEntityOrigin(b->entity-MAX_EDICTS, b->start);
+		}
+#endif
 		else if (b->bflags & STREAM_ATTACHED)
 		{
 			player_state_t	*pl;
@@ -3542,7 +3556,7 @@ void CL_UpdateBeams (void)
 		}
 
 		if (ruleset_allow_particle_lightning.ival || !b->model)
-			if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, b->entity, &b->trailstate))
+			if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, b->entity, NULL, &b->trailstate))
 				continue;
 		if (!b->model)
 			continue;
@@ -3696,7 +3710,7 @@ void CL_UpdateExplosions (void)
 		ent->drawflags = SCALE_ORIGIN_ORIGIN; 
 
 		if (ex->traileffect != P_INVALID)
-			pe->ParticleTrail(ent->oldorigin, ent->origin, ex->traileffect, 0, &(ex->trailstate));
+			pe->ParticleTrail(ent->oldorigin, ent->origin, ex->traileffect, 0, ent->axis, &(ex->trailstate));
 		if (!(ex->flags & Q2RF_BEAM))
 			VectorCopy(ent->origin, ex->oldorigin);	//don't corrupt q2 beams
 		if (ex->flags & Q2RF_BEAM)

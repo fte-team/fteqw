@@ -609,7 +609,7 @@ static void Menu_Download_Got(struct dl_download *dl)
 {
 	char *fname = dl->localname;
 	qboolean successful = dl->status == DL_FINISHED;
-	char *ext;
+	char ext[8];
 	package_t *p;
 	int dlnum = atoi(fname+3);
 
@@ -635,7 +635,7 @@ static void Menu_Download_Got(struct dl_download *dl)
 
 			p->flags &= ~DPF_DOWNLOADING;
 
-			ext = COM_FileExtension(p->dest);
+			COM_FileExtension(p->dest, ext, sizeof(ext));
 			if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
 				FS_UnloadPackFiles();	//we reload them after
 
@@ -657,7 +657,6 @@ static void Menu_Download_Got(struct dl_download *dl)
 
 			WriteInstalledPackages();
 
-			ext = COM_FileExtension(p->dest);
 			if (!stricmp(ext, "pak") || !stricmp(ext, "pk3"))
 				FS_ReloadPackFiles();
 			return;

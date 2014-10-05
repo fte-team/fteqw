@@ -14,10 +14,10 @@ void Draw_TextBox (int x, int y, int width, int lines)
 	cy = y;
 	p = R2D_SafeCachePic ("gfx/box_tl.lmp");
 
-	if (!p)	//assume none exist
+	if (R_GetShaderSizes(p, NULL, NULL, false) != true)	//assume none exist
 	{
-		R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
-		R2D_FillBlock(x, y, width*16 + 16, 8 * (2 + lines));
+		R2D_ImageColours(0.0, 0.0, 0.0, 0.5);
+		R2D_FillBlock(x, y, width*8 + 16, 8 * (2 + lines));
 		R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 		return;
 	}
@@ -94,7 +94,7 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 {
 	int sx, sy;
 	mpic_t *p;
-	unsigned int hack;
+	unsigned int hack;	//FIXME: threads can't cope
 	hack = d_8to24rgbtable[0];
 	d_8to24rgbtable[0] = 0;
 	p = R2D_SafeCachePic ("gfx/menu/bigfont.lmp");
@@ -127,18 +127,20 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 mpic_t *QBigFontWorks(void)
 {
 	mpic_t *p;
-	p = R2D_SafeCachePic ("gfx/mcharset.lmp");
-	if (p)
-		return p;
-	p = R2D_SafeCachePic ("mcharset.lmp");
-	if (p)
-		return p;
-	p = R2D_SafeCachePic ("textures/gfx/mcharset.lmp");
-	if (p)
-		return p;
-	p = R2D_SafeCachePic ("textures/mcharset.lmp");
-	if (p)
-		return p;
+	int i;
+	char *names[] = {
+		"gfx/mcharset.lmp",
+		"mcharset.lmp",
+		"textures/gfx/mcharset.lmp",
+		"textures/mcharset.lmp",
+		NULL
+	};
+	for (i = 0; names[i]; i++)
+	{
+		p = R2D_SafeCachePic (names[i]);
+		if (p && R_GetShaderSizes(p, NULL, NULL, true))
+			return p;
+	}
 	return NULL;
 }
 void Draw_BigFontString(int x, int y, const char *text)
@@ -381,9 +383,11 @@ static void M_CheckMouseMove(void)
 								{
 									if (!option->common.noselectionsound)
 									{
+#ifdef HEXEN2
 										if (mgt == MGT_HEXEN2)
 											S_LocalSound ("raven/menu1.wav");
 										else
+#endif
 											S_LocalSound ("misc/menu1.wav");
 									}
 
@@ -406,6 +410,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 {
 	int i;
 	mpic_t *p;
+	int pw,ph;
 
 	while (option)
 	{
@@ -441,7 +446,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 		case mt_menudot:
 			i = (int)(realtime * 10)%maxdots;
 			p = R2D_SafeCachePic(va(menudotstyle, i+mindot ));
-			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, 20, 20, p);
+			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, option->common.width, option->common.height, p);
 			break;
 		case mt_picturesel:
 			p = NULL;
@@ -453,14 +458,15 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				Q_strncatz(selname, "_sel", sizeof(selname));
 				p = R2D_SafeCachePic(selname);
 			}
-			if (!p)
+			if (!R_GetShaderSizes(p, &pw, &ph, false))
 				p = R2D_SafeCachePic(option->picture.picturename);
 
-			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width?option->common.width:p->width, option->common.height?option->common.height:p->height, p);
+			R_GetShaderSizes(p, &pw, &ph, false);
+			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width?option->common.width:pw, option->common.height?option->common.height:ph, p);
 			break;
 		case mt_picture:
 			p = R2D_SafeCachePic(option->picture.picturename);
-			if (p) R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
+			if (R_GetShaderSizes(p, NULL, NULL, false)>=0) R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
 			break;
 		case mt_childwindow:
 			MenuDrawItems(xpos+option->common.posx, ypos+option->common.posy, ((menu_t *)option->custom.dptr)->options, (menu_t *)option->custom.dptr);
@@ -809,7 +815,11 @@ menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picnam
 	}
 	else
 	{
-		width = (p->width * (float)height) / p->height;
+		int pwidth, pheight;
+		if (R_GetShaderSizes(p, &pwidth, &pheight, true))
+			width = (pwidth * (float)height) / pheight;
+		else
+			width = 64;
 		x = (320-(int)width)/2;
 	}
 
@@ -859,32 +869,44 @@ menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *reselection, int x, int y
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
+	n->common.width = 20;
+	n->common.height = 20;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
 
-
 	mgt = M_GameType();
-	if (mgt == MGT_QUAKE2)
-	{	//AND QUAKE 2 WINS!!!
-		menudotstyle = "m_cursor%i";
+	switch(mgt)
+	{
+#ifdef Q2CLIENT
+	case MGT_QUAKE2:
+		//AND QUAKE 2 WINS!!!
+		menudotstyle = "pics/m_cursor%i.pcx";
 		mindot = 0;
 		maxdots = 15;
 		dotofs=0;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{	//AND THE WINNER IS HEXEN 2!!!
+
+		//this is *obviously* the correct size... not.
+		n->common.width = 22;
+		n->common.height = 29;
+		break;
+#endif
+#ifdef HEXEN2
+	case MGT_HEXEN2:
+		//AND THE WINNER IS HEXEN 2!!!
 		menudotstyle = "gfx/menu/menudot%i.lmp";
 		mindot = 1;
 		maxdots = 8;
 		dotofs=-2;
-	}
-	else
-	{	//QUAKE 1 WINS BY DEFAULT!
+		break;
+#endif
+	default:
+		//QUAKE 1 WINS BY DEFAULT!
 		menudotstyle = "gfx/menudot%i.lmp";
 		mindot = 1;
 		maxdots = 6;
 		dotofs=0;
+		break;
 	}
 
 	if (menu->reselection)
@@ -1709,9 +1731,11 @@ void M_Complex_Key(int key, int unicode)
 			if (key == 0)
 				return;
 
+#ifdef HEXEN2
 			if (mgt == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
 			else
+#endif
 				S_LocalSound ("misc/menu1.wav");
 
 			if (key != K_ESCAPE && key != '`')
@@ -1729,9 +1753,11 @@ void M_Complex_Key(int key, int unicode)
 	case K_ESCAPE:
 		//remove
 		M_RemoveMenu(currentmenu);
+#ifdef HEXEN2
 		if (mgt == MGT_HEXEN2)
 			S_LocalSound ("raven/menu3.wav");
 		else
+#endif
 			S_LocalSound ("misc/menu3.wav");
 		break;
 	case K_TAB:
@@ -1740,9 +1766,11 @@ void M_Complex_Key(int key, int unicode)
 
 		if (currentmenu->selecteditem)
 		{
+#ifdef HEXEN2
 			if (mgt == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
 			else
+#endif
 				S_LocalSound ("misc/menu1.wav");
 
 			if (currentmenu->cursoritem)
@@ -1754,9 +1782,11 @@ void M_Complex_Key(int key, int unicode)
 
 		if (currentmenu->selecteditem)
 		{
+#ifdef HEXEN2
 			if (mgt == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
 			else
+#endif
 				S_LocalSound ("misc/menu1.wav");
 
 			if (currentmenu->cursoritem)
@@ -1786,9 +1816,11 @@ void M_Complex_Key(int key, int unicode)
 			else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 			{
 				Cbuf_AddText(currentmenu->selecteditem->button.command, RESTRICT_LOCAL);
+#ifdef HEXEN2
 				if (mgt == MGT_HEXEN2)
 					S_LocalSound ("raven/menu2.wav");
 				else
+#endif
 					S_LocalSound ("misc/menu2.wav");
 			}
 			break;
@@ -1979,9 +2011,10 @@ void M_Menu_Main_f (void)
 	S_LocalSound ("misc/menu2.wav");
 
 	mgt = M_GameType();
+#ifdef Q2CLIENT
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
-		if (R2D_SafeCachePic("pics/m_main_game"))
+		if (R_GetShaderSizes(R2D_SafeCachePic("pics/m_main_quit"), NULL, NULL, true) > 0)
 		{
 			m_state = m_complex;
 			Key_Dest_Add(kdm_menu);
@@ -2032,10 +2065,13 @@ void M_Menu_Main_f (void)
 			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 42, mainm->selecteditem->common.posy);
 		}
 	}
-	else if (mgt == MGT_HEXEN2)
+	else
+#endif
+#ifdef HEXEN2
+		if (mgt == MGT_HEXEN2)
 	{
 		p = R2D_SafeCachePic("gfx/menu/title0.lmp");
-		if (!p)
+		if (R_GetShaderSizes(p, NULL, NULL, true) <= 0)
 			return;
 
 		m_state = m_complex;
@@ -2073,14 +2109,16 @@ void M_Menu_Main_f (void)
 
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 56, mainm->selecteditem->common.posy);
 	}
-	else if (QBigFontWorks())
+	else
+#endif
+		if (QBigFontWorks())
 	{
 		m_state = m_complex;
 		Key_Dest_Add(kdm_menu);
 		mainm = M_CreateMenu(0);
 
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
-		if (!p)
+		if (R_GetShaderSizes(p, NULL, NULL, true) <= 0)
 		{
 			MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
 
@@ -2118,7 +2156,7 @@ void M_Menu_Main_f (void)
 		mainm = M_CreateMenu(0);
 
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
-		if (!p)
+		if (R_GetShaderSizes(p, NULL, NULL, true) <= 0)
 		{
 			MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
 

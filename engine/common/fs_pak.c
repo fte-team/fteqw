@@ -17,10 +17,12 @@ typedef struct pack_s
 {
 	searchpathfuncs_t pub;
 	char	descname[MAX_OSPATH];
-	vfsfile_t	*handle;
-	unsigned int filepos;	//the pos the subfiles left it at (to optimize calls to vfs_seek)
 	int		numfiles;
 	mpackfile_t	*files;
+
+	void		*mutex;
+	vfsfile_t	*handle;
+	unsigned int filepos;	//the pos the subfiles left it at (to optimize calls to vfs_seek)
 	int references;	//seeing as all vfiles from a pak file use the parent's vfsfile, we need to keep the parent open until all subfiles are closed.
 } pack_t;
 
@@ -65,14 +67,20 @@ static void QDECL FSPAK_GetPathDetails(searchpathfuncs_t *handle, char *out, siz
 }
 static void QDECL FSPAK_ClosePath(searchpathfuncs_t *handle)
 {
+	qboolean stillopen;
 	pack_t *pak = (void*)handle;
 
-	pak->references--;
-	if (pak->references > 0)
+	if (!Sys_LockMutex(pak->mutex))
+		return;	//ohnoes
+	stillopen = --pak->references > 0;
+	Sys_UnlockMutex(pak->mutex);
+	if (stillopen)
 		return;	//not free yet
 
 
 	VFS_CLOSE (pak->handle);
+
+	Sys_DestroyMutex(pak->mutex);
 	if (pak->files)
 		Z_Free(pak->files);
 	Z_Free(pak);
@@ -193,11 +201,17 @@ static int QDECL VFSPAK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int byte
 		return -1;
 	}
 
-	if (vfsp->parentpak->filepos != vfsp->currentpos)
-		VFS_SEEK(vfsp->parentpak->handle, vfsp->currentpos);
-	read = VFS_READ(vfsp->parentpak->handle, buffer, bytestoread);
-	vfsp->currentpos += read;
-	vfsp->parentpak->filepos = vfsp->currentpos;
+	if (Sys_LockMutex(vfsp->parentpak->mutex))
+	{
+		if (vfsp->parentpak->filepos != vfsp->currentpos)
+			VFS_SEEK(vfsp->parentpak->handle, vfsp->currentpos);
+		read = VFS_READ(vfsp->parentpak->handle, buffer, bytestoread);
+		vfsp->currentpos += read;
+		vfsp->parentpak->filepos = vfsp->currentpos;
+		Sys_UnlockMutex(vfsp->parentpak->mutex);
+	}
+	else
+		read = 0;
 
 	return read;
 }
@@ -243,7 +257,13 @@ static vfsfile_t *QDECL FSPAK_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	vfs = Z_Malloc(sizeof(vfspack_t));
 
 	vfs->parentpak = pack;
+	if (!Sys_LockMutex(pack->mutex))
+	{
+		Z_Free(vfs);
+		return NULL;
+	}
 	vfs->parentpak->references++;
+	Sys_UnlockMutex(pack->mutex);
 
 	vfs->startpos = loc->offset;
 	vfs->length = loc->len;
@@ -363,6 +383,8 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, const char *desc)
 	VFS_SEEK(packhandle, pack->filepos);
 
 	pack->references++;
+
+	pack->mutex = Sys_CreateMutex();
 
 //	Con_TPrintf ("Added packfile %s (%i files)\n", desc, numpackfiles);
 

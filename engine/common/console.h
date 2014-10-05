@@ -175,12 +175,14 @@ void Con_CheckResize (void);
 void Con_ForceActiveNow(void);
 void Con_Init (void);
 void Con_Shutdown (void);
+void Con_History_Save(void);
 void Con_History_Load(void);
 struct font_s;
 void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy, float fsx, float fsy);
 void Con_DrawConsole (int lines, qboolean noback);
 char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink);
 void Con_Print (char *txt);
+void Con_PrintFlags(char *text, unsigned int setflags, unsigned int clearflags);
 void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
 void VARGS Con_DPrintf (const char *fmt, ...) LIKEPRINTF(1);
@@ -204,7 +206,7 @@ qboolean Con_NameForNum(int num, char *buffer, int buffersize);
 console_t *Con_FindConsole(const char *name);
 console_t *Con_Create(const char *name, unsigned int flags);
 void Con_SetVisible (console_t *con);
-void Con_PrintCon (console_t *con, char *txt);
+void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags);
 
 void Con_NotifyBox (char *text);	// during startup for sound / cd warnings
 

@@ -172,7 +172,8 @@ typedef struct
 	vbo_t *batchvbo;
 
 	shader_t	*shader_rtlight;
-	texid_t		curtex[MAX_TMUS];
+	IDirect3DTexture9	*curtex[MAX_TMUS];
+	unsigned int curtexflags[MAX_TMUS];
 	unsigned int tmuflags[MAX_TMUS];
 
 	mesh_t		**meshlist;
@@ -205,6 +206,9 @@ typedef struct
 	unsigned int wbatch;
 	unsigned int maxwbatches;
 	batch_t *wbatches;
+
+	int mipfilter[3];
+	int picfilter[3];
 } d3dbackend_t;
 
 typedef struct
@@ -253,9 +257,11 @@ static IDirect3DVertexDeclaration9 *vertexdecls[D3D_VDEC_MAX];
 
 static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 {
-	if ((flags ^ shaderstate.tmuflags[tu]) & SHADER_PASS_CLAMP)
+	unsigned int delta = shaderstate.tmuflags[tu] ^ flags;
+	if (!delta)
+		return;
+	if (delta & SHADER_PASS_CLAMP)
 	{
-		shaderstate.tmuflags[tu] ^= SHADER_PASS_CLAMP;
 		if (flags & SHADER_PASS_CLAMP)
 		{
 			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
@@ -269,22 +275,44 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSW, D3DTADDRESS_WRAP);
 		}
 	}
-	if ((flags ^ shaderstate.tmuflags[tu]) & SHADER_PASS_NOMIPMAP)
+	if (delta & (SHADER_PASS_NOMIPMAP|SHADER_PASS_NEAREST|SHADER_PASS_LINEAR|SHADER_PASS_UIPIC))
 	{
-		shaderstate.tmuflags[tu] ^= SHADER_PASS_NOMIPMAP;
-		/*lightmaps don't use mipmaps*/
-		if (flags & SHADER_PASS_NOMIPMAP)
-		{
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-		}
+		int min, mip, mag;
+		int *filter = (flags & SHADER_PASS_UIPIC)?shaderstate.picfilter:shaderstate.mipfilter;
+
+		if ((filter[2] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
+			mag = D3DTEXF_LINEAR;
 		else
-		{
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-		}
+			mag = D3DTEXF_POINT;
+		if (filter[1] == -1 || (flags & IF_NOMIPMAP))
+			mip = D3DTEXF_NONE;
+		else if ((filter[1] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
+			mip = D3DTEXF_LINEAR;
+		else
+			mip = D3DTEXF_POINT;
+		if ((filter[0] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
+			min = D3DTEXF_LINEAR;
+		else
+			min = D3DTEXF_POINT;
+
+		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, min);
+		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, mip);
+		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, mag);
+	}
+	shaderstate.tmuflags[tu] = flags;
+}
+
+//d3d9 is all sampler state
+void D3D9_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
+{
+	int i;
+	memcpy(shaderstate.mipfilter, filtermip, sizeof(shaderstate.mipfilter));
+	memcpy(shaderstate.picfilter, filterpic, sizeof(shaderstate.picfilter));
+
+	for (i = 0; i < MAX_TMUS; i++)
+	{
+		shaderstate.tmuflags[i] = ~shaderstate.tmuflags[i];
+		BE_ApplyTMUState(i, ~shaderstate.tmuflags[i]);
 	}
 }
 
@@ -655,12 +683,20 @@ static unsigned int allocindexbuffer(void **dest, unsigned int entries)
 	return offset/sizeof(index_t);
 }
 
-static void BindTexture(unsigned int tu, void *id)
+static void BindTexture(unsigned int tu, texid_t tex)
 {
-	if (shaderstate.curtex[tu].ptr != id)
+	IDirect3DTexture9 *dt;
+	if (tex)
 	{
-		shaderstate.curtex[tu].ptr = id;
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, id);
+		dt = tex->ptr;
+		shaderstate.curtexflags[tu] = tex->flags & SHADER_PASS_IMAGE_FLAGS;
+	}
+	else
+		dt = NULL;
+	if (shaderstate.curtex[tu] != dt)
+	{
+		shaderstate.curtex[tu] = dt;
+		IDirect3DDevice9_SetTexture (pD3DDev9, tu, (void*)dt);
 	}
 }
 
@@ -673,48 +709,48 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 	{
 	default:
 	case T_GEN_DIFFUSE:
-		if (shaderstate.curtexnums->base.ptr)
-			BindTexture(tu, shaderstate.curtexnums->base.ptr);
+		if (shaderstate.curtexnums->base)
+			BindTexture(tu, shaderstate.curtexnums->base);
 		else
-			BindTexture(tu, missing_texture.ptr);
+			BindTexture(tu, missing_texture);
 		break;
 	case T_GEN_NORMALMAP:
-		BindTexture( tu, shaderstate.curtexnums->bump.ptr);
+		BindTexture( tu, shaderstate.curtexnums->bump);
 		break;
 	case T_GEN_SPECULAR:
-		BindTexture(tu, shaderstate.curtexnums->specular.ptr);
+		BindTexture(tu, shaderstate.curtexnums->specular);
 		break;
 	case T_GEN_UPPEROVERLAY:
-		BindTexture(tu, shaderstate.curtexnums->upperoverlay.ptr);
+		BindTexture(tu, shaderstate.curtexnums->upperoverlay);
 		break;
 	case T_GEN_LOWEROVERLAY:
-		BindTexture(tu, shaderstate.curtexnums->loweroverlay.ptr);
+		BindTexture(tu, shaderstate.curtexnums->loweroverlay);
 		break;
 	case T_GEN_FULLBRIGHT:
-		BindTexture(tu, shaderstate.curtexnums->fullbright.ptr);
+		BindTexture(tu, shaderstate.curtexnums->fullbright);
 		break;
 	case T_GEN_ANIMMAP:
-		BindTexture(tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes].ptr);
+		BindTexture(tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes]);
 		break;
 	case T_GEN_SINGLEMAP:
-		BindTexture(tu, pass->anim_frames[0].ptr);
+		BindTexture(tu, pass->anim_frames[0]);
 		break;
 	case T_GEN_DELUXMAP:
-		BindTexture(tu, shaderstate.curdeluxmap.ptr);
+		BindTexture(tu, shaderstate.curdeluxmap);
 		break;
 	case T_GEN_LIGHTMAP:
-		BindTexture(tu, shaderstate.curlightmap.ptr);
+		BindTexture(tu, shaderstate.curlightmap);
 		break;
 
 	/*case T_GEN_CURRENTRENDER:
 		FIXME: no code to grab the current screen and convert to a texture
 		break;*/
 	case T_GEN_VIDEOMAP:
-		BindTexture(tu, Media_UpdateForShader(pass->cin).ptr);
+		BindTexture(tu, Media_UpdateForShader(pass->cin));
 		break;
 	}
 
-	BE_ApplyTMUState(tu, pass->flags);
+	BE_ApplyTMUState(tu, shaderstate.curtexflags[tu]|pass->flags);
 
 	if (tu == 0)
 	{
@@ -2158,7 +2194,7 @@ void D3D9BE_SelectMode(backendmode_t mode)
 		BE_ApplyShaderBits(SBITS_MASK_BITS);
 }
 
-qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode)
+qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode)
 {
 	shaderstate.curdlight = dl;
 	VectorCopy(colour, shaderstate.curdlight_colours);
@@ -2525,17 +2561,22 @@ static void BE_UploadLightmaps(qboolean force)
 
 		if (lightmap[i]->modified)
 		{
-			IDirect3DTexture9 *tex = lm->lightmap_texture.ptr;
+			extern cvar_t gl_lightmap_nearest;
+			IDirect3DTexture9 *tex;
 			D3DLOCKED_RECT lock;
 			RECT rect;
 			glRect_t *theRect = &lm->rectchange;
 			int r;
+
+			if (!lm->lightmap_texture)
+				lm->lightmap_texture = Image_CreateTexture("", NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
+			tex = lm->lightmap_texture->ptr;
 			if (!tex)
 			{
-				lm->lightmap_texture = R_AllocNewTexture("***lightmap***", lm->width, lm->height, 0);
-				tex = lm->lightmap_texture.ptr;
+				IDirect3DDevice9_CreateTexture(pD3DDev9, lm->width, lm->height, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tex, NULL);
 				if (!tex)
 					continue;
+				lm->lightmap_texture->ptr = tex;
 			}
 			
 			lm->modified = 0;
@@ -2713,10 +2754,10 @@ void D3D9BE_SubmitBatch(batch_t *batch)
 	shaderstate.curtexnums = batch->skin?batch->skin:&batch->shader->defaulttextures;
 	shaderstate.curbatch = batch;
 	shaderstate.flags = batch->flags;
-	if (batch->lightmap[0] < 0)
-		shaderstate.curlightmap = r_nulltex;
-	else
+	if ((unsigned)batch->lightmap[0] < (unsigned)numlightmaps)
 		shaderstate.curlightmap = lightmap[batch->lightmap[0]]->lightmap_texture;
+	else
+		shaderstate.curlightmap = r_nulltex;
 
 	BE_DrawMeshChain_Internal();
 }

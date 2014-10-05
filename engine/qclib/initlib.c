@@ -1158,7 +1158,7 @@ pubprogfuncs_t deffuncs = {
 	PR_ToggleBreakpoint,
 	0,	//numprogs
 	NULL,	//parms
-#if defined(MINIMAL) || defined(OMIT_QCC)
+#if 1//defined(MINIMAL) || defined(OMIT_QCC)
 	NULL,	//decompile
 #else
 	QC_Decompile,
@@ -1235,7 +1235,7 @@ progexterns_t defexterns = {
 	qclib_null_printf, //void (*printf) (char *, ...);
 	(void*)exit, //void (*Sys_Error) (char *, ...);
 	NULL, //void (*Abort) (char *, ...);
-	sizeof(edictrun_t), //int edictsize;	//size of edict_t
+	NULL,
 
 	NULL, //void (*entspawn) (struct edict_s *ent);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
 	NULL, //bool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
@@ -1252,6 +1252,8 @@ progexterns_t defexterns = {
 	qclib_malloc, //void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly by the executor. (use memalloc if you want)
 	qclib_free, //void (*memfree) (void * mem);
 
+	NULL, //int (*useeditor) (char *filename, int line, int nump, char **parms);
+	NULL,	//relocated
 
 	NULL, //builtin_t *globalbuiltins;	//these are available to all progs
 	0, //int numglobalbuiltins;
@@ -1262,8 +1264,7 @@ progexterns_t defexterns = {
 
 	&safesv_edicts, //struct edict_s **sv_edicts;
 	&safesv_num_edicts, //int *sv_num_edicts;
-
-	NULL, //int (*useeditor) (char *filename, int line, int nump, char **parms);
+	sizeof(edictrun_t), //int edictsize;	//size of edict_t
 };
 
 //progfuncs_t *progfuncs = NULL;

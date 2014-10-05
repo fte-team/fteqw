@@ -599,11 +599,27 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		Con_DPrintf("Anisotropic filter extension found (%dx max).\n",gl_config.ext_texture_filter_anisotropic);
 	}
 
-	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two") || GL_CheckExtension("GL_OES_texture_npot"))
+	//FIXME: GL_ARB_texture_non_power_of_two is supposed to be mandatory in gl2+ and thus checking for it is redundant and not forwards-compatible
+	//geforcefx apparently software emulates it, so gl<3 is bad.
+	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two"))
+	{
 		gl_config.texture_non_power_of_two = true;
 	//gles2 has limited npot as standard, which is sufficient to make the hud not look like poo. lets use it.
 	if ((gl_config.gles && gl_config.glversion >= 2) || gl_config.texture_non_power_of_two)
 		gl_config.texture_non_power_of_two_limited = true;
+		r_config.texture_non_power_of_two_pic = true;
+	}
+	else if (GL_CheckExtension("GL_OES_texture_npot"))
+	{
+		r_config.texture_non_power_of_two = false;
+		r_config.texture_non_power_of_two_pic = true;
+	}
+	else
+	{
+		r_config.texture_non_power_of_two = false;
+		r_config.texture_non_power_of_two_pic = false;
+	}
+
 //	if (GL_CheckExtension("GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
 //		gl_config.sgis_generate_mipmap = true;
 
@@ -1180,7 +1196,7 @@ static const char *glsl_hdrs[] =
 			"{\n"
 			"#if defined(RELIEFMAPPING) && !defined(GL_ES)\n"
 				"float i, f;\n"
-				"vec3 OffsetVector = vec3(normalize(eyevector.xyz).xy * cvar_r_glsl_offsetmapping_scale * vec2(-1.0, -1.0), -1.0);\n"
+				"vec3 OffsetVector = vec3(normalize(eyevector.xyz).xy * cvar_r_glsl_offsetmapping_scale * vec2(-1.0, 1.0), -1.0);\n"
 				"vec3 RT = vec3(vec2(base.xy"/* - OffsetVector.xy*OffsetMapping_Bias*/"), 1.0);\n"
 				"OffsetVector /= 10.0;\n"
 				"for(i = 1.0; i < 10.0; ++i)\n"
@@ -1189,7 +1205,7 @@ static const char *glsl_hdrs[] =
 					"RT += OffsetVector * (step(texture2D(normtex, RT.xy).a, RT.z) * f - 0.5 * f);\n"
 				"return RT.xy;\n"
 			"#elif defined(OFFSETMAPPING)\n"
-				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * vec2(-1.0, -1.0);\n"
+				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * vec2(-1.0, 1.0);\n"
 				"vec2 tc = base;\n"
 				"tc += OffsetVector;\n"
 				"OffsetVector *= 0.333;\n"
@@ -1607,8 +1623,6 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLhandleARB frag, qboolean silent)
 {
 	GLhandleARB	program;
-	GLint		linked;
-	char		str[2048];
 
 	program = qglCreateProgramObjectARB();
 	qglAttachObjectARB(program, vert);
@@ -1636,6 +1650,14 @@ GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLh
 	qglBindAttribLocationARB(program, VATTR_VERTEX2, "v_position2");
 
 	qglLinkProgramARB(program);
+	return program;
+}
+
+GLhandleARB GLSlang_ValidateProgram(GLhandleARB program, const char *name, qboolean silent, vfsfile_t *blobfile)
+{
+	char		str[2048];
+	char *nullconstants = NULL;
+	GLint linked;
 
 	qglGetProgramParameteriv_(program, GL_OBJECT_LINK_STATUS_ARB, &linked);
 
@@ -1651,6 +1673,27 @@ GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLh
 
 		return (GLhandleARB)0;
 	}
+
+	if (program && blobfile && qglGetProgramBinary)
+	{
+		GLuint ui;
+		GLenum e;
+		unsigned int len, fmt;
+		void *blobdata;
+
+		qglGetProgramParameteriv_(program, GL_PROGRAM_BINARY_LENGTH, &ui);
+		len = ui;
+
+		blobdata = BZ_Malloc(len);
+		qglGetProgramBinary(program, len, NULL, &e, blobdata);
+		fmt = e;
+
+		VFS_WRITE(blobfile, &fmt, sizeof(fmt));
+		VFS_WRITE(blobfile, &len, sizeof(len));
+		VFS_WRITE(blobfile, blobdata, len);
+		BZ_Free(blobdata);
+	}
+
 	return program;
 }
 
@@ -1706,6 +1749,11 @@ GLhandleARB GLSlang_CreateProgram(const char *name, int ver, const char **precom
 	return handle;
 }
 
+qboolean GLSlang_ValidateProgramPermu(program_t *prog, const char *name, unsigned int permu, qboolean noerrors, vfsfile_t *blobfile)
+{
+	prog->permu[permu].handle.glsl = GLSlang_ValidateProgram(prog->permu[permu].handle.glsl, name, noerrors, blobfile);
+	return !!prog->permu[permu].handle.glsl;
+}
 qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
 {
 	if (!ver)
@@ -2100,10 +2148,14 @@ void GL_Init(void *(*getglfunction) (char *name))
 	sh_config.progs_supported	= gl_config.arb_shader_objects;
 	sh_config.progs_required	= gl_config_nofixedfunc;
 
-	sh_config.pDeleteProg		= GLSlang_DeleteProg;
-	sh_config.pLoadBlob			= qglProgramBinary?GLSlang_LoadBlob:NULL;
-	sh_config.pCreateProgram	= GLSlang_CreateProgramPermu;
-	sh_config.pProgAutoFields	= GLSlang_ProgAutoFields;
+	if (gl_config.arb_shader_objects)
+	{
+		sh_config.pDeleteProg		= GLSlang_DeleteProg;
+		sh_config.pLoadBlob			= qglProgramBinary?GLSlang_LoadBlob:NULL;
+		sh_config.pCreateProgram	= GLSlang_CreateProgramPermu;
+		sh_config.pValidateProgram	= GLSlang_ValidateProgramPermu;
+		sh_config.pProgAutoFields	= GLSlang_ProgAutoFields;
+	}
 
 	if (gl_config.nofixedfunc)
 	{
@@ -2314,22 +2366,13 @@ rendererinfo_t openglrendererinfo = {
 	GLDraw_Init,
 	GLDraw_DeInit,
 
-	GL_LoadTextureFmt,
-	GL_LoadTexture8Pal24,
-	GL_LoadTexture8Pal32,
-	GL_LoadCompressed,
-	GL_FindTexture,
-	GL_AllocNewTexture,
-	GL_UploadFmt,
+	GL_UpdateFiltering,
+	GL_LoadTextureMips,
 	GL_DestroyTexture,
 
 	GLR_Init,
 	GLR_DeInit,
 	GLR_RenderView,
-
-
-	GLR_NewMap,
-	GLR_PreNewMap,
 
 	GLVID_Init,
 	GLVID_DeInit,

@@ -156,11 +156,13 @@ int QC_encode(progfuncs_t *progfuncs, int len, int method, char *in, int handle)
 }
 #endif
 
-char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, char *fname, int *size, char *buffer)
+char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, char *fname, size_t *size, char *buffer)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	int num;
 	includeddatafile_t *s;
+	if (size)
+		*size = 0;
 	if (!pr_progstate[prnum].progs)
 		return NULL;
 	if (pr_progstate[prnum].progs->version != PROG_EXTENDEDVERSION)
@@ -178,7 +180,7 @@ char *PDECL filefromprogs(pubprogfuncs_t *ppf, progsnum_t prnum, char *fname, in
 			if (size)
 				*size = s->size;
 			if (!buffer)
-				return (char *)0xffffffff;
+				return NULL;
 			return QC_decode(progfuncs, s->compsize, s->size, s->compmethod, (char *)pr_progstate[prnum].progs+s->ofs, buffer);
 		}
 

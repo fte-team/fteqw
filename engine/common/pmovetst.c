@@ -119,7 +119,7 @@ int PM_PointContents (vec3_t p)
 
 	//check world.
 	pm = pmove.physents[0].model;
-	if (!pm || pm->needload)
+	if (!pm || pm->loadstate != MLS_LOADED)
 		return FTECONTENTS_EMPTY;
 	pc = pm->funcs.PointContents(pm, NULL, p);
 
@@ -471,7 +471,7 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end, unsigned int solidmask)
 		if (pe->forcecontentsmask && !(pe->forcecontentsmask & solidmask))
 			continue;
 
-		if (!pe->model || pe->model->needload)
+		if (!pe->model || pe->model->loadstate != MLS_LOADED)
 		{
 			vec3_t mins, maxs;
 

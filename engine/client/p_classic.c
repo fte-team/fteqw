@@ -43,6 +43,7 @@ typedef enum {
 	LAVASPLASH_POINT,
 	EXPLOSION_POINT,
 	TELEPORTSPLASH_POINT,
+	MUZZLEFLASH_POINT,
 
 	EFFECTTYPE_MAX
 } effect_type_t;
@@ -127,6 +128,8 @@ static int PClassic_FindParticleType(const char *name)
 		return EXPLOSION_POINT;
 	if (!stricmp("te_teleport", name))
 		return TELEPORTSPLASH_POINT;
+	if (!stricmp("te_muzzleflash", name))
+		return MUZZLEFLASH_POINT;
 
 	return P_INVALID;
 }
@@ -867,7 +870,7 @@ done:
 
 
 //builds a trail from here to there. The trail state can be used to remember how far you got last frame.
-static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, trailstate_t **tsk)
+static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, vec3_t dlaxis[3], trailstate_t **tsk)
 {
 	float leftover;
 
@@ -896,6 +899,36 @@ static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count,
 		break;
 	case TELEPORTSPLASH_POINT:
 		Classic_TeleportSplash(org);
+		break;
+	case MUZZLEFLASH_POINT:
+		{
+			dlight_t *dl = CL_AllocDlight (0);
+			if (dir)
+				VectorCopy(dir, dl->axis[0]);
+			else
+				VectorSet(dir, 0, 0, 1);
+			VectorVectors(dl->axis[0], dl->axis[1], dl->axis[2]);
+			VectorInverse(dl->axis[1]);
+			if (dir)
+				VectorMA (org, 15, dl->axis[0], dl->origin);
+			else
+				VectorCopy (org, dl->origin);
+
+			dl->radius = 200 + (rand()&31);
+			dl->minlight = 32;
+			dl->die = cl.time + 0.1;
+			dl->color[0] = 1.5;
+			dl->color[1] = 1.3;
+			dl->color[2] = 1.0;
+
+			dl->channelfade[0] = 1.5;
+			dl->channelfade[1] = 0.75;
+			dl->channelfade[2] = 0.375;
+			dl->decay = 1000;
+#ifdef RTLIGHTS
+			dl->lightcolourscales[2] = 4;
+#endif
+		}
 		break;
 	default:
 		return 1;

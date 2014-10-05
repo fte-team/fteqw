@@ -197,7 +197,7 @@ vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 	qboolean needsflush;
 	f = VFSSTDIO_Open(osname, mode, &needsflush);
 	if (needsflush)
-		FS_FlushFSHashReally();
+		FS_FlushFSHashReally(true);
 	return f;
 }
 #endif

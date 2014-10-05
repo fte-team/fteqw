@@ -543,6 +543,7 @@ void SVNQ_New_f (void)
 
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 	{
+		size_t sz;
 		extern cvar_t allow_download;
 		char *f;
 
@@ -552,15 +553,15 @@ void SVNQ_New_f (void)
 			MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
 		}
 
-		f = COM_LoadTempFile("csprogs.dat");
+		f = COM_LoadTempFile("csprogs.dat", &sz);
 		if (f)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, va("csqc_progname %s\n", "csprogs.dat"));
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, va("csqc_progsize %i\n", com_filesize));
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progsize %i\n", sz));
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, va("csqc_progcrc %i\n", QCRC_Block(f, com_filesize)));
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progcrc %i\n", QCRC_Block(f, sz)));
 
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, "cmd enablecsqc\n");
@@ -1042,6 +1043,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		if (client->zquake_extensions & Z_EXT_VWEP)
 		{
 			char mname[MAX_QPATH];
+			char ext[8];
 			char vweaplist[2048] = "//vwep";
 
 			for (i = 0; sv.strings.vw_model_precache[i]; i++)
@@ -1053,7 +1055,8 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
 
 				//strip .mdl extensions, for compat with ezquake
-				if (!strcmp(COM_FileExtension(mname), "mdl"))
+				COM_FileExtension(mname, ext, sizeof(ext));
+				if (!strcmp(ext, "mdl"))
 					COM_StripExtension(mname, mname, sizeof(mname));
 
 				//add it to the vweap command, taking care of any remaining spaces in names.
@@ -2610,6 +2613,7 @@ qboolean SV_AllowDownload (const char *name)
 	extern	cvar_t	allow_download_copyrighted;
 	extern	cvar_t	allow_download_other;
 	char cleanname[MAX_QPATH];
+	char ext[8];
 	int i=0;
 	if (strlen(name) >= MAX_QPATH)
 		return false;
@@ -2633,12 +2637,15 @@ qboolean SV_AllowDownload (const char *name)
 	if (strchr(name, '\\'))	//no windows paths - grow up lame windows users.
 		return false;
 
-	if (!Q_strcasecmp("log", COM_FileExtension(name)))
+	COM_FileExtension(name, ext, sizeof(ext));
+
+	//block attempts to download logs
+	if (!Q_strcasecmp("log", ext))
 		return false;
 
 	if (!strncmp(name, "package/", 8))
 	{
-		if (!strcmp("pk4", COM_FileExtension(name)) || !strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
+		if (!strcmp("pk4", ext) || !strcmp("pk3", ext) || !strcmp("pak", ext))
 		{
 			if (!allow_download_packages.ival)
 				return false;
@@ -2675,11 +2682,11 @@ qboolean SV_AllowDownload (const char *name)
 	//wads
 	if (strncmp(name,	"wads/", 5) == 0)
 		return !!allow_download_wads.value;
-	if (!strcmp("wad", COM_FileExtension(name)))
+	if (!strcmp("wad", ext))
 		return !!allow_download_wads.value;
 
 	//pak/pk3s.
-	if (!strcmp("pk4", COM_FileExtension(name)) || !strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
+	if (!strcmp("pk4", ext) || !strcmp("pk3", ext) || !strcmp("pak", ext))
 	{
 		if (strnicmp(name, "pak", 3))	//don't give out core pak/pk3 files. This matches q3 logic.
 			return !!allow_download_packages.value;
@@ -2687,7 +2694,7 @@ qboolean SV_AllowDownload (const char *name)
 			return !!allow_download_copyrighted.value;
 	}
 
-	if (!strcmp("cfg", COM_FileExtension(name)))
+	if (!strcmp("cfg", ext))
 		return !!allow_download_configs.value;
 
 	//root of gamedir
@@ -2761,17 +2768,20 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 		else
 			return -1;	//not found/unable to open
 	}
+#ifdef TERRAIN
 	else if (Terrain_LocateSection(name, loc))
 	{
 		found = true;
 	}
+#endif
 	else
 		found = FS_FLocateFile(name, FSLFRT_IFFOUND, loc);
 
 	//nexuiz names certain files as .wav but they're really .ogg on disk.
 	if (!found && replacementname)
 	{
-		if (!strcmp(COM_FileExtension(name), "wav"))
+		char ext[8];
+		if (!strcmp(COM_FileExtension(name, ext, sizeof(ext)), "wav"))
 		{
 			char tryogg[MAX_QPATH];
 			COM_StripExtension(name, tryogg, sizeof(tryogg));
@@ -5469,7 +5479,7 @@ void SV_FilterImpulseInit(void)
 	int imp;
 	memset(implevels, 0, sizeof(implevels));
 
-	s = COM_LoadStackFile("impfiltr.cfg", buffer, sizeof(buffer));
+	s = COM_LoadStackFile("impfiltr.cfg", buffer, sizeof(buffer), NULL);
 	if (!s)
 		Con_DPrintf("impfiltr.cfg not found. Impulse filters are disabled\n");
 
@@ -5976,8 +5986,20 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		sv_player->v->v_angle[2] = SHORT2ANGLE(ucmd->angles[2]);
 	}
 
+#ifdef HEXEN2
 	if (progstype == PROG_H2)
-		sv_player->xv->light_level = 128;	//hmm... HACK!!!
+	{
+		//fixme: should probably support rtlights, but this is a server, so urgh.
+		if (sv.world.worldmodel && sv.world.worldmodel->funcs.LightPointValues)
+		{
+			vec3_t diffuse, ambient, dir;
+			sv.world.worldmodel->funcs.LightPointValues(sv.world.worldmodel, sv_player->v->origin, diffuse, ambient, dir);
+			sv_player->xv->light_level = (ambient[0]+ambient[1]+ambient[2])/3.0+(diffuse[0]+diffuse[1]+diffuse[2])/6.0;
+		}
+		else	
+			sv_player->xv->light_level = 128;	//don't know, some dummy value.
+	}
+#endif
 
 	sv_player->v->button0 = ucmd->buttons & 1;
 	sv_player->v->button2 = (ucmd->buttons >> 1) & 1;

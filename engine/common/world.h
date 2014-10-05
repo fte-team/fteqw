@@ -289,5 +289,16 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, vec3_t axis
 qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist);
 qboolean World_GetEntGravityAxis(wedict_t *ent, vec3_t axis[3]);
 
+//
+// sv_phys.c
+//
 void WPhys_Init(void);
 void World_Physics_Frame(world_t *w);
+void SV_SetMoveVars(void);
+void WPhys_RunNewmis (world_t *w);
+qboolean SV_Physics (void);
+void WPhys_CheckVelocity (world_t *w, wedict_t *ent);
+trace_t WPhys_Trace_Toss (world_t *w, wedict_t *ent, wedict_t *ignore);
+void SV_ProgStartFrame (void);
+void WPhys_RunEntity (world_t *w, wedict_t *ent);
+qboolean WPhys_RunThink (world_t *w, wedict_t *ent);

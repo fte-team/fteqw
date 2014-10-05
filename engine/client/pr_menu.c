@@ -437,7 +437,7 @@ void QCBUILTIN PF_CL_drawpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	mpic_t *p;
 
 	p = R2D_SafeCachePic(picname);
-	if (!p)
+	if (!p || !R_GetShaderSizes(p, NULL, NULL, false))
 		p = R2D_SafePicFromWad(picname);
 
 	if (!p)
@@ -511,7 +511,7 @@ void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *
 	{
 		pic = R2D_SafeCachePic(str);
 
-		if ((!pic || (pic->flags & SHADER_NOIMAGE)) && cls.state
+		if ((!pic || !R_GetShaderSizes(pic, NULL, NULL, true)) && cls.state
 #ifndef CLIENTONLY
 			&& !sv.active
 #endif
@@ -671,11 +671,12 @@ void QCBUILTIN PF_CL_drawgetimagesize (pubprogfuncs_t *prinst, struct globalvars
 	mpic_t *p = R2D_SafeCachePic(picname);
 
 	float *ret = G_VECTOR(OFS_RETURN);
-
-	if (p)
+	int iw, ih;
+	
+	if (R_GetShaderSizes(p, &iw, &ih, true) > 0)
 	{
-		ret[0] = p->width;
-		ret[1] = p->height;
+		ret[0] = iw;
+		ret[1] = ih;
 		ret[2] = 0;
 	}
 	else
@@ -814,7 +815,7 @@ void QCBUILTIN PF_SubConPrintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	if (!con)
 		return;
 	PF_sprintf_internal(prinst, pr_globals, fmt, 2, outbuf, sizeof(outbuf));
-	Con_PrintCon(con, outbuf);
+	Con_PrintCon(con, outbuf, con->parseflags);
 }
 void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2071,6 +2072,11 @@ void MP_CvarChanged(cvar_t *var)
 	}
 }
 
+pbool PDECL Menu_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc)
+{
+	return crc == 10020;
+}
+
 double  menutime;
 qboolean MP_Init (void)
 {
@@ -2097,6 +2103,7 @@ qboolean MP_Init (void)
 	menuprogparms.Printf = (void *)Con_Printf;//Con_Printf;//void (*printf) (char *, ...);
 	menuprogparms.Sys_Error = Sys_Error;
 	menuprogparms.Abort = Menu_Abort;
+	menuprogparms.CheckHeaderCrc = Menu_CheckHeaderCrc;
 	menuprogparms.edictsize = sizeof(menuedict_t);
 
 	menuprogparms.entspawn = NULL;//void (*entspawn) (struct edict_s *ent);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
@@ -2136,7 +2143,7 @@ qboolean MP_Init (void)
 		Con_DPrintf("Initializing menu.dat\n");
 		menu_world.progs = InitProgs(&menuprogparms);
 		PR_Configure(menu_world.progs, 64*1024*1024, 1, pr_enable_profiling.ival);
-		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat", 10020, NULL, 0);
+		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat", NULL, 0);
 		if (mprogs < 0) //no per-progs builtins.
 		{
 			//failed to load or something
@@ -2236,10 +2243,10 @@ void MP_Reload_f(void)
 
 static void MP_Poke_f(void)
 {
-	if (!SV_MayCheat())
+	/*if (!SV_MayCheat())
 		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
-	else if (svprogfuncs && svprogfuncs->EvaluateDebugString)
-		Con_TPrintf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
+	else */if (menu_world.progs && menu_world.progs->EvaluateDebugString)
+		Con_TPrintf("Result: %s\n", menu_world.progs->EvaluateDebugString(menu_world.progs, Cmd_Args()));
 	else
 		Con_TPrintf ("not supported.\n");
 }

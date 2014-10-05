@@ -2,55 +2,7 @@
 #ifdef SWQUAKE
 #include "sw.h"
 
-void SW_RoundDimensions(int width, int height, int *scaled_width, int *scaled_height, qboolean mipmap)
-{
-	for (*scaled_width = 1 ; *scaled_width < width ; *scaled_width<<=1)
-		;
-	for (*scaled_height = 1 ; *scaled_height < height ; *scaled_height<<=1)
-		;
-
-	if (*scaled_width != width)
-		*scaled_width >>= 1;
-	if (*scaled_height != height)
-		*scaled_height >>= 1;
-
-	if (*scaled_width > 256)
-		*scaled_width = 256;
-	if (*scaled_height > 256)
-		*scaled_height = 256;
-}
-
-texid_tf SW_AllocNewTexture(const char *identifier, int w, int h, unsigned int flags)
-{
-	int nw, nh;
-	texid_t n;
-	swimage_t *img;
-	if (w & 3)
-		return r_nulltex;
-
-	SW_RoundDimensions(w, h, &nw, &nh, false);
-	img = BZ_Malloc(sizeof(*img) - sizeof(img->data) + (nw * nh * 4));
-
-	Q_strncpy(img->name, identifier, sizeof(img->name));
-	img->com.width = w;
-	img->com.height = h;
-	img->pwidth = nw;
-	img->pheight = nh;
-	img->pitch = nw;
-
-	img->pwidthmask = nw-1;
-	img->pheightmask = nh-1;
-
-	n.ptr = img;
-	n.ref = &img->com;
-	return n;
-}
-texid_tf SW_FindTexture(const char *identifier, unsigned int flags)
-{
-	return r_nulltex;
-}
-
-void SW_RGBToBGR(swimage_t *img)
+void SW_NukeAlpha(swimage_t *img)
 {
 	int x, y;
 	unsigned int *d = img->data;
@@ -58,110 +10,105 @@ void SW_RGBToBGR(swimage_t *img)
 	{
 		for (x = 0; x < img->pwidth; x++)
 		{
-			d[x] = (d[x]&0xff00ff00) | ((d[x]&0xff)<<16) | ((d[x]&0xff0000)>>16);
+			d[x] |= 0xff000000;
 		}
 		d += img->pitch;
 	}
 }
-void SW_Upload32(swimage_t *img, int iw, int ih, unsigned int *data)
-{
-	//rescale the input to the output.
-	//just use nearest-sample, cos we're lazy.
-	int x, y;
-	unsigned int *out = img->data;
-	unsigned int *in;
-	int sx, sy, stx, sty;
-	int ow = img->pwidth, oh = img->pheight;
-	stx = (iw<<16) / ow;
-	sty = (ih<<16) / oh;
 
-	for (y = 0, sy = 0; y < oh; y++, sy += sty)
-	{
-		in = data + iw*(sy>>16);
-		for (x = 0, sx = 0; x < ow; x++, sx += stx)
-		{
-			out[x] = in[sx>>16];
-		}
-		out += img->pitch;
-	}
-	SW_RGBToBGR(img);
-}
-void SW_Upload8(swimage_t *img, int iw, int ih, unsigned char *data)
-{
-	//rescale the input to the output.
-	//just use nearest-sample, cos we're lazy.
-	int x, y;
-	unsigned int *out = img->data;
-	unsigned char *in;
-	int sx, sy, stx, sty;
-	int ow = img->pwidth, oh = img->pheight;
-	stx = (iw<<16) / ow;
-	sty = (ih<<16) / oh;
-
-	for (y = 0, sy = 0; y < oh; y++, sy += sty)
-	{
-		in = data + iw*(sy>>16);
-		for (x = 0, sx = 0; x < ow; x++, sx += stx)
-		{
-			out[x] = d_8to24rgbtable[in[sx>>16]];
-		}
-		out += img->pitch;
-	}
-
-	SW_RGBToBGR(img);
-}
-
-texid_tf SW_LoadTexture(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags)
-{
-	texid_t img = SW_FindTexture(identifier, flags);
-	if (!img.ptr)
-		img = SW_AllocNewTexture(identifier, width, height, flags);
-	if (!img.ptr)
-		return r_nulltex;
-	switch(fmt)
-	{
-	case TF_SOLID8:
-		SW_Upload8(img.ptr, width, height, data);
-		break;
-	case TF_TRANS8:
-		SW_Upload8(img.ptr, width, height, data);
-		break;
-	case TF_TRANS8_FULLBRIGHT:
-		SW_Upload8(img.ptr, width, height, data);
-		break;
-	case TF_RGBA32:
-		SW_Upload32(img.ptr, width, height, data);
-		break;
-	default:
-		//shouldn't happen, so I'm gonna leak
-		Con_Printf("SW_LoadTexture: unsupported format %i\n", fmt);
-		return r_nulltex;
-	}
-	return img;
-}
-texid_tf SW_LoadTexture8Pal24(const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
-{
-	return r_nulltex;
-}
-texid_tf SW_LoadTexture8Pal32(const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
-{
-	return r_nulltex;
-}
-texid_tf SW_LoadCompressed(const char *name)
-{
-	return r_nulltex;
-}
-void SW_Upload(texid_t tex, const char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags)
-{
-}
 void SW_DestroyTexture(texid_t tex)
 {
-	swimage_t *img = tex.ptr;
+	swimage_t *img = tex->ptr;
+	tex->ptr = NULL;
 
 	/*make sure its not in use by the renderer*/
 	SWRast_Sync(&commandqueue);
 
 	/*okay, it can be killed*/
 	BZ_Free(img);
+}
+
+
+
+void		SW_UpdateFiltering		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis)
+{
+	//always nearest...
+}
+
+qboolean	SW_LoadTextureMips		(texid_t tex, struct pendingtextureinfo *mips)
+{
+	swimage_t *img;
+	int i;
+	int nw = mips->mip[0].width;
+	int nh = mips->mip[0].height;
+	qbyte *indata = mips->mip[0].data;
+	qbyte *imgdata;
+
+
+	if (mips->type != PTI_2D)
+		return false;
+
+	//ensure we reject any s3tc encodings
+	switch(mips->encoding)
+	{
+	case PTI_RGBA8:
+	case PTI_RGBX8:
+	case PTI_BGRA8:
+	case PTI_BGRX8:
+		break;
+	default:
+		return false;
+	}
+
+	img = BZ_Malloc(sizeof(*img) - sizeof(img->data) + (nw * nh * 4));
+	imgdata = (qbyte*)(img+1) - sizeof(img->data);
+	tex->ptr = img;
+
+	img->pwidth = nw;
+	img->pheight = nh;
+	img->pitch = nw;
+
+	//precalculated
+	img->pwidthmask = nw-1;
+	img->pheightmask = nh-1;
+
+	if (mips->encoding == PTI_RGBA8 || mips->encoding == PTI_RGBX8)
+	{	//assuming PC hardware is bgr
+		if (mips->encoding == PTI_RGBX8)
+		{
+			for (i = 0; i < nw*nh*4; i+=4)
+			{
+				imgdata[i+0] = indata[i+2];
+				imgdata[i+1] = indata[i+1];
+				imgdata[i+2] = indata[i+0];
+				imgdata[i+3] = 255;
+			}
+		}
+		else
+		{
+			for (i = 0; i < nw*nh*4; i+=4)
+			{
+				imgdata[i+0] = indata[i+2];
+				imgdata[i+1] = indata[i+1];
+				imgdata[i+2] = indata[i+0];
+				imgdata[i+3] = indata[i+3];
+			}
+		}
+	}
+	else
+	{
+		memcpy(imgdata, indata, (nw * nh * 4));
+		if (mips->encoding == PTI_BGRX8)
+			for (i = 0; i < nw*nh*4; i+=4)
+				imgdata[i+3] = 255;
+	}
+
+	for (i = 0; i < mips->mipcount; i++)
+		if (mips->mip[i].needfree)
+			Z_Free(mips->mip[i].data);
+	if (mips->extrafree)
+		Z_Free(mips->extrafree);
+
+	return true;
 }
 #endif

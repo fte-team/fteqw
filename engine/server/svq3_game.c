@@ -163,10 +163,12 @@ static model_t *Q3G_GetCModel(unsigned int modelindex)
 			if (modelindex == 0)
 				sv.models[modelindex] = sv.world.worldmodel;
 			else
-				sv.models[modelindex] = Mod_ForName(va("*%i", modelindex), MLV_WARN);
+				sv.models[modelindex] = Mod_ForName(Mod_FixName(va("*%i", modelindex), sv.modelname), MLV_WARN);
 		}
 
-		if (!sv.models[modelindex]->needload)
+		if (sv.models[modelindex]->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(sv.models[modelindex], &sv.models[modelindex]->loadstate, MLS_LOADING);
+		if (sv.models[modelindex]->loadstate == MLS_LOADED)
 			return sv.models[modelindex];
 	}
 	return NULL;
@@ -445,7 +447,7 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 
 	if (entnum == -1)
 		ourowner = -1;
-	else if ( entnum != ENTITYNUM_WORLD )
+	else if (entnum != ENTITYNUM_WORLD)
 	{
 		ourowner = GENTITY_FOR_NUM(entnum)->r.ownerNum;
 		if (ourowner == ENTITYNUM_NONE)
@@ -604,8 +606,8 @@ static void SVQ3_SetBrushModel(q3sharedEntity_t *ent, char *modelname)
 	}
 	else
 	{
-		VectorCopy(mod->mins, ent->r.mins);
-		VectorCopy(mod->maxs, ent->r.maxs);
+		VectorCopy(vec3_origin, ent->r.mins);
+		VectorCopy(vec3_origin, ent->r.maxs);
 	}
 	ent->r.bmodel = true;
 	ent->r.contents = -1;
@@ -2945,7 +2947,7 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 			memcpy(&client->lastcmd, to, sizeof(client->lastcmd));
 			if (svs.gametype == GT_QUAKE3)
 				SVQ3_ClientThink(client);
-			else
+			else if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 			{
 				usercmd_t temp;
 				temp = client->lastcmd;

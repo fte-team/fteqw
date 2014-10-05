@@ -47,10 +47,6 @@ extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models, ruleset_allow_fbmod
 extern cvar_t r_noaliasshadows;
 
 
-
-extern char	loadname[32];	// for hunk tags
-
-
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
 extern cvar_t mod_md3flags;
@@ -128,6 +124,7 @@ static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
 {
 	float x=0, y=0;
 	float w, h;
+	int iw=0, ih=0;
 	float r=1,g=1,b=1,a=1;
 	int l;
 	char *s, tname[MAX_QPATH];
@@ -146,13 +143,18 @@ static void Mod_ComposeSkin(char *texture, struct cctx_s *cctx)
 
 	//load the image and set some default sizes, etc.
 	sourceimg = R2D_SafeCachePic(tname);
-	if (sourceimg)	//no shader? no point in doing anything.
+
+	if (!sourceimg || R_GetShaderSizes(sourceimg, &iw, &ih, true) != 1)	//no shader? no point in doing anything.
 	{
-		w = sourceimg->width;
-		h = sourceimg->height;
+		w = 0;
+		h = 0;
+		sourceimg = NULL;
 	}
 	else
-		w = h = 0;
+	{
+		w = iw;
+		h = ih;
+	}
 
 	while(*s)
 	{
@@ -267,6 +269,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 			//body
 			if (com_tokentype != TTP_LINEENDING)
 			{
+				//fixme: this blocks waiting for the textures to load.
 				struct cctx_s cctx;
 				memset(&cctx, 0, sizeof(cctx));
 
@@ -362,7 +365,7 @@ skinid_t Mod_RegisterSkinFile(const char *skinname)
 		if (!strcmp(skinname, registeredskins[id]->skinname))
 			return id+1;
 	}
-	f = FS_LoadMallocFile(skinname);
+	f = FS_LoadMallocFile(skinname, NULL);
 	if (!f)
 		return 0;
 	id = Mod_ReadSkinFile(skinname, f);
@@ -592,6 +595,8 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					if (!cl.players[e->playerindex].qwskin)
 						Skin_Find(&cl.players[e->playerindex]);
 					plskin = cl.players[e->playerindex].qwskin;
+//					if (plskin && plskin->failedload)
+//						plskin = NULL;
 				}
 				else
 					plskin = NULL;
@@ -649,7 +654,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				if (e->skinnum >= 0 && e->skinnum < inf->numskins)
 					skins += e->skinnum;
 
-				if (!skins->numshaders)
+				if (!skins->numframes)
 				{
 					/*model has a skin, but has no framegroups*/
 					skins = NULL;
@@ -659,15 +664,20 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				else
 				{
 					subframe = cl.time*skins->skinspeed;
-					subframe = subframe%skins->numshaders;
+					subframe = subframe%skins->numframes;
 
-					shader = skins->ofsshaders[subframe];
+					shader = skins->frame[subframe].shader;
 				}
 			}
 			if (shader)
 			{
-				if (!plskin && (TEXVALID(shader->defaulttextures.loweroverlay) || TEXVALID(shader->defaulttextures.upperoverlay)))
-					return shader;	//the shader can do its own colourmapping.
+				if (!plskin)
+				{
+					//do this for the loading case too, in the hope that it'll avoid generating a per-player skin at all
+					if ((shader->defaulttextures.loweroverlay && (shader->defaulttextures.loweroverlay->status == TEX_LOADING || shader->defaulttextures.loweroverlay->status == TEX_LOADED)) || 
+						(shader->defaulttextures.upperoverlay && (shader->defaulttextures.upperoverlay->status == TEX_LOADING || shader->defaulttextures.upperoverlay->status == TEX_LOADED)))
+						return shader;
+				}
 				if (shader->prog && shader->prog->permu[PERMUTATION_UPPERLOWER].handle.glsl && !h2playertranslations)
 				{	//this shader can do permutations. this means we can generate only a black image, with separate top+bottom textures.
 					tc = 0xfe000000;
@@ -743,7 +753,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				inwidth = plskin->width;
 				inheight = plskin->height;
 
-				if (!original && TEXVALID(plskin->textures.base))
+				if (!original && TEXLOADED(plskin->textures.base))
 				{
 					cm->texnum.loweroverlay = plskin->textures.loweroverlay;
 					cm->texnum.upperoverlay = plskin->textures.upperoverlay;
@@ -761,9 +771,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			}
 			if (!original)
 			{
-				if (skins->ofstexels)
+				if (skins->numframes && skins->frame[subframe].texels)
 				{
-					original = skins->ofstexels[subframe];
+					original = skins->frame[subframe].texels;
 					inwidth = skins->skinwidth;
 					inheight = skins->skinheight;
 				}
@@ -1017,12 +1027,12 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			return NULL;
 	}
 
-	if (!skins->numshaders)
+	if (!skins->numframes)
 		return NULL;
 
 	frame = cl.time*skins->skinspeed;
-	frame = frame%skins->numshaders;
-	return skins->ofsshaders[frame];
+	frame = frame%skins->numframes;
+	return skins->frame[frame].shader;
 }
 
 #if defined(RTLIGHTS)
@@ -1222,6 +1232,12 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 								cl_dlights[i].origin,
 								dist);
 				add = cl_dlights[i].radius - Length(dist);
+
+#ifdef RTLIGHTS
+				//if world lighting is on, there may be no lightmap influence even if r_dynamic is on.
+				if (r_shadow_realtime_world.ival)
+					add *= r_shadow_realtime_world_lightmaps.value;
+#endif
 
 				if (add > 0)
 				{
@@ -1454,7 +1470,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			b->buildmeshes = R_GAlias_DrawBatch;
 			b->ent = e;
 #ifdef Q3BSPS
-			b->fog = CM_FogForOrigin(e->origin);
+			b->fog = Mod_FogForOrigin(cl.worldmodel, e->origin);
 #endif
 			b->mesh = NULL;
 			b->firstmesh = 0;
@@ -1946,173 +1962,253 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 
 
 #ifdef Q3CLIENT
-//q3 lightning gun
-static void R_DB_LightningBeam(batch_t *batch)
+//q3 lightning gun / q3 railgun / q2 beams
+static void R_Beam_GenerateTrisoup(entity_t *e, int bemode)
 {
-	entity_t *e = batch->ent;
-	vec3_t v;
-	vec3_t dir, cr;
-	float scale = e->scale;
-	float length;
+	float lightmap;
+	unsigned int batchflags = 0;
+	vecV_t *xyz;
+	vec2_t *st;
+	vec4_t *rgba;
+	scenetris_t *t;
+	shader_t *shader = NULL;
+	float scale, length;
+	vec3_t dir, v, cr;
 
-	static vecV_t points[4];
-	static vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
-	static vec4_t colors[4];
-
-	static mesh_t mesh;
-	static mesh_t *meshptr = &mesh;
-
-	if (batch->ent == &r_worldentity)
+	if (e->forcedshader)
 	{
-		mesh.numindexes = 0;
-		mesh.numindexes = 0;
+		shader = e->forcedshader;
+		if (!shader)
+			shader = R_RegisterShader("q2beam", SUF_NONE,
+				"{\n"
+					"{\n"
+						"map $whiteimage\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"blendfunc blend\n"
+					"}\n"
+				"}\n"
+				);
+	}
+	else
 		return;
+
+	batchflags = 0;
+//	if (e->flags & RF_NOSHADOW)
+		batchflags |= BEF_NOSHADOWS;
+	if (e->flags & RF_ADDITIVE)
+		batchflags |= BEF_FORCEADDITIVE;
+	if (e->flags & RF_TRANSLUCENT)
+		batchflags |= BEF_FORCETRANSPARENT;
+	if (e->flags & RF_NODEPTHTEST)
+		batchflags |= BEF_FORCENODEPTH;
+	if (e->flags & RF_FORCECOLOURMOD)
+		batchflags |= BEF_FORCECOLOURMOD;
+	if (shader->flags & SHADER_NODLIGHT)
+		batchflags |= BEF_NODLIGHT;
+
+	if ((batchflags & BEF_NODLIGHT) || (shader->flags & SHADER_NODLIGHT) || bemode != BEM_STANDARD)
+	{
+		//unlit sprites are just fullbright
+		lightmap = 1;
+	}
+	else
+	{
+		extern cvar_t r_shadow_realtime_world_lightmaps;
+		//lit sprites need to sample the world lighting. with rtlights that generally means they're 0.
+#ifdef RTLIGHTS
+		if (r_shadow_realtime_world.ival)
+			lightmap = r_shadow_realtime_world_lightmaps.value;
+		else
+#endif
+			lightmap = 1;
 	}
 
-	scale *= -10;
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == batchflags)
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = shader;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+		t->flags = batchflags;
+	}
+
+	if (cl_numstrisidx+6 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx=cl_numstrisidx+6 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+	if (cl_numstrisvert+4 > cl_maxstrisvert)
+	{
+		cl_maxstrisvert+=64;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+	}
+
+	xyz = &cl_strisvertv[cl_numstrisvert];
+	st = &cl_strisvertt[cl_numstrisvert];
+	rgba = &cl_strisvertc[cl_numstrisvert];
+
+	cl_strisidx[cl_numstrisidx++] = t->numvert+0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+1;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+2;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+2;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+3;
+	t->numidx += 6;
+	t->numvert += 4;
+	cl_numstrisvert += 4;
+
+	scale = e->scale*10;
 	if (!scale)
 		scale = 10;
-
 
 	VectorSubtract(e->origin, e->oldorigin, dir);
 	length = Length(dir);
 
-	//this seems to be about right.
-	texcoords[2][0] = length/128;
-	texcoords[3][0] = length/128;
+	Vector2Set(st[0], 0, 1);
+	Vector2Set(st[1], 0, 0);
+	Vector2Set(st[2], length/128, 0);
+	Vector2Set(st[3], length/128, 1);
 
 	VectorSubtract(r_refdef.vieworg, e->origin, v);
 	CrossProduct(v, dir, cr);
 	VectorNormalize(cr);
 
-	VectorMA(e->origin, -scale/2, cr, points[0]);
-	VectorMA(e->origin, scale/2, cr, points[1]);
+	VectorMA(e->origin, -scale/2, cr, xyz[0]);
+	VectorMA(e->origin, scale/2, cr, xyz[1]);
 
 	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
 	CrossProduct(v, dir, cr);
 	VectorNormalize(cr);
 
-	VectorMA(e->oldorigin, scale/2, cr, points[2]);
-	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+	VectorMA(e->oldorigin, scale/2, cr, xyz[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, xyz[3]);
 
-	/*this is actually meant to be 4 separate quads at 45 degrees from each other*/
-
-	Vector4Copy(e->shaderRGBAf, colors[0]);
-	Vector4Copy(e->shaderRGBAf, colors[1]);
-	Vector4Copy(e->shaderRGBAf, colors[2]);
-	Vector4Copy(e->shaderRGBAf, colors[3]);
-
-	batch->ent = &r_worldentity;
-	batch->mesh = &meshptr;
-
-	memset(&mesh, 0, sizeof(mesh));
-	mesh.vbofirstelement = 0;
-	mesh.vbofirstvert = 0;
-	mesh.xyz_array = points;
-	mesh.indexes = indexarray;
-	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors4f_array[0] = (vec4_t*)colors;
-	mesh.normals_array = NULL;
-	mesh.numvertexes = 4;
-	mesh.st_array = texcoords;
-}
-//q3 railgun beam
-static void R_DB_RailgunBeam(batch_t *batch)
-{
-	entity_t *e = batch->ent;
-	vec3_t v;
-	vec3_t dir, cr;
-	float scale = e->scale;
-	float length;
-
-	static mesh_t mesh;
-	static mesh_t *meshptr = &mesh;
-	static vecV_t points[4];
-	static vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
-	static vec4_t colors[4];
-
-	if (batch->ent == &r_worldentity)
+	if (e->shaderRGBAf[0] != 0 || e->shaderRGBAf[1] != 0 || e->shaderRGBAf[2] != 0 || (batchflags & BEF_FORCECOLOURMOD))
 	{
-		mesh.numindexes = 0;
-		mesh.numindexes = 0;
-		return;
+		if (e->shaderRGBAf[0] > 1)
+			e->shaderRGBAf[0] = 1;
+		if (e->shaderRGBAf[1] > 1)
+			e->shaderRGBAf[1] = 1;
+		if (e->shaderRGBAf[2] > 1)
+			e->shaderRGBAf[2] = 1;
+	}
+	else
+	{
+		e->shaderRGBAf[0] = 1;
+		e->shaderRGBAf[1] = 1;
+		e->shaderRGBAf[2] = 1;
 	}
 
-	if (!e->forcedshader)
-		return;
-
-	if (!scale)
-		scale = 10;
-
-
-	VectorSubtract(e->origin, e->oldorigin, dir);
-	length = Length(dir);
-
-	//this seems to be about right.
-	texcoords[2][0] = length/128;
-	texcoords[3][0] = length/128;
-
-	VectorSubtract(r_refdef.vieworg, e->origin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->origin, -scale/2, cr, points[0]);
-	VectorMA(e->origin, scale/2, cr, points[1]);
-
-	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->oldorigin, scale/2, cr, points[2]);
-	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
-
-	Vector4Copy(e->shaderRGBAf, colors[0]);
-	Vector4Copy(e->shaderRGBAf, colors[1]);
-	Vector4Copy(e->shaderRGBAf, colors[2]);
-	Vector4Copy(e->shaderRGBAf, colors[3]);
-
-	batch->ent = &r_worldentity;
-	batch->mesh = &meshptr;
-
-	memset(&mesh, 0, sizeof(mesh));
-	mesh.vbofirstelement = 0;
-	mesh.vbofirstvert = 0;
-	mesh.xyz_array = points;
-	mesh.indexes = indexarray;
-	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors4f_array[0] = (vec4_t*)colors;
-	mesh.normals_array = NULL;
-	mesh.numvertexes = 4;
-	mesh.st_array = texcoords;
+	VectorScale(e->shaderRGBAf, lightmap, rgba[0]);
+	rgba[0][3] = e->shaderRGBAf[3];
+	Vector4Copy(rgba[0], rgba[1]);
+	Vector4Copy(rgba[0], rgba[2]);
+	Vector4Copy(rgba[0], rgba[3]);
 }
 #endif
-static void R_DB_Sprite(batch_t *batch)
+
+static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 {
-	entity_t *e = batch->ent;
 	vec3_t	point;
-	mspriteframe_t	*frame, genframe;
+	mspriteframe_t	genframe;
 	vec3_t		spraxis[3];
 	msprite_t		*psprite;
 	vec3_t sprorigin;
 	unsigned int sprtype;
+	float lightmap;
+	unsigned int batchflags = 0;
+	vecV_t *xyz;
+	vec2_t *st;
+	vec4_t *rgba;
+	scenetris_t *t;
 
-	static vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
-	static index_t indexes[6] = {0, 1, 2, 0, 2, 3};
-	static vecV_t vertcoords[4];
-	static avec4_t colours[4];
-	static mesh_t mesh;
-	static mesh_t *meshptr = &mesh;
+	extern cvar_t gl_blendsprites;
+	shader_t *shader = NULL;
+	mspriteframe_t *frame;
 
-	if (batch->ent == &r_worldentity)
+	if (!e->model || e->model->type != mod_sprite || e->forcedshader)
 	{
-		mesh.numindexes = 0;
-		mesh.numindexes = 0;
-		return;
+		frame = NULL;
+		shader = e->forcedshader;
+		if (!shader)
+			shader = R_RegisterShader("q2beam", SUF_NONE,
+				"{\n"
+					"{\n"
+						"map $whiteimage\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"blendfunc blend\n"
+					"}\n"
+				"}\n"
+				);
+	}
+	else
+	{
+		if (!(e->flags & RF_WEAPONMODEL))
+		{
+			if (R_CullEntityBox (e, e->model->mins, e->model->maxs))
+				return;
+	#ifdef RTLIGHTS
+			if (BE_LightCullModel(e->origin, e->model))
+				return;
+		}
+		else
+		{
+			if (BE_LightCullModel(r_origin, e->model))
+				return;
+	#endif
+		}
+
+		// don't even bother culling, because it's just a single
+		// polygon without a surface cache
+		frame = R_GetSpriteFrame(e);
+		shader = frame->shader;
 	}
 
-	if (e->flags & RF_WEAPONMODEL && r_refdef.playerview->viewentity > 0)
+	batchflags = 0;
+//	if (e->flags & RF_NOSHADOW)
+		batchflags |= BEF_NOSHADOWS;
+	if (e->flags & RF_ADDITIVE)
+		batchflags |= BEF_FORCEADDITIVE;
+	if (e->flags & RF_TRANSLUCENT)
+		batchflags |= BEF_FORCETRANSPARENT;
+	if (e->flags & RF_NODEPTHTEST)
+		batchflags |= BEF_FORCENODEPTH;
+	if (e->flags & RF_FORCECOLOURMOD)
+		batchflags |= BEF_FORCECOLOURMOD;
+	if (shader->flags & SHADER_NODLIGHT)
+		batchflags |= BEF_NODLIGHT;
+
+	if ((batchflags & BEF_NODLIGHT) || (shader->flags & SHADER_NODLIGHT) || bemode != BEM_STANDARD)
+	{
+		//unlit sprites are just fullbright
+		lightmap = 1;
+	}
+	else
+	{
+		extern cvar_t r_shadow_realtime_world_lightmaps;
+		//lit sprites need to sample the world lighting. with rtlights that generally means they're 0.
+#ifdef RTLIGHTS
+		if (r_shadow_realtime_world.ival)
+			lightmap = r_shadow_realtime_world_lightmaps.value;
+		else
+#endif
+			lightmap = 1;
+	}
+
+	if ((e->flags & RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
 	{
 		sprorigin[0] = r_refdef.playerview->vw_origin[0];
 		sprorigin[1] = r_refdef.playerview->vw_origin[1];
@@ -2122,14 +2218,59 @@ static void R_DB_Sprite(batch_t *batch)
 		VectorMA(sprorigin, e->origin[2], r_refdef.playerview->vw_axis[2], sprorigin);
 		VectorMA(sprorigin, 12, vpn, sprorigin);
 
-		batch->flags |= BEF_FORCENODEPTH;
+		batchflags |= BEF_FORCENODEPTH;
 	}
 	else
 		VectorCopy(e->origin, sprorigin);
 
-	if (!e->model || e->forcedshader)
+
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == batchflags)
+		t = &cl_stris[cl_numstris-1];
+	else
 	{
-		genframe.shader = e->forcedshader;
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = shader;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+		t->flags = batchflags;
+	}
+
+	if (cl_numstrisidx+6 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx=cl_numstrisidx+6 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+	if (cl_numstrisvert+4 > cl_maxstrisvert)
+	{
+		cl_maxstrisvert+=64;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+	}
+
+	xyz = &cl_strisvertv[cl_numstrisvert];
+	st = &cl_strisvertt[cl_numstrisvert];
+	rgba = &cl_strisvertc[cl_numstrisvert];
+
+	cl_strisidx[cl_numstrisidx++] = t->numvert+0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+1;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+2;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+2;
+	cl_strisidx[cl_numstrisidx++] = t->numvert+3;
+	t->numidx += 6;
+	t->numvert += 4;
+	cl_numstrisvert += 4;
+
+	if (!frame)
+	{
 		genframe.up = genframe.left = -1;
 		genframe.down = genframe.right = 1;
 		sprtype = SPR_VP_PARALLEL;
@@ -2139,12 +2280,9 @@ static void R_DB_Sprite(batch_t *batch)
 	{
 		// don't even bother culling, because it's just a single
 		// polygon without a surface cache
-		frame = R_GetSpriteFrame (e);
 		psprite = e->model->meshinfo;
 		sprtype = psprite->type;
 	}
-	if (!frame->shader)
-		return;
 
 	switch(sprtype)
 	{
@@ -2179,14 +2317,17 @@ static void R_DB_Sprite(batch_t *batch)
 		VectorCopy(vright, spraxis[1]);
 		break;
 	}
-	spraxis[2][0]*=e->scale;
-	spraxis[2][1]*=e->scale;
-	spraxis[2][2]*=e->scale;
-	spraxis[1][0]*=e->scale;
-	spraxis[1][1]*=e->scale;
-	spraxis[1][2]*=e->scale;
+	if (e->scale)
+	{
+		spraxis[2][0]*=e->scale;
+		spraxis[2][1]*=e->scale;
+		spraxis[2][2]*=e->scale;
+		spraxis[1][0]*=e->scale;
+		spraxis[1][1]*=e->scale;
+		spraxis[1][2]*=e->scale;
+	}
 
-	if (e->shaderRGBAf[0] != 0 || e->shaderRGBAf[1] != 0 || e->shaderRGBAf[2] != 0 || (batch->flags & BEF_FORCECOLOURMOD))
+	if (e->shaderRGBAf[0] != 0 || e->shaderRGBAf[1] != 0 || e->shaderRGBAf[2] != 0 || (batchflags & BEF_FORCECOLOURMOD))
 	{
 		if (e->shaderRGBAf[0] > 1)
 			e->shaderRGBAf[0] = 1;
@@ -2202,120 +2343,28 @@ static void R_DB_Sprite(batch_t *batch)
 		e->shaderRGBAf[2] = 1;
 	}
 
-	Vector4Copy(e->shaderRGBAf, colours[0]);
-	Vector4Copy(e->shaderRGBAf, colours[1]);
-	Vector4Copy(e->shaderRGBAf, colours[2]);
-	Vector4Copy(e->shaderRGBAf, colours[3]);
+	VectorScale(e->shaderRGBAf, lightmap, rgba[0]);
+	rgba[0][3] = e->shaderRGBAf[3];
+	Vector4Copy(rgba[0], rgba[1]);
+	Vector4Copy(rgba[0], rgba[2]);
+	Vector4Copy(rgba[0], rgba[3]);
 
-	VectorSubtract(sprorigin, e->origin, sprorigin);
-	if (!e->scale)
-		e->scale = 1;
-	VectorSet(e->axis[0], 1/e->scale, 0, 0);
-	VectorSet(e->axis[1], 0, 1/e->scale, 0);
-	VectorSet(e->axis[2], 0, 0, 1/e->scale);
-
-	VectorMA (sprorigin, frame->down, spraxis[2], point);
-	VectorMA (point, frame->left, spraxis[1], vertcoords[0]);
-
-	VectorMA (sprorigin, frame->up, spraxis[2], point);
-	VectorMA (point, frame->left, spraxis[1], vertcoords[1]);
-
-	VectorMA (sprorigin, frame->up, spraxis[2], point);
-	VectorMA (point, frame->right, spraxis[1], vertcoords[2]);
+	Vector2Set(st[0], 0, 1);
+	Vector2Set(st[1], 0, 0);
+	Vector2Set(st[2], 1, 0);
+	Vector2Set(st[3], 1, 1);
 
 	VectorMA (sprorigin, frame->down, spraxis[2], point);
-	VectorMA (point, frame->right, spraxis[1], vertcoords[3]);
+	VectorMA (point, frame->left, spraxis[1], xyz[0]);
 
-	batch->mesh = &meshptr;
+	VectorMA (sprorigin, frame->up, spraxis[2], point);
+	VectorMA (point, frame->left, spraxis[1], xyz[1]);
 
-	memset(&mesh, 0, sizeof(mesh));
-	mesh.vbofirstelement = 0;
-	mesh.vbofirstvert = 0;
-	mesh.xyz_array = vertcoords;
-	mesh.indexes = indexes;
-	mesh.numindexes = sizeof(indexes)/sizeof(indexes[0]);
-	mesh.colors4f_array[0] = colours;
-	mesh.normals_array = NULL;
-	mesh.numvertexes = 4;
-	mesh.st_array = texcoords;
-	mesh.istrifan = true;
-}
-static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfunc)(batch_t *batch))
-{
-	extern cvar_t gl_blendsprites;
-	shader_t *shader = NULL;
-	batch_t *b;
-	shadersort_t sort;
-	int j;
+	VectorMA (sprorigin, frame->up, spraxis[2], point);
+	VectorMA (point, frame->right, spraxis[1], xyz[2]);
 
-	if (!e->model || e->model->type != mod_sprite || e->forcedshader)
-	{
-		shader = e->forcedshader;
-		if (!shader)
-			shader = R_RegisterShader("q2beam", SUF_NONE,
-				"{\n"
-					"{\n"
-						"map $whiteimage\n"
-						"rgbgen vertex\n"
-						"alphagen vertex\n"
-						"blendfunc blend\n"
-					"}\n"
-				"}\n"
-				);
-	}
-	else
-	{
-		// don't even bother culling, because it's just a single
-		// polygon without a surface cache
-		shader = R_GetSpriteFrame(e)->shader;
-	}
-
-	if (!shader)
-		return;
-
-	b = BE_GetTempBatch();
-	if (!b)
-		return;
-
-	b->flags = 0;
-	sort = shader->sort;
-	if (e->flags & RF_ADDITIVE)
-	{
-		b->flags |= BEF_FORCEADDITIVE;
-		if (sort < SHADER_SORT_ADDITIVE)
-			sort = SHADER_SORT_ADDITIVE;
-	}
-	if (e->flags & RF_TRANSLUCENT || (gl_blendsprites.ival && drawfunc == R_DB_Sprite))
-	{
-		b->flags |= BEF_FORCETRANSPARENT;
-		if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
-			sort = SHADER_SORT_BLEND;
-	}
-	if (e->flags & RF_NODEPTHTEST)
-	{
-		b->flags |= BEF_FORCENODEPTH;
-		if (sort < SHADER_SORT_BANNER)
-			sort = SHADER_SORT_BANNER;
-	}
-
-	b->buildmeshes = drawfunc;
-	b->ent = e;
-#ifdef Q3BSPS
-	b->fog = CM_FogForOrigin(e->origin);
-#endif
-	b->mesh = NULL;
-	b->firstmesh = 0;
-	b->meshes = 1;
-	b->skin = &shader->defaulttextures;
-	b->texture = NULL;
-	b->shader = shader;
-	for (j = 0; j < MAXRLIGHTMAPS; j++)
-		b->lightmap[j] = -1;
-	b->surf_first = 0;
-	b->flags |= BEF_NODLIGHT|BEF_NOSHADOWS;
-	b->vbo = NULL;
-	b->next = batches[sort];
-	batches[sort] = b;
+	VectorMA (sprorigin, frame->down, spraxis[2], point);
+	VectorMA (point, frame->right, spraxis[1], xyz[3]);
 }
 
 static void R_DB_Poly(batch_t *batch)
@@ -2333,11 +2382,12 @@ static void R_DB_Poly(batch_t *batch)
 	mesh.numindexes = cl_stris[i].numidx;
 	mesh.numvertexes = cl_stris[i].numvert;
 }
-void BE_GenPolyBatches(batch_t **batches)
+static void BE_GenPolyBatches(batch_t **batches)
 {
 	shader_t *shader = NULL;
 	batch_t *b;
 	unsigned int i = cl_numstris, j;
+	unsigned int sort;
 
 	while (i-- > 0)
 	{
@@ -2363,10 +2413,19 @@ void BE_GenPolyBatches(batch_t **batches)
 		for (j = 0; j < MAXRLIGHTMAPS; j++)
 			b->lightmap[j] = -1;
 		b->surf_first = i;
-		b->flags = BEF_NODLIGHT|BEF_NOSHADOWS | cl_stris[i].flags;
+		b->flags = cl_stris[i].flags;
 		b->vbo = 0;
-		b->next = batches[shader->sort];
-		batches[shader->sort] = b;
+
+		sort = shader->sort;
+		if ((b->flags & BEF_FORCEADDITIVE) && sort < SHADER_SORT_ADDITIVE)
+			sort = SHADER_SORT_ADDITIVE;
+		if ((b->flags & BEF_FORCETRANSPARENT) && SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
+			sort = SHADER_SORT_BLEND;
+		if ((b->flags & BEF_FORCENODEPTH) && sort < SHADER_SORT_BANNER)
+			sort = SHADER_SORT_BANNER;
+
+		b->next = batches[sort];
+		batches[sort] = b;
 	}
 }
 void R_HalfLife_GenerateBatches(entity_t *e, batch_t **batches);
@@ -2376,6 +2435,8 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	entity_t *ent;
 	unsigned int orig_numstris = cl_numstris;
 	unsigned int orig_numvisedicts = cl_numvisedicts;
+	unsigned int orig_numstrisidx = cl_numstrisidx;
+	unsigned int orig_numstrisvert = cl_numstrisvert;
 
 	/*clear the batch list*/
 	for (i = 0; i < SHADER_SORT_COUNT; i++)
@@ -2424,11 +2485,13 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 		default:
 			if (!ent->model)
 				continue;
-			if (ent->model->needload)
+			if (ent->model->loadstate == MLS_NOTLOADED)
 			{
 				if (!Mod_LoadModel(ent->model, MLV_WARN))
 					continue;
 			}
+			if (ent->model->loadstate != MLS_LOADED)
+				continue;
 
 			if (cl.lerpents && (cls.allow_anyparticles))	//allowed or static
 			{
@@ -2459,7 +2522,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 				R_GAlias_GenerateBatches(ent, batches);
 				break;
 			case mod_sprite:
-				R_Sprite_GenerateBatch(ent, batches, R_DB_Sprite);
+				R_Sprite_GenerateTrisoup(ent, bemode);
 				break;
 			case mod_halflife:
 #ifdef HALFLIFEMODELS
@@ -2473,17 +2536,15 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			}
 			break;
 		case RT_SPRITE:
-			R_Sprite_GenerateBatch(ent, batches, R_DB_Sprite);
+			R_Sprite_GenerateTrisoup(ent, bemode);
 			break;
 
 #ifdef Q3CLIENT
 		case RT_BEAM:
 		case RT_RAIL_RINGS:
 		case RT_LIGHTNING:
-			R_Sprite_GenerateBatch(ent, batches, R_DB_LightningBeam);
-			continue;
 		case RT_RAIL_CORE:
-			R_Sprite_GenerateBatch(ent, batches, R_DB_RailgunBeam);
+			R_Beam_GenerateTrisoup(ent, bemode);
 			continue;
 #endif
 
@@ -2499,8 +2560,17 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	if (cl_numstris)
 		BE_GenPolyBatches(batches);
 
+	while(orig_numstris < cl_numstris)
+		cl_stris[orig_numstris++].shader = NULL;
 	cl_numstris = orig_numstris;
-	cl_numvisedicts = orig_numvisedicts;
+/*	cl_numstrisidx = orig_numstrisidx;
+	cl_numstrisvert = orig_numstrisvert;
+	if (cl_numstris)
+	{	//fix this up, in case they got merged.
+		cl_stris[cl_numstris-1].numvert = cl_numstrisvert - cl_stris[cl_numstris-1].firstvert;
+		cl_stris[cl_numstris-1].numidx = cl_numstrisidx - cl_stris[cl_numstris-1].firstidx;
+	}
+*/	cl_numvisedicts = orig_numvisedicts;
 }
 
 #endif	// defined(GLQUAKE)

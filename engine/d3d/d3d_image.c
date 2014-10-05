@@ -8,156 +8,6 @@
 #include <d3d9.h>
 extern LPDIRECT3DDEVICE9 pD3DDev9;
 
-typedef struct d3dtexture_s
-{
-	texcom_t com;
-	struct d3dtexture_s *next;
-	texid_t tex;
-	char name[1];
-} d3dtexture_t;
-static d3dtexture_t *d3dtextures;
-
-void D3D9_Image_Shutdown(void)
-{
-	LPDIRECT3DTEXTURE9 tx;
-	while(d3dtextures)
-	{
-		d3dtexture_t *t = d3dtextures;
-		d3dtextures = t->next;
-
-		tx = t->tex.ptr;
-		if (tx)
-			IDirect3DTexture9_Release(tx);
-
-		free(t);
-	}
-}
-
-static d3dtexture_t *d3d_lookup_texture(const char *ident)
-{
-	d3dtexture_t *tex;
-
-	if (*ident)
-	{
-		for (tex = d3dtextures; tex; tex = tex->next)
-			if (!strcmp(tex->name, ident))
-				return tex;
-	}
-
-	tex = calloc(1, sizeof(*tex)+strlen(ident));
-	strcpy(tex->name, ident);
-	tex->tex.ptr = NULL;
-	tex->tex.ref = &tex->com;
-	tex->next = d3dtextures;
-	d3dtextures = tex;
-
-	return tex;
-}
-
-extern cvar_t gl_picmip;
-extern cvar_t gl_picmip2d;
-
-texid_t D3D9_AllocNewTexture(const char *ident, int width, int height, unsigned int flags)
-{
-	IDirect3DTexture9 *tx;
-
-	/*unconditionally allocate a new texture*/
-	d3dtexture_t *tex = calloc(1, sizeof(*tex)+strlen(ident));
-	strcpy(tex->name, ident);
-	tex->tex.ptr = NULL;
-	tex->tex.ref = &tex->com;
-	tex->next = d3dtextures;
-	d3dtextures = tex;
-
-	if (!tex->tex.ptr)
-	{
-		if (!FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, width, height, 0, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tx, NULL)))
-			tex->tex.ptr = tx;
-	}
-	return tex->tex;
-}
-
-void    D3D9_DestroyTexture (texid_t tex)
-{
-	d3dtexture_t **link;
-	for (link = &d3dtextures; *link; link = &(*link)->next)
-	{
-		if (*link == (d3dtexture_t*)tex.ref)
-		{
-			*link = (*link)->next;
-			if (tex.ptr)
-				IDirect3DTexture9_Release((IDirect3DTexture9*)tex.ptr);
-			return;
-		}
-	}
-}
-
-static void D3D9_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
-{
-//	if (gl_config.arb_texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
-//	{
-//		TRACE(("dbg: GL_RoundDimensions: GL_ARB_texture_non_power_of_two\n"));
-//	}
-//	else
-	{
-		int width = *scaled_width;
-		int height = *scaled_height;
-		for (*scaled_width = 1 ; *scaled_width < width ; *scaled_width<<=1)
-			;
-		for (*scaled_height = 1 ; *scaled_height < height ; *scaled_height<<=1)
-			;
-	}
-
-	if (mipmap)
-	{
-		TRACE(("dbg: GL_RoundDimensions: %i\n", gl_picmip.ival));
-		*scaled_width >>= gl_picmip.ival;
-		*scaled_height >>= gl_picmip.ival;
-	}
-	else
-	{
-		*scaled_width >>= gl_picmip2d.ival;
-		*scaled_height >>= gl_picmip2d.ival;
-	}
-
-	TRACE(("dbg: GL_RoundDimensions: %i\n", gl_max_size.ival));
-	if (gl_max_size.ival)
-	{
-		if (*scaled_width > gl_max_size.ival)
-			*scaled_width = gl_max_size.ival;
-		if (*scaled_height > gl_max_size.ival)
-			*scaled_height = gl_max_size.ival;
-	}
-
-	if (*scaled_width < 1)
-		*scaled_width = 1;
-	if (*scaled_height < 1)
-		*scaled_height = 1;
-}
-
-#if 0
-static void D3D_MipMap (qbyte *out, int outwidth, int outheight, qbyte *in, int inwidth, int inheight)
-{
-        int             i, j;
-        qbyte   *inrow;
-
-        //with npot
-        int rowwidth = inwidth*4; //rowwidth is the byte width of the input
-        inrow = in;
-
-        for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
-        {
-                for (in = inrow, j=0 ; j<outwidth ; j++, out+=4, in+=8)
-                {
-                        out[0] = (in[0] + in[4] + in[rowwidth+0] + in[rowwidth+4])>>2;
-                        out[1] = (in[1] + in[5] + in[rowwidth+1] + in[rowwidth+5])>>2;
-                        out[2] = (in[2] + in[6] + in[rowwidth+2] + in[rowwidth+6])>>2;
-                        out[3] = (in[3] + in[7] + in[rowwidth+3] + in[rowwidth+7])>>2;
-                }
-        }
-}
-#endif
-
 static void Upload_Texture_32(LPDIRECT3DTEXTURE9 tex, unsigned int *data, int width, int height, unsigned int flags)
 {
 	int x, y;
@@ -228,332 +78,99 @@ static void Upload_Texture_32(LPDIRECT3DTEXTURE9 tex, unsigned int *data, int wi
 		IDirect3DTexture9_UnlockRect(tex, 0);
 }
 
-//create a basic shader from a 32bit image
-static void D3D9_LoadTexture_32(d3dtexture_t *tex, unsigned int *data, int width, int height, int flags)
+
+
+void D3D9_DestroyTexture (texid_t tex)
 {
-	int nwidth, nheight;
+	if (!tex)
+		return;
 
-/*
-	if (!(flags & TF_MANDATORY))
-	{
-		Con_Printf("Texture upload missing flags\n");
-		return NULL;
-	}
-*/
-
-	nwidth = width;
-	nheight = height;
-	D3D9_RoundDimensions(&nwidth, &nheight, !(flags & IF_NOMIPMAP));
-
-	if (!tex->tex.ptr)
-	{
-		LPDIRECT3DTEXTURE9 newsurf;
-		IDirect3DDevice9_CreateTexture(pD3DDev9, nwidth, nheight, (flags & IF_NOMIPMAP)?1:0, ((flags & IF_NOMIPMAP)?0:D3DUSAGE_AUTOGENMIPMAP), D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &newsurf, NULL);
-		if (!newsurf)
-			return;
-		tex->tex.ptr = newsurf;
-	}
-
-	tex->com.width = width;
-	tex->com.height = height;
-	Upload_Texture_32(tex->tex.ptr, data, width, height, flags);
+	if (tex->ptr)
+		IDirect3DTexture9_Release((IDirect3DTexture9*)tex->ptr);
+	tex->ptr = NULL;
 }
 
-static void D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned char *data, unsigned int *pal32, int width, int height, int flags, enum uploadfmt fmt)
+qboolean D3D9_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 {
-	static unsigned	trans[1024*1024];
-	int			i, s;
-	qboolean	noalpha;
-	int			p;
+	qbyte *fte_restrict out, *fte_restrict in;
+	int x, y, i;
+	D3DLOCKED_RECT lock;
+	D3DFORMAT fmt;
+	D3DSURFACE_DESC desc;
+	IDirect3DTexture9 *dt;
+	qboolean swap = false;
 
-	if (width*height > 1024*1024)
-		Sys_Error("GL_Upload8: image too big (%i*%i)", width, height);
-
-	s = width*height;
-	// if there are no transparent pixels, make it a 3 component
-	// texture even if it was specified as otherwise
-	if (fmt == TF_TRANS8_FULLBRIGHT)
+	switch(mips->encoding)
 	{
-		for (i=0 ; i<s ; i++)
-		{
-			p = data[i];
-			noalpha = true;
-			if (p > 255-vid.fullbright)
-				trans[i] = pal32[p];
-			else
-			{
-				noalpha = false;
-				trans[i] = 0;
-			}
-		}
+	case PTI_RGBA8:
+		fmt = D3DFMT_A8R8G8B8;
+		swap = true;
+		break;
+	case PTI_RGBX8:
+		fmt = D3DFMT_X8R8G8B8;
+		swap = true;
+		break;
+	case PTI_BGRA8:
+		fmt = D3DFMT_A8R8G8B8;
+		break;
+	case PTI_BGRX8:
+		fmt = D3DFMT_X8R8G8B8;
+		break;
+
+	//too lazy to support these for now
+	case PTI_S3RGB1:
+	case PTI_S3RGBA1:
+	case PTI_S3RGBA3:
+	case PTI_S3RGBA5:
+		return false;
+
+	default:	//no idea
+		return false;
 	}
-	else if ((fmt!=TF_SOLID8) && !(flags & IF_NOALPHA))
+
+	if (FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, mips->mip[0].width, mips->mip[0].height, mips->mipcount, 0, fmt, D3DPOOL_MANAGED, &dt, NULL)))
+		return false;
+
+	for (i = 0; i < mips->mipcount; i++)
 	{
-		noalpha = true;
-		for (i=0 ; i<s ; i++)
+		IDirect3DTexture9_GetLevelDesc(dt, i, &desc);
+
+		if (mips->mip[i].height != desc.Height || mips->mip[i].width != desc.Width)
 		{
-			p = data[i];
-			if (p == 255)
-			{
-				noalpha = false;
-				trans[i] = 0;
-			}
-			else
-				trans[i] = pal32[p];
+			IDirect3DTexture9_Release(dt);
+			return false;
 		}
 
-		switch(fmt)
+		IDirect3DTexture9_LockRect(dt, i, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_DISCARD);
+		//can't do it in one go. pitch might contain padding or be upside down.
+		if (swap)
 		{
-		default:
-			if (noalpha)
-				fmt = TF_SOLID8;
-			break;
-		case TF_H2_T7G1:
-			fmt = TF_TRANS8;
-			for (i=0 ; i<s ; i++)
+			for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*4)
 			{
-				p = data[i];
-				if (p == 0)
-					trans[i] &= 0x00ffffff;
-				else if( p & 1 )
+				for (x = 0; x < mips->mip[i].width*4; x+=4)
 				{
-					trans[i] &= 0x00ffffff;
-					trans[i] |= ( ( int )( 255 * 0.5 ) ) << 24;
-				}
-				else
-				{
-					trans[i] |= 0xff000000;
+					out[x+0] = in[x+2];
+					out[x+1] = in[x+1];
+					out[x+2] = in[x+0];
+					out[x+3] = in[x+3];
 				}
 			}
-			break;
-		case TF_H2_TRANS8_0:
-			fmt = TF_TRANS8;
-			for (i=0 ; i<s ; i++)
-			{
-				p = data[i];
-				if (p == 0)
-					trans[i] &= 0x00ffffff;
-			}
-			break;
-/*		case TF_H2_T4A4:
-			fmt = TF_TRANS8;
-			for (i=0 ; i<s ; i++)
-			{
-				p = data[i];
-				trans[i] = d_8to24rgbtable[ColorIndex[p>>4]] & 0x00ffffff;
-				trans[i] |= ( int )ColorPercent[p&15] << 24;
-				//trans[i] = 0x7fff0000;
-			}
-			break;
-*/
 		}
-	}
-	else
-	{
-		for (i=(s&~3)-4 ; i>=0 ; i-=4)
+		else
 		{
-			trans[i] = pal32[data[i]];
-			trans[i+1] = pal32[data[i+1]];
-			trans[i+2] = pal32[data[i+2]];
-			trans[i+3] = pal32[data[i+3]];
+			for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*4)
+				memcpy(out, in, mips->mip[i].width*4);
 		}
-		for (i=s&~3 ; i<s ; i++)	//wow, funky
-		{
-			trans[i] = pal32[data[i]];
-		}
+		IDirect3DTexture9_UnlockRect(dt, i);
 	}
-	D3D9_LoadTexture_32(tex, trans, width, height, flags);
+
+	D3D9_DestroyTexture(tex);
+	tex->ptr = dt;
+
+	return true;
 }
-
-static void genNormalMap(unsigned int *nmap, qbyte *pixels, int w, int h, float scale)
+void D3D9_UploadLightmap(lightmapinfo_t *lm)
 {
-	int i, j, wr, hr;
-	unsigned char r, g, b;
-	float sqlen, reciplen, nx, ny, nz;
-
-	const float oneOver255 = 1.0f/255.0f;
-
-	float c, cx, cy, dcx, dcy;
-
-	wr = w;
-	hr = h;
-
-	for (i=0; i<h; i++)
-	{
-		for (j=0; j<w; j++)
-		{
-			/* Expand [0,255] texel values to the [0,1] range. */
-			c = pixels[i*wr + j] * oneOver255;
-			/* Expand the texel to its right. */
-			cx = pixels[i*wr + (j+1)%wr] * oneOver255;
-			/* Expand the texel one up. */
-			cy = pixels[((i+1)%hr)*wr + j] * oneOver255;
-			dcx = scale * (c - cx);
-			dcy = scale * (c - cy);
-
-			/* Normalize the vector. */
-			sqlen = dcx*dcx + dcy*dcy + 1;
-			reciplen = 1.0f/(float)sqrt(sqlen);
-			nx = dcx*reciplen;
-			ny = -dcy*reciplen;
-			nz = reciplen;
-
-			/* Repack the normalized vector into an RGB unsigned qbyte
-			   vector in the normal map image. */
-			r = (qbyte) (128 + 127*nx);
-			g = (qbyte) (128 + 127*ny);
-			b = (qbyte) (128 + 127*nz);
-
-			/* The highest resolution mipmap level always has a
-			   unit length magnitude. */
-			nmap[i*w+j] = LittleLong ((pixels[i*wr + j] << 24)|(b << 16)|(g << 8)|(r));	// <AWE> Added support for big endian.
-		}
-	}
-}
-
-void    D3D9_Upload (texid_t tex, const char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
-{
-	switch (fmt)
-	{
-	case TF_RGBX32:
-		flags |= IF_NOALPHA;
-		//fall through
-	case TF_RGBA32:
-		tex.ref->width = width;
-		tex.ref->height = height;
-		Upload_Texture_32(tex.ptr, data, width, height, flags);
-		break;
-	case TF_8PAL24:
-		{
-			qbyte *pal24 = palette;
-			unsigned int pal32[256];
-			int i;
-			for (i = 0; i < 256; i++)
-			{
-				pal32[i] = 0x00000000 |
-						(pal24[i*3+2]<<24) |
-						(pal24[i*3+1]<<8) |
-						(pal24[i*3+0]<<0);
-			}
-			D3D9_LoadTexture_8((d3dtexture_t*)tex.ref, data, (unsigned int *)pal32, width, height, flags, fmt);
-		}
-		break;
-	default:
-		OutputDebugString(va("D3D9_Upload doesn't support fmt %i (%s)", fmt, name));
-		break;
-	}
-}
-
-texid_t D3D9_LoadTexture (const char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
-{
-	d3dtexture_t *tex;
-	switch (fmt)
-	{
-	case TF_TRANS8_FULLBRIGHT:
-		{
-			qbyte *d = data;
-			unsigned int c = width * height;
-			while (c)
-			{
-				if (d[--c] > 255 - vid.fullbright)
-					break;
-			}
-			/*reject it if there's no fullbrights*/
-			if (!c)
-				return r_nulltex;
-		}
-		break;
-	case TF_INVALID:
-	case TF_RGBA32:
-	case TF_BGRA32:
-	case TF_RGBX32:
-	case TF_RGB24:
-	case TF_BGR24_FLIP:
-	case TF_SOLID8:
-	case TF_TRANS8:
-	case TF_HEIGHT8:
-	case TF_HEIGHT8PAL:
-	case TF_H2_T7G1:
-	case TF_H2_TRANS8_0:
-	case TF_H2_T4A4:
-	case TF_PALETTES:
-	case TF_8PAL24:
-	case TF_8PAL32:
-		break;
-	}
-	tex = d3d_lookup_texture(identifier);
-
-	switch (fmt)
-	{
-	case TF_HEIGHT8PAL:
-		{
-			texid_t t;
-			extern cvar_t r_shadow_bumpscale_basetexture;
-			unsigned int *norm = malloc(width*height*4);
-			genNormalMap(norm, data, width, height, r_shadow_bumpscale_basetexture.value);
-			t = D3D9_LoadTexture(identifier, width, height, TF_RGBA32, data, flags);
-			free(norm);
-			return t;
-		}
-	case TF_HEIGHT8:
-		{
-			extern cvar_t r_shadow_bumpscale_basetexture;
-			unsigned int *norm = malloc(width*height*4);
-			genNormalMap(norm, data, width, height, r_shadow_bumpscale_basetexture.value);
-			D3D9_LoadTexture_32(tex, norm, width, height, flags);
-			free(norm);
-			return tex->tex;
-		}
-	case TF_SOLID8:
-	case TF_TRANS8:
-	case TF_H2_T7G1:
-	case TF_H2_TRANS8_0:
-	case TF_H2_T4A4:
-	case TF_TRANS8_FULLBRIGHT:
-		D3D9_LoadTexture_8(tex, data, d_8to24rgbtable, width, height, flags, fmt);
-		return tex->tex;
-	case TF_RGBX32:
-		flags |= IF_NOALPHA;
-	case TF_RGBA32:
-		D3D9_LoadTexture_32(tex, data, width, height, flags);
-		return tex->tex;
-	default:
-		OutputDebugString(va("D3D9_LoadTexture doesn't support fmt %i (%s)\n", fmt, identifier));
-		return r_nulltex;
-	}
-}
-
-texid_t D3D9_LoadCompressed (const char *name)
-{
-	return r_nulltex;
-}
-
-texid_t D3D9_FindTexture (const char *identifier, unsigned int flags)
-{
-	d3dtexture_t *tex = d3d_lookup_texture(identifier);
-	if (tex->tex.ptr)
-		return tex->tex;
-	return r_nulltex;
-}
-
-texid_t D3D9_LoadTexture8Pal32 (const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
-{
-	d3dtexture_t *tex = d3d_lookup_texture(identifier);
-	D3D9_LoadTexture_8(tex, data, (unsigned int *)palette32, width, height, flags, TF_SOLID8);
-	return tex->tex;
-}
-texid_t D3D9_LoadTexture8Pal24 (const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
-{
-	unsigned int pal32[256];
-	int i;
-	for (i = 0; i < 256; i++)
-	{
-		pal32[i] = 0x00000000 |
-				(palette24[i*3+2]<<24) |
-				(palette24[i*3+1]<<8) |
-				(palette24[i*3+0]<<0);
-	}
-	return D3D9_LoadTexture8Pal32(identifier, width, height, data, (qbyte*)pal32, flags);
 }
 
 #endif

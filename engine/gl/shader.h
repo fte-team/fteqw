@@ -279,18 +279,22 @@ typedef struct shaderpass_s {
 	} stagetype;
 
 	enum {
-		SHADER_PASS_CLAMP		= 1<<0,	//needed for d3d's sampler states, infects image flags
-		SHADER_PASS_NEAREST		= 1<<1,	//needed for d3d's sampler states, infects image flags
-		SHADER_PASS_DEPTHCMP	= 1<<2,	//needed for d3d's sampler states
-		SHADER_PASS_NOMIPMAP    = 1<<3,	//infects image flags
-		SHADER_PASS_NOCOLORARRAY = 1<< 4,
+		SHADER_PASS_CLAMP		= 1<<0,	//needed for d3d's sampler states, MUST MATCH IMAGE FLAGS
+		SHADER_PASS_NOMIPMAP    = 1<<1,	//needed for d3d's sampler states, MUST MATCH IMAGE FLAGS
+		SHADER_PASS_NEAREST		= 1<<2,	//needed for d3d's sampler states, MUST MATCH IMAGE FLAGS
+		SHADER_PASS_LINEAR		= 1<<3,	//needed for d3d's sampler states, MUST MATCH IMAGE FLAGS
+		SHADER_PASS_UIPIC		= 1<<4, //                                 MUST MATCH IMAGE FLAGS
+#define SHADER_PASS_IMAGE_FLAGS	(SHADER_PASS_CLAMP|SHADER_PASS_NOMIPMAP|SHADER_PASS_NEAREST|SHADER_PASS_LINEAR|SHADER_PASS_UIPIC)
+
+		SHADER_PASS_DEPTHCMP	= 1<<5,	//needed for d3d's sampler states
+		SHADER_PASS_NOCOLORARRAY = 1<<6,
 
 		//FIXME: remove these
-		SHADER_PASS_VIDEOMAP	= 1 << 5,
-		SHADER_PASS_DETAIL		= 1 << 6,
-		SHADER_PASS_LIGHTMAP	= 1 << 7,
-		SHADER_PASS_DELUXMAP	= 1 << 8,
-		SHADER_PASS_ANIMMAP		= 1 << 9
+		SHADER_PASS_VIDEOMAP	= 1 << 6,
+		SHADER_PASS_DETAIL		= 1 << 7,
+		SHADER_PASS_LIGHTMAP	= 1 << 8,
+		SHADER_PASS_DELUXMAP	= 1 << 9,
+		SHADER_PASS_ANIMMAP		= 1 << 10
 	} flags;
 
 #ifdef D3D11QUAKE
@@ -481,7 +485,7 @@ struct shader_s
 		SUF_2D			= 1<<1	//any loaded textures will obey 2d picmips rather than 3d picmips
 	} usageflags;	//
 	int uses;	//released when the uses drops to 0
-	int width;	//when used as an image, this is the logical 'width' of the image
+	int width;	//when used as an image, this is the logical 'width' of the image. FIXME.
 	int height;
 	int numpasses;
 	texnums_t defaulttextures;
@@ -512,7 +516,7 @@ struct shader_s
 		SHADER_DEFORMV_BULGE	= 1 << 5,
 		SHADER_AUTOSPRITE		= 1 << 6,
 		SHADER_FLARE			= 1 << 7,
-		SHADER_NOIMAGE			= 1 << 8,
+		SHADER_IMAGEPENDING		= 1 << 8,	//FIXME
 		SHADER_ENTITY_MERGABLE	= 1 << 9,
 		SHADER_VIDEOMAP			= 1 << 10,
 		SHADER_DEPTHWRITE		= 1 << 11,	//some pass already wrote depth. not used by the renderer.
@@ -554,7 +558,9 @@ extern shader_t	**r_shaders;
 extern int be_maxpasses;
 
 
+char *Shader_GetShaderBody(shader_t *s);
 void R_UnloadShader(shader_t *shader);
+int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blocktillloaded);
 shader_t *R_RegisterPic (const char *name);
 shader_t *QDECL R_RegisterShader (const char *name, unsigned int usageflags, const char *shaderscript);
 shader_t *R_RegisterShader_Lightmap (const char *name);
@@ -585,7 +591,7 @@ void Shader_NeedReload(qboolean rescanfs);
 void Shader_WriteOutGenerics_f(void);
 void Shader_RemapShader_f(void);
 
-mfog_t *CM_FogForOrigin(vec3_t org);
+mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 
 #define BEF_FORCEDEPTHWRITE		1
 #define BEF_FORCEDEPTHTEST		2
@@ -634,6 +640,7 @@ typedef struct
 	void	 (*pDeleteProg)		(program_t *prog, unsigned int permu);
 	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);
 	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
+	qboolean (*pValidateProgram)(program_t *prog, const char *name, unsigned int permu, qboolean noerrors, vfsfile_t *blobfile);
 	void	 (*pProgAutoFields)	(program_t *prog, char **cvarnames, int *cvartypes);
 } sh_config_t;
 extern sh_config_t sh_config;
@@ -663,7 +670,7 @@ void GLBE_UploadAllLightmaps(void);
 void GLBE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
 void GLBE_SelectEntity(entity_t *ent);
-qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode);
+qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
 void GLBE_Scissor(srect_t *rect);
 void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
 //void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth);
@@ -693,7 +700,7 @@ void D3D9BE_UploadAllLightmaps(void);
 void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean D3D9BE_LightCullModel(vec3_t org, model_t *model);
 void D3D9BE_SelectEntity(entity_t *ent);
-qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode);
+qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
 void D3D9BE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
 void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
 void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
@@ -717,7 +724,7 @@ void D3D11BE_UploadAllLightmaps(void);
 void D3D11BE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean D3D11BE_LightCullModel(vec3_t org, model_t *model);
 void D3D11BE_SelectEntity(entity_t *ent);
-qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, unsigned int lmode);
+qboolean D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
 
 qboolean D3D11Shader_Init(unsigned int featurelevel);
 void D3D11BE_Reset(qboolean before);

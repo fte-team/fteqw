@@ -509,6 +509,8 @@ void Hunk_TempFree(void)
 {
 	hnktemps_t *nt;
 
+	COM_AssertMainThread("Hunk_TempFree");
+
 	while (hnktemps)
 	{
 #if TEMPDEBUG>0
@@ -543,8 +545,10 @@ void Hunk_TempFree(void)
 void *Hunk_TempAllocMore (int size)
 {
 	void	*buf;
+
 #if TEMPDEBUG>0
 	hnktemps_t *nt;
+	COM_AssertMainThread("Hunk_TempAllocMore");
 	nt = (hnktemps_t*)malloc(size + sizeof(hnktemps_t) + TEMPDEBUG*2);
 	if (!nt)
 		return NULL;
@@ -559,6 +563,7 @@ void *Hunk_TempAllocMore (int size)
 	return buf;
 #else
 	hnktemps_t *nt;
+	COM_AssertMainThread("Hunk_TempAllocMore");
 	nt = (hnktemps_t*)malloc(size + sizeof(hnktemps_t));
 	if (!nt)
 		return NULL;

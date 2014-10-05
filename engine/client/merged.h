@@ -9,6 +9,7 @@ struct batch_s;
 struct entity_s;
 struct dlight_s;
 struct galiasbone_s;
+struct dlight_s;
 
 typedef enum
 {
@@ -88,9 +89,6 @@ extern void	(*R_Init)								(void);
 extern void	(*R_DeInit)								(void);
 extern void	(*R_RenderView)							(void);		// must set r_refdef first
 
-extern void	(*R_NewMap)								(void);
-extern void	(*R_PreNewMap)							(void);
-
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);
 extern char *(*VID_GetRGBInfo)						(int prepad, int *truevidwidth, int *truevidheight);
@@ -140,8 +138,7 @@ extern struct model_s *Mod_ForName				(const char *name, enum mlverbosity_e verb
 extern struct model_s *Mod_LoadModel			(struct model_s *mod, enum mlverbosity_e verbose);	//makes sure a model is loaded
 extern void	*Mod_Extradata						(struct model_s *mod);	// handles caching
 extern void	Mod_TouchModel						(const char *name);
-
-extern void	Mod_NowLoadExternal					(void);
+extern const char *Mod_FixName					(const char *modname, const char *worldname);	//remaps the name appropriately
 
 extern void	Mod_Think							(void);
 extern int Mod_SkinNumForName					(struct model_s *model, const char *name);
@@ -170,29 +167,79 @@ extern int r_regsequence;
 // qbyte *Mod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 #endif
 
-typedef struct
+typedef enum uploadfmt
 {
+        TF_INVALID,
+        TF_RGBA32,              /*rgba byte order*/
+        TF_BGRA32,              /*bgra byte order*/
+        TF_RGBX32,              /*rgb byte order, with extra wasted byte after blue*/
+		TF_BGRX32,              /*rgb byte order, with extra wasted byte after blue*/
+        TF_RGB24,               /*rgb byte order, no alpha channel nor pad, and regular top down*/
+		TF_BGR24,               /*bgr byte order, no alpha channel nor pad, and regular top down*/
+        TF_BGR24_FLIP,  /*bgr byte order, no alpha channel nor pad, and bottom up*/
+		TF_LUM8,		/*8bit greyscale image*/
+        TF_SOLID8,      /*8bit quake-palette image*/
+        TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
+        TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
+        TF_HEIGHT8,     /*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
+        TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
+        TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
+        TF_H2_TRANS8_0, /*8bit data, 0 is transparent, not 255*/
+        TF_H2_T4A4,     /*8bit data, weird packing*/
+
+        /*this block requires a palette*/
+        TF_PALETTES,
+        TF_8PAL24,
+        TF_8PAL32,
+
+		/*for render targets*/
+		TF_DEPTH16,
+		TF_DEPTH24,
+		TF_DEPTH32,
+		TF_RGBA16F,
+		TF_RGBA32F
+} uploadfmt_t;
+
+enum
+{
+	TEX_NOTLOADED,
+	TEX_LOADING,
+	TEX_LOADED,
+	TEX_FAILED
+};
+typedef struct image_s
+{
+	char *ident;	//allocated on end
+	char *subpath;	//allocated on end
 	int regsequence;
 	int width;
 	int height;
-} texcom_t;
-struct texid_s
-{
-	union
-	{
-		unsigned int num;
+	int status;	//TEX_
+	unsigned int flags;
+	struct image_s *next;
+	struct image_s *prev;
 #if defined(D3DQUAKE) || defined(SWQUAKE)
-		void *ptr;
+	void *ptr;	//texture
+	void *ptr2;	//view
 #endif
-	};
-	texcom_t *ref;
-};
+#ifdef GLQUAKE
+	int num;
+#endif
+
+	void *fallbackdata;
+	int fallbackwidth;
+	int fallbackheight;
+	uploadfmt_t fallbackfmt;
+} image_t;
+
 #if 1
-typedef struct texid_s texid_t;
+typedef image_t *texid_t;
 #define texid_tf texid_t
 #define TEXASSIGN(d,s) d=s
 #define TEXASSIGNF(d,s) d=s
-#define TEXVALID(t) ((t).ref!=NULL)
+#define TEXVALID(t) ((t))
+#define TEXLOADED(tex) ((tex) && (tex)->status == TEX_LOADED)
+#define TEXDOWAIT(tex)	if ((tex) && (tex)->status == TEX_LOADING)	COM_WorkerPartialSync((tex), &(tex)->status, TEX_LOADING)
 #else
 typedef struct texid_s texid_t[1];
 typedef struct texid_s texid_tf;
@@ -200,6 +247,38 @@ typedef struct texid_s texid_tf;
 #define TEXASSIGNF(d,s) memcpy(&d,&s,sizeof(d))
 #define TEXVALID(t) 1
 #endif
+
+struct pendingtextureinfo
+{
+	enum
+	{
+		PTI_2D,
+		PTI_3D,
+		PTI_CUBEMAP	//mips are packed (to make d3d11 happy)
+	} type;
+	enum
+	{
+		PTI_RGBA8,	//rgba byte ordering
+		PTI_RGBX8,	//rgb pad byte ordering
+		PTI_BGRA8,	//alpha channel
+		PTI_BGRX8,	//no alpha channel
+		//compressed formats
+		PTI_S3RGB1,
+		PTI_S3RGBA1,
+		PTI_S3RGBA3,
+		PTI_S3RGBA5
+	} encoding;	//0
+	int mipcount;
+	struct
+	{
+		void *data;
+		size_t datasize;
+		int width;
+		int height;
+		qboolean needfree;
+	} mip[32];
+	void *extrafree;
+};
 
 //small context for easy vbo creation.
 typedef struct
@@ -214,7 +293,7 @@ typedef struct vboarray_s
 {
 	union
 	{
-		void *dummy;
+		void *sysptr;
 #ifdef GLQUAKE
 		struct
 		{
@@ -251,38 +330,6 @@ typedef struct texnums_s {
 	texid_t loweroverlay;
 	texid_t fullbright;
 } texnums_t;
-typedef enum uploadfmt
-{
-        TF_INVALID,
-        TF_RGBA32,              /*rgba byte order*/
-        TF_BGRA32,              /*bgra byte order*/
-        TF_RGBX32,              /*rgb byte order, with extra wasted byte after blue*/
-		TF_BGRX32,              /*rgb byte order, with extra wasted byte after blue*/
-        TF_RGB24,               /*rgb byte order, no alpha channel nor pad, and regular top down*/
-		TF_BGR24,               /*bgr byte order, no alpha channel nor pad, and regular top down*/
-        TF_BGR24_FLIP,  /*bgr byte order, no alpha channel nor pad, and bottom up*/
-		TF_LUM8,		/*8bit greyscale image*/
-        TF_SOLID8,      /*8bit quake-palette image*/
-        TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
-        TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
-        TF_HEIGHT8,     /*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
-        TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
-        TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
-        TF_H2_TRANS8_0, /*8bit data, 0 is transparent, not 255*/
-        TF_H2_T4A4,     /*8bit data, weird packing*/
-
-        /*this block requires a palette*/
-        TF_PALETTES,
-        TF_8PAL24,
-        TF_8PAL32,
-
-		/*for render targets*/
-		TF_DEPTH16,
-		TF_DEPTH24,
-		TF_DEPTH32,
-		TF_RGBA16F,
-		TF_RGBA32F
-} uploadfmt_t;
 
 //not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
 typedef enum backendmode_e
@@ -306,21 +353,13 @@ typedef struct rendererinfo_s {
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);
 
-	texid_tf (*IMG_LoadTexture)			(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
-	texid_tf (*IMG_LoadTexture8Pal24)	(const char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-	texid_tf (*IMG_LoadTexture8Pal32)	(const char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-	texid_tf (*IMG_LoadCompressed)		(const char *name);
-	texid_tf (*IMG_FindTexture)			(const char *identifier, unsigned int flags);
-	texid_tf (*IMG_AllocNewTexture)		(const char *identifier, int w, int h, unsigned int flags);
-	void    (*IMG_Upload)				(texid_t tex, const char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
+	void	(*IMG_UpdateFiltering)		(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
+	qboolean (*IMG_LoadTextureMips)		(texid_t tex, struct pendingtextureinfo *mips);
 	void    (*IMG_DestroyTexture)		(texid_t tex);
 
 	void	(*R_Init)					(void); //FIXME - merge implementations
 	void	(*R_DeInit)					(void);	//FIXME - merge implementations
 	void	(*R_RenderView)				(void);	// must set r_refdef first
-
-	void	(*R_NewMap)					(void);	//FIXME - merge implementations
-	void	(*R_PreNewMap)				(void); //FIXME - merge implementations
 
 	qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 	void	 (*VID_DeInit)				(void);
@@ -356,7 +395,7 @@ typedef struct rendererinfo_s {
 	//Uploads all modified lightmaps
 	void (*BE_UploadAllLightmaps)(void);
 	void (*BE_SelectEntity)(struct entity_s *ent);
-	qboolean (*BE_SelectDLight)(struct dlight_s *dl, vec3_t colour, unsigned int lmode);
+	qboolean (*BE_SelectDLight)(struct dlight_s *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
 	void (*BE_Scissor)(srect_t *rect);
 	/*check to see if an ent should be drawn for the selected light*/
 	qboolean (*BE_LightCullModel)(vec3_t org, struct model_s *model);
@@ -371,15 +410,6 @@ typedef struct rendererinfo_s {
 #define rf currentrendererstate.renderer
 
 #define VID_SwapBuffers		rf->VID_SwapBuffers
-
-#define R_LoadTexture		rf->IMG_LoadTexture
-#define R_LoadTexture8Pal24	rf->IMG_LoadTexture8Pal24
-#define R_LoadTexture8Pal32	rf->IMG_LoadTexture8Pal32
-#define R_LoadCompressed	rf->IMG_LoadCompressed
-#define R_FindTexture		rf->IMG_FindTexture
-#define R_AllocNewTexture	rf->IMG_AllocNewTexture
-#define R_Upload			rf->IMG_Upload
-#define R_DestroyTexture	rf->IMG_DestroyTexture
 
 #define BE_Init					rf->BE_Init
 #define BE_SelectMode			rf->BE_SelectMode

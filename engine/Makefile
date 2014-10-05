@@ -52,7 +52,7 @@ NATIVE_DEBUG_DIR?=$(DEBUG_DIR)
 
 #include the appropriate games.
 ifneq (,$(BRANDING))
-	CFLAGS+=-DBRANDING_INC=../game_$(BRANDING).h
+	BRANDFLAGS+=-DBRANDING_INC=../game_$(BRANDING).h
 	-include game_$(BRANDING).mak
 endif
 
@@ -155,7 +155,7 @@ ifeq ($(FTE_TARGET),droid)
 
 	STRIP=$(TOOLCHAIN)strip
 	CC=$(TOOLCHAIN)gcc -I$(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/include/ -DANDROID $(DROID_ABI) -fno-strict-aliasing
-	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
+	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
 
@@ -286,7 +286,7 @@ PROGS_DIR=$(BASE_DIR)/qclib
 NACL_DIR=$(BASE_DIR)/nacl
 BOTLIB_DIR=$(BASE_DIR)/botlib
 
-ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) $(ARCH_CFLAGS)
+ALL_CFLAGS=$(HAVECONFIG) $(VISIBILITY_FLAGS) $(BRANDFLAGS) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS) $(ARCH_CFLAGS)
 
 #cheap compile-everything-in-one-unit (compile becomes preprocess only)
 ifneq ($(WPO),)
@@ -1327,11 +1327,11 @@ endif
 
 # This is for linking the FTE icon to the MinGW target
 $(OUT_DIR)/resources.o : winquake.rc
-	@$(WINDRES) $(CFLAGS) -I$(CLIENT_DIR) -O coff $< $@
+	@$(WINDRES) $(BRANDFLAGS) -I$(CLIENT_DIR) -O coff $< $@
 
 #npAPI stuff requires some extra resources
 $(OUT_DIR)/npplug.o : ftequake/npplug.rc
-	@$(WINDRES) $(CFLAGS) -I$(CLIENT_DIR) -O coff $< $@
+	@$(WINDRES) $(BRANDFLAGS) -I$(CLIENT_DIR) -O coff $< $@
 
 
 #$(OUT_DIR)/%.d: %.c
@@ -1389,7 +1389,7 @@ PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
 
-DO_LD ?= $(DO_ECHO) $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
+DO_LD ?= $(DO_ECHO) $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
 	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(NATIVE_OUT_DIR)/$(fn)) ) $(LDFLAGS)
 

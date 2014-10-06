@@ -585,7 +585,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 	if (!gl_nocolors.ival || forced)
 	{
-		if (!plskin || plskin->failedload)
+		tc = e->topcolour;
+		bc = e->bottomcolour;
+		if (!plskin || plskin->loadstate == SKIN_FAILED)
 		{
 			if (e->playerindex >= 0 && e->playerindex <= MAX_CLIENTS)
 			{
@@ -595,17 +597,21 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					if (!cl.players[e->playerindex].qwskin)
 						Skin_Find(&cl.players[e->playerindex]);
 					plskin = cl.players[e->playerindex].qwskin;
-//					if (plskin && plskin->failedload)
-//						plskin = NULL;
 				}
 				else
 					plskin = NULL;
+
+				if (plskin && plskin->loadstate != SKIN_LOADED)
+				{
+					Skin_Cache8(plskin);	//we're not going to use it, but make sure its status is updated when it is finally loaded..
+					plskin = cl.players[e->playerindex].lastskin;
+				}
+				else
+					cl.players[e->playerindex].lastskin = plskin;
 			}
 			else
 				plskin = NULL;
 		}
-		tc = e->topcolour;
-		bc = e->bottomcolour;
 #ifdef HEXEN2
 		pc = e->h2playerclass;
 #else
@@ -714,36 +720,10 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			cm->texnum.loweroverlay = r_nulltex;
 			cm->texnum.upperoverlay = r_nulltex;
 
+			//q2 has no surfaces in its player models, so don't crash from that
+			//note that q2 should also always have a custom skin set. its not our problem (here) if it doesn't.
 			if (!shader)
-			{	//model has no shaders, so just the skin directly
 				shader = R_RegisterSkin(skinname, NULL);
-
-				if (plskin)
-				{
-					original = Skin_Cache8(plskin);
-					if (original)
-					{
-						inwidth = plskin->width;
-						inheight = plskin->height;
-						cm->texnum.base = R_LoadTexture8(plskin->name, inwidth, inheight, original, IF_NOALPHA|IF_NOGAMMA, 1);
-						return shader;
-					}
-
-					if (TEXVALID(plskin->textures.base))
-					{
-						cm->texnum.loweroverlay = plskin->textures.loweroverlay;
-						cm->texnum.upperoverlay = plskin->textures.upperoverlay;
-						cm->texnum.base = plskin->textures.base;
-						cm->texnum.fullbright = plskin->textures.fullbright;
-						cm->texnum.specular = plskin->textures.specular;
-						return shader;
-					}
-
-					cm->texnum.base = R_LoadHiResTexture(plskin->name, "skins", IF_NOALPHA);
-					return shader;
-				}
-				return shader;
-			}
 
 			cm->texnum.bump = shader->defaulttextures.bump;	//can't colour bumpmapping
 			if (plskin)

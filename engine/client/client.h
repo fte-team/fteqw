@@ -21,17 +21,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "particles.h"
 
+enum
+{
+	SKIN_NOTLOADED,	//not trying to load it. shouldn't really happen, but can.
+	SKIN_LOADING,	//still loading. just do something else for now...
+	SKIN_LOADED,
+	SKIN_FAILED
+};
 typedef struct qwskin_s
 {
 	char		name[64];
+	int			loadstate;		// the name isn't a valid skin
+
+	//qw skin info
 	int			width;
 	int			height;
+	void		*skindata;
 
 	//for hardware 32bit texture overrides
 	texnums_t	textures;
-
-	qbyte		failedload;		// the name isn't a valid skin
-	void		*skindata;
 } qwskin_t;
 
 // player_state_t is the information needed by a player entity
@@ -170,6 +178,7 @@ typedef struct player_info_s
 
 	int			spectator;
 	qwskin_t	*qwskin;
+	qwskin_t	*lastskin;	//last-known-good skin
 	skinid_t	skinid;
 
 	struct model_s	*model;

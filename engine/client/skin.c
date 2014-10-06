@@ -114,7 +114,6 @@ qwskin_t *Skin_Lookup (char *fullname)
 	qwskin_t *skin;
 	char cleanname[sizeof(skin->name)];
 	COM_StripExtension (fullname, cleanname, sizeof(cleanname));
-
 	for (i=0 ; i<numskins ; i++)
 	{
 		if (!strcmp (cleanname, skins[i].name))
@@ -154,31 +153,21 @@ void Skin_Find (player_info_t *sc)
 	int			i;
 	char		name[128], *s;
 
-	if (allskins[0])
-		s = allskins;
-	else
-		s = Info_ValueForKey (sc->userinfo, "skin");
 
 	sc->model = NULL;
 	sc->skinid = 0;
 	sc->qwskin = NULL;
 
-	if (!*s)
-		s = baseskin.string;
+	s = Skin_FindName(sc);
 	if (!*s)
 		return;
-//		s = "default";
-
-	s = Skin_FindName(sc);
 	COM_StripExtension (s, name, sizeof(name));
-
 
 	for (i=0 ; i<numskins ; i++)
 	{
 		if (!strcmp (name, skins[i].name))
 		{
 			sc->qwskin = &skins[i];
-			Skin_Cache8 (sc->qwskin);
 			return;
 		}
 	}
@@ -197,6 +186,162 @@ void Skin_Find (player_info_t *sc)
 	Q_strncpyz(skin->name, name, sizeof(skin->name));
 }
 
+void Skin_WorkerDone(void *skinptr, void *skindata, size_t width, size_t height)
+{
+	qwskin_t *skin = skinptr;
+	skin->width = width;
+	skin->height = height;
+	skin->skindata = skindata;
+	if (skindata)
+		skin->loadstate = SKIN_LOADED;
+	else
+		skin->loadstate = SKIN_FAILED;
+}
+void Skin_WorkerLoad(void *skinptr, void *data, size_t a, size_t b)
+{
+	qwskin_t *skin = skinptr;
+	char	name[MAX_QPATH];
+	qbyte	*raw;
+	qbyte	*out, *pix;
+	pcx_t	*pcx;
+	int		x, y, srcw, srch;
+	int		dataByte;
+	int		runLength;
+	int fbremap[256];
+	size_t	pcxsize;
+	
+	Q_snprintfz (name, sizeof(name), "skins/%s.pcx", skin->name);
+	raw = COM_LoadTempFile (name, &pcxsize);
+	if (!raw)
+	{
+		//use 24bit skins even if gl_load24bit is failed
+		if (strcmp(skin->name, baseskin.string))
+		{
+			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
+			Con_Printf ("Couldn't load skin %s\n", name);
+			Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
+			raw = COM_LoadTempFile (name, &pcxsize);
+		}
+		if (!raw)
+		{
+			Skin_WorkerDone(skin, NULL, 0, 0);
+			return;
+		}
+	}
+
+//
+// parse the PCX file
+//
+	pcx = (pcx_t *)raw;
+	raw = (qbyte *)(pcx+1);
+
+	//check format (sizes are checked later)
+	if (pcx->manufacturer != 0x0a
+		|| pcx->version != 5
+		|| pcx->encoding != 1
+		|| pcx->bits_per_pixel != 8)
+	{
+		Con_Printf ("Bad skin %s (unsupported format)\n", name);
+		Skin_WorkerDone(skin, NULL, 0, 0);
+		return;
+	}
+
+	pcx->xmax = (unsigned short)LittleShort(pcx->xmax);
+	pcx->ymax = (unsigned short)LittleShort(pcx->ymax);
+	pcx->xmin = (unsigned short)LittleShort(pcx->xmin);
+	pcx->ymin = (unsigned short)LittleShort(pcx->ymin);
+
+	srcw = pcx->xmax-pcx->xmin+1;
+	srch = pcx->ymax-pcx->ymin+1;
+
+	if (srcw < 1 || srch < 1 || srcw > 320 || srch > 200)
+	{
+		Con_Printf ("Bad skin %s (unsupported size)\n", name);
+		Skin_WorkerDone(skin, NULL, 0, 0);
+		return;
+	}
+	skin->width = srcw;
+	skin->height = srch;
+
+	out = BZ_Malloc(skin->width*skin->height);
+	if (!out)
+		Sys_Error ("Skin_Cache: couldn't allocate");
+
+	// TODO: we build a fullbright remap.. can we get rid of this?
+	for (x = 0; x < vid.fullbright; x++)
+		fbremap[x] = x + (256-vid.fullbright);	//fullbrights don't exist, so don't loose palette info.
+
+
+	pix = out;
+//	memset (out, 0, skin->width*skin->height);
+
+	dataByte = 0;	//typically black (this is in case a 0*0 file is loaded... which won't happen anyway)
+	for (y=0 ; y < srch ; y++, pix += skin->width)
+	{
+		for (x=0 ; x < srcw ; )
+		{
+			if (raw - (qbyte*)pcx > pcxsize) 
+			{
+				BZ_Free(out);
+				Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
+				Skin_WorkerDone(skin, NULL, 0, 0);
+				return;
+			}
+			dataByte = *raw++;
+
+			if((dataByte & 0xC0) == 0xC0)
+			{
+				runLength = dataByte & 0x3F;
+				if (raw - (qbyte*)pcx > pcxsize) 
+				{
+					BZ_Free(out);
+					Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
+					Skin_WorkerDone(skin, NULL, 0, 0);
+					return;
+				}
+				dataByte = *raw++;
+			}
+			else
+				runLength = 1;
+
+			// skin sanity check
+			if (runLength + x > pcx->xmax + 2)
+			{
+				BZ_Free(out);
+				Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
+				Skin_WorkerDone(skin, NULL, 0, 0);
+				return;
+			}
+
+			if (dataByte >= 256-vid.fullbright)	//kill the fb componant
+				if (!r_fb_models.ival)
+					dataByte = fbremap[dataByte + vid.fullbright-256];
+
+			while(runLength-- > 0)
+				pix[x++] = dataByte;
+		}
+
+		//pad the end of the scan line with the trailing pixel
+		for ( ; x < skin->width ; )
+			pix[x++] = dataByte;
+	}
+	//pad the bottom of the skin with that final pixel
+	for ( ; y < skin->height; y++, pix += skin->width)
+		for (x = 0; x < skin->width; )
+			pix[x++] = dataByte;
+
+	if ( raw - (qbyte *)pcx > pcxsize)
+	{
+		BZ_Free(out);
+		Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
+		Skin_WorkerDone(skin, NULL, 0, 0);
+		return;
+	}
+
+	Skin_WorkerDone(skin, out, srcw, srch);
+	skin->loadstate = SKIN_LOADED;
+
+}
 
 /*
 ==========
@@ -208,25 +353,15 @@ Returns a pointer to the skin bitmap, or NULL to use the default
 qbyte	*Skin_Cache8 (qwskin_t *skin)
 {
 	char	name[1024];
-	qbyte	*raw;
-	qbyte	*out, *pix;
-	pcx_t	*pcx;
-	int		x, y, srcw, srch;
-	int		dataByte;
-	int		runLength;
-	int fbremap[256];
 	char *skinpath;
-	size_t	pcxsize;
 
 	if (noskins.value==1) // JACK: So NOSKINS > 1 will show skins, but
 		return NULL;	  // not download new ones.
 
-	if (skin->failedload==true)
+	if (skin->loadstate==SKIN_LOADING)
 		return NULL;
-
-	out = skin->skindata;
-	if (out)
-		return out;
+	if (skin->loadstate==SKIN_LOADED)
+		return skin->skindata;
 
 //
 // load the pic from disk
@@ -236,6 +371,7 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 		qbyte bv;
 		int col[3];
 		char *s;
+		qbyte	*out;
 
 		s = COM_Parse(skin->name);
 		col[0] = atof(com_token);
@@ -253,22 +389,19 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 
 		memset (out, bv, 320*200);
 
-		skin->failedload = false;
+		skin->loadstate = SKIN_LOADED;
 
 		return out;
 	}
 
 	skinpath = "skins";
 
-	//2 is used to try to force the skin if it load24bit is false.
-	if (gl_load24bit.ival || skin->failedload==2)
+	if (gl_load24bit.ival || skin->loadstate == SKIN_FAILED)
 	{
 		if (!skin->textures.base)
 			skin->textures.base = R_LoadHiResTexture(skin->name, skinpath, IF_NOALPHA|IF_NOPCX);
 		if (skin->textures.base->status == TEX_LOADING)
 			return NULL;	//don't spam the others until we actually know this one will load.
-		if (skin->failedload == 2)
-			skin->failedload = 1;
 		if (TEXLOADED(skin->textures.base))
 		{
 			if (!skin->textures.upperoverlay)
@@ -291,148 +424,18 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 				Q_snprintfz (name, sizeof(name), "%s_gloss", skin->name);
 				TEXASSIGN(skin->textures.specular, R_LoadHiResTexture(skin->name, skinpath, 0));
 			}
-			skin->failedload = 1;
+			skin->loadstate = SKIN_LOADED;
 			return NULL;	//can use the high-res textures instead.
 		}
 	}
 
-	Q_snprintfz (name, sizeof(name), "%s/%s.pcx", skinpath, skin->name);
-	raw = COM_LoadTempFile (name, &pcxsize);
-	if (!raw)
-	{
-		//use 24bit skins even if gl_load24bit is failed
-		if (strcmp(skin->name, baseskin.string))
-		{
-			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
-			Con_Printf ("Couldn't load skin %s\n", name);
-			Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
-			raw = COM_LoadTempFile (name, &pcxsize);
-		}
-		if (!raw)
-		{
-			if (skin->failedload)
-				skin->failedload = true;
-			else
-				skin->failedload = 2;
-			return NULL;
-		}
-	}
-
-//
-// parse the PCX file
-//
-	pcx = (pcx_t *)raw;
-	raw = (qbyte *)(pcx+1);
-
-	//check format (sizes are checked later)
-	if (pcx->manufacturer != 0x0a
-		|| pcx->version != 5
-		|| pcx->encoding != 1
-		|| pcx->bits_per_pixel != 8)
-	{
-		skin->failedload = true;
-		Con_Printf ("Bad skin %s (unsupported format)\n", name);
+	if (skin->loadstate == SKIN_FAILED)
 		return NULL;
-	}
+	skin->loadstate = SKIN_LOADING;
 
-	pcx->xmax = (unsigned short)LittleShort(pcx->xmax);
-	pcx->ymax = (unsigned short)LittleShort(pcx->ymax);
-	pcx->xmin = (unsigned short)LittleShort(pcx->xmin);
-	pcx->ymin = (unsigned short)LittleShort(pcx->ymin);
+	Skin_WorkerLoad(skin, NULL, 0, 0);
 
-	srcw = pcx->xmax-pcx->xmin+1;
-	srch = pcx->ymax-pcx->ymin+1;
-
-	if (srcw < 1 || srch < 1 || srcw > 320 || srch > 200)
-	{
-		skin->failedload = true;
-		Con_Printf ("Bad skin %s (unsupported size)\n", name);
-		return NULL;
-	}
-	skin->width = srcw;
-	skin->height = srch;
-
-	skin->skindata = out = BZ_Malloc(skin->width*skin->height);
-	if (!out)
-		Sys_Error ("Skin_Cache: couldn't allocate");
-
-	// TODO: we build a fullbright remap.. can we get rid of this?
-	for (x = 0; x < vid.fullbright; x++)
-		fbremap[x] = x + (256-vid.fullbright);	//fullbrights don't exist, so don't loose palette info.
-
-
-	pix = out;
-//	memset (out, 0, skin->width*skin->height);
-
-	dataByte = 0;	//typically black (this is in case a 0*0 file is loaded... which won't happen anyway)
-	for (y=0 ; y < srch ; y++, pix += skin->width)
-	{
-		for (x=0 ; x < srcw ; )
-		{
-			if (raw - (qbyte*)pcx > pcxsize) 
-			{
-				BZ_Free(skin->skindata);
-				skin->skindata = NULL;
-				skin->failedload = true;
-				Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
-				return NULL;
-			}
-			dataByte = *raw++;
-
-			if((dataByte & 0xC0) == 0xC0)
-			{
-				runLength = dataByte & 0x3F;
-				if (raw - (qbyte*)pcx > pcxsize) 
-				{
-					BZ_Free(skin->skindata);
-					skin->skindata = NULL;
-					skin->failedload = true;
-					Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
-					return NULL;
-				}
-				dataByte = *raw++;
-			}
-			else
-				runLength = 1;
-
-			// skin sanity check
-			if (runLength + x > pcx->xmax + 2) {
-				BZ_Free(skin->skindata);
-				skin->skindata = NULL;
-				skin->failedload = true;
-				Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
-				return NULL;
-			}
-
-			if (dataByte >= 256-vid.fullbright)	//kill the fb componant
-				if (!r_fb_models.ival)
-					dataByte = fbremap[dataByte + vid.fullbright-256];
-
-			while(runLength-- > 0)
-				pix[x++] = dataByte;
-		}
-
-		//pad the end of the scan line with the trailing pixel
-		for ( ; x < skin->width ; )
-			pix[x++] = dataByte;
-	}
-	//pad the bottom of the skin with that final pixel
-	for ( ; y < skin->height; y++, pix += skin->width)
-		for (x = 0; x < skin->width; )
-			pix[x++] = dataByte;
-
-	if ( raw - (qbyte *)pcx > pcxsize)
-	{
-		BZ_Free(skin->skindata);
-		skin->skindata = NULL;
-		skin->failedload = true;
-		Con_Printf ("Skin %s was malformed.  You should delete it.\n", name);
-		return NULL;
-	}
-
-	skin->failedload = false;
-
-	return out;
+	return skin->skindata;
 }
 
 /*
@@ -482,9 +485,10 @@ void Skin_NextDownload (void)
 		}
 		return;
 	}
-	for (i = 0; i != MAX_CLIENTS; i++)
+	for (i = 0; i < MAX_CLIENTS; i++)
 	{
 		sc = &cl.players[i];
+		sc->lastskin = NULL;	//invalidate any 'safe' skins
 		if (!sc->name[0])
 			continue;
 		Skin_Find (sc);
@@ -494,6 +498,7 @@ void Skin_NextDownload (void)
 			continue;
 		if (!*sc->qwskin->name)
 			continue;
+
 		CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->qwskin->name), NULL, 0);
 	}
 
@@ -524,11 +529,11 @@ void Skin_FlushAll(void)
 {	//wipe the skin info
 	int i;
 	for (i=0 ; i<numskins ; i++)
-	{
 		if (skins[i].skindata)
 			BZ_Free(skins[i].skindata);
-	}
 	numskins = 0;
+	for (i = 0; i < MAX_CLIENTS; i++)
+		cl.players[i].lastskin = NULL;
 
 	Skin_FlushPlayers();
 }
@@ -552,11 +557,11 @@ void	Skin_Skins_f (void)
 
 	R_GAliasFlushSkinCache(false);
 	for (i=0 ; i<numskins ; i++)
-	{
 		if (skins[i].skindata)
 			BZ_Free(skins[i].skindata);
-	}
 	numskins = 0;
+	for (i = 0; i < MAX_CLIENTS; i++)
+		cl.players[i].lastskin = NULL;
 
 	Skin_NextDownload ();
 
@@ -585,7 +590,7 @@ void	Skin_AllSkins_f (void)
 
 void Skin_FlushSkin(char *name)
 {
-int i;
+	int i;
 	char sname[16]="";
 	if (strncmp(name, "skins/", 6))
 		return;
@@ -593,7 +598,10 @@ int i;
 	for (i=0 ; i<numskins ; i++)
 	{
 		if (!strcmp(skins[i].name, sname))
-			skins[i].failedload = false;
+		{
+			skins[i].loadstate = SKIN_NOTLOADED;
+			memset(&skins[i].textures, 0, sizeof(skins[i].textures));
+		}
 	}
 }
 

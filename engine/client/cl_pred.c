@@ -539,7 +539,11 @@ void CL_CalcClientTime(void)
 {
 	extern float demtime;
 	if (!cls.state)
+	{
 		cl.servertime += host_frametime;
+		cl.time = cl.servertime;
+		return;
+	}
 	else// if (cls.protocol != CP_QUAKE3)
 	{
 		float oldst = realtime;

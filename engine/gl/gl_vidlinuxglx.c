@@ -1567,6 +1567,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 {
 	int width = info->width;	//can override these if vmode isn't available
 	int height = info->height;
+	int rate = info->rate;
 	int i;
 	int attrib[] = {
 		GLX_RGBA,
@@ -1630,9 +1631,9 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 	fullscreenflags = 0;
 
 	vm.usemode = -1;
-	if (vm.vmajor)
+	if (vm.vmajor && !COM_CheckParm("-current"))
 	{
-		int best_fit, best_dist, dist, x, y;
+		int best_fit, best_dist, dist, x, y, z, r;
 
 		vm.pXF86VidModeGetAllModeLines(vid_dpy, scrnum, &vm.num_modes, &vm.modes);
 		// Are we going fullscreen?  If so, let's change video mode
@@ -1643,13 +1644,17 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 
 			for (i = 0; i < vm.num_modes; i++)
 			{
+				//fixme: check this formula. should be the full refresh rate
+				r = vm.modes[i]->dotclock * 1000 / (vm.modes[i]->htotal * vm.modes[i]->vtotal);
 				if (width > vm.modes[i]->hdisplay ||
-					height > vm.modes[i]->vdisplay)
+					height > vm.modes[i]->vdisplay ||
+					rate > r)
 					continue;
 
 				x = width - vm.modes[i]->hdisplay;
 				y = height - vm.modes[i]->vdisplay;
-				dist = (x * x) + (y * y);
+				z = rate - r;
+				dist = (x * x) + (y * y) + (z * z);
 				if (dist < best_dist)
 				{
 					best_dist = dist;

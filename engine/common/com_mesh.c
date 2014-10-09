@@ -3127,7 +3127,8 @@ static void *Q1_LoadSkins_GL (model_t *loadmodel, daliasskintype_t *pskintype, u
 			{
 				frames[t].texels = ZG_Malloc(&loadmodel->memgroup, s);
 				memcpy(frames[t].texels, data, s);
-				Mod_FloodFillSkin(frames[t].texels, outskin->skinwidth, outskin->skinheight);
+				//other engines apparently don't flood fill. because flood filling is horrible, we won't either.
+				//Mod_FloodFillSkin(frames[t].texels, outskin->skinwidth, outskin->skinheight);
 
 				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i.lmp", loadmodel->name, i, t);
 				frames[t].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[t].texels, outskin->skinwidth, outskin->skinheight, skintranstype);

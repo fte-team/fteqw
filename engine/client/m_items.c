@@ -374,8 +374,10 @@ static qboolean MI_Selectable(menuoption_t *op)
 		return false;
 	case mt_button:
 		return true;
+#ifdef HEXEN2
 	case mt_hexen2buttonbigfont:
 		return true;
+#endif
 	case mt_qbuttonbigfont:
 		return true;
 	case mt_menudot:
@@ -500,9 +502,11 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 		case mt_button:
 			Draw_FunStringWidth(xpos + option->common.posx, ypos+option->common.posy, option->button.text, option->common.width, true, !menu->cursoritem && menu->selecteditem == option);
 			break;
+#ifdef HEXEN2
 		case mt_hexen2buttonbigfont:
 			Draw_Hexen2BigFontString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
 			break;
+#endif
 		case mt_qbuttonbigfont:
 			Draw_BigFontString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
 			break;
@@ -1329,6 +1333,7 @@ menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const cha
 	menu->options = (menuoption_t *)n;
 	return n;
 }
+#ifdef HEXEN2
 menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, const char *text, const char *command)
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1+strlen(command)+1);
@@ -1347,7 +1352,7 @@ menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, cons
 	menu->options = (menuoption_t *)n;
 	return n;
 }
-
+#endif
 menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int))
 {
 	menubutton_t *n = Z_Malloc(sizeof(menubutton_t));

@@ -3571,9 +3571,9 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	}
 
 
+	Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 	if (rgbadata)
 	{
-		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
 		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
 			mips->mip[0].data = rgbadata;
 		else

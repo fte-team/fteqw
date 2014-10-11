@@ -3571,18 +3571,23 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	}
 
 
-	Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
-	if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
-		mips->mip[0].data = rgbadata;
-	else
+	if (rgbadata)
 	{
-		mips->mip[0].data = BZ_Malloc(((mips->mip[0].width+3)&~3)*mips->mip[0].height*4);
-//		memset(mips->mip[0].data, 0, mips->mip[0].width*mips->mip[0].height*4);
-		Image_ResampleTexture(rgbadata, imgwidth, imgheight, mips->mip[0].data, mips->mip[0].width, mips->mip[0].height);
-		if (freedata)
-			BZ_Free(rgbadata);
-		freedata = true;
+		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
+			mips->mip[0].data = rgbadata;
+		else
+		{
+			mips->mip[0].data = BZ_Malloc(((mips->mip[0].width+3)&~3)*mips->mip[0].height*4);
+	//		memset(mips->mip[0].data, 0, mips->mip[0].width*mips->mip[0].height*4);
+			Image_ResampleTexture(rgbadata, imgwidth, imgheight, mips->mip[0].data, mips->mip[0].width, mips->mip[0].height);
+			if (freedata)
+				BZ_Free(rgbadata);
+			freedata = true;
+		}
 	}
+	else
+		mips->mip[0].data = NULL;
 	mips->mip[0].datasize = mips->mip[0].width*mips->mip[0].height*4;
 
 	if (mips->type == PTI_3D)

@@ -1309,6 +1309,9 @@ void V_CalcRefdef (playerview_t *pv)
 		vec3_t camorg, camdir;
 		trace_t tr;
 		float len;
+		//r_refdef.viewangles[0] += chase_pitch.value;
+		//r_refdef.viewangles[1] += chase_yaw.value;
+		//r_refdef.viewangles[2] += chase_roll.value;
 		AngleVectors(r_refdef.viewangles, axis[0], axis[1], axis[2]);
 		VectorScale(axis[0], -chase_back.value, camdir);
 		VectorMA(camdir, -chase_up.value, pv->gravitydir, camdir);

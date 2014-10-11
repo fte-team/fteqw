@@ -90,27 +90,60 @@ menu_t *currentmenu;
 menu_t *firstmenu;
 menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old);
 
+#ifdef HEXEN2
+//this function is so fucked up.
+//firstly, the source image uses 0 for transparent instead of 255. this means we need special handling. *sigh*.
+//secondly we have to avoid sampling too much of the image, because i chars seem to have stray white pixels in them
+//thirdly, we hard-code (by eye) the space between chars, which should be different for any character pair.
+//but we're lazy so we don't consider the next char. italic fonts are annoying like that. feel free to refudge it.
 void Draw_Hexen2BigFontString(int x, int y, const char *text)
 {
+	int c;
 	int sx, sy;
 	mpic_t *p;
-	unsigned int hack;	//FIXME: threads can't cope
-	hack = d_8to24rgbtable[0];
-	d_8to24rgbtable[0] = 0;
-	p = R2D_SafeCachePic ("gfx/menu/bigfont.lmp");
-	d_8to24rgbtable[0] = hack;
+	p = R_RegisterShader ("gfx/menu/bigfont.lmp", SUF_2D,
+		"{\n"
+			"if $nofixed\n"
+				"program default2d\n"
+			"endif\n"
+			"affine\n"
+			"nomipmaps\n"
+			"{\n"
+				"clampmap $diffuse\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+				"blendfunc gl_one gl_one_minus_src_alpha\n"
+			"}\n"
+			"sort additive\n"
+		"}\n");
+	if (!p->defaulttextures.base)
+	{
+		void *file;
+		qofs_t fsize = FS_LoadFile("gfx/menu/bigfont.lmp", &file);
+		if (file)
+		{
+			unsigned int w = ((unsigned int*)file)[0];
+			unsigned int h = ((unsigned int*)file)[1];
+			p->defaulttextures.base = R_LoadReplacementTexture("gfx/menu/bigfont.lmp", NULL, IF_NOPCX|IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP, (qbyte*)file+8, w, h, TF_H2_TRANS8_0);
+			FS_FreeFile(file);	//got image data
+		}
+		else
+			p->defaulttextures.base = R_LoadHiResTexture("gfx/menu/bigfont.lmp", NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
+	}
 
 	while(*text)
 	{
-		if (*text >= 'a' && *text <= 'z')
+		c = *text++;
+		if (c >= 'a' && c <= 'z')
 		{
-			sx = ((*text-'a')%8)*20;
-			sy = ((*text-'a')/8)*20;
+			sx = ((c-'a')%8)*20;
+			sy = ((c-'a')/8)*20;
 		}
-		else if (*text >= 'A' && *text <= 'Z')
+		else if (c >= 'A' && c <= 'Z')
 		{
-			sx = ((*text-'A')%8)*20;
-			sy = ((*text-'A')/8)*20;
+			c = c - 'A' + 'a';
+			sx = ((c-'a')%8)*20;
+			sy = ((c-'a')/8)*20;
 		}
 		else// if (*text <= ' ')
 		{
@@ -118,11 +151,41 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 			sy=-1;
 		}
 		if(sx>=0)
-			R2D_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*4);
-		x+=20;
-		text++;
+			R2D_SubPic(x, y, 18, 20, p, sx, sy, 20*8, 20*4);
+
+		switch(c)
+		{
+		case 'a':	x+=15; break;
+		case 'b':	x+=15; break;
+		case 'c':	x+=15; break;
+		case 'd':	x+=15; break;
+		case 'e':	x+=15; break;
+		case 'f':	x+=15; break;
+		case 'g':	x+=15; break;
+		case 'h':	x+=15; break;
+		case 'i':	x+=10; break;
+		case 'j':	x+=15; break;
+		case 'k':	x+=18; break;
+		case 'l':	x+=15; break;
+		case 'm':	x+=18; break;
+		case 'n':	x+=15; break;
+		case 'o':	x+=15; break;
+		case 'p':	x+=15; break;
+		case 'q':	x+=18; break;
+		case 'r':	x+=18; break;
+		case 's':	x+=13; break;
+		case 't':	x+=15; break;
+		case 'u':	x+=15; break;
+		case 'v':	x+=12; break;
+		case 'w':	x+=15; break;
+		case 'x':	x+=18; break;
+		case 'y':	x+=15; break;
+		case 'z':	x+=18; break;
+		default:	x+=20; break;
+		}
 	}
 }
+#endif
 
 mpic_t *QBigFontWorks(void)
 {

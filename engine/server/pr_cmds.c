@@ -4728,13 +4728,13 @@ void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	if (progstype != PROG_QW)
 	{
-		NPP_NQWriteEntity(dest, (short)G_EDICTNUM(prinst, OFS_PARM1));
+		NPP_NQWriteEntity(dest, G_EDICTNUM(prinst, OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteEntity(dest, (short)G_EDICTNUM(prinst, OFS_PARM1));
+		NPP_QWWriteEntity(dest, G_EDICTNUM(prinst, OFS_PARM1));
 		return;
 	}
 #else

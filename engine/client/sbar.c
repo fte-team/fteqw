@@ -834,6 +834,7 @@ void Sbar_Start (void)	//if one of these fails, skip the entire status bar.
 	}
 
 #ifdef HEXEN2
+	sbar_hexen2 = false;
 	if (W_SafeGetLumpName("tinyfont"))
 		sbar_hexen2 = true;
 //	if (sb_nums[0][0] && sb_nums[0][0]->width < 13)

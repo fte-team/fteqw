@@ -60,15 +60,6 @@ typedef struct builddata_s
 void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b);	//data === builddata_t
 
 
-//optional features common to all renderers, so I don't have to check to see which one it is all the time.
-typedef struct {
-	qboolean texture_non_power_of_two;		//all npot is okay
-	qboolean texture_non_power_of_two_pic;	//npot only works with clamp-to-edge mipless images.
-	qboolean npot_rounddown;				//memory limited systems can say that they want to use less ram.
-	int maxtexturesize;						//biggest image size supported
-} r_config_t;
-extern r_config_t r_config;
-
 #ifdef GLQUAKE
 	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/
 		#if 1
@@ -226,8 +217,6 @@ typedef struct {
 	qboolean arb_texture_env_dot3;
 	qboolean arb_texture_cube_map;
 
-	qboolean texture_non_power_of_two;			//full npot support.
-	qboolean texture_non_power_of_two_limited;	//mipless,clamped npot works, but generic npot doesn't.
 	qboolean arb_texture_compression;
 
 //	qboolean arb_fragment_program;

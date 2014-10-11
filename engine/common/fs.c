@@ -161,10 +161,6 @@ char	pubgamedirfile[MAX_OSPATH];	//like gamedirfile, but not set to the fte-only
 
 
 
-//the various COM_LoadFiles set these on return
-qboolean com_file_copyprotected;//file should not be available for download.
-qboolean com_file_untrusted;	//file was downloaded inside a package
-
 char	com_gamepath[MAX_OSPATH];	//c:\games\quake
 char	com_homepath[MAX_OSPATH];	//c:\users\foo\my docs\fte\quake
 qboolean	com_homepathenabled;
@@ -489,23 +485,6 @@ ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data)
 
 //======================================================================================================
 
-
-
-typedef struct searchpath_s
-{
-	searchpathfuncs_t *handle;
-
-	unsigned int flags;
-
-	char logicalpath[MAX_OSPATH];	//printable hunam-readable location of the package. generally includes a system path, including nested packages.
-	char purepath[256];	//server tracks the path used to load them so it can tell the client
-	int crc_check;	//client sorts packs according to this checksum
-	int crc_reply;	//client sends a different crc back to the server, for the paks it's actually loaded.
-	int orderkey;	//used to check to see if the paths were actually changed or not.
-
-	struct searchpath_s *next;
-	struct searchpath_s *nextpure;
-} searchpath_t;
 
 static ftemanifest_t	*fs_manifest;	//currently active manifest.
 static searchpath_t	*com_searchpaths;
@@ -945,9 +924,6 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 					search->flags |= fs_referencetype;
 				}
 				loc->search = search;
-
-				com_file_copyprotected = !!(search->flags & SPF_COPYPROTECTED);
-				com_file_untrusted = !!(search->flags & SPF_UNTRUSTED);
 				break;
 			}
 		}
@@ -970,8 +946,6 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 					search->flags |= fs_referencetype;
 				}
 				loc->search = search;
-				com_file_copyprotected = !!(search->flags & SPF_COPYPROTECTED);
-				com_file_untrusted = !!(search->flags & SPF_UNTRUSTED);
 				break;
 			}
 		}
@@ -1455,8 +1429,6 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 
 	if (loc.search)
 	{
-		com_file_copyprotected = !!(loc.search->flags & SPF_COPYPROTECTED);
-		com_file_untrusted = !!(loc.search->flags & SPF_UNTRUSTED);
 		return VFS_Filter(filename, loc.search->handle->OpenVFS(loc.search->handle, &loc, mode));
 	}
 
@@ -1474,8 +1446,6 @@ vfsfile_t *FS_OpenReadLocation(flocation_t *location)
 {
 	if (location->search)
 	{
-		com_file_copyprotected = !!(location->search->flags & SPF_COPYPROTECTED);
-		com_file_untrusted = !!(location->search->flags & SPF_UNTRUSTED);
 		return VFS_Filter(NULL, location->search->handle->OpenVFS(location->search->handle, location, "rb"));
 	}
 	return NULL;
@@ -3973,6 +3943,113 @@ void FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man),
 		}
 	}
 }
+
+//attempts to find a new basedir for 'input', changing to it as appropriate
+//returns fixed up filename relative to the new gamedir.
+//input must be an absolute path.
+qboolean FS_FixupGamedirForExternalFile(char *input, char *filename, size_t fnamelen)
+{
+	char syspath[MAX_OSPATH];
+	char gamepath[MAX_OSPATH];
+	void *iterator;
+	char *sep,*bs;
+	char *src = NULL;
+
+	Q_strncpyz(filename, input, fnamelen);
+
+	iterator = NULL;
+	while(COM_IteratePaths(&iterator, syspath, sizeof(syspath), gamepath, sizeof(gamepath)))
+	{
+		if (!Q_strncasecmp(syspath, filename, strlen(syspath)))
+		{
+			src = filename+strlen(syspath);
+			memmove(filename, src, strlen(src)+1);
+			break;
+		}
+	}
+	if (!src)
+	{
+		for(;;)
+		{
+			sep = strchr(filename, '\\');
+			if (sep)
+				*sep = '/';
+			else
+				break;
+		}
+		for (sep = NULL;;)
+		{
+			bs = sep;
+			sep = strrchr(filename, '/');
+			if (bs)
+				*bs = '/';
+			if (sep)
+			{
+				int game;
+				*sep = 0;
+				if (strchr(filename, '/'))	//make sure there's always at least one /
+				{
+					char temp[MAX_OSPATH];
+					Q_snprintfz(temp, sizeof(temp), "%s/", filename);
+					game = FS_IdentifyDefaultGameFromDir(temp);
+					if (game != -1)
+					{
+						static char newbase[MAX_OSPATH];
+						if (!host_parms.basedir || strcmp(host_parms.basedir, filename))
+						{
+							Con_Printf("switching basedir+game to %s for %s\n", filename, input);
+							Q_strncpyz(newbase, filename, sizeof(newbase));
+							host_parms.basedir = newbase;
+							FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, game), true);
+						}
+						*sep = '/';
+						sep = NULL;
+						src = filename+strlen(host_parms.basedir);
+						memmove(filename, src, strlen(src)+1);
+						break;
+					}
+				}
+			}
+			else
+				break;
+		}
+		if (sep)
+			*sep = '/';
+	}
+	if (!src && host_parms.binarydir && !Q_strncasecmp(host_parms.binarydir, filename, strlen(host_parms.binarydir)))
+	{
+		src = filename+strlen(host_parms.binarydir);
+		memmove(filename, src, strlen(src)+1);
+	}
+	if (!src && host_parms.basedir && !Q_strncasecmp(host_parms.basedir, filename, strlen(host_parms.basedir)))
+	{
+		src = filename+strlen(host_parms.basedir);
+		memmove(filename, src, strlen(src)+1);
+	}
+	if (!src)
+	{
+		Q_snprintfz(filename, fnamelen, "#%s", input);
+		return false;
+	}
+	if (*filename == '/' || *filename == '\\')
+		memmove(filename, filename+1, strlen(filename+1)+1);
+
+	sep = strchr(filename, '/');
+	bs = strchr(filename, '\\');
+	if (bs && (!sep || bs < sep))
+		sep = bs;
+	if (sep)
+	{
+		Con_Printf("switching gamedir for %s\n", filename);
+		*sep = 0;
+		COM_Gamedir(filename);
+		memmove(filename, sep+1, strlen(sep+1)+1);
+		return true;
+	}
+	Q_snprintfz(filename, fnamelen, "#%s", input);
+	return false;
+}
+
 
 void FS_ChangeGame_f(void)
 {

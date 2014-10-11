@@ -133,13 +133,31 @@ qboolean D3D11_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 	else if (mips->type == PTI_3D)
 		return false;	//nyi
 
+//d3d11.1 formats
+#define DXGI_FORMAT_B4G4R4A4_UNORM 115
+
 	switch(mips->encoding)
 	{
-	case PTI_RGBA8:
-		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	default:
+		return false;
+	case PTI_RGB565:
+		tdesc.Format = DXGI_FORMAT_B5G6R5_UNORM;
 		break;
-	case PTI_RGBX8:
-		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;	//d3d11 has no alphaless format. be sure to proprly disable alpha in the shader. 
+//	case PTI_RGBA5551:
+//		tdesc.Format = DXGI_FORMAT_A1B5G5R5_UNORM;
+//		break;
+	case PTI_ARGB1555:
+		tdesc.Format = DXGI_FORMAT_B5G5R5A1_UNORM;
+		break;
+	case PTI_RGBA4444:
+		tdesc.Format = DXGI_FORMAT_B4G4R4A4_UNORM;
+		break;
+//	case PTI_ARGB4444:
+//		tdesc.Format = DXGI_FORMAT_A4B4G4R4_UNORM;
+//		break;
+	case PTI_RGBA8:
+	case PTI_RGBX8:	//d3d11 has no alphaless format. be sure to proprly disable alpha in the shader. 
+		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		break;
 	case PTI_BGRA8:
 		tdesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;

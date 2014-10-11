@@ -175,8 +175,8 @@ void R2D_Init(void)
 		nogloss[i] = glossval;
 		nonorm[i] = normval;
 	}
-	missing_texture = R_LoadHiResTexture("no_texture", NULL, IF_NEAREST);
-	if (!TEXVALID(missing_texture))
+	missing_texture = R_LoadHiResTexture("no_texture", NULL, IF_NEAREST|IF_NOWORKER);
+	if (!TEXLOADED(missing_texture))
 		missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
 	missing_texture_gloss = R_LoadTexture("no_texture_gloss", 4, 4, TF_RGBA32, (unsigned char*)nogloss, IF_NOGAMMA);
 	missing_texture_normal = R_LoadTexture("no_texture_normal", 4, 4, TF_RGBA32, (unsigned char*)nonorm, IF_NOGAMMA);
@@ -194,12 +194,13 @@ void R2D_Init(void)
 				"map $diffuse\n"
 			"}\n"
 		"}\n");
-	if (!TEXVALID(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
-	if (!TEXVALID(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
-	if (!TEXVALID(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("pics/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP);
+	TEXDOWAIT(draw_backtile->defaulttextures.base);
+	if (!TEXLOADED(draw_backtile->defaulttextures.base))
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOWORKER);
+	if (!TEXLOADED(draw_backtile->defaulttextures.base))
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOWORKER);
+	if (!TEXLOADED(draw_backtile->defaulttextures.base))
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("pics/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOWORKER);
 
 	shader_draw_fill = R_RegisterShader("fill_opaque", SUF_NONE,
 		"{\n"

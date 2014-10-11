@@ -359,7 +359,7 @@ enum imageflags
 	/*WARNING: If the above are changed, be sure to change shader pass flags*/
 
 	IF_NOPICMIP = 1<<5,
-	IF_NOALPHA = 1<<6,
+	IF_NOALPHA = 1<<6,	/*hint rather than requirement*/
 	IF_NOGAMMA = 1<<7,
 	IF_3DMAP = 1<<8,	/*waning - don't test directly*/
 	IF_CUBEMAP = 1<<9,	/*waning - don't test directly*/

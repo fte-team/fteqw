@@ -199,24 +199,88 @@ mergeInto(LibraryManager.library,
 						reader.readAsArrayBuffer(file);
 					}
 					break;
+				case 'gamepadconnected':
+					var gp = e.gamepad;
+					if (FTEH.gamepads === undefined)
+						FTEH.gamepads = [];
+					FTEH.gamepads[gp.index] = gp;
+					console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.", gp.index, gp.id, gp.buttons.length, gp.axes.length);
+					break;
+				case 'gamepaddisconnected':
+					var gp = e.gamepad;
+					delete FTEH.gamepads[gp.index];
+					if (FTEC.evcb.jaxis)	//try and clear out the axis when released.
+						for (var j = 0; j < 6; j+=1)
+							Runtime.dynCall('viid', FTEC.evcb.jaxis, [gp.index, j, 0]);
+					if (FTEC.evcb.jbutton)	//try and clear out the axis when released.
+						for (var j = 0; j < 32+4; j+=1)
+							Runtime.dynCall('viid', FTEC.evcb.jbutton, [gp.index, j, 0]);
+					console.log("Gamepad disconnected from index %d: %s", gp.index, gp.id);
+					break;
 				default:
 					console.log(event);
 					break;
 			}
 		}
 	},
-	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
-	emscriptenfte_setupcanvas : function(nw,nh,evresz,evm,evb,evk,evf)
+	emscriptenfte_polljoyevents : function(be,ae)
 	{
-		FTEC.evcb.resize = evresz;
-		FTEC.evcb.mouse = evm;
-		FTEC.evcb.button = evb;
-		FTEC.evcb.key = evk;
-		FTEC.evcb.loadfile = evf;
+		//with events, we can do unplug stuff properly.
+		//otherwise hot unplug might be buggy.
+		var gamepads;
+		if (FTEH.gamepads !== undefined)
+			gamepads = FTEH.gamepads;
+		else
+			gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : []);
+
+		if (gamepads !== undefined)
+		for (var i = 0; i < gamepads.length; i+=1)
+		{
+			var gp = gamepads[i];
+			if (gp === undefined)
+				continue;
+			for (var j = 0; j < gp.buttons.length; j+=1)
+			{
+				var b = gp.buttons[j];
+				var p;
+				if (typeof(b) == "object")
+				{
+					p = b.pressed;
+					if (b.lastframe != p)
+					{	//cache it to avoid spam
+						b.lastframe = p;
+						Runtime.dynCall('viii', FTEC.evcb.jbutton, [gp.index, j, p]);
+					}
+				}
+				else
+				{//old chrome bug
+					p = b==1.0;
+					//warning: no cache. this is going to be spammy.
+					Runtime.dynCall('viii', FTEC.evcb.jbutton, [gp.index, j, p]);
+				}
+			}
+			for (var j = 0; j < gp.axes.length; j+=1)
+				Runtime.dynCall('viid', FTEC.evcb.jaxis, [gp.index, j, gp.axes[j]]);
+		}
+	},
+	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
+	emscriptenfte_setupcanvas : function(nw,nh,evresize,evmouse,evmbutton,evkey,evfile,evjbutton,evjaxis)
+	{
+		FTEC.evcb.resize = evresize;
+		FTEC.evcb.mouse = evmouse;
+		FTEC.evcb.button = evmbutton;
+		FTEC.evcb.key = evkey;
+		FTEC.evcb.loadfile = evfile;
+		FTEC.evcb.jbutton = evjbutton;
+		FTEC.evcb.jaxis = evjaxis;
+
+		if ('GamepadEvent' in window)
+			FTEH.gamepads = [];	//don't bother ever trying to poll if we can use gamepad events. this will hopefully avoid weirdness.
+
 		if (!FTEC.donecb)
 		{
 			FTEC.donecb = 1;
-			var events = ['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup', 'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove', 'dragenter', 'dragover', 'drop'];
+			var events = ['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup', 'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove', 'dragenter', 'dragover', 'drop', 'gamepadconnected', 'gamepaddisconnected'];
 			events.forEach(function(event)
 			{
 				Module['canvas'].addEventListener(event, FTEC.handleevent, true);
@@ -273,7 +337,10 @@ mergeInto(LibraryManager.library,
 
 		return 1;
 	},
-
+	emscriptenfte_settitle : function(txt)
+	{
+		document.title = Pointer_stringify(txt);
+	},
 	emscriptenfte_abortmainloop : function(msg)
 	{
 		msg = Pointer_stringify(msg);

@@ -351,6 +351,8 @@ void D3D9Shader_DeleteProg(program_t *prog, unsigned int permu)
 
 void D3D9Shader_Init(void)
 {
+	D3DCAPS9 caps;
+
 	dllfunction_t funcs[] =
 	{
 		{(void**)&pD3DXCompileShader, "D3DXCompileShader"},
@@ -378,9 +380,22 @@ void D3D9Shader_Init(void)
 	sh_config.pProgAutoFields	= D3D9Shader_ProgAutoFields;
 
 	sh_config.texture_non_power_of_two = 0;
+	sh_config.texture_non_power_of_two_pic = 0;
 	sh_config.tex_env_combine		= 1;
 	sh_config.nv_tex_env_combine4	= 1;
 	sh_config.env_add				= 1;
+
+	//FIXME: check caps
+	sh_config.texfmt[PTI_RGBX8] = true;	//fixme: shouldn't support
+	sh_config.texfmt[PTI_RGBA8] = true;	//fixme: shouldn't support
+	sh_config.texfmt[PTI_BGRX8] = true;
+	sh_config.texfmt[PTI_BGRA8] = true;
+	sh_config.texfmt[PTI_RGB565] = true;
+	sh_config.texfmt[PTI_ARGB1555] = true;
+	sh_config.texfmt[PTI_ARGB4444] = true;
+
+	IDirect3DDevice9_GetDeviceCaps(pD3DDev9, &caps);
+	sh_config.texture_maxsize = min(caps.MaxTextureWidth, caps.MaxTextureHeight);
 }
 #endif
 

@@ -183,11 +183,10 @@ void M_PrintWhite (int cx, int cy, qbyte *str)
 	Draw_FunString(cx + ((vid.width - 320)>>1), cy, str);
 }
 
-void M_BuildTranslationTable(int top, int bottom, unsigned int *translationTable)
+void M_BuildTranslationTable(unsigned int pc, unsigned int top, unsigned int bottom, unsigned int *translationTable)
 {
 	int		j;
 #ifdef HEXEN2
-	int pc = Cvar_Get("cl_playerclass", "1", 0, "Hexen2")->value;
 	if (h2playertranslations && pc)
 	{
 		int i;
@@ -200,9 +199,33 @@ void M_BuildTranslationTable(int top, int bottom, unsigned int *translationTable
 		for(i=0;i<255;i++)
 		{
 			if (bottom > 0 && (colorB[i] != 255))
-				translationTable[i] = d_8to24rgbtable[sourceB[i]] | 0xff000000;
+			{
+				if (bottom >= 16)
+				{
+					unsigned int v = d_8to24rgbtable[colorB[i]];
+					v = max(max((v>>0)&0xff, (v>>8)&0xff), (v>>16)&0xff);
+					*((unsigned char*)&translationTable[i]+0) = (((bottom&0xff0000)>>16)*v)>>8;
+					*((unsigned char*)&translationTable[i]+1) = (((bottom&0x00ff00)>> 8)*v)>>8;
+					*((unsigned char*)&translationTable[i]+2) = (((bottom&0x0000ff)>> 0)*v)>>8;
+					*((unsigned char*)&translationTable[i]+3) = 0xff;
+				}
+				else
+					translationTable[i] = d_8to24rgbtable[sourceB[i]] | 0xff000000;
+			}
 			else if (top > 0 && (colorA[i] != 255))
-				translationTable[i] = d_8to24rgbtable[sourceA[i]] | 0xff000000;
+			{
+				if (top >= 16)
+				{
+					unsigned int v = d_8to24rgbtable[colorA[i]];
+					v = max(max((v>>0)&0xff, (v>>8)&0xff), (v>>16)&0xff);
+					*((unsigned char*)&translationTable[i]+0) = (((top&0xff0000)>>16)*v)>>8;
+					*((unsigned char*)&translationTable[i]+1) = (((top&0x00ff00)>> 8)*v)>>8;
+					*((unsigned char*)&translationTable[i]+2) = (((top&0x0000ff)>> 0)*v)>>8;
+					*((unsigned char*)&translationTable[i]+3) = 0xff;
+				}
+				else
+					translationTable[i] = d_8to24rgbtable[sourceA[i]] | 0xff000000;
+			}
 			else
 				translationTable[i] = d_8to24rgbtable[i] | 0xff000000;
 		}

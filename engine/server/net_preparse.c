@@ -342,7 +342,7 @@ void NPP_QWWriteString(int dest, char *data)
 {
 	NPP_NQWriteString(dest, data);
 }
-void NPP_QWWriteEntity(int dest, short data)
+void NPP_QWWriteEntity(int dest, int data)
 {
 	NPP_NQWriteEntity(dest, data);
 }
@@ -1487,7 +1487,7 @@ void NPP_NQWriteString(int dest, const char *data)	//replacement write func (nq 
 		nullterms--;
 	NPP_NQCheckFlush();
 }
-void NPP_NQWriteEntity(int dest, short data)	//replacement write func (nq to qw)
+void NPP_NQWriteEntity(int dest, int data)	//replacement write func (nq to qw)
 {
 	NPP_NQCheckDest(dest);
 	if (!bufferlen)
@@ -2150,7 +2150,7 @@ void NPP_QWWriteString(int dest, const char *data)	//replacement write func (nq 
 	NPP_QWCheckFlush();
 #endif
 }
-void NPP_QWWriteEntity(int dest, short data)	//replacement write func (nq to qw)
+void NPP_QWWriteEntity(int dest, int data)	//replacement write func (nq to qw)
 {
 	if (data >= 0x8000)
 	{

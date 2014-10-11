@@ -3471,6 +3471,7 @@ void CL_LinkPacketEntities (void)
 		else if (state->colormap > 0 && state->colormap <= cl.allocated_client_slots)
 		{
 			ent->playerindex = state->colormap-1;
+			ent->h2playerclass = cl.players[ent->playerindex].h2playerclass;
 			ent->topcolour    = cl.players[ent->playerindex].ttopcolor;
 			ent->bottomcolour = cl.players[ent->playerindex].tbottomcolor;
 		}
@@ -4697,6 +4698,10 @@ void CL_LinkViewModel(void)
 		plnum = r_refdef.playerview->playernum;
 	plstate = &cl.inframes[parsecountmod].playerstate[plnum];
 
+/*	ent.topcolour = TOP_DEFAULT;//cl.players[plnum].ttopcolor;
+	ent.bottomcolour = cl.players[plnum].tbottomcolor;
+	ent.h2playerclass = cl.players[plnum].h2playerclass;
+*/
 	CLQ1_AddPowerupShell(V_AddEntity(&ent), true, plstate?plstate->effects:0);
 
 	if (alpha < 1 && qrenderer == QR_OPENGL)

@@ -3251,12 +3251,17 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 //skins
 	skinstart = (daliasskintype_t *)((char*)pq1inmodel+hdrsize);
 
+#ifdef HEXEN2
 	if( mod->flags & MFH2_TRANSPARENT )
 		skintranstype = TF_H2_T7G1;	//hexen2
-	else if( mod->flags & MFH2_HOLEY )
+	else
+#endif
+	 if( mod->flags & MFH2_HOLEY )
 		skintranstype = TF_H2_TRANS8_0;	//hexen2
+#ifdef HEXEN2
 	else if( mod->flags & MFH2_SPECIAL_TRANS )
 		skintranstype = TF_H2_T4A4;	//hexen2
+#endif
 	else
 		skintranstype = TF_SOLID8;
 

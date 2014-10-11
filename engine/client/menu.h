@@ -442,7 +442,7 @@ void M_DrawServers(void);
 void M_SListKey(int key);
 
 //drawing funcs
-void M_BuildTranslationTable(int top, int bottom, unsigned int *translationTable);
+void M_BuildTranslationTable(unsigned int pc, unsigned int top, unsigned int bottom, unsigned int *translationTable);
 void M_DrawCharacter (int cx, int line, unsigned int num);
 void M_Print (int cx, int cy, qbyte *str);
 void M_PrintWhite (int cx, int cy, qbyte *str);

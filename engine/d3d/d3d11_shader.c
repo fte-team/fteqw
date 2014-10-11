@@ -535,8 +535,6 @@ qboolean D3D11Shader_Init(unsigned int flevel)
 		{NULL,NULL}
 	};
 
-	memset(&sh_config, 0, sizeof(sh_config));
-
 	for (ver = 47; ver >= 33; ver--)
 	{
 		shaderlib = Sys_LoadLibrary(va("D3dcompiler_%i.dll", ver), (ver>=40)?funcsnew:funcsold);
@@ -565,7 +563,6 @@ qboolean D3D11Shader_Init(unsigned int flevel)
 	sh_config.pCreateProgram	= D3D11Shader_CreateProgram;
 	sh_config.pProgAutoFields	= NULL;
 
-	sh_config.texture_non_power_of_two = true;
 	sh_config.tex_env_combine		= 1;
 	sh_config.nv_tex_env_combine4	= 1;
 	sh_config.env_add				= 1;

@@ -3553,8 +3553,7 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 			p = LittleLong(in->contents);
 			out->contents = p;
 
-			out->firstmarksurface = loadmodel->marksurfaces +
-				(unsigned short)LittleShort(in->firstmarksurface);
+			out->firstmarksurface = loadmodel->marksurfaces + (unsigned short)LittleShort(in->firstmarksurface);
 			out->nummarksurfaces = (unsigned short)LittleShort(in->nummarksurfaces);
 			
 			p = LittleLong(in->visofs);
@@ -3878,8 +3877,14 @@ qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboo
 		for (i=0 ; i<count ; i++, out++, ins++)
 		{
 			out->planenum = LittleLong(ins->planenum);
-			out->children[0] = LittleShort(ins->children[0]);
-			out->children[1] = LittleShort(ins->children[1]);
+			out->children[0] = (unsigned short)LittleShort(ins->children[0]);
+			out->children[1] = (unsigned short)LittleShort(ins->children[1]);
+
+			//if these 'overflow', then they're meant to refer to contents instead, and should be negative
+			if (out->children[0] >= count)
+				out->children[0] -= 0x10000;
+			if (out->children[1] >= count)
+				out->children[1] -= 0x10000;
 		}
 	}
 

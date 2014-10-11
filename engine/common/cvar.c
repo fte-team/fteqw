@@ -679,6 +679,8 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 {	//fixme: force should probably be a latch bitmask
 	char *latch=NULL;
 
+	COM_AssertMainThread("Cvar_SetCore");
+
 	if (!var)
 		return NULL;
 

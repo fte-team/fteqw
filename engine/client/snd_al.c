@@ -66,6 +66,7 @@ FIXME: a capture device would be useful (voice chat).
 
 #ifdef FTE_TARGET_WEB	//emscripten sucks.
 AL_API void (AL_APIENTRY alSpeedOfSound)( ALfloat value ) {}
+#define alGetError() alGetError(NULL)
 #endif
 #else
 

@@ -181,7 +181,7 @@ qboolean R_CanBloom(void)
 		return false;
 	if (!gl_config.arb_shader_objects)
 		return false;
-	if (!gl_config.texture_non_power_of_two_limited)
+	if (!sh_config.texture_non_power_of_two_pic)
 		return false;
 
 	return true;

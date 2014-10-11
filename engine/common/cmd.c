@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cmd.c -- Quake script command processing module
 
 #include "quakedef.h"
+#include "fs.h"
 
 cvar_t rcon_level			= SCVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
@@ -185,6 +186,11 @@ void Cbuf_Init (void)
 		cmd_text[level].waitattime = -1;
 }
 
+static void Cbuf_WorkerAddText(void *ctx, void *data, size_t a, size_t b)
+{
+	Cbuf_AddText(data, a);
+	Z_Free(data);
+}
 /*
 ============
 Cbuf_AddText
@@ -195,6 +201,12 @@ Adds command text at the end of the buffer
 void Cbuf_AddText (const char *text, int level)
 {
 	int		l;
+
+	if (!Sys_IsThread(NULL))
+	{
+		COM_AddWork(0, Cbuf_WorkerAddText, NULL, Z_StrDup(text), level, 0);
+		return;
+	}
 
 	if (level > sizeof(cmd_text)/sizeof(cmd_text[0]) || level < 0)
 	{
@@ -509,6 +521,10 @@ void Cmd_Exec_f (void)
 {
 	char	*f, *s;
 	char	name[256];
+	flocation_t loc;
+	qboolean untrusted;
+	vfsfile_t *file;
+	size_t l;
 
 	if (Cmd_Argc () != 2)
 	{
@@ -528,17 +544,26 @@ void Cmd_Exec_f (void)
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	if (!qofs_Error(FS_LoadFile(name, (void **)&f)))
-		;
-	else if (!qofs_Error(FS_LoadFile(va("%s.cfg", name), (void **)&f)))
-		;
-	else
+	if (!FS_FLocateFile(name, FSLFRT_IFFOUND, &loc) && !FS_FLocateFile(va("%s.cfg", name), FSLFRT_IFFOUND, &loc))
 	{
-		Con_TPrintf ("couldn't exec %s\n",name);
+		Con_TPrintf ("couldn't exec %s\n", name);
+		return;
+	}
+	file = FS_OpenReadLocation(&loc);
+	if (!file)
+	{
+		Con_TPrintf ("couldn't exec %s. check permissions.\n", name);
 		return;
 	}
 	if (cl_warncmd.ival || developer.ival)
 		Con_TPrintf ("execing %s\n",name);
+
+	l = VFS_GETLEN(file);
+	f = BZ_Malloc(l+1);
+	f[l] = 0;
+	VFS_READ(file, f, l);
+	VFS_CLOSE(file);
+	untrusted = !!(loc.search->flags&SPF_UNTRUSTED);
 
 	s = f;
 	if (s[0] == '\xef' && s[1] == '\xbb' && s[2] == '\xbf')
@@ -554,13 +579,13 @@ void Cmd_Exec_f (void)
 		int cfgdepth = COM_FDepthFile(name, true);
 		int defdepth = COM_FDepthFile("default.cfg", true);
 		if (defdepth < cfgdepth)
-			Cbuf_InsertText("exec default.cfg\n", ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), false);
+			Cbuf_InsertText("exec default.cfg\n", ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), false);
 	}
 	// don't execute anything if it was from server (either the stuffcmd/localcmd, or the file)
-	if (!strcmp(name, "default.cfg") && !(Cmd_FromGamecode() || com_file_untrusted))
-		Cbuf_InsertText ("\ncvar_lockdefaults 1\n", ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), false);
-	Cbuf_InsertText (s, ((Cmd_FromGamecode() || com_file_untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), true);
-	FS_FreeFile(f);
+	if (!strcmp(name, "default.cfg") && !(Cmd_FromGamecode() || untrusted))
+		Cbuf_InsertText ("\ncvar_lockdefaults 1\n", ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), false);
+	Cbuf_InsertText (s, ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), true);
+	BZ_Free(f);
 }
 
 

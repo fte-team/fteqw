@@ -1625,9 +1625,13 @@ void CL_Color_f (void)
 
 	if (Cmd_Argc() == 1)
 	{
-		Con_TPrintf ("\"color\" is \"%s %s\"\n",
-			Info_ValueForKey (cls.userinfo[pnum], "topcolor"),
-			Info_ValueForKey (cls.userinfo[pnum], "bottomcolor") );
+		char *t = Info_ValueForKey (cls.userinfo[pnum], "topcolor");
+		char *b = Info_ValueForKey (cls.userinfo[pnum], "bottomcolor");
+		if (!*t)
+			t = "0";
+		if (!*b)
+			b = "0";
+		Con_TPrintf ("\"color\" is \"%s %s\"\n", t, b);
 		Con_TPrintf ("usage: color <0xRRGGBB> [0xRRGGBB]\n");
 		return;
 	}
@@ -3880,10 +3884,11 @@ void Host_RunFileNotify(struct dl_download *dl)
 #define HRF_MANIFEST	(1<<13)
 #define HRF_BSP			(1<<14)
 #define HRF_PACKAGE		(1<<15)
+#define HRF_MODEL		(1<<16)
 
 #define HRF_ACTION (HRF_OVERWRITE|HRF_NOOVERWRITE|HRF_ABORT)
 #define HRF_DEMO		(HRF_DEMO_MVD|HRF_DEMO_QWD|HRF_DEMO_DM2|HRF_DEMO_DEM)
-#define HRF_FILETYPES	(HRF_DEMO|HRF_QTVINFO|HRF_MANIFEST|HRF_BSP|HRF_PACKAGE)
+#define HRF_FILETYPES	(HRF_DEMO|HRF_QTVINFO|HRF_MANIFEST|HRF_BSP|HRF_PACKAGE|HRF_MODEL)
 typedef struct {
 	unsigned int flags;
 	vfsfile_t *srcfile;
@@ -4024,6 +4029,8 @@ static qboolean isurl(char *url)
 	return /*!strncmp(url, "data:", 5) || */!strncmp(url, "http://", 7) || !strncmp(url, "https://", 8);
 }
 
+qboolean FS_FixupGamedirForExternalFile(char *input, char *filename, size_t fnamelen);
+
 void Host_DoRunFile(hrf_t *f)
 {
 	char qname[MAX_QPATH];
@@ -4078,22 +4085,25 @@ void Host_DoRunFile(hrf_t *f)
 
 		//if we get here, we have no mime type to give us any clues.
 		COM_FileExtension(f->fname, ext, sizeof(ext));
-		if (!strcmp(ext, "qwd"))
+		if (!Q_strcasecmp(ext, "qwd"))
 			f->flags |= HRF_DEMO_QWD;
-		else if (!strcmp(ext, "mvd"))
+		else if (!Q_strcasecmp(ext, "mvd"))
 			f->flags |= HRF_DEMO_MVD;
-		else if (!strcmp(ext, "dm2"))
+		else if (!Q_strcasecmp(ext, "dm2"))
 			f->flags |= HRF_DEMO_DM2;
-		else if (!strcmp(ext, "dem"))
+		else if (!Q_strcasecmp(ext, "dem"))
 			f->flags |= HRF_DEMO_DEM;
-		else if (!strcmp(ext, "qtv"))
+		else if (!Q_strcasecmp(ext, "qtv"))
 			f->flags |= HRF_QTVINFO;
-		else if (!strcmp(ext, "fmf"))
+		else if (!Q_strcasecmp(ext, "fmf"))
 			f->flags |= HRF_MANIFEST;
-		else if (!strcmp(ext, "bsp"))
+		else if (!Q_strcasecmp(ext, "bsp"))
 			f->flags |= HRF_BSP;
-		else if (!strcmp(ext, "pak") || !strcmp(ext, "pk3"))
+		else if (!Q_strcasecmp(ext, "pak") || !Q_strcasecmp(ext, "pk3") || !Q_strcasecmp(ext, "pk4") || !Q_strcasecmp(ext, "wad"))
 			f->flags |= HRF_PACKAGE;
+		else if (!Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "md2") || !Q_strcasecmp(ext, "md3") || !Q_strcasecmp(ext, "iqm")
+			|| !Q_strcasecmp(ext, "psk") || !Q_strcasecmp(ext, "zym") || !Q_strcasecmp(ext, "dpm") || !Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "spr2"))
+			f->flags |= HRF_MODEL;
 
 		//if we still don't know what it is, give up.
 		if (!(f->flags & HRF_FILETYPES))
@@ -4111,7 +4121,8 @@ void Host_DoRunFile(hrf_t *f)
 	if (f->flags & HRF_DEMO)
 	{
 		//play directly via system path, no prompts needed
-		Cbuf_AddText(va("playdemo \"#%s\"\n", f->fname), RESTRICT_LOCAL);
+		FS_FixupGamedirForExternalFile(f->fname, loadcommand, sizeof(loadcommand));
+		Cbuf_AddText(va("playdemo \"%s\"\n", loadcommand), RESTRICT_LOCAL);
 
 		f->flags |= HRF_ABORT;
 		Host_DoRunFile(f);
@@ -4121,9 +4132,18 @@ void Host_DoRunFile(hrf_t *f)
 	{
 		char shortname[MAX_QPATH];
 		COM_StripExtension(COM_SkipPath(f->fname), shortname, sizeof(shortname));
-		snprintf(qname, sizeof(qname), "maps/%s.bsp", shortname);
+		if (FS_FixupGamedirForExternalFile(f->fname, qname, sizeof(qname)) && !Q_strncasecmp(qname, "maps/", 5))
+		{
+			COM_StripExtension(qname+5, loadcommand, sizeof(loadcommand));
+			Cbuf_AddText(va("map \"%s\"\n", loadcommand), RESTRICT_LOCAL);
+			f->flags |= HRF_ABORT;
+			Host_DoRunFile(f);
+			return;
+		}
+
 		snprintf(loadcommand, sizeof(loadcommand), "map \"%s\"\n", shortname);
 		snprintf(displayname, sizeof(displayname), "map: %s", shortname);
+		snprintf(qname, sizeof(qname), "maps/%s.bsp", shortname);
 	}
 	else if (f->flags & HRF_PACKAGE)
 	{
@@ -4174,6 +4194,14 @@ void Host_DoRunFile(hrf_t *f)
 				return;
 			}
 		}
+	}
+	else if (f->flags & HRF_MODEL)
+	{
+		FS_FixupGamedirForExternalFile(f->fname, loadcommand, sizeof(loadcommand));
+		Cbuf_AddText(va("modelviewer \"%s\"\n", loadcommand), RESTRICT_LOCAL);
+		f->flags |= HRF_ABORT;
+		Host_DoRunFile(f);
+		return;
 	}
 	else if (!(f->flags & HRF_QTVINFO))
 	{

@@ -629,15 +629,13 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 		}
 		else if (!strcmp("fog", key))	//q1 extension. FIXME: should be made temporary.
 		{
-			int oel = Cmd_ExecLevel;
 			void CL_Fog_f(void);
 			key[0] = 'f';
-			key[1] = ' ';
-			Q_strncpyz(key+2, token, sizeof(key)-2);
-			Cmd_TokenizeString(key, false, false);
-			Cmd_ExecLevel=RESTRICT_LOCAL;
-			CL_Fog_f();
-			Cmd_ExecLevel=oel;
+			key[1] = 'o';
+			key[2] = 'g';
+			key[3] = ' ';
+			Q_strncpyz(key+4, token, sizeof(key)-4);
+			Cbuf_AddText(key, RESTRICT_INSECURE);
 		}
 		else if (!strncmp("cvar_", key, 5)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).
 		{

@@ -47,6 +47,7 @@ int CL_TargettedSplit(qboolean nowrap);
 //specific events for the system-specific input code to call. may be called outside the main thread (so long as you don't call these simultaneously - ie: use a mutex or only one input thread).
 void IN_KeyEvent(int devid, int down, int keycode, int unicode);		//don't use IN_KeyEvent for mice if you ever use abs mice...
 void IN_MouseMove(int devid, int abs, float x, float y, float z, float size);
+void IN_JoystickAxisEvent(int devid, int axis, float value);
 
 //system-specific functions
 void INS_Move (float *movements, int pnum);

@@ -29,6 +29,8 @@ void emscriptenfte_abortmainloop(const char *caller);
 //avoid all of emscripten's sdl emulation.
 //this resolves input etc issues.
 unsigned long emscriptenfte_ticks_ms(void);
+void emscriptenfte_polljoyevents(void);
+void emscriptenfte_settitle(const char *text);
 int emscriptenfte_setupcanvas(
 	int width,
 	int height,
@@ -36,6 +38,8 @@ int emscriptenfte_setupcanvas(
 	void(*Mouse)(int devid,int abs,float x,float y,float z,float size),
 	void(*Button)(int devid, int down, int mbutton),
 	int(*Keyboard)(int devid, int down, int keycode, int unicode),
-	void(*LoadFile)(char *newhash, int filehandle)
+	void(*LoadFile)(char *newhash, int filehandle),
+	void(*buttonevent)(int joydev, int button, int ispressed),
+	void(*axisevent)(int joydev, int axis, float value)
 	);
 

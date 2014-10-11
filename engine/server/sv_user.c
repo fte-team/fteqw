@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sv_user.c -- server code for moving users
 
 #include "quakedef.h"
+#include "fs.h"
 
 #ifndef CLIENTONLY
 #include "pr_common.h"
@@ -2813,7 +2814,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 
 	if (found)
 	{
-		protectedpak = com_file_copyprotected;
+		protectedpak = loc->search && (loc->search->flags & SPF_COPYPROTECTED);
 
 		// special check for maps, if it came from a pak file, don't allow download
 		if (protectedpak)

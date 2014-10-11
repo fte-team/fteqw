@@ -751,7 +751,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			}
 			if (!original)
 			{
-				if (skins->numframes && skins->frame[subframe].texels)
+				if (skins && skins->numframes && skins->frame[subframe].texels)
 				{
 					original = skins->frame[subframe].texels;
 					inwidth = skins->skinwidth;
@@ -764,8 +764,16 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					inheight = 0;
 				}
 			}
-			tinwidth = skins->skinwidth;
-			tinheight = skins->skinheight;
+			if (skins)
+			{
+				tinwidth = skins->skinwidth;
+				tinheight = skins->skinheight;
+			}
+			else
+			{
+				tinwidth = inwidth;
+				tinheight = inheight;
+			}
 			if (original)
 			{
 				int i, j;
@@ -835,9 +843,33 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					{
 						translate32[i] = d_8to24rgbtable[i];
 						if (tc > 0 && (colorA[i] != 255))
-							translate32[i] = d_8to24rgbtable[sourceA[i]];
+						{
+							if (tc >= 16)
+							{
+								unsigned int v = d_8to24rgbtable[colorA[i]];
+								v = max(max((v>>0)&0xff, (v>>8)&0xff), (v>>16)&0xff);
+								*((unsigned char*)&translate32[i]+0) = (((tc&0xff0000)>>16)*v)>>8;
+								*((unsigned char*)&translate32[i]+1) = (((tc&0x00ff00)>> 8)*v)>>8;
+								*((unsigned char*)&translate32[i]+2) = (((tc&0x0000ff)>> 0)*v)>>8;
+								*((unsigned char*)&translate32[i]+3) = 0xff;
+							}
+							else
+								translate32[i] = d_8to24rgbtable[sourceA[i]];
+						}
 						if (bc > 0 && (colorB[i] != 255))
-							translate32[i] = d_8to24rgbtable[sourceB[i]];
+						{
+							if (bc >= 16)
+							{
+								unsigned int v = d_8to24rgbtable[colorB[i]];
+								v = max(max((v>>0)&0xff, (v>>8)&0xff), (v>>16)&0xff);
+								*((unsigned char*)&translate32[i]+0) = (((bc&0xff0000)>>16)*v)>>8;
+								*((unsigned char*)&translate32[i]+1) = (((bc&0x00ff00)>> 8)*v)>>8;
+								*((unsigned char*)&translate32[i]+2) = (((bc&0x0000ff)>> 0)*v)>>8;
+								*((unsigned char*)&translate32[i]+3) = 0xff;
+							}
+							else
+								translate32[i] = d_8to24rgbtable[sourceB[i]];
+						}
 					}
 					translate32[0] = 0;
 				}

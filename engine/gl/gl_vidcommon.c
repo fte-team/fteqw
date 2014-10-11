@@ -603,21 +603,20 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	//geforcefx apparently software emulates it, so gl<3 is bad.
 	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two"))
 	{
-		gl_config.texture_non_power_of_two = true;
+		sh_config.texture_non_power_of_two = true;
 	//gles2 has limited npot as standard, which is sufficient to make the hud not look like poo. lets use it.
-	if ((gl_config.gles && gl_config.glversion >= 2) || gl_config.texture_non_power_of_two)
-		gl_config.texture_non_power_of_two_limited = true;
-		r_config.texture_non_power_of_two_pic = true;
+		if ((gl_config.gles && gl_config.glversion >= 2) || sh_config.texture_non_power_of_two)
+			sh_config.texture_non_power_of_two_pic = true;
 	}
 	else if (GL_CheckExtension("GL_OES_texture_npot"))
 	{
-		r_config.texture_non_power_of_two = false;
-		r_config.texture_non_power_of_two_pic = true;
+		sh_config.texture_non_power_of_two = false;
+		sh_config.texture_non_power_of_two_pic = true;
 	}
 	else
 	{
-		r_config.texture_non_power_of_two = false;
-		r_config.texture_non_power_of_two_pic = false;
+		sh_config.texture_non_power_of_two = false;
+		sh_config.texture_non_power_of_two_pic = false;
 	}
 
 //	if (GL_CheckExtension("GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
@@ -1659,6 +1658,8 @@ GLhandleARB GLSlang_ValidateProgram(GLhandleARB program, const char *name, qbool
 	char *nullconstants = NULL;
 	GLint linked;
 
+	if (!program)
+		return (GLhandleARB)0;
 	qglGetProgramParameteriv_(program, GL_OBJECT_LINK_STATUS_ARB, &linked);
 
 	if(!linked)
@@ -2072,6 +2073,8 @@ void GL_Init(void *(*getglfunction) (char *name))
 	gl_version = qglGetString (GL_VERSION);
 	Con_SafePrintf ("GL_VERSION: %s\n", gl_version);
 
+	memset(&sh_config, 0, sizeof(sh_config));
+
 	GL_CheckExtensions (getglfunction);
 
 	if ((gl_config.gles && gl_config.glversion >= 3) || (!gl_config.gles && gl_config.glversion >= 2))
@@ -2124,11 +2127,29 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglGetError();	/*suck up the invalid operation error for non-debug contexts*/
 #endif
 
+	sh_config.texture_maxsize = 256;	//early minidrivers might not implement this, but anything else should.
+	qglGetIntegerv(GL_MAX_TEXTURE_SIZE, &sh_config.texture_maxsize);
 
+	//always supported
+	sh_config.texfmt[PTI_RGBA8] = true;
+	if (GL_CheckExtension("GL_EXT_texture_compression_s3tc"))
+	{
+		sh_config.texfmt[PTI_S3RGB1] = true;
+		sh_config.texfmt[PTI_S3RGBA1] = true;
+		sh_config.texfmt[PTI_S3RGBA3] = true;
+		sh_config.texfmt[PTI_S3RGBA5] = true;
+	}
 
-	memset(&sh_config, 0, sizeof(sh_config));
 	if (gl_config.gles)
 	{
+		sh_config.texfmt[PTI_RGBX8] = sh_config.texfmt[PTI_RGBA8];	//FIXME: this is faked with PTI_RGBA8
+
+		sh_config.texfmt[PTI_RGB565] = !gl_config.webgl_ie;	//ie sucks and doesn't support things that webgl requires it to support.
+		sh_config.texfmt[PTI_RGBA4444] = !gl_config.webgl_ie;
+		sh_config.texfmt[PTI_RGBA5551] = !gl_config.webgl_ie;
+		sh_config.texfmt[PTI_BGRA8] = false;
+		sh_config.texfmt[PTI_BGRX8] = sh_config.texfmt[PTI_BGRA8];
+
 		sh_config.minver = 100;
 		sh_config.maxver = 110;
 		sh_config.blobpath = "gles/%s.blob";
@@ -2137,6 +2158,27 @@ void GL_Init(void *(*getglfunction) (char *name))
 	}
 	else
 	{
+		sh_config.texfmt[PTI_RGBX8] = true;	//proper support
+
+		//these require stuff like GL_UNSIGNED_SHORT_5_5_5_1 etc, which needs gl 1.2+
+		if (gl_config.glversion >= 1.2)
+		{
+			//16bit formats
+			sh_config.texfmt[PTI_RGB565] = true;
+			sh_config.texfmt[PTI_RGBA4444] = true;
+			sh_config.texfmt[PTI_RGBA5551] = true;
+			//bgr formats
+			if (GL_CheckExtension("GL_EXT_bgra"))
+			{
+				//32bit formats
+				sh_config.texfmt[PTI_BGRX8] = true;
+				sh_config.texfmt[PTI_BGRA8] = true;
+				//16bit formats
+				sh_config.texfmt[PTI_ARGB4444] = true;
+				sh_config.texfmt[PTI_ARGB1555] = true;
+			}
+		}
+
 		sh_config.minver = gl_config.arb_shader_objects?110:0;
 		sh_config.maxver = gl_config.arb_shader_objects?gl_config.maxglslversion:0;
 		sh_config.blobpath = "glsl/%s.blob";
@@ -2144,7 +2186,6 @@ void GL_Init(void *(*getglfunction) (char *name))
 		sh_config.shadernamefmt = "%s_glsl";
 	}
 
-	sh_config.texture_non_power_of_two = gl_config.texture_non_power_of_two;
 	sh_config.progs_supported	= gl_config.arb_shader_objects;
 	sh_config.progs_required	= gl_config_nofixedfunc;
 

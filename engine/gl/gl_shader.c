@@ -43,7 +43,6 @@ static qboolean shader_rescan_needed;
 static char **saveshaderbody;
 
 sh_config_t sh_config;
-r_config_t r_config;
 
 //cvars that affect shader generation
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
@@ -1266,7 +1265,10 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		if (!sh_config.pValidateProgram(prog, name, p, (p & PERMUTATION_SKELETAL)?true:onefailed, blobfile))
 		{
 			if (!(p & PERMUTATION_SKELETAL))
+			{
 				onefailed = true;	//don't flag it if skeletal failed.
+				continue;
+			}
 			if (!p)
 				break;
 		}
@@ -3973,11 +3975,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if (r_loadbumpmapping)
 		{
 			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, IF_NOALPHA);
-			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("%s_bump", imagename), subpath, IF_NOALPHA);
-			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("normalmaps/%s", imagename), subpath, IF_NOALPHA);
+				tn->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, IF_TRYBUMP);
 		}
 		TEXASSIGN(shader->defaulttextures.bump, tn->bump);
 	}
@@ -4740,13 +4738,13 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 				"clampmap $diffuse\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
-				"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+				"blendfunc gl_one gl_one_minus_src_alpha\n"
 			"}\n"
 			"sort additive\n"
 		"}\n"
 		);
 
-	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(s->name, NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(s->name, NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
 }
 
 qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode, int *conddepth, int maxconddepth, int *cond)
@@ -5340,6 +5338,13 @@ int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blockti
 				}
 				break;
 			}
+		}
+		if (i == shader->numpasses)
+		{	//this shader has no textures from which to source a width and height
+			if (!shader->width)
+				shader->width = 64;
+			if (!shader->height)
+				shader->height = 64;
 		}
 	}
 	if (shader->width && shader->height)

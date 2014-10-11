@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#include "glquake.h"
+#include "shader.h"
 
 //FIXME
 texid_t GL_FindTextureFallback (const char *identifier, unsigned int flags, void *fallback, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
@@ -2743,7 +2743,7 @@ static struct
 	{2, "override/%s%s", 1}		/*tenebrae compatibility*/
 };
 
-static void Image_MipMap (qbyte *in, int inwidth, int inheight, qbyte *out, int outwidth, int outheight)
+static void Image_MipMap8888 (qbyte *in, int inwidth, int inheight, qbyte *out, int outwidth, int outheight)
 {
 	int		i, j;
 	qbyte	*inrow;
@@ -2806,36 +2806,39 @@ static void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int fla
 	if (mips->type != PTI_2D)
 		return;	//blurgh
 
+	if (flags & IF_NOMIPMAP)
+		return;
+
 	switch(mips->encoding)
 	{
 	case PTI_RGBA8:
 	case PTI_RGBX8:
 	case PTI_BGRA8:
 	case PTI_BGRX8:
+		for (mip = 1; mip < 32; mip++)
+		{
+			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
+			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
+			if (mips->mip[mip].width < 1 && mips->mip[mip].height < 1)
+				break;
+			if (mips->mip[mip].width < 1)
+				mips->mip[mip].width = 1;
+			if (mips->mip[mip].height < 1)
+				mips->mip[mip].height = 1;
+			mips->mip[mip].datasize = ((mips->mip[mip].width+3)&~3) * mips->mip[mip].height*4;
+			mips->mip[mip].data = BZ_Malloc(mips->mip[mip].datasize);
+			mips->mip[mip].needfree = true;
+
+			Image_MipMap8888(mips->mip[mip-1].data, mips->mip[mip-1].width, mips->mip[mip-1].height, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height);
+			mips->mipcount = mip+1;
+		}
 		break;
+	case PTI_RGBA4444:
+	case PTI_RGB565:
+	case PTI_RGBA5551:
+		return;	//convert to 16bit afterwards. always mipmap at 8 bit, to try to preserve what little precision there is.
 	default:
 		return;	//not supported.
-	}
-
-	if (flags & IF_NOMIPMAP)
-		return;
-
-	for (mip = 1; mip < 32; mip++)
-	{
-		mips->mip[mip].width = mips->mip[mip-1].width >> 1;
-		mips->mip[mip].height = mips->mip[mip-1].height >> 1;
-		if (mips->mip[mip].width < 1 && mips->mip[mip].height < 1)
-			break;
-		if (mips->mip[mip].width < 1)
-			mips->mip[mip].width = 1;
-		if (mips->mip[mip].height < 1)
-			mips->mip[mip].height = 1;
-		mips->mip[mip].datasize = ((mips->mip[mip].width+3)&~3) * mips->mip[mip].height*4;
-		mips->mip[mip].data = BZ_Malloc(mips->mip[mip].datasize);
-		mips->mip[mip].needfree = true;
-
-		Image_MipMap(mips->mip[mip-1].data, mips->mip[mip-1].width, mips->mip[mip-1].height, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height);
-		mips->mipcount = mip+1;
 	}
 }
 
@@ -3071,12 +3074,12 @@ static unsigned int * Image_GenerateNormalMap(qbyte *pixels, unsigned int *nmap,
 
 static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigned int flags)
 {
-	if (r_config.texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
+	if (sh_config.texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
 	{
 		//lax form
 		TRACE(("dbg: GL_RoundDimensions: GL_ARB_texture_non_power_of_two\n"));
 	}
-	else if ((flags & IF_CLAMP) && (flags & IF_NOMIPMAP) && r_config.texture_non_power_of_two_pic)
+	else if ((flags & IF_CLAMP) && (flags & IF_NOMIPMAP) && sh_config.texture_non_power_of_two_pic)
 	{
 		//more strict form
 		TRACE(("dbg: GL_RoundDimensions: GL_OES_texture_npot\n"));
@@ -3091,7 +3094,7 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 			;
 
 		/*round npot textures down if we're running on an embedded system*/
-		if (r_config.npot_rounddown)
+		if (sh_config.npot_rounddown)
 		{
 			if (*scaled_width != width)
 				*scaled_width >>= 1;
@@ -3114,12 +3117,12 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 
 	TRACE(("dbg: GL_RoundDimensions: %f\n", gl_max_size.value));
 
-	if (r_config.maxtexturesize)
+	if (sh_config.texture_maxsize)
 	{
-		if (*scaled_width > r_config.maxtexturesize)
-			*scaled_width = r_config.maxtexturesize;
-		if (*scaled_height > r_config.maxtexturesize)
-			*scaled_height = r_config.maxtexturesize;
+		if (*scaled_width > sh_config.texture_maxsize)
+			*scaled_width = sh_config.texture_maxsize;
+		if (*scaled_height > sh_config.texture_maxsize)
+			*scaled_height = sh_config.texture_maxsize;
 	}
 	if (!(flags & IF_UIPIC))
 	{
@@ -3136,6 +3139,221 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 		*scaled_width = 1;
 	if (*scaled_height < 1)
 		*scaled_height = 1;
+}
+
+//may operate in place
+static void Image_8888to565(qbyte *in, unsigned short *out, unsigned int w, unsigned int h, qboolean bgra)
+{
+	unsigned int p = w*h;
+	unsigned short tmp;
+
+	if (bgra)
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>3) << 0);//b
+			tmp |= ((*in++>>2) << 5);//g
+			tmp |= ((*in++>>3) << 11);//r
+			in++;
+			*out++ = tmp;
+		}
+	}
+	else
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>3) << 11);//r
+			tmp |= ((*in++>>2) << 5);//g
+			tmp |= ((*in++>>3) << 0);//b
+			in++;
+			*out++ = tmp;
+		}
+	}
+}
+//may operate in place
+static void Image_8888to1555(qbyte *in, unsigned short *out, unsigned int w, unsigned int h, qboolean bgra)
+{
+	unsigned int p = w*h;
+	unsigned short tmp;
+	if (bgra)
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>3) << 0);//b
+			tmp |= ((*in++>>3) << 5);//g
+			tmp |= ((*in++>>3) << 10);//r
+			tmp |= ((*in++>>7) << 15);//a
+			*out++ = tmp;
+		}
+	}
+	else
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>3) << 10);//r
+			tmp |= ((*in++>>3) << 5);//g
+			tmp |= ((*in++>>3) << 0);//b
+			tmp |= ((*in++>>7) << 15);//a
+			*out++ = tmp;
+		}
+	}
+}
+//may operate in place
+static void Image_8888to5551(qbyte *in, unsigned short *out, unsigned int w, unsigned int h, qboolean bgra)
+{
+	unsigned int p = w*h;
+	unsigned short tmp;
+	if (bgra)
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>3) << 1);//b
+			tmp |= ((*in++>>3) << 6);//g
+			tmp |= ((*in++>>3) << 11);//r
+			tmp |= ((*in++>>7) << 0);//a
+			*out++ = tmp;
+		}
+	}
+	else
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>3) << 11);//r
+			tmp |= ((*in++>>3) << 6);//g
+			tmp |= ((*in++>>3) << 1);//b
+			tmp |= ((*in++>>7) << 0);//a
+			*out++ = tmp;
+		}
+	}
+}
+//may operate in place
+static void Image_8888to4444(qbyte *in, unsigned short *out, unsigned int w, unsigned int h, qboolean bgra)
+{
+	unsigned int p = w*h;
+	unsigned short tmp;
+
+	if (bgra)
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>4) << 4);//b
+			tmp |= ((*in++>>4) << 8);//g
+			tmp |= ((*in++>>4) << 12);//r
+			tmp |= ((*in++>>4) << 0);//a
+			*out++ = tmp;
+		}
+	}
+	else
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>4) << 12);//r
+			tmp |= ((*in++>>4) << 8);//g
+			tmp |= ((*in++>>4) << 4);//b
+			tmp |= ((*in++>>4) << 0);//a
+			*out++ = tmp;
+		}
+	}
+}
+//may operate in place
+static void Image_8888toARGB4444(qbyte *in, unsigned short *out, unsigned int w, unsigned int h, qboolean bgra)
+{
+	unsigned int p = w*h;
+	unsigned short tmp;
+
+	if (bgra)
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>4) << 0);//b
+			tmp |= ((*in++>>4) << 4);//g
+			tmp |= ((*in++>>4) << 8);//r
+			tmp |= ((*in++>>4) << 12);//a
+			*out++ = tmp;
+		}
+	}
+	else
+	{
+		while(p-->0)
+		{
+			tmp  = ((*in++>>4) << 8);//r
+			tmp |= ((*in++>>4) << 4);//g
+			tmp |= ((*in++>>4) << 0);//b
+			tmp |= ((*in++>>4) << 12);//a
+			*out++ = tmp;
+		}
+	}
+}
+
+static void Image_ChangeFormat(struct pendingtextureinfo *mips, uploadfmt_t origfmt)
+{
+	int mip;
+
+	if (mips->type != PTI_2D)
+		return;	//blurgh
+
+	//if that format isn't supported/desired, try converting it.
+	if (sh_config.texfmt[PTI_RGBX8])
+		return;
+
+	//should we just use 5551 always?
+	if (mips->encoding == PTI_RGBX8 || mips->encoding == PTI_BGRX8)
+	{
+		/*if (0)
+		{	//prevent discolouration.
+			if (sh_config.texfmt[PTI_RGBA5551])
+			{
+				for (mip = 0; mip < mips->mipcount; mip++)
+					Image_8888to5551(mips->mip[mip].data, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, mips->encoding == PTI_BGRX8);
+				mips->encoding = PTI_RGBA5551;
+			}
+			else
+			{
+				for (mip = 0; mip < mips->mipcount; mip++)
+					Image_8888to1555(mips->mip[mip].data, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, mips->encoding == PTI_BGRX8);
+				mips->encoding = PTI_ARGB1555;
+			}
+		}
+		else*/
+		{
+			for (mip = 0; mip < mips->mipcount; mip++)
+				Image_8888to565(mips->mip[mip].data, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, mips->encoding == PTI_BGRX8);
+			mips->encoding = PTI_RGB565;
+		}
+	}
+	else if (mips->encoding == PTI_RGBA8 || mips->encoding == PTI_BGRA8)
+	{
+		if (origfmt == TF_TRANS8 || origfmt == TF_TRANS8_FULLBRIGHT || origfmt == TF_H2_TRANS8_0 || !(sh_config.texfmt[PTI_RGBA4444] || sh_config.texfmt[PTI_ARGB4444]))
+		{	//1-bit alpha is okay for these textures.
+			if (sh_config.texfmt[PTI_RGBA5551])
+			{
+				for (mip = 0; mip < mips->mipcount; mip++)
+					Image_8888to5551(mips->mip[mip].data, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, mips->encoding == PTI_BGRA8);
+				mips->encoding = PTI_RGBA5551;
+			}
+			else
+			{
+				for (mip = 0; mip < mips->mipcount; mip++)
+					Image_8888to1555(mips->mip[mip].data, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, mips->encoding == PTI_BGRA8);
+				mips->encoding = PTI_ARGB1555;
+			}
+		}
+		else
+		{
+			if (sh_config.texfmt[PTI_RGBA4444])
+			{
+				for (mip = 0; mip < mips->mipcount; mip++)
+					Image_8888to4444(mips->mip[mip].data, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, mips->encoding == PTI_BGRA8);
+				mips->encoding = PTI_RGBA4444;
+			}
+			else
+			{
+				for (mip = 0; mip < mips->mipcount; mip++)
+					Image_8888toARGB4444(mips->mip[mip].data, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, mips->encoding == PTI_BGRA8);
+				mips->encoding = PTI_ARGB4444;
+			}
+		}
+	}
 }
 
 //resamples and depalettes as required
@@ -3169,27 +3387,17 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		mips->encoding = PTI_BGRA8;
 		break;
 	case TF_SOLID8:
-		mips->encoding = PTI_RGBX8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		for (i = 0; i < imgwidth * imgheight; i++)
-		{
-			rgbadata[i] = d_8to24rgbtable[((qbyte*)rawdata)[i]];
+		if (sh_config.texfmt[PTI_BGRX8])
+		{	//bgra8 is typically faster when supported.
+			mips->encoding = PTI_BGRX8;
+			for (i = 0; i < imgwidth * imgheight; i++)
+				rgbadata[i] = d_8to24bgrtable[((qbyte*)rawdata)[i]];
 		}
-		if (freedata)
-			BZ_Free(rawdata);
-		freedata = true;
-		break;
-	case TF_H2_TRANS8_0:
-		mips->encoding = PTI_RGBX8;
-		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		for (i = 0; i < imgwidth * imgheight; i++)
+		else
 		{
-			if (((qbyte*)rawdata)[i] == 0)
-			{
-				rgbadata[i] = 0;
-				mips->encoding = PTI_RGBA8;
-			}
-			else
+			mips->encoding = PTI_RGBX8;
+			for (i = 0; i < imgwidth * imgheight; i++)
 				rgbadata[i] = d_8to24rgbtable[((qbyte*)rawdata)[i]];
 		}
 		if (freedata)
@@ -3197,21 +3405,25 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		freedata = true;
 		break;
 	case TF_TRANS8:
-		mips->encoding = PTI_RGBX8;
-		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		for (i = 0; i < imgwidth * imgheight; i++)
+	case TF_H2_TRANS8_0:
 		{
-			if (((qbyte*)rawdata)[i] == 0xff)
+			qbyte ref = (fmt==TF_H2_TRANS8_0)?0:0xff;
+			mips->encoding = PTI_RGBX8;
+			rgbadata = BZ_Malloc(imgwidth * imgheight*4);
+			for (i = 0; i < imgwidth * imgheight; i++)
 			{
-				rgbadata[i] = 0;
-				mips->encoding = PTI_RGBA8;
+				if (((qbyte*)rawdata)[i] == ref)
+				{//fixme: blend non-0xff neighbours. no, just use premultiplied alpha instead, where it matters.
+					rgbadata[i] = 0;
+					mips->encoding = PTI_RGBA8;
+				}
+				else
+					rgbadata[i] = d_8to24rgbtable[((qbyte*)rawdata)[i]];
 			}
-			else
-				rgbadata[i] = d_8to24rgbtable[((qbyte*)rawdata)[i]];
+			if (freedata)
+				BZ_Free(rawdata);
+			freedata = true;
 		}
-		if (freedata)
-			BZ_Free(rawdata);
-		freedata = true;
 		break;
 	case TF_TRANS8_FULLBRIGHT:
 		mips->encoding = PTI_RGBA8;
@@ -3289,6 +3501,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		freedata = true;
 		break;
 
+#ifdef HEXEN2
 	case TF_H2_T7G1: /*8bit data, odd indexes give greyscale transparence*/
 		mips->encoding = PTI_RGBA8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
@@ -3307,8 +3520,22 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			BZ_Free(rawdata);
 		freedata = true;
 		break;
-//	case TF_H2_T4A4:     /*8bit data, weird packing*/
-//		break;
+	case TF_H2_T4A4:     /*8bit data, weird packing*/
+		mips->encoding = PTI_RGBA8;
+		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
+		for (i = 0; i < imgwidth * imgheight; i++)
+		{
+			static const int ColorIndex[16] = {0, 31, 47, 63, 79, 95, 111, 127, 143, 159, 175, 191, 199, 207, 223, 231};
+			static const unsigned ColorPercent[16] = {25, 51, 76, 102, 114, 127, 140, 153, 165, 178, 191, 204, 216, 229, 237, 247};
+			qbyte p = ((qbyte*)rawdata)[i];
+			rgbadata[i] = d_8to24rgbtable[ColorIndex[p>>4]] & 0x00ffffff;
+			rgbadata[i] |= ( int )ColorPercent[p&15] << 24;
+		}
+		if (freedata)
+			BZ_Free(rawdata);
+		freedata = true;
+		break;
+#endif
 	}
 
 	if (flags & IF_NOALPHA)
@@ -3321,14 +3548,23 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_BGRA8:
 			mips->encoding = PTI_RGBX8;
 			break;
+		case PTI_RGBA4444:
+		case PTI_RGBA5551:
+			break;	//erk
 		case PTI_S3RGBA1:	//mostly compatible, but I don't want to push it.
 		case PTI_S3RGBA3:
 		case PTI_S3RGBA5:
 			//erk. meh.
 			break;
+		case PTI_RGB565:
 		case PTI_RGBX8:
 		case PTI_BGRX8:
 		case PTI_S3RGB1:
+			break;
+		case PTI_DEPTH16:
+		case PTI_DEPTH24:
+		case PTI_DEPTH32:
+		case PTI_DEPTH24_8:
 			break;
 		}
 		//FIXME: fill alpha channel with 255?
@@ -3400,6 +3636,7 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 		return false;
 	}
 	Image_GenerateMips(mips, flags);
+	Image_ChangeFormat(mips, fmt);
 
 	tex->width = imgwidth;
 	tex->height = imgheight;
@@ -3756,7 +3993,7 @@ void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 		/*still failed? attempt to load quake lmp files, which have no real format id (hence why they're not above)*/
 		Q_strncpyz(fname, nicename, sizeof(fname));
 		COM_DefaultExtension(fname, ".lmp", sizeof(fname));
-		if ((buf = COM_LoadFile (fname, 5, &fsize)))
+		if (!(tex->flags & IF_NOPCX) && (buf = COM_LoadFile (fname, 5, &fsize)))
 		{
 			if (Image_LoadTextureFromMemory(tex, tex->flags, nicename, fname, buf, fsize))
 				return;
@@ -3875,13 +4112,17 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 	tex = Image_FindTexture(identifier, subpath, flags);
 	if (tex)
 	{
+		if (!fallbackdata || tex->status != TEX_FAILED)
+		{
 #ifdef LOADERTHREAD
-		Sys_UnlockMutex(com_resourcemutex);
+			Sys_UnlockMutex(com_resourcemutex);
 #endif
-		return tex;	//already exists
+			return tex;	//already exists
+		}
+		tex->flags = flags;
 	}
-
-	tex = Image_CreateTexture_Internal(identifier, subpath, flags);
+	else
+		tex = Image_CreateTexture_Internal(identifier, subpath, flags);
 
 	tex->status = TEX_LOADING;
 	if (fallbackdata)
@@ -3950,6 +4191,8 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 	mips.type = (flags & IF_3DMAP)?PTI_3D:PTI_2D;
 	if (!Image_GenMip0(&mips, flags, data, palette, width, height, fmt, false))
 		return;
+	Image_GenerateMips(&mips, flags);
+	Image_ChangeFormat(&mips, fmt);
 	rf->IMG_LoadTextureMips(tex, &mips);
 	tex->status = TEX_LOADED;
 }

@@ -173,7 +173,7 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		return sizeof(struct sockaddr_ipx);
 #endif
 	default:
-		Sys_Error("Bad type - needs fixing");
+		Sys_Error("NetadrToSockadr: Bad type %i", a->type);
 		return 0;
 	}
 }

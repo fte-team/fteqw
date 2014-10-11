@@ -123,14 +123,15 @@ typedef struct {
 	int ticlass;
 #endif
 	menucombo_t *modeledit;
-	int topcolour;
-	int lowercolour;
+	unsigned int topcolour;
+	unsigned int lowercolour;
 
 	int tiwidth, tiheight;
 	qbyte translationimage[128*128];
 } setupmenu_t;
 qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key)
 {
+	char bot[64], top[64];
 	setupmenu_t *info = menu->data;
 	if (key != K_ENTER && key != K_KP_ENTER)
 		return false;
@@ -142,52 +143,130 @@ qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key
 	if (info->classedit)
 		Cvar_SetValue(Cvar_FindVar("cl_playerclass"), info->classedit->selectedoption+1);
 #endif
-	Cbuf_AddText(va("color %i %i\n", info->lowercolour, info->topcolour), RESTRICT_LOCAL);
+	if (info->lowercolour >= 16)
+		Q_snprintfz(bot, sizeof(bot), "0x%x", info->lowercolour&0xffffff);
+	else
+		Q_snprintfz(bot, sizeof(bot), "%i", info->lowercolour);
+	if (info->topcolour >= 16)
+		Q_snprintfz(top, sizeof(top), "0x%x", info->topcolour&0xffffff);
+	else
+		Q_snprintfz(top, sizeof(top), "%i", info->topcolour);
+	Cbuf_AddText(va("color %s %s\n", bot, top), RESTRICT_LOCAL);
 	S_LocalSound ("misc/menu2.wav");
 	M_RemoveMenu(menu);
 	return true;
 }
-qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int key)
-{
-	setupmenu_t *info = menu->data;
-	if (*option->button.text == 'T')
-	{
-		if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW)
-		{
-			info->topcolour ++;
-			if (info->topcolour>=14)
-				info->topcolour=0;
-			S_LocalSound ("misc/menu2.wav");
-			return true;
-		}
-		if (key == K_LEFTARROW)
-		{
-			info->topcolour --;
-			if (info->topcolour<=0)
-				info->topcolour=13;
-			S_LocalSound ("misc/menu2.wav");
-			return true;
-		}
 
+//http://axonflux.com/handy-rgb-to-hsl-and-rgb-to-hsv-color-model-c
+static void rgbtohsv(unsigned int rgb, vec3_t result)
+{
+	int r = (rgb>>16)&0xff, g = (rgb>>8)&0xff, b = (rgb>>0)&0xff;
+	float maxc = max(r, max(g, b)), minc = min(r, min(g, b));
+    float h, s, l = (maxc + minc) / 2;
+
+	float d = maxc - minc;
+	if (maxc)
+		s = d / maxc;
+	else
+		s = 0;
+
+	if(maxc == minc)
+	{
+		h = 0; // achromatic
 	}
 	else
 	{
-		if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW)
+		if (maxc == r)
+			h = (g - b) / d + ((g < b) ? 6 : 0);
+		else if (maxc == g)
+			h = (b - r) / d + 2;
+		else
+			h = (r - g) / d + 4;
+		h /= 6;
+    }
+
+	result[0] = h;
+	result[1] = s;
+	result[2] = l;
+};
+
+//http://axonflux.com/handy-rgb-to-hsl-and-rgb-to-hsv-color-model-c
+static unsigned int hsvtorgb(float inh, float s, float v)
+{
+	int r, g, b;
+	float h = inh - (int)floor(inh);
+	int i = h * 6;
+	float f = h * 6 - i;
+	float p = v * (1 - s);
+	float q = v * (1 - f * s);
+	float t = v * (1 - (1 - f) * s);
+	switch(i)
+	{
+	default:
+	case 0: r = v*0xff, g = t*0xff, b = p*0xff; break;
+	case 1: r = q*0xff, g = v*0xff, b = p*0xff; break;
+	case 2: r = p*0xff, g = v*0xff, b = t*0xff; break;
+	case 3: r = p*0xff, g = q*0xff, b = v*0xff; break;
+	case 4: r = t*0xff, g = p*0xff, b = v*0xff; break;
+	case 5: r = v*0xff, g = p*0xff, b = q*0xff; break;
+	}
+
+	return 0xff000000 | (r<<16)|(g<<8)|(b<<0);
+};
+
+qboolean SetupMenuColour (union menuoption_s *option,struct menu_s *menu, int key)
+{
+	extern qboolean	keydown[K_MAX];
+	setupmenu_t *info = menu->data;
+	unsigned int *ptr = (*option->button.text == 'T')?&info->topcolour:&info->lowercolour;
+
+	//okay, this is a bit weird.
+	//fte supports rgb colours, but we only allow hue to be chosen via the menu (people picking pure black are annoying, also conversions and precisions limit us)
+	//for NQ compat, we stick to old-skool values (so we don't end up with far too many teams)
+	//but we give the top free reign.
+	//unless they hold shift, in which case it switches around
+	//this allows for whatever you want
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW)
+	{
+		if ((keydown[K_LSHIFT] || keydown[K_RSHIFT]) ^ (ptr == &info->topcolour))
 		{
-			info->lowercolour ++;
-			if (info->lowercolour>=14)
-				info->lowercolour=0;
-			S_LocalSound ("misc/menu2.wav");
-			return true;
+			vec3_t hsv;
+			rgbtohsv(*ptr, hsv);
+			*ptr = hsvtorgb(hsv[0]+1/128.0, 1, 1);//hsv[1], hsv[2]);
 		}
-		if (key == K_LEFTARROW)
+		else
 		{
-			info->lowercolour --;
-			if (info->lowercolour<=0)
-				info->lowercolour=13;
-			S_LocalSound ("misc/menu2.wav");
-			return true;
+			if (*ptr >= 13 || *ptr >= 16)
+				*ptr = 0;
+			else
+				*ptr += 1;
 		}
+		S_LocalSound ("misc/menu2.wav");
+		return true;
+	}
+	if (key == K_DEL)
+	{
+		*ptr = 0;
+		S_LocalSound ("misc/menu2.wav");
+		return true;
+	}
+	if (key == K_LEFTARROW)
+	{
+		if ((keydown[K_LSHIFT] || keydown[K_RSHIFT]) ^ (ptr == &info->topcolour))
+		{
+			vec3_t hsv;
+			rgbtohsv(*ptr, hsv);
+			*ptr = hsvtorgb(hsv[0]-1/128.0, 1, 1);//hsv[1], hsv[2]);
+		}
+		else
+		{
+			if (*ptr==0 || *ptr >= 16)
+				*ptr=12;
+			else
+				*ptr -= 1;
+		}
+		S_LocalSound ("misc/menu2.wav");
+		return true;
 	}
 	return false;
 }
@@ -285,6 +364,7 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 	mpic_t	*p;
 	void *f;
 	qboolean reloadtimage = false;
+	unsigned int pc = 0;
 
 	if (info->skinedit && info->skinedit->modified)
 	{
@@ -292,10 +372,14 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		reloadtimage = true;
 	}
 #ifdef HEXEN2
-	if (info->classedit && info->classedit->selectedoption != info->ticlass)
+	if (info->classedit)
 	{
-		info->ticlass = info->classedit->selectedoption;
-		reloadtimage = true;
+		if (info->classedit->selectedoption != info->ticlass)
+		{
+			info->ticlass = info->classedit->selectedoption;
+			reloadtimage = true;
+		}
+		pc = info->ticlass+1;
 	}
 #endif
 
@@ -327,10 +411,10 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 
 	R2D_ImageColours(1,1,1,1);
 	p = R2D_SafeCachePic ("gfx/bigbox.lmp");
-	if (p)
+	if (R_GetShaderSizes(p, NULL, NULL, false)>0)
 		R2D_ScalePic (x-12, y-8, 72, 72, p);
 
-	M_BuildTranslationTable(info->topcolour, info->lowercolour, translationTable);
+	M_BuildTranslationTable(pc, info->topcolour, info->lowercolour, translationTable);
 	R2D_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);
 }
 
@@ -390,10 +474,6 @@ void M_Menu_Setup_f (void)
 	menu = M_CreateMenu(sizeof(setupmenu_t));
 	info = menu->data;
 
-	MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
-	MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
-
-
 //	MC_AddPicture(menu, 72, 32, Draw_CachePic ("gfx/mp_menu.lmp") );
 
 	menu->selecteditem = (menuoption_t*)
@@ -417,7 +497,12 @@ void M_Menu_Setup_f (void)
 	}
 	else
 #endif
+	{
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
+
 		(info->skinedit = MC_AddEdit(menu, 64, 160, 72, "Your skin", skin.string));
+	}
 
 	ci = MC_AddCustom(menu, 172+32, 88, NULL, 0);
 	ci->draw = MSetup_TransDraw;

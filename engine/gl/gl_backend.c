@@ -1010,7 +1010,7 @@ static void T_Gen_CurrentRender(int tmu)
 	if (r_refdef.recurse)
 		return;
 
-	if (gl_config.texture_non_power_of_two_limited)
+	if (sh_config.texture_non_power_of_two_pic)
 	{
 		vwidth = pwidth;
 		vheight = pheight;
@@ -3044,7 +3044,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			break;
 
 		case SP_RENDERTEXTURESCALE:
-			if (gl_config.texture_non_power_of_two_limited)
+			if (sh_config.texture_non_power_of_two_pic)
 			{
 				param4[0] = 1;
 				param4[1] = 1;

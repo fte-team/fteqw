@@ -18,6 +18,13 @@ static void *GLVID_getsdlglfunction(char *functionname)
 	return NULL;
 }
 
+static void IN_JoystickButtonEvent(int joydevid, int button, int ispressed)
+{
+	if (button >= 32+4)
+		return;
+	IN_KeyEvent(joydevid, ispressed, K_JOY1+button, 0);
+}
+
 static void VID_Resized(int width, int height)
 {
 	extern cvar_t vid_conautoscale, vid_conwidth;
@@ -176,7 +183,9 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		IN_MouseMove,
 		DOM_ButtonEvent,
 		DOM_KeyEvent,
-		DOM_LoadFile
+		DOM_LoadFile,
+		IN_JoystickButtonEvent,
+		IN_JoystickAxisEvent
 		))
 	{
 		Con_Printf("Couldn't set up canvas\n");
@@ -200,7 +209,7 @@ void GLVID_DeInit (void)
 {
 	ActiveApp = false;
 
-	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL);
+	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 
@@ -240,12 +249,13 @@ qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 
 void GLVID_SetCaption(char *text)
 {
-//	SDL_WM_SetCaption( text, NULL );
+	emscriptenfte_settitle(text);
 }
 
 void Sys_SendKeyEvents(void)
 {
-	/*callbacks happen outside our code, we don't need to poll for events*/
+	/*most callbacks happen outside our code, we don't need to poll for events - except for joysticks*/
+	emscriptenfte_polljoyevents();
 }
 /*various stuff for joysticks, which we don't support in this port*/
 void INS_Shutdown (void)

@@ -657,6 +657,7 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 #else
 static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREATE_DEVICE_AND_SWAP_CHAIN func, IDXGIAdapter *adapt)
 {
+	UINT support;
 	int flags = 0;//= D3D11_CREATE_DEVICE_SINGLETHREADED;
 	D3D_DRIVER_TYPE drivertype;
 	DXGI_SWAP_CHAIN_DESC scd;
@@ -740,17 +741,35 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	{
 	}
 
-	r_config.texture_non_power_of_two = flevel>=D3D_FEATURE_LEVEL_10_0;	//npot MUST be supported on all d3d10+ cards.
-	r_config.texture_non_power_of_two_pic = true;	//always supported in d3d11, supposedly.
-	r_config.npot_rounddown = false;
+	memset(&sh_config, 0, sizeof(sh_config));
+	sh_config.texture_non_power_of_two = flevel>=D3D_FEATURE_LEVEL_10_0;	//npot MUST be supported on all d3d10+ cards.
+	sh_config.texture_non_power_of_two_pic = true;	//always supported in d3d11, supposedly, even with d3d9 devices.
+	sh_config.npot_rounddown = false;
 	if (flevel>=D3D_FEATURE_LEVEL_11_0)
-		r_config.maxtexturesize = 16384;
+		sh_config.texture_maxsize = 16384;
 	else if (flevel>=D3D_FEATURE_LEVEL_10_0)
-		r_config.maxtexturesize = 8192;
+		sh_config.texture_maxsize = 8192;
 	else if (flevel>=D3D_FEATURE_LEVEL_9_3)
-		r_config.maxtexturesize = 4096;
+		sh_config.texture_maxsize = 4096;
 	else
-		r_config.maxtexturesize = 2048;
+		sh_config.texture_maxsize = 2048;
+
+//11.1 formats
+#define DXGI_FORMAT_B4G4R4A4_UNORM 115
+
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B5G6R5_UNORM, &support);		sh_config.texfmt[PTI_RGB565] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B5G5R5A1_UNORM, &support);	sh_config.texfmt[PTI_ARGB1555] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B4G4R4A4_UNORM, &support);	sh_config.texfmt[PTI_ARGB4444] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_R8G8B8A8_UNORM, &support);	sh_config.texfmt[PTI_RGBA8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8A8_UNORM, &support);	sh_config.texfmt[PTI_BGRA8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_B8G8R8X8_UNORM, &support);	sh_config.texfmt[PTI_BGRX8] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC1_UNORM, &support);		sh_config.texfmt[PTI_S3RGBA1] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC2_UNORM, &support);		sh_config.texfmt[PTI_S3RGBA3] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+	ID3D11Device_CheckFormatSupport(pD3DDev11, DXGI_FORMAT_BC3_UNORM, &support);		sh_config.texfmt[PTI_S3RGBA5] = !!(support & D3D11_FORMAT_SUPPORT_TEXTURE2D);
+
+	//these formats are not officially supported as specified, but noone cares
+	sh_config.texfmt[PTI_RGBX8] = sh_config.texfmt[PTI_RGBA8];
+	sh_config.texfmt[PTI_S3RGB1] = sh_config.texfmt[PTI_S3RGBA1];
 
 	vid.numpages = scd.BufferCount;
 	if (!D3D11Shader_Init(flevel))

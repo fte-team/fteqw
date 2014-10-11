@@ -1270,7 +1270,7 @@ void NPP_NQWriteAngle(int dest, float data);
 void NPP_NQWriteCoord(int dest, float data);
 void NPP_NQWriteFloat(int dest, float data);
 void NPP_NQWriteString(int dest, const char *data);
-void NPP_NQWriteEntity(int dest, short data);
+void NPP_NQWriteEntity(int dest, int data);
 
 void NPP_QWWriteByte(int dest, qbyte data);
 void NPP_QWWriteChar(int dest, char data);
@@ -1280,7 +1280,7 @@ void NPP_QWWriteAngle(int dest, float data);
 void NPP_QWWriteCoord(int dest, float data);
 void NPP_QWWriteFloat(int dest, float data);
 void NPP_QWWriteString(int dest, const char *data);
-void NPP_QWWriteEntity(int dest, short data);
+void NPP_QWWriteEntity(int dest, int data);
 
 
 

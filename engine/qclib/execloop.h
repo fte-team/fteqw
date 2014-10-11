@@ -451,13 +451,13 @@ reeval:
 		if ((unsigned)OPA->edict >= (unsigned)sv_num_edicts)
 		{
 			pr_xstatement = st-pr_statements;
-			
 			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD references invalid entity %i in %s", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
 			{
 				st--;
 				goto cont;
 			}
-			PR_RunError (&progfuncs->funcs, "OP_LOAD references invalid entity %i in %s", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			OPC->_int = 0;
+			break;
 		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
@@ -471,7 +471,15 @@ reeval:
 		if ((unsigned)OPA->edict >= (unsigned)sv_num_edicts)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "OP_LOAD_V references invalid entity %i in %s", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD_V references invalid entity %i in %s", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+			{
+				st--;
+				goto cont;
+			}
+			OPC->_vector[0] = 0;
+			OPC->_vector[1] = 0;
+			OPC->_vector[2] = 0;
+			break;
 		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID

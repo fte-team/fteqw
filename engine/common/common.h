@@ -336,8 +336,6 @@ char	*VARGS va(const char *format, ...) LIKEPRINTF(1);
 
 //============================================================================
 
-extern qboolean com_file_copyprotected;
-extern qboolean com_file_untrusted;
 struct cache_user_s;
 
 extern char	com_gamepath[MAX_OSPATH];
@@ -365,6 +363,22 @@ void COM_WriteFile (const char *filename, const void *data, int len);
 	#define qofs_Error(o) ((o) == ~0ul)
 #endif
 
+typedef struct searchpathfuncs_s searchpathfuncs_t;
+typedef struct searchpath_s
+{
+	searchpathfuncs_t *handle;
+
+	unsigned int flags;
+
+	char logicalpath[MAX_OSPATH];	//printable hunam-readable location of the package. generally includes a system path, including nested packages.
+	char purepath[256];	//server tracks the path used to load them so it can tell the client
+	int crc_check;	//client sorts packs according to this checksum
+	int crc_reply;	//client sends a different crc back to the server, for the paks it's actually loaded.
+	int orderkey;	//used to check to see if the paths were actually changed or not.
+
+	struct searchpath_s *next;
+	struct searchpath_s *nextpure;
+} searchpath_t;
 typedef struct {
 	struct searchpath_s	*search;			//used to say which filesystem driver to open the file from
 	int				index;					//used by the filesystem driver as a simple reference to the file
@@ -405,7 +419,6 @@ typedef struct vfsfile_s
 	char dbgname[MAX_QPATH];
 #endif
 } vfsfile_t;
-typedef struct searchpathfuncs_s searchpathfuncs_t;
 
 #define VFS_CLOSE(vf) ((vf)->Close(vf))
 #define VFS_TELL(vf) ((vf)->Tell(vf))

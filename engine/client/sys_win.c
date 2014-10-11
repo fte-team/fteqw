@@ -3258,6 +3258,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 					return 0;
 				}
 
+				/*
 				GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
 				for (e = cwd+strlen(cwd)-1; e >= cwd; e--)
 				{
@@ -3267,7 +3268,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 						break;
 					}
 				}
-
+*/
 			}
 		}
 

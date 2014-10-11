@@ -52,6 +52,12 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #define GL_UNSIGNED_INT_8_8_8_8_REV       0x8367	/*opengl 1.2*/
 #endif
 
+#ifndef GL_UNSIGNED_SHORT_4_4_4_4_REV
+#define GL_UNSIGNED_SHORT_4_4_4_4_REV      0x8365
+#endif
+#ifndef GL_UNSIGNED_SHORT_1_5_5_5_REV
+#define GL_UNSIGNED_SHORT_1_5_5_5_REV      0x8366
+#endif
 #ifndef GL_UNSIGNED_SHORT_4_4_4_4
 #define GL_UNSIGNED_SHORT_4_4_4_4         0x8033
 #endif

@@ -1550,7 +1550,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 	CL_ProxyMenuHooks();
 
-	if (cls.demoplayback != DPB_NONE || !cls.state)
+	if (cls.demoplayback != DPB_NONE || cls.state <= ca_demostart)
 	{
 		cursor_active = false;
 		if (!cls.state || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)

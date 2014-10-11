@@ -1303,7 +1303,7 @@ static void R_RenderMotionBlur(void)
 	shader_t *shader;
 
 	//figure out the size of our texture.
-	if (gl_config.texture_non_power_of_two_limited)
+	if (sh_config.texture_non_power_of_two_pic)
 	{	//we can use any size, supposedly
 		vwidth = vid.pixelwidth;
 		vheight = vid.pixelheight;
@@ -1618,7 +1618,7 @@ void GLR_RenderView (void)
 	}
 
 	//disable stuff if its simply not supported.
-	if (dofbo || !gl_config.arb_shader_objects || !gl_config.ext_framebuffer_objects || !gl_config.texture_non_power_of_two_limited)
+	if (dofbo || !gl_config.arb_shader_objects || !gl_config.ext_framebuffer_objects || !sh_config.texture_non_power_of_two_pic)
 		r_refdef.flags &= ~(RDF_ALLPOSTPROC);	//block all of this stuff
 
 

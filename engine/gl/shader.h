@@ -632,7 +632,11 @@ typedef struct
 	unsigned int minver;		//lowest glsl version usable
 	unsigned int maxver;		//highest glsl version usable
 
-	qboolean texture_non_power_of_two;
+	qboolean texfmt[PTI_MAX];		//which texture formats are supported (renderable not implied)
+	unsigned int texture_maxsize;	//max size of a 2d texture
+	qboolean texture_non_power_of_two;		//full support for npot
+	qboolean texture_non_power_of_two_pic;	//npot only works with clamp-to-edge mipless images.
+	qboolean npot_rounddown;				//memory limited systems can say that they want to use less ram.
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;

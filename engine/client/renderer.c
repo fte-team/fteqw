@@ -30,6 +30,7 @@ qboolean vid_isfullscreen;
 #define SCREENOPTIONS	"Screen Options"
 
 unsigned int	d_8to24rgbtable[256];
+unsigned int	d_8to24bgrtable[256];
 
 extern int gl_anisotropy_factor;
 
@@ -989,8 +990,10 @@ void R_GenPaletteLookup(void)
 		pal += 3;
 
 		d_8to24rgbtable[i] = (255<<24) + (r<<0) + (g<<8) + (b<<16);
+		d_8to24bgrtable[i] = (255<<24) + (b<<0) + (g<<8) + (r<<16);
 	}
 	d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
+	d_8to24bgrtable[255] &= 0xffffff;	// 255 is transparent
 }
 
 qboolean R_ApplyRenderer (rendererstate_t *newr)

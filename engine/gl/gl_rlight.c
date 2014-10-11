@@ -73,7 +73,10 @@ void R_AnimateLight (void)
 	{
 		int v1, v2, vd;
 		if (!cl_lightstyle[j].length)
+		{
+			d_lightstylevalue[j] = 256;
 			continue;
+		}
 
 		if (cl_lightstyle[j].map[0] == '=')
 		{
@@ -401,6 +404,9 @@ void R_GenDlightBatches(batch_t *batches[])
 	int i, j, sort;
 	dlight_t	*l;
 	batch_t		*b;
+	if (!r_lightprepass.ival)
+		return;
+
 	if (!lpplight_shader)
 		lpplight_shader = R_RegisterShader("lpp_light", SUF_NONE,
 						"{\n"

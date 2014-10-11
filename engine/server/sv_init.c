@@ -260,6 +260,12 @@ void SVNQ_CreateBaseline (void)
 				svent->baseline.modelindex = playermodel;
 		}
 		svent->baseline.modelindex&=255;	//FIXME
+
+		if (!svent->baseline.modelindex)
+		{
+			memcpy(&svent->baseline, &nullentitystate, sizeof(entity_state_t));
+			svent->baseline.number = entnum;
+		}
 	}
 }
 

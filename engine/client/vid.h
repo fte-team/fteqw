@@ -83,6 +83,7 @@ typedef struct
 extern	viddef_t	vid;				// global video state
 
 extern unsigned int	d_8to24rgbtable[256];
+extern unsigned int	d_8to24bgrtable[256];
 
 #ifdef GLQUAKE
 //called when gamma ramps need to be reapplied

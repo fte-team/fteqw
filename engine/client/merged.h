@@ -258,15 +258,28 @@ struct pendingtextureinfo
 	} type;
 	enum
 	{
+		//these formats are specified as direct byte access
 		PTI_RGBA8,	//rgba byte ordering
 		PTI_RGBX8,	//rgb pad byte ordering
 		PTI_BGRA8,	//alpha channel
 		PTI_BGRX8,	//no alpha channel
+		//these formats are specified in native endian order
+		PTI_RGB565,		//16bit alphaless format.
+		PTI_RGBA4444,	//16bit format (gl)
+		PTI_ARGB4444,	//16bit format (d3d)
+		PTI_RGBA5551,	//16bit alpha format (gl).
+		PTI_ARGB1555,	//16bit alpha format (d3d).
 		//compressed formats
 		PTI_S3RGB1,
 		PTI_S3RGBA1,
 		PTI_S3RGBA3,
-		PTI_S3RGBA5
+		PTI_S3RGBA5,
+		//depth formats
+		PTI_DEPTH16,
+		PTI_DEPTH24,
+		PTI_DEPTH32,
+		PTI_DEPTH24_8
+#define PTI_MAX PTI_DEPTH24_8+1
 	} encoding;	//0
 	int mipcount;
 	struct

@@ -38,7 +38,7 @@ static qboolean Sys_IsThread(void *thread)
 {
 	return pthread_equal(pthread_self(), *(pthread_t*)thread);
 }
-static qboolean Sys_IsMainThread(void)
+boolean Sys_IsMainThread(void)
 {
 	return Sys_IsThread(&mainthread);
 }

@@ -609,7 +609,7 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 		if (!Q_strnicmp(*name, "$rt:", 4))
 		{
 			*name += 4;
-			flags |= IF_RENDERTARGET;
+			flags |= IF_NOMIPMAP|IF_CLAMP|IF_LINEAR|IF_RENDERTARGET;
 		}
 		else if (!Q_strnicmp(*name, "$clamp:", 7))
 		{

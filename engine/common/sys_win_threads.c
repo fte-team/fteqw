@@ -148,12 +148,16 @@ void Sys_ThreadsInit(void)
 {
 	mainthread = GetCurrentThreadId();
 }
+qboolean Sys_IsMainThread(void)
+{
+	return mainthread == GetCurrentThreadId();
+}
+/*
 qboolean Sys_IsThread(void *thread)
 {
-	if (!thread)
-		return mainthread == GetCurrentThreadId();
 	return GetThreadId(thread) == GetCurrentThreadId();
 }
+*/
 
 /* Mutex calls */
 /*

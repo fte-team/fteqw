@@ -148,6 +148,61 @@ static void D3D11_PresentOrCrash(void)
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 static modestate_t modestate;
 
+//FIXME: need to push/pop render targets like gl does, to not harm shadowmaps/refraction/etc.
+void D3D11_ApplyRenderTargets(qboolean usedepth)
+{
+	unsigned int width = 0, height = 0;
+	int i;
+	texid_t textures[1];
+	texid_t depth;
+	ID3D11RenderTargetView *rtv[sizeof(textures)/sizeof(textures[0])];
+	ID3D11DepthStencilView *dsv;
+
+	for (i = 0; i < sizeof(textures)/sizeof(textures[0]); i++)
+	{
+		if (!*r_refdef.rt_destcolour[i].texname)
+			break;
+		textures[i] = R2D_RT_GetTexture(r_refdef.rt_destcolour[i].texname, &width, &height);
+		if (textures[i]->ptr2)
+		{
+			ID3D11ShaderResourceView_Release((ID3D11ShaderResourceView*)textures[i]->ptr2);
+			textures[i]->ptr2 = NULL;
+		}
+		ID3D11Device_CreateRenderTargetView(pD3DDev11, textures[i]->ptr, NULL, &rtv[i]);
+	}
+
+	if (usedepth)
+	{
+		if (*r_refdef.rt_depth.texname)
+			depth = R2D_RT_GetTexture(r_refdef.rt_depth.texname, &width, &height);
+		else
+			depth = R2D_RT_Configure("depth", width, height, 5);
+	}
+	else
+		depth = NULL;
+	if (depth && depth->ptr)
+	{
+		if (depth->ptr2)
+		{
+			ID3D11DepthStencilView_Release((ID3D11DepthStencilView*)depth->ptr2);
+			depth->ptr2 = NULL;
+		}
+		ID3D11Device_CreateDepthStencilView(pD3DDev11, depth->ptr, NULL, &dsv);
+	}
+	else
+		dsv = NULL;
+
+	ID3D11DeviceContext_OMSetRenderTargets(d3ddevctx, i, rtv, dsv);
+	for (i = 0; i < sizeof(textures)/sizeof(textures[0]); i++)
+		if (rtv[i])
+			ID3D11RenderTargetView_Release(rtv[i]);
+	if (dsv)
+	{
+		ID3D11DeviceContext_ClearDepthStencilView(d3ddevctx, dsv, D3D11_CLEAR_DEPTH, 1, 0);	//is it faster to clear the stencil too?
+		ID3D11DepthStencilView_Release(dsv);
+	}
+}
+
 
 #ifndef WINRT	//winrt crap has its own non-hwnd window crap, after years of microsoft forcing everyone to use hwnds for everything. I wonder why they don't have that many winrt apps.
 static void D3DVID_UpdateWindowStatus (HWND hWnd)
@@ -1351,14 +1406,20 @@ static void	(D3D11_R_RenderView)				(void)
 {
 	float x, x2, y, y2;
 	double time1 = 0, time2 = 0;
+	qboolean dofbo = *r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname;
+//	texid_t colourrt[1];
 
 	if (r_speeds.ival)
 		time1 = Sys_DoubleTime();
 
+	if (dofbo)
+		D3D11_ApplyRenderTargets(true);
+	else
+		ID3D11DeviceContext_ClearDepthStencilView(d3ddevctx, fb_backdepthstencil, D3D11_CLEAR_DEPTH, 1, 0);	//is it faster to clear the stencil too?
+
 	D3D11_SetupViewPort();
 	//unlike gl, we clear colour beforehand, because that seems more sane.
 	//always clear depth
-	ID3D11DeviceContext_ClearDepthStencilView(d3ddevctx, fb_backdepthstencil, D3D11_CLEAR_DEPTH, 1, 0);	//is it faster to clear the stencil too?
 
 	x = (r_refdef.vrect.x * (int)vid.pixelwidth)/(int)vid.width;
 	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.pixelwidth/(int)vid.width;
@@ -1388,6 +1449,9 @@ static void	(D3D11_R_RenderView)				(void)
 			R2D_ImageColours(0, 0, 0, 1);
 			R2D_FillBlock(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
 			R2D_ImageColours(1, 1, 1, 1);
+
+			if (dofbo)
+				D3D11_ApplyRenderTargets(false);
 			return;
 		}
 	Surf_DrawWorld();
@@ -1400,10 +1464,27 @@ static void	(D3D11_R_RenderView)				(void)
 		time2 = Sys_DoubleTime();
 		RQuantAdd(RQUANT_MSECS, (int)((time2-time1)*1000000));
 	}
+
+	if (dofbo)
+		D3D11_ApplyRenderTargets(false);
 }
 
 void D3D11BE_RenderToTextureUpdate2d(qboolean destchanged)
 {
+	if (destchanged)
+	{
+		if (*r_refdef.rt_destcolour[0].texname)
+			D3D11_ApplyRenderTargets(false);
+		else
+			ID3D11DeviceContext_OMSetRenderTargets(d3ddevctx, 1, &fb_backbuffer, fb_backdepthstencil);
+
+		D3D11_Set2D();
+	}
+	else
+	{
+//		shaderstate.tex_sourcecol = R2D_RT_GetTexture(r_refdef.rt_sourcecolour.texname, &width, &height);
+//		shaderstate.tex_sourcedepth = R2D_RT_GetTexture(r_refdef.rt_depth.texname, &width, &height);
+	}
 }
 
 rendererinfo_t d3d11rendererinfo =

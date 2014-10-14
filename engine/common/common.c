@@ -4710,7 +4710,7 @@ void COM_WorkerAbort(char *message)
 {
 	struct com_work_s work;
 	com_fatalerror = true;
-	if (Sys_IsThread(NULL))
+	if (Sys_IsMainThread())
 		return;
 
 	work.func = Sys_ErrorThread;
@@ -4834,7 +4834,7 @@ static void COM_WorkerSync_Stop(void *ctx, void *data, size_t a, size_t b)
 #ifndef COM_AssertMainThread
 void COM_AssertMainThread(const char *msg)
 {
-	if (com_resourcemutex && !Sys_IsThread(NULL))
+	if (com_resourcemutex && !Sys_IsMainThread())
 	{
 		Sys_Error("Not on main thread: %s", msg);
 	}

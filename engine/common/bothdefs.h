@@ -258,6 +258,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
+//software rendering is just too glitchy, don't use it.
+#if defined(SWQUAKE) && !defined(_DEBUG)
+	#undef SWQUAKE
+#endif
+
+
 //include a file to update the various configurations for game-specific configs (hopefully just names)
 #ifdef BRANDING_INC
 	#define STRINGIFY2(s) #s

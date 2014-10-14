@@ -616,8 +616,11 @@ void SWBE_DrawWorld(qboolean drawworld, qbyte *vis)
 }
 void SWBE_Init(void)
 {
-	memset(&r_config, 0, sizeof(r_config));
-	r_config.maxtexturesize = 512;
+	memset(&sh_config, 0, sizeof(sh_config));
+	sh_config.texfmt[PTI_BGRA8] = true;
+	sh_config.texfmt[PTI_BGRX8] = true;
+	sh_config.texfmt[PTI_RGBA8] = true;
+	sh_config.texfmt[PTI_RGBX8] = true;
 	BE_InitTables();
 }
 void SWBE_GenBrushModelVBO(struct model_s *mod)

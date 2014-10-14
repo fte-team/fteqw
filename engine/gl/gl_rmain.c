@@ -455,13 +455,20 @@ void R_SetupGL (float stereooffset)
 		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
-		GL_ViewportUpdate();
-
-		if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
+		if (*r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname)
+		{
+			r_refdef.pxrect.y = r_refdef.pxrect.maxheight - (r_refdef.pxrect.height+r_refdef.pxrect.y);
+			fov_y *= -1;
+			r_refdef.flipcull ^= SHADER_CULL_FLIP;
+		}
+		else if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
 		{
 			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
 		}
+
+		GL_ViewportUpdate();
+
 
 		if (r_refdef.useperspective)
 		{
@@ -826,7 +833,7 @@ void R_ObliqueNearClip(float *viewmat, mplane_t *wplane)
 	// by the inverse of the projection matrix
 
 	q[0] = (sgn(vplane[0]) + r_refdef.m_projection[8]) / r_refdef.m_projection[0];
-	q[1] = (sgn(vplane[1]) + r_refdef.m_projection[9]) / r_refdef.m_projection[5];
+	q[1] = (sgn(vplane[1]) + fabs(r_refdef.m_projection[9])) / fabs(r_refdef.m_projection[5]);
 	q[2] = -1.0F;
 	q[3] = (1.0F + r_refdef.m_projection[10]) / r_refdef.m_projection[14];
 
@@ -1058,7 +1065,6 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			TransformDir(vup, paxis, vaxis, vup);
 			Matrix4x4_CM_ModelViewMatrixFromAxis(vmat, vpn, vright, vup, r_refdef.vieworg);
 
-
 			//transform the old surface plane into the new view matrix
 			if (Matrix4_Invert(r_refdef.m_view, ivmat))
 			{
@@ -1163,6 +1169,8 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		r_refdef.flipcull |= SHADER_CULL_FLIP;
 	else
 		r_refdef.flipcull &= ~SHADER_CULL_FLIP;
+	if (r_refdef.m_projection[5]<0)
+		r_refdef.flipcull ^= SHADER_CULL_FLIP;
 	GL_CullFace(0);//make sure flipcull takes effect
 
 	//FIXME: just call Surf_DrawWorld instead?
@@ -1687,6 +1695,7 @@ void GLR_RenderView (void)
 		vid.fbpwidth = vid.pixelwidth;
 		vid.fbpheight = vid.pixelheight;
 	}
+	r_refdef.flipcull = 0;
 
 	if (qglPNTrianglesiATI)
 	{
@@ -1700,7 +1709,7 @@ void GLR_RenderView (void)
 			qglPNTrianglesiATI(GL_PN_TRIANGLES_NORMAL_MODE_ATI, GL_PN_TRIANGLES_NORMAL_MODE_QUADRATIC_ATI);
 			qglPNTrianglesiATI(GL_PN_TRIANGLES_POINT_MODE_ATI, GL_PN_TRIANGLES_POINT_MODE_CUBIC_ATI);
 		}
-	    qglPNTrianglesfATI(GL_PN_TRIANGLES_TESSELATION_LEVEL_ATI, gl_ati_truform_tesselation.value);
+		qglPNTrianglesfATI(GL_PN_TRIANGLES_TESSELATION_LEVEL_ATI, gl_ati_truform_tesselation.value);
 	}
 
 	if (gl_finish.ival)

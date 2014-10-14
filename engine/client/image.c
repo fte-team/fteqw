@@ -3368,6 +3368,26 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 
 	switch(fmt)
 	{
+	case TF_DEPTH16:
+		mips->encoding = PTI_DEPTH16;
+		break;
+	case TF_DEPTH24:
+		mips->encoding = PTI_DEPTH24;
+		break;
+	case TF_DEPTH32:
+		mips->encoding = PTI_DEPTH32;
+		break;
+	case TF_RGBA16F:
+	case TF_RGBA32F:
+		if (rawdata)
+		{
+			Con_Printf("R_LoadRawTexture: bad format");
+			if (freedata)
+				BZ_Free(rawdata);
+			return false;
+		}
+		break;
+
 	default:
 	case TF_INVALID:
 		Con_Printf("R_LoadRawTexture: bad format");

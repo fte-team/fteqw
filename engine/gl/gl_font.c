@@ -332,7 +332,7 @@ static void Font_Flush(void)
 		fontplanes.planechanged = false;
 	}
 	font_foremesh.istrifan = (font_foremesh.numvertexes == 4);
-	if (font_colourmask & CON_NONCLEARBG)
+	if ((font_colourmask & CON_NONCLEARBG) && font_foremesh.numindexes)
 	{
 		font_backmesh.numindexes = font_foremesh.numindexes;
 		font_backmesh.numvertexes = font_foremesh.numvertexes;
@@ -1426,6 +1426,8 @@ void Font_Free(struct font_s *f)
 //maps a given virtual screen coord to a pixel coord, which matches the font's height/width values
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 {
+	Font_Flush();
+
 	curfont = font;
 	*px = (vx*(int)vid.rotpixelwidth) / (float)vid.width;
 	*py = (vy*(int)vid.rotpixelheight) / (float)vid.height;
@@ -1433,6 +1435,7 @@ void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 	curfont_scale[0] = curfont->charheight;
 	curfont_scale[1] = curfont->charheight;
 	curfont_scaled = false;
+
 	font_colourmask = ~0u;	//force the colour to be recalculated.
 }
 void Font_Transform(float vx, float vy, int *px, int *py)
@@ -1444,6 +1447,8 @@ void Font_Transform(float vx, float vy, int *px, int *py)
 }
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py)
 {
+	Font_Flush();
+
 	curfont = font;
 	*px = (vx*(float)vid.rotpixelwidth) / (float)vid.width;
 	*py = (vy*(float)vid.rotpixelheight) / (float)vid.height;

@@ -40,6 +40,7 @@ typedef struct
 typedef struct
 {
 	int scoord[2];
+	float zicoord;
 	vec4_t vcoord;
 	vec2_t tccoord;
 	vec2_t lmcoord;

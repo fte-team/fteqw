@@ -4341,15 +4341,10 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				if (!shaderstate.tex_reflection)
 				{
 					shaderstate.tex_reflection = Image_CreateTexture("***tex_reflection***", NULL, 0);
-					qglGenTextures(1, &shaderstate.tex_reflection->num);
-					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection);
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+					if (!shaderstate.tex_reflection->num)
+						qglGenTextures(1, &shaderstate.tex_reflection->num);
 				}
-				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_RB_DEPTH, &shaderstate.tex_reflection, 1, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
+
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
 				r_refdef.vrect.width = vid.fbvwidth/2;
@@ -4358,6 +4353,18 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.pxrect.y = 0;
 				r_refdef.pxrect.width = vid.fbpwidth/2;
 				r_refdef.pxrect.height = vid.fbpheight/2;
+				if (shaderstate.tex_reflection->width!=r_refdef.pxrect.width || shaderstate.tex_reflection->height!=r_refdef.pxrect.height)
+				{
+					shaderstate.tex_reflection->width = r_refdef.pxrect.width;
+					shaderstate.tex_reflection->height = r_refdef.pxrect.height;
+					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection);
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, shaderstate.tex_reflection->width, shaderstate.tex_reflection->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				}
+				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_RB_DEPTH, &shaderstate.tex_reflection, 1, r_nulltex, shaderstate.tex_reflection->width, shaderstate.tex_reflection->height);
 				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
 				GL_ViewportUpdate();
 				GL_ForceDepthWritable();
@@ -4375,13 +4382,27 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				{
 					vrect_t ovrect = r_refdef.vrect;
 					pxrect_t oprect = r_refdef.pxrect;
+					r_refdef.vrect.x = 0;
+					r_refdef.vrect.y = 0;
+					r_refdef.vrect.width = vid.fbvwidth/2;
+					r_refdef.vrect.height = vid.fbvheight/2;
+					r_refdef.pxrect.x = 0;
+					r_refdef.pxrect.y = 0;
+					r_refdef.pxrect.width = vid.fbpwidth/2;
+					r_refdef.pxrect.height = vid.fbpheight/2;
 
 					if (!shaderstate.tex_refraction)
 					{
 						shaderstate.tex_refraction = Image_CreateTexture("***tex_refraction***", NULL, 0);
+						if (!shaderstate.tex_refraction->num)
 						qglGenTextures(1, &shaderstate.tex_refraction->num);
+					}
+					if (shaderstate.tex_refraction->width != r_refdef.pxrect.width || shaderstate.tex_refraction->height != r_refdef.pxrect.height)
+					{
+						shaderstate.tex_refraction->width = r_refdef.pxrect.width;
+						shaderstate.tex_refraction->height = r_refdef.pxrect.height;
 						GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refraction);
-						qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+						qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -4392,29 +4413,26 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 						if (!shaderstate.tex_refractiondepth)
 						{
 							shaderstate.tex_refractiondepth = Image_CreateTexture("***tex_refractiondepth***", NULL, 0);
-							qglGenTextures(1, &shaderstate.tex_refractiondepth->num);
+							if (!shaderstate.tex_refractiondepth->num)
+								qglGenTextures(1, &shaderstate.tex_refractiondepth->num);
+						}
+						if (shaderstate.tex_refractiondepth->width != r_refdef.pxrect.width || shaderstate.tex_refractiondepth->height != r_refdef.pxrect.height)
+						{
+							shaderstate.tex_refractiondepth->width = r_refdef.pxrect.width;
+							shaderstate.tex_refractiondepth->height = r_refdef.pxrect.height;
 							GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refractiondepth);
-							qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+							qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 							qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 						}
-						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_TEX_DEPTH, &shaderstate.tex_refraction, 1, shaderstate.tex_refractiondepth, vid.pixelwidth/2, vid.pixelheight/2);
+						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_TEX_DEPTH, &shaderstate.tex_refraction, 1, shaderstate.tex_refractiondepth, r_refdef.pxrect.width, r_refdef.pxrect.height);
 					}
 					else
 					{
-						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_RB_DEPTH, &shaderstate.tex_refraction, 1, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
+						oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, FBO_RB_DEPTH, &shaderstate.tex_refraction, 1, r_nulltex, r_refdef.pxrect.width, r_refdef.pxrect.height);
 					}
-
-					r_refdef.vrect.x = 0;
-					r_refdef.vrect.y = 0;
-					r_refdef.vrect.width = vid.fbvwidth/2;
-					r_refdef.vrect.height = vid.fbvheight/2;
-					r_refdef.pxrect.x = 0;
-					r_refdef.pxrect.y = 0;
-					r_refdef.pxrect.width = vid.fbpwidth/2;
-					r_refdef.pxrect.height = vid.fbpheight/2;
 					r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
 					GL_ViewportUpdate();
 
@@ -4435,19 +4453,6 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			{
 				vrect_t orect = r_refdef.vrect;
 				pxrect_t oprect = r_refdef.pxrect;
-				if (!shaderstate.tex_ripplemap)
-				{
-					//FIXME: can we use RGB8 instead?
-					shaderstate.tex_ripplemap = Image_CreateTexture("***tex_ripplemap***", NULL, 0);
-					qglGenTextures(1, &shaderstate.tex_ripplemap->num);
-					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap);
-					qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F_ARB, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-				}
-				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, 0, &shaderstate.tex_ripplemap, 1, r_nulltex, vid.pixelwidth/2, vid.pixelheight/2);
 				r_refdef.vrect.x = 0;
 				r_refdef.vrect.y = 0;
 				r_refdef.vrect.width = vid.fbvwidth/2;
@@ -4456,6 +4461,26 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.pxrect.y = 0;
 				r_refdef.pxrect.width = vid.fbpwidth/2;
 				r_refdef.pxrect.height = vid.fbpheight/2;
+
+				if (!shaderstate.tex_ripplemap)
+				{
+					//FIXME: can we use RGB8 instead?
+					shaderstate.tex_ripplemap = Image_CreateTexture("***tex_ripplemap***", NULL, 0);
+					if (!shaderstate.tex_ripplemap->num)
+						qglGenTextures(1, &shaderstate.tex_ripplemap->num);
+				}
+				if (shaderstate.tex_ripplemap->width != r_refdef.pxrect.width || shaderstate.tex_ripplemap->height != r_refdef.pxrect.height)
+				{
+					shaderstate.tex_ripplemap->width = r_refdef.pxrect.width;
+					shaderstate.tex_ripplemap->height = r_refdef.pxrect.height;
+					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap);
+					qglTexImage2D(GL_TEXTURE_2D, 0, /*(gl_config.glversion>3.1)?GL_RGBA8_SNORM:*/GL_RGBA16F_ARB, r_refdef.pxrect.width, r_refdef.pxrect.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				}
+				oldfbo = GLBE_FBO_Update(&shaderstate.fbo_reflectrefrac, 0, &shaderstate.tex_ripplemap, 1, r_nulltex, r_refdef.pxrect.width, r_refdef.pxrect.height);
 				r_refdef.pxrect.maxheight = shaderstate.fbo_reflectrefrac.rb_size[1];
 				GL_ViewportUpdate();
 

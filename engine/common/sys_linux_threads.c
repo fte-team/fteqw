@@ -34,11 +34,13 @@ void Sys_ThreadsInit(void)
 {
 	mainthread = pthread_self();
 }
-qboolean Sys_IsThread(void *thread)
+static qboolean Sys_IsThread(void *thread)
 {
-	if (!thread)
-		thread = &mainthread;
 	return pthread_equal(pthread_self(), *(pthread_t*)thread);
+}
+static qboolean Sys_IsMainThread(void)
+{
+	return Sys_IsThread(&mainthread);
 }
 void Sys_ThreadAbort(void)
 {

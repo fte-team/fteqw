@@ -844,7 +844,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
 
-	if (!Sys_IsThread(NULL))
+	if (!Sys_IsMainThread())
 	{
 		COM_AddWork(0, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
 		return;

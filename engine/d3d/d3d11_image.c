@@ -125,6 +125,13 @@ qboolean D3D11_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 	tdesc.CPUAccessFlags = (mips->mip[0].data)?0:D3D11_CPU_ACCESS_WRITE;
 	tdesc.MiscFlags = 0;
 
+	if (tex->flags & IF_RENDERTARGET)
+	{
+		tdesc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+		tdesc.Usage = D3D11_USAGE_DEFAULT;
+		tdesc.CPUAccessFlags = 0;
+	}
+
 	if (mips->type == PTI_CUBEMAP)
 	{
 		tdesc.ArraySize *= 6;
@@ -140,6 +147,22 @@ qboolean D3D11_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 	{
 	default:
 		return false;
+	case PTI_DEPTH16:
+		tdesc.Format = DXGI_FORMAT_D16_UNORM;
+		tdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+		break;
+	case PTI_DEPTH24:
+		tdesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		tdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+		break;
+	case PTI_DEPTH32:
+		tdesc.Format = DXGI_FORMAT_D32_FLOAT;
+		tdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+		break;
+	case PTI_DEPTH24_8:
+		tdesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		tdesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+		break;
 	case PTI_RGB565:
 		tdesc.Format = DXGI_FORMAT_B5G6R5_UNORM;
 		break;

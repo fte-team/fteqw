@@ -1312,7 +1312,7 @@ void R2D_DrawCrosshair(void)
 	R2D_ImageColours(1, 1, 1, 1);
 }
 
-#define RT_IMAGEFLAGS IF_NOMIPMAP|IF_CLAMP|IF_LINEAR
+#define RT_IMAGEFLAGS IF_NOMIPMAP|IF_CLAMP|IF_LINEAR|IF_RENDERTARGET
 static texid_t internalrt;
 //resize a texture for a render target and specify the format of it.
 //pass TF_INVALID and sizes=0 to get without configuring (shaders that hardcode an $rt1 etc).

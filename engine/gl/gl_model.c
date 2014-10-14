@@ -1470,7 +1470,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, char *loadname, texture_t *tx, mi
 			{
 				maps &= ~LMT_BUMP;
 				snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-				tx->texnums.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_MIPCAP|IF_TRYBUMP, mipbase, mipwidth, mipheight, TF_HEIGHT8PAL);
+				tx->texnums.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_MIPCAP|IF_TRYBUMP|(*mt->name == '*'?IF_LINEAR:0), mipbase, mipwidth, mipheight, TF_HEIGHT8PAL);
 			}
 		}
 

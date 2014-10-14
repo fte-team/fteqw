@@ -14,6 +14,8 @@
 	#define restrict
 #endif
 
+#define ZI_MAX	0xffff
+
 /*
 Our software rendering basically works like this:
 
@@ -39,8 +41,19 @@ struct workqueue_s spanqueue;
 
 static void WT_Triangle(swthread_t *th, swimage_t *img, swvert_t *v1, swvert_t *v2, swvert_t *v3)
 {
+	//affine vs correct:
+	//to correct perspective, divide interpolants by z.
+	//per pixel, divide by interpolated 1 (actually 1/z)
+
 	unsigned int tpix;
+#if 1
+	#define PERSPECTIVE(v) (v>>16)
+#else
+	#define PERSPECTIVE(v) (v/zi)
+	#define SPAN_ZI
+#endif
 #define SPAN_ST
+
 #define SPAN_Z
 #define PLOT_PIXEL(o) \
 	{	\
@@ -48,8 +61,8 @@ static void WT_Triangle(swthread_t *th, swimage_t *img, swvert_t *v1, swvert_t *
 		{	\
 			*zb = z;	\
 		tpix = img->data[	\
-					((unsigned)(s>>16)&img->pwidthmask)	\
-					+ (((unsigned)(t>>16)&img->pheightmask) * img->pitch)	\
+					((unsigned)PERSPECTIVE(s)&img->pwidthmask)	\
+					+ (((unsigned)PERSPECTIVE(t)&img->pheightmask) * img->pitch)	\
 				];	\
 		if (tpix&0xff000000) \
 			o = tpix; \
@@ -74,10 +87,17 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 	swvert_t *vt;
 	int y;
 	int secondhalf;
+
+	//l=value on left
+	//ld=change per y (on left)
+	//d=change per x
 	int xl,xld, xr,xrd;
 #ifdef SPAN_ST
 	int sl,sld, sd;
 	int tl,tld, td;
+#endif
+#ifdef SPAN_ZI
+	int zil, zild, zid;
 #endif
 #ifdef SPAN_Z
 	int zl,zld, zd;
@@ -136,8 +156,8 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 				return;
 			if (v[i]->scoord[1] < 0 || v[i]->scoord[1] > th->vpheight)
 				return;
-//			if (v[i]->scoord[3] < 0)
-//				return;
+			if (v[i]->zicoord < 0)
+				return;
 		}
 
 		for (i = 0; i < 2; i++)
@@ -178,9 +198,15 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 	tld = fdx1*d2 - fdx2*d1;
 	td = fdy2*d1 - fdy1*d2;
 #endif
+#ifdef SPAN_ZI
+	d1 = (1<<16);
+	d2 = (1<<16);
+	zild = 0;//fdx1*d2 - fdx2*d1;
+	zid = 0;//fdy2*d1 - fdy1*d2;
+#endif
 #ifdef SPAN_Z
-	d1 = (v2->vcoord[3] - v1->vcoord[3])*(1<<16);
-	d2 = (v3->vcoord[3] - v1->vcoord[3])*(1<<16);
+	d1 = (v2->zicoord - v1->zicoord)*(1<<16);
+	d2 = (v3->zicoord - v1->zicoord)*(1<<16);
 	zld = fdx1*d2 - fdx2*d1;
 	zd = fdy2*d1 - fdy1*d2;
 #endif
@@ -208,6 +234,9 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 				sl += sld*interlace;
 				tl += tld*interlace;
 #endif
+#ifdef SPAN_ZI
+				zil += zild*interlace;
+#endif
 #ifdef SPAN_Z
 				zl += zld*interlace;
 #endif
@@ -226,6 +255,9 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 #ifdef SPAN_ST
 				sld -= (((long long)sd*xld)>>16);
 				tld -= (((long long)td*xld)>>16);
+#endif
+#ifdef SPAN_ZI
+				zild -= (((long long)zid*xld)>>16);
 #endif
 #ifdef SPAN_Z
 				zld -= (((long long)zd*xld)>>16);
@@ -281,8 +313,12 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 			tl = vlt->tccoord[1] * (img->pheight<<16);
 			tld = tld + (((long long)td*xld+32767)>>16);
 #endif
+#ifdef SPAN_ZI
+			zil = (1<<16);///vlt->zicoord;
+			zild = zild + (((long long)zid*xld)>>16);
+#endif
 #ifdef SPAN_Z
-			zl = vlt->vcoord[3] * (1<<16);
+			zl = vlt->zicoord * (1<<16);
 			zld = zld + (((long long)zd*xld)>>16);
 #endif
 		}
@@ -328,6 +364,9 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 			sl += sld*interlace;
 			tl += tld*interlace;
 #endif
+#ifdef SPAN_ZI
+			zil += zild*interlace;
+#endif
 #ifdef SPAN_Z
 			zl += zld*interlace;
 #endif
@@ -344,6 +383,9 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 			,sl += sld*th->interlacemod
 			,tl += tld*th->interlacemod
 #endif
+#ifdef SPAN_ZI
+			,zil += zild*th->interlacemod
+#endif
 #ifdef SPAN_Z
 			,zl += zld*th->interlacemod
 #endif
@@ -353,6 +395,11 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 			unsigned int s = sl;
 			unsigned int t = tl;
 #endif
+#ifdef SPAN_ZI
+			unsigned int zi = zil;
+#else
+			const unsigned int zi = (1<<16);
+#endif
 #ifdef SPAN_Z
 			unsigned int z = zl;
 			unsigned int *restrict zb = th->vpdbuf + y * th->vpwidth + (xl>>16);
@@ -361,7 +408,7 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 			spanlen = (xr - xl)>>16;
 			outbuf = vplout + (xl>>16);
 
-			while(spanlen-->=0)
+			while(spanlen-->0)
 			{
 				PLOT_PIXEL(*outbuf);
 				outbuf++;
@@ -369,6 +416,9 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 #ifdef SPAN_ST
 				s += sd;
 				t += td;
+#endif
+#ifdef SPAN_ZI
+				zi += zid;
 #endif
 #ifdef SPAN_Z
 				z += zd;
@@ -388,52 +438,52 @@ SPAN_ST - interpolates S+T across the span. access with 'sc' and 'tc'
 static void WT_Clip_Top(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	(1 - in->scoord[1]) /
-			(out->scoord[1] - in->scoord[1]);
+	frac =	(0 - in->scoord[1]) /
+			(float)(out->scoord[1] - in->scoord[1]);
 	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
-	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
-//	result->vcoord[1] = 0;
+	FloatInterpolate(in->zicoord, frac, out->zicoord, result->zicoord);
+	result->scoord[1] = 0;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
 static void WT_Clip_Bottom(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	((th->vpheight) - in->vcoord[1]) /
-			(out->vcoord[1] - in->vcoord[1]);
+	frac =	((th->vpheight) - in->scoord[1]) /
+			(float)(out->scoord[1] - in->scoord[1]);
 	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
-	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
-//	result->vcoord[1] = vid.pixelheight-1;
+	FloatInterpolate(in->zicoord, frac, out->zicoord, result->zicoord);
+	result->scoord[1] = th->vpheight;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
 static void WT_Clip_Left(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	(1 - in->vcoord[0]) /
-			(out->vcoord[0] - in->vcoord[0]);
+	frac =	(0 - in->scoord[0]) /
+			(float)(out->scoord[0] - in->scoord[0]);
 	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
-	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
-//	result->vcoord[0] = 0;
+	FloatInterpolate(in->zicoord, frac, out->zicoord, result->zicoord);
+	result->scoord[0] = 0;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
 static void WT_Clip_Right(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float frac;
-	frac =	((th->vpwidth) - in->vcoord[0]) /
-			(out->vcoord[0] - in->vcoord[0]);
+	frac =	((th->vpwidth) - in->scoord[0]) /
+			(float)(out->scoord[0] - in->scoord[0]);
 	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
-	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
-//	result->vcoord[0] = vid.pixelwidth-1;
+	FloatInterpolate(in->zicoord, frac, out->zicoord, result->zicoord);
+	result->scoord[0] = th->vpwidth;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
 static void WT_Clip_Near(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *result)
 {
 	float nearclip = 0;
 	double frac;
-	frac =	(nearclip - in->vcoord[3]) /
-			(out->vcoord[3] - in->vcoord[3]);
-	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
-	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
-	result->vcoord[3] = nearclip;
+	frac =	(nearclip - in->zicoord) /
+			(out->zicoord - in->zicoord);
+	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+	FloatInterpolate(in->zicoord, frac, out->zicoord, result->zicoord);
+	result->zicoord = nearclip;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
 
@@ -441,11 +491,11 @@ static void WT_Clip_Far(swthread_t *th, swvert_t *out, swvert_t *in, swvert_t *r
 {
 	float farclip = 1;
 	double frac;
-	frac =	(farclip - in->vcoord[3]) /
-			(out->vcoord[3] - in->vcoord[3]);
-	Vector2Interpolate(in->scoord, frac, out->scoord, result->scoord);
-	Vector2Interpolate(in->vcoord+2, frac, out->vcoord+2, result->vcoord+2);
-	result->vcoord[3] = farclip;
+	frac =	(farclip - in->zicoord) /
+			(out->zicoord - in->zicoord);
+	VectorInterpolate(in->vcoord, frac, out->vcoord, result->vcoord);
+	FloatInterpolate(in->zicoord, frac, out->zicoord, result->zicoord);
+	result->zicoord = farclip;
 	Vector2Interpolate(in->tccoord, frac, out->tccoord, result->tccoord);
 }
 
@@ -482,9 +532,9 @@ static int WT_ClipPoly(swthread_t *th, int incount, swvert_t *inv, swvert_t *out
 			if (outv[result].scoord[1] > th->vpheight)
 				outv[result].clipflags |= CLIP_BOTTOM_FLAG;
 
-			if (outv[result].scoord[3] < 0)
+			if (outv[result].zicoord < 0)
 				outv[result].clipflags |= CLIP_NEAR_FLAG;
-			if (outv[result].scoord[3] > 1)
+			if (outv[result].zicoord > ZI_MAX)
 				outv[result].clipflags |= CLIP_FAR_FLAG;
 
 			result++;
@@ -522,6 +572,7 @@ static int WT_TransformVertXY(swthread_t *th, swvert_t *v)
 		result |= CLIP_TOP_FLAG;
 	if (v->scoord[1] > th->vpheight)
 		result |= CLIP_BOTTOM_FLAG;
+
 	v->clipflags = result;
 
 	return result;
@@ -536,12 +587,12 @@ static void WT_ClipTriangle(swthread_t *th, swimage_t *img, swvert_t *v1, swvert
 	int count;
 
 	//check the near/far planes.
-	v1->vcoord[3] = DotProduct(v1->vcoord, th->u.viewplane) - th->u.viewplane[3];
-	if (v1->vcoord[3] < 0) v1->clipflags = CLIP_NEAR_FLAG; else if (v1->vcoord[3] > 1) v1->clipflags = CLIP_FAR_FLAG; else v1->clipflags = 0;
-	v2->vcoord[3] = DotProduct(v2->vcoord, th->u.viewplane) - th->u.viewplane[3];
-	if (v2->vcoord[3] < 0) v2->clipflags = CLIP_NEAR_FLAG; else if (v2->vcoord[3] > 1) v2->clipflags = CLIP_FAR_FLAG; else v2->clipflags = 0;
-	v3->vcoord[3] = DotProduct(v3->vcoord, th->u.viewplane) - th->u.viewplane[3];
-	if (v3->vcoord[3] < 0) v3->clipflags = CLIP_NEAR_FLAG; else if (v3->vcoord[3] > 1) v3->clipflags = CLIP_FAR_FLAG; else v3->clipflags = 0;
+	v1->zicoord = DotProduct(v1->vcoord, th->u.viewplane) - th->u.viewplane[3];
+	if (v1->zicoord < 0) v1->clipflags = CLIP_NEAR_FLAG; else if (v1->zicoord >= ZI_MAX) v1->clipflags = CLIP_FAR_FLAG; else v1->clipflags = 0;
+	v2->zicoord = DotProduct(v2->vcoord, th->u.viewplane) - th->u.viewplane[3];
+	if (v2->zicoord < 0) v2->clipflags = CLIP_NEAR_FLAG; else if (v2->zicoord >= ZI_MAX) v2->clipflags = CLIP_FAR_FLAG; else v2->clipflags = 0;
+	v3->zicoord = DotProduct(v3->vcoord, th->u.viewplane) - th->u.viewplane[3];
+	if (v3->zicoord < 0) v3->clipflags = CLIP_NEAR_FLAG; else if (v3->zicoord >= ZI_MAX) v3->clipflags = CLIP_FAR_FLAG; else v3->clipflags = 0;
 
 	if (v1->clipflags & v2->clipflags & v3->clipflags)
 		return;	//all verticies are off at least one plane
@@ -565,6 +616,7 @@ static void WT_ClipTriangle(swthread_t *th, swimage_t *img, swvert_t *v1, swvert
 		//clip to the screen
 		if (cflags & CLIP_NEAR_FLAG)
 		{
+//			return;
 			count = WT_ClipPoly(th, count, final[list], final[list^1], CLIP_NEAR_FLAG, WT_Clip_Near);
 			list ^= 1;
 		}
@@ -889,63 +941,6 @@ void SW_R_RenderView(void)
 
 	cl_numvisedicts = tmpvisents;
 }
-void SW_R_NewMap(void)
-{
-	char namebuf[MAX_QPATH];
-	extern cvar_t host_mapname, r_shadow_realtime_dlight, r_shadow_realtime_world;
-	int		i;
-	
-	for (i=0 ; i<256 ; i++)
-		d_lightstylevalue[i] = 264;		// normal light value
-
-	memset (&r_worldentity, 0, sizeof(r_worldentity));
-	AngleVectors(r_worldentity.angles, r_worldentity.axis[0], r_worldentity.axis[1], r_worldentity.axis[2]);
-	VectorInverse(r_worldentity.axis[1]);
-	r_worldentity.model = cl.worldmodel;
-	Vector4Set(r_worldentity.shaderRGBAf, 1, 1, 1, 1);
-
-
-	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf, sizeof(namebuf));
-	Cvar_Set(&host_mapname, namebuf);
-
-	Surf_DeInit();
-
-	r_viewleaf = NULL;
-	r_viewcluster = -1;
-	r_oldviewcluster = 0;
-	r_viewcluster2 = -1;
-
-	Mod_ParseInfoFromEntityLump(cl.worldmodel, cl.worldmodel->entities, cl.worldmodel->name);
-
-	P_ClearParticles ();
-	Surf_WipeStains();
-	CL_RegisterParticles();
-	Surf_BuildLightmaps ();
-
-
-#ifdef VM_UI
-	UI_Reset();
-#endif
-
-	TP_NewMap();
-	R_SetSky(cl.skyname);
-
-#ifdef MAP_PROC
-	if (cl.worldmodel->fromgame == fg_doom3)
-		D3_GenerateAreas(cl.worldmodel);
-#endif
-
-#ifdef RTLIGHTS
-	Sh_PreGenerateLights();
-#endif
-}
-void SW_R_PreNewMap(void)
-{
-	r_viewleaf = NULL;
-	r_oldviewleaf = NULL;
-	r_viewleaf2 = NULL;
-	r_oldviewleaf2 = NULL;
-}
 void SW_SCR_UpdateScreen(void)
 {
 	wqcom_t *com;
@@ -981,6 +976,8 @@ void SW_SCR_UpdateScreen(void)
 	SWRast_EndCommand(&commandqueue, com);
 
 	Shader_DoReload();
+
+	R2D_Font_Changed();
 
 	//FIXME: playfilm/editor+q3ui
 	SCR_SetUpToDrawConsole ();

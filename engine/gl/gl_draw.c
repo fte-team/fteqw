@@ -144,6 +144,8 @@ void GL_Set2D (qboolean flipped)
 		R2D_RT_GetTexture(r_refdef.rt_destcolour[0].texname, &vid.fbpwidth, &vid.fbpheight);
 		vid.fbvwidth = vid.fbpwidth;
 		vid.fbvheight = vid.fbpheight;
+
+		flipped ^= true;
 	}
 	else
 	{

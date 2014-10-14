@@ -202,7 +202,7 @@ void Cbuf_AddText (const char *text, int level)
 {
 	int		l;
 
-	if (!Sys_IsThread(NULL))
+	if (!Sys_IsMainThread())
 	{
 		COM_AddWork(0, Cbuf_WorkerAddText, NULL, Z_StrDup(text), level, 0);
 		return;

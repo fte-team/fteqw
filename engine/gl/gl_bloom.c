@@ -115,15 +115,8 @@ static void R_SetupBloomTextures(int w, int h)
 			{
 				sprintf(name, "***bloom*%c*%i***", 'a'+i, j);
 				TEXASSIGN(pingtex[i][j], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
-				qglGenTextures(1, &pingtex[i][j]->num);
 			}
-			GL_MTBind(0, GL_TEXTURE_2D, pingtex[i][j]);
-			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, texwidth[j], texheight[j], 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			Image_Upload(pingtex[i][j], TF_RGBA32, NULL, NULL, texwidth[j], texheight[j], IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR);
 		}
 	}
 

@@ -290,7 +290,7 @@ static qboolean InitFlyby(playerview_t *pv, vec3_t selforigin, vec3_t playerorig
 	}
 
 	pv->cam_locked = true;
-	pv->viewentity = pv->cam_spec_track+1;
+	pv->viewentity = pv->playernum+1;//pv->cam_spec_track+1;
 	VectorCopy(vec, pv->cam_desired_position); 
 	return true;
 }
@@ -405,7 +405,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	if (cl_hightrack.value && !pv->cam_locked)
 		Cam_CheckHighTarget(pv);
 
-	if (!pv->cam_auto || cls.state != ca_active || cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
+	if (!pv->cam_auto || cls.state != ca_active || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
 	if (pv->cam_locked && (!cl.players[pv->cam_spec_track].name[0] || cl.players[pv->cam_spec_track].spectator))
@@ -468,6 +468,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 		}
 		self->weaponframe = player->weaponframe;
 
+		VectorCopy(player->viewangles, pv->viewangles);
 		return;
 	}
 	

@@ -911,6 +911,17 @@ void CL_PredictMovePNum (int seat)
 			VectorCopy (pv->viewangles, pv->simangles);
 	}
 
+	if (pv->cam_locked && pv->cam_spec_track >= 0)
+	{
+		extern cvar_t cl_chasecam;
+		if (!cl_chasecam.ival)
+		{
+			VectorCopy(pv->cam_desired_position, pv->simorg);
+			VectorClear(pv->simvel);
+			return;
+		}
+	}
+
 	if (!pv->cam_locked && pv->cam_auto && cl.spectator && pv->cam_spec_track >= 0 && pv->cam_spec_track < cl.allocated_client_slots && pv->viewentity != pv->cam_spec_track+1)
 	{
 		if (cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[pv->cam_spec_track].messagenum == cl.validsequence)

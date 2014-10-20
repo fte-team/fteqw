@@ -3708,28 +3708,21 @@ void CL_LinkProjectiles (void)
 
 	for (i=0, pr=cl_projectiles ; i<cl_num_projectiles ; i++, pr++)
 	{
+		if (pr->modelindex < 1)
+			continue;
+
 		// grab an entity to fill in
 		if (cl_numvisedicts == cl_maxvisedicts)
 			break;		// object list is full
 		ent = &cl_visedicts[cl_numvisedicts];
 		cl_numvisedicts++;
-		ent->light_known = 0;
-		ent->keynum = 0;
+		memset(ent, 0, sizeof(*ent));
 
-		if (pr->modelindex < 1)
-			continue;
-
-		ent->forcedshader = NULL;
 		ent->model = cl.model_precache[pr->modelindex];
-		ent->skinnum = 0;
-		memset(&ent->framestate, 0, sizeof(ent->framestate));
-		ent->flags = 0;
 		ent->playerindex = -1;
 		ent->topcolour = TOP_DEFAULT;
 		ent->bottomcolour = BOTTOM_DEFAULT;
-#ifdef HEXEN2
-		ent->h2playerclass = 0;
-#endif
+
 #ifdef PEXT_SCALE
 		ent->scale = 1;
 #endif
@@ -4436,12 +4429,9 @@ void CL_LinkPlayers (void)
 			break;		// object list is full
 		ent = &cl_visedicts[cl_numvisedicts];
 		cl_numvisedicts++;
-		ent->light_known = 0;
+		memset(ent, 0, sizeof(*ent));
 		ent->keynum = j+1;
-		ent->flags = 0;
 		ent->model = model;
-		ent->forcedshader = NULL;
-		ent->customskin = 0;
 
 		ent->skinnum = state->skinnum;
 

@@ -2024,7 +2024,7 @@ char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink)
 				if (*cur == CON_LINKSTART)
 					break;
 			}
-			while (finalendoffset < con->selendline->length)
+			while (finalendoffset < l->length)
 			{
 				uc = (((conchar_t*)(l+1))[finalendoffset] & CON_CHARMASK);
 				if (uc != ' ' && uc != '\t' && ((conchar_t*)(l+1))[finalendoffset] != CON_LINKEND)
@@ -2034,9 +2034,9 @@ char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink)
 			}
 		}
 	}
-	
+
 	//scan backwards to find any link enclosure
-	for(lend = cur; lend >= (conchar_t*)(l+1); lend--)
+	for(lend = cur-1; lend >= (conchar_t*)(l+1); lend--)
 	{
 		if (*lend == CON_LINKSTART)
 		{
@@ -2051,7 +2051,7 @@ char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink)
 		}
 	}
 	//scan forwards to find the end of the selected link
-	if (*cur == CON_LINKSTART)
+	if (l->length && *cur == CON_LINKSTART)
 	{
 		for(lend = (conchar_t*)(con->selendline+1) + finalendoffset; lend < (conchar_t*)(con->selendline+1) + con->selendline->length; lend++)
 		{

@@ -525,7 +525,8 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 		case QR_OPENGL:
 			if (!qglGenBuffersARB)
 				return sh_shmesh;
-			qglGenBuffersARB(2, sh_shmesh->vebo);
+			if (!sh_shmesh->vebo[0])
+				qglGenBuffersARB(2, sh_shmesh->vebo);
 
 			GL_DeselectVAO();
 			GL_SelectVBO(sh_shmesh->vebo[0]);

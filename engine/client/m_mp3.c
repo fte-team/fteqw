@@ -151,6 +151,7 @@ qboolean Media_BackgroundTrack(const char *track, const char *looptrack)
 		Q_strncpyz(currenttrack.filename, trackname, sizeof(currenttrack.filename));
 		fakecdactive = true;
 		media_playing = true;
+		cdplayingtrack = tracknum;
 		return true;
 	}
 #endif

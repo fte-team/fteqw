@@ -548,6 +548,12 @@ void CL_CalcClientTime(void)
 	{
 		float oldst = realtime;
 
+		if (cls.demoplayback && cls.timedemo)
+		{	//more deterministic. one frame is drawn per demo packet parsed. so sync to it as closely as possible.
+			/*NOTE: this also has the effect of speeding up particles etc*/
+			extern float olddemotime;
+			cl.servertime = olddemotime;
+		}
 		if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD && !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 		{
 			extern float nextdemotime, olddemotime, demtime;

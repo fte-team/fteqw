@@ -94,6 +94,8 @@ extern cvar_t vid_width;
 extern cvar_t vid_height;
 extern cvar_t vid_wndalpha;
 
+const char *wgl_extensions;
+
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 
 BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info);
@@ -174,6 +176,8 @@ extern cvar_t		vid_gl_context_debug;
 extern cvar_t		vid_gl_context_es;
 extern cvar_t		vid_gl_context_forwardcompatible;
 extern cvar_t		vid_gl_context_compatibility;
+extern cvar_t		vid_gl_context_robustness;
+extern cvar_t		vid_gl_context_selfreset;
 
 int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
 RECT		window_rect;
@@ -415,14 +419,16 @@ HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, cons
 #define WGL_CONTEXT_FLAGS_ARB				0x2094
 #define		WGL_CONTEXT_DEBUG_BIT_ARB					0x0001
 #define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB		0x0002
-#define WGL_CONTEXT_PROFILE_MASK_ARB		0x9126
+#define		WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB			0x0004 /*WGL_ARB_create_context_robustness*/
+#define WGL_CONTEXT_PROFILE_MASK_ARB		0x9126		/*WGL_ARB_create_context_profile*/
 #define		WGL_CONTEXT_CORE_PROFILE_BIT_ARB			0x00000001
 #define		WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB	0x00000002
 #define		WGL_CONTEXT_ES2_PROFILE_BIT_EXT				0x00000004	/*WGL_CONTEXT_ES2_PROFILE_BIT_EXT*/
 #define ERROR_INVALID_VERSION_ARB			0x2095
 #define	ERROR_INVALID_PROFILE_ARB		0x2096
-
-
+#define WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB		0x8256	/*WGL_ARB_create_context_robustness*/
+#define		WGL_NO_RESET_NOTIFICATION_ARB					0x8261
+#define		WGL_LOSE_CONTEXT_ON_RESET_ARB					0x8252
 
 qboolean GLInitialise (char *renderer)
 {
@@ -1196,6 +1202,44 @@ void VID_UpdateWindowStatus (HWND hWnd)
 	INS_UpdateClipCursor ();
 }
 
+qboolean WGL_CheckExtension(char *extname)
+{
+//	int i;
+	int len;
+	const char *foo;
+	cvar_t *v = Cvar_Get(va("gl_ext_%s", extname), "1", 0, "GL Extensions");
+	if (v && !v->ival)
+	{
+		Con_Printf("Cvar %s is 0\n", v->name);
+		return false;
+	}
+
+/*	if (gl_num_extensions && qglGetStringi)
+	{
+		for (i = 0; i < gl_num_extensions; i++)
+			if (!strcmp(qglGetStringi(GL_EXTENSIONS, i), extname))
+			{
+				Con_DPrintf("Detected GL extension %s\n", extname);
+				return true;
+			}
+	}
+*/
+	if (!wgl_extensions)
+		return false;
+
+	//the list is space delimited. we cannot just strstr lest we find leading/trailing _FOO_.
+	len = strlen(extname);
+	for (foo = wgl_extensions; *foo; )
+	{
+		if (!strncmp(foo, extname, len) && (foo[len] == ' ' || !foo[len]))
+			return true;
+		while(*foo && *foo != ' ')
+			foo++;
+		if (*foo == ' ')
+			foo++;
+	}
+	return false;
+}
 
 //====================================
 
@@ -1252,7 +1296,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		return false;
 	}
 
-	if (developer.ival)
 	{
 		char *(WINAPI *wglGetExtensionsString)(HDC hdc) = NULL;
 		if (!wglGetExtensionsString)
@@ -1262,8 +1305,13 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		if (!wglGetExtensionsString)
 			wglGetExtensionsString = getglfunc("wglGetExtensionsStringEXT");
 		if (wglGetExtensionsString)
-			Con_SafePrintf("WGL extensions: %s\n", wglGetExtensionsString(maindc));
+			wgl_extensions = wglGetExtensionsString(maindc);
+		else
+			wgl_extensions = NULL;
 	}
+
+	if (developer.ival)
+		Con_SafePrintf("WGL extensions: %s\n", wgl_extensions?"NONE":wgl_extensions);
 
 	qwglCreateContextAttribsARB = getglfunc("wglCreateContextAttribsARB");
 #if 1//def _DEBUG
@@ -1277,7 +1325,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		char *ver;
 
 		ver = vid_gl_context_version.string;
-		if (!*ver && vid_gl_context_es.ival)
+		if (!*ver && vid_gl_context_es.ival && WGL_CheckExtension("WGL_EXT_create_context_es2_profile"))
 			ver = "2.0";
 
 		mv = ver;
@@ -1304,6 +1352,8 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			attribs[i+1] |= WGL_CONTEXT_DEBUG_BIT_ARB;
 		if (vid_gl_context_forwardcompatible.ival)
 			attribs[i+1] |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
+		if (vid_gl_context_robustness.ival && WGL_CheckExtension("WGL_ARB_create_context_robustness"))
+			attribs[i+1] |= WGL_CONTEXT_ROBUST_ACCESS_BIT_ARB;
 
 		if (attribs[i+1])
 		{
@@ -1311,20 +1361,29 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			i += 2;
 		}
 
+		if (vid_gl_context_selfreset.ival &&  WGL_CheckExtension("WGL_ARB_create_context_robustness"))
+		{
+			attribs[i++] = WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB;
+			attribs[i++] = WGL_LOSE_CONTEXT_ON_RESET_ARB;
+		}
+
 		/*only switch contexts if there's actually a point*/
 		if (i || !vid_gl_context_compatibility.ival || vid_gl_context_es.ival)
 		{
-			attribs[i+1] = 0;
-			if (vid_gl_context_es.ival)
-				attribs[i+1] |= WGL_CONTEXT_ES2_PROFILE_BIT_EXT;
-			else if (vid_gl_context_compatibility.ival)
-				attribs[i+1] |= WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
-			else
-				attribs[i+1] |= WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
-			attribs[i] = WGL_CONTEXT_PROFILE_MASK_ARB;
-			//WGL_CONTEXT_PROFILE_MASK_ARB is ignored if < 3.2 - however, nvidia do not agree and return errors
-			if (atof(ver) >= 3.2 || vid_gl_context_es.ival)
-				i+=2;
+			if (WGL_CheckExtension("WGL_ARB_create_context_profile"))
+			{
+				attribs[i+1] = 0;
+				if (vid_gl_context_es.ival && (WGL_CheckExtension("WGL_EXT_create_context_es_profile") || WGL_CheckExtension("WGL_EXT_create_context_es2_profile")))
+					attribs[i+1] |= WGL_CONTEXT_ES2_PROFILE_BIT_EXT;
+				else if (vid_gl_context_compatibility.ival)
+					attribs[i+1] |= WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
+				else
+					attribs[i+1] |= WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+				attribs[i] = WGL_CONTEXT_PROFILE_MASK_ARB;
+				//WGL_CONTEXT_PROFILE_MASK_ARB is ignored if < 3.2 - however, nvidia do not agree and return errors
+				if (atof(ver) >= 3.2 || vid_gl_context_es.ival)
+					i+=2;
+			}
 
 			attribs[i] = 0;
 

@@ -611,6 +611,7 @@ void Mod_Shutdown (qboolean final)
 
 #ifndef SERVERONLY
 	r_worldentity.model = NULL;	//just in case.
+	cl_numvisedicts = 0;	//make sure nothing gets cached.
 #endif
 }
 

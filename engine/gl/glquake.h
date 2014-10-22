@@ -718,6 +718,8 @@ extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 #endif
 extern void (APIENTRY *qglDrawBuffers)(GLsizei n, GLsizei *ids);	//gl2
 
+extern GLenum (APIENTRY *qglGetGraphicsResetStatus) (void);
+
 //non-gles2 gl functions
 extern void (APIENTRY *qglAccum) (GLenum op, GLfloat value);
 extern void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);

@@ -161,6 +161,8 @@ void (APIENTRY *qglEnableClientState) (GLenum array);
 void (APIENTRY *qglPushAttrib) (GLbitfield mask);
 void (APIENTRY *qglPopAttrib) (void);
 
+GLenum (APIENTRY *qglGetGraphicsResetStatus) (void);
+
 void (APIENTRY *qglFogf) (GLenum pname, GLfloat param);
 void (APIENTRY *qglFogi) (GLenum pname, GLint param);
 void (APIENTRY *qglFogfv) (GLenum pname, const GLfloat *params);
@@ -526,6 +528,10 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		}
 		else
 			gl_config.nofixedfunc = false;
+
+#ifdef GLSLONLY
+		gl_config.nofixedfunc = true;
+#endif
 	}
 
 	gl_config.maxglslversion = 0;
@@ -935,6 +941,14 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		}
 	}
 
+	if (gl_config.glversion >= 4.5)	//the core version
+		qglGetGraphicsResetStatus = (void *)getglext("glGetGraphicsResetStatus");
+	else if (GL_CheckExtension("GL_ARB_robustness"))	//desktop extension
+		qglGetGraphicsResetStatus = (void *)getglext("glGetGraphicsResetStatusARB");
+	else if (GL_CheckExtension("GL_KHR_robustness"))	//glorified gles extension
+		qglGetGraphicsResetStatus = (void *)getglext("glGetGraphicsResetStatusKHR");
+	else
+		qglGetGraphicsResetStatus = NULL;				//its not allowed to crash us. probably will. grr. oh well.
 
 	//we only use vao if we don't have a choice.
 	//certain drivers (*cough* mesa *cough*) update vao0 state even when a different vao is bound.

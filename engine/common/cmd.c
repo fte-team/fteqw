@@ -424,7 +424,8 @@ void Cbuf_Execute (void)
 	int level;
 
 	for (level = 0; level < sizeof(cmd_text)/sizeof(cmd_text[0]); level++)
-		Cbuf_ExecuteLevel(level);
+		if (cmd_text[level].buf.cursize)
+			Cbuf_ExecuteLevel(level);
 }
 
 /*

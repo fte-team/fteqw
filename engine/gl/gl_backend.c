@@ -401,6 +401,17 @@ void GL_MTBind(int tmu, int target, texid_t texnum)
 	}
 }
 
+#if 0//def GLSLONLY
+void GL_LazyBind(int tmu, int target, texid_t texnum)
+{
+	int glnum = texnum?texnum->num:0;
+	if (shaderstate.currenttextures[tmu] != glnum)
+	{
+		qglBindTextureUnit(tmu, glnum);
+		shaderstate.currenttextures[tmu] = glnum;
+	}
+}
+#else
 void GL_LazyBind(int tmu, int target, texid_t texnum)
 {
 	int glnum = texnum?texnum->num:0;
@@ -436,6 +447,7 @@ void GL_LazyBind(int tmu, int target, texid_t texnum)
 			qglBindTexture (target, glnum);
 	}
 }
+#endif
 
 static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoendisable)
 {
@@ -785,7 +797,6 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 
 	shaderstate.sourcevbo = &shaderstate.dummyvbo;
 	shaderstate.dummyvbo.indicies.gl.vbo = ibo;
-	GL_SelectEBO(ibo);
 
 	if (shaderstate.allblackshader)
 	{
@@ -801,7 +812,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 		}
 		shaderstate.lastuniform = shaderstate.allblackshader;
 
-
+		GL_SelectEBO(ibo);
 		qglDrawRangeElements(GL_TRIANGLES, 0, numverts, numindicies, GL_INDEX_TYPE, indicies);
 	}
 	else
@@ -810,6 +821,7 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX), 0);
 
 		//draw cached world shadow mesh
+		GL_SelectEBO(ibo);
 		qglDrawRangeElements(GL_TRIANGLES, 0, numverts, numindicies, GL_INDEX_TYPE, indicies);
 	}
 	RQuantAdd(RQUANT_SHADOWFACES, numindicies/3);
@@ -858,7 +870,7 @@ void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
 		i = cv;
 	else
 		i = TOP_RANGE>>4;
-	if (i > 8)
+	if (i >= 8)
 	{
 		i<<=4;
 	}
@@ -894,7 +906,7 @@ void R_FetchBottomColour(int *retred, int *retgreen, int *retblue)
 		i = cv;
 	else
 		i = BOTTOM_RANGE>>4;
-	if (i > 8)
+	if (i >= 8)
 	{
 		i<<=4;
 	}

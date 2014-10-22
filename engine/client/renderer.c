@@ -261,6 +261,8 @@ cvar_t	vid_gl_context_forwardcompatible	= CVARD  ("vid_gl_context_forwardcompati
 cvar_t	vid_gl_context_compatibility		= CVARD  ("vid_gl_context_compatibility", "1", "Requests an OpenGL context with fixed-function backwards compat.");
 cvar_t	vid_gl_context_debug				= CVARD  ("vid_gl_context_debug", "0", "Requests a debug opengl context. This provides better error oreporting.");	//for my ati drivers, debug 1 only works if version >= 3
 cvar_t	vid_gl_context_es					= CVARD  ("vid_gl_context_es", "0", "Requests an OpenGLES context. Be sure to set vid_gl_context_version to 2 or so."); //requires version set correctly, no debug, no compat
+cvar_t	vid_gl_context_robustness			= CVARD	("vid_gl_context_robustness", "1", "Attempt to enforce extra buffer protection in the gl driver, but can be slower with pre-gl3 hardware.");
+cvar_t	vid_gl_context_selfreset			= CVARD	("vid_gl_context_selfreset", "1", "Upon hardware failure, have the engine create a new context instead of depending on the drivers to restore everything. This can help to avoid graphics drivers randomly killing your game, and can help reduce memory requirements.");
 #endif
 
 #if 1
@@ -396,6 +398,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_gl_context_forwardcompatible, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_compatibility, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_es, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_gl_context_robustness, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_gl_context_selfreset, GLRENDEREROPTIONS);
 
 	//screen
 	Cvar_Register (&vid_preservegamma, GLRENDEREROPTIONS);

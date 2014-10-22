@@ -208,6 +208,25 @@ void GLSCR_UpdateScreen (void)
 	GL_EndRendering ();
 	VID_SwapBuffers();
 	RSpeedEnd(RSPEED_FINISH);
+
+	//gl 4.5 / GL_ARB_robustness / GL_KHR_robustness
+	if (qglGetGraphicsResetStatus)
+	{
+		GLenum err = qglGetGraphicsResetStatus();
+		switch(err)
+		{
+		case GL_NO_ERROR:
+			break;
+		case GL_GUILTY_CONTEXT_RESET:	//we did it
+		case GL_INNOCENT_CONTEXT_RESET:	//something else broke the hardware and broke our ram
+		case GL_UNKNOWN_CONTEXT_RESET:	//whodunit
+		default:
+			Con_Printf("OpenGL reset detected\n");
+			Sys_Sleep(3.0);
+			Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
+			break;
+		}
+	}
 }
 
 

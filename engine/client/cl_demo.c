@@ -34,9 +34,10 @@ char lastdemoname[256];
 extern cvar_t qtvcl_forceversion1;
 extern cvar_t qtvcl_eztvextensions;
 
-unsigned char demobuffer[1024*66];
-int demobuffersize;
-int demopreparsedbytes;
+static unsigned char demobuffer[1024*66];	//input buffer
+static int demooffset;		//start offset of demo buffer
+static int demobuffersize;	//number of valid bytes within the buffer
+static int demopreparsedbytes;	//number of bytes within the valid buffer that has already been pre-parsed.
 qboolean disablepreparse;
 qboolean endofdemo;
 
@@ -268,6 +269,14 @@ int readdemobytes(int *readpos, void *data, int len)
 	if (len < 0)
 		Host_EndGame("Corrupt demo");
 
+	//if there's not enough space in the buffer, flush it now and allow grabbing a new chunk
+	//try to ensure it happens periodically enough for the preparsing stuff to happen early.
+	if (demooffset+*readpos+len > demobuffersize || demooffset > sizeof(demobuffer)/2)
+	{
+		memmove(demobuffer, demobuffer+demooffset, demobuffersize);
+		demooffset = 0;
+	}
+
 	if (demopreparsedbytes < 0)	//won't happen in normal running, but can still happen on corrupt data... if we don't disconnect first.
 	{
 		Con_Printf("reset preparsed (underflow)\n");
@@ -279,16 +288,18 @@ int readdemobytes(int *readpos, void *data, int len)
 		demopreparsedbytes = 0;
 	}
 
-	trybytes = sizeof(demobuffer)-demobuffersize;
-
-	i = VFS_READ(cls.demoinfile, demobuffer+demobuffersize, trybytes);
+	trybytes = sizeof(demobuffer)-demooffset-demobuffersize;
+	if (trybytes)
+		i = VFS_READ(cls.demoinfile, demobuffer+demooffset+demobuffersize, trybytes);
+	else
+		i = 0;
 	if (i > 0)
 	{
 		demobuffersize += i;
 		if (disablepreparse)
 			demopreparsedbytes = demobuffersize;
 		else
-			demopreparsedbytes += demo_preparsedemo(demobuffer+demopreparsedbytes, demobuffersize-demopreparsedbytes);
+			demopreparsedbytes += demo_preparsedemo(demobuffer+demooffset+demopreparsedbytes, demobuffersize-demopreparsedbytes);
 	}
 
 	if (*readpos+len > demobuffersize)
@@ -301,16 +312,16 @@ int readdemobytes(int *readpos, void *data, int len)
 //		len = demobuffersize;
 		return 0;
 	}
-	memcpy(data, demobuffer+*readpos, len);
+	memcpy(data, demobuffer+demooffset+*readpos, len);
 	*readpos += len;
 	return len;
 }
 
 void demo_flushbytes(int bytes)
 {
-	if (bytes > demobuffersize)
+	if (demooffset+bytes > demobuffersize)
 		Sys_Error("demo_flushbytes: flushed too much!\n");
-	memmove(demobuffer, demobuffer+bytes, demobuffersize - bytes);
+	demooffset += bytes;
 	demobuffersize -= bytes;
 
 	if (demopreparsedbytes < bytes)
@@ -321,6 +332,7 @@ void demo_flushbytes(int bytes)
 
 void demo_flushcache(void)
 {
+	demooffset = 0;
 	demobuffersize = 0;
 	demopreparsedbytes = 0;
 
@@ -333,6 +345,7 @@ void demo_resetcache(int bytes, void *data)
 	endofdemo = false;
 	demo_flushcache();
 
+	demooffset = 0;
 	demobuffersize = bytes;
 	demopreparsedbytes = 0;
 	memcpy(demobuffer, data, bytes);

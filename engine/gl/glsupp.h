@@ -14,7 +14,7 @@ extern qlpMTex3FUNC		qglMultiTexCoord3fARB;
 extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 
 //This stuff is normally supplied in the <GL/glext.h> header file. I don't actually have one of them, so it's here instead.
-#if 0	//change to 1 if you do actually have the file in question.
+#if 0	//change to 1 if you do actually have the file in question - and its up to date.
 #include <GL/glext.h>	//would be ideal.
 #else
 
@@ -718,6 +718,14 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_MAJOR_VERSION                  0x821B
 #define GL_MINOR_VERSION                  0x821C
 #define GL_NUM_EXTENSIONS                 0x821D
+#endif
+
+//GL_ARB_robustness, core in 4.5
+#ifndef GL_GUILTY_CONTEXT_RESET
+//#define GL_NO_ERROR						0x0000
+#define GL_GUILTY_CONTEXT_RESET				0x8253
+#define GL_INNOCENT_CONTEXT_RESET			0x8254
+#define GL_UNKNOWN_CONTEXT_RESET			0x8255
 #endif
 
 #ifndef GL_DEPTH_CLAMP_ARB

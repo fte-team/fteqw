@@ -211,8 +211,9 @@ static void BE_PolyOffset(qboolean pushdepth)
 	}
 	if (shaderstate.mode == BEM_DEPTHONLY)
 	{
-		po.factor += 5;
-		po.unit += 25;
+		extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
+		po.factor += r_polygonoffset_shadowmap_factor.value;
+		po.unit += r_polygonoffset_shadowmap_offset.value;
 	}
 
 #ifndef FORCESTATE
@@ -427,8 +428,6 @@ void GL_LazyBind(int tmu, int target, texid_t texnum)
 		if (shaderstate.curtexturetype[tmu] != target)
 #endif
 		{
-			if (shaderstate.curtexturetype[tmu])
-				qglBindTexture (shaderstate.curtexturetype[tmu], 0);
 			if (gl_config_nofixedfunc)
 			{
 				shaderstate.curtexturetype[tmu] = target;
@@ -436,7 +435,10 @@ void GL_LazyBind(int tmu, int target, texid_t texnum)
 			else
 			{
 				if (shaderstate.curtexturetype[tmu])
+				{
+					qglBindTexture (shaderstate.curtexturetype[tmu], 0);
 					qglDisable(shaderstate.curtexturetype[tmu]);
+				}
 				shaderstate.curtexturetype[tmu] = target;
 				if (target)
 					qglEnable(target);
@@ -3324,7 +3326,9 @@ void GLBE_SelectMode(backendmode_t mode)
 	extern int gldepthfunc;
 
 //	shaderstate.lastuniform = 0;
+#ifndef FORCESTATE
 	if (mode != shaderstate.mode)
+#endif
 	{
 		shaderstate.mode = mode;
 		shaderstate.flags = 0;
@@ -3357,6 +3361,8 @@ void GLBE_SelectMode(backendmode_t mode)
 
 			//we don't write or blend anything (maybe alpha test... but mneh)
 			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHWRITE | SBITS_MASK_BITS);
+
+			BE_PolyOffset(false);
 
 			GL_CullFace(SHADER_CULL_FRONT);
 			break;

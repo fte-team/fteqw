@@ -39,7 +39,7 @@ void() editor_lights_add =
 	}
 };
 
-#define NUMLFIELDS 14
+#define NUMLFIELDS 15
 #define NUMCMDS 7
 static var string fldname[NUMLFIELDS+1+NUMCMDS] = {	"bad",
 	"  num",
@@ -56,6 +56,7 @@ static var string fldname[NUMLFIELDS+1+NUMCMDS] = {	"bad",
 	 " amb",
 	 " dif",
 	 " spc",
+	 " avl",
 
 	"Save",
 	"World Lights",
@@ -108,6 +109,8 @@ static string(int fld, float foredit) readfield =
 		return ftos(dynamiclight_get(selectedlight, LFIELD_DIFFUSESCALE));
 	case 14:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_SPECULARSCALE));
+	case 15:
+		return sprintf("%v", dynamiclight_get(selectedlight, LFIELD_ROTATION));
 	default:
 		return "";
 	}
@@ -166,6 +169,9 @@ static void(float fld, string newval) writefield =
 		return;
 	case 14:
 		dynamiclight_set(selectedlight, LFIELD_SPECULARSCALE, stof(newval));
+		return;
+	case 15:
+		dynamiclight_set(selectedlight, LFIELD_ROTATION, stov(newval));
 		return;
 	default:
 		return;
@@ -395,6 +401,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 					dynamiclight_set(selectedlight, LFIELD_CUBEMAPNAME,	dynamiclight_get(oldl, LFIELD_CUBEMAPNAME));
 					dynamiclight_set(selectedlight, LFIELD_CORONA,		dynamiclight_get(oldl, LFIELD_CORONA));
 					dynamiclight_set(selectedlight, LFIELD_CORONASCALE,	dynamiclight_get(oldl, LFIELD_CORONASCALE));
+					dynamiclight_set(selectedlight, LFIELD_ROTATION,	dynamiclight_get(oldl, LFIELD_ROTATION));
 				}
 				else
 				{
@@ -411,6 +418,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 					dynamiclight_set(selectedlight, LFIELD_CUBEMAPNAME,	"");
 					dynamiclight_set(selectedlight, LFIELD_CORONA,		0);
 					dynamiclight_set(selectedlight, LFIELD_CORONASCALE,	1);
+					dynamiclight_set(selectedlight, LFIELD_ROTATION,	'0 0 0');
 				}
 
 				/*place it at the pointed location*/

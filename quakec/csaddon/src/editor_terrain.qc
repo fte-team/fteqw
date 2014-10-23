@@ -100,7 +100,7 @@ static string toolname[ter_count] =
 
 __variant(float action, ...) terrain_edit = #278;
 
-void(vector m) editor_do =
+void(vector m, float repeated) editor_do =
 {
 	vector t = mousefar;
 	vector o = mousenear;
@@ -113,7 +113,8 @@ void(vector m) editor_do =
 	switch(curtool)
 	{
 	case ter_reload:
-		mautorepeattime = 0;	//don't autorepeat that...
+		if (repeated)	//don't autorepeat that...
+			return;
 		if (autocvar_mod_terrain_networked && !isserver())
 			sendevent("teredit", "f", TEREDIT_RELOAD);
 		else if (!(float)terrain_edit(TEREDIT_RELOAD))
@@ -122,7 +123,8 @@ void(vector m) editor_do =
 			print("Terrain changes discarded.\n");
 		break;
 	case ter_save:
-		mautorepeattime = 0;	//don't autorepeat that...
+		if (repeated)	//don't autorepeat that...
+			return;
 		if (autocvar_mod_terrain_networked && !isserver())
 			sendevent("teredit", "f", TEREDIT_SAVE);
 		else
@@ -241,6 +243,8 @@ void(vector m) editor_do =
 		break;
 
 	case ter_mesh_add:
+		if (repeated)	//don't autorepeat this one.
+			break;
 		terrain_edit(TEREDIT_MESH_ADD, tempent);
 		break;
 	case ter_mesh_kill:
@@ -351,7 +355,7 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 		}
 		else if (keyc == 13)
 		{
-			editor_do(m);
+			editor_do(m, FALSE);
 		}
 	}
 	else if (unic == '+' || unic == '=')
@@ -425,7 +429,7 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 
 	if (curtool == ter_save || curtool == ter_reload)
 	{
-		editor_do('0 0 0');
+		editor_do('0 0 0', FALSE);
 		curtool = -1;
 	}
 	return TRUE;
@@ -505,16 +509,16 @@ void(vector mousepos) editor_terrain_overlay =
 	{
 		if (mousedown != 1)
 			mautorepeattime = 0;
-		else if (mautorepeattime < ctime)
+		else if (mautorepeattime < ctime && ter_mesh_add)
 		{
 			mautorepeattime = ctime + 0.05;
-			editor_do(mousepos);
+			editor_do(mousepos, TRUE);
 		}
 	}
 	else if (mousedown == 1)
 	{
 		mautorepeattime = ctime + 0.5;
-		editor_do(mousepos);
+		editor_do(mousepos, FALSE);
 	}
 
 	pos = '128 0 0';

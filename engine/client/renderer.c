@@ -248,6 +248,8 @@ cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset"
 cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
 cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
 #endif
+cvar_t	r_polygonoffset_shadowmap_offset = SCVAR("r_polygonoffset_shadowmap_factor", "0.05");
+cvar_t	r_polygonoffset_shadowmap_factor = SCVAR("r_polygonoffset_shadowmap_offset", "0");
 
 cvar_t	r_polygonoffset_stencil_factor = SCVAR("r_polygonoffset_stencil_factor", "0.01");
 cvar_t	r_polygonoffset_stencil_offset = SCVAR("r_polygonoffset_stencil_offset", "1");
@@ -359,6 +361,7 @@ cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04
 cvar_t r_glsl_offsetmapping_reliefmapping = CVARFD("r_glsl_offsetmapping_reliefmapping", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer. r_glsl_offsetmapping must be set.");
 cvar_t r_glsl_turbscale						= CVARFD  ("r_glsl_turbscale", "1", CVAR_ARCHIVE, "Controls the strength of water ripples (used by the altwater glsl code).");
 
+cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.\n");
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
 cvar_t r_slimestyle							= CVARFD ("r_slimestyle", "", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only slime. If empty, defers to r_waterstyle.");
 cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
@@ -639,6 +642,7 @@ void Renderer_Init(void)
 
 	Sh_RegisterCvars();
 
+	Cvar_Register (&r_fastturbcolour, GRAPHICALNICETIES);
 	Cvar_Register (&r_waterstyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_lavastyle, GRAPHICALNICETIES);
 	Cvar_Register (&r_slimestyle, GRAPHICALNICETIES);
@@ -730,6 +734,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_showbboxes, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
+	Cvar_Register (&r_polygonoffset_shadowmap_factor, GLRENDEREROPTIONS);
+	Cvar_Register (&r_polygonoffset_shadowmap_offset, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_stencil_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_stencil_offset, GLRENDEREROPTIONS);
 

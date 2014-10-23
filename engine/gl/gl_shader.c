@@ -4299,6 +4299,7 @@ char *Shader_DefaultBSPWater(shader_t *s, const char *shortname)
 	case 0:	//fastturb
 		return (
 			"{\n"
+//				"program defaultfill\n"
 				"{\n"
 					"map $whiteimage\n"
 					"rgbgen const $r_fastturbcolour\n"

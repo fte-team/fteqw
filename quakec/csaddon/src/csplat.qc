@@ -9,6 +9,7 @@ Available options:
 -Tcs        - dump specifically CSQC fields
 -Tmenu      - dump specifically menuqc fields
 -Fdefines   - generate #defines instead of constants
+-Faccessors - use accessors instead of basic types via defines
 -O          - write to a different qc file
 */
 #pragma noref 1
@@ -21,6 +22,11 @@ Available options:
 #ifndef CSQC
 #define CSQC
 #endif
+#define strbuf float
+#define searchhandle float
+#define hashtable float
+#define infostring string
+#define filestream float
 entity self;	/* The magic me */
 entity other;	/* Valid in touch functions, this is the entity that we touched. */
 entity world;	/* The null entity. Hurrah. Readonly after map spawn time. */
@@ -97,6 +103,8 @@ void end_sys_fields;
 .float scale;	/* Multiplier that resizes the entity. 1 is normal sized, 2 is double sized. scale 0 is remapped to 1. In SSQC, this is limited to 1/16th precision, with a maximum just shy of 16. */
 .float fatness;	/* How many QuakeUnits to push the entity's verticies along their normals by. */
 .float alpha;	/* The transparency of the entity. 1 means opaque, 0.0001 means virtually invisible. 0 is remapped to 1, for compatibility. */
+.float modelflags;	/* Used to override the flags set in the entity's model. Should be set according to the MF_ constants. Use effects|=EF_NOMODELFLAGS to ignore the model's flags completely. The traileffectnum field is more versatile. */
+.void() customphysics;	/* Called once each physics frame, overriding the entity's .movetype field and associated logic. You'll probably want to use tracebox to move it through the world. Be sure to call .think as appropriate. */
 .entity tag_entity;
 .float tag_index;
 .float skeletonindex;	/* This object serves as a container for the skeletal bone states used to override the animation data. */
@@ -156,7 +164,7 @@ float drawfont;	/* Allows you to choose exactly which font is to be used to draw
 #define FONT_DEFAULT 0
 #define TRUE 1
 #define FALSE 0	/* File not found... */
-#define M_PI 3	/* File not found... */
+#define M_PI 3.14159
 #define MOVETYPE_NONE 0
 #define MOVETYPE_WALK 3
 #define MOVETYPE_STEP 4
@@ -265,7 +273,17 @@ float drawfont;	/* Allows you to choose exactly which font is to be used to draw
 #define MOVE_TRIGGERS 16	/* This trace type will impact only triggers. It will ignore non-solid entities. */
 #define MOVE_EVERYTHING 32	/* This type of trace will hit solids and triggers alike. Even non-solid entities. */
 #define MOVE_ENTCHAIN 128	/* Returns a list of entities impacted via the trace_ent.chain field */
-#define MOVE_ONLYENT 256	/* Traces that use this trace type will collide against *only* the entity specified, and will ignore all owner/solid/dimension etc fields, they will still adhere to contents though. */
+#define RESTYPE_MODEL 0	/* RESTYPE_* constants are used as arguments with the resourcestatus builtin. */
+#define RESTYPE_SOUND 1	/* precache_sound */
+#define RESTYPE_PARTICLE 2	/* particleeffectnum */
+#define RESTYPE_PIC 3	/* precache_pic. Status results are an amalgomation of the textures used by the named shader. */
+#define RESTYPE_SKIN 4	/* setcustomskin */
+#define RESTYPE_TEXTURE 5	/* Individual textures within shaders. These are not directly usable, but may be named as part of a skin file, or a shader. */
+#define RESSTATE_NOTKNOWN 0	/* RESSTATE_* constants are return values from the resourcestatus builtin. The engine doesn't know about the resource if it is in this state. This means you will need to precache it. Attempting to use it anyway may result in warnings, errors, or silently succeed, depending on engine version and resource type. */
+#define RESSTATE_NOTLOADED 1	/* The resource was precached, but has been flushed and there has not been an attempt to reload it. If you use the resource normally, chances are it'll be loaded but at the cost of a stall. */
+#define RESSTATE_LOADING 2	/* Resources in this this state are queued for loading, and will be loaded at the engine's convienience. If you attempt to query the resource now, the engine will stall until the result is available. sounds in this state may be delayed, while models/pics/shaders may be invisible. */
+#define RESSTATE_FAILED 3	/* Resources in this state are unusable/could not be loaded. You will get placeholders or dummy results. Queries will not stall the engine. The engine may display placeholder content. */
+#define RESSTATE_LOADED 4	/* Resources in this state are finally usable, everything will work okay. Hurrah. Queries will not stall the engine. */
 #define EF_BRIGHTFIELD 1
 #define EF_MUZZLEFLASH 2
 #define EF_BRIGHTLIGHT 4
@@ -275,11 +293,26 @@ float drawfont;	/* Allows you to choose exactly which font is to be used to draw
 #define EF_RED 128
 #define EF_FULLBRIGHT 512
 #define EF_NODEPTHTEST 8192
+#define MF_ROCKET 1
+#define MF_GRENADE 2
+#define MF_GIB 4
+#define MF_ROTATE 8
+#define MF_TRACER 16
+#define MF_ZOMGIB 32
+#define MF_TRACER2 64
+#define MF_TRACER3 128
 #define PFLAGS_NOSHADOW 1	/* Associated RT lights attached will not cast shadows, making them significantly faster to draw. */
 #define PFLAGS_CORONA 2	/* Enables support of coronas on the associated rtlights. */
-#define HASHT_PERSISTANT 0	/* Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted). */
-#define HASH_REPLACE 1	/* Used with hash_add. Attempts to remove the old value instead of adding two values for a single key. */
-#define HASH_STRING 2	/* Used with hash_add. Specifies that the contents of the string argument should be internally zoned. */
+#define EV_STRING 1
+#define EV_FLOAT 2
+#define EV_VECTOR 3
+#define EV_ENTITY 4
+#define EV_FUNCTION 6
+#define EV_POINTER 7
+#define EV_INTEGER 8
+#define EV_VARIANT 9
+hashtable gamestate;	/* Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted). */
+#define HASH_REPLACE 256	/* Used with hash_add. Attempts to remove the old value instead of adding two values for a single key. */
 #define STAT_HEALTH 0
 #define STAT_WEAPON 2
 #define STAT_AMMO 3
@@ -329,10 +362,13 @@ float drawfont;	/* Allows you to choose exactly which font is to be used to draw
 #define VF_SCREENVSIZE 204	/* Provides a reliable way to retrieve the current virtual screen size (even if the screen is automatically scaled to retain aspect). */
 #define VF_SCREENPSIZE 205	/* Provides a reliable way to retrieve the current physical screen size (cvars need vid_restart for them to take effect). */
 #define VF_VIEWENTITY 206	/* Changes the RF_EXTERNALMODEL flag on entities to match the new selection, and removes entities flaged with RF_VIEWENTITY. Requires cunning use of .entnum and typically requires calling addentities(MASK_VIEWMODEL) too. */
-#define VF_RT_DESTCOLOUR 209	/* The FrameBuffer texture index to write colour info into. 1-based. Additional arguments are: format (rgba8=1,rgba16f=2,rgba32f=3), sizexy. Written to by both 3d and 2d rendering. */
-#define VF_RT_SOURCECOLOUR 210	/* The FrameBuffer texture index to use with shaders that specify a $sourcecolour map. */
-#define VF_RT_DEPTH 211	/* The FrameBuffer texture index to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16=4,24=5,32=6), sizexy. */
-#define VF_RT_RIPPLE 212	/* The FrameBuffer texture index to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy. */
+#define VF_RT_DESTCOLOUR 212	/* The texture name to write colour info into, this includes both 3d and 2d drawing.
+Additional arguments are: format (rgba8=1,rgba16f=2,rgba32f=3), sizexy.
+Written to by both 3d and 2d rendering.
+Note that any rendertarget textures may be destroyed on video mode changes or so. Shaders can name render targets by prefixing texture names with '$rt:', or $sourcecolour. */
+#define VF_RT_SOURCECOLOUR 209	/* The texture name to use with shaders that specify a $sourcecolour map. */
+#define VF_RT_DEPTH 210	/* The texture name to use as a depth buffer. Also used for shaders that specify $sourcedepth. 1-based. Additional arguments are: format (16bit=4,24bit=5,32bit=6), sizexy. */
+#define VF_RT_RIPPLE 211	/* The texture name to use as a ripplemap (target for shaders with 'sort ripple'). Also used for shaders that specify $ripplemap. 1-based. Additional arguments are: format, sizexy. */
 #define RF_VIEWMODEL 1	/* Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob. */
 #define RF_EXTERNALMODEL 2	/* Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible. */
 #define RF_DEPTHHACK 4	/* Hacks the depth values such that the entity uses depth values as if it were closer to the screen. This is useful when combined with viewmodels to avoid weapons poking in to walls. */
@@ -346,6 +382,7 @@ float drawfont;	/* Allows you to choose exactly which font is to be used to draw
 #define IE_MOUSEABS 3	/* Specifies that a mouse cursor or touch event was moved to a specific location relative to the virtual screen space. Second argument is the new X position, third argument is the new Y position. Fourth argument is which mouse or touch event triggered the event. */
 #define IE_ACCELEROMETER 4
 #define IE_FOCUS 5	/* Specifies that input focus was given. parama says mouse focus, paramb says keyboard focus. If either are -1, then it is unchanged. */
+#define IE_JOYAXIS 6	/* Specifies that what value a joystick/controller axis currently specifies. x=axis, y=value. Will be called multiple times, once for each axis of each active controller. */
 #define FILE_READ 0	/* The file may be read via fgets to read a single line at a time. */
 #define FILE_APPEND 1	/* Like FILE_WRITE, but writing starts at the end of the file. */
 #define FILE_WRITE 2	/* fputs will be used to write to the file. */
@@ -369,6 +406,7 @@ float drawfont;	/* Allows you to choose exactly which font is to be used to draw
 #define LFIELD_AMBIENTSCALE 10
 #define LFIELD_DIFFUSESCALE 11
 #define LFIELD_SPECULARSCALE 12
+#define LFIELD_ROTATION 13
 #define LFLAG_NORMALMODE 1
 #define LFLAG_REALTIMEMODE 2
 #define LFLAG_LIGHTMAP 4
@@ -450,8 +488,8 @@ void(string e) objerror = #11; /*
 float(vector v) vlen = #12; /*
 		Returns the square root of the dotproduct of a vector with itself. Or in other words the length of a distance vector, in quake units. */
 
-float(vector v) vectoyaw = #13; /*
-		Given a direction vector, returns the yaw (_y) angle in which that direction vector points. */
+float(vector v, optional entity reference) vectoyaw = #13; /*
+		Given a direction vector, returns the yaw angle in which that direction vector points. If an entity is passed, the yaw angle will be relative to that entity's gravity direction. */
 
 entity() spawn = #14; /*
 		Adds a brand new entity into the world! Hurrah, you're now a parent! */
@@ -515,12 +553,10 @@ float(float yaw, float dist, optional float settraceglobals) walkmove = #32; /*
 float() droptofloor = #34; /*
 		Instantly moves the entity downwards until it hits the ground. If the entity would need to drop more than 'pr_droptofloorunits' quake units, its position will be considered invalid and the builtin will abort. */
 
-void(float lightstyle, string stylestring, optional float channels) lightstyle = #35; /*
+void(float lightstyle, string stylestring, optional vector rgb) lightstyle = #35; /*
 		Specifies an auto-animating string that specifies the light intensity for entities using that lightstyle.
 		a is off, z is fully lit. Should be lower case only.
-		channels&1 enables red light.
-		channels&2 enables green light.
-		channels&4 enables blue light. */
+		rgb will recolour all lights using that lightstyle. */
 
 float(float) rint = #36; /*
 		Rounds the given float up or down to the closest integeral value. X.5 rounds away from 0 */
@@ -611,10 +647,10 @@ float(string extname) checkextension = #99; /*
 		Use cvar("pr_checkextension") to see if this builtin exists. */
 
 float(float value) anglemod = #102;
-float(string filename, float mode, optional float mmapminsize) fopen = #110; /* Part of FRIK_FILE*/
-void(float fhandle) fclose = #111; /* Part of FRIK_FILE*/
-string(float fhandle) fgets = #112; /* Part of FRIK_FILE*/
-void(float fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7) fputs = #113; /* Part of FRIK_FILE*/
+filestream(string filename, float mode, optional float mmapminsize) fopen = #110; /* Part of FRIK_FILE*/
+void(filestream fhandle) fclose = #111; /* Part of FRIK_FILE*/
+string(filestream fhandle) fgets = #112; /* Part of FRIK_FILE*/
+void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7) fputs = #113; /* Part of FRIK_FILE*/
 float(string s) strlen = #114; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
 string(string s1, optional string s2, ...) strcat = #115; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
 string(string s, float start, float length) substring = #116; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
@@ -648,7 +684,7 @@ void(float prnum, __variant newval, string varname) externset = #204; /* Part of
 		prnum=-2 will scan through the active progs and will use the first it finds. */
 
 float(string input, string token) instr = #206; /* Part of FTE_MULTIPROGS
-		Returns substring(input, strstrpot(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos. */
+		Returns substring(input, strstrpos(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos. */
 
 void(entity portal, float state) openportal = #207; /*
 		Opens or closes the portals associated with a door or some such on q2 or q3 maps. On Q2BSPs, the entity should be the 'func_areaportal' entity - its style field will say which portal to open. On Q3BSPs, the entity is the door itself, the portal will be determined by the two areas found from a preceding setorigin call. */
@@ -689,10 +725,10 @@ string(float ccase, float redalpha, float redchars, string str, ...) strconv = #
 string(float pad, string str1, ...) strpad = #225; /* Part of FTE_STRINGS
 		Pads the string with spaces, to ensure its a specific length (so long as a fixed-width font is used, anyway). If pad is negative, the spaces are added on the left. If positive the padding is on the right. */
 
-string(string old, string key, string value) infoadd = #226; /* Part of FTE_STRINGS
+string(infostring old, string key, string value) infoadd = #226; /* Part of FTE_STRINGS
 		Returns a new tempstring infostring with the named value changed (or added if it was previously unspecified). Key and value may not contain the \ character. */
 
-string(string info, string key) infoget = #227; /* Part of FTE_STRINGS
+string(infostring info, string key) infoget = #227; /* Part of FTE_STRINGS
 		Reads a named value from an infostring. The returned value is a tempstring */
 
 #define strcmp strncmp
@@ -811,24 +847,27 @@ void(entity ent, float bonenum, vector org, optional vector angorfwd, optional v
 
 string(float modidx, float framenum) frametoname = #284;
 string(float modidx, float skin) skintoname = #285;
-float(float tabsize, optional float defaulttype) hash_createtab = #287; /* Part of FTE_QC_HASHTABLES
+float(float resourcetype, float tryload, string resourcename) resourcestatus = #286; /*
+		resourcetype must be one of the RESTYPE_ constants. Returns one of the RESSTATE_ constants. Tryload 0 is a query only. Tryload 1 will attempt to reload the content if it was flushed. */
+
+hashtable(float tabsize, optional float defaulttype) hash_createtab = #287; /* Part of FTE_QC_HASHTABLES
 		Creates a hash table object with at least 'tabsize' slots. hash table with index 0 is a game-persistant table and will NEVER be returned by this builtin (except as an error return). */
 
-void(float table) hash_destroytab = #288; /* Part of FTE_QC_HASHTABLES
+void(hashtable table) hash_destroytab = #288; /* Part of FTE_QC_HASHTABLES
 		Destroys a hash table object. */
 
-void(float table, string name, __variant value, optional float flags, optional float type) hash_add = #289; /* Part of FTE_QC_HASHTABLES
+void(hashtable table, string name, __variant value, optional float typeandflags) hash_add = #289; /* Part of FTE_QC_HASHTABLES
 		Adds the given key with the given value to the table.
 		If flags&HASH_REPLACE, the old value will be removed, if not set then multiple values may be added for a single key, they won't overwrite.
 		The type argument describes how the value should be stored and saved to files. While you can claim that all variables are just vectors, being more precise can result in less issues with tempstrings or saved games. */
 
-__variant(float table, string name, __variant deflt, optional float requiretype, optional float index) hash_get = #290; /* Part of FTE_QC_HASHTABLES
+__variant(hashtable table, string name, optional __variant deflt, optional float requiretype, optional float index) hash_get = #290; /* Part of FTE_QC_HASHTABLES
 		looks up the specified key name in the hash table. returns deflt if key was not found. If stringsonly=1, the return value will be in the form of a tempstring, otherwise it'll be the original value argument exactly as it was. If requiretype is specified, then values not of the specified type will be ignored. Hurrah for multiple types with the same name. */
 
-__variant(float table, string name) hash_delete = #291; /* Part of FTE_QC_HASHTABLES
+__variant(hashtable table, string name) hash_delete = #291; /* Part of FTE_QC_HASHTABLES
 		removes the named key. returns the value of the object that was destroyed, or 0 on error. */
 
-string(float table, float idx) hash_getkey = #292; /* Part of FTE_QC_HASHTABLES
+string(hashtable table, float idx) hash_getkey = #292; /* Part of FTE_QC_HASHTABLES
 		gets some random key name. add+delete can change return values of this, so don't blindly increment the key index if you're removing all. */
 
 float(string name) checkcommand = #294; /* Part of FTE_QC_CHECKCOMMAND
@@ -859,7 +898,7 @@ void() renderscene = #304; /*
 		You may call this builtin multiple times per frame, but should only be called from CSQC_UpdateView. */
 
 float(vector org, float radius, vector lightcolours, optional float style, optional string cubemapname, optional float pflags) dynamiclight_add = #305; /*
-		Adds a temporary dlight, ready to be drawn via addscene. */
+		Adds a temporary dlight, ready to be drawn via addscene. Cubemap orientation will be read from v_forward/v_right/v_up. */
 
 void(string texturename, optional float flags) R_BeginPolygon = #306; /*
 		Specifies the shader to use for the following polygons, along with optional flags.
@@ -944,7 +983,7 @@ float(float stnum, optional float firstbit, optional float bitcount) getstatf = 
 
 string(float firststnum) getstats = #332; /*
 		Retrieves the value of the given EV_STRING stat, as a tempstring.
-		Older engines may use 4 consecutive integer stats, with a limit of 15 chars (yes, really. 15.), but FTE uses a separate namespace for string stats and has a much higher length limit. */
+		Older engines may use 4 consecutive integer stats, with a limit of 15 chars (yes, really. 15.), but FTE QuakeWorld uses a separate namespace for string stats and has a much higher length limit. */
 
 void(entity e, float mdlindex) setmodelindex = #333; /*
 		Sets a model by precache index instead of by name. Otherwise identical to setmodel. */
@@ -977,8 +1016,8 @@ float(string keyname) stringtokeynum = #341; /*
 string(float keynum) getkeybind = #342; /*
 		Finds the current binding for the given key (ignores modifiers like shift/alt/ctrl). */
 
-void(float usecursor) setcursormode = #343; /*
-		Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking) */
+void(float usecursor, optional string cursorimage, optional vector hotspot, optional float scale) setcursormode = #343; /*
+		Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking). If the image name is specified, the engine will use that image for a cursor (use an empty string to clear it again), in a way that will not conflict with the console. Images specified this way will be hardware accelerated, if supported by the platform/port. */
 
 vector() getmousepos = #344; /*
 		Nasty convoluted DP extension. Typically returns deltas instead of positions. Use CSQC_InputEvent for such things in csqc mods. */
@@ -1058,7 +1097,7 @@ string(float efnum, float body) particleeffectquery = #374; /*
 void(string shadername, vector origin, vector up, vector side, vector rgb, float alpha) adddecal = #375; /*
 		Adds a temporary clipped decal shader to the scene, centered at the given point with given orientation. Will be drawn by the next renderscene call, and freed by the next clearscene call. */
 
-float(entity e, string skinfilename, optional string skindata) setcustomskin = #376; /*
+void(entity e, string skinfilename, optional string skindata) setcustomskin = #376; /*
 		Sets an entity's skin overrides. These are custom per-entity surface->shader lookups. The skinfilename/data should be in .skin format:
 		surfacename,shadername - makes the named surface use the named shader
 		replace "surfacename" "shadername" - same.
@@ -1141,14 +1180,14 @@ vector(entity e, float s, vector p) getsurfaceclippedpoint = #439; /* Part of DP
 float(string s) tokenize = #441; /* Part of KRIMZON_SV_PARSECLIENTCOMMAND*/
 string(float n) argv = #442; /* Part of KRIMZON_SV_PARSECLIENTCOMMAND*/
 void(entity e, entity tagentity, string tagname) setattachment = #443; /* Part of DP_GFX_QUAKE3MODELTAGS*/
-float(string pattern, float caseinsensitive, float quiet) search_begin = #444; /* Part of DP_QC_FS_SEARCH
+searchhandle(string pattern, float caseinsensitive, float quiet) search_begin = #444; /* Part of DP_QC_FS_SEARCH
 		initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle. */
 
-void(float handle) search_end = #445; /* Part of DP_QC_FS_SEARCH*/
-float(float handle) search_getsize = #446; /* Part of DP_QC_FS_SEARCH
+void(searchhandle handle) search_end = #445; /* Part of DP_QC_FS_SEARCH*/
+float(searchhandle handle) search_getsize = #446; /* Part of DP_QC_FS_SEARCH
 		Retrieves the number of files that were found. */
 
-string(float handle, float num) search_getfilename = #447; /* Part of DP_QC_FS_SEARCH
+string(searchhandle handle, float num) search_getfilename = #447; /* Part of DP_QC_FS_SEARCH
 		Retrieves name of one of the files that was found by the initial search. */
 
 string(string cvarname) cvar_string = #448; /* Part of DP_QC_CVAR_STRING*/
@@ -1159,16 +1198,16 @@ vector(entity ent, float tagindex) gettaginfo = #452; /* Part of DP_MD3_TAGSINFO
 		Obtains the current worldspace position+orientation of the bone or tag from the given entity. The return value is the world coord, v_forward, v_right, v_up are also set according to the bone/tag's orientation. */
 
 entity(float entnum) edict_num = #459; /* Part of DP_QC_EDICT_NUM*/
-float() buf_create = #460; /* Part of DP_QC_STRINGBUFFERS*/
-void(float bufhandle) buf_del = #461; /* Part of DP_QC_STRINGBUFFERS*/
-float(float bufhandle) buf_getsize = #462; /* Part of DP_QC_STRINGBUFFERS*/
-void(float bufhandle_from, float bufhandle_to) buf_copy = #463; /* Part of DP_QC_STRINGBUFFERS*/
-void(float bufhandle, float sortprefixlen, float backward) buf_sort = #464; /* Part of DP_QC_STRINGBUFFERS*/
-string(float bufhandle, string glue) buf_implode = #465; /* Part of DP_QC_STRINGBUFFERS*/
-string(float bufhandle, float string_index) bufstr_get = #466; /* Part of DP_QC_STRINGBUFFERS*/
-void(float bufhandle, float string_index, string str) bufstr_set = #467; /* Part of DP_QC_STRINGBUFFERS*/
-float(float bufhandle, string str, float order) bufstr_add = #468; /* Part of DP_QC_STRINGBUFFERS*/
-void(float bufhandle, float string_index) bufstr_free = #469; /* Part of DP_QC_STRINGBUFFERS*/
+strbuf() buf_create = #460; /* Part of DP_QC_STRINGBUFFERS*/
+void(strbuf bufhandle) buf_del = #461; /* Part of DP_QC_STRINGBUFFERS*/
+float(strbuf bufhandle) buf_getsize = #462; /* Part of DP_QC_STRINGBUFFERS*/
+void(strbuf bufhandle_from, strbuf bufhandle_to) buf_copy = #463; /* Part of DP_QC_STRINGBUFFERS*/
+void(strbuf bufhandle, float sortprefixlen, float backward) buf_sort = #464; /* Part of DP_QC_STRINGBUFFERS*/
+string(strbuf bufhandle, string glue) buf_implode = #465; /* Part of DP_QC_STRINGBUFFERS*/
+string(strbuf bufhandle, float string_index) bufstr_get = #466; /* Part of DP_QC_STRINGBUFFERS*/
+void(strbuf bufhandle, float string_index, string str) bufstr_set = #467; /* Part of DP_QC_STRINGBUFFERS*/
+float(strbuf bufhandle, string str, float order) bufstr_add = #468; /* Part of DP_QC_STRINGBUFFERS*/
+void(strbuf bufhandle, float string_index) bufstr_free = #469; /* Part of DP_QC_STRINGBUFFERS*/
 float(float s) asin = #471; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
 float(float c) acos = #472; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
 float(float t) atan = #473; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
@@ -1216,7 +1255,7 @@ float(string uril, float id, optional string postmimetype, optional string postd
 float(string str) tokenize_console = #514;
 float(float idx) argv_start_index = #515;
 float(float idx) argv_end_index = #516;
-void(float strbuf) buf_cvarlist = #517;
+void(strbuf strbuf) buf_cvarlist = #517;
 string(string cvarname) cvar_description = #518;
 float(optional float timetype) gettime = #519;
 string(float keynum) keynumtostring_omgwtf = #520;
@@ -1229,8 +1268,8 @@ void(string s) loadfromfile = #530; /*
 
 float(entity e, float channel) getsoundtime = #533;
 float(string sample) soundlength = #534;
-float(string filename, float bufhandle) buf_loadfile = #535;
-float(float filehandle, float bufhandle, optional float startpos, optional float numstrings) buf_writefile = #536;
+float(string filename, strbuf bufhandle) buf_loadfile = #535;
+float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings) buf_writefile = #536;
 void(entity e, float physics_enabled) physics_enable = #540; /*
 		Enable or disable the physics attached to a MOVETYPE_PHYSICS entity. Entities which have been disabled in this way will stop taking so much cpu time. */
 
@@ -1245,7 +1284,7 @@ float() getmousetarget = #604;
 void(.../*, string funcname*/) callfunction = #605; /*
 		Invokes the named function. The function name is always passed as the last parameter and must always be present. The others are passed to the named function as-is */
 
-void(float fh, entity e) writetofile = #606; /*
+void(filestream fh, entity e) writetofile = #606; /*
 		Writes an entity's fields to the named frik_file file handle. */
 
 float(string s) isfunction = #607;

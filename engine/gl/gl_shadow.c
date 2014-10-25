@@ -3452,7 +3452,7 @@ void Sh_DrawLights(qbyte *vis)
 			continue;	//just switch these off.
 
 		if (dl->rotation[0] || dl->rotation[1] || dl->rotation[2])
-		{
+		{	//auto-rotating (static) rtlights
 			vec3_t rot;
 			vec3_t rotationaxis[3];
 			VectorScale(dl->rotation, cl.time, rot);

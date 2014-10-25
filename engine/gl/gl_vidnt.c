@@ -1319,7 +1319,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	if (qwglCreateContextAttribsARB)
 	{
 		HGLRC opengl3;
-		int attribs[9];
+		int attribs[11];
 		char *mv;
 		int i = 0;
 		char *ver;

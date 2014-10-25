@@ -230,6 +230,8 @@ typedef struct shaderpass_s {
 		TC_GEN_SKYBOX,
 		TC_GEN_WOBBLESKY,
 		TC_GEN_REFLECT,
+
+		TC_GEN_UNSPECIFIED
 	} tcgen;
 	int numtcmods;
 	tcmod_t		tcmods[SHADER_MAX_TC_MODS];
@@ -268,7 +270,7 @@ typedef struct shaderpass_s {
 
 		T_GEN_VIDEOMAP,		//use the media playback as an image source, updating each frame for which it is visible
 		T_GEN_CUBEMAP,		//use a cubemap instead, otherwise like T_GEN_SINGLEMAP
-		T_GEN_3DMAP,		//use a 3d texture instead, otherwise T_GEN_SINGLEMAP.
+		T_GEN_3DMAP			//use a 3d texture instead, otherwise T_GEN_SINGLEMAP.
 	} texgen;
 
 	enum {
@@ -590,6 +592,7 @@ qboolean Shader_Init (void);
 void Shader_NeedReload(qboolean rescanfs);
 void Shader_WriteOutGenerics_f(void);
 void Shader_RemapShader_f(void);
+void Shader_ShowShader_f(void);
 
 mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 

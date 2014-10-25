@@ -168,17 +168,14 @@ static void Mod_TextureList_f(void)
 	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
 	{
 		if (shownmodelname)
-			Con_Printf("%u\n", count);
+			Con_Printf("(%u textures)\n", count);
 		shownmodelname = false;
 
 		if (mod->type == mod_brush && mod->loadstate == MLS_LOADED)
 		{
 			if (*mod->name == '*')
 				continue;//	inlines don't count
-			if (shownmodelname)
-				Con_Printf("%u\n", count);
 			count = 0;
-			shownmodelname = false;
 			for (i = 0; i < mod->numtextures; i++)
 			{
 				tx = mod->textures[i];
@@ -198,7 +195,7 @@ static void Mod_TextureList_f(void)
 		}
 	}
 	if (shownmodelname)
-		Con_Printf("%u\n", count);
+		Con_Printf("(%u textures)\n", count);
 }
 
 static void Mod_BlockTextureColour_f (void)

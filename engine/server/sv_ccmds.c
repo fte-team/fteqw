@@ -964,9 +964,6 @@ void SV_KillExpiredBans(void)
 	if (reevaluatebantime && curtime > reevaluatebantime)
 	{
 		reevaluatebantime = 0;
-		reevaluatebantime = ~reevaluatebantime;	//should be 64bit safe?
-		if (reevaluatebantime < 0)
-			reevaluatebantime = (unsigned long long)reevaluatebantime>>1;
 		for(link = &svs.bannedips; (banip = *link) != NULL; )
 		{
 			if (banip->expiretime)
@@ -978,8 +975,8 @@ void SV_KillExpiredBans(void)
 					Z_Free(banip);
 					continue;
 				}
-				if (reevaluatebantime > banip->expiretime)
-					reevaluatebantime = banip->expiretime;
+				if (!reevaluatebantime || reevaluatebantime > banip->expiretime)
+					reevaluatebantime = banip->expiretime+1;
 			}
 			link = &banip->next;
 		}
@@ -1021,9 +1018,7 @@ static qboolean SV_AddBanEntry(bannedips_t *proto, char *reason)
 				return false;
 			}
 			if (!nb->banflags)
-			{
 				reevaluatebantime = nb->expiretime = 1;	//make sure it expires 'soon'.
-			}
 		}
 		nb = nb->next;
 	}
@@ -1042,7 +1037,7 @@ static qboolean SV_AddBanEntry(bannedips_t *proto, char *reason)
 	*link = nb;
 
 	reevaluatebans = true;	//make sure the new ban/penalty applies to the right IPs.
-	if (nb->expiretime && reevaluatebantime > nb->expiretime)
+	if (nb->expiretime && (!reevaluatebantime || reevaluatebantime > nb->expiretime))
 		reevaluatebantime = nb->expiretime;
 	return true;
 }
@@ -1070,7 +1065,7 @@ static int SV_ToggleBan(bannedips_t *proto, char *reason)
 				nb->banflags &= ~proto->banflags;
 				reevaluatebans = true;
 				if (!nb->banflags)
-					reevaluatebantime = nb->expiretime = 1;	//make sure it expires 'soon'.
+					reevaluatebantime = nb->expiretime = 1;	//make sure it expires 'soon' (in the past).
 			}
 		}
 		nb = nb->next;
@@ -1177,7 +1172,15 @@ static void SV_FilterIP_f (void)
 
 	s = Cmd_Argv(3);
 	if (*s == '+')
-		proto.expiretime = SV_BanTime() + strtoull(s+1, NULL, 0);
+	{
+		time_t secs = strtoull(s+1, &s, 0);
+		if (*s == ':')
+		{
+			secs*=60;
+			secs+=strtoull(s+1, &s, 0);
+		}
+		proto.expiretime = SV_BanTime() + secs;
+	}
 	else
 		proto.expiretime = strtoull(s, NULL, 0);
 
@@ -1220,6 +1223,7 @@ static void SV_FilterList_f (void)
 	char adr[MAX_ADR_SIZE];
 	char banflags[1024];
 	int i;
+	time_t curtime = SV_BanTime();
 	static const char *banflagnames[] = {
 		"ban",
 		"safe",
@@ -1249,7 +1253,13 @@ static void SV_FilterList_f (void)
 			}
 		}
 
-		Con_Printf("%s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflags);
+		if (nb->expiretime)
+		{
+			time_t secs = nb->expiretime - curtime;
+			Con_Printf("%s %s +%llu:%02llu\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflags, (unsigned long long)(secs/60), (unsigned long long)(secs%60));
+		}
+		else
+			Con_Printf("%s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflags);
 		filtercount++;
 		nb = nb->next;
 	}

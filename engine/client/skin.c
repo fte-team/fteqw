@@ -339,8 +339,6 @@ void Skin_WorkerLoad(void *skinptr, void *data, size_t a, size_t b)
 	}
 
 	Skin_WorkerDone(skin, out, srcw, srch);
-	skin->loadstate = SKIN_LOADED;
-
 }
 
 /*
@@ -529,8 +527,12 @@ void Skin_FlushAll(void)
 {	//wipe the skin info
 	int i;
 	for (i=0 ; i<numskins ; i++)
+	{
+		if (skins[i].loadstate==SKIN_LOADING)
+			COM_WorkerPartialSync(&skins[i], &skins[i].loadstate, SKIN_LOADING);
 		if (skins[i].skindata)
 			BZ_Free(skins[i].skindata);
+	}
 	numskins = 0;
 	for (i = 0; i < MAX_CLIENTS; i++)
 		cl.players[i].lastskin = NULL;
@@ -557,8 +559,12 @@ void	Skin_Skins_f (void)
 
 	R_GAliasFlushSkinCache(false);
 	for (i=0 ; i<numskins ; i++)
+	{
+		if (skins[i].loadstate==SKIN_LOADING)
+			COM_WorkerPartialSync(&skins[i], &skins[i].loadstate, SKIN_LOADING);
 		if (skins[i].skindata)
 			BZ_Free(skins[i].skindata);
+	}
 	numskins = 0;
 	for (i = 0; i < MAX_CLIENTS; i++)
 		cl.players[i].lastskin = NULL;

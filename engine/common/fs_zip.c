@@ -1274,6 +1274,9 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 	zipfile_t *zip;
 	struct zipinfo info;
 
+	if (!packhandle)
+		return NULL;
+
 	zip = Z_Malloc(sizeof(zipfile_t));
 	Q_strncpyz(zip->filename, desc, sizeof(zip->filename));
 	zip->raw = packhandle;

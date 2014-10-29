@@ -114,12 +114,12 @@ cvar_t snd_mixerthread			= CVARAD(	"s_mixerthread", "1",
 											"snd_mixerthread", "When enabled sound mixing will be run on a separate thread. Currently supported only by directsound. Other drivers may unconditionally thread audio. Set to 0 only if you have issues.");
 cvar_t snd_device				= CVARAF(	"s_device", "",
 											"snd_device", CVAR_ARCHIVE);
-cvar_t snd_device_opts			= CVARFD(	"_s_device_opts", "", CVAR_NOSET, "The possible audio output devices, in \"value\" \"description\" pairs.");
+cvar_t snd_device_opts			= CVARFD(	"_s_device_opts", "", CVAR_NOSET, "The possible audio output devices, in \"value\" \"description\" pairs, for gamecode to read.");
 
 #ifdef VOICECHAT
 static void S_Voip_Play_Callback(cvar_t *var, char *oldval);
 cvar_t snd_voip_capturedevice	= CVARF("cl_voip_capturedevice", "", CVAR_ARCHIVE);
-cvar_t snd_voip_capturedevice_opts	= CVARFD("_cl_voip_capturedevice_opts", "", CVAR_NOSET, "The possible audio capture devices, in \"value\" \"description\" pairs.");
+cvar_t snd_voip_capturedevice_opts	= CVARFD("_cl_voip_capturedevice_opts", "", CVAR_NOSET, "The possible audio capture devices, in \"value\" \"description\" pairs, for gamecode to read.");
 int voipbutton;	//+voip, no longer part of cl_voip_send to avoid it getting saved
 cvar_t snd_voip_send			= CVARFD("cl_voip_send", "0", CVAR_ARCHIVE, "Sends voice-over-ip data to the server whenever it is set.\n0: only send voice if +voip is pressed.\n1: voice activation.\n2: constantly send.\n+4: Do not send to game, only to rtp sessions.");
 cvar_t snd_voip_test			= CVARD("cl_voip_test", "0", "If 1, enables you to hear your own voice directly, bypassing the server and thus without networking latency, but is fine for checking audio levels. Note that sv_voip_echo can be set if you want to include latency and packetloss considerations, but setting that cvar requires server admin access and is thus much harder to use.");

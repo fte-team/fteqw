@@ -1309,19 +1309,6 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 					cl.model_precache[i] = Mod_ForName (cl.model_name[i], MLV_SILENT);
 				else
 					cl.model_precache[i] = Mod_FindName (Mod_FixName(cl.model_name[i], cl.model_name[1]));
-
-			if ((!cl.model_precache[i] || cl.model_precache[i]->type == mod_dummy) && i == 1)
-			{
-				Con_Printf ("\nThe required model file '%s' could not be found.\n\n"
-					, cl.model_name[i]);
-				Con_Printf ("You may need to download or purchase a client "
-					"pack in order to play on this server.\n\n");
-				CL_Disconnect ();
-#ifdef VM_UI
-				UI_Reset();
-#endif
-				return false;
-			}
 		}
 
 		for (i=0; i < MAX_VWEP_MODELS; i++)
@@ -1341,22 +1328,10 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 			cl.model_csqcprecache[i] = NULL;
 			TRACE(("dbg: R_ApplyRenderer: reloading csqc model %s\n", cl.model_csqcname[i]));
 			cl.model_csqcprecache[i] = Mod_ForName (Mod_FixName(cl.model_csqcname[i], cl.model_name[1]), MLV_SILENT);
-
-			if (!cl.model_csqcprecache[i])
-			{
-				Con_Printf ("\nThe required model file '%s' could not be found.\n\n"
-					, cl.model_csqcname[i]);
-				Con_Printf ("You may need to download or purchase a client "
-					"pack in order to play on this server.\n\n");
-				CL_Disconnect ();
-#ifdef VM_UI
-				UI_Reset();
-#endif
-				return false;
-			}
 		}
 #endif
 
+		//fixme: worldmodel could be ssqc or csqc.
 		cl.worldmodel = cl.model_precache[1];
 
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
@@ -1365,6 +1340,9 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 TRACE(("dbg: R_ApplyRenderer: done the models\n"));
 		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		{
+//				Con_Printf ("\nThe required model file '%s' could not be found.\n\n", cl.model_name[i]);
+//				Con_Printf ("You may need to download or purchase a client pack in order to play on this server.\n\n");
+
 				CL_Disconnect ();
 #ifdef VM_UI
 				UI_Reset();

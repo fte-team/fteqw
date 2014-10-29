@@ -499,7 +499,8 @@ typedef struct
 		char *path;			//the 'pure' name
 		qboolean crcknown;	//if the crc was specified
 		unsigned int crc;	//the public crc
-		char *mirrors[8];	//a randomized (prioritized) list of http mirrors to use.
+		char *extractname;	//if specified, this is the filename that should be extracted.
+		char *mirrors[8];	//a randomized (prioritized-on-load) list of http mirrors to use.
 		int mirrornum;		//the index we last tried to download from, so we still work even if mirrors are down.
 	} package[64];
 } ftemanifest_t;

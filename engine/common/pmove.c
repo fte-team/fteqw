@@ -863,7 +863,7 @@ void PM_CategorizePosition (void)
 	else
 	{
 		trace = PM_PlayerTracePortals (pmove.origin, point, MASK_PLAYERSOLID, NULL);
-		if (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
+		if (!trace.startsolid && (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL))
 			pmove.onground = false;
 		else
 		{

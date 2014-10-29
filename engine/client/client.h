@@ -947,7 +947,6 @@ void CL_BeginServerConnect(int port);
 char *CL_TryingToConnect(void);
 
 void CL_ExecInitialConfigs(char *defaultexec);
-ftemanifest_t *CL_Manifest_Parse(vfsfile_t *file, const char *defaultsourceurl);
 
 extern	int				cl_numvisedicts;
 extern	int				cl_maxvisedicts;

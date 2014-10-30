@@ -504,7 +504,7 @@ QCC_opcode_t pr_opcodes[] =
 {7, "&&", "AND_FI", 7, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
 {7, "||", "OR_FI", 7, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
 {7, "!=", "NE_IF", 5, ASSOC_LEFT,				&type_integer,	&type_float,	&type_integer},
-{7, "!=", "NE_FI", 5, ASSOC_LEFT,				&type_float,	&type_float,	&type_integer},
+{7, "!=", "NE_FI", 5, ASSOC_LEFT,				&type_float,	&type_integer,	&type_integer},
 
 
 
@@ -3098,6 +3098,10 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			numstatements--;
 			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_SUB_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
 		case OP_BITAND_FI:
 			numstatements--;
 			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
@@ -3110,11 +3114,47 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			numstatements--;
 			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_LE_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_LE_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_GT_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_GT_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_GE_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_GE_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_EQ_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_EQ_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_NE_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_NE_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_DIV_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_MUL_FI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_F], var_a, var_b, NULL, flags&STFL_PRESERVEA);
+		case OP_MUL_VI:
+			numstatements--;
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_b, NULL, NULL, (flags&STFL_PRESERVEB)?STFL_PRESERVEA:0);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_VF], var_a, var_b, NULL, flags&STFL_PRESERVEA);
 		//statements where the lhs is a const int and can be swapped with a float
 		case OP_ADD_IF:
 			numstatements--;
 			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_SUB_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
 		case OP_BITAND_IF:
 			numstatements--;
 			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
@@ -3127,6 +3167,38 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			numstatements--;
 			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_LE_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_LE_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_GT_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_GT_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_GE_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_GE_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_EQ_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_EQ_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_NE_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_NE_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_DIV_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_MUL_IF:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_F], var_a, var_b, NULL, flags&STFL_PRESERVEB);
+		case OP_MUL_IV:
+			numstatements--;
+			var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], var_a, NULL, NULL, flags&STFL_PRESERVEA);
+			return QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_FV], var_a, var_b, NULL, flags&STFL_PRESERVEB);
 
 		default:
 			QCC_PR_ParseError(ERR_BADEXTENSION, "Opcode \"%s|%s\" not valid for target. Consider the use of: #pragma target fte\n", op->name, op->opname);
@@ -5447,6 +5519,14 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 					tmp = QCC_PR_Statement(&pr_opcodes[OP_MUL_I], tmp, QCC_MakeIntConst(t->size), NULL);
 			}
 
+			//legacy opcodes needs to stay using floats even if an int was specified
+			if (!QCC_OPCodeValid(&pr_opcodes[OP_ADD_I]))
+			{
+				if (idx)
+					idx = QCC_SupplyConversion(idx, ev_float, true);
+				tmp = QCC_SupplyConversion(tmp, ev_float, true);
+			}
+
 			/*calc the new index*/
 			if (idx && idx->type->type == ev_float && tmp->type->type == ev_float)
 				idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], idx, QCC_SupplyConversion(tmp, ev_float, true), NULL);
@@ -7076,10 +7156,16 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 		}
 		if (priority == FUNC_PRIORITY && QCC_PR_CheckToken ("?"))
 		{
+			//if we have no int types, force all ints to floats here, just to ensure that we don't end up with non-constant ints that we then can't cope with.
+
 			QCC_def_t *val, *r;
 			QCC_statement_t *fromj, *elsej;
+			//FIXME: use the correct conditional
 			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT_I], QCC_RefToDef(lhsr, true), NULL, &fromj));
+
 			val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			if (val->type->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
+				val = QCC_SupplyConversion(val, ev_float, true);
 			r = QCC_GetTemp(val->type);
 			QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r->type->size>=3)?OP_STORE_V:OP_STORE_F], val, r, NULL, 0));
 			//r can be stomped upon until its reused anyway
@@ -7089,9 +7175,23 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 			QCC_PR_Statement(&pr_opcodes[OP_GOTO], NULL, NULL, &elsej);
 			fromj->b = &statements[numstatements] - fromj;
 			val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			if (val->type->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
+				val = QCC_SupplyConversion(val, ev_float, true);
 
+/*			//cond?5:5.1  should be accepted
+			if ((val->type->type != val->type->type) &&
+				(val->type->type == ev_float || val->type->type == ev_integer) &&
+				(r->type->type == ev_float || r->type->type == ev_integer))
+			{
+				val = QCC_SupplyConversion(val, ev_float, true);
+				r = QCC_SupplyConversion(r, ev_float, true);
+			}
+*/
 			if (typecmp(val->type, r->type) != 0)
+			{
+				//if they're mixed int/float, cast to floats.
 				QCC_PR_ParseError(0, "Ternary operator with mismatching types\n");
+			}
 			QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r->type->size>=3)?OP_STORE_V:OP_STORE_F], val, r, NULL, 0));
 			QCC_UnFreeTemp(r);
 
@@ -8056,8 +8156,10 @@ void QCC_PR_ParseStatement (void)
 			{
 				if (pr_casesdef[i]->type->type != e->type->type)
 				{
-					if (e->type->type == ev_integer && pr_casesdef[i]->type->type == ev_float)
+					if (pr_casesdef[i]->constant && e->type->type == ev_integer && pr_casesdef[i]->type->type == ev_float)
 						pr_casesdef[i] = QCC_MakeIntConst((int)qcc_pr_globals[pr_casesdef[i]->ofs]);
+					else if (pr_casesdef[i]->constant && e->type->type == ev_float && pr_casesdef[i]->type->type == ev_integer)
+						pr_casesdef[i] = QCC_MakeFloatConst((int)qcc_pr_globals[pr_casesdef[i]->ofs]);
 					else
 						QCC_PR_ParseWarning(WARN_SWITCHTYPEMISMATCH, "switch case type mismatch");
 				}
@@ -10963,11 +11065,21 @@ void QCC_PR_ParseDefs (char *classname)
 	if (QCC_PR_CheckKeyword(keyword_enumflags, "enumflags"))
 	{
 		int bits;
+		int type = ev_float;
 
 		if (QCC_PR_CheckKeyword(keyword_integer, "integer") || QCC_PR_CheckKeyword(keyword_int, "int"))
+			type = ev_integer;
+		else if (QCC_PR_CheckKeyword(keyword_float, "float"))
+			type = ev_float;
+		else
+			type = flag_assume_integer?ev_integer:ev_float;
+
+		QCC_PR_Expect("{");
+
+		if (type == ev_integer)
 		{
+			float fv = 0;
 			int iv = 1;
-			QCC_PR_Expect("{");
 			i = 0;
 			d = NULL;
 			while(1)
@@ -10975,30 +11087,43 @@ void QCC_PR_ParseDefs (char *classname)
 				name = QCC_PR_ParseName();
 				if (QCC_PR_CheckToken("="))
 				{
-					if (pr_token_type != tt_immediate && pr_immediate_type->type != ev_integer)
+					if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_float)
+					{
+						fv = pr_immediate._float;
+						iv = fv;
+						QCC_PR_Lex();
+					}
+					else if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_integer)
+					{
+						iv = pr_immediate._int;
+						QCC_PR_Lex();
+					}
+					else
 					{
 						def = QCC_PR_GetDef(NULL, QCC_PR_ParseName(), NULL, false, 0, false);
 						if (def)
 						{
 							if (!def->constant)
 								QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - %s is not a constant", def->name);
-							else
+							else if (def->type->type == ev_float)
+							{
+								fv = G_FLOAT(def->ofs);
+								iv = fv;
+							}
+							else if (def->type->type == ev_integer)
 								iv = G_INT(def->ofs);
+							else
+								QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - %s is not numeric", def->name);
 						}
 						else
 							QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - not a number");
-					}
-					else
-					{
-						iv = pr_immediate._int;
-						QCC_PR_Lex();
 					}
 				}
 
 				bits = 0;
 				i = (int)iv;
-				if (i != iv)
-					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f not an integer", iv);
+				if (fv!=0 && i != (int)fv)
+					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %g not an integer", fv);
 				else
 				{
 					while(i)
@@ -11024,9 +11149,6 @@ void QCC_PR_ParseDefs (char *classname)
 		else
 		{
 			float fv = 1;
-			QCC_PR_CheckKeyword(keyword_float, "float");
-
-			QCC_PR_Expect("{");
 			i = 0;
 			d = NULL;
 			while(1)
@@ -11034,30 +11156,39 @@ void QCC_PR_ParseDefs (char *classname)
 				name = QCC_PR_ParseName();
 				if (QCC_PR_CheckToken("="))
 				{
-					if (pr_token_type != tt_immediate && pr_immediate_type->type != ev_float)
+					if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_float)
+					{
+						fv = pr_immediate._float;
+						QCC_PR_Lex();
+					}
+					else if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_integer)
+					{
+						fv = pr_immediate._int;
+						QCC_PR_Lex();
+					}
+					else
 					{
 						def = QCC_PR_GetDef(NULL, QCC_PR_ParseName(), NULL, false, 0, false);
 						if (def)
 						{
 							if (!def->constant)
 								QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - %s is not a constant", def->name);
-							else
+							else if (def->type->type == ev_float)
 								fv = G_FLOAT(def->ofs);
+							else if (def->type->type == ev_integer)
+								fv = G_INT(def->ofs);
+							else
+								QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - %s is not numeric", def->name);
 						}
 						else
 							QCC_PR_ParseError(ERR_NOTANUMBER, "enumflags - not a number");
-					}
-					else
-					{
-						fv = pr_immediate._float;
-						QCC_PR_Lex();
 					}
 				}
 
 				bits = 0;
 				i = (int)fv;
 				if (i != fv)
-					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f not an integer", fv);
+					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f not an integer value", fv);
 				else
 				{
 					while(i)

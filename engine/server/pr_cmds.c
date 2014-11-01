@@ -4038,13 +4038,13 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 			continue;
 		if ( client->state == cs_spawned )
 		{
-			if (style >= MAX_STANDARDLIGHTSTYLES)
+			if (style >= MAX_STANDARDLIGHTSTYLES)	//only bug out clients if the styles are needed
 				if (!*val)
 					continue;
 #ifdef PEXT_LIGHTSTYLECOL
 			if ((client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (rgb[0] != 1 || rgb[1] != 1 || rgb[2] != 1))
 			{
-				ClientReliableWrite_Begin (client, svcfte_lightstylecol, strlen(val)+4);
+				ClientReliableWrite_Begin (client, svcfte_lightstylecol, 3+6+strlen(val)+1);
 				ClientReliableWrite_Byte (client, style);
 				ClientReliableWrite_Char (client, 0x87);
 				ClientReliableWrite_Short (client, rgb[0]*1024);
@@ -4053,14 +4053,38 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 				ClientReliableWrite_String (client, val);
 			}
 			else
-			{
 #endif
+			{
 				ClientReliableWrite_Begin (client, svc_lightstyle, strlen(val)+3);
 				ClientReliableWrite_Byte (client, style);
 				ClientReliableWrite_String (client, val);
-#ifdef PEXT_LIGHTSTYLECOL
 			}
+		}
+	}
+
+	if (sv.mvdrecording)
+	{
+		if (style < MAX_STANDARDLIGHTSTYLES || *val)
+		{
+			sizebuf_t *msg = MVDWrite_Begin(dem_all, 0, 3+6+strlen(val)+1);
+#ifdef PEXT_LIGHTSTYLECOL
+			if ((demo.recorder.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (rgb[0] != 1 || rgb[1] != 1 || rgb[2] != 1))
+			{
+				MSG_WriteByte (msg, svcfte_lightstylecol);
+				MSG_WriteByte (msg, style);
+				MSG_WriteChar (msg, 0x87);
+				MSG_WriteShort (msg, rgb[0]*1024);
+				MSG_WriteShort (msg, rgb[1]*1024);
+				MSG_WriteShort (msg, rgb[2]*1024);
+				MSG_WriteString (msg, val);
+			}
+			else
 #endif
+			{
+				MSG_WriteByte (msg, svc_lightstyle);
+				MSG_WriteByte (msg, style);
+				MSG_WriteString (msg, val);
+			}
 		}
 	}
 }
@@ -4115,6 +4139,9 @@ static void QCBUILTIN PF_lightstylestatic (pubprogfuncs_t *prinst, struct global
 	if (svprogfuncs->callargc >= 3)
 		VectorCopy(G_VECTOR(OFS_PARM2), rgb);
 #endif
+
+	//with fte+dp, va("=%g", (num*2.0)/26) should work
+	//but will break other clients. so that's a problem.
 
 	val[0] = 'a' + bound(0, num, ('z'-'a')-1);
 	val[1] = 0;

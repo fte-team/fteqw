@@ -1332,16 +1332,6 @@ texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfm
 
 	if (rtfmt)
 	{
-		switch(rtfmt)
-		{
-		case 1: rtfmt = TF_RGBA32;	break;
-		case 2: rtfmt = TF_RGBA16F;	break;
-		case 3: rtfmt = TF_RGBA32F;	break;
-		case 4: rtfmt = TF_DEPTH16;	break;
-		case 5: rtfmt = TF_DEPTH24;	break;
-		case 6: rtfmt = TF_DEPTH32;	break;
-		default:rtfmt = TF_INVALID;	break;
-		}
 		Image_Upload(tid, rtfmt, NULL, NULL, width, height, RT_IMAGEFLAGS);
 		tid->width = width;
 		tid->height = height;

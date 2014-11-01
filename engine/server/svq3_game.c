@@ -1743,11 +1743,6 @@ static void SV_InitBotLib(void)
 		bot_enable->flags |= CVAR_LATCH;
 		Cvar_ForceSet(bot_enable, "0");
 	}
-	else
-	{
-		cvar_t *mapname = Cvar_Get("mapname", "", CVAR_SERVERINFO, "Q3 compatability");
-		Cvar_Set(mapname, sv.name);
-	}
 #else
 
 //make sure it's switched off.
@@ -1782,6 +1777,12 @@ qboolean SVQ3_InitGame(void)
 
 	if (!q3gamevm)
 		return false;
+
+	//q3 needs mapname (while qw has map serverinfo)
+	{
+		cvar_t *mapname = Cvar_Get("mapname", "", CVAR_SERVERINFO, "Q3 compatability");
+		Cvar_Set(mapname, sv.name);
+	}
 
 	SV_InitBotLib();
 

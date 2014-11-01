@@ -1434,7 +1434,19 @@ void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		break;
 	}
 }
-
+static uploadfmt_t PR_TranslateTextureFormat(int qcformat)
+{
+	switch(qcformat)
+	{
+	case 1: return TF_RGBA32;
+	case 2: return TF_RGBA16F;
+	case 3: return TF_RGBA32F;
+	case 4: return TF_DEPTH16;
+	case 5: return TF_DEPTH24;
+	case 6: return TF_DEPTH32;
+	default:return TF_INVALID;
+	}
+}
 void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	viewflags parametertype = G_FLOAT(OFS_PARM0);
@@ -1585,7 +1597,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 			{
 				float fmt = G_FLOAT(OFS_PARM2);
 				float *size = G_VECTOR(OFS_PARM3);
-				R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], fmt);
+				R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], PR_TranslateTextureFormat(fmt));
 			}
 			BE_RenderToTextureUpdate2d(true);
 		}
@@ -1596,7 +1608,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], fmt);
+			R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], PR_TranslateTextureFormat(fmt));
 		}
 		BE_RenderToTextureUpdate2d(false);
 		break;
@@ -1606,7 +1618,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], fmt);
+			R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], PR_TranslateTextureFormat(fmt));
 		}
 		BE_RenderToTextureUpdate2d(false);
 		break;
@@ -1616,7 +1628,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			float fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
-			R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], fmt);
+			R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], PR_TranslateTextureFormat(fmt));
 		}
 		BE_RenderToTextureUpdate2d(false);
 		break;

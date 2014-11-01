@@ -269,6 +269,9 @@ struct pendingtextureinfo
 		PTI_ARGB4444,	//16bit format (d3d)
 		PTI_RGBA5551,	//16bit alpha format (gl).
 		PTI_ARGB1555,	//16bit alpha format (d3d).
+		//floating point formats
+		PTI_RGBA16F,
+		PTI_RGBA32F,
 		//compressed formats
 		PTI_S3RGB1,
 		PTI_S3RGBA1,

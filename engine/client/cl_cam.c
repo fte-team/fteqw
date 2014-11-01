@@ -192,98 +192,45 @@ static qboolean Cam_IsVisible(vec3_t playerorigin, vec3_t vec)
 
 static qboolean InitFlyby(playerview_t *pv, vec3_t selforigin, vec3_t playerorigin, vec3_t playerviewangles, int checkvis) 
 {
-    float f, max;
-    vec3_t vec, vec2;
+	vec3_t dirs[] = {
+		{1,1,1},
+		{1,-1,1},
+		{1,1,0},
+		{1,-1,1},
+		{1,0,1},
+		{1,0,-1},
+		{-1,1,1},
+		{-1,-1,1},
+		{-1,0,0},
+		{1,0,0},
+		{0,0,-1},
+		{0,0,1}
+		};
+	int dir;
+	float f, max;
+	vec3_t vec, vec2;
 	vec3_t forward, right, up;
 
 	VectorCopy(playerviewangles, vec);
-    vec[0] = 0;
+	vec[0] = 0;
 	AngleVectors (vec, forward, right, up);
 //	for (i = 0; i < 3; i++)
 //		forward[i] *= 3;
 
-    max = 1000;
-	VectorAdd(forward, up, vec2);
-	VectorAdd(vec2, right, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
+	max = 1000;
+	for (dir = 0; dir < sizeof(dirs)/sizeof(dirs[0]); dir++)
 	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	VectorAdd(forward, up, vec2);
-	VectorSubtract(vec2, right, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	VectorAdd(forward, right, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	VectorSubtract(forward, right, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	VectorAdd(forward, up, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	VectorSubtract(forward, up, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	VectorAdd(up, right, vec2);
-	VectorSubtract(vec2, forward, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	VectorSubtract(up, right, vec2);
-	VectorSubtract(vec2, forward, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	// invert
-	VectorNegate(forward, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	VectorCopy(forward, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	// invert
-	VectorNegate(right, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-	VectorCopy(right, vec2);
-    if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
-	{
-        max = f;
-		VectorCopy(vec2, vec);
-    }
-
+		VectorScale(forward, dirs[dir][0], vec2);
+		VectorMA(vec2, dirs[dir][1], right, vec2);
+		VectorMA(vec2, dirs[dir][2], up, vec2);
+		if ((f = Cam_TryFlyby(selforigin, playerorigin, vec2, checkvis)) < max)
+		{
+			max = f;
+			VectorCopy(vec2, vec);
+		}
+	}
 	// ack, can't find him
-    if (max >= 1000)
+	if (max >= 1000)
 	{
 //		Cam_Unlock();
 		return false;
@@ -422,7 +369,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	player = frame->playerstate + pv->cam_spec_track;
 	self = frame->playerstate + pv->playernum;
 
-	if (!pv->cam_locked || !Cam_IsVisible(player->origin, pv->cam_desired_position))
+	if (!cl_chasecam.value && (!pv->cam_locked || !Cam_IsVisible(player->origin, pv->cam_desired_position)))
 	{
 		if (!pv->cam_locked || realtime - pv->cam_lastviewtime > 0.1)
 		{

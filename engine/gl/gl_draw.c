@@ -392,6 +392,12 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 			default:
 				qglTexImage2D(targface, j, GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, mips->mip[i].data);
 				break;
+			case PTI_RGBA16F:
+				qglTexImage2D(targface, j, GL_RGBA16F_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				break;
+			case PTI_RGBA32F:
+				qglTexImage2D(targface, j, GL_RGBA32F_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
+				break;
 			//16bit formats
 			case PTI_RGBA4444:
 				qglTexImage2D(targface, j, GL_RGBA, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, mips->mip[i].data);

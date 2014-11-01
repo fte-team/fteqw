@@ -1359,6 +1359,8 @@ void CL_ClearState (void)
 		cl.playerview[i].maxspeed = 320;
 		cl.playerview[i].entgravity = 1;
 	}
+	for (i = 0; i < MAX_CLIENTS; i++)
+		cl.players[i].stats[STAT_VIEWHEIGHT] = cl.players[i].statsf[STAT_VIEWHEIGHT] = DEFAULT_VIEWHEIGHT;
 	cl.minpitch = -70;
 	cl.maxpitch = 80;
 

@@ -666,7 +666,7 @@ static texid_t Shader_FindImage ( char *name, int flags )
 			return r_whiteimage;
 	}
 	if (flags & IF_RENDERTARGET)
-		return R2D_RT_Configure(name, 0, 0, 0);
+		return R2D_RT_Configure(name, 0, 0, TF_INVALID);
 	return R_LoadHiResTexture(name, NULL, flags);
 }
 

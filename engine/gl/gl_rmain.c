@@ -1683,7 +1683,7 @@ void GLR_RenderView (void)
 		vid.fbvwidth = vid.fbpwidth = (r_refdef.vrect.width * vid.pixelwidth) / vid.width;
 		vid.fbvheight = vid.fbpheight = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
 
-		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, TF_RGBA32);
+		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, /*(r_refdef.flags&RDF_BLOOM)?TF_RGBA16F:*/TF_RGBA32);
 
 		GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight);
 		dofbo = true;

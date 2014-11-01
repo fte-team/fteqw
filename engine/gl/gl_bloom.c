@@ -52,7 +52,7 @@ static shader_t *bloomrescale;
 static shader_t *bloomblur;
 static shader_t *bloomfinal;
 
-#define MAXLEVELS 3
+#define MAXLEVELS 3	//presumably this could be up to 16, but that will be too expensive.
 texid_t pingtex[2][MAXLEVELS];
 fbostate_t fbo_bloom;
 static int scrwidth, scrheight;
@@ -222,6 +222,7 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 		GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[1][i], 1, r_nulltex, 0, 0);
 		GLBE_FBO_Sources(pingtex[0][i], r_nulltex);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
+		BE_SelectEntity(&r_worldentity);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
 
 		r_worldentity.glowmod[0] = 0;
@@ -229,6 +230,7 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 		GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[0][i], 1, r_nulltex, 0, 0);
 		GLBE_FBO_Sources(pingtex[1][i], r_nulltex);
 		qglViewport (0, 0, texwidth[i], texheight[i]);
+		BE_SelectEntity(&r_worldentity);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
 	}
 	r_worldentity.glowmod[0] = 0;

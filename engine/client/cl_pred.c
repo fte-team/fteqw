@@ -922,6 +922,7 @@ void CL_PredictMovePNum (int seat)
 		extern cvar_t cl_chasecam;
 		if (!cl_chasecam.ival)
 		{
+			//FIXME: don't early out, so that we can smooth out angles too
 			VectorCopy(pv->cam_desired_position, pv->simorg);
 			VectorClear(pv->simvel);
 			return;

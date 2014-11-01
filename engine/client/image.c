@@ -3386,6 +3386,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 				BZ_Free(rawdata);
 			return false;
 		}
+		mips->encoding = (fmt==TF_RGBA16F)?PTI_RGBA16F:TF_RGBA32F;
 		break;
 
 	default:

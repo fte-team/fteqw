@@ -6162,8 +6162,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;
 
-	if (sv_player->xv->hasted)
-		movevars.maxspeed*=sv_player->xv->hasted;
+// should already be folded into host_client->maxspeed
+//	if (sv_player->xv->hasted)
+//		movevars.maxspeed*=sv_player->xv->hasted;
 
 	for (i=0 ; i<3 ; i++)
 	{

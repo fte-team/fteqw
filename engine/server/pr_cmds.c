@@ -8709,6 +8709,16 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	VectorCopy(ent->v->mins, pmove.player_mins);
 	VectorCopy(ent->xv->gravitydir, pmove.gravitydir);
 
+	//update entity-specific stuff
+	movevars.entgravity = sv_gravity.value/movevars.gravity;
+	if (ent->xv->gravity)
+		movevars.entgravity *= ent->xv->gravity;
+	movevars.maxspeed = ent->xv->maxspeed?ent->xv->maxspeed:sv_maxspeed.value;
+#ifdef HEXEN2
+	if (ent->xv->hasted)
+		movevars.maxspeed *= ent->xv->hasted;
+#endif
+
 	pmove.numtouch = 0;
 	pmove.world = &sv.world;
 	pmove.skipent = -1;

@@ -8669,6 +8669,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	unsigned int i, n;
 	extern qbyte playertouch[];
 	unsigned int msecs;
+	extern cvar_t sv_gravity;
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
 	edict_t *touched;
 	if (pr_global_ptrs->clientcommandframe)

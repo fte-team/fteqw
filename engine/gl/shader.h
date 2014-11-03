@@ -750,7 +750,7 @@ void BE_GenerateProgram(shader_t *shader);
 void Sh_RegisterCvars(void);
 #ifdef RTLIGHTS
 //
-void GLBE_PushOffsetShadow(qboolean foobar);
+void GLBE_PolyOffsetStencilShadow(qboolean foobar);
 //sets up gl for depth-only FIXME
 int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, float shadowscale);
 //Called from shadowmapping code into backend

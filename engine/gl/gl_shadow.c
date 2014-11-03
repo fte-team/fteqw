@@ -2665,7 +2665,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	GL_SelectEBO(0);
 	qglEnableClientState(GL_VERTEX_ARRAY);
 
-	GLBE_PushOffsetShadow(true);
+	GLBE_PolyOffsetStencilShadow(true);
 
 	model = e->model;
 	surf = model->surfaces+model->firstmodelsurface;
@@ -2742,7 +2742,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		qglEnd();
 	}
 
-	GLBE_PushOffsetShadow(false);
+	GLBE_PolyOffsetStencilShadow(false);
 #endif
 }
 

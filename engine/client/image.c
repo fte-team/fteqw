@@ -3124,7 +3124,7 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 		if (*scaled_height > sh_config.texture_maxsize)
 			*scaled_height = sh_config.texture_maxsize;
 	}
-	if (!(flags & IF_UIPIC))
+	if (!(flags & (IF_UIPIC|IF_RENDERTARGET)))
 	{
 		if (gl_max_size.value)
 		{

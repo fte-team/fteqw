@@ -209,11 +209,70 @@ static void BE_PolyOffset(qboolean pushdepth)
 		po.factor += r_polygonoffset_submodel_factor.value;
 		po.unit += r_polygonoffset_submodel_offset.value;
 	}
-	if (shaderstate.mode == BEM_DEPTHONLY)
+
+#ifndef FORCESTATE
+	if (shaderstate.curpolyoffset.factor != po.factor || shaderstate.curpolyoffset.unit != po.unit)
+#endif
 	{
-		extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
-		po.factor += r_polygonoffset_shadowmap_factor.value;
-		po.unit += r_polygonoffset_shadowmap_offset.value;
+		shaderstate.curpolyoffset = po;
+		if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
+		{
+			qglEnable(GL_POLYGON_OFFSET_FILL);
+			qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
+		}
+		else
+			qglDisable(GL_POLYGON_OFFSET_FILL);
+	}
+}
+
+void GLBE_PolyOffsetStencilShadow(qboolean pushdepth)
+{
+	extern cvar_t r_polygonoffset_stencil_offset, r_polygonoffset_stencil_factor;
+	polyoffset_t po;
+	if (pushdepth)
+	{
+		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
+		we move them back very slightly using polygonoffset to avoid really ugly z-fighting*/
+		extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
+		po.factor = r_polygonoffset_submodel_factor.value + r_polygonoffset_stencil_factor.value;
+		po.unit = r_polygonoffset_submodel_offset.value + r_polygonoffset_stencil_offset.value;
+	}
+	else
+	{
+		po.factor = r_polygonoffset_stencil_factor.value;
+		po.unit = r_polygonoffset_stencil_offset.value;
+	}
+
+#ifndef FORCESTATE
+	if (shaderstate.curpolyoffset.factor != po.factor || shaderstate.curpolyoffset.unit != po.unit)
+#endif
+	{
+		shaderstate.curpolyoffset = po;
+		if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
+		{
+			qglEnable(GL_POLYGON_OFFSET_FILL);
+			qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
+		}
+		else
+			qglDisable(GL_POLYGON_OFFSET_FILL);
+	}
+}
+static void GLBE_PolyOffsetShadowMap(qboolean pushdepth)
+{
+	extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
+	polyoffset_t po;
+	if (pushdepth)
+	{
+		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
+		we move them back very slightly using polygonoffset to avoid really ugly z-fighting*/
+		extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
+		po.factor = r_polygonoffset_submodel_factor.value + r_polygonoffset_shadowmap_factor.value;
+		po.unit = r_polygonoffset_submodel_offset.value + r_polygonoffset_shadowmap_offset.value;
+	}
+	else
+	{
+		po.factor = r_polygonoffset_shadowmap_factor.value;
+		po.unit = r_polygonoffset_shadowmap_offset.value;
 	}
 
 #ifndef FORCESTATE
@@ -799,6 +858,8 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 
 	shaderstate.sourcevbo = &shaderstate.dummyvbo;
 	shaderstate.dummyvbo.indicies.gl.vbo = ibo;
+
+	GLBE_PolyOffsetShadowMap(false);
 
 	if (shaderstate.allblackshader)
 	{
@@ -3362,7 +3423,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			//we don't write or blend anything (maybe alpha test... but mneh)
 			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHWRITE | SBITS_MASK_BITS);
 
-			BE_PolyOffset(false);
+//			BE_PolyOffset(false);
 
 			GL_CullFace(SHADER_CULL_FRONT);
 			break;
@@ -3370,7 +3431,7 @@ void GLBE_SelectMode(backendmode_t mode)
 #ifdef RTLIGHTS
 		case BEM_STENCIL:
 			/*BEM_STENCIL doesn't support mesh writing*/
-			GLBE_PushOffsetShadow(false);
+			GLBE_PolyOffsetStencilShadow(false);
 
 			if (gl_config_nofixedfunc && !shaderstate.allblackshader)
 			{
@@ -3601,39 +3662,6 @@ void GLBE_Scissor(srect_t *rect)
 
 //		if (qglDepthBoundsEXT)
 //			qglDepthBoundsEXT(0, 1);
-	}
-}
-
-void GLBE_PushOffsetShadow(qboolean pushdepth)
-{
-	extern cvar_t r_polygonoffset_stencil_offset, r_polygonoffset_stencil_factor;
-	polyoffset_t po;
-	if (pushdepth)
-	{
-		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
-		we move them back very slightly using polygonoffset to avoid really ugly z-fighting*/
-		extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
-		po.factor = r_polygonoffset_submodel_factor.value + r_polygonoffset_stencil_factor.value;
-		po.unit = r_polygonoffset_submodel_offset.value + r_polygonoffset_stencil_offset.value;
-	}
-	else
-	{
-		po.factor = r_polygonoffset_stencil_factor.value;
-		po.unit = r_polygonoffset_stencil_offset.value;
-	}
-
-#ifndef FORCESTATE
-	if (shaderstate.curpolyoffset.factor != po.factor || shaderstate.curpolyoffset.unit != po.unit)
-#endif
-	{
-		shaderstate.curpolyoffset = po;
-		if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
-		{
-			qglEnable(GL_POLYGON_OFFSET_FILL);
-			qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
-		}
-		else
-			qglDisable(GL_POLYGON_OFFSET_FILL);
 	}
 }
 

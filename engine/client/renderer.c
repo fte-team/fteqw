@@ -215,8 +215,8 @@ cvar_t vid_multisample						= CVARF ("vid_multisample", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t vid_srgb								= CVARF ("vid_srgb", "0",
-												CVAR_ARCHIVE);
+cvar_t vid_srgb								= CVARFD ("vid_srgb", "0",
+												CVAR_ARCHIVE, "The framebuffer should use sRGB colourspace. This has the effect of brightening the screen");
 cvar_t vid_wndalpha							= CVAR ("vid_wndalpha", "1");
 //more readable defaults to match conwidth/conheight.
 cvar_t vid_width							= CVARFD ("vid_width", "0",

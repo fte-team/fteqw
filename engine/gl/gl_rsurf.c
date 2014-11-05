@@ -78,19 +78,19 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	{
 		vbo->indicies.gl.vbo = vbos[1];
 		vbo->indicies.gl.addr = (index_t*)((char*)vbo->indicies.gl.addr - (char*)edata);
-		vaostatic |= VATTR_LEG_ELEMENTS;
+		vaostatic |= 1u<<VATTR_LEG_ELEMENTS;
 	}
 	if (vbo->coord.gl.addr)
 	{
 		vbo->coord.gl.vbo = vbos[0];
 		vbo->coord.gl.addr = (vecV_t*)((char*)vbo->coord.gl.addr - (char*)vdata);
-		vaostatic |= VATTR_VERTEX1;
+		vaostatic |= 1u<<VATTR_VERTEX1;
 	}
 	if (vbo->texcoord.gl.addr)
 	{
 		vbo->texcoord.gl.vbo = vbos[0];
 		vbo->texcoord.gl.addr = (vec2_t*)((char*)vbo->texcoord.gl.addr - (char*)vdata);
-		vaostatic |= VATTR_TEXCOORD;
+		vaostatic |= 1u<<VATTR_TEXCOORD;
 	}
 	for (s = 0; s < MAXRLIGHTMAPS; s++)
 	{
@@ -100,11 +100,11 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 			vbo->colours[s].gl.addr = (vec4_t*)((char*)vbo->colours[s].gl.addr - (char*)vdata);
 			switch(s)
 			{
-			default: vaostatic |= VATTR_COLOUR; break;
+			default: vaostatic |= 1u<<VATTR_COLOUR; break;
 #if MAXRLIGHTMAPS > 1
-			case 1: vaostatic |= VATTR_COLOUR2; break;
-			case 2: vaostatic |= VATTR_COLOUR3; break;
-			case 3: vaostatic |= VATTR_COLOUR4; break;
+			case 1: vaostatic |= 1u<<VATTR_COLOUR2; break;
+			case 2: vaostatic |= 1u<<VATTR_COLOUR3; break;
+			case 3: vaostatic |= 1u<<VATTR_COLOUR4; break;
 #endif
 			}
 		}
@@ -114,11 +114,11 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 			vbo->lmcoord[s].gl.addr = (vec2_t*)((char*)vbo->lmcoord[s].gl.addr - (char*)vdata);
 			switch(s)
 			{
-			default: vaostatic |= VATTR_LMCOORD; break;
+			default: vaostatic |= 1u<<VATTR_LMCOORD; break;
 #if MAXRLIGHTMAPS > 1
-			case 1: vaostatic |= VATTR_LMCOORD2; break;
-			case 2: vaostatic |= VATTR_LMCOORD3; break;
-			case 3: vaostatic |= VATTR_LMCOORD4; break;
+			case 1: vaostatic |= 1u<<VATTR_LMCOORD2; break;
+			case 2: vaostatic |= 1u<<VATTR_LMCOORD3; break;
+			case 3: vaostatic |= 1u<<VATTR_LMCOORD4; break;
 #endif
 			}
 		}
@@ -127,19 +127,19 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	{
 		vbo->normals.gl.vbo = vbos[0];
 		vbo->normals.gl.addr = (vec3_t*)((char*)vbo->normals.gl.addr - (char*)vdata);
-		vaostatic |= VATTR_NORMALS;
+		vaostatic |= 1u<<VATTR_NORMALS;
 	}
 	if (vbo->svector.gl.addr)
 	{
 		vbo->svector.gl.vbo = vbos[0];
 		vbo->svector.gl.addr = (vec3_t*)((char*)vbo->svector.gl.addr - (char*)vdata);
-		vaostatic |= VATTR_SNORMALS;
+		vaostatic |= 1u<<VATTR_SNORMALS;
 	}
 	if (vbo->tvector.gl.addr)
 	{
 		vbo->tvector.gl.vbo = vbos[0];
 		vbo->tvector.gl.addr = (vec3_t*)((char*)vbo->tvector.gl.addr - (char*)vdata);
-		vaostatic |= VATTR_TNORMALS;
+		vaostatic |= 1u<<VATTR_TNORMALS;
 	}
 
 

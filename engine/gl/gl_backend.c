@@ -81,7 +81,7 @@ struct {
 		const shader_t *crepopaqueshader;
 		const shader_t *depthonlyshader;
 
-		GLhandleARB	allblackshader;
+		union programhandle_u	allblackshader;
 		int allblack_mvp;
 
 		qboolean initeddepthnorm;
@@ -99,6 +99,7 @@ struct {
 		texid_t tex_refractiondepth;	/*the (culled) underwater view*/
 		texid_t tex_ripplemap;	/*temp image for waves and things.*/
 
+		int curpatchverts;
 		qboolean force2d;
 		int currenttmu;
 		int blendmode[SHADER_TMU_MAX];
@@ -208,6 +209,12 @@ static void BE_PolyOffset(qboolean pushdepth)
 		extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
 		po.factor += r_polygonoffset_submodel_factor.value;
 		po.unit += r_polygonoffset_submodel_offset.value;
+	}
+	if (shaderstate.mode == BEM_DEPTHONLY)
+	{
+		extern cvar_t r_polygonoffset_shadowmap_offset, r_polygonoffset_shadowmap_factor;
+		po.factor += r_polygonoffset_shadowmap_factor.value;
+		po.unit += r_polygonoffset_shadowmap_offset.value;
 	}
 
 #ifndef FORCESTATE
@@ -861,19 +868,19 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 
 	GLBE_PolyOffsetShadowMap(false);
 
-	if (shaderstate.allblackshader)
+	if (shaderstate.allblackshader.glsl.handle)
 	{
-		GL_SelectProgram(shaderstate.allblackshader);
+		GL_SelectProgram(shaderstate.allblackshader.glsl.handle);
 
 		BE_EnableShaderAttributes(gl_config_nofixedfunc?(1u<<VATTR_VERTEX1):(1u<<VATTR_LEG_VERTEX), 0);
 
-		if (shaderstate.allblackshader != shaderstate.lastuniform && shaderstate.allblack_mvp != -1)
+		if (shaderstate.allblackshader.glsl.handle != shaderstate.lastuniform && shaderstate.allblack_mvp != -1)
 		{
 			float m16[16];
 			Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
 			qglUniformMatrix4fvARB(shaderstate.allblack_mvp, 1, false, m16);
 		}
-		shaderstate.lastuniform = shaderstate.allblackshader;
+		shaderstate.lastuniform = shaderstate.allblackshader.glsl.handle;
 
 		GL_SelectEBO(ibo);
 		qglDrawRangeElements(GL_TRIANGLES, 0, numverts, numindicies, GL_INDEX_TYPE, indicies);
@@ -2694,12 +2701,27 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 #endif
 }
 
-static void BE_SubmitMeshChain(void)
+#define GL_PATCHES_ARB 0xe
+static void BE_SubmitMeshChain(qboolean usetesselation)
 {
 	int startv, starti, endv, endi;
 	int m;
 	mesh_t *mesh;
-	int batchtype = (shaderstate.flags & BEF_LINES)?GL_LINES:GL_TRIANGLES;
+	int batchtype;
+
+	if (usetesselation)
+	{
+		m = (shaderstate.flags & BEF_LINES)?2:3;
+		if (shaderstate.curpatchverts != m)
+		{
+			shaderstate.curpatchverts = m;
+#define GL_PATCH_VERTICES                                 0x8E72
+			qglPatchParameteriARB(GL_PATCH_VERTICES, m);
+		}
+		batchtype = GL_PATCHES_ARB;
+	}
+	else
+		batchtype = (shaderstate.flags & BEF_LINES)?GL_LINES:GL_TRIANGLES;
 
 	if (!shaderstate.streamvbo[0])	//only if we're not forcing vbos elsewhere.
 	{
@@ -2866,7 +2888,7 @@ static void DrawPass(const shaderpass_t *pass)
 
 				/*push it*/
 				BE_EnableShaderAttributes(attr, 0);
-				BE_SubmitMeshChain();
+				BE_SubmitMeshChain(false);
 				tmu = 0;
 
 				/*bind the light texture*/
@@ -2905,7 +2927,7 @@ static void DrawPass(const shaderpass_t *pass)
 				shaderstate.lastpasstmus = tmu;
 				BE_EnableShaderAttributes(attr, 0);
 
-				BE_SubmitMeshChain();
+				BE_SubmitMeshChain(false);
 				tmu = 0;
 
 				BE_SendPassBlendDepthMask(pass[i+1].shaderbits);
@@ -2924,7 +2946,7 @@ static void DrawPass(const shaderpass_t *pass)
 	shaderstate.lastpasstmus = tmu;
 	BE_EnableShaderAttributes(attr, 0);
 
-	BE_SubmitMeshChain();
+	BE_SubmitMeshChain(false);
 }
 #endif
 
@@ -3264,37 +3286,37 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	perm = 0;
 	if (shaderstate.sourcevbo->numbones)
 	{
-		if (p->permu[perm|PERMUTATION_SKELETAL].handle.glsl)
+		if (p->permu[perm|PERMUTATION_SKELETAL].handle.glsl.handle)
 			perm |= PERMUTATION_SKELETAL;
 		else
 			return;
 	}
-	if (p->permu[perm|PERMUTATION_FRAMEBLEND].handle.glsl && shaderstate.sourcevbo->coord2.gl.addr)
+	if (p->permu[perm|PERMUTATION_FRAMEBLEND].handle.glsl.handle && shaderstate.sourcevbo->coord2.gl.addr)
 		perm |= PERMUTATION_FRAMEBLEND;
-	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.glsl)
+	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.glsl.handle)
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.glsl)
+	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.glsl.handle)
 		perm |= PERMUTATION_FULLBRIGHT;
-	if ((TEXLOADED(shaderstate.curtexnums->loweroverlay) || TEXLOADED(shaderstate.curtexnums->upperoverlay)) && p->permu[perm|PERMUTATION_UPPERLOWER].handle.glsl)
+	if ((TEXLOADED(shaderstate.curtexnums->loweroverlay) || TEXLOADED(shaderstate.curtexnums->upperoverlay)) && p->permu[perm|PERMUTATION_UPPERLOWER].handle.glsl.handle)
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].handle.glsl)
+	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].handle.glsl.handle)
 		perm |= PERMUTATION_FOG;
-	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl && TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl.handle && TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 		perm |= PERMUTATION_DELUXE;
 #if MAXRLIGHTMAPS > 1
-	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].handle.glsl)
+	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].handle.glsl.handle)
 		perm |= PERMUTATION_LIGHTSTYLES;
 #endif
 
-	GL_SelectProgram(p->permu[perm].handle.glsl);
+	GL_SelectProgram(p->permu[perm].handle.glsl.handle);
 #ifndef FORCESTATE
-	if (shaderstate.lastuniform == p->permu[perm].handle.glsl)
+	if (shaderstate.lastuniform == p->permu[perm].handle.glsl.handle)
 		i = true;
 	else
 #endif
 	{
 		i = false;
-		shaderstate.lastuniform = p->permu[perm].handle.glsl;
+		shaderstate.lastuniform = p->permu[perm].handle.glsl.handle;
 	}
 	BE_Program_Set_Attributes(p, perm, i);
 
@@ -3347,7 +3369,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			shaderstate.lastpasstmus = pass->numMergedPasses;
 		}
 	}
-	BE_SubmitMeshChain();
+	BE_SubmitMeshChain(p->permu[perm].handle.glsl.usetesselation);
 }
 
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
@@ -3408,11 +3430,11 @@ void GLBE_SelectMode(backendmode_t mode)
 			}
 			else
 #endif
-				if (!shaderstate.allblackshader)
+				if (!shaderstate.allblackshader.glsl.handle)
 			{
 				const char *defs[] = {NULL};
-				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
-				shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection");
+				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", NULL, NULL, "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
+				shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader.glsl.handle, "m_modelviewprojection");
 			}
 			/*BEM_DEPTHONLY does support mesh writing, but its not the only way its used... FIXME!*/
 			while(shaderstate.lastpasstmus>0)
@@ -3433,11 +3455,11 @@ void GLBE_SelectMode(backendmode_t mode)
 			/*BEM_STENCIL doesn't support mesh writing*/
 			GLBE_PolyOffsetStencilShadow(false);
 
-			if (gl_config_nofixedfunc && !shaderstate.allblackshader)
+			if (gl_config_nofixedfunc && !shaderstate.allblackshader.glsl.handle)
 			{
 				const char *defs[] = {NULL};
-				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
-				shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection");
+				shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", NULL, NULL, "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
+				shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader.glsl.handle, "m_modelviewprojection");
 			}
 
 			//disable all tmus
@@ -3784,7 +3806,7 @@ static void BE_LegacyLighting(void)
 	GL_DeSelectProgram();
 	BE_EnableShaderAttributes(attr, 0);
 
-	BE_SubmitMeshChain();
+	BE_SubmitMeshChain(false);
 
 	GL_LazyBind(1, 0, r_nulltex);
 	GL_LazyBind(2, 0, r_nulltex);
@@ -3904,7 +3926,7 @@ static void DrawMeshes(void)
 #pragma warningmsg("fixme: support alpha test")
 #endif
 			BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX), 0);
-			BE_SubmitMeshChain();
+			BE_SubmitMeshChain(false);	//fixme: dangerous
 		}
 		break;
 
@@ -3914,7 +3936,7 @@ static void DrawMeshes(void)
 
 		GenerateTCFog(0, NULL);
 		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX), 0);
-		BE_SubmitMeshChain();
+		BE_SubmitMeshChain(false);
 #endif
 		break;
 
@@ -3943,32 +3965,32 @@ static void DrawMeshes(void)
 		BE_SendPassBlendDepthMask((shaderstate.curshader->passes[0].shaderbits & ~SBITS_BLEND_BITS) | SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_NODEPTHTEST);
 
 		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
-		BE_SubmitMeshChain();
+		BE_SubmitMeshChain(false);
 		break;
 	case BEM_DEPTHDARK:
 		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright))
 		{
 			if (gl_config.arb_shader_objects)
 			{
-				if (!shaderstate.allblackshader)
+				if (!shaderstate.allblackshader.glsl.handle)
 				{
 					const char *defs[] = {NULL};
-					shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
-					shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader, "m_modelviewprojection");
+					shaderstate.allblackshader = GLSlang_CreateProgram("allblackprogram", gl_config_gles?100:110, defs, "#include \"sys/skeletal.h\"\nvoid main(){gl_Position = skeletaltransform();}", NULL, NULL, "void main(){gl_FragColor=vec4(0.0,0.0,0.0,1.0);}", false, NULL);
+					shaderstate.allblack_mvp = qglGetUniformLocationARB(shaderstate.allblackshader.glsl.handle, "m_modelviewprojection");
 				}
 
-				GL_SelectProgram(shaderstate.allblackshader);
+				GL_SelectProgram(shaderstate.allblackshader.glsl.handle);
 				BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits);
 				BE_EnableShaderAttributes(gl_config_nofixedfunc?(1u<<VATTR_VERTEX1):(1u<<VATTR_LEG_VERTEX), 0);
-				if (shaderstate.allblackshader != shaderstate.lastuniform && shaderstate.allblack_mvp != -1)
+				if (shaderstate.allblackshader.glsl.handle != shaderstate.lastuniform && shaderstate.allblack_mvp != -1)
 				{
 					float m16[16];
 					Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
 					qglUniformMatrix4fvARB(shaderstate.allblack_mvp, 1, false, m16);
 				}
-				BE_SubmitMeshChain();
+				BE_SubmitMeshChain(shaderstate.allblackshader.glsl.usetesselation);
 
-				shaderstate.lastuniform = shaderstate.allblackshader;
+				shaderstate.lastuniform = shaderstate.allblackshader.glsl.handle;
 				break;
 			}
 #ifndef GLSLONLY
@@ -3987,7 +4009,7 @@ static void DrawMeshes(void)
 				BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits);
 
 				BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
-				BE_SubmitMeshChain();
+				BE_SubmitMeshChain(false);
 				break;
 			}
 #endif
@@ -4039,7 +4061,7 @@ static void DrawMeshes(void)
 
 			GenerateTCFog(0, shaderstate.curbatch->fog);
 			BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR) | (1u<<VATTR_LEG_TMU0), 0);
-			BE_SubmitMeshChain();
+			BE_SubmitMeshChain(false);
 		}
 		break;
 #endif

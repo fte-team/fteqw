@@ -895,11 +895,19 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 		/*if you're sending sound, you should be prepared to accept others yelling at you to shut up*/
 		if (snd_voip_play.value <= 0)
 			voipsendenable = false;
+		/*don't send sound if its not supported. that'll break stuff*/
 		if (!(cls.fteprotocolextensions2 & PEXT2_VOICECHAT))
 			voipsendenable = false;
 	}
 	else
+	{
+		/*we're not sending it to a server. the above considerations don't matter*/
 		voipsendenable = snd_voip_test.ival;
+	}
+	/*don't send sound if mic volume won't send anything anyway*/
+	if (micamp <= 0)
+		voipsendenable = false;
+
 	if (rtpstream)
 	{
 		voipsendenable = true;

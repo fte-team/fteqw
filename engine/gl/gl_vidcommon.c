@@ -220,6 +220,8 @@ int mtexid0;
 FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
 
+void (APIENTRY *qglPatchParameteriARB)(GLenum pname, GLint value);	//core in gl4
+
 //stencil shadowing
 FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 
@@ -742,6 +744,13 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglPNTrianglesfATI = (void *)getglext("glPNTrianglesfATI");
 		qglPNTrianglesiATI = (void *)getglext("glPNTrianglesiATI");
 	}
+	if (!gl_config.gles && gl_config.glversion >= 4.0)
+		qglPatchParameteriARB = getglext("glPatchParameteri");
+	else if (GL_CheckExtension("GL_ARB_tessellation_shader"))
+		qglPatchParameteriARB = getglext("glPatchParameteriARB");
+	else
+		qglPatchParameteriARB = NULL;
+
 
 #ifndef GL_STATIC
 	if (GL_CheckExtension("GL_EXT_texture_object"))
@@ -1207,9 +1216,12 @@ static const char *glsl_hdrs[] =
 			"uniform float cvar_r_glsl_offsetmapping_scale;\n"
 			"vec2 offsetmap(sampler2D normtex, vec2 base, vec3 eyevector)\n"
 			"{\n"
+			"#if !defined(OFFSETMAPPING_SCALE)\n"
+				"#define OFFSETMAPPING_SCALE 1.0\n"
+			"#endif\n"
 			"#if defined(RELIEFMAPPING) && !defined(GL_ES)\n"
 				"float i, f;\n"
-				"vec3 OffsetVector = vec3(normalize(eyevector.xyz).xy * cvar_r_glsl_offsetmapping_scale * vec2(-1.0, 1.0), -1.0);\n"
+				"vec3 OffsetVector = vec3(normalize(eyevector.xyz).xy * cvar_r_glsl_offsetmapping_scale * OFFSETMAPPING_SCALE * vec2(-1.0, 1.0), -1.0);\n"
 				"vec3 RT = vec3(vec2(base.xy"/* - OffsetVector.xy*OffsetMapping_Bias*/"), 1.0);\n"
 				"OffsetVector /= 10.0;\n"
 				"for(i = 1.0; i < 10.0; ++i)\n"
@@ -1218,7 +1230,7 @@ static const char *glsl_hdrs[] =
 					"RT += OffsetVector * (step(texture2D(normtex, RT.xy).a, RT.z) * f - 0.5 * f);\n"
 				"return RT.xy;\n"
 			"#elif defined(OFFSETMAPPING)\n"
-				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * vec2(-1.0, 1.0);\n"
+				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * OFFSETMAPPING_SCALE * vec2(-1.0, 1.0);\n"
 				"vec2 tc = base;\n"
 				"tc += OffsetVector;\n"
 				"OffsetVector *= 0.333;\n"
@@ -1426,6 +1438,9 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 	int strings = 0;
 	char verline[64];
 
+	if (!shadersource)
+		return 0;
+
 	if (ver)
 	{
 		/*required version not supported, don't even try*/
@@ -1471,6 +1486,16 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			strings++;
 		}
 		break;
+	case GL_TESS_CONTROL_SHADER_ARB:
+		prstrings[strings] = "#define TESS_CONTROL_SHADER\n";
+		length[strings] = strlen(prstrings[strings]);
+		strings++;
+		break;
+	case GL_TESS_EVALUATION_SHADER_ARB:
+		prstrings[strings] = "#define TESS_EVALUATION_SHADER\n";
+		length[strings] = strlen(prstrings[strings]);
+		strings++;
+		break;
 	case GL_VERTEX_SHADER_ARB:
 		prstrings[strings] = "#define VERTEX_SHADER\n";
 		length[strings] = strlen(prstrings[strings]);
@@ -1487,12 +1512,28 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
-		if (gl_config.nofixedfunc)
+		if (ver < 140)
 		{
 			prstrings[strings] =
-					"attribute vec3 v_position1;\n"
+				"#define in attribute\n"
+				"#define out varying\n"
+			;
+		}
+		else
+		{
+			prstrings[strings] =
+				"#define attribute in\n"
+				"#define varying out\n"
+			;
+			length[strings] = strlen(prstrings[strings]);
+			strings++;
+		}
+		if (gl_config.nofixedfunc || ver >= 140)
+		{
+			prstrings[strings] =
+					"in vec3 v_position1;\n"
 					"#ifdef FRAMEBLEND\n"
-					"attribute vec3 v_position2;\n"
+					"in vec3 v_position2;\n"
 					"uniform vec2 e_vblend;\n"
 					"#define v_position ((v_position1*e_vblend.x)+(v_position2*e_vblend.y))\n"
 					"#else\n"
@@ -1509,7 +1550,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 		{
 			prstrings[strings] =
 					"#ifdef FRAMEBLEND\n"
-					"attribute vec3 v_position2;\n"
+					"in vec3 v_position2;\n"
 					"uniform vec2 e_vblend;\n"
 					"#define v_position (gl_Vertex.xyz*e_vblend.x+v_position2*e_vblend.y)\n"
 					"uniform mat4 m_modelviewprojection;\n"
@@ -1593,6 +1634,12 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 			case GL_VERTEX_SHADER_ARB:
 				typedesc = "Vertex";
 				break;
+			case GL_TESS_CONTROL_SHADER_ARB:
+				typedesc = "Tesselation Control";
+				break;
+			case GL_TESS_EVALUATION_SHADER_ARB:
+				typedesc = "Tesselation Evaluation";
+				break;
 			default:
 				typedesc = "???";
 				break;
@@ -1633,13 +1680,15 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 	return shader;
 }
 
-GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLhandleARB frag, qboolean silent)
+GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLhandleARB cont, GLhandleARB eval, GLhandleARB frag, qboolean silent)
 {
 	GLhandleARB	program;
 
 	program = qglCreateProgramObjectARB();
-	qglAttachObjectARB(program, vert);
-	qglAttachObjectARB(program, frag);
+	if (vert) qglAttachObjectARB(program, vert);
+	if (cont) qglAttachObjectARB(program, cont);
+	if (eval) qglAttachObjectARB(program, eval);
+	if (frag) qglAttachObjectARB(program, frag);
 
 	qglBindAttribLocationARB(program, VATTR_VERTEX1, "v_position1");
 	qglBindAttribLocationARB(program, VATTR_COLOUR, "v_colour");
@@ -1666,108 +1715,124 @@ GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLh
 	return program;
 }
 
-GLhandleARB GLSlang_ValidateProgram(GLhandleARB program, const char *name, qboolean silent, vfsfile_t *blobfile)
+qboolean GLSlang_ValidateProgram(union programhandle_u *h, const char *name, qboolean silent, vfsfile_t *blobfile)
 {
 	char		str[2048];
 	char *nullconstants = NULL;
 	GLint linked;
 
-	if (!program)
-		return (GLhandleARB)0;
-	qglGetProgramParameteriv_(program, GL_OBJECT_LINK_STATUS_ARB, &linked);
+	if (!h->glsl.handle)
+		return false;
+	qglGetProgramParameteriv_(h->glsl.handle, GL_OBJECT_LINK_STATUS_ARB, &linked);
 
 	if(!linked)
 	{
 		if (!silent)
 		{
-			qglGetProgramInfoLog_(program, sizeof(str), NULL, str);
+			qglGetProgramInfoLog_(h->glsl.handle, sizeof(str), NULL, str);
 			Con_Printf("Program link error on glsl program %s:\n%s\n", name, str);
 		}
 
-		qglDeleteProgramObject_(program);
+		qglDeleteProgramObject_(h->glsl.handle);
+		h->glsl.handle = 0;
 
 		return (GLhandleARB)0;
 	}
 
-	if (program && blobfile && qglGetProgramBinary)
+	if (h->glsl.handle && blobfile && qglGetProgramBinary)
 	{
 		GLuint ui;
 		GLenum e;
 		unsigned int len, fmt;
 		void *blobdata;
 
-		qglGetProgramParameteriv_(program, GL_PROGRAM_BINARY_LENGTH, &ui);
+		qglGetProgramParameteriv_(h->glsl.handle, GL_PROGRAM_BINARY_LENGTH, &ui);
 		len = ui;
 
 		blobdata = BZ_Malloc(len);
-		qglGetProgramBinary(program, len, NULL, &e, blobdata);
+		qglGetProgramBinary(h->glsl.handle, len, NULL, &e, blobdata);
 		fmt = e;
 
 		VFS_WRITE(blobfile, &fmt, sizeof(fmt));
 		VFS_WRITE(blobfile, &len, sizeof(len));
 		VFS_WRITE(blobfile, blobdata, len);
+		VFS_WRITE(blobfile, &h->glsl.usetesselation, sizeof(h->glsl.usetesselation));
 		BZ_Free(blobdata);
 	}
 
-	return program;
+	return true;
 }
 
-GLhandleARB GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *frag, qboolean silent, vfsfile_t *blobfile)
+union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *frag, qboolean silent, vfsfile_t *blobfile)
 {
-	GLhandleARB handle;
+	union programhandle_u ret;
 	GLhandleARB vs;
 	GLhandleARB fs;
+	GLhandleARB cs;
+	GLhandleARB es;
 	const char *nullconstants = NULL;
 
+	memset(&ret, 0, sizeof(ret));
+
 	if (!gl_config.arb_shader_objects)
-		return 0;
+		return ret;
+	if ((cont || frag) && !qglPatchParameteriARB)
+		return ret;
 
 	if (!precompilerconstants)
 		precompilerconstants = &nullconstants;
 
 	fs = GLSlang_CreateShader(name, ver, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB, silent);
 	vs = GLSlang_CreateShader(name, ver, precompilerconstants, vert, GL_VERTEX_SHADER_ARB, silent);
+	cs = GLSlang_CreateShader(name, ver, precompilerconstants, cont, GL_TESS_CONTROL_SHADER_ARB, silent);
+	es = GLSlang_CreateShader(name, ver, precompilerconstants, eval, GL_TESS_EVALUATION_SHADER_ARB, silent);
 
 	fs = GLSlang_FinishShader(fs, name, GL_FRAGMENT_SHADER_ARB, silent);
 	vs = GLSlang_FinishShader(vs, name, GL_VERTEX_SHADER_ARB, silent);
+	cs = GLSlang_FinishShader(cs, name, GL_TESS_CONTROL_SHADER_ARB, silent);
+	es = GLSlang_FinishShader(es, name, GL_TESS_EVALUATION_SHADER_ARB, silent);
 
 	if (!vs || !fs)
-		handle = 0;
+		ret.glsl.handle = 0;
 	else
-		handle = GLSlang_CreateProgramObject(name, vs, fs, silent);
+		ret.glsl.handle = GLSlang_CreateProgramObject(name, vs, cs, es, fs, silent);
 	//delete ignores 0s.
-	qglDeleteShaderObject_(vs);
-	qglDeleteShaderObject_(fs);
+	if (vs) qglDeleteShaderObject_(vs);
+	if (fs) qglDeleteShaderObject_(fs);
+	if (cs) qglDeleteShaderObject_(cs);
+	if (es) qglDeleteShaderObject_(es);
 
 	checkglerror();
 
-	if (handle && blobfile && qglGetProgramBinary)
+	if (ret.glsl.handle && blobfile && qglGetProgramBinary)
 	{
 		GLuint ui;
 		GLenum e;
 		unsigned int len, fmt;
 		void *blobdata;
 
-		qglGetProgramParameteriv_(handle, GL_PROGRAM_BINARY_LENGTH, &ui);
+		qglGetProgramParameteriv_(ret.glsl.handle, GL_PROGRAM_BINARY_LENGTH, &ui);
 		len = ui;
 
 		blobdata = BZ_Malloc(len);
-		qglGetProgramBinary(handle, len, NULL, &e, blobdata);
+		qglGetProgramBinary(ret.glsl.handle, len, NULL, &e, blobdata);
 		fmt = e;
 
 		VFS_WRITE(blobfile, &fmt, sizeof(fmt));
 		VFS_WRITE(blobfile, &len, sizeof(len));
 		VFS_WRITE(blobfile, blobdata, len);
+		VFS_WRITE(blobfile, &ret.glsl.usetesselation, sizeof(ret.glsl.usetesselation));
 		BZ_Free(blobdata);
 	}
 
-	return handle;
+	ret.glsl.usetesselation = (cont || eval);
+
+	return ret;
 }
 
 qboolean GLSlang_ValidateProgramPermu(program_t *prog, const char *name, unsigned int permu, qboolean noerrors, vfsfile_t *blobfile)
 {
-	prog->permu[permu].handle.glsl = GLSlang_ValidateProgram(prog->permu[permu].handle.glsl, name, noerrors, blobfile);
-	return !!prog->permu[permu].handle.glsl;
+	return GLSlang_ValidateProgram(&prog->permu[permu].handle, name, noerrors, blobfile);
 }
 qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
 {
@@ -1777,8 +1842,8 @@ qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned 
 		if (permu & PERMUTATION_SKELETAL)
 			ver = 120;
 	}
-	prog->permu[permu].handle.glsl = GLSlang_CreateProgram(name, ver, precompilerconstants, vert, frag, noerrors, blobfile);
-	if (prog->permu[permu].handle.glsl)
+	prog->permu[permu].handle = GLSlang_CreateProgram(name, ver, precompilerconstants, vert, tcs, tes, frag, noerrors, blobfile);
+	if (prog->permu[permu].handle.glsl.handle)
 		return true;
 	return false;
 }
@@ -1805,26 +1870,27 @@ static qboolean GLSlang_LoadBlob(program_t *prog, const char *name, unsigned int
 	VFS_READ(blobfile, &length, sizeof(length));
 	binary = BZ_Malloc(length);
 	VFS_READ(blobfile, binary, length);
+	VFS_READ(blobfile, &prog->permu[permu].handle.glsl.usetesselation, sizeof(prog->permu[permu].handle.glsl.usetesselation));
 
-	prog->permu[permu].handle.glsl = qglCreateProgramObjectARB();
-	qglProgramBinary(prog->permu[permu].handle.glsl, fmt, binary, length);
+	prog->permu[permu].handle.glsl.handle = qglCreateProgramObjectARB();
+	qglProgramBinary(prog->permu[permu].handle.glsl.handle, fmt, binary, length);
 	BZ_Free(binary);
-	qglGetProgramParameteriv_(prog->permu[permu].handle.glsl, GL_OBJECT_LINK_STATUS_ARB, &success);
+	qglGetProgramParameteriv_(prog->permu[permu].handle.glsl.handle, GL_OBJECT_LINK_STATUS_ARB, &success);
 
 	if (!success)
 	{
-		qglDeleteProgramObject_(prog->permu[permu].handle.glsl);
-		prog->permu[permu].handle.glsl = 0;
+		qglDeleteProgramObject_(prog->permu[permu].handle.glsl.handle);
+		memset(&prog->permu[permu].handle, 0, sizeof(prog->permu[permu].handle));
 	}
 	return !!success;
 }
 
 static void GLSlang_DeleteProg(program_t *prog, unsigned int permu)
 {
-	if (prog->permu[permu].handle.glsl)
+	if (prog->permu[permu].handle.glsl.handle)
 	{
-		qglDeleteProgramObject_(prog->permu[permu].handle.glsl);
-		prog->permu[permu].handle.glsl = 0;
+		qglDeleteProgramObject_(prog->permu[permu].handle.glsl.handle);
+		prog->permu[permu].handle.glsl.handle = 0;
 	}
 }
 
@@ -1841,12 +1907,12 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 	//figure out visible attributes
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
-		if (!prog->permu[p].handle.glsl)
+		if (!prog->permu[p].handle.glsl.handle)
 			continue;
-		GLSlang_UseProgram(prog->permu[p].handle.glsl);
+		GLSlang_UseProgram(prog->permu[p].handle.glsl.handle);
 		for (i = 0; shader_attr_names[i].name; i++)
 		{
-			uniformloc = qglGetAttribLocationARB(prog->permu[p].handle.glsl, shader_attr_names[i].name);
+			uniformloc = qglGetAttribLocationARB(prog->permu[p].handle.glsl.handle, shader_attr_names[i].name);
 			if (uniformloc != -1)
 			{
 				if (shader_attr_names[i].ptype != uniformloc)
@@ -1863,11 +1929,11 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 		found = false;
 		for (p = 0; p < PERMUTATIONS; p++)
 		{
-			if (!prog->permu[p].handle.glsl)
+			if (!prog->permu[p].handle.glsl.handle)
 				continue;
-			GLSlang_UseProgram(prog->permu[p].handle.glsl);
+			GLSlang_UseProgram(prog->permu[p].handle.glsl.handle);
 
-			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, shader_unif_names[i].name);
+			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl.handle, shader_unif_names[i].name);
 			if (uniformloc != -1)
 				found = true;
 
@@ -1911,11 +1977,11 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 		for (p = 0; p < PERMUTATIONS; p++)
 		{
 			char uniformname[64];
-			if (!prog->permu[p].handle.glsl)
+			if (!prog->permu[p].handle.glsl.handle)
 				continue;
-			GL_SelectProgram(prog->permu[p].handle.glsl);
+			GL_SelectProgram(prog->permu[p].handle.glsl.handle);
 			Q_snprintfz(uniformname, sizeof(uniformname), "cvar_%s", tmpname);
-			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, uniformname);
+			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl.handle, uniformname);
 			if (uniformloc != -1)
 			{
 				//qglUniform1fARB(uniformloc, cvar->value);
@@ -1929,15 +1995,15 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 	/*set texture uniforms*/
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
-		if (!prog->permu[p].handle.glsl)
+		if (!prog->permu[p].handle.glsl.handle)
 			continue;
 		if (!(prog->permu[p].attrmask & (1u<<VATTR_VERTEX1)))	//a shader kinda has to use one of these...
 			prog->permu[p].attrmask |= (1u<<VATTR_LEG_VERTEX);
-		GLSlang_UseProgram(prog->permu[p].handle.glsl);
+		GLSlang_UseProgram(prog->permu[p].handle.glsl.handle);
 		for (i = 0; i < 8; i++)
 		{
 			Q_snprintfz(tmpname, sizeof(tmpname), "s_t%i", i);
-			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, tmpname);
+			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl.handle, tmpname);
 			if (uniformloc != -1)
 				qglUniform1iARB(uniformloc, i);
 		}
@@ -1948,7 +2014,7 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 void GL_Init(void *(*getglfunction) (char *name))
 {
 #ifndef GL_STATIC
-	qglBindTexture			= (void *)getglcore("glBindTexture");	//for compleateness
+	qglBindTexture			= (void *)getglcore("glBindTexture");	//for compleateness. core in 1.1. needed by fte.
 	qglBlendFunc		= (void *)getglcore("glBlendFunc");
 	qglClear			= (void *)getglcore("glClear");
 	qglClearColor		= (void *)getglcore("glClearColor");

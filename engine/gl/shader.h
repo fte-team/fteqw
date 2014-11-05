@@ -422,7 +422,11 @@ typedef struct {
 
 union programhandle_u
 {
-	int glsl;
+	struct
+	{
+		int handle;
+		qboolean usetesselation;
+	} glsl;
 #ifdef D3DQUAKE
 	struct
 	{

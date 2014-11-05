@@ -198,6 +198,7 @@ extern FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 extern FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
+extern void (APIENTRY *qglPatchParameteriARB)(GLenum pname, GLint value);	//core in gl4
 
 qboolean GL_CheckExtension(char *extname);
 
@@ -1061,7 +1062,7 @@ extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
 
 
 //glslang helper api
-GLhandleARB GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *frag, qboolean silent, vfsfile_t *blobfile);
+union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *frag, qboolean silent, vfsfile_t *blobfile);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
 void GL_SelectProgram(int program);
 #define GLSlang_UseProgram(prog) GL_SelectProgram(prog)

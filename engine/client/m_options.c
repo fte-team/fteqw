@@ -499,7 +499,7 @@ void M_Menu_Audio_f (void)
 		MB_SLIDER("Ambient Volume", ambient_level, 0, 1, 0.1, NULL),
 		MB_SLIDER("Ambient Fade", ambient_fade, 0, 1000, 1, NULL),
 		MB_CHECKBOXCVAR("Static Sounds", cl_staticsounds, 0),
-		MB_SLIDER("CD Music Volume", bgmvolume, 0, 1, 0.1, NULL),
+		MB_SLIDER("Music Volume", bgmvolume, 0, 1, 0.1, NULL),
 		// removed music buffer
 		// removed precache
 		// removed eax2

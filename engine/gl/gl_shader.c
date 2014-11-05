@@ -1783,11 +1783,11 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 			prog->parm[prog->numparams].type = parmtype;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				if (!prog->permu[p].handle.glsl)
+				if (!prog->permu[p].handle.glsl.handle)
 					continue;
-				GLSlang_UseProgram(prog->permu[p].handle.glsl);
+				GLSlang_UseProgram(prog->permu[p].handle.glsl.handle);
 
-				uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl, token);
+				uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl.handle, token);
 				prog->permu[p].parm[prog->numparams] = uniformloc;
 
 				if (uniformloc != -1)

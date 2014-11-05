@@ -579,7 +579,7 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GL_OBJECT_ACTIVE_ATTRIBUTE_MAX_LENGTH_ARB	0x8B8A
 #endif
 
-#ifndef GL_ARB_tessellation_shader
+#ifndef GL_PATCH_VERTICES_ARB //GL_ARB_tessellation_shader lacks _ARB postfix.
 #define GL_PATCHES_ARB								0xE
 #define GL_PATCH_VERTICES_ARB						0x8E72
 #define GL_TESS_EVALUATION_SHADER_ARB				0x8E87

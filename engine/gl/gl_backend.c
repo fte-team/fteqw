@@ -2701,7 +2701,6 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 #endif
 }
 
-#define GL_PATCHES_ARB 0xe
 static void BE_SubmitMeshChain(qboolean usetesselation)
 {
 	int startv, starti, endv, endi;
@@ -2715,8 +2714,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 		if (shaderstate.curpatchverts != m)
 		{
 			shaderstate.curpatchverts = m;
-#define GL_PATCH_VERTICES                                 0x8E72
-			qglPatchParameteriARB(GL_PATCH_VERTICES, m);
+			qglPatchParameteriARB(GL_PATCH_VERTICES_ARB, m);
 		}
 		batchtype = GL_PATCHES_ARB;
 	}

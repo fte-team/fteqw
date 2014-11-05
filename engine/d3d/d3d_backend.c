@@ -1832,7 +1832,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 
 	if (shaderstate.batchvbo && shaderstate.batchvbo->numbones)
 	{
-		if (p->permu[perm|PERMUTATION_SKELETAL].handle.glsl)
+		if (p->permu[perm|PERMUTATION_SKELETAL].handle.hlsl.vert)
 			perm |= PERMUTATION_SKELETAL;
 		else
 			return;

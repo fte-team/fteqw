@@ -58,6 +58,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "bsd_string.h"
 
 #ifndef _WIN32
+#include <dirent.h>
 #include <signal.h>
 #endif
 
@@ -573,15 +574,30 @@ qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
 	return true;
 }
 
-qboolean DemoFilenameIsOkay(char *fname)
+qboolean DemoFilenameIsOkay(sv_t* qtv, char *fname, char *dir)
 {
 	int len;
+
+	if (dir)
+	{
+		if (strchr(dir, '/'))
+			return false;	//unix path seperator
+		if (strchr(dir, '\\'))
+			return false;	//windows path seperator
+		if (strchr(dir, ':'))
+			return false;	//mac path seperator
+		if (*(dir) == '.')
+			return false;
+	}
+
 	if (strchr(fname, '/'))
 		return false;	//unix path seperator
 	if (strchr(fname, '\\'))
 		return false;	//windows path seperator
 	if (strchr(fname, ':'))
 		return false;	//mac path seperator
+	if (*(fname) == '.')
+		return false;
 
 	//now make certain that the last four characters are '.mvd' and not something like '.cfg' perhaps
 	len = strlen(fname);
@@ -619,6 +635,144 @@ qboolean DemoFilenameIsOkay(char *fname)
 */
 }
 
+qboolean Net_ConnectToDemoServer(sv_t* qtv, char* ip, char* dir)
+{
+	char fullname[512];
+	qtv->sourcesock = INVALID_SOCKET;
+	if (DemoFilenameIsOkay(qtv, ip, dir))
+	{
+		if (!dir)
+			snprintf(fullname, sizeof(fullname), "%s%s", qtv->cluster->demodir, ip);
+		else
+			snprintf(fullname, sizeof(fullname), "%s%s/%s", qtv->cluster->demodir, dir, ip);
+		qtv->sourcefile = fopen(fullname, "rb");
+	}
+	else
+		qtv->sourcefile = NULL;
+
+	if (qtv->sourcefile)
+	{
+		char smallbuffer[17];
+		fseek(qtv->sourcefile, 0, SEEK_END);
+		qtv->filelength = ftell(qtv->sourcefile);
+
+		//attempt to detect the end of the file
+		fseek(qtv->sourcefile, 0-sizeof(smallbuffer), SEEK_CUR);
+		fread(smallbuffer, 1, 17, qtv->sourcefile);
+		//0 is the time
+		if (smallbuffer[1] == dem_all || smallbuffer[1] == dem_read) //mvdsv changed it to read...
+		{
+			//2,3,4,5 are the length
+			if (smallbuffer[6] == svc_disconnect)
+			{
+				if (!strcmp(smallbuffer+7, "EndOfDemo"))
+				{
+					qtv->filelength -= 17;
+				}
+			}
+		}
+
+		fseek(qtv->sourcefile, 0, SEEK_SET);
+		return true;
+	}
+
+	if (!dir)
+		Sys_Printf(qtv->cluster, "Stream %i: Unable to open file %s\n", qtv->streamid, ip);
+	else
+		Sys_Printf(qtv->cluster, "Stream %i: Unable to open file %s in directory %s\n", qtv->streamid, ip, dir);
+	return false;
+}
+
+qboolean Net_ConnectToDemoDirServer(sv_t* qtv, char *ip)
+{
+	char fullname[512];
+	qtv->sourcesock = INVALID_SOCKET;
+	snprintf(fullname, sizeof(fullname), "%s%s", qtv->cluster->demodir, ip);
+
+	#ifdef _WIN32
+	// TODO: code for Windows directories goes here
+	// TODO: possible to do this without copy-pasting the entire GNU/Linux code below?
+	// TODO: also, what about MAC OS X?
+	Sys_Printf(qtv->cluster, "Windows support coming soon!\n");
+	return false;
+	#else
+	DIR *dir;
+	struct dirent* ent;
+
+	dir = opendir(fullname);
+	if (dir)
+	{
+		char demoname[512];
+		int current_demo = 0;
+		int file_count = 0;
+		int random_number;
+
+		// count the files, important for determining a random demo file
+		while ((ent = readdir(dir)) != NULL)
+		{
+			if (ent->d_type == DT_REG && *(ent->d_name) != '.')
+				file_count++;	// only add non-hidden and regular files
+		}
+
+		if (file_count == 0)
+		{
+			// empty directory
+			Sys_Printf(qtv->cluster, "Stream %i: Error: Directory is empty.\n", qtv->streamid);
+			closedir(dir);
+			return false;
+		}
+
+		closedir(dir);
+		dir = opendir(fullname);
+
+		// FIXME: not sure if srand should only be called once somewhere?
+		// FIXME: this is not really shuffling the demos, but does introduce some variety
+		srand(time(NULL));
+		while ((random_number = rand()%file_count + 1) == qtv->last_random_number);
+		qtv->last_random_number = random_number;
+
+		while (1) {
+			ent = readdir(dir);
+			if (!ent)
+			{
+				// reached the end of the directory, shouldn't happen
+				Sys_Printf(qtv->cluster, "Stream %i: Error: Reached end of directory (%s%s)\n", qtv->streamid, qtv->cluster->demodir, ip);
+				closedir(dir);
+				return false;
+			}
+
+			if (ent->d_type != DT_REG || *(ent->d_name) == '.')
+			{
+				continue;	// ignore hidden and non-regular files
+			}
+
+			if (++current_demo != random_number)
+				continue;
+
+			snprintf(demoname, sizeof(demoname), "%s/%s", ip, ent->d_name);
+			qtv->sourcefile = demoname;
+			closedir(dir);
+			if (Net_ConnectToDemoServer(qtv, ent->d_name, ip) == true)
+			{
+				return true;
+			}
+			else
+			{
+				return false;
+			}
+		}
+		closedir(dir);
+	}
+	else
+	{
+		Sys_Printf(qtv->cluster, "Stream %i: Unable to open directory %s\n", qtv->streamid, qtv->cluster->demodir);
+		return false;
+	}
+	#endif
+
+	return false;
+}
+
 /*figures out the ip to connect to, and decides the protocol for it*/
 char *Net_DiagnoseProtocol(sv_t *qtv)
 {
@@ -646,11 +800,16 @@ char *Net_DiagnoseProtocol(sv_t *qtv)
 		type = SRC_DEMO;
 		ip += 5;
 	}
+	else if (!strncmp(ip, "dir:", 4))
+	{
+		type = SRC_DEMODIR;
+		ip += 4;
+	}
 
 	at = strchrrev(ip, '@');
-	if (at && (type == SRC_DEMO || type == SRC_TCP))
+	if (at && (type == SRC_DEMO || type == SRC_DEMODIR || type == SRC_TCP))
 	{
-		if (type == SRC_DEMO)
+		if (type == SRC_DEMO || type == SRC_DEMODIR)
 			type = SRC_TCP;
 		ip = at+1;
 	}
@@ -666,50 +825,21 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 	qtv->usequakeworldprotocols = false;
 	qtv->pext = 0;
 
-	if (qtv->sourcetype == SRC_DEMO)
+	if (qtv->sourcetype == SRC_DEMO || qtv->sourcetype == SRC_DEMODIR)
+	{
 		qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME_DEMO;	//wait half a minuite before trying to reconnect
+	}
 	else
 		qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;	//wait half a minuite before trying to reconnect
 
 	switch(	qtv->sourcetype)
 	{
 	case SRC_DEMO:
-		qtv->sourcesock = INVALID_SOCKET;
-		if (DemoFilenameIsOkay(ip))
-		{
-			char fullname[512];
-			snprintf(fullname, sizeof(fullname), "%s%s", qtv->cluster->demodir, ip);
-			qtv->sourcefile = fopen(fullname, "rb");
-		}
-		else
-			qtv->sourcefile = NULL;
-		if (qtv->sourcefile)
-		{
-			char smallbuffer[17];
-			fseek(qtv->sourcefile, 0, SEEK_END);
-			qtv->filelength = ftell(qtv->sourcefile);
+		return Net_ConnectToDemoServer(qtv, ip, NULL);
 
-			//attempt to detect the end of the file
-			fseek(qtv->sourcefile, 0-sizeof(smallbuffer), SEEK_CUR);
-			fread(smallbuffer, 1, 17, qtv->sourcefile);
-			//0 is the time
-			if (smallbuffer[1] == dem_all || smallbuffer[1] == dem_read) //mvdsv changed it to read...
-			{
-				//2,3,4,5 are the length
-				if (smallbuffer[6] == svc_disconnect)
-				{
-					if (!strcmp(smallbuffer+7, "EndOfDemo"))
-					{
-						qtv->filelength -= 17;
-					}
-				}
-			}
 
-			fseek(qtv->sourcefile, 0, SEEK_SET);
-			return true;
-		}
-		Sys_Printf(qtv->cluster, "Stream %i: Unable to open file %s\n", qtv->streamid, ip);
-		return false;
+	case SRC_DEMODIR:
+		return Net_ConnectToDemoDirServer(qtv, ip);
 
 
 	case SRC_UDP:
@@ -1885,7 +2015,7 @@ void QTV_Run(sv_t *qtv)
 		if (qtv->errored == ERR_DISABLED)
 			return;
 
-		if (qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - RECONNECT_TIME*2)
+		if (qtv->sourcetype == SRC_DEMODIR || qtv->curtime >= qtv->nextconnectattempt || qtv->curtime < qtv->nextconnectattempt - RECONNECT_TIME*2)
 		{
 			if (qtv->autodisconnect == AD_REVERSECONNECT)	//2 means a reverse connection
 			{

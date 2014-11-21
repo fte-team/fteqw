@@ -558,6 +558,7 @@ typedef struct {
 typedef enum {
 	SRC_BAD,
 	SRC_DEMO,
+	SRC_DEMODIR,
 	SRC_UDP,
 	SRC_TCP
 } sourcetype_t;
@@ -630,6 +631,7 @@ struct sv_s {	//details about a server connection (also known as stream)
 	FILE *sourcefile;
 	unsigned int filelength;
 	SOCKET sourcesock;
+	int last_random_number;	// for demo directories randomizing stuff
 
 //	SOCKET tcpsocket;	//tcp + mvd protocol
 //	int tcplistenportnum;

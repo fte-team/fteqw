@@ -467,6 +467,8 @@ void Cmd_GenericConnect(cmdctxt_t *ctx, char *method, enum autodisconnect_e auto
 	{
 		if (!strncmp(method, "file", 4))
 			Cmd_Printf(ctx, "%s requires a demo name parameter\n", Cmd_Argv(ctx, 0));
+		else if (!strncmp(method, "dir", 3))
+			Cmd_Printf(ctx, "%s requires a demo directory parameter\n", Cmd_Argv(ctx, 0));
 		else
 			Cmd_Printf(ctx, "%s requires an ip:port parameter\n", Cmd_Argv(ctx, 0));
 		return;
@@ -497,6 +499,10 @@ void Cmd_QWConnect(cmdctxt_t *ctx)
 void Cmd_MVDConnect(cmdctxt_t *ctx)
 {
 	Cmd_GenericConnect(ctx, "file:", AD_NO);
+}
+void Cmd_DirMVDConnect(cmdctxt_t *ctx)
+{
+	Cmd_GenericConnect(ctx, "dir:", AD_NO);
 }
 
 void Cmd_Exec(cmdctxt_t *ctx)
@@ -1258,6 +1264,8 @@ const rconcommands_t rconcommands[] =
 	{"demos",		0, 1, Cmd_DemoList,	"shows the list of demos available on this proxy"},
 	{"demo",		0, 1, Cmd_MVDConnect,	"adds a demo as a new stream"},
 	 {"playdemo",		0, 1, Cmd_MVDConnect},
+	{"dir",			0, 1, Cmd_DirMVDConnect, "adds a directory of demos as a new stream"},
+	 {"playdir",		0, 1, Cmd_DirMVDConnect},
 	{"choke",		0, 1, Cmd_Choke,	"chokes packets to the data rate in the stream, disables proxy-side interpolation"},
 	{"late",		0, 1, Cmd_Late,		"enforces a time delay on packets sent through this proxy"},
 	{"talking",		0, 1, Cmd_Talking,	"permits viewers to talk to each other"},

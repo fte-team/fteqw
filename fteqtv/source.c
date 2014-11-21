@@ -710,6 +710,19 @@ qboolean Net_ConnectToDemoDirServer(sv_t* qtv, char *ip)
 		// count the files, important for determining a random demo file
 		while ((ent = readdir(dir)) != NULL)
 		{
+			int len;
+
+			// only count files neding in .mvd
+			len = strlen(ent->d_name);
+			if (len < 5)
+			{
+				continue;
+			}
+			if (strcmp(ent->d_name+len-4, ".mvd"))
+			{
+				continue;
+			}
+
 			if (ent->d_type == DT_REG && *(ent->d_name) != '.')
 				file_count++;	// only add non-hidden and regular files
 		}
@@ -732,6 +745,8 @@ qboolean Net_ConnectToDemoDirServer(sv_t* qtv, char *ip)
 		qtv->last_random_number = random_number;
 
 		while (1) {
+			int len;
+
 			ent = readdir(dir);
 			if (!ent)
 			{
@@ -744,6 +759,17 @@ qboolean Net_ConnectToDemoDirServer(sv_t* qtv, char *ip)
 			if (ent->d_type != DT_REG || *(ent->d_name) == '.')
 			{
 				continue;	// ignore hidden and non-regular files
+			}
+
+			//now make certain that the last four characters are '.mvd' and not something like '.cfg' perhaps
+			len = strlen(ent->d_name);
+			if (len < 5)
+			{
+				continue;
+			}
+			if (strcmp((ent->d_name)+len-4, ".mvd"))
+			{
+				continue;
 			}
 
 			if (++current_demo != random_number)

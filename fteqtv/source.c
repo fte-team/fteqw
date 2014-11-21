@@ -2237,11 +2237,14 @@ void QTV_Run(sv_t *qtv)
 			}
 
 			if (qtv->sourcefile)
+			{
 				Net_ReadStream(qtv);
+				qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME_DEMO;
+			}
+			else
+				qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;
 
 			qtv->parsetime += packettime;
-
-			qtv->nextconnectattempt = qtv->curtime + RECONNECT_TIME;
 		}
 		else
 			break;

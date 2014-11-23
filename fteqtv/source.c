@@ -705,7 +705,7 @@ qboolean Net_ConnectToDemoDirServer(sv_t* qtv, char *ip)
 		char demoname[512];
 		int current_demo = 0;
 		int file_count = 0;
-		int random_number;
+		int random_number = 1; // always this value if the directory contains one file
 
 		// count the files, important for determining a random demo file
 		while ((ent = readdir(dir)) != NULL)
@@ -730,7 +730,7 @@ qboolean Net_ConnectToDemoDirServer(sv_t* qtv, char *ip)
 		if (file_count == 0)
 		{
 			// empty directory
-			Sys_Printf(qtv->cluster, "Stream %i: Error: Directory is empty.\n", qtv->streamid);
+			Sys_Printf(qtv->cluster, "Stream %i: Error: Directory has no demos.\n", qtv->streamid);
 			closedir(dir);
 			return false;
 		}
@@ -740,9 +740,12 @@ qboolean Net_ConnectToDemoDirServer(sv_t* qtv, char *ip)
 
 		// FIXME: not sure if srand should only be called once somewhere?
 		// FIXME: this is not really shuffling the demos, but does introduce some variety
-		srand(time(NULL));
-		while ((random_number = rand()%file_count + 1) == qtv->last_random_number);
-		qtv->last_random_number = random_number;
+		if (file_count > 1)
+		{
+			srand(time(NULL));
+			while ((random_number = rand()%file_count + 1) == qtv->last_random_number);
+			qtv->last_random_number = random_number;
+		}
 
 		while (1) {
 			int len;

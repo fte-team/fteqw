@@ -502,6 +502,7 @@ void Cmd_MVDConnect(cmdctxt_t *ctx)
 }
 void Cmd_DirMVDConnect(cmdctxt_t *ctx)
 {
+	srand(time(NULL));
 	Cmd_GenericConnect(ctx, "dir:", AD_NO);
 }
 

@@ -742,7 +742,7 @@ qboolean Net_ConnectToDemoDirServer(sv_t* qtv, char *ip)
 		// FIXME: this is not really shuffling the demos, but does introduce some variety
 		if (file_count > 1)
 		{
-			srand(time(NULL));
+			//srand(time(NULL));
 			while ((random_number = rand()%file_count + 1) == qtv->last_random_number);
 			qtv->last_random_number = random_number;
 		}

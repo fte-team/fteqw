@@ -632,6 +632,12 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 			flags|= IF_NEAREST;
 			pass->flags |= SHADER_PASS_NEAREST;
 		}
+		else if (!Q_strnicmp(*name, "$linear:", 8))
+		{
+			*name+=8;
+			flags|= IF_LINEAR;
+			pass->flags |= SHADER_PASS_LINEAR;
+		}
 		else
 			name = NULL;
 	}

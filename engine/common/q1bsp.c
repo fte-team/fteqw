@@ -1291,11 +1291,19 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 	float verts2[MAXFRAGMENTVERTS*C];
 	float *cverts;
 	int flip;
+	vec3_t d1, d2, n;
 
 	if (numverts > MAXFRAGMENTTRIS)
 		return;
 	if (dec->numtris == MAXFRAGMENTTRIS)
 		return;	//don't bother
+
+	VectorSubtract(inverts+C*1, inverts+C*0, d1);
+	VectorSubtract(inverts+C*2, inverts+C*0, d2);
+	CrossProduct(d1, d2, n);
+	VectorNormalizeFast(n);
+	if (DotProduct(n, dec->normal) > 0.1)
+		return;	//faces too far way from the normal
 
 	//clip to the first plane specially, so we don't have extra copys
 	numverts = Fragment_ClipPolyToPlane(inverts, verts, numverts, dec->planenorm[0], dec->planedist[0]);
@@ -1366,7 +1374,7 @@ static void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 	}
 }
 
-static void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
+static void Q1BSP_ClipDecalToNodes (model_t *mod, fragmentdecal_t *dec, mnode_t *node)
 {
 	mplane_t	*splitplane;
 	float		dist;
@@ -1381,17 +1389,17 @@ static void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 
 	if (dist > dec->radius)
 	{
-		Q1BSP_ClipDecalToNodes (dec, node->children[0]);
+		Q1BSP_ClipDecalToNodes (mod, dec, node->children[0]);
 		return;
 	}
 	if (dist < -dec->radius)
 	{
-		Q1BSP_ClipDecalToNodes (dec, node->children[1]);
+		Q1BSP_ClipDecalToNodes (mod, dec, node->children[1]);
 		return;
 	}
 
 // mark the polygons
-	surf = cl.worldmodel->surfaces + node->firstsurface;
+	surf = mod->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
 		if (surf->flags & SURF_PLANEBACK)
@@ -1407,8 +1415,8 @@ static void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 		Fragment_Mesh(dec, surf->mesh);
 	}
 
-	Q1BSP_ClipDecalToNodes (dec, node->children[0]);
-	Q1BSP_ClipDecalToNodes (dec, node->children[1]);
+	Q1BSP_ClipDecalToNodes (mod, dec, node->children[0]);
+	Q1BSP_ClipDecalToNodes (mod, dec, node->children[1]);
 }
 
 #ifdef RTLIGHTS
@@ -1463,7 +1471,8 @@ static void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 }
 #endif
 
-int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out)
+//returns trisoup within a 3d volume.
+int Q1BSP_ClipDecal(model_t *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out)
 {	//quad marks a full, independant quad
 	int p;
 	float r;
@@ -1493,19 +1502,19 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 
 	sh_shadowframe++;
 
-	if (!cl.worldmodel || cl.worldmodel->type != mod_brush)
+	if (!mod || mod->type != mod_brush)
 	{
 	}
-	else if (cl.worldmodel->fromgame == fg_quake)
-		Q1BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
+	else if (mod->fromgame == fg_quake)
+		Q1BSP_ClipDecalToNodes(mod, &dec, mod->nodes);
 #ifdef Q3BSPS
 	else if (cl.worldmodel->fromgame == fg_quake3)
-		Q3BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
+		Q3BSP_ClipDecalToNodes(&dec, mod->nodes);
 #endif
 
 #ifdef TERRAIN
 	if (cl.worldmodel && cl.worldmodel->terrain)
-		Terrain_ClipDecal(&dec, center, dec.radius, cl.worldmodel);
+		Terrain_ClipDecal(&dec, center, dec.radius, mod);
 #endif
 
 	*out = (float *)decalfragmentverts;

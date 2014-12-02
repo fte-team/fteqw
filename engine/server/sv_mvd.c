@@ -756,7 +756,7 @@ void SV_MVDPings (void)
 	client_t *client;
 	int		j;
 
-	for (j = 0, client = svs.clients; j < demo.recorder.max_net_clients; j++, client++)
+	for (j = 0, client = svs.clients; j < demo.recorder.max_net_clients && j < svs.allocated_client_slots; j++, client++)
 	{
 		if (client->state != cs_spawned)
 			continue;
@@ -1060,15 +1060,6 @@ float adjustangle(float current, float ideal, float fraction)
 	return (current + move);
 }
 
-#define DF_ORIGIN	1
-#define DF_ANGLES	(1<<3)
-#define DF_EFFECTS	(1<<6)
-#define DF_SKINNUM	(1<<7)
-#define DF_DEAD		(1<<8)
-#define DF_GIB		(1<<9)
-#define DF_WEAPONFRAME (1<<10)
-#define DF_MODEL	(1<<11)
-
 qboolean SV_MVDWritePackets (int num)
 {
 	demo_frame_t	*frame, *nextframe;
@@ -1145,7 +1136,13 @@ qboolean SV_MVDWritePackets (int num)
 			}
 
 			// now write it to buf
-			flags = cl->flags;
+			flags = cl->flags;	//df_dead/df_gib
+
+			if (demo.playerreset[i])
+			{
+				demo.playerreset[i] = false;
+				flags |= DF_RESET;
+			}
 
 			if (cl->fixangle)
 			{
@@ -1154,13 +1151,13 @@ qboolean SV_MVDWritePackets (int num)
 
 			for (j=0; j < 3; j++)
 				if (origin[j] != demoinfo->origin[i])
-					flags |= DF_ORIGIN << j;
+					flags |= DF_ORIGINX << j;
 
 			if (cl->fixangle || demo.fixangletime[i] != cl->cmdtime)
 			{
 				for (j=0; j < 3; j++)
 					if (angles[j] != demoinfo->angles[j])
-						flags |= DF_ANGLES << j;
+						flags |= DF_ANGLEX << j;
 			}
 
 			if (cl->info.model != demoinfo->model)
@@ -1179,11 +1176,11 @@ qboolean SV_MVDWritePackets (int num)
 			MSG_WriteByte (&msg, cl->frame);
 
 			for (j=0 ; j<3 ; j++)
-				if (flags & (DF_ORIGIN << j))
+				if (flags & (DF_ORIGINX << j))
 					MSG_WriteCoord (&msg, origin[j]);
 
 			for (j=0 ; j<3 ; j++)
-				if (flags & (DF_ANGLES << j))
+				if (flags & (DF_ANGLEX << j))
 					MSG_WriteAngle16 (&msg, angles[j]);
 
 
@@ -1686,7 +1683,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 {
 	sizebuf_t	buf;
 	char buf_data[MAX_QWMSGLEN];
-	int n, i;
+	int n, i, j;
 	const char *s;
 
 	client_t *player;
@@ -1764,6 +1761,29 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	MSG_WriteFloat(&buf, movevars.waterfriction);
 	MSG_WriteFloat(&buf, movevars.entgravity);
 
+	SV_WriteRecordMVDMessage (&buf);
+	SZ_Clear (&buf);
+
+#if 1
+	demo.recorder.prespawn_stage = PRESPAWN_SERVERINFO;
+	demo.recorder.prespawn_idx = 0;
+	demo.recorder.netchan.message = buf;
+	while (demo.recorder.prespawn_stage != PRESPAWN_DONE)
+	{
+		if (demo.recorder.prespawn_stage == PRESPAWN_MAPCHECK)
+		{
+			demo.recorder.prespawn_stage++;//client won't reply, so don't wait.
+			demo.recorder.prespawn_idx = 0;
+		}
+		if (demo.recorder.prespawn_stage == PRESPAWN_SOUNDLIST || demo.recorder.prespawn_stage == PRESPAWN_MODELLIST)
+			demo.recorder.prespawn_idx &= ~0x80000000;	//normally set for the server to wait for ack. we don't want to wait.
+
+		SV_SendClientPrespawnInfo(&demo.recorder);
+		SV_WriteRecordMVDMessage (&demo.recorder.netchan.message);
+		SZ_Clear (&demo.recorder.netchan.message);
+	}
+	memset(&demo.recorder.netchan.message, 0, sizeof(demo.recorder.netchan.message));
+#else
 	// send music
 	MSG_WriteByte (&buf, svc_cdtrack);
 	MSG_WriteByte (&buf, 0); // none in demos
@@ -1933,10 +1953,10 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		SV_WriteRecordMVDMessage (&buf);
 		SZ_Clear (&buf);
 	}
-
+#endif
 // send current status of all other players
 
-	for (i = 0; i < demo.recorder.max_net_clients; i++)
+	for (i = 0; i < demo.recorder.max_net_clients && i < svs.allocated_client_slots; i++)
 	{
 		player = &svs.clients[i];
 
@@ -1973,6 +1993,17 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 			MSG_WriteByte (&buf, (unsigned char)i);
 			MSG_WriteString (&buf, sv.strings.lightstyles[i]);
 		}
+	}
+
+	//invalidate stats+players somehow
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		for (j = 0; j < MAX_CL_STATS; j++)
+		{
+			demo.statsi[i][j] ^= -1;
+			demo.statsf[i][j] *= -0.41426712;	//randomish value
+		}
+		demo.playerreset[i] = true;
 	}
 
 	// get the client to check and download skins

@@ -2520,7 +2520,7 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 
 	VectorScale(tang, s/l, tang);
 
-	num = Q1BSP_ClipDecal(origin, up, side, tang, 2, &verts);
+	num = Q1BSP_ClipDecal(cl.worldmodel, origin, up, side, tang, 2, &verts);
 
 	if (!num)
 		return;
@@ -2637,7 +2637,7 @@ void CLQ1_AddShadow(entity_t *ent)
 	AngleVectors(eang, axis[0], axis[1], axis[2]);
 	VectorNegate(axis[2], axis[2]);
 
-	num = Q1BSP_ClipDecal(shadoworg, axis[2], axis[1], axis[0], radius, &verts);
+	num = Q1BSP_ClipDecal(cl.worldmodel, shadoworg, axis[2], axis[1], axis[0], radius, &verts);
 
 	if (!num)
 		return;
@@ -3748,16 +3748,6 @@ extern	int		cl_spikeindex, cl_playerindex, cl_flagindex, cl_rocketindex, cl_gren
 
 entity_t *CL_NewTempEntity (void);
 
-
-
-#define DF_ORIGIN	1
-#define DF_ANGLES		(1<<3)
-#define DF_EFFECTS		(1<<6)
-#define DF_SKINNUM		(1<<7)
-#define DF_DEAD			(1<<8)
-#define DF_GIB			(1<<9)
-#define DF_WEAPONFRAME	(1<<10)
-#define DF_MODEL		(1<<11)
 static int MVD_TranslateFlags(int src)
 {
 	int dst = 0;
@@ -3849,7 +3839,7 @@ void CL_ParsePlayerinfo (void)
 
 		for (i = 0; i < 3; i++)
 		{
-			if (flags & (DF_ORIGIN << i))
+			if (flags & (DF_ORIGINX << i))
 				state->origin[i] = MSG_ReadCoord ();
 		}
 
@@ -3859,7 +3849,7 @@ void CL_ParsePlayerinfo (void)
 
 		for (i = 0; i < 3; i++)
 		{
-			if (flags & (DF_ANGLES << i))
+			if (flags & (DF_ANGLEX << i))
 			{
 				state->command.angles[i] = MSG_ReadShort();
 			}

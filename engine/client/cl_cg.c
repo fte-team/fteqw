@@ -438,7 +438,7 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 	VectorNormalize(axis[2]);
 	VectorNormalize2(projection, axis[0]);
 
-	numtris = Q1BSP_ClipDecal(center, axis[0], axis[1], axis[2], radius, &clippedpoints);
+	numtris = Q1BSP_ClipDecal(cl.worldmodel, center, axis[0], axis[1], axis[2], radius, &clippedpoints);
 	if (numtris > maxFragments)
 		numtris = maxFragments;
 	if (numtris > maxPoints/3)

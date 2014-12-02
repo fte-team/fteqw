@@ -1234,6 +1234,7 @@ void R_Clear (void)
 	/*tbh, this entire function should be in the backend*/
 	GL_ForceDepthWritable();
 	{
+		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		if (r_clear.ival && R_GameRectIsFullscreen() && !(r_refdef.flags & RDF_NOWORLDMODEL))
 		{
 			qglClearColor(1, 0, 0, 0);

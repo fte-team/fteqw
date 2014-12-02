@@ -379,8 +379,6 @@ void D3D9Shader_Init(void)
 	sh_config.pCreateProgram	= D3D9Shader_CreateProgram;
 	sh_config.pProgAutoFields	= D3D9Shader_ProgAutoFields;
 
-	sh_config.texture_non_power_of_two = 0;
-	sh_config.texture_non_power_of_two_pic = 0;
 	sh_config.tex_env_combine		= 1;
 	sh_config.nv_tex_env_combine4	= 1;
 	sh_config.env_add				= 1;
@@ -395,6 +393,18 @@ void D3D9Shader_Init(void)
 	sh_config.texfmt[PTI_ARGB4444] = true;
 
 	IDirect3DDevice9_GetDeviceCaps(pD3DDev9, &caps);
+
+	if (caps.TextureCaps & D3DPTEXTURECAPS_POW2)
+	{	//this flag is a LIMITATION, not a capability.
+		sh_config.texture_non_power_of_two = false;
+		sh_config.texture_non_power_of_two_pic = !!(caps.TextureCaps & D3DPTEXTURECAPS_NONPOW2CONDITIONAL);	//pic npot is supported if both flags are set.
+	}
+	else
+	{	//modern cards support npot
+		sh_config.texture_non_power_of_two_pic = true;
+		sh_config.texture_non_power_of_two = true;
+	}
+
 	sh_config.texture_maxsize = min(caps.MaxTextureWidth, caps.MaxTextureHeight);
 }
 #endif

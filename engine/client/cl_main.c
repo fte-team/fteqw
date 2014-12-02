@@ -3616,7 +3616,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("qtvplay", CL_QTVPlay_f);
 	Cmd_AddCommand ("qtvlist", CL_QTVList_f);
 	Cmd_AddCommand ("qtvdemos", CL_QTVDemos_f);
-	Cmd_AddCommand ("demo_jump", CL_DemoJump_f);
+	Cmd_AddCommandD ("demo_jump", CL_DemoJump_f, "Jump to a specified time in a demo. Prefix with a + or - for a relative offset. Seeking backwards will restart the demo and the fast forward, which can take some time in long demos.");
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
 	Cmd_AddCommand ("crashme_endgame", CL_CrashMeEndgame_f);
 
@@ -3630,7 +3630,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("allskins", Skin_AllSkins_f);
 
 	Cmd_AddCommand ("cl_status", CL_Status_f);
-	Cmd_AddCommand ("quit", CL_Quit_f);
+	Cmd_AddCommandD ("quit", CL_Quit_f, "Use this command when you get angry. Does not save any cvars. Use cfg_save to save settings, or use the menu for a prompt.");
 
 	Cmd_AddCommandD ("connect", CL_Connect_f, "connect scheme://address:port\nConnect to a server. Use a scheme of tcp:// or tls:// to connect via non-udp protocols."
 #if defined(NQPROT) || defined(Q2CLIENT) || defined(Q3CLIENT)

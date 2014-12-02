@@ -597,10 +597,13 @@ void SVNQ_New_f (void)
 
 	MSG_WriteString (&host_client->netchan.message,message);
 
+
+	//fixme: don't send too many models.
 	for (i = 1; sv.strings.model_precache[i] ; i++)
 		MSG_WriteString (&host_client->netchan.message, sv.strings.model_precache[i]);
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
+	//fixme: don't send too many sounds.
 	for (i = 1; *sv.strings.sound_precache[i] ; i++)
 		MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
 	MSG_WriteByte (&host_client->netchan.message, 0);
@@ -979,7 +982,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 	if (client->prespawn_stage == PRESPAWN_SOUNDLIST)
 	{
 		if (!ISQWCLIENT(client))
-			client->prespawn_stage++;
+			client->prespawn_stage++;	//nq sends sound lists as part of the svc_serverdata
 		else
 		{
 			int maxclientsupportedsounds = 256;
@@ -1015,6 +1018,11 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 				if (client->prespawn_idx >= maxclientsupportedsounds || !*sv.strings.sound_precache[client->prespawn_idx])
 				{
+					if (*sv.strings.sound_precache[client->prespawn_idx] && !(client->plimitwarned & PLIMIT_SOUNDS))
+					{
+						client->plimitwarned |= PLIMIT_SOUNDS;
+						SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i sounds. Please upgrade or enable extensions.\n", client->prespawn_idx);
+					}
 					//write final-end-of-list
 					MSG_WriteByte (&client->netchan.message, 0);
 					MSG_WriteByte (&client->netchan.message, 0);
@@ -1112,6 +1120,11 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 				if (client->prespawn_idx >= client->maxmodels || !sv.strings.model_precache[client->prespawn_idx])
 				{
+					if (*sv.strings.model_precache[client->prespawn_idx] && !(client->plimitwarned & PLIMIT_MODELS))
+					{
+						client->plimitwarned |= PLIMIT_MODELS;
+						SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i models. Please upgrade or enable extensions.\n", client->prespawn_idx);
+					}
 					//write final-end-of-list
 					MSG_WriteByte (&client->netchan.message, 0);
 					MSG_WriteByte (&client->netchan.message, 0);
@@ -4972,6 +4985,9 @@ void SVNQ_PreSpawn_f (void)
 		host_client->checksum = ~0u;
 		host_client->prespawn_stage = PRESPAWN_MAPCHECK+1;
 		host_client->prespawn_idx = 0;
+
+		if (sv_mapcheck.value)
+			Con_Printf("Warning: %s does cannot be applied to NQ clients.\n", sv_mapcheck.name);	//as you can fake it in a client anyway, this is hardly a significant issue.
 	}
 
 	host_client->send_message = true;

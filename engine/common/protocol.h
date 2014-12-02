@@ -776,6 +776,25 @@ enum clcq2_ops_e
 #define	Q2U_SOUND		(1<<26)
 #define	Q2U_SOLID		(1<<27)
 
+
+//==============================================
+//obsolete demo players info
+#define DF_ORIGINX		(1u<<0)
+#define DF_ORIGINY		(1u<<1)
+#define DF_ORIGINZ		(1u<<2)
+#define DF_ORIGINALL	(DF_ORIGINX|DF_ORIGINY|DF_ORIGINZ)
+#define DF_ANGLEX		(1u<<3)
+#define DF_ANGLEY		(1u<<4)
+#define DF_ANGLEZ		(1u<<5)
+#define DF_ANGLESALL	(DF_ANGLEX|DF_ANGLEY|DF_ANGLEZ)
+#define DF_EFFECTS		(1u<<6)
+#define DF_SKINNUM		(1u<<7)
+#define DF_DEAD			(1u<<8)
+#define DF_GIB			(1u<<9)
+#define DF_WEAPONFRAME	(1u<<10)
+#define DF_MODEL		(1u<<11)
+#define DF_RESET (DF_ORIGINALL|DF_ANGLESALL|DF_EFFECTS|DF_SKINNUM|DF_WEAPONFRAME|DF_MODEL)
+
 //==============================================
 
 // a sound with no channel is a local only sound

@@ -816,7 +816,7 @@ qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaul
 				favourite = true;
 		}
 
-		if (!*name)
+		if (!*name && next)
 		{
 			sep = name;
 			while(*next == ' ' || *next == '\t')

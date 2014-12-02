@@ -320,6 +320,7 @@ void (APIENTRY myGLDEBUGPROCAMD)(GLenum source,
 		break;
 	default:
 	case GL_DEBUG_TYPE_OTHER_ARB:
+		return;
 		OutputDebugStringA("Other: ");
 		break;
 	}

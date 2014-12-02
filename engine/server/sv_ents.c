@@ -1202,7 +1202,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 				client->pendingentbits[j] = (client->pendingentbits[j] & ~UF_REMOVE) | UF_RESET2;
 			client->pendingentbits[j] |= SVFTE_DeltaCalcBits(o, n);
 			//even if prediction is disabled, we want to force velocity info to be sent for the local player. This is used by view bob and things.
-			if (j == client->edict->entnum && (n->u.q1.velocity[0] || n->u.q1.velocity[1] || n->u.q1.velocity[2]))
+			if (client->edict && j == client->edict->entnum && (n->u.q1.velocity[0] || n->u.q1.velocity[1] || n->u.q1.velocity[2]))
 				client->pendingentbits[j] |= UF_PREDINFO;
 		}
 		*o = *n;
@@ -2058,8 +2058,6 @@ void SV_WritePlayersToMVD (client_t *client, client_frame_t *frame, sizebuf_t *m
 
 	demo_frame_t *demo_frame;
 	demo_client_t *dcl;
-#define DF_DEAD		(1<<8)
-#define DF_GIB		(1<<9)
 
 	demo_frame = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK];
 	for (j=0,cl=svs.clients, dcl = demo_frame->clients; j < svs.allocated_client_slots ; j++,cl++, dcl++)
@@ -3171,7 +3169,16 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 	else
 		e = 1;
 
-	limit = min(client->max_net_ents, sv.world.num_edicts);
+	limit = sv.world.num_edicts;
+	if (client->max_net_ents < limit)
+	{
+		limit = client->max_net_ents;
+		if (!(client->plimitwarned & PLIMIT_ENTITIES))
+		{
+			client->plimitwarned |= PLIMIT_ENTITIES;
+			SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i entities. Please upgrade or enable extensions.\n", client->max_net_ents);
+		}
+	}
 
 	if (client->penalties & BAN_BLIND)
 	{

@@ -1078,10 +1078,17 @@ char *PDECL ED_NewString (pubprogfuncs_t *ppf, const char *string, int minlength
 		if (demarkup && string[i] == '\\' && i < l-1 && string[i+1] != 0)
 		{
 			i++;
-			if (string[i] == 'n')
-				*new_p++ = '\n';
-			else
+			switch(string[i])
+			{
+			case 'n': *new_p++ = '\n'; break;
+			case '\'': *new_p++ = '\''; break;
+			case '\"': *new_p++ = '\"'; break;
+			case 'r': *new_p++ = '\r'; break;
+			default:
 				*new_p++ = '\\';
+				i--;
+				break;
+			}
 		}
 		else
 			*new_p++ = string[i];

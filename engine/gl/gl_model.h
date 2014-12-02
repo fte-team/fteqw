@@ -497,7 +497,7 @@ void Q1BSP_Init(void);
 void *Q1BSPX_FindLump(char *lumpname, int *lumpsize);
 void Q1BSPX_Setup(struct model_s *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps);
 
-int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out);
+int Q1BSP_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out);
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);

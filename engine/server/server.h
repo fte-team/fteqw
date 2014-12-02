@@ -357,6 +357,13 @@ enum
 	PRESPAWN_DONE
 };
 
+enum
+{	//'soft' limits that result in warnings if the client's protocol is too limited.
+	PLIMIT_ENTITIES = 1u<<0,
+	PLIMIT_MODELS = 1u<<1,
+	PLIMIT_SOUNDS = 1u<<2
+};
+
 typedef struct client_s
 {
 	client_conn_state_t	state;
@@ -601,6 +608,8 @@ typedef struct client_s
 	int realip_num;
 	int realip_ping;
 
+	unsigned int plimitwarned;
+
 	float delay;
 	laggedpacket_t *laggedpacket;
 	laggedpacket_t *laggedpacket_last;
@@ -693,6 +702,7 @@ typedef struct
 	float		statsf[MAX_CLIENTS][MAX_CL_STATS]; // ouch!
 	char		*statss[MAX_CLIENTS][MAX_CL_STATS]; // ouch!
 	client_t	recorder;
+	qboolean	playerreset[MAX_CLIENTS];	//will ensure that the model etc is written when this player is next written.
 	qboolean	fixangle[MAX_CLIENTS];
 	float		fixangletime[MAX_CLIENTS];
 	vec3_t		angles[MAX_CLIENTS];

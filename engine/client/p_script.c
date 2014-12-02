@@ -3667,7 +3667,6 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3]
 		Surf_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius);
 }
 
-int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out);
 static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
 {
 	part_type_t *ptype = &part_type[typenum];
@@ -3823,7 +3822,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			sw /= m;
 			tw /= m;
 
-			decalcount = Q1BSP_ClipDecal(bestorg, dir, tangent, t2, m, &decverts);
+			decalcount = Q1BSP_ClipDecal(cl.worldmodel, bestorg, dir, tangent, t2, m, &decverts);
 			while(decalcount)
 			{
 				if (!free_decals)

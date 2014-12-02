@@ -38,12 +38,14 @@ RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
 PROFILE_DIR=$(BASE_DIR)/profile
 COMPILE_SYS:=$(shell uname -o 2>&1)
+NATIVE_ABSBASE_DIR:=$(realpath $(BASE_DIR))
 ifeq ($(COMPILE_SYS),Cygwin)
 	OUT_DIR?=.
 	NATIVE_OUT_DIR:=$(shell cygpath -m $(OUT_DIR))
 	NATIVE_BASE_DIR:=$(shell cygpath -m $(BASE_DIR))
 	NATIVE_RELEASE_DIR:=$(shell cygpath -m $(RELEASE_DIR))
 	NATIVE_DEBUG_DIR:=$(shell cygpath -m $(DEBUG_DIR))
+	NATIVE_ABSBASE_DIR:=$(shell cygpath -m $(NATIVE_ABSBASE_DIR))
 endif
 NATIVE_OUT_DIR?=$(OUT_DIR)
 NATIVE_BASE_DIR?=$(BASE_DIR)
@@ -122,19 +124,34 @@ ifeq ($(FTE_TARGET),droid)
 	#if we're running under windows, then we want to run some other binary
 	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
 		#set up for linux
-		TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/arm-linux-androideabi-
+		ifeq ($(DROID_ARCH),x86)
+			TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/x86-4.7/prebuilt/linux-x86/bin/
+			TOOLCHAIN:=$(TOOLCHAINPATH)i686-linux-androideabi-
+		else
+			TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/linux-x86/bin/
+			TOOLCHAIN:=$(TOOLCHAINPATH)arm-linux-androideabi-
+		endif
+
+		TOOLOVERRIDES=PATH="/usr/bin:$(realpath $(TOOLCHAINPATH))" CFLAGS=--sysroot="$(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC))" CPPFLAGS=--sysroot="$(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC))" 
+		CONFIGARGS= --with-sysroot="$(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC))" 
 	else
 		#FIXME: support mingw too...
 
 		#we're running upon windows
 		ifeq ($(DROID_ARCH),x86)
-			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/x86-4.7/prebuilt/windows-x86_64/bin/i686-linux-android-
+			TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/x86-4.7/prebuilt/windows-x86_64/bin/
+			TOOLCHAIN:=$(TOOLCHAINPATH)i686-linux-android-
 		else
-			TOOLCHAIN:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/windows-x86_64/bin/arm-linux-androideabi-
+			TOOLCHAINPATH:=$(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.7/prebuilt/windows-x86_64/bin/
+			TOOLCHAIN:=$(TOOLCHAINPATH)arm-linux-androideabi-
 		endif
 		ANDROID_SCRIPT=android.bat
 		#make can't cope with absolute win32 paths in dependancy files
 		DEPCC=
+
+		#configure hates android, with its broken default sysroot and lack of path etc
+		TOOLOVERRIDES=PATH="/usr/bin:$(shell cygpath -u $(realpath $(TOOLCHAINPATH)))" CFLAGS=--sysroot="$(shell cygpath -m $(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)))" CPPFLAGS=--sysroot="$(shell cygpath -m $(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)))" 
+		CONFIGARGS= --with-sysroot="$(shell cygpath -u $(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)))" 
 	endif
 
 	DROID_API_LEVEL=4
@@ -152,10 +169,11 @@ ifeq ($(FTE_TARGET),droid)
 		#armv7+neon
 		DROID_ABI?=-mfloat-abi=softfp
 	endif
-
+	CC:=$(TOOLCHAIN)gcc --sysroot="$(shell cygpath -m $(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)))" -DANDROID $(DROID_ABI) -fno-strict-aliasing
+	DO_LD:=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS) -llog -lc -lz -lm
+	LD:=$(TOOLCHAIN)ld
+	AR:=$(TOOLCHAIN)ar
 	STRIP=$(TOOLCHAIN)strip
-	CC=$(TOOLCHAIN)gcc -I$(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/include/ -DANDROID $(DROID_ABI) -fno-strict-aliasing
-	DO_LD=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
 
@@ -1751,23 +1769,41 @@ $(BASE_DIR)/libs/SDL2-2.0.1/i686-w64-mingw32/bin/sdl2-config:
 	rm $(BASE_DIR)/sdl2.tar.gz
 $(BASE_DIR)/libs/SDL2-2.0.1/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs/SDL2-2.0.1/i686-w64-mingw32/bin/sdl2-config
 
+
+
+#update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
+JPEGVER=9a
+ZLIBVER=1.2.8
+PNGVER=1.6.14
+OGGVER=1.3.2
+VORBISVER=1.3.4
+#makes sure the configure scripts get the right idea.
+AR?=$(ARCH)-ar
+
+
+CONFIGARGS+= -host=$(ARCH) --enable-shared=no
+#--disable-silent-rules 
+
 makelibs:
+	#lock these down, to avoid expanding them too often
+	#TOOLOVERRIDES:=$(TOOLOVERRIDES)
+	#CONFIGARGS:=$(CONFIGARGS)
 ifndef ARCH
 	$(MAKE) makelibs ARCH=$(shell $(CC) -dumpmachine)
 else
 	mkdir -p libs-$(ARCH)
-	test -f jpegsrc.v9.tar.gz || wget http://www.ijg.org/files/jpegsrc.v9.tar.gz
-	-test -f libs-$(ARCH)/libjpeg.a || (cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v9.tar.gz && cd jpeg-9 && ./configure -host=$(ARCH) && $(MAKE) && cp .libs/libjpeg.a ../ && $(ARCH)-ar -s ../libjpeg.a )
+	test -f jpegsrc.v$(JPEGVER).tar.gz || wget http://www.ijg.org/files/jpegsrc.v$(JPEGVER).tar.gz
+	-test -f libs-$(ARCH)/libjpeg.a || (cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
 	
-	test -f zlib-1.2.8.tar.gz || wget http://zlib.net/zlib-1.2.8.tar.gz
-	-test -f libs-$(ARCH)/libz.a || (cd libs-$(ARCH) && tar -xvzf ../zlib-1.2.8.tar.gz && cd zlib-1.2.8 && CC="$(CC) $(W32_CFLAGS)" ./configure --static && $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS)" && cp libz.a ../ && $(ARCH)-ar -s ../libz.a )
+	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
+	-test -f libs-$(ARCH)/libz.a || (cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS)" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h ../ )
 	
-	test -f libpng-1.6.2.tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-1.6.2.tar.gz?download -O libpng-1.6.2.tar.gz
-	-test -f libs-$(ARCH)/libpng.a || (cd libs-$(ARCH) && tar -xvzf ../libpng-1.6.2.tar.gz && cd libpng-1.6.2 && ./configure -host=$(ARCH) CFLAGS=-I$(realpath libs-$(ARCH)/zlib-1.2.8/) LDFLAGS=-L$(realpath libs-$(ARCH)) && $(MAKE) && cp .libs/libpng16.a ../libpng.a )
+	test -f libpng-$(PNGVER).tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-$(PNGVER).tar.gz?download -O libpng-$(PNGVER).tar.gz
+	-test -f libs-$(ARCH)/libpng.a || (cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) --with-zlib-prefix=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/zlib-$(ZLIBVER)/ && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp png*.h ../ )
 	
-	test -f libogg-1.3.0.tar.gz || wget http://downloads.xiph.org/releases/ogg/libogg-1.3.0.tar.gz
-	-test -f libs-$(ARCH)/libogg.a || (cd libs-$(ARCH) && tar -xvzf ../libogg-1.3.0.tar.gz && cd libogg-1.3.0 && ./configure -host=$(ARCH) && $(MAKE) && cp src/.libs/libogg.a ../ && $(ARCH)-ar -s ../libogg.a)
+	test -f libogg-$(OGGVER).tar.gz || wget http://downloads.xiph.org/releases/ogg/libogg-$(OGGVER).tar.gz
+	-test -f libs-$(ARCH)/libogg.a || (cd libs-$(ARCH) && tar -xvzf ../libogg-$(OGGVER).tar.gz && cd libogg-$(OGGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp src/.libs/libogg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libogg.a)
 
-	test -f libvorbis-1.3.3.tar.gz || wget http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.3.tar.gz
-	-test -f libs-$(ARCH)/libvorbisfile.a || (cd libs-$(ARCH) && tar -xvzf ../libvorbis-1.3.3.tar.gz && cd libvorbis-1.3.3 && ./configure PKG_CONFIG= -host=$(ARCH) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(realpath libs-$(ARCH)/libogg-1.3.0/include) && $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../ )
+	test -f libvorbis-$(VORBISVER).tar.gz || wget http://downloads.xiph.org/releases/vorbis/libvorbis-$(VORBISVER).tar.gz
+	-test -f libs-$(ARCH)/libvorbisfile.a || (cd libs-$(ARCH) && tar -xvzf ../libvorbis-$(VORBISVER).tar.gz && cd libvorbis-$(VORBISVER) && $(TOOLOVERRIDES) ./configure PKG_CONFIG= $(CONFIGARGS) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/libogg-$(OGGVER)/include && $(TOOLOVERRIDES) $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../ )
 endif

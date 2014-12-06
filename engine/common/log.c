@@ -69,6 +69,7 @@ void Log_String (logtype_t lognum, char *s)
 	char *t;
 	char utf8[2048];
 	int i;
+	char fbase[MAX_QPATH];
 	char fname[MAX_QPATH];
 	conchar_t cline[2048], *c;
 	unsigned int u;
@@ -146,9 +147,10 @@ void Log_String (logtype_t lognum, char *s)
 	*t = 0;
 
 	if (*d)
-		Q_snprintfz(fname, sizeof(fname), "%s/%s.log", d, f);
+		Q_snprintfz(fbase, sizeof(fname)-4, "%s/%s", d, f);
 	else
-		Q_snprintfz(fname, sizeof(fname), "%s.log", f);
+		Q_snprintfz(fbase, sizeof(fname)-4, "%s", f);
+	Q_snprintfz(fname, sizeof(fname), "%s.log", fbase);
 
 	// file rotation
 	if (log_rotate_size.value >= 4096 && log_rotate_files.value >= 1)
@@ -174,14 +176,14 @@ void Log_String (logtype_t lognum, char *s)
 			i = log_rotate_files.value;
 
 			// unlink file at the top of the chain
-			Q_snprintfz(oldf, sizeof(oldf), "%s.%i", fname, i);
+			Q_snprintfz(oldf, sizeof(oldf), "%s.%i.log", fbase, i);
 			FS_Remove(oldf, FS_GAMEONLY);
 
 			// rename files through chain
 			for (x = i-1; x > 0; x--)
 			{
 				strcpy(newf, oldf);
-				Q_snprintfz(oldf, sizeof(oldf), "%s.%i", fname, x);
+				Q_snprintfz(oldf, sizeof(oldf), "%s.%i.log", fbase, x);
 
 				// check if file exists, otherwise skip
 				if ((fi = FS_OpenVFS(oldf, "rb", FS_GAMEONLY)))

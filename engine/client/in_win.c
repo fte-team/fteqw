@@ -525,9 +525,7 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 
 	if (!activeapp)
 		grabmouse = false;
-	else if (fullscreen || in_simulatemultitouch.ival)
-		grabmouse = true;
-	else if (_windowed_mouse.value)
+	else if (fullscreen || in_simulatemultitouch.ival || _windowed_mouse.value)
 	{
 		if (!Key_MouseShouldBeFree())
 			grabmouse = true;
@@ -538,7 +536,7 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 		grabmouse = false;
 
 	//visiblity
-	if (!SCR_HardwareCursorIsActive() && (grabmouse || (activeapp && mousecursor_x > 0 && mousecursor_y > 0 && mousecursor_x < vid.pixelwidth-1 && mousecursor_y < vid.pixelheight-1)))
+	if (!SCR_HardwareCursorIsActive() && (fullscreen || in_simulatemultitouch.ival || grabmouse || (activeapp && mousecursor_x > 0 && mousecursor_y > 0 && mousecursor_x < vid.pixelwidth-1 && mousecursor_y < vid.pixelheight-1)))
 		INS_HideMouse();
 	else
 	{

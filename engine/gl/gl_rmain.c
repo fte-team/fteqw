@@ -1358,7 +1358,8 @@ static void R_RenderMotionBlur(void)
 #endif
 }
 
-#if 0
+#if 1
+#include "shader.h"
 /*FIXME: we could use geometry shaders to draw to all 6 faces at once*/
 qboolean R_RenderScene_Cubemap(void)
 {
@@ -1431,7 +1432,7 @@ qboolean R_RenderScene_Cubemap(void)
 //	prect.y = (vrect.y * vid.pixelheight)/vid.height;
 //	prect.height = (vrect.height * vid.pixelheight)/vid.height;
 
-	if (r_config.texture_non_power_of_two_limited)
+	if (sh_config.texture_non_power_of_two_pic)
 	{
 		if (prect.width < prect.height)
 			cmapsize = prect.width;
@@ -1453,7 +1454,7 @@ qboolean R_RenderScene_Cubemap(void)
 	{
 		if (!TEXVALID(scenepp_postproc_cube))
 		{
-			scenepp_postproc_cube = Image_CreateTexture("***fish***", IF_CUBEMAP);
+			scenepp_postproc_cube = Image_CreateTexture("***fish***", NULL, IF_CUBEMAP|IF_RENDERTARGET|IF_CLAMP|IF_LINEAR);
 			qglGenTextures(1, &scenepp_postproc_cube->num);
 		}
 
@@ -1725,11 +1726,11 @@ void GLR_RenderView (void)
 		time1 = Sys_DoubleTime ();
 	}
 
-//	if (!dofbo && !(r_refdef.flags & RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
-//	{
-//
-//	}
-//	else
+	if (!dofbo && !(r_refdef.flags & RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
+	{
+
+	}
+	else
 	{
 		GL_SetShaderState2D(false);
 

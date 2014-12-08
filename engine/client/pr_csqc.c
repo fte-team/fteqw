@@ -1079,6 +1079,13 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 	}
 }
 
+//enum {vb_vertexcoord, vb_texcoord, vb_rgba, vb_normal, vb_sdir, vb_tdir, vb_indexes, vb_rgb, vb_alpha};
+//vboidx = vbuff_create(numverts, numidx, flags)
+//vbuff_updateptr(vboidx, datatype, ptr, firstvert, numverts)
+//vbuff_updateone(vboidx, datatype, index, __variant data)
+//vbuff_render(vboidx, shaderid, uniforms, uniformssize)
+//vbuff_delete(vboidx), vboidx=0
+
 static shader_t *csqc_poly_shader;
 static int csqc_poly_startvert;
 static int csqc_poly_startidx;
@@ -1780,8 +1787,27 @@ static void QCBUILTIN PF_cs_SetSize (pubprogfuncs_t *prinst, struct globalvars_s
 	World_LinkEdict (w, (wedict_t*)e, false);
 }
 
-static void cs_settracevars(trace_t *tr, struct globalvars_s *pr_globals)
+static void cs_settracevars(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *tr)
 {
+/*
+	world_t *w = prinst->parms->user;
+	*w->g.trace_allsolid = tr->allsolid;
+	*w->g.trace_startsolid = tr->startsolid;
+	*w->g.trace_fraction = tr->fraction;
+	*w->g.trace_inwater = tr->inwater;
+	*w->g.trace_inopen = tr->inopen;
+	VectorCopy (tr->endpos, w->g.trace_endpos);
+	VectorCopy (tr->plane.normal, w->g.trace_plane_normal);
+	*w->g.trace_plane_dist =  tr->plane.dist;
+	if (w->g.trace_surfaceflags)
+		*w->g.trace_surfaceflags = tr->surface?tr->surface->flags:0;
+	if (w->g.trace_endcontents)
+		*w->g.trace_endcontents = tr->contents;
+	if (tr->ent)
+		*w->g.trace_ent = EDICT_TO_PROG(prinst, (void*)tr->ent);
+	else
+		*w->g.trace_ent = EDICT_TO_PROG(prinst, (void*)w->edicts);
+*/
 	*csqcg.trace_allsolid = tr->allsolid;
 	*csqcg.trace_startsolid = tr->startsolid;
 	*csqcg.trace_fraction = tr->fraction;
@@ -1829,7 +1855,7 @@ static void QCBUILTIN PF_cs_traceline(pubprogfuncs_t *prinst, struct globalvars_
 	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	cs_settracevars(&trace, pr_globals);
+	cs_settracevars(prinst, pr_globals, &trace);
 }
 static void QCBUILTIN PF_cs_tracebox(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1851,7 +1877,7 @@ static void QCBUILTIN PF_cs_tracebox(pubprogfuncs_t *prinst, struct globalvars_s
 	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	cs_settracevars(&trace, pr_globals);
+	cs_settracevars(prinst, pr_globals, &trace);
 }
 
 static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
@@ -1909,7 +1935,7 @@ static void QCBUILTIN PF_cs_tracetoss (pubprogfuncs_t *prinst, struct globalvars
 
 	trace = CS_Trace_Toss (ent, ignore);
 
-	cs_settracevars(&trace, pr_globals);
+	cs_settracevars(prinst, pr_globals, &trace);
 }
 
 static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

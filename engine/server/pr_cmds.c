@@ -3086,7 +3086,7 @@ static void QCBUILTIN PF_LocalSound(pubprogfuncs_t *prinst, struct globalvars_s 
 #endif
 };
 
-static void set_trace_globals(trace_t *trace, struct globalvars_s *pr_globals)
+static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *trace)
 {
 	pr_global_struct->trace_allsolid = trace->allsolid;
 	pr_global_struct->trace_startsolid = trace->startsolid;
@@ -3157,7 +3157,7 @@ void QCBUILTIN PF_svtraceline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	set_trace_globals(&trace, pr_globals);
+	set_trace_globals(prinst, pr_globals, &trace);
 }
 
 #ifdef HEXEN2
@@ -3181,7 +3181,7 @@ static void QCBUILTIN PF_traceboxh2 (pubprogfuncs_t *prinst, struct globalvars_s
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	set_trace_globals(&trace, pr_globals);
+	set_trace_globals(prinst, pr_globals, &trace);
 }
 #endif
 
@@ -3205,7 +3205,7 @@ static void QCBUILTIN PF_traceboxdp (pubprogfuncs_t *prinst, struct globalvars_s
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	set_trace_globals(&trace, pr_globals);
+	set_trace_globals(prinst, pr_globals, &trace);
 }
 
 static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3221,7 +3221,7 @@ static void QCBUILTIN PF_TraceToss (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	trace = WPhys_Trace_Toss (&sv.world, (wedict_t*)ent, (wedict_t*)ignore);
 
-	set_trace_globals(&trace, pr_globals);
+	set_trace_globals(prinst, pr_globals, &trace);
 }
 
 //============================================================================
@@ -5732,6 +5732,7 @@ void QCBUILTIN PF_sqlreadfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 				else
 				{
 					Con_Printf("Invalid sql request/row\n");
+					PR_StackTrace(prinst, false);
 				}
 			}
 		}

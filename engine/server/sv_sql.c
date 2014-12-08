@@ -558,10 +558,10 @@ static void SQL_DeallocResult(sqlserver_t *server, queryresult_t *qres)
 	case SQLDRV_SQLITE:
 		if (qres->result)
 		{
-			char **mat = qres->result;
+			sqliteresult_t *mat = qres->result;
 			int i;
 			for (i = 0; i < qres->columns * (qres->rows+1); i++)
-				free(mat[i]);
+				free(mat[i].ptr);
 		}
 		break;
 #endif

@@ -3496,6 +3496,8 @@ void Shader_Programify (shader_t *s)
 		pass = &s->passes[i];
 		if (pass->rgbgen == RGB_GEN_LIGHTING_DIFFUSE)
 			modellighting = pass;
+		else if (pass->rgbgen == RGB_GEN_ENTITY)
+			modellighting = pass;
 		else if (pass->texgen == T_GEN_LIGHTMAP && pass->tcgen == TC_GEN_LIGHTMAP)
 			lightmap = pass;
 	}
@@ -3523,21 +3525,20 @@ void Shader_Programify (shader_t *s)
 	s->numpasses = 0;
 	s->passes[s->numpasses++].texgen = T_GEN_DIFFUSE;
 
-	if (lightmap)
-	{
-		s->passes[s->numpasses++].texgen = T_GEN_LIGHTMAP;
-		s->passes[s->numpasses++].texgen = T_GEN_NORMALMAP;
-		s->passes[s->numpasses++].texgen = T_GEN_DELUXMAP;
-		s->passes[s->numpasses++].texgen = T_GEN_FULLBRIGHT;
-		s->passes[s->numpasses++].texgen = T_GEN_SPECULAR;
-	}
-
 	if (modellighting)
 	{
 		s->passes[s->numpasses++].texgen = T_GEN_LOWEROVERLAY;
 		s->passes[s->numpasses++].texgen = T_GEN_UPPEROVERLAY;
 		s->passes[s->numpasses++].texgen = T_GEN_FULLBRIGHT;
 		s->passes[s->numpasses++].texgen = T_GEN_NORMALMAP;
+		s->passes[s->numpasses++].texgen = T_GEN_SPECULAR;
+	}
+	else if (lightmap)
+	{
+		s->passes[s->numpasses++].texgen = T_GEN_LIGHTMAP;
+		s->passes[s->numpasses++].texgen = T_GEN_NORMALMAP;
+		s->passes[s->numpasses++].texgen = T_GEN_DELUXMAP;
+		s->passes[s->numpasses++].texgen = T_GEN_FULLBRIGHT;
 		s->passes[s->numpasses++].texgen = T_GEN_SPECULAR;
 	}
 }

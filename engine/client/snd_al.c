@@ -633,18 +633,31 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 			palSourcei(src, AL_SOURCE_RELATIVE, AL_FALSE);
 //			palSourcef(src, AL_ROLLOFF_FACTOR, s_al_rolloff_factor.value*chan->dist_mult);
 		}
-		switch(s_al_distancemodel.ival)
+
+		//this is disgustingly shit.
+		//logically we want to set the distance divisor to 1 and the rolloff factor to dist_mult.
+		//but openal clamps in an annoying order (probably to keep things signed in hardware) and webaudio refuses infinity, so we need to special case no attenuation to get around the issue
+		if (chan->dist_mult < 0.000001)
 		{
-		default:
-			palSourcef(src, AL_ROLLOFF_FACTOR, s_al_reference_distance.value);
-			palSourcef(src, AL_REFERENCE_DISTANCE, 1);
-			palSourcef(src, AL_MAX_DISTANCE, 1/chan->dist_mult);	//clamp to the maximum distance you'd normally be allowed to hear... this is probably going to be annoying.
-			break;
-		case 2:	//linear, mimic quake.
-			palSourcef(src, AL_ROLLOFF_FACTOR, 1);
+			palSourcef(src, AL_ROLLOFF_FACTOR, 0);
 			palSourcef(src, AL_REFERENCE_DISTANCE, 0);
-			palSourcef(src, AL_MAX_DISTANCE, 1/chan->dist_mult);
-			break;
+			palSourcef(src, AL_MAX_DISTANCE, 1);	//doesn't matter, so long as its not a nan
+		}
+		else
+		{
+			switch(s_al_distancemodel.ival)
+			{
+			default:
+				palSourcef(src, AL_ROLLOFF_FACTOR, s_al_reference_distance.value);
+				palSourcef(src, AL_REFERENCE_DISTANCE, 1);
+				palSourcef(src, AL_MAX_DISTANCE, 1/chan->dist_mult);	//clamp to the maximum distance you'd normally be allowed to hear... this is probably going to be annoying.
+				break;
+			case 2:	//linear, mimic quake.
+				palSourcef(src, AL_ROLLOFF_FACTOR, 1);
+				palSourcef(src, AL_REFERENCE_DISTANCE, 0);
+				palSourcef(src, AL_MAX_DISTANCE, 1/chan->dist_mult);
+				break;
+			}
 		}
 
 	/*and start it up again*/

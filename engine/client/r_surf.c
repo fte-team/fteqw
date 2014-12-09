@@ -2490,6 +2490,7 @@ void Surf_LightmapMode(void)
 		lightmap_bgra = false;
 		if (gl_config.gles)
 		{
+			//rgb is a supported format, where bgr or rgbx are not.
 			lightmap_bytes = 3;
 			lightmap_bgra = false;
 		}
@@ -2724,9 +2725,9 @@ void Surf_BuildModelLightmaps (model_t *m)
 
 			dst = lightmap[newfirst+i]->lightmaps;
 			src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*3;
-			if (lightmap_bytes == 4 && m->lightdata)
+			if (m->lightdata)
 			{
-				if (lightmap_bgra)
+				if (lightmap_bgra && lightmap_bytes == 4)
 				{
 					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
 					{
@@ -2736,7 +2737,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 						dst[3] = 255;
 					}
 				}
-				else
+				else if (!lightmap_bgra && lightmap_bytes == 4)
 				{
 					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
 					{
@@ -2744,6 +2745,24 @@ void Surf_BuildModelLightmaps (model_t *m)
 						dst[1] = src[1];
 						dst[2] = src[2];
 						dst[3] = 255;
+					}
+				}
+				else if (lightmap_bgra && lightmap_bytes == 3)
+				{
+					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 3, src += 3)
+					{
+						dst[0] = src[2];
+						dst[1] = src[1];
+						dst[2] = src[0];
+					}
+				}
+				else if (!lightmap_bgra && lightmap_bytes == 3)
+				{
+					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 3, src += 3)
+					{
+						dst[0] = src[0];
+						dst[1] = src[1];
+						dst[2] = src[2];
 					}
 				}
 			}

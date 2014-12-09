@@ -312,7 +312,7 @@ void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6)
 	{
 		printf("socket bind error %i (%s)\n", qerrno, strerror(qerrno));
 		closesocket(sock);
-		return INVALID_SOCKET;
+		return;
 	}
 
 	listen(sock, 2);	//don't listen for too many clients.

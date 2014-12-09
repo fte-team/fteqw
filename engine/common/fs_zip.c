@@ -225,7 +225,7 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile)
 	return temp;
 }
 
-
+#endif
 
 
 
@@ -425,6 +425,7 @@ static int QDECL FSZIP_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int 
 	return result;
 }
 
+#ifdef AVAIL_ZLIB
 struct decompressstate
 {
 	zipfile_t *source;
@@ -447,6 +448,7 @@ struct decompressstate *FSZIP_Decompress_Init(zipfile_t *source, qofs_t start, q
 	st = Z_Malloc(sizeof(*st));
 	st->cstart = st->cofs = start;
 	st->cend = start + csize;
+	st->usize = usize;
 	st->strm.data_type = Z_UNKNOWN;
 	st->source = source;
 	qinflateInit2(&st->strm, -MAX_WBITS);
@@ -516,7 +518,74 @@ void FSZIP_Decompress_Destroy(struct decompressstate *st)
 	qinflateEnd(&st->strm);
 	Z_Free(st);
 }
+vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
+{	//if they're going to seek on a file in a zip, let's just copy it out
+	qofs_t cstart = decompress->cstart, csize = decompress->cend - cstart;
+	qofs_t upos = 0, usize = decompress->usize;
+	qofs_t chunk;
+	struct decompressstate *nc;
+	qbyte buffer[16384];
+	vfsfile_t *defer;
+	zipfile_t *source = decompress->source;
 
+	defer = FS_OpenTemp();
+	if (defer)
+	{
+		FSZIP_Decompress_Destroy(decompress);
+		decompress = NULL;
+
+		nc = FSZIP_Decompress_Init(source, cstart, csize, usize);
+
+		while (upos < usize)
+		{
+			chunk = usize - upos;
+			if (chunk > sizeof(buffer))
+				chunk = sizeof(buffer);
+			if (!FSZIP_Decompress_Read(nc, buffer, chunk))
+				break;
+			if (VFS_WRITE(defer, buffer, chunk) != chunk)
+				break;
+			upos += chunk;
+		}
+		FSZIP_Decompress_Destroy(nc);
+
+		return defer;
+	}
+	return NULL;
+}
+#else
+struct decompressstate
+{
+//	zipfile_t *source;
+//	qofs_t cstart;	//position of start of data
+//	qofs_t cofs;	//current read offset
+//	qofs_t cend;	//compressed data ends at this point.
+//	qofs_t usize;	//data remaining. refuse to read more bytes than this.
+//	unsigned char inbuffer[16384];
+//	unsigned char outbuffer[16384];
+//	unsigned int readoffset;
+};
+struct decompressstate *FSZIP_Decompress_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize)
+{
+	return NULL;
+}
+
+qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, qofs_t bytes)
+{
+	return 0;
+}
+
+void FSZIP_Decompress_Destroy(struct decompressstate *st)
+{
+}
+
+vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
+{
+	return NULL;
+}
+#endif
+
+//an open vfsfile_t
 typedef struct {
 	vfsfile_t funcs;
 
@@ -567,35 +636,9 @@ static qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, qofs_t pos)
 	//This is *really* inefficient
 	if (vfsz->decompress)
 	{	//if they're going to seek on a file in a zip, let's just copy it out
-		qofs_t cstart = vfsz->decompress->cstart, csize = vfsz->decompress->cend - cstart;
-		qofs_t upos = 0, usize = vfsz->length;
-		qofs_t chunk;
-		struct decompressstate *nc;
-		qbyte buffer[16384];
-
-		vfsz->defer = FS_OpenTemp();
+		vfsz->defer = FSZIP_Decompress_ToTempFile(vfsz->decompress);
 		if (vfsz->defer)
-		{
-			FSZIP_Decompress_Destroy(vfsz->decompress);
-			vfsz->decompress = NULL;
-
-			nc = FSZIP_Decompress_Init(vfsz->parent, cstart, csize, usize);
-
-			while (upos < usize)
-			{
-				chunk = usize - upos;
-				if (chunk > sizeof(buffer))
-					chunk = sizeof(buffer);
-				if (!FSZIP_Decompress_Read(nc, buffer, chunk))
-					break;
-				if (VFS_WRITE(vfsz->defer, buffer, chunk) != chunk)
-					break;
-				upos += chunk;
-			}
-			FSZIP_Decompress_Destroy(nc);
-
 			return VFS_SEEK(vfsz->defer, pos);
-		}
 		return false;
 	}
 
@@ -1466,7 +1509,5 @@ struct archivedeltafuncs_s *FSZIP_OpenDeltaZip(qdownload_t *dl)
 	za->pub.GetNextRange = FSZIPDL_GetNextRange;
 	return &za->pub;
 }
-#endif
-
 #endif
 

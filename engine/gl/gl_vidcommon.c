@@ -1486,6 +1486,14 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
+		if (ver >= 140)
+		{
+			prstrings[strings] =
+				"#define varying in\n"
+			;
+			length[strings] = strlen(prstrings[strings]);
+			strings++;
+		}
 		break;
 	case GL_TESS_CONTROL_SHADER_ARB:
 		prstrings[strings] = "#define TESS_CONTROL_SHADER\n";
@@ -1513,14 +1521,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
-		if (ver < 140)
-		{
-			prstrings[strings] =
-				"#define in attribute\n"
-				"#define out varying\n"
-			;
-		}
-		else
+		if (ver >= 140)
 		{
 			prstrings[strings] =
 				"#define attribute in\n"
@@ -1532,9 +1533,9 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 		if (gl_config.nofixedfunc || ver >= 140)
 		{
 			prstrings[strings] =
-					"in vec3 v_position1;\n"
+					"attribute vec3 v_position1;\n"
 					"#ifdef FRAMEBLEND\n"
-					"in vec3 v_position2;\n"
+					"attribute vec3 v_position2;\n"
 					"uniform vec2 e_vblend;\n"
 					"#define v_position ((v_position1*e_vblend.x)+(v_position2*e_vblend.y))\n"
 					"#else\n"
@@ -1551,7 +1552,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 		{
 			prstrings[strings] =
 					"#ifdef FRAMEBLEND\n"
-					"in vec3 v_position2;\n"
+					"attribute vec3 v_position2;\n"
 					"uniform vec2 e_vblend;\n"
 					"#define v_position (gl_Vertex.xyz*e_vblend.x+v_position2*e_vblend.y)\n"
 					"uniform mat4 m_modelviewprojection;\n"
@@ -1777,8 +1778,11 @@ union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const cha
 
 	if (!gl_config.arb_shader_objects)
 		return ret;
-	if ((cont || frag) && !qglPatchParameteriARB)
+	if ((cont || eval) && !qglPatchParameteriARB)
+	{
+		Con_Printf("GLSlang_CreateProgram: %s requires tesselation support, but your gl drivers do not appear to support this\n", name);
 		return ret;
+	}
 
 	if (!precompilerconstants)
 		precompilerconstants = &nullconstants;

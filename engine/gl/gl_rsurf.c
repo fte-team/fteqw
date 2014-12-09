@@ -562,6 +562,10 @@ void GLBE_UploadAllLightmaps(void)
 				lightmap[i]->lightmaps);
 			break;
 		}
+		//for completeness.
+		lm->lightmap_texture->width = lm->width;
+		lm->lightmap_texture->height = lm->height;
+		lm->lightmap_texture->status = TEX_LOADED;
 	}
 }
 

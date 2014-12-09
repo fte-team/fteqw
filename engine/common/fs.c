@@ -424,7 +424,10 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 				man->package[i].crcknown = crcknown;
 				man->package[i].crc = crc;
 				if (!Q_strcasecmp(fname, "archivedpackage"))
-					man->package[i].extractname = Z_StrDup(Cmd_Argv(arg++));
+				{
+					char *extr = Cmd_Argv(arg++);
+					man->package[i].extractname = Z_StrDup(extr);
+				}
 				else
 					man->package[i].extractname = NULL;
 				for (j = 0; arg+j < Cmd_Argc() && j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
@@ -4374,7 +4377,7 @@ void COM_InitFilesystem (void)
 
 //this is at the bottom of the file to ensure these globals are not used elsewhere
 extern searchpathfuncs_t *(QDECL VFSOS_OpenPath) (vfsfile_t *file, const char *desc);
-#ifdef AVAIL_ZLIB
+#if 1//def AVAIL_ZLIB
 extern searchpathfuncs_t *(QDECL FSZIP_LoadArchive) (vfsfile_t *packhandle, const char *desc);
 #endif
 extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, const char *desc);
@@ -4389,7 +4392,7 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "PAK", FSPAK_LoadArchive, true);
 #endif
 	FS_RegisterFileSystemType(NULL, "pk3dir", VFSOS_OpenPath, true);
-#ifdef AVAIL_ZLIB
+#if 1//def AVAIL_ZLIB
 	FS_RegisterFileSystemType(NULL, "pk3", FSZIP_LoadArchive, true);
 	FS_RegisterFileSystemType(NULL, "pk4", FSZIP_LoadArchive, true);
 	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);

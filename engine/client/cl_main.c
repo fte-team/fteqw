@@ -4805,7 +4805,9 @@ void CL_StartCinematicOrMenu(void)
 				if (!cls.state && !m_state && cl_demoreel.ival)
 					CL_NextDemo();
 				if (!cls.state && !m_state)
-					M_ToggleMenu_f();
+					//if we're (now) meant to be using csqc for menus, make sure that its running.
+					if (!CSQC_UnconnectedInit())
+						M_ToggleMenu_f();
 			}
 			//Con_ForceActiveNow();
 		}

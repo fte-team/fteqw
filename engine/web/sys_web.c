@@ -146,10 +146,10 @@ void Sys_Init(void)
 {
 	extern cvar_t vid_width, vid_height, vid_fullscreen;
 	//vid_fullscreen takes effect only on mouse clicks, any suggestion to do a vid_restart is pointless.
-	vid_fullscreen.flags &= CVAR_RENDERERLATCH;
+	vid_fullscreen.flags &= ~CVAR_RENDERERLATCH;
 	//these are not really supported. so silence any spam that suggests we do something about something not even supported.
-	vid_width.flags &= CVAR_RENDERERLATCH;
-	vid_height.flags &= CVAR_RENDERERLATCH;
+	vid_width.flags &= ~CVAR_RENDERERLATCH;
+	vid_height.flags &= ~CVAR_RENDERERLATCH;
 }
 void Sys_Shutdown(void)
 {

@@ -172,6 +172,11 @@ void DOM_LoadFile(char *loc, int handle)
 			VFS_CLOSE(file);
 	}
 }
+int VID_ShouldSwitchToFullscreen(void)
+{	//if false, mouse grabs won't work and we'll be forced to touchscreen mode.
+	extern cvar_t vid_fullscreen;
+	return !!vid_fullscreen.value;
+}
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	vid_isfullscreen = true;
@@ -185,7 +190,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		DOM_KeyEvent,
 		DOM_LoadFile,
 		IN_JoystickButtonEvent,
-		IN_JoystickAxisEvent
+		IN_JoystickAxisEvent,
+		VID_ShouldSwitchToFullscreen
 		))
 	{
 		Con_Printf("Couldn't set up canvas\n");
@@ -209,7 +215,7 @@ void GLVID_DeInit (void)
 {
 	ActiveApp = false;
 
-	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 

@@ -1543,6 +1543,10 @@ void SCR_DrawLoading (qboolean opaque)
 	char *s;
 	int qdepth;
 	int h2depth;
+
+	if (CSQC_UseGamecodeLoadingScreen())
+		return;
+
 	//int mtype = M_GameType(); //unused variable
 	y = vid.height/2;
 

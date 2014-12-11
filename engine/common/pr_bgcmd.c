@@ -1605,11 +1605,11 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		break;
 	case FRIK_FILE_READ:	//read
 	case FRIK_FILE_READNL:	//read whole file
-		fsize = FS_LoadFile(pf_fopen_files[i].name, &pf_fopen_files[i].data);
+		fsize = FS_LoadFile(pf_fopen_files[i].name, (void**)&pf_fopen_files[i].data);
 		if (!pf_fopen_files[i].data && fallbackread)
 		{
 			Q_strncpyz(pf_fopen_files[i].name, fallbackread, sizeof(pf_fopen_files[i].name));
-			fsize = FS_LoadFile(pf_fopen_files[i].name, &pf_fopen_files[i].data);
+			fsize = FS_LoadFile(pf_fopen_files[i].name, (void**)&pf_fopen_files[i].data);
 		}
 
 		if (pf_fopen_files[i].data)
@@ -3473,12 +3473,12 @@ void QCBUILTIN PF_buf_writefile  (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	G_FLOAT(OFS_RETURN) = 0;
 
-	if ((unsigned int)bufno >= NUMSTRINGBUFS)
+	if ((unsigned int)bufno >= (unsigned int)NUMSTRINGBUFS)
 		return;
 	if (strbuflist[bufno].prinst != prinst)
 		return;
 
-	if (fnum < 0 || fnum >= MAX_QC_FILES)
+	if ((unsigned int)fnum >= (unsigned int)MAX_QC_FILES)
 		return;
 	if (pf_fopen_files[fnum].prinst != prinst)
 		return;

@@ -66,7 +66,12 @@ mergeInto(LibraryManager.library,
 		evcb: {
 			resize:0,
 			mouse:0,
-			key:0
+			button:0,
+			key:0,
+			loadfile:0,
+			jbutton:0,
+			jaxis:0,
+			wantfullscreen:0
 		},
 
 		loadurl : function(url, arraybuf)
@@ -114,6 +119,8 @@ mergeInto(LibraryManager.library,
 					break;
 				case 'mousedown':
 					if (Browser.isFullScreen == 0)
+					if (FTEC.evcb.wantfullscreen != 0)
+					if (Runtime.dynCall('i', FTEC.evcb.wantfullscreen, []))
 					{
 						Browser.requestFullScreen(true, true);
 						Module['canvas'].requestPointerLock();
@@ -143,8 +150,10 @@ mergeInto(LibraryManager.library,
 				case 'keypress':
 					if (FTEC.evcb.key != 0)
 					{
-						Runtime.dynCall('viiii', FTEC.evcb.key, [0, 1, 0, event.charCode]);
-						Runtime.dynCall('viiii', FTEC.evcb.key, [0, 0, 0, event.charCode]);
+						if (event.charCode >= 122 && event.charCode <= 123)	//no f11/f12
+							break;
+						Runtime.dynCall('iiiii', FTEC.evcb.key, [0, 1, 0, event.charCode]);
+						Runtime.dynCall('iiiii', FTEC.evcb.key, [0, 0, 0, event.charCode]);
 						event.preventDefault();
 					}
 					break;
@@ -264,7 +273,7 @@ mergeInto(LibraryManager.library,
 		}
 	},
 	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
-	emscriptenfte_setupcanvas : function(nw,nh,evresize,evmouse,evmbutton,evkey,evfile,evjbutton,evjaxis)
+	emscriptenfte_setupcanvas : function(nw,nh,evresize,evmouse,evmbutton,evkey,evfile,evjbutton,evjaxis,evwantfullscreen)
 	{
 		FTEC.evcb.resize = evresize;
 		FTEC.evcb.mouse = evmouse;
@@ -273,6 +282,7 @@ mergeInto(LibraryManager.library,
 		FTEC.evcb.loadfile = evfile;
 		FTEC.evcb.jbutton = evjbutton;
 		FTEC.evcb.jaxis = evjaxis;
+		FTEC.evcb.wantfullscreen = evwantfullscreen;
 
 		if ('GamepadEvent' in window)
 			FTEH.gamepads = [];	//don't bother ever trying to poll if we can use gamepad events. this will hopefully avoid weirdness.
@@ -326,6 +336,11 @@ mergeInto(LibraryManager.library,
 				Runtime.dynCall('vii', FTEC.evcb.resize, [Module['canvas'].width, Module['canvas'].height]);
 		};
 		window.onresize();
+
+		if (evmouse)
+			Module.canvas.style.cursor = "none";	//hide the cursor, we'll do a soft-cursor when one is needed.
+		else
+			Module.canvas.style.cursor = "default";	//restore the cursor
 
 		if (FTEC.evcb.hashchange)
 		{

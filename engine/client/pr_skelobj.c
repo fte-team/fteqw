@@ -834,7 +834,7 @@ void skel_generateragdoll_f(void)
 {
 	char *modname = Cmd_Argv(1);
 	char *outname;
-	model_t *mod = Mod_ForName(modname, false);
+	model_t *mod = Mod_ForName(modname, MLV_SILENT);
 	galiasbone_t *bones;
 	vfsfile_t *f;
 	int i;

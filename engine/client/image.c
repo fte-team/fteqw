@@ -3569,6 +3569,10 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_BGRA8:
 			mips->encoding = PTI_RGBX8;
 			break;
+		case PTI_RGBA16F:
+		case PTI_RGBA32F:
+		case PTI_ARGB4444:
+		case PTI_ARGB1555:
 		case PTI_RGBA4444:
 		case PTI_RGBA5551:
 			break;	//erk

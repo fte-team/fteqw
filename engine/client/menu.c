@@ -1334,6 +1334,7 @@ void M_Draw (int uimenu)
 
 	switch (m_state)
 	{
+	default:
 	case m_none:
 		break;
 
@@ -1371,6 +1372,7 @@ void M_Keydown (int key, int unicode)
 {
 	switch (m_state)
 	{
+	default:
 	case m_none:
 		Key_Dest_Remove(kdm_menu);
 		return;

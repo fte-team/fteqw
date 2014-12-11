@@ -10496,6 +10496,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_WorldLoaded",		"noref void()", CS, "Called after model+sound precaches have been executed. Gives a chance for the qc to read the entity lump from the bsp."},
 		{"CSQC_Shutdown",			"noref void()", CS, "Specifies that the csqc is going down. Save your persistant settings here."},
 		{"CSQC_UpdateView",			"noref void(float vwidth, float vheight, float notmenu)", CS, "Called every single video frame. The CSQC is responsible for rendering the entire screen."},
+		{"CSQC_UpdateViewLoading",	"noref void(float vwidth, float vheight, float notmenu)", CS, "Alternative to CSQC_UpdateView, called when the engine thinks there should be a loading screen. If present, will inhibit the engine's normal loading screen, deferring to qc to draw it."},
 		{"CSQC_Parse_StuffCmd",		"noref void(string msg)", CS, "Gives the CSQC a chance to intercept stuffcmds. Use the tokenize builtin to parse the message. Unrecognised commands would normally be localcmded, but its probably better to drop unrecognised stuffcmds completely."},
 		{"CSQC_Parse_CenterPrint",	"noref float(string msg)", CS, "Gives the CSQC a chance to intercept centerprints. Return true if you wish the engine to otherwise ignore the centerprint."},
 		{"CSQC_Parse_Print",		"noref void(string printmsg, float printlvl)", CS, "Gives the CSQC a chance to intercept sprint/bprint builtin calls. CSQC should filter by the client's current msg setting and then pass the message on to the print command, or handle them itself."},
@@ -10682,6 +10683,15 @@ void PR_DumpPlatform_f(void)
 		{"INFOKEY_P_PACKETLOSS","const string", CS, "Reads a player's packetloss, as a percentage.", 0, "\"pl\""},
 		{"INFOKEY_P_VOIPSPEAKING","const string", CS, "Boolean value that says whether the given player is currently sending voice information.", 0, "\"voipspeaking\""},
 		{"INFOKEY_P_VOIPLOUDNESS","const string", CS, "Only valid for the local player. Gives a value between 0 and 1 to indicate to the user how loud their mic is.", 0, "\"voiploudness\""},
+
+		{"SERVERKEY_IP",		"const string",	CS,"The address of the server we connected to.", 0, "\"ip\""},
+		{"SERVERKEY_SERVERNAME","const string",	CS,"The hostname that was last passed to the connect command.", 0, "\"servername\""},
+		{"SERVERKEY_CONSTATE",	"const string",	CS,"The current connection state. Will be set to one of: disconnected (menu-only mode), active (gamestate received and loaded), connecting(connecting, downloading, or precaching content, aka: loading screen).", 0, "\"constate\""},
+		{"SERVERKEY_TRANSFERRING","const string",CS,"Set to the hostname of the server that we are attempting to connect or transfer to.", 0, "\"transferring\""},
+		{"SERVERKEY_LOADSTATE",	"const string", CS, "loadstage, loading image name, current step, max steps\nStages are: 1=connecting, 2=serverside, 3=clientside\nKey will be empty if we are not loading.", 0, "\"loadstate\""},
+		{"SERVERKEY_PAUSESTATE","const string", CS, "1 if the server claimed to be paused. 0 otherwise", 0, "\"pausestate\""},
+		{"SERVERKEY_DLSTATE",	"const string", CS,	"The progress of any current downloads. Empty string if no download is active, otherwise a tokenizable string containing this info:\nfiles-remaining, total-size, unknown-sizes-flag, file-localname, file-remotename, file-percent, file-rate, file-received-bytes, file-total-bytes\nIf the current file info is omitted, then we are waiting for a download to start.", 0, "\"dlstate\""},
+		{"SERVERKEY_PROTOCOL",	"const string", CS,	"The protocol we are connected to the server with.", 0, "\"protocol\""},
 
 		// edict.flags
 		{"FL_FLY",				"const float", QW|NQ|CS, NULL, FL_FLY},

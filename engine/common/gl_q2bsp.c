@@ -12,10 +12,14 @@
 
 #define MAX_Q3MAP_INDICES 0x8000000	//just a sanity limit
 #define	MAX_Q3MAP_VERTEXES	0x800000	//just a sanity limit
-#define MAX_CM_PATCH_VERTS		(4096)
-#define MAX_CM_FACES			(MAX_Q2MAP_FACES)
-#define MAX_CM_PATCHES			(0x10000)
-#define MAX_CM_LEAFFACES		(MAX_Q2MAP_LEAFFACES)
+//#define MAX_CM_PATCH_VERTS		(4096)
+//#define MAX_CM_FACES			(MAX_Q2MAP_FACES)
+#ifdef FTE_TARGET_WEB
+#define MAX_CM_PATCHES			(0x1000)		//fixme
+#else
+#define MAX_CM_PATCHES			(0x10000)		//fixme
+#endif
+//#define MAX_CM_LEAFFACES		(MAX_Q2MAP_LEAFFACES)
 #define	MAX_CM_AREAS			MAX_Q2MAP_AREAS
 
 //#define Q3SURF_NODAMAGE		0x00000001
@@ -6296,9 +6300,9 @@ CM_WritePortalState
 Writes the portal state to a savegame file
 ===================
 */
-void	CM_WritePortalState (FILE *f)
+void	CM_WritePortalState (vfsfile_t *f)
 {
-	fwrite (portalopen, sizeof(portalopen), 1, f);
+	VFS_WRITE(f, portalopen, sizeof(portalopen));
 }
 
 /*
@@ -6309,11 +6313,11 @@ Reads the portal state from a savegame file
 and recalculates the area connections
 ===================
 */
-void	CM_ReadPortalState (FILE *f)
+void	CM_ReadPortalState (vfsfile_t *f)
 {
 	size_t result;
 
-	result = fread (portalopen, 1, sizeof(portalopen), f); // do something with result
+	result = VFS_READ(f, portalopen, sizeof(portalopen)); // do something with result
 
 	if (result != sizeof(portalopen))
 		Con_Printf("CM_ReadPortalState() fread: expected %lu, result was %u\n",(long unsigned int)sizeof(portalopen),(unsigned int)result);

@@ -1218,6 +1218,7 @@ static void PDECL qclib_free(void *ptr)
 	free(ptr);
 }
 #ifdef FTE_TARGET_WEB
+#undef printf
 #define printf NULL	//should be some null wrapper instead
 #endif
 

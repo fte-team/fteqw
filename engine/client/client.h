@@ -1213,6 +1213,7 @@ qboolean CSQC_ConsoleLink(char *text, char *info);
 void CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_SetupToRenderPortal(int entnum);
 qboolean CSQC_DrawView(void);
+qboolean CSQC_UseGamecodeLoadingScreen(void);
 void CSQC_Shutdown(void);
 qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend);
 qboolean CSQC_LoadResource(char *resname, char *restype);
@@ -1241,6 +1242,7 @@ void CSQC_CvarChanged(cvar_t *var);
 #else
 #define CSQC_UnconnectedOkay(inprinciple) false
 #define CSQC_UnconnectedInit() false
+#define CSQC_UseGamecodeLoadingScreen() false
 #endif
 
 //

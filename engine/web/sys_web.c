@@ -100,9 +100,17 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 }
 
 //someone used the 'quit' command
+#include "glquake.h"
 void Sys_Quit (void)
 {
-	Host_Shutdown();
+	if (host_initialized)
+	{
+		qglClearColor(0,0,0,1);
+		qglClear(GL_COLOR_BUFFER_BIT);
+		Draw_FunString (0, 0, "Reload the page to restart");
+
+		Host_Shutdown();
+	}
 
 	exit (0);
 }
@@ -110,7 +118,7 @@ void Sys_Quit (void)
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	Con_DPrintf("Warning: Sys_EnumerateFiles not implemented\n");
-	return false;
+	return true;
 }
 
 //blink window if possible (it's not)
@@ -136,6 +144,12 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 
 void Sys_Init(void)
 {
+	extern cvar_t vid_width, vid_height, vid_fullscreen;
+	//vid_fullscreen takes effect only on mouse clicks, any suggestion to do a vid_restart is pointless.
+	vid_fullscreen.flags &= CVAR_RENDERERLATCH;
+	//these are not really supported. so silence any spam that suggests we do something about something not even supported.
+	vid_width.flags &= CVAR_RENDERERLATCH;
+	vid_height.flags &= CVAR_RENDERERLATCH;
 }
 void Sys_Shutdown(void)
 {

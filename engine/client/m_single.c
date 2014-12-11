@@ -714,7 +714,10 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 	}
 	if (info->fsroot == FS_SYSTEM)
 	{
-		Q_snprintfz(match, sizeof(match), *info->path?"%s*":"/*", info->path);
+		if (info->path)
+			Q_snprintfz(match, sizeof(match), "%s*", info->path);
+		else
+			Q_snprintfz(match, sizeof(match), "/*");
 		Sys_EnumerateFiles("", match, DemoAddItem, info, NULL);
 	}
 	else

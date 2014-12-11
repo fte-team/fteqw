@@ -2023,9 +2023,19 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			Q_strncatz(outstr, va("spawnorg %g %g\n", ptype->areaspread, ptype->areaspreadvert), outstrlen);
 
 		if (ptype->veladd || ptype->randomveladd)
-			Q_strncatz(outstr, va(ptype->randomveladd?"veladd %g %g\n":"veladd %g\n", ptype->veladd, ptype->veladd+ptype->randomveladd), outstrlen);
+		{
+			if (ptype->randomveladd)
+				Q_strncatz(outstr, va("veladd %g %g\n", ptype->veladd, ptype->veladd+ptype->randomveladd), outstrlen);
+			else
+				Q_strncatz(outstr, va("veladd %g\n", ptype->veladd), outstrlen);
+		}
 		if (ptype->orgadd || ptype->randomorgadd)
-			Q_strncatz(outstr, va(ptype->randomorgadd?"orgadd %g %g\n":"orgadd %g\n", ptype->orgadd, ptype->orgadd+ptype->randomorgadd), outstrlen);
+		{
+			if (ptype->randomorgadd)
+				Q_strncatz(outstr, va("orgadd %g %g\n", ptype->orgadd, ptype->orgadd+ptype->randomorgadd), outstrlen);
+			else
+				Q_strncatz(outstr, va("orgadd %g\n", ptype->orgadd), outstrlen);
+		}
 		if (ptype->randomvel || ptype->randomvelvert || ptype->randomvelvertbias)
 			Q_strncatz(outstr, va("randomvel %g %g %g\n", ptype->randomvel, ptype->randomvelvertbias - ptype->randomvelvert, ptype->randomvelvertbias + ptype->randomvelvert), outstrlen);
 

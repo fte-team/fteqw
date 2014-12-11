@@ -922,13 +922,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #if defined(Q2BSPS)
 	if (usecinematic)
 	{
-		qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
+		qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize);
 
 		Q_strncpyz (sv.name, server, sizeof(sv.name));
 		Q_strncpyz (sv.modelname, "", sizeof(sv.modelname));
 
 		sv.world.worldmodel = Mod_FindName (sv.modelname);
-		if (Mod_LoadQ2BrushModel (sv.world.worldmodel, NULL))
+		if (Mod_LoadQ2BrushModel (sv.world.worldmodel, NULL, 0))
 			sv.world.worldmodel->loadstate = MLS_LOADED;
 		else
 			sv.world.worldmodel->loadstate = MLS_FAILED;

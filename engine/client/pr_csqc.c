@@ -101,7 +101,8 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(init_function,		"CSQC_Init");	\
 	globalfunction(worldloaded,			"CSQC_WorldLoaded");	\
 	globalfunction(shutdown_function,	"CSQC_Shutdown");	\
-	globalfunction(draw_function,		"CSQC_UpdateView");	\
+	globalfunction(f_updateview,		"CSQC_UpdateView");	\
+	globalfunction(f_updateviewloading,	"CSQC_UpdateViewLoading");	\
 	globalfunction(parse_stuffcmd,		"CSQC_Parse_StuffCmd");	\
 	globalfunction(parse_centerprint,	"CSQC_Parse_CenterPrint");	\
 	globalfunction(parse_print,			"CSQC_Parse_Print");	\
@@ -2791,6 +2792,8 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 		else
 			ret = NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address);
 	}
+	else if (!strcmp(keyname, "servername"))
+		ret = cls.servername;
 	else if (!strcmp(keyname, "constate"))
 	{
 		if (cls.state == ca_disconnected
@@ -2804,6 +2807,36 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 		else
 			ret = "connecting";
 	}
+	else if (!strcmp(keyname, "loadstate"))
+	{
+		extern int			total_loading_size, current_loading_size, loading_stage;
+		extern char			levelshotname[MAX_QPATH];
+		ret = va("%i %u %u \"%s\"", loading_stage, current_loading_size, total_loading_size, levelshotname);
+	}
+	else if (!strcmp(keyname, "transferring"))
+	{
+		ret = CL_TryingToConnect();
+		if (!ret)
+			ret = "";
+	}
+	else if (!strcmp(keyname, "dlstate"))
+	{
+		if (!cl.downloadlist && !cls.download)
+			ret = "";	//nothing being downloaded right now
+		else
+		{
+			unsigned int fcount;
+			qofs_t tsize;
+			qboolean sizeextra;
+			CL_GetDownloadSizes(&fcount, &tsize, &sizeextra);
+			if (cls.download)	//downloading something
+				ret = va("%u %g %u \"%s\" \"%s\" %g %i %g %g", fcount, (float)tsize, sizeextra?1u:0u, cls.download->localname, cls.download->remotename, cls.download->percent, cls.download->rate, (float)cls.download->completedbytes, (float)cls.download->size);
+			else	//not downloading anything right now
+				ret = va("%u %g %u", fcount, (float)tsize, sizeextra?1u:0u);
+		}
+	}
+	else if (!strcmp(keyname, "pausestate"))
+		ret = cl.paused?"1":"0";
 	else if (!strcmp(keyname, "protocol"))
 	{	//using this is pretty acedemic, really. Not particuarly portable.
 		switch (cls.protocol)
@@ -5520,8 +5553,10 @@ qbyte *PDECL CSQC_PRLoadFile (const char *path, void *buffer, int bufsize, size_
 						return NULL;	//not valid
 				}
 
+#ifndef FTE_TARGET_WEB
 				//back it up
 				COM_WriteFile(newname, file, *sz);
+#endif
 			}
 		}
 
@@ -6145,6 +6180,11 @@ void CSQC_CvarChanged(cvar_t *var)
 	}
 }
 
+qboolean CSQC_UseGamecodeLoadingScreen(void)
+{
+	return csqcprogs && csqcg.f_updateviewloading;
+}
+
 //evil evil function. calling qc from inside the renderer is BAD.
 qboolean CSQC_SetupToRenderPortal(int entkeynum)
 {
@@ -6195,7 +6235,7 @@ qboolean CSQC_DrawView(void)
 	csqc_resortfrags = true;
 	csqctime = Sys_DoubleTime();
 
-	if (!csqcg.draw_function || !csqcprogs)
+	if (!csqcg.f_updateview || !csqcprogs)
 		return false;
 
 	if (cls.state < ca_active && !CSQC_UnconnectedOkay(false))
@@ -6301,7 +6341,10 @@ qboolean CSQC_DrawView(void)
 		G_FLOAT(OFS_PARM2) = !m_state;
 	}
 	//end EXT_CSQC_1
-	PR_ExecuteProgram(csqcprogs, csqcg.draw_function);
+	if (csqcg.f_updateviewloading && cls.state && cls.state < ca_active)
+		PR_ExecuteProgram(csqcprogs, csqcg.f_updateviewloading);
+	else
+		PR_ExecuteProgram(csqcprogs, csqcg.f_updateview);
 
 	return true;
 }

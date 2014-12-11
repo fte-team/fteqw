@@ -1535,18 +1535,6 @@ void CL_ReRecord_f (void)
 	CL_BeginServerReconnect();
 }
 
-#ifdef WEBCLIENT
-void CL_PlayDownloadedDemo(char *name, qboolean success)
-{
-	if (success == false)
-		Con_Printf("Failed to download %s\n", name);
-	else
-	{
-		Cbuf_AddText(va("playdemo %s\n", name), RESTRICT_LOCAL);
-	}
-}
-#endif
-
 /*
 ====================
 CL_PlayDemo_f
@@ -1554,6 +1542,7 @@ CL_PlayDemo_f
 play [demoname]
 ====================
 */
+void CL_PlayDownloadedDemo(struct dl_download *dl);
 void CL_PlayDemo_f (void)
 {
 	char *demoname;
@@ -1567,10 +1556,7 @@ void CL_PlayDemo_f (void)
 		cls.state = ca_disconnected;
 
 #ifdef WEBCLIENT
-#ifdef warningmsg
-#pragma warningmsg("playdemo http://blah is broken right now")
-#endif
-#if 0
+#if 1
 	if (!strncmp(Cmd_Argv(1), "ftp://", 6) || !strncmp(Cmd_Argv(1), "http://", 7))
 	{
 		if (Cmd_ExecLevel == RESTRICT_LOCAL)
@@ -1682,10 +1668,92 @@ vfsfile_t *CL_OpenFileInZipOrSys(char *name)
 	else
 		return CL_OpenFileInPackage(NULL, name);
 }
+//tries to determine the demo type
+void CL_PlayDemoFile(vfsfile_t *f, char *demoname)
+{
+	qofs_t start;
+
+	if (!VFS_GETLEN (f))
+	{
+		VFS_CLOSE(f);
+		Con_Printf ("demo \"%s\" is empty.\n", demoname);
+		return;
+	}
+
+	//figure out where we started
+	start = VFS_TELL(f);
+
+#ifdef Q2CLIENT
+	{
+		int len;
+		char type;
+		int protocol;
+		//check if its a quake2 demo.
+		VFS_READ(f, &len, sizeof(len));
+		VFS_READ(f, &type, sizeof(type));
+		VFS_READ(f, &protocol, sizeof(protocol));
+		VFS_SEEK(f, start);
+		if (len > 5 && type == svcq2_serverdata && protocol == PROTOCOL_VERSION_Q2)
+		{
+			CL_PlayDemoStream(f, NULL, demoname, DPB_QUAKE2, 0);
+			return;
+		}
+	}
+#endif
+
+#ifdef NQPROT
+	{
+		int ft = 0, neg = false;
+		char chr;
+		//not quake2, check if its NQ
+		//work out if the first line is a int for the track number.
+		while ((VFS_READ(f, &chr, 1)==1) && (chr != '\n'))
+		{
+			if (chr == ' ')
+				;
+			else if (chr == '-')
+				neg = true;
+			else if (chr < '0' || chr > '9')
+				break;
+			else
+				ft = ft * 10 + ((int)chr - '0');
+		}
+		if (neg)
+			ft *= -1;
+		if (chr == '\n')
+		{
+			CL_PlayDemoStream(f, NULL, demoname, DPB_NETQUAKE, 0);
+			return;
+		}
+		VFS_SEEK(f, start);
+	}
+#endif
+
+	//its not NQ then. must be QuakeWorld, either .qwd or .mvd
+	//could also be .qwz or .dmz or whatever that nq extension is. we don't support either.
+
+	//mvd and qwd have no identifying markers, other than the extension.
+	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "mvd") ||
+		!Q_strcasecmp(demoname + strlen(demoname) - 6, "mvd.gz"))
+		CL_PlayDemoStream(f, NULL, demoname, DPB_MVD, 0);
+	else
+		CL_PlayDemoStream(f, NULL, demoname, DPB_QUAKEWORLD, 0);
+}
+#ifdef WEBCLIENT
+void CL_PlayDownloadedDemo(struct dl_download *dl)
+{
+	if (dl->status != DL_FINISHED || !dl->file)
+		Con_Printf("Failed to download %s\n", dl->url);
+	else
+	{
+		CL_PlayDemoFile(dl->file, dl->url);
+		dl->file = NULL;
+	}
+}
+#endif
 void CL_PlayDemo(char *demoname)
 {
 	char	name[256];
-	qofs_t start;
 	vfsfile_t *f;
 
 //
@@ -1720,71 +1788,7 @@ void CL_PlayDemo(char *demoname)
 	}
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
 
-	if (!VFS_GETLEN (f))
-	{
-		VFS_CLOSE(f);
-		Con_Printf ("demo \"%s\" is empty.\n", demoname);
-		return;
-	}
-
-	//figure out where we started
-	start = VFS_TELL(f);
-
-#ifdef Q2CLIENT
-	{
-		int len;
-		char type;
-		int protocol;
-		//check if its a quake2 demo.
-		VFS_READ(f, &len, sizeof(len));
-		VFS_READ(f, &type, sizeof(type));
-		VFS_READ(f, &protocol, sizeof(protocol));
-		VFS_SEEK(f, start);
-		if (len > 5 && type == svcq2_serverdata && protocol == PROTOCOL_VERSION_Q2)
-		{
-			CL_PlayDemoStream(f, NULL, name, DPB_QUAKE2, 0);
-			return;
-		}
-	}
-#endif
-
-#ifdef NQPROT
-	{
-		int ft = 0, neg = false;
-		char chr;
-		//not quake2, check if its NQ
-		//work out if the first line is a int for the track number.
-		while ((VFS_READ(f, &chr, 1)==1) && (chr != '\n'))
-		{
-			if (chr == ' ')
-				;
-			else if (chr == '-')
-				neg = true;
-			else if (chr < '0' || chr > '9')
-				break;
-			else
-				ft = ft * 10 + ((int)chr - '0');
-		}
-		if (neg)
-			ft *= -1;
-		if (chr == '\n')
-		{
-			CL_PlayDemoStream(f, NULL, name, DPB_NETQUAKE, 0);
-			return;
-		}
-		VFS_SEEK(f, start);
-	}
-#endif
-
-	//its not NQ then. must be QuakeWorld, either .qwd or .mvd
-	//could also be .qwz or .dmz or whatever that nq extension is. we don't support either.
-
-	//mvd and qwd have no identifying markers, other than the extension.
-	if (!Q_strcasecmp(name + strlen(name) - 3, "mvd") ||
-		!Q_strcasecmp(name + strlen(name) - 6, "mvd.gz"))
-		CL_PlayDemoStream(f, NULL, name, DPB_MVD, 0);
-	else
-		CL_PlayDemoStream(f, NULL, name, DPB_QUAKEWORLD, 0);
+	CL_PlayDemoFile(f, name);
 }
 
 /*used with qtv*/
@@ -1914,7 +1918,7 @@ void CL_QTVPoll (void)
 				colon = "";
 
 			if (!strcmp(s, "PERROR"))
-			{	//printable error
+			{	//permanent printable error
 				Con_Printf("QTV Error:\n%s\n", colon);
 			}
 			else if (!strcmp(s, "PRINT"))
@@ -1922,7 +1926,7 @@ void CL_QTVPoll (void)
 				Con_Printf("QTV:\n%s\n", colon);
 			}
 			else if (!strcmp(s, "TERROR"))
-			{	//printable error
+			{	//temporary printable error
 				Con_Printf("QTV Error:\n%s\n", colon);
 			}
 			else if (!strcmp(s, "ADEMO"))

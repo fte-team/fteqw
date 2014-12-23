@@ -42,8 +42,9 @@ void Master_DetermineMasterTypes(void)
 	}
 }
 
+#define MAX_MASTER_ADDRESSES 4	//each master might have multiple dns addresses, typically both ipv4+ipv6. we want to report to both address families so we work with remote single-stack hosts.
+
 #ifndef CLIENTONLY
-#define MAX_MASTER_ADDRESSES 4	//each master might have multiple dns addresses, typically both ipv4+ipv6. we want to report to both address families so we work with single-stack hosts.
 void Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
 static void SV_SetMaster_f (void);
 #else

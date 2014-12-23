@@ -6497,28 +6497,28 @@ static void QCBUILTIN PF_vectorvectors (pubprogfuncs_t *prinst, struct globalvar
 //executes a command string as if it came from the specified client
 static void QCBUILTIN PF_clientcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	client_t *temp_client;
+	client_t *oldhostclient = host_client;
+	edict_t *oldsvplayer = sv_player;
 	int i;
 
 	//find client for this entity
 	i = NUM_FOR_EDICT(prinst, G_EDICT(prinst, OFS_PARM0)) - 1;
 	if (i < 0 || i >= sv.allocated_client_slots)
-	{
 		PR_BIError(prinst, "PF_clientcommand: entity is not a client");
-		return;
+	else
+	{
+		host_client = &svs.clients[i];
+		sv_player = host_client->edict;
+		if (host_client->state == cs_connected || host_client->state == cs_spawned)
+		{
+			SV_ExecuteUserCommand (PF_VarString(prinst, 1, pr_globals), true);
+		}
+		else
+			Con_Printf("PF_clientcommand: client is not active\n");
 	}
 
-	temp_client = host_client;
-	host_client = &svs.clients[i];
-	if (host_client->state == cs_connected || host_client->state == cs_spawned)
-	{
-		SV_ExecuteUserCommand (PF_VarString(prinst, 1, pr_globals), true);
-	}
-	else
-		Con_Printf("PF_clientcommand: client is not active\n");
-	host_client = temp_client;
-	if (host_client)
-		sv_player = host_client->edict;
+	host_client = oldhostclient;
+	sv_player = oldsvplayer;
 }
 
 

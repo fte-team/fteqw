@@ -1683,8 +1683,9 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 {
 	sizebuf_t	buf;
 	char buf_data[MAX_QWMSGLEN];
-	int n, i, j;
-	const char *s;
+	int i, j;
+//	int n;
+//	const char *s;
 
 	client_t *player;
 	char *gamedir;

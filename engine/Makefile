@@ -488,7 +488,6 @@ CLIENT_OBJS = \
 	m_mp3.o	\
 	roq_read.o	\
 	clq2_cin.o	\
-	net_master.o	\
 	r_part.o	\
 	p_script.o	\
 	p_null.o	\
@@ -636,6 +635,7 @@ COMMON_OBJS = \
 	cmd.o 		\
 	crc.o 		\
 	net_ssl_gnutls.o \
+	net_master.o	\
 	fs.o			\
 	fs_stdio.o		\
 	fs_pak.o		\

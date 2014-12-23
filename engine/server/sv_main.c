@@ -39,45 +39,11 @@ int			host_hunklevel;
 #endif
 
 // callbacks
-void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
 void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue);
 void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_Port_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue);
 void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue);
-
-typedef struct {
-	enum {
-		MP_NONE,
-		MP_QUAKEWORLD,
-		MP_DARKPLACES,
-	} protocol;
-	cvar_t		cv;
-
-	qboolean	needsresolve;	//set any time the cvar is modified
-	netadr_t	adr;
-} sv_masterlist_t;
-sv_masterlist_t sv_masterlist[] = {
-	{MP_QUAKEWORLD, CVARC("sv_master1", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, CVARC("sv_master2", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, CVARC("sv_master3", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, CVARC("sv_master4", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, CVARC("sv_master5", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, CVARC("sv_master6", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, CVARC("sv_master7", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, CVARC("sv_master8", "", SV_Masterlist_Callback)},
-
-	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra1", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra2", ""/*"masterserver.exhale.de:27000" seems dead*/, SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra3", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//germany. admin bigfoot
-	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra4", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
-	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra5", "qwmaster.fodquake.net:27000", SV_Masterlist_Callback)},
-
-	{MP_DARKPLACES, CVARC("sv_masterextra1", "ghdigital.com:27950", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
-	{MP_DARKPLACES, CVARC("sv_masterextra2", "dpmaster.deathmask.net:27950", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
-	{MP_DARKPLACES, CVARC("sv_masterextra3", "dpmaster.tchr.no:27950", SV_Masterlist_Callback)}, // (admin: tChr)
-	{MP_NONE, CVAR(NULL, NULL)}
-};
 
 client_t	*host_client;			// current client
 
@@ -213,7 +179,6 @@ vfsfile_t	*sv_fraglogfile;
 
 void SV_FixupName(char *in, char *out, unsigned int outlen);
 void SV_AcceptClient (netadr_t *adr, int userid, char *userinfo);
-void Master_Shutdown (void);
 void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
 char *SV_BannedReason (netadr_t *a);
 void SV_EvaluatePenalties(client_t *cl);
@@ -240,7 +205,7 @@ Quake calls this before calling Sys_Quit or Sys_Error
 */
 void SV_Shutdown (void)
 {
-	Master_Shutdown ();
+	SV_Master_Shutdown ();
 	if (sv_fraglogfile)
 	{
 		VFS_CLOSE (sv_fraglogfile);
@@ -1178,11 +1143,12 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 	//first line is the serverinfo
 	Q_strncpyz(resp, svs.info, sizeof(response) - (resp-response));
 	//this is a DP protocol query, so some QW fields are not needed
-	Info_RemoveKey(resp, "maxclients");
-	Info_RemoveKey(resp, "map");
+	Info_RemoveKey(resp, "maxclients");	//replaced with sv_maxclients
+	Info_RemoveKey(resp, "map");	//replaced with mapname
 	Info_SetValueForKey(resp, "gamename", com_protocolname.string, sizeof(response) - (resp-response));
-	Info_SetValueForKey(resp, "modname", com_modname.string, sizeof(response) - (resp-response));
-	Info_SetValueForKey(resp, "protocol", va("%d", NET_PROTOCOL_VERSION), sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(response) - (resp-response));
+//	Info_SetValueForKey(resp, "gamedir", FS_GetGamedir(true), sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "protocol", va("%d", NQ_NETCHAN_VERSION), sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "mapname", Info_ValueForKey(svs.info, "map"), sizeof(response) - (resp-response));
@@ -3297,7 +3263,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 							client_t *newcl;
 							Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
 							/*okay, so this is a reliable packet from a client, containing a 'cmd challengeconnect $challenge' response*/
-							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NET_PROTOCOL_VERSION, 0, Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4), Cmd_Argv(5));
+							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NQ_NETCHAN_VERSION, 0, Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4), Cmd_Argv(5));
 							Cmd_TokenizeString (str, false, false);
 
 							newcl = SVC_DirectConnect();
@@ -3361,7 +3327,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 	case CCREQ_CONNECT:
 		sb.maxsize = sizeof(buffer);
 		sb.data = buffer;
-		if (strcmp(MSG_ReadString(), NET_GAMENAME_NQ))
+		if (strcmp(MSG_ReadString(), NQ_NETCHAN_GAMENAME))
 		{
 			SZ_Clear(&sb);
 			MSG_WriteLong(&sb, 0);
@@ -3371,7 +3337,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 			return false;	//not our game.
 		}
-		if (MSG_ReadByte() != NET_PROTOCOL_VERSION)
+		if (MSG_ReadByte() != NQ_NETCHAN_VERSION)
 		{
 			SZ_Clear(&sb);
 			MSG_WriteLong(&sb, 0);
@@ -3433,7 +3399,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			}
 			else
 			{
-				str = va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\\modver\\%i\\flags\\%i\\password\\%i\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge(), mod, modver, flags, passwd);
+				str = va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\\modver\\%i\\flags\\%i\\password\\%i\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge(), mod, modver, flags, passwd);
 				Cmd_TokenizeString (str, false, false);
 
 				SVC_DirectConnect();
@@ -3443,7 +3409,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 	case CCREQ_SERVER_INFO:
 		if (SV_BannedReason (&net_from))
 			return false;
-		if (Q_strcmp (MSG_ReadString(), NET_GAMENAME_NQ) != 0)
+		if (Q_strcmp (MSG_ReadString(), NQ_NETCHAN_GAMENAME) != 0)
 			return false;
 
 		sb.maxsize = sizeof(buffer);
@@ -3464,7 +3430,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		MSG_WriteString (&sb, sv.name);
 		MSG_WriteByte (&sb, active);
 		MSG_WriteByte (&sb, maxclients.value);
-		MSG_WriteByte (&sb, NET_PROTOCOL_VERSION);
+		MSG_WriteByte (&sb, NQ_NETCHAN_VERSION);
 		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 		return true;
@@ -4358,7 +4324,7 @@ void SV_MVDStream_Poll(void);
 //	svs.stats.demo += demo_end - demo_start;
 
 // send a heartbeat to the master if needed
-		Master_Heartbeat ();
+		SV_Master_Heartbeat ();
 
 
 #ifdef Q2SERVER
@@ -4575,226 +4541,6 @@ void SV_InitLocal (void)
 	}
 
 	svs.free_lagged_packet = NULL;
-}
-
-
-//============================================================================
-
-void SV_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
-{
-	int i;
-
-	for (i = 0; sv_masterlist[i].cv.name; i++)
-	{
-		if (var == &sv_masterlist[i].cv)
-			break;
-	}
-
-	if (!sv_masterlist[i].cv.name)
-		return;
-
-	if (!*var->string)
-	{
-		sv_masterlist[i].adr.port = 0;
-		return;
-	}
-
-	sv_masterlist[i].needsresolve = true;
-}
-
-/*
-================
-Master_Heartbeat
-
-Send a message to the master every few minutes to
-let it know we are alive, and log information
-================
-*/
-#define	HEARTBEAT_SECONDS	300
-void Master_Heartbeat (void)
-{
-	char		string[2048];
-	int			active;
-	int			i, j;
-	qboolean	madeqwstring = false;
-	char		adr[MAX_ADR_SIZE];
-
-	if (!sv_public.ival || SSV_IsSubServer())
-		return;
-
-	if (realtime-HEARTBEAT_SECONDS - svs.last_heartbeat < HEARTBEAT_SECONDS)
-		return;		// not time to send yet
-
-	svs.last_heartbeat = realtime-HEARTBEAT_SECONDS;
-
-	svs.heartbeat_sequence++;
-
-	// send to group master
-	for (i = 0; sv_masterlist[i].cv.name; i++)
-	{
-		if (sv_masterlist[i].needsresolve)
-		{
-			sv_masterlist[i].needsresolve = false;
-
-			if (!*sv_masterlist[i].cv.string)
-				sv_masterlist[i].adr.port = 0;
-			else if (!NET_StringToAdr(sv_masterlist[i].cv.string, 0, &sv_masterlist[i].adr))
-			{
-				sv_masterlist[i].adr.port = 0;
-				Con_TPrintf ("Couldn't resolve master \"%s\"\n", sv_masterlist[i].cv.string);
-			}
-			else
-			{
-				if (sv_masterlist[i].adr.type == NA_TCP || sv_masterlist[i].adr.type == NA_TCPV6 || sv_masterlist[i].adr.type == NA_TLSV4 || sv_masterlist[i].adr.type == NA_TLSV6)
-					NET_EnsureRoute(svs.sockets, sv_masterlist[i].cv.name, sv_masterlist[i].cv.string, false);
-
-				//choose default port
-				switch (sv_masterlist[i].protocol)
-				{
-				case MP_DARKPLACES:
-					if (sv_masterlist[i].adr.port == 0)
-						sv_masterlist[i].adr.port = BigShort (27950);
-					break;
-				case MP_QUAKEWORLD:
-					if (sv_masterlist[i].adr.port == 0)
-						sv_masterlist[i].adr.port = BigShort (27000);
-
-					//qw does this for some reason, keep the behaviour even though its unreliable thus pointless
-					string[0] = A2A_PING;
-					string[1] = 0;
-					if (sv.state)
-						NET_SendPacket (NS_SERVER, 2, string, &sv_masterlist[i].adr);
-					break;
-				default:
-					break;
-				}
-			}
-		}
-
-		if (sv_masterlist[i].adr.port)
-		{
-			switch(sv_masterlist[i].protocol)
-			{
-			case MP_QUAKEWORLD:
-				if (sv_listen_qw.value)
-				{
-					if (!madeqwstring)
-					{
-						// count active users
-						active = 0;
-						for (j=0 ; j<svs.allocated_client_slots ; j++)
-							if (svs.clients[j].state == cs_connected ||
-							svs.clients[j].state == cs_spawned )
-								active++;
-
-						sprintf (string, "%c\n%i\n%i\n", S2M_HEARTBEAT,
-							svs.heartbeat_sequence, active);
-
-						madeqwstring = true;
-					}
-
-					if (sv_reportheartbeats.value)
-						Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), &sv_masterlist[i].adr), sv_masterlist[i].cv.string);
-
-					NET_SendPacket (NS_SERVER, strlen(string), string, &sv_masterlist[i].adr);
-				}
-				break;
-			case MP_DARKPLACES:
-				if (sv_listen_dp.value || sv_listen_nq.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
-				{
-					if (sv_reportheartbeats.value)
-						Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), &sv_masterlist[i].adr), sv_masterlist[i].cv.string);
-
-					{
-						char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";
-						NET_SendPacket (NS_SERVER, strlen(str), str, &sv_masterlist[i].adr);
-					}
-				}
-				break;
-			default:
-				break;
-			}
-		}
-	}
-}
-
-void Master_Add(char *stringadr)
-{
-	int i;
-
-	for (i = 0; sv_masterlist[i].cv.name; i++)
-	{
-		if (!*sv_masterlist[i].cv.string)
-			break;
-	}
-
-	if (!sv_masterlist[i].cv.name)
-	{
-		Con_Printf ("Too many masters\n");
-		return;
-	}
-
-	Cvar_Set(&sv_masterlist[i].cv, stringadr);
-
-	svs.last_heartbeat = -99999;
-}
-
-void Master_ReResolve(void)
-{
-	int i;
-	for (i = 0; sv_masterlist[i].cv.name; i++)
-	{
-		sv_masterlist[i].needsresolve = true;
-	}
-}
-
-void Master_ClearAll(void)
-{
-	int i;
-	for (i = 0; sv_masterlist[i].cv.name; i++)
-	{
-		Cvar_Set(&sv_masterlist[i].cv, "");
-	}
-}
-
-/*
-=================
-Master_Shutdown
-
-Informs all masters that this server is going down
-=================
-*/
-void Master_Shutdown (void)
-{
-	char		string[2048];
-	char		adr[MAX_ADR_SIZE];
-	int			i;
-
-	//note that if a master server actually blindly listens to this then its exploitable.
-	//we send it out anyway as for us its all good.
-	//master servers ought to try and check up on the status of the server first, if they listen to this.
-
-	sprintf (string, "%c\n", S2M_SHUTDOWN);
-
-	// send to group master
-	for (i = 0; sv_masterlist[i].cv.name; i++)
-	{
-		if (sv_masterlist[i].adr.port)
-		{
-			switch(sv_masterlist[i].protocol)
-			{
-			case MP_QUAKEWORLD:
-				if (sv_reportheartbeats.value)
-					Con_TPrintf ("Sending shutdown to %s\n", NET_AdrToString (adr, sizeof(adr), &sv_masterlist[i].adr));
-
-				NET_SendPacket (NS_SERVER, strlen(string), string, &sv_masterlist[i].adr);
-				break;
-			//dp has no shutdown
-			default:
-				break;
-			}
-		}
-	}
 }
 
 #define iswhite(c) ((c) == ' ' || (unsigned char)(c) == (unsigned char)INVIS_CHAR1 || (unsigned char)(c) == (unsigned char)INVIS_CHAR2 || (unsigned char)(c) == (unsigned char)INVIS_CHAR3)
@@ -5091,8 +4837,6 @@ SV_InitNet
 */
 void SV_InitNet (void)
 {
-	int i;
-
 #ifndef SERVERONLY
 	if (isDedicated)
 #endif
@@ -5100,12 +4844,8 @@ void SV_InitNet (void)
 		Netchan_Init ();
 	}
 
-	for (i = 0; sv_masterlist[i].cv.name; i++)
-		Cvar_Register(&sv_masterlist[i].cv, "master servers");
-	Master_ReResolve();
+	SV_Master_ReResolve();
 
-	// heartbeats will always be sent to the id master
-	svs.last_heartbeat = -99999;		// send immediately
 //	NET_StringToAdr ("192.246.40.70:27000", &idmaster_adr);
 }
 
@@ -5123,8 +4863,10 @@ void SV_ExecInitialConfigs(char *defaultexec)
 {
 	if (COM_FileSize("server.cfg") != -1)
 		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
-	else
+	else if (COM_FileSize("quake.rc") != -1)
 		Cbuf_InsertText ("cl_warncmd 0\nexec quake.rc\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
+	else
+		Cbuf_InsertText ("cl_warncmd 0\nexec default.cfg\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
 
 // process command line arguments
 	Cbuf_Execute ();

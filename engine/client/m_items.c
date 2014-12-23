@@ -529,12 +529,12 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 			if (!R_GetShaderSizes(p, &pw, &ph, false))
 				p = R2D_SafeCachePic(option->picture.picturename);
 
-			R_GetShaderSizes(p, &pw, &ph, false);
-			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width?option->common.width:pw, option->common.height?option->common.height:ph, p);
+			if (R_GetShaderSizes(p, &pw, &ph, false)>0)
+				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width?option->common.width:pw, option->common.height?option->common.height:ph, p);
 			break;
 		case mt_picture:
 			p = R2D_SafeCachePic(option->picture.picturename);
-			if (R_GetShaderSizes(p, NULL, NULL, false)>=0) R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
+			if (R_GetShaderSizes(p, NULL, NULL, false)>0) R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
 			break;
 		case mt_childwindow:
 			MenuDrawItems(xpos+option->common.posx, ypos+option->common.posy, ((menu_t *)option->custom.dptr)->options, (menu_t *)option->custom.dptr);

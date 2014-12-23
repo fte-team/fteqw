@@ -1,13 +1,19 @@
 
-#define SS_GENERICQUAKEWORLD	0
-#define SS_FTESERVER	1	//hehehe...
-#define SS_QUAKE2		2	//useful (and cool). Could be blamed for swamping.
-#define SS_NETQUAKE		4
-#define SS_FAVORITE		8	//filter all others.
-#define SS_KEEPINFO		16
-#define SS_DARKPLACES	32
-#define SS_QUAKE3		64
-#define SS_PROXY		128
+#define SS_PROTOCOLMASK 0xf
+#define SS_UNKNOWN		0
+#define SS_QUAKEWORLD	1
+#define SS_NETQUAKE		2
+#define SS_DARKPLACES	3
+#define SS_QUAKE2		4
+#define SS_QUAKE3		5
+//#define SS_UNUSED		6
+//#define SS_UNUSED		7
+
+#define SS_LOCAL		(1<<3u)	//local servers are ones we detected without being listed on a master server (masters will report public ips, so these may appear as dupes if they're also public)
+#define SS_FTESERVER	(1<<4u)	//hehehe...
+#define SS_FAVORITE		(1<<5u)	//filter all others.
+#define SS_KEEPINFO		(1<<6u)
+#define SS_PROXY		(1<<7u)
 
 
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
@@ -23,11 +29,11 @@ enum mastertype_e
 enum masterprotocol_e
 {
 	MP_UNSPECIFIED,
-	MP_QW,
-	MP_Q2,
-	MP_Q3,
-	MP_NQ,
-	MP_DP
+	MP_QUAKEWORLD,
+	MP_QUAKE2,
+	MP_QUAKE3,
+	MP_NETQUAKE,
+	MP_DPMASTER
 };
 
 
@@ -43,6 +49,7 @@ typedef enum
 
 	SLKEY_FREEPLAYERS,
 	SLKEY_BASEGAME,
+	SLKEY_FLAGS,
 	SLKEY_TIMELIMIT,
 	SLKEY_FRAGLIMIT,
 
@@ -53,6 +60,8 @@ typedef enum
 	SLKEY_QCSTATUS,
 //	SLKEY_PLAYERS,	//eep!
 	SLKEY_ISFAVORITE,//eep!
+	SLKEY_ISLOCAL,
+	SLKEY_ISPROXY,
 
 
 	SLKEY_TOOMANY,
@@ -136,6 +145,7 @@ typedef struct master_s
 	netadr_t adr;
 	char *address;	//text based address (http servers)
 	struct dl_download *dl;
+	qbyte nosave;
 	qbyte mastertype;
 	qbyte protocoltype;
 	int sends; /*needs to resend?*/

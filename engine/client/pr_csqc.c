@@ -5564,7 +5564,7 @@ qbyte *PDECL CSQC_PRLoadFile (const char *path, void *buffer, int bufsize, size_
 
 	}
 
-	return COM_LoadStackFile(path, buffer, bufsize, NULL);
+	return COM_LoadStackFile(path, buffer, bufsize, sz);
 }
 
 int QDECL CSQC_PRFileSize (const char *path)

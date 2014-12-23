@@ -1277,6 +1277,16 @@ void Con_DrawNotifyOne (console_t *con)
 	Font_EndString(font_console);
 }
 
+void Con_ClearNotify(void)
+{
+	console_t *con;
+	conline_t *l;
+	for (con = &con_main; con; con = con->next)
+	{
+		for (l = con->current; l; l = l->older)
+			l->time = 0;
+	}
+}
 void Con_DrawNotify (void)
 {
 	console_t *con;

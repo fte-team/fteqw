@@ -779,21 +779,21 @@ void CL_CheckForResend (void)
 			if (cls.protocol_nq == CPNQ_ID)
 			{
 				net_from = connectinfo.adr;
-				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge()), false, false);
+				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
 
 				SVC_DirectConnect();
 			}
 			else if (cls.protocol_nq == CPNQ_FITZ666)
 			{
 				net_from = connectinfo.adr;
-				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\666\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge()), false, false);
+				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\666\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
 
 				SVC_DirectConnect();
 			}
 			else if (cls.protocol_nq == CPNQ_PROQUAKE3_4)
 			{
 				net_from = connectinfo.adr;
-				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\1\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge()), false, false);
+				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\1\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
 
 				SVC_DirectConnect();
 			}
@@ -901,10 +901,10 @@ void CL_CheckForResend (void)
 		sb.data = data;
 		sb.maxsize = sizeof(data);
 
-		MSG_WriteLong(&sb, LongSwap(NETFLAG_CTL | (strlen(NET_GAMENAME_NQ)+7)));
+		MSG_WriteLong(&sb, LongSwap(NETFLAG_CTL | (strlen(NQ_NETCHAN_GAMENAME)+7)));
 		MSG_WriteByte(&sb, CCREQ_CONNECT);
-		MSG_WriteString(&sb, NET_GAMENAME_NQ);
-		MSG_WriteByte(&sb, NET_PROTOCOL_VERSION);
+		MSG_WriteString(&sb, NQ_NETCHAN_GAMENAME);
+		MSG_WriteByte(&sb, NQ_NETCHAN_VERSION);
 
 		/*NQ engines have a few extra bits on the end*/
 		/*proquake servers wait for us to send them a packet before anything happens,
@@ -2078,14 +2078,19 @@ void CL_SetInfo_f (void)
 void CL_SaveInfo(vfsfile_t *f)
 {
 	int i;
-	VFS_WRITE(f, "\n", 1);
 	for (i = 0; i < MAX_SPLITS; i++)
 	{
+		VFS_WRITE(f, "\n", 1);
 		if (i)
+		{
 			VFS_WRITE(f, va("p%i setinfo * \"\"\n", i+1), 16);
+			Info_WriteToFile(f, cls.userinfo[i],  va("p%i setinfo", i+1), 0);
+		}
 		else
+		{
 			VFS_WRITE(f, "setinfo * \"\"\n", 13);
-		Info_WriteToFile(f, cls.userinfo[i], "setinfo", CVAR_USERINFO);
+			Info_WriteToFile(f, cls.userinfo[i], "setinfo", CVAR_USERINFO);
+		}
 	}
 }
 
@@ -2717,6 +2722,40 @@ void CL_ConnectionlessPacket (void)
 
 
 			SCR_BeginLoadingPlaque();
+			return;
+		}
+	}
+
+	if (c == 'i')
+	{
+		if (!strncmp(net_message.data+4, "infoResponse\n", 13))
+		{
+			Con_TPrintf ("infoResponse\n");
+			Info_Print(net_message.data+17, "");
+			return;
+		}
+	}
+	if (c == 'g')
+	{
+		if (!strncmp(net_message.data+4, "getserversResponse", 18))
+		{
+			qbyte *b = net_message.data+4+18;
+			Con_TPrintf ("getserversResponse\n");
+			while (b+7 <= net_message.data+net_message.cursize)
+			{
+				if (*b == '\\')
+				{
+					b+=1;
+					Con_Printf("%u.%u.%u.%u:%u\n", b[0], b[1], b[2], b[3], b[5]|(b[4]<<8));
+					b+=6;
+				}
+				else if (*b == '/')
+				{
+					b+=1;
+					Con_Printf("[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]:%u\n", (b[0]<<8)|b[1], (b[2]<<8)|b[3], (b[4]<<8)|b[5], (b[6]<<8)|b[7], (b[8]<<8)|b[9], (b[10]<<8)|b[11], (b[12]<<8)|b[13], (b[14]<<8)|b[15], b[17]|(b[16]<<8));
+					b+=18;
+				}
+			}
 			return;
 		}
 	}
@@ -4756,6 +4795,8 @@ void CL_StartCinematicOrMenu(void)
 	realtime+=1;
 	Cbuf_Execute ();	//server may have been waiting for the renderer
 
+	Con_ClearNotify();
+
 	//and any startup cinematics
 #ifndef NOMEDIA
 #ifndef CLIENTONLY
@@ -4852,6 +4893,7 @@ void CL_ArgumentOverrides(void)
 void CL_ExecInitialConfigs(char *resetcommand)
 {
 	int qrc, hrc, def;
+	extern cvar_t fs_gamename, com_protocolname;	//these come from the manifest, so shouldn't be reset by cvarreset
 
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
 	SCR_ShowPic_Clear(true);

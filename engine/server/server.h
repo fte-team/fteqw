@@ -21,8 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	QW_SERVER
 
-#define	MAX_MASTERS	8				// max recipients for heartbeat packets
-
 #define	MAX_SIGNON_BUFFERS	16
 
 typedef enum {
@@ -942,7 +940,9 @@ extern	cvar_t	sv_maxspeed;
 extern	cvar_t	sv_antilag;
 extern	cvar_t	sv_antilag_frac;
 
-extern	netadr_t	master_adr[MAX_MASTERS];	// address of the master server
+void SV_Master_ReResolve(void);
+void SV_Master_Shutdown(void);
+void SV_Master_Heartbeat (void);
 
 extern	cvar_t	pr_ssqc_progs;
 extern	cvar_t	spawn;
@@ -1007,10 +1007,6 @@ void SV_SendServerinfo (client_t *client);
 void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose);
 
 void SV_SaveInfos(vfsfile_t *f);
-
-
-void Master_Heartbeat (void);
-void Master_Packet (void);
 
 void SV_FixupName(char *in, char *out, unsigned int outlen);
 

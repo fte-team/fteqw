@@ -728,14 +728,15 @@ idnewt:28000
 any form of ipv6, including port number.
 =============
 */
-qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize)
+size_t NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addresses)
 {
 	struct hostent	*h;
 	char	*colon;
 	char	copy[128];
+	size_t	result = 0;
 
-	if (!(*s))
-		return false;
+	if (!(*s) || !addresses)
+		return result;
 
 	memset (sadr, 0, sizeof(*sadr));
 
@@ -772,6 +773,7 @@ qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_q
 			*addrfamily = AF_IPX;
 		if (addrsize)
 			*addrsize = sizeof(struct sockaddr_ipx);
+		result++;
 	}
 	else
 #endif
@@ -789,6 +791,7 @@ qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_q
 		char *port;
 		char dupbase[256];
 		int len;
+		size_t i;
 
 		memset(&udp6hint, 0, sizeof(udp6hint));
 		udp6hint.ai_family = 0;//Any... we check for AF_INET6 or 4
@@ -838,42 +841,45 @@ qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_q
 			switch(pos->ai_family)
 			{
 			case AF_INET6:
-				if (((struct sockaddr_in *)sadr)->sin_family == AF_INET6)
-					break;	//first one should be best...
-				//fallthrough
+				if (result < addresses)
+					memcpy(&sadr[result++], pos->ai_addr, pos->ai_addrlen);
+				break;
 #ifdef HAVE_IPV4
 			case AF_INET:
-				memcpy(sadr, pos->ai_addr, pos->ai_addrlen);
-				if (pos->ai_family == AF_INET)
-					goto dblbreak;	//don't try finding any more, this is quake, they probably prefer ip4...
+				//ipv4 addresses have a higher priority than ipv6 ones.
+				if (result && ((struct sockaddr_in *)&sadr[0])->sin_family == AF_INET6)
+				{
+					if (result < addresses)
+						memcpy(&sadr[result++], &sadr[0], sizeof(sadr[0]));
+					memcpy(&sadr[0], pos->ai_addr, pos->ai_addrlen);
+				}
+				else if (result < addresses)
+					memcpy(&sadr[result++], pos->ai_addr, pos->ai_addrlen);
 				break;
-#else
-				memcpy(sadr, pos->ai_addr, pos->ai_addrlen);
-				goto dblbreak;
 #endif
 			}
 		}
-dblbreak:
 		pfreeaddrinfo (addrinfo);
-		if (!((struct sockaddr*)sadr)->sa_family)	//none suitablefound
-			return false;
 
-		if (addrfamily)
-			*addrfamily = ((struct sockaddr*)sadr)->sa_family;
-	
-		if (((struct sockaddr*)sadr)->sa_family == AF_INET)
+		for (i = 0; i < result; i++)
 		{
-			if (!((struct sockaddr_in *)sadr)->sin_port)
-				((struct sockaddr_in *)sadr)->sin_port = htons(defaultport);
-			if (addrsize)
-				*addrsize = sizeof(struct sockaddr_in);
-		}
-		else
-		{
-			if (!((struct sockaddr_in6 *)sadr)->sin6_port)
-				((struct sockaddr_in6 *)sadr)->sin6_port = htons(defaultport);
-			if (addrsize)
-				*addrsize = sizeof(struct sockaddr_in6);
+			if (addrfamily)
+				addrfamily[i] = ((struct sockaddr*)sadr)->sa_family;
+		
+			if (((struct sockaddr*)&sadr[i])->sa_family == AF_INET)
+			{
+				if (!((struct sockaddr_in *)&sadr[i])->sin_port)
+					((struct sockaddr_in *)&sadr[i])->sin_port = htons(defaultport);
+				if (addrsize)
+					addrsize[i] = sizeof(struct sockaddr_in);
+			}
+			else if (((struct sockaddr*)&sadr[i])->sa_family == AF_INET6)
+			{
+				if (!((struct sockaddr_in6 *)&sadr[i])->sin6_port)
+					((struct sockaddr_in6 *)&sadr[i])->sin6_port = htons(defaultport);
+				if (addrsize)
+					addrsize[i] = sizeof(struct sockaddr_in6);
+			}
 		}
 	}
 	else
@@ -914,33 +920,36 @@ dblbreak:
 			*addrfamily = AF_INET;
 		if (addrsize)
 			*addrsize = sizeof(struct sockaddr_in);
-#else
-		return false;
+		result++;
 #endif
 	}
 
-	return true;
+	return result;
 }
 
 /*
 accepts anything that NET_StringToSockaddr accepts plus certain url schemes
 including: tcp, irc
 */
-qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
+size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t numaddresses)
 {
-	struct sockaddr_qstorage sadr;
+	size_t result = 0, i;
+	struct sockaddr_qstorage sadr[8];
+
+	memset(a, 0, sizeof(*a)*numaddresses);
 
 	Con_DPrintf("Resolving address: %s\n", s);
 
+	if (!numaddresses)
+		return false;
+
 	if (!strcmp (s, "internalserver"))
 	{
-		memset (a, 0, sizeof(*a));
 		a->type = NA_LOOPBACK;
 		return true;
 	}
 	if (!strncmp(s, "QLoopBack", 9))
 	{
-		memset (a, 0, sizeof(*a));
 		a->type = NA_LOOPBACK;
 		if (s[9] == ':')
 			a->port = atoi(s+10);
@@ -952,7 +961,6 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 #ifdef HAVE_WEBSOCKCL
 	if (!strncmp (s, "ws://", 5) || !strncmp (s, "wss://", 6))
 	{
-		memset (a, 0, sizeof(*a));
 		a->type = NA_WEBSOCKET;
 		Q_strncpyz(a->address.websocketurl, s, sizeof(a->address.websocketurl));
 		return true;
@@ -966,7 +974,6 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 			Con_Printf("Note: Assuming ws:// prefix\n");
 			warned = realtime + 1;
 		}
-		memset (a, 0, sizeof(*a));
 		a->type = NA_WEBSOCKET;
 		memcpy(a->address.websocketurl, "ws://", 5);
 		Q_strncpyz(a->address.websocketurl+5, s, sizeof(a->address.websocketurl)-5);
@@ -978,13 +985,13 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 	{
 		//make sure that the rest of the address is a valid ip address (4 or 6)
 
-		if (!NET_StringToSockaddr (s+6, defaultport, &sadr, NULL, NULL))
+		if (!NET_StringToSockaddr (s+6, defaultport, &sadr[0], NULL, NULL))
 		{
 			a->type = NA_INVALID;
 			return false;
 		}
 
-		SockadrToNetadr (&sadr, a);
+		SockadrToNetadr (&sadr[0], a);
 
 		if (a->type == NA_IP)
 		{
@@ -1002,13 +1009,13 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 	{
 		//make sure that the rest of the address is a valid ip address (4 or 6)
 
-		if (!NET_StringToSockaddr (s+6, defaultport, &sadr, NULL, NULL))
+		if (!NET_StringToSockaddr (s+6, defaultport, &sadr[0], NULL, NULL))
 		{
 			a->type = NA_INVALID;
 			return false;
 		}
 
-		SockadrToNetadr (&sadr, a);
+		SockadrToNetadr (&sadr[0], a);
 
 		if (a->type == NA_IP)
 		{
@@ -1068,23 +1075,25 @@ qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a)
 	}
 #endif
 
-	if (!NET_StringToSockaddr (s, defaultport, &sadr, NULL, NULL))
+	result = NET_StringToSockaddr2 (s, defaultport, sadr, NULL, NULL, min(numaddresses, sizeof(sadr)/sizeof(sadr[0])));
+	for (i = 0; i < result; i++)
 	{
-		a->type = NA_INVALID;
-		return false;
-	}
-
-	SockadrToNetadr (&sadr, a);
+		SockadrToNetadr (&sadr[i], &a[i]);
 
 #if !defined(HAVE_PACKET) && defined(HAVE_TCP)
-	//bump over protocols that cannot work in the first place.
-	if (a->type == NA_IP)
-		a->type = NA_TCP;
-	if (a->type == NA_IPV6)
-		a->type = NA_TCPV6;
+		//bump over protocols that cannot work in the first place.
+		if (a[i].type == NA_IP)
+			a[i].type = NA_TCP;
+		if (a[i].type == NA_IPV6)
+			a[i].type = NA_TCPV6;
 #endif
+	}
 
-	return true;
+	//invalidate any others
+	for (; i < numaddresses; i++)
+		a[i].type = NA_INVALID;
+
+	return result;
 }
 
 // NET_IntegerToMask: given a source address pointer, a mask address pointer, and
@@ -3061,10 +3070,10 @@ closesvstream:
 								net_message.packing = SZ_RAWBYTES;
 								net_message.currentbit = 0;
 								net_from = st->remoteaddr;
-								MSG_WriteLong(&net_message, LongSwap(NETFLAG_CTL | (strlen(NET_GAMENAME_NQ)+7)));
+								MSG_WriteLong(&net_message, LongSwap(NETFLAG_CTL | (strlen(NQ_NETCHAN_GAMENAME)+7)));
 								MSG_WriteByte(&net_message, CCREQ_CONNECT);
-								MSG_WriteString(&net_message, NET_GAMENAME_NQ);
-								MSG_WriteByte(&net_message, NET_PROTOCOL_VERSION);
+								MSG_WriteString(&net_message, NQ_NETCHAN_GAMENAME);
+								MSG_WriteByte(&net_message, NQ_NETCHAN_VERSION);
 								return true;
 							}
 						}
@@ -5182,9 +5191,9 @@ int maxport = port + 100;
 //		_true = true;
 //		if (setsockopt(newsocket, SOL_SOCKET, IP_ADD_MEMBERSHIP, (char *)&_true, sizeof(_true)) == -1)
 //		{
-			Con_Printf("Cannot create broadcast socket\n");
-			closesocket(newsocket);
-			return (int)INVALID_SOCKET;
+//			Con_Printf("Cannot create broadcast socket\n");
+//			closesocket(newsocket);
+//			return (int)INVALID_SOCKET;
 //		}
 	}
 
@@ -5546,6 +5555,8 @@ void NET_Init (void)
 
 	Cvar_Register (&net_upnpigp, "networking");
 	net_upnpigp.restriction = RESTRICT_MAX;
+
+	Net_Master_Init();
 }
 #ifndef SERVERONLY
 void NET_InitClient(void)

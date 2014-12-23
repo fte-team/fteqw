@@ -13,6 +13,9 @@ pbool fl_log;
 char parameters[16384];
 char progssrcname[256];
 char progssrcdir[256];
+char enginebinary[MAX_PATH];
+char enginebasedir[MAX_PATH];
+char enginecommandline[8192];
 
 int qccpersisthunk = 1;
 int Grep(char *filename, char *string)
@@ -29,7 +32,7 @@ int Grep(char *filename, char *string)
 		return foundcount;
 	buf = malloc(sz+1);
 	buf[sz] = 0;
-	QCC_ReadFile(filename, buf, sz);
+	QCC_ReadFile(filename, buf, sz, NULL);
 
 	linestart = last = found = buf;
 	while ((found = strstr(found, string)))
@@ -248,6 +251,27 @@ void GUI_ParseCommandLine(char *args)
 		{
 			fl_log = true;
 		}
+		else if (!strnicmp(parameters+paramlen, "-engine", 7) || !strnicmp(parameters+paramlen, "/engine", 7))
+		{
+			while (*next == ' ')
+				next++;
+			
+			l = 0;
+			while (*next != ' ' && *next)
+				enginebinary[l++] = *next++;
+			enginebinary[l] = 0;
+		}
+		else if (!strnicmp(parameters+paramlen, "-basedir", 8) || !strnicmp(parameters+paramlen, "/basedir", 8))
+		{
+			while (*next == ' ')
+				next++;
+			
+			l = 0;
+			while (*next != ' ' && *next)
+				enginebasedir[l++] = *next++;
+			enginebasedir[l] = 0;
+		}
+		//strcpy(enginecommandline, "-window +map start -nohome");
 		else if (!strnicmp(parameters+paramlen, "-srcfile", 8) || !strnicmp(parameters+paramlen, "/srcfile", 8))
 		{
 			while (*next == ' ')
@@ -257,6 +281,16 @@ void GUI_ParseCommandLine(char *args)
 			while (*next != ' ' && *next)
 				progssrcname[l++] = *next++;
 			progssrcname[l] = 0;
+		}
+		else if (!strnicmp(parameters+paramlen, "-src ", 5) || !strnicmp(parameters+paramlen, "/src ", 5))
+		{
+			while (*next == ' ')
+				next++;
+			
+			l = 0;
+			while (*next != ' ' && *next)
+				progssrcdir[l++] = *next++;
+			progssrcdir[l] = 0;
 		}
 		else if (!strnicmp(parameters+paramlen, "-T", 2) || !strnicmp(parameters+paramlen, "/T", 2))	//the target
 		{

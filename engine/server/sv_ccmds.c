@@ -125,39 +125,6 @@ These commands can only be entered from stdin or by a remote operator datagram
 */
 
 /*
-====================
-SV_SetMaster_f
-
-Make a master server current
-====================
-*/
-void Master_ClearAll(void);
-void Master_ReResolve(void);
-void Master_Add(char *stringadr);
-
-static void SV_SetMaster_f (void)
-{
-	int		i;
-
-	Cvar_Set(&sv_public, "1");	//go public.
-
-	Master_ClearAll();
-
-	if (!strcmp(Cmd_Argv(1), "none"))
-	{
-		Con_Printf ("Entering no-master mode\n");
-		return;
-	}
-
-	for (i=1 ; i<Cmd_Argc() ; i++)
-	{
-		Master_Add(Cmd_Argv(i));
-	}
-
-	svs.last_heartbeat = -99999;
-}
-
-/*
 ==================
 SV_Quit_f
 ==================
@@ -1956,8 +1923,7 @@ SV_Heartbeat_f
 */
 static void SV_Heartbeat_f (void)
 {
-	Master_ReResolve();
-	svs.last_heartbeat = -9999;
+	SV_Master_ReResolve();
 }
 
 #define FOREACHCLIENT(i,cl)	\
@@ -2666,7 +2632,6 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("changelevel", SV_Map_f);
 	Cmd_AddCommand ("listmaps", SV_MapList_f);
 	Cmd_AddCommand ("maplist", SV_MapList_f);
-	Cmd_AddCommand ("setmaster", SV_SetMaster_f);
 
 	Cmd_AddCommand ("heartbeat", SV_Heartbeat_f);
 

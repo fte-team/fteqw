@@ -400,8 +400,6 @@ static int			numfaces;
 static index_t *map_surfindexes;
 static int	map_numsurfindexes;
 
-static int			*map_leaffaces;
-static int			numleaffaces;
 
 
 
@@ -3003,46 +3001,6 @@ qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 }
 #endif
 
-qboolean CModQ3_LoadLeafFaces (model_t *mod, qbyte *mod_base, lump_t *l)
-{
-	int		i, j, count;
-	int		*in;
-	int		*out;
-
-	in = (void *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
-	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size\n");
-		return false;
-	}
-	count = l->filelen / sizeof(*in);
-
-	if (count > SANITY_MAX_MAP_LEAFFACES)
-	{
-		Con_Printf (CON_ERROR "Map has too many leaffaces\n");
-		return false;
-	}
-
-	out = BZ_Malloc ( count*sizeof(*out) );
-	map_leaffaces = out;
-	numleaffaces = count;
-
-	for ( i=0 ; i<count ; i++)
-	{
-		j = LittleLong ( in[i] );
-
-		if (j < 0 ||  j >= numfaces)
-		{
-			Con_Printf (CON_ERROR "CMod_LoadLeafFaces: bad surface number\n");
-			return false;
-		}
-
-		out[i] = j;
-	}
-
-	return true;
-}
-
 qboolean CModQ3_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int			i, j, count, p;
@@ -3957,7 +3915,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 */
 
 		map_faces = NULL;
-		map_leaffaces = NULL;
 
 		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, Q3LUMPS_TOTAL);
 
@@ -4009,8 +3966,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				facesize = sizeof(q3dface_t);
 				mod->lightmaps.surfstyles = 1;
 			}
-			noerrors = noerrors && CModQ3_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
-
 			if (noerrors && mod->fromgame == fg_quake3)
 			{
 				i = header.lumps[Q3LUMP_LIGHTMAPS].filelen / (mod->lightmaps.width*mod->lightmaps.height*3);
@@ -4028,8 +3983,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				CModQ3_LoadLighting								(mod, mod_base, &header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
 		}
 #endif
-		noerrors = noerrors && CModQ3_LoadLeafFaces				(mod, mod_base, &header.lumps[Q3LUMP_LEAFSURFACES]);
-		noerrors = noerrors && CModQ3_LoadLeafs					(mod, mod_base, &header.lumps[Q3LUMP_LEAFS]);
+		noerrors = noerrors && CModQ3_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q3LUMP_LEAFSURFACES]);		noerrors = noerrors && CModQ3_LoadLeafs					(mod, mod_base, &header.lumps[Q3LUMP_LEAFS]);
 		noerrors = noerrors && CModQ3_LoadNodes					(mod, mod_base, &header.lumps[Q3LUMP_NODES]);
 		noerrors = noerrors && CModQ3_LoadSubmodels				(mod, mod_base, &header.lumps[Q3LUMP_MODELS]);
 		noerrors = noerrors && CModQ3_LoadVisibility			(mod, mod_base, &header.lumps[Q3LUMP_VISIBILITY]);
@@ -4040,8 +3994,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		{
 			if (map_faces)
 				BZ_Free(map_faces);
-			if (map_leaffaces)
-				BZ_Free(map_leaffaces);
 			return NULL;
 		}
 
@@ -4089,7 +4041,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		if (!CM_CreatePatchesForLeafs (mod))	//for clipping
 		{
 			BZ_Free(map_faces);
-			BZ_Free(map_leaffaces);
 			return NULL;
 		}
 #ifndef CLIENTONLY
@@ -4097,7 +4048,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 #endif
 //			BZ_Free(map_verts);
 		BZ_Free(map_faces);
-		BZ_Free(map_leaffaces);
 		break;
 #endif
 	case Q2BSPVERSION:

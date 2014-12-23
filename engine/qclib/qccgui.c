@@ -226,7 +226,7 @@ static pbool QCC_RegSetValue(HKEY base, char *keyname, char *valuename, int type
 LoadFile
 ==============
 */
-unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len)
+unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz)
 {
 	long    length;
 	FILE *f;
@@ -239,6 +239,8 @@ unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len)
 	if (length != len)
 		return NULL;
 
+	if (sz)
+		*sz = length;
 	return buffer;
 }
 int PDECL QCC_FileSize (const char *fname)
@@ -470,9 +472,9 @@ void GUIPrint(HWND wnd, char *msg);
 
 char finddef[256];
 char greptext[256];
-char enginebinary[MAX_PATH];
-char enginebasedir[MAX_PATH];
-char enginecommandline[8192];
+extern char enginebinary[MAX_PATH];
+extern char enginebasedir[MAX_PATH];
+extern char enginecommandline[8192];
 
 void RunCompiler(char *args);
 void RunEngine(void);
@@ -1640,7 +1642,7 @@ void EditorReload(editor_t *editor)
 	{
 		file = malloc(flen+1);
 
-		QCC_ReadFile(editor->filename, file, flen);
+		QCC_ReadFile(editor->filename, file, flen, NULL);
 
 		file[flen] = 0;
 	}
@@ -1868,7 +1870,7 @@ void EditorsRun(void)
 }
 
 
-char *GUIReadFile(const char *fname, void *buffer, int blen)
+char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz)
 {
 	editor_t *e;
 	for (e = editors; e; e = e->next)
@@ -1908,7 +1910,7 @@ char *GUIReadFile(const char *fname, void *buffer, int blen)
 		}
 	}
 
-	return QCC_ReadFile(fname, buffer, blen);
+	return QCC_ReadFile(fname, buffer, blen, NULL);
 }
 
 int GUIFileSize(const char *fname)

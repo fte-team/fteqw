@@ -79,8 +79,8 @@
 #define CCREP_REJECT		0x82
 #define CCREP_SERVER_INFO	0x83
 
-#define NET_GAMENAME_NQ		"QUAKE"
-#define NET_PROTOCOL_VERSION	3
+#define NQ_NETCHAN_GAMENAME		"QUAKE"
+#define NQ_NETCHAN_VERSION	3
 //end NQ specific
 
 

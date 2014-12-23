@@ -164,6 +164,7 @@ char	pubgamedirfile[MAX_OSPATH];	//like gamedirfile, but not set to the fte-only
 char	com_gamepath[MAX_OSPATH];	//c:\games\quake
 char	com_homepath[MAX_OSPATH];	//c:\users\foo\my docs\fte\quake
 qboolean	com_homepathenabled;
+qboolean	com_homepathusable;	//com_homepath is safe, even if not enabled.
 
 char	com_configdir[MAX_OSPATH];	//homedir/fte/configs
 
@@ -1200,59 +1201,102 @@ void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags)
 //outbuf might not be written into
 static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen)
 {
-	char *s;
+	const char *s;
+	char *o;
+	char *seg;
 
-	if (strchr(pattern, '\\'))
+	s = pattern;
+	seg = o = outbuf;
+	for(;;)
 	{
-		Q_strncpyz(outbuf, pattern, outlen);
-		pattern = outbuf;
-
-		Con_DPrintf("Warning: \\ characters in filename %s\n", pattern);
-		while((s = strchr(pattern, '\\')))
+		if (*s == ':')
 		{
-			*s = '/';
-
+			if (s == pattern+1 && (s[1] == '/' || s[1] == '\\'))
+				Con_Printf("Error: absolute path in filename %s\n", pattern);
+			else
+				Con_Printf("Error: alternative data stream in filename %s\n", pattern);
+			return NULL;
 		}
-	}
-
-	if (strstr(pattern, "//"))
-	{
-		//amiga uses // as equivelent to /../
-		//so strip those out
-		//any other system ignores the extras
-
-		Q_strncpyz(outbuf, pattern, outlen);
-		pattern = outbuf;
-
-		Con_DPrintf("Warning: // characters in filename %s\n", pattern);
-		while ((s=strstr(pattern, "//")))
-		{
-			s++;
-			while (*s)
+		else if (*s == '\\' || *s == '/' || !*s)
+		{	//end of segment
+			if (o == seg && *s)
 			{
-				*s = *(s+1);
+				if (o == outbuf)
+				{
+					Con_Printf("Error: absolute path in filename %s\n", pattern);
+					return NULL;
+				}
+				Con_Printf("Error: empty directory name (%s)\n", pattern);
 				s++;
+				continue;
 			}
+			//ignore any leading spaces in the name segment
+			//it should just make more stuff invalid
+			while (*seg == ' ')
+				seg++;
+			if (seg[0] == '.')
+			{
+				if (o == seg+1)
+					Con_Printf("Error: source directory (%s)\n", pattern);
+				else if (seg[1] == '.')
+					Con_Printf("Error: parent directory (%s)\n", pattern);
+				else
+					Con_Printf("Error: hidden name (%s)\n", pattern);
+				return NULL;
+			}
+#if defined(_WIN32) || defined(__CYGWIN__)
+			//in win32, we use the //?/ trick to get around filename length restrictions.
+			//4-letter reserved paths: comX, lptX
+			//we'll allow this elsewhere to save cycles, just try to avoid running it on a fat32 or ntfs filesystem from linux
+			if (((seg[0] == 'c' || seg[0] == 'C') &&
+				 (seg[1] == 'o' || seg[1] == 'O') &&
+				 (seg[2] == 'm' || seg[2] == 'M') &&
+				 (seg[3] >= '0' && seg[3] <= '9')) ||
+				((seg[0] == 'l' || seg[0] == 'L') &&
+				 (seg[1] == 'p' || seg[1] == 'P') &&
+				 (seg[2] == 't' || seg[2] == 'T') &&
+				 (seg[3] >= '0' && seg[3] <= '9')))
+			{
+				if (o == seg+4 || seg[4] == ' '|| seg[4] == '\t' || seg[4] == '.')
+				{
+					Con_Printf("Error: reserved name in path (%c%c%c%c in %s)\n", seg[0], seg[1], seg[2], seg[3], pattern);
+					return NULL;
+				}
+			}
+			//3 letter reserved paths: con, nul, prn
+			if (((seg[0] == 'c' || seg[0] == 'C') &&
+				 (seg[1] == 'o' || seg[1] == 'O') &&
+				 (seg[2] == 'n' || seg[2] == 'N')) ||
+				((seg[0] == 'p' || seg[0] == 'P') &&
+				 (seg[1] == 'r' || seg[1] == 'R') &&
+				 (seg[2] == 'n' || seg[2] == 'N')) ||
+				((seg[0] == 'n' || seg[0] == 'N') &&
+				 (seg[1] == 'u' || seg[1] == 'U') &&
+				 (seg[2] == 'l' || seg[2] == 'L')))
+			{
+				if (o == seg+3 || seg[3] == ' '|| seg[3] == '\t' || seg[3] == '.')
+				{
+					Con_Printf("Error: reserved name in path (%c%c%c in %s)\n", seg[0], seg[1], seg[2], pattern);
+					return NULL;
+				}
+			}
+#endif
+
+			if (*s++)
+				*o++ = '/';
+			else
+			{
+				*o++ = '\0';
+				break;
+			}
+			seg = o;
 		}
-	}
-	if (*pattern == '/')
-	{
-		/*'fix up' and ignore, compat with q3*/
-		Con_DPrintf("Error: absolute path in filename %s\n", pattern);
-		pattern++;
+		else
+			*o++ = *s++;
 	}
 
-	if (strstr(pattern, ".."))
-		Con_Printf("Error: '..' characters in filename %s\n", pattern);
-	else if (strstr(pattern, ":")) //win32 drive seperator (or mac path seperator, but / works there and they're used to it) (or amiga device separator)
-		Con_Printf("Error: absolute path in filename %s\n", pattern);
-	else if (strlen(pattern) > outlen)
-		Con_Printf("Error: path %s too long\n", pattern);
-	else
-	{
-		return pattern;
-	}
-	return NULL;
+//	Sys_Printf("%s changed to %s\n", pattern, outbuf);
+	return outbuf;
 }
 
 vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
@@ -3258,6 +3302,11 @@ void FS_Shutdown(void)
 	FS_FreePaths();
 	Sys_DestroyMutex(fs_thread_mutex);
 	fs_thread_mutex = NULL;
+
+	Z_Free(fs_gamename.enginevalue);
+	fs_gamename.enginevalue = NULL;
+	Z_Free(com_protocolname.enginevalue);
+	fs_gamename.enginevalue = NULL;
 }
 
 //returns false if the directory is not suitable.
@@ -3846,7 +3895,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 						}
 				}
 
-				if (!man->protocolname && *gamemode_info[i].protocolname)
+				if (!man->protocolname)
 				{
 					Cmd_TokenizeString(va("protocolname \"%s\"", gamemode_info[i].protocolname), false, false);
 					FS_Manifest_ParseTokens(man);
@@ -3876,8 +3925,21 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	//make sure it has a trailing slash, or is empty. woo.
 	FS_CleanDir(com_gamepath, sizeof(com_gamepath));
 
-	if (man->disablehomedir && !COM_CheckParm("-usehome"))
-		com_homepathenabled = false;
+	{
+		qboolean oldhome = com_homepathenabled;
+		com_homepathenabled = com_homepathusable;
+
+		if (man->disablehomedir && !COM_CheckParm("-usehome"))
+			com_homepathenabled = false;
+
+		if (com_homepathenabled != oldhome)
+		{
+			if (com_homepathenabled)
+				Con_TPrintf("Using home directory \"%s\"\n", com_homepath);
+			else
+				Con_TPrintf("Disabled home directory suport\n");
+		}
+	}
 
 #ifdef ANDROID
 	{
@@ -3915,9 +3977,13 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 
 			if (reloadconfigs)
 			{
+				Z_Free(fs_gamename.enginevalue);
+				fs_gamename.enginevalue = Z_StrDup(man->formalname?man->formalname:"FTE");
+				Z_Free(com_protocolname.enginevalue);
+				com_protocolname.enginevalue = Z_StrDup(man->protocolname?man->protocolname:"FTE");
 				//FIXME: flag this instead and do it after a delay
-				Cvar_ForceSet(&fs_gamename, man->formalname?man->formalname:"FTE");
-				Cvar_ForceSet(&com_protocolname, man->protocolname?man->protocolname:"FTE");
+				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
+				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
 
 				if (isDedicated)
 				{
@@ -4243,7 +4309,6 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&fs_gamename, "Filesystem");
 	Cvar_Register(&fs_gamemanifest, "Filesystem");
 	Cvar_Register(&com_protocolname, "Server Info");
-	Cvar_Register(&com_modname, "Server Info");
 	Cvar_Register(&fs_game, "Filesystem");
 #ifdef Q2SERVER
 	Cvar_Register(&fs_gamedir, "Filesystem");
@@ -4350,19 +4415,17 @@ void COM_InitFilesystem (void)
 		*com_homepath = '\0';
 #endif
 
-	com_homepathenabled = usehome;
+	com_homepathusable = usehome;
+	com_homepathenabled = false;
 
 	if (COM_CheckParm("-usehome"))
-		com_homepathenabled = true;
+		com_homepathusable = true;
 	if (COM_CheckParm("-nohome"))
-		com_homepathenabled = false;
+		com_homepathusable = false;
 	if (!*com_homepath)
-		com_homepathenabled = false;
+		com_homepathusable = false;
 
 	fs_readonly = COM_CheckParm("-readonly");
-
-	if (com_homepathenabled)
-		Con_TPrintf("Using home directory \"%s\"\n", com_homepath);
 
 	fs_thread_mutex = Sys_CreateMutex();
 

@@ -275,7 +275,7 @@ static char *scr_centerstring;
 char *Get_Q2ConfigString(int i);
 
 
-#define MAX_PINGREQUESTS 16
+#define MAX_PINGREQUESTS 32
 
 netadr_t ui_pings[MAX_PINGREQUESTS];
 
@@ -799,11 +799,13 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 					if (ui_pings[i].type == NA_INVALID)
 					{
 						serverinfo_t *info;
-						NET_StringToAdr(cmdtext + 5, 0, &ui_pings[i]);
+						COM_Parse(cmdtext + 5);
+						NET_StringToAdr(com_token, 0, &ui_pings[i]);
 						info = Master_InfoForServer(&ui_pings[i]);
 						if (info)
 						{
 							info->special |= SS_KEEPINFO;
+							info->sends++;
 							Master_QueryServer(info);
 						}
 						break;
@@ -811,7 +813,12 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			}
 			else if (!strncmp(cmdtext, "localservers", 12))
 			{
+				extern void NET_SendPollPacket(int len, void *data, netadr_t to);
+				netadr_t na;
 				MasterInfo_Refresh();
+
+				NET_StringToAdr("255.255.255.255", PORT_Q3SERVER, &na);
+				NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), na);
 			}
 			else
 #endif
@@ -1059,7 +1066,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 	case UI_LAN_CLEARPING:	//clear ping
 		//void (int pingnum)
-		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) <= MAX_PINGREQUESTS)
+		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) < MAX_PINGREQUESTS)
 			ui_pings[VM_LONG(arg[0])].type = NA_INVALID;
 		break;
 	case UI_LAN_GETPING:
@@ -1070,12 +1077,12 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			break;	//out of bounds.
 
 		Master_CheckPollSockets();
-		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) <= MAX_PINGREQUESTS)
+		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) < MAX_PINGREQUESTS)
 		{
 			char *buf = VM_POINTER(arg[1]);
 			char *adr;
 			serverinfo_t *info = Master_InfoForServer(&ui_pings[VM_LONG(arg[0])]);
-			if (info)
+			if (info && info->ping != 0xffff)
 			{
 				adr = NET_AdrToString(adrbuf, sizeof(adrbuf), &info->adr);
 				if (strlen(adr) < VM_LONG(arg[2]))
@@ -1097,12 +1104,12 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			break;	//out of bounds.
 
 		Master_CheckPollSockets();
-		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) <= MAX_PINGREQUESTS)
+		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) < MAX_PINGREQUESTS)
 		{
 			char *buf = VM_POINTER(arg[1]);
 			char *adr;
 			serverinfo_t *info = Master_InfoForServer(&ui_pings[VM_LONG(arg[0])]);
-			if (info)
+			if (info && info->ping != 0xffff)
 			{
 				adr = info->moreinfo->info;
 				if (!adr)
@@ -1597,11 +1604,15 @@ void UI_Stop (void)
 
 void UI_Start (void)
 {
+	int i;
 	int apiversion;
 	if (qrenderer == QR_NONE)
 		return;
 
 	UI_Stop();
+
+	for (i = 0; i < MAX_PINGREQUESTS; i++)
+		ui_pings[i].type = NA_INVALID;
 
 	uivm = VM_Create("vm/ui", com_nogamedirnativecode.ival?NULL:UI_SystemCallsNative, UI_SystemCallsVM);
 	if (uivm)

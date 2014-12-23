@@ -2935,6 +2935,7 @@ void Cmd_WriteConfig_f(void)
 	char *filename;
 	char fname[MAX_OSPATH];
 	char sysname[MAX_OSPATH];
+	qboolean all = true;
 
 	if (Cmd_IsInsecure())
 	{
@@ -2953,6 +2954,8 @@ void Cmd_WriteConfig_f(void)
 		FS_NativePath(fname, FS_GAMEONLY, sysname, sizeof(sysname));
 		FS_CreatePath(fname, FS_GAMEONLY);
 		f = FS_OpenVFS(fname, "wbp", FS_GAMEONLY);
+
+		all = false;
 	}
 	else
 	{
@@ -2967,6 +2970,8 @@ void Cmd_WriteConfig_f(void)
 		FS_NativePath(fname, FS_BASEGAMEONLY, sysname, sizeof(sysname));
 		FS_CreatePath(fname, FS_BASEGAMEONLY);
 		f = FS_OpenVFS(fname, "wbp", FS_BASEGAMEONLY);
+
+		all = true;
 	}
 	if (!f)
 	{
@@ -2987,7 +2992,7 @@ void Cmd_WriteConfig_f(void)
 	SV_SaveInfos(f);
 #endif
 	Alias_WriteAliases (f);
-	Cvar_WriteVariables (f, true);
+	Cvar_WriteVariables (f, all);
 	VFS_CLOSE(f);
 
 	Cvar_Saved();

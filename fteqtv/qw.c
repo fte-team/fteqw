@@ -4202,7 +4202,7 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 			{
 			case CCREQ_SERVER_INFO:
 				ReadString(m, tempbuffer, sizeof(tempbuffer));
-				if (!strcmp(tempbuffer, NET_GAMENAME_NQ))
+				if (!strcmp(tempbuffer, NQ_NETCHAN_GAMENAME))
 				{
 					m->cursize = 0;
 					WriteLong(m, 0);
@@ -4212,16 +4212,16 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 					WriteString(m, "Quake TV");
 					WriteByte(m, cluster->numviewers>255?255:cluster->numviewers);
 					WriteByte(m, cluster->maxviewers>255?255:cluster->maxviewers);
-					WriteByte(m, NET_PROTOCOL_VERSION);
+					WriteByte(m, NQ_NETCHAN_VERSION);
 					*(int*)m->data = BigLong(NETFLAG_CTL | m->cursize);
 					NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from), m->cursize, m->data, from);
 				}
 				break;
 			case CCREQ_CONNECT:
 				ReadString(m, tempbuffer, sizeof(tempbuffer));
-				if (!strcmp(tempbuffer, NET_GAMENAME_NQ))
+				if (!strcmp(tempbuffer, NQ_NETCHAN_GAMENAME))
 				{
-					if (ReadByte(m) == NET_PROTOCOL_VERSION)
+					if (ReadByte(m) == NQ_NETCHAN_VERSION)
 					{
 						//proquake extensions
 						int mod = ReadByte(m);

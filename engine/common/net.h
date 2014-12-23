@@ -104,8 +104,10 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b);
 qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b);
 char		*NET_AdrToString (char *s, int len, netadr_t *a);
 char		*NET_BaseAdrToString (char *s, int len, netadr_t *a);
-qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize);
-qboolean	NET_StringToAdr (const char *s, int defaultport, netadr_t *a);
+size_t		NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount);
+#define NET_StringToSockaddr(s,p,a,f,z) (NET_StringToSockaddr2(s,p,a,f,z,1)>0)
+size_t		NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t addrcount);
+#define NET_StringToAdr(s,p,a) (NET_StringToAdr2(s,p,a,1)>0)
 qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a);
 qboolean NET_IsClientLegal(netadr_t *adr);
 
@@ -194,6 +196,8 @@ typedef struct
 
 extern	int	net_drop;		// packets dropped before this one
 
+void Net_Master_Init(void);
+
 void Netchan_Init (void);
 int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);
 void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, qbyte *data);
@@ -237,8 +241,8 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 #define NETFLAG_UNRELIABLE	0x00100000
 #define NETFLAG_CTL			0x80000000
 
-#define NET_GAMENAME_NQ		"QUAKE"
-#define NET_PROTOCOL_VERSION	3
+#define NQ_NETCHAN_GAMENAME	"QUAKE"
+#define NQ_NETCHAN_VERSION	3
 
 
 #define CCREQ_CONNECT		0x01

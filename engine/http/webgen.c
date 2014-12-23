@@ -11,12 +11,12 @@ vfsfile_t *IWebGenerateFile(char *name)
 }
 #else
 
-char lastrecordedmvd[MAX_QPATH];
+static char lastrecordedmvd[MAX_QPATH];
 
-IWeb_FileGen_t *IWeb_GenerationBuffer;
-size_t IWeb_GenerationBufferTotal;
+static IWeb_FileGen_t *IWeb_GenerationBuffer;
+static size_t IWeb_GenerationBufferTotal;
 
-void IWeb_MoreGeneratedResize(size_t newsize)
+static void IWeb_MoreGeneratedResize(size_t newsize)
 {
 	IWeb_FileGen_t *ob;
 
@@ -37,7 +37,7 @@ void IWeb_MoreGeneratedResize(size_t newsize)
 
 	IWeb_GenerationBufferTotal = newsize;
 }
-void IWeb_Generate(const char *buf)
+static void IWeb_Generate(const char *buf)
 {
 	size_t count = strlen(buf);
 	if (!IWeb_GenerationBuffer || IWeb_GenerationBuffer->len + count >= IWeb_GenerationBufferTotal)
@@ -72,7 +72,7 @@ void IWeb_Generate(const char *buf)
 
 int Rank_Enumerate (unsigned int first, unsigned int last, void (*callback) (const rankinfo_t *ri));	//leader first.
 
-void IWeb_ParseForm(char *info, int infolen, char *text)
+static void IWeb_ParseForm(char *info, int infolen, char *text)
 {
 	char *eq, *and;
 	char *token, *out;
@@ -141,7 +141,7 @@ void IWeb_ParseForm(char *info, int infolen, char *text)
 	}
 }
 
-void IWeb_GenerateAdminFile(char *parms, char *content, int contentlength)
+static void IWeb_GenerateAdminFile(char *parms, char *content, int contentlength)
 {
 	extern char	outputbuf[];	//redirected buffer - always null termed.
 	char info[16384];
@@ -198,7 +198,7 @@ void IWeb_GenerateAdminFile(char *parms, char *content, int contentlength)
 }
 
 
-void IWeb_GenerateRankingsFileCallback(const rankinfo_t *ri)
+static void IWeb_GenerateRankingsFileCallback(const rankinfo_t *ri)
 {
 	IWeb_Generate("<TR><TD ALIGN = \"center\">");
 	IWeb_Generate(ri->h.name);
@@ -210,7 +210,7 @@ void IWeb_GenerateRankingsFileCallback(const rankinfo_t *ri)
 	IWeb_Generate("</TR>");
 }
 
-void IWeb_GenerateRankingsFile (char *parms, char *content, int contentlength)
+static void IWeb_GenerateRankingsFile (char *parms, char *content, int contentlength)
 {
 	IWeb_Generate("<HTML><HEAD></HEAD><BODY>");
 
@@ -241,7 +241,7 @@ void IWeb_GenerateRankingsFile (char *parms, char *content, int contentlength)
 	IWeb_Generate("</BODY></HTML>");
 }
 
-void IWeb_GenerateIndexFile (char *parms, char *content, int contentlength)
+static void IWeb_GenerateIndexFile (char *parms, char *content, int contentlength)
 {
 	extern cvar_t	rcon_password;
 	char *s, *o;
@@ -343,7 +343,7 @@ typedef struct {
 	int genid;
 } IWebFile_t;
 
-IWebFile_t IWebFiles[] = {
+static IWebFile_t IWebFiles[] = {
 	{"allplayers.html", IWeb_GenerateRankingsFile},
 	{"index.html", IWeb_GenerateIndexFile},
 //code is too flawed for this	{"admin.html", IWeb_GenerateAdminFile}
@@ -356,7 +356,7 @@ typedef struct {
 	int pos;
 } vfsgen_t;
 
-int QDECL VFSGen_ReadBytes(vfsfile_t *f, void *buffer, int bytes)
+static int QDECL VFSGen_ReadBytes(vfsfile_t *f, void *buffer, int bytes)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	if (bytes + g->pos >= g->buffer->len)
@@ -372,13 +372,13 @@ int QDECL VFSGen_ReadBytes(vfsfile_t *f, void *buffer, int bytes)
 	return bytes;
 }
 
-int QDECL VFSGen_WriteBytes(vfsfile_t *f, const void *buffer, int bytes)
+static int QDECL VFSGen_WriteBytes(vfsfile_t *f, const void *buffer, int bytes)
 {
 	Sys_Error("VFSGen_WriteBytes: Readonly\n");
 	return 0;
 }
 
-qboolean QDECL VFSGen_Seek(vfsfile_t *f, qofs_t newpos)
+static qboolean QDECL VFSGen_Seek(vfsfile_t *f, qofs_t newpos)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	if (newpos < 0 || newpos >= g->buffer->len)
@@ -389,19 +389,19 @@ qboolean QDECL VFSGen_Seek(vfsfile_t *f, qofs_t newpos)
 	return true;
 }
 
-qofs_t QDECL VFSGen_Tell(vfsfile_t *f)
+static qofs_t QDECL VFSGen_Tell(vfsfile_t *f)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	return g->pos;
 }
 
-qofs_t QDECL VFSGen_GetLen(vfsfile_t *f)
+static qofs_t QDECL VFSGen_GetLen(vfsfile_t *f)
 {
 	vfsgen_t *g = (vfsgen_t*)f;
 	return g->buffer->len;
 }
 
-qboolean QDECL VFSGen_Close(vfsfile_t *f)
+static qboolean QDECL VFSGen_Close(vfsfile_t *f)
 {
 	int fnum;
 	vfsgen_t *g = (vfsgen_t*)f;
@@ -420,7 +420,7 @@ qboolean QDECL VFSGen_Close(vfsfile_t *f)
 }
 
 
-vfsfile_t *VFSGen_Create(IWeb_FileGen_t *gen)
+static vfsfile_t *VFSGen_Create(IWeb_FileGen_t *gen)
 {
 	vfsgen_t *ret;
 	ret = Z_Malloc(sizeof(vfsgen_t));

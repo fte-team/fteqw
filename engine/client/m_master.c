@@ -8,10 +8,9 @@ static cvar_t	sb_hideempty		= SCVARF("sb_hideempty",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidenotempty		= SCVARF("sb_hidenotempty",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidefull			= SCVARF("sb_hidefull",		"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidedead			= SCVARF("sb_hidedead",		"1",	CVAR_ARCHIVE);
-extern cvar_t	sb_hidequake2;
-extern cvar_t	sb_hidequake3;
-extern cvar_t	sb_hidenetquake;
-extern cvar_t	sb_hidequakeworld;
+static cvar_t	sb_hidenetquake		= SCVARF("sb_hidenetquake",	"0",	CVAR_ARCHIVE);
+static cvar_t	sb_hidequakeworld	= SCVARF("sb_hidequakeworld","0",	CVAR_ARCHIVE);
+static cvar_t	sb_hideproxies		= SCVARF("sb_hideproxies",	"0",	CVAR_ARCHIVE);
 
 static cvar_t	sb_showping			= SCVARF("sb_showping",		"1",	CVAR_ARCHIVE);
 static cvar_t	sb_showaddress		= SCVARF("sb_showaddress",	"0",	CVAR_ARCHIVE);
@@ -33,10 +32,9 @@ void M_Serverlist_Init(void)
 	Cvar_Register(&sb_hidenotempty, grp);
 	Cvar_Register(&sb_hidefull, grp);
 	Cvar_Register(&sb_hidedead, grp);
-	Cvar_Register(&sb_hidequake2, grp);
-	Cvar_Register(&sb_hidequake3, grp);
 	Cvar_Register(&sb_hidenetquake, grp);
 	Cvar_Register(&sb_hidequakeworld, grp);
+	Cvar_Register(&sb_hideproxies, grp);
 
 	Cvar_Register(&sb_showping, grp);
 	Cvar_Register(&sb_showaddress, grp);
@@ -211,14 +209,24 @@ static servertypes_t flagstoservertype(int flags)
 	if (flags & SS_FTESERVER)
 		return ST_FTESERVER;
 #endif
-	if ((flags & SS_NETQUAKE) || (flags & SS_DARKPLACES))
-		return ST_NETQUAKE;
-	if (flags & SS_QUAKE2)
-		return ST_QUAKE2;
-	if (flags & SS_QUAKE3)
-		return ST_QUAKE3;
 
-	return ST_NORMALQW;
+
+	switch(flags & SS_PROTOCOLMASK)
+	{
+	case SS_NETQUAKE:
+	case SS_DARKPLACES:
+		return ST_NETQUAKE;
+	case SS_QUAKE2:
+		return ST_QUAKE2;
+	case SS_QUAKE3:
+		return ST_QUAKE3;
+	case SS_QUAKEWORLD:
+		return ST_NORMALQW;
+	case SS_UNKNOWN:
+		return ST_NORMALQW;
+	default:
+		return ST_FTESERVER;	//bug
+	}
 }
 
 static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
@@ -287,7 +295,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 		if (server)
 		{
 			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
-			if (!R2D_SafeCachePic(info->mappic->picturename))
+			if (!*server->map || !R2D_SafeCachePic(info->mappic->picturename))
 				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 		else
@@ -329,7 +337,7 @@ joinserver:
 				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
 			}
 
-			if (server->special & SS_NETQUAKE)
+			if ((server->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
 				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), &server->adr)), RESTRICT_LOCAL);
 			else
 				Cbuf_AddText(va("connect %s\n", NET_AdrToString(adr, sizeof(adr), &server->adr)), RESTRICT_LOCAL);
@@ -347,7 +355,7 @@ static void SL_PreDraw	(menu_t *menu)
 
 	CL_QueryServers();
 
-	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u of %u\n", Master_NumPolled(), Master_TotalCount());
+	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u/%u/%u\n", Master_NumSorted(), Master_NumPolled(), Master_TotalCount());
 	info->numslots = Master_NumSorted();
 }
 static qboolean SL_Key	(int key, menu_t *menu)
@@ -391,7 +399,7 @@ static qboolean SL_Key	(int key, menu_t *menu)
 		if (server)
 		{
 			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
-			if (!R2D_SafeCachePic(info->mappic->picturename))
+			if (!*server->map || !R2D_SafeCachePic(info->mappic->picturename))
 				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 		else
@@ -532,12 +540,18 @@ static void CalcFilters(menu_t *menu)
 
 	Master_ClearMasks();
 
-	Master_SetMaskInteger(false, SLKEY_PING, 0, SLIST_TEST_LESS);
-	if (info->filter[1]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_NETQUAKE|SS_DARKPLACES, SLIST_TEST_CONTAINS);
-	if (info->filter[2]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_NETQUAKE|SS_DARKPLACES|SS_QUAKE2|SS_QUAKE3, SLIST_TEST_NOTCONTAIN);
-	if (info->filter[3]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_QUAKE2, SLIST_TEST_CONTAINS);
-	if (info->filter[4]) Master_SetMaskInteger(true, SLKEY_BASEGAME, SS_QUAKE3, SLIST_TEST_CONTAINS);
-	if (info->filter[5]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_FAVORITE, SLIST_TEST_CONTAINS);
+//	Master_SetMaskInteger(false, SLKEY_PING, 0, SLIST_TEST_GREATEREQUAL);
+	Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_UNKNOWN, SLIST_TEST_NOTEQUAL);
+	if (info->filter[1] && info->filter[2])
+		Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_CONTAINS);
+	else
+	{
+		if (info->filter[1]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_NETQUAKE, SLIST_TEST_NOTEQUAL);
+		if (info->filter[1]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_DARKPLACES, SLIST_TEST_NOTEQUAL);
+		if (info->filter[2]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_QUAKEWORLD, SLIST_TEST_NOTEQUAL);
+	}
+	if (info->filter[3]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_NOTCONTAIN);
+	if (info->filter[5]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_FAVORITE, SLIST_TEST_CONTAINS);
 	if (info->filter[6]) Master_SetMaskInteger(false, SLKEY_NUMPLAYERS, 0, SLIST_TEST_NOTEQUAL);
 	if (info->filter[7]) Master_SetMaskInteger(false, SLKEY_FREEPLAYERS, 0, SLIST_TEST_NOTEQUAL);
 }
@@ -553,10 +567,9 @@ static qboolean SL_ReFilter (menucheck_t *option, menu_t *menu, chk_set_t set)
 		if (option->bits>0)
 		{
 			info->filter[option->bits] ^= 1;
-			Cvar_Set(&sb_hidenetquake, info->filter[1]?"0":"1");
-			Cvar_Set(&sb_hidequakeworld, info->filter[2]?"0":"1");
-			Cvar_Set(&sb_hidequake2, info->filter[3]?"0":"1");
-			Cvar_Set(&sb_hidequake3, info->filter[4]?"0":"1");
+			Cvar_Set(&sb_hidenetquake, info->filter[1]?"1":"0");
+			Cvar_Set(&sb_hidequakeworld, info->filter[2]?"1":"0");
+			Cvar_Set(&sb_hideproxies, info->filter[3]?"1":"0");
 
 			Cvar_Set(&sb_hideempty, info->filter[6]?"1":"0");
 			Cvar_Set(&sb_hidefull, info->filter[7]?"1":"0");
@@ -574,11 +587,9 @@ static void SL_Remove	(menu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 
-	Cvar_Set(&sb_hidenetquake, info->filter[1]?"0":"1");
-	Cvar_Set(&sb_hidequakeworld, info->filter[2]?"0":"1");
-	Cvar_Set(&sb_hidequake2, info->filter[3]?"0":"1");
-	Cvar_Set(&sb_hidequake3, info->filter[4]?"0":"1");
-
+	Cvar_Set(&sb_hidenetquake, info->filter[1]?"1":"0");
+	Cvar_Set(&sb_hidequakeworld, info->filter[2]?"1":"0");
+	Cvar_Set(&sb_hideproxies, info->filter[3]?"1":"0");
 	Cvar_Set(&sb_hideempty, info->filter[6]?"1":"0");
 	Cvar_Set(&sb_hidefull, info->filter[7]?"1":"0");
 }
@@ -663,25 +674,22 @@ void M_Menu_ServerList2_f(void)
 	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*7, "Timelimit", &sb_showtimelimit, 1);
 
 #ifdef NQPROT
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*1, "List NQ   ", SL_ReFilter, 1);
+	if (M_GameType() == MGT_QUAKE1)
+	{
+		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*1, "Hide NQ   ", SL_ReFilter, 1);
+		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*2, "Hide QW   ", SL_ReFilter, 2);
+	}
 #endif
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*2, "List QW   ", SL_ReFilter, 2);
-#ifdef Q2CLIENT
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "List Q2   ", SL_ReFilter, 3);
-#endif
-#ifdef Q3CLIENT
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*4, "List Q3   ", SL_ReFilter, 4);
-#endif
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "Hide Proxies", SL_ReFilter, 3);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, 5);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
 
-	MC_AddCommand(menu, 64, 208, 0, info->refreshtext, SL_DoRefresh);
+	MC_AddCommand(menu, 64, 320, 0, info->refreshtext, SL_DoRefresh);
 
-	info->filter[1] = !sb_hidenetquake.value;
-	info->filter[2] = !sb_hidequakeworld.value;
-	info->filter[3] = !sb_hidequake2.value;
-	info->filter[4] = !sb_hidequake3.value;
+	info->filter[1] = !!sb_hidenetquake.value;
+	info->filter[2] = !!sb_hidequakeworld.value;
+	info->filter[3] = !!sb_hideproxies.value;
 	info->filter[6] = !!sb_hideempty.value;
 	info->filter[7] = !!sb_hidefull.value;
 
@@ -731,7 +739,7 @@ static void M_QuickConnect_PreDraw(menu_t *menu)
 		{
 			Con_Printf("Quick connect found %s (gamedir %s, players %i/%i, ping %ims)\n", best->name, best->gamedir, best->players, best->maxplayers, best->ping);
 
-			if (best->special & SS_NETQUAKE)
+			if ((best->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
 				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), &best->adr)), RESTRICT_LOCAL);
 			else
 				Cbuf_AddText(va("join %s\n", NET_AdrToString(adr, sizeof(adr), &best->adr)), RESTRICT_LOCAL);

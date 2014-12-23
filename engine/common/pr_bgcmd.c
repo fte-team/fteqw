@@ -45,6 +45,20 @@ void PF_Common_RegisterCvars(void)
 	WPhys_Init();
 }
 
+//just prints out a warning with stack trace. so I can throttle spammy stack traces.
+static void PF_Warningf(pubprogfuncs_t *prinst, const char *fmt, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr, fmt);
+	vsnprintf (string, sizeof(string)-1, fmt, argptr);
+	va_end (argptr);
+
+	Con_Printf("%s", string);
+	PR_StackTrace(prinst, false);
+}
+
 char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals)
 {
 #define VARSTRINGLEN 16384+8
@@ -1700,13 +1714,13 @@ void QCBUILTIN PF_fclose (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
-		Con_Printf("PF_fclose: File out of range (%g)\n", G_FLOAT(OFS_PARM0));
+		PF_Warningf(prinst, "PF_fclose: File out of range (%g)\n", G_FLOAT(OFS_PARM0));
 		return;	//out of range
 	}
 
 	if (pf_fopen_files[fnum].prinst != prinst)
 	{
-		Con_Printf("PF_fclose: File is from wrong instance\n");
+		PF_Warningf(prinst, "PF_fclose: File is from wrong instance\n");
 		return;	//this just isn't ours.
 	}
 
@@ -1796,19 +1810,19 @@ static void PF_fwrite (pubprogfuncs_t *prinst, int fnum, char *msg, int len)
 {
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
-		Con_Printf("PF_fwrite: File out of range\n");
+		PF_Warningf(prinst, "PF_fwrite: File out of range\n");
 		return;	//out of range
 	}
 
 	if (!pf_fopen_files[fnum].data)
 	{
-		Con_Printf("PF_fwrite: File is not open\n");
+		PF_Warningf(prinst, "PF_fwrite: File is not open\n");
 		return;	//not open
 	}
 
 	if (pf_fopen_files[fnum].prinst != prinst)
 	{
-		Con_Printf("PF_fwrite: File is from wrong instance\n");
+		PF_Warningf(prinst, "PF_fwrite: File is from wrong instance\n");
 		return;	//this just isn't ours.
 	}
 
@@ -1920,7 +1934,7 @@ void search_close (pubprogfuncs_t *prinst, int handle)
 		{	//close it down.
 			if (s->fromprogs != prinst)
 			{
-				Con_Printf("Handle wasn't valid with that progs\n");
+				PF_Warningf(prinst, "Handle wasn't valid with that progs\n");
 				return;
 			}
 			if (prev)
@@ -2041,7 +2055,7 @@ void QCBUILTIN PF_search_getsize (pubprogfuncs_t *prinst, struct globalvars_s *p
 		{	//close it down.
 			if (s->fromprogs != prinst)
 			{
-				Con_Printf("Handle wasn't valid with that progs\n");
+				PF_Warningf(prinst, "Handle wasn't valid with that progs\n");
 				return;
 			}
 
@@ -2064,7 +2078,7 @@ void QCBUILTIN PF_search_getfilename (pubprogfuncs_t *prinst, struct globalvars_
 		{	//close it down.
 			if (s->fromprogs != prinst)
 			{
-				Con_Printf("Search handle wasn't valid with that progs\n");
+				PF_Warningf(prinst, "Search handle wasn't valid with that progs\n");
 				return;
 			}
 
@@ -2075,7 +2089,7 @@ void QCBUILTIN PF_search_getfilename (pubprogfuncs_t *prinst, struct globalvars_
 		}
 	}
 
-	Con_Printf("Search handle wasn't valid\n");
+	PF_Warningf(prinst, "Search handle wasn't valid\n");
 }
 
 //closes filesystem type stuff for when a progs has stopped needing it.
@@ -2183,14 +2197,14 @@ void QCBUILTIN PF_parseentitydata(pubprogfuncs_t *prinst, struct globalvars_s *p
 	}
 
 	if (!prinst->restoreent(prinst, file, &size, ed))
-		Con_Printf("parseentitydata: missing opening data\n");
+		PF_Warningf(prinst, "parseentitydata: missing opening data\n");
 	else
 	{
 		file += size;
 		while(*file < ' ' && *file)
 			file++;
 		if (*file)
-			Con_Printf("parseentitydata: too much data\n");
+			PF_Warningf(prinst, "parseentitydata: too much data\n");
 	}
 
 	G_FLOAT(OFS_RETURN) = 0;

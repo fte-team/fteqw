@@ -3194,16 +3194,27 @@ CL_Download_f
 void CL_Download_f (void)
 {
 //	char *p, *q;
-	char *url;
-
-	url = Cmd_Argv(1);
+	char *url = Cmd_Argv(1);
+	char *localname = Cmd_Argv(2);
 
 #ifdef WEBCLIENT
-	if (!strnicmp(url, "http://", 7) || !strnicmp(url, "ftp://", 6))
+	if (!strnicmp(url, "http://", 7) || !strnicmp(url, "https://", 8) || !strnicmp(url, "ftp://", 6))
 	{
 		if (Cmd_IsInsecure())
 			return;
-		HTTP_CL_Get(url, Cmd_Argv(2), NULL);//"test.txt");
+		if (!*localname)
+		{
+			localname = strrchr(url, '/');
+			if (localname)
+				localname++;
+			else
+			{
+				Con_TPrintf ("no local name specified\n");
+				return;
+			}
+		}
+
+		HTTP_CL_Get(url, localname, NULL);//"test.txt");
 		return;
 	}
 #endif
@@ -3212,6 +3223,9 @@ void CL_Download_f (void)
 	{
 		url += 5;
 	}
+
+	if (!*localname)
+		localname = url;
 
 	if ((cls.state == ca_disconnected || cls.demoplayback) && cls.demoplayback != DPB_EZTV)
 	{
@@ -3225,23 +3239,23 @@ void CL_Download_f (void)
 		return;
 	}
 
-	if (Cmd_Argc() != 2)
+	if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
 	{
-		Con_TPrintf ("Usage: download <datafile>\n");
+		Con_TPrintf ("Usage: download <datafile> <localname>\n");
 		return;
 	}
 
 	if (Cmd_IsInsecure())	//mark server specified downloads.
 	{
 		//don't let gamecode order us to download random junk
-		if (!CL_AllowArbitaryDownload(url))
+		if (!CL_AllowArbitaryDownload(localname))
 			return;
 
-		CL_CheckOrEnqueDownloadFile(url, url, DLLF_REQUIRED|DLLF_VERBOSE);
+		CL_CheckOrEnqueDownloadFile(url, localname, DLLF_REQUIRED|DLLF_VERBOSE);
 		return;
 	}
 
-	CL_EnqueDownload(url, url, DLLF_USEREXPLICIT|DLLF_IGNOREFAILED|DLLF_REQUIRED|DLLF_OVERWRITE|DLLF_VERBOSE);
+	CL_EnqueDownload(url, localname, DLLF_USEREXPLICIT|DLLF_IGNOREFAILED|DLLF_REQUIRED|DLLF_OVERWRITE|DLLF_VERBOSE);
 }
 
 void CL_DownloadSize_f(void)

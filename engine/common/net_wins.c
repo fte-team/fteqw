@@ -5510,6 +5510,7 @@ void NET_UPNPIGP_Callback(cvar_t *var, char *oldval)
 }
 cvar_t net_upnpigp = CVARCD("net_upnpigp", "0", NET_UPNPIGP_Callback, "If set, enables the use of the upnp-igd protocol to punch holes in your local NAT box.");
 
+void SSL_Init(void);
 /*
 ====================
 NET_Init
@@ -5555,6 +5556,10 @@ void NET_Init (void)
 
 	Cvar_Register (&net_upnpigp, "networking");
 	net_upnpigp.restriction = RESTRICT_MAX;
+
+#if defined(HAVE_WINSSPI)
+	SSL_Init();
+#endif
 
 	Net_Master_Init();
 }

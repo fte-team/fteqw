@@ -279,7 +279,11 @@ It doesn't use persistant connections.
 struct http_dl_ctx_s {
 	struct dl_download *dlctx;
 
+#if 1
+	vfsfile_t *sock;
+#else
 	SOCKET sock;	//FIXME: support https.
+#endif
 
 	char *buffer;
 
@@ -304,9 +308,15 @@ void HTTP_Cleanup(struct dl_download *dl)
 	struct http_dl_ctx_s *con = dl->ctx;
 	dl->ctx = NULL;
 
+#if 1
+	if (con->sock)
+		VFS_CLOSE(con->sock);
+	con->sock = NULL;
+#else
 	if (con->sock != INVALID_SOCKET)
 		closesocket(con->sock);
 	con->sock = INVALID_SOCKET;
+#endif
 	free(con->buffer);
 	free(con);
 
@@ -336,7 +346,15 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 	switch(con->state)
 	{
 	case HC_REQUESTING:
+#if 1
+		ammount = VFS_WRITE(con->sock, con->buffer, con->bufferused);
+		if (!ammount)
+			return true;
+		if (ammount < 0)
+			return false;
+#else
 		ammount = send(con->sock, con->buffer, con->bufferused, 0);
+
 		if (!ammount)
 			return false;
 
@@ -346,6 +364,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				return false;
 			return true;
 		}
+#endif
 
 		con->bufferused -= ammount;
 		memmove(con->buffer, con->buffer+ammount, con->bufferused);
@@ -357,6 +376,13 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (con->bufferlen - con->bufferused < 1530)
 			ExpandBuffer(con, 1530);
 
+#if 1
+		ammount = VFS_READ(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-15);
+		if (!ammount)
+			return true;
+		if (ammount < 0)
+			return false;
+#else
 		ammount = recv(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-15, 0);
 		if (!ammount)
 			return false;
@@ -366,6 +392,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				return false;
 			return true;
 		}
+#endif
 
 		con->bufferused+=ammount;
 		con->buffer[con->bufferused] = '\0';
@@ -556,6 +583,13 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (con->bufferlen - con->bufferused < 1530)
 			ExpandBuffer(con, 1530);
 
+#if 1
+		ammount = VFS_READ(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-1);
+		if (ammount == 0)
+			return true;	//no data yet
+		else if (ammount < 0)
+			ammount = 0;	//error (EOF?)
+#else
 		ammount = recv(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-1, 0);
 		if (ammount < 0)
 		{
@@ -563,6 +597,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				return false;
 			return true;
 		}
+#endif
 
 		con->bufferused+=ammount;
 
@@ -643,7 +678,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			else
 			{
 #if !defined(NPFTE) && defined(AVAIL_ZLIB)
-				if (con->gzip)
+				if (con->gzip && con->file)
 				{
 					VFS_SEEK(con->file, 0);
 					dl->file = FS_DecompressGZip(con->file, dl->file);
@@ -664,11 +699,12 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 void HTTPDL_Establish(struct dl_download *dl)
 {
-	unsigned long _true = true;
-	struct sockaddr_qstorage	serveraddr;
+//	unsigned long _true = true;
+//	struct sockaddr_qstorage	serveraddr;
+//	int addressfamily;
+//	int addresssize;
 	struct http_dl_ctx_s *con;
-	int addressfamily;
-	int addresssize;
+	qboolean https = false;
 
 	char server[128];
 	char uri[MAX_OSPATH];
@@ -677,7 +713,12 @@ void HTTPDL_Establish(struct dl_download *dl)
 	if (!*url)
 		url = dl->url;
 
-	if (!strnicmp(url, "http://", 7))
+	if (!strnicmp(url, "https://", 8))
+	{
+		url+=8;
+		https = true;
+	}
+	else if (!strnicmp(url, "http://", 7))
 		url+=7;
 
 	slash = strchr(url, '/');
@@ -700,6 +741,19 @@ void HTTPDL_Establish(struct dl_download *dl)
 
 	dl->status = DL_RESOLVING;
 
+#if 1
+	if (https)
+	{
+		//https uses port 443 instead of 80 by default
+		con->sock = FS_OpenTCP(server, 443);
+		//and with an extra ssl/tls layer between tcp and http.
+		con->sock = FS_OpenSSL(server, con->sock, false);
+	}
+	else
+	{
+		con->sock = FS_OpenTCP(server, 80);
+	}
+#else
 	if (!NET_StringToSockaddr(server, 80, &serveraddr, &addressfamily, &addresssize))
 	{
 		dl->status = DL_FAILED;
@@ -744,7 +798,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 		dl->status = DL_FAILED;
 		return;
 	}
-
+#endif
 	if (dl->postdata)
 	{
 		ExpandBuffer(con, 1024 + strlen(uri) + strlen(server) + strlen(con->dlctx->postmimetype) + dl->postlen);
@@ -1000,6 +1054,8 @@ qboolean DL_Decide(struct dl_download *dl)
 		dl->poll = DataScheme_Decode;
 	else*/
 	if (!strnicmp(url, "http://", 7))
+		dl->poll = HTTPDL_Poll;
+	else if (!strnicmp(url, "https://", 7))
 		dl->poll = HTTPDL_Poll;
 	else
 	{

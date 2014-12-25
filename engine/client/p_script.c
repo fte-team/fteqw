@@ -5737,7 +5737,7 @@ static void PScript_DrawParticleTypes (void)
 	void (*sparkfanparticles)(int count, particle_t **plist, plooks_t *type)=GL_DrawTrifanParticle;
 	void (*sparktexturedparticles)(int count, particle_t **plist, plooks_t *type)=GL_DrawTexturedSparkParticle;
 
-	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
+	unsigned int (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 	void *pdraw, *bdraw;
 	void (*tdraw)(scenetris_t *t, particle_t *p, plooks_t *type);
 

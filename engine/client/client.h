@@ -975,7 +975,7 @@ extern unsigned int cl_maxstris;
 
 extern char emodel_name[], pmodel_name[], prespawn_name[], modellist_name[], soundlist_name[];
 
-qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
+unsigned int TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 
 //
 // cl_input

@@ -197,14 +197,17 @@ void P_Shutdown(void)
 	pe = NULL;
 }
 
-qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
+//0 says hit nothing.
+//1 says hit world
+//>1 says hit some entity
+unsigned int TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 {
 	trace_t		trace;
 	float len, bestlen;
 	int i;
 	vec3_t delta, ts, te;
 	physent_t *pe;
-	qboolean clipped=false;
+	int result=0;
 	vec3_t axis[3];
 
 	memset (&trace, 0, sizeof(trace));
@@ -214,7 +217,7 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 
 	VectorCopy (end, impact);
 
-	for (i=0 ; i< pmove.numphysent ; i++)
+	for (i=0 ; i < pmove.numphysent ; i++)
 	{
 		pe = &pmove.physents[i];
 		if (pe->nonsolid)
@@ -243,7 +246,7 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 					VectorAdd (pe->origin, trace.endpos, impact);
 				}
 
-				clipped=true;
+				result = pe->info+1;
 			}
 			if (trace.startsolid)
 			{
@@ -261,14 +264,7 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 		}
 	}
 
-	if (clipped)
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
+	return result;
 }
 
 //handy utility...

@@ -176,6 +176,10 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfloat(input_weapon,			"input_weapon");		/*unused float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat(input_servertime,		"input_servertime");	/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat(input_clienttime,		"input_clienttime");	/*float		filled by getinputstate, read by runplayerphysics*/ \
+	globalvector(input_cursor_screen,	"input_cursor_screen");	/*float		filled by getinputstate*/ \
+	globalvector(input_cursor_start,	"input_cursor_trace_start");	/*float		filled by getinputstate*/ \
+	globalvector(input_cursor_impact,	"input_cursor_trace_endpos");	/*float		filled by getinputstate*/ \
+	globalfloat(input_cursor_entitynumber,	"input_cursor_entitynumber");	/*float		filled by getinputstate*/ \
 
 
 typedef struct {
@@ -2518,6 +2522,18 @@ static void cs_set_input_state (usercmd_t *cmd)
 		*csqcg.input_servertime = cmd->servertime/1000.0f;
 	if (csqcg.input_clienttime)
 		*csqcg.input_clienttime = cmd->fclienttime/1000.0f;
+
+	if (csqcg.input_cursor_screen)
+	{
+		Vector2Copy(cmd->cursor_screen, csqcg.input_cursor_screen);
+		csqcg.input_cursor_screen[2] = 0;
+	}
+	if (csqcg.input_cursor_start)
+		VectorCopy(cmd->cursor_start, csqcg.input_cursor_start);
+	if (csqcg.input_cursor_impact)
+		VectorCopy(cmd->cursor_impact, csqcg.input_cursor_impact);
+	if (csqcg.input_cursor_entitynumber)
+		*csqcg.input_cursor_entitynumber = cmd->cursor_entitynumber;
 }
 
 static void cs_get_input_state (usercmd_t *cmd)
@@ -2547,6 +2563,15 @@ static void cs_get_input_state (usercmd_t *cmd)
 		cmd->weapon = *csqcg.input_weapon;
 	if (csqcg.input_servertime)
 		cmd->servertime = *csqcg.input_servertime*1000;
+
+	if (csqcg.input_cursor_screen)
+		Vector2Copy(csqcg.input_cursor_screen, cmd->cursor_screen);
+	if (csqcg.input_cursor_start)
+		VectorCopy(csqcg.input_cursor_start, cmd->cursor_start);
+	if (csqcg.input_cursor_impact)
+		VectorCopy(csqcg.input_cursor_impact, cmd->cursor_impact);
+	if (csqcg.input_cursor_entitynumber)
+		cmd->cursor_entitynumber = *csqcg.input_cursor_entitynumber;
 }
 
 //#343

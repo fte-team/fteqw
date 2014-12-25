@@ -6458,7 +6458,7 @@ void SV_ReadPrydonCursor(void)
 	entnum = MSGSV_ReadEntity(host_client);
 	if (entnum >= sv.world.max_edicts)
 	{
-		Con_DPrintf("SV_ReadPrydonCursor: client send bad cursor_entitynumber\n");
+		Con_DPrintf("SV_ReadPrydonCursor: client sent bad cursor_entitynumber\n");
 		entnum = 0;
 	}
 	// as requested by FrikaC, cursor_trace_ent is reset to world if the

@@ -10439,12 +10439,17 @@ void PR_DumpPlatform_f(void)
 		{"noise3",				".string", QW|NQ},
 		{"end_sys_fields",		"void", QW|NQ|CS|MENU},
 
-		{"time",				"float", MENU,	"The current local time. Increases while paused."},
-		{"input_timelength",	"float", QW|NQ},
-		{"input_angles",		"vector", QW|NQ},
-		{"input_movevalues",	"vector", QW|NQ},
-		{"input_buttons",		"float", QW|NQ},
-		{"input_impulse",		"float", QW|NQ},
+		{"time",				"float",	MENU,	"The current local time. Increases while paused."},
+		{"input_timelength",	"float",	QW|NQ},
+		{"input_angles",		"vector",	QW|NQ},
+		{"input_movevalues",	"vector",	QW|NQ},
+		{"input_buttons",		"float",	QW|NQ},
+		{"input_impulse",		"float",	QW|NQ},
+
+		{"input_cursor_screen",			"vector",	CS/*|QW|NQ*/},
+		{"input_cursor_trace_start",	"vector",	CS/*|QW|NQ*/},
+		{"input_cursor_trace_endpos",	"vector",	CS/*|QW|NQ*/},
+		{"input_cursor_trace_entnum",	"float",	CS/*|QW|NQ*/},
 
 #define comfieldfloat(name,desc) {#name, ".float", FL, desc},
 #define comfieldvector(name,desc) {#name, ".vector", FL, desc},

@@ -1048,6 +1048,11 @@ typedef struct usercmd_s
 	int servertime;
 	float fservertime;
 	float fclienttime;
+
+	vec2_t cursor_screen;
+	vec3_t cursor_start;
+	vec3_t cursor_impact;
+	int cursor_entitynumber;
 } usercmd_t;
 
 typedef struct q2usercmd_s

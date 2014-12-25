@@ -153,7 +153,6 @@ int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
 int			in_nextimpulse[MAX_SPLITS];
 int			in_impulsespending[MAX_SPLITS];
 
-float		cursor_screen[2];
 qboolean	cursor_active;
 
 
@@ -865,8 +864,9 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 		cmd->impulse = 0;
 }
 
-void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t cursor_start, vec3_t cursor_impact, int *entnum)
+void CL_UpdatePrydonCursor(usercmd_t *from, int pnum)
 {
+	unsigned int hit;
 	vec3_t cursor_end;
 
 	vec3_t temp;
@@ -876,22 +876,22 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 
 	if (!cl_prydoncursor.ival)
 	{	//center the cursor
-		cursor_screen[0] = 0;
-		cursor_screen[1] = 0;
+		from->cursor_screen[0] = 0;
+		from->cursor_screen[1] = 0;
 	}
 	else
 	{
-		cursor_screen[0] = mousecursor_x/(vid.width/2.0f) - 1;
-		cursor_screen[1] = mousecursor_y/(vid.height/2.0f) - 1;
-		if (cursor_screen[0] < -1)
-			cursor_screen[0] = -1;
-		if (cursor_screen[1] < -1)
-			cursor_screen[1] = -1;
+		from->cursor_screen[0] = mousecursor_x/(vid.width/2.0f) - 1;
+		from->cursor_screen[1] = mousecursor_y/(vid.height/2.0f) - 1;
+		if (from->cursor_screen[0] < -1)
+			from->cursor_screen[0] = -1;
+		if (from->cursor_screen[1] < -1)
+			from->cursor_screen[1] = -1;
 
-		if (cursor_screen[0] > 1)
-			cursor_screen[0] = 1;
-		if (cursor_screen[1] > 1)
-			cursor_screen[1] = 1;
+		if (from->cursor_screen[0] > 1)
+			from->cursor_screen[0] = 1;
+		if (from->cursor_screen[1] > 1)
+			from->cursor_screen[1] = 1;
 	}
 
 	/*
@@ -917,20 +917,22 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 	}
 	*/
 
-	VectorClear(cursor_start);
-	temp[0] = (cursor_screen[0]+1)/2;
-	temp[1] = (-cursor_screen[1]+1)/2;
+	VectorClear(from->cursor_start);
+	temp[0] = (from->cursor_screen[0]+1)/2;
+	temp[1] = (-from->cursor_screen[1]+1)/2;
 	temp[2] = 1;
 
-	VectorCopy(r_origin, cursor_start);
-	Matrix4x4_CM_UnProject(temp, cursor_end, cl.playerview[0].viewangles, cursor_start, r_refdef.fov_x, r_refdef.fov_y);
+	VectorCopy(r_origin, from->cursor_start);
+	Matrix4x4_CM_UnProject(temp, cursor_end, cl.playerview[pnum].viewangles, from->cursor_start, r_refdef.fov_x, r_refdef.fov_y);
 
 	CL_SetSolidEntities();
 	//don't bother with players, they don't exist in NQ...
 
-	TraceLineN(cursor_start, cursor_end, cursor_impact, cursor_impact_normal);
-
-	*entnum = 0;
+	hit = TraceLineN(from->cursor_start, cursor_end, from->cursor_impact, cursor_impact_normal);
+	if (hit)
+		from->cursor_entitynumber = hit-1;
+	else
+		from->cursor_entitynumber = 0;
 
 //	P_RunParticleEffect(cursor_impact, vec3_origin, 15, 16);
 }
@@ -983,22 +985,17 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 
 	if (cls.protocol_nq >= CPNQ_DP6 || (cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR))
 	{
-		vec3_t cursor_start, cursor_impact;
-		int cursor_entitynumber;
-
-		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
-
 		MSG_WriteLong (buf, cmd->buttons);
 		MSG_WriteByte (buf, cmd->impulse);
-		MSG_WriteShort (buf, cursor_screen[0] * 32767.0f);
-		MSG_WriteShort (buf, cursor_screen[1] * 32767.0f);
-		MSG_WriteFloat (buf, cursor_start[0]);
-		MSG_WriteFloat (buf, cursor_start[1]);
-		MSG_WriteFloat (buf, cursor_start[2]);
-		MSG_WriteFloat (buf, cursor_impact[0]);
-		MSG_WriteFloat (buf, cursor_impact[1]);
-		MSG_WriteFloat (buf, cursor_impact[2]);
-		MSG_WriteEntity (buf, cursor_entitynumber);
+		MSG_WriteShort (buf, cmd->cursor_screen[0] * 32767.0f);
+		MSG_WriteShort (buf, cmd->cursor_screen[1] * 32767.0f);
+		MSG_WriteFloat (buf, cmd->cursor_start[0]);
+		MSG_WriteFloat (buf, cmd->cursor_start[1]);
+		MSG_WriteFloat (buf, cmd->cursor_start[2]);
+		MSG_WriteFloat (buf, cmd->cursor_impact[0]);
+		MSG_WriteFloat (buf, cmd->cursor_impact[1]);
+		MSG_WriteFloat (buf, cmd->cursor_impact[2]);
+		MSG_WriteEntity (buf, cmd->cursor_entitynumber);
 	}
 	else
 	{
@@ -1453,22 +1450,21 @@ qboolean CLQW_SendCmd (sizebuf_t *buf)
 		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 	}
 
-	if ((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR) && (*cl_prydoncursor.string && cl_prydoncursor.ival >= 0) && cls.state == ca_active)
+	cmd = &cl.outframes[curframe].cmd[0];
+	if (cmd->cursor_screen[0] || cmd->cursor_screen[1] || cmd->cursor_entitynumber ||
+		cmd->cursor_start[0] || cmd->cursor_start[1] || cmd->cursor_start[2] ||
+		cmd->cursor_impact[0] || cmd->cursor_impact[1] || cmd->cursor_impact[2])
 	{
-		vec3_t cursor_start, cursor_impact;
-		int cursor_entitynumber = 0;
-		cmd = &cl.outframes[curframe].cmd[0];
-		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
 		MSG_WriteByte (buf, clc_prydoncursor);
-		MSG_WriteShort(buf, cursor_screen[0] * 32767.0f);
-		MSG_WriteShort(buf, cursor_screen[1] * 32767.0f);
-		MSG_WriteFloat(buf, cursor_start[0]);
-		MSG_WriteFloat(buf, cursor_start[1]);
-		MSG_WriteFloat(buf, cursor_start[2]);
-		MSG_WriteFloat(buf, cursor_impact[0]);
-		MSG_WriteFloat(buf, cursor_impact[1]);
-		MSG_WriteFloat(buf, cursor_impact[2]);
-		MSG_WriteEntity(buf, cursor_entitynumber);
+		MSG_WriteShort(buf, cmd->cursor_screen[0] * 32767.0f);
+		MSG_WriteShort(buf, cmd->cursor_screen[1] * 32767.0f);
+		MSG_WriteFloat(buf, cmd->cursor_start[0]);
+		MSG_WriteFloat(buf, cmd->cursor_start[1]);
+		MSG_WriteFloat(buf, cmd->cursor_start[2]);
+		MSG_WriteFloat(buf, cmd->cursor_impact[0]);
+		MSG_WriteFloat(buf, cmd->cursor_impact[1]);
+		MSG_WriteFloat(buf, cmd->cursor_impact[2]);
+		MSG_WriteEntity(buf, cmd->cursor_entitynumber);
 	}
 
 	MSG_WriteByte (buf, clc_move);
@@ -1782,6 +1778,19 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			return;
 		}
 		cursor_active = false;
+
+		cmd = &independantphysics[0];
+		if (((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR)||(cls.protocol == CP_NETQUAKE && cls.protocol_nq >= CPNQ_DP6)) && 
+			(*cl_prydoncursor.string && cl_prydoncursor.ival >= 0) && cls.state == ca_active)
+			CL_UpdatePrydonCursor(cmd, 0);
+		else
+		{
+			Vector2Clear(cmd->cursor_screen);
+			VectorClear(cmd->cursor_start);
+			VectorClear(cmd->cursor_impact);
+			cmd->cursor_entitynumber = 0;
+		}
+
 		switch (cls.protocol)
 		{
 #ifdef NQPROT

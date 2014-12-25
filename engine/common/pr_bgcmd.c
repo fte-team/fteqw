@@ -55,8 +55,9 @@ static void PF_Warningf(pubprogfuncs_t *prinst, const char *fmt, ...)
 	vsnprintf (string, sizeof(string)-1, fmt, argptr);
 	va_end (argptr);
 
+	if (developer.ival)
+		PR_StackTrace(prinst, false);
 	Con_Printf("%s", string);
-	PR_StackTrace(prinst, false);
 }
 
 char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals)

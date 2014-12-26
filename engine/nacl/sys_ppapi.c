@@ -189,6 +189,17 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	return false;
 }
 
+void Sys_Sleep (double seconds)
+{
+	struct timespec ts;
+
+	ts.tv_sec = (time_t)seconds;
+	seconds -= ts.tv_sec;
+	ts.tv_nsec = seconds * 1000000000.0;
+
+	nanosleep(&ts, NULL);
+}
+
 // an error will cause the entire program to exit
 NORETURN void VARGS Sys_Error (const char *error, ...)
 {

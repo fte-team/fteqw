@@ -43,6 +43,7 @@ void GUI_RevealOptions(void);
 
 //scintilla stuff
 #define SCI_GETLENGTH 2006
+#define SCI_GETCHARAT 2007
 #define SCI_GETCURRENTPOS 2008
 #define SCI_SETSAVEPOINT 2014
 #define SCI_GETCURLINE 2027
@@ -54,6 +55,8 @@ void GUI_RevealOptions(void);
 #define SCI_MARKERNEXT 2047
 #define SCI_STYLECLEARALL 2050
 #define SCI_STYLESETFORE 2051
+#define SCI_STYLESETBACK 2052
+#define SCI_STYLESETBOLD 2053
 #define SCI_AUTOCSHOW 2100
 #define SCI_AUTOCCANCEL 2101
 #define SCI_AUTOCACTIVE 2102
@@ -67,7 +70,12 @@ void GUI_RevealOptions(void);
 #define SCI_CALLTIPCANCEL 2201
 #define SCI_SETMARGINSENSITIVEN 2246
 #define SCI_SETMOUSEDWELLTIME 2264
+#define SCI_BRACEHIGHLIGHTINDICATOR 2498
+#define SCI_BRACEBADLIGHTINDICATOR 2499
 #define SCI_LINELENGTH 2350
+#define SCI_BRACEHIGHLIGHT 2351
+#define SCI_BRACEBADLIGHT 2352
+#define SCI_BRACEMATCH 2353
 #define SCI_AUTOCSETORDER 2660
 #define SCI_SETLEXER 4001
 #define SCI_SETPROPERTY 4004
@@ -107,9 +115,13 @@ void GUI_RevealOptions(void);
 #define SCE_C_TASKMARKER 26
 #define SCE_C_ESCAPESEQUENCE 27
 
+#define STYLE_BRACELIGHT 34
+#define STYLE_BRACEBAD 35
+
 #define SCN_CHARADDED 2001
 #define SCN_SAVEPOINTREACHED 2002
 #define SCN_SAVEPOINTLEFT 2003
+#define SCN_UPDATEUI 2007
 #define SCN_MARGINCLICK 2010
 #define SCN_DWELLSTART 2016
 #define SCN_DWELLEND 2017
@@ -600,7 +612,7 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 	HWND newc = NULL;
 
 #ifdef SCISTATIC
-	extern Scintilla_RegisterClasses(HINSTANCE);
+	extern int Scintilla_RegisterClasses(void *hinst);
 	scintilla = ghInstance;
 	Scintilla_RegisterClasses(scintilla);
 #else
@@ -711,6 +723,12 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 		SendMessage(newc, SCI_STYLESETFORE, SCE_C_USERLITERAL,				RGB(0xA0, 0x10, 0x10));
 		SendMessage(newc, SCI_STYLESETFORE, SCE_C_TASKMARKER,				RGB(0xA0, 0x10, 0x10));
 		SendMessage(newc, SCI_STYLESETFORE, SCE_C_ESCAPESEQUENCE,			RGB(0xA0, 0x10, 0x10));
+
+		SendMessage(newc, SCI_STYLESETFORE, STYLE_BRACELIGHT,				RGB(0x00, 0x00, 0x3F));
+		SendMessage(newc, SCI_STYLESETBACK, STYLE_BRACELIGHT,				RGB(0xaf, 0xaf, 0xaf));
+		SendMessage(newc, SCI_STYLESETBOLD, STYLE_BRACELIGHT,				TRUE);
+		SendMessage(newc, SCI_STYLESETFORE, STYLE_BRACEBAD,					RGB(0x3F, 0x00, 0x00));
+		SendMessage(newc, SCI_STYLESETBACK, STYLE_BRACEBAD,					RGB(0xff, 0xaf, 0xaf));
 
 		SendMessage(newc, SCI_SETKEYWORDS,	0,	(LPARAM)
 					"if else for do not while asm break case const continue "
@@ -1254,6 +1272,25 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 					if (EditorModified(editor))
 						if (MessageBox(NULL, "warning: file was modified externally. reload?", "Modified!", MB_YESNO) == IDYES)
 							EditorReload(editor);
+					break;
+				case SCN_UPDATEUI:
+					{
+						int pos1, pos2;
+						if (strchr("{}[]()", SendMessage(editor->editpane, SCI_GETCHARAT, pos, 0)))
+							pos1 = pos;
+						else if (strchr("{}[]()", SendMessage(editor->editpane, SCI_GETCHARAT, pos-1, 0)))
+							pos1 = pos-1;
+						else
+							pos1 = -1;
+						if (pos1 != -1)
+							pos2 = SendMessage(editor->editpane, SCI_BRACEMATCH, pos1, 0);
+						else
+							pos2 = -1;
+						if (pos2 == -1)
+							SendMessage(editor->editpane, SCI_BRACEBADLIGHT, pos1, 0);
+						else
+							SendMessage(editor->editpane, SCI_BRACEHIGHLIGHT, pos1, pos2);
+					}
 					break;
 				case SCN_DWELLSTART:
 					s = GetTooltipText(editor, not->position);

@@ -1381,6 +1381,16 @@ ifneq ($(DEPCC),)
 endif
 	$(DO_CC) -I$(OUT_DIR)
 
+$(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.cxx
+ifneq ($(DEPCC),)
+	@-set -e; rm -f $@.d; \
+	$(DEPCC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
+	sed 's,\($*\)\.o[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
+	rm -f $@.d.$$$$
+endif
+	$(DO_CC) -I$(OUT_DIR)
+
 $(OUT_DIR)/%.oo $(OUT_DIR)/%.d : %.c
 ifneq ($(DEPCC),)
 	@-set -e; rm -f $@.d; \
@@ -1516,7 +1526,7 @@ m-dbg:
 m-profile:
 	@$(MAKE) m-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(MB_DIR)"
 
-.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir
+.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs
 
 
 _qcc-tmp: $(REQDIR)
@@ -1529,6 +1539,25 @@ qcc-dbg:
 	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qcctui.o"
 qccgui-dbg:
 	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lcomdlg32 -lcomctl32 -mwindows"
+
+
+#scintilla is messy as fuck when building statically. but at least we can strip out the lexers we don't use this way.
+#note that this is only used in the 'qccgui-scintilla' target.
+SCINTILLAVER=352
+SCINTILLA_FILES= AutoComplete.o CallTip.o CaseConvert.o CaseFolder.o CellBuffer.o CharacterCategory.o CharacterSet.o CharClassify.o ContractionState.o Decoration.o Document.o EditModel.o Editor.o EditView.o KeyMap.o Indicator.o LineMarker.o MarginView.o PerLine.o PlatWin.o PositionCache.o PropSetSimple.o RESearch.o RunStyles.o Selection.o Style.o UniConversion.o ViewStyle.o XPM.o ScintillaWin.o ScintillaBase.o Accessor.o Catalogue.o ExternalLexer.o LexerBase.o LexerModule.o LexerSimple.o StyleContext.o WordList.o LexCPP.o
+SCINTILLA_ROOT=$(BASE_DIR)/scintilla$(SCINTILLAVER)/scintilla
+SCINTILLA_DIRS=$(SCINTILLA_ROOT)/lexers:$(SCINTILLA_ROOT)/lexlib:$(SCINTILLA_ROOT)/src:$(SCINTILLA_ROOT)/win32
+SCINTILLA_INC=-I$(SCINTILLA_ROOT)/include -I$(SCINTILLA_ROOT)/lexlib -I$(SCINTILLA_ROOT)/win32 -I$(SCINTILLA_ROOT)/src
+$(RELEASE_DIR)/scintilla$(BITS).a: $(foreach f,$(SCINTILLA_FILES),$(OUT_DIR)/$(f))
+	$(AR) -r $@ $?
+	$(AR) -s $@
+scintilla$(BITS)_static:
+	@test -f scintilla$(SCINTILLAVER).tar.gz || wget http://prdownloads.sourceforge.net/scintilla/scintilla$(SCINTILLAVER).tgz?download -O scintilla$(SCINTILLAVER).tar.gz
+	-test -f $(SCINTILLA_ROOT) || (mkdir $(BASE_DIR)/scintilla$(SCINTILLAVER) && cd $(BASE_DIR)/scintilla$(SCINTILLAVER) && tar -xvzf ../scintilla$(SCINTILLAVER).tar.gz && cd scintilla && mv lexers/LexCPP.cxx . && rm lexers/Lex*.cxx && mv LexCPP.cxx lexers/ && cd scripts && python LexGen.py)
+	@$(MAKE) reldir OUT_DIR=$(RELEASE_DIR)/qcc
+	@$(MAKE) $(RELEASE_DIR)/scintilla$(BITS).a VPATH="$(SCINTILLA_DIRS)" CFLAGS="$(SCINTILLA_INC) -DDISABLE_D2D -DSTATIC_BUILD -DSCI_LEXER" OUT_DIR=$(RELEASE_DIR)/qcc WCFLAGS="$(WCFLAGS) -Os"
+qccgui-scintilla: scintilla$(BITS)_static
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -lcomdlg32 -lcomctl32 -mwindows"
 
 ifdef windir
 debugdir:

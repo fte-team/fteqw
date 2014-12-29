@@ -599,8 +599,14 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 {
 	HWND newc = NULL;
 
+#ifdef SCISTATIC
+	extern Scintilla_RegisterClasses(HINSTANCE);
+	scintilla = ghInstance;
+	Scintilla_RegisterClasses(scintilla);
+#else
 	if (!scintilla && scintillaokay)
 		scintilla = LoadLibrary("SciLexer.dll");
+#endif
 
 	if (!richedit)
 		richedit = LoadLibrary("RICHED32.DLL");

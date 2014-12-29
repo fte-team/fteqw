@@ -66,6 +66,7 @@ ifneq (,$(findstring win32,$(FTE_TARGET)))
 		ifneq ($(shell which i586-mingw32msvc-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=i586-mingw32msvc-gcc
+			AR=i586-mingw32msvc-ar
 			WINDRES=i586-mingw32msvc-windres
 			STRIP=i586-mingw32msvc-strip
 #			BITS?=32
@@ -74,6 +75,7 @@ ifneq (,$(findstring win32,$(FTE_TARGET)))
 		ifneq ($(shell which i686-w64-mingw32-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=i686-w64-mingw32-gcc
+			AR=i686-w64-mingw32-ar
 			WINDRES=i686-w64-mingw32-windres
 			STRIP=i686-w64-mingw32-strip
 #			BITS?=32
@@ -88,6 +90,7 @@ ifneq (,$(findstring win64,$(FTE_TARGET)))
 		ifneq ($(shell which x86_64-w64-mingw32-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=x86_64-w64-mingw32-gcc -m64
+			AR=x86_64-w64-mingw32-ar
 			WINDRES=x86_64-w64-mingw32-windres
 			STRIP=x86_64-w64-mingw32-strip
 #			BITS=64
@@ -95,6 +98,7 @@ ifneq (,$(findstring win64,$(FTE_TARGET)))
 		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
 			#yup, the alternative exists (this matches the one debian has)
 			CC=amd64-mingw32msvc-gcc -m64
+			AR=amd64-mingw32msvc-ar
 			WINDRES=amd64-mingw32msvc-windres
 			STRIP=amd64-mingw32msvc-strip
 #			BITS=64

@@ -4252,8 +4252,10 @@ void Host_DoRunFile(hrf_t *f)
 	}
 	else if (f->flags & HRF_MODEL)
 	{
-		FS_FixupGamedirForExternalFile(f->fname, loadcommand, sizeof(loadcommand));
-		Cbuf_AddText(va("modelviewer \"%s\"\n", loadcommand), RESTRICT_LOCAL);
+		if (!FS_FixupGamedirForExternalFile(f->fname, loadcommand, sizeof(loadcommand)))
+			Con_Printf("%s is not within the current gamedir\n", f->fname);
+		else
+			Cbuf_AddText(va("modelviewer \"%s\"\n", loadcommand), RESTRICT_LOCAL);
 		f->flags |= HRF_ABORT;
 		Host_DoRunFile(f);
 		return;
@@ -4787,6 +4789,8 @@ void CL_ReadCDKey(void)
 
 void CL_StartCinematicOrMenu(void)
 {
+	COM_MainThreadWork();
+
 	if (cls.download)
 	{
 		startuppending = true;

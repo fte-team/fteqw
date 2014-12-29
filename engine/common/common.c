@@ -4863,7 +4863,7 @@ void COM_DestroyWorkerThread(void)
 	com_resourcemutex = NULL;
 }
 
-//partial means we're waiting for an explicit response. the caller will need to check when that response arrives.
+//fully flushes ALL pending work.
 void COM_WorkerFullSync(void)
 {
 	qboolean repeat;
@@ -4895,6 +4895,7 @@ void COM_WorkerFullSync(void)
 			repeat = true;
 	} while (COM_DoWork(0, false) || repeat);	//outer loop ensures there isn't anything pingponging between
 }
+
 //main thread wants a specific object to be prioritised.
 //an ancestor of the work must be pending on either the main thread or the worker thread.
 //typically the worker gives us a signal to handle the final activation of the object.

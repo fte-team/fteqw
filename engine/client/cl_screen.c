@@ -1790,6 +1790,7 @@ SCR_SetUpToDrawConsole
 */
 void SCR_SetUpToDrawConsole (void)
 {
+	extern qboolean startuppending;	//true if we're downloading media or something and have not yet triggered the startup action (read: main menu or cinematic)
 #ifdef TEXTEDITOR
 	//extern qboolean editoractive; //unused variable
 #endif
@@ -1810,7 +1811,7 @@ void SCR_SetUpToDrawConsole (void)
 //			Key_Dest_Add(kdm_console);
 			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
 		}
-		else if (!Key_Dest_Has(kdm_menu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
+		else if (!startuppending && !Key_Dest_Has(kdm_menu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
 		{
 			//go fullscreen if we're not doing anything
 #ifdef VM_UI
@@ -1837,7 +1838,7 @@ void SCR_SetUpToDrawConsole (void)
 						Key_Dest_Add(kdm_console);
 				}
 			}
-			if (!con_stayhidden.ival && Key_Dest_Has(kdm_console))
+			if (!con_stayhidden.ival && !startuppending && Key_Dest_Has(kdm_console))
 				scr_con_current = scr_conlines = vid.height * fullscreenpercent;
 		}
 		else if (Key_Dest_Has(kdm_console) || scr_chatmode)

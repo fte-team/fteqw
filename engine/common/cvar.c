@@ -409,6 +409,21 @@ void Cvar_List_f (void)
 	}
 }
 
+//default values are meant to be constants.
+//sometimes that just doesn't make sense.
+//so provide a safe way to change it (MUST be initialised to NULL)
+void Cvar_SetEngineDefault(cvar_t *var, char *val)
+{
+	qboolean wasdefault = (var->defaultstr == var->enginevalue);
+	Z_Free(var->enginevalue);
+	if (val)
+		var->enginevalue = Z_StrDup(val);
+	else
+		var->enginevalue = NULL;
+
+	if (wasdefault)
+		var->defaultstr = var->enginevalue;
+}
 void Cvar_LockDefaults_f(void)
 {
 	cvar_group_t *grp;

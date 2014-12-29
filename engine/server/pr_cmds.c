@@ -10526,6 +10526,9 @@ void PR_DumpPlatform_f(void)
 		{"m_keyup",					"void(float scan, float chr)", MENU},
 		{"m_toggle",				"void(float mode)", MENU},
 
+		{"parm17, parm18, parm19, parm20, parm21, parm22, parm23, parm24, parm25, parm26, parm27, parm28, parm29, parm30, parm31, parm32", "float", QW|NQ},
+		{"parm33, parm34, parm35, parm36, parm37, parm38, parm39, parm40, parm41, parm42, parm43, parm44, parm45, parm46, parm47, parm48", "float", QW|NQ},
+		{"parm49, parm50, parm51, parm52, parm53, parm54, parm55, parm56, parm57, parm58, parm59, parm60, parm61, parm62, parm63, parm64", "float", QW|NQ},
 		{"physics_mode",			"var float", QW|NQ|CS, "0: original csqc - physics are not run\n1: DP-compat. Thinks occur, but not true movetypes.\n2: movetypes occur just as they do in ssqc.", 2},
 		{"gamespeed",				"float", CS, "Set by the engine, this is the value of the sv_gamespeed cvar"},
 		{"numclientseats",			"float", CS, "This is the number of splitscreen clients currently running on this client."},
@@ -10770,7 +10773,7 @@ void PR_DumpPlatform_f(void)
 		{"EV_FLOAT",			"const float", QW|NQ|CS, NULL, ev_float},
 		{"EV_VECTOR",			"const float", QW|NQ|CS, NULL, ev_vector},
 		{"EV_ENTITY",			"const float", QW|NQ|CS, NULL, ev_entity},
-//		{"EV_FIELD",			"const float", QW|NQ|CS, NULL, ev_field},
+		{"EV_FIELD",			"const float", QW|NQ|CS, NULL, ev_field},
 		{"EV_FUNCTION",			"const float", QW|NQ|CS, NULL, ev_function},
 		{"EV_POINTER",			"const float", QW|NQ|CS, NULL, ev_pointer},
 		{"EV_INTEGER",			"const float", QW|NQ|CS, NULL, ev_integer},

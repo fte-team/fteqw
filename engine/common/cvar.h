@@ -209,6 +209,8 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all);
 
 cvar_t *Cvar_FindVar (const char *var_name);
 
+void Cvar_SetEngineDefault(cvar_t *var, char *val);
+
 void Cvar_Init(void);
 void Cvar_Shutdown(void);
 

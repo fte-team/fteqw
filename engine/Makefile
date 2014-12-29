@@ -121,6 +121,23 @@ ifeq ($(DROID_ARCH),)
 	DROID_ARCH=armeabi
 endif
 ifeq ($(FTE_TARGET),droid)
+	DROID_API_LEVEL=4
+
+	ifeq ($(DROID_ARCH),x86)
+		DROID_PLAT_INC=arch-x86
+		#google fecked up. anything before api_level 9 will fail to compile on x86
+		DROID_API_LEVEL=9
+	else
+		DROID_PLAT_INC=arch-arm
+
+		#there are 3 ABI targets
+		#armv5 (works on all arm droids)
+		#armv7 (more common on 2.2+ droids)
+		#armv7+neon
+		DROID_ABI?=-mfloat-abi=softfp
+	endif
+	DROIDSYSROOT=$(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC))
+
 	#if we're running under windows, then we want to run some other binary
 	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
 		#set up for linux
@@ -150,26 +167,12 @@ ifeq ($(FTE_TARGET),droid)
 		DEPCC=
 
 		#configure hates android, with its broken default sysroot and lack of path etc
-		TOOLOVERRIDES=PATH="/usr/bin:$(shell cygpath -u $(realpath $(TOOLCHAINPATH)))" CFLAGS=--sysroot="$(shell cygpath -m $(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)))" CPPFLAGS=--sysroot="$(shell cygpath -m $(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)))" 
+		DROIDSYSROOT:=$(shell cygpath -m $(DROIDSYSROOT))
+		TOOLOVERRIDES=PATH="/usr/bin:$(shell cygpath -u $(realpath $(TOOLCHAINPATH)))" CFLAGS=--sysroot="$(DROIDSYSROOT)" CPPFLAGS=--sysroot="$(DROIDSYSROOT)" 
 		CONFIGARGS= --with-sysroot="$(shell cygpath -u $(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)))" 
 	endif
 
-	DROID_API_LEVEL=4
-
-	ifeq ($(DROID_ARCH),x86)
-		DROID_PLAT_INC=arch-x86
-		#google fecked up. anything before api_level 9 will fail to compile on x86
-		DROID_API_LEVEL=9
-	else
-		DROID_PLAT_INC=arch-arm
-
-		#there are 3 ABI targets
-		#armv5 (works on all arm droids)
-		#armv7 (more common on 2.2+ droids)
-		#armv7+neon
-		DROID_ABI?=-mfloat-abi=softfp
-	endif
-	CC:=$(TOOLCHAIN)gcc --sysroot="$(shell cygpath -m $(realpath $(ANDROID_NDK_ROOT)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)))" -DANDROID $(DROID_ABI) -fno-strict-aliasing
+	CC:=$(TOOLCHAIN)gcc --sysroot="$(DROIDSYSROOT)" -DANDROID $(DROID_ABI) -fno-strict-aliasing
 	DO_LD:=$(DO_ECHO) $(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack -o $@ $(LTO_LD) $(WCFLAGS) $(BRANDFLAGS) $(CFLAGS) -llog -lc -lz -lm
 	LD:=$(TOOLCHAIN)ld
 	AR:=$(TOOLCHAIN)ar

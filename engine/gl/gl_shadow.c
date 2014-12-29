@@ -3255,12 +3255,18 @@ void Sh_PreGenerateLights(void)
 	qbyte *lvis;
 	int i;
 
+	r_shadow_realtime_world_lightmaps.value = atof(r_shadow_realtime_world_lightmaps.string);
 	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
 	{
 		if (RTL_FIRST == rtlights_max)
 			R_LoadRTLights();
 		if (RTL_FIRST == rtlights_max)
 			R_ImportRTLights(cl.worldmodel->entities);
+		if (RTL_FIRST == rtlights_max && r_shadow_realtime_world.ival)
+		{
+			r_shadow_realtime_world_lightmaps.value = 1;
+			Con_Printf(CON_ERROR "No lights detected in map. Disabling realtime lights.\n");
+		}
 	}
 
 	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:LFLAG_NORMALMODE);

@@ -1047,6 +1047,7 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 		char *fname;
 		int profile;
 		unsigned long long profiletime;
+		unsigned long long totaltime;
 	} *sorted, t;
 	if (!prinst.profiling)
 	{
@@ -1073,6 +1074,7 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 			sorted[s].fname = ps->functions[f].s_name+progfuncs->funcs.stringtable;
 			sorted[s].profile = ps->functions[f].profile;
 			sorted[s].profiletime = ps->functions[f].profiletime - ps->functions[f].profilechildtime;
+			sorted[s].totaltime = ps->functions[f].profiletime;
 			ps->functions[f].profile = 0;
 			ps->functions[f].profiletime = 0;
 			s++;
@@ -1080,6 +1082,7 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 
 		// good 'ol bubble sort
 		for (f = 0; f < s; f++)
+		{
 			for (j = f; j < s; j++)
 				if (sorted[f].profiletime > sorted[j].profiletime)
 				{
@@ -1087,10 +1090,12 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 					sorted[f] = sorted[j];
 					sorted[j] = t;
 				}
+		}
 
 		//print it out
+		printf("%5s %5s %5s: %s\n", "ops", "self-time", "total-time", "function");
 		for (f = 0; f < s; f++)
-			printf("%s: %u %g\n", sorted[f].fname, sorted[f].profile, (float)(((double)sorted[f].profiletime) / cpufrequency));
+			printf("%5u %5g %5g: %s\n", sorted[f].profile, (float)(((double)sorted[f].profiletime) / cpufrequency), (float)(((double)sorted[f].totaltime) / cpufrequency), sorted[f].fname);
 		free(sorted);
 	}
 	return true;

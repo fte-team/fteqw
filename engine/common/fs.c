@@ -3303,10 +3303,8 @@ void FS_Shutdown(void)
 	Sys_DestroyMutex(fs_thread_mutex);
 	fs_thread_mutex = NULL;
 
-	Z_Free(fs_gamename.enginevalue);
-	fs_gamename.enginevalue = NULL;
-	Z_Free(com_protocolname.enginevalue);
-	fs_gamename.enginevalue = NULL;
+	Cvar_SetEngineDefault(&fs_gamename, NULL);
+	Cvar_SetEngineDefault(&com_protocolname, NULL);
 }
 
 //returns false if the directory is not suitable.
@@ -3977,11 +3975,9 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 
 			if (reloadconfigs)
 			{
-				Z_Free(fs_gamename.enginevalue);
-				fs_gamename.enginevalue = Z_StrDup(man->formalname?man->formalname:"FTE");
-				Z_Free(com_protocolname.enginevalue);
-				com_protocolname.enginevalue = Z_StrDup(man->protocolname?man->protocolname:"FTE");
-				//FIXME: flag this instead and do it after a delay
+				Cvar_SetEngineDefault(&fs_gamename, man->formalname?man->formalname:"FTE");
+				Cvar_SetEngineDefault(&com_protocolname, man->protocolname?man->protocolname:"FTE");
+				//FIXME: flag this instead and do it after a delay?
 				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
 				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
 

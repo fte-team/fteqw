@@ -1176,6 +1176,19 @@ struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*N
 	newdl->next = activedownloads;
 	activedownloads = newdl;
 
+
+	if (!cls.download)
+	{
+		cls.download = &newdl->qdownload;
+		newdl->qdownload.method = DL_HTTP;
+		if (*newdl->localname)
+			Q_strncpyz(newdl->qdownload.localname, newdl->localname, sizeof(newdl->qdownload.localname));
+		else
+			Q_strncpyz(newdl->qdownload.localname, newdl->url, sizeof(newdl->qdownload.localname));
+		Q_strncpyz(newdl->qdownload.remotename, newdl->url, sizeof(newdl->qdownload.remotename));
+		newdl->qdownload.starttime = Sys_DoubleTime();
+	}
+
 	return newdl;
 }
 
@@ -1247,6 +1260,13 @@ void HTTP_CL_Think(void)
 		else
 			dl->qdownload.percent = dl->completed*100.0f/dl->totalsize;
 		dl->qdownload.completedbytes = dl->completed;
+
+		if (dl->qdownload.ratetime < Sys_DoubleTime())
+		{
+			dl->qdownload.ratetime = Sys_DoubleTime()+1;
+			dl->qdownload.rate = (dl->qdownload.completedbytes - dl->qdownload.ratebytes) / 1;
+			dl->qdownload.ratebytes = dl->qdownload.completedbytes;
+		}
 	}
 }
 #endif

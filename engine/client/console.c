@@ -1289,6 +1289,7 @@ void Con_ClearNotify(void)
 }
 void Con_DrawNotify (void)
 {
+	extern qboolean startuppending;
 	console_t *con;
 
 	con_main.flags |= CONF_NOTIFY;
@@ -1305,10 +1306,20 @@ void Con_DrawNotify (void)
 		con_chat->notif_t = con_notifytime_chat.value;
 	}
 
-	for (con = &con_main; con; con = con->next)
+	if (startuppending)
 	{
-		if (con->flags & CONF_NOTIFY)
-			Con_DrawNotifyOne(con);
+		int x,y;
+		Font_BeginString(font_console, 0, 0, &x, &y);
+		Con_DrawProgress(0, vid.width, 0);
+		Font_EndString(font_console);
+	}
+	else
+	{
+		for (con = &con_main; con; con = con->next)
+		{
+			if (con->flags & CONF_NOTIFY)
+				Con_DrawNotifyOne(con);
+		}
 	}
 
 	if (Key_Dest_Has(kdm_message))

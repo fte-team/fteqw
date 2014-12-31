@@ -277,7 +277,7 @@ It doesn't use persistant connections.
 */
 
 struct http_dl_ctx_s {
-	struct dl_download *dlctx;
+//	struct dl_download *dlctx;
 
 #if 1
 	vfsfile_t *sock;
@@ -801,7 +801,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 #endif
 	if (dl->postdata)
 	{
-		ExpandBuffer(con, 1024 + strlen(uri) + strlen(server) + strlen(con->dlctx->postmimetype) + dl->postlen);
+		ExpandBuffer(con, 1024 + strlen(uri) + strlen(server) + strlen(dl->postmimetype) + dl->postlen);
 		Q_snprintfz(con->buffer, con->bufferlen,
 			"POST %s HTTP/1.1\r\n"
 			"Host: %s\r\n"

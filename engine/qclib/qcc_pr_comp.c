@@ -10771,7 +10771,32 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 					f = NULL;
 			}
 			else
+			{
+				if (def->initialized == 1)
+				{
+					//normally this is an error, but to aid supporting new stuff with old, we convert it into a warning if a vanilla(ish) qc function replaces extension builtins.
+					//the qc function is the one that is used, but there is a warning so you know how to gain efficiency.
+					int bi = -1;
+					if (def->type->type == ev_function && !arraysize)
+					{
+						if (!strcmp(def->name, "anglemod"))
+							bi = G_INT(def->ofs);
+					}
+					if (bi <= 0 || bi >= numfunctions)
+						bi = 0;
+					else
+						bi = functions[bi].first_statement;
+					if (bi < 0)
+					{
+						QCC_PR_ParseWarning(WARN_NOTSTANDARDBEHAVIOUR, "%s already declared as builtin", def->name);
+						QCC_PR_ParsePrintDef(WARN_NOTSTANDARDBEHAVIOUR, def);
+						def->initialized = 3;
+					}
+					else
+						QCC_PR_ParseErrorPrintDef (ERR_REDECLARATION, def, "redeclaration of function body");
+				}
 				f = QCC_PR_ParseImmediateStatements (type);
+			}
 			if (!tmp)
 			{
 				pr_scope = parentfunc;
@@ -10935,7 +10960,7 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 void QCC_PR_ParseInitializerDef(QCC_def_t *def)
 {
 	QCC_PR_ParseInitializerType(def->arraysize, def, def->type, def->ofs);
-	if (!def->initialized)
+	if (!def->initialized || def->initialized == 3)
 		def->initialized = 1;
 }
 

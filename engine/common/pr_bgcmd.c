@@ -3648,20 +3648,23 @@ static void PR_uri_get_callback(struct dl_download *dl)
 {
 	world_t *w = dl->user_ctx;
 	pubprogfuncs_t *prinst = w->progs;
-	float id = dl->user_num;
+	float id = dl->user_float;
+	int selfnum = dl->user_num;
 	func_t func;
 
 	if (!prinst)
 		return;
 	
 	func = PR_FindFunction(prinst, "URI_Get_Callback", PR_ANY);
-
-	if (func)
+	if (!func)
+		Con_Printf("URI_Get_Callback missing\n");
+	else if (func)
 	{
 		int len;
 		char *buffer;
 		struct globalvars_s *pr_globals = PR_globals(prinst, PR_CURRENT);
 
+		*w->g.self = selfnum;
 		G_FLOAT(OFS_PARM0) = id;
 		G_FLOAT(OFS_PARM1) = (dl->replycode!=200)?dl->replycode:0;	//for compat with DP, we change any 200s to 0.
 		G_INT(OFS_PARM2) = 0;
@@ -3729,7 +3732,8 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	if (dl)
 	{
 		dl->user_ctx = w;
-		dl->user_num = id;
+		dl->user_float = id;
+		dl->user_num = *w->g.self;
 		G_FLOAT(OFS_RETURN) = 1;
 	}
 	else
@@ -5374,7 +5378,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_UNLIMITEDTEMPSTRINGS"},
 	{"DP_QC_URI_ESCAPE",				2,	NULL, {"uri_escape", "uri_unescape"}},
 	{"DP_QC_URI_GET",					1,	NULL, {"uri_get"}},
-//test	{"DP_QC_URI_POST",					1,	NULL, {"uri_get"}},
+	{"DP_QC_URI_POST",					1,	NULL, {"uri_get"}},
 	{"DP_QC_VECTOANGLES_WITH_ROLL"},
 	{"DP_QC_VECTORVECTORS",				1,	NULL, {"vectorvectors"}},
 	{"DP_QC_WHICHPACK",					1,	NULL, {"whichpack"}},

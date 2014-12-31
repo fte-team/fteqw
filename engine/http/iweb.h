@@ -101,6 +101,7 @@ struct dl_download
 {
 	/*not used by anything in the download itself, useful for context*/
 	unsigned int user_num;
+	float user_float;
 	void *user_ctx;
 
 	qdownload_t qdownload;

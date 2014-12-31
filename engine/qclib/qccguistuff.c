@@ -114,6 +114,7 @@ void GUI_ParseCommandLine(char *args)
 	int paramlen=0;
 	int l, p;
 	char *next;
+	pbool isfirst = true;
 	while(*args)
 	{
 		while (*args <= ' ' && *args)
@@ -305,11 +306,34 @@ void GUI_ParseCommandLine(char *args)
 				paramlen += l;
 			}
 		}
+		else if (isfirst && *args != '-' && *args != '/')
+		{
+			l = 0;
+			while (*args != ' ' && *args)
+				progssrcname[l++] = *args++;
+			progssrcname[l] = 0;
+
+			args = strrchr(progssrcname, '\\');
+			while(args && strchr(args, '/'))
+				args = strchr(args, '/');
+			if (args)
+			{
+				memcpy(progssrcdir, progssrcname, args-progssrcname);
+				progssrcdir[args-progssrcname] = 0;
+				args++;
+				memmove(progssrcname, args, strlen(args)+1);
+
+				SetCurrentDirectoryA(progssrcdir);
+				*progssrcdir = 0;
+			}
+		}
 		else
 		{
 			parameters[paramlen+next-args] = ' ';
 			paramlen += l;
 		}
+
+		isfirst = false;
 
 		args=next;
 	}

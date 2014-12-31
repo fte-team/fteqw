@@ -507,6 +507,7 @@ HWND projecttree;
 HWND search_name;
 HWND search_gotodef;
 HWND search_grep;
+HACCEL accelerators;
 
 FILE *logfile;
 
@@ -791,6 +792,7 @@ enum {
 	IDM_GREP,
 	IDM_GOTODEF,
 	IDM_SAVE,
+	IDM_RECOMPILE,
 	IDM_FIND,
 	IDM_QUIT,
 	IDM_UNDO,
@@ -845,13 +847,17 @@ void QueryOpenFile(void)
 	SetCurrentDirectory(oldpath);
 }
 
-//IDM_ stuff that needs no active menu
+//IDM_ stuff that needs no active window
 void GenericMenu(WPARAM wParam)
 {
 	switch(LOWORD(wParam))
 	{
 	case IDM_OPENNEW:
 		QueryOpenFile();
+		break;
+
+	case IDM_RECOMPILE:
+		buttons[ID_COMPILE].washit = true;
 		break;
 
 	case IDM_ABOUT:
@@ -1783,15 +1789,15 @@ void EditFile(char *name, int line)
 		AppendMenu(menu, MF_POPUP, (UINT_PTR)menufile,	"&File");
 		AppendMenu(menu, MF_POPUP, (UINT_PTR)menunavig,	"&Navigation");
 		AppendMenu(menu, MF_POPUP, (UINT_PTR)menuhelp,	"&Help");
-		AppendMenu(menufile, 0, IDM_OPENNEW,	"Open &new file ");
+		AppendMenu(menufile, 0, IDM_OPENNEW,	"Open new file ");
 		AppendMenu(menufile, 0, IDM_SAVE,		"&Save          ");
 	//	AppendMenu(menufile, 0, IDM_FIND,		"&Find");
-		AppendMenu(menufile, 0, IDM_UNDO,		"&Undo          Ctrl+Z");
-		AppendMenu(menufile, 0, IDM_REDO,		"&Redo          Ctrl+Y");
+		AppendMenu(menufile, 0, IDM_UNDO,		"Undo          Ctrl+Z");
+		AppendMenu(menufile, 0, IDM_REDO,		"Redo          Ctrl+Y");
 		AppendMenu(menunavig, 0, IDM_GOTODEF, "Go to definition");
 		AppendMenu(menunavig, 0, IDM_OPENDOCU, "Open selected file");
 		AppendMenu(menuhelp, 0, IDM_ABOUT, "About");
-		AppendMenu(menu, 0, IDM_HIGHTLIGHT, "H&ighlight");
+//		AppendMenu(menu, 0, IDM_HIGHTLIGHT, "H&ighlight");
 	}
 
 
@@ -2865,18 +2871,19 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 			rootmenu = CreateMenu();
 			
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&File");
-					AppendMenu(m, 0, IDM_OPENNEW,	"Open &new file ");
-					AppendMenu(m, 0, IDM_SAVE,		"&Save          ");
+					AppendMenu(m, 0, IDM_OPENNEW,	"Open new file ");
+					AppendMenu(m, 0, IDM_SAVE,		"&Save         Ctrl+S ");
+					AppendMenu(m, 0, IDM_RECOMPILE,	"&Recompile    Ctrl+R ");
 				//	AppendMenu(m, 0, IDM_FIND,		"&Find");
-					AppendMenu(m, 0, IDM_UNDO,		"&Undo          Ctrl+Z");
-					AppendMenu(m, 0, IDM_REDO,		"&Redo          Ctrl+Y");
+					AppendMenu(m, 0, IDM_UNDO,		"Undo          Ctrl+Z");
+					AppendMenu(m, 0, IDM_REDO,		"Redo          Ctrl+Y");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Navigation");
 					AppendMenu(m, 0, IDM_GOTODEF, "Go to definition");
 					AppendMenu(m, 0, IDM_OPENDOCU, "Open selected file");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = windowmenu = CreateMenu()),	"&Window");
-					AppendMenu(m, 0, IDM_CASCADE, "&Cascade");
-					AppendMenu(m, 0, IDM_TILE_HORIZ, "Tile &Horizontally");
-					AppendMenu(m, 0, IDM_TILE_VERT, "Tile &Vertically");
+					AppendMenu(m, 0, IDM_CASCADE, "Cascade");
+					AppendMenu(m, 0, IDM_TILE_HORIZ, "Tile Horizontally");
+					AppendMenu(m, 0, IDM_TILE_VERT, "Tile Vertically");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Help");
 					AppendMenu(m, 0, IDM_ABOUT, "About");
 
@@ -3043,6 +3050,15 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 	return 0;
 }
 
+static void DoTranslateMessage(MSG *msg)
+{
+	if (!TranslateAccelerator(mainwindow, accelerators, msg))
+	{
+		TranslateMessage(msg);
+		DispatchMessage(msg);
+	}
+}
+
 static LRESULT CALLBACK OutputWindowProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
@@ -3089,8 +3105,7 @@ void GUIPrint(HWND wnd, char *msg)
 	{
 		if (!GetMessage (&wmsg, NULL, 0, 0))
 			break;
-		TranslateMessage (&wmsg);
-		DispatchMessage (&wmsg);
+		DoTranslateMessage(&wmsg);
 	}
 	writing=false;
 }
@@ -3211,8 +3226,7 @@ int GUIprintf(const char *msg, ...)
 	{
 		if (!GetMessage (&wmsg, NULL, 0, 0))
 			break;
-		TranslateMessage (&wmsg);
-		DispatchMessage (&wmsg);
+		DoTranslateMessage(&wmsg);
 	}
 /*
 	s = st = buf;
@@ -3520,6 +3534,11 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	pbool fl_acc;
 	unsigned int i;
 	WNDCLASS wndclass;
+	ACCEL acceleratorlist[] =
+	{
+		{FCONTROL|FVIRTKEY, 'S', IDM_SAVE},
+		{FCONTROL|FVIRTKEY, 'R', IDM_RECOMPILE}
+	};
 	ghInstance= hInstance;
 
 	GUI_SetDefaultOpts();
@@ -3638,7 +3657,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     wndclass.lpszClassName = MDI_WINDOW_CLASS_NAME;
 	RegisterClass(&wndclass);
 
-	mainwindow=CreateWindow(MDI_WINDOW_CLASS_NAME, "FTE QuakeC compiler", WS_OVERLAPPEDWINDOW,
+	accelerators = CreateAcceleratorTable(acceleratorlist, sizeof(acceleratorlist)/sizeof(acceleratorlist[0])); 
+
+	mainwindow = CreateWindow(MDI_WINDOW_CLASS_NAME, "FTE QuakeC compiler", WS_OVERLAPPEDWINDOW,
 		0, 0, 640, 480, NULL, NULL, ghInstance, NULL);
 
 	if (mdibox)
@@ -3724,10 +3745,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			if (!GetMessage (&msg, NULL, 0, 0))
 				break;
 			if (!mdibox || !TranslateMDISysAccel(mdibox, &msg))
-			{ 
-				TranslateMessage (&msg);
-				DispatchMessage (&msg);
-			}
+				DoTranslateMessage(&msg);
 		}
 
 		if (mainwindow)

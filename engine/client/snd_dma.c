@@ -1376,7 +1376,7 @@ void QDECL S_Voip_EnumeratedCaptureDevice(const char *driver, const char *device
 	else
 		fullintname = driver;
 
-	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_voip_capturedevice_opts.string, *snd_voip_capturedevice_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf)), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf)));
+	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_voip_capturedevice_opts.string, *snd_voip_capturedevice_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf), false), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf), false));
 	Cvar_ForceSet(&snd_voip_capturedevice_opts, opts);
 }
 void S_Voip_Init(void)
@@ -1670,7 +1670,7 @@ void QDECL S_EnumeratedOutDevice(const char *driver, const char *devicecode, con
 	else
 		fullintname = driver;
 
-	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_device_opts.string, *snd_device_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf)), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf)));
+	Q_snprintfz(opts, sizeof(opts), "%s%s%s %s", snd_device_opts.string, *snd_device_opts.string?" ":"", COM_QuotedString(fullintname, nbuf, sizeof(nbuf), false), COM_QuotedString(readabledevice, dbuf, sizeof(dbuf), false));
 	Cvar_ForceSet(&snd_device_opts, opts);
 }
 void S_EnumerateDevices(void)

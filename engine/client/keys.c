@@ -1760,12 +1760,12 @@ void Key_WriteBindings (vfsfile_t *f)
 				s = va("%s%s", prefix, Key_KeynumToString(i));
 				//quote it as required
 				if (i == ';' || i <= ' ' || i == '\"')
-					s = COM_QuotedString(s, keybuf, sizeof(keybuf));
+					s = COM_QuotedString(s, keybuf, sizeof(keybuf), false);
 
 				if (bindcmdlevel[i][m] != bindcmdlevel[i][0])
-					s = va("bindlevel %s %i %s\n", s, bindcmdlevel[i][m], COM_QuotedString(binding, commandbuf, sizeof(commandbuf)));
+					s = va("bindlevel %s %i %s\n", s, bindcmdlevel[i][m], COM_QuotedString(binding, commandbuf, sizeof(commandbuf), false));
 				else
-					s = va("bind %s %s\n", s, COM_QuotedString(binding, commandbuf, sizeof(commandbuf)));
+					s = va("bind %s %s\n", s, COM_QuotedString(binding, commandbuf, sizeof(commandbuf), false));
 				VFS_WRITE(f, s, strlen(s));
 			}
 		}

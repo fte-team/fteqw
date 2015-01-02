@@ -1225,31 +1225,31 @@ qboolean	Cvar_Command (int level)
 		{
 			if (v->flags & CVAR_LATCH)
 			{
-				Con_Printf ("\"%s\" is currently %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer)));
-				Con_Printf ("Will be changed to %s on the next map\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer)));
+				Con_Printf ("\"%s\" is currently %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), false));
+				Con_Printf ("Will be changed to %s on the next map\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), false));
 			}
 			else if (v->flags & CVAR_RENDERERLATCH)
 			{
-				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer)));
-				Con_Printf ("Will be changed to %s on vid_restart\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer)));
+				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), false));
+				Con_Printf ("Will be changed to %s on vid_restart\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), false));
 			}
 			else
 			{
-				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->latched_string, buffer, sizeof(buffer)));
-				Con_Printf ("Effective value is %s\n", COM_QuotedString(v->string, buffer, sizeof(buffer)));
+				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->latched_string, buffer, sizeof(buffer), false));
+				Con_Printf ("Effective value is %s\n", COM_QuotedString(v->string, buffer, sizeof(buffer), false));
 			}
 			if (v->defaultstr)
-				Con_Printf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer)));
+				Con_Printf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), false));
 		}
 		else
 		{
 			if (v->defaultstr && !strcmp(v->string, v->defaultstr))
-				Con_Printf ("\"%s\" is %s (default)\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer)));
+				Con_Printf ("\"%s\" is %s (default)\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), false));
 			else
 			{
-				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer)));
+				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), false));
 				if (v->defaultstr)
-					Con_Printf("Default: %s\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer)));
+					Con_Printf("Default: %s\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), false));
 			}
 		}
 		return true;
@@ -1269,7 +1269,7 @@ qboolean	Cvar_Command (int level)
 #ifndef SERVERONLY
 	if (Cmd_ExecLevel > RESTRICT_SERVER)
 	{	//directed at a secondary player.
-		CL_SendClientCommand(true, "%i setinfo %s %s", Cmd_ExecLevel - RESTRICT_SERVER-1, v->name, COM_QuotedString(str, buffer, sizeof(buffer)));
+		CL_SendClientCommand(true, "%i setinfo %s %s", Cmd_ExecLevel - RESTRICT_SERVER-1, v->name, COM_QuotedString(str, buffer, sizeof(buffer), false));
 		return true;
 	}
 
@@ -1346,12 +1346,12 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 				if (var->flags & CVAR_USERCREATED)
 				{
 					if (var->flags & CVAR_ARCHIVE)
-						s = va("seta %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer)));
+						s = va("seta %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
 					else
-						s = va("set %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer)));
+						s = va("set %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
 				}
 				else
-					s = va("%s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer)));
+					s = va("%s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
 				VFS_WRITE(f, s, strlen(s));
 			}
 	}

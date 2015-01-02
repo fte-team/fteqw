@@ -280,7 +280,7 @@ char *COM_ParseCString (const char *data, char *out, size_t maxoutlen, size_t *w
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);
 char *COM_ParseToken (const char *data, const char *punctuation);
 char *COM_TrimString(char *str, char *buffer, int buffersize);
-const char *COM_QuotedString(const char *string, char *buf, int buflen);	//inverse of COM_StringParse
+const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean omitquotes);	//inverse of COM_StringParse
 
 
 extern	int		com_argc;

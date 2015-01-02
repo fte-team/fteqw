@@ -38,7 +38,7 @@ static void fs_game_callback(cvar_t *var, char *oldvalue)
 	if (runaway)
 		return;	//ignore that
 	runaway = true;
-	Cmd_ExecuteString(va("gamedir %s\n", COM_QuotedString(var->string, buf, sizeof(buf))), Cmd_ExecLevel);
+	Cmd_ExecuteString(va("gamedir %s\n", COM_QuotedString(var->string, buf, sizeof(buf), false)), Cmd_ExecLevel);
 	runaway = false;
 }
 
@@ -258,24 +258,24 @@ void FS_Manifest_Print(ftemanifest_t *man)
 	char buffer[1024];
 	int i, j;
 	if (man->updateurl)
-		Con_Printf("updateurl %s\n", COM_QuotedString(man->updateurl, buffer, sizeof(buffer)));
+		Con_Printf("updateurl %s\n", COM_QuotedString(man->updateurl, buffer, sizeof(buffer), false));
 	if (man->installation)
-		Con_Printf("game %s\n", COM_QuotedString(man->installation, buffer, sizeof(buffer)));
+		Con_Printf("game %s\n", COM_QuotedString(man->installation, buffer, sizeof(buffer), false));
 	if (man->formalname)
-		Con_Printf("name %s\n", COM_QuotedString(man->formalname, buffer, sizeof(buffer)));
+		Con_Printf("name %s\n", COM_QuotedString(man->formalname, buffer, sizeof(buffer), false));
 	if (man->protocolname)
-		Con_Printf("protocolname %s\n", COM_QuotedString(man->protocolname, buffer, sizeof(buffer)));
+		Con_Printf("protocolname %s\n", COM_QuotedString(man->protocolname, buffer, sizeof(buffer), false));
 	if (man->defaultexec)
-		Con_Printf("defaultexec %s\n", COM_QuotedString(man->defaultexec, buffer, sizeof(buffer)));
+		Con_Printf("defaultexec %s\n", COM_QuotedString(man->defaultexec, buffer, sizeof(buffer), false));
 
 	for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
 	{
 		if (man->gamepath[i].path)
 		{
 			if (man->gamepath[i].base)
-				Con_Printf("basegame %s\n", COM_QuotedString(man->gamepath[i].path, buffer, sizeof(buffer)));
+				Con_Printf("basegame %s\n", COM_QuotedString(man->gamepath[i].path, buffer, sizeof(buffer), false));
 			else
-				Con_Printf("gamedir %s\n", COM_QuotedString(man->gamepath[i].path, buffer, sizeof(buffer)));
+				Con_Printf("gamedir %s\n", COM_QuotedString(man->gamepath[i].path, buffer, sizeof(buffer), false));
 		}
 	}
 
@@ -286,14 +286,14 @@ void FS_Manifest_Print(ftemanifest_t *man)
 			if (man->package[i].extractname)
 				Con_Printf("achived");
 			if (man->package[i].crcknown)
-				Con_Printf("package %s 0x%x", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer)), man->package[i].crc);
+				Con_Printf("package %s 0x%x", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer), false), man->package[i].crc);
 			else
-				Con_Printf("package %s -", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer)));
+				Con_Printf("package %s -", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer), false));
 			if (man->package[i].extractname)
-				Con_Printf(" %s", COM_QuotedString(man->package[i].extractname, buffer, sizeof(buffer)));
+				Con_Printf(" %s", COM_QuotedString(man->package[i].extractname, buffer, sizeof(buffer), false));
 			for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 				if (man->package[i].mirrors[j])
-					Con_Printf(" %s", COM_QuotedString(man->package[i].mirrors[j], buffer, sizeof(buffer)));
+					Con_Printf(" %s", COM_QuotedString(man->package[i].mirrors[j], buffer, sizeof(buffer), false));
 			Con_Printf("\n");
 		}
 	}

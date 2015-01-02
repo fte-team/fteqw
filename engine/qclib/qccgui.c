@@ -177,28 +177,7 @@ typedef struct
 	HANDLE pipefromengine;
 	HANDLE pipetoengine;
 } enginewindow_t;
-
-void EngineCommand(enginewindow_t *ctx, char *message, ...)
-{
-	//qcresume			- resume running
-	//qcinto			- singlestep. execute-with-debugging child functions
-	//qcover			- singlestep. execute-without-debugging child functions
-	//qcout				- singlestep. leave current function and enter parent.
-	//qcbreak "$loc"	- set breakpoint
-	//qcwatch "$var"	- set watchpoint
-	//qcstack			- force-report stack trace
-	va_list		va;
-	char		finalmessage[1024];
-	va_start (va, message);
-	vsnprintf (finalmessage, sizeof(finalmessage)-1, message, va);
-	va_end (va);
-	if (ctx->pipetoengine)
-	{
-		DWORD written = 0;
-		WriteFile(ctx->pipetoengine, finalmessage, strlen(finalmessage), &written, NULL);
-	}
-}
-
+static pbool EngineCommandf(char *message, ...);
 
 static pbool QCC_RegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
 {
@@ -562,12 +541,7 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 		}
 		if (wParam == VK_F5)
 		{
-			if (gamewindow)
-			{
-				enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
-				EngineCommand(e, "qcresume\n");
-			}
-			else
+			if (!EngineCommandf("qcresume\n"))
 				RunEngine();
 			return 0;
 		}
@@ -588,20 +562,12 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 			else
 				mode = 2;
 
-			if (gamewindow)
-			{
-				enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
-				EngineCommand(e, "qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, editor->curline+1);
-			}
+			EngineCommandf("qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, editor->curline+1);
 			return 0;
 		}
 		if (wParam == VK_F11)
 		{
-			if (gamewindow)
-			{
-				enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
-				EngineCommand(e, "qcstep\n");
-			}
+			EngineCommandf("qcstep\n");
 			return 0;
 		}
 	}
@@ -945,7 +911,7 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 	}
 }
 
-char *WordUnderCursor(editor_t *editor, char *buffer, int buffersize, int position)
+char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, int termsize, int position)
 {
 	unsigned char linebuf[1024];
 	DWORD charidx;
@@ -979,35 +945,68 @@ char *WordUnderCursor(editor_t *editor, char *buffer, int buffersize, int positi
 		Edit_GetLine(editor->editpane, lineidx, linebuf, sizeof(linebuf));
 	}
 
-	//skip back to the start of the word
-	while(charidx > 0 && (
-		(linebuf[charidx-1] >= 'a' && linebuf[charidx-1] <= 'z') ||
-		(linebuf[charidx-1] >= 'A' && linebuf[charidx-1] <= 'Z') ||
-		(linebuf[charidx-1] >= '0' && linebuf[charidx-1] <= '9') ||
-		linebuf[charidx-1] == '_' ||
-		linebuf[charidx-1] >= 128
-		))
+	if (word)
 	{
-		charidx--;
+		//skip back to the start of the word
+		while(charidx > 0 && (
+			(linebuf[charidx-1] >= 'a' && linebuf[charidx-1] <= 'z') ||
+			(linebuf[charidx-1] >= 'A' && linebuf[charidx-1] <= 'Z') ||
+			(linebuf[charidx-1] >= '0' && linebuf[charidx-1] <= '9') ||
+			linebuf[charidx-1] == '_' || linebuf[charidx-1] == ':' ||
+			linebuf[charidx-1] >= 128
+			))
+		{
+			charidx--;
+		}
+		//copy the result out
+		lineidx = 0;
+		wordsize--;
+		while (wordsize && 
+			(linebuf[charidx] >= 'a' && linebuf[charidx] <= 'z') ||
+			(linebuf[charidx] >= 'A' && linebuf[charidx] <= 'Z') ||
+			(linebuf[charidx] >= '0' && linebuf[charidx] <= '9') ||
+			linebuf[charidx] == '_' || linebuf[charidx] == ':' ||
+			linebuf[charidx] >= 128
+			)
+		{
+			word[lineidx++] = linebuf[charidx++];
+			wordsize--;
+		}
+		word[lineidx++] = 0;
 	}
 
-	//copy the result out
-	lineidx = 0;
-	buffersize--;
-	while (buffersize && 
-		(linebuf[charidx] >= 'a' && linebuf[charidx] <= 'z') ||
-		(linebuf[charidx] >= 'A' && linebuf[charidx] <= 'Z') ||
-		(linebuf[charidx] >= '0' && linebuf[charidx] <= '9') ||
-		linebuf[charidx] == '_' ||
-		linebuf[charidx] >= 128
-		)
+	if (term)
 	{
-		buffer[lineidx++] = linebuf[charidx++];
-		buffersize--;
+		//skip back to the start of the word
+		while(charidx > 0 && (
+			(linebuf[charidx-1] >= 'a' && linebuf[charidx-1] <= 'z') ||
+			(linebuf[charidx-1] >= 'A' && linebuf[charidx-1] <= 'Z') ||
+			(linebuf[charidx-1] >= '0' && linebuf[charidx-1] <= '9') ||
+			linebuf[charidx-1] == '_' || linebuf[charidx-1] == ':' || || linebuf[charidx-1] == '.' ||
+			linebuf[charidx-1] == '[' || linebuf[charidx-1] == ']' ||
+			linebuf[charidx-1] >= 128
+			))
+		{
+			charidx--;
+		}
+		//copy the result out
+		lineidx = 0;
+		termsize--;
+		while (termsize && 
+			(linebuf[charidx] >= 'a' && linebuf[charidx] <= 'z') ||
+			(linebuf[charidx] >= 'A' && linebuf[charidx] <= 'Z') ||
+			(linebuf[charidx] >= '0' && linebuf[charidx] <= '9') ||
+			linebuf[charidx] == '_' || linebuf[charidx] == ':' || linebuf[charidx] == '.' ||
+			linebuf[charidx] == '[' || linebuf[charidx] == ']' ||
+			linebuf[charidx] >= 128
+			)
+		{
+			term[lineidx++] = linebuf[charidx++];
+			termsize--;
+		}
+		term[lineidx++] = 0;
 	}
-
-	buffer[lineidx++] = 0;
-	return buffer;
+	return word;
 }
 
 pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
@@ -1039,20 +1038,31 @@ pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
 	buffer[usedbuffer] = 0;
 	return usedbuffer>0;
 }
-char *GetTooltipText(editor_t *editor, int pos)
+
+editor_t *tooltip_editor = NULL;
+char tooltip_variable[256];
+char tooltip_type[256];
+char tooltip_comment[2048];
+size_t tooltip_position;
+
+char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 {
 	static char buffer[1024];
-	char wordbuf[256];
+	char wordbuf[256], *text;
+	char term[256];
 	char *defname;
-	defname = WordUnderCursor(editor, wordbuf, sizeof(wordbuf), pos);
+	defname = WordUnderCursor(editor, wordbuf, sizeof(wordbuf), term, sizeof(term), pos);
 	if (!*defname)
 		return NULL;
 	else if (globalstable.numbuckets)
 	{
+		char *funcname;
 		QCC_def_t *def;
 		char *macro = QCC_PR_CheckCompConstTooltip(defname, buffer, buffer + sizeof(buffer));
 		if (macro && *macro)
 			return macro;
+
+		funcname = "";	//FIXME
 
 		def = QCC_PR_GetDef(NULL, defname, NULL, false, 0, GDF_SILENT);
 		if (def)
@@ -1060,12 +1070,34 @@ char *GetTooltipText(editor_t *editor, int pos)
 			char typebuf[1024];
 			//note function argument names do not persist beyond the function def. we might be able to read the function's localdefs for them, but that's unreliable/broken with builtins where they're most needed.
 			if (def->comment)
-				_snprintf(buffer, sizeof(buffer)-1, "%s	%s\r\n%s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name, def->comment);
+				_snprintf(buffer, sizeof(buffer)-1, "%s %s\r\n%s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name, def->comment);
 			else
 				_snprintf(buffer, sizeof(buffer)-1, "%s %s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name);
-			return buffer;
+
+			if (dwell)
+			{
+				strncpy(tooltip_type, TypeName(def->type, typebuf, sizeof(typebuf)), sizeof(tooltip_type)-1);
+				if (def->comment)
+					strncpy(tooltip_comment, def->comment, sizeof(tooltip_comment)-1);
+			}
+
+			text = buffer;
 		}
-		return NULL;
+
+		if (dwell)
+		{
+			tooltip_editor = editor;
+			strncpy(tooltip_variable, term, sizeof(tooltip_variable)-1);
+			tooltip_position = pos;
+			*tooltip_type = 0;
+			*tooltip_comment = 0;
+
+			EngineCommandf("qcinspect \"%s\" \"%s\"\n", term, funcname);
+
+			SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)pos, (LPARAM)text);
+		}
+
+		return text;
 	}
 	else
 		return NULL;//"Type info not available. Compile first.";
@@ -1172,7 +1204,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 			toolInfo.hwnd = hWnd;
 			toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS | TTF_TRACK | TTF_ABSOLUTE;
 			toolInfo.uId = (UINT_PTR)editor->editpane;
-			newtext = GetTooltipText(editor, -1);
+			newtext = GetTooltipText(editor, -1, FALSE);
 			toolInfo.lpszText = editor->tooltiptext;
 			if (!newtext)
 				newtext = "";
@@ -1227,9 +1259,8 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		break;
 	case WM_NOTIFY:
 		{
-		    NMHDR *nmhdr;
+			NMHDR *nmhdr;
 			char title[2048];
-			char *s;
 			nmhdr = (NMHDR *)lParam;
 			if (editor->scintilla)
 			{
@@ -1246,16 +1277,13 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 					l = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, not->position, 0);
 					mode = !(SendMessage(editor->editpane, SCI_MARKERGET, l, 0) & 1);
 					SendMessage(editor->editpane, mode?SCI_MARKERADD:SCI_MARKERDELETE, l, 0);
-					if (gamewindow)
-					{
-						enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
-						EngineCommand(e, "qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, l+1);
-					}
+					EngineCommandf("qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, l+1);
 					break;
 				case SCN_CHARADDED:
 					if (not->ch == '(')
 					{
-						char *s = GetTooltipText(editor, pos-1);
+						char *s = GetTooltipText(editor, pos-1, FALSE);
+						tooltip_editor = NULL;
 						if (s)
 							SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)pos, (LPARAM)s);
 					}
@@ -1263,7 +1291,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 					{
 						char buffer[65536];
 						char prefixbuffer[128];
-						char *pre = WordUnderCursor(editor, prefixbuffer, sizeof(prefixbuffer), SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0));
+						char *pre = WordUnderCursor(editor, prefixbuffer, sizeof(prefixbuffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0));
 						if (pre && *pre)
 							if (GenAutoCompleteList(pre, buffer, sizeof(buffer)))
 								SendMessage(editor->editpane, SCI_AUTOCSHOW, strlen(pre), (LPARAM)buffer);
@@ -1299,12 +1327,11 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 					}
 					break;
 				case SCN_DWELLSTART:
-					s = GetTooltipText(editor, not->position);
-					if (s)
-						SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)not->position, (LPARAM)s);
+					GetTooltipText(editor, not->position, TRUE);
 					break;
 				case SCN_DWELLEND:
 				case SCN_FOCUSOUT:
+					tooltip_editor = NULL;
 					SendMessage(editor->editpane, SCI_CALLTIPCANCEL, 0, 0);
 					break;
 				}
@@ -2038,7 +2065,68 @@ skipwhite:
 		goto skipwhite;
 	}
 
-// handle quoted strings specially
+// handle marked up quoted strings specially (c-style, but with leading \ before normal opening ")
+	if (c == '\\' && data[1] == '\"')
+	{
+		data+=2;
+		while (1)
+		{
+			if (len >= outlen-2)
+			{
+				out[len] = '\0';
+				return (char*)data;
+			}
+
+			c = *data++;
+			if (!c)
+			{
+				out[len] = 0;
+				return (char*)data-1;
+			}
+			if (c == '\\')
+			{
+				c = *data++;
+				switch(c)
+				{
+				case '\r':
+					if (*data == '\n')
+						data++;
+				case '\n':
+					continue;
+				case 'n':
+					c = '\n';
+					break;
+				case 't':
+					c = '\t';
+					break;
+				case 'r':
+					c = '\r';
+					break;
+				case '$':
+				case '\\':
+				case '\'':
+					break;
+				case '"':
+					c = '"';
+					out[len] = c;
+					len++;
+					continue;
+				default:
+					c = '?';
+					break;
+				}
+			}
+			if (c=='\"' || !c)
+			{
+				out[len] = 0;
+				return (char*)data;
+			}
+			out[len] = c;
+			len++;
+		}
+	}
+
+// handle legacy quoted strings specially
 	if (c == '\"')
 	{
 		data++;
@@ -2078,6 +2166,50 @@ skipwhite:
 
 	out[len] = 0;
 	return (char*)data;
+}
+
+static pbool EngineCommandWnd(HWND wnd, char *message)
+{
+	//qcresume			- resume running
+	//qcinto			- singlestep. execute-with-debugging child functions
+	//qcover			- singlestep. execute-without-debugging child functions
+	//qcout				- singlestep. leave current function and enter parent.
+	//qcbreak "$loc"	- set breakpoint
+	//qcwatch "$var"	- set watchpoint
+	//qcstack			- force-report stack trace
+	enginewindow_t *ctx;
+	if (wnd)
+	{
+		ctx = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+		if (ctx)
+		{
+			if (ctx->pipetoengine)
+			{
+				DWORD written = 0;
+				WriteFile(ctx->pipetoengine, message, strlen(message), &written, NULL);
+				return TRUE;
+			}
+		}
+	}
+	return FALSE;
+}
+static pbool EngineCommandf(char *message, ...)
+{
+	va_list		va;
+	char		finalmessage[1024];
+	va_start (va, message);
+	vsnprintf (finalmessage, sizeof(finalmessage)-1, message, va);
+	va_end (va);
+	return EngineCommandWnd(gamewindow, finalmessage);
+}
+static pbool EngineCommandWndf(HWND wnd, char *message, ...)
+{
+	va_list		va;
+	char		finalmessage[1024];
+	va_start (va, message);
+	vsnprintf (finalmessage, sizeof(finalmessage)-1, message, va);
+	va_end (va);
+	return EngineCommandWnd(wnd, finalmessage);
 }
 
 unsigned int WINAPI threadwrapper(void *args)
@@ -2169,9 +2301,11 @@ unsigned int WINAPI threadwrapper(void *args)
 							l++;
 						PostMessage(ctx->window, WM_USER, atoi(l), (LPARAM)filenamebuffer);	//and tell the owning window to try to close it again
 					}
-					else if (!strncmp(buffer, "qcvalue ", 6))
+					else if (!strncmp(buffer, "qcvalue ", 8))
 					{
 						//qcvalue "$variableformula" "$value"
+						//update tooltip to show engine's current value
+						PostMessage(ctx->window, WM_USER+2, 0, (LPARAM)strdup(buffer+8));	//and tell the owning window to try to close it again
 					}
 					else if (!strncmp(buffer, "qcreloaded ", 10))
 					{
@@ -2191,8 +2325,11 @@ unsigned int WINAPI threadwrapper(void *args)
 				else
 					break;
 			}
-
 		}
+		CloseHandle(ctx->pipefromengine);
+		ctx->pipefromengine = NULL;
+		CloseHandle(ctx->pipetoengine);
+		ctx->pipetoengine = NULL;
 	}
 
 	ctx->pipeclosed = true;
@@ -2203,41 +2340,44 @@ unsigned int WINAPI threadwrapper(void *args)
 static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
-	enginewindow_t *e;
+	enginewindow_t *ctx;
 	editor_t *editor;
 	switch (message)
 	{
 	case WM_CREATE:
-		e = malloc(sizeof(*e));
-		memset(e, 0, sizeof(*e));
-		SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)e);
-		e->window = hWnd;
-		e->thread = (HANDLE)CreateThread(NULL, 0, threadwrapper, e, 0, &e->tid);
+		ctx = malloc(sizeof(*ctx));
+		memset(ctx, 0, sizeof(*ctx));
+		SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)ctx);
+		ctx->window = hWnd;
+		ctx->thread = (HANDLE)CreateThread(NULL, 0, threadwrapper, ctx, 0, &ctx->tid);
 		break;
 	case WM_SIZE:
+		ctx = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+		if (ctx)
 		{
 			RECT r;
-			e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(hWnd, GWLP_USERDATA);
 			GetClientRect(hWnd, &r);
-			EngineCommand(e, "vid_recenter %i %i %i %i %#p\n", r.left, r.top, r.right-r.left, r.bottom - r.top, (void*)e->window);
+			EngineCommandWndf(hWnd, "vid_recenter %i %i %i %i %#p\n", r.left, r.top, r.right-r.left, r.bottom - r.top, (void*)ctx->window);
 		}
 		goto gdefault;
 	case WM_CLOSE:
-		e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(hWnd, GWLP_USERDATA);
-		if (e->pipeclosed)
-		{
-			DestroyWindow(hWnd);
-			return 0;
-		}
 		//ask the engine to quit
-		EngineCommand(e, "quit force\n");
-		break;
+		ctx = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+		if (ctx && !ctx->pipeclosed)
+		{
+			EngineCommandWnd(hWnd, "quit force\n");
+			break;
+		}
+		goto gdefault;
 	case WM_DESTROY:
-		e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(hWnd, GWLP_USERDATA);
-		EngineCommand(e, "quit force\n");	//just in case
-		WaitForSingleObject(e->thread, INFINITE);
-		CloseHandle(e->thread);
-		free(e);
+		EngineCommandWnd(hWnd, "quit force\n");	//just in case
+		ctx = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+		if (ctx)
+		{
+			WaitForSingleObject(ctx->thread, INFINITE);
+			CloseHandle(ctx->thread);
+			free(ctx);
+		}
 		if (hWnd == gamewindow)
 			gamewindow = NULL;
 		break;
@@ -2247,7 +2387,6 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 		break;
 	case WM_USER+1:
 		//engine loaded a progs, reset breakpoints.
-		e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
 		for (editor = editors; editor; editor = editor->next)
 		{
 			int line = -1;
@@ -2261,11 +2400,31 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 					break;	//no more.
 				line++;
 
-				EngineCommand(e, "qcbreakpoint 1 \"%s\" %i\n", editor->filename, line);
+				EngineCommandWndf(hWnd, "qcbreakpoint 1 \"%s\" %i\n", editor->filename, line);
 			}
 		}
 		//and now let the engine continue
-		EngineCommand(e, "qcresume\n");
+		EngineCommandWnd(hWnd, "qcresume\n");
+		break;
+	case WM_USER+2:
+		{
+			char varname[1024];
+			char varvalue[1024];
+			char *line = (char*)lParam;
+			line = COM_ParseOut(line, varname, sizeof(varname));
+			line = COM_ParseOut(line, varvalue, sizeof(varvalue));
+			if (tooltip_editor && !strcmp(varname, tooltip_variable))
+			{
+				char tip[2048];
+				if (*tooltip_comment)
+					_snprintf(tip, sizeof(tip)-1, "%s %s = %s\r\n%s", tooltip_type, tooltip_variable, varvalue, tooltip_comment);
+				else
+					_snprintf(tip, sizeof(tip)-1, "%s %s = %s", tooltip_type, tooltip_variable, varvalue);
+
+				SendMessage(tooltip_editor->editpane, SCI_CALLTIPSHOW, (WPARAM)tooltip_position, (LPARAM)tip);
+			}
+			free(lParam);
+		}
 		break;
 
 	default:
@@ -3315,11 +3474,7 @@ void RunCompiler(char *args)
 
 	if (CompileParams(&funcs, true, argc, argv))
 	{
-		if (gamewindow)
-		{
-			enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
-			EngineCommand(e, "qcresume\nmenu_restart\nrestart\n");
-		}
+		EngineCommandf("qcresume\nmenu_restart\nrestart\n");
 	}
 
 	if (logfile)

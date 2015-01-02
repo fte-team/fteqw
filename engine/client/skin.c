@@ -219,8 +219,11 @@ void Skin_WorkerLoad(void *skinptr, void *data, size_t a, size_t b)
 		{
 			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
 			Con_Printf ("Couldn't load skin %s\n", name);
-			Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
-			raw = COM_LoadTempFile (name, &pcxsize);
+			if (*baseskin.string)
+			{
+				Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
+				raw = COM_LoadTempFile (name, &pcxsize);
+			}
 		}
 		if (!raw)
 		{

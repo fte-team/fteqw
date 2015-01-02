@@ -1003,7 +1003,7 @@ void Alias_WriteAliases (vfsfile_t *f)
 			s = va("\n//////////////////\n//Aliases\n");
 			VFS_WRITE(f, s, strlen(s));
 		}
-		s = va("alias %s %s\n", cmd->name, COM_QuotedString(cmd->value, buf, sizeof(buf)));
+		s = va("alias %s %s\n", cmd->name, COM_QuotedString(cmd->value, buf, sizeof(buf), false));
 		VFS_WRITE(f, s, strlen(s));
 		if (cmd->restriction != 1)	//1 is default
 		{
@@ -1913,11 +1913,11 @@ void Cmd_Apropos_f (void)
 		else
 			continue;
 		
-		COM_QuotedString(var->string, escapedvalue, sizeof(escapedvalue));
+		COM_QuotedString(var->string, escapedvalue, sizeof(escapedvalue), false);
 
 		if (var->latched_string)
 		{
-			COM_QuotedString(var->latched_string, latchedvalue, sizeof(latchedvalue));
+			COM_QuotedString(var->latched_string, latchedvalue, sizeof(latchedvalue), false);
 			Con_Printf("cvar ^2%s^7: %s (effective %s): %s\n", name, latchedvalue, escapedvalue, var->description?var->description:"no description");
 		}
 		else

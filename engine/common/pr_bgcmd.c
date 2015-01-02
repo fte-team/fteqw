@@ -89,8 +89,8 @@ char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_g
 	return out;
 }
 
-extern int debuggerresume;
-extern int debuggerresumeline;
+static int debuggerresume;
+static int debuggerresumeline;
 extern int isPlugin;	//if 2, we were invoked by a debugger, and we need to give it debug locations (and it'll feed us continue/steps/breakpoints)
 static int debuggerstacky;
 
@@ -119,6 +119,111 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 #endif
 }
 extern cvar_t pr_sourcedir;
+pubprogfuncs_t *debuggerinstance;
+
+qboolean QCExternalDebuggerCommand(char *text)
+{
+	if ((!strncmp(text, "qcstep", 6) && (text[6] == 0 || text[6] == ' ')) || (!strncmp(text, "qcresume", 8) && (text[8] == 0 || text[8] == ' ')))
+	{
+		int l;
+		if (text[2] == 's')
+		{
+			debuggerresume = true;
+			l = atoi(text+7);
+		}
+		else
+		{
+			l = atoi(text+9);
+			debuggerresume = 2;
+		}
+		if (l)
+			debuggerresumeline = l;
+	}
+	else if (!strncmp(text, "qcinspect ", 10))
+	{
+		//called on mouse-over events in the gui
+		extern world_t csqc_world, menu_world;
+		char *variable;
+		char *function;
+		char resultbuffer[8192], tmpbuffer[8192];
+		char *vmnames[4] = {"cur: ", "ssqc: ", "csqc: ", "menu: "};
+		char *values[4] = {NULL, NULL, NULL, NULL};
+		int i;
+		Cmd_TokenizeString(text, false, false);
+		variable = Cmd_Argv(1);
+		function = Cmd_Argv(2);
+
+		
+		//togglebreakpoint just finds the first statement (via the function table for file names) with the specified line number, and sets some unused high bit that causes it to be an invalid opcode.
+		if (debuggerinstance)
+		{
+			if (debuggerinstance->EvaluateDebugString)
+				values[0] = debuggerinstance->EvaluateDebugString(debuggerinstance, variable);
+		}
+		else
+		{
+#ifndef CLIENTONLY
+			if (sv.world.progs && sv.world.progs->EvaluateDebugString)
+				values[1] = sv.world.progs->EvaluateDebugString(sv.world.progs, variable);
+#endif
+#ifdef CSQC_DAT
+			if (csqc_world.progs && csqc_world.progs->EvaluateDebugString)
+				values[2] = csqc_world.progs->EvaluateDebugString(csqc_world.progs, variable);
+#endif
+#ifdef MENU_DAT
+			if (menu_world.progs && menu_world.progs->EvaluateDebugString)
+				values[3] = menu_world.progs->EvaluateDebugString(menu_world.progs, variable);
+#endif
+		}
+
+		for (i = 0, *resultbuffer = 0; i < 4; i++)
+		{
+			if (!values[i])
+				continue;
+			if (!strcmp(values[i], "(unable to evaluate)"))
+				continue;
+			if (*resultbuffer || !debuggerinstance)
+				Q_strncatz(resultbuffer, "\n", sizeof(resultbuffer));
+			if (!debuggerinstance)
+			{
+				Q_strncatz(resultbuffer, vmnames[i], sizeof(resultbuffer));
+			}
+			Q_strncatz(resultbuffer, COM_QuotedString(values[i], tmpbuffer, sizeof(tmpbuffer), true), sizeof(resultbuffer));
+		}
+
+		Con_Printf("lookup %s\n", variable);
+		printf("qcvalue \"%s\" %s\n", variable, COM_QuotedString(resultbuffer, tmpbuffer, sizeof(tmpbuffer), false));
+		fflush(stdout);
+	}
+	else if (!strncmp(text, "qcbreakpoint ", 13))
+	{
+		extern world_t csqc_world, menu_world;
+		int mode;
+		char *filename;
+		int line;
+		Cmd_TokenizeString(text, false, false);
+		mode = strtoul(Cmd_Argv(1), NULL, 0);
+		filename = Cmd_Argv(2);
+		line = strtoul(Cmd_Argv(3), NULL, 0);
+		//togglebreakpoint just finds the first statement (via the function table for file names) with the specified line number, and sets some unused high bit that causes it to be an invalid opcode.
+#ifdef CSQC_DAT
+		if (csqc_world.progs && csqc_world.progs->ToggleBreak)
+			csqc_world.progs->ToggleBreak(csqc_world.progs, filename, line, mode);
+#endif
+#ifdef MENU_DAT
+		if (menu_world.progs && menu_world.progs->ToggleBreak)
+			menu_world.progs->ToggleBreak(menu_world.progs, filename, line, mode);
+#endif
+#ifndef CLIENTONLY
+		if (sv.world.progs && sv.world.progs->ToggleBreak)
+			sv.world.progs->ToggleBreak(sv.world.progs, filename, line, mode);
+#endif
+	}
+	else
+		return false;
+	return true;
+}
+
 int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms)
 {
 #if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
@@ -132,6 +237,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 		printf("qcstep \"%s\":%i\n", filename, line);
 		fflush(stdout);
 		INS_UpdateGrabs(false, false);
+		debuggerinstance = prinst;
 		while(!debuggerresume)
 		{
 			Sleep(10);
@@ -147,6 +253,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 			debuggerstacky = 0;
 			VID_SwapBuffers();
 		}
+		debuggerinstance = NULL;
 		if (debuggerresume == 2)
 			prinst->pr_trace = false;
 		return debuggerresumeline;
@@ -3697,8 +3804,8 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	float id = G_FLOAT(OFS_PARM1);
 	const char *mimetype = (prinst->callargc >= 3)?PR_GetStringOfs(prinst, OFS_PARM2):"";
 	const char *dataorsep = PR_GetStringOfs(prinst, OFS_PARM3);
-	int strbufid = G_FLOAT(OFS_PARM4);
-	//float cryptokey = G_FLOAT(OFS_PARM5);	//DP feature, not supported in FTE.
+	int strbufid = (prinst->callargc >= 5)?G_FLOAT(OFS_PARM4):0;
+	//float cryptokey = (prinst->callargc >= 5)?G_FLOAT(OFS_PARM5):0;	//DP feature, not supported in FTE.
 
 	if (!pr_enable_uriget.ival)
 	{
@@ -3716,6 +3823,7 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 			//convert the string buffer into a simple string using dataorsep as a separator
 			//not supported at this time
 			dl = NULL;
+			Con_DPrintf("PF_uri_post: stringbuffers not supported\n");
 		}
 		else
 		{
@@ -3929,7 +4037,7 @@ void QCBUILTIN PF_argescape(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	char temp[8192];
 	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
-	RETURN_TSTRING(COM_QuotedString(str, temp, sizeof(temp)));
+	RETURN_TSTRING(COM_QuotedString(str, temp, sizeof(temp), false));
 }
 
 //Console functions

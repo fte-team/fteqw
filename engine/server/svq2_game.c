@@ -92,6 +92,13 @@ void *SVQ2_GetGameAPI (void *parms)
 		}
 	}
 
+#ifdef _WIN64
+	//if we found 32bit q2 gamecode that cannot be loaded, print out a warning about it.
+	//this should make it a little obvious when people try using 64bit builds to run q2.
+	if (COM_FCheckExists("gamex86.dll"))
+		Con_Printf(CON_ERROR "WARNING: 32bit q2 gamecode found, but it cannot be used in a 64bit process.\nIf you wish to run this q2 mod, you will need to use a 32bit engine build.\n");
+#endif
+
 	return NULL;
 }
 

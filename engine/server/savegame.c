@@ -286,7 +286,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
 	BZ_Free(file);
 
-	PR_LoadGlabalStruct();
+	PR_LoadGlabalStruct(false);
 
 	pr_global_struct->time = sv.world.physicstime = sv.time = time;
 	sv.starttime = Sys_DoubleTime() - sv.time;
@@ -717,7 +717,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 	progstype = pt;
 
-	PR_LoadGlabalStruct();
+	PR_LoadGlabalStruct(false);
 
 	pr_global_struct->time = sv.time = sv.world.physicstime = time;
 	sv.starttime = Sys_DoubleTime() - sv.time;

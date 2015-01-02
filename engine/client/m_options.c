@@ -824,7 +824,7 @@ void FPS_Preset_f (void)
 	if (COM_FCheckExists(presetfname))
 	{
 		char buffer[MAX_OSPATH];
-		COM_QuotedString(presetfname, buffer, sizeof(buffer));
+		COM_QuotedString(presetfname, buffer, sizeof(buffer), false);
 		Cbuf_AddText(va("\nexec %s\n", buffer), RESTRICT_LOCAL);
 		return;
 	}

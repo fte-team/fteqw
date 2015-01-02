@@ -582,7 +582,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	svprogparms.globalbuiltins = pr_builtin;//builtin_t *globalbuiltins;	//these are available to all progs
 	svprogparms.numglobalbuiltins = pr_numbuiltins;
 
-	svprogparms.autocompile = PR_COMPILECHANGED;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
+	svprogparms.autocompile = PR_COMPILEIGNORE;//PR_COMPILECHANGED;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
 	svprogparms.gametime = &sv.time;
 
@@ -662,7 +662,7 @@ void PR_Shutdown(void)
 #endif
 }
 
-void PR_LoadGlabalStruct(void)
+void PR_LoadGlabalStruct(qboolean muted)
 {
 	static float svphysicsmode = 2;
 	static float writeonly;
@@ -676,11 +676,11 @@ void PR_LoadGlabalStruct(void)
 	int i;
 	int *v;
 	globalptrs_t *pr_globals = pr_global_ptrs;
-#define globalfloat(need,name)	(pr_globals)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static float fallback##name; (pr_globals)->name = &fallback##name; Con_Printf("Could not find \""#name"\" export in progs\n");}
-#define globalint(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static int fallback##name; (pr_globals)->name = &fallback##name; Con_Printf("Could not find \""#name"\" export in progs\n");}
-#define globalstring(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; Con_Printf("Could not find \""#name"\" export in progs\n");}
-#define globalvec(need,name)	(pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static vec3_t fallback##name; (pr_globals)->name = &fallback##name; Con_Printf("Could not find \""#name"\" export in progs\n");}
-#define globalfunc(need,name)	(pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name)			{static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need) Con_Printf("Could not find function \""#name"\" in progs\n"); }
+#define globalfloat(need,name)	(pr_globals)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static float fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_Printf("Could not find \""#name"\" export in progs\n");}
+#define globalint(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static int fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_Printf("Could not find \""#name"\" export in progs\n");}
+#define globalstring(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_Printf("Could not find \""#name"\" export in progs\n");}
+#define globalvec(need,name)	(pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static vec3_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_Printf("Could not find \""#name"\" export in progs\n");}
+#define globalfunc(need,name)	(pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name)			{static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need && !muted) Con_Printf("Could not find function \""#name"\" in progs\n"); }
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -765,7 +765,8 @@ void PR_LoadGlabalStruct(void)
 		{
 			static vec3_t fallback_trace_plane_normal;
 			(pr_globals)->trace_plane_normal = &fallback_trace_plane_normal;
-			Con_Printf("Could not find export trace_plane_normal in progs\n");
+			if (!muted)
+				Con_Printf("Could not find export trace_plane_normal in progs\n");
 		}
 	}
 	if (!(pr_globals)->trace_endpos)
@@ -775,7 +776,8 @@ void PR_LoadGlabalStruct(void)
 		{
 			static vec3_t fallback_trace_endpos;
 			(pr_globals)->trace_endpos = &fallback_trace_endpos;
-			Con_Printf("Could not find export trace_endpos in progs\n");
+			if (!muted)
+				Con_Printf("Could not find export trace_endpos in progs\n");
 		}
 	}
 	if (!(pr_globals)->trace_fraction)
@@ -785,7 +787,8 @@ void PR_LoadGlabalStruct(void)
 		{
 			static float fallback_trace_fraction;
 			(pr_globals)->trace_fraction = &fallback_trace_fraction;
-			Con_Printf("Could not find export trace_fraction in progs\n");
+			if (!muted)
+				Con_Printf("Could not find export trace_fraction in progs\n");
 		}
 	}
 	ensureglobal(serverflags, zero_default);
@@ -934,7 +937,7 @@ progsnum_t AddProgs(const char *name)
 	if (svs.numprogs >= MAX_PROGS)
 		return -1;
 
-	svprogparms.autocompile = PR_COMPILECHANGED;
+//	svprogparms.autocompile = PR_COMPILECHANGED;
 
 	num = PR_LoadProgs (svprogfuncs, name, NULL, 0);
 	sv.world.usesolidcorpse = (progstype != PROG_H2);
@@ -959,7 +962,7 @@ progsnum_t AddProgs(const char *name)
 			break;
 		}
 	}
-	svprogparms.autocompile = PR_COMPILECHANGED;
+//	svprogparms.autocompile = PR_COMPILECHANGED;
 	if (num == -1)
 	{
 		Con_Printf("Failed to load %s\n", name);
@@ -967,7 +970,7 @@ progsnum_t AddProgs(const char *name)
 	}
 
 	if (num == 0)
-		PR_LoadGlabalStruct();
+		PR_LoadGlabalStruct(false);
 
 	Con_TPrintf("Loaded progs %s\n", name);
 
@@ -1098,7 +1101,7 @@ void PR_ApplyCompilation_f (void)
 	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, 0);
 
 
-	PR_LoadGlabalStruct();
+	PR_LoadGlabalStruct(false);
 
 	pr_global_struct->time = sv.world.physicstime;
 
@@ -1418,15 +1421,19 @@ void Q_InitProgs(void)
 	}
 	if (oldprnum < 0)
 	{
-		PR_LoadGlabalStruct();
+		PR_LoadGlabalStruct(true);
 //		SV_Error("Couldn't open or compile progs\n");
+		Con_Printf(CON_ERROR"Running without gamecode\n");
 	}
 
 #ifdef SQL
 	SQL_KillServers(); // TODO: is this the best placement for this?
 #endif
 
-	f = PR_FindFunction (svprogfuncs, "AddAddonProgs", oldprnum);
+	if (oldprnum >= 0)
+		f = PR_FindFunction (svprogfuncs, "AddAddonProgs", oldprnum);
+	else
+		f = 0;
 /*	if (num)
 	{
 		//restore progs
@@ -5083,28 +5090,28 @@ void QCBUILTIN PF_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 #ifdef HEXEN2
 	if (progstype == PROG_H2)
 	{
-		COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM1), startspot, sizeof(startspot));
+		COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM1), startspot, sizeof(startspot), false);
 		//these flags disable the whole levelcache thing. the spawnspot is meant to still and always be specified.
 		//hexen2 ALWAYS specifies two arguments, and it seems that raven left it blank in some single-player maps too.
 		//if we don't want to be stupid/broken in deathmatch, we might as well do the fully compatible thing
 		if ((int)pr_global_struct->serverflags & (16|32))
 		{
-			COM_QuotedString(va("*%s", PR_GetStringOfs(prinst, OFS_PARM0)), newmap, sizeof(newmap));
+			COM_QuotedString(va("*%s", PR_GetStringOfs(prinst, OFS_PARM0)), newmap, sizeof(newmap), false);
 			Cbuf_AddText (va("\nchangelevel %s %s\n", newmap, startspot), RESTRICT_LOCAL);
 		}
 		else
 		{
-			COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM0), newmap, sizeof(newmap));
+			COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM0), newmap, sizeof(newmap), false);
 			Cbuf_AddText (va("\nchangelevel %s %s\n", newmap, startspot), RESTRICT_LOCAL);
 		}
 	}
 	else
 #endif
 	{
-		COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM0), newmap, sizeof(newmap));
+		COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM0), newmap, sizeof(newmap), false);
 		if (svprogfuncs->callargc == 2)
 		{
-			COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM1), startspot, sizeof(startspot));
+			COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM1), startspot, sizeof(startspot), false);
 			Cbuf_AddText (va("\nchangelevel %s %s\n", newmap, startspot), RESTRICT_LOCAL);
 		}
 		else

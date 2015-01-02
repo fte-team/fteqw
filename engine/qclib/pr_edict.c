@@ -570,9 +570,9 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 	case ev_field:
 		fielddef = ED_FieldAtOfs (progfuncs,  val->_int + progfuncs->funcs.fieldadjust);
 		if (!fielddef)
-			QC_snprintfz (line, sizeof(line), ".??? (%i)", val->_int);
+			QC_snprintfz (line, sizeof(line), ".??? (#%i)", val->_int);
 		else
-			QC_snprintfz (line, sizeof(line), ".%s (%i)", fielddef->name, val->_int);
+			QC_snprintfz (line, sizeof(line), ".%s (#%i)", fielddef->name, val->_int);
 		break;
 	case ev_void:
 		QC_snprintfz (line, sizeof(line), "void type");
@@ -1819,6 +1819,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 	eval_t *selfvar = NULL;
 	eval_t *var;
+	const char *spawnwarned[20] = {NULL};
 
 	char filename[128];
 	int num;
@@ -2294,7 +2295,21 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 					}
 					else
 					{
-						printf("Couldn't find spawn function %s\n", PR_StringToNative(&progfuncs->funcs, var->string));
+						//only warn on the first occurence of the classname, don't spam.
+						int i;
+						const char *fnc = PR_StringToNative(&progfuncs->funcs, var->string);
+						if (pr_typecurrent >= 0)
+						for (i = 0; i < sizeof(spawnwarned)/sizeof(spawnwarned[0]); i++)
+						{
+							if (!spawnwarned[i])
+							{
+								printf("Couldn't find spawn function %s\n", fnc);
+								spawnwarned[i] = fnc;
+								break;
+							}
+							else if (!strcmp(spawnwarned[i], fnc))
+								break;
+						}
 						ED_Free(&progfuncs->funcs, (struct edict_s *)ed);
 					}
 				}

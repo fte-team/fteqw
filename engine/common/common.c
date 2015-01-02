@@ -3948,13 +3948,16 @@ skipwhite:
 	return (char*)data;
 }
 
-const char *COM_QuotedString(const char *string, char *buf, int buflen)
+const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean omitquotes)
 {
 	const char *result = buf;
 	if (strchr(string, '\r') || strchr(string, '\n') || strchr(string, '\"'))
 	{
-		*buf++ = '\\';	//prefix so the reader knows its a quoted string.
-		*buf++ = '\"';	//opening quote
+		if (!omitquotes)
+		{
+			*buf++ = '\\';	//prefix so the reader knows its a quoted string.
+			*buf++ = '\"';	//opening quote
+		}
 		buflen -= 4;
 		while(*string && buflen >= 2)
 		{
@@ -3994,19 +3997,22 @@ const char *COM_QuotedString(const char *string, char *buf, int buflen)
 			}
 			string++;
 		}
-		*buf++ = '\"';	//closing quote
+		if (!omitquotes)
+			*buf++ = '\"';	//closing quote
 		*buf++ = 0;
 		return result;
 	}
 	else
 	{
-		*buf++ = '\"';	//opening quote
+		if (!omitquotes)
+			*buf++ = '\"';	//opening quote
 		buflen -= 3;
 		while(*string && buflen >= 0)
 		{
 			*buf++ = *string++;
 		}
-		*buf++ = '\"';	//closing quote
+		if (!omitquotes)
+			*buf++ = '\"';	//closing quote
 		*buf++ = 0;
 		return result;
 	}

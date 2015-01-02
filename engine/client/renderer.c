@@ -320,7 +320,7 @@ cvar_t gl_savecompressedtex					= CVARD  ("gl_savecompressedtex", "0", "Write ou
 //cvar_t gl_schematics						= CVARD  ("gl_schematics", "0", "Gimmick rendering mode that draws the length of various world edges.");
 cvar_t gl_skyboxdist						= CVARD  ("gl_skyboxdist", "0", "The distance of the skybox. If 0, the engine will determine it based upon the far clip plane distance.");	//0 = guess.
 cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
-cvar_t	gl_maxdist							= CVARD	("gl_maxdist", "8192", "The distance of the far clip plane. If set to 0, some fancy maths will be used to place it at an infinite distance.");
+cvar_t	gl_maxdist							= CVARD	("gl_maxdist", "0", "The distance of the far clip plane. If set to 0, some fancy maths will be used to place it at an infinite distance.");
 
 #ifdef SPECULAR
 cvar_t gl_specular							= CVARF  ("gl_specular", "1", CVAR_ARCHIVE);

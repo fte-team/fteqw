@@ -14,7 +14,7 @@ void M_Script_Option (menu_t *menu, char *optionvalue)
 
 	char buf[8192];
 	//update the option
-	Cbuf_AddText(va("set option %s\n", COM_QuotedString(optionvalue, buf, sizeof(buf))), RESTRICT_LOCAL);
+	Cbuf_AddText(va("set option %s\n", COM_QuotedString(optionvalue, buf, sizeof(buf), false)), RESTRICT_LOCAL);
 
 	//expand private arguments
 	for (mo = menu->options, *buf = 0; mo; mo = mo->common.next)

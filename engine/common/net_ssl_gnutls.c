@@ -444,6 +444,8 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server)
 	const int kx_prio[] = {GNUTLS_KX_ANON_DH, 0};
 	const int cert_type_priority[3] = {GNUTLS_CRT_X509, 0};
 
+	if (!source)
+		return NULL;
 
 	{
 		static qboolean needinit = true;

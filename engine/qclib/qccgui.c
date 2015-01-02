@@ -982,7 +982,7 @@ char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, in
 			(linebuf[charidx-1] >= 'a' && linebuf[charidx-1] <= 'z') ||
 			(linebuf[charidx-1] >= 'A' && linebuf[charidx-1] <= 'Z') ||
 			(linebuf[charidx-1] >= '0' && linebuf[charidx-1] <= '9') ||
-			linebuf[charidx-1] == '_' || linebuf[charidx-1] == ':' || || linebuf[charidx-1] == '.' ||
+			linebuf[charidx-1] == '_' || linebuf[charidx-1] == ':' || linebuf[charidx-1] == '.' ||
 			linebuf[charidx-1] == '[' || linebuf[charidx-1] == ']' ||
 			linebuf[charidx-1] >= 128
 			))
@@ -2423,7 +2423,7 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 
 				SendMessage(tooltip_editor->editpane, SCI_CALLTIPSHOW, (WPARAM)tooltip_position, (LPARAM)tip);
 			}
-			free(lParam);
+			free((char*)lParam);
 		}
 		break;
 

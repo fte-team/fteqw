@@ -125,14 +125,14 @@ void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
 	Q_vsnprintfz(dest, size, fmt, argptr);
 	va_end (argptr);
 }
-char *COM_TrimString(char *str)
+
+char *COM_TrimString(char *str, char *buffer, int buffersize)
 {
 	int i;
-	static char buffer[256];
 	while (*str <= ' ' && *str>'\0')
 		str++;
 
-	for (i = 0; i < 255; i++)
+	for (i = 0; i < buffersize-1; i++)
 	{
 		if (*str <= ' ')
 			break;
@@ -228,7 +228,7 @@ int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...
 #include <ws2tcpip.h>
 #endif
 #endif
-qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize)
+qboolean	NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount)
 {
 	struct addrinfo *addrinfo = NULL;
 	struct addrinfo *pos;
@@ -242,6 +242,8 @@ qboolean	NET_StringToSockaddr (const char *s, int defaultport, struct sockaddr_q
 	void (WINAPI *pfreeaddrinfo)(struct addrinfo *ai);
 	void *lib = LoadLibrary("ws2_32.dll");
 	if (!lib)
+		return false;
+	if (addrcount != 1)
 		return false;
 	pgetaddrinfo = (void*)GetProcAddress(lib, "getaddrinfo");
 	pfreeaddrinfo = (void*)GetProcAddress(lib, "freeaddrinfo");
@@ -348,8 +350,8 @@ char *COM_ParseOut (const char *data, char *out, int outlen)
 	int		c;
 	int		len;
 
-	if (out == com_token)
-		COM_AssertMainThread("COM_ParseOut: com_token");
+//	if (out == com_token)
+//		COM_AssertMainThread("COM_ParseOut: com_token");
 
 	len = 0;
 	out[0] = 0;

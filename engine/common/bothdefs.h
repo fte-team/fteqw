@@ -97,7 +97,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_D3D
 #endif
 
-#ifndef MINIMAL
+#if !defined(MINIMAL) && !defined(NPFTE) && !defined(NPQTV)
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
 	#define HAVE_WINSSPI	//built in component, checks against windows' root ca database and revocations etc.
 #elif defined(__linux__) || defined(__CYGWIN__)

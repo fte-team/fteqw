@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include <conio.h>
 
-#if (defined(_DEBUG) || defined(DEBUG))
+#if (defined(_DEBUG) || defined(DEBUG)) && !defined(NPFTE)
 #define CATCHCRASH
 LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo);
 

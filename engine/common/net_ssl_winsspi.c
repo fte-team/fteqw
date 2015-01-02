@@ -790,7 +790,8 @@ vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean server)
 
 	if (!source || !SSL_Inited())
 	{
-		VFS_CLOSE(source);
+		if (source)
+			VFS_CLOSE(source);
 		return NULL;
 	}
 	if (!hostname)

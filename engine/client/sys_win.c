@@ -2726,7 +2726,7 @@ qboolean Sys_CheckUpdated(void)
 		return false;
 	else if (!COM_CheckParm("-autoupdate") && !COM_CheckParm("--autoupdate"))
 		return false;
-	else if (COM_CheckParm("-plugin"))
+	else if (isPlugin == 1)
 	{
 		//download, but don't invoke. the caller is expected to start us up properly (once installed).
 	}
@@ -2737,6 +2737,7 @@ qboolean Sys_CheckUpdated(void)
 		char pendingpath[MAX_OSPATH];
 		char updatedpath[MAX_OSPATH];
 
+		//FIXME: store versions instead of names
 		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, pendingpath, sizeof(pendingpath));
 		if (*pendingpath)
 		{
@@ -3121,9 +3122,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		host_parms.binarydir = bindir;
 		COM_InitArgv (parms.argc, parms.argv);
 
-		if (Sys_CheckUpdated())
-			return true;
-
 		c = COM_CheckParm("-plugin");
 		if (c)
 		{
@@ -3134,6 +3132,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 		else
 			isPlugin = 0;
+
+		if (Sys_CheckUpdated())
+			return true;
 
 		if (COM_CheckParm("-register_types"))
 		{

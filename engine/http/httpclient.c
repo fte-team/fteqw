@@ -279,7 +279,7 @@ It doesn't use persistant connections.
 struct http_dl_ctx_s {
 //	struct dl_download *dlctx;
 
-#if 1
+#ifndef NPFTE
 	vfsfile_t *sock;
 #else
 	SOCKET sock;	//FIXME: support https.
@@ -308,7 +308,7 @@ void HTTP_Cleanup(struct dl_download *dl)
 	struct http_dl_ctx_s *con = dl->ctx;
 	dl->ctx = NULL;
 
-#if 1
+#ifndef NPFTE
 	if (con->sock)
 		VFS_CLOSE(con->sock);
 	con->sock = NULL;
@@ -346,7 +346,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 	switch(con->state)
 	{
 	case HC_REQUESTING:
-#if 1
+#ifndef NPFTE
 		ammount = VFS_WRITE(con->sock, con->buffer, con->bufferused);
 		if (!ammount)
 			return true;
@@ -376,7 +376,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (con->bufferlen - con->bufferused < 1530)
 			ExpandBuffer(con, 1530);
 
-#if 1
+#ifndef NPFTE
 		ammount = VFS_READ(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-15);
 		if (!ammount)
 			return true;
@@ -583,7 +583,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (con->bufferlen - con->bufferused < 1530)
 			ExpandBuffer(con, 1530);
 
-#if 1
+#ifndef NPFTE
 		ammount = VFS_READ(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-1);
 		if (ammount == 0)
 			return true;	//no data yet
@@ -699,10 +699,12 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 void HTTPDL_Establish(struct dl_download *dl)
 {
-//	unsigned long _true = true;
-//	struct sockaddr_qstorage	serveraddr;
-//	int addressfamily;
-//	int addresssize;
+#ifdef NPFTE
+	unsigned long _true = true;
+	struct sockaddr_qstorage	serveraddr;
+	int addressfamily;
+	int addresssize;
+#endif
 	struct http_dl_ctx_s *con;
 	qboolean https = false;
 
@@ -741,17 +743,26 @@ void HTTPDL_Establish(struct dl_download *dl)
 
 	dl->status = DL_RESOLVING;
 
-#if 1
+#ifndef NPFTE
 	if (https)
 	{
+#ifdef HAVE_SSL
 		//https uses port 443 instead of 80 by default
 		con->sock = FS_OpenTCP(server, 443);
 		//and with an extra ssl/tls layer between tcp and http.
 		con->sock = FS_OpenSSL(server, con->sock, false);
+#else
+		con->sock = NULL;
+#endif
 	}
 	else
 	{
 		con->sock = FS_OpenTCP(server, 80);
+	}
+	if (!con->sock)
+	{
+		dl->status = DL_FAILED;
+		return;
 	}
 #else
 	if (!NET_StringToSockaddr(server, 80, &serveraddr, &addressfamily, &addresssize))

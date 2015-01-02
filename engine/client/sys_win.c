@@ -2032,8 +2032,10 @@ void Sys_SendKeyEvents (void)
 							sys_parentheight = strtoul(Cmd_Argv(4), NULL, 0); 
 							sys_parentwindow = (HWND)(intptr_t)strtoull(Cmd_Argv(5), NULL, 16);
 						}
+#if !defined(CLIENTONLY) || defined(CSQC_DAT) || defined(MENU_DAT)
 						else if (QCExternalDebuggerCommand(text))
 							/*handled elsewhere*/;
+#endif
 						else
 						{
 							Cbuf_AddText(text, RESTRICT_LOCAL);

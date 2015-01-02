@@ -166,6 +166,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 			if (sv.world.progs && sv.world.progs->EvaluateDebugString)
 				values[1] = sv.world.progs->EvaluateDebugString(sv.world.progs, variable);
 #endif
+#ifndef SERVERONLY
 #ifdef CSQC_DAT
 			if (csqc_world.progs && csqc_world.progs->EvaluateDebugString)
 				values[2] = csqc_world.progs->EvaluateDebugString(csqc_world.progs, variable);
@@ -173,6 +174,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 #ifdef MENU_DAT
 			if (menu_world.progs && menu_world.progs->EvaluateDebugString)
 				values[3] = menu_world.progs->EvaluateDebugString(menu_world.progs, variable);
+#endif
 #endif
 		}
 
@@ -206,6 +208,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 		filename = Cmd_Argv(2);
 		line = strtoul(Cmd_Argv(3), NULL, 0);
 		//togglebreakpoint just finds the first statement (via the function table for file names) with the specified line number, and sets some unused high bit that causes it to be an invalid opcode.
+#ifndef SERVERONLY
 #ifdef CSQC_DAT
 		if (csqc_world.progs && csqc_world.progs->ToggleBreak)
 			csqc_world.progs->ToggleBreak(csqc_world.progs, filename, line, mode);
@@ -213,6 +216,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 #ifdef MENU_DAT
 		if (menu_world.progs && menu_world.progs->ToggleBreak)
 			menu_world.progs->ToggleBreak(menu_world.progs, filename, line, mode);
+#endif
 #endif
 #ifndef CLIENTONLY
 		if (sv.world.progs && sv.world.progs->ToggleBreak)

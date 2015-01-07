@@ -552,7 +552,7 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 {
 	if (!module)
 		return NULL;
-	return lt_dlsym(module, exportname);
+	return lt_dlsym((void*)module, exportname);
 }
 #else
 void Sys_CloseLibrary(dllhandle_t *lib)
@@ -563,7 +563,7 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
-	dllhandle_t lib;
+	dllhandle_t *lib;
 
 	lib = NULL;
 	if (!lib)

@@ -103,7 +103,7 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
 #if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
 	extern int				isPlugin;
-	if (isPlugin == 2)
+	if (isPlugin >= 2)
 	{
 		Sys_SendKeyEvents();
 		debuggerresume = false;
@@ -120,6 +120,7 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 }
 extern cvar_t pr_sourcedir;
 pubprogfuncs_t *debuggerinstance;
+size_t debuggerwnd;
 
 qboolean QCExternalDebuggerCommand(char *text)
 {
@@ -138,6 +139,11 @@ qboolean QCExternalDebuggerCommand(char *text)
 		}
 		if (l)
 			debuggerresumeline = l;
+	}
+	else if (!strncmp(text, "debuggerwnd ", 11))
+	{
+		//send focus to this window when debugging
+		debuggerwnd = strtoul(text+12, NULL, 0);
 	}
 	else if (!strncmp(text, "qcinspect ", 10))
 	{
@@ -193,9 +199,18 @@ qboolean QCExternalDebuggerCommand(char *text)
 			Q_strncatz(resultbuffer, COM_QuotedString(values[i], tmpbuffer, sizeof(tmpbuffer), true), sizeof(resultbuffer));
 		}
 
-		Con_Printf("lookup %s\n", variable);
 		printf("qcvalue \"%s\" %s\n", variable, COM_QuotedString(resultbuffer, tmpbuffer, sizeof(tmpbuffer), false));
 		fflush(stdout);
+	}
+	else if (!strncmp(text, "qcreload", 8))
+	{
+#ifdef MENU_DAT
+		Cbuf_AddText("menu_restart\n", RESTRICT_LOCAL);
+#endif
+#ifndef CLIENTONLY
+		if (sv.state)
+			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
+#endif
 	}
 	else if (!strncmp(text, "qcbreakpoint ", 13))
 	{
@@ -231,13 +246,15 @@ qboolean QCExternalDebuggerCommand(char *text)
 int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms)
 {
 #if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
-	if (isPlugin == 2)
+	if (isPlugin >= 2)
 	{
 		if (!*filename)	//don't try editing an empty line, it won't work
 			return line;
 		Sys_SendKeyEvents();
 		debuggerresume = false;
 		debuggerresumeline = line;
+		if (debuggerwnd)
+			SetForegroundWindow((HWND)debuggerwnd);
 		printf("qcstep \"%s\":%i\n", filename, line);
 		fflush(stdout);
 		INS_UpdateGrabs(false, false);
@@ -247,15 +264,18 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 			Sleep(10);
 			Sys_SendKeyEvents();
 
-			//FIXME: display a stack trace and locals instead
-			R2D_ImageColours((sin(Sys_DoubleTime())+1)*0.5,0, 0, 1);
-			R2D_FillBlock(0, 0, vid.width, vid.height);
-			Con_DrawConsole(vid.height/2, true);	//draw console at half-height
-			debuggerstacky = vid.height/2;
-			if (debuggerstacky)
-				PR_StackTrace(prinst, 2);
-			debuggerstacky = 0;
-			VID_SwapBuffers();
+			if (qrenderer)
+			{
+				//FIXME: display a stack trace and locals instead
+				R2D_ImageColours((sin(Sys_DoubleTime())+1)*0.5,0, 0, 1);
+				R2D_FillBlock(0, 0, vid.width, vid.height);
+				Con_DrawConsole(vid.height/2, true);	//draw console at half-height
+				debuggerstacky = vid.height/2;
+				if (debuggerstacky)
+					PR_StackTrace(prinst, 2);
+				debuggerstacky = 0;
+				VID_SwapBuffers();
+			}
 		}
 		debuggerinstance = NULL;
 		if (debuggerresume == 2)

@@ -54,7 +54,7 @@ typedef struct {
 	void **funcptr;
 	char *name;
 } dllfunction_t;
-typedef void *dllhandle_t;
+typedef struct { int unused; } dllhandle_t;	//typically recast to void*
 dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs);
 void Sys_CloseLibrary(dllhandle_t *lib);
 void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname);

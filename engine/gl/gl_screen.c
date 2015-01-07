@@ -44,6 +44,7 @@ extern int scr_chatmode;
 extern cvar_t scr_chatmodecvar;
 extern cvar_t vid_conautoscale;
 extern qboolean		scr_con_forcedraw;
+extern qboolean		depthcleared;
 
 /*
 ==================
@@ -151,6 +152,26 @@ void GLSCR_UpdateScreen (void)
 
 	noworld = false;
 	nohud = false;
+
+	if (r_clear.ival)
+	{
+		int i = r_clear.ival&7;
+		vec3_t cleartab[] =
+		{
+			{0,0,0},	//black
+			{1,0,0},	//red
+			{0,1,0},	//green
+			{1,1,0},	//
+			{0,0,1},	//blue
+			{1,0,1},	//
+			{0,1,1},	//
+			{1,1,1}		//white
+		};
+		GL_ForceDepthWritable();
+		qglClearColor((r_clear.ival&1)?1:0, (r_clear.ival&2)?1:0, (r_clear.ival&4)?1:0, 1);
+		qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		depthcleared = true;
+	}
 
 #ifdef VM_CG
 	if (CG_Refresh())

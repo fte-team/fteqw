@@ -281,8 +281,8 @@ struct pendingtextureinfo
 		PTI_DEPTH16,
 		PTI_DEPTH24,
 		PTI_DEPTH32,
-		PTI_DEPTH24_8
-#define PTI_MAX PTI_DEPTH24_8+1
+		PTI_DEPTH24_8,
+		PTI_MAX
 	} encoding;	//0
 	int mipcount;
 	struct
@@ -415,9 +415,9 @@ typedef struct rendererinfo_s {
 	void (*BE_Scissor)(srect_t *rect);
 	/*check to see if an ent should be drawn for the selected light*/
 	qboolean (*BE_LightCullModel)(vec3_t org, struct model_s *model);
-	void (*BE_VBO_Begin)(vbobctx_t *ctx, unsigned int maxsize);
-	void (*BE_VBO_Data)(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
-	void (*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
+	void (*BE_VBO_Begin)(vbobctx_t *ctx, size_t maxsize);
+	void (*BE_VBO_Data)(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
+	void (*BE_VBO_Finish)(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray);
 	void (*BE_VBO_Destroy)(vboarray_t *vearray);
 	void (*BE_RenderToTextureUpdate2d)(qboolean destchanged);
 	char *alignment;

@@ -310,7 +310,7 @@ void W_LoadTextureWadFile (char *filename, int complain)
 	if (VFS_READ(file, &header, sizeof(wadinfo_t)) != sizeof(wadinfo_t))
 	{Con_Printf ("W_LoadTextureWadFile: unable to read wad header");return;}
 
-	if(memcmp(header.identification, "WAD3", 4))
+	if (memcmp(header.identification, "WAD3", 4) && memcmp(header.identification, "WAD2", 4))
 	{Con_Printf ("W_LoadTextureWadFile: Wad file %s doesn't have WAD3 id\n",filename);return;}
 
 	numlumps = LittleLong(header.numlumps);
@@ -372,7 +372,7 @@ void W_ApplyGamma (qbyte *data, int len, int skipalpha)
 	}
 }
 */
-qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *usesalpha)	//returns rgba
+qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *height, qboolean *usesalpha)	//returns rgba
 {	
 	qbyte *in, *data, *out, *pal;
 	int d, p;
@@ -396,6 +396,8 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *us
 	*height = tex->height;
 	pal = in + (((tex->width * tex->height) * 85) >> 6);
 	pal += 2;
+	if (pal+768 - (qbyte*)tex > lumpsize)
+		pal = host_basepal;
 	for (d = 0;d < tex->width * tex->height;d++)	
 	{
 		p = *in++;
@@ -472,7 +474,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 			for (j = 0;j < MIPLEVELS;j++)
 				tex->offsets[j] = LittleLong(tex->offsets[j]);
 
-			data = W_ConvertWAD3Texture(tex, width, height, usesalpha);
+			data = W_ConvertWAD3Texture(tex, texwadlump[i].size, width, height, usesalpha);
 			BZ_Free(tex);
 			return data;
 		}
@@ -578,10 +580,11 @@ void CL_Skygroup_f(void)
 }
 
 char wads[4096];
-void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//actually, this should be in the model code.
+void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in the model code.
 {
 	char token[4096];
 	char key[128];
+	char *data = wmodel->entities;
 	mapskys_t *msky;
 
 	cl.skyrotate = 0;
@@ -617,7 +620,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 			break; // error		
 		if (!strcmp("wad", key)) // for HalfLife maps
 		{
-			if (wmodel->fromgame == fg_halflife)
+			if (wmodel->fromgame == fg_halflife || wmodel->type == mod_heightmap)
 			{
 				Q_strncatz(wads, ";", sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
 				Q_strncatz(wads, token, sizeof(wads));	//cache it for later (so that we don't play with any temp memory yet)
@@ -691,11 +694,12 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 		}
 	}
 
+	COM_FileBase (wmodel->name, token, sizeof(token));
 
 	//map-specific sky override feature
 	for (msky = mapskies; msky; msky = msky->next)
 	{
-		if (!strcmp(msky->mapname, mapname))
+		if (!strcmp(msky->mapname, token))
 		{
 			Q_strncpyz(cl.skyname, msky->skyname, sizeof(cl.skyname));
 			break;
@@ -733,10 +737,10 @@ qboolean Wad_NextDownload (void)
 				{
 					k = wads[i];
 					wads[i] = 0;
-					strcpy(wadname, &wads[j]);
+					strcpy(wadname+9, &wads[j]);
 					if (wadname[9])
 					{
-						if (COM_FCheckExists(wadname+9))	//wad is in root dir, so we don't need to try textures.
+						if (!COM_FCheckExists(wadname+9))	//wad is in root dir, so we don't need to try textures.
 							CL_CheckOrEnqueDownloadFile(wadname, wadname, DLLF_REQUIRED);	//don't skip this one, or the world is white.
 					}
 					wads[i] = k;

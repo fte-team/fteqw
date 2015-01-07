@@ -1,3 +1,6 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "progtype.h"
 #include "progslib.h"
 
@@ -716,3 +719,6 @@ enum
 	GE_ABSMAX			= 15,
 	GE_LIGHT			= 16
 };
+#ifdef __cplusplus
+};
+#endif

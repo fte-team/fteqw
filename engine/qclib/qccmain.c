@@ -1093,84 +1093,89 @@ strofs = (strofs+3)&~3;
 	{
 	case PST_KKQWSV:
 	case PST_FTE32:
-#define statements32 ((QCC_dstatement32_t*) statements)
-		for (i=0 ; i<numstatements ; i++)
 		{
-			statements32[i].op = PRLittleLong/*PRLittleShort*/(statements[i].op);
-			statements32[i].a = PRLittleLong/*PRLittleShort*/(statements[i].a);
-			statements32[i].b = PRLittleLong/*PRLittleShort*/(statements[i].b);
-			statements32[i].c = PRLittleLong/*PRLittleShort*/(statements[i].c);
-		}
+			QCC_dstatement32_t *statements32 = qccHunkAlloc(sizeof(*statements32) * numstatements);
+			for (i=0 ; i<numstatements ; i++)
+			{
+				statements32[i].op = PRLittleLong/*PRLittleShort*/(statements[i].op);
+				statements32[i].a = PRLittleLong/*PRLittleShort*/(statements[i].a);
+				statements32[i].b = PRLittleLong/*PRLittleShort*/(statements[i].b);
+				statements32[i].c = PRLittleLong/*PRLittleShort*/(statements[i].c);
+			}
 
-		if (progs.blockscompressed&1)
-		{
-			SafeWrite (h, &len, sizeof(int));	//save for later
-			len = QC_encode(progfuncs, numstatements*sizeof(QCC_dstatement32_t), 2, (char *)statements, h);	//write
-			i = SafeSeek (h, 0, SEEK_CUR);
-			SafeSeek(h, progs.ofs_statements, SEEK_SET);//seek back
-			len = PRLittleLong(len);
-			SafeWrite (h, &len, sizeof(int));	//write size.
-			SafeSeek(h, i, SEEK_SET);
+			if (progs.blockscompressed&1)
+			{
+				SafeWrite (h, &len, sizeof(int));	//save for later
+				len = QC_encode(progfuncs, numstatements*sizeof(QCC_dstatement32_t), 2, (char *)statements, h);	//write
+				i = SafeSeek (h, 0, SEEK_CUR);
+				SafeSeek(h, progs.ofs_statements, SEEK_SET);//seek back
+				len = PRLittleLong(len);
+				SafeWrite (h, &len, sizeof(int));	//write size.
+				SafeSeek(h, i, SEEK_SET);
+			}
+			else
+				SafeWrite (h, statements32, numstatements*sizeof(QCC_dstatement32_t));
 		}
-		else
-			SafeWrite (h, statements32, numstatements*sizeof(QCC_dstatement32_t));
 		break;
 	case PST_QTEST:
-#define qtst ((qtest_statement_t*) statements)
-		for (i=0 ; i<numstatements ; i++) // scale down from 16-byte internal to 12-byte qtest
 		{
-			QCC_statement_t stmt = statements[i];
-			qtst[i].line = 0; // no line support
-			qtst[i].op = PRLittleShort((unsigned short)stmt.op);
-			if (stmt.a < 0)
-				qtst[i].a = PRLittleShort((short)stmt.a);
-			else
-				qtst[i].a = (unsigned short)PRLittleShort((unsigned short)stmt.a);
-			if (stmt.b < 0)
-				qtst[i].b = PRLittleShort((short)stmt.b);
-			else
-				qtst[i].b = (unsigned short)PRLittleShort((unsigned short)stmt.b);
-			if (stmt.c < 0)
-				qtst[i].c = PRLittleShort((short)stmt.c);
-			else
-				qtst[i].c = (unsigned short)PRLittleShort((unsigned short)stmt.c);
-		}
+			qtest_statement_t *qtst = qccHunkAlloc(sizeof(*qtst) * numstatements);
+			for (i=0 ; i<numstatements ; i++) // scale down from 16-byte internal to 12-byte qtest
+			{
+				QCC_statement_t stmt = statements[i];
+				qtst[i].line = 0; // no line support
+				qtst[i].op = PRLittleShort((unsigned short)stmt.op);
+				if (stmt.a < 0)
+					qtst[i].a = PRLittleShort((short)stmt.a);
+				else
+					qtst[i].a = (unsigned short)PRLittleShort((unsigned short)stmt.a);
+				if (stmt.b < 0)
+					qtst[i].b = PRLittleShort((short)stmt.b);
+				else
+					qtst[i].b = (unsigned short)PRLittleShort((unsigned short)stmt.b);
+				if (stmt.c < 0)
+					qtst[i].c = PRLittleShort((short)stmt.c);
+				else
+					qtst[i].c = (unsigned short)PRLittleShort((unsigned short)stmt.c);
+			}
 
-		// no compression
-		SafeWrite (h, qtst, numstatements*sizeof(qtest_statement_t));
-#undef qtst
+			// no compression
+			SafeWrite (h, qtst, numstatements*sizeof(qtest_statement_t));
+		}
 		break;
 	case PST_DEFAULT:
-#define statements16 ((QCC_dstatement16_t*) statements)
-		for (i=0 ; i<numstatements ; i++)	//resize as we go - scaling down
 		{
-			statements16[i].op = PRLittleShort((unsigned short)statements[i].op);
-			if (statements[i].a < 0)
-				statements16[i].a = PRLittleShort((short)statements[i].a);
-			else
-				statements16[i].a = (unsigned short)PRLittleShort((unsigned short)statements[i].a);
-			if (statements[i].b < 0)
-				statements16[i].b = PRLittleShort((short)statements[i].b);
-			else
-				statements16[i].b = (unsigned short)PRLittleShort((unsigned short)statements[i].b);
-			if (statements[i].c < 0)
-				statements16[i].c = PRLittleShort((short)statements[i].c);
-			else
-				statements16[i].c = (unsigned short)PRLittleShort((unsigned short)statements[i].c);
-		}
+			QCC_dstatement16_t *statements16 = qccHunkAlloc(sizeof(*statements16) * numstatements);
+			for (i=0 ; i<numstatements ; i++)	//resize as we go - scaling down
+			{
+				statements16[i].op = PRLittleShort((unsigned short)statements[i].op);
+				if (statements[i].a < 0)
+					statements16[i].a = PRLittleShort((short)statements[i].a);
+				else
+					statements16[i].a = (unsigned short)PRLittleShort((unsigned short)statements[i].a);
+				if (statements[i].b < 0)
+					statements16[i].b = PRLittleShort((short)statements[i].b);
+				else
+					statements16[i].b = (unsigned short)PRLittleShort((unsigned short)statements[i].b);
+				if (statements[i].c < 0)
+					statements16[i].c = PRLittleShort((short)statements[i].c);
+				else
+					statements16[i].c = (unsigned short)PRLittleShort((unsigned short)statements[i].c);
+			}
 
-		if (progs.blockscompressed&1)
-		{
-			SafeWrite (h, &len, sizeof(int));	//save for later
-			len = QC_encode(progfuncs, numstatements*sizeof(QCC_dstatement16_t), 2, (char *)statements16, h);	//write
-			i = SafeSeek (h, 0, SEEK_CUR);
-			SafeSeek(h, progs.ofs_statements, SEEK_SET);//seek back
-			len = PRLittleLong(len);
-			SafeWrite (h, &len, sizeof(int));	//write size.
-			SafeSeek(h, i, SEEK_SET);
+			if (progs.blockscompressed&1)
+			{
+				SafeWrite (h, &len, sizeof(int));	//save for later
+				len = QC_encode(progfuncs, numstatements*sizeof(QCC_dstatement16_t), 2, (char *)statements16, h);	//write
+				i = SafeSeek (h, 0, SEEK_CUR);
+				SafeSeek(h, progs.ofs_statements, SEEK_SET);//seek back
+				len = PRLittleLong(len);
+				SafeWrite (h, &len, sizeof(int));	//write size.
+				SafeSeek(h, i, SEEK_SET);
+			}
+			else
+				SafeWrite (h, statements16, numstatements*sizeof(QCC_dstatement16_t));
 		}
-		else
-			SafeWrite (h, statements16, numstatements*sizeof(QCC_dstatement16_t));
 		break;
 	default:
 		Sys_Error("structtype error");

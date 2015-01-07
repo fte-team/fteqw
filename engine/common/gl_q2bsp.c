@@ -4154,10 +4154,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		}
 	}
 
-#ifndef SERVERONLY
-	Mod_ParseInfoFromEntityLump(mod, mod->entities, loadname);	//only done for client's world model (or server if the server is loading it for client)
-#endif
-
 	CM_InitBoxHull ();
 
 	if (map_autoopenportals.value)

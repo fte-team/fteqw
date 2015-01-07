@@ -119,7 +119,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldvector(origin,"The current location of the entity in world space. Inline bsp entities (ie: ones placed by a mapper) will typically have a value of '0 0 0' in their neutral pose, as the geometry is offset from that. It is the reference point of the entity rather than the center of its geometry, for non-bsp models, this is often not a significant distinction.")\
 	comfieldvector(oldorigin,"This is often used on players to reset the player back to where they were last frame if they somehow got stuck inside something due to fpu precision. Never change a player's oldorigin field to inside a solid, because that might cause them to become pemanently stuck.")\
 	comfieldvector(velocity,"The direction and speed that the entity is moving in world space.")\
-	comfieldvector(angles,"The eular angles the entity is facing in, in pitch, yaw, roll order. Note that non-bsp models use a negated pitch due to a widely-proliferated-and-thus-unfixable legacy bug.")\
+	comfieldvector(angles,"The eular angles the entity is facing in, in pitch, yaw, roll order. Due to a legacy bug, mdl/iqm/etc formats use +x=UP, bsp/spr/etc formats use +x=DOWN.")\
 	comfieldvector(avelocity,"The amount the entity's angles change by each frame. Note that this is direct eular angles, and thus the angular change is non-linear and often just looks buggy.")\
 	comfieldstring(classname,"Identifies the class/type of the entity. Useful for debugging, also used for loading, but its value is not otherwise significant to the engine, this leaves the mod free to set it to whatever it wants and randomly test strings for values in whatever inefficient way it chooses fit.")\
 	comfieldstring(model,"The model name that was set via setmodel, in theory. Often, this is cleared to null to prevent the engine from being seen by clients while not changing modelindex. This behaviour allows inline models to remain solid yet be invisible.")\
@@ -155,7 +155,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(button2,NULL)\
 	comfieldfloat(impulse,NULL)\
 	comfieldfloat(fixangle,NULL)\
-	comfieldvector(v_angle,NULL)\
+	comfieldvector(v_angle,"The angles a player is viewing. +x is DOWN (pitch, yaw, roll)")\
 	comfieldstring(netname,NULL)\
 	comfieldentity(enemy,NULL)\
 	comfieldfloat(flags,NULL)\
@@ -414,16 +414,18 @@ typedef struct
 	vec3_t axis,	axis2;
 } odejointinfo_t;
 
+enum odecommands_e
+{
+	ODECMD_ENABLE,
+	ODECMD_DISABLE,
+	ODECMD_FORCE,
+	ODECMD_TORQUE,
+};
+
 typedef struct odecommandqueue_s
 {
 	struct odecommandqueue_s *next;
-	enum
-	{
-		ODECMD_ENABLE,
-		ODECMD_DISABLE,
-		ODECMD_FORCE,
-		ODECMD_TORQUE,
-	} command;
+	enum odecommands_e command;
 	struct wedict_s *edict;
 	vec3_t v1;
 	vec3_t v2;

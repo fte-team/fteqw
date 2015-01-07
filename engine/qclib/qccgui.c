@@ -70,6 +70,8 @@ void GUI_RevealOptions(void);
 #define SCI_CALLTIPCANCEL 2201
 #define SCI_SETMARGINSENSITIVEN 2246
 #define SCI_SETMOUSEDWELLTIME 2264
+#define SCI_SEARCHANCHOR 2366
+#define SCI_SEARCHNEXT 2367
 #define SCI_BRACEHIGHLIGHTINDICATOR 2498
 #define SCI_BRACEBADLIGHTINDICATOR 2499
 #define SCI_LINELENGTH 2350
@@ -173,11 +175,14 @@ typedef struct
 	int pipeclosed;
 	DWORD tid;
 	HWND window;
+	HWND refocuswindow;
 	HANDLE thread;
 	HANDLE pipefromengine;
 	HANDLE pipetoengine;
+	int embedtype;	//0 = not. 1 = separate. 2 = mdi child
 } enginewindow_t;
 static pbool EngineCommandf(char *message, ...);
+static void EngineGiveFocus(void);
 
 static pbool QCC_RegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
 {
@@ -526,6 +531,20 @@ void GUI_DialogPrint(char *title, char *text)
 	MessageBox(mainwindow, text, title, 0);
 }
 
+static void FindNextScintilla(editor_t *editor, char *findtext)
+{
+	int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
+	Edit_SetSel(editor->editpane, pos+1, pos+1);
+	SendMessage(editor->editpane, SCI_SEARCHANCHOR, 0, 0);
+	if (SendMessage(editor->editpane, SCI_SEARCHNEXT, 0, (LPARAM)findtext) != -1)
+		Edit_ScrollCaret(editor->editpane);	//make sure its focused
+	else
+	{
+		Edit_SetSel(editor->editpane, pos, pos);	//revert the selection change as nothing was found
+		MessageBox(editor->editpane, "No more occurences found", "FTE Editor", 0);
+	}
+}
+
 //available in xp+
 typedef LRESULT (CALLBACK *SUBCLASSPROC)(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 BOOL (WINAPI * pSetWindowSubclass)(HWND hWnd, SUBCLASSPROC pfnSubclass, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
@@ -536,11 +555,28 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 	{
 		if (wParam == VK_F3)
 		{
-			SetFocus(search_name);
+			char buffer[128];
+			GetWindowText(search_name, buffer, sizeof(buffer));
+			if (*buffer == 0)
+				SetFocus(search_name);
+			else
+			{
+				editor_t *editor;
+				for (editor = editors; editor; editor = editor->next)
+				{
+					if (editor->editpane == hWnd)
+						break;
+				}
+				if (editor->scintilla)
+				{
+					FindNextScintilla(editor, buffer);
+				}
+			}
 			return 0;
 		}
 		if (wParam == VK_F5)
 		{
+			EngineGiveFocus();
 			if (!EngineCommandf("qcresume\n"))
 				RunEngine();
 			return 0;
@@ -864,6 +900,9 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 	case IDM_SAVE:
 		EditorSave(editor);
 		break;
+	case IDM_FIND:
+		SetFocus(search_name);
+		break;
 	case IDM_GREP:
 		{
 			char buffer[1024];
@@ -1064,6 +1103,15 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 
 		funcname = "";	//FIXME
 
+		if (dwell)
+		{
+			tooltip_editor = NULL;
+			*tooltip_variable = 0;
+			tooltip_position = 0;
+			*tooltip_type = 0;
+			*tooltip_comment = 0;
+		}
+
 		def = QCC_PR_GetDef(NULL, defname, NULL, false, 0, GDF_SILENT);
 		if (def)
 		{
@@ -1083,18 +1131,19 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 
 			text = buffer;
 		}
+		else
+			text = NULL;
 
 		if (dwell)
 		{
-			tooltip_editor = editor;
 			strncpy(tooltip_variable, term, sizeof(tooltip_variable)-1);
 			tooltip_position = pos;
-			*tooltip_type = 0;
-			*tooltip_comment = 0;
+			tooltip_editor = editor;
 
 			EngineCommandf("qcinspect \"%s\" \"%s\"\n", term, funcname);
 
-			SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)pos, (LPARAM)text);
+			if (text)
+				SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)pos, (LPARAM)text);
 		}
 
 		return text;
@@ -1765,6 +1814,7 @@ void EditorReload(editor_t *editor)
 	editor->modified = false;
 }
 
+//line is 0-based. use -1 for no reselection
 void EditFile(char *name, int line)
 {
 	char title[1024];
@@ -1778,7 +1828,7 @@ void EditFile(char *name, int line)
 		{
 			if (line >= 0)
 			{
-				Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line), Edit_LineIndex(neweditor->editpane, line+1));
+				Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line), Edit_LineIndex(neweditor->editpane, line+1)-1);
 				Edit_ScrollCaret(neweditor->editpane);
 			}
 			if (mdibox)
@@ -2168,6 +2218,28 @@ skipwhite:
 	return (char*)data;
 }
 
+static void EngineGiveFocus(void)
+{
+	HWND game;
+	if (gamewindow)
+	{
+		enginewindow_t *ctx = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
+		if (ctx)
+		{
+			if (ctx->refocuswindow)
+			{
+				SetForegroundWindow(ctx->refocuswindow);
+				return;
+			}
+		}
+
+		SetFocus(gamewindow);
+		game = GetWindow(gamewindow, GW_CHILD);
+		if (game)
+			SetForegroundWindow(game);	//make sure the game itself has focus
+	}
+}
+
 static pbool EngineCommandWnd(HWND wnd, char *message)
 {
 	//qcresume			- resume running
@@ -2214,14 +2286,13 @@ static pbool EngineCommandWndf(HWND wnd, char *message, ...)
 
 unsigned int WINAPI threadwrapper(void *args)
 {
-	static char filenamebuffer[256];
 	enginewindow_t *ctx = args;
 	{
 		PROCESS_INFORMATION childinfo;
 		STARTUPINFO startinfo;
 		SECURITY_ATTRIBUTES pipesec = {sizeof(pipesec), NULL, TRUE};
 		char cmdline[8192];
-		_snprintf(cmdline, sizeof(cmdline), "\"%s\" %s -plugin qcdebug", enginebinary, enginecommandline);
+		_snprintf(cmdline, sizeof(cmdline), "\"%s\" %s -qcdebug", enginebinary, enginecommandline);
 
 		memset(&startinfo, 0, sizeof(startinfo));
 		startinfo.cb = sizeof(startinfo);
@@ -2237,7 +2308,24 @@ unsigned int WINAPI threadwrapper(void *args)
 		SetHandleInformation(ctx->pipefromengine, HANDLE_FLAG_INHERIT, 0);
 		SetHandleInformation(ctx->pipetoengine, HANDLE_FLAG_INHERIT, 0);
 
-//		EngineCommand(ctx, "vid_recenter %i %i %i %i %#p\n", 0, 0, 640, 480, (void*)ctx->window);
+		//let the engine know who to give focus to 
+		{
+			char message[256];
+			DWORD written;
+			_snprintf(message, sizeof(message)-1, "debuggerwnd %#p\n",  (void*)mainwindow);
+			WriteFile(ctx->pipetoengine, message, strlen(message), &written, NULL);
+		}
+
+		//let the engine know which window to embed itself in
+		if (ctx->embedtype)
+		{
+			char message[256];
+			DWORD written;
+			RECT rect;
+			GetClientRect(ctx->window, &rect);
+			_snprintf(message, sizeof(message)-1, "vid_recenter %i %i %i %i %#p\n", 0, 0, rect.right - rect.left, rect.bottom-rect.top, (void*)ctx->window);
+			WriteFile(ctx->pipetoengine, message, strlen(message), &written, NULL);
+		}
 
 		CreateProcess(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, enginebasedir, &startinfo, &childinfo);
 
@@ -2291,15 +2379,22 @@ unsigned int WINAPI threadwrapper(void *args)
 						//stack "$func" "$loc"
 						//local $depth
 					}
-					else if (!strncmp(buffer, "qcstep ", 7))
+					else if (!strncmp(buffer, "qcstep ", 7) || !strncmp(buffer, "qcfault ", 8))
 					{
 						//post it, because of thread ownership issues.
+						static char filenamebuffer[256];
+						char line[16];
+						char error[256];
 						char *l = COM_ParseOut(buffer+7, filenamebuffer, sizeof(filenamebuffer));
+						while (*l == ' ')
+							l++;
 						if (*l == ':')
 							l++;
-						while(*l == ' ')
-							l++;
-						PostMessage(ctx->window, WM_USER, atoi(l), (LPARAM)filenamebuffer);	//and tell the owning window to try to close it again
+						l = COM_ParseOut(l, line, sizeof(line));
+						l = COM_ParseOut(l, error, sizeof(error));
+						PostMessage(ctx->window, WM_USER, atoi(line), (LPARAM)filenamebuffer);	//and tell the owning window to try to close it again
+						if (*error)
+							PostMessage(ctx->window, WM_USER+3, 0, (LPARAM)strdup(error));	//and tell the owning window to try to close it again
 					}
 					else if (!strncmp(buffer, "qcvalue ", 8))
 					{
@@ -2311,7 +2406,22 @@ unsigned int WINAPI threadwrapper(void *args)
 					{
 						//so we can resend any breakpoint commands
 						//qcreloaded "$vmname" "$progsname"
+						char caption[256];
+						HWND gw = GetWindow(ctx->window, GW_CHILD);
+						if (gw)
+						{
+							GetWindowText(gw, caption, sizeof(caption));
+							SetWindowText(ctx->window, caption);
+						}
 						PostMessage(ctx->window, WM_USER+1, 0, 0);	//and tell the owning window to try to close it again
+					}
+					else if (!strncmp(buffer, "refocuswindow", 13) && (buffer[13] == ' ' || !buffer[13]))
+					{
+						char *l = buffer+13;
+						while(*l == ' ')
+							l++;
+						ctx->refocuswindow = (HWND)strtoul(l, &l, 0);
+						ShowWindow(ctx->window, SW_HIDE);
 					}
 					else
 					{
@@ -2349,11 +2459,12 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 		memset(ctx, 0, sizeof(*ctx));
 		SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)ctx);
 		ctx->window = hWnd;
+		ctx->embedtype = (int)((CREATESTRUCT*)lParam)->lpCreateParams;
 		ctx->thread = (HANDLE)CreateThread(NULL, 0, threadwrapper, ctx, 0, &ctx->tid);
 		break;
 	case WM_SIZE:
 		ctx = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
-		if (ctx)
+		if (ctx && ctx->embedtype)
 		{
 			RECT r;
 			GetClientRect(hWnd, &r);
@@ -2383,6 +2494,7 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 		break;
 	case WM_USER:
 		//engine broke. show code.
+		SetForegroundWindow(mainwindow);
 		EditFile((char*)lParam, wParam-1);
 		break;
 	case WM_USER+1:
@@ -2404,6 +2516,7 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 			}
 		}
 		//and now let the engine continue
+		SetFocus(hWnd);
 		EngineCommandWnd(hWnd, "qcresume\n");
 		break;
 	case WM_USER+2:
@@ -2426,6 +2539,13 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 			free((char*)lParam);
 		}
 		break;
+	case WM_USER+3:
+		{
+			char *msg = (char*)lParam;
+			MessageBox(mainwindow, msg, "QC Fault", 0);
+			free(msg);
+		}
+		break;
 
 	default:
 	gdefault:
@@ -2435,6 +2555,7 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 }
 void RunEngine(void)
 {
+	int embedtype = 0;	//0 has focus issues.
 	if (!gamewindow)
 	{
 		WNDCLASS wndclass;
@@ -2453,19 +2574,27 @@ void RunEngine(void)
 		wndclass.lpszClassName = ENGINE_WINDOW_CLASS_NAME;
 		RegisterClass(&wndclass);
 
-		memset(&mcs, 0, sizeof(mcs));
-		mcs.szClass = ENGINE_WINDOW_CLASS_NAME;
-		mcs.szTitle = "Debug";
-		mcs.hOwner = ghInstance;
-		mcs.x = CW_USEDEFAULT;
-		mcs.y = CW_USEDEFAULT;
-		mcs.cx = 640;
-		mcs.cy = 480;
-		mcs.style = WS_OVERLAPPEDWINDOW;
-		mcs.lParam = 0;
+		if (embedtype != 2)
+		{
+			gamewindow = CreateWindowA(ENGINE_WINDOW_CLASS_NAME, "Debug", WS_OVERLAPPEDWINDOW, 0, 0, 640, 480, NULL, NULL, ghInstance, (void*)embedtype);
+			if (embedtype)
+				ShowWindow(gamewindow, SW_SHOW);
+		}
+		else
+		{
+			memset(&mcs, 0, sizeof(mcs));
+			mcs.szClass = ENGINE_WINDOW_CLASS_NAME;
+			mcs.szTitle = "Debug";
+			mcs.hOwner = ghInstance;
+			mcs.x = CW_USEDEFAULT;
+			mcs.y = CW_USEDEFAULT;
+			mcs.cx = 640;
+			mcs.cy = 480;
+			mcs.style = WS_OVERLAPPEDWINDOW;
+			mcs.lParam = embedtype;
 
-		gamewindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, (LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
-	//	ShowWindow(gamewindow, SW_SHOW);
+			gamewindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, (LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
+		}
 	}
 	else
 	{
@@ -3010,7 +3139,44 @@ void OptionsDialog(void)
 
 #undef printf
 
-
+WNDPROC combosubclassproc;
+static LRESULT CALLBACK SearchComboSubClass(HWND hWnd,UINT message,
+				     WPARAM wParam,LPARAM lParam)
+{
+	switch (message) 
+	{ 
+	case WM_KEYDOWN: 
+		switch (wParam) 
+		{  
+		case VK_RETURN:
+			PostMessage(mainwindow, WM_COMMAND, 0x4404, (LPARAM)search_gotodef);
+			return true;
+		case VK_F3:
+			{
+				char buffer[128];
+				GetWindowText(search_name, buffer, sizeof(buffer));
+				if (*buffer != 0)
+				{
+					HWND ew = (HWND)SendMessage(mdibox, WM_MDIGETACTIVE, 0, 0);
+					editor_t *editor;
+					for (editor = editors; editor; editor = editor->next)
+					{
+						if (editor->window == ew)
+							break;
+					}
+					if (editor && editor->scintilla)
+					{
+						FindNextScintilla(editor, buffer);
+						SetFocus(editor->window);
+						SetFocus(editor->editpane);
+					}
+				}
+			}
+		} 
+		break; 
+	}
+	return CallWindowProc(combosubclassproc, hWnd, message, wParam, lParam); 
+}
 
 static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
@@ -3031,11 +3197,11 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 			
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&File");
 					AppendMenu(m, 0, IDM_OPENNEW,	"Open new file ");
-					AppendMenu(m, 0, IDM_SAVE,		"&Save         Ctrl+S ");
-					AppendMenu(m, 0, IDM_RECOMPILE,	"&Recompile    Ctrl+R ");
+					AppendMenu(m, 0, IDM_SAVE,		"&Save	Ctrl+S ");
+					AppendMenu(m, 0, IDM_RECOMPILE,	"&Recompile	Ctrl+R ");
 				//	AppendMenu(m, 0, IDM_FIND,		"&Find");
-					AppendMenu(m, 0, IDM_UNDO,		"Undo          Ctrl+Z");
-					AppendMenu(m, 0, IDM_REDO,		"Redo          Ctrl+Y");
+					AppendMenu(m, 0, IDM_UNDO,		"Undo	Ctrl+Z");
+					AppendMenu(m, 0, IDM_REDO,		"Redo	Ctrl+Y");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Navigation");
 					AppendMenu(m, 0, IDM_GOTODEF, "Go to definition");
 					AppendMenu(m, 0, IDM_OPENDOCU, "Open selected file");
@@ -3070,17 +3236,23 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 
 			if (projecttree)
 			{
-				search_name = CreateWindowEx(WS_EX_CLIENTEDGE, "EDIT", (LPCTSTR) NULL,
-						WS_CHILD | WS_CLIPCHILDREN,
-						0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) NULL);
+				search_name = CreateWindowEx(WS_EX_CLIENTEDGE, "COMBOBOX", (LPCTSTR) NULL,
+						WS_CHILD | WS_CLIPCHILDREN|CBS_DROPDOWN|CBS_SORT,
+						0, 0, 320, 200, hWnd, (HMENU) 0x4403, ghInstance, (LPSTR) NULL);
+				{
+					//microsoft suck big hairy donkey balls.
+					//this tries to get the edit box of the combo control.
+					HWND comboedit = GetWindow(search_name, GW_CHILD);
+					combosubclassproc = (WNDPROC) SetWindowLongPtr(comboedit, GWL_WNDPROC, (DWORD_PTR) SearchComboSubClass);
+				}
 				ShowWindow(search_name, SW_SHOW);
 
 				search_gotodef = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "Def",
-						WS_CHILD | WS_CLIPCHILDREN | BS_DEFPUSHBUTTON,
+						WS_CHILD | WS_CLIPCHILDREN/* | BS_DEFPUSHBUTTON*/,
 						0, 0, 320, 200, hWnd, (HMENU) 0x4404, ghInstance, (LPSTR) NULL);
 				ShowWindow(search_gotodef, SW_SHOW);
 				search_grep = CreateWindowEx(WS_EX_CLIENTEDGE, "BUTTON", "Grep",
-						WS_CHILD | WS_CLIPCHILDREN | BS_DEFPUSHBUTTON,
+						WS_CHILD | WS_CLIPCHILDREN/* | BS_DEFPUSHBUTTON*/,
 						0, 0, 320, 200, hWnd, (HMENU) 0x4405, ghInstance, (LPSTR) NULL);
 				ShowWindow(search_grep, SW_SHOW);
 			}
@@ -3120,23 +3292,52 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 		return TRUE;
 		break;
 	case WM_COMMAND:
-		if (wParam == 0x4404)
+		i = LOWORD(wParam);
+		if (i == 0x4403)
+		{
+			char buffer[65536];
+			char text[128];
+			switch(HIWORD(wParam))
+			{
+			case CBN_EDITUPDATE:
+				GetWindowText(search_name, text, sizeof(text)-1);
+				if (GenAutoCompleteList(text, buffer, sizeof(buffer)))
+				{
+					char token[128];
+					char *list;
+					DWORD start=0,end=0;
+					SendMessage(search_name, CB_GETEDITSEL, (WPARAM)&start, (LPARAM)&end);
+					ComboBox_ResetContent(search_name);	//windows is shit. this clears the text too.
+					SetWindowText(search_name, text);
+					ComboBox_SetEditSel(search_name, start, end);
+					for (list = buffer; ; )
+					{
+						list = COM_ParseOut(list, token, sizeof(token));
+						if (!*token)
+							break;
+						ComboBox_AddString(search_name, token);
+					}
+				}
+				return true;
+			}
+			goto gdefault;
+		}
+		if (i == 0x4404)
 		{
 			GetWindowText(search_name, finddef, sizeof(finddef)-1);
 			return true;
 		}
-		if (wParam == 0x4405)
+		if (i == 0x4405)
 		{
 			GetWindowText(search_name, greptext, sizeof(greptext)-1);
 			return true;
 		}
-		if (LOWORD(wParam)>0 && LOWORD(wParam) <= NUMBUTTONS)
+		if (i>0 && i <= NUMBUTTONS)
 		{
-			if (LOWORD(wParam))
-				buttons[LOWORD(wParam)-1].washit = 1;
+			buttons[i-1].washit = 1;
 			break;
 		}
-		if (LOWORD(wParam) < IDM_FIRSTCHILD)
+		if (i < IDM_FIRSTCHILD)
 		{
 			HWND ew;
 			editor_t *editor;
@@ -3474,6 +3675,7 @@ void RunCompiler(char *args)
 
 	if (CompileParams(&funcs, true, argc, argv))
 	{
+		EngineGiveFocus();
 		EngineCommandf("qcresume\nmenu_restart\nrestart\n");
 	}
 
@@ -3692,6 +3894,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	ACCEL acceleratorlist[] =
 	{
 		{FCONTROL|FVIRTKEY, 'S', IDM_SAVE},
+		{FCONTROL|FVIRTKEY, 'F', IDM_FIND},
 		{FCONTROL|FVIRTKEY, 'R', IDM_RECOMPILE}
 	};
 	ghInstance= hInstance;

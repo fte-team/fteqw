@@ -3529,7 +3529,7 @@ char *COM_ParseStringSet (const char *data, char *out, size_t outsize)
 }
 
 
-char *COM_ParseOut (const char *data, char *out, int outlen)
+char *COM_ParseType (const char *data, char *out, int outlen, com_tokentype_t *toktype)
 {
 	int		c;
 	int		len;
@@ -3539,6 +3539,8 @@ char *COM_ParseOut (const char *data, char *out, int outlen)
 
 	len = 0;
 	out[0] = 0;
+	if (toktype)
+		*toktype = TTP_EOF;
 
 	if (!data)
 		return NULL;
@@ -3582,6 +3584,9 @@ skipwhite:
 // handle quoted strings specially
 	if (c == '\"')
 	{
+		if (toktype)
+			*toktype = TTP_STRING;
+
 		data++;
 		while (1)
 		{
@@ -3603,6 +3608,8 @@ skipwhite:
 	}
 
 // parse a regular word
+	if (toktype)
+		*toktype = TTP_RAWTOKEN;
 	do
 	{
 		if (len >= outlen-1)

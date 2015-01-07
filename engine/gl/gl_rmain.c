@@ -1229,19 +1229,23 @@ qboolean R_GameRectIsFullscreen(void)
 }
 
 int gldepthfunc = GL_LEQUAL;
-void R_Clear (void)
+qboolean depthcleared;
+void R_Clear (qboolean fbo)
 {
 	/*tbh, this entire function should be in the backend*/
-	GL_ForceDepthWritable();
 	{
 		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-		if (r_clear.ival && R_GameRectIsFullscreen() && !(r_refdef.flags & RDF_NOWORLDMODEL))
+		if (!depthcleared || fbo)
 		{
-			qglClearColor(1, 0, 0, 0);
-			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		}
-		else
+			GL_ForceDepthWritable();
+			//we no longer clear colour here. we only ever (need to) do that at the start of the frame, and this point can be called multiple times per frame.
+			//for performance, we clear the depth at the same time we clear colour, so we can skip clearing depth here the first time around each frame.
+			//but for multiple scenes, we do need to clear depth still.
+			//fbos always get cleared depth, just in case (colour fbos may contain junk, but hey).
 			qglClear (GL_DEPTH_BUFFER_BIT);
+		}
+		if (!fbo)
+			depthcleared = false;
 		gldepthmin = 0;
 		gldepthmax = 1;
 		gldepthfunc=GL_LEQUAL;
@@ -1495,7 +1499,7 @@ qboolean R_RenderScene_Cubemap(void)
 		r_refdef.viewangles[1] = saveang[1]+ang[i][1];
 		r_refdef.viewangles[2] = saveang[2]+ang[i][2];
 
-		R_Clear ();
+		R_Clear (false);
 
 		GL_SetShaderState2D(false);
 
@@ -1734,7 +1738,7 @@ void GLR_RenderView (void)
 	{
 		GL_SetShaderState2D(false);
 
-		R_Clear ();
+		R_Clear (dofbo);
 
 	//	GLR_SetupFog ();
 

@@ -505,7 +505,7 @@ void SV_Map_f (void)
 	}
 	else
 	{
-		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", NULL};
+		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", "maps/%s.map", NULL};
 		int i, j;
 
 		for (i = 0; exts[i]; i++)

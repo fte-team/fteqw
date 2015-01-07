@@ -87,12 +87,14 @@ void GoToDefinition(char *name)
 
 	if (def)
 	{
+		//with functions, the def is the prototype.
+		//we want the body, so zoom to the first statement of the function instead
 		if (def->type->type == ev_function && def->constant)
 		{
 			fnc = &functions[((int *)qcc_pr_globals)[def->ofs]];
 			if (fnc->first_statement>=0 && fnc->s_file)
 			{
-				EditFile(fnc->s_file+strings, statements[fnc->first_statement].linenum);
+				EditFile(fnc->s_file+strings, statements[fnc->first_statement].linenum-1);
 				return;
 			}
 		}

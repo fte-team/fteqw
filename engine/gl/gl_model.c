@@ -1427,7 +1427,9 @@ static void Mod_LoadMiptex(model_t *loadmodel, char *loadname, texture_t *tx, mi
 		{//external textures have already been filtered.
 			if (maps & LMT_DIFFUSE)
 			{
-				base = W_ConvertWAD3Texture(mt, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
+				//size is not directly known.
+				//we might be able to infer based upon neighbours, but that seems like too much hassle
+				base = W_ConvertWAD3Texture(mt, 0xffffffff, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
 				tx->alphaed = alphaed;
 				tx->texnums.base = R_LoadReplacementTexture(mt->name, loadname, alphaed?0:IF_NOALPHA, base, tx->width, tx->height, alphaed?TF_RGBA32:TF_RGBX32);
 				BZ_Free(base);
@@ -4506,12 +4508,6 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	crouchhullfile = NULL;
 
 	Mod_FindVisPatch(&vispatch, mod, header->lumps[LUMP_LEAFS].filelen);
-
-	TRACE(("Loading info\n"));
-#ifndef SERVERONLY
-	if (!isnotmap)
-		Mod_ParseInfoFromEntityLump(mod, mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
-#endif
 
 // load into heap
 	if (!isDedicated || ode)

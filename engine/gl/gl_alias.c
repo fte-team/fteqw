@@ -2445,6 +2445,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 {
 	int		i;
 	entity_t *ent;
+	model_t *emodel;
 	unsigned int orig_numstris = cl_numstris;
 	unsigned int orig_numvisedicts = cl_numvisedicts;
 	unsigned int orig_numstrisidx = cl_numstrisidx;
@@ -2495,14 +2496,15 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 		{
 		case RT_MODEL:
 		default:
-			if (!ent->model)
+			emodel = ent->model;
+			if (!emodel)
 				continue;
-			if (ent->model->loadstate == MLS_NOTLOADED)
+			if (emodel->loadstate == MLS_NOTLOADED)
 			{
-				if (!Mod_LoadModel(ent->model, MLV_WARN))
+				if (!Mod_LoadModel(emodel, MLV_WARN))
 					continue;
 			}
-			if (ent->model->loadstate != MLS_LOADED)
+			if (emodel->loadstate != MLS_LOADED)
 				continue;
 
 			if (cl.lerpents && (cls.allow_anyparticles))	//allowed or static
@@ -2514,14 +2516,14 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 				}
 			}
 
-			if (ent->model->engineflags & MDLF_NOTREPLACEMENTS)
+			if (emodel->engineflags & MDLF_NOTREPLACEMENTS)
 			{
-				if (ent->model->fromgame != fg_quake || ent->model->type != mod_alias)
+				if (emodel->fromgame != fg_quake || emodel->type != mod_alias)
 					if (!ruleset_allow_sensitive_texture_replacements.value)
 						continue;
 			}
 
-			switch(ent->model->type)
+			switch(emodel->type)
 			{
 			case mod_brush:
 				if (r_drawentities.ival == 2)
@@ -2544,6 +2546,10 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			// warning: enumeration value ‘mod_*’ not handled in switch
 			case mod_dummy:
 			case mod_heightmap:
+#if defined(TERRAIN)
+				if (emodel->terrain && !(r_refdef.flags & RDF_NOWORLDMODEL))
+					Terr_DrawTerrainModel(batches, ent);
+#endif
 				break;
 			}
 			break;

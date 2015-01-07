@@ -1217,7 +1217,7 @@ static void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, floa
 #else
 
 #define MAXFRAGMENTVERTS 360
-static int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
+int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
 {
 #define C 4
 	float dotv[MAXFRAGMENTVERTS+1];

@@ -1226,6 +1226,10 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	if (atstage())
 	{
 		SCR_SetLoadingFile("wads");
+		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
+			return stage;
+		Mod_ParseInfoFromEntityLump(cl.worldmodel);
+
 		Wad_NextDownload();
 
 		endstage();

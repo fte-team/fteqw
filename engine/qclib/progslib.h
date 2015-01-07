@@ -171,7 +171,7 @@ struct pubprogfuncs_s
 	char *(PDECL *UglyValueString)				(pubprogfuncs_t *progfuncs, etype_t type, union eval_s *val);
 	pbool (PDECL *ParseEval)					(pubprogfuncs_t *progfuncs, union eval_s *eval, int type, const char *s);
 	void (PDECL *SetStringField)				(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static);	//if ed is null, fld points to a global. if str_is_static, then s doesn't need its own memory allocated.
-	pbool (PDECL *DumpProfile)					(pubprogfuncs_t *progfuncs);
+	pbool (PDECL *DumpProfile)					(pubprogfuncs_t *progfuncs, pbool resetprofiles);
 };
 
 typedef struct progexterns_s {

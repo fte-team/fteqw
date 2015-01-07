@@ -266,7 +266,7 @@ void deleetstring(char *result, const char *leet);
 
 extern	char		com_token[65536];
 
-typedef enum {TTP_UNKNOWN, TTP_STRING, TTP_LINEENDING} com_tokentype_t;
+typedef enum {TTP_UNKNOWN, TTP_STRING, TTP_LINEENDING, TTP_RAWTOKEN, TTP_EOF} com_tokentype_t;
 extern com_tokentype_t com_tokentype;
 
 extern	qboolean	com_eof;
@@ -274,7 +274,8 @@ extern	qboolean	com_eof;
 //these cast away the const for the return value.
 //char *COM_Parse (const char *data);
 #define COM_Parse(d) COM_ParseOut(d,com_token, sizeof(com_token))
-char *COM_ParseOut (const char *data, char *out, int outlen);
+#define COM_ParseOut(d,o,l) COM_ParseType(d,o,l,NULL)
+char *COM_ParseType (const char *data, char *out, int outlen, com_tokentype_t *toktype);
 char *COM_ParseStringSet (const char *data, char *out, size_t outlen);
 char *COM_ParseCString (const char *data, char *out, size_t maxoutlen, size_t *writtenlen);
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);

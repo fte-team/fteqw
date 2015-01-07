@@ -48,8 +48,8 @@ cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 cvar_t	sv_fullredirect = CVARD("sv_fullredirect", "", "This is the ip:port to redirect players to when the server is full");
 cvar_t	sv_antilag			= CVARFD("sv_antilag", "1", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag. 0=completely off. 1=mod-controlled. 2=forced, which might break certain uses of traceline.");
 cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
-cvar_t	sv_cheatpc				= CVAR("sv_cheatpc", "125");
-cvar_t	sv_cheatspeedchecktime	= CVAR("sv_cheatspeedchecktime", "30");
+cvar_t	sv_cheatpc				= CVARD("sv_cheatpc", "125", "If the client tried to claim more than this percentage of time within any speed-cheat period, the client will be deemed to have cheated.");
+cvar_t	sv_cheatspeedchecktime	= CVARD("sv_cheatspeedchecktime", "30", "The interval between each speed-cheat check.");
 cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
 cvar_t	sv_ping_ignorepl		= CVARD("sv_ping_ignorepl", "0", "If 1, ping times reported for players will ignore the effects of packetloss on ping times. 0 is slightly more honest, but less useful for connection diagnosis.");
 cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "0", "Specifies the default protocol to use for new NQ clients. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
@@ -5856,6 +5856,7 @@ SV_RunCmd
 */
 void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 {
+	extern int	isPlugin;
 	edict_t		*ent;
 	int			i, n;
 	int			oldmsec;
@@ -5871,21 +5872,24 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	// To prevent a infinite loop
 	if (!recurse)
 	{
+		//FIXME: update protocol to use server's timestamps instead of msecs over the wire, obsoleting speed cheat checks (by allowing the server to clamp sanely).
+
 		if (!host_client->last_check)
 		{
 			host_client->msecs = 0;
-		    host_client->last_check = realtime;
+			host_client->last_check = realtime;
 		}
 		host_client->msecs += ucmd->msec;
 
 		if ((tmp_time = realtime - host_client->last_check) >= sv_cheatspeedchecktime.value)
 		{
 			tmp_time = tmp_time * 1000.0 * sv_cheatpc.value/100.0;
-		    if (host_client->msecs > tmp_time)
+			if (host_client->msecs > tmp_time &&
+				isPlugin < 2)	//debugging can result in WEIRD timings, so don't warn about weird timings if we're likely to get blocked out for long periods
 			{
 				host_client->msec_cheating++;
 				SV_BroadcastTPrintf(PRINT_HIGH,
-						"Speed cheat possibility, analyzing:\n  %d %.1f %d for: %s\n",
+						"Speed cheat possibility, analyzing:\n  %d>%.1f %d for: %s\n",
 							host_client->msecs, tmp_time,
 							host_client->msec_cheating, host_client->name);
 
@@ -5896,10 +5900,10 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 								host_client->name, NET_AdrToString(adr, sizeof(adr), &host_client->netchan.remote_address));
 					host_client->drop = true;	//drop later
 				}
-		    }
+			}
 
-		    host_client->msecs = 0;
-		    host_client->last_check = realtime;
+			host_client->msecs = 0;
+			host_client->last_check = realtime;
 		}
 	}
 	// end KK hack copied from QuakeForge anti-cheat

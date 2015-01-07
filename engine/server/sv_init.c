@@ -936,7 +936,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	else
 #endif
 	{
-		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", NULL};
+		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", "maps/%s.map", NULL};
 		int depth, bestdepth;
 		Q_strncpyz (sv.name, server, sizeof(sv.name));
 		Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[0], server);

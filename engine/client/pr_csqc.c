@@ -1602,6 +1602,13 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		break;
 
 	case VF_RT_DESTCOLOUR0:
+	case VF_RT_DESTCOLOUR1:
+	case VF_RT_DESTCOLOUR2:
+	case VF_RT_DESTCOLOUR3:
+	case VF_RT_DESTCOLOUR4:
+	case VF_RT_DESTCOLOUR5:
+	case VF_RT_DESTCOLOUR6:
+	case VF_RT_DESTCOLOUR7:
 		{
 			int i = parametertype - VF_RT_DESTCOLOUR0;
 			Q_strncpyz(r_refdef.rt_destcolour[i].texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_destcolour[i].texname));
@@ -6173,8 +6180,8 @@ void CSQC_WatchPoint_f(void)
 void PR_CSProfile_f(void)
 {
 	if (csqcprogs && csqcprogs->DumpProfile)
-		if (!csqcprogs->DumpProfile(csqcprogs))
-			Con_Printf("Please set pr_enable_profiling and restart the map first\n");
+		if (!csqcprogs->DumpProfile(csqcprogs, !atof(Cmd_Argv(1))))
+			Con_Printf("Enabled csqc Profiling.\n");
 }
 
 static void CSQC_GameCommand_f(void);

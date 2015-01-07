@@ -1967,8 +1967,16 @@ qboolean Sys_InitTerminal (void)
 	SetConsoleCP(CP_UTF8);
 	SetConsoleOutputCP(CP_UTF8);
 	SetConsoleTitle (FULLENGINENAME " dedicated server");
-	hinput = GetStdHandle (STD_INPUT_HANDLE);
-	houtput = GetStdHandle (STD_OUTPUT_HANDLE);
+	if (isPlugin)
+	{
+		hinput = CreateFile("CONIN$",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
+		houtput = CreateFile("CONOUT$",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
+	}
+	else
+	{
+		hinput = GetStdHandle (STD_INPUT_HANDLE);
+		houtput = GetStdHandle (STD_OUTPUT_HANDLE);
+	}
 
 	GetConsoleMode(hinput, &m);
 	SetConsoleMode(hinput, m | 0x40 | 0x80);
@@ -2023,7 +2031,7 @@ void Sys_SendKeyEvents (void)
 					if (nl)
 					{
 						*nl++ = 0;
-						if (!qrenderer && !strncmp(text, "vid_recenter ", 13))
+						if (qrenderer <= QR_NONE && !strncmp(text, "vid_recenter ", 13))
 						{
 							Cmd_TokenizeString(text, false, false);
 							sys_parentleft = strtoul(Cmd_Argv(1), NULL, 0);
@@ -2051,7 +2059,7 @@ void Sys_SendKeyEvents (void)
 
 		}
 	}
-	else if (isDedicated)
+	if (isDedicated)
 	{
 #ifndef CLIENTONLY
 		SV_GetConsoleCommands ();
@@ -2475,6 +2483,8 @@ void Win7_TaskListInit(void)
 		#define UPD_BUILDTYPE "rel"
 	#else
 		#define UPD_BUILDTYPE "test"
+		//WARNING: Security comes from the fact that the triptohell.info certificate is hardcoded in the tls code.
+		//this will correctly detect insecure tls proxies also.
 		#define UPDATE_URL "https://triptohell.info/moodles/"
 		#define UPDATE_URL_VERSION UPDATE_URL "version.txt"
 		#ifdef _WIN64
@@ -3124,16 +3134,22 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		host_parms.binarydir = bindir;
 		COM_InitArgv (parms.argc, parms.argv);
 
-		c = COM_CheckParm("-plugin");
+		c = COM_CheckParm("-qcdebug");
 		if (c)
-		{
-			if (c < com_argc && !strcmp(com_argv[c+1], "qcdebug"))
-				isPlugin = 2;
-			else
-				isPlugin = 1;
-		}
+			isPlugin = 3;
 		else
-			isPlugin = 0;
+		{
+			c = COM_CheckParm("-plugin");
+			if (c)
+			{
+				if (c < com_argc && !strcmp(com_argv[c+1], "qcdebug"))
+					isPlugin = 2;
+				else
+					isPlugin = 1;
+			}
+			else
+				isPlugin = 0;
+		}
 
 		if (Sys_CheckUpdated())
 			return true;
@@ -3161,7 +3177,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			Sys_CreateThread("watchdog", watchdogthread, NULL, 0, 0); 
 #endif
 
-		if (isPlugin)
+		if (isPlugin==1)
 		{
 			printf("status Starting up!\n");
 			fflush(stdout);
@@ -3325,7 +3341,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		#endif
 		#endif
 
-		if (isPlugin)
+		if (isPlugin==1)
 		{
 			printf("status Running!\n");
 			fflush(stdout);

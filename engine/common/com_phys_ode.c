@@ -1168,7 +1168,7 @@ static dllfunction_t odefuncs[] =
 };
 
 // Handle for ODE DLL
-dllhandle_t ode_dll = NULL;
+dllhandle_t *ode_dll = NULL;
 #endif
 
 static void World_ODE_RunCmd(world_t *world, odecommandqueue_t *cmd);
@@ -1258,7 +1258,7 @@ void World_ODE_Shutdown(void)
 	{
 		dCloseODE();
 #ifdef ODE_DYNAMIC
-		Sys_CloseLibrary(&ode_dll);
+		Sys_CloseLibrary(ode_dll);
 		ode_dll = NULL;
 #endif
 	}

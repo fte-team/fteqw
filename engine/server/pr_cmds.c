@@ -1193,8 +1193,8 @@ void PR_WatchPoint_f(void)
 static void PR_SSProfile_f(void)
 {
 	if (svprogfuncs && svprogfuncs->DumpProfile)
-		if (!svprogfuncs->DumpProfile(svprogfuncs))
-			Con_Printf("Please set pr_enable_profiling and restart the map first\n");
+		if (!svprogfuncs->DumpProfile(svprogfuncs, !atof(Cmd_Argv(1))))
+			Con_Printf("Enabled ssqc profiling. Re-execute %s to see the results.\n", Cmd_Argv(0));
 }
 
 static void PR_SSPoke_f(void)
@@ -1253,7 +1253,7 @@ void PR_Init(void)
 	Cmd_AddCommand ("applycompile", PR_ApplyCompilation_f);
 	Cmd_AddCommand ("coredump_ssqc", PR_SSCoreDump_f);
 	Cmd_AddCommand ("poke_ssqc", PR_SSPoke_f);
-	Cmd_AddCommand ("profile_ssqc", PR_SSProfile_f);
+	Cmd_AddCommandD ("profile_ssqc", PR_SSProfile_f, "Displays how much time has been spent in various QC functions since this command was last used.\nIf pr_enable_profiling is set, profiling will be enabled automatically, and can be used to list spawn functions.\nAdd an arg with value 1 if you wish to avoid purging timing information.");
 
 	Cmd_AddCommand ("extensionlist_ssqc", PR_SVExtensionList_f);
 	Cmd_AddCommand ("pr_dumpplatform", PR_DumpPlatform_f);
@@ -9177,7 +9177,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #endif
 										  //nq		qw		h2		ebfs
 	{"ignore",			PF_Ignore,			0,		0,		0,		0,	D("void()","Ignored by the engine. Returns 0.")},
-	{"makevectors",		PF_makevectors,		1,		1,		1,		0,	D("void(vector vang)","Takes an angle vector (pitch,yaw,roll). Writes its results into v_forward, v_right, v_up vectors.")},
+	{"makevectors",		PF_makevectors,		1,		1,		1,		0,	D("void(vector vang)","Takes an angle vector (pitch,yaw,roll) (+x=DOWN). Writes its results into v_forward, v_right, v_up vectors.")},
 	{"setorigin",		PF_setorigin,		2,		2,		2,		0,	D("void(entity e, vector o)","Changes e's origin to be equal to o. Also relinks collision state (as well as setting absmin+absmax), which is required after changing .solid")},
 	{"setmodel",		PF_setmodel,		3,		3,		3,		0,	D("void(entity e, string m)","Looks up m in the model precache list, and sets both e.model and e.modelindex to match. BSP models will set e.mins and e.maxs accordingly, other models depend upon the value of sv_gameplayfix_setmodelrealbox - for compatibility you should always call setsize after all pickups or non-bsp models. Also relinks collision state.")},
 	{"setsize",			PF_setsize,			4,		4,		4,		0,	D("void(entity e, vector min, vector max)", "Sets the e's mins and maxs fields. Also relinks collision state, which sets absmin and absmax too.")},
@@ -9233,7 +9233,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"particle",		PF_particle,		48,		0,		48,		48, D("void(vector pos, vector dir, float colour, float count)", "Spawn 'count' particles around 'pos' moving in the direction 'dir', with a palette colour index between 'colour' and 'colour+8'.")}, //48 nq readded. This isn't present in QW protocol (fte added it back).
 	{"changeyaw",		PF_changeyaw,		49,		49,		49,		0,	D("#define ChangeYaw changeyaw\nvoid()", "Changes the self.angles_y field towards self.ideal_yaw by up to self.yawspeed.")},
 //	{"qtest_precacheitem", NULL,			50}, // defined QTest builtin that is never called
-	{"vectoangles",		PF_vectoangles,		51,		51,		51,		0,	D("vector(vector fwd, optional vector up)", "Returns the angles required to orient an entity to look in the given direction. The 'up' argument is required if you wish to set a roll angle, otherwise it will be limited to just monster-style turning.")},
+	{"vectoangles",		PF_vectoangles,		51,		51,		51,		0,	D("vector(vector fwd, optional vector up)", "Returns the angles (+x=UP) required to orient an entity to look in the given direction. The 'up' argument is required if you wish to set a roll angle, otherwise it will be limited to just monster-style turning.")},
 
 	{"WriteByte",		PF_WriteByte,		52,		52,		52,		0,	D("void(float to, float val)", "Writes a single byte into a network message buffer. Typically you will find a more correct alternative to writing arbitary data. 'to' should be one of the MSG_* constants. MSG_ONE must have msg_entity set first.")},	//52
 	{"WriteChar",		PF_WriteChar,		53,		53,		53,		0,	"void(float to, float val)"},	//53
@@ -10330,7 +10330,7 @@ void PR_DumpPlatform_f(void)
 		{"parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8, parm9, parm10, parm11, parm12, parm13, parm14, parm15, parm16", "float", QW|NQ},
 		{"intermission",		"float", CS},
 		{"v_forward, v_up, v_right",	"vector", QW|NQ|CS},
-		{"view_angles",			"vector", CS},
+		{"view_angles",			"vector", CS,		"+x=DOWN"},
 		{"trace_allsolid, trace_startsolid, trace_fraction",		"float", QW|NQ|CS},
 		{"trace_endpos, trace_plane_normal",		"vector", QW|NQ|CS},
 		{"trace_plane_dist",	"float", QW|NQ|CS},
@@ -10338,7 +10338,7 @@ void PR_DumpPlatform_f(void)
 		{"trace_inopen",		"float", QW|NQ|CS},
 		{"trace_inwater",		"float", QW|NQ|CS},
 		{"input_timelength",	"float", CS},
-		{"input_angles",		"vector", CS},
+		{"input_angles",		"vector", CS,	"+x=DOWN"},
 		{"input_movevalues",	"vector", CS},
 		{"input_buttons",		"float", CS},
 		{"input_impulse",		"float", CS},
@@ -10355,41 +10355,42 @@ void PR_DumpPlatform_f(void)
 		{"SetChangeParms",		"void()", QW|NQ},
 		{"end_sys_globals",		"void", QW|NQ|CS|MENU},
 
-		{"modelindex",			".float", QW|NQ|CS},
-		{"absmin",				".vector", QW|NQ|CS},
-		{"absmax",				".vector", QW|NQ|CS},
-		{"ltime",				".float", QW|NQ},
-		{"entnum",				".float", CS,	"The entity number as its known on the server."},
-		{"drawmask",			".float", CS,	"Acts as a filter in the addentities call."},
-		{"predraw",				".float()", CS,	"Called by addentities after the filter and before the entity is actually drawn. Do your interpolation and animation in here. Should return one of the PREDRAW_* constants."},
-		{"lastruntime",			".float", QW},
-		{"movetype",			".float", QW|NQ|CS},
-		{"solid",				".float", QW|NQ|CS},
-		{"origin",				".vector", QW|NQ|CS},
-		{"oldorigin",			".vector", QW|NQ|CS},
-		{"velocity",			".vector", QW|NQ|CS},
-		{"angles",				".vector", QW|NQ|CS},
-		{"avelocity",			".vector", QW|NQ|CS},
+
+		{"modelindex",			".float", QW|NQ|CS,		"This is the model precache index for the model that was set on the entity, instead of having to look up the model according to the .model field. Use setmodel to change it."},
+		{"absmin",				".vector", QW|NQ|CS,	"Set by the engine when the entity is relinked (by setorigin, setsize, or setmodel). This is in world coordinates."},
+		{"absmax",				".vector", QW|NQ|CS,	"Set by the engine when the entity is relinked (by setorigin, setsize, or setmodel). This is in world coordinates."},
+		{"ltime",				".float", QW|NQ,		"On MOVETYPE_PUSH entities, this is used as an alternative to the 'time' global, and .nextthink is synced to this instead of time. This allows time to effectively freeze if the entity is blocked, ensuring the think happens when the entity reaches the target point instead of randomly."},
+		{"entnum",				".float", CS,			"The entity number as its known on the server."},
+		{"drawmask",			".float", CS,			"Acts as a filter in the addentities call."},
+		{"predraw",				".float()", CS,			"Called by addentities after the filter and before the entity is actually drawn. Do your interpolation and animation in here. Should return one of the PREDRAW_* constants."},
+		{"lastruntime",			".float", QW,			"This field used to be used to avoid running an entity multiple times in a single frame due to quakeworld's out-of-order thinks. It is no longer used by FTE due to precision issues, but may still be updated for compatibility reasons."},
+		{"movetype",			".float", QW|NQ|CS,		"Describes how the entity moves. One of the MOVETYPE_ constants."},
+		{"solid",				".float", QW|NQ|CS,		"Describes whether the entity is solid or not, and any special properties infered by that. Must be one of the SOLID_ constants"},
+		{"origin",				".vector", QW|NQ|CS,	"The current location of the entity in world space. Inline bsp entities (ie: ones placed by a mapper) will typically have a value of '0 0 0' in their neutral pose, as the geometry is offset from that. It is the reference point of the entity rather than the center of its geometry, for non-bsp models, this is often not a significant distinction."},
+		{"oldorigin",			".vector", QW|NQ|CS,	"This is often used on players to reset the player back to where they were last frame if they somehow got stuck inside something due to fpu precision. Never change a player's oldorigin field to inside a solid, because that might cause them to become pemanently stuck."},
+		{"velocity",			".vector", QW|NQ|CS,	"The direction and speed that the entity is moving in world space."},
+		{"angles",				".vector", QW|NQ|CS,	"The eular angles the entity is facing in, in pitch, yaw, roll order. Due to a legacy bug, mdl/iqm/etc formats use +x=UP, bsp/spr/etc formats use +x=DOWN."},
+		{"avelocity",			".vector", QW|NQ|CS,	"The amount the entity's angles change by each frame. Note that this is direct eular angles, and thus the angular change is non-linear and often just looks buggy."},
 		{"pmove_flags",			".float", CS},
 		{"punchangle",			".vector", NQ},
-		{"classname",			".string", QW|NQ|CS},
+		{"classname",			".string", QW|NQ|CS,	"Identifies the class/type of the entity. Useful for debugging, also used for loading, but its value is not otherwise significant to the engine, this leaves the mod free to set it to whatever it wants and randomly test strings for values in whatever inefficient way it chooses fit."},
 		{"renderflags",			".float", CS},
-		{"model",				".string", QW|NQ|CS},
-		{"frame",				".float", QW|NQ|CS},
-		{"frame1time",			".float", CS,	"The absolute time into the animation/framegroup specified by .frame."},
-		{"frame2",				".float", CS},
-		{"frame2time",			".float", CS,	"The absolute time into the animation/framegroup specified by .frame2."},
-		{"lerpfrac",			".float", CS,	"If 0, use frame1 only. If 1, use frame2 only. Mix them together for values between."},
-		{"skin",				".float", QW|NQ|CS},
-		{"effects",				".float", QW|NQ|CS},
-		{"mins",				".vector", QW|NQ|CS},
-		{"maxs",				".vector", QW|NQ|CS},
-		{"size",				".vector", QW|NQ|CS},
+		{"model",				".string", QW|NQ|CS,	"The model name that was set via setmodel, in theory. Often, this is cleared to null to prevent the engine from being seen by clients while not changing modelindex. This behaviour allows inline models to remain solid yet be invisible."},
+		{"frame",				".float", QW|NQ|CS,		"The current frame the entity is meant to be displayed in. In CSQC, note the lerpfrac and frame2 fields as well. if it specifies a framegroup, the framegroup will autoanimate in ssqc, but not in csqc."},
+		{"frame1time",			".float", CS,			"The absolute time into the animation/framegroup specified by .frame."},
+		{"frame2",				".float", CS,			"The alternative frame. Visible only when lerpfrac is set to 1."},
+		{"frame2time",			".float", CS,			"The absolute time into the animation/framegroup specified by .frame2."},
+		{"lerpfrac",			".float", CS,			"If 0, use frame1 only. If 1, use frame2 only. Mix them together for values between."},
+		{"skin",				".float", QW|NQ|CS,		"The skin index to use. on a bsp entity, setting this to 1 will switch to the 'activated' texture instead. A negative value will be understood as a replacement contents value, so setting it to CONTENTS_WATER will make a movable pool of water."},
+		{"effects",				".float", QW|NQ|CS,		"Lots of random flags that change random effects. See EF_* constants."},
+		{"mins",				".vector", QW|NQ|CS,	"The minimum extent of the model (ie: the bottom-left coordinate relative to the entity's origin). Change via setsize. May also be changed by setmodel."},
+		{"maxs",				".vector", QW|NQ|CS,	"like mins, but in the other direction."},
+		{"size",				".vector", QW|NQ|CS,	"maxs-mins. Updated when the entity is relinked (by setorigin, setsize, setmodel)"},
 		{"touch",				".void()", QW|NQ|CS},
 		{"use",					".void()", QW|NQ},
 		{"think",				".void()", QW|NQ|CS},
 		{"blocked",				".void()", QW|NQ|CS},
-		{"nextthink",			".float", QW|NQ|CS},
+		{"nextthink",			".float", QW|NQ|CS,		"The time at which the entity is next scheduled to fire its think event. For MOVETYPE_PUSH entities, this is relative to that entity's ltime field, for all other entities it is relative to the time gloal."},
 
 		{"groundentity",		".entity", QW|NQ},
 		{"health",				".float", QW|NQ},
@@ -10413,7 +10414,7 @@ void PR_DumpPlatform_f(void)
 		{"button2",				".float", QW|NQ},
 		{"impulse",				".float", QW|NQ},
 		{"fixangle",			".float", QW|NQ},
-		{"v_angle",				".vector", QW|NQ},
+		{"v_angle",				".vector", QW|NQ, "The angles a player is viewing. +x is DOWN (pitch, yaw, roll)"},
 		{"idealpitch",			".float", NQ},
 		{"netname",				".string", QW|NQ},
 		{"enemy",				".entity", QW|NQ|CS},
@@ -10421,7 +10422,7 @@ void PR_DumpPlatform_f(void)
 		{"colormap",			".float", QW|NQ|CS},
 		{"team",				".float", QW|NQ},
 		{"max_health",			".float", QW|NQ},
-		{"teleport_time",		".float", QW|NQ},
+		{"teleport_time",		".float", QW|NQ,	"While active, prevents the player from using the +back command, also blocks waterjumping."},
 		{"armortype",			".float", QW|NQ},
 		{"armorvalue",			".float", QW|NQ},
 		{"waterlevel",			".float", QW|NQ},
@@ -10448,7 +10449,7 @@ void PR_DumpPlatform_f(void)
 
 		{"time",				"float",	MENU,	"The current local time. Increases while paused."},
 		{"input_timelength",	"float",	QW|NQ},
-		{"input_angles",		"vector",	QW|NQ},
+		{"input_angles",		"vector",	QW|NQ,	"+x=DOWN"},
 		{"input_movevalues",	"vector",	QW|NQ},
 		{"input_buttons",		"float",	QW|NQ},
 		{"input_impulse",		"float",	QW|NQ},

@@ -4303,7 +4303,13 @@ void SV_MVDStream_Poll(void);
 			NET_Tick();
 
 			if (sv.framenum != 1)
+			{
+#ifndef SERVERONLY
+				Sys_SendKeyEvents();
+#else
 				SV_GetConsoleCommands ();
+#endif
+			}
 
 // process console commands
 			if (!pr_imitatemvdsv.value)

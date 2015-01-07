@@ -11,7 +11,7 @@ cvar_t *tls_ignorecertificateerrors;
 //hungarian ensures we hit no macros.
 static struct
 {
-	void *lib;
+	dllhandle_t *lib;
 	SECURITY_STATUS (WINAPI *pDecryptMessage)				(PCtxtHandle,PSecBufferDesc,ULONG,PULONG);
 	SECURITY_STATUS (WINAPI *pEncryptMessage)				(PCtxtHandle,ULONG,PSecBufferDesc,ULONG);
 	SECURITY_STATUS (WINAPI *pAcquireCredentialsHandleA)	(SEC_CHAR*,SEC_CHAR*,ULONG,PLUID,PVOID,SEC_GET_KEY_FN,PVOID,PCredHandle,PTimeStamp);
@@ -24,7 +24,7 @@ static struct
 } secur;
 static struct
 {
-	void *lib;
+	dllhandle_t *lib;
 	BOOL (WINAPI *pCertGetCertificateChain)					(HCERTCHAINENGINE,PCCERT_CONTEXT,LPFILETIME,HCERTSTORE,PCERT_CHAIN_PARA,DWORD,LPVOID,PCCERT_CHAIN_CONTEXT*);
 	BOOL (WINAPI *pCertVerifyCertificateChainPolicy)		(LPCSTR,PCCERT_CHAIN_CONTEXT,PCERT_CHAIN_POLICY_PARA,PCERT_CHAIN_POLICY_STATUS);
 	void (WINAPI *pCertFreeCertificateChain)				(PCCERT_CHAIN_CONTEXT);

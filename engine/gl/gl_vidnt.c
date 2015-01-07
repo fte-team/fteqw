@@ -1311,7 +1311,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	}
 
 	if (developer.ival)
-		Con_SafePrintf("WGL extensions: %s\n", wgl_extensions?"NONE":wgl_extensions);
+		Con_SafePrintf("WGL_EXTENSIONS: %s\n", wgl_extensions?wgl_extensions:"NONE");
 
 	qwglCreateContextAttribsARB = getglfunc("wglCreateContextAttribsARB");
 #if 1//def _DEBUG
@@ -2357,6 +2357,7 @@ VID_Init
 */
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
+	extern int isPlugin;
 //	qbyte	*ptmp;
 	DEVMODE	devmode;
 	WNDCLASS wc;
@@ -2403,6 +2404,12 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	Cvar_Hook(&vid_wndalpha, VID_WndAlpha_Override_Callback);
 
 	Cmd_AddCommand("vid_recenter", GLVID_Recenter_f);
+
+	if (isPlugin >= 2)
+	{
+		fprintf(stdout, "refocuswindow %#p\n", mainwindow);
+		fflush(stdout);
+	}
 
 	vid_initialized = true;
 	vid_initializing = false;

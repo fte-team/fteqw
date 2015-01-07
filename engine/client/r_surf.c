@@ -2913,7 +2913,7 @@ void Surf_NewMap (void)
 	{
 		if (cl.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
-		Mod_ParseInfoFromEntityLump(cl.worldmodel, cl.worldmodel->entities, cl.worldmodel->name);
+		Mod_ParseInfoFromEntityLump(cl.worldmodel);
 	}
 
 	if (!pe)
@@ -2944,8 +2944,16 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 	{
 		vec3_t mins, maxs;
 		//fixme: no rotation
-		VectorAdd(cl_static_entities[i].ent.origin, cl_static_entities[i].ent.model->mins, mins);
-		VectorAdd(cl_static_entities[i].ent.origin, cl_static_entities[i].ent.model->maxs, maxs);
+		if (cl_static_entities[i].ent.model)
+		{
+			VectorAdd(cl_static_entities[i].ent.origin, cl_static_entities[i].ent.model->mins, mins);
+			VectorAdd(cl_static_entities[i].ent.origin, cl_static_entities[i].ent.model->maxs, maxs);
+		}
+		else
+		{
+			VectorCopy(mins, cl_static_entities[i].ent.origin);
+			VectorCopy(maxs, cl_static_entities[i].ent.origin);
+		}
 		cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
 		cl_static_entities[i].emit = NULL;
 	}

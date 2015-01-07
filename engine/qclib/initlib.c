@@ -1036,7 +1036,7 @@ void PR_FreeTemps			(progfuncs_t *progfuncs, int depth)
 
 	prinst.numtempstrings = depth;
 }
-pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
+pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf, pbool resetprofiles)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	struct progstate_s *ps;
@@ -1051,9 +1051,8 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 	} *sorted, t;
 	if (!prinst.profiling)
 	{
-		printf("Enabling profiling\n");
 		prinst.profiling = true;
-		return true;
+		return false;
 	}
 
 	cpufrequency = Sys_GetClockRate();
@@ -1075,8 +1074,12 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 			sorted[s].profile = ps->functions[f].profile;
 			sorted[s].profiletime = ps->functions[f].profiletime - ps->functions[f].profilechildtime;
 			sorted[s].totaltime = ps->functions[f].profiletime;
-			ps->functions[f].profile = 0;
-			ps->functions[f].profiletime = 0;
+			if (resetprofiles)
+			{
+				ps->functions[f].profile = 0;
+				ps->functions[f].profiletime = 0;
+				ps->functions[f].profilechildtime = 0;
+			}
 			s++;
 		}
 
@@ -1093,9 +1096,9 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf)
 		}
 
 		//print it out
-		printf("%5s %5s %5s: %s\n", "ops", "self-time", "total-time", "function");
+		printf("%8s %9s %10s: %s\n", "ops", "self-time", "total-time", "function");
 		for (f = 0; f < s; f++)
-			printf("%5u %5g %5g: %s\n", sorted[f].profile, (float)(((double)sorted[f].profiletime) / cpufrequency), (float)(((double)sorted[f].totaltime) / cpufrequency), sorted[f].fname);
+			printf("%8u %9f %10f: %s\n", sorted[f].profile, (float)(((double)sorted[f].profiletime) / cpufrequency), (float)(((double)sorted[f].totaltime) / cpufrequency), sorted[f].fname);
 		free(sorted);
 	}
 	return true;

@@ -3243,7 +3243,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					//microsoft suck big hairy donkey balls.
 					//this tries to get the edit box of the combo control.
 					HWND comboedit = GetWindow(search_name, GW_CHILD);
-					combosubclassproc = (WNDPROC) SetWindowLongPtr(comboedit, GWL_WNDPROC, (DWORD_PTR) SearchComboSubClass);
+					combosubclassproc = (WNDPROC) SetWindowLongPtr(comboedit, GWLP_WNDPROC, (DWORD_PTR) SearchComboSubClass);
 				}
 				ShowWindow(search_name, SW_SHOW);
 

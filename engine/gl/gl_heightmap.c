@@ -4794,6 +4794,7 @@ size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *planes, 
 	return numverts;
 }
 
+#ifndef SERVERONLY
 void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 {
 #ifndef _DEBUG
@@ -4909,6 +4910,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 	}
 #endif
 }
+#endif
 
 brushtex_t *Terr_Brush_FindTexture(heightmap_t *hm, char *texname)
 {

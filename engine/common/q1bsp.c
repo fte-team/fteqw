@@ -955,6 +955,79 @@ Physics functions (common)
 
 ============================================================================
 
+Utility function
+*/
+
+#define MAXFRAGMENTVERTS 360
+int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
+{
+#define C 4
+	float dotv[MAXFRAGMENTVERTS+1];
+	char keep[MAXFRAGMENTVERTS+1];
+#define KEEP_KILL 0
+#define KEEP_KEEP 1
+#define KEEP_BORDER 2
+	int i;
+	int outcount = 0;
+	int clippedcount = 0;
+	float d, *p1, *p2, *out;
+#define FRAG_EPSILON 0.5
+
+	for (i = 0; i < incount; i++)
+	{
+		dotv[i] = DotProduct((inverts+i*C), plane) - planedist;
+		if (dotv[i]<-FRAG_EPSILON)
+		{
+			keep[i] = KEEP_KILL;
+			clippedcount++;
+		}
+		else if (dotv[i] > FRAG_EPSILON)
+			keep[i] = KEEP_KEEP;
+		else
+			keep[i] = KEEP_BORDER;
+	}
+	dotv[i] = dotv[0];
+	keep[i] = keep[0];
+
+	if (clippedcount == incount)
+		return 0;	//all were clipped
+	if (clippedcount == 0)
+	{	//none were clipped
+		for (i = 0; i < incount; i++)
+			VectorCopy((inverts+i*C), (outverts+i*C));
+		return incount;
+	}
+
+	for (i = 0; i < incount; i++)
+	{
+		p1 = inverts+i*C;
+		if (keep[i] == KEEP_BORDER)
+		{
+			out = outverts+outcount++*C;
+			VectorCopy(p1, out);
+			continue;
+		}
+		if (keep[i] == KEEP_KEEP)
+		{
+			out = outverts+outcount++*C;
+			VectorCopy(p1, out);
+		}
+		if (keep[i+1] == KEEP_BORDER || keep[i] == keep[i+1])
+			continue;
+		p2 = inverts+((i+1)%incount)*C;
+		d = dotv[i] - dotv[i+1];
+		if (d)
+			d = dotv[i] / d;
+
+		out = outverts+outcount++*C;
+		VectorInterpolate(p1, d, p2, out);
+	}
+	return outcount;
+}
+
+/*
+========================
+
 Rendering functions (Client only)
 */
 #ifndef SERVERONLY
@@ -1215,73 +1288,6 @@ static void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, floa
 }
 
 #else
-
-#define MAXFRAGMENTVERTS 360
-int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
-{
-#define C 4
-	float dotv[MAXFRAGMENTVERTS+1];
-	char keep[MAXFRAGMENTVERTS+1];
-#define KEEP_KILL 0
-#define KEEP_KEEP 1
-#define KEEP_BORDER 2
-	int i;
-	int outcount = 0;
-	int clippedcount = 0;
-	float d, *p1, *p2, *out;
-#define FRAG_EPSILON 0.5
-
-	for (i = 0; i < incount; i++)
-	{
-		dotv[i] = DotProduct((inverts+i*C), plane) - planedist;
-		if (dotv[i]<-FRAG_EPSILON)
-		{
-			keep[i] = KEEP_KILL;
-			clippedcount++;
-		}
-		else if (dotv[i] > FRAG_EPSILON)
-			keep[i] = KEEP_KEEP;
-		else
-			keep[i] = KEEP_BORDER;
-	}
-	dotv[i] = dotv[0];
-	keep[i] = keep[0];
-
-	if (clippedcount == incount)
-		return 0;	//all were clipped
-	if (clippedcount == 0)
-	{	//none were clipped
-		for (i = 0; i < incount; i++)
-			VectorCopy((inverts+i*C), (outverts+i*C));
-		return incount;
-	}
-
-	for (i = 0; i < incount; i++)
-	{
-		p1 = inverts+i*C;
-		if (keep[i] == KEEP_BORDER)
-		{
-			out = outverts+outcount++*C;
-			VectorCopy(p1, out);
-			continue;
-		}
-		if (keep[i] == KEEP_KEEP)
-		{
-			out = outverts+outcount++*C;
-			VectorCopy(p1, out);
-		}
-		if (keep[i+1] == KEEP_BORDER || keep[i] == keep[i+1])
-			continue;
-		p2 = inverts+((i+1)%incount)*C;
-		d = dotv[i] - dotv[i+1];
-		if (d)
-			d = dotv[i] / d;
-
-		out = outverts+outcount++*C;
-		VectorInterpolate(p1, d, p2, out);
-	}
-	return outcount;
-}
 
 void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 {

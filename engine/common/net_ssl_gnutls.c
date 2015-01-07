@@ -117,7 +117,7 @@ static void (VARGS *gnutls_free)(void * ptr);
 
 static qboolean Init_GNUTLS(void)
 {
-	dllhandle_t hmod;
+	dllhandle_t *hmod;
 
 	dllfunction_t functable[] =
 	{

@@ -788,7 +788,8 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 #endif
 
 	if (showpackets.value)
-		Con_Printf ("%s --> s=%i(%i) a=%i(%i) %i\n"
+		Con_Printf ("%f %s --> s=%i(%i) a=%i(%i) %i\n"
+			, Sys_DoubleTime()
 			, chan->sock == NS_SERVER?"s2c":"c2s"
 			, chan->outgoing_sequence
 			, send_reliable
@@ -846,7 +847,8 @@ qboolean Netchan_Process (netchan_t *chan)
 	sequence_ack &= ~(1<<31);	
 
 	if (showpackets.value)
-		Con_Printf ("%s <-- s=%i(%i) a=%i(%i) %i%s\n"
+		Con_Printf ("%f %s <-- s=%i(%i) a=%i(%i) %i%s\n"
+			, Sys_DoubleTime()
 			, chan->sock == NS_SERVER?"c2s":"s2c"
 			, sequence
 			, reliable_message

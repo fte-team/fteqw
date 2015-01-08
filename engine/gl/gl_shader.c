@@ -3962,7 +3962,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		/*dlights/realtime lighting needs some stuff*/
 		if (!TEXVALID(tn->base))
 		{
-			tn->base = R_LoadHiResTexture(imagename, subpath, IF_NOALPHA);
+			tn->base = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA);
 		}
 
 		TEXASSIGN(shader->defaulttextures.base, tn->base);

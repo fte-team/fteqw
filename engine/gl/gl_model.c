@@ -867,6 +867,8 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 	P_LoadedModel(mod);
 #endif
 
+	mod->loadstate = a;
+
 #ifdef TERRAIN
 	if (mod->terrain)
 		Terr_FinishTerrain(mod);
@@ -906,8 +908,6 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 #endif
 	}
 #endif
-
-	mod->loadstate = a;
 
 	switch(verbose)
 	{
@@ -2944,15 +2944,20 @@ typedef struct
 	int lmnum;
 	qboolean deluxe;
 } lmalloc_t;
+#define LM_FIRST 0x4000
 static void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe)
 {
 	memset(lmallocator, 0, sizeof(*lmallocator));
 	lmallocator->deluxe = hasdeluxe;
+	lmallocator->lmnum = LM_FIRST;
 }
 static void Mod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
 {
-	mod->lightmaps.first = 1;
-	mod->lightmaps.count = lmallocator->lmnum;
+	mod->lightmaps.first = LM_FIRST;
+	mod->lightmaps.count = (lmallocator->lmnum - LM_FIRST);
+	if (lmallocator->allocated[0])
+		mod->lightmaps.count++;
+
 	if (lmallocator->deluxe)
 	{
 		mod->lightmaps.first*=2;
@@ -2966,9 +2971,6 @@ static void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigne
 {
 	int best, best2;
 	int i, j;
-
-	if (!lmallocator->lmnum)
-		lmallocator->lmnum = 1;
 
 	for(;;)
 	{

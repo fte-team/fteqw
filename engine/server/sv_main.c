@@ -4125,8 +4125,8 @@ float SV_Frame (void)
 #ifndef SERVERONLY
 	isidle = !isDedicated && sv.allocated_client_slots == 1 && Key_Dest_Has(~kdm_game) && cls.state == ca_active;
 	/*server is effectively paused if there are no clients*/
-	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && (cls.state != ca_connected))
-		isidle = true;
+//	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && (cls.state != ca_connected))
+//		isidle = true;
 	if ((sv.paused & 4) != (isidle?4:0))
 		sv.paused ^= 4;
 #endif

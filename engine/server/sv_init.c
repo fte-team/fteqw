@@ -1558,7 +1558,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	realtime += 0.1;
 //	sv.world.physicstime = 1.1;
 	sv.time += 0.1;
-	sv.starttime -= 0.1;
 	SV_Physics ();
 	sv.time += 0.1;
 
@@ -1711,6 +1710,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	//some mods stuffcmd these, and it would be a shame if they didn't work. we still need the earlier call in case the mod does extra stuff.
 	SV_SetMoveVars();
+
+	sv.starttime = Sys_DoubleTime() - sv.time;
 }
 
 #endif

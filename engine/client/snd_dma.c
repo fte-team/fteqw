@@ -2645,7 +2645,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 
 
 // calc ambient sound levels
-	if (!cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame != fg_quake)
+	if (!cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame != fg_quake || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
 	l = Q1BSP_LeafForPoint(cl.worldmodel, listener_origin);

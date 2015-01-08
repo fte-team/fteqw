@@ -1227,7 +1227,9 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	{
 		SCR_SetLoadingFile("wads");
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
-			return stage;
+			return -1;
+		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
 		Mod_ParseInfoFromEntityLump(cl.worldmodel);
 
 		Wad_NextDownload();
@@ -4060,12 +4062,10 @@ void CL_ParseStatic (int version)
 	VectorInverse(ent->axis[1]);
 
 	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
-	{
-		Con_TPrintf ("Warning: Parsestatic and no map loaded yet\n");
 		return;
-	}
 	if (ent->model)
 	{
+		//FIXME: wait for model to load so we know the correct size?
 		/*FIXME: compensate for angle*/
 		VectorAdd(es.origin, ent->model->mins, mins);
 		VectorAdd(es.origin, ent->model->maxs, maxs);

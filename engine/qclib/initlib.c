@@ -1,11 +1,6 @@
 #define PROGSUSED
 #include "progsint.h"
 #include <stdlib.h>
-#define STRING_SPECMASK	0xc0000000	//
-#define STRING_TEMP		0x80000000	//temp string, will be collected.
-#define STRING_STATIC	0xc0000000	//pointer to non-qcvm string.
-#define STRING_NORMAL_	0x00000000	//stringtable/mutable. should always be a fallthrough
-#define STRING_NORMAL2_	0x40000000	//stringtable/mutable. should always be a fallthrough
 
 typedef struct prmemb_s {
 	struct prmemb_s *prev;

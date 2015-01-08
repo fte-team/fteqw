@@ -2649,6 +2649,10 @@ static void	Update_CreatePath (char *path)
 	}
 }
 
+void Update_UserAcked(void *ctx, int foo)
+{
+}
+
 #include "fs.h"
 void Update_Version_Updated(struct dl_download *dl)
 {
@@ -2677,12 +2681,17 @@ void Update_Version_Updated(struct dl_download *dl)
 					size += VFS_WRITE(pending, buf, chunk);
 				}
 				VFS_CLOSE(pending);
-				if (VFS_GETLEN(dl->file) == size)
+				if (VFS_GETLEN(dl->file) != size)
+					Con_Printf("Download was the wrong size / corrupt\n");
+				else
 				{
 					MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, REG_SZ, pendingname, strlen(pendingname)+1);
+					M_Menu_Prompt(Update_UserAcked, NULL, "An update was downloaded", "Restart to activate.", "", "", "", "Okay");
 				}
 			}
 		}
+		else
+			Con_Printf("Update download failed\n");
 	}
 }
 void Update_Versioninfo_Available(struct dl_download *dl)
@@ -2706,6 +2715,9 @@ void Update_Versioninfo_Available(struct dl_download *dl)
 						DL_CreateThread(dl, NULL, NULL);
 #endif
 					}
+					else
+						Con_Printf("autoupdate: already at latest version\n");
+					return;
 				}
 			}
 		}
@@ -2760,6 +2772,11 @@ qboolean Sys_CheckUpdated(void)
 			DeleteFile(updatedpath);
 			if (MoveFile(pendingpath, updatedpath))
 				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, UPD_BUILDTYPE EXETYPE, REG_SZ, updatedpath, strlen(updatedpath)+1);
+			else
+			{
+				MessageBox(NULL, va("Unable to rename %s to %s", pendingpath, updatedpath), FULLENGINENAME" autoupdate", 0);
+				DeleteFile(pendingpath);
+			}
 		}
 
 		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, UPD_BUILDTYPE EXETYPE, updatedpath, sizeof(updatedpath));

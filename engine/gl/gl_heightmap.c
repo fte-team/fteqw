@@ -4825,7 +4825,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			if (!strcmp(bt->shadername, "clip"))
 				bt->shader = R_RegisterShader(bt->shadername, SUF_LIGHTMAP, "{\nsurfaceparm nodraw\n}");
 			else
-				bt->shader = R_RegisterShader_Lightmap(bt->shadername);
+				bt->shader = R_RegisterCustom (bt->shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
+//				bt->shader = R_RegisterShader_Lightmap(bt->shadername);
 			R_BuildDefaultTexnums(NULL, bt->shader);
 		}
 
@@ -5110,6 +5111,8 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				else
 					brushcontents = FTECONTENTS_WATER;
 			}
+			else if (!strcmp(token, "clip"))
+				brushcontents = FTECONTENTS_PLAYERCLIP;
 			else
 				brushcontents = FTECONTENTS_SOLID;
 
@@ -5196,8 +5199,8 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			if (!scale[1]) scale[1] = 1;
 			VectorScale(texplane[0], 1.0/scale[0], faces[numplanes].sdir);
 			VectorScale(texplane[1], 1.0/scale[1], faces[numplanes].tdir);
-			faces[numplanes].sdir[3] = -texplane[0][3];
-			faces[numplanes].tdir[3] = -texplane[1][3];
+			faces[numplanes].sdir[3] = texplane[0][3];
+			faces[numplanes].tdir[3] = texplane[1][3];
 
 			numplanes++;
 			continue;

@@ -2635,6 +2635,9 @@ void Surf_BuildModelLightmaps (model_t *m)
 	int ptype;
 	int newfirst;
 
+	if (m->loadstate != MLS_LOADED)
+		return;
+
 	if (!lightmap_bytes)
 		return;
 
@@ -2648,8 +2651,6 @@ void Surf_BuildModelLightmaps (model_t *m)
 		return;
 
 	if (!m->lightmaps.count)
-		return;
-	if (m->loadstate != MLS_LOADED)
 		return;
 
 	currentmodel = m;
@@ -2786,6 +2787,11 @@ void Surf_BuildModelLightmaps (model_t *m)
 			for (j = 0; j < MAXRLIGHTMAPS; j++)
 			{
 				if (surf->lightmaptexturenums[j] < m->lightmaps.first)
+				{
+					surf->lightmaptexturenums[j] = -1;
+					continue;
+				}
+				if (surf->lightmaptexturenums[j] >= m->lightmaps.first+m->lightmaps.count)
 				{
 					surf->lightmaptexturenums[j] = -1;
 					continue;

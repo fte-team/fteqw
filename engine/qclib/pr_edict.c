@@ -525,7 +525,10 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 		QC_snprintfz (line, sizeof(line), "union");
 		break;
 	case ev_string:
-		QC_snprintfz (line, sizeof(line), "%s", PR_StringToNative(&progfuncs->funcs, val->string));
+		if (((unsigned int)val->string & STRING_SPECMASK) == STRING_TEMP)
+			return "<Stale Temporary String>";
+		else
+			QC_snprintfz (line, sizeof(line), "%s", PR_StringToNative(&progfuncs->funcs, val->string));
 		break;
 	case ev_entity:
 		fielddef = ED_FindField(progfuncs, "classname");
@@ -642,7 +645,11 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 		{
 			char *outs = line;
 			int outb = sizeof(line)-2;
-			const char *ins = PR_StringToNative(&progfuncs->funcs, val->string);
+			const char *ins;
+			if (((unsigned int)val->string & STRING_SPECMASK) == STRING_TEMP)
+				return "<Stale Temporary String>";
+			else
+				ins = PR_StringToNative(&progfuncs->funcs, val->string);
 			//markup the output string.
 			while(*ins && outb > 0)
 			{
@@ -933,7 +940,6 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 	return line;
 }
 
-
 /*
 =============
 ED_Print
@@ -989,7 +995,7 @@ void PDECL ED_Print (pubprogfuncs_t *ppf, struct edict_s *ed)
 		printf ("%s\n", PR_ValueString(progfuncs, d->type, (eval_t *)v, false));
 	}
 }
-
+#if 0
 void ED_PrintNum (progfuncs_t *progfuncs, int ent)
 {
 	ED_Print (&progfuncs->funcs, EDICT_NUM(progfuncs, ent));
@@ -1046,7 +1052,7 @@ void ED_Count (progfuncs_t *progfuncs)
 //	Con_Printf ("step      :%3i\n", step);
 
 }
-
+#endif
 
 
 //============================================================================

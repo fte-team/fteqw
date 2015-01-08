@@ -448,6 +448,14 @@ void SV_LegacySavegame_f (void)
 		s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
 	VFS_PUTS(f, s);
 	VFS_PUTS(f, "\n");
+	/*
+	// DarkPlaces extended savegame
+	sv.lightstyles %i %s
+	sv.model_precache %i %s
+	sv.sound_precache %i %s
+	sv.buffer %i %i "string"
+	sv.bufstr %i %i "%s"
+	*/
 	svprogfuncs->parms->memfree(s);
 
 	VFS_CLOSE(f);
@@ -456,7 +464,8 @@ void SV_LegacySavegame_f (void)
 
 
 
-#define CACHEGAME_VERSION 513
+#define CACHEGAME_VERSION_OLD 513
+#define CACHEGAME_VERSION_VERBOSE 514
 
 
 
@@ -616,10 +625,10 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 	VFS_GETS(f, str, sizeof(str));
 	version = atoi(str);
-	if (version != CACHEGAME_VERSION)
+	if (version != CACHEGAME_VERSION_OLD)
 	{
 		VFS_CLOSE (f);
-		Con_TPrintf ("Savegame is version %i, not %i\n", version, CACHEGAME_VERSION);
+		Con_TPrintf ("Savegame is version %i, not %i\n", version, CACHEGAME_VERSION_OLD);
 		return false;
 	}
 	VFS_GETS(f, str, sizeof(str));	//comment
@@ -834,6 +843,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	int		i;
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
 	levelcache_t *cache;
+	int version = CACHEGAME_VERSION_OLD;
 
 	if (!sv.state)
 		return;
@@ -899,11 +909,15 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		return;
 	}
 
-	VFS_PRINTF (f, "%i\n", CACHEGAME_VERSION);
+	VFS_PRINTF (f, "%i\n", version);
 	SV_SavegameComment (comment);
 	VFS_PRINTF (f, "%s\n", comment);
+
 	if (!dontharmgame)
 	{
+		//map-change caches require the players to have been de-spawned
+		//saved games require players to retain their fields.
+		//probably this should happen elsewhere.
 		for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)//fake dropping
 		{
 			if (cl->state < cs_spawned && !cl->istobeloaded)	//don't drop if they are still connecting
@@ -928,38 +942,90 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 			}
 		}
 	}
-	VFS_PRINTF (f, "%d\n", progstype);
-	VFS_PRINTF (f, "%f\n", skill.value);
-	VFS_PRINTF (f, "%f\n", deathmatch.value);
-	VFS_PRINTF (f, "%f\n", coop.value);
-	VFS_PRINTF (f, "%f\n", teamplay.value);
-	VFS_PRINTF (f, "%s\n", sv.name);
-	VFS_PRINTF (f, "%f\n",sv.time);
+
+	if (version == CACHEGAME_VERSION_VERBOSE)
+	{
+		char buf[8192];
+		char *mode = "?";
+		switch(progstype)
+		{
+		case PROG_NONE:							break;
+		case PROG_QW:		mode = "QW";		break;
+		case PROG_NQ:		mode = "NQ";		break;
+		case PROG_H2:		mode = "H2";		break;
+		case PROG_PREREL:	mode = "PREREL";	break;
+		case PROG_UNKNOWN:	mode = "UNKNOWN";	break;
+		}
+		VFS_PRINTF (f, "vmmode %s\n",		COM_QuotedString(mode, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "skill %s\n",		COM_QuotedString(skill.string, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "deathmatch %s\n",	COM_QuotedString(deathmatch.string, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "coop %s\n",			COM_QuotedString(coop.string, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "teamplay %s\n",		COM_QuotedString(teamplay.string, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "map %s\n",			COM_QuotedString(sv.name, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "time %f\n",			sv.time);
+
+		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+			if (sv.strings.lightstyles[i])
+				VFS_PRINTF (f, "lstyle %i %s %f %f %f\n", COM_QuotedString(sv.strings.lightstyles[i], buf, sizeof(buf), false), sv.strings.lightstylecolours[i][0], sv.strings.lightstylecolours[i][1], sv.strings.lightstylecolours[i][2]);
+		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
+			if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
+				VFS_PRINTF (f, "model %i %s\n", i, COM_QuotedString(sv.strings.model_precache[i], buf, sizeof(buf), false));
+		for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
+			if (*sv.strings.sound_precache[i])
+				VFS_PRINTF (f, "sound %i %s\n", i, COM_QuotedString(sv.strings.sound_precache[i], buf, sizeof(buf), false));
+		for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
+			if (*sv.strings.particle_precache[i])
+				VFS_PRINTF (f, "particles %i %s\n", i, sv.strings.particle_precache[i]);
+		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
+			VFS_PRINTF (f, "vwep %i %s\n", i, COM_QuotedString(sv.strings.vw_model_precache[i], buf, sizeof(buf), false));
+
+		//FIXME: string buffers
+		//FIXME: hash tables
+		//FIXME: skeletal objects?
+		//FIXME: static entities
+		//FIXME: midi track
+		//FIXME: custom temp-ents?
+		//FIXME: pending uri_gets? (if only just to report fails)
+		//FIXME: sql queries?
+		//FIXME: frik files?
+		//FIXME: threads?
+
+		VFS_PRINTF (f, "entities\n");
+	}
+	else
+	{
+		VFS_PRINTF (f, "%d\n", progstype);
+		VFS_PRINTF (f, "%f\n", skill.value);
+		VFS_PRINTF (f, "%f\n", deathmatch.value);
+		VFS_PRINTF (f, "%f\n", coop.value);
+		VFS_PRINTF (f, "%f\n", teamplay.value);
+		VFS_PRINTF (f, "%s\n", sv.name);
+		VFS_PRINTF (f, "%f\n",sv.time);
 
 // write the light styles
+		VFS_PRINTF (f, "%i\n",MAX_LIGHTSTYLES);
+		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+		{
+			VFS_PRINTF (f, "%s\n", sv.strings.lightstyles[i]?sv.strings.lightstyles[i]:"");
+		}
 
-	VFS_PRINTF (f, "%i\n",MAX_LIGHTSTYLES);
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
-	{
-		VFS_PRINTF (f, "%s\n", sv.strings.lightstyles[i]?sv.strings.lightstyles[i]:"");
+		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
+		{
+			if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
+				VFS_PRINTF (f, "%s\n", sv.strings.model_precache[i]);
+			else
+				break;
+		}
+		VFS_PRINTF (f,"\n");
+		for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
+		{
+			if (*sv.strings.sound_precache[i])
+				VFS_PRINTF (f, "%s\n", sv.strings.sound_precache[i]);
+			else
+				break;
+		}
+		VFS_PRINTF (f,"\n");
 	}
-
-	for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
-	{
-		if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
-			VFS_PRINTF (f, "%s\n", sv.strings.model_precache[i]);
-		else
-			break;
-	}
-	VFS_PRINTF (f,"\n");
-	for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
-	{
-		if (*sv.strings.sound_precache[i])
-			VFS_PRINTF (f, "%s\n", sv.strings.sound_precache[i]);
-		else
-			break;
-	}
-	VFS_PRINTF (f,"\n");
 
 	s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
 	VFS_PUTS(f, s);

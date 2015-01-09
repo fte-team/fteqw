@@ -2140,18 +2140,43 @@ qbyte *R_MarkLeaves_Q1 (void)
 
 	r_visframecount++;
 
-	for (i=0 ; i<cl.worldmodel->numclusters ; i++)
+	if (r_viewleaf && r_viewleaf->contents == Q1CONTENTS_SOLID)
 	{
-		if (vis[i>>3] & (1<<(i&7)))
+		//to improve spectating, when the camera is in a wall, we ignore any sky leafs.
+		//this prevents seeing the upwards-facing sky surfaces within the sky volumes.
+		//this will not affect inwards facing sky, so sky will basically appear as though it is identical to solid brushes.
+		for (i=0 ; i<cl.worldmodel->numclusters ; i++)
 		{
-			node = (mnode_t *)&cl.worldmodel->leafs[i+1];
-			do
+			if (vis[i>>3] & (1<<(i&7)))
 			{
-				if (node->visframe == r_visframecount)
-					break;
-				node->visframe = r_visframecount;
-				node = node->parent;
-			} while (node);
+				if (cl.worldmodel->leafs[i+1].contents == Q1CONTENTS_SKY)
+					continue;
+				node = (mnode_t *)&cl.worldmodel->leafs[i+1];
+				do
+				{
+					if (node->visframe == r_visframecount)
+						break;
+					node->visframe = r_visframecount;
+					node = node->parent;
+				} while (node);
+			}
+		}
+	}
+	else
+	{
+		for (i=0 ; i<cl.worldmodel->numclusters ; i++)
+		{
+			if (vis[i>>3] & (1<<(i&7)))
+			{
+				node = (mnode_t *)&cl.worldmodel->leafs[i+1];
+				do
+				{
+					if (node->visframe == r_visframecount)
+						break;
+					node->visframe = r_visframecount;
+					node = node->parent;
+				} while (node);
+			}
 		}
 	}
 	return vis;

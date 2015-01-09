@@ -2536,13 +2536,13 @@ qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *da
 	DWORD type = REG_NONE;
 	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
 	{
-		DWORD dwlen;
+		DWORD dwlen = datalen;
 		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &dwlen);
 		datalen = dwlen;
 		RegCloseKey (subkey);
 	}
 
-	if (type == REG_SZ || type == REG_EXPAND_SZ)
+	if (result && (type == REG_SZ || type == REG_EXPAND_SZ))
 		((char*)data)[datalen] = 0;
 	else
 		((char*)data)[0] = 0;
@@ -2555,7 +2555,7 @@ qboolean MyRegGetStringValueMultiSz(HKEY base, char *keyname, char *valuename, v
 	DWORD type = REG_NONE;
 	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
 	{
-		DWORD dwlen;
+		DWORD dwlen = datalen;
 		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &dwlen);
 		datalen = dwlen;
 		RegCloseKey (subkey);

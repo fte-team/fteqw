@@ -6804,12 +6804,10 @@ void CLNQ_ParseServerMessage (void)
 			i=MSGCL_ReadEntity();
 			if (!cl.playerview[destsplit].viewentity)
 			{
-				cl.playerview[destsplit].playernum = (unsigned int)i;
-				if (cl.playerview[destsplit].playernum >= cl.allocated_client_slots)
-				{
-					Con_DPrintf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n", i);
-					cl.playerview[destsplit].playernum = cl.allocated_client_slots;	//pretend it's an mvd (we have that spare slot)
-				}
+				if (!i || i > cl.allocated_client_slots)
+					cl.playerview[destsplit].playernum = cl.allocated_client_slots;	//the mvd spectator slot.
+				else
+					cl.playerview[destsplit].playernum = (unsigned int)i-1;
 			}
 			cl.playerview[destsplit].viewentity = i;
 			break;

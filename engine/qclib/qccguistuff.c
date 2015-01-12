@@ -385,7 +385,7 @@ void GUI_RevealOptions(void)
 
 
 
-int GUI_BuildParms(char *args, char **argv)
+int GUI_BuildParms(char *args, char **argv, pbool quick)
 {
 	static char param[2048];
 	int paramlen = 0;
@@ -396,6 +396,13 @@ int GUI_BuildParms(char *args, char **argv)
 
 	argc = 1;
 	argv[0] = "fteqcc";
+
+	if (quick)
+	{
+		strcpy(param+paramlen, "-Tparse");
+		argv[argc++] = param+paramlen;
+		paramlen += strlen(param+paramlen)+1;
+	}
 
 	while(*args)
 	{

@@ -700,6 +700,12 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->u.q1.gravitydir[0] = MSG_ReadByte();
 		news->u.q1.gravitydir[1] = MSG_ReadByte();
 	}
+	if (bits & UF_UNUSED2)
+	{
+	}
+	if (bits & UF_UNUSED1)
+	{
+	}
 }
 
 void CLFTE_ParseBaseline(entity_state_t *es, qboolean numberisimportant)
@@ -3518,9 +3524,18 @@ void CL_LinkPacketEntities (void)
 			}
 		}
 
-		VectorCopy(angles, ent->angles);
-		if (model && model->type == mod_alias)
+		if (state->u.q1.pmovetype)
+		{
+			vec3_t vel;
+			VectorScale(state->u.q1.velocity, (1/8.0), vel);
+			//players get special logic, as the angles on the wire are their raw view angles
+			//FIXME: EGADS! VILE!
+			angles[0] *= 1/3.0; //fixme: gravity dir.
+			angles[2] += V_CalcRoll(angles, vel)*4;
+		}
+		else if (model && model->type == mod_alias)
 			angles[0]*=-1;	//carmack screwed up when he added alias models - they pitch the wrong way.
+		VectorCopy(angles, ent->angles);
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 

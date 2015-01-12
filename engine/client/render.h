@@ -144,6 +144,7 @@ typedef struct entity_s
 } entity_t;
 
 #define MAX_GEOMSETS 32
+#define Q1UNSPECIFIED 0x00ffffff	//0xffRRGGBB or 0x0000000V are both valid values. so this is an otherwise-illegal value to say its not been set.
 typedef struct
 {
 	char skinname[MAX_QPATH];
@@ -152,6 +153,8 @@ typedef struct
 	qbyte geomset[MAX_GEOMSETS];	//allows selecting a single set of geometry from alternatives. this might be a can of worms.
 	char qwskinname[MAX_QPATH];
 	struct qwskin_s *qwskin;
+	unsigned int q1upper;	//Q1UNSPECIFIED
+	unsigned int q1lower;	//Q1UNSPECIFIED
 	struct
 	{
 		char surface[MAX_QPATH];

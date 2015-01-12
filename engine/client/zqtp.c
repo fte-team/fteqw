@@ -2758,6 +2758,8 @@ static qboolean TP_IsItemVisible(item_vis_t *visitem)
 	if (R_CullSphere(visitem->entorg, visitem->radius))
 		return false;
 
+	pmove.skipent = -1;
+
 	VectorNegate (visitem->dir, v);
 	VectorNormalize (v);
 	VectorMA (visitem->entorg, visitem->radius, v, end);

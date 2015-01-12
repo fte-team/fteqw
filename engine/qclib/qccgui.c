@@ -472,7 +472,7 @@ extern char enginebinary[MAX_PATH];
 extern char enginebasedir[MAX_PATH];
 extern char enginecommandline[8192];
 
-void RunCompiler(char *args);
+void RunCompiler(char *args, pbool quick);
 void RunEngine(void);
 
 HINSTANCE ghInstance;
@@ -3608,11 +3608,12 @@ int GUIprintf(const char *msg, ...)
 */
 	return args;
 }
+int Dummyprintf(const char *msg, ...){return 0;}
 
 #undef Sys_Error
 
 void Sys_Error(const char *text, ...);
-void RunCompiler(char *args)
+void RunCompiler(char *args, pbool quick)
 {
 	char *argv[128];
 	int argc;
@@ -3660,23 +3661,32 @@ void RunCompiler(char *args)
 	ext.ReadFile = GUIReadFile;
 	ext.FileSize = GUIFileSize;
 	ext.WriteFile = QCC_WriteFile;
-	ext.Printf = GUIprintf;
 	ext.Sys_Error = Sys_Error;
-	GUIprintf("");
+
+	if (quick)
+		ext.Printf = Dummyprintf;
+	else
+	{
+		ext.Printf = GUIprintf;
+		GUIprintf("");
+	}
 	
 	if (logfile)
 		fclose(logfile);
-	if (fl_log)
+	if (fl_log && !quick)
 		logfile = fopen("fteqcc.log", "wb");
 	else
 		logfile = NULL;
 
-	argc = GUI_BuildParms(args, argv);
+	argc = GUI_BuildParms(args, argv, quick);
 
 	if (CompileParams(&funcs, true, argc, argv))
 	{
-		EngineGiveFocus();
-		EngineCommandf("qcresume\nmenu_restart\nrestart\n");
+		if (!quick)
+		{
+			EngineGiveFocus();
+			EngineCommandf("qcresume\nmenu_restart\nrestart\n");
+		}
 	}
 
 	if (logfile)
@@ -3870,19 +3880,22 @@ void SetProgsSrc(void)
 		pr_file_p = QCC_COM_Parse(buffer);
 		if (*qcc_token == '#')
 		{
+			//aaaahhh! newstyle!
 			AddSourceFile("%s", progssrcname);
-			free(buffer);	//aaaahhh! newstyle!
-			return;
 		}
-
-		pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
-		AddSourceFile("%s", progssrcname);
-		while(pr_file_p)
+		else
 		{
-			AddSourceFile("%s/%s", progssrcname, qcc_token);
 			pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
+			AddSourceFile("%s", progssrcname);
+			while(pr_file_p)
+			{
+				AddSourceFile("%s/%s", progssrcname, qcc_token);
+				pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
+			}
 		}
 		free(buffer);
+
+		RunCompiler(parameters, true);
 	}
 }
 
@@ -3911,7 +3924,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if(strstr(lpCmdLine, "-stdout"))
 	{
 		GUI_ParseCommandLine(lpCmdLine);
-		RunCompiler(lpCmdLine);
+		RunCompiler(lpCmdLine, false);
 		return 0;
 	}
 
@@ -4067,7 +4080,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if (fl_compileonstart)
 	{
 		CreateOutputWindow();
-		RunCompiler(lpCmdLine);
+		RunCompiler(lpCmdLine, false);
 	}
 	else
 	{
@@ -4082,7 +4095,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			GUIprintf(progssrcname);
 			GUIprintf("\n");
 
-			RunCompiler("-?");
+			RunCompiler("-?", false);
 		}
 	}
 
@@ -4166,7 +4179,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			if (buttons[ID_COMPILE].washit)
 			{
 				CreateOutputWindow();
-				RunCompiler(parameters);
+				RunCompiler(parameters, false);
 
 				buttons[ID_COMPILE].washit = false;
 			}

@@ -2785,15 +2785,20 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 		else if ( !strncmp(myargv[i], "-T", 2) || !strncmp(myargv[i], "/T", 2) )
 		{
 			p = 0;
-			for (p = 0; targets[p].name; p++)
-				if (!stricmp(myargv[i]+2, targets[p].name))
-				{
-					qcc_targetformat = targets[p].target;
-					break;
-				}
+			if (!strcmp("parse", myargv[i]+2))
+				parseonly = true;
+			else
+			{
+				for (p = 0; targets[p].name; p++)
+					if (!stricmp(myargv[i]+2, targets[p].name))
+					{
+						qcc_targetformat = targets[p].target;
+						break;
+					}
 
-			if (!targets[p].name)
-				QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised target parameter (%s)", myargv[i]);
+				if (!targets[p].name)
+					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised target parameter (%s)", myargv[i]);
+			}
 		}
 
 		else if ( !strnicmp(myargv[i], "-W", 2) || !strnicmp(myargv[i], "/W", 2) )
@@ -3190,8 +3195,9 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 		*compiler_flag[p].enabled = compiler_flag[p].flags & FLAG_ASDEFAULT;
 	}
 
-	autoprototyped = autoprototype = false;
+	parseonly = autoprototyped = autoprototype = false;
 	QCC_SetDefaultProperties();
+	autoprototype |= parseonly;
 
 	optres_shortenifnots = 0;
 	optres_overlaptemps = 0;
@@ -3533,16 +3539,20 @@ void QCC_ContinueCompile(void)
 	qccmsrc = QCC_COM_Parse(qccmsrc);
 	if (!qccmsrc)
 	{
-		if (autoprototype)
+		if (parseonly)
+			qcc_compileactive = false;
+		else
 		{
-			qccmsrc = originalqccmsrc;
-			autoprototyped = autoprototype;
-			QCC_SetDefaultProperties();
-			autoprototype = false;
-			return;
+			if (autoprototype)
+			{
+				qccmsrc = originalqccmsrc;
+				autoprototyped = autoprototype;
+				QCC_SetDefaultProperties();
+				autoprototype = false;
+				return;
+			}
+			QCC_FinishCompile();
 		}
-		QCC_FinishCompile();
-
 		PostCompile();
 
 		if (currentsourcefile < numsourcefiles)
@@ -3770,7 +3780,7 @@ void new_QCC_ContinueCompile(void)
 		if (pr_error_count)
 			QCC_Error (ERR_PARSEERRORS, "Errors have occured");
 
-		if (autoprototype)
+		if (autoprototype && !parseonly)
 		{
 			qccmsrc = originalqccmsrc;
 			pr_file_p = qccmsrc;
@@ -3785,7 +3795,8 @@ void new_QCC_ContinueCompile(void)
 		}
 		else
 		{
-			QCC_FinishCompile();
+			if (!parseonly)
+				QCC_FinishCompile();
 
 			PostCompile();
 			if (!QCC_main(myargc, myargv))

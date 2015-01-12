@@ -1653,7 +1653,7 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 
 	demtime = -bufferdelay;
 	cl.gametime = -bufferdelay;
-	cl.gametimemark = demtime;
+	cl.gametimemark = realtime;//demtime;
 	if (demtime < -0.5)
 		Con_Printf("Buffering for %g seconds\n", bufferdelay);
 	cls.netchan.last_received=demtime;

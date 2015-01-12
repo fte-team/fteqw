@@ -2867,6 +2867,9 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->u.q1.velocity[1] = 0;
 	state->u.q1.velocity[2] = 0;
 
+	VectorCopy (ent->v->origin, state->origin);
+	VectorCopy (ent->v->angles, state->angles);
+
 	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && (client == &svs.clients[state->number-1] || client == svs.clients[state->number-1].controller))
 		state->u.q1.weaponframe = ent->v->weaponframe;
 	else
@@ -2895,6 +2898,9 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			state->u.q1.velocity[1] = ent->v->velocity[1] * 8;
 			state->u.q1.velocity[2] = ent->v->velocity[2] * 8;
 		}
+
+		//fixme: deal with fixangles
+		VectorCopy (ent->v->v_angle, state->angles);
 	}
 
 	if (client && client->edict && (ent->v->owner == client->edict->entnum))
@@ -2941,8 +2947,6 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	if (ent->v->movetype == MOVETYPE_STEP)
 		state->dpflags |= RENDER_STEP;
 
-	VectorCopy (ent->v->origin, state->origin);
-	VectorCopy (ent->v->angles, state->angles);
 	state->modelindex = ent->v->modelindex;
 	state->modelindex2 = ent->xv->vw_index;
 	state->frame = ent->v->frame;

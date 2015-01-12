@@ -1188,7 +1188,7 @@ struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*N
 	activedownloads = newdl;
 
 
-	if (!cls.download)
+	if (!cls.download && localfile)
 	{
 		cls.download = &newdl->qdownload;
 		newdl->qdownload.method = DL_HTTP;

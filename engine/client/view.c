@@ -1455,6 +1455,7 @@ void R_DrawNameTags(void)
 	int len;
 	vec3_t center;
 	vec3_t tagcenter;
+	lerpents_t *le;
 
 	if (!cl.spectator && !cls.demoplayback)
 		return;
@@ -1473,7 +1474,13 @@ void R_DrawNameTags(void)
 	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		if (!nametagseen[i])
-			continue;
+		{
+			if (i+1 >= cl.maxlerpents || !cl.lerpentssequence || cl.lerpents[i+1].sequence != cl.lerpentssequence)
+				continue;
+			le = &cl.lerpents[i+1];
+			VectorCopy(le->origin, nametagorg[i]);
+		}
+		//while cl.lerpplayers exists, it tends to not be configured properly.
 		if (i == r_refdef.playerview->playernum)
 			continue;	// Don't draw tag for the local player
 		if (cl.players[i].spectator)

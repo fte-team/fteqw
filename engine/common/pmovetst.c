@@ -526,9 +526,9 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end, unsigned int solidmask)
 		}
 	}
 
-	//this is needed to avoid *2 friction. some id bug.
-	if (total.startsolid)
-		total.fraction = 0;
+//	//this is needed to avoid *2 friction. some id bug.
+//	if (total.startsolid)
+//		total.fraction = 0;
 	return total;
 }
 

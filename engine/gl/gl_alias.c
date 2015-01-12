@@ -236,6 +236,8 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 	skin = Z_Malloc(sizeof(*skin) - sizeof(skin->mappings) + sizeof(skin->mappings[0])*4);
 	skin->maxmappings = 4;
 	Q_strncpyz(skin->skinname, skinname, sizeof(skin->skinname));
+	skin->q1lower = Q1UNSPECIFIED;
+	skin->q1upper = Q1UNSPECIFIED;
 
 	while(skintext)
 	{
@@ -321,6 +323,22 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 		{
 			skintext = COM_ParseToken(skintext, NULL);
 			Q_strncpyz(skin->qwskinname, com_token, sizeof(skin->qwskinname));
+		}
+		else if (!strcmp(com_token, "q1lower"))
+		{
+			skintext = COM_ParseToken(skintext, NULL);
+			if (!strncmp(com_token, "0x", 2))
+				skin->q1lower = 0xff000000|strtoul(com_token+2, NULL, 16);
+			else
+				skin->q1lower = atoi(com_token);
+		}
+		else if (!strcmp(com_token, "q1upper"))
+		{
+			skintext = COM_ParseToken(skintext, NULL);
+			if (!strncmp(com_token, "0x", 2))
+				skin->q1upper = 0xff000000|strtoul(com_token+2, NULL, 16);
+			else
+				skin->q1upper = atoi(com_token);
 		}
 		else
 		{
@@ -540,6 +558,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 	qboolean forced;
 	qboolean generateupperlower = false;
 
+	tc = e->topcolour;
+	bc = e->bottomcolour;
+
 	*forcedtex = NULL;
 	/*q3 .skin files*/
 	if (e->customskin)
@@ -560,6 +581,10 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			}
 			if (!sk->qwskin && *sk->qwskinname)
 				sk->qwskin = Skin_Lookup(sk->qwskinname);
+			if (sk->q1lower != Q1UNSPECIFIED)
+				bc = sk->q1lower;
+			if (sk->q1upper != Q1UNSPECIFIED)
+				bc = sk->q1upper;
 			plskin = sk->qwskin;
 		}
 	}
@@ -585,8 +610,6 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 	if (!gl_nocolors.ival || forced)
 	{
-		tc = e->topcolour;
-		bc = e->bottomcolour;
 		if (!plskin || plskin->loadstate == SKIN_FAILED)
 		{
 			if (e->playerindex >= 0 && e->playerindex <= MAX_CLIENTS)

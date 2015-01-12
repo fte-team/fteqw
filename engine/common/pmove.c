@@ -502,7 +502,7 @@ void PM_Friction (void)
 		start[2] = pmove.origin[2] + pmove.player_mins[2];
 		stop[2] = start[2] - 34;
 		trace = PM_PlayerTrace (start, stop, MASK_PLAYERSOLID);
-		if (trace.fraction == 1)
+		if (trace.fraction == 1 && !trace.startsolid)
 			friction *= 2;
 
 		control = speed < movevars.stopspeed ? movevars.stopspeed : speed;

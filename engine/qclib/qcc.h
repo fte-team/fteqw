@@ -528,7 +528,7 @@ extern pbool keyword_union;	//you surly know what a union is!
 
 extern pbool keywords_coexist;
 extern pbool output_parms;
-extern pbool autoprototype, autoprototyped;
+extern pbool autoprototype, autoprototyped, parseonly;
 extern pbool pr_subscopedlocals;
 extern pbool flag_ifstring;
 extern pbool flag_iffloat;

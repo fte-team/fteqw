@@ -70,6 +70,7 @@ pbool keywords_coexist;		//don't disable a keyword simply because a var was made
 pbool output_parms;			//emit some PARMX fields. confuses decompilers.
 pbool autoprototype;		//take two passes over the source code. First time round doesn't enter and functions or initialise variables.
 pbool autoprototyped;		//previously autoprototyped. no longer allowed to enable autoproto, but don't warn about it.
+pbool parseonly;			//parse defs and stuff, but don't bother compiling any actual code.
 pbool pr_subscopedlocals;	//causes locals to be valid ONLY within their statement block. (they simply can't be referenced by name outside of it)
 pbool flag_ifstring;		//makes if (blah) equivelent to if (blah != "") which resolves some issues in multiprogs situations.
 pbool flag_iffloat;			//use an op_if_f instruction instead of op_if so if(-0) evaluates to false.

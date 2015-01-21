@@ -1282,7 +1282,7 @@ void V_CalcRefdef (playerview_t *pv)
 
 	if (pv->stats[STAT_HEALTH] < 0 && pv->cam_spec_track >= 0 && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
-		if (!cl.spectator || !cl_chasecam.ival)
+		if (!cl.spectator || cl_chasecam.ival)
 			r_refdef.viewangles[ROLL] = 80*v_deathtilt.value;	// dead view angle
 	}
 	else
@@ -1312,9 +1312,16 @@ void V_CalcRefdef (playerview_t *pv)
 		//r_refdef.viewangles[0] += chase_pitch.value;
 		//r_refdef.viewangles[1] += chase_yaw.value;
 		//r_refdef.viewangles[2] += chase_roll.value;
+		if (chase_active.ival >= 2)
+			r_refdef.viewangles[0] = 90;
+		if (chase_active.ival >= 3)
+			r_refdef.viewangles[1] = 0;
 		AngleVectors(r_refdef.viewangles, axis[0], axis[1], axis[2]);
 		VectorScale(axis[0], -chase_back.value, camdir);
-		VectorMA(camdir, -chase_up.value, pv->gravitydir, camdir);
+		if (pv->pmovetype == PM_6DOF)
+			VectorMA(camdir, chase_up.value, axis[2], camdir);
+		else
+			VectorMA(camdir, -chase_up.value, pv->gravitydir, camdir);
 		len = VectorLength(camdir);
 		VectorMA(r_refdef.vieworg, (len+128)/len, camdir, camorg);	//push it 128qu further
 		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace)
@@ -1445,6 +1452,7 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	}
 }
 
+#include "pr_common.h"
 void Draw_ExpandedString(float x, float y, conchar_t *str);
 extern vec3_t nametagorg[MAX_CLIENTS];
 extern qboolean nametagseen[MAX_CLIENTS];
@@ -1456,6 +1464,57 @@ void R_DrawNameTags(void)
 	vec3_t center;
 	vec3_t tagcenter;
 	lerpents_t *le;
+
+	extern cvar_t r_showbboxes;
+	if (r_showbboxes.ival && cls.allow_cheats)
+	{
+		world_t *w = NULL;
+		wedict_t *e;
+		vec3_t org;
+		vec3_t screenspace;
+		vec3_t diff;
+		if (r_showbboxes.ival == 1)
+		{
+#ifndef CLIENTONLY
+			w = &sv.world;
+#endif
+		}
+		else if (r_showbboxes.ival == 2)
+		{
+#ifdef CSQC_DAT
+			extern world_t csqc_world;
+			w = &csqc_world;
+#endif
+		}
+		if (w && w->progs)
+		for (i = 1; i < w->num_edicts; i++)
+		{
+			e = WEDICT_NUM(w->progs, i);
+			if (e->isfree)
+				continue;
+			VectorInterpolate(e->v->absmin, 0.5, e->v->absmax, org);
+			VectorSubtract(org, r_refdef.vieworg, diff);
+			if (DotProduct(diff, diff) > 256*256)
+				continue;
+			if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
+			{
+				char asciibuffer[8192];
+				char *entstr;
+				int buflen;
+				int x, y;
+
+				buflen = 0;
+				entstr = w->progs->saveent(w->progs, asciibuffer, &buflen, sizeof(asciibuffer), (edict_t*)e);	//will save just one entities vars
+				if (entstr)
+				{
+					x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
+					y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
+					R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN);
+				}
+
+			}
+		}
+	}
 
 	if (!cl.spectator && !cls.demoplayback)
 		return;

@@ -198,7 +198,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 
 		if (pext_replacementdeltas.ival)
 			mask |= PEXT2_REPLACEMENTDELTAS;
-		if (fornq && pext_nqpredinfo.ival)
+		if (/*fornq &&*/ pext_nqpredinfo.ival)
 			mask |= PEXT2_PREDINFO;
 
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
@@ -213,8 +213,8 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 			//only ones that are tested
 			mask &= PEXT2_VOICECHAT | PEXT2_REPLACEMENTDELTAS | PEXT2_PREDINFO;
 		}
-		else
-			mask &= ~PEXT2_PREDINFO;
+//		else
+//			mask &= ~PEXT2_PREDINFO;
 	}
 
 	return mask;

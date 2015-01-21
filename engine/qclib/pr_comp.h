@@ -389,6 +389,10 @@ enum qcop_e {
 
 	OP_SUB_PP,
 
+	OP_MOD_F,
+	OP_MOD_I,
+	OP_MOD_V,
+
 	OP_NUMOPS
 };
 

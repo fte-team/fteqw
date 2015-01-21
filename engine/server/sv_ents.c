@@ -464,6 +464,7 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 		return;
 	}
 
+	//lost entities need flagging for a resend
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
 		unsigned int *f = client->frameunion.frames[sequence & UPDATE_MASK].resendentbits;
@@ -481,6 +482,30 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 			client->pendingentbits[n[i]] |= f[i];
 		}
 		client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities = 0;
+	}
+	//lost stats do too
+	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+	{
+		client_t *sp;
+		unsigned short *n = client->frameunion.frames[sequence & UPDATE_MASK].resendstats;
+		i = client->frameunion.frames[sequence & UPDATE_MASK].numresendstats;
+		while(i-->0)
+		{
+			unsigned short s = n[i];
+			if (s & 0xf000)
+			{
+				sp = client;
+				while (s & 0xf000)
+				{
+					s -= 0x1000;
+					sp = sp->controlled;
+				}
+				sp->pendingstats[s>>5u] |= 1u << (s & 0x1fu);
+			}
+			else
+				client->pendingstats[s>>5u] |= 1u << (s & 0x1fu);
+		}
+		client->frameunion.frames[sequence & UPDATE_MASK].numresendstats = 0;
 	}
 
 	if (!(client->csqcactive))	//we don't need this, but it might be a little faster.
@@ -506,6 +531,9 @@ void SV_CSQC_DropAll(client_t *client)
 
 	for (i = 0; i < sv.world.num_edicts; i++)
 		client->csqcentversions[i]--;	//do that update thang (but later).
+
+	//we don't know which stats were on the wire, resend all. :(
+	memset(client->pendingstats, 0xff, sizeof(client->pendingstats));
 }
 
 //=============================================================================
@@ -2870,10 +2898,10 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	VectorCopy (ent->v->origin, state->origin);
 	VectorCopy (ent->v->angles, state->angles);
 
-	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && (client == &svs.clients[state->number-1] || client == svs.clients[state->number-1].controller))
-		state->u.q1.weaponframe = ent->v->weaponframe;
-	else
-		state->u.q1.weaponframe = 0;
+	state->u.q1.weaponframe = 0;
+	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && (client == &svs.clients[state->number-1] || client == svs.clients[state->number-1].controller || (client && (!client->edict || client->spec_track == state->number))))
+		if (!client || !(client->fteprotocolextensions2 & PEXT2_PREDINFO))
+			state->u.q1.weaponframe = ent->v->weaponframe;
 	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && ent->v->movetype)
 	{
 		client_t *cl = &svs.clients[state->number-1];
@@ -2900,7 +2928,13 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		}
 
 		//fixme: deal with fixangles
-		VectorCopy (ent->v->v_angle, state->angles);
+		if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		if (state->u.q1.pmovetype && (state->u.q1.pmovetype != MOVETYPE_TOSS && state->u.q1.pmovetype != MOVETYPE_BOUNCE))
+		{
+			state->angles[0] = ent->v->v_angle[0]/-3.0;
+			state->angles[1] = ent->v->v_angle[1];
+			state->angles[2] = ent->v->v_angle[2];
+		}
 	}
 
 	if (client && client->edict && (ent->v->owner == client->edict->entnum))

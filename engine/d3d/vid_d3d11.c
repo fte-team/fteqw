@@ -398,13 +398,13 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 				Cvar_ForceCallback(&v_gamma);
 			}
 			else if (!vid_initializing)
-				INS_TranslateKeyEvent (wParam, lParam, true, 0);
+				INS_TranslateKeyEvent (wParam, lParam, true, 0, false);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-				INS_TranslateKeyEvent (wParam, lParam, false, 0);
+				INS_TranslateKeyEvent (wParam, lParam, false, 0, false);
 			break;
 
 		case WM_SYSCHAR:

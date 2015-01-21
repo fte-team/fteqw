@@ -112,8 +112,6 @@ void GLDraw_DeInit (void)
 	draw_disc = NULL;
 	GL_ShutdownPostProcessing();
 
-	Image_Shutdown();
-
 #ifdef RTLIGHTS
 	Sh_Shutdown();
 #endif

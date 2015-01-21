@@ -784,6 +784,12 @@ void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 		}
 		c++;
 	}
+
+	
+	if (con->flags & CONF_NOTIMES)
+		con->current->time = 0;
+	else
+		con->current->time = realtime;
 }
 
 void Con_Print (char *txt)
@@ -1428,13 +1434,28 @@ static int Con_DrawProgress(int left, int right, int y)
 		progresstext = cls.download->localname;
 		progresspercent = cls.download->percent;
 
+		if (cls.download->sizeunknown && cls.download->size == 0)
+			progresspercent = -1;
+
 		CL_GetDownloadSizes(&count, &total, &extra);
 
-		if ((int)(realtime/2)&1 || total == 0)
-			sprintf(progresspercenttext, " %5.1f%% (%ukbps)", progresspercent, CL_DownloadRate()/1000);
+		if (progresspercent < 0)
+		{
+			if ((int)(realtime/2)&1 || total == 0)
+				sprintf(progresspercenttext, " (%ukbps)", CL_DownloadRate()/1000);
+			else
+			{
+				sprintf(progresspercenttext, " (%u%skb)", (int)(total/1024), extra?"+":"");
+			}
+		}
 		else
 		{
-			sprintf(progresspercenttext, " %5.1f%% (%u%skb)", progresspercent, (int)(total/1024), extra?"+":"");
+			if ((int)(realtime/2)&1 || total == 0)
+				sprintf(progresspercenttext, " %5.1f%% (%ukbps)", progresspercent, CL_DownloadRate()/1000);
+			else
+			{
+				sprintf(progresspercenttext, " %5.1f%% (%u%skb)", progresspercent, (int)(total/1024), extra?"+":"");
+			}
 		}
 	}
 #ifdef RUNTIMELIGHTING
@@ -1529,7 +1550,8 @@ static int Con_DrawProgress(int left, int right, int y)
 		}
 		x = Font_DrawChar(x, y, 0xe082|CON_WHITEMASK);
 
-		Font_DrawChar(barleft+(barwidth*progresspercent)/100 - Font_CharWidth(0xe083|CON_WHITEMASK)/2, y, 0xe083|CON_WHITEMASK);
+		if (progresspercent >= 0)
+			Font_DrawChar(barleft+(barwidth*progresspercent)/100 - Font_CharWidth(0xe083|CON_WHITEMASK)/2, y, 0xe083|CON_WHITEMASK);
 
 		y += Font_CharHeight();
 	}

@@ -2018,7 +2018,7 @@ static model_t *csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int mode
 	{
 		if (modelindex <= -MAX_CSMODELS)
 			return NULL;
-		ent->v->model = PR_SetString(prinst, cl.model_csqcname[-modelindex]);
+		prinst->SetStringField(prinst, (void*)ent, &ent->v->model, cl.model_csqcname[-modelindex], true);
 		if (!cl.model_csqcprecache[-modelindex])
 			cl.model_csqcprecache[-modelindex] = Mod_ForName(Mod_FixName(cl.model_csqcname[-modelindex], csqc_world.worldmodel->name), MLV_WARN);
 		model = cl.model_csqcprecache[-modelindex];
@@ -2027,7 +2027,7 @@ static model_t *csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int mode
 	{
 		if (modelindex >= MAX_PRECACHE_MODELS)
 			return NULL;
-		ent->v->model = PR_SetString(prinst, cl.model_name[modelindex]);
+		prinst->SetStringField(prinst, (void*)ent, &ent->v->model, cl.model_name[modelindex], true);
 		model = cl.model_precache[modelindex];
 	}
 	if (model)
@@ -4827,11 +4827,11 @@ static struct {
 	{"fputs",					PF_fputs,	113},				// #113 void(float fnum, string str) fputs (FRIK_FILE)
 	{"strlen",					PF_strlen,	114},				// #114 float(string str) strlen (FRIK_FILE)
 
-	{"strcat",					PF_strcat,	115},				// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
+	{"strcat",					PF_strcat,		115},			// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
 	{"substring",				PF_substring,	116},			// #116 string(string str, float start, float length) substring (FRIK_FILE)
-	{"stov",					PF_stov,	117},				// #117 vector(string str) stov (FRIK_FILE)
-	{"strzone",					PF_dupstring,	118},			// #118 string(string str) dupstring (FRIK_FILE)
-	{"strunzone",				PF_forgetstring,	119},		// #119 void(string str) freestring (FRIK_FILE)
+	{"stov",					PF_stov,		117},			// #117 vector(string str) stov (FRIK_FILE)
+	{"strzone",					PF_strzone,		118},			// #118 string(string str) dupstring (FRIK_FILE)
+	{"strunzone",				PF_strunzone,	119},			// #119 void(string str) freestring (FRIK_FILE)
 
 //200
 	{"getmodelindex",			PF_cs_PrecacheModel,	200},
@@ -5501,7 +5501,7 @@ void CSQC_Shutdown(void)
 	{
 		key_dest_absolutemouse &= ~kdm_game;
 		CSQC_ForgetThreads();
-		PR_ResetFonts(kdm_game);
+		PR_ReleaseFonts(kdm_game);
 		PR_Common_Shutdown(csqcprogs, false);
 		csqcprogs->CloseProgs(csqcprogs);
 	}
@@ -5920,7 +5920,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		/*DP compat*/
 		str = (string_t*)csqcprogs->GetEdictFieldValue(csqcprogs, (edict_t*)worldent, "message", NULL);
 		if (str)
-			*str = PR_SetString(csqcprogs, cl.levelname);
+			*str = PR_NewString(csqcprogs, cl.levelname);
 
 		str = (string_t*)PR_FindGlobal(csqcprogs, "mapname", 0, NULL);
 		if (str)
@@ -5928,7 +5928,7 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 			char *s = Info_ValueForKey(cl.serverinfo, "map");
 			if (!*s)
 				s = "unknown";
-			*str = PR_NewString(csqcprogs, s, strlen(s)+1);
+			*str = PR_NewString(csqcprogs, s);
 		}
 
 		if (csqcg.init_function)

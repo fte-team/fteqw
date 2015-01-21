@@ -840,8 +840,39 @@ void PM_CategorizePosition (void)
 		vec3_t tmin,tmax;
 		VectorCopy(pmove.player_mins, tmin);
 		VectorCopy(pmove.player_maxs, tmax);
-		VectorMA(pmove.origin, -48, up, point);
-		trace = PM_TraceLine(pmove.origin, point);
+
+//		//try tracing forwards+down
+//		VectorMA(pmove.origin, -48, up, point);
+//		VectorMA(point, 48, forward, point);
+//		trace = PM_TraceLine(pmove.origin, point);
+//		trace.fraction = 1;
+		if (1)//trace.fraction == 1)
+		{	//getting desparate
+			VectorMA(pmove.origin, -48, up, point);
+			VectorMA(point, 48, forward, point);
+			trace = PM_TraceLine(pmove.origin, point);
+		}
+		if (trace.fraction == 1)
+		{
+			//try tracing directly down only (we may be stepping off a cliff)
+			VectorMA(pmove.origin, -48, up, point);
+			trace = PM_TraceLine(pmove.origin, point);
+		}
+		if (trace.fraction == 1)
+		{
+			vec3_t point2;
+			//try tracing back from the cliff to see if we can find the ground beyond
+			VectorMA(point, 48, forward, point2);
+			VectorMA(point2, 48, forward, point);
+			trace = PM_TraceLine(point2, point);
+		}
+		if (trace.fraction == 1)
+		{	//getting desparate
+			VectorMA(pmove.origin, -48, up, point);
+			VectorMA(point, -48, forward, point);
+			trace = PM_TraceLine(pmove.origin, point);
+		}
+
 		VectorCopy(tmin, pmove.player_mins);
 		VectorCopy(tmax, pmove.player_maxs);
 

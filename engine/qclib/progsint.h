@@ -70,9 +70,13 @@ typedef struct
 typedef struct prinst_s
  {
 	char **tempstrings;
-	int maxtempstrings;
-	int numtempstrings;
-	int numtempstringsstack;
+	unsigned int maxtempstrings;
+	unsigned int numtempstrings;
+#ifdef QCGC
+	unsigned int nexttempstring;
+#else
+	unsigned int numtempstringsstack;
+#endif
 
 	char **allocedstrings;
 	int maxallocedstrings;
@@ -294,10 +298,10 @@ extern int noextensions;
 
 typedef enum
 {
-	PST_DEFAULT, //16
-	PST_FTE32, //32
-	PST_KKQWSV, //24
-	PST_QTEST,
+	PST_DEFAULT,//everything 16bit
+	PST_FTE32,	//everything 32bit
+	PST_KKQWSV, //32bit statements, 16bit globaldefs. NO SAVED GAMES.
+	PST_QTEST,	//16bit statements, 32bit globaldefs(differences converted on load)
 } progstructtype_t;
 
 #ifndef COMPILER
@@ -351,10 +355,10 @@ typedef struct extensionbuiltin_s {
 #define pr_progs			current_progstate->progs
 #define	pr_cp_functions		current_progstate->functions
 #define	pr_strings			current_progstate->strings
-#define	pr_globaldefs16		((ddef16_t*)current_progstate->globaldefs)
-#define	pr_globaldefs32		((ddef32_t*)current_progstate->globaldefs)
-#define	pr_fielddefs16		((ddef16_t*)current_progstate->fielddefs)
-#define	pr_fielddefs32		((ddef32_t*)current_progstate->fielddefs)
+#define	pr_globaldefs16		((ddef16_t*)current_progstate->globaldefs16)
+#define	pr_globaldefs32		((ddef32_t*)current_progstate->globaldefs32)
+#define	pr_fielddefs16		((ddef16_t*)current_progstate->fielddefs16)
+#define	pr_fielddefs32		((ddef32_t*)current_progstate->fielddefs32)
 #define	pr_statements16		((dstatement16_t*)current_progstate->statements)
 #define	pr_statements32		((dstatement32_t*)current_progstate->statements)
 //#define	pr_global_struct	current_progstate->global_struct
@@ -368,6 +372,8 @@ typedef struct extensionbuiltin_s {
 
 void PR_Init (void);
 
+pbool PR_RunWarning (pubprogfuncs_t *progfuncs, char *error, ...);
+
 void PDECL PR_ExecuteProgram (pubprogfuncs_t *progfuncs, func_t fnum);
 int PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, const char *s, builtin_t *builtins, int numbuiltins);
 int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain);
@@ -379,6 +385,8 @@ void PR_Profile_f (void);
 struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *progfuncs);
 void PDECL ED_Free (pubprogfuncs_t *progfuncs, struct edict_s *ed);
 
+pbool PR_RunGC			(progfuncs_t *progfuncs);
+string_t PDECL PR_AllocTempString			(pubprogfuncs_t *ppf, const char *str);
 char *PDECL ED_NewString (pubprogfuncs_t *ppf, const char *string, int minlength, pbool demarkup);
 // returns a copy of the string allocated from the server's string heap
 

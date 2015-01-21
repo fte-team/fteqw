@@ -308,7 +308,7 @@ struct accessor_s
 	struct QCC_type_s *type;
 	struct QCC_type_s *indexertype;	//null if not indexer
 	struct QCC_def_s *getset_func[2];
-	pbool *getset_isref[2];
+	pbool getset_isref[2];
 	char *fieldname;
 };
 
@@ -376,6 +376,7 @@ typedef struct QCC_def_s
 	pbool subscoped_away:1;
 	pbool followptr:1;
 	pbool strip:1;
+	pbool allowinline:1;
 
 	temp_t *temp;
 } QCC_def_t;
@@ -587,6 +588,7 @@ extern int optres_compound_jumps;
 extern int optres_stripfunctions;
 extern int optres_locals_overlapping;
 extern int optres_logicops;
+extern int optres_inlines;
 
 pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms);
 
@@ -851,6 +853,7 @@ void QCC_PR_NewLine (pbool incomment);
 #define GDF_CONST	4
 #define GDF_STRIP	8	//always stripped, regardless of optimisations. used for class member fields
 #define GDF_SILENT	16	//used by the gui, to suppress ALL warnings.
+#define GDF_INLINE	32	//attempt to inline calls to this function
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize, unsigned int flags);
 char *QCC_PR_CheckCompConstTooltip(char *word, char *outstart, char *outend);
 

@@ -276,10 +276,24 @@ skipwhite:
 				qcc_token[len] = 0;
 				return (char*)data;
 			}
-			else if (c=='\0')	//\n does not terminate the string. that would break compatibility with vanilla saved games
+			else if (c=='\0')
 			{
+				printf("ERROR: Unterminated string\n");
 				qcc_token[len] = 0;
 				return (char*)data;
+			}
+			else if (c=='\n' || c=='\r')
+			{	//new lines are awkward.
+				//vanilla saved games do not add \ns on load
+				//terminating the string on a new line thus has compatbility issues.
+				//while "wad" "c:\foo\" does happen in the TF community (fucked tools)
+				//so \r\n terminates the string if the last char was an escaped quote, but not otherwise.
+				if (len > 0 && qcc_token[len-1] == '\"')
+				{
+					printf("ERROR: new line in string\n");
+					qcc_token[len] = 0;
+					return (char*)data;
+				}
 			}
 			if (len >= sizeof(qcc_token)-1)
 				;

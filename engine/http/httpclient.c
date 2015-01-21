@@ -1267,7 +1267,10 @@ void HTTP_CL_Think(void)
 		else if (dl->status != DL_ACTIVE)
 			dl->qdownload.percent = 0;
 		else if (dl->totalsize <= 0)
+		{
+			dl->qdownload.sizeunknown = true;
 			dl->qdownload.percent = 50;
+		}
 		else
 			dl->qdownload.percent = dl->completed*100.0f/dl->totalsize;
 		dl->qdownload.completedbytes = dl->completed;

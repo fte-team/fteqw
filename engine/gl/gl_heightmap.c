@@ -4726,7 +4726,7 @@ size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *planes, 
 	vec4_t verts2[128];
 	vec4_t *cverts;
 	int flip;
-	vec3_t d1, d2, n;
+//	vec3_t d1, d2, n;
 	size_t numverts;
 
 	//generate some huge quad/poly aligned with the plane

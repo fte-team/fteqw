@@ -260,13 +260,13 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-				INS_TranslateKeyEvent (wParam, lParam, true, 0);
+				INS_TranslateKeyEvent (wParam, lParam, true, 0, false);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-				INS_TranslateKeyEvent (wParam, lParam, false, 0);
+				INS_TranslateKeyEvent (wParam, lParam, false, 0, false);
 			break;
 
 		case WM_SYSCHAR:
@@ -1064,6 +1064,7 @@ static void	(D3D9_Draw_Init)				(void)
 static void	(D3D9_Draw_Shutdown)				(void)
 {
 	R2D_Shutdown();
+	Image_Shutdown();
 }
 
 static void	(D3D9_R_Init)					(void)

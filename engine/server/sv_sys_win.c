@@ -1689,4 +1689,16 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 	CryptReleaseContext(prov, 0);
 	return true;
 }
+
+
+#ifdef HAVEAUTOUPDATE
+int Sys_GetAutoUpdateSetting(void);
+{
+	return -1;
+}
+void Sys_SetAutoUpdateSetting(int newval)
+{
+}
+#endif
+
 #endif

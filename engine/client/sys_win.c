@@ -306,6 +306,15 @@ unsigned int sys_parenttop;
 unsigned int sys_parentwidth;	//valid if sys_parentwindow is set
 unsigned int sys_parentheight;
 
+static struct
+{
+	int width;
+	int height;
+	int rate;
+	int bpp;
+} desktopsettings;
+static void Sys_QueryDesktopParameters(void);
+
 //used to do special things with awkward windows versions.
 int qwinvermaj;
 int qwinvermin;
@@ -1327,6 +1336,8 @@ void Sys_Init (void)
 //	LARGE_INTEGER	PerformanceFreq;
 //	unsigned int	lowpart, highpart;
 	OSVERSIONINFO	vinfo;
+
+	Sys_QueryDesktopParameters();
 
 #ifndef SERVERONLY
 	Cvar_Register(&sys_disableWinKeys, "System vars");
@@ -2476,7 +2487,6 @@ void Win7_TaskListInit(void)
 	}
 }
 
-
 #if defined(SVNREVISION) && !defined(MINIMAL)
 	#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
 	#if defined(OFFICIAL_RELEASE)
@@ -2485,12 +2495,14 @@ void Win7_TaskListInit(void)
 		#define UPD_BUILDTYPE "test"
 		//WARNING: Security comes from the fact that the triptohell.info certificate is hardcoded in the tls code.
 		//this will correctly detect insecure tls proxies also.
-		#define UPDATE_URL "https://triptohell.info/moodles/"
-		#define UPDATE_URL_VERSION UPDATE_URL "version.txt"
+		#define UPDATE_URL_ROOT		"https://triptohell.info/moodles/"
+		#define UPDATE_URL_TESTED	UPDATE_URL_ROOT "autoup/"
+		#define UPDATE_URL_NIGHTLY	UPDATE_URL_ROOT
+		#define UPDATE_URL_VERSION	"%sversion.txt"
 		#ifdef _WIN64
-			#define UPDATE_URL_BUILD UPDATE_URL "win64/fte" EXETYPE "64.exe"
+			#define UPDATE_URL_BUILD "%swin64/fte" EXETYPE "64.exe"
 		#else
-			#define UPDATE_URL_BUILD UPDATE_URL "win32/fte" EXETYPE ".exe"
+			#define UPDATE_URL_BUILD "%swin32/fte" EXETYPE ".exe"
 		#endif
 	#endif
 #endif
@@ -2609,7 +2621,9 @@ void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
 		RegCloseKey (subkey);
 	}
 }
-#ifdef UPDATE_URL
+#ifdef UPDATE_URL_ROOT
+
+int sys_autoupdatesetting;
 
 qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
 {
@@ -2649,8 +2663,30 @@ static void	Update_CreatePath (char *path)
 	}
 }
 
-void Update_UserAcked(void *ctx, int foo)
+//ctx is a pointer to the original frontend process
+void Update_PromptedDownloaded(void *ctx, int foo)
 {
+	if (foo == 0 && ctx)
+	{
+		PROCESS_INFORMATION childinfo;
+		STARTUPINFO startinfo = {sizeof(startinfo)};
+
+#ifndef SERVERONLY
+		SetHookState(false);
+		Host_Shutdown ();
+		CloseHandle (qwclsemaphore);
+		SetHookState(false);
+#else
+		SV_Shutdown();
+#endif
+		TL_Shutdown();
+
+		CreateProcess(ctx, va("\"%s\" %s", ctx, COM_Parse(GetCommandLineA())), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo);
+		Z_Free(ctx);
+		exit(1);
+	}
+	else
+		Z_Free(ctx);
 }
 
 #include "fs.h"
@@ -2685,14 +2721,40 @@ void Update_Version_Updated(struct dl_download *dl)
 					Con_Printf("Download was the wrong size / corrupt\n");
 				else
 				{
+					//figure out the original binary that was executed, so we can start from scratch.
+					//this is to attempt to avoid the new process appearing as 'foo.tmp'. which needlessly confuses firewall rules etc.
+					int ffe = COM_CheckParm("--fromfrontend");
+					char binarypath[MAX_PATH];
+					char *ffp;
+					GetModuleFileName(NULL, binarypath, sizeof(binarypath)-1);
+					ffp = Z_StrDup(ffe?com_argv[ffe+2]:binarypath);
+
+					//make it pending
 					MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, REG_SZ, pendingname, strlen(pendingname)+1);
-					M_Menu_Prompt(Update_UserAcked, NULL, "An update was downloaded", "Restart to activate.", "", "", "", "Okay");
+
+					Key_Dest_Remove(kdm_console);
+					M_Menu_Prompt(Update_PromptedDownloaded, ffp, "An update was downloaded", "Restart to activate.", "", ffp?"Restart":NULL, "", "Okay");
 				}
 			}
 		}
 		else
 			Con_Printf("Update download failed\n");
 	}
+}
+void Update_PromptedForUpdate(void *ctx, int foo)
+{
+	if (foo == 0)
+	{
+		struct dl_download *dl;
+		Con_Printf("Downloading update\n");
+		dl = HTTP_CL_Get(va(UPDATE_URL_BUILD, ctx), NULL, Update_Version_Updated);
+		dl->file = FS_OpenTemp();
+#ifdef MULTITHREAD
+		DL_CreateThread(dl, NULL, NULL);
+#endif
+	}
+	else
+		Con_Printf("Not downloading update\n");
 }
 void Update_Versioninfo_Available(struct dl_download *dl)
 {
@@ -2707,13 +2769,17 @@ void Update_Versioninfo_Available(struct dl_download *dl)
 				{
 					if (atoi(linebuf+10) > atoi(SVNREVISIONSTR))
 					{
-						struct dl_download *dl;
-						Con_Printf("Downloading update: revision %i\n", atoi(linebuf+10));
-						dl = HTTP_CL_Get(UPDATE_URL_BUILD, NULL, Update_Version_Updated);
-						dl->file = FS_OpenTemp();
-#ifdef MULTITHREAD
-						DL_CreateThread(dl, NULL, NULL);
-#endif
+						char *revision = va("Revision %i", atoi(linebuf+10));
+						char *current = va("Current %i", atoi(SVNREVISIONSTR));
+
+						Con_Printf("An update is available, revision %i\n", atoi(linebuf+10));
+						if (COM_CheckParm("-autoupdate") || COM_CheckParm("--autoupdate"))
+							Update_PromptedForUpdate(dl->user_ctx, 0);
+						else
+						{
+							Key_Dest_Remove(kdm_console);
+							M_Menu_Prompt(Update_PromptedForUpdate, dl->user_ctx, "An update is available.", revision, current, "Download", "", "Ignore");
+						}
 					}
 					else
 						Con_Printf("autoupdate: already at latest version\n");
@@ -2723,19 +2789,42 @@ void Update_Versioninfo_Available(struct dl_download *dl)
 		}
 	}
 }
-static qboolean doupdatecheck;
+
 void Update_Check(void)
 {
+	static qboolean doneupdatecheck;	//once per run
 	struct dl_download *dl;
-	if (doupdatecheck)
+
+	if (sys_autoupdatesetting < 2)	//not if disabled (do it once it does get enabled)
+		return;
+
+	if (!doneupdatecheck)
 	{
-		doupdatecheck = false;
-		dl = HTTP_CL_Get(UPDATE_URL_VERSION, NULL, Update_Versioninfo_Available);
+		char *updateroot = (sys_autoupdatesetting>=3)?UPDATE_URL_NIGHTLY:UPDATE_URL_TESTED;
+		doneupdatecheck = true;
+		dl = HTTP_CL_Get(va(UPDATE_URL_VERSION, updateroot), NULL, Update_Versioninfo_Available);
 		dl->file = FS_OpenTemp();
+		dl->user_ctx = updateroot;
 #ifdef MULTITHREAD
 		DL_CreateThread(dl, NULL, NULL);
 #endif
 	}
+}
+
+int Sys_GetAutoUpdateSetting(void)
+{
+	return sys_autoupdatesetting;
+}
+void Sys_SetAutoUpdateSetting(int newval)
+{
+	static qboolean doneupdatecheck;
+
+	if (sys_autoupdatesetting == newval)
+		return;
+	sys_autoupdatesetting = newval;
+	MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "AutoUpdateEnabled", REG_DWORD, &sys_autoupdatesetting, sizeof(sys_autoupdatesetting));
+
+	Update_Check();
 }
 
 qboolean Sys_CheckUpdated(void)
@@ -2744,11 +2833,23 @@ qboolean Sys_CheckUpdated(void)
 	PROCESS_INFORMATION childinfo;
 	STARTUPINFO startinfo = {sizeof(startinfo)};
 
+	char *e;
+	strtoul(SVNREVISIONSTR, &e, 10);
+	if (!*SVNREVISIONSTR || *e)	//svn revision didn't parse as an exact number.	this implies it has an 'M' in it to mark it as modified, or a - to mean unknown. either way, its bad and autoupdates when we don't know what we're updating from is a bad idea.
+		sys_autoupdatesetting = -1;
+	else if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))
+		sys_autoupdatesetting = 0;
+	else if (COM_CheckParm("-autoupdate") || COM_CheckParm("--autoupdate"))
+		sys_autoupdatesetting = 3;
+	else
+	{
+		//favour 'tested'
+		sys_autoupdatesetting = MyRegGetIntValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "AutoUpdateEnabled", 2);
+	}
+
 	if (!strcmp(SVNREVISIONSTR, "-"))
 		return false;	//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
-	else if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate"))
-		return false;
-	else if (!COM_CheckParm("-autoupdate") && !COM_CheckParm("--autoupdate"))
+	else if (sys_autoupdatesetting == 0)
 		return false;
 	else if (isPlugin == 1)
 	{
@@ -2756,7 +2857,7 @@ qboolean Sys_CheckUpdated(void)
 	}
 	else if (!ffe)
 	{
-		//if we're not from the frontend, we should run the updated build instead
+		//if we're not from the frontend (ie: we ARE the frontend), we should run the updated build instead
 		char frontendpath[MAX_OSPATH];
 		char pendingpath[MAX_OSPATH];
 		char updatedpath[MAX_OSPATH];
@@ -2765,12 +2866,20 @@ qboolean Sys_CheckUpdated(void)
 		MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, pendingpath, sizeof(pendingpath));
 		if (*pendingpath)
 		{
+			qboolean okay;
 			MyRegDeleteKeyValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE);
 			Update_GetHomeDirectory(updatedpath, sizeof(updatedpath));
 			Update_CreatePath(updatedpath);
 			Q_strncatz(updatedpath, "cur" UPD_BUILDTYPE EXETYPE".exe", sizeof(updatedpath));
 			DeleteFile(updatedpath);
-			if (MoveFile(pendingpath, updatedpath))
+			okay = MoveFile(pendingpath, updatedpath);
+			if (!okay)
+			{	//if we just downloaded an update, we may need to wait for the existing process to close.
+				//sadly I'm too lazy to provide any sync mechanism (and wouldn't trust any auto-released handles or whatever), so lets just retry after a delay.
+				Sleep(2000);
+				okay = MoveFile(pendingpath, updatedpath);
+			}
+			if (okay)
 				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, UPD_BUILDTYPE EXETYPE, REG_SZ, updatedpath, strlen(updatedpath)+1);
 			else
 			{
@@ -2803,10 +2912,16 @@ qboolean Sys_CheckUpdated(void)
 		if (com_argv[ffe+2])
 			com_argv[0] = com_argv[ffe+2];
 	}
-	doupdatecheck = true;
 	return false;
 }
 #else
+int Sys_GetAutoUpdateSetting(void)
+{
+	return -1;
+}
+void Sys_SetAutoUpdateSetting(int newval)
+{
+}
 qboolean Sys_CheckUpdated(void)
 {
 	return false;
@@ -3443,26 +3558,31 @@ int __cdecl main(void)
 	return WinMain(GetModuleHandle(NULL), NULL, cmdline, SW_NORMAL);
 }
 
+//now queries at startup and then caches, to avoid mode changes from giving weird results.
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {
+	*width = desktopsettings.width;
+	*height = desktopsettings.height;
+	*bpp = desktopsettings.bpp;
+	*refreshrate = desktopsettings.rate;
+	return true;
+}
+
+static void Sys_QueryDesktopParameters(void)
+{
 	HDC hdc;
-	int rate;
 
 	hdc = GetDC(NULL);
 
-	*width = GetDeviceCaps(hdc, HORZRES);
-	*height = GetDeviceCaps(hdc, VERTRES);
-	*bpp = GetDeviceCaps(hdc, BITSPIXEL);
-	rate = GetDeviceCaps(hdc, VREFRESH);
+	desktopsettings.width = GetDeviceCaps(hdc, HORZRES);
+	desktopsettings.height = GetDeviceCaps(hdc, VERTRES);
+	desktopsettings.bpp = GetDeviceCaps(hdc, BITSPIXEL);
+	desktopsettings.rate = GetDeviceCaps(hdc, VREFRESH);
 
-	if (rate == 1)
-		rate = 0;
-
-	*refreshrate = rate;
+	if (desktopsettings.rate == 1)
+		desktopsettings.rate = 0;
 
 	ReleaseDC(NULL, hdc);
-
-	return true;
 }
 
 void Sys_Sleep (double seconds)

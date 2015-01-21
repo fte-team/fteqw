@@ -126,6 +126,7 @@ cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
 cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
 cvar_t pausable	= CVAR("pausable", "1");
 cvar_t sv_banproxies = CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
+cvar_t	sv_specprint = CVARD("sv_specprint", "3",	"Bitfield that controls which player events spectators see when tracking that player.\n&1: spectators will see centerprints.\n&2: spectators will see sprints (pickup messages etc).\n&4: spectators will receive console commands, this is potentially risky.\nIndividual spectators can use 'setinfo sp foo' to limit this setting.");
 
 
 //
@@ -1705,6 +1706,9 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	int i;
 	int maxpacketentities;
 	extern cvar_t pr_maxedicts;
+
+	client->fteprotocolextensions  &= Net_PextMask(1, ISNQCLIENT(client));
+	client->fteprotocolextensions2 &= Net_PextMask(2, ISNQCLIENT(client));
 
 	//some gamecode can't cope with some extensions for some reasons... and I'm too lazy to fix the code to cope.
 	if (svs.gametype == GT_HALFLIFE)
@@ -4498,6 +4502,7 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_csqc_progname,	cvargroup_servercontrol);
 	Cvar_Register (&sv_csqcdebug, cvargroup_servercontrol);
+	Cvar_Register (&sv_specprint, cvargroup_serverpermissions);
 
 	Cvar_Register (&sv_gamespeed, cvargroup_serverphysics);
 	Cvar_Register (&sv_nqplayerphysics,	cvargroup_serverphysics);
@@ -4550,9 +4555,10 @@ void SV_InitLocal (void)
 }
 
 #define iswhite(c) ((c) == ' ' || (unsigned char)(c) == (unsigned char)INVIS_CHAR1 || (unsigned char)(c) == (unsigned char)INVIS_CHAR2 || (unsigned char)(c) == (unsigned char)INVIS_CHAR3)
-#define isinvalid(c) ((c) == ':' || (c) == '\r' || (c) == '\n' || (unsigned char)(c) == (unsigned char)0xff)
+#define isinvalid(c) ((c) == ':' || (c) == '\r' || (c) == '\n' || (unsigned char)(c) == (unsigned char)0xff || (c) == '\"')
 //colon is so clients can't get confused while parsing chats
 //255 is so fuhquake/ezquake don't end up with nameless players
+//" is so mods that use player names in tokenizing/frik_files don't mess up. mods are still expected to be able to cope with space.
 
 //is allowed to shorten, out must be as long as in and min of "unnamed"+1
 void SV_FixupName(char *in, char *out, unsigned int outlen)
@@ -4810,6 +4816,12 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	{
 		cl->messagelevel = atoi(val);
 	}
+
+	val = Info_ValueForKey (cl->userinfo, "sp");	//naming for compat with mvdsv
+	if (*val)
+		cl->spec_print = atoi(val);
+	else
+		cl->spec_print = ~0;	//if unspecified, default to server setting (even if the cvar is changed mid-map).
 
 #ifdef NQPROT
 	{

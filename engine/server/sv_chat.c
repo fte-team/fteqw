@@ -233,9 +233,9 @@ float SV_ChatFunc(const char *func)	//parse a condition/function
 			if (*com_token == ',')
 				continue;
 			if (com_tokentype == TTP_STRING)
-				G_INT(parm) = PR_NewString(svprogfuncs, com_token, 0);
+				G_INT(parm) = PR_NewString(svprogfuncs, com_token);
 			else if (!strcmp(com_token, "ent"))
-				SetGlobalEdict(svprogfuncs, host_client->chat.edict, parm);
+				G_INT(parm) = EDICT_TO_PROG(svprogfuncs, host_client->chat.edict);
 			else
 				G_FLOAT(parm) = SV_ChatFunc(os);
 

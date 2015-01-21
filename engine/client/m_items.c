@@ -501,7 +501,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, option->text.text);
 			break;
 		case mt_button:
-			Draw_FunStringWidth(xpos + option->common.posx, ypos+option->common.posy, option->button.text, option->common.width, true, !menu->cursoritem && menu->selecteditem == option);
+			Draw_FunStringWidth(xpos + option->common.posx, ypos+option->common.posy, option->button.text, option->common.width, option->button.rightalign, !menu->cursoritem && menu->selecteditem == option);
 			break;
 #ifdef HEXEN2
 		case mt_hexen2buttonbigfont:
@@ -1306,6 +1306,7 @@ menubutton_t *MC_AddConsoleCommand(menu_t *menu, int lhs, int rhs, int y, const 
 	n->common.posy = y;
 	n->common.height = 8;
 	n->common.width = rhs?rhs - lhs:strlen(text)*8;
+	n->rightalign = true;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->command = n->text + strlen(n->text)+1;
@@ -1361,6 +1362,7 @@ menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, q
 	n->common.iszone = true;
 	n->common.posx = lhs;
 	n->common.posy = y;
+	n->rightalign = true;
 	n->text = text;
 	n->command = NULL;
 	n->key = command;
@@ -1372,7 +1374,7 @@ menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, q
 	return n;
 }
 
-menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, const char *text, char *command, ...)
+menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, qboolean rightalign, const char *text, char *command, ...)
 {
 	va_list		argptr;
 	static char		string[1024];
@@ -1388,6 +1390,7 @@ menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y,
 	n->common.posx = lhs;
 	n->common.posy = y;
 	n->common.width = rhs-lhs;
+	n->rightalign = rightalign;
 	n->text = text;
 	n->command = (char *)(n+1);
 	strcpy((char *)(n+1), string);
@@ -2350,6 +2353,12 @@ int MC_AddBulk(struct menu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xs
 				control = (union menuoption_s *)MC_AddCvarCombo(menu, xleft, xtextend, y, bulk->text, bulk->cvar, bulk->options, bulk->values);
 				break;
 			case 1: // combo with return value
+				if (bulk->selectedoption < 0)
+				{	//invalid...
+					control = NULL;
+					spacing = 0;
+					break;
+				}
 				control = (union menuoption_s *)MC_AddCombo(menu, xleft, xtextend, y, bulk->text, bulk->options, bulk->selectedoption);
 				break;
 			}

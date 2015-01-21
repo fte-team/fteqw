@@ -222,21 +222,6 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 PR_StackTrace
 ============
 */
-char *QC_ucase(char *str)
-{
-	static char s[1024];
-	strcpy(s, str);
-	str = s;
-
-	while(*str)
-	{
-		if (*str >= 'a' && *str <= 'z')
-			*str = *str - 'a' + 'A';
-		str++;
-	}
-	return s;
-}
-
 static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 {
 	//scan for op_address/op_load instructions within the function
@@ -381,46 +366,6 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 		}
 	}
 }
-
-/*
-============
-PR_Profile_f
-
-============
-*/
-/*
-void PR_Profile_f (void)
-{
-	dfunction_t	*f, *best;
-	int			max;
-	int			num;
-	unsigned int			i;
-
-	num = 0;
-	do
-	{
-		max = 0;
-		best = NULL;
-		for (i=0 ; i<pr_progs->numfunctions ; i++)
-		{
-			f = &pr_functions[i];
-			if (f->profile > max && f->first_statement >=0)
-			{
-				max = f->profile;
-				best = f;
-			}
-		}
-		if (best)
-		{
-			if (num < 10)
-				printf ("%7i %s\n", best->profile, best->s_name);
-			num++;
-			best->profile = 0;
-		}
-	} while (best);
-}
-*/
-
 
 /*
 ============
@@ -873,7 +818,11 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 		switch (type&~DEF_SAVEGLOBAL)
 		{
 		case ev_string:
+#ifdef QCGC
+			*(string_t *)val = PR_AllocTempString(&progfuncs->funcs, assignment);
+#else
 			*(string_t *)val = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, assignment, 0, true));
+#endif
 			break;
 
 		case ev_float:
@@ -1464,7 +1413,9 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 
 	int s;
 
+#ifndef QCGC
 	int tempdepth;
+#endif
 
 	unsigned int newprogs = (fnum & 0xff000000)>>24;
 
@@ -1530,14 +1481,21 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 
 	s = PR_EnterFunction (progfuncs, f, initial_progs);
 
+#ifndef QCGC
 	tempdepth = prinst.numtempstringsstack;
+#endif
 	PR_ExecuteCode(progfuncs, s);
 
 
 	PR_SwitchProgsParms(progfuncs, initial_progs);
 
+#ifndef QCGC
 	PR_FreeTemps(progfuncs, tempdepth);
 	prinst.numtempstringsstack = tempdepth;
+#else
+	if (!oldexitdepth)
+		PR_RunGC(progfuncs);
+#endif
 
 	prinst.exitdepth = oldexitdepth;
 }
@@ -1641,7 +1599,9 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 	int		oldexitdepth;
 
 	int s;
+#ifndef QCGC
 	int tempdepth;
+#endif
 
 	progsnum_t prnum = thread->xprogs;
 	int fnum = thread->xfunction;
@@ -1713,13 +1673,17 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 	pr_xfunction = f;
 	s = thread->xstatement;
 
+#ifndef QCGC
 	tempdepth = prinst.numtempstringsstack;
+#endif
 	PR_ExecuteCode(progfuncs, s);
 
 
 	PR_SwitchProgsParms(progfuncs, initial_progs);
+#ifndef QCGC
 	PR_FreeTemps(progfuncs, tempdepth);
 	prinst.numtempstringsstack = tempdepth;
+#endif
 
 	prinst.exitdepth = oldexitdepth;
 	pr_xfunction = oldf;

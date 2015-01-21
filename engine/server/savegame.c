@@ -11,24 +11,29 @@ extern cvar_t pr_enable_profiling;
 void SV_Savegame_f (void);
 
 //Writes a SAVEGAME_COMMENT_LENGTH character comment describing the current
-void SV_SavegameComment (char *text)
+void SV_SavegameComment (char *text, size_t textsize)
 {
 	int		i;
 	char	kills[20];
+	char	datetime[64];
+	time_t	timeval;
 
 	char *mapname = sv.mapname;
 
-	for (i=0 ; i<SAVEGAME_COMMENT_LENGTH ; i++)
+	for (i=0 ; i<textsize-1 ; i++)
 		text[i] = ' ';
+	text[textsize-1] = '\0';
 	if (!mapname)
 		strcpy( text, "Unnamed_Level");
 	else
 	{
 		i = strlen(mapname);
-		if (i > SAVEGAME_COMMENT_LENGTH)
-			i = SAVEGAME_COMMENT_LENGTH;
+		if (i > 22)
+			i = 22;
 		memcpy (text, mapname, i);
 	}
+
+	kills[0] = '\0';
 #ifdef Q2SERVER
 	if (ge)	//q2
 	{
@@ -39,21 +44,32 @@ void SV_SavegameComment (char *text)
 #ifdef HLSERVER
 	if (svs.gametype == GT_HALFLIFE)
 	{
-		sprintf (kills,"kills:moo");
+		sprintf (kills,"");
 	}
 	else
 #endif
-		sprintf (kills,"kills:%3i/%3i", (int)pr_global_struct->killed_monsters, (int)pr_global_struct->total_monsters);
+	{
+		if ((int)pr_global_struct->killed_monsters || (int)pr_global_struct->total_monsters)
+			sprintf (kills,"kills:%3i/%3i", (int)pr_global_struct->killed_monsters, (int)pr_global_struct->total_monsters);
+	}
+
+	time(&timeval);
+	strftime(datetime, sizeof(datetime), "%Y-%m-%d %H:%M:%S", localtime( &timeval ));
+
 	memcpy (text+22, kills, strlen(kills));
+	if (textsize > 39)
+	{
+		Q_strncpyz(text+39, datetime, textsize-39);
+	}
 // convert space to _ to make stdio happy
-	for (i=0 ; i<SAVEGAME_COMMENT_LENGTH ; i++)
+	for (i=0 ; i<textsize-1 ; i++)
 	{
 		if (text[i] == ' ')
 			text[i] = '_';
 		else if (text[i] == '\n')
 			text[i] = '\0';
 	}
-	text[SAVEGAME_COMMENT_LENGTH] = '\0';
+	text[textsize-1] = '\0';
 }
 
 //expects the version to have already been parsed
@@ -198,7 +214,6 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		VFS_GETS(f, str, sizeof(str));
 		pt = atoi(str);
 
-	// this silliness is so we can load 1.06 save files, which have float skill values
 		VFS_GETS(f, str, sizeof(str));
 		Cvar_SetValue (Cvar_FindVar("skill"), atof(str));
 
@@ -401,7 +416,7 @@ void SV_LegacySavegame_f (void)
 
 
 	VFS_PRINTF(f, "%i\n", version);
-	SV_SavegameComment (comment);
+	SV_SavegameComment (comment, sizeof(comment));
 	VFS_PRINTF(f, "%s\n", comment);
 
 	if (version != SAVEGAME_VERSION)
@@ -760,7 +775,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	if (!isloadgame)
 	{
 		eval = PR_FindGlobal(svprogfuncs, "startspot", 0, NULL);
-		if (eval) eval->_int = (int)PR_NewString(svprogfuncs, startspot, 0);
+		if (eval) eval->_int = (int)PR_NewString(svprogfuncs, startspot);
 
 		eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL);
 		if (eval)
@@ -910,7 +925,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	}
 
 	VFS_PRINTF (f, "%i\n", version);
-	SV_SavegameComment (comment);
+	SV_SavegameComment (comment, sizeof(comment));
 	VFS_PRINTF (f, "%s\n", comment);
 
 	if (!dontharmgame)
@@ -1053,11 +1068,12 @@ void SV_Savegame (char *savename)
 	extern cvar_t	temp1;
 	extern cvar_t	noexit;
 	extern cvar_t	pr_maxedicts;
+	extern cvar_t	scr_sshot_type;
 
 
 	client_t *cl;
 	int clnum;
-	char	comment[SAVEGAME_COMMENT_LENGTH+1];
+	char	comment[(SAVEGAME_COMMENT_LENGTH+1)*2];
 	vfsfile_t *f;
 	int len;
 	levelcache_t *cache;
@@ -1092,7 +1108,7 @@ void SV_Savegame (char *savename)
 		Con_Printf("Couldn't open file saves/%s/info.fsv\n", savename);
 		return;
 	}
-	SV_SavegameComment(comment);
+	SV_SavegameComment(comment, sizeof(comment));
 	VFS_PRINTF (f, "%d\n", FTESAVEGAME_VERSION+svs.gametype);
 	VFS_PRINTF (f, "%s\n", comment);
 
@@ -1165,6 +1181,61 @@ void SV_Savegame (char *savename)
 
 	VFS_CLOSE(f);
 
+#ifndef SERVERONLY
+	//try to save screenshots automagically.
+	savefilename = va("saves/%s/screeny.%s", savename, scr_sshot_type.string);
+	FS_Remove(savefilename, FS_GAMEONLY);
+	if (cls.state == ca_active && qrenderer > QR_NONE)
+	{
+		int width;
+		int height;
+		qbyte *rgbbuffer;
+		image_t *img;
+
+		//poke the various modes into redrawing the screen (without huds), to avoid any menus or console drawn over the top of the current backbuffer.
+		//FIXME: clear-to-black first
+		qboolean okay = false;
+#ifdef VM_CG
+		if (!okay && CG_Refresh())
+			okay = true;
+#endif
+#ifdef CSQC_DAT
+		if (!okay && CSQC_DrawView())
+			okay = true;
+#endif
+		if (!okay && r_worldentity.model)
+		{
+			V_RenderView ();
+			okay = true;
+		}
+
+		//okay, we drew something, we're good to save a screeny.
+		if (okay)
+		{
+			rgbbuffer = VID_GetRGBInfo(0, &width, &height);
+			if (rgbbuffer)
+			{
+				SCR_ScreenShot(savefilename, rgbbuffer, width, height);
+				BZ_Free(rgbbuffer);
+	
+
+				//if any menu code has the shader loaded, we want to avoid them using a cache.
+				//hopefully the menu code will unload as it goes, because these screenshots could be truely massive, as they're taken at screen resolution.
+				//should probably use a smaller fbo or something, but whatever.
+				img = Image_FindTexture(va("saves/%s/screeny.%s", savename, "tga"), NULL, 0);
+				if (img)
+				{
+					if (Image_UnloadTexture(img))
+					{
+						//and then reload it so that any shaders using it don't get confused
+						Image_GetTexture(va("saves/%s/screeny.%s", savename, "tga"), NULL, 0, NULL, NULL, 0, 0, TF_INVALID);
+					}
+				}
+			}
+		}
+	}
+#endif
+
 #ifdef Q2SERVER
 	//save the player's inventory and other map-persistant state that is owned by the gamecode.
 	if (ge)
@@ -1185,7 +1256,10 @@ void SV_Savegame (char *savename)
 
 void SV_Savegame_f (void)
 {
-	SV_Savegame(Cmd_Argv(1));
+	if (Cmd_Argc() <= 2)
+		SV_Savegame(Cmd_Argv(1));
+	else
+		Con_Printf("%s: invalid number of arguments\n", Cmd_Argv(0));
 }
 void SV_Loadgame_f (void)
 {

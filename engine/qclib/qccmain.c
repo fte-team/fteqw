@@ -728,7 +728,7 @@ pbool QCC_WriteData (int crc)
 		{
 			if (numpr_globals >= 32768)	//not much of a different format. Rewrite output to get it working on original executors?
 				printf("Globals exceeds 32k - an enhanced QCVM will be required\n");
-			else
+			else if (verbose)
 				printf("Progs should run on any QuakeC VM\n");
 			break;
 		}
@@ -3219,6 +3219,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	optres_stripfunctions = 0;
 	optres_locals_overlapping = 0;
 	optres_logicops = 0;
+	optres_inlines = 0;
 
 	optres_test1 = 0;
 	optres_test2 = 0;
@@ -3706,6 +3707,8 @@ void QCC_FinishCompile(void)
 				printf("optres_locals_overlapping %i\n", optres_locals_overlapping);
 			if (optres_logicops)
 				printf("optres_logicops %i\n", optres_logicops);
+			if (optres_inlines)
+				printf("optres_inlines %i\n", optres_inlines);
 
 
 			if (optres_test1)

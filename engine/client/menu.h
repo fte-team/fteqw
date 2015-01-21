@@ -162,6 +162,7 @@ typedef struct {
 	menucommon_t common;
 	const char *text;
 	const char *command;
+	qboolean rightalign;
 	qboolean (*key) (union menuoption_s *option, struct menu_s *, int key);
 } menubutton_t;
 
@@ -317,7 +318,7 @@ menubutton_t *MC_AddConsoleCommand(menu_t *menu, int lhs, int rhs, int y, const 
 menubutton_t *MC_AddConsoleCommandQBigFont(menu_t *menu, int x, int y, const char *text, const char *command);
 mpic_t *QBigFontWorks(void);
 menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, const char *text, const char *command);
-menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, const char *text, char *command, ...);
+menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int lhs, int rhs, int y, qboolean rightalign, const char *text, char *command, ...);
 menubutton_t *MC_AddCommand(menu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
 menucombo_t *MC_AddCombo(menu_t *menu, int tx, int cx, int y, const char *caption, const char **ops, int initialvalue);
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);

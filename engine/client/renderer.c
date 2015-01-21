@@ -929,10 +929,6 @@ qbyte default_quakepal[768] =
 51,67,51,39,55,43,31,39,31,23,27,19,15,15,11,7,111,131,123,103,123,111,95,115,103,87,107,95,79,99,87,71,91,79,63,83,71,55,75,63,47,67,55,43,59,47,35,51,39,31,43,31,23,35,23,15,27,19,11,19,11,7,11,7,255,243,27,239,223,23,219,203,19,203,183,15,187,167,15,171,151,11,155,131,7,139,115,7,123,99,7,107,83,0,91,71,0,75,55,0,59,43,0,43,31,0,27,15,0,11,7,0,0,0,255,11,11,239,19,19,223,27,27,207,35,35,191,43,
 43,175,47,47,159,47,47,143,47,47,127,47,47,111,47,47,95,43,43,79,35,35,63,27,27,47,19,19,31,11,11,15,43,0,0,59,0,0,75,7,0,95,7,0,111,15,0,127,23,7,147,31,7,163,39,11,183,51,15,195,75,27,207,99,43,219,127,59,227,151,79,231,171,95,239,191,119,247,211,139,167,123,59,183,155,55,199,195,55,231,227,87,127,191,255,171,231,255,215,255,255,103,0,0,139,0,0,179,0,0,215,0,0,255,0,0,255,243,147,255,247,199,255,255,255,159,91,83
 };
-qbyte default_conchar[11356] =
-{
-#include "lhfont.h"
-};
 
 qboolean R_ApplyRenderer_Load (rendererstate_t *newr);
 void D3DSucks(void)
@@ -975,6 +971,7 @@ void R_ShutdownRenderer(qboolean videotoo)
 
 	COM_FlushTempoaryPacks();
 
+	Skin_FlushAll();
 	W_Shutdown();
 	if (h2playertranslations)
 		BZ_Free(h2playertranslations);
@@ -1445,6 +1442,36 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 			if (rendererinfo[i]->name[0] && stricmp(rendererinfo[i]->name[0], "none"))
 			{
 				newr->renderer = rendererinfo[i];
+				break;
+			}
+		}
+	}
+	else if (!strcmp(com_token, "random"))
+	{
+		int count;
+		for (i = 0, count = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		{
+			if (!rendererinfo[i]->description)
+				continue;	//not valid in this build. :(
+			if (rendererinfo[i]->rtype == QR_NONE		||	//dedicated servers are not useful
+				rendererinfo[i]->rtype == QR_HEADLESS	||	//headless appears buggy
+				rendererinfo[i]->rtype == QR_SOFTWARE	)	//software is just TOO buggy/limited for us to care.
+				continue;
+			count++;
+		}
+		count = rand()%count;
+		for (i = 0; i < sizeof(rendererinfo)/sizeof(rendererinfo[0]); i++)
+		{
+			if (!rendererinfo[i]->description)
+				continue;	//not valid in this build. :(
+			if (rendererinfo[i]->rtype == QR_NONE		||
+				rendererinfo[i]->rtype == QR_HEADLESS	||
+				rendererinfo[i]->rtype == QR_SOFTWARE	)
+				continue;
+			if (!count--)
+			{
+				newr->renderer = rendererinfo[i];
+				Con_Printf("randomly selected renderer: %s\n", rendererinfo[i]->description);
 				break;
 			}
 		}

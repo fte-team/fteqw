@@ -172,11 +172,27 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 	}
 }
 
+void M_Options_Remove(menu_t *m)
+{
+	menucombo_t *c = m->data;
+	if (c)
+		Sys_SetAutoUpdateSetting(c->selectedoption);
+}
+
 //options menu.
 void M_Menu_Options_f (void)
 {
 	extern cvar_t crosshair;
 	int y;
+
+	menuoption_t *updatecbo;
+	static const char *autoupopts[] = {
+		"Revert",
+		"Off",
+		"Tested(Recommended)",
+		"Untested(Latest)",
+		NULL
+	};
 
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
@@ -192,6 +208,7 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXCVAR("Lookspring", lookspring, 0),
 		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
 		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
+		MB_COMBORETURN("Auto Update", autoupopts, Sys_GetAutoUpdateSetting(), updatecbo, "Hello World"),
 		MB_SPACING(4),
 		// removed hud options (cl_sbar, cl_hudswap, old-style chat, old-style msg)
 		MB_CONSOLECMD("Video Options", "menu_video\n", "Set video resolution, color depth, refresh rate, and anti-aliasing options."),
@@ -219,6 +236,9 @@ void M_Menu_Options_f (void)
 	menu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+
+	menu->data = updatecbo;
+	menu->remove = M_Options_Remove;
 }
 
 #ifndef __CYGWIN__
@@ -2093,6 +2113,7 @@ void M_Menu_Singleplayer_Cheats_f (void)
 #endif
 
 typedef struct {
+	menucombo_t *dispmode;
 	menucombo_t *resmode;
 	menuedit_t *width;
 	menuedit_t *height;
@@ -2114,6 +2135,7 @@ void CheckCustomMode(struct menu_s *menu)
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
 
 	// hide all display controls
+	info->resmode->common.ishidden = true;
 	info->width->common.ishidden = true;
 	info->height->common.ishidden = true;
 	info->bpp->common.ishidden = true;
@@ -2122,20 +2144,24 @@ void CheckCustomMode(struct menu_s *menu)
 	info->hzfixed->common.ishidden = true;
 	for (i = 0; i < ASPECT_RATIOS; i++)
 		info->ressize[i]->common.ishidden = true;
-	sel = info->resmode->selectedoption;
-	if (sel < ASPECT_RATIOS)
+	if (info->dispmode->selectedoption != 2)
 	{
-		// unhide appropriate aspect ratio combo and restricted bpp/hz combos
-		info->bppfixed->common.ishidden = false;
-		info->hzfixed->common.ishidden = false;
-		info->ressize[sel]->common.ishidden = false;
-	}
-	else if (sel == (ASPECT_RATIOS + 1))
-	{ // unhide custom entries for custom option
-		info->width->common.ishidden = false;
-		info->height->common.ishidden = false;
-		info->bpp->common.ishidden = false;
-		info->hz->common.ishidden = false;
+		info->resmode->common.ishidden = false;
+		sel = info->resmode->selectedoption;
+		if (sel < ASPECT_RATIOS)
+		{
+			// unhide appropriate aspect ratio combo and restricted bpp/hz combos
+			info->bppfixed->common.ishidden = false;
+			info->hzfixed->common.ishidden = false;
+			info->ressize[sel]->common.ishidden = false;
+		}
+		else if (sel == (ASPECT_RATIOS + 1))
+		{ // unhide custom entries for custom option
+			info->width->common.ishidden = false;
+			info->height->common.ishidden = false;
+			info->bpp->common.ishidden = false;
+			info->hz->common.ishidden = false;
+		}
 	}
 	// hide all 2d display controls
 	info->width2d->common.ishidden = true;
@@ -2341,6 +2367,14 @@ void M_Menu_Video_f (void)
 	};
 #endif
 
+	static const char *fullscreenopts[] = {
+		"Windowed",
+		"Fullscreen",
+		"Borderless Windowed",
+		NULL
+	};
+	static const char *fullscreenvalues[] = {"0", "1", "2", NULL};
+
 	static const char *aaopts[] = {
 		"1x",
 		"2x",
@@ -2443,10 +2477,10 @@ void M_Menu_Video_f (void)
 #ifdef MULTIRENDERER
 			MB_COMBOCVAR("Renderer", vid_renderer, rendererops, renderervalues, NULL),
 #endif
-			MB_CHECKBOXCVAR("Fullscreen", vid_fullscreen, 0),
+			MB_COMBOCVARRETURN("Display Mode", vid_fullscreen, fullscreenopts, fullscreenvalues, info->dispmode, vid_fullscreen.description),
 			MB_COMBOCVAR("Anti-aliasing", vid_multisample, aaopts, aavalues, NULL),
 			MB_REDTEXT(current3dres, false),
-			MB_COMBORETURN("Display Mode", resmodeopts, resmodechoice, info->resmode, "Select method for determining or configuring display options. The desktop option will attempt to use the width, height, color depth, and refresh from your operating system's desktop environment."),
+			MB_COMBORETURN("Aspect", resmodeopts, resmodechoice, info->resmode, "Select method for determining or configuring display options. The desktop option will attempt to use the width, height, color depth, and refresh from your operating system's desktop environment."),
 			// aspect entries
 			MB_COMBORETURN("Size", resaspects[0], reschoices[0], info->ressize[0], "Select resolution for display."),
 			MB_SPACING(-8),

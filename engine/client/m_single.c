@@ -14,10 +14,18 @@ typedef struct {
 	int issave;
 	int cursorpos;
 	menutext_t *cursoritem;
+
+	int picslot;
+	shader_t *picshader;
 } loadsavemenuinfo_t;
 
 #define	MAX_SAVEGAMES		20
-char	m_filenames[MAX_SAVEGAMES][SAVEGAME_COMMENT_LENGTH+1];
+struct
+{
+	char	map[22+1];
+	char	kills[39-22+1];
+	char	time[64];
+} m_saves[MAX_SAVEGAMES];
 int		loadable[MAX_SAVEGAMES];
 
 void M_ScanSaves (void)
@@ -29,35 +37,91 @@ void M_ScanSaves (void)
 
 	for (i=0 ; i<MAX_SAVEGAMES ; i++)
 	{
-		strcpy (m_filenames[i], "--- UNUSED SLOT ---");
+		Q_strncpyz (m_saves[i].map, "--- UNUSED SLOT ---", sizeof(m_saves[i].map));
+		Q_strncpyz (m_saves[i].kills, "", sizeof(m_saves[i].kills));
+		Q_strncpyz (m_saves[i].time, "", sizeof(m_saves[i].time));
 		loadable[i] = false;
 
 		snprintf (line, sizeof(line), "saves/s%i/info.fsv", i);
 		f = FS_OpenVFS (line, "rb", FS_GAME);
+		if (!f)
+		{	//legacy saved games from some other engine
+			snprintf (line, sizeof(line), "s%i.sav", i);
+			f = FS_OpenVFS (line, "rb", FS_GAME);
+		}
 		if (f)
 		{
 			VFS_GETS(f, line, sizeof(line));
 			version = atoi(line);
-			if (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX)
+			if (version != 5 && version != 6 && (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX))
 			{
-				Q_strncpyz (m_filenames[i], "Incompatible version", sizeof(m_filenames[i]));			
+				Q_strncpyz (m_saves[i].map, "Incompatible version", sizeof(m_saves[i].map));
 				VFS_CLOSE (f);
 				continue;
 			}
 
+			// read the desc, change _ back to space, fill the separate fields
 			VFS_GETS(f, line, sizeof(line));
-			Q_strncpyz (m_filenames[i], line, sizeof(m_filenames[i]));
+			for (j=0 ; line[j] ; j++)
+				if (line[j] == '_')
+					line[j] = ' ';
+			for (; j < sizeof(line[j]); j++)
+				line[j] = '\0';
+			memcpy(m_saves[i].map, line, 22);
+			m_saves[i].map[22] = 0;
+			memcpy(m_saves[i].kills, line+22, 39-22);
+			m_saves[i].kills[22] = 0;
+			Q_strncpyz(m_saves[i].time, line+39, sizeof(m_saves[i].time));
 
 
-		// change _ back to space
-			for (j=0 ; j<SAVEGAME_COMMENT_LENGTH ; j++)
-				if (m_filenames[i][j] == '_')
-					m_filenames[i][j] = ' ';
 			loadable[i] = true;
 			VFS_CLOSE (f);
 
 			continue;
 		}
+	}
+}
+
+static void M_Menu_LoadSave_Remove(menu_t *menu)
+{
+	loadsavemenuinfo_t *info = menu->data;
+	if (info->picshader)
+	{
+		Image_UnloadTexture(info->picshader->defaulttextures.base);
+		R_UnloadShader(info->picshader);
+	}
+}
+
+static void M_Menu_LoadSave_Preview_Draw(int x, int y, menucustom_t *item, menu_t *menu)
+{
+	loadsavemenuinfo_t *info = menu->data;
+	int slot;
+	if (!menu->selecteditem)
+		return;
+	slot = (menu->selecteditem->common.posy - 32)/8;
+	if (slot >= 0 && slot < MAX_SAVEGAMES)
+	{
+		int width, height;
+		if (slot != info->picslot || !info->picshader)
+		{
+			info->picslot = slot;
+			if (info->picshader)
+			{
+				Image_UnloadTexture(info->picshader->defaulttextures.base);
+				R_UnloadShader(info->picshader);
+			}
+			info->picshader = R_RegisterPic(va("saves/s%i/screeny.tga", slot));
+		}
+		if (info->picshader)
+		{
+			if (R_GetShaderSizes(info->picshader, &width, &height, false) > 0)
+			{
+				//FIXME: maintain aspect
+				R2D_ScalePic (x, y, 160,120/*item->common.width, item->common.height*/, info->picshader);
+			}
+		}
+		Draw_FunStringWidth(x, y+120+0, m_saves[slot].time, 160, 2, false);
+		Draw_FunStringWidth(x, y+120+8, m_saves[slot].kills, 160, 2, false);
 	}
 }
 
@@ -78,6 +142,7 @@ void M_Menu_Save_f (void)
 
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
 	menu->data = menu+1;
+	menu->remove = M_Menu_LoadSave_Remove;
 	
 	MC_AddCenterPicture (menu, 4, 24, "gfx/p_save.lmp");	
 	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, 32, NULL, false);	
@@ -86,10 +151,12 @@ void M_Menu_Save_f (void)
 
 	for (i=0 ; i< MAX_SAVEGAMES; i++)
 	{
-		op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 170, 32+8*i, m_filenames[i], "savegame s%i\nclosemenu\n", i);
+		op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 192, 32+8*i, false, m_saves[i].map, "savegame s%i\nclosemenu\n", i);
 		if (!menu->selecteditem)
 			menu->selecteditem = op;
 	}
+
+	MC_AddCustom(menu, 192, 60-16, NULL, 0)->draw = M_Menu_LoadSave_Preview_Draw;
 }
 void M_Menu_Load_f (void)
 {
@@ -105,18 +172,21 @@ void M_Menu_Load_f (void)
 	
 	MC_AddCenterPicture(menu, 4, 24, "gfx/p_load.lmp");	
 	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, 32, NULL, false);	
+	menu->remove = M_Menu_LoadSave_Remove;
 
 	M_ScanSaves ();
 
 	for (i=0 ; i< MAX_SAVEGAMES; i++)
 	{
 		if (loadable[i])
-			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 170, 32+8*i, m_filenames[i], "loadgame s%i\nclosemenu\n", i);
+			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 170, 32+8*i, false, m_saves[i].map, "loadgame s%i\nclosemenu\n", i);
 		else
-			MC_AddWhiteText(menu, 16, 170, 32+8*i, m_filenames[i], false);
+			MC_AddWhiteText(menu, 16, 170, 32+8*i, m_saves[i].map, false);
 		if (!menu->selecteditem && op)
 			menu->selecteditem = op;
 	}
+
+	MC_AddCustom(menu, 192, 60-16, NULL, 0)->draw = M_Menu_LoadSave_Preview_Draw;
 }
 
 

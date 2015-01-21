@@ -616,7 +616,9 @@ reeval:
 				progfuncs->funcs.lastcalledbuiltinnumber = i;
 				if (i < externs->numglobalbuiltins)
 				{
+#ifndef QCGC
 					prinst.numtempstringsstack = prinst.numtempstrings;
+#endif
 					(*externs->globalbuiltins[i]) (&progfuncs->funcs, (struct globalvars_s *)current_progstate->globals);
 					if (prinst.continuestatement!=-1)
 					{
@@ -810,7 +812,7 @@ reeval:
 				break;
 			}
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer read in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer read in %s (from %#x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i);
 		}
 		ptr = QCPOINTERM(i);
 		OPC->_int = ptr->_int;
@@ -826,7 +828,7 @@ reeval:
 				break;
 			}
 			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer read in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			PR_RunError (&progfuncs->funcs, "bad pointer read in %s (from %#x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), i);
 		}
 		ptr = QCPOINTERM(i);
 		OPC->_vector[0] = ptr->_vector[0];

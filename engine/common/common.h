@@ -243,7 +243,7 @@ void QDECL Q_strncpyz(char*d, const char*s, int n);
 #define Q_strncatz(dest, src, sizeofdest)	\
 	do {	\
 		strncat(dest, src, sizeofdest - strlen(dest) - 1);	\
-		dest[sizeofdest - 1] = 0;	\
+		(dest)[sizeofdest - 1] = 0;	\
 	} while (0)
 #define Q_strncatz2(dest, src)	Q_strncatz(dest, src, sizeof(dest))
 #endif

@@ -386,6 +386,7 @@ enum imageflags
 image_t *Image_FindTexture	(const char *identifier, const char *subpath, unsigned int flags);
 image_t *Image_CreateTexture(const char *identifier, const char *subpath, unsigned int flags);
 image_t *Image_GetTexture	(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
+qboolean Image_UnloadTexture	(image_t *tex);	//true if it did something.
 void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void Image_Init(void);
 void Image_Shutdown(void);

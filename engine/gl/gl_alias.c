@@ -1195,7 +1195,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	vec3_t lightdir;
 	int i;
 	vec3_t dist;
-	float add;
+	float add, m;
 	vec3_t shadelight, ambientlight;
 
 	if (e->light_known)
@@ -1258,12 +1258,16 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 
 	if (!r_vertexdlights.ival && r_dynamic.ival)
 	{
+		float *org = e->origin;
+		if (e->flags & RF_WEAPONMODEL)
+			org = r_refdef.vieworg;
+
 		//don't do world lights, although that might be funny
 		for (i=rtlights_first; i<RTL_FIRST; i++)
 		{
 			if (cl_dlights[i].radius)
 			{
-				VectorSubtract (e->origin,
+				VectorSubtract (org,
 								cl_dlights[i].origin,
 								dist);
 				add = cl_dlights[i].radius - Length(dist);
@@ -1276,7 +1280,6 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 
 				if (add > 0)
 				{
-					add*=5;
 					ambientlight[0] += add * cl_dlights[i].color[0];
 					ambientlight[1] += add * cl_dlights[i].color[1];
 					ambientlight[2] += add * cl_dlights[i].color[2];
@@ -1289,12 +1292,19 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		}
 	}
 
-	for (i = 0; i < 3; i++)	//clamp light so it doesn't get vulgar.
+	m = max(max(ambientlight[0], ambientlight[1]), ambientlight[2]);
+	if (m > 255)
 	{
-		if (ambientlight[i] > 128)
-			ambientlight[i] = 128;
-		if (shadelight[i] > 255)
-			shadelight[i] = 255;
+		ambientlight[0] *= 255.0/m;
+		ambientlight[1] *= 255.0/m;
+		ambientlight[2] *= 255.0/m;
+	}
+	m = max(max(shadelight[0], shadelight[1]), shadelight[2]);
+	if (m > 128)
+	{
+		shadelight[0] *= 128.0/m;
+		shadelight[1] *= 128.0/m;
+		shadelight[2] *= 128.0/m;
 	}
 
 //MORE HUGE HACKS! WHEN WILL THEY CEASE!
@@ -1356,25 +1366,24 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = e->abslight;
 	}
 
-//#define SHOWLIGHTDIR
-	{	//lightdir is absolute, shadevector is relative
+	if (e->flags & RF_WEAPONMODEL)
+	{
+		vec3_t temp;
+		temp[0] = DotProduct(lightdir, vpn);
+		temp[1] = -DotProduct(lightdir, vright);
+		temp[2] = DotProduct(lightdir, vup);
+
+		e->light_dir[0] = DotProduct(temp, e->axis[0]);
+		e->light_dir[1] = DotProduct(temp, e->axis[1]);
+		e->light_dir[2] = DotProduct(temp, e->axis[2]);
+	}
+	else
+	{
 		e->light_dir[0] = DotProduct(lightdir, e->axis[0]);
 		e->light_dir[1] = DotProduct(lightdir, e->axis[1]);
 		e->light_dir[2] = DotProduct(lightdir, e->axis[2]);
-
-		if (e->flags & RF_WEAPONMODEL)
-		{
-			vec3_t temp;
-			temp[0] = DotProduct(e->light_dir, vpn);
-			temp[1] = -DotProduct(e->light_dir, vright);
-			temp[2] = DotProduct(e->light_dir, vup);
-
-			VectorCopy(temp, e->light_dir);
-		}
-
-		VectorNormalize(e->light_dir);
-
 	}
+	VectorNormalize(e->light_dir);
 
 	shadelight[0] *= 1/255.0f;
 	shadelight[1] *= 1/255.0f;

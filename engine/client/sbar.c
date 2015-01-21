@@ -203,10 +203,21 @@ void Draw_FunStringWidth(float x, float y, const void *str, int width, qboolean 
 		{
 			fw += Font_CharWidth(*w);
 		}
-		px += width;
-		if (fw > width)
-			fw = width;
-		px -= fw;
+		if (rightalign == 2)
+		{
+			if (fw < width)
+			{
+				px += (width-fw)/2;
+				width = fw;
+			}
+		}
+		else
+		{
+			px += width;
+			if (fw > width)
+				fw = width;
+			px -= fw;
+		}
 	}
 
 	for (w = buffer; *w; w++)
@@ -2645,6 +2656,8 @@ void Sbar_Draw (playerview_t *pv)
 		{
 			if (!cl.spectator || pv->cam_auto == CAM_TRACK)
 				Sbar_DrawInventory (pv);
+			else if (cl_sbar.ival)
+				Sbar_DrawPic (0, -24, 320, 24, sb_scorebar);	//make sure we don't get HoM
 			if ((!headsup || sbar_rect.width<512) && cl.deathmatch)
 				Sbar_DrawFrags (pv);
 		}
@@ -3401,7 +3414,7 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 		Font_BeginString(font_default, x+24, y, &px, &py);
 		Font_DrawChar ( px, py, num[2] | 0xe000 | CON_WHITEMASK);
 
-		if ((cl.spectator && k == pv->cam_spec_track) ||
+		if ((cl.spectator && k == pv->cam_spec_track && pv->cam_locked) ||
 			(!cl.spectator && k == pv->playernum))
 		{
 			Font_BeginString(font_default, x, y, &px, &py);

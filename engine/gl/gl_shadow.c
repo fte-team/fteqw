@@ -43,7 +43,6 @@ static texid_t shadowmap[2];
 
 static int shadow_fbo_id;
 static int shadow_fbo_depth_num;
-static int crepuscular_fbo_id;
 texid_t crepuscular_texture_id;
 fbostate_t crepuscular_fbo;
 shader_t *crepuscular_shader;
@@ -103,11 +102,7 @@ void Sh_Reset(void)
 		R_DestroyTexture(crepuscular_texture_id);
 		crepuscular_texture_id = r_nulltex;
 	}
-	if (crepuscular_fbo_id)
-	{
-		qglDeleteFramebuffersEXT(1, &crepuscular_fbo_id);
-		crepuscular_fbo_id = 0;
-	}
+	GLBE_FBO_Destroy(&crepuscular_fbo);
 #endif
 }
 void Sh_Shutdown(void)
@@ -3145,6 +3140,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 #ifdef GLQUAKE
 	int oldfbo;
 	static mesh_t mesh;
+	image_t *oldsrccol;
 	static vecV_t xyz[4] =
 	{
 		{-1,-1,-1},
@@ -3201,13 +3197,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 			);
 
 		crepuscular_texture_id = Image_CreateTexture("***crepusculartexture***", NULL, 0);
-		qglGenTextures(1, &crepuscular_texture_id->num);
-		GL_MTBind(0, GL_TEXTURE_2D, crepuscular_texture_id);
-		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+		Image_Upload(crepuscular_texture_id, TF_RGBA32, NULL, NULL, vid.pixelwidth, vid.pixelheight, IF_LINEAR|IF_NOMIPMAP|IF_CLAMP|IF_NOGAMMA);
 	}
 
 	BE_Scissor(NULL);
@@ -3219,12 +3209,16 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 	GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
 
 	GLBE_FBO_Pop(oldfbo);
-	Con_Printf("FIXME: shaderstate.tex_sourceocolour = crepuscular_texture_id\n");
+
+	oldsrccol = NULL;//shaderstate.tex_sourcecol;
+	GLBE_FBO_Sources(crepuscular_texture_id, NULL);
+	//shaderstate.tex_sourcecol = oldsrccol;
 
 	BE_SelectMode(BEM_STANDARD);
 
 	GLBE_DrawMesh_Single(crepuscular_shader, &mesh, NULL, &crepuscular_shader->defaulttextures, 0);
-	Con_Printf("FIXME: shaderstate.tex_sourceocolour = reset\n");
+
+	GLBE_FBO_Sources(oldsrccol, NULL);
 #endif
 }
 

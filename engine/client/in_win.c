@@ -777,7 +777,7 @@ void INS_RawInput_KeyboardDeRegister(void)
 
 	// deregister raw input
 	Rid.usUsagePage = 0x01;
-	Rid.usUsage = 0x02;
+	Rid.usUsage = 0x06;
 	Rid.dwFlags = RIDEV_REMOVE;
 	Rid.hwndTarget = NULL;
 
@@ -787,17 +787,17 @@ void INS_RawInput_KeyboardDeRegister(void)
 void INS_RawInput_DeInit(void)
 {
 	if (rawmicecount > 0)
-	{
 		INS_RawInput_MouseDeRegister();
-		Z_Free(rawmice);
-		rawmicecount = 0;
-	}
 	if (rawkbdcount > 0)
-	{
 		INS_RawInput_KeyboardDeRegister();
-		Z_Free(rawkbd);
-		rawkbdcount = 0;
-	}
+	rawmicecount = 0;
+	rawkbdcount = 0;
+	Z_Free(rawmice);
+	rawmice = NULL;
+	Z_Free(rawkbd);
+	rawkbd = NULL;
+	Z_Free(raw);
+	raw = NULL;
 	memset(multicursor_active, 0, sizeof(multicursor_active));
 }
 #endif
@@ -1488,10 +1488,10 @@ void INS_RawInput_KeyboardRead(void)
 		return;
 
 	down = !(raw->data.keyboard.Flags & RI_KEY_BREAK);
-	wParam = (-down) & 0xC0000000;
-	lParam = MapVirtualKey(raw->data.keyboard.VKey, 0)<<16;
+	wParam = raw->data.keyboard.VKey ;//(-down) & 0xC0000000;
+	lParam = (MapVirtualKey(raw->data.keyboard.VKey, 0)<<16) | ((!!(raw->data.keyboard.Flags & RI_KEY_E0))<<24);
 
- 	INS_TranslateKeyEvent(wParam, lParam, down, rawkbd[i].qdeviceid);
+ 	INS_TranslateKeyEvent(wParam, lParam, down, rawkbd[i].qdeviceid, true);
 }
 
 void INS_RawInput_Read(HANDLE in_device_handle)
@@ -2103,7 +2103,7 @@ static int MapKey (int vkey)
 	return key;
 }
 
-void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdeviceid)
+void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdeviceid, qboolean genkeystate)
 {
 	extern cvar_t in_builtinkeymap;
 	int qcode;
@@ -2118,7 +2118,29 @@ void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdev
 	{
 		BYTE	keystate[256];
 		WCHAR	wchars[2];
-		GetKeyboardState(keystate);
+
+		if (genkeystate)
+		{
+			extern qboolean	keydown[K_MAX];
+			memset(keystate, 0, sizeof(keystate));
+			//128 for held.
+			//1 for toggled (ie: caps / num)
+			keystate[VK_LSHIFT] = 128*!!keydown[K_LSHIFT];
+			keystate[VK_RSHIFT] = 128*!!keydown[K_RSHIFT];
+			keystate[VK_LCONTROL] = 128*!!keydown[K_LCTRL];
+			keystate[VK_RCONTROL] = 128*!!keydown[K_RCTRL];
+			keystate[VK_LMENU] = 128*!!keydown[K_LALT];
+			keystate[VK_RMENU] = 128*!!keydown[K_RALT];
+
+			//seems to matter
+			keystate[VK_SHIFT] = keystate[VK_LSHIFT]|keystate[VK_RSHIFT];
+			keystate[VK_CONTROL] = keystate[VK_LCONTROL]|keystate[VK_RCONTROL];
+			keystate[VK_MENU] = keystate[VK_LMENU]|keystate[VK_RMENU];
+
+			keystate[VK_NUMLOCK] = 1;	//doesn't seem to matter?
+		}
+		else
+			GetKeyboardState(keystate);
 		chars = ToUnicode(wParam, HIWORD(lParam), keystate, wchars, sizeof(wchars)/sizeof(wchars[0]), 0);
 	
 		if (chars > 0)

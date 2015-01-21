@@ -48,8 +48,10 @@ cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 cvar_t	sv_fullredirect = CVARD("sv_fullredirect", "", "This is the ip:port to redirect players to when the server is full");
 cvar_t	sv_antilag			= CVARFD("sv_antilag", "1", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag. 0=completely off. 1=mod-controlled. 2=forced, which might break certain uses of traceline.");
 cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
+#ifndef NEWSPEEDCHEATPROT
 cvar_t	sv_cheatpc				= CVARD("sv_cheatpc", "125", "If the client tried to claim more than this percentage of time within any speed-cheat period, the client will be deemed to have cheated.");
 cvar_t	sv_cheatspeedchecktime	= CVARD("sv_cheatspeedchecktime", "30", "The interval between each speed-cheat check.");
+#endif
 cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
 cvar_t	sv_ping_ignorepl		= CVARD("sv_ping_ignorepl", "0", "If 1, ping times reported for players will ignore the effects of packetloss on ping times. 0 is slightly more honest, but less useful for connection diagnosis.");
 cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "0", "Specifies the default protocol to use for new NQ clients. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
@@ -5866,12 +5868,19 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	vec3_t new_vel;
 	vec3_t old_vel;
 
-	// DMW copied this KK hack copied from QuakeForge anti-cheat
-	// (also extra inside parm on all SV_RunCmds that follow)
-
 	// To prevent a infinite loop
 	if (!recurse)
 	{
+#ifdef NEWSPEEDCHEATPROT
+		if (ucmd->msec && host_client->msecs > 500)
+			host_client->msecs = 500;
+		if (ucmd->msec > host_client->msecs)
+			return;
+		host_client->msecs -= ucmd->msec;
+#else
+		// DMW copied this KK hack copied from QuakeForge anti-cheat
+		// (also extra inside parm on all SV_RunCmds that follow)
+
 		//FIXME: update protocol to use server's timestamps instead of msecs over the wire, obsoleting speed cheat checks (by allowing the server to clamp sanely).
 
 		if (!host_client->last_check)
@@ -5905,9 +5914,10 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			host_client->msecs = 0;
 			host_client->last_check = realtime;
 		}
+		// end KK hack copied from QuakeForge anti-cheat
+		//it's amazing how code get's copied around...
+#endif
 	}
-	// end KK hack copied from QuakeForge anti-cheat
-	//it's amazing how code get's copied around...
 
 	if (SV_RunFullQCMovement(host_client, ucmd))
 	{
@@ -6056,13 +6066,22 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 // show 1/3 the pitch angle and all the roll angle
 	if (sv_player->v->health > 0)
 	{
-		if (!sv_player->v->fixangle)
+		if (sv_player->v->movetype == MOVETYPE_6DOF)
 		{
-			sv_player->v->angles[PITCH] = -sv_player->v->v_angle[PITCH]/3;
+			sv_player->v->angles[PITCH] = -sv_player->v->v_angle[PITCH];
 			sv_player->v->angles[YAW] = sv_player->v->v_angle[YAW];
+			sv_player->v->angles[ROLL] = sv_player->v->v_angle[ROLL];
 		}
-		sv_player->v->angles[ROLL] =
-			V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
+		else
+		{
+			if (!sv_player->v->fixangle)
+			{
+				sv_player->v->angles[PITCH] = -sv_player->v->v_angle[PITCH]/3;
+				sv_player->v->angles[YAW] = sv_player->v->v_angle[YAW];
+			}
+			sv_player->v->angles[ROLL] =
+				V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
+		}
 	}
 
 	if (SV_PlayerPhysicsQC && !host_client->spectator)
@@ -7331,8 +7350,10 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_fullredirect, cvargroup_servercontrol);
 	Cvar_Register (&sv_antilag, cvargroup_servercontrol);
 	Cvar_Register (&sv_antilag_frac, cvargroup_servercontrol);
+#ifndef NEWSPEEDCHEATPROT
 	Cvar_Register (&sv_cheatpc, cvargroup_servercontrol);
 	Cvar_Register (&sv_cheatspeedchecktime, cvargroup_servercontrol);
+#endif
 	Cvar_Register (&sv_playermodelchecks, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_getrealip, cvargroup_servercontrol);

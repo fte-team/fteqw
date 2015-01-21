@@ -64,13 +64,13 @@ static void Q_strlcpy(char *dest, const char *src, int sizeofdest)
 
 char	*pr_punctuation[] =
 // longer symbols must be before a shorter partial match
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "&=", "++", "--", "->", "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", "~", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "(+)", "(-)", "|=", "&~=", "&=", "++", "--", "->", "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^", "~", ":", NULL};
 
 char *pr_punctuationremap[] =	//a nice bit of evilness.
 //(+) -> |=
 //-> -> .
 //(-) -> &~=
-{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "&=", "++", "--", ".",  "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "^", "~", ":", NULL};
+{"&&", "||", "<=", ">=","==", "!=", "/=", "*=", "+=", "-=", "|=",  "&~=", "|=", "&~=", "&=", "++", "--", ".",  "^=", "::", ";", ",", "!", "*", "/", "(", ")", "-", "+", "=", "[", "]", "{", "}", "...", "..", ".", "<<", "<", ">>", ">" , "?", "#" , "@", "&" , "|", "%", "^", "~", ":", NULL};
 
 // simple types.  function types are dynamically allocated
 QCC_type_t	*type_void;				//void
@@ -4323,7 +4323,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	//accessors
 	if (QCC_PR_CheckKeyword (keyword_class, "accessor"))
 	{
-		char *parentname;
+		char parentname[256];
 		char *accessorname;
 		char *funcname;
 
@@ -4347,8 +4347,11 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 		if (QCC_PR_CheckToken(":"))
 		{
-			parentname = QCC_PR_ParseName();
-			type = QCC_TypeForName(parentname);
+			type = QCC_PR_ParseType(false, false);
+			if (type)
+				TypeName(type, parentname, sizeof(parentname));
+			else
+				strcpy(parentname, "??");
 
 			if (!type || type->type == ev_struct || type->type == ev_union)
 				QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s cannot be based upon %s", accessorname, parentname);
@@ -4384,10 +4387,13 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			int args;
 			char *indexname;
 			pbool isref;
+			pbool isinline;
 
 
 			do
 			{
+				isinline = QCC_PR_CheckName("inline");
+
 				if (QCC_PR_CheckName("set"))
 					setnotget = true;
 				else if (QCC_PR_CheckName("get"))
@@ -4400,6 +4406,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				fieldtype = QCC_TypeForName(fieldtypename);
 				if (!fieldtype)
 					QCC_PR_ParseError(ERR_NOTATYPE, "Invalid type: %s", fieldtypename);
+				while(QCC_PR_CheckToken("*"))
+					fieldtype = QCC_PR_PointerType(fieldtype);
 
 				if (pr_token_type != tt_punct)
 				{
@@ -4454,7 +4462,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					char funcname[256];
 					QC_snprintfz(funcname, sizeof(funcname), "%s::%s_%s", newt->name, setnotget?"set":"get", accessorname);
 
-					def = QCC_PR_GetDef(functype, funcname, NULL, true, 0, GDF_CONST);
+					def = QCC_PR_GetDef(functype, funcname, NULL, true, 0, GDF_CONST | (isinline?GDF_INLINE:0));
 
 					pr_scope = def;
 					//pr_classtype = newt;
@@ -4492,7 +4500,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				else
 				{
 					funcname = QCC_PR_ParseName();
-					def = QCC_PR_GetDef(functype, funcname, NULL, true, 0, 0);
+					def = QCC_PR_GetDef(functype, funcname, NULL, true, 0, GDF_CONST|(isinline?GDF_INLINE:0));
 					if (!def)
 						QCC_Error(ERR_NOFUNC, "%s::set_%s: %s was not defined", newt->name, accessorname, funcname);
 				}
@@ -4515,6 +4523,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				if (acc->getset_func[setnotget])
 					QCC_Error(ERR_TOOMANYINITIALISERS, "%s::%s_%s already declared", newt->name, setnotget?"set":"get", accessorname);
 				acc->getset_func[setnotget] = def;
+				acc->getset_isref[setnotget] = isref;
 			} while (QCC_PR_CheckToken(",") || QCC_PR_CheckToken(";"));
 			QCC_PR_Expect("}");
 		}

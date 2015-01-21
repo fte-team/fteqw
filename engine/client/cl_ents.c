@@ -894,10 +894,11 @@ void CLFTE_ParseEntities(void)
 
 	if (cl.do_lerp_players)
 	{
+		float packetage = (realtime - cl.outframes[cl.ackedmovesequence & UPDATE_MASK].senttime) - cls.latency;
 		//predict in-place based upon calculated latencies and stuff, stuff can then be interpolated properly
 		for (oldindex = 0; oldindex < newp->num_entities; oldindex++)
 		{
-			CL_PredictEntityMovement(newp->entities + oldindex, (cl.inframes[cl.parsecount&UPDATE_MASK].packet_entities.servertime - cl.currentpacktime) + (realtime - cl.gametimemark));
+			CL_PredictEntityMovement(newp->entities + oldindex, (newp->entities[oldindex].u.q1.msec / 1000.0f + packetage) *0.5);
 		}
 	}
 
@@ -2972,6 +2973,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 				continue;
 			}
 
+			//FIXME: find a packet where this entity changed.
+
 			snew__origin = snew->u.q1.predorg;
 			sold__origin = sold->u.q1.predorg;
 		}
@@ -3524,16 +3527,7 @@ void CL_LinkPacketEntities (void)
 			}
 		}
 
-		if (state->u.q1.pmovetype)
-		{
-			vec3_t vel;
-			VectorScale(state->u.q1.velocity, (1/8.0), vel);
-			//players get special logic, as the angles on the wire are their raw view angles
-			//FIXME: EGADS! VILE!
-			angles[0] *= 1/3.0; //fixme: gravity dir.
-			angles[2] += V_CalcRoll(angles, vel)*4;
-		}
-		else if (model && model->type == mod_alias)
+		if (model && model->type == mod_alias)
 			angles[0]*=-1;	//carmack screwed up when he added alias models - they pitch the wrong way.
 		VectorCopy(angles, ent->angles);
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);

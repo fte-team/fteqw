@@ -297,7 +297,7 @@ void SV_TPrintToClient(client_t *cl, int level, const char *string)
 	SV_PrintToClient(cl, level, string);
 }
 
-void SV_StuffcmdToClient(client_t *cl, char *string)
+void SV_StuffcmdToClient(client_t *cl, const char *string)
 {
 	switch (cl->protocol)
 	{
@@ -317,8 +317,29 @@ void SV_StuffcmdToClient(client_t *cl, char *string)
 	case SCP_NETQUAKE:
 	case SCP_PROQUAKE:
 	case SCP_FITZ666:
-		ClientReliableWrite_Begin (cl, svc_stufftext, strlen(string)+3);
-		ClientReliableWrite_String (cl, string);
+		if (cl->controller)
+		{	//this is a slave client.
+			//find the right number and send.
+			int pnum = 0;
+			client_t *sp;
+			for (sp = cl->controller; sp; sp = sp->controlled)
+			{
+				if (sp == cl)
+					break;
+				pnum++;
+			}
+			sp = cl->controller;
+
+			ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 4 + strlen(string));
+			ClientReliableWrite_Byte (sp, pnum);
+			ClientReliableWrite_Byte (sp, svc_stufftext);
+			ClientReliableWrite_String (sp, string);
+		}
+		else
+		{
+			ClientReliableWrite_Begin (cl, svc_stufftext, strlen(string)+3);
+			ClientReliableWrite_String (cl, string);
+		}
 		break;
 	}
 }
@@ -1227,6 +1248,8 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 		for (i=0 ; i<3 ; i++)
 			MSG_WriteCoord (msg, other->v->origin[i] + 0.5*(other->v->mins[i] + other->v->maxs[i]));
 
+		//FIXME: flood to spectators.
+
 		ent->v->dmg_take = 0;
 		ent->v->dmg_save = 0;
 	}
@@ -1748,28 +1771,18 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 	{
 		statsf[STAT_HEALTH] = ent->v->health;	//sorry, but mneh
 		statsi[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
-		if (client->fteprotocolextensions & PEXT_MODELDBL)
-		{
-			if ((unsigned)statsi[STAT_WEAPON] >= MAX_PRECACHE_MODELS)
-				statsi[STAT_WEAPON] = 0;
-		}
-		else
-		{
-			if ((unsigned)statsi[STAT_WEAPON] >= 256)
-				statsi[STAT_WEAPON] = 0;
-		}
+		if ((unsigned)statsi[STAT_WEAPON] >= client->maxmodels)
+			statsi[STAT_WEAPON] = 0;	//play it safe, try not to crash unsuspecting clients
 		statsf[STAT_AMMO] = ent->v->currentammo;
 		statsf[STAT_ARMOR] = ent->v->armorvalue;
 		statsf[STAT_SHELLS] = ent->v->ammo_shells;
 		statsf[STAT_NAILS] = ent->v->ammo_nails;
 		statsf[STAT_ROCKETS] = ent->v->ammo_rockets;
 		statsf[STAT_CELLS] = ent->v->ammo_cells;
-		if (!client->spectator)
-		{
-			statsf[STAT_ACTIVEWEAPON] = ent->v->weapon;
-			if ((client->csqcactive && !(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)) || client->protocol != SCP_QUAKEWORLD)
-				statsf[STAT_WEAPONFRAME] = ent->v->weaponframe;
-		}
+		statsf[STAT_ACTIVEWEAPON] = ent->v->weapon;
+		if ((client->csqcactive && !(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)) || client->protocol != SCP_QUAKEWORLD || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
+//		if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || client->protocol != SCP_QUAKEWORLD)
+			statsf[STAT_WEAPONFRAME] = ent->v->weaponframe;		//weapon frame is sent differently with classic quakeworld protocols.
 
 		// stuff the sigil bits into the high bits of items for sbar
 		if (sv.haveitems2)
@@ -1804,15 +1817,15 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_TIMESCALE] = sv_gamespeed.value;
 			statsfi[STAT_MOVEVARS_GRAVITY] = sv_gravity.value;
 			statsfi[STAT_MOVEVARS_STOPSPEED] = sv_stopspeed.value;
-			statsfi[STAT_MOVEVARS_MAXSPEED] = host_client->maxspeed;
+			statsfi[STAT_MOVEVARS_MAXSPEED] = client->maxspeed;
 			statsfi[STAT_MOVEVARS_SPECTATORMAXSPEED] = sv_spectatormaxspeed.value;
 			statsfi[STAT_MOVEVARS_ACCELERATE] = sv_accelerate.value;
 			statsfi[STAT_MOVEVARS_AIRACCELERATE] = sv_airaccelerate.value;
 			statsfi[STAT_MOVEVARS_WATERACCELERATE] = sv_wateraccelerate.value;
-			statsfi[STAT_MOVEVARS_ENTGRAVITY] = host_client->entgravity/sv_gravity.value;
+			statsfi[STAT_MOVEVARS_ENTGRAVITY] = client->entgravity/sv_gravity.value;
 			statsfi[STAT_MOVEVARS_JUMPVELOCITY] = 270;//sv_jumpvelocity.value;	//bah
 			statsfi[STAT_MOVEVARS_EDGEFRICTION] = sv_edgefriction.value;
-			statsfi[STAT_MOVEVARS_MAXAIRSPEED] = host_client->maxspeed;
+			statsfi[STAT_MOVEVARS_MAXAIRSPEED] = client->maxspeed;
 			statsfi[STAT_MOVEVARS_STEPHEIGHT] = 18;
 			statsfi[STAT_MOVEVARS_AIRACCEL_QW] = 1;
 			statsfi[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION] = sv_gravity.value;
@@ -1830,7 +1843,7 @@ Performs a delta update of the stats array.  This should only be performed
 when a reliable message can be delivered this frame.
 =======================
 */
-void SV_UpdateClientStats (client_t *client, int pnum)
+void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_frame_t *frame)
 {
 	int		statsi[MAX_CL_STATS];
 	float	statsf[MAX_CL_STATS];
@@ -1843,6 +1856,124 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	m = MAX_QW_STATS;
 	if (client->fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC))
 		m = MAX_CL_STATS;
+
+	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+	{
+		//diff numerical stats first
+		for (i=0 ; i<m ; i++)
+		{
+			if (client->statsi[i] != statsi[i] || client->statsf[i] != statsf[i])
+			{
+				client->statsi[i] = statsi[i];
+				client->statsf[i] = statsf[i];
+				client->pendingstats[i>>5u] |= 1u<<(i&0x1f);
+			}
+		}
+		//diff string stats.
+		for (i=0 ; i<m ; i++)
+		{
+			char *blank="";
+			char *o=client->statss[i], *n=statss[i];
+			if (o != n)
+			{
+				if (!o)
+					o = "";
+				if (!n)
+					n = "";
+				if (strcmp(o, n))
+					client->pendingstats[(i+MAX_CL_STATS)>>5u] |= 1u<<((i+MAX_CL_STATS)&0x1f);
+				if (client->statss)
+					Z_Free(client->statss[i]);
+				client->statss[i] = Z_StrDup(statss[i]);
+			}
+		}
+
+		for (i=0 ; i<m ; i++)
+		{
+			if (client->pendingstats[i>>5u] & (1u<<(i&0x1f)))
+			{
+				float fval = client->statsf[i];
+				int ival = client->statsi[i];
+
+				//would overflow
+				if (msg->cursize+8 >= msg->maxsize)
+					break;
+				//can't track it
+				if (frame->numresendstats >= sizeof(frame->resendstats)/sizeof(frame->resendstats[0]))
+					break;
+				//we're going for it.
+				client->pendingstats[i>>5u] &= ~(1u<<(i&0x1f));	//doesn't need resending any more
+				frame->resendstats[frame->numresendstats++] = i | (pnum<<12);
+				if (fval && fval != (float)(int)fval && !dpcompat_stats.ival)
+				{
+					if (pnum)
+					{
+						MSG_WriteByte(msg, svcfte_choosesplitclient);
+						MSG_WriteByte(msg, pnum);
+					}
+					MSG_WriteByte(msg, svcfte_updatestatfloat);
+					MSG_WriteByte(msg, i);
+					MSG_WriteFloat(msg, fval);
+				}
+				else
+				{
+					if (fval)
+						ival = fval;
+					if (ival >= 0 && ival <= 255)
+					{
+						if (pnum)
+						{
+							MSG_WriteByte(msg, svcfte_choosesplitclient);
+							MSG_WriteByte(msg, pnum);
+						}
+						MSG_WriteByte(msg, svcqw_updatestatbyte);
+						MSG_WriteByte(msg, i);
+						MSG_WriteByte(msg, ival);
+					}
+					else
+					{
+						if (pnum)
+						{
+							MSG_WriteByte(msg, svcfte_choosesplitclient);
+							MSG_WriteByte(msg, pnum);
+						}
+						MSG_WriteByte(msg, svcqw_updatestatlong);
+						MSG_WriteByte(msg, i);
+						MSG_WriteLong(msg, ival);
+					}
+				}
+			}
+		}
+
+		for (i=0 ; i<m ; i++)
+		{
+			if (client->pendingstats[(i+MAX_CL_STATS)>>5u] & (1u<<((i+MAX_CL_STATS)&0x1f)))
+			{
+				char *s = client->statss[i];
+				if (!s)
+					s = "";
+
+				//would overflow
+				if (msg->cursize+4+strlen(s) >= msg->maxsize)
+					break;
+				//can't track it
+				if (frame->numresendstats >= sizeof(frame->resendstats)/sizeof(frame->resendstats[0]))
+					break;
+				//we're going for it.
+				client->pendingstats[(i+MAX_CL_STATS)>>5u] &= ~(1u<<((i+MAX_CL_STATS)&0x1f));	//doesn't need resending any more
+				frame->resendstats[frame->numresendstats++] = (i+MAX_CL_STATS) | (pnum<<12);
+				if (pnum)
+				{
+					MSG_WriteByte(msg, svcfte_choosesplitclient);
+					MSG_WriteByte(msg, pnum);
+				}
+				MSG_WriteByte(msg, svcfte_updatestatstring);
+				MSG_WriteByte(msg, i);
+				MSG_WriteString(msg, s);
+			}
+		}
+	}
+	else
 
 	for (i=0 ; i<m ; i++)
 	{
@@ -2020,7 +2151,14 @@ qboolean SV_SendClientDatagram (client_t *client)
 {
 	qbyte		buf[MAX_OVERALLMSGLEN];
 	sizebuf_t	msg;
-	unsigned int sentbytes, fnum;
+	unsigned int sentbytes;
+	client_frame_t *frame = NULL;
+
+	if (ISQWCLIENT(client) || ISNQCLIENT(client))
+	{
+		frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
+		frame->numresendstats = 0;
+	}
 
 	msg.data = buf;
 	msg.maxsize = sizeof(buf);
@@ -2052,6 +2190,17 @@ qboolean SV_SendClientDatagram (client_t *client)
 		else
 #endif
 		{
+
+			if (!ISQ2CLIENT(client) && Netchan_CanReliable (&client->netchan, SV_RateForClient(client)))
+			{
+				int pnum=1;
+				client_t *c;
+				SV_UpdateClientStats (client, 0, &msg, frame);
+
+				for (c = client->controlled; c; c = c->controlled,pnum++)
+					SV_UpdateClientStats(c, pnum, &msg, frame);
+			}
+
 			// add the client specific data to the datagram
 			SV_WriteClientdataToMessage (client, &msg);
 
@@ -2073,18 +2222,6 @@ qboolean SV_SendClientDatagram (client_t *client)
 		SZ_Write (&msg, client->datagram.data, client->datagram.cursize);
 	SZ_Clear (&client->datagram);
 
-	// send deltas over reliable stream
-	if (sv.world.worldmodel)
-		if (!ISQ2CLIENT(client) && Netchan_CanReliable (&client->netchan, SV_RateForClient(client)))
-		{
-			int pnum=1;
-			client_t *c;
-			SV_UpdateClientStats (client, 0);
-
-			for (c = client->controlled; c; c = c->controlled,pnum++)
-				SV_UpdateClientStats(c, pnum);
-		}
-
 	if (msg.overflowed)
 	{
 		Con_Printf ("WARNING: msg overflowed for %s\n", client->name);
@@ -2094,11 +2231,10 @@ qboolean SV_SendClientDatagram (client_t *client)
 	SV_DarkPlacesDownloadChunk(client, &msg);
 
 	// send the datagram
-	fnum = client->netchan.outgoing_sequence;
 	sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
 
-	if (ISQWCLIENT(client) || ISNQCLIENT(client))
-		client->frameunion.frames[fnum & UPDATE_MASK].packetsizeout += sentbytes;
+	if (frame)
+		frame->packetsizeout += sentbytes;
 	return true;
 }
 
@@ -2240,7 +2376,9 @@ void SV_UpdateToReliableMessages (void)
 			}
 
 			name = PR_GetString(svprogfuncs, host_client->edict->v->netname);
+#ifndef QCGC	//this optimisation doesn't really work with a QC instead of static string management
 			if (name != host_client->name)
+#endif
 			{
 				if (strcmp(host_client->name, name))
 				{
@@ -2258,8 +2396,15 @@ void SV_UpdateToReliableMessages (void)
 						MSG_WriteString (&sv.reliable_datagram, "name");
 						MSG_WriteString (&sv.reliable_datagram, host_client->name);
 					}
+
+#ifdef QCGC
+					//if it got rejected/mangled, make sure the qc properly sees the current value.
+					svprogfuncs->SetStringField(svprogfuncs, host_client->edict, &host_client->edict->v->netname, host_client->name, true);
+#endif
 				}
-				host_client->edict->v->netname = PR_SetString(svprogfuncs, host_client->name);
+#ifndef QCGC
+				svprogfuncs->SetStringField(svprogfuncs, host_client->edict, &host_client->edict->v->netname, host_client->name, true);
+#endif
 			}
 		}
 
@@ -2434,6 +2579,13 @@ void SV_SendClientMessages (void)
 	int sentbytes, fnum;
 	float pt = sv.paused?realtime:sv.world.physicstime;
 
+#ifdef NEWSPEEDCHEATPROT
+	static unsigned int lasttime;
+	unsigned int curtime = Sys_Milliseconds();
+	unsigned int msecs = curtime - lasttime;
+	lasttime = curtime;
+#endif
+
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
 	{
@@ -2495,6 +2647,34 @@ void SV_SendClientMessages (void)
 			c->datagram.cursize = 0;
 			continue;
 		}
+
+#ifdef NEWSPEEDCHEATPROT
+		//allow the client more time for client movement.
+		//if they're running too slowly, FORCE them to run
+		//this little check is to guard against people using msecs=0 to hover in mid-air. also keeps players animating/moving/etc when timing
+		c->msecs += msecs;
+		while (c->msecs > 1000)
+		{
+			if (c->isindependant && !sv.paused)
+			{
+				usercmd_t cmd;
+				memset(&cmd, 0, sizeof(cmd));
+				host_client = c;
+				sv_player = c->edict;
+				SV_PreRunCmd();
+				cmd.msec = 50;
+				VectorCopy(c->lastcmd.angles, cmd.angles);
+				cmd.buttons = c->lastcmd.buttons;
+				SV_RunCmd (&cmd, true);
+				SV_PostRunCmd();
+				c->msecs -= 50;
+				host_client = NULL;
+				sv_player = NULL;
+			}
+			else
+				c->msecs = 500;
+		}
+#endif
 
 #ifdef Q3SERVER
 		if (ISQ3CLIENT(c))

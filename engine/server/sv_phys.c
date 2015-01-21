@@ -2327,7 +2327,9 @@ void World_Physics_Frame(world_t *w)
 						sv_player = svs.clients[i-1].edict;
 						svs.clients[i-1].msecs = newt;
 						SV_PreRunCmd();
+#ifndef NEWSPEEDCHEATPROT
 						svs.clients[i-1].last_check = 0;
+#endif
 						svs.clients[i-1].lastcmd.msec = bound(0, delt, 255);
 						SV_RunCmd (&svs.clients[i-1].lastcmd, true);
 						svs.clients[i-1].lastcmd.impulse = 0;

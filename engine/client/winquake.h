@@ -101,7 +101,7 @@ extern qboolean	mouseinitialized;
 
 void INS_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);
-void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum);
+void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum, qboolean genkeystate);
 
 void S_BlockSound (void);
 void S_UnblockSound (void);

@@ -1608,7 +1608,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		eval_t *eval;
 		eval = PR_FindGlobal(svprogfuncs, "startspot", 0, NULL);
-		if (eval) eval->string = PR_NewString(svprogfuncs, startspot, 0);
+		if (eval) eval->string = PR_NewString(svprogfuncs, startspot);
 	}
 
 	if (Cmd_AliasExist("f_svnewmap", RESTRICT_LOCAL))

@@ -525,9 +525,11 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 		QC_snprintfz (line, sizeof(line), "union");
 		break;
 	case ev_string:
+#ifndef QCGC
 		if (((unsigned int)val->string & STRING_SPECMASK) == STRING_TEMP)
 			return "<Stale Temporary String>";
 		else
+#endif
 			QC_snprintfz (line, sizeof(line), "%s", PR_StringToNative(&progfuncs->funcs, val->string));
 		break;
 	case ev_entity:
@@ -602,8 +604,11 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 //				sprintf(line, "ent%i.%s", entnum, fielddef->s_name);
 		}
 		break;
+	case ev_accessor:
+		QC_snprintfz (line, sizeof(line), "(accessor)", type);
+		break;
 	default:
-		QC_snprintfz (line, sizeof(line), "bad type %i", type);
+		QC_snprintfz (line, sizeof(line), "(bad type %i)", type);
 		break;
 	}
 
@@ -646,9 +651,11 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 			char *outs = line;
 			int outb = sizeof(line)-2;
 			const char *ins;
+#ifndef QCGC
 			if (((unsigned int)val->string & STRING_SPECMASK) == STRING_TEMP)
 				return "<Stale Temporary String>";
 			else
+#endif
 				ins = PR_StringToNative(&progfuncs->funcs, val->string);
 			//markup the output string.
 			while(*ins && outb > 0)
@@ -721,7 +728,7 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 		if (val->_vector[0] == (int)val->_vector[0] && val->_vector[1] == (int)val->_vector[1] && val->_vector[2] == (int)val->_vector[2])
 			sprintf (line, "%i %i %i", (int)val->_vector[0], (int)val->_vector[1], (int)val->_vector[2]);
 		else
-			sprintf (line, "%f %f %f", val->_vector[0], val->_vector[1], val->_vector[2]);
+			sprintf (line, "%g %g %g", val->_vector[0], val->_vector[1], val->_vector[2]);
 		break;
 	case ev_pointer:
 		QC_snprintfz (line, sizeof(line), "%#x", val->_int);
@@ -1125,7 +1132,11 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 	switch (type & ~DEF_SAVEGLOBAL)
 	{
 	case ev_string:
+#ifdef QCGC
+		st = PR_AllocTempString(&progfuncs->funcs, s);
+#else
 		st = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, s, 0, true));
+#endif
 		eval->string = st;
 		break;
 
@@ -1209,7 +1220,11 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int
 	switch (type)
 	{
 	case ev_string:
+#ifdef QCGC
+		st = PR_AllocTempString(&progfuncs->funcs, s);
+#else
 		st = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, s, 0, true));
+#endif
 		*(string_t *)(progfuncs->funcs.stringtable + qcptr) = st;
 		break;
 

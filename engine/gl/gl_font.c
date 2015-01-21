@@ -984,10 +984,14 @@ static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 	return r_nulltex;
 }
 
+qbyte default_conchar[/*11356*/] =
+{
+#include "lhfont.h"
+};
+
 static texid_t Font_LoadFallbackConchars(void)
 {
 	texid_t tex;
-	extern qbyte default_conchar[11356];
 	int width, height;
 	unsigned int i;
 	qbyte *lump;

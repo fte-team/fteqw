@@ -754,14 +754,22 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 	else
 		VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
 	VectorCopy(state->angles, plstate->viewangles);
-	plstate->viewangles[0] *= -3;
+	if (state->u.q1.pmovetype)
+		plstate->viewangles[0] *= -3;
+	plstate->viewangles[2] = V_CalcRoll(plstate->viewangles, plstate->velocity);
 
 	a[0] = ((-192-state->u.q1.gravitydir[0])/256.0f) * 360;
 	a[1] = (state->u.q1.gravitydir[1]/256.0f) * 360;
 	a[2] = 0;
 	AngleVectors(a, plstate->gravitydir, NULL, NULL);
 
-	CL_DecodeStateSize(state->solid, state->modelindex, plstate->szmins, plstate->szmaxs);
+	if (!state->solid)
+	{
+		VectorSet(plstate->szmins, -16, -16, -24);
+		VectorSet(plstate->szmaxs, 16, 16, 32);
+	}
+	else
+		CL_DecodeStateSize(state->solid, state->modelindex, plstate->szmins, plstate->szmaxs);
 }
 static void CL_EntStateToPlayerCommand(usercmd_t *cmd, entity_state_t *state, float age)
 {
@@ -792,9 +800,10 @@ void CL_PredictEntityMovement(entity_state_t *estate, float age)
 	player_state_t startstate, resultstate;
 	usercmd_t cmd;
 	int oldphysent;
+	extern cvar_t cl_predict_players;
 	//build the entitystate state into a player state for prediction to use
 
-	if (!estate->u.q1.pmovetype)
+	if (!estate->u.q1.pmovetype || !cl_predict_players.ival || age <= 0)
 		VectorCopy(estate->origin, estate->u.q1.predorg);
 	else
 	{
@@ -1070,8 +1079,11 @@ void CL_PredictMovePNum (int seat)
 				if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 				{
 					//putting weapon frames in there was probably a stupid idea.
-					pv->stats[STAT_WEAPONFRAME] = cl.players[pv->playernum].stats[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
-					pv->statsf[STAT_WEAPONFRAME] = cl.players[pv->playernum].statsf[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
+					if (!(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
+					{
+						pv->stats[STAT_WEAPONFRAME] = cl.players[pv->playernum].stats[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
+						pv->statsf[STAT_WEAPONFRAME] = cl.players[pv->playernum].statsf[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
+					}
 					pv->pmovetype = tostate->pm_type;
 				}
 				break;
@@ -1108,8 +1120,13 @@ void CL_PredictMovePNum (int seat)
 					//we must always predict a frame, just to ensure that the playerstate's jump status etc is valid for the next frame, even if we're not going to use it for interpolation.
 					//this assumes that we always have at least one video frame to each network frame, of course.
 					//note that q2 updates its values via networking rather than propagation.
+					player_state_t tmp, *next;
 //					Con_DPrintf(" propagate %i: %f-%f\n", cl.ackedmovesequence+i, fromtime, totime);
-					CL_PredictUsercmd (seat, pv->viewentity, tostate, &cl.inframes[(toframe+i) & UPDATE_MASK].playerstate[pv->playernum], &of->cmd[seat]);
+					CL_PredictUsercmd (seat, pv->viewentity, tostate, &tmp, &of->cmd[seat]);
+					next = &cl.inframes[(toframe+i) & UPDATE_MASK].playerstate[pv->playernum];
+					next->jump_held = tmp.jump_held;
+					next->jump_msec = tmp.jump_msec;
+					VectorCopy(tmp.gravitydir, next->gravitydir);
 				}
 				break;
 			}
@@ -1217,23 +1234,23 @@ void CL_PredictMovePNum (int seat)
 	else
 		CL_CatagorizePosition(pv, tostate->origin);
 
-	if (le)
-	{
-		//keep the entity tracking the prediction position, so mirrors don't go all weird
-		VectorCopy(tostate->origin, le->origin);
-		if (pv->stats[STAT_HEALTH] > 0)
-		{
-			VectorScale(pv->simangles, 1, le->angles);
-			le->angles[0] *= -0.333;
-		}
-	}
-
-//	if (cls.demoplayback)
-//		CL_LerpMove (seat, totime);
-
 	CL_CalcCrouch (pv);
 	pv->waterlevel = pmove.waterlevel;
 	VectorCopy(pmove.gravitydir, pv->gravitydir);
+
+	if (le)
+	{
+		//keep the entity tracking the prediction position, so mirrors don't go all weird
+		VectorMA(pv->simorg, -pv->crouch, pv->gravitydir, le->origin);
+		if (pv->stats[STAT_HEALTH] > 0)
+		{
+			VectorScale(pv->simangles, 1, le->angles);
+			if (pv->pmovetype == PM_6DOF)
+				le->angles[0] *= -1;
+			else
+				le->angles[0] *= -0.333;
+		}
+	}
 }
 
 void CL_PredictMove (void)

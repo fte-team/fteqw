@@ -142,6 +142,13 @@ void NPQTV_Sys_MainLoop(void);
 
 #ifdef _WIN32
 int StartLocalServer(int close);
+
+#define HAVEAUTOUPDATE
+int Sys_GetAutoUpdateSetting(void);
+void Sys_SetAutoUpdateSetting(int newval);
+#else
+#define Sys_GetAutoUpdateSetting() -1
+#define Sys_SetAutoUpdateSetting(n)
 #endif
 
 void Sys_Init (void);

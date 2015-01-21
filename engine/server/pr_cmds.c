@@ -58,6 +58,7 @@ cvar_t	saved3 = CVARF("saved3", "0", CVAR_ARCHIVE);
 cvar_t	saved4 = CVARF("saved4", "0", CVAR_ARCHIVE);
 cvar_t	temp1 = CVARF("temp1", "0", CVAR_ARCHIVE);
 cvar_t	noexit = CVAR("noexit", "0");
+extern cvar_t sv_specprint;
 
 cvar_t	pr_ssqc_memsize = CVARD("pr_ssqc_memsize", "-1", "The ammount of memory available to the QC vm. This has a theoretical maximum of 1gb, but that value can only really be used in 64bit builds. -1 will attempt to use some conservative default, but you may need to increase it. Consider also clearing pr_fixbrokenqccarrays if you need to change this cvar.");
 
@@ -2001,7 +2002,7 @@ qbyte *PR_OpenFile(char *filename, qbyte *buffer)
 #define	RETURN_SSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//static - exe will not change it.
 #define	RETURN_TSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_TempString(prinst, s))	//temp (static but cycle buffers)
 #define	RETURN_CSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_SetString(prinst, s))	//semi-permanant. (hash tables?)
-#define	RETURN_PSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_NewString(prinst, s, 0))	//permanant
+#define	RETURN_PSTRING(s) (((int *)pr_globals)[OFS_RETURN] = PR_NewString(prinst, s))	//permanant
 
 /*
 ===============================================================================
@@ -2593,6 +2594,26 @@ static void QCBUILTIN PF_sprint (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	client = &svs.clients[entnum-1];
 
 	SV_ClientPrintf (client, level, "%s", s);
+
+	if (sv_specprint.ival & SPECPRINT_SPRINT)
+	{
+		client_t *spec;
+		unsigned int i;
+		for (i = 0, spec = svs.clients; i < sv.allocated_client_slots; i++, spec++)
+		{
+			if (spec->state != cs_spawned || !spec->spectator)
+				continue;
+			if (spec->spec_track == entnum && (spec->spec_print & SPECPRINT_SPRINT))
+			{
+				if (level < spec->messagelevel)
+					continue;
+				if (spec->controller)
+					SV_PrintToClient(spec->controller, level, s);
+				else
+					SV_PrintToClient(spec, level, s);
+			}
+		}
+	}
 }
 
 //When a client is backbuffered, it's generally not a brilliant plan to send a bazillion stuffcmds. You have been warned.
@@ -2656,6 +2677,22 @@ void PF_centerprint_Internal (int entnum, qboolean plaque, const char *s)
 	{
 		cl->centerprintstring = Z_Malloc(slen+1);
 		strcpy(cl->centerprintstring, s);
+	}
+
+	if (sv_specprint.ival & SPECPRINT_CENTERPRINT)
+	{
+		client_t *spec;
+		unsigned int i;
+		for (i = 0, spec = svs.clients; i < sv.allocated_client_slots; i++, spec++)
+		{
+			if (spec->state != cs_spawned || !spec->spectator || spec == cl)
+				continue;
+			if (spec->spec_track == entnum && (spec->spec_print & SPECPRINT_CENTERPRINT))
+			{
+				Z_Free(spec->centerprintstring);
+				spec->centerprintstring = Z_StrDup(cl->centerprintstring);
+			}
+		}
 	}
 }
 
@@ -3380,6 +3417,9 @@ void PF_stuffcmd_Internal(int entnum, const char *str)
 		return;
 	}
 
+
+	//this block is a hack to 'fix' nq mods that expect all clients to support nq commands - but we're a qw engine.
+	//FIXME: should buffer the entire command instead.
 	if (progstype != PROG_QW)
 	{
 		if (!strncmp(str, "color ", 6))	//okay, so this is a hack, but it fixes the qw scoreboard
@@ -3405,7 +3445,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str)
 			default:	tname = va("t%i", team);	break;	//good job our va has multiple buffers
 			}
 
-			ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen("team XXXXXX\n"));
+			ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen("team \n")+strlen(tname));
 			ClientReliableWrite_String (cl, va("team %s\n", tname));
 
 			ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen("color "));
@@ -3415,35 +3455,27 @@ void PF_stuffcmd_Internal(int entnum, const char *str)
 
 	slen = strlen(str);
 
-	if (cl->controller)
-	{	//this is a slave client.
-		//find the right number and send.
-		int pnum = 0;
-		client_t *sp;
-		for (sp = cl->controller; sp; sp = sp->controlled)
-		{
-			if (sp == cl)
-				break;
-			pnum++;
-		}
-		sp = cl->controller;
-
-		ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 4 + slen);
-		ClientReliableWrite_Byte (sp, pnum);
-		ClientReliableWrite_Byte (sp, svc_stufftext);
-		ClientReliableWrite_String (sp, str);
-	}
-	else
-	{
-		ClientReliableWrite_Begin (cl, svc_stufftext, 2+slen);
-		ClientReliableWrite_String (cl, str);
-	}
+	SV_StuffcmdToClient(cl, str);
 
 	if (sv.mvdrecording)
 	{
 		sizebuf_t *msg = MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
 		MSG_WriteByte (msg, svc_stufftext);
 		MSG_WriteString (msg, str);
+	}
+
+	//this seems a little dangerous. v_cshift could leave a spectator's machine unusable if they switch players at unfortunate times.
+	if (sv_specprint.ival & SPECPRINT_STUFFCMD)
+	{
+		client_t *spec;
+		unsigned int i;
+		for (i = 0, spec = svs.clients; i < sv.allocated_client_slots; i++, spec++)
+		{
+			if (spec->state != cs_spawned || !spec->spectator)
+				continue;
+			if (spec->spec_track == entnum && (spec->spec_print & SPECPRINT_STUFFCMD))
+				SV_StuffcmdToClient(spec, str);
+		}
 	}
 }
 
@@ -5414,7 +5446,7 @@ static void QCBUILTIN PF_Ignore(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 }
 
 #ifndef QUAKETC
-static void QCBUILTIN PF_newstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//mvdsv
+static void QCBUILTIN PF_mvdsv_newstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//mvdsv
 {
 	char *s;
 	int len;
@@ -5428,6 +5460,10 @@ static void QCBUILTIN PF_newstring(pubprogfuncs_t *prinst, struct globalvars_s *
 	s = prinst->AddressableAlloc(prinst, len);
 	G_INT(OFS_RETURN) = (char*)s - prinst->stringtable;
 	strcpy(s, in);
+}
+static void QCBUILTIN PF_mvdsv_freestring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//mvdsv
+{
+	prinst->AddressableFree(prinst, prinst->stringtable + G_INT(OFS_PARM0));
 }
 #endif
 
@@ -9291,8 +9327,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"logfrag",			PF_logfrag,			0,		79,		0,		79,	"void(entity killer, entity killee)"},	//79
 
 // Tomaz - QuakeC String Manipulation Begin
-	{"tq_zone",			PF_dupstring,		0,		0,		0,		79, D("string(string s)",NULL), true},	//79
-	{"tq_unzone",		PF_forgetstring,	0,		0,		0,		80, D("void(string s)",NULL), true},	//80
+	{"tq_zone",			PF_strzone,			0,		0,		0,		79, D("string(string s)",NULL), true},	//79
+	{"tq_unzone",		PF_strunzone,		0,		0,		0,		80, D("void(string s)",NULL), true},	//80
 	{"tq_stof",			PF_stof,			0,		0,		0,		81, D("float(string s)",NULL), true},	//81
 	{"tq_strcat",		PF_strcat,			0,		0,		0,		82, D("string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)",NULL), true},	//82
 	{"tq_substring",	PF_substring,		0,		0,		0,		83, D("string(string str, float start, float len)",NULL), true},	//83
@@ -9330,8 +9366,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90, D("float(string s)",NULL), true},
 	{"str2byte",		PF_str2byte,		0,		0,		0,		91, D("float(string str)",NULL), true},
 	{"str2short",		PF_str2short,		0,		0,		0,		92, D("float(string str)",NULL), true},
-	{"mvdnewstr",		PF_newstring,		0,		0,		0,		93, D("string(string s, optional float bufsize)",NULL), true},
-	{"mvdfreestr",		PF_forgetstring,	0,		0,		0,		94, D("void(string s)",NULL), true},
+	{"mvdnewstr",		PF_mvdsv_newstring,	0,		0,		0,		93, D("string(string s, optional float bufsize)",NULL), true},
+	{"mvdfreestr",		PF_mvdsv_freestring,0,		0,		0,		94, D("void(string s)",NULL), true},
 	{"conprint",		PF_conprint,		0,		0,		0,		95, D("void(string s, ...)",NULL), true},
 	{"readcmd",			PF_readcmd,			0,		0,		0,		96, D("string(string str)",NULL), true},
 	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, D("void(string dst, string src)",NULL), true},
@@ -9425,13 +9461,18 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, ...)"},	// (FRIK_FILE)
 	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
 	{"stov",			PF_stov,			0,		0,		0,		117, "vector(string s)"},	// (FRIK_FILE)
-	{"strzone",			PF_dupstring,		0,		0,		0,		118, "string(string s, ...)"},	// (FRIK_FILE)
-	{"strunzone",		PF_forgetstring,	0,		0,		0,		119, "void(string s)"},	// (FRIK_FILE)
+#ifdef QCGC
+	{"strzone",			PF_strzone,			0,		0,		0,		118, D("string(string s, ...)", "Create a semi-permanent copy of a string that only becomes invalid once strunzone is called on the string (instead of when the engine assumes your string has left scope). This builtin has become redundant in FTEQW due to the FTE_QC_PERSISTENTTEMPSTRINGS extension and is now functionally identical to strcat for compatibility with old engines+mods.")},	// (FRIK_FILE)
+	{"strunzone",		PF_strunzone,		0,		0,		0,		119, D("void(string s)", "Destroys a string that was allocated by strunzone. Further references to the string MAY crash the game. In FTE, this function became redundant and now does nothing.")},	// (FRIK_FILE)
+#else
+	{"strzone",			PF_strzone,			0,		0,		0,		118, D("string(string s, ...)", "Create a semi-permanent copy of a string that only becomes invalid once strunzone is called on the string (instead of when the engine assumes your string has left scope).")},	// (FRIK_FILE)
+	{"strunzone",		PF_strunzone,		0,		0,		0,		119, D("void(string s)", "Destroys a string that was allocated by strunzone. Further references to the string MAY crash the game.")},	// (FRIK_FILE)
+#endif
 //end frikfile
 
 //these are telejano's
 	{"cvar_setf",		PF_cvar_setf,		0,		0,		0,		176,	"void(string cvar, float val)"},
-	{"localsound",		PF_LocalSound,		0,		0,		0,		177,	D("", NULL),	true},//	#177
+	{"localsound",		PF_LocalSound,		0,		0,		0,		177,	D("", "Plays a sound... on the server."),	true},//	#177
 //end telejano
 
 //fte extras
@@ -9441,7 +9482,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"externvalue",		PF_externvalue,		0,		0,		0,		203,	D("__variant(float prnum, string varname)", "Reads a global in the named progs by the name of that global.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
 	{"externset",		PF_externset,		0,		0,		0,		204,	D("void(float prnum, __variant newval, string varname)", "Sets a global in the named progs by name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
 	{"externrefcall",	PF_externrefcall,	0,		0,		0,		205,	D("__variant(float prnum, void() func, ...)","Calls a function between progs by its reference. No longer needed as direct function calls now switch progs context automatically, and have done for a long time. There is no remaining merit for this function."), true},
-	{"instr",			PF_instr,			0,		0,		0,		206,	D("float(string input, string token)", "Returns substring(input, strstrpos(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos.")},
+	{"instr",			PF_instr,			0,		0,		0,		206,	D("float(string input, string token)", "Returns substring(input, strstrpos(input, token), -1), or the null string if token was not found in input. You're probably better off using strstrpos."), true},
 	{"openportal",		PF_OpenPortal,		0,		0,		0,		207,	D("void(entity portal, float state)", "Opens or closes the portals associated with a door or some such on q2 or q3 maps. On Q2BSPs, the entity should be the 'func_areaportal' entity - its style field will say which portal to open. On Q3BSPs, the entity is the door itself, the portal will be determined by the two areas found from a preceding setorigin call.")},
 
 	{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208,	"float(float attributes, string effectname, ...)"},
@@ -9504,6 +9545,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"rotatevectorsbytag",	PF_Fixme,		0,		0,		0,		244,	"vector(entity ent, float tagnum)"},
 
+	{"mod",				PF_mod,				0,		0,		0,		245,	"float(float dividend, float divisor)"},
 //	{"empty",			PF_Fixme,			0,		0,		0,		245,	"void()"},
 //	{"empty",			PF_Fixme,			0,		0,		0,		246,	"void()"},
 //	{"empty",			PF_Fixme,			0,		0,		0,		247,	"void()"},
@@ -9543,7 +9585,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	D("void(float action, optional vector pos, optional float radius, optional float quant, ...)", "Realtime terrain editing. Actions are the TEREDIT_ constants.")},// (??FTE_TERRAIN_EDIT??
 	{"touchtriggers",	PF_touchtriggers,	0,		0,		0,		279,	D("void()", "Triggers a touch events between self and every entity that it is in contact with. This should typically just be the triggers touch functions.")},//
-	{"writefloat",		PF_WriteFloat,		0,		0,		0,		280,	"void(float buf, float fl)"},//
+	{"WriteFloat",		PF_WriteFloat,		0,		0,		0,		280,	"void(float buf, float fl)"},//
 	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	D("float(entity skelent, string dollcmd, float animskel)", "Updates the skeletal object attached to the entity according to its origin and other properties.\nif animskel is non-zero, the ragdoll will animate towards the bone state in the animskel skeletal object, otherwise they will pick up the model's base pose which may not give nice results.\nIf dollcmd is not set, the ragdoll will update (this should be done each frame).\nIf the doll is updated without having a valid doll, the model's default .doll will be instanciated.\ncommands:\n doll foo.doll : sets up the entity to use the named doll file\n dollstring TEXT : uses the doll file directly embedded within qc, with that extra prefix.\n cleardoll : uninstanciates the doll without destroying the skeletal object.\n animate 0.5 : specifies the strength of the ragdoll as a whole \n animatebody somebody 0.5 : specifies the strength of the ragdoll on a specific body (0 will disable ragdoll animations on that body).\n enablejoint somejoint 1 : enables (or disables) a joint. Disabling joints will allow the doll to shatter.")}, // (FTE_CSQC_RAGDOLL)
 	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	D("float*(float skel)", "Map the bones in VM memory. They can then be accessed via pointers. Each bone is 12 floats, the four vectors interleaved (sadly).")},// (FTE_QC_RAGDOLL)
 	{"skel_set_bone_world",PF_skel_set_bone_world,0,0,		0,		283,	D("void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)", "Sets the world position of a bone within the given entity's attached skeletal object. The world position is dependant upon the owning entity's position. If no orientation argument is specified, v_forward+v_right+v_up are used for the orientation instead. If 1 is specified, it is understood as angles. If 3 are specified, they are the forawrd/right/up vectors to use.")},
@@ -11100,6 +11142,14 @@ void PR_DumpPlatform_f(void)
 						"#endif\n"
 						);
 
+
+	for (i = 0; i < QSG_Extensions_count; i++)
+	{
+		if (QSG_Extensions[i].description)
+			VFS_PRINTF(f, "#define %s /* %s */\n", QSG_Extensions[i].name, QSG_Extensions[i].description);
+		else
+			VFS_PRINTF(f, "#define %s\n", QSG_Extensions[i].name);
+	}
 
 	if (accessors)
 	{

@@ -720,3 +720,12 @@ void Sys_Sleep (double seconds)
 }
 
 
+#ifdef HAVEAUTOUPDATE
+int Sys_GetAutoUpdateSetting(void);
+{
+	return -1;
+}
+void Sys_SetAutoUpdateSetting(int newval)
+{
+}
+#endif

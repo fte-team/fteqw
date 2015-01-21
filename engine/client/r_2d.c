@@ -130,6 +130,10 @@ void R2D_Shutdown(void)
 	if (font_tiny)
 		Font_Free(font_tiny);
 	font_tiny = NULL; 
+
+#if defined(MENU_DAT) || defined(CSQC_DAT)
+	PR_ReloadFonts(false);
+#endif
 }
 
 /*
@@ -716,7 +720,7 @@ void R2D_Font_Changed(void)
 	font_tiny = NULL; 
 
 #if defined(MENU_DAT) || defined(CSQC_DAT)
-	PR_ResetFonts(0);
+	PR_ReloadFonts(true);
 #endif
 
 	if (qrenderer == QR_NONE)

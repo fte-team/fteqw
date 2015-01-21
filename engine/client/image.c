@@ -4142,7 +4142,11 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 	tex = Image_FindTexture(identifier, subpath, flags);
 	if (tex)
 	{
-		if (!fallbackdata || tex->status != TEX_FAILED)
+		//FIXME: race condition is possible here
+		//if a non-replaced texture is given a fallback while a non-fallback version is still loading, it can still fail.
+		if (tex->status == TEX_FAILED && fallbackdata)
+			tex->status = TEX_LOADING;
+		else if (tex->status != TEX_NOTLOADED)
 		{
 #ifdef LOADERTHREAD
 			Sys_UnlockMutex(com_resourcemutex);
@@ -4185,7 +4189,7 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 			b = 4;
 			break;
 		default:
-			Sys_Error("GL_FindTextureFallback: bad format");
+			Sys_Error("Image_GetTexture: bad format");
 		}
 		tex->fallbackdata = BZ_Malloc(fallbackwidth*fallbackheight*b + pb);
 		memcpy(tex->fallbackdata, fallbackdata, fallbackwidth*fallbackheight*b);
@@ -4297,6 +4301,16 @@ void Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue)
 
 	if (rf && rf->IMG_UpdateFiltering)
 		rf->IMG_UpdateFiltering(imagelist, mip, pic, mipcap, anis);
+}
+qboolean Image_UnloadTexture(image_t *tex)
+{
+	if (tex->status == TEX_LOADED)
+	{
+		rf->IMG_DestroyTexture(tex);
+		tex->status = TEX_NOTLOADED;
+		return true;
+	}
+	return false;
 }
 //may not create any images yet.
 void Image_Init(void)

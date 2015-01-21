@@ -1,3 +1,4 @@
+
 #include <windows.h>
 #include <windowsx.h>
 #include <commctrl.h>
@@ -5,6 +6,7 @@
 #include <richedit.h>
 #include <stdio.h>
 #include <sys/stat.h>
+#include <shlobj.h>
 
 #include "qcc.h"
 #include "gui.h"
@@ -581,6 +583,17 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 				RunEngine();
 			return 0;
 		}
+		if (wParam == VK_F7)
+		{
+			buttons[ID_COMPILE].washit = true;
+			return 0;
+		}
+		if (wParam == VK_F8)
+		{
+//			if (!EngineCommandf("qcjump\n"))
+//				RunEngine();
+			return 0;
+		}
 		if (wParam == VK_F9)
 		{
 			editor_t *editor;
@@ -603,7 +616,12 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 		}
 		if (wParam == VK_F11)
 		{
-			EngineCommandf("qcstep\n");
+			EngineCommandf("qcstep over\n");
+			return 0;
+		}
+		if (wParam == VK_F11)
+		{
+			EngineCommandf("qcstep into\n");
 			return 0;
 		}
 	}
@@ -728,7 +746,7 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 		SendMessage(newc, SCI_STYLESETFORE, SCE_C_ESCAPESEQUENCE,			RGB(0xA0, 0x10, 0x10));
 
 		SendMessage(newc, SCI_STYLESETFORE, STYLE_BRACELIGHT,				RGB(0x00, 0x00, 0x3F));
-		SendMessage(newc, SCI_STYLESETBACK, STYLE_BRACELIGHT,				RGB(0xaf, 0xaf, 0xaf));
+		SendMessage(newc, SCI_STYLESETBACK, STYLE_BRACELIGHT,				RGB(0xef, 0xaf, 0xaf));
 		SendMessage(newc, SCI_STYLESETBOLD, STYLE_BRACELIGHT,				TRUE);
 		SendMessage(newc, SCI_STYLESETFORE, STYLE_BRACEBAD,					RGB(0x3F, 0x00, 0x00));
 		SendMessage(newc, SCI_STYLESETBACK, STYLE_BRACEBAD,					RGB(0xff, 0xaf, 0xaf));
@@ -740,6 +758,7 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 					"nosave shared state optional string "
 					"struct switch thinktime until loop "
 					"typedef union var vector void "
+					"accessor get set inline "
 					"virtual nonvirtual class static nonstatic local return"
 					);
 
@@ -2553,6 +2572,119 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 	}
 	return 0;
 }
+static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) 
+{	//'stolen' from microsoft's knowledge base.
+	//required to work around microsoft being annoying.
+	TCHAR szDir[MAX_PATH];
+	char *foo;
+	switch(uMsg) 
+	{
+	case BFFM_INITIALIZED: 
+		if (GetCurrentDirectory(sizeof(szDir)/sizeof(TCHAR), szDir))
+		{
+			foo = strrchr(szDir, '\\');
+			if (foo)
+				*foo = 0;
+			foo = strrchr(szDir, '\\');
+			if (foo)
+				*foo = 0;
+			SendMessage(hwnd, BFFM_SETSELECTION, TRUE, (LPARAM)szDir);
+		}
+		break;
+	case BFFM_SELCHANGED: 
+		if (SHGetPathFromIDList((LPITEMIDLIST) lp ,szDir))
+		{
+			while(foo = strchr(szDir, '\\'))
+				*foo = '/';
+			//fixme: verify that id1 is a subdir perhaps?
+			SendMessage(hwnd,BFFM_SETSTATUSTEXT,0,(LPARAM)szDir);
+		}
+		break;
+	}
+	return 0;
+}
+void PromptForEngine(int force)
+{
+#ifndef OFN_DONTADDTORECENT
+#define OFN_DONTADDTORECENT 0x02000000
+#endif
+
+	char workingdir[MAX_PATH+10];
+	GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
+	if (!*enginebasedir || force==1)
+	{
+		BROWSEINFO bi;
+		LPITEMIDLIST il;
+		memset(&bi, 0, sizeof(bi));
+		bi.hwndOwner = mainwindow;
+		bi.pidlRoot = NULL;
+		bi.pszDisplayName = workingdir;
+		bi.lpszTitle = "Please locate your base directory";
+		bi.ulFlags = BIF_RETURNONLYFSDIRS|BIF_STATUSTEXT;
+		bi.lpfn = StupidBrowseCallbackProc;
+		bi.lParam = 0;
+		bi.iImage = 0;
+		il = SHBrowseForFolder(&bi);
+		if (il)
+		{
+			SHGetPathFromIDList(il, enginebasedir);
+			CoTaskMemFree(il);
+		}
+		else
+			return;
+
+		QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebasedir", REG_SZ, enginebasedir, strlen(enginebasedir));
+	}
+
+	if (!*enginebinary || force==2)
+	{
+		char *s;
+		char initialdir[MAX_PATH+10];
+		OPENFILENAME ofn;
+		pbool okay;
+		memset(&ofn, 0, sizeof(ofn));
+		ofn.lStructSize = sizeof(ofn);
+		ofn.hwndOwner = mainwindow;
+		ofn.hInstance = ghInstance;
+		ofn.lpstrFile = enginebinary;
+		ofn.Flags = OFN_EXPLORER|OFN_FILEMUSTEXIST|OFN_DONTADDTORECENT;
+		ofn.lpstrTitle = "Please choose an engine";
+		ofn.nMaxFile = sizeof(enginebinary)-1;
+		ofn.lpstrFilter = "Executables\0*.exe\0All files\0*.*\0";
+		strcpy(enginebinary, "fteglqw.exe");
+		if (enginebasedir[0] == '.' && enginebasedir[1] == '.' && (!enginebasedir[2] || enginebasedir[2] == '/' || enginebasedir[2] == '\\'))
+		{
+			_snprintf(initialdir, sizeof(initialdir), "%s/%s", workingdir, enginebasedir);
+			strcat(initialdir, "/");
+			strcat(initialdir, enginebasedir);
+		}
+		else
+			strcpy(initialdir, enginebasedir);
+		//and the fuck-you-microsoft loop
+		for (s = initialdir; *s; s++)
+			if (*s == '/')
+				*s = '\\';
+		ofn.lpstrInitialDir = initialdir;
+		okay = GetOpenFileName(&ofn);
+		while (!okay)
+		{
+			switch(CommDlgExtendedError())
+			{
+			case FNERR_INVALIDFILENAME:
+				*enginebinary = 0;
+				okay = GetOpenFileName(&ofn);
+				continue;
+			}
+			break;
+		}
+		//undo any damage caused by microsoft's stupidity
+		SetCurrentDirectory(workingdir);
+		if (!okay)
+			return;
+
+		QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebinary", REG_SZ, enginebinary, strlen(enginebinary));
+	}
+}
 void RunEngine(void)
 {
 	int embedtype = 0;	//0 has focus issues.
@@ -2560,6 +2692,8 @@ void RunEngine(void)
 	{
 		WNDCLASS wndclass;
 		MDICREATESTRUCT mcs;
+
+		PromptForEngine(0);
 
 		memset(&wndclass, 0, sizeof(wndclass));
 		wndclass.style      = 0;
@@ -3209,6 +3343,11 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, 0, IDM_CASCADE, "Cascade");
 					AppendMenu(m, 0, IDM_TILE_HORIZ, "Tile Horizontally");
 					AppendMenu(m, 0, IDM_TILE_VERT, "Tile Vertically");
+				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Debug");
+					AppendMenu(m, 0, IDM_CASCADE, "Rebuild\tF7");
+					AppendMenu(m, 0, IDM_TILE_HORIZ, "Run/Resume\tF5");
+					AppendMenu(m, 0, IDM_TILE_HORIZ, "Step Into\tF11");
+					AppendMenu(m, 0, IDM_TILE_VERT, "Set Breakpoint\tF9");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Help");
 					AppendMenu(m, 0, IDM_ABOUT, "About");
 
@@ -3915,9 +4054,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	GUI_SetDefaultOpts();
 
 	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebinary", enginebinary, sizeof(enginebinary)))
-		strcpy(enginebinary, "fteglqw.exe");
+		strcpy(enginebinary, "");
 	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebasedir", enginebasedir, sizeof(enginebasedir)))
-		strcpy(enginebasedir, "../..");
+		strcpy(enginebasedir, "");
 	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginecommandline", enginecommandline, sizeof(enginecommandline)))
 		strcpy(enginecommandline, "-window +map start -nohome");
 

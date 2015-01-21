@@ -13,7 +13,7 @@ attribute vec2 v_texcoord;
 void main ()
 {
 	tc = v_texcoord;
-	gl_Position = v_position;
+	gl_Position = vec4(v_position, 1.0);
 }
 #endif
 #ifdef FRAGMENT_SHADER
@@ -30,6 +30,7 @@ void main()
 	vec2 textCoo = tc.st;
 	deltaTextCoord *= 1.0 / float(NUM_SAMPLES) * crep_density;
 	float illuminationDecay = 1.0;
+	gl_FragColor = vec4(0.0,0.0,0.0,0.0);
 	for(int i=0; i < NUM_SAMPLES ; i++)
 	{
 		textCoo -= deltaTextCoord;

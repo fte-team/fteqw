@@ -96,7 +96,7 @@ extern cvar_t vid_wndalpha;
 
 const char *wgl_extensions;
 
-typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
+typedef enum {MS_WINDOWED, MS_FULLDIB, MS_FULLWINDOW, MS_UNINIT} modestate_t;
 
 BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info);
 
@@ -109,7 +109,6 @@ qboolean		scr_skipupdate;
 
 static DEVMODE	gdevmode;
 static qboolean	vid_initialized = false;
-static qboolean	leavecurrentmode= true;
 static qboolean vid_canalttab = false;
 static qboolean vid_wassuspended = false;
 extern qboolean	mouseactive;  // from in_win.c
@@ -851,8 +850,11 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	int				wwidth, wheight;
 	RECT			rect;
 
-	if (leavecurrentmode)	//don't do this with d3d - d3d should set it's own video mode.
+	if (info->fullscreen != 2)
 	{	//make windows change res.
+
+		modestate = MS_FULLDIB;
+
 		gdevmode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
 		if (info->bpp)
 			gdevmode.dmFields |= DM_BITSPERPEL;
@@ -875,8 +877,11 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 			return false;
 		}
 	}
-
-	modestate = MS_FULLDIB;
+	else
+	{
+		modestate = MS_FULLWINDOW;
+		
+	}
 
 	WindowRect.top = WindowRect.left = 0;
 
@@ -915,7 +920,10 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	SendMessage (dibwindow, WM_SETICON, (WPARAM)TRUE, (LPARAM)hIcon);
 	SendMessage (dibwindow, WM_SETICON, (WPARAM)FALSE, (LPARAM)hIcon);
 
-	ShowWindow (dibwindow, SW_SHOWDEFAULT);
+	if (modestate == MS_FULLWINDOW)
+		ShowWindow (dibwindow, SW_SHOWMAXIMIZED);
+	else
+		ShowWindow (dibwindow, SW_SHOWDEFAULT);
 	UpdateWindow (dibwindow);
 
 	// Because we have set the background brush for the window to NULL
@@ -1958,7 +1966,7 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 
 	if (fActive)
 	{
-		if (modestate != MS_WINDOWED)
+		if (modestate == MS_FULLDIB)
 		{
 			if (vid_canalttab && vid_wassuspended)
 			{
@@ -1970,6 +1978,11 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 				MoveWindow (mainwindow, 0, 0, gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, false);
 			}
 		}
+		else if (modestate == MS_FULLWINDOW)
+		{
+			ShowWindow (mainwindow, SW_SHOWMAXIMIZED);
+			UpdateWindow (mainwindow);
+		}
 
 		gammapending = 0.5;				//delayed gamma force
 		Cvar_ForceCallback(&v_gamma);	//so the delay isn't so blatent when you have decent graphics drivers that don't break things.
@@ -1977,7 +1990,7 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 
 	if (!fActive)
 	{
-		if (modestate != MS_WINDOWED)
+		if (modestate == MS_FULLDIB)
 		{
 			if (vid_canalttab)
 			{
@@ -2113,7 +2126,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-				INS_TranslateKeyEvent(wParam, lParam, true, 0);
+				INS_TranslateKeyEvent(wParam, lParam, true, 0, false);
 			break;
 
 //		case WM_UNICHAR:
@@ -2128,7 +2141,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-				INS_TranslateKeyEvent(wParam, lParam, false, 0);
+				INS_TranslateKeyEvent(wParam, lParam, false, 0, false);
 			break;
 
 	// this is complicated because Win32 seems to pack multiple mouse events into

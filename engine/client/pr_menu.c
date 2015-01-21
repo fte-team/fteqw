@@ -136,17 +136,19 @@ int PR_findnamedfont(const char *name, qboolean isslotname)
 	}
 	return -1;
 }
-//purgeowner 0 will reload all fonts. other values will purge only fonts which are now unused.
-void PR_ResetFonts(unsigned int purgeowner)
+//purgeowner is the bitmask of owners that are getting freed.
+//if purgeowner is 0, fonts will get purged
+void PR_ReleaseFonts(unsigned int purgeowner)
 {
 	int i, j;
+
 	for (i = 0; i < FONT_SLOTS; i++)
 	{
+		if (fontslot[i].owner)
+			continue;	//already free
 		fontslot[i].owner &= ~purgeowner;
-
-		//don't bother flushing fonts when we don't really need to.
-		if (fontslot[i].owner && purgeowner)
-			return;
+		if (fontslot[i].owner)
+			continue;	//still owned by someone
 
 		for (j = 0; j < fontslot[i].sizes; j++)
 		{
@@ -155,21 +157,37 @@ void PR_ResetFonts(unsigned int purgeowner)
 			fontslot[i].font[j] = NULL;
 		}
 
-		//if noone is interested in it now, it can be purged fully.
+		fontslot[i].sizes = 0;
+		fontslot[i].slotname[0] = '\0';
+		fontslot[i].facename[0] = '\0';
+	}
+}
+void PR_ReloadFonts(qboolean reload)
+{
+	int i, j;
+
+	if (qrenderer == QR_NONE)
+		reload = false;
+
+	for (i = 0; i < FONT_SLOTS; i++)
+	{
+		//already not loaded
 		if (!fontslot[i].owner)
+			continue;
+
+		//flush it (if loaded)
+		for (j = 0; j < fontslot[i].sizes; j++)
 		{
-			fontslot[i].sizes = 0;
-			fontslot[i].slotname[0] = '\0';
-			fontslot[i].facename[0] = '\0';
+			if (fontslot[i].font[j])
+				Font_Free(fontslot[i].font[j]);
+			fontslot[i].font[j] = NULL;
 		}
-		else
+		//and reload if needed
+		if (reload)
 		{	//otherwise load it.
 			for (j = 0; j < fontslot[i].sizes; j++)
 			{
-				if (qrenderer == QR_NONE)
-					fontslot[i].font[j] = NULL;
-				else
-					fontslot[i].font[j] = Font_LoadFont(fontslot[i].size[j], fontslot[i].facename);
+				fontslot[i].font[j] = Font_LoadFont(fontslot[i].size[j], fontslot[i].facename);
 			}
 		}
 	}
@@ -340,12 +358,15 @@ void CL_LoadFont_f(void)
 	}
 }
 
+//scrolling could be done with scissoring.
+//selection could be done with some substrings
 void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	float *size = G_VECTOR(OFS_PARM1);
 	unsigned int flags = G_FLOAT(OFS_PARM2);
 	const char *text = PR_GetStringOfs(prinst, OFS_PARM3);
+
 	R_DrawTextField(pos[0], pos[1], size[0], size[1], text, CON_WHITEMASK, flags);
 }
 
@@ -930,20 +951,6 @@ cvar_t pr_menuqc_coreonerror = SCVAR("pr_menuqc_coreonerror", "1");
 
 
 //new generic functions.
-
-void QCBUILTIN PF_mod (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int a = G_FLOAT(OFS_PARM0);
-	int b = G_FLOAT(OFS_PARM1);
-	if (b == 0)
-	{
-		Con_Printf("mod by zero\n");
-		prinst->pr_trace = 1;
-		G_FLOAT(OFS_RETURN) = 0;
-	}
-	else
-		G_FLOAT(OFS_RETURN) = a % b;
-}
 
 const char *RemapCvarNameFromDPToFTE(const char *name)
 {
@@ -1716,8 +1723,8 @@ static struct {
 	{"strcat",					PF_strcat,					53},
 	{"substring",				PF_substring,				54},
 	{"stov",					PF_stov,					55},
-	{"strzone",					PF_dupstring,				56},
-	{"strunzone",				PF_forgetstring,			57},
+	{"strzone",					PF_strzone,					56},
+	{"strunzone",				PF_strunzone,				57},
 	{"tokenize",				PF_Tokenize,				58},
 	{"argv",					PF_ArgV,					59},
 	{"isserver",				PF_isserver,				60},
@@ -2014,7 +2021,7 @@ void MP_Shutdown (void)
 	PR_Common_Shutdown(menu_world.progs, false);
 	menu_world.progs->CloseProgs(menu_world.progs);
 	memset(&menu_world, 0, sizeof(menu_world));
-	PR_ResetFonts(kdm_menu);
+	PR_ReleaseFonts(kdm_menu);
 
 #ifdef CL_MASTER
 	Master_ClearMasks();

@@ -31,6 +31,12 @@ struct v2f
 	SamplerState SampleType;
 	float4 main (v2f inp) : SV_TARGET
 	{
-		return shaderTexture.Sample(SampleType, inp.tc) * inp.vcol;
+		float4 tex = shaderTexture.Sample(SampleType, inp.tc);
+#ifdef MASK
+		if (tex.a < float(MASK))
+			discard;
+#endif
+		//FIXME: no fog, no colourmod
+		return tex * inp.vcol;
 	}
 #endif

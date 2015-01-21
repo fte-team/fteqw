@@ -1665,7 +1665,8 @@ qboolean QC_FixFileName(const char *name, const char **result, const char **fall
 {
 	char ext[8];
 
-	if (strchr(name, ':') ||	//dos/win absolute path, ntfs ADS, amiga drives. reject them all.
+	if (!*name ||	//blank names are bad
+		strchr(name, ':') ||	//dos/win absolute path, ntfs ADS, amiga drives. reject them all.
 		strchr(name, '\\') ||	//windows-only paths.
 		*name == '/' ||	//absolute path was given - reject
 		strstr(name, ".."))	//someone tried to be clever.
@@ -1731,10 +1732,15 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 				VFS_READ(f, pf_fopen_files[i].data, pf_fopen_files[i].len);
 				VFS_CLOSE(f);
 			}
-			else
+			else if (fmode == FRIK_FILE_MMAP_RW)
 			{
 				pf_fopen_files[i].bufferlen = fsize;
 				pf_fopen_files[i].data = PR_AddressableAlloc(prinst, pf_fopen_files[i].bufferlen);
+			}
+			else
+			{
+				pf_fopen_files[i].bufferlen = 0;
+				pf_fopen_files[i].data = NULL;
 			}
 
 			if (!pf_fopen_files[i].data)
@@ -1821,7 +1827,7 @@ void PF_fclose_i (int fnum)
 		COM_WriteFile(pf_fopen_files[fnum].name, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
 		/*fall through*/
 	case FRIK_FILE_MMAP_READ:
-		/*cannot free accessible mem*/
+		pf_fopen_files[fnum].prinst->AddressableFree(pf_fopen_files[fnum].prinst, pf_fopen_files[fnum].data);
 		break;
 
 	case FRIK_FILE_READ:
@@ -2907,13 +2913,21 @@ void QCBUILTIN PF_vtos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-void QCBUILTIN PF_forgetstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_strunzone(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef QCGC
+	//gc frees everything for us.
+#else
 	prinst->AddressableFree(prinst, prinst->stringtable + G_INT(OFS_PARM0));
+#endif
 }
 
-void QCBUILTIN PF_dupstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//frik_file
+void QCBUILTIN PF_strzone(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//frik_file
 {
+#ifdef QCGC
+	//just allocate a tempstring instead, because we can.
+	PF_strcat(prinst, pr_globals);
+#else
 	char *buf;
 	int len = 0;
 	const char *s[8];
@@ -2942,6 +2956,7 @@ void QCBUILTIN PF_dupstring(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		buf += l[i];
 	}
 	*buf = '\0';
+#endif
 }
 
 //string(string str1, string str2) strcat
@@ -4150,6 +4165,25 @@ void QCBUILTIN PF_bound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		G_FLOAT(OFS_RETURN) = G_FLOAT(OFS_PARM1);
 }
 
+void QCBUILTIN PF_mod (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float a = G_FLOAT(OFS_PARM0);
+	float n = G_FLOAT(OFS_PARM1);
+
+	if (n == 0)
+	{
+		Con_Printf("mod by zero\n");
+		prinst->pr_trace = 1;
+		G_FLOAT(OFS_RETURN) = 0;
+	}
+	else
+	{
+		//because QC is inherantly floaty, lets use floats.
+		G_FLOAT(OFS_RETURN) = a - (n * (int)(a/n));
+//		G_FLOAT(OFS_RETURN) = a % n;
+	}
+}
+
 void QCBUILTIN PF_Sin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = sin(G_FLOAT(OFS_PARM0));
@@ -5253,12 +5287,19 @@ static void PR_AutoCvarApply(pubprogfuncs_t *prinst, eval_t *val, etype_t type, 
 		val->_int = var->ival;
 		break;
 	case ev_string:
+#ifdef QCGC
+		if (*var->string)
+			val->_int = PR_NewString(prinst, var->string);
+		else
+			val->_int = 0;
+#else
 		if (val->_int)
 			prinst->RemoveProgsString(prinst, val->_int);
 		if (*var->string)
 			val->_int = PR_SetString(prinst, var->string);
 		else
 			val->_int = 0;
+#endif
 		break;
 	case ev_vector:
 		{
@@ -5350,7 +5391,7 @@ void PDECL PR_FoundDoTranslateGlobal(pubprogfuncs_t *progfuncs, char *name, eval
 	olds = PR_GetString(progfuncs, val->string);
 	news = PO_GetText(ctx, olds);
 	if (news != olds)
-		val->string = PR_NewString(progfuncs, news, 0);
+		val->string = PR_NewString(progfuncs, news);
 }
 
 //called after each progs is loaded
@@ -5399,7 +5440,7 @@ lh_extension_t QSG_Extensions[] = {
 //(which is why there are two lists of extensions here)
 //note: not all of these are actually supported. This list mearly reflects the values of the PEXT_ constants.
 //Check protocol.h to make sure that the related PEXT is enabled. The engine will only accept if they are actually supported.
-	{"FTE_PEXT_SETVIEW"},		//nq setview works.
+	{"FTE_PEXT_SETVIEW",				0,	NULL, {NULL}, "NQ's svc_setview works correctly even in quakeworld"},
 	{"DP_ENT_SCALE"},			//entities may be rescaled
 	{"FTE_PEXT_LIGHTSTYLECOL"},	//lightstyles may have colours.
 	{"DP_ENT_ALPHA"},			//transparent entites
@@ -5448,9 +5489,9 @@ lh_extension_t QSG_Extensions[] = {
 // Tomaz - QuakeC File System End
 
 	{"BX_COLOREDTEXT"},
-	{"DP_CON_SET"},
+	{"DP_CON_SET",						0,	NULL, {NULL}, "The 'set' console command exists, and can be used to create/set cvars."},
 #ifndef SERVERONLY
-	{"DP_CON_SETA"},		//because the server doesn't write configs.
+	{"DP_CON_SETA",						0,	NULL, {NULL}, "The 'seta' console command exists, like the 'set' command, but also marks the cvar for archiving, allowing it to be written into the user's config. Use this command in your default.cfg file."},
 #endif
 	{"DP_EF_BLUE"},						//hah!! This is QuakeWorld!!!
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
@@ -5470,7 +5511,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_INPUTBUTTONS"},
 	{"DP_LITSUPPORT"},
 	{"DP_MD3_TAGSINFO",					2,	NULL, {"gettagindex", "gettaginfo"}},
-	{"DP_MONSTERWALK"},
+	{"DP_MONSTERWALK",					0,	NULL, {NULL}, "MOVETYPE_WALK is valid on non-player entities. Note that only players receive acceleration etc in line with none/bounce/fly/noclip movetypes on the player, thus you will have to provide your own accelerations (incluing gravity) yourself."},
 	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},
 	{"DP_QC_ASINACOSATANATAN2TAN",		5,	NULL, {"asin", "acos", "atan", "atan2", "tan"}},
@@ -5492,7 +5533,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_GETSURFACE",				6,	NULL, {"getsurfacenumpoints", "getsurfacepoint", "getsurfacenormal", "getsurfacetexture", "getsurfacenearpoint", "getsurfaceclippedpoint"}},
 	{"DP_QC_GETSURFACEPOINTATTRIBUTE",	1,	NULL, {"getsurfacepointattribute"}},
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
-	{"DP_QC_MULTIPLETEMPSTRINGS"},
+	{"DP_QC_MULTIPLETEMPSTRINGS",		0,	NULL, {NULL}, "Superseded by DP_QC_UNLIMITEDTEMPSTRINGS. Functions that return a temporary string will not overwrite/destroy previous temporary strings until at least 16 strings are returned (or control returns to the engine)."},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
 	{"DP_QC_RENDER_SCENE"},	//clear+addentity+setviewprop+renderscene+setmodel are available to menuqc.
 	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
@@ -5507,7 +5548,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_TRACE_MOVETYPE_HITMODEL"},
 	{"DP_QC_TRACE_MOVETYPE_WORLDONLY"},
 	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add annother extension...
-	{"DP_QC_UNLIMITEDTEMPSTRINGS"},
+	{"DP_QC_UNLIMITEDTEMPSTRINGS",		0,	NULL, {NULL}, "Supersedes DP_QC_MULTIPLETEMPSTRINGS, superseded by FTE_QC_PERSISTENTTEMPSTRINGS. All temp strings will be valid at least until the QCVM returns."},
 	{"DP_QC_URI_ESCAPE",				2,	NULL, {"uri_escape", "uri_unescape"}},
 	{"DP_QC_URI_GET",					1,	NULL, {"uri_get"}},
 	{"DP_QC_URI_POST",					1,	NULL, {"uri_get"}},
@@ -5560,7 +5601,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
 	{"FTE_CSQC_ALTCONSOLES_WIP",		4,	NULL, {"con_getset", "con_printf", "con_draw", "con_input"}},
-	{"FTE_CSQC_BASEFRAME"},				//control for all skeletal models
+	{"FTE_CSQC_BASEFRAME",				0,  NULL, {NULL}, "Specifies that .basebone, .baseframe, .baselerpfrac, etc exist. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations."},
 	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
 	{"FTE_CSQC_SERVERBROWSER",			12,	NULL, {	"gethostcachevalue", "gethostcachestring", "resethostcachemasks", "sethostcachemaskstring", "sethostcachemasknumber",
 													"resorthostcache", "sethostcachesort", "refreshhostcache", "gethostcachenumber", "gethostcacheindexforkey",
@@ -5568,21 +5609,21 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_CSQC_SKELETONOBJECTS",		15,	NULL, {	"skel_create", "skel_build", "skel_get_numbones", "skel_get_bonename", "skel_get_boneparent", "skel_find_bone",
 													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_mul_bone", "skel_mul_bones", "skel_copybones",
 													"skel_delete", "frameforname", "frameduration"}},
-	{"FTE_CSQC_RENDERTARGETS_WIP"},
+	{"FTE_CSQC_RENDERTARGETS_WIP",		0,	NULL, {NULL}, "VF_DESTCOLOUR etc exist and are supported"},
 	{"FTE_ENT_SKIN_CONTENTS"},			//self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder.
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
 	{"FTE_FORCESHADER",					1,	NULL, {"shaderforname"}},	//I'd rename this to _CSQC_ but it does technically provide this builtin to menuqc too, not that the forceshader entity field exists there... but whatever.
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
 	{"FTE_GFX_QUAKE3SHADERS"},
-	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},
-	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memfill8"}},
+	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}, "Allows you to check if a client has too many reliable messages pending."},
+	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memfill8"}, "Allows dynamically allocating memory. Use pointers to access this memory. Memory will not be saved into saved games."},
 #ifndef NOMEDIA
 	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
 	{"FTE_MEDIA_CIN"},	//playfilm command supports q2 cin files.
 	{"FTE_MEDIA_ROQ"},	//playfilm command supports q3 roq files
 #endif
-	{"FTE_MULTIPROGS",					5,	NULL, {"externcall", "addprogs", "externvalue", "externset", "instr"}},	//multiprogs functions are available.
+	{"FTE_MULTIPROGS",					5,	NULL, {"externcall", "addprogs", "externvalue", "externset", "instr"}, "Multiple progs.dat files can be loaded inside the same qcvm."},	//multiprogs functions are available.
 	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
 #ifdef SERVER_DEMO_PLAYBACK
 	{"FTE_MVD_PLAYBACK"},
@@ -5596,6 +5637,9 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_INTCONV",					4,	NULL, {"stoi", "itos", "stoh", "htos"}},
 	{"FTE_QC_MATCHCLIENTNAME",			1,	NULL, {"matchclientname"}},
 	{"FTE_QC_PAUSED"},
+#ifdef QCGC
+	{"FTE_QC_PERSISTENTTEMPSTRINGS",	0,	NULL, {NULL}, "Supersedes DP_QC_MULTIPLETEMPSTRINGS. Temp strings are garbage collected automatically, and do not expire while they're still in use. This makes strzone redundant."},
+#endif
 	{"FTE_QC_RAGDOLL_WIP",				1,	NULL, {"ragupdate", "skel_set_bone_world", "skel_mmap"}},
 	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},	//includes the SV_ParseConnectionlessPacket event.
 	{"FTE_QC_TRACETRIGGER"},

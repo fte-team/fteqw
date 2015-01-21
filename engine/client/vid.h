@@ -31,7 +31,7 @@ typedef struct {
 	//you are not allowed to make anything not work if it's not based on these vars...
 	int width;
 	int height;
-	qboolean fullscreen;
+	int fullscreen;	//0 = windowed. 1 = fullscreen (mode changes). 2 = borderless+maximized
 	qboolean stereo;
 	qboolean srgb;
 	int bpp;

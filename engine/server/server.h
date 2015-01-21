@@ -302,6 +302,9 @@ typedef struct
 	packet_entities_t	entities;		//package containing entity states that were sent in this frame, for deltaing
 	unsigned int		*resendentnum;	//the number of each entity that was sent in this frame
 	unsigned int		*resendentbits;	//the bits of each entity that were sent in this frame
+
+	unsigned short		resendstats[32];//the number of each entity that was sent in this frame
+	unsigned int		numresendstats;	//the bits of each entity that were sent in this frame
 } client_frame_t;
 
 #ifdef Q2SERVER
@@ -361,6 +364,11 @@ enum
 	PLIMIT_MODELS = 1u<<1,
 	PLIMIT_SOUNDS = 1u<<2
 };
+
+//client_t->spec_print + sv_specprint
+#define SPECPRINT_CENTERPRINT	0x1
+#define SPECPRINT_SPRINT	0x2
+#define SPECPRINT_STUFFCMD	0x4
 
 typedef struct client_s
 {
@@ -440,6 +448,7 @@ typedef struct client_s
 // client known data for deltas
 	int				old_frags;
 
+	unsigned int	pendingstats[((MAX_CL_STATS*2) + 31)>>5];	//these are the stats that have changed and that need sending/resending
 	int				statsi[MAX_CL_STATS];
 	float			statsf[MAX_CL_STATS];
 	char			*statss[MAX_CL_STATS];
@@ -466,6 +475,8 @@ typedef struct client_s
 	qofs_t			downloadstarted;	//DP-specific
 
 	int				spec_track;			// entnum of player tracking
+
+	unsigned int	spec_print;			//bitfield for things this spectator should see that were directed to the player that they're tracking.
 
 #ifdef Q3SERVER
 	int	gamestatesequence;	//the sequence number the initial gamestate was sent in.
@@ -571,9 +582,12 @@ typedef struct client_s
 	} protocol;
 
 //speed cheat testing
+#define NEWSPEEDCHEATPROT
 	int msecs;
+#ifndef NEWSPEEDCHEATPROT
 	int msec_cheating;
 	float last_check;
+#endif
 
 	qboolean gibfilter;
 
@@ -1110,7 +1124,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj);
 void SV_PrintToClient(client_t *cl, int level, const char *string);
 void SV_TPrintToClient(client_t *cl, int level, const char *string);
-void SV_StuffcmdToClient(client_t *cl, char *string);
+void SV_StuffcmdToClient(client_t *cl, const char *string);
 void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...) LIKEPRINTF(3);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
 void VARGS SV_BroadcastPrintf (int level, char *fmt, ...) LIKEPRINTF(2);

@@ -486,13 +486,13 @@ LONG WINAPI MainWndProc (
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 //			if (!vid_initializing)
-				INS_TranslateKeyEvent(wParam, lParam, true, 0);
+				INS_TranslateKeyEvent(wParam, lParam, true, 0, false);
 			break;
 
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 //			if (!vid_initializing)
-				INS_TranslateKeyEvent(wParam, lParam, false, 0);
+				INS_TranslateKeyEvent(wParam, lParam, false, 0, false);
 			break;
 
 	// this is complicated because Win32 seems to pack multiple mouse events into

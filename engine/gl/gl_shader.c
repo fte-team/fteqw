@@ -3089,6 +3089,8 @@ void Shader_Shutdown (void)
 	int i;
 	shader_t *shader;
 
+	Image_Shutdown();
+
 	if (!r_shaders)
 		return;	/*nothing needs freeing yet*/
 	for (i = 0; i < r_numshaders; i++)
@@ -5003,6 +5005,8 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 	Q_strncpyz(s->name, cleanname, sizeof(s->name));
 	s->usageflags = usageflags;
 	s->generator = defaultgen;
+	s->width = 0;
+	s->height = 0;
 	if (genargs)
 		s->genargs = strdup(genargs);
 	else

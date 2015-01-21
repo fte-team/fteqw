@@ -120,7 +120,8 @@ void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end);
 extern struct font_s *font_default;
 extern struct font_s *font_console;
 extern struct font_s *font_tiny;
-void PR_ResetFonts(unsigned int purgeowner);	//for menu/csqc
+void PR_ReleaseFonts(unsigned int purgeowner);	//for menu/csqc
+void PR_ReloadFonts(qboolean reload);
 /*end fonts*/
 
 void R_NetgraphInit(void);

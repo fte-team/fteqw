@@ -669,6 +669,8 @@ static qboolean M_Menu_Prompt_Button (union menuoption_s *b,struct menu_s *gm, i
 {
 	int action;
 	promptmenu_t *m = (promptmenu_t*)gm;
+	void (*callback)(void *, int) = m->callback;
+	void *ctx = m->ctx;
 
 	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
 		return true;
@@ -679,19 +681,23 @@ static qboolean M_Menu_Prompt_Button (union menuoption_s *b,struct menu_s *gm, i
 		action = 1;
 	else //if (b == (menuoption_t*)m->b_cancel)
 		action = -1;
-	if (m->callback)
-		m->callback(m->ctx, action);
 	m->callback = NULL;
 
 	M_RemoveMenu(&m->m);
+
+	if (callback)
+		callback(ctx, action);
 	return true;
 }
 static void M_Menu_Prompt_Cancel (struct menu_s *gm)
 {
 	promptmenu_t *m = (promptmenu_t*)gm;
-	if (m->callback)
-		m->callback(m->ctx, -1);
+	void (*callback)(void *, int) = m->callback;
+	void *ctx = m->ctx;
 	m->callback = NULL;
+
+	if (callback)
+		callback(ctx, -1);
 }
 void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2, char *m3, char *optionyes, char *optionno, char *optioncancel)
 {

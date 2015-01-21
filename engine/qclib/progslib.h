@@ -34,6 +34,9 @@
 #define ASMCALL PDECL
 #endif
 
+
+#define QCGC
+
 struct edict_s;
 struct entvars_s;
 struct globalvars_s;
@@ -83,8 +86,6 @@ struct pubprogfuncs_s
 
 	struct edict_s	*(PDECL *EDICT_NUM)			(pubprogfuncs_t *prinst, unsigned int n);		//get the nth edict
 	unsigned int		(PDECL *NUM_FOR_EDICT)	(pubprogfuncs_t *prinst, struct edict_s *e);	//so you can find out what that 'n' will be
-
-	void	(PDECL *SetGlobalEdict)				(pubprogfuncs_t *prinst, struct edict_s *ed, int ofs);	//set a global to an edict (partially obsolete)
 
 	char	*(PDECL *VarString)					(pubprogfuncs_t *prinst, int	first);	//returns a string made up of multiple arguments
 
@@ -308,8 +309,13 @@ typedef union eval_s
 #define PR_SetStringOfs(p,o,s) (G_INT(o) = s - p->stringtable)
 */
 //#define PR_SetString(p, s) ((s&&*s)?(s - p->stringtable):0)
-#define PR_NewString(p, s, l) PR_SetString(p, PR_AddString(p, s, l, false))
 /**/
+
+#ifdef QCGC
+#define PR_NewString(p, s) (p)->TempString(p, s)
+#else
+#define PR_NewString(p, s) PR_SetString(p, PR_AddString(p, s, 0, false))
+#endif
 
 #define ev_prog ev_integer
 

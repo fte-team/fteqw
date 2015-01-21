@@ -23,11 +23,11 @@ DO_CC?=$(CC) $(BASE_CFLAGS) -o $@ -c $< $(CFLAGS)
 lib: 
 
 R_win_nocyg: $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -mwindows -lcomctl32
+	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -mwindows -lcomctl32 -lole32
 R_nocyg: $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -lcomctl32
+	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -lcomctl32 -lole32
 R_win: $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mwindows -lcomctl32
+	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mwindows -lcomctl32 -lole32
 
 win_nocyg:
 	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_win_nocyg

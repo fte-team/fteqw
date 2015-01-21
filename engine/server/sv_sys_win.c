@@ -1692,7 +1692,7 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 
 
 #ifdef HAVEAUTOUPDATE
-int Sys_GetAutoUpdateSetting(void);
+int Sys_GetAutoUpdateSetting(void)
 {
 	return -1;
 }

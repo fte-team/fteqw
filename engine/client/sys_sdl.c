@@ -160,7 +160,7 @@ void Sys_Quit (void)
 //SDL provides no file enumeration facilities.
 #if defined(_WIN32)
 #include <windows.h>
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;	
@@ -207,7 +207,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 			if (wildcmp(match, fd.cFileName))
 			{
 				Q_snprintfz(file, sizeof(file), "%s%s/", apath2, fd.cFileName);
-				go = func(file, fd.nFileSizeLow, parm, spath);
+				go = func(file, fd.nFileSizeLow, 0, parm, spath);
 			}
 		}
 		else
@@ -215,7 +215,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 			if (wildcmp(match, fd.cFileName))
 			{
 				Q_snprintfz(file, sizeof(file), "%s%s", apath2, fd.cFileName);
-				go = func(file, fd.nFileSizeLow, parm, spath);
+				go = func(file, fd.nFileSizeLow, 0, parm, spath);
 			}
 		}
 	}
@@ -226,7 +226,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 }
 #elif defined(linux) || defined(__unix__) || defined(__MACH__)
 #include <dirent.h>
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];
@@ -284,7 +284,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 				{
 					Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":"");
 
-					if (!func(file, st.st_size, parm, spath))
+					if (!func(file, st.st_size, st.st_mtime, parm, spath))
 					{
 						closedir(dir);
 						return false;
@@ -300,7 +300,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	return true;
 }
 #else
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, void *), void *parm, void *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, void *), void *parm, void *spath)
 {
 	Con_Printf("Warning: Sys_EnumerateFiles not implemented\n");
 	return false;

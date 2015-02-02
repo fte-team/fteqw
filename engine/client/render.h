@@ -561,7 +561,6 @@ extern	cvar_t	r_clear;
 extern	cvar_t	gl_poly;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t	gl_nohwblend;
-extern	cvar_t	gl_reporttjunctions;
 extern	cvar_t	r_coronas, r_flashblend, r_flashblendscale;
 extern	cvar_t	r_lightstylesmooth;
 extern	cvar_t	r_lightstylesmooth_limit;

@@ -458,7 +458,6 @@ void CL_CalcCrouch (playerview_t *pv)
 	VectorSubtract(pv->simorg, pv->oldorigin, delta);
 
 	teleported = Length(delta)>48;
-	VectorCopy (pv->simorg, pv->oldorigin);
 
 	if (teleported)
 	{
@@ -470,6 +469,15 @@ void CL_CalcCrouch (playerview_t *pv)
 		VectorCopy (pv->simorg, pv->oldorigin);
 		return;
 	}
+
+	//check if we moved in the x/y axis. if we didn't then we're on a moving platform and shouldn't be crouching.
+/*	VectorMA(pv->oldorigin, pv->oldz-orgz, pv->gravitydir, pv->oldorigin);
+	VectorSubtract(pv->simorg, pv->oldorigin, delta);
+	if (Length(delta)<0.001)
+		pv->oldz = orgz;
+*/
+	VectorCopy (pv->simorg, pv->oldorigin);
+
 
 	if (pv->onground && orgz - pv->oldz > 0)
 	{
@@ -758,6 +766,10 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 		plstate->viewangles[0] *= -3;
 	plstate->viewangles[2] = V_CalcRoll(plstate->viewangles, plstate->velocity);
 
+	plstate->viewangles[0] = SHORT2ANGLE(state->u.q1.vangle[0]);
+	plstate->viewangles[1] = SHORT2ANGLE(state->u.q1.vangle[1]);
+	plstate->viewangles[2] = SHORT2ANGLE(state->u.q1.vangle[2]);
+
 	a[0] = ((-192-state->u.q1.gravitydir[0])/256.0f) * 360;
 	a[1] = (state->u.q1.gravitydir[1]/256.0f) * 360;
 	a[2] = 0;
@@ -790,9 +802,9 @@ static void CL_EntStateToPlayerCommand(usercmd_t *cmd, entity_state_t *state, fl
 	cmd->sidemove = state->u.q1.movement[1];
 	cmd->upmove = state->u.q1.movement[2];
 
-	cmd->angles[0] = state->angles[0] * -3 *65536/360.0;
-	cmd->angles[1] = state->angles[1] * 65536/360.0;
-	cmd->angles[2] = state->angles[2] * 65536/360.0;
+	cmd->angles[0] = state->u.q1.vangle[0];// * -3 *65536/360.0;
+	cmd->angles[1] = state->u.q1.vangle[1];// * 65536/360.0;
+	cmd->angles[2] = state->u.q1.vangle[2];// * 65536/360.0;
 }
 
 void CL_PredictEntityMovement(entity_state_t *estate, float age)
@@ -993,14 +1005,14 @@ void CL_PredictMovePNum (int seat)
 		//we're only interested in inbound frames, not outbound, but its outbound frames that contain the prediction timing, so we need to look that up
 		//(note that in qw, inframe[i].ack==i holds true, but this code tries to be generic for unsyncronised protocols)
 		//(note that in nq, using outbound times means we'll skip over dupe states without noticing, and input packets with dupes should also be handled gracefully)
-//		Con_DPrintf("in:%i:%i out:%i:%i ack:%i\n", cls.netchan.incoming_sequence, cl.validsequence, cls.netchan.outgoing_sequence,cl.movesequence, cl.ackedmovesequence);
+		Con_DPrintf("in:%i:%i out:%i:%i ack:%i\n", cls.netchan.incoming_sequence, cl.validsequence, cls.netchan.outgoing_sequence,cl.movesequence, cl.ackedmovesequence);
 		for (i = cl.validsequence; i >= cls.netchan.incoming_sequence - UPDATE_MASK; i--)
 		{
 			int out;
 			//skip frames which were not received, or are otherwise invalid. yay packetloss
 			if (cl.inframes[i & UPDATE_MASK].frameid != i || cl.inframes[i & UPDATE_MASK].invalid)
 			{
-//				Con_DPrintf("stale incoming command %i\n", i);
+				Con_DPrintf("stale incoming command %i\n", i);
 				continue;
 			}
 
@@ -1009,7 +1021,7 @@ void CL_PredictMovePNum (int seat)
 			backdate = &cl.outframes[out & UPDATE_MASK];
 			if (backdate->cmd_sequence != out)
 			{
-//				Con_DPrintf("stale outgoing command %i (%i:%i:%i)\n", i, out, backdate->cmd_sequence, backdate->server_message_num);
+				Con_DPrintf("stale outgoing command %i (%i:%i:%i)\n", i, out, backdate->cmd_sequence, backdate->server_message_num);
 				continue;
 			}
 			//okay, looks valid
@@ -1024,12 +1036,12 @@ void CL_PredictMovePNum (int seat)
 			totime = fromtime;
 			fromframe = i;
 			fromtime = backdate->senttime;
-			if (fromtime < simtime)
+			if (fromtime < simtime && fromframe != toframe)
 				break;	//okay, we found the first frame that is older, no need to continue looking
 		}
 	}
 
-//	Con_DPrintf("sim%f, %i(%i-%i): old%f, cur%f\n", simtime, cl.ackedmovesequence, fromframe, toframe, fromtime, totime);
+	Con_DPrintf("sim%f, %i(%i-%i): old%f, cur%f\n", simtime, cl.ackedmovesequence, fromframe, toframe, fromtime, totime);
 
 	if (pv->cam_locked && cl.spectator && pv->viewentity && pv->viewentity <= cl.allocated_client_slots)
 	{

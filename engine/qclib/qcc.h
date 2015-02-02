@@ -544,6 +544,7 @@ extern pbool flag_debugmacros;
 extern pbool flag_filetimes;
 extern pbool flag_typeexplicit;
 extern pbool flag_noboundchecks;
+extern pbool flag_guiannotate;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -683,6 +684,7 @@ enum {
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
 	WARN_IFSTRING_USED,
 	WARN_LAXCAST,	//some errors become this with a compiler flag
+	WARN_TYPEMISMATCHREDECOPTIONAL,
 	WARN_UNDESIRABLECONVENTION,
 	WARN_SAMENAMEASGLOBAL,
 	WARN_CONSTANTCOMPARISON,

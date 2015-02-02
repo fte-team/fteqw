@@ -237,10 +237,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PLUGINS			//qvm/dll plugins.
 		#define SUPPORT_ICE		//Interactive Connectivity Establishment protocol, for peer-to-peer connections
 
-#ifdef _DEBUG
-//		#define OFFSCREENGECKO	//FIXME: move to plugin and remove from engine
-#endif
-
 		#define CSQC_DAT	//support for csqc
 		#define MENU_DAT	//support for menu.dat
 
@@ -441,10 +437,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #if defined(CSQC_DAT) || !defined(CLIENTONLY)	//use ode only if we have a constant world state, and the library is enbled in some form.
-	#define USEODE 1
-	#if !(defined(ODE_STATIC) || defined(ODE_DYNAMIC))
-		#undef USEODE
-	#endif
+	#define USERBE
 #endif
 
 #if  defined(ZYMOTICMODELS) || defined(MD5MODELS) || defined(DPMMODELS) || defined(PSKMODELS) || defined(INTERQUAKEMODELS) 
@@ -453,7 +446,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if (defined(CSQC_DAT) || !defined(CLIENTONLY)) && defined(SKELETALMODELS)
 	#define SKELETALOBJECTS	//the skeletal objects API is only used if we actually have skeletal models, and gamecode that uses the builtins.
 #endif
-#if !defined(USEODE) || !defined(SKELETALMODELS)
+#if !defined(USERBE) || !defined(SKELETALMODELS)
 	#undef RAGDOLL	//not possible to ragdoll if we don't have certain other features.
 #endif
 

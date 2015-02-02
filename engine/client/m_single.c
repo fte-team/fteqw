@@ -568,7 +568,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 				if (extnum == info->numext)	//wasn't on our list of extensions.
 					extnum = 0;
 
-				Cbuf_AddText(va("%s \"%s%s\"\n", info->command[extnum], (info->fsroot==FS_ROOT)?"#":"", info->selected->name), RESTRICT_LOCAL);
+				Cbuf_AddText(va("%s \"%s%s\"\n", info->command[extnum], (info->fsroot==FS_SYSTEM)?"#":"", info->selected->name), RESTRICT_LOCAL);
 				M_RemoveMenu(menu);				
 			}
 		}
@@ -577,7 +577,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
 	return false;
 }
 
-static int QDECL DemoAddItem(const char *filename, qofs_t size, void *parm, searchpathfuncs_t *spath)
+static int QDECL DemoAddItem(const char *filename, qofs_t size, time_t modified, void *parm, searchpathfuncs_t *spath)
 {
 	int extnum;
 	demomenu_t *menu = parm;
@@ -769,18 +769,18 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 		if (s && strchr(s+1, '/'))
 		{
 			Q_snprintfz(match, sizeof(match), "%s../", info->path);
-			DemoAddItem(match, 0, info, NULL);
+			DemoAddItem(match, 0, 0, info, NULL);
 		}
 	}
 	else if (*info->path)
 	{
 		Q_snprintfz(match, sizeof(match), "%s../", info->path);
-		DemoAddItem(match, 0, info, NULL);
+		DemoAddItem(match, 0, 0, info, NULL);
 	}
 	else if (info->fsroot == FS_GAME)
 	{
 		Q_snprintfz(match, sizeof(match), "../");
-		DemoAddItem(match, 0, info, NULL);
+		DemoAddItem(match, 0, 0, info, NULL);
 	}
 	if (info->fsroot == FS_SYSTEM)
 	{

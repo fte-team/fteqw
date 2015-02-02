@@ -701,7 +701,7 @@ pbool QCC_PR_Precompiler(void)
 
 			if (strlen(msg) >= sizeof(QCC_copyright))
 				QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
-			strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
+			QC_strlcpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
 		}
 		else if (!strncmp(directive, "pack", 4))
 		{
@@ -927,7 +927,7 @@ pbool QCC_PR_Precompiler(void)
 			{
 				if (strlen(msg) >= sizeof(QCC_copyright))
 					QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Copyright message is too long\n");
-				strncpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
+				QC_strlcpy(QCC_copyright, msg, sizeof(QCC_copyright)-1);
 			}
 			else if (!QC_strcasecmp(qcc_token, "compress"))
 			{
@@ -1109,7 +1109,7 @@ pbool QCC_PR_Precompiler(void)
 			p--;
 		}
 	}
-	sprintf(destfile, "%s", s2);
+	QC_snprintfz(destfile, sizeof(destfile), "%s", s2);
 
 	while (p>0)
 	{
@@ -2145,7 +2145,7 @@ void QCC_PR_ExpandMacro(void)
 	if (i < 0)
 		QCC_PR_ParseError (ERR_BADFRAMEMACRO, "Unknown frame macro $%s", pr_token);
 
-	sprintf (pr_token,"%d", i);
+	QC_snprintfz(pr_token, sizeof(pr_token),"%d", i);
 	pr_token_type = tt_immediate;
 	pr_immediate_type = type_float;
 	pr_immediate._float = (float)i;
@@ -2335,8 +2335,7 @@ void QCC_PR_LexGrab (void)
 		if (*pr_framemodelname)
 			QCC_PR_MacroFrame(pr_framemodelname, pr_macrovalue);
 
-		strncpy(pr_framemodelname, pr_token, sizeof(pr_framemodelname)-1);
-		pr_framemodelname[sizeof(pr_framemodelname)-1] = '\0';
+		QC_strlcpy(pr_framemodelname, pr_token, sizeof(pr_framemodelname));
 
 		i = QCC_PR_FindMacro(pr_framemodelname);
 		if (i)
@@ -2769,8 +2768,7 @@ int QCC_PR_CheckCompConst(void)
 			||	*end == '#')
 				break;
 	}
-	strncpy(pr_token, pr_file_p, end-pr_file_p);
-	pr_token[end-pr_file_p]='\0';
+	QC_strnlcpy(pr_token, pr_file_p, end-pr_file_p, sizeof(pr_token));
 
 //	printf("%s\n", pr_token);
 	c = pHash_Get(&compconstantstable, pr_token);
@@ -3166,7 +3164,7 @@ void QCC_PR_Lex (void)
 		return;
 	}
 
-	if (c == '#' && !(pr_file_p[1]=='-' || (pr_file_p[1]>='0' && pr_file_p[1] <='9')))	//hash and not number
+	if (c == '#' && !(pr_file_p[1]=='\"' || pr_file_p[1]=='-' || (pr_file_p[1]>='0' && pr_file_p[1] <='9')))	//hash and not number
 	{
 		pr_file_p++;
 		if (!QCC_PR_CheckCompConst())
@@ -4692,7 +4690,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					QCC_Error(ERR_INTERNAL, "Nested function declaration");
 
 				isnull = (QCC_PR_CheckImmediate("0") || QCC_PR_CheckImmediate("0i"));
-				sprintf(membername, "%s::%s", classname, parmname);
+				QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
 				if (isnull)
 				{
 					def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, 0);
@@ -4800,7 +4798,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//static members are technically just funny-named globals, and do not generate fields.
 			if (isnonvirt || isstatic || (newparm->type == ev_function && !arraysize))
 			{
-				sprintf(membername, "%s::%s", classname, parmname);
+				QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
 				QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
 
 				if (isnonvirt || isstatic)
@@ -4872,7 +4870,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			d = QCC_PR_GetDef(NULL, parmname, NULL, 0, 0, GDF_CONST);
 			if (!d)
 			{	//don't go all weird with unioning generic fields
-				sprintf(membername, "::%s%i", basictypenames[newparm->type], basicindex+1);
+				QC_snprintfz(membername, sizeof(membername), "::%s%i", basictypenames[newparm->type], basicindex+1);
 				d = QCC_PR_GetDef(NULL, membername, NULL, 0, 0, GDF_CONST);
 				if (!d)
 				{
@@ -4887,7 +4885,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 			//and make sure we can do member::__fname
 			//actually, that seems pointless.
-			sprintf(membername, "%s::"MEMBERFIELDNAME, classname, parmname);
+			QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, classname, parmname);
 //			printf("define %s -> %s\n", membername, d->name);
 			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d->ofs, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
 			d->references++;	//always referenced, so you can inherit safely.
@@ -4920,7 +4918,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		{
 			QCC_def_t *d;
 			//if there's a constructor, make sure the spawnfunc_ function is defined so that its available to maps.
-			sprintf(membername, "spawnfunc_%s", classname);
+			QC_snprintfz(membername, sizeof(membername), "spawnfunc_%s", classname);
 			d = QCC_PR_GetDef(type_function, membername, NULL, true, 0, GDF_CONST);
 			d->timescalled++;
 			d->references++;

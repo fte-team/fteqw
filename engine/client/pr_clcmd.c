@@ -359,7 +359,7 @@ void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s 
 #ifndef NOMEDIA
 
 // #487 float(string name) gecko_create
-void QCBUILTIN PF_cs_gecko_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cs_media_create_http (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shadername = PR_GetStringOfs(prinst, OFS_PARM0);
 	cin_t *cin;
@@ -385,17 +385,17 @@ void QCBUILTIN PF_cs_gecko_create (pubprogfuncs_t *prinst, struct globalvars_s *
 		G_FLOAT(OFS_RETURN) = 0;
 }
 // #488 void(string name) gecko_destroy
-void QCBUILTIN PF_cs_gecko_destroy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cs_media_destroy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	cin_t *cin;
 	cin = R_ShaderFindCinematic(shader);
 	if (!cin)
 		return;
-	Media_Send_Reset(cin);	//FIXME
+	Media_Send_Reset(cin);	//FIXME. unloading shaders can be dangerous
 }
 // #489 void(string name, string URI) gecko_navigate
-void QCBUILTIN PF_cs_gecko_navigate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cs_media_command (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *command = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -406,7 +406,7 @@ void QCBUILTIN PF_cs_gecko_navigate (pubprogfuncs_t *prinst, struct globalvars_s
 	Media_Send_Command(cin, command);
 }
 // #490 float(string name, float key, float eventtype) gecko_keyevent
-void QCBUILTIN PF_cs_gecko_keyevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cs_media_keyevent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	int key = G_FLOAT(OFS_PARM1);
@@ -418,7 +418,7 @@ void QCBUILTIN PF_cs_gecko_keyevent (pubprogfuncs_t *prinst, struct globalvars_s
 	Media_Send_KeyEvent(cin, MP_TranslateQCtoFTECodes(key), (key>127)?0:key, eventtype);
 }
 // #491 void(string name, float x, float y) gecko_mousemove
-void QCBUILTIN PF_cs_gecko_mousemove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cs_media_mousemove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	float posx = G_FLOAT(OFS_PARM1);
@@ -430,7 +430,7 @@ void QCBUILTIN PF_cs_gecko_mousemove (pubprogfuncs_t *prinst, struct globalvars_
 	Media_Send_MouseMove(cin, posx, posy);
 }
 // #492 void(string name, float w, float h) gecko_resize
-void QCBUILTIN PF_cs_gecko_resize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cs_media_resize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	float sizex = G_FLOAT(OFS_PARM1);
@@ -442,25 +442,34 @@ void QCBUILTIN PF_cs_gecko_resize (pubprogfuncs_t *prinst, struct globalvars_s *
 	Media_Send_Resize(cin, sizex, sizey);
 }
 // #493 vector(string name) gecko_get_texture_extent
-void QCBUILTIN PF_cs_gecko_get_texture_extent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cs_media_get_texture_extent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
 	float *ret = G_VECTOR(OFS_RETURN);
-	int sx, sy;
+	int sx = 0, sy = 0;
+	float aspect = 0;
 	cin_t *cin;
 	cin = R_ShaderFindCinematic(shader);
 	if (cin)
-	{
-		Media_Send_GetSize(cin, &sx, &sy);
-	}
-	else
-	{
-		sx = 0;
-		sy = 0;
-	}
+		Media_Send_GetSize(cin, &sx, &sy, &aspect);
 	ret[0] = sx;
 	ret[1] = sy;
-	ret[2] = 0;
+	ret[2] = aspect;
+}
+void QCBUILTIN PF_cs_media_getposition (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	float *ret = G_VECTOR(OFS_RETURN);
+	qboolean active = false;
+	float curtime = 0;
+	float duration = 0;
+	cin_t *cin;
+	cin = R_ShaderFindCinematic(shader);
+	if (cin)
+		Media_Send_GetPositions(cin, &active, &curtime, &duration);
+	ret[0] = active;
+	ret[1] = curtime;
+	ret[2] = duration;
 }
 #endif
 
@@ -681,6 +690,35 @@ void QCBUILTIN PF_cl_SetBindMap (pubprogfuncs_t *prinst, struct globalvars_s *pr
 //	if (IN_SetBindMap(primary, secondary))
 //		G_FLOAT(OFS_RETURN) = 1;
 	G_FLOAT(OFS_RETURN) = 0;
+}
+
+//evil builtins to pretend to be a server.
+void QCBUILTIN PF_cl_sprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//this is a bit pointless for menus as it doesn't know player names or anything.
+#ifndef CLIENTONLY
+	int clientnum = G_FLOAT(OFS_PARM0);
+	char *str = PF_VarString(prinst, 1, pr_globals);
+	if (sv.active && clientnum < sv.allocated_client_slots && svs.clients[clientnum].state >= cs_connected)
+		SV_PrintToClient(&svs.clients[clientnum], PRINT_HIGH, str);
+#endif
+}
+void QCBUILTIN PF_cl_bprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifndef CLIENTONLY
+	char *str = PF_VarString(prinst, 0, pr_globals);
+	if (sv.active)
+		SV_BroadcastPrintf(PRINT_HIGH, "%s", str);
+#endif
+}
+void QCBUILTIN PF_cl_clientcount (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifndef CLIENTONLY
+	if (sv.active)
+		G_FLOAT(OFS_RETURN) = sv.allocated_client_slots;
+	else
+		G_FLOAT(OFS_RETURN) = 0;
+#endif
 }
 
 #endif

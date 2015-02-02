@@ -397,7 +397,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 			if (!writtenheader)
 			{
 				writtenheader=true;
-				MSG_WriteByte(msg, svcfte_csqcentities);
+				MSG_WriteByte(msg, ISDPCLIENT(client)?svcdp_csqcentities:svcfte_csqcentities);
 			}
 
 			SV_EmitDeltaEntIndex(msg, ent->entnum, true, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
@@ -423,7 +423,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 				if (!writtenheader)
 				{
 					writtenheader=true;
-					MSG_WriteByte(msg, svcfte_csqcentities);
+					MSG_WriteByte(msg, ISDPCLIENT(client)?svcdp_csqcentities:svcfte_csqcentities);
 				}
 
 //				Con_Printf("Sending remove packet %i\n", en);
@@ -808,7 +808,8 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 #define UF_MOVETYPE		UF_EFFECTS2	/*this flag isn't present in the header itself*/
 #define UF_RESET2		UF_EXTEND1	/*so new ents are reset 3 times to avoid weird baselines*/
 #define UF_UNUSED		UF_EXTEND2	/**/
-#define UF_WEAPONFRAME	UF_EXTEND3
+#define UF_WEAPONFRAME_OLD	UF_EXTEND3
+#define UF_VIEWANGLES	UF_EXTEND3	/**/
 
 static unsigned int SVFTE_DeltaPredCalcBits(entity_state_t *from, entity_state_t *to)
 {
@@ -841,7 +842,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 	if (from->u.q1.pmovetype != to->u.q1.pmovetype)
 		bits |= UF_PREDINFO|UF_MOVETYPE;
 	if (from->u.q1.weaponframe != to->u.q1.weaponframe)
-		bits |= UF_PREDINFO|UF_WEAPONFRAME;
+		bits |= UF_PREDINFO|UF_WEAPONFRAME_OLD;
 	if (to->u.q1.pmovetype)
 	{
 		if (SVFTE_DeltaPredCalcBits(from, to))
@@ -924,7 +925,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 	return bits;
 }
 
-static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_t *msg)
+static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_t *msg, unsigned int pext2)
 {
 	unsigned int predbits = 0;
 	if (bits & UF_MOVETYPE)
@@ -932,10 +933,22 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 		bits &= ~UF_MOVETYPE;
 		predbits |= UFP_MOVETYPE;
 	}
-	if (bits & UF_WEAPONFRAME)
+	if (pext2 & PEXT2_PREDINFO)
 	{
-		bits &= ~UF_WEAPONFRAME;
-		predbits |= UFP_WEAPONFRAME;
+		if (bits & UF_VIEWANGLES)
+		{
+			bits &= ~UF_VIEWANGLES;
+			bits |= UF_PREDINFO;
+			predbits |= UFP_VIEWANGLE;
+		}
+	}
+	else
+	{
+		if (bits & UF_WEAPONFRAME_OLD)
+		{
+			bits &= ~UF_WEAPONFRAME_OLD;
+			predbits |= UFP_WEAPONFRAME_OLD;
+		}
 	}
 
 	/*check if we need more precision*/
@@ -984,7 +997,7 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 	if (bits & UF_ORIGINZ)
 		MSG_WriteCoord(msg, state->origin[2]);
 
-	if (bits & UF_PREDINFO)
+	if ((bits & UF_PREDINFO) && !(pext2 & PEXT2_PREDINFO))
 	{	/*if we have pred info, use more precise angles*/
 		if (bits & UF_ANGLESXZ)
 		{
@@ -1035,15 +1048,31 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 			MSG_WriteShort(msg, state->u.q1.velocity[2]);
 		if (predbits & UFP_MSEC)
 			MSG_WriteByte(msg, state->u.q1.msec);
-		if (predbits & UFP_WEAPONFRAME)
+		if (pext2 & PEXT2_PREDINFO)
 		{
-			if (state->u.q1.weaponframe > 127)
-			{
-				MSG_WriteByte(msg, 128 | (state->u.q1.weaponframe & 127));
-				MSG_WriteByte(msg, state->u.q1.weaponframe>>7);
+			if (predbits & UFP_VIEWANGLE)
+			{	/*if we have pred info, use more precise angles*/
+				if (bits & UF_ANGLESXZ)
+				{
+					MSG_WriteShort(msg, state->u.q1.vangle[0]);
+					MSG_WriteShort(msg, state->u.q1.vangle[2]);
+				}
+				if (bits & UF_ANGLESY)
+					MSG_WriteShort(msg, state->u.q1.vangle[1]);
 			}
-			else
-				MSG_WriteByte(msg, state->u.q1.weaponframe);
+		}
+		else
+		{
+			if (predbits & UFP_WEAPONFRAME_OLD)
+			{
+				if (state->u.q1.weaponframe > 127)
+				{
+					MSG_WriteByte(msg, 128 | (state->u.q1.weaponframe & 127));
+					MSG_WriteByte(msg, state->u.q1.weaponframe>>7);
+				}
+				else
+					MSG_WriteByte(msg, state->u.q1.weaponframe);
+			}
 		}
 	}
 
@@ -1133,13 +1162,13 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 }
 
 /*dump out the delta from baseline (used for baselines and statics, so has no svc)*/
-void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg)
+void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, client_t *client)
 {
 	unsigned int bits;
 	if (numberisimportant)
 		MSG_WriteEntity(msg, to->number);
 	bits = UF_RESET | SVFTE_DeltaCalcBits(&nullentitystate, to);
-	SVFTE_WriteUpdate(bits, to, msg);
+	SVFTE_WriteUpdate(bits, to, msg, client->fteprotocolextensions2);
 }
 
 /*SVFTE_EmitPacketEntities
@@ -1232,10 +1261,22 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 			//even if prediction is disabled, we want to force velocity info to be sent for the local player. This is used by view bob and things.
 			if (client->edict && j == client->edict->entnum && (n->u.q1.velocity[0] || n->u.q1.velocity[1] || n->u.q1.velocity[2]))
 				client->pendingentbits[j] |= UF_PREDINFO;
+
+			//spectators(and mvds) should be told the actual view angles of the person they're trying to track
+			if (j <= sv.allocated_client_slots && (!client->edict || j == client->spec_track))
+//				if (client->pendingentbits[j])
+				{
+					if (o->u.q1.vangle[0] != n->u.q1.vangle[0] || o->u.q1.vangle[2] != n->u.q1.vangle[2])
+						client->pendingentbits[j] |= UF_ANGLESXZ;
+					if (o->u.q1.vangle[1] != n->u.q1.vangle[1])
+						client->pendingentbits[j] |= UF_ANGLESY;
+					client->pendingentbits[j] |= UF_VIEWANGLES;
+				}
 		}
 		*o = *n;
 		j++;
 	}
+
 	/*gaps are dead entities*/
 	for (; j < client->sentents.num_entities; j++)
 	{
@@ -1312,7 +1353,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 				resendbits[outno] = bits;
 
 			SV_EmitDeltaEntIndex(msg, j, false, true);
-			SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg);
+			SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg, client->fteprotocolextensions2);
 		}
 		resendnum[outno++] = j;
 	}
@@ -2902,7 +2943,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && (client == &svs.clients[state->number-1] || client == svs.clients[state->number-1].controller || (client && (!client->edict || client->spec_track == state->number))))
 		if (!client || !(client->fteprotocolextensions2 & PEXT2_PREDINFO))
 			state->u.q1.weaponframe = ent->v->weaponframe;
-	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && ent->v->movetype)
+	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && ent->v->movetype && client)
 	{
 		client_t *cl = &svs.clients[state->number-1];
 		if (cl->isindependant)
@@ -2928,12 +2969,21 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		}
 
 		//fixme: deal with fixangles
-		if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
-		if (state->u.q1.pmovetype && (state->u.q1.pmovetype != MOVETYPE_TOSS && state->u.q1.pmovetype != MOVETYPE_BOUNCE))
+		if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
 		{
-			state->angles[0] = ent->v->v_angle[0]/-3.0;
-			state->angles[1] = ent->v->v_angle[1];
-			state->angles[2] = ent->v->v_angle[2];
+			state->u.q1.vangle[0] = ANGLE2SHORT(ent->v->v_angle[0]);
+			state->u.q1.vangle[1] = ANGLE2SHORT(ent->v->v_angle[1]);
+			state->u.q1.vangle[2] = ANGLE2SHORT(ent->v->v_angle[2]);
+		}
+		else
+		{
+			if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			if (state->u.q1.pmovetype && (state->u.q1.pmovetype != MOVETYPE_TOSS && state->u.q1.pmovetype != MOVETYPE_BOUNCE))
+			{
+				state->angles[0] = ent->v->v_angle[0]/-3.0;
+				state->angles[1] = ent->v->v_angle[1];
+				state->angles[2] = ent->v->v_angle[2];
+			}
 		}
 	}
 

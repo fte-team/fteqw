@@ -1452,9 +1452,10 @@ void Media_EndedTrack(void);	//cd is no longer running, media code needs to pick
 void Media_Send_Command(cin_t *cin, const char *command);
 void Media_Send_MouseMove(cin_t *cin, float x, float y);
 void Media_Send_Resize(cin_t *cin, int x, int y);
-void Media_Send_GetSize(cin_t *cin, int *x, int *y);
+void Media_Send_GetSize(cin_t *cin, int *x, int *y, float *aspect);
 void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event);
 void Media_Send_Reset(cin_t *cin);
+void Media_Send_GetPositions(cin_t *cin, qboolean *active, float *curtime, float *duration);
 
 void MVD_Interpolate(void);
 

@@ -215,10 +215,6 @@ void SV_Shutdown (void)
 
 	SV_UnspawnServer();
 
-#ifdef USEODE
-	World_ODE_Shutdown();
-#endif
-
 	if (sv.mvdrecording)
 		SV_MVDStop (0, false);
 
@@ -397,6 +393,7 @@ or crashing.
 */
 void SV_DropClient (client_t *drop)
 {
+	unsigned int i;
 	laggedpacket_t *lp;
 	sizebuf_t termmsg;
 	char termbuf[64];
@@ -616,6 +613,12 @@ void SV_DropClient (client_t *drop)
 	{
 		Z_Free(drop->sentents.entities);
 		memset(&drop->sentents.entities, 0, sizeof(drop->sentents.entities));
+	}
+
+	for (i = 0; i < MAX_CL_STATS; i++)
+	{
+		Z_Free(drop->statss[i]);
+		drop->statss[i] = NULL;
 	}
 
 	if (drop->csqcentversions)
@@ -4944,10 +4947,6 @@ void SV_Init (quakeparms_t *parms)
 
 #ifdef SERVER_DEMO_PLAYBACK
 	SV_Demo_Init();
-#endif
-
-#ifdef USEODE
-	World_ODE_Init();
 #endif
 
 #ifdef SVRANKING

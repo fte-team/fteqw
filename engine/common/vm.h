@@ -60,6 +60,7 @@ typedef struct vm_s vm_t;
 // ------------------------- * interface * -------------------------
 
 void VM_PrintInfo(vm_t *vm);
+vm_t *VM_CreateBuiltin(const char *name, sys_calldll_t syscalldll, qintptr_t (*init)(qintptr_t *args));
 vm_t *VM_Create(const char *name, sys_calldll_t syscalldll, sys_callqvm_t syscallqvm);
 void VM_Destroy(vm_t *vm);
 //qboolean VM_Restart(vm_t *vm);

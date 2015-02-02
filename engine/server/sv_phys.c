@@ -2150,13 +2150,13 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 #endif
 
 		break;
+#ifdef USERBE
 	case MOVETYPE_PHYSICS:
 		if (WPhys_RunThink(w, ent))
 			World_LinkEdict (w, ent, true);
-#ifdef USEODE
-		w->ode.hasodeents = true;
-#endif
+		w->rbe_hasphysicsents = true;
 		break;
+#endif
 	default:
 //		SV_Error ("SV_Physics: bad movetype %i on %s", (int)ent->v->movetype, PR_GetString(w->progs, ent->v->classname));
 		break;
@@ -2309,7 +2309,7 @@ void World_Physics_Frame(world_t *w)
 		{
 			if (!svs.clients[i-1].isindependant)
 			{
-				if (sv_nqplayerphysics.ival || svs.clients[i-1].state < cs_spawned)
+				if (sv_nqplayerphysics.ival || SV_PlayerPhysicsQC || svs.clients[i-1].state < cs_spawned)
 				{
 					WPhys_RunEntity (w, ent);
 					WPhys_RunNewmis (w);
@@ -2503,8 +2503,14 @@ qboolean SV_Physics (void)
 
 		PRSV_RunThreads();
 
-#ifdef USEODE
-		World_ODE_Frame(&sv.world, host_frametime, sv_gravity.value);
+#ifdef USERBE
+		if (sv.world.rbe)
+		{
+#ifdef RAGDOLL
+			rag_doallanimations(&sv.world);
+#endif
+			sv.world.rbe->Frame(&sv.world, host_frametime, sv_gravity.value);
+		}
 #endif
 
 

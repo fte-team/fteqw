@@ -72,6 +72,9 @@ void GUI_RevealOptions(void);
 #define SCI_CALLTIPCANCEL 2201
 #define SCI_SETMARGINSENSITIVEN 2246
 #define SCI_SETMOUSEDWELLTIME 2264
+#define SCI_CHARLEFT 2304
+#define SCI_CHARRIGHT 2306
+#define SCI_BACKTAB 2328 
 #define SCI_SEARCHANCHOR 2366
 #define SCI_SEARCHNEXT 2367
 #define SCI_BRACEHIGHLIGHTINDICATOR 2498
@@ -80,6 +83,22 @@ void GUI_RevealOptions(void);
 #define SCI_BRACEHIGHLIGHT 2351
 #define SCI_BRACEBADLIGHT 2352
 #define SCI_BRACEMATCH 2353
+#define SCI_ANNOTATIONSETTEXT 2540
+#define SCI_ANNOTATIONGETTEXT 2541
+#define SCI_ANNOTATIONSETSTYLE 2542
+#define SCI_ANNOTATIONGETSTYLE 2543
+#define SCI_ANNOTATIONSETSTYLES 2544
+#define SCI_ANNOTATIONGETSTYLES 2545
+#define SCI_ANNOTATIONGETLINES 2546
+#define SCI_ANNOTATIONCLEARALL 2547
+#define ANNOTATION_HIDDEN 0
+#define ANNOTATION_STANDARD 1
+#define ANNOTATION_BOXED 2
+#define ANNOTATION_INDENTED 3
+#define SCI_ANNOTATIONSETVISIBLE 2548
+#define SCI_ANNOTATIONGETVISIBLE 2549
+#define SCI_ANNOTATIONSETSTYLEOFFSET 2550
+#define SCI_ANNOTATIONGETSTYLEOFFSET 2551
 #define SCI_AUTOCSETORDER 2660
 #define SCI_SETLEXER 4001
 #define SCI_SETPROPERTY 4004
@@ -473,6 +492,8 @@ char greptext[256];
 extern char enginebinary[MAX_PATH];
 extern char enginebasedir[MAX_PATH];
 extern char enginecommandline[8192];
+extern QCC_def_t *sourcefilesdefs[];
+extern int sourcefilesnumdefs;
 
 void RunCompiler(char *args, pbool quick);
 void RunEngine(void);
@@ -546,6 +567,8 @@ static void FindNextScintilla(editor_t *editor, char *findtext)
 		MessageBox(editor->editpane, "No more occurences found", "FTE Editor", 0);
 	}
 }
+char *WordUnderCursor(editor_t *editor, char *word, int wordsize, char *term, int termsize, int position);
+pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize);
 
 //available in xp+
 typedef LRESULT (CALLBACK *SUBCLASSPROC)(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
@@ -553,75 +576,67 @@ BOOL (WINAPI * pSetWindowSubclass)(HWND hWnd, SUBCLASSPROC pfnSubclass, UINT_PTR
 LRESULT (WINAPI *pDefSubclassProc)(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
-	if (uMsg == WM_KEYDOWN)
+	editor_t *editor;
+	if (uMsg == WM_CHAR || uMsg == WM_UNICHAR)
 	{
-		if (wParam == VK_F3)
+		switch(wParam)
 		{
-			char buffer[128];
-			GetWindowText(search_name, buffer, sizeof(buffer));
-			if (*buffer == 0)
-				SetFocus(search_name);
-			else
+		case VK_SPACE:
 			{
-				editor_t *editor;
-				for (editor = editors; editor; editor = editor->next)
+				BYTE keystate[256];
+				GetKeyboardState(keystate);
+				if ((keystate[VK_CONTROL] | keystate[VK_LCONTROL]) & 128)
 				{
-					if (editor->editpane == hWnd)
-						break;
+					for (editor = editors; editor; editor = editor->next)
+					{
+						if (editor->editpane == hWnd)
+							break;
+					}
+					if (editor->scintilla)
+					{
+						if (!SendMessage(editor->editpane, SCI_AUTOCACTIVE, 0, 0))
+						{
+							char buffer[65536];
+							char prefixbuffer[128];
+							char *pre = WordUnderCursor(editor, prefixbuffer, sizeof(prefixbuffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0));
+							if (pre && *pre)
+								if (GenAutoCompleteList(pre, buffer, sizeof(buffer)))
+								{
+									SendMessage(editor->editpane, SCI_AUTOCSETFILLUPS, 0, (LPARAM)".,[<>(*/+-=\t\n");
+									SendMessage(editor->editpane, SCI_AUTOCSHOW, strlen(pre), (LPARAM)buffer);
+								}
+							return FALSE;
+						}
+					}
 				}
-				if (editor->scintilla)
+			}
+			break;
+		}
+	}
+	if (uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN)
+	{
+		switch(wParam)
+		{
+		case VK_F3:
+			{
+				char buffer[128];
+				GetWindowText(search_name, buffer, sizeof(buffer));
+				if (*buffer == 0)
+					SetFocus(search_name);
+				else
 				{
-					FindNextScintilla(editor, buffer);
+					editor_t *editor;
+					for (editor = editors; editor; editor = editor->next)
+					{
+						if (editor->editpane == hWnd)
+							break;
+					}
+					if (editor->scintilla)
+					{
+						FindNextScintilla(editor, buffer);
+					}
 				}
 			}
-			return 0;
-		}
-		if (wParam == VK_F5)
-		{
-			EngineGiveFocus();
-			if (!EngineCommandf("qcresume\n"))
-				RunEngine();
-			return 0;
-		}
-		if (wParam == VK_F7)
-		{
-			buttons[ID_COMPILE].washit = true;
-			return 0;
-		}
-		if (wParam == VK_F8)
-		{
-//			if (!EngineCommandf("qcjump\n"))
-//				RunEngine();
-			return 0;
-		}
-		if (wParam == VK_F9)
-		{
-			editor_t *editor;
-			int mode;
-			for (editor = editors; editor; editor = editor->next)
-			{
-				if (editor->editpane == hWnd)
-					break;
-			}
-			if (editor->scintilla)
-			{
-				mode = !(SendMessage(editor->editpane, SCI_MARKERGET, editor->curline, 0) & 1);
-				SendMessage(editor->editpane, mode?SCI_MARKERADD:SCI_MARKERDELETE, editor->curline, 0);
-			}
-			else
-				mode = 2;
-
-			EngineCommandf("qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, editor->curline+1);
-			return 0;
-		}
-		if (wParam == VK_F11)
-		{
-			EngineCommandf("qcstep over\n");
-			return 0;
-		}
-		if (wParam == VK_F11)
-		{
-			EngineCommandf("qcstep into\n");
 			return 0;
 		}
 	}
@@ -812,6 +827,7 @@ enum {
 	IDM_OPENNEW,
 	IDM_GREP,
 	IDM_GOTODEF,
+	IDM_OUTPUT_WINDOW,
 	IDM_SAVE,
 	IDM_RECOMPILE,
 	IDM_FIND,
@@ -819,10 +835,16 @@ enum {
 	IDM_UNDO,
 	IDM_REDO,
 	IDM_ABOUT,
-	IDM_HIGHTLIGHT,
 	IDM_CASCADE,
 	IDM_TILE_HORIZ,
 	IDM_TILE_VERT,
+	IDM_DEBUG_REBUILD,
+	IDM_DEBUG_SETNEXT,
+	IDM_DEBUG_RUN,
+	IDM_DEBUG_STEPOVER,
+	IDM_DEBUG_STEPINTO,
+	IDM_DEBUG_STEPOUT,
+	IDM_DEBUG_TOGGLEBREAK,
 
 	IDI_O_LEVEL0,
 	IDI_O_LEVEL1,
@@ -849,7 +871,6 @@ void EditorReload(editor_t *editor);
 int EditorSave(editor_t *edit);
 void EditFile(char *name, int line);
 pbool EditorModified(editor_t *e);
-int Rehighlight(editor_t *edit);
 
 void QueryOpenFile(void)
 {
@@ -882,7 +903,7 @@ void GenericMenu(WPARAM wParam)
 		break;
 
 	case IDM_ABOUT:
-		MessageBox(NULL, "FTE QuakeC Compiler ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment.\n\nIt has a few cool features, like a semi-useful IDE.\n\nSupports:\nPrecompiler (with macros)\nArrays\n+= / -= / *= / /= operations.\nSwitch statements\nfor loops\nLots of optimisations.", "About", 0);
+		MessageBox(NULL, "FTE QuakeC Compiler ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment, whoever that is.\n\n", "About", 0);
 		break;
 
 	case IDM_CASCADE:
@@ -894,6 +915,32 @@ void GenericMenu(WPARAM wParam)
 	case IDM_TILE_VERT:
 		SendMessage(mdibox, WM_MDITILE, MDITILE_VERTICAL, 0);
 		break;
+
+
+	case IDM_OUTPUT_WINDOW:
+		if (outputwindow && outputbox)
+		{
+			SetFocus(outputwindow);
+			SetFocus(outputbox);
+		}
+		break;
+	case IDM_DEBUG_RUN:
+		EngineGiveFocus();
+		if (!EngineCommandf("qcresume\n"))
+			RunEngine();
+		return;
+	case IDM_DEBUG_REBUILD:
+		buttons[ID_COMPILE].washit = true;
+		return;
+	case IDM_DEBUG_STEPOVER:
+		EngineCommandf("qcstep over\n");
+		return;
+	case IDM_DEBUG_STEPINTO:
+		EngineCommandf("qcstep into\n");
+		return;
+	case IDM_DEBUG_STEPOUT:
+		EngineCommandf("qcstep out\n");
+		return;
 	}
 }
 
@@ -952,9 +999,6 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 				GoToDefinition(buffer);
 		}
 		break;
-	case IDM_HIGHTLIGHT:
-		Rehighlight(editor);
-		break;
 
 	case IDM_UNDO:
 		Edit_Undo(editor->editpane);
@@ -963,6 +1007,23 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 		Edit_Redo(editor->editpane);
 		break;
 
+	case IDM_DEBUG_TOGGLEBREAK:
+		{
+			int mode;
+			if (editor->scintilla)
+			{
+				mode = !(SendMessage(editor->editpane, SCI_MARKERGET, editor->curline, 0) & 1);
+				SendMessage(editor->editpane, mode?SCI_MARKERADD:SCI_MARKERDELETE, editor->curline, 0);
+			}
+			else
+				mode = 2;
+
+			EngineCommandf("qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, editor->curline+1);
+		}
+		return;
+	case IDM_DEBUG_SETNEXT:
+		EngineCommandf("qcjump \"%s\" %i\n", editor->filename, editor->curline+1);
+		return;
 	default:
 		GenericMenu(wParam);
 		break;
@@ -1073,23 +1134,27 @@ pbool GenAutoCompleteList(char *prefix, char *buffer, int buffersize)
 	int prefixlen = strlen(prefix);
 	int usedbuffer = 0;
 	int l;
-	for (def = pr.def_head.next; def; def = def->next)
+	int fno;
+	for (fno = 0; fno < sourcefilesnumdefs; fno++)
 	{
-		if (def->scope)
-			continue;	//ignore locals, because we don't know where we are, and they're probably irrelevent.
-
-		//make sure it has the right prefix
-		if (!strncmp(def->name, prefix, prefixlen))
-		//but ignore it if its one of those special things that you're not meant to know about.
-		if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
+		for (def = sourcefilesdefs[fno]; def; def = def->next)
 		{
-			l = strlen(def->name);
-			if (l && usedbuffer+2+l < buffersize)
+			if (def->scope)
+				continue;	//ignore locals, because we don't know where we are, and they're probably irrelevent.
+
+			//make sure it has the right prefix
+			if (!strncmp(def->name, prefix, prefixlen))
+			//but ignore it if its one of those special things that you're not meant to know about.
+			if (strcmp(def->name, "IMMEDIATE") && !strchr(def->name, ':') && !strchr(def->name, '.') && !strchr(def->name, '*') && !strchr(def->name, '['))
 			{
-				if (usedbuffer)
-					buffer[usedbuffer++] = ' ';
-				memcpy(buffer+usedbuffer, def->name, l);
-				usedbuffer += l;
+				l = strlen(def->name);
+				if (l && usedbuffer+2+l < buffersize)
+				{
+					if (usedbuffer)
+						buffer[usedbuffer++] = ' ';
+					memcpy(buffer+usedbuffer, def->name, l);
+					usedbuffer += l;
+				}
 			}
 		}
 	}
@@ -1114,13 +1179,12 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 		return NULL;
 	else if (globalstable.numbuckets)
 	{
-		char *funcname;
 		QCC_def_t *def;
+		int fno;
+		int line;
 		char *macro = QCC_PR_CheckCompConstTooltip(defname, buffer, buffer + sizeof(buffer));
 		if (macro && *macro)
 			return macro;
-
-		funcname = "";	//FIXME
 
 		if (dwell)
 		{
@@ -1131,15 +1195,31 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 			*tooltip_comment = 0;
 		}
 
-		def = QCC_PR_GetDef(NULL, defname, NULL, false, 0, GDF_SILENT);
+		line = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
+
+		//FIXME: we may need to display types too
+		for (fno = 0, def = NULL; fno < sourcefilesnumdefs; fno++)
+		{
+			for (def = sourcefilesdefs[fno]; def; def = def->next)
+			{
+				if (def->scope)
+					continue;
+				if (!strcmp(def->name, defname))
+				{
+					//FIXME: look at the scope's function to find the start+end of the function and filter based upon that, to show locals
+					break;
+				}
+			}
+		}
+
 		if (def)
 		{
 			char typebuf[1024];
 			//note function argument names do not persist beyond the function def. we might be able to read the function's localdefs for them, but that's unreliable/broken with builtins where they're most needed.
 			if (def->comment)
-				_snprintf(buffer, sizeof(buffer)-1, "%s %s\r\n%s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name, def->comment);
+				QC_snprintfz(buffer, sizeof(buffer)-1, "%s %s\r\n%s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name, def->comment);
 			else
-				_snprintf(buffer, sizeof(buffer)-1, "%s %s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name);
+				QC_snprintfz(buffer, sizeof(buffer)-1, "%s %s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name);
 
 			if (dwell)
 			{
@@ -1159,7 +1239,7 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 			tooltip_position = pos;
 			tooltip_editor = editor;
 
-			EngineCommandf("qcinspect \"%s\" \"%s\"\n", term, funcname);
+			EngineCommandf("qcinspect \"%s\" \"%s\"\n", term, (def && def->scope)?def->scope->name:"");
 
 			if (text)
 				SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)pos, (LPARAM)text);
@@ -1170,6 +1250,39 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 	else
 		return NULL;//"Type info not available. Compile first.";
 }
+
+//scans the preceeding line(s) to find the ideal indentation for the highlighted line
+//indentbuf may contain spaces or tabs. preferably tabs.
+static void scin_get_line_indent(HWND editpane, int lineidx, char *indentbuf, size_t sizeofbuf)
+{
+	int i;
+	int len;
+	while (lineidx --> 0)
+	{
+		len = SendMessage(editpane, SCI_LINELENGTH, lineidx, 0);
+		*indentbuf = 0;
+		if (len+2 < sizeofbuf)
+		{
+			//FIXME: ignore whitespace
+			len = SendMessage(editpane, SCI_GETLINE, lineidx, (LPARAM)indentbuf);
+			for (i = 0; i < len; i++)
+			{
+				if (indentbuf[i] == ' ' || indentbuf[i] == '\t')
+					continue;
+				break;
+			}
+			if (i == len)
+				continue;
+
+			if (len >= 3 && indentbuf[len-3] == '{')
+				indentbuf[i++] = '\t';	//add an indent
+			indentbuf[i] = 0;
+			return;
+		}
+	}
+	*indentbuf = 0;	//failed
+}
+
 static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
@@ -1355,14 +1468,56 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 						if (s)
 							SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)pos, (LPARAM)s);
 					}
-					else if (!SendMessage(editor->editpane, SCI_AUTOCACTIVE, 0, 0))
+					else if (not->ch == '}')
+					{	//if the first char on the line, fix up indents to match previous-1
+						char prevline[65536];
+						char newline[4096];
+						int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
+						int lineidx = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
+						int linestart = SendMessage(editor->editpane, SCI_POSITIONFROMLINE, lineidx, 0);
+						int plen;
+						int nlen = SendMessage(editor->editpane, SCI_LINELENGTH, lineidx, 0);
+						if (nlen >= sizeof(newline))
+							break;
+						nlen = SendMessage(editor->editpane, SCI_GETLINE, lineidx, (LPARAM)newline);
+						if (linestart > 2)
+						{
+							scin_get_line_indent(editor->editpane, lineidx, prevline, sizeof(prevline));
+							plen = strlen(prevline);
+							if (plen > nlen)
+								break;	//already indented a bit or something
+							if (!strncmp(prevline, newline, plen))	//same indent
+							{
+								SendMessage(editor->editpane, SCI_CHARLEFT, 0, 0);	//move to the indent
+								SendMessage(editor->editpane, SCI_BACKTAB, 0, 0);	//do shift-tab to un-indent the current selection (one line supposedly)
+								SendMessage(editor->editpane, SCI_CHARRIGHT, 0, 0);	//and move back to the right of the }
+							}
+						}
+					}
+					else if (not->ch == '\r' || not->ch == '\n')
+					{
+						char linebuf[65536];
+						int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
+						int lineidx = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
+						int linestart = SendMessage(editor->editpane, SCI_POSITIONFROMLINE, lineidx, 0);
+						int len = SendMessage(editor->editpane, SCI_LINELENGTH, lineidx, 0);
+						if (pos == linestart)
+						{
+							scin_get_line_indent(editor->editpane, lineidx, linebuf, sizeof(linebuf));
+							SendMessage(editor->editpane, EM_REPLACESEL, 0, (LPARAM)linebuf);
+						}
+					}
+					else if (0)//(!SendMessage(editor->editpane, SCI_AUTOCACTIVE, 0, 0))
 					{
 						char buffer[65536];
 						char prefixbuffer[128];
 						char *pre = WordUnderCursor(editor, prefixbuffer, sizeof(prefixbuffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0));
 						if (pre && *pre)
 							if (GenAutoCompleteList(pre, buffer, sizeof(buffer)))
+							{
+								SendMessage(editor->editpane, SCI_AUTOCSETFILLUPS, 0, (LPARAM)"\t\n");
 								SendMessage(editor->editpane, SCI_AUTOCSHOW, strlen(pre), (LPARAM)buffer);
+							}
 					}
 					break;
 				case SCN_SAVEPOINTREACHED:
@@ -1436,346 +1591,8 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 	return 0;
 }
 
-#if 1
-static DWORD lastcolour;
-int GUIEmitText(HWND wnd, int start, char *text, int len)
-{
-	int c, cr;
-	DWORD colour;
-	CHARFORMAT cf;
-
-	if (!len)
-		return start;
-
-	c = text[len];
-	text[len] = '\0';
-	Edit_SetSel(wnd,start,start);
-	Edit_ReplaceSel(wnd,text);
-
-	if (!strcmp(text, "void"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "float"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "vector"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "entity"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "local"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "string"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "struct"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "class"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "union"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "const"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "var"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "nosave"))
-		colour = RGB(0, 0, 255);
-
-	else if (!strcmp(text, "goto"))
-		colour = RGB(255, 0, 0);
-	else if (!strcmp(text, "thinktime"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "if"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "else"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "switch"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "case"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "default"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "break"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "continue"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "do"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "while"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "for"))
-		colour = RGB(0, 0, 255);
-	else if (!strcmp(text, "return"))
-		colour = RGB(0, 0, 255);
-
-	else if (!strcmp(text, "self"))
-		colour = RGB(0, 0, 127);
-	else if (!strcmp(text, "this"))
-		colour = RGB(0, 0, 127);
-	else if (!strcmp(text, "other"))
-		colour = RGB(0, 0, 127);
-	else if (!strcmp(text, "world"))
-		colour = RGB(0, 0, 127);
-	else if (!strcmp(text, "time"))
-		colour = RGB(0, 0, 127);
-
-
-	else if (!strcmp(text, "#define"))
-		colour = RGB(0, 128, 255);
-	else if (!strcmp(text, "#ifdef"))
-		colour = RGB(0, 128, 255);
-	else if (!strcmp(text, "#ifndef"))
-		colour = RGB(0, 128, 255);
-	else if (!strcmp(text, "#else"))
-		colour = RGB(0, 128, 255);
-	else if (!strcmp(text, "#endif"))
-		colour = RGB(0, 128, 255);
-	else if (!strcmp(text, "#undef"))
-		colour = RGB(0, 128, 255);
-	else if (!strcmp(text, "#pragma"))
-		colour = RGB(0, 128, 255);
-	else if (!strcmp(text, "#includelist"))
-		colour = RGB(0, 128, 255);
-	else if (!strcmp(text, "#endlist"))
-		colour = RGB(0, 128, 255);
-
-
-	else if (*text == '\"')
-		colour = RGB(128, 0, 0);
-
-	else if (!strncmp(text, "//", 2))
-		colour = RGB(0, 127, 0);
-	else if (!strncmp(text, "/*", 2))
-		colour = RGB(0, 127, 0);
-	else
-		colour = RGB(0, 0, 0);
-
-	text[len] = c;
-
-	cr = 0;
-	for (c = 0; c < len; c++)
-		if (text[c] == '\r')
-			cr++;
-	if (cr)
-		len-=cr;
-
-	if (colour == lastcolour)
-		return start+len;
-
-	lastcolour = colour;
-
-	Edit_SetSel(wnd,start,start+len);
-	memset(&cf, 0, sizeof(cf));
-	cf.cbSize = sizeof(cf);
-	cf.dwMask = CFM_COLOR;
-	cf.crTextColor = colour;
-	SendMessage(wnd, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
-	Edit_SetSel(wnd,start+len,start+len);
-
-	return start + len;
-}
-void GUIFormattingPrint(HWND wnd, char *msg)
-{
-	int len=Edit_GetTextLength(wnd);
-	char *start;
-	CHARRANGE chrg;
-	lastcolour = RGB(0,0,0);
-	SendMessage(wnd, WM_SETREDRAW, false, 0);
-	chrg.cpMin = chrg.cpMax = 0;
-	SendMessage(wnd, EM_EXSETSEL, 0, (LPARAM) &chrg);
-
-	for(start = msg;;)
-	{
-		if (!*msg)
-			break;
-		else if (*msg == '/' && msg[1] == '/')
-		{
-			len = GUIEmitText(wnd, len, start, msg - start);
-			start = msg;
-
-			msg+=2;
-			while(*msg && *msg != '\n' && *msg != '\r')
-				msg++;
-		}
-		else if (*msg == '/' && msg[1] == '*')
-		{
-			len = GUIEmitText(wnd, len, start, msg - start);
-			start = msg;
-			msg+=2;
-			while(*msg)
-			{
-				if (msg[0] == '*' && msg[1] == '/')
-				{
-					msg+=2;
-					break;
-				}
-				msg++;
-			}
-		}
-		else if (*msg == '#' || *msg == '_' || (*msg >= 'A' && *msg <= 'Z') || (*msg >= 'a' && *msg <= 'z'))
-		{
-			len = GUIEmitText(wnd, len, start, msg - start);
-			start = msg;
-			msg++;
-			while (*msg == '_' || (*msg >= 'A' && *msg <= 'Z') || (*msg >= 'a' && *msg <= 'z' || *msg >= '0' && *msg <= '9'))
-				msg++;
-		}
-		else if (*msg == '\"')
-		{
-			len = GUIEmitText(wnd, len, start, msg - start);
-			start = msg;
-			msg++;
-			while(*msg)
-			{
-				if (*msg == '\\')
-					msg++;
-				else if (*msg == '\"')
-				{
-					msg++;
-					break;
-				}
-
-				msg++;
-			}
-		}
-/*		else if (*msg <= ' ')
-		{
-			while (*msg <= ' ' && *msg)
-				msg++;
-		}*/
-		else
-		{
-			msg++;
-			continue;
-		}
-
-		len = GUIEmitText(wnd, len, start, msg - start);
-		start = msg;
-	}
-	len = GUIEmitText(wnd, len, start, msg - start);
-	start = msg;
-	SendMessage(wnd, WM_SETREDRAW, true, 0);
-}
-
-int Rehighlight(editor_t *edit)
-{
-	int len;
-	char *file;
-
-	CHARRANGE chrg;
-	POINT scrollpos;
-
-	SendMessage(edit->editpane, EM_SETEVENTMASK, 0, 0);
-
-	SendMessage(edit->editpane, EM_GETSCROLLPOS, 0, (LPARAM)&scrollpos);
-	SendMessage(edit->editpane, EM_EXGETSEL, 0, (LPARAM) &chrg);
-
-	len = Edit_GetTextLength(edit->editpane);
-	file = malloc(len+1);
-	if (!file)
-	{
-		MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
-		return false;
-	}
-	Edit_GetText(edit->editpane, file, len);
-	file[len] = '\0';
-
-	SetWindowText(edit->editpane,"");
-
-//	GUIPrint(edit->editpane, file);
-	GUIFormattingPrint(edit->editpane, file);
-	free(file);
-
-//	Edit_SetSel(edit->editpane, Edit_LineIndex(neweditor->editpane, 0), Edit_LineIndex(neweditor->editpane, 0));
-
-	InvalidateRect(edit->editpane, NULL, true);
-	InvalidateRect(edit->window, NULL, true);
-
-	SendMessage(edit->editpane, EM_SETEVENTMASK, 0, ENM_SELCHANGE|ENM_CHANGE);
-
-	SendMessage(edit->editpane, EM_SETSCROLLPOS, 0, (LPARAM)&scrollpos);
-	SendMessage(edit->editpane, EM_EXSETSEL, 0, (LPARAM) &chrg);
-
-	UpdateWindow(edit->editpane);
-	RedrawWindow(edit->window, NULL, NULL, 0);
-
-	return true;
-}
-#else
-static void chunkcolour(HWND pane, int start, int end, DWORD colour)
-{
-	CHARFORMAT cf;
-	if (colour == RGB(0,0,0))
-		return;	//don't need to
-	Edit_SetSel(pane,start,end);
-	memset(&cf, 0, sizeof(cf));
-	cf.cbSize = sizeof(cf);
-	cf.dwMask = CFM_COLOR;
-	cf.crTextColor = colour;
-	SendMessage(pane, EM_SETCHARFORMAT, SCF_SELECTION, (LPARAM)&cf);
-}
-void GUIFormattingPrint(HWND wnd, char *msg)
-{
-}
-int Rehighlight(editor_t *edit)
-{
-	char *file;
-	int c, last, len;
-	DWORD color;
-	CHARRANGE chrg;
-	POINT scrollpos;
-
-	//Dsiable redraws
-	SendMessage(edit->editpane, WM_SETREDRAW, false, 0);
-
-	//Don't notify us for a bit..
-	SendMessage(edit->editpane, EM_SETEVENTMASK, 0, 0);
-
-	//get state so we can restore scroll positions and things.
-	SendMessage(edit->editpane, EM_GETSCROLLPOS, 0, (LPARAM)&scrollpos);
-	SendMessage(edit->editpane, EM_EXGETSEL, 0, (LPARAM) &chrg);
-
-
-	len = Edit_GetTextLength(edit->editpane);
-	file = malloc(len+1);
-	if (!file)
-	{
-		MessageBox(NULL, "Highlight failed - not enough mem", "Error", 0);
-		return false;
-	}
-	Edit_GetText(edit->editpane, file, len);
-	file[len] = '\0';
-	SetWindowText(edit->editpane,file);	//this is so that we guarentee that the \rs or whatever that windows insists on inserting don't get in the way
-
-	color = RGB(0,0,0);
-	for (last = 0, c = 0; c < len; c++)
-	{
-		if (file[c] == '/' && file[c+1] == '/')	//do special syntax
-		{
-			chunkcolour(edit->editpane, last, c, color);
-			last = c;
-
-			while(file[c] != '\n')
-				c++;
-			color = RGB(0, 127, 0);
-		}
-		else
-		{
-			chunkcolour(edit->editpane, last, c, color);
-			last = c;
-
-			while(file[c] >= 'a' && file[c] <= 'z' || file[c] >= 'A' && file[c] <= 'Z' || file[c] == '_')
-				c++;
-
-			color = RGB(rand(), rand(), rand());
-		}
-	}
-
-	free(file);
-
-	//reenable drawing
-	SendMessage(edit->editpane, WM_SETREDRAW, true, 0);
-}
-#endif
-
 unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen);
-void EditorReload(editor_t *editor)
+static void EditorReload(editor_t *editor)
 {
 	struct stat sbuf;
 	int flen;
@@ -1860,7 +1677,8 @@ void EditFile(char *name, int line)
 
 	if (QCC_FileSize(name) == -1)
 	{
-		MessageBox(NULL, "File not found.", "Error", 0);
+		QC_snprintfz(title, sizeof(title), "File not found.\n%s", name);
+		MessageBox(NULL, title, "Error", 0);
 		return;
 	}
 
@@ -1893,7 +1711,6 @@ void EditFile(char *name, int line)
 		AppendMenu(menunavig, 0, IDM_GOTODEF, "Go to definition");
 		AppendMenu(menunavig, 0, IDM_OPENDOCU, "Open selected file");
 		AppendMenu(menuhelp, 0, IDM_ABOUT, "About");
-//		AppendMenu(menu, 0, IDM_HIGHTLIGHT, "H&ighlight");
 	}
 
 
@@ -3015,7 +2832,7 @@ void OptionsDialog(void)
 		height++;
 	}
 
-	cflagsshown = 2;
+	cflagsshown = 0;
 	for (i = 0; compiler_flag[i].enabled; i++)
 	{
 		if (compiler_flag[i].flags & FLAG_HIDDENINGUI)
@@ -3024,21 +2841,23 @@ void OptionsDialog(void)
 		cflagsshown++;
 	}
 
-	height = (height-1)/2;
+	height = (height+1)/2;
 
-	while (cflagsshown > ((480-(88+40))/16)*(flagcolums))
+	height *= 16;
+
+	height += 112;
+
+	while (cflagsshown*16 > height*flagcolums)
 		flagcolums++;
 
-	if (height < (cflagsshown+flagcolums-1)/flagcolums)
-		height = (cflagsshown+flagcolums-1)/flagcolums;
+	if (height < (cflagsshown*16)/flagcolums)
+		height = (cflagsshown*16)/flagcolums;
 
 	r.right = 408 + flagcolums*168;
 	if (r.right < 640)
 		r.right = 640;
 
-	height *= 16;
-
-	height += 88+40;
+	height += 88;
 
 	r.left = GetSystemMetrics(SM_CXSCREEN)/2-320;
 	r.top = GetSystemMetrics(SM_CYSCREEN)/2-240;
@@ -3053,7 +2872,7 @@ void OptionsDialog(void)
 		r.left, r.top, r.right-r.left, r.bottom-r.top, NULL, NULL, ghInstance, NULL);
 
 	subsection = CreateWindow("BUTTON", "Optimisations", WS_CHILD|WS_VISIBLE|BS_GROUPBOX,
-		0, 0, 400, height-40*4-8, optionsmenu, NULL, ghInstance, NULL);
+		0, 0, 400, height-40*4+24, optionsmenu, NULL, ghInstance, NULL);
 
 	num = 0;
 	for (i = 0; optimisations[i].enabled; i++)
@@ -3085,42 +2904,42 @@ void OptionsDialog(void)
 
 	CreateWindow("BUTTON","O0",
 		   WS_CHILD | WS_VISIBLE,
-		   8,height-40*5-8,64,32,
+		   8,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL0,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","O1",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64,height-40*5-8,64,32,
+		   8+64,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL1,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","O2",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*2,height-40*5-8,64,32,
+		   8+64*2,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL2,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","O3",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*3,height-40*5-8,64,32,
+		   8+64*3,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL3,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","Debug",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*4,height-40*5-8,64,32,
+		   8+64*4,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_DEBUG,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","Default",
 		   WS_CHILD | WS_VISIBLE,
-		   8+64*5,height-40*5-8,64,32,
+		   8+64*5,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_DEFAULT,
 		   ghInstance,
@@ -3337,17 +3156,21 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, 0, IDM_UNDO,		"Undo	Ctrl+Z");
 					AppendMenu(m, 0, IDM_REDO,		"Redo	Ctrl+Y");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Navigation");
-					AppendMenu(m, 0, IDM_GOTODEF, "Go to definition");
+					AppendMenu(m, 0, IDM_GOTODEF, "Go to definition\tF12");
 					AppendMenu(m, 0, IDM_OPENDOCU, "Open selected file");
+					AppendMenu(m, 0, IDM_OUTPUT_WINDOW, "Show Output Window\tF6");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = windowmenu = CreateMenu()),	"&Window");
 					AppendMenu(m, 0, IDM_CASCADE, "Cascade");
 					AppendMenu(m, 0, IDM_TILE_HORIZ, "Tile Horizontally");
 					AppendMenu(m, 0, IDM_TILE_VERT, "Tile Vertically");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Debug");
-					AppendMenu(m, 0, IDM_CASCADE, "Rebuild\tF7");
-					AppendMenu(m, 0, IDM_TILE_HORIZ, "Run/Resume\tF5");
-					AppendMenu(m, 0, IDM_TILE_HORIZ, "Step Into\tF11");
-					AppendMenu(m, 0, IDM_TILE_VERT, "Set Breakpoint\tF9");
+					AppendMenu(m, 0, IDM_DEBUG_REBUILD, "Rebuild\tF7");
+					AppendMenu(m, 0, IDM_DEBUG_SETNEXT, "Set Next Statement\tF8");
+					AppendMenu(m, 0, IDM_DEBUG_RUN, "Run/Resume\tF5");
+					AppendMenu(m, 0, IDM_DEBUG_STEPOVER, "Step Over\tF10");
+					AppendMenu(m, 0, IDM_DEBUG_STEPINTO, "Step Into\tF11");
+					AppendMenu(m, 0, IDM_DEBUG_STEPOUT, "Step Out\tShift-F11");
+					AppendMenu(m, 0, IDM_DEBUG_TOGGLEBREAK, "Set Breakpoint\tF9");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Help");
 					AppendMenu(m, 0, IDM_ABOUT, "About");
 
@@ -3669,6 +3492,7 @@ int GUIprintf(const char *msg, ...)
 
 	if (!*buf)
 	{
+		editor_t *ed;
 		/*clear text*/
 		SetWindowText(outputbox,"");
 		outlen = 0;
@@ -3680,6 +3504,13 @@ int GUIprintf(const char *msg, ...)
 		/*colour background to default*/
 		TreeView_SetBkColor(projecttree, -1);
 		outstatus = 0;
+
+
+		for (ed = editors; ed; ed = ed->next)
+		{
+			if (ed->scintilla)
+				SendMessage(ed->editpane, SCI_ANNOTATIONCLEARALL, 0, 0);
+		}
 		return 0;
 	}
 
@@ -3710,9 +3541,64 @@ int GUIprintf(const char *msg, ...)
 		if (*s == '\n')
 		{
 			*s = '\0';
-			if (*st)
-				outlen = GUIEmitOutputText(outputbox, outlen, st, strlen(st), col);
-			outlen = GUIEmitOutputText(outputbox, outlen, rn, 1, col);
+			if (!strncmp(st, "code: ", 6)) 
+				st+=6;
+			else
+			{
+				if (*st)
+					outlen = GUIEmitOutputText(outputbox, outlen, st, strlen(st), col);
+				outlen = GUIEmitOutputText(outputbox, outlen, rn, 1, col);
+			}
+
+			{
+				char *colon1 = strchr(st, ':');
+				if (colon1)
+				{
+					char *colon2 = strchr(colon1+1, ':');
+					if (colon2)
+					{
+						unsigned int line;
+						char *validation;
+						*colon1 = 0;
+						line = strtoul(colon1+1, &validation, 10);
+						if (validation == colon2)
+						{
+							editor_t *ed;
+							colon2++;
+							while(*colon2 == ' ' || *colon2 == '\t')
+								colon2++;
+							for (ed = editors; ed; ed = ed->next)
+							{
+								if (!stricmp(ed->filename, st))
+								{
+									if (ed->scintilla)
+									{
+										if (!SendMessage(ed->editpane, SCI_ANNOTATIONGETLINES, line-1, 0))
+										{
+											SendMessage(ed->editpane, SCI_ANNOTATIONSETVISIBLE, ANNOTATION_BOXED, 0);
+											SendMessage(ed->editpane, SCI_ANNOTATIONSETTEXT, line-1, (LPARAM)colon2);
+										}
+										else
+										{
+											char buf[8192];
+											int clen = SendMessage(ed->editpane, SCI_ANNOTATIONGETTEXT, line-1, (LPARAM)NULL);
+											if (clen+1+strlen(colon2) < sizeof(buf))
+											{
+												clen = SendMessage(ed->editpane, SCI_ANNOTATIONGETTEXT, line-1, (LPARAM)buf);
+												buf[clen++] = '\n';
+												memcpy(buf+clen, colon2, strlen(colon2)+1);
+//												SendMessage(ed->editpane, SCI_ANNOTATIONSETVISIBLE, ANNOTATION_BOXED, 0);
+												SendMessage(ed->editpane, SCI_ANNOTATIONSETTEXT, line-1, (LPARAM)buf);
+											}
+										}
+									}
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
 			st = s+1;
 		}
 
@@ -4047,7 +3933,17 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	{
 		{FCONTROL|FVIRTKEY, 'S', IDM_SAVE},
 		{FCONTROL|FVIRTKEY, 'F', IDM_FIND},
-		{FCONTROL|FVIRTKEY, 'R', IDM_RECOMPILE}
+		{FCONTROL|FVIRTKEY, 'R', IDM_RECOMPILE},
+//		{FVIRTKEY,			VK_F4, IDM_NEXTERROR},
+		{FVIRTKEY,			VK_F5, IDM_DEBUG_RUN},
+		{FVIRTKEY,			VK_F6, IDM_OUTPUT_WINDOW},
+		{FVIRTKEY,			VK_F7, IDM_DEBUG_REBUILD},
+		{FVIRTKEY,			VK_F8, IDM_DEBUG_SETNEXT},
+		{FVIRTKEY,			VK_F9, IDM_DEBUG_TOGGLEBREAK},
+		{FVIRTKEY,			VK_F10, IDM_DEBUG_STEPOVER},
+		{FVIRTKEY,			VK_F11, IDM_DEBUG_STEPINTO},
+		{FSHIFT|FVIRTKEY,	VK_F11, IDM_DEBUG_STEPOUT},
+		{FVIRTKEY,			VK_F12, IDM_GOTODEF}
 	};
 	ghInstance= hInstance;
 

@@ -57,7 +57,6 @@ extern cvar_t	r_bloom;
 extern cvar_t	r_wireframe_smooth;
 
 cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
-cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
 extern cvar_t	r_stereo_separation;
@@ -455,7 +454,7 @@ void R_SetupGL (float stereooffset)
 		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
-		if (*r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname)
+		if ((*r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname) && strcmp(r_refdef.rt_destcolour[0].texname, "megascreeny"))
 		{
 			r_refdef.pxrect.y = r_refdef.pxrect.maxheight - (r_refdef.pxrect.height+r_refdef.pxrect.y);
 			fov_y *= -1;
@@ -564,6 +563,7 @@ void R_RenderScene (void)
 	int stereomode;
 	int i;
 	int tmpvisents = cl_numvisedicts;	/*world rendering is allowed to add additional ents, but we don't want to keep them for recursive views*/
+	int cull = r_refdef.flipcull;
 
 	stereomode = r_stereo_method.ival;
 	if (stereomode == 1)
@@ -629,7 +629,10 @@ void R_RenderScene (void)
 			break;
 		}
 		if (i)
+		{
+			GL_ForceDepthWritable();
 			qglClear (GL_DEPTH_BUFFER_BIT);
+		}
 
 		TRACE(("dbg: calling R_SetupGL\n"));
 		R_SetupGL (stereooffset[i]);
@@ -681,6 +684,8 @@ void R_RenderScene (void)
 	case 5:
 		break;
 	}
+
+	r_refdef.flipcull = cull;
 }
 /*generates a new modelview matrix, as well as vpn vectors*/
 static void R_MirrorMatrix(plane_t *plane)
@@ -1242,7 +1247,7 @@ void R_Clear (qboolean fbo)
 			//for performance, we clear the depth at the same time we clear colour, so we can skip clearing depth here the first time around each frame.
 			//but for multiple scenes, we do need to clear depth still.
 			//fbos always get cleared depth, just in case (colour fbos may contain junk, but hey).
-			qglClear (GL_DEPTH_BUFFER_BIT);
+			qglClear (GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
 		}
 		if (!fbo)
 			depthcleared = false;

@@ -485,6 +485,7 @@ enum
 struct shader_s
 {
 	char name[MAX_QPATH];
+	char mapname[MAX_QPATH];
 	enum {
 		SUF_NONE		= 0,
 		SUF_LIGHTMAP	= 1<<0,	//$lightmap passes are valid. otherwise collapsed to an rgbgen
@@ -542,6 +543,7 @@ struct shader_s
 		SHADER_HASGLOSS			= 1 << 24,	//needs a _spec texture, if possible.
 		SHADER_NOSHADOWS		= 1 << 25,	//don't cast shadows
 		SHADER_HASFULLBRIGHT	= 1 << 26,	//needs a fullbright texture, if possible.
+		SHADER_HASDIFFUSE		= 1 << 27,	//has a T_GEN_DIFFUSE pass
 	} flags;
 
 	program_t *prog;
@@ -627,7 +629,7 @@ typedef struct
 #define FBO_TEX_DEPTH		32	//internal
 #define FBO_TEX_STENCIL		64	//internal
 
-
+#ifndef __cplusplus	//C++ sucks
 typedef struct
 {
 	char *progpath;	//path to use for glsl/hlsl
@@ -655,6 +657,7 @@ typedef struct
 	void	 (*pProgAutoFields)	(program_t *prog, char **cvarnames, int *cvartypes);
 } sh_config_t;
 extern sh_config_t sh_config;
+#endif
 
 #ifdef GLSLONLY
 	#define gl_config_nofixedfunc true

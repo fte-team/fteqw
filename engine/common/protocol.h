@@ -73,7 +73,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_PRYDONCURSOR			0x00000001
 #define PEXT2_VOICECHAT				0x00000002
 #define PEXT2_SETANGLEDELTA			0x00000004
-#define PEXT2_REPLACEMENTDELTAS		0x00000008
+#define PEXT2_REPLACEMENTDELTAS		0x00000008	//weaponframe was part of the entity state. that flag is now the player's v_angle.
 #define PEXT2_MAXPLAYERS			0x00000010	//Client is able to cope with more players than 32. abs max becomes 255, due to colormap issues.
 #define PEXT2_PREDINFO				0x00000020	//movevar stats, NQ input sequences+acks.
 
@@ -628,7 +628,8 @@ enum clcq2_ops_e
 #define UFP_VELOCITYXY	(1u<<4)
 #define UFP_VELOCITYZ	(1u<<5)
 #define UFP_MSEC		(1u<<6)
-#define UFP_WEAPONFRAME (1u<<7)
+#define UFP_WEAPONFRAME_OLD	(1u<<7)	//no longer used. just a stat now that I rewrote stat deltas.
+#define UFP_VIEWANGLE	(1u<<7)
 
 #define UF_REMOVE   UF_16BIT	/*special flag, slightly more compact (we can reuse the 16bit flag as its not important)*/
 
@@ -974,6 +975,7 @@ typedef struct entity_state_s
 			/*info to predict other players, so I don't get yelled at if fte were to stop supporting it*/
 			qbyte pmovetype;
 			qbyte msec;
+			short vangle[3];
 			unsigned short weaponframe;
 
 			short movement[3];

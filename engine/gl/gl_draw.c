@@ -143,7 +143,8 @@ void GL_Set2D (qboolean flipped)
 		vid.fbvwidth = vid.fbpwidth;
 		vid.fbvheight = vid.fbpheight;
 
-		flipped ^= true;
+		if (strcmp(r_refdef.rt_destcolour[0].texname, "megascreeny"))
+			flipped ^= true;
 	}
 	else
 	{
@@ -376,6 +377,18 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 			}
 			switch(mips->encoding)
 			{
+			case PTI_DEPTH16:
+				qglTexImage2D(targface, j, gl_config.gles?GL_DEPTH_COMPONENT:GL_DEPTH_COMPONENT16_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, mips->mip[i].data);
+				break;
+			case PTI_DEPTH24:
+				qglTexImage2D(targface, j, gl_config.gles?GL_DEPTH_COMPONENT:GL_DEPTH_COMPONENT24_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, mips->mip[i].data);
+				break;
+			case PTI_DEPTH32:
+				qglTexImage2D(targface, j, gl_config.gles?GL_DEPTH_COMPONENT:GL_DEPTH_COMPONENT32_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, mips->mip[i].data);
+				break;
+			case PTI_DEPTH24_8:
+				qglTexImage2D(targface, j, GL_DEPTH24_STENCIL8_EXT, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_STENCIL_EXT, GL_UNSIGNED_INT_24_8_EXT, mips->mip[i].data);
+				break;
 			//32bit formats
 			case PTI_RGBX8:
 				qglTexImage2D(targface, j, GL_RGB, mips->mip[i].width, mips->mip[i].height, 0, GL_RGBA, GL_UNSIGNED_BYTE, mips->mip[i].data);
@@ -466,6 +479,8 @@ void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], 
 	// change all the existing mipmap texture objects
 	for (img=imagelist ; img ; img=img->next)
 	{
+		if (img->status != TEX_LOADED)
+			continue;
 		switch((img->flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
 		{
 		case 0:
@@ -478,8 +493,6 @@ void GL_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], 
 			targ = GL_TEXTURE_CUBE_MAP_ARB;
 			break;
 		}
-		if (img->status != TEX_LOADED)
-			continue;
 
 		GL_MTBind(0, targ, img);
 		GL_Texturemode_Apply(targ, img->flags);

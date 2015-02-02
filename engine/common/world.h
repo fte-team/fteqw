@@ -148,6 +148,25 @@ typedef struct
 	vec3_t laggedpos;
 } laggedentinfo_t;
 
+#ifdef USERBE
+typedef struct
+{
+	void (QDECL *End)(struct world_s *world);
+	void (QDECL *RemoveJointFromEntity)(struct world_s *world, wedict_t *ed);
+	void (QDECL *RemoveFromEntity)(struct world_s *world, wedict_t *ed);
+	qboolean (QDECL *RagMatrixToBody)(rbebody_t *bodyptr, float *mat);
+	qboolean (QDECL *RagCreateBody)(struct world_s *world, rbebody_t *bodyptr, rbebodyinfo_t *bodyinfo, float *mat, wedict_t *ent);
+	void (QDECL *RagMatrixFromJoint)(rbejoint_t *joint, rbejointinfo_t *info, float *mat);
+	void (QDECL *RagMatrixFromBody)(struct world_s *world, rbebody_t *bodyptr, float *mat);
+	void (QDECL *RagEnableJoint)(rbejoint_t *joint, qboolean enabled);
+	void (QDECL *RagCreateJoint)(struct world_s *world, rbejoint_t *joint, rbejointinfo_t *info, rbebody_t *body1, rbebody_t *body2, vec3_t aaa2[3]);
+	void (QDECL *RagDestroyBody)(struct world_s *world, rbebody_t *bodyptr);
+	void (QDECL *RagDestroyJoint)(struct world_s *world, rbejoint_t *joint);
+	void (QDECL *Frame)(struct world_s *world, double frametime, double gravity);
+	void (QDECL *PushCommand)(struct world_s *world, rbecommandqueue_t *cmd);
+} rigidbodyengine_t;
+#endif
+
 struct world_s
 {
 	void (*Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o);
@@ -199,32 +218,41 @@ struct world_s
 		float *drawfontscale;
 	} g;
 
-#ifdef USEODE
-	worldode_t ode;
+#ifdef USERBE
+	qboolean rbe_hasphysicsents;
+	rigidbodyengine_t *rbe;
 #endif
 };
 typedef struct world_s world_t;
 
 void PF_Common_RegisterCvars(void);
 
-#ifdef USEODE
-void World_ODE_RemoveFromEntity(world_t *world, wedict_t *ed);
-void World_ODE_RemoveJointFromEntity(world_t *world, wedict_t *ed);
-void World_ODE_Frame(world_t *world, double frametime, double gravity);
-void World_ODE_Init(void);
-void World_ODE_Start(world_t *world);
-void World_ODE_End(world_t *world);
-void World_ODE_Shutdown(void);
 
-qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, odebodyinfo_t *bodyinfo, float *mat, wedict_t *ent);
-qboolean World_ODE_RagMatrixToBody(odebody_t *bodyptr, float *mat);
-void World_ODE_RagMatrixFromBody(world_t *world, odebody_t *bodyptr, float *mat);
-void World_ODE_RagDestroyBody(world_t *world, odebody_t *bodyptr);
-void World_ODE_RagCreateJoint(world_t *world, odejoint_t *joint, odejointinfo_t *info, odebody_t *body1, odebody_t *body2, vec3_t aaa2[3]);
-void World_ODE_RagEnableJoint(odejoint_t *joint, qboolean enabled);
-void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float *mat);
-void World_ODE_RagDestroyJoint(world_t *world, odejoint_t *joint);
-#endif
+
+
+qboolean QDECL World_RegisterPhysicsEngine(const char *enginename, void(QDECL*World_Bullet_Start)(world_t*world));
+void QDECL World_UnregisterPhysicsEngine(const char *enginename);
+qboolean QDECL World_GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter);
+void QDECL World_ReleaseCollisionMesh(wedict_t *ed);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void World_RBE_Start(world_t *world);
+
 
 void World_ClearWorld (world_t *w);
 // called after the world model has been loaded, before linking any entities
@@ -234,7 +262,7 @@ void World_UnlinkEdict (wedict_t *ent);
 // so it doesn't clip against itself
 // flags ent->v.modified
 
-void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers);
+void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers);
 // Needs to be called any time an entity changes origin, mins, maxs, or solid
 // flags ent->v.modified
 // sets ent->v.absmin and ent->v.absmax

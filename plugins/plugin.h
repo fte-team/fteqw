@@ -146,7 +146,7 @@ int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
 #endif
 
 #ifndef NATIVEEXPORT
-#define NATIVEEXPORT
+#define NATIVEEXPORT QDECL
 #endif
 
 
@@ -185,10 +185,11 @@ typedef struct {
 
 
 
-
-
 //Basic builtins:
 EBUILTIN(funcptr_t, Plug_GetEngineFunction, (const char *funcname));	//set up in vmMain, use this to get all other builtins
+
+#ifdef FTEENGINE
+#else
 #ifndef Q3_VM
 EBUILTIN(qboolean, Plug_ExportNative, (const char *funcname, void *func));	//set up in vmMain, use this to get all other builtins
 #endif
@@ -278,15 +279,16 @@ EBUILTIN(float, sqrt, (float f));
 EBUILTIN(float, cos, (float f));
 EBUILTIN(float, sin, (float f));
 #endif
+#endif
 
-typedef qintptr_t (*export_t) (qintptr_t *args);
+typedef qintptr_t (QDECL *export_t) (qintptr_t *args);
 char	*va(const char *format, ...);
 qintptr_t Plug_Init(qintptr_t *args);
 qboolean Plug_Export(const char *name, export_t func);
 void Con_Printf(const char *format, ...);
 void Con_DPrintf(const char *format, ...);	//not a particuarly efficient implementation, so beware.
 void Sys_Errorf(const char *format, ...);
-void Q_strncpyz(char *d, const char *s, int n);
+void QDECL Q_strncpyz(char *d, const char *s, int n);
 
 
 

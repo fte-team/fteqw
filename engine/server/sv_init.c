@@ -626,6 +626,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 	svs.allocated_client_slots = 0;
 	SV_FlushLevelCache();
 	NET_CloseServer ();
+	SV_RunCmdCleanup();
 }
 
 void SV_UpdateMaxPlayers(int newmax)
@@ -1343,6 +1344,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		ent->v->modelindex = 1;		// world model
 		ent->v->solid = SOLID_BSP;
 		ent->v->movetype = MOVETYPE_PUSH;
+		VectorCopy(sv.world.worldmodel->mins, ent->v->mins);
+		VectorCopy(sv.world.worldmodel->maxs, ent->v->maxs);
 
 		if (progstype == PROG_QW && pr_imitatemvdsv.value>0)
 		{

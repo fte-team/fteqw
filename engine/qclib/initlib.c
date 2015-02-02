@@ -902,7 +902,7 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 		int i = str & ~STRING_SPECMASK;
 		if (i >= prinst.numallocedstrings)
 		{	
-			if (!progfuncs->funcs.pr_trace)	//don't spam this
+			if (!progfuncs->funcs.debug_trace)	//don't spam this
 				PR_RunWarning(&progfuncs->funcs, "invalid static string %x\n", str);
 			return "";
 		}
@@ -910,7 +910,7 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 			return prinst.allocedstrings[i];
 		else
 		{
-			if (!progfuncs->funcs.pr_trace)
+			if (!progfuncs->funcs.debug_trace)
 				PR_RunWarning(&progfuncs->funcs, "invalid static string %x\n", str);
 			return "";	//urm, was freed...
 		}
@@ -920,7 +920,7 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 		unsigned int i = str & ~STRING_SPECMASK;
 		if (i >= prinst.numtempstrings || !prinst.tempstrings[i])
 		{
-			if (!progfuncs->funcs.pr_trace)
+			if (!progfuncs->funcs.debug_trace)
 				PR_RunWarning(&progfuncs->funcs, "invalid temp string %x\n", str);
 			return "";
 		}
@@ -929,7 +929,7 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 
 	if ((unsigned int)str >= (unsigned int)prinst.addressableused)
 	{
-		if (!progfuncs->funcs.pr_trace)
+		if (!progfuncs->funcs.debug_trace)
 			PR_RunWarning(&progfuncs->funcs, "invalid string offset %x\n", str);
 		return "";
 	}
@@ -1273,8 +1273,7 @@ pubprogfuncs_t deffuncs = {
 	PR_ForkStack,
 	PR_ResumeThread,
 	PR_AbortStack,
-
-	0,	//called builtin number
+	PR_GetBuiltinCallInfo,
 
 	QC_RegisterFieldVar,
 

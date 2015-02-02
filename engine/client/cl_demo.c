@@ -28,8 +28,9 @@ int demoframe;
 int cls_lastto;
 int cls_lasttype;
 
-void CL_PlayDemo(char *demoname);
+void CL_PlayDemo(char *demoname, qboolean usesystempath);
 char lastdemoname[256];
+static qboolean lastdemowassystempath;
 
 extern cvar_t qtvcl_forceversion1;
 extern cvar_t qtvcl_eztvextensions;
@@ -414,7 +415,7 @@ void CL_DemoJump_f(void)
 	else
 	{
 		Con_Printf("Rewinding demo\n");
-		CL_PlayDemo(lastdemoname);
+		CL_PlayDemo(lastdemoname, lastdemowassystempath);
 
 		//now fastparse it.
 		cls.demoseektime = newtime;
@@ -1567,9 +1568,14 @@ void CL_PlayDemo_f (void)
 #endif
 
 	demoname = Cmd_Argv(1);
-	if (*demoname == '#' && Cmd_FromGamecode())
-		return;
-	CL_PlayDemo(demoname);
+	if (*demoname == '#')
+	{
+		if (Cmd_FromGamecode())
+			return;
+		CL_PlayDemo(demoname+1, true);
+	}
+	else
+		CL_PlayDemo(demoname, false);
 }
 
 void CL_DemoStreamFullyDownloaded(struct dl_download *dl)
@@ -1581,7 +1587,7 @@ void CL_DemoStreamFullyDownloaded(struct dl_download *dl)
 		cls.demoindownload = NULL;
 }
 //dl is provided so that we can receive files via chunked/gziped http downloads and on systems that don't provide sockets etc. its tracked so we can cancel the download if the client aborts playback early.
-void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, int demotype, float bufferdelay)
+void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, qboolean issyspath, int demotype, float bufferdelay)
 {
 	int protocol = CP_UNKNOWN;
 
@@ -1640,6 +1646,7 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 	if (filename)
 	{
 		Q_strncpyz (lastdemoname, filename, sizeof(lastdemoname));
+		lastdemowassystempath = issyspath;
 		Con_Printf ("Playing demo from %s.\n", filename);
 	}
 
@@ -1661,15 +1668,15 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 	TP_ExecTrigger ("f_demostart");
 }
 
-vfsfile_t *CL_OpenFileInZipOrSys(char *name)
+vfsfile_t *CL_OpenFileInZipOrSys(char *name, qboolean usesystempath)
 {
-	if (*name == '#')
-		return VFSOS_Open(name+1, "rb");
+	if (usesystempath)
+		return VFSOS_Open(name, "rb");
 	else
 		return CL_OpenFileInPackage(NULL, name);
 }
 //tries to determine the demo type
-void CL_PlayDemoFile(vfsfile_t *f, char *demoname)
+void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 {
 	qofs_t start;
 
@@ -1695,7 +1702,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname)
 		VFS_SEEK(f, start);
 		if (len > 5 && type == svcq2_serverdata && protocol == PROTOCOL_VERSION_Q2)
 		{
-			CL_PlayDemoStream(f, NULL, demoname, DPB_QUAKE2, 0);
+			CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKE2, 0);
 			return;
 		}
 	}
@@ -1722,7 +1729,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname)
 			ft *= -1;
 		if (chr == '\n')
 		{
-			CL_PlayDemoStream(f, NULL, demoname, DPB_NETQUAKE, 0);
+			CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_NETQUAKE, 0);
 			return;
 		}
 		VFS_SEEK(f, start);
@@ -1735,9 +1742,9 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname)
 	//mvd and qwd have no identifying markers, other than the extension.
 	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "mvd") ||
 		!Q_strcasecmp(demoname + strlen(demoname) - 6, "mvd.gz"))
-		CL_PlayDemoStream(f, NULL, demoname, DPB_MVD, 0);
+		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_MVD, 0);
 	else
-		CL_PlayDemoStream(f, NULL, demoname, DPB_QUAKEWORLD, 0);
+		CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKEWORLD, 0);
 }
 #ifdef WEBCLIENT
 void CL_PlayDownloadedDemo(struct dl_download *dl)
@@ -1746,12 +1753,12 @@ void CL_PlayDownloadedDemo(struct dl_download *dl)
 		Con_Printf("Failed to download %s\n", dl->url);
 	else
 	{
-		CL_PlayDemoFile(dl->file, dl->url);
+		CL_PlayDemoFile(dl->file, dl->url, false);
 		dl->file = NULL;
 	}
 }
 #endif
-void CL_PlayDemo(char *demoname)
+void CL_PlayDemo(char *demoname, qboolean usesystempath)
 {
 	char	name[256];
 	vfsfile_t *f;
@@ -1761,13 +1768,13 @@ void CL_PlayDemo(char *demoname)
 //
 	Q_strncpyz (name, demoname, sizeof(name));
 	COM_DefaultExtension (name, ".qwd", sizeof(name));
-	f = CL_OpenFileInZipOrSys(name);
+	f = CL_OpenFileInZipOrSys(name, usesystempath);
 	if (!f)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
 		COM_DefaultExtension (name, ".dem", sizeof(name));
-		if (*name == '#')
-			f = VFSOS_Open(name+1, "rb");
+		if (usesystempath)
+			f = VFSOS_Open(name, "rb");
 		else
 			f = FS_OpenVFS(name, "rb", FS_GAME);
 	}
@@ -1775,8 +1782,8 @@ void CL_PlayDemo(char *demoname)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
 		COM_DefaultExtension (name, ".mvd", sizeof(name));
-		if (*name == '#')
-			f = VFSOS_Open(name+1, "rb");
+		if (usesystempath)
+			f = VFSOS_Open(name, "rb");
 		else
 			f = FS_OpenVFS(name, "rb", FS_GAME);
 	}
@@ -1788,7 +1795,7 @@ void CL_PlayDemo(char *demoname)
 	}
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
 
-	CL_PlayDemoFile(f, name);
+	CL_PlayDemoFile(f, name, usesystempath);
 }
 
 /*used with qtv*/
@@ -2017,7 +2024,7 @@ void CL_QTVPoll (void)
 
 	if (streamavailable)
 	{
-		CL_PlayDemoStream(qtvrequest, NULL, NULL, iseztv?DPB_EZTV:DPB_MVD, BUFFERTIME);
+		CL_PlayDemoStream(qtvrequest, NULL, NULL, false, iseztv?DPB_EZTV:DPB_MVD, BUFFERTIME);
 		qtvrequest = NULL;
 		demo_resetcache(qtvrequestsize - (tail-qtvrequestbuffer), tail);
 		return;
@@ -2302,7 +2309,7 @@ void CL_QTVPlay_f (void)
 	if (raw)
 	{
 		VFS_WRITE(newf, msg, msglen);
-		CL_PlayDemoStream(qtvrequest, NULL, qtvhostname, DPB_MVD, BUFFERTIME);
+		CL_PlayDemoStream(qtvrequest, NULL, qtvhostname, false, DPB_MVD, BUFFERTIME);
 	}
 	else
 	{

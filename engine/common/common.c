@@ -4592,13 +4592,6 @@ void COM_Version_f (void)
 #endif
 
 	Con_Printf("Misc:");
-#ifdef ODE_STATIC
-	Con_Printf(" ODE(static)");
-#elif defined(USEODE)
-	Con_Printf(" ODE(dynamic)");
-#else
-	Con_Printf(" ^h(disabled: ODE)^7");
-#endif
 #ifdef SUBSERVERS
 	Con_Printf(" mapcluster(enabled)");
 #else

@@ -2,6 +2,7 @@
 #include "fs.h"
 
 #ifdef AVAIL_ZLIB
+#define ZIPCRYPT
 
 #ifndef ZEXPORT
 	#define ZEXPORT VARGS
@@ -58,6 +59,9 @@ static int (ZEXPORT *qinflate) (z_streamp strm, int flush) ZSTATIC(inflate);
 static int (ZEXPORT *qinflateInit2_) (z_streamp strm, int  windowBits,
                                       const char *version, int stream_size) ZSTATIC(inflateInit2_);
 //static uLong (ZEXPORT *qcrc32)   (uLong crc, const Bytef *buf, uInt len) ZSTATIC(crc32);
+#ifdef ZIPCRYPT
+static const uLongf *(ZEXPORT *qget_crc_table)   (void) ZSTATIC(get_crc_table);
+#endif
 
 #define qinflateInit2(strm, windowBits) \
         qinflateInit2_((strm), (windowBits), ZLIB_VERSION, sizeof(z_stream))
@@ -71,6 +75,9 @@ qboolean LibZ_Init(void)
 		{(void*)&qinflate,			"inflate"},
 		{(void*)&qinflateInit2_,	"inflateInit2_"},
 //		{(void*)&qcrc32,			"crc32"},
+#ifdef ZIPCRYPT
+		{(void*)&qget_crc_table,	"get_crc_table"},
+#endif
 		{NULL, NULL}
 	};
 	if (!ZLIB_LOADED())
@@ -247,6 +254,7 @@ typedef struct
 	char	name[MAX_QPATH];
 	qofs_t	localpos;	//location of local header
 	qofs_t	filelen;	//uncompressed size
+	time_t	mtime;
 	unsigned int		crc;
 	unsigned int		flags;
 } zpackfile_t;
@@ -254,6 +262,7 @@ typedef struct
 #define ZFL_STORED		2	//direct access is okay
 #define ZFL_SYMLINK		4	//file is a symlink
 #define ZFL_CORRUPT		8	//file is corrupt or otherwise unreadable.
+#define ZFL_WEAKENCRYPT	16	//traditional zip encryption
 
 
 typedef struct zipfile_s
@@ -381,7 +390,7 @@ static void QDECL FSZIP_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, ch
 	VFS_CLOSE(f);
 }
 
-static int QDECL FSZIP_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL FSZIP_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *spath), void *parm)
 {
 	zipfile_t *zip = (void*)handle;
 	int		num;
@@ -390,7 +399,7 @@ static int QDECL FSZIP_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 	{
 		if (wildcmp(match, zip->files[num].name))
 		{
-			if (!func(zip->files[num].name, zip->files[num].filelen, parm, &zip->pub))
+			if (!func(zip->files[num].name, zip->files[num].filelen, zip->files[num].mtime, parm, &zip->pub))
 				return false;
 		}
 	}
@@ -437,25 +446,114 @@ struct decompressstate
 	unsigned char outbuffer[16384];
 	unsigned int readoffset;
 
+#ifdef ZIPCRYPT
+	qboolean encrypted;
+	unsigned int cryptkey[3];
+	unsigned int initialkey[3];
+	const int * crctable;
+#endif
+
 	z_stream strm;
 };
 
-struct decompressstate *FSZIP_Decompress_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize)
+#ifdef ZIPCRYPT
+#define CRC32(c, b) ((*(st->crctable+(((int)(c) ^ (b)) & 0xff))) ^ ((c) >> 8))
+
+static void FSZIP_UpdateKeys(struct decompressstate *st, unsigned char ch)
+{
+	st->cryptkey[0] = CRC32(st->cryptkey[0], ch);
+	st->cryptkey[1] += (st->cryptkey[0] & 0xffu);
+	st->cryptkey[1] = st->cryptkey[1] * 0x8088405u + 1;
+	ch = st->cryptkey[1] >> 24;
+	st->cryptkey[2] = CRC32(st->cryptkey[2], ch);
+}
+static unsigned char FSZIP_DecryptByte(struct decompressstate *st)
+{
+	unsigned int temp;
+	temp = (st->cryptkey[2]&0xffff) | 2;
+	return ((temp * (temp ^ 1)) >> 8) & 0xff;
+}
+
+static qboolean FSZIP_SetupCrytoKeys(struct decompressstate *st, const char *password, char *cryptheader, unsigned int crc)
+{
+	unsigned int u;
+	st->crctable = qget_crc_table();
+	st->encrypted = true;
+	st->cryptkey[0] = 0x12345678;
+	st->cryptkey[1] = 0x23456789;
+	st->cryptkey[2] = 0x34567890;
+	while (*password)
+		FSZIP_UpdateKeys(st, *password++);
+
+	for (u = 0; u < 12; u++)
+	{
+		unsigned char ch = cryptheader[u] ^ FSZIP_DecryptByte(st);
+		FSZIP_UpdateKeys(st, ch);
+		cryptheader[u] = ch;
+	}
+
+	memcpy(st->initialkey, st->cryptkey, sizeof(st->initialkey));
+
+	//cryptheader[11] should be the high byte of the file's crc
+	//[10] might be the second byte, but also might not be.
+	if (cryptheader[11] != (unsigned char)(crc>>24))
+		return false;
+//	if (cryptheader[10] != (unsigned char)(crc>>16))
+//		return false;
+	return true;
+}
+static void FSZIP_DecryptBlock(struct decompressstate *st, char *block, size_t blocksize)
+{
+    while (blocksize--)
+	{
+        unsigned char temp = *block ^ FSZIP_DecryptByte(st);
+        FSZIP_UpdateKeys(st, temp);
+        *block++ = temp;
+	}
+}
+#endif
+
+static struct decompressstate *FSZIP_Decompress_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc)
 {
 	struct decompressstate *st;
 	if (!ZLIB_LOADED())
+	{
+		Con_Printf("zlib not available\n");
 		return NULL;
+	}
 	st = Z_Malloc(sizeof(*st));
+	st->source = source;
+
+#ifdef ZIPCRYPT
+	if (password && csize >= 12)
+	{
+		char entropy[12];
+		if (Sys_LockMutex(source->mutex))
+		{
+			VFS_SEEK(source->raw, start);
+			VFS_READ(source->raw, entropy, sizeof(entropy));
+			Sys_UnlockMutex(source->mutex);
+		}
+		if (!FSZIP_SetupCrytoKeys(st, password, entropy, crc))
+		{
+			Con_Printf("Invalid password, cannot decrypt %s\n", filename);
+			Z_Free(st);
+			return NULL;
+		}
+		start += sizeof(entropy);
+		csize -= sizeof(entropy);
+	}
+#endif
+
 	st->cstart = st->cofs = start;
 	st->cend = start + csize;
 	st->usize = usize;
 	st->strm.data_type = Z_UNKNOWN;
-	st->source = source;
 	qinflateInit2(&st->strm, -MAX_WBITS);
 	return st;
 }
 
-qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, qofs_t bytes)
+static qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, qofs_t bytes)
 {
 	qboolean eof = false;
 	int err;
@@ -500,6 +598,10 @@ qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, qofs_t b
 					st->strm.avail_in = 0;
 				st->strm.next_in = st->inbuffer;
 				st->cofs += st->strm.avail_in;
+#ifdef ZIPCRYPT
+				if (st->encrypted)
+					FSZIP_DecryptBlock(st, st->inbuffer, st->strm.avail_in);
+#endif
 			}
 			if (!st->strm.avail_in)
 				eof = true;
@@ -513,12 +615,12 @@ qofs_t FSZIP_Decompress_Read(struct decompressstate *st, qbyte *buffer, qofs_t b
 	return read;
 }
 
-void FSZIP_Decompress_Destroy(struct decompressstate *st)
+static void FSZIP_Decompress_Destroy(struct decompressstate *st)
 {
 	qinflateEnd(&st->strm);
 	Z_Free(st);
 }
-vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
+static vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
 {	//if they're going to seek on a file in a zip, let's just copy it out
 	qofs_t cstart = decompress->cstart, csize = decompress->cend - cstart;
 	qofs_t upos = 0, usize = decompress->usize;
@@ -527,6 +629,11 @@ vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
 	qbyte buffer[16384];
 	vfsfile_t *defer;
 	zipfile_t *source = decompress->source;
+	qboolean encrypted = decompress->encrypted;
+	unsigned int cryptkeys[3];
+	const uLongf *crctab = decompress->crctable;
+
+	memcpy(cryptkeys, decompress->initialkey, sizeof(cryptkeys));
 
 	defer = FS_OpenTemp();
 	if (defer)
@@ -534,7 +641,11 @@ vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
 		FSZIP_Decompress_Destroy(decompress);
 		decompress = NULL;
 
-		nc = FSZIP_Decompress_Init(source, cstart, csize, usize);
+		nc = FSZIP_Decompress_Init(source, cstart, csize, usize, NULL, NULL, 0);
+		nc->encrypted = encrypted;
+		nc->crctable = crctab;
+		memcpy(nc->initialkey, cryptkeys, sizeof(nc->initialkey));
+		memcpy(nc->cryptkey, cryptkeys, sizeof(nc->cryptkey));
 
 		while (upos < usize)
 		{
@@ -565,7 +676,7 @@ struct decompressstate
 //	unsigned char outbuffer[16384];
 //	unsigned int readoffset;
 };
-struct decompressstate *FSZIP_Decompress_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize)
+struct decompressstate *FSZIP_Decompress_Init(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc)
 {
 	return NULL;
 }
@@ -623,6 +734,9 @@ static int QDECL VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int byt
 	else
 		read = 0;
 
+	if (read < bytestoread)
+		((char*)buffer)[read] = 0;
+
 	vfsz->pos += read;
 	return read;
 }
@@ -637,6 +751,7 @@ static qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, qofs_t pos)
 	if (vfsz->decompress)
 	{	//if they're going to seek on a file in a zip, let's just copy it out
 		vfsz->defer = FSZIP_Decompress_ToTempFile(vfsz->decompress);
+		vfsz->decompress = NULL;
 		if (vfsz->defer)
 			return VFS_SEEK(vfsz->defer, pos);
 		return false;
@@ -722,7 +837,12 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 
 	if (flags & ZFL_DEFLATED)
 	{
-		vfsz->decompress = FSZIP_Decompress_Init(zip, vfsz->startpos, datasize, vfsz->length);
+#ifdef ZIPCRYPT
+		char *password = (flags & ZFL_WEAKENCRYPT)?Cvar_Get("fs_zip_password", "thisispublic", 0, "Filesystem")->string:NULL;
+#else
+		char *password = NULL;
+#endif
+		vfsz->decompress = FSZIP_Decompress_Init(zip, vfsz->startpos, datasize, vfsz->length, zip->files[loc->index].name, password, zip->files[loc->index].crc);
 		if (!vfsz->decompress)
 		{
 			/*
@@ -794,9 +914,10 @@ struct zipinfo
 };
 struct zipcentralentry
 {
-	unsigned char *fname;
-	qofs_t cesize;
-	unsigned int		flags;
+	unsigned char	*fname;
+	qofs_t			cesize;
+	unsigned int	flags;
+	time_t			mtime;
 
 	//PK12
 	unsigned short	version_madeby;
@@ -991,6 +1112,8 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 	entry->fname = data+entry->cesize;
 	entry->cesize += entry->fnane_len;
 
+	entry->mtime = 0;
+
 	//parse extra
 	if (entry->extra_len)
 	{
@@ -1030,11 +1153,30 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 					extra += 4;
 				}
 				break;
+			case 0x000a:	//NTFS extra field
+				//0+4: reserved
+				//4+2: subtag(must be 1, for times)
+				//6+2: subtagsize(times: must be == 8*3+4)
+				//8+8: mtime
+				//16+8: atime
+				//24+8: ctime
+				if (extrachunk_len >= 32 && LittleU2FromPtr(extra+4) == 1 && LittleU2FromPtr(extra+6) == 8*3)	
+					entry->mtime = LittleU8FromPtr(extra+8) / 10000000ULL - 11644473600ULL;
+				else
+					Con_Printf("zip: unsupported ntfs subchunk %x\n", extrachunk_tag);
+				extra += extrachunk_len;
+				break;
+			case 0x5455:
+				if (extra[0] & 1)
+					entry->mtime = LittleU4FromPtr(extra+1);
+				//access and creation do NOT exist in the central header.
+				extra += extrachunk_len;
+				break;
 			default:
 /*				Con_Printf("Unknown chunk %x\n", extrachunk_tag);
-			case 0x000a:	//NTFS (timestamps)
 			case 0x5455:	//extended timestamp
 			case 0x7875:	//unix uid/gid
+			case 0x9901:	//aes crypto
 */				extra += extrachunk_len;
 				break;
 			}
@@ -1061,8 +1203,16 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 	}
 
 	if (entry->gflags & (1u<<0))	//encrypted
+	{
+#ifdef ZIPCRYPT
+		entry->flags |= ZFL_WEAKENCRYPT;
+#else
 		entry->flags |= ZFL_CORRUPT;
-	else if (entry->gflags & (1u<<5))	//is patch data
+#endif
+	}
+
+
+	if (entry->gflags & (1u<<5))	//is patch data
 		entry->flags |= ZFL_CORRUPT;
 	else if (entry->gflags & (1u<<6))	//strong encryption
 		entry->flags |= ZFL_CORRUPT;
@@ -1076,7 +1226,7 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 	//7: tokenize
 	else if (entry->cmethod == 8)
 		entry->flags |= ZFL_DEFLATED;
-	//8: deflate64 - patented. sometimes written by microsoft's crap. only minor improvements.
+	//8: deflate64 - patented. sometimes written by microsoft's crap, so this might be problematic. only minor improvements.
 	//10: implode
 	//12: bzip2
 //	else if (entry->cmethod == 12)
@@ -1088,6 +1238,9 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 	//98: ppmd
 	else 
 		entry->flags |= ZFL_CORRUPT;	//unsupported compression method.
+
+	if ((entry->flags & ZFL_WEAKENCRYPT) && !(entry->flags & ZFL_DEFLATED))
+		entry->flags |= ZFL_CORRUPT;	//only support decryption with deflate.
 	return true;
 }
 
@@ -1165,6 +1318,7 @@ static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *
 				f->filelen = entry.usize;
 				f->localpos = entry.localheaderoffset+info->zipoffset;
 				f->flags = entry.flags;
+				f->mtime = entry.mtime;
 
 				ofs += entry.cesize;
 				f++;
@@ -1377,7 +1531,8 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, const char *d
 
 
 #if 0
-
+//our download protocol permits requesting various different parts of the file.
+//this means that its theoretically possible to download sections pk3s such that we can skip blocks that contain files that we already have.
 
 typedef struct
 {

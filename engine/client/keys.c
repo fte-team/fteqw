@@ -431,13 +431,14 @@ void Con_ExecuteLine(console_t *con, char *line)
 		Cbuf_AddText (line, RESTRICT_LOCAL);
 	else
 	{
+		char *exec = NULL;
 		if (line[0] == '\\' || line[0] == '/')
-			Cbuf_AddText (line+1, RESTRICT_LOCAL);	// skip the >
+			exec = line+1;	// skip the slash
 		else if (cl_chatmode.value == 2 && Cmd_IsCommand(line))
-			Cbuf_AddText (line, RESTRICT_LOCAL);	// valid command
+			exec = line;	// valid command
 	#ifdef Q2CLIENT
 		else if (cls.protocol == CP_QUAKE2)
-			Cbuf_AddText (line, RESTRICT_LOCAL);	// send the command to the server via console, and let the server convert to chat
+			exec = line;	// send the command to the server via console, and let the server convert to chat
 	#endif
 		else if (*line)
 		{	// convert to a chat message
@@ -448,8 +449,29 @@ void Con_ExecuteLine(console_t *con, char *line)
 				else
 					Cbuf_AddText ("say ", RESTRICT_LOCAL);
 				waschat = true;
+				Cbuf_AddText (line, RESTRICT_LOCAL);
 			}
-			Cbuf_AddText (line, RESTRICT_LOCAL);	// skip the >
+		}
+
+		if (exec)
+		{
+#ifdef TEXTEDITOR
+			extern qboolean editormodal;
+			if (editormodal)
+			{
+				char cvarname[128];
+				COM_ParseOut(exec, cvarname, sizeof(cvarname));
+				if (Cvar_FindVar(cvarname) && !strchr(line, ';') && !strchr(line, '\n'))
+				{
+					Con_Printf ("]%s\n",line);
+					Cmd_ExecuteString(exec, RESTRICT_SERVER);
+					return;
+				}
+
+				Con_Footerf(false, "Commands cannot be execed while debugging QC");
+			}
+#endif
+			Cbuf_AddText (exec, RESTRICT_LOCAL);
 		}
 	}
 
@@ -1886,6 +1908,9 @@ qboolean Key_MouseShouldBeFree(void)
 	//if true, the input code is expected to return mouse cursor positions rather than deltas
 	extern cvar_t cl_prydoncursor;
 	if (key_dest_absolutemouse & key_dest_mask)
+		return true;
+
+	if (Key_Dest_Has(kdm_editor))
 		return true;
 
 //	if (!ActiveApp)

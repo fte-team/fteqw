@@ -1133,7 +1133,7 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 	return true;
 }
 
-cvar_t *Cvar_Get(const char *name, const char *defaultvalue, int flags, const char *group)
+cvar_t *Cvar_Get2(const char *name, const char *defaultvalue, int flags, const char *description, const char *group)
 {
 	cvar_t *var;
 	int old;
@@ -1151,12 +1151,19 @@ cvar_t *Cvar_Get(const char *name, const char *defaultvalue, int flags, const ch
 		}
 		return var;
 	}
+	if (!description)
+		description = "";
 
-	var = (cvar_t*)Z_Malloc(sizeof(cvar_t)+strlen(name)+1);
+	var = (cvar_t*)Z_Malloc(sizeof(cvar_t)+strlen(name)+1+(description?(strlen(description)+1):0));
 	var->name = (char *)(var+1);
 	strcpy(var->name, name);
 	var->string = (char*)defaultvalue;
 	var->flags = flags|CVAR_POINTER|CVAR_USERCREATED;
+	if (description)
+	{
+		var->description = var->name+strlen(var->name)+1;
+		strcpy(var->description, description);
+	}
 
 	if (!Cvar_Register(var, group))
 		return NULL;

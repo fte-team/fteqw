@@ -2263,6 +2263,19 @@ void GL_Init(void *(*getglfunction) (char *name))
 				sh_config.texfmt[PTI_ARGB1555] = true;
 			}
 		}
+		if (!gl_config.gles && (gl_config.glversion >= 1.4 || GL_CheckExtension("GL_ARB_depth_texture")))
+		{	//depth formats
+			sh_config.texfmt[PTI_DEPTH16] = true;
+			sh_config.texfmt[PTI_DEPTH24] = true;
+			sh_config.texfmt[PTI_DEPTH32] = true;
+		}
+		else if (gl_config.gles && GL_CheckExtension("GL_OES_depth_texture"))
+		{	//16+32, not 24.
+			sh_config.texfmt[PTI_DEPTH16] = true;
+			sh_config.texfmt[PTI_DEPTH32] = true;
+		}
+		if (GL_CheckExtension("GL_EXT_packed_depth_stencil"))
+			sh_config.texfmt[PTI_DEPTH24_8] = true;
 
 		sh_config.minver = gl_config.arb_shader_objects?110:0;
 		sh_config.maxver = gl_config.arb_shader_objects?gl_config.maxglslversion:0;

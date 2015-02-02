@@ -20,6 +20,11 @@ void main ()
 uniform sampler2D s_t0;
 void main ()
 {
-	gl_FragColor = texture2D(s_t0, tc) * vc;
+	vec4 f = vc;
+#ifdef PREMUL
+	f.rgb *= f.a;
+#endif
+	f *= texture2D(s_t0, tc);
+	gl_FragColor = f;
 }
 #endif

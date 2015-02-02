@@ -1882,9 +1882,10 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 					n = "";
 				if (strcmp(o, n))
 					client->pendingstats[(i+MAX_CL_STATS)>>5u] |= 1u<<((i+MAX_CL_STATS)&0x1f);
+				//FIXME: we could always just run the QCGC on the player's string stats too. wouldn't need string compares that way
 				if (client->statss)
 					Z_Free(client->statss[i]);
-				client->statss[i] = Z_StrDup(statss[i]);
+				client->statss[i] = (statss[i]&&*statss[i])?Z_StrDup(statss[i]):NULL;
 			}
 		}
 
@@ -1926,7 +1927,7 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 							MSG_WriteByte(msg, svcfte_choosesplitclient);
 							MSG_WriteByte(msg, pnum);
 						}
-						MSG_WriteByte(msg, svcqw_updatestatbyte);
+						MSG_WriteByte(msg, ISNQCLIENT(client)?svcdp_updatestatbyte:svcqw_updatestatbyte);
 						MSG_WriteByte(msg, i);
 						MSG_WriteByte(msg, ival);
 					}
@@ -1937,7 +1938,7 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 							MSG_WriteByte(msg, svcfte_choosesplitclient);
 							MSG_WriteByte(msg, pnum);
 						}
-						MSG_WriteByte(msg, svcqw_updatestatlong);
+						MSG_WriteByte(msg, ISNQCLIENT(client)?svcnq_updatestatlong:svcqw_updatestatlong);
 						MSG_WriteByte(msg, i);
 						MSG_WriteLong(msg, ival);
 					}
@@ -2137,7 +2138,7 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 
 qboolean SV_CanTrack(client_t *client, int entity)
 {
-	if (entity < 0 || entity > sv.allocated_client_slots || svs.clients[entity-1].state != cs_spawned || svs.clients[entity-1].spectator)
+	if (entity < 0 || entity >= sv.allocated_client_slots || svs.clients[entity-1].state != cs_spawned || svs.clients[entity-1].spectator)
 		return false;
 	return true;
 }
@@ -2561,9 +2562,9 @@ void SV_UpdateToReliableMessages (void)
 	SV_FlushBroadcasts();
 }
 
-#ifdef _MSC_VER
-#pragma optimize( "", off )
-#endif
+//#ifdef _MSC_VER
+//#pragma optimize( "", off )
+//#endif
 
 
 
@@ -2827,9 +2828,9 @@ void SV_SendClientMessages (void)
 	SV_CleanupEnts();
 }
 
-#ifdef _MSC_VER
-#pragma optimize( "", on )
-#endif
+//#ifdef _MSC_VER
+//#pragma optimize( "", on )
+//#endif
 
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
 

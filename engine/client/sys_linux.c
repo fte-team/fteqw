@@ -410,7 +410,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	return 1;
 }
 
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	DIR *dir;
 	char apath[MAX_OSPATH];
@@ -468,7 +468,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 				{
 					Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":"");
 
-					if (!func(file, st.st_size, parm, spath))
+					if (!func(file, st.st_size, st.st_mtime, parm, spath))
 					{
 						Con_DPrintf("giving up on search after finding %s\n", file);
 						closedir(dir);

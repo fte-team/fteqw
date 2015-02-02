@@ -368,56 +368,6 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 }
 
 /*
-============
-PR_RunError
-
-Aborts the currently executing function
-============
-*/
-void VARGS PR_RunError (pubprogfuncs_t *progfuncs, char *error, ...)
-{
-	va_list		argptr;
-	char		string[1024];
-
-	va_start (argptr,error);
-	Q_vsnprintf (string,sizeof(string)-1, error,argptr);
-	va_end (argptr);
-
-//	{
-//		void SV_EndRedirect (void);
-//		SV_EndRedirect();
-//	}
-
-//	PR_PrintStatement (pr_statements + pr_xstatement);
-	PR_StackTrace (progfuncs, true);
-	progfuncs->parms->Printf ("\n");
-
-//editbadfile(pr_strings + pr_xfunction->s_file, -1);
-
-//	pr_depth = 0;		// dump the stack so host_error can shutdown functions
-//	prinst->exitdepth = 0;
-
-	progfuncs->parms->Abort ("%s", string);
-}
-
-pbool PR_RunWarning (pubprogfuncs_t *progfuncs, char *error, ...)
-{
-	va_list		argptr;
-	char		string[1024];
-
-	va_start (argptr,error);
-	Q_vsnprintf (string,sizeof(string)-1, error,argptr);
-	va_end (argptr);
-
-	progfuncs->parms->Printf ("%s, %s\n", string, ((progfuncs->pr_trace)?"ignoring":"enabling trace"));
-	PR_StackTrace (progfuncs, false);
-
-	if (progfuncs->pr_trace++ == 0)
-		return true;
-	return false;
-}
-
-/*
 ============================================================================
 PR_ExecuteProgram
 
@@ -440,6 +390,9 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsn
 	pr_stack[pr_depth].f = pr_xfunction;
 	pr_stack[pr_depth].progsnum = progsnum;
 	pr_stack[pr_depth].pushed = pr_spushed;
+	pr_stack[pr_depth].stepping = progfuncs->funcs.debug_trace;
+	if (progfuncs->funcs.debug_trace == DEBUG_TRACE_OVER)
+		progfuncs->funcs.debug_trace = DEBUG_TRACE_OFF;
 	if (prinst.profiling)
 	{
 		pr_stack[pr_depth].timestamp = Sys_GetClock();
@@ -514,6 +467,9 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 
 	PR_SwitchProgsParms(progfuncs, pr_stack[pr_depth].progsnum);
 	pr_spushed = pr_stack[pr_depth].pushed;
+
+	if (!progfuncs->funcs.debug_trace)
+		progfuncs->funcs.debug_trace = pr_stack[pr_depth].stepping;
 
 	if (prinst.profiling)
 	{
@@ -812,62 +768,68 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 */
 	if (assignment)
 	{
-		assignment++;
-		while(*assignment == ' ')
-			assignment++;
+		char *str = assignment+1;
+		while(*str == ' ')
+			str++;
 		switch (type&~DEF_SAVEGLOBAL)
 		{
 		case ev_string:
 #ifdef QCGC
-			*(string_t *)val = PR_AllocTempString(&progfuncs->funcs, assignment);
+			*(string_t *)val = PR_AllocTempString(&progfuncs->funcs, str);
 #else
 			*(string_t *)val = PR_StringToProgs(&progfuncs->funcs, ED_NewString (&progfuncs->funcs, assignment, 0, true));
 #endif
 			break;
 
 		case ev_float:
-			if (assignment[0] == '0' && (assignment[1] == 'x' || assignment[1] == 'X'))
-				*(float*)val = strtoul(assignment, NULL, 0);
+			if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
+				*(float*)val = strtoul(str, NULL, 0);
 			else
-				*(float *)val = (float)atof (assignment);
+				*(float *)val = (float)atof (str);
 			break;
 
 		case ev_integer:
-			*(int *)val = atoi (assignment);
+			*(int *)val = atoi (str);
 			break;
 
-/*		case ev_vector:
-			strcpy (string, assignment);
-			v = string;
-			w = string;
-			for (i=0 ; i<3 ; i++)
+		case ev_vector:
 			{
-				while (*v && *v != ' ')
-					v++;
-				*v = 0;
-				((float *)d)[i] = (float)atof (w);
-				w = v = v+1;
+				int i;
+				if (*str == '\'')
+					str++;
+				for (i = 0; i < 3; i++)
+				{
+					while(*str == ' ' || *str == '\t')
+						str++;
+					((float *)val)[i] = strtod(str, &str);
+				}
+				while(*str == ' ' || *str == '\t')
+					str++;
+				if (*str == '\'')
+					str++;
 			}
 			break;
-*/
+
 		case ev_entity:
-			if (!EDICT_NUM(progfuncs, atoi (assignment)))
+			if (!EDICT_NUM(progfuncs, atoi (str)))
 				return "(invalid entity)";
-			*(int *)val = EDICT_TO_PROG(progfuncs, EDICT_NUM(progfuncs, atoi (assignment)));
+			*(int *)val = EDICT_TO_PROG(progfuncs, EDICT_NUM(progfuncs, atoi (str)));
 			break;
 
 		case ev_field:
-			fdef = ED_FindField (progfuncs, assignment);
+			fdef = ED_FindField (progfuncs, str);
 			if (!fdef)
 			{
-				size_t l,nl = strlen(assignment);
+				size_t l,nl = strlen(str);
+
+				*assignment = '=';
+
 				strcpy(buf, "Can't find field ");
 				l = strlen(buf);
 				if (nl > sizeof(buf)-l-2)
 					nl = sizeof(buf)-l-2;
-				memcpy(buf+l, assignment, nl);
-				assignment[l+nl+0] = '\n';
-				assignment[l+nl+1] = 0;
+				memcpy(buf+l, str, nl);
+				buf[l+nl+1] = 0;
 				return buf;
 			}
 			*(int *)val = G_INT(fdef->ofs);
@@ -878,32 +840,30 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 				mfunction_t *func;
 				int i;
 				int progsnum = -1;
-				char *s = assignment;
-				if (s[0] && s[1] == ':')
+				if (str[0] && str[1] == ':')
 				{
-					progsnum = atoi(s);
-					s+=2;
+					progsnum = atoi(str);
+					str+=2;
 				}
-				else if (s[0] && s[1] && s[2] == ':')
+				else if (str[0] && str[1] && str[2] == ':')
 				{
-					progsnum = atoi(s);
-					s+=3;
+					progsnum = atoi(str);
+					str+=3;
 				}
 
-				func = ED_FindFunction (progfuncs, s, &i, progsnum);
+				func = ED_FindFunction (progfuncs, str, &i, progsnum);
 				if (!func)
 				{
-					size_t l,nl = strlen(s);
+					size_t l,nl = strlen(str);
 
-					assignment[-1] = '=';
+					*assignment = '=';
 
 					strcpy(buf, "Can't find field ");
 					l = strlen(buf);
 					if (nl > sizeof(buf)-l-2)
 						nl = sizeof(buf)-l-2;
-					memcpy(buf+l, assignment, nl);
-					assignment[l+nl+0] = '\n';
-					assignment[l+nl+1] = 0;
+					memcpy(buf+l, str, nl);
+					buf[l+nl+1] = 0;
 					return buf;
 				}
 				*(func_t *)val = (func - pr_progstate[i].functions) | (i<<24);
@@ -914,7 +874,7 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 			break;
 
 		}
-		assignment[-1] = '=';
+		*assignment = '=';
 	}
 	QC_snprintfz(buf, sizeof(buf), "%s", PR_ValueString(progfuncs, type, val, true));
 
@@ -1046,6 +1006,8 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, char *filename, int linenum, 
 									Sys_Error("Bad structtype");
 									op = 0;
 								}
+								if (ret)	//if its set, only set one breakpoint statement, not all of them.
+									return true;
 							}
 							goto cont;
 						}
@@ -1125,16 +1087,19 @@ cont:
 	return ret;
 }
 
-int ShowStep(progfuncs_t *progfuncs, int statement)
+int ShowStep(progfuncs_t *progfuncs, int statement, char *fault)
 {
 //	return statement;
 //	texture realcursortex;
 static int lastline = 0;
-static char *lastfile = 0;
+static int ignorestatement = 0;	//
+static const char *lastfile = 0;
 
 	int pn = pr_typecurrent;
 	int i;
 	const mfunction_t *f = pr_xfunction;
+	int faultline;
+	int debugaction;
 	pr_xstatement = statement;
 
 	if (!externs->useeditor)
@@ -1145,49 +1110,182 @@ static char *lastfile = 0;
 
 	if (f && externs->useeditor)
 	{
-		if (pr_progstate[pn].linenums)
+		for(;;)	//for DEBUG_TRACE_NORESUME handling
 		{
-			if (lastline == pr_progstate[pn].linenums[statement] && lastfile == f->s_file+progfuncs->funcs.stringtable)
-				return statement;	//no info/same line as last time
-
-			lastline = pr_progstate[pn].linenums[statement];
-		}
-		else
-			lastline = -1;
-		lastfile = f->s_file+progfuncs->funcs.stringtable;
-
-		lastline = externs->useeditor(&progfuncs->funcs, lastfile, lastline, statement, 0, NULL);
-		if (!pr_progstate[pn].linenums)
-			return statement;
-		if (lastline <= 0)
-			return -lastline;
-
-		if (pr_progstate[pn].linenums[statement] != lastline)
-		{
-			for (i = f->first_statement; ; i++)
+			if (pr_progstate[pn].linenums)
 			{
-				if (lastline == pr_progstate[pn].linenums[i])
+				if (lastline == pr_progstate[pn].linenums[statement] && lastfile == f->s_file+progfuncs->funcs.stringtable && statement == ignorestatement && !fault)
 				{
-					return i;
+					ignorestatement++;
+					return statement;	//no info/same line as last time
 				}
-				else if (lastline <= pr_progstate[pn].linenums[i])
+
+				lastline = pr_progstate[pn].linenums[statement];
+			}
+			else
+				lastline = -1;
+			lastfile = PR_StringToNative(&progfuncs->funcs, f->s_file);
+
+			faultline = lastline;
+			debugaction = externs->useeditor(&progfuncs->funcs, lastfile, ((lastline>0)?&lastline:NULL), &statement, fault);
+
+			//if they changed the line to execute, we need to find a statement that is on that line
+			if (lastline && faultline != lastline)
+			{
+				switch(pr_progstate[pn].structtype)
 				{
-					return statement;
+				case PST_FTE32:
+				case PST_KKQWSV:
+					{
+						dstatement32_t *st = pr_progstate[pn].statements;
+						unsigned int *lnos = pr_progstate[pn].linenums;
+						for (i = f->first_statement; ; i++)
+						{
+							if (lastline == lnos[i])
+							{
+								statement = i;
+								break;
+							}
+							else if (lastline <= lnos[i])
+								break;
+							else if (st[i].op == OP_DONE)
+								break;
+						}
+					}
+					break;
+				case PST_DEFAULT:
+				case PST_QTEST:
+					{
+						dstatement16_t *st = pr_progstate[pn].statements;
+						unsigned int *lnos = pr_progstate[pn].linenums;
+						for (i = f->first_statement; ; i++)
+						{
+							if (lastline == lnos[i])
+							{
+								statement = i;
+								break;
+							}
+							else if (lastline <= lnos[i])
+								break;
+							else if (st[i].op == OP_DONE)
+								break;
+						}
+					}
 				}
 			}
+
+			if (debugaction == DEBUG_TRACE_NORESUME)
+				continue;
+			else if(debugaction == DEBUG_TRACE_ABORT)
+				progfuncs->funcs.parms->Abort ("Debugging terminated");
+			else if (debugaction == DEBUG_TRACE_OUT)
+			{
+				//clear tracing for now, but ensure that it'll be reactivated once we reach the caller (if from qc)
+				progfuncs->funcs.debug_trace = DEBUG_TRACE_OFF;
+				if (pr_depth)
+					pr_stack[pr_depth-1].stepping = DEBUG_TRACE_INTO;
+			}
+			else	//some other debug action. maybe resume.
+				progfuncs->funcs.debug_trace = debugaction;
+			break;
 		}
 	}
 	else if (f)	//annoying.
 	{
 		if (*(f->s_file+progfuncs->funcs.stringtable))	//if we can't get the filename, then it was stripped, and debugging it like this is useless
 			if (externs->useeditor)
-				externs->useeditor(&progfuncs->funcs, f->s_file+progfuncs->funcs.stringtable, -1, 0, 0, NULL);
+				externs->useeditor(&progfuncs->funcs, f->s_file+progfuncs->funcs.stringtable, NULL, NULL, fault);
 		return statement;
 	}
 
-
+	ignorestatement = statement+1;
 	return statement;
 }
+
+int ShowStepf(progfuncs_t *progfuncs, int statement, char *fault, ...)
+{
+	va_list		argptr;
+	char		faultstring[1024];
+	va_start (argptr,fault);
+	Q_vsnprintf (faultstring,sizeof(faultstring)-1, fault,argptr);
+	va_end (argptr);
+	return ShowStep(progfuncs, statement, faultstring);
+}
+
+
+//called by the qcvm when executing some statement that cannot be execed.
+int PR_HandleFault (pubprogfuncs_t *ppf, char *error, ...)
+{
+	progfuncs_t *progfuncs = (progfuncs_t *)ppf;
+	va_list		argptr;
+	char		string[1024];
+	int resumestatement;
+
+	va_start (argptr,error);
+	Q_vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	PR_StackTrace (ppf, true);
+	ppf->parms->Printf ("%s\n", string);
+
+	resumestatement = ShowStep(progfuncs, pr_xstatement, string);
+
+	if (resumestatement == 0)
+	{
+		PR_AbortStack(ppf);
+		return prinst.continuestatement;
+//		ppf->parms->Abort ("%s", string);
+	}
+	return resumestatement;
+}
+
+/*
+============
+PR_RunError
+
+Aborts the currently executing function
+============
+*/
+void VARGS PR_RunError (pubprogfuncs_t *progfuncs, char *error, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr,error);
+	Q_vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+//	PR_PrintStatement (pr_statements + pr_xstatement);
+	PR_StackTrace (progfuncs, true);
+	progfuncs->parms->Printf ("\n");
+
+//editbadfile(pr_strings + pr_xfunction->s_file, -1);
+
+	progfuncs->parms->Abort ("%s", string);
+}
+
+pbool PR_RunWarning (pubprogfuncs_t *ppf, char *error, ...)
+{
+	progfuncs_t *progfuncs = (progfuncs_t *)ppf;
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr,error);
+	Q_vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	progfuncs->funcs.parms->Printf ("%s", string);
+	if (pr_depth != 0)
+		PR_StackTrace (ppf, false);
+
+	if (progfuncs->funcs.debug_trace == 0)
+	{
+		progfuncs->funcs.debug_trace = DEBUG_TRACE_INTO;
+		return true;
+	}
+	return false;
+}
+
 
 static pbool casecmp_f(progfuncs_t *progfuncs, eval_t *ref, eval_t *val)	{return ref->_float == val->_float;}
 static pbool casecmp_i(progfuncs_t *progfuncs, eval_t *ref, eval_t *val)	{return ref->_int == val->_int;}
@@ -1249,6 +1347,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	float *fte_restrict glob = pr_globals;
 	float tmpf;
 	int tmpi;
+	unsigned short op;
 
 	eval_t	*switchref = (eval_t*)glob;
 
@@ -1258,7 +1357,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 
 #define INTSIZE 16
 	st = &pr_statements16[s];
-	while (progfuncs->funcs.pr_trace || prinst.watch_ptr || prinst.profiling)
+	while (progfuncs->funcs.debug_trace || prinst.watch_ptr || prinst.profiling)
 	{
 #ifdef FTE_TARGET_WEB
 		cont16:
@@ -1308,13 +1407,15 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	int tmpi;
 	eval_t	*switchref = (eval_t*)glob;
 
+	unsigned int op;
+
 #define OPA ((eval_t *)&glob[st->a])
 #define OPB ((eval_t *)&glob[st->b])
 #define OPC ((eval_t *)&glob[st->c])
 
 #define INTSIZE 32
 	st = &pr_statements32[s];
-	while (progfuncs->funcs.pr_trace || prinst.watch_ptr || prinst.profiling)
+	while (progfuncs->funcs.debug_trace || prinst.watch_ptr || prinst.profiling)
 	{
 		#define DEBUGABLE
 		#ifdef SEPARATEINCLUDES
@@ -1458,22 +1559,16 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 			(*externs->globalbuiltins[i]) (&progfuncs->funcs, (struct globalvars_s *)current_progstate->globals);
 		else
 		{
-			i -= externs->numglobalbuiltins;
-			if (i > current_progstate->numbuiltins)
-			{
-				printf ("Bad builtin call number %i (from exe)\n", -f->first_statement);
-			//	PR_MoveParms(p, pr_typecurrent);
-				PR_SwitchProgs(progfuncs, initial_progs);
-				return;
-			}
-			current_progstate->builtins [i] (&progfuncs->funcs, (struct globalvars_s *)current_progstate->globals);
+			printf ("Bad builtin call number %i (from exe)\n", -f->first_statement);
+		//	PR_MoveParms(p, pr_typecurrent);
+			PR_SwitchProgs(progfuncs, initial_progs);
 		}
 		PR_SwitchProgsParms(progfuncs, initial_progs);
 		return;
 	}
 
-	if (progfuncs->funcs.pr_trace)
-		progfuncs->funcs.pr_trace--;
+	//forget about any tracing if its active. control returning to the engine should not look like its calling some random function.
+	progfuncs->funcs.debug_trace = 0;
 
 // make a stack frame
 	prinst.exitdepth = pr_depth;
@@ -1697,3 +1792,27 @@ void	PDECL PR_AbortStack			(pubprogfuncs_t *ppf)
 	prinst.continuestatement = 0;
 }
 
+pbool	PDECL PR_GetBuiltinCallInfo	(pubprogfuncs_t *ppf, int *builtinnum, char *function, size_t sizeoffunction)
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+	int st = pr_xstatement;
+	int op;
+	int a;
+	const char *fname;
+	op = pr_statements16[st].op;
+	a = pr_statements16[st].a;
+
+	*builtinnum = 0;
+	*function = 0;
+	if ((op >= OP_CALL0 && op <= OP_CALL8) || (op >= OP_CALL1H && op <= OP_CALL8H))
+	{
+		a = ((eval_t *)&pr_globals[a])->function;
+
+		*builtinnum = -current_progstate->functions[a].first_statement;
+		fname = PR_StringToNative(ppf, current_progstate->functions[a].s_name);
+		strncpy(function, fname, sizeoffunction-1);
+		function[sizeoffunction-1] = 0;
+		return true;
+	}
+	return false;
+}

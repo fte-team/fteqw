@@ -559,6 +559,8 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		{
 			if (!S_LoadSound(sfx))
 				return;	//can't load it
+			if (sfx->loadstate != SLS_LOADED)
+				return;	//not available yet
 			if (sfx->decoder.decodedata)
 			{
 				int offset;

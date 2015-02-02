@@ -91,10 +91,7 @@ pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms)
 		PostCompile();
 		if (*errorfile)
 		{
-			if (!externs->useeditor)
-				printf("Error in %s on line %i\n", errorfile, errorline);
-			else
-				externs->useeditor(&progfuncs->funcs, errorfile, errorline, 0, nump, parms);
+			printf("Error in %s on line %i\n", errorfile, errorline);
 		}
 		return false;
 	}
@@ -118,8 +115,6 @@ int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, char **parms)
 	if (setjmp(qcccompileerror))
 	{
 		PostCompile();
-		if (*errorfile)
-			progfuncs->parms->useeditor(&qccprogfuncs->funcs, errorfile, errorline, 0, nump, parms);
 		return false;
 	}
 
@@ -134,8 +129,6 @@ int PDECL Comp_Continue(pubprogfuncs_t *progfuncs)
 	if (setjmp(qcccompileerror))
 	{
 		PostCompile();
-		if (*errorfile && progfuncs->parms->useeditor)
-			progfuncs->parms->useeditor(progfuncs, errorfile, errorline, 0, comp_nump, comp_parms);
 		return false;
 	}
 
@@ -144,9 +137,6 @@ int PDECL Comp_Continue(pubprogfuncs_t *progfuncs)
 	else
 	{
 		PostCompile();
-
-		if (*errorfile && progfuncs->parms->useeditor)
-			progfuncs->parms->useeditor(progfuncs, errorfile, errorline, 0 , comp_nump, comp_parms);
 
 		return false;
 	}

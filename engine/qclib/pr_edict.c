@@ -102,8 +102,7 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf)
 
 		if (i >= maxedicts-2)
 		{
-			printf("Running out of edicts\n");
-			progfuncs->funcs.pr_trace = 1;	//trip the debugger whilst it's still valid
+			PR_RunWarning(&progfuncs->funcs, "Running out of edicts\n");
 		}
 		if (i >= maxedicts-1)
 		{
@@ -1782,7 +1781,6 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 				AddS (qcva("progs %i {\n", a));
 				AddS (qcva("\"filename\" \"%s\"\n", pr_progstate[a].filename));
 				AddS (qcva("\"crc\" \"%i\"\n", pr_progstate[a].progs->crc));
-				AddS (qcva("\"numbuiltins\" \"%i\"\n", pr_progstate[a].numbuiltins));
 				AddS ("}\n");
 			}
 		}
@@ -1979,8 +1977,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 					{file = QCC_COM_Parse(file); strcpy(filename, qcc_token);}
 				else if (!strcmp("crc", qcc_token))
 					{file = QCC_COM_Parse(file); header_crc = atoi(qcc_token);}
-				else if (!strcmp("numbuiltins", qcc_token))
-					{file = QCC_COM_Parse(file); numbuiltins = atoi(qcc_token);}
+				else if (!strcmp("numbuiltins", qcc_token))	//no longer supported.
+					{file = QCC_COM_Parse(file); /*qcc_token unused*/}
 				else if (qcc_token[0] == '}')	//end of block
 					break;
 				else
@@ -1988,17 +1986,6 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 			}
 
 			PR_ReallyLoadProgs(progfuncs, filename, &pr_progstate[num], true);
-			if (!externs->builtinsfor)
-			{
-			//	Sys_Error("Couldn't reset the builtin functions");
-				current_progstate->builtins = NULL;	//these are specific, we assume the global ones were set via pr_configure
-				current_progstate->numbuiltins = 0;
-			}
-			else
-			{
-				current_progstate->builtins = externs->builtinsfor(num, header_crc);
-				current_progstate->numbuiltins = numbuiltins;
-			}
 
 			if (num == 0 && oldglobals)
 			{
@@ -3331,6 +3318,15 @@ retry:
 
 	if (progfuncs->funcs.stringtablesize + progfuncs->funcs.stringtable < pr_strings + pr_progs->numstrings)
 		progfuncs->funcs.stringtablesize = (pr_strings + pr_progs->numstrings) - progfuncs->funcs.stringtable;
+
+	if (externs->MapNamedBuiltin)
+	{
+		for (i=0,fnc2=pr_cp_functions; i<pr_progs->numfunctions; i++, fnc2++)
+		{
+			if (i && !fnc2->first_statement)
+				fnc2->first_statement = -externs->MapNamedBuiltin(&progfuncs->funcs, pr_progs->crc, PR_StringToNative(&progfuncs->funcs, fnc2->s_name));
+		}
+	}
 
 	eval = PR_FindGlobal(&progfuncs->funcs, "thisprogs", progstype, NULL);
 	if (eval)

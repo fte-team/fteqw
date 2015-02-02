@@ -351,7 +351,7 @@ static qboolean QDECL VFSW32_PollChanges(searchpathfuncs_t *handle)
 	}
 	return result;
 }
-static int QDECL VFSW32_RebuildFSHash(const char *filename, qofs_t filesize, void *handle, searchpathfuncs_t *spath)
+static int QDECL VFSW32_RebuildFSHash(const char *filename, qofs_t filesize, time_t mtime, void *handle, searchpathfuncs_t *spath)
 {
 	vfsw32path_t *wp = (void*)spath;
 	if (filename[strlen(filename)-1] == '/')
@@ -446,7 +446,7 @@ static void QDECL VFSW32_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, c
 	fread(buffer, 1, loc->len, f);
 	fclose(f);
 }
-static int QDECL VFSW32_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL VFSW32_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *spath), void *parm)
 {
 	vfsw32path_t *wp = (vfsw32path_t*)handle;
 	return Sys_EnumerateFiles(wp->rootpath, match, func, parm, handle);

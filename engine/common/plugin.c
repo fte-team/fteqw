@@ -15,6 +15,22 @@
 cvar_t plug_sbar = SCVAR("plug_sbar", "1");
 cvar_t plug_loaddefault = SCVAR("plug_loaddefault", "1");
 
+qintptr_t Plug_Bullet_Init(qintptr_t *args);
+qintptr_t Plug_ODE_Init(qintptr_t *args);
+struct
+{
+	const char *name;
+	qintptr_t (*initfunction)(qintptr_t *args);
+} staticplugins[] = 
+{
+#ifdef USERBE
+//	{"Bullet", Plug_Bullet_Init},
+	{"ODE", Plug_ODE_Init},
+#endif
+	{NULL}
+};
+
+
 #ifdef GLQUAKE
 #include "glquake.h"
 #endif
@@ -22,7 +38,7 @@ cvar_t plug_loaddefault = SCVAR("plug_loaddefault", "1");
 //custom plugin builtins.
 typedef qintptr_t (EXPORT_FN *Plug_Builtin_t)(void *offset, quintptr_t mask, const qintptr_t *arg);
 void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags);
-#define PLUG_BIF_DLLONLY	1
+#define PLUG_BIF_DLLONLY	1	//WARNING: it is not enough to just specify this flag, but also the builtin code must return if there is an offset passed.
 #define PLUG_BIF_QVMONLY	2
 #define PLUG_BIF_NEEDSRENDERER 4
 
@@ -120,6 +136,8 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 static qintptr_t VARGS Plug_GetNativePointer(void *offset, quintptr_t mask, const qintptr_t *args)
 {
 	char *p = (char *)VM_POINTER(args[0]);
+	if (offset)	//QVMs are not allowed to call this
+		return 0;
 #ifdef SUPPORT_ICE
 	if (!strcmp(p, ICE_API_CURRENT))
 		return (qintptr_t)&iceapi;
@@ -152,7 +170,7 @@ static void Plug_RegisterBuiltinIndex(char *name, Plug_Builtin_t bi, int flags, 
 }
 */
 
-static qintptr_t Plug_FindBuiltin(qboolean native, char *p)
+static qintptr_t Plug_FindBuiltin(qboolean native, const char *p)
 {
 	int i;
 	for (i = 0; i < numplugbuiltins; i++)
@@ -228,15 +246,15 @@ static qintptr_t EXPORT_FN Plug_SystemCallsNative(qintptr_t arg, ...)
 	Sys_Error("DLL Plugin tried calling invalid builtin %i", (int)arg);
 	return 0;
 }
+qintptr_t (QDECL *plugin_syscall)( qintptr_t arg, ... ) = Plug_SystemCallsNative;
 
-
-plugin_t *Plug_Load(char *file, int type)
+plugin_t *Plug_Load(const char *file, int type)
 {
 	plugin_t *newplug;
 
 	for (newplug = plugs; newplug; newplug = newplug->next)
 	{
-		if (!stricmp(newplug->name, file))
+		if (!Q_strcasecmp(newplug->name, file))
 			return newplug;
 	}
 
@@ -248,11 +266,21 @@ plugin_t *Plug_Load(char *file, int type)
 		newplug->vm = VM_Create(va("fteplug_%s", file), Plug_SystemCallsNative, NULL);
 	if (!newplug->vm && (type & PLUG_QVM))
 		newplug->vm = VM_Create(file, NULL, Plug_SystemCallsVM);
+	if (!newplug->vm && (type & PLUG_NATIVE))
+	{
+		unsigned int u;
+		for (u = 0; staticplugins[u].name; u++)
+		{
+			if (!Q_strcasecmp(file, staticplugins[u].name))
+				newplug->vm = VM_CreateBuiltin(file, Plug_SystemCallsNative, staticplugins[u].initfunction);
+			break;
+		}
+	}
 
 	currentplug = newplug;
 	if (newplug->vm)
 	{
-		Con_TPrintf("Created plugin %s\n", file);
+		Con_DPrintf("Created plugin %s\n", file);
 
 		newplug->next = plugs;
 		plugs = newplug;
@@ -278,7 +306,7 @@ plugin_t *Plug_Load(char *file, int type)
 	return newplug;
 }
 
-static int QDECL Plug_Emumerated (const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
+static int QDECL Plug_Emumerated (const char *name, qofs_t size, time_t mtime, void *param, searchpathfuncs_t *spath)
 {
 	char vmname[MAX_QPATH];
 	Q_strncpyz(vmname, name, sizeof(vmname));
@@ -288,7 +316,7 @@ static int QDECL Plug_Emumerated (const char *name, qofs_t size, void *param, se
 
 	return true;
 }
-static int QDECL Plug_EnumeratedRoot (const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
+static int QDECL Plug_EnumeratedRoot (const char *name, qofs_t size, time_t mtime, void *param, searchpathfuncs_t *spath)
 {
 	char vmname[MAX_QPATH];
 	int len;
@@ -327,6 +355,19 @@ static qintptr_t VARGS Plug_Sys_Error(void *offset, quintptr_t mask, const qintp
 static qintptr_t VARGS Plug_Sys_Milliseconds(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	return Sys_DoubleTime()*1000;
+}
+static qintptr_t VARGS Plug_Sys_LoadLibrary(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	if (offset)
+		return 0;
+	return (qintptr_t)Sys_LoadLibrary(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+}
+static qintptr_t VARGS Plug_Sys_CloseLibrary(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	if (offset)
+		return 0;
+	Sys_CloseLibrary(VM_POINTER(arg[0]));
+	return 1;
 }
 static qintptr_t VARGS Plug_ExportToEngine(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -403,6 +444,10 @@ static qintptr_t VARGS Plug_ExportNative(void *offset, quintptr_t mask, const qi
 {
 	void *func;
 	char *name = (char*)VM_POINTER(arg[0]);
+
+	if (offset)	//QVMs are not allowed to call this
+		return 0;
+
 	arg++;
 
 	func = ((void**)arg)[0];
@@ -455,6 +500,18 @@ static qintptr_t VARGS Plug_ExportNative(void *offset, quintptr_t mask, const qi
 		return 0;
 	return 1;
 }
+
+static qintptr_t VARGS Plug_Cvar_GetNVFDG(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *name = VM_POINTER(arg[0]);
+	char *defaultvalue = VM_POINTER(arg[1]);
+	unsigned int flags = VM_LONG(arg[2]);
+	char *description = VM_POINTER(arg[3]);
+	char *groupname = VM_POINTER(arg[4]);
+
+	return (qintptr_t)Cvar_Get2(name, defaultvalue, flags&1, description, groupname);
+}
+
 
 typedef struct {
 	//Make SURE that the engine has resolved all cvar pointers into globals before this happens.
@@ -926,7 +983,7 @@ qintptr_t VARGS Plug_VFS_Open(void *offset, quintptr_t mask, const qintptr_t *ar
 	char *fname = VM_POINTER(arg[0]);
 	vfsfile_t **handle = VM_POINTER(arg[1]);
 	char *mode = VM_POINTER(arg[2]);
-	*handle = FS_OpenVFS(fname, mode, FS_GAME);
+	*handle = offset?NULL:FS_OpenVFS(fname, mode, FS_GAME);
 	if (*handle)
 		return true;
 	return false;
@@ -1282,7 +1339,7 @@ void Plug_Initialise(qboolean fromgamedir)
 		Cmd_AddCommand("plug_load", Plug_Load_f);
 		Cmd_AddCommand("plug_list", Plug_List_f);
 
-		Plug_RegisterBuiltin("Plug_GetNativePointer",	Plug_GetNativePointer, 0);//plugin wishes to find a builtin number.
+		Plug_RegisterBuiltin("Plug_GetNativePointer",	Plug_GetNativePointer, PLUG_BIF_DLLONLY);//plugin wishes to get a native interface.
 		Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_GetBuiltin, 0);//plugin wishes to find a builtin number.
 		Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
 		Plug_RegisterBuiltin("Plug_ExportNative",		Plug_ExportNative, PLUG_BIF_DLLONLY);
@@ -1304,6 +1361,7 @@ void Plug_Initialise(qboolean fromgamedir)
 		Plug_RegisterBuiltin("Cvar_SetFloat",			Plug_Cvar_SetFloat, 0);
 		Plug_RegisterBuiltin("Cvar_GetString",			Plug_Cvar_GetString, 0);
 		Plug_RegisterBuiltin("Cvar_GetFloat",			Plug_Cvar_GetFloat, 0);
+		Plug_RegisterBuiltin("Cvar_GetNVFDG",			Plug_Cvar_GetNVFDG, PLUG_BIF_DLLONLY);
 
 #ifdef HAVE_PACKET
 		Plug_RegisterBuiltin("Net_TCPListen",			Plug_Net_TCPListen, 0);
@@ -1338,11 +1396,15 @@ void Plug_Initialise(qboolean fromgamedir)
 		Plug_RegisterBuiltin("ReadInputBuffer",			Plug_ReadInputBuffer, 0);
 		Plug_RegisterBuiltin("UpdateInputBuffer",		Plug_UpdateInputBuffer, 0);
 
+		Plug_RegisterBuiltin("Sys_LoadLibrary",			Plug_Sys_LoadLibrary, PLUG_BIF_DLLONLY);
+		Plug_RegisterBuiltin("Sys_CloseLibrary",		Plug_Sys_CloseLibrary, PLUG_BIF_DLLONLY);
+
 		Plug_Client_Init();
 	}
 
 	if (plug_loaddefault.value)
 	{
+		unsigned int u;
 		if (!fromgamedir)
 		{
 			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
@@ -1352,6 +1414,10 @@ void Plug_Initialise(qboolean fromgamedir)
 		if (fromgamedir)
 		{
 			COM_EnumerateFiles("plugins/*.qvm",		Plug_Emumerated, ".qvm");
+		}
+		for (u = 0; staticplugins[u].name; u++)
+		{
+			Plug_Load(staticplugins[u].name, PLUG_NATIVE);
 		}
 	}
 }
@@ -1659,7 +1725,7 @@ void Plug_Close(plugin_t *plug)
 	}
 
 	if (!com_fatalerror)
-		Con_Printf("Closing plugin %s\n", plug->name);
+		Con_DPrintf("Closing plugin %s\n", plug->name);
 
 	//ensure any active contexts provided by the plugin are closed (stuff with destroy callbacks)
 #if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)
@@ -1803,6 +1869,18 @@ void Plug_Shutdown(qboolean preliminary)
 		Plug_Client_Shutdown();
 #endif
 	}
+}
+
+
+//for built-in plugins
+qboolean Plug_Export(const char *name, qintptr_t(QDECL *func)(qintptr_t *args))
+{
+	qintptr_t args[] = {(qintptr_t)name, (qintptr_t)func};
+	return Plug_ExportToEngine(NULL, ~(size_t)0, args);
+}
+void *pPlug_GetEngineFunction(const char *funcname)
+{
+	return (void*)Plug_FindBuiltin(true, funcname);
 }
 
 #endif

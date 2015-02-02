@@ -123,6 +123,40 @@ void SetEndian(void)
 }
 
 
+void QC_strlcat(char *dest, const char *src, size_t destsize)
+{
+	size_t curlen = strlen(dest);
+	if (!destsize)
+		return;	//err
+	dest += curlen;
+	while(*src && ++curlen < destsize)
+		*dest++ = *src++;
+	if (*src)
+		printf("QC_strlcpy: truncation\n");
+	*dest = 0;
+}
+void QC_strlcpy(char *dest, const char *src, size_t destsize)
+{
+	size_t curlen = strlen(dest);
+	if (!destsize)
+		return;	//err
+	while(*src && ++curlen < destsize)
+		*dest++ = *src++;
+	if (*src)
+		printf("QC_strlcpy: truncation\n");
+	*dest = 0;
+}
+void QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize)
+{
+	size_t curlen = strlen(dest);
+	if (!destsize)
+		return;	//err
+	for(; *src && srclen > 0 && ++curlen < destsize; srclen--)
+		*dest++ = *src++;
+	if (srclen)
+		printf("QC_strlcpy: truncation\n");
+	*dest = 0;
+}
 
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
 /*

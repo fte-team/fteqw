@@ -501,6 +501,22 @@ cvar_t	cl_pitchspeed = SCVAR("cl_pitchspeed","150");
 
 cvar_t	cl_anglespeedkey = SCVAR("cl_anglespeedkey","1.5");
 
+
+void CL_GatherButtons (usercmd_t *cmd, int pnum)
+{
+	unsigned int bits = 0;
+	if (in_attack .state[pnum] & 3)	bits |=   1; in_attack.state[pnum]	&= ~2;
+	if (in_jump   .state[pnum] & 3)	bits |=   2; in_jump.state[pnum]	&= ~2;
+	if (in_use    .state[pnum] & 3)	bits |=   4; in_use.state[pnum]		&= ~2;
+	if (in_button3.state[pnum] & 3)	bits |=   4; in_button3.state[pnum] &= ~2;	//yup, flag 4 twice.
+	if (in_button4.state[pnum] & 3)	bits |=   8; in_button4.state[pnum] &= ~2;
+	if (in_button5.state[pnum] & 3)	bits |=  16; in_button5.state[pnum] &= ~2;
+	if (in_button6.state[pnum] & 3)	bits |=  32; in_button6.state[pnum] &= ~2;
+	if (in_button7.state[pnum] & 3)	bits |=  64; in_button7.state[pnum] &= ~2;
+	if (in_button8.state[pnum] & 3)	bits |= 128; in_button8.state[pnum] &= ~2;
+	cmd->buttons = bits;
+}
+
 /*
 ================
 CL_AdjustAngles
@@ -604,6 +620,8 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps)
 		cmd->forwardmove += scale*cl_forwardspeed.value * CL_KeyState (&in_forward, pnum, true);
 		cmd->forwardmove -= scale*(*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value) * CL_KeyState (&in_back, pnum, true);
 	}
+
+	CL_GatherButtons(cmd, pnum);
 }
 
 void CL_ClampPitch (int pnum)
@@ -836,17 +854,7 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 // figure button bits
 //
 
-	bits = 0;
-	if (in_attack .state[pnum] & 3)	bits |=   1; in_attack.state[pnum]	&= ~2;
-	if (in_jump   .state[pnum] & 3)	bits |=   2; in_jump.state[pnum]	&= ~2;
-	if (in_use    .state[pnum] & 3)	bits |=   4; in_use.state[pnum]		&= ~2;
-	if (in_button3.state[pnum] & 3)	bits |=   4; in_button3.state[pnum] &= ~2;	//yup, flag 4 twice.
-	if (in_button4.state[pnum] & 3)	bits |=   8; in_button4.state[pnum] &= ~2;
-	if (in_button5.state[pnum] & 3)	bits |=  16; in_button5.state[pnum] &= ~2;
-	if (in_button6.state[pnum] & 3)	bits |=  32; in_button6.state[pnum] &= ~2;
-	if (in_button7.state[pnum] & 3)	bits |=  64; in_button7.state[pnum] &= ~2;
-	if (in_button8.state[pnum] & 3)	bits |= 128; in_button8.state[pnum] &= ~2;
-	cmd->buttons = bits;
+	CL_GatherButtons(cmd, pnum);
 
 	// send milliseconds of time to apply the move
 	cmd->msec = msecs;

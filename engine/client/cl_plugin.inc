@@ -634,9 +634,24 @@ qintptr_t VARGS Plug_Mod_GetPluginModelFuncs(void *offset, quintptr_t mask, cons
 
 		R_ConcatTransforms,
 		Matrix3x4_Invert_Simple,
-		COM_StripExtension,
+		VectorAngles,
+		AngleVectors,
 		GenMatrixPosQuat4Scale,
-		Alias_ForceConvertBoneData
+		COM_StripExtension,
+		Alias_ForceConvertBoneData,
+#ifdef USERBE
+		World_LinkEdict,
+		World_RegisterPhysicsEngine,
+		World_UnregisterPhysicsEngine,
+		World_GenerateCollisionMesh,
+		World_ReleaseCollisionMesh
+#else
+		NULL,
+		NULL,
+		NULL,
+		NULL,
+		NULL
+#endif
 	};
 	if (VM_LONG(arg[0]) >= sizeof(funcs))
 		return (qintptr_t)&funcs;

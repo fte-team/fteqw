@@ -180,7 +180,7 @@ static qboolean QDECL FSWEB_PollChanges(searchpathfuncs_t *handle)
 //	webpath_t *np = handle;
 	return true;	//can't verify that or not, so we have to assume the worst
 }
-static int QDECL FSWEB_RebuildFSHash(const char *filename, qofs_t filesize, void *data, searchpathfuncs_t *spath)
+static int QDECL FSWEB_RebuildFSHash(const char *filename, qofs_t filesize, time_t mtime, void *data, searchpathfuncs_t *spath)
 {
 	webpath_t *sp = (void*)spath;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
@@ -254,7 +254,7 @@ static void QDECL FSWEB_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, ch
 
 	VFS_CLOSE(f);
 }
-static int QDECL FSWEB_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL FSWEB_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *spath), void *parm)
 {
 	webpath_t *sp = (webpath_t*)handle;
 	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);

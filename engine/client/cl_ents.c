@@ -489,6 +489,7 @@ void FlushEntityPacket (void)
 
 void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *olds, entity_state_t *baseline)
 {
+	unsigned int predbits = 0;
 	unsigned int bits;
 	
 	bits = MSG_ReadByte();
@@ -534,7 +535,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	if (bits & UF_ORIGINZ)
 		news->origin[2] = MSG_ReadCoord();
 
-	if (bits & UF_PREDINFO)
+	if ((bits & UF_PREDINFO) && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
 	{
 		/*predicted stuff gets more precise angles*/
 		if (bits & UF_ANGLESXZ)
@@ -571,7 +572,6 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	news->u.q1.velocity[2] = 0;
 	if (bits & UF_PREDINFO)
 	{
-		unsigned int predbits;
 		predbits = MSG_ReadByte();
 
 		if (predbits & UFP_FORWARD)
@@ -606,15 +606,41 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 			news->u.q1.msec = MSG_ReadByte();
 		else
 			news->u.q1.msec = 0;
-		if (predbits & UFP_WEAPONFRAME)
+
+		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
 		{
-			news->u.q1.weaponframe = MSG_ReadByte();
-			if (news->u.q1.weaponframe & 0x80)
-				news->u.q1.weaponframe = (news->u.q1.weaponframe & 127) | (MSG_ReadByte()<<7);
+			if (predbits & UFP_VIEWANGLE)
+			{
+				if (bits & UF_ANGLESXZ)
+				{
+					news->u.q1.vangle[0] = MSG_ReadShort();
+					news->u.q1.vangle[2] = MSG_ReadShort();
+				}
+				if (bits & UF_ANGLESY)
+					news->u.q1.vangle[1] = MSG_ReadShort();
+			}
+		}
+		else
+		{
+			if (predbits & UFP_WEAPONFRAME_OLD)
+			{
+				news->u.q1.weaponframe = MSG_ReadByte();
+				if (news->u.q1.weaponframe & 0x80)
+					news->u.q1.weaponframe = (news->u.q1.weaponframe & 127) | (MSG_ReadByte()<<7);
+			}
 		}
 	}
 	else
+	{
 		news->u.q1.msec = 0;
+	}
+
+	if (!(predbits & UFP_VIEWANGLE) || (cls.fteprotocolextensions2 & PEXT2_PREDINFO))
+	{
+		news->u.q1.vangle[0] = ANGLE2SHORT(news->angles[0]);
+		news->u.q1.vangle[1] = ANGLE2SHORT(news->angles[1]);
+		news->u.q1.vangle[2] = ANGLE2SHORT(news->angles[2]);
+	}
 
 	if (bits & UF_MODEL)
 	{
@@ -2774,8 +2800,9 @@ static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le)
 	fs->g[fsanim].frametime[0] = cl.servertime - le->newframestarttime;
 	fs->g[fsanim].frametime[1] = cl.servertime - le->oldframestarttime;
 
-	fs->g[fsanim].lerpfrac = 1-(fs->g[fsanim].frametime[0]) / le->framelerpdeltatime;
-	fs->g[fsanim].lerpfrac = bound(0, fs->g[FS_REG].lerpfrac, 1);
+	fs->g[fsanim].lerpweight[0] = (fs->g[fsanim].frametime[0]) / le->framelerpdeltatime;
+	fs->g[fsanim].lerpweight[0] = bound(0, fs->g[FS_REG].lerpweight[0], 1);
+	fs->g[fsanim].lerpweight[1] = 1 - fs->g[fsanim].lerpweight[0];
 }
 
 static void CL_UpdateNetFrameLerpState(qboolean force, unsigned int curframe, lerpents_t *le)
@@ -3548,9 +3575,9 @@ void CL_LinkPacketEntities (void)
 #ifdef RAGDOLL
 		if (model && model->dollinfo)
 			rag_updatedeltaent(ent, le);
+#endif
 		ent->framestate.g[FS_REG].frame[0] &= ~0x8000;
 		ent->framestate.g[FS_REG].frame[1] &= ~0x8000;
-#endif
 
 		CLQ1_AddShadow(ent);
 		CLQ1_AddPowerupShell(ent, false, state->effects);
@@ -4193,8 +4220,10 @@ void CL_AddFlagModels (entity_t *ent, int team)
 	if (cl_flagindex == -1)
 		return;
 
-	for (i = 0; i < 2; i++)
+	for (i = 0; i < FRAME_BLENDS; i++)
 	{
+		if (!ent->framestate.g[FS_REG].lerpweight[i])
+			continue;
 		f = 14;
 		if (ent->framestate.g[FS_REG].frame[i] >= 29 && ent->framestate.g[FS_REG].frame[i] <= 40) {
 			if (ent->framestate.g[FS_REG].frame[i] >= 29 && ent->framestate.g[FS_REG].frame[i] <= 34) { //axpain
@@ -4219,7 +4248,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 			else if (ent->framestate.g[FS_REG].frame[i] >= 112 && ent->framestate.g[FS_REG].frame[i] <= 118) f = f + 7;  //shotattack
 		}
 
-		offs += f + ((i==0)?(ent->framestate.g[FS_REG].lerpfrac):(1-ent->framestate.g[FS_REG].lerpfrac));
+		offs += f * ent->framestate.g[FS_REG].lerpweight[i];
 	}
 
 	newent = CL_NewTempEntity ();
@@ -4246,7 +4275,7 @@ void CL_AddFlagModels (entity_t *ent, int team)
 void CL_AddVWeapModel(entity_t *player, model_t *model)
 {
 	entity_t	*newent;
-	vec3_t	angles;
+//	vec3_t	angles;
 	if (!model)
 		return;
 	newent = CL_NewTempEntity ();
@@ -4260,9 +4289,7 @@ void CL_AddVWeapModel(entity_t *player, model_t *model)
 	newent->model = model;
 	newent->framestate = player->framestate;
 
-	VectorCopy(newent->angles, angles);
-	angles[0]*=-1;
-	AngleVectors(angles, newent->axis[0], newent->axis[1], newent->axis[2]);
+	AngleVectors(newent->angles, newent->axis[0], newent->axis[1], newent->axis[2]);
 	VectorInverse(newent->axis[1]);
 }
 
@@ -4485,8 +4512,9 @@ void CL_LinkPlayers (void)
 			}
 		}
 
+		if (model && model->type == mod_alias)
+			angles[0]*=-1;	//carmack screwed up when he added alias models - they pitch the wrong way.
 		VectorCopy(angles, ent->angles);
-		angles[0]*=-1;
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 
@@ -4676,8 +4704,9 @@ void CL_LinkViewModel(void)
 		ent.framestate.g[FS_REG].frame[1] = pv->vm.oldframe;
 		ent.framestate.g[FS_REG].frametime[0] = realtime - pv->vm.lerptime;
 		ent.framestate.g[FS_REG].frametime[1] = realtime - pv->vm.oldlerptime;
-		ent.framestate.g[FS_REG].lerpfrac = 1-(realtime-pv->vm.lerptime)/pv->vm.frameduration;
-		ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
+		ent.framestate.g[FS_REG].lerpweight[0] = (realtime-pv->vm.lerptime)/pv->vm.frameduration;
+		ent.framestate.g[FS_REG].lerpweight[0] = bound(0, ent.framestate.g[FS_REG].lerpweight[0], 1);
+		ent.framestate.g[FS_REG].lerpweight[1] = 1-ent.framestate.g[FS_REG].lerpweight[0];
 	}
 
 	ent.flags |= RF_WEAPONMODEL|RF_DEPTHHACK|RF_NOSHADOW;
@@ -4766,6 +4795,8 @@ void CL_SetSolidEntities (void)
 			pent = &pmove.physents[pmove.numphysent];
 			memset(pent, 0, sizeof(physent_t));
 			pent->model = cl.model_precache[state->modelindex];
+			if (pent->model->loadstate != MLS_LOADED)
+				continue;
 			VectorCopy (state->angles, pent->angles);
 			pent->angles[0]*=-1;
 		}

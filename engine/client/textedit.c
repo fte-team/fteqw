@@ -10,8 +10,8 @@ F6 will list the stack.
 F7 will compile.
 F8 will move execution
 F9 will set a break point.
-F10 will apply code changes.
-F11 will step through.
+F10 will step over.
+F11 will step into.
 */
 
 #include "quakedef.h"
@@ -86,6 +86,7 @@ static char OpenEditorFile[256];
 
 qboolean editoractive;	//(export)
 qboolean editormodal;	//doesn't return. (export)
+int editorstep;
 static qboolean madechanges;
 static qboolean editenabled;
 static qboolean insertkeyhit=true;
@@ -207,6 +208,7 @@ static void CloseEditor(void)
 
 	madechanges = false;
 	editormodal = false;
+	editorstep = DEBUG_TRACE_OFF;
 
 	firstblock = NULL;
 
@@ -288,7 +290,7 @@ static void EditorNewFile(void)
 	editenabled = true;
 }
 
-static void EditorOpenFile(char *name, qboolean readonly)
+static void EditorOpenFile(const char *name, qboolean readonly)
 {
 	int i;
 	char line[8192];
@@ -455,7 +457,7 @@ void Editor_Key(int key, int unicode)
 		{
 		case K_ESCAPE:
 			if (editprogfuncs)
-				editprogfuncs->pr_trace = 0;
+				editprogfuncs->debug_trace = DEBUG_TRACE_OFF;
 			useeval = false;
 			return;
 		case K_F3:
@@ -628,8 +630,7 @@ void Editor_Key(int key, int unicode)
 		break;
 	case K_F5:	/*stop debugging*/
 		editormodal = false;
-		if (editprogfuncs)
-			editprogfuncs->pr_trace = false;
+		editorstep = DEBUG_TRACE_OFF;
 		break;
 	case K_F6:
 		if (editprogfuncs)
@@ -676,12 +677,17 @@ void Editor_Key(int key, int unicode)
 				cursorblock->flags &= ~FB_BREAK;
 		}
 		break;
-	case K_F10: //save+apply changes, supposedly
-		EditorSaveFile(OpenEditorFile);
-		Cbuf_AddText("applycompile\n", RESTRICT_LOCAL);
+	case K_F10:
+		editormodal = false;
+		editorstep = DEBUG_TRACE_OVER;
 		break;
 	case K_F11: //single step
 		editormodal = false;
+		editorstep = DEBUG_TRACE_INTO;
+		break;
+	case K_F12: //save+apply changes, supposedly
+		EditorSaveFile(OpenEditorFile);
+		Cbuf_AddText("applycompile\n", RESTRICT_LOCAL);
 		break;
 //	case K_STOP:
 	case K_ESCAPE:
@@ -695,6 +701,7 @@ void Editor_Key(int key, int unicode)
 		else
 			CloseEditor();
 		editormodal = false;
+		editorstep = DEBUG_TRACE_ABORT;
 		break;
 
 	case K_HOME:
@@ -1199,11 +1206,17 @@ void Editor_Draw(void)
 	*/
 }
 
-int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement, int nump, char **parms)
+int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *statement, int nump, char **parms)
 {
-	char *f1, *f2;
-	if (editormodal || (line < 0 && !statement) || !pr_debugger.ival)
-		return line;	//whoops
+	const char *f1, *f2;
+	if (!pr_debugger.ival)
+	{
+		Con_Printf("Set %s to trace\n", pr_debugger.name);
+		return DEBUG_TRACE_OFF;	//get lost
+	}
+	//we can cope with no line info by displaying asm
+	if (editormodal || !statement)
+		return DEBUG_TRACE_OFF;	//whoops
 
 	if (qrenderer == QR_NONE)
 	{
@@ -1212,14 +1225,12 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 		char *r;
 		vfsfile_t *f;
 
-		if (line == -1)
-			return -1;
 		f = FS_OpenVFS(filename, "rb", FS_GAME);
 		if (!f)
-			Con_Printf("%s - %i\n", filename, line);
+			Con_Printf("%s - %i\n", filename, *line);
 		else
 		{
-			for (i = 0; i < line; i++)
+			for (i = 0; i < *line; i++)
 			{
 				VFS_GETS(f, buffer, sizeof(buffer));
 			}
@@ -1229,7 +1240,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 			VFS_CLOSE(f);
 		}
 	//PF_break(NULL);
-		return line;
+		return DEBUG_TRACE_OUT;
 	}
 
 	editprogfuncs = prfncs;
@@ -1245,7 +1256,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 	if (!strncmp(f2, "source/", 7))
 		f2 += 7;
 
-	stepasm = line < 0;
+	stepasm = !line;
 
 	if (stepasm)
 	{
@@ -1255,7 +1266,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 		E_Free(firstblock->next);
 		E_Free(firstblock);
 		
-		cursorlinenum = statement;
+		cursorlinenum = *statement;
 		firstblock = GenAsm(cursorlinenum);
 		cursorblock = firstblock;
 
@@ -1286,7 +1297,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 			EditorOpenFile(filename, true);
 		}
 
-		for (cursorlinenum = 1, cursorblock = firstblock; cursorlinenum < line && cursorblock->next; cursorlinenum++)
+		for (cursorlinenum = 1, cursorblock = firstblock; cursorlinenum < *line && cursorblock->next; cursorlinenum++)
 			cursorblock=cursorblock->next;
 	}
 
@@ -1298,6 +1309,7 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 	{
 		double oldrealtime = realtime;
 		editormodal = true;
+		editorstep = DEBUG_TRACE_OFF;
 
 		while(editormodal && editoractive && editprogfuncs)
 		{
@@ -1317,9 +1329,13 @@ int QCLibEditor(pubprogfuncs_t *prfncs, char *filename, int line, int statement,
 	}
 
 	if (stepasm)
-		return -executionlinenum;
+	{
+		*line = 0;
+		*statement = executionlinenum;
+	}
 	else
-		return executionlinenum;
+		*line = executionlinenum;
+	return editorstep;
 }
 
 void Editor_ProgsKilled(pubprogfuncs_t *dead)
@@ -1328,6 +1344,7 @@ void Editor_ProgsKilled(pubprogfuncs_t *dead)
 	{
 		editprogfuncs = NULL;
 		editormodal = false;
+		editorstep = DEBUG_TRACE_OFF;
 	}
 }
 

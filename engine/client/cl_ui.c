@@ -395,7 +395,8 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.framestate.g[FS_REG].frame[0] = q3->frame;
 	ent.framestate.g[FS_REG].frame[1] = q3->oldframe;
 	memcpy(ent.axis, q3->axis, sizeof(q3->axis));
-	ent.framestate.g[FS_REG].lerpfrac = q3->backlerp;
+	ent.framestate.g[FS_REG].lerpweight[1] = q3->backlerp;
+	ent.framestate.g[FS_REG].lerpweight[0] = 1 - ent.framestate.g[FS_REG].lerpweight[1];
 	if (q3->reType == RT_SPRITE)
 	{
 		ent.scale = q3->radius;
@@ -508,7 +509,8 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 	memset(&fstate, 0, sizeof(fstate));
 	fstate.g[FS_REG].frame[0] = f1;
 	fstate.g[FS_REG].frame[1] = f2;
-	fstate.g[FS_REG].lerpfrac = l2;
+	fstate.g[FS_REG].lerpweight[0] = 1 - l2;
+	fstate.g[FS_REG].lerpweight[1] = l2;
 
 	tagnum = Mod_TagNumForName(model, tagname);
 	found = Mod_GetTag(model, tagnum, &fstate, tr);

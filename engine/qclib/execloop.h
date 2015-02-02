@@ -31,17 +31,15 @@
 #error Bad cont size
 #endif
 
-#ifdef DEBUGABLE
-#define OPCODE (progfuncs->funcs.pr_trace?(st->op & ~0x8000):st->op)
-#else
-#define OPCODE (st->op)
-#endif
-
 #define ENGINEPOINTER(p) ((char*)(p) - progfuncs->funcs.stringtable)
 #define QCPOINTER(p) (eval_t *)(p->_int+progfuncs->funcs.stringtable)
 #define QCPOINTERM(p) (eval_t *)((p)+progfuncs->funcs.stringtable)
 #define QCPOINTERWRITEFAIL(p,sz) ((unsigned int)p->_int-1 >= prinst.addressableused-1-sz)	//disallows null writes
 #define QCPOINTERREADFAIL(p,sz) ((unsigned int)p->_int >= prinst.addressableused-sz)		//permits null reads
+
+
+
+#define QCFAULT return (pr_xstatement=(st-pr_statements)-1),PR_HandleFault
 
 //rely upon just st
 {
@@ -69,20 +67,23 @@ cont:	//last statement may have been a breakpoint
 		}
 		prinst.watch_old = *prinst.watch_ptr;
 //		prinst.watch_ptr = NULL;
-		if (progfuncs->funcs.pr_trace<1)
-			progfuncs->funcs.pr_trace=1;	//this is what it's for
-	}
+		progfuncs->funcs.debug_trace=DEBUG_TRACE_INTO;	//this is what it's for
 
-	if (progfuncs->funcs.pr_trace)
-		s=ShowStep(progfuncs, s);
+		s=ShowStep(progfuncs, s, "Watchpoint hit");
+	}
+	else if (progfuncs->funcs.debug_trace)
+		s=ShowStep(progfuncs, s, NULL);
 	st = pr_statements + s;
 	pr_xfunction->profile+=1;
 
+	op = (progfuncs->funcs.debug_trace?(st->op & ~0x8000):st->op);
 reeval:
 #else
 	st++;
+	op = st->op;
 #endif
-	switch (OPCODE)
+
+	switch (op)
 	{
 	case OP_ADD_F:
 		OPC->_float = OPA->_float + OPB->_float;
@@ -338,8 +339,7 @@ reeval:
 		{
 			if (OPB->_int == -1)
 				break;
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			QCFAULT(&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_float = (float)OPA->_int;
@@ -349,8 +349,7 @@ reeval:
 		{
 			if (OPB->_int == -1)
 				break;
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			QCFAULT(&progfuncs->funcs, "bad pointer write in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_int = (int)OPA->_float;
@@ -365,8 +364,7 @@ reeval:
 		{
 			if (OPB->_int == -1)
 				break;
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+			QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_int = OPA->_int;
@@ -376,8 +374,7 @@ reeval:
 		{
 			if (OPB->_int == -1)
 				break;
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+			QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_vector[0] = OPA->_vector[0];
@@ -388,8 +385,7 @@ reeval:
 	case OP_STOREP_C:	//store character in a string
 		if (QCPOINTERWRITEFAIL(OPB, sizeof(char)))
 		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+			QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		*(unsigned char *)ptr = (char)OPA->_float;
@@ -400,7 +396,7 @@ reeval:
 		if ((unsigned)OPA->edict >= (unsigned)sv_num_edicts)
 		{
 			pr_xstatement = st-pr_statements;
-			if (PR_RunWarning (&progfuncs->funcs, "OP_ADDRESS references invalid entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+			if (PR_RunWarning (&progfuncs->funcs, "OP_ADDRESS references invalid entity in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
 			{
 				st--;
 				goto cont;
@@ -421,7 +417,7 @@ reeval:
 				d16 = ED_GlobalAtOfs16(progfuncs, st->a);
 				f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
 				pr_xstatement = st-pr_statements;
-				if (PR_RunWarning(&progfuncs->funcs, "assignment to read-only entity %i in %s (%s.%s)", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d16?PR_StringToNative(&progfuncs->funcs, d16->s_name):NULL, f?f->name:NULL))
+				if (PR_RunWarning(&progfuncs->funcs, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d16?PR_StringToNative(&progfuncs->funcs, d16->s_name):NULL, f?f->name:NULL))
 				{
 					st--;
 					goto cont;
@@ -451,7 +447,7 @@ reeval:
 		if ((unsigned)OPA->edict >= (unsigned)sv_num_edicts)
 		{
 			pr_xstatement = st-pr_statements;
-			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD references invalid entity %i in %s", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD references invalid entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
 			{
 				st--;
 				goto cont;
@@ -471,7 +467,7 @@ reeval:
 		if ((unsigned)OPA->edict >= (unsigned)sv_num_edicts)
 		{
 			pr_xstatement = st-pr_statements;
-			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD_V references invalid entity %i in %s", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD_V references invalid entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
 			{
 				st--;
 				goto cont;
@@ -565,10 +561,10 @@ reeval:
 			RUNAWAYCHECK();
 			pr_xstatement = st-pr_statements;
 
-			if (OPCODE > OP_CALL8)
-				progfuncs->funcs.callargc = OPCODE - (OP_CALL1H-1);
+			if (op > OP_CALL8)
+				progfuncs->funcs.callargc = op - (OP_CALL1H-1);
 			else
-				progfuncs->funcs.callargc = OPCODE - OP_CALL0;
+				progfuncs->funcs.callargc = op - OP_CALL0;
 			fnum = OPA->function;
 
 			glob = NULL;	//try to derestrict it.
@@ -583,26 +579,23 @@ reeval:
 				char *msg = fnum?"OP_CALL references invalid function in %s\n":"NULL function from qc (inside %s).\n";
 				PR_SwitchProgsParms(progfuncs, callerprogs);
 
-				//break/skip the instruction.
+				glob = pr_globals;
+				if (!progfuncs->funcs.debug_trace)
+					QCFAULT(&progfuncs->funcs, msg, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+
+				//skip the instruction if they just try stepping over it anyway.
 				PR_StackTrace(&progfuncs->funcs, 0);
 				printf(msg, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
 
-				glob = pr_globals;
-#ifndef DEBUGABLE
-				progfuncs->funcs.pr_trace++;
-				st--;
-				goto cont;
-#else
 				pr_globals[OFS_RETURN] = 0;
 				pr_globals[OFS_RETURN+1] = 0;
 				pr_globals[OFS_RETURN+2] = 0;
 				break;
-#endif
 			}
 
 			newf = &pr_cp_functions[fnum & ~0xff000000];
 
-			if (newf->first_statement < 0)
+			if (newf->first_statement <= 0)
 			{	// negative statements are built in functions
 				/*calling a builtin in another progs may affect that other progs' globals instead, is the theory anyway, so args and stuff need to move over*/
 				if (pr_typecurrent != 0)
@@ -613,7 +606,6 @@ reeval:
 				}
 				i = -newf->first_statement;
 	//			p = pr_typecurrent;
-				progfuncs->funcs.lastcalledbuiltinnumber = i;
 				if (i < externs->numglobalbuiltins)
 				{
 #ifndef QCGC
@@ -630,16 +622,10 @@ reeval:
 				}
 				else
 				{
-					i -= externs->numglobalbuiltins;
-					if (i >= current_progstate->numbuiltins)
-					{
-	//					if (newf->first_statement == -0x7fffffff)
-	//						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
-	//					else
-							PR_RunError (&progfuncs->funcs, "Bad builtin call number - %i", -newf->first_statement);
-					}
-					else
-						current_progstate->builtins [i] (&progfuncs->funcs, (struct globalvars_s *)current_progstate->globals);
+//					if (newf->first_statement == -0x7fffffff)
+//						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
+//					else
+						PR_RunError (&progfuncs->funcs, "Bad builtin call number - %i", -newf->first_statement);
 				}
 	//			memcpy(&pr_progstate[p].globals[OFS_RETURN], &current_progstate->globals[OFS_RETURN], sizeof(vec3_t));
 				PR_SwitchProgsParms(progfuncs, (progsnum_t)callerprogs);
@@ -836,7 +822,7 @@ reeval:
 		OPC->_vector[2] = ptr->_vector[2];
 		break;
 
-	case OP_XOR_I:
+	case OP_BITXOR_I:
 		OPC->_int = OPA->_int ^ OPB->_int;
 		break;
 	case OP_RSHIFT_I:
@@ -1044,7 +1030,7 @@ reeval:
 		//the case opcodes depend upon the preceding switch.
 		//otherwise the switch itself is much like a goto
 		//don't embed the case/caserange checks directly into the switch so that custom caseranges can be potentially be implemented with hybrid emulation.
-		switchcomparison = OPCODE - OP_SWITCH_F;
+		switchcomparison = op - OP_SWITCH_F;
 		switchref = OPA;
 		RUNAWAYCHECK();
 		st += (sofs)st->b - 1;	// offset the s++
@@ -1207,12 +1193,13 @@ reeval:
 		if ((unsigned int)OPA->_int < (unsigned int)st->c || (unsigned int)OPA->_int >= (unsigned int)st->b)
 		{
 			printf("Progs boundcheck failed. Value is %i. Must be between %u and %u\n", OPA->_int, st->c, st->b);
-			s=ShowStep(progfuncs, st - pr_statements);
+			QCFAULT(&progfuncs->funcs, "Progs boundcheck failed. Value is %i. Must be between %u and %u\n", OPA->_int, st->c, st->b);
+/*			s=ShowStepf(progfuncs, st - pr_statements, "Progs boundcheck failed. Value is %i. Must be between %u and %u\n", OPA->_int, st->c, st->b);
 			if (st == pr_statements + s)
 				PR_RunError(&progfuncs->funcs, "unable to resume boundcheck");
 			st = pr_statements + s;
 			return s;
-		}
+*/		}
 		break;
 /*	case OP_PUSH:
 		OPC->_int = ENGINEPOINTER(&localstack[localstack_used+pr_spushed]);
@@ -1235,18 +1222,19 @@ reeval:
 		break;
 */
 	default:					
-		if (st->op & 0x8000)	//break point!
+		if (op & 0x8000)	//break point!
 		{
-			pr_xstatement = s = st-pr_statements;
-
-			printf("Break point hit in %s.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
-			if (progfuncs->funcs.pr_trace<1)
-				progfuncs->funcs.pr_trace=1;	//this is what it's for
-
-			s = ShowStep(progfuncs, s);
-			st = &pr_statements[s];	//let the user move execution
-			pr_xstatement = s = st-pr_statements;
-
+			op &= ~0x8000;
+			s = st-pr_statements;
+			if (pr_xstatement != s)
+			{
+				pr_xstatement = s;
+				printf("Break point hit in %s.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+				s = ShowStep(progfuncs, s, NULL);
+				st = &pr_statements[s];	//let the user move execution
+				pr_xstatement = s = st-pr_statements;
+				op = st->op & ~0x8000;
+			}
 			goto reeval;	//reexecute
 		}
 		pr_xstatement = st-pr_statements;

@@ -119,11 +119,6 @@ extern char cvargroup_servercontrol[];
 
 extern cvar_t pausable;
 
-
-void SV_PreRunCmd(void);
-void SV_RunCmd (usercmd_t *ucmd, qboolean recurse);
-void SV_PostRunCmd(void);
-
 /*
 ============================================================
 
@@ -1264,7 +1259,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			{
 				MSG_WriteByte(&client->netchan.message, svcfte_spawnstatic2);
-				SVFTE_EmitBaseline(state, false, &client->netchan.message);
+				SVFTE_EmitBaseline(state, false, &client->netchan.message, client);
 				continue;
 			}
 			if (client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
@@ -1329,7 +1324,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			else if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			{
 				MSG_WriteByte(&client->netchan.message, svcfte_spawnbaseline2);
-				SVFTE_EmitBaseline(state, true, &client->netchan.message);
+				SVFTE_EmitBaseline(state, true, &client->netchan.message, client);
 			}
 			else if (client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
 			{
@@ -1391,9 +1386,9 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					MSG_WriteByte (&client->netchan.message, 0);	//invalid modelindex. at least try to give something
 				else
 					MSG_WriteByte (&client->netchan.message, state->modelindex);
-				MSG_WriteByte (&client->netchan.message, state->frame&255);
-				MSG_WriteByte (&client->netchan.message, (int)state->colormap);
-				MSG_WriteByte (&client->netchan.message, (int)state->skinnum);
+				MSG_WriteByte (&client->netchan.message, state->frame & 0xff);
+				MSG_WriteByte (&client->netchan.message, state->colormap & 0xff);
+				MSG_WriteByte (&client->netchan.message, state->skinnum & 0xff);
 				for (i=0 ; i<3 ; i++)
 				{
 					MSG_WriteCoord(&client->netchan.message, state->origin[i]);
@@ -5844,11 +5839,25 @@ SV_PreRunCmd
 ===========
 Done before running a player command.  Clears the touch array
 */
-qbyte playertouch[(MAX_EDICTS+7)/8];
+qbyte *playertouch;
+size_t playertouchmax;
 
 void SV_PreRunCmd(void)
 {
-	memset(playertouch, 0, sizeof(playertouch));
+	size_t max = MAX_EDICTS;//(sv.world.num_edicts+7)&~7;
+	if (max > playertouchmax)
+	{
+		playertouchmax = max;
+		BZ_Free(playertouch);
+		playertouch = BZ_Malloc((playertouchmax>>3)+1);
+	}
+	memset(playertouch, 0, playertouchmax>>3);
+}
+void SV_RunCmdCleanup(void)
+{
+	BZ_Free(playertouch);
+	playertouch = NULL;
+	playertouchmax = 0;
 }
 
 /*
@@ -5862,9 +5871,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	edict_t		*ent;
 	int			i, n;
 	int			oldmsec;
-	double  tmp_time;
 	qboolean jumpable;
-	char adr[MAX_ADR_SIZE];
 	vec3_t new_vel;
 	vec3_t old_vel;
 
@@ -5892,6 +5899,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 		if ((tmp_time = realtime - host_client->last_check) >= sv_cheatspeedchecktime.value)
 		{
+			double  tmp_time;
 			tmp_time = tmp_time * 1000.0 * sv_cheatpc.value/100.0;
 			if (host_client->msecs > tmp_time &&
 				isPlugin < 2)	//debugging can result in WEIRD timings, so don't warn about weird timings if we're likely to get blocked out for long periods
@@ -5904,6 +5912,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 				if (host_client->msec_cheating >= 2)
 				{
+					char adr[MAX_ADR_SIZE];
 					SV_BroadcastTPrintf(PRINT_HIGH,
 							"%s was kicked for speedcheating (%s)\n",
 								host_client->name, NET_AdrToString(adr, sizeof(adr), &host_client->netchan.remote_address));
@@ -6370,8 +6379,10 @@ if (sv_player->v->health > 0 && before && !after )
 				continue;
 			n = pmove.physents[pmove.touchindex[i]].info;
 			ent = EDICT_NUM(svprogfuncs, n);
-			if (playertouch[n/8]&(1<<(n%8)))
+
+			if (n >= playertouchmax || playertouch[n>>3]&(1<<(n&7)))
 				continue;
+			playertouch[n>>3] |= 1 << (n&7);
 
 			if (ent->v->touch)
 			{
@@ -6382,7 +6393,6 @@ if (sv_player->v->health > 0 && before && !after )
 				}
 				sv.world.Event_Touch(&sv.world, (wedict_t*)ent, (wedict_t*)sv_player);
 			}
-			playertouch[n/8] |= 1 << (n%8);
 
 			if (sv_player->v->touch && !ent->isfree)
 				sv.world.Event_Touch(&sv.world, (wedict_t*)sv_player, (wedict_t*)ent);
@@ -7121,7 +7131,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	timesincelast = cltime - move->fservertime;
 
 	move->fservertime = cltime;
-	move->servertime = move->fservertime;
+	move->servertime = move->fservertime*1000;
 
 	frame->ping_time = sv.time - cltime;
 

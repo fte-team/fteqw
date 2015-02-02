@@ -49,7 +49,8 @@ typedef enum vm_type_e
 {
 	VM_NONE,
 	VM_NATIVE,
-	VM_BYTECODE
+	VM_BYTECODE,
+	VM_BUILTIN
 } vm_type_t;
 
 struct vm_s {
@@ -899,12 +900,16 @@ void VM_PrintInfo(vm_t *vm)
 {
 	qvm_t *qvm;
 
-	Con_Printf("%s (%p): ", vm->name, vm->hInst);
+//	Con_Printf("%s (%p): ", vm->name, vm->hInst);
+	Con_Printf("%s: ", vm->name);
 
 	switch(vm->type)
 	{
 	case VM_NATIVE:
 		Con_Printf("native\n");
+		break;
+	case VM_BUILTIN:
+		Con_Printf("built in\n");
 		break;
 
 	case VM_BYTECODE:
@@ -921,6 +926,17 @@ void VM_PrintInfo(vm_t *vm)
 		Con_Printf("unknown\n");
 		break;
 	}
+}
+
+vm_t *VM_CreateBuiltin(const char *name, sys_calldll_t syscalldll, qintptr_t (*init)(qintptr_t *args))
+{
+	vm_t *vm = Z_Malloc(sizeof(vm_t));
+	Q_strncpyz(vm->name, name, sizeof(vm->name));
+	vm->syscalldll	= syscalldll;
+	vm->syscallqvm	= NULL;
+	vm->hInst		= init;
+	vm->type		= VM_BUILTIN;
+	return vm;
 }
 
 /*
@@ -987,6 +1003,7 @@ void VM_Destroy(vm_t *vm)
 		if(vm->hInst) QVM_UnLoadVM(vm->hInst);
 		break;
 
+	case VM_BUILTIN:
 	case VM_NONE:
 		break;
 	}
@@ -1033,6 +1050,7 @@ void *VM_MemoryBase(vm_t *vm)
 	switch(vm->type)
 	{
 	case VM_NATIVE:
+	case VM_BUILTIN:
 		return NULL;
 	case VM_BYTECODE:
 		return ((qvm_t*)vm->hInst)->ds;
@@ -1059,6 +1077,7 @@ qboolean VM_NonNative(vm_t *vm)
 	case VM_BYTECODE:
 		return sizeof(int) != sizeof(void*);
 	case VM_NATIVE:
+	case VM_BUILTIN:
 		return false;
 	default:
 		return false;
@@ -1071,28 +1090,33 @@ qboolean VM_NonNative(vm_t *vm)
 qintptr_t VARGS VM_Call(vm_t *vm, qintptr_t instruction, ...)
 {
 	va_list argptr;
-	qintptr_t arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7;
+	qintptr_t arg[8];
 
 	if(!vm) Sys_Error("VM_Call with NULL vm");
 
 	va_start(argptr, instruction);
-	arg0=va_arg(argptr, qintptr_t);
-	arg1=va_arg(argptr, qintptr_t);
-	arg2=va_arg(argptr, qintptr_t);
-	arg3=va_arg(argptr, qintptr_t);
-	arg4=va_arg(argptr, qintptr_t);
-	arg5=va_arg(argptr, qintptr_t);
-	arg6=va_arg(argptr, qintptr_t);
-	arg7=va_arg(argptr, qintptr_t);
+	arg[0]=va_arg(argptr, qintptr_t);
+	arg[1]=va_arg(argptr, qintptr_t);
+	arg[2]=va_arg(argptr, qintptr_t);
+	arg[3]=va_arg(argptr, qintptr_t);
+	arg[4]=va_arg(argptr, qintptr_t);
+	arg[5]=va_arg(argptr, qintptr_t);
+	arg[6]=va_arg(argptr, qintptr_t);
+	arg[7]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
 	switch(vm->type)
 	{
 	case VM_NATIVE:
-		return vm->vmMain(instruction, arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+		return vm->vmMain(instruction, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6]);
 
 	case VM_BYTECODE:
-		return QVM_ExecVM(vm->hInst, instruction, arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+		return QVM_ExecVM(vm->hInst, instruction, arg[0], arg[1], arg[2], arg[3], arg[4], arg[5], arg[6], arg[7]);
+
+	case VM_BUILTIN:
+		if (!instruction)
+			instruction = (qintptr_t)vm->hInst;
+		return ((qintptr_t(*)(qintptr_t*))instruction)(arg);
 
 	case VM_NONE:
 		return 0;

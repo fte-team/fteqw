@@ -133,8 +133,15 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 #define GL_DEPTH_TEXTURE_MODE_ARB         0x884B
 #endif
 
+//GL_OES_depth_texture adds this because gles otherwise lacks it.
+#ifndef GL_UNSIGNED_INT
+#define GL_UNSIGNED_INT						0x1405
+#endif
+
 #ifndef GL_EXT_packed_depth_stencil
 #define GL_DEPTH24_STENCIL8_EXT                           0x88F0
+#define GL_DEPTH_STENCIL_EXT                              0x84F9
+#define GL_UNSIGNED_INT_24_8_EXT                          0x84FA
 #endif
 
 #ifndef GL_ARB_shadow

@@ -38,6 +38,9 @@ extern cvar_t gl_picmip2d;
 extern cvar_t gl_picmip;
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_shadow_bumpscale_bumpmap;
+extern cvar_t r_shadow_heightscale_basetexture;
+extern cvar_t r_shadow_heightscale_bumpmap;
+
 
 static bucket_t *imagetablebuckets[256];
 static hashtable_t imagetable;
@@ -2332,7 +2335,6 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 	ddsheader fmtheader;
 	if (*(int*)filedata != *(int*)"DDS ")
 		return false;
-	filedata+=4;
 
 	memcpy(&fmtheader, filedata+4, sizeof(fmtheader));
 	if (fmtheader.dwSize != sizeof(fmtheader))
@@ -3024,10 +3026,10 @@ void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *o
 }
 
 //ripped from tenebrae
-static unsigned int * Image_GenerateNormalMap(qbyte *pixels, unsigned int *nmap, int w, int h, float scale)
+static unsigned int * Image_GenerateNormalMap(qbyte *pixels, unsigned int *nmap, int w, int h, float scale, float offsetscale)
 {
 	int i, j, wr, hr;
-	unsigned char r, g, b;
+	unsigned char r, g, b, height;
 	float sqlen, reciplen, nx, ny, nz;
 
 	const float oneOver255 = 1.0f/255.0f;
@@ -3065,7 +3067,8 @@ static unsigned int * Image_GenerateNormalMap(qbyte *pixels, unsigned int *nmap,
 
 			/* The highest resolution mipmap level always has a
 			   unit length magnitude. */
-			nmap[i*w+j] = LittleLong ((pixels[i*wr + j] << 24)|(b << 16)|(g << 8)|(r));	// <AWE> Added support for big endian.
+			height = bound(0, (pixels[i*wr + j]*offsetscale)+(255*(1-offsetscale)), 255);
+			nmap[i*w+j] = LittleLong((height << 24)|(b << 16)|(g << 8)|(r));	// <AWE> Added support for big endian.
 		}
 	}
 
@@ -3471,7 +3474,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 				unsigned int rgb = d_8to24rgbtable[((qbyte*)rawdata)[i]];
 				heights[i] = (((rgb>>16)&0xff) + ((rgb>>8)&0xff) + ((rgb>>0)&0xff))/3;
 			}
-			Image_GenerateNormalMap(heights, rgbadata, imgwidth, imgheight, r_shadow_bumpscale_basetexture.value?r_shadow_bumpscale_basetexture.value:4);
+			Image_GenerateNormalMap(heights, rgbadata, imgwidth, imgheight, r_shadow_bumpscale_basetexture.value?r_shadow_bumpscale_basetexture.value:4, r_shadow_heightscale_basetexture.value);
 		}
 		if (freedata)
 			BZ_Free(rawdata);
@@ -3480,7 +3483,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	case TF_HEIGHT8:
 		mips->encoding = PTI_RGBA8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		Image_GenerateNormalMap(rawdata, rgbadata, imgwidth, imgheight, r_shadow_bumpscale_bumpmap.value);
+		Image_GenerateNormalMap(rawdata, rgbadata, imgwidth, imgheight, r_shadow_bumpscale_bumpmap.value, r_shadow_heightscale_bumpmap.value);
 		if (freedata)
 			BZ_Free(rawdata);
 		freedata = true;
@@ -3507,8 +3510,9 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		freedata = true;
 		break;
 	case TF_8PAL32:
+		if (!palettedata)
 		{
-			Con_Printf("TF_8PAL24: no palette");
+			Con_Printf("TF_8PAL32: no palette");
 			if (freedata)
 				BZ_Free(rawdata);
 			return false;
@@ -3654,13 +3658,13 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	return true;
 }
 //loads from a single mip. takes ownership of the data.
-static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawdata, int imgwidth, int imgheight, uploadfmt_t fmt)
+static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawdata, void *palettedata, int imgwidth, int imgheight, uploadfmt_t fmt)
 {
 	struct pendingtextureinfo *mips;
 	mips = Z_Malloc(sizeof(*mips));
 	mips->type = (flags & IF_3DMAP)?PTI_3D:PTI_2D;
 
-	if (!Image_GenMip0(mips, flags, rawdata, NULL, imgwidth, imgheight, fmt, true))
+	if (!Image_GenMip0(mips, flags, rawdata, palettedata, imgwidth, imgheight, fmt, true))
 	{
 		Z_Free(mips);
 		return false;
@@ -3738,7 +3742,7 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 			}
 		}
 
-		if (Image_LoadRawTexture(tex, flags, rgbadata, imgwidth, imgheight, TF_RGBA32))
+		if (Image_LoadRawTexture(tex, flags, rgbadata, NULL, imgwidth, imgheight, TF_RGBA32))
 		{
 			BZ_Free(filedata);
 
@@ -3889,6 +3893,15 @@ void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 
 	if (!tex->fallbackdata || (gl_load24bit.ival && !(tex->flags & IF_NOREPLACE)))
 	{
+		Q_snprintfz(fname, sizeof(fname), "dds/%s.dds", nicename);
+		if ((buf = COM_LoadFile (fname, 5, &fsize)))
+		{
+			Q_snprintfz(iname, sizeof(iname), "dds/%s", nicename); /*should be safe if its null*/
+			if (Image_LoadTextureFromMemory(tex, tex->flags, iname, fname, buf, fsize))
+				return;
+		}
+
+
 		if (strchr(nicename, '/') || strchr(nicename, '\\'))	//never look in a root dir for the pic
 			i = 0;
 		else
@@ -4003,7 +4016,7 @@ void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 								if ((d = ReadTargaFile(buf, fsize, &w, &h, &a, 2)))	//Only load a greyscale image.
 								{
 									BZ_Free(buf);
-									if (Image_LoadRawTexture(tex, tex->flags, d, w, h, TF_HEIGHT8))
+									if (Image_LoadRawTexture(tex, tex->flags, d, NULL, w, h, TF_HEIGHT8))
 									{
 										BZ_Free(tex->fallbackdata);
 										tex->fallbackdata = NULL;	
@@ -4037,7 +4050,7 @@ void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 			buf = W_GetTexture(nicename, &imgwidth, &imgheight, &alphaed);
 			if (buf)
 			{
-				if (Image_LoadRawTexture(tex, tex->flags, buf, imgwidth, imgheight, TF_RGBA32))
+				if (Image_LoadRawTexture(tex, tex->flags, buf, NULL, imgwidth, imgheight, TF_RGBA32))
 				{
 					BZ_Free(tex->fallbackdata);
 					tex->fallbackdata = NULL;					
@@ -4050,12 +4063,11 @@ void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 
 	if (tex->fallbackdata)
 	{
-		if (Image_LoadRawTexture(tex, tex->flags, tex->fallbackdata, tex->fallbackwidth, tex->fallbackheight, tex->fallbackfmt))
+		if (Image_LoadRawTexture(tex, tex->flags, tex->fallbackdata, (char*)tex->fallbackdata+(tex->fallbackwidth*tex->fallbackheight), tex->fallbackwidth, tex->fallbackheight, tex->fallbackfmt))
 		{
 			tex->fallbackdata = NULL;
 			return;
 		}
-		BZ_Free(tex->fallbackdata);
 		tex->fallbackdata = NULL;	
 	}
 
@@ -4235,7 +4247,7 @@ typedef struct
 {
 	char *name;
 	char *legacyname;
-	int	minimize, minmip, maximize;
+	int	maximize, minmip, minimize;
 } texmode_t;
 static texmode_t texmodes[] = {
 	{"n",	"GL_NEAREST",					0,	-1,	0},

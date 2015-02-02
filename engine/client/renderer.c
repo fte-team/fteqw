@@ -356,6 +356,9 @@ cvar_t r_lightprepass						= CVARFD("r_lightprepass", "0", CVAR_SHADERSYSTEM, "E
 cvar_t r_shadow_bumpscale_basetexture		= CVARD  ("r_shadow_bumpscale_basetexture", "0", "bumpyness scaler for generation of fallback normalmap textures from models");
 cvar_t r_shadow_bumpscale_bumpmap			= CVARD  ("r_shadow_bumpscale_bumpmap", "4", "bumpyness scaler for _bump textures");
 
+cvar_t r_shadow_heightscale_basetexture		= CVARD  ("r_shadow_heightscale_basetexture", "0", "scaler for generation of height maps from legacy paletted content.");
+cvar_t r_shadow_heightscale_bumpmap			= CVARD  ("r_shadow_heightscale_bumpmap", "1", "height scaler for 8bit _bump textures");
+
 cvar_t r_glsl_offsetmapping					= CVARFD  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Enables the use of paralax mapping, adding fake depth to textures.");
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
 cvar_t r_glsl_offsetmapping_reliefmapping = CVARFD("r_glsl_offsetmapping_reliefmapping", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer. r_glsl_offsetmapping must be set.");
@@ -430,8 +433,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_bumpmap, GLRENDEREROPTIONS);
-
-	Cvar_Register (&gl_reporttjunctions, GLRENDEREROPTIONS);
+	Cvar_Register (&r_shadow_heightscale_basetexture, GLRENDEREROPTIONS);
+	Cvar_Register (&r_shadow_heightscale_bumpmap, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_motionblur, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);

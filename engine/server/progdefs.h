@@ -267,9 +267,13 @@ and the extension fields are added on the end and can have extra vm-specific stu
 #define csqcextfields	\
 	comfieldfloat(entnum,"This is the number of the entity that the ssqc is using.")		\
 	comfieldfloat(frame2,"This is typically the old frame of the entity. if lerpfrac is 1, .frame will be ignored and .frame2 will be used solely. lerpfrac 0.5 will give an even 50/50 blend.")		/*EXT_CSQC_1*/\
+	comfieldfloat(frame3,"Some people just don't understand how to use framegroups...")		/**/\
+	comfieldfloat(frame4,NULL)		/**/\
 	comfieldfloat(frame1time,"This controls the time into the framegroup/animation named by .frame, you should increment this value according to frametime or to distance moved, depending on the sort of animation you're attempting. You may wish to avoid incrementing this while lerpfrac is still changing, to avoid wasting parts of the animation.")	/*EXT_CSQC_1*/\
 	comfieldfloat(frame2time,".frame2 equivelent of frame1time.")	/*EXT_CSQC_1*/\
 	comfieldfloat(lerpfrac,"The value 0 means the entity will animate using only .frame, which will be jerky. As this value is incremented, more of frame2 will be used. If you wish to use .frame2 as the 'old' frame, it is generally recommended to start this field with the value 1, to decrement it by frametime, and when it drops below 0 add 1 to it and update .frame2 and .frame to lerp into the new frame.")	/*EXT_CSQC_1*/\
+	comfieldfloat(lerpfrac3,NULL)	/**/\
+	comfieldfloat(lerpfrac4,NULL)	/**/\
 	comfieldfloat(renderflags,NULL)\
 	comfieldfloat(forceshader,"Contains a shader handle used to replace all surfaces upon the entity.")/*FTE_CSQC_SHADERS*/\
 							\
@@ -365,12 +369,12 @@ comextqcfields
 } comentvars_t;
 #endif
 
-#ifdef USEODE
+#ifdef USERBE
 typedef struct
 {
-	void *ode_body;
-	void *ode_geom;
-} odebody_t;
+	void *body;
+	void *geom;
+} rbebody_t;
 typedef struct
 {
 	//doll info
@@ -385,12 +389,12 @@ typedef struct
 	int geomshape;
 	vec3_t dimensions;
 	float mass;
-} odebodyinfo_t;
+} rbebodyinfo_t;
 
 typedef struct
 {
-	void *ode_joint;
-} odejoint_t;
+	void *joint;
+} rbejoint_t;
 typedef struct
 {
 	//doll info
@@ -412,24 +416,24 @@ typedef struct
 	float Vel,		Vel2;
 	vec3_t offset,	offset2;
 	vec3_t axis,	axis2;
-} odejointinfo_t;
+} rbejointinfo_t;
 
-enum odecommands_e
+enum rbecommands_e
 {
-	ODECMD_ENABLE,
-	ODECMD_DISABLE,
-	ODECMD_FORCE,
-	ODECMD_TORQUE,
+	RBECMD_ENABLE,
+	RBECMD_DISABLE,
+	RBECMD_FORCE,
+	RBECMD_TORQUE,
 };
 
-typedef struct odecommandqueue_s
+typedef struct rbecommandqueue_s
 {
-	struct odecommandqueue_s *next;
-	enum odecommands_e command;
+	struct rbecommandqueue_s *next;
+	enum rbecommands_e command;
 	struct wedict_s *edict;
 	vec3_t v1;
 	vec3_t v2;
-} odecommandqueue_t;
+} rbecommandqueue_t;
 
 typedef struct
 {
@@ -473,23 +477,4 @@ typedef struct
 	int dummy;
 } skeljointode_t;
 */
-typedef struct
-{
-	// for ODE physics engine
-	qboolean ode; // if true then ode is activated
-	qboolean hasodeents; // if true then we have some ode body somewhere, and we consume more cycles processing full physics, instead of trying to skip as much as we can
-	qboolean hasextraobjs;
-	void *ode_world;
-	void *ode_space;
-	void *ode_contactgroup;
-	// number of constraint solver iterations to use (for dWorldStepFast)
-	int ode_iterations;
-	// actual step (server frametime / ode_iterations)
-	vec_t ode_step;
-	// max velocity for a 1-unit radius object at current step to prevent
-	// missed collisions
-	vec_t ode_movelimit;
-	odecommandqueue_t *cmdqueuehead;
-	odecommandqueue_t *cmdqueuetail;
-} worldode_t;
 #endif

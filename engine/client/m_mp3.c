@@ -1090,12 +1090,6 @@ char *Media_NextTrack(int musicchannelnum)
 #undef	lTime
 
 
-#ifdef OFFSCREENGECKO
-#include "offscreengecko/embedding.h"
-#include "offscreengecko/browser.h"
-#endif
-
-
 ///temporary residence for media handling
 #include "roq.h"
 
@@ -1282,7 +1276,7 @@ struct cin_s
 	void (*cursormove) (struct cin_s *cin, float posx, float posy);	//pos is 0-1
 	void (*key) (struct cin_s *cin, int code, int unicode, int event);
 	qboolean (*setsize) (struct cin_s *cin, int width, int height);
-	void (*getsize) (struct cin_s *cin, int *width, int *height);
+	void (*getsize) (struct cin_s *cin, int *width, int *height, float *aspect);
 	void (*changestream) (struct cin_s *cin, const char *streamname);
 
 
@@ -1295,6 +1289,7 @@ struct cin_s
 	qbyte *outpalette;
 	int outunchanged;
 	qboolean ended;
+	float filmpercentage;
 
 	texid_t texture;
 
@@ -1320,14 +1315,6 @@ struct cin_s
 		float filmfps;
 		int num_frames;
 	} avi;
-#endif
-
-#ifdef OFFSCREENGECKO
-	struct {
-		OSGK_Browser *gbrowser;
-		int bwidth;
-		int bheight;
-	} gecko;
 #endif
 
 #ifdef PLUGINS
@@ -1411,6 +1398,7 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 		Con_DPrintf("Dropped %i frame(s)\n", (newframei - cin->currentframe)-1);
 
 	cin->currentframe = newframei;
+	cin->filmpercentage = (float)cin->currentframe / cin->avi.num_frames;
 
 	if (newframei>=cin->avi.num_frames)
 	{
@@ -1711,10 +1699,9 @@ static qboolean Media_Plugin_DecodeFrame(cin_t *cin, qboolean nosound)
 
 	cin->outunchanged = (cin->outdata==NULL);
 
-	if (cin->outtype != TF_INVALID)
-		return true;
-	cin->ended = true;
-	return false;
+	cin->filmpercentage = 0;
+	cin->ended = (cin->outtype == TF_INVALID);
+	return !cin->ended;
 }
 static void Media_Plugin_DoneFrame(cin_t *cin)
 {
@@ -1774,7 +1761,7 @@ qboolean Media_Plugin_SetSize(cin_t *cin, int width, int height)
 	currentplug = oldplug;
 	return result;
 }
-void Media_Plugin_GetSize(cin_t *cin, int *width, int *height)
+void Media_Plugin_GetSize(cin_t *cin, int *width, int *height, float *aspect)
 {
 	struct plugin_s *oldplug = currentplug;
 	currentplug = cin->plugin.plug;
@@ -1874,6 +1861,8 @@ qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 		int x;
 
 		qbyte *framedata;
+
+		cin->filmpercentage = cin->roq.roqfilm->frame_num / cin->roq.roqfilm->num_frames;
 
 		cin->filmlasttime = (float)realtime;
 
@@ -2121,286 +2110,6 @@ cin_t *Media_Cin_TryLoad(char *name)
 
 //Quake2 CIN Support
 //////////////////////////////////////////////////////////////////////////////////
-//Gecko Support
-
-#ifdef OFFSCREENGECKO
-
-int (VARGS *posgk_release) (OSGK_BaseObject* obj);
-
-OSGK_Browser* (VARGS *posgk_browser_create) (OSGK_Embedding* embedding, int width, int height);
-void (VARGS *posgk_browser_resize) (OSGK_Browser* browser, int width, int height);
-void (VARGS *posgk_browser_navigate) (OSGK_Browser* browser, const char* uri);
-const unsigned char* (VARGS *posgk_browser_lock_data) (OSGK_Browser* browser, int* isDirty);
-void (VARGS *posgk_browser_unlock_data) (OSGK_Browser* browser, const unsigned char* data);
-
-void (VARGS *posgk_browser_event_mouse_move) (OSGK_Browser* browser, int x, int y);
-void (VARGS *posgk_browser_event_mouse_button) (OSGK_Browser* browser, OSGK_MouseButton button, OSGK_MouseButtonEventType eventType);
-int (VARGS *posgk_browser_event_key) (OSGK_Browser* browser, unsigned int key, OSGK_KeyboardEventType eventType);
-
-OSGK_EmbeddingOptions* (VARGS *posgk_embedding_options_create) (void);
-OSGK_Embedding* (VARGS *posgk_embedding_create2) (unsigned int apiVer, OSGK_EmbeddingOptions* options, OSGK_GeckoResult* geckoResult);
-void (VARGS *posgk_embedding_options_set_profile_dir) (OSGK_EmbeddingOptions* options, const char* profileDir, const char* localProfileDir);
-void (VARGS *posgk_embedding_options_add_search_path) (OSGK_EmbeddingOptions* options, const char* path);
-
-dllhandle_t geckodll;
-dllfunction_t gecko_functions[] =
-{
-	{(void**)&posgk_release, "osgk_release"},
-
-	{(void**)&posgk_browser_create, "osgk_browser_create"},
-	{(void**)&posgk_browser_resize, "osgk_browser_resize"},
-	{(void**)&posgk_browser_navigate, "osgk_browser_navigate"},
-	{(void**)&posgk_browser_lock_data, "osgk_browser_lock_data"},
-	{(void**)&posgk_browser_unlock_data, "osgk_browser_unlock_data"},
-
-	{(void**)&posgk_browser_event_mouse_move, "osgk_browser_event_mouse_move"},
-	{(void**)&posgk_browser_event_mouse_button, "osgk_browser_event_mouse_button"},
-	{(void**)&posgk_browser_event_key, "osgk_browser_event_key"},
-
-	{(void**)&posgk_embedding_options_create, "osgk_embedding_options_create"},
-	{(void**)&posgk_embedding_create2, "osgk_embedding_create2"},
-	{(void**)&posgk_embedding_options_set_profile_dir, "osgk_embedding_options_set_profile_dir"},
-	{(void**)&posgk_embedding_options_add_search_path, "osgk_embedding_options_add_search_path"},
-	{NULL}
-};
-OSGK_Embedding *gecko_embedding;
-
-void Media_Gecko_Shutdown(struct cin_s *cin)
-{
-	posgk_release(&cin->gecko.gbrowser->baseobj);
-}
-
-qboolean Media_Gecko_DecodeFrame(cin_t *cin, qboolean nosound)
-{
-	cin->outdata = (char*)posgk_browser_lock_data(cin->gecko.gbrowser, &cin->outunchanged);
-	cin->outwidth = cin->gecko.bwidth;
-	cin->outheight = cin->gecko.bheight;
-	cin->outtype = TF_BGRA32;
-	return !!cin->gecko.gbrowser;
-}
-
-void Media_Gecko_DoneFrame(cin_t *cin)
-{
-	posgk_browser_unlock_data(cin->gecko.gbrowser, cin->outdata);
-	cin->outdata = NULL;
-}
-
-void Media_Gecko_MoveCursor (struct cin_s *cin, float posx, float posy)
-{
-	posgk_browser_event_mouse_move(cin->gecko.gbrowser, posx*cin->gecko.bwidth, posy*cin->gecko.bheight);
-}
-
-void Media_Gecko_KeyPress (struct cin_s *cin, int code, int unicode, int event)
-{
-	if (code >= K_MOUSE1 && code < K_MOUSE10)
-	{
-		posgk_browser_event_mouse_button(cin->gecko.gbrowser, code - K_MOUSE1, (event==3)?2:event);
-	}
-	else
-	{
-		switch(code)
-		{
-		case K_BACKSPACE:
-			code = OSGKKey_Backspace;
-			break;
-		case K_TAB:
-			code = OSGKKey_Tab;
-			break;
-		case K_ENTER:
-			code = OSGKKey_Return;
-			break;
-		case K_LSHIFT:
-		case K_RSHIFT:
-			code = OSGKKey_Shift;
-			break;
-		case K_LCTRL:
-		case K_RCTRL:
-			code = OSGKKey_Control;
-			break;
-		case K_LALT:
-		case K_RALT:
-			code = OSGKKey_Alt;
-			break;
-		case K_CAPSLOCK:
-			code = OSGKKey_CapsLock;
-			break;
-		case K_ESCAPE:
-			code = OSGKKey_Escape;
-			break;
-		case K_SPACE:
-			code = OSGKKey_Space;
-			break;
-		case K_PGUP:
-			code = OSGKKey_PageUp;
-			break;
-		case K_PGDN:
-			code = OSGKKey_PageDown;
-			break;
-		case K_END:
-			code = OSGKKey_End;
-			break;
-		case K_HOME:
-			code = OSGKKey_Home;
-			break;
-		case K_LEFTARROW:
-			code = OSGKKey_Left;
-			break;
-		case K_UPARROW:
-			code = OSGKKey_Up;
-			break;
-		case K_RIGHTARROW:
-			code = OSGKKey_Right;
-			break;
-		case K_DOWNARROW:
-			code = OSGKKey_Down;
-			break;
-		case K_INS:
-			code = OSGKKey_Insert;
-			break;
-		case K_DEL:
-			code = OSGKKey_Delete;
-			break;
-		case K_F1:
-			code = OSGKKey_F1;
-			break;
-		case K_F2:
-			code = OSGKKey_F2;
-			break;
-		case K_F3:
-			code = OSGKKey_F3;
-			break;
-		case K_F4:
-			code = OSGKKey_F4;
-			break;
-		case K_F5:
-			code = OSGKKey_F5;
-			break;
-		case K_F6:
-			code = OSGKKey_F6;
-			break;
-		case K_F7:
-			code = OSGKKey_F7;
-			break;
-		case K_F8:
-			code = OSGKKey_F8;
-			break;
-		case K_F9:
-			code = OSGKKey_F9;
-			break;
-		case K_F10:
-			code = OSGKKey_F10;
-			break;
-		case K_F11:
-			code = OSGKKey_F11;
-			break;
-		case K_F12:
-			code = OSGKKey_F12;
-			break;
-		case K_KP_NUMLOCK:
-			code = OSGKKey_NumLock;
-			break;
-		case K_SCRLCK:
-			code = OSGKKey_ScrollLock;
-			break;
-		case K_LWIN:
-			code = OSGKKey_Meta;
-			break;
-		default:
-			code = unicode;
-			break;
-		}
-		posgk_browser_event_key(cin->gecko.gbrowser, code, kePress);
-		//posgk_browser_event_key(cin->gecko.gbrowser, code, event);
-	}
-}
-
-qboolean Media_Gecko_SetSize (struct cin_s *cin, int width, int height)
-{
-	if (width < 4 || height < 4)
-		return false;
-
-	posgk_browser_resize(cin->gecko.gbrowser, width, height);
-	cin->gecko.bwidth = width;
-	cin->gecko.bheight = height;
-	return true;
-}
-
-void Media_Gecko_GetSize (struct cin_s *cin, int *width, int *height)
-{
-	*width = cin->gecko.bwidth;
-	*height = cin->gecko.bheight;
-}
-
-void Media_Gecko_ChangeStream (struct cin_s *cin, char *streamname)
-{
-	posgk_browser_navigate(cin->gecko.gbrowser, streamname);
-}
-
-cin_t *Media_Gecko_TryLoad(char *name)
-{
-	char xulprofiledir[MAX_OSPATH];
-	cin_t *cin;
-
-	if (!strncmp(name, "http://", 7))
-	{
-		OSGK_GeckoResult result;
-
-		OSGK_EmbeddingOptions *opts;
-
-		if (!gecko_embedding)
-		{
-			geckodll = Sys_LoadLibrary("OffscreenGecko", gecko_functions);
-			if (!geckodll)
-			{
-				Con_Printf("OffscreenGecko not installed\n");
-				return NULL;
-			}
-
-			opts = posgk_embedding_options_create();
-			if (!opts)
-				return NULL;
-
-			posgk_embedding_options_add_search_path(opts, "./xulrunner/");
-			if (FS_NativePath("xulrunner_profile/", FS_ROOT, xulprofiledir, sizeof(xulprofiledir)))
-				posgk_embedding_options_set_profile_dir(opts, xulprofiledir, 0);
-
-			gecko_embedding = posgk_embedding_create2(OSGK_API_VERSION, opts, &result);
-			posgk_release(&opts->baseobj);
-			if (!gecko_embedding)
-				return NULL;
-		}
-
-		cin = Z_Malloc(sizeof(cin_t));
-		cin->filmtype = MFT_OFSGECKO;
-		cin->decodeframe = Media_Gecko_DecodeFrame;
-		cin->doneframe = Media_Gecko_DoneFrame;
-		cin->shutdown = Media_Gecko_Shutdown;
-
-		cin->cursormove = Media_Gecko_MoveCursor;
-		cin->key = Media_Gecko_KeyPress;
-		cin->setsize = Media_Gecko_SetSize;
-		cin->getsize = Media_Gecko_GetSize;
-		cin->changestream = Media_Gecko_ChangeStream;
-
-		cin->gecko.bwidth = 1024;
-		cin->gecko.bheight = 1024;
-
-		cin->gecko.gbrowser = posgk_browser_create(gecko_embedding, cin->gecko.bwidth, cin->gecko.bheight);
-		if (!cin->gecko.gbrowser)
-		{
-			Con_Printf("osgk_browser_create failed, your version of xulrunner is likely unsupported\n");
-			Z_Free(cin);
-			return NULL;
-		}
-		posgk_browser_navigate(cin->gecko.gbrowser, name);
-		return cin;
-	}
-	return NULL;
-}
-#endif
-
-//Gecko Support
-//////////////////////////////////////////////////////////////////////////////////
 
 qboolean Media_PlayingFullScreen(void)
 {
@@ -2433,11 +2142,6 @@ cin_t *Media_StartCin(char *name)
 
 	if (!name || !*name)	//clear only.
 		return NULL;
-
-#ifdef OFFSCREENGECKO
-	if (!cin)
-		cin = Media_Gecko_TryLoad(name);
-#endif
 
 	if (!cin)
 		cin = Media_Static_TryLoad(name);
@@ -2678,14 +2382,6 @@ texid_tf Media_UpdateForShader(cin_t *cin)
 }
 #endif
 
-void Media_Send_Command(cin_t *cin, const char *command)
-{
-	if (!cin)
-		cin = R_ShaderGetCinematic(videoshader);
-	if (!cin || !cin->changestream)
-		return;
-	cin->changestream(cin, command);
-}
 void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
 {
 	if (!cin)
@@ -2710,20 +2406,48 @@ void Media_Send_Resize(cin_t *cin, int x, int y)
 		return;
 	cin->setsize(cin, x, y);
 }
-void Media_Send_GetSize(cin_t *cin, int *x, int *y)
+void Media_Send_GetSize(cin_t *cin, int *x, int *y, float *aspect)
 {
+	*x = 0;
+	*y = 0;
+	*aspect = 0;
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);
 	if (!cin || !cin->getsize)
 		return;
-	cin->getsize(cin, x, y);
+	cin->getsize(cin, x, y, aspect);
 }
 void Media_Send_Reset(cin_t *cin)
 {
 	if (!cin || !cin->rewind)
 		cin->rewind(cin);
 }
-
+void Media_Send_Command(cin_t *cin, const char *command)
+{
+	if (!cin)
+		cin = R_ShaderGetCinematic(videoshader);
+	if (cin && cin->changestream)
+		cin->changestream(cin, command);
+	else if (cin && cin->rewind && !strcmp(command, "cmd:rewind"))
+		cin->rewind(cin);
+}
+void Media_Send_GetPositions(cin_t *cin, qboolean *active, float *curtime, float *duration)
+{
+	if (!cin)
+		cin = R_ShaderGetCinematic(videoshader);
+	if (cin)
+	{
+		*active = true && !cin->ended;
+		*curtime = Sys_DoubleTime() - cin->filmstarttime;
+		*duration = cin->filmpercentage;
+	}
+	else
+	{
+		*active = false;
+		*curtime = 0;
+		*duration = 0;
+	}
+}
 
 
 void Media_PlayFilm_f (void)
@@ -3449,7 +3173,7 @@ void Media_CaptureDemoEnd(void)
 	if (recordingdemo)
 		Media_StopRecordFilm_f();
 }
-void CL_PlayDemo(char *demoname);
+void CL_PlayDemo(char *demoname, qboolean usesystempath);
 void Media_RecordDemo_f(void)
 {
 	if (Cmd_Argc() < 2)
@@ -3457,7 +3181,7 @@ void Media_RecordDemo_f(void)
 	if (Cmd_FromGamecode())
 		return;
 
-	CL_PlayDemo(Cmd_Argv(1));
+	CL_PlayDemo(Cmd_Argv(1), false);
 	if (Cmd_Argc() > 2)
 		Cmd_ShiftArgs(1, false);
 	Media_RecordFilm_f();
@@ -4174,6 +3898,7 @@ void Media_Init(void)
 #endif
 	Media_RegisterEncoder(NULL, &capture_raw);
 
+	Cmd_AddCommand("playvideo", Media_PlayFilm_f);
 	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
 	Cmd_AddCommand("cinematic", Media_PlayFilm_f);
 	Cmd_AddCommand("music_fforward", Media_FForward_f);

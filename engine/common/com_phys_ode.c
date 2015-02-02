@@ -24,11 +24,56 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	Originally written by LordHavoc.
 */
 
-#include "quakedef.h"
-#include "pr_common.h"
-#include "glquake.h"
+//if we're not building as an fte-specific plugin, we must be being built as part of the fte engine itself.
+//(no, we don't want to act as a plugin for ezquake...)
+#ifndef FTEPLUGIN
+#define FTEENGINE
+#define FTEPLUGIN
+#define pCvar_Register Cvar_Get
+#define pCvar_GetFloat(x) Cvar_FindVar(x)->value
+#define pSys_Error Sys_Error
+#define Plug_Init Plug_ODE_Init
+#endif
 
-#ifdef USEODE
+#include "../../plugins/plugin.h"
+#include "../../plugins/engine.h"
+
+#ifdef USERBE
+
+#include "pr_common.h"
+#include "com_mesh.h"
+
+#ifndef FTEENGINE
+#define BZ_Malloc malloc
+#define BZ_Free free
+#define Z_Free BZ_Free
+static vec3_t vec3_origin;
+static int VectorCompare (const vec3_t v1, const vec3_t v2)
+{
+	int		i;
+	for (i=0 ; i<3 ; i++)
+		if (v1[i] != v2[i])
+			return 0;
+	return 1;
+}
+
+#endif
+
+
+#define ARGNAMES ,name,funcs
+static BUILTINR(dllhandle_t *, Sys_LoadLibrary, (const char *name,dllfunction_t *funcs));
+#undef ARGNAMES
+#define ARGNAMES ,hdl
+static BUILTIN(void, Sys_CloseLibrary, (dllhandle_t *hdl));
+#undef ARGNAMES
+#define ARGNAMES ,version
+static BUILTINR(modplugfuncs_t*, Mod_GetPluginModelFuncs, (int version));
+#undef ARGNAMES
+#define ARGNAMES ,name,defaultval,flags,description,groupname
+static BUILTINR(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname));
+#undef ARGNAMES
+
+static modplugfuncs_t *modfuncs;
 
 //============================================================================
 // physics engine support
@@ -37,32 +82,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#ifndef ODE_STATIC
 //#define ODE_DYNAMIC 1
 //#endif
-
-cvar_t physics_ode_enable = CVARD("physics_ode_enable", IFMINIMAL("0", "1"), "Enables the use of ODE physics, but only if the mod supports it.");
-cvar_t physics_ode_quadtree_depth = CVARDP4(0, "physics_ode_quadtree_depth","5", "desired subdivision level of quadtree culling space");
-cvar_t physics_ode_contactsurfacelayer = CVARDP4(0, "physics_ode_contactsurfacelayer","0", "allows objects to overlap this many units to reduce jitter");
-cvar_t physics_ode_worldquickstep = CVARDP4(0, "physics_ode_worldquickstep","1", "use dWorldQuickStep rather than dWorldStep");
-cvar_t physics_ode_worldquickstep_iterations = CVARDP4(0, "physics_ode_worldquickstep_iterations","20", "parameter to dWorldQuickStep");
-//physics_ode_worldstepfast dWorldStepFast1 is not present in more recent versions of ODE. thus we don't use it ever.
-cvar_t physics_ode_contact_mu = CVARDP4(0, "physics_ode_contact_mu", "1", "contact solver mu parameter - friction pyramid approximation 1 (see ODE User Guide)");
-cvar_t physics_ode_contact_erp = CVARDP4(0, "physics_ode_contact_erp", "0.96", "contact solver erp parameter - Error Restitution Percent (see ODE User Guide)");
-cvar_t physics_ode_contact_cfm = CVARDP4(0, "physics_ode_contact_cfm", "0", "contact solver cfm parameter - Constraint Force Mixing (see ODE User Guide)");
-cvar_t physics_ode_world_damping = CVARDP4(0, "physics_ode_world_damping", "1", "enabled damping scale (see ODE User Guide), this scales all damping values, be aware that behavior depends of step type");
-cvar_t physics_ode_world_damping_linear = CVARDP4(0, "physics_ode_world_damping_linear", "0.005", "world linear damping scale (see ODE User Guide); use defaults when set to -1");
-cvar_t physics_ode_world_damping_linear_threshold = CVARDP4(0, "physics_ode_world_damping_linear_threshold", "0.01", "world linear damping threshold (see ODE User Guide); use defaults when set to -1");
-cvar_t physics_ode_world_damping_angular = CVARDP4(0, "physics_ode_world_damping_angular", "0.005", "world angular damping scale (see ODE User Guide); use defaults when set to -1");
-cvar_t physics_ode_world_damping_angular_threshold = CVARDP4(0, "physics_ode_world_damping_angular_threshold", "0.01", "world angular damping threshold (see ODE User Guide); use defaults when set to -1");
-cvar_t physics_ode_world_erp = CVARDP4(0, "physics_ode_world_erp", "-1", "world solver erp parameter - Error Restitution Percent (see ODE User Guide); use defaults when set to -1");
-cvar_t physics_ode_world_cfm = CVARDP4(0, "physics_ode_world_cfm", "-1", "world solver cfm parameter - Constraint Force Mixing (see ODE User Guide); not touched when -1");
-cvar_t physics_ode_iterationsperframe = CVARDP4(0, "physics_ode_iterationsperframe", "4", "divisor for time step, runs multiple physics steps per frame");
-cvar_t physics_ode_movelimit = CVARDP4(0, "physics_ode_movelimit", "0.5", "clamp velocity if a single move would exceed this percentage of object thickness, to prevent flying through walls");
-cvar_t physics_ode_spinlimit = CVARDP4(0, "physics_ode_spinlimit", "10000", "reset spin velocity if it gets too large");
-cvar_t physics_ode_autodisable = CVARDP4(0, "physics_ode_autodisable", "1", "automatic disabling of objects which dont move for long period of time, makes object stacking a lot faster");
-cvar_t physics_ode_autodisable_steps = CVARDP4(0, "physics_ode_autodisable_steps", "10", "how many steps object should be dormant to be autodisabled");
-cvar_t physics_ode_autodisable_time = CVARDP4(0, "physics_ode_autodisable_time", "0", "how many seconds object should be dormant to be autodisabled");
-cvar_t physics_ode_autodisable_threshold_linear = CVARDP4(0, "physics_ode_autodisable_threshold_linear", "0.2", "body will be disabled if it's linear move below this value");
-cvar_t physics_ode_autodisable_threshold_angular = CVARDP4(0, "physics_ode_autodisable_threshold_angular", "0.3", "body will be disabled if it's angular move below this value");
-cvar_t physics_ode_autodisable_threshold_samples = CVARDP4(0, "physics_ode_autodisable_threshold_samples", "5", "average threshold with this number of samples");
 
 // LordHavoc: this large chunk of definitions comes from the ODE library
 // include files.
@@ -1168,19 +1187,65 @@ static dllfunction_t odefuncs[] =
 };
 
 // Handle for ODE DLL
-dllhandle_t *ode_dll = NULL;
+static dllhandle_t *ode_dll = NULL;
 #endif
 
-static void World_ODE_RunCmd(world_t *world, odecommandqueue_t *cmd);
 
-void World_ODE_Init(void)
+static cvar_t *physics_ode_enable;
+static cvar_t *physics_ode_quadtree_depth;
+static cvar_t *physics_ode_contactsurfacelayer;
+static cvar_t *physics_ode_worldquickstep;
+static cvar_t *physics_ode_worldquickstep_iterations;
+static cvar_t *physics_ode_contact_mu;
+static cvar_t *physics_ode_contact_erp;
+static cvar_t *physics_ode_contact_cfm;
+static cvar_t *physics_ode_world_damping;
+static cvar_t *physics_ode_world_damping_linear;
+static cvar_t *physics_ode_world_damping_linear_threshold;
+static cvar_t *physics_ode_world_damping_angular;
+static cvar_t *physics_ode_world_damping_angular_threshold;
+static cvar_t *physics_ode_world_erp;
+static cvar_t *physics_ode_world_cfm;
+static cvar_t *physics_ode_iterationsperframe;
+static cvar_t *physics_ode_movelimit;
+static cvar_t *physics_ode_spinlimit;
+static cvar_t *physics_ode_autodisable;
+static cvar_t *physics_ode_autodisable_steps;
+static cvar_t *physics_ode_autodisable_time;
+static cvar_t *physics_ode_autodisable_threshold_linear;
+static cvar_t *physics_ode_autodisable_threshold_angular;
+static cvar_t *physics_ode_autodisable_threshold_samples;
+
+struct odectx_s
+{
+	rigidbodyengine_t pub;
+
+	qboolean hasextraobjs;
+	dWorldID dworld;
+	void *space;
+	void *contactgroup;
+	// number of constraint solver iterations to use (for dWorldStepFast)
+	int iterations;
+	// actual step (server frametime / ode_iterations)
+	vec_t step;
+	// max velocity for a 1-unit radius object at current step to prevent
+	// missed collisions
+	vec_t movelimit;
+	rbecommandqueue_t *cmdqueuehead;
+	rbecommandqueue_t *cmdqueuetail;
+};
+
+
+static void World_ODE_RunCmd(world_t *world, rbecommandqueue_t *cmd);
+
+static void World_ODE_Init(void)
 {
 #ifdef ODE_DYNAMIC
 	const char* dllname =
 	{
-# if defined(WIN64)
+# if defined(_WIN64)
 		"libode1"
-# elif defined(WIN32)
+# elif defined(_WIN32)
 		"ode_double"
 # elif defined(MACOSX)
 		"libode.1.dylib"
@@ -1190,34 +1255,35 @@ void World_ODE_Init(void)
 	};
 #endif
 
-	Cvar_Register(&physics_ode_enable, "ODE Physics Library");
-	Cvar_Register(&physics_ode_quadtree_depth, "ODE Physics Library");
-	Cvar_Register(&physics_ode_contactsurfacelayer, "ODE Physics Library");
-	Cvar_Register(&physics_ode_worldquickstep, "ODE Physics Library");
-	Cvar_Register(&physics_ode_worldquickstep_iterations, "ODE Physics Library");
-	Cvar_Register(&physics_ode_contact_mu, "ODE Physics Library");
-	Cvar_Register(&physics_ode_contact_erp, "ODE Physics Library");
-	Cvar_Register(&physics_ode_contact_cfm, "ODE Physics Library");
-	Cvar_Register(&physics_ode_world_damping, "ODE Physics Library");
-	Cvar_Register(&physics_ode_world_damping_linear, "ODE Physics Library");
-	Cvar_Register(&physics_ode_world_damping_linear_threshold, "ODE Physics Library");
-	Cvar_Register(&physics_ode_world_damping_angular, "ODE Physics Library");
-	Cvar_Register(&physics_ode_world_damping_angular_threshold, "ODE Physics Library");
-	Cvar_Register(&physics_ode_world_erp, "ODE Physics Library");
-	Cvar_Register(&physics_ode_world_cfm, "ODE Physics Library");
-	Cvar_Register(&physics_ode_iterationsperframe, "ODE Physics Library");
-	Cvar_Register(&physics_ode_movelimit, "ODE Physics Library");
-	Cvar_Register(&physics_ode_spinlimit, "ODE Physics Library");
-	Cvar_Register(&physics_ode_autodisable, "ODE Physics Library");
-	Cvar_Register(&physics_ode_autodisable_steps, "ODE Physics Library");
-	Cvar_Register(&physics_ode_autodisable_time, "ODE Physics Library");
-	Cvar_Register(&physics_ode_autodisable_threshold_linear, "ODE Physics Library");
-	Cvar_Register(&physics_ode_autodisable_threshold_angular, "ODE Physics Library");
-	Cvar_Register(&physics_ode_autodisable_threshold_samples, "ODE Physics Library");
+
+	physics_ode_enable							= pCvar_GetNVFDG("physics_ode_enable",							"1",	0,	"Enables the use of ODE physics, but only if the mod supports it.",	"ODE Physics Library");
+	physics_ode_quadtree_depth					= pCvar_GetNVFDG("physics_ode_quadtree_depth",					"5",	0,	"desired subdivision level of quadtree culling space",				"ODE Physics Library");
+	physics_ode_contactsurfacelayer				= pCvar_GetNVFDG("physics_ode_contactsurfacelayer",				"0",	0,	"allows objects to overlap this many units to reduce jitter",		"ODE Physics Library");
+	physics_ode_worldquickstep					= pCvar_GetNVFDG("physics_ode_worldquickstep",					"1",	0,	"use dWorldQuickStep rather than dWorldStep",						"ODE Physics Library");
+	physics_ode_worldquickstep_iterations		= pCvar_GetNVFDG("physics_ode_worldquickstep_iterations",		"20",	0,	"parameter to dWorldQuickStep",										"ODE Physics Library");
+	physics_ode_contact_mu						= pCvar_GetNVFDG("physics_ode_contact_mu",						"1",	0,	"contact solver mu parameter - friction pyramid approximation 1 (see ODE User Guide)",	"ODE Physics Library");
+	physics_ode_contact_erp						= pCvar_GetNVFDG("physics_ode_contact_erp",						"0.96",	0,	"contact solver erp parameter - Error Restitution Percent (see ODE User Guide)",		"ODE Physics Library");
+	physics_ode_contact_cfm						= pCvar_GetNVFDG("physics_ode_contact_cfm",						"0",	0,	"contact solver cfm parameter - Constraint Force Mixing (see ODE User Guide)",			"ODE Physics Library");
+	physics_ode_world_damping					= pCvar_GetNVFDG("physics_ode_world_damping",					"1",	0,	"enabled damping scale (see ODE User Guide), this scales all damping values, be aware that behavior depends of step type",	"ODE Physics Library");
+	physics_ode_world_damping_linear			= pCvar_GetNVFDG("physics_ode_world_damping_linear",				"0.005",0,	"world linear damping scale (see ODE User Guide); use defaults when set to -1",			"ODE Physics Library");
+	physics_ode_world_damping_linear_threshold	= pCvar_GetNVFDG("physics_ode_world_damping_linear_threshold",	"0.01",	0,	"world linear damping threshold (see ODE User Guide); use defaults when set to -1",		"ODE Physics Library");
+	physics_ode_world_damping_angular			= pCvar_GetNVFDG("physics_ode_world_damping_angular",			"0.005",0,	"world angular damping scale (see ODE User Guide); use defaults when set to -1",		"ODE Physics Library");
+	physics_ode_world_damping_angular_threshold	= pCvar_GetNVFDG("physics_ode_world_damping_angular_threshold",	"0.01",	0,	"world angular damping threshold (see ODE User Guide); use defaults when set to -1",	"ODE Physics Library");
+	physics_ode_world_erp						= pCvar_GetNVFDG("physics_ode_world_erp",						"-1",	0,	"world solver erp parameter - Error Restitution Percent (see ODE User Guide); use defaults when set to -1",			"ODE Physics Library");
+	physics_ode_world_cfm						= pCvar_GetNVFDG("physics_ode_world_cfm",						"-1",	0,	"world solver cfm parameter - Constraint Force Mixing (see ODE User Guide); not touched when -1",					"ODE Physics Library");
+	physics_ode_iterationsperframe				= pCvar_GetNVFDG("physics_ode_iterationsperframe",				"4",	0,	"divisor for time step, runs multiple physics steps per frame",														"ODE Physics Library");
+	physics_ode_movelimit						= pCvar_GetNVFDG("physics_ode_movelimit",						"0.5",	0,	"clamp velocity if a single move would exceed this percentage of object thickness, to prevent flying through walls","ODE Physics Library");
+	physics_ode_spinlimit						= pCvar_GetNVFDG("physics_ode_spinlimit",						"10000",0,	"reset spin velocity if it gets too large",																			"ODE Physics Library");
+	physics_ode_autodisable						= pCvar_GetNVFDG("physics_ode_autodisable",						"1",	0,	"automatic disabling of objects which dont move for long period of time, makes object stacking a lot faster",		"ODE Physics Library");
+	physics_ode_autodisable_steps				= pCvar_GetNVFDG("physics_ode_autodisable_steps",				"10",	0,	"how many steps object should be dormant to be autodisabled",		"ODE Physics Library");
+	physics_ode_autodisable_time				= pCvar_GetNVFDG("physics_ode_autodisable_time",					"0",	0,	"how many seconds object should be dormant to be autodisabled",		"ODE Physics Library");
+	physics_ode_autodisable_threshold_linear	= pCvar_GetNVFDG("physics_ode_autodisable_threshold_linear",		"0.2",	0,	"body will be disabled if it's linear move below this value",		"ODE Physics Library");
+	physics_ode_autodisable_threshold_angular	= pCvar_GetNVFDG("physics_ode_autodisable_threshold_angular",	"0.3",	0,	"body will be disabled if it's angular move below this value",		"ODE Physics Library");
+	physics_ode_autodisable_threshold_samples	= pCvar_GetNVFDG("physics_ode_autodisable_threshold_samples",	"5",	0,	"average threshold with this number of samples",					"ODE Physics Library");
 
 #ifdef ODE_DYNAMIC
 	// Load the DLL
-	ode_dll = Sys_LoadLibrary(dllname, odefuncs);
+	ode_dll = pSys_LoadLibrary(dllname, odefuncs);
 	if (ode_dll)
 #endif
 	{
@@ -1235,7 +1301,7 @@ void World_ODE_Init(void)
 # else
 			Con_Printf("ode library not compiled for double precision - incompatible!  Not using ODE physics.\n");
 # endif
-			Sys_CloseLibrary(ode_dll);
+			pSys_CloseLibrary(ode_dll);
 			ode_dll = NULL;
 		}
 #endif
@@ -1244,13 +1310,11 @@ void World_ODE_Init(void)
 #ifdef ODE_DYNAMIC
 	if (!ode_dll)
 	{
-		physics_ode_enable.flags |= CVAR_NOSET;
-		Cvar_ForceSet(&physics_ode_enable, "0");
 	}
 #endif
 }
 
-void World_ODE_Shutdown(void)
+static void World_ODE_Shutdown(void)
 {
 #ifdef ODE_DYNAMIC
 	if (ode_dll)
@@ -1258,83 +1322,23 @@ void World_ODE_Shutdown(void)
 	{
 		dCloseODE();
 #ifdef ODE_DYNAMIC
-		Sys_CloseLibrary(ode_dll);
+		pSys_CloseLibrary(ode_dll);
 		ode_dll = NULL;
 #endif
 	}
 }
 
-static void World_ODE_Enable(world_t *world)
+static void QDECL World_ODE_End(world_t *world)
 {
-	dVector3 center, extents;
-	if (world->ode.ode)
-		return;
-
-	if (!physics_ode_enable.ival)
-		return;
-
-#ifdef ODE_DYNAMIC
-	if (!ode_dll)
-		return;
-#endif
-	world->ode.ode = true;
-	VectorAvg(world->worldmodel->mins, world->worldmodel->maxs, center);
-	VectorSubtract(world->worldmodel->maxs, center, extents);
-	world->ode.ode_world = dWorldCreate();
-	world->ode.ode_space = dQuadTreeSpaceCreate(NULL, center, extents, bound(1, physics_ode_quadtree_depth.ival, 10));
-	world->ode.ode_contactgroup = dJointGroupCreate(0);
-
-
-	if(physics_ode_world_erp.value >= 0)
-		dWorldSetERP(world->ode.ode_world, physics_ode_world_erp.value);
-	if(physics_ode_world_cfm.value >= 0)
-		dWorldSetCFM(world->ode.ode_world, physics_ode_world_cfm.value);
-	if (physics_ode_world_damping.ival)
-	{
-		dWorldSetLinearDamping(world->ode.ode_world, (physics_ode_world_damping_linear.value >= 0) ? (physics_ode_world_damping_linear.value * physics_ode_world_damping.value) : 0);
-		dWorldSetLinearDampingThreshold(world->ode.ode_world, (physics_ode_world_damping_linear_threshold.value >= 0) ? (physics_ode_world_damping_linear_threshold.value * physics_ode_world_damping.value) : 0);
-		dWorldSetAngularDamping(world->ode.ode_world, (physics_ode_world_damping_angular.value >= 0) ? (physics_ode_world_damping_angular.value * physics_ode_world_damping.value) : 0);
-		dWorldSetAngularDampingThreshold(world->ode.ode_world, (physics_ode_world_damping_angular_threshold.value >= 0) ? (physics_ode_world_damping_angular_threshold.value * physics_ode_world_damping.value) : 0);
-	}
-	else
-	{
-		dWorldSetLinearDamping(world->ode.ode_world, 0);
-		dWorldSetLinearDampingThreshold(world->ode.ode_world, 0);
-		dWorldSetAngularDamping(world->ode.ode_world, 0);
-		dWorldSetAngularDampingThreshold(world->ode.ode_world, 0);
-	}
-	if (physics_ode_autodisable.ival)
-	{
-		dWorldSetAutoDisableSteps(world->ode.ode_world, bound(1, physics_ode_autodisable_steps.ival, 100)); 
-		dWorldSetAutoDisableTime(world->ode.ode_world, physics_ode_autodisable_time.value);
-		dWorldSetAutoDisableAverageSamplesCount(world->ode.ode_world, bound(1, physics_ode_autodisable_threshold_samples.ival, 100));
-		dWorldSetAutoDisableLinearThreshold(world->ode.ode_world, physics_ode_autodisable_threshold_linear.value); 
-		dWorldSetAutoDisableAngularThreshold(world->ode.ode_world, physics_ode_autodisable_threshold_angular.value); 
-		dWorldSetAutoDisableFlag (world->ode.ode_world, true);
-	}
-	else
-		dWorldSetAutoDisableFlag (world->ode.ode_world, false);
+	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
+	world->rbe = NULL;
+	dWorldDestroy(ctx->dworld);
+	dSpaceDestroy(ctx->space);
+	dJointGroupDestroy(ctx->contactgroup);
+	Z_Free(ctx);
 }
 
-void World_ODE_Start(world_t *world)
-{
-	if (world->ode.ode)
-		return;
-	World_ODE_Enable(world);
-}
-
-void World_ODE_End(world_t *world)
-{
-	if (world->ode.ode)
-	{
-		dWorldDestroy(world->ode.ode_world);
-		dSpaceDestroy(world->ode.ode_space);
-		dJointGroupDestroy(world->ode.ode_contactgroup);
-		world->ode.ode = false;
-	}
-}
-
-void World_ODE_RemoveJointFromEntity(world_t *world, wedict_t *ed)
+static void QDECL World_ODE_RemoveJointFromEntity(world_t *world, wedict_t *ed)
 {
 	ed->ode.ode_joint_type = 0;
 	if(ed->ode.ode_joint)
@@ -1342,7 +1346,7 @@ void World_ODE_RemoveJointFromEntity(world_t *world, wedict_t *ed)
 	ed->ode.ode_joint = NULL;
 }
 
-void World_ODE_RemoveFromEntity(world_t *world, wedict_t *ed)
+static void QDECL World_ODE_RemoveFromEntity(world_t *world, wedict_t *ed)
 {
 	if (!ed->ode.ode_physics)
 		return;
@@ -1379,14 +1383,7 @@ void World_ODE_RemoveFromEntity(world_t *world, wedict_t *ed)
 	}
 	ed->ode.ode_body = NULL;
 
-	if (ed->ode.ode_vertex3f)
-		BZ_Free(ed->ode.ode_vertex3f);
-	ed->ode.ode_vertex3f = NULL;
-	ed->ode.ode_numvertices = 0;
-	if (ed->ode.ode_element3i)
-		BZ_Free(ed->ode.ode_element3i);
-	ed->ode.ode_element3i = NULL;
-	ed->ode.ode_numtriangles = 0;
+	modfuncs->ReleaseCollisionMesh(ed);
 	if(ed->ode.ode_massbuf)
 		BZ_Free(ed->ode.ode_massbuf);
 	ed->ode.ode_massbuf = NULL;
@@ -1486,11 +1483,12 @@ static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	VectorCopy(avelocity, ed->ode.ode_avelocity);
 	ed->ode.ode_gravity = dBodyGetGravityMode(body);
 
-	World_LinkEdict(world, ed, true);
+	modfuncs->LinkEdict(world, ed, true);
 }
 
 static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 {
+	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
 	dJointID j = 0;
 	dBodyID b1 = 0;
 	dBodyID b2 = 0;
@@ -1529,8 +1527,8 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		float K = movedir[0];
 		float D = movedir[1];
 		float R = 2.0 * D * sqrt(K); // we assume D is premultiplied by sqrt(sprungMass)
-		CFM = 1.0 / (world->ode.ode_step * K + R); // always > 0
-		ERP = world->ode.ode_step * K * CFM;
+		CFM = 1.0 / (ctx->step * K + R); // always > 0
+		ERP = ctx->step * K * CFM;
 		Vel = 0;
 		FMax = 0;
 		Stop = movedir[2];
@@ -1557,22 +1555,22 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	switch(jointtype)
 	{
 		case JOINTTYPE_POINT:
-			j = dJointCreateBall(world->ode.ode_world, 0);
+			j = dJointCreateBall(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_HINGE:
-			j = dJointCreateHinge(world->ode.ode_world, 0);
+			j = dJointCreateHinge(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_SLIDER:
-			j = dJointCreateSlider(world->ode.ode_world, 0);
+			j = dJointCreateSlider(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_UNIVERSAL:
-			j = dJointCreateUniversal(world->ode.ode_world, 0);
+			j = dJointCreateUniversal(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_HINGE2:
-			j = dJointCreateHinge2(world->ode.ode_world, 0);
+			j = dJointCreateHinge2(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_FIXED:
-			j = dJointCreateFixed(world->ode.ode_world, 0);
+			j = dJointCreateFixed(ctx->dworld, 0);
 			break;
 		case 0:
 		default:
@@ -1673,179 +1671,7 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	}
 }
 
-static qboolean GenerateCollisionMesh_BSP(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter)
-{
-	unsigned int sno;
-	msurface_t *surf;
-	mesh_t *mesh;
-	unsigned int numverts;
-	unsigned int numindexes,i;
-
-	numverts = 0;
-	numindexes = 0;
-	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
-	{
-		surf = &mod->surfaces[sno+mod->firstmodelsurface];
-		if (surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB))
-			continue;
-
-		if (surf->mesh)
-		{
-			mesh = surf->mesh;
-			numverts += mesh->numvertexes;
-			numindexes += mesh->numindexes;
-		}
-		else
-		{
-			numverts += surf->numedges;
-			numindexes += (surf->numedges-2) * 3;
-		}
-	}
-	if (!numindexes)
-	{
-		Con_DPrintf("entity %i (classname %s) has no geometry\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
-		return false;
-	}
-	ed->ode.ode_element3i = BZ_Malloc(numindexes*sizeof(*ed->ode.ode_element3i));
-	ed->ode.ode_vertex3f = BZ_Malloc(numverts*sizeof(vec3_t));
-
-	numverts = 0;
-	numindexes = 0;
-	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
-	{
-		surf = &mod->surfaces[sno+mod->firstmodelsurface];
-		if (surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB))
-			continue;
-
-		if (surf->mesh)
-		{
-			mesh = surf->mesh;
-			for (i = 0; i < mesh->numvertexes; i++)
-				VectorSubtract(mesh->xyz_array[i], geomcenter, (ed->ode.ode_vertex3f + 3*(numverts+i)));
-			for (i = 0; i < mesh->numindexes; i+=3)
-			{
-				//flip the triangles as we go
-				ed->ode.ode_element3i[numindexes+i+0] = numverts+mesh->indexes[i+2];
-				ed->ode.ode_element3i[numindexes+i+1] = numverts+mesh->indexes[i+1];
-				ed->ode.ode_element3i[numindexes+i+2] = numverts+mesh->indexes[i+0];
-			}
-			numverts += mesh->numvertexes;
-			numindexes += i;
-		}
-		else
-		{
-			float *vec;
-			medge_t *edge;
-			int lindex;
-			for (i = 0; i < surf->numedges; i++)
-			{
-				lindex = mod->surfedges[surf->firstedge + i];
-
-				if (lindex > 0)
-				{
-					edge = &mod->edges[lindex];
-					vec = mod->vertexes[edge->v[0]].position;
-				}
-				else
-				{
-					edge = &mod->edges[-lindex];
-					vec = mod->vertexes[edge->v[1]].position;
-				}
-			
-				VectorSubtract(vec, geomcenter, (ed->ode.ode_vertex3f + 3*(numverts+i)));
-			}
-			for (i = 2; i < surf->numedges; i++)
-			{
-				//quake is backwards, not ode
-				ed->ode.ode_element3i[numindexes++] = numverts+i;
-				ed->ode.ode_element3i[numindexes++] = numverts+i-1;
-				ed->ode.ode_element3i[numindexes++] = numverts;
-			}
-			numverts += surf->numedges;
-		}
-	}
-
-	ed->ode.ode_numvertices = numverts;
-	ed->ode.ode_numtriangles = numindexes/3;
-	return true;
-}
-
-#include "com_mesh.h"
-static qboolean GenerateCollisionMesh_Alias(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter)
-{
-	mesh_t mesh;
-	unsigned int numverts;
-	unsigned int numindexes,i;
-	galiasinfo_t *inf;
-	unsigned int surfnum = 0;
-	entity_t re;
-
-	numverts = 0;
-	numindexes = 0;
-
-	//fill in the parts of the entity_t that Alias_GAliasBuildMesh needs.
-	world->Get_FrameState(world, ed, &re.framestate);
-	re.fatness = ed->xv->fatness;
-	re.model = mod;
-
-	inf = Mod_Extradata (mod);
-	while(inf)
-	{
-		numverts += inf->numverts;
-		numindexes += inf->numindexes;
-		inf = inf->nextsurf;
-	}
-
-	if (!numindexes)
-	{
-		Con_DPrintf("entity %i (classname %s) has no geometry\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
-		return false;
-	}
-	ed->ode.ode_element3i = BZ_Malloc(numindexes*sizeof(*ed->ode.ode_element3i));
-	ed->ode.ode_vertex3f = BZ_Malloc(numverts*sizeof(vec3_t));
-
-	numverts = 0;
-	numindexes = 0;
-
-	inf = Mod_Extradata (mod);
-	while(inf)
-	{
-		Alias_GAliasBuildMesh(&mesh, NULL, inf, surfnum++, &re, false);
-		for (i = 0; i < mesh.numvertexes; i++)
-			VectorSubtract(mesh.xyz_array[i], geomcenter, (ed->ode.ode_vertex3f + 3*(numverts+i)));
-		for (i = 0; i < mesh.numindexes; i+=3)
-		{
-			//flip the triangles as we go
-			ed->ode.ode_element3i[numindexes+i+0] = numverts+mesh.indexes[i+2];
-			ed->ode.ode_element3i[numindexes+i+1] = numverts+mesh.indexes[i+1];
-			ed->ode.ode_element3i[numindexes+i+2] = numverts+mesh.indexes[i+0];
-		}
-		numverts += inf->numverts;
-		numindexes += inf->numindexes;
-		inf = inf->nextsurf;
-	}
-
-	Alias_FlushCache();	//it got built using an entity on the stack, make sure other stuff doesn't get hurt.
-
-	ed->ode.ode_numvertices = numverts;
-	ed->ode.ode_numtriangles = numindexes/3;
-	return true;
-}
-
-static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter)
-{
-	switch(mod->type)
-	{
-	case mod_brush:
-		return GenerateCollisionMesh_BSP(world, mod, ed, geomcenter);
-	case mod_alias:
-		return GenerateCollisionMesh_Alias(world, mod, ed, geomcenter);
-	default:
-		return false;	//panic!
-	}
-}
-
-qboolean World_ODE_RagMatrixToBody(odebody_t *bodyptr, float *mat)
+static qboolean QDECL World_ODE_RagMatrixToBody(rbebody_t *bodyptr, float *mat)
 {
 	dVector3 r[3];
 
@@ -1859,67 +1685,65 @@ qboolean World_ODE_RagMatrixToBody(odebody_t *bodyptr, float *mat)
 	r[2][1] = mat[9];
 	r[2][2] = mat[10];
 
-	dBodySetPosition(bodyptr->ode_body, mat[3], mat[7], mat[11]);
-	dBodySetRotation(bodyptr->ode_body, r[0]);
-	dBodySetLinearVel(bodyptr->ode_body, 0, 0, 0);
-	dBodySetAngularVel(bodyptr->ode_body, 0, 0, 0);
+	dBodySetPosition(bodyptr->body, mat[3], mat[7], mat[11]);
+	dBodySetRotation(bodyptr->body, r[0]);
+	dBodySetLinearVel(bodyptr->body, 0, 0, 0);
+	dBodySetAngularVel(bodyptr->body, 0, 0, 0);
 
 	return true;
 }
-qboolean World_ODE_RagCreateBody(world_t *world, odebody_t *bodyptr, odebodyinfo_t *bodyinfo, float *mat, wedict_t *ent)
+static qboolean QDECL World_ODE_RagCreateBody(world_t *world, rbebody_t *bodyptr, rbebodyinfo_t *bodyinfo, float *mat, wedict_t *ent)
 {
+	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
 	dMass mass;
 	float radius;
-	if (!world->ode.ode_space)
-		return false;
-	world->ode.hasodeents = true;	//I don't like this, but we need the world etc to be solid.
-	world->ode.hasextraobjs = true;
+	ctx->hasextraobjs = true;
 	
 	switch(bodyinfo->geomshape)
 	{
 	case GEOMTYPE_CAPSULE:
 		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1]) * 0.5;
-		bodyptr->ode_geom = (void *)dCreateCapsule(world->ode.ode_space, radius, bodyinfo->dimensions[2]);
+		bodyptr->geom = (void *)dCreateCapsule(ctx->space, radius, bodyinfo->dimensions[2]);
 		dMassSetCapsuleTotal(&mass, bodyinfo->mass, 3, radius, bodyinfo->dimensions[2]);
 		//aligned along the geom's local z axis
 		break;
 	case GEOMTYPE_SPHERE:
 		//radius
 		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1] + bodyinfo->dimensions[2]) / 3;
-		bodyptr->ode_geom = dCreateSphere(world->ode.ode_space, radius);
+		bodyptr->geom = dCreateSphere(ctx->space, radius);
 		dMassSetSphereTotal(&mass, bodyinfo->mass, radius);
 		//aligned along the geom's local z axis
 		break;
 	case GEOMTYPE_CYLINDER:
 		//radius, length
 		radius = (bodyinfo->dimensions[0] + bodyinfo->dimensions[1]) * 0.5;
-		bodyptr->ode_geom = dCreateCylinder(world->ode.ode_space, radius, bodyinfo->dimensions[2]);
+		bodyptr->geom = dCreateCylinder(ctx->space, radius, bodyinfo->dimensions[2]);
 		dMassSetCylinderTotal(&mass, bodyinfo->mass, 3, radius, bodyinfo->dimensions[2]);
 		//alignment is irreleevnt, thouse I suppose it might be scaled wierdly.
 		break;
 	default:
 	case GEOMTYPE_BOX:
 		//diameter
-		bodyptr->ode_geom = dCreateBox(world->ode.ode_space, bodyinfo->dimensions[0], bodyinfo->dimensions[1], bodyinfo->dimensions[2]);
+		bodyptr->geom = dCreateBox(ctx->space, bodyinfo->dimensions[0], bodyinfo->dimensions[1], bodyinfo->dimensions[2]);
 		dMassSetBoxTotal(&mass, bodyinfo->mass, bodyinfo->dimensions[0], bodyinfo->dimensions[1], bodyinfo->dimensions[2]);
 		//monkey
 		break;
 	}
-	bodyptr->ode_body = dBodyCreate(world->ode.ode_world);
-	dBodySetMass(bodyptr->ode_body, &mass);
-	dGeomSetBody(bodyptr->ode_geom, bodyptr->ode_body);
-	dGeomSetData(bodyptr->ode_geom, (void*)ent);
+	bodyptr->body = dBodyCreate(ctx->dworld);
+	dBodySetMass(bodyptr->body, &mass);
+	dGeomSetBody(bodyptr->geom, bodyptr->body);
+	dGeomSetData(bodyptr->geom, (void*)ent);
 
 	return World_ODE_RagMatrixToBody(bodyptr, mat);
 }
 
-void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float *mat)
+static void QDECL World_ODE_RagMatrixFromJoint(rbejoint_t *joint, rbejointinfo_t *info, float *mat)
 {
 	dVector3 dr3;
 	switch(info->type)
 	{
 	case JOINTTYPE_POINT:
-		dJointGetBallAnchor(joint->ode_joint, dr3);
+		dJointGetBallAnchor(joint->joint, dr3);
 		mat[3] = dr3[0];
 		mat[7] = dr3[1];
 		mat[11] = dr3[2];
@@ -1928,12 +1752,12 @@ void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float
 		break;
 
 	case JOINTTYPE_HINGE:
-		dJointGetHingeAnchor(joint->ode_joint, dr3);
+		dJointGetHingeAnchor(joint->joint, dr3);
 		mat[3] = dr3[0];
 		mat[7] = dr3[1];
 		mat[11] = dr3[2];
 
-		dJointGetHingeAxis(joint->ode_joint, dr3);
+		dJointGetHingeAxis(joint->joint, dr3);
 		VectorCopy(dr3, mat+4);
 		VectorClear(mat+8);
 
@@ -1941,14 +1765,14 @@ void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float
 		return;
 		break;
 	case JOINTTYPE_HINGE2:
-		dJointGetHinge2Anchor(joint->ode_joint, dr3);
+		dJointGetHinge2Anchor(joint->joint, dr3);
 		mat[3] = dr3[0];
 		mat[7] = dr3[1];
 		mat[11] = dr3[2];
 
-		dJointGetHinge2Axis1(joint->ode_joint, dr3);
+		dJointGetHinge2Axis1(joint->joint, dr3);
 		VectorCopy(dr3, mat+4);
-		dJointGetHinge2Axis2(joint->ode_joint, dr3);
+		dJointGetHinge2Axis2(joint->joint, dr3);
 		VectorCopy(dr3, mat+8);
 		break;
 
@@ -1958,7 +1782,7 @@ void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float
 		{
 			const dReal *p1, *p2;
 			dReal n[3];
-			dBodyID b1 = dJointGetBody(joint->ode_joint, 0), b2 = dJointGetBody(joint->ode_joint, 1);
+			dBodyID b1 = dJointGetBody(joint->joint, 0), b2 = dJointGetBody(joint->joint, 1);
 			if (b1)
 				p1 = dBodyGetPosition(b1);
 			else
@@ -1970,7 +1794,7 @@ void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float
 				p2 = dBodyGetPosition(b2);
 			else
 				p2 = p1;
-			dJointGetSliderAxis(joint->ode_joint, dr3 + 0);
+			dJointGetSliderAxis(joint->joint, dr3 + 0);
 			VectorInterpolate(p1, 0.5, p2, dr3);
 			mat[3] = dr3[0];
 			mat[7] = dr3[1];
@@ -1982,14 +1806,14 @@ void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float
 		break;
 
 	case JOINTTYPE_UNIVERSAL:
-		dJointGetUniversalAnchor(joint->ode_joint, dr3);
+		dJointGetUniversalAnchor(joint->joint, dr3);
 		mat[3] = dr3[0];
 		mat[7] = dr3[1];
 		mat[11] = dr3[2];
 
-		dJointGetUniversalAxis1(joint->ode_joint, dr3);
+		dJointGetUniversalAxis1(joint->joint, dr3);
 		VectorCopy(dr3, mat+4);
-		dJointGetUniversalAxis2(joint->ode_joint, dr3);
+		dJointGetUniversalAxis2(joint->joint, dr3);
 		VectorCopy(dr3, mat+8);
 
 		CrossProduct(mat+4, mat+8, mat+0);
@@ -1999,10 +1823,10 @@ void World_ODE_RagMatrixFromJoint(odejoint_t *joint, odejointinfo_t *info, float
 	AngleVectorsFLU(vec3_origin, mat+0, mat+4, mat+8);
 }
 
-void World_ODE_RagMatrixFromBody(world_t *world, odebody_t *bodyptr, float *mat)
+static void QDECL World_ODE_RagMatrixFromBody(world_t *world, rbebody_t *bodyptr, float *mat)
 {
-	const dReal *o = dBodyGetPosition(bodyptr->ode_body);
-	const dReal *r = dBodyGetRotation(bodyptr->ode_body);
+	const dReal *o = dBodyGetPosition(bodyptr->body);
+	const dReal *r = dBodyGetRotation(bodyptr->body);
 	mat[0] = r[0];
 	mat[1] = r[1];
 	mat[2] = r[2];
@@ -2018,129 +1842,131 @@ void World_ODE_RagMatrixFromBody(world_t *world, odebody_t *bodyptr, float *mat)
 	mat[10] = r[10];
 	mat[11] = o[2];
 }
-void World_ODE_RagEnableJoint(odejoint_t *joint, qboolean enabled)
+static void QDECL World_ODE_RagEnableJoint(rbejoint_t *joint, qboolean enabled)
 {
 	if (enabled)
-		dJointEnable(joint->ode_joint);
+		dJointEnable(joint->joint);
 	else
-		dJointDisable(joint->ode_joint);
+		dJointDisable(joint->joint);
 }
-void World_ODE_RagCreateJoint(world_t *world, odejoint_t *joint, odejointinfo_t *info, odebody_t *body1, odebody_t *body2, vec3_t aaa2[3])
+static void QDECL World_ODE_RagCreateJoint(world_t *world, rbejoint_t *joint, rbejointinfo_t *info, rbebody_t *body1, rbebody_t *body2, vec3_t aaa2[3])
 {
+	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
 	switch(info->type)
 	{
 		case JOINTTYPE_POINT:
-			joint->ode_joint = dJointCreateBall(world->ode.ode_world, 0);
+			joint->joint = dJointCreateBall(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_HINGE:
-			joint->ode_joint = dJointCreateHinge(world->ode.ode_world, 0);
+			joint->joint = dJointCreateHinge(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_SLIDER:
-			joint->ode_joint = dJointCreateSlider(world->ode.ode_world, 0);
+			joint->joint = dJointCreateSlider(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_UNIVERSAL:
-			joint->ode_joint = dJointCreateUniversal(world->ode.ode_world, 0);
+			joint->joint = dJointCreateUniversal(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_HINGE2:
-			joint->ode_joint = dJointCreateHinge2(world->ode.ode_world, 0);
+			joint->joint = dJointCreateHinge2(ctx->dworld, 0);
 			break;
 		case JOINTTYPE_FIXED:
-			joint->ode_joint = dJointCreateFixed(world->ode.ode_world, 0);
+			joint->joint = dJointCreateFixed(ctx->dworld, 0);
 			break;
 		default:
-			joint->ode_joint = NULL;
+			joint->joint = NULL;
 			break;
 	}
-	if (joint->ode_joint)
+	if (joint->joint)
 	{
 		//Con_Printf("made new joint %i\n", (int) (ed - prog->edicts));
 //		dJointSetData(joint->ode_joint, NULL);
-		dJointAttach(joint->ode_joint, body1?body1->ode_body:NULL, body2?body2->ode_body:NULL);
+		dJointAttach(joint->joint, body1?body1->body:NULL, body2?body2->body:NULL);
 
 		switch(info->type)
 		{
 			case JOINTTYPE_POINT:
-				dJointSetBallAnchor(joint->ode_joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+				dJointSetBallAnchor(joint->joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
 				break;
 			case JOINTTYPE_HINGE:
-				dJointSetHingeAnchor(joint->ode_joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
-				dJointSetHingeAxis(joint->ode_joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
-				dJointSetHingeParam(joint->ode_joint, dParamFMax, info->FMax);
-				dJointSetHingeParam(joint->ode_joint, dParamHiStop, info->HiStop);	
-				dJointSetHingeParam(joint->ode_joint, dParamLoStop, info->LoStop);
-				dJointSetHingeParam(joint->ode_joint, dParamStopCFM, info->CFM);
-				dJointSetHingeParam(joint->ode_joint, dParamStopERP, info->ERP);
-				dJointSetHingeParam(joint->ode_joint, dParamVel, info->Vel);
+				dJointSetHingeAnchor(joint->joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+				dJointSetHingeAxis(joint->joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
+				dJointSetHingeParam(joint->joint, dParamFMax, info->FMax);
+				dJointSetHingeParam(joint->joint, dParamHiStop, info->HiStop);	
+				dJointSetHingeParam(joint->joint, dParamLoStop, info->LoStop);
+				dJointSetHingeParam(joint->joint, dParamStopCFM, info->CFM);
+				dJointSetHingeParam(joint->joint, dParamStopERP, info->ERP);
+				dJointSetHingeParam(joint->joint, dParamVel, info->Vel);
 				break;
 			case JOINTTYPE_SLIDER:
-				dJointSetSliderAxis(joint->ode_joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
-				dJointSetSliderParam(joint->ode_joint, dParamFMax, info->FMax);
-				dJointSetSliderParam(joint->ode_joint, dParamHiStop, info->HiStop);
-				dJointSetSliderParam(joint->ode_joint, dParamLoStop, info->LoStop);
-				dJointSetSliderParam(joint->ode_joint, dParamStopCFM, info->CFM);
-				dJointSetSliderParam(joint->ode_joint, dParamStopERP, info->ERP);
-				dJointSetSliderParam(joint->ode_joint, dParamVel, info->Vel);
+				dJointSetSliderAxis(joint->joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
+				dJointSetSliderParam(joint->joint, dParamFMax, info->FMax);
+				dJointSetSliderParam(joint->joint, dParamHiStop, info->HiStop);
+				dJointSetSliderParam(joint->joint, dParamLoStop, info->LoStop);
+				dJointSetSliderParam(joint->joint, dParamStopCFM, info->CFM);
+				dJointSetSliderParam(joint->joint, dParamStopERP, info->ERP);
+				dJointSetSliderParam(joint->joint, dParamVel, info->Vel);
 				break;
 			case JOINTTYPE_UNIVERSAL:
-				dJointSetUniversalAnchor(joint->ode_joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
-				dJointSetUniversalAxis1(joint->ode_joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
-				dJointSetUniversalAxis2(joint->ode_joint, aaa2[2][0], aaa2[2][1], aaa2[2][2]);
-				dJointSetUniversalParam(joint->ode_joint, dParamFMax, info->FMax);
-				dJointSetUniversalParam(joint->ode_joint, dParamHiStop, info->HiStop);
-				dJointSetUniversalParam(joint->ode_joint, dParamLoStop, info->LoStop);
-				dJointSetUniversalParam(joint->ode_joint, dParamStopCFM, info->CFM);
-				dJointSetUniversalParam(joint->ode_joint, dParamStopERP, info->ERP);
-				dJointSetUniversalParam(joint->ode_joint, dParamVel, info->Vel);
-				dJointSetUniversalParam(joint->ode_joint, dParamFMax2, info->FMax2);
-				dJointSetUniversalParam(joint->ode_joint, dParamHiStop2, info->HiStop2);
-				dJointSetUniversalParam(joint->ode_joint, dParamLoStop2, info->LoStop2);
-				dJointSetUniversalParam(joint->ode_joint, dParamStopCFM2, info->CFM2);
-				dJointSetUniversalParam(joint->ode_joint, dParamStopERP2, info->ERP2);
-				dJointSetUniversalParam(joint->ode_joint, dParamVel2, info->Vel2);
+				dJointSetUniversalAnchor(joint->joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+				dJointSetUniversalAxis1(joint->joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
+				dJointSetUniversalAxis2(joint->joint, aaa2[2][0], aaa2[2][1], aaa2[2][2]);
+				dJointSetUniversalParam(joint->joint, dParamFMax, info->FMax);
+				dJointSetUniversalParam(joint->joint, dParamHiStop, info->HiStop);
+				dJointSetUniversalParam(joint->joint, dParamLoStop, info->LoStop);
+				dJointSetUniversalParam(joint->joint, dParamStopCFM, info->CFM);
+				dJointSetUniversalParam(joint->joint, dParamStopERP, info->ERP);
+				dJointSetUniversalParam(joint->joint, dParamVel, info->Vel);
+				dJointSetUniversalParam(joint->joint, dParamFMax2, info->FMax2);
+				dJointSetUniversalParam(joint->joint, dParamHiStop2, info->HiStop2);
+				dJointSetUniversalParam(joint->joint, dParamLoStop2, info->LoStop2);
+				dJointSetUniversalParam(joint->joint, dParamStopCFM2, info->CFM2);
+				dJointSetUniversalParam(joint->joint, dParamStopERP2, info->ERP2);
+				dJointSetUniversalParam(joint->joint, dParamVel2, info->Vel2);
 				break;
 			case JOINTTYPE_HINGE2:
-				dJointSetHinge2Anchor(joint->ode_joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
-				dJointSetHinge2Axis1(joint->ode_joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
-				dJointSetHinge2Axis2(joint->ode_joint, aaa2[2][0], aaa2[2][1], aaa2[2][2]);
-				dJointSetHinge2Param(joint->ode_joint, dParamFMax, info->FMax);
-				dJointSetHinge2Param(joint->ode_joint, dParamHiStop, info->HiStop);
-				dJointSetHinge2Param(joint->ode_joint, dParamLoStop, info->LoStop);
-				dJointSetHinge2Param(joint->ode_joint, dParamStopCFM, info->CFM);
-				dJointSetHinge2Param(joint->ode_joint, dParamStopERP, info->ERP);
-				dJointSetHinge2Param(joint->ode_joint, dParamVel, info->Vel);
-				dJointSetHinge2Param(joint->ode_joint, dParamFMax2, info->FMax2);
-				dJointSetHinge2Param(joint->ode_joint, dParamHiStop2, info->HiStop2);
-				dJointSetHinge2Param(joint->ode_joint, dParamLoStop2, info->LoStop2);
-				dJointSetHinge2Param(joint->ode_joint, dParamStopCFM2, info->CFM2);
-				dJointSetHinge2Param(joint->ode_joint, dParamStopERP2, info->ERP2);
-				dJointSetHinge2Param(joint->ode_joint, dParamVel2, info->Vel2);
+				dJointSetHinge2Anchor(joint->joint, aaa2[0][0], aaa2[0][1], aaa2[0][2]);
+				dJointSetHinge2Axis1(joint->joint, aaa2[1][0], aaa2[1][1], aaa2[1][2]);
+				dJointSetHinge2Axis2(joint->joint, aaa2[2][0], aaa2[2][1], aaa2[2][2]);
+				dJointSetHinge2Param(joint->joint, dParamFMax, info->FMax);
+				dJointSetHinge2Param(joint->joint, dParamHiStop, info->HiStop);
+				dJointSetHinge2Param(joint->joint, dParamLoStop, info->LoStop);
+				dJointSetHinge2Param(joint->joint, dParamStopCFM, info->CFM);
+				dJointSetHinge2Param(joint->joint, dParamStopERP, info->ERP);
+				dJointSetHinge2Param(joint->joint, dParamVel, info->Vel);
+				dJointSetHinge2Param(joint->joint, dParamFMax2, info->FMax2);
+				dJointSetHinge2Param(joint->joint, dParamHiStop2, info->HiStop2);
+				dJointSetHinge2Param(joint->joint, dParamLoStop2, info->LoStop2);
+				dJointSetHinge2Param(joint->joint, dParamStopCFM2, info->CFM2);
+				dJointSetHinge2Param(joint->joint, dParamStopERP2, info->ERP2);
+				dJointSetHinge2Param(joint->joint, dParamVel2, info->Vel2);
 				break;
 			case JOINTTYPE_FIXED:
-				dJointSetFixed(joint->ode_joint);
+				dJointSetFixed(joint->joint);
 				break;
 		}
 	}
 }
 
-void World_ODE_RagDestroyBody(world_t *world, odebody_t *bodyptr)
+static void QDECL World_ODE_RagDestroyBody(world_t *world, rbebody_t *bodyptr)
 {
-	if (bodyptr->ode_geom)
-		dGeomDestroy(bodyptr->ode_geom);
-	bodyptr->ode_geom = NULL;
-	if (bodyptr->ode_body)
-		dBodyDestroy(bodyptr->ode_body);
-	bodyptr->ode_body = NULL;
+	if (bodyptr->geom)
+		dGeomDestroy(bodyptr->geom);
+	bodyptr->geom = NULL;
+	if (bodyptr->body)
+		dBodyDestroy(bodyptr->body);
+	bodyptr->body = NULL;
 }
 
-void World_ODE_RagDestroyJoint(world_t *world, odejoint_t *joint)
+static void QDECL World_ODE_RagDestroyJoint(world_t *world, rbejoint_t *joint)
 {
-	if (joint->ode_joint)
-		dJointDestroy(joint->ode_joint);
-	joint->ode_joint = NULL;
+	if (joint->joint)
+		dJointDestroy(joint->joint);
+	joint->joint = NULL;
 }
 
 static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 {
+	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
 	dBodyID body = (dBodyID)ed->ode.ode_body;
 	dMass mass;
 	float test;
@@ -2288,7 +2114,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 					World_ODE_RemoveFromEntity(world, ed);
 				return;
 			}
-			if (!GenerateCollisionMesh(world, model, ed, geomcenter))
+			if (!modfuncs->GenerateCollisionMesh(world, model, ed, geomcenter))
 			{
 				if (ed->ode.ode_physics)
 					World_ODE_RemoveFromEntity(world, ed);
@@ -2299,17 +2125,17 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			// now create the geom
 			dataID = dGeomTriMeshDataCreate();
 			dGeomTriMeshDataBuildSingle(dataID, (void*)ed->ode.ode_vertex3f, sizeof(float[3]), ed->ode.ode_numvertices, ed->ode.ode_element3i, ed->ode.ode_numtriangles*3, sizeof(int[3]));
-			ed->ode.ode_geom = (void *)dCreateTriMesh(world->ode.ode_space, dataID, NULL, NULL, NULL);
+			ed->ode.ode_geom = (void *)dCreateTriMesh(ctx->space, dataID, NULL, NULL, NULL);
 			dMassSetBoxTotal(&mass, massval, geomsize[0], geomsize[1], geomsize[2]);
 			break;
 		case GEOMTYPE_BOX:
 			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
-			ed->ode.ode_geom = (void *)dCreateBox(world->ode.ode_space, geomsize[0], geomsize[1], geomsize[2]);
+			ed->ode.ode_geom = (void *)dCreateBox(ctx->space, geomsize[0], geomsize[1], geomsize[2]);
 			dMassSetBoxTotal(&mass, massval, geomsize[0], geomsize[1], geomsize[2]);
 			break;
 		case GEOMTYPE_SPHERE:
 			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
-			ed->ode.ode_geom = (void *)dCreateSphere(world->ode.ode_space, geomsize[0] * 0.5f);
+			ed->ode.ode_geom = (void *)dCreateSphere(ctx->space, geomsize[0] * 0.5f);
 			dMassSetSphereTotal(&mass, massval, geomsize[0] * 0.5f);
 			break;
 		case GEOMTYPE_CAPSULE:
@@ -2354,7 +2180,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			// because we want to support more than one axisindex, we have to
 			// create a transform, and turn on its cleanup setting (which will
 			// cause the child to be destroyed when it is destroyed)
-			ed->ode.ode_geom = (void *)dCreateCapsule(world->ode.ode_space, radius, length);
+			ed->ode.ode_geom = (void *)dCreateCapsule(ctx->space, radius, length);
 			dMassSetCapsuleTotal(&mass, massval, axisindex+1, radius, length);
 			break;
 		case GEOMTYPE_CYLINDER:
@@ -2399,11 +2225,11 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			// because we want to support more than one axisindex, we have to
 			// create a transform, and turn on its cleanup setting (which will
 			// cause the child to be destroyed when it is destroyed)
-			ed->ode.ode_geom = (void *)dCreateCylinder(world->ode.ode_space, radius, length);
+			ed->ode.ode_geom = (void *)dCreateCylinder(ctx->space, radius, length);
 			dMassSetCylinderTotal(&mass, massval, axisindex+1, radius, length);
 			break;
 		default:
-			Sys_Error("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
+			pSys_Error(va("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid));
 		}
 		Matrix3x4_InvertTo4x4_Simple(ed->ode.ode_offsetmatrix, ed->ode.ode_offsetimatrix);
 		ed->ode.ode_massbuf = BZ_Malloc(sizeof(dMass));
@@ -2416,7 +2242,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	{
 		if (ed->ode.ode_body == NULL)
 		{
-			ed->ode.ode_body = (void *)(body = dBodyCreate(world->ode.ode_world));
+			ed->ode.ode_body = (void *)(body = dBodyCreate(ctx->dworld));
 			dGeomSetBody(ed->ode.ode_geom, body);
 			dBodySetData(body, (void*)ed);
 			dBodySetMass(body, (dMass *) ed->ode.ode_massbuf);
@@ -2599,7 +2425,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		// limit movement speed to prevent missed collisions at high speed
 		const dReal *ovelocity = dBodyGetLinearVel(body);
 		const dReal *ospinvelocity = dBodyGetAngularVel(body);
-		movelimit = ed->ode.ode_movelimit * world->ode.ode_movelimit;
+		movelimit = ctx->movelimit * ctx->movelimit;
 		test = DotProduct(ovelocity,ovelocity);
 		if (test > movelimit*movelimit)
 		{
@@ -2613,7 +2439,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		}
 
 		// make sure the angular velocity is not exploding
-		spinlimit = physics_ode_spinlimit.value;
+		spinlimit = physics_ode_spinlimit->value;
 		test = DotProduct(ospinvelocity,ospinvelocity);
 		if (test > spinlimit)
 		{
@@ -2626,6 +2452,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 {
 	world_t *world = (world_t *)data;
+	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
 	dContact contact[MAX_CONTACTS]; // max contacts per collision pair
 	dBodyID b1;
 	dBodyID b2;
@@ -2734,7 +2561,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 			bouncefactor1 = bouncefactor2;
 		}
 	}
-	dWorldGetGravity(world->ode.ode_world, grav);
+	dWorldGetGravity(ctx->dworld, grav);
 	bouncestop1 *= fabs(grav[2]);
 
 	erp = (DotProduct(ed1->v->velocity, ed1->v->velocity) > DotProduct(ed2->v->velocity, ed2->v->velocity)) ? ed1->xv->erp : ed2->xv->erp;
@@ -2742,37 +2569,38 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	// add these contact points to the simulation
 	for (i = 0;i < numcontacts;i++)
 	{
-		contact[i].surface.mode =	(physics_ode_contact_mu.value != -1 ? dContactApprox1 : 0) |
-									(physics_ode_contact_erp.value != -1 ? dContactSoftERP : 0) |
-									(physics_ode_contact_cfm.value != -1 ? dContactSoftCFM : 0) |
+		contact[i].surface.mode =	(physics_ode_contact_mu->value != -1 ? dContactApprox1 : 0) |
+									(physics_ode_contact_erp->value != -1 ? dContactSoftERP : 0) |
+									(physics_ode_contact_cfm->value != -1 ? dContactSoftCFM : 0) |
 									(bouncefactor1 > 0 ? dContactBounce : 0);
-		contact[i].surface.mu = physics_ode_contact_mu.value;
+		contact[i].surface.mu = physics_ode_contact_mu->value;
 		if (ed1->xv->friction)
 			contact[i].surface.mu *= ed1->xv->friction;
 		if (ed2->xv->friction)
 			contact[i].surface.mu *= ed2->xv->friction;
 		contact[i].surface.mu2 = 0;
-		contact[i].surface.soft_erp = physics_ode_contact_erp.value + erp;
-		contact[i].surface.soft_cfm = physics_ode_contact_cfm.value;
+		contact[i].surface.soft_erp = physics_ode_contact_erp->value + erp;
+		contact[i].surface.soft_cfm = physics_ode_contact_cfm->value;
 		contact[i].surface.bounce = bouncefactor1;
 		contact[i].surface.bounce_vel = bouncestop1;
-		c = dJointCreateContact(world->ode.ode_world, world->ode.ode_contactgroup, contact + i);
+		c = dJointCreateContact(ctx->dworld, ctx->contactgroup, contact + i);
 		dJointAttach(c, b1, b2);
 	}
 }
 
-void World_ODE_Frame(world_t *world, double frametime, double gravity)
+static void QDECL World_ODE_Frame(world_t *world, double frametime, double gravity)
 {
-	if (world->ode.ode && (world->ode.hasodeents || world->ode.hasextraobjs))
+	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
+	if (world->rbe_hasphysicsents || ctx->hasextraobjs)
 	{
 		int i;
 		wedict_t *ed;
 
-		world->ode.ode_iterations = bound(1, physics_ode_iterationsperframe.ival, 1000);
-		world->ode.ode_step = frametime / world->ode.ode_iterations;
-		world->ode.ode_movelimit = physics_ode_movelimit.value / world->ode.ode_step;
+		ctx->iterations = bound(1, physics_ode_iterationsperframe->ival, 1000);
+		ctx->step = frametime / ctx->iterations;
+		ctx->movelimit = physics_ode_movelimit->value / ctx->step;
 
-		if (world->ode.hasodeents || world->ode.hasextraobjs)
+		if (world->rbe_hasphysicsents || ctx->hasextraobjs)
 		{
 			// copy physics properties from entities to physics engine
 			for (i = 0;i < world->num_edicts;i++)
@@ -2788,47 +2616,41 @@ void World_ODE_Frame(world_t *world, double frametime, double gravity)
 				if (!ed->isfree)
 					World_ODE_Frame_JointFromEntity(world, ed);
 			}
-			while(world->ode.cmdqueuehead)
+			while(ctx->cmdqueuehead)
 			{
-				odecommandqueue_t *cmd = world->ode.cmdqueuehead;
-				world->ode.cmdqueuehead = cmd->next;
+				rbecommandqueue_t *cmd = ctx->cmdqueuehead;
+				ctx->cmdqueuehead = cmd->next;
 				if (!cmd->next)
-					world->ode.cmdqueuetail = NULL;
+					ctx->cmdqueuetail = NULL;
 				World_ODE_RunCmd(world, cmd);
 				Z_Free(cmd);
 			}
 		}
 
-		for (i = 0;i < world->ode.ode_iterations;i++)
+		for (i = 0;i < ctx->iterations;i++)
 		{
-			if (world->ode.hasextraobjs)
-			{
-#ifdef RAGDOLL
-				rag_doallanimations(world);
-#endif
-			}
 			// set the gravity
-			dWorldSetGravity(world->ode.ode_world, 0, 0, -gravity);
+			dWorldSetGravity(ctx->dworld, 0, 0, -gravity);
 			// set the tolerance for closeness of objects
-			dWorldSetContactSurfaceLayer(world->ode.ode_world, max(0, physics_ode_contactsurfacelayer.value));
+			dWorldSetContactSurfaceLayer(ctx->dworld, max(0, physics_ode_contactsurfacelayer->value));
 
 			// run collisions for the current world state, creating JointGroup
-			dSpaceCollide(world->ode.ode_space, (void *)world, nearCallback);
+			dSpaceCollide(ctx->space, (void *)world, nearCallback);
 
 			// run physics (move objects, calculate new velocities)
-			if (physics_ode_worldquickstep.ival)
+			if (physics_ode_worldquickstep->ival)
 			{
-				dWorldSetQuickStepNumIterations(world->ode.ode_world, bound(1, physics_ode_worldquickstep_iterations.ival, 200));
-				dWorldQuickStep(world->ode.ode_world, world->ode.ode_step);
+				dWorldSetQuickStepNumIterations(ctx->dworld, bound(1, physics_ode_worldquickstep_iterations->ival, 200));
+				dWorldQuickStep(ctx->dworld, ctx->step);
 			}
 			else
-				dWorldStep(world->ode.ode_world, world->ode.ode_step);
+				dWorldStep(ctx->dworld, ctx->step);
 
 			// clear the JointGroup now that we're done with it
-			dJointGroupEmpty(world->ode.ode_contactgroup);
+			dJointGroupEmpty(ctx->contactgroup);
 		}
 
-		if (world->ode.hasodeents)
+		if (world->rbe_hasphysicsents)
 		{
 			// copy physics properties from physics engine to entities
 			for (i = 1;i < world->num_edicts;i++)
@@ -2841,26 +2663,111 @@ void World_ODE_Frame(world_t *world, double frametime, double gravity)
 	}
 }
 
-static void World_ODE_RunCmd(world_t *world, odecommandqueue_t *cmd)
+static void QDECL World_ODE_PushCommand(world_t *world, rbecommandqueue_t *val)
+{
+	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
+	rbecommandqueue_t *cmd = (rbecommandqueue_t*)BZ_Malloc(sizeof(*cmd));
+	world->rbe_hasphysicsents = qtrue;	//just in case.
+	memcpy(cmd, val, sizeof(*cmd));
+	cmd->next = NULL;
+	//add on the end of the queue, so that order is preserved.
+	if (ctx->cmdqueuehead)
+	{
+		rbecommandqueue_t *ot = ctx->cmdqueuetail;
+		ot->next = ctx->cmdqueuetail = cmd;
+	}
+	else
+		ctx->cmdqueuetail = ctx->cmdqueuehead = cmd;
+}
+
+static void QDECL World_ODE_Start(world_t *world)
+{
+	struct odectx_s *ctx;
+	dVector3 center, extents;
+	if (world->rbe)
+		return;
+
+#ifdef ODE_DYNAMIC
+	if (!ode_dll)
+		return;
+#endif
+
+	ctx = BZ_Malloc(sizeof(*ctx));
+	memset(ctx, 0, sizeof(*ctx));
+	world->rbe = &ctx->pub;
+
+	VectorAvg(world->worldmodel->mins, world->worldmodel->maxs, center);
+	VectorSubtract(world->worldmodel->maxs, center, extents);
+	ctx->dworld = dWorldCreate();
+	ctx->space = dQuadTreeSpaceCreate(NULL, center, extents, bound(1, pCvar_GetFloat("physics_ode_quadtree_depth"), 10));
+	ctx->contactgroup = dJointGroupCreate(0);
+
+	ctx->pub.End					= World_ODE_End;
+	ctx->pub.RemoveJointFromEntity	= World_ODE_RemoveJointFromEntity;
+	ctx->pub.RemoveFromEntity		= World_ODE_RemoveFromEntity;
+	ctx->pub.RagMatrixToBody		= World_ODE_RagMatrixToBody;
+	ctx->pub.RagCreateBody			= World_ODE_RagCreateBody;
+	ctx->pub.RagMatrixFromJoint		= World_ODE_RagMatrixFromJoint;
+	ctx->pub.RagMatrixFromBody		= World_ODE_RagMatrixFromBody;
+	ctx->pub.RagEnableJoint			= World_ODE_RagEnableJoint;
+	ctx->pub.RagCreateJoint			= World_ODE_RagCreateJoint;
+	ctx->pub.RagDestroyBody			= World_ODE_RagDestroyBody;
+	ctx->pub.RagDestroyJoint		= World_ODE_RagDestroyJoint;
+	ctx->pub.Frame					= World_ODE_Frame;
+	ctx->pub.PushCommand			= World_ODE_PushCommand;
+
+	if(physics_ode_world_erp->value >= 0)
+		dWorldSetERP(ctx->dworld, physics_ode_world_erp->value);
+	if(physics_ode_world_cfm->value >= 0)
+		dWorldSetCFM(ctx->dworld, physics_ode_world_cfm->value);
+	if (physics_ode_world_damping->value)
+	{
+		dWorldSetLinearDamping(ctx->dworld, (physics_ode_world_damping_linear->value >= 0) ? (physics_ode_world_damping_linear->value * physics_ode_world_damping->value) : 0);
+		dWorldSetLinearDampingThreshold(ctx->dworld, (physics_ode_world_damping_linear_threshold->value >= 0) ? (physics_ode_world_damping_linear_threshold->value * physics_ode_world_damping->value) : 0);
+		dWorldSetAngularDamping(ctx->dworld, (physics_ode_world_damping_angular->value >= 0) ? (physics_ode_world_damping_angular->value * physics_ode_world_damping->value) : 0);
+		dWorldSetAngularDampingThreshold(ctx->dworld, (physics_ode_world_damping_angular_threshold->value >= 0) ? (physics_ode_world_damping_angular_threshold->value * physics_ode_world_damping->value) : 0);
+	}
+	else
+	{
+		dWorldSetLinearDamping(ctx->dworld, 0);
+		dWorldSetLinearDampingThreshold(ctx->dworld, 0);
+		dWorldSetAngularDamping(ctx->dworld, 0);
+		dWorldSetAngularDampingThreshold(ctx->dworld, 0);
+	}
+	if (physics_ode_autodisable->ival)
+	{
+		dWorldSetAutoDisableSteps(ctx->dworld, bound(1, physics_ode_autodisable_steps->ival, 100)); 
+		dWorldSetAutoDisableTime(ctx->dworld, physics_ode_autodisable_time->value);
+		dWorldSetAutoDisableAverageSamplesCount(ctx->dworld, bound(1, physics_ode_autodisable_threshold_samples->ival, 100));
+		dWorldSetAutoDisableLinearThreshold(ctx->dworld, physics_ode_autodisable_threshold_linear->value); 
+		dWorldSetAutoDisableAngularThreshold(ctx->dworld, physics_ode_autodisable_threshold_angular->value); 
+		dWorldSetAutoDisableFlag (ctx->dworld, true);
+	}
+	else
+		dWorldSetAutoDisableFlag (ctx->dworld, false);
+}
+
+
+static void World_ODE_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 {
 	switch(cmd->command)
 	{
-	case ODECMD_ENABLE:
+	case RBECMD_ENABLE:
 		if (cmd->edict->ode.ode_body)
 			dBodyEnable(cmd->edict->ode.ode_body);
 		break;
-	case ODECMD_DISABLE:
+	case RBECMD_DISABLE:
 		if (cmd->edict->ode.ode_body)
 			dBodyDisable(cmd->edict->ode.ode_body);
 		break;
-	case ODECMD_FORCE:
+	case RBECMD_FORCE:
 		if (cmd->edict->ode.ode_body)
 		{
 			dBodyEnable(cmd->edict->ode.ode_body);
 			dBodyAddForceAtPos(cmd->edict->ode.ode_body, cmd->v1[0], cmd->v1[1], cmd->v1[2], cmd->v2[0], cmd->v2[1], cmd->v2[2]);
 		}
 		break;
-	case ODECMD_TORQUE:
+	case RBECMD_TORQUE:
 		if (cmd->edict->ode.ode_body)
 		{
 			dBodyEnable(cmd->edict->ode.ode_body);
@@ -2870,55 +2777,53 @@ static void World_ODE_RunCmd(world_t *world, odecommandqueue_t *cmd)
 	}
 }
 
-static odecommandqueue_t *physics_queuecommand(world_t *world)
+static qintptr_t QDECL Plug_ODE_Shutdown(qintptr_t *args)
 {
-	odecommandqueue_t *cmd = Z_Malloc(sizeof(*cmd));
-	world->ode.hasodeents = true;	//just in case.
-
-	//add on the end of the queue, so that order is preserved.
-	if (world->ode.cmdqueuehead)
-	{
-		odecommandqueue_t *ot = world->ode.cmdqueuetail;
-		ot->next = world->ode.cmdqueuetail = cmd;
-	}
-	else
-		world->ode.cmdqueuetail = world->ode.cmdqueuehead = cmd;
-	return cmd;
+	World_ODE_Shutdown();
+	if (modfuncs)
+		modfuncs->UnregisterPhysicsEngine("ODE");
+	return 0;
 }
 
-void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+qintptr_t Plug_Init(qintptr_t *args)
 {
-	wedict_t*e			= G_WEDICT(prinst, OFS_PARM0);
-	int		isenable	= G_FLOAT(OFS_PARM1);
-	world_t *world = prinst->parms->user;
-	odecommandqueue_t *cmd = physics_queuecommand(world);
-
-	cmd->command = isenable?ODECMD_ENABLE:ODECMD_DISABLE;
-	cmd->edict = e;
-}
-void QCBUILTIN PF_physics_addforce(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	wedict_t*e				= G_WEDICT(prinst, OFS_PARM0);
-	float	*force			= G_VECTOR(OFS_PARM1);
-	float	*relative_ofs	= G_VECTOR(OFS_PARM2);
-	world_t *world = prinst->parms->user;
-	odecommandqueue_t *cmd = physics_queuecommand(world);
-
-	cmd->command = ODECMD_FORCE;
-	cmd->edict = e;
-	VectorCopy(force, cmd->v1);
-	VectorCopy(relative_ofs, cmd->v2);
-}
-void QCBUILTIN PF_physics_addtorque(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	wedict_t*e				= G_WEDICT(prinst, OFS_PARM0);
-	float	*torque			= G_VECTOR(OFS_PARM1);
-	world_t *world = prinst->parms->user;
-	odecommandqueue_t *cmd = physics_queuecommand(world);
-
-	cmd->command = ODECMD_TORQUE;
-	cmd->edict = e;
-	VectorCopy(torque, cmd->v1);
-}
-
+	CHECKBUILTIN(Mod_GetPluginModelFuncs);
+	CHECKBUILTIN(Cvar_GetNVFDG);
+#ifndef ODE_STATIC
+	CHECKBUILTIN(Sys_LoadLibrary);
+	CHECKBUILTIN(Sys_CloseLibrary);
 #endif
+
+	if (BUILTINISVALID(Mod_GetPluginModelFuncs))
+	{
+		modfuncs = pMod_GetPluginModelFuncs(sizeof(modplugfuncs_t));
+		if (modfuncs && modfuncs->version < MODPLUGFUNCS_VERSION)
+			modfuncs = NULL;
+	}
+	if (!modfuncs || !BUILTINISVALID(Cvar_GetNVFDG))
+	{
+		Con_Printf("ODE plugin failed: Engine too old.\n");
+		return false;
+	}
+#ifndef ODE_STATIC
+	if (!BUILTINISVALID(Sys_LoadLibrary) || !BUILTINISVALID(Sys_CloseLibrary))
+	{
+		Con_Printf("ODE plugin failed: Engine too old.\n");
+		return false;
+	}
+#endif
+
+	if (!modfuncs || !modfuncs->RegisterPhysicsEngine)
+		Con_Printf("ODE plugin failed: Engine doesn't support physics engine plugins.\n");
+	else if (!modfuncs->RegisterPhysicsEngine("ODE", World_ODE_Start))
+		Con_Printf("ODE plugin failed: Engine already has a physics plugin active.\n");
+	else
+	{
+		Plug_Export("Shutdown", Plug_ODE_Shutdown);
+		World_ODE_Init();
+		return true;
+	}
+	return false;
+}
+#endif
+

@@ -3703,7 +3703,8 @@ void CL_UpdateExplosions (void)
 		ent->model = ex->model;
 		ent->framestate.g[FS_REG].frame[1] = (int)f+firstframe;
 		ent->framestate.g[FS_REG].frame[0] = of+firstframe;
-		ent->framestate.g[FS_REG].lerpfrac = (f - (int)f);
+		ent->framestate.g[FS_REG].lerpweight[1] = (f - (int)f);
+		ent->framestate.g[FS_REG].lerpweight[0] = 1-ent->framestate.g[FS_REG].lerpweight[1];
 		ent->shaderRGBAf[3] = (1.0 - f/(numframes))*(ex->startalpha-ex->endalpha) + ex->endalpha;
 		ent->flags = ex->flags;
 		ent->scale = scale;

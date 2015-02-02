@@ -475,6 +475,51 @@ void QCBUILTIN PF_CL_drawpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	r2d_be_flags = 0;
 }
 
+void QCBUILTIN PF_CL_drawrotpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pivot = G_VECTOR(OFS_PARM0);
+	float *mins = G_VECTOR(OFS_PARM1);
+	float *maxs = G_VECTOR(OFS_PARM2);
+	const char *picname = PR_GetStringOfs(prinst, OFS_PARM3);
+	float *rgb = G_VECTOR(OFS_PARM4);
+	float alpha = G_FLOAT(OFS_PARM5);
+	float angle = (G_FLOAT(OFS_PARM6) * M_PI)/180;
+	int flag = prinst->callargc >= 8?(int) G_FLOAT(OFS_PARM7):0;
+
+	vec2_t points[4];
+	vec2_t tcoords[4];
+	vec2_t saxis;
+	vec2_t taxis;
+
+	mpic_t *p;
+
+	p = R2D_SafeCachePic(picname);
+	if (!p)
+		p = R2D_SafePicFromWad(picname);
+
+	saxis[0] = cos(angle);
+	saxis[1] = sin(angle);
+	taxis[0] = -sin(angle);
+	taxis[1] = cos(angle);
+
+	Vector2MA(pivot, mins[0], saxis, points[0]); Vector2MA(points[0], mins[1], taxis, points[0]);
+	Vector2MA(pivot, maxs[0], saxis, points[1]); Vector2MA(points[1], mins[1], taxis, points[1]);
+	Vector2MA(pivot, maxs[0], saxis, points[2]); Vector2MA(points[2], maxs[1], taxis, points[2]);
+	Vector2MA(pivot, mins[0], saxis, points[3]); Vector2MA(points[3], maxs[1], taxis, points[3]);
+
+	Vector2Set(tcoords[0], 0, 0);
+	Vector2Set(tcoords[1], 1, 0);
+	Vector2Set(tcoords[2], 1, 1);
+	Vector2Set(tcoords[3], 0, 1);
+
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_Image2dQuad(points, tcoords, p);
+	r2d_be_flags = 0;
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
+
 void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
@@ -503,7 +548,50 @@ void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
+void QCBUILTIN PF_CL_drawrotsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pivot = G_VECTOR(OFS_PARM0);
+	float *mins = G_VECTOR(OFS_PARM1);
+	float *maxs = G_VECTOR(OFS_PARM2);
+	const char *picname = PR_GetStringOfs(prinst, OFS_PARM3);
+	float *srcPos = G_VECTOR(OFS_PARM4);
+	float *srcSize = G_VECTOR(OFS_PARM5);
+	float *rgb = G_VECTOR(OFS_PARM6);
+	float alpha = G_FLOAT(OFS_PARM7+0);
+	float angle = (G_FLOAT(OFS_PARM7+1) * M_PI) / 180;
+	int flag = prinst->callargc >= 8?(int) G_FLOAT(OFS_PARM7+2):0;
+	vec2_t points[4], tcoords[4];
+	vec2_t saxis;
+	vec2_t taxis;
 
+	mpic_t *p;
+
+	saxis[0] = cos(angle);
+	saxis[1] = sin(angle);
+	taxis[0] = -sin(angle);
+	taxis[1] = cos(angle);
+
+	p = R2D_SafeCachePic(picname);
+	if (!p)
+		p = R2D_SafePicFromWad(picname);
+
+	Vector2MA(pivot, mins[0], saxis, points[0]); Vector2MA(points[0], mins[1], taxis, points[0]);
+	Vector2MA(pivot, maxs[0], saxis, points[1]); Vector2MA(points[1], mins[1], taxis, points[1]);
+	Vector2MA(pivot, maxs[0], saxis, points[2]); Vector2MA(points[2], maxs[1], taxis, points[2]);
+	Vector2MA(pivot, mins[0], saxis, points[3]); Vector2MA(points[3], maxs[1], taxis, points[3]);
+
+	Vector2Set(tcoords[0], srcPos[0]			, srcPos[1]				);
+	Vector2Set(tcoords[1], srcPos[0]+srcSize[0]	, srcPos[1]				);
+	Vector2Set(tcoords[2], srcPos[0]+srcSize[0]	, srcPos[1]+srcSize[1]	);
+	Vector2Set(tcoords[3], srcPos[0]			, srcPos[1]+srcSize[1]	);
+
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_Image2dQuad(points, tcoords, p);
+	r2d_be_flags = 0;
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
 
 
 
@@ -540,7 +628,7 @@ void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *
 			CL_CheckOrEnqueDownloadFile(str, str, 0);
 	}
 
-	if (pic)
+	if (pic && R_GetShaderSizes(pic, NULL, NULL, true))
 		G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 	else
 		G_INT(OFS_RETURN) = 0;
@@ -1061,7 +1149,10 @@ void QCBUILTIN PF_nonfatalobjerror (pubprogfuncs_t *prinst, struct globalvars_s 
 
 
 		if (developer.value)
-			prinst->pr_trace = 2;
+		{	//enable tracing.
+			PR_RunWarning(prinst, "======OBJECT ERROR======\n%s\n", s);
+			return;
+		}
 		else
 		{
 			ED_Free (prinst, ed);
@@ -1099,9 +1190,16 @@ void QCBUILTIN PF_clientstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 //too specific to the prinst's builtins.
 static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	Con_Printf("\n");
+	int binum;
+	char fname[MAX_QPATH];
+	if (!prinst->GetBuiltinCallInfo(prinst, &binum, fname, sizeof(fname)))
+	{
+		binum = 0;
+		strcpy(fname, "?unknown?");
+	}
 
-	prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMenu is not compatible.", prinst->lastcalledbuiltinnumber);
+	Con_Printf("\n");
+	prinst->RunError(prinst, "\nBuiltin %i:%s not implemented.\nMenu is not compatible.", binum, fname);
 	PR_BIError (prinst, "bulitin not implemented");
 }
 
@@ -1541,13 +1639,13 @@ static void QCBUILTIN PF_m_precache_model(pubprogfuncs_t *prinst, struct globalv
 static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	menuedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
-	string_t modelname = G_INT(OFS_PARM1);	//FIXME: zone it or something?
+	const char *modelname = PR_GetStringOfs(prinst, OFS_PARM1);
 	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)ent, "model", &menuc_eval.model);
 	eval_t *minsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "mins", &menuc_eval.mins);
 	eval_t *maxsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "maxs", &menuc_eval.maxs);
-	model_t *mod = Mod_ForName(prinst->StringToNative(prinst, modelname), MLV_WARN);
+	model_t *mod = Mod_ForName(modelname, MLV_WARN);
 	if (modelval)
-		modelval->string = modelname;
+		modelval->string = G_INT(OFS_PARM1);	//lets hope garbage collection is enough.
 	if (mod && minsval)
 		VectorCopy(mod->mins, minsval->_vector);
 	if (mod && maxsval)
@@ -1608,7 +1706,8 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 	out->skinnum = skinval?skinval->_float:0;
 	out->framestate.g[FS_REG].frame[0] = frame1val?frame1val->_float:0;
 	out->framestate.g[FS_REG].frame[1] = frame2val?frame2val->_float:0;
-	out->framestate.g[FS_REG].lerpfrac = lerpfracval?lerpfracval->_float:0;
+	out->framestate.g[FS_REG].lerpweight[1] = lerpfracval?lerpfracval->_float:0;
+	out->framestate.g[FS_REG].lerpweight[0] = 1-out->framestate.g[FS_REG].lerpweight[1];
 	out->framestate.g[FS_REG].frametime[0] = frame1timeval?frame1timeval->_float:0;
 	out->framestate.g[FS_REG].frametime[1] = frame2timeval?frame2timeval->_float:0;
 
@@ -1663,6 +1762,43 @@ static void QCBUILTIN PF_m_renderscene(pubprogfuncs_t *prinst, struct globalvars
 void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+
+static void QCBUILTIN PF_menu_cprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *str = PF_VarString(prinst, 0, pr_globals);
+	SCR_CenterPrint(0, str, true);
+}
+static void QCBUILTIN PF_cl_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifndef CLIENTONLY
+	const char *nextmap = PR_GetStringOfs(prinst, OFS_PARM0);
+	if (sv.active || !cls.state)
+	{
+		char buf[1024];
+		Cbuf_AddText(va("changelevel %s\n", COM_QuotedString(nextmap, buf, sizeof(buf), false)), RESTRICT_INSECURE);
+	}
+#endif
+}
+static void QCBUILTIN PF_crash (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int binum;
+	char fname[MAX_QPATH];
+	//allow people to rename it or whatever
+	if (!prinst->GetBuiltinCallInfo(prinst, &binum, fname, sizeof(fname)))
+	{
+		binum = 0;
+		strcpy(fname, "?unknown?");
+	}
+
+	prinst->RunError(prinst, "\n%s called", fname);
+}
+static void QCBUILTIN PF_stackdump (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	prinst->StackTrace(prinst, true);
+}
+#define PF_cl_clientcommand PF_Fixme
+#define PF_altstr_ins PF_Fixme	//insert after, apparently
+
 static struct {
 	char *name;
 	builtin_t bifunc;
@@ -1672,9 +1808,9 @@ static struct {
 	{"error",					PF_error,					2},
 	{"objerror",				PF_nonfatalobjerror,		3},
 	{"print",					PF_print,					4},
-	{"bprint",					PF_Fixme,					5},
-	{"msprint",					PF_Fixme,					6},
-	{"cprint",					PF_Fixme,					7},
+	{"bprint",					PF_cl_bprint,				5},
+	{"msprint",					PF_cl_sprint,				6},
+	{"cprint",					PF_menu_cprint,				7},
 	{"normalize",				PF_normalize,				8},
 	{"vlen",					PF_vlen,					9},
 	{"vectoyaw",				PF_vectoyaw,				10},
@@ -1728,10 +1864,10 @@ static struct {
 	{"tokenize",				PF_Tokenize,				58},
 	{"argv",					PF_ArgV,					59},
 	{"isserver",				PF_isserver,				60},
-	{"clientcount",				PF_Fixme,					61},						//float	clientcount(void)  = #61;
+	{"clientcount",				PF_cl_clientcount,			61},						//float	clientcount(void)  = #61;
 	{"clientstate",				PF_clientstate,				62},
-	{"clientcommand",			PF_Fixme,					63},						//void	clientcommand(float client, string s)  = #63;
-	{"changelevel",				PF_Fixme,					64},						//void	changelevel(string map)  = #64;
+	{"clientcommand",			PF_cl_clientcommand,		63},						//void	clientcommand(float client, string s)  = #63;
+	{"changelevel",				PF_cl_changelevel,			64},						//void	changelevel(string map)  = #64;
 	{"localsound",				PF_localsound,				65},
 	{"getmousepos",				PF_cl_getmousepos,			66},
 	{"gettime",					PF_gettime,					67},
@@ -1739,12 +1875,14 @@ static struct {
 	{"loadfromfile",			PF_loadfromfile,			69},
 	{"mod",						PF_mod,						70},
 	{"cvar_string",				PF_menu_cvar_string,		71},
-	{"crash",					PF_Fixme,					72},				//void	crash(void)	= #72;
-	{"stackdump",				PF_Fixme,					73},			//void	stackdump(void) = #73;
+	{"crash",					PF_crash,					72},				//void	crash(void)	= #72;
+	{"stackdump",				PF_stackdump,				73},			//void	stackdump(void) = #73;
 	{"search_begin",			PF_search_begin,			74},
 	{"search_end",				PF_search_end,				75},
 	{"search_getsize",			PF_search_getsize,			76},
 	{"search_getfilename",		PF_search_getfilename,		77},
+	{"search_getfilesize",		PF_search_getfilesize,		0},
+	{"search_getfilemtime",		PF_search_getfilemtime,		0},
 	{"chr2str",					PF_chr2str,					78},
 	{"etof",					PF_etof,					79},
 	{"ftoe",					PF_ftoe,					80},
@@ -1753,7 +1891,7 @@ static struct {
 	{"altstr_prepare",			PF_altstr_prepare, 			83},
 	{"altstr_get",				PF_altstr_get,				84},
 	{"altstr_set",				PF_altstr_set, 				85},
-	{"altstr_ins",				PF_Fixme,					86},
+	{"altstr_ins",				PF_altstr_ins,				86},
 	{"findflags",				PF_FindFlags,				87},
 	{"findchainflags",			PF_menu_findchainflags,		88},
 	{"mcvar_defstring",			PF_cvar_defstring,			89},
@@ -1840,6 +1978,7 @@ static struct {
 	{"drawcharacter",			PF_CL_drawcharacter,		454},
 	{"drawrawstring",			PF_CL_drawrawstring,		455},
 	{"drawpic",					PF_CL_drawpic,				456},
+	{"drawrotpic",				PF_CL_drawrotpic,			0},
 	{"drawfill",				PF_CL_drawfill,				457},
 	{"drawsetcliparea",			PF_CL_drawsetcliparea,		458},
 	{"drawresetcliparea",		PF_CL_drawresetcliparea,	459},
@@ -1853,6 +1992,7 @@ static struct {
 	{"drawstring",				PF_CL_drawcolouredstring,	467},
 	{"stringwidth",				PF_CL_stringwidth,			468},
 	{"drawsubpic",				PF_CL_drawsubpic,			469},
+	{"drawrotsubpic",			PF_CL_drawrotsubpic,		0},
 															//470
 //MERGES WITH CLIENT+SERVER BUILTIN MAPPINGS BELOW
 	{"asin",					PF_asin,					471},
@@ -1871,16 +2011,19 @@ static struct {
 	{"strreplace",				PF_strreplace,				484},
 	{"strireplace",				PF_strireplace,				485},
 															//486
-	{"gecko_create",			PF_cs_gecko_create,			487},
-	{"gecko_destroy",			PF_cs_gecko_destroy,		488},
-	{"gecko_navigate",			PF_cs_gecko_navigate,		489},
-	{"gecko_keyevent",			PF_cs_gecko_keyevent,		490},
-	{"gecko_mousemove",			PF_cs_gecko_mousemove,		491},
-	{"gecko_resize",			PF_cs_gecko_resize,			492},
-	{"gecko_get_texture_extent",PF_cs_gecko_get_texture_extent,493},
+	{"gecko_create",			PF_cs_media_create_http,	487},
+	{"gecko_destroy",			PF_cs_media_destroy,		488},
+	{"gecko_navigate",			PF_cs_media_command,		489},
+	{"gecko_keyevent",			PF_cs_media_keyevent,		490},
+	{"gecko_mousemove",			PF_cs_media_mousemove,		491},
+	{"gecko_resize",			PF_cs_media_resize,			492},
+	{"gecko_get_texture_extent",PF_cs_media_get_texture_extent,493},
+	{"media_getposition",		PF_cs_media_getposition},
 	{"crc16",					PF_crc16,					494},
 	{"cvar_type",				PF_cvar_type,				495},
 	{"numentityfields",			PF_numentityfields,			496},
+	{"findentityfield",			PF_findentityfield,			0},
+	{"entityfieldref",			PF_entityfieldref,			0},
 	{"entityfieldname",			PF_entityfieldname,			497},
 	{"entityfieldtype",			PF_entityfieldtype,			498},
 	{"getentityfieldstring",	PF_getentityfieldstring,	499},
@@ -1945,7 +2088,7 @@ static struct {
 	{"crypto_getmyidstatus",	PF_crypto_getmyidfp,		641},
 	{NULL}
 };
-builtin_t menu_builtins[1024];
+static builtin_t menu_builtins[1024];
 
 
 int MP_BuiltinValid(char *name, int num)
@@ -1977,6 +2120,28 @@ static void MP_SetupBuiltins(void)
 		if (BuiltinList[i].ebfsnum)
 			menu_builtins[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
 	}
+}
+
+static int PDECL PR_Menu_MapNamedBuiltin(pubprogfuncs_t *progfuncs, int headercrc, const char *builtinname)
+{
+	int i, binum;
+	for (i = 0;BuiltinList[i].name;i++)
+	{
+		if (!strcmp(BuiltinList[i].name, builtinname) && BuiltinList[i].bifunc != PF_Fixme)
+		{
+			for (binum = sizeof(menu_builtins)/sizeof(menu_builtins[0]); --binum; )
+			{
+				if (menu_builtins[binum] && menu_builtins[binum] != PF_Fixme && BuiltinList[i].bifunc)
+					continue;
+				menu_builtins[binum] = BuiltinList[i].bifunc;
+				return binum;
+			}
+			Con_Printf("No more builtin slots to allocate for %s\n", builtinname);
+			break;
+		}
+	}
+	Con_DPrintf("Unknown menu builtin: %s\n", builtinname);
+	return 0;
 }
 
 void M_Init_Internal (void);
@@ -2119,9 +2284,7 @@ qboolean MP_Init (void)
 	menuprogparms.cstateop = NULL;//CStateOp;
 	menuprogparms.cwstateop = NULL;//CWStateOp;
 	menuprogparms.thinktimeop = NULL;//ThinkTimeOp;
-
-	//used when loading a game
-	menuprogparms.builtinsfor = NULL;//builtin_t *(*builtinsfor) (int num);	//must return a pointer to the builtins that were used before the state was saved.
+	menuprogparms.MapNamedBuiltin = PR_Menu_MapNamedBuiltin;
 	menuprogparms.loadcompleate = NULL;//void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
 
 	menuprogparms.memalloc = PR_CB_Malloc;//void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly
@@ -2138,7 +2301,6 @@ qboolean MP_Init (void)
 	menuprogparms.sv_edicts = (struct edict_s **)&menu_edicts;
 	menuprogparms.sv_num_edicts = &num_menu_edicts;
 
-	menuprogparms.useeditor = NULL;//sorry... QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	menuprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	menuprogparms.user = &menu_world;
 	menu_world.keydestmask = kdm_menu;
@@ -2150,7 +2312,7 @@ qboolean MP_Init (void)
 		Con_DPrintf("Initializing menu.dat\n");
 		menu_world.progs = InitProgs(&menuprogparms);
 		PR_Configure(menu_world.progs, 64*1024*1024, 1, pr_enable_profiling.ival);
-		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat", NULL, 0);
+		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat");
 		if (mprogs < 0) //no per-progs builtins.
 		{
 			//failed to load or something

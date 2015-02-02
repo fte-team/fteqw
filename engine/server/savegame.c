@@ -981,7 +981,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 
 		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 			if (sv.strings.lightstyles[i])
-				VFS_PRINTF (f, "lstyle %i %s %f %f %f\n", COM_QuotedString(sv.strings.lightstyles[i], buf, sizeof(buf), false), sv.strings.lightstylecolours[i][0], sv.strings.lightstylecolours[i][1], sv.strings.lightstylecolours[i][2]);
+				VFS_PRINTF (f, "lstyle %i %s %f %f %f\n", i, COM_QuotedString(sv.strings.lightstyles[i], buf, sizeof(buf), false), sv.strings.lightstylecolours[i][0], sv.strings.lightstylecolours[i][1], sv.strings.lightstylecolours[i][2]);
 		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 			if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
 				VFS_PRINTF (f, "model %i %s\n", i, COM_QuotedString(sv.strings.model_precache[i], buf, sizeof(buf), false));

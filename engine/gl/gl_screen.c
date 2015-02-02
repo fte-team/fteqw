@@ -57,7 +57,7 @@ WARNING: be very careful calling this from elsewhere, because the refresh
 needs almost the entire 256k of stack space!
 ==================
 */
-
+void SCR_DrawCursor(void);
 void GLSCR_UpdateScreen (void)
 {
 	int uimenu;
@@ -124,6 +124,7 @@ void GLSCR_UpdateScreen (void)
 
 		if (key_dest_mask & kdm_console)
 			Con_DrawConsole(vid.height/2, false);
+		SCR_DrawCursor();
 		GL_EndRendering ();	
 		VID_SwapBuffers();
 		RSpeedEnd(RSPEED_TOTALREFRESH);
@@ -257,6 +258,14 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 	int i, c;
 	qbyte *ret;
 
+	*truewidth = vid.pixelwidth;
+	*trueheight = vid.pixelheight;
+
+	if (*r_refdef.rt_destcolour[0].texname)
+	{
+		R2D_RT_GetTexture(r_refdef.rt_destcolour[0].texname, truewidth, trueheight);
+	}
+
 	/*if (1)
 	{
 		float *p;
@@ -280,10 +289,10 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 		qbyte *p;
 
 		// gles only guarantees GL_RGBA/GL_UNSIGNED_BYTE so downconvert and resize
-		ret = BZ_Malloc(prepadbytes + vid.pixelwidth*vid.pixelheight*4);
-		qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGBA, GL_UNSIGNED_BYTE, ret + prepadbytes); 
+		ret = BZ_Malloc(prepadbytes + (*truewidth)*(*trueheight)*4);
+		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGBA, GL_UNSIGNED_BYTE, ret + prepadbytes); 
 
-		c = vid.pixelwidth*vid.pixelheight;
+		c = (*truewidth)*(*trueheight);
 		p = ret + prepadbytes;
 		for (i = 1; i < c; i++)
 		{
@@ -291,20 +300,17 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 			p[i*3+1]=p[i*4+1];
 			p[i*3+2]=p[i*4+2];
 		}
-		ret = BZ_Realloc(ret, prepadbytes + vid.pixelwidth*vid.pixelheight*3);
+		ret = BZ_Realloc(ret, prepadbytes + (*truewidth)*(*trueheight)*3);
 	}
 	else
 	{
-		ret = BZ_Malloc(prepadbytes + vid.pixelwidth*vid.pixelheight*3);
-		qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
+		ret = BZ_Malloc(prepadbytes + (*truewidth)*(*trueheight)*3);
+		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
 	}
-
-	*truewidth = vid.pixelwidth;
-	*trueheight = vid.pixelheight;
 
 	if (gammaworks)
 	{
-		c = prepadbytes+vid.pixelwidth*vid.pixelheight*3;
+		c = prepadbytes+(*truewidth), (*trueheight)*3;
 		for (i=prepadbytes ; i<c ; i+=3)
 		{
 			extern qbyte		gammatable[256];

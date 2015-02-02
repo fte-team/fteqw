@@ -37,6 +37,10 @@ int QCC_tell (int handle);
 
 int QC_strcasecmp (const char *s1, const char *s2);
 
+void QC_strlcat(char *dest, const char *src, size_t destsize);
+void QC_strlcpy(char *dest, const char *src, size_t destsize);
+void QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize);
+
 #ifdef _MSC_VER
 #define QC_vsnprintf _vsnprintf
 static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)

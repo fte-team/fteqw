@@ -39,7 +39,7 @@ struct searchpathfuncs_s
 		//note that if rawfile and offset are set, many Com_FileOpens will read the raw file
 		//otherwise ReadFile will be called instead.
 	void			(QDECL *ReadFile)(searchpathfuncs_t *handle, flocation_t *loc, char *buffer);	//reads the entire file in one go (size comes from loc, so make sure the loc is valid, this is for performance with compressed archives)
-	int				(QDECL *EnumerateFiles)(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm);
+	int				(QDECL *EnumerateFiles)(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm);
 
 	int				(QDECL *GeneratePureCRC) (searchpathfuncs_t *handle, int seed, int usepure);
 

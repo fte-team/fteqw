@@ -786,7 +786,7 @@ void NPP_NQFlush(void)
 					memmove(buffer+3, buffer+1, bufferlen-1);
 
 					/*add a length in the 2nd/3rd bytes, if needed*/
-					buffer[1] = (bufferlen-1);
+					buffer[1] = (bufferlen-1) & 0xff;
 					buffer[2] = (bufferlen-1) >> 8;
 
 					bufferlen += 2;

@@ -88,7 +88,7 @@ cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size,
 cvar_t	net_compress = CVARD("net_compress", "0", "Enables huffman compression of network packets.");
 
 cvar_t	pext_replacementdeltas = CVAR("pext_replacementdeltas", "1");
-cvar_t	pext_nqpredinfo = CVAR("debug_pext_nqpredinfo", "0");
+cvar_t	pext_predinfo = CVAR("debug_pext_predinfo", "0");
 
 /*returns the entire bitmask of supported+enabled extensions*/
 unsigned int Net_PextMask(int maskset, qboolean fornq)
@@ -198,7 +198,7 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 
 		if (pext_replacementdeltas.ival)
 			mask |= PEXT2_REPLACEMENTDELTAS;
-		if (/*fornq &&*/ pext_nqpredinfo.ival)
+		if (/*fornq &&*/ pext_predinfo.ival)
 			mask |= PEXT2_PREDINFO;
 
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
@@ -242,7 +242,7 @@ void Netchan_Init (void)
 	Q_snprintfz(qportstr, sizeof(qportstr), "%i", port);
 	qport.string = qportstr;
 
-	Cvar_Register (&pext_nqpredinfo, "Protocol Extensions");
+	Cvar_Register (&pext_predinfo, "Protocol Extensions");
 	Cvar_Register (&pext_replacementdeltas, "Protocol Extensions");
 	Cvar_Register (&showpackets, "Networking");
 	Cvar_Register (&showdrop, "Networking");

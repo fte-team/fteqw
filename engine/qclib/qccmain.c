@@ -21,6 +21,7 @@ int writeasm;
 pbool verbose;
 pbool qcc_nopragmaoptimise;
 extern unsigned int locals_marshalled;
+extern int qccpersisthunk;
 
 pbool QCC_PR_SimpleGetToken (void);
 void QCC_PR_LexWhitespace (pbool inhibitpreprocessor);
@@ -46,6 +47,8 @@ int numtemps;
 
 #define MAXSOURCEFILESLIST 8
 char sourcefileslist[MAXSOURCEFILESLIST][1024];
+QCC_def_t *sourcefilesdefs[MAXSOURCEFILESLIST];
+int sourcefilesnumdefs;
 int currentsourcefile;
 int numsourcefiles;
 extern char *compilingfile;
@@ -177,6 +180,7 @@ struct {
 	{" F305", WARN_CASEINSENSITIVEFRAMEMACRO},
 	{" F306", WARN_SAMENAMEASGLOBAL},
 	{" F307", WARN_STRICTTYPEMISMATCH},
+	{" F308", WARN_TYPEMISMATCHREDECOPTIONAL},
 
 	//frikqcc errors
 	//Q608: PrecacheSound: numsounds
@@ -289,6 +293,7 @@ compiler_flag_t compiler_flag[] = {
 	{&output_parms,			0,				"parms",		"Define offset parms",	"if PARM0 PARM1 etc should be defined by the compiler. These are useful if you make use of the asm keyword for function calls, or you wish to create your own variable arguments. This is an easy way to break decompilers."},	//controls weather to define PARMx for the parms (note - this can screw over some decompilers)
 	{&autoprototype,		0,				"autoproto",	"Automatic Prototyping","Causes compilation to take two passes instead of one. The first pass, only the definitions are read. The second pass actually compiles your code. This means you never have to remember to prototype functions again."},	//so you no longer need to prototype functions and things in advance.
 	{&writeasm,				0,				"wasm",			"Dump Assembler",		"Writes out a qc.asm which contains all your functions but in assembler. This is a great way to look for bugs in fteqcc, but can also be used to see exactly what your functions turn into, and thus how to optimise statements better."},			//spit out a qc.asm file, containing an assembler dump of the ENTIRE progs. (Doesn't include initialisation of constants)
+	{&flag_guiannotate,		FLAG_MIDCOMPILE,"annotate",		"Annotate Sourcecode",	"Annotate source code with assembler statements on compile (requires gui)."},
 	{&flag_ifstring,		FLAG_MIDCOMPILE,"ifstring",		"if(string) fix",		"Causes if(string) to behave identically to if(string!="") This is most useful with addons of course, but also has adverse effects with FRIK_FILE's fgets, where it becomes impossible to determin the end of the file. In such a case, you can still use asm {IF string 2;RETURN} to detect eof and leave the function."},		//correction for if(string) no-ifstring to get the standard behaviour.
 	{&flag_iffloat,			FLAG_MIDCOMPILE,"iffloat","if(-0.0) fix","Fixes certain floating point logic."},
 	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
@@ -329,6 +334,16 @@ struct {
 	{QCF_QTEST,		"qtest"},
 	{0,				NULL}
 };
+
+
+const char *QCC_VersionString(void)
+{
+#ifdef SVNVERSION
+	if (strcmp(SVNVERSION, "-"))
+		return "FTEQCC: " STRINGIFY(SVNVERSION) " (" __DATE__")";
+#endif
+	return "FTEQCC: " __DATE__;
+}
 
 /*
 =================
@@ -820,11 +835,11 @@ pbool QCC_WriteData (int crc)
 		if (def->type->type == ev_vector || (def->type->type == ev_field && def->type->aux_type->type == ev_vector))
 		{	//do the references, so we don't get loadsa not referenced VEC_HULL_MINS_x
 			s_file = def->s_file;
-			sprintf(element, "%s_x", def->name);
+			QC_snprintfz (element, sizeof(element), "%s_x", def->name);
 			comp_x = QCC_PR_GetDef(NULL, element, def->scope, false, 0, false);
-			sprintf(element, "%s_y", def->name);
+			QC_snprintfz (element, sizeof(element), "%s_y", def->name);
 			comp_y = QCC_PR_GetDef(NULL, element, def->scope, false, 0, false);
-			sprintf(element, "%s_z", def->name);
+			QC_snprintfz (element, sizeof(element), "%s_z", def->name);
 			comp_z = QCC_PR_GetDef(NULL, element, def->scope, false, 0, false);
 
 			h = def->references;
@@ -1616,39 +1631,39 @@ char *QCC_PR_ValueString (etype_t type, void *val)
 	switch (type)
 	{
 	case ev_string:
-		sprintf (line, "%s", QCC_PR_String(strings + *(int *)val));
+		QC_snprintfz (line, sizeof(line), "%s", QCC_PR_String(strings + *(int *)val));
 		break;
 	case ev_entity:
-		sprintf (line, "entity %i", *(int *)val);
+		QC_snprintfz (line, sizeof(line), "entity %i", *(int *)val);
 		break;
 	case ev_function:
 		f = functions + *(int *)val;
 		if (!f)
-			sprintf (line, "undefined function");
+			QC_snprintfz (line, sizeof(line), "undefined function");
 		else
-			sprintf (line, "%s()", strings + f->s_name);
+			QC_snprintfz (line, sizeof(line), "%s()", strings + f->s_name);
 		break;
 	case ev_field:
 		def = QCC_PR_DefForFieldOfs ( *(int *)val );
-		sprintf (line, ".%s", def->name);
+		QC_snprintfz (line, sizeof(line), ".%s", def->name);
 		break;
 	case ev_void:
-		sprintf (line, "void");
+		QC_snprintfz (line, sizeof(line), "void");
 		break;
 	case ev_float:
-		sprintf (line, "%5.1f", *(float *)val);
+		QC_snprintfz (line, sizeof(line), "%5.1f", *(float *)val);
 		break;
 	case ev_integer:
-		sprintf (line, "%i", *(int *)val);
+		QC_snprintfz (line, sizeof(line), "%i", *(int *)val);
 		break;
 	case ev_vector:
-		sprintf (line, "'%5.1f %5.1f %5.1f'", ((float *)val)[0], ((float *)val)[1], ((float *)val)[2]);
+		QC_snprintfz (line, sizeof(line), "'%5.1f %5.1f %5.1f'", ((float *)val)[0], ((float *)val)[1], ((float *)val)[2]);
 		break;
 	case ev_pointer:
-		sprintf (line, "pointer");
+		QC_snprintfz (line, sizeof(line), "pointer");
 		break;
 	default:
-		sprintf (line, "bad type %i", type);
+		QC_snprintfz (line, sizeof(line), "bad type %i", type);
 		break;
 	}
 
@@ -1674,14 +1689,14 @@ padded to 20 field width
 	def = pr_global_defs[ofs];
 	if (!def)
 //		Error ("PR_GlobalString: no def for %i", ofs);
-		sprintf (line,"%i(?""?""?)", ofs);
+		QC_snprintfz (line, sizeof(line), "%i(?""?""?)", ofs);
 	else
-		sprintf (line,"%i(%s)", ofs, def->name);
+		QC_snprintfz (line, sizeof(line), "%i(%s)", ofs, def->name);
 
 	i = strlen(line);
 	for ( ; i<16 ; i++)
-		strcat (line," ");
-	strcat (line," ");
+		Q_strlcat (line," ", sizeof(line));
+	Q_strlcat (line," ", sizeof(line));
 
 	return line;
 }
@@ -1701,10 +1716,10 @@ char *QCC_PR_GlobalString (gofs_t ofs)
 	if (def->initialized && def->type->type != ev_function)
 	{
 		s = QCC_PR_ValueString (def->type->type, &qcc_pr_globals[ofs]);
-		sprintf (line,"%i(%s)", ofs, s);
+		QC_snprintfz (line, sizeof(line), "%i(%s)", ofs, s);
 	}
 	else
-		sprintf (line,"%i(%s)", ofs, def->name);
+		QC_snprintfz (line, sizeof(line), "%i(%s)", ofs, def->name);
 
 	i = strlen(line);
 	for ( ; i<16 ; i++)
@@ -1857,7 +1872,7 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 		QCC_PR_GetDef(type_vector, "RETURN", NULL, true, 0, false)->references++;
 		for (i = 0; i < MAX_PARMS; i++)
 		{
-			sprintf(name, "PARM%i", i);
+			QC_snprintfz (name, sizeof(name), "PARM%i", i);
 			QCC_PR_GetDef(type_vector, name, NULL, true, 0, false)->references++;
 		}
 	}
@@ -2054,7 +2069,7 @@ static void Add3(char *p, unsigned short *crc, char *file)
 
 unsigned short QCC_PR_WriteProgdefs (char *filename)
 {
-#define ADD2(p) strncat(file, p, PROGDEFS_MAX_SIZE-1 - strlen(file))	//no crc (later changes)
+#define ADD2(p) QC_strlcat(file, p, sizeof(file))	//no crc (later changes)
 	char file[PROGDEFS_MAX_SIZE];
 	QCC_def_t	*d;
 	int	f;
@@ -3088,6 +3103,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	extern QCC_type_t *pr_classtype;
 
 	int		p;
+	extern int qccpersisthunk;
 
 #ifndef QCCONLY
 	char	destfile2[1024], *s2;
@@ -3100,8 +3116,15 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 		return false;
 	}
 
-	if (!PreCompile())
-		return false;
+	if (currentsourcefile && qccpersisthunk && numsourcefiles)
+		QCC_PR_ResetErrorScope();	//don't clear the ram if we're retaining def info
+	else
+	{
+		memset(sourcefilesdefs, 0, sizeof(sourcefilesdefs));
+		sourcefilesnumdefs = 0;
+		if (!PreCompile())
+			return false;
+	}
 
 	SetEndian();
 
@@ -3186,7 +3209,8 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	*/
 
 	time(&long_time);
-	strftime(QCC_copyright, sizeof(QCC_copyright),  "Compiled [%Y/%m/%d]", localtime( &long_time ));
+	strftime(QCC_copyright, sizeof(QCC_copyright),  "Compiled [%Y/%m/%d]. ", localtime( &long_time ));
+	QC_strlcat(QCC_copyright, QCC_VersionString(), sizeof(QCC_copyright));
 	for (p = 0; p < 5; p++)
 		strcpy(QCC_Packname[p], "");
 
@@ -3380,6 +3404,8 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 		if (currentsourcefile)
 			printf("-------------------------------------\n");
+		else
+			printf("%s\n", QCC_VersionString());
 
 		sprintf (qccmprogsdat, "%s%s", qccmsourcedir, sourcefileslist[currentsourcefile++]);
 		printf ("Source file: %s\n", qccmprogsdat);
@@ -3541,7 +3567,11 @@ void QCC_ContinueCompile(void)
 	if (!qccmsrc)
 	{
 		if (parseonly)
+		{
 			qcc_compileactive = false;
+			sourcefilesdefs[currentsourcefile] = qccpersisthunk?pr.def_head.next:NULL;
+			sourcefilesnumdefs = sourcefilesnumdefs+1;
+		}
 		else
 		{
 			if (autoprototype)
@@ -3660,6 +3690,9 @@ void QCC_FinishCompile(void)
 
 // report / copy the data files
 	QCC_CopyFiles ();
+
+	sourcefilesdefs[currentsourcefile] = qccpersisthunk?pr.def_head.next:NULL;
+	sourcefilesnumdefs = sourcefilesnumdefs+1;
 
 	if (donesomething)
 	{
@@ -3800,7 +3833,11 @@ void new_QCC_ContinueCompile(void)
 		{
 			if (!parseonly)
 				QCC_FinishCompile();
-
+			else
+			{
+				sourcefilesdefs[currentsourcefile] = qccpersisthunk?pr.def_head.next:NULL;
+				sourcefilesnumdefs = sourcefilesnumdefs+1;
+			}
 			PostCompile();
 			if (!QCC_main(myargc, myargv))
 				return;

@@ -24,6 +24,8 @@ cvar_t pr_enable_uriget = CVAR("pr_enable_uriget", "1");
 cvar_t pr_enable_profiling = CVARD("pr_enable_profiling", "0", "Enables profiling support. Will run more slowly. Change the map and then use the profile_ssqc/profile_csqc commands to see the results.");
 int tokenizeqc(const char *str, qboolean dpfuckage);
 
+void PF_buf_shutdown(pubprogfuncs_t *prinst);
+
 void skel_info_f(void);
 void skel_generateragdoll_f(void);
 void PF_Common_RegisterCvars(void)
@@ -98,7 +100,7 @@ static int debuggerstacky;
 #include <windows.h>
 void INS_UpdateGrabs(int fullscreen, int activeapp);
 #endif
-int QCLibEditor(pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);
+int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, int nump, char **parms);
 void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
 #if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
@@ -106,11 +108,11 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 	if (isPlugin >= 2)
 	{
 		Sys_SendKeyEvents();
-		debuggerresume = false;
+		debuggerresume = -1;
 		printf("qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
 		fflush(stdout);
 		INS_UpdateGrabs(false, false);
-		while(debuggerresume != 2)
+		while(debuggerresume == -1)
 		{
 			Sleep(10);
 			Sys_SendKeyEvents();
@@ -120,25 +122,48 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 }
 extern cvar_t pr_sourcedir;
 pubprogfuncs_t *debuggerinstance;
+const char *debuggerfile;
 size_t debuggerwnd;
 
 qboolean QCExternalDebuggerCommand(char *text)
 {
 	if ((!strncmp(text, "qcstep", 6) && (text[6] == 0 || text[6] == ' ')) || (!strncmp(text, "qcresume", 8) && (text[8] == 0 || text[8] == ' ')))
 	{
-		int l;
+//		int l;
 		if (text[2] == 's')
 		{
-			debuggerresume = true;
-			l = atoi(text+7);
+			text += 6;
+			while(*text==' ' || *text=='\t')
+				text++;
+			if (!strncmp(text, "out", 3))
+				debuggerresume = DEBUG_TRACE_OUT;
+			else if (!strncmp(text, "over", 3))
+				debuggerresume = DEBUG_TRACE_OVER;
+			else
+				debuggerresume = DEBUG_TRACE_INTO;
+//			l = atoi(text+7);
 		}
 		else
 		{
-			l = atoi(text+9);
-			debuggerresume = 2;
+//			l = atoi(text+9);
+			debuggerresume = DEBUG_TRACE_OFF;
 		}
-		if (l)
-			debuggerresumeline = l;
+//		if (l)
+//			debuggerresumeline = l;
+	}
+	else if (!strncmp(text, "qcjump ", 7))
+	{
+		char file[MAX_QPATH];
+		char linebuf[32];
+		text += 7;
+		text = COM_ParseOut(text, file, sizeof(file));
+		text = COM_ParseOut(text, linebuf, sizeof(linebuf));
+
+		if (debuggerinstance && debuggerfile && !Q_strcasecmp(file, debuggerfile))
+		{
+			debuggerresumeline = atoi(linebuf);
+			debuggerresume = DEBUG_TRACE_NORESUME;	//'resume' from the debugger only to break again, so we know the new line number (if they tried setting the line to a blank one)
+		}
 	}
 	else if (!strncmp(text, "debuggerwnd ", 11))
 	{
@@ -243,23 +268,34 @@ qboolean QCExternalDebuggerCommand(char *text)
 	return true;
 }
 
-int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms)
+int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason)
 {
 #if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
 	if (isPlugin >= 2)
 	{
-		if (!*filename)	//don't try editing an empty line, it won't work
-			return line;
+		if (!*filename || !line || !*line)	//don't try editing an empty line, it won't work
+			return DEBUG_TRACE_OFF;
 		Sys_SendKeyEvents();
-		debuggerresume = false;
-		debuggerresumeline = line;
+		debuggerresume = -1;
+		debuggerresumeline = *line;
 		if (debuggerwnd)
 			SetForegroundWindow((HWND)debuggerwnd);
-		printf("qcstep \"%s\":%i\n", filename, line);
+		if (reason)
+		{
+			char tmpbuffer[8192];
+			printf("qcfault \"%s\":%i %s\n", filename, *line, COM_QuotedString(reason, tmpbuffer, sizeof(tmpbuffer), false));
+		}
+		else
+			printf("qcstep \"%s\":%i\n", filename, *line);
 		fflush(stdout);
 		INS_UpdateGrabs(false, false);
 		debuggerinstance = prinst;
-		while(!debuggerresume)
+		debuggerfile = filename;
+		if (reason)
+			Con_Footerf(false, "^bDebugging: %s", reason);
+		else
+			Con_Footerf(false, "^bDebugging");
+		while(debuggerresume == -1)
 		{
 			Sleep(10);
 			Sys_SendKeyEvents();
@@ -267,7 +303,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 			if (qrenderer)
 			{
 				//FIXME: display a stack trace and locals instead
-				R2D_ImageColours((sin(Sys_DoubleTime())+1)*0.5,0, 0, 1);
+				R2D_ImageColours(0.1, 0, 0, 1);
 				R2D_FillBlock(0, 0, vid.width, vid.height);
 				Con_DrawConsole(vid.height/2, true);	//draw console at half-height
 				debuggerstacky = vid.height/2;
@@ -277,26 +313,15 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 				VID_SwapBuffers();
 			}
 		}
+		*line = debuggerresumeline;
 		debuggerinstance = NULL;
-		if (debuggerresume == 2)
-			prinst->pr_trace = false;
-		return debuggerresumeline;
+		debuggerfile = NULL;
+		return debuggerresume;
 	}
 #endif
 
 #ifdef TEXTEDITOR
-	if (!parms)
-		return QCLibEditor(prinst, filename, line, statement, nump, parms);
-	else
-	{
-		static char oldfuncname[64];
-		if (!nump && !strncmp(oldfuncname, *parms, sizeof(oldfuncname)))
-		{
-			Con_Printf("Executing %s: %s\n", *parms, filename);
-			Q_strncpyz(oldfuncname, *parms, sizeof(oldfuncname));
-		}
-		return line;
-	}
+	return QCLibEditor(prinst, filename, line, statement, 0, NULL);
 #else
 	{
 		int i;
@@ -304,12 +329,10 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 		char *r;
 		vfsfile_t *f;
 
-		if (line == -1)
-			return line;
 #ifndef CLIENTONLY
 		SV_EndRedirect();
 #endif
-		if (developer.value)
+		if (developer.value && line)
 		{
 			f = FS_OpenVFS(filename, "rb", FS_GAME);
 		}
@@ -321,10 +344,15 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 			f = FS_OpenVFS(buffer, "rb", FS_GAME);
 		}
 		if (!f)
-			Con_Printf("-%s - %i\n", filename, line);
+		{
+			if (reason)
+				Con_Printf("-%s - %i: %s\n", filename, line?*line:*statement, reason);
+			else
+				Con_Printf("-%s - %i\n", filename, line?*line:*statement);
+		}
 		else
 		{
-			for (i = 0; i < line; i++)
+			for (i = 0; i < *line; i++)
 			{
 				VFS_GETS(f, buffer, sizeof(buffer));
 			}
@@ -335,7 +363,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, char *filename, int line, int statem
 		}
 	}
 //PF_break(NULL);
-	return line;
+	return DEBUG_TRACE_OVER;
 #endif
 }
 
@@ -461,8 +489,7 @@ void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...)
 	if (developer.value || !progfuncs)
 	{
 		struct globalvars_s *pr_globals = PR_globals(progfuncs, PR_CURRENT);
-		Con_Printf("%s\n", string);
-		progfuncs->pr_trace = 1;
+		PR_RunWarning(progfuncs, "%s\n", string);
 		G_INT(OFS_RETURN)=0;	//just in case it was a float and should be an ent...
 		G_INT(OFS_RETURN+1)=0;
 		G_INT(OFS_RETURN+2)=0;
@@ -2023,6 +2050,7 @@ void PF_fcloseall (pubprogfuncs_t *prinst)
 		PF_fclose_i(i);
 	}
 	tokenizeqc("", false);
+	PF_buf_shutdown(prinst);	//might as well put this here
 }
 
 
@@ -2052,9 +2080,12 @@ typedef struct prvmsearch_s {
 	int handle;
 	pubprogfuncs_t *fromprogs;	//share across menu/server
 	int entries;
-	char **names;
-	int *sizes;
-
+	struct
+	{
+		char *name;
+		qofs_t size;
+		time_t mtime;
+	} *entry;
 	struct prvmsearch_s *next;
 } prvmsearch_t;
 prvmsearch_t *prvmsearches;
@@ -2082,10 +2113,9 @@ void search_close (pubprogfuncs_t *prinst, int handle)
 
 			for (i = 0; i < s->entries; i++)
 			{
-				BZ_Free(s->names[i]);
+				BZ_Free(s->entry[i].name);
 			}
-			BZ_Free(s->names);
-			BZ_Free(s->sizes);
+			BZ_Free(s->entry);
 			BZ_Free(s);
 
 			return;
@@ -2116,10 +2146,9 @@ void search_close_progs(pubprogfuncs_t *prinst, qboolean complain)
 
 			for (i = 0; i < s->entries; i++)
 			{
-				BZ_Free(s->names[i]);
+				BZ_Free(s->entry[i].name);
 			}
-			BZ_Free(s->names);
-			BZ_Free(s->sizes);
+			BZ_Free(s->entry);
 			BZ_Free(s);
 
 			if (prev)
@@ -2137,15 +2166,15 @@ void search_close_progs(pubprogfuncs_t *prinst, qboolean complain)
 		prvm_nextsearchhandle = 0;	//might as well.
 }
 
-int QDECL search_enumerate(const char *name, qofs_t fsize, void *parm, searchpathfuncs_t *spath)
+int QDECL search_enumerate(const char *name, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	prvmsearch_t *s = parm;
 
-	s->names = BZ_Realloc(s->names, ((s->entries+64)&~63) * sizeof(char*));
-	s->sizes = BZ_Realloc(s->sizes, ((s->entries+64)&~63) * sizeof(int));
-	s->names[s->entries] = BZ_Malloc(strlen(name)+1);
-	strcpy(s->names[s->entries], name);
-	s->sizes[s->entries] = fsize;
+	s->entry = BZ_Realloc(s->entry, ((s->entries+64)&~63) * sizeof(*s->entry));
+	s->entry[s->entries].name = BZ_Malloc(strlen(name)+1);
+	strcpy(s->entry[s->entries].name, name);
+	s->entry[s->entries].size = fsize;
+	s->entry[s->entries].mtime = mtime;
 
 	s->entries++;
 	return true;
@@ -2222,7 +2251,64 @@ void QCBUILTIN PF_search_getfilename (pubprogfuncs_t *prinst, struct globalvars_
 
 			if (num < 0 || num >= s->entries)
 				return;
-			RETURN_TSTRING(s->names[num]);
+			RETURN_TSTRING(s->entry[num].name);
+			return;
+		}
+	}
+
+	PF_Warningf(prinst, "Search handle wasn't valid\n");
+}
+void QCBUILTIN PF_search_getfilesize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int handle = G_FLOAT(OFS_PARM0);
+	int num = G_FLOAT(OFS_PARM1);
+	prvmsearch_t *s;
+	G_INT(OFS_RETURN) = 0;
+
+	for (s = prvmsearches; s; s = s->next)
+	{
+		if (s->handle == handle)
+		{	//close it down.
+			if (s->fromprogs != prinst)
+			{
+				PF_Warningf(prinst, "Search handle wasn't valid with that progs\n");
+				return;
+			}
+
+			if (num < 0 || num >= s->entries)
+				return;
+			G_FLOAT(OFS_RETURN) = s->entry[num].size;
+			return;
+		}
+	}
+
+	PF_Warningf(prinst, "Search handle wasn't valid\n");
+}
+void QCBUILTIN PF_search_getfilemtime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int handle = G_FLOAT(OFS_PARM0);
+	int num = G_FLOAT(OFS_PARM1);
+	prvmsearch_t *s;
+	char timestr[128];
+	G_INT(OFS_RETURN) = 0;
+
+	for (s = prvmsearches; s; s = s->next)
+	{
+		if (s->handle == handle)
+		{	//close it down.
+			if (s->fromprogs != prinst)
+			{
+				PF_Warningf(prinst, "Search handle wasn't valid with that progs\n");
+				return;
+			}
+
+			if (num < 0 || num >= s->entries)
+				return;
+			if (s->entry[num].mtime != 0)	//return null/empty if the time isn't set/known.
+			{
+				strftime(timestr, sizeof(timestr), "%Y-%m-%d %H:%M:%S", localtime(&s->entry[num].mtime));
+				RETURN_TSTRING(timestr);
+			}
 			return;
 		}
 	}
@@ -3259,6 +3345,19 @@ void QCBUILTIN PF_buf_create  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	int i;
 
+	const char *type = ((prinst->callargc>0)?PR_GetStringOfs(prinst, OFS_PARM0):"string");
+	unsigned int flags = ((prinst->callargc>1)?G_FLOAT(OFS_PARM1):0);
+
+	if (!Q_strcasecmp(type, "string"))
+		;
+	else
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
+	//flags&1 == saved. apparently.
+
 	for (i = 0; i < NUMSTRINGBUFS; i++)
 	{
 		if (!strbuflist[i].prinst)
@@ -4172,8 +4271,7 @@ void QCBUILTIN PF_mod (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (n == 0)
 	{
-		Con_Printf("mod by zero\n");
-		prinst->pr_trace = 1;
+		PR_RunWarning(prinst, "mod by zero\n");
 		G_FLOAT(OFS_RETURN) = 0;
 	}
 	else
@@ -4589,7 +4687,6 @@ void QCBUILTIN PF_externrefcall (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	for (i = OFS_PARM0; i < OFS_PARM5; i+=3)
 		VectorCopy(G_VECTOR(i+(2*3)), G_VECTOR(i));
 
-	prinst->pr_trace++;	//continue debugging.
 	PR_ExecuteProgram(prinst, f);
 }
 
@@ -4656,7 +4753,6 @@ void QCBUILTIN PF_externcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		for (i = OFS_PARM0; i < OFS_PARM5; i+=3)
 			VectorCopy(G_VECTOR(i+(2*3)), G_VECTOR(i));
 
-		prinst->pr_trace++;	//continue debugging
 		PR_ExecuteProgram(prinst, f);
 	}
 	else
@@ -4672,19 +4768,18 @@ void QCBUILTIN PF_externcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 			VectorCopy(G_VECTOR(i+(1*3)), G_VECTOR(i));
 		G_INT(OFS_PARM0) = failedst;
 
-		prinst->pr_trace++;	//continue debugging
 		PR_ExecuteProgram(prinst, f);
 	}
 }
 
 void QCBUILTIN PF_traceon (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	prinst->pr_trace = true;
+	prinst->debug_trace = DEBUG_TRACE_INTO;
 }
 
 void QCBUILTIN PF_traceoff (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	prinst->pr_trace = false;
+	prinst->debug_trace = DEBUG_TRACE_OFF;
 }
 void QCBUILTIN PF_coredump (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4707,36 +4802,7 @@ void QCBUILTIN PF_eprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 
 void QCBUILTIN PF_break (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#ifdef SERVERONLY	//new break code
-	char *s;
-
-	//I would like some sort of network activity here,
-	//but I don't want to mess up the sequence and stuff
-	//It should be possible, but would mean that I would
-	//need to alter the client, or rewrite a bit of the server..
-
-	if (pr_globals)
-		Con_Printf("Break Statement\n");
-	else if (developer.value!=2)
-		return;	//non developers cann't step.
-	for(;;)
-	{
-		s=Sys_ConsoleInput();
-		if (s)
-		{
-			if (!*s)
-				break;
-			else
-				Con_Printf("%s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, s));
-		}
-	}
-#elif defined(TEXTEDITOR)
-	prinst->pr_trace++;
-#else	//old break code
-Con_Printf ("break statement\n");
-*(int *)-4 = 0;	// dump to debugger
-//	PR_RunError ("break statement");
-#endif
+	PR_RunWarning (prinst, "break statement");
 }
 
 void QCBUILTIN PF_error (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4757,7 +4823,7 @@ void QCBUILTIN PF_error (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	{
 //		SV_Error ("Program error: %s", s);
 		PF_break(prinst, pr_globals);
-		prinst->pr_trace = 2;
+		prinst->debug_trace = DEBUG_TRACE_INTO;
 	}
 	else
 	{
@@ -5172,6 +5238,34 @@ void QCBUILTIN PF_numentityfields (pubprogfuncs_t *prinst, struct globalvars_s *
 	prinst->FieldInfo(prinst, &count);
 	G_FLOAT(OFS_RETURN) = count;
 }
+void QCBUILTIN PF_findentityfield (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *fieldname = PR_GetStringOfs(prinst, OFS_PARM0);
+	unsigned int count = 0, fidx;
+	fdef_t *fdef;
+	fdef = prinst->FieldInfo(prinst, &count);
+	G_FLOAT(OFS_RETURN) = 0;
+	for (fidx = 0; fidx < count; fidx++)
+	{
+		if (!strcmp(fdef->name, fieldname))
+		{
+			G_FLOAT(OFS_RETURN) = fidx;
+			break;
+		}
+	}
+}
+void QCBUILTIN PF_entityfieldref (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int fidx = G_FLOAT(OFS_PARM0);
+	unsigned int count = 0;
+	fdef_t *fdef;
+	fdef = prinst->FieldInfo(prinst, &count);
+	G_INT(OFS_RETURN) = 0;
+	if (fidx < count)
+	{
+		G_INT(OFS_RETURN) = fdef[fidx].ofs;
+	}
+}
 //string(float fieldnum)
 void QCBUILTIN PF_entityfieldname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -5256,8 +5350,51 @@ void QCBUILTIN PF_checkcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
+#ifdef USERBE
+void QCBUILTIN PF_physics_enable(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t*e			= G_WEDICT(prinst, OFS_PARM0);
+	int		isenable	= G_FLOAT(OFS_PARM1);
+	world_t *world = prinst->parms->user;
+	rbecommandqueue_t cmd;
+	
+	cmd.command = isenable?RBECMD_ENABLE:RBECMD_DISABLE;
+	cmd.edict = e;
 
+	if (world->rbe)
+		world->rbe->PushCommand(world, &cmd);
+}
+void QCBUILTIN PF_physics_addforce(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t*e				= G_WEDICT(prinst, OFS_PARM0);
+	float	*force			= G_VECTOR(OFS_PARM1);
+	float	*relative_ofs	= G_VECTOR(OFS_PARM2);
+	world_t *world = prinst->parms->user;
+	rbecommandqueue_t cmd;
 
+	cmd.command = RBECMD_FORCE;
+	cmd.edict = e;
+	VectorCopy(force, cmd.v1);
+	VectorCopy(relative_ofs, cmd.v2);
+
+	if (world->rbe)
+		world->rbe->PushCommand(world, &cmd);
+}
+void QCBUILTIN PF_physics_addtorque(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t*e				= G_WEDICT(prinst, OFS_PARM0);
+	float	*torque			= G_VECTOR(OFS_PARM1);
+	world_t *world = prinst->parms->user;
+	rbecommandqueue_t cmd;
+
+	cmd.command = RBECMD_TORQUE;
+	cmd.edict = e;
+	VectorCopy(torque, cmd.v1);
+
+	if (world->rbe)
+		world->rbe->PushCommand(world, &cmd);
+}
+#endif
 
 
 
@@ -5497,13 +5634,13 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
 	{"DP_EF_NODRAW"},					//implemented by sending it with no modelindex
 	{"DP_EF_RED"},
-	{"DP_ENT_COLORMOD"},
+//	{"DP_ENT_COLORMOD"},
 	{"DP_ENT_CUSTOMCOLORMAP"},
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
 	//only in dp6 currently {"DP_ENT_GLOW"},
 	{"DP_ENT_VIEWMODEL"},
 	{"DP_GECKO_SUPPORT",				7,	NULL, {"gecko_create", "gecko_destroy", "gecko_navigate", "gecko_keyevent", "gecko_mousemove", "gecko_resize", "gecko_get_texture_extent"}},
-	{"DP_GFX_QUAKE3MODELTAGS"},
+//	{"DP_GFX_QUAKE3MODELTAGS"},
 	{"DP_GFX_SKINFILES"},
 	{"DP_GFX_SKYBOX"},	//according to the spec. :)
 	{"DP_HALFLIFE_MAP_CVAR"},

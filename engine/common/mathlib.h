@@ -90,6 +90,7 @@ extern vec3_t vec3_origin;
 #define Vector2Clear(a)			((a)[0]=(a)[1]=0)
 #define Vector2Copy(a,b) do{(b)[0]=(a)[0];(b)[1]=(a)[1];}while(0)
 #define Vector2Set(r,x,y) do{(r)[0] = x; (r)[1] = y;}while(0)
+#define Vector2MA(a,s,b,c) do{(c)[0] = (a)[0] + (s)*(b)[0];(c)[1] = (a)[1] + (s)*(b)[1];}while(0)
 #define Vector2Interpolate(a, bness, b, c) FloatInterpolate((a)[0], bness, (b)[0], (c)[0]),FloatInterpolate((a)[1], bness, (b)[1], (c)[1])
 
 #define Vector4Copy(a,b) do{(b)[0]=(a)[0];(b)[1]=(a)[1];(b)[2]=(a)[2];(b)[3]=(a)[3];}while(0)
@@ -131,7 +132,7 @@ typedef struct {
 void		AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 float		anglemod (float a);
 void		QDECL AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
-void		VectorAngles (float *forward, float *up, float *angles);	//up may be NULL
+void		QDECL VectorAngles (float *forward, float *up, float *angles);	//up may be NULL
 void VARGS	BOPS_Error (void);
 int VARGS	BoxOnPlaneSide (vec3_t emins, vec3_t emaxs, struct mplane_s *plane);
 void		ClearBounds (vec3_t mins, vec3_t maxs);

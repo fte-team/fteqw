@@ -134,7 +134,7 @@ void FTP_ServerShutdown(void)
 }
 
 //we ought to filter this to remove duplicates.
-static int QDECL SendFileNameTo(const char *rawname, qofs_t size, void *param, searchpathfuncs_t *spath)
+static int QDECL SendFileNameTo(const char *rawname, qofs_t size, time_t mtime, void *param, searchpathfuncs_t *spath)
 {
 	SOCKET socket = *(SOCKET*)param;
 //	int i;

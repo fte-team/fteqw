@@ -149,7 +149,8 @@ typedef struct cvar_group_s
 //an alias
 #define CVAR_SAVE CVAR_ARCHIVE
 
-cvar_t *Cvar_Get (const char *var_name, const char *value, int flags, const char *groupname);
+cvar_t *Cvar_Get2 (const char *var_name, const char *value, int flags, const char *description, const char *groupname);
+#define Cvar_Get(n,v,f,g) Cvar_Get2(n,v,f,NULL,g)
 
 void Cvar_LockFromServer(cvar_t *var, const char *str);
 

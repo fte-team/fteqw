@@ -310,9 +310,19 @@ void GUI_ParseCommandLine(char *args)
 		}
 		else if (isfirst && *args != '-' && *args != '/')
 		{
+			pbool qt = *args == '\"';
 			l = 0;
+			if (qt)
+				args++;
 			while (*args != ' ' && *args)
+			{
+				if (qt && *args == '\"')
+				{
+					args++;
+					break;
+				}
 				progssrcname[l++] = *args++;
+			}
 			progssrcname[l] = 0;
 
 			args = strrchr(progssrcname, '\\');

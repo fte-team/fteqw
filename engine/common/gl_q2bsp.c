@@ -62,7 +62,6 @@ static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3
 static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 static int CM_PointCluster (model_t *mod, vec3_t p);
-extern mplane_t	*box_planes;
 
 float RadiusFromBounds (vec3_t mins, vec3_t maxs)
 {
@@ -325,68 +324,69 @@ typedef struct cmodel_s
 /*used to trace*/
 static int			checkcount;
 
-static int			numbrushsides;
-static q2cbrushside_t *map_brushsides;
+typedef struct cminfo_s
+{
+	int				numbrushsides;
+	q2cbrushside_t *brushsides;
 
-static q2mapsurface_t	*map_surfaces;
+	q2mapsurface_t	*surfaces;
 
-static int			numleafbrushes;
-static q2cbrush_t	*map_leafbrushes[MAX_Q2MAP_LEAFBRUSHES];
+	int				numleafbrushes;
+	q2cbrush_t		*leafbrushes[MAX_Q2MAP_LEAFBRUSHES];
 
-static int			numcmodels;
-static cmodel_t		*map_cmodels;
+	int				numcmodels;
+	cmodel_t		*cmodels;
 
-static int			numbrushes;
-static q2cbrush_t	*map_brushes;
+	int				numbrushes;
+	q2cbrush_t		*brushes;
 
-static int			numvisibility;
-static q2dvis_t		*map_q2vis;
-static q3dvis_t		*map_q3pvs;
-static q3dvis_t		*map_q3phs;
+	int				numvisibility;
+	q2dvis_t		*q2vis;
+	q3dvis_t		*q3pvs;
+	q3dvis_t		*q3phs;
 
-static int			numareas = 1;
-static q2carea_t		map_q2areas[MAX_Q2MAP_AREAS];
-static q3carea_t		map_q3areas[MAX_CM_AREAS];
+	int				numareas;
+	q2carea_t		q2areas[MAX_Q2MAP_AREAS];
+	q3carea_t		q3areas[MAX_CM_AREAS];
+	int				numareaportals;
+	q2dareaportal_t	areaportals[MAX_Q2MAP_AREAPORTALS];
 
-static int			numareaportals;
-static q2dareaportal_t map_areaportals[MAX_Q2MAP_AREAPORTALS];
+	//list of mesh surfaces within the leaf
+	q3cmesh_t	cmeshes[MAX_CM_PATCHES];
+	int			numcmeshes;
+	int			*leafcmeshes;
+	int			numleafcmeshes;
+	int			maxleafcmeshes;
 
-//(deprecated) patch collisions
-static q3cpatch_t	map_patches[MAX_CM_PATCHES];
-static int			numpatches;
-static int			*map_leafpatches;
-static int			numleafpatches;
-static int			maxleafpatches;
+	//FIXME: remove the below
+	//(deprecated) patch collisions
+	q3cpatch_t	patches[MAX_CM_PATCHES];
+	int			numpatches;
+	int			*leafpatches;
+	int			numleafpatches;
+	int			maxleafpatches;
+	//FIXME: remove the above
 
-//list of mesh surfaces within the leaf
-static q3cmesh_t	map_cmeshes[MAX_CM_PATCHES];
-static int			numcmeshes;
-static int			*map_leafcmeshes;
-static int			numleafcmeshes;
-static int			maxleafcmeshes;
+	int			floodvalid;
+	qbyte		portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qbyte, really it should be a qboolean
 
-static int			numclusters = 1;
+	int			mapisq3;
+} cminfo_t;
 
 static q2mapsurface_t	nullsurface;
 
-static int			floodvalid;
-
-static qbyte	portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qbyte, really it should be a qboolean
-
-static int	mapisq3;
 cvar_t		map_noareas			= SCVAR("map_noareas", "0");	//1 for lack of mod support.
 cvar_t		map_noCurves		= SCVARF("map_noCurves", "0", CVAR_CHEAT);
 cvar_t		map_autoopenportals	= SCVAR("map_autoopenportals", "1");	//1 for lack of mod support.
 cvar_t		r_subdivisions		= SCVAR("r_subdivisions", "2");
 
-int		CM_NumInlineModels (model_t *model);
-cmodel_t	*CM_InlineModel (char *name);
+static int		CM_NumInlineModels (model_t *model);
+static cmodel_t	*CM_InlineModel (model_t *model, char *name);
 void	CM_InitBoxHull (void);
-static void	FloodAreaConnections (void);
+static void	FloodAreaConnections (cminfo_t	*prv);
 
-static vecV_t		*map_verts;	//3points
 static int			numvertexes;
-
+static vecV_t		*map_verts;	//3points
 static vec2_t		*map_vertstmexcoords;
 static vec2_t		*map_vertlstmexcoords[MAXRLIGHTMAPS];
 static vec4_t		*map_colors4f_array[MAXRLIGHTMAPS];
@@ -394,14 +394,11 @@ static vec3_t		*map_normals_array;
 //static vec3_t		*map_svector_array;
 //static vec3_t		*map_tvector_array;
 
-q3cface_t	*map_faces;
-static int			numfaces;
-
 static index_t *map_surfindexes;
 static int	map_numsurfindexes;
 
-
-
+q3cface_t	*map_faces;
+static int			numfaces;
 
 
 
@@ -943,7 +940,7 @@ static void CM_CreatePatch(model_t *loadmodel, q3cpatch_t *patch, q2mapsurface_t
 CM_CreatePatchesForLeafs
 =================
 */
-qboolean CM_CreatePatchesForLeafs (model_t *loadmodel)
+qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 {
 	int i, j, k;
 	mleaf_t *leaf;
@@ -961,9 +958,9 @@ qboolean CM_CreatePatchesForLeafs (model_t *loadmodel)
 	for (i = 0, leaf = loadmodel->leafs; i < loadmodel->numleafs; i++, leaf++)
 	{
 		leaf->numleafpatches = 0;
-		leaf->firstleafpatch = numleafpatches;
+		leaf->firstleafpatch = prv->numleafpatches;
 		leaf->numleafcmeshes = 0;
-		leaf->firstleafcmesh = numleafcmeshes;
+		leaf->firstleafcmesh = prv->numleafcmeshes;
 
 		if (leaf->cluster == -1)
 			continue;
@@ -982,7 +979,7 @@ qboolean CM_CreatePatchesForLeafs (model_t *loadmodel)
 				continue;
 			if (face->shadernum < 0 || face->shadernum >= loadmodel->numtextures)
 				continue;
-			surf = &map_surfaces[face->shadernum];
+			surf = &prv->surfaces[face->shadernum];
 			if (!surf->c.value)	//surface has no contents value, so can't ever block anything.
 				continue;
 
@@ -996,35 +993,35 @@ qboolean CM_CreatePatchesForLeafs (model_t *loadmodel)
 				if (!(surf->c.flags & q3bsp_surf_meshcollision_flag.ival) && !q3bsp_surf_meshcollision_force.ival)
 					continue;
 
-				if (numleafcmeshes >= maxleafcmeshes)
+				if (prv->numleafcmeshes >= prv->maxleafcmeshes)
 				{
-					maxleafcmeshes *= 2;
-					maxleafcmeshes += 16;
-					if (numleafcmeshes > maxleafcmeshes)
+					prv->maxleafcmeshes *= 2;
+					prv->maxleafcmeshes += 16;
+					if (prv->numleafcmeshes > prv->maxleafcmeshes)
 					{	//detect overflow
 						Con_Printf (CON_ERROR "CM_CreateCMeshesForLeafs: map is insanely huge!\n");
 						return false;
 					}
-					map_leafcmeshes = realloc(map_leafcmeshes, sizeof(*map_leafcmeshes) * maxleafcmeshes);
+					prv->leafcmeshes = realloc(prv->leafcmeshes, sizeof(*prv->leafcmeshes) * prv->maxleafcmeshes);
 				}
 
 				// the patch was already built
 				if (checkout[k] != -1)
 				{
-					map_leafcmeshes[numleafcmeshes] = checkout[k];
-					cmesh = &map_cmeshes[checkout[k]];
+					prv->leafcmeshes[prv->numleafcmeshes] = checkout[k];
+					cmesh = &prv->cmeshes[checkout[k]];
 				}
 				else
 				{
-					if (numcmeshes >= MAX_CM_PATCHES)
+					if (prv->numcmeshes >= MAX_CM_PATCHES)
 					{
 						Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
 						return false;
 					}
 
-					cmesh = &map_cmeshes[numcmeshes];
-					map_leafcmeshes[numleafcmeshes] = numcmeshes;
-					checkout[k] = numcmeshes++;
+					cmesh = &prv->cmeshes[prv->numcmeshes];
+					prv->leafcmeshes[prv->numleafcmeshes] = prv->numcmeshes;
+					checkout[k] = prv->numcmeshes++;
 
 	//gcc warns without this cast
 
@@ -1048,7 +1045,7 @@ qboolean CM_CreatePatchesForLeafs (model_t *loadmodel)
 				leaf->contents |= surf->c.value;
 				leaf->numleafcmeshes++;
 
-				numleafcmeshes++;
+				prv->numleafcmeshes++;
 
 				break;
 			case MST_PATCH:
@@ -1058,35 +1055,35 @@ qboolean CM_CreatePatchesForLeafs (model_t *loadmodel)
 				if ( !surf->c.value || (surf->c.flags & Q3SURF_NONSOLID) )
 					continue;
 
-				if (numleafpatches >= maxleafpatches)
+				if (prv->numleafpatches >= prv->maxleafpatches)
 				{
-					maxleafpatches *= 2;
-					maxleafpatches += 16;
-					if (numleafpatches > maxleafpatches)
+					prv->maxleafpatches *= 2;
+					prv->maxleafpatches += 16;
+					if (prv->numleafpatches > prv->maxleafpatches)
 					{	//detect overflow
 						Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map is insanely huge!\n");
 						return false;
 					}
-					map_leafpatches = realloc(map_leafpatches, sizeof(*map_leafpatches) * maxleafpatches);
+					prv->leafpatches = realloc(prv->leafpatches, sizeof(*prv->leafpatches) * prv->maxleafpatches);
 				}
 
 				// the patch was already built
 				if (checkout[k] != -1)
 				{
-					map_leafpatches[numleafpatches] = checkout[k];
-					patch = &map_patches[checkout[k]];
+					prv->leafpatches[prv->numleafpatches] = checkout[k];
+					patch = &prv->patches[checkout[k]];
 				}
 				else
 				{
-					if (numpatches >= MAX_CM_PATCHES)
+					if (prv->numpatches >= MAX_CM_PATCHES)
 					{
 						Con_Printf (CON_ERROR "CM_CreatePatchesForLeafs: map has too many patches\n");
 						return false;
 					}
 
-					patch = &map_patches[numpatches];
-					map_leafpatches[numleafpatches] = numpatches;
-					checkout[k] = numpatches++;
+					patch = &prv->patches[prv->numpatches];
+					prv->leafpatches[prv->numleafpatches] = prv->numpatches;
+					checkout[k] = prv->numpatches++;
 
 	//gcc warns without this cast
 					CM_CreatePatch (loadmodel, patch, surf, (const vec_t *)(map_verts + face->firstvert), face->patch.cp );
@@ -1094,7 +1091,7 @@ qboolean CM_CreatePatchesForLeafs (model_t *loadmodel)
 				leaf->contents |= patch->surface->c.value;
 				leaf->numleafpatches++;
 
-				numleafpatches++;
+				prv->numleafpatches++;
 				break;
 			}
 		}
@@ -1120,6 +1117,7 @@ CMod_LoadSubmodels
 */
 qboolean CModQ2_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)loadmodel->meshinfo;
 	q2dmodel_t	*in;
 	cmodel_t	*out;
 	int			i, j, count;
@@ -1143,8 +1141,8 @@ qboolean CModQ2_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = map_cmodels = ZG_Malloc(&loadmodel->memgroup, count * sizeof(*map_cmodels));
-	numcmodels = count;
+	out = prv->cmodels = ZG_Malloc(&loadmodel->memgroup, count * sizeof(*prv->cmodels));
+	prv->numcmodels = count;
 
 	for (i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1159,8 +1157,8 @@ qboolean CModQ2_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		out->numsurfaces = LittleLong (in->numfaces);
 	}
 
-	AddPointToBounds(map_cmodels[0].mins, loadmodel->mins, loadmodel->maxs);
-	AddPointToBounds(map_cmodels[0].maxs, loadmodel->mins, loadmodel->maxs);
+	AddPointToBounds(prv->cmodels[0].mins, loadmodel->mins, loadmodel->maxs);
+	AddPointToBounds(prv->cmodels[0].maxs, loadmodel->mins, loadmodel->maxs);
 
 	return true;
 }
@@ -1173,6 +1171,7 @@ CMod_LoadSurfaces
 */
 qboolean CModQ2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q2texinfo_t	*in;
 	q2mapsurface_t	*out;
 	int			i, count;
@@ -1193,7 +1192,7 @@ qboolean CModQ2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
 //		Host_Error ("Map has too many surfaces");
 
 	mod->numtexinfo = count;
-	out = map_surfaces = ZG_Malloc(&mod->memgroup, count * sizeof(*map_surfaces));
+	out = prv->surfaces = ZG_Malloc(&mod->memgroup, count * sizeof(*prv->surfaces));
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1606,6 +1605,7 @@ CMod_LoadBrushes
 */
 qboolean CModQ2_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q2dbrush_t	*in;
 	q2cbrush_t	*out;
 	int			i, count;
@@ -1624,16 +1624,16 @@ qboolean CModQ2_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	map_brushes = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
+	prv->brushes = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
 
-	out = map_brushes;
+	out = prv->brushes;
 
-	numbrushes = count;
+	prv->numbrushes = count;
 
 	for (i=0 ; i<count ; i++, out++, in++)
 	{
 		//FIXME: missing bounds checks
-		out->brushside = &map_brushsides[LittleLong(in->firstside)];
+		out->brushside = &prv->brushsides[LittleLong(in->firstside)];
 		out->numsides = LittleLong(in->numsides);
 		out->contents = LittleLong(in->contents);
 	}
@@ -1674,7 +1674,7 @@ qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 
 	out = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
-	numclusters = 0;
+	mod->numclusters = 0;
 
 	mod->leafs = out;
 	mod->numleafs = count;
@@ -1702,8 +1702,8 @@ qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 			(unsigned short)LittleShort(in->firstleafface);
 		out->nummarksurfaces = (unsigned short)LittleShort(in->numleaffaces);
 
-		if (out->cluster >= numclusters)
-			numclusters = out->cluster + 1;
+		if (out->cluster >= mod->numclusters)
+			mod->numclusters = out->cluster + 1;
 	}
 	out = mod->leafs;
 
@@ -1777,6 +1777,7 @@ CMod_LoadLeafBrushes
 */
 qboolean CModQ2_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i;
 	q2cbrush_t	**out;
 	unsigned short 	*in;
@@ -1802,11 +1803,11 @@ qboolean CModQ2_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = map_leafbrushes;
-	numleafbrushes = count;
+	out = prv->leafbrushes;
+	prv->numleafbrushes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
-		*out = map_brushes + (unsigned short)(short)LittleShort (*in);
+		*out = prv->brushes + (unsigned short)(short)LittleShort (*in);
 
 	return true;
 }
@@ -1818,6 +1819,7 @@ CMod_LoadBrushSides
 */
 qboolean CModQ2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i, j;
 	q2cbrushside_t	*out;
 	q2dbrushside_t 	*in;
@@ -1839,8 +1841,8 @@ qboolean CModQ2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = map_brushsides = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
-	numbrushsides = count;
+	out = prv->brushsides = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
+	prv->numbrushsides = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1852,7 +1854,7 @@ qboolean CModQ2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
 			return false;
 		}
-		out->surface = &map_surfaces[j];
+		out->surface = &prv->surfaces[j];
 	}
 
 	return true;
@@ -1865,6 +1867,7 @@ CMod_LoadAreas
 */
 qboolean CModQ2_LoadAreas (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i;
 	q2carea_t		*out;
 	q2darea_t 	*in;
@@ -1884,8 +1887,8 @@ qboolean CModQ2_LoadAreas (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = map_q2areas;
-	numareas = count;
+	out = prv->q2areas;
+	prv->numareas = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1905,6 +1908,7 @@ CMod_LoadAreaPortals
 */
 qboolean CModQ2_LoadAreaPortals (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i;
 	q2dareaportal_t		*out;
 	q2dareaportal_t 	*in;
@@ -1924,8 +1928,8 @@ qboolean CModQ2_LoadAreaPortals (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = map_areaportals;
-	numareaportals = count;
+	out = prv->areaportals;
+	prv->numareaportals = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1943,27 +1947,28 @@ CMod_LoadVisibility
 */
 qboolean CModQ2_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int		i;
 
-	numvisibility = l->filelen;
+	prv->numvisibility = l->filelen;
 //	if (l->filelen > MAX_Q2MAP_VISIBILITY)
 //	{
 //		Con_Printf (CON_ERROR "Map has too large visibility lump\n");
 //		return false;
 //	}
 
-	map_q2vis = ZG_Malloc(&mod->memgroup, l->filelen);
-	memcpy (map_q2vis, mod_base + l->fileofs, l->filelen);
+	prv->q2vis = ZG_Malloc(&mod->memgroup, l->filelen);
+	memcpy (prv->q2vis, mod_base + l->fileofs, l->filelen);
 
-	mod->vis = map_q2vis;
+	mod->vis = prv->q2vis;
 
-	map_q2vis->numclusters = LittleLong (map_q2vis->numclusters);
-	for (i=0 ; i<map_q2vis->numclusters ; i++)
+	prv->q2vis->numclusters = LittleLong (prv->q2vis->numclusters);
+	for (i=0 ; i<prv->q2vis->numclusters ; i++)
 	{
-		map_q2vis->bitofs[i][0] = LittleLong (map_q2vis->bitofs[i][0]);
-		map_q2vis->bitofs[i][1] = LittleLong (map_q2vis->bitofs[i][1]);
+		prv->q2vis->bitofs[i][0] = LittleLong (prv->q2vis->bitofs[i][0]);
+		prv->q2vis->bitofs[i][1] = LittleLong (prv->q2vis->bitofs[i][1]);
 	}
-	mod->numclusters = map_q2vis->numclusters;
+	mod->numclusters = prv->q2vis->numclusters;
 
 	return true;
 }
@@ -2017,6 +2022,7 @@ qboolean CModQ3_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l
 
 qboolean CModQ3_LoadSubmodels (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q3dmodel_t	*in;
 	cmodel_t	*out;
 	int			i, j, count;
@@ -2042,15 +2048,15 @@ qboolean CModQ3_LoadSubmodels (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = map_cmodels = ZG_Malloc(&mod->memgroup, count * sizeof(*map_cmodels));
-	numcmodels = count;
+	out = prv->cmodels = ZG_Malloc(&mod->memgroup, count * sizeof(*prv->cmodels));
+	prv->numcmodels = count;
 
 	if (count > 1)
 		bleaf = ZG_Malloc(&mod->memgroup, (count-1) * sizeof(*bleaf));
 	else
 		bleaf = NULL;
 
-	mapisq3 = true;
+	prv->mapisq3 = true;
 
 	for (i=0 ; i<count ; i++, in++, out++)
 	{
@@ -2077,29 +2083,30 @@ qboolean CModQ3_LoadSubmodels (model_t *mod, qbyte *mod_base, lump_t *l)
 //			out->num_brushes = LittleLong(in->num_brushes);
 
 			bleaf->numleafbrushes = LittleLong ( in->num_brushes );
-			bleaf->firstleafbrush = numleafbrushes;
+			bleaf->firstleafbrush = prv->numleafbrushes;
 			bleaf->contents = 0;
 
-			leafbrush = &map_leafbrushes[numleafbrushes];
+			leafbrush = &prv->leafbrushes[prv->numleafbrushes];
 			for ( j = 0; j < bleaf->numleafbrushes; j++, leafbrush++ )
 			{
-				*leafbrush = map_brushes + LittleLong ( in->firstbrush ) + j;
+				*leafbrush = prv->brushes + LittleLong ( in->firstbrush ) + j;
 				bleaf->contents |= (*leafbrush)->contents;
 			}
-			numleafbrushes += bleaf->numleafbrushes;
+			prv->numleafbrushes += bleaf->numleafbrushes;
 			bleaf++;
 		}
 		//submodels
 	}
 
-	AddPointToBounds(map_cmodels[0].mins, mod->mins, mod->maxs);
-	AddPointToBounds(map_cmodels[0].maxs, mod->mins, mod->maxs);
+	AddPointToBounds(prv->cmodels[0].mins, mod->mins, mod->maxs);
+	AddPointToBounds(prv->cmodels[0].maxs, mod->mins, mod->maxs);
 
 	return true;
 }
 
 qboolean CModQ3_LoadShaders (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	dq3shader_t	*in;
 	q2mapsurface_t	*out;
 	int				i, count;
@@ -2121,7 +2128,7 @@ qboolean CModQ3_LoadShaders (model_t *mod, qbyte *mod_base, lump_t *l)
 //		Host_Error ("Map has too many shaders");
 
 	mod->numtexinfo = count;
-	out = map_surfaces = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
+	out = prv->surfaces = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
 
 	mod->texinfo = ZG_Malloc(&mod->memgroup, sizeof(mtexinfo_t)*(count*2+1));	//+1 is 'noshader' for flares.
 	mod->numtextures = count*2+1;
@@ -2427,6 +2434,7 @@ Mod_LoadFogs
 */
 qboolean CModQ3_LoadFogs (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	dfog_t 	*in;
 	mfog_t 	*out;
 	q2cbrush_t *brush;
@@ -2452,7 +2460,7 @@ qboolean CModQ3_LoadFogs (model_t *mod, qbyte *mod_base, lump_t *l)
 			continue;
 		}
 
-		brush = map_brushes + LittleLong ( in->brushNum );
+		brush = prv->brushes + LittleLong ( in->brushNum );
 		brushsides = brush->brushside;
 		visibleside = brushsides + LittleLong ( in->visibleSide );
 
@@ -2783,6 +2791,7 @@ void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, builddata_t *bd)
 
 qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	extern cvar_t r_vertexlight;
 	q3dface_t *in;
 	msurface_t *out;
@@ -2848,7 +2857,7 @@ qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			CategorizePlane(pl);
 		}
 
-		if (map_surfaces[LittleLong(in->shadernum)].c.value == 0 || map_surfaces[LittleLong(in->shadernum)].c.value & Q3CONTENTS_TRANSLUCENT)
+		if (prv->surfaces[LittleLong(in->shadernum)].c.value == 0 || prv->surfaces[LittleLong(in->shadernum)].c.value & Q3CONTENTS_TRANSLUCENT)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
@@ -2860,7 +2869,7 @@ qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		else
 			out->fog = mod->fogs + LittleLong(in->fognum);
 
-		if (map_surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
+		if (prv->surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
 			out->mesh = &mesh[surfnum];
 			out->mesh->numindexes = 0;
@@ -2894,6 +2903,7 @@ qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 
 qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	extern cvar_t r_vertexlight;
 	rbspface_t *in;
 	msurface_t *out;
@@ -2956,7 +2966,7 @@ qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			CategorizePlane(pl);
 		}
 
-		if (map_surfaces[in->shadernum].c.value == 0 || map_surfaces[in->shadernum].c.value & Q3CONTENTS_TRANSLUCENT)
+		if (prv->surfaces[in->shadernum].c.value == 0 || prv->surfaces[in->shadernum].c.value & Q3CONTENTS_TRANSLUCENT)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
@@ -2968,7 +2978,7 @@ qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		else
 			out->fog = mod->fogs + in->fognum;
 
-		if (map_surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
+		if (prv->surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
 			out->mesh = &mesh[surfnum];
 			out->mesh->numindexes = 0;
@@ -3064,6 +3074,7 @@ qboolean CModQ3_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 qboolean CModQ3_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	q3dbrush_t	*in;
 	q2cbrush_t	*out;
 	int			i, count;
@@ -3083,17 +3094,17 @@ qboolean CModQ3_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	map_brushes = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
+	prv->brushes = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
 
-	out = map_brushes;
+	out = prv->brushes;
 
-	numbrushes = count;
+	prv->numbrushes = count;
 
 	for (i=0 ; i<count ; i++, out++, in++)
 	{
 		shaderref = LittleLong ( in->shadernum );
-		out->contents = map_surfaces[shaderref].c.value;
-		out->brushside = &map_brushsides[LittleLong ( in->firstside )];
+		out->contents = prv->surfaces[shaderref].c.value;
+		out->brushside = &prv->brushsides[LittleLong ( in->firstside )];
 		out->numsides = LittleLong ( in->num_sides );
 	}
 
@@ -3102,6 +3113,7 @@ qboolean CModQ3_LoadBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 
 qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i, j;
 	mleaf_t		*out;
 	q3dleaf_t 	*in;
@@ -3130,7 +3142,6 @@ qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 	}
 
 	out = ZG_Malloc(&mod->memgroup, sizeof(*out) * (count+1));
-	numclusters = 0;
 
 	mod->leafs = out;
 	mod->numleafs = count;
@@ -3161,13 +3172,13 @@ qboolean CModQ3_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 
 		for (j=0 ; j<out->numleafbrushes ; j++)
 		{
-			brush = map_leafbrushes[out->firstleafbrush + j];
+			brush = prv->leafbrushes[out->firstleafbrush + j];
 			out->contents |= brush->contents;
 		}
 
-		if (out->area >= numareas)
+		if (out->area >= prv->numareas)
 		{
-			numareas = out->area + 1;
+			prv->numareas = out->area + 1;
 		}
 	}
 
@@ -3214,6 +3225,7 @@ qboolean CModQ3_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 qboolean CModQ3_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i;
 	q2cbrush_t  **out;
 	int 	*in;
@@ -3239,17 +3251,18 @@ qboolean CModQ3_LoadLeafBrushes (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = map_leafbrushes;
-	numleafbrushes = count;
+	out = prv->leafbrushes;
+	prv->numleafbrushes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
-		*out = map_brushes + LittleLong (*in);
+		*out = prv->brushes + LittleLong (*in);
 
 	return true;
 }
 
 qboolean CModQ3_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i, j;
 	q2cbrushside_t	*out;
 	q3dbrushside_t 	*in;
@@ -3271,8 +3284,8 @@ qboolean CModQ3_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = map_brushsides = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
-	numbrushsides = count;
+	out = prv->brushsides = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
+	prv->numbrushsides = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -3284,7 +3297,7 @@ qboolean CModQ3_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
 			return false;
 		}
-		out->surface = &map_surfaces[j];
+		out->surface = &prv->surfaces[j];
 	}
 
 	return true;
@@ -3292,6 +3305,7 @@ qboolean CModQ3_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 
 qboolean CModRBSP_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int			i, j;
 	q2cbrushside_t	*out;
 	rbspbrushside_t 	*in;
@@ -3313,8 +3327,8 @@ qboolean CModRBSP_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 		return false;
 	}
 
-	out = map_brushsides = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
-	numbrushsides = count;
+	out = prv->brushsides = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
+	prv->numbrushsides = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -3326,7 +3340,7 @@ qboolean CModRBSP_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
 			return false;
 		}
-		out->surface = &map_surfaces[j];
+		out->surface = &prv->surfaces[j];
 	}
 
 	return true;
@@ -3334,6 +3348,8 @@ qboolean CModRBSP_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 
 qboolean CModQ3_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
+	unsigned int numclusters;
 	if (l->filelen == 0)
 	{
 		int i;
@@ -3344,22 +3360,22 @@ qboolean CModQ3_LoadVisibility (model_t *mod, qbyte *mod_base, lump_t *l)
 
 		numclusters++;
 
-		map_q3pvs = ZG_Malloc(&mod->memgroup, sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
-		memset (map_q3pvs, 0xff, sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
-		map_q3pvs->numclusters = numclusters;
-		numvisibility = 0;
-		map_q3pvs->rowsize = (map_q3pvs->numclusters+7)/8;
+		prv->q3pvs = ZG_Malloc(&mod->memgroup, sizeof(*prv->q3pvs) + (numclusters+7)/8 * numclusters);
+		memset (prv->q3pvs, 0xff, sizeof(*prv->q3pvs) + (numclusters+7)/8 * numclusters);
+		prv->q3pvs->numclusters = numclusters;
+		prv->numvisibility = 0;
+		prv->q3pvs->rowsize = (prv->q3pvs->numclusters+7)/8;
 	}
 	else
 	{
-		numvisibility = l->filelen;
+		prv->numvisibility = l->filelen;
 
-		map_q3pvs = ZG_Malloc(&mod->memgroup, l->filelen);
-		mod->vis = (q2dvis_t *)map_q3pvs;
-		memcpy (map_q3pvs, mod_base + l->fileofs, l->filelen);
+		prv->q3pvs = ZG_Malloc(&mod->memgroup, l->filelen);
+		mod->vis = (q2dvis_t *)prv->q3pvs;
+		memcpy (prv->q3pvs, mod_base + l->fileofs, l->filelen);
 
-		numclusters = map_q3pvs->numclusters = LittleLong (map_q3pvs->numclusters);
-		map_q3pvs->rowsize = LittleLong (map_q3pvs->rowsize);
+		numclusters = prv->q3pvs->numclusters = LittleLong (prv->q3pvs->numclusters);
+		prv->q3pvs->rowsize = LittleLong (prv->q3pvs->rowsize);
 	}
 	mod->numclusters = numclusters;
 
@@ -3538,7 +3554,7 @@ int CM_GetQ2Palette (void)
 }
 #endif
 
-void CM_OpenAllPortals(char *ents)	//this is a compleate hack. About as compleate as possible.
+void CM_OpenAllPortals(model_t *mod, char *ents)	//this is a compleate hack. About as compleate as possible.
 {	//q2 levels contain a thingie called area portals. Basically, doors can seperate two areas and
 	//the engine knows when this portal is open, and weather to send ents from both sides of the door
 	//or not. It's not just ents, but also walls. We want to just open them by default and hope the
@@ -3578,7 +3594,7 @@ void CM_OpenAllPortals(char *ents)	//this is a compleate hack. About as compleat
 
 			if (!strcmp(name, "func_areaportal"))
 			{
-				CMQ2_SetAreaPortalState(atoi(style), true);
+				CMQ2_SetAreaPortalState(mod, atoi(style), true);
 			}
 		}
 
@@ -3590,6 +3606,7 @@ void CM_OpenAllPortals(char *ents)	//this is a compleate hack. About as compleat
 #ifndef CLIENTONLY
 void CMQ3_CalcPHS (model_t *mod)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int		rowbytes, rowwords;
 	int		i, j, k, l, index;
 	int		bitbyte;
@@ -3601,15 +3618,15 @@ void CMQ3_CalcPHS (model_t *mod)
 
 	Con_DPrintf ("Building PHS...\n");
 
-	map_q3phs = ZG_Malloc(&mod->memgroup, sizeof(*map_q3phs) + map_q3pvs->rowsize * map_q3pvs->numclusters);
+	prv->q3phs = ZG_Malloc(&mod->memgroup, sizeof(*prv->q3phs) + prv->q3pvs->rowsize * prv->q3pvs->numclusters);
 
-	rowwords = map_q3pvs->rowsize / sizeof(int);
-	rowbytes = map_q3pvs->rowsize;
+	rowwords = prv->q3pvs->rowsize / sizeof(int);
+	rowbytes = prv->q3pvs->rowsize;
 
-	memset ( map_q3phs, 0, sizeof(*map_q3phs) + map_q3pvs->rowsize * map_q3pvs->numclusters );
+	memset ( prv->q3phs, 0, sizeof(*prv->q3phs) + prv->q3pvs->rowsize * prv->q3pvs->numclusters );
 
-	map_q3phs->rowsize = map_q3pvs->rowsize;
-	map_q3phs->numclusters = numclusters = map_q3pvs->numclusters;
+	prv->q3phs->rowsize = prv->q3pvs->rowsize;
+	prv->q3phs->numclusters = numclusters = prv->q3pvs->numclusters;
 	if (!numclusters)
 		return;
 
@@ -3627,8 +3644,8 @@ void CMQ3_CalcPHS (model_t *mod)
 	}
 
 	count = 0;
-	scan = (qbyte *)map_q3pvs->data;
-	dest = (unsigned int *)(map_q3phs->data);
+	scan = (qbyte *)prv->q3pvs->data;
+	dest = (unsigned int *)(prv->q3phs->data);
 
 	for (i=0 ; i<numclusters ; i++, dest += rowwords, scan += rowbytes)
 	{
@@ -3652,7 +3669,7 @@ void CMQ3_CalcPHS (model_t *mod)
 				}
 				else
 				{
-					src = (unsigned int *)(map_q3pvs->data) + index*rowwords;
+					src = (unsigned int *)(prv->q3pvs->data) + index*rowwords;
 					for (l=0 ; l<rowwords ; l++)
 						dest[l] |= src[l];
 				}
@@ -3801,26 +3818,26 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	void (*buildmeshes)(model_t *mod, msurface_t *surf, void *cookie) = NULL;
 	qbyte *facedata = NULL;
 	unsigned int facesize = 0;
+	cminfo_t	*prv;
 
 	COM_FileBase (mod->name, loadname, sizeof(loadname));
 
 	// free old stuff
-	numcmodels = 0;
-	numvisibility = 0;
-	box_planes = NULL;	//so its rebuilt
+	mod->meshinfo = prv = ZG_Malloc(&mod->memgroup, sizeof(*prv));
+	prv->numcmodels = 0;
+	prv->numvisibility = 0;
 
 	mod->type = mod_brush;
 
 	if (!mod->name[0])
 	{
-		map_cmodels = ZG_Malloc(&mod->memgroup, 1 * sizeof(*map_cmodels));
+		prv->cmodels = ZG_Malloc(&mod->memgroup, 1 * sizeof(*prv->cmodels));
 		mod->leafs = ZG_Malloc(&mod->memgroup, 1 * sizeof(*mod->leafs));
-		numcmodels = 1;
-		numclusters = 1;
-		numareas = 1;
+		prv->numcmodels = 1;
+		prv->numareas = 1;
 		*checksum = 0;
-		map_cmodels[0].headnode = (mnode_t*)mod->leafs;	//directly start with the empty leaf
-		return &map_cmodels[0];			// cinematic servers won't have anything at all
+		prv->cmodels[0].headnode = (mnode_t*)mod->leafs;	//directly start with the empty leaf
+		return &prv->cmodels[0];			// cinematic servers won't have anything at all
 	}
 
 	//
@@ -3865,7 +3882,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	case 1: //rbsp/fbsp
 	case Q3BSPVERSION+1:	//rtcw
 	case Q3BSPVERSION:
-		mapisq3 = true;
+		prv->mapisq3 = true;
 		mod->fromgame = fg_quake3;
 		for (i=0 ; i<Q3LUMPS_TOTAL ; i++)
 		{
@@ -3918,7 +3935,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, Q3LUMPS_TOTAL);
 
-		mapisq3 = true;
+		prv->mapisq3 = true;
 		noerrors = noerrors && CModQ3_LoadShaders				(mod, mod_base, &header.lumps[Q3LUMP_SHADERS]);
 		noerrors = noerrors && CModQ3_LoadPlanes				(mod, mod_base, &header.lumps[Q3LUMP_PLANES]);
 		if (header.version == 1)
@@ -4029,8 +4046,8 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 			for ( i = 0; i < 3; i++ )
 			{
-				lg->gridMins[i] = lg->gridSize[i] * ceil( (map_cmodels->mins[i] + 1) / lg->gridSize[i] );
-				maxs = lg->gridSize[i] * floor( (map_cmodels->maxs[i] - 1) / lg->gridSize[i] );
+				lg->gridMins[i] = lg->gridSize[i] * ceil( (prv->cmodels->mins[i] + 1) / lg->gridSize[i] );
+				maxs = lg->gridSize[i] * floor( (prv->cmodels->maxs[i] - 1) / lg->gridSize[i] );
 				lg->gridBounds[i] = (maxs - lg->gridMins[i])/lg->gridSize[i] + 1;
 			}
 
@@ -4038,7 +4055,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		}
 #endif
 
-		if (!CM_CreatePatchesForLeafs (mod))	//for clipping
+		if (!CM_CreatePatchesForLeafs (mod, prv))	//for clipping
 		{
 			BZ_Free(map_faces);
 			return NULL;
@@ -4051,7 +4068,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		break;
 #endif
 	case Q2BSPVERSION:
-		mapisq3 = false;
+		prv->mapisq3 = false;
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 		for (i=0 ; i<Q2HEADER_LUMPS ; i++)
 		{
@@ -4157,10 +4174,10 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	CM_InitBoxHull ();
 
 	if (map_autoopenportals.value)
-		memset (portalopen, 1, sizeof(portalopen));	//open them all. Used for progs that havn't got a clue.
+		memset (prv->portalopen, 1, sizeof(prv->portalopen));	//open them all. Used for progs that havn't got a clue.
 	else
-		memset (portalopen, 0, sizeof(portalopen));	//make them start closed.
-	FloodAreaConnections ();
+		memset (prv->portalopen, 0, sizeof(prv->portalopen));	//make them start closed.
+	FloodAreaConnections (prv);
 
 	mod->checksum = mod->checksum2 = *checksum;
 
@@ -4170,9 +4187,9 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 	mod->numsubmodels = CM_NumInlineModels(mod);
 
-	mod->hulls[0].firstclipnode = map_cmodels[0].headnode-mod->nodes;
-	mod->rootnode = map_cmodels[0].headnode;
-	mod->nummodelsurfaces = map_cmodels[0].numsurfaces;
+	mod->hulls[0].firstclipnode = prv->cmodels[0].headnode-mod->nodes;
+	mod->rootnode = prv->cmodels[0].headnode;
+	mod->nummodelsurfaces = prv->cmodels[0].numsurfaces;
 
 #ifndef SERVERONLY
 	if (qrenderer != QR_NONE)
@@ -4200,7 +4217,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		Q_strncpyz(mod->name, name, sizeof(mod->name));
 		memset(&mod->memgroup, 0, sizeof(mod->memgroup));
 
-		bm = CM_InlineModel (name);
+		bm = CM_InlineModel (wmod, name);
 
 
 		
@@ -4249,7 +4266,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	mod->terrain = Mod_LoadTerrainInfo(mod, loadname, false);
 #endif
 
-	return &map_cmodels[0];
+	return &prv->cmodels[0];
 }
 
 /*
@@ -4257,8 +4274,9 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 CM_InlineModel
 ==================
 */
-cmodel_t	*CM_InlineModel (char *name)
+static cmodel_t	*CM_InlineModel (model_t *model, char *name)
 {
+	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
 	int		num;
 
 	if (!name)
@@ -4268,25 +4286,27 @@ cmodel_t	*CM_InlineModel (char *name)
 
 	num = atoi (name+1);
 
-	if (num < 1 || num >= numcmodels)
+	if (num < 1 || num >= prv->numcmodels)
 		Host_Error ("CM_InlineModel: bad number");
 
-	return &map_cmodels[num];
+	return &prv->cmodels[num];
 }
 
 int		CM_NumClusters (model_t *model)
 {
-	return numclusters;
+	return model->numclusters;
 }
 
 int		CM_ClusterSize (model_t *model)
 {
-	return map_q3pvs->rowsize ? map_q3pvs->rowsize : MAX_MAP_LEAFS / 8;
+	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
+	return prv->q3pvs->rowsize ? prv->q3pvs->rowsize : MAX_MAP_LEAFS / 8;
 }
 
-int		CM_NumInlineModels (model_t *model)
+static int		CM_NumInlineModels (model_t *model)
 {
-	return numcmodels;
+	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
+	return prv->numcmodels;
 }
 
 int		CM_LeafContents (model_t *model, int leafnum)
@@ -4312,12 +4332,24 @@ int		CM_LeafArea (model_t *model, int leafnum)
 
 //=======================================================================
 
+#define PlaneDiff(point,plane) (((plane)->type < 3 ? (point)[(plane)->type] : DotProduct((point), (plane)->normal)) - (plane)->dist)
 
-mplane_t	*box_planes;
-int			box_headnode;
-q2cbrush_t	*box_brush;
-mleaf_t		box_leaf[2];	//solid, empty
-model_t		box_model;
+mplane_t		box_planes[6];
+model_t			box_model;
+q2cbrush_t		box_brush;
+q2cbrushside_t	box_sides[6];
+static qboolean BM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
+static unsigned int BM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
+{
+	unsigned int j;
+	q2cbrushside_t *brushside = box_sides;
+	for ( j = 0; j < 6; j++, brushside++ )
+	{
+		if ( PlaneDiff (p, brushside->plane) > 0 )
+			return 0;
+	}
+	return FTECONTENTS_BODY;
+}
 
 /*
 ===================
@@ -4331,11 +4363,10 @@ void CM_InitBoxHull (void)
 {
 	int			i;
 	int			side;
-	mnode_t		*c;
 	mplane_t	*p;
 	q2cbrushside_t	*s;
 
-
+/*
 #ifndef CLIENTONLY
 	box_model.funcs.FatPVS				= Q2BSP_FatPVS;
 	box_model.funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
@@ -4347,50 +4378,25 @@ void CM_InitBoxHull (void)
 #endif
 	box_model.funcs.ClusterPVS			= CM_ClusterPVS;
 	box_model.funcs.ClusterForPoint		= CM_PointCluster;
-	box_model.funcs.NativeContents		= CM_NativeContents;
-	box_model.funcs.NativeTrace			= CM_NativeTrace;
+*/
+	box_model.funcs.NativeContents		= BM_NativeContents;
+	box_model.funcs.NativeTrace			= BM_NativeTrace;
 
-	box_model.nodes = ZG_Malloc(&box_model.memgroup, sizeof(mnode_t)*6);
-	box_planes = ZG_Malloc(&box_model.memgroup, sizeof(mplane_t)*12);
-	if (numbrushes+1 > SANITY_MAX_MAP_BRUSHES
-		|| numleafbrushes+1 > MAX_Q2MAP_LEAFBRUSHES)
-		Host_Error ("Not enough room for box tree");
 
-	box_brush = &map_brushes[numbrushes];
-	box_brush->numsides = 6;
-	box_brush->brushside = ZG_Malloc(&box_model.memgroup, sizeof(q2cbrushside_t)*6);
-	box_brush->contents = Q2CONTENTS_MONSTER;
-
-	box_leaf[0].contents = Q2CONTENTS_MONSTER;
-	box_leaf[0].firstleafbrush = numleafbrushes;
-	box_leaf[0].numleafbrushes = 1;
-	box_leaf[1].contents = 0;
-	box_leaf[1].firstleafbrush = numleafbrushes;
-	box_leaf[1].numleafbrushes = 1;
-	box_model.leafs = box_leaf;
-
-	box_model.rootnode = box_model.nodes;
 	box_model.loadstate = MLS_LOADED;
 
-	map_leafbrushes[numleafbrushes] = box_brush;
+	box_brush.contents = FTECONTENTS_BODY;
+	box_brush.numsides = 6;
+	box_brush.brushside = box_sides;
 
 	for (i=0 ; i<6 ; i++)
 	{
 		side = i&1;
 
 		// brush sides
-		s = &box_brush->brushside[i];
+		s = &box_sides[i];
 		s->plane = 	box_planes + (i*2+side);
 		s->surface = &nullsurface;
-
-		// nodes
-		c = &box_model.nodes[i];
-		c->plane = box_planes + (i*2);
-		c->childnum[side] = -1 - 1;	//empty leaf
-		if (i != 5)
-			c->childnum[side^1] = box_headnode+i + 1;
-		else
-			c->childnum[side^1] = -1 - 0;	//solid leaf
 
 		// planes
 		p = &box_planes[i*2];
@@ -4566,9 +4572,9 @@ CM_PointContents
 
 ==================
 */
-#define PlaneDiff(point,plane) (((plane)->type < 3 ? (point)[(plane)->type] : DotProduct((point), (plane)->normal)) - (plane)->dist)
 int CM_PointContents (model_t *mod, vec3_t p)
 {
+	cminfo_t		*prv = (cminfo_t*)mod->meshinfo;
 	int				i, j, contents;
 	mleaf_t			*leaf;
 	q2cbrush_t		*brush;
@@ -4593,7 +4599,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 
 		for (i = 0; i < leaf->numleafbrushes; i++)
 		{
-			brush = map_leafbrushes[leaf->firstleafbrush + i];
+			brush = prv->leafbrushes[leaf->firstleafbrush + i];
 
 			// check if brush actually adds something to contents
 			if ( (contents & brush->contents) == brush->contents ) {
@@ -4620,6 +4626,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 
 unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
 {
+	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
 	int	contents;
 	if (!DotProduct(mins, mins) && !DotProduct(maxs, maxs))
 		return CM_PointContents(model, p);
@@ -4647,7 +4654,7 @@ unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int fram
 			{	//q3 is more complex
 				for (i = 0; i < leaf->numleafbrushes; i++)
 				{
-					brush = map_leafbrushes[leaf->firstleafbrush + i];
+					brush = prv->leafbrushes[leaf->firstleafbrush + i];
 
 					// check if brush actually adds something to contents
 					if ( (contents & brush->contents) == brush->contents ) {
@@ -4691,8 +4698,7 @@ int	CM_TransformedPointContents (model_t *mod, vec3_t p, int headnode, vec3_t or
 	VectorSubtract (p, origin, p_l);
 
 	// rotate start and end into the models frame of reference
-	if (headnode != box_headnode &&
-	(angles[0] || angles[1] || angles[2]) )
+	if (angles[0] || angles[1] || angles[2])
 	{
 		AngleVectors (angles, forward, right, up);
 
@@ -5332,7 +5338,7 @@ static void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 CM_TraceToLeaf
 ================
 */
-static void CM_TraceToLeaf (mleaf_t		*leaf)
+static void CM_TraceToLeaf (cminfo_t	*prv, mleaf_t		*leaf)
 {
 	int			k, j;
 	q2cbrush_t	*b;
@@ -5346,7 +5352,7 @@ static void CM_TraceToLeaf (mleaf_t		*leaf)
 	// trace line against all brushes in the leaf
 	for (k=0 ; k<leaf->numleafbrushes ; k++)
 	{
-		b = map_leafbrushes[leaf->firstleafbrush+k];
+		b = prv->leafbrushes[leaf->firstleafbrush+k];
 		if (b->checkcount == checkcount)
 			continue;	// already checked this brush in another leaf
 		b->checkcount = checkcount;
@@ -5358,15 +5364,15 @@ static void CM_TraceToLeaf (mleaf_t		*leaf)
 			return;
 	}
 
-	if (!mapisq3 || map_noCurves.value)
+	if (!prv->mapisq3 || map_noCurves.value)
 		return;
 
 	// trace line against all patches in the leaf
 	for (k = 0; k < leaf->numleafpatches; k++)
 	{
-		patchnum = map_leafpatches[leaf->firstleafpatch+k];
+		patchnum = prv->leafpatches[leaf->firstleafpatch+k];
 
-		patch = &map_patches[patchnum];
+		patch = &prv->patches[patchnum];
 		if (patch->checkcount == checkcount)
 			continue;	// already checked this patch in another leaf
 		patch->checkcount = checkcount;
@@ -5384,8 +5390,8 @@ static void CM_TraceToLeaf (mleaf_t		*leaf)
 
 	for (k = 0; k < leaf->numleafcmeshes; k++)
 	{
-		patchnum = map_leafcmeshes[leaf->firstleafcmesh+k];
-		cmesh = &map_cmeshes[patchnum];
+		patchnum = prv->leafcmeshes[leaf->firstleafcmesh+k];
+		cmesh = &prv->cmeshes[patchnum];
 		if (cmesh->checkcount == checkcount)
 			continue;	// already checked this patch in another leaf
 		cmesh->checkcount = checkcount;
@@ -5406,7 +5412,7 @@ static void CM_TraceToLeaf (mleaf_t		*leaf)
 CM_TestInLeaf
 ================
 */
-static void CM_TestInLeaf (mleaf_t		*leaf)
+static void CM_TestInLeaf (cminfo_t *prv, mleaf_t *leaf)
 {
 	int			k, j;
 	int patchnum;
@@ -5419,7 +5425,7 @@ static void CM_TestInLeaf (mleaf_t		*leaf)
 	// trace line against all brushes in the leaf
 	for (k=0 ; k<leaf->numleafbrushes ; k++)
 	{
-		b = map_leafbrushes[leaf->firstleafbrush+k];
+		b = prv->leafbrushes[leaf->firstleafbrush+k];
 		if (b->checkcount == checkcount)
 			continue;	// already checked this brush in another leaf
 		b->checkcount = checkcount;
@@ -5431,15 +5437,15 @@ static void CM_TestInLeaf (mleaf_t		*leaf)
 			return;
 	}
 
-	if (!mapisq3 || map_noCurves.value)
+	if (!prv->mapisq3 || map_noCurves.value)
 		return;
 
   	// trace line against all patches in the leaf
 	for (k = 0; k < leaf->numleafpatches; k++)
 	{
-		patchnum = map_leafpatches[leaf->firstleafpatch+k];
+		patchnum = prv->leafpatches[leaf->firstleafpatch+k];
 
-		patch = &map_patches[patchnum];
+		patch = &prv->patches[patchnum];
 		if (patch->checkcount == checkcount)
 			continue;	// already checked this patch in another leaf
 		patch->checkcount = checkcount;
@@ -5457,8 +5463,8 @@ static void CM_TestInLeaf (mleaf_t		*leaf)
 
 	for (k = 0; k < leaf->numleafcmeshes; k++)
 	{
-		patchnum = map_leafcmeshes[leaf->firstleafcmesh+k];
-		cmesh = &map_cmeshes[patchnum];
+		patchnum = prv->leafcmeshes[leaf->firstleafcmesh+k];
+		cmesh = &prv->cmeshes[patchnum];
 		if (cmesh->checkcount == checkcount)
 			continue;	// already checked this patch in another leaf
 		cmesh->checkcount = checkcount;
@@ -5498,7 +5504,7 @@ static void CM_RecursiveHullCheck (model_t *mod, int num, float p1f, float p2f, 
 	// if < 0, we are in a leaf node
 	if (num < 0)
 	{
-		CM_TraceToLeaf (&mod->leafs[-1-num]);
+		CM_TraceToLeaf (mod->meshinfo, &mod->leafs[-1-num]);
 		return;
 	}
 
@@ -5728,7 +5734,7 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 		numleafs = CM_BoxLeafnums_headnode (mod, c1, c2, leafs, sizeof(leafs)/sizeof(leafs[0]), mod->hulls[0].firstclipnode, &topnode);
 		for (i=0 ; i<numleafs ; i++)
 		{
-			CM_TestInLeaf (&mod->leafs[leafs[i]]);
+			CM_TestInLeaf (mod->meshinfo, &mod->leafs[leafs[i]]);
 			if (trace_trace.allsolid)
 				break;
 		}
@@ -5759,6 +5765,42 @@ static trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	return trace_trace;
 }
 
+static qboolean BM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
+{
+	int i;
+	memset (trace, 0, sizeof(*trace));
+	trace_truefraction = 1;
+	trace_nearfraction = 1;
+	trace->fraction = 1;
+	trace->truefraction = 1;
+	trace->surface = &(nullsurface.c);
+
+	if (contents & FTECONTENTS_BODY)
+	{
+		trace_contents = contents;
+		VectorCopy (start, trace_start);
+		VectorCopy (end, trace_end);
+		VectorCopy (mins, trace_mins);
+		VectorCopy (maxs, trace_maxs);
+
+		CM_ClipBoxToBrush (trace_mins, trace_maxs, trace_start, trace_end, trace, &box_brush);
+	}
+
+	if (trace_nearfraction == 1)
+	{
+		trace_trace.fraction = 1;
+		VectorCopy (trace_end, trace_trace.endpos);
+	}
+	else
+	{
+		if (trace_nearfraction<0)
+			trace_nearfraction=0;
+		trace_trace.fraction = trace_nearfraction;
+		for (i=0 ; i<3 ; i++)
+			trace_trace.endpos[i] = trace_start[i] + trace_trace.fraction * (trace_end[i] - trace_start[i]);
+	}
+	return trace->fraction != 1;
+}
 static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace)
 {
 	if (axis)
@@ -5979,16 +6021,17 @@ qbyte *Mod_ClusterPVS (int cluster, model_t *model)
 		model);
 }
 */
-static void CM_DecompressVis (qbyte *in, qbyte *out)
+static void CM_DecompressVis (model_t *mod, qbyte *in, qbyte *out)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int		c;
 	qbyte	*out_p;
 	int		row;
 
-	row = (numclusters+7)>>3;
+	row = (mod->numclusters+7)>>3;
 	out_p = out;
 
-	if (!in || !numvisibility)
+	if (!in || !prv->numvisibility)
 	{	// no vis info, so make all visible
 		while (row)
 		{
@@ -6028,53 +6071,55 @@ static qbyte	phsrow[MAX_MAP_LEAFS/8];
 
 qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer, unsigned int buffersize)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	if (!buffer)
 	{
 		buffer = pvsrow;
 		buffersize = sizeof(pvsrow);
 	}
-	if (buffersize < (numclusters+7)>>3)
+	if (buffersize < (mod->numclusters+7)>>3)
 		Sys_Error("CM_ClusterPVS with too small a buffer\n");
 
 	if (mod->fromgame != fg_quake2)
 	{
-		if (cluster != -1 && map_q3pvs->numclusters)
+		if (cluster != -1 && prv->q3pvs->numclusters)
 		{
-			return (qbyte *)map_q3pvs->data + cluster * map_q3pvs->rowsize;
+			return (qbyte *)prv->q3pvs->data + cluster * prv->q3pvs->rowsize;
 		}
 		else
 		{
-			memset (buffer, 0, (numclusters+7)>>3);
+			memset (buffer, 0, (mod->numclusters+7)>>3);
 			return buffer;
 		}
 	}
 
 	if (cluster == -1)
-		memset (buffer, 0, (numclusters+7)>>3);
+		memset (buffer, 0, (mod->numclusters+7)>>3);
 	else
-		CM_DecompressVis (((qbyte*)map_q2vis) + map_q2vis->bitofs[cluster][DVIS_PVS], buffer);
+		CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PVS], buffer);
 	return buffer;
 }
 
 qbyte	*CM_ClusterPHS (model_t *mod, int cluster)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	if (mod->fromgame != fg_quake2)
 	{
-		if (cluster != -1 && map_q3phs->numclusters)
+		if (cluster != -1 && prv->q3phs->numclusters)
 		{
-			return (qbyte *)map_q3phs->data + cluster * map_q3phs->rowsize;
+			return (qbyte *)prv->q3phs->data + cluster * prv->q3phs->rowsize;
 		}
 		else
 		{
-			memset (phsrow, 0, (numclusters+7)>>3);
+			memset (phsrow, 0, (mod->numclusters+7)>>3);
 			return phsrow;
 		}
 	}
 
 	if (cluster == -1)
-		memset (phsrow, 0, (numclusters+7)>>3);
+		memset (phsrow, 0, (mod->numclusters+7)>>3);
 	else
-		CM_DecompressVis (((qbyte*)map_q2vis) + map_q2vis->bitofs[cluster][DVIS_PHS], phsrow);
+		CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PHS], phsrow);
 	return phsrow;
 }
 
@@ -6087,11 +6132,11 @@ AREAPORTALS
 ===============================================================================
 */
 
-static void FloodArea_r (q2carea_t *area, int floodnum)
+static void FloodArea_r (cminfo_t	*prv, q2carea_t *area, int floodnum)
 {
 	int		i;
 
-	if (area->floodvalid == floodvalid)
+	if (area->floodvalid == prv->floodvalid)
 	{
 		if (area->floodnum == floodnum)
 			return;
@@ -6099,22 +6144,22 @@ static void FloodArea_r (q2carea_t *area, int floodnum)
 	}
 
 	area->floodnum = floodnum;
-	area->floodvalid = floodvalid;
-	if (mapisq3)
+	area->floodvalid = prv->floodvalid;
+	if (prv->mapisq3)
 	{
-		for (i=0 ; i<numareas ; i++)
+		for (i=0 ; i<prv->numareas ; i++)
 		{
-			if (map_q3areas[area - map_q2areas].numareaportals[i]>0)
-				FloodArea_r (&map_q2areas[i], floodnum);
+			if (prv->q3areas[area - prv->q2areas].numareaportals[i]>0)
+				FloodArea_r (prv, &prv->q2areas[i], floodnum);
 		}
 	}
 	else
 	{
-		q2dareaportal_t	*p = &map_areaportals[area->firstareaportal];
+		q2dareaportal_t	*p = &prv->areaportals[area->firstareaportal];
 		for (i=0 ; i<area->numareaportals ; i++, p++)
 		{
-			if (portalopen[p->portalnum])
-				FloodArea_r (&map_q2areas[p->otherarea], floodnum);
+			if (prv->portalopen[p->portalnum])
+				FloodArea_r (prv, &prv->q2areas[p->otherarea], floodnum);
 		}
 	}
 }
@@ -6126,77 +6171,84 @@ FloodAreaConnections
 
 ====================
 */
-static void	FloodAreaConnections (void)
+static void	FloodAreaConnections (cminfo_t	*prv)
 {
 	int		i;
 	q2carea_t	*area;
 	int		floodnum;
 
 	// all current floods are now invalid
-	floodvalid++;
+	prv->floodvalid++;
 	floodnum = 0;
 
 	// area 0 is not used
-	for (i=0 ; i<numareas ; i++)
+	for (i=0 ; i<prv->numareas ; i++)
 	{
-		area = &map_q2areas[i];
-		if (area->floodvalid == floodvalid)
+		area = &prv->q2areas[i];
+		if (area->floodvalid == prv->floodvalid)
 			continue;		// already flooded into
 		floodnum++;
-		FloodArea_r (area, floodnum);
+		FloodArea_r (prv, area, floodnum);
 	}
 
 }
 
-void	VARGS CMQ2_SetAreaPortalState (unsigned int portalnum, qboolean open)
+void	CMQ2_SetAreaPortalState (model_t *mod, unsigned int portalnum, qboolean open)
 {
-	if (mapisq3)
+	cminfo_t	*prv;
+	if (!mod)
 		return;
-	if (portalnum > numareaportals)
+	prv = (cminfo_t*)mod->meshinfo;
+	if (prv->mapisq3)
+		return;
+	if (portalnum > prv->numareaportals)
 		Host_Error ("areaportal > numareaportals");
 
-	if (portalopen[portalnum] == open)
+	if (prv->portalopen[portalnum] == open)
 		return;
-	portalopen[portalnum] = open;
-	FloodAreaConnections ();
+	prv->portalopen[portalnum] = open;
+	FloodAreaConnections (prv);
 
 	return;
 }
 
-void	CMQ3_SetAreaPortalState (unsigned int area1, unsigned int area2, qboolean open)
+void	CMQ3_SetAreaPortalState (model_t *mod, unsigned int area1, unsigned int area2, qboolean open)
 {
-	if (!mapisq3)
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
+	if (!prv->mapisq3)
 		return;
 //		Host_Error ("CMQ3_SetAreaPortalState on non-q3 map");
 
-	if (area1 >= numareas || area2 >= numareas)
+	if (area1 >= prv->numareas || area2 >= prv->numareas)
 		Host_Error ("CMQ3_SetAreaPortalState: area > numareas");
 
 	if (open)
 	{
-		map_q3areas[area1].numareaportals[area2]++;
-		map_q3areas[area2].numareaportals[area1]++;
+		prv->q3areas[area1].numareaportals[area2]++;
+		prv->q3areas[area2].numareaportals[area1]++;
 	}
 	else
 	{
-		map_q3areas[area1].numareaportals[area2]--;
-		map_q3areas[area2].numareaportals[area1]--;
+		prv->q3areas[area1].numareaportals[area2]--;
+		prv->q3areas[area2].numareaportals[area1]--;
 	}
 
-	FloodAreaConnections();
+	FloodAreaConnections(prv);
 }
 
 qboolean	VARGS CM_AreasConnected (model_t *mod, unsigned int area1, unsigned int area2)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
+
 	if (map_noareas.value)
 		return true;
 
 	if (area1 == ~0 || area2 == ~0)
 		return area1 == area2;
-	if (area1 > numareas || area2 > numareas)
+	if (area1 > prv->numareas || area2 > prv->numareas)
 		Host_Error ("area > numareas");
 
-	if (map_q2areas[area1].floodnum == map_q2areas[area2].floodnum)
+	if (prv->q2areas[area1].floodnum == prv->q2areas[area2].floodnum)
 		return true;
 	return false;
 }
@@ -6214,11 +6266,12 @@ This is used by the client refreshes to cull visibility
 */
 int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int		i;
 	int		floodnum;
 	int		bytes;
 
-	bytes = (numareas+7)>>3;
+	bytes = (prv->numareas+7)>>3;
 
 	if (map_noareas.value)
 	{	// for debugging, send everything
@@ -6228,10 +6281,10 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area)
 	{
 		memset (buffer, 0, bytes);
 
-		floodnum = map_q2areas[area].floodnum;
-		for (i=0 ; i<numareas ; i++)
+		floodnum = prv->q2areas[area].floodnum;
+		for (i=0 ; i<prv->numareas ; i++)
 		{
-			if (map_q2areas[i].floodnum == floodnum || !area)
+			if (prv->q2areas[i].floodnum == floodnum || !area)
 				buffer[i>>3] |= 1<<(i&7);
 		}
 	}
@@ -6246,9 +6299,10 @@ CM_WritePortalState
 Writes the portal state to a savegame file
 ===================
 */
-void	CM_WritePortalState (vfsfile_t *f)
+void	CM_WritePortalState (model_t *mod, vfsfile_t *f)
 {
-	VFS_WRITE(f, portalopen, sizeof(portalopen));
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
+	VFS_WRITE(f, prv->portalopen, sizeof(prv->portalopen));
 }
 
 /*
@@ -6259,16 +6313,17 @@ Reads the portal state from a savegame file
 and recalculates the area connections
 ===================
 */
-void	CM_ReadPortalState (vfsfile_t *f)
+void	CM_ReadPortalState (model_t *mod, vfsfile_t *f)
 {
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	size_t result;
 
-	result = VFS_READ(f, portalopen, sizeof(portalopen)); // do something with result
+	result = VFS_READ(f, prv->portalopen, sizeof(prv->portalopen)); // do something with result
 
-	if (result != sizeof(portalopen))
-		Con_Printf("CM_ReadPortalState() fread: expected %lu, result was %u\n",(long unsigned int)sizeof(portalopen),(unsigned int)result);
+	if (result != sizeof(prv->portalopen))
+		Con_Printf("CM_ReadPortalState() fread: expected %u, result was %u\n",(unsigned int)sizeof(prv->portalopen),(unsigned int)result);
 
-	FloodAreaConnections ();
+	FloodAreaConnections (prv);
 }
 
 /*
@@ -6334,7 +6389,5 @@ void CM_Init(void)	//register cvars.
 }
 void CM_Shutdown(void)
 {
-	ZG_FreeGroup(&box_model.memgroup);
-	box_planes = NULL;
 }
 #endif

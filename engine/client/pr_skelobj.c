@@ -59,8 +59,8 @@ typedef struct doll_s
 	int numbodies;
 	int numjoints;
 	int numbones;
-	odebodyinfo_t *body;
-	odejointinfo_t *joint;
+	rbebodyinfo_t *body;
+	rbejointinfo_t *joint;
 	struct
 	{
 		//easy lookup table for bone->body.
@@ -71,7 +71,7 @@ typedef struct doll_s
 
 typedef struct
 {
-	odebody_t odebody;
+	rbebody_t odebody;
 
 //	int ownerent;	/*multiple of 12*/
 //	int flags;
@@ -100,7 +100,7 @@ typedef struct skelobject_s
 	unsigned int numbodies;
 	body_t *body;
 	int numjoints;
-	odejoint_t *joint;
+	rbejoint_t *joint;
 	doll_t *doll;
 	wedict_t *entity;	//only valid for dolls.
 #endif
@@ -293,11 +293,11 @@ typedef struct {
 	int numbones;
 	galiasbone_t *bones;
 
-	odebodyinfo_t *body;
-	odejointinfo_t *joint;
+	rbebodyinfo_t *body;
+	rbejointinfo_t *joint;
 
-	odebodyinfo_t defbody;
-	odejointinfo_t defjoint;
+	rbebodyinfo_t defbody;
+	rbejointinfo_t defjoint;
 } dollcreatectx_t;
 static dollcreatectx_t *rag_createdoll(model_t *mod, const char *fname, int numbones)
 {
@@ -1088,7 +1088,7 @@ static void rag_uninstanciate(skelobject_t *sko)
 
 	for (i = 0; i < sko->numbodies; i++)
 	{
-		World_ODE_RagDestroyBody(sko->world, &sko->body[i].odebody);
+		sko->world->rbe->RagDestroyBody(sko->world, &sko->body[i].odebody);
 	}
 	BZ_Free(sko->body);
 	sko->body = NULL;
@@ -1096,7 +1096,7 @@ static void rag_uninstanciate(skelobject_t *sko)
 
 	for (i = 0; i < sko->numjoints; i++)
 	{
-		World_ODE_RagDestroyJoint(sko->world, &sko->joint[i]);
+		sko->world->rbe->RagDestroyJoint(sko->world, &sko->joint[i]);
 	}
 	BZ_Free(sko->joint);
 	sko->joint = NULL;
@@ -1105,7 +1105,7 @@ static void rag_uninstanciate(skelobject_t *sko)
 	sko->doll->uses--;
 	sko->doll = NULL;
 }
-void rag_genbodymatrix(skelobject_t *sko, odebodyinfo_t *dollbody, float *emat, float *result)
+void rag_genbodymatrix(skelobject_t *sko, rbebodyinfo_t *dollbody, float *emat, float *result)
 {
 	float *bmat;
 	int bone = dollbody->bone;
@@ -1144,8 +1144,8 @@ qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t 
 	int numbones;
 	galiasbone_t *bones = Mod_GetBoneInfo(sko->model, &numbones);
 	int bone;
-	odebody_t *body1, *body2;
-	odejointinfo_t *j;
+	rbebody_t *body1, *body2;
+	rbejointinfo_t *j;
 	sko->numbodies = doll->numbodies;
 	sko->body = BZ_Malloc(sizeof(*sko->body) * sko->numbodies);
 	sko->doll = doll;
@@ -1164,7 +1164,7 @@ qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t 
 			Matrix3x4_Invert_Simple(bones[doll->body[i].bone].inverse, bodymat);
 		else
 			rag_genbodymatrix(sko, &doll->body[i], emat, bodymat);
-		if (!World_ODE_RagCreateBody(sko->world, &sko->body[i].odebody, &doll->body[i], bodymat, ent))
+		if (!sko->world->rbe->RagCreateBody(sko->world, &sko->body[i].odebody, &doll->body[i], bodymat, ent))
 			return false;
 	}
 	sko->numjoints = doll->numjoints;
@@ -1197,7 +1197,7 @@ qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t 
 		VectorNormalize2(j->axis, aaa2[1]);
 		VectorNormalize2(j->axis2, aaa2[2]);
 
-		World_ODE_RagCreateJoint(sko->world, &sko->joint[i], j, body1, body2, aaa2);
+		sko->world->rbe->RagCreateJoint(sko->world, &sko->joint[i], j, body1, body2, aaa2);
 	}
 
 	//now the joints have all their various properties, move the bones to their real positions.
@@ -1205,7 +1205,7 @@ qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, wedict_t 
 	for (i = 0; i < sko->numbodies; i++)
 	{
 		rag_genbodymatrix(sko, &doll->body[i], emat, bodymat);
-		World_ODE_RagMatrixToBody(&sko->body[i].odebody, bodymat);
+		sko->world->rbe->RagMatrixToBody(&sko->body[i].odebody, bodymat);
 	}
 
 	sko->doll->numdefaultanimated = sko->numanimated;
@@ -1253,7 +1253,7 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 					"}\n"
 					"}\n");
 			
-			World_ODE_RagMatrixFromBody(sko->world, &sko->body[i].odebody, bodymat);
+			sko->world->rbe->RagMatrixFromBody(sko->world, &sko->body[i].odebody, bodymat);
 
 			switch(doll->body[i].geomshape)
 			{
@@ -1283,7 +1283,7 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 		{
 			if (!doll->joint[i].draw)
 				continue;
-			World_ODE_RagMatrixFromJoint(&sko->joint[i], &doll->joint[i], bodymat);
+			sko->world->rbe->RagMatrixFromJoint(&sko->joint[i], &doll->joint[i], bodymat);
 	//		CLQ1_AddOrientedCube(debugshader, mins, maxs, bodymat, 0, 0.2, 0, 1);
 
 			if (!lineshader)
@@ -1319,7 +1319,7 @@ void rag_derive(skelobject_t *sko, skelobject_t *asko, float *emat)
 		if (doll->bone[i].bodyidx >= 0)
 		{
 			//bones with a body are given an absolute pose matching that body.
-			World_ODE_RagMatrixFromBody(sko->world, &sko->body[doll->bone[i].bodyidx].odebody, bodymat);
+			sko->world->rbe->RagMatrixFromBody(sko->world, &sko->body[doll->bone[i].bodyidx].odebody, bodymat);
 			//that body matrix is in world space, so transform to model space for our result
 			R_ConcatTransforms((void*)invemat, (void*)bodymat, (void*)((float*)bmat+i*12));
 		}
@@ -1372,7 +1372,7 @@ void rag_doallanimations(world_t *world)
 		{
 			if (!sko->body[j].animstrength)
 				continue;
-			World_ODE_RagMatrixToBody(&sko->body[j].odebody, sko->body[j].animmatrix);
+			sko->world->rbe->RagMatrixToBody(&sko->body[j].odebody, sko->body[j].animmatrix);
 		}
 	}
 }
@@ -1412,7 +1412,7 @@ void rag_updatedeltaent(entity_t *ent, lerpents_t *le)
 	if (mod->dollinfo)
 	{
 		w = &csqc_world;
-		if (!w->ode.ode)
+		if (!w->rbe)
 			return;
 
 		if (!le->skeletalobject)
@@ -1508,9 +1508,9 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		return;
 	}
 
-	if (!sko->world->ode.ode)
+	if (!sko->world->rbe)
 	{
-		Con_DPrintf("PF_skel_ragedit: ODE not enabled\n");
+		Con_DPrintf("PF_skel_ragedit: rigid body system not enabled\n");
 		return;
 	}
 
@@ -1531,7 +1531,7 @@ void QCBUILTIN PF_skel_ragedit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		{
 			int idx = rag_finddolljoint(sko->doll, Cmd_Argv(1));
 			int enable = atoi(Cmd_Argv(2));
-			World_ODE_RagEnableJoint(&sko->joint[idx], enable);
+			sko->world->rbe->RagEnableJoint(&sko->joint[idx], enable);
 			G_FLOAT(OFS_RETURN) = 1;
 			return;
 		}
@@ -2141,6 +2141,7 @@ void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	world_t *w = prinst->parms->user;
 	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
 	int tagnum = G_FLOAT(OFS_PARM1);
+	int chain = 10;
 
 	int modelindex = ent->v->modelindex;
 
@@ -2149,6 +2150,7 @@ void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	float transent[12];
 	float transforms[12];
 	float result[12];
+	float result2[12];
 
 	framestate_t fstate;
 
@@ -2159,16 +2161,21 @@ void QCBUILTIN PF_gettaginfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		bonemat_fromidentity(transforms);
 	}
 
-	if (ent->xv->tag_entity)
-	{
-#ifdef warningmsg
-		#pragma warningmsg("PF_gettaginfo: This function doesn't honour attachments")
-#endif
-		Con_Printf("bug: PF_gettaginfo doesn't support attachments\n");
-	}
-
 	bonemat_fromentity(w, ent, transent);
 	R_ConcatTransforms((void*)transent, (void*)transforms, (void*)result);
+
+	while (ent->xv->tag_entity && chain --> 0)
+	{
+		w->Get_FrameState(w, ent, &fstate);
+		if (!Mod_GetTag(mod, tagnum, &fstate, transforms))
+			bonemat_fromidentity(transforms);
+
+		bonemat_fromentity(w, ent, transent);
+		R_ConcatTransforms((void*)transforms, (void*)result, (void*)result2);
+		R_ConcatTransforms((void*)transent, (void*)result2, (void*)result);
+
+		ent = PROG_TO_WEDICT(prinst, ent->xv->tag_entity);
+	}
 
 	bonemat_toqcvectors(result, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
 }

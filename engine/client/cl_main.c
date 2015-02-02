@@ -1247,7 +1247,7 @@ CL_ClearState
 */
 void CL_ClearState (void)
 {
-	int			i;
+	int			i, j;
 #ifndef CLIENTONLY
 #define serverrunning (sv.state != ss_dead)
 #define tolocalserver NET_IsLoopBackAddress(&cls.netchan.remote_address)
@@ -1311,6 +1311,12 @@ void CL_ClearState (void)
 			if (cl.particle_ssname[i])
 				free(cl.particle_ssname[i]);
 	}
+	if (cl.particle_csprecaches)
+	{
+		for (i = 0; i < MAX_CSPARTICLESPRE; i++)
+			if (cl.particle_csname[i])
+				free(cl.particle_csname[i]);
+	}
 
 	{
 		downloadlist_t *next;
@@ -1326,6 +1332,13 @@ void CL_ClearState (void)
 			Z_Free(cl.faileddownloads);
 			cl.faileddownloads = next;
 		}
+	}
+
+	for (i = 0; i < MAX_SPLITS; i++)
+	{
+		for (j = 0; j < MAX_CL_STATS; j++)
+			if (cl.playerview[i].statsstr[j])
+				Z_Free(cl.playerview[i].statsstr[j]);
 	}
 
 // wipe the entire cl structure
@@ -3953,7 +3966,7 @@ typedef struct {
 
 int waitingformanifest;
 void Host_DoRunFile(hrf_t *f);
-void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *, char *filename, int demotype, float bufferdelay);
+void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *, char *filename, qboolean issyspath, int demotype, float bufferdelay);
 void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name);
 
 void Host_RunFileDownloaded(struct dl_download *dl)
@@ -4031,12 +4044,12 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 	}
 
 	if (f->flags & HRF_DEMO_QWD)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_QUAKEWORLD, 0);
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, true, DPB_QUAKEWORLD, 0);
 	else if (f->flags & HRF_DEMO_MVD)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_MVD, 0);
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, true, DPB_MVD, 0);
 #ifdef Q2CLIENT
 	else if (f->flags & HRF_DEMO_DM2)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, DPB_QUAKE2, 0);
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open()), dl, f->fname, true, DPB_QUAKE2, 0);
 #endif
 #ifdef NQPROT
 //fixme: the demo code can't handle the cd track like this.

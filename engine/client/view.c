@@ -1206,8 +1206,8 @@ void V_ClearRefdef(playerview_t *pv)
 
 	r_refdef.grect.x = 0;
 	r_refdef.grect.y = 0;
-	r_refdef.grect.width = vid.width;
-	r_refdef.grect.height = vid.height;
+	r_refdef.grect.width = vid.fbvwidth;//vid.width;
+	r_refdef.grect.height = vid.fbvheight;//vid.height;
 
 	r_refdef.afov = scr_fov.value;	//will have a better value applied if fov is bad. this allows setting.
 	r_refdef.fov_x = 0;
@@ -1404,8 +1404,8 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	switch(cl.splitclients)
 	{
 	case 1:
-		vrect->width = vid.width;
-		vrect->height = vid.height;
+		vrect->width = vid.fbvwidth;
+		vrect->height = vid.fbvheight;
 		vrect->x = 0;
 		vrect->y = 0;
 
@@ -1423,8 +1423,8 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 			&& ffov.value >= 0 /*panoramic view always stacks player views*/
 			)
 		{	//over twice as wide as high, assume dual moniter, horizontal.
-			vrect->width = vid.width/cl.splitclients;
-			vrect->height = vid.height;
+			vrect->width = vid.fbvwidth/cl.splitclients;
+			vrect->height = vid.fbvheight;
 			vrect->x = 0 + vrect->width*pnum;
 			vrect->y = 0;
 		}
@@ -1432,8 +1432,8 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 #endif
 		{
 			//stack them vertically
-			vrect->width = vid.width;
-			vrect->height = vid.height/cl.splitclients;
+			vrect->width = vid.fbvwidth;
+			vrect->height = vid.fbvheight/cl.splitclients;
 			vrect->x = 0;
 			vrect->y = 0 + vrect->height*pnum;
 		}
@@ -1441,8 +1441,8 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 		break;
 
 	case 4:	//4 squares
-		vrect->width = vid.width/2;
-		vrect->height = vid.height/2;
+		vrect->width = vid.fbvwidth/2;
+		vrect->height = vid.fbvheight/2;
 		vrect->x = (pnum&1) * vrect->width;
 		vrect->y = (pnum&2)/2 * vrect->height;
 		break;
@@ -1503,7 +1503,8 @@ void R_DrawNameTags(void)
 				int buflen;
 				int x, y;
 
-				buflen = 0;
+				sprintf(asciibuffer, "entity %i ", e->entnum);
+				buflen = strlen(asciibuffer);
 				entstr = w->progs->saveent(w->progs, asciibuffer, &buflen, sizeof(asciibuffer), (edict_t*)e);	//will save just one entities vars
 				if (entstr)
 				{

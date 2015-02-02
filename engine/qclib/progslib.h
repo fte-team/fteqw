@@ -53,6 +53,7 @@ typedef struct {
 } evalc_t;
 #define sizeofevalc sizeof(evalc_t)
 typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_variant, ev_struct, ev_union, ev_accessor} etype_t;
+enum {DEBUG_TRACE_OFF, DEBUG_TRACE_INTO, DEBUG_TRACE_OVER, DEBUG_TRACE_UNBREAK, DEBUG_TRACE_OUT, DEBUG_TRACE_ABORT, DEBUG_TRACE_NORESUME};
 
 typedef struct fdef_s
 {
@@ -72,7 +73,7 @@ struct pubprogfuncs_s
 	void	(PDECL *CloseProgs)					(pubprogfuncs_t *inst);
 
 	void	(PDECL *Configure)					(pubprogfuncs_t *prinst, size_t addressablesize, int max_progs, pbool enableprofiling);		//configure buffers and memory. Used to reset and must be called first. Flushes a running VM.
-	progsnum_t	(PDECL *LoadProgs)				(pubprogfuncs_t *prinst, const char *s, builtin_t *builtins, int numbuiltins);	//load a progs
+	progsnum_t	(PDECL *LoadProgs)				(pubprogfuncs_t *prinst, const char *s);	//load a progs
 	int		(PDECL *InitEnts)					(pubprogfuncs_t *prinst, int max_ents);	//returns size of edicts for use with nextedict macro
 	void	(PDECL *ExecuteProgram)				(pubprogfuncs_t *prinst, func_t fnum);	//start execution
 	struct globalvars_s	*(PDECL *globals)		(pubprogfuncs_t *prinst, progsnum_t num);	//get the globals of a progs
@@ -116,7 +117,7 @@ struct pubprogfuncs_s
 
 	char	*(PDECL *EvaluateDebugString)		(pubprogfuncs_t *prinst, char *key);	//evaluate a string and return it's value (according to current progs) (expands edict vars)
 
-	int		pr_trace;	//start calling the editor for each line executed	
+	int		debug_trace;	//start calling the editor for each line executed	
 
 	void	(PDECL *StackTrace)					(pubprogfuncs_t *prinst, int showlocals);
 	
@@ -140,7 +141,7 @@ struct pubprogfuncs_s
 	void	(PDECL *RunThread)					(pubprogfuncs_t *prinst, struct qcthread_s *thread);
 	void	(PDECL *AbortStack)					(pubprogfuncs_t *prinst);	//annigilates the current stack, positioning on a return statement. It is expected that this is only used via a builtin!
 
-	int lastcalledbuiltinnumber;			//useful with non-implemented opcodes.
+	pbool	(PDECL *GetBuiltinCallInfo)			(pubprogfuncs_t *prinst, int *builtinnum, char *function, size_t sizeoffunction);	//call to query the qc's name+index for the builtin
 
 	int (PDECL *RegisterFieldVar)				(pubprogfuncs_t *prinst, unsigned int type, char *name, signed long requestedpos, signed long originalofs);
 
@@ -195,14 +196,14 @@ typedef struct progexterns_s {
 
 
 	//used when loading a game
-	builtin_t *(PDECL *builtinsfor)		(int num, int headercrc);	//must return a pointer to the builtins that were used before the state was saved.
+	int (PDECL *MapNamedBuiltin)		(pubprogfuncs_t *prinst, int headercrc, const char *builtinname);	//return 0 for not found.
 	void (PDECL *loadcompleate)			(int edictsize);	//notification to reset any pointers.
 	pbool (PDECL *badfield)				(pubprogfuncs_t *prinst, struct edict_s *ent, const char *keyname, const char *value);	//called for any fields that are not registered
 
 	void *(VARGS *memalloc)				(int size);	//small string allocation	malloced and freed randomly by the executor. (use malloc if you want)
 	void (VARGS *memfree)				(void * mem);
 
-	int (PDECL *useeditor)				(pubprogfuncs_t *prinst, char *filename, int line, int statement, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
+	int (PDECL *useeditor)				(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason);	//called on syntax errors or step-by-step debugging. line and statement(if line was set to 0) can be used to change the next line. return value is the new debug state to use/step.
 	void (PDECL *addressablerelocated)	(pubprogfuncs_t *progfuncs, char *oldb, char *newb, int oldlen);	//called when the progs memory was resized. you must fix up all pointers to globals, strings, fields, addressable blocks.
 
 	builtin_t *globalbuiltins;	//these are available to all progs
@@ -243,7 +244,7 @@ typedef union eval_s
 
 #ifndef DLL_PROG
 #define PR_Configure(pf, memsize, max_progs, profiling)		(*pf->Configure)			(pf, memsize, max_progs, profiling)
-#define PR_LoadProgs(pf, s, builtins, numb)					(*pf->LoadProgs)			(pf, s, builtins, numb)
+#define PR_LoadProgs(pf, s)									(*pf->LoadProgs)			(pf, s)
 #define PR_InitEnts(pf, maxents)							(*pf->InitEnts)				(pf, maxents)
 #define PR_ExecuteProgram(pf, fnum)							(*pf->ExecuteProgram)		(pf, fnum)
 #define PR_globals(pf, num)									(*pf->globals)				(pf, num)

@@ -604,7 +604,7 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 {
 	int flags = 0;
 
-	while (name)
+	for(;name;)
 	{
 		if (!Q_strnicmp(*name, "$rt:", 4))
 		{
@@ -639,7 +639,7 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 			pass->flags |= SHADER_PASS_LINEAR;
 		}
 		else
-			name = NULL;
+			break;
 	}
 
 //	if (shader->flags & SHADER_SKY)
@@ -1844,6 +1844,47 @@ static void Shader_DiffuseMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 	token = Shader_ParseString(ptr);
 	shader->defaulttextures.base = R_LoadHiResTexture(token, NULL, 0);
 }
+static void Shader_SpecularMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token;
+	token = Shader_ParseString(ptr);
+	shader->defaulttextures.specular = R_LoadHiResTexture(token, NULL, 0);
+}
+static void Shader_BumpMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token;
+	token = Shader_ParseString(ptr);
+	shader->defaulttextures.bump = R_LoadHiResTexture(token, NULL, 0);
+}
+static void Shader_FullbrightMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token;
+	token = Shader_ParseString(ptr);
+	shader->defaulttextures.fullbright = R_LoadHiResTexture(token, NULL, 0);
+}
+static void Shader_UpperMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token;
+	token = Shader_ParseString(ptr);
+	shader->defaulttextures.upperoverlay = R_LoadHiResTexture(token, NULL, 0);
+}
+static void Shader_LowerMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token;
+	token = Shader_ParseString(ptr);
+	shader->defaulttextures.loweroverlay = R_LoadHiResTexture(token, NULL, 0);
+}
+
+static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *tname);
+static void Shader_ProgMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	//fixme
+//	Shaderpass_BlendFunc (shader, pass, ptr);
+}
+static void Shader_ProgBlendFunc(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	//fixme
+}
 
 static void Shader_Translucent(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -1971,8 +2012,11 @@ static shaderkey_t shaderkeys[] =
 
 	/*doom3 compat*/
 	{"diffusemap",		Shader_DiffuseMap},	//macro for "{\nstage diffusemap\nmap <map>\n}"
-	{"bumpmap",			NULL},				//macro for "{\nstage bumpmap\nmap <map>\n}"
-	{"specularmap",		NULL},				//macro for "{\nstage specularmap\nmap <map>\n}"
+	{"bumpmap",			Shader_BumpMap},	//macro for "{\nstage bumpmap\nmap <map>\n}"
+	{"specularmap",		Shader_SpecularMap},//macro for "{\nstage specularmap\nmap <map>\n}"
+	{"fullbrightmap",	Shader_FullbrightMap},//macro for "{\nstage specularmap\nmap <map>\n}"
+	{"uppermap",		Shader_UpperMap},//macro for "{\nstage specularmap\nmap <map>\n}"
+	{"lowermap",		Shader_LowerMap},//macro for "{\nstage specularmap\nmap <map>\n}"
 	{"discrete",		NULL},
 	{"nonsolid",		NULL},
 	{"noimpact",		NULL},
@@ -1980,6 +2024,10 @@ static shaderkey_t shaderkeys[] =
 	{"noshadows",		NULL},
 	{"nooverlays",		NULL},
 	{"nofragment",		NULL},
+
+	/*simpler parsing for fte shaders*/
+	{"progblendfunc",	Shader_ProgBlendFunc},
+	{"progmap",			Shader_ProgMap},
 
 	{NULL,				NULL}
 };
@@ -2018,6 +2066,7 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	else if (!Q_stricmp (tname, "$diffuse"))
 	{
 		pass->texgen = T_GEN_DIFFUSE;
+		shader->flags |= SHADER_HASDIFFUSE;
 	}
 	else if (!Q_stricmp (tname, "$normalmap"))
 	{
@@ -2110,6 +2159,7 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 	pass->anim_frames[0] = r_nulltex;
 
 	token = Shader_ParseString (ptr);
+
 	flags = Shader_SetImageFlags (shader, pass, &token);
 	if (!Shaderpass_MapGen(shader, pass, token))
 	{
@@ -2128,6 +2178,8 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 
 		if (pass->tcgen == TC_GEN_UNSPECIFIED)
 			pass->tcgen = TC_GEN_BASE;
+		if (!*shader->mapname && pass->tcgen == TC_GEN_BASE)
+			Q_strncpyz(shader->mapname, token, sizeof(shader->mapname));
 		pass->anim_frames[0] = Shader_FindImage (token, flags);
 	}
 }
@@ -2854,7 +2906,7 @@ void Shader_Free (shader_t *shader)
 
 
 
-int QDECL Shader_InitCallback (const char *name, qofs_t size, void *param, searchpathfuncs_t *spath)
+int QDECL Shader_InitCallback (const char *name, qofs_t size, time_t mtime, void *param, searchpathfuncs_t *spath)
 {
 	Shader_MakeCache(name);
 	return true;
@@ -3288,12 +3340,12 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		case ST_BUMPMAP:
 			if (pass->texgen == T_GEN_SINGLEMAP)
 				shader->defaulttextures.bump = pass->anim_frames[0];
-			ignore = true;
+			ignore = true;	//fixme: scrolling etc may be important. but we're not doom3.
 			break;
 		case ST_SPECULARMAP:
 			if (pass->texgen == T_GEN_SINGLEMAP)
 				shader->defaulttextures.specular = pass->anim_frames[0];
-			ignore = true;
+			ignore = true;	//fixme: scrolling etc may be important. but we're not doom3.
 			break;
 		}
 	}
@@ -3526,6 +3578,7 @@ void Shader_Programify (shader_t *s)
 	s->prog = Shader_FindGeneric(va("%s%s", prog, mask), qrenderer);
 	s->numpasses = 0;
 	s->passes[s->numpasses++].texgen = T_GEN_DIFFUSE;
+	s->flags |= SHADER_HASDIFFUSE;
 
 	if (modellighting)
 	{
@@ -3534,6 +3587,7 @@ void Shader_Programify (shader_t *s)
 		s->passes[s->numpasses++].texgen = T_GEN_FULLBRIGHT;
 		s->passes[s->numpasses++].texgen = T_GEN_NORMALMAP;
 		s->passes[s->numpasses++].texgen = T_GEN_SPECULAR;
+		s->flags |= SHADER_HASTOPBOTTOM | SHADER_HASFULLBRIGHT | SHADER_HASNORMALMAP | SHADER_HASGLOSS;
 	}
 	else if (lightmap)
 	{
@@ -3542,6 +3596,7 @@ void Shader_Programify (shader_t *s)
 		s->passes[s->numpasses++].texgen = T_GEN_DELUXMAP;
 		s->passes[s->numpasses++].texgen = T_GEN_FULLBRIGHT;
 		s->passes[s->numpasses++].texgen = T_GEN_SPECULAR;
+		s->flags |= SHADER_HASFULLBRIGHT | SHADER_HASNORMALMAP | SHADER_HASGLOSS;
 	}
 }
 
@@ -3942,6 +3997,23 @@ void Shader_UpdateRegistration (void)
 }
 */
 
+/*
+	if (*shader_diffusemapname)
+	{
+		if (!s->defaulttextures.base)
+			s->defaulttextures.base = Shader_FindImage (va("%s.tga", shader_diffusemapname), 0);
+		if (!s->defaulttextures.bump)
+			s->defaulttextures.bump = Shader_FindImage (va("%s_norm.tga", shader_diffusemapname), 0);
+		if (!s->defaulttextures.fullbright)
+			s->defaulttextures.fullbright = Shader_FindImage (va("%s_glow.tga", shader_diffusemapname), 0);
+		if (!s->defaulttextures.specular)
+			s->defaulttextures.specular = Shader_FindImage (va("%s_gloss.tga", shader_diffusemapname), 0);
+		if (!s->defaulttextures.upperoverlay)
+			s->defaulttextures.upperoverlay = Shader_FindImage (va("%s_shirt.tga", shader_diffusemapname), 0);
+		if (!s->defaulttextures.loweroverlay)
+			s->defaulttextures.loweroverlay = Shader_FindImage (va("%s_pants.tga", shader_diffusemapname), 0);	//stupid yanks...
+	}
+*/
 void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args);
 void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 {
@@ -3962,10 +4034,10 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 	if (!TEXVALID(shader->defaulttextures.base))
 	{
 		/*dlights/realtime lighting needs some stuff*/
+		if (!TEXVALID(tn->base) && *shader->mapname)// && (shader->flags & SHADER_HASDIFFUSE))
+			tn->base = R_LoadHiResTexture(shader->mapname, NULL, 0);
 		if (!TEXVALID(tn->base))
-		{
 			tn->base = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA);
-		}
 
 		TEXASSIGN(shader->defaulttextures.base, tn->base);
 	}
@@ -3974,8 +4046,10 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 
 	if (!TEXVALID(shader->defaulttextures.bump))
 	{
-		if (r_loadbumpmapping)
+		if (r_loadbumpmapping || (shader->flags & SHADER_HASNORMALMAP))
 		{
+			if (!TEXVALID(tn->bump) && *shader->mapname && (shader->flags & SHADER_HASNORMALMAP))
+				tn->bump = R_LoadHiResTexture(va("%s_norm", shader->mapname), NULL, IF_TRYBUMP);
 			if (!TEXVALID(tn->bump))
 				tn->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, IF_TRYBUMP);
 		}
@@ -3986,6 +4060,8 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 	{
 		if (shader->flags & SHADER_HASTOPBOTTOM)
 		{
+			if (!TEXVALID(tn->loweroverlay) && *shader->mapname)
+				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->mapname), NULL, 0);
 			if (!TEXVALID(tn->loweroverlay))
 				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", imagename), subpath, 0);	/*how rude*/
 		}
@@ -3996,6 +4072,8 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 	{
 		if (shader->flags & SHADER_HASTOPBOTTOM)
 		{
+			if (!TEXVALID(tn->upperoverlay) && *shader->mapname)
+				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->mapname), NULL, 0);
 			if (!TEXVALID(tn->upperoverlay))
 				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", imagename), subpath, 0);
 		}
@@ -4007,6 +4085,8 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		extern cvar_t gl_specular;
 		if ((shader->flags & SHADER_HASGLOSS) && gl_specular.value && gl_load24bit.value)
 		{
+			if (!TEXVALID(tn->specular) && *shader->mapname)
+				tn->specular = R_LoadHiResTexture(va("%s_gloss", shader->mapname), NULL, 0);
 			if (!TEXVALID(tn->specular))
 				tn->specular = R_LoadHiResTexture(va("%s_gloss", imagename), subpath, 0);
 		}
@@ -4018,8 +4098,10 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		extern cvar_t r_fb_bmodels;
 		if ((shader->flags & SHADER_HASFULLBRIGHT) && r_fb_bmodels.value && gl_load24bit.value)
 		{
+			if (!TEXVALID(tn->fullbright) && *shader->mapname)
+				tn->fullbright = R_LoadHiResTexture(va("%s_luma", shader->mapname), NULL, 0);
 			if (!TEXVALID(tn->fullbright))
-				tn->specular = R_LoadHiResTexture(va("%s_luma", imagename), subpath, 0);
+				tn->fullbright = R_LoadHiResTexture(va("%s_luma", imagename), subpath, 0);
 		}
 		TEXASSIGN(shader->defaulttextures.fullbright, tn->fullbright);
 	}
@@ -4730,24 +4812,41 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 {
 	if (Shader_ParseShader("default2d", s))
 		return;
-	Shader_DefaultScript(shortname, s,
-		"{\n"
-			"if $nofixed\n"
-				"program default2d\n"
-			"endif\n"
-			"affine\n"
-			"nomipmaps\n"
+	if (sh_config.progs_supported)
+	{
+		//hexen2 needs premultiplied alpha to avoid looking ugly
+		//but that results in problems where things are drawn with alpha not 0, so scale vertex colour by alpha in the fragment program
+		Shader_DefaultScript(shortname, s,
 			"{\n"
-				"clampmap $diffuse\n"
-				"rgbgen vertex\n"
-				"alphagen vertex\n"
-				"blendfunc gl_one gl_one_minus_src_alpha\n"
+				"affine\n"
+				"nomipmaps\n"
+				"program default2d#PREMUL\n"
+				"{\n"
+				"map $diffuse\n"
+				"blend gl_one gl_one_minus_src_alpha\n"
+				"}\n"
+				"sort additive\n"
 			"}\n"
-			"sort additive\n"
-		"}\n"
-		);
-
-	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(s->name, NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+			);
+		TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(s->name, NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+	}
+	else
+	{
+		Shader_DefaultScript(shortname, s,
+			"{\n"
+				"affine\n"
+				"nomipmaps\n"
+				"{\n"
+					"clampmap $diffuse\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+					"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+				"}\n"
+				"sort additive\n"
+			"}\n"
+			);
+		TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(s->name, NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+	}
 }
 
 qboolean Shader_ReadShaderTerms(shader_t *s, char **shadersource, int parsemode, int *conddepth, int maxconddepth, int *cond)

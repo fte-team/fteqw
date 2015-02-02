@@ -275,6 +275,8 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 				{
 					switch (master->protocol)
 					{
+					case MP_UNSPECIFIED:
+					case MP_NETQUAKE:
 					case MP_DPMASTER:	na->port = BigShort (27950);	break;
 					case MP_QUAKE2:		na->port = BigShort (27000);	break;	//FIXME: verify
 					case MP_QUAKE3:		na->port = BigShort (27950);	break;

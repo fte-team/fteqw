@@ -499,7 +499,15 @@ qboolean Sys_Rename (char *oldfname, char *newfname)
 	return !rename(oldfname, newfname);
 }
 
-static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+static time_t Sys_FileTimeToTime(FILETIME ft)
+{
+	ULARGE_INTEGER ull;
+	ull.LowPart = ft.dwLowDateTime;
+	ull.HighPart = ft.dwHighDateTime;
+	return ull.QuadPart / 10000000ULL - 11644473600ULL;
+}
+
+static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	qboolean go;
 	if (!WinNT)
@@ -587,7 +595,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 2 < MAX_OSPATH)
 						{
 							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, fd.cFileName);
-							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
 						}
 					}
 				}
@@ -598,7 +606,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						if (strlen(tmproot+matchstart) + strlen(fd.cFileName) + 1 < MAX_OSPATH)
 						{
 							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, fd.cFileName);
-							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
 						}
 					}
 				}
@@ -702,7 +710,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						if (strlen(tmproot+matchstart) + strlen(utf8) + 2 < MAX_OSPATH)
 						{
 							Q_snprintfz(file, sizeof(file), "%s%s/", tmproot+matchstart, utf8);
-							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
 						}
 					}
 				}
@@ -713,7 +721,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						if (strlen(tmproot+matchstart) + strlen(utf8) + 1 < MAX_OSPATH)
 						{
 							Q_snprintfz(file, sizeof(file), "%s%s", tmproot+matchstart, utf8);
-							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), parm, spath);
+							go = func(file, qofs_Make(fd.nFileSizeLow, fd.nFileSizeHigh), Sys_FileTimeToTime(fd.ftLastWriteTime), parm, spath);
 						}
 					}
 				}
@@ -723,7 +731,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 	}
 	return go;
 }
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	char fullmatch[MAX_OSPATH];
 	int start;

@@ -442,6 +442,29 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 
 	BE_DrawMesh_Single(pic, &draw_mesh, NULL, &pic->defaulttextures, r2d_be_flags);
 }
+void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
+{
+	int i;
+	if (!pic)
+		return;
+
+	//don't draw pics if they have an image which is still loading.
+	for (i = 0; i < pic->numpasses; i++)
+	{
+		if (pic->passes[i].texgen == T_GEN_SINGLEMAP && pic->passes[i].anim_frames[0] && pic->passes[i].anim_frames[0]->status == TEX_LOADING)
+			return;
+		if (pic->passes[i].texgen == T_GEN_DIFFUSE && pic->defaulttextures.base && pic->defaulttextures.base->status == TEX_LOADING)
+			return;
+	}
+
+	for (i = 0; i < 4; i++)
+	{
+		Vector2Copy(points[i], draw_mesh_xyz[i]);
+		Vector2Copy(texcoords[i], draw_mesh_st[i]);
+	}
+
+	BE_DrawMesh_Single(pic, &draw_mesh, NULL, &pic->defaulttextures, r2d_be_flags);
+}
 
 /*draws a block of the current colour on the screen*/
 void R2D_FillBlock(float x, float y, float w, float h)

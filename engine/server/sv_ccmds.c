@@ -343,7 +343,7 @@ static void SV_Give_f (void)
 	}
 }
 
-static int QDECL ShowMapList (const char *name, qofs_t flags, void *parm, searchpathfuncs_t *spath)
+static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	char stripped[64];
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
@@ -1409,7 +1409,7 @@ static void SV_WriteIP_f (void)
 
 	Con_Printf ("Writing %s.\n", name);
 
-	f = FS_OpenVFS(name, "wb", FS_GAME);
+	f = FS_OpenVFS(name, "wb", FS_GAMEONLY);
 	if (!f)
 	{
 		Con_Printf ("Couldn't open %s\n", name);

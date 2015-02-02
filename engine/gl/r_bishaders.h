@@ -477,7 +477,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_t0;\n"
 "void main ()\n"
 "{\n"
-"gl_FragColor = texture2D(s_t0, tc) * vc;\n"
+"vec4 f = vc;\n"
+"#ifdef PREMUL\n"
+"f.rgb *= f.a;\n"
+"#endif\n"
+"f *= texture2D(s_t0, tc);\n"
+"gl_FragColor = f;\n"
 "}\n"
 "#endif\n"
 },

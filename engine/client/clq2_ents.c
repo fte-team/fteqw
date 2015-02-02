@@ -1274,7 +1274,8 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 // pmm
 //======
 		ent.framestate.g[FS_REG].frame[1] = cent->prev.frame;
-		ent.framestate.g[FS_REG].lerpfrac = cl.lerpfrac;
+		ent.framestate.g[FS_REG].lerpweight[0] = 1-cl.lerpfrac;
+		ent.framestate.g[FS_REG].lerpweight[1] = cl.lerpfrac;
 
 		if (renderfx & (Q2RF_FRAMELERP|Q2RF_BEAM))
 		{	// step origin discretely, because the frames
@@ -1302,7 +1303,8 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.shaderRGBAf[2] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >> 16) & 0xFF)/255.0;
 			ent.shaderRGBAf[3] = 0.30;
 			ent.model = NULL;
-			ent.framestate.g[FS_REG].lerpfrac = 1;
+			ent.framestate.g[FS_REG].lerpweight[0] = 0;
+			ent.framestate.g[FS_REG].lerpweight[1] = 1;
 			ent.rtype = RT_BEAM;
 		}
 		else
@@ -1456,13 +1458,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 //pmm
 
 		/*lerp the ent now*/
-		fwds = ent.framestate.g[FS_REG].lerpfrac;
-		back = 1 - ent.framestate.g[FS_REG].lerpfrac;
+		fwds = ent.framestate.g[FS_REG].lerpweight[1];
+		back = ent.framestate.g[FS_REG].lerpweight[0];
 		for (i = 0; i < 3; i++)
 		{
 			ent.origin[i] = ent.origin[i]*fwds + ent.oldorigin[i]*back;
 		}
-		ent.framestate.g[FS_REG].lerpfrac = back;
+		ent.framestate.g[FS_REG].lerpweight[0] = fwds;
+		ent.framestate.g[FS_REG].lerpweight[1] = back;
 
 		// add to refresh list
 		V_AddEntity (&ent);
@@ -1821,7 +1824,8 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	gun.playerindex = -1;
 
 	gun.flags = Q2RF_MINLIGHT | RF_DEPTHHACK | RF_WEAPONMODEL;
-	gun.framestate.g[FS_REG].lerpfrac = 1-cl.lerpfrac;
+	gun.framestate.g[FS_REG].lerpweight[0] = cl.lerpfrac;
+	gun.framestate.g[FS_REG].lerpweight[1] = 1-cl.lerpfrac;
 	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
 	V_AddEntity (&gun);
 }

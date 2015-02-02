@@ -133,7 +133,7 @@ static unsigned int QDECL FSPAK_FLocate(searchpathfuncs_t *handle, flocation_t *
 	}
 	return FF_NOTFOUND;
 }
-static int QDECL FSPAK_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL FSPAK_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *spath), void *parm)
 {
 	pack_t	*pak = (pack_t*)handle;
 	int		num;
@@ -142,7 +142,8 @@ static int QDECL FSPAK_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 	{
 		if (wildcmp(match, pak->files[num].name))
 		{
-			if (!func(pak->files[num].name, pak->files[num].filelen, parm, handle))
+			//FIXME: time 0? maybe use the pak's mtime?
+			if (!func(pak->files[num].name, pak->files[num].filelen, 0, parm, handle))
 				return false;
 		}
 	}

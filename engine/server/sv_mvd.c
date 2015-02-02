@@ -682,7 +682,7 @@ typedef struct
 #define SORT_NO 0
 #define SORT_BY_DATE 1
 
-int QDECL Sys_listdirFound(const char *fname, qofs_t fsize, void *uptr, searchpathfuncs_t *spath)
+int QDECL Sys_listdirFound(const char *fname, qofs_t fsize, time_t mtime, void *uptr, searchpathfuncs_t *spath)
 {
 	file_t *f;
 	dir_t *dir = uptr;

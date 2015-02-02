@@ -162,18 +162,6 @@ float	anglemod(float a)
 
 /*
 ==================
-BOPS_Error
-
-Split out like this for ASM to call.
-==================
-*/
-void VARGS BOPS_Error (void)
-{
-	Sys_Error ("BoxOnPlaneSide:  Bad signbits");
-}
-
-/*
-==================
 BoxOnPlaneSide
 
 Returns 1, 2, or 1 + 2
@@ -200,6 +188,7 @@ int VARGS BoxOnPlaneSide (vec3_t emins, vec3_t emaxs, mplane_t *p)
 // general case
 	switch (p->signbits)
 	{
+	default:
 	case 0:
 dist1 = p->normal[0]*emaxs[0] + p->normal[1]*emaxs[1] + p->normal[2]*emaxs[2];
 dist2 = p->normal[0]*emins[0] + p->normal[1]*emins[1] + p->normal[2]*emins[2];
@@ -231,10 +220,6 @@ dist2 = p->normal[0]*emins[0] + p->normal[1]*emaxs[1] + p->normal[2]*emaxs[2];
 	case 7:
 dist1 = p->normal[0]*emins[0] + p->normal[1]*emins[1] + p->normal[2]*emins[2];
 dist2 = p->normal[0]*emaxs[0] + p->normal[1]*emaxs[1] + p->normal[2]*emaxs[2];
-		break;
-	default:
-		dist1 = dist2 = 0;		// shut up compiler
-		BOPS_Error ();
 		break;
 	}
 
@@ -313,7 +298,7 @@ void VectorVectors(const vec3_t forward, vec3_t right, vec3_t up)
 	CrossProduct(right, forward, up);
 }
 
-void VectorAngles(float *forward, float *up, float *result)	//up may be NULL
+void QDECL VectorAngles(float *forward, float *up, float *result)	//up may be NULL
 {
 	float	yaw, pitch, roll;	
 
@@ -666,7 +651,7 @@ void FloorDivMod (double numer, double denom, int *quotient,
 	int		q, r;
 	double	x;
 
-#ifndef PARANOID
+#ifdef PARANOID
 	if (denom <= 0.0)
 		Sys_Error ("FloorDivMod: bad denominator %f\n", denom);
 

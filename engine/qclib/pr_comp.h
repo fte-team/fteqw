@@ -222,7 +222,7 @@ enum qcop_e {
 
 	OP_DIV_VF,
 
-	OP_XOR_I,		//140
+	OP_BITXOR_I,		//140
 	OP_RSHIFT_I,
 	OP_LSHIFT_I,
 
@@ -365,8 +365,8 @@ enum qcop_e {
 	OP_LOADA_STRUCT,
 	OP_STOREP_P,
 
-	OP_BINARYNOT_F,
-	OP_BINARYNOT_I,
+	OP_BITNOT_F,
+	OP_BITNOT_I,
 
 	OP_EQ_P,
 	OP_NE_P,
@@ -392,6 +392,10 @@ enum qcop_e {
 	OP_MOD_F,
 	OP_MOD_I,
 	OP_MOD_V,
+
+	OP_BITXOR_F,		//140
+	OP_RSHIFT_F,
+	OP_LSHIFT_F,
 
 	OP_NUMOPS
 };

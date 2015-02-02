@@ -224,7 +224,7 @@ static qboolean QDECL FSSTDIO_PollChanges(searchpathfuncs_t *handle)
 //	stdiopath_t *np = handle;
 	return true;	//can't verify that or not, so we have to assume the worst
 }
-static int QDECL FSSTDIO_RebuildFSHash(const char *filename, qofs_t filesize, void *data, searchpathfuncs_t *spath)
+static int QDECL FSSTDIO_RebuildFSHash(const char *filename, qofs_t filesize, time_t mtime, void *data, searchpathfuncs_t *spath)
 {
 	stdiopath_t *sp = (void*)spath;
 	void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle) = data;
@@ -310,7 +310,7 @@ static void QDECL FSSTDIO_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, 
 
 	fclose(f);
 }
-static int QDECL FSSTDIO_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t *spath), void *parm)
+static int QDECL FSSTDIO_EnumerateFiles (searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *spath), void *parm)
 {
 	stdiopath_t *sp = (stdiopath_t*)handle;
 	return Sys_EnumerateFiles(sp->rootpath, match, func, parm, handle);

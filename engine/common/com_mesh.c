@@ -1116,7 +1116,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 
 #ifdef SKELETALMODELS
 /*
-	returns the up-to-4 skeletal bone poses to blend together.
+	returns the up-to-8 skeletal bone poses to blend together.
 	return value is the number of blends that are actually live.
 */
 typedef struct
@@ -1124,85 +1124,86 @@ typedef struct
 	skeltype_t	skeltype;	//the skeletal type of this bone block. all blocks should have the same result or the whole thing is unusable or whatever.
 	int			firstbone;	//first bone of interest
 	int			endbone;	//the first bone of the next group (ie: if first is 0, this is the count)
-	float		frac[4];	//weight of this animation (1 if lerpcount is 1)
-	float		*pose[4];	//pointer to the raw frame data for bone 0.
+	float		frac[8];	//weight of this animation (1 if lerpcount is 1)
+	float		*pose[8];	//pointer to the raw frame data for bone 0.
 	int			lerpcount;	//number of pose+frac entries.
 } skellerps_t;
-static void Alias_BuildSkelLerps(skellerps_t *lerps, int numbones, galiasgroup_t *g1, galiasgroup_t *g2, float lerpfrac, float fg1time, float fg2time)
+static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion_s *fs, int numbones, galiasinfo_t *inf)
 {
-	int frame1;
-	int frame2;
+	unsigned int frame1;
+	unsigned int frame2;
 	float mlerp;	//minor lerp, poses within a group.
 	int l = 0;
-	if (g1 == g2)
-		lerpfrac = 0;
-	if (fg1time < 0)
-		fg1time = 0;
-	mlerp = (fg1time)*g1->rate;
-	frame1=mlerp;
-	frame2=frame1+1;
-	mlerp-=frame1;
-	if (g1->loop)
+	galiasgroup_t *g;
+	unsigned int b;
+	float totalweight = 0;
+	for (b = 0; b < FRAME_BLENDS; b++)
 	{
-		frame1=frame1%g1->numposes;
-		frame2=frame2%g1->numposes;
-	}
-	else
-	{
-		frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
-		frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
+		if (fs->lerpweight[b])
+		{
+			unsigned int frame = fs->frame[b];
+			float time = fs->frametime[b];
+			if (frame >= inf->groups)
+				continue;//frame = (unsigned)frame%inf->groups;
+
+			g = &inf->groupofs[frame];
+			if (!g->numposes)
+				continue;	//err...
+
+			mlerp = time*g->rate;
+			frame1=mlerp;
+			frame2=frame1+1;
+			mlerp-=frame1;
+			if (g->loop)
+			{	//loop normally.
+				frame1=frame1%g->numposes;
+				frame2=frame2%g->numposes;
+			}
+			else
+			{
+				frame1=(frame1>g->numposes-1)?g->numposes-1:frame1;
+				frame2=(frame2>g->numposes-1)?g->numposes-1:frame2;
+			}
+
+			if (!l)
+				lerps->skeltype = g->skeltype;
+			else if (lerps->skeltype != g->skeltype)
+				continue;	//oops, can't cope with mixed blend types
+
+			if (frame1 == frame2 || r_noframegrouplerp.ival)
+				mlerp = 0;
+			lerps->frac[l] = (1-mlerp)*fs->lerpweight[b];
+			if (lerps->frac[l]>0)
+			{
+				totalweight += lerps->frac[l];
+				lerps->pose[l++] = g->boneofs + numbones*12*frame1;
+			}
+			lerps->frac[l] = (mlerp)*fs->lerpweight[b];
+			if (lerps->frac[l]>0)
+			{
+				totalweight += lerps->frac[l];
+				lerps->pose[l++] = g->boneofs + numbones*12*frame2;
+			}
+		}
 	}
 
-	if (frame1 == frame2 || r_noframegrouplerp.ival)
-		mlerp = 0;
-	lerps->frac[l] = (1-mlerp)*(1-lerpfrac);
-	if (lerps->frac[l]>0)
-		lerps->pose[l++] = g1->boneofs + numbones*12*frame1;
-	lerps->frac[l] = (mlerp)*(1-lerpfrac);
-	if (lerps->frac[l]>0)
-		lerps->pose[l++] = g1->boneofs + numbones*12*frame2;
-
-	if (lerpfrac)
-	{
-		if (fg2time < 0)
-			fg2time = 0;
-		mlerp = (fg2time)*g2->rate;
-		frame1=mlerp;
-		frame2=frame1+1;
-		mlerp-=frame1;
-		if (g2->loop)
+	if (l && totalweight != 1)
+	{	//don't rescale if some animation got dropped.
+		totalweight = 1 / totalweight;
+		for (b = 0; b < l; b++)
 		{
-			frame1=frame1%g2->numposes;
-			frame2=frame2%g2->numposes;
+			lerps->frac[l] *= totalweight;
 		}
-		else
-		{
-			frame1=(frame1>g2->numposes-1)?g2->numposes-1:frame1;
-			frame2=(frame2>g2->numposes-1)?g2->numposes-1:frame2;
-		}
-		if (frame1 == frame2 || r_noframegrouplerp.ival)
-			mlerp = 0;
-		lerps->frac[l] = (1-mlerp)*(lerpfrac);
-		if (lerps->frac[l]>0)
-			lerps->pose[l++] = g2->boneofs + numbones*12*frame1;
-		lerps->frac[l] = (mlerp)*(lerpfrac);
-		if (lerps->frac[l]>0)
-			lerps->pose[l++] = g2->boneofs + numbones*12*frame2;
 	}
 
 	lerps->lerpcount = l;
+	return l > 0;
 }
 /*
 finds the various blend info. returns number of bone blocks used.
 */
 static int Alias_FindRawSkelData(galiasinfo_t *inf, framestate_t *fstate, skellerps_t *lerps, size_t firstbone, size_t lastbone)
 {
-	galiasgroup_t *g1, *g2;
-
-	int frame1, frame2;
-	float f1time, f2time;
-	float f2ness;
-
 	int bonegroup;
 	int cbone = 0;
 	int endbone;
@@ -1220,13 +1221,7 @@ static int Alias_FindRawSkelData(galiasinfo_t *inf, framestate_t *fstate, skelle
 		if (endbone == cbone)
 			continue;
 
-		frame1 = fstate->g[bonegroup].frame[0];
-		frame2 = fstate->g[bonegroup].frame[1];
-		f1time = fstate->g[bonegroup].frametime[0];
-		f2time = fstate->g[bonegroup].frametime[1];
-		f2ness = fstate->g[bonegroup].lerpfrac;
-
-		if (!inf->groups)	//if there's no animations in this model, use the base pose instead.
+		if (!inf->groups || !Alias_BuildSkelLerps(lerps, &fstate->g[bonegroup], inf->numbones, inf))	//if there's no animations in this model, use the base pose instead.
 		{
 			if (!inf->baseframeofs)
 				continue;	//nope, not happening.
@@ -1234,34 +1229,6 @@ static int Alias_FindRawSkelData(galiasinfo_t *inf, framestate_t *fstate, skelle
 			lerps->frac[0] = 1;
 			lerps->pose[0] = inf->baseframeofs;
 			lerps->lerpcount = 1;
-		}
-		else
-		{
-			if (frame1 < 0)
-			{
-				if (frame2 < 0)
-				{
-					if (bonegroup != FS_COUNT-1)
-						continue;	//just ignore this group
-					frame2 = 0;
-				}
-				frame1 = frame2;
-			}
-			else if (frame2 < 0)
-				frame2 = frame1;
-			if (frame1 >= inf->groups)
-				frame1 %= inf->groups;
-			if (frame2 >= inf->groups)
-				frame2 %= inf->groups;
-
-	//the higher level merges old/new anims, but we still need to blend between automated frame-groups.
-			g1 = &inf->groupofs[frame1];
-			g2 = &inf->groupofs[frame2];
-
-			if (g2->skeltype != g1->skeltype)
-				g2 = g1;
-			lerps->skeltype = g1->skeltype;
-			Alias_BuildSkelLerps(lerps, inf->numbones, g1, g2, f2ness, f1time, f2time);
 		}
 		lerps->firstbone = cbone;
 		lerps->endbone = endbone;
@@ -1814,7 +1781,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	{
 		frame1 = e->framestate.g[FS_REG].frame[0];
 		frame2 = e->framestate.g[FS_REG].frame[1];
-		lerp = e->framestate.g[FS_REG].lerpfrac;
+		lerp = e->framestate.g[FS_REG].lerpweight[1];	//FIXME
 		fg1time = e->framestate.g[FS_REG].frametime[0];
 		//fg2time = e->framestate.g[FS_REG].frametime[1];
 
@@ -4018,7 +3985,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 		frame2 = fstate->g[FS_REG].frame[1];
 		//f1time = fstate->g[FS_REG].frametime[0];
 		//f2time = fstate->g[FS_REG].frametime[1];
-		f2ness = fstate->g[FS_REG].lerpfrac;
+		f2ness = fstate->g[FS_REG].lerpweight[1];
 
 		if (tagnum <= 0 || tagnum > inf->numtags)
 			return false;
@@ -5888,7 +5855,7 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 #else
 		m->numskins = skinfiles;
 
-		skin = ZG_Malloc(&mod->memgroup, (sizeof(galiasskin_t)+sizeof(skinframe_t*))*skinfiles);
+		skin = ZG_Malloc(&mod->memgroup, (sizeof(galiasskin_t)+sizeof(skinframe_t))*skinfiles);
 		skinframe = (skinframe_t*)(skin+skinfiles);
 		for (j = 0; j < skinfiles; j++, skinframe++)
 		{
@@ -6093,7 +6060,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	galiasinfo_t *gai=NULL;
 #ifndef SERVERONLY
 	galiasskin_t *skin=NULL;
-	skinframe_t *frame=NULL;
+	skinframe_t *skinframe=NULL;
 	int skinfiles;
 #endif
 	galiasgroup_t *fgroup=NULL;
@@ -6254,7 +6221,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 		else
 			orgbaf = NULL;
 		dalloc(skin, h->num_meshes*skinfiles);
-		dalloc(frame, h->num_meshes*skinfiles);
+		dalloc(skinframe, h->num_meshes*skinfiles);
 #endif
 		dalloc(fgroup, numgroups);
 		dalloc(oposebase, 12*h->num_joints);
@@ -6417,10 +6384,10 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 			skin->skinheight = 1;
 			skin->skinspeed = 10; /*something to avoid div by 0*/
 			skin->numframes = 1;	//non-sequenced skins.
-			skin->frame = frame;
+			skin->frame = skinframe;
 			skin++;
 
-			Q_strncpyz(frame[j].shadername, strings+mesh[i].material, sizeof(frame[j].shadername));
+			Q_strncpyz(skinframe[j].shadername, strings+mesh[i].material, sizeof(skinframe[j].shadername));
 		}
 #endif
 
@@ -7321,7 +7288,7 @@ void Alias_Register(void)
 	Mod_RegisterModelFormatMagic(NULL, "Zymotic Model (zym)",				(('O'<<24)+('M'<<16)+('Y'<<8)+'Z'),		Mod_LoadZymoticModel);
 #endif
 #ifdef DPMMODELS
-	Mod_RegisterModelFormatMagic(NULL, "DarkPlaces Model (dpm)",			(('K'<<24)+('R'<<16)+('A'<<8)+'D'),		Mod_LoadDarkPlacesModel);
+//	Mod_RegisterModelFormatMagic(NULL, "DarkPlaces Model (dpm)",			(('K'<<24)+('R'<<16)+('A'<<8)+'D'),		Mod_LoadDarkPlacesModel);
 #endif
 #ifdef PSKMODELS
 	Mod_RegisterModelFormatMagic(NULL, "Unreal Interchange Model (psk)",	('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24),	Mod_LoadPSKModel);

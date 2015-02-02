@@ -593,7 +593,7 @@ COM_Dir_f
 
 ============
 */
-static int QDECL COM_Dir_List(const char *name, qofs_t size, void *parm, searchpathfuncs_t *spath)
+static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	searchpath_t	*s;
 	for (s=com_searchpaths ; s ; s=s->next)
@@ -1757,7 +1757,7 @@ void FS_FreeFile(void *file)
 
 
 
-void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, qofs_t, void *, searchpathfuncs_t*), void *parm)
+void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm)
 {
 	searchpath_t    *search;
 	for (search = com_searchpaths; search ; search = search->next)
@@ -1828,7 +1828,7 @@ typedef struct {
 	const char *puredesc;
 } wildpaks_t;
 
-static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, void *vparam, searchpathfuncs_t *funcs)
+static int QDECL FS_AddWildDataFiles (const char *descriptor, qofs_t size, time_t mtime, void *vparam, searchpathfuncs_t *funcs)
 {
 	wildpaks_t *param = vparam;
 	vfsfile_t *vfs;
@@ -4025,7 +4025,7 @@ typedef struct
 	qboolean (*callback)(void *usr, ftemanifest_t *man);
 	void *usr;
 } fmfenums_t;
-static int QDECL FS_EnumerateFMFs(const char *fname, qofs_t fsize, void *inf, searchpathfuncs_t *spath)
+static int QDECL FS_EnumerateFMFs(const char *fname, qofs_t fsize, time_t mtime, void *inf, searchpathfuncs_t *spath)
 {
 	fmfenums_t *e = inf;
 	vfsfile_t *f = NULL;

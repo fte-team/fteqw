@@ -82,7 +82,7 @@ typedef struct edict_s
 	/*these are shared with csqc*/
 	link_t	area;
 	pvscache_t pvsinfo;
-#ifdef USEODE
+#ifdef USERBE
 	entityode_t ode;
 #endif
 	qbyte solidtype;

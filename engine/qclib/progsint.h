@@ -60,9 +60,10 @@ typedef struct sharedvar_s
 } sharedvar_t;
 typedef struct
 {
-	int				s;
 	mfunction_t		*f;
-	int				progsnum;
+	unsigned char	stepping;
+	unsigned char	progsnum;
+	int				s;
 	int				pushed;
 	unsigned long long	timestamp;
 } prstack_t;
@@ -331,9 +332,6 @@ typedef struct progstate_s
 
 	char			filename[128];
 
-	builtin_t	*builtins;
-	int		numbuiltins;
-
 	int *linenums;	//debug versions only
 
 	progstructtype_t structtype;
@@ -375,7 +373,7 @@ void PR_Init (void);
 pbool PR_RunWarning (pubprogfuncs_t *progfuncs, char *error, ...);
 
 void PDECL PR_ExecuteProgram (pubprogfuncs_t *progfuncs, func_t fnum);
-int PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, const char *s, builtin_t *builtins, int numbuiltins);
+int PDECL PR_LoadProgs(pubprogfuncs_t *progfncs, const char *s);
 int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_t *progstate, pbool complain);
 
 void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, char *name);
@@ -527,13 +525,13 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *progfuncs, eval_t *eval, int type, con
 
 
 //pr_multi.c
-void PR_SetBuiltins(int type);
 
 extern vec3_t vec3_origin;
 
 struct qcthread_s *PDECL PR_ForkStack	(pubprogfuncs_t *progfuncs);
 void PDECL PR_ResumeThread			(pubprogfuncs_t *progfuncs, struct qcthread_s *thread);
 void	PDECL PR_AbortStack			(pubprogfuncs_t *progfuncs);
+pbool	PDECL PR_GetBuiltinCallInfo	(pubprogfuncs_t *ppf, int *builtinnum, char *function, size_t sizeoffunction);
 
 eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *prfuncs, const char *globname, progsnum_t pnum, etype_t *type);
 ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, const char *name, progsnum_t prnum, int type);

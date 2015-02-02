@@ -415,7 +415,7 @@ void NATIVEEXPORT dllEntry(qintptr_t (QDECL *funcptr)(qintptr_t,...))
 #endif
 
 vmvideo_t vid;
-qintptr_t Plug_UpdateVideo(qintptr_t *args)
+qintptr_t QDECL Plug_UpdateVideo(qintptr_t *args)
 {
 	vid.width = args[0];
 	vid.height = args[1];
@@ -423,7 +423,7 @@ qintptr_t Plug_UpdateVideo(qintptr_t *args)
 	return true;
 }
 
-qintptr_t Plug_InitAPI(qintptr_t *args)
+qintptr_t QDECL Plug_InitAPI(qintptr_t *args)
 {
 #ifdef Q3_VM
 	Plug_GetEngineFunction = (void*)args[0];

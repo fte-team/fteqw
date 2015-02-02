@@ -223,6 +223,7 @@ float           scr_disabled_time;
 float oldsbar = 0;
 
 void SCR_ScreenShot_f (void);
+void SCR_ScreenShot_Mega_f(void);
 void SCR_RSShot_f (void);
 void SCR_CPrint_f(void);
 
@@ -1174,6 +1175,7 @@ void SCR_Init (void)
 //
 // register our commands
 //
+	Cmd_AddCommand ("screenshot_mega",SCR_ScreenShot_Mega_f);
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
 	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
 	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);
@@ -2112,6 +2114,75 @@ void SCR_ScreenShot_f (void)
 		BZ_Free(rgbbuffer);
 	}
 	Con_Printf ("Couldn't write %s\n", sysname);
+}
+
+void SCR_ScreenShot_Mega_f(void)
+{
+	int width;
+	int height;
+	qbyte *rgbbuffer;
+	char filename[MAX_QPATH];
+
+	//poke the various modes into redrawing the screen (without huds), to avoid any menus or console drawn over the top of the current backbuffer.
+	//FIXME: clear-to-black first
+	qboolean okay = false;
+
+	char *screenyname = Cmd_Argv(1);
+	unsigned int fbwidth = strtoul(Cmd_Argv(2), NULL, 0);
+	unsigned int fbheight = strtoul(Cmd_Argv(3), NULL, 0);
+
+	if (qrenderer <= QR_HEADLESS)
+	{
+		Con_Printf("No renderer active\n");
+		return;
+	}
+
+	if (!fbwidth)
+		fbwidth = sh_config.texture_maxsize;
+	fbwidth = bound(0, fbwidth, sh_config.texture_maxsize);
+	if (!fbheight)
+		fbheight = (fbwidth * 3)/4;
+	fbheight = bound(0, fbheight, sh_config.texture_maxsize);
+	if (!*screenyname)
+		screenyname = "megascreeny";
+
+	Q_snprintfz(filename, sizeof(filename), "%s-%s", scr_sshot_prefix.string, screenyname);
+	COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
+
+	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "megascreeny", sizeof(r_refdef.rt_destcolour[0].texname));
+	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, fbwidth, fbheight, 1);
+	BE_RenderToTextureUpdate2d(true);
+
+	R2D_FillBlock(0, 0, vid.fbvwidth, vid.fbvheight);
+
+#ifdef VM_CG
+	if (!okay && CG_Refresh())
+		okay = true;
+#endif
+#ifdef CSQC_DAT
+	if (!okay && CSQC_DrawView())
+		okay = true;
+#endif
+	if (!okay && r_worldentity.model)
+	{
+		V_RenderView ();
+		okay = true;
+	}
+
+	//okay, we drew something, we're good to save a screeny.
+	if (okay)
+	{
+		rgbbuffer = VID_GetRGBInfo(0, &width, &height);
+		if (rgbbuffer)
+		{
+			SCR_ScreenShot(filename, rgbbuffer, width, height);
+			BZ_Free(rgbbuffer);
+		}
+	}
+
+	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, 0, 0, 0);
+	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
+	BE_RenderToTextureUpdate2d(true);
 }
 
 

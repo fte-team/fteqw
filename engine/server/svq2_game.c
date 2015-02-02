@@ -746,6 +746,11 @@ void SVQ2_InitWorld(void)
 	sv.world.Get_CModel = SVQ2_GetCModel;
 }
 
+static void QDECL PFQ2_SetAreaPortalState(unsigned int p, qboolean s)
+{
+	CMQ2_SetAreaPortalState(sv.world.worldmodel, p, s);
+}
+
 qboolean SVQ2_InitGameProgs(void)
 {
 	extern cvar_t maxclients;
@@ -820,7 +825,7 @@ qboolean SVQ2_InitGameProgs(void)
 	import.AddCommandString		= AddCommandString;
 
 	import.DebugGraph			= Q2SCR_DebugGraph;
-	import.SetAreaPortalState	= CMQ2_SetAreaPortalState;
+	import.SetAreaPortalState	= PFQ2_SetAreaPortalState;
 	import.AreasConnected		= PFQ2_AreasConnected;
 
 	if (sv.world.worldmodel && (sv.world.worldmodel->fromgame == fg_quake || sv.world.worldmodel->fromgame == fg_halflife))

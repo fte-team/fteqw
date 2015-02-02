@@ -1,3 +1,6 @@
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "hash.h"
 #include "shader.h"
@@ -182,11 +185,20 @@ typedef struct
 
 	void (QDECL *ConcatTransforms) (float in1[3][4], float in2[3][4], float out[3][4]);
 	void (QDECL *M3x4_Invert) (const float *in1, float *out);
-	void (QDECL *StripExtension) (const char *in, char *out, int outlen);
+	void (QDECL *VectorAngles)(float *forward, float *up, float *result);
+	void (QDECL *AngleVectors)(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 	void (QDECL *GenMatrixPosQuat4Scale)(vec3_t pos, vec4_t quat, vec3_t scale, float result[12]);
+
+	void (QDECL *StripExtension) (const char *in, char *out, int outlen);
 	void (QDECL *ForceConvertBoneData)(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
+
+	void (QDECL *LinkEdict)(world_t *w, wedict_t *ed, qboolean touchtriggers);
+	qboolean (QDECL *RegisterPhysicsEngine)(const char *enginename, void(QDECL*World_Bullet_Start)(world_t*world));	//returns false if there's already one active.
+	void (QDECL *UnregisterPhysicsEngine)(const char *enginename);	//returns false if there's already one active.
+	qboolean (QDECL *GenerateCollisionMesh)(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter);
+	void (QDECL *ReleaseCollisionMesh) (wedict_t *ed);
 } modplugfuncs_t;
-#define MODPLUGFUNCS_VERSION 1
+#define MODPLUGFUNCS_VERSION 2
 
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);
@@ -210,3 +222,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize);
 void Mod_AccumulateTextureVectors(vecV_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx);
 void Mod_AccumulateMeshTextureVectors(mesh_t *mesh);
 void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v);
+
+#ifdef __cplusplus
+};
+#endif

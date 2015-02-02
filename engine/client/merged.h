@@ -23,14 +23,15 @@ typedef enum
 	#define MAX_BONE_CONTROLLERS 5
 #endif
 
+#define FRAME_BLENDS 4
 #define FST_BASE 0	//base frames
 #define FS_REG 1	//regular frames
 #define FS_COUNT 2	//regular frames
 typedef struct {
-	struct {
-		int frame[2];
-		float frametime[2];
-		float lerpfrac;
+	struct framestateregion_s {
+		int frame[FRAME_BLENDS];
+		float frametime[FRAME_BLENDS];
+		float lerpweight[FRAME_BLENDS];
 
 #ifdef HALFLIFEMODELS
 		float subblendfrac;	//hl models are weird
@@ -78,6 +79,7 @@ void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque);
 void R2D_EditorBackground (void);
 
 void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);
+void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic);
 
 void R2D_ImageColours(float r, float g, float b, float a);
 void R2D_ImagePaletteColour(unsigned int i, float a);
@@ -105,10 +107,10 @@ extern void SCR_EraseCenterString					(void);
 extern void SCR_CenterPrint							(int pnum, char *str, qboolean skipgamecode);
 
 void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags);
-#define CPRINT_BALIGN		(1<<0)	//B
+#define CPRINT_LALIGN		(1<<0)	//L
 #define CPRINT_TALIGN		(1<<1)	//T
-#define CPRINT_LALIGN		(1<<2)	//L
-#define CPRINT_RALIGN		(1<<3)	//R
+#define CPRINT_RALIGN		(1<<2)	//R
+#define CPRINT_BALIGN		(1<<3)	//B
 #define CPRINT_BACKGROUND	(1<<4)	//P
 
 #define CPRINT_OBITUARTY	(1<<16)	//O (show at 2/3rds from top)

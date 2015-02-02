@@ -100,6 +100,8 @@ unsigned int h2infoplaque[2];	/*hexen2 stat*/
 static void PRSV_ClearThreads(void);
 void PR_fclose_progs(pubprogfuncs_t*);
 void PF_InitTempStrings(pubprogfuncs_t *prinst);
+static int PDECL PR_SSQC_MapNamedBuiltin(pubprogfuncs_t *progfuncs, int headercrc, const char *builtinname);
+static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void PR_DumpPlatform_f(void);
 
@@ -136,7 +138,6 @@ typedef struct {
 	qboolean obsolete;
 } BuiltinList_t;
 builtin_t pr_builtin[1024];
-extern BuiltinList_t BuiltinList[];
 
 struct {
 	func_t ChatMessage;	//mvdsv parsing of 'say' commands
@@ -221,18 +222,12 @@ pbool PDECL ED_CanFree (edict_t *ed)
 	if (ed == (edict_t*)sv.world.edicts)
 	{
 		if (developer.value)
-		{
-			Con_TPrintf("cannot free world entity\n");
-			PR_StackTrace(svprogfuncs, false);
-			svprogfuncs->pr_trace = 1;
-		}
+			PR_RunWarning(svprogfuncs, "cannot free world entity\n");
 		return false;
 	}
 	if (NUM_FOR_EDICT(svprogfuncs, ed) <= sv.allocated_client_slots)
 	{
-		Con_TPrintf("cannot free player entities\n");
-		PR_StackTrace(svprogfuncs, false);
-		svprogfuncs->pr_trace = 1;
+		PR_RunWarning(svprogfuncs, "cannot free player entities\n");
 		return false;
 	}
 	World_UnlinkEdict ((wedict_t*)ed);		// unlink from world bsp
@@ -266,9 +261,12 @@ pbool PDECL ED_CanFree (edict_t *ed)
 	ed->xv->SendEntity = 0;
 	sv.csqcentversion[ed->entnum] += 1;
 
-#ifdef USEODE
-	World_ODE_RemoveFromEntity(&sv.world, (wedict_t*)ed);
-	World_ODE_RemoveJointFromEntity(&sv.world, (wedict_t*)ed);
+#ifdef USERBE
+	if (sv.world.rbe)
+	{
+		sv.world.rbe->RemoveFromEntity(&sv.world, (wedict_t*)ed);
+		sv.world.rbe->RemoveJointFromEntity(&sv.world, (wedict_t*)ed);
+	}
 #endif
 
 
@@ -477,6 +475,7 @@ static void SVPR_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *fstate)
 {
 	memset(fstate, 0, sizeof(*fstate));
 	fstate->g[FS_REG].frame[0] = ent->v->frame;
+	fstate->g[FS_REG].lerpweight[0] = 1;
 }
 
 static void SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
@@ -571,8 +570,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	svprogparms.thinktimeop = ThinkTimeOp;
 #endif
 
-	//used when loading a game
-	svprogparms.builtinsfor = NULL;//builtin_t *(*builtinsfor) (int num);	//must return a pointer to the builtins that were used before the state was saved.
+	svprogparms.MapNamedBuiltin = PR_SSQC_MapNamedBuiltin;
 	svprogparms.loadcompleate = NULL;//void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
 	svprogparms.badfield = SV_BadField;
 
@@ -590,7 +588,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	svprogparms.sv_edicts = (edict_t**)&sv.world.edicts;
 	svprogparms.sv_num_edicts = &sv.world.num_edicts;
 
-	svprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
+	svprogparms.useeditor = QCEditor;
 
 	//until its properly tested
 	if (pr_ssqc_memsize.ival == -2)
@@ -640,9 +638,8 @@ void PR_Deinit(void)
 		}
 	}
 
-#ifdef USEODE
-	World_ODE_End(&sv.world);
-#endif
+	if (sv.world.rbe)
+		sv.world.rbe->End(&sv.world);
 
 #ifdef SQL
 	SQL_KillServers();
@@ -940,7 +937,7 @@ progsnum_t AddProgs(const char *name)
 
 //	svprogparms.autocompile = PR_COMPILECHANGED;
 
-	num = PR_LoadProgs (svprogfuncs, name, NULL, 0);
+	num = PR_LoadProgs (svprogfuncs, name);
 	sv.world.usesolidcorpse = (progstype != PROG_H2);
 	if (!i && num != -1)
 	{
@@ -1337,6 +1334,7 @@ void Q_InitProgs(void)
 
 	Q_SetProgsParms(false);
 
+	memset(pr_builtin, 0, sizeof(pr_builtin));
 
 // load progs to get entity field count
 	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS, pr_enable_profiling.ival);
@@ -1695,9 +1693,7 @@ void Q_InitProgs(void)
 	SV_RegisterH2CustomTents();
 #endif
 
-#ifdef USEODE
-	World_ODE_Start(&sv.world);
-#endif
+	World_RBE_Start(&sv.world);
 }
 
 qboolean PR_QCChat(char *text, int say_type)
@@ -2219,31 +2215,14 @@ static void QCBUILTIN PF_objerror (pubprogfuncs_t *prinst, struct globalvars_s *
 /*	ED_Print (ed);
 */
 	prinst->ED_Print(prinst, ed);
-	Con_Printf("%s", s);
 
-	if (developer.value)
-		prinst->pr_trace = 2;
-	else
-	{
-		Con_Printf("Program error: %s\n", s);
-		if (developer.value)
-		{
-			struct globalvars_s *pr_globals = PR_globals(prinst, PR_CURRENT);
-			prinst->pr_trace = 1;
-			G_INT(OFS_RETURN)=0;	//just in case it was a float and should be an ent...
-			G_INT(OFS_RETURN+1)=0;
-			G_INT(OFS_RETURN+2)=0;
-		}
-		else
-		{
-			ED_Free (prinst, ed);
-			PR_StackTrace(prinst, true);
-			PR_AbortStack(prinst);
-		}
+	PR_RunWarning(prinst, "Program error: %s\n", s);
 
-		if (sv.time > 10)
-			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
-	}
+	ED_Free (prinst, ed);
+	PR_AbortStack(prinst);
+
+//	if (sv.time > 10)
+//		Cbuf_AddText("restart\n", RESTRICT_LOCAL);
 }
 
 
@@ -2305,10 +2284,7 @@ static void QCBUILTIN PF_setsize (pubprogfuncs_t *prinst, struct globalvars_s *p
 	if (e->isfree)
 	{
 		if (progstype != PROG_H2)
-		{
-			Con_TPrintf("%s edict was free\n", "setsize");
-			prinst->pr_trace = 1;
-		}
+			PR_RunWarning(prinst, "%s edict was free\n", "setsize");
 		return;
 	}
 	if (e->readonly)
@@ -5187,11 +5163,7 @@ void QCBUILTIN PF_logfrag (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	if (!fraglog_details.ival)
 		return;	//not logging any details
 	else if (fraglog_details.ival == 7)
-	{	//compat with mvdsv.
-		time_t t = time (NULL);
-		struct tm *tm = gmtime(&t);
-		Q_snprintfz(s, sizeof(s)-2, "\\frag\\");
-	}
+		Q_snprintfz(s, sizeof(s)-2, "\\frag\\");	//compat with mvdsv.
 	else if (fraglog_details.ival == 1)
 		strcpy(s, "\\");//vanilla compat
 	else	//specify what info is actually in there
@@ -5405,39 +5377,6 @@ void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	NPP_Flush();
 
 	SV_Multicast (o, to);
-}
-
-
-static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-int i;
-qboolean printedheader = false;
-
-	SV_EndRedirect();
-
-	for (i = 0; BuiltinList[i].bifunc; i++)
-	{
-		if (BuiltinList[i].ebfsnum == prinst->lastcalledbuiltinnumber)
-		{
-			if (!printedheader)
-			{
-				Con_Printf( "\n"
-							"Mod forgot to ensure support for builtin %i\n"
-							"Please consult the extensionlist_ssqc command.\n"
-							"Possible builtins:\n", prinst->lastcalledbuiltinnumber);
-				printedheader = true;
-			}
-			Con_Printf("%s\n", BuiltinList[i].name);
-		}
-	}
-
-	Con_Printf("\n");
-
-	if (progstype == PROG_QW)
-		prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", prinst->lastcalledbuiltinnumber);
-	else
-		prinst->RunError(prinst, "\nBuiltin %i not implemented.\nMod is not compatible.", prinst->lastcalledbuiltinnumber);
-	PR_BIError (prinst, "builtin not implemented");
 }
 
 static void QCBUILTIN PF_Ignore(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5865,38 +5804,6 @@ void PR_SQLCycle(void)
 }
 #endif
 
-
-
-
-
-int PR_EnableEBFSBuiltin(const char *name, int binum)
-{
-	int i;
-	for (i = 0;BuiltinList[i].name;i++)
-	{
-		if (!strcmp(BuiltinList[i].name, name) && BuiltinList[i].bifunc != PF_Fixme)
-		{
-			if (!binum)
-				binum = BuiltinList[i].ebfsnum;
-			if (!pr_overridebuiltins.value)
-			{
-				if (pr_builtin[binum] != NULL && pr_builtin[binum] != PF_Fixme)
-				{
-					if (pr_builtin[binum] == BuiltinList[i].bifunc)	//it is already this function.
-						return binum;
-
-					return 0;	//already used... ?
-				}
-			}
-
-			pr_builtin[binum] = BuiltinList[i].bifunc;
-
-			return binum;
-		}
-	}
-
-	return 0;	//not known
-}
 
 
 
@@ -6375,7 +6282,7 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 					ClientReliableWrite_Short(client, portal | (state<<15));
 			}
 		}
-		CMQ2_SetAreaPortalState(portal, state);
+		CMQ2_SetAreaPortalState(sv.world.worldmodel, portal, state);
 	}
 #endif
 #ifdef Q3BSPS
@@ -6407,7 +6314,7 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 				}
 			}
 		}
-		CMQ3_SetAreaPortalState(portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
+		CMQ3_SetAreaPortalState(sv.world.worldmodel, portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
 	}
 #endif
 }
@@ -8711,7 +8618,8 @@ static void QCBUILTIN PF_globalstat(pubprogfuncs_t *prinst, struct globalvars_s 
 static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int i, n;
-	extern qbyte playertouch[];
+	extern qbyte *playertouch;
+	extern size_t playertouchmax;
 	unsigned int msecs;
 	extern cvar_t sv_gravity;
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
@@ -8844,7 +8752,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 				continue;
 			n = pmove.physents[pmove.touchindex[i]].info;
 			touched = EDICT_NUM(svprogfuncs, n);
-			if (!touched->v->touch || (playertouch[n/8]&(1<<(n%8))))
+			if (!touched->v->touch || n >= playertouchmax || (playertouch[n/8]&(1<<(n%8))))
 				continue;
 
 			sv.world.Event_Touch(&sv.world, (wedict_t*)touched, (wedict_t*)ent);
@@ -9281,28 +9189,29 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"WriteEntity",		PF_WriteEntity,		59,		59,		59,		0,	"void(float to, entity val)"},	//59
 
 #ifndef QUAKETC
-	{"swritebyte",		PF_qtSingle_WriteByte},	//52
-	{"swritechar",		PF_qtSingle_WriteChar},	//53
-	{"swriteshort",		PF_qtSingle_WriteShort},	//54
-	{"swritelong",		PF_qtSingle_WriteLong},	//55
-	{"swritecoord",		PF_qtSingle_WriteCoord},	//56
-	{"swriteangle",		PF_qtSingle_WriteAngle},	//57
-	{"swritestring",	PF_qtSingle_WriteString},	//58
-	{"swriteentity",	PF_qtSingle_WriteEntity},
+	{"swritebyte",		PF_qtSingle_WriteByte,			0,		0,		0,		0,	D("void(float val)", "A legacy of qtest - like WriteByte, except writes explicitly to the MSG_ONE target."), true},	//52
+	{"swritechar",		PF_qtSingle_WriteChar,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//53
+	{"swriteshort",		PF_qtSingle_WriteShort,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//54
+	{"swritelong",		PF_qtSingle_WriteLong,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//55
+	{"swritecoord",		PF_qtSingle_WriteCoord,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//56
+	{"swriteangle",		PF_qtSingle_WriteAngle,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//57
+	{"swritestring",	PF_qtSingle_WriteString,		0,		0,		0,		0,	D("void(string val)", NULL), true},	//58
+	{"swriteentity",	PF_qtSingle_WriteEntity,		0,		0,		0,		0,	D("void(entity val)", NULL), true},
 
-	{"bwritebyte",		PF_qtBroadcast_WriteByte},	//59
-	{"bwritechar",		PF_qtBroadcast_WriteChar},	//60
-	{"bwriteshort",		PF_qtBroadcast_WriteShort},	//61
-	{"bwritelong",		PF_qtBroadcast_WriteLong},	//62
-	{"bwritecoord",		PF_qtBroadcast_WriteCoord},	//63
-	{"bwriteangle",		PF_qtBroadcast_WriteAngle},	//64
-	{"bwritestring",	PF_qtBroadcast_WriteString},	//65
-	{"bwriteentity",	PF_qtBroadcast_WriteEntity},	//66
+	{"bwritebyte",		PF_qtBroadcast_WriteByte,		0,		0,		0,		0,	D("void(float byte)", "A legacy of qtest - like WriteByte, except writes explicitly to the MSG_ALL target."), true},	//59
+	{"bwritechar",		PF_qtBroadcast_WriteChar,		0,		0,		0,		0,	D("void(float val)", NULL), true},	//60
+	{"bwriteshort",		PF_qtBroadcast_WriteShort,		0,		0,		0,		0,	D("void(float val)", NULL), true},	//61
+	{"bwritelong",		PF_qtBroadcast_WriteLong,		0,		0,		0,		0,	D("void(float val)", NULL), true},	//62
+	{"bwritecoord",		PF_qtBroadcast_WriteCoord,		0,		0,		0,		0,	D("void(float val)", NULL), true},	//63
+	{"bwriteangle",		PF_qtBroadcast_WriteAngle,		0,		0,		0,		0,	D("void(float val)", NULL), true},	//64
+	{"bwritestring",	PF_qtBroadcast_WriteString,		0,		0,		0,		0,	D("void(string val)", NULL), true},	//65
+	{"bwriteentity",	PF_qtBroadcast_WriteEntity,		0,		0,		0,		0,	D("void(entity val)", NULL), true},	//66
 #endif
 
 	{"sin",				PF_Sin,				0,		0,		62,		60,	"float(float angle)"},	//60
 	{"cos",				PF_Cos,				0,		0,		61,		61,	"float(float angle)"},	//61
 	{"sqrt",			PF_Sqrt,			0,		0,		84,		62,	"float(float value)"},	//62
+	{"modulo",			PF_mod,				0,		0,		0,		0,	"float(float a, float n)"},	//62
 
 	{"changepitch",		PF_changepitch,		0,		0,		0,		63,	"void(entity ent)"},
 	{"tracetoss",		PF_TraceToss,		0,		0,		0,		64,	"void(entity ent, entity ignore)"},
@@ -9427,7 +9336,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"randomvec",		PF_randomvector,	0,		0,		0,		91,	D("vector()", "Returns a vector with random values. Each axis is independantly a value between -1 and 1 inclusive.")},
 	{"getlight",		PF_sv_getlight,		0,		0,		0,		92, "vector(vector org)"},// (DP_QC_GETLIGHT),
-	{"registercvar",	PF_registercvar,	0,		0,		0,		93,	D("void(string cvarname, string defaultvalue)", "Creates a new cvar on the fly. If it does not already exist, it will be given the specified value. If it does exist, this is a no-op.\nThis builtin has the limitation that it does not apply to configs or commandlines. Such configs will need to use the set or seta command causing this builtin to be a noop.\nIn engines that support it, you will generally find the autocvar feature easier and more efficient to use.")},
+	{"registercvar",	PF_registercvar,	0,		0,		0,		93,	D("float(string cvarname, string defaultvalue)", "Creates a new cvar on the fly. If it does not already exist, it will be given the specified value. If it does exist, this is a no-op.\nThis builtin has the limitation that it does not apply to configs or commandlines. Such configs will need to use the set or seta command causing this builtin to be a noop.\nIn engines that support it, you will generally find the autocvar feature easier and more efficient to use.")},
 	{"min",				PF_min,				0,		0,		0,		94,	D("float(float a, float b, ...)", "Returns the lowest value of its arguments.")},// (DP_QC_MINMAXBOUND)
 	{"max",				PF_max,				0,		0,		0,		95,	D("float(float a, float b, ...)", "Returns the highest value of its arguments.")},// (DP_QC_MINMAXBOUND)
 	{"bound",			PF_bound,			0,		0,		0,		96,	D("float(float minimum, float val, float maximum)", "Returns val, unless minimum is higher, or maximum is less.")},// (DP_QC_MINMAXBOUND)
@@ -9476,6 +9385,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //end telejano
 
 //fte extras
+
+//	{"findlist_string",	PF_FindListString,	0,		0,		0,		0,		D("entity*(.string fld, string match)", "Return a list of entities with the given string field set to the given value.")},
+//	{"findlist_float",	PF_FindListFloat,	0,		0,		0,		0,		D("entity*(.__variant fld, __variant match)", "Return a list of entities with the given field set to the given value.")},
+//	{"findlist_radius",	PF_FindListRadius,	0,		0,		0,		0,		D("entity*(vector pos, float radius)", "Return a list of entities with the given string field set to the given value.")},
+//	{"traceboxptr",		PF_TraceBox,		0,		0,		0,		0,		D("typedef struct {\nfloat allsolid;\nfloat startsolid;\nfloat fraction;\nfloat truefraction;\nentity ent;\nvector endpos;\nvector plane_normal;\nfloat plane_dist;\nint surfaceflags;\nint contents;\n} trace_t;\nvoid(trace_t *trace, vector start, vector mins, vector maxs, vector end, float nomonsters, entity forent)", "Like regular tracebox, except doesn't doesn't use any evil globals.")},
+
 	{"getmodelindex",	PF_getmodelindex,	0,		0,		0,		200,	D("float(string modelname, optional float queryonly)", "Acts as an alternative to precache_model(foo);setmodel(bar, foo); return bar.modelindex;\nIf queryonly is set and the model was not previously precached, the builtin will return 0 without needlessly precaching the model.")},
 	{"externcall",		PF_externcall,		0,		0,		0,		201,	D("__variant(float prnum, string funcname, ...)", "Directly call a function in a different/same progs by its name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
 	{"addprogs",		PF_addprogs,		0,		0,		0,		202,	D("float(string progsname)", "Loads an additional .dat file into the current qcvm. The returned handle can be used with any of the externcall/externset/externvalue builtins.\nThere are cvars that allow progs to be loaded automatically.")},
@@ -9624,8 +9539,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //maths stuff that uses the current view settings.
 	{"unproject",		PF_Fixme,	0,		0,		0,		310,	D("vector (vector v)", "Transform a 2d screen-space point (with depth) into a 3d world-space point, according the various origin+angle+fov etc settings set via setproperty.")},// (EXT_CSQC)
 	{"project",			PF_Fixme,	0,		0,		0,		311,	D("vector (vector v)", "Transform a 3d world-space point into a 2d screen-space point, according the various origin+angle+fov etc settings set via setproperty.")},// (EXT_CSQC)
-
+															//312
+															//313
 //2d (immediate) operations
+	{"drawtextfield",	PF_Fixme,	0,		0,		0,	 0/*314*/,	D("void(vector pos, vector size, float alignflags, string text)", "Draws a multi-line block of text, including word wrapping and alignment. alignflags bits are RTLB, typically 3.")},// (EXT_CSQC)
 	{"drawline",		PF_Fixme,	0,		0,		0,		315,	D("void(float width, vector pos1, vector pos2, vector rgb, float alpha, optional float drawflag)", "Draws a 2d line between the two 2d points.")},// (EXT_CSQC)
 	{"iscachedpic",		PF_Fixme,	0,		0,		0,		316,	D("float(string name)", "Checks to see if the image is currently loaded. Engines might lie, or cache between maps.")},// (EXT_CSQC)
 	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	D("string(string name, optional float trywad)", "Forces the engine to load the named image. If trywad is specified, the specified name must any lack path and extension.")},// (EXT_CSQC)
@@ -9642,6 +9559,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"drawstring",		PF_Fixme,	0,		0,		0,		326,	D("float(vector position, string text, vector size, vector rgb, float alpha, float drawflag)", "Draws a string, interpreting markup and recolouring as appropriate.")},// #326
 	{"stringwidth",		PF_Fixme,	0,		0,		0,		327,	D("float(string text, float usecolours, optional vector fontsize)", "Calculates the width of the screen in virtual pixels. If usecolours is 1, markup that does not affect the string width will be ignored. Will always be decoded as UTF-8 if UTF-8 is globally enabled.\nIf the char size is not specified, '8 8 0' will be assumed.")},// EXT_CSQC_'DARKPLACES'
 	{"drawsubpic",		PF_Fixme,	0,		0,		0,		328,	D("void(vector pos, vector sz, string pic, vector srcpos, vector srcsz, vector rgb, float alpha, optional float drawflag)", "Draws a rescaled subsection of an image to the screen.")},// #328 EXT_CSQC_'DARKPLACES'
+	{"drawrotpic",		PF_Fixme,	0,		0,		0,		0,		D("void(vector pivot, vector mins, vector maxs, string pic, vector rgb, float alpha, float angle)", "Draws an image rotating at the pivot. To rotate in the center, use mins+maxs of half the size with mins negated. Angle is in degrees.")},
+	{"drawrotsubpic",	PF_Fixme,	0,		0,		0,		0,		D("void(vector pivot, vector mins, vector maxs, string pic, vector txmin, vector txsize, vector rgb, vector alphaandangles)", "Overcomplicated draw function for over complicated people. Positions follow drawrotpic, while texture coords follow drawsubpic. Due to argument count limitations in builtins, the alpha value and angles are combined into separate fields of a vector (tip: use fteqcc's [alpha, angle] feature.")},
 
 //330
 	{"getstati",		PF_Fixme,	0,		0,		0,		330,	D("float(float stnum)", "Retrieves the numerical value of the given EV_INTEGER or EV_ENTITY stat (converted to a float).")},// (EXT_CSQC)
@@ -9653,8 +9572,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"modelnameforindex",PF_Fixme,	0,		0,		0,		334,	D("string(float mdlindex)", "Retrieves the name of the model based upon a precache index. This can be used to reduce csqc network traffic by enabling model matching.")},//
 
 	{"particleeffectnum",PF_sv_particleeffectnum,0,0,0,		335,	D("float(string effectname)", "Precaches the named particle effect. If your effect name is of the form 'foo.bar' then particles/foo.cfg will be loaded by the client if foo.bar was not already defined.\nDifferent engines will have different particle systems, this specifies the QC API only.")},// (EXT_CSQC)
-	{"trailparticles",	PF_sv_trailparticles,0,	0,	0,		336,	D("void(float effectnum, entity ent, vector start, vector end)", "Draws the given effect between the two named points. If ent is not world, distances will be cached in the entity in order to avoid framerate dependancies. The entity is not otherwise used.")},// (EXT_CSQC),
-	{"pointparticles",	PF_sv_pointparticles,0,	0,	0,		337,	D("void(float effectnum, vector origin, optional vector dir, optional float count)", "Spawn a load of particles from the given effect at the given point traveling or aiming along the direction specified. The number of particles are scaled by the count argument.")},// (EXT_CSQC)
+	{"trailparticles",	PF_sv_trailparticles,0,0,	0,		336,	D("void(float effectnum, entity ent, vector start, vector end)", "Draws the given effect between the two named points. If ent is not world, distances will be cached in the entity in order to avoid framerate dependancies. The entity is not otherwise used.")},// (EXT_CSQC),
+//	{"trailparticles_dp",PF_sv_trailparticles,0,0,	0,		336,	D("void(entity ent, float effectnum, vector start, vector end)", "DarkPlaces got the argument order wrong, and failed to fix it due to apathy.")},// (EXT_CSQC),
+	{"pointparticles",	PF_sv_pointparticles,0,0,	0,		337,	D("void(float effectnum, vector origin, optional vector dir, optional float count)", "Spawn a load of particles from the given effect at the given point traveling or aiming along the direction specified. The number of particles are scaled by the count argument.")},// (EXT_CSQC)
 
 	{"cprint",			PF_Fixme,	0,		0,		0,		338,	D("void(string s, ...)", "Print into the center of the screen just as ssqc's centerprint would appear.")},//(EXT_CSQC)
 	{"print",			PF_print,	0,		0,		0,		339,	D("void(string s, ...)", "Unconditionally print on the local system's console, even in ssqc (doesn't care about the value of the developer cvar).")},//(EXT_CSQC)
@@ -9826,6 +9746,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"search_end",		PF_search_end,		0,		0,		0,		445,	"void(searchhandle handle)"},
 	{"search_getsize",	PF_search_getsize,	0,		0,		0,		446,	D("float(searchhandle handle)", "Retrieves the number of files that were found.")},
 	{"search_getfilename", PF_search_getfilename,0,	0,		0,		447,	D("string(searchhandle handle, float num)", "Retrieves name of one of the files that was found by the initial search.")},
+	{"search_getfilesize", PF_search_getfilesize,0,	0,		0,		0,		D("float(searchhandle handle, float num)", "Retrieves the size of one of the files that was found by the initial search.")},
+	{"search_getfilemtime", PF_search_getfilemtime,0,0,		0,		0,		D("string(searchhandle handle, float num)", "Retrieves modification time of one of the files.")},
 	{"cvar_string",		PF_cvar_string,		0,		0,		0,		448,	"string(string cvarname)"},//DP_QC_CVAR_STRING
 	{"findflags",		PF_FindFlags,		0,		0,		0,		449,	"entity(entity start, .float fld, float match)"},//DP_QC_FINDFLAGS
 	{"findchainflags",	PF_sv_findchainflags,0,		0,		0,		450,	"entity(.float fld, float match)"},//DP_QC_FINDCHAINFLAGS
@@ -9868,18 +9790,21 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strreplace",		PF_strreplace,		0,		0,		0,		484,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
 	{"strireplace",		PF_strireplace,		0,		0,		0,		485,	"string(string search, string replace, string subject)"},//DP_QC_STRREPLACE
 	{"getsurfacepointattribute",PF_getsurfacepointattribute,0,0,0,	486,	"vector(entity e, float s, float n, float a)"},//DP_QC_GETSURFACEPOINTATTRIBUTE
-	{"gecko_create",	PF_gecko_create,	0,		0,		0,		487,	"float(string name)"},//DP_GECKO_SUPPORT
-	{"gecko_destroy",	PF_gecko_destroy,	0,		0,		0,		488,	"void(string name)"},//DP_GECKO_SUPPORT
-	{"gecko_navigate",	PF_gecko_navigate,	0,		0,		0,		489,	"void(string name, string URI)"},//DP_GECKO_SUPPORT
-	{"gecko_keyevent",	PF_gecko_keyevent,	0,		0,		0,		490,	"float(string name, float key, float eventtype)"},//DP_GECKO_SUPPORT
-	{"gecko_mousemove",	PF_gecko_mousemove,	0,		0,		0,		491,	"void(string name, float x, float y)"},//DP_GECKO_SUPPORT
-	{"gecko_resize",	PF_gecko_resize,	0,		0,		0,		492,	"void(string name, float w, float h)"},//DP_GECKO_SUPPORT
-	{"gecko_get_texture_extent",PF_gecko_get_texture_extent,0,0,0,	493,	"vector(string name)"},//DP_GECKO_SUPPORT
+	{"gecko_create",	PF_Fixme,			0,		0,		0,		487,	D("float(string name)", "Create a new 'browser tab' shader with the specified name that can then be drawn via drawpic. In order to function correctly, this builtin depends upon external plugins being available. Use gecko_navigate to navigate it to a page of your choosing.")},//DP_GECKO_SUPPORT
+	{"gecko_destroy",	PF_Fixme,			0,		0,		0,		488,	D("void(string name)", "Destroy a shader.")},//DP_GECKO_SUPPORT
+	{"gecko_navigate",	PF_Fixme,			0,		0,		0,		489,	D("void(string name, string URI)", "Sends a command to the media decoder attached to the specified shader. In the case of a browser decoder, this changes the url that the browser displays. 'cmd:[un]focus' will tell the decoder that it has focus.")},//DP_GECKO_SUPPORT
+	{"gecko_keyevent",	PF_Fixme,			0,		0,		0,		490,	D("float(string name, float key, float eventtype)", "Send a key event to a media decoder. This applies only to interactive decoders like browsers.")},//DP_GECKO_SUPPORT
+	{"gecko_mousemove",	PF_Fixme,			0,		0,		0,		491,	D("void(string name, float x, float y)", "Sets a media decoder shader's mouse position. Values should be 0-1.")},//DP_GECKO_SUPPORT
+	{"gecko_resize",	PF_Fixme,			0,		0,		0,		492,	D("void(string name, float w, float h)", "Request to resize a media decoder.")},//DP_GECKO_SUPPORT
+	{"gecko_get_texture_extent",PF_Fixme,	0,		0,		0,		493,	D("vector(string name)", "Query a media decoder for its current pixel size.")},//DP_GECKO_SUPPORT
+//	{"media_getposition",PF_Fixme,			0,		0,		0,		0,		D("vector(string name)", "Query a media decoder to for if its loaded, its time, and its duration.")},
 	{"crc16",			PF_crc16,			0,		0,		0,		494,	"float(float caseinsensitive, string s, ...)"},//DP_QC_CRC16
 	{"cvar_type",		PF_cvar_type,		0,		0,		0,		495,	"float(string name)"},//DP_QC_CVAR_TYPE
-	{"numentityfields",	PF_numentityfields,	0,		0,		0,		496,	"float()"},//DP_QC_ENTITYDATA
-	{"entityfieldname",	PF_entityfieldname,	0,		0,		0,		497,	"string(float fieldnum)"},//DP_QC_ENTITYDATA
-	{"entityfieldtype",	PF_entityfieldtype,	0,		0,		0,		498,	"float(float fieldnum)"},//DP_QC_ENTITYDATA
+	{"numentityfields",	PF_numentityfields,	0,		0,		0,		496,	D("float()", "Gives the number of named entity fields. Note that this is not the size of an entity, but rather just the number of unique names (ie: vectors use 4 names rather than 3).")},//DP_QC_ENTITYDATA
+	{"findentityfield",	PF_findentityfield,	0,		0,		0,		0,		D("float(string fieldname)", "Find a field index by name.")},
+	{"entityfieldref",	PF_entityfieldref,	0,		0,		0,		0,		D(".__variant(float fieldnum)", "Returns a field value that can be directly used to read entity fields. Be sure to validate the type with entityfieldtype before using.")},//DP_QC_ENTITYDATA
+	{"entityfieldname",	PF_entityfieldname,	0,		0,		0,		497,	D("string(float fieldnum)", "Retrieves the name of the given entity field.")},//DP_QC_ENTITYDATA
+	{"entityfieldtype",	PF_entityfieldtype,	0,		0,		0,		498,	D("float(float fieldnum)", "Provides information about the type of the field specified by the field num. Returns one of the EV_ values.")},//DP_QC_ENTITYDATA
 	{"getentityfieldstring",PF_getentityfieldstring,0,0,	0,		499,	"string(float fieldnum, entity ent)"},//DP_QC_ENTITYDATA
 	{"putentityfieldstring",PF_putentityfieldstring,0,0,	0,		500,	"float(float fieldnum, entity ent, string s)"},//DP_QC_ENTITYDATA
 	{"WritePicture",	PF_WritePicture,	0,		0,		0,		501,	D("void(float to, string s, float sz)", "Encodes the named image across the network as-is adhering to some size limit. In FTE, this simply writes the string and is equivelent to writestring and sz is ignored. WritePicture should be paired with ReadPicture in csqc.")},//DP_SV_WRITEPICTURE
@@ -9899,7 +9824,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	"float(string str)"},
 	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515,	"float(float idx)"},
 	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	"float(float idx)"},
-	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(strbuf strbuf)"},
+	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(strbuf strbuf, string pattern, string antipattern)"},
 	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	"string(string cvarname)"},
 	{"gettime",			PF_gettime,			0,		0,		0,		519,	"float(optional float timetype)"},
 	{"keynumtostring_omgwtf",PF_Fixme,		0,		0,		0,		520,	"string(float keynum)"},	//excessive third version in dp's csqc.
@@ -9928,7 +9853,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"matchpattern",	PF_Fixme,			0,		0,		0,		538,	"float(string s, string pattern, float matchrule)"},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		539,	""},
 
-#ifdef USEODE
+#ifdef USERBE
 	{"physics_enable",	PF_physics_enable,	0,		0,		0,		540,	D("void(entity e, float physics_enabled)", "Enable or disable the physics attached to a MOVETYPE_PHYSICS entity. Entities which have been disabled in this way will stop taking so much cpu time.")},
 	{"physics_addforce",PF_physics_addforce,0,		0,		0,		541,	D("void(entity e, vector force, vector relative_ofs)", "Apply some impulse directional force upon a MOVETYPE_PHYSICS entity.")},
 	{"physics_addtorque",PF_physics_addtorque,0,	0,		0,		542,	D("void(entity e, vector torque)", "Apply some impulse rotational force upon a MOVETYPE_PHYSICS entity.")},
@@ -9987,13 +9912,101 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{NULL}
 };
 
+static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int binum;
+	char fname[MAX_QPATH];
+	int i;
+	qboolean printedheader = false;
+
+	SV_EndRedirect();
+	if (!prinst->GetBuiltinCallInfo(prinst, &binum, fname, sizeof(fname)))
+	{
+		binum = 0;
+		strcpy(fname, "?unknown?");
+	}
+
+	if (binum)
+	for (i = 0; BuiltinList[i].bifunc; i++)
+	{
+		if (BuiltinList[i].ebfsnum == binum)
+		{
+			if (!printedheader)
+			{
+				Con_Printf( "\n"
+					"Mod forgot to ensure support for builtin %i:%s\n"
+							"Please consult the extensionlist_ssqc command.\n"
+							"Possible builtins:\n", binum, fname);
+				printedheader = true;
+			}
+			Con_Printf("%s\n", BuiltinList[i].name);
+		}
+	}
+
+	Con_Printf("\n");
+
+	if (progstype == PROG_QW)
+		prinst->RunError(prinst, "\nBuiltin %i:%s not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", binum, fname);
+	else
+		prinst->RunError(prinst, "\nBuiltin %i:%s not implemented.\nMod is not compatible.", binum, fname);
+	PR_BIError (prinst, "builtin not implemented");
+}
+int PR_EnableEBFSBuiltin(const char *name, int binum)
+{
+	int i;
+	for (i = 0;BuiltinList[i].name;i++)
+	{
+		if (!strcmp(BuiltinList[i].name, name) && BuiltinList[i].bifunc != PF_Fixme)
+		{
+			if (!binum)
+				binum = BuiltinList[i].ebfsnum;
+			if (!pr_overridebuiltins.value)
+			{
+				if (pr_builtin[binum] != NULL && pr_builtin[binum] != PF_Fixme)
+				{
+					if (pr_builtin[binum] == BuiltinList[i].bifunc)	//it is already this function.
+						return binum;
+
+					return 0;	//already used... ?
+				}
+			}
+
+			pr_builtin[binum] = BuiltinList[i].bifunc;
+
+			return binum;
+		}
+	}
+
+	return 0;	//not known
+}
+
+static int PDECL PR_SSQC_MapNamedBuiltin(pubprogfuncs_t *progfuncs, int headercrc, const char *builtinname)
+{
+	int i, binum;
+	for (i = 0;BuiltinList[i].name;i++)
+	{
+		if (!strcmp(BuiltinList[i].name, builtinname) && BuiltinList[i].bifunc != PF_Fixme)
+		{
+			for (binum = sizeof(pr_builtin)/sizeof(pr_builtin[0]); --binum; )
+			{
+				if (pr_builtin[binum] && pr_builtin[binum] != PF_Fixme && BuiltinList[i].bifunc)
+					continue;
+				pr_builtin[binum] = BuiltinList[i].bifunc;
+				return binum;
+			}
+			Con_Printf("No more builtin slots to allocate for %s\n", builtinname);
+			break;
+		}
+	}
+	Con_DPrintf("Unknown ssqc builtin: %s\n", builtinname);
+	return 0;
+}
+
 void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any extras that have a big number.
 {
 	int i;
 
 	int builtincount[sizeof(pr_builtin)/sizeof(pr_builtin[0])];
-
-	memset(pr_builtin, 0, sizeof(pr_builtin));
 
 	if (type == PROG_QW)
 	{
@@ -11145,6 +11158,9 @@ void PR_DumpPlatform_f(void)
 
 	for (i = 0; i < QSG_Extensions_count; i++)
 	{
+		if (!QSG_Extensions[i].name || *QSG_Extensions[i].name == '?' || *QSG_Extensions[i].name == '_')
+			continue;	//FIXME!
+
 		if (QSG_Extensions[i].description)
 			VFS_PRINTF(f, "#define %s /* %s */\n", QSG_Extensions[i].name, QSG_Extensions[i].description);
 		else
@@ -11308,6 +11324,8 @@ void PR_DumpPlatform_f(void)
 
 		if (BuiltinList[i].bifunc != PF_Fixme && BuiltinList[i].bifunc != PF_Ignore)
 		{
+			if (!idx)	//no index is a dynamically linked builtin, and can thus be usable in any gamecode mode (so long as its ssqc anyway)
+				nd |= NQ|QW|H2;
 			if (BuiltinList[i].ebfsnum == idx)
 				nd |= NQ|QW;
 			if (BuiltinList[i].nqnum == idx)
@@ -11318,177 +11336,173 @@ void PR_DumpPlatform_f(void)
 				nd |= H2;
 		}
 		
-		if (idx)
-		{
-			if (PR_CSQC_BuiltinValid(BuiltinList[i].name, idx))
-				nd |= CS;
+		if (PR_CSQC_BuiltinValid(BuiltinList[i].name, idx))
+			nd |= CS;
 #ifdef MENU_DAT
-			if (MP_BuiltinValid(BuiltinList[i].name, idx))
-				nd |= MENU;
+		if (MP_BuiltinValid(BuiltinList[i].name, idx))
+			nd |= MENU;
 #endif
-			
-			if (!nd)
-			{
-				/*no idea what its for*/
-				BuiltinList[i].obsolete = true;
-				nd = d;	/*don't switch ifdefs*/
-			}
-			nd |= (~targ & ALL);
-			if (!(nd & targ))
-				continue;
-			if ((nd&targ) != (d&targ))
-			{
-				if (d != (ALL & ~targ))
-					VFS_PRINTF(f, "#endif\n");
+		
+		if (!nd)	/*no idea what its for*/
+			continue;
+		nd |= (~targ & ALL);
+		if (!(nd & targ))
+			continue;
+		if ((nd&targ) != (d&targ))
+		{
+			if (d != (ALL & ~targ))
+				VFS_PRINTF(f, "#endif\n");
 
-				if (((nd | (~targ)) & ALL) == ALL)
-					d = ALL & ~targ;
-				else
-				{
-					d = nd;
-					switch(d & (ALL & targ))
-					{
-					case 0:
-						continue;
-					case QW:
-						VFS_PRINTF(f, "#if defined(QWSSQC)\n");
-						break;
-					case NQ:
-						VFS_PRINTF(f, "#if defined(NQSSQC)\n");
-						break;
-					case QW|NQ:
-						VFS_PRINTF(f, "#ifdef SSQC\n");
-						break;
-					case CS:
-						VFS_PRINTF(f, "#ifdef CSQC\n");
-						break;
-					case QW|CS:
-						VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC)\n");
-						break;
-					case NQ|CS:
-						VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC)\n");
-						break;
-					case NQ|CS|QW:
-						VFS_PRINTF(f, "#if defined(CSQC) || defined(SSQC)\n");
-						break;
-					case MENU:
-						VFS_PRINTF(f, "#ifdef MENU\n");
-						break;
-					case QW|MENU:
-						VFS_PRINTF(f, "#if defined(QWSSQC) || defined(MENU)\n");
-						break;
-					case NQ|MENU:
-						VFS_PRINTF(f, "#if defined(NQSSQC) || defined(MENU)\n");
-						break;
-					case QW|NQ|MENU:
-						VFS_PRINTF(f, "#if defined(SSQC) || defined(MENU)\n");
-						break;
-					case CS|MENU:
-						VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
-						break;
-					case QW|CS|MENU:
-						VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
-						break;
-					case NQ|CS|MENU:
-						VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
-						break;
-					case H2:
-						VFS_PRINTF(f, "#ifdef H2\n");
-						break;
-					case H2|QW:
-						VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC)\n");
-						break;
-					case H2|NQ:
-						VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC)\n");
-						break;
-					case H2|QW|NQ:
-						VFS_PRINTF(f, "#if defined(H2) || defined(SSQC)\n");
-						break;
-					case H2|CS:
-						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC)\n");
-						break;
-					case H2|QW|CS:
-						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC)\n");
-						break;
-					case H2|NQ|CS:
-						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC)\n");
-						break;
-					case H2|NQ|CS|QW:
-						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(SSQC)\n");
-						break;
-					case H2|MENU:
-						VFS_PRINTF(f, "#if defined(H2) || defined(MENU)\n");
-						break;
-					case H2|QW|MENU:
-						VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC) || defined(MENU)\n");
-						break;
-					case H2|NQ|MENU:
-						VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC) || defined(MENU)\n");
-						break;
-					case H2|QW|NQ|MENU:
-						VFS_PRINTF(f, "#if defined(H2) || defined(SSQC) || defined(MENU)\n");
-						break;
-					case H2|CS|MENU:
-						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(MENU)\n");
-						break;
-					case H2|QW|CS|MENU:
-						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
-						break;
-					case H2|NQ|CS|MENU:
-						VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
-						break;
-					case ALL:
-						VFS_PRINTF(f, "#if 1\n");
-						break;
-					default:
-						VFS_PRINTF(f, "#if 0 //???\n");
-						break;
-					}
-				}
-			}
-			VFS_PRINTF(f, "%s%s %s = #%u;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx);
-			nd = 0;
-			for (j = 0; j < QSG_Extensions_count; j++)
-			{
-				for (k = 0; k < QSG_Extensions[j].numbuiltins; k++)
-				{
-					if (!strcmp(QSG_Extensions[j].builtinnames[k], BuiltinList[i].name))
-					{
-						if (!nd)
-							VFS_PRINTF(f, " /* Part of ");
-						else
-							VFS_PRINTF(f, ", ");
-						nd++;
-						VFS_PRINTF(f, "%s", QSG_Extensions[j].name);
-					}
-				}
-			}
-			if (BuiltinList[i].biglongdesc)
-			{
-				char *line = BuiltinList[i].biglongdesc;
-				char *term;
-				if (!nd)
-					VFS_PRINTF(f, " /*");
-				while(*line)
-				{
-					VFS_PRINTF(f, "\n\t\t");
-					term = line;
-					while(*term && *term != '\n')
-						term++;
-					VFS_WRITE(f, line, term - line);
-					if (*term == '\n')
-					{
-						term++;
-					}
-					line = term;
-				}
-				VFS_PRINTF(f, " */\n\n");
-			}
-			else if (nd)
-				VFS_PRINTF(f, "*/\n");
+			if (((nd | (~targ)) & ALL) == ALL)
+				d = ALL & ~targ;
 			else
-				VFS_PRINTF(f, "\n");
+			{
+				d = nd;
+				switch(d & (ALL & targ))
+				{
+				case 0:
+					continue;
+				case QW:
+					VFS_PRINTF(f, "#if defined(QWSSQC)\n");
+					break;
+				case NQ:
+					VFS_PRINTF(f, "#if defined(NQSSQC)\n");
+					break;
+				case QW|NQ:
+					VFS_PRINTF(f, "#ifdef SSQC\n");
+					break;
+				case CS:
+					VFS_PRINTF(f, "#ifdef CSQC\n");
+					break;
+				case QW|CS:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC)\n");
+					break;
+				case NQ|CS:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC)\n");
+					break;
+				case NQ|CS|QW:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(SSQC)\n");
+					break;
+				case MENU:
+					VFS_PRINTF(f, "#ifdef MENU\n");
+					break;
+				case QW|MENU:
+					VFS_PRINTF(f, "#if defined(QWSSQC) || defined(MENU)\n");
+					break;
+				case NQ|MENU:
+					VFS_PRINTF(f, "#if defined(NQSSQC) || defined(MENU)\n");
+					break;
+				case QW|NQ|MENU:
+					VFS_PRINTF(f, "#if defined(SSQC) || defined(MENU)\n");
+					break;
+				case CS|MENU:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(MENU)\n");
+					break;
+				case QW|CS|MENU:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
+					break;
+				case NQ|CS|MENU:
+					VFS_PRINTF(f, "#if defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
+					break;
+				case H2:
+					VFS_PRINTF(f, "#ifdef H2\n");
+					break;
+				case H2|QW:
+					VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC)\n");
+					break;
+				case H2|NQ:
+					VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC)\n");
+					break;
+				case H2|QW|NQ:
+					VFS_PRINTF(f, "#if defined(H2) || defined(SSQC)\n");
+					break;
+				case H2|CS:
+					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC)\n");
+					break;
+				case H2|QW|CS:
+					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC)\n");
+					break;
+				case H2|NQ|CS:
+					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC)\n");
+					break;
+				case H2|NQ|CS|QW:
+					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(SSQC)\n");
+					break;
+				case H2|MENU:
+					VFS_PRINTF(f, "#if defined(H2) || defined(MENU)\n");
+					break;
+				case H2|QW|MENU:
+					VFS_PRINTF(f, "#if defined(H2) || defined(QWSSQC) || defined(MENU)\n");
+					break;
+				case H2|NQ|MENU:
+					VFS_PRINTF(f, "#if defined(H2) || defined(NQSSQC) || defined(MENU)\n");
+					break;
+				case H2|QW|NQ|MENU:
+					VFS_PRINTF(f, "#if defined(H2) || defined(SSQC) || defined(MENU)\n");
+					break;
+				case H2|CS|MENU:
+					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(MENU)\n");
+					break;
+				case H2|QW|CS|MENU:
+					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(QWSSQC) || defined(MENU)\n");
+					break;
+				case H2|NQ|CS|MENU:
+					VFS_PRINTF(f, "#if defined(H2) || defined(CSQC) || defined(NQSSQC) || defined(MENU)\n");
+					break;
+				case ALL:
+					VFS_PRINTF(f, "#if 1\n");
+					break;
+				default:
+					VFS_PRINTF(f, "#if 0 //???\n");
+					break;
+				}
+			}
 		}
+		if (idx)
+			VFS_PRINTF(f, "%s%s %s = #%u;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx);
+		else
+			VFS_PRINTF(f, "%s%s %s = #%u/*:%s*/;", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx, BuiltinList[i].name);
+		nd = 0;
+		for (j = 0; j < QSG_Extensions_count; j++)
+		{
+			for (k = 0; k < QSG_Extensions[j].numbuiltins; k++)
+			{
+				if (!strcmp(QSG_Extensions[j].builtinnames[k], BuiltinList[i].name))
+				{
+					if (!nd)
+						VFS_PRINTF(f, " /* Part of ");
+					else
+						VFS_PRINTF(f, ", ");
+					nd++;
+					VFS_PRINTF(f, "%s", QSG_Extensions[j].name);
+				}
+			}
+		}
+		if (BuiltinList[i].biglongdesc)
+		{
+			char *line = BuiltinList[i].biglongdesc;
+			char *term;
+			if (!nd)
+				VFS_PRINTF(f, " /*");
+			while(*line)
+			{
+				VFS_PRINTF(f, "\n\t\t");
+				term = line;
+				while(*term && *term != '\n')
+					term++;
+				VFS_WRITE(f, line, term - line);
+				if (*term == '\n')
+				{
+					term++;
+				}
+				line = term;
+			}
+			VFS_PRINTF(f, " */\n\n");
+		}
+		else if (nd)
+			VFS_PRINTF(f, "*/\n");
+		else
+			VFS_PRINTF(f, "\n");
 	}
 	if (d != (ALL & ~targ))
 		VFS_PRINTF(f, "#endif\n");
@@ -11504,8 +11518,8 @@ void PR_DumpPlatform_f(void)
 	{
 		VFS_PRINTF(f,
 			"accessor strbuf : float\n{\n"
-				"\tget float asfloat[float idx] = {return stof(bufstr_get(this, idx));};\n"
-				"\tset float asfloat[float idx] = {bufstr_set(this, idx, ftos(value));};\n"
+				"\tinline get float asfloat[float idx] = {return stof(bufstr_get(this, idx));};\n"
+				"\tinline set float asfloat[float idx] = {bufstr_set(this, idx, ftos(value));};\n"
 				"\tget string[float] = bufstr_get;\n"
 				"\tset string[float] = bufstr_set;\n"
 				"\tget float length = buf_getsize;\n"
@@ -11517,23 +11531,26 @@ void PR_DumpPlatform_f(void)
 			"};\n");
 		VFS_PRINTF(f,
 			"accessor hashtable : float\n{\n"
-				"\tget vector v[string key] = {return hash_get(this, key, '0 0 0', EV_VECTOR);};\n"
-				"\tset vector v[string key] = {hash_add(this, key, value, 1, EV_VECTOR);};\n"
-				"\tget string s[string key] = {return hash_get(this, key, \"\", EV_STRING);};\n"
-				"\tset string s[string key] = {hash_add(this, key, value, 1, EV_STRING);};\n"
-				"\tget string f[string key] = {return hash_get(this, key, 0.0, EV_FLOAT);};\n"
-				"\tset string f[string key] = {hash_add(this, key, value, 1, EV_FLOAT);};\n"
-				"\tget __variant[string key] = {return hash_get(this, key, __NULL__);};\n"
-				"\tset __variant[string key] = {hash_add(this, key, value, 1);};\n"
+				"\tinline get vector v[string key] = {return hash_get(this, key, '0 0 0', EV_VECTOR);};\n"
+				"\tinline set vector v[string key] = {hash_add(this, key, value, 1, EV_VECTOR);};\n"
+				"\tinline get string s[string key] = {return hash_get(this, key, \"\", EV_STRING);};\n"
+				"\tinline set string s[string key] = {hash_add(this, key, value, 1, EV_STRING);};\n"
+				"\tinline get string f[string key] = {return hash_get(this, key, 0.0, EV_FLOAT);};\n"
+				"\tinline set string f[string key] = {hash_add(this, key, value, 1, EV_FLOAT);};\n"
+				"\tinline get __variant[string key] = {return hash_get(this, key, __NULL__);};\n"
+				"\tinline set __variant[string key] = {hash_add(this, key, value, 1);};\n"
 			"};\n");
 		VFS_PRINTF(f,
 			"accessor infostring : string\n{\n"
 				"\tget string[string] = infoget;\n"
+#ifdef QCGC
+				"\tinline set* string[string] = {(*this) = infoadd(*this, value);};\n"
+#endif
 			"};\n");
 		VFS_PRINTF(f,
 			"accessor filestream : float\n{\n"
 				"\tget string = fgets;\n"
-				"\tset string = {fputs(this,value);};\n"
+				"\tinline set string = {fputs(this,value);};\n"
 			"};\n");
 	}
 

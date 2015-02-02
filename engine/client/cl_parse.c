@@ -3373,6 +3373,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 			CL_SendClientCommand(true, "playermodel %s", model.string);
 			CL_SendClientCommand(true, "playerskin %s", skin.string);
+			/*
 #ifdef PEXT_CSQC
 			{
 				char *s;
@@ -3380,6 +3381,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 				CSQC_Init(false, *s?true:false, atoi(s));
 			}
 #endif
+			*/
 		}
 		break;
 
@@ -4604,35 +4606,38 @@ void CL_ServerInfo (void)
 CL_SetStat
 =====================
 */
-static void CL_SetStat_Internal (int pnum, int stat, int value)
+static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 {
 	int	j;
-	if (cl.playerview[pnum].stats[stat] != value)
+	if (cl.playerview[pnum].stats[stat] != ivalue)
 		Sbar_Changed ();
 
 	if (stat == STAT_ITEMS)
 	{	// set flash times
 		for (j=0 ; j<32 ; j++)
-			if ( (value & (1<<j)) && !(cl.playerview[pnum].stats[stat] & (1<<j)))
+			if ( (ivalue & (1<<j)) && !(cl.playerview[pnum].stats[stat] & (1<<j)))
 				cl.playerview[pnum].item_gettime[j] = cl.time;
 	}
 
 	if (stat == STAT_WEAPON)
 	{
-		if (cl.playerview[pnum].stats[stat] != value)
+		if (cl.playerview[pnum].stats[stat] != ivalue)
 		{
-			if (value == 0)
+			if (ivalue == 0)
 				TP_ExecTrigger ("f_reloadstart");
 			else if (cl.playerview[pnum].stats[stat] == 0)
 				TP_ExecTrigger ("f_reloadend");
 		}
 	}
 
-	cl.playerview[pnum].stats[stat] = value;
-	cl.playerview[pnum].statsf[stat] = value;
+	if (stat == STAT_VIEWHEIGHT && ((cls.z_ext & Z_EXT_VIEWHEIGHT) || cls.protocol == CP_NETQUAKE))
+		cl.playerview[pnum].viewheight = fvalue;
+
+	cl.playerview[pnum].stats[stat] = ivalue;
+	cl.playerview[pnum].statsf[stat] = fvalue;
 
 	if (pnum == 0)
-		TP_StatChanged(stat, value);
+		TP_StatChanged(stat, ivalue);
 }
 
 void CL_SetStatMovevar(int pnum, int stat, float value)
@@ -4695,10 +4700,10 @@ void CL_SetStatInt (int pnum, int stat, int value)
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 			if (cl.playerview[pnum].cam_spec_track == cls_lastto)
-				CL_SetStat_Internal(pnum, stat, value);
+				CL_SetStat_Internal(pnum, stat, value, value);
 	}
 	else
-		CL_SetStat_Internal(pnum, stat, value);
+		CL_SetStat_Internal(pnum, stat, value, value);
 
 	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
 		CL_SetStatMovevar(pnum, stat, *(float*)&value);	//DP sucks.
@@ -4728,7 +4733,7 @@ void CL_SetStatFloat (int pnum, int stat, float value)
 		cl.playerview[pnum].stats[stat] = value;
 	}
 
-	if (stat == STAT_VIEWHEIGHT && cls.z_ext & Z_EXT_VIEWHEIGHT)
+	if (stat == STAT_VIEWHEIGHT && ((cls.z_ext & Z_EXT_VIEWHEIGHT) || cls.protocol == CP_NETQUAKE))
 		cl.playerview[pnum].viewheight = value;
 
 	if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
@@ -5744,7 +5749,7 @@ void CL_ParsePortalState(void)
 		else
 			a1 = MSG_ReadByte();
 #ifdef Q2BSPS
-		CMQ2_SetAreaPortalState(a1, !!(mode&1));
+		CMQ2_SetAreaPortalState(cl.worldmodel, a1, !!(mode&1));
 #endif
 		break;
 	case 0xc0:
@@ -5759,7 +5764,7 @@ void CL_ParsePortalState(void)
 			a2 = MSG_ReadByte();
 		}
 #ifdef Q3BSPS
-		CMQ3_SetAreaPortalState(a1, a2, !!(mode&1));
+		CMQ3_SetAreaPortalState(cl.worldmodel, a1, a2, !!(mode&1));
 #endif
 		break;
 
@@ -5767,7 +5772,7 @@ void CL_ParsePortalState(void)
 		//to be phased out.
 		mode |= MSG_ReadByte()<<8;
 #ifdef Q2BSPS
-		CMQ2_SetAreaPortalState(mode & 0x7fff, !!(mode&0x8000));
+		CMQ2_SetAreaPortalState(cl.worldmodel, mode & 0x7fff, !!(mode&0x8000));
 #endif
 		break;
 	}
@@ -6987,14 +6992,14 @@ void CLNQ_ParseServerMessage (void)
 		case svcnq_updatestatlong:
 			i = MSG_ReadByte ();
 			j = MSG_ReadLong ();
-			CL_SetStatInt (0, i, j);
 			CL_SetStatFloat (0, i, j);
+			CL_SetStatInt (0, i, j);
 			break;
 		case svcdp_updatestatbyte:
 			i = MSG_ReadByte ();
 			j = MSG_ReadByte ();
-			CL_SetStatInt (0, i, j);
 			CL_SetStatFloat (0, i, j);
+			CL_SetStatInt (0, i, j);
 			break;
 		case svc_setangle:
 			{

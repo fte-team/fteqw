@@ -2466,12 +2466,13 @@ static void QCBUILTIN PF_cs_particleeffectnum (pubprogfuncs_t *prinst, struct gl
 		free(cl.particle_csname[i]);
 		cl.particle_csname[i] = NULL;
 		cl.particle_csprecache[i] = P_FindParticleType(effectname);
-		if (cl.particle_csprecache[i] != P_INVALID)
+		//if (cl.particle_csprecache[i] != P_INVALID)
 		{
 			//it exists, allow it.
 			cl.particle_csname[i] = strdup(effectname);
 			G_FLOAT(OFS_RETURN) = -i;
 		}
+		cl.particle_csprecaches = true;
 	}
 
 	//if we're using dp network protocols, we should use the effectinfo.txt file as a lookup table instead.

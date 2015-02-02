@@ -2238,7 +2238,7 @@ static void P_PartInfo_f (void)
 
 		if (j)
 		{
-			Con_Printf("Type %s = %i total\n", part_type[i].name, j);
+			Con_Printf("Type %s.%s = %i total\n", part_type[i].config, part_type[i].name, j);
 			if (!(part_type[i].state & PS_INRUNLIST))
 				Con_Printf("  NOT RUNNING\n");
 		}
@@ -2254,7 +2254,7 @@ static void P_PartInfo_f (void)
 			j++;
 
 
-		Con_Printf("Type %s = %i total\n", ptype->name, j);
+		Con_Printf("Type %s.%s = %i total\n", ptype->config, ptype->name, j);
 		r += j;
 		e++;
 	}
@@ -3751,7 +3751,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				goto skip;
 		}
 
-		if (dir)
+		if (dir && (dir[0] || dir[1] || dir[2]))
 		{
 			void PerpendicularVector( vec3_t dst, const vec3_t src );
 			VectorCopy(dir, axis[2]);

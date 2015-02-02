@@ -867,7 +867,7 @@ enum {
 	IDM_FIRSTCHILD
 };
 
-void EditorReload(editor_t *editor);
+static void EditorReload(editor_t *editor);
 int EditorSave(editor_t *edit);
 void EditFile(char *name, int line);
 pbool EditorModified(editor_t *e);

@@ -1216,6 +1216,11 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 dynamic:
 		RSpeedRemark();
 
+#ifdef _DEBUG
+		if ((unsigned)fa->lightmaptexturenums[0] >= numlightmaps)
+			Sys_Error("Invalid lightmap index\n");
+#endif
+
 		lm = lightmap[fa->lightmaptexturenums[0]];
 
 		lm->modified = true;
@@ -2644,7 +2649,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 #ifdef TERRAIN
 	//easiest way to deal with heightmap lightmaps is to just purge the entire thing.
 	if (m->terrain)
-		Terr_PurgeTerrainModel(m, true, false);
+		Terr_PurgeTerrainModel(m, false, false);	//FIXME: cop out. middle arg should be 'true'.
 #endif
 
 	if (m->type != mod_brush)
@@ -2858,20 +2863,12 @@ void Surf_BuildLightmaps (void)
 	r_oldviewcluster2 = -1;
 	numlightmaps = 0;
 
-	for (j=1 ; j<MAX_PRECACHE_MODELS ; j++)
+	//FIXME: unload stuff that's no longer relevant somehow.
+	for (i = 0; i < mod_numknown; i++)
 	{
-		m = cl.model_precache[j];
-		if (!m)
-			break;
+		m = &mod_known[i];
 		if (m->loadstate != MLS_LOADED)
 			continue;
-		Surf_BuildModelLightmaps(m);
-	}
-	for (j=1 ; j<MAX_CSMODELS ; j++)
-	{
-		m = cl.model_csqcprecache[j];
-		if (!m)
-			break;
 		Surf_BuildModelLightmaps(m);
 	}
 	BE_UploadAllLightmaps();

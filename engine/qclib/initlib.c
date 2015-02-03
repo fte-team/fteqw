@@ -1037,7 +1037,7 @@ pbool PR_RunGC			(progfuncs_t *progfuncs)
 	unsigned int p;
 	char *marked;
 	unsigned int *str;
-//	unsigned int r_l, r_d;
+	unsigned int r_l, r_d;
 //	unsigned long long starttime, markedtime, endtime;
 
 	//only run the GC when we've itterated each string at least once.
@@ -1066,13 +1066,13 @@ pbool PR_RunGC			(progfuncs_t *progfuncs)
 
 	//sweep
 //	markedtime = Sys_GetClock();
-//	r_l = 0;
-//	r_d = 0;
+	r_l = 0;
+	r_d = 0;
 	for (p = 0; p < prinst.numtempstrings; p++)
 	{
 		if (marked[p])
 		{
-//			r_l++;
+			r_l++;
 		}
 		else
 			break;
@@ -1082,11 +1082,11 @@ pbool PR_RunGC			(progfuncs_t *progfuncs)
 	{
 		if (marked[p])
 		{
-//			r_l++;
+			r_l++;
 		}
 		else if (prinst.tempstrings[p])
 		{
-//			r_d++;
+			r_d++;
 			externs->memfree(prinst.tempstrings[p]);
 			prinst.tempstrings[p] = NULL;
 		}
@@ -1096,6 +1096,20 @@ pbool PR_RunGC			(progfuncs_t *progfuncs)
 		prinst.numtempstrings--;
 
 	free(marked);
+
+	//if over half the (max)strings are still live, just increase the max so we are not spamming collections
+	r_d += prinst.maxtempstrings - prinst.numtempstrings;
+	if (r_l > r_d)
+	{
+		unsigned int newmax = prinst.maxtempstrings * 2;
+		char **ntable = progfuncs->funcs.parms->memalloc(sizeof(char*) * newmax);
+		memcpy(ntable, prinst.tempstrings, sizeof(char*) * prinst.maxtempstrings);
+		memset(ntable+prinst.maxtempstrings, 0, sizeof(char*) * (newmax-prinst.maxtempstrings));
+		prinst.maxtempstrings = newmax;
+		if (prinst.tempstrings)
+			progfuncs->funcs.parms->memfree(prinst.tempstrings);
+		prinst.tempstrings = ntable;
+	}
 
 //	endtime = Sys_GetClock();
 //	printf("live: %u, dead: %u, time: mark=%f, sweep=%f\n", r_l, r_d, (double)(markedtime - starttime) / Sys_GetClockRate(), (double)(endtime - markedtime) / Sys_GetClockRate());
@@ -1121,7 +1135,7 @@ void PR_FreeTemps			(progfuncs_t *progfuncs, int depth)
 #endif
 void PR_FreeAllTemps			(progfuncs_t *progfuncs)
 {
-	int i;
+	unsigned int i;
 	for (i = 0; i < prinst.numtempstrings; i++)
 	{
 		externs->memfree(prinst.tempstrings[i]);

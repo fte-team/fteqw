@@ -1588,7 +1588,7 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 	PR_FreeTemps(progfuncs, tempdepth);
 	prinst.numtempstringsstack = tempdepth;
 #else
-	if (!oldexitdepth)
+	if (!pr_depth)
 		PR_RunGC(progfuncs);
 #endif
 

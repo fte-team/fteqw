@@ -308,7 +308,7 @@ static void CSQC_FindGlobals(void)
 
 	if (!csqc_world.g.physics_mode)
 	{
-		csphysicsmode = csqc_isdarkplaces?1:0;
+		csphysicsmode = 0;	/*note: dp handles think functions as part of addentity rather than elsewhere. if we're in a compat mode, we don't want to have to duplicate work*/
 		csqc_world.g.physics_mode = &csphysicsmode;
 	}
 

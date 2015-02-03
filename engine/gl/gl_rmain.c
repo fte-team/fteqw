@@ -1247,7 +1247,7 @@ void R_Clear (qboolean fbo)
 			//for performance, we clear the depth at the same time we clear colour, so we can skip clearing depth here the first time around each frame.
 			//but for multiple scenes, we do need to clear depth still.
 			//fbos always get cleared depth, just in case (colour fbos may contain junk, but hey).
-			qglClear (GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
+			qglClear (GL_DEPTH_BUFFER_BIT);
 		}
 		if (!fbo)
 			depthcleared = false;

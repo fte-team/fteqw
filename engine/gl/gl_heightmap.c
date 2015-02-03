@@ -2234,6 +2234,12 @@ void Terr_FreeModel(model_t *mod)
 	if (hm)
 	{
 		Terr_PurgeTerrainModel(mod, false, false);
+		while(hm->entities)
+		{
+			struct hmentity_s *n = hm->entities->next;
+			Z_Free(hm->entities);
+			hm->entities = n;
+		}
 		Z_Free(hm);
 		mod->terrain = NULL;
 	}

@@ -416,19 +416,24 @@ static void SH_CalcShadowBatches(model_t *mod)
 		}
 	}
 
-	l = NULL;
-	sb = 0;
-	mod->shadowbatches = BZ_Malloc(sizeof(*mod->shadowbatches)*mod->numshadowbatches);
-	for (s = 0; s < SHADER_SORT_COUNT; s++)
+	if (!mod->numshadowbatches)
+		mod->shadowbatches = NULL;
+	else
 	{
-		for (b = mod->batches[s]; b; b = b->next)
+		l = NULL;
+		sb = 0;
+		mod->shadowbatches = BZ_Malloc(sizeof(*mod->shadowbatches)*mod->numshadowbatches);
+		for (s = 0; s < SHADER_SORT_COUNT; s++)
 		{
-			if (!l || l->vbo != b->vbo || l->texture != b->texture)
+			for (b = mod->batches[s]; b; b = b->next)
 			{
-				mod->shadowbatches[sb].tex = b->texture;
-				mod->shadowbatches[sb].vbo = b->vbo;
-				sb++;
-				l = b;
+				if (!l || l->vbo != b->vbo || l->texture != b->texture)
+				{
+					mod->shadowbatches[sb].tex = b->texture;
+					mod->shadowbatches[sb].vbo = b->vbo;
+					sb++;
+					l = b;
+				}
 			}
 		}
 	}

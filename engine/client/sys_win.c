@@ -37,6 +37,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <process.h>
 #endif
 
+//exports that 3rd-party drivers can see in order to use descrete graphics cards over integrated ones, FOR MORE POWAH!
+__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;	//13.35+
+
+
 wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8);
 char *narrowen(char *out, size_t outlen, wchar_t *wide);
 

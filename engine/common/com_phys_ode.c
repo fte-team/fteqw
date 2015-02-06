@@ -2779,9 +2779,9 @@ static void World_ODE_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 
 static qintptr_t QDECL Plug_ODE_Shutdown(qintptr_t *args)
 {
-	World_ODE_Shutdown();
 	if (modfuncs)
 		modfuncs->UnregisterPhysicsEngine("ODE");
+	World_ODE_Shutdown();
 	return 0;
 }
 

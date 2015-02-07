@@ -52,6 +52,7 @@ int sourcefilesnumdefs;
 int currentsourcefile;
 int numsourcefiles;
 extern char *compilingfile;
+char compilingrootfile[1024];
 
 void QCC_PR_ResetErrorScope(void);
 
@@ -3410,6 +3411,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		sprintf (qccmprogsdat, "%s%s", qccmsourcedir, sourcefileslist[currentsourcefile++]);
 		printf ("Source file: %s\n", qccmprogsdat);
 
+		QC_strlcpy(compilingrootfile, qccmprogsdat, sizeof(compilingrootfile));
 		if (QCC_LoadFile (qccmprogsdat, (void *)&qccmsrc) == -1)
 		{
 			return true;

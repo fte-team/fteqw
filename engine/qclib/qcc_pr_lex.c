@@ -2983,6 +2983,7 @@ int QCC_PR_CheckCompConst(void)
 					QCC_PR_ExpandStrCat(&buffer, &bufferlen, &buffermax,   "\0", 1);
 					QCC_PR_IncludeChunkEx(buffer, true, NULL, c);
 				}
+				expandedemptymacro = true;
 				free(buffer);
 
 				if (flag_debugmacros)
@@ -2998,9 +2999,9 @@ int QCC_PR_CheckCompConst(void)
 		}
 		else
 		{
-			if (!*c->value)
-				expandedemptymacro = true;
-			QCC_PR_IncludeChunkEx(c->value, false, NULL, c);
+			if (*c->value)
+				QCC_PR_IncludeChunkEx(c->value, false, NULL, c);
+			expandedemptymacro = true;
 		}
 		return true;
 	}

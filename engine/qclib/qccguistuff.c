@@ -27,7 +27,7 @@ int Grep(char *filename, char *string)
 	char *buf;
 	if (!filename)
 		return foundcount;
-	sz = QCC_FileSize(filename);
+	sz = QCC_RawFileSize(filename);
 	if (sz <= 0)
 		return foundcount;
 	buf = malloc(sz+1);

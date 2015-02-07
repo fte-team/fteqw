@@ -260,7 +260,7 @@ unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, siz
 		*sz = length;
 	return buffer;
 }
-int PDECL QCC_FileSize (const char *fname)
+int PDECL QCC_RawFileSize (const char *fname)
 {
 	long    length;
 	FILE *f;
@@ -270,11 +270,20 @@ int PDECL QCC_FileSize (const char *fname)
 	fseek(f, 0, SEEK_END);
 	length = ftell(f);
 	fclose(f);
-
-	if (strcmp(progssrcname, fname))
-		AddSourceFile("%s/%s", progssrcname, fname);
-
 	return length;
+}
+int PDECL QCC_PopFileSize (const char *fname)
+{
+	extern int qcc_compileactive;
+	int len = QCC_RawFileSize(fname);
+	if (len >= 0 && qcc_compileactive)
+	{
+		if (strcmp(compilingrootfile, fname))
+			AddSourceFile("%s/%s", compilingrootfile, fname);
+		else
+			AddSourceFile("%s", fname);
+	}
+	return len;
 }
 
 #ifdef AVAIL_ZLIB
@@ -1598,7 +1607,7 @@ static void EditorReload(editor_t *editor)
 	int flen;
 	char *file;
 
-	flen = QCC_FileSize(editor->filename);
+	flen = QCC_RawFileSize(editor->filename);
 	if (flen >= 0)
 	{
 		file = malloc(flen+1);
@@ -1675,7 +1684,7 @@ void EditFile(char *name, int line)
 		}
 	}
 
-	if (QCC_FileSize(name) == -1)
+	if (QCC_RawFileSize(name) == -1)
 	{
 		QC_snprintfz(title, sizeof(title), "File not found.\n%s", name);
 		MessageBox(NULL, title, "Error", 0);
@@ -1890,7 +1899,7 @@ int GUIFileSize(const char *fname)
 			return len;
 		}
 	}
-	return QCC_FileSize(fname);
+	return QCC_PopFileSize(fname);
 }
 
 /*checks if the file has been modified externally*/
@@ -3335,11 +3344,14 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 				{
 				case NM_DBLCLK:
 					item = TreeView_GetSelection(projecttree);
+					memset(&i, 0, sizeof(i));
 					i.hItem = item;
-					i.mask = TVIF_TEXT;
+					i.mask = TVIF_TEXT|TVIF_PARAM;
 					i.pszText = itemtext;
 					i.cchTextMax = sizeof(itemtext)-1;
 					if (!TreeView_GetItem(projecttree, &i))
+						return 0;
+					if (!i.lParam)
 						return 0;
 					strcpy(filename, i.pszText);
 					while(item)
@@ -3836,11 +3848,11 @@ void AddSourceFile(char *format, ...)
 	memset(&parent, 0, sizeof(parent));
 
 	pi = item.hParent = TVI_ROOT;
-	item.hInsertAfter = TVI_SORT;
+	item.hInsertAfter = TVI_LAST;//TVI_SORT;
 	item.item.pszText = string;
 	item.item.state = TVIS_EXPANDED;
 	item.item.stateMask = TVIS_EXPANDED;
-	item.item.mask = TVIF_TEXT|TVIF_STATE;
+	item.item.mask = TVIF_TEXT|TVIF_STATE|TVIF_PARAM;
 	while(item.item.pszText)
 	{
 		slash = strchr(item.item.pszText, '/');
@@ -3862,6 +3874,7 @@ void AddSourceFile(char *format, ...)
 		if (!item.hParent)
 		{	//add a directory.
 			item.hParent = pi;
+			item.item.lParam = !slash;
 			pi = (HANDLE)SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
 			item.hParent = pi;
 		}
@@ -4003,9 +4016,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if (!fl_acc && !*progssrcname)
 	{
 		strcpy(progssrcname, "preprogs.src");
-		if (QCC_FileSize(progssrcname)==-1)
+		if (QCC_RawFileSize(progssrcname)==-1)
 			strcpy(progssrcname, "progs.src");
-		if (QCC_FileSize(progssrcname)==-1)
+		if (QCC_RawFileSize(progssrcname)==-1)
 		{
 			char *s, *s2;
 			char filename[MAX_PATH];

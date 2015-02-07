@@ -174,7 +174,7 @@ enum
 QCC_def_t *QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_b, QCC_statement_t **outstatement, unsigned int flags);
 
 void QCC_PR_ParseState (void);
-pbool expandedemptymacro;
+pbool expandedemptymacro;	//just inhibits warnings about hanging semicolons
 
 QCC_pr_info_t	pr;
 //QCC_def_t		**pr_global_defs/*[MAX_REGS]*/;	// to find def for a global variable
@@ -1693,7 +1693,7 @@ static void QCC_fprintfLocals(FILE *f, gofs_t paramstart, gofs_t paramend)
 	{
 		if (t->lastfunc == pr_scope)
 		{
-			fprintf(f, "local %s temp_%i;\n", (t->size == 1)?"float":"vector", t->ofs);
+			fprintf(f, "local %s temp_%i;\n", (t->size == 1)?"float":"vector", t->ofs-FIRST_TEMP);
 		}
 	}
 }
@@ -3380,6 +3380,9 @@ QCC_def_t *QCC_PR_StatementFlags (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t 
 			break;
 		}
 	}
+
+	if (!pr_scope)
+		QCC_PR_ParseError(ERR_BADEXTENSION, "Unable to generate statements at global scope.\n");
 
 	if (outstatement)
 		*outstatement = statement;
@@ -6324,7 +6327,7 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		}
 		else if (pr_assumetermtype)
 		{
-			d = QCC_PR_GetDef (pr_assumetermtype, name, pr_scope, true, 0, false);
+			d = QCC_PR_GetDef (pr_assumetermtype, name, NULL, true, 0, false);
 			if (!d)
 				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
 		}
@@ -7692,18 +7695,31 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 
 			QCC_def_t *val, *r;
 			QCC_statement_t *fromj, *elsej;
-			//FIXME: use the correct conditional
-			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT_I], QCC_RefToDef(lhsr, true), NULL, &fromj));
+			if (QCC_PR_CheckToken(":"))
+			{
+				val = QCC_RefToDef(lhsr, true);
+				//FIXME: use the correct conditional
+				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT_I], val, NULL, &fromj));
+				QCC_UnFreeTemp(val);
+				r = QCC_GetTemp(val->type);
+				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r->type->size>=3)?OP_STORE_V:OP_STORE_F], val, r, NULL, 0));
+				QCC_UnFreeTemp(r);
+			}
+			else
+			{
+				//FIXME: use the correct conditional
+				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_IFNOT_I], QCC_RefToDef(lhsr, true), NULL, &fromj));
 
-			val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
-			if (val->type->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
-				val = QCC_SupplyConversion(val, ev_float, true);
-			r = QCC_GetTemp(val->type);
-			QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r->type->size>=3)?OP_STORE_V:OP_STORE_F], val, r, NULL, 0));
-			//r can be stomped upon until its reused anyway
-			QCC_UnFreeTemp(r);
+				val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+				if (val->type->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
+					val = QCC_SupplyConversion(val, ev_float, true);
+				r = QCC_GetTemp(val->type);
+				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r->type->size>=3)?OP_STORE_V:OP_STORE_F], val, r, NULL, 0));
+				//r can be stomped upon until its reused anyway
+				QCC_UnFreeTemp(r);
 
-			QCC_PR_Expect(":");
+				QCC_PR_Expect(":");
+			}
 			QCC_PR_Statement(&pr_opcodes[OP_GOTO], NULL, NULL, &elsej);
 			fromj->b = &statements[numstatements] - fromj;
 			val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
@@ -9139,7 +9155,7 @@ void QCC_PR_ParseState (void)
 
 	QCC_PR_Expect (",");
 
-	pr_scope = NULL;
+//	pr_scope = NULL;
 	pr_assumetermtype = type_function;
 	def = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 	if (typecmp(def->type, type_function))
@@ -9156,7 +9172,7 @@ void QCC_PR_ParseState (void)
 		}
 	}
 	pr_assumetermtype = NULL;
-	pr_scope = sc;
+//	pr_scope = sc;
 
 	QCC_PR_Expect ("]");
 

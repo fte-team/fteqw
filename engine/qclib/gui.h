@@ -6,7 +6,7 @@ void GUI_SetDefaultOpts(void);
 int GUI_BuildParms(char *args, char **argv, pbool quick);
 
 unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz);
-int QCC_FileSize (const char *fname);
+int QCC_RawFileSize (const char *fname);
 pbool QCC_WriteFile (const char *name, void *data, int len);
 void GUI_DialogPrint(char *title, char *text);
 

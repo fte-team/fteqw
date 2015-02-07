@@ -941,6 +941,8 @@ extern int max_temps;
 extern int tempsstart;
 extern int numtemps;
 
+extern char compilingrootfile[];	//.src file currently being compiled
+
 typedef char PATHSTRING[MAX_DATA_PATH];
 
 typedef struct

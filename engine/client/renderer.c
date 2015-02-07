@@ -127,6 +127,7 @@ cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
 cvar_t r_skyboxname							= SCVARF ("r_skybox", "",
 												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
+cvar_t r_softwarebanding					= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM | CVAR_RENDERERLATCH, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
 cvar_t r_speeds								= SCVAR ("r_speeds", "0");
 cvar_t r_stainfadeammount					= SCVAR  ("r_stainfadeammount", "1");
 cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
@@ -622,6 +623,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
 	Cbuf_AddText("alias sky r_skybox\n", RESTRICT_LOCAL);	/*alternative name for users*/
+	Cvar_Register (&r_softwarebanding, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_dodgytgafiles, "Bug fixes");
 	Cvar_Register(&r_dodgypcxfiles, "Bug fixes");

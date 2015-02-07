@@ -2813,6 +2813,8 @@ static void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int fla
 
 	switch(mips->encoding)
 	{
+	case PTI_R8:
+		return;
 	case PTI_RGBA8:
 	case PTI_RGBX8:
 	case PTI_BGRA8:
@@ -3296,8 +3298,38 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, uploadfmt_t orig
 		return;	//blurgh
 
 	//if that format isn't supported/desired, try converting it.
-	if (sh_config.texfmt[PTI_RGBX8])
+	if (sh_config.texfmt[mips->encoding])
 		return;
+
+	if (mips->encoding == PTI_R8)
+	{
+		if (sh_config.texfmt[PTI_BGRX8])	//bgra8 is typically faster when supported.
+			mips->encoding = PTI_BGRX8;
+		else if (sh_config.texfmt[PTI_BGRX8])
+			mips->encoding = PTI_RGBX8;
+		else if (sh_config.texfmt[PTI_BGRA8])
+			mips->encoding = PTI_BGRA8;
+		else
+			mips->encoding = PTI_RGBA8;
+		for (mip = 0; mip < mips->mipcount; mip++)
+		{
+			unsigned int i;
+			unsigned int *out;
+			unsigned char *in;
+			in = mips->mip[mip].data;
+			out = BZ_Malloc(mips->mip[mip].width*mips->mip[mip].height*sizeof(*out));
+			for (i = 0; i < mips->mip[mip].width*mips->mip[mip].height; i++)
+				out[i] = in[i] * 0x01010101;
+			if (mips->mip[mip].needfree)
+				BZ_Free(in);
+			mips->mip[mip].data = out;
+			mips->mip[mip].needfree = true;
+			mips->mip[mip].datasize = mips->mip[mip].width*mips->mip[mip].height*sizeof(*out);
+		}
+
+		if (sh_config.texfmt[mips->encoding])
+			return;
+	}
 
 	//should we just use 5551 always?
 	if (mips->encoding == PTI_RGBX8 || mips->encoding == PTI_BGRX8)
@@ -3318,6 +3350,7 @@ static void Image_ChangeFormat(struct pendingtextureinfo *mips, uploadfmt_t orig
 			}
 		}
 		else*/
+		if (sh_config.texfmt[PTI_RGB565])
 		{
 			for (mip = 0; mip < mips->mipcount; mip++)
 				Image_8888to565(mips->mip[mip].data, mips->mip[mip].data, mips->mip[mip].width, mips->mip[mip].height, mips->encoding == PTI_BGRX8);
@@ -3409,6 +3442,9 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		break;
 	case TF_BGRA32:
 		mips->encoding = PTI_BGRA8;
+		break;
+	case TF_LUM8:
+		mips->encoding = PTI_R8;
 		break;
 	case TF_SOLID8:
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
@@ -4184,6 +4220,7 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 			pb = 4*256;
 			b = 1;
 			break;
+		case TF_LUM8:
 		case TF_SOLID8:
 		case TF_TRANS8:
 		case TF_TRANS8_FULLBRIGHT:

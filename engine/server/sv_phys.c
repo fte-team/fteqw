@@ -2316,16 +2316,15 @@ void World_Physics_Frame(world_t *w)
 				}
 				else
 				{
-					float newt;
-					float delt;
+					unsigned int newt;
+					unsigned int delt;
 					newt = sv.time*1000;
-					delt = newt - svs.clients[i-1].msecs;
-					if (delt > 1000/77.0 || delt < -10)
+					delt = newt - svs.clients[i-1].lastruncmd;
+					if (delt > (int)(1000/77.0) || delt < -10)
 					{
 						float ft = host_frametime;
 						host_client = &svs.clients[i-1];
 						sv_player = svs.clients[i-1].edict;
-						svs.clients[i-1].msecs = newt;
 						SV_PreRunCmd();
 #ifndef NEWSPEEDCHEATPROT
 						svs.clients[i-1].last_check = 0;

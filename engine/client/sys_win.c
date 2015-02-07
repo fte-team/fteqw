@@ -2037,6 +2037,7 @@ void Sys_SendKeyEvents (void)
 		HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
 		if (!PeekNamedPipe(input, NULL, 0, NULL, &avail, NULL))
 		{
+			wantquit = true;
 			Cmd_ExecuteString("quit force", RESTRICT_LOCAL);
 		}
 		else if (avail)

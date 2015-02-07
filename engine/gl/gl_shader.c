@@ -48,7 +48,7 @@ sh_config_t sh_config;
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_deluxemapping;
-extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
+extern cvar_t r_fastturb, r_fastsky, r_skyboxname, r_softwarebanding;
 extern cvar_t r_drawflat;
 extern cvar_t r_shaderblobs;
 
@@ -652,6 +652,26 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 	return flags;
 }
 
+texid_t R_LoadColourmapImage(void)
+{
+	unsigned int w = 256, h = VID_GRADES-1;
+	unsigned int x;
+	unsigned int data[256*(VID_GRADES-1)];
+	qbyte *colourmappal = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", NULL);
+	if (colourmappal)
+	{
+		for (x = 0; x < sizeof(data)/sizeof(data[0]); x++)
+			data[x] = d_8to24rgbtable[colourmappal[x]];
+	}
+	else
+	{	//erk
+		for (x = 0; x < sizeof(data)/sizeof(data[0]); x++)
+			data[x] = d_8to24rgbtable[x & 0xff];
+	}
+	BZ_Free(colourmappal);
+	return R_LoadTexture("$colourmap", w, h, TF_RGBA32, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA|IF_CLAMP);
+}
+
 static texid_t Shader_FindImage ( char *name, int flags )
 {
 	if (parsestate.mode == SPM_DOOM3)
@@ -670,6 +690,8 @@ static texid_t Shader_FindImage ( char *name, int flags )
 	{
 		if (!Q_stricmp (name, "$whiteimage"))
 			return r_whiteimage;
+		if (!Q_stricmp (name, "$colourmap"))
+			return R_LoadColourmapImage();
 	}
 	if (flags & IF_RENDERTARGET)
 		return R2D_RT_Configure(name, 0, 0, TF_INVALID);
@@ -2067,6 +2089,11 @@ static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		pass->texgen = T_GEN_DIFFUSE;
 		shader->flags |= SHADER_HASDIFFUSE;
+	}
+	else if (!Q_stricmp (tname, "$paletted"))
+	{
+		pass->texgen = T_GEN_PALETTED;
+		shader->flags |= SHADER_HASPALETTED;
 	}
 	else if (!Q_stricmp (tname, "$normalmap"))
 	{
@@ -3797,6 +3824,9 @@ done:;
 
 			if (pass->texgen != T_GEN_ANIMMAP && pass->texgen != T_GEN_SINGLEMAP && pass->texgen != T_GEN_VIDEOMAP)
 				weight += 1000;
+
+			if ((pass->texgen == T_GEN_ANIMMAP || pass->texgen == T_GEN_SINGLEMAP) && pass->anim_frames[0] && *pass->anim_frames[0]->ident == '$')
+				weight += 1500;
 			
 			if (weight < bestweight)
 			{
@@ -4040,6 +4070,17 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 			tn->base = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA);
 
 		TEXASSIGN(shader->defaulttextures.base, tn->base);
+	}
+
+	if (!TEXVALID(shader->defaulttextures.paletted))
+	{
+		/*dlights/realtime lighting needs some stuff*/
+//		if (!TEXVALID(tn->paletted) && *shader->mapname)// && (shader->flags & SHADER_HASDIFFUSE))
+//			tn->paletted = R_LoadHiResTexture(shader->mapname, NULL, 0);
+//		if (!TEXVALID(tn->paletted))
+//			tn->paletted = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA);
+
+		TEXASSIGN(shader->defaulttextures.paletted, tn->paletted);
 	}
 
 	COM_StripExtension(imagename, imagename, sizeof(imagename));
@@ -4662,6 +4703,34 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 					"map $diffuse\n"
 					"tcgen base\n"
 					"blendfunc blend\n"
+				"}\n"
+			"}\n"
+		);
+	}
+
+	if (!builtin && r_softwarebanding.ival)
+	{
+		/*alpha bended*/
+		builtin = (
+			"{\n"
+			"program defaultwall#EIGHTBIT\n"
+				"{\n"
+					"map $paletted\n"//$diffuse\n"
+				"}\n"
+				"{\n"
+					"map $lightmap\n"
+				"}\n"
+				"{\n"
+					"map $normalmap\n"
+				"}\n"
+				"{\n"
+					"map $deluxmap\n"
+				"}\n"
+				"{\n"
+					"map $colourmap\n"//$fullbright\n"
+				"}\n"
+				"{\n"
+					"map $specular\n"
 				"}\n"
 			"}\n"
 		);

@@ -1559,15 +1559,15 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	if (nqjunk)
 	{
 		MSG_WriteShort (msg, ent->v->health);
-		MSG_WriteByte (msg, ent->v->currentammo);
-		MSG_WriteByte (msg, ent->v->ammo_shells);
-		MSG_WriteByte (msg, ent->v->ammo_nails);
-		MSG_WriteByte (msg, ent->v->ammo_rockets);
-		MSG_WriteByte (msg, ent->v->ammo_cells);
+		MSG_WriteByte (msg, min(ent->v->currentammo, 255));
+		MSG_WriteByte (msg, min(ent->v->ammo_shells, 255));
+		MSG_WriteByte (msg, min(ent->v->ammo_nails, 255));
+		MSG_WriteByte (msg, min(ent->v->ammo_rockets, 255));
+		MSG_WriteByte (msg, min(ent->v->ammo_cells, 255));
 
 		if (standard_quake)
 		{
-			MSG_WriteByte (msg, ent->v->weapon);
+			MSG_WriteByte (msg, (unsigned int)ent->v->weapon & 0xff);
 		}
 		else
 		{
@@ -1618,7 +1618,8 @@ void SV_QCStatEval(int type, char *name, evalc_t *field, eval_t *global, int sta
 
 	for (i = 0; i < numqcstats; i++)
 	{
-		if (qcstats[i].statnum == statnum)
+		//strings use a different namespace.
+		if (qcstats[i].statnum == statnum && ((qcstats[i].type == ev_string||qcstats[i].type == -ev_string) == (type == ev_string||type == -ev_string)))
 			break;
 	}
 	if (i == numqcstats)
@@ -2756,6 +2757,7 @@ void SV_SendClientMessages (void)
 				if (c->nextservertimeupdate > pt + 6)
 					c->nextservertimeupdate = 0;
 
+				c->netchan.cleartime = realtime - 100;
 				c->netchan.nqunreliableonly = !c->send_message;
 				c->datagram.cursize = 0;
 				if (!c->send_message && c->nextservertimeupdate < pt)

@@ -16,7 +16,8 @@ typedef enum
 	SKEL_RELATIVE,	//relative to parent.
 	SKEL_ABSOLUTE,	//relative to model. doesn't blend very well.
 	SKEL_INVERSE_RELATIVE,	//pre-inverted. faster than regular relative but has weirdness with skeletal objects. blends okay.
-	SKEL_INVERSE_ABSOLUTE	//final renderable type.
+	SKEL_INVERSE_ABSOLUTE,	//final renderable type.
+	SKEL_IDENTITY	//PANIC
 } skeltype_t;
 
 #ifdef HALFLIFEMODELS
@@ -274,6 +275,9 @@ struct pendingtextureinfo
 		//floating point formats
 		PTI_RGBA16F,
 		PTI_RGBA32F,
+		//small formats.
+		PTI_R8,
+		PTI_RG8,
 		//compressed formats
 		PTI_S3RGB1,
 		PTI_S3RGBA1,
@@ -341,11 +345,12 @@ typedef struct
 } srect_t;
 
 typedef struct texnums_s {
-	texid_t base;
-	texid_t bump;
-	texid_t specular;
-	texid_t upperoverlay;
-	texid_t loweroverlay;
+	texid_t base;			//regular diffuse texture. may have alpha if surface is transparent
+	texid_t bump;			//normalmap. height values packed in alpha.
+	texid_t specular;		//specular lighting values.
+	texid_t upperoverlay;	//diffuse texture for the upper body(shirt colour). no alpha channel. added to base.rgb
+	texid_t loweroverlay;	//diffuse texture for the lower body(trouser colour). no alpha channel. added to base.rgb
+	texid_t paletted;		//8bit paletted data, just because.
 	texid_t fullbright;
 } texnums_t;
 

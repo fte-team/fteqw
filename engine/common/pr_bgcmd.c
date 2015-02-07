@@ -112,7 +112,7 @@ void QCLoadBreakpoints(const char *vmname, const char *progsname)
 		printf("qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
 		fflush(stdout);
 		INS_UpdateGrabs(false, false);
-		while(debuggerresume == -1)
+		while(debuggerresume == -1 && !wantquit)
 		{
 			Sleep(10);
 			Sys_SendKeyEvents();
@@ -236,6 +236,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 		if (sv.state)
 			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
 #endif
+		Host_EndGame("Reloading QC");
 	}
 	else if (!strncmp(text, "qcbreakpoint ", 13))
 	{
@@ -273,6 +274,8 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 #if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
 	if (isPlugin >= 2)
 	{
+		if (wantquit)
+			return DEBUG_TRACE_ABORT;
 		if (!*filename || !line || !*line)	//don't try editing an empty line, it won't work
 			return DEBUG_TRACE_OFF;
 		Sys_SendKeyEvents();
@@ -295,7 +298,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			Con_Footerf(false, "^bDebugging: %s", reason);
 		else
 			Con_Footerf(false, "^bDebugging");
-		while(debuggerresume == -1)
+		while(debuggerresume == -1 && !wantquit)
 		{
 			Sleep(10);
 			Sys_SendKeyEvents();
@@ -316,6 +319,8 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		*line = debuggerresumeline;
 		debuggerinstance = NULL;
 		debuggerfile = NULL;
+		if (wantquit)
+			return DEBUG_TRACE_ABORT;
 		return debuggerresume;
 	}
 #endif

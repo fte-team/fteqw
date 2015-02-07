@@ -50,6 +50,7 @@ extern cvar_t r_stains;
 extern cvar_t r_loadlits;
 extern cvar_t r_stainfadetime;
 extern cvar_t r_stainfadeammount;
+extern cvar_t gl_lightmap_nearest;
 
 static int lightmap_shift;
 int Surf_LightmapShift (model_t *model)
@@ -2607,7 +2608,7 @@ int Surf_NewExternalLightmaps(int count, char *filepattern, qboolean deluxe)
 
 		Q_snprintfz(nname, sizeof(nname), filepattern, i - numlightmaps);
 
-		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, 0));
+		TEXASSIGN(lightmap[i]->lightmap_texture, R_LoadHiResTexture(nname, NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP));
 		if (lightmap[i]->lightmap_texture->status == TEX_LOADING)
 			COM_WorkerPartialSync(lightmap[i]->lightmap_texture, &lightmap[i]->lightmap_texture->status, TEX_LOADING);
 		lightmap[i]->width = lightmap[i]->lightmap_texture->width;

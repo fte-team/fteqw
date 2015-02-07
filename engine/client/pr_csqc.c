@@ -2712,6 +2712,11 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 		csqc_deprecated("runplayerphysics with no ent");
 		return;
 	}
+	if (ent->readonly)
+	{
+		csqc_deprecated("runplayerphysics called on read-only entity");
+		return;
+	}
 
 	if (!cl.worldmodel)
 		return;	//urm..

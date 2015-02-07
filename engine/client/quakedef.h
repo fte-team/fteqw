@@ -322,6 +322,7 @@ extern qboolean		msg_suppress_1;		// suppresses resolution and cache size consol
 #if !defined(SERVERONLY) && !defined(CLIENTONLY)
 extern qboolean isDedicated;
 #endif
+extern qboolean wantquit;	//flagged if we want to force a quit, safely breaking out of any modal stuff
 
 
 

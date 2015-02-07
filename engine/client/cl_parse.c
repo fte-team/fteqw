@@ -4028,7 +4028,9 @@ void CL_ParseStatic (int version)
 
 // copy it to the current state
 	ent->model = cl.model_precache[es.modelindex];
+	memset(&ent->framestate, 0, sizeof(ent->framestate));
 	ent->framestate.g[FS_REG].frame[0] = ent->framestate.g[FS_REG].frame[1] = es.frame;
+	ent->framestate.g[FS_REG].lerpweight[0] = 1;
 	ent->skinnum = es.skinnum;
 	ent->drawflags = es.hexen2flags;
 

@@ -32,6 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
 extern cvar_t gl_lightmap_average;
+extern cvar_t r_softwarebanding;
 cvar_t mod_loadentfiles						= CVAR("sv_loadentfiles", "1");
 cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .vis patches for quake maps, allowing transparent water to work properly.");
 cvar_t mod_warnmodels						= CVARD("mod_warnmodels", "1", "Warn if any models failed to load. Set to 0 if your mod is likely to lack optional models (like its in development).");	//set to 0 for hexen2 and its otherwise-spammy-as-heck demo.
@@ -1397,6 +1398,7 @@ void Mod_FinishTexture(texture_t *tx)
 #define LMT_FULLBRIGHT 2
 #define LMT_BUMP 4
 #define LMT_SPEC 8
+#define LMT_PALETTED 16
 static void Mod_LoadMiptex(model_t *loadmodel, char *loadname, texture_t *tx, miptex_t *mt, int maps)
 {
 #ifndef SERVERONLY
@@ -1453,6 +1455,12 @@ static void Mod_LoadMiptex(model_t *loadmodel, char *loadname, texture_t *tx, mi
 				mipbase = base;
 				mipwidth = tx->width;
 				mipheight = tx->height;
+			}
+
+			if (maps & LMT_PALETTED)
+			{
+				snprintf(altname, sizeof(altname)-1, "%s_pal", mt->name);
+				tx->texnums.paletted = R_LoadReplacementTexture(altname, loadname, ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP|IF_NEAREST, mipbase, mipwidth, mipheight, TF_LUM8);
 			}
 
 			if (maps & LMT_DIFFUSE)
@@ -1580,7 +1588,11 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 #ifndef SERVERONLY
 		if (qrenderer != QR_NONE)
 		{
-			maps |= LMT_DIFFUSE;
+			//FIXME: we really need to handle this stuff better, but the shader isn't known yet.
+			if (r_softwarebanding.ival)
+				maps |= LMT_PALETTED;
+//			else
+				maps |= LMT_DIFFUSE;
 			if (r_fb_bmodels.ival)
 				maps |= LMT_FULLBRIGHT;
 			if (r_loadbumpmapping || (r_waterstyle.ival > 1 && *tx->name == '*'))

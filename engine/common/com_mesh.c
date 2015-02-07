@@ -622,6 +622,20 @@ const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *sourcedat
 		sourcedata = dest;
 		sourcetype = SKEL_INVERSE_ABSOLUTE;
 	}
+	
+	if (sourcetype == SKEL_IDENTITY)
+	{	//we can 'convert' identity matricies to anything. but we only want to do this when everything else is bad, because there really is no info here
+		float *dest = (sourcedata == destbuffer)?destbufferalt:destbuffer;
+		memset(dest, 0, bonecount*12*sizeof(float));
+		for (i = 0; i < bonecount; i++)
+		{	//is this right? does it matter?
+			dest[i*12+0] = 1;
+			dest[i*12+5] = 1;
+			dest[i*12+10] = 1;
+		}
+		sourcedata = dest;
+		sourcetype = desttype;	//panic
+	}
 
 	if (sourcetype != desttype)
 		Sys_Error("Alias_ConvertBoneData: %i->%i not supported\n", (int)sourcetype, (int)desttype);
@@ -1137,6 +1151,9 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 	galiasgroup_t *g;
 	unsigned int b;
 	float totalweight = 0;
+
+	lerps->skeltype = SKEL_IDENTITY;	//sometimes nothing else is valid.
+
 	for (b = 0; b < FRAME_BLENDS; b++)
 	{
 		if (fs->lerpweight[b])
@@ -1165,7 +1182,7 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 				frame2=(frame2>g->numposes-1)?g->numposes-1:frame2;
 			}
 
-			if (!l)
+			if (lerps->skeltype == SKEL_IDENTITY)
 				lerps->skeltype = g->skeltype;
 			else if (lerps->skeltype != g->skeltype)
 				continue;	//oops, can't cope with mixed blend types
@@ -1683,6 +1700,12 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #endif
 	meshcache.vertgroup = inf->shares_verts;
 	meshcache.ent = e;
+
+
+#ifdef _DEBUG
+	if (!e->framestate.g[FS_REG].lerpweight[0] && !e->framestate.g[FS_REG].lerpweight[1] && !e->framestate.g[FS_REG].lerpweight[2] && !e->framestate.g[FS_REG].lerpweight[3])
+		Con_Printf("Entity with no lerp info\n");
+#endif
 
 
 #ifndef SERVERONLY

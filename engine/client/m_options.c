@@ -2691,6 +2691,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	ent.playerindex = -1;
 	ent.skinnum = mods->skingroup;
 	ent.shaderTime = realtime;
+	ent.framestate.g[FS_REG].lerpweight[0] = 1;
 	ent.framestate.g[FS_REG].frame[0] = mods->framegroup;
 	ent.framestate.g[FS_REG].frametime[0] = realtime - mods->framechangetime;
 	ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;

@@ -4642,7 +4642,11 @@ void Cmd_Observe_f (void)
 			PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
 		}
 		else
+		{
 			sv_player->v->movetype = MOVETYPE_NOCLIP;
+			sv_player->v->model = 0;
+			sv_player->v->modelindex = 0;
+		}
 		sv.spawned_observer_slots++;
 
 		// send notification to all clients
@@ -4854,12 +4858,10 @@ void SVNQ_Spawn_f (void)
 		ClientReliableWrite_Long (host_client, pr_global_struct->killed_monsters);
 	}
 
-	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
-	MSG_WriteByte (&host_client->netchan.message, 3);
-
+	ClientReliableWrite_Begin (host_client, svc_signonnum, 2);
+	ClientReliableWrite_Byte (host_client, 3);
 
 	host_client->send_message = true;
-
 }
 void SVNQ_Begin_f (void)
 {
@@ -4984,7 +4986,7 @@ void SVNQ_PreSpawn_f (void)
 		host_client->prespawn_idx = 0;
 
 		if (sv_mapcheck.value)
-			Con_Printf("Warning: %s does cannot be applied to NQ clients.\n", sv_mapcheck.name);	//as you can fake it in a client anyway, this is hardly a significant issue.
+			Con_Printf("Warning: %s cannot be enforced on NQ clients.\n", sv_mapcheck.name);	//as you can fake it in a client anyway, this is hardly a significant issue.
 	}
 
 	host_client->send_message = true;
@@ -5852,6 +5854,10 @@ void SV_PreRunCmd(void)
 		playertouch = BZ_Malloc((playertouchmax>>3)+1);
 	}
 	memset(playertouch, 0, playertouchmax>>3);
+
+	//timestamp it, so things can't go weird
+	if (host_client)
+		host_client->lastruncmd = sv.time * 1000;
 }
 void SV_RunCmdCleanup(void)
 {

@@ -104,6 +104,7 @@ qboolean		static_registered = true;	// only for startup check, then set
 
 qboolean		msg_suppress_1 = false;
 int				isPlugin;	//if 2, we qcdebug to external program
+qboolean		wantquit;
 
 void COM_Path_f (void);
 void COM_Dir_f (void);
@@ -5017,6 +5018,8 @@ COM_Init
 void COM_Init (void)
 {
 	qbyte	swaptest[2] = {1,0};
+
+	wantquit = false;
 
 // set the qbyte swapping variables in a portable manner
 	if ( *(short *)swaptest == 1)

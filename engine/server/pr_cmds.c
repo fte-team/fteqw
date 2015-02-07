@@ -8614,6 +8614,19 @@ static void QCBUILTIN PF_globalstat(pubprogfuncs_t *prinst, struct globalvars_s 
 #endif
 }
 
+//void(float num, float type, void *ptr) pointerstat
+static void QCBUILTIN PF_pointerstat(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int num = G_FLOAT(OFS_PARM0);
+	int type = G_FLOAT(OFS_PARM1);
+	int addr = G_INT(OFS_PARM2);
+	int size = (type == ev_vector)?sizeof(vec3_t):sizeof(float);
+	if (addr < 0 || addr+size >= prinst->stringtablesize)
+		prinst->RunError(prinst, "QCVM address %#x is not valid.", addr);
+	else
+		SV_QCStatPtr(type, prinst->stringtable+addr, num);
+}
+
 //EXT_CSQC_1
 static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -8624,6 +8637,13 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	extern cvar_t sv_gravity;
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
 	edict_t *touched;
+
+	if (ent->readonly)
+	{
+		Con_Printf("runplayerphysics called on read-only entity");
+		return;
+	}
+
 	if (pr_global_ptrs->clientcommandframe)
 		pmove.sequence = *pr_global_ptrs->clientcommandframe;
 	else
@@ -9443,7 +9463,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //EXT_CSQC
 	{"clientstat",		PF_clientstat,		0,		0,		0,		232,	D("void(float num, float type, .__variant fld)", "Specifies what data to use in order to send various stats, in a client-specific way.\n'num' should be a value between 32 and 127, other values are reserved.\n'type' must be set to one of the EV_* constants, one of EV_FLOAT, EV_STRING, EV_INTEGER, EV_ENTITY.\nfld must be a reference to the field used, each player will be sent only their own copy of these fields.")},	//EXT_CSQC
-	{"globalstat",		PF_globalstat,		0,		0,		0,		233,	D("void(float num, float type, string name)", "Specifies what data to use in order to send various stats, in a non-client-specific way. num and type are as in clientstat, name however, is the name of the global to read in the form of a string.")},	//EXT_CSQC_1 actually
+	{"globalstat",		PF_globalstat,		0,		0,		0,		233,	D("void(float num, float type, string name)", "Specifies what data to use in order to send various stats, in a non-client-specific way. num and type are as in clientstat, name however, is the name of the global to read in the form of a string (pass \"foo\").")},	//EXT_CSQC_1 actually
+	{"pointerstat",		PF_pointerstat,		0,		0,		0,		0,		D("void(float num, float type, __variant *address)", "Specifies what data to use in order to send various stats, in a non-client-specific way. num and type are as in clientstat, address however, is the address of the variable you would like to use (pass &foo).")},
 //END EXT_CSQC
 	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234,	D("float(entity player)", "Returns if the given player's network buffer will take multiple network frames in order to clear. If this builtin returns non-zero, you should delay or reduce the amount of reliable (and also unreliable) data that you are sending to that client.")},
 	{"rotatevectorsbyangle",PF_rotatevectorsbyangles,0,0,	0,		235,	"void(vector angle)"}, // #235

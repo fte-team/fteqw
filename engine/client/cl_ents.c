@@ -635,7 +635,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->u.q1.msec = 0;
 	}
 
-	if (!(predbits & UFP_VIEWANGLE) || (cls.fteprotocolextensions2 & PEXT2_PREDINFO))
+	if (!(predbits & UFP_VIEWANGLE) || !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
 	{
 		news->u.q1.vangle[0] = ANGLE2SHORT(news->angles[0]);
 		news->u.q1.vangle[1] = ANGLE2SHORT(news->angles[1]);

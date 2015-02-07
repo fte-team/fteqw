@@ -2255,6 +2255,7 @@ LONG WINAPI GLMainWndProc (
 							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION) == IDYES)
 				{
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
+					wantquit = true;
 				}
 
 			break;

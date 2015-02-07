@@ -233,16 +233,16 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 	}
 	else
 	{
-		if ((filter[1] && !(flags & IF_NEAREST)) || (flags & IF_LINEAR))
+		if ((filter[1]))// && !(flags & IF_NEAREST)) || (flags & IF_LINEAR))
 		{
-			if (filter[0])
+			if (filter[0] && !(flags & IF_NEAREST) || (flags & IF_LINEAR))
 				min = GL_LINEAR_MIPMAP_LINEAR;
 			else
 				min = GL_NEAREST_MIPMAP_LINEAR;
 		}
 		else
 		{
-			if (filter[0])
+			if (filter[0] && !(flags & IF_NEAREST) || (flags & IF_LINEAR))
 				min = GL_LINEAR_MIPMAP_NEAREST;
 			else
 				min = GL_NEAREST_MIPMAP_NEAREST;
@@ -448,7 +448,7 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 		if (targ != GL_TEXTURE_CUBE_MAP_ARB && (tex->flags & IF_MIPCAP))
 		{
 			qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, min(mips->mipcount-1, gl_mipcap_min));
-			qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(mips->mipcount, gl_mipcap_max));
+			qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(mips->mipcount-1, gl_mipcap_max));
 		}
 	}
 

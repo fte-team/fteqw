@@ -255,6 +255,7 @@ typedef struct shaderpass_s {
 		T_GEN_UPPEROVERLAY,	//texture's default personal colour
 		T_GEN_LOWEROVERLAY,	//texture's default team colour
 		T_GEN_FULLBRIGHT,	//texture's default fullbright overlay
+		T_GEN_PALETTED,		//texture's original paletted data (8bit)
 
 		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
 
@@ -544,6 +545,7 @@ struct shader_s
 		SHADER_NOSHADOWS		= 1 << 25,	//don't cast shadows
 		SHADER_HASFULLBRIGHT	= 1 << 26,	//needs a fullbright texture, if possible.
 		SHADER_HASDIFFUSE		= 1 << 27,	//has a T_GEN_DIFFUSE pass
+		SHADER_HASPALETTED		= 1 << 28,	//has a T_GEN_PALETTED pass
 	} flags;
 
 	program_t *prog;

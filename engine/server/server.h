@@ -581,6 +581,7 @@ typedef struct client_s
 		//note, nq is nq+
 	} protocol;
 
+	unsigned int lastruncmd;	//for non-qw physics. timestamp they were last run, so switching between physics modes isn't a (significant) cheat
 //speed cheat testing
 #define NEWSPEEDCHEATPROT
 	int msecs;

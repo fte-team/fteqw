@@ -1163,6 +1163,12 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		else
 			t = missing_texture;
 		break;
+	case T_GEN_PALETTED:
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->paletted))
+			t = shaderstate.curtexnums->paletted;
+		else
+			t = missing_texture;
+		break;
 	case T_GEN_NORMALMAP:
 		t = (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->bump))?shaderstate.curtexnums->bump:missing_texture_normal;
 		break;
@@ -5171,6 +5177,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 #endif
 			shaderstate.identitylighting = 1;
 		shaderstate.identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
+		shaderstate.identitylightmap =1;
 
 #ifdef RTLIGHTS
 		if (r_lightprepass.ival)

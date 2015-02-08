@@ -1202,7 +1202,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 specs = texture2D(s_specular, tc);\n"
 "#ifdef DELUXE\n"
 //not lightstyled...
-"vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_delux0, lm).rgb-0.5)); //this norm should be the deluxemap info instead\n"
+"vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_delux0, lm0).rgb-0.5)); //this norm should be the deluxemap info instead\n"
 "#else\n"
 "vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0)); //this norm should be the deluxemap info instead\n"
 "#endif\n"

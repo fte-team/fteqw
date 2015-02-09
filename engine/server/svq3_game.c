@@ -481,7 +481,7 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 			mod = Q3G_GetCModel(es->s.modelindex);
 			if (!mod)
 				continue;
-			tr = CM_TransformedBoxTrace(mod, start, end, mins, maxs, contentmask, es->r.currentOrigin, vec3_origin);
+			World_TransformedTrace(mod, 0, 0, start, end, mins, maxs, capsule, &tr, es->r.currentOrigin, es->r.currentAngles, contentmask);
 		}
 		else
 		{
@@ -489,7 +489,7 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 				mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
 			else
 				mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
-			tr = CM_TransformedBoxTrace(mod, start, end, mins, maxs, contentmask, es->r.currentOrigin, es->r.currentAngles);
+			World_TransformedTrace(mod, 0, 0, start, end, mins, maxs, capsule, &tr, es->r.currentOrigin, vec3_origin, contentmask);
 		}
 		if (tr.fraction < result->fraction)
 		{
@@ -557,13 +557,12 @@ static int SVQ3_PointContents(vec3_t pos, int entnum)
 			mod = Q3G_GetCModel(es->s.modelindex);
 			if (!mod)
 				continue;
-			tr = CM_TransformedBoxTrace(mod, pos, pos, vec3_origin, vec3_origin, 0xffffffff, es->r.currentOrigin, vec3_origin);
+			World_TransformedTrace(mod, 0, 0, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, es->r.currentAngles, 0xffffffff);
 		}
 		else
 		{
 			mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
-			tr = CM_TransformedBoxTrace(mod, pos, pos, vec3_origin, vec3_origin, 0xffffffff, es->r.currentOrigin, es->r.currentAngles);
-//			mod->funcs.Trace(mod, 0, 0, start, end, mins, maxs, &tr);
+			World_TransformedTrace(mod, 0, 0, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, vec3_origin, 0xffffffff);
 		}
 
 		cont |= tr.contents;

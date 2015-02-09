@@ -951,6 +951,8 @@ void R_ShutdownRenderer(qboolean videotoo)
 
 	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
 
+	Skin_FlushAll();
+
 	P_Shutdown();
 	Mod_Shutdown(false);
 
@@ -976,7 +978,6 @@ void R_ShutdownRenderer(qboolean videotoo)
 
 	COM_FlushTempoaryPacks();
 
-	Skin_FlushAll();
 	W_Shutdown();
 	if (h2playertranslations)
 		BZ_Free(h2playertranslations);
@@ -1376,7 +1377,8 @@ TRACE(("dbg: R_ApplyRenderer: Surf_NewMap\n"));
 		Surf_NewMap();
 TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
-		Skin_FlushAll();
+//		Skin_FlushAll();
+		Skin_FlushPlayers();
 
 #ifdef CSQC_DAT
 		CSQC_RendererRestarted();
@@ -1936,10 +1938,10 @@ qbyte *R_MarkLeaves_Q3 (void)
 		// mark everything
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
-			if (!leaf->nummarksurfaces)
-			{
-				continue;
-			}
+//			if (!leaf->nummarksurfaces)
+//			{
+//				continue;
+//			}
 
 #if 1
 			for (node = (mnode_t*)leaf; node; node = node->parent)
@@ -1961,7 +1963,7 @@ qbyte *R_MarkLeaves_Q3 (void)
 		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 		{
 			cluster = leaf->cluster;
-			if (cluster == -1 || !leaf->nummarksurfaces)
+			if (cluster == -1)// || !leaf->nummarksurfaces)
 			{
 				continue;
 			}

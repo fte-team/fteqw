@@ -75,7 +75,7 @@ unsigned int  SV_Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *resultbuf, unsig
 	if (count < 1)
 		Sys_Error ("SV_Q2FatPVS: count < 1");
 
-	if (sv.world.worldmodel->fromgame == fg_quake3)
+	if (mod->fromgame == fg_quake3)
 		longs = CM_ClusterSize(mod);
 	else
 		longs = (CM_NumClusters(mod)+7)/8;

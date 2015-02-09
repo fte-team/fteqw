@@ -406,7 +406,7 @@ void Q2BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, float *mins,
 		if (area != nullarea)
 		{	// doors may legally straggle two areas,
 			// but nothing should ever need more than that
-			if (ent->areanum && ent->areanum != area)
+			if (ent->areanum != nullarea && ent->areanum != area)
 				ent->areanum2 = area;
 			else
 				ent->areanum = area;
@@ -1029,13 +1029,9 @@ qboolean World_TransformedTrace (struct model_s *model, int hulloverride, int fr
 
 		VectorAdd (trace->endpos, origin, trace->endpos);
 	}
-	else
+	else if (hitcontentsmask & FTECONTENTS_BODY)
 	{
 		hull_t *hull = &box_hull;
-
-		memset (trace, 0, sizeof(trace_t));
-		trace->fraction = 1;
-		trace->allsolid = true;
 
 		VectorSubtract (start, origin, start_l);
 		VectorSubtract (end, origin, end_l);
@@ -1383,13 +1379,9 @@ void WorldQ2_ClipMoveToEntities (world_t *w, moveclip_t *clip )
 			angles = vec3_origin;	// boxes don't rotate
 
 		if (touch->svflags & SVF_MONSTER)
-			trace = CM_TransformedBoxTrace (model, clip->start, clip->end,
-				clip->mins2, clip->maxs2, clip->hitcontentsmask,
-				touch->s.origin, angles);
+			World_TransformedTrace (model, 0, 0, clip->start, clip->end, clip->mins2, clip->maxs2, false, &trace, touch->s.origin, angles, clip->hitcontentsmask);
 		else
-			trace = CM_TransformedBoxTrace (model, clip->start, clip->end,
-				clip->mins, clip->maxs, clip->hitcontentsmask,
-				touch->s.origin, angles);
+			World_TransformedTrace (model, 0, 0, clip->start, clip->end, clip->mins, clip->maxs, false, &trace, touch->s.origin, angles, clip->hitcontentsmask);
 
 		if (trace.allsolid || trace.startsolid ||
 		trace.fraction < clip->trace.fraction)
@@ -2066,6 +2058,7 @@ trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t
 	VectorCopy (maxs, clip.maxs2);
 	
 // create the bounding box of the entire move
+//FIXME: should we use clip.trace.endpos here?	
 	World_MoveBounds ( start, clip.mins2, clip.maxs2, end, clip.boxmins, clip.boxmaxs );
 
 // clip to entities

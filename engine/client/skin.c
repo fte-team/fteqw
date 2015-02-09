@@ -519,13 +519,14 @@ void Skin_NextDownload (void)
 void Skin_FlushPlayers(void)
 {	//wipe the skin info
 	int i;
-	for (i = 0; i < cl.allocated_client_slots; i++)
+	for (i = 0; i < MAX_CLIENTS; i++)
 		cl.players[i].qwskin = NULL;
 
 	for (i = 0; i < cl.allocated_client_slots; i++)
 		CL_NewTranslation(i);
 }
 
+//call on shutdown. does not refresh any skins at all.
 void Skin_FlushAll(void)
 {	//wipe the skin info
 	int i;
@@ -538,9 +539,10 @@ void Skin_FlushAll(void)
 	}
 	numskins = 0;
 	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		cl.players[i].qwskin = NULL;
 		cl.players[i].lastskin = NULL;
-
-	Skin_FlushPlayers();
+	}
 }
 
 /*

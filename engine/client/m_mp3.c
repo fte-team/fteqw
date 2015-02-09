@@ -1862,7 +1862,10 @@ qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 
 		qbyte *framedata;
 
-		cin->filmpercentage = cin->roq.roqfilm->frame_num / cin->roq.roqfilm->num_frames;
+		if (cin->roq.roqfilm->num_frames)
+			cin->filmpercentage = cin->roq.roqfilm->frame_num / cin->roq.roqfilm->num_frames;
+		else
+			cin->filmpercentage = 0;
 
 		cin->filmlasttime = (float)realtime;
 

@@ -146,9 +146,7 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 		if (tr->allsolid)
 			return;
 
-		trace = CM_TransformedBoxTrace (cmodel, start, end,
-			mins, maxs, MASK_PLAYERSOLID,
-			ent->origin, angles);
+		World_TransformedTrace (cmodel, 0, 0, start, end, mins, maxs, false, &trace, ent->origin, angles, MASK_PLAYERSOLID);
 
 		if (trace.allsolid || trace.startsolid || trace.fraction < tr->fraction)
 		{

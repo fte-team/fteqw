@@ -5777,6 +5777,13 @@ static qboolean BM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3
 
 	if (contents & FTECONTENTS_BODY)
 	{
+		if (trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0 && trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0)
+			trace_shape = shape_ispoint;
+		else if (capsule)
+			trace_shape = shape_iscapsule;
+		else
+			trace_shape = shape_isbox;
+
 		trace_contents = contents;
 		VectorCopy (start, trace_start);
 		VectorCopy (end, trace_end);
@@ -5788,16 +5795,17 @@ static qboolean BM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3
 
 	if (trace_nearfraction == 1)
 	{
-		trace_trace.fraction = 1;
-		VectorCopy (trace_end, trace_trace.endpos);
+		trace->fraction = 1;
+		VectorCopy (trace_end, trace->endpos);
 	}
 	else
 	{
 		if (trace_nearfraction<0)
 			trace_nearfraction=0;
-		trace_trace.fraction = trace_nearfraction;
+		trace->fraction = trace_nearfraction;
+		trace->truefraction = trace_truefraction;
 		for (i=0 ; i<3 ; i++)
-			trace_trace.endpos[i] = trace_start[i] + trace_trace.fraction * (trace_end[i] - trace_start[i]);
+			trace->endpos[i] = trace_start[i] + trace->fraction * (trace_end[i] - trace_start[i]);
 	}
 	return trace->fraction != 1;
 }

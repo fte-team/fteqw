@@ -734,9 +734,9 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean D3D9BE_LightCullModel(vec3_t org, model_t *model);
 void D3D9BE_SelectEntity(entity_t *ent);
 qboolean D3D9BE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode);
-void D3D9BE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
-void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
-void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
+void D3D9BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize);
+void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
+void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray);
 void D3D9BE_VBO_Destroy(vboarray_t *vearray);
 void D3D9BE_Scissor(srect_t *rect);
 

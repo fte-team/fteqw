@@ -2890,6 +2890,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 	float				*snew__origin;
 	float				*sold__origin;
 
+	qboolean			isnew;
+
 	vec3_t move;
 
 	float a1, a2;
@@ -2927,8 +2929,6 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 				rag_removedeltaent(le);
 #endif
 		}
-		if (!sold)	//I'm lazy
-			sold = snew;
 
 		if (snew->number >= cl.maxlerpents)
 		{
@@ -2941,6 +2941,14 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		le->sequence = newsequence;
 		le->entstate = snew;
 
+		if (!sold)
+		{
+			isnew = true;
+			sold = snew;	//don't crash if anything tries poking sold
+		}
+		else
+			isnew = false;
+
 		if (snew->u.q1.pmovetype)
 		{
 			if (!cl.do_lerp_players)
@@ -2948,7 +2956,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 				entity_state_t *from;
 				float age;
 				packet_entities_t *latest;
-				if (sold == snew)
+				if (isnew)
 				{
 					/*keep trails correct*/
 					le->isnew = true;
@@ -2998,12 +3006,12 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		VectorSubtract(snew__origin, sold__origin, move);
 		if (DotProduct(move, move) > 200*200 || snew->modelindex != sold->modelindex)
 		{
-			sold = snew;	//teleported?
+			isnew = true;	//disable lerping (and indirectly trails)
 			VectorClear(move);
 		}
 
 		VectorCopy(le->origin, le->lastorigin);
-		if (sold == snew)
+		if (isnew)
 		{
 			//new this frame (or we noticed something changed significantly)
 			VectorCopy(snew__origin, le->origin);
@@ -3075,7 +3083,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			}
 		}
 
-		CL_UpdateNetFrameLerpState(sold == snew, snew->frame, le);
+		CL_UpdateNetFrameLerpState(isnew, snew->frame, le);
 	}
 }
 
@@ -3584,8 +3592,16 @@ void CL_LinkPacketEntities (void)
 		if (model2)
 			CL_AddVWeapModel (ent, model2);
 
+		//figure out which trail this entity is using
+		trailef = model->particletrail;
+		trailidx = model->traildefaultindex;
+		if (state->effects & EF_HASPARTICLETRAIL)
+			P_DefaultTrail (state->effects, modelflags, &trailef, &trailidx);
+		if (state->u.q1.traileffectnum)
+			trailef = CL_TranslateParticleFromServer(state->u.q1.traileffectnum);
+
 		// add automatic particle trails
-		if (!model || (!(modelflags&~MF_ROTATE) && model->particletrail<0 && model->particleeffect<0 && state->u.q1.traileffectnum==0))
+		if (!model || (!(modelflags&~MF_ROTATE) && trailef < 0))
 			continue;
 
 		if (!cls.allow_anyparticles && !(modelflags & ~MF_ROTATE))
@@ -3608,14 +3624,6 @@ void CL_LinkPacketEntities (void)
 				break;
 			}
 		}
-
-		//figure out which trail this entity is using
-		trailef = model->particletrail;
-		trailidx = model->traildefaultindex;
-		if (state->effects & 0xff800000)
-			P_DefaultTrail (modelflags, &trailef, &trailidx);
-		if (state->u.q1.traileffectnum)
-			trailef = CL_TranslateParticleFromServer(state->u.q1.traileffectnum);
 
 		//and emit it
 		if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, ent->keynum, ent->axis, &(le->trailstate)))
@@ -4977,6 +4985,7 @@ Made up of: clients, packet_entities, nails, and tents
 */
 void CL_ClearEntityLists(void)
 {
+	cl_framecount++;
 	if (cl_numvisedicts+128 >= cl_maxvisedicts)
 	{
 		int newnum = cl_maxvisedicts + 256;
@@ -4994,6 +5003,7 @@ void CL_ClearEntityLists(void)
 }
 void CL_FreeVisEdicts(void)
 {
+	cl_framecount++;
 	BZ_Free(cl_visedicts);
 	cl_visedicts = NULL;
 	cl_maxvisedicts = 0;

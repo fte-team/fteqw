@@ -46,6 +46,8 @@ void main (void)
 #define s_refractdepth s_t3
 
 uniform float cvar_r_glsl_turbscale;
+uniform sampler2D s_normalmap;
+uniform sampler2D s_diffuse;
 uniform sampler2D s_refract;	//refract
 uniform sampler2D s_reflect;	//reflection
 uniform sampler2D s_refractdepth; 	//refraction depth

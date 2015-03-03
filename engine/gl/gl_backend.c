@@ -1130,7 +1130,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->paletted))
 			t = shaderstate.curtexnums->paletted;
 		else
-			t = missing_texture;
+			t = r_whiteimage;
 		break;
 	case T_GEN_NORMALMAP:
 		t = (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->bump))?shaderstate.curtexnums->bump:missing_texture_normal;

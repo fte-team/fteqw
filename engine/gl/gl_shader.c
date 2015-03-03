@@ -2235,7 +2235,7 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 
 		if (pass->tcgen == TC_GEN_UNSPECIFIED)
 			pass->tcgen = TC_GEN_BASE;
-		if (!*shader->mapname && pass->tcgen == TC_GEN_BASE)
+		if (!*shader->mapname && *token != '$' && pass->tcgen == TC_GEN_BASE)
 			Q_strncpyz(shader->mapname, token, sizeof(shader->mapname));
 		pass->anim_frames[0] = Shader_FindImage (token, flags);
 	}
@@ -3879,7 +3879,10 @@ done:;
 		if (best)
 		{
 			if (best->texgen == T_GEN_ANIMMAP || best->texgen == T_GEN_SINGLEMAP)
-				s->defaulttextures.base = best->anim_frames[0];
+			{
+				if (best->anim_frames[0] && *best->anim_frames[0]->ident != '$')
+					s->defaulttextures.base = best->anim_frames[0];
+			}
 #ifndef NOMEDIA
 			else if (pass->texgen == T_GEN_VIDEOMAP && pass->cin)
 				s->defaulttextures.base = Media_UpdateForShader(best->cin);
@@ -4293,7 +4296,7 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *subpath, unsigned 
 		if (!TEXVALID(tex->bump) && *shader->mapname)
 			tex->bump = R_LoadHiResTexture(va("%s_norm", shader->mapname), NULL, imageflags|IF_TRYBUMP);
 		if (!TEXVALID(tex->bump))
-			tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP, r_shadow_bumpscale_basetexture.ival?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
+			tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP, (r_shadow_bumpscale_basetexture.ival||*imagename=='*')?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
 	}
 
 	if (loadflags & SHADER_HASTOPBOTTOM)

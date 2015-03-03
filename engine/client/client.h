@@ -952,6 +952,7 @@ char *CL_TryingToConnect(void);
 
 void CL_ExecInitialConfigs(char *defaultexec);
 
+extern	int				cl_framecount;	//number of times the entity lists have been cleared+reset.
 extern	int				cl_numvisedicts;
 extern	int				cl_maxvisedicts;
 extern	entity_t		*cl_visedicts;

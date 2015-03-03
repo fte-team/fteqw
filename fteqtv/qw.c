@@ -798,7 +798,7 @@ void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
 
 void NewNQClient(cluster_t *cluster, netadr_t *addr)
 {
-	sv_t *initialserver;
+//	sv_t *initialserver;
 	int header;
 	int len;
 	int i;
@@ -873,7 +873,7 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 
 void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 {
-	sv_t *initialserver;
+//	sv_t *initialserver;
 	viewer_t *viewer;
 
 	char qport[32];
@@ -1609,7 +1609,7 @@ void SendNQClientData(sv_t *tv, viewer_t *v, netmsg_t *msg)
 	if (bits & SU_ARMOR)
 		WriteByte (msg, pl->stats[STAT_ARMOR]);
 	if (bits & SU_WEAPON)
-		WriteByte (msg, pl->stats[STAT_WEAPON]);
+		WriteByte (msg, pl->stats[STAT_WEAPONMODELI]);
 
 	WriteShort (msg, pl->stats[STAT_HEALTH]);
 	WriteByte (msg, pl->stats[STAT_AMMO]);

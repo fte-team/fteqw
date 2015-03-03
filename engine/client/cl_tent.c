@@ -489,7 +489,7 @@ void P_LoadedModel(model_t *mod)
 		}
 	}
 	if (mod->particletrail == P_INVALID)
-		P_DefaultTrail(mod->flags, &mod->particletrail, &mod->traildefaultindex);
+		P_DefaultTrail(0, mod->flags, &mod->particletrail, &mod->traildefaultindex);
 }
 
 void CL_RefreshCustomTEnts(void);

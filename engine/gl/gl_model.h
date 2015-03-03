@@ -162,20 +162,20 @@ m*_t structures are in-memory
 #define EF_BLUE					(1<<6)
 #define EF_RED					(1<<7)
 #define	H2EF_NODRAW				(1<<7)	//this is going to get complicated... emulated server side.
-#define _DPEF_NOGUNBOB			(1<<8)	//viewmodel attachment does not bob
+#define		DPEF_NOGUNBOB_			(1<<8)	//viewmodel attachment does not bob
 #define EF_FULLBRIGHT			(1<<9)	//abslight=1
-#define _DPEF_FLAME				(1<<10)	//'onfire'
-#define _DPEF_STARDUST			(1<<11)	//'showering sparks'
+#define DPEF_FLAME				(1<<10)	//'onfire'
+#define DPEF_STARDUST			(1<<11)	//'showering sparks'
 #define DPEF_NOSHADOW			(1<<12)	//doesn't cast a shadow
 #define EF_NODEPTHTEST			(1<<13)	//shows through walls.
-#define _DPEF_SELECTABLE		(1<<14)	//highlights when prydoncursored
-#define _DPEF_DOUBLESIDED		(1<<15)	//disables culling
-#define _DPEF_NOSELFSHADOW		(1<<16)	//doesn't cast shadows on any noselfshadow entities.
-#define _DPEF_DYNAMICMODELLIGHT	(1<<17)
+#define		DPEF_SELECTABLE_		(1<<14)	//highlights when prydoncursored
+#define		DPEF_DOUBLESIDED_		(1<<15)	//disables culling
+#define		DPEF_NOSELFSHADOW_		(1<<16)	//doesn't cast shadows on any noselfshadow entities.
+#define		DPEF_DYNAMICMODELLIGHT_	(1<<17)
 #define EF_UNUSED18				(1<<18)
 #define EF_UNUSED19				(1<<19)
-#define _DPEF_RESTARTANIM_BIT	(1<<20)	//exact semantics seems odd
-#define _DPEF_TELEPORT_BIT		(1<<21)	//disable lerping while set
+#define		DPEF_RESTARTANIM_BIT_	(1<<20)	//exact semantics seems odd
+#define		DPEF_TELEPORT_BIT_		(1<<21)	//disable lerping while set
 #define DPEF_LOWPRECISION		(1<<22) //part of the protocol/server, not the client itself.
 #define EF_NOMODELFLAGS			(1<<23)
 #define EF_MF_ROCKET			(1<<24)
@@ -186,6 +186,8 @@ m*_t structures are in-memory
 #define EF_MF_ZOMGIB			(1u<<29)
 #define EF_MF_TRACER2			(1u<<30)
 #define EF_MF_TRACER3			(1u<<31)
+
+#define EF_HASPARTICLETRAIL		(0xff800000 | EF_BRIGHTFIELD|DPEF_FLAME|DPEF_STARDUST)
 
 /*
 ==============================================================================

@@ -277,7 +277,7 @@ extern	entity_t	r_worldentity;
 extern	vec3_t		r_entorigin;
 extern	entity_t	*currententity;
 extern	int			r_visframecount;	// ??? what difs?
-extern	int			r_framecount;
+extern	int			r_framecount;		//number of scenes drawn (specifically, number of times the world is frustum culled)
 
 extern qboolean		r_loadbumpmapping;
 

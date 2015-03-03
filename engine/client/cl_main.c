@@ -211,6 +211,7 @@ int rtlights_first, rtlights_max;
 int				cl_numvisedicts;
 int				cl_maxvisedicts;
 entity_t		*cl_visedicts;
+int				cl_framecount;
 
 scenetris_t		*cl_stris;
 vecV_t			*fte_restrict cl_strisvertv;

@@ -1208,14 +1208,8 @@ void Mod_FinishTexture(texture_t *tx, const char *loadname)
 	else
 	{
 		unsigned int maps = 0;
-		if (r_softwarebanding.ival)
-			maps |= SHADER_HASPALETTED;
-		if (!r_softwarebanding.ival
-#ifdef RTLIGHTS
-			|| r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival
-#endif
-			)
-			maps |= SHADER_HASDIFFUSE;
+		maps |= SHADER_HASPALETTED;
+		maps |= SHADER_HASDIFFUSE;
 		if (r_fb_bmodels.ival)
 			maps |= SHADER_HASFULLBRIGHT;
 		if (r_loadbumpmapping || (r_waterstyle.ival > 1 && *tx->name == '*'))

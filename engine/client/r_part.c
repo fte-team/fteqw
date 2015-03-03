@@ -818,14 +818,29 @@ static void P_SelectableTrail(int *trailid, int *trailpalidx, cvar_t *selection,
 
 
 //figure out which particle trail to use for the given model, filling in its values as required.
-void P_DefaultTrail (unsigned int modelflags, int *trailid, int *trailpalidx)
+void P_DefaultTrail (unsigned int entityeffects, unsigned int modelflags, int *trailid, int *trailpalidx)
 {
 	// TODO: EF_BRIGHTFIELD should probably be handled in here somewhere
 	// TODO: make trail default color into RGB values instead of indexes
 	if (!pe)
 		return;
 
-	if (modelflags & MF_ROCKET)
+	if (entityeffects & EF_BRIGHTFIELD)
+	{
+		*trailid = P_FindParticleType("EF_BRIGHTFIELD");
+		*trailpalidx = 70;
+	}
+	else if (entityeffects & DPEF_FLAME)
+	{
+		*trailid = P_FindParticleType("EF_FLAME");
+		*trailpalidx = 70;
+	}
+	else if (entityeffects & DPEF_STARDUST)
+	{
+		*trailid = P_FindParticleType("EF_STARDUST");
+		*trailpalidx = 70;
+	}
+	else if (modelflags & MF_ROCKET)
 		P_SelectableTrail(trailid, trailpalidx, &r_rockettrail, P_FindParticleType("TR_ROCKET"), 109, P_FindParticleType("TR_GRENADE"), 6);
 	else if (modelflags & MF_GRENADE)
 		P_SelectableTrail(trailid, trailpalidx, &r_grenadetrail, P_FindParticleType("TR_GRENADE"), 6, P_FindParticleType("TR_ROCKET"), 109);

@@ -33,7 +33,7 @@
 #define MAX_STATS 32
 #define	STAT_HEALTH			0
 #define	STAT_FRAGS			1
-#define	STAT_WEAPON			2
+#define	STAT_WEAPONMODELI	2
 #define	STAT_AMMO			3
 #define	STAT_ARMOR			4
 #define	STAT_WEAPONFRAME	5

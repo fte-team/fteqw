@@ -53,6 +53,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define s_refractdepth s_t3\n"
 
 "uniform float cvar_r_glsl_turbscale;\n"
+"uniform sampler2D s_normalmap;\n"
+"uniform sampler2D s_diffuse;\n"
 "uniform sampler2D s_refract; //refract\n"
 "uniform sampler2D s_reflect; //reflection\n"
 "uniform sampler2D s_refractdepth;  //refraction depth\n"

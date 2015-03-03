@@ -39,6 +39,8 @@ typedef enum {
 	TRACER2_TRAIL,
 	VOOR_TRAIL,
 
+	BRIGHTFIELD_POINT,
+
 	BLOBEXPLOSION_POINT,
 	LAVASPLASH_POINT,
 	EXPLOSION_POINT,
@@ -64,7 +66,9 @@ typedef struct cparticle_s
 		pt_blob,
 		pt_blob2,
 		pt_grav,
-		pt_slowgrav
+		pt_slowgrav,
+
+		pt_oneframe
 	} type;
 	unsigned int rgb;
 	struct cparticle_s *next;
@@ -76,6 +80,8 @@ typedef struct cparticle_s
 static int r_numparticles;
 static cparticle_t	*particles, *fte_restrict active_particles, *free_particles;
 extern cvar_t r_part_density, r_part_classic_expgrav;
+
+static unsigned int particleframe;
 
 extern qbyte default_quakepal[]; /*for ramps more than anything else*/
 static int	ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
@@ -130,6 +136,8 @@ static int PClassic_FindParticleType(const char *name)
 		return TELEPORTSPLASH_POINT;
 	if (!stricmp("te_muzzleflash", name))
 		return MUZZLEFLASH_POINT;
+	if (!stricmp("ef_brightfield", name))
+		return BRIGHTFIELD_POINT;
 
 	return P_INVALID;
 }
@@ -175,6 +183,9 @@ static qboolean PClassic_Query(int type, int body, char *outstr, int outstrlen)
 		break;
 	case TELEPORTSPLASH_POINT:
 		n = "te_teleport";
+		break;
+	case BRIGHTFIELD_POINT:
+		n = "ef_brightfield";
 		break;
 	}
 
@@ -329,6 +340,27 @@ static void PClassic_ClearParticles (void)
 	particles[r_numparticles - 1].next = NULL;
 }
 
+//some particles (brightfield) must last only one frame
+static void PClassic_ClearPerFrame(void)
+{
+	if (particleframe != -1 && particleframe != cl_framecount)
+	{
+		cparticle_t **link, *kill;
+		for (link = &active_particles; *link; )
+		{
+			if ((*link)->type == pt_oneframe)
+			{
+				kill = *link;
+				*link = kill->next;
+				kill->next = free_particles;
+				free_particles = kill;
+			}
+			else
+				link = &(*link)->next;
+		}
+	}
+}
+
 //draws all the active particles.
 static void PClassic_DrawParticles(void)
 {
@@ -349,6 +381,12 @@ static void PClassic_DrawParticles(void)
 	{
 		oldtime = cl.time;
 		return;
+	}
+
+	if (particleframe != -1 && particleframe != cl_framecount)
+	{
+		PClassic_ClearPerFrame();
+		particleframe = -1;
 	}
 
 	r_partscale = 0.004 * tan (r_refdef.fov_x * (M_PI / 180) * 0.5f);
@@ -486,6 +524,7 @@ static void PClassic_DrawParticles(void)
 		
 		switch (p->type)
 		{
+		case pt_oneframe:
 		case pt_static:
 			break;
 		case pt_fire:
@@ -743,6 +782,126 @@ static void Classic_TeleportSplash (vec3_t org)
 	}
 }
 
+#define NUMVERTEXNORMALS	162
+//vec3_t	avelocity = {23, 7, 3};
+//float	partstep = 0.01;
+//float	timescale = 0.01;
+static	vec3_t	avelocities[NUMVERTEXNORMALS];
+static void Classic_BrightField (vec3_t org)
+{
+	extern	float	r_avertexnormals[NUMVERTEXNORMALS][3];
+	float	beamlength = 16;
+
+	int			count;
+	int			i;
+	cparticle_t	*p;
+	float		angle;
+	float		sr, sp, sy, cr, cp, cy;
+	vec3_t		forward;
+	float		dist;
+
+	PClassic_ClearPerFrame();
+	particleframe = cl_framecount;
+
+	dist = 64;
+	count = 50;
+
+	if (!avelocities[0][0])
+	{
+		for (i=0 ; i<NUMVERTEXNORMALS*3 ; i++)
+			avelocities[0][i] = (rand()&255) * 0.01;
+	}
+
+	for (i=0 ; i<NUMVERTEXNORMALS ; i++)
+	{
+		if (!free_particles)
+			return;
+		p = free_particles;
+		free_particles = p->next;
+		p->next = active_particles;
+		active_particles = p;
+
+		angle = cl.time * avelocities[i][0];
+		sy = sin(angle);
+		cy = cos(angle);
+		angle = cl.time * avelocities[i][1];
+		sp = sin(angle);
+		cp = cos(angle);
+		angle = cl.time * avelocities[i][2];
+		sr = sin(angle);
+		cr = cos(angle);
+
+		forward[0] = cp*cy;
+		forward[1] = cp*sy;
+		forward[2] = -sp;
+
+		p->die = cl.time;// + 0.01;
+		p->rgb = d_8to24rgbtable[0x6f];
+		p->type = pt_oneframe;
+
+		p->org[0] = org[0] + r_avertexnormals[i][0]*dist + forward[0]*beamlength;			
+		p->org[1] = org[1] + r_avertexnormals[i][1]*dist + forward[1]*beamlength;			
+		p->org[2] = org[2] + r_avertexnormals[i][2]*dist + forward[2]*beamlength;			
+	}
+}
+
+//svc_tempentity support: this is the function that handles 'special' point effects.
+//use the trail state so fast/slow frames keep the correct particle counts on certain every-frame effects
+static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
+{
+	switch(typenum)
+	{
+	case BRIGHTFIELD_POINT:
+		Classic_BrightField(org);
+		break;
+	case BLOBEXPLOSION_POINT:
+		Classic_BlobExplosion(org);
+		break;
+	case LAVASPLASH_POINT:
+		Classic_LavaSplash(org);
+		break;
+	case EXPLOSION_POINT:
+		Classic_ParticleExplosion(org);
+		break;
+	case TELEPORTSPLASH_POINT:
+		Classic_TeleportSplash(org);
+		break;
+	case MUZZLEFLASH_POINT:
+		{
+			dlight_t *dl = CL_AllocDlight (0);
+			if (dir)
+				VectorCopy(dir, dl->axis[0]);
+			else
+				VectorSet(dir, 0, 0, 1);
+			VectorVectors(dl->axis[0], dl->axis[1], dl->axis[2]);
+			VectorInverse(dl->axis[1]);
+			if (dir)
+				VectorMA (org, 15, dl->axis[0], dl->origin);
+			else
+				VectorCopy (org, dl->origin);
+
+			dl->radius = 200 + (rand()&31);
+			dl->minlight = 32;
+			dl->die = cl.time + 0.1;
+			dl->color[0] = 1.5;
+			dl->color[1] = 1.3;
+			dl->color[2] = 1.0;
+
+			dl->channelfade[0] = 1.5;
+			dl->channelfade[1] = 0.75;
+			dl->channelfade[2] = 0.375;
+			dl->decay = 1000;
+#ifdef RTLIGHTS
+			dl->lightcolourscales[2] = 4;
+#endif
+		}
+		break;
+	default:
+		return 1;
+	}
+	return 0;
+}
+
 static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, effect_type_t type)
 {
 	vec3_t point, delta, dir;
@@ -750,6 +909,12 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 	int i, j, num_particles;
 	cparticle_t *p;
 	static int tracercount;
+
+	if (type >= BRIGHTFIELD_POINT)
+	{
+		PClassic_RunParticleEffectState(end, vec3_origin, 1, type, NULL);
+		return 0;
+	}
 
 	VectorCopy (start, point);
 	VectorSubtract (end, start, delta);
@@ -879,60 +1044,6 @@ static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dl
 
 	leftover = Classic_ParticleTrail(startpos, end, Classic_GetLeftover(tsk), type);
 	Classic_SetLeftover(tsk, leftover);
-	return 0;
-}
-
-//svc_tempentity support: this is the function that handles 'special' point effects.
-//use the trail state so fast/slow frames keep the correct particle counts on certain every-frame effects
-static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
-{
-	switch(typenum)
-	{
-	case BLOBEXPLOSION_POINT:
-		Classic_BlobExplosion(org);
-		break;
-	case LAVASPLASH_POINT:
-		Classic_LavaSplash(org);
-		break;
-	case EXPLOSION_POINT:
-		Classic_ParticleExplosion(org);
-		break;
-	case TELEPORTSPLASH_POINT:
-		Classic_TeleportSplash(org);
-		break;
-	case MUZZLEFLASH_POINT:
-		{
-			dlight_t *dl = CL_AllocDlight (0);
-			if (dir)
-				VectorCopy(dir, dl->axis[0]);
-			else
-				VectorSet(dir, 0, 0, 1);
-			VectorVectors(dl->axis[0], dl->axis[1], dl->axis[2]);
-			VectorInverse(dl->axis[1]);
-			if (dir)
-				VectorMA (org, 15, dl->axis[0], dl->origin);
-			else
-				VectorCopy (org, dl->origin);
-
-			dl->radius = 200 + (rand()&31);
-			dl->minlight = 32;
-			dl->die = cl.time + 0.1;
-			dl->color[0] = 1.5;
-			dl->color[1] = 1.3;
-			dl->color[2] = 1.0;
-
-			dl->channelfade[0] = 1.5;
-			dl->channelfade[1] = 0.75;
-			dl->channelfade[2] = 0.375;
-			dl->decay = 1000;
-#ifdef RTLIGHTS
-			dl->lightcolourscales[2] = 4;
-#endif
-		}
-		break;
-	default:
-		return 1;
-	}
 	return 0;
 }
 

@@ -2128,7 +2128,7 @@ void Media_ShutdownCin(cin_t *cin)
 		cin->shutdown(cin);
 
 	if (TEXVALID(cin->texture))
-		R_DestroyTexture(cin->texture);
+		Image_UnloadTexture(cin->texture);
 
 	if (cin->framedata)
 	{

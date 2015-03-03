@@ -52,7 +52,7 @@ vec3_t mousemovements[MAX_SPLITS];
 
 /*kinda a hack...*/
 static int		con_splitmodifier;
-cvar_t	cl_forcesplitclient = CVAR("in_forcesplitclient", "0");
+cvar_t	cl_forceseat = CVARAD("in_forceseat", "0", "in_forcesplitclient", "Overrides the device identifiers to control a specific client from any device. This can be used for debugging mods, where you only have one keyboard/mouse.");
 extern cvar_t cl_splitscreen;
 int CL_TargettedSplit(qboolean nowrap)
 {
@@ -75,8 +75,8 @@ int CL_TargettedSplit(qboolean nowrap)
 
 	if (con_splitmodifier > 0)
 		return (con_splitmodifier - 1) % mod;
-	else if (cl_forcesplitclient.ival > 0)
-		return (cl_forcesplitclient.ival-1) % mod;
+	else if (cl_forceseat.ival > 0)
+		return (cl_forceseat.ival-1) % mod;
 	else
 		return 0;
 }
@@ -638,7 +638,7 @@ void CL_ClampPitch (int pnum)
 		memset(pv->viewanglechange, 0, sizeof(pv->viewanglechange));
 		return;
 	}
-	if (pv->pmovetype == PM_6DOF)
+ 	if (pv->pmovetype == PM_6DOF)
 	{
 //		vec3_t impact;
 //		vec3_t norm;
@@ -1960,7 +1960,7 @@ void CL_InitInput (void)
 
 	Cvar_Register (&cl_prydoncursor, inputnetworkcvargroup);
 	Cvar_Register (&cl_instantrotate, inputnetworkcvargroup);
-	Cvar_Register (&cl_forcesplitclient, inputnetworkcvargroup);
+	Cvar_Register (&cl_forceseat, inputnetworkcvargroup);
 
 	for (sp = 0; sp < MAX_SPLITS; sp++)
 	{

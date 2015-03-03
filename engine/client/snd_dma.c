@@ -2855,13 +2855,16 @@ int S_GetMixerTime(soundcardinfo_t *sc)
 	}
 	if (samplepos < sc->oldsamplepos)
 	{
+		int bias;
 		sc->buffers++;					// buffer wrapped
 
 		if (sc->paintedtime > 0x40000000)
-		{	// time to chop things off to avoid 32 bit limits
-			sc->buffers = 0;
-			sc->paintedtime = fullsamples;
-			S_StopAllSounds (true);
+		{
+			//when things get too large, we push everything back to prevent overflows
+			bias = sc->paintedtime;
+			bias -= bias % fullsamples;
+			sc->paintedtime -= bias;
+			sc->buffers -= bias / fullsamples;
 		}
 	}
 	sc->oldsamplepos = samplepos;
@@ -3298,7 +3301,6 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 				c->pos = 0;
 				c->rate = 1<<PITCHSHIFT;
 				c->sfx = &s->sfx;
-				c->start = 0;
 				SND_Spatialize(si, c);
 
 				if (si->ChannelUpdate)

@@ -388,17 +388,44 @@ qboolean CG_GetServerCommand(int cmdnum)
 typedef struct {
 	int		firstPoint;
 	int		numPoints;
-} markFragment_t;
+} q3markFragment_t;
+typedef struct {
+	float *points;
+	size_t maxpoints;
+	size_t numpoints;
+	q3markFragment_t *frags;
+	size_t maxfrags;
+	size_t numfrags;
+} q3markFragment_ctx_t;
+static void CG_MarkFragments_Callback(q3markFragment_ctx_t *ctx, vec3_t *fte_restrict points, size_t numtris, shader_t *shader)
+{
+	size_t i;
+	if (numtris > ctx->maxfrags-ctx->numfrags)
+		numtris = ctx->maxfrags-ctx->numfrags;
+	if (numtris > (ctx->maxpoints-ctx->numpoints)/3)
+		numtris = (ctx->maxpoints-ctx->numpoints)/3;
+	for (i = 0; i < numtris; i++)
+	{
+		ctx->frags[ctx->numfrags].numPoints = 3;
+		ctx->frags[ctx->numfrags].firstPoint = ctx->numpoints;
+		VectorCopy(points[0], ctx->points+3*(ctx->numpoints+0));
+		VectorCopy(points[1], ctx->points+3*(ctx->numpoints+1));
+		VectorCopy(points[2], ctx->points+3*(ctx->numpoints+2));
+		points += 3;
+		ctx->numfrags += 1;
+		ctx->numpoints += 3;
+	}
+}
+
 int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projection,
-				   int maxPoints, float *pointBuffer, int maxFragments, markFragment_t *fragmentBuffer )
+				   int maxPoints, float *pointBuffer, int maxFragments, q3markFragment_t *fragmentBuffer )
 {
 	vec3_t center;
 	vec3_t axis[3];
 	vec3_t p[4];
 	int i;
-	float *clippedpoints;
 	float radius;
-	int numtris;
+	q3markFragment_ctx_t ctx;
 
 	if (numPoints != 4)
 		return 0;
@@ -438,27 +465,14 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 	VectorNormalize(axis[2]);
 	VectorNormalize2(projection, axis[0]);
 
-	numtris = Q1BSP_ClipDecal(cl.worldmodel, center, axis[0], axis[1], axis[2], radius, &clippedpoints);
-	if (numtris > maxFragments)
-		numtris = maxFragments;
-	if (numtris > maxPoints/3)
-		numtris = maxPoints/3;
-	for (i = 0; i < numtris; i++)
-	{
-		fragmentBuffer[i].numPoints = 3;
-		fragmentBuffer[i].firstPoint = i*3;
-
-		pointBuffer[i*9+0] = clippedpoints[i*9+0];
-		pointBuffer[i*9+1] = clippedpoints[i*9+1];
-		pointBuffer[i*9+2] = clippedpoints[i*9+2];
-		pointBuffer[i*9+3] = clippedpoints[i*9+3];
-		pointBuffer[i*9+4] = clippedpoints[i*9+4];
-		pointBuffer[i*9+5] = clippedpoints[i*9+5];
-		pointBuffer[i*9+6] = clippedpoints[i*9+6];
-		pointBuffer[i*9+7] = clippedpoints[i*9+7];
-		pointBuffer[i*9+8] = clippedpoints[i*9+8];
-	}
-	return numtris;
+	ctx.points = pointBuffer;
+	ctx.maxpoints = maxPoints;
+	ctx.numpoints = 0;
+	ctx.frags = fragmentBuffer;
+	ctx.numfrags = 0;
+	ctx.maxfrags = maxFragments;
+	Mod_ClipDecal(cl.worldmodel, center, axis[0], axis[1], axis[2], radius, CG_MarkFragments_Callback, &ctx);
+	return ctx.numfrags;
 }
 
 int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagname);

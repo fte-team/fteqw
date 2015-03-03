@@ -3591,6 +3591,9 @@ void CL_UpdateBeams (void)
 			ent->angles[2] = rand()%360;
 			AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 			ent->angles[0] = pitch;
+			ent->framestate.g[FS_REG].lerpweight[0] = 1;
+			ent->framestate.g[FS_REG].frame[0] = 0;
+			ent->framestate.g[FS_REG].frametime[0] = cl.time - (b->endtime - 0.2);
 
 			for (i=0 ; i<3 ; i++)
 				org[i] += dist[i]*30;

@@ -7,6 +7,8 @@
 !!cvarf r_glsl_offsetmapping_scale
 !!cvarf gl_specular
 
+#include "sys/defs.h"
+
 //this is what normally draws all of your walls, even with rtlights disabled
 //note that the '286' preset uses drawflat_walls instead.
 
@@ -25,19 +27,6 @@ varying vec2 lm0;
 #endif
 
 #ifdef VERTEX_SHADER
-attribute vec2 v_texcoord;
-attribute vec2 v_lmcoord;
-#ifdef LIGHTSTYLED
-attribute vec2 v_lmcoord2;
-attribute vec2 v_lmcoord3;
-attribute vec2 v_lmcoord4;
-#endif
-#if defined(OFFSETMAPPING) || defined(SPECULAR)
-uniform vec3 e_eyepos;
-attribute vec3 v_normal;
-attribute vec3 v_svector;
-attribute vec3 v_tvector;
-#endif
 void main ()
 {
 #if defined(OFFSETMAPPING) || defined(SPECULAR)
@@ -61,50 +50,9 @@ void main ()
 #ifdef FRAGMENT_SHADER
 
 //samplers
-#define s_diffuse	s_t0
-#define s_lightmap0	s_t1
-#define s_normalmap	s_t2
-#define s_delux0	s_t3
-#define s_fullbright	s_t4
-#define s_specular	s_t5
-#define s_lightmap1	s_t6
-#define s_lightmap2	s_t7
-#define s_lightmap3	s_t8
-#define s_delux1	s_t9
-#define s_delux2	s_t10
-#define s_delux3	s_t11
-#define s_paletted	s_diffuse
-#define s_colourmap	s_fullbright
+#define s_colourmap	s_t0
+uniform sampler2D	s_colourmap;
 
-uniform sampler2D s_diffuse;
-uniform sampler2D s_lightmap0;
-#if defined(BUMP) && (defined(OFFSETMAPPING) || defined(DELUXE) || defined(SPECULAR))
-uniform sampler2D s_normalmap;
-#endif
-#ifdef DELUXE
-uniform sampler2D s_delux0;
-#endif
-#if defined(FULLBRIGHT) || defined(EIGHTBIT)
-uniform sampler2D s_fullbright;
-#endif
-#ifdef SPECULAR
-uniform sampler2D s_specular;
-#endif
-#ifdef LIGHTSTYLED
-uniform sampler2D s_lightmap1;
-uniform sampler2D s_lightmap2;
-uniform sampler2D s_lightmap3;
-uniform sampler2D s_delux1;
-uniform sampler2D s_delux2;
-uniform sampler2D s_delux3;
-#endif
-
-#ifdef LIGHTSTYLED
-uniform vec4 e_lmscale[4];
-#else
-uniform vec4 e_lmscale;
-#endif
-uniform vec4 e_colourident;
 #ifdef SPECULAR
 uniform float cvar_gl_specular;
 #endif
@@ -141,10 +89,10 @@ void main ()
 #ifdef LIGHTSTYLED
 	vec3 lightmaps;
 	#ifdef DELUXE
-		lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_delux0, lm0).rgb-0.5);
-		lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_delux1, lm1).rgb-0.5);
-		lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_delux2, lm2).rgb-0.5);
-		lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_delux3, lm3).rgb-0.5);
+		lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_deluxmap0, lm0).rgb-0.5);
+		lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_deluxmap1, lm1).rgb-0.5);
+		lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_deluxmap2, lm2).rgb-0.5);
+		lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_deluxmap3, lm3).rgb-0.5);
 	#else
 		lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb;
 		lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb;
@@ -152,10 +100,12 @@ void main ()
 		lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb;
 	#endif
 #else
-	vec3 lightmaps = (texture2D(s_lightmap0, lm0) * e_lmscale).rgb;
+	vec3 lightmaps = (texture2D(s_lightmap, lm0) * e_lmscale).rgb;
 	//modulate by the  bumpmap dot light
 	#ifdef DELUXE
-		lightmaps *= dot(norm, 2.0*(texture2D(s_delux0, lm0).rgb-0.5));
+		vec3 delux = 2.0*(texture2D(s_deluxmap, lm0).rgb-0.5);
+		lightmaps *= 1.0 / max(0.25, delux.z);	//counter the darkening from deluxmaps
+		lightmaps *= dot(norm, delux);
 	#endif
 #endif
 
@@ -164,7 +114,7 @@ void main ()
 	vec4 specs = texture2D(s_specular, tc);
 	#ifdef DELUXE
 //not lightstyled...
-		vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_delux0, lm0).rgb-0.5));	//this norm should be the deluxemap info instead
+		vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_deluxmap0, lm0).rgb-0.5));	//this norm should be the deluxemap info instead
 	#else
 		vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0));	//this norm should be the deluxemap info instead
 	#endif
@@ -179,7 +129,7 @@ void main ()
 
 #ifdef EIGHTBIT //FIXME: with this extra flag, half the permutations are redundant.
 	lightmaps *= 0.5;	//counter the fact that the colourmap contains overbright values and logically ranges from 0 to 2 intead of to 1.
-	float pal = texture2D(s_diffuse, tc).r;	//the palette index. hopefully not interpolated.
+	float pal = texture2D(s_paletted, tc).r;	//the palette index. hopefully not interpolated.
 	lightmaps -= 1.0 / 128.0;	//software rendering appears to round down, so make sure we favour the lower values instead of rounding to the nearest
 	gl_FragColor.r = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.r)).r;	//do 3 lookups. this is to cope with lit files, would be a waste to not support those.
 	gl_FragColor.g = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.g)).g;	//its not very softwarey, but re-palettizing is ugly.

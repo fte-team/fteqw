@@ -40,19 +40,16 @@ void main (void)
 }
 #endif
 #ifdef FRAGMENT_SHADER
+#define s_refract s_t0
+#define s_reflect s_t1
+#define s_ripplemap s_t2
+#define s_refractdepth s_t3
+
 uniform float cvar_r_glsl_turbscale;
-uniform sampler2D s_t0;	//refract
-uniform sampler2D s_t1;	//normalmap
-uniform sampler2D s_t2;	//diffuse/reflection
-#ifdef DEPTH
-uniform sampler2D s_t3; 	//refraction depth
-#define s_ripplemap s_t4
-#else
-#define s_ripplemap s_t3
-#endif
-#ifdef RIPPLEMAP
+uniform sampler2D s_refract;	//refract
+uniform sampler2D s_reflect;	//reflection
+uniform sampler2D s_refractdepth; 	//refraction depth
 uniform sampler2D s_ripplemap; 	//ripplemap
-#endif
 
 uniform float e_time;
 void main (void)
@@ -70,8 +67,8 @@ void main (void)
 	ntc.t = tc.t + sin(tc.s+e_time)*0.125;
 
 	//generate the two wave patterns from the normalmap
-	n = (texture2D(s_t1, TXSCALE*tc + vec2(e_time*0.1, 0.0)).xyz);
-	n += (texture2D(s_t1, TXSCALE*tc - vec2(0, e_time*0.097)).xyz);
+	n = (texture2D(s_normalmap, TXSCALE*tc + vec2(e_time*0.1, 0.0)).xyz);
+	n += (texture2D(s_normalmap, TXSCALE*tc - vec2(0, e_time*0.097)).xyz);
 	n -= 1.0 - 4.0/256.0;
 
 #ifdef RIPPLEMAP
@@ -90,7 +87,7 @@ void main (void)
 	sdepth = mix(near, far, sdepth);
 
 	//get depth value at the ground beyond the surface.
-	float gdepth = texture2D(s_t3, stc).x;
+	float gdepth = texture2D(s_refractdepth, stc).x;
 	gdepth = (2.0*near) / (far + near - gdepth * (far - near));
 	if (gdepth >= 0.5)
 	{
@@ -112,16 +109,16 @@ void main (void)
 
 
 	//refraction image (and water fog, if possible)
-	refr = texture2D(s_t0, stc + n.st*STRENGTH*cvar_r_glsl_turbscale).rgb * TINT;
+	refr = texture2D(s_refract, stc + n.st*STRENGTH*cvar_r_glsl_turbscale).rgb * TINT;
 #ifdef DEPTH
 	refr = mix(refr, FOGTINT, min(depth/4096.0, 1.0));
 #endif
 
 	//reflection/diffuse
 #ifdef REFLECT
-	refl = texture2D(s_t2, stc - n.st*STRENGTH*cvar_r_glsl_turbscale).rgb;
+	refl = texture2D(s_reflect, stc - n.st*STRENGTH*cvar_r_glsl_turbscale).rgb;
 #else
-	refl = texture2D(s_t2, ntc).xyz;
+	refl = texture2D(s_diffuse, ntc).xyz;
 #endif
 	//FIXME: add specular
 

@@ -878,6 +878,7 @@ typedef struct
 #define MOVETYPE_H2PUSHPULL		13		// pushable/pullable object
 #define MOVETYPE_H2SWIM			14		// should keep the object in water
 #define MOVETYPE_PHYSICS		32
+#define MOVETYPE_FLY_WORLDONLY	33
 
 // edict->solid values
 #define	SOLID_NOT				0		// no interaction with other objects
@@ -1145,7 +1146,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl);
 qboolean SV_UserInfoIsBasic(char *infoname);	//standard message.
 void SV_ExecuteClientMessage (client_t *cl);
 void SVQ2_ExecuteClientMessage (client_t *cl);
-int SV_PMTypeForClient (client_t *cl);
+int SV_PMTypeForClient (client_t *cl, edict_t *ent);
 void SV_UserInit (void);
 qboolean SV_TogglePause (client_t *cl);
 

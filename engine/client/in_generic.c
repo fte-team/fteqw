@@ -14,7 +14,6 @@ static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.2", CVAR_AR
 static cvar_t m_touchmajoraxis = CVARFD("m_touchmajoraxis", "1", CVAR_ARCHIVE, "When using a touchscreen, use only the major axis for strafing.");
 static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "10", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event (touchscreens).");
 
-extern cvar_t cl_forcesplitclient;	//all devices claim to be a single player
 extern cvar_t _windowed_mouse;
 
 
@@ -320,8 +319,8 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	wpnum = cl.splitclients;
 	if (wpnum < 1)
 		wpnum = 1;
-	if (cl_forcesplitclient.ival)
-		wpnum = (cl_forcesplitclient.ival-1) % wpnum;
+	if (cl_forceseat.ival)
+		wpnum = (cl_forceseat.ival-1) % wpnum;
 	else
 		wpnum = mouse->qdeviceid % wpnum;
 	if (wpnum != pnum)
@@ -561,8 +560,8 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 	wpnum = cl.splitclients;
 	if (wpnum < 1)
 		wpnum = 1;
-	if (cl_forcesplitclient.ival)
-		wpnum = (cl_forcesplitclient.ival-1) % wpnum;
+	if (cl_forceseat.ival)
+		wpnum = (cl_forceseat.ival-1) % wpnum;
 	else
 		wpnum = joy->qdeviceid % wpnum;
 	if (wpnum != pnum)

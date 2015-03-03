@@ -290,8 +290,8 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(
 
 #else
 
-#if defined(GLQUAKE) && defined(DEBUG)
-#define PRINTGLARRAYS
+#if defined(GLQUAKE)
+//#define PRINTGLARRAYS
 #endif
 
 #if defined(_DEBUG) || defined(DEBUG)
@@ -606,8 +606,8 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	}
 
 #ifdef PRINTGLARRAYS
-//	if (!iswatchdog && qrenderer == QR_OPENGL)
-//		DumpGLState();
+	if (!iswatchdog && qrenderer == QR_OPENGL)
+		DumpGLState();
 #endif
 
 	hKernel = LoadLibrary ("kernel32");

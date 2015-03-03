@@ -2121,6 +2121,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	case MOVETYPE_FOLLOW:
 		WPhys_Physics_Follow (w, ent);
 		break;
+	case MOVETYPE_FLY_WORLDONLY:
 	case MOVETYPE_FLY:
 	case MOVETYPE_H2SWIM:
 	case MOVETYPE_TOSS:

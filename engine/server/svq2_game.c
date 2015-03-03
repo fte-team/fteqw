@@ -71,7 +71,7 @@ void *SVQ2_GetGameAPI (void *parms)
 				Q_snprintfz(name, sizeof(name), "%slibgame_%s"ARCH_DL_POSTFIX, host_parms.binarydir, gamepath);
 			}
 			else
-			{
+			{	//gamedir paths as specified above.
 				if (com_nogamedirnativecode.ival)
 					continue;
 				Q_snprintfz(name, sizeof(name), "%s%s", syspath, gamename[o]);

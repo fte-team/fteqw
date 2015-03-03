@@ -786,7 +786,6 @@ static void ICE_Destroy(struct icestate_s *con)
 void ICE_Tick(void)
 {
 	struct icestate_s *con;
-	unsigned int curtime = Sys_Milliseconds();
 
 	for (con = icelist; con; con = con->next)
 	{
@@ -809,6 +808,8 @@ void ICE_Tick(void)
 		case ICEM_ICE:
 			if (con->state == ICE_CONNECTING || con->state == ICE_FAILED)
 			{
+				unsigned int curtime = Sys_Milliseconds();
+
 				if (con->stunretry < curtime && con->pubstunserver.type != NA_INVALID)
 				{
 					ICE_ToStunServer(con);

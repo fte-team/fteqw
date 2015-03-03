@@ -73,7 +73,7 @@ static void DSOUND_Restore(soundcardinfo_t *sc)
 {
 	DWORD	dwStatus;
 	dshandle_t *dh = sc->handle;
-	if (dh->pDSBuf->lpVtbl->GetStatus (dh->pDSBuf, &dwStatus) != DD_OK)
+	if (dh->pDSBuf->lpVtbl->GetStatus (dh->pDSBuf, &dwStatus) != ERROR_SUCCESS)
 		Con_Printf ("Couldn't get sound buffer status\n");
 
 	if (dwStatus & DSBSTATUS_BUFFERLOST)

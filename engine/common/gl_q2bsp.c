@@ -52,10 +52,11 @@ extern cvar_t r_shadow_bumpscale_basetexture;
 
 //these are in model.c (or gl_model.c)
 qboolean Mod_LoadVertexes (model_t *loadmodel, qbyte *mod_base, lump_t *l);
+qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l);
-void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l);
+void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe);
 
 
 static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
@@ -112,11 +113,11 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s)
 
 	for (i=0 ; i<2 ; i++)
 	{
-		bmins[i] = floor(mins[i]/16);
-		bmaxs[i] = ceil(maxs[i]/16);
+		bmins[i] = floor(mins[i]/(1<<s->lmshift));
+		bmaxs[i] = ceil(maxs[i]/(1<<s->lmshift));
 
-		s->texturemins[i] = bmins[i] * 16;
-		s->extents[i] = (bmaxs[i] - bmins[i]) * 16;
+		s->texturemins[i] = bmins[i] << s->lmshift;
+		s->extents[i] = (bmaxs[i] - bmins[i]) << s->lmshift;
 
 //		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 8176 )	//q2 uses 512. probably for skys.
 //			Con_Printf ("Bad surface extents (texture %s)\n", s->texinfo->texture->name);
@@ -377,7 +378,7 @@ static q2mapsurface_t	nullsurface;
 
 cvar_t		map_noareas			= SCVAR("map_noareas", "0");	//1 for lack of mod support.
 cvar_t		map_noCurves		= SCVARF("map_noCurves", "0", CVAR_CHEAT);
-cvar_t		map_autoopenportals	= SCVAR("map_autoopenportals", "1");	//1 for lack of mod support.
+cvar_t		map_autoopenportals	= CVARD("map_autoopenportals", "0", "When set to 1, force-opens all area portals. Normally these start closed and are opened by doors when they move, but this requires the gamecode to signal this.");	//1 for lack of mod support.
 cvar_t		r_subdivisions		= SCVAR("r_subdivisions", "2");
 
 static int		CM_NumInlineModels (model_t *model);
@@ -1205,18 +1206,21 @@ qboolean CModQ2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	return true;
 }
 #ifndef SERVERONLY
-texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *walname, char *shadername, unsigned int imageflags)
+texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname, char *shadername, unsigned int imageflags)
 {
+	char name[MAX_QPATH];
 	q2miptex_t replacementwal;
 	texture_t *tex;
 	q2miptex_t *wal;
+	image_t *base;
 
-	wal = (void *)FS_LoadMallocFile (walname, NULL);
+	Q_snprintfz (name, sizeof(name), "textures/%s.wal", texname);
+	wal = (void *)FS_LoadMallocFile (texname, NULL);
 	if (!wal)
 	{
 		wal = &replacementwal;
 		memset(wal, 0, sizeof(*wal));
-		Q_strncpyz(wal->name, walname, sizeof(wal->name));
+		Q_strncpyz(wal->name, texname, sizeof(wal->name));
 		wal->width = 64;
 		wal->height = 64;
 	}
@@ -1236,26 +1240,31 @@ texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *walname, char *
 
 	tex = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 
-	tex->offsets[0] = wal->offsets[0];
 	tex->width = wal->width;
 	tex->height = wal->height;
 
-	if (wal->offsets[0])
-		tex->texnums.base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags, (qbyte *)wal+wal->offsets[0], wal->width, wal->height, TF_SOLID8);
+	if (!tex->width || !tex->height || wal == &replacementwal)
+	{
+		imageflags |= IF_LOADNOW;	//make sure the size is known BEFORE it returns.
+		if (wal->offsets[0])
+			base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags, (qbyte *)wal+wal->offsets[0], wal->width, wal->height, TF_SOLID8);
+		else
+			base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags, NULL, 0, 0, TF_INVALID);
+	}
 	else
-		tex->texnums.base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags, NULL, 0, 0, TF_INVALID);
+		base = NULL;
 
 	if (wal == &replacementwal)
 	{
-/*		FIXME: worker needs the texture to have already been loaded. it can't sync with itself however.
-		if (tex->texnums.base->status == TEX_LOADING)
-			COM_WorkerPartialSync(tex, &tex->texnums.base->status, TEX_LOADING);
-		if (tex->texnums.base->status == TEX_LOADED)
+		if (base)
 		{
-			tex->width = tex->texnums.base->width;
-			tex->height = tex->texnums.base->height;
+			if (base->status == TEX_LOADED||base->status==TEX_LOADING)
+			{
+				tex->width = base->width;
+				tex->height = base->height;
+			}
 		}
-*/
+
 	}
 	else
 		BZ_Free(wal);
@@ -1270,7 +1279,6 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 	int 	i, j, count;
 	char	name[MAX_QPATH], *lwr;
 	char	sname[MAX_QPATH];
-	float	len1, len2;
 	int texcount;
 
 	in = (void *)(mod_base + l->fileofs);
@@ -1288,6 +1296,18 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 	mod->texinfo = out;
 	mod->numtexinfo = count;
 
+	if (in[0].nexttexinfo != -1)
+	{
+		for (i = 1; i < count && in[i].nexttexinfo == in[0].nexttexinfo; i++)
+			;
+		if (i == count)
+		{
+			Con_Printf("WARNING: invalid texture animations in \"%s\"\n", mod->name);
+			for (i = 0; i < count; i++) 
+				in[i].nexttexinfo = -1;
+		}
+	}
+
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
 		out->flags = LittleLong (in->flags);
@@ -1296,28 +1316,31 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 			out->vecs[0][j] = LittleFloat (in->vecs[0][j]);
 		for (j=0 ; j<4 ; j++)
 			out->vecs[1][j] = LittleFloat (in->vecs[1][j]);
-		len1 = Length (out->vecs[0]);
-		len2 = Length (out->vecs[1]);
-		len1 = (len1 + len2)/2;
-		if (len1 < 0.32)
-			out->mipadjust = 4;
-		else if (len1 < 0.49)
-			out->mipadjust = 3;
-		else if (len1 < 0.99)
-			out->mipadjust = 2;
-		else
-			out->mipadjust = 1;
+		out->vecscale[0] = 1.0/Length (out->vecs[0]);
+		out->vecscale[1] = 1.0/Length (out->vecs[1]);
 
 		if (out->flags & TI_SKY)
-			snprintf(sname, sizeof(sname), "sky/%s%s", in->texture, in->nexttexinfo==-1?"":"#ANIMLOOP");
-		else if (out->flags & (TI_WARP|TI_TRANS33|TI_TRANS66))
-			snprintf(sname, sizeof(sname), "%s/%s#ALPHA=%s%s", ((out->flags&TI_WARP)?"warp":"trans"), in->texture, ((out->flags&TI_TRANS66)?"0.66":(out->flags&TI_TRANS33?"0.33":"1")), in->nexttexinfo==-1?"":"#ANIMLOOP");
+			Q_snprintfz(sname, sizeof(sname), "sky/%s", in->texture);
+		else if (out->flags & (TI_WARP|TI_FLOWING))
+			Q_snprintfz(sname, sizeof(sname), "warp/%s", in->texture);
+		else if (out->flags & (TI_TRANS33|TI_TRANS66))
+			Q_snprintfz(sname, sizeof(sname), "trans/%s", in->texture);
 		else
-			snprintf(sname, sizeof(sname), "wall/%s%s", in->texture, in->nexttexinfo==-1?"":"#ANIMLOOP");
+			Q_snprintfz(sname, sizeof(sname), "wall/%s", in->texture);
+		if (out->flags & TI_FLOWING)
+			Q_strncatz(sname, "#FLOW", sizeof(sname));
+		if (out->flags & TI_TRANS66)
+			Q_strncatz(sname, "#ALPHA=0.66", sizeof(sname));
+		else if (out->flags & TI_TRANS33)
+			Q_strncatz(sname, "#ALPHA=0.33", sizeof(sname));
+		else if (out->flags & (TI_WARP|TI_FLOWING))
+			Q_strncatz(sname, "#ALPHA=1", sizeof(sname));
+		if (in->nexttexinfo != -1)	//used to ensure non-looping and looping don't conflict and get confused.
+			Q_strncatz(sname, "#ANIMLOOP", sizeof(sname));
 
 		//in q2, 'TEX_SPECIAL' is TI_LIGHT, and that conflicts.
 		out->flags &= ~TI_LIGHT;
-		if (out->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
+		if (out->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP|TI_FLOWING))
 			out->flags |= TEX_SPECIAL;
 
 		//compact the textures.
@@ -1336,9 +1359,7 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 				if (*lwr >= 'A' && *lwr <= 'Z')
 					*lwr = *lwr - 'A' + 'a';
 			}
-			snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
-
-			out->texture = Mod_LoadWall (mod, mapname, name, sname, (out->flags&TEX_SPECIAL)?0:IF_NOALPHA);
+			out->texture = Mod_LoadWall (mod, mapname, in->texture, sname, (out->flags&TEX_SPECIAL)?0:IF_NOALPHA);
 			if (!out->texture || !out->texture->width || !out->texture->height)
 			{
 				out->texture = ZG_Malloc(&mod->memgroup, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
@@ -1352,10 +1373,10 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 			mod->textures[texcount++] = out->texture;
 		}
 
-		if (in->nexttexinfo != -1)
-		{
-			Con_DPrintf("FIXME: %s should animate to %s\n", in->texture, (in->nexttexinfo+(q2texinfo_t *)(mod_base + l->fileofs))->texture);
-		}
+//		if (in->nexttexinfo != -1)
+//		{
+//			Con_DPrintf("FIXME: %s should animate to %s\n", in->texture, (in->nexttexinfo+(q2texinfo_t *)(mod_base + l->fileofs))->texture);
+//		}
 	}
 
 	in = (void *)(mod_base + l->fileofs);
@@ -1372,7 +1393,7 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 			continue;
 
 		out[i].texture->anim_total = 1;
-		for (tex = out[i].texture->anim_next ; tex && tex != out[i].texture ; tex=tex->anim_next)
+		for (tex = out[i].texture->anim_next ; tex && tex != out[i].texture && out[i].texture->anim_total < 100; tex=tex->anim_next)
 			out[i].texture->anim_total++;
 	}
 
@@ -1430,20 +1451,31 @@ void CalcSurfaceExtents (msurface_t *s)
 	}
 }*/
 
-
 /*
 =================
 Mod_LoadFaces
 =================
 */
 #ifndef SERVERONLY
-qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
+qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, qboolean lightofsisdouble)
 {
 	dsface_t		*in;
 	msurface_t 	*out;
 	int			i, count, surfnum;
 	int			planenum, side;
 	int			ti;
+
+	unsigned short lmshift, lmscale;
+	char buf[64];
+
+	lmscale = atoi(Mod_ParseWorldspawnKey(mod->entities, "lightmap_scale", buf, sizeof(buf)));
+	if (!lmscale)
+		lmshift = LMSHIFT_DEFAULT;
+	else
+	{
+		for(lmshift = 0; lmscale > 1; lmshift++)
+			lmscale >>= 1;
+	}
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -1460,17 +1492,17 @@ qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	for ( surfnum=0 ; surfnum<count ; surfnum++, in++, out++)
 	{
 		out->firstedge = LittleLong(in->firstedge);
-		out->numedges = LittleShort(in->numedges);
+		out->numedges = (unsigned short)LittleShort(in->numedges);
 		out->flags = 0;
 
-		planenum = LittleShort(in->planenum);
-		side = LittleShort(in->side);
+		planenum = (unsigned short)LittleShort(in->planenum);
+		side = (unsigned short)LittleShort(in->side);
 		if (side)
 			out->flags |= SURF_PLANEBACK;
 
 		out->plane = mod->planes + planenum;
 
-		ti = LittleShort (in->texinfo);
+		ti = (unsigned short)LittleShort (in->texinfo);
 		if (ti < 0 || ti >= mod->numtexinfo)
 		{
 			Con_Printf (CON_ERROR "MOD_LoadBmodel: bad texinfo number\n");
@@ -1489,6 +1521,7 @@ qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		}
 #endif
 
+		out->lmshift = lmshift;
 		CalcSurfaceExtents (mod, out);
 
 	// lighting info
@@ -1498,6 +1531,8 @@ qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 		i = LittleLong(in->lightofs);
 		if (i == -1)
 			out->samples = NULL;
+		else if (lightofsisdouble)
+			out->samples = mod->lightdata + (i/2);
 		else
 			out->samples = mod->lightdata + i;
 
@@ -1577,8 +1612,8 @@ qboolean CModQ2_LoadNodes (model_t *mod, qbyte *mod_base, lump_t *l)
 
 		out->plane = mod->planes + LittleLong(in->planenum);
 
-		out->firstsurface = LittleShort (in->firstface);
-		out->numsurfaces = LittleShort (in->numfaces);
+		out->firstsurface = (unsigned short)LittleShort (in->firstface);
+		out->numsurfaces = (unsigned short)LittleShort (in->numfaces);
 		out->contents = -1;	// differentiate from leafs
 
 		for (j=0 ; j<2 ; j++)
@@ -1694,7 +1729,7 @@ qboolean CModQ2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l)
 		if (out->cluster == 0xffff)
 			out->cluster = -1;
 
-		out->area = LittleShort (in->area);
+		out->area = (unsigned short)LittleShort (in->area);
 		out->firstleafbrush = (unsigned short)LittleShort (in->firstleafbrush);
 		out->numleafbrushes = (unsigned short)LittleShort (in->numleafbrushes);
 
@@ -1820,7 +1855,7 @@ CMod_LoadBrushSides
 qboolean CModQ2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
-	int			i, j;
+	unsigned int			i, j;
 	q2cbrushside_t	*out;
 	q2dbrushside_t 	*in;
 	int			count;
@@ -1846,15 +1881,13 @@ qboolean CModQ2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
-		num = LittleShort (in->planenum);
+		num = (unsigned short)LittleShort (in->planenum);
 		out->plane = &mod->planes[num];
-		j = LittleShort (in->texinfo);
+		j = (unsigned short)LittleShort (in->texinfo);
 		if (j >= mod->numtexinfo)
-		{
-			Con_Printf (CON_ERROR "Bad brushside texinfo\n");
-			return false;
-		}
-		out->surface = &prv->surfaces[j];
+			out->surface = &nullsurface;
+		else
+			out->surface = &prv->surfaces[j];
 	}
 
 	return true;
@@ -2840,8 +2873,9 @@ qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			out->styles[sty] = 255;
 			out->lightmaptexturenums[sty] = -1;
 		}
-		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<4;
-		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<4;
+		out->lmshift = LMSHIFT_DEFAULT;
+		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<out->lmshift;
+		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<out->lmshift;
 		out->samples=NULL;
 
 		if (mod->lightmaps.count < out->lightmaptexturenums[0]+1)
@@ -2952,8 +2986,9 @@ qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			if (mod->lightmaps.count < out->lightmaptexturenums[j]+1)
 				mod->lightmaps.count = out->lightmaptexturenums[j]+1;
 		}
-		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<4;
-		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<4;
+		out->lmshift = LMSHIFT_DEFAULT;
+		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<out->lmshift;
+		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<out->lmshift;
 		out->samples=NULL;
 
 		fv = LittleLong(in->firstvertex);
@@ -3858,35 +3893,35 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	header.ident = LittleLong(header.ident);
 	header.version = LittleLong(header.version);
 
-	if (header.ident == (('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24)))
-	{
-		mod->lightmaps.width = 512;
-		mod->lightmaps.height = 512;
-	}
-	else
-	{
-		mod->lightmaps.width = 128;
-		mod->lightmaps.height = 128;
-	}
-
 	ClearBounds(mod->mins, mod->maxs);
 
 	switch(header.version)
 	{
 	default:
 		Con_Printf (CON_ERROR "Quake 2 or Quake 3 based BSP with unknown header (%s: %i should be %i or %i)\n"
-			, mod->name, header.version, Q2BSPVERSION, Q3BSPVERSION);
+			, mod->name, header.version, BSPVERSION_Q2, BSPVERSION_Q3);
 		return NULL;
 		break;
 #ifdef Q3BSPS
-	case 1: //rbsp/fbsp
-	case Q3BSPVERSION+1:	//rtcw
-	case Q3BSPVERSION:
+	case BSPVERSION_RBSP: //rbsp/fbsp
+	case BSPVERSION_RTCW:	//rtcw
+	case BSPVERSION_Q3:
+		if (header.ident == (('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24)))
+		{
+			mod->lightmaps.width = 512;
+			mod->lightmaps.height = 512;
+		}
+		else
+		{
+			mod->lightmaps.width = 128;
+			mod->lightmaps.height = 128;
+		}
+
 		prv->mapisq3 = true;
 		mod->fromgame = fg_quake3;
 		for (i=0 ; i<Q3LUMPS_TOTAL ; i++)
 		{
-			if (i == RBSPLUMP_LIGHTINDEXES && header.version != 1)
+			if (i == RBSPLUMP_LIGHTINDEXES && header.version != BSPVERSION_RBSP)
 			{
 				header.lumps[i].filelen = 0;
 				header.lumps[i].fileofs = 0;
@@ -3938,7 +3973,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		prv->mapisq3 = true;
 		noerrors = noerrors && CModQ3_LoadShaders				(mod, mod_base, &header.lumps[Q3LUMP_SHADERS]);
 		noerrors = noerrors && CModQ3_LoadPlanes				(mod, mod_base, &header.lumps[Q3LUMP_PLANES]);
-		if (header.version == 1)
+		if (header.version == BSPVERSION_RBSP)
 		{
 			noerrors = noerrors && CModRBSP_LoadBrushSides		(mod, mod_base, &header.lumps[Q3LUMP_BRUSHSIDES]);
 			noerrors = noerrors && CModRBSP_LoadVertexes		(mod, mod_base, &header.lumps[Q3LUMP_DRAWVERTS]);
@@ -3957,19 +3992,19 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 #ifndef SERVERONLY
 		if (qrenderer != QR_NONE)
 		{
-			if (header.version == 1)
+			if (header.version == BSPVERSION_RBSP)
 				noerrors = noerrors && CModRBSP_LoadLightgrid	(mod, mod_base, &header.lumps[Q3LUMP_LIGHTGRID], &header.lumps[RBSPLUMP_LIGHTINDEXES]);
 			else
 				noerrors = noerrors && CModQ3_LoadLightgrid		(mod, mod_base, &header.lumps[Q3LUMP_LIGHTGRID]);
 			noerrors = noerrors && CModQ3_LoadIndexes			(mod, mod_base, &header.lumps[Q3LUMP_DRAWINDEXES]);
 
-			if (header.version != Q3BSPVERSION+1)
+			if (header.version != BSPVERSION_RTCW)
 				noerrors = noerrors && CModQ3_LoadFogs			(mod, mod_base, &header.lumps[Q3LUMP_FOGS]);
 			else
 				mod->numfogs = 0;
 
 			facedata = (void *)(mod_base + header.lumps[Q3LUMP_SURFACES].fileofs);
-			if (header.version == 1)
+			if (header.version == BSPVERSION_RBSP)
 			{
 				noerrors = noerrors && CModRBSP_LoadRFaces		(mod, mod_base, &header.lumps[Q3LUMP_SURFACES]);
 				buildmeshes = CModRBSP_BuildSurfMesh;
@@ -4067,7 +4102,11 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		BZ_Free(map_faces);
 		break;
 #endif
-	case Q2BSPVERSION:
+	case BSPVERSION_Q2:
+	case BSPVERSION_Q2W:
+		mod->lightmaps.width = LMBLOCK_SIZE_MAX;
+		mod->lightmaps.height = LMBLOCK_SIZE_MAX;
+
 		prv->mapisq3 = false;
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 		for (i=0 ; i<Q2HEADER_LUMPS ; i++)
@@ -4075,8 +4114,13 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
 			header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
 		}
-
-		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, Q2HEADER_LUMPS);
+		if (header.version == BSPVERSION_Q2W)
+		{
+			header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
+			header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
+			i++;
+		}
+		Q1BSPX_Setup(mod, mod_base, filelen, header.lumps, i);
 
 #ifndef SERVERONLY
 		if (CM_GetQ2Palette())
@@ -4115,25 +4159,23 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			mod->funcs.NativeContents		= CM_NativeContents;
 
 			break;
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-		case QR_DIRECT3D9:
-		case QR_DIRECT3D11:
-		case QR_OPENGL:
+#ifndef SERVERONLY
+		default:
 		// load into heap
-		#ifndef SERVERONLY
 			noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[Q2LUMP_VERTEXES]);
+			if (header.version == BSPVERSION_Q2W)
+				/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, mod_base, &header.lumps[19]);
 			noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
 			noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
 			if (noerrors)
-				Mod_LoadLighting							(mod, mod_base, &header.lumps[Q2LUMP_LIGHTING]);
-		#endif
+				Mod_LoadLighting							(mod, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W);
 			noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
 			noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
-		#ifndef SERVERONLY
 			noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);
-			noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES]);
+			if (noerrors)
+				CMod_LoadEntityString						(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
+			noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], header.version == BSPVERSION_Q2W);
 			noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
-		#endif
 			noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
 			noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);
 			noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[Q2LUMP_BRUSHES]);
@@ -4143,8 +4185,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[Q2LUMP_MODELS]);
 			noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[Q2LUMP_AREAS]);
 			noerrors = noerrors && CModQ2_LoadAreaPortals	(mod, mod_base, &header.lumps[Q2LUMP_AREAPORTALS]);
-			if (noerrors)
-				CMod_LoadEntityString						(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
 
 			if (!noerrors)
 			{
@@ -4165,9 +4205,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			mod->funcs.NativeContents		= CM_NativeContents;
 			break;
 #endif
-		default:
-			return NULL;
-			Sys_Error("Bad internal renderer on q2 map load\n");
 		}
 	}
 
@@ -6148,7 +6185,8 @@ static void FloodArea_r (cminfo_t	*prv, q2carea_t *area, int floodnum)
 	{
 		if (area->floodnum == floodnum)
 			return;
-		Host_Error ("FloodArea_r: reflooded");
+		Con_Printf ("FloodArea_r: reflooded\n");
+		return;
 	}
 
 	area->floodnum = floodnum;

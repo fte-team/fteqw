@@ -657,7 +657,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 enum {
 STAT_HEALTH			= 0,
 //STAT_FRAGS		= 1,
-STAT_WEAPON			= 2,
+STAT_WEAPONMODELI	= 2,
 STAT_AMMO			= 3,
 STAT_ARMOR			= 4,
 STAT_WEAPONFRAME	= 5,

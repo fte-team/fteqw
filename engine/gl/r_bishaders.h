@@ -47,19 +47,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
+"#define s_refract s_t0\n"
+"#define s_reflect s_t1\n"
+"#define s_ripplemap s_t2\n"
+"#define s_refractdepth s_t3\n"
+
 "uniform float cvar_r_glsl_turbscale;\n"
-"uniform sampler2D s_t0; //refract\n"
-"uniform sampler2D s_t1; //normalmap\n"
-"uniform sampler2D s_t2; //diffuse/reflection\n"
-"#ifdef DEPTH\n"
-"uniform sampler2D s_t3;  //refraction depth\n"
-"#define s_ripplemap s_t4\n"
-"#else\n"
-"#define s_ripplemap s_t3\n"
-"#endif\n"
-"#ifdef RIPPLEMAP\n"
+"uniform sampler2D s_refract; //refract\n"
+"uniform sampler2D s_reflect; //reflection\n"
+"uniform sampler2D s_refractdepth;  //refraction depth\n"
 "uniform sampler2D s_ripplemap;  //ripplemap\n"
-"#endif\n"
 
 "uniform float e_time;\n"
 "void main (void)\n"
@@ -77,8 +74,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 
 //generate the two wave patterns from the normalmap
-"n = (texture2D(s_t1, TXSCALE*tc + vec2(e_time*0.1, 0.0)).xyz);\n"
-"n += (texture2D(s_t1, TXSCALE*tc - vec2(0, e_time*0.097)).xyz);\n"
+"n = (texture2D(s_normalmap, TXSCALE*tc + vec2(e_time*0.1, 0.0)).xyz);\n"
+"n += (texture2D(s_normalmap, TXSCALE*tc - vec2(0, e_time*0.097)).xyz);\n"
 "n -= 1.0 - 4.0/256.0;\n"
 
 "#ifdef RIPPLEMAP\n"
@@ -97,7 +94,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "sdepth = mix(near, far, sdepth);\n"
 
 //get depth value at the ground beyond the surface.
-"float gdepth = texture2D(s_t3, stc).x;\n"
+"float gdepth = texture2D(s_refractdepth, stc).x;\n"
 "gdepth = (2.0*near) / (far + near - gdepth * (far - near));\n"
 "if (gdepth >= 0.5)\n"
 "{\n"
@@ -119,16 +116,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 
 //refraction image (and water fog, if possible)
-"refr = texture2D(s_t0, stc + n.st*STRENGTH*cvar_r_glsl_turbscale).rgb * TINT;\n"
+"refr = texture2D(s_refract, stc + n.st*STRENGTH*cvar_r_glsl_turbscale).rgb * TINT;\n"
 "#ifdef DEPTH\n"
 "refr = mix(refr, FOGTINT, min(depth/4096.0, 1.0));\n"
 "#endif\n"
 
 //reflection/diffuse
 "#ifdef REFLECT\n"
-"refl = texture2D(s_t2, stc - n.st*STRENGTH*cvar_r_glsl_turbscale).rgb;\n"
+"refl = texture2D(s_reflect, stc - n.st*STRENGTH*cvar_r_glsl_turbscale).rgb;\n"
 "#else\n"
-"refl = texture2D(s_t2, ntc).xyz;\n"
+"refl = texture2D(s_diffuse, ntc).xyz;\n"
 "#endif\n"
 //FIXME: add specular
 
@@ -570,6 +567,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvarf gl_specular\n"
 
+"#include \"sys/defs.h\"\n"
+
 //standard shader used for models.
 //must support skeletal and 2-way vertex blending or Bad Things Will Happen.
 //the vertex shader is responsible for calculating lighting values.
@@ -585,13 +584,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef VERTEX_SHADER\n"
 "#include \"sys/skeletal.h\"\n"
-"attribute vec2 v_texcoord;\n"
-"uniform vec3 e_light_dir;\n"
-"uniform vec3 e_light_mul;\n"
-"uniform vec3 e_light_ambient;\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
-"uniform vec3 e_eyepos;\n"
-"#endif\n"
 "void main ()\n"
 "{\n"
 "#if defined(SPECULAR)||defined(OFFSETMAPPING)\n"
@@ -615,25 +607,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
 "#include \"sys/fog.h\"\n"
-"uniform sampler2D s_t0;\n"
-"#ifdef LOWER\n"
-"uniform sampler2D s_t1;\n"
-"uniform vec3 e_lowercolour;\n"
-"#endif\n"
-"#ifdef UPPER\n"
-"uniform sampler2D s_t2;\n"
-"uniform vec3 e_uppercolour;\n"
-"#endif\n"
-"#ifdef FULLBRIGHT\n"
-"uniform sampler2D s_t3;\n"
-"#endif\n"
-
-"#if defined(BUMP)\n"
-"uniform sampler2D s_t4;\n"
-"#endif\n"
 
 "#if defined(SPECULAR)\n"
-"uniform sampler2D s_t5;\n"
 "uniform float cvar_gl_specular;\n"
 "#endif\n"
 
@@ -641,31 +616,28 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/offsetmapping.h\"\n"
 "#endif\n"
 
-
-
-"uniform vec4 e_colourident;\n"
 "void main ()\n"
 "{\n"
 "vec4 col, sp;\n"
 
 "#ifdef OFFSETMAPPING\n"
-"vec2 tcoffsetmap = offsetmap(s_t4, tc, eyevector);\n"
+"vec2 tcoffsetmap = offsetmap(s_normalmap, tc, eyevector);\n"
 "#define tc tcoffsetmap\n"
 "#endif\n"
 
-"col = texture2D(s_t0, tc);\n"
+"col = texture2D(s_diffuse, tc);\n"
 "#ifdef UPPER\n"
-"vec4 uc = texture2D(s_t2, tc);\n"
+"vec4 uc = texture2D(s_upper, tc);\n"
 "col.rgb += uc.rgb*e_uppercolour*uc.a;\n"
 "#endif\n"
 "#ifdef LOWER\n"
-"vec4 lc = texture2D(s_t1, tc);\n"
+"vec4 lc = texture2D(s_lower, tc);\n"
 "col.rgb += lc.rgb*e_lowercolour*lc.a;\n"
 "#endif\n"
 
 "#if defined(BUMP) && defined(SPECULAR)\n"
-"vec3 bumps = normalize(vec3(texture2D(s_t4, tc)) - 0.5);\n"
-"vec4 specs = texture2D(s_t5, tc);\n"
+"vec3 bumps = normalize(vec3(texture2D(s_normalmap, tc)) - 0.5);\n"
+"vec4 specs = texture2D(s_specular, tc);\n"
 
 "vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0));\n"
 "float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);\n"
@@ -675,7 +647,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "col.rgb *= light;\n"
 
 "#ifdef FULLBRIGHT\n"
-"vec4 fb = texture2D(s_t3, tc);\n"
+"vec4 fb = texture2D(s_fullbright, tc);\n"
 //	col.rgb = mix(col.rgb, fb.rgb, fb.a);
 "col.rgb += fb.rgb * fb.a;\n"
 "#endif\n"
@@ -823,9 +795,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "float3 l_lightcolour;\n"
 "float3 l_lightposition;\n"
 
-"sampler s_t0; /*diffuse*/\n"
-"sampler s_t1; /*normal*/\n"
-"sampler s_t2; /*specular*/\n"
+"sampler s_diffuse; /*diffuse*/\n"
+"sampler s_fullbright; /*normal*/\n"
 "float4 main (v2f inp) : COLOR0\n"
 "{\n"
 "float2 tccoord;\n"
@@ -836,10 +807,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "dir.xy /= 0.5*length(dir);\n"
 
 "tccoord = (dir.xy + e_time*0.03125);\n"
-"float4 solid = tex2D(s_t0, tccoord);\n"
+"float4 solid = tex2D(s_diffuse, tccoord);\n"
 
 "tccoord = (dir.xy + e_time*0.0625);\n"
-"float4 clouds = tex2D(s_t1, tccoord);\n"
+"float4 clouds = tex2D(s_fullbright, tccoord);\n"
 
 "return float4((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb), 1);\n"
 "}\n"
@@ -1045,6 +1016,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvarf gl_specular\n"
 
+"#include \"sys/defs.h\"\n"
+
 //this is what normally draws all of your walls, even with rtlights disabled
 //note that the '286' preset uses drawflat_walls instead.
 
@@ -1063,19 +1036,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef VERTEX_SHADER\n"
-"attribute vec2 v_texcoord;\n"
-"attribute vec2 v_lmcoord;\n"
-"#ifdef LIGHTSTYLED\n"
-"attribute vec2 v_lmcoord2;\n"
-"attribute vec2 v_lmcoord3;\n"
-"attribute vec2 v_lmcoord4;\n"
-"#endif\n"
-"#if defined(OFFSETMAPPING) || defined(SPECULAR)\n"
-"uniform vec3 e_eyepos;\n"
-"attribute vec3 v_normal;\n"
-"attribute vec3 v_svector;\n"
-"attribute vec3 v_tvector;\n"
-"#endif\n"
 "void main ()\n"
 "{\n"
 "#if defined(OFFSETMAPPING) || defined(SPECULAR)\n"
@@ -1099,50 +1059,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FRAGMENT_SHADER\n"
 
 //samplers
-"#define s_diffuse s_t0\n"
-"#define s_lightmap0 s_t1\n"
-"#define s_normalmap s_t2\n"
-"#define s_delux0 s_t3\n"
-"#define s_fullbright s_t4\n"
-"#define s_specular s_t5\n"
-"#define s_lightmap1 s_t6\n"
-"#define s_lightmap2 s_t7\n"
-"#define s_lightmap3 s_t8\n"
-"#define s_delux1 s_t9\n"
-"#define s_delux2 s_t10\n"
-"#define s_delux3 s_t11\n"
-"#define s_paletted s_diffuse\n"
-"#define s_colourmap s_fullbright\n"
+"#define s_colourmap s_t0\n"
+"uniform sampler2D s_colourmap;\n"
 
-"uniform sampler2D s_diffuse;\n"
-"uniform sampler2D s_lightmap0;\n"
-"#if defined(BUMP) && (defined(OFFSETMAPPING) || defined(DELUXE) || defined(SPECULAR))\n"
-"uniform sampler2D s_normalmap;\n"
-"#endif\n"
-"#ifdef DELUXE\n"
-"uniform sampler2D s_delux0;\n"
-"#endif\n"
-"#if defined(FULLBRIGHT) || defined(EIGHTBIT)\n"
-"uniform sampler2D s_fullbright;\n"
-"#endif\n"
-"#ifdef SPECULAR\n"
-"uniform sampler2D s_specular;\n"
-"#endif\n"
-"#ifdef LIGHTSTYLED\n"
-"uniform sampler2D s_lightmap1;\n"
-"uniform sampler2D s_lightmap2;\n"
-"uniform sampler2D s_lightmap3;\n"
-"uniform sampler2D s_delux1;\n"
-"uniform sampler2D s_delux2;\n"
-"uniform sampler2D s_delux3;\n"
-"#endif\n"
-
-"#ifdef LIGHTSTYLED\n"
-"uniform vec4 e_lmscale[4];\n"
-"#else\n"
-"uniform vec4 e_lmscale;\n"
-"#endif\n"
-"uniform vec4 e_colourident;\n"
 "#ifdef SPECULAR\n"
 "uniform float cvar_gl_specular;\n"
 "#endif\n"
@@ -1179,10 +1098,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef LIGHTSTYLED\n"
 "vec3 lightmaps;\n"
 "#ifdef DELUXE\n"
-"lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_delux0, lm0).rgb-0.5);\n"
-"lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_delux1, lm1).rgb-0.5);\n"
-"lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_delux2, lm2).rgb-0.5);\n"
-"lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_delux3, lm3).rgb-0.5);\n"
+"lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb * dot(norm, 2.0*texture2D(s_deluxmap0, lm0).rgb-0.5);\n"
+"lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb * dot(norm, 2.0*texture2D(s_deluxmap1, lm1).rgb-0.5);\n"
+"lightmaps += texture2D(s_lightmap2, lm2).rgb * e_lmscale[2].rgb * dot(norm, 2.0*texture2D(s_deluxmap2, lm2).rgb-0.5);\n"
+"lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb * dot(norm, 2.0*texture2D(s_deluxmap3, lm3).rgb-0.5);\n"
 "#else\n"
 "lightmaps  = texture2D(s_lightmap0, lm0).rgb * e_lmscale[0].rgb;\n"
 "lightmaps += texture2D(s_lightmap1, lm1).rgb * e_lmscale[1].rgb;\n"
@@ -1190,10 +1109,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "lightmaps += texture2D(s_lightmap3, lm3).rgb * e_lmscale[3].rgb;\n"
 "#endif\n"
 "#else\n"
-"vec3 lightmaps = (texture2D(s_lightmap0, lm0) * e_lmscale).rgb;\n"
+"vec3 lightmaps = (texture2D(s_lightmap, lm0) * e_lmscale).rgb;\n"
 //modulate by the  bumpmap dot light
 "#ifdef DELUXE\n"
-"lightmaps *= dot(norm, 2.0*(texture2D(s_delux0, lm0).rgb-0.5));\n"
+"vec3 delux = 2.0*(texture2D(s_deluxmap, lm0).rgb-0.5);\n"
+"lightmaps *= 1.0 / max(0.25, delux.z); //counter the darkening from deluxmaps\n"
+"lightmaps *= dot(norm, delux);\n"
 "#endif\n"
 "#endif\n"
 
@@ -1202,7 +1123,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 specs = texture2D(s_specular, tc);\n"
 "#ifdef DELUXE\n"
 //not lightstyled...
-"vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_delux0, lm0).rgb-0.5)); //this norm should be the deluxemap info instead\n"
+"vec3 halfdir = normalize(normalize(eyevector) + 2.0*(texture2D(s_deluxmap0, lm0).rgb-0.5)); //this norm should be the deluxemap info instead\n"
 "#else\n"
 "vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0)); //this norm should be the deluxemap info instead\n"
 "#endif\n"
@@ -1217,7 +1138,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef EIGHTBIT //FIXME: with this extra flag, half the permutations are redundant.\n"
 "lightmaps *= 0.5; //counter the fact that the colourmap contains overbright values and logically ranges from 0 to 2 intead of to 1.\n"
-"float pal = texture2D(s_diffuse, tc).r; //the palette index. hopefully not interpolated.\n"
+"float pal = texture2D(s_paletted, tc).r; //the palette index. hopefully not interpolated.\n"
 "lightmaps -= 1.0 / 128.0; //software rendering appears to round down, so make sure we favour the lower values instead of rounding to the nearest\n"
 "gl_FragColor.r = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.r)).r; //do 3 lookups. this is to cope with lit files, would be a waste to not support those.\n"
 "gl_FragColor.g = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.g)).g; //its not very softwarey, but re-palettizing is ugly.\n"
@@ -1298,8 +1219,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultwarp",
-"!!cvarf r_wateralpha\n"
 "!!permu FOG\n"
+"!!cvarf r_wateralpha\n"
+
+"#include \"sys/defs.h\"\n"
 
 //this is the shader that's responsible for drawing default q1 turbulant water surfaces
 //this is expected to be moderately fast.
@@ -1307,16 +1230,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/fog.h\"\n"
 "varying vec2 tc;\n"
 "#ifdef VERTEX_SHADER\n"
-"attribute vec2 v_texcoord;\n"
 "void main ()\n"
 "{\n"
 "tc = v_texcoord.st;\n"
+"#ifdef FLOW\n"
+"tc.s += e_time * -0.5;\n"
+"#endif\n"
 "gl_Position = ftetransform();\n"
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
-"uniform sampler2D s_t0;\n"
-"uniform float e_time;\n"
 "#ifndef ALPHA\n"
 "uniform float cvar_r_wateralpha;\n"
 "#define USEALPHA cvar_r_wateralpha\n"
@@ -1328,7 +1251,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec2 ntc;\n"
 "ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
 "ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
-"vec3 ts = vec3(texture2D(s_t0, ntc));\n"
+"vec3 ts = vec3(texture2D(s_diffuse, ntc));\n"
 "gl_FragColor = fog4(vec4(ts, USEALPHA));\n"
 "}\n"
 "#endif\n"
@@ -1361,13 +1284,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FRAGMENT_SHADER\n"
 "float cvar_r_wateralpha;\n"
 "float e_time;\n"
-"sampler s_t0;\n"
+"sampler s_diffuse;\n"
 "float4 main (v2f inp) : COLOR0\n"
 "{\n"
 "float2 ntc;\n"
 "ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;\n"
 "ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
-"float3 ts = tex2D(s_t0, ntc).xyz;\n"
+"float3 ts = tex2D(s_diffuse, ntc).xyz;\n"
 
 "return float4(ts, cvar_r_wateralpha);\n"
 "}\n"
@@ -2108,15 +2031,14 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef FRAGMENT_SHADER\n"
-"sampler s_t0;\n"
-"sampler s_t1;\n"
+"sampler s_diffuse;\n"
 "float l_lightradius;\n"
 "float3 l_lightcolour;\n"
 "float4 main (v2f inp) : COLOR0\n"
 "{\n"
 "float3 col = l_lightcolour;\n"
 "col *= max(1.0 - dot(inp.lpos, inp.lpos)/(l_lightradius*l_lightradius), 0.0);\n"
-"float3 diff = tex2D(s_t0, inp.tc);\n"
+"float3 diff = tex2D(s_diffuse, inp.tc);\n"
 "return float4(diff * col, 1);\n"
 "}\n"
 "#endif\n"

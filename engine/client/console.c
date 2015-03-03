@@ -765,7 +765,7 @@ void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 			oc = con->current;
 			if (oc->length+1 > oc->maxlength)
 			{
-				oc->maxlength = (oc->length+1)+8;
+				oc->maxlength = ((oc->length+1)+8)&0xffff;
 				if (oc->maxlength < oc->length)
 					oc->length = 0;	//don't crash from console line overflows.
 				con->current = BZ_Realloc(con->current, sizeof(*con->current)+(oc->maxlength)*sizeof(conchar_t));

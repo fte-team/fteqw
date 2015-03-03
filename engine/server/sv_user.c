@@ -259,7 +259,7 @@ void SV_New_f (void)
 	gamedir = Info_ValueForKey (svs.info, "*gamedir");
 	if (!gamedir[0])
 	{
-		if (ISQWCLIENT(host_client))
+		if (ISQWCLIENT(host_client) || ISQ2CLIENT(host_client))
 			gamedir = FS_GetGamedir(true);
 		else
 			gamedir = "";
@@ -5780,7 +5780,7 @@ void AddAllEntsToPmove (edict_t *player)
 	}
 }
 
-int SV_PMTypeForClient (client_t *cl)
+int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 {
 #ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demostatevalid)
@@ -5793,23 +5793,23 @@ int SV_PMTypeForClient (client_t *cl)
 
 	if (sv_brokenmovetypes.value)	//this is to mimic standard qw servers, which don't support movetypes other than MOVETYPE_FLY.
 	{								//it prevents bugs from being visible in unsuspecting mods.
-		if (cl->spectator)
+		if (cl && cl->spectator)
 		{
 			if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
 				return PM_SPECTATOR;
 			return PM_OLD_SPECTATOR;
 		}
 
-		if (cl->edict->v->health <= 0)
+		if (ent->v->health <= 0)
 			return PM_DEAD;
 		return PM_NORMAL;
 	}
 
-	switch((int)cl->edict->v->movetype)
+	switch((int)ent->v->movetype)
 	{
 	case MOVETYPE_NOCLIP:
 		/*older/vanilla clients have a b0rked spectator mode that we don't want to break*/
-		if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
+		if (cl && cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
 			return PM_SPECTATOR;
 		return PM_OLD_SPECTATOR;
 
@@ -5819,6 +5819,7 @@ int SV_PMTypeForClient (client_t *cl)
 	case MOVETYPE_6DOF:
 		return PM_6DOF;
 
+	case MOVETYPE_FLY_WORLDONLY:
 	case MOVETYPE_FLY:
 		return PM_FLY;
 
@@ -5827,7 +5828,7 @@ int SV_PMTypeForClient (client_t *cl)
 
 	case MOVETYPE_WALK:
 	default:
-		if (cl->edict->v->health <= 0)
+		if (ent->v->health <= 0)
 			return PM_DEAD;
 
 		return PM_NORMAL;
@@ -6192,7 +6193,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	VectorCopy (sv_player->v->velocity, pmove.velocity);
 	VectorCopy (sv_player->v->v_angle, pmove.angles);
 
-	pmove.pm_type = SV_PMTypeForClient (host_client);
+	pmove.pm_type = SV_PMTypeForClient (host_client, sv_player);
 	pmove.jump_held = host_client->jump_held;
 	pmove.jump_msec = 0;
 	if (progstype != PROG_QW)	//this is just annoying.

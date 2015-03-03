@@ -321,6 +321,18 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 			qglTexParameteri(targ, GL_TEXTURE_WRAP_R, GL_REPEAT);
 	}
 
+	//make sure the texture is complete even if the mips are not.
+	//note that some drivers will just ignore levels that are not valid.
+	//this means that we can't make this setting dynamic, so we might as well let the drivers know BEFORE we do the uploads, to be kind to those that are buggy..
+	if (!gl_config.gles)
+	{
+		if (targ != GL_TEXTURE_CUBE_MAP_ARB && (tex->flags & IF_MIPCAP))
+		{
+			qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, min(mips->mipcount-1, gl_mipcap_min));
+			qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(mips->mipcount-1, gl_mipcap_max));
+		}
+	}
+
 	tex->width = mips->mip[0].width;
 	tex->height = mips->mip[0].height;
 	GL_Texturemode_Apply(targ, tex->flags);
@@ -441,14 +453,6 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 			}
 			if (mips->mip[i].needfree)
 				Z_Free(mips->mip[i].data);
-		}
-	}
-	if (!gl_config.gles)	//make sure the texture is complete even if the mips are not.
-	{
-		if (targ != GL_TEXTURE_CUBE_MAP_ARB && (tex->flags & IF_MIPCAP))
-		{
-			qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, min(mips->mipcount-1, gl_mipcap_min));
-			qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(mips->mipcount-1, gl_mipcap_max));
 		}
 	}
 

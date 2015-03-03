@@ -1066,7 +1066,7 @@ void PR_Compile_f(void)
 		Q_SetProgsParms(true);
 		killondone = true;
 	}
-	if (PR_StartCompile(svprogfuncs, argc, argv))
+	if (svprogfuncs->StartCompile && PR_StartCompile(svprogfuncs, argc, argv))
 		while(PR_ContinueCompile(svprogfuncs));
 
 	if (killondone)
@@ -1148,7 +1148,7 @@ void PR_BreakPoint_f(void)
 	else
 		Con_Printf("Breakpoint has been cleared\n");
 
-	Cvar_Set(Cvar_FindVar("debugger"), "1");
+//	Cvar_Set(Cvar_FindVar("debugger"), "1");
 }
 void PR_WatchPoint_f(void)
 {
@@ -1185,7 +1185,7 @@ void PR_WatchPoint_f(void)
 		Con_Printf("Watchpoint cleared\n");
 	pr_global_struct->self = oldself;
 
-	Cvar_Set(Cvar_FindVar("debugger"), "1");
+//	Cvar_Set(Cvar_FindVar("debugger"), "1");
 }
 
 static void PR_SSProfile_f(void)
@@ -1246,6 +1246,7 @@ void PR_Init(void)
 
 	Cmd_AddCommand ("breakpoint", PR_BreakPoint_f);
 	Cmd_AddCommand ("watchpoint", PR_WatchPoint_f);
+	Cmd_AddCommand ("watchpoint_ssqc", PR_WatchPoint_f);
 	Cmd_AddCommand ("decompile", PR_Decompile_f);
 	Cmd_AddCommand ("compile", PR_Compile_f);
 	Cmd_AddCommand ("applycompile", PR_ApplyCompilation_f);
@@ -8638,9 +8639,9 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
 	edict_t *touched;
 
-	if (ent->readonly)
+	if (!ent || ent->readonly)
 	{
-		Con_Printf("runplayerphysics called on read-only entity");
+		Con_Printf("runplayerphysics called on read-only entity\n");
 		return;
 	}
 
@@ -8648,16 +8649,14 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		pmove.sequence = *pr_global_ptrs->clientcommandframe;
 	else
 		pmove.sequence = 0;
-	if (host_client && host_client->edict == ent)
-		pmove.pm_type = SV_PMTypeForClient(host_client);
-	else
-		pmove.pm_type = PM_NORMAL;
+
+	pmove.pm_type = SV_PMTypeForClient((host_client && host_client->edict == ent)?host_client:NULL, ent);
 
 	pmove.jump_msec = 0;
 
 	pmove.jump_held = ((int)ent->xv->pmove_flags)&PMF_JUMP_HELD;
 	if (progstype != PROG_QW)	//this is just annoying.
-		pmove.waterjumptime = sv_player->v->teleport_time - sv.time;
+		pmove.waterjumptime = ent->v->teleport_time - sv.time;
 	else
 		pmove.waterjumptime = ent->v->teleport_time;
 
@@ -8729,7 +8728,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
 		ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
 		if (progstype != PROG_QW)	//this is just annoying.
-			sv_player->v->teleport_time = sv.time + pmove.waterjumptime;
+			ent->v->teleport_time = sv.time + pmove.waterjumptime;
 		else
 			ent->v->teleport_time = pmove.waterjumptime;
 		VectorCopy(pmove.origin, ent->v->origin);
@@ -8737,7 +8736,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		VectorCopy(pmove.velocity, ent->v->velocity);
 
 
-		VectorCopy(pmove.angles, sv_player->v->v_angle);
+		VectorCopy(pmove.angles, ent->v->v_angle);
 
 
 		ent->v->waterlevel = pmove.waterlevel;
@@ -8757,7 +8756,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 
 		if (pmove.onground)
 		{
-			ent->v->flags = (int)sv_player->v->flags | FL_ONGROUND;
+			ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 			ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
 		}
 		else
@@ -10588,6 +10587,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_UpdateViewLoading",	"noref void(float vwidth, float vheight, float notmenu)", CS, "Alternative to CSQC_UpdateView, called when the engine thinks there should be a loading screen. If present, will inhibit the engine's normal loading screen, deferring to qc to draw it."},
 		{"CSQC_Parse_StuffCmd",		"noref void(string msg)", CS, "Gives the CSQC a chance to intercept stuffcmds. Use the tokenize builtin to parse the message. Unrecognised commands would normally be localcmded, but its probably better to drop unrecognised stuffcmds completely."},
 		{"CSQC_Parse_CenterPrint",	"noref float(string msg)", CS, "Gives the CSQC a chance to intercept centerprints. Return true if you wish the engine to otherwise ignore the centerprint."},
+		{"CSQC_Parse_Damage",		"noref float(float save, float take, vector inflictororg)", CS, "Called as a result of player.dmg_save or player.dmg_take being set on the server.\nReturn true to completely inhibit the engine's colour shift and damage rolls, allowing you to do your own thing.\nYou can use punch_roll += (normalize(inflictororg-player.origin)*v_right)*(take+save)*autocvar_v_kickroll; as a modifier for the roll angle should the player be hit from the side, and slowly fade it away over time."},
 		{"CSQC_Parse_Print",		"noref void(string printmsg, float printlvl)", CS, "Gives the CSQC a chance to intercept sprint/bprint builtin calls. CSQC should filter by the client's current msg setting and then pass the message on to the print command, or handle them itself."},
 		{"CSQC_Parse_Event",		"noref void()", CS, "Called when the client receives an SVC_CGAMEPACKET. The csqc should read the data or call the error builtin if it does not recognise the message."},
 		{"CSQC_InputEvent",			"noref float(float evtype, float scanx, float chary, float devid)", CS, "Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
@@ -10602,6 +10602,9 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_Parse_TempEntity",	"noref float()", CS,	"Please don't use this. Use CSQC_Parse_Event and multicasts instead."},
 
 		{"GameCommand",				"noref void(string cmdtext)", CS|MENU},
+
+		{"init",					"noref void()", QW|NQ|CS, "Part of FTE_MULTIPROGS. Called as soon as a progs is loaded, called at a time when entities are not valid. This is the only time when it is safe to call addprogs without field assignment. As it is also called as part of addprogs, this also gives you a chance to hook functions in modules that are already loaded (via externget+externget)."},
+		{"initents",				"noref void()", QW|NQ|CS, "Part of FTE_MULTIPROGS. Called after fields have been finalized. This is the first point at which it is safe to call spawn(), and is called before any entity fields have been parsed. You can use this entrypoint to send notifications to other modules."},
 
 		{"m_init",					"void()", MENU},
 		{"m_shutdown",				"void()", MENU},
@@ -10868,24 +10871,26 @@ void PR_DumpPlatform_f(void)
 		{"gamestate",			"hashtable", ALL, "Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted).", 0},
 		{"HASH_REPLACE",		"const float", ALL, "Used with hash_add. Attempts to remove the old value instead of adding two values for a single key.", 256},
 
-		{"STAT_HEALTH",			"const float", CS, NULL, STAT_HEALTH},
-		{"STAT_WEAPON",			"const float", CS, NULL, STAT_WEAPON},
-		{"STAT_AMMO",			"const float", CS, NULL, STAT_AMMO},
+		{"STAT_HEALTH",			"const float", CS, "Player's health.", STAT_HEALTH},
+		{"STAT_WEAPONMODELI",	"const float", CS, "This is the modelindex of the current viewmodel (renamed from the original name 'STAT_WEAPON' due to confusions).", STAT_WEAPONMODELI},
+		{"STAT_AMMO",			"const float", CS, "player.currentammo", STAT_AMMO},
 		{"STAT_ARMOR",			"const float", CS, NULL, STAT_ARMOR},
 		{"STAT_WEAPONFRAME",	"const float", CS, NULL, STAT_WEAPONFRAME},
 		{"STAT_SHELLS",			"const float", CS, NULL, STAT_SHELLS},
 		{"STAT_NAILS",			"const float", CS, NULL, STAT_NAILS},
 		{"STAT_ROCKETS",		"const float", CS, NULL, STAT_ROCKETS},
 		{"STAT_CELLS",			"const float", CS, NULL, STAT_CELLS},
-		{"STAT_ACTIVEWEAPON",	"const float", CS, NULL, STAT_ACTIVEWEAPON},
+		{"STAT_ACTIVEWEAPON",	"const float", CS, "player.weapon", STAT_ACTIVEWEAPON},
 		{"STAT_TOTALSECRETS",	"const float", CS, NULL, STAT_TOTALSECRETS},
 		{"STAT_TOTALMONSTERS",	"const float", CS, NULL, STAT_TOTALMONSTERS},
 		{"STAT_FOUNDSECRETS",	"const float", CS, NULL, STAT_SECRETS},
 		{"STAT_KILLEDMONSTERS",	"const float", CS, NULL, STAT_MONSTERS},
-		{"STAT_ITEMS",			"const float", CS, NULL, STAT_ITEMS},
-		{"STAT_VIEWHEIGHT",		"const float", CS, NULL, STAT_VIEWHEIGHT},
+		{"STAT_ITEMS",			"const float", CS, "self.items | (self.items2<<23). In order to decode this stat properly, you need to use getstatbits(STAT_ITEMS,0,23) to read self.items, and getstatbits(STAT_ITEMS,23,11) to read self.items2 or getstatbits(STAT_ITEMS,28,4) to read the visible part of serverflags, whichever is applicable.", STAT_ITEMS},
+		{"STAT_VIEWHEIGHT",		"const float", CS, "player.view_ofs_z", STAT_VIEWHEIGHT},
 		{"STAT_VIEW2",			"const float", CS, "This stat contains the number of the entity in the server's .view2 field.", STAT_VIEW2},
-		{"STAT_VIEWZOOM",		"const float", CS, NULL, STAT_VIEWZOOM},
+		{"STAT_VIEWZOOM",		"const float", CS, "Scales fov and sensitiity. Part of DP_VIEWZOOM.", STAT_VIEWZOOM},
+
+		{"STAT_USER",			"const float", QW|NQ|CS, "Custom user stats start here (lower values are reserved for engine use).", 32},
 
 		{"VF_MIN",				"const float", CS|MENU, "The top-left of the 3d viewport in screenspace. The VF_ values are used via the setviewprop/getviewprop builtins.", VF_MIN},
 		{"VF_MIN_X",			"const float", CS|MENU, NULL, VF_MIN_X},
@@ -10980,6 +10985,9 @@ void PR_DumpPlatform_f(void)
 		{"LFIELD_DIFFUSESCALE",	"const float", CS, NULL, lfield_diffusescale},
 		{"LFIELD_SPECULARSCALE","const float", CS, NULL, lfield_specularscale},
 		{"LFIELD_ROTATION",		"const float", CS, NULL, lfield_rotation},
+		{"LFIELD_DIETIME",		"const float", CS, NULL, lfield_dietime},
+		{"LFIELD_RGBDECAY",		"const float", CS, NULL, lfield_rgbdecay},
+		{"LFIELD_RADIUSDECAY",	"const float", CS, NULL, lfield_radiusdecay},
 
 		{"LFLAG_NORMALMODE",	"const float", CS, NULL, LFLAG_NORMALMODE},
 		{"LFLAG_REALTIMEMODE",	"const float", CS, NULL, LFLAG_REALTIMEMODE},

@@ -739,7 +739,11 @@ typedef struct
 	char		model_name[MAX_PRECACHE_MODELS][MAX_QPATH];
 	char		sound_name[MAX_PRECACHE_SOUNDS][MAX_QPATH];
 	char		*particle_ssname[MAX_SSPARTICLESPRE];
-	char		image_name[Q2MAX_IMAGES][MAX_QPATH];
+#ifdef Q2CLIENT
+	char		*image_name[Q2MAX_IMAGES];
+	char		*item_name[Q2MAX_ITEMS];
+	short		inventory[Q2MAX_ITEMS];
+#endif
 
 	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
 	struct model_s		*model_precache[MAX_PRECACHE_MODELS];
@@ -962,10 +966,10 @@ typedef struct {
 	unsigned int flags;
 } scenetris_t;
 extern scenetris_t		*cl_stris;
-extern vecV_t			*cl_strisvertv;
-extern vec4_t			*cl_strisvertc;
-extern vec2_t			*cl_strisvertt;
-extern index_t			*cl_strisidx;
+extern vecV_t			*fte_restrict cl_strisvertv;
+extern vec4_t			*fte_restrict cl_strisvertc;
+extern vec2_t			*fte_restrict cl_strisvertt;
+extern index_t			*fte_restrict cl_strisidx;
 extern unsigned int cl_numstrisidx;
 extern unsigned int cl_maxstrisidx;
 extern unsigned int cl_numstrisvert;
@@ -1220,6 +1224,7 @@ qboolean CSQC_LoadResource(char *resname, char *restype);
 qboolean CSQC_ParsePrint(char *message, int printlevel);
 qboolean CSQC_ParseGamePacket(void);
 qboolean CSQC_CenterPrint(int lplayernum, char *cmd);
+qboolean CSQC_Parse_Damage(float save, float take, vec3_t source);
 void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd);
 void CSQC_WorldLoaded(void);
 qboolean CSQC_ParseTempEntity(void);

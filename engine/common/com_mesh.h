@@ -44,7 +44,7 @@ typedef struct
 	float rate;
 	galiaspose_t *poseofs;
 	char name[64];
-} galiasgroup_t;
+} galiasanimation_t;
 
 typedef struct galiasbone_s galiasbone_t;
 #ifdef SKELETALMODELS
@@ -137,8 +137,8 @@ typedef struct galiasinfo_s
 	byte_vec4_t *ofs_rgbaub;
 #endif
 
-	int groups;
-	galiasgroup_t *groupofs;
+	int numanimations;
+	galiasanimation_t *ofsanimations;
 
 	struct galiasinfo_s *nextsurf;
 

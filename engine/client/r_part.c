@@ -25,6 +25,464 @@ float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
 };
 
 
+#include "shader.h"
+#include "com_mesh.h"
+//FIXME: we're likely going to want to thread the building routine at some point.
+//the alias mesh stuff will need some rework as it uses statics inside.
+#define DESCSPERSHADER 8
+typedef struct
+{
+	int x, y, z;	//rebuilt if changed
+	int key;
+
+	model_t *loadingmodel;	//needs rebuilding, but wait till this is loaded.
+
+	struct
+	{
+		shader_t *shader;
+		mesh_t mesh;
+		mesh_t *pmesh;
+		vbo_t vbo;
+	} soups[64];
+	size_t numsoups;
+} cluttersector_t;
+static cluttersector_t cluttersector[3*3*3];
+cvar_t r_clutter_density		= CVARD("r_clutter_density", "1", "Scaler for clutter counts. 0 disables clutter completely.\nClutter requires shaders with 'fte_clutter MODEL SPACING SCALEMIN SCALEMAX ZOFS ANGLEMIN ANGLEMAX' terms");
+cvar_t r_clutter_distance		= CVARD("r_clutter_distance", "1024", "Distance at which clutter will become invisible.");	//should be used by various shaders to fade it out by here
+void R_Clutter_Init(void)
+{
+	Cvar_Register(&r_clutter_density, "Ground Clutter");
+	Cvar_Register(&r_clutter_distance, "Ground Clutter");
+}
+typedef struct
+{
+	model_t *loadingmodel;
+	struct clutter_build_ctx_soup_s
+	{
+		shader_t *shader;
+		vecV_t *coord;
+		vec2_t *texcoord;
+		vec4_t *colour;
+		vec3_t *normal;
+		vec3_t *sdir;
+		vec3_t *tdir;
+		index_t *idx;
+		size_t numverts;
+		size_t numidx;
+		size_t maxverts;
+		size_t maxidx;
+	} soups[64];
+	unsigned int numsoups;
+	float area[DESCSPERSHADER];	//here so it can overflow, so large values with small surfaces actually does something. not evenly perhaps, but not much else we can do
+
+	unsigned int x, y, z, w;
+} clutter_build_ctx_t;
+
+//to make things repeatable so that people can depend upon placement.
+unsigned int R_Clutter_Random(clutter_build_ctx_t *ctx)
+{	//ripped from wikipedia (originally called xorshift128)
+    unsigned int t = ctx->x ^ (ctx->x << 11);
+    ctx->x = ctx->y; ctx->y = ctx->z; ctx->z = ctx->w;
+    return ctx->w = ctx->w ^ (ctx->w >> 19) ^ t ^ (t >> 8);
+}
+float R_Clutter_FRandom(clutter_build_ctx_t *ctx)
+{
+	unsigned int r = R_Clutter_Random(ctx);
+	return (r & 0xffffff) / (float)0xffffff;
+}
+
+static void R_Clutter_Insert_Soup(clutter_build_ctx_t *ctx, shader_t *shader, vecV_t *fte_restrict coord, vec2_t *fte_restrict texcoord, vec3_t *fte_restrict normal, vec3_t *fte_restrict sdir, vec3_t *fte_restrict tdir, vec4_t *fte_restrict colours, size_t numverts, index_t *fte_restrict index, size_t numidx, float scale, vec3_t origin, vec3_t axis[])
+{
+	vec3_t diffuse, ambient, ldir;
+	float dot;
+	struct clutter_build_ctx_soup_s *soup = NULL;
+	size_t i;
+
+	shader_t *os = shader;
+	shader = R_RegisterShader(va("clutter#replace=%s", os->name), SUF_NONE,
+			"{\n"
+				"program defaultsprite#MASK=0.666\n"
+//				"surfaceparm nodlight\n"
+				"surfaceparm noshadows\n"
+//				"cull disable\n"
+				"{\n"
+					"map $diffuse\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+//					"alphafunc ge128\n"
+				"}\n"
+			"}\n"
+		);
+	shader->defaulttextures = os->defaulttextures;
+
+
+	for (i = 0, soup = ctx->soups; i < ctx->numsoups; i++, soup++)
+	{
+		if (soup->shader == shader)
+			if (soup->numverts + numverts <= MAX_INDICIES)
+				break;
+	}
+	if (i == ctx->numsoups)
+	{
+		if (i == sizeof(ctx->soups)/sizeof(ctx->soups[0]))
+			return;	//too many different shaders or something
+		soup->shader = shader;
+		ctx->numsoups++;
+	}
+
+	//inject the indicies
+	if (soup->numidx + numidx > soup->maxidx)
+	{
+		soup->maxidx = (soup->numidx + numidx) * 2;
+		soup->idx = BZ_Realloc(soup->idx, sizeof(*soup->idx) * soup->maxidx);
+	}
+	for (i = 0; i < numidx; i++)
+		soup->idx[soup->numidx++] = soup->numverts+*index++;
+
+
+	cl.worldmodel->funcs.LightPointValues(cl.worldmodel, origin, diffuse, ambient, ldir);
+	VectorScale(ambient, 1/255.0, ambient);
+	VectorScale(diffuse, 1/255.0, diffuse);
+
+	//inject the verts
+	if (soup->numverts + numverts > soup->maxverts)
+	{
+		soup->maxverts = (soup->numverts + numverts) * 2;
+		soup->coord = BZ_Realloc(soup->coord, sizeof(*soup->coord) * soup->maxverts);
+		soup->texcoord = BZ_Realloc(soup->texcoord, sizeof(*soup->texcoord) * soup->maxverts);
+		soup->colour = BZ_Realloc(soup->colour, sizeof(*soup->colour) * soup->maxverts);
+		soup->normal = BZ_Realloc(soup->normal, sizeof(*soup->normal) * soup->maxverts);
+		soup->sdir = BZ_Realloc(soup->sdir, sizeof(*soup->sdir) * soup->maxverts);
+		soup->tdir = BZ_Realloc(soup->tdir, sizeof(*soup->tdir) * soup->maxverts);
+	}
+	for (i = 0; i < numverts; i++)
+	{
+		VectorMA(origin,						scale*coord[i][0], axis[0], soup->coord[soup->numverts]);
+		VectorMA(soup->coord[soup->numverts],	scale*coord[i][1], axis[1], soup->coord[soup->numverts]);
+		VectorMA(soup->coord[soup->numverts],	scale*coord[i][2], axis[2], soup->coord[soup->numverts]);
+		Vector2Copy(texcoord[i], soup->texcoord[soup->numverts]);
+
+		VectorMA(vec3_origin,					normal[i][0], axis[0], soup->normal[soup->numverts]);
+		VectorMA(soup->normal[soup->numverts],	normal[i][1], axis[1], soup->normal[soup->numverts]);
+		VectorMA(soup->normal[soup->numverts],	normal[i][2], axis[2], soup->normal[soup->numverts]);
+		
+		VectorMA(vec3_origin,					sdir[i][0], axis[0], soup->sdir[soup->numverts]);
+		VectorMA(soup->sdir[soup->numverts],	sdir[i][1], axis[1], soup->sdir[soup->numverts]);
+		VectorMA(soup->sdir[soup->numverts],	sdir[i][2], axis[2], soup->sdir[soup->numverts]);
+
+		VectorMA(vec3_origin,					tdir[i][0], axis[0], soup->tdir[soup->numverts]);
+		VectorMA(soup->tdir[soup->numverts],	tdir[i][1], axis[1], soup->tdir[soup->numverts]);
+		VectorMA(soup->tdir[soup->numverts],	tdir[i][2], axis[2], soup->tdir[soup->numverts]);
+
+//		VectorCopy(ambient, soup->colour[soup->numverts]);
+		dot = DotProduct(ldir, soup->normal[soup->numverts]);
+		if (dot < 0)
+			dot = 0;
+		VectorMA(ambient, dot, diffuse, soup->colour[soup->numverts]);
+		if (colours)	//most model formats don't have vertex colours
+			soup->colour[soup->numverts][3] = colours[i][3];
+		else
+			soup->colour[soup->numverts][3] = 1;
+
+		soup->numverts++;
+	}
+}
+static void R_Clutter_Insert_Mesh(clutter_build_ctx_t *ctx, model_t *mod, float scale, vec3_t origin, vec3_t axis[3])
+{
+	mesh_t mesh;
+	galiasinfo_t *inf;
+	unsigned int surfnum = 0;
+	entity_t re;
+	unsigned int randanim = R_Clutter_Random(ctx);
+	unsigned int randskin = R_Clutter_Random(ctx);
+
+	if (!mod)
+		return;
+
+	//fill in the parts of the entity_t that Alias_GAliasBuildMesh needs.
+	memset(&re, 0, sizeof(re));
+//	memset(&re.framestate, 0, sizeof(re.framestate));
+	re.framestate.g[FS_REG].lerpweight[0] = 1;
+	re.model = mod;
+
+	inf = (galiasinfo_t*)Mod_Extradata (mod);
+	while(inf)
+	{
+		galiasskin_t *skins = inf->ofsskins;
+		re.framestate.g[FS_REG].frame[0] = randanim%inf->numanimations;
+		if (skins->numframes)
+		{
+			unsigned int frame = randskin%skins->numframes;
+			Alias_GAliasBuildMesh(&mesh, NULL, inf, surfnum, &re, false);
+			surfnum++;
+			//fixme: if shares verts, rewind the verts and don't add more somehow, while being careful with shaders
+			R_Clutter_Insert_Soup(ctx, skins->frame[frame].shader, mesh.xyz_array, mesh.st_array, mesh.normals_array, mesh.snormals_array, mesh.tnormals_array, mesh.colors4f_array[0], mesh.numvertexes, mesh.indexes, mesh.numindexes, scale, origin, axis);
+		}
+		inf = inf->nextsurf;
+	}
+	Alias_FlushCache();	//it got built using an entity on the stack, make sure other stuff doesn't get hurt.
+}
+static void R_Clutter_Insert(void *vctx, vec3_t *fte_restrict points, size_t numtris, shader_t *surface)
+{
+	struct shader_clutter_s *clut;
+	unsigned int obj;
+	clutter_build_ctx_t *ctx = vctx;
+	model_t *mod[DESCSPERSHADER];
+	if (!surface || !surface->clutter)
+		return;	//nothing to do.
+
+	//avoid returning on error, so the randomization is dependable when content is still loading.
+	for (clut = surface->clutter, obj = 0; clut && obj <= DESCSPERSHADER; clut = clut->next, obj++)
+	{
+		mod[obj] = Mod_ForName(clut->modelname, MLV_WARN);
+		if (mod[obj]->loadstate == MLS_LOADING)
+		{
+			if (!ctx->loadingmodel)
+				ctx->loadingmodel = mod[obj];
+			mod[obj] = NULL;
+		}
+		else if (mod[obj]->type != mod_alias)
+			mod[obj] = NULL;
+	}
+
+	while(numtris-->0)
+	{
+		vec3_t xd;
+		vec3_t yd;
+		vec3_t zd;
+		vec3_t norm;
+		vec3_t axis[3];
+		vec3_t org, dir;
+		float dot;
+		float triarea;
+//		vec3_t discard;
+//		unsigned int subimage;
+		vec_t xm, ym, zm, s;
+		VectorSubtract(points[1], points[0], xd);
+		VectorSubtract(points[2], points[0], yd);
+		VectorSubtract(points[2], points[1], zd);
+		CrossProduct(yd, xd, norm);
+		VectorNormalize(norm);
+		if (norm[2] >= 0.7)
+		{
+			//determine area of triangle
+			xm = Length(xd);
+			ym = Length(yd);
+			zm = Length(zd);
+			s = (xm+ym+zm)/2;
+			triarea = sqrt(s*(s-xm)*(s-ym)*(s-zm));
+
+			for (clut = surface->clutter, obj = 0; clut && obj <= DESCSPERSHADER; clut = clut->next, obj++)
+			{
+				float spacing = clut->spacing / r_clutter_density.value;
+				if (spacing < 1)
+					spacing = 1;
+				ctx->area[obj] += triarea;
+				while (ctx->area[obj] >= spacing)
+				{
+					float scale = clut->scalemin + R_Clutter_FRandom(ctx) * (clut->scalemax-clut->scalemin);
+					ctx->area[obj] -= spacing;
+
+					//pick a random spot
+					xm = R_Clutter_FRandom(ctx)*R_Clutter_FRandom(ctx);
+					ym = R_Clutter_FRandom(ctx) * (1-xm);
+					VectorMA(points[0], xm, xd, org);
+					VectorMA(org, ym, yd, org);
+
+					//randomize the direction
+					dot = clut->anglemin + R_Clutter_FRandom(ctx) * (clut->anglemax-clut->anglemin);
+					dir[0] = cos(dot);
+					dir[1] = sin(dot);
+					dir[2] = 0;
+					//figure out various directions
+					dot = -DotProduct(dir, norm);
+					VectorMA(dir, dot, norm, dir);
+					VectorNormalize(dir);
+					VectorCopy(norm, axis[2]);
+					CrossProduct(axis[2], dir, axis[1]);
+					CrossProduct(axis[1], axis[2], axis[0]);
+					VectorMA(org, clut->zofs*scale, axis[2], org);
+					R_Clutter_Insert_Mesh(ctx, mod[obj], scale, org, axis);
+
+/*
+					VectorMA(org, r_clutter_size.value/2, dir, vertcoord[numverts]);
+					VectorMA(org, -(r_clutter_size.value/2), dir, vertcoord[numverts+1]);
+					VectorMA(vertcoord[numverts], r_clutter_height.value, norm, vertcoord[numverts+2]);
+					VectorMA(vertcoord[numverts+1], r_clutter_height.value, norm, vertcoord[numverts+3]);
+					subimage = R_Clutter_Random(ctx);
+					Vector2Set(texcoord[numverts], subimage%r_clutter_atlaswidth.ival, (subimage/r_clutter_atlaswidth.ival)%r_clutter_atlasheight.ival);
+					texcoord[numverts][0] *= 1/r_clutter_atlaswidth.value;
+					texcoord[numverts][1] *= 1/r_clutter_atlasheight.value;
+					Vector2Set(texcoord[numverts+1], texcoord[numverts][0]+(1/r_clutter_atlaswidth.value), texcoord[numverts][1]);
+					Vector2Set(texcoord[numverts+2], texcoord[numverts][0]								 , texcoord[numverts][1]);
+					Vector2Set(texcoord[numverts+3], texcoord[numverts][0]+(1/r_clutter_atlaswidth.value), texcoord[numverts][1]);
+					texcoord[numverts+0][1]+=(1/r_clutter_atlasheight.value);
+					texcoord[numverts+1][1]+=(1/r_clutter_atlasheight.value);
+					Vector4Set(colours[numverts+0], 1, 1, 1, 1);
+					VectorMA(org, 1/8.0, norm, org);//push away from the surface to avoid precision issues with lighting on slopes
+					cl.worldmodel->funcs.LightPointValues(cl.worldmodel, org, colours[numverts+0], discard, discard);
+					VectorScale(colours[numverts+0], 1/512.0, colours[numverts+0]);
+					Vector4Copy(colours[numverts+0], colours[numverts+1]);
+					Vector4Copy(colours[numverts+0], colours[numverts+2]);
+					Vector4Copy(colours[numverts+1], colours[numverts+3]);
+					indexes[numidx+0] = numverts+0;
+					indexes[numidx+1] = numverts+2;
+					indexes[numidx+2] = numverts+1;
+					indexes[numidx+3] = numverts+2;
+					indexes[numidx+4] = numverts+3;
+					indexes[numidx+5] = numverts+1;
+					numverts += 4;
+					numidx += 6;
+*/
+				}
+			}
+		}
+		points += 3;
+	}
+}
+void R_Clutter_Emit(batch_t **batches)
+{
+	const float cluttersize = r_clutter_distance.value;
+	int vx, vy, vz;
+	int x, y, z, key, i;
+	cluttersector_t *sect;
+	batch_t *b;
+	qboolean rebuildlimit = false;
+
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || r_clutter_density.value <= 0)
+		return;
+
+	if (qrenderer != QR_OPENGL)	//vbo only!
+		return;
+
+	//rebuild if any of the cvars changes.
+	key =	r_clutter_density.modified + r_clutter_distance.modified;
+
+	vx = floor((r_refdef.vieworg[0] / cluttersize));
+	vy = floor((r_refdef.vieworg[1] / cluttersize));
+	vz = floor((r_refdef.vieworg[2] / cluttersize));
+
+	for (z = vz-1; z <= vz+1; z++)
+	for (y = vy-1; y <= vy+1; y++)
+	for (x = vx-1; x <= vx+1; x++)
+	{
+		int ix = x%3;
+		int iy = y%3;
+		int iz = z%3;
+		if (ix < 0)
+			ix += 3;
+		if (iy < 0)
+			iy += 3;
+		if (iz < 0)
+			iz += 3;
+		sect = &cluttersector[ix + (iy*3) + (iz*3*3)];
+		if (sect->loadingmodel && sect->loadingmodel->loadstate != MLS_LOADING)
+		{
+			sect->loadingmodel = NULL;
+			sect->key-=1;	//rebuild even if failed, this covers multiple models.
+		}
+		if (sect->x != x || sect->y != y || sect->z != z || sect->key != key)
+		{
+			vbobctx_t vctx;
+			clutter_build_ctx_t cctx;
+			vec3_t org = {x*cluttersize+(cluttersize/2),y*cluttersize+(cluttersize/2),z*cluttersize+(cluttersize/2)};
+			vec3_t down = {0, 0, -1};
+			vec3_t forward = {1, 0, 0};
+			vec3_t right = {0, 1, 0};
+			if (r_refdef.recurse)	//FIXME
+				continue;
+			if (rebuildlimit)
+				continue;
+			rebuildlimit = true;
+			sect->x = x;
+			sect->y = y;
+			sect->z = z;
+			sect->key = key;
+
+			//make sure any old state is gone
+			for (i = 0; i < sect->numsoups; i++)
+			{
+				BE_VBO_Destroy(&sect->soups[i].vbo.coord);
+				BE_VBO_Destroy(&sect->soups[i].vbo.indicies);
+			}
+			sect->numsoups = 0;
+			memset(&cctx, 0, sizeof(cctx));
+			cctx.x = x;
+			cctx.y = y;
+			cctx.z = z;
+			cctx.w = (sect-cluttersector)+1;
+			Mod_ClipDecal(cl.worldmodel, org, down, forward, right, cluttersize, R_Clutter_Insert, &cctx);
+			sect->loadingmodel = cctx.loadingmodel;
+
+			for (i = 0; i < cctx.numsoups; i++)
+			{
+				if (cctx.soups[i].numverts)
+				{
+					sect->soups[sect->numsoups].shader = cctx.soups[i].shader;
+					sect->soups[sect->numsoups].pmesh = &sect->soups[sect->numsoups].mesh;
+			
+					BE_VBO_Begin(&vctx, (sizeof(cctx.soups[i].coord[0]) + sizeof(cctx.soups[i].texcoord[0]) + sizeof(cctx.soups[i].colour[0]) + 3*sizeof(vec3_t))*cctx.soups[i].numverts);
+					BE_VBO_Data(&vctx, cctx.soups[i].coord, sizeof(cctx.soups[i].coord[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.coord);
+					BE_VBO_Data(&vctx, cctx.soups[i].texcoord, sizeof(cctx.soups[i].texcoord[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.texcoord);
+					BE_VBO_Data(&vctx, cctx.soups[i].colour, sizeof(cctx.soups[i].colour[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.colours[0]);
+					BE_VBO_Data(&vctx, cctx.soups[i].normal, sizeof(cctx.soups[i].normal[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.normals);
+					BE_VBO_Data(&vctx, cctx.soups[i].sdir, sizeof(cctx.soups[i].sdir[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.svector);
+					BE_VBO_Data(&vctx, cctx.soups[i].tdir, sizeof(cctx.soups[i].tdir[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.tvector);
+					BE_VBO_Finish(&vctx, cctx.soups[i].idx, sizeof(cctx.soups[i].idx[0])*cctx.soups[i].numidx, &sect->soups[sect->numsoups].vbo.indicies);
+
+					sect->soups[sect->numsoups].mesh.numindexes = sect->soups[sect->numsoups].vbo.indexcount = cctx.soups[i].numidx;
+					sect->soups[sect->numsoups].mesh.numvertexes = sect->soups[sect->numsoups].vbo.vertcount = cctx.soups[i].numverts;
+					sect->numsoups++;
+				}
+				BZ_Free(cctx.soups[i].coord);
+				BZ_Free(cctx.soups[i].texcoord);
+				BZ_Free(cctx.soups[i].colour);
+				BZ_Free(cctx.soups[i].normal);
+				BZ_Free(cctx.soups[i].sdir);
+				BZ_Free(cctx.soups[i].tdir);
+				BZ_Free(cctx.soups[i].idx);
+			}
+		}
+
+		//emit a batch if we have grassy surfaces in this block
+		for (i = 0; i < sect->numsoups; i++)
+		{
+			b = BE_GetTempBatch();
+			if (!b)
+				return;
+			memset(b, 0, sizeof(*b));
+			b->ent = &r_worldentity;
+			b->meshes = 1;
+			b->mesh = &sect->soups[i].pmesh;
+			b->vbo = &sect->soups[i].vbo;
+			b->shader = sect->soups[i].shader;
+			b->next = batches[b->shader->sort];
+			batches[b->shader->sort] = b;
+		}
+	}
+}
+
+void R_Clutter_Purge(void)
+{
+	size_t i, j;
+	cluttersector_t *sect;
+	if (!qrenderer)
+		return;
+	for (i = 0; i < sizeof(cluttersector)/sizeof(cluttersector[0]); i++)
+	{
+		sect = &cluttersector[i];
+		for (j = 0; j < sect->numsoups; j++)
+		{
+			BE_VBO_Destroy(&sect->soups[j].vbo.coord);
+			BE_VBO_Destroy(&sect->soups[j].vbo.indicies);
+		}
+		memset(sect, 0, sizeof(*sect));
+	}
+}
+
+
+
+
 void R_Rockettrail_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
@@ -181,6 +639,8 @@ void P_InitParticleSystem(void)
 
 	Cvar_Register (&r_rockettrail, particlecvargroupname);
 	Cvar_Register (&r_grenadetrail, particlecvargroupname);
+
+	R_Clutter_Init();
 }
 
 void P_Shutdown(void)
@@ -195,6 +655,8 @@ void P_Shutdown(void)
 		pe->ShutdownParticles();
 	}
 	pe = NULL;
+
+	R_Clutter_Purge();
 }
 
 //0 says hit nothing.

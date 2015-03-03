@@ -648,9 +648,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				x += option->bind.captionwidth + 3*8;
 
 				{
-					extern cvar_t cl_forcesplitclient;
-
-					M_FindKeysForCommand (cl_forcesplitclient.ival, option->bind.command, keys);
+					M_FindKeysForCommand (cl_forceseat.ival, option->bind.command, keys);
 
 					if (bindingactive && menu->selecteditem == option)
 					{

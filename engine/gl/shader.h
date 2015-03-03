@@ -451,11 +451,14 @@ typedef struct programshared_s
 {
 	int refs;
 	qboolean nofixedcompat;
-	int numparams;
+	unsigned short numparams;
+	unsigned short numsamplers;	//shader system can strip any passes above this
+	unsigned int defaulttextures;	//diffuse etc
 	shaderprogparm_t parm[SHADER_PROGPARMS_MAX];
 	struct {
 		union programhandle_u handle;
 		unsigned int attrmask;
+		unsigned int texmask;	//'standard' textures that are in use
 		unsigned int parm[SHADER_PROGPARMS_MAX];
 	} permu[PERMUTATIONS];
 } program_t;
@@ -558,6 +561,18 @@ struct shader_s
 	shader_gen_t *generator;
 	char	*genargs;
 
+	struct shader_clutter_s
+	{
+		struct shader_clutter_s *next;
+		float scalemin;
+		float scalemax;
+		float anglemin;
+		float anglemax;
+		float spacing;
+		float zofs;
+		char modelname[1];
+	} *clutter;
+
 //	meshfeatures_t features;
 	bucket_t bucket;
 };
@@ -578,7 +593,9 @@ shader_t *R_RegisterShader_Vertex (const char *name);
 shader_t *R_RegisterShader_Flare (const char *name);
 shader_t *QDECL R_RegisterSkin  (const char *shadername, const char *modname);
 shader_t *R_RegisterCustom (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
+//once loaded, most shaders should have one of the following two calls used upon it
 void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
+void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *subpath, unsigned int loadflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata[4], qbyte *palette);
 void R_RemapShader(const char *sourcename, const char *destname, float timeoffset);
 
 cin_t *R_ShaderGetCinematic(shader_t *s);
@@ -691,9 +708,9 @@ void GLBE_Scissor(srect_t *rect);
 void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
 //void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth);
 void GLBE_RenderToTextureUpdate2d(qboolean destchanged);
-void GLBE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize);
-void GLBE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray);
-void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
+void GLBE_VBO_Begin(vbobctx_t *ctx, size_t maxsize);
+void GLBE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray);
+void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray);
 void GLBE_VBO_Destroy(vboarray_t *vearray);
 
 void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth);

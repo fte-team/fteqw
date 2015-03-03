@@ -51,28 +51,28 @@ typedef struct plugin_s {
 	int blockcloses;
 
 	void *inputptr;
-	unsigned int inputbytes;
+	size_t inputbytes;
 
-	int tick;
-	int executestring;
+	qintptr_t tick;
+	qintptr_t executestring;
 #ifndef SERVERONLY
-	int consolelink;
-	int consolelinkmouseover;
-	int conexecutecommand;
-	int menufunction;
-	int sbarlevel[3];	//0 - main sbar, 1 - supplementry sbar sections (make sure these can be switched off), 2 - overlays (scoreboard). menus kill all.
-	int reschange;
+	qintptr_t consolelink;
+	qintptr_t consolelinkmouseover;
+	qintptr_t conexecutecommand;
+	qintptr_t menufunction;
+	qintptr_t sbarlevel[3];	//0 - main sbar, 1 - supplementry sbar sections (make sure these can be switched off), 2 - overlays (scoreboard). menus kill all.
+	qintptr_t reschange;
 
 	//protocol-in-a-plugin
-	int connectionlessclientpacket;
+	qintptr_t connectionlessclientpacket;
 
 	//called to discolour console input text if they spelt it wrongly
-	int spellcheckmaskedtext;
+	qintptr_t spellcheckmaskedtext;
 #endif
-	int svmsgfunction;
-	int chatmsgfunction;
-	int centerprintfunction;
-	int shutdown;
+	qintptr_t svmsgfunction;
+	qintptr_t chatmsgfunction;
+	qintptr_t centerprintfunction;
+	qintptr_t shutdown;
 
 	struct plugin_s *next;
 } plugin_t;
@@ -372,7 +372,7 @@ static qintptr_t VARGS Plug_Sys_CloseLibrary(void *offset, quintptr_t mask, cons
 static qintptr_t VARGS Plug_ExportToEngine(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = (char*)VM_POINTER(arg[0]);
-	unsigned int functionid = VM_LONG(arg[1]);
+	quintptr_t functionid = arg[1];
 
 	if (!strcmp(name, "Tick"))					//void(int realtime)
 		currentplug->tick = functionid;

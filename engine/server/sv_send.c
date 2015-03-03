@@ -1771,9 +1771,9 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 #endif
 	{
 		statsf[STAT_HEALTH] = ent->v->health;	//sorry, but mneh
-		statsi[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
-		if ((unsigned)statsi[STAT_WEAPON] >= client->maxmodels)
-			statsi[STAT_WEAPON] = 0;	//play it safe, try not to crash unsuspecting clients
+		statsi[STAT_WEAPONMODELI] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
+		if ((unsigned)statsi[STAT_WEAPONMODELI] >= client->maxmodels)
+			statsi[STAT_WEAPONMODELI] = 0;	//play it safe, try not to crash unsuspecting clients
 		statsf[STAT_AMMO] = ent->v->currentammo;
 		statsf[STAT_ARMOR] = ent->v->armorvalue;
 		statsf[STAT_SHELLS] = ent->v->ammo_shells;

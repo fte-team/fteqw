@@ -1079,10 +1079,10 @@ void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 		// clamp center of light to corner and check brightness
 		l = DotProduct (impact, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3] - surf->texturemins[0];
 		s = l+0.5;if (s < 0) s = 0;else if (s > surf->extents[0]) s = surf->extents[0];
-		s = l - s;
+		s = (l - s)*surf->texinfo->vecscale[0];
 		l = DotProduct (impact, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3] - surf->texturemins[1];
 		t = l+0.5;if (t < 0) t = 0;else if (t > surf->extents[1]) t = surf->extents[1];
-		t = l - t;
+		t = (l - t)*surf->texinfo->vecscale[1];
 		// compare to minimum light
 		if ((s*s+t*t+dist*dist) < maxdist)
 		{
@@ -1116,7 +1116,9 @@ struct fragmentdecal_s
 	int numplanes;
 
 	vec_t radius;
-	int numtris;
+
+	void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader);
+	void *ctx;
 };
 typedef struct fragmentdecal_s fragmentdecal_t;
 
@@ -1289,7 +1291,7 @@ static void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, floa
 
 #else
 
-void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
+void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts, shader_t *surfshader)
 {
 	//emit the triangle, and clip it's fragments.
 	int p;
@@ -1298,18 +1300,17 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 	float *cverts;
 	int flip;
 	vec3_t d1, d2, n;
+	size_t numtris;
 
 	if (numverts > MAXFRAGMENTTRIS)
 		return;
-	if (dec->numtris == MAXFRAGMENTTRIS)
-		return;	//don't bother
 
 	VectorSubtract(inverts+C*1, inverts+C*0, d1);
 	VectorSubtract(inverts+C*2, inverts+C*0, d2);
 	CrossProduct(d1, d2, n);
 	VectorNormalizeFast(n);
-	if (DotProduct(n, dec->normal) > 0.1)
-		return;	//faces too far way from the normal
+//	if (DotProduct(n, dec->normal) > 0.1)
+//		return;	//faces too far way from the normal
 
 	//clip to the first plane specially, so we don't have extra copys
 	numverts = Fragment_ClipPolyToPlane(inverts, verts, numverts, dec->planenorm[0], dec->planedist[0]);
@@ -1335,24 +1336,29 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 
 	//decompose the resultant polygon into triangles.
 
-	while(numverts>2)
+	numtris = 0;
+	while(numverts-->2)
 	{
-		if (dec->numtris == MAXFRAGMENTTRIS)
-			return;
+		if (numtris == MAXFRAGMENTTRIS)
+		{
+			dec->callback(dec->ctx, decalfragmentverts, numtris, NULL);
+			numtris = 0;
+			break;
+		}
 
-		numverts--;
-
-		VectorCopy((cverts+C*0),			decalfragmentverts[dec->numtris*3+0]);
-		VectorCopy((cverts+C*(numverts-1)),	decalfragmentverts[dec->numtris*3+1]);
-		VectorCopy((cverts+C*numverts),		decalfragmentverts[dec->numtris*3+2]);
-		dec->numtris++;
+		VectorCopy((cverts+C*0),			decalfragmentverts[numtris*3+0]);
+		VectorCopy((cverts+C*(numverts-1)),	decalfragmentverts[numtris*3+1]);
+		VectorCopy((cverts+C*numverts),		decalfragmentverts[numtris*3+2]);
+		numtris++;
 	}
+	if (numtris)
+		dec->callback(dec->ctx, decalfragmentverts, numtris, surfshader);
 }
 
 #endif
 
 //this could be inlined, but I'm lazy.
-static void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
+static void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh, shader_t *surfshader)
 {
 	int i;
 
@@ -1361,7 +1367,7 @@ static void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 	/*if its a triangle fan/poly/quad then we can just submit the entire thing without generating extra fragments*/
 	if (mesh->istrifan)
 	{
-		Fragment_ClipPoly(dec, mesh->numvertexes, mesh->xyz_array[0]);
+		Fragment_ClipPoly(dec, mesh->numvertexes, mesh->xyz_array[0], surfshader);
 		return;
 	}
 
@@ -1370,13 +1376,10 @@ static void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 	/*otherwise it goes in and out in weird places*/
 	for (i = 0; i < mesh->numindexes; i+=3)
 	{
-		if (dec->numtris == MAXFRAGMENTTRIS)
-			break;
-
 		VectorCopy(mesh->xyz_array[mesh->indexes[i+0]], verts[0]);
 		VectorCopy(mesh->xyz_array[mesh->indexes[i+1]], verts[1]);
 		VectorCopy(mesh->xyz_array[mesh->indexes[i+2]], verts[2]);
-		Fragment_ClipPoly(dec, 3, verts[0]);
+		Fragment_ClipPoly(dec, 3, verts[0], surfshader);
 	}
 }
 
@@ -1418,7 +1421,7 @@ static void Q1BSP_ClipDecalToNodes (model_t *mod, fragmentdecal_t *dec, mnode_t 
 			if (DotProduct(surf->plane->normal, dec->normal) > -0.5)
 				continue;
 		}
-		Fragment_Mesh(dec, surf->mesh);
+		Fragment_Mesh(dec, surf->mesh, surf->texinfo->texture->shader);
 	}
 
 	Q1BSP_ClipDecalToNodes (mod, dec, node->children[0]);
@@ -1454,7 +1457,7 @@ static void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 				continue;
 			surf->shadowframe = sh_shadowframe;
 
-			Fragment_Mesh(dec, surf->mesh);
+			Fragment_Mesh(dec, surf->mesh, surf->texinfo->texture->shader);
 		}
 		return;
 	}
@@ -1477,8 +1480,7 @@ static void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 }
 #endif
 
-//returns trisoup within a 3d volume.
-int Q1BSP_ClipDecal(model_t *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out)
+void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader), void *ctx)
 {	//quad marks a full, independant quad
 	int p;
 	float r;
@@ -1486,8 +1488,9 @@ int Q1BSP_ClipDecal(model_t *mod, vec3_t center, vec3_t normal, vec3_t tangent1,
 
 	VectorCopy(center, dec.center);
 	VectorCopy(normal, dec.normal);
-	dec.numtris = 0;
 	dec.radius = 0;
+	dec.callback = callback;
+	dec.ctx = ctx;
 
 	VectorCopy(tangent1,	dec.planenorm[0]);
 	VectorNegate(tangent1,	dec.planenorm[1]);
@@ -1522,9 +1525,6 @@ int Q1BSP_ClipDecal(model_t *mod, vec3_t center, vec3_t normal, vec3_t tangent1,
 	if (cl.worldmodel && cl.worldmodel->terrain)
 		Terrain_ClipDecal(&dec, center, dec.radius, mod);
 #endif
-
-	*out = (float *)decalfragmentverts;
-	return dec.numtris;
 }
 
 #endif

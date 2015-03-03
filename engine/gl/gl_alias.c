@@ -90,7 +90,7 @@ void Mod_WipeSkin(skinid_t id)
 	for (i = 0; i < sk->nummappings; i++)
 	{
 		if (sk->mappings[i].needsfree)
-			R_DestroyTexture(sk->mappings[i].texnums.base);
+			Image_UnloadTexture(sk->mappings[i].texnums.base);
 		R_UnloadShader(sk->mappings[i].shader);
 	}
 	Z_Free(registeredskins[id]);
@@ -2491,6 +2491,8 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	if (cl.worldmodel && cl.worldmodel->terrain && !(r_refdef.flags & RDF_NOWORLDMODEL))
 		Terr_DrawTerrainModel(batches, &r_worldentity);
 #endif
+
+	R_Clutter_Emit(batches);
 
 	if (!r_drawentities.ival)
 		return;

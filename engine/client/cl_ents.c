@@ -2536,37 +2536,85 @@ void CLQ1_AddVisibleBBoxes(void)
 	}
 }
 
+typedef struct
+{
+	scenetris_t *t;
+	vec4_t rgbavalue;
+
+	vec3_t axis[3];
+	float offset[3];
+	float scale[3];
+} cl_adddecal_ctx_t;
+static void CL_AddDecal_Callback(void *vctx, vec3_t *fte_restrict points, size_t numtris, shader_t *shader)
+{
+	cl_adddecal_ctx_t *ctx = vctx;
+	scenetris_t *t = ctx->t;
+	size_t numpoints = numtris*3;
+	size_t v;
+
+	
+	if (cl_numstrisvert + numpoints > cl_maxstrisvert)
+	{
+		cl_maxstrisvert = cl_numstrisvert + numpoints;
+
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
+	}
+	if (cl_maxstrisidx < cl_numstrisidx+numpoints)
+	{
+		cl_maxstrisidx = cl_numstrisidx+numpoints + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+
+	for (v = 0; v < numpoints; v++)
+	{
+		VectorCopy(points[v], cl_strisvertv[cl_numstrisvert+v]);
+		cl_strisvertt[cl_numstrisvert+v][0] = (DotProduct(points[v], ctx->axis[1]) - ctx->offset[1]) * ctx->scale[1];
+		cl_strisvertt[cl_numstrisvert+v][1] = -(DotProduct(points[v], ctx->axis[2]) - ctx->offset[2]) * ctx->scale[2];
+		cl_strisvertc[cl_numstrisvert+v][0] = ctx->rgbavalue[0];
+		cl_strisvertc[cl_numstrisvert+v][1] = ctx->rgbavalue[1];
+		cl_strisvertc[cl_numstrisvert+v][2] = ctx->rgbavalue[2];
+		cl_strisvertc[cl_numstrisvert+v][3] = ctx->rgbavalue[3] * (1-(DotProduct(points[v], ctx->axis[0]) - ctx->offset[0]) * ctx->scale[0]);
+	}
+	for (v = 0; v < numpoints; v++)
+	{
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v - t->firstvert;
+	}
+
+	t->numvert += numpoints;
+	t->numidx += numpoints;
+	cl_numstrisvert += numpoints;
+}
+
 void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t rgbvalue, float alphavalue)
 {
-	int num, v;
-	vec3_t tang;
-	float *verts;
-	float tx, ty, tz;
 	scenetris_t *t;
 	float l, s;
+	cl_adddecal_ctx_t ctx;
 
-	VectorNegate(up, up);
-	CrossProduct(up, side, tang);
+	VectorNegate(up, ctx.axis[0]);
+	VectorCopy(side, ctx.axis[2]);
+	CrossProduct(ctx.axis[0], ctx.axis[2], ctx.axis[1]);
 
-	s = sqrt(DotProduct(side, side));
-	l = sqrt(DotProduct(tang, tang));
+	s = sqrt(DotProduct(ctx.axis[2], ctx.axis[2]));
+	l = sqrt(DotProduct(ctx.axis[1], ctx.axis[1]));
 
-	VectorScale(tang, s/l, tang);
+	VectorScale(ctx.axis[1], s/l, ctx.axis[1]);
 
-	num = Q1BSP_ClipDecal(cl.worldmodel, origin, up, side, tang, 2, &verts);
+	VectorScale(ctx.axis[1], 0.5/(s*s), ctx.axis[1]);
+	VectorScale(ctx.axis[2], 0.5/(s*s), ctx.axis[2]);
+	l = sqrt(DotProduct(ctx.axis[0], ctx.axis[0]));
+	VectorScale(ctx.axis[0], 1/(l*l), ctx.axis[0]);
 
-	if (!num)
-		return;
-	num*=3;
+	ctx.offset[1] = DotProduct(origin, ctx.axis[1]) + 0.5;
+	ctx.offset[2] = DotProduct(origin, ctx.axis[2]) + 0.5;
+	ctx.offset[0] = DotProduct(origin, ctx.axis[0]);
 
-	VectorScale(tang, 0.5/(s*s), tang);
-	VectorScale(side, 0.5/(s*s), side);
-	l = sqrt(DotProduct(up, up));
-	VectorScale(up, 1/(l*l), up);
-
-	tx = DotProduct(origin, tang) + 0.5;
-	ty = DotProduct(origin, side) + 0.5;
-	tz = DotProduct(origin, up);
+	ctx.scale[1] = 1;
+	ctx.scale[2] = 1;
+	ctx.scale[0] = 1;
 
 	/*reuse the previous trigroup if its the same shader*/
 	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
@@ -2587,41 +2635,13 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 		t->firstvert = cl_numstrisvert;
 	}
 
+	ctx.t = t;
+	VectorCopy(rgbvalue, ctx.rgbavalue);
+	ctx.rgbavalue[3] = alphavalue;
+	Mod_ClipDecal(cl.worldmodel, origin, ctx.axis[0], ctx.axis[1], ctx.axis[2], 2, CL_AddDecal_Callback, &ctx);
 
-	if (cl_numstrisvert + num > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + num;
-
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
-	if (cl_maxstrisidx < cl_numstrisidx+num)
-	{
-		cl_maxstrisidx = cl_numstrisidx+num + 64;
-		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
-	}
-
-
-	for (v = 0; v < num; v++)
-	{
-		VectorCopy(verts, cl_strisvertv[cl_numstrisvert+v]);
-		cl_strisvertt[cl_numstrisvert+v][0] = (DotProduct(verts, tang) - tx);
-		cl_strisvertt[cl_numstrisvert+v][1] = -(DotProduct(verts, side) - ty);
-		cl_strisvertc[cl_numstrisvert+v][0] = rgbvalue[0];
-		cl_strisvertc[cl_numstrisvert+v][1] = rgbvalue[1];
-		cl_strisvertc[cl_numstrisvert+v][2] = rgbvalue[2];
-		cl_strisvertc[cl_numstrisvert+v][3] = alphavalue * (1-(DotProduct(verts, up) - tz));
-		verts+=3;
-	}
-	for (v = 0; v < num; v++)
-	{
-		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v - t->firstvert;
-	}
-
-	t->numvert += num;
-	t->numidx += num;
-	cl_numstrisvert += num;
+	if (!t->numidx)
+		cl_numstris--;
 }
 
 void CLQ1_AddShadow(entity_t *ent)
@@ -2629,12 +2649,10 @@ void CLQ1_AddShadow(entity_t *ent)
 	float radius;
 	vec3_t shadoworg;
 	vec3_t eang;
-	vec3_t axis[3];
-	float tx, ty, tz;
-	float *verts;
+	float tx, ty;
 	shader_t *s;
-	int v, num;
 	scenetris_t *t;
+	cl_adddecal_ctx_t ctx;
 
 	if (!r_shadows.value || !ent->model || ent->model->type != mod_alias)
 		return;
@@ -2667,18 +2685,15 @@ void CLQ1_AddShadow(entity_t *ent)
 	eang[0] = 0;
 	eang[1] = ent->angles[1];
 	eang[2] = 0;
-	AngleVectors(eang, axis[0], axis[1], axis[2]);
-	VectorNegate(axis[2], axis[2]);
+	AngleVectors(eang, ctx.axis[1], ctx.axis[2], ctx.axis[0]);
+	VectorNegate(ctx.axis[0], ctx.axis[0]);
 
-	num = Q1BSP_ClipDecal(cl.worldmodel, shadoworg, axis[2], axis[1], axis[0], radius, &verts);
-
-	if (!num)
-		return;
-	num*=3;
-
-	tx = DotProduct(shadoworg, axis[1]) + 0.5*radius;
-	ty = DotProduct(shadoworg, axis[0]) + 0.5*radius;
-	tz = DotProduct(shadoworg, axis[2]);
+	ctx.offset[2] = DotProduct(shadoworg, ctx.axis[2]) + 0.5*radius;
+	ctx.offset[1] = DotProduct(shadoworg, ctx.axis[1]) + 0.5*radius;
+	ctx.offset[0] = DotProduct(shadoworg, ctx.axis[0]);
+	ctx.scale[1] = 1/radius;
+	ctx.scale[2] = 1/radius;
+	ctx.scale[0] = 0.5/radius;
 
 	/*reuse the previous trigroup if its the same shader*/
 	if (cl_numstris && cl_stris[cl_numstris-1].shader == s && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
@@ -2699,41 +2714,11 @@ void CLQ1_AddShadow(entity_t *ent)
 		t->firstvert = cl_numstrisvert;
 	}
 
-
-	if (cl_numstrisvert + num > cl_maxstrisvert)
-	{
-		cl_maxstrisvert = cl_numstrisvert + num;
-
-		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
-		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
-	}
-	if (cl_maxstrisidx < cl_numstrisidx+num)
-	{
-		cl_maxstrisidx = cl_numstrisidx+num + 64;
-		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
-	}
-
-
-	for (v = 0; v < num; v++)
-	{
-		VectorCopy(verts, cl_strisvertv[cl_numstrisvert+v]);
-		cl_strisvertt[cl_numstrisvert+v][0] = (DotProduct(verts, axis[1]) - tx)/radius;
-		cl_strisvertt[cl_numstrisvert+v][1] = -(DotProduct(verts, axis[0]) - ty)/radius;
-		cl_strisvertc[cl_numstrisvert+v][0] = 0;
-		cl_strisvertc[cl_numstrisvert+v][1] = 0;
-		cl_strisvertc[cl_numstrisvert+v][2] = 0;
-		cl_strisvertc[cl_numstrisvert+v][3] = r_shadows.value * (1-((DotProduct(verts, axis[2]) - tz)/(radius/2)));
-		verts+=3;
-	}
-	for (v = 0; v < num; v++)
-	{
-		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v - t->firstvert;
-	}
-
-	t->numvert += num;
-	t->numidx += num;
-	cl_numstrisvert += num;
+	ctx.t = t;
+	Vector4Set(ctx.rgbavalue, 0, 0, 0, r_shadows.value);
+	Mod_ClipDecal(cl.worldmodel, shadoworg, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, CL_AddDecal_Callback, &ctx);
+	if (!t->numidx)
+		cl_numstris--;
 }
 void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects)
 {
@@ -4170,7 +4155,7 @@ guess_pm_type:
 		}
 	}
 
-	if (cl.worldmodel && cl.do_lerp_players)
+	if (cl.worldmodel && cl.do_lerp_players && cl_predict_players.ival)
 	{
 		player_state_t exact;
 		msec += cls.latency*1000;
@@ -4180,6 +4165,7 @@ guess_pm_type:
 			msec = 255;
 		state->command.msec = msec;
 
+		//FIXME: flag these and do the pred elsewhere.
 		CL_SetSolidEntities();
 		CL_SetSolidPlayers();
 		CL_PredictUsercmd (0, num+1, state, &exact, &state->command);	//uses player 0's maxspeed/grav...
@@ -4630,7 +4616,7 @@ void CL_LinkViewModel(void)
 	if (cl.intermission)
 		return;
 
-	if (pv->stats[STAT_WEAPON] <= 0 || pv->stats[STAT_WEAPON] >= MAX_PRECACHE_MODELS)
+	if (pv->stats[STAT_WEAPONMODELI] <= 0 || pv->stats[STAT_WEAPONMODELI] >= MAX_PRECACHE_MODELS)
 		return;
 
 	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)
@@ -4669,7 +4655,7 @@ void CL_LinkViewModel(void)
 		ent.flags |= RF_TRANSLUCENT;
 	}
 
-	ent.model = cl.model_precache[pv->stats[STAT_WEAPON]];
+	ent.model = cl.model_precache[pv->stats[STAT_WEAPONMODELI]];
 	if (!ent.model)
 		return;
 

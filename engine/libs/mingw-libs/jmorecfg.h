@@ -2,7 +2,7 @@
  * jmorecfg.h
  *
  * Copyright (C) 1991-1997, Thomas G. Lane.
- * Modified 1997-2009 by Guido Vollbeding.
+ * Modified 1997-2012 by Guido Vollbeding.
  * This file is part of the Independent JPEG Group's software.
  * For conditions of distribution and use, see the accompanying README file.
  *
@@ -150,6 +150,24 @@ typedef unsigned short UINT16;
 typedef unsigned int UINT16;
 #endif /* HAVE_UNSIGNED_SHORT */
 
+/* INT16 must hold at least the values -32768..32767. */
+
+#ifndef XMD_H			/* X11/xmd.h correctly defines INT16 */
+typedef short INT16;
+#endif
+
+/* INT32 must hold at least signed 32-bit values. */
+
+#ifndef XMD_H			/* X11/xmd.h correctly defines INT32 */
+#ifndef _BASETSD_H_		/* Microsoft defines it in basetsd.h */
+#ifndef _BASETSD_H		/* MinGW is slightly different */
+#ifndef QGLOBAL_H		/* Qt defines it in qglobal.h */
+typedef long INT32;
+#endif
+#endif
+#endif
+#endif
+
 /* Datatype used for image dimensions.  The JPEG standard only supports
  * images up to 64K*64K due to 16-bit fields in SOF markers.  Therefore
  * "unsigned int" is sufficient on all machines.  However, if you need to
@@ -192,6 +210,26 @@ typedef unsigned int JDIMENSION;
 #endif
 
 
+/* The noreturn type identifier is used to declare functions
+ * which cannot return.
+ * Compilers can thus create more optimized code and perform
+ * better checks for warnings and errors.
+ * Static analyzer tools can make improved inferences about
+ * execution paths and are prevented from giving false alerts.
+ *
+ * Unfortunately, the proposed specifications of corresponding
+ * extensions in the Dec 2011 ISO C standard revision (C11),
+ * GCC, MSVC, etc. are not viable.
+ * Thus we introduce a user defined type to declare noreturn
+ * functions at least for clarity.  A proper compiler would
+ * have a suitable noreturn type to match in place of void.
+ */
+
+#ifndef HAVE_NORETURN_T
+typedef void noreturn_t;
+#endif
+
+
 /* Here is the pseudo-keyword for declaring pointers that must be "far"
  * on 80x86 machines.  Most of the specialized coding for 80x86 is handled
  * by just saying "FAR *" where such a pointer is needed.  In a few places
@@ -207,9 +245,23 @@ typedef unsigned int JDIMENSION;
 #endif
 
 
-typedef unsigned char JPEG_boolean;
-#define JPEG_FALSE 0
-#define JPEG_TRUE  1
+/*
+ * On a few systems, type boolean and/or its values FALSE, TRUE may appear
+ * in standard header files.  Or you may have conflicts with application-
+ * specific header files that you want to include together with these files.
+ * Defining HAVE_BOOLEAN before including jpeglib.h should make it work.
+ */
+
+#ifdef HAVE_BOOLEAN
+#ifndef FALSE			/* in case these macros already exist */
+#define FALSE	0		/* values of boolean */
+#endif
+#ifndef TRUE
+#define TRUE	1
+#endif
+#else
+typedef enum { FALSE = 0, TRUE = 1 } boolean;
+#endif
 
 
 /*
@@ -281,9 +333,7 @@ typedef unsigned char JPEG_boolean;
  * the offsets will also change the order in which colormap data is organized.
  * RESTRICTIONS:
  * 1. The sample applications cjpeg,djpeg do NOT support modified RGB formats.
- * 2. These macros only affect RGB<=>YCbCr color conversion, so they are not
- *    useful if you are using JPEG color spaces other than YCbCr or grayscale.
- * 3. The color quantizer modules will not behave desirably if RGB_PIXELSIZE
+ * 2. The color quantizer modules will not behave desirably if RGB_PIXELSIZE
  *    is not 3 (they don't understand about dummy color components!).  So you
  *    can't use color quantization if you change that value.
  */

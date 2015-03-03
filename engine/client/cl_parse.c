@@ -910,7 +910,7 @@ qboolean CL_CheckQ2BspWals(char *file)
 	unsigned int i, j, count;
 
 	dh = (q2dheader_t*)file;
-	if (LittleLong(dh->version) != Q2BSPVERSION)
+	if (LittleLong(dh->version) != BSPVERSION_Q2)
 	{
 		//quake3? unknown?
 		return false;
@@ -990,7 +990,7 @@ void Model_CheckDownloads (void)
 		for (i = 0; i < Q2MAX_IMAGES; i++)
 		{
 			char picname[256];
-			if (!*cl.image_name[i])
+			if (!cl.image_name[i] || !*cl.image_name[i])
 				continue;
 			Q_snprintfz(picname, sizeof(picname), "pics/%s.pcx", cl.image_name[i]);
 			CL_CheckOrEnqueDownloadFile(picname, picname, 0);
@@ -3459,7 +3459,7 @@ void CLNQ_ParseClientdata (void)
 	{
 		CL_SetStatInt(0, STAT_WEAPONFRAME, (bits & SU_WEAPONFRAME)?(unsigned short)MSG_ReadShort():0);
 		CL_SetStatInt(0, STAT_ARMOR, (bits & SU_ARMOR)?MSG_ReadShort():0);
-		CL_SetStatInt(0, STAT_WEAPON, (bits & SU_WEAPONMODEL)?MSG_ReadShort():0);
+		CL_SetStatInt(0, STAT_WEAPONMODELI, (bits & SU_WEAPONMODEL)?MSG_ReadShort():0);
 
 		CL_SetStatInt(0, STAT_HEALTH, MSG_ReadShort());
 
@@ -3515,7 +3515,7 @@ void CLNQ_ParseClientdata (void)
 
 		CL_SetStatInt(0, STAT_WEAPONFRAME, weaponframe);
 		CL_SetStatInt(0, STAT_ARMOR, armor);
-		CL_SetStatInt(0, STAT_WEAPON, weaponmodel);
+		CL_SetStatInt(0, STAT_WEAPONMODELI, weaponmodel);
 
 		CL_SetStatInt(0, STAT_HEALTH, health);
 
@@ -3800,41 +3800,41 @@ void CLQ2_ParseConfigString (void)
 	}
 	else if (i == Q2CS_CDTRACK)
 	{
-//		if (cl.refresh_prepped)
-			Media_BackgroundTrack (s, NULL);
+		Media_BackgroundTrack (s, NULL);
 	}
 	else if (i >= Q2CS_MODELS && i < Q2CS_MODELS+Q2MAX_MODELS)
 	{
-//		if (cl.refresh_prepped)
+		Q_strncpyz(cl.model_name[i-Q2CS_MODELS], s, MAX_QPATH);
+		if (cl.model_name[i-Q2CS_MODELS][0] == '#')
 		{
-			Q_strncpyz(cl.model_name[i-Q2CS_MODELS], s, MAX_QPATH);
-			if (cl.model_name[i-Q2CS_MODELS][0] == '#')
+			if (cl.numq2visibleweapons < Q2MAX_VISIBLE_WEAPONS)
 			{
-				if (cl.numq2visibleweapons < Q2MAX_VISIBLE_WEAPONS)
-				{
-					cl.q2visibleweapons[cl.numq2visibleweapons] = cl.model_name[i-Q2CS_MODELS]+1;
-					cl.numq2visibleweapons++;
-				}
-				cl.model_precache[i-Q2CS_MODELS] = NULL;
+				cl.q2visibleweapons[cl.numq2visibleweapons] = cl.model_name[i-Q2CS_MODELS]+1;
+				cl.numq2visibleweapons++;
 			}
-			else
-				cl.model_precache[i-Q2CS_MODELS] = Mod_ForName (cl.model_name[i-Q2CS_MODELS], MLV_WARN);
+			cl.model_precache[i-Q2CS_MODELS] = NULL;
 		}
+		else
+			cl.model_precache[i-Q2CS_MODELS] = Mod_ForName (cl.model_name[i-Q2CS_MODELS], MLV_WARN);
 	}
-	else if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS+Q2MAX_MODELS)
+	else if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS+Q2MAX_SOUNDS)
 	{
-//		if (cl.refresh_prepped)
 		Q_strncpyz(cl.sound_name[i-Q2CS_SOUNDS], s, MAX_QPATH);
-			cl.sound_precache[i-Q2CS_SOUNDS] = S_PrecacheSound (s);
+		cl.sound_precache[i-Q2CS_SOUNDS] = S_PrecacheSound (s);
 	}
-	else if (i >= Q2CS_IMAGES && i < Q2CS_IMAGES+Q2MAX_MODELS)
-	{	//ignore
-		Q_strncpyz(cl.image_name[i-Q2CS_IMAGES], s, MAX_QPATH);
+	else if (i >= Q2CS_IMAGES && i < Q2CS_IMAGES+Q2MAX_IMAGES)
+	{
+		Z_Free(cl.image_name[i-Q2CS_IMAGES]);
+		cl.image_name[i-Q2CS_IMAGES] = Z_StrDup(s);
+	}
+	else if (i >= Q2CS_ITEMS && i < Q2CS_ITEMS+Q2MAX_ITEMS)
+	{
+		Z_Free(cl.item_name[i-Q2CS_ITEMS]);
+		cl.item_name[i-Q2CS_ITEMS] = Z_StrDup(s);
 	}
 	else if (i >= Q2CS_PLAYERSKINS && i < Q2CS_PLAYERSKINS+Q2MAX_CLIENTS)
 	{
-//		if (cl.refresh_prepped && strcmp(olds, s))
-			CLQ2_ParseClientinfo (i-Q2CS_PLAYERSKINS, s);
+		CLQ2_ParseClientinfo (i-Q2CS_PLAYERSKINS, s);
 	}
 	else if (i == Q2CS_MAPCHECKSUM)
 	{
@@ -4396,8 +4396,17 @@ void CL_NewTranslation (int slot)
 		skin = strchr(mod, '/');
 		if (skin)
 			*skin++ = 0;
+		if (!skin || !*skin)
+			skin = "grunt";
+		if (!mod || !*mod)
+			mod = "male";
 
 		player->model = Mod_ForName(va("players/%s/tris.md2", mod), 0);
+		if (player->model->loadstate == MLS_FAILED && strcmp(mod, "male"))
+		{	//fall back on male if the model doesn't exist. yes, sexist.
+			mod = "male";
+			player->model = Mod_ForName(va("players/male/tris.md2", mod), 0);
+		}
 		player->skinid = Mod_RegisterSkinFile(va("players/%s/%s.skin", mod,skin));
 		if (!player->skinid)
 			player->skinid = Mod_ReadSkinFile(va("players/%s/%s.skin", mod,skin), va("replace \"\" \"players/%s/%s.pcx\"", mod,skin));
@@ -4621,7 +4630,7 @@ static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 				cl.playerview[pnum].item_gettime[j] = cl.time;
 	}
 
-	if (stat == STAT_WEAPON)
+	if (stat == STAT_WEAPONMODELI)
 	{
 		if (cl.playerview[pnum].stats[stat] != ivalue)
 		{
@@ -5066,12 +5075,9 @@ void CLQ2_ParseMuzzleFlash2 (void)
 
 void CLQ2_ParseInventory (void)
 {
-	int		i;
-
-	// TODO: finish this properly
+	unsigned int		i;
 	for (i=0 ; i<Q2MAX_ITEMS ; i++)
-//		cl.inventory[i] = MSG_ReadShort (&net_message);
-		MSG_ReadShort (); // just ignore everything for now
+		cl.inventory[i] = MSG_ReadShort ();
 }
 #endif
 
@@ -5825,6 +5831,20 @@ void CLQW_ParseServerMessage (void)
 
 
 	CL_ParseClientdata ();
+
+	//vanilla QW has no timing info in the client and depends upon the client for all timing.
+	//using the demo's timing for interpolation prevents unneccesary drift, and solves issues with demo seeking and other such things.
+	if (cls.demoplayback && !(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS))
+	{
+		extern float demtime;
+		if (cl.gametime != demtime)
+		{
+			cl.oldgametime = cl.gametime;
+			cl.oldgametimemark = cl.gametimemark;
+			cl.gametime = demtime;
+			cl.gametimemark = realtime;
+		}
+	}
 
 //
 // parse the message

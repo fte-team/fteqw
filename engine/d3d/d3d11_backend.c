@@ -2611,8 +2611,8 @@ static void BE_UploadLightmaps(qboolean force)
 		{
 			lightmap[i]->rectchange.l = 0;
 			lightmap[i]->rectchange.t = 0;
-			lightmap[i]->rectchange.w = LMBLOCK_WIDTH;
-			lightmap[i]->rectchange.h = LMBLOCK_HEIGHT;
+			lightmap[i]->rectchange.w = lightmap[i]->width;
+			lightmap[i]->rectchange.h = lightmap[i]->height;
 			lightmap[i]->modified = true;
 		}
 
@@ -3486,13 +3486,13 @@ void D3D11BE_DrawWorld (qboolean drawworld, qbyte *vis)
 	BE_RotateForEntity(&r_worldentity, NULL);
 }
 
-void D3D11BE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize)
+void D3D11BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 {
 }
-void D3D11BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray)
+void D3D11BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
 }
-void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray)
+void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
 {
 }
 void D3D11BE_VBO_Destroy(vboarray_t *vearray)

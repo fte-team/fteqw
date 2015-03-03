@@ -392,6 +392,13 @@ void V_ParseDamage (playerview_t *pv)
 	for (i=0 ; i<3 ; i++)
 		from[i] = MSG_ReadCoord ();
 
+	pv->faceanimtime = cl.time + 0.2;		// but sbar face into pain frame
+
+#ifdef CSQC_DAT
+	if (CSQC_Parse_Damage(armor, blood, from))
+		return;
+#endif
+
 	count = blood*0.5 + armor*0.5;
 	if (count < 10)
 		count = 10;
@@ -403,8 +410,6 @@ void V_ParseDamage (playerview_t *pv)
 
 	if (v_damagecshift.value >= 0)
 		count *= v_damagecshift.value;
-
-	pv->faceanimtime = cl.time + 0.2;		// but sbar face into pain frame
 
 	cl.cshifts[CSHIFT_DAMAGE].percent += 3*count;
 	if (cl.cshifts[CSHIFT_DAMAGE].percent < 0)

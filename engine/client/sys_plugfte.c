@@ -228,7 +228,7 @@ int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...
 #include <ws2tcpip.h>
 #endif
 #endif
-qboolean	NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount)
+size_t	NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount)
 {
 	struct addrinfo *addrinfo = NULL;
 	struct addrinfo *pos;
@@ -248,11 +248,11 @@ qboolean	NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_
 	pgetaddrinfo = (void*)GetProcAddress(lib, "getaddrinfo");
 	pfreeaddrinfo = (void*)GetProcAddress(lib, "freeaddrinfo");
 	if (!pgetaddrinfo || !pfreeaddrinfo)
-		return false;
+		return 0;
 #endif
 
 	if (!(*s))
-		return false;
+		return 0;
 
 	memset (sadr, 0, sizeof(*sadr));
 
@@ -298,7 +298,7 @@ qboolean	NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_
 	}
 	if (error)
 	{
-		return false;
+		return 0;
 	}
 	((struct sockaddr*)sadr)->sa_family = 0;
 	for (pos = addrinfo; pos; pos = pos->ai_next)
@@ -322,7 +322,7 @@ qboolean	NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_
 dblbreak:
 	pfreeaddrinfo (addrinfo);
 	if (!((struct sockaddr*)sadr)->sa_family)	//none suitablefound
-		return false;
+		return 0;
 
 	if (addrfamily)
 		*addrfamily = ((struct sockaddr*)sadr)->sa_family;
@@ -342,7 +342,7 @@ dblbreak:
 			*addrsize = sizeof(struct sockaddr_in6);
 	}
 
-	return true;
+	return 1;
 }
 
 char *COM_ParseType (const char *data, char *out, int outlen, com_tokentype_t *toktype)

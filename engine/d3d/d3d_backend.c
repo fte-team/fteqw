@@ -3216,13 +3216,13 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 
 	BE_RotateForEntity(&r_worldentity, NULL);
 }
-void D3D9BE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize)
+void D3D9BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 {
 }
-void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray)
+void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
 }
-void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray)
+void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
 {
 }
 void D3D9BE_VBO_Destroy(vboarray_t *vearray)

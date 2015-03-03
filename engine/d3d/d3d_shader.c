@@ -213,19 +213,19 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, un
 	return success;
 }
 
-static int D3D9Shader_FindUniform_(LPD3DXCONSTANTTABLE ct, char *name)
+static int D3D9Shader_FindUniform_(LPD3DXCONSTANTTABLE ct, const char *name)
 {
 	if (ct)
 	{
 		UINT dc = 1;
 		D3DXCONSTANT_DESC d;
-		if (!FAILED(ct->lpVtbl->GetConstantDesc(ct, name, &d, &dc)))
+		if (!FAILED(ct->lpVtbl->GetConstantDesc(ct, (void*)name, &d, &dc)))
 			return d.RegisterIndex;
 	}
 	return -1;
 }
 
-static int D3D9Shader_FindUniform(union programhandle_u *h, int type, char *name)
+static int D3D9Shader_FindUniform(union programhandle_u *h, int type, const char *name)
 {
 	int offs;
 
@@ -252,6 +252,29 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cv
 	int uniformloc;
 	char tmpname[128];
 	cvar_t *cvar;
+
+	static const char *defaultsamplers[] =
+	{
+		"s_diffuse",
+		"s_normalmap",
+		"s_specular",
+		"s_upper",
+		"s_lower",
+		"s_fullbright",
+		"s_paletted",
+		"s_shadowmap",
+		"s_projectionmap",
+		"s_lightmap",
+		"s_deluxmap"
+#if MAXRLIGHTMAPS > 1
+		,"s_lightmap1"
+		,"s_lightmap2"
+		,"s_lightmap3"
+		,"s_deluxmap1"
+		,"s_deluxmap2"
+		,"s_deluxmap3"
+#endif
+	};
 
 	prog->numparams = 0;
 
@@ -314,6 +337,51 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cv
 				int v[4] = {i};
 				IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].handle.hlsl.frag);
 				IDirect3DDevice9_SetPixelShaderConstantI(pD3DDev9, 0, v, 1);
+
+				if (prog->numsamplers < i+1)
+					prog->numsamplers = i+1;
+			}
+		}
+
+		for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
+		{
+			//figure out which ones are needed.
+			if (prog->defaulttextures & (1u<<i))
+				continue;	//don't spam
+			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 2, defaultsamplers[i]);
+			if (uniformloc != -1)
+				prog->defaulttextures |= (1u<<i);
+		}
+	}
+
+	//multiple lightmaps is kinda hacky. if any are set, all must be. 
+	if (prog->defaulttextures & ((1u<<11) | (1u<<12) | (1u<<13)))
+		prog->defaulttextures |=((1u<<11) | (1u<<12) | (1u<<13));
+	if (prog->defaulttextures & ((1u<<14) | (1u<<15) | (1u<<16)))
+		prog->defaulttextures |=((1u<<14) | (1u<<15) | (1u<<16));
+
+	if (prog->defaulttextures)
+	{
+		unsigned int sampnum;
+		/*set default texture uniforms*/
+		for (p = 0; p < PERMUTATIONS; p++)
+		{
+			if (!prog->permu[p].handle.glsl.handle)
+				continue;
+			sampnum = prog->numsamplers;
+			for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
+			{
+				if (prog->defaulttextures & (1u<<i))
+				{
+					uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 2, defaultsamplers[i]);
+					if (uniformloc != -1)
+					{
+						int v[4] = {sampnum};
+						IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].handle.hlsl.frag);
+						IDirect3DDevice9_SetPixelShaderConstantI(pD3DDev9, 0, v, 1);
+					}
+					sampnum++;
+				}
 			}
 		}
 	}

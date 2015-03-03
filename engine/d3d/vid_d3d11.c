@@ -990,6 +990,7 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 static void	 (D3D11_VID_DeInit)				(void)
 {
 	D3D11BE_Shutdown();
+	Image_Shutdown();
 
 	/*we cannot shut down cleanly while in fullscreen, supposedly*/
 	if(d3dswapchain)
@@ -1150,8 +1151,14 @@ void D3D11_Set2D (void)
 	vport.MinDepth = 0;
 	vport.MaxDepth = 1;
 
-    ID3D11DeviceContext_RSSetViewports(d3ddevctx, 1, &vport);
+	ID3D11DeviceContext_RSSetViewports(d3ddevctx, 1, &vport);
 	D3D11BE_SetupViewCBuffer();
+
+
+	vid.fbvwidth = vid.width;
+	vid.fbvheight = vid.height;
+	vid.fbpwidth = vid.pixelwidth;
+	vid.fbpheight = vid.pixelheight;
 }
 
 static void	(D3D11_SCR_UpdateScreen)			(void)

@@ -132,7 +132,7 @@ static void Mod_BatchList_f(void)
 	{
 		if (mod->type == mod_brush && mod->loadstate == MLS_LOADED)
 		{
-			Con_Printf("%s:\n", mod->name);
+			Con_Printf("^1%s:\n", mod->name);
 			count = 0;
 			for (i = 0; i < SHADER_SORT_COUNT; i++)
 			{
@@ -140,21 +140,21 @@ static void Mod_BatchList_f(void)
 				{
 #if MAXRLIGHTMAPS > 1
 					if (batch->lightmap[3] >= 0)
-						Con_Printf("%s lm=(%i:%i %i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2], batch->lightmap[3], batch->lmlightstyle[3], batch->maxmeshes);
+						Con_Printf("  %s lm=(%i:%i %i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2], batch->lightmap[3], batch->lmlightstyle[3], batch->maxmeshes);
 					else if (batch->lightmap[2] >= 0)
-						Con_Printf("%s lm=(%i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2], batch->maxmeshes);
+						Con_Printf("  %s lm=(%i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->lightmap[2], batch->lmlightstyle[2], batch->maxmeshes);
 					else if (batch->lightmap[1] >= 0)
-						Con_Printf("%s lm=(%i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->maxmeshes);
+						Con_Printf("  %s lm=(%i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->lightmap[1], batch->lmlightstyle[1], batch->maxmeshes);
 					else
 #endif
 						if (batch->lmlightstyle[0] != 255)
-						Con_Printf("%s lm=(%i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->maxmeshes);
+						Con_Printf("  %s lm=(%i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lmlightstyle[0], batch->maxmeshes);
 					else
-						Con_Printf("%s lm=%i surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->maxmeshes);
+						Con_Printf("  %s lm=%i surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->maxmeshes);
 					count++;
 				}
 			}
-			Con_Printf("%u\n", count);
+			Con_Printf("^h(%u batches, lm %i*%i, lux %s)\n", count, mod->lightmaps.width, mod->lightmaps.height, mod->lightmaps.deluxemapping?"true":"false");
 		}
 	}
 }
@@ -190,7 +190,7 @@ static void Mod_TextureList_f(void)
 					count = 0;
 				}
 
-				Con_Printf("%s\n", tx->name);
+				Con_Printf("  %s\n", tx->name);
 				count++;
 			}
 		}
@@ -204,11 +204,11 @@ static void Mod_BlockTextureColour_f (void)
 	char texname[64];
 	model_t *mod;
 	texture_t *tx;
-	shader_t *s;
+//	shader_t *s;
 	char *match = Cmd_Argv(1);
 
 	int i, m;
-	unsigned int colour[8*8];
+//	unsigned int colour[8*8];
 	unsigned int rgba;
 
 	((char *)&rgba)[0] = atoi(Cmd_Argv(2));
@@ -216,18 +216,17 @@ static void Mod_BlockTextureColour_f (void)
 	((char *)&rgba)[2] = atoi(Cmd_Argv(4));
 	((char *)&rgba)[3] = 255;
 
-	sprintf(texname, "8*8_%i_%i_%i", (int)((char *)&rgba)[0], (int)((char *)&rgba)[1], (int)((char *)&rgba)[2]);
-
-	s = R_RegisterCustom(Cmd_Argv(2), SUF_LIGHTMAP, NULL, NULL);
+	sprintf(texname, "purergb_%i_%i_%i", (int)((char *)&rgba)[0], (int)((char *)&rgba)[1], (int)((char *)&rgba)[2]);
+/*	s = R_RegisterCustom(Cmd_Argv(2), SUF_LIGHTMAP, NULL, NULL);
 	if (!s)
 	{
 		s = R_RegisterCustom (texname, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 
 		for (i = 0; i < sizeof(colour)/sizeof(colour[0]); i++)
 			colour[i] = rgba;
-//		s->defaulttextures.base = GL_LoadTexture32(texname, 8, 8, colour, IF_NOMIPMAP);
+		s->defaulttextures.base = GL_LoadTexture32(texname, 8, 8, colour, IF_NOMIPMAP);
 	}
-
+*/
 	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
 	{
 		if (mod->type == mod_brush && mod->loadstate == MLS_LOADED)
@@ -239,9 +238,7 @@ static void Mod_BlockTextureColour_f (void)
 					continue;	//happens on e1m2
 
 				if (!stricmp(tx->name, match))
-				{
-					tx->shader = s;
-				}
+					tx->shader->defaulttextures.base = Image_GetTexture(texname, NULL, IF_NOMIPMAP|IF_NEAREST, &rgba, NULL, 1, 1, TF_BGRA32);
 			}
 		}
 	}
@@ -738,8 +735,8 @@ model_t *Mod_FindName (const char *name)
 #endif
 	}
 
-	if (mod->loadstate == MLS_FAILED)
-		mod->loadstate = MLS_NOTLOADED;
+//	if (mod->loadstate == MLS_FAILED)
+//		mod->loadstate = MLS_NOTLOADED;
 
 	//mark it as active, so it doesn't get flushed prematurely
 	mod->datasequence = mod_datasequence;
@@ -862,12 +859,14 @@ void Mod_UnRegisterAllModelFormats(void *module)
 
 void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 {
+	qboolean previouslyfailed;
 	model_t *mod = ctx;
 	enum mlverbosity_e verbose = b;
 #ifndef SERVERONLY
 	P_LoadedModel(mod);
 #endif
 
+	previouslyfailed = mod->loadstate == MLS_FAILED;
 	mod->loadstate = a;
 
 #ifdef TERRAIN
@@ -917,7 +916,7 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 		break;
 	case MLV_WARN:
-		if (*mod->name != '*' && strcmp(mod->name, "null") && mod_warnmodels.ival)
+		if (*mod->name != '*' && strcmp(mod->name, "null") && mod_warnmodels.ival && !previouslyfailed)
 			Con_Printf(CON_ERROR "Unable to load %s\n", mod->name);
 		break;
 	case MLV_SILENT:
@@ -1181,193 +1180,7 @@ model_t *Mod_ForName (const char *name, enum mlverbosity_e verbosity)
 ===============================================================================
 */
 
-#if 0
-char *advtexturedesc;
-char *mapsection;
-char *defaultsection;
-
-static char *Mod_TD_LeaveSection(char *file)
-{	//recursive routine to find the next }
-	while(file)
-	{
-		file = COM_Parse(file);
-		if (*com_token == '{')
-			file = Mod_TD_LeaveSection(file);
-		else if (*com_token == '}')
-			return file;
-	}
-	return NULL;
-}
-
-static char *Mod_TD_Section(char *file, const char *sectionname)
-{	//position within the open brace.
-	while(file)
-	{
-		while(*file <= ' ')	//skip whitespace and new lines.
-		{
-			if (!*file)
-				return NULL;
-			file++;
-		}
-		file = COM_Parse(file);
-		if (!stricmp(com_token, sectionname))
-		{
-			file = COM_Parse(file);
-			if (*com_token != '{')
-				return NULL;
-			return file;
-		}
-
-		if (*com_token == '{')
-			file = Mod_TD_LeaveSection(file);
-	}
-	return NULL;
-}
-void Mod_InitTextureDescs(char *mapname)
-{
-	if (advtexturedesc)
-		FS_FreeFile(advtexturedesc);
-	FS_LoadFile(va("maps/shaders/%s.shaders", mapname), (void**)&advtexturedesc);
-	if (!advtexturedesc)
-		FS_LoadFile(va("shaders/%s.shaders", mapname), (void**)&advtexturedesc);
-	if (advtexturedesc)
-	{
-		mapsection = advtexturedesc;
-		defaultsection = NULL;
-	}
-	else
-	{
-		FS_LoadFile(va("map.shaders", mapname), (void**)&advtexturedesc);
-		mapsection = Mod_TD_Section(advtexturedesc, mapname);
-		defaultsection = Mod_TD_Section(advtexturedesc, "default");
-	}
-}
-void Mod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
-{
-	char stdname[MAX_QPATH] = "";
-	char flatname[MAX_QPATH] = "";
-	char bumpname[MAX_QPATH] = "";
-	char normname[MAX_QPATH] = "";
-	char lumaname[MAX_QPATH] = "";
-	char glossname[MAX_QPATH] = "";
-
-	section = Mod_TD_Section(section, name);
-
-	while(section)
-	{
-		section = COM_Parse(section);
-		if (*com_token == '}')
-			break;
-
-		while(*section <= ' ')	//get rid of nasty whitespace.
-		{
-			if (!*section)
-				return;
-			section++;
-		}
-		if (*section == '=')
-			section++;	//evil notation.
-
-		if (!stricmp(com_token, "texture") || !stricmp(com_token, "base"))
-		{
-			section = COM_Parse(section);
-			Q_strncpyz(stdname, com_token, sizeof(stdname));
-		}
-		else if (!stricmp(com_token, "flatmap") || !stricmp(com_token, "flat")
-			|| !stricmp(com_token, "diffusemap") || !stricmp(com_token, "diffuse"))
-		{
-			section = COM_Parse(section);
-			Q_strncpyz(flatname, com_token, sizeof(flatname));
-		}
-		else if (!stricmp(com_token, "bumpmap") || !stricmp(com_token, "bump"))
-		{
-			section = COM_Parse(section);
-			Q_strncpyz(bumpname, com_token, sizeof(bumpname));
-		}
-		else if (!stricmp(com_token, "normalmap") || !stricmp(com_token, "normal"))
-		{
-			section = COM_Parse(section);
-			Q_strncpyz(normname, com_token, sizeof(normname));
-		}
-		else if (!stricmp(com_token, "glossmap") || !stricmp(com_token, "gloss"))
-		{
-			section = COM_Parse(section);
-			Q_strncpyz(glossname, com_token, sizeof(glossname));
-		}
-		else if (!stricmp(com_token, "luma") || !stricmp(com_token, "glow")
-			|| !stricmp(com_token, "ambient") || !stricmp(com_token, "ambientmap"))
-		{
-			section = COM_Parse(section);
-			Q_strncpyz(lumaname, com_token, sizeof(lumaname));
-		}
-		else
-		{
-			//best thing we can do is jump to the end of the line, and hope they were a good creator...
-			while(*section && *section != '\n')
-				section++;
-		}
-	}
-
-	//okay it's all parsed. Try and interpret the data now.
-
-	*base = 0;
-	if (norm)
-		*norm = 0;
-	if (luma)
-		*luma = 0;
-	if (gloss)
-		*gloss = 0;
-
-	if (!*stdname && !*flatname)
-		return;
-TRACE(("dbg: Mod_LoadAdvancedTextureSection: %s\n", name));
-
-	if (norm && gl_bumpmappingpossible && cls.allow_bump)
-	{
-		*base = 0;
-		*norm = 0;
-		if (!*norm && *normname)
-			*norm = Mod_LoadHiResTexture(normname, NULL, IF_NOALPHA|IF_NOGAMMA);
-		if (!*norm && *bumpname)
-			*norm = Mod_LoadBumpmapTexture(bumpname, NULL);
-
-		if (*norm && *flatname)
-			*base = Mod_LoadHiResTexture(flatname, NULL, IF_NOALPHA);
-	}
-	else
-	{
-		*base = 0;
-		if (norm)
-			*norm = 0;
-	}
-	if (!*base && *stdname)
-		*base = Mod_LoadHiResTexture(stdname, NULL, IF_NOALPHA);
-	if (!*base && *flatname)
-		*base = Mod_LoadHiResTexture(flatname, NULL, IF_NOALPHA);
-	if (luma && *lumaname)
-		*luma = Mod_LoadHiResTexture(lumaname, NULL, 0);
-
-	if (*norm && gloss && *glossname && gl_specular.value)
-		*gloss = Mod_LoadHiResTexture(glossname, NULL, 0);
-}
-
-void Mod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull)	//fixme: add gloss
-{
-	if (!gl_load24bit.value)
-		return;
-
-	if (mapsection)
-	{
-		Mod_LoadAdvancedTextureSection(mapsection, name,base,norm,luma,gloss,alphamode,cull);
-		if (*base)
-			return;
-	}
-	if (defaultsection)
-		Mod_LoadAdvancedTextureSection(defaultsection, name,base,norm,luma,gloss,alphamode,cull);
-}
-#endif
-
-void Mod_FinishTexture(texture_t *tx)
+void Mod_FinishTexture(texture_t *tx, const char *loadname)
 {
 #ifndef SERVERONLY
 	extern cvar_t gl_shadeq1_name;
@@ -1390,110 +1203,69 @@ void Mod_FinishTexture(texture_t *tx)
 		tx->shader = R_RegisterCustom (altname, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 	}
 
-	R_BuildDefaultTexnums(&tx->texnums, tx->shader);
+	if (!strncmp(tx->name, "sky", 3))
+		R_InitSky (&tx->shader->defaulttextures, tx, tx->mips[0]);
+	else
+	{
+		unsigned int maps = 0;
+		if (r_softwarebanding.ival)
+			maps |= SHADER_HASPALETTED;
+		if (!r_softwarebanding.ival
+#ifdef RTLIGHTS
+			|| r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival
+#endif
+			)
+			maps |= SHADER_HASDIFFUSE;
+		if (r_fb_bmodels.ival)
+			maps |= SHADER_HASFULLBRIGHT;
+		if (r_loadbumpmapping || (r_waterstyle.ival > 1 && *tx->name == '*'))
+			maps |= SHADER_HASNORMALMAP;
+		if (gl_specular.ival)
+			maps |= SHADER_HASGLOSS;
+		R_BuildLegacyTexnums(tx->shader, loadname, maps, ((*tx->name=='{')?TF_TRANS8:TF_SOLID8), tx->width, tx->height, tx->mips, host_basepal);
+	}
+	BZ_Free(tx->mips[0]);
 #endif
 }
-
-#define LMT_DIFFUSE 1
-#define LMT_FULLBRIGHT 2
-#define LMT_BUMP 4
-#define LMT_SPEC 8
-#define LMT_PALETTED 16
-static void Mod_LoadMiptex(model_t *loadmodel, char *loadname, texture_t *tx, miptex_t *mt, int maps)
+static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt)
 {
 #ifndef SERVERONLY
-	char altname[256];
 	qbyte *base;
 	qboolean alphaed;
 	int pixels = mt->width*mt->height/64*85;
 
-	if (!strncmp(loadname, "b_", 2))
-		loadname = "bmodels";
 
-	if (!Q_strncmp(mt->name,"sky",3))
-	{
-		if (maps & LMT_DIFFUSE)
-			R_InitSky (&tx->texnums, tx, (char *)mt + mt->offsets[0]);
+	base = (qbyte *)(mt+1);
+
+	if (loadmodel->fromgame == fg_halflife)
+	{//external textures have already been filtered.
+
+		//size is not directly known.
+		//we might be able to infer based upon neighbours, but that seems like too much hassle
+		base = W_ConvertWAD3Texture(mt, 0xffffffff, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
+//		tx->texnums.base = R_LoadReplacementTexture(mt->name, loadname, alphaed?0:IF_NOALPHA, base, tx->width, tx->height, alphaed?TF_RGBA32:TF_RGBX32);
+		BZ_Free(base);
 	}
 	else
 	{
-/*
-		Mod_LoadAdvancedTexture(tx->name, &tn.base, &tn.bump, &tn.fullbright, &tn.specular, NULL, NULL);
-		if (tn.base)
-			continue;
-*/
-
-		base = (qbyte *)(mt+1);
-
-		if (loadmodel->fromgame == fg_halflife)
-		{//external textures have already been filtered.
-			if (maps & LMT_DIFFUSE)
-			{
-				//size is not directly known.
-				//we might be able to infer based upon neighbours, but that seems like too much hassle
-				base = W_ConvertWAD3Texture(mt, 0xffffffff, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
-				tx->alphaed = alphaed;
-				tx->texnums.base = R_LoadReplacementTexture(mt->name, loadname, alphaed?0:IF_NOALPHA, base, tx->width, tx->height, alphaed?TF_RGBA32:TF_RGBX32);
-				BZ_Free(base);
-			}
-
-			*tx->name = *mt->name;
+		qbyte *mipbase;
+		unsigned int mipwidth, mipheight;
+		extern cvar_t gl_miptexLevel;
+		if ((unsigned int)gl_miptexLevel.ival < 4 && mt->offsets[gl_miptexLevel.ival])
+		{
+			mipbase = (qbyte*)mt + mt->offsets[gl_miptexLevel.ival];
+			mipwidth = tx->width>>gl_miptexLevel.ival;
+			mipheight = tx->height>>gl_miptexLevel.ival;
 		}
 		else
 		{
-			qbyte *mipbase;
-			unsigned int mipwidth, mipheight;
-			extern cvar_t gl_miptexLevel;
-			if ((unsigned int)gl_miptexLevel.ival < 4 && mt->offsets[gl_miptexLevel.ival])
-			{
-				mipbase = (qbyte*)mt + mt->offsets[gl_miptexLevel.ival];
-				mipwidth = tx->width>>gl_miptexLevel.ival;
-				mipheight = tx->height>>gl_miptexLevel.ival;
-			}
-			else
-			{
-				mipbase = base;
-				mipwidth = tx->width;
-				mipheight = tx->height;
-			}
-
-			if (maps & LMT_PALETTED)
-			{
-				snprintf(altname, sizeof(altname)-1, "%s_pal", mt->name);
-				tx->texnums.paletted = R_LoadReplacementTexture(altname, loadname, ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP|IF_NEAREST, mipbase, mipwidth, mipheight, TF_LUM8);
-			}
-
-			if (maps & LMT_DIFFUSE)
-			{
-				tx->texnums.base = R_LoadReplacementTexture(mt->name, loadname, ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP, mipbase, mipwidth, mipheight, (*mt->name == '{')?TF_TRANS8:TF_SOLID8);
-			}
-
-			if (maps & LMT_FULLBRIGHT)
-			{
-				snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
-				tx->texnums.fullbright = R_LoadReplacementTexture(altname, loadname, IF_MIPCAP, mipbase, mipwidth, mipheight, TF_TRANS8_FULLBRIGHT);
-			}
-
-			if ((maps & LMT_BUMP) && (r_shadow_bumpscale_basetexture.value != 0 || *mt->name == '*'))
-			{
-				maps &= ~LMT_BUMP;
-				snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-				tx->texnums.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_MIPCAP|IF_TRYBUMP|(*mt->name == '*'?IF_LINEAR:0), mipbase, mipwidth, mipheight, TF_HEIGHT8PAL);
-			}
+			mipbase = base;
+			mipwidth = tx->width;
+			mipheight = tx->height;
 		}
 
-		if (maps & LMT_BUMP)
-		{
-			snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-			tx->texnums.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_MIPCAP|IF_TRYBUMP, NULL, 0, 0, TF_INVALID);
-		}
-
-		//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
-		if (maps & LMT_SPEC)	//allows bumpmaps replacement without diffuse
-		{
-			snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
-			tx->texnums.specular = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_MIPCAP, NULL, 0, 0, TF_INVALID);
-		}
+		tx->mips[0] = BZ_Malloc(mipwidth*mipheight);
+		memcpy(tx->mips[0], mipbase, mipwidth*mipheight);
 	}
 #endif
 }
@@ -1503,7 +1275,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, char *loadname, texture_t *tx, mi
 Mod_LoadTextures
 =================
 */
-qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l, char *loadname)
+qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 {
 	int		i, j, num, max, altmax;
 	miptex_t	*mt;
@@ -1511,8 +1283,6 @@ qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l, char 
 	texture_t	*anims[10];
 	texture_t	*altanims[10];
 	dmiptexlump_t *m;
-	texnums_t tn;
-	int maps;
 
 TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 
@@ -1582,27 +1352,7 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 			continue;
 		}
 
-		memset(&tn, 0, sizeof(tn));
-
-		maps = 0;
-#ifndef SERVERONLY
-		if (qrenderer != QR_NONE)
-		{
-			//FIXME: we really need to handle this stuff better, but the shader isn't known yet.
-			if (r_softwarebanding.ival)
-				maps |= LMT_PALETTED;
-//			else
-				maps |= LMT_DIFFUSE;
-			if (r_fb_bmodels.ival)
-				maps |= LMT_FULLBRIGHT;
-			if (r_loadbumpmapping || (r_waterstyle.ival > 1 && *tx->name == '*'))
-				maps |= LMT_BUMP;
-			if (gl_specular.ival)
-				maps |= LMT_SPEC;
-		}
-#endif
-
-		Mod_LoadMiptex(loadmodel, loadname, tx, mt, maps);
+		Mod_LoadMiptex(loadmodel, tx, mt);
 	}
 //
 // sequence the animations
@@ -1714,12 +1464,15 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 
 void Mod_NowLoadExternal(model_t *loadmodel)
 {
+	//for halflife bsps where wads are loaded after the map.
 #ifndef SERVERONLY
-	int i, width, height;
-	qboolean alphaed;
+	int i;
 	texture_t	*tx;
 	char loadname[32];
 	COM_FileBase (cl.worldmodel->name, loadname, sizeof(loadname));
+	
+	if (!strncmp(loadname, "b_", 2))
+		Q_strncpyz(loadname, "bmodels", sizeof(loadname));
 
 	for (i=0 ; i<loadmodel->numtextures ; i++)
 	{
@@ -1730,55 +1483,7 @@ void Mod_NowLoadExternal(model_t *loadmodel)
 		if (tx->shader)
 			continue;
 
-		if (!TEXVALID(tx->texnums.base))
-		{
-			qbyte * data;
-
-			data = W_GetTexture(tx->name, &width, &height, &alphaed);
-			if (data)
-			{
-				tx->alphaed = alphaed;
-			}
-
-			tx->texnums.base = R_LoadHiResTexture(tx->name, loadname, IF_NOALPHA|IF_MIPCAP);
-			if (!TEXVALID(tx->texnums.base))
-			{
-				tx->texnums.base = R_LoadHiResTexture(tx->name, "bmodels", IF_NOALPHA|IF_MIPCAP);
-//				if (!TEXVALID(tn.base))
-//					tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA|IF_MIPCAP);	//a fallback. :/
-			}
-			BZ_Free(data);
-		}
-		if (!TEXVALID(tx->texnums.bump) && *tx->name != '{' && r_loadbumpmapping)
-		{
-/*			tx->texnums.bump = R_LoadBumpmapTexture(va("%s_bump", tx->name), loadname);
-			if (!TEXVALID(tx->texnums.bump))
-				tx->texnums.bump = R_LoadBumpmapTexture(va("%s_bump", tx->name), "bmodels");
-			if (!TEXVALID(tn.bump))
-			{
-				qbyte *data;
-				qbyte *heightmap;
-				int width, height;
-				int j;
-
-				data = W_GetTexture(tx->name, &width, &height, &alphaed);
-				if (data)
-				{
-					heightmap = Hunk_TempAllocMore(width*height);
-					for (j = 0; j < width*height; j++)
-					{
-						*heightmap++ = (data[j*4+0] + data[j*4+1] + data[j*4+2])/3;
-					}
-					
-					tn.bump = R_LoadTexture8BumpPal (va("%s_bump", tx->name), width, height, heightmap-j, true);
-				}
-			}
-*/		}
-		if (!TEXVALID(tx->texnums.base))
-		{
-			tx->texnums.base = R_LoadTexture8("notexture", 16, 16, r_notexture_mip+1, IF_NOALPHA, 0);
-		}
-		Mod_FinishTexture(tx);
+		Mod_FinishTexture(tx, loadname);
 	}
 #endif
 }
@@ -1814,7 +1519,7 @@ void BuildLightMapGammaTable (float g, float c)
 Mod_LoadLighting
 =================
 */
-void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe)
 {
 	qboolean luxtmp = true;
 	qboolean littmp = true;
@@ -1853,6 +1558,8 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		lumdata = mod_base + l->fileofs;
 		samples = l->filelen;
 	}
+	if (interleaveddeluxe)
+		samples >>= 1;
 	if (!samples)
 		return;
 
@@ -2071,6 +1778,8 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	{
 		loadmodel->deluxdata = luxdata;
 	}
+	else if (interleaveddeluxe)
+		loadmodel->deluxdata = ZG_Malloc(&loadmodel->memgroup, samples*3);
 
 	if (litdata && littmp)
 	{
@@ -2094,9 +1803,26 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 	/*apply lightmap gamma to the entire lightmap*/
 	out = loadmodel->lightdata;
-	while(samples-- > 0)
+	if (interleaveddeluxe)
 	{
-		*out++ = lmgamma[*litdata++];
+		qbyte *luxout = loadmodel->deluxdata;
+		samples /= 3;
+		while(samples-- > 0)
+		{
+			*out++ = lmgamma[*litdata++];
+			*out++ = lmgamma[*litdata++];
+			*out++ = lmgamma[*litdata++];
+			*luxout++ = *litdata++;
+			*luxout++ = *litdata++;
+			*luxout++ = *litdata++;
+		}
+	}
+	else
+	{
+		while(samples-- > 0)
+		{
+			*out++ = lmgamma[*litdata++];
+		}
 	}
 
 #ifndef SERVERONLY
@@ -2126,6 +1852,32 @@ void Mod_LoadVisibility (model_t *loadmodel, qbyte *mod_base, lump_t *l, qbyte *
 	memcpy (loadmodel->visdata, ptr, len);
 }
 
+char *Mod_ParseWorldspawnKey(const char *ents, const char *key, char *buffer, size_t sizeofbuffer)
+{
+	char keyname[64];
+	char value[1024];
+	while(*ents)
+	{
+		if (*ents == '{')	//an entity
+		{
+			ents++;
+			while (ents && *ents)
+			{
+				ents = COM_ParseOut(ents, keyname, sizeof(keyname));
+				if (*keyname == '}')
+					break;
+				ents = COM_ParseOut(ents, value, sizeof(value));
+				if (!strcmp(keyname, key) || (*keyname == '_' && !strcmp(keyname+1, key)))
+				{
+					Q_strncpyz(buffer, value, sizeofbuffer);
+					return buffer;
+				}
+			}
+			return "";	//worldspawn only.
+		}
+	}
+	return "";	//err...
+}
 
 /*
 =================
@@ -2194,6 +1946,33 @@ qboolean Mod_LoadVertexes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		out->position[2] = LittleFloat (in->point[2]);
 	}
 
+	return true;
+}
+
+qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+{
+	float	*in;
+	float	*out;
+	int			i, count;
+
+	in = (void *)(mod_base + l->fileofs);
+	if (l->filelen % sizeof(vec3_t))
+	{
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
+		return false;
+	}
+	count = l->filelen / sizeof(vec3_t);
+
+	if (count != loadmodel->numvertexes)
+		return false;	//invalid number of verts there, can't use this.
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(vec3_t));	
+	loadmodel->normals = (vec3_t*)out;
+	for ( i=0 ; i<count ; i++, in+=3, out+=3)
+	{
+		out[0] = LittleFloat (in[0]);
+		out[1] = LittleFloat (in[1]);
+		out[2] = LittleFloat (in[2]);
+	}
 	return true;
 }
 
@@ -2358,7 +2137,6 @@ qboolean Mod_LoadTexinfo (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	mtexinfo_t *out;
 	int 	i, j, count;
 	int		miptex;
-	float	len1, len2;
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2379,23 +2157,8 @@ qboolean Mod_LoadTexinfo (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 			out->vecs[0][j] = LittleFloat (in->vecs[0][j]);
 			out->vecs[1][j] = LittleFloat (in->vecs[1][j]);
 		}
-		len1 = Length (out->vecs[0]);
-		len2 = Length (out->vecs[1]);
-		len1 = (len1 + len2)/2;
-		if (len1 < 0.32)
-			out->mipadjust = 4;
-		else if (len1 < 0.49)
-			out->mipadjust = 3;
-		else if (len1 < 0.99)
-			out->mipadjust = 2;
-		else
-			out->mipadjust = 1;
-#if 0
-		if (len1 + len2 < 0.001)
-			out->mipadjust = 1;		// don't crash
-		else
-			out->mipadjust = 1 / floor( (len1+len2)/2 + 0.1 );
-#endif
+		out->vecscale[0] = 1.0/Length (out->vecs[0]);
+		out->vecscale[1] = 1.0/Length (out->vecs[1]);
 
 		miptex = LittleLong (in->miptex);
 		out->flags = LittleLong (in->flags);
@@ -2485,6 +2248,18 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 	int			i, planenum, side;
 	int tn, lofs;
 
+	unsigned short lmshift, lmscale;
+	char buf[64];
+
+	lmscale = atoi(Mod_ParseWorldspawnKey(loadmodel->entities, "lightmap_scale", buf, sizeof(buf)));
+	if (!lmscale)
+		lmshift = LMSHIFT_DEFAULT;
+	else
+	{
+		for(lmshift = 0; lmscale > 1; lmshift++)
+			lmscale >>= 1;
+	}
+
 	if (lm)
 	{
 		ins = NULL;
@@ -2554,6 +2329,8 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 		}
 		out->texinfo = loadmodel->texinfo + tn;
 
+		out->lmshift = lmshift;
+
 		CalcSurfaceExtents (loadmodel, out);
 		if (lofs == -1)
 			out->samples = NULL;
@@ -2609,6 +2386,7 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 #ifndef SERVERONLY
 void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 {
+	unsigned int vertidx;
 	int i, lindex;
 	mesh_t *mesh = surf->mesh;
 	medge_t *pedge;
@@ -2631,13 +2409,14 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 		if (lindex > 0)
 		{
 			pedge = &mod->edges[lindex];
-			vec = mod->vertexes[pedge->v[0]].position;
+			vertidx = pedge->v[0];
 		}
 		else
 		{
 			pedge = &mod->edges[-lindex];
-			vec = mod->vertexes[pedge->v[1]].position;
+			vertidx = pedge->v[1];
 		}
+		vec = mod->vertexes[vertidx].position;
 
 		s = DotProduct (vec, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3];
 		t = DotProduct (vec, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3];
@@ -2650,24 +2429,32 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 		{
 			for (sty = 0; sty < 1; sty++)
 			{
-				mesh->lmst_array[sty][i][0] = (surf->extents[0]*0.5 + (surf->light_s[sty]*16) + 8) / (mod->lightmaps.width*16);
-				mesh->lmst_array[sty][i][1] = (surf->extents[1]*0.5 + (surf->light_t[sty]*16) + 8) / (mod->lightmaps.height*16);
+				mesh->lmst_array[sty][i][0] = (surf->extents[0]*0.5 + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
+				mesh->lmst_array[sty][i][1] = (surf->extents[1]*0.5 + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
 			}
 		}
 		else
 		{
 			for (sty = 0; sty < 1; sty++)
 			{
-				mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + (surf->light_s[sty]*16) + 8) / (mod->lightmaps.width*16);
-				mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + (surf->light_t[sty]*16) + 8) / (mod->lightmaps.height*16);
+				mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
+				mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
 			}
 		}
 
 		//figure out the texture directions, for bumpmapping and stuff
-		if (surf->flags & SURF_PLANEBACK)
-			VectorNegate(surf->plane->normal, mesh->normals_array[i]);
+		if (mod->normals && (surf->texinfo->flags & 0x800) && (mod->normals[vertidx][0] || mod->normals[vertidx][1] || mod->normals[vertidx][2])) 
+		{
+			//per-vertex normals - used for smoothing groups and stuff.
+			VectorCopy(mod->normals[vertidx], mesh->normals_array[i]);
+		}
 		else
-			VectorCopy(surf->plane->normal, mesh->normals_array[i]);
+		{
+			if (surf->flags & SURF_PLANEBACK)
+				VectorNegate(surf->plane->normal, mesh->normals_array[i]);
+			else
+				VectorCopy(surf->plane->normal, mesh->normals_array[i]);
+		}
 		VectorCopy(surf->texinfo->vecs[0], mesh->snormals_array[i]);
 		VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
 		//the s+t vectors are axis-aligned, so fiddle them so they're normal aligned instead
@@ -2952,16 +2739,21 @@ static void Mod_Batches_Generate(model_t *mod)
 
 typedef struct
 {
-	int allocated[LMBLOCK_WIDTH];
+	int allocated[LMBLOCK_SIZE_MAX];
 	int lmnum;
+	unsigned int width;
+	unsigned int height;
 	qboolean deluxe;
 } lmalloc_t;
-#define LM_FIRST 0x4000
-static void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe)
+#define LM_FIRST 0x50
+static void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe, unsigned int width, unsigned int height)
 {
 	memset(lmallocator, 0, sizeof(*lmallocator));
 	lmallocator->deluxe = hasdeluxe;
 	lmallocator->lmnum = LM_FIRST;
+
+	lmallocator->width = width;
+	lmallocator->height = height;
 }
 static void Mod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
 {
@@ -2986,9 +2778,9 @@ static void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigne
 
 	for(;;)
 	{
-		best = LMBLOCK_HEIGHT;
+		best = lmallocator->height;
 
-		for (i = 0; i <= LMBLOCK_WIDTH - w; i++)
+		for (i = 0; i <= lmallocator->width - w; i++)
 		{
 			best2 = 0;
 
@@ -3006,7 +2798,7 @@ static void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigne
 			}
 		}
 
-		if (best + h > LMBLOCK_HEIGHT)
+		if (best + h > lmallocator->height)
 		{
 			memset(lmallocator->allocated, 0, sizeof(lmallocator->allocated));
 			lmallocator->lmnum++;
@@ -3027,15 +2819,15 @@ static void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigne
 static void Mod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int surfstyle)
 {
 	int smax, tmax;
-	smax = (surf->extents[0]>>4)+1;
-	tmax = (surf->extents[1]>>4)+1;
+	smax = (surf->extents[0]>>surf->lmshift)+1;
+	tmax = (surf->extents[1]>>surf->lmshift)+1;
 
 	if (isDedicated ||
 		(surf->texinfo->texture->shader && !(surf->texinfo->texture->shader->flags & SHADER_HASLIGHTMAP)) || //fte
 		(surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB)) ||	//q1
 		(surf->texinfo->flags & TEX_SPECIAL) ||	//the original 'no lightmap'
 		(surf->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP)) ||	//q2 surfaces
-		smax > LMBLOCK_WIDTH || tmax > LMBLOCK_HEIGHT || smax < 0 || tmax < 0)	//bugs/bounds/etc
+		smax > lmallocator->width || tmax > lmallocator->height || smax < 0 || tmax < 0)	//bugs/bounds/etc
 	{
 		surf->lightmaptexturenums[surfstyle] = -1;
 		return;
@@ -3117,7 +2909,33 @@ static void Mod_Batches_AllocLightmaps(model_t *mod)
 	msurface_t *surf;
 	int sty;
 
-	Mod_LightmapAllocInit(&lmallocator, mod->deluxdata != NULL);
+	size_t samps = 0;
+
+	//small models don't have many surfaces, don't allocate a smegging huge lightmap that simply won't be used.
+	for (i=0, j=0; i<mod->nummodelsurfaces; i++)
+	{
+		surf = mod->surfaces + mod->firstmodelsurface + i;
+		if (surf->texinfo->flags & TEX_SPECIAL)
+			continue;	//surfaces with no lightmap should not count torwards anything.
+		samps += ((surf->extents[0]>>surf->lmshift)+1) * ((surf->extents[1]>>surf->lmshift)+1);
+
+		if (j < (surf->extents[0]>>surf->lmshift)+1)
+			j = (surf->extents[0]>>surf->lmshift)+1;
+		if (j < (surf->extents[1]>>surf->lmshift)+1)
+			j = (surf->extents[1]>>surf->lmshift)+1;
+	}
+	samps /= 4;
+	samps = sqrt(samps);
+	mod->lightmaps.width = bound(j, samps, LMBLOCK_SIZE_MAX);
+	mod->lightmaps.height = bound(j, samps, LMBLOCK_SIZE_MAX);
+	for (i = 0; (1<<i) < mod->lightmaps.width; i++);
+	mod->lightmaps.width = 1<<i;
+	for (i = 0; (1<<i) < mod->lightmaps.height; i++);
+	mod->lightmaps.height = 1<<i;
+	mod->lightmaps.width = bound(64, mod->lightmaps.width, sh_config.texture_maxsize);
+	mod->lightmaps.height = bound(64, mod->lightmaps.height, sh_config.texture_maxsize);
+
+	Mod_LightmapAllocInit(&lmallocator, mod->deluxdata != NULL, mod->lightmaps.width, mod->lightmaps.height);
 
 	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
 	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
@@ -4293,7 +4111,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 		for (a = 0; a < mod->numfogs; a++)
 		{
 			mod->fogs[a].shader = R_RegisterShader_Lightmap(mod->fogs[a].shadername);
-			R_BuildDefaultTexnums(&mod->fogs[a].shader->defaulttextures, mod->fogs[a].shader);
+			R_BuildDefaultTexnums(NULL, mod->fogs[a].shader);
 			if (!mod->fogs[a].shader->fog_dist)
 			{
 				//invalid fog shader, don't use.
@@ -4307,10 +4125,10 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 			for(a = 0; a < mod->numtexinfo; a++)
 			{
 				mod->textures[a]->shader = R_RegisterShader_Lightmap(mod->textures[a]->name);
-				R_BuildDefaultTexnums(&mod->textures[a]->texnums, mod->textures[a]->shader);
+				R_BuildDefaultTexnums(NULL, mod->textures[a]->shader);
 
 				mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod->textures[a+mod->numtexinfo]->name);
-				R_BuildDefaultTexnums(&mod->textures[a+mod->numtexinfo]->texnums, mod->textures[a+mod->numtexinfo]->shader);
+				R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader);
 			}
 			mod->textures[2*mod->numtexinfo]->shader = R_RegisterShader_Flare("noshader");
 		}
@@ -4319,13 +4137,17 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 			for(a = 0; a < mod->numtextures; a++)
 			{
 				mod->textures[a]->shader = R_RegisterCustom (mod->textures[a]->name, SUF_LIGHTMAP, Shader_DefaultBSPQ2, NULL);
-				R_BuildDefaultTexnums(&mod->textures[a]->texnums, mod->textures[a]->shader);
+				R_BuildDefaultTexnums(NULL, mod->textures[a]->shader);
 			}
 		}
 		else
 		{
+			char loadname[MAX_QPATH];
+			COM_FileBase (mod->name, loadname, sizeof(loadname));
+			if (!strncmp(loadname, "b_", 2))
+				Q_strncpyz(loadname, "bmodels", sizeof(loadname));
 			for(a = 0; a < mod->numtextures; a++)
-				Mod_FinishTexture(mod->textures[a]);
+				Mod_FinishTexture(mod->textures[a], loadname);
 		}
 	}
 	Mod_Batches_Build(mod, data);
@@ -4475,8 +4297,8 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 		return false;
 	}
 
-	mod->lightmaps.width = LMBLOCK_WIDTH;
-	mod->lightmaps.height = LMBLOCK_HEIGHT; 
+	mod->lightmaps.width = 128;//LMBLOCK_WIDTH;
+	mod->lightmaps.height = 128;//LMBLOCK_HEIGHT; 
 
 // swap all the lumps
 	mod_base = (qbyte *)header;
@@ -4536,10 +4358,10 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	if (!isDedicated)
 	{
 		TRACE(("Loading Textures\n"));
-		noerrors = noerrors && Mod_LoadTextures (mod, mod_base, &header->lumps[LUMP_TEXTURES], loadname);
+		noerrors = noerrors && Mod_LoadTextures (mod, mod_base, &header->lumps[LUMP_TEXTURES]);
 		TRACE(("Loading Lighting\n"));
 		if (noerrors)
-			Mod_LoadLighting (mod, mod_base, &header->lumps[LUMP_LIGHTING]);	
+			Mod_LoadLighting (mod, mod_base, &header->lumps[LUMP_LIGHTING], false);
 	}
 	TRACE(("Loading Submodels\n"));
 	noerrors = noerrors && Mod_LoadSubmodels (mod, mod_base, &header->lumps[LUMP_MODELS]);
@@ -4550,6 +4372,8 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	}
 	TRACE(("Loading Planes\n"));
 	noerrors = noerrors && Mod_LoadPlanes (mod, mod_base, &header->lumps[LUMP_PLANES]);
+	TRACE(("Loading Entities\n"));
+	Mod_LoadEntities (mod, mod_base, &header->lumps[LUMP_ENTITIES]);
 	if (!isDedicated || ode)
 	{
 		TRACE(("Loading Texinfo\n"));
@@ -4574,8 +4398,6 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	noerrors = noerrors && Mod_LoadClipnodes (mod, mod_base, &header->lumps[LUMP_CLIPNODES], longm);
 	if (noerrors)
 	{
-		TRACE(("Loading Entities\n"));
-		Mod_LoadEntities (mod, mod_base, &header->lumps[LUMP_ENTITIES]);
 		TRACE(("Loading hull 0\n"));
 		Mod_MakeHull0 (mod);
 	}
@@ -4731,24 +4553,6 @@ SPRITES
 					"{\n"								\
 						"map $diffuse\n"				\
 						"blendfunc add\n"				\
-					"}\n"								\
-					"{\n"								\
-						"map $null\n"	/*normalmap*/	\
-					"}\n"								\
-					"{\n"								\
-						"map $null\n"	/*specular*/	\
-					"}\n"								\
-					"{\n"								\
-						"map $lightcubemap\n"			\
-					"}\n"								\
-					"{\n"								\
-						"map $shadowmap\n"				\
-					"}\n"								\
-					"{\n"								\
-						"map $null\n"	/*lower*/		\
-					"}\n"								\
-					"{\n"								\
-						"map $null\n"	/*upper*/		\
 					"}\n"								\
 				"}\n"
 #define SPRITE_SHADER_FOOTER "}\n"
@@ -5298,7 +5102,7 @@ static void LoadDoomSpriteFrame(model_t *mod, char *imagename, mspriteframedesc_
 	pframe->shader = R_RegisterShader(imagename, SUF_NONE, 
 		"{\n{\nmap $diffuse\nblendfunc blend\n}\n}\n");
 	pframe->shader->defaulttextures.base = R_LoadTexture8Pal24(imagename, header->width, header->height, image, palette, IF_CLAMP);
-	R_BuildDefaultTexnums(&pframe->shader->defaulttextures, pframe->shader);
+	R_BuildDefaultTexnums(NULL, pframe->shader);
 }
 
 /*

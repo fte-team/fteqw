@@ -3063,9 +3063,6 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 	Terr_DrawInBounds(&tdibctx, bounds[0], bounds[2], bounds[1]-bounds[0], bounds[3]-bounds[2]);
 }
 
-typedef struct fragmentdecal_s fragmentdecal_t;
-
-void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts);
 void Terrain_ClipDecal(fragmentdecal_t *dec, float *center, float radius, model_t *model)
 {
 	int min[2], max[2], mint[2], maxt[2];
@@ -3145,8 +3142,9 @@ void Terrain_ClipDecal(fragmentdecal_t *dec, float *center, float radius, model_
 						vert[5][2] = s->heights[(tx+1) + (ty+1)*SECTHEIGHTSIZE];
 					}
 
-					Fragment_ClipPoly(dec, 3, &vert[0][0]);
-					Fragment_ClipPoly(dec, 3, &vert[3][0]);
+					//fixme: per-section shaders for clutter info. this kinda sucks.
+					Fragment_ClipPoly(dec, 3, &vert[0][0], hm->shader);
+					Fragment_ClipPoly(dec, 3, &vert[3][0], hm->shader);
 				}
 			}
 		}
@@ -4660,6 +4658,7 @@ void Terr_FinishTerrain(model_t *mod)
 									"map $diffuse\n"
 									"blendfunc add\n"
 								"}\n"
+								//FIXME: these maps are a legacy thing, and could be removed if third-party glsl properly contains s_diffuse
 								"{\n"
 									"map $upperoverlay\n"
 								"}\n"
@@ -4697,6 +4696,7 @@ void Terr_FinishTerrain(model_t *mod)
 								"}\n"
 							"}\n"
 
+						//FIXME: these maps are a legacy thing, and could be removed if third-party glsl properly contains s_diffuse
 						"{\n"
 							"map $diffuse\n"
 						"}\n"

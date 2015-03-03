@@ -213,10 +213,10 @@ int				cl_maxvisedicts;
 entity_t		*cl_visedicts;
 
 scenetris_t		*cl_stris;
-vecV_t			*cl_strisvertv;
-vec4_t			*cl_strisvertc;
-vec2_t			*cl_strisvertt;
-index_t			*cl_strisidx;
+vecV_t			*fte_restrict cl_strisvertv;
+vec4_t			*fte_restrict cl_strisvertc;
+vec2_t			*fte_restrict cl_strisvertt;
+index_t			*fte_restrict cl_strisidx;
 unsigned int cl_numstrisidx;
 unsigned int cl_maxstrisidx;
 unsigned int cl_numstrisvert;
@@ -328,9 +328,9 @@ CL_Quit_f
 */
 void CL_Quit_f (void)
 {
-	if (forcesaveprompt)
+	if (forcesaveprompt && strcmp(Cmd_Argv(1), "force"))
 	{
-		forcesaveprompt =false;
+		forcesaveprompt = false;
 		if (Cmd_Exists("menu_quit"))
 		{
 			Cmd_ExecuteString("menu_quit", RESTRICT_LOCAL);
@@ -1317,6 +1317,14 @@ void CL_ClearState (void)
 			if (cl.particle_csname[i])
 				free(cl.particle_csname[i]);
 	}
+#ifdef Q2CLIENT
+	for (i = 0; i < Q2MAX_IMAGES; i++)
+		if (cl.image_name[i])
+			BZ_Free(cl.image_name[i]);
+	for (i = 0; i < Q2MAX_ITEMS; i++)
+		if (cl.item_name[i])
+			BZ_Free(cl.item_name[i]);
+#endif
 
 	{
 		downloadlist_t *next;
@@ -3842,6 +3850,7 @@ void VARGS Host_Error (char *error, ...)
 	va_start (argptr,error);
 	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
+	COM_AssertMainThread(string);
 	Con_TPrintf ("Host_Error: %s\n", string);
 
 	CL_Disconnect ();
@@ -4521,7 +4530,8 @@ double Host_Frame (double time)
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.
 	//should smooth out a few things, and increase download speeds.
-	CL_ReadPackets ();
+	if (!cls.timedemo)
+		CL_ReadPackets ();
 
 	if (idle && cl_idlefps.value > 0)
 	{

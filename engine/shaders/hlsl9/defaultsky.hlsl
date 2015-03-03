@@ -29,9 +29,8 @@
 	float3 l_lightcolour;
 	float3 l_lightposition;
 
-	sampler s_t0; /*diffuse*/
-	sampler s_t1; /*normal*/
-	sampler s_t2; /*specular*/
+	sampler s_diffuse; /*diffuse*/
+	sampler s_fullbright; /*normal*/
 	float4 main (v2f inp) : COLOR0
 	{
 		float2 tccoord;
@@ -42,10 +41,10 @@
 		dir.xy /= 0.5*length(dir);
 
 		tccoord = (dir.xy + e_time*0.03125);
-		float4 solid = tex2D(s_t0, tccoord);
+		float4 solid = tex2D(s_diffuse, tccoord);
 
 		tccoord = (dir.xy + e_time*0.0625);
-		float4 clouds = tex2D(s_t1, tccoord);
+		float4 clouds = tex2D(s_fullbright, tccoord);
 
 		return float4((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb), 1);
 	}

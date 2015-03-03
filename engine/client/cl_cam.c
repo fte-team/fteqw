@@ -471,7 +471,7 @@ void Cam_TrackCrosshairedPlayer(playerview_t *pv)
 			best = i;
 		}
 	}
-	Con_Printf("Track %i? %f\n", best, bestdot);
+//	Con_Printf("Track %i? %f\n", best, bestdot);
 	if (best != -1)	//did we actually get someone?
 	{
 		pv->cam_auto++;

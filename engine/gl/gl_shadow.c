@@ -89,17 +89,17 @@ void Sh_Reset(void)
 	}
 	if (shadowmap[0])
 	{
-		R_DestroyTexture(shadowmap[0]);
+		Image_DestroyTexture(shadowmap[0]);
 		shadowmap[0] = r_nulltex;
 	}
 	if (shadowmap[1])
 	{
-		R_DestroyTexture(shadowmap[1]);
+		Image_DestroyTexture(shadowmap[1]);
 		shadowmap[1] = r_nulltex;
 	}
 	if (crepuscular_texture_id)
 	{
-		R_DestroyTexture(crepuscular_texture_id);
+		Image_DestroyTexture(crepuscular_texture_id);
 		crepuscular_texture_id = r_nulltex;
 	}
 	GLBE_FBO_Destroy(&crepuscular_fbo);
@@ -700,10 +700,10 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 				// clamp center of light to corner and check brightness
 				l = DotProduct (impact, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3] - surf->texturemins[0];
 				s = l+0.5;if (s < 0) s = 0;else if (s > surf->extents[0]) s = surf->extents[0];
-				s = l - s;
+				s = (l - s)*surf->texinfo->vecscale[0];
 				l = DotProduct (impact, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3] - surf->texturemins[1];
 				t = l+0.5;if (t < 0) t = 0;else if (t > surf->extents[1]) t = surf->extents[1];
-				t = l - t;
+				t = (l - t)*surf->texinfo->vecscale[1];
 				// compare to minimum light
 				if ((s*s+t*t+dot*dot) < maxdist)
 				{
@@ -894,11 +894,11 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 
 				// clamp center of light to corner and check brightness
 				l = DotProduct (impact, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3] - surf->texturemins[0];
-				s = l+0.5;if (s < 0) s = 0;else if (s > surf->extents[0]) s = surf->extents[0];
-				s = l - s;
+				s = l;if (s < 0) s = 0;else if (s > surf->extents[0]) s = surf->extents[0];
+				s = (l - s)*surf->texinfo->vecscale[0];
 				l = DotProduct (impact, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3] - surf->texturemins[1];
-				t = l+0.5;if (t < 0) t = 0;else if (t > surf->extents[1]) t = surf->extents[1];
-				t = l - t;
+				t = l;if (t < 0) t = 0;else if (t > surf->extents[1]) t = surf->extents[1];
+				t = (l - t)*surf->texinfo->vecscale[1];
 				// compare to minimum light
 				if ((s*s+t*t+dot*dot) < maxdist)
 				{
@@ -2690,7 +2690,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), surf->mesh->xyz_array);
 		qglDrawArrays(GL_POLYGON, 0, surf->mesh->numvertexes);
 //		qglDrawRangeElements(GL_TRIANGLES, 0, surf->mesh->numvertexes, surf->mesh->numindexes, GL_INDEX_TYPE, surf->mesh->indexes);
-		RQuantAdd(RQUANT_SHADOWFACES, surf->mesh->numvertexes);
+		RQuantAdd(RQUANT_SHADOWINDICIES, surf->mesh->numvertexes);
 
 		for (v = 0; v < surf->mesh->numvertexes; v++)
 		{

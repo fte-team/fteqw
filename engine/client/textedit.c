@@ -1330,10 +1330,11 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 
 	if (stepasm)
 	{
-		*line = 0;
+		if (line)
+			*line = 0;
 		*statement = executionlinenum;
 	}
-	else
+	else if (line)
 		*line = executionlinenum;
 	return editorstep;
 }

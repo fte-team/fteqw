@@ -1003,14 +1003,14 @@ void CL_PredictMovePNum (int seat)
 		//we're only interested in inbound frames, not outbound, but its outbound frames that contain the prediction timing, so we need to look that up
 		//(note that in qw, inframe[i].ack==i holds true, but this code tries to be generic for unsyncronised protocols)
 		//(note that in nq, using outbound times means we'll skip over dupe states without noticing, and input packets with dupes should also be handled gracefully)
-		Con_DPrintf("in:%i:%i out:%i:%i ack:%i\n", cls.netchan.incoming_sequence, cl.validsequence, cls.netchan.outgoing_sequence,cl.movesequence, cl.ackedmovesequence);
+//		Con_DPrintf("in:%i:%i out:%i:%i ack:%i\n", cls.netchan.incoming_sequence, cl.validsequence, cls.netchan.outgoing_sequence,cl.movesequence, cl.ackedmovesequence);
 		for (i = cl.validsequence; i >= cls.netchan.incoming_sequence - UPDATE_MASK; i--)
 		{
 			int out;
 			//skip frames which were not received, or are otherwise invalid. yay packetloss
 			if (cl.inframes[i & UPDATE_MASK].frameid != i || cl.inframes[i & UPDATE_MASK].invalid)
 			{
-				Con_DPrintf("stale incoming command %i\n", i);
+//				Con_DPrintf("stale incoming command %i\n", i);
 				continue;
 			}
 
@@ -1019,7 +1019,7 @@ void CL_PredictMovePNum (int seat)
 			backdate = &cl.outframes[out & UPDATE_MASK];
 			if (backdate->cmd_sequence != out)
 			{
-				Con_DPrintf("stale outgoing command %i (%i:%i:%i)\n", i, out, backdate->cmd_sequence, backdate->server_message_num);
+//				Con_DPrintf("stale outgoing command %i (%i:%i:%i)\n", i, out, backdate->cmd_sequence, backdate->server_message_num);
 				continue;
 			}
 			//okay, looks valid
@@ -1039,7 +1039,7 @@ void CL_PredictMovePNum (int seat)
 		}
 	}
 
-	Con_DPrintf("sim%f, %i(%i-%i): old%f, cur%f\n", simtime, cl.ackedmovesequence, fromframe, toframe, fromtime, totime);
+//	Con_DPrintf("sim%f, %i(%i-%i): old%f, cur%f\n", simtime, cl.ackedmovesequence, fromframe, toframe, fromtime, totime);
 
 	if (pv->cam_locked && cl.spectator && pv->viewentity && pv->viewentity <= cl.allocated_client_slots)
 	{

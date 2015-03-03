@@ -400,6 +400,7 @@ HDC   (WINAPI *qwglGetCurrentDC)(VOID);
 PROC  (WINAPI *qwglGetProcAddress)(LPCSTR);
 BOOL  (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
 BOOL  (WINAPI *qSwapBuffers)(HDC);
+BOOL  (WINAPI *qwglSwapLayerBuffers)(HDC, UINT);
 int   (WINAPI *qChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
 BOOL  (WINAPI *qSetPixelFormat)(HDC, int, CONST PIXELFORMATDESCRIPTOR *);
 int   (WINAPI *qDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
@@ -428,6 +429,23 @@ HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, cons
 #define WGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB		0x8256	/*WGL_ARB_create_context_robustness*/
 #define		WGL_NO_RESET_NOTIFICATION_ARB					0x8261
 #define		WGL_LOSE_CONTEXT_ON_RESET_ARB					0x8252
+
+
+//pixel format stuff
+#define 	WGL_DRAW_TO_WINDOW_ARB		0x2001
+#define 	WGL_ACCELERATION_ARB		0x2003
+#define		WGL_SWAP_LAYER_BUFFERS_ARB	0x2006
+#define 	WGL_SUPPORT_OPENGL_ARB		0x2010
+#define 	WGL_DOUBLE_BUFFER_ARB		0x2011
+#define		WGL_STEREO_ARB				0x2012
+#define 	WGL_COLOR_BITS_ARB			0x2014
+#define 	WGL_ALPHA_BITS_ARB			0x201B
+#define 	WGL_DEPTH_BITS_ARB			0x2022
+#define 	WGL_STENCIL_BITS_ARB		0x2023
+#define 	WGL_FULL_ACCELERATION_ARB	0x2027
+qboolean shouldforcepixelformat;
+int forcepixelformat;
+int currentpixelformat;
 
 qboolean GLInitialise (char *renderer)
 {
@@ -500,6 +518,7 @@ qboolean GLInitialise (char *renderer)
 
 	if (usingminidriver)
 	{
+		qwglSwapLayerBuffers	= NULL;
 		qSwapBuffers			= (void *)getglfunc("wglSwapBuffers");
 		qChoosePixelFormat		= (void *)getglfunc("wglChoosePixelFormat");
 		qSetPixelFormat			= (void *)getglfunc("wglSetPixelFormat");
@@ -507,6 +526,7 @@ qboolean GLInitialise (char *renderer)
 	}
 	else
 	{
+		qwglSwapLayerBuffers	= (void *)getwglfunc("wglSwapLayerBuffers");
 		qSwapBuffers			= SwapBuffers;
 		qChoosePixelFormat		= ChoosePixelFormat;
 		qSetPixelFormat			= SetPixelFormat;
@@ -1569,7 +1589,13 @@ void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
 
 void GLVID_SwapBuffers (void)
 {
-	qSwapBuffers(maindc);
+	if (qwglSwapLayerBuffers)
+	{
+		if (!qwglSwapLayerBuffers(maindc, WGL_SWAP_MAIN_PLANE))
+			qwglSwapLayerBuffers = NULL;
+	}
+	else
+		qSwapBuffers(maindc);
 
 // handle the mouse state when windowed if that's changed
 
@@ -1673,24 +1699,12 @@ void	GLVID_Shutdown (void)
 	gammaworks = false;
 
 	GLBE_Shutdown();
+	Image_Shutdown();
 	VID_UnSetMode();
 }
 
 
 //==========================================================================
-
-#define 	WGL_DRAW_TO_WINDOW_ARB		0x2001
-#define 	WGL_ACCELERATION_ARB		0x2003
-#define 	WGL_SUPPORT_OPENGL_ARB		0x2010
-#define 	WGL_DOUBLE_BUFFER_ARB		0x2011
-#define		WGL_STEREO_ARB				0x2012
-#define 	WGL_COLOR_BITS_ARB			0x2014
-#define 	WGL_ALPHA_BITS_ARB			0x201B
-#define 	WGL_DEPTH_BITS_ARB			0x2022
-#define 	WGL_STENCIL_BITS_ARB		0x2023
-#define 	WGL_FULL_ACCELERATION_ARB	0x2027
-qboolean shouldforcepixelformat;
-int forcepixelformat;
 
 BOOL CheckForcePixelFormat(rendererstate_t *info)
 {
@@ -1838,7 +1852,6 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 	0,				// reserved
 	0, 0, 0				// layer masks ignored
     };
-    int pixelformat;
 
 	TRACE(("dbg: bSetupPixelFormat: ChoosePixelFormat\n"));
 
@@ -1850,18 +1863,18 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 	if (shouldforcepixelformat && qwglChoosePixelFormatARB)	//the extra && is paranoia
 	{
 		shouldforcepixelformat = false;
-		pixelformat = forcepixelformat;
+		currentpixelformat = forcepixelformat;
 	}
 	else
 	{
-		if ((pixelformat = qChoosePixelFormat(hDC, &pfd)))
+		if ((currentpixelformat = qChoosePixelFormat(hDC, &pfd)))
 		{
 			TRACE(("dbg: ChoosePixelFormat 1: worked\n"));
 
-			if (qSetPixelFormat(hDC, pixelformat, &pfd))
+			if (qSetPixelFormat(hDC, currentpixelformat, &pfd))
 			{
 				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
-				qDescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
+				qDescribePixelFormat(hDC, currentpixelformat, sizeof(pfd), &pfd);
 				FixPaletteInDescriptor(hDC, &pfd);
 
 				if ((pfd.dwFlags & PFD_GENERIC_FORMAT) && !(pfd.dwFlags & PFD_GENERIC_ACCELERATED))
@@ -1877,16 +1890,16 @@ BOOL bSetupPixelFormat(HDC hDC, rendererstate_t *info)
 
 		pfd.cStencilBits = 0;
 
-		if ( (pixelformat = qChoosePixelFormat(hDC, &pfd)) == 0 )
+		if ( (currentpixelformat = qChoosePixelFormat(hDC, &pfd)) == 0 )
 		{
 			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed (%i)\n", (int)GetLastError());
 			return FALSE;
 		}
 	}
 
-	qDescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
+	qDescribePixelFormat(hDC, currentpixelformat, sizeof(pfd), &pfd);
 
-    if (qSetPixelFormat(hDC, pixelformat, &pfd) == FALSE)
+    if (qSetPixelFormat(hDC, currentpixelformat, &pfd) == FALSE)
     {
         Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", (int)GetLastError());
         return FALSE;

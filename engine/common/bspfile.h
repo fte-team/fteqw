@@ -405,8 +405,12 @@ typedef struct q2miptex_s
 #define IDBSPHEADER	(('P'<<24)+('S'<<16)+('B'<<8)+'I')
 		// little-endian "IBSP"
 
-#define Q2BSPVERSION	38
-#define Q3BSPVERSION	46
+#define BSPVERSION_Q2	38
+#define BSPVERSION_Q2W	69 
+#define BSPVERSION_Q3	46
+#define BSPVERSION_RTCW	47
+#define BSPVERSION_RBSP 1	//also fbsp(just bigger internal lightmaps)
+
 
 
 // upper design bounds
@@ -488,7 +492,7 @@ typedef struct
 {
 	int ident;
 	int			version;	
-	lump_t		lumps[Q2HEADER_LUMPS];
+	lump_t		lumps[50];
 } q2dheader_t;
 
 typedef struct

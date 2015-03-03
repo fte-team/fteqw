@@ -187,13 +187,13 @@ static qboolean Headless_BE_LightCullModel	(vec3_t org, struct model_s *model)
 {
 	return false;
 }
-static void Headless_BE_VBO_Begin	(vbobctx_t *ctx, unsigned int maxsize)
+static void Headless_BE_VBO_Begin	(vbobctx_t *ctx, size_t maxsize)
 {
 }
-static void Headless_BE_VBO_Data	(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray)
+static void Headless_BE_VBO_Data	(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
 }
-static void Headless_BE_VBO_Finish	(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray)
+static void Headless_BE_VBO_Finish	(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
 {
 }
 static void Headless_BE_VBO_Destroy	(vboarray_t *vearray)

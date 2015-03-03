@@ -61,7 +61,6 @@ static cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
 static cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
 
 static cvar_t	cl_keypad = CVAR("cl_keypad", "1");
-extern cvar_t cl_forcesplitclient;
 
 extern float multicursor_x[8], multicursor_y[8];
 extern qboolean multicursor_active[8];
@@ -1811,8 +1810,8 @@ static void INS_JoyMovePtr (struct wjoy_s *joy, float *movements, int pnum)
 	wpnum = cl.splitclients;
 	if (wpnum < 1)
 		wpnum = 1;
-	if (cl_forcesplitclient.ival)
-		wpnum = (cl_forcesplitclient.ival-1) % wpnum; 
+	if (cl_forceseat.ival)
+		wpnum = (cl_forceseat.ival-1) % wpnum; 
 	else
 		wpnum = joy->devid % wpnum;
 	if (wpnum != pnum)

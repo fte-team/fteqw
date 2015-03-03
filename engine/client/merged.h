@@ -142,6 +142,7 @@ extern struct model_s *Mod_LoadModel			(struct model_s *mod, enum mlverbosity_e 
 extern void	*Mod_Extradata						(struct model_s *mod);	// handles caching
 extern void	Mod_TouchModel						(const char *name);
 extern const char *Mod_FixName					(const char *modname, const char *worldname);	//remaps the name appropriately
+char *Mod_ParseWorldspawnKey					(const char *ents, const char *key, char *buffer, size_t sizeofbuffer);
 
 extern void	Mod_Think							(void);
 extern int Mod_SkinNumForName					(struct model_s *model, const char *name);

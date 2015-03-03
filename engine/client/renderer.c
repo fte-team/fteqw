@@ -502,20 +502,16 @@ void	R_InitTextures (void)
 {
 	int		x,y, m;
 	qbyte	*dest;
-	static char r_notexture_mip_mem[(sizeof(texture_t) + 16*16+8*8+4*4+2*2)];
+	static char r_notexture_mip_mem[(sizeof(texture_t) + 16*16)];
 
 // create a simple checkerboard texture for the default
 	r_notexture_mip = (texture_t*)r_notexture_mip_mem;
 
 	r_notexture_mip->width = r_notexture_mip->height = 16;
-	r_notexture_mip->offsets[0] = sizeof(texture_t);
-	r_notexture_mip->offsets[1] = r_notexture_mip->offsets[0] + 16*16;
-	r_notexture_mip->offsets[2] = r_notexture_mip->offsets[1] + 8*8;
-	r_notexture_mip->offsets[3] = r_notexture_mip->offsets[2] + 4*4;
 
-	for (m=0 ; m<4 ; m++)
+	for (m=0 ; m<1 ; m++)
 	{
-		dest = (qbyte *)r_notexture_mip + r_notexture_mip->offsets[m];
+		dest = (qbyte *)(r_notexture_mip+1);
 		for (y=0 ; y< (16>>m) ; y++)
 			for (x=0 ; x< (16>>m) ; x++)
 			{
@@ -1511,33 +1507,32 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	// use desktop settings if set to 0 and not dedicated
 	if (newr->renderer && newr->renderer->rtype != QR_NONE)
 	{
-		int dbpp, dheight, dwidth, drate;
 		extern qboolean isPlugin;
-
-		if ((!newr->fullscreen && !isPlugin) || (!vid_desktopsettings.value && !isPlugin) || !Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
-		{
-			// force default values for systems not supporting desktop parameters
-			dwidth = DEFAULT_WIDTH;
-			dheight = DEFAULT_HEIGHT;
-			dbpp = DEFAULT_BPP;
-			drate = 0;
-		}
 
 		if (vid_desktopsettings.value)
 		{
-			newr->width = dwidth;
-			newr->height = dheight;
-			newr->bpp = dbpp;
-			newr->rate = drate;
+			newr->width = 0;
+			newr->height = 0;
+			newr->bpp = 0;
+			newr->rate = 0;
 		}
-		else
+
+		if (newr->width <= 0 || newr->height <= 0 || newr->bpp <= 0)
 		{
-			if (newr->width <= 0 || newr->height <= 0)
+			int dbpp, dheight, dwidth, drate;
+			
+			if (!newr->fullscreen || isPlugin || !Sys_GetDesktopParameters(&dwidth, &dheight, &dbpp, &drate))
 			{
-				newr->width = dwidth;
-				newr->height = dheight;
+				dwidth = DEFAULT_WIDTH;
+				dheight = DEFAULT_HEIGHT;
+				dbpp = DEFAULT_BPP;
+				drate = 0;
 			}
 
+			if (newr->width <= 0)
+				newr->width = dwidth;
+			if (newr->height <= 0)
+				newr->height = dheight;
 			if (newr->bpp <= 0)
 				newr->bpp = dbpp;
 		}
@@ -1669,6 +1664,7 @@ void R_SetRenderer_f (void)
 		return;
 	}
 
+	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
 	if (!R_BuildRenderstate(&newr, param))
 	{
 		Con_Printf("setrenderer: parameter not supported (%s)\n", param);

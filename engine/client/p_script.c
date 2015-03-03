@@ -3677,6 +3677,88 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3]
 		Surf_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius);
 }
 
+typedef struct
+{
+	part_type_t *ptype;
+	vec3_t center;
+	vec3_t tangent1;
+	vec3_t tangent2;
+
+	float scale1;
+	float scale2;
+
+	float bias1;
+	float bias2;
+} decalctx_t;
+static void PScript_AddDecals(void *vctx, vec3_t *fte_restrict points, size_t numtris, shader_t *surfshader)
+{
+	decalctx_t *ctx = vctx;
+	part_type_t *ptype = ctx->ptype;
+	clippeddecal_t *d;
+	unsigned int i;
+	vec3_t vec;
+	while(numtris-->0)
+	{
+		if (!free_decals)
+			break;
+
+		d = free_decals;
+		free_decals = d->next;
+		d->next = ptype->clippeddecals;
+		ptype->clippeddecals = d;
+
+		for (i = 0; i < 3; i++)
+		{
+			VectorCopy(points[i], d->vertex[i]);
+			VectorSubtract(d->vertex[i], ctx->center, vec);
+			d->texcoords[i][0] = (DotProduct(vec, ctx->tangent1)*ctx->scale1)+ctx->bias1;
+			d->texcoords[i][1] = (DotProduct(vec, ctx->tangent2)*ctx->scale2)+ctx->bias2;
+		}
+		points += 3;
+
+		d->die = ptype->randdie*frandom();
+
+		if (ptype->die)
+			d->rgba[3] = ptype->alpha + d->die*ptype->alphachange;
+		else
+			d->rgba[3] = ptype->alpha;
+		d->rgba[3] += ptype->alpharand*frandom();
+
+		if (ptype->colorindex >= 0)
+		{
+			int cidx;
+			cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
+			cidx = ptype->colorindex + cidx;
+			if (cidx > 255)
+				d->rgba[3] = d->rgba[3] / 2; // Hexen 2 style transparency
+			cidx = (cidx & 0xff) * 3;
+			d->rgba[0] = host_basepal[cidx] * (1/255.0);
+			d->rgba[1] = host_basepal[cidx+1] * (1/255.0);
+			d->rgba[2] = host_basepal[cidx+2] * (1/255.0);
+		}
+		else
+			VectorCopy(ptype->rgb, d->rgba);
+
+		vec[2] = frandom();
+		vec[0] = vec[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
+		vec[1] = vec[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
+		vec[2] = vec[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
+		d->rgba[0] += vec[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*d->die;
+		d->rgba[1] += vec[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*d->die;
+		d->rgba[2] += vec[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*d->die;
+
+		d->die = particletime + ptype->die - d->die;
+
+		// maintain run list
+		if (!(ptype->state & PS_INRUNLIST))
+		{
+			ptype->nexttorun = part_run_list;
+			part_run_list = ptype;
+			ptype->state |= PS_INRUNLIST;
+		}
+	}
+}
+
 static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
 {
 	part_type_t *ptype = &part_type[typenum];
@@ -3765,22 +3847,17 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 
 		if (ptype->looks.type == PT_CDECAL)
 		{
-			clippeddecal_t *d;
-			int decalcount;
 			float dist;
-			vec3_t tangent, t2;
 			vec3_t vec={0.5, 0.5, 0.5};
-			float *decverts;
 			int i;
 			trace_t tr;
-			float sb,sw,tb,tw;
-
-			vec3_t bestdir, bestorg;
+			decalctx_t ctx;
+			vec3_t bestdir;
 
 			if (!free_decals)
 				return 0;
 
-			VectorCopy(org, bestorg);
+			VectorCopy(org, ctx.center);
 			if (!dir || (dir[0] == 0 && dir[1] == 0 && dir[2] == 0))
 			{
 				bestdir[0] = 0;
@@ -3791,26 +3868,26 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				{
 					if (i >= 3)
 					{
-						t2[0] = ((i&3)==0)*8;
-						t2[1] = ((i&3)==1)*8;
-						t2[2] = ((i&3)==2)*8;
+						ctx.tangent1[0] = ((i&3)==0)*8;
+						ctx.tangent1[1] = ((i&3)==1)*8;
+						ctx.tangent1[2] = ((i&3)==2)*8;
 					}
 					else
 					{
-						t2[0] = -((i&3)==0)*8;
-						t2[1] = -((i&3)==1)*8;
-						t2[2] = -((i&3)==2)*8;
+						ctx.tangent1[0] = -((i&3)==0)*8;
+						ctx.tangent1[1] = -((i&3)==1)*8;
+						ctx.tangent1[2] = -((i&3)==2)*8;
 					}
-					VectorSubtract(org, t2, tangent);
-					VectorAdd(org, t2, t2);
+					VectorSubtract(org, ctx.tangent1, ctx.tangent2);
+					VectorAdd(org, ctx.tangent1, ctx.tangent1);
 
-					if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace (cl.worldmodel, 0, 0, NULL, tangent, t2, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &tr))
+					if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace (cl.worldmodel, 0, 0, NULL, ctx.tangent2, ctx.tangent1, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &tr))
 					{
 						if (tr.fraction < dist)
 						{
 							dist = tr.fraction;
 							VectorCopy(tr.plane.normal, bestdir);
-							VectorCopy(tr.endpos, bestorg);
+							VectorCopy(tr.endpos, ctx.center);
 						}
 					}
 				}
@@ -3820,85 +3897,21 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			VectorNormalize(dir);
 
 			VectorNormalize(vec);
-			CrossProduct(dir, vec, t2);
-			Matrix4x4_CM_Transform3(Matrix4x4_CM_NewRotation(frandom()*360, dir[0], dir[1], dir[2]), t2, tangent);
-			CrossProduct(dir, tangent, t2);
+			CrossProduct(dir, vec, ctx.tangent1);
+			Matrix4x4_CM_Transform3(Matrix4x4_CM_NewRotation(frandom()*360, dir[0], dir[1], dir[2]), ctx.tangent1, ctx.tangent2);
+			CrossProduct(dir, ctx.tangent2, ctx.tangent1);
 
-			sw = ptype->s2 - ptype->s1;
-			sb = ptype->s1 + sw/2;
-			tw = ptype->t2 - ptype->t1;
-			tb = ptype->t1 + tw/2;
+			ctx.ptype = ptype;
+			ctx.scale1 = ptype->s2 - ptype->s1;
+			ctx.bias1 = ptype->s1 + ctx.scale1/2;
+			ctx.scale2 = ptype->t2 - ptype->t1;
+			ctx.bias2 = ptype->t1 + ctx.scale2/2;
 			m = ptype->scale + frandom() * ptype->scalerand;
-			sw /= m;
-			tw /= m;
+			ctx.scale1 /= m;
+			ctx.scale2 /= m;
 
-			decalcount = Q1BSP_ClipDecal(cl.worldmodel, bestorg, dir, tangent, t2, m, &decverts);
-			while(decalcount)
-			{
-				if (!free_decals)
-					break;
-
-				d = free_decals;
-				free_decals = d->next;
-				d->next = ptype->clippeddecals;
-				ptype->clippeddecals = d;
-
-				VectorCopy((decverts+0*(sizeof(vec3_t)/sizeof(vec_t))), d->vertex[0]);
-				VectorCopy((decverts+1*(sizeof(vec3_t)/sizeof(vec_t))), d->vertex[1]);
-				VectorCopy((decverts+2*(sizeof(vec3_t)/sizeof(vec_t))), d->vertex[2]);
-
-				for (i = 0; i < 3; i++)
-				{
-					VectorSubtract(d->vertex[i], bestorg, vec);
-					d->texcoords[i][0] = (DotProduct(vec, t2)*sw)+sb;
-					d->texcoords[i][1] = (DotProduct(vec, tangent)*tw)+tb;
-				}
-
-				d->die = ptype->randdie*frandom();
-
-				if (ptype->die)
-					d->rgba[3] = ptype->alpha + d->die*ptype->alphachange;
-				else
-					d->rgba[3] = ptype->alpha;
-				d->rgba[3] += ptype->alpharand*frandom();
-
-				if (ptype->colorindex >= 0)
-				{
-					int cidx;
-					cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
-					cidx = ptype->colorindex + cidx;
-					if (cidx > 255)
-						d->rgba[3] = d->rgba[3] / 2; // Hexen 2 style transparency
-					cidx = (cidx & 0xff) * 3;
-					d->rgba[0] = host_basepal[cidx] * (1/255.0);
-					d->rgba[1] = host_basepal[cidx+1] * (1/255.0);
-					d->rgba[2] = host_basepal[cidx+2] * (1/255.0);
-				}
-				else
-					VectorCopy(ptype->rgb, d->rgba);
-
-				vec[2] = frandom();
-				vec[0] = vec[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
-				vec[1] = vec[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
-				vec[2] = vec[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-				d->rgba[0] += vec[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*d->die;
-				d->rgba[1] += vec[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*d->die;
-				d->rgba[2] += vec[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*d->die;
-
-				d->die = particletime + ptype->die - d->die;
-
-				decverts += (sizeof(vec3_t)/sizeof(vec_t))*3;
-				decalcount--;
-
-
-				// maintain run list
-				if (!(ptype->state & PS_INRUNLIST))
-				{
-					ptype->nexttorun = part_run_list;
-					part_run_list = ptype;
-					ptype->state |= PS_INRUNLIST;
-				}
-			}
+			//inserts decals through a callback.
+			Mod_ClipDecal(cl.worldmodel, ctx.center, dir, ctx.tangent2, ctx.tangent1, m, PScript_AddDecals, &ctx);
 
 			if (ptype->assoc < 0)
 				break;

@@ -736,6 +736,8 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 static void	 (D3D9_VID_DeInit)				(void)
 {
+	Image_Shutdown();
+
 	/*final shutdown, kill the video stuff*/
 	if (pD3DDev9)
 	{
@@ -854,6 +856,12 @@ void D3D9_Set2D (void)
 	vport.MinZ = 0;
 	vport.MaxZ = 1;
 	IDirect3DDevice9_SetViewport(pD3DDev9, &vport);
+
+
+	vid.fbvwidth = vid.width;
+	vid.fbvheight = vid.height;
+	vid.fbpwidth = vid.pixelwidth;
+	vid.fbpheight = vid.pixelheight;
 }
 
 static int d3d9error(int i)

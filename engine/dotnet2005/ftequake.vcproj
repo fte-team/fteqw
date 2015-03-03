@@ -22031,6 +22031,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\gl\gl_shadow.c"
+					>
+				</File>
+				<File
 					RelativePath="..\gl\gl_warp.c"
 					>
 					<FileConfiguration
@@ -24319,10 +24323,6 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
-					</File>
-					<File
-						RelativePath="..\gl\gl_shadow.c"
-						>
 					</File>
 					<File
 						RelativePath="..\gl\gl_vidcommon.c"

@@ -96,7 +96,6 @@ typedef struct
 {
 	sfx_t	*sfx;			// sfx number
 	int		vol[MAXSOUNDCHANNELS];		// volume, .8 fixed point.
-	int		start;			// start time in global paintsamples
 	int 	pos;			// sample position in sfx, <0 means delay sound start (shifted up by 8)
 	int     rate;			// 24.8 fixed point rate scaling
 	int		flags;			// cf_ flags

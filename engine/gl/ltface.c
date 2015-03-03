@@ -119,16 +119,17 @@ void LightLoadEntities(char *entstring)
 #define DEFAULTLIGHTLEVEL 300
 	mentity_t *mapent;
 	char key[1024];
+	char value[1024];
 	int i;
 	int switchedstyle=32;
 	num_entities = 0;
 
 	while(1)
 	{
-		entstring = COM_Parse(entstring);
-		if (!entstring || !*com_token)
+		entstring = COM_ParseOut(entstring, key, sizeof(key));
+		if (!entstring || !*key)
 			break;
-		if (strcmp(com_token, "{"))
+		if (strcmp(key, "{"))
 		{	//someone messed up. Stop parsing.
 			Con_Printf("token wasn't an open brace\n");
 			break;
@@ -141,12 +142,11 @@ void LightLoadEntities(char *entstring)
 		mapent->colour[2] = 0;
 		while(1)
 		{
-			entstring = COM_Parse(entstring);
-			if (!strcmp(com_token, "}"))
+			entstring = COM_ParseOut(entstring, key, sizeof(key));
+			if (!strcmp(key, "}"))
 				break;
-			strcpy(key, com_token);
-			entstring = COM_Parse(entstring);
-			ParseEpair(mapent, key, com_token);
+			entstring = COM_ParseOut(entstring, value, sizeof(value));
+			ParseEpair(mapent, key, value);
 		}
 		if (!mapent->colour[0] && !mapent->colour[1] && !mapent->colour[2])
 		{
@@ -677,9 +677,9 @@ static void SingleLightFace (mentity_t *light, llightinfo_t *l)
 		lightsamp[c][1] += add*light->colour[1];
 		lightsamp[c][2] += add*light->colour[2];
 
-		norms[c][0] -= add * incoming[0];	//Quake doesn't make sence some times.
-		norms[c][1] -= add * incoming[1];
-		norms[c][2] -= add * incoming[2];
+		norms[c][0] += add * incoming[0];	//Quake doesn't make sence some times.
+		norms[c][1] += add * incoming[1];
+		norms[c][2] += add * incoming[2];
 
 		if (add > 1)		// ignore real tiny lights
 			hit = true;
@@ -939,12 +939,17 @@ void LightFace (int surfnum)
 					temp[0] = DotProduct(wnorm, svector);
 					temp[1] = DotProduct(wnorm, tvector);
 					temp[2] = DotProduct(wnorm, l.facenormal);
-					VectorNormalize(temp);
-					temp[2] += 0.5;
-					VectorNormalize(temp);
-					*dulout++ = (-temp[0]+1)*128;
-					*dulout++ = (-temp[1]+1)*128;
-					*dulout++ = (-temp[2]+1)*128;
+					if (!temp[0] && !temp[1] && !temp[2])
+						VectorSet(temp, 0, 0, 1);
+					else
+					{
+						VectorNormalize(temp);
+	//					temp[2] += 0.5;
+						VectorNormalize(temp);
+					}
+					*dulout++ = (temp[0]+1)*128;
+					*dulout++ = (temp[1]+1)*128;
+					*dulout++ = (temp[2]+1)*128;
 				}
 			}
 		}

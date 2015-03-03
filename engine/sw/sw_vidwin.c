@@ -761,6 +761,8 @@ qboolean SW_VID_Init(rendererstate_t *info, unsigned char *palette)
 }
 void SW_VID_DeInit(void)
 {
+	Image_Shutdown();
+
 	DIB_Shutdown();
 	DestroyWindow(mainwindow);
 

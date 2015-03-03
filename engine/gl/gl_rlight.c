@@ -74,7 +74,7 @@ void R_AnimateLight (void)
 		int v1, v2, vd;
 		if (!cl_lightstyle[j].length)
 		{
-			d_lightstylevalue[j] = 256;
+			d_lightstylevalue[j] = ('m'-'a')*22;
 			continue;
 		}
 
@@ -1246,8 +1246,8 @@ int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 		if (!surf->samples)
 			return 0;
 
-		ds >>= 4;
-		dt >>= 4;
+		ds >>= surf->lmshift;
+		dt >>= surf->lmshift;
 
 		lightmap = surf->samples;
 		r = 0;
@@ -1255,29 +1255,27 @@ int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 		{
 			if (cl.worldmodel->engineflags & MDLF_RGBLIGHTING)
 			{
-				lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
+				lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
 
 				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						maps++)
 				{
 					scale = d_lightstylevalue[surf->styles[maps]];
 					r += (lightmap[0]+lightmap[1]+lightmap[2]) * scale / 3;
-					lightmap += ((surf->extents[0]>>4)+1) *
-							((surf->extents[1]>>4)+1)*3;
+					lightmap += ((surf->extents[0]>>surf->lmshift)+1) * ((surf->extents[1]>>surf->lmshift)+1)*3;
 				}
 
 			}
 			else
 			{
-				lightmap += dt * ((surf->extents[0]>>4)+1) + ds;
+				lightmap += dt * ((surf->extents[0]>>surf->lmshift)+1) + ds;
 
 				for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						maps++)
 				{
 					scale = d_lightstylevalue[surf->styles[maps]];
 					r += *lightmap * scale;
-					lightmap += ((surf->extents[0]>>4)+1) *
-							((surf->extents[1]>>4)+1);
+					lightmap += ((surf->extents[0]>>surf->lmshift)+1) * ((surf->extents[1]>>surf->lmshift)+1);
 				}
 			}
 			
@@ -1406,8 +1404,8 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 			return l;
 		}
 
-		ds >>= 4;
-		dt >>= 4;
+		ds >>= surf->lmshift;
+		dt >>= surf->lmshift;
 
 		lightmap = surf->samples;
 		l[0]=0;l[1]=0;l[2]=0;
@@ -1421,8 +1419,8 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 				{
 					deluxmap = surf->samples - cl.worldmodel->lightdata + cl.worldmodel->deluxdata;
 
-					lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
-					deluxmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
+					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
+					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
@@ -1436,10 +1434,10 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 						l[4] += (deluxmap[1]-127)*scale;
 						l[5] += (deluxmap[2]-127)*scale;
 
-						lightmap += ((surf->extents[0]>>4)+1) *
-								((surf->extents[1]>>4)+1) * 3;
-						deluxmap += ((surf->extents[0]>>4)+1) *
-								((surf->extents[1]>>4)+1) * 3;
+						lightmap += ((surf->extents[0]>>surf->lmshift)+1) *
+								((surf->extents[1]>>surf->lmshift)+1) * 3;
+						deluxmap += ((surf->extents[0]>>surf->lmshift)+1) *
+								((surf->extents[1]>>surf->lmshift)+1) * 3;
 					}
 
 				}
@@ -1447,8 +1445,8 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 				{
 					deluxmap = (surf->samples - cl.worldmodel->lightdata)*3 + cl.worldmodel->deluxdata;
 
-					lightmap += (dt * ((surf->extents[0]>>4)+1) + ds);
-					deluxmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
+					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds);
+					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
@@ -1462,10 +1460,10 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 						l[4] += deluxmap[1]*scale;
 						l[5] += deluxmap[2]*scale;
 
-						lightmap += ((surf->extents[0]>>4)+1) *
-								((surf->extents[1]>>4)+1);
-						deluxmap += ((surf->extents[0]>>4)+1) *
-								((surf->extents[1]>>4)+1) * 3;
+						lightmap += ((surf->extents[0]>>surf->lmshift)+1) *
+								((surf->extents[1]>>surf->lmshift)+1);
+						deluxmap += ((surf->extents[0]>>surf->lmshift)+1) *
+								((surf->extents[1]>>surf->lmshift)+1) * 3;
 					}
 				}
 
@@ -1474,7 +1472,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 			{
 				if (cl.worldmodel->engineflags & MDLF_RGBLIGHTING)
 				{
-					lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
+					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
@@ -1484,14 +1482,14 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 						l[1] += lightmap[1] * scale * cl_lightstyle[surf->styles[maps]].colours[1];
 						l[2] += lightmap[2] * scale * cl_lightstyle[surf->styles[maps]].colours[2];
 
-						lightmap += ((surf->extents[0]>>4)+1) *
-								((surf->extents[1]>>4)+1) * 3;
+						lightmap += ((surf->extents[0]>>surf->lmshift)+1) *
+								((surf->extents[1]>>surf->lmshift)+1) * 3;
 					}
 
 				}
 				else
 				{
-					lightmap += (dt * ((surf->extents[0]>>4)+1) + ds);
+					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds);
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 							maps++)
 					{
@@ -1501,8 +1499,8 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 						l[1] += *lightmap * scale * cl_lightstyle[surf->styles[maps]].colours[1];
 						l[2] += *lightmap * scale * cl_lightstyle[surf->styles[maps]].colours[2];
 
-						lightmap += ((surf->extents[0]>>4)+1) *
-								((surf->extents[1]>>4)+1);
+						lightmap += ((surf->extents[0]>>surf->lmshift)+1) *
+								((surf->extents[1]>>surf->lmshift)+1);
 					}
 				}
 			}

@@ -282,16 +282,14 @@ typedef struct texture_s
 	char		name[64];
 	unsigned	width, height;
 
-	qbyte	alphaed;	//gl_blend needed on this surface.
-
 	struct shader_s	*shader;
-	texnums_t texnums;
 
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
 	struct texture_s *anim_next;		// in the animation sequence
 	struct texture_s *alternate_anims;	// bmodels in frmae 1 use these
-	unsigned	offsets[MIPLEVELS];		// four mip maps stored
+
+	qbyte		*mips[4];	//the different mipmap levels.
 } texture_t;
 /*
 typedef struct
@@ -327,7 +325,7 @@ typedef struct
 typedef struct mtexinfo_s
 {
 	float		vecs[2][4];
-	float		mipadjust;
+	float		vecscale[2];
 	texture_t	*texture;
 	int			flags;
 
@@ -354,15 +352,16 @@ typedef struct mfog_s
 	mplane_t		**planes;
 } mfog_t;
 
-
+#define LMSHIFT_DEFAULT 4
 typedef struct msurface_s
 {
 	mplane_t	*plane;
 	int			flags;
 
 	int			firstedge;	// look up in model->surfedges[], negative numbers
-	int			numedges;	// are backwards edges
+	unsigned short	numedges;	// are backwards edges
 
+	unsigned short		lmshift;	//texels>>lmshift = lightmap samples.
 	short		texturemins[2];
 	short		extents[2];
 
@@ -497,7 +496,9 @@ void Q1BSP_Init(void);
 void *Q1BSPX_FindLump(char *lumpname, int *lumpsize);
 void Q1BSPX_Setup(struct model_s *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps);
 
-int Q1BSP_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out);
+typedef struct fragmentdecal_s fragmentdecal_t;
+void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts, shader_t *surfshader);
+void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader), void *ctx);
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
@@ -887,6 +888,7 @@ typedef struct model_s
 
 	int			numvertexes;
 	mvertex_t	*vertexes;
+	vec3_t		*normals;
 
 	int			numedges;
 	medge_t		*edges;

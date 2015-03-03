@@ -47,6 +47,11 @@ void Sys_Vibrate(float count)
 		count = 0;
 	vibrateduration += count*10*sys_vibrate.value;
 }
+void Sys_Vibrate_f(void)
+{
+	//input is in seconds, because this is quake. output is in ms.
+	vibrateduration += atof(Cmd_Argv(1)) * 1000;
+}
 JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_getvibrateduration(JNIEnv *env, jobject obj)
 {
 	unsigned int dur = vibrateduration;
@@ -393,6 +398,7 @@ void Sys_SendKeyEvents(void)
 }
 void Sys_Init(void)
 {
+	Cmd_AddCommandD("sys_vibratetime", Sys_Vibrate_f, "Provides gamecode with a way to explicitly invoke the hardware vibrator in a simple way.");
 	Cvar_Register(&sys_vibrate, "android stuff");
 	Cvar_Register(&sys_osk, "android stuff");
 	Cvar_Register(&sys_keepscreenon, "android stuff");

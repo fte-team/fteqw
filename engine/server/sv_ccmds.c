@@ -1430,11 +1430,11 @@ static void SV_WriteIP_f (void)
 			}
 		}
 		if (bi->reason[0])
-			s = va("%s %s %llu \"%s\"\n", banflags, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), (unsigned long long) bi->expiretime, bi->reason);
+			s = va("addip %s %s %llu \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags, (unsigned long long) bi->expiretime, bi->reason);
 		else if (bi->expiretime)
-			s = va("%s %s %llu\n", banflags, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), (unsigned long long) bi->expiretime);
+			s = va("addip %s %s %llu\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags, (unsigned long long) bi->expiretime);
 		else
-			s = va("%s %s\n", banflags, NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask));
+			s = va("addip %s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags);
 		VFS_WRITE(f, s, strlen(s));
 		bi = bi->next;
 	}

@@ -7,6 +7,8 @@
 !!cvarf r_glsl_offsetmapping_scale
 !!cvarf gl_specular
 
+#include "sys/defs.h"
+
 //standard shader used for models.
 //must support skeletal and 2-way vertex blending or Bad Things Will Happen.
 //the vertex shader is responsible for calculating lighting values.
@@ -22,13 +24,6 @@ varying vec3 eyevector;
 
 #ifdef VERTEX_SHADER
 #include "sys/skeletal.h"
-attribute vec2 v_texcoord;
-uniform vec3 e_light_dir;
-uniform vec3 e_light_mul;
-uniform vec3 e_light_ambient;
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
-uniform vec3 e_eyepos;
-#endif
 void main ()
 {
 #if defined(SPECULAR)||defined(OFFSETMAPPING)
@@ -52,25 +47,8 @@ void main ()
 #endif
 #ifdef FRAGMENT_SHADER
 #include "sys/fog.h"
-uniform sampler2D s_t0;
-#ifdef LOWER
-uniform sampler2D s_t1;
-uniform vec3 e_lowercolour;
-#endif
-#ifdef UPPER
-uniform sampler2D s_t2;
-uniform vec3 e_uppercolour;
-#endif
-#ifdef FULLBRIGHT
-uniform sampler2D s_t3;
-#endif
-
-#if defined(BUMP)
-uniform sampler2D s_t4;
-#endif
 
 #if defined(SPECULAR)
-uniform sampler2D s_t5;
 uniform float cvar_gl_specular;
 #endif
 
@@ -78,31 +56,28 @@ uniform float cvar_gl_specular;
 #include "sys/offsetmapping.h"
 #endif
 
-
-
-uniform vec4 e_colourident;
 void main ()
 {
 	vec4 col, sp;
 
 #ifdef OFFSETMAPPING
-	vec2 tcoffsetmap = offsetmap(s_t4, tc, eyevector);
+	vec2 tcoffsetmap = offsetmap(s_normalmap, tc, eyevector);
 #define tc tcoffsetmap
 #endif
 
-	col = texture2D(s_t0, tc);
+	col = texture2D(s_diffuse, tc);
 #ifdef UPPER
-	vec4 uc = texture2D(s_t2, tc);
+	vec4 uc = texture2D(s_upper, tc);
 	col.rgb += uc.rgb*e_uppercolour*uc.a;
 #endif
 #ifdef LOWER
-	vec4 lc = texture2D(s_t1, tc);
+	vec4 lc = texture2D(s_lower, tc);
 	col.rgb += lc.rgb*e_lowercolour*lc.a;
 #endif
 
 #if defined(BUMP) && defined(SPECULAR)
-	vec3 bumps = normalize(vec3(texture2D(s_t4, tc)) - 0.5);
-	vec4 specs = texture2D(s_t5, tc);
+	vec3 bumps = normalize(vec3(texture2D(s_normalmap, tc)) - 0.5);
+	vec4 specs = texture2D(s_specular, tc);
 
 	vec3 halfdir = normalize(normalize(eyevector) + vec3(0.0, 0.0, 1.0));
 	float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);
@@ -112,7 +87,7 @@ void main ()
 	col.rgb *= light;
 
 #ifdef FULLBRIGHT
-	vec4 fb = texture2D(s_t3, tc);
+	vec4 fb = texture2D(s_fullbright, tc);
 //	col.rgb = mix(col.rgb, fb.rgb, fb.a);
 	col.rgb += fb.rgb * fb.a;
 #endif

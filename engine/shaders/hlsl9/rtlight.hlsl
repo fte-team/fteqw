@@ -48,15 +48,14 @@
 #endif
 
 #ifdef FRAGMENT_SHADER
-	sampler s_t0;
-	sampler s_t1;
+	sampler s_diffuse;
 	float l_lightradius;
 	float3 l_lightcolour;
 	float4 main (v2f inp) : COLOR0
 	{
 		float3 col = l_lightcolour;
 		col *= max(1.0 - dot(inp.lpos, inp.lpos)/(l_lightradius*l_lightradius), 0.0);
-		float3 diff = tex2D(s_t0, inp.tc);
+		float3 diff = tex2D(s_diffuse, inp.tc);
 		return float4(diff * col, 1);
 	}
 #endif

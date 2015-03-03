@@ -301,7 +301,9 @@ static void SCR_DrawField (float x, float y, int color, float width, int value)
 char *Get_Q2ConfigString(int i)
 {
 	if (i >= Q2CS_IMAGES && i < Q2CS_IMAGES	+ Q2MAX_IMAGES)
-		return cl.image_name [i-Q2CS_IMAGES];
+		return cl.image_name[i-Q2CS_IMAGES]?cl.image_name[i-Q2CS_IMAGES]:"";
+	if (i >= Q2CS_ITEMS && i < Q2CS_ITEMS + Q2MAX_ITEMS)
+		return cl.item_name[i-Q2CS_ITEMS]?cl.item_name[i-Q2CS_ITEMS]:"";
 	if (i == Q2CS_STATUSBAR)
 		return cl.q2statusbar;
 
@@ -384,7 +386,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			value = cl.q2frame.playerstate.stats[atoi(com_token)];
 			if (value >= Q2MAX_IMAGES || value < 0)
 				Host_EndGame ("Pic >= Q2MAX_IMAGES");
-			if (Get_Q2ConfigString(Q2CS_IMAGES+value))
+			if (*Get_Q2ConfigString(Q2CS_IMAGES+value))
 			{
 //				SCR_AddDirtyPoint (x, y);
 //				SCR_AddDirtyPoint (x+23, y+23);
@@ -612,6 +614,55 @@ void Sbar_ExecuteLayoutString (char *s)
 		}
 
 
+	}
+}
+
+static void Sbar_Q2DrawInventory(void)
+{
+	int keys[2];
+	char cmd[1024];
+	const char *boundkey;
+	unsigned int validlist[Q2MAX_ITEMS], rows, i, item, selected = cl.q2frame.playerstate.stats[Q2STAT_SELECTED_ITEM];
+	int first;
+	unsigned int maxrows = ((240-24*2-8*2)/8);
+	//draw background
+	float x = (vid.width - 256)/2;
+	float y = (vid.height - 240)/2;
+	R2D_ScalePic(x, y, 256, 240, Sbar_Q2CachePic("inventory"));
+	//move into the frame
+	x += 24;
+	y += 24;
+
+	//figure out which items we have
+	for (i = 0, rows = 0, first = -1; i < Q2MAX_ITEMS; i++)
+	{
+		if (!cl.inventory[i])
+			continue;
+		if (i <= selected)
+			first = rows;
+		validlist[rows++] = i;
+	}
+	first -= maxrows/2;
+	first = min(first, (signed)(rows-maxrows));
+	first = max(0, first);
+	rows = min(rows, first+maxrows);
+
+	//match q2, because why not.
+	Draw_FunString(x, y, "hotkey ### item");y+=8;
+	Draw_FunString(x, y, "------ --- ----");y+=8;
+	for (i = first; i < rows; i++)
+	{
+		item = validlist[i];
+
+		Q_snprintfz(cmd, sizeof(cmd), "use %s", Get_Q2ConfigString(Q2CS_ITEMS+item));
+		M_FindKeysForCommand(0, cmd, keys);
+		if (keys[0] == -1)
+			boundkey = "";	//we don't actually know which ones can be selected at all.
+		else
+			boundkey = Key_KeynumToString(keys[0]);
+
+		Q_snprintfz(cmd, sizeof(cmd), "%6s %3i %s", boundkey, cl.inventory[item], Get_Q2ConfigString(Q2CS_ITEMS+item));
+		Draw_FunStringWidth(x, y, cmd, 256-24*2+8, false, item != selected);	y+=8;
 	}
 }
 #endif
@@ -2580,11 +2631,10 @@ void Sbar_Draw (playerview_t *pv)
 		R2D_ImageColours(1, 1, 1, 1);
 		if (*cl.q2statusbar)
 			Sbar_ExecuteLayoutString(cl.q2statusbar);
-		if (*cl.q2layout)
-		{
-			if (cl.q2frame.playerstate.stats[Q2STAT_LAYOUTS] & 1)
-				Sbar_ExecuteLayoutString(cl.q2layout);
-		}
+		if (*cl.q2layout && (cl.q2frame.playerstate.stats[Q2STAT_LAYOUTS] & 1))
+			Sbar_ExecuteLayoutString(cl.q2layout);
+		if (cl.q2frame.playerstate.stats[Q2STAT_LAYOUTS] & 2)
+			Sbar_Q2DrawInventory();
 		return;
 	}
 #endif
@@ -2669,9 +2719,12 @@ void Sbar_Draw (playerview_t *pv)
 			{
 				if (pv->cam_auto != CAM_TRACK)
 				{
-					Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
-					Sbar_DrawString (160-7*8,4, "SPECTATOR MODE");
-					Sbar_DrawString(160-14*8+4, 12, "Press [ATTACK] for AutoCamera");
+					if (hud_tracking_show.ival || cl_sbar.ival)
+					{	//this is annoying.
+						Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
+						Sbar_DrawString (160-7*8,4, "SPECTATOR MODE");
+						Sbar_DrawString(160-14*8+4, 12, "Press [ATTACK] for AutoCamera");
+					}
 				}
 				else
 				{

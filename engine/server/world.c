@@ -1039,6 +1039,8 @@ qboolean World_TransformedTrace (struct model_s *model, int hulloverride, int fr
 		result = Q1BSP_RecursiveHullCheck (hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
 		VectorAdd (trace->endpos, origin, trace->endpos);
 	}
+	else
+		result = false;
 
 	return result;
 }

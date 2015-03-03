@@ -928,14 +928,14 @@ ifeq ($(FTE_TARGET),vc)
 
 			MSVCPATH=C:/Program Files (x86)/$(MSVCDIR)/VC/BIN/amd64/
 
-			MSVCINC=-I"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\INCLUDE" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\VC\PlatformSDK\include" -I"C:\Program Files (x86)\Microsoft Visual Studio 8\SDK\v2.0\include"
-			MSVCLIB=/LIBPATH:"C:\Program Files (x86)\$(MSVCPATH)\VC\ATLMFC\LIB\amd64" /LIBPATH:"C:\Program Files (x86)\$(MSVCPATH)\VC\LIB\amd64" /LIBPATH:"$(WINDOWSSDKDIR)\lib\amd64" /LIBPATH:"C:\Program Files (x86)\$(MSVCPATH)\SDK\v2.0\LIB\AMD64"
+			MSVCINC=-I"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\INCLUDE" -I"$(WINDOWSSDKDIR)/Include" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\PlatformSDK\include" -I"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\include"
+			MSVCLIB=/LIBPATH:"C:\Program Files (x86)\$(MSVCPATH)\VC\ATLMFC\LIB\amd64" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\LIB\amd64" /LIBPATH:"$(WINDOWSSDKDIR)\lib\amd64" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\LIB\AMD64" /LIBPATH:"$(WINDOWSSDKDIR)\lib\x64" 
 			JPEGLIB=libs/libjpeg$(BITS).lib
 		else
 			WINDRES=i686-w64-mingw32-windres
 			MSVCPATH=C:/Program Files (x86)/$(MSVCDIR)/VC/BIN/
 
-			MSVCINC=-I"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\PlatformSDK\include" -I"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\include"
+			MSVCINC=-I"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\INCLUDE" -I"$(WINDOWSSDKDIR)/Include" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\PlatformSDK\include" -I"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\include"
 			MSVCLIB=/LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\LIB" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\LIB" /LIBPATH:"$(WINDOWSSDKDIR)\lib" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\LIB"
 			JPEGLIB=libs/jpeg.lib
 		endif
@@ -943,7 +943,7 @@ ifeq ($(FTE_TARGET),vc)
 	STRIP=@echo strip
 	EXEPOSTFIX=.exe
 
-	CC="$(MSVCPATH)cl" $(SDKINC) $(MSVCINC) -D_CRT_SECURE_NO_WARNINGS
+	CC=PATH="C:\Program Files (x86)\$(MSVCDIR)\Common7\IDE" "$(MSVCPATH)cl" $(SDKINC) $(MSVCINC) -D_CRT_SECURE_NO_WARNINGS
 	DEBUG_CFLAGS ?= -Od $(CPUOPTIMIZATIONS) /fp:fast
 	PROFILE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMISATIONS) /fp:fast 
 	PROFILE_LDFLAGS = /LTCG:PGINSTRUMENT
@@ -951,8 +951,8 @@ ifeq ($(FTE_TARGET),vc)
 	RELEASE_LDFLAGS = /LTCG
 # /LTCG:PGOPTIMIZE
 
-	DO_CC=$(CC) /nologo $(ALL_CFLAGS) -Fo$(shell cygpath -m $@) -c $(shell cygpath -m $<)
-	DO_LD=$(DO_ECHO) "$(MSVCPATH)link" /nologo /out:"$(shell cygpath -m $@)" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) $(SDKLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib kernel32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
+	DO_CC=$(DO_ECHO) $(CC) /nologo $(ALL_CFLAGS) -Fo$(shell cygpath -m $@) -c $(shell cygpath -m $<)
+	DO_LD=$(DO_ECHO) PATH="C:\Program Files (x86)\$(MSVCDIR)\Common7\IDE" "$(MSVCPATH)link" /nologo /out:"$(shell cygpath -m $@)" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) $(SDKLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib kernel32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
 	PRECOMPHEADERS = 
 	DEPCC=
 

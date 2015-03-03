@@ -461,7 +461,6 @@ void M_Menu_Keys_f (void)
 {
 	int y;
 	menu_t *menu;
-	extern cvar_t cl_splitscreen, cl_forcesplitclient;
 	vfsfile_t *bindslist;
 
 	Key_Dest_Add(kdm_menu);
@@ -491,7 +490,7 @@ void M_Menu_Keys_f (void)
 		break;
 	}
 
-	if (cl_splitscreen.ival)
+	if (cl_forceseat.ival)
 	{
 		static char *texts[MAX_SPLITS+2] =
 		{
@@ -510,7 +509,7 @@ void M_Menu_Keys_f (void)
 			"3",
 			"4"
 		};
-		MC_AddCvarCombo(menu, 16, 170, y, "Force client", &cl_forcesplitclient, (const char **)texts, (const char **)values);
+		MC_AddCvarCombo(menu, 16, 170, y, "Force client", &cl_forceseat, (const char **)texts, (const char **)values);
 		y+=8;
 	}
 

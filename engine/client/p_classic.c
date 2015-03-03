@@ -74,7 +74,7 @@ typedef struct cparticle_s
 #define ABSOLUTE_MIN_PARTICLES	512
 #define ABSOLUTE_MAX_PARTICLES	8192
 static int r_numparticles;
-static cparticle_t	*particles, *active_particles, *free_particles;
+static cparticle_t	*particles, *fte_restrict active_particles, *free_particles;
 extern cvar_t r_part_density, r_part_classic_expgrav;
 
 extern qbyte default_quakepal[]; /*for ramps more than anything else*/
@@ -367,9 +367,9 @@ static void PClassic_DrawParticles(void)
 	dvel = 4 * frametime;
 
 #ifdef POLYS
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == classicshader && cl_stris[cl_numstris-1].numvert + 8 <= MAX_INDICIES)
-		scenetri = &cl_stris[cl_numstris-1];
-	else
+//	if (cl_numstris && cl_stris[cl_numstris-1].shader == classicshader && cl_stris[cl_numstris-1].numvert + 8 <= MAX_INDICIES)
+//		scenetri = &cl_stris[cl_numstris-1];
+//	else
 	{
 		if (cl_numstris == cl_maxstris)
 		{

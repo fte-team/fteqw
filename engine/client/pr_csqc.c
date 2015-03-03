@@ -107,6 +107,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(parse_centerprint,	"CSQC_Parse_CenterPrint");	\
 	globalfunction(parse_print,			"CSQC_Parse_Print");	\
 	globalfunction(parse_event,			"CSQC_Parse_Event");	\
+	globalfunction(parse_damage,		"CSQC_Parse_Damage");	\
 	globalfunction(input_event,			"CSQC_InputEvent");	\
 	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
 	globalfunction(console_command,		"CSQC_ConsoleCommand");	\
@@ -270,7 +271,6 @@ static void CSQC_ChangeLocalPlayer(int seat)
 
 static void CSQC_FindGlobals(void)
 {
-	extern cvar_t cl_forcesplitclient;
 	static float csphysicsmode = 0;
 #define globalfloat(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
@@ -291,7 +291,7 @@ static void CSQC_FindGlobals(void)
 	if (csqcg.cltime)
 		*csqcg.cltime = realtime;
 
-	CSQC_ChangeLocalPlayer(cl_forcesplitclient.ival?(cl_forcesplitclient.ival - 1) % cl.splitclients:0);
+	CSQC_ChangeLocalPlayer(cl_forceseat.ival?(cl_forceseat.ival - 1) % cl.splitclients:0);
 
 	csqc_world.g.self = csqcg.self;
 	csqc_world.g.other = csqcg.other;
@@ -901,6 +901,17 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 		l->rotation[2] = G_FLOAT(OFS_PARM2+2);
 		break;
 #endif
+	case lfield_dietime:
+		l->die = G_FLOAT(OFS_PARM2);
+		break;
+	case lfield_rgbdecay:
+		l->channelfade[0] = G_FLOAT(OFS_PARM2+0);
+		l->channelfade[1] = G_FLOAT(OFS_PARM2+1);
+		l->channelfade[2] = G_FLOAT(OFS_PARM2+2);
+		break;
+	case lfield_radiusdecay:
+		l->decay = G_FLOAT(OFS_PARM2);
+		break;
 	default:
 		break;
 	}
@@ -971,6 +982,17 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		G_FLOAT(OFS_RETURN+2) = l->rotation[2];
 		break;
 #endif
+	case lfield_dietime:
+		G_FLOAT(OFS_RETURN) = l->die;
+		break;
+	case lfield_rgbdecay:
+		G_FLOAT(OFS_RETURN+0) = l->channelfade[0];
+		G_FLOAT(OFS_RETURN+1) = l->channelfade[1];
+		G_FLOAT(OFS_RETURN+2) = l->channelfade[2];
+		break;
+	case lfield_radiusdecay:
+		G_FLOAT(OFS_RETURN) = l->decay;
+		break;
 	default:
 		G_INT(OFS_RETURN) = 0;
 		break;
@@ -1337,7 +1359,6 @@ static void QCBUILTIN PF_cs_unproject (pubprogfuncs_t *prinst, struct globalvars
 //clear scene, and set up the default stuff.
 static void QCBUILTIN PF_R_ClearScene (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	extern cvar_t cl_forcesplitclient;
 	if (prinst->callargc > 0)
 		CSQC_ChangeLocalPlayer(G_FLOAT(OFS_PARM0));
 
@@ -2724,8 +2745,6 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	//debugging field
 	pmove.sequence = *csqcg.clientcommandframe;
 
-	pmove.pm_type = PM_NORMAL;
-
 	pmove.jump_msec = 0;//(cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
 
 //set up the movement command
@@ -2757,6 +2776,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	case MOVETYPE_NOCLIP:
 		pmove.pm_type = PM_SPECTATOR;
 		break;
+	case MOVETYPE_FLY_WORLDONLY:
 	case MOVETYPE_FLY:
 		pmove.pm_type = PM_FLY;
 		break;
@@ -4396,7 +4416,6 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-	extern cvar_t cl_forcesplitclient;
 	Con_DPrintf("Warning: V_CalcRefdef (builtin 640) not implemented.\n");
 //	if (ent->xv->entnum >= 1 && ent->xv->entnum <= MAX_CLIENTS)
 //		CSQC_ChangeLocalPlayer(ent->xv->entnum-1);
@@ -6219,7 +6238,7 @@ void CSQC_Breakpoint_f(void)
 	else
 		Con_Printf("Breakpoint has been cleared\n");
 
-	Cvar_Set(Cvar_FindVar("pr_debugger"), "1");
+//	Cvar_Set(Cvar_FindVar("pr_debugger"), "1");
 }
 
 static void CSQC_Poke_f(void)
@@ -6334,7 +6353,6 @@ qboolean CSQC_DrawView(void)
 	int ticlimit = 10;
 	float mintic = 0.01;
 	double clframetime = host_frametime;
-	extern cvar_t cl_forcesplitclient;
 
 	csqc_resortfrags = true;
 	csqctime = Sys_DoubleTime();
@@ -6387,7 +6405,7 @@ qboolean CSQC_DrawView(void)
 	host_frametime = clframetime;
 
 	//always revert to a usable default.
-	CSQC_ChangeLocalPlayer(cl_forcesplitclient.ival?(cl_forcesplitclient.ival - 1) % cl.splitclients:0);
+	CSQC_ChangeLocalPlayer(cl_forceseat.ival?(cl_forceseat.ival - 1) % cl.splitclients:0);
 
 	if (csqcg.frametime)
 		*csqcg.frametime = host_frametime;
@@ -6681,6 +6699,23 @@ qboolean CSQC_LoadResource(char *resname, char *restype)
 	PR_ExecuteProgram (csqcprogs, csqcg.loadresource);
 
 	return !!G_FLOAT(OFS_RETURN);
+}
+
+qboolean CSQC_Parse_Damage(float save, float take, vec3_t source)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.parse_damage)
+		return false;
+	
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	((float *)pr_globals)[OFS_PARM0] = save;
+	((float *)pr_globals)[OFS_PARM1] = take;
+	((float *)pr_globals)[OFS_PARM2+0] = source[0];
+	((float *)pr_globals)[OFS_PARM2+1] = source[1];
+	((float *)pr_globals)[OFS_PARM2+2] = source[2];
+	PR_ExecuteProgram (csqcprogs, csqcg.parse_damage);
+
+	return G_FLOAT(OFS_RETURN);
 }
 
 qboolean CSQC_ParsePrint(char *message, int printlevel)

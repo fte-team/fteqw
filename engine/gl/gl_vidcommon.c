@@ -1074,14 +1074,159 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 static const char *glsl_hdrs[] =
 {
+	"sys/defs.h",
+			"#define DEFS_DEFINED\n"
+			"#ifdef VERTEX_SHADER\n"
+//				"attribute vec3 v_position1;\n" //defined elsewhere, depending on fixed function availability
+//				"attribute vec3 v_position2;\n"
+				"attribute vec4 v_colour;\n"
+				"attribute vec2 v_texcoord;\n"
+				"attribute vec2 v_lmcoord;\n"
+				"attribute vec3 v_normal;\n"
+				"attribute vec3 v_svector;\n"
+				"attribute vec3 v_tvector;\n"
+				"attribute vec4 v_bone;\n"	//fixme: make ints
+				"attribute vec4 v_weight;\n"
+#if MAXRLIGHTMAPS > 1
+				"#define v_lmcoord1 v_lmcoord\n"
+				"attribute vec2 v_lmcoord2;\n"
+				"attribute vec2 v_lmcoord3;\n"
+				"attribute vec2 v_lmcoord4;\n"
+				"#define v_colour1 v_colour\n"
+				"attribute vec4 v_colour2;\n"
+				"attribute vec4 v_colour3;\n"
+				"attribute vec4 v_colour4;\n"
+#endif
+			"#endif\n"
+			"uniform sampler2D s_diffuse;\n"
+			"uniform sampler2D s_normalmap;\n"
+			"uniform sampler2D s_specular;\n"
+			"uniform sampler2D s_upper;\n"
+			"uniform sampler2D s_lower;\n"
+			"uniform sampler2D s_fullbright;\n"
+			"uniform sampler2D s_paletted;\n"
+			"uniform sampler2D s_shadowmap;\n"
+			"uniform samplerCube s_projectionmap;\n"
+			"uniform sampler2D s_lightmap;\n"
+			"uniform sampler2D s_deluxmap;\n"
+#if MAXRLIGHTMAPS > 1
+			"#define s_lightmap0 s_lightmap\n"
+			"uniform sampler2D s_lightmap1;\n"
+			"uniform sampler2D s_lightmap2;\n"
+			"uniform sampler2D s_lightmap3;\n"
+			"#define s_deluxmap0 s_deluxmap\n"
+			"uniform sampler2D s_deluxmap1;\n"
+			"uniform sampler2D s_deluxmap2;\n"
+			"uniform sampler2D s_deluxmap3;\n"
+#endif
+
+			"#ifdef USEUBOS\n"
+				"layout(std140) uniform u_lightinfo\n"
+				"{\n"
+					"vec3		l_lightscreen;\n"
+					"float		l_lightradius;\n"
+					"vec3		l_lightcolour;\n"
+						"float		l_pad1;\n"
+					"vec3		l_lightcolourscale;\n"
+						"float		l_pad2;\n"
+					"vec3		l_lightposition;\n"
+						"float		l_pad3;\n"
+					"mat4		l_cubematrix;\n"
+					"vec4		l_shadowmapproj;\n"
+					"vec2		l_shadowmapscale;\n"
+						"vec2		l_pad4;\n"
+				"\n"
+				"};\n"
+				"layout(std140) uniform u_entityinfo\n"
+				"{\n"
+					"vec2		e_vblend;\n"
+						"vec2		e_pad1;\n"
+					"vec3		e_glowmod;\n"
+						"float		e_pad2;\n"
+					"vec3		e_origin;\n"
+						"float		e_pad3;\n"
+					"vec4		colormod;\n"
+					"vec3		e_glowmod;\n"
+						"float		e_pad4;\n"
+					"vec3		e_uppercolour;\n"
+						"float		e_pad5;\n"
+					"vec3		e_lowercolour;\n"
+						"float		e_pad6;\n"
+					"vec3		w_fogcolour;\n"
+					"float		w_fogalpha;\n"
+					"vec3		e_light_dir;\n"
+					"float		w_fogdensity;\n"
+					"vec3		e_light_mul;\n"
+					"float		w_fogdepthbias;\n"
+					"vec3		e_light_ambient;\n"
+					"float		e_time;\n"
+				"};\n"
+				"layout(std140) unform u_bones\n"
+				"{\n"
+					"mat3x4 m_bones["STRINGIFY(MAX_GPU_BONES)"]\n"
+				"};\n"
+			"#else\n"
+				"uniform mat4 m_model;\n"
+				"uniform mat4 m_view;\n"
+				"uniform mat4 m_modelview;\n"
+				"uniform mat4 m_projection;\n"
+//				"uniform mat4 m_modelviewprojection;\n"
+				"uniform mat4 m_bones["STRINGIFY(MAX_GPU_BONES)"];\n"
+				"uniform mat4 m_invviewprojection;\n"
+				"uniform mat4 m_invmodelviewprojection;\n"
+
+				/*viewer properties*/
+				"uniform vec3 v_eyepos;\n"
+				"uniform vec4 w_fog[2];\n"
+				"#define w_fogcolour	w_fog[0].rgb\n"
+				"#define w_fogalpha		w_fog[0].a\n"
+				"#define w_fogdensity	w_fog[1].x\n"
+				"#define w_fogdepthbias	w_fog[1].y\n"
+
+				/*ent properties*/
+				//"uniform vec2 e_vblend;\n"
+				"#ifdef LIGHTSTYLED\n"
+				"uniform vec4 e_lmscale[4];\n"
+				"#else\n"
+				"uniform vec4 e_lmscale;\n"
+				"#endif\n"
+				"uniform vec3 e_origin;\n"
+				"uniform float e_time;\n"
+				"uniform vec3 e_eyepos;\n"
+				"uniform vec4 e_colour;\n"
+				"uniform vec4 e_colourident;\n"
+				"uniform vec3 e_glowmod;\n"
+				"uniform vec3 e_uppercolour;\n"
+				"uniform vec3 e_lowercolour;\n"
+				"uniform vec3 e_light_dir;\n"
+				"uniform vec3 e_light_mul;\n"
+				"uniform vec3 e_light_ambient;\n"
+
+				/*rtlight properties, use with caution*/
+				"uniform vec2	l_lightscreen;\n"
+				"uniform float	l_lightradius;\n"
+				"uniform vec3	l_lightcolour;\n"
+				"uniform vec3	l_lightposition;\n"
+				"uniform vec3	l_lightcolourscale;\n"
+				"uniform mat4	l_cubematrix;\n"
+				"uniform vec4	l_shadowmapproj;\n"
+				"uniform vec2	l_shadowmapscale;\n"
+
+				"uniform vec2 e_rendertexturescale;\n"
+			"#endif\n"
+		,
 	"sys/skeletal.h",
+			"#ifndef DEFS_DEFINED\n"
 			"attribute vec3 v_normal;\n"
 			"attribute vec3 v_svector;\n"
 			"attribute vec3 v_tvector;\n"
+			"#endif\n"
 			"#ifdef SKELETAL\n"
-				"attribute vec4 v_bone;"
-				"attribute vec4 v_weight;"
-				"uniform mat3x4 m_bones["STRINGIFY(MAX_GPU_BONES)"];\n"
+				"#ifndef DEFS_DEFINED\n"
+					"attribute vec4 v_bone;"
+					"attribute vec4 v_weight;"
+					"uniform mat3x4 m_bones["STRINGIFY(MAX_GPU_BONES)"];\n"
+				"#endif\n"
 				
 				"vec4 skeletaltransform()"
 				"{"
@@ -1154,27 +1299,34 @@ static const char *glsl_hdrs[] =
 	"sys/fog.h",
 			"#ifdef FRAGMENT_SHADER\n"
 				"#ifdef FOG\n"
+					"#ifndef DEFS_DEFINED\n"
 					"uniform vec4 w_fog[2];\n"
+					"#define w_fogcolour	w_fog[0].rgb\n"
+					"#define w_fogalpha		w_fog[0].a\n"
+					"#define w_fogdensity	w_fog[1].x\n"
+					"#define w_fogdepthbias	w_fog[1].y\n"
+					"#endif\n"
+
 					"vec3 fog3(in vec3 regularcolour)"
 					"{"
-						"float z = w_fog[1].x * gl_FragCoord.z / gl_FragCoord.w;\n"
-						"z = max(0.0,z-w_fog[1].y);\n"
+						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
 						"z *= z;\n"
 						"#endif\n"
 						"float fac = exp2(-(z * 1.442695));\n"
-						"fac = (1.0-w_fog[0].a) + (clamp(fac, 0.0, 1.0)*w_fog[0].a);\n"
-						"return mix(w_fog[0].rgb, regularcolour, fac);\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
+						"return mix(w_fogcolour, regularcolour, fac);\n"
 					"}\n"
 					"vec3 fog3additive(in vec3 regularcolour)"
 					"{"
-						"float z = w_fog[1].x * gl_FragCoord.z / gl_FragCoord.w;\n"
-						"z = max(0.0,z-w_fog[1].y);\n"
+						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
 						"z *= z;\n"
 						"#endif\n"
 						"float fac = exp2(-(z * 1.442695));\n"
-						"fac = (1.0-w_fog[0].a) + (clamp(fac, 0.0, 1.0)*w_fog[0].a);\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
 						"return regularcolour * fac;\n"
 					"}\n"
 					"vec4 fog4(in vec4 regularcolour)"
@@ -1183,24 +1335,24 @@ static const char *glsl_hdrs[] =
 					"}\n"
 					"vec4 fog4additive(in vec4 regularcolour)"
 					"{"
-						"float z = w_fog[1].x * gl_FragCoord.z / gl_FragCoord.w;\n"
-						"z = max(0.0,z-w_fog[1].y);\n"
+						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
 						"z *= z;\n"
 						"#endif\n"
 						"float fac = exp2(-(z * 1.442695));\n"
-						"fac = (1.0-w_fog[0].a) + (clamp(fac, 0.0, 1.0)*w_fog[0].a);\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
 						"return regularcolour * vec4(fac, fac, fac, 1.0);\n"
 					"}\n"
 					"vec4 fog4blend(in vec4 regularcolour)"
 					"{"
-						"float z = w_fog[1].x * gl_FragCoord.z / gl_FragCoord.w;\n"
-						"z = max(0.0,z-w_fog[1].y);\n"
+						"float z = w_fogdensity * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"z = max(0.0,z-w_fogdepthbias);\n"
 						"#if #include \"cvar/r_fog_exp2\"\n"
 						"z *= z;\n"
 						"#endif\n"
 						"float fac = exp2(-(z * 1.442695));\n"
-						"fac = (1.0-w_fog[0].a) + (clamp(fac, 0.0, 1.0)*w_fog[0].a);\n"
+						"fac = (1.0-w_fogalpha) + (clamp(fac, 0.0, 1.0)*w_fogalpha);\n"
 						"return regularcolour * vec4(1.0, 1.0, 1.0, fac);\n"
 					"}\n"
 				"#else\n"
@@ -1252,8 +1404,10 @@ static const char *glsl_hdrs[] =
 				"#undef r_glsl_pcf\n"
 				"#define r_glsl_pcf 9\n"
 			"#endif\n"
+			"#ifndef DEFS_DEFINED\n"
 			"uniform vec4 l_shadowmapproj;\n" //light projection matrix info
 			"uniform vec2 l_shadowmapscale;\n"	//xy are the texture scale, z is 1, w is the scale.
+			"#endif\n"
 			"vec3 ShadowmapCoord(void)\n"
 			"{\n"
 			"#ifdef SPOT\n"
@@ -1360,9 +1514,12 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 			return false;
 
 		/*emit up to the include*/
-		prstrings[*strings] = shadersource;
-		length[*strings] = incline - shadersource;
-		*strings += 1;
+		if (incline - shadersource)
+		{
+			prstrings[*strings] = shadersource;
+			length[*strings] = incline - shadersource;
+			*strings += 1;
+		}
 
 		incline += 8;
 		incline = COM_ParseOut (incline, incname, sizeof(incname));
@@ -1473,6 +1630,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 	//prstrings[strings] = "invariant gl_Position;\n";
 	//length[strings] = strlen(prstrings[strings]);
 	//strings++;
+
 
 	switch (shadertype)
 	{
@@ -1654,8 +1812,20 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 
 			if (developer.ival)
 			{
+				unsigned int line;
+				char *eol, *start;
 				qglGetShaderSource(shader, sizeof(str), NULL, str);
-				Con_Printf("Shader \"%s\" source:\n%s", name, str);
+				Con_Printf("Shader \"%s\" source:\n", name, str);
+				for(start = str, line = 1; ;line++)
+				{
+					eol = strchr(start, '\n');
+					if (eol)
+						*eol=0;
+					Con_Printf("%3u: %s\n", line, start);
+					if (!eol)
+						break;
+					start = eol+1;
+				}
 			}
 		}
 		qglDeleteShaderObject_(shader);
@@ -1901,6 +2071,29 @@ static void GLSlang_DeleteProg(program_t *prog, unsigned int permu)
 
 static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvartypes)
 {
+	static const char *defaultsamplers[] =
+	{
+		"s_diffuse",
+		"s_normalmap",
+		"s_specular",
+		"s_upper",
+		"s_lower",
+		"s_fullbright",
+		"s_paletted",
+		"s_shadowmap",
+		"s_projectionmap",
+		"s_lightmap",
+		"s_deluxmap"
+#if MAXRLIGHTMAPS > 1
+		,"s_lightmap1"
+		,"s_lightmap2"
+		,"s_lightmap3"
+		,"s_deluxmap1"
+		,"s_deluxmap2"
+		,"s_deluxmap3"
+#endif
+	};
+
 	unsigned int i, p;
 	qboolean found;
 	int uniformloc;
@@ -1997,6 +2190,9 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 		if (found)
 			prog->numparams++;
 	}
+
+	prog->numsamplers = 0;
+	prog->defaulttextures = 0;
 	/*set texture uniforms*/
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
@@ -2010,7 +2206,49 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 			Q_snprintfz(tmpname, sizeof(tmpname), "s_t%i", i);
 			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl.handle, tmpname);
 			if (uniformloc != -1)
+			{
 				qglUniform1iARB(uniformloc, i);
+				if (prog->numsamplers < i+1)
+					prog->numsamplers = i+1;
+			}
+		}
+		for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
+		{
+			//figure out which ones are needed.
+			if (prog->defaulttextures & (1u<<i))
+				continue;	//don't spam
+			uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl.handle, defaultsamplers[i]);
+			if (uniformloc != -1)
+				prog->defaulttextures |= (1u<<i);
+		}
+	}
+
+	//multiple lightmaps is kinda hacky. if any are set, all must be. 
+	if (prog->defaulttextures & ((1u<<11) | (1u<<12) | (1u<<13)))
+		prog->defaulttextures |=((1u<<11) | (1u<<12) | (1u<<13));
+	if (prog->defaulttextures & ((1u<<14) | (1u<<15) | (1u<<16)))
+		prog->defaulttextures |=((1u<<14) | (1u<<15) | (1u<<16));
+
+	if (prog->defaulttextures)
+	{
+		unsigned int sampnum;
+		/*set default texture uniforms*/
+		for (p = 0; p < PERMUTATIONS; p++)
+		{
+			if (!prog->permu[p].handle.glsl.handle)
+				continue;
+			sampnum = prog->numsamplers;
+			GLSlang_UseProgram(prog->permu[p].handle.glsl.handle);
+			for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
+			{
+				if (prog->defaulttextures & (1u<<i))
+				{
+					uniformloc = qglGetUniformLocationARB(prog->permu[p].handle.glsl.handle, defaultsamplers[i]);
+					if (uniformloc != -1)
+						qglUniform1iARB(uniformloc, sampnum);
+					sampnum++;
+				}
+			}
 		}
 	}
 }

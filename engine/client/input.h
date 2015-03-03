@@ -57,3 +57,19 @@ void INS_ReInit (void);
 void INS_Init (void);
 void INS_Shutdown (void);
 void INS_Commands (void);	//final chance to call IN_MouseMove/IN_KeyEvent each frame
+
+extern cvar_t	cl_nodelta;
+extern cvar_t	cl_c2spps;
+extern cvar_t	cl_c2sImpulseBackup;
+extern cvar_t	cl_netfps;
+extern cvar_t	cl_sparemsec;
+extern cvar_t	cl_queueimpulses;
+extern cvar_t	cl_smartjump;
+extern cvar_t	cl_run;
+extern cvar_t	cl_fastaccel;
+extern cvar_t	cl_rollspeed;
+extern cvar_t	cl_prydoncursor;
+extern cvar_t	cl_instantrotate;
+extern cvar_t	in_xflip;
+extern cvar_t	prox_inmenu;
+extern cvar_t	cl_forceseat;

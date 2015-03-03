@@ -2329,7 +2329,7 @@ void COM_Gamedir (const char *dir)
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival);
 }
 
-#define QCFG "set allow_download_refpackages 0\n"
+#define QCFG "set allow_download_refpackages 0\nmap_autoopenportals 1\n"
 /*stuff that makes dp-only mods work a bit better*/
 #define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 /*nexuiz/xonotic has a few quirks/annoyances...*/

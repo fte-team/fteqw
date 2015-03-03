@@ -67,14 +67,12 @@ void RSpeedShow(void)
 
 	memset(RQntNames, 0, sizeof(RQntNames));
 	RQntNames[RQUANT_MSECS] = "Microseconds";
-#ifdef _DEBUG
-	RQntNames[RQUANT_PRIMITIVES] = "Draw Indicies";
-#endif
+	RQntNames[RQUANT_PRIMITIVEINDICIES] = "Draw Indicies";
 	RQntNames[RQUANT_DRAWS] = "Draw Calls";
 	RQntNames[RQUANT_2DBATCHES] = "2d Batches";
 	RQntNames[RQUANT_WORLDBATCHES] = "World Batches";
 	RQntNames[RQUANT_ENTBATCHES] = "Ent Batches";
-	RQntNames[RQUANT_SHADOWFACES] = "Shadow Faces";
+	RQntNames[RQUANT_SHADOWINDICIES] = "Shadow Indicies";
 	RQntNames[RQUANT_SHADOWEDGES] = "Shadow Edges";
 	RQntNames[RQUANT_SHADOWSIDES] = "Shadowmap Sides";
 	RQntNames[RQUANT_LITFACES] = "Lit faces";
@@ -1193,6 +1191,7 @@ void SCR_DeInit (void)
 		scr_initialized = false;
 
 		Cmd_RemoveCommand ("screenshot");
+		Cmd_RemoveCommand ("screenshot_mega");
 		Cmd_RemoveCommand ("sizeup");
 		Cmd_RemoveCommand ("sizedown");
 	}

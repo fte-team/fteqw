@@ -3901,7 +3901,7 @@ void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 	//see if we recognise the extension, and only strip it if we do.
 	COM_FileExtension(tex->ident, nicename, sizeof(nicename));
 	e = 0;
-	if (strcmp(nicename, "lmp"))
+	if (strcmp(nicename, "lmp") && strcmp(nicename, "wal"))
 		for (; e < tex_extensions_count; e++)
 		{
 			if (!strcmp(nicename, (*tex_extensions[e].name=='.')?tex_extensions[e].name+1:tex_extensions[e].name))
@@ -4184,6 +4184,10 @@ image_t *Image_CreateTexture (const char *identifier, const char *subdir, unsign
 image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
 {
 	image_t *tex;
+
+	qboolean dontposttoworker = (flags & (IF_NOWORKER | IF_LOADNOW));
+	flags &= ~IF_LOADNOW;
+
 #ifdef LOADERTHREAD
 	Sys_LockMutex(com_resourcemutex);
 #endif
@@ -4260,7 +4264,7 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 #endif
 	//FIXME: pass fallback through this way instead?
 
-	if (flags & IF_NOWORKER)
+	if (dontposttoworker)
 		Image_LoadHiResTextureWorker(tex, NULL, 0, 0);
 	else
 		COM_AddWork(1, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
@@ -4361,17 +4365,68 @@ qboolean Image_UnloadTexture(image_t *tex)
 	}
 	return false;
 }
+
+//nukes an existing texture, destroying all traces. any lingering references will cause problems, so be careful about how you access these.
+void Image_DestroyTexture(image_t *tex)
+{
+	image_t **link;
+	if (!tex)
+		return;
+	TEXDOWAIT(tex);	//just in case.
+#ifdef LOADERTHREAD
+	Sys_LockMutex(com_resourcemutex);
+#endif
+	Image_UnloadTexture(tex);
+
+	for (link = &imagelist; *link; link = &(*link)->next)
+	{
+		if (*link == tex)
+		{
+			*link = tex->next;
+			break;
+		}
+	}
+#ifdef LOADERTHREAD
+	Sys_UnlockMutex(com_resourcemutex);
+#endif
+	if (*tex->ident)
+		Hash_RemoveData(&imagetable, tex->ident, tex);
+	Z_Free(tex);
+}
+void Image_List_f(void)
+{
+	image_t *tex;
+	char *status;
+	for (tex = imagelist; tex; tex = tex->next)
+	{
+		if (tex->status == TEX_LOADED)
+			status = "^2loaded";
+		else if (tex->status == TEX_FAILED)
+			status = "^1failed";
+		else if (tex->status == TEX_NOTLOADED)
+			status = "^5not loaded";
+		else
+			status = "^bloading";
+		if (tex->subpath)
+			Con_Printf("%s^h(%s)^h: %s\n", tex->ident, tex->subpath, status);
+		else
+			Con_Printf("%s: %s\n", tex->ident, status);
+	}
+}
 //may not create any images yet.
 void Image_Init(void)
 {
 	memset(imagetablebuckets, 0, sizeof(imagetablebuckets));
 	Hash_InitTable(&imagetable, sizeof(imagetablebuckets)/sizeof(imagetablebuckets[0]), imagetablebuckets);
+
+	Cmd_AddCommandD("image_list", Image_List_f, "Prints out a list of the currently-known textures.");
 }
 //destroys all textures
 void Image_Shutdown(void)
 {
 	image_t *tex;
 	int i = 0, j = 0;
+	Cmd_RemoveCommand("image_list");
 	while (imagelist)
 	{
 		tex = imagelist;

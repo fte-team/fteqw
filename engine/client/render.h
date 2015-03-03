@@ -282,6 +282,9 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, vec4_t *colours, int 
 void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
 void R_InitSky (struct texnums_s *ret, struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/
 
+void R_Clutter_Emit(struct batch_s **batches);
+void R_Clutter_Purge(void);
+
 //r_surf.c
 void Surf_NewMap (void);
 void Surf_PreNewMap(void);
@@ -300,9 +303,7 @@ void Surf_BuildModelLightmaps (struct model_s *m);	//rebuild lightmaps for a sin
 void Surf_RenderDynamicLightmaps (struct msurface_s *fa);
 void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);
 int Surf_LightmapShift (struct model_s *model);
-#ifndef LMBLOCK_WIDTH
-#define	LMBLOCK_WIDTH		128
-#define	LMBLOCK_HEIGHT		128
+#define LMBLOCK_SIZE_MAX 1024	//single axis
 typedef struct glRect_s {
 	unsigned short l,t,w,h;
 } glRect_t;
@@ -325,7 +326,7 @@ extern int numlightmaps;
 //extern texid_t		*deluxmap_textures;
 extern int			lightmap_bytes;		// 1, 3, or 4
 extern qboolean		lightmap_bgra;		/*true=bgra, false=rgba*/
-#endif
+
 void Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
 
 
@@ -370,6 +371,7 @@ enum imageflags
 	IF_TEXTYPESHIFT = 8, /*0=2d, 1=3d, 2-7=cubeface*/
 	IF_MIPCAP = 1<<10,
 	IF_PREMULTIPLYALPHA = 1<<12,	//rgb *= alpha
+	IF_LOADNOW = 1<<25,
 	IF_NOPCX = 1<<26,			/*block pcx format. meaning qw skins can use team colours and cropping*/
 	IF_TRYBUMP = 1<<27,			/*attempt to load _bump if the specified _norm texture wasn't found*/
 	IF_RENDERTARGET = 1<<28,	/*never loaded from disk, loading can't fail*/
@@ -386,14 +388,13 @@ enum imageflags
 image_t *Image_FindTexture	(const char *identifier, const char *subpath, unsigned int flags);
 image_t *Image_CreateTexture(const char *identifier, const char *subpath, unsigned int flags);
 image_t *Image_GetTexture	(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
-qboolean Image_UnloadTexture	(image_t *tex);	//true if it did something.
+qboolean Image_UnloadTexture(image_t *tex);	//true if it did something.
+void Image_DestroyTexture	(image_t *tex);
 void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void Image_Init(void);
 void Image_Shutdown(void);
 
 image_t *Image_LoadTexture	(const char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
-
-#define R_DestroyTexture(id)	//FIXME
 
 #ifdef D3D9QUAKE
 void		D3D9_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);
@@ -597,13 +598,13 @@ extern int rspeeds[RSPEED_MAX];
 
 enum {
 	RQUANT_MSECS,	//old r_speeds
-	RQUANT_PRIMITIVES,
+	RQUANT_PRIMITIVEINDICIES,
 	RQUANT_DRAWS,
 	RQUANT_ENTBATCHES,
 	RQUANT_WORLDBATCHES,
 	RQUANT_2DBATCHES,
 
-	RQUANT_SHADOWFACES,
+	RQUANT_SHADOWINDICIES,
 	RQUANT_SHADOWEDGES,
 	RQUANT_SHADOWSIDES,
 	RQUANT_LITFACES,

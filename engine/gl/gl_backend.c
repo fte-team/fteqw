@@ -30,6 +30,12 @@ extern cvar_t gl_ati_truform;
 extern cvar_t r_wireframe;
 extern cvar_t r_refract_fbo;
 
+extern texid_t missing_texture;
+extern texid_t missing_texture_gloss;
+extern texid_t missing_texture_normal;
+extern texid_t scenepp_postproc_cube;
+extern texid_t r_whiteimage;
+
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
 	program rtlight%s\n\
@@ -894,7 +900,8 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 		GL_SelectEBO(ibo);
 		qglDrawRangeElements(GL_TRIANGLES, 0, numverts, numindicies, GL_INDEX_TYPE, indicies);
 	}
-	RQuantAdd(RQUANT_SHADOWFACES, numindicies/3);
+	RQuantAdd(RQUANT_DRAWS, 1);
+	RQuantAdd(RQUANT_SHADOWINDICIES, numindicies);
 	shaderstate.dummyvbo.indicies.gl.vbo = 0;
 	shaderstate.sourcevbo = NULL;
 }
@@ -924,22 +931,18 @@ void GL_CullFace(unsigned int sflags)
 	}
 }
 
-void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
+void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
 {
 	int i;
-	unsigned int cv = shaderstate.curentity->topcolour;
 
 	if (cv >= 16)
 	{
-		*retred = (((cv&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[15]+0))>>8;
-		*retgreen = (((cv&0x00ff00)>>8)**((unsigned char*)&d_8to24rgbtable[15]+1))>>8;
-		*retblue = (((cv&0x0000ff)>>0)**((unsigned char*)&d_8to24rgbtable[15]+2))>>8;
+		rgb[0] = (((cv&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[15]+0)) / (256.0*256);
+		rgb[1] = (((cv&0x00ff00)>>8)**((unsigned char*)&d_8to24rgbtable[15]+1)) / (256.0*256);
+		rgb[2] = (((cv&0x0000ff)>>0)**((unsigned char*)&d_8to24rgbtable[15]+2)) / (256.0*256);
 		return;
 	}
-	if (cv >= 0)
-		i = cv;
-	else
-		i = TOP_RANGE>>4;
+	i = cv;
 	if (i >= 8)
 	{
 		i<<=4;
@@ -950,45 +953,9 @@ void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
 		i+=15;
 	}
 	i*=3;
-	*retred = host_basepal[i+0];
-	*retgreen = host_basepal[i+1];
-	*retblue = host_basepal[i+2];
-/*	if (!gammaworks)
-	{
-		*retred = gammatable[*retred];
-		*retgreen = gammatable[*retgreen];
-		*retblue = gammatable[*retblue];
-	}*/
-}
-void R_FetchBottomColour(int *retred, int *retgreen, int *retblue)
-{
-	int i;
-	unsigned int cv = shaderstate.curentity->bottomcolour;
-
-	if (cv >= 16)
-	{
-		*retred = (((cv&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[15]+0))>>8;
-		*retgreen = (((cv&0x00ff00)>>8)**((unsigned char*)&d_8to24rgbtable[15]+1))>>8;
-		*retblue = (((cv&0x0000ff)>>0)**((unsigned char*)&d_8to24rgbtable[15]+2))>>8;
-		return;
-	}
-	if (cv >= 0)
-		i = cv;
-	else
-		i = BOTTOM_RANGE>>4;
-	if (i >= 8)
-	{
-		i<<=4;
-	}
-	else
-	{
-		i<<=4;
-		i+=15;
-	}
-	i*=3;
-	*retred = host_basepal[i+0];
-	*retgreen = host_basepal[i+1];
-	*retblue = host_basepal[i+2];
+	rgb[0] = host_basepal[i+0] / 255.0;
+	rgb[1] = host_basepal[i+1] / 255.0;
+	rgb[2] = host_basepal[i+2] / 255.0;
 /*	if (!gammaworks)
 	{
 		*retred = gammatable[*retred];
@@ -1126,11 +1093,7 @@ static void T_Gen_CurrentRender(int tmu)
 
 static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 {
-	extern texid_t missing_texture;
-	extern texid_t missing_texture_gloss;
-	extern texid_t missing_texture_normal;
-	extern texid_t scenepp_postproc_cube;
-	extern texid_t r_whiteimage;
+	extern cvar_t gl_specular_fallback;
 
 	texid_t t;
 	switch(pass->texgen)
@@ -1175,6 +1138,8 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 	case T_GEN_SPECULAR:
 		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->specular))
 			t = shaderstate.curtexnums->specular;
+		else if (gl_specular_fallback.value<0 && shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->base))
+			t = shaderstate.curtexnums->base;
 		else
 			t = missing_texture_gloss;
 		break;
@@ -1379,22 +1344,22 @@ void GLBE_DestroyFBOs(void)
 
 	if (shaderstate.tex_reflection)
 	{
-		R_DestroyTexture(shaderstate.tex_reflection);
+		Image_DestroyTexture(shaderstate.tex_reflection);
 		shaderstate.tex_reflection = r_nulltex;
 	}
 	if (shaderstate.tex_refraction)
 	{
-		R_DestroyTexture(shaderstate.tex_refraction);
+		Image_DestroyTexture(shaderstate.tex_refraction);
 		shaderstate.tex_refraction = r_nulltex;
 	}
 	if (shaderstate.tex_refractiondepth)
 	{
-		R_DestroyTexture(shaderstate.tex_refractiondepth);
+		Image_DestroyTexture(shaderstate.tex_refractiondepth);
 		shaderstate.tex_refractiondepth = r_nulltex;
 	}
 	if (shaderstate.temptexture)
 	{
-		R_DestroyTexture(shaderstate.temptexture);
+		Image_DestroyTexture(shaderstate.temptexture);
 		shaderstate.temptexture = r_nulltex;
 	}
 }
@@ -1985,11 +1950,7 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 	case RGB_GEN_TOPCOLOR:
 		if (cnt)
 		{
-			int r, g, b;
-			R_FetchTopColour(&r, &g, &b);
-			dst[0][0] = r/255.0f;
-			dst[0][1] = g/255.0f;
-			dst[0][2] = b/255.0f;
+			R_FetchPlayerColour(shaderstate.curentity->topcolour, dst[0]);
 			while((cnt)--)
 			{
 				dst[cnt][0] = dst[0][0];
@@ -2001,11 +1962,7 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 	case RGB_GEN_BOTTOMCOLOR:
 		if (cnt)
 		{
-			int r, g, b;
-			R_FetchBottomColour(&r, &g, &b);
-			dst[0][0] = r/255.0f;
-			dst[0][1] = g/255.0f;
-			dst[0][2] = b/255.0f;
+			R_FetchPlayerColour(shaderstate.curentity->bottomcolour, dst[0]);
 			while((cnt)--)
 			{
 				dst[cnt][0] = dst[0][0];
@@ -2738,7 +2695,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 			mesh = shaderstate.meshes[0];
 			qglDrawRangeElements(batchtype, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes, mesh->numindexes, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + mesh->vbofirstelement);
 			RQuantAdd(RQUANT_DRAWS, 1);
-			RQuantAdd(RQUANT_PRIMITIVES, mesh->numindexes);
+			RQuantAdd(RQUANT_PRIMITIVEINDICIES, mesh->numindexes);
 			return;
 		}
 		else
@@ -2771,7 +2728,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 			}
 			qglDrawRangeElements(batchtype, startv, endv, endi, GL_INDEX_TYPE, ilst);
 			RQuantAdd(RQUANT_DRAWS, 1);
-			RQuantAdd(RQUANT_PRIMITIVES, endi);
+			RQuantAdd(RQUANT_PRIMITIVEINDICIES, endi);
 		}
 		return;
 	}
@@ -2822,7 +2779,7 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 			}
 			qglDrawRangeElements(batchtype, startv, endv, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
 			RQuantAdd(RQUANT_DRAWS, 1);
-			RQuantAdd(RQUANT_PRIMITIVES, endi-starti);
+			RQuantAdd(RQUANT_PRIMITIVEINDICIES, endi-starti);
  		}
 /*
 		if (qglUnlockArraysEXT)
@@ -2957,7 +2914,7 @@ static void DrawPass(const shaderpass_t *pass)
 static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, qboolean entunchanged)
 {
 	vec4_t param4;
-	int r, g, b;
+	int r, g;//, b;
 	int i;
 	unsigned int ph;
 	const shaderprogparm_t *p;
@@ -2975,6 +2932,93 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 
 		switch(p->type)
 		{
+/*
+		case SP_UBO_ENTITYINFO:
+			struct
+			{
+				vec2_t		blendweights;
+					vec2_t	pad1;
+				vec3_t		glowmod;
+					vec_t	pad2;
+				vec3_t		origin;
+					vec_t	pad3;
+				vec4_t		colormod;
+				vec3_t		glowmod;
+					vec_t	pad4;
+				vec3_t		uppercolour;
+					vec_t	pad5;
+				vec3_t		lowercolour;
+					vec_t	pad6;
+				vec3_t		fogcolours;
+				vec_t		fogalpha;
+				vec3_t		vlightdir;
+				vec_t		fogdensity;
+				vec3_t		vlightmul;
+				vec_t		fogdepthbias;
+				vec3_t		vlightadd;
+				vec_t		time;
+			} u_entityinfo;
+
+			Vector2Copy(shaderstate.meshes[0]->xyz_blendw, u_entityinfo.blendweights);
+			VectorCopy(shaderstate.curentity->glowmod, u_entityinfo.glowmod);
+			VectorCopy(shaderstate.curentity->origin, u_entityinfo.origin);
+			Vector4Copy(shaderstate.curentity->shaderRGBAf, u_entityinfo.colormod);
+			R_FetchPlayerColour(shaderstate.curentity->topcolour, u_entityinfo.uppercolour);
+			R_FetchPlayerColour(shaderstate.curentity->bottomcolour, u_entityinfo.lowercolour);
+			Vector3Copy(r_refdef.globalfog.colour, u_entityinfo.fogcolours);
+			u_entityinfo.fogalpha = r_refdef.globalfog.alpha;
+			u_entityinfo.fogdensity = r_refdef.globalfog.density;
+			u_entityinfo.fogdepthbias = r_refdef.globalfog.depthbias;
+			u_entityinfo.time = shaderstate.curtime;
+			Vector3Copy(shaderstate.curentity->light_dir, u_entityinfo.vlightdir);
+			Vector3Copy(shaderstate.curentity->light_range, u_entityinfo.vlightmul);
+			Vector3Copy(shaderstate.curentity->light_avg, u_entityinfo.vlightadd);
+			break;
+*/
+
+/*
+		case SP_UBO_LIGHTINFO:
+			struct
+			{
+				vec3_t		toscreen;
+				vec_t		lightradius;
+				vec3_t		lightcolours;
+					vec_t	pad1;
+				vec3_t		lightcolourscale;
+					vec_t	pad2;
+				vec3_t		lightorigin_modelspace;
+					vec_t	pad3;
+				matrix4x4_t	lightcubematrix;
+				vec4_t		lightshadowmapproj;
+				vec2_t		lightshadowmapscale;
+					vec2_t	pad4;
+			} u_lightinfo;
+			{
+				float v[4], tempv[4];
+
+				v[0] = shaderstate.lightorg[0];
+				v[1] = shaderstate.lightorg[1];
+				v[2] = shaderstate.lightorg[2];
+				v[3] = 1;
+
+				Matrix4x4_CM_Transform4(shaderstate.modelviewmatrix, v, tempv); 
+				Matrix4x4_CM_Transform4(r_refdef.m_projection, tempv, v);
+
+				v[3] *= 2;
+				u_lightinfo.toscreen[0] = (v[0]/v[3]) + 0.5;
+				u_lightinfo.toscreen[1] = (v[1]/v[3]) + 0.5;
+				u_lightinfo.toscreen[2] = (v[2]/v[3]) + 0.5;
+			}
+			u_lightinfo.lightradius = shaderstate.lightradius;
+			Vector3Copy(shaderstate.lightcolours, u_lightinfo.lightcolours);
+
+			Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, shaderstate.lightorg, u_lightinfo.lightorigin_modelspace);
+			Vector3Copy(shaderstate.lightcolourscale, u_lightinfo.lightcolourscale);
+			Matrix4_Multiply(shaderstate.lightprojmatrix, shaderstate.modelmatrix, u_lightinfo.lightcubematrix);
+			Vector4Copy(shaderstate.lightshadowmapproj, u_lightinfo.lightshadowmapproj);
+			Vector2Copy(shaderstate.lightshadowmapscale, u_lightinfo.lightshadowmapscale);
+			break;
+*/
 		case SP_M_VIEW:
 			qglUniformMatrix4fvARB(ph, 1, false, r_refdef.m_view);
 			break;
@@ -3130,17 +3174,11 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				qglUniform4fARB(ph, 1, 1, 1, shaderstate.curentity->shaderRGBAf[3]);
 			break;
 		case SP_E_TOPCOLOURS:
-			R_FetchTopColour(&r, &g, &b);
-			param4[0] = r/255.0f;
-			param4[1] = g/255.0f;
-			param4[2] = b/255.0f;
+			R_FetchPlayerColour(shaderstate.curentity->topcolour, param4);
 			qglUniform3fvARB(ph, 1, param4);
 			break;
 		case SP_E_BOTTOMCOLOURS:
-			R_FetchBottomColour(&r, &g, &b);
-			param4[0] = r/255.0f;
-			param4[1] = g/255.0f;
-			param4[2] = b/255.0f;
+			R_FetchPlayerColour(shaderstate.curentity->bottomcolour, param4);
 			qglUniform3fvARB(ph, 1, param4);
 			break;
 
@@ -3155,11 +3193,11 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 				r = 1;
 				g = 1;
 				while (r < vid.pixelwidth)
-					r *= 2;
+					param4[0] *= 2;
 				while (g < vid.pixelheight)
-					g *= 2;
-				param4[0] = vid.pixelwidth/(float)r;
-				param4[1] = vid.pixelheight/(float)g;
+					param4[1] *= 2;
+				param4[0] = vid.pixelwidth/param4[0];
+				param4[1] = vid.pixelheight/param4[1];
 			}
 			param4[2] = 0;
 			param4[3] = 0;
@@ -3351,27 +3389,17 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 #if MAXRLIGHTMAPS > 1
 		if (perm & PERMUTATION_LIGHTSTYLES)
 		{
-			GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[1] >= 0?lightmap[shaderstate.curbatch->lightmap[1]]->lightmap_texture:r_nulltex);
-			GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[2] >= 0?lightmap[shaderstate.curbatch->lightmap[2]]->lightmap_texture:r_nulltex);
-			GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[3] >= 0?lightmap[shaderstate.curbatch->lightmap[3]]->lightmap_texture:r_nulltex);
-
-			//we need this loop to fix up fixed-function stuff
-			for (; i < shaderstate.lastpasstmus; i++)
-			{
-				GL_LazyBind(i, 0, r_nulltex);
-			}
-			shaderstate.lastpasstmus = pass->numMergedPasses+3;
+			GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[1]>=0?lightmap[shaderstate.curbatch->lightmap[1]]->lightmap_texture:r_nulltex);
+			GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[2]>=0?lightmap[shaderstate.curbatch->lightmap[2]]->lightmap_texture:r_nulltex);
+			GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[3]>=0?lightmap[shaderstate.curbatch->lightmap[3]]->lightmap_texture:r_nulltex);
+			GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[1]>=0&&lightmap[shaderstate.curbatch->lightmap[1]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[1]+1]->lightmap_texture:missing_texture_normal);
+			GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[2]>=0&&lightmap[shaderstate.curbatch->lightmap[2]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[2]+1]->lightmap_texture:missing_texture_normal);
+			GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[3]>=0&&lightmap[shaderstate.curbatch->lightmap[3]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[3]+1]->lightmap_texture:missing_texture_normal);
 		}
-		else
 #endif
-		{
-			//we need this loop to fix up fixed-function stuff
-			for (; i < shaderstate.lastpasstmus; i++)
-			{
-				GL_LazyBind(i, 0, r_nulltex);
-			}
-			shaderstate.lastpasstmus = pass->numMergedPasses;
-		}
+		while (shaderstate.lastpasstmus > i)
+			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+		shaderstate.lastpasstmus = i;	//in case it was already lower
 	}
 	BE_SubmitMeshChain(p->permu[perm].handle.glsl.usetesselation);
 }
@@ -3503,12 +3531,6 @@ void GLBE_SelectMode(backendmode_t mode)
 				shaderstate.crepskyshader = R_RegisterShader("crepuscular_sky", SUF_NONE,
 					"{\n"
 						"program crepuscular_sky\n"
-						"{\n"
-							"map $diffuse\n"
-						"}\n"
-						"{\n"
-							"map $fullbright\n"
-						"}\n"
 					"}\n"
 					);
 			}
@@ -4649,8 +4671,8 @@ static void BE_UpdateLightmaps(void)
 						lm->width, lm->rectchange.h, glformat, gltype,
 						lm->lightmaps+(lm->rectchange.t) *lm->width*lightmap_bytes);
 			}
-			lm->rectchange.l = LMBLOCK_WIDTH;
-			lm->rectchange.t = LMBLOCK_HEIGHT;
+			lm->rectchange.l = lm->width;
+			lm->rectchange.t = lm->height;
 			lm->rectchange.h = 0;
 			lm->rectchange.w = 0;
 		}
@@ -5259,7 +5281,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	TRACE(("GLBE_DrawWorld: drawn everything\n"));
 }
 
-void GLBE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize)
+void GLBE_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 {
 	COM_AssertMainThread("GLBE_VBO_Begin");
 
@@ -5278,7 +5300,7 @@ void GLBE_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize)
 	else
 		ctx->fallback = BZ_Malloc(maxsize);
 }
-void GLBE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray)
+void GLBE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
 	if (ctx->fallback)
 	{
@@ -5295,7 +5317,7 @@ void GLBE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *va
 	ctx->pos += size;
 }
 
-void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray)
+void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
 {
 	if (ctx->pos > ctx->maxsize)
 		Sys_Error("BE_VBO_Finish: too much data given\n");
@@ -5317,8 +5339,12 @@ void GLBE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t
 void GLBE_VBO_Destroy(vboarray_t *vearray)
 {
 	if (vearray->gl.vbo)
+	{
 		qglDeleteBuffersARB(1, &vearray->gl.vbo);
+		vearray->gl.vbo = 0;
+	}
 	else
 		BZ_Free(vearray->gl.addr);
+	vearray->gl.addr = NULL;
 }
 #endif

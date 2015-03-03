@@ -1941,7 +1941,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 				if (ent->cl->viewent)
 					pm_type = PMC_NONE;
 				else
-					pm_type = SV_PMTypeForClient (ent->cl);
+					pm_type = SV_PMTypeForClient (ent->cl, ent->cl->edict);
 				switch (pm_type)
 				{
 				case PM_NORMAL:		// Z_EXT_PM_TYPE protocol extension

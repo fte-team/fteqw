@@ -612,7 +612,7 @@ readnext:
 		else if (demotime > cls.td_lastframe)
 		{
 			cls.td_lastframe = demotime;
-			return 0;		// already read this frame's message
+			return 0;		// next packet starts after the previous one. draw something before parsing it.
 		}
 		if (cls.td_startframe == -1 && cls.state == ca_active)
 		{	//start the timer only once we are connected.
@@ -841,7 +841,6 @@ readit:
 	demo_flushbytes(demopos);
 
 	olddemotime = demotime;
-//	cls.td_lastframe = host_framecount;
 
 	return 1;
 }

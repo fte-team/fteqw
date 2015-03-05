@@ -154,8 +154,16 @@ typedef struct
 #define	Q1CONTENTS_SLIME	-4
 #define	Q1CONTENTS_LAVA		-5
 #define	Q1CONTENTS_SKY		-6
-#define	Q1CONTENTS_CLIP		-8
-#define	Q1CONTENTS_LADDER	-16
+#define	Q1CONTENTS_STRIPPED	-7	/*not known to engine*/
+#define	Q1CONTENTS_CLIP		-8	/*solid to players*/
+#define	Q1CONTENTS_FLOW_1	-9	/*moves player*/
+#define	Q1CONTENTS_FLOW_2	-10	/*moves player*/
+#define	Q1CONTENTS_FLOW_3	-11	/*moves player*/
+#define	Q1CONTENTS_FLOW_4	-12	/*moves player*/
+#define	Q1CONTENTS_FLOW_5	-13	/*moves player*/
+#define	Q1CONTENTS_FLOW_6	-14	/*moves player*/
+#define	Q1CONTENTS_TRANS	-15	/*should be solid I guess*/
+#define	Q1CONTENTS_LADDER	-16	/*player can climb up/down*/
 
 // !!! if this is changed, it must be changed in asm_i386.h too !!!
 typedef struct

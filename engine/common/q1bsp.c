@@ -375,7 +375,7 @@ struct traceinfo_s
 	unsigned int solidcontents;
 	trace_t trace;
 
-	qboolean sphere;
+	qboolean capsule;
 	float radius;
 	/*set even for sphere traces (used for bbox tests)*/
 	vec3_t mins;
@@ -383,6 +383,10 @@ struct traceinfo_s
 
 	vec3_t start;
 	vec3_t end;
+
+	vec3_t	up;
+	vec3_t	capsulesize;
+	vec3_t	extents;
 };
 
 static void Q1BSP_ClipToBrushes(struct traceinfo_s *traceinfo, mbrush_t *brush)
@@ -409,9 +413,13 @@ static void Q1BSP_ClipToBrushes(struct traceinfo_s *traceinfo, mbrush_t *brush)
 		for (i = brush->numplanes, plane = brush->planes; i; i--, plane++)
 		{
 			/*calculate the distance based upon the shape of the object we're tracing for*/
-			if (traceinfo->sphere)
+			if (traceinfo->capsule)
 			{
-				dist = plane->dist + traceinfo->radius;
+				dist = DotProduct(traceinfo->up, plane->normal);
+				dist = dist*(traceinfo->capsulesize[(dist<0)?1:2]) - traceinfo->capsulesize[0];
+				dist = plane->dist - dist;
+
+				//dist = plane->dist + traceinfo->radius;
 			}
 			else
 			{
@@ -644,8 +652,27 @@ static unsigned int Q1BSP_TranslateContents(int contents)
 		return FTECONTENTS_SKY;
 	case Q1CONTENTS_LADDER:
 		return FTECONTENTS_LADDER;
+	case Q1CONTENTS_CLIP:
+		return FTECONTENTS_PLAYERCLIP;
+	case Q1CONTENTS_TRANS:
+		return FTECONTENTS_SOLID;
+
+	//q2 is better than nothing, right?
+	case Q1CONTENTS_FLOW_1:
+		return Q2CONTENTS_CURRENT_0;
+	case Q1CONTENTS_FLOW_2:
+		return Q2CONTENTS_CURRENT_90;
+	case Q1CONTENTS_FLOW_3:
+		return Q2CONTENTS_CURRENT_180;
+	case Q1CONTENTS_FLOW_4:
+		return Q2CONTENTS_CURRENT_270;
+	case Q1CONTENTS_FLOW_5:
+		return Q2CONTENTS_CURRENT_UP;
+	case Q1CONTENTS_FLOW_6:
+		return Q2CONTENTS_CURRENT_DOWN;
+
 	default:
-		Sys_Error("Q1BSP_TranslateContents: Unknown contents type - %i", contents);
+		Con_Printf("Q1BSP_TranslateContents: Unknown contents type - %i", contents);
 		return FTECONTENTS_SOLID;
 	}
 }
@@ -855,7 +882,23 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 		VectorCopy(maxs, traceinfo.maxs);
 		VectorCopy(start, traceinfo.start);
 		VectorCopy(end, traceinfo.end);
-		traceinfo.sphere = false;
+		traceinfo.capsule = capsule;
+
+		if (traceinfo.capsule)
+		{
+			float ext;
+			traceinfo.capsulesize[0] = ((maxs[0]-mins[0]) + (maxs[1]-mins[1]))/4.0;
+			traceinfo.capsulesize[1] = maxs[2];
+			traceinfo.capsulesize[2] = mins[2];
+			ext = (traceinfo.capsulesize[1] > -traceinfo.capsulesize[2])?traceinfo.capsulesize[1]:-traceinfo.capsulesize[2];
+			traceinfo.capsulesize[1] -= traceinfo.capsulesize[0];
+			traceinfo.capsulesize[2] += traceinfo.capsulesize[0];
+			traceinfo.extents[0] = ext+1;
+			traceinfo.extents[1] = ext+1;
+			traceinfo.extents[2] = ext+1;
+			VectorSet(traceinfo.up, 0, 0, 1);
+		}
+
 /*		traceinfo.sphere = true;
 		traceinfo.radius = 48;
 		traceinfo.mins[0] = -traceinfo.radius;

@@ -1435,7 +1435,10 @@ void SCR_DrawGameClock(void)
 	else
 		timelimit = 0;
 
-	showtime = timelimit - cl.matchgametime;
+	if (cl.playerview[0].statsf[STAT_MATCHSTARTTIME])
+		showtime = timelimit - (cl.servertime - cl.playerview[0].statsf[STAT_MATCHSTARTTIME]);
+	else
+		showtime = timelimit - cl.matchgametime;
 
 	if (showtime < 0)
 	{

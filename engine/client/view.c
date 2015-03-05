@@ -27,6 +27,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <ctype.h> // for isdigit();
 
 cvar_t ffov = SCVAR("ffov", "0");
+#if defined(_WIN32) && !defined(MINIMAL)
+//amusing gimmick / easteregg.
+#include "winquake.h"
+cvar_t itburnsitburnsmakeitstop = CVARFD("itburnsitburnsmakeitstop", "0", CVAR_NOTFROMSERVER, "Ouch");
+#endif
 
 /*
 
@@ -373,6 +378,37 @@ void V_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 	V_UpdatePalette (true);
 }
 
+#ifdef _WIN32
+void W32_BlowChunk(vec3_t pos, float radius)
+{
+	vec3_t center;
+	if (Matrix4x4_CM_Project(pos, center, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
+	{
+		int mid_x = center[0]*r_refdef.vrect.width+r_refdef.vrect.x;
+		int mid_y = (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y;
+
+		HRGN tmp = CreateRectRgn(0,0,0,0);
+		HRGN newrgn = CreateRectRgn(0,0,0,0);
+		HRGN oldrgn = CreateRectRgn(0,0,0,0);
+		HRGN hole = CreateEllipticRgn(mid_x-radius, mid_y-radius, mid_x+radius, mid_y+radius);
+		if (GetWindowRgn(mainwindow, oldrgn) <= NULLREGION)
+		{
+			RECT rect;
+			DeleteObject(oldrgn);
+			GetWindowRect(mainwindow, &rect);
+			oldrgn = CreateRectRgn(0,0,rect.right-rect.left,rect.bottom-rect.top);
+		}
+		CombineRgn(tmp, oldrgn, hole, RGN_XOR);
+		CombineRgn(newrgn, oldrgn, tmp, RGN_AND);
+		DeleteObject(oldrgn);
+		DeleteObject(hole);
+		DeleteObject(tmp);
+		SetWindowRgn(mainwindow, newrgn, TRUE);
+	}
+}
+#endif
+
+
 /*
 ===============
 V_ParseDamage
@@ -393,6 +429,11 @@ void V_ParseDamage (playerview_t *pv)
 		from[i] = MSG_ReadCoord ();
 
 	pv->faceanimtime = cl.time + 0.2;		// but sbar face into pain frame
+
+#if defined(_WIN32) && !defined(MINIMAL)
+	if (itburnsitburnsmakeitstop.value > 0)
+		W32_BlowChunk(from, (armor+blood) * itburnsitburnsmakeitstop.value);
+#endif
 
 #ifdef CSQC_DAT
 	if (CSQC_Parse_Damage(armor, blood, from))
@@ -1871,4 +1912,8 @@ void V_Init (void)
 	Cvar_Register (&chase_active, VIEWVARS);
 	Cvar_Register (&chase_back, VIEWVARS);
 	Cvar_Register (&chase_up, VIEWVARS);
+
+#if defined(_WIN32) && !defined(MINIMAL)
+	Cvar_Register (&itburnsitburnsmakeitstop, VIEWVARS);
+#endif
 }

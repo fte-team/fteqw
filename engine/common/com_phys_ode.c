@@ -41,7 +41,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef USERBE
 
 #include "pr_common.h"
-#include "com_mesh.h"
 
 #ifndef FTEENGINE
 #define BZ_Malloc malloc
@@ -67,13 +66,13 @@ static BUILTINR(dllhandle_t *, Sys_LoadLibrary, (const char *name,dllfunction_t 
 static BUILTIN(void, Sys_CloseLibrary, (dllhandle_t *hdl));
 #undef ARGNAMES
 #define ARGNAMES ,version
-static BUILTINR(modplugfuncs_t*, Mod_GetPluginModelFuncs, (int version));
+static BUILTINR(rbeplugfuncs_t*, RBE_GetPluginFuncs, (int version));
 #undef ARGNAMES
 #define ARGNAMES ,name,defaultval,flags,description,groupname
 static BUILTINR(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname));
 #undef ARGNAMES
 
-static modplugfuncs_t *modfuncs;
+static rbeplugfuncs_t *rbefuncs;
 
 //============================================================================
 // physics engine support
@@ -1383,7 +1382,7 @@ static void QDECL World_ODE_RemoveFromEntity(world_t *world, wedict_t *ed)
 	}
 	ed->ode.ode_body = NULL;
 
-	modfuncs->ReleaseCollisionMesh(ed);
+	rbefuncs->ReleaseCollisionMesh(ed);
 	if(ed->ode.ode_massbuf)
 		BZ_Free(ed->ode.ode_massbuf);
 	ed->ode.ode_massbuf = NULL;
@@ -1483,7 +1482,7 @@ static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	VectorCopy(avelocity, ed->ode.ode_avelocity);
 	ed->ode.ode_gravity = dBodyGetGravityMode(body);
 
-	modfuncs->LinkEdict(world, ed, true);
+	rbefuncs->LinkEdict(world, ed, true);
 }
 
 static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
@@ -2114,7 +2113,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 					World_ODE_RemoveFromEntity(world, ed);
 				return;
 			}
-			if (!modfuncs->GenerateCollisionMesh(world, model, ed, geomcenter))
+			if (!rbefuncs->GenerateCollisionMesh(world, model, ed, geomcenter))
 			{
 				if (ed->ode.ode_physics)
 					World_ODE_RemoveFromEntity(world, ed);
@@ -2779,28 +2778,33 @@ static void World_ODE_RunCmd(world_t *world, rbecommandqueue_t *cmd)
 
 static qintptr_t QDECL Plug_ODE_Shutdown(qintptr_t *args)
 {
-	if (modfuncs)
-		modfuncs->UnregisterPhysicsEngine("ODE");
+	if (rbefuncs)
+		rbefuncs->UnregisterPhysicsEngine("ODE");
 	World_ODE_Shutdown();
 	return 0;
 }
 
 qintptr_t Plug_Init(qintptr_t *args)
 {
-	CHECKBUILTIN(Mod_GetPluginModelFuncs);
+	CHECKBUILTIN(RBE_GetPluginFuncs);
 	CHECKBUILTIN(Cvar_GetNVFDG);
 #ifndef ODE_STATIC
 	CHECKBUILTIN(Sys_LoadLibrary);
 	CHECKBUILTIN(Sys_CloseLibrary);
 #endif
 
-	if (BUILTINISVALID(Mod_GetPluginModelFuncs))
+	if (BUILTINISVALID(RBE_GetPluginFuncs))
 	{
-		modfuncs = pMod_GetPluginModelFuncs(sizeof(modplugfuncs_t));
-		if (modfuncs && modfuncs->version < MODPLUGFUNCS_VERSION)
-			modfuncs = NULL;
+		rbefuncs = pRBE_GetPluginFuncs(sizeof(rbeplugfuncs_t));
+		if (rbefuncs && rbefuncs->version < RBEPLUGFUNCS_VERSION)
+			rbefuncs = NULL;
 	}
-	if (!modfuncs || !BUILTINISVALID(Cvar_GetNVFDG))
+	if (!rbefuncs)
+	{
+		Con_Printf("ODE plugin failed: Engine does not support external rigid body engines.\n");
+		return false;
+	}
+	if (!BUILTINISVALID(Cvar_GetNVFDG))
 	{
 		Con_Printf("ODE plugin failed: Engine too old.\n");
 		return false;
@@ -2813,9 +2817,9 @@ qintptr_t Plug_Init(qintptr_t *args)
 	}
 #endif
 
-	if (!modfuncs || !modfuncs->RegisterPhysicsEngine)
+	if (!rbefuncs || !rbefuncs->RegisterPhysicsEngine)
 		Con_Printf("ODE plugin failed: Engine doesn't support physics engine plugins.\n");
-	else if (!modfuncs->RegisterPhysicsEngine("ODE", World_ODE_Start))
+	else if (!rbefuncs->RegisterPhysicsEngine("ODE", World_ODE_Start))
 		Con_Printf("ODE plugin failed: Engine already has a physics plugin active.\n");
 	else
 	{

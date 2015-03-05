@@ -192,11 +192,11 @@ typedef struct
 	void (QDECL *StripExtension) (const char *in, char *out, int outlen);
 	void (QDECL *ForceConvertBoneData)(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
 
-	void (QDECL *LinkEdict)(world_t *w, wedict_t *ed, qboolean touchtriggers);
-	qboolean (QDECL *RegisterPhysicsEngine)(const char *enginename, void(QDECL*World_Bullet_Start)(world_t*world));	//returns false if there's already one active.
-	void (QDECL *UnregisterPhysicsEngine)(const char *enginename);	//returns false if there's already one active.
-	qboolean (QDECL *GenerateCollisionMesh)(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter);
-	void (QDECL *ReleaseCollisionMesh) (wedict_t *ed);
+	void *unused1;
+	void *reserved2;
+	void *unused3;
+	void *unused4;
+	void *unused5;
 } modplugfuncs_t;
 #define MODPLUGFUNCS_VERSION 2
 

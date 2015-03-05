@@ -441,13 +441,16 @@ static void LightCalcFaceExtents (llightinfo_t *l)
 		l->exactmins[i] = mins[i];
 		l->exactmaxs[i] = maxs[i];
 		
-		mins[i] = floor(mins[i]/16);
-		maxs[i] = ceil(maxs[i]/16);
+		mins[i] = floor(mins[i]/(1<<s->lmshift));
+		maxs[i] = ceil(maxs[i]/(1<<s->lmshift));
 
 		l->texmins[i] = mins[i];
 		l->texsize[i] = maxs[i] - mins[i];
 		if (l->texsize[i] > 17)
-			Error ("Bad surface extents");
+		{
+			l->texsize[i] = 17;
+			Con_Printf("Bad surface extents");
+		}
 	}
 }
 

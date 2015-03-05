@@ -540,6 +540,22 @@ pbool QDECL ED_CanFree (edict_t *ed);
 #define JOINTTYPE_HINGE2 5
 #define JOINTTYPE_FIXED -1
 
+typedef struct
+{
+	int version;
+
+	qboolean (QDECL *RegisterPhysicsEngine)(const char *enginename, void(QDECL*World_Bullet_Start)(world_t*world));	//returns false if there's already one active.
+	void (QDECL *UnregisterPhysicsEngine)(const char *enginename);	//returns false if there's already one active.
+	qboolean (QDECL *GenerateCollisionMesh)(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter);
+	void (QDECL *ReleaseCollisionMesh) (wedict_t *ed);
+	void (QDECL *LinkEdict)(world_t *w, wedict_t *ed, qboolean touchtriggers);
+
+	void (QDECL *VectorAngles)(float *forward, float *up, float *result);
+	void (QDECL *AngleVectors)(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
+} rbeplugfuncs_t;
+#define RBEPLUGFUNCS_VERSION 1
+
+
 #define	DAMAGE_NO				0
 #define	DAMAGE_YES				1
 #define	DAMAGE_AIM				2

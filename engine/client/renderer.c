@@ -1178,7 +1178,7 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 #endif
 
 TRACE(("dbg: R_ApplyRenderer: reloading server map\n"));
-		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);
+		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_WARN);
 TRACE(("dbg: R_ApplyRenderer: loaded\n"));
 		if (sv.world.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(sv.world.worldmodel, &sv.world.worldmodel->loadstate, MLS_LOADING);

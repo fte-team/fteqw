@@ -1277,6 +1277,31 @@ qintptr_t VARGS Plug_UpdateInputBuffer(void *offset, quintptr_t mask, const qint
 	return bufferlen;
 }
 
+#ifdef USERBE
+#include "pr_common.h"
+//functions useful for rigid body engines.
+qintptr_t VARGS Plug_RBE_GetPluginFuncs(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	static rbeplugfuncs_t funcs =
+	{
+		RBEPLUGFUNCS_VERSION,
+
+		World_RegisterPhysicsEngine,
+		World_UnregisterPhysicsEngine,
+		World_GenerateCollisionMesh,
+		World_ReleaseCollisionMesh,
+		World_LinkEdict,
+
+		VectorAngles,
+		AngleVectors
+	};
+	if (VM_LONG(arg[0]) >= sizeof(funcs))
+		return (qintptr_t)&funcs;
+	else
+		return 0;
+}
+#endif
+
 void Plug_CloseAll_f(void);
 void Plug_List_f(void);
 void Plug_Close_f(void);
@@ -1398,6 +1423,10 @@ void Plug_Initialise(qboolean fromgamedir)
 
 		Plug_RegisterBuiltin("Sys_LoadLibrary",			Plug_Sys_LoadLibrary, PLUG_BIF_DLLONLY);
 		Plug_RegisterBuiltin("Sys_CloseLibrary",		Plug_Sys_CloseLibrary, PLUG_BIF_DLLONLY);
+
+#ifdef USERBE
+		Plug_RegisterBuiltin("RBE_GetPluginFuncs",		Plug_RBE_GetPluginFuncs, PLUG_BIF_DLLONLY);
+#endif
 
 		Plug_Client_Init();
 	}

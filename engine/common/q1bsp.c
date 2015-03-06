@@ -757,12 +757,11 @@ void Q1BSP_LoadBrushes(model_t *model)
 		if (permodel->ver != 1 || lumpsizeremaining < sizeof(*permodel) + permodel->numbrushes*sizeof(*perbrush) + permodel->numplanes*sizeof(*perplane))
 			return;
 
-		//find the correct rootnode for the model
+		//find the correct rootnode for the submodel (submodels are not set up yet).
 		rootnode = model->nodes;
 		if (permodel->modelnum > model->numsubmodels)
 			return;
-		if (permodel->modelnum)
-			rootnode += model->submodels[permodel->modelnum-1].headnode[0];
+		rootnode += model->submodels[permodel->modelnum].headnode[0];
 
 		brush = ZG_Malloc(&model->memgroup, (sizeof(*brush) - sizeof(brush->planes[0]))*permodel->numbrushes + sizeof(brush->planes[0])*(permodel->numbrushes*6+permodel->numplanes));
 		remainingplanes = permodel->numplanes;
@@ -909,7 +908,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 		traceinfo.maxs[2] = traceinfo.radius;
 */
 		traceinfo.solidcontents = hitcontentsmask;
-		Q1BSP_RecursiveBrushCheck(&traceinfo, model->nodes, 0, 1, start, end);
+		Q1BSP_RecursiveBrushCheck(&traceinfo, model->rootnode, 0, 1, start, end);
 		memcpy(trace, &traceinfo.trace, sizeof(trace_t));
 		if (trace->fraction < 1)
 		{

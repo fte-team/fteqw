@@ -1852,9 +1852,9 @@ char *Mod_ParseWorldspawnKey(const char *ents, const char *key, char *buffer, si
 	char value[1024];
 	while(*ents)
 	{
-		if (*ents == '{')	//an entity
+		ents = COM_ParseOut(ents, keyname, sizeof(keyname));
+		if (*keyname == '{')	//an entity
 		{
-			ents++;
 			while (ents && *ents)
 			{
 				ents = COM_ParseOut(ents, keyname, sizeof(keyname));

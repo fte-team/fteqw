@@ -2915,13 +2915,16 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		sold = NULL;
 		for ( ; oldpnum<oldpack->num_entities ; )
 		{
-			sold = &oldpack->entities[oldpnum++];
+			sold = &oldpack->entities[oldpnum];
 			if (sold->number >= snew->number)
 			{
 				if (sold->number > snew->number)
 					sold = NULL;	//woo, it's a new entity.
+				else
+					oldpnum++;
 				break;
 			}
+			oldpnum++;
 
 #ifdef RAGDOLL
 			le = &cl.lerpents[sold->number];

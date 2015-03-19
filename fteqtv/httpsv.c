@@ -1139,6 +1139,7 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 			{
 				s =	"HTTP/1.1 426 Upgrade Required\r\n"
 					"Sec-WebSocket-Version: 13\r\n"
+					"Access-Control-Allow-Origin: *\r\n"	//allow cross-origin requests. this means you can use any domain to play on any public server.
 					"\r\n";
 				Net_ProxySend(cluster, pend, s, strlen(s));
 				return;
@@ -1155,6 +1156,7 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 							"HTTP/1.1 101 Switching Protocols\r\n"
 							"Upgrade: websocket\r\n"
 							"Connection: Upgrade\r\n"
+							"Access-Control-Allow-Origin: *\r\n"	//allow cross-origin requests. this means you can use any domain to play on any public server.
 							"Sec-WebSocket-Accept: %s\r\n"
 //							"Sec-WebSocket-Protocol: FTEQTVWebSocket\r\n"
 							"\r\n", acceptkey);

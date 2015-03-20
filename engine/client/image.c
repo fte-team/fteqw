@@ -785,6 +785,7 @@ qboolean LibPNG_Init(void)
 		{(void **) &qpng_set_IHDR,						"png_set_IHDR"},
 		{(void **) &qpng_set_compression_level,			"png_set_compression_level"},
 		{(void **) &qpng_init_io,						"png_init_io"},
+		{(void **) &qpng_get_io_ptr,					"png_get_io_ptr"},
 		{(void **) &qpng_destroy_write_struct,			"png_destroy_write_struct"},
 		{(void **) &qpng_create_write_struct,			"png_create_write_struct"},
 

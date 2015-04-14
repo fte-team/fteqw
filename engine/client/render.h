@@ -280,7 +280,7 @@ void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *
 void R_LightArrays(const entity_t *entity, vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals, float scale);
 
 void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
-void R_InitSky (struct texnums_s *ret, struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/
+void R_InitSky (struct texnums_s *tn, const char *skyname, qbyte *src, unsigned int width, unsigned int height);	/*generate q1 sky texnums*/
 
 void R_Clutter_Emit(struct batch_s **batches);
 void R_Clutter_Purge(void);
@@ -303,7 +303,7 @@ void Surf_BuildModelLightmaps (struct model_s *m);	//rebuild lightmaps for a sin
 void Surf_RenderDynamicLightmaps (struct msurface_s *fa);
 void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);
 int Surf_LightmapShift (struct model_s *model);
-#define LMBLOCK_SIZE_MAX 1024	//single axis
+#define LMBLOCK_SIZE_MAX 2048	//single axis
 typedef struct glRect_s {
 	unsigned short l,t,w,h;
 } glRect_t;
@@ -371,13 +371,15 @@ enum imageflags
 	IF_TEXTYPESHIFT = 8, /*0=2d, 1=3d, 2-7=cubeface*/
 	IF_MIPCAP = 1<<10,
 	IF_PREMULTIPLYALPHA = 1<<12,	//rgb *= alpha
-	IF_LOADNOW = 1<<25,
+	IF_HIGHPRIORITY = 1<<23,
+	IF_LOWPRIORITY = 1<<24,
+	IF_LOADNOW = 1<<25,			/*hit the disk now, and delay the gl load until its actually needed. this is used only so that the width+height are known in advance*/
 	IF_NOPCX = 1<<26,			/*block pcx format. meaning qw skins can use team colours and cropping*/
 	IF_TRYBUMP = 1<<27,			/*attempt to load _bump if the specified _norm texture wasn't found*/
 	IF_RENDERTARGET = 1<<28,	/*never loaded from disk, loading can't fail*/
 	IF_EXACTEXTENSION = 1<<29,	/*don't mangle extensions, use what is specified and ONLY that*/
 	IF_NOREPLACE = 1<<30,		/*don't load a replacement, for some reason*/
-	IF_NOWORKER = 1u<<31		/*don't pass the work to a loader thread. this gives synchronous loading.*/
+	IF_NOWORKER = 1u<<31		/*don't pass the work to a loader thread. this gives fully synchronous loading. only valid from the main thread.*/
 };
 
 #define R_LoadTexture8(id,w,h,d,f,t)		Image_GetTexture(id, NULL, f, d, NULL, w, h, t?TF_TRANS8:TF_SOLID8)
@@ -455,8 +457,14 @@ void Mod_UnRegisterAllModelFormats(void *module);
 void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b);
 
 #ifdef RUNTIMELIGHTING
-void LightFace (int surfnum);
-void LightLoadEntities(char *entstring);
+struct relight_ctx_s;
+struct llightinfo_s;
+void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int surfnum);	//version that is aware of bsp trees
+void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, qbyte surf_styles[4], qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
+struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, struct model_s *model, qboolean shadows);
+void LightReloadEntities(struct relight_ctx_s *ctx, char *entstring);
+void LightShutdown(struct relight_ctx_s *ctx, struct model_s *mod);
+extern const size_t lightthreadctxsize;
 #endif
 
 
@@ -505,6 +513,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *name);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
+void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight);
 
 void BoostGamma(qbyte *rgba, int width, int height);
 void SaturateR8G8B8(qbyte *data, int size, float sat);
@@ -566,6 +575,7 @@ extern	cvar_t	r_coronas, r_flashblend, r_flashblendscale;
 extern	cvar_t	r_lightstylesmooth;
 extern	cvar_t	r_lightstylesmooth_limit;
 extern	cvar_t	r_lightstylespeed;
+extern	cvar_t	r_lightstylescale;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_load24bit;
 extern	cvar_t	gl_finish;
@@ -626,13 +636,13 @@ extern int rquant[RQUANT_MAX];
 #define RSpeedRemark()
 #define RSpeedEnd(spt)
 #else
-#define RSpeedLocals() int rsp
-#define RSpeedMark() int rsp = (r_speeds.ival>1)?Sys_DoubleTime()*1000000:0
+#define RSpeedLocals() double rsp
+#define RSpeedMark() double rsp = (r_speeds.ival>1)?Sys_DoubleTime()*1000000:0
 #define RSpeedRemark() rsp = (r_speeds.ival>1)?Sys_DoubleTime()*1000000:0
 
 #if defined(_WIN32) && defined(GLQUAKE)
 extern void (_stdcall *qglFinish) (void);
-#define RSpeedEnd(spt) do {if(r_speeds.ival > 1){if(r_speeds.ival > 2 && qglFinish)qglFinish(); rspeeds[spt] += (int)(Sys_DoubleTime()*1000000) - rsp;}}while (0)
+#define RSpeedEnd(spt) do {if(r_speeds.ival > 1){if(r_speeds.ival > 2 && qglFinish)qglFinish(); rspeeds[spt] += (double)(Sys_DoubleTime()*1000000) - rsp;}}while (0)
 #else
 #define RSpeedEnd(spt) rspeeds[spt] += (r_speeds.ival>1)?Sys_DoubleTime()*1000000 - rsp:0
 #endif

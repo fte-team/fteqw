@@ -103,8 +103,8 @@ cvar_t r_flashblendscale					= SCVARF ("gl_flashblendscale", "0.35",
 												CVAR_ARCHIVE);
 cvar_t r_floorcolour						= CVARAF ("r_floorcolour", "64 64 128",
 													"r_floorcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
-cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
-												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
+//cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
+//												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fullbright							= CVARFD ("r_fullbright", "0",
 												CVAR_CHEAT|CVAR_SHADERSYSTEM, "Ignore world lightmaps, drawing everything fully lit.");
 cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "0.8", /*don't default to 1, as it looks a little ugly (too bright), but don't default to 0 either because then you're handicapped in the dark*/
@@ -113,6 +113,7 @@ cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
 cvar_t r_lightstylesmooth					= CVARF  ("r_lightstylesmooth", "0", CVAR_ARCHIVE);
 cvar_t r_lightstylesmooth_limit				= SCVAR  ("r_lightstylesmooth_limit", "2");
 cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
+cvar_t r_lightstylescale					= SCVAR  ("r_lightstylescale", "1");
 cvar_t r_loadlits							= CVARF  ("r_loadlit", "1", CVAR_ARCHIVE);
 cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
@@ -127,7 +128,7 @@ cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
 cvar_t r_skyboxname							= SCVARF ("r_skybox", "",
 												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
-cvar_t r_softwarebanding					= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM | CVAR_RENDERERLATCH, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
+cvar_t r_softwarebanding					= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
 cvar_t r_speeds								= SCVAR ("r_speeds", "0");
 cvar_t r_stainfadeammount					= SCVAR  ("r_stainfadeammount", "1");
 cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
@@ -137,8 +138,8 @@ cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
 cvar_t r_postprocshader						= CVARD("r_postprocshader", "", "Specifies a shader to use as a post-processing shader");
 cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "128 128 128",
 													  "r_wallcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
-cvar_t r_walltexture						= CVARF ("r_walltexture", "",
-												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
+//cvar_t r_walltexture						= CVARF ("r_walltexture", "",
+//												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
 cvar_t r_wateralpha							= CVARF  ("r_wateralpha", "1",
 												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_lavaalpha							= CVARF  ("r_lavaalpha", "",
@@ -170,7 +171,7 @@ cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
 cvar_t scr_fov								= CVARFDC("fov", "90",
 												CVAR_ARCHIVE, "field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.",
 												SCR_Fov_Callback);
-cvar_t scr_printspeed						= SCVAR  ("scr_printspeed", "8");
+cvar_t scr_printspeed						= SCVAR  ("scr_printspeed", "16");
 cvar_t scr_showpause						= SCVAR  ("showpause", "1");
 cvar_t scr_showturtle						= SCVAR  ("showturtle", "0");
 cvar_t scr_turtlefps						= SCVAR  ("scr_turtlefps", "10");
@@ -298,8 +299,6 @@ cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
 cvar_t	r_clear								= CVARAF("r_clear","0",
 													 "gl_clear", 0);
 cvar_t gl_max_size							= CVARFD  ("gl_max_size", "8192", CVAR_RENDERERLATCH, "Specifies the maximum texture size that the engine may use. Textures larger than this will be downsized. Clamped by the value the driver supports.");
-cvar_t gl_maxshadowlights					= SCVARF ("gl_maxshadowlights", "2",
-												CVAR_ARCHIVE);
 cvar_t gl_menutint_shader					= CVARD  ("gl_menutint_shader", "1", "Controls the use of GLSL to desaturate the background when drawing the menu, like quake's dos software renderer used to do before the ugly dithering of winquake.");
 
 //by setting to 64 or something, you can use this as a wallhack
@@ -333,10 +332,10 @@ cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR
 cvar_t gl_texture_anisotropic_filtering		= CVARFC("gl_texture_anisotropic_filtering", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												Image_TextureMode_Callback);
-cvar_t gl_texturemode						= CVARFDC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST",
+cvar_t gl_texturemode						= CVARFDC("gl_texturemode", "GL_LINEAR_MIPMAP_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK | CVAR_SAVE,
 												"Specifies how world/model textures appear. Typically 3 letters eg lln.\nFirst letter can be l(inear) or n(earest) and says how to sample from the mip (when downsampling).\nThe middle letter can . to disable mipmaps, or l or n to describe whether to blend between mipmaps.\nThe third letter says what to do when the texture is too low resolution and is thus the most noticable with low resolution textures, a n will make it look like lego, while an l will keep it smooth.", Image_TextureMode_Callback);
-cvar_t gl_mipcap							= CVARFC("d_mipcap", "0 1000",
+cvar_t gl_mipcap							= CVARAFC("d_mipcap", "0 1000", "gl_miptexLevel",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												Image_TextureMode_Callback);
 cvar_t gl_texturemode2d						= CVARFDC("gl_texturemode2d", "GL_LINEAR",
@@ -362,7 +361,7 @@ cvar_t r_shadow_heightscale_bumpmap			= CVARD  ("r_shadow_heightscale_bumpmap", 
 
 cvar_t r_glsl_offsetmapping					= CVARFD  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Enables the use of paralax mapping, adding fake depth to textures.");
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
-cvar_t r_glsl_offsetmapping_reliefmapping = CVARFD("r_glsl_offsetmapping_reliefmapping", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer. r_glsl_offsetmapping must be set.");
+cvar_t r_glsl_offsetmapping_reliefmapping = CVARFD("r_glsl_offsetmapping_reliefmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer, but noticably more expensive at high resolutions. r_glsl_offsetmapping must be set.");
 cvar_t r_glsl_turbscale						= CVARFD  ("r_glsl_turbscale", "1", CVAR_ARCHIVE, "Controls the strength of water ripples (used by the altwater glsl code).");
 
 cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.\n");
@@ -431,7 +430,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_portaldrawplanes, GLRENDEREROPTIONS);
 	Cvar_Register (&r_portalonly, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_bumpmap, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_heightscale_basetexture, GLRENDEREROPTIONS);
@@ -478,8 +476,8 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&r_wallcolour, GLRENDEREROPTIONS);
 	Cvar_Register (&r_floorcolour, GLRENDEREROPTIONS);
-	Cvar_Register (&r_walltexture, GLRENDEREROPTIONS);
-	Cvar_Register (&r_floortexture, GLRENDEREROPTIONS);
+//	Cvar_Register (&r_walltexture, GLRENDEREROPTIONS);
+//	Cvar_Register (&r_floortexture, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_vertexdlights, GLRENDEREROPTIONS);
 
@@ -630,6 +628,7 @@ void Renderer_Init(void)
 	Cvar_Register(&r_lightstylesmooth, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylesmooth_limit, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylespeed, GRAPHICALNICETIES);
+	Cvar_Register(&r_lightstylescale, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_stains, GRAPHICALNICETIES);
 	Cvar_Register(&r_stainfadetime, GRAPHICALNICETIES);
@@ -1429,6 +1428,13 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	newr->rate = vid_refreshrate.value;
 	newr->stereo = (r_stereo_method.ival == 1);
 	newr->srgb = vid_srgb.ival;
+
+	if (com_installer)
+	{
+		newr->fullscreen = false;
+		newr->width = 640;
+		newr->height = 480;
+	}
 
 	if (!*vid_vsync.string || vid_vsync.value < 0)
 		newr->wait = -1;

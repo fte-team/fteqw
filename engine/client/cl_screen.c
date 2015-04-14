@@ -93,7 +93,7 @@ void RSpeedShow(void)
 	}
 	for (i = 0; i < RQUANT_MAX; i++)
 	{
-		s = va("%g %-20s", samplerquant[i]/100.0, RQntNames[i]);
+		s = va("%u.%.3u %-20s", samplerquant[i]/100, (samplerquant[i]%100), RQntNames[i]);
 		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 	}
 	if (r_speeds.ival > 1)
@@ -245,6 +245,7 @@ void *scr_curcursor;
 extern char cl_screengroup[];
 void CLSCR_Init(void)
 {
+	int i;
 	Cmd_AddCommand("cprint", SCR_CPrint_f);
 
 	Cvar_Register(&con_stayhidden, cl_screengroup);
@@ -265,6 +266,8 @@ void CLSCR_Init(void)
 
 
 	memset(&key_customcursor, 0, sizeof(key_customcursor));
+	for (i = 0; i < kc_max; i++)
+		key_customcursor[i].dirty = true;
 	scr_curcursor = NULL;
 	if (rf && rf->VID_SetCursor)
 		rf->VID_SetCursor(scr_curcursor);
@@ -412,6 +415,25 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 			break;
 		str += 2;
 	}
+	p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, sizeof(p->string), false) - p->string;
+	p->time_off = scr_centertime.value;
+	p->time_start = cl.time;
+}
+
+void VARGS Stats_Message(char *msg, ...)
+{
+	va_list		argptr;
+	char str[2048];
+	cprint_t *p = &scr_centerprint[0];
+	if (p->time_off >= 0)
+		return;
+
+	va_start (argptr, msg);
+	vsnprintf (str,sizeof(str)-1, msg, argptr);
+	va_end (argptr);
+
+	p->flags = CPRINT_OBITUARTY;
+	p->titleimage[0] = 0;
 	p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, sizeof(p->string), false) - p->string;
 	p->time_off = scr_centertime.value;
 	p->time_start = cl.time;
@@ -650,7 +672,7 @@ void SCR_DrawCursor(void)
 		return;
 
 	//choose the cursor based upon the module that has primary focus
-	if (key_dest_mask & key_dest_absolutemouse & (kdm_console|kdm_editor))
+	if (key_dest_mask & key_dest_absolutemouse & (kdm_console|kdm_cwindows|kdm_editor))
 		cmod = kc_console;
 	else if ((key_dest_mask & key_dest_absolutemouse & kdm_menu))
 	{
@@ -680,6 +702,13 @@ void SCR_DrawCursor(void)
 
 	if (key_customcursor[cmod].dirty)
 	{
+		if (key_customcursor[cmod].scale <= 0)
+		{
+			key_customcursor[cmod].hotspot[0] = cl_cursorbiasx.value;
+			key_customcursor[cmod].hotspot[1] = cl_cursorbiasy.value;
+			key_customcursor[cmod].scale = cl_cursorscale.value;
+		}
+
 		key_customcursor[cmod].dirty = false;
 		oldcurs = key_customcursor[cmod].handle;
 		if (rf->VID_CreateCursor)
@@ -1173,7 +1202,7 @@ void SCR_Init (void)
 //
 // register our commands
 //
-	Cmd_AddCommand ("screenshot_mega",SCR_ScreenShot_Mega_f);
+	Cmd_AddCommandD ("screenshot_mega",SCR_ScreenShot_Mega_f, "screenshot_mega <name> [width] [height]\nTakes a screenshot with explicit sizes that are not tied to the size of your monitor, allowing for true monstrosities.");
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
 	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
 	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);
@@ -1794,7 +1823,7 @@ SCR_SetUpToDrawConsole
 */
 void SCR_SetUpToDrawConsole (void)
 {
-	extern qboolean startuppending;	//true if we're downloading media or something and have not yet triggered the startup action (read: main menu or cinematic)
+	extern int startuppending;	//true if we're downloading media or something and have not yet triggered the startup action (read: main menu or cinematic)
 #ifdef TEXTEDITOR
 	//extern qboolean editoractive; //unused variable
 #endif
@@ -1818,17 +1847,22 @@ void SCR_SetUpToDrawConsole (void)
 		else if (!startuppending && !Key_Dest_Has(kdm_menu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
 		{
 			//go fullscreen if we're not doing anything
+			if (con_curwindow && !cls.state)
+			{
+				Key_Dest_Add(kdm_cwindows);
+				scr_conlines = 0;
+			}
 #ifdef VM_UI
-			if (UI_MenuState() || UI_OpenMenu())
+			else if (UI_MenuState() || UI_OpenMenu())
 				scr_con_current = scr_conlines = 0;
-			else
 #endif
+			else
 			{
 				if (cls.state < ca_demostart)
 				{
 					if (con_stayhidden.ival)
 					{
-						extern qboolean startuppending;
+						extern int startuppending;
 						scr_conlines = 0;
 						if (SCR_GetLoadingStage() == LS_NONE)
 						{
@@ -1845,7 +1879,7 @@ void SCR_SetUpToDrawConsole (void)
 			if (!con_stayhidden.ival && !startuppending && Key_Dest_Has(kdm_console))
 				scr_con_current = scr_conlines = vid.height * fullscreenpercent;
 		}
-		else if (Key_Dest_Has(kdm_console) || scr_chatmode)
+		else if ((Key_Dest_Has(kdm_console) || scr_chatmode))
 		{
 			//go half-screen if we're meant to have the console visible
 			scr_conlines = vid.height*scr_consize.value;    // half screen
@@ -1891,15 +1925,15 @@ SCR_DrawConsole
 */
 void SCR_DrawConsole (qboolean noback)
 {
-	if (scr_con_current)
-	{
-		Con_DrawConsole (scr_con_current, noback);
-		clearconsole = 0;
-	}
-	else
+	if (!scr_con_current)
 	{
 		if (!Key_Dest_Has(kdm_console|kdm_menu))
 			Con_DrawNotify ();      // only draw notify in game
+	}
+	if (scr_con_current || Key_Dest_Has(kdm_cwindows))
+	{
+		Con_DrawConsole (scr_con_current, noback);
+		clearconsole = 0;
 	}
 }
 
@@ -2133,6 +2167,9 @@ void SCR_ScreenShot_Mega_f(void)
 	unsigned int fbwidth = strtoul(Cmd_Argv(2), NULL, 0);
 	unsigned int fbheight = strtoul(Cmd_Argv(3), NULL, 0);
 
+	if (Cmd_IsInsecure())
+		return;
+
 	if (qrenderer <= QR_HEADLESS)
 	{
 		Con_Printf("No renderer active\n");
@@ -2177,7 +2214,12 @@ void SCR_ScreenShot_Mega_f(void)
 		rgbbuffer = VID_GetRGBInfo(0, &width, &height);
 		if (rgbbuffer)
 		{
-			SCR_ScreenShot(filename, rgbbuffer, width, height);
+			if (SCR_ScreenShot(filename, rgbbuffer, width, height))
+			{
+				char			sysname[1024];
+				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+				Con_Printf ("Wrote %s\n", sysname);
+			}
 			BZ_Free(rgbbuffer);
 		}
 	}
@@ -2452,6 +2494,8 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		{
 			SCR_DrawFPS ();
 			SCR_DrawUPS ();
+			SCR_DrawClock();
+			SCR_DrawGameClock();
 		}
 		SCR_CheckDrawCenterString ();
 	}

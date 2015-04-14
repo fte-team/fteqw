@@ -913,6 +913,8 @@ void INS_Accumulate(void)	//input polling
 void INS_Commands (void)	//used to Cbuf_AddText joystick button events in windows.
 {
 }
-
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char *devicename, int *qdevid))
+{
+}
 
 

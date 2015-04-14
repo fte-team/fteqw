@@ -26100,6 +26100,10 @@
 					>
 				</File>
 				<File
+					RelativePath="..\common\fs_xz.c"
+					>
+				</File>
+				<File
 					RelativePath="..\common\fs_zip.c"
 					>
 				</File>

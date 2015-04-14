@@ -557,7 +557,7 @@ void SVNQ_New_f (void)
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, va("csqc_progname %s\n", "csprogs.dat"));
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, va("csqc_progsize %i\n", sz));
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progsize %u\n", (unsigned int)sz));
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, va("csqc_progcrc %i\n", QCRC_Block(f, sz)));
 
@@ -883,8 +883,7 @@ SV_Soundlist_f
 */
 void SVQW_Soundlist_f (void)
 {
-	if (host_client->prespawn_stage == PRESPAWN_SOUNDLIST)
-		host_client->prespawn_idx &= ~0x80000000;
+	host_client->prespawn_allow_soundlist = true;
 }
 
 /*
@@ -894,8 +893,7 @@ SV_Modellist_f
 */
 void SVQW_Modellist_f (void)
 {
-	if ((host_client->prespawn_stage == PRESPAWN_MODELLIST) || (host_client->prespawn_stage == PRESPAWN_VWEPMODELLIST))
-		host_client->prespawn_idx &= ~0x80000000;
+	host_client->prespawn_allow_modellist = true;
 }
 
 void SV_SendClientPrespawnInfo(client_t *client)
@@ -903,6 +901,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 	qboolean started;
 	int i;
 	entity_state_t *state;
+	staticsound_state_t *sound;
 	edict_t *ent;
 	svcustomtents_t *ctent;
 	//much of this function is written to fill packets enough to overflow them (assuming max packet sizes are large enough), but some bits are lazy and just backbuffer as needed.
@@ -990,14 +989,16 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			started = false;
 
 			//allows stalling for the soundlist command, for compat.
-			if (client->prespawn_idx & 0x80000000)
-				return;
+			if (!client->prespawn_allow_soundlist)
+				if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+					return;
 
 			while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
 			{
 				if (!started)
 				{
 					started = true;
+					client->prespawn_allow_soundlist = false;
 	#ifdef PEXT_SOUNDDBL
 					if (client->prespawn_idx > 255)
 					{
@@ -1037,8 +1038,6 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				MSG_WriteByte (&client->netchan.message, 0);
 				MSG_WriteByte (&client->netchan.message, (client->prespawn_idx&0xff)?client->prespawn_idx:0xff);
 
-				if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-					client->prespawn_idx |= 0x80000000;
 			}
 		}
 	}
@@ -1091,15 +1090,17 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		{
 			started = false;
 
-			//allows stalling for the soundlist command, for compat.
-			if (client->prespawn_idx & 0x80000000)
-				return;
+			//allows stalling for the modellist command, for compat.
+			if (!client->prespawn_allow_modellist)
+				if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+					return;
 
 			while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))
 			{
 				if (!started)
 				{
 					started = true;
+					client->prespawn_allow_modellist = false;
 	#ifdef PEXT_SOUNDDBL
 					if (client->prespawn_idx > 255)
 					{
@@ -1139,9 +1140,6 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				//write end-of-packet
 				MSG_WriteByte (&client->netchan.message, 0);
 				MSG_WriteByte (&client->netchan.message, (client->prespawn_idx&0xff)?client->prespawn_idx:0xff);
-
-				if (!(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-					client->prespawn_idx |= 0x80000000;
 			}
 		}
 	}
@@ -1290,6 +1288,45 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				}
 				continue;
 			}
+		}
+	}
+	if (client->prespawn_stage == PRESPAWN_AMBIENTSOUND)
+	{
+		while (client->netchan.message.cursize < (client->netchan.message.maxsize/2))	//static entities
+		{
+			qboolean large = false;
+
+			if (client->prespawn_idx >= sv.num_static_sounds)
+			{
+				client->prespawn_stage++;
+				client->prespawn_idx = 0;
+				break;
+			}
+
+			sound = &sv_staticsounds[client->prespawn_idx];
+			client->prespawn_idx++;
+
+			if (sound->soundnum > 0xff)
+			{
+				large = true;
+				if (ISDPCLIENT(client))
+					MSG_WriteByte(&client->netchan.message, svcdp_spawnstaticsound2);
+				else if (ISNQCLIENT(client))
+					MSG_WriteByte(&client->netchan.message, svcfitz_spawnstaticsound2);
+				else
+					continue; //not supported
+			}
+			else
+				MSG_WriteByte(&client->netchan.message, svc_spawnstaticsound);
+
+			for (i=0 ; i<3 ; i++)
+				MSG_WriteCoord(&client->netchan.message, sound->position[i]);
+			if (large)
+				MSG_WriteShort(&client->netchan.message, sound->soundnum);
+			else
+				MSG_WriteByte(&client->netchan.message, sound->soundnum);
+			MSG_WriteByte(&client->netchan.message, sound->volume);
+			MSG_WriteByte(&client->netchan.message, sound->attenuation);
 		}
 	}
 
@@ -3711,7 +3748,8 @@ void SV_Rate_f (void)
 	Info_SetValueForKey (host_client->userinfo, "rate", Cmd_Argv(1), sizeof(host_client->userinfo));
 	SV_ExtractFromUserinfo (host_client, true);
 
-	SV_ClientTPrintf (host_client, PRINT_HIGH, "rate is changed to %i\n", SV_RateForClient(host_client));
+	if (host_client->state > cs_connected)
+		SV_ClientTPrintf (host_client, PRINT_HIGH, "rate is changed to %i\n", SV_RateForClient(host_client));
 }
 
 
@@ -5364,19 +5402,20 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 
 	Cmd_ExecLevel=1;
 
-	if (host_client->controlled && atoi(Cmd_Argv(0))>0)	//now see if it's meant to be from a slave client
+	if (!fromQC && host_client->controlled && atoi(Cmd_Argv(0))>0)	//now see if it's meant to be from a slave client
 	{
 		int pnum = atoi(Cmd_Argv(0));
-		client_t *s;
-		for (s = host_client; s; s = s->controlled)
+		client_t *sp;
+		for (sp = host_client; sp; sp = sp->controlled)
 		{
 			if (!--pnum)
 			{
-				host_client = s;
+				host_client = sp;
 				break;
 			}
 		}
 		sv_player = host_client->edict;
+		s = Cmd_Args();
 		Cmd_ShiftArgs(1, false);
 	}
 
@@ -6879,12 +6918,21 @@ void SV_ExecuteClientMessage (client_t *cl)
 			sv_player = cl->edict;
 			break;
 
-		case clc_prydoncursor:
+		case clcfte_prydoncursor:
 			SV_ReadPrydonCursor();
 			break;
-		case clc_qcrequest:
+		case clcfte_qcrequest:
 			SV_ReadQCRequest();
 			break;
+#ifdef TERRAIN
+		case clcfte_brushedit:
+			if (!SV_Parse_BrushEdit())
+			{
+				SV_DropClient (cl);
+				return;
+			}
+			break;
+#endif
 
 		case clc_stringcmd:
 			s = MSG_ReadString ();
@@ -6917,7 +6965,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 			SV_NextUpload();
 			break;
 #ifdef VOICECHAT
-		case clc_voicechat:
+		case clcfte_voicechat:
 			SV_VoiceReadPacket();
 			break;
 #endif
@@ -7231,7 +7279,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 		host_client->isindependant = true;
 		SV_PreRunCmd();
-		SV_RunCmd (move, true);
+		SV_RunCmd (move, false);
 		SV_PostRunCmd();
 	}
 	else
@@ -7323,7 +7371,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 				return;
 			break;
 
-		case clc_qcrequest:
+		case clcfte_qcrequest:
 			SV_ReadQCRequest();
 			break;
 
@@ -7336,7 +7384,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			break;
 
 #ifdef VOICECHAT
-		case clc_voicechat:
+		case clcfte_voicechat:
 			SV_VoiceReadPacket();
 			break;
 #endif

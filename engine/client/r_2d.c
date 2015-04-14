@@ -725,9 +725,17 @@ void R2D_Font_AddFontLink(char *buffer, int buffersize, char *fontname)
 #endif
 void R2D_Font_Changed(void)
 {
+	float tsize;
 	if (!con_textsize.modified)
 		return;
 	con_textsize.modified = false;
+
+	if (con_textsize.value < 0)
+		tsize = (-con_textsize.value * vid.height) / vid.pixelheight;
+	else
+		tsize = con_textsize.value;
+	if (!tsize)
+		tsize = 8;
 
 	if (font_console == font_default)
 		font_console = NULL;
@@ -763,8 +771,8 @@ void R2D_Font_Changed(void)
 		CHOOSEFONTA cf = {sizeof(cf)};
 		extern HWND	mainwindow;
 		font_default = Font_LoadFont(8, "");
-		if (con_textsize.ival != 8 && con_textsize.ival >= 1)
-			font_console = Font_LoadFont(con_textsize.ival, "");
+		if (tsize != 8)
+			font_console = Font_LoadFont(tsize, "");
 		if (!font_console)
 			font_console = font_default;
 
@@ -805,11 +813,11 @@ void R2D_Font_Changed(void)
 	if (!font_default && *gl_font.string)
 		font_default = Font_LoadFont(8, "");
 
-	if (con_textsize.ival != 8 && con_textsize.ival >= 1)
+	if (tsize != 8)
 	{
-		font_console = Font_LoadFont(con_textsize.ival, gl_font.string);
+		font_console = Font_LoadFont(tsize, gl_font.string);
 		if (!font_console)
-			font_console = Font_LoadFont(con_textsize.ival, "");
+			font_console = Font_LoadFont(tsize, "");
 	}
 	if (!font_console)
 		font_console = font_default;
@@ -977,6 +985,8 @@ void R2D_BrightenScreen (void)
 	//don't go crazy with brightness. that makes it unusable and is thus unsafe - and worse, lots of people assume its based around 1 (like gamma and contrast are). cap to 0.5
 	if (v_brightness.value > 0.5)
 		v_brightness.value = 0.5;
+	if (v_contrast.value < 0.5)
+		v_contrast.value = 0.5;
 
 	if (r2d_canhwgamma)
 		return;

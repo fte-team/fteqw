@@ -172,11 +172,12 @@ K_MAX			= 256
 
 typedef enum	//highest has priority
 {
-	kdm_game	= 1u<<0,	//should always be set
-	kdm_message	= 1u<<1,
-	kdm_menu	= 1u<<2,
-	kdm_editor	= 1u<<3,
-	kdm_console	= 1u<<4,
+	kdm_game		= 1u<<0,	//should always be set
+	kdm_message		= 1u<<1,
+	kdm_menu		= 1u<<2,
+	kdm_editor		= 1u<<3,
+	kdm_console		= 1u<<4,
+	kdm_cwindows	= 1u<<5,
 } keydestmask_t;
 
 //unsigned int Key_Dest_Get(void);	//returns highest priority destination

@@ -106,23 +106,40 @@ typedef struct conline_s {
 	float time;
 } conline_t;
 
+//majority of these are mututally exclusive. the bits allow multiple.
+#define CB_NONE			0
+#define CB_SCROLL		1
+#define CB_COPY			2
+#define CB_CLOSE		3
+#define CB_MOVE			4
+#define CB_SIZELEFT		(1u<<29)
+#define CB_SIZERIGHT	(1u<<30)
+#define CB_SIZEBOTTOM	(1u<<31)
 #define CONF_HIDDEN			1	/*do not show in the console list (unless active)*/
 #define CONF_NOTIFY			2	/*text printed to console also appears as notify lines*/
 #define CONF_NOTIFY_BOTTOM	4	/*align the bottom*/
-#define CONF_NOTIMES		8
-#define CONF_KEYFOCUSED		16
+#define CONF_NOTIFY_RIGHT	8
+#define CONF_NOTIMES		16
+#define CONF_KEYFOCUSED		32
+#define CONF_ISWINDOW		64
 typedef struct console_s
 {
 	int id;
 	int nextlineid;	//the current line being written to. so we can rewrite links etc.
-	char name[64];
-	char title[64];
+	char name[128];
+	char title[128];
+	float wnd_x;
+	float wnd_y;
+	float wnd_w;
+	float wnd_h;
 	int linecount;
 	unsigned int flags;
-	int notif_x;
-	int notif_y;
-	int notif_w;
+	float notif_x;
+	float notif_y;
+	float notif_w;
 	int notif_l;
+	float notif_fade;		// will be transparent for this long when fading
+	int maxlines;
 	float notif_t;
 	conline_t *oldest;
 	conline_t *current;		// line where next message will be printed
@@ -135,7 +152,7 @@ typedef struct console_s
 	unsigned parseflags;
 	conchar_t defaultcharbits;
 	int		commandcompletion;	//allows tab completion of quake console commands
-	void	(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear.
+	int	(*linebuffered) (struct console_s *con, char *line);	//if present, called on enter, causes the standard console input to appear. return 2 to not save the line in history.
 	void	(*redirect) (struct console_s *con, int key);	//if present, called every character.
 	void	*userdata;
 
@@ -143,14 +160,16 @@ typedef struct console_s
 	conline_t	*footerline;	//temp text at the bottom of the console
 	conline_t	*selstartline, *selendline;
 	unsigned int	selstartoffset, selendoffset;
-	int mousedown[3];	//x,y,buttons
+	int mousedown[2];	//x,y position that the current buttons were clicked.
+	unsigned int buttonsdown;
 	int mousecursor[2];	//x,y
 
 	struct console_s *next;
 } console_t;
 
 extern	console_t	con_main;
-extern	console_t	*con_current;			// point to either con_main or con_chat
+extern	console_t	*con_curwindow;		// refers to a windowed console
+extern	console_t	*con_current;		// point to either con_main or con_chat
 extern	console_t	*con_mouseover;
 extern	console_t	*con_chat;
 
@@ -178,23 +197,23 @@ void Con_Shutdown (void);
 void Con_History_Save(void);
 void Con_History_Load(void);
 struct font_s;
-void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy, float fsx, float fsy);
+void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy);
 void Con_DrawConsole (int lines, qboolean noback);
-char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink);
+char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink);
 void Con_Print (char *txt);
 void Con_PrintFlags(char *text, unsigned int setflags, unsigned int clearflags);
 void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
 void VARGS Con_DPrintf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_SafePrintf (char *fmt, ...) LIKEPRINTF(1);
-void Con_Footerf(qboolean append, char *fmt, ...) LIKEPRINTF(2); 
+void Con_Footerf(console_t *con, qboolean append, char *fmt, ...) LIKEPRINTF(3); 
 void Con_Clear_f (void);
 void Con_DrawNotify (void);
 void Con_ClearNotify (void);
 void Con_ToggleConsole_f (void);//note: allows csqc to intercept the toggleconsole
 void Con_ToggleConsole_Force(void);
 
-void Con_ExecuteLine(console_t *con, char *line);	//takes normal console commands
+int Con_ExecuteLine(console_t *con, char *line);	//takes normal console commands
 
 
 void Con_CycleConsole (void);

@@ -51,7 +51,11 @@ typedef enum {
 } shadersort_t;
 
 #define MAX_BONES 256
+#ifdef FTE_TARGET_WEB
+#define MAX_GPU_BONES 32	//ATI drivers bug out and start to crash if you put this at 128. FIXME: make dynamic.
+#else
 #define MAX_GPU_BONES 64	//ATI drivers bug out and start to crash if you put this at 128. FIXME: make dynamic.
+#endif
 struct doll_s;
 void rag_flushdolls(qboolean force);
 void rag_freedoll(struct doll_s *doll);
@@ -292,6 +296,7 @@ typedef struct texture_s
 	struct texture_s *alternate_anims;	// bmodels in frmae 1 use these
 
 	qbyte		*mips[4];	//the different mipmap levels.
+	qbyte		*palette;	//host_basepal or halflife per-texture palette
 } texture_t;
 /*
 typedef struct
@@ -999,6 +1004,9 @@ unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org)
 struct fragmentdecal_s;
 void Terrain_ClipDecal(struct fragmentdecal_s *dec, float *center, float radius, model_t *model);
 qboolean Terr_DownloadedSection(char *fname);
+
+void CL_Parse_BrushEdit(void);
+qboolean SV_Parse_BrushEdit(void);
 #endif
 
 

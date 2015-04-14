@@ -759,9 +759,9 @@ static void	 (D3D9_VID_DeInit)				(void)
 		mainwindow = NULL;
 	}
 
-	Cvar_Unhook(&v_gamma);
-	Cvar_Unhook(&v_contrast);
-	Cvar_Unhook(&v_brightness);
+//	Cvar_Unhook(&v_gamma);
+//	Cvar_Unhook(&v_contrast);
+//	Cvar_Unhook(&v_brightness);
 }
 
 qboolean D3D9_VID_ApplyGammaRamps		(unsigned short *ramps)

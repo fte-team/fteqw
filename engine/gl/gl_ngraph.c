@@ -100,6 +100,7 @@ void R_NetGraph (void)
 	int lost;
 	char st[80];
 	unsigned	ngraph_pixels[NET_GRAPHHEIGHT][NET_TIMINGS];
+	float pi, po, bi, bo;
 
 	x = 0;
 	if (r_netgraph.value < 0)
@@ -130,14 +131,21 @@ void R_NetGraph (void)
 
 	x =	((vid.width - 320)>>1);
 	x=-x;
-	y = vid.height - sb_lines - 24 - NET_GRAPHHEIGHT - 1;
+	y = vid.height - sb_lines - 24 - NET_GRAPHHEIGHT - 2*8;
 
-	M_DrawTextBox (x, y, NET_TIMINGS/8, NET_GRAPHHEIGHT/8 + 1);
+	M_DrawTextBox (x, y, NET_TIMINGS/8, NET_GRAPHHEIGHT/8 + 3);
 	y += 8;
 
 	sprintf(st, "%3i%% packet loss", lost);
 	Draw_FunString(8, y, st);
 	y += 8;
+
+	if (NET_GetRates(cls.sockets, &pi, &po, &bi, &bo))
+	{
+		Draw_FunString(8, y+0, va("in: %g %g\n", pi, bi));	//not relevent as a limit.
+		Draw_FunString(8, y+8, va("out: %g %g\n", po, bo));	//not relevent as a limit.
+	}
+	y += 16;
 
 	Image_Upload(netgraphtexture, TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOPICMIP);
 	x=8;

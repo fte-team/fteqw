@@ -10,7 +10,7 @@
 
 void Font_Init(void);
 void Font_Shutdown(void);
-struct font_s *Font_LoadFont(int height, const char *fontfilename);
+struct font_s *Font_LoadFont(float height, const char *fontfilename);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
@@ -161,6 +161,7 @@ static const char *imgs[] =
 #define BITMAPPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-2)
 #define DEFAULTPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-3)
 #define SINGLEPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-4)
+#define TRACKERIMAGE ((1<<(8*sizeof(PLANEIDXTYPE)))-5)
 #define PLANEWIDTH (1<<8)
 #define PLANEHEIGHT PLANEWIDTH
 
@@ -226,6 +227,7 @@ typedef struct font_s
 typedef struct {
 	texid_t texnum[FONTPLANES];
 	texid_t defaultfont;
+	texid_t trackerimage;
 
 	unsigned char plane[PLANEWIDTH*PLANEHEIGHT][4];	//tracks the current plane
 	PLANEIDXTYPE activeplane;
@@ -259,11 +261,55 @@ static struct font_s *curfont;
 static float curfont_scale[2];
 static qboolean curfont_scaled;
 
+
+//^Ue2XX
+static struct
+{
+	image_t *image;
+	char name[64];
+} trackerimages[256];
+static int numtrackerimages;
+#define TRACKERFIRST 0xe200
+int Font_RegisterTrackerImage(const char *image)
+{
+	int i;
+	for (i = 0; i < numtrackerimages; i++)
+	{
+		if (!strcmp(trackerimages[i].name, image))
+			return TRACKERFIRST + i;
+	}
+	if (numtrackerimages == 256)
+		return 0;
+	trackerimages[i].image = NULL;	//actually load it elsewhere, because we're lazy.
+	Q_strncpyz(trackerimages[i].name, image, sizeof(trackerimages[i].name));
+	numtrackerimages++;
+	return TRACKERFIRST + i;
+}
+//called from the font display code for tracker images
+static image_t *Font_GetTrackerImage(unsigned int imid)
+{
+	if (!trackerimages[imid].image)
+	{
+		if (!*trackerimages[imid].name)
+			return NULL;
+		trackerimages[imid].image = Image_GetTexture(trackerimages[imid].name, NULL, 0, NULL, NULL, 0, 0, TF_INVALID);
+	}
+	if (!trackerimages[imid].image)
+		return NULL;
+	if (trackerimages[imid].image->status != TEX_LOADED)
+		return NULL;
+	return trackerimages[imid].image;
+}
+
 //called at load time - initalises font buffers
 void Font_Init(void)
 {
 	int i;
 	TEXASSIGN(fontplanes.defaultfont, r_nulltex);
+
+	//clear tracker images, just in case they were still set for the previous renderer context
+	for (i = 0; i < sizeof(trackerimages)/sizeof(trackerimages[0]); i++)
+		trackerimages[i].image = NULL;
 
 	font_foremesh.indexes = font_indicies;
 	font_foremesh.xyz_array = font_coord;
@@ -658,6 +704,17 @@ static struct charcache_s *Font_GetChar(font_t *f, CHARIDXTYPE charidx)
 	struct charcache_s *c = &f->chars[charidx];
 	if (c->texplane == INVALIDPLANE)
 	{
+		if (charidx >= TRACKERFIRST && charidx < TRACKERFIRST+100)
+		{
+			static struct charcache_s tc;
+			tc.texplane = TRACKERIMAGE;
+			fontplanes.trackerimage = Font_GetTrackerImage(charidx-TRACKERFIRST);
+			if (!fontplanes.trackerimage)
+				return Font_GetChar(f, '?');
+			tc.advance = fontplanes.trackerimage->width * ((float)f->charheight / fontplanes.trackerimage->height);
+			return &tc;
+		}
+
 		//not cached, can't get.
 		c = Font_TryLoadGlyph(f, charidx);
 
@@ -1079,14 +1136,14 @@ void Doom_ExpandPatch(doompatch_t *p, unsigned char *b, int stride)
 
 //creates a new font object from the given file, with each text row with the given height.
 //width is implicit and scales with height and choice of font.
-struct font_s *Font_LoadFont(int vheight, const char *fontfilename)
+struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 {
 	struct font_s *f;
 	int i = 0;
 	int defaultplane;
 	char *aname;
 	char *parms;
-	int height = (vheight * vid.rotpixelheight)/vid.height;
+	int height = ((vheight * vid.rotpixelheight)/vid.height) + 0.5;
 	char facename[MAX_QPATH];
 
 	Q_strncpy(facename, fontfilename, sizeof(facename));
@@ -1572,7 +1629,7 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 	// scan the width of the line
 		for (px=0, l=0 ; px <= maxpixelwidth; )
 		{
-			if (start+l >= end || (start[l]&(CON_CHARMASK|CON_HIDDEN)) == '\n')
+			if (start+l >= end || (start[l]&(CON_CHARMASK|CON_HIDDEN)) == '\n' || (start[l]&(CON_CHARMASK|CON_HIDDEN)) == '\v')
 				break;
 			px = Font_CharEndCoord(font, px, start[l]);
 			l++;
@@ -1600,7 +1657,7 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 		if (start == end)
 			break;
 
-		if ((*start&(CON_CHARMASK|CON_HIDDEN)) == '\n')
+		if ((*start&(CON_CHARMASK|CON_HIDDEN)) == '\n' || (*start&(CON_CHARMASK|CON_HIDDEN)) == '\v')
 			start++;                // skip the \n
 	}
 
@@ -1707,16 +1764,16 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	if ((charcode & CON_CHARMASK) == ' ')
 		return nextx;
 
-	if (charcode & CON_BLINKTEXT)
+/*	if (charcode & CON_BLINKTEXT)
 	{
 		if (!cl_noblink.ival)
 			if ((int)(realtime*3) & 1)
 				return nextx;
 	}
-
+*/
 	if (charcode & CON_RICHFORECOLOUR)
 	{
-		col = charcode & (CON_2NDCHARSETTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
+		col = charcode & (CON_2NDCHARSETTEXT|CON_BLINKTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
 		if (col != font_colourmask)
 		{
 			vec4_t rgba;
@@ -1749,6 +1806,11 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 			rgba[1] *= font_foretint[1];
 			rgba[2] *= font_foretint[2];
 			rgba[3] *= font_foretint[3];
+			if (charcode & CON_BLINKTEXT)
+			{
+				float a = (sin(realtime*3)+1)*0.4 + 0.2;
+				rgba[3] *= a;
+			}
 			font_forecolour[0] = min(rgba[0], 255);
 			font_forecolour[1] = min(rgba[1], 255);
 			font_forecolour[2] = min(rgba[2], 255);
@@ -1757,7 +1819,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	}
 	else
 	{
-		col = charcode & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
+		col = charcode & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA|CON_BLINKTEXT);
 		if (col != font_colourmask)
 		{
 			vec4_t rgba;
@@ -1793,6 +1855,11 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 			rgba[1] *= font_foretint[1];
 			rgba[2] *= font_foretint[2];
 			rgba[3] *= font_foretint[3];
+			if (charcode & CON_BLINKTEXT)
+			{
+				float a = (sin(realtime*3)+1)*0.4 + 0.2;
+				rgba[3] *= a;
+			}
 			font_forecolour[0] = min(rgba[0], 255);
 			font_forecolour[1] = min(rgba[1], 255);
 			font_forecolour[2] = min(rgba[2], 255);
@@ -1807,6 +1874,15 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 
 	switch(c->texplane)
 	{
+	case TRACKERIMAGE:
+		s0 = t0 = 0;
+		s1 = t1 = 1;
+		sx = ((px+c->left + dxbias)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((py+c->top + dxbias)*(int)vid.height) / (float)vid.rotpixelheight;
+		sw = (c->advance*vid.width) / (float)vid.rotpixelwidth;
+		sh = (font->charheight*vid.height) / (float)vid.rotpixelheight;
+		v = Font_BeginChar(fontplanes.trackerimage);
+		break;
 	case DEFAULTPLANE:
 		sx = ((px+c->left + dxbias)*(int)vid.width) / (float)vid.rotpixelwidth;
 		sy = ((py+c->top + dxbias)*(int)vid.height) / (float)vid.rotpixelheight;

@@ -2544,7 +2544,11 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 			Con_DPrintf("NET_SendPacket Warning: %i\n", ecode);
 		else
 #endif
+#ifdef _WIN32
 			Con_TPrintf ("NET_SendPacket ERROR: %i\n", ecode);
+#else
+			Con_TPrintf ("NET_SendPacket ERROR: %s\n", strerror(ecode));
+#endif
 	}
 	return true;
 #endif
@@ -2805,6 +2809,82 @@ void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
 		usedbits = 0;
 	}
 	*out = 0;
+}
+
+qboolean FTENET_TCPConnect_WebSocket_Splurge(ftenet_tcpconnect_stream_t *st, qbyte packettype, const qbyte *data, unsigned int length)
+{
+	/*as a server, we don't need the mask stuff*/
+	unsigned short ctrl = 0x8000 | (packettype<<8);
+	unsigned int paylen = 0;
+	unsigned int payoffs = st->outlen;
+	int i;
+	switch((ctrl>>8) & 0xf)
+	{
+	case 1:
+		for (i = 0; i < length; i++)
+		{
+			paylen += (((char*)data)[i] == 0 || ((unsigned char*)data)[i] >= 0x80)?2:1;
+		}
+		break;
+	default:
+		paylen = length;
+		break;
+	}
+	if (paylen >= 126)
+		ctrl |= 126;
+	else
+		ctrl |= paylen;
+
+	if (payoffs + 4 + paylen > sizeof(st->outbuffer))
+		return false;
+
+	st->outbuffer[payoffs++] = ctrl>>8;
+	st->outbuffer[payoffs++] = ctrl&0xff;
+	if ((ctrl&0x7f) == 126)
+	{
+		st->outbuffer[payoffs++] = paylen>>8;
+		st->outbuffer[payoffs++] = paylen&0xff;
+	}
+	switch((ctrl>>8) & 0xf)
+	{
+	case 1:/*utf8ify the data*/
+		for (i = 0; i < length; i++)
+		{
+			if (!((unsigned char*)data)[i])
+			{	/*0 is encoded as 0x100 to avoid safety checks*/
+				st->outbuffer[payoffs++] = 0xc0 | (0x100>>6);
+				st->outbuffer[payoffs++] = 0x80 | (0x100&0x3f);
+			}
+			else if (((unsigned char*)data)[i] >= 0x80)
+			{	/*larger bytes require markup*/
+				st->outbuffer[payoffs++] = 0xc0 | (((unsigned char*)data)[i]>>6);
+				st->outbuffer[payoffs++] = 0x80 | (((unsigned char*)data)[i]&0x3f);
+			}
+			else
+			{	/*lower 7 bits are as-is*/
+				st->outbuffer[payoffs++] = ((char*)data)[i];
+			}
+		}
+		break;
+	default: //raw data
+		memcpy(st->outbuffer+payoffs, data, length);
+		payoffs += length;
+		break;
+	}
+	st->outlen = payoffs;
+
+
+	if (st->outlen)
+	{	/*try and flush the old data*/
+		int done;
+		done = VFS_WRITE(st->clientstream, st->outbuffer, st->outlen);
+		if (done > 0)
+		{
+			memmove(st->outbuffer, st->outbuffer + done, st->outlen - done);
+			st->outlen -= done;
+		}
+	}
+	return true;
 }
 
 #include "fs.h"
@@ -3218,35 +3298,47 @@ handshakeerror:
 				unsigned int payoffs = 2;
 				unsigned int mask = 0;
 				st->inbuffer[st->inlen]=0;
+				if (ctrl & 0x7000)
+				{
+					Con_Printf ("%s: reserved bits set\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
+					goto closesvstream; 
+				}
 				if ((ctrl & 0x7f) == 127)
 				{
+					unsigned long long ullpaylen;
 					//as a payload is not allowed to be encoded as too large a type, and quakeworld never used packets larger than 1450 bytes anyway, this code isn't needed (65k is the max even without this)
-//					if (sizeof(paylen) < 8)
+					if (sizeof(ullpaylen) < 8)
 					{
 						Con_Printf ("%s: payload frame too large\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 						goto closesvstream; 
 					}
-/*					else
+					else
 					{
 						if (payoffs + 8 > st->inlen)
 							break;
-						paylen = 
-							((unsigned char*)st->inbuffer)[payoffs+0]<<56 |
-							((unsigned char*)st->inbuffer)[payoffs+1]<<48 |
-							((unsigned char*)st->inbuffer)[payoffs+2]<<40 |
-							((unsigned char*)st->inbuffer)[payoffs+3]<<32 |
-							((unsigned char*)st->inbuffer)[payoffs+4]<<24 |
-							((unsigned char*)st->inbuffer)[payoffs+5]<<16 |
-							((unsigned char*)st->inbuffer)[payoffs+6]<<8 |
-							((unsigned char*)st->inbuffer)[payoffs+7]<<0;
-						if (paylen < 0x10000)
+						ullpaylen = 
+							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+0]<<56ull |
+							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+1]<<48ull |
+							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+2]<<40ull |
+							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+3]<<32ull |
+							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+4]<<24ull |
+							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+5]<<16ull |
+							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+6]<< 8ull |
+							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+7]<< 0ull;
+						if (ullpaylen < 0x10000)
 						{
-							Con_Printf ("%s: payload size encoded badly\n", NET_AdrToString (st->remoteaddr, sizeof(st->remoteaddr), net_from));
+							Con_Printf ("%s: payload size (%llu) encoded badly\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), ullpaylen);
 							goto closesvstream; 
 						}
+						if (ullpaylen > 0x10000)
+						{
+							Con_Printf ("%s: payload size (%llu) is abusive\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), st->inbuffer, ullpaylen);
+							goto closesvstream; 
+						}
+						paylen = ullpaylen;
 						payoffs += 8;
 					}
-*/				}
+				}
 				else if ((ctrl & 0x7f) == 126)
 				{
 					if (payoffs + 2 > st->inlen)
@@ -3293,10 +3385,10 @@ handshakeerror:
 
 				switch((ctrl>>8) & 0xf)
 				{
-				case 0:	/*continuation*/
+				case 0x0:	/*continuation*/
 					Con_Printf ("websocket continuation frame from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 					goto closesvstream;
-				case 1:	/*text frame*/
+				case 0x1:	/*text frame*/
 //					Con_Printf ("websocket text frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
 					{
 						/*text frames are pure utf-8 chars, no dodgy encodings or anything, all pre-checked...
@@ -3330,8 +3422,8 @@ handshakeerror:
 						net_message.cursize = out - net_message_buffer;
 					}
 					break;
-				case 2: /*binary frame*/
-//					Con_Printf ("websocket binary frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+				case 0x2: /*binary frame*/
+					Con_Printf ("websocket binary frame from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 					net_message.cursize = paylen;
 					if (net_message.cursize+8 >= sizeof(net_message_buffer) )
 					{
@@ -3350,13 +3442,15 @@ handshakeerror:
 					else
 						memcpy(net_message_buffer, st->inbuffer+payoffs, paylen);
 					break;
-				case 8:	/*connection close*/
+				case 0x8:	/*connection close*/
 					Con_Printf ("websocket closure %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 					goto closesvstream;
-				case 9:	/*ping*/
+				case 0x9:	/*ping*/
 					Con_Printf ("websocket ping from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
-					goto closesvstream;
-				case 10: /*pong*/
+					if (!FTENET_TCPConnect_WebSocket_Splurge(st, 0xa, st->inbuffer+payoffs, paylen))
+						goto closesvstream;
+					break;
+				case 0xa: /*pong*/
 					Con_Printf ("websocket pong from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 					goto closesvstream;
 				default:
@@ -3479,67 +3573,7 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 					//fallthrough
 				case TCPC_WEBSOCKETU:
 				case TCPC_WEBSOCKETB:
-					{
-						/*as a server, we don't need the mask stuff*/
-						unsigned short ctrl = (st->clienttype==TCPC_WEBSOCKETU)?0x8100:0x8200;
-						unsigned int paylen = 0;
-						unsigned int payoffs = 2;
-						int i;
-						switch((ctrl>>8) & 0xf)
-						{
-						case 1:
-							for (i = 0; i < length; i++)
-							{
-								paylen += (((char*)data)[i] == 0 || ((unsigned char*)data)[i] >= 0x80)?2:1;
-							}
-							break;
-						default:
-							paylen = length;
-							break;
-						}
-						if (paylen >= 126)
-						{
-							ctrl |= 126;
-							payoffs += 2;
-						}
-						else
-							ctrl |= paylen;
-
-						st->outbuffer[0] = ctrl>>8;
-						st->outbuffer[1] = ctrl&0xff;
-						if (paylen >= 126)
-						{
-							st->outbuffer[2] = paylen>>8;
-							st->outbuffer[3] = paylen&0xff;
-						}
-						switch((ctrl>>8) & 0xf)
-						{
-						case 1:/*utf8ify the data*/
-							for (i = 0; i < length; i++)
-							{
-								if (!((unsigned char*)data)[i])
-								{	/*0 is encoded as 0x100 to avoid safety checks*/
-									st->outbuffer[payoffs++] = 0xc0 | (0x100>>6);
-									st->outbuffer[payoffs++] = 0x80 | (0x100&0x3f);
-								}
-								else if (((unsigned char*)data)[i] >= 0x80)
-								{	/*larger bytes require markup*/
-									st->outbuffer[payoffs++] = 0xc0 | (((unsigned char*)data)[i]>>6);
-									st->outbuffer[payoffs++] = 0x80 | (((unsigned char*)data)[i]&0x3f);
-								}
-								else
-								{	/*lower 7 bits are as-is*/
-									st->outbuffer[payoffs++] = ((char*)data)[i];
-								}
-							}
-							break;
-						default: //raw data
-							memcpy(st->outbuffer+payoffs, data, length);
-							payoffs += length;
-							break;
-						}
-						st->outlen = payoffs;
-					}
+					FTENET_TCPConnect_WebSocket_Splurge(st, (st->clienttype==TCPC_WEBSOCKETU)?1:2, data, length);
 					break;
 				default:
 					break;
@@ -4395,7 +4429,8 @@ static qboolean FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, i
     ftenet_websocket_connection_t *wsc = (void*)gcon;
 	if (NET_CompareAdr(to, &wsc->remoteadr))
 	{
-		emscriptenfte_ws_send(wsc->sock, data, length);
+		if (emscriptenfte_ws_send(wsc->sock, data, length) < 0)
+			return false;
     	return true;
 	}
 	return false;
@@ -5846,8 +5881,16 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 	if (tf->sock != INVALID_SOCKET)
 	{
 		trying = sizeof(tf->readbuffer) - tf->readbuffered;
-		if (trying > 1500)
-			trying = 1500;
+		if (bytestoread > 1500)
+		{
+			if (trying > bytestoread)
+				trying = bytestoread;
+		}
+		else
+		{
+			if (trying > 1500)
+				trying = 1500;
+		}
 		len = recv(tf->sock, tf->readbuffer + tf->readbuffered, trying, 0);
 		if (len == -1)
 		{
@@ -5924,7 +5967,7 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 		timeout.tv_usec = 0;
 		FD_ZERO(&fd);
 		FD_SET(tf->sock, &fd);
-		if (!select((int)tf->sock+1, NULL, &fd, NULL, &timeout))
+		if (!select((int)tf->sock+1, NULL, &fd, &fd, &timeout))
 			return 0;
 		tf->conpending = false;
 	}
@@ -5939,7 +5982,7 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 			return 0;	//nothing available yet.
 		case NET_ENOTCONN:
 			Con_Printf("connection to \"%s\" failed\n", tf->peer);
-			break;
+			return -1;	//don't bother trying to read if we never connected.
 		default:
 			Sys_Printf("tcp socket error %i (%s)\n", e, tf->peer);
 			break;

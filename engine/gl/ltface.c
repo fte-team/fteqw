@@ -1,34 +1,6 @@
 #include "quakedef.h"
 
 #ifdef RUNTIMELIGHTING
-#ifndef UTILITY
-
-
-extern model_t *lightmodel;
-#define bsptexinfo(i) (*i)
-#define dsurfedges lightmodel->surfedges
-#define dvertexes lightmodel->vertexes
-#define dedges lightmodel->edges
-#define texinfo_t mtexinfo_t
-#define Q_PI M_PI
-#define Error Host_Error
-#define byte qbyte
-
-#define dfaces lightmodel->surfaces
-#define dplanes lightmodel->planes
-#define dface_t msurface_t
-#define dvertex_t mvertex_t
-#define point position
-
-#define side flags & SURF_PLANEBACK
-
-#define scaledist 1
-#define rangescale 0.5
-#define extrasamples 1
-#define scalecos 0.5
-
-
-
 
 typedef struct mentity_s {
 	vec3_t origin;
@@ -41,11 +13,40 @@ typedef struct mentity_s {
 	char target[64];
 	char targetname[64];
 
-	struct mentity_s *targetent;
+	int targetentnum;
 } mentity_t;
 
-static mentity_t entities[8192];
-static int num_entities;
+struct relight_ctx_s
+{
+	unsigned int nummodels;
+	model_t *models[2048];
+
+	qboolean shadows;
+	mentity_t *entities;
+	unsigned int num_entities;
+	unsigned int max_entities;
+};
+
+
+#define bsptexinfo(i) (*i)
+#define dsurfedges lightmodel->surfedges
+#define dvertexes lightmodel->vertexes
+#define dedges lightmodel->edges
+#define texinfo_t mtexinfo_t
+#define Q_PI M_PI
+
+#define dfaces lightmodel->surfaces
+#define dplanes lightmodel->planes
+#define dface_t msurface_t
+#define dvertex_t mvertex_t
+
+#define side flags & SURF_PLANEBACK
+
+#define scaledist 1
+#define rangescale 0.5
+#define extrasamples 0
+#define scalecos 0.5
+
 
 #define bsp_origin vec3_origin
 
@@ -56,14 +57,17 @@ CastRay
 Returns the distance between the points, or -1 if blocked
 =============
 */
-vec_t CastRay (vec3_t p1, vec3_t p2)
+static vec_t CastRay (struct relight_ctx_s *ctx, vec3_t p1, vec3_t p2)
 {
 	trace_t	trace;
 	vec3_t move;
 
-	lightmodel->funcs.NativeTrace (lightmodel, 0, 0, NULL, p1, p2, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &trace);
-	if (trace.fraction < 1)
-		return -1;	
+	if (ctx->shadows)
+	{
+		ctx->models[0]->funcs.NativeTrace (ctx->models[0], 0, 0, NULL, p1, p2, vec3_origin, vec3_origin, false, FTECONTENTS_SOLID, &trace);
+		if (trace.fraction < 1)
+			return -1;
+	}
 
 	VectorSubtract(p1, p2, move);
 	return VectorLength(move);
@@ -114,7 +118,33 @@ static void ParseEpair (mentity_t *mapent, char *key, char *value)
 	}
 }
 
-void LightLoadEntities(char *entstring)
+void LightShutdown(struct relight_ctx_s *ctx, model_t *mod)
+{
+	qboolean stillheld = false;
+	unsigned int i;
+	for (i = 0; i < ctx->nummodels; i++)
+	{
+		if (ctx->models[i] == mod)
+			ctx->models[i] = NULL;
+		if (ctx->models[i])
+			stillheld = true;
+	}
+	if (stillheld)
+		return;
+	Z_Free(ctx->entities);
+	Z_Free(ctx);
+}
+struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, model_t *model, qboolean shadows)
+{
+	if (!ctx)
+	{
+		ctx = Z_Malloc(sizeof(*ctx));
+		ctx->shadows = shadows;
+	}
+	ctx->models[ctx->nummodels++] = model;
+	return ctx;
+}
+void LightReloadEntities(struct relight_ctx_s *ctx, char *entstring)
 {
 #define DEFAULTLIGHTLEVEL 300
 	mentity_t *mapent;
@@ -122,7 +152,7 @@ void LightLoadEntities(char *entstring)
 	char value[1024];
 	int i;
 	int switchedstyle=32;
-	num_entities = 0;
+	ctx->num_entities = 0;
 
 	while(1)
 	{
@@ -135,11 +165,18 @@ void LightLoadEntities(char *entstring)
 			break;
 		}
 
-		mapent = &entities[num_entities];
+		if (ctx->num_entities == ctx->max_entities)
+		{
+			ctx->max_entities = ctx->max_entities + 128;
+			ctx->entities = BZ_Realloc(ctx->entities, sizeof(*ctx->entities) * ctx->max_entities);
+		}
+
+		mapent = &ctx->entities[ctx->num_entities];
 		memset(mapent, 0, sizeof(*mapent));
 		mapent->colour[0] = 0;
 		mapent->colour[1] = 0;
 		mapent->colour[2] = 0;
+		mapent->targetentnum = -1;
 		while(1)
 		{
 			entstring = COM_ParseOut(entstring, key, sizeof(key));
@@ -158,7 +195,7 @@ void LightLoadEntities(char *entstring)
 			for (i = 0; i < 256; i+=16)
 			{
 				v[2] = mapent->origin[2]-i;
-				cont = lightmodel->funcs.PointContents (lightmodel, NULL, v);
+				cont = ctx->models[0]->funcs.PointContents (ctx->models[0], NULL, v);
 				if (cont & (FTECONTENTS_LAVA | FTECONTENTS_SLIME | FTECONTENTS_SOLID))
 					break;
 			}			
@@ -204,78 +241,41 @@ void LightLoadEntities(char *entstring)
 
 		if (*mapent->targetname && !mapent->style && !strcmp(mapent->classname, "light"))
 		{
-			for (i = 0; i <= num_entities; i++)
+			for (i = 0; i <= ctx->num_entities; i++)
 			{
-				if (entities[i].style >= 32 && !strcmp(entities[i].targetname, mapent->targetname))
+				if (ctx->entities[i].style >= 32 && !strcmp(ctx->entities[i].targetname, mapent->targetname))
 				{
-					mapent->style = entities[i].style;
+					mapent->style = ctx->entities[i].style;
 					break;
 				}
 			}
 
-			if (i == num_entities)
+			if (i == ctx->num_entities)
 				mapent->style = switchedstyle++;
 		}
 
 
-		num_entities++;
+		ctx->num_entities++;
 	}
 
-	for (mapent = entities; mapent < &entities[num_entities]; mapent++)
+	for (mapent = ctx->entities; mapent < &ctx->entities[ctx->num_entities]; mapent++)
 	{
 		if (*mapent->target)
 		{
-			for (i = 0; i < num_entities; i++)
+			for (i = 0; i < ctx->num_entities; i++)
 			{
-				if (mapent == &entities[i])
+				if (mapent == &ctx->entities[i])
 					continue;
 
-				if (!strcmp(mapent->target, entities[i].targetname))
+				if (!strcmp(mapent->target, ctx->entities[i].targetname))
 				{
-					mapent->targetent = &entities[i];
+					mapent->targetentnum = i;
 					break;
 				}
 			}
 		}
 	}
 }
-
-#else
-#define mentity_t entity_t
-#define UTILITY
-#include "light.h"
-
-#define bsptexinfo(i) texinfo[i]
-
-
-/*
-============
-CastRay
-
-Returns the distance between the points, or -1 if blocked
-=============
-*/
-vec_t CastRay (vec3_t p1, vec3_t p2)
-{
-	int		i;
-	vec_t	t;
-	qboolean	trace;
-		
-	trace = TestLine (p1, p2);
-		
-	if (!trace)
-		return -1;		// ray was blocked
-		
-	t = 0;
-	for (i=0 ; i< 3 ; i++)
-		t += (p2[i]-p1[i]) * (p2[i]-p1[i]);
-		
-	if (t < 1)
-		t = 1;		// don't blow up...
-	return sqrt(t);
-}
-
-#endif
 
 /*
 ===============================================================================
@@ -298,10 +298,13 @@ towards the center until it is valid.
 ===============================================================================
 */
 
-#define	SINGLEMAP	(18*18*4)
+#define MAXIMUMEXTENT 128
+#define	SINGLEMAP	(MAXIMUMEXTENT*MAXIMUMEXTENT*4)
 
-typedef struct
+typedef struct llightinfo_s
 {
+	struct relight_ctx_s *ctx;	//relight context, shared between threads.
+
 	vec3_t	lightmaps[MAXQ1LIGHTMAPS][SINGLEMAP];
 	vec3_t	lightnorm[MAXQ1LIGHTMAPS][SINGLEMAP];
 	int		numlightstyles;
@@ -319,10 +322,10 @@ typedef struct
 	vec_t	exactmins[2], exactmaxs[2];
 	
 	int		texmins[2], texsize[2];
-	int		lightstyles[256];
-	int		surfnum;
-	dface_t	*face;
+	int		lightstyles[MAXQ1LIGHTMAPS];
 } llightinfo_t;
+
+const size_t lightthreadctxsize = sizeof(llightinfo_t);
 
 
 /*
@@ -332,35 +335,36 @@ CalcFaceVectors
 Fills in texorg, worldtotex. and textoworld
 ================
 */
-static void LightCalcFaceVectors (llightinfo_t *l)
+static void LightCalcFaceVectors (llightinfo_t *l, vec4_t surf_texplanes[2])
 {
-	texinfo_t	*tex;
 	int			i, j;
 	vec3_t	texnormal;
 	float	distscale;
 	vec_t	dist, len;
-
-	tex = &bsptexinfo(l->face->texinfo);
 	
 // convert from float to vec_t
 	for (i=0 ; i<2 ; i++)
 		for (j=0 ; j<3 ; j++)
-			l->worldtotex[i][j] = tex->vecs[i][j];
+			l->worldtotex[i][j] = surf_texplanes[i][j];
 
 // calculate a normal to the texture axis.  points can be moved along this
 // without changing their S/T
-	texnormal[0] = tex->vecs[1][1]*tex->vecs[0][2]
-		- tex->vecs[1][2]*tex->vecs[0][1];
-	texnormal[1] = tex->vecs[1][2]*tex->vecs[0][0]
-		- tex->vecs[1][0]*tex->vecs[0][2];
-	texnormal[2] = tex->vecs[1][0]*tex->vecs[0][1]
-		- tex->vecs[1][1]*tex->vecs[0][0];
+	texnormal[0] =	surf_texplanes[1][1]*surf_texplanes[0][2]
+				  - surf_texplanes[1][2]*surf_texplanes[0][1];
+	texnormal[1] =	surf_texplanes[1][2]*surf_texplanes[0][0]
+				  - surf_texplanes[1][0]*surf_texplanes[0][2];
+	texnormal[2] =	surf_texplanes[1][0]*surf_texplanes[0][1]
+				  - surf_texplanes[1][1]*surf_texplanes[0][0];
 	VectorNormalize (texnormal);
 
 // flip it towards plane normal
 	distscale = DotProduct (texnormal, l->facenormal);
 	if (!distscale)
-		Error ("Texture axis perpendicular to face");
+	{
+		VectorCopy(l->facenormal, texnormal);
+		distscale = 1;
+		Con_Printf ("Texture axis perpendicular to face\n");
+	}
 	if (distscale < 0)
 	{
 		distscale = -distscale;
@@ -383,7 +387,7 @@ static void LightCalcFaceVectors (llightinfo_t *l)
 
 // calculate texorg on the texture plane
 	for (i=0 ; i<3 ; i++)
-		l->texorg[i] = -tex->vecs[0][3]* l->textoworld[0][i] - tex->vecs[1][3] * l->textoworld[1][i];
+		l->texorg[i] = -surf_texplanes[0][3]* l->textoworld[0][i] - surf_texplanes[1][3] * l->textoworld[1][i];
 
 // project back to the face plane
 	dist = DotProduct (l->texorg, l->facenormal) - l->facedist - 1;
@@ -400,18 +404,15 @@ Fills in s->texmins[] and s->texsize[]
 also sets exactmins[] and exactmaxs[]
 ================
 */
-static void LightCalcFaceExtents (llightinfo_t *l)
+static void LightCalcFaceExtents (model_t *lightmodel, dface_t *s, vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2])
 {
-	dface_t *s;
 	vec_t	mins[2], maxs[2], val;
 	int		i,j, e;
 	dvertex_t	*v;
 	texinfo_t	*tex;
-	
-	s = l->face;
 
 	mins[0] = mins[1] = 999999;
-	maxs[0] = maxs[1] = -99999;
+	maxs[0] = maxs[1] = -999999;
 
 	tex = &bsptexinfo(s->texinfo);
 	
@@ -425,9 +426,9 @@ static void LightCalcFaceExtents (llightinfo_t *l)
 		
 		for (j=0 ; j<2 ; j++)
 		{
-			val = v->point[0] * tex->vecs[j][0] + 
-				v->point[1] * tex->vecs[j][1] +
-				v->point[2] * tex->vecs[j][2] +
+			val = v->position[0] * tex->vecs[j][0] + 
+				v->position[1] * tex->vecs[j][1] +
+				v->position[2] * tex->vecs[j][2] +
 				tex->vecs[j][3];
 			if (val < mins[j])
 				mins[j] = val;
@@ -438,17 +439,17 @@ static void LightCalcFaceExtents (llightinfo_t *l)
 
 	for (i=0 ; i<2 ; i++)
 	{	
-		l->exactmins[i] = mins[i];
-		l->exactmaxs[i] = maxs[i];
+		exactmins[i] = mins[i];
+		exactmaxs[i] = maxs[i];
 		
 		mins[i] = floor(mins[i]/(1<<s->lmshift));
 		maxs[i] = ceil(maxs[i]/(1<<s->lmshift));
 
-		l->texmins[i] = mins[i];
-		l->texsize[i] = maxs[i] - mins[i];
-		if (l->texsize[i] > 17)
+		texmins[i] = mins[i];
+		texsize[i] = maxs[i] - mins[i];
+		if (texsize[i] > MAXIMUMEXTENT-1)
 		{
-			l->texsize[i] = 17;
+			texsize[i] = MAXIMUMEXTENT-1;
 			Con_Printf("Bad surface extents");
 		}
 	}
@@ -462,12 +463,12 @@ For each texture aligned grid point, back project onto the plane
 to get the world xyz value of the sample point
 =================
 */
-static int c_bad;
-static void LightCalcPoints (llightinfo_t *l)
+static void LightCalcPoints (llightinfo_t *l, float lmscale)
 {
 	int		i;
 	int		s, t, j;
-	int		w, h, step;
+	int		w, h;
+	vec_t	step;
 	vec_t	starts, startt, us, ut;
 	vec_t	*surf;
 	vec_t	mids, midt;
@@ -489,17 +490,17 @@ static void LightCalcPoints (llightinfo_t *l)
 	{	// extra filtering
 		h = (l->texsize[1]+1)*2;
 		w = (l->texsize[0]+1)*2;
-		starts = (l->texmins[0]-0.5)*16;
-		startt = (l->texmins[1]-0.5)*16;
-		step = 8;
+		starts = (l->texmins[0]-0.5)*lmscale;
+		startt = (l->texmins[1]-0.5)*lmscale;
+		step = 0.5 * lmscale;
 	}
 	else
 	{
 		h = l->texsize[1]+1;
 		w = l->texsize[0]+1;
-		starts = l->texmins[0]*16;
-		startt = l->texmins[1]*16;
-		step = 16;
+		starts = l->texmins[0]*lmscale;
+		startt = l->texmins[1]*lmscale;
+		step = lmscale;
 	}
 
 	l->numsurfpt = w * h;
@@ -518,19 +519,19 @@ static void LightCalcPoints (llightinfo_t *l)
 					surf[j] = l->texorg[j] + l->textoworld[0][j]*us
 					+ l->textoworld[1][j]*ut;
 
-				if (CastRay (facemid, surf) != -1)
+				if (CastRay (l->ctx, facemid, surf) != -1)
 					break;	// got it
 				if (i & 1)
 				{
 					if (us > mids)
 					{
-						us -= 8;
+						us -= lmscale*0.5;
 						if (us < mids)
 							us = mids;
 					}
 					else
 					{
-						us += 8;
+						us += lmscale*0.5;
 						if (us > mids)
 							us = mids;
 					}
@@ -539,13 +540,13 @@ static void LightCalcPoints (llightinfo_t *l)
 				{
 					if (ut > midt)
 					{
-						ut -= 8;
+						ut -= lmscale*0.5;
 						if (ut < midt)
 							ut = midt;
 					}
 					else
 					{
-						ut += 8;
+						ut += lmscale*0.5;
 						if (ut > midt)
 							ut = midt;
 					}
@@ -555,9 +556,9 @@ static void LightCalcPoints (llightinfo_t *l)
 				VectorSubtract (facemid, surf, move);
 				VectorNormalize (move);
 				VectorMA (surf, 8, move, surf);
+
+				P_RunParticleEffectType(surf, NULL, 1, pt_wizspike);
 			}
-			if (i == 2)
-				c_bad++;
 		}
 	}
 	
@@ -571,8 +572,6 @@ FACE LIGHTING
 
 ===============================================================================
 */
-
-int		c_culldistplane, c_proper;
 
 /*
 ================
@@ -588,8 +587,7 @@ static void SingleLightFace (mentity_t *light, llightinfo_t *l)
 	vec_t	*surf;
 	qboolean	hit;
 	int		mapnum;
-	int		size;
-	int		c, i;
+	int		c;
 	vec3_t	rel;
 	vec3_t	spotvec;
 	vec_t	falloff;
@@ -605,14 +603,11 @@ static void SingleLightFace (mentity_t *light, llightinfo_t *l)
 		
 // don't bother with light too far away
 	if (dist > light->light)
-	{
-		c_culldistplane++;
 		return;
-	}
 
-	if (light->targetent)
+	if (light->targetentnum>=0)
 	{
-		VectorSubtract (light->targetent->origin, light->origin, spotvec);
+		VectorSubtract (l->ctx->entities[light->targetentnum].origin, light->origin, spotvec);
 		VectorNormalize (spotvec);
 		if (!light->angle)
 			falloff = -cos(20*Q_PI/180);	
@@ -631,6 +626,7 @@ static void SingleLightFace (mentity_t *light, llightinfo_t *l)
 	norms = l->lightnorm[mapnum];
 	if (mapnum == l->numlightstyles)
 	{	// init a new light map
+#ifdef UTILITY
 		if (mapnum == MAXQ1LIGHTMAPS)
 		{
 			printf ("WARNING: Too many light styles on a face\n");
@@ -646,24 +642,26 @@ static void SingleLightFace (mentity_t *light, llightinfo_t *l)
 			norms[i][1] = 0;
 			norms[i][2] = 0;
 		}
+#else
+		return;	//can't light a surface with a lightstyle that did not previously exist, due to lightmap space limits.
+#endif
 	}
 
 //
 // check it for real
 //
 	hit = false;
-	c_proper++;
 	
 	surf = l->surfpt[0];
 	for (c=0 ; c<l->numsurfpt ; c++, surf+=3)
 	{
-		dist = CastRay(light->origin, surf)*scaledist;
+		dist = CastRay(l->ctx, light->origin, surf)*scaledist;
 		if (dist < 0)
 			continue;	// light doesn't reach
 
 		VectorSubtract (light->origin, surf, incoming);
 		VectorNormalize (incoming);
-		if (light->targetent)
+		if (light->targetentnum >= 0)
 		{	// spotlight cutoff
 			if (DotProduct (spotvec, incoming) > falloff)
 				continue;
@@ -680,14 +678,14 @@ static void SingleLightFace (mentity_t *light, llightinfo_t *l)
 		lightsamp[c][1] += add*light->colour[1];
 		lightsamp[c][2] += add*light->colour[2];
 
-		norms[c][0] += add * incoming[0];	//Quake doesn't make sence some times.
+		norms[c][0] += add * incoming[0];
 		norms[c][1] += add * incoming[1];
 		norms[c][2] += add * incoming[2];
 
 		if (add > 1)		// ignore real tiny lights
 			hit = true;
 	}
-		
+
 	if (mapnum == l->numlightstyles && hit)
 	{
 		l->lightstyles[mapnum] = light->style;
@@ -749,12 +747,10 @@ static void FixMinlight (llightinfo_t *l)
 LightFace
 ============
 */
-void LightFace (int surfnum)
+void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_styles[4], qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale)
 {
-	dface_t *f;
-	llightinfo_t	l;
 	int		s, t;
-	int		i,j,c,ch;
+	int		i,c,ch;
 	vec_t	total, mean;
 	int		size;
 	int		lightmapwidth;
@@ -762,82 +758,62 @@ void LightFace (int surfnum)
 	int		lightmapsize;
 	byte	*out;
 #endif
-	byte	*rgbout;
-	byte	*dulout;
+	qbyte	*rgbout;
+	qbyte	*dulout;
 	vec3_t	*light, *norm;
 	vec3_t	wnorm, temp, svector, tvector;
 	int		w;
 	
-	f = dfaces + surfnum;
 
 //
 // some surfaces don't need lightmaps
 //	
-#ifdef UTILITY
-	for (j=0 ; j<MAXLIGHTMAPS ; j++)
-		f->styles[j] = 255;
-#endif
-	if ( bsptexinfo(f->texinfo).flags & TEX_SPECIAL)
-	{	// non-lit texture
-#ifdef UTILITY
-		f->lightofs = -1;
-#endif
+	if (!surf_rgbsamples)
 		return;
-	}
 
-#ifndef UTILITY
-	if (!f->samples)
-		return;
-#endif
-
-	memset (&l, 0, sizeof(l));
-	l.surfnum = surfnum;
-	l.face = f;
+	memset (l, 0, sizeof(*l));
+	l->ctx = ctx;
 
 //
 // rotate plane
 //
-#ifndef UTILITY
-	VectorCopy (f->plane->normal, l.facenormal);
-	l.facedist = f->plane->dist;
-#else
-	VectorCopy (dplanes[f->planenum].normal, l.facenormal);
-	l.facedist = dplanes[f->planenum].dist;
-#endif
-	if (f->side)
-	{
-		VectorNegate (l.facenormal, l.facenormal);
-		l.facedist = -l.facedist;
-	}
-	
+	VectorCopy (surf_plane, l->facenormal);
+	l->facedist = surf_plane[3];
 
-	
-	LightCalcFaceVectors (&l);
-	LightCalcFaceExtents (&l);
-	LightCalcPoints (&l);
+	LightCalcFaceVectors (l, surf_texplanes);
+	Vector2Copy(exactmins, l->exactmins);
+	Vector2Copy(exactmaxs, l->exactmaxs);
+	Vector2Copy(texmins, l->texmins);
+	Vector2Copy(texsize, l->texsize);
+	LightCalcPoints (l, lmscale);
 
-	lightmapwidth = l.texsize[0]+1;
+	lightmapwidth = l->texsize[0]+1;
 
-	size = lightmapwidth*(l.texsize[1]+1);
+	size = lightmapwidth*(l->texsize[1]+1);
 	if (size > SINGLEMAP)
-		Error ("Bad lightmap size");
+		Host_Error ("Bad lightmap size");
 
-	for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
-		l.lightstyles[i] = 255;
+	i = 0;
+#ifndef UTILITY
+	for (; surf_styles[i] != 255 && i < 4; i++)
+		l->lightstyles[i] = surf_styles[i];
+#endif
+	l->numlightstyles = i;
+	for ( ; i<MAXQ1LIGHTMAPS ; i++)
+		l->lightstyles[i] = 255;
 	
 //
 // cast all lights
 //	
-	l.numlightstyles = 0;
-	for (i=0 ; i<num_entities ; i++)
+	for (i=0 ; i<ctx->num_entities ; i++)
 	{
-		if (entities[i].light)
-			SingleLightFace (&entities[i], &l);
+		if (ctx->entities[i].light)
+			SingleLightFace (&ctx->entities[i], l);
 	}
 
-	FixMinlight (&l);
+	FixMinlight (l);
 		
-	if (!l.numlightstyles)
+	if (!l->numlightstyles)
 	{	// no light hitting it
 #ifdef UTILITY
 		f->lightofs = -1;
@@ -845,20 +821,15 @@ void LightFace (int surfnum)
 		return;
 	}
 
-#ifndef UTILITY
-	for (j=0 ; j<MAXQ1LIGHTMAPS ; j++)
-		f->styles[j] = 255;
-#endif
-	
 //
 // save out the values
 //
 	for (i=0 ; i <MAXQ1LIGHTMAPS ; i++)
-		f->styles[i] = l.lightstyles[i];
+		surf_styles[i] = l->lightstyles[i];
 
 
 #ifdef UTILITY
-	lightmapsize = size*l.numlightstyles;
+	lightmapsize = size*l->numlightstyles;
 	if (runningrgblightdatabase)
 	{
 		out = GetFakeFileSpace(&f->lightofs, lightmapsize);
@@ -873,13 +844,13 @@ void LightFace (int surfnum)
 		dulout = GetNormFileSpace (f->lightofs, lightmapsize);
 	}
 #else
-	rgbout = f->samples;
-	if (lightmodel->deluxdata)
+	rgbout = surf_rgbsamples;
+	if (l->ctx->models[0]->deluxdata)
 	{
-		dulout = f->samples - lightmodel->lightdata + lightmodel->deluxdata;
+		dulout = surf_deluxesamples;
 
-		VectorCopy(bsptexinfo(f->texinfo).vecs[0], svector);
-		VectorNegate(bsptexinfo(f->texinfo).vecs[1], tvector);
+		VectorCopy(surf_texplanes[0], svector);
+		VectorNegate(surf_texplanes[1], tvector);
 		VectorNormalize(svector);
 		VectorNormalize(tvector);
 	}
@@ -891,18 +862,20 @@ void LightFace (int surfnum)
 	
 // extra filtering
 //	h = (l.texsize[1]+1)*2;
-	w = (l.texsize[0]+1)*2;
+	w = l->texsize[0]+1;
+	if (extrasamples)
+		w *= 2;
 
-	for (i=0 ; i< l.numlightstyles ; i++)
+	for (i=0 ; i< l->numlightstyles ; i++)
 	{
-		if (l.lightstyles[i] == 0xff)
-			Error ("Wrote empty lightmap");
-		light = l.lightmaps[i];
-		norm = l.lightnorm[i];
+		if (l->lightstyles[i] == 0xff)
+			Host_Error ("Wrote empty lightmap");
+		light = l->lightmaps[i];
+		norm = l->lightnorm[i];
 		c = 0;
-		for (t=0 ; t<=l.texsize[1] ; t++)
+		for (t=0 ; t<=l->texsize[1] ; t++)
 		{
-			for (s=0 ; s<=l.texsize[0] ; s++, c++)
+			for (s=0 ; s<=l->texsize[0] ; s++, c++)
 			{
 				mean = 0;
 
@@ -924,11 +897,13 @@ void LightFace (int surfnum)
 					}
 					total *= rangescale;	// scale before clamping
 #ifndef UTILITY
-					if (total > *rgbout)	//sorry - for qw
-						total = *rgbout;
+//					if (total > *rgbout)	//sorry - for qw
+//						total = *rgbout;
 #endif
 					if (total < 0)
-						Error ("light < 0");
+						total = 0;
+					if (total > 0xff)
+						total = 0xff;
 					
 					*rgbout++ = total;
 					mean += total;
@@ -941,15 +916,11 @@ void LightFace (int surfnum)
 				{
 					temp[0] = DotProduct(wnorm, svector);
 					temp[1] = DotProduct(wnorm, tvector);
-					temp[2] = DotProduct(wnorm, l.facenormal);
+					temp[2] = DotProduct(wnorm, l->facenormal);
 					if (!temp[0] && !temp[1] && !temp[2])
 						VectorSet(temp, 0, 0, 1);
 					else
-					{
 						VectorNormalize(temp);
-	//					temp[2] += 0.5;
-						VectorNormalize(temp);
-					}
 					*dulout++ = (temp[0]+1)*128;
 					*dulout++ = (temp[1]+1)*128;
 					*dulout++ = (temp[2]+1)*128;
@@ -958,5 +929,27 @@ void LightFace (int surfnum)
 		}
 	}
 }
+void LightFace (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, int facenum)
+{
+	dface_t *f = ctx->models[0]->surfaces + facenum;
+	vec4_t plane;
+	vec2_t exactmins;
+	vec2_t exactmaxs;
+	int texmins[2], texsize[2];
 
+	VectorCopy (f->plane->normal, plane);
+	plane[3] = f->plane->dist;
+	if (f->flags & SURF_PLANEBACK)
+	{
+		VectorNegate (plane, plane);
+		plane[3] = -plane[3];
+	}
+
+	//no lighting on these.
+	if (f->texinfo->flags & TEX_SPECIAL)
+		return;
+
+	LightCalcFaceExtents(ctx->models[0], f, exactmins, exactmaxs, texmins, texsize);
+	LightPlane(ctx, threadctx, f->styles, f->samples, f->samples - ctx->models[0]->lightdata + ctx->models[0]->deluxdata, plane, f->texinfo->vecs, exactmins, exactmaxs, texmins, texsize, 1<<f->lmshift);
+}
 #endif

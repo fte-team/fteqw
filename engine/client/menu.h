@@ -115,6 +115,7 @@ void M_Keyup (int key, int unicode);
 void M_Draw (int uimenu);
 void M_ToggleMenu_f (void);
 void M_Menu_Mods_f (void);	//used at startup if the current gamedirs look dodgy.
+void M_Menu_Installer (void);	//given an embedded manifest, this displays an install menu for said game.
 mpic_t	*M_CachePic (char *path);
 void M_Menu_Quit_f (void);
 void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2, char *m3, char *optionyes, char *optionno, char *optioncancel);

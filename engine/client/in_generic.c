@@ -114,6 +114,44 @@ void IN_ReInit(void)
 	INS_ReInit();
 }
 
+struct remapctx
+{
+	char *type;
+	char *devicename;
+	int newdevid;
+};
+static void IN_DeviceIDs_DoRemap(void *vctx, char *type, char *devicename, int *qdevid)
+{
+	struct remapctx *ctx = vctx;
+	if (!strcmp(ctx->type, type))
+		if (!strcmp(ctx->devicename, devicename))
+			*qdevid = ctx->newdevid;
+}
+void IN_DeviceIDs_Enumerate(void *ctx, char *type, char *devicename, int *qdevid)
+{
+	if (!qdevid)
+		Con_Printf("%s (%s): %s\n", type, devicename, "device cannot be remapped");
+	else
+		Con_Printf("%s (%s): %i\n", type, devicename, *qdevid);
+}
+
+void IN_DeviceIDs_f(void)
+{
+	int i;
+	char *s;
+	struct remapctx ctx;
+
+	if (Cmd_Argc() > 3)
+	{
+		ctx.type = Cmd_Argv(1);
+		ctx.devicename = Cmd_Argv(2);
+		ctx.newdevid = atoi(Cmd_Argv(3));
+		INS_EnumerateDevices(&ctx, IN_DeviceIDs_DoRemap);
+	}
+	else
+		INS_EnumerateDevices(NULL, IN_DeviceIDs_Enumerate);
+}
+
 void IN_Init(void)
 {
 	events_avail = 0;
@@ -127,6 +165,8 @@ void IN_Init(void)
 	Cvar_Register (&m_fatpressthreshold, "input controls");
 	Cvar_Register (&m_slidethreshold, "input controls");
 	Cvar_Register (&m_touchmajoraxis, "input controls");
+
+	Cmd_AddCommand ("in_deviceids", IN_DeviceIDs_f);
 
 	INS_Init();
 }

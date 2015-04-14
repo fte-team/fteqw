@@ -53,6 +53,7 @@ typedef struct {
 		stat ownsuicides;
 		char *fullname;
 		char *abrev;
+		char *image;
 		char *codename;
 	} weapontotals[MAX_WEAPONS];
 
@@ -75,6 +76,7 @@ typedef struct {
 	statmessage_t *message;
 } fragstats_t;
 
+cvar_t r_tracker_frags = CVARD("r_tracker_frags", "0", "0: like vanilla quake\n1: shows only your kills/deaths\n2: shows all kills\n");
 static fragstats_t fragstats;
 
 int Stats_GetKills(int playernum)
@@ -107,8 +109,149 @@ qboolean Stats_HaveKills(void)
 	return fragstats.readkills;
 }
 
-void VARGS Stats_Message(char *msg, ...)
+void VARGS Stats_Message(char *msg, ...);
+
+static char *Stats_GenTrackerImageString(char *in)
+{	//images are of the form "foo \sg\ bar \q\"
+	//which should eg be remapped to: "foo ^Ue200 bar foo ^Ue201"
+	char res[256];
+	char image[MAX_QPATH];
+	char *outi;
+	char *out;
+	int i;
+	if (!in || !*in)
+		return NULL;
+
+	for (out = res; *in && out < res+sizeof(res)-10; )
+	{
+		if (*in == '\\')
+		{
+			in++;
+			for (outi = image; *in && outi < image+sizeof(image)-10; )
+			{
+				if (*in == '\\')
+					break;
+				*outi++ = *in++;
+			}
+			*outi = 0;
+			in++;
+			
+			i = Font_RegisterTrackerImage(va("tracker/%s", image));
+			if (i)
+			{
+				char hexchars[16] = "0123456789abcdef";
+				*out++ = '^';
+				*out++ = 'U';
+				*out++ = hexchars[(i>>12)&15];
+				*out++ = hexchars[(i>>8)&15];
+				*out++ = hexchars[(i>>4)&15];
+				*out++ = hexchars[(i>>0)&15];
+			}
+			else
+			{
+				//just copy the short name over, not much else we can do.
+				for(outi = image; out < res+sizeof(res)-10 && *outi; )
+					*out++ = *outi++;
+			}
+		}
+		else
+			*out++ = *in++;
+	}
+	*out = 0;
+	return Z_StrDup(res);
+}
+
+void Stats_FragMessage(int p1, int wid, int p2, qboolean teamkill)
 {
+	static const char *nonplayers[] = {
+		"BUG",
+		"(teamkill)",
+		"(suicide)",
+		"(death)",
+		"(unknown)",
+		"(fixme)",
+		"(fixme)"
+	};
+	char message[512];
+	console_t *tracker;
+	struct wt_s *w = &fragstats.weapontotals[wid];
+	const char *p1n = (p1 < 0)?nonplayers[-p1]:cl.players[p1].name;
+	const char *p2n = (p2 < 0)?nonplayers[-p2]:cl.players[p2].name;
+	int localplayer = (cl.spectator && cl.playerview[0].cam_locked)?cl.playerview[0].cam_spec_track:cl.playerview[0].playernum;
+
+#define YOU_GOOD		S_COLOR_GREEN
+#define YOU_BAD			S_COLOR_BLUE
+#define TEAM_GOOD		S_COLOR_GREEN
+#define TEAM_BAD		S_COLOR_RED
+#define TEAM_VBAD		S_COLOR_BLUE
+#define TEAM_NEUTRAL	S_COLOR_WHITE	//enemy team thing that does not directly affect us
+#define ENEMY_GOOD		S_COLOR_RED
+#define ENEMY_BAD		S_COLOR_GREEN
+#define ENEMY_NEUTRAL	S_COLOR_WHITE
+
+
+	char *p1c = S_COLOR_WHITE;
+	char *p2c = S_COLOR_WHITE;
+
+	if (!r_tracker_frags.ival)
+		return;
+	if (r_tracker_frags.ival < 2)
+		if (p1 != localplayer && p2 != localplayer)
+			return;
+
+	if (teamkill)
+	{//team kills/suicides are always considered bad.
+		if (p1 == localplayer)
+			p1c = YOU_BAD;
+		else if (cl.teamplay && !strcmp(cl.players[p1].team, cl.players[localplayer].team))
+			p1c = TEAM_VBAD;
+		else
+			p1c = TEAM_NEUTRAL;
+		p2c = p1c;
+	}
+	else if (p1 == p2)
+		p1c = p2c = YOU_BAD;
+	else if (cl.teamplay && p1 >= 0 && p2 >= 0 && !strcmp(cl.players[p1].team, cl.players[p2].team))
+		p1c = p2c = TEAM_VBAD;
+	else
+	{
+		if (p2 >= 0)
+		{
+			//us/teammate killing is good - unless it was a teammate.
+			if (p2 == localplayer)
+				p2c = YOU_GOOD;
+			else if (cl.teamplay && !strcmp(cl.players[p2].team, cl.players[localplayer].team))
+				p2c = TEAM_GOOD;
+			else
+				p2c = ENEMY_GOOD;
+		}
+		if (p1 >= 0)
+		{
+			//us/teammate dying is bad.
+			if (p1 == localplayer)
+				p1c = YOU_BAD;
+			else if (cl.teamplay && !strcmp(cl.players[p1].team, cl.players[localplayer].team))
+				p1c = TEAM_BAD;
+			else
+				p1c = p2c;
+		}
+	}
+
+	Q_snprintfz(message, sizeof(message), "%s%s ^7%s %s%s\n", p1c, p1n, w->image?w->image:w->abrev, p2c, p2n);
+
+	tracker = Con_FindConsole("tracker");
+	if (!tracker)
+	{
+		tracker = Con_Create("tracker", CONF_HIDDEN|CONF_NOTIFY|CONF_NOTIFY_RIGHT|CONF_NOTIFY_BOTTOM);
+		//this stuff should be configurable
+		tracker->notif_l = tracker->maxlines = 8;
+		tracker->notif_x = 0.5;
+		tracker->notif_y = 0.333;
+		tracker->notif_w = 1-tracker->notif_x;
+		tracker->notif_t = 4;
+		tracker->notif_fade = 1;
+	}
+	Con_PrintCon(tracker, message, tracker->parseflags);
 }
 
 void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
@@ -126,6 +269,7 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 	u1 = (p1 == (cl.playerview[0].playernum));
 	u2 = (p2 == (cl.playerview[0].playernum));
 
+	//messages are killed weapon killer
 	switch(mt)
 	{
 	case ff_death:
@@ -134,9 +278,15 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 			fragstats.weapontotals[wid].owndeaths++;
 			fragstats.weapontotals[wid].ownkills++;
 		}
+
 		fragstats.weapontotals[wid].kills++;
 		fragstats.clienttotals[p1].deaths++;
 		fragstats.totaldeaths++;
+
+		Stats_FragMessage(p1, wid, -3, true);
+
+		if (u1)
+			Stats_Message("You died\n%s deaths: %i\n", fragstats.weapontotals[wid].fullname, fragstats.weapontotals[wid].owndeaths);
 		break;
 	case ff_suicide:
 		if (u1)
@@ -144,15 +294,18 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 			fragstats.weapontotals[wid].ownsuicides++;
 			fragstats.weapontotals[wid].owndeaths++;
 			fragstats.weapontotals[wid].ownkills++;
-
-			Stats_Message("You are a fool\n");
 		}
+
 		fragstats.weapontotals[wid].suicides++;
 		fragstats.weapontotals[wid].kills++;
 		fragstats.clienttotals[p1].suisides++;
 		fragstats.clienttotals[p1].deaths++;
 		fragstats.totalsuicides++;
 		fragstats.totaldeaths++;
+
+		Stats_FragMessage(p1, wid, -2, true);
+		if (u1)
+			Stats_Message("You killed your own dumb self\n%s suicides: %i (%i)\n", fragstats.weapontotals[wid].fullname, fragstats.weapontotals[wid].ownsuicides, fragstats.weapontotals[wid].suicides);
 		break;
 	case ff_bonusfrag:
 		if (u1)
@@ -160,6 +313,10 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		fragstats.weapontotals[wid].kills++;
 		fragstats.clienttotals[p1].kills++;
 		fragstats.totalkills++;
+
+		Stats_FragMessage(-4, wid, p1, false);
+		if (u1)
+			Stats_Message("You killed someone\n%s kills: %i\n", fragstats.weapontotals[wid].fullname, fragstats.weapontotals[wid].ownkills);
 		break;
 	case ff_tkbonus:
 		if (u1)
@@ -173,6 +330,11 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		fragstats.weapontotals[wid].teamkills++;
 		fragstats.clienttotals[p1].teamkills++;
 		fragstats.totalteamkills++;
+
+		Stats_FragMessage(-1, wid, p1, true);
+
+		if (u1)
+			Stats_Message("You killed your teammate\n%s teamkills: %i\n", fragstats.weapontotals[wid].fullname, fragstats.weapontotals[wid].ownteamkills);
 		break;
 	case ff_flagtouch:
 		fragstats.clienttotals[p1].grabs++;
@@ -180,8 +342,7 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 
 		if (u1)
 		{
-			Stats_Message("You grabbed the flag\n");
-			Stats_Message("flag grabs: %i (%i)\n", fragstats.clienttotals[p1].grabs, fragstats.totaltouches);
+			Stats_Message("You grabbed the flag\nflag grabs: %i (%i)\n", fragstats.clienttotals[p1].grabs, fragstats.totaltouches);
 		}
 		break;
 	case ff_flagcaps:
@@ -190,8 +351,7 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 
 		if (u1)
 		{
-			Stats_Message("You captured the flag\n");
-			Stats_Message("flag captures: %i (%i)\n", fragstats.clienttotals[p1].caps, fragstats.totalcaps);
+			Stats_Message("You captured the flag\nflag captures: %i (%i)\n", fragstats.clienttotals[p1].caps, fragstats.totalcaps);
 		}
 		break;
 	case ff_flagdrops:
@@ -200,8 +360,7 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 
 		if (u1)
 		{
-			Stats_Message("You dropped the flag\n");
-			Stats_Message("flag drops: %i (%i)\n", fragstats.clienttotals[p1].drops, fragstats.totaldrops);
+			Stats_Message("You dropped the flag\nflag drops: %i (%i)\n", fragstats.clienttotals[p1].drops, fragstats.totaldrops);
 		}
 		break;
 
@@ -215,8 +374,7 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		if (u1)
 		{
 			fragstats.weapontotals[wid].owndeaths++;
-			Stats_Message("%s killed you\n", cl.players[p2].name);
-			Stats_Message("%s deaths: %i (%i/%i)\n", fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].owndeaths, fragstats.weapontotals[wid].owndeaths, fragstats.totaldeaths);
+			Stats_Message("%s killed you\n%s deaths: %i (%i/%i)\n", cl.players[p2].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].owndeaths, fragstats.weapontotals[wid].owndeaths, fragstats.totaldeaths);
 		}
 
 		fragstats.clienttotals[p2].kills++;
@@ -224,9 +382,10 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		if (u2)
 		{
 			fragstats.weapontotals[wid].ownkills++;
-			Stats_Message("You killed %s\n", cl.players[p1].name);
-			Stats_Message("%s kills: %i (%i/%i)\n", fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills, fragstats.totalkills);
+			Stats_Message("You killed %s\n%s kills: %i (%i/%i)\n", cl.players[p1].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills, fragstats.totalkills);
 		}
+
+		Stats_FragMessage(p1, wid, p2, false);
 		break;
 	case ff_tkdeath:
 		//killed by a teammate, but we don't know who
@@ -236,9 +395,16 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		fragstats.totalkills++;		//its a kill, but we don't know who from
 		fragstats.totalteamkills++;
 
+		if (u1)
+			fragstats.weapontotals[wid].owndeaths++;
 		fragstats.clienttotals[p1].teamdeaths++;
 		fragstats.clienttotals[p1].deaths++;
 		fragstats.totaldeaths++;
+
+		Stats_FragMessage(p1, wid, -1, true);
+
+		if (u1)
+			Stats_Message("Your teammate killed you\n%s deaths: %i\n", fragstats.weapontotals[wid].fullname, fragstats.weapontotals[wid].owndeaths);
 		break;
 
 	case ff_tkills:
@@ -266,6 +432,12 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		fragstats.totalkills++;
 
 		fragstats.totalteamkills++;
+
+		Stats_FragMessage(p1, wid, p2, false);
+		if (u1)
+			Stats_Message("%s killed you\n%s deaths: %i (%i/%i)\n", cl.players[p2].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].owndeaths, fragstats.weapontotals[wid].owndeaths, fragstats.totaldeaths);
+		if (u2)
+			Stats_Message("You killed %s\n%s kills: %i (%i/%i)\n", cl.players[p1].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills, fragstats.totalkills);
 		break;
 	}
 }
@@ -344,6 +516,7 @@ void Stats_Clear(void)
 		if (fragstats.weapontotals[i].codename)	Z_Free(fragstats.weapontotals[i].codename);
 		if (fragstats.weapontotals[i].fullname)	Z_Free(fragstats.weapontotals[i].fullname);
 		if (fragstats.weapontotals[i].abrev)	Z_Free(fragstats.weapontotals[i].abrev);
+		if (fragstats.weapontotals[i].image)	Z_Free(fragstats.weapontotals[i].image);
 	}
 
 	memset(&fragstats, 0, sizeof(fragstats));
@@ -424,6 +597,7 @@ static void Stats_LoadFragFile(char *name)
 				{
 					fragstats.weapontotals[wid].fullname = Z_Copy(Cmd_Argv(3));
 					fragstats.weapontotals[wid].abrev = Z_Copy(Cmd_Argv(4));
+					fragstats.weapontotals[wid].image = Stats_GenTrackerImageString(Cmd_Argv(5));
 				}
 			}
 			else if (!stricmp(tk, "obituary") ||
@@ -526,7 +700,7 @@ static int Stats_ExtractName(char **line)
 	return bm;
 }
 
-void Stats_ParsePrintLine(char *line)
+qboolean Stats_ParsePrintLine(char *line)
 {
 	statmessage_t *ms;
 	int p1;
@@ -536,7 +710,7 @@ void Stats_ParsePrintLine(char *line)
 	p1 = Stats_ExtractName(&line);
 	if (p1<0)	//reject it.
 	{
-		return;
+		return false;
 	}
 	
 	for (ms = fragstats.message; ms; ms = ms->next)
@@ -552,16 +726,17 @@ void Stats_ParsePrintLine(char *line)
 				if (!qm_stricmp(ms->msgpart2, m2))
 				{
 					Stats_Evaluate(ms->type, ms->wid, p1, p2);
-					return;	//done.
+					return true;	//done.
 				}
 			}
 			else
 			{	//one player
 				Stats_Evaluate(ms->type, ms->wid, p1, p1);
-				return;	//done.
+				return true;	//done.
 			}
 		}
 	}
+	return false;
 }
 
 void Stats_NewMap(void)

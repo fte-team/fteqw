@@ -30,6 +30,8 @@ server_t		sv;					// local server
 
 entity_state_t *sv_staticentities;
 int sv_max_staticentities;
+staticsound_state_t *sv_staticsounds;
+int sv_max_staticsounds;
 
 char localinfo[MAX_LOCALINFO_STRING+1]; // local game info
 
@@ -937,7 +939,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	else
 #endif
 	{
-		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", "maps/%s.map", NULL};
+		//.map is commented out because quite frankly, they're a bit annoying when the engine loads the gpled start.map when really you wanted to just play the damn game intead of take it apart.
+		//if you want to load a .map, just use 'map foo.map' instead.
+		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ NULL};
 		int depth, bestdepth;
 		Q_strncpyz (sv.name, server, sizeof(sv.name));
 		Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[0], server);
@@ -1004,7 +1008,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		sv.csqcchecksum = Com_BlockChecksum(file, fsz);
 		sprintf(text, "0x%x", sv.csqcchecksum);
 		Info_SetValueForStarKey(svs.info, "*csprogs", text, MAX_SERVERINFO_STRING);
-		sprintf(text, "0x%x", fsz);
+		sprintf(text, "0x%x", (unsigned int)fsz);
 		Info_SetValueForStarKey(svs.info, "*csprogssize", text, MAX_SERVERINFO_STRING);
 		if (strcmp(sv_csqc_progname.string, "csprogs.dat"))
 			Info_SetValueForStarKey(svs.info, "*csprogsname", sv_csqc_progname.string, MAX_SERVERINFO_STRING);

@@ -148,7 +148,7 @@ kbutton_t	in_rollleft, in_rollright, in_up, in_down;
 
 kbutton_t	in_button3, in_button4, in_button5, in_button6, in_button7, in_button8;
 
-#define IN_IMPULSECACHE 256
+#define IN_IMPULSECACHE 32
 int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
 int			in_nextimpulse[MAX_SPLITS];
 int			in_impulsespending[MAX_SPLITS];
@@ -837,7 +837,6 @@ CL_FinishMove
 void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 {
 	int	i;
-	int bits;
 
 	CL_ClampPitch(pnum);
 
@@ -1463,7 +1462,7 @@ qboolean CLQW_SendCmd (sizebuf_t *buf)
 		cmd->cursor_start[0] || cmd->cursor_start[1] || cmd->cursor_start[2] ||
 		cmd->cursor_impact[0] || cmd->cursor_impact[1] || cmd->cursor_impact[2])
 	{
-		MSG_WriteByte (buf, clc_prydoncursor);
+		MSG_WriteByte (buf, clcfte_prydoncursor);
 		MSG_WriteShort(buf, cmd->cursor_screen[0] * 32767.0f);
 		MSG_WriteShort(buf, cmd->cursor_screen[1] * 32767.0f);
 		MSG_WriteFloat(buf, cmd->cursor_start[0]);
@@ -1895,7 +1894,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	if (cls.protocol == CP_QUAKE2)
 		S_Voip_Transmit(clcq2_voicechat, &buf);
 	else
-		S_Voip_Transmit(clc_voicechat, &buf);
+		S_Voip_Transmit(clcfte_voicechat, &buf);
 #endif
 
 //

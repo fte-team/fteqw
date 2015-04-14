@@ -3531,6 +3531,12 @@ void GLBE_SelectMode(backendmode_t mode)
 				shaderstate.crepskyshader = R_RegisterShader("crepuscular_sky", SUF_NONE,
 					"{\n"
 						"program crepuscular_sky\n"
+						"{\n"
+							"map $diffuse\n"
+						"}\n"
+						"{\n"
+							"map $fullbright\n"
+						"}\n"
 					"}\n"
 					);
 			}
@@ -3988,7 +3994,7 @@ static void DrawMeshes(void)
 		{
 			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 		}
-		BE_SendPassBlendDepthMask((shaderstate.curshader->passes[0].shaderbits & ~SBITS_BLEND_BITS) | SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_NODEPTHTEST);
+		BE_SendPassBlendDepthMask((shaderstate.curshader->passes[0].shaderbits & ~SBITS_BLEND_BITS) | SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | ((r_wireframe.ival == 1)?SBITS_MISC_NODEPTHTEST:0));
 
 		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR), 0);
 		BE_SubmitMeshChain(false);
@@ -4629,6 +4635,7 @@ static void BE_UpdateLightmaps(void)
 	lightmapinfo_t *lm;
 	int lmidx;
 	int glformat, gltype;
+	int internalformat = GL_RGBA;
 	switch (lightmap_bytes)
 	{
 	case 4:
@@ -4644,6 +4651,9 @@ static void BE_UpdateLightmaps(void)
 		gltype = GL_UNSIGNED_BYTE;
 		break;
 	}
+	if (gl_config.gles)
+		internalformat = glformat;
+
 	for (lmidx = 0; lmidx < numlightmaps; lmidx++)
 	{
 		lm = lightmap[lmidx];
@@ -4660,7 +4670,7 @@ static void BE_UpdateLightmaps(void)
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
+				qglTexImage2D(GL_TEXTURE_2D, 0, internalformat,
 						lm->width, lm->height, 0, glformat, gltype,
 						lm->lightmaps);
 			}

@@ -77,7 +77,7 @@ typedef struct plugin_s {
 	struct plugin_s *next;
 } plugin_t;
 
-void Plug_SubConsoleCommand(console_t *con, char *line);
+int Plug_SubConsoleCommand(console_t *con, char *line);
 
 plugin_t *currentplug;
 
@@ -263,6 +263,8 @@ plugin_t *Plug_Load(const char *file, int type)
 	strcpy(newplug->name, file);
 
 	if (!newplug->vm && (type & PLUG_NATIVE))
+		newplug->vm = VM_Create(va("fteplug_%s_", file), Plug_SystemCallsNative, NULL);
+	if (!newplug->vm && (type & PLUG_NATIVE))
 		newplug->vm = VM_Create(va("fteplug_%s", file), Plug_SystemCallsNative, NULL);
 	if (!newplug->vm && (type & PLUG_QVM))
 		newplug->vm = VM_Create(file, NULL, Plug_SystemCallsVM);
@@ -334,6 +336,9 @@ static int QDECL Plug_EnumeratedRoot (const char *name, qofs_t size, time_t mtim
 		if (dot)
 			*dot = 0;
 	}
+	len = strlen(vmname);
+	if (len > 0 && vmname[len-1] == '_')
+		vmname[len-1] = 0;
 	if (!Plug_Load(vmname, PLUG_NATIVE))
 		Con_Printf("Couldn't load plugin %s\n", vmname);
 
@@ -1538,16 +1543,18 @@ qboolean Plug_ConsoleLink(char *text, char *info)
 	return result;
 }
 
-void Plug_SubConsoleCommand(console_t *con, char *line)
+int Plug_SubConsoleCommand(console_t *con, char *line)
 {
+	int ret;
 	char buffer[2048];
 	plugin_t *oldplug = currentplug;	//shouldn't really be needed, but oh well
 	currentplug = con->userdata;
 
 	Q_strncpyz(buffer, va("\"%s\" %s", con->name, line), sizeof(buffer));
 	Cmd_TokenizeString(buffer, false, false);
-	VM_Call(currentplug->vm, currentplug->conexecutecommand, 0);
+	ret = VM_Call(currentplug->vm, currentplug->conexecutecommand, 0);
 	currentplug = oldplug;
+	return ret;
 }
 
 void Plug_SpellCheckMaskedText(unsigned int *maskedstring, int maskedchars, int x, int y, int cs, int firstc, int charlimit)

@@ -2336,7 +2336,10 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 		line = COM_ParseOut(line, tok, sizeof(tok));
 		frames[count].fps = atof(tok);
 		line = COM_ParseOut(line, tok, sizeof(tok));
-		frames[count].loop = !!atoi(tok);
+		if (!strcmp(tok, "true") || !strcmp(tok, "yes") || !strcmp(tok, "on"))
+			frames[count].loop = true;
+		else
+			frames[count].loop = !!atoi(tok);
 		line = COM_ParseOut(line, frames[count].name, sizeof(frames[count].name));
 		if (frames[count].posecount>0 && frames[count].fps)
 			count++;
@@ -3150,6 +3153,40 @@ static void *Q1_LoadSkins_GL (model_t *loadmodel, daliasskintype_t *pskintype, u
 }
 #endif
 
+void Mesh_HandleFramegroupsFile(model_t *mod, galiasinfo_t *galias)
+{
+	unsigned int numanims, a, p, n, g, oldnumanims = galias->numanimations, targpose;
+	galiasanimation_t *o, *oldanims = galias->ofsanimations, *frame;
+	frameinfo_t *framegroups = ParseFrameInfo(mod->name, &numanims);
+	if (framegroups)
+	{
+		galias->ofsanimations = o = ZG_Malloc(&mod->memgroup, sizeof(*galias->ofsanimations) * numanims);
+		for (a = 0; a < numanims; a++, o++)
+		{
+			o->poseofs = ZG_Malloc(&mod->memgroup, sizeof(*o->poseofs) * framegroups[a].posecount);
+			for (p = 0; p < framegroups[a].posecount; p++)
+			{
+				targpose = framegroups[a].firstpose + p;
+				for (n = 0, g = 0, frame = oldanims; g < oldnumanims; g++, frame++)
+				{
+					if (targpose < frame->numposes)
+						break;
+					targpose -= frame->numposes;
+				}
+				if (g == oldnumanims)
+					break;
+				o->poseofs[p] = frame->poseofs[targpose];
+			}
+			o->numposes = p;
+			o->rate = framegroups[a].fps;
+			o->loop = framegroups[a].loop;
+			Q_strncpyz(o->name, framegroups[a].name, sizeof(o->name));
+		}
+		galias->numanimations = numanims;
+		free(framegroups);
+	}
+}
+
 qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 {
 #ifndef SERVERONLY
@@ -3439,6 +3476,8 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 	mod->type = mod_alias;
 	Mod_ClampModelSize(mod);
+
+	Mesh_HandleFramegroupsFile(mod, galias);
 
 	mod->meshinfo = galias;
 

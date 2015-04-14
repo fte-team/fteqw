@@ -578,7 +578,6 @@ RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int pa
 	return r;
 }
 
-void Image_ResampleTexture (unsigned *in, int inwidth, int inheight, unsigned *out,  int outwidth, int outheight);
 void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale)
 {
 	int width, height;
@@ -2155,6 +2154,10 @@ LONG WINAPI GLMainWndProc (
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
 				INS_TranslateKeyEvent(wParam, lParam, false, 0, false);
+			break;
+
+		case WM_MOUSEACTIVATE:
+			lRet = MA_ACTIVATEANDEAT;
 			break;
 
 	// this is complicated because Win32 seems to pack multiple mouse events into

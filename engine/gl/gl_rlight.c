@@ -59,6 +59,9 @@ void R_AnimateLight (void)
 {
 	int			i,j;
 	float f;
+
+	//if (r_lightstylescale.value > 2)
+		//r_lightstylescale.value = 2;
 	
 //
 // light animations
@@ -74,13 +77,13 @@ void R_AnimateLight (void)
 		int v1, v2, vd;
 		if (!cl_lightstyle[j].length)
 		{
-			d_lightstylevalue[j] = ('m'-'a')*22;
+			d_lightstylevalue[j] = ('m'-'a')*22 * r_lightstylescale.value;
 			continue;
 		}
 
 		if (cl_lightstyle[j].map[0] == '=')
 		{
-			d_lightstylevalue[j] = atof(cl_lightstyle[j].map+1)*256;
+			d_lightstylevalue[j] = atof(cl_lightstyle[j].map+1)*256*r_lightstylescale.value;
 			continue;
 		}
 
@@ -92,9 +95,9 @@ void R_AnimateLight (void)
 
 		vd = v1 - v2;
 		if (!r_lightstylesmooth.ival || vd < -r_lightstylesmooth_limit.ival || vd > r_lightstylesmooth_limit.ival)
-			d_lightstylevalue[j] = v1*22;
+			d_lightstylevalue[j] = v1*22*r_lightstylescale.value;
 		else
-			d_lightstylevalue[j] = (v1*(1-f) + v2*(f))*22;
+			d_lightstylevalue[j] = (v1*(1-f) + v2*(f))*22*r_lightstylescale.value;
 	}
 }
 

@@ -97,7 +97,8 @@ void SCR_SetLoadingFile(char *str);
 /*fonts*/
 void Font_Init(void);
 void Font_Shutdown(void);
-struct font_s *Font_LoadFont(int height, const char *fontfilename);
+int Font_RegisterTrackerImage(const char *image);	//returns a unicode char value that can be used to embed the char within a line of text.
+struct font_s *Font_LoadFont(float height, const char *fontfilename);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/

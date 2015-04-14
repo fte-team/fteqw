@@ -3201,13 +3201,17 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 			"}\n"
 			);
 
-		crepuscular_texture_id = Image_CreateTexture("***crepusculartexture***", NULL, 0);
+		crepuscular_texture_id = Image_CreateTexture("***crepusculartexture***", NULL, IF_LINEAR|IF_NOMIPMAP|IF_CLAMP|IF_NOGAMMA);
 		Image_Upload(crepuscular_texture_id, TF_RGBA32, NULL, NULL, vid.pixelwidth, vid.pixelheight, IF_LINEAR|IF_NOMIPMAP|IF_CLAMP|IF_NOGAMMA);
 	}
 
 	BE_Scissor(NULL);
 
-	oldfbo = GLBE_FBO_Update(&crepuscular_fbo, 0, &crepuscular_texture_id, 1, r_nulltex, vid.pixelwidth, vid.pixelheight);
+	oldfbo = GLBE_FBO_Update(&crepuscular_fbo, FBO_RB_DEPTH, &crepuscular_texture_id, 1, r_nulltex, vid.pixelwidth, vid.pixelheight);
+
+	GL_ForceDepthWritable();
+//	qglClearColor(0, 0, 0, 1);
+	qglClear(GL_DEPTH_BUFFER_BIT);
 
 	BE_SelectMode(BEM_CREPUSCULAR);
 	BE_SelectDLight(dl, colours, dl->axis, LSHADER_STANDARD);
@@ -3217,6 +3221,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 
 	oldsrccol = NULL;//shaderstate.tex_sourcecol;
 	GLBE_FBO_Sources(crepuscular_texture_id, NULL);
+//	crepuscular_shader->defaulttextures.base = crepuscular_texture_id;
 	//shaderstate.tex_sourcecol = oldsrccol;
 
 	BE_SelectMode(BEM_STANDARD);
@@ -3447,6 +3452,12 @@ void Sh_DrawLights(qbyte *vis)
 			colour[0] *= cl_lightstyle[dl->style-1].colours[0] * d_lightstylevalue[dl->style-1]/255.0f;
 			colour[1] *= cl_lightstyle[dl->style-1].colours[1] * d_lightstylevalue[dl->style-1]/255.0f;
 			colour[2] *= cl_lightstyle[dl->style-1].colours[2] * d_lightstylevalue[dl->style-1]/255.0f;
+		}
+		else
+		{
+			colour[0] *= r_lightstylescale.value;
+			colour[1] *= r_lightstylescale.value;
+			colour[2] *= r_lightstylescale.value;
 		}
 
 		if (colour[0] < 0.001 && colour[1] < 0.001 && colour[2] < 0.001)

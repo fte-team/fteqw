@@ -151,7 +151,7 @@ qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key
 		Q_snprintfz(top, sizeof(top), "0x%x", info->topcolour&0xffffff);
 	else
 		Q_snprintfz(top, sizeof(top), "%i", info->topcolour);
-	Cbuf_AddText(va("color %s %s\n", bot, top), RESTRICT_LOCAL);
+	Cbuf_AddText(va("color %s %s\n", top, bot), RESTRICT_LOCAL);
 	S_LocalSound ("misc/menu2.wav");
 	M_RemoveMenu(menu);
 	return true;

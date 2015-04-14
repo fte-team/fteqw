@@ -350,7 +350,11 @@ int Q_strncasecmp (const char *s1, const char *s2, int n)
 			if (c2 >= 'a' && c2 <= 'z')
 				c2 -= ('a' - 'A');
 			if (c1 != c2)
-				return -1;		// strings not equal
+			{	// strings not equal
+				if (c1 > c2)
+					return 1;		// strings not equal
+				return -1;
+			}
 		}
 		if (!c1)
 			return 0;		// strings are equal
@@ -1174,7 +1178,7 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 	  		MSG_WriteByte (buf, cmd->buttons);
  		if (bits & CM_IMPULSE)
 			MSG_WriteByte (buf, cmd->impulse);
-		MSG_WriteByte (buf, cmd->msec);
+		MSG_WriteByte (buf, cmd->msec&0xff);
 	}
 }
 
@@ -2993,7 +2997,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 		else if (*str == '^' && !(flags & PFS_NOMARKUP))
 		{
 			if (str[1] >= '0' && str[1] <= '9')
-			{
+			{	//q3 colour codes
 				if (ext & CON_RICHFORECOLOUR)
 					ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~(CON_RICHFOREMASK|CON_RICHFORECOLOUR));
 				ext = q3codemasks[str[1]-'0'] | (ext&~CON_Q3MASK); //change colour only.
@@ -3344,7 +3348,7 @@ messedup:
 		}
 		else
 		{
-			if (uc == '\n' || uc == '\r' || uc == '\t' || uc == ' ')
+			if (uc == '\n' || uc == '\r' || uc == '\t' || uc == '\v' || uc == ' ')
 				*out++ = uc | ext;
 			else if (uc >= 32 && uc < 127)
 				*out++ = uc | ext;
@@ -4693,10 +4697,11 @@ void COM_ErrorMe_f(void)
 
 
 #ifdef LOADERTHREAD
+#define WORKERTHREADS (1+1+4)
 /*multithreading worker thread stuff*/
-static void *com_workercondition[2];
-static qboolean com_workerdone[2];
-static void *com_workerthread;
+static void *com_workercondition[WORKERTHREADS];
+static qboolean com_workerdone[WORKERTHREADS];
+static void *com_workerthread[WORKERTHREADS];
 static unsigned int mainthreadid;
 qboolean com_fatalerror;
 static struct com_work_s
@@ -4707,7 +4712,7 @@ static struct com_work_s
 	void *data;
 	size_t a;
 	size_t b;
-} *com_work_head[2], *com_work_tail[2];
+} *com_work_head[WORKERTHREADS], *com_work_tail[WORKERTHREADS];
 static void Sys_ErrorThread(void *ctx, void *data, size_t a, size_t b)
 {
 	Sys_Error(data);
@@ -4718,6 +4723,9 @@ void COM_WorkerAbort(char *message)
 	com_fatalerror = true;
 	if (Sys_IsMainThread())
 		return;
+
+	if (!com_workercondition[0])
+		return;	//Sys_IsMainThread was probably called too early...
 
 	work.func = Sys_ErrorThread;
 	work.ctx = NULL;
@@ -4743,21 +4751,33 @@ void COM_WorkerAbort(char *message)
 //return if there's *any* loading that needs to be done anywhere.
 qboolean COM_HasWork(void)
 {
-	return com_work_head[0] || com_work_head[1];
+	unsigned int i;
+	for (i = 0; i < WORKERTHREADS-1; i++)
+	{
+		if (com_work_head[i])
+			return true;
+	}
+	return false;
 }
 //thread==0 is main thread, thread==1 is a worker thread
 void COM_AddWork(int thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
 {
+	struct com_work_s *work;
+
+	//no worker there, just do it immediately on this thread instead of pushing it to the worker.
+	if (thread && (!com_workerthread[thread] || com_fatalerror))
+	{
+		func(ctx, data, a, b);
+		return;
+	}
+
 	//build the work
-	struct com_work_s *work = Z_Malloc(sizeof(*work));
+	work = Z_Malloc(sizeof(*work));
 	work->func = func;
 	work->ctx = ctx;
 	work->data = data;
 	work->a = a;
 	work->b = b;
-
-	if (!com_workerthread || com_fatalerror)
-		thread = 0;
 
 	//queue it (fifo)
 	Sys_LockConditional(com_workercondition[thread]);
@@ -4774,9 +4794,9 @@ void COM_AddWork(int thread, void(*func)(void *ctx, void *data, size_t a, size_t
 	Sys_ConditionSignal(com_workercondition[thread]);
 	Sys_UnlockConditional(com_workercondition[thread]);
 
-	if (!com_workerthread)
-		while(COM_DoWork(0, false))
-			;
+//	if (!com_workerthread[thread])
+//		while(COM_DoWork(thread, false))
+//			;
 }
 //leavelocked = false == poll mode.
 //leavelocked = true == safe sleeping
@@ -4816,9 +4836,20 @@ qboolean COM_DoWork(int thread, qboolean leavelocked)
 	//nothing going on, if leavelocked then noone can add anything until we sleep.
 	return false;
 }
+static void COM_WorkerSync_StopWorker(void *ctx, void *data, size_t a, size_t b)
+{
+	com_workerdone[a] = true;
+}
+static void COM_WorkerSync_SignalMain(void *ctx, void *data, size_t a, size_t b)
+{
+	Sys_LockConditional(com_workercondition[a]);
+	com_workerdone[a] = true;
+	Sys_ConditionSignal(com_workercondition[a]);
+	Sys_UnlockConditional(com_workercondition[a]);
+}
 static int COM_WorkerThread(void *arg)
 {
-	int thread = *(int*)arg;
+	int thread = (void**)arg - com_workerthread;
 	Sys_LockConditional(com_workercondition[thread]);
 	do
 	{
@@ -4828,15 +4859,14 @@ static int COM_WorkerThread(void *arg)
 			break;
 	} while (Sys_ConditionWait(com_workercondition[thread]));
 	Sys_UnlockConditional(com_workercondition[thread]);
+
+	//no more work please...
+	*(void**)arg = NULL;
+	//and wake up main thread
+	COM_WorkerSync_SignalMain(NULL, NULL, 0, 0);
 	return 0;
 }
-static void COM_WorkerSync_Stop(void *ctx, void *data, size_t a, size_t b)
-{
-	Sys_LockConditional(com_workercondition[a]);
-	com_workerdone[a] = true;
-	Sys_ConditionSignal(com_workercondition[a]);
-	Sys_UnlockConditional(com_workercondition[a]);
-}
+
 #ifndef COM_AssertMainThread
 void COM_AssertMainThread(const char *msg)
 {
@@ -4848,22 +4878,45 @@ void COM_AssertMainThread(const char *msg)
 #endif
 void COM_DestroyWorkerThread(void)
 {
+	int i;
 	com_fatalerror = false;
-	if (com_workerthread)
+	for (i = 0; i < WORKERTHREADS; i++)
 	{
-		//send it the terminate message
-		COM_AddWork(1, COM_WorkerSync_Stop, NULL, NULL, 1, 0);
-		Sys_WaitOnThread(com_workerthread);
-		com_workerthread = NULL;
+		if (com_workerthread[i])
+		{
+			void *thread = com_workerthread[i];
+			com_workerdone[0] = false;
+			//send it the terminate message
+			COM_AddWork(i, COM_WorkerSync_StopWorker, NULL, NULL, i, 0);
+
+			//wait for the response while servicing anything that it might be waiting for.
+			Sys_LockConditional(com_workercondition[0]);
+			do
+			{
+				if (com_fatalerror)
+					break;
+				while(COM_DoWork(0, true))
+					;
+				if (com_workerdone[0])
+					break;
+			} while (Sys_ConditionWait(com_workercondition[0]));
+			Sys_UnlockConditional(com_workercondition[0]);
+
+			//and now that we know its going down and will not wait any more, we can block for its final moments
+			Sys_WaitOnThread(thread);
+
+			//finish any work that got posted to it that it neglected to finish.
+			while(COM_DoWork(i, true))
+				;
+		}
 	}
 
-	if (com_workercondition[0])
-		Sys_DestroyConditional(com_workercondition[0]);
-	com_workercondition[0] = NULL;
-
-	if (com_workercondition[1])
-		Sys_DestroyConditional(com_workercondition[1]);
-	com_workercondition[1] = NULL;
+	for (i = 0; i < WORKERTHREADS; i++)
+	{
+		if (com_workercondition[i])
+			Sys_DestroyConditional(com_workercondition[i]);
+		com_workercondition[i] = NULL;
+	}
 
 	if (com_resourcemutex)
 		Sys_DestroyMutex(com_resourcemutex);
@@ -4874,33 +4927,38 @@ void COM_DestroyWorkerThread(void)
 void COM_WorkerFullSync(void)
 {
 	qboolean repeat;
-	if (!com_workerthread)
-		return;
+	int i;
 
-	//main thread asks worker thread to set main thread's 'done' flag.
-	//the worker might be posting work to the main thread and back (shaders with texures) so make sure that the only work we do before the reply is the reply itself.
-	do
+	for (i = 1; i < WORKERTHREADS; i++)
 	{
-		int cmds = 0;
-		com_workerdone[0] = false;
-		repeat = COM_HasWork();
-		COM_AddWork(1, COM_WorkerSync_Stop, NULL, NULL, 0, 0);
-		Sys_LockConditional(com_workercondition[0]);
+		if (!com_workerthread[i])
+			continue;
+
+		//main thread asks worker thread to set main thread's 'done' flag.
+		//the worker might be posting work to the main thread and back (shaders with texures) so make sure that the only work we do before the reply is the reply itself.
 		do
 		{
+			int cmds = 0;
+			com_workerdone[0] = false;
+			repeat = COM_HasWork();
+			COM_AddWork(i, COM_WorkerSync_SignalMain, NULL, NULL, 0, 0);
+			Sys_LockConditional(com_workercondition[0]);
+			do
+			{
+				if (com_fatalerror)
+					break;
+				while(COM_DoWork(0, true))
+					cmds++;
+				if (com_workerdone[0])
+					break;
+			} while (Sys_ConditionWait(com_workercondition[0]));
+			Sys_UnlockConditional(com_workercondition[0]);
 			if (com_fatalerror)
 				break;
-			while(COM_DoWork(0, true))
-				cmds++;
-			if (com_workerdone[0])
-				break;
-		} while (Sys_ConditionWait(com_workercondition[0]));
-		Sys_UnlockConditional(com_workercondition[0]);
-		if (com_fatalerror)
-			break;
-		if (cmds > 1)
-			repeat = true;
-	} while (COM_DoWork(0, false) || repeat);	//outer loop ensures there isn't anything pingponging between
+			if (cmds > 1)
+				repeat = true;
+		} while (COM_DoWork(0, false) || repeat);	//outer loop ensures there isn't anything pingponging between
+	}
 }
 
 //main thread wants a specific object to be prioritised.
@@ -4912,7 +4970,6 @@ void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 {
 	struct com_work_s **link, *work, *prev;
 	double time1 = Sys_DoubleTime();
-	int thread = 1;
 
 //	Con_Printf("waiting for %p %s\n", priorityctx, priorityctx);
 
@@ -4922,32 +4979,36 @@ void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 	//main thread is meant to do all loadstate value changes anyway, ensuring that we're woken up properly in this case.
 	if (priorityctx)
 	{
+		unsigned int thread;
 		qboolean found = false;
-		Sys_LockConditional(com_workercondition[thread]);
-		for (link = &com_work_head[thread], work = NULL; *link; link = &(*link)->next)
+		for (thread = 1; thread < WORKERTHREADS && !found; thread++)
 		{
-			prev = work;
-			work = *link;
-			if (work->ctx == priorityctx)
-			{	//unlink it
+			Sys_LockConditional(com_workercondition[thread]);
+			for (link = &com_work_head[thread], work = NULL; *link; link = &(*link)->next)
+			{
+				prev = work;
+				work = *link;
+				if (work->ctx == priorityctx)
+				{	//unlink it
 
-				*link = work->next;
-				if (!work->next)
-					com_work_tail[thread] = prev;
-				//link it in at the head, so its the next thing seen.
-				work->next = com_work_head[thread];
-				com_work_head[thread] = work;
-				if (!work->next)
-					com_work_tail[thread] = work;
-				found = true;
+					*link = work->next;
+					if (!work->next)
+						com_work_tail[thread] = prev;
+					//link it in at the head, so its the next thing seen.
+					work->next = com_work_head[thread];
+					com_work_head[thread] = work;
+					if (!work->next)
+						com_work_tail[thread] = work;
+					found = true;
 
-				break;	//found it, nothing else to do.
+					break;	//found it, nothing else to do.
+				}
 			}
+			//we've not actually added any work, so no need to signal
+			Sys_UnlockConditional(com_workercondition[thread]);
 		}
 		if (!found)
 			Con_DPrintf("Might be in for a long wait for %s\n", priorityctx);
-		//we've not actually added any work, so no need to signal
-		Sys_UnlockConditional(com_workercondition[thread]);
 	}
 
 	Sys_LockConditional(com_workercondition[0]);
@@ -4974,7 +5035,7 @@ static void COM_WorkerPing(void *ctx, void *data, size_t a, size_t b)
 {
 	double *timestamp = data;
 	if (!b)
-		COM_AddWork(0, COM_WorkerPing, ctx, data	, 0, 1);
+		COM_AddWork(0, COM_WorkerPing, ctx, data, 0, 1);
 	else
 	{
 		Con_Printf("Ping: %g\n", Sys_DoubleTime() - *timestamp);
@@ -4996,14 +5057,21 @@ static void COM_WorkerTest_f(void)
 cvar_t worker_flush = CVARD("worker_flush", "1", "Is set, process the entire load queue, loading stuff faster but at the risk of stalling.");
 static void COM_InitWorkerThread(void)
 {
-	static int tid = 1;
+	int i;
 
 	//in theory, we could run multiple workers, signalling a different one in turn for each bit of work.
 	com_resourcemutex = Sys_CreateMutex();
-	com_workercondition[0] = Sys_CreateConditional();
-	com_workercondition[1] = Sys_CreateConditional();
+	for (i = 0; i < WORKERTHREADS; i++)
+	{
+		com_workercondition[i] = Sys_CreateConditional();
+	}
 	if (!COM_CheckParm("-noworker"))
-		com_workerthread = Sys_CreateThread("loadworker", COM_WorkerThread, &tid, 0, 256*1024);
+	{
+		for (i = 1; i < WORKERTHREADS; i++)
+		{
+			com_workerthread[i] = Sys_CreateThread(va("loadworker_%i", i), COM_WorkerThread, &com_workerthread[i], 0, 256*1024);
+		}
+	}
 
 	Cmd_AddCommand ("worker_test", COM_WorkerTest_f);
 	Cvar_Register(&worker_flush, NULL);
@@ -5753,8 +5821,10 @@ void Info_Print (char *s, char *lineprefix)
 
 void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags)
 {
+	const char *quotedvalue;
+	char buffer[1024];
 	char *command;
-	char *value;
+	char *value, t;
 	cvar_t *var;
 
 	while(*info == '\\')
@@ -5779,7 +5849,11 @@ void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags
 		VFS_WRITE(f, " ", 1);
 		VFS_WRITE(f, command, value-command);
 		VFS_WRITE(f, " ", 1);
-		VFS_WRITE(f, value+1, info-(value+1));
+		t = *info;
+		*info = 0;
+		quotedvalue = COM_QuotedString(value+1, buffer, sizeof(buffer), false);
+		VFS_WRITE(f, quotedvalue, strlen(quotedvalue));
+		*info = t;
 		VFS_WRITE(f, "\n", 1);
 	}
 }

@@ -560,15 +560,7 @@ void CL_CalcClientTime(void)
 			extern float olddemotime;
 			cl.servertime = olddemotime;
 		}
-		if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD && !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-		{
-			extern float nextdemotime, olddemotime, demtime;
-			float f;
-			f = (demtime - olddemotime) / (nextdemotime - olddemotime);
-			f = bound(0, f, 1);
-			cl.servertime = cl.gametime*f + cl.oldgametime*(1-f);
-		}
-		else if (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !cls.demoplayback)))
+		if (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !cls.demoplayback)) && cls.demoplayback != DPB_MVD)
 		{
 			float f;
 			f = cl.gametime - cl.oldgametime;

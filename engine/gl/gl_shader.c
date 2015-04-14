@@ -657,10 +657,18 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 
 texid_t R_LoadColourmapImage(void)
 {
-	unsigned int w = 256, h = VID_GRADES-1;
+	unsigned int w = 256, h = VID_GRADES;
 	unsigned int x;
-	unsigned int data[256*(VID_GRADES-1)];
+	unsigned int data[256*(VID_GRADES)];
 	qbyte *colourmappal = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", NULL);
+	if (!colourmappal)
+	{
+		size_t sz;
+		qbyte *pcx = FS_LoadMallocFile("pics/colormap.pcx", &sz);
+		colourmappal = Z_Malloc(256*VID_GRADES);
+		ReadPCXData(pcx, sz, 256, VID_GRADES, colourmappal);
+		BZ_Free(pcx);
+	}
 	if (colourmappal)
 	{
 		for (x = 0; x < sizeof(data)/sizeof(data[0]); x++)
@@ -725,6 +733,12 @@ static void Shader_NoMipMaps ( shader_t *shader, shaderpass_t *pass, char **ptr 
 {
 	shader->flags |= (SHADER_NOMIPMAPS|SHADER_NOPICMIP);
 }
+
+static void Shader_Affine ( shader_t *shader, shaderpass_t *pass, char **ptr )
+{
+	shader->flags |= SBITS_AFFINE;
+}
+
 
 static void Shader_NoPicMip ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
@@ -2056,6 +2070,7 @@ static shaderkey_t shaderkeys[] =
 	{"hlslprogram",		Shader_HLSL9ProgramName,	"fte"},	//for d3d
 	{"hlsl11program",	Shader_HLSL11ProgramName,	"fte"},	//for d3d
 	{"param",			Shader_ProgramParam,		"fte"},	//legacy
+	{"affine",			Shader_Affine,				"fte"},	//some hardware is horribly slow, and can benefit from certain hints.
 
 	{"bemode",			Shader_BEMode,				"fte"},
 
@@ -4134,6 +4149,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 	char *h;
 	char imagename[MAX_QPATH];
 	char *subpath = NULL;
+	unsigned int imageflags = 0;
 	strcpy(imagename, shader->name);
 	h = strchr(imagename, '#');
 	if (h)
@@ -4172,6 +4188,8 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		TEXASSIGN(shader->defaulttextures.paletted, tn->paletted);
 	}
 
+	imageflags |= IF_LOWPRIORITY;
+
 	COM_StripExtension(imagename, imagename, sizeof(imagename));
 
 	if (!TEXVALID(shader->defaulttextures.bump))
@@ -4179,9 +4197,9 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if (r_loadbumpmapping || (shader->flags & SHADER_HASNORMALMAP))
 		{
 			if (!TEXVALID(tn->bump) && *shader->mapname && (shader->flags & SHADER_HASNORMALMAP))
-				tn->bump = R_LoadHiResTexture(va("%s_norm", shader->mapname), NULL, IF_TRYBUMP);
+				tn->bump = R_LoadHiResTexture(va("%s_norm", shader->mapname), NULL, imageflags|IF_TRYBUMP);
 			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, IF_TRYBUMP);
+				tn->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP);
 		}
 		TEXASSIGN(shader->defaulttextures.bump, tn->bump);
 	}
@@ -4191,9 +4209,9 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if (shader->flags & SHADER_HASTOPBOTTOM)
 		{
 			if (!TEXVALID(tn->loweroverlay) && *shader->mapname)
-				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->mapname), NULL, 0);
+				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->mapname), NULL, imageflags);
 			if (!TEXVALID(tn->loweroverlay))
-				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", imagename), subpath, 0);	/*how rude*/
+				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", imagename), subpath, imageflags);	/*how rude*/
 		}
 		TEXASSIGN(shader->defaulttextures.loweroverlay, tn->loweroverlay);
 	}
@@ -4203,9 +4221,9 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if (shader->flags & SHADER_HASTOPBOTTOM)
 		{
 			if (!TEXVALID(tn->upperoverlay) && *shader->mapname)
-				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->mapname), NULL, 0);
+				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->mapname), NULL, imageflags);
 			if (!TEXVALID(tn->upperoverlay))
-				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", imagename), subpath, 0);
+				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", imagename), subpath, imageflags);
 		}
 		TEXASSIGN(shader->defaulttextures.upperoverlay, tn->upperoverlay);
 	}
@@ -4216,9 +4234,9 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if ((shader->flags & SHADER_HASGLOSS) && gl_specular.value && gl_load24bit.value)
 		{
 			if (!TEXVALID(tn->specular) && *shader->mapname)
-				tn->specular = R_LoadHiResTexture(va("%s_gloss", shader->mapname), NULL, 0);
+				tn->specular = R_LoadHiResTexture(va("%s_gloss", shader->mapname), NULL, imageflags);
 			if (!TEXVALID(tn->specular))
-				tn->specular = R_LoadHiResTexture(va("%s_gloss", imagename), subpath, 0);
+				tn->specular = R_LoadHiResTexture(va("%s_gloss", imagename), subpath, imageflags);
 		}
 		TEXASSIGN(shader->defaulttextures.specular, tn->specular);
 	}
@@ -4229,24 +4247,37 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 		if ((shader->flags & SHADER_HASFULLBRIGHT) && r_fb_bmodels.value && gl_load24bit.value)
 		{
 			if (!TEXVALID(tn->fullbright) && *shader->mapname)
-				tn->fullbright = R_LoadHiResTexture(va("%s_luma", shader->mapname), NULL, 0);
+				tn->fullbright = R_LoadHiResTexture(va("%s_luma", shader->mapname), NULL, imageflags);
 			if (!TEXVALID(tn->fullbright))
-				tn->fullbright = R_LoadHiResTexture(va("%s_luma", imagename), subpath, 0);
+				tn->fullbright = R_LoadHiResTexture(va("%s_luma", imagename), subpath, imageflags);
 		}
 		TEXASSIGN(shader->defaulttextures.fullbright, tn->fullbright);
 	}
 }
 
 //call this with some fallback textures to directly load some textures
-void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *subpath, unsigned int loadflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata[4], qbyte *palette)
+void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, const char *subpath, unsigned int loadflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata[4], qbyte *palette)
 {
 	char *h;
 	char imagename[MAX_QPATH];
+	//extern cvar_t gl_miptexLevel;
 	texnums_t *tex = &shader->defaulttextures;
 	unsigned int imageflags;
 	qbyte *dontcrashme[4] = {NULL};
 	if (!mipdata)
 		mipdata = dontcrashme;
+	/*else if (gl_miptexLevel.ival)
+	{
+		unsigned int miplevel = 0, i;
+		for (i = 0; i < 3 && i < gl_miptexLevel.ival && mipdata[i]; i++)
+			miplevel = i;
+		for (i = 0; i < 3; i++)
+			dontcrashme[i] = (miplevel+i)>3?NULL:mipdata[miplevel+i];
+		width >>= miplevel;
+		height >>= miplevel;
+		mipdata = dontcrashme;
+	}
+	*/
 	strcpy(imagename, shader->name);
 	h = strchr(imagename, '#');
 	if (h)
@@ -4263,8 +4294,11 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *subpath, unsigned 
 	if (shader->generator == Shader_DefaultSkin)
 		subpath = shader->genargs;
 
+	if (basefmt == TF_MIP4_SOLID8 && (!mipdata[0] || !mipdata[1] || !mipdata[2] || !mipdata[3]))
+		basefmt = TF_SOLID8;
+
 	//make sure the noalpha thing is set properly.
-	imageflags = (basefmt==TF_SOLID8)?IF_NOALPHA:0;
+	imageflags = (basefmt==TF_SOLID8 || basefmt == TF_MIP4_SOLID8)?IF_NOALPHA:0;
 	imageflags |= IF_MIPCAP;
 
 	COM_StripExtension(imagename, imagename, sizeof(imagename));
@@ -4274,7 +4308,22 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *subpath, unsigned 
 	{
 		if (!TEXVALID(tex->base) && *shader->mapname)
 			tex->base = R_LoadHiResTexture(shader->mapname, NULL, imageflags);
-		if (!TEXVALID(tex->base))
+		if (!TEXVALID(tex->base) && fallbackname)
+		{
+			if (gl_load24bit.ival)
+			{
+				tex->base = Image_GetTexture(imagename, subpath, imageflags|IF_NOWORKER, NULL, NULL, width, height, basefmt);
+				if (!TEXLOADED(tex->base))
+				{
+					tex->base = Image_GetTexture(fallbackname, subpath, imageflags|IF_NOWORKER, NULL, NULL, width, height, basefmt);
+					if (TEXLOADED(tex->base))
+						Q_strncpyz(imagename, fallbackname, sizeof(imagename));
+				}
+			}
+			if (!TEXLOADED(tex->base))
+				tex->base = Image_GetTexture(imagename, subpath, imageflags, mipdata[0], palette, width, height, basefmt);
+		}
+		else if (!TEXVALID(tex->base))
 			tex->base = Image_GetTexture(imagename, subpath, imageflags, mipdata[0], palette, width, height, basefmt);
 	}
 
@@ -4283,9 +4332,10 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *subpath, unsigned 
 		if (!TEXVALID(tex->paletted) && *shader->mapname)
 			tex->paletted = R_LoadHiResTexture(va("%s_pal", shader->mapname), NULL, imageflags|IF_NEAREST);
 		if (!TEXVALID(tex->paletted))
-			tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST, mipdata[0], palette, width, height, TF_LUM8);
+			tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST, mipdata[0], palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_LUM8:TF_LUM8);
 	}
 
+	imageflags |= IF_LOWPRIORITY;
 	//all the rest need/want an alpha channel in some form.
 	imageflags &= ~IF_NOALPHA;
 	imageflags |= IF_NOGAMMA;
@@ -4667,6 +4717,7 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 		Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(s, shortname));
 	}
 	else if (!strncmp(shortname, "trans/", 6))
+	{
 		Shader_DefaultScript(shortname, s,
 				"{\n"
 					"{\n"
@@ -4676,6 +4727,19 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 					"}\n"
 				"}\n"
 			);
+	}
+	else if (r_softwarebanding.ival)
+	{
+		/*alpha bended*/
+		Shader_DefaultScript(shortname, s,
+			"{\n"
+				"program defaultwall#EIGHTBIT\n"
+				"{\n"
+					"map $colourmap\n"
+				"}\n"
+			"}\n"
+		);
+	}
 	else
 		Shader_DefaultBSPLM(shortname, s, args);
 }

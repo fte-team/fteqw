@@ -349,12 +349,20 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
 	COM_StripExtension(name+5, stripped, sizeof(stripped)); 
-	Con_Printf("^[%s\\map\\%s^]\n", stripped, stripped);
+	Con_Printf("^[[%s]\\map\\%s^]\n", stripped, stripped);
+	return true;
+}
+static int QDECL ShowMapListExt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	if (name[5] == 'b' && name[6] == '_')	//skip box models
+		return true;
+	Con_Printf("^[[%s]\\map\\%s^]\n", name+5, name+5);
 	return true;
 }
 static void SV_MapList_f(void)
 {
 	COM_EnumerateFiles("maps/*.bsp", ShowMapList, NULL);
+	COM_EnumerateFiles("maps/*.map", ShowMapListExt, NULL);
 	COM_EnumerateFiles("maps/*.cm", ShowMapList, NULL);
 	COM_EnumerateFiles("maps/*.hmp", ShowMapList, NULL);
 }
@@ -413,7 +421,10 @@ void SV_Map_f (void)
 
 	if (Cmd_Argc() != 2 && Cmd_Argc() != 3)
 	{
-		Con_TPrintf ("%s <levelname> <startspot>: change the level\n", Cmd_Argv(0));
+		if (Cmd_IsInsecure())
+			return;
+		Con_TPrintf ("Available maps:\n", Cmd_Argv(0));
+		SV_MapList_f();
 		return;
 	}
 
@@ -458,7 +469,7 @@ void SV_Map_f (void)
 	if (!strcmp(level, "."))	//restart current
 	{
 		//grab the current map name
-		COM_StripExtension(COM_SkipPath(sv.modelname), level, sizeof(level));
+		Q_strncpyz(level, sv.name, sizeof(level));
 		isrestart = true;
 		flushparms = false;
 		newunit = false;
@@ -505,7 +516,7 @@ void SV_Map_f (void)
 	}
 	else
 	{
-		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", "maps/%s.map", NULL};
+		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ NULL};
 		int i, j;
 
 		for (i = 0; exts[i]; i++)

@@ -1062,6 +1062,23 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglDebugMessageCallbackARB	= (void *)getglext("glDebugMessageCallbackARB");
 		qglGetDebugMessageLogARB	= (void *)getglext("glGetDebugMessageLogARB");
 	}
+	else if (GL_CheckExtension("GL_KHR_debug"))
+	{
+		if (gl_config_gles)
+		{
+			qglDebugMessageControlARB	= (void *)getglext("glDebugMessageControlKHR");
+			qglDebugMessageInsertARB	= (void *)getglext("glDebugMessageInsertKHR");
+			qglDebugMessageCallbackARB	= (void *)getglext("glDebugMessageCallbackKHR");
+			qglGetDebugMessageLogARB	= (void *)getglext("glGetDebugMessageLogKHR");
+		}
+		else
+		{
+			qglDebugMessageControlARB	= (void *)getglext("glDebugMessageControl");
+			qglDebugMessageInsertARB	= (void *)getglext("glDebugMessageInsert");
+			qglDebugMessageCallbackARB	= (void *)getglext("glDebugMessageCallback");
+			qglGetDebugMessageLogARB	= (void *)getglext("glGetDebugMessageLog");
+		}
+	}
 	else
 	{
 		qglDebugMessageControlARB = NULL;
@@ -1640,7 +1657,13 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 		strings++;
 		if (gl_config.gles)
 		{
-			prstrings[strings] =	"precision mediump float;\n";
+			prstrings[strings] =
+					"#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+					"precision highp float;\n"
+					"#else\n"
+					"precision mediump float;\n"
+					"#endif\n"
+				;
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
@@ -2612,13 +2635,22 @@ void DumpGLState(void)
 
 //	if (qglGetVertexAttribiv)
 	{
-		qglGetIntegerv(GL_VERTEX_ARRAY_BINDING, &rval);
-		Sys_Printf("VERTEX_ARRAY_BINDING: %i\n", rval);
-		qglGetIntegerv(GL_ARRAY_BUFFER_BINDING, &rval);
-		Sys_Printf("GL_ARRAY_BUFFER_BINDING: %i\n", rval);
+		if (qglBindVertexArray)
+		{
+			qglGetIntegerv(GL_VERTEX_ARRAY_BINDING, &rval);
+			Sys_Printf("VERTEX_ARRAY_BINDING: %i\n", rval);
+		}
+		if (qglBindBufferARB)
+		{
+			qglGetIntegerv(GL_ARRAY_BUFFER_BINDING, &rval);
+			Sys_Printf("GL_ARRAY_BUFFER_BINDING: %i\n", rval);
+		}
 		if (qglIsEnabled(GL_COLOR_ARRAY))
 		{
-			qglGetIntegerv(GL_COLOR_ARRAY_BUFFER_BINDING, &rval);
+			if (qglBindBufferARB)
+				qglGetIntegerv(GL_COLOR_ARRAY_BUFFER_BINDING, &rval);
+			else
+				rval = 0;
 			qglGetPointerv(GL_COLOR_ARRAY_POINTER, &ptr);
 			Sys_Printf("GL_COLOR_ARRAY: %s %i:%p\n", qglIsEnabled(GL_COLOR_ARRAY)?"en":"dis", rval, ptr);
 		}
@@ -2629,7 +2661,10 @@ void DumpGLState(void)
 //		}
 //		if (qglIsEnabled(GL_INDEX_ARRAY))
 		{
-			qglGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
+			if (qglBindBufferARB)
+				qglGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
+			else
+				rval = 0;
 #ifndef GL_INDEX_ARRAY_POINTER
 			Sys_Printf("GL_ELEMENT_ARRAY_BUFFER_BINDING: %i:%p\n", rval, (void*)0);
 #else
@@ -2639,7 +2674,10 @@ void DumpGLState(void)
 		}
 		if (qglIsEnabled(GL_NORMAL_ARRAY))
 		{
-			qglGetIntegerv(GL_NORMAL_ARRAY_BUFFER_BINDING, &rval);
+			if (qglBindBufferARB)
+				qglGetIntegerv(GL_NORMAL_ARRAY_BUFFER_BINDING, &rval);
+			else
+				rval = 0;
 			qglGetPointerv(GL_NORMAL_ARRAY_POINTER, &ptr);
 			Sys_Printf("GL_NORMAL_ARRAY: %s %i:%p\n", qglIsEnabled(GL_NORMAL_ARRAY)?"en":"dis", rval, ptr);
 		}
@@ -2650,14 +2688,20 @@ void DumpGLState(void)
 			qglClientActiveTextureARB(mtexid0 + i);
 			if (qglIsEnabled(GL_TEXTURE_COORD_ARRAY))
 			{
-				qglGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
+				if (qglBindBufferARB)
+					qglGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
+				else
+					rval = 0;
 				qglGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
 				Sys_Printf("GL_TEXTURE_COORD_ARRAY %i: %s %i:%p\n", i, qglIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
 			}
 		}
 		if (qglIsEnabled(GL_VERTEX_ARRAY))
 		{
-			qglGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
+			if (qglBindBufferARB)
+				qglGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
+			else
+				rval = 0;
 			qglGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
 			Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", qglIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);
 		}
@@ -2670,7 +2714,10 @@ void DumpGLState(void)
 			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &en);
 			if (!en)
 				continue;
-			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &bo);
+			if (qglBindBufferARB)
+				qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &bo);
+			else
+				bo = 0;
 			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &as);
 			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &st);
 			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &ty);
@@ -2680,8 +2727,11 @@ void DumpGLState(void)
 			Sys_Printf("attrib%i: %s sz:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
 		}
 
-		qglGetIntegerv(GL_CURRENT_PROGRAM, &glint);
-		Sys_Printf("GL_CURRENT_PROGRAM: %i\n", glint);
+		if (qglUseProgramObjectARB)
+		{
+			qglGetIntegerv(GL_CURRENT_PROGRAM, &glint);
+			Sys_Printf("GL_CURRENT_PROGRAM: %i\n", glint);
+		}
 
 		qglGetIntegerv(GL_BLEND, &glint);
 		Sys_Printf("GL_BLEND: %i\n", glint);

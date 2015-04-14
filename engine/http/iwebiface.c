@@ -82,28 +82,41 @@ char *authedusername;
 char *autheduserpassword;
 int main(int argc, char **argv)
 {
+	int httpport = 80;
+	int arg = 1;
 	WSADATA pointlesscrap;
 	WSAStartup(2, &pointlesscrap);
 
-	if (argc == 3)
-	{
-		authedusername = argv[1];
-		autheduserpassword = argv[2];
+	if (arg < argc && atoi(argv[arg]))
+		httpport = atoi(argv[arg++]);
+	if (arg < argc)
+		authedusername = argv[arg++];
+	if (arg < argc)
+		autheduserpassword = argv[arg++];
+
+	printf("http port %i\n", httpport);
+	if (authedusername || autheduserpassword)
 		printf("Username = \"%s\"\nPassword = \"%s\"\n", authedusername, autheduserpassword);
-	}
 	else
 		printf("Server is read only\n");
 
 	while(1)
 	{
 //		FTP_ServerRun(1, 21);
-		HTTP_ServerPoll(1, 80);
+		if (httpport)
+			HTTP_ServerPoll(1, httpport);
 		Sleep(1);
 	}
 }
 
-
-void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *f), void *parm)
+static time_t Sys_FileTimeToTime(FILETIME ft)
+{
+	ULARGE_INTEGER ull;
+	ull.LowPart = ft.dwLowDateTime;
+	ull.HighPart = ft.dwHighDateTime;
+	return ull.QuadPart / 10000000ULL - 11644473600ULL;
+}
+void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *f), void *parm)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;	
@@ -132,19 +145,19 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, vo
 		else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
 		{
 			sprintf(file, "%s%s/", apath, fd.cFileName);
-			go = func(file, fd.nFileSizeLow, parm, NULL);
+			go = func(file, fd.nFileSizeLow, Sys_FileTimeToTime(fd.ftLastWriteTime), parm, NULL);
 		}
 		else
 		{
 			sprintf(file, "%s%s", apath, fd.cFileName);
-			go = func(file, fd.nFileSizeLow, parm, NULL);
+			go = func(file, fd.nFileSizeLow, Sys_FileTimeToTime(fd.ftLastWriteTime), parm, NULL);
 		}
 	}
 	while(FindNextFile(r, &fd) && go);
 	FindClose(r);
 }
 
-char *COM_ParseOut (const char *data, char *out, int outlen)
+char *COM_ParseType (const char *data, char *out, int outlen, com_tokentype_t *toktype)
 {
 	int		c;
 	int		len;

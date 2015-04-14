@@ -160,6 +160,7 @@ cvar_t	cl_countpendingpl		= CVARD("cl_countpendingpl", "0", "If set to 1, packet
 
 cvar_t	cl_standardchat			= CVARFD("cl_standardchat", "0", CVAR_ARCHIVE, "Disables auto colour coding in chat messages.");
 cvar_t	msg_filter				= CVARD("msg_filter", "0", "Filter out chat messages: 0=neither. 1=broadcast chat. 2=team chat. 3=all chat.");
+cvar_t	msg_filter_frags		= CVARD("msg_filter_frags", "0", "Prevents frag messages from appearing on the console.");
 cvar_t  cl_standardmsg			= CVARFD("cl_standardmsg", "0", CVAR_ARCHIVE, "Disables auto colour coding in console prints.");
 cvar_t  cl_parsewhitetext		= CVARD("cl_parsewhitetext", "1", "When parsing chat messages, enable support for messages like: red{white}red");
 
@@ -362,7 +363,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t *adr)
 
 	connectinfo.time = realtime;	// for retransmit requests
 
-	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\challenge\\%s", 255, 255, 255, 255, challenge);
+	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5\\challenge\\%s", 255, 255, 255, 255, challenge);
 
 	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 
@@ -718,12 +719,12 @@ void CL_CheckForResend (void)
 			}
 			else if (!strcmp(cl_loopbackprotocol.string, "q3"))
 				cls.protocol = CP_QUAKE3;
-			else if (!strcmp(cl_loopbackprotocol.string, "dp6"))
+			else if (!strcmp(cl_loopbackprotocol.string, "dp6") || !strcmp(cl_loopbackprotocol.string, "dpp6"))
 			{
 				cls.protocol = CP_NETQUAKE;
-				cls.protocol_nq = CPNQ_DP7;
+				cls.protocol_nq = CPNQ_DP6;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "dp7"))
+			else if (!strcmp(cl_loopbackprotocol.string, "dp7") || !strcmp(cl_loopbackprotocol.string, "dpp7"))
 			{
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_DP7;
@@ -1817,6 +1818,8 @@ void CL_CheckServerInfo(void)
 		cls.allow_fbskins = atof(s);
 	else if (cl.teamfortress)
 		cls.allow_fbskins = 0;
+	else
+		cls.allow_fbskins = 1;
 
 	s = Info_ValueForKey(cl.serverinfo, "*cheats");
 	if (cl.spectator || cls.demoplayback || !stricmp(s, "on"))
@@ -2335,7 +2338,7 @@ drop to full console
 void CL_Changing_f (void)
 {
 	char *mapname = Cmd_Argv(1);
-	if (cls.download)  // don't change when downloading
+	if (cls.download && cls.download->method <= DL_QWPENDING)  // don't change when downloading
 		return;
 
 	cls.demoseeking = false;	//don't seek over it
@@ -2370,7 +2373,7 @@ The server is changing levels
 */
 void CL_Reconnect_f (void)
 {
-	if (cls.download)  // don't change when downloading
+	if (cls.download && cls.download->method <= DL_QWPENDING)  // don't change when downloading
 		return;
 #ifdef NQPROT
 	if (cls.protocol == CP_NETQUAKE && Cmd_FromGamecode())
@@ -2528,7 +2531,7 @@ void CL_ConnectionlessPacket (void)
 	if (c == S2C_CHALLENGE)
 	{
 		static unsigned int lasttime = 0xdeadbeef;
-		netadr_t lastadr;
+		static netadr_t lastadr;
 		unsigned int curtime = Sys_Milliseconds();
 		unsigned long pext = 0, pext2 = 0, huffcrc=0, mtu=0;
 		Con_TPrintf ("challenge\n");
@@ -2831,6 +2834,8 @@ client_connect:	//fixme: make function
 		cls.challenge = connectinfo.challenge;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, cls.qport);
 		cls.netchan.fragmentsize = connectinfo.mtu;
+		if (connectinfo.mtu >= 64)
+			cls.netchan.message.maxsize = sizeof(cls.netchan.message_buf);
 #ifdef HUFFNETWORK
 		cls.netchan.compresstable = Huff_CompressionCRC(connectinfo.compresscrc);
 #else
@@ -3635,10 +3640,11 @@ void CL_Init (void)
 
 	Cvar_Register (&requiredownloads,				cl_controlgroup);
 	Cvar_Register (&cl_standardchat,				cl_controlgroup);
-	Cvar_Register (&msg_filter,					cl_controlgroup);
+	Cvar_Register (&msg_filter,						cl_controlgroup);
+	Cvar_Register (&msg_filter_frags,				cl_controlgroup);
 	Cvar_Register (&cl_standardmsg,					cl_controlgroup);
 	Cvar_Register (&cl_parsewhitetext,				cl_controlgroup);
-	Cvar_Register (&cl_nopext,					cl_controlgroup);
+	Cvar_Register (&cl_nopext,						cl_controlgroup);
 	Cvar_Register (&cl_pext_mask,					cl_controlgroup);
 
 	Cvar_Register (&cl_splitscreen,					cl_controlgroup);
@@ -4258,7 +4264,7 @@ void Host_DoRunFile(hrf_t *f)
 //						if (f->flags & HRF_DOWNLOADED)
 						man->blockupdate = true;
 						BZ_Free(fdata);
-						FS_ChangeGame(man, true);
+						FS_ChangeGame(man, true, true);
 					}
 					else
 					{
@@ -4457,7 +4463,7 @@ Runs all active servers
 extern cvar_t cl_netfps;
 extern cvar_t cl_sparemsec;
 
-qboolean startuppending;
+int startuppending;
 void CL_StartCinematicOrMenu(void);
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
@@ -4815,6 +4821,11 @@ void CL_StartCinematicOrMenu(void)
 {
 	COM_MainThreadWork();
 
+	if (FS_DownloadingPackage())
+	{
+		startuppending = true;
+		return;
+	}
 	if (cls.download)
 	{
 		startuppending = true;
@@ -4822,6 +4833,8 @@ void CL_StartCinematicOrMenu(void)
 	}
 	if (startuppending)
 	{
+		if (startuppending == 2)
+			Cbuf_AddText("\nfs_restart\nvid_restart\n", RESTRICT_LOCAL);
 		startuppending = false;
 		Key_Dest_Remove(kdm_console);	//make sure console doesn't stay up weirdly.
 	}
@@ -4831,13 +4844,28 @@ void CL_StartCinematicOrMenu(void)
 	UI_Start();
 #endif
 
-	Con_TPrintf ("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081 %s Initialized ^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082\n", *fs_gamename.string?fs_gamename.string:"Nothing");
+	Cbuf_AddText("menu_restart\n", RESTRICT_LOCAL);
+
+	Con_TPrintf ("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081 %s %sInitialized ^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082\n", *fs_gamename.string?fs_gamename.string:"Nothing", com_installer?"Installer ":"");
 
 	//there might be some console command or somesuch waiting for the renderer to begin (demos or map command or whatever all need model support).
 	realtime+=1;
 	Cbuf_Execute ();	//server may have been waiting for the renderer
 
 	Con_ClearNotify();
+
+	TP_ExecTrigger("f_startup");
+	Cbuf_Execute ();
+
+	if (com_installer)
+	{
+		com_installer = false;
+#if 0
+		Key_Dest_Remove(kdm_console);	//make sure console doesn't stay up weirdly.
+		M_Menu_Installer();
+		return;
+#endif
+	}
 
 	//and any startup cinematics
 #ifndef NOMEDIA
@@ -5006,7 +5034,10 @@ void Host_FinishLoading(void)
 	//the filesystem has retrieved its manifest, but might still be waiting for paks to finish downloading.
 
 	//make sure the filesystem has some default if no manifest was loaded.
-	FS_ChangeGame(NULL, true);
+	FS_ChangeGame(NULL, true, true);
+
+	if (waitingformanifest)
+		return;
 
 	Con_History_Load();
 
@@ -5027,6 +5058,11 @@ void Host_FinishLoading(void)
 				"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. "
 				"\n"
 				"See the GNU General Public License for more details.\n");
+
+#ifdef _WIN32
+	if (Sys_RunInstaller())
+		Sys_Quit();
+#endif
 
 	Renderer_Start();
 
@@ -5176,6 +5212,7 @@ void Host_Shutdown(void)
 	CL_FreeVisEdicts();
 	M_Shutdown(true);
 	Mod_Shutdown(true);
+	Wads_Flush();
 #ifndef CLIENTONLY
 	SV_Shutdown();
 #else

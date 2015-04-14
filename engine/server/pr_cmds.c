@@ -87,6 +87,7 @@ cvar_t pr_ssqc_coreonerror = CVAR("pr_coreonerror", "1");
 cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
 cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "0", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
 cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
+cvar_t dpcompat_nopreparse = CVARD("dpcompat_nopreparse", "0", "Xonotic uses svc_tempentity with unknowable lengths mixed with other data that needs to be translated. This cvar disables any attempt to translate or pre-parse network messages, including disabling nq/qw cross compatibility. NOTE: because preparsing will be disabled, messages might not get backbuffered correctly if too much reliable data is written.");
 
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
@@ -1295,6 +1296,7 @@ void PR_Init(void)
 	Cvar_Register (&pr_ssqc_progs, cvargroup_progs);
 	Cvar_Register (&pr_compatabilitytest, cvargroup_progs);
 
+	Cvar_Register (&dpcompat_nopreparse, cvargroup_progs);
 	Cvar_Register (&pr_nonetaccess, cvargroup_progs);
 	Cvar_Register (&pr_overridebuiltins, cvargroup_progs);
 
@@ -2957,9 +2959,8 @@ PF_ambientsound
 */
 void PF_ambientsound_Internal (float *pos, const char *samp, float vol, float attenuation)
 {
-	int			i, soundnum, j;
-	sizebuf_t *buf[3] = {&sv.signon, &sv.nqmulticast, &sv.multicast};
-	sizebuf_t *msg;
+	staticsound_state_t *state;
+	int		soundnum;
 
 // check to see if samp was properly precached
 	for (soundnum=1 ; *sv.strings.sound_precache[soundnum] ; soundnum++)
@@ -2972,25 +2973,18 @@ void PF_ambientsound_Internal (float *pos, const char *samp, float vol, float at
 		return;
 	}
 
-	SV_FlushSignon();
-
-	if (soundnum > 255)
-		return;
-
-	for (j = 0; j < 3; j++)
+	if (sv.num_static_sounds == sv_max_staticsounds)
 	{
-		msg = buf[j];
-		if (sv.state == ss_loading && j)
-			break;
-	// add an svc_spawnambient command to the level signon packet
-		MSG_WriteByte (msg,svc_spawnstaticsound);
-		for (i=0 ; i<3 ; i++)
-			MSG_WriteCoord(msg, pos[i]);
-		MSG_WriteByte (msg, soundnum);
-		MSG_WriteByte (msg, bound(0, (int)(vol*255), 255));
-		MSG_WriteByte (msg, attenuation*64);
+		sv_max_staticsounds += 16;
+		sv_staticsounds = BZ_Realloc(sv_staticsounds, sizeof(*sv_staticsounds) * sv_max_staticsounds);
 	}
-	SV_Multicast(pos, MULTICAST_ALL_R);
+
+	state = &sv_staticsounds[sv.num_static_sounds++];
+	memset(state, 0, sizeof(*state));
+	VectorCopy(pos, state->position);
+	state->soundnum = soundnum;
+	state->volume = bound(0, (int)(vol*255), 255);
+	state->attenuation = attenuation*64;
 }
 
 static void QCBUILTIN PF_ambientsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4212,7 +4206,7 @@ static void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	vec3_t	start, dir, end, bestdir;
 	int		i, j;
 	trace_t	tr;
-	float	dist, bestdist;
+	float	dist, bestdist = sv_aim.value;
 	char	*noaim;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
@@ -4230,6 +4224,14 @@ static void QCBUILTIN PF_aim (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		{
 			VectorCopy (P_VEC(v_forward), G_VECTOR(OFS_RETURN));
 			return;
+		}
+
+		noaim = Info_ValueForKey (svs.clients[i-1].userinfo, "aim");
+		if (noaim)
+		{
+			dist = atof(noaim);
+			if (dist > 0)
+				bestdist = dist;
 		}
 	}
 
@@ -4433,7 +4435,9 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 #endif
 
-	if (progstype != PROG_QW)
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
 	{
 		NPP_NQWriteByte(dest, val);
 		return;
@@ -4444,7 +4448,7 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		NPP_QWWriteByte(dest, val);
 		return;
 	}
-#else
+#endif
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4454,8 +4458,12 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		ClientReliableWrite_Byte(cl, val);
 	}
 	else
-		MSG_WriteByte (QWWriteDest(dest), val);
-#endif
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteByte (NQWriteDest(dest), val);
+		else
+			MSG_WriteByte (QWWriteDest(dest), val);
+	}
 }
 
 void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4475,7 +4483,9 @@ void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 #endif
 
-	if (progstype != PROG_QW)
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
 	{
 		NPP_NQWriteChar(dest, val);
 		return;
@@ -4486,7 +4496,7 @@ void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		NPP_QWWriteChar(dest, val);
 		return;
 	}
-#else
+#endif
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4496,8 +4506,12 @@ void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		ClientReliableWrite_Char(cl, val);
 	}
 	else
-		MSG_WriteChar (QWWriteDest(dest), val);
-#endif
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteChar (NQWriteDest(dest), val);
+		else
+			MSG_WriteChar (QWWriteDest(dest), val);
+	}
 }
 
 void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4517,7 +4531,9 @@ void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 #endif
 
-	if (progstype != PROG_QW)
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
 	{
 		NPP_NQWriteShort(dest, val);
 		return;
@@ -4528,8 +4544,8 @@ void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		NPP_QWWriteShort(dest, val);
 		return;
 	}
-#else
-	if (desf == MSG_ONE)
+#endif
+	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -4538,8 +4554,12 @@ void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		ClientReliableWrite_Short(cl, val);
 	}
 	else
-		MSG_WriteShort (QWWriteDest(dest), val);
-#endif
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteShort (NQWriteDest(dest), val);
+		else
+			MSG_WriteShort (QWWriteDest(dest), val);
+	}
 }
 
 void QCBUILTIN PF_WriteLong (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4558,7 +4578,9 @@ void QCBUILTIN PF_WriteLong (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 #endif
 
-	if (progstype != PROG_QW)
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
 	{
 		NPP_NQWriteLong(dest, G_FLOAT(OFS_PARM1));
 		return;
@@ -4569,7 +4591,7 @@ void QCBUILTIN PF_WriteLong (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		NPP_QWWriteLong(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
-#else
+#endif
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4579,8 +4601,12 @@ void QCBUILTIN PF_WriteLong (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		ClientReliableWrite_Long(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteLong (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
-#endif
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteLong (NQWriteDest(dest), G_FLOAT(OFS_PARM1));
+		else
+			MSG_WriteLong (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
+	}
 }
 
 void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4599,7 +4625,9 @@ void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 #endif
 
-	if (progstype != PROG_QW)
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
 	{
 		NPP_NQWriteAngle(dest, G_FLOAT(OFS_PARM1));
 		return;
@@ -4610,7 +4638,7 @@ void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		NPP_QWWriteAngle(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
-#else
+#endif
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4620,8 +4648,12 @@ void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		ClientReliableWrite_Angle(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteAngle (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
-#endif
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteAngle (NQWriteDest(dest), G_FLOAT(OFS_PARM1));
+		else
+			MSG_WriteAngle (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
+	}
 }
 
 void QCBUILTIN PF_WriteCoord (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4640,7 +4672,9 @@ void QCBUILTIN PF_WriteCoord (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 #endif
 
-	if (progstype != PROG_QW)
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
 	{
 		NPP_NQWriteCoord(dest, G_FLOAT(OFS_PARM1));
 		return;
@@ -4651,7 +4685,7 @@ void QCBUILTIN PF_WriteCoord (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		NPP_QWWriteCoord(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
-#else
+#endif
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4661,8 +4695,12 @@ void QCBUILTIN PF_WriteCoord (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		ClientReliableWrite_Coord(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteCoord (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
-#endif
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteCoord (NQWriteDest(dest), G_FLOAT(OFS_PARM1));
+		else
+			MSG_WriteCoord (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
+	}
 }
 
 void QCBUILTIN PF_WriteFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4681,7 +4719,9 @@ void QCBUILTIN PF_WriteFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 #endif
 
-	if (progstype != PROG_QW)
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
 	{
 		NPP_NQWriteFloat(dest, G_FLOAT(OFS_PARM1));
 		return;
@@ -4692,7 +4732,7 @@ void QCBUILTIN PF_WriteFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		NPP_QWWriteFloat(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
-#else
+#endif
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4702,8 +4742,12 @@ void QCBUILTIN PF_WriteFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		ClientReliableWrite_Float(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteFloat (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
-#endif
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteFloat (NQWriteDest(dest), G_FLOAT(OFS_PARM1));
+		else
+			MSG_WriteFloat (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
+	}
 }
 
 void PF_WriteString_Internal (int target, const char *str)
@@ -4721,7 +4765,9 @@ void PF_WriteString_Internal (int target, const char *str)
 		)
 		return;
 
-	if (progstype != PROG_QW)
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
 	{
 		NPP_NQWriteString(target, str);
 		return;
@@ -4732,7 +4778,7 @@ void PF_WriteString_Internal (int target, const char *str)
 		NPP_QWWriteString(target, str);
 		return;
 	}
-#else
+#endif
 	if (target == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4742,8 +4788,12 @@ void PF_WriteString_Internal (int target, const char *str)
 		ClientReliableWrite_String(cl, str);
 	}
 	else
-		MSG_WriteString (QWWriteDest(target), str);
-#endif
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteString (NQWriteDest(target), str);
+		else
+			MSG_WriteString (QWWriteDest(target), str);
+	}
 }
 
 static void QCBUILTIN PF_WriteString (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4769,7 +4819,9 @@ void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		)
 		return;
 
-	if (progstype != PROG_QW)
+	if (dpcompat_nopreparse.ival)
+		;
+	else if (progstype != PROG_QW)
 	{
 		NPP_NQWriteEntity(dest, G_EDICTNUM(prinst, OFS_PARM1));
 		return;
@@ -4780,7 +4832,7 @@ void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		NPP_QWWriteEntity(dest, G_EDICTNUM(prinst, OFS_PARM1));
 		return;
 	}
-#else
+#endif
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4790,8 +4842,12 @@ void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		ClientReliableWrite_Entity(cl, G_EDICTNUM(prinst, OFS_PARM1));
 	}
 	else
-		MSG_WriteEntity (QWWriteDest(dest), G_EDICTNUM(prinst, OFS_PARM1));
-#endif
+	{
+		if (progstype != PROG_QW)
+			MSG_WriteEntity (NQWriteDest(dest), G_EDICTNUM(prinst, OFS_PARM1));
+		else
+			MSG_WriteEntity (QWWriteDest(dest), G_EDICTNUM(prinst, OFS_PARM1));
+	}
 }
 
 //small wrapper function.
@@ -5029,12 +5085,9 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 void QCBUILTIN PF_makestatic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent;
-	int		mdlindex;
 	entity_state_t *state;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
-
-	mdlindex = SV_ModelIndex(PR_GetString(prinst, ent->v->model));
 
 	if (sv.num_static_entities == sv_max_staticentities)
 	{
@@ -9519,7 +9572,30 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"frameduration",	PF_frameduration,	0,		0,		0,		277,	D("float(float modidx, float framenum)", "Retrieves the duration (in seconds) of the specified framegroup.")},// (FTE_CSQC_SKELETONOBJECTS)
 
 	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	D("void(float action, optional vector pos, optional float radius, optional float quant, ...)", "Realtime terrain editing. Actions are the TEREDIT_ constants.")},// (??FTE_TERRAIN_EDIT??
-	{"touchtriggers",	PF_touchtriggers,	0,		0,		0,		279,	D("void()", "Triggers a touch events between self and every entity that it is in contact with. This should typically just be the triggers touch functions.")},//
+
+#define qcbrushface				\
+	"typedef struct\n{\n"		\
+	"\tstring\tshadername;\n"	\
+	"\tvector\tplanenormal;\n"	\
+	"\tfloat\tplanedist;\n"		\
+	"\tvector\tsdir;\n"			\
+	"\tfloat\tsbias;\n"		\
+	"\tvector\ttdir;\n"			\
+	"\tfloat\ttbias;\n"		\
+	"} brushface_t;\n"
+	{"brush_get",		PF_brush_get,		0,		0,		0,		0,		D(qcbrushface "int(float modelidx, int brushid, brushface_t *out_faces, int maxfaces, int *out_contents)", "Queries a brush's information. You must pre-allocate the face array for the builtin to write to. Return value is the number of faces retrieved, 0 on error.")},
+	{"brush_create",	PF_brush_create,	0,		0,		0,		0,		D("int(float modelidx, brushface_t *in_faces, int numfaces, int contents)", "Inserts a new brush into the model. Return value is the new brush's id.")},
+	{"brush_delete",	PF_brush_delete,	0,		0,		0,		0,		D("void(float modelidx, int brushid)", "Destroys the specified brush.")},
+	{"brush_selected",	PF_brush_selected,	0,		0,		0,		0,		D("float(float modelid, int brushid, int faceid, float selectedstate)", "Allows you to easily set transient visual properties of a brush. returns old value. selectedstate=-1 changes nothing (called for its return value).")},
+	{"brush_getfacepoints",PF_brush_getfacepoints,0,0,		0,		0,		D("int(float modelid, int brushid, int faceid, vector *points, int maxpoints)", "Returns the list of verticies surrounding the given face. If face is 0, returns the center of the brush (if space for 1 point) or the mins+maxs (if space for 2 points).")},
+//	{"brush_calcfacepoints",PF_brush_calcfacepoints,0,0,	0,		0,		D("int(brushface_t *in_faces, int numfaces, int faceid, vector *points, int maxpoints)", "Returns the list of verticies surrounding the given face. If face is 0, returns the center of the brush (if space for 1 point) or the mins+maxs (if space for 2 points). Returns 0 if a face is degenerate.")},
+	{"brush_findinvolume",PF_brush_findinvolume,0,	0,		0,		0,		D("int(float modelid, vector *planes, float *dists, int numplanes, int *out_brushes, int *out_faces, int maxresults)", "Allows you to easily obtain a list of brushes+faces within the given bounding region. If out_faces is not null, the same brush might be listed twice.")},
+//	{"brush_editplane",	PF_brush_editplane,	0,		0,		0,		0,		D("float(float modelid, int brushid, int faceid, in brushface *face)", "Changes a surface's texture info.")},
+//	{"brush_transformselected",PF_brush_transformselected,0,0,0,	0,		D("int(float modelid, int brushid, float *matrix)", "Transforms selected brushes by the given transform")},
+
+
+
+	{"touchtriggers",	PF_touchtriggers,	0,		0,		0,		279,	D("void(optional entity ent, optional vector neworigin)", "Triggers a touch events between self and every SOLID_TRIGGER entity that it is in contact with. This should typically just be the triggers touch functions. Also optionally updates the origin of the moved entity.")},//
 	{"WriteFloat",		PF_WriteFloat,		0,		0,		0,		280,	"void(float buf, float fl)"},//
 	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	D("float(entity skelent, string dollcmd, float animskel)", "Updates the skeletal object attached to the entity according to its origin and other properties.\nif animskel is non-zero, the ragdoll will animate towards the bone state in the animskel skeletal object, otherwise they will pick up the model's base pose which may not give nice results.\nIf dollcmd is not set, the ragdoll will update (this should be done each frame).\nIf the doll is updated without having a valid doll, the model's default .doll will be instanciated.\ncommands:\n doll foo.doll : sets up the entity to use the named doll file\n dollstring TEXT : uses the doll file directly embedded within qc, with that extra prefix.\n cleardoll : uninstanciates the doll without destroying the skeletal object.\n animate 0.5 : specifies the strength of the ragdoll as a whole \n animatebody somebody 0.5 : specifies the strength of the ragdoll on a specific body (0 will disable ragdoll animations on that body).\n enablejoint somejoint 1 : enables (or disables) a joint. Disabling joints will allow the doll to shatter.")}, // (FTE_CSQC_RAGDOLL)
 	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	D("float*(float skel)", "Map the bones in VM memory. They can then be accessed via pointers. Each bone is 12 floats, the four vectors interleaved (sadly).")},// (FTE_QC_RAGDOLL)
@@ -9662,6 +9738,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"con_printf",		PF_Fixme,			0,		0,		0,		392,	D("void(string conname, string messagefmt, ...)", "Prints onto a named console.")},
 	{"con_draw",		PF_Fixme,			0,		0,		0,		393,	D("void(string conname, vector pos, vector size, float fontsize)", "Draws the named console.")},
 	{"con_input",		PF_Fixme,			0,		0,		0,		394,	D("float(string conname, float inevtype, float parama, float paramb, float paramc)", "Forwards input events to the named console. Mouse updates should be absolute only.")},
+	{"cvar_unsaved",	PF_Fixme,			0,		0,		0,		0,		D("float()", "Returns true if any archived cvar has an unsaved value.")},
 //end fte extras
 
 //DP extras
@@ -9822,7 +9899,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cvar_type",		PF_cvar_type,		0,		0,		0,		495,	"float(string name)"},//DP_QC_CVAR_TYPE
 	{"numentityfields",	PF_numentityfields,	0,		0,		0,		496,	D("float()", "Gives the number of named entity fields. Note that this is not the size of an entity, but rather just the number of unique names (ie: vectors use 4 names rather than 3).")},//DP_QC_ENTITYDATA
 	{"findentityfield",	PF_findentityfield,	0,		0,		0,		0,		D("float(string fieldname)", "Find a field index by name.")},
-	{"entityfieldref",	PF_entityfieldref,	0,		0,		0,		0,		D(".__variant(float fieldnum)", "Returns a field value that can be directly used to read entity fields. Be sure to validate the type with entityfieldtype before using.")},//DP_QC_ENTITYDATA
+	{"entityfieldref",	PF_entityfieldref,	0,		0,		0,		0,		D("typedef .__variant field_t;\nfield_t(float fieldnum)", "Returns a field value that can be directly used to read entity fields. Be sure to validate the type with entityfieldtype before using.")},//DP_QC_ENTITYDATA
 	{"entityfieldname",	PF_entityfieldname,	0,		0,		0,		497,	D("string(float fieldnum)", "Retrieves the name of the given entity field.")},//DP_QC_ENTITYDATA
 	{"entityfieldtype",	PF_entityfieldtype,	0,		0,		0,		498,	D("float(float fieldnum)", "Provides information about the type of the field specified by the field num. Returns one of the EV_ values.")},//DP_QC_ENTITYDATA
 	{"getentityfieldstring",PF_getentityfieldstring,0,0,	0,		499,	"string(float fieldnum, entity ent)"},//DP_QC_ENTITYDATA
@@ -10534,6 +10611,9 @@ void PR_DumpPlatform_f(void)
 		{"input_cursor_trace_endpos",	"vector",	CS/*|QW|NQ*/},
 		{"input_cursor_trace_entnum",	"float",	CS/*|QW|NQ*/},
 
+		{"trace_brush_id",			"float", QW|NQ|CS},
+		{"trace_brush_faceid",		"float", QW|NQ|CS},
+
 #define comfieldfloat(name,desc) {#name, ".float", FL, desc},
 #define comfieldvector(name,desc) {#name, ".vector", FL, desc},
 #define comfieldentity(name,desc) {#name, ".entity", FL, desc},
@@ -10603,7 +10683,7 @@ void PR_DumpPlatform_f(void)
 
 		{"GameCommand",				"noref void(string cmdtext)", CS|MENU},
 
-		{"init",					"noref void()", QW|NQ|CS, "Part of FTE_MULTIPROGS. Called as soon as a progs is loaded, called at a time when entities are not valid. This is the only time when it is safe to call addprogs without field assignment. As it is also called as part of addprogs, this also gives you a chance to hook functions in modules that are already loaded (via externget+externget)."},
+		{"init",					"noref void(float prevprogs)", QW|NQ|CS, "Part of FTE_MULTIPROGS. Called as soon as a progs is loaded, called at a time when entities are not valid. This is the only time when it is safe to call addprogs without field assignment. As it is also called as part of addprogs, this also gives you a chance to hook functions in modules that are already loaded (via externget+externget)."},
 		{"initents",				"noref void()", QW|NQ|CS, "Part of FTE_MULTIPROGS. Called after fields have been finalized. This is the first point at which it is safe to call spawn(), and is called before any entity fields have been parsed. You can use this entrypoint to send notifications to other modules."},
 
 		{"m_init",					"void()", MENU},
@@ -10870,6 +10950,7 @@ void PR_DumpPlatform_f(void)
 
 		{"gamestate",			"hashtable", ALL, "Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted).", 0},
 		{"HASH_REPLACE",		"const float", ALL, "Used with hash_add. Attempts to remove the old value instead of adding two values for a single key.", 256},
+		{"HASH_ADD",			"const float", ALL, "Used with hash_add. The new entry will be inserted in addition to the existing entry.", 512},
 
 		{"STAT_HEALTH",			"const float", CS, "Player's health.", STAT_HEALTH},
 		{"STAT_WEAPONMODELI",	"const float", CS, "This is the modelindex of the current viewmodel (renamed from the original name 'STAT_WEAPON' due to confusions).", STAT_WEAPONMODELI},
@@ -10920,7 +11001,7 @@ void PR_DumpPlatform_f(void)
 		{"VF_CL_VIEWANGLES_Z",	"const float", CS, NULL, VF_CL_VIEWANGLES_Z},
 
 		{"VF_PERSPECTIVE",		"const float", CS|MENU, "1: regular rendering. Fov specifies the angle. 0: isometric-style. Fov specifies the number of Quake Units each side of the viewport.", VF_PERSPECTIVE},
-		{"VF_LPLAYER",			"const float", CS, "The 'seat' number, used when running splitscreen.", VF_LPLAYER},
+		{"VF_ACTIVESEAT",		"#define VF_LPLAYER VF_ACTIVESEAT\nconst float", CS, "The 'seat' number, used when running splitscreen.", VF_ACTIVESEAT},
 		{"VF_AFOV",				"const float", CS|MENU, "Aproximate fov. Matches the 'fov' cvar. The engine handles the aspect ratio for you.", VF_AFOV},
 		{"VF_SCREENVSIZE",		"const float", CS|MENU, "Provides a reliable way to retrieve the current virtual screen size (even if the screen is automatically scaled to retain aspect).", VF_SCREENVSIZE},
 		{"VF_SCREENPSIZE",		"const float", CS|MENU, "Provides a reliable way to retrieve the current physical screen size (cvars need vid_restart for them to take effect).", VF_SCREENPSIZE},
@@ -11561,19 +11642,19 @@ void PR_DumpPlatform_f(void)
 		VFS_PRINTF(f,
 			"accessor hashtable : float\n{\n"
 				"\tinline get vector v[string key] = {return hash_get(this, key, '0 0 0', EV_VECTOR);};\n"
-				"\tinline set vector v[string key] = {hash_add(this, key, value, 1, EV_VECTOR);};\n"
+				"\tinline set vector v[string key] = {hash_add(this, key, value, HASH_REPLACE|EV_VECTOR);};\n"
 				"\tinline get string s[string key] = {return hash_get(this, key, \"\", EV_STRING);};\n"
-				"\tinline set string s[string key] = {hash_add(this, key, value, 1, EV_STRING);};\n"
+				"\tinline set string s[string key] = {hash_add(this, key, value, HASH_REPLACE|EV_STRING);};\n"
 				"\tinline get string f[string key] = {return hash_get(this, key, 0.0, EV_FLOAT);};\n"
-				"\tinline set string f[string key] = {hash_add(this, key, value, 1, EV_FLOAT);};\n"
+				"\tinline set string f[string key] = {hash_add(this, key, value, HASH_REPLACE|EV_FLOAT);};\n"
 				"\tinline get __variant[string key] = {return hash_get(this, key, __NULL__);};\n"
-				"\tinline set __variant[string key] = {hash_add(this, key, value, 1);};\n"
+				"\tinline set __variant[string key] = {hash_add(this, key, value, HASH_REPLACE);};\n"
 			"};\n");
 		VFS_PRINTF(f,
 			"accessor infostring : string\n{\n"
 				"\tget string[string] = infoget;\n"
 #ifdef QCGC
-				"\tinline set* string[string] = {(*this) = infoadd(*this, value);};\n"
+				"\tinline set* string[string fld] = {(*this) = infoadd(*this, fld, value);};\n"
 #endif
 			"};\n");
 		VFS_PRINTF(f,

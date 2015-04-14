@@ -152,6 +152,8 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
 	globalfloat(trace_surfaceflags,		"trace_surfaceflags");	/*float		written by traceline*/	\
 	globalfloat(trace_endcontents,		"trace_endcontents");	/*float		written by traceline EXT_CSQC_1*/	\
+	globalint(trace_brush_id,			"trace_brush_id");		/*int		written by traceline*/	\
+	globalint(trace_brush_faceid,		"trace_brush_faceid");	/*int		written by traceline*/	\
 	\
 	globalfloat(clientcommandframe,		"clientcommandframe");	/*float		the next frame that will be sent*/ \
 	globalfloat(servercommandframe,		"servercommandframe");	/*float		the most recent frame received from the server*/ \
@@ -188,6 +190,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 
 typedef struct {
 #define globalfloat(name,qcname) float *name
+#define globalint(name,qcname) int *name
 #define globalvector(name,qcname) float *name
 #define globalentity(name,qcname) int *name
 #define globalstring(name,qcname) string_t *name
@@ -197,6 +200,7 @@ typedef struct {
 	csqcglobals
 
 #undef globalfloat
+#undef globalint
 #undef globalvector
 #undef globalentity
 #undef globalstring
@@ -273,6 +277,7 @@ static void CSQC_FindGlobals(void)
 {
 	static float csphysicsmode = 0;
 #define globalfloat(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
+#define globalint(name,qcname) csqcg.name = (int*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalentity(name,qcname) csqcg.name = (int*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalstring(name,qcname) csqcg.name = (string_t*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
@@ -281,6 +286,7 @@ static void CSQC_FindGlobals(void)
 	csqcglobals
 
 #undef globalfloat
+#undef globalint
 #undef globalvector
 #undef globalentity
 #undef globalstring
@@ -1200,6 +1206,10 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (!csqc_poly_shader)
 		return;
 
+	nv = cl_numstrisvert-csqc_poly_startvert;
+	if (nv == 2)
+		flags |= BEF_LINES;
+
 	/*if the shader didn't change, continue with the old poly*/
 	if (cl_numstris && cl_stris[cl_numstris-1].shader == csqc_poly_shader && cl_stris[cl_numstris-1].flags == flags)
 		t = &cl_stris[cl_numstris-1];
@@ -1219,19 +1229,38 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		t->numidx = 0;
 	}
 
-	nv = cl_numstrisvert-csqc_poly_startvert;
-	if (cl_numstrisidx+(nv-2)*3 > cl_maxstrisidx)
+	if (flags & BEF_LINES)
 	{
-		cl_maxstrisidx=cl_numstrisidx+(nv-2)*3 + 64;
-		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
-	}
+		nv = cl_numstrisvert-csqc_poly_startvert;
+		if (cl_numstrisidx+nv > cl_maxstrisidx)
+		{
+			cl_maxstrisidx=cl_numstrisidx+nv + 64;
+			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+		}
 
-	/*build the triangle fan out of triangles*/
-	for (i = 2; i < nv; i++)
+		/*build the line list fan out of triangles*/
+		for (i = 1; i < nv; i++)
+		{
+			cl_strisidx[cl_numstrisidx++] = t->numvert + i-1;
+			cl_strisidx[cl_numstrisidx++] = t->numvert + i;
+		}
+	}
+	else
 	{
-		cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
-		cl_strisidx[cl_numstrisidx++] = t->numvert + i-1;
-		cl_strisidx[cl_numstrisidx++] = t->numvert + i;
+		nv = cl_numstrisvert-csqc_poly_startvert;
+		if (cl_numstrisidx+(nv-2)*3 > cl_maxstrisidx)
+		{
+			cl_maxstrisidx=cl_numstrisidx+(nv-2)*3 + 64;
+			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+		}
+
+		/*build the triangle fan out of triangles*/
+		for (i = 2; i < nv; i++)
+		{
+			cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
+			cl_strisidx[cl_numstrisidx++] = t->numvert + i-1;
+			cl_strisidx[cl_numstrisidx++] = t->numvert + i;
+		}
 	}
 
 	if (csqc_poly_flags & 4)
@@ -1389,7 +1418,7 @@ void QCBUILTIN PF_R_GetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	switch(parametertype)
 	{
-	case VF_LPLAYER:
+	case VF_ACTIVESEAT:
 		if (prinst == csqc_world.progs)
 			*r = csqc_playerseat;
 		break;
@@ -1538,7 +1567,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	G_FLOAT(OFS_RETURN) = 1;
 	switch(parametertype)
 	{
-	case VF_LPLAYER:
+	case VF_ACTIVESEAT:
 		if (prinst == csqc_world.progs)
 		{
 			CSQC_ChangeLocalPlayer(*p);
@@ -1895,6 +1924,10 @@ static void cs_settracevars(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		*csqcg.trace_surfaceflags = tr->surface?tr->surface->flags:0;
 	if (csqcg.trace_endcontents)
 		*csqcg.trace_endcontents = tr->contents;
+	if (csqcg.trace_brush_id)
+		*csqcg.trace_brush_id = tr->brush_id;
+	if (csqcg.trace_brush_faceid)
+		*csqcg.trace_brush_faceid = tr->brush_face;
 	if (tr->ent)
 		*csqcg.trace_ent = EDICT_TO_PROG(csqcprogs, (void*)tr->ent);
 	else
@@ -2526,7 +2559,7 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 	if (!cls.state)
 		return;
 
-	MSG_WriteByte(&cls.netchan.message, clc_qcrequest);
+	MSG_WriteByte(&cls.netchan.message, clcfte_qcrequest);
 	for (i = 0; i < 6; i++)
 	{
 		if (argtypes[i] == 's')
@@ -4965,6 +4998,13 @@ static struct {
 	{"frameduration",			PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
 	{"terrain_edit",			PF_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
+	{"brush_get",				PF_brush_get,			0},
+	{"brush_create",			PF_brush_create,		0},
+	{"brush_delete",			PF_brush_delete,		0},
+	{"brush_selected",			PF_brush_selected,		0},
+	{"brush_getfacepoints",		PF_brush_getfacepoints,	0},
+	{"brush_findinvolume",		PF_brush_findinvolume,	0},
+
 	{"touchtriggers",			PF_touchtriggers,		279},//void() touchtriggers = #279;
 	{"skel_ragupdate",			PF_skel_ragedit,		281},// (FTE_QC_RAGDOLL)
 	{"skel_mmap",				PF_skel_mmap,			282},// (FTE_QC_RAGDOLL)
@@ -5107,6 +5147,8 @@ static struct {
 	{"con_printf",				PF_SubConPrintf,			392},
 	{"con_draw",				PF_SubConDraw,				393},
 	{"con_input",				PF_SubConInput,				394},
+
+	{"cvars_haveunsaved",		PF_cvars_haveunsaved,		0},
 
 //400
 	{"copyentity",				PF_cs_copyentity,			400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
@@ -6834,9 +6876,9 @@ void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd)
 
 //this protocol allows up to 32767 edicts.
 #ifdef PEXT_CSQC
-static void CSQC_EntityCheck(int entnum)
+static void CSQC_EntityCheck(unsigned int entnum)
 {
-	int newmax;
+	unsigned int newmax;
 
 	if (entnum >= maxcsqcentities)
 	{
@@ -6905,7 +6947,7 @@ void CSQC_GetEntityOrigin(unsigned int csqcent, float *out)
 void CSQC_ParseEntities(void)
 {
 	csqcedict_t *ent;
-	unsigned short entnum;
+	unsigned int entnum;
 	void *pr_globals;
 	int packetsize;
 	int packetstart;
@@ -6944,7 +6986,7 @@ void CSQC_ParseEntities(void)
 		//replacement deltas now also includes 22bit entity num indicies.
 		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 		{
-			entnum = MSG_ReadShort();
+			entnum = (unsigned short)MSG_ReadShort();
 			removeflag = !!(entnum & 0x8000);
 			if (entnum & 0x4000)
 				entnum = (entnum & 0x3fff) | (MSG_ReadByte()<<14);
@@ -6953,7 +6995,7 @@ void CSQC_ParseEntities(void)
 		}
 		else
 		{
-			entnum = MSG_ReadShort();
+			entnum = (unsigned short)MSG_ReadShort();
 			removeflag = !!(entnum & 0x8000);
 			entnum &= ~0x8000;
 		}

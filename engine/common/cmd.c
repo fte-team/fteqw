@@ -149,7 +149,7 @@ struct {
 	sizebuf_t	buf;
 	int noclear;
 	double waitattime;
-} cmd_text[RESTRICT_MAX+1+MAX_SPLITS];	//max is local.
+} cmd_text[RESTRICT_MAX+3+MAX_SPLITS];	//max is local.
 							//RESTRICT_MAX+1 is the from sever buffer (max+2 is for second player...)
 
 /*

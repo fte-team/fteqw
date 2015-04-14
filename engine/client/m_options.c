@@ -675,6 +675,8 @@ const char *presetexec[] =
 	"seta r_nolerp 1;"
 	"seta r_nolightdir 1;"
 	"seta r_dynamic 0;"
+	"seta r_bloom 0;"
+	"seta r_softwarebanding 0;"
 	"seta gl_polyblend 0;"
 	"seta gl_flashblend 0;"
 	"seta gl_specular 0;"
@@ -730,6 +732,7 @@ const char *presetexec[] =
 	"cl_bob 0.02;"
 	//these things are perhaps a little extreme
 	"r_loadlit 0;"
+	"r_softwarebanding 1;"		//ugly software banding.
 	"gl_texturemode nnl;"		//yup, we went there.
 	"gl_texturemode2d n.l;"		//yeah, 2d too.
 	"r_part_classic_square 1;"	//blocky baby!
@@ -752,6 +755,7 @@ const char *presetexec[] =
 	"gl_load24bit 1;"
 	"r_replacemodels \"md3 md2\";"
 	"r_coronas 1;"
+	"r_softwarebanding 0;"
 	"r_lerpmuzzlehack 1;"
 	"gl_texturemode ln;"
 	"gl_texturemode2d l;"
@@ -778,8 +782,8 @@ const char *presetexec[] =
 	"gl_texture_anisotropic_filtering 4;"
 
 	, // realtime options
-//	"r_bloom 1;"
-	"r_particledesc \"spikeset high tsshaft\";"
+	"r_bloom 1;"
+	"r_particledesc \"high tsshaft\";"
 	"r_waterstyle 3;"
 	"r_glsl_offsetmapping 1;"
 	"r_shadow_realtime_world 1;"
@@ -801,6 +805,7 @@ static void ApplyPreset (int presetnum)
 	{
 		Cbuf_InsertText(presetexec[i], RESTRICT_LOCAL, true);
 	}
+	Cbuf_InsertText("vid_reload\n", RESTRICT_LOCAL, true);
 	forcesaveprompt = true;
 }
 
@@ -2518,7 +2523,7 @@ void M_Menu_Video_f (void)
 			MB_CMD("Apply Settings", M_VideoApply, "Restart video and apply renderer, display, and 2D resolution options."),
 			MB_SPACING(4),
 			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
-			MB_SLIDER("Gamma", v_gamma, 0.25, 1.5, 0.05, NULL),
+			MB_SLIDER("Gamma", v_gamma, 1.5, 0.25, -0.05, NULL),
 			MB_SLIDER("Contrast", v_contrast, 0.8, 3, 0.05, NULL),
 			MB_END()
 		};
@@ -2887,7 +2892,7 @@ static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key)
 		man = mods->manifests[i];
 		mods->manifests[i] = NULL;
 		M_RemoveMenu(m);
-		FS_ChangeGame(man, true);
+		FS_ChangeGame(man, true, true);
 
 		//starting to a blank state generally means that the current config settings are utterly useless and windowed by default.
 		//so generally when switching to a *real* game, we want to restart video just so things like fullscreen etc are saved+used properly.
@@ -2935,7 +2940,7 @@ void M_Menu_Mods_f (void)
 
 	if (mods.nummanifests == 1)
 	{
-		FS_ChangeGame(mods.manifests[0], true);
+		FS_ChangeGame(mods.manifests[0], true, true);
 		Z_Free(mods.manifests);
 	}
 	else
@@ -2957,4 +2962,96 @@ void M_Menu_Mods_f (void)
 		menu->remove = Mods_Remove;
 	}
 }
+
+#if 0
+extern ftemanifest_t	*fs_manifest;	//currently active manifest.
+struct installermenudata
+{
+	menuedit_t *syspath;
+};
+static void Installer_Remove	(struct menu_s *m)
+{
+	Cbuf_AddText("quit force\n", RESTRICT_LOCAL);
+}
+
+
+void FS_CreateBasedir(const char *path);
+#include <process.h>
+static qboolean Installer_Go(menuoption_t *opt, menu_t *menu, int key)
+{
+	struct installermenudata *md = menu->data;
+	
+	if (key == K_MOUSE1 || key == K_ENTER)
+	{
+		extern int startuppending;
+		vfsfile_t *f;
+		char path[MAX_OSPATH];
+		char exepath[MAX_OSPATH];
+		char newexepath[MAX_OSPATH];
+
+		Q_snprintfz(path, sizeof(path), "%s/", md->syspath->text);
+
+		Con_Printf("path %s\n", path);
+
+		menu->remove = NULL;
+		M_RemoveMenu(menu);
+
+		FS_CreateBasedir(path);
+
+#ifdef _WIN32
+		GetModuleFileName(NULL, exepath, sizeof(exepath));
+		FS_NativePath(va("%s.exe", fs_manifest->installation), FS_ROOT, newexepath, sizeof(newexepath));
+		CopyFile(exepath, newexepath, FALSE);
+
+//		SetHookState(false);
+		Host_Shutdown ();
+//		CloseHandle (qwclsemaphore);
+//		SetHookState(false);
+//		_execv(newexepath, host_parms.argv);
+		{
+			PROCESS_INFORMATION childinfo;
+			STARTUPINFO startinfo = {sizeof(startinfo)};
+			CreateProcess(newexepath, va("\"%s\" +sys_register_file_associations %s", newexepath, COM_Parse(GetCommandLineA())), NULL, NULL, FALSE, 0, NULL, path, &startinfo, &childinfo);
+		}
+		exit(1);
+#elif 0
+#ifdef __linux__
+		if (readlink("/proc/self/exe", exepath, sizeof(exepath)-1) <= 0)
+#endif
+			Q_strncpyz(exepath, host_parms.argv[0], sizeof(exepath));
+
+		int fd = creat(newexepath, S_IRWXU | S_IRGRP|S_IXGRP);
+		write(fd);
+		close(fd);
+#endif
+
+		startuppending = 2;
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+void M_Menu_Installer(void)
+{
+	menu_t *menu;
+	struct installermenudata *md;
+
+	Key_Dest_Add(kdm_menu);
+
+	menu = M_CreateMenu(sizeof(*md));
+	md = menu->data = (menu+1);
+
+	md->syspath = MC_AddEdit(menu, 0, 160, 64, "Path", "C:/Games/AfterQuake/testinstall/base");//va("c:/%s", fs_manifest->installation));
+
+	//FIXME: add path check display
+
+	MC_AddCommand		(menu, 0, 160, 128, "Install", Installer_Go);
+	MC_AddConsoleCommand(menu, 0, 160, 136,	"Cancel", "menu_quit\n");
+
+	menu->selecteditem = (menuoption_t*)md->syspath;
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 250, 0, menu->selecteditem->common.posy, NULL, false);
+	menu->remove = Installer_Remove;
+}
+#endif
 #endif

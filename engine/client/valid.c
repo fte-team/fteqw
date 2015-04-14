@@ -532,7 +532,7 @@ void Validation_Apply_Ruleset(void)
 #endif
 	Validation_DelatchRulesets();	//make sure there's no old one
 
-	if (!*ruleset.string || !strcmp(ruleset.string, "none"))
+	if (!*ruleset.string || !strcmp(ruleset.string, "none") || !strcmp(ruleset.string, "default"))
 		return;	//no ruleset is set
 
 	for (rs = rulesets; rs->rulesetname; rs++)

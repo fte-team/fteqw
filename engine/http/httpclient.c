@@ -5,6 +5,8 @@
 #include "netinc.h"
 #include "fs.h"
 
+vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile);
+
 #if defined(WEBCLIENT)
 
 #if defined(FTE_TARGET_WEB)
@@ -287,20 +289,20 @@ struct http_dl_ctx_s {
 
 	char *buffer;
 
-	int bufferused;
-	int bufferlen;
+	size_t bufferused;
+	size_t bufferlen;
 
-	int totalreceived;	//useful when we're just dumping to a file.
+	size_t totalreceived;	//useful when we're just dumping to a file.
 
 	struct vfsfile_s *file;	//if gzipping, this is a temporary file. we'll write to the real file from this after the transfer is complete.
 	qboolean gzip;
 	qboolean chunking;
-	int chunksize;
-	int chunked;
+	size_t chunksize;
+	size_t chunked;
 
 	enum {HC_REQUESTING, HC_GETTINGHEADER, HC_GETTING} state;
 
-	int contentlength;
+	size_t contentlength;
 };
 
 void HTTP_Cleanup(struct dl_download *dl)
@@ -400,7 +402,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 		msg = con->buffer;
 		con->chunking = false;
-		con->contentlength = 0;
+		con->contentlength = -1;
 		con->gzip = false;
 		*mimetype = 0;
 		*Location = 0;
@@ -567,7 +569,11 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (con->gzip)
 		{
 #if !defined(NPFTE) && defined(AVAIL_ZLIB)
+#if 1
+			con->file = FS_GZ_DecompressWriteFilter(dl->file, false);
+#else
 			con->file = FS_OpenTemp();
+#endif
 #else
 			Con_Printf("HTTP: no support for gzipped files \"%s\"\n", dl->localname);
 			dl->status = DL_FAILED;
@@ -659,7 +665,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		}
 		else
 		{
-			con->totalreceived+=ammount;
+			con->totalreceived+=con->bufferused;
 			if (con->file)	//we've got a chunk in the buffer
 			{	//write it
 				if (VFS_WRITE(con->file, con->buffer, con->bufferused) != con->bufferused)
@@ -669,6 +675,8 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				}
 				con->bufferused = 0;
 			}
+			if (con->totalreceived == con->contentlength)
+				ammount = 0;
 		}
 
 		if (!ammount)
@@ -678,6 +686,13 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			else
 			{
 #if !defined(NPFTE) && defined(AVAIL_ZLIB)
+#if 1
+				if (con->gzip && con->file)
+				{
+					VFS_CLOSE(con->file);
+					con->file = NULL;
+				}
+#else
 				if (con->gzip && con->file)
 				{
 					VFS_SEEK(con->file, 0);
@@ -685,7 +700,11 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 					con->file = NULL;
 				}
 #endif
-				dl->status = (dl->replycode == 200)?DL_FINISHED:DL_FAILED; 
+#endif
+				if (con->contentlength != -1 && con->totalreceived != con->contentlength)
+					dl->status = DL_FAILED;	//file was truncated
+				else
+					dl->status = (dl->replycode == 200)?DL_FINISHED:DL_FAILED; 
 			}
 			return false;
 		}

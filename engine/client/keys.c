@@ -338,9 +338,9 @@ void CompleteCommand (qboolean force)
 					con_commandmatch = 1;
 
 				if (desc)
-					Con_Footerf(false, "%s: %s", cmd, desc);
+					Con_Footerf(NULL, false, "%s: %s", cmd, desc);
 				else
-					Con_Footerf(false, "");
+					Con_Footerf(NULL, false, "");
 				return;
 			}
 		}
@@ -374,27 +374,27 @@ void CompleteCommand (qboolean force)
 		if (var)
 		{
 			if (desc)
-				Con_Footerf(false, "%s %s\n%s", cmd, var->string, desc);
+				Con_Footerf(NULL, false, "%s %s\n%s", cmd, var->string, desc);
 			else
-				Con_Footerf(false, "%s %s", cmd, var->string);
+				Con_Footerf(NULL, false, "%s %s", cmd, var->string);
 		}
 		else
 		{
 			if (desc)
-				Con_Footerf(false, "%s: %s", cmd, desc);
+				Con_Footerf(NULL, false, "%s: %s", cmd, desc);
 			else
-				Con_Footerf(false, "");
+				Con_Footerf(NULL, false, "");
 		}
 	}
 	else
 	{
-		Con_Footerf(false, "");
+		Con_Footerf(NULL, false, "");
 		con_commandmatch = 1;
 	}
 }
 
 //lines typed at the main console enter here
-void Con_ExecuteLine(console_t *con, char *line)
+int Con_ExecuteLine(console_t *con, char *line)
 {
 	qboolean waschat = false;
 	char deutf8[8192];
@@ -413,7 +413,7 @@ void Con_ExecuteLine(console_t *con, char *line)
 	}
 
 	con_commandmatch=1;
-	Con_Footerf(false, "");
+	Con_Footerf(con, false, "");
 
 	if (cls.state >= ca_connected && cl_chatmode.value == 2)
 	{
@@ -465,10 +465,10 @@ void Con_ExecuteLine(console_t *con, char *line)
 				{
 					Con_Printf ("]%s\n",line);
 					Cmd_ExecuteString(exec, RESTRICT_SERVER);
-					return;
+					return true;
 				}
 
-				Con_Footerf(false, "Commands cannot be execed while debugging QC");
+				Con_Footerf(con, false, "Commands cannot be execed while debugging QC");
 			}
 #endif
 			Cbuf_AddText (exec, RESTRICT_LOCAL);
@@ -482,6 +482,8 @@ void Con_ExecuteLine(console_t *con, char *line)
 	if (cls.state == ca_disconnected)
 		SCR_UpdateScreen ();	// force an update, because the command
 									// may take some time
+
+	return true;
 }
 
 vec3_t sccolor;
@@ -496,7 +498,7 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 {
 	*sx = *sy = *ex = *ey = 0;
 
-	if (con->mousedown[2] == 1)
+	if (con->buttonsdown == CB_SCROLL)
 	{
 		//left-mouse.
 		//scroll the console with the mouse. trigger links on release.
@@ -517,7 +519,7 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 		*ey = con->mousecursor[1];
 		return true;
 	}
-	else if (con->mousedown[2] == 2)
+	else if (con->buttonsdown == CB_COPY)
 	{
 		//right-mouse
 		//select. copy-to-clipboard on release.
@@ -529,6 +531,43 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 	}
 	else
 	{
+		if (con_curwindow == con && con->buttonsdown)
+		{
+			if (con->buttonsdown == CB_MOVE)
+			{	//move window to track the cursor
+				con->wnd_x += con->mousecursor[0] - con->mousedown[0];
+		//		con->mousedown[0] = con->mousecursor[0];
+				con->wnd_y += con->mousecursor[1] - con->mousedown[1];
+		//		con->mousedown[1] = con->mousecursor[1];
+			}
+			if (con->buttonsdown & CB_SIZELEFT)
+			{
+				if (con->wnd_w - (con->mousecursor[0] - con->mousedown[0]) >= 64)
+				{
+					con->wnd_w -= con->mousecursor[0] - con->mousedown[0];
+					con->wnd_x += con->mousecursor[0] - con->mousedown[0];
+				}
+			}
+			if (con->buttonsdown & CB_SIZERIGHT)
+			{
+				if (con->wnd_w + (con->mousecursor[0] - con->mousedown[0]) >= 64)
+				{
+					con->wnd_w += con->mousecursor[0] - con->mousedown[0];
+					con->mousedown[0] = con->mousecursor[0];
+				}
+			}
+			if (con->buttonsdown & CB_SIZEBOTTOM)
+			{
+				if (con->wnd_h + (con->mousecursor[1] - con->mousedown[1]) >= 64)
+				{
+					con->wnd_h += con->mousecursor[1] - con->mousedown[1];
+					con->mousedown[1] = con->mousecursor[1];
+				}
+			}
+		}
+		else
+			con->buttonsdown = CB_NONE;
+
 		*sx = con->mousecursor[0];
 		*sy = con->mousecursor[1];
 		*ex = con->mousecursor[0];
@@ -564,7 +603,7 @@ void Key_ConsoleInsert(char *instext)
 	key_linepos += len;
 }
 
-void Key_DefaultLinkClicked(char *text, char *info)
+void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 {
 	char *c;
 	/*the engine supports specific default links*/
@@ -639,7 +678,7 @@ void Key_DefaultLinkClicked(char *text, char *info)
 			return;
 		}
 
-		Con_Footerf(false, "^m#^m ^[%s\\player\\%i^]: %if %ims", cl.players[player].name, player, cl.players[player].frags, cl.players[player].ping);
+		Con_Footerf(con, false, "^m#^m ^[%s\\player\\%i^]: %if %ims", cl.players[player].name, player, cl.players[player].frags, cl.players[player].ping);
 
 		for (i = 0; i < cl.splitclients; i++)
 		{
@@ -652,17 +691,17 @@ void Key_DefaultLinkClicked(char *text, char *info)
 			if (cl.spectator || cls.demoplayback)
 			{
 				//we're spectating, or an mvd
-				Con_Footerf(true, " ^[Spectate\\player\\%i\\action\\spec^]", player);
+				Con_Footerf(con, true, " ^[Spectate\\player\\%i\\action\\spec^]", player);
 			}
 			else
 			{
 				//we're playing.
 				if (cls.protocol == CP_QUAKEWORLD && strcmp(cl.players[cl.playerview[0].playernum].team, cl.players[player].team))
-					Con_Footerf(true, " ^[[Join Team %s]\\cmd\\setinfo team %s^]", cl.players[player].team, cl.players[player].team);
+					Con_Footerf(con, true, " ^[[Join Team %s]\\cmd\\setinfo team %s^]", cl.players[player].team, cl.players[player].team);
 			}
-			Con_Footerf(true, " ^[%sgnore\\player\\%i\\action\\ignore^]", cl.players[player].ignored?"Uni":"I", player);
+			Con_Footerf(con, true, " ^[%sgnore\\player\\%i\\action\\ignore^]", cl.players[player].ignored?"Uni":"I", player);
 	//		if (cl_voip_play.ival)
-				Con_Footerf(true, " ^[%sute\\player\\%i\\action\\mute^]", cl.players[player].vignored?"Unm":"M",  player);
+				Con_Footerf(con, true, " ^[%sute\\player\\%i\\action\\mute^]", cl.players[player].vignored?"Unm":"M",  player);
 
 			if (!cls.demoplayback && (*rcon_password.string
 #ifndef CLIENTONLY
@@ -670,8 +709,8 @@ void Key_DefaultLinkClicked(char *text, char *info)
 #endif
 				))
 			{
-				Con_Footerf(true, " ^[Kick\\player\\%i\\action\\kick^]", player);
-				Con_Footerf(true, " ^[Ban\\player\\%i\\action\\ban^]", player);
+				Con_Footerf(con, true, " ^[Kick\\player\\%i\\action\\kick^]", player);
+				Con_Footerf(con, true, " ^[Ban\\player\\%i\\action\\ban^]", player);
 			}
 		}
 		else
@@ -687,20 +726,20 @@ void Key_DefaultLinkClicked(char *text, char *info)
 			}
 			else
 			{
-				Con_Footerf(true, " ^[Suicide\\cmd\\kill^]");
+				Con_Footerf(con, true, " ^[Suicide\\cmd\\kill^]");
 	#ifndef CLIENTONLY
 				if (!sv.state)
-					Con_Footerf(true, " ^[Disconnect\\cmd\\disconnect^]");
+					Con_Footerf(con, true, " ^[Disconnect\\cmd\\disconnect^]");
 				if (cls.allow_cheats || (sv.state && sv.allocated_client_slots == 1))
 	#else
-				Con_Footerf(true, " ^[Disconnect\\cmd\\disconnect^]");
+				Con_Footerf(con, true, " ^[Disconnect\\cmd\\disconnect^]");
 				if (cls.allow_cheats)
 	#endif
 				{
-					Con_Footerf(true, " ^[Noclip\\cmd\\noclip^]");
-					Con_Footerf(true, " ^[Fly\\cmd\\fly^]");
-					Con_Footerf(true, " ^[God\\cmd\\god^]");
-					Con_Footerf(true, " ^[Give\\impulse\\9^]");
+					Con_Footerf(con, true, " ^[Noclip\\cmd\\noclip^]");
+					Con_Footerf(con, true, " ^[Fly\\cmd\\fly^]");
+					Con_Footerf(con, true, " ^[God\\cmd\\god^]");
+					Con_Footerf(con, true, " ^[Give\\impulse\\9^]");
 				}
 			}
 		}
@@ -781,7 +820,7 @@ void Key_DefaultLinkClicked(char *text, char *info)
 	c = Info_ValueForKey(info, "desc");
 	if (*c)
 	{
-		Con_Footerf(false, "%s", c);
+		Con_Footerf(con, false, "%s", c);
 		return;
 	}
 
@@ -805,13 +844,14 @@ void Key_DefaultLinkClicked(char *text, char *info)
 void Key_ConsoleRelease(console_t *con, int key, int unicode)
 {
 	char *buffer;
-	if (key == K_MOUSE1 && con->mousedown[2] == 1)
+
+	if (key == K_MOUSE1 && con->buttonsdown == CB_SCROLL)
 	{
-		con->mousedown[2] = 0;
+		con->buttonsdown = CB_NONE;
 		if (abs(con->mousedown[0] - con->mousecursor[0]) < 5 && abs(con->mousedown[1] - con->mousecursor[1]) < 5)
 		{
-			buffer = Con_CopyConsole(false, false);
-			Con_Footerf(false, "");
+			buffer = Con_CopyConsole(con, false, false);
+			Con_Footerf(con, false, "");
 			if (!buffer)
 				return;
 			if (keydown[K_SHIFT])
@@ -866,7 +906,7 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 							if (!CSQC_ConsoleLink(buffer+2, info))
 #endif
 							{
-								Key_DefaultLinkClicked(buffer+2, info);
+								Key_DefaultLinkClicked(con, buffer+2, info);
 							}
 
 							break;
@@ -881,18 +921,27 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 			Z_Free(buffer);
 		}
 		else
-			Con_Footerf(false, "");
+			Con_Footerf(con, false, "");
 	}
-	if (key == K_MOUSE2 && con->mousedown[2] == 2)
+	if (key == K_MOUSE2 && con->buttonsdown == CB_COPY)
 	{
-		con->mousedown[2] = 0;
-		buffer = Con_CopyConsole(true, false);	//don't keep markup if we're copying to the clipboard
+		con->buttonsdown = CB_NONE;
+		buffer = Con_CopyConsole(con, true, false);	//don't keep markup if we're copying to the clipboard
 		if (!buffer)
 			return;
 		Sys_SaveClipboard(buffer);
 		Z_Free(buffer);
-
 	}
+	if (con->buttonsdown == CB_CLOSE)
+	{	//window X (close)
+		if (con->mousecursor[0] > con->wnd_w-8 && con->mousecursor[1] < 8)
+		{
+			Con_Destroy (con);
+			return;
+		}
+	}
+//	if (con->buttonsdown == CB_MOVE)	//window title(move)
+		con->buttonsdown = CB_NONE;
 }
 //if the referenced (trailing) chevron is doubled up, then it doesn't act as part of any markup and should be ignored for such things.
 static qboolean utf_specialchevron(unsigned char *start, unsigned char *chev)
@@ -1226,39 +1275,70 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 
 	if ((key == K_MOUSE1 || key == K_MOUSE2))
 	{
-	//	int xpos = (int)((con->mousecursor[0]*vid.width)/(vid.pixelwidth*8));
-		int ypos = (int)((con->mousecursor[1]*vid.height)/(vid.pixelheight*8));
+		if (con->flags & CONF_ISWINDOW)
+			if (con->mousecursor[0] < 0 || con->mousecursor[1] < 0 || con->mousecursor[0] > con->wnd_w || con->mousecursor[1] > con->wnd_h)
+				return true;
+		if (con == con_mouseover)
+		{
+			con->buttonsdown = CB_NONE;
+
+			if ((con->flags & CONF_ISWINDOW) && !keydown[K_SHIFT])
+				Con_SetActive(con);
+		}
 		con->mousedown[0] = con->mousecursor[0];
 		con->mousedown[1] = con->mousecursor[1];
-		if (ypos == 0 && con_mouseover)
+		if (con_mouseover && con->mousedown[1] < 8)//(8.0*vid.height)/vid.pixelheight)
 		{
-			if (key == K_MOUSE2)
-				Con_Destroy (con_mouseover);
+			if (key == K_MOUSE2 && !(con->flags & CONF_ISWINDOW))
+				Con_Destroy (con);
 			else
-				con_current = con_mouseover;
+			{
+				Con_SetActive(con);
+				if ((con->flags & CONF_ISWINDOW))
+					con->buttonsdown = (con->mousedown[0] > con->wnd_w-8)?CB_CLOSE:CB_MOVE;
+			}
 		}
 		else if (key == K_MOUSE2)
-			con->mousedown[2] = 2;
-		else 
-			con->mousedown[2] = 1;
+			con->buttonsdown = CB_COPY;
+		else
+		{
+			con->buttonsdown = CB_NONE;
+			if ((con->flags & CONF_ISWINDOW) && con->mousedown[0] < 8)
+				con->buttonsdown |= CB_SIZELEFT;
+			if ((con->flags & CONF_ISWINDOW) && con->mousedown[0] > con->wnd_w-8)
+				con->buttonsdown |= CB_SIZERIGHT;
+			if ((con->flags & CONF_ISWINDOW) && con->mousedown[1] > con->wnd_h-8)
+				con->buttonsdown |= CB_SIZEBOTTOM;
+			if (con->buttonsdown == CB_NONE)
+				con->buttonsdown = CB_SCROLL;
+		}
 
 		return true;
 	}
+
+	//console does not have any way to accept input, so don't try giving it any.
+	if (!con->linebuffered)
+		return false;
 	
 	if (key == K_ENTER || key == K_KP_ENTER)
 	{	// backslash text are commands, else chat
 		int oldl = edit_line;
-		edit_line = (edit_line + 1) & (CON_EDIT_LINES_MASK);
-		history_line = edit_line;
+
+		if (con->linebuffered)
+		{
+			if (con->linebuffered(con, key_lines[oldl]+1) != 2)
+			{
+				edit_line = (edit_line + 1) & (CON_EDIT_LINES_MASK);
+				history_line = edit_line;
+			}
+		}
+		con_commandmatch = 0;
+
 		Z_Free(key_lines[edit_line]);
 		key_lines[edit_line] = BZ_Malloc(2);
 		key_lines[edit_line][0] = ']';
 		key_lines[edit_line][1] = '\0';
 		key_linepos = 1;
-
-		if (con->linebuffered)
-			con->linebuffered(con, key_lines[oldl]+1);
-		con_commandmatch = 0;
 
 		return true;
 	}
@@ -1387,7 +1467,8 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 		return true;
 	}
 
-	return Key_EntryLine(&key_lines[edit_line], 1, &key_linepos, key, unicode);
+	Key_EntryLine(&key_lines[edit_line], 1, &key_linepos, key, unicode);
+	return true;
 }
 
 //============================================================================
@@ -1699,9 +1780,9 @@ void Key_BindLevel_f (void)
 	
 	c = Cmd_Argc();
 
-	if (c != 2 && c != 3)
+	if (c != 2 && c != 4)
 	{
-		Con_Printf ("bindat <key> [<level> <command>] : attach a command to a key for a specific level of access\n");
+		Con_Printf ("%s <key> [<level> <command>] : attach a command to a key for a specific level of access\n", Cmd_Argv(0));
 		return;
 	}
 	b = Key_StringToKeynum (Cmd_Argv(1), &modifier);
@@ -1726,7 +1807,7 @@ void Key_BindLevel_f (void)
 
 	if (Cmd_IsInsecure())
 	{
-		Con_Printf("Server attempted usage of bindat\n");
+		Con_Printf("Server attempted usage of %s\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -1812,7 +1893,7 @@ void Key_Init (void)
 	key_linepos = 1;
 
 	key_dest_mask = kdm_game;
-	key_dest_absolutemouse = kdm_console | kdm_editor;
+	key_dest_absolutemouse = kdm_console | kdm_editor | kdm_cwindows;
 	
 //
 // init ascii characters in console mode
@@ -2044,6 +2125,13 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		if (Key_Dest_Has(kdm_console))
 		{
 			Key_Dest_Remove(kdm_console);
+			Key_Dest_Remove(kdm_cwindows);
+			if (!cls.state && !Key_Dest_Has(~kdm_game))
+				M_ToggleMenu_f ();
+		}
+		else if (Key_Dest_Has(kdm_cwindows))
+		{
+			Key_Dest_Remove(kdm_cwindows);
 			if (!cls.state && !Key_Dest_Has(~kdm_game))
 				M_ToggleMenu_f ();
 		}
@@ -2078,11 +2166,19 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 //
 	if (!down)
 	{
-		if (Key_Dest_Has(kdm_console))
+		if (Key_Dest_Has(kdm_console|kdm_cwindows))
 		{
-			con_current->mousecursor[0] = mousecursor_x;
-			con_current->mousecursor[1] = mousecursor_y;
-			Key_ConsoleRelease(con_current, key, unicode);
+			console_t *con = Key_Dest_Has(kdm_console)?con_current:con_curwindow;
+			if (con_mouseover && key >= K_MOUSE1 && key <= K_MWHEELDOWN)
+				con = con_mouseover;
+			if (con_curwindow && con_curwindow != con)
+				con_curwindow->buttonsdown = CB_NONE;
+			if (con)
+			{
+				con->mousecursor[0] = mousecursor_x - ((con->flags & CONF_ISWINDOW)?con->wnd_x:0);
+				con->mousecursor[1] = mousecursor_y - ((con->flags & CONF_ISWINDOW)?con->wnd_y:0);
+				Key_ConsoleRelease(con, key, unicode);
+			}
 		}
 		if (Key_Dest_Has(kdm_menu))
 			M_Keyup (key, unicode);
@@ -2139,12 +2235,21 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 #endif
 
 
-	if (conkey && Key_Dest_Has(kdm_console))
+	if (conkey && Key_Dest_Has(kdm_console|kdm_cwindows))
 	{
-		con_current->mousecursor[0] = mousecursor_x;
-		con_current->mousecursor[1] = mousecursor_y;
-		Key_Console (con_current, unicode, key);
-		return;
+		console_t *con = Key_Dest_Has(kdm_console)?con_current:con_curwindow;
+		if ((con_mouseover||!Key_Dest_Has(kdm_console)) && key >= K_MOUSE1 && key <= K_MWHEELDOWN)
+			con = con_mouseover;
+		if (con)
+		{
+			con->mousecursor[0] = mousecursor_x - ((con->flags & CONF_ISWINDOW)?con->wnd_x:0);
+			con->mousecursor[1] = mousecursor_y - ((con->flags & CONF_ISWINDOW)?con->wnd_y:0);
+			if (Key_Console (con, unicode, key))
+				return;
+		}
+		else
+			Key_Dest_Remove(kdm_cwindows);
+
 	}
 #ifdef TEXTEDITOR
 	if (Key_Dest_Has(kdm_editor))

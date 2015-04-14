@@ -3,15 +3,16 @@
 #include "winquake.h"
 
 //outlen is the size of out in _BYTES_.
-wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8)
+wchar_t *widen(wchar_t *out, size_t outbytes, const char *utf8)
 {
+	size_t outlen;
 	wchar_t *ret = out;
 	//utf-8 to utf-16, not ucs-2.
 	unsigned int codepoint;
 	int error;
+	outlen = outbytes/sizeof(wchar_t);
 	if (!outlen)
 		return L"";
-	outlen /= sizeof(wchar_t);
 	outlen--;
 	while (*utf8)
 	{
@@ -304,7 +305,7 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 	file->offset = 0;
 	file->length = fsize;
 
-	return (vfsfile_t*)file;
+	return &file->funcs;
 }
 
 vfsfile_t *QDECL VFSW32_Open(const char *osname, const char *mode)

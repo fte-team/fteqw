@@ -1691,8 +1691,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define r_glsl_pcf 9\n"
 "#endif\n"
 
-"#if 0 && defined(GL_ARB_texture_gather) && defined(PCF) \n"
+
+//texturegather is a gl4 feature, but these shaders are gl2.0 or something
+"#if #include \"cvar/texgather\" && defined(GL_ARB_texture_gather) && defined(PCF) \n"
 "#extension GL_ARB_texture_gather : enable\n"
+"#define DOTEXTUREGATHER\n"
 "#endif\n"
 
 "#ifdef UPPERLOWER\n"
@@ -1851,7 +1854,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec3 shadowcoord = ShadowmapCoord();\n"
 
-"#if 0//def GL_ARB_texture_gather\n"
+"#ifdef DOTEXTUREGATHER\n"
 "vec2 ipart, fpart;\n"
 "#define dosamp(x,y) textureGatherOffset(s_t4, ipart.xy, vec2(x,y)))\n"
 "vec4 tl = step(shadowcoord.z, dosamp(-1.0, -1.0));\n"

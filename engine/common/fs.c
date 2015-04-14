@@ -15,7 +15,9 @@
 static void fs_game_callback(cvar_t *var, char *oldvalue);
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
+qboolean com_installer = false;
 qboolean fs_readonly;
+extern int waitingformanifest;
 static unsigned int fs_restarts;
 void *fs_thread_mutex;
 
@@ -200,6 +202,7 @@ void FS_Manifest_Free(ftemanifest_t *man)
 	Z_Free(man->installation);
 	Z_Free(man->formalname);
 	Z_Free(man->protocolname);
+	Z_Free(man->eula);
 	Z_Free(man->defaultexec);
 	for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
 	{
@@ -229,6 +232,8 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 		newm->formalname = Z_StrDup(oldm->formalname);
 	if (oldm->protocolname)
 		newm->protocolname = Z_StrDup(oldm->protocolname);
+	if (oldm->eula)
+		newm->eula = Z_StrDup(oldm->eula);
 	if (oldm->defaultexec)
 		newm->defaultexec = Z_StrDup(oldm->defaultexec);
 	newm->disablehomedir = oldm->disablehomedir;
@@ -259,6 +264,8 @@ void FS_Manifest_Print(ftemanifest_t *man)
 	int i, j;
 	if (man->updateurl)
 		Con_Printf("updateurl %s\n", COM_QuotedString(man->updateurl, buffer, sizeof(buffer), false));
+	if (man->eula)
+		Con_Printf("eula %s\n", COM_QuotedString(man->eula, buffer, sizeof(buffer), false));
 	if (man->installation)
 		Con_Printf("game %s\n", COM_QuotedString(man->installation, buffer, sizeof(buffer), false));
 	if (man->formalname)
@@ -284,7 +291,7 @@ void FS_Manifest_Print(ftemanifest_t *man)
 		if (man->package[i].path)
 		{
 			if (man->package[i].extractname)
-				Con_Printf("achived");
+				Con_Printf("archived");
 			if (man->package[i].crcknown)
 				Con_Printf("package %s 0x%x", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer), false), man->package[i].crc);
 			else
@@ -326,59 +333,102 @@ static ftemanifest_t *FS_Manifest_Create(const char *syspath)
 		man->updatefile = Z_StrDup(syspath);	//this should be a system path.
 	return man;
 }
+
+static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int type, char *path, unsigned int crc, qboolean crcknown, char *extractname, unsigned int mirrorarg)
+{
+	size_t i, j;
+	if (type == mdt_singlepackage)
+	{
+		if (!strchr(path, '/') || strchr(path, ':') || strchr(path, '\\'))
+		{
+			Con_Printf("invalid package path specified in manifest\n");
+			return false;
+		}
+	}
+
+	for (i = 0; i < sizeof(man->package) / sizeof(man->package[0]); i++)
+	{
+		if (!man->package[i].path)
+		{
+			man->package[i].type = type;
+			man->package[i].path = Z_StrDup(path);
+			man->package[i].crcknown = crcknown;
+			man->package[i].crc = crc;
+			if (extractname)
+				man->package[i].extractname = Z_StrDup(extractname);
+			else
+				man->package[i].extractname = NULL;
+			for (j = 0; mirrorarg+j < Cmd_Argc() && j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
+			{
+				man->package[i].mirrors[j] = Z_StrDup(Cmd_Argv(mirrorarg+j));
+			}
+			return true;
+		}
+	}
+	Con_Printf("Too many packages specified in manifest\n");
+	return false;
+}
+
 //parse Cmd_Argv tokens into the manifest.
 static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 {
 	qboolean result = true;
-	char *fname;
-	if (!Cmd_Argc())
+	char *cmd = Cmd_Argv(0);
+	if (!*cmd)
 		return result;
-	fname = Cmd_Argv(0);
 
-	if (*fname == '*')
-		fname++;
-	if (!Q_strcasecmp(fname, "minver"))
+	if (*cmd == '*')
+		cmd++;
+
+	if (!Q_strcasecmp(cmd, "ftemanifestver") || !Q_strcasecmp(cmd, "ftemanifest"))
+		man->parsever = atoi(Cmd_Argv(1));
+	else if (!Q_strcasecmp(cmd, "minver"))
 	{
 		//ignore minimum versions for other engines.
 		if (!strcmp(Cmd_Argv(2), DISTRIBUTION))
 			man->minver = atoi(Cmd_Argv(3));
 	}
-	else if (!Q_strcasecmp(fname, "maxver"))
+	else if (!Q_strcasecmp(cmd, "maxver"))
 	{
 		//ignore minimum versions for other engines.
 		if (!strcmp(Cmd_Argv(2), DISTRIBUTION))
 			man->maxver = atoi(Cmd_Argv(3));
 	}
-	else if (!Q_strcasecmp(fname, "game"))
+	else if (!Q_strcasecmp(cmd, "game"))
 	{
 		Z_Free(man->installation);
 		man->installation = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!Q_strcasecmp(fname, "name"))
+	else if (!Q_strcasecmp(cmd, "name"))
 	{
 		Z_Free(man->formalname);
 		man->formalname = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!Q_strcasecmp(fname, "protocolname"))
+	else if (!Q_strcasecmp(cmd, "eula"))
+	{
+		Z_Free(man->eula);
+		man->eula = Z_StrDup(Cmd_Argv(1));
+	}
+	else if (!Q_strcasecmp(cmd, "protocolname"))
 	{
 		Z_Free(man->protocolname);
 		man->protocolname = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!Q_strcasecmp(fname, "defaultexec"))
+	else if (!Q_strcasecmp(cmd, "defaultexec"))
 	{
 		Z_Free(man->defaultexec);
 		man->defaultexec = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!Q_strcasecmp(fname, "updateurl"))
+	else if (!Q_strcasecmp(cmd, "updateurl"))
 	{
 		Z_Free(man->updateurl);
 		man->updateurl = Z_StrDup(Cmd_Argv(1));
 	}
-	else if (!Q_strcasecmp(fname, "disablehomedir"))
+	else if (!Q_strcasecmp(cmd, "disablehomedir"))
 	{
 		man->disablehomedir = !!atoi(Cmd_Argv(1));
 	}
-	else if (!Q_strcasecmp(fname, "basegame") || !Q_strcasecmp(fname, "gamedir"))
+	else if (!Q_strcasecmp(cmd, "basegame") || !Q_strcasecmp(cmd, "gamedir"))
 	{
 		int i;
 		char *newdir = Cmd_Argv(1);
@@ -394,7 +444,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 			{
 				if (!man->gamepath[i].path)
 				{
-					man->gamepath[i].base = !Q_strcasecmp(fname, "basegame");
+					man->gamepath[i].base = !Q_strcasecmp(cmd, "basegame");
 					man->gamepath[i].path = Z_StrDup(newdir);
 					break;
 				}
@@ -405,52 +455,40 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 			}
 		}
 	}
-	else if (!Q_strcasecmp(fname, "package") || !Q_strcasecmp(fname, "archivedpackage"))
+	else if (!Q_strcasecmp(cmd, "filedependancies") || !Q_strcasecmp(cmd, "archiveddependancies"))
 	{
-		qboolean crcknown;
-		int crc;
-		int i, j;
 		int arg = 1;
+		char *arch = Cmd_Argv(arg++);
+		char *files = Cmd_Argv(arg++);
+		char *extract = (!Q_strncasecmp(cmd, "archived", 8))?Cmd_Argv(arg++):NULL;
 
-		fname = Cmd_Argv(arg++);
+#ifdef PLATFORM
+		//just ignore other archs
+		if (!Q_strcasecmp(arch, PLATFORM))
+			FS_Manifest_ParsePackage(man, mdt_installation, files, 0, false, extract, arg);
+#endif
+	}
+	else if (!Q_strcasecmp(cmd, "package") || !Q_strcasecmp(cmd, "archivedpackage"))
+	{
+		int arg = 1;
+		char *fname = Cmd_Argv(arg++);
 
-		crcknown = (strcmp(Cmd_Argv(arg), "-") && *Cmd_Argv(arg));
-		crc = strtoul(Cmd_Argv(arg++), NULL, 0);
+		qboolean crcknown = (strcmp(Cmd_Argv(arg), "-") && *Cmd_Argv(arg));
+		int crc = strtoul(Cmd_Argv(arg++), NULL, 0);
+		char *extract = (!Q_strncasecmp(cmd, "archived", 8))?Cmd_Argv(arg++):NULL;
 
-		for (i = 0; i < sizeof(man->package) / sizeof(man->package[0]); i++)
-		{
-			if (!man->package[i].path)
-			{
-				man->package[i].path = Z_StrDup(fname);
-				man->package[i].crcknown = crcknown;
-				man->package[i].crc = crc;
-				if (!Q_strcasecmp(fname, "archivedpackage"))
-				{
-					char *extr = Cmd_Argv(arg++);
-					man->package[i].extractname = Z_StrDup(extr);
-				}
-				else
-					man->package[i].extractname = NULL;
-				for (j = 0; arg+j < Cmd_Argc() && j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
-				{
-					man->package[i].mirrors[j] = Z_StrDup(Cmd_Argv(arg+j));
-				}
-				break;
-			}
-		}
-		if (i == sizeof(man->package) / sizeof(man->package[0]))
-		{
-			Con_Printf("Too many packages specified in manifest\n");
-		}
+		FS_Manifest_ParsePackage(man, mdt_singlepackage, fname, crc, crcknown, extract, arg);
 	}
 	else
+	{
+		Con_Printf("Unknown token: %s %s\n", cmd, Cmd_Args());
 		result = false;
+	}
 	return result;
 }
 //read a manifest file
 ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data)
 {
-	int hasheaderver = 0;
 	ftemanifest_t *man;
 	if (!data)
 		return NULL;
@@ -459,19 +497,13 @@ ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data)
 	if (!*data)
 		return NULL;
 
-	if (!Q_strncasecmp(data, "FTEMANIFEST", 11))
-	{
-		data = Cmd_TokenizeString((char*)data, false, false);
-		hasheaderver = atoi(Cmd_Argv(1));
-	}
-
 	man = FS_Manifest_Create(fname);
 
 	while (data && *data)
 	{
 		data = Cmd_TokenizeString((char*)data, false, false);
-		if (!FS_Manifest_ParseTokens(man) && !hasheaderver)
-		{	//only support unknown things if there's an actual version specified.
+		if (!FS_Manifest_ParseTokens(man) && man->parsever <= 1)
+		{
 			FS_Manifest_Free(man);
 			return NULL;
 		}
@@ -505,7 +537,7 @@ ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data)
 //======================================================================================================
 
 
-static ftemanifest_t	*fs_manifest;	//currently active manifest.
+ftemanifest_t	*fs_manifest;	//currently active manifest.
 static searchpath_t	*com_searchpaths;
 static searchpath_t	*com_purepaths;
 static searchpath_t	*com_base_searchpaths;	// without gamedirs
@@ -1204,11 +1236,17 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 	const char *s;
 	char *o;
 	char *seg;
+	char *end = outbuf + outlen;
 
 	s = pattern;
 	seg = o = outbuf;
 	for(;;)
 	{
+		if (o == end)
+		{
+			Con_Printf("Error: filename too long\n");
+			return NULL;
+		}
 		if (*s == ':')
 		{
 			if (s == pattern+1 && (s[1] == '/' || s[1] == '\\'))
@@ -1219,7 +1257,7 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 		}
 		else if (*s == '\\' || *s == '/' || !*s)
 		{	//end of segment
-			if (o == seg && *s)
+			if (o == seg)
 			{
 				if (o == outbuf)
 				{
@@ -1334,9 +1372,19 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		return true;
 	}
 
-	fname = FS_GetCleanPath(fname, cleanname, sizeof(cleanname));
-	if (!fname)
-		return false;
+	if (*fname == 0)
+	{
+		//this is sometimes used to query the actual path.
+		//don't alow it for other stuff though.
+		if (relativeto != FS_ROOT && relativeto != FS_BINARYPATH)
+			return false;
+	}
+	else
+	{
+		fname = FS_GetCleanPath(fname, cleanname, sizeof(cleanname));
+		if (!fname)
+			return false;
+	}
 
 	switch (relativeto)
 	{
@@ -1354,6 +1402,8 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 			snprintf(out, outlen, "%s%s", host_parms.basedir, fname);
 		break;
 	case FS_ROOT:
+		if (com_installer)
+			return false;
 		if (com_homepathenabled)
 			snprintf(out, outlen, "%s%s", com_homepath, fname);
 		else
@@ -1463,6 +1513,8 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
 		return VFSOS_Open(fullname, mode);
 	case FS_ROOT:	//always bypass packs and gamedirs
+		if (com_installer)
+			return NULL;
 		if (com_homepathenabled)
 		{
 			snprintf(fullname, sizeof(fullname), "%s%s", com_homepath, filename);
@@ -2266,7 +2318,7 @@ void COM_Gamedir (const char *dir)
 {
 	ftemanifest_t *man;
 	if (!fs_manifest)
-		FS_ChangeGame(NULL, true);
+		FS_ChangeGame(NULL, true, false);
 
 	//don't allow leading dots, hidden files are evil.
 	//don't allow complex paths. those are evil too.
@@ -2326,14 +2378,14 @@ void COM_Gamedir (const char *dir)
 			Z_Free(dup);
 		}
 	}
-	FS_ChangeGame(man, cfg_reload_on_gamedir.ival);
+	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
 }
 
 #define QCFG "set allow_download_refpackages 0\nmap_autoopenportals 1\n"
 /*stuff that makes dp-only mods work a bit better*/
 #define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 /*nexuiz/xonotic has a few quirks/annoyances...*/
-#define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_bigcoords 1\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\npr_enable_uriget 0\n"
+#define NEXCFG DPCOMPAT "cl_loopbackprotocol dpp7\nset sv_listen_dp 1\nset sv_listen_qw 0\nset sv_listen_nq 0\nset sv_listen_q3 0\nset dpcompat_nopreparse 1\nset r_particlesdesc effectinfo\nset sv_bigcoords 1\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\npr_enable_uriget 0\n"
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
@@ -2600,7 +2652,7 @@ void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refn
 	fs_refnames = refnamelist?Z_StrDup(refnamelist):NULL;
 	fs_refcrcs = refcrclist?Z_StrDup(refcrclist):NULL;
 
-	FS_ChangeGame(fs_manifest, false);
+	FS_ChangeGame(fs_manifest, false, false);
 
 	if (pureflush)
 	{
@@ -3028,7 +3080,89 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 	}
 	return false;
 }
-qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen)
+
+#ifdef _WIN32
+static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) 
+{	//'stolen' from microsoft's knowledge base.
+	//required to work around microsoft being annoying.
+	TCHAR szDir[MAX_PATH];
+	char *foo;
+	switch(uMsg) 
+	{
+	case BFFM_INITIALIZED: 
+		if (GetCurrentDirectory(sizeof(szDir)/sizeof(TCHAR), szDir))
+		{
+//			foo = strrchr(szDir, '\\');
+//			if (foo)
+//				*foo = 0;
+//			foo = strrchr(szDir, '\\');
+//			if (foo)
+//				*foo = 0;
+			SendMessage(hwnd, BFFM_SETSELECTION, TRUE, (LPARAM)szDir);
+		}
+		break;
+	case BFFM_SELCHANGED: 
+		if (SHGetPathFromIDList((LPITEMIDLIST) lp ,szDir))
+		{
+			while(foo = strchr(szDir, '\\'))
+				*foo = '/';
+			//fixme: verify that id1 is a subdir perhaps?
+			SendMessage(hwnd,BFFM_SETSTATUSTEXT,0,pData?(LPARAM)va("%s/%s", szDir, pData):(LPARAM)szDir);
+		}
+		break;
+	}
+	return 0;
+}
+#endif
+
+qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
+{
+	char resultpath[MAX_PATH];
+	BROWSEINFO bi;
+	LPITEMIDLIST il;
+	memset(&bi, 0, sizeof(bi));
+	bi.hwndOwner = mainwindow; //note that this is usually still null
+	bi.pidlRoot = NULL;
+	GetCurrentDirectory(sizeof(resultpath)-1, resultpath);
+	bi.pszDisplayName = resultpath;
+	bi.lpszTitle = va("Please locate your existing %s installation", poshname);
+	bi.ulFlags = BIF_RETURNONLYFSDIRS|BIF_STATUSTEXT;
+	bi.lpfn = StupidBrowseCallbackProc;
+	bi.lParam = 0;//(LPARAM)poshname;
+	bi.iImage = 0;
+
+	//force mouse to deactivate, so that we can actually see it.
+	INS_UpdateGrabs(false, false);
+
+	il = SHBrowseForFolder(&bi);
+	if (il)
+	{
+		SHGetPathFromIDList(il, resultpath);
+		CoTaskMemFree(il);
+		Q_strncpyz(basepath, resultpath, basepathsize);
+
+		if (savedname)
+		{
+			HKEY key = NULL;
+			//and save it into the windows registry
+			if (RegCreateKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths",
+				0, NULL,
+				REG_OPTION_NON_VOLATILE,
+				KEY_WRITE,
+				NULL,
+				&key,
+				NULL) == ERROR_SUCCESS)
+			{
+				RegSetValueEx(key, savedname, 0, REG_SZ, basepath, strlen(basepath));
+
+				RegCloseKey(key);
+			}
+		}
+		return true;
+	}
+	return false;
+}
+qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
 {
 	DWORD resultlen;
 	HKEY key = NULL;
@@ -3200,44 +3334,10 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	}
 
 #if !defined(NPFTE) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
-	if (poshname && *gamename && !COM_CheckParm("-manifest"))
+	if (allowprompts && poshname && *gamename && !COM_CheckParm("-manifest"))
 	{
-		char resultpath[MAX_PATH];
-		BROWSEINFO bi;
-		LPITEMIDLIST il;
-		memset(&bi, 0, sizeof(bi));
-		bi.hwndOwner = mainwindow; //note that this is usually still null
-		bi.pidlRoot = NULL;
-		bi.pszDisplayName = resultpath;
-		bi.lpszTitle = va("Please locate your existing %s installation", poshname);
-		bi.ulFlags = BIF_RETURNONLYFSDIRS;
-		bi.lpfn = NULL;
-		bi.lParam = 0;
-		bi.iImage = 0;
-
-		il = SHBrowseForFolder(&bi);
-		if (il)
-		{
-			SHGetPathFromIDList(il, resultpath);
-			CoTaskMemFree(il);
-			Q_strncpyz(basepath, resultpath, basepathlen-1);
-
-			//and save it into the windows registry
-			if (RegCreateKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths",
-				0, NULL,
-				REG_OPTION_NON_VOLATILE,
-				KEY_WRITE,
-				NULL,
-				&key,
-				NULL) == ERROR_SUCCESS)
-			{
-				RegSetValueEx(key, gamename, 0, REG_SZ, basepath, strlen(basepath));
-
-				RegCloseKey(key);
-			}
-
+		if (Sys_DoDirectoryPrompt(basepath, basepathlen, poshname, gamename))
 			return true;
-		}
 	}
 #endif
 
@@ -3247,7 +3347,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 #ifdef __linux__
 #include <sys/stat.h>
 #endif
-qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen)
+qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
 {
 #ifdef __linux__
 	struct stat sb;
@@ -3266,6 +3366,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 #endif
 	return false;
 }
+#define Sys_DoDirectoryPrompt(bp,bps,game,savename) false
 #endif
 
 static void FS_FreePaths(void)
@@ -3314,6 +3415,14 @@ static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 	qboolean defaultret = true;
 	int j;
 	vfsfile_t *f;
+
+	f = VFSOS_Open(va("%sdefault.fmf", basedir), "rb");
+	if (f)
+	{
+		VFS_CLOSE(f);
+		return true;
+	}
+
 	for (j = 0; j < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); j++)
 	{
 		if (!man->package[j].path)
@@ -3374,17 +3483,6 @@ static int FS_IdentifyDefaultGame(char *newbase, int sizeof_newbase, qboolean fi
 	int i;
 	int gamenum = -1;
 
-	if (gamenum == -1)
-	{
-		for (i = 0; gamemode_info[i].argname; i++)
-		{
-			if (COM_CheckParm(gamemode_info[i].argname))
-			{
-				gamenum = i;
-				break;
-			}
-		}
-	}
 	//use the game based on an exe name over the filesystem one (could easily have multiple fs path matches).
 	if (gamenum == -1)
 	{
@@ -3509,10 +3607,126 @@ static char *FS_RelativeURL(char *base, char *file, char *buffer, int bufferlen)
 
 #ifdef WEBCLIENT
 static struct dl_download *curpackagedownload;
+static enum manifestdeptype_e fspdl_type;
 static char fspdl_internalname[MAX_QPATH];
 static char fspdl_temppath[MAX_OSPATH];
 static char fspdl_finalpath[MAX_OSPATH];
 static void FS_BeginNextPackageDownload(void);
+qboolean FS_DownloadingPackage(void)
+{
+	return !fs_manifest || !!curpackagedownload;
+}
+//vfsfile_t *FS_DecompressXZip(vfsfile_t *infile, vfsfile_t *outfile);
+vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *infile);
+vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile);
+static void FS_ExtractPackage(searchpathfuncs_t *archive, flocation_t *loc, const char *origname, const char *finalname)
+{
+	vfsfile_t *in = archive->OpenVFS(archive, loc, "rb");
+	if (in)
+	{
+		vfsfile_t *out = VFSOS_Open(finalname, "wb");
+		qofs_t remaining = VFS_GETLEN(in);
+		size_t count;
+		if (out)
+		{
+			char buf[65536];
+			while (remaining)
+			{
+				if (remaining < sizeof(buf))
+					count = remaining;
+				else
+					count = sizeof(buf);
+				VFS_READ(in, buf, count);
+				VFS_WRITE(out, buf, count);
+				remaining -= count;
+			}
+			VFS_CLOSE(out);
+		}
+		else
+			Con_Printf("Unable to write %s\n", finalname);
+		VFS_CLOSE(in);
+	}
+	else
+		Con_Printf("Unable to read %s\n", origname);
+}
+static int QDECL FS_ExtractAllPackages(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	//okay, this package naming thing is getting stupid.
+	flocation_t loc;
+	int status = FF_NOTFOUND;
+	status = spath->FindFile(spath, &loc, fname, NULL);
+	//FIXME: symlinks?
+	if (status == FF_FOUND)
+		FS_ExtractPackage(spath, &loc, fname, va("%s%s", (const char*)parm, fname));
+	return 1;
+}
+static void FS_PackagePrompt(char *finalpath, char *filename, char *game)
+{
+	static char existingbase[MAX_OSPATH];
+	static char prevgame[64];
+	vfsfile_t *in = NULL;
+	const char *posh = NULL;
+	int i;
+	if (game)
+	{
+		for (i = 0; i < sizeof(gamemode_info) / sizeof(gamemode_info[0]); i++)
+		{
+			if (!Q_strcasecmp(gamemode_info[i].poshname, gamemode_info[i].argname+1))
+			{
+				posh = gamemode_info[i].poshname;
+				break;
+			}
+		}
+		if (*existingbase && !strcmp(prevgame, game))
+		{
+			in = VFSOS_Open(va("%s/%s", existingbase, filename), "rb");
+			if (!in)
+				in = VFSOS_Open(va("%s/%s", existingbase, COM_SkipPath(filename)), "rb");
+		}
+		Q_strncpyz(prevgame, game, sizeof(prevgame));
+		if (!posh)
+			posh = game;
+		else if (!in && Sys_FindGameData(NULL, game, existingbase, sizeof(existingbase), false))
+		{
+			in = VFSOS_Open(va("%s/%s", existingbase, filename), "rb");
+			if (!in)
+				in = VFSOS_Open(va("%s/%s", existingbase, COM_SkipPath(filename)), "rb");
+		}
+	}
+	while(!in && Sys_DoDirectoryPrompt(existingbase, sizeof(existingbase), posh, NULL))
+	{
+		in = VFSOS_Open(va("%s/%s", existingbase, filename), "rb");
+		if (!in)
+			in = VFSOS_Open(va("%s/%s", existingbase, COM_SkipPath(filename)), "rb");
+	}
+
+	if (in)
+	{
+		vfsfile_t *out = VFSOS_Open(finalpath, "wb");
+		qofs_t remaining = VFS_GETLEN(in);
+		size_t count;
+		if (out)
+		{
+			char buf[65536];
+			while (remaining)
+			{
+				if (remaining < sizeof(buf))
+					count = remaining;
+				else
+					count = sizeof(buf);
+				VFS_READ(in, buf, count);
+				VFS_WRITE(out, buf, count);
+				remaining -= count;
+			}
+			VFS_CLOSE(out);
+		}
+		else
+			Con_Printf("Unable to write %s\n", finalpath);
+		VFS_CLOSE(in);
+	}
+	else
+		Con_Printf("Unable to read %s%s\n", existingbase, filename);
+}
 static void FS_PackageDownloaded(struct dl_download *dl)
 {
 	curpackagedownload = NULL;
@@ -3522,6 +3736,9 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 		VFS_CLOSE(dl->file);
 		dl->file = NULL;
 	}
+	if (dl->status == DL_FAILED)
+		Con_Printf("download for %s:%s failed\n", fspdl_finalpath, fspdl_internalname);
+
 	if (dl->status == DL_FINISHED)
 	{
 		//rename the file as needed.
@@ -3533,42 +3750,44 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 			if (archive)
 			{
 				flocation_t loc;
-				int status = FF_NOTFOUND;
-//FIXME: loop through all packages to extract all of them as appropriate
-				if (status == FF_NOTFOUND)
-					status = archive->FindFile(archive, &loc, fspdl_internalname, NULL);
-				if (status == FF_NOTFOUND)
-					status = archive->FindFile(archive, &loc, COM_SkipPath(fspdl_internalname), NULL);
-
-				if (status == FF_FOUND)
+				if (fspdl_type == mdt_installation)
 				{
-					vfsfile_t *in = archive->OpenVFS(archive, &loc, "rb");
-					if (in)
+					char *f = fspdl_internalname;
+					char *e;
+					for (f = fspdl_internalname; *f; f = e)
 					{
-						vfsfile_t *out = VFSOS_Open(fspdl_finalpath, "wb");
-						qofs_t remaining = VFS_GETLEN(in);
-						size_t count;
-						if (out)
+						e = strchr(f, ':');
+						if (e)
+							*e++ = 0;
+						else
+							e = f + strlen(f);
+
+						if (strchr(f, '*'))
+							archive->EnumerateFiles(archive, f, FS_ExtractAllPackages, fspdl_finalpath);
+						else
 						{
-							char buf[65536];
-							while (remaining)
-							{
-								if (remaining < sizeof(buf))
-									count = remaining;
-								else
-									count = sizeof(buf);
-								VFS_READ(in, buf, count);
-								VFS_WRITE(out, buf, count);
-								remaining -= count;
-							}
-							VFS_CLOSE(out);
+							int status = archive->FindFile(archive, &loc, f, NULL);
+							if (status == FF_FOUND)
+								FS_ExtractPackage(archive, &loc, f, va("%s%s", fspdl_finalpath, f));
 						}
-						VFS_CLOSE(in);
 					}
 				}
 				else
 				{
-					Con_Printf("Unable to find %s in %s\n", fspdl_internalname, fspdl_temppath);
+					flocation_t loc;
+					int status = FF_NOTFOUND;
+//FIXME: loop through all other packages to extract all of them as appropriate
+					if (status == FF_NOTFOUND)
+						status = archive->FindFile(archive, &loc, fspdl_internalname, NULL);
+					if (status == FF_NOTFOUND)
+						status = archive->FindFile(archive, &loc, COM_SkipPath(fspdl_internalname), NULL);
+
+					if (status == FF_FOUND)
+						FS_ExtractPackage(archive, &loc, fspdl_internalname, fspdl_finalpath);
+					else
+					{
+						Con_Printf("Unable to find %s in %s\n", fspdl_internalname, fspdl_temppath);
+					}
 				}
 				archive->ClosePath(archive);
 			}
@@ -3585,82 +3804,228 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 	Sys_remove (fspdl_temppath);
 
 	fs_restarts++;
-	FS_ChangeGame(fs_manifest, true);
+	FS_ChangeGame(fs_manifest, true, false);
 
 	FS_BeginNextPackageDownload();
 }
-static void FS_BeginNextPackageDownload(void)
+
+static qboolean FS_BeginPackageDownload(struct manpack_s *pack, char *baseurl, qboolean allownoncache)
 {
-	char *crcstr;
-	int j;
-	ftemanifest_t *man = fs_manifest;
+	char *crcstr = "";
 	vfsfile_t *check;
-	if (curpackagedownload || !man)
-		return;
+	vfsfile_t *tmpf;
 
-	for (j = 0; j < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); j++)
+	char buffer[MAX_OSPATH], *url;
+	if (pack->type == mdt_installation)
 	{
-		char buffer[MAX_OSPATH], *url;
-		if (!man->package[j].path)
-			continue;
+		char *s, *e;
+		for (s = pack->path; *s; s = e)
+		{
+			while(*s == ':')
+				s++;
+			e = strchr(s, ':');
+			if (!e)
+				e = s+strlen(s);
+			if (e-s >= sizeof(buffer))
+				continue;
+			memcpy(buffer, s, e-s);
+			buffer[e-s] = 0;
 
+			check = FS_OpenVFS(buffer, "rb", FS_ROOT);
+			if (check)
+			{
+				VFS_CLOSE(check);
+				continue;
+			}
+			break;
+		}
+		if (!*s)	//all files were already present, apparently
+			return false;
+	}
+	else
+	{
 		//check if we already have a version of the pak. if the user installed one, don't corrupt it with some unwanted pak. this may cause problems but whatever, user versitility wins.
 		//this matches the rules for loading packs too. double is utterly pointless.
-		check = FS_OpenVFS(man->package[j].path, "rb", FS_ROOT);
+		check = FS_OpenVFS(pack->path, "rb", FS_ROOT);
 		if (check)
 		{
 			VFS_CLOSE(check);
-			continue;
+			return false;
 		}
 
 		//figure out what the cached name should be and see if we already have that or not
-		if (man->package[j].crcknown)
-			crcstr = va("%#x", man->package[j].crc);
-		else
-			crcstr = "";
-		if (!FS_GenCachedPakName(man->package[j].path, crcstr, buffer, sizeof(buffer)))
-			continue;
+		if (pack->crcknown)
+			crcstr = va("%#x", pack->crc);
+		if (!pack->crcknown && allownoncache)
+			Q_strncpyz(buffer, pack->path, sizeof(buffer));
+		else if (!FS_GenCachedPakName(pack->path, crcstr, buffer, sizeof(buffer)))
+			return false;
 		check = FS_OpenVFS(buffer, "rb", FS_ROOT);
 		if (check)
 		{
 			VFS_CLOSE(check);
-			continue;
+			return false;
+		}
+	}
+
+	if (pack->type == mdt_installation)
+	{
+		//extract-all is only allowed when we're ALREADY writing to the base dir.
+		//this should only be possible when the manifest was embedded in the exe.
+		if (!allownoncache)
+		{
+			*fspdl_internalname = 0;
+			return false;
 		}
 
-		if (man->package[j].extractname)
-			Q_strncpyz(fspdl_internalname, man->package[j].extractname, sizeof(fspdl_internalname));
+		if (!pack->extractname)
+		{
+			FS_NativePath(pack->path, FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath));
+			FS_NativePath(va("%s.tmp", pack->path), FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath));
+			Q_strncpyz(fspdl_internalname, "", sizeof(fspdl_internalname));
+		}
+		else
+		{
+			if (pack->extractname && *pack->extractname)
+				Q_strncpyz(fspdl_internalname, pack->extractname, sizeof(fspdl_internalname));
+			else
+				Q_strncpyz(fspdl_internalname, pack->path, sizeof(fspdl_internalname));
+			FS_NativePath("", FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath));
+			FS_NativePath(va("%s.tmp", fs_manifest->installation), FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath));
+		}
+	}
+	else
+	{
+		if (pack->extractname)
+			Q_strncpyz(fspdl_internalname, pack->extractname, sizeof(fspdl_internalname));
 		else
 			Q_strncpyz(fspdl_internalname, "", sizeof(fspdl_internalname));
 
 		//figure out a temp name and figure out where we're going to get it from.
 		FS_NativePath(buffer, FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath));
-		if (!FS_GenCachedPakName(va("%s.tmp", man->package[j].path), crcstr, buffer, sizeof(buffer)))
-			continue;
+		if (!pack->crcknown && allownoncache)
+			Q_strncpyz(buffer, va("%s.tmp", pack->path), sizeof(buffer));
+		else if (!FS_GenCachedPakName(va("%s.tmp", pack->path), crcstr, buffer, sizeof(buffer)))
+			return false;
 		FS_NativePath(buffer, FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath));
+	}
 
-		url = NULL;
-		while(!url)
+	url = NULL;
+	while(!url)
+	{
+		//ran out of mirrors?
+		if (pack->mirrornum == (sizeof(pack->mirrors) / sizeof(pack->mirrors[0])))
+			break;
+
+		if (pack->mirrors[pack->mirrornum])
+			url = FS_RelativeURL(baseurl, pack->mirrors[pack->mirrornum], buffer, sizeof(buffer));
+		pack->mirrornum++;
+	}
+	//no valid mirrors
+	if (!url)
+		return false;
+
+	fspdl_type = pack->type;
+
+	if (!Q_strncasecmp(url, "prompt:", 7) && !*fspdl_internalname && fspdl_type != mdt_installation)
+	{
+		char file[MAX_QPATH];
+		char *game;
+		Q_strncpyz(file, url+7, sizeof(file));
+		game = strchr(file, ',');
+		if (game)
+			*game++ = 0;
+
+		FS_PackagePrompt(fspdl_finalpath, file, game);
+		return false;
+	}
+
+	COM_CreatePath(fspdl_temppath);
+	tmpf = VFSOS_Open(fspdl_temppath, "wb");
+
+	if (tmpf)
+	{
+		if (!strcmp(fspdl_internalname, "xz"))
 		{
-			//ran out of mirrors?
-			if (man->package[j].mirrornum == (sizeof(man->package[j].mirrors) / sizeof(man->package[j].mirrors[0])))
-				break;
-
-			if (man->package[j].mirrors[man->package[j].mirrornum])
-				url = FS_RelativeURL(man->updateurl, man->package[j].mirrors[man->package[j].mirrornum], buffer, sizeof(buffer));
-			man->package[j].mirrornum++;
+#ifdef AVAIL_XZDEC
+			tmpf = FS_XZ_DecompressWriteFilter(tmpf);
+#else
+			VFS_CLOSE(tmpf);
+			tmpf = NULL;
+#endif
+			*fspdl_internalname = 0;
 		}
-		//no valid mirrors
-		if (!url)
-			continue;
+		if (!strcmp(fspdl_internalname, "gz"))
+		{
+#ifdef AVAIL_ZLIB
+			tmpf = FS_GZ_DecompressWriteFilter(tmpf, true);
+#else
+			VFS_CLOSE(tmpf);
+			tmpf = NULL;
+#endif
+			*fspdl_internalname = 0;
+		}
 
+		if (!tmpf)
+			Sys_remove (fspdl_temppath);
+	}
+	if (tmpf)
+	{
 		Con_Printf("Downloading %s from %s\n", fspdl_finalpath, url);
 		curpackagedownload = HTTP_CL_Get(url, NULL, FS_PackageDownloaded);
 		if (curpackagedownload)
 		{
-			COM_CreatePath(fspdl_temppath);
-			curpackagedownload->file = VFSOS_Open(fspdl_temppath, "wb");
+			curpackagedownload->file = tmpf;
+#ifdef MULTITHREAD
+			DL_CreateThread(curpackagedownload, NULL, NULL);
+#endif
+			return true;
+		}
+		VFS_CLOSE(tmpf);
+		Sys_remove (fspdl_temppath);
+	}
+	return false;
+}
+static void FS_ManifestUpdated(struct dl_download *dl);
+static void FS_BeginNextPackageDownload(void)
+{
+	int j;
+	ftemanifest_t *man = fs_manifest;
+	if (curpackagedownload || !man || com_installer)
+		return;
+
+	if (man->doinstall)
+	{
+		for (j = 0; j < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); j++)
+		{
+			if (man->package[j].type != mdt_installation)
+				continue;
+
+			if (FS_BeginPackageDownload(&man->package[j], man->updateurl, true))
+				return;
+		}
+	}
+
+	if (man->updateurl && !man->blockupdate)
+	{
+		man->blockupdate = true;
+		Con_Printf("Updating manifest from %s\n", man->updateurl);
+		waitingformanifest++;
+		curpackagedownload = HTTP_CL_Get(man->updateurl, NULL, FS_ManifestUpdated);
+		if (curpackagedownload)
+		{
+			curpackagedownload->user_ctx = man;
 			return;
 		}
+	}
+
+	for (j = 0; j < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); j++)
+	{
+		if (man->package[j].type != mdt_singlepackage)
+			continue;
+
+		if (FS_BeginPackageDownload(&man->package[j], man->updateurl, false))
+			return;
 	}
 }
 static void FS_ManifestUpdated(struct dl_download *dl)
@@ -3668,6 +4033,7 @@ static void FS_ManifestUpdated(struct dl_download *dl)
 	ftemanifest_t *man = fs_manifest;
 
 	curpackagedownload = NULL;
+	waitingformanifest--;
 
 	if (dl->file)
 	{
@@ -3716,7 +4082,7 @@ static void FS_ManifestUpdated(struct dl_download *dl)
 								FS_WriteFile(man->updatefile, fdata, len, FS_SYSTEM);
 						}
 						if (man)
-							FS_ChangeGame(man, true);
+							FS_ChangeGame(man, true, false);
 					}
 					else
 						FS_Manifest_Free(man);
@@ -3737,20 +4103,14 @@ void FS_BeginManifestUpdates(void)
 	if (curpackagedownload || !man)
 		return;
 
-	if (man->updateurl && !man->blockupdate)
-	{
-		man->blockupdate = true;
-		Con_Printf("Updating manifest from %s\n", man->updateurl);
-		curpackagedownload = HTTP_CL_Get(man->updateurl, NULL, FS_ManifestUpdated);
-		if (curpackagedownload)
-			curpackagedownload->user_ctx = man;
-	}
-
-	//urr, failed for some reason (like the url not specified?)
 	if (!curpackagedownload)
 		FS_BeginNextPackageDownload();
 }
 #else
+qboolean FS_DownloadingPackage(void)
+{
+	return false;
+}
 void FS_BeginManifestUpdates(void)
 {
 }
@@ -3771,31 +4131,57 @@ qboolean FS_FoundManifest(void *usr, ftemanifest_t *man)
 //if fixedbasedir is true, stuff like -quake won't override/change the active basedir (ie: -basedir or gamedir switching without breaking gamedir)
 ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, qboolean fixedbasedir)
 {
+	int game = -1;
 	ftemanifest_t *man = NULL;
 
 	vfsfile_t *f;
-#ifdef BRANDING_NAME
-	f = VFSOS_Open(va("%s"STRINGIFY(BRANDING_NAME)".fmf", newbasedir), "rb");
-	if (!f)
-#endif
-		f = VFSOS_Open(va("%sdefault.fmf", newbasedir), "rb");
-	if (f)
+
+	if (!man && game == -1)
 	{
-		size_t len = VFS_GETLEN(f);
-		char *fdata = BZ_Malloc(len+1);
-		if (fdata)
+#ifdef BRANDING_NAME
+		f = VFSOS_Open(va("%s"STRINGIFY(BRANDING_NAME)".fmf", newbasedir), "rb");
+		if (!f)
+#endif
+			f = VFSOS_Open(va("%sdefault.fmf", newbasedir), "rb");
+		if (f)
 		{
-			VFS_READ(f, fdata, len);
-			fdata[len] = 0;
-			man = FS_Manifest_Parse(NULL, fdata);
-			BZ_Free(fdata);
+			size_t len = VFS_GETLEN(f);
+			char *fdata = BZ_Malloc(len+1);
+			if (fdata)
+			{
+				VFS_READ(f, fdata, len);
+				fdata[len] = 0;
+				man = FS_Manifest_Parse(NULL, fdata);
+				BZ_Free(fdata);
+			}
+			VFS_CLOSE(f);
 		}
-		VFS_CLOSE(f);
+	}
+
+	if (!man && game == -1)
+	{
+		int i;
+		for (i = 0; gamemode_info[i].argname; i++)
+		{
+			if (COM_CheckParm(gamemode_info[i].argname))
+			{
+				game = i;
+				break;
+			}
+		}
+	}
+
+	if (!man && game == -1 && host_parms.manifest)
+	{
+		man = FS_Manifest_Parse(va("%sdefault.fmf", newbasedir), host_parms.manifest);
+		if (man)
+			man->doinstall = true;
 	}
 
 	if (!man)
 	{
-		int game = FS_IdentifyDefaultGame(newbasedir, newbasedirsize, fixedbasedir);
+		if (game == -1)
+			game = FS_IdentifyDefaultGame(newbasedir, newbasedirsize, fixedbasedir);
 		if (game != -1)
 			man = FS_GenerateLegacyManifest(newbasedir, newbasedirsize, fixedbasedir, game);
 	}
@@ -3803,7 +4189,7 @@ ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, q
 }
 
 //this is potentially unsafe. needs lots of testing.
-qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
+qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean allowbasedirchange)
 {
 	int i, j;
 	char realpath[MAX_OSPATH-1];
@@ -3830,6 +4216,12 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	//make sure it has a trailing slash, or is empty. woo.
 	FS_CleanDir(newbasedir, sizeof(newbasedir));
 
+	if (!allowreloadconfigs || !allowbasedirchange || (man && fs_manifest && !Q_strcasecmp(man->installation, fs_manifest->installation)))
+	{
+		fixedbasedir = true;
+		Q_strncpyz (newbasedir, com_gamepath, sizeof(newbasedir));
+	}
+
 	if (!man)
 	{
 		//if we're already running a game, don't autodetect.
@@ -3845,12 +4237,14 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 		if (!man)
 		{
 			man = FS_Manifest_Parse(NULL,
-				"FTEMANIFEST 1\n"
+				"FTEManifestVer 1\n"
 				"game \"\"\n"
 				"name \"" FULLENGINENAME "\"\n"
 				"defaultexec \\\"vid_fullscreen 0; gl_font cour;vid_width 640; vid_height 480\"\n"
 				);
 		}
+		if (!man)
+			Sys_Error("couldn't generate dataless manifest\n");
 	}
 
 	if (man == fs_manifest)
@@ -3905,21 +4299,30 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 
 				builtingame = true;
 				if (!fixedbasedir && !FS_DirHasGame(newbasedir, i))
-					if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath)))
+					if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), !man->doinstall) && FS_DirHasGame(realpath, i))
 						Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
 				break;
 			}
 		}
 	}
 
-	if (allowreloadconfigs)
+	if (!fixedbasedir)
 	{
 		if (!builtingame && !fixedbasedir && !FS_DirHasAPackage(newbasedir, man))
-			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath)))
+		{
+			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), !man->doinstall) && FS_DirHasAPackage(realpath, man))
 				Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
-
-		Q_strncpyz (com_gamepath, newbasedir, sizeof(com_gamepath));
+			else
+			{
+				Z_Free(man->updatefile);
+				man->updatefile = NULL;
+				com_installer = true;
+			}
+		}
 	}
+	if (!fixedbasedir && !com_installer)
+		Q_strncpyz (com_gamepath, newbasedir, sizeof(com_gamepath));
+
 	//make sure it has a trailing slash, or is empty. woo.
 	FS_CleanDir(com_gamepath, sizeof(com_gamepath));
 
@@ -4019,6 +4422,25 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs)
 	return true;
 }
 
+void FS_CreateBasedir(const char *path)
+{
+	vfsfile_t *f;
+	com_installer = false;
+	Q_strncpyz (com_gamepath, path, sizeof(com_gamepath));
+	COM_CreatePath(com_gamepath);
+	FS_ChangeGame(fs_manifest, true, false);
+
+	if (host_parms.manifest)
+	{
+		f = FS_OpenVFS("default.fmf", "wb", FS_ROOT);
+		if (f)
+		{
+			VFS_WRITE(f, host_parms.manifest, strlen(host_parms.manifest));
+			VFS_CLOSE(f);
+		}
+	}
+}
+
 typedef struct
 {
 	int found;
@@ -4106,7 +4528,7 @@ void FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man),
 	{
 		for (i = 0; gamemode_info[i].argname; i++)
 		{
-			if (gamemode_info[i].manifestfile || Sys_FindGameData(NULL, gamemode_info[i].argname+1, basedir, sizeof(basedir)))
+			if (gamemode_info[i].manifestfile || Sys_FindGameData(NULL, gamemode_info[i].argname+1, basedir, sizeof(basedir), true))
 			{
 				ftemanifest_t *man = FS_GenerateLegacyManifest(NULL, 0, true, i);
 				if (e.callback(e.usr, man))
@@ -4174,7 +4596,7 @@ qboolean FS_FixupGamedirForExternalFile(char *input, char *filename, size_t fnam
 							Con_Printf("switching basedir+game to %s for %s\n", filename, input);
 							Q_strncpyz(newbase, filename, sizeof(newbase));
 							host_parms.basedir = newbase;
-							FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, game), true);
+							FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, game), true, true);
 						}
 						*sep = '/';
 						sep = NULL;
@@ -4249,7 +4671,7 @@ void FS_ChangeGame_f(void)
 			if (!Q_strcasecmp(gamemode_info[i].argname+1, arg))
 			{
 				Con_Printf("Switching to %s\n", gamemode_info[i].argname+1);
-				FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, i), true);
+				FS_ChangeGame(FS_GenerateLegacyManifest(NULL, 0, true, i), true, true);
 				return;
 			}
 		}

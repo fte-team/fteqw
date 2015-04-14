@@ -116,3 +116,4 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 void Mod_ParseInfoFromEntityLump(struct model_s *wmodel);
 qboolean Wad_NextDownload (void);
 qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalpha);
+miptex_t *W_GetMipTex(const char *name);

@@ -72,6 +72,8 @@ typedef struct trace_s
 
 	qboolean	inopen, inwater;
 	float truefraction;	//can be negative, also has floating point precision issues, etc.
+	int			brush_id;
+	int			brush_face;
 } trace_t;
 
 typedef struct q2trace_s

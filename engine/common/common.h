@@ -477,10 +477,18 @@ void COM_FlushFSCache(qboolean purge, qboolean domutex);	//a file was written us
 void COM_RefreshFSCache_f(void);
 qboolean FS_Restarted(unsigned int *since);
 
+enum manifestdeptype_e
+{
+	mdt_invalid,
+	mdt_singlepackage,	//regular package, versioned.
+	mdt_installation	//allowed to install to the root.
+};
 typedef struct
 {
 	qboolean blockupdate;	//set to block the updateurl from being used this session. this avoids recursive updates when manifests contain the same update url.
+	qboolean doinstall;		//manifest was embedded in the engine. don't assume its already installed, but ask to install it (also, enable some extra permissions for writing dlls)
 
+	int parsever;
 	int minver;	//if the engine svn revision is lower than this, the manifest will not be used as an 'upgrade'.
 	int maxver;	//if not 0, the manifest will not be used
 	qboolean disablehomedir;
@@ -490,13 +498,15 @@ typedef struct
 	char *formalname;	//the commercial name of the game. you'll get FULLENGINENAME otherwise.
 	char *protocolname;	//the name used for purposes of dpmaster
 	char *defaultexec;	//execed after cvars are reset, to give game-specific defaults.
+	char *eula;			//when running as an installer, the user will be presented with this as a prompt
 	struct
 	{
 		qboolean base;
 		char *path;
 	} gamepath[8];
-	struct
+	struct manpack_s
 	{
+		int type;
 		char *path;			//the 'pure' name
 		qboolean crcknown;	//if the crc was specified
 		unsigned int crc;	//the public crc
@@ -509,7 +519,8 @@ void FS_Manifest_Free(ftemanifest_t *man);
 ftemanifest_t *FS_Manifest_Parse(const char *fname, const char *data);
 
 void COM_InitFilesystem (void);	//does not set up any gamedirs.
-qboolean FS_ChangeGame(ftemanifest_t *newgame, qboolean allowreloadconfigs);
+qboolean FS_DownloadingPackage(void);
+qboolean FS_ChangeGame(ftemanifest_t *newgame, qboolean allowreloadconfigs, qboolean allowbasedirchange);
 void FS_Shutdown(void);
 void COM_Gamedir (const char *dir);
 char *FS_GetGamedir(qboolean publicpathonly);
@@ -529,6 +540,7 @@ void COM_FlushTempoaryPacks(void);
 
 void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm);
 
+extern qboolean com_installer;	//says that the engine is running in an 'installer' mode, and that the correct basedir is not yet known.
 extern	struct cvar_s	registered;
 extern qboolean standard_quake;	//fixme: remove
 

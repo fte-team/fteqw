@@ -184,7 +184,7 @@ qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, const c
 						built = true;
 						MSG_WriteByte(&buf, (2u<<6) | (0u<<5) | (0u<<4) | (0<<0));	//v2_p1_x1_cc4
 						MSG_WriteByte(&buf, (0u<<7) | ((i+96)<<0));	//m1_pt7
-						MSG_WriteShort(&buf, BigShort(sequence));	//seq
+						MSG_WriteShort(&buf, BigShort(sequence)&0xffff);	//seq
 						MSG_WriteLong(&buf, BigLong(timestamp));	//timestamp
 						MSG_WriteLong(&buf, BigLong(0));			//ssrc
 						SZ_Write(&buf, cdata, clength);

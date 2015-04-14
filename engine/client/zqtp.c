@@ -79,8 +79,8 @@ void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
 	TP_CVAR(tp_autostatus,		"");	/* things which will not always change, but are useful */ \
 	TP_CVAR(tp_forceTriggers,		"0");	\
 	TP_CVAR(tp_loadlocs,		"1");	\
-	TP_CVARC(cl_teamskin,		"", TP_SkinCvar_Callback);	\
-	TP_CVARC(cl_enemyskin,		"", TP_SkinCvar_Callback);	\
+	TP_CVARAC(cl_teamskin,		"", teamskin, TP_SkinCvar_Callback);	\
+	TP_CVARAC(cl_enemyskin,		"", enemyskin, TP_SkinCvar_Callback);	\
 	TP_CVAR(tp_soundtrigger,		"~");	\
 										\
 	TP_CVAR(tp_name_none,		"");	\
@@ -165,9 +165,11 @@ void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
 //create the globals for all the TP cvars.
 #define TP_CVAR(name,def) cvar_t	name = CVAR(#name, def)
 #define TP_CVARC(name,def,call) cvar_t name = CVARC(#name, def, call)
+#define TP_CVARAC(name,def,name2,call) cvar_t name = CVARAFC(#name, def, #name2, 0, call)
 TP_CVARS;
 #undef TP_CVAR
 #undef TP_CVARC
+#undef TP_CVARAC
 
 extern cvar_t	host_mapname;
 
@@ -2092,57 +2094,118 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 	player_info_t	*player;
 	char	*name;
 
+	*offset = 0;
+	*plr = NULL;
+
 	flags = TPM_UNKNOWN;
 	msglen = strlen(s);
 	if (!msglen)
 		return TPM_UNKNOWN;
 
-	*offset = 0;
-	*plr = NULL;
-
-	for (i=0, player=cl.players ; i < cl.allocated_client_slots ; i++, player++)
+	if ((s[0] == '^' && s[1] == '[') || (s[0] == '(' && s[1] == '^' && s[2] == '['))
 	{
-		name = player->name;
-		if (!(*name))
-			continue;
-		len = strlen(name);
-		// check messagemode1
-		if (len+2 <= msglen && s[len] == ':' && s[len+1] == ' '	&&
-			!strncmp(name, s, len))
+		char *end, *info;
+		i = 0;
+		for(info = s; *info; )
+		{
+			if (info[0] == '^' && info[1] == ']')
+				break;
+			if (*info == '\\')
+				break;
+			if (info[0] == '^' && info[1] == '^')
+				info+=2;
+			else
+				info++;
+		}
+		for(end = info; *end; )
+		{
+			if (end[0] == '^' && end[1] == ']')
+			{
+				*end = 0;
+				info = Info_ValueForKey(info, "player");
+				if (*info)
+					i = atoi(info)+1;
+				*end = '^';
+				break;
+			}
+			if (end[0] == '^' && end[1] == '^')
+				end+=2;
+			else
+				end++;
+		}
+		if (!*end || i < 1 || i > cl.allocated_client_slots)
+			return TPM_UNKNOWN;
+		if (*s == '(')
+		{
+			if (end[2] != ')')
+				return TPM_UNKNOWN;
+			end+=3;
+		}
+		else
+			end+=2;
+		if (*end++ != ':')
+			return TPM_UNKNOWN;
+		if (*end++ != ' ')
+			return TPM_UNKNOWN;
+		*plr = player = &cl.players[i-1];
+		*offset = end - s;
+
+		if (*s == '(')
+			flags = TPM_TEAM;
+		else
 		{
 			if (player->spectator)
 				flags |= TPM_SPECTATOR;
 			else
 				flags |= TPM_NORMAL;
-			*offset = len + 2;
-			*plr = player;
 		}
-		// check messagemode2
-		else if (s[0] == '(' && len+4 <= msglen &&
-			!strncmp(s+len+1, "): ", 3) &&
-			!strncmp(name, s+1, len))
+	}
+	else
+	{
+		for (i=0, player=cl.players ; i < cl.allocated_client_slots ; i++, player++)
 		{
-			// no team messages in teamplay 0, except for our own
-			if (cl.spectator)
+			name = player->name;
+			if (!(*name))
+				continue;
+			len = strlen(name);
+			// check messagemode1
+			if (len+2 <= msglen && s[len] == ':' && s[len+1] == ' '	&&
+				!strncmp(name, s, len))
 			{
-				unsigned int track = Cam_TrackNum(&cl.playerview[SP]);
-				if (i == track || ( cl.teamplay &&
-					!strcmp(cl.players[track].team, player->team)) )
-				{
-					flags |= TPM_OBSERVEDTEAM;
-				}
+				if (player->spectator)
+					flags |= TPM_SPECTATOR;
+				else
+					flags |= TPM_NORMAL;
+				*offset = len + 2;
+				*plr = player;
 			}
-			else
+			// check messagemode2
+			else if (s[0] == '(' && len+4 <= msglen &&
+				!strncmp(s+len+1, "): ", 3) &&
+				!strncmp(name, s+1, len))
 			{
-				if (i == cl.playerview[SP].playernum || ( cl.teamplay &&
-					!strcmp(cl.players[cl.playerview[SP].playernum].team, player->team)) )
+				// no team messages in teamplay 0, except for our own
+				if (cl.spectator)
 				{
-					flags |= TPM_TEAM;
+					unsigned int track = Cam_TrackNum(&cl.playerview[SP]);
+					if (i == track || ( cl.teamplay &&
+						!strcmp(cl.players[track].team, player->team)) )
+					{
+						flags |= TPM_OBSERVEDTEAM;
+					}
 				}
-			}
+				else
+				{
+					if (i == cl.playerview[SP].playernum || ( cl.teamplay &&
+						!strcmp(cl.players[cl.playerview[SP].playernum].team, player->team)) )
+					{
+						flags |= TPM_TEAM;
+					}
+				}
 
-			*offset = len + 4;
-			*plr = player;
+				*offset = len + 4;
+				*plr = player;
+			}
 		}
 	}
 
@@ -3390,9 +3453,11 @@ void TP_Init (void)
 	//register all the TeamPlay cvars.
 #define TP_CVAR(name,def) Cvar_Register (&name,	TEAMPLAYVARS);
 #define TP_CVARC(name,def,callback) Cvar_Register (&name, TEAMPLAYVARS);
+#define TP_CVARAC(name,def,name2,callback) Cvar_Register (&name, TEAMPLAYVARS);
 	TP_CVARS;
 #undef TP_CVAR
 #undef TP_CVARC
+#undef TP_CVARAC
 
 	Cmd_AddCommand ("loadloc", TP_LoadLocFile_f);
 	Cmd_AddCommand ("filter", TP_MsgFilter_f);
@@ -3429,7 +3494,7 @@ qboolean TP_SuppressMessage(char *buf) {
 	return false;
 }
 
-void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags);
+void CL_PrintChat(player_info_t *plr, char *msg, int plrflags);
 
 void CL_Say (qboolean team, char *extra)
 {
@@ -3509,7 +3574,7 @@ void CL_Say (qboolean team, char *extra)
 			if (team)
 				plrflags |= 2;
 
-			CL_PrintChat(&cl.players[cl.playerview[SP].playernum], NULL, text, plrflags);
+			CL_PrintChat(&cl.players[cl.playerview[SP].playernum], text, plrflags);
 		}
 
 		//strip out the extra markup

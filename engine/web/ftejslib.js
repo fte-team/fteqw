@@ -74,17 +74,21 @@ mergeInto(LibraryManager.library,
 			wantfullscreen:0
 		},
 
-		loadurl : function(url, arraybuf)
+		loadurl : function(url, mime, arraybuf)
 		{
 			if (FTEC.evcb.loadfile != 0)
 			{
 				var handle = -1;
 				if (arraybuf !== undefined)
 					handle = _emscriptenfte_buf_createfromarraybuf(arraybuf);	
-				var ptr = _malloc(url.length);
-				writeStringToMemory(url, ptr);
-				Runtime.dynCall('vii', FTEC.evcb.loadfile, [ptr, handle]);
-				_free(ptr);
+				var urlptr = _malloc(url.length+1);
+				writeStringToMemory(url, urlptr);
+				var mimeptr = _malloc(mime.length+1);
+				writeStringToMemory(mime, mimeptr);
+				Runtime.dynCall('viii', FTEC.evcb.loadfile, [urlptr, mimeptr, handle]);
+				_free(mimeptr);
+				_free(urlptr);
+				window.focus();
 			}
 		},
 
@@ -92,6 +96,11 @@ mergeInto(LibraryManager.library,
 		{
 			switch(event.type)
 			{
+				case 'message':
+					console.log(event);
+					console.log(event.data);
+					FTEC.loadurl(event.data.url, event.data.cmd, undefined);
+					break;
 				case 'resize':
 					if (FTEC.evcb.resize != 0)
 						Runtime.dynCall('vii', FTEC.evcb.resize, [Module['canvas'].width, Module['canvas'].height]);
@@ -118,6 +127,7 @@ mergeInto(LibraryManager.library,
 					}
 					break;
 				case 'mousedown':
+					window.focus();
 					if (Browser.isFullScreen == 0)
 					if (FTEC.evcb.wantfullscreen != 0)
 					if (Runtime.dynCall('i', FTEC.evcb.wantfullscreen, []))
@@ -155,6 +165,7 @@ mergeInto(LibraryManager.library,
 						Runtime.dynCall('iiiii', FTEC.evcb.key, [0, 1, 0, event.charCode]);
 						Runtime.dynCall('iiiii', FTEC.evcb.key, [0, 0, 0, event.charCode]);
 						event.preventDefault();
+						event.stopPropagation();
 					}
 					break;
 				case 'keydown':
@@ -203,7 +214,7 @@ mergeInto(LibraryManager.library,
 						var reader = new FileReader();
 						reader.onload = function(evt)
 						{
-							FTEC.loadurl(file.name, evt.target.result);
+							FTEC.loadurl(file.name, "", evt.target.result);
 						};
 						reader.readAsArrayBuffer(file);
 					}
@@ -290,14 +301,17 @@ mergeInto(LibraryManager.library,
 		if (!FTEC.donecb)
 		{
 			FTEC.donecb = 1;
-			var events = ['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup', 'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove', 'dragenter', 'dragover', 'drop', 'gamepadconnected', 'gamepaddisconnected'];
+			var events = ['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup', 'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove', 'dragenter', 'dragover', 'drop', 'gamepadconnected', 'gamepaddisconnected', 'message'];
 			events.forEach(function(event)
 			{
 				Module['canvas'].addEventListener(event, FTEC.handleevent, true);
-			});
-			events.forEach(function(event)
-			{
 				document.addEventListener(event, FTEC.handleevent, true);
+			});
+
+			var windowevents = ['message'];
+			windowevents.forEach(function(event)
+			{
+				window.addEventListener(event, FTEC.handleevent, true);
 			});
 
 			Browser.resizeListeners.push(function(w, h) {
@@ -346,7 +360,7 @@ mergeInto(LibraryManager.library,
 		{
 			window.onhashchange = function()
 			{
-				FTEC.loadurl(location.hash.substring(1));
+				FTEC.loadurl(location.hash.substring(1), "", undefined);
 			};
 		}
 
@@ -532,16 +546,16 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_ws_connect : function(url)
 	{
 		var _url = Pointer_stringify(url);
-		var s = {ws:null, inq:[], err:0};
+		var s = {ws:null, inq:[], err:0, con:0};
 		s.ws = new WebSocket(_url, 'binary');
-		if (!s.ws)
+		if (s.ws === undefined)
 			return -1;
-		s.ws.onerror = function(event) {s.err = 1;};
-		s.ws.onclose = function(event) {s.err = 1;};
-	//	s.ws.onopen = function(event) {};
+		s.ws.onerror = function(event) {s.con = 0; s.err = 1;};
+		s.ws.onclose = function(event) {s.con = 0; s.err = 1;};
+		s.ws.onopen = function(event) {s.con = 1;};
 		s.ws.onmessage = function(event)
 			{
-		    assert(typeof event.data !== 'string' && event.data.byteLength);
+				assert(typeof event.data !== 'string' && event.data.byteLength);
 				s.inq.push(new Uint8Array(event.data));
 			};
 
@@ -550,7 +564,7 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_ws_close : function(sockid)
 	{
 		var s = FTEH.h[sockid];
-		if (!s)
+		if (s === undefined)
 			return -1;
 		s.ws.close();
 		s.ws = null;	//make sure to avoid circular references
@@ -561,22 +575,24 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_ws_cansend : function(sockid, extra, maxpending)
 	{
 		var s = FTEH.h[sockid];
-		if (!s)
+		if (s === undefined)
 			return 1;	//go on punk, make my day.
 		return ((s.ws.bufferedAmount+extra) < maxpending);
 	},
 	emscriptenfte_ws_send : function(sockid, data, len)
 	{
 		var s = FTEH.h[sockid];
-		if (!s)
+		if (s === undefined)
 			return -1;
-		s.s.send(HEAPU8.subarray(data, data+len).buffer);
+		if (s.con == 0 || len < 1 || len > 125)
+			return 0; //not connected yet
+		s.ws.send(HEAPU8.subarray(data, data+len).buffer);
 		return len;
 	},
 	emscriptenfte_ws_recv : function(sockid, data, len)
 	{
 		var s = FTEH.h[sockid];
-		if (!s)
+		if (s === undefined)
 			return -1;
 		var inp = s.inq.shift();
 		if (inp)
@@ -587,8 +603,8 @@ mergeInto(LibraryManager.library,
 			return inp.length;
 		}
 		if (s.err)
-			return 0;
-		return -1;
+			return -1;
+		return 0;
 	},
 
 

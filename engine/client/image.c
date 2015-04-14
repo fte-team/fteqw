@@ -846,7 +846,7 @@ struct pngerr
 static void VARGS png_onerror(png_structp png_ptr, png_const_charp error_msg)
 {
 	struct pngerr *err = qpng_get_error_ptr(png_ptr);
-	Con_Printf("libpng %s: %s", err->fname, error_msg);
+	Con_Printf("libpng %s: %s\n", err->fname, error_msg);
 	longjmp(err->jbuf, 1);
 	abort();
 }
@@ -854,7 +854,7 @@ static void VARGS png_onerror(png_structp png_ptr, png_const_charp error_msg)
 static void VARGS png_onwarning(png_structp png_ptr, png_const_charp warning_msg)
 {
 	struct pngerr *err = qpng_get_error_ptr(png_ptr);
-	Con_Printf("libpng %s: %s\n", err->fname, warning_msg);
+	Con_DPrintf("libpng %s: %s\n", err->fname, warning_msg);
 }
 
 qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *fname)
@@ -2820,7 +2820,7 @@ static void Image_GenerateMips(struct pendingtextureinfo *mips, unsigned int fla
 	case PTI_RGBX8:
 	case PTI_BGRA8:
 	case PTI_BGRX8:
-		for (mip = 1; mip < 32; mip++)
+		for (mip = mips->mipcount; mip < 32; mip++)
 		{
 			mips->mip[mip].width = mips->mip[mip-1].width >> 1;
 			mips->mip[mip].height = mips->mip[mip-1].height >> 1;
@@ -3418,7 +3418,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	case TF_RGBA32F:
 		if (rawdata)
 		{
-			Con_Printf("R_LoadRawTexture: bad format");
+			Con_Printf("R_LoadRawTexture: bad format\n");
 			if (freedata)
 				BZ_Free(rawdata);
 			return false;
@@ -3428,7 +3428,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 
 	default:
 	case TF_INVALID:
-		Con_Printf("R_LoadRawTexture: bad format");
+		Con_Printf("R_LoadRawTexture: bad format\n");
 		if (freedata)
 			BZ_Free(rawdata);
 		return false;
@@ -3444,9 +3444,78 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	case TF_BGRA32:
 		mips->encoding = PTI_BGRA8;
 		break;
+	case TF_MIP4_LUM8:
+		//8bit opaque data
+		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
+		{
+			unsigned int pixels =
+				(imgwidth>>0) * (imgheight>>0) + 
+				(imgwidth>>1) * (imgheight>>1) +
+				(imgwidth>>2) * (imgheight>>2) +
+				(imgwidth>>3) * (imgheight>>3);
+
+			mips->encoding = PTI_R8;
+			rgbadata = BZ_Malloc(pixels);
+			memcpy(rgbadata, rawdata, pixels);
+
+			for (i = 0; i < 4; i++)
+			{
+				mips->mip[i].width = imgwidth>>i;
+				mips->mip[i].height = imgheight>>i;
+				mips->mip[i].datasize = mips->mip[i].width * mips->mip[i].height;
+				mips->mip[i].needfree = false;
+			}
+			mips->mipcount = i;
+			mips->mip[0].data = rgbadata;
+			mips->mip[1].data = (qbyte*)mips->mip[0].data + mips->mip[0].datasize;
+			mips->mip[2].data = (qbyte*)mips->mip[1].data + mips->mip[1].datasize;
+			mips->mip[3].data = (qbyte*)mips->mip[2].data + mips->mip[2].datasize;
+
+			mips->extrafree = rgbadata;
+			if (freedata)
+				BZ_Free(rawdata);
+			return true;
+		}
+		//fall through
 	case TF_LUM8:
 		mips->encoding = PTI_R8;
 		break;
+	case TF_MIP4_SOLID8:
+		//8bit opaque data
+		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && sh_config.texfmt[PTI_RGBX8])
+		{
+			unsigned int pixels =
+				(imgwidth>>0) * (imgheight>>0) + 
+				(imgwidth>>1) * (imgheight>>1) +
+				(imgwidth>>2) * (imgheight>>2) +
+				(imgwidth>>3) * (imgheight>>3);
+
+			mips->encoding = PTI_RGBX8;
+			rgbadata = BZ_Malloc(pixels*4);
+			for (i = 0; i < pixels; i++)
+				rgbadata[i] = d_8to24rgbtable[((qbyte*)rawdata)[i]];
+
+			for (i = 0; i < 4; i++)
+			{
+				mips->mip[i].width = imgwidth>>i;
+				mips->mip[i].height = imgheight>>i;
+				mips->mip[i].datasize = mips->mip[i].width * mips->mip[i].height * 4;
+				mips->mip[i].needfree = false;
+			}
+			mips->mipcount = i;
+			mips->mip[0].data = rgbadata;
+			mips->mip[1].data = (qbyte*)mips->mip[0].data + mips->mip[0].datasize;
+			mips->mip[2].data = (qbyte*)mips->mip[1].data + mips->mip[1].datasize;
+			mips->mip[3].data = (qbyte*)mips->mip[2].data + mips->mip[2].datasize;
+
+			mips->extrafree = rgbadata;
+			if (freedata)
+				BZ_Free(rawdata);
+			return true;
+		}
+		//fall through
 	case TF_SOLID8:
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
 		if (sh_config.texfmt[PTI_BGRX8])
@@ -4185,9 +4254,12 @@ image_t *Image_CreateTexture (const char *identifier, const char *subdir, unsign
 image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
 {
 	image_t *tex;
+	static int seq;
 
 	qboolean dontposttoworker = (flags & (IF_NOWORKER | IF_LOADNOW));
-	flags &= ~IF_LOADNOW;
+	qboolean lowpri = (flags & IF_LOWPRIORITY);
+	qboolean highpri = (flags & IF_HIGHPRIORITY);
+	flags &= ~(IF_LOADNOW | IF_LOWPRIORITY | IF_HIGHPRIORITY);
 
 #ifdef LOADERTHREAD
 	Sys_LockMutex(com_resourcemutex);
@@ -4214,16 +4286,16 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 	tex->status = TEX_LOADING;
 	if (fallbackdata)
 	{
-		int b, pb = 0;
+		int b = fallbackwidth*fallbackheight, pb = 0;
 		switch(fallbackfmt)
 		{
 		case TF_8PAL24:
 			pb = 3*256;
-			b = 1;
+			b *= 1;
 			break;
 		case TF_8PAL32:
 			pb = 4*256;
-			b = 1;
+			b *= 1;
 			break;
 		case TF_LUM8:
 		case TF_SOLID8:
@@ -4234,21 +4306,28 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 		case TF_H2_T4A4:
 		case TF_HEIGHT8:
 		case TF_HEIGHT8PAL:	//we don't care about the actual palette.
-			b = 1;
+			b *= 1;
 			break;
 		case TF_RGBX32:
 		case TF_RGBA32:
 		case TF_BGRX32:
 		case TF_BGRA32:
-			b = 4;
+			b *= 4;
+			break;
+		case TF_MIP4_LUM8:
+		case TF_MIP4_SOLID8:
+			b = (fallbackwidth>>0)*(fallbackheight>>0) +
+				(fallbackwidth>>1)*(fallbackheight>>1) +
+				(fallbackwidth>>2)*(fallbackheight>>2) +
+				(fallbackwidth>>3)*(fallbackheight>>3);
 			break;
 		default:
 			Sys_Error("Image_GetTexture: bad format");
 		}
-		tex->fallbackdata = BZ_Malloc(fallbackwidth*fallbackheight*b + pb);
-		memcpy(tex->fallbackdata, fallbackdata, fallbackwidth*fallbackheight*b);
+		tex->fallbackdata = BZ_Malloc(b + pb);
+		memcpy(tex->fallbackdata, fallbackdata, b);
 		if (pb)
-			memcpy((qbyte*)tex->fallbackdata + fallbackwidth*fallbackheight*b, fallbackpalette, pb);
+			memcpy((qbyte*)tex->fallbackdata + b, fallbackpalette, pb);
 		tex->fallbackwidth = fallbackwidth;
 		tex->fallbackheight = fallbackheight;
 		tex->fallbackfmt = fallbackfmt;
@@ -4268,7 +4347,12 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 	if (dontposttoworker)
 		Image_LoadHiResTextureWorker(tex, NULL, 0, 0);
 	else
-		COM_AddWork(1, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
+	{
+		if (lowpri)
+			COM_AddWork(5, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
+		else
+			COM_AddWork(2+(seq++%3), Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
+	}
 	return tex;
 }
 void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags)

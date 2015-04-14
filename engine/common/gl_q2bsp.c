@@ -141,8 +141,8 @@ void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs)
 
 void ClearBounds (vec3_t mins, vec3_t maxs)
 {
-	mins[0] = mins[1] = mins[2] = 999999999;
-	maxs[0] = maxs[1] = maxs[2] = -999999999;
+	mins[0] = mins[1] = mins[2] = FLT_MAX;
+	maxs[0] = maxs[1] = maxs[2] = -FLT_MAX;
 }
 
 
@@ -1215,7 +1215,7 @@ texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname, char *
 	image_t *base;
 
 	Q_snprintfz (name, sizeof(name), "textures/%s.wal", texname);
-	wal = (void *)FS_LoadMallocFile (texname, NULL);
+	wal = (void *)FS_LoadMallocFile (name, NULL);
 	if (!wal)
 	{
 		wal = &replacementwal;
@@ -1263,11 +1263,31 @@ texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname, char *
 				tex->width = base->width;
 				tex->height = base->height;
 			}
+			else
+				Con_Printf("Unable to load textures/%s.wal\n", wal->name);
 		}
 
 	}
 	else
+	{
+		unsigned int size = 
+		(wal->width>>0)*(wal->height>>0) +
+		(wal->width>>1)*(wal->height>>1) +
+		(wal->width>>2)*(wal->height>>2) +
+		(wal->width>>3)*(wal->height>>3);
+
+		tex->mips[0] = BZ_Malloc(size);
+		tex->palette = host_basepal;
+		tex->mips[1] = tex->mips[0] + (wal->width>>0)*(wal->height>>0);
+		tex->mips[2] = tex->mips[1] + (wal->width>>1)*(wal->height>>1);
+		tex->mips[3] = tex->mips[2] + (wal->width>>2)*(wal->height>>2);
+		memcpy(tex->mips[0], (qbyte *)wal + wal->offsets[0], (wal->width>>0)*(wal->height>>0));
+		memcpy(tex->mips[1], (qbyte *)wal + wal->offsets[1], (wal->width>>1)*(wal->height>>1));
+		memcpy(tex->mips[2], (qbyte *)wal + wal->offsets[2], (wal->width>>2)*(wal->height>>2));
+		memcpy(tex->mips[3], (qbyte *)wal + wal->offsets[3], (wal->width>>3)*(wal->height>>3));
+
 		BZ_Free(wal);
+	}
 
 	return tex;
 }
@@ -3933,7 +3953,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 				if (header.lumps[i].filelen && header.lumps[i].fileofs + header.lumps[i].filelen > filelen)
 				{
-					Con_Printf (CON_ERROR "WARNING: q3bsp %s truncated (lump %i, %i+%i > %i)\n", mod->name, i, header.lumps[i].fileofs, header.lumps[i].filelen, filelen);
+					Con_Printf (CON_ERROR "WARNING: q3bsp %s truncated (lump %i, %i+%i > %u)\n", mod->name, i, header.lumps[i].fileofs, header.lumps[i].filelen, (unsigned int)filelen);
 					header.lumps[i].filelen = filelen - header.lumps[i].fileofs;
 					if (header.lumps[i].filelen < 0)
 						header.lumps[i].filelen = 0;
@@ -5128,6 +5148,7 @@ static void Mod_Trace_Trisoup_(vecV_t *posedata, index_t *indexes, size_t numind
 	}
 }
 
+/*
 static void CM_ClipBoxToMesh (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2, trace_t *trace, mesh_t *mesh)
 {
 	trace_truefraction = trace->truefraction;
@@ -5136,6 +5157,7 @@ static void CM_ClipBoxToMesh (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2, tr
 	trace->truefraction = trace_truefraction;
 	trace->fraction = trace_nearfraction;
 }
+*/
 
 static void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 					  trace_t *trace, q2cbrush_t *brush)

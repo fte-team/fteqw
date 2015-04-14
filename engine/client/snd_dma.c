@@ -83,7 +83,7 @@ cvar_t snd_show					= CVARAF(	"s_show", "0",
 											"snd_show", 0);
 cvar_t snd_khz					= CVARAFD(	"s_khz", "48",
 											"snd_khz", CVAR_ARCHIVE, "Sound speed, in kilohertz. Common values are 11, 22, 44, 48. Values above 1000 are explicitly in hertz.");
-cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "0",
+cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "1",
 											"snd_inactive", 0,
 											"Play sound while application is inactive (ex. tabbed out). Needs a snd_restart if changed."
 											);	//set if you want sound even when tabbed out.
@@ -754,7 +754,7 @@ void S_Voip_RTP_Parse(unsigned short sequence, char *codec, unsigned char *data,
 	if (!strcmp(codec, "speex@11025"))
 		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_OLD, 0, sequence, datalen, data);	//very much non-standard rtp
 	if (!strcmp(codec, "speex@16000"))
-		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_WIDE, 0, sequence, datalen, data);
+		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_WIDE, 0, sequence&0xff, datalen, data);
 	if (!strcmp(codec, "speex@32000"))
 		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_ULTRAWIDE, 0, sequence, datalen, data);
 	if (!strcmp(codec, "opus"))
@@ -2450,6 +2450,8 @@ void S_StopAllSounds(qboolean clear)
 			{
 				s = sc->channel[i].sfx;
 				sc->channel[i].sfx = NULL;
+				if (s->loadstate == SLS_LOADING)
+					COM_WorkerPartialSync(s, &s->loadstate, SLS_LOADING);
 				if (s->decoder.ended)
 				if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
 				{

@@ -88,6 +88,7 @@ qboolean	Cmd_AddCommandD (char *cmd_name, xcommand_t function, char *description
 // as a clc_stringcmd instead of executed locally
 
 qboolean Cmd_Exists (const char *cmd_name);
+char *Cmd_AliasExist(const char *name, int restrictionlevel);
 // used by the cvar code to check for cvar / command name overlap
 
 char *Cmd_Describe (char *cmd_name);

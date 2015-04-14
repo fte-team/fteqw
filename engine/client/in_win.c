@@ -65,6 +65,8 @@ static cvar_t	cl_keypad = CVAR("cl_keypad", "1");
 extern float multicursor_x[8], multicursor_y[8];
 extern qboolean multicursor_active[8];
 
+POINT		current_mouse_pos;
+
 typedef struct {
 	union {
 		HANDLE rawinputhandle;
@@ -534,9 +536,18 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 	else
 		grabmouse = false;
 
-	//visiblity
-	if (!SCR_HardwareCursorIsActive() && (fullscreen || in_simulatemultitouch.ival || grabmouse || (activeapp && mousecursor_x > 0 && mousecursor_y > 0 && mousecursor_x < vid.pixelwidth-1 && mousecursor_y < vid.pixelheight-1)))
-		INS_HideMouse();
+	if (activeapp)
+	{
+		if (!SCR_HardwareCursorIsActive() && (fullscreen || in_simulatemultitouch.ival || _windowed_mouse.value) && (current_mouse_pos.x >= window_rect.left && current_mouse_pos.y >= window_rect.top && current_mouse_pos.x <= window_rect.right && current_mouse_pos.y <= window_rect.bottom))
+		{
+			INS_HideMouse();
+		}
+		else 
+		{
+			INS_ShowMouse();
+			grabmouse = false;
+		}
+	}
 	else
 	{
 		INS_ShowMouse();
@@ -573,7 +584,7 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 
 
 #ifdef AVAIL_DINPUT
-BOOL CALLBACK INS_EnumerateDevices(LPCDIDEVICEINSTANCE inst, LPVOID parm)
+BOOL CALLBACK INS_EnumerateDI7Devices(LPCDIDEVICEINSTANCE inst, LPVOID parm)
 {
 	Con_DPrintf("EnumerateDevices found: %s\n", inst->tszProductName);
 
@@ -620,7 +631,7 @@ int INS_InitDInput (void)
 		if (FAILED(hr))
 			return 0;
 
-		IDirectInput7_EnumDevices(g_pdi7, 0, &INS_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
+		IDirectInput7_EnumDevices(g_pdi7, 0, &INS_EnumerateDI7Devices, NULL, DIEDFL_ATTACHEDONLY);
 
 		// obtain an interface to the system mouse device.
 		hr = IDirectInput7_CreateDeviceEx(g_pdi7, &fGUID_SysMouse, &fIID_IDirectInputDevice7A, &g_pMouse7, NULL);
@@ -678,7 +689,7 @@ int INS_InitDInput (void)
 	{
 		return 0;
 	}
-	IDirectInput_EnumDevices(g_pdi, 0, &INS_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
+	IDirectInput_EnumDevices(g_pdi, 0, &INS_EnumerateDI7Devices, NULL, DIEDFL_ATTACHEDONLY);
 
 // obtain an interface to the system mouse device.
 	hr = IDirectInput_CreateDevice(g_pdi, &fGUID_SysMouse, &g_pMouse, NULL);
@@ -1330,6 +1341,8 @@ void INS_Move (float *movements, int pnum)
 		INS_MouseMove (movements, pnum);
 		INS_JoyMove (movements, pnum);
 	}
+	else
+		INS_Accumulate();
 }
 
 
@@ -1341,8 +1354,6 @@ potentially called multiple times per frame.
 */
 void INS_Accumulate (void)
 {
-	static POINT		current_pos;	//static to avoid bugs in vista(32) with largeaddressaware (this is fixed in win7). fixed exe base address prevents this from going above 2gb.
-
 	if (mouseactive && !dinput)
 	{
 #ifdef USINGRAWINPUT
@@ -1350,9 +1361,9 @@ void INS_Accumulate (void)
 		if (!rawmicecount)
 #endif
 		{
-			GetCursorPos (&current_pos);
+			GetCursorPos (&current_mouse_pos);
 
-			IN_MouseMove(sysmouse.qdeviceid, false, current_pos.x - window_center_x, current_pos.y - window_center_y, 0, 0);
+			IN_MouseMove(sysmouse.qdeviceid, false, current_mouse_pos.x - window_center_x, current_mouse_pos.y - window_center_y, 0, 0);
 		}
 
 	// force the mouse to the center, so there's room to move (rawinput ignore this apparently)
@@ -1362,9 +1373,9 @@ void INS_Accumulate (void)
 	if (!mouseactive)
 	{
 		extern int window_x, window_y;
-		GetCursorPos (&current_pos);
+		GetCursorPos (&current_mouse_pos);
 
-		IN_MouseMove(sysmouse.qdeviceid, true, current_pos.x-window_x, current_pos.y-window_y, 0, 0);
+		IN_MouseMove(sysmouse.qdeviceid, true, current_mouse_pos.x-window_x, current_mouse_pos.y-window_y, 0, 0);
 		return;
 	}
 }
@@ -1790,6 +1801,15 @@ qboolean INS_ReadJoystick (struct wjoy_s *joy)
 	}
 	else
 	{
+		joy->povstate = 0;
+		joy->buttonstate = 0;
+		joy->axis[JOY_AXIS_X] = 32768;
+		joy->axis[JOY_AXIS_Y] = 32768;
+		joy->axis[JOY_AXIS_Z] = 32768;
+		joy->axis[JOY_AXIS_R] = 32768;
+		joy->axis[JOY_AXIS_U] = 32768;
+		joy->axis[JOY_AXIS_V] = 32768;
+
 		// read error occurred
 		// turning off the joystick seems too harsh for 1 read error,
 		// but what should be done?
@@ -1994,8 +2014,27 @@ void INS_JoyMove (float *movements, int pnum)
 
 	for (idx = 0; idx < joy_count; idx++)
 	{
-		INS_JoyMovePtr(&wjoy[idx], movements, idx);
+		INS_JoyMovePtr(&wjoy[idx], movements, pnum);
 	}
+}
+
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char *devicename, int *qdevid))
+{
+	int idx;
+
+	for (idx = 0; idx < rawmicecount; idx++)
+		callback(ctx, "mouse", va("raw%i", idx), &rawmice[idx].qdeviceid);
+	for (idx = 0; idx < rawkbdcount; idx++)
+		callback(ctx, "keyboard", va("rawi", idx), &rawkbd[idx].qdeviceid);
+
+	if (dinput >= DINPUT_VERSION_DX7 && g_pMouse7)
+		callback(ctx, "mouse", "di7", NULL);
+	else if (dinput && g_pMouse7)
+		callback(ctx, "mouse", "di", NULL);
+	callback(ctx, "mouse", "system", NULL);
+
+	for (idx = 0; idx < joy_count; idx++)
+		callback(ctx, "joy", va("mmj%i", idx), &wjoy[idx].devid);
 }
 
 static qbyte        scantokey[] =

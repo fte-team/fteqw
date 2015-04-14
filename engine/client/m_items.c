@@ -1414,31 +1414,47 @@ void MC_Slider_Key(menuslider_t *option, int key)
 	if (key == K_LEFTARROW || key == K_MWHEELDOWN)
 	{
 		range -= delta;
-		if (range < option->min)
-			range = option->min;
+		if (option->min > option->max)
+			range = bound(option->max, range, option->min);
+		else
+			range = bound(option->min, range, option->max);
 		option->current = range;
 	}
 	else if (key == K_RIGHTARROW || key == K_MWHEELUP)
 	{
 		range += delta;
-		if (range > option->max)
-			range = option->max;
+		if (option->min > option->max)
+			range = bound(option->max, range, option->min);
+		else
+			range = bound(option->min, range, option->max);
 		option->current = range;
 	}
 	else if (key == K_MOUSE1 && mousecursor_x >= ix-8 && mousecursor_x < ex+8)
 	{
 		range = (mousecursor_x - ix) / (ex - ix);
 		range = option->min + range*(option->max-option->min);
+		if (option->min > option->max)
+			range = bound(option->max, range, option->min);
+		else
+			range = bound(option->min, range, option->max);
 		option->current = range;
 	}
 	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1)
 	{
-		range += delta;
-
-		if (range >= option->max + delta/2)
+		if (range == option->max)
 			range = option->min;
-		if (range > option->max)
-			range = option->max;
+		else
+		{
+			range += delta;
+			if (option->min > option->max)
+			{
+				if (range < option->max-delta/2)
+					range = option->max;
+			}
+			else
+				if (range > option->max-delta/2)
+					range = option->max;
+		}
 		option->current = range;
 	}
 	else
@@ -2183,6 +2199,7 @@ void M_Menu_Main_f (void)
 #endif
 		if (QBigFontWorks())
 	{
+		int y;
 		m_state = m_complex;
 		Key_Dest_Add(kdm_menu);
 		mainm = M_CreateMenu(0);
@@ -2203,18 +2220,35 @@ void M_Menu_Main_f (void)
 
 		MC_AddCenterPicture(mainm, 4, 24, "gfx/ttl_main.lmp");
 
+		y = 32;
 		mainm->selecteditem = (menuoption_t *)
-		MC_AddConsoleCommandQBigFont	(mainm, 72, 32,	"Single       ", "menu_single\n");
-		MC_AddConsoleCommandQBigFont	(mainm, 72, 52,	"Multiplayer  ", "menu_multi\n");
-		MC_AddConsoleCommandQBigFont	(mainm, 72, 72,	"Options      ", "menu_options\n");
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Single       ", "menu_single\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Multiplayer  ", "menu_multi\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options      ", "menu_options\n");	y += 20;
 		if (m_helpismedia.value)
-			MC_AddConsoleCommandQBigFont(mainm, 72, 92,	"Media        ", "menu_media\n");
+		{
+			MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Media        ", "menu_media\n");	y += 20;
+		}
 		else
-			MC_AddConsoleCommandQBigFont(mainm, 72, 92,	"Help         ", "help\n");
+		{
+			MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Help         ", "help\n");			y += 20;
+		}
+		if (Cmd_AliasExist("mod_menu", RESTRICT_LOCAL))
+		{
+			MC_AddConsoleCommandQBigFont(mainm, 72, y,	va("%-13s", Cvar_Get("mod_menu", "Mod Menu", 0, NULL)->string), "mod_menu\n");			y += 20;
+		}
+		if (Cmd_Exists("xmpp"))
+		{
+			MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Social       ", "xmpp\n");			y += 20;
+		}
+		if (Cmd_Exists("irc"))
+		{
+			MC_AddConsoleCommandQBigFont(mainm, 72, y,	"IRC          ", "irc\n");			y += 20;
+		}
 #ifdef FTE_TARGET_WEB
-		MC_AddConsoleCommandQBigFont	(mainm, 72, 112,"Save Settings", "menu_quit\n");
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Save Settings", "menu_quit\n");	y += 20;
 #else
-		MC_AddConsoleCommandQBigFont	(mainm, 72, 112,"Quit         ", "menu_quit\n");
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit         ", "menu_quit\n");	y += 20;
 #endif
 
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);

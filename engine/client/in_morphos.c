@@ -213,6 +213,9 @@ void INS_ProcessInputMessage(struct InputEvent *msg, qboolean consumemotion)
 void INS_Commands(void)
 {
 }
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char *devicename, int *qdevid))
+{
+}
 void INS_Move (float *movements, int pnum)
 {
 }

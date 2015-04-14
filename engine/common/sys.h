@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void Sys_mkdir (char *path);	//not all pre-unix systems have directories (including dos 1)
 qboolean Sys_remove (char *path);
 qboolean Sys_Rename (char *oldfname, char *newfname);
-qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen);
+qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts);
 
 //
 // memory protection
@@ -49,6 +49,7 @@ void Sys_Warn (char *fmt, ...) LIKEPRINTF(1);
 
 void Sys_Quit (void);
 void Sys_RecentServer(char *command, char *target, char *title, char *desc);
+qboolean Sys_RunInstaller(void);
 
 typedef struct {
 	void **funcptr;

@@ -295,9 +295,9 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		debuggerinstance = prinst;
 		debuggerfile = filename;
 		if (reason)
-			Con_Footerf(false, "^bDebugging: %s", reason);
+			Con_Footerf(NULL, false, "^bDebugging: %s", reason);
 		else
-			Con_Footerf(false, "^bDebugging");
+			Con_Footerf(NULL, false, "^bDebugging");
 		while(debuggerresume == -1 && !wantquit)
 		{
 			Sleep(10);
@@ -1015,7 +1015,16 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_touchtriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
-	wedict_t *ent = (wedict_t*)PROG_TO_EDICT(prinst, *w->g.self);
+	wedict_t *ent = ((prinst->callargc>0)?G_WEDICT(prinst, OFS_PARM0):PROG_TO_WEDICT(prinst, *w->g.self));
+	if (prinst->callargc > 1)
+	{
+		if (ent->readonly)
+		{
+			Con_Printf("setorigin on readonly entity %i\n", ent->entnum);
+			return;
+		}
+		VectorCopy(G_VECTOR(OFS_PARM1), ent->v->origin);
+	}
 	World_LinkEdict (w, ent, true);
 }
 
@@ -1231,6 +1240,11 @@ void QCBUILTIN PF_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		G_INT(OFS_RETURN) = 0;
 }
 
+void QCBUILTIN PF_cvars_haveunsaved (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = Cvar_UnsavedArchive();
+}
+
 //string(string cvarname) cvar_defstring
 void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1438,8 +1452,6 @@ void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 //memory stuff
 ////////////////////////////////////////////////////
 //hash table stuff
-#define MAX_QC_HASHTABLES 256
-
 typedef struct
 {
 	pubprogfuncs_t *prinst;
@@ -1458,12 +1470,16 @@ typedef struct
 		char	*stringdata;
 	};
 } pf_hashentry_t;
-pf_hashtab_t pf_hashtab[MAX_QC_HASHTABLES];
+pf_hashtab_t *pf_hashtab;
+size_t pf_hash_maxtables;
 pf_hashtab_t pf_peristanthashtab;	//persists over map changes.
 pf_hashtab_t pf_reverthashtab;		//pf_peristanthashtab as it was at map start, for map restarts.
 static pf_hashtab_t *PF_hash_findtab(pubprogfuncs_t *prinst, int idx)
 {
-	if (!idx)
+	idx -= 1;
+	if (idx >= 0 && (unsigned)idx < pf_hash_maxtables && pf_hashtab[idx].prinst)
+		return &pf_hashtab[idx];
+	else if (idx == -1)
 	{
 		if (!pf_peristanthashtab.tab.numbuckets)
 		{
@@ -1475,9 +1491,6 @@ static pf_hashtab_t *PF_hash_findtab(pubprogfuncs_t *prinst, int idx)
 		}
 		return &pf_peristanthashtab;
 	}
-	idx -= 1;
-	if (idx >= 0 && idx < MAX_QC_HASHTABLES && pf_hashtab[idx].prinst)
-		return &pf_hashtab[idx];
 	else
 		PR_BIError(prinst, "PF_hash_findtab: invalid hash table\n");
 	return NULL;
@@ -1585,7 +1598,7 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	{
 		if (!type)
 			type = tab->defaulttype;
-		if (flags & 256)
+		if (!(flags & 512) || (flags & 256))
 		{
 			ent = Hash_Get(&tab->tab, name);
 			if (ent)
@@ -1635,6 +1648,7 @@ void QCBUILTIN PF_hash_destroytab (pubprogfuncs_t *prinst, struct globalvars_s *
 }
 void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	//FIXME: these need to be managed by the qcvm for garbage collection
 	int i;
 	int numbuckets = G_FLOAT(OFS_PARM0);
 //	qboolean dupestrings = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):false;
@@ -1643,20 +1657,27 @@ void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *p
 		type = ev_vector;
 	if (numbuckets < 4)
 		numbuckets = 64;
-	for (i = 0; i < MAX_QC_HASHTABLES; i++)
-	{
+
+	for (i = 0; i < pf_hash_maxtables; i++)
+	{	//look for an empty slot
 		if (!pf_hashtab[i].prinst)
+			break;
+	}
+	if (i == pf_hash_maxtables)
+	{	//all slots taken, expand list
+		if (!ZF_ReallocElements(&pf_hashtab, &pf_hash_maxtables, pf_hash_maxtables+64, sizeof(*pf_hashtab)))
 		{
-			pf_hashtab[i].defaulttype = type;
-			pf_hashtab[i].prinst = prinst;
-			pf_hashtab[i].bucketmem = Z_Malloc(Hash_BytesForBuckets(numbuckets));
-			Hash_InitTable(&pf_hashtab[i].tab, numbuckets, pf_hashtab[i].bucketmem);
-			G_FLOAT(OFS_RETURN) = i + 1;
+			G_FLOAT(OFS_RETURN) = 0;
 			return;
 		}
 	}
-	G_FLOAT(OFS_RETURN) = 0;
-	return;
+
+	//fill it in
+	pf_hashtab[i].defaulttype = type;
+	pf_hashtab[i].prinst = prinst;
+	pf_hashtab[i].bucketmem = Z_Malloc(Hash_BytesForBuckets(numbuckets));
+	Hash_InitTable(&pf_hashtab[i].tab, numbuckets, pf_hashtab[i].bucketmem);
+	G_FLOAT(OFS_RETURN) = i + 1;
 }
 
 void pf_hash_savegame(void)	//write the persistant table to a saved game.
@@ -4847,6 +4868,11 @@ void QCBUILTIN PF_localcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	char	*str;
 
 	str = PF_VarString(prinst, 0, pr_globals);
+	if (developer.ival)
+	{
+		PR_StackTrace(prinst, false);
+		Con_Printf("localcmd: %s\n", str);
+	}
 	if (!strcmp(str, "host_framerate 0\n"))
 		Cbuf_AddText ("sv_mintic 0\n", RESTRICT_INSECURE);	//hmm... do this better...
 	else

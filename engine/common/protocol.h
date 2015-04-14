@@ -282,6 +282,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_voicechat			84
 #define	svcfte_setangledelta		85	// [angle3] add this to the current viewangles
 #define svcfte_updateentities		86
+#define svcfte_brushedit			87	// networked brush editing, paired with clcfte_brushedit.
 
 
 //fitz svcs
@@ -413,14 +414,15 @@ enum clcq2_ops_e
 #define	clc_stringcmd		4	// [string] message
 #define	clc_delta			5	// [qbyte] sequence number, requests delta compression of message
 #define clc_tmove			6	// teleport request, spectator only
-#define clc_upload			7	// teleport request, spectator only
+#define clc_upload			7	// 
 
 #define clcdp_ackframe			50
 #define clcdp_ackdownloaddata	51
 
-#define clc_qcrequest		81
-#define clc_prydoncursor	82
-#define clc_voicechat		83
+#define clcfte_qcrequest		81
+#define clcfte_prydoncursor		82
+#define clcfte_voicechat		83
+#define clcfte_brushedit		84
 
 //==============================================
 

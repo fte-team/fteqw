@@ -904,9 +904,9 @@ void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	}
 	else if (!strcmp(field, "hidden"))
 	{
-		RETURN_TSTRING((con->flags & CON_HIDDEN)?"1":"0");
+		RETURN_TSTRING((con->flags & CONF_HIDDEN)?"1":"0");
 		if (value)
-			con->flags = (con->flags & ~CON_HIDDEN) | (atoi(value)?CON_HIDDEN:0);
+			con->flags = (con->flags & ~CONF_HIDDEN) | (atoi(value)?CONF_HIDDEN:0);
 	}
 	else if (!strcmp(field, "linecount"))
 	{
@@ -943,7 +943,7 @@ void QCBUILTIN PF_SubConDraw (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		fontsize *= world->g.drawfontscale[1];
 	}
 
-	Con_DrawOneConsole(con, PR_CL_ChooseFont(world->g.drawfont, fontsize, fontsize), pos[0], pos[1], size[0], size[1]);
+	Con_DrawOneConsole(con, con->flags & CONF_KEYFOCUSED, PR_CL_ChooseFont(world->g.drawfont, fontsize, fontsize), pos[0], pos[1], size[0], size[1]);
 }
 qboolean Key_Console (console_t *con, unsigned int unicode, int key);
 void Key_ConsoleRelease (console_t *con, unsigned int unicode, int key);
@@ -1184,7 +1184,10 @@ void QCBUILTIN PF_isdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 //float	clientstate(void)  = #62;
 void QCBUILTIN PF_clientstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = cls.state >= ca_connected ? 2 : 1;	//fit in with netquake	 (we never run a menu.dat dedicated)
+	if (isDedicated)
+		G_FLOAT(OFS_RETURN) = 0;
+	else
+		G_FLOAT(OFS_RETURN) = cls.state >= ca_connected ? 2 : 1;	//fit in with netquake	 (we never run a menu.dat dedicated)
 }
 
 //too specific to the prinst's builtins.
@@ -1646,6 +1649,11 @@ static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s 
 	model_t *mod = Mod_ForName(modelname, MLV_WARN);
 	if (modelval)
 		modelval->string = G_INT(OFS_PARM1);	//lets hope garbage collection is enough.
+
+	if (mod)
+		while(mod->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+
 	if (mod && minsval)
 		VectorCopy(mod->mins, minsval->_vector);
 	if (mod && maxsval)
@@ -1960,6 +1968,7 @@ static struct {
 	{"con_printf",				PF_SubConPrintf,			392},
 	{"con_draw",				PF_SubConDraw,				393},
 	{"con_input",				PF_SubConInput,				394},
+	{"cvars_haveunsaved",		PF_cvars_haveunsaved,		0},
 															//gap
 	{"buf_create",				PF_buf_create,				440},
 	{"buf_del",					PF_buf_del,					441},

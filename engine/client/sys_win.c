@@ -123,7 +123,7 @@ double Sys_DoubleTime (void)
 void Sys_Quit (void)
 {
 	Host_Shutdown ();
-	exit(1);
+	exit(0);
 }
 
 void Sys_mkdir (char *path)
@@ -291,7 +291,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(
 #else
 
 #if defined(GLQUAKE)
-//#define PRINTGLARRAYS
+#define PRINTGLARRAYS
 #endif
 
 #if defined(_DEBUG) || defined(DEBUG)
@@ -606,7 +606,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	}
 
 #ifdef PRINTGLARRAYS
-	if (!iswatchdog && qrenderer == QR_OPENGL)
+	if (!iswatchdog && qrenderer == QR_OPENGL && Sys_IsMainThread())
 		DumpGLState();
 #endif
 
@@ -2841,7 +2841,7 @@ void Sys_SetAutoUpdateSetting(int newval)
 	Update_Check();
 }
 
-qboolean Sys_CheckUpdated(void)
+qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 {
 	int ffe = COM_CheckParm("--fromfrontend");
 	PROCESS_INFORMATION childinfo;
@@ -2924,7 +2924,12 @@ qboolean Sys_CheckUpdated(void)
 				return true;
 		}
 		if (com_argv[ffe+2])
+		{
 			com_argv[0] = com_argv[ffe+2];
+			Q_strncpyz(bindir, com_argv[0], bindirsize);
+			*COM_SkipPath(bindir) = 0;
+		}
+
 	}
 	return false;
 }
@@ -2936,7 +2941,7 @@ int Sys_GetAutoUpdateSetting(void)
 void Sys_SetAutoUpdateSetting(int newval)
 {
 }
-qboolean Sys_CheckUpdated(void)
+qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 {
 	return false;
 }
@@ -3024,6 +3029,7 @@ void Sys_DoFileAssociations(qboolean elevated)
 
 	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_BSPFile.1");
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".bsp", REG_SZ, command, strlen(command));
+	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".map", REG_SZ, command, strlen(command));
 
 //	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".fmf", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
 //	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\MIMEAssociations", "application/x-ftemanifest", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
@@ -3172,6 +3178,593 @@ static int Sys_ProcessCommandline(char **argv, int maxargc, char *argv0)
 	return i;
 }
 
+//using this like posix' access function, but with much more code, microsoftisms, and no errno codes/info
+//no, I don't really have a clue why it needs to be so long.
+#include <svrapi.h>
+BOOL microsoft_access(LPCSTR pszFolder, DWORD dwAccessDesired)
+{
+	HANDLE			hToken;
+	PRIVILEGE_SET	PrivilegeSet;
+	DWORD			dwPrivSetSize;
+	DWORD			dwAccessGranted;
+	BOOL			fAccessGranted = FALSE;
+	GENERIC_MAPPING	GenericMapping;
+	SECURITY_INFORMATION si = (SECURITY_INFORMATION)( OWNER_SECURITY_INFORMATION|GROUP_SECURITY_INFORMATION|DACL_SECURITY_INFORMATION);
+	PSECURITY_DESCRIPTOR psdSD = NULL;
+	DWORD			dwNeeded;
+	wchar_t			wpath[MAX_OSPATH];
+	widen(wpath, sizeof(wpath), pszFolder);
+	GetFileSecurity(pszFolder,si,NULL,0,&dwNeeded);
+	psdSD = malloc(dwNeeded);
+	GetFileSecurity(pszFolder,si,psdSD,dwNeeded,&dwNeeded);
+	ImpersonateSelf(SecurityImpersonation);
+	OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &hToken);
+	memset(&GenericMapping, 0xff, sizeof(GENERIC_MAPPING));
+	GenericMapping.GenericRead = ACCESS_READ;
+	GenericMapping.GenericWrite = ACCESS_WRITE;
+	GenericMapping.GenericExecute = 0;
+	GenericMapping.GenericAll = ACCESS_READ | ACCESS_WRITE;
+	MapGenericMask(&dwAccessDesired, &GenericMapping);
+	dwPrivSetSize = sizeof(PRIVILEGE_SET);
+	AccessCheck(psdSD, hToken, dwAccessDesired, &GenericMapping, &PrivilegeSet, &dwPrivSetSize, &dwAccessGranted, &fAccessGranted);
+	free(psdSD);
+	return fAccessGranted;
+}
+
+int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
+{
+	wchar_t widecaption[256];
+	wchar_t widetext[2048];
+	widen(widetext, sizeof(widetext), lpText);
+	widen(widecaption, sizeof(widecaption), lpCaption);
+	return MessageBoxW(hWnd, widetext, widecaption, uType);
+}
+
+
+
+static WNDPROC omgwtfwhyohwhy;
+LRESULT CALLBACK stoopidstoopidstoopid(HWND w, UINT m, WPARAM wp, LPARAM lp)
+{
+	switch (m)
+	{
+	case WM_NOTIFY:
+		switch (((LPNMHDR)lp)->code)
+		{
+		case TVN_ENDLABELEDITW:
+			{
+				LRESULT r;
+				NMTVDISPINFOW *fu = (NMTVDISPINFOW*)lp;
+				NMTREEVIEWW gah;
+				gah.action = TVC_UNKNOWN;
+				gah.itemOld = fu->item;
+				gah.itemNew = fu->item;
+				gah.ptDrag.x = gah.ptDrag.y = 0;
+				gah.hdr = fu->hdr;
+				gah.hdr.code = TVN_SELCHANGEDW;
+				r = CallWindowProc(omgwtfwhyohwhy,w,m,wp,lp);
+				CallWindowProc(omgwtfwhyohwhy,w,WM_NOTIFY,wp,(LPARAM)&gah);
+				return r;
+			}
+			break;
+		case TVN_ENDLABELEDITA:
+			{
+				LRESULT r;
+				NMTVDISPINFOA *fu = (NMTVDISPINFOA*)lp;
+				NMTREEVIEWA gah;
+				gah.action = TVC_UNKNOWN;
+				gah.itemOld = fu->item;
+				gah.itemNew = fu->item;
+				gah.ptDrag.x = gah.ptDrag.y = 0;
+				gah.hdr = fu->hdr;
+				gah.hdr.code = TVN_SELCHANGEDA;
+				r = CallWindowProc(omgwtfwhyohwhy,w,m,wp,lp);
+				CallWindowProc(omgwtfwhyohwhy,w,WM_NOTIFY,wp,(LPARAM)&gah);
+				return r;
+			}
+			break;
+		case TVN_SELCHANGEDA:
+		case TVN_SELCHANGEDW:
+			break;
+		}
+		break;
+	}
+	return CallWindowProc(omgwtfwhyohwhy,w,m,wp,lp);
+}
+
+struct egadsthisisretarded
+{
+	char title[MAX_OSPATH];
+	char subdir[MAX_OSPATH];
+	char parentdir[MAX_OSPATH];
+	char statustext[MAX_OSPATH];
+};
+
+static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pDatafoo) 
+{	//'stolen' from microsoft's knowledge base.
+	//required to work around microsoft being annoying.
+	struct egadsthisisretarded *pData = (struct egadsthisisretarded*)pDatafoo;
+	TCHAR szDir[MAX_PATH];
+//	char *foo;
+	HWND edit = FindWindowEx(hwnd, NULL, "EDIT", NULL);
+	HWND list;
+	extern qboolean	com_homepathenabled;
+//	OutputDebugString(va("got %u (%u)\n", uMsg, lp));
+	switch(uMsg)
+	{
+	case BFFM_INITIALIZED:
+		OutputDebugString("initialised\n");
+
+		//combat windows putting new windows behind everything else if it takes a while for UAC prompts to go away
+		SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE);
+
+		//combat windows bug where renaming something doesn't update the dialog's path
+		list = FindWindowEx(hwnd, NULL, "SHBROWSEFORFOLDER SHELLNAMESPACE CONTROL", NULL);
+		if (list)
+			omgwtfwhyohwhy = (WNDPROC)SetWindowLongPtr(list, GWLP_WNDPROC, (LONG_PTR)stoopidstoopidstoopid);
+
+#ifndef _DEBUG
+		//the standard location iiuc
+		if (com_homepathenabled && SHGetSpecialFolderPath(NULL, szDir, CSIDL_PROGRAM_FILES, TRUE) && microsoft_access(szDir, ACCESS_READ | ACCESS_WRITE))
+			;
+		else if (microsoft_access("C:\\Games\\", ACCESS_READ | ACCESS_WRITE))
+			Q_strncpyz(szDir, "C:\\Games\\", sizeof(szDir));
+		else if (microsoft_access("C:\\", ACCESS_READ | ACCESS_WRITE))
+			Q_strncpyz(szDir, "C:\\", sizeof(szDir));
+		//if we're not an admin, install it somewhere else.
+		else if (SHGetSpecialFolderPath(NULL, szDir, CSIDL_LOCAL_APPDATA, TRUE) && microsoft_access(szDir, ACCESS_READ | ACCESS_WRITE))
+			;
+		else
+#endif
+			if (GetCurrentDirectory(sizeof(szDir)/sizeof(TCHAR), szDir) && microsoft_access(szDir, ACCESS_READ | ACCESS_WRITE))
+				;
+		SendMessage(hwnd, BFFM_SETSELECTION, TRUE, (LPARAM)szDir);
+//		SendMessage(hwnd, BFFM_SETEXPANDED, TRUE, (LPARAM)szDir);
+		SendMessageW(hwnd, BFFM_SETOKTEXT, TRUE, (LPARAM)L"Install");
+		break;
+	case BFFM_VALIDATEFAILEDA:
+		if (!microsoft_access(pData->parentdir, ACCESS_READ | ACCESS_WRITE))
+			return 1;
+		if (edit)
+			GetWindowText(edit, pData->subdir, sizeof(pData->subdir));
+
+		if (microsoft_access(va("%s\\%s", pData->parentdir, pData->subdir), ACCESS_READ))
+			return MessageBoxU(hwnd, va("%s\\%s already exists!\nThis installer will (generally) not overwrite.\nIf you want to re-install, you must manually uninstall it first.\n\nContinue?", pData->parentdir, pData->subdir), fs_gamename.string, MB_ICONWARNING|MB_OKCANCEL|MB_TOPMOST) == IDCANCEL;
+		else
+			return MessageBoxU(hwnd, va("Install to %s\\%s ?", pData->parentdir, pData->subdir), fs_gamename.string, MB_OKCANCEL) == IDCANCEL;
+	case BFFM_VALIDATEFAILEDW:
+		return 1;//!microsoft_access("C:\\Games\\", ACCESS_READ | ACCESS_WRITE))
+	case BFFM_SELCHANGED: 
+		OutputDebugString("selchanged\n");
+		if (SHGetPathFromIDList((LPITEMIDLIST)lp, pData->parentdir))
+		{
+//			OutputDebugString(va("selchanged: %s\n", szDir));
+//			while(foo = strchr(pData->parentdir, '\\'))
+//				*foo = '/';
+			//fixme: verify that id1 is a subdir perhaps?
+			if (edit)
+			{
+				SetWindowText(edit, fs_gamename.string);
+				SendMessageA(hwnd, BFFM_SETSTATUSTEXT, 0, (LPARAM)va("%s", pData->parentdir));
+			}
+			else
+				SendMessageA(hwnd, BFFM_SETSTATUSTEXT, 0, (LPARAM)va("%s/%s", pData->parentdir, fs_gamename.string));
+		}
+		break;
+	case BFFM_IUNKNOWN:
+		break;
+	}
+	return 0;
+}
+
+LRESULT CALLBACK NoCloseWindowProc(HWND w, UINT m, WPARAM wp, LPARAM lp)
+{
+	if (m == WM_CLOSE)
+		return 0;
+	return DefWindowProc(w, m, wp, lp);
+}
+
+void FS_CreateBasedir(const char *path);
+qboolean Sys_DoInstall(void)
+{
+	extern ftemanifest_t *fs_manifest;
+	char exepath[MAX_OSPATH];
+	char newexepath[MAX_OSPATH];
+	char resultpath[MAX_PATH];
+	BROWSEINFO bi;
+	LPITEMIDLIST il;
+	struct egadsthisisretarded diediedie;
+
+	if (fs_manifest && fs_manifest->eula)
+	{
+		if (MessageBoxU(NULL, fs_manifest->eula, fs_gamename.string, MB_OKCANCEL|MB_TOPMOST|MB_DEFBUTTON2) != IDOK)
+			return TRUE;
+	}
+
+	memset(&bi, 0, sizeof(bi));
+	bi.hwndOwner = mainwindow; //note that this is usually still null
+	bi.pidlRoot = NULL;
+	GetCurrentDirectory(sizeof(resultpath)-1, resultpath);
+	bi.pszDisplayName = resultpath;
+	Q_snprintfz(diediedie.title, sizeof(diediedie.title), "Where would you like to install %s to?", fs_gamename.string);
+	bi.lpszTitle = diediedie.title;
+	bi.ulFlags = BIF_RETURNONLYFSDIRS|BIF_STATUSTEXT | BIF_EDITBOX|BIF_NEWDIALOGSTYLE|BIF_VALIDATE;
+	bi.lpfn = StupidBrowseCallbackProc;
+	bi.lParam = (LPARAM)&diediedie;
+	bi.iImage = 0;
+
+	Q_strncpyz(diediedie.subdir, fs_gamename.string, sizeof(diediedie.subdir));
+
+	il = SHBrowseForFolder(&bi);
+	if (il)
+	{
+		SHGetPathFromIDList(il, resultpath);
+		CoTaskMemFree(il);
+	}
+	else
+		return true;
+
+	Q_strncatz(resultpath, "/", sizeof(resultpath));
+	if (*diediedie.subdir)
+	{
+		Q_strncatz(resultpath, diediedie.subdir, sizeof(resultpath));
+		Q_strncatz(resultpath, "/", sizeof(resultpath));
+	}
+
+	FS_CreateBasedir(resultpath);
+
+	GetModuleFileName(NULL, exepath, sizeof(exepath));
+	FS_NativePath(va("%s.exe", fs_gamename.string), FS_ROOT, newexepath, sizeof(newexepath));
+	CopyFile(exepath, newexepath, FALSE);
+
+	/*the game can now be run (using regular autoupdate stuff), but most installers are expected to install the data instead of just more downloaders, so lets do that with a 'nice' progress box*/
+	{
+		HINSTANCE hInstance = NULL;
+		HWND progress, label, wnd;
+		WNDCLASS wc;
+		RECT ca;
+		int sh;
+		int pct = -100;
+		char fname[MAX_OSPATH];
+		memset(&wc, 0, sizeof(wc));
+	    wc.style = 0;
+		wc.lpfnWndProc		= NoCloseWindowProc;//Progress_Wnd;
+		wc.hInstance		= hInstance;
+		wc.hCursor			= LoadCursor (NULL,IDC_ARROW);
+		wc.hbrBackground	= (void *)COLOR_WINDOW;
+		wc.lpszClassName	= "FTEPROG";
+		RegisterClass(&wc);
+
+		ca.right = GetSystemMetrics(SM_CXSCREEN);
+		ca.bottom = GetSystemMetrics(SM_CYSCREEN);
+
+		mainwindow = wnd = CreateWindowEx(0, wc.lpszClassName, va("%s Installer",  fs_gamename.string), 0, (ca.right-320)/2, (ca.bottom-100)/2, 320, 100, NULL, NULL, hInstance, NULL);
+
+		GetClientRect(wnd, &ca); 
+		sh = GetSystemMetrics(SM_CYVSCROLL);
+
+		InitCommonControls();
+		label = CreateWindow("STATIC","", WS_CHILD | WS_VISIBLE | SS_PATHELLIPSIS, sh, ((ca.bottom-ca.top-sh)/3), ca.right-ca.left-2*sh, sh, wnd, NULL, hInstance, NULL);
+		progress = CreateWindowEx(0, PROGRESS_CLASS, NULL, WS_CHILD | WS_VISIBLE | PBS_SMOOTH, sh, ((ca.bottom-ca.top-sh)/3)*2, ca.right-ca.left-2*sh, sh, wnd, NULL, hInstance, NULL);
+
+		ShowWindow(wnd, SW_NORMAL);
+		SetWindowPos(wnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE);
+
+		SendMessage(progress, PBM_SETRANGE32, 0, 10000);
+		*fname = 0;
+		HTTP_CL_Think();
+		while(FS_DownloadingPackage())
+		{
+			MSG msg;
+			char *cur = cls.download?COM_SkipPath(cls.download->localname):"Please Wait";
+			int newpct = cls.download?cls.download->percent*100:0;
+
+			if (cls.download && cls.download->sizeunknown)
+			{
+				//marquee needs manifest bollocks in order to work. so lets just not bother.
+				float time = Sys_DoubleTime();
+				newpct = 10000 * (time - (int)time);
+				if ((int)time & 1)
+					newpct = 10000 - newpct;
+			}
+
+			if (Q_strcmp(fname, cur))
+			{
+				Q_strncpyz(fname, cur, sizeof(fname));
+				SetWindowText(label, fname);
+			}
+			if (pct != newpct)
+			{
+				SendMessage(progress, PBM_SETPOS, pct, 0);
+				pct = newpct;
+			}
+
+			while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE))
+				DispatchMessage (&msg);
+
+			Sleep(10);
+			HTTP_CL_Think();
+		}
+		DestroyWindow(progress);
+		DestroyWindow(wnd);
+		UnregisterClass("FTEPROG", hInstance);
+		mainwindow = NULL;
+	}
+
+	/*create startmenu icon*/
+	if (MessageBoxU(NULL, va("Create Startmenu icon for %s?", fs_gamename.string), fs_gamename.string, MB_YESNO|MB_ICONQUESTION|MB_TOPMOST) == IDYES)
+	{
+		HRESULT hres;
+		IShellLinkW *psl;
+		hres = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (LPVOID*)&psl);
+		if (SUCCEEDED(hres))
+		{
+			char startmenu[MAX_OSPATH];
+			WCHAR wsz[MAX_PATH];
+			IPersistFile *ppf;
+			widen(wsz, sizeof(wsz), newexepath);
+			psl->lpVtbl->SetPath(psl, wsz);
+			widen(wsz, sizeof(wsz), resultpath);
+			psl->lpVtbl->SetWorkingDirectory(psl, wsz);
+			hres = psl->lpVtbl->QueryInterface(psl, &IID_IPersistFile, (LPVOID*)&ppf);
+			if (SUCCEEDED(hres) && SHGetSpecialFolderPath(NULL, startmenu, CSIDL_COMMON_PROGRAMS, TRUE))
+			{
+				WCHAR wsz[MAX_PATH];
+				widen(wsz, sizeof(wsz), va("%s/%s.lnk", startmenu, fs_gamename.string));
+				hres = ppf->lpVtbl->Save(ppf, wsz, TRUE);
+				if (hres == E_ACCESSDENIED && SHGetSpecialFolderPath(NULL, startmenu, CSIDL_PROGRAMS, TRUE))
+				{
+					widen(wsz, sizeof(wsz), va("%s/%s.lnk", startmenu, fs_gamename.string));
+					hres = ppf->lpVtbl->Save(ppf, wsz, TRUE);
+				}
+				ppf->lpVtbl->Release(ppf);
+			}
+			psl->lpVtbl->Release(psl);
+		}
+	}
+
+	//now start it up properly.
+	ShellExecute(mainwindow, "open", newexepath, Q_strcasecmp(fs_manifest->installation, "quake")?"":"+sys_register_file_associations", resultpath, SW_SHOWNORMAL);
+	return true;
+}
+qboolean Sys_RunInstaller(void)
+{
+	HINSTANCE ch;
+	char exepath[MAX_OSPATH];
+	if (COM_CheckParm("-doinstall"))
+		return Sys_DoInstall();
+	if (!com_installer)
+		return false;
+	if (MessageBoxU(NULL, va("%s is not installed. Install now?", fs_gamename.string), fs_gamename.string, MB_OKCANCEL|MB_ICONQUESTION|MB_TOPMOST) == IDOK)
+	{
+		GetModuleFileName(NULL, exepath, sizeof(exepath));
+		ch = ShellExecute(mainwindow, "runas", com_argv[0], va("%s -doinstall", COM_Parse(GetCommandLine())), NULL, SW_SHOWNORMAL);
+		if ((intptr_t)ch > 32)
+			return true;	//succeeded. should quit out.
+		return Sys_DoInstall();	//if it failed, try doing it with the current privileges
+	}
+	return true;
+}
+
+#include "fs.h"
+#define RESLANG MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_UK)
+static const char *Sys_FindManifest(void)
+{
+	HRSRC hdl = FindResource(NULL, MAKEINTRESOURCE(1), RT_RCDATA);
+	HGLOBAL hgl = LoadResource(NULL, hdl);
+	return LockResource(hgl);
+}
+
+//size info that microsoft recommends
+static const struct
+{
+	int width;
+	int height;
+	int bpp;
+} icosizes[] = {
+//	{96, 96, 32},
+	{48, 48, 32},
+	{32, 32, 32},
+	{16, 16, 32},
+//	{16, 16, 4},
+//	{48, 48, 4},
+//	{32, 32, 4},
+//	{16, 16, 1},
+//	{48, 48, 1},
+//	{32, 32, 1},
+	{256, 256, 32}	//vista!
+};
+//dates back to 16bit windows. bah.
+#pragma pack(push)
+#pragma pack(2)
+typedef struct
+{
+	WORD idReserved;
+	WORD idType;
+	WORD idCount;
+	struct
+	{
+		BYTE  bWidth;
+		BYTE  bHeight;
+		BYTE  bColorCount;
+		BYTE  bReserved;
+		WORD  wPlanes;
+		WORD  wBitCount;
+		DWORD dwBytesInRes;
+		WORD  nId;
+	} idEntries[sizeof(icosizes)/sizeof(icosizes[0])];
+} icon_group_t;
+#pragma pack(pop)
+
+static void Sys_MakeInstaller(const char *name)
+{
+	vfsfile_t *filehandle;
+	qbyte *filedata;
+	unsigned int filelen;
+	char *error = NULL;
+	HANDLE bin;
+	char ourname[MAX_OSPATH];
+	char newname[MAX_OSPATH];
+	char tmpname[MAX_OSPATH];
+
+	Q_snprintfz(newname, sizeof(newname), "%s.exe", name);
+	Q_snprintfz(tmpname, sizeof(tmpname), "tmp.exe");
+
+	GetModuleFileName(NULL, ourname, sizeof(ourname));
+
+	if (!CopyFile(ourname, tmpname, FALSE))
+		error = va("\"%s\" already exists or cannot be written", tmpname);
+
+	if (!(bin = BeginUpdateResource(tmpname, FALSE)))
+		error = "BeginUpdateResource failed";
+	else
+	{
+		//nuke existing icons.
+		UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, NULL, 0);
+		UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(2), RESLANG, NULL, 0);
+//		UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(3), RESLANG, NULL, 0);
+
+		filehandle = VFSOS_Open(va("%s.png", name), "rb");
+		if (filehandle)
+		{
+			icon_group_t icondata;
+			qbyte *rgbadata;
+			int imgwidth, imgheight;
+			int iconid = 1;
+			qboolean hasalpha;
+			memset(&icondata, 0, sizeof(icondata));
+			icondata.idType = 1;
+			filelen = VFS_GETLEN(filehandle);
+			filedata = BZ_Malloc(filelen);
+			VFS_READ(filehandle, filedata, filelen);
+			VFS_CLOSE(filehandle);
+
+			rgbadata = Read32BitImageFile(filedata, filelen, &imgwidth, &imgheight, &hasalpha, va("%s.png", name));
+			if (!rgbadata)
+				error = "unable to read icon image";
+			else
+			{
+				void *data = NULL;
+				unsigned int datalen = 0;
+				unsigned int i;
+				extern cvar_t gl_lerpimages;
+				gl_lerpimages.ival = 1;
+				for (i = 0; i < sizeof(icosizes)/sizeof(icosizes[0]); i++)
+				{
+					unsigned int x,y;
+					unsigned int pixels;
+					if (icosizes[i].width > imgwidth || icosizes[i].height > imgheight)
+						continue;	//ignore icons if they're bigger than the original icon.
+
+					if (icosizes[i].bpp == 32 && icosizes[i].width >= 128 && icosizes[i].height >= 128 && icosizes[i].width == imgwidth && icosizes[i].height == imgheight)
+					{	//png compression. oh look. we originally loaded a png!
+						data = filedata;
+						datalen = filelen;
+					}
+					else
+					{
+						//generate the bitmap info
+						BITMAPV4HEADER *bi;
+						qbyte *out, *outmask;
+						qbyte *in, *inrow;
+						unsigned int outidx;
+
+						pixels = icosizes[i].width * icosizes[i].height;
+
+						bi = data = Z_Malloc(sizeof(*bi) + icosizes[i].width * icosizes[i].height * 5 + icosizes[i].height*4);
+						memset(bi,0, sizeof(BITMAPINFOHEADER));
+						bi->bV4Size				= sizeof(BITMAPINFOHEADER);
+						bi->bV4Width			= icosizes[i].width;
+						bi->bV4Height			= icosizes[i].height * 2;
+						bi->bV4Planes			= 1;
+						bi->bV4BitCount			= icosizes[i].bpp;
+						bi->bV4V4Compression	= BI_RGB;
+						bi->bV4ClrUsed			= (icosizes[i].bpp>=32?0:(1u<<icosizes[i].bpp));
+
+						datalen = bi->bV4Size;
+						out = (qbyte*)data + datalen;
+						datalen += ((icosizes[i].width*icosizes[i].bpp/8+3)&~3) * icosizes[i].height;
+						outmask = (qbyte*)data + datalen;
+						datalen += ((icosizes[i].width+31)&~31)/8 * icosizes[i].height;
+
+						in = malloc(pixels*4);
+						Image_ResampleTexture((unsigned int*)rgbadata, imgwidth, imgheight, (unsigned int*)in, icosizes[i].width, icosizes[i].height);
+
+						inrow = in;
+						outidx = 0;
+						if (icosizes[i].bpp == 32)
+						{
+							for (y = 0; y < icosizes[i].height; y++)
+							{
+								inrow = in + 4*icosizes[i].width*(icosizes[i].height-1-y);
+								for (x = 0; x < icosizes[i].width; x++)
+								{
+									if (inrow[3] == 0)	//transparent
+										outmask[outidx>>3] |= 1u<<(outidx&7);
+									else
+									{
+										out[0] = inrow[2];
+										out[1] = inrow[1];
+										out[2] = inrow[0];
+									}
+									out += 4;
+									outidx++;
+									inrow += 4;
+								}
+								if (x & 3)
+									out += 4 - (x&3);
+								outidx = (outidx + 31)&~31;
+							}
+						}
+					}
+
+					if (!error && !UpdateResource(bin, RT_ICON, MAKEINTRESOURCE(iconid), 0, data, datalen))
+						error = "UpdateResource failed (icon data)";
+
+					//and make a copy of it in the icon list
+					icondata.idEntries[icondata.idCount].bWidth = (icosizes[i].width<256)?icosizes[i].width:0;
+					icondata.idEntries[icondata.idCount].bHeight = (icosizes[i].height<256)?icosizes[i].height:0;
+					icondata.idEntries[icondata.idCount].wBitCount = icosizes[i].bpp;
+					icondata.idEntries[icondata.idCount].wPlanes = 1;
+					icondata.idEntries[icondata.idCount].bColorCount = (icosizes[i].bpp>=8)?0:(1u<<icosizes[i].bpp);
+					icondata.idEntries[icondata.idCount].dwBytesInRes = datalen;
+					icondata.idEntries[icondata.idCount].nId = iconid++;
+					icondata.idCount++;
+				}
+			}
+
+			if (!error && !UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(IDI_ICON1), RESLANG, &icondata, (qbyte*)&icondata.idEntries[icondata.idCount] - (qbyte*)&icondata))
+				error = "UpdateResource failed (icon group)";
+			BZ_Free(filedata);
+		}
+		else
+			error = va("%s.ico not found", name);
+
+		filehandle = VFSOS_Open(va("%s.fmf", name), "rb");
+		if (filehandle)
+		{
+			filelen = VFS_GETLEN(filehandle);
+			filedata = BZ_Malloc(filelen+1);
+			filedata[filelen] = 0;
+			VFS_READ(filehandle, filedata, filelen);
+			VFS_CLOSE(filehandle);
+			if (!error && !UpdateResource(bin, RT_RCDATA, MAKEINTRESOURCE(1), 0, filedata, filelen+1))
+				error = "UpdateResource failed (manicfest)";
+			BZ_Free(filedata);
+		}
+		else
+			error = va("%s.fmf not found in working directory", name);
+
+		if (!EndUpdateResource(bin, !!error) && !error)
+			error = "EndUpdateResource failed. Check access permissions.";
+
+		DeleteFile(newname);
+		MoveFile(tmpname, newname);
+	}
+
+	if (error)
+		Sys_Error("%s", error);
+}
+
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 //    MSG				msg;
@@ -3234,8 +3827,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			MessageBox(NULL, "This is an SSE2 optimised build, and your cpu doesn't seem to support it", DISTRIBUTION, 0);
 		else
 #endif
-		     if (!(idedx&(1<<25)))
-			MessageBox(NULL, "This is an SSE optimised build, and your cpu doesn't seem to support it", DISTRIBUTION, 0);
+			  if (!(idedx&(1<<25)))
+				MessageBox(NULL, "This is an SSE optimised build, and your cpu doesn't seem to support it", DISTRIBUTION, 0);
 	}
 #endif
 #endif
@@ -3297,7 +3890,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				isPlugin = 0;
 		}
 
-		if (Sys_CheckUpdated())
+		if (Sys_CheckUpdated(bindir, sizeof(bindir)))
 			return true;
 
 		if (COM_CheckParm("-register_types"))
@@ -3349,6 +3942,15 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			if (!GetCurrentDirectoryA (sizeof(cwd), cwd))
 				Sys_Error ("Couldn't determine current directory");
 		}
+
+		c = COM_CheckParm("-makeinstaller");
+		if (c)
+		{
+			Sys_MakeInstaller(parms.argv[c+1]);
+			return true;
+		}
+		parms.manifest = Sys_FindManifest();
+
 		if (parms.argc >= 2)
 		{
 			if (*parms.argv[1] != '-' && *parms.argv[1] != '+')
@@ -3380,7 +3982,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				}
 				else
 				{
-					MessageBox(NULL, "Expected one argument, got multiple", "Blocking potential remote exploit", 0);
+					MessageBox(NULL, va("Invalid commandline:\n%s", lpCmdLine), FULLENGINENAME, 0);
 					return 0;
 				}
 
@@ -3408,8 +4010,10 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		TL_InitLanguages();
 		//tprints are now allowed
 
+		if (*cwd && cwd[strlen(cwd)-1] != '\\' && cwd[strlen(cwd)-1] != '/')
+			Q_strncatz(cwd, "/", sizeof(cwd));
+
 		parms.basedir = cwd;
-		parms.binarydir = bindir;
 
 		parms.argc = com_argc;
 		parms.argv = com_argv;
@@ -3545,8 +4149,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 #endif
 
-    /* return success of application */
-    return TRUE;
+	/* return success of application */
+	return TRUE;
 }
 
 int __cdecl main(void)

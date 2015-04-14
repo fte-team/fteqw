@@ -3522,9 +3522,15 @@ void CL_LinkPacketEntities (void)
 		//set scale
 		ent->scale = state->scale/16.0;
 #endif
-		ent->shaderRGBAf[0] = (state->colormod[0]*8.0f)/256;
-		ent->shaderRGBAf[1] = (state->colormod[1]*8.0f)/256;
-		ent->shaderRGBAf[2] = (state->colormod[2]*8.0f)/256;
+		if (state->colormod[0] == 32 && state->colormod[1] == 32 && state->colormod[2] == 32)
+			ent->shaderRGBAf[0] = ent->shaderRGBAf[1] = ent->shaderRGBAf[2] = 1;
+		else
+		{
+			ent->flags |= RF_FORCECOLOURMOD;
+			ent->shaderRGBAf[0] = (state->colormod[0]*8.0f)/256;
+			ent->shaderRGBAf[1] = (state->colormod[1]*8.0f)/256;
+			ent->shaderRGBAf[2] = (state->colormod[2]*8.0f)/256;
+		}
 		ent->shaderRGBAf[3] = state->trans/255.0f;
 
 #ifdef PEXT_FATNESS

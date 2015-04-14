@@ -1012,7 +1012,9 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 	}
 
 // find precache number for sound
-	if (!*sample)
+	if (!sample)
+		sound_num = 0;
+	else if (!*sample)
 		return;
 	else
 	{
@@ -1020,32 +1022,32 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 			&& *sv.strings.sound_precache[sound_num] ; sound_num++)
 			if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
 				break;
-	}
 
-	if ( sound_num == MAX_PRECACHE_SOUNDS || !*sv.strings.sound_precache[sound_num] )
-	{
-		if (sound_num < MAX_PRECACHE_SOUNDS)
+		if ( sound_num == MAX_PRECACHE_SOUNDS || !*sv.strings.sound_precache[sound_num] )
 		{
-			Con_Printf("WARNING: SV_StartSound: sound %s not precached\n", sample);
-			//late precache it. use multicast to ensure that its sent NOW (and to all). normal reliables would mean it would arrive after the svc_sound
-			Q_strncpyz(sv.strings.sound_precache[sound_num], sample, sizeof(sv.strings.sound_precache[sound_num]));
-			Con_DPrintf("Delayed sound precache: %s\n", sample);
-			MSG_WriteByte(&sv.multicast, svcfte_precache);
-			MSG_WriteShort(&sv.multicast, sound_num+PC_SOUND);
-			MSG_WriteString(&sv.multicast, sample);
-	#ifdef NQPROT
-			MSG_WriteByte(&sv.nqmulticast, svcdp_precache);
-			MSG_WriteShort(&sv.nqmulticast, sound_num+PC_SOUND);
-			MSG_WriteString(&sv.nqmulticast, sample);
-	#endif
-			SV_MulticastProtExt(NULL, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_CSQC, 0);
+			if (sound_num < MAX_PRECACHE_SOUNDS)
+			{
+				Con_Printf("WARNING: SV_StartSound: sound %s not precached\n", sample);
+				//late precache it. use multicast to ensure that its sent NOW (and to all). normal reliables would mean it would arrive after the svc_sound
+				Q_strncpyz(sv.strings.sound_precache[sound_num], sample, sizeof(sv.strings.sound_precache[sound_num]));
+				Con_DPrintf("Delayed sound precache: %s\n", sample);
+				MSG_WriteByte(&sv.multicast, svcfte_precache);
+				MSG_WriteShort(&sv.multicast, sound_num+PC_SOUND);
+				MSG_WriteString(&sv.multicast, sample);
+		#ifdef NQPROT
+				MSG_WriteByte(&sv.nqmulticast, svcdp_precache);
+				MSG_WriteShort(&sv.nqmulticast, sound_num+PC_SOUND);
+				MSG_WriteString(&sv.nqmulticast, sample);
+		#endif
+				SV_MulticastProtExt(NULL, MULTICAST_ALL_R, FULLDIMENSIONMASK, PEXT_CSQC, 0);
 
-			reliable = true;	//try to make sure it doesn't arrive before the precache!
-		}
-		else
-		{
-			Con_DPrintf ("SV_StartSound: %s not precached\n", sample);
-			return;
+				reliable = true;	//try to make sure it doesn't arrive before the precache!
+			}
+			else
+			{
+				Con_DPrintf ("SV_StartSound: %s not precached\n", sample);
+				return;
+			}
 		}
 	}
 
@@ -2139,9 +2141,13 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 
 qboolean SV_CanTrack(client_t *client, int entity)
 {
-	if (entity < 0 || entity >= sv.allocated_client_slots || svs.clients[entity-1].state != cs_spawned || svs.clients[entity-1].spectator)
+	if (entity < 0 || entity >= sv.allocated_client_slots)
 		return false;
-	return true;
+	if (svs.clients[entity-1].spectator)
+		return false;
+	if (svs.clients[entity-1].state == cs_spawned || (svs.clients[entity-1].state == cs_free && *svs.clients[entity-1].userinfo))
+		return true;
+	return false;
 }
 
 /*
@@ -2657,6 +2663,8 @@ void SV_SendClientMessages (void)
 		c->msecs += msecs;
 		while (c->msecs > 1000)
 		{
+			if (c->msecs > 1200)
+				c->msecs = 1200;
 			if (c->isindependant && !sv.paused)
 			{
 				usercmd_t cmd;
@@ -2664,12 +2672,15 @@ void SV_SendClientMessages (void)
 				host_client = c;
 				sv_player = c->edict;
 				SV_PreRunCmd();
-				cmd.msec = 50;
+				cmd.msec = msecs;//25;
 				VectorCopy(c->lastcmd.angles, cmd.angles);
 				cmd.buttons = c->lastcmd.buttons;
 				SV_RunCmd (&cmd, true);
 				SV_PostRunCmd();
-				c->msecs -= 50;
+				if (msecs > c->msecs)
+					c->msecs = 0;
+				else
+					c->msecs -= msecs;//25;
 				host_client = NULL;
 				sv_player = NULL;
 			}

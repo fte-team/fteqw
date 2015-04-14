@@ -27,8 +27,6 @@ void CLDP_ParseDarkPlaces5Entities(void);
 void CL_SetStatInt (int pnum, int stat, int value);
 static qboolean CL_CheckModelResources (char *name);
 
-int msgflags;
-
 char cl_dp_csqc_progsname[128];
 int cl_dp_csqc_progssize;
 int cl_dp_csqc_progscrc;
@@ -266,7 +264,7 @@ char *svc_nqstrings[] =
 	"NEW PROTOCOL(88)"	//88
 };
 
-extern cvar_t requiredownloads, cl_standardchat, msg_filter, cl_countpendingpl, cl_download_mapsrc;
+extern cvar_t requiredownloads, cl_standardchat, msg_filter, msg_filter_frags, cl_countpendingpl, cl_download_mapsrc;
 int	oldparsecountmod;
 int	parsecountmod;
 double	parsecounttime;
@@ -5082,7 +5080,7 @@ void CLQ2_ParseInventory (void)
 #endif
 
 //return if we want to print the message.
-char *CL_ParseChat(char *text, player_info_t **player)
+char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 {
 	extern cvar_t cl_chatsound, cl_nofake, cl_teamchatsound, cl_enemychatsound;
 	int flags;
@@ -5167,33 +5165,9 @@ char *CL_ParseChat(char *text, player_info_t **player)
 		}
 	}
 
-	msgflags = flags;
+	*msgflags = flags;
 
 	return s;
-}
-
-char printtext[4096];
-void CL_ParsePrint(char *msg, int level)
-{
-	if (strlen(printtext) + strlen(msg) >= sizeof(printtext))
-	{
-		Con_Printf("%s", printtext);
-		Q_strncpyz(printtext, msg, sizeof(printtext));
-	}
-	else
-		strcat(printtext, msg);	//safe due to size on if.
-	while((msg = strchr(printtext, '\n')))
-	{
-		*msg = '\0';
-		if (level != PRINT_CHAT)
-			Stats_ParsePrintLine(printtext);
-
-		TP_SearchForMsgTriggers(printtext, level);
-		*msg = '\n';
-		msg++;
-
-		memmove(printtext, msg, strlen(msg)+1);
-	}
 }
 
 // CL_PlayerColor: returns color and mask for player_info_t
@@ -5206,6 +5180,12 @@ int CL_PlayerColor(player_info_t *plr, qboolean *name_coloured)
 
 	if (cl.teamfortress) //override based on team
 	{
+		//damn spies
+		if (!Q_strcasecmp(plr->team, "red"))
+			c = 1;
+		else if (!Q_strcasecmp(plr->team, "blue"))
+			c = 5;
+		else
 		// TODO: needs some work
 		switch (plr->rbottomcolor)
 		{	//translate q1 skin colours to console colours
@@ -5296,7 +5276,7 @@ void TTS_SayChatString(char **stringtosay);
 
 // CL_PrintChat: takes chat strings and performs name coloring and cl_parsewhitetext parsing
 // NOTE: text in rawmsg/msg is assumed destroyable and should not be used afterwards
-void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
+void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 {
 	extern cvar_t con_separatechat;
 	char *name = NULL;
@@ -5307,12 +5287,12 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	char fullchatmessage[2048];
 
 	fullchatmessage[0] = 0;
-	if (plrflags & TPM_FAKED)
+	/*if (plrflags & TPM_FAKED)
 	{
 		name = rawmsg; // use rawmsg pointer and msg modification to generate null-terminated string
 		if (msg)
 			*(msg - 2) = 0; // it's assumed that msg has 2 chars before it due to strstr
-	}
+	}*/
 
 	if (msg[0] == '/' && msg[1] == 'm' && msg[2] == 'e' && msg[3] == ' ')
 	{
@@ -5540,12 +5520,62 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 
 	// print final chunk
 	Q_strncatz(fullmessage, msg, sizeof(fullmessage));
-#ifdef CSQC_DAT
-	if (CSQC_ParsePrint(fullmessage, printlevel))
-		return;
-#endif
 	Con_Printf("%s", fullmessage);
 }
+
+char printtext[4096];
+void CL_ParsePrint(char *msg, int level)
+{
+	char n;
+	if (strlen(printtext) + strlen(msg) >= sizeof(printtext))
+	{
+		Con_Printf("%s", printtext);
+		Q_strncpyz(printtext, msg, sizeof(printtext));
+	}
+	else
+		strcat(printtext, msg);	//safe due to size on if.
+	while((msg = strchr(printtext, '\n')))
+	{
+		n = msg[1];
+		msg[1] = 0;
+
+		if (!cls.demoseeking)
+		{
+			if (level == PRINT_CHAT)
+			{
+				char *body;
+				int msgflags;
+				player_info_t *plr = NULL;
+
+				if (!TP_SuppressMessage(printtext))
+				{
+					body = CL_ParseChat(printtext, &plr, &msgflags);
+					if (body)
+						CL_PrintChat(plr, body, msgflags);
+				}
+			}
+			else
+			{
+#ifdef PLUGINS
+				if (Plug_ServerMessage(printtext, level))
+#endif
+#ifdef CSQC_DAT
+				if (!CSQC_ParsePrint(printtext, level))
+#endif
+					if (!Stats_ParsePrintLine(printtext) || !msg_filter_frags.ival)
+						CL_PrintStandardMessage(printtext, level);
+			}
+		}
+
+		TP_SearchForMsgTriggers(printtext, level);
+		msg[1] = n;
+		msg++;
+
+		memmove(printtext, msg, strlen(msg)+1);
+	}
+}
+
+
 
 char stufftext[4096];
 void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from network segregation.
@@ -5625,7 +5655,7 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 				flocation_t loc;
 				Cmd_TokenizeString(stufftext+2, false, false);
 				if (FS_FLocateFile(Cmd_Argv(1), FSLFRT_IFFOUND, &loc))
-					Con_Printf("You have been kicked due to a modified file located at %s.\n", Cmd_Argv(0));
+					Con_Printf("You have been kicked due to the file \"%s\" being modified.\n", Cmd_Argv(1));
 			}
 #ifdef PLUGINS
 			else if (!strncmp(stufftext, "//tinfo ", 8))
@@ -5916,33 +5946,7 @@ void CLQW_ParseServerMessage (void)
 		case svc_print:
 			i = MSG_ReadByte ();
 			s = MSG_ReadString ();
-
-			if (i == PRINT_CHAT)
-			{
-				char *msg;
-				player_info_t *plr = NULL;
-
-				if (TP_SuppressMessage(s))
-					break;	//if this was unseen-sent from us, ignore it.
-
-				if ((msg = CL_ParseChat(s, &plr)))
-				{
-					CL_ParsePrint(s, i);
-					if (!cls.demoseeking)
-						CL_PrintChat(plr, s, msg, msgflags);
-				}
-			}
-			else
-			{
-#ifdef PLUGINS
-				if (Plug_ServerMessage(s, i))
-#endif
-				{
-					CL_ParsePrint(s, i);
-					if (!cls.demoseeking)
-						CL_PrintStandardMessage(s, i);
-				}
-			}
+			CL_ParsePrint(s, i);
 			break;
 
 		case svc_centerprint:
@@ -6057,6 +6061,12 @@ void CLQW_ParseServerMessage (void)
 #ifdef PEXT2_VOICECHAT
 		case svcfte_voicechat:
 			S_Voip_Parse();
+			break;
+#endif
+
+#ifdef TERRAIN
+		case svcfte_brushedit:
+			CL_Parse_BrushEdit();
 			break;
 #endif
 
@@ -6448,27 +6458,7 @@ void CLQ2_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			s = MSG_ReadString ();
 
-			if (i == PRINT_CHAT)
-			{
-				char *msg;
-				player_info_t *plr = NULL;
-
-				if ((msg = CL_ParseChat(s, &plr)))
-				{
-					CL_ParsePrint(s, i);
-					CL_PrintChat(plr, s, msg, msgflags);
-				}
-			}
-			else
-			{
-#ifdef PLUGINS
-				if (Plug_ServerMessage(s, i))
-#endif
-				{
-					CL_ParsePrint(s, i);
-					CL_PrintStandardMessage(s, i);
-				}
-			}
+			CL_ParsePrint(s, i);
 			break;
 		case svcq2_stufftext:	//11			// [string] stuffed into client's console buffer, should be \n terminated
 			s = MSG_ReadString ();
@@ -6721,28 +6711,11 @@ void CLNQ_ParseServerMessage (void)
 			s = MSG_ReadString ();
 
 			if (*s == 1 || *s == 2)
-			{
-				char *msg;
-				player_info_t *plr = NULL;
-
-				if ((msg = CL_ParseChat(s+1, &plr)))
-				{
-					CL_ParsePrint(s+1, PRINT_CHAT);
-					CL_PrintChat(plr, s+1, msg, msgflags);
-				}
-			}
+				CL_ParsePrint(s+1, PRINT_CHAT);
+			else if (CLNQ_ParseNQPrints(s))
+				break;
 			else
-			{
-				if (CLNQ_ParseNQPrints(s))
-					break;
-#ifdef PLUGINS
-				if (Plug_ServerMessage(s, PRINT_HIGH))
-#endif
-				{
-					CL_ParsePrint(s, PRINT_HIGH);
-					CL_PrintStandardMessage(s, PRINT_HIGH);
-				}
-			}
+				CL_ParsePrint(s, PRINT_HIGH);
 			break;
 
 		case svc_disconnect:
@@ -7117,7 +7090,7 @@ void CLNQ_ParseServerMessage (void)
 			CL_ParseStatic (3);
 			break;
 		case svcfitz_spawnstaticsound2:
-			Host_EndGame("svcfitz_spawnstaticsound2: not implemented");
+			CL_ParseStaticSound(true);
 			break;
 
 

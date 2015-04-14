@@ -51,6 +51,8 @@ void W_CleanupName (const char *in, char *out)
 			
 		if (c >= 'A' && c <= 'Z')
 			c += ('a' - 'A');
+		if (c == '*')	//not a valid filesystem char
+			c = '#';
 		out[i] = c;
 	}
 	
@@ -253,9 +255,9 @@ int numwadtextures;
 static texwadlump_t texwadlump[TEXWAD_MAXIMAGES];
 
 typedef struct wadfile_s {
-	char name[64];
 	vfsfile_t *file;
 	struct wadfile_s *next;
+	char name[1];
 } wadfile_t;
 
 wadfile_t *openwadfiles;
@@ -345,6 +347,12 @@ void W_LoadTextureWadFile (char *filename, int complain)
 		}
 	}	
 	// leaves the file open
+
+	wf = BZ_Malloc(sizeof(*wf) + strlen(filename));
+	strcpy(wf->name, filename);
+	wf->file = file;
+	wf->next = openwadfiles;
+	openwadfiles = wf;
 }
 
 /*
@@ -384,6 +392,9 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 	else if (!strncmp(tex->name, "window", 6) || !strncmp(tex->name, "glass", 5))
 		alpha = 2;
 
+	if (tex->width > 0x10000 || tex->height > 0x10000)
+		return NULL;
+
 //use malloc here if you want, but you'll have to free it again... NUR!
 	data = out = BZ_Malloc(tex->width * tex->height * 4);
 
@@ -394,10 +405,17 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 
 	*width = tex->width;
 	*height = tex->height;
-	pal = in + (((tex->width * tex->height) * 85) >> 6);
-	pal += 2;
-	if (pal+768 - (qbyte*)tex > lumpsize)
+
+	//halflife wads have palettes embedded in them. but make sure everything else is packed because some quake wads are weird.
+	if (tex->offsets[0] == sizeof(*tex) &&
+		tex->offsets[1] == tex->offsets[0] + (tex->width)*(tex->height) &&
+		tex->offsets[2] == tex->offsets[1] + (tex->width>>1)*(tex->height>>1) && 
+		tex->offsets[3] == tex->offsets[2] + (tex->width>>2)*(tex->height>>2) && 
+		lumpsize == tex->offsets[3] + (tex->width>>3)*(tex->height>>3) + 2 + 768)
+		pal = (qbyte *)tex + tex->offsets[3] + (tex->width>>3)*(tex->height>>3) + 2;
+	else
 		pal = host_basepal;
+
 	for (d = 0;d < tex->width * tex->height;d++)	
 	{
 		p = *in++;
@@ -477,6 +495,39 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 			data = W_ConvertWAD3Texture(tex, texwadlump[i].size, width, height, usesalpha);
 			BZ_Free(tex);
 			return data;
+		}
+	}	
+	return NULL;
+}
+
+miptex_t *W_GetMipTex(const char *name)
+{
+	char texname[17];
+	int i, j;
+	vfsfile_t *file;
+	miptex_t *tex;
+
+	texname[16] = 0;
+	W_CleanupName (name, texname);
+	for (i = 0;i < numwadtextures;i++)
+	{
+		if (!strcmp(texname, texwadlump[i].name)) // found it
+		{
+			file = texwadlump[i].file;
+			if (!VFS_SEEK(file, texwadlump[i].position))
+			{Con_Printf("W_GetTexture: corrupt WAD3 file");return NULL;}
+
+			tex = BZ_Malloc(texwadlump[i].size);	//temp buffer for disk info (was hunk_tempalloc, but that wiped loading maps and the like
+			if (!tex)
+				return NULL;
+			if (VFS_READ(file, tex, texwadlump[i].size) < texwadlump[i].size)
+			{Con_Printf("W_GetTexture: corrupt WAD3 file");return NULL;}
+
+			tex->width = LittleLong(tex->width);
+			tex->height = LittleLong(tex->height);
+			for (j = 0;j < MIPLEVELS;j++)
+				tex->offsets[j] = LittleLong(tex->offsets[j]);
+			return tex;
 		}
 	}	
 	return NULL;

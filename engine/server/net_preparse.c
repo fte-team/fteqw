@@ -1950,8 +1950,8 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 6;
 			break;
 		case svc_updateuserinfo:
-			protocollen = 6;
 			nullterms = 1;
+			protocollen = 6+nullterms;
 			break;
 		case svcqw_updatestatlong:
 			protocollen = 6;

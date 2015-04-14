@@ -93,8 +93,18 @@ typedef struct
 	char	fatness;
 } mvdentity_state_t;
 
+typedef struct
+{
+	vec3_t position;
+	unsigned short soundnum;
+	qbyte volume;
+	qbyte attenuation;
+} staticsound_state_t;
+
 extern entity_state_t *sv_staticentities;
 extern int sv_max_staticentities;
+extern staticsound_state_t *sv_staticsounds;
+extern int sv_max_staticsounds;
 
 typedef struct
 {
@@ -271,6 +281,7 @@ typedef struct
 //end this lot... (demo playback)
 
 	int num_static_entities;
+	int num_static_sounds;
 
 	svcustomtents_t customtents[255];
 
@@ -354,6 +365,7 @@ enum
 	PRESPAWN_CUSTOMTENTS,
 	PRESPAWN_SIGNON_BUF,
 	PRESPAWN_SPAWNSTATIC,
+	PRESPAWN_AMBIENTSOUND,
 	PRESPAWN_BASELINES,
 	PRESPAWN_DONE
 };
@@ -376,6 +388,8 @@ typedef struct client_s
 
 	unsigned int	prespawn_stage;
 	unsigned int	prespawn_idx;
+	qboolean		prespawn_allow_modellist;
+	qboolean		prespawn_allow_soundlist;
 
 	int				spectator;			// non-interactive
 	int				redirect;

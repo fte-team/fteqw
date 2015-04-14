@@ -446,7 +446,6 @@ extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
 extern cvar_t gl_font;
 extern cvar_t vid_conautoscale, vid_conheight, vid_conwidth;
 extern cvar_t crosshair, crosshairimage, crosshaircolor, r_skyboxname;
-extern cvar_t r_floorcolour, r_wallcolour, r_floortexture, r_walltexture;
 extern cvar_t r_fastskycolour;
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
@@ -460,12 +459,9 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&vid_conheight);
 	Cvar_Unhook(&vid_conwidth);
-	Cvar_Unhook(&r_walltexture);
-	Cvar_Unhook(&r_floortexture);
-	Cvar_Unhook(&r_drawflat);
-	Cvar_Unhook(&v_gamma);
-	Cvar_Unhook(&v_contrast);
-	Cvar_Unhook(&v_brightness);
+//	Cvar_Unhook(&v_gamma);
+//	Cvar_Unhook(&v_contrast);
+//	Cvar_Unhook(&v_brightness);
 
 	Surf_DeInit();
 
@@ -477,10 +473,6 @@ void GLR_Init (void)
 	Cmd_AddCommand ("timerefresh", GLR_TimeRefresh_f);
 
 //	Cmd_AddCommand ("makewad", R_MakeTexWad_f);
-
-//	Cvar_Hook(&r_floortexture, GLR_Floortexture_Callback);
-//	Cvar_Hook(&r_walltexture, GLR_Walltexture_Callback);
-//	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
 
 	GLR_ReInit();
 }

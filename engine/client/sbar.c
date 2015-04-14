@@ -141,6 +141,13 @@ int Sbar_PlayerNum(playerview_t *pv)
 
 int Sbar_TopColour(player_info_t *p)
 {
+	if (cl.teamfortress)
+	{
+		if (!Q_strcasecmp(p->team, "red"))
+			return 4;
+		if (!Q_strcasecmp(p->team, "blue"))
+			return 13;
+	}
 	if (scr_scoreboard_forcecolors.ival)
 		return p->ttopcolor;
 	else
@@ -149,6 +156,13 @@ int Sbar_TopColour(player_info_t *p)
 
 int Sbar_BottomColour(player_info_t *p)
 {
+	if (cl.teamfortress)
+	{
+		if (!Q_strcasecmp(p->team, "red"))
+			return 4;
+		if (!Q_strcasecmp(p->team, "blue"))
+			return 13;
+	}
 	if (scr_scoreboard_forcecolors.ival)
 		return p->tbottomcolor;
 	else
@@ -1205,9 +1219,10 @@ int Sbar_itoa (int num, char *buf)
 		num = -num;
 	}
 
-	for (pow10 = 10 ; num >= pow10 ; pow10 *= 10)
+	for (pow10 = 10 ; num >= pow10 && pow10>=10; pow10 *= 10)
 	;
 
+	if (pow10 > 0)
 	do
 	{
 		pow10 /= 10;
@@ -1229,7 +1244,7 @@ Sbar_DrawNum
 */
 void Sbar_DrawNum (float x, float y, int num, int digits, int color)
 {
-	char			str[12];
+	char			str[16];
 	char			*ptr;
 	int				l, frame;
 #undef small

@@ -233,7 +233,7 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 	}
 	else
 	{
-		if ((filter[1]))// && !(flags & IF_NEAREST)) || (flags & IF_LINEAR))
+		if ((filter[1] && !(flags & IF_NEAREST)) || (flags & IF_LINEAR))
 		{
 			if (filter[0] && !(flags & IF_NEAREST) || (flags & IF_LINEAR))
 				min = GL_LINEAR_MIPMAP_LINEAR;
@@ -242,7 +242,7 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 		}
 		else
 		{
-			if (filter[0] && !(flags & IF_NEAREST) || (flags & IF_LINEAR))
+			if ((filter[0] && !(flags & IF_NEAREST)) || (flags & IF_LINEAR))
 				min = GL_LINEAR_MIPMAP_NEAREST;
 			else
 				min = GL_NEAREST_MIPMAP_NEAREST;
@@ -324,6 +324,7 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 	//make sure the texture is complete even if the mips are not.
 	//note that some drivers will just ignore levels that are not valid.
 	//this means that we can't make this setting dynamic, so we might as well let the drivers know BEFORE we do the uploads, to be kind to those that are buggy..
+	//this is available in gles3
 	if (!gl_config.gles)
 	{
 		if (targ != GL_TEXTURE_CUBE_MAP_ARB && (tex->flags & IF_MIPCAP))

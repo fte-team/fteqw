@@ -46,6 +46,7 @@ cvar_t cl_selfcam = SCVAR("cl_selfcam", "1");
 //cvar_t cl_camera_maxpitch = {"cl_camera_maxpitch", "10" };
 //cvar_t cl_camera_maxyaw = {"cl_camera_maxyaw", "30" };
 
+static int Cam_FindSortedPlayer(int number);
 
 int selfcam=1;
 
@@ -524,6 +525,15 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 		if (cmd->impulse)
 		{
 			int pl = cmd->impulse;
+
+#if 1
+			do
+			{
+				Cam_Lock(pv, Cam_FindSortedPlayer(pl));
+				pv++;
+				pl++;
+			} while (pv >= &cl.playerview[0] && pv < &cl.playerview[cl.splitclients]);
+#else
 			for (i = 0; ; i++)
 			{
 				if (i == MAX_CLIENTS)
@@ -550,6 +560,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 					}
 				}
 			}
+#endif
 			return;
 		}
 	}
@@ -612,7 +623,9 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 	do 
 	{
 		s = &cl.players[i];
-		if (s->name[0] && !s->spectator) 
+		//players with userid 0 are typically bots.
+		//trying to spectate such bots just does not work (we have no idea which entity slot the bot is actually using, so don't try to track them).
+		if (s->name[0] && !s->spectator && s->userid) 
 		{
 			Cam_Lock(pv, i);
 			return;
@@ -622,7 +635,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 	// stay on same guy?
 	i = pv->cam_spec_track;
 	s = &cl.players[i];
-	if (s->name[0] && !s->spectator) 
+	if (s->name[0] && !s->spectator && s->userid) 
 	{
 		Cam_Lock(pv, i);
 		return;
@@ -642,11 +655,46 @@ void Cam_Reset(void)
 	}
 }
 
+static int QDECL Cam_SortPlayers(const void *p1,const void *p2)
+{
+	const player_info_t *a = *(player_info_t**)p1;
+	const player_info_t *b = *(player_info_t**)p2;
+
+	if (!*a->team)
+		return *b->team;
+	if (!*b->team)
+		return -*a->team;
+//	if (a->spectator || b->spectator)
+//		return a->spectator - b->spectator;
+	return Q_strcasecmp(a->team, b->team);
+}
+static int Cam_FindSortedPlayer(int number)
+{
+	player_info_t *playerlist[MAX_CLIENTS], *s;
+	int i;
+	int slots;
+	number--;
+	for (slots = 0, i = 0; i < cl.allocated_client_slots; i++)
+	{
+		s = &cl.players[i];
+		if (s->name[0] && !s->spectator)
+			playerlist[slots++] = s;
+	}
+	if (!slots)
+		return 0;
+//	if (number > slot)
+//		return cl.allocated_client_slots;	//error
+
+	qsort(playerlist, slots, sizeof(playerlist[0]), Cam_SortPlayers);
+	return playerlist[number % slots] - cl.players;
+}
+
 void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg)
 {
 	playerview_t *pv = &cl.playerview[seat];
-	int slot;
+	int slot, sortednum;
 	player_info_t	*s;
+	char *e;
 
 	if (seat >= MAX_SPLITS)
 		return;
@@ -669,12 +717,17 @@ void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg)
 		return;
 	}
 
-	// search nicks first
-	for (slot = 0; slot < cl.allocated_client_slots; slot++)
+	if (*plrarg == '#' && (slot=strtoul(plrarg+1, &e, 10)) && !*e)
+		slot = Cam_FindSortedPlayer(slot);
+	else
 	{
-		s = &cl.players[slot];
-		if (s->name[0] && !s->spectator && !Q_strcasecmp(s->name, plrarg))
-			break;
+		// search nicks first
+		for (slot = 0; slot < cl.allocated_client_slots; slot++)
+		{
+			s = &cl.players[slot];
+			if (s->name[0] && !s->spectator && !Q_strcasecmp(s->name, plrarg))
+				break;
+		}
 	}
 
 	if (slot == cl.allocated_client_slots)

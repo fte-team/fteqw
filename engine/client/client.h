@@ -1475,7 +1475,7 @@ qboolean Stats_HaveKills(void);
 void VARGS Stats_Message(char *msg, ...) LIKEPRINTF(1);
 int qm_strcmp(char *s1, char *s2);
 int qm_stricmp(char *s1, char *s2);
-void Stats_ParsePrintLine(char *line);
+qboolean Stats_ParsePrintLine(char *line);
 void Stats_NewMap(void);
 void Stats_Clear(void);
 

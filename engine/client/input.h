@@ -57,6 +57,7 @@ void INS_ReInit (void);
 void INS_Init (void);
 void INS_Shutdown (void);
 void INS_Commands (void);	//final chance to call IN_MouseMove/IN_KeyEvent each frame
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char *devicename, int *qdevid));
 
 extern cvar_t	cl_nodelta;
 extern cvar_t	cl_c2spps;

@@ -45,7 +45,7 @@ http://prideout.net/archive/bloom/ contains some sample code
 #include "shader.h"
 #include "glquake.h"
 cvar_t		r_bloom = CVARAFD("r_bloom", "0", "gl_bloom", CVAR_ARCHIVE, "Enables bloom (light bleeding from bright objects). Fractional values reduce the amount shown.");
-cvar_t		r_bloom_filter = CVARD("r_bloom_filter", "0.5 0.5 0.5", "Controls how bright the image must get before it will bloom (3 separate values, in RGB order).");
+cvar_t		r_bloom_filter = CVARD("r_bloom_filter", "0.7 0.7 0.7", "Controls how bright the image must get before it will bloom (3 separate values, in RGB order).");
 cvar_t		r_bloom_scale = CVARD("r_bloom_scale", "0.5", "Controls the initial downscale size. Smaller values will bloom further but be more random.");
 static shader_t *bloomfilter;
 static shader_t *bloomrescale;

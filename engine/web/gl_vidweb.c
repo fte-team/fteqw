@@ -42,7 +42,7 @@ static unsigned int domkeytoquake(unsigned int code)
 		/*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
 		/* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
 		/* 32*/ ' ',K_PGUP,K_PGDN,K_END,K_HOME,K_LEFTARROW,K_UPARROW,K_RIGHTARROW,              K_DOWNARROW,0,0,0,K_PRINTSCREEN,K_INS,K_DEL,0,
-		/* 48*/ '0','1','2','3','4','5','6','7',                '8','9',0,0,0,'=',0,0,
+		/* 48*/ '0','1','2','3','4','5','6','7',                '8','9',0,';',0,'=',0,0,
 
 		/* 64*/ 0,'a','b','c','d','e','f','g',          'h','i','j','k','l','m','n','o',
 		/* 80*/ 'p','q','r','s','t','u','v','w',                'x','y','z',K_LWIN,K_RWIN,K_APP,0,0,
@@ -77,7 +77,7 @@ static unsigned int domkeytoshift(unsigned int code)
 		/*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
 		/* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
 		/* 32*/ ' ',K_PGUP,K_PGDN,K_END,K_HOME,K_LEFTARROW,K_UPARROW,K_RIGHTARROW,              K_DOWNARROW,0,0,0,K_PRINTSCREEN,K_INS,K_DEL,0,
-		/* 48*/ ')','!','\"',0/*£*/,'$','%','^','&',                '*','(',0,0,0,'+',0,0,
+		/* 48*/ ')','!','\"',0/*£*/,'$','%','^','&',                '*','(',0,':',0,'+',0,0,
 
 		/* 64*/ 0,'A','B','C','D','E','F','G',          'H','I','J','K','L','M','N','O',
 		/* 80*/ 'P','Q','R','S','T','U','V','W',                'X','Y','Z',K_LWIN,K_RWIN,K_APP,0,0,
@@ -159,12 +159,31 @@ static void DOM_ButtonEvent(int devid, int down, int button)
 	}
 }
 vfsfile_t *FSWEB_OpenTempHandle(int f);
-void DOM_LoadFile(char *loc, int handle)
+void DOM_LoadFile(char *loc, char *mime, int handle)
 {
 	vfsfile_t *file = NULL;
 	Con_Printf("DOM_LoadFile: %s %i\n", loc, handle);
 	if (handle != -1)
 		file = FSWEB_OpenTempHandle(handle);
+	else
+	{
+		char str[1024];
+		if (!strcmp(mime, "joinurl") || !strcmp(mime, "observeurl")  || !strcmp(mime, "connecturl"))
+		{
+			extern cvar_t spectator;
+			if (!strcmp(mime, "joinurl"))
+				Cvar_Set(&spectator, "0");
+			if (!strcmp(mime, "observeurl"))
+				Cvar_Set(&spectator, "1");
+			Cbuf_AddText(va("connect %s\n", COM_QuotedString(loc, str, sizeof(str), false)), RESTRICT_INSECURE);
+			return;
+		}
+		if (!strcmp(mime, "demourl"))
+		{
+			Cbuf_AddText(va("qtvplay %s\n", COM_QuotedString(loc, str, sizeof(str), false)), RESTRICT_INSECURE);
+			return;
+		}
+	}
 	//try and open it. generally downloading it from the server.
 	if (!Host_RunFile(loc, strlen(loc), file))
 	{
@@ -280,6 +299,9 @@ void INS_Accumulate(void)
 {
 }
 void INS_Commands (void)
+{
+}
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char *devicename, int *qdevid))
 {
 }
 

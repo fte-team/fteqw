@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 console_t	con_main;
+console_t	*con_curwindow;
 console_t	*con_current;		// points to whatever is the visible console
 console_t	*con_mouseover;		// points to whichever console's title is currently mouseovered, or null
 console_t	*con_chat;			// points to a chat console
@@ -128,8 +129,6 @@ void Con_Destroy (console_t *con)
 		return;
 	}
 
-	con_mouseover = NULL;
-
 	for (prev = &con_main; prev->next; prev = prev->next)
 	{
 		if (prev->next == con)
@@ -143,6 +142,18 @@ void Con_Destroy (console_t *con)
 
 	if (con_current == con)
 		con_current = &con_main;
+
+	if (con_curwindow == con)
+	{
+		for (con_curwindow = &con_main; con_curwindow; con_curwindow = con_curwindow->next)
+		{
+			if (con_curwindow->flags & CONF_ISWINDOW)
+				break;
+		}
+		if (!con_curwindow)
+			Key_Dest_Remove(kdm_cwindows);
+	}
+	con_mouseover = NULL;
 }
 /*obtains a console_t without creating*/
 console_t *Con_FindConsole(const char *name)
@@ -177,7 +188,14 @@ console_t *Con_Create(const char *name, unsigned int flags)
 /*sets a console as the active one*/
 void Con_SetActive (console_t *con)
 {
-	con_current = con;
+	if (con->flags & CONF_ISWINDOW)
+	{
+		con_curwindow = con;
+		Key_Dest_Add(kdm_cwindows);
+		Key_Dest_Remove(kdm_console);
+	}
+	else
+		con_current = con;
 
 	if (con->footerline)
 	{
@@ -186,6 +204,7 @@ void Con_SetActive (console_t *con)
 		Z_Free(con->footerline);
 		con->footerline = NULL;
 	}
+	con->buttonsdown = CB_NONE;
 }
 /*for enumerating consoles*/
 qboolean Con_NameForNum(int num, char *buffer, int buffersize)
@@ -448,6 +467,20 @@ void Con_ToggleConsole_Force(void)
 void Con_ToggleConsole_f (void)
 {
 	extern cvar_t con_stayhidden;
+
+	if (!con_curwindow)
+	{
+		for (con_curwindow = &con_main; con_curwindow; con_curwindow = con_curwindow->next)
+			if (con_curwindow->flags & CONF_ISWINDOW)
+				break;
+	}
+
+	if (con_curwindow && !Key_Dest_Has(kdm_cwindows|kdm_console))
+	{
+		Key_Dest_Add(kdm_cwindows);
+		return;
+	}
+
 #ifdef CSQC_DAT
 	if (!(key_dest_mask & kdm_editor) && CSQC_ConsoleCommand("toggleconsole"))
 	{
@@ -457,7 +490,10 @@ void Con_ToggleConsole_f (void)
 #endif
 
 	if (con_stayhidden.ival >= 3)
+	{
+		Key_Dest_Remove(kdm_cwindows);
 		return;	//its hiding!
+	}
 
 	Con_ToggleConsole_Force();
 }
@@ -672,6 +708,12 @@ void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 	conchar_t *c;
 	conline_t *oc;
 	conline_t *reuse;
+	int maxlines;
+
+	if (con->maxlines)
+		maxlines = con->maxlines;
+	else
+		maxlines = con_maxlines.ival;
 
 	COM_ParseFunString(con->defaultcharbits, txt, expanded, sizeof(expanded), parseflags);
 
@@ -690,7 +732,7 @@ void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 		case '\n':
 			con->cr = false;
 			reuse = NULL;
-			while (con->linecount >= con_maxlines.ival)
+			while (con->linecount >= maxlines)
 			{
 				if (con->oldest == con->current)
 					break;
@@ -714,7 +756,7 @@ void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 			if (con->flags & CONF_NOTIMES)
 				con->current->time = 0;
 			else
-				con->current->time = realtime;
+				con->current->time = realtime + con->notif_t;
 
 #if defined(_WIN32) && !defined(NOMEDIA) && !defined(WINRT)
 			if (con->current)
@@ -789,7 +831,7 @@ void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 	if (con->flags & CONF_NOTIMES)
 		con->current->time = 0;
 	else
-		con->current->time = realtime;
+		con->current->time = realtime + con->notif_t;
 }
 
 void Con_Print (char *txt)
@@ -811,7 +853,7 @@ void Con_CycleConsole(void)
 		if (!con_current)
 			con_current = &con_main;
 
-		if (con_current->flags & CONF_HIDDEN)
+		if (con_current->flags & (CONF_HIDDEN|CONF_ISWINDOW))
 			continue;
 		break;
 	}
@@ -960,14 +1002,15 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 }
 
 /*description text at the bottom of the console*/
-void Con_Footerf(qboolean append, char *fmt, ...)
+void Con_Footerf(console_t *con, qboolean append, char *fmt, ...)
 {
-	console_t *con = con_current;
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 	conchar_t	marked[MAXPRINTMSG], *markedend;
 	int oldlen, newlen;
 	conline_t *newf;
+	if (!con)
+		con = con_current;
 
 	va_start (argptr,fmt);
 	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
@@ -1038,7 +1081,13 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	int x;
 
 	if (!con->linebuffered)
+	{
+		if (con->footerline)
+		{
+			y = Con_DrawConsoleLines(con, con->footerline, left, right, y, 0, selactive, selsx, selex, selsy, seley);
+		}
 		return y;	//fixme: draw any unfinished lines of the current console instead.
+	}
 
 	y -= Font_CharHeight();
 
@@ -1203,18 +1252,20 @@ Draws the last few lines of output transparently over the game top
 void Con_DrawNotifyOne (console_t *con)
 {
 	conchar_t *starts[NUM_CON_TIMES], *ends[NUM_CON_TIMES];
+	float alphas[NUM_CON_TIMES], a;
 	conchar_t *c;
 	conline_t *l;
 	int lines=con->notif_l;
 	int line;
-	int x = con->notif_x, y = con->notif_y;
-	int w = con->notif_w;
+	int nx, y;
+	int nw;
+	int x;
 
 	int maxlines;
 	float t;
 
-	Font_BeginString(font_console, x, y, &x, &y);
-	Font_Transform(con->notif_w, 0, &w, NULL);
+	Font_BeginString(font_console, con->notif_x * vid.width, con->notif_y * vid.height, &nx, &y);
+	Font_Transform(con->notif_w * vid.width, 0, &nw, NULL);
 
 	if (con->notif_l < 0)
 		con->notif_l = 0;
@@ -1222,8 +1273,8 @@ void Con_DrawNotifyOne (console_t *con)
 		con->notif_l = NUM_CON_TIMES;
 	lines = maxlines = con->notif_l;
 
-	if (x == 0 && y == 0 && con->notif_w == vid.width)
-		y = Con_DrawProgress(0, w, 0);
+	if (!con->notif_x && !con->notif_y && con->notif_w == 1)
+		y = Con_DrawProgress(0, nw, 0);
 
 	l = con->current;
 	if (!l->length)
@@ -1234,21 +1285,31 @@ void Con_DrawNotifyOne (console_t *con)
 		if (!t)
 			continue; //hidden from notify
 		t = realtime - t;
-		if (t > con->notif_t)
-			break;
+		if (t > 0)
+		{
+			if (t > con->notif_fade)
+			{
+				l->time = 0;
+				break;
+			}
+			a = 1 - (t/con->notif_fade);
+		}
+		else a = 1;
 
-		line = Font_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, w, lines, starts, ends);
+		line = Font_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, nw, lines, starts, ends);
 		if (!line && lines > 0)
 		{
 			lines--;
 			starts[lines] = NULL;
 			ends[lines] = NULL;
+			alphas[lines] = a;
 		}
 		while(line --> 0 && lines > 0)
 		{
 			lines--;
 			starts[lines] = starts[line];
 			ends[lines] = ends[line];
+			alphas[lines] = a;
 		}
 		if (lines == 0)
 			break;
@@ -1265,15 +1326,24 @@ void Con_DrawNotifyOne (console_t *con)
 	while (lines < con->notif_l)
 	{
 		x = 0;
-		if (con_centernotify.value)
+		Font_ForceColour(1, 1, 1, alphas[lines]);
+		if (con->flags & CONF_NOTIFY_RIGHT)
 		{
 			for (c = starts[lines]; c < ends[lines]; c++)
 			{
 				x += Font_CharWidth(*c);
 			}
-			x = (w - x) / 2;
+			x = (nw - x);
 		}
-		Font_LineDraw(x, y, starts[lines], ends[lines]);
+		else if (con_centernotify.value)
+		{
+			for (c = starts[lines]; c < ends[lines]; c++)
+			{
+				x += Font_CharWidth(*c);
+			}
+			x = (nw - x) / 2;
+		}
+		Font_LineDraw(nx+x, y, starts[lines], ends[lines]);
 
 		y += Font_CharHeight();
 
@@ -1281,6 +1351,8 @@ void Con_DrawNotifyOne (console_t *con)
 	}
 
 	Font_EndString(font_console);
+
+	Font_InvalidateColour();
 }
 
 void Con_ClearNotify(void)
@@ -1295,20 +1367,20 @@ void Con_ClearNotify(void)
 }
 void Con_DrawNotify (void)
 {
-	extern qboolean startuppending;
+	extern int startuppending;
 	console_t *con;
 
 	con_main.flags |= CONF_NOTIFY;
 	/*keep the main console up to date*/
 	con_main.notif_l = con_numnotifylines.ival;
-	con_main.notif_w = vid.width;
+	con_main.notif_w = 1;
 	con_main.notif_t = con_notifytime.value;
 
 	if (con_chat)
 	{
 		con_chat->notif_l = con_numnotifylines_chat.ival;
-		con_chat->notif_w = vid.width - 64;
-		con_chat->notif_y = vid.height - sb_lines - 8*4;
+		con_chat->notif_w = 1;
+		con_chat->notif_y = (vid.height - sb_lines - 8*4) / vid.width;
 		con_chat->notif_t = con_notifytime_chat.value;
 	}
 
@@ -1447,6 +1519,12 @@ static int Con_DrawProgress(int left, int right, int y)
 			{
 				sprintf(progresspercenttext, " (%u%skb)", (int)(total/1024), extra?"+":"");
 			}
+
+			//do some marquee thing, so the user gets the impression that SOMETHING is happening.
+			progresspercent = realtime - (int)realtime;
+			if ((int)realtime & 1)
+				progresspercent  = 1 - progresspercent;
+			progresspercent *= 100;
 		}
 		else
 		{
@@ -1568,11 +1646,9 @@ int Con_DrawAlternateConsoles(int lines)
 	console_t *con = &con_main, *om = con_mouseover;
 	conchar_t buffer[512], *end, *start;
 
-	con_mouseover = NULL;
-
 	for (con = &con_main; con; con = con->next)
 	{
-		if (!(con->flags & CONF_HIDDEN))
+		if (!(con->flags & (CONF_HIDDEN|CONF_ISWINDOW)))
 			consshown++;
 	}
 
@@ -1584,7 +1660,7 @@ int Con_DrawAlternateConsoles(int lines)
 		h = Font_CharHeight();
 		for (x = 0, con = &con_main; con; con = con->next)
 		{
-			if (con->flags & CONF_HIDDEN)
+			if (con->flags & (CONF_HIDDEN|CONF_ISWINDOW))
 				continue;
 			txt = con->title;
 
@@ -1629,6 +1705,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 	conchar_t *s;
 	int i;
 	int x;
+	int charh = Font_CharHeight();
 
 	if (l != con->completionline)
 	if (l != con->footerline)
@@ -1668,13 +1745,11 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 		//scale the y coord to be in lines instead of pixels
 		selsy -= y;
 		seley -= y;
-		selsy /= Font_CharHeight();
-		seley /= Font_CharHeight();
-		selsy--;
-		seley--;
+//		selsy -= charh;
+//		seley -= charh;
 
 		//invert the selections to make sense, text-wise
-		if (selsy == seley)
+		/*if (selsy == seley)
 		{
 			//single line selected backwards
 			if (selex < selsx)
@@ -1684,6 +1759,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 				selsx = x;
 			}
 		}
+		*/
 		if (seley < selsy)
 		{	//selection goes upwards
 			x = selsy;
@@ -1694,8 +1770,8 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			selex = selsx;
 			selsx = x;
 		}
-		selsy *= Font_CharHeight();
-		seley *= Font_CharHeight();
+//		selsy *= Font_CharHeight();
+//		seley *= Font_CharHeight();
 		selsy += y;
 		seley += y;
 	}
@@ -1727,14 +1803,14 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						{
 							imgname = Info_ValueForKey(linkinfo, "w");
 							if (*imgname)
-								picw = atoi(imgname);
+								picw = (atoi(imgname) * charh) / 8.0;
 							else if (pic->width)
 								picw = (pic->width * vid.pixelwidth) / vid.width;
 							else
 								picw = 64;
 							imgname = Info_ValueForKey(linkinfo, "h");
 							if (*imgname)
-								pich = atoi(imgname);
+								pich = (atoi(imgname) * charh) / 8.0;
 							else if (pic->height)
 								pich = (pic->height * vid.pixelheight) / vid.height;
 							else
@@ -1773,6 +1849,9 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 				pich -= texth;
 				y-= pich/2;	//skip some space above and below the text block, to keep the text and image aligned.
 			}
+
+//			if (selsx < picw && selex < picw)
+
 		}
 
 		l->lines = linecount;
@@ -1789,9 +1868,9 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 
 			if (selactive)
 			{
-				if (y >= selsy)
+				if (y+charh >= selsy)
 				{
-					if (y <= seley)
+					if (y < seley)
 					{
 						int sstart;
 						int send;
@@ -1804,7 +1883,17 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						if (send == sstart)
 							send = Font_CharEndCoord(font_console, send, ' ');
 
-						if (y >= seley)
+						if (y+charh >= seley && y < selsy)
+						{	//if they're both on the same line, make sure sx is to the left of ex, so our stuff makes sense
+							if (selex < selsx)
+							{
+								x = selex;
+								selex = selsx;
+								selsx = x;
+							}
+						}
+
+						if (y+charh >= seley)
 						{
 							send = sstart;
 							for (i = 0; i < linelength; )
@@ -1821,7 +1910,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 							else
 								con->selendoffset = 0;
 						}
-						if (y <= selsy)
+						if (y < selsy)
 						{
 							for (i = 0; i < linelength; i++)
 							{
@@ -1837,10 +1926,14 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 							else
 								con->selstartoffset = 0;
 						}
+
 						if (selactive == 1)
 						{
 							R2D_ImagePaletteColour(0, 1.0);
-							R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+							if (send < sstart)
+								R2D_FillBlock((send*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+							else
+								R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
 						}
 					}
 				}
@@ -1877,69 +1970,142 @@ void Con_DrawConsole (int lines, qboolean noback)
 	int selsx, selsy, selex, seley, selactive;
 	int top;
 	qboolean haveprogress;
+	console_t *w, *mouseconsole;
 
-	if (lines <= 0)
-		return;
+	con_mouseover = NULL;
 
+	//draw any windowed consoles (under main console)
+	if (Key_Dest_Has(kdm_cwindows))
+	for (w = &con_main; w; w = w->next)
+	{
+		srect_t srect;
+		if ((w->flags & (CONF_HIDDEN|CONF_ISWINDOW)) != CONF_ISWINDOW)
+			continue;
+
+		if (w->wnd_w > vid.width)
+			w->wnd_w = vid.width;
+		if (w->wnd_h > vid.height)
+			w->wnd_h = vid.height;
+		if (w->wnd_w < 64)
+			w->wnd_w = 64;
+		if (w->wnd_h < 16)
+			w->wnd_h = 16;
+		//windows that move off the top of the screen somehow are bad.
+		if (w->wnd_y > vid.height - 8)
+			w->wnd_y = vid.height - 8;
+		if (w->wnd_y < 0)
+			w->wnd_y = 0;
+		if (w->wnd_x > vid.width-32)
+			w->wnd_x = vid.width-32;
+		if (w->wnd_x < -w->wnd_w+32)
+			w->wnd_x = -w->wnd_w+32;
+
+		if (w->wnd_h < 8)
+			w->wnd_h = 8;
+
+		if (mousecursor_x >= w->wnd_x && mousecursor_x < w->wnd_x+w->wnd_w && mousecursor_y >= w->wnd_y && mousecursor_y < w->wnd_y+w->wnd_h && mousecursor_y > lines)
+			con_mouseover = w;
+
+		w->mousecursor[0] = mousecursor_x - w->wnd_x;
+		w->mousecursor[1] = mousecursor_y - w->wnd_y;
+
+		R2D_ImageColours(0.0, 0.05, 0.1, 0.5);
+		R2D_FillBlock(w->wnd_x, w->wnd_y, w->wnd_w, w->wnd_h);
+		Draw_FunStringWidth(w->wnd_x, w->wnd_y, w->title, w->wnd_w-16, 2, (con_curwindow==w)?true:false);
+		Draw_FunStringWidth(w->wnd_x+w->wnd_w-8, w->wnd_y, "X", 8, 2, (w->buttonsdown == CB_CLOSE&& w->mousecursor[0] > w->wnd_w-8 && w->mousecursor[1] < 8)?true:false);
+
+		srect.x = w->wnd_x / vid.width;
+		srect.y = (w->wnd_y+8) / vid.height;
+		srect.width = w->wnd_w / vid.width;
+		srect.height = (w->wnd_h-8) / vid.height;
+		srect.dmin = -99999;
+		srect.dmax = 99999;
+		srect.y = (1-srect.y) - srect.height;
+		if (srect.width && srect.height)
+		{
+			BE_Scissor(&srect);
+			R2D_ImageColours(0, 0.1, 0.2, 1.0);
+			if (w->buttonsdown & CB_SIZELEFT)
+				R2D_FillBlock(w->wnd_x, w->wnd_y+8, 8, w->wnd_h-8);
+			if (w->buttonsdown & CB_SIZERIGHT)
+				R2D_FillBlock(w->wnd_x+w->wnd_w-8, w->wnd_y+8, 8, w->wnd_h-8);
+			if (w->buttonsdown & CB_SIZEBOTTOM)
+				R2D_FillBlock(w->wnd_x, w->wnd_y+w->wnd_h-8, w->wnd_w, 8);
+			Con_DrawOneConsole(w, con_curwindow == w && !Key_Dest_Has(kdm_console), font_console, w->wnd_x+8, w->wnd_y, w->wnd_w-16, w->wnd_h-8);
+			BE_Scissor(NULL);
+		}
+
+		if (w->selstartline)
+			mouseconsole = w;
+		if (!con_curwindow)
+			con_curwindow = w;
+	}
+
+	if (lines > 0)
+	{
 #ifdef QTERM
-	if (qterms)
-		QT_Update();
+		if (qterms)
+			QT_Update();
 #endif
 
 // draw the background
-	if (!noback)
-		R2D_ConsoleBackground (0, lines, scr_con_forcedraw);
+		if (!noback)
+			R2D_ConsoleBackground (0, lines, scr_con_forcedraw);
 
-	con_current->unseentext = false;
+		con_current->unseentext = false;
 
-	con_current->vislines = lines;
+		con_current->vislines = lines;
 
-	top = Con_DrawAlternateConsoles(lines);
+		top = Con_DrawAlternateConsoles(lines);
 
-	if (!con_current->display)
-		con_current->display = con_current->current;
+		if (!con_current->display)
+			con_current->display = con_current->current;
 
-	x = 8;
-	y = lines;
+		x = 8;
+		y = lines;
 
-	con_current->mousecursor[0] = mousecursor_x;
-	con_current->mousecursor[1] = mousecursor_y;
-	con_current->selstartline = NULL;
-	con_current->selendline = NULL;
-	selactive = Key_GetConsoleSelectionBox(con_current, &selsx, &selsy, &selex, &seley);
+		con_current->mousecursor[0] = mousecursor_x;
+		con_current->mousecursor[1] = mousecursor_y;
+		con_current->selstartline = NULL;
+		con_current->selendline = NULL;
+		selactive = Key_GetConsoleSelectionBox(con_current, &selsx, &selsy, &selex, &seley);
 
-	Font_BeginString(font_console, x, y, &x, &y);
-	Font_BeginString(font_console, selsx, selsy, &selsx, &selsy);
-	Font_BeginString(font_console, selex, seley, &selex, &seley);
-	ex = Font_ScreenWidth();
-	sx = x;
-	ex -= sx;
+		Font_BeginString(font_console, x, y, &x, &y);
+		Font_BeginString(font_console, selsx, selsy, &selsx, &selsy);
+		Font_BeginString(font_console, selex, seley, &selex, &seley);
+		ex = Font_ScreenWidth();
+		sx = x;
+		ex -= sx;
 
-	y -= Font_CharHeight();
-	haveprogress = Con_DrawProgress(x, ex - x, y) != y;
-	y = Con_DrawInput (con_current, Key_Dest_Has(kdm_console), x, ex - x, y, selactive, selsx, selex, selsy, seley);
-
-	l = con_current->display;
-
-	y = Con_DrawConsoleLines(con_current, l, sx, ex, y, top, selactive, selsx, selex, selsy, seley);
-
-	if (!haveprogress && lines == vid.height)
-	{
-		char *version = version_string();
-		int i;
-		Font_BeginString(font_console, vid.width, lines, &x, &y);
 		y -= Font_CharHeight();
-		for (i = 0; version[i]; i++)
-			x -= Font_CharWidth(version[i] | CON_WHITEMASK|CON_HALFALPHA);
-		for (i = 0; version[i]; i++)
-			x = Font_DrawChar(x, y, version[i] | CON_WHITEMASK|CON_HALFALPHA);
+		haveprogress = Con_DrawProgress(x, ex - x, y) != y;
+		y = Con_DrawInput (con_current, Key_Dest_Has(kdm_console), x, ex - x, y, selactive, selsx, selex, selsy, seley);
+
+		l = con_current->display;
+
+		y = Con_DrawConsoleLines(con_current, l, sx, ex, y, top, selactive, selsx, selex, selsy, seley);
+
+		if (!haveprogress && lines == vid.height)
+		{
+			char *version = version_string();
+			int i;
+			Font_BeginString(font_console, vid.width, lines, &x, &y);
+			y -= Font_CharHeight();
+			for (i = 0; version[i]; i++)
+				x -= Font_CharWidth(version[i] | CON_WHITEMASK|CON_HALFALPHA);
+			for (i = 0; version[i]; i++)
+				x = Font_DrawChar(x, y, version[i] | CON_WHITEMASK|CON_HALFALPHA);
+		}
+
+		Font_EndString(font_console);
+		mouseconsole = con_mouseover?con_mouseover:con_current;
 	}
+	else
+		mouseconsole = con_mouseover?con_mouseover:NULL;
 
-	Font_EndString(font_console);
-
-	if (con_current->selstartline)
+	if (mouseconsole && mouseconsole->selstartline)
 	{
-		char *mouseover = Con_CopyConsole(false, true);
+		char *mouseover = Con_CopyConsole(mouseconsole, false, true);
 		if (mouseover)
 		{
 			char *end = strstr(mouseover, "^]");
@@ -1992,7 +2158,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 	}
 }
 
-void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy, float fsx, float fsy)
+void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy)
 {
 	int selactive, selsx, selsy, selex, seley;
 	int x, y, sx, sy;
@@ -2018,7 +2184,7 @@ void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy,
 		seley += y;
 	}
 
-	sy = Con_DrawInput (con, con->flags & CONF_KEYFOCUSED, x, sx, sy, selactive, selsx, selex, selsy, seley);
+	sy = Con_DrawInput (con, focused, x, sx, sy, selactive, selsx, selex, selsy, seley);
 
 	if (!con->display)
 		con->display = con->current;
@@ -2028,9 +2194,8 @@ void Con_DrawOneConsole(console_t *con, struct font_s *font, float fx, float fy,
 }
 
 
-char *Con_CopyConsole(qboolean nomarkup, qboolean onlyiflink)
+char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
 {
-	console_t *con = con_current;
 	conchar_t *cur;
 	conline_t *l;
 	conchar_t *lend;

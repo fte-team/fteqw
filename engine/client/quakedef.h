@@ -230,9 +230,10 @@ int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_lis
 
 typedef struct quakeparms_s
 {
-	char	*basedir;	//working directory
-	char	*binarydir;	//exe directory
-	int		argc;
+	char		*basedir;	//working directory
+	char		*binarydir;	//exe directory
+	const char	*manifest;	//linked manifest data (for installer functionality etc)
+	int			argc;
 	const char	**argv;
 } quakeparms_t;
 

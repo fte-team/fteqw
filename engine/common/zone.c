@@ -322,6 +322,34 @@ void VARGS Z_FreeTags(int tag)
 	}
 }
 
+//close enough
+#ifndef SIZE_MAX
+	#define SIZE_MAX ((size_t)-1)
+#endif
+
+qboolean ZF_ReallocElements(void **ptr, size_t *elements, size_t newelements, size_t elementsize)
+{
+	void *n;
+	size_t oldsize;
+	size_t newsize;
+
+	//protect against malicious overflows
+	if (newelements > SIZE_MAX / elementsize)
+		return false;
+
+	oldsize = *elements * elementsize;
+	newsize = newelements * elementsize;
+
+	n = BZ_Realloc(*ptr, newsize);
+	if (!n)
+		return false;
+	if (newsize > oldsize)
+		memset((char*)n+oldsize, 0, newsize - oldsize);
+	*elements = newelements;
+	*ptr = n;
+	return true;
+}
+
 /*
 void *Z_Realloc(void *data, int newsize)
 {

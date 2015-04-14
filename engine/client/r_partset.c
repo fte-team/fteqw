@@ -1582,7 +1582,7 @@ char *particle_set_high =
 "randomvel 1000\n"
 "friction 0.01\n"
 "gravity 100\n"
-"stretchfactor 5\n"
+"stretchfactor -80\n"
 "}\n"
 
 //hide lights in explosions.
@@ -1633,6 +1633,8 @@ char *particle_set_high =
 
 "shader\n"
 "{\n"
+"surfaceparm noshadows\n"
+"surfaceparm nodlight\n"
 "glslprogram\n"
 "{\n"
 "varying vec2 tcoord;\n"

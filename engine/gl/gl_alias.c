@@ -742,6 +742,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			cm->texnum.specular = r_nulltex;
 			cm->texnum.loweroverlay = r_nulltex;
 			cm->texnum.upperoverlay = r_nulltex;
+			cm->texnum.paletted = r_nulltex;
 
 			//q2 has no surfaces in its player models, so don't crash from that
 			//note that q2 should also always have a custom skin set. its not our problem (here) if it doesn't.

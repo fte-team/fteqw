@@ -1408,6 +1408,8 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 	qboolean	freefall;
 	int fl = ent->v->flags;
 	const float *gravitydir;
+	vec3_t oldorg;
+	VectorCopy(ent->v->origin, oldorg);
 
 	if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
 		gravitydir = ent->xv->gravitydir;
@@ -1448,7 +1450,8 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 // regular thinking
 	WPhys_RunThink (w, ent);
 
-	WPhys_CheckWaterTransition (w, ent);
+	if (!VectorEquals(ent->v->origin, oldorg))
+		WPhys_CheckWaterTransition (w, ent);
 }
 
 //============================================================================
@@ -2521,7 +2524,7 @@ qboolean SV_Physics (void)
 		{
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
-			pr_global_struct->time = sv.world.physicstime;
+			pr_global_struct->time = sv.world.physicstime+host_frametime;
 			Q1QVM_EndFrame();
 		}
 		else
@@ -2530,7 +2533,7 @@ qboolean SV_Physics (void)
 		{
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
-			pr_global_struct->time = sv.world.physicstime;
+			pr_global_struct->time = sv.world.physicstime+host_frametime;
 			PR_ExecuteProgram (svprogfuncs, EndFrameQC);
 		}
 

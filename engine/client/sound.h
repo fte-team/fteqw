@@ -45,17 +45,19 @@ typedef struct {
 	void *buf;
 } sfxdecode_t;
 
+enum
+{
+	SLS_NOTLOADED,	//not tried to load it
+	SLS_LOADING,	//loading it on a worker thread.
+	SLS_LOADED,		//currently in memory and usable.
+	SLS_FAILED		//already tried to load it. it won't work. not found, invalid format, etc
+};
 typedef struct sfx_s
 {
 	char 	name[MAX_OSPATH];
 	sfxdecode_t		decoder;
 
-	enum {
-		SLS_NOTLOADED,	//not tried to load it
-		SLS_LOADING,	//loading it on a worker thread.
-		SLS_LOADED,		//currently in memory and usable.
-		SLS_FAILED		//already tried to load it. it won't work. not found, invalid format, etc
-	} loadstate; //no more super-spammy
+	int loadstate; //no more super-spammy
 	qboolean touched:1; //if the sound is still relevent
 
 #ifdef AVAIL_OPENAL

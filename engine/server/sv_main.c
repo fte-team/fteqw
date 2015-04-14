@@ -119,7 +119,7 @@ cvar_t sv_pupglow = CVARF("sv_pupglow", "", CVAR_SERVERINFO);
 cvar_t sv_master = CVAR("sv_master", "0");
 cvar_t sv_masterport = CVAR("sv_masterport", "0");
 
-cvar_t pext_ezquake_nochunks = CVARD("pext_ezquake_nochunks", "1", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
+cvar_t pext_ezquake_nochunks = CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
 
 cvar_t	sv_gamespeed = CVARAF("sv_gamespeed", "1", "slowmo", 0);
 cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
@@ -229,6 +229,13 @@ void SV_Shutdown (void)
 		sv.num_static_entities = 0;
 		BZ_Free(sv_staticentities);
 		sv_staticentities = NULL;
+	}
+	if (sv_staticsounds)
+	{
+		sv_max_staticsounds = 0;
+		sv.num_static_sounds = 0;
+		BZ_Free(sv_staticsounds);
+		sv_staticsounds = NULL;
 	}
 	while (svs.free_lagged_packet)
 	{
@@ -1060,7 +1067,7 @@ void SVC_Status (void)
 			ping = SV_CalcPing (cl, false);
 			name = cl->name;
 
-			if (!cl->state)	//show bots differently. Just to be courteous.
+			if (!cl->state || cl->protocol == SCP_BAD)	//show bots differently. Just to be courteous.
 				Con_Printf ("%i %i %i %i \"BOT:%s\" \"%s\" %i %i\n", cl->userid,
 					cl->old_frags, (int)(realtime - cl->connection_started)/60,
 					ping, cl->name, Info_ValueForKey (cl->userinfo, "skin"), top, bottom);
@@ -3749,7 +3756,8 @@ dominping:
 					break;
 				if (net_message.cursize > sizeof(svs.free_lagged_packet->data))
 				{
-					Con_Printf("minping code is screwy\n");
+					Con_Printf("packet too large for minping\n");
+					cl->delay -= 0.001;
 					break;	//drop this packet
 				}
 
@@ -4688,7 +4696,24 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	char	newname[80], basic[80];
 	extern cvar_t rank_filename;
 
+	int bottom = atoi(Info_ValueForKey(cl->userinfo, "bottomcolor"));
+
+	if (progstype == PROG_NQ)
+		p = va("t%u", bottom);
+	else
+		p = Info_ValueForKey(localinfo, va("team%u", bottom));
 	val = Info_ValueForKey (cl->userinfo, "team");
+	if (*p && strcmp(p, val))
+	{
+		Info_SetValueForKey(cl->userinfo, "team", p, sizeof(cl->userinfo));
+		if (verbose)
+		{
+			MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
+			MSG_WriteByte (&sv.reliable_datagram, cl-svs.clients);
+			MSG_WriteString (&sv.reliable_datagram, "team");
+			MSG_WriteString (&sv.reliable_datagram, p);
+		}
+	}
 	Q_strncpyz (cl->team, val, sizeof(cl->teambuf));
 
 	// name for C code
@@ -4829,7 +4854,6 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 #ifdef NQPROT
 	{
 		int top = atoi(Info_ValueForKey(cl->userinfo, "topcolor"));
-		int bottom = atoi(Info_ValueForKey(cl->userinfo, "bottomcolor"));
 		top &= 15;
 		if (top > 13)
 			top = 13;
@@ -4966,7 +4990,7 @@ void SV_Init (quakeparms_t *parms)
 		host_initialized = true;
 
 
-		FS_ChangeGame(NULL, true);
+		FS_ChangeGame(NULL, true, true);
 
 		Cmd_StuffCmds();
 		Cbuf_Execute ();

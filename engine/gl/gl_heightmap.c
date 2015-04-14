@@ -219,32 +219,56 @@ typedef struct
 {
 	hmsection_t *section[MAXSECTIONS*MAXSECTIONS];
 } hmcluster_t;
-typedef struct brushtex_s
+
+#ifndef SERVERONLY
+typedef struct brushbatch_s
 {
-	char shadername[MAX_QPATH];
-	shader_t *shader;
 	vbo_t vbo;
 	mesh_t mesh;
 	mesh_t *pmesh;
+	int lightmap;
+	struct brushbatch_s *next;
+	avec4_t align;	//meh, cos we can.
+} brushbatch_t;
+#endif
+typedef struct brushtex_s
+{
+	char shadername[MAX_QPATH];
+#ifndef SERVERONLY
+	shader_t *shader;
+
+	//for rebuild performance
+	int firstlm;
+	int lmcount;
+
+	struct brushbatch_s *batches;
+#endif
 	qboolean rebuild;
-//	struct
-//	{
-//		unsigned int brush;
-//		unsigned short face;
-//	} *faces;
-//	int numfaces;
 	struct brushtex_s *next;
 } brushtex_t;
+
 typedef struct
 {
-	unsigned int contents;
-	size_t	numplanes;
-	vec4_t	*planes;
+	unsigned int	contents;
+	unsigned int	id;			//networked/gamecode id.
+	unsigned int	numplanes;
+	qboolean		selected;	//different shader stuff
+	vec4_t			*planes;
+	vec3_t			mins, maxs;	//for optimisation and stuff
 	struct brushface_s
 	{
 		brushtex_t *tex;
-		vec4_t sdir;
-		vec4_t tdir;
+		vec4_t stdir[2];
+		vec3_t *points;
+		unsigned short numpoints;
+		unsigned short lmscale;
+		int	lightmap;
+		unsigned short lmbase[2];	//min st coord of the lightmap atlas, in texels.
+		unsigned int relight:1;
+		unsigned int relit:1;
+		int lmbias[2];
+		unsigned short lmextents[2];
+		qbyte *lightdata;
 	} *faces;
 } brushes_t;
 typedef struct heightmap_s
@@ -317,11 +341,18 @@ typedef struct heightmap_s
 
 
 
-
-
+	struct relight_ctx_s *relightcontext;
+	struct llightinfo_s *lightthreadmem;
+	qboolean inheritedlightthreadmem;
+	qboolean recalculatebrushlighting;
+	lmalloc_t brushlmalloc;
+	float brushlmscale;
+	unsigned int *brushlmremaps;
+	unsigned int brushmaxlms;
 	brushtex_t *brushtextures;
 	brushes_t *wbrushes;
-	int numbrushes;
+	unsigned int numbrushes;
+	unsigned int brushidseq;
 } heightmap_t;
 
 #ifndef SERVERONLY
@@ -334,7 +365,8 @@ static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, si
 static void Terr_WorkerLoadedSection(void *ctx, void *data, size_t a, size_t b);
 static void Terr_WorkerFailedSection(void *ctx, void *data, size_t a, size_t b);
 
-void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e);
+static void Terr_Brush_DeleteIdx(heightmap_t *hm, size_t idx);
+static void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e);
 
 #ifndef SERVERONLY
 static texid_t Terr_LoadTexture(char *name)
@@ -2223,6 +2255,12 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 
 			hm->numunusedlmsects--;
 		}
+
+
+		hm->recalculatebrushlighting = true;
+		BZ_Free(hm->brushlmremaps);
+		hm->brushlmremaps = NULL;
+		hm->brushmaxlms = 0;
 	}
 #endif
 
@@ -2233,6 +2271,31 @@ void Terr_FreeModel(model_t *mod)
 	heightmap_t *hm = mod->terrain;
 	if (hm)
 	{
+		while(hm->numbrushes)
+			Terr_Brush_DeleteIdx(hm, hm->numbrushes-1);
+		while(hm->brushtextures)
+		{
+			brushtex_t *bt = hm->brushtextures;
+#ifndef SERVERONLY
+			brushbatch_t *bb;
+			while((bb = bt->batches))
+			{
+				bt->batches = bb->next;
+				BE_VBO_Destroy(&bb->vbo.coord);
+				BE_VBO_Destroy(&bb->vbo.indicies);
+				BZ_Free(bb);
+			}
+#endif
+			hm->brushtextures = bt->next;
+			BZ_Free(bt);
+		}
+#ifdef RUNTIMELIGHTING
+		if (hm->relightcontext)
+			LightShutdown(hm->relightcontext, mod);
+		if (hm->lightthreadmem && !hm->inheritedlightthreadmem)
+			BZ_Free(hm->lightthreadmem);
+#endif
+		BZ_Free(hm->wbrushes);
 		Terr_PurgeTerrainModel(mod, false, false);
 		while(hm->entities)
 		{
@@ -2240,6 +2303,7 @@ void Terr_FreeModel(model_t *mod)
 			Z_Free(hm->entities);
 			hm->entities = n;
 		}
+		Sys_DestroyMutex(hm->entitylock);
 		Z_Free(hm);
 		mod->terrain = NULL;
 	}
@@ -3237,7 +3301,43 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org)
 {
 	heightmap_t *hm = model->terrain;
-	return Heightmap_PointContentsHM(hm, 0, org);
+	unsigned int cont;
+	brushes_t *br;
+	unsigned int i, j;
+	float dist;
+
+	cont = Heightmap_PointContentsHM(hm, 0, org);
+	if (cont & FTECONTENTS_SOLID)
+		return cont;
+
+
+	for (i = 0; i < hm->numbrushes; i++)
+	{
+		br = &hm->wbrushes[i];
+
+		for (j = 0; j < br->numplanes; j++)
+		{
+			/*
+			for (k=0 ; k<3 ; k++)
+			{
+				if (in_normals[j][k] < 0)
+					best[k] = br->maxs[k];
+				else
+					best[k] = br->mins[k];
+			}
+			*/
+			dist = DotProduct (org/*best*/, br->planes[j]);
+			dist = br->planes[j][3] - dist;
+			if (dist < 0)
+				break;
+		}
+		if (j == br->numplanes)
+		{
+			cont |= br->contents;
+		}
+	}
+
+	return cont;
 }
 unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, int frame, vec3_t axis[3], vec3_t org, vec3_t mins, vec3_t maxs)
 {
@@ -3317,7 +3417,9 @@ typedef struct {
 	vec4_t plane;
 	vec3_t mins;
 	vec3_t maxs;
-	qboolean capsule;
+	vec3_t absmins;
+	vec3_t absmaxs;
+	enum {ispoint, iscapsule, isbox} shape;
 	float frac;
 	float htilesize;
 	heightmap_t *hm;
@@ -3326,14 +3428,15 @@ typedef struct {
 	trace_t *result;
 } hmtrace_t;
 
-static void Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
+static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 {
 	qboolean startout;
 	float *enterplane;
 	double enterfrac, exitfrac, nearfrac=0;
 	double enterdist=0;
 	double dist, d1, d2, f;
-	int i;
+	unsigned int i, j;
+	vec3_t ofs;
 
 	startout = false;
 	enterplane= NULL;
@@ -3342,7 +3445,28 @@ static void Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 	for (i = 0; i < numplanes; i++)
 	{
 		/*calculate the distance based upon the shape of the object we're tracing for*/
-		dist = planes[i][3];
+		switch(tr->shape)
+		{
+		default:
+		case isbox: // general box case
+			// push the plane out apropriately for mins/maxs
+
+			// FIXME: use signbits into 8 way lookup for each mins/maxs
+			for (j=0 ; j<3 ; j++)
+			{
+				if (planes[i][j] < 0)
+					ofs[j] = tr->maxs[j];
+				else
+					ofs[j] = tr->mins[j];
+			}
+			dist = DotProduct (ofs, planes[i]);
+			dist = planes[i][3] - dist;
+			break;
+//		capsuledist(dist,plane,mins,maxs)
+		case ispoint: // special point case
+			dist = planes[i][3];
+			break;
+		}
 
 
 		d1 = DotProduct (tr->start, planes[i]) - dist;
@@ -3350,7 +3474,7 @@ static void Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 
 		//if we're fully outside any plane, then we cannot possibly enter the brush, skip to the next one
 		if (d1 > 0 && d2 >= d1)
-			return;
+			return false;
 
 		if (d1 > 0)
 			startout = true;
@@ -3384,7 +3508,7 @@ static void Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 	if (!startout)
 	{
 		tr->frac = -1;
-		return;
+		return false;
 	}
 	if (enterfrac != -1 && enterfrac < exitfrac)
 	{
@@ -3396,8 +3520,10 @@ static void Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 			tr->frac = nearfrac;//enterfrac;
 			tr->plane[3] = enterdist;
 			VectorCopy(enterplane, tr->plane);
+			return ((vec4_t*)enterplane - planes)+1;
 		}
 	}
+	return false;
 }
 
 //sx,sy are the tile coord
@@ -3477,7 +3603,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			//do the trace
 			memset(&etr, 0, sizeof(etr));
 			etr.fraction = 1;
-			model->funcs.NativeTrace (model, 0, frame, s->ents[i]->ent.axis, start_l, end_l, tr->mins, tr->maxs, tr->capsule, tr->hitcontentsmask, &etr);
+			model->funcs.NativeTrace (model, 0, frame, s->ents[i]->ent.axis, start_l, end_l, tr->mins, tr->maxs, tr->shape == iscapsule, tr->hitcontentsmask, &etr);
 
 			tr->result->startsolid |= etr.startsolid;
 			tr->result->allsolid |= etr.allsolid;
@@ -3657,10 +3783,12 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	vec2_t frac;
 	vec2_t emins;
 	vec2_t emaxs;
+	vec3_t tmp;
 	int x, y;
 	int axis;
 	int breaklimit = 1000;
 	float wbias;
+	float zbias;
 	hmtrace_t hmtrace;
 	hmtrace.hm = model->terrain;
 	hmtrace.hm->traceseq++;
@@ -3672,7 +3800,21 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	hmtrace.plane[1] = 0;
 	hmtrace.plane[2] = 0;
 	hmtrace.plane[3] = 0;
-	hmtrace.capsule = capsule;
+	if (capsule)
+	{
+		hmtrace.shape = iscapsule;
+		zbias = 0;
+	}
+	else if (mins[0] || mins[1] || mins[2] || maxs[0] || maxs[1] || maxs[2])
+	{
+		hmtrace.shape = isbox;
+		zbias = 0;
+	}
+	else
+	{
+		hmtrace.shape = ispoint;
+		zbias = mins[2];
+	}
 
 	memset(trace, 0, sizeof(*trace));
 	trace->fraction = 1;
@@ -3681,10 +3823,10 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	//to tile space
 	hmtrace.start[0] = (start[0]);
 	hmtrace.start[1] = (start[1]);
-	hmtrace.start[2] = (start[2] + mins[2]);
+	hmtrace.start[2] = (start[2] + zbias);
 	hmtrace.end[0] = (end[0]);
 	hmtrace.end[1] = (end[1]);
-	hmtrace.end[2] = (end[2] + mins[2]);
+	hmtrace.end[2] = (end[2] + zbias);
 
 	dir[0] = (hmtrace.end[0] - hmtrace.start[0])/hmtrace.htilesize;
 	dir[1] = (hmtrace.end[1] - hmtrace.start[1])/hmtrace.htilesize;
@@ -3699,6 +3841,22 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 
 	VectorCopy(mins, hmtrace.mins);
 	VectorCopy(maxs, hmtrace.maxs);
+
+	//determine extents
+	VectorAdd(hmtrace.start, hmtrace.mins, hmtrace.absmins);
+	VectorCopy(hmtrace.absmins, hmtrace.absmaxs);
+	VectorAdd(hmtrace.start, hmtrace.maxs, tmp);
+	AddPointToBounds (tmp, hmtrace.absmins, hmtrace.absmaxs);
+	VectorAdd(hmtrace.end, hmtrace.mins, tmp);
+	AddPointToBounds (tmp, hmtrace.absmins, hmtrace.absmaxs);
+	VectorAdd(hmtrace.end, hmtrace.maxs, tmp);
+	AddPointToBounds (tmp, hmtrace.absmins, hmtrace.absmaxs);
+	hmtrace.absmaxs[0] += 1;
+	hmtrace.absmaxs[1] += 1;
+	hmtrace.absmaxs[2] += 1;
+	hmtrace.absmins[0] -= 1;
+	hmtrace.absmins[1] -= 1;
+	hmtrace.absmins[2] -= 1;
 
 	/*fixme:
 	set pos to the leading corner instead
@@ -3763,11 +3921,26 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	{
 		brushes_t *brushes = hmtrace.hm->wbrushes;
 		int count = hmtrace.hm->numbrushes;
-		while(count-->0)
+		for (count = hmtrace.hm->numbrushes; count-->0; brushes++)
 		{
 			if (brushes->contents & against)
-				Heightmap_Trace_Brush(&hmtrace, brushes->planes, brushes->numplanes);
-			brushes++;
+			{
+				int face;
+				if (hmtrace.absmaxs[0] < brushes->mins[0] ||
+					hmtrace.absmaxs[1] < brushes->mins[1] ||
+					hmtrace.absmaxs[2] < brushes->mins[2])
+					continue;
+				if (hmtrace.absmins[0] > brushes->maxs[0] ||
+					hmtrace.absmins[1] > brushes->maxs[1] ||
+					hmtrace.absmins[2] > brushes->maxs[2])
+					continue;
+				face = Heightmap_Trace_Brush(&hmtrace, brushes->planes, brushes->numplanes);
+				if (face)
+				{
+					trace->brush_id = brushes->id;
+					trace->brush_face = face;
+				}
+			}
 		}
 	}
 
@@ -3837,9 +4010,9 @@ void Heightmap_LightPointValues	(model_t *mod, vec3_t point, vec3_t res_diffuse,
 	res_ambient[0] = 64;
 	res_ambient[1] = 64;
 	res_ambient[2] = 64;
-	res_dir[0] = sin(time);
-	res_dir[1] = cos(time);
-	res_dir[2] = sin(time);
+	res_dir[0] = 1;//sin(time);
+	res_dir[1] = 0;//cos(time);
+	res_dir[2] = 0;//sin(time);
 	VectorNormalize(res_dir);
 }
 void Heightmap_StainNode			(mnode_t *node, float *parms)
@@ -4692,7 +4865,7 @@ void Terr_FinishTerrain(model_t *mod)
 								"program depthonly\n"
 								"{\n"
 									"depthwrite\n"
-									"colormask\n"
+									"maskcolor\n"
 								"}\n"
 							"}\n"
 
@@ -4725,7 +4898,7 @@ void Terr_FinishTerrain(model_t *mod)
 }
 
 int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist);
-size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *planes, size_t numplanes, vec4_t face)
+static size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *planes, size_t numplanes, vec4_t face)
 {
 	int p;
 	vec4_t verts[128];
@@ -4803,37 +4976,209 @@ size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *planes, 
 #ifndef SERVERONLY
 void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 {
-#ifndef _DEBUG
-	return;
-#else
 	batch_t *b;
 	size_t i, j;
 	vbobctx_t ctx;
 
+	brushbatch_t *bb;
 	brushtex_t *bt;
 	brushes_t *br;
 
-	static vecV_t coord[65536];
-	static vec2_t texcoord[65536];
-	static vec3_t normal[65536];
-	static vec3_t svector[65536];
-	static vec3_t tvector[65536];
-	static index_t index[65535];
+	struct {
+		vecV_t coord[65536];
+		vec2_t texcoord[65536];
+		vec2_t lmcoord[65536];
+		vec3_t normal[65536];
+		vec3_t svector[65536];
+		vec3_t tvector[65536];
+		index_t index[65535];
+	} *arrays = NULL;
 	size_t numverts = 0;
 	size_t numindicies = 0;
-	int w, h;
+	int w, h, lmnum;
 	float scale[2];
+	lightmapinfo_t *lm;
+	qboolean dorelight = true;
+
+#ifdef RUNTIMELIGHTING
+	//FIXME: lightmaps
+	//if we're enabling lightmaps, make sure all surfaces have known sizes first.
+	//allocate lightmap space for all surfaces, and then rebuild all textures.
+	//if a surface is modified, clear its lightmap to -1 and when its batches are rebuilt, it'll unlight naturally.
+
+	if (hm->recalculatebrushlighting)
+	{
+		unsigned int lmcount;
+		unsigned int lmblocksize = 512;//LMBLOCK_SIZE_MAX
+		hm->recalculatebrushlighting = false;
+
+		if (!hm->relightcontext)
+		{
+			for (numverts = 0, numindicies = 0, i = 0, br = hm->wbrushes; i < hm->numbrushes; i++, br++)
+			{
+				for (j = 0; j < br->numplanes; j++)
+				{
+					br->faces[j].lightmap = -1;
+					br->faces[j].lmbase[0] = 0;
+					br->faces[j].lmbase[1] = 0;
+				}
+			}
+			for (bt = hm->brushtextures; bt; bt = bt->next)
+			{
+				bt->rebuild = true;
+				bt->firstlm = 0;
+				bt->lmcount = 0;
+			}
+
+			BZ_Free(hm->brushlmremaps);
+			hm->brushlmremaps = NULL;
+			hm->brushmaxlms = 0;
+		}
+		else
+		{
+			Mod_LightmapAllocInit(&hm->brushlmalloc, false, lmblocksize, lmblocksize, 0);
+			hm->brushlmscale = 1.0/lmblocksize;
+
+			//textures is to try to ensure that they are allocated consecutively.
+			for (bt = hm->brushtextures; bt; bt = bt->next)
+			{
+				bt->firstlm = hm->brushlmalloc.lmnum;
+				for (numverts = 0, numindicies = 0, i = 0, br = hm->wbrushes; i < hm->numbrushes; i++, br++)
+				{
+					for (j = 0; j < br->numplanes; j++)
+					{
+						if (br->faces[j].tex == bt)
+						{
+							if (br->faces[j].lightdata)
+							{
+								Mod_LightmapAllocBlock(&hm->brushlmalloc, br->faces[j].lmextents[0], br->faces[j].lmextents[1], &br->faces[j].lmbase[0], &br->faces[j].lmbase[1], &br->faces[j].lightmap);
+								br->faces[j].relit = true;
+							}
+							else
+							{	//this surface has no lightmap info or something.
+								br->faces[j].lightmap = -1;
+								br->faces[j].lmbase[0] = 0;
+								br->faces[j].lmbase[1] = 0;
+							}
+						}
+					}
+				}
+				bt->rebuild = true;
+				bt->lmcount = hm->brushlmalloc.lmnum - bt->firstlm;
+				if (hm->brushlmalloc.allocated[0])
+					bt->lmcount++;
+				if (hm->brushlmalloc.deluxe)
+				{
+					bt->firstlm *= 2;
+					bt->lmcount *= 2;
+				}
+			}
+
+			lmcount = hm->brushlmalloc.lmnum;
+			if (hm->brushlmalloc.allocated[0])
+				lmcount++;
+			if (hm->brushlmalloc.deluxe)
+				lmcount *= 2;
+
+			if (lmcount > hm->brushmaxlms)
+			{
+				int first;
+				hm->brushlmremaps = BZ_Realloc(hm->brushlmremaps, sizeof(*hm->brushlmremaps) * lmcount);
+				first = Surf_NewLightmaps(lmcount - hm->brushmaxlms, hm->brushlmalloc.width, hm->brushlmalloc.height, hm->brushlmalloc.deluxe);
+
+				while(hm->brushmaxlms < lmcount)
+					hm->brushlmremaps[hm->brushmaxlms++] = first++;
+			}
+		}
+	}
+
+	if (hm->relightcontext)
+	for (i = 0, br = hm->wbrushes; i < hm->numbrushes; i++, br++)
+	{
+		for (j = 0; j < br->numplanes; j++)
+		{
+			if (br->faces[j].relight && dorelight)
+			{
+				qbyte styles[4] = {0,255,255,255};
+				int texsize[2] = {br->faces[j].lmextents[0]-1, br->faces[j].lmextents[1]-1};
+				vec2_t exactmins, exactmaxs;
+				int m, k;
+				vec2_t lm;
+				for (m = 0; m < br->faces[j].numpoints; m++)
+				{
+					for (k = 0; k < 2; k++)
+					{
+						lm[k] = DotProduct(br->faces[j].points[m], br->faces[j].stdir[k]) + br->faces[j].stdir[k][3];
+						if (m == 0)
+						exactmins[k] = exactmaxs[k] = lm[k];
+						else if (lm[k] > exactmaxs[k])
+						exactmaxs[k] = lm[k];
+						else if (lm[k] < exactmins[k])
+						exactmins[k] = lm[k];
+					}
+				}
+
+				dorelight = false;
+				br->faces[j].relight = false;
+				LightPlane (hm->relightcontext, hm->lightthreadmem, styles, br->faces[j].lightdata, NULL, br->planes[j], br->faces[j].stdir, exactmins, exactmaxs, br->faces[j].lmbias, texsize, br->faces[j].lmscale);	//special version that doesn't know what a face is or anything.
+				br->faces[j].relit = true;
+			}
+			if (br->faces[j].relit)
+			{
+				int s,t;
+				qbyte *out, *in;
+				lm = lightmap[hm->brushlmremaps[br->faces[j].lightmap]];
+
+				br->faces[j].relit = false;
+
+				lm->modified = true;
+				lm->rectchange.l = 0;
+				lm->rectchange.t = 0;
+				lm->rectchange.w = lm->width;
+				lm->rectchange.h = lm->height;
+
+				in = br->faces[j].lightdata;
+				out = lm->lightmaps + (br->faces[j].lmbase[1] * lm->width + br->faces[j].lmbase[0]) * lightmap_bytes;
+				for (t = 0; t < br->faces[j].lmextents[1]; t++)
+				{
+					for (s = 0; s < br->faces[j].lmextents[0]; s++)
+					{
+						*out++ = in[2];
+						*out++ = in[1];
+						*out++ = in[0];
+						*out++ = 0xff;
+						in+=3;
+					}
+					out += (lm->width - br->faces[j].lmextents[0]) * lightmap_bytes;
+				}
+			}
+		}
+	}
+#endif
 
 	for (bt = hm->brushtextures; bt; bt = bt->next)
 	{
 		if (!bt->shader)
 		{
-			if (!strcmp(bt->shadername, "clip"))
+			if (!Q_strcasecmp(bt->shadername, "clip"))
 				bt->shader = R_RegisterShader(bt->shadername, SUF_LIGHTMAP, "{\nsurfaceparm nodraw\n}");
 			else
 				bt->shader = R_RegisterCustom (bt->shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 //				bt->shader = R_RegisterShader_Lightmap(bt->shadername);
-			R_BuildDefaultTexnums(NULL, bt->shader);
+
+			if (!Q_strncasecmp(bt->shadername, "sky", 3))
+			{
+				miptex_t *tx = W_GetMipTex(bt->shadername);
+				if (tx)
+				{
+					R_InitSky (&bt->shader->defaulttextures, bt->shadername, (qbyte*)tx + tx->offsets[0], tx->width, tx->height);
+					BZ_Free(tx);
+				}
+				else
+					R_BuildDefaultTexnums(NULL, bt->shader);
+			}
+			else
+				R_BuildDefaultTexnums(NULL, bt->shader);
 		}
 
 		if (bt->rebuild)
@@ -4848,78 +5193,130 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			scale[0] = 1.0/w;	//I hate needing this.
 			scale[1] = 1.0/h;
 
-			BE_VBO_Destroy(&bt->vbo.coord);
-			BE_VBO_Destroy(&bt->vbo.indicies);
-
-			for (i = 0, br = hm->wbrushes; i < hm->numbrushes; i++, br++)
+			while(bt->batches)
 			{
-				for (j = 0; j < br->numplanes; j++)
-				{
-					if (br->faces[j].tex == bt)
-					{
-						size_t add, k, o;
-						//this face needs to be built
-						add = Terr_GenerateBrushFace(&coord[numverts], 64, br->planes, br->numplanes, br->planes[j]);
-						for (k = 0, o = numverts; k < add; k++, o++)
-						{
-	//						VectorCopy(points[k], coord[o]);
-							VectorCopy(br->planes[j], normal[o]);
-							VectorCopy(br->faces[j].sdir, svector[o]);
-							VectorCopy(br->faces[j].tdir, tvector[o]);
+				bb = bt->batches;
+				bt->batches = bb->next;
 
-							//compute the texcoord plane
-							texcoord[o][0] = (DotProduct(svector[o], coord[o]) + br->faces[j].sdir[3]) * scale[0];
-							texcoord[o][1] = (DotProduct(tvector[o], coord[o]) + br->faces[j].tdir[3]) * scale[1];
-						}
-						for (k = 2; k < add; k++)
-						{	//triangle fans
-							index[numindicies++] = numverts + 0;
-							index[numindicies++] = numverts + k-1;
-							index[numindicies++] = numverts + k-0;
-						}
-						numverts += add;
-					}
-				}
+				BE_VBO_Destroy(&bb->vbo.coord);
+				BE_VBO_Destroy(&bb->vbo.indicies);
+				BZ_Free(bb);
 			}
 
-			BE_VBO_Begin(&ctx, (sizeof(coord[0])+sizeof(texcoord[0])+sizeof(normal[0])+sizeof(svector[0])+sizeof(tvector[0])) * numverts);
-			BE_VBO_Data(&ctx, coord, sizeof(coord[0])*numverts, &bt->vbo.coord);
-			BE_VBO_Data(&ctx, texcoord, sizeof(texcoord[0])*numverts, &bt->vbo.texcoord);
-			BE_VBO_Data(&ctx, normal, sizeof(normal[0])*numverts, &bt->vbo.normals);
-			BE_VBO_Data(&ctx, svector, sizeof(svector[0])*numverts, &bt->vbo.svector);
-			BE_VBO_Data(&ctx, tvector, sizeof(tvector[0])*numverts, &bt->vbo.tvector);
-			BE_VBO_Finish(&ctx, index, sizeof(index[0])*numindicies, &bt->vbo.indicies);
-			bt->pmesh = &bt->mesh;
-			bt->mesh.numindexes = numindicies;
-			bt->mesh.numvertexes = numverts;
+			if (!arrays)
+				arrays = BZ_Malloc(sizeof(*arrays));
+
+			for (lmnum = -1; lmnum < bt->firstlm+bt->lmcount; ((lmnum==-1)?(lmnum=bt->firstlm):(lmnum=lmnum+1)))
+			{
+				i = 0;
+				br = hm->wbrushes;
+				for (numverts = 0, numindicies = 0; i < hm->numbrushes; i++, br++)
+				{
+					//if a single batch has too many verts, cut it off before it overflows our maximum batch size, and hope we don't get a really really complex brush.
+					if (numverts > 0xf000 || numindicies > 0xf000)
+						break;
+
+					for (j = 0; j < br->numplanes; j++)
+					{
+						if (br->faces[j].tex == bt /*&& !br->selected*/ && br->faces[j].lightmap == lmnum)
+						{
+							size_t k, o;
+							float s,t;
+
+							for (k = 0, o = numverts; k < br->faces[j].numpoints; k++, o++)
+							{
+								VectorCopy(br->faces[j].points[k], arrays->coord[o]);
+								VectorCopy(br->planes[j], arrays->normal[o]);
+								VectorCopy(br->faces[j].stdir[0], arrays->svector[o]);
+								VectorCopy(br->faces[j].stdir[1], arrays->tvector[o]);
+
+								//compute the texcoord planes
+								s = (DotProduct(arrays->svector[o], arrays->coord[o]) + br->faces[j].stdir[0][3]);
+								t = (DotProduct(arrays->tvector[o], arrays->coord[o]) + br->faces[j].stdir[1][3]);
+								arrays->texcoord[o][0] = s * scale[0];
+								arrays->texcoord[o][1] = t * scale[1];
+
+								//maths, maths, and more maths.
+								arrays->lmcoord[o][0] = (br->faces[j].lmbase[0]+0.5 + s/br->faces[j].lmscale-br->faces[j].lmbias[0]) * hm->brushlmscale;
+								arrays->lmcoord[o][1] = (br->faces[j].lmbase[1]+0.5 + t/br->faces[j].lmscale-br->faces[j].lmbias[1]) * hm->brushlmscale;
+							}
+							for (k = 2; k < br->faces[j].numpoints; k++)
+							{	//triangle fans
+								arrays->index[numindicies++] = numverts + 0;
+								arrays->index[numindicies++] = numverts + k-1;
+								arrays->index[numindicies++] = numverts + k-0;
+							}
+							numverts += br->faces[j].numpoints;
+						}
+					}
+				}
+
+				if (numverts || numindicies)
+				{
+					bb = Z_Malloc(sizeof(*bb) + (sizeof(bb->mesh.xyz_array[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
+					bb->next = bt->batches;
+					bt->batches = bb;
+					bb->lightmap = lmnum;
+					BE_VBO_Begin(&ctx, (sizeof(arrays->coord[0])+sizeof(arrays->texcoord[0])+sizeof(arrays->lmcoord[0])+sizeof(arrays->normal[0])+sizeof(arrays->svector[0])+sizeof(arrays->tvector[0])) * numverts);
+					BE_VBO_Data(&ctx, arrays->coord,	sizeof(arrays->coord	[0])*numverts,		&bb->vbo.coord);
+					BE_VBO_Data(&ctx, arrays->texcoord, sizeof(arrays->texcoord	[0])*numverts,		&bb->vbo.texcoord);
+					BE_VBO_Data(&ctx, arrays->lmcoord,	sizeof(arrays->lmcoord	[0])*numverts,		&bb->vbo.lmcoord[0]);
+					BE_VBO_Data(&ctx, arrays->normal,	sizeof(arrays->normal	[0])*numverts,		&bb->vbo.normals);
+					BE_VBO_Data(&ctx, arrays->svector,	sizeof(arrays->svector	[0])*numverts,		&bb->vbo.svector);
+					BE_VBO_Data(&ctx, arrays->tvector,	sizeof(arrays->tvector	[0])*numverts,		&bb->vbo.tvector);
+					BE_VBO_Finish(&ctx, arrays->index,	sizeof(arrays->index	[0])*numindicies,	&bb->vbo.indicies);
+
+					bb->mesh.xyz_array = (avec4_t*)(bb+1);
+					memcpy(bb->mesh.xyz_array, arrays->coord, sizeof(*bb->mesh.xyz_array) * numverts);
+					bb->mesh.st_array = (vec2_t*)(bb->mesh.xyz_array+numverts);
+					memcpy(bb->mesh.st_array, arrays->texcoord, sizeof(*bb->mesh.st_array) * numverts);
+					bb->mesh.lmst_array[0] = (vec2_t*)(bb->mesh.st_array+numverts);
+					memcpy(bb->mesh.lmst_array[0], arrays->lmcoord, sizeof(*bb->mesh.lmst_array) * numverts);
+					bb->mesh.normals_array = (vec3_t*)(bb->mesh.lmst_array[0]+numverts);
+					memcpy(bb->mesh.normals_array, arrays->normal, sizeof(*bb->mesh.normals_array) * numverts);
+					bb->mesh.snormals_array = (vec3_t*)(bb->mesh.normals_array+numverts);
+					memcpy(bb->mesh.snormals_array, arrays->svector, sizeof(*bb->mesh.snormals_array) * numverts);
+					bb->mesh.tnormals_array = (vec3_t*)(bb->mesh.snormals_array+numverts);
+					memcpy(bb->mesh.tnormals_array, arrays->tvector, sizeof(*bb->mesh.tnormals_array) * numverts);
+
+					bb->pmesh = &bb->mesh;
+					bb->mesh.numindexes = numindicies;
+					bb->mesh.numvertexes = numverts;
+				}
+			}
 		}
-		if (!bt->mesh.numindexes)
-			continue;	//o.O
 
-		b = BE_GetTempBatch();
-		if (b)
+		for(bb = bt->batches; bb; bb = bb->next)
 		{
-			for (j = 0; j < MAXRLIGHTMAPS; j++)
-				b->lightmap[j] = -1;
-			b->ent = e;
-			b->shader = bt->shader;
-			b->flags = 0;
-			b->mesh = &bt->pmesh;
-			b->meshes = 1;
-			b->buildmeshes = NULL;
-			b->skin = &b->shader->defaulttextures;
-			b->texture = NULL;
-			b->vbo = &bt->vbo;
+			b = BE_GetTempBatch();
+			if (b)
+			{
+				j = 0;
+				if (bb->lightmap >= 0)
+					b->lightmap[j++] = hm->brushlmremaps[bb->lightmap];
+				for (; j < MAXRLIGHTMAPS; j++)
+					b->lightmap[j] = -1;
+				b->ent = e;
+				b->shader = bt->shader;
+				b->flags = 0;
+				b->mesh = &bb->pmesh;
+				b->meshes = 1;
+				b->buildmeshes = NULL;
+				b->skin = &b->shader->defaulttextures;
+				b->texture = NULL;
+				b->vbo = &bb->vbo;
 
-			b->next = batches[b->shader->sort];
-			batches[b->shader->sort] = b;
+				b->next = batches[b->shader->sort];
+				batches[b->shader->sort] = b;
+			}
 		}
 	}
-#endif
+	if (arrays)
+		BZ_Free(arrays);
 }
 #endif
 
-brushtex_t *Terr_Brush_FindTexture(heightmap_t *hm, char *texname)
+static brushtex_t *Terr_Brush_FindTexture(heightmap_t *hm, const char *texname)
 {
 	brushtex_t *bt;
 	if (!hm)
@@ -4938,33 +5335,778 @@ brushtex_t *Terr_Brush_FindTexture(heightmap_t *hm, char *texname)
 	return bt;
 }
 
-void Terr_Brush_Insert(heightmap_t *hm, brushes_t *brush)
+static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *brush)
 {
-	int i;
+	vecV_t facepoints[64];
+	unsigned int iface, oface, j, k;
+	unsigned int numpoints;
 	brushes_t *out;
+	vec2_t mins, maxs;
+	vec2_t lm;
 	if (!hm)
-		return;
+		return NULL;
 
 	hm->wbrushes = BZ_Realloc(hm->wbrushes, sizeof(*hm->wbrushes) * (hm->numbrushes+1));
 	out = &hm->wbrushes[hm->numbrushes];
+	out->selected = false;
 	out->contents = brush->contents;
-	out->numplanes = brush->numplanes;
-	out->planes = BZ_Malloc((sizeof(*out->planes)+sizeof(*out->faces)) * out->numplanes);
-	out->faces = (void*)(out->planes+out->numplanes);
-	for (i = 0; i < out->numplanes; i++)
+
+	out->planes = BZ_Malloc((sizeof(*out->planes)+sizeof(*out->faces)) * brush->numplanes);
+	out->faces = (void*)(out->planes+brush->numplanes);
+	ClearBounds(out->mins, out->maxs);
+	for (iface = 0, oface = 0; iface < brush->numplanes; iface++)
 	{
-		Vector4Copy(brush->planes[i], out->planes[i]);
-		out->faces[i].tex = brush->faces[i].tex;
-		Vector4Copy(brush->faces[i].sdir, out->faces[i].sdir);
-		Vector4Copy(brush->faces[i].tdir, out->faces[i].tdir);
+		for (j = 0; j < oface; j++)
+		{
+			if (out->planes[j][0] == brush->planes[iface][0] &&
+				out->planes[j][1] == brush->planes[iface][1] &&
+				out->planes[j][2] == brush->planes[iface][2] && 
+				out->planes[j][3] == brush->planes[iface][3])
+				break;
+		}
+		if (j < oface)
+		{
+			Con_DPrintf("duplicate plane\n");
+			continue;
+		}
+
+		//generate points now (so we know the correct mins+maxs for the brush, and whether the plane is relevent)
+		numpoints = Terr_GenerateBrushFace(facepoints, sizeof(facepoints)/sizeof(facepoints[0]), brush->planes, brush->numplanes, brush->planes[iface]);
+		if (!numpoints)
+		{
+			Con_DPrintf("redundant face\n");
+			continue;	//this surface was chopped away entirely, and isn't relevant.
+		}
+
+		//copy the basic face info out so we can save/restore/query/edit it later.
+		Vector4Copy(brush->planes[iface], out->planes[oface]);
+		out->faces[oface].tex = brush->faces[iface].tex;
+		Vector4Copy(brush->faces[iface].stdir[0], out->faces[oface].stdir[0]);
+		Vector4Copy(brush->faces[iface].stdir[1], out->faces[oface].stdir[1]);
 
 		//make sure this stuff is rebuilt properly.
-		out->faces[i].tex->rebuild = true;
+		out->faces[oface].tex->rebuild = true;
+
+		//keep this stuff cached+reused, so everything is consistant. also work out min/max lightmap texture coords
+		out->faces[oface].points = BZ_Malloc(numpoints * sizeof(*out->faces[oface].points));
+		Vector2Set(mins, 0, 0);
+		Vector2Set(maxs, 0, 0);
+		for (j = 0; j < numpoints; j++)
+		{
+			AddPointToBounds(facepoints[j], out->mins, out->maxs);
+			VectorCopy(facepoints[j], out->faces[oface].points[j]);
+			for (k = 0; k < 2; k++)
+			{
+				lm[k] = DotProduct(out->faces[oface].points[j], out->faces[oface].stdir[k]) + out->faces[oface].stdir[k][3];
+				if (j == 0)
+					mins[k] = maxs[k] = lm[k];
+				else if (lm[k] > maxs[k])
+					maxs[k] = lm[k];
+				else if (lm[k] < mins[k])
+					mins[k] = lm[k];
+			}
+		}
+		out->faces[oface].numpoints = numpoints;
+
+		//determine lightmap scale, and extents. rescale the lightmap if it ought to have been subdivided.
+		out->faces[oface].relight = true;
+		out->faces[oface].lmscale = 16;
+		for (k = 0; k < 2; )
+		{
+			out->faces[oface].lmbias[k] = floor(mins[k]/out->faces[oface].lmscale);
+			out->faces[oface].lmextents[k] = ceil((maxs[k])/out->faces[oface].lmscale)-out->faces[oface].lmbias[k]+1;
+			if (out->faces[oface].lmextents[k] > 128)
+			{	//surface is too large for lightmap data. just drop its resolution, because splitting the face in plane-defined geometry is a bad idea.
+				out->faces[oface].lmscale *= 2;
+				k = 0;
+			}
+			else
+				k++;
+		}
+		out->faces[oface].lightmap = -1;
+		out->faces[oface].lmbase[0] = 0;
+		out->faces[oface].lmbase[1] = 0;
+		out->faces[oface].lightdata = BZ_Malloc(out->faces[oface].lmextents[0] * out->faces[oface].lmextents[1] * 3);
+		memset(out->faces[oface].lightdata, 0x3f, out->faces[oface].lmextents[0]*out->faces[oface].lmextents[1]*3);
+
+//		Con_Printf("lm extents: %u %u (%i points)\n", out->faces[oface].lmextents[0], out->faces[oface].lmextents[1], numpoints);
+		oface++;
 	}
+	if (oface < 4)
+	{	//a brush with less than 4 planes cannot be a valid convex area (but can happen when certain redundant planes are chopped out). don't accept creation
+		//(we often get 2-plane brushes if the sides are sucked in)
+		for (j = 0; j < oface; j++)
+		{
+			BZ_Free(out->faces[j].lightdata);
+			BZ_Free(out->faces[j].points);
+		}
+		BZ_Free(out->planes);
+		return NULL;
+	}
+	out->numplanes = oface;
+	if (brush->id)
+		out->id = brush->id;
+	else
+		out->id = ++hm->brushidseq;
+//	Con_Printf("brush %u (%i faces)\n", out->id, oface);
+
 	hm->numbrushes+=1;
+
+	hm->recalculatebrushlighting = true;	//lightmaps need to be reallocated
+
+	//make sure the brush's bounds are added to the containing model.
+	AddPointToBounds(out->mins, model->mins, model->maxs);
+	AddPointToBounds(out->maxs, model->mins, model->maxs);
+
+	return out;
 }
 
-void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
+static void Terr_Brush_DeleteIdx(heightmap_t *hm, size_t idx)
+{
+	int i;
+	brushes_t *br = &hm->wbrushes[idx];
+	if (!hm)
+		return;
+
+	for (i = 0; i < br->numplanes; i++)
+	{
+		BZ_Free(br->faces[i].lightdata);
+		BZ_Free(br->faces[i].points);
+		br->faces[i].tex->rebuild = true;
+	}
+
+	BZ_Free(br->planes);
+	hm->numbrushes--;
+	//plug the hole with some other brush.
+	if (hm->numbrushes)
+		hm->wbrushes[idx] = hm->wbrushes[hm->numbrushes];
+}
+static void Terr_Brush_DeleteId(heightmap_t *hm, unsigned int brushid)
+{
+	size_t i;
+	brushes_t *br;
+	if (!hm)
+		return;
+
+	for (i = 0; i < hm->numbrushes; i++)
+	{
+		br = &hm->wbrushes[i];
+		if (br->id == brushid)
+		{
+			Terr_Brush_DeleteIdx(hm, i);
+			break;
+		}
+	}
+}
+
+
+#ifdef _WIN32
+	#include <malloc.h>
+#else
+	#include <alloca.h>
+#endif
+
+static void Brush_Serialise(sizebuf_t *sb, brushes_t *br)
+{
+	unsigned int i;
+	MSG_WriteLong(sb, br->id);
+	MSG_WriteLong(sb, br->contents);
+	MSG_WriteLong(sb, br->numplanes);
+
+	for (i = 0; i < br->numplanes; i++)
+	{
+		MSG_WriteString(sb, br->faces[i].tex->shadername);
+
+		MSG_WriteFloat(sb, br->planes[i][0]);
+		MSG_WriteFloat(sb, br->planes[i][1]);
+		MSG_WriteFloat(sb, br->planes[i][2]);
+		MSG_WriteFloat(sb, br->planes[i][3]);
+
+		MSG_WriteFloat(sb, br->faces[i].stdir[0][0]);
+		MSG_WriteFloat(sb, br->faces[i].stdir[0][1]);
+		MSG_WriteFloat(sb, br->faces[i].stdir[0][2]);
+		MSG_WriteFloat(sb, br->faces[i].stdir[0][3]);
+
+		MSG_WriteFloat(sb, br->faces[i].stdir[1][0]);
+		MSG_WriteFloat(sb, br->faces[i].stdir[1][1]);
+		MSG_WriteFloat(sb, br->faces[i].stdir[1][2]);
+		MSG_WriteFloat(sb, br->faces[i].stdir[1][3]);
+	}
+}
+static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br)
+{
+	unsigned int i;
+	unsigned int maxplanes = br->numplanes;
+	br->id = MSG_ReadLong();
+	br->contents = MSG_ReadLong();
+	br->numplanes = MSG_ReadLong();
+
+	if (br->numplanes > maxplanes)
+		return false;
+
+	for (i = 0; i < br->numplanes; i++)
+	{
+		//FIXME: as a server, we probably want to reject the brush if we exceed some texnum/memory limitation, so clients can't just spam new textures endlessly.
+		br->faces[i].tex = Terr_Brush_FindTexture(hm, MSG_ReadString());
+
+		br->planes[i][0] = MSG_ReadFloat();
+		br->planes[i][1] = MSG_ReadFloat();
+		br->planes[i][2] = MSG_ReadFloat();
+		br->planes[i][3] = MSG_ReadFloat();
+
+		br->faces[i].stdir[0][0] = MSG_ReadFloat();
+		br->faces[i].stdir[0][1] = MSG_ReadFloat();
+		br->faces[i].stdir[0][2] = MSG_ReadFloat();
+		br->faces[i].stdir[0][3] = MSG_ReadFloat();
+
+		br->faces[i].stdir[1][0] = MSG_ReadFloat();
+		br->faces[i].stdir[1][1] = MSG_ReadFloat();
+		br->faces[i].stdir[1][2] = MSG_ReadFloat();
+		br->faces[i].stdir[1][3] = MSG_ReadFloat();
+	}
+	return true;
+}
+#ifndef SERVERONLY
+void CL_Parse_BrushEdit(void)
+{
+	model_t			*mod			= cl.model_precache[1];
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+
+	int cmd = MSG_ReadByte();
+	if (cmd == 0)
+		Terr_Brush_DeleteId(hm, MSG_ReadLong());
+	else if (cmd == 1)
+	{
+		brushes_t brush;
+		memset(&brush, 0, sizeof(brush));
+		brush.numplanes = 128;
+		brush.planes = alloca(sizeof(*brush.planes) * brush.numplanes);
+		brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
+		if (!Brush_Deserialise(hm, &brush))
+			Host_EndGame("CL_Parse_BrushEdit: unparsable brush\n");
+		Terr_Brush_Insert(mod, hm, &brush);
+	}
+	else
+		Host_EndGame("CL_Parse_BrushEdit: unknown command %i\n", cmd);
+}
+#endif
+#ifndef CLIENTONLY
+qboolean SV_Parse_BrushEdit(void)
+{
+	model_t			*mod			= sv.models[1];
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+
+	qboolean authorise = SV_MayCheat() || (host_client->penalties & BAN_VIP);
+	int cmd = MSG_ReadByte();
+	if (cmd == 0)
+	{
+		unsigned int brushid = MSG_ReadLong();
+		if (!authorise)
+			return true;
+		Terr_Brush_DeleteId(hm, brushid);
+
+		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+		MSG_WriteByte(&sv.multicast, 0);
+		MSG_WriteLong(&sv.multicast, brushid);
+		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
+		return true;
+	}
+	else if (cmd == 1)
+	{
+		brushes_t brush;
+		memset(&brush, 0, sizeof(brush));
+		brush.numplanes = 128;
+		brush.planes = alloca(sizeof(*brush.planes) * brush.numplanes);
+		brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
+		if (!Brush_Deserialise(hm, &brush))
+		{
+			Con_Printf("SV_Parse_BrushEdit: %s sent an unparsable brush\n", host_client->name);
+			return false;
+		}
+		if (!authorise)
+			return true;
+
+		Terr_Brush_DeleteId(hm, brush.id);
+		if (!Terr_Brush_Insert(mod, hm, &brush))
+			return true;	//looks mostly valid, but something was degenerate. fpu precision...
+
+		//FIXME: expand the world entity's sizes if needed?
+
+		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+		MSG_WriteByte(&sv.multicast, 1);
+		Brush_Serialise(&sv.multicast, &brush);
+		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
+		return true;
+	}
+	else
+	{
+		Con_Printf("SV_Parse_BrushEdit: %s sent an unknown command: %i\n", host_client->name, cmd);
+		return false;
+	}
+
+	return true;
+}
+#endif
+
+typedef struct
+{
+	int	shadername;
+	vec3_t	planenormal;
+	float	planedist;
+	vec3_t	sdir;
+	float	sbias;
+	vec3_t	tdir;
+	float	tbias;
+} qcbrushface_t;
+
+static void *validateqcpointer(pubprogfuncs_t *prinst, size_t qcptr, size_t elementsize, size_t elementcount)
+{
+	//make sure that the sizes can't overflow
+	if (elementcount > 0x10000)
+	{
+		PR_BIError(prinst, "brush: elementcount %u is too large\n", (unsigned int)elementcount);
+		return NULL;
+	}
+	if (qcptr < 0 || qcptr+(elementsize*elementcount) >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "brush: invalid qc pointer\n");
+		return NULL;
+	}
+	return prinst->stringtable + qcptr;
+}
+//	{"brush_get",		PF_brush_get,		0,		0,		0,		0,		D(qcbrushface "int(float modelidx, int brushid, brushface_t *out_faces, int maxfaces, int *out_contents)", "Queries a brush's information. You must pre-allocate the face array for the builtin to write to. Return value is the number of faces retrieved, 0 on error.")},
+void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t			*vmw			= prinst->parms->user;
+	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	unsigned int	brushid			= G_INT(OFS_PARM1);
+	unsigned int	maxfaces		= G_INT(OFS_PARM3);
+	qcbrushface_t	*out_faces		= validateqcpointer(prinst, G_INT(OFS_PARM2), sizeof(*out_faces), maxfaces);
+	unsigned int	*out_contents	= validateqcpointer(prinst, G_INT(OFS_PARM4), sizeof(*out_contents), 1);
+	unsigned int	fa, i;
+	brushes_t		*br;
+	
+	//assume the worst.
+	G_INT(OFS_RETURN) = 0;
+	*out_contents = 0;
+
+	if (!hm)
+		return;
+
+	for (i = 0; i < hm->numbrushes; i++)
+	{
+		br = &hm->wbrushes[i];
+		if (br->id == brushid)
+		{
+			*out_contents = br->contents;
+			maxfaces = min(br->numplanes, maxfaces);
+
+			for (fa = 0; fa < maxfaces; fa++)
+			{
+				out_faces->shadername = PR_TempString(prinst, br->faces[fa].tex->shadername);
+				VectorCopy(br->planes[fa], out_faces->planenormal);
+				out_faces->planedist = br->planes[fa][3];
+
+				VectorCopy(br->faces[fa].stdir[0], out_faces->sdir);
+				out_faces->sbias = br->faces[fa].stdir[0][3];
+				VectorCopy(br->faces[fa].stdir[1], out_faces->tdir);
+				out_faces->tbias = br->faces[fa].stdir[1][3];
+
+				out_faces++;
+			}
+			G_INT(OFS_RETURN) = fa;
+			return;
+		}
+	}
+}
+//	{"brush_create",	PF_brush_create,	0,		0,		0,		0,		D("int(float modelidx, brushface_t *in_faces, int numfaces, int contents)", "Inserts a new brush into the model. Return value is the new brush's id.")},
+void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *vmw = prinst->parms->user;
+	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	unsigned int	numfaces		= G_INT(OFS_PARM2);
+	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces);
+	unsigned int	contents		= G_INT(OFS_PARM3);
+
+	unsigned int			i;
+	brushes_t				brush, *nb;
+	vec4_t					*planes;
+	struct brushface_s		*faces;
+
+	G_INT(OFS_RETURN) = 0;
+
+	if (!hm)
+		return;
+
+	planes = alloca(sizeof(*planes) * numfaces);
+	faces = alloca(sizeof(*faces) * numfaces);
+	for (i = 0; i < numfaces; i++)
+	{
+		VectorCopy(in_faces[i].planenormal, planes[i]);
+		planes[i][3] = in_faces[i].planedist;
+
+		faces[i].tex = Terr_Brush_FindTexture(hm, PR_GetString(prinst, in_faces[i].shadername));
+
+		VectorCopy(in_faces[i].sdir, faces[i].stdir[0]);
+		faces[i].stdir[0][3] = in_faces[i].sbias;
+		VectorCopy(in_faces[i].tdir, faces[i].stdir[1]);
+		faces[i].stdir[1][3] = in_faces[i].tbias;
+	}
+
+	//now emit it
+	brush.id = 0;
+	brush.contents = contents;
+	brush.numplanes = numfaces;
+	brush.planes = planes;
+	brush.faces = faces;
+	if (numfaces)
+	{
+		nb = Terr_Brush_Insert(mod, hm, &brush);
+		if (nb)
+		{
+			G_INT(OFS_RETURN) = nb->id;
+#ifndef CLIENTONLY
+			if (sv.state)
+			{
+				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+				MSG_WriteByte(&sv.multicast, 1);
+				Brush_Serialise(&sv.multicast, nb);
+				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
+				return;
+			}
+#endif
+#ifndef SERVERONLY
+			if (cls.state)
+			{
+				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
+				MSG_WriteByte(&cls.netchan.message, 1);
+				Brush_Serialise(&cls.netchan.message, nb);
+				return;
+			}
+#endif
+		}
+	}
+}
+//	{"brush_delete",	PF_brush_delete,	0,		0,		0,		0,		D("void(float modelidx, int brushid)", "Destroys the specified brush.")},
+void QCBUILTIN PF_brush_delete(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *vmw = prinst->parms->user;
+	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	unsigned int	brushid			= G_INT(OFS_PARM1);
+
+	if (!hm)
+		return;
+
+	Terr_Brush_DeleteId(hm, brushid);
+
+#ifndef CLIENTONLY
+	if (sv.state)
+	{
+		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
+		MSG_WriteByte(&sv.multicast, 0);
+		MSG_WriteLong(&sv.multicast, brushid);
+		SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
+		return;
+	}
+#endif
+#ifndef SERVERONLY
+	if (cls.state)
+	{
+		MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
+		MSG_WriteByte(&cls.netchan.message, 0);
+		MSG_WriteLong(&cls.netchan.message, brushid);
+		return;
+	}
+#endif
+}
+//	{"brush_selected",	PF_brush_selected,	0,		0,		0,		0,		D("float(float modelid, int brushid, int faceid, float selectedstate)", "Allows you to easily set transient visual properties of a brush. If brush/face is -1, applies to all. returns old value. selectedstate=-1 changes nothing (called for its return value).")},
+void QCBUILTIN PF_brush_selected(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *vmw = prinst->parms->user;
+	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	unsigned int	brushid			= G_INT(OFS_PARM1);
+	unsigned int	faceid			= G_INT(OFS_PARM2);
+	unsigned int	state			= G_FLOAT(OFS_PARM3);
+	unsigned int	i;
+	brushes_t		*br;
+
+	G_FLOAT(OFS_RETURN) = 0;
+	if (!hm)
+		return;
+
+//	hm->recalculatebrushlighting = true;
+
+	for (i = 0; i < hm->numbrushes; i++)
+	{
+		br = &hm->wbrushes[i];
+		if (br->id == brushid)
+		{
+			G_FLOAT(OFS_RETURN) = br->selected;
+
+			if (state >= 0)
+			{
+				if (br->selected != state)
+				{
+					for (i = 0; i < br->numplanes; i++)
+					{
+						br->faces[i].tex->rebuild = true;
+						br->faces[i].relight = true;
+					}
+					br->selected = state;
+				}
+			}
+//			return;
+		}
+	}
+}
+//	{"brush_getfacepoints",PF_brush_getfacepoints,0,0,		0,		0,		D("int(float modelid, int brushid, int faceid, vector *points, int maxpoints)", "Allows you to easily set transient visual properties of a brush. If brush/face is -1, applies to all. returns old value. selectedstate=-1 changes nothing (called for its return value).")},
+void QCBUILTIN PF_brush_getfacepoints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *vmw = prinst->parms->user;
+	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	unsigned int	brushid			= G_INT(OFS_PARM1);
+	unsigned int	faceid			= G_INT(OFS_PARM2);
+	unsigned int	maxpoints		= G_INT(OFS_PARM4), p;
+	vec3_t			*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM3), sizeof(*out_verts), maxpoints);
+	size_t i;
+	brushes_t *br;
+
+	G_INT(OFS_RETURN) = 0;
+
+	if (!hm)
+		return;
+
+	for (i = 0; i < hm->numbrushes; i++)
+	{
+		br = &hm->wbrushes[i];
+		if (br->id == brushid)
+		{
+			if (!faceid)
+			{
+				if (maxpoints >= 2)
+				{
+					VectorCopy(br->mins, out_verts[0]);
+					VectorCopy(br->maxs, out_verts[1]);
+					G_INT(OFS_RETURN) = 2;
+				}
+				else if (maxpoints == 1)
+				{
+					VectorInterpolate(br->mins, 0.5, br->maxs, out_verts[0]);
+					G_INT(OFS_RETURN) = 1;
+				}
+			}
+			else
+			{
+				faceid--;
+				if (faceid >= br->numplanes)
+					break;
+				maxpoints = min(maxpoints, br->faces[faceid].numpoints);
+				for (p = 0; p < maxpoints; p++)
+					VectorCopy(br->faces[faceid].points[p], out_verts[p]);
+				G_INT(OFS_RETURN) = p;
+			}
+			break;
+		}
+	}
+}
+//	{"brush_findinvolume",PF_brush_findinvolume,0,0,		0,		0,		D("int(float modelid, vector *planes, float *dists, int numplanes, int *out_brushes, int *out_faces, int maxresults)", "Allows you to easily obtain a list of brushes+faces within the given bounding region. If out_faces is not null, the same brush might be listed twice.")},
+void QCBUILTIN PF_brush_findinvolume(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *vmw = prinst->parms->user;
+	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	int				in_numplanes	= G_INT(OFS_PARM3);
+	vec3_t			*in_normals		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_normals), in_numplanes);
+	float			*in_distances	= validateqcpointer(prinst, G_INT(OFS_PARM2), sizeof(*in_distances), in_numplanes);
+	unsigned int	maxresults		= G_INT(OFS_PARM6);
+	unsigned int	*out_brushids	= validateqcpointer(prinst, G_INT(OFS_PARM4), sizeof(*out_brushids), maxresults);
+	unsigned int	*out_faceids	= G_INT(OFS_PARM5)?validateqcpointer(prinst, G_INT(OFS_PARM5), sizeof(*out_faceids), maxresults):NULL;
+	unsigned int	i, j, k, r = 0;
+	brushes_t *br;
+	vec3_t best;
+	float dist;
+
+	//find all brushes/faces with a vetex within the region
+	//the brush is inside if any every plane has at least one vertex on the inner side
+
+	if (hm)
+	for (i = 0; i < hm->numbrushes; i++)
+	{
+		br = &hm->wbrushes[i];
+
+		for (j = 0; j < in_numplanes; j++)
+		{
+			for (k=0 ; k<3 ; k++)
+			{
+				if (in_normals[j][k] < 0)
+					best[k] = br->maxs[k];
+				else
+					best[k] = br->mins[k];
+			}
+			dist = DotProduct (best, in_normals[j]);
+			dist = in_distances[j] - dist;
+			if (dist < 0)
+				break;
+		}
+		if (j == in_numplanes)
+		{
+			//the box had some point on the near side of every single plane, and thus must contain at least part of the box
+			if (r == maxresults)
+				break;	//ran out
+			out_brushids[r] = br->id;
+			if (out_faceids)	//FIXME: handle this properly.
+				out_faceids[r] = 0;
+			r++;
+		}
+	}
+	G_INT(OFS_RETURN) = r;
+}
+
+void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
+{
+	//( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
+	float *point[3];
+	int i;
+
+	VFS_PRINTF(file, "\n{");
+	for (i = 0; i < br->numplanes; i++)
+	{
+		point[0] = br->faces[i].points[0];
+		point[1] = br->faces[i].points[1];
+		point[2] = br->faces[i].points[2];
+
+		VFS_PRINTF(file, "\n( %g %g %g ) ( %g %g %g ) ( %g %g %g ) \"%s\" [ %g %g %g %g ] [ %g %g %g %g ] 0 1 1",
+			point[0][0], point[0][1], point[0][2],
+			point[1][0], point[1][1], point[1][2],
+			point[2][0], point[2][1], point[2][2],
+			br->faces[i].tex?br->faces[i].tex->shadername:"",
+			br->faces[i].stdir[0][0], br->faces[i].stdir[0][1], br->faces[i].stdir[0][2], br->faces[i].stdir[0][3],
+			br->faces[i].stdir[1][0], br->faces[i].stdir[1][1], br->faces[i].stdir[1][2], br->faces[i].stdir[1][3]
+			);
+	}
+	VFS_PRINTF(file, "\n}");
+}
+void Terr_WriteMapFile(vfsfile_t *file, model_t *mod)
+{
+	char token[8192];
+	int nest = 0;
+	const char *start, *entities = mod->entities;
+	int i;
+	unsigned int entnum = 0;
+	heightmap_t *hm;
+
+	start = entities;
+	while(entities)
+	{
+		entities = COM_ParseOut(entities, token, sizeof(token));
+		if (token[0] == '}' && token[1] == 0)
+		{
+			nest--;
+			if (!nest)
+			{
+				if (!entnum)
+				{
+//					VFS_PRINTF(file, "\n//Worldspawn brushes go here");
+
+					hm = mod->terrain;
+					if (hm)
+						for (i = 0; i < hm->numbrushes; i++)
+							Terr_WriteBrushInfo(file, &hm->wbrushes[i]);
+				}
+				entnum++;
+			}
+		}
+		else if (token[0] == '{' && token[1] == 0)
+		{
+			nest++;
+		}
+		else
+		{
+			if (!strcmp(token, "model"))
+			{
+				int submodelnum;
+				entities = COM_ParseOut(entities, token, sizeof(token));
+
+				if (*token == '*')
+					submodelnum = atoi(token+1);
+				else
+					submodelnum = 0;
+
+				if (submodelnum)
+				{
+					model_t *submod;
+
+					Q_snprintfz(token, sizeof(token), "*%i:%s", submodelnum, mod->name);
+					submod = Mod_FindName (token);
+
+//					VFS_PRINTF(file, "\nBrushes for %s go here", token);
+					hm = submod->terrain;
+					if (hm)
+					{
+						for (i = 0; i < hm->numbrushes; i++)
+							Terr_WriteBrushInfo(file, &hm->wbrushes[i]);
+
+						start = entities;
+					}
+				}
+			}
+			else
+				entities = COM_ParseOut(entities, token, sizeof(token));
+		}
+		VFS_WRITE(file, start, entities - start);
+		start = entities;
+	}
+}
+void Mod_Terrain_Save_f(void)
+{
+	vfsfile_t *file;
+	model_t *mod;
+	const char *mapname = Cmd_Argv(1);
+	const char *fname = Cmd_Argv(2);
+	if (Cmd_IsInsecure())
+	{
+		Con_Printf("Please use this command via the console\n");
+		return;
+	}
+	if (*mapname)
+		mod = Mod_FindName(va("maps/%s", mapname));
+#ifndef SERVERONLY
+	else if (cls.state)
+		mod = cl.worldmodel;
+#endif
+	else
+		mod = NULL;
+
+	if (!mod)
+	{
+		Con_Printf("no model loaded by that name\n");
+		return;
+	}
+	if (!mod->terrain || mod->loadstate != MLS_LOADED)
+	{
+		Con_Printf("that model has no content worth saving, or isn't fully loaded\n");
+		return;
+	}
+	if (!*fname)
+		fname = mod->name;
+	else
+		fname = va("maps/%s.map", fname);
+	FS_CreatePath(fname, FS_GAMEONLY);
+	file = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+	if (!file)
+		Con_Printf("unable to open %s\n", fname);
+	else
+	{
+		Terr_WriteMapFile(file, mod);
+		VFS_CLOSE(file);
+	}
+}
+qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 {
 	char token[8192];
 	int nest = 0;
@@ -4972,6 +6114,7 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	char *out, *start;
 	int i;
 	int submodelnum = 0;
+	qboolean isdetail = false;
 	qboolean foundsubmodel = false;
 	qboolean inbrush = false;
 	int numplanes = 0;
@@ -4980,6 +6123,12 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	int brushcontents = FTECONTENTS_SOLID;
 	heightmap_t *subhm = NULL;
 	model_t *submod = NULL;
+
+#ifdef RUNTIMELIGHTING
+	hm->relightcontext = LightStartup(NULL, mod, false);
+	hm->lightthreadmem = BZ_Malloc(lightthreadctxsize);
+	hm->inheritedlightthreadmem = false;
+#endif
 
 	/*FIXME: we need to re-form the entities lump to insert model fields as appropriate*/
 	mod->entities = out = ZG_Malloc(&mod->memgroup, buflen+1);
@@ -4999,8 +6148,9 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				brush.numplanes = numplanes;
 				brush.planes = planes;
 				brush.faces = faces;
+				brush.id = 0;
 				if (numplanes)
-					Terr_Brush_Insert(subhm, &brush);
+					Terr_Brush_Insert(submod, subhm, &brush);
 				numplanes = 0;
 				inbrush = false;
 				continue;
@@ -5010,15 +6160,23 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 		{
 			nest++;
 			if (nest == 1)
+			{	//entering a new entity
 				foundsubmodel = false;
+				isdetail = false;
+			}
 			if (nest == 2)
 			{
-				if (!foundsubmodel)
+				if (isdetail)	//func_detail injects its brushes into the world model for some reason.
+				{
+					submod = mod;
+					subhm = hm;
+				}
+				else if (!foundsubmodel)
 				{
 					foundsubmodel = true;
 					if (submodelnum)
 					{
-						Q_snprintfz(token, sizeof(token), "*%i:%s", submodelnum, mod->name);
+						Q_snprintfz(token, sizeof(token), "*%i", submodelnum);
 						*out++ = 'm';
 						*out++ = 'o';
 						*out++ = 'd';
@@ -5031,6 +6189,7 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 						*out++ = '\"';
 						*out++ = ' ';
 						
+						Q_snprintfz(token, sizeof(token), "*%i:%s", submodelnum, mod->name);
 						submod = Mod_FindName (token);
 						if (submod->loadstate == MLS_NOTLOADED)
 						{
@@ -5056,6 +6215,12 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 							submod->funcs.FatPVS				= Heightmap_FatPVS;
 #endif
 							submod->loadstate = MLS_LOADED;
+
+#ifdef RUNTIMELIGHTING
+							subhm->relightcontext = LightStartup(hm->relightcontext, submod, false);
+							subhm->lightthreadmem = hm->lightthreadmem;
+							subhm->inheritedlightthreadmem = true;
+#endif
 						}
 						else
 							subhm = NULL;
@@ -5076,12 +6241,14 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			//parse a plane
 			//( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname 0 -32 rotation sscale tscale
 			//( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
+			//( 0 0 1 16 ) texname [x y z d] [x y z d] rotation sscale tscale
 			brushtex_t *bt;
 			vec3_t d1,d2;
 			vec3_t points[3];
 			vec4_t texplane[2];
 			float scale[2], rot;
-			int p, a;
+			int p;
+			qboolean hlstyle = false;
 			memset(points, 0, sizeof(points));
 			for (p = 0; p < 3; p++)
 			{
@@ -5095,29 +6262,41 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				points[p][2] = atof(token);
 				entities = COM_ParseOut(entities, token, sizeof(token));
 				if (token[0] != ')' || token[1] != 0)
-					break;
-				entities = COM_ParseOut(entities, token, sizeof(token));
-
-				for (a = 0; a < 3; a++)
 				{
-					if (submod->mins[a] > points[p][a])
-						submod->mins[a] = points[p][a];
-					if (submod->maxs[a] < points[p][a])
-						submod->maxs[a] = points[p][a];
+//					VectorClear(points[1]);
+//					VectorClear(points[2]);
+					points[1][0] = atof(token);
+					entities = COM_ParseOut(entities, token, sizeof(token));
+					if (p == 0 && !strcmp(token, ")"))
+						p = 4;	//we just managed to read an entire plane instead of 3 points.
+					break;
 				}
+				entities = COM_ParseOut(entities, token, sizeof(token));
+			}
+			if (p < 3)
+			{
+				Con_Printf(CON_ERROR "%s: malformed brush\n", mod->name);
+				return false;
+			}
+			if (numplanes == sizeof(planes)/sizeof(planes[0]))
+			{
+				Con_Printf(CON_ERROR "%s: too many planes in brush\n", mod->name);
+				return false;
 			}
 
 			bt = Terr_Brush_FindTexture(subhm, token);
 			if (*token == '*')
 			{
-				if (!strncmp(token, "*lava", 5))
+				if (!Q_strncasecmp(token, "*lava", 5))
 					brushcontents = FTECONTENTS_LAVA;
-				else if (!strncmp(token, "*slime", 5))
+				else if (!Q_strncasecmp(token, "*slime", 5))
 					brushcontents = FTECONTENTS_SLIME;
 				else
 					brushcontents = FTECONTENTS_WATER;
 			}
-			else if (!strcmp(token, "clip"))
+			else if (!Q_strncasecmp(token, "*sky", 4))
+				brushcontents = FTECONTENTS_SKY;
+			else if (!Q_strcasecmp(token, "clip"))
 				brushcontents = FTECONTENTS_PLAYERCLIP;
 			else
 				brushcontents = FTECONTENTS_SOLID;
@@ -5126,6 +6305,9 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			entities = COM_ParseOut(entities, token, sizeof(token));
 			if (*token == '[')
 			{
+				hlstyle = true;
+
+				entities = COM_ParseOut(entities, token, sizeof(token));
 				texplane[0][0] = atof(token);
 				entities = COM_ParseOut(entities, token, sizeof(token));
 				texplane[0][1] = atof(token);
@@ -5133,10 +6315,12 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				texplane[0][2] = atof(token);
 				entities = COM_ParseOut(entities, token, sizeof(token));
 				texplane[0][3] = atof(token);
+
 				entities = COM_ParseOut(entities, token, sizeof(token));
 				//]
 				entities = COM_ParseOut(entities, token, sizeof(token));
 				//[
+
 				entities = COM_ParseOut(entities, token, sizeof(token));
 				texplane[1][0] = atof(token);
 				entities = COM_ParseOut(entities, token, sizeof(token));
@@ -5145,11 +6329,14 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				texplane[1][2] = atof(token);
 				entities = COM_ParseOut(entities, token, sizeof(token));
 				texplane[1][3] = atof(token);
+
 				entities = COM_ParseOut(entities, token, sizeof(token));
 				//]
 			}
 			else
 			{
+				VectorClear(texplane[0]);
+				VectorClear(texplane[1]);
 				texplane[0][3] = atof(token);
 				entities = COM_ParseOut(entities, token, sizeof(token));
 				texplane[1][3] = atof(token);
@@ -5162,19 +6349,26 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			entities = COM_ParseOut(entities, token, sizeof(token));
 			scale[1] = atof(token);
 
-			VectorSubtract(points[0], points[1], d1);
-			VectorSubtract(points[2], points[1], d2);
-			CrossProduct(d1, d2, planes[numplanes]);
-			VectorNormalize(planes[numplanes]);
-			planes[numplanes][3] = DotProduct(points[1], planes[numplanes]);
+			if (p == 4)
+			{	//parsed an actual plane
+				VectorCopy(points[0], planes[numplanes]);
+				planes[numplanes][3] = points[1][0];
+			}
+			else
+			{	//parsed 3 points.
+				VectorSubtract(points[0], points[1], d1);
+				VectorSubtract(points[2], points[1], d2);
+				CrossProduct(d1, d2, planes[numplanes]);
+				VectorNormalize(planes[numplanes]);
+				planes[numplanes][3] = DotProduct(points[1], planes[numplanes]);
+			}
 			faces[numplanes].tex = bt;
 
 			//quake's .maps use the normal to decide which texture directions to use in some lame axially-aligned way.
+			if (!hlstyle)
 			{
 				float a=fabs(planes[numplanes][0]),b=fabs(planes[numplanes][1]),c=fabs(planes[numplanes][2]);
-				VectorClear(texplane[0]);
-				VectorClear(texplane[1]);
-				if (a>b&&a>c)
+				if (a>=b&&a>=c)
 					texplane[0][1] = 1;
 				else
 					texplane[0][0] = 1;
@@ -5203,18 +6397,34 @@ void Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 
 			if (!scale[0]) scale[0] = 1;
 			if (!scale[1]) scale[1] = 1;
-			VectorScale(texplane[0], 1.0/scale[0], faces[numplanes].sdir);
-			VectorScale(texplane[1], 1.0/scale[1], faces[numplanes].tdir);
-			faces[numplanes].sdir[3] = texplane[0][3];
-			faces[numplanes].tdir[3] = texplane[1][3];
+			VectorScale(texplane[0], 1.0/scale[0], faces[numplanes].stdir[0]);
+			VectorScale(texplane[1], 1.0/scale[1], faces[numplanes].stdir[1]);
+			faces[numplanes].stdir[0][3] = texplane[0][3];
+			faces[numplanes].stdir[1][3] = texplane[1][3];
 
 			numplanes++;
 			continue;
+		}
+		else
+		{
+			if (!strcmp(token, "classname"))
+			{
+				entities = COM_ParseOut(entities, token, sizeof(token));
+
+				if (!strcmp(token, "func_detail"))
+					isdetail = true;
+			}
+			else
+				entities = COM_ParseOut(entities, token, sizeof(token));
 		}
 		while(start < entities)
 			*out++ = *start++;
 	}
 	*out++ = 0;
+
+	mod->numsubmodels = submodelnum;
+
+	return true;
 }
 
 qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize)
@@ -5239,12 +6449,15 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 
 	mod->type = mod_heightmap;
 
+	ClearBounds(mod->mins, mod->maxs);
+
 	hm = Z_Malloc(sizeof(*hm));
 	ClearLink(&hm->recycle);
 //	ClearLink(&hm->collected);
 	COM_FileBase(mod->name, hm->path, sizeof(hm->path));
 
-	Terr_ReformEntitiesLump(mod, hm, buffer);
+	if (!Terr_ReformEntitiesLump(mod, hm, buffer))
+		return false;
 
 	strcpy(hm->groundshadername, "terrainshader");
 	strcpy(hm->skyname, "sky1");
@@ -5269,12 +6482,18 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 
 	Terr_ParseEntityLump(mod->entities, hm);
 
-	mod->mins[0] = (hm->firstsegx - CHUNKBIAS) * hm->sectionsize;
-	mod->mins[1] = (hm->firstsegy - CHUNKBIAS) * hm->sectionsize;
-	mod->mins[2] = -999999999999999999999999.f;
-	mod->maxs[0] = (hm->maxsegx - CHUNKBIAS) * hm->sectionsize;
-	mod->maxs[1] = (hm->maxsegy - CHUNKBIAS) * hm->sectionsize;
-	mod->maxs[2] = 999999999999999999999999.f;
+	if (hm->firstsegx != hm->maxsegx)
+	{
+		vec3_t point;
+		point[0] = (hm->firstsegx - CHUNKBIAS) * hm->sectionsize;
+		point[1] = (hm->firstsegy - CHUNKBIAS) * hm->sectionsize;
+		point[2] = -999999999999999999999999.f;
+		AddPointToBounds(point, mod->mins, mod->maxs);
+		point[0] = (hm->maxsegx - CHUNKBIAS) * hm->sectionsize;
+		point[1] = (hm->maxsegy - CHUNKBIAS) * hm->sectionsize;
+		point[2] = 999999999999999999999999.f;
+		AddPointToBounds(point, mod->mins, mod->maxs);
+	}
 
 	mod->funcs.NativeTrace			= Heightmap_Trace;
 	mod->funcs.PointContents		= Heightmap_PointContents;
@@ -5300,6 +6519,11 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 */
 
 	mod->terrain = hm;
+
+#ifdef RUNTIMELIGHTING
+	if (hm->relightcontext)
+		LightReloadEntities(hm->relightcontext, mod->entities);
+#endif
 
 	return true;
 }
@@ -5508,6 +6732,7 @@ void Terr_Init(void)
 	Cvar_Register(&mod_terrain_networked, "Terrain");
 	Cvar_Register(&mod_terrain_defaulttexture, "Terrain");
 	Cvar_Register(&mod_terrain_savever, "Terrain");
+	Cmd_AddCommand("mod_terrain_save", Mod_Terrain_Save_f);
 	Cmd_AddCommand("mod_terrain_create", Mod_Terrain_Create_f);
 	Cmd_AddCommand("mod_terrain_reload", Mod_Terrain_Reload_f);
 #ifndef SERVERONLY

@@ -252,7 +252,8 @@ void Sys_Printf (char *fmt, ...)
 void Sys_Quit (void)
 {
 	Host_Shutdown();
-	fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
+	if (!noconinput)
+		fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
 
 #ifdef USE_LIBTOOL
 	lt_dlexit();
@@ -273,7 +274,8 @@ void Sys_Error (const char *error, ...)
 	char string[1024];
 
 // change stdin to non blocking
-	fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
+	if (!noconinput)
+		fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
 
 	va_start (argptr,error);
 	vsnprintf (string,sizeof(string)-1, error,argptr);
@@ -702,6 +704,9 @@ char *Sys_ConsoleInput(void)
 #if 1
 	static char text[256];
 	int len;
+
+	if (noconinput)
+		return NULL;
 
 //	if (!qrenderer)
 	{

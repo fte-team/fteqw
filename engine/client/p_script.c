@@ -1495,8 +1495,10 @@ static void P_ParticleEffect_f(void)
 				ptype->looks.blendmode = BM_INVMODC;
 			else if (!strcmp(value, "blendcolour") || !strcmp(value, "blendcolor"))
 				ptype->looks.blendmode = BM_BLENDCOLOUR;
-			else
+			else if (!strcmp(value, "blendalpha"))
 				ptype->looks.blendmode = BM_BLEND;
+			else
+				ptype->looks.blendmode = BM_BLEND;	//fallback
 		}
 		else if (!strcmp(var, "spawnmode"))
 		{
@@ -5321,7 +5323,22 @@ static void R_AddTSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 
 
 
-	if (type->stretch)
+	if (type->stretch < 0)
+	{
+		vec3_t movedir;
+		VectorNormalize2(p->vel, movedir);
+		VectorMA(p->org, type->stretch, movedir, o2);
+		VectorSubtract(r_refdef.vieworg, o2, v);
+		
+		CrossProduct(v, p->vel, cr);
+		VectorNormalize(cr);
+
+		VectorMA(o2, -p->scale/2, cr, cl_strisvertv[cl_numstrisvert+0]);
+		VectorMA(o2, p->scale/2, cr, cl_strisvertv[cl_numstrisvert+1]);
+
+		VectorMA(p->org, -type->stretch, movedir, o2);
+	}
+	else if (type->stretch)
 	{
 		VectorMA(p->org, -type->stretch, p->vel, o2);
 		VectorSubtract(r_refdef.vieworg, o2, v);

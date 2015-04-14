@@ -232,6 +232,228 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile)
 	return temp;
 }
 
+
+
+
+
+
+
+
+
+
+//returns an unseekable write-only file that will decompress any data that is written to it.
+//decompressed data will be written to the output
+typedef struct
+{
+	vfsfile_t vf;
+	vfsfile_t *outfile;
+	qboolean autoclosefile;
+
+	//gzip header handling
+	qboolean headerparsed;
+	qbyte in[65536];
+	int inlen;
+
+	qbyte out[65536];
+	z_stream strm;
+} vf_gz_dec_t;
+
+static qboolean QDECL FS_GZ_Dec_Close(vfsfile_t *f)
+{
+	vf_gz_dec_t *n = (vf_gz_dec_t*)f;
+	if (n->autoclosefile)
+		VFS_CLOSE(n->outfile);
+	qinflateEnd(&n->strm);
+	Z_Free(n);
+	return true;
+}
+static int QDECL FS_GZ_Dec_Write(vfsfile_t *f, const void *buffer, int len)
+{
+	int ret;
+	vf_gz_dec_t *n = (vf_gz_dec_t*)f;
+
+	if (n->headerparsed != 1)
+	{
+		qofs_t ofs = 0;
+		gzheader_t *header;
+		int chunk;
+		if (len > sizeof(n->in) - n->inlen)
+			chunk = sizeof(n->in) - n->inlen;
+		else
+			chunk = len;
+		memmove(n->in, buffer, chunk);
+		n->inlen += chunk;
+
+		if (n->headerparsed == 2)
+		{
+			if (n->inlen >= 8)
+			{
+				unsigned int crc = (n->in[0]<<0) | (n->in[1]<<8) | (n->in[2]<<16) | (n->in[3]<<24);
+				unsigned int isize = (n->in[4]<<0) | (n->in[5]<<8) | (n->in[6]<<16) | (n->in[7]<<24);
+				if (n->strm.total_out != isize)
+					return -1;	//the file we just received decoded to a different length (yay, concat...).
+				//FIXME: validate the decoded crc
+				n->headerparsed = false;
+				n->strm.total_in = 0;
+				n->strm.total_out = 0;
+				len = n->inlen - 8;
+				n->inlen = 0;
+				if (FS_GZ_Dec_Write(f, n->in + 8, len) != len)
+					return -1;	//FIXME: make non-fatal somehow
+				return chunk;
+			}
+			return chunk;
+		}
+
+		header = (gzheader_t*)n->in;
+		ofs += sizeofgzheader_t;  if (ofs > n->inlen) goto noheader;
+
+		if (header->ident1 != 0x1f || header->ident2 != 0x8b || header->cm != 8 || header->flags & GZ_RESERVED)
+			return -1;	//ERROR
+
+		if (header->flags & GZ_FEXTRA)
+		{
+			unsigned short ex;
+			if (ofs+2 > n->inlen) goto noheader;
+			ex = (n->in[ofs]<<0) | (n->in[ofs+1]<<8);	//read little endian
+			ofs += 2+ex;  if (ofs > n->inlen) goto noheader;
+		}
+
+		if (header->flags & GZ_FNAME)
+		{
+			char ch;
+//			Con_Printf("gzipped file name: ");
+			do {
+				if (ofs+1 > n->inlen) goto noheader;
+				ch = n->in[ofs++];
+//				Con_Printf("%c", ch);
+			} while(ch);
+//			Con_Printf("\n");
+		}
+
+		if (header->flags & GZ_FCOMMENT)
+		{
+			char ch;
+//			Con_Printf("gzipped file comment: ");
+			do {
+				if (ofs+1 > n->inlen) goto noheader;
+				ch = n->in[ofs++];
+//				Con_Printf("%c", ch);
+			} while(ch);
+//			Con_Printf("\n");
+		}
+
+		if (header->flags & GZ_FHCRC)
+		{
+			ofs += 2;  if (ofs > n->inlen) goto noheader;
+		}
+
+		//if we got here then the header is now complete.
+		//tail-recurse it.
+		n->headerparsed = true;
+		chunk = n->inlen - ofs;
+		if (FS_GZ_Dec_Write(f, n->in + ofs, chunk) != chunk)
+			return -1;	//FIXME: make non-fatal somehow
+		return len;
+
+noheader:
+		if (n->inlen == sizeof(n->in))
+			return -1;	//we filled our buffer. if we didn't get past the header yet then someone fucked up.
+		return len;
+	}
+
+
+	n->strm.next_in = buffer;
+	n->strm.avail_in = len;
+
+	while(n->strm.avail_in)
+	{
+		ret = qinflate(&n->strm, Z_SYNC_FLUSH);
+
+		if (!n->strm.avail_out)
+		{
+			if (VFS_WRITE(n->outfile, n->out, n->strm.next_out-n->out) != n->strm.next_out-n->out)
+				return -1;
+
+			n->strm.next_out = n->out;
+			n->strm.avail_out = sizeof(n->out);
+		}
+
+		if (ret == Z_OK)
+			continue;
+
+		//flush it
+		if (VFS_WRITE(n->outfile, n->out, n->strm.next_out-n->out) != n->strm.next_out-n->out)
+			return -1;
+		n->strm.next_out = n->out;
+		n->strm.avail_out = sizeof(n->out);
+
+		if (ret == Z_STREAM_END)	//allow concat
+		{
+			int l = n->strm.avail_in;
+			n->headerparsed = 2;
+			n->inlen = 0;
+			if (l != FS_GZ_Dec_Write(f, n->strm.next_in, n->strm.avail_in))
+				return -1;
+			return len;
+		}
+
+		switch (ret)
+		{
+		case Z_NEED_DICT:
+			Con_Printf("Z_NEED_DICT\n");
+			break;
+
+		case Z_ERRNO:
+			Con_Printf("Z_ERRNO\n");
+			break;
+
+		case Z_STREAM_ERROR:
+		case Z_DATA_ERROR:
+		case Z_MEM_ERROR:
+		case Z_BUF_ERROR:
+		case Z_VERSION_ERROR:
+			Con_Printf("File is corrupt\n");
+			break;
+		default:
+			Con_Printf("Bug!\n");
+			break;
+		}
+		return -1;
+	}
+
+	return len;
+}
+
+vfsfile_t *FS_GZ_DecompressWriteFilter(vfsfile_t *outfile, qboolean autoclosefile)
+{
+	vf_gz_dec_t *n = Z_Malloc(sizeof(*n));
+
+	n->outfile = outfile;
+	n->autoclosefile = autoclosefile;
+
+	n->strm.next_in		= NULL;
+	n->strm.avail_in 	= 0;
+	n->strm.total_in	= 0;
+	n->strm.next_out	= n->out;
+	n->strm.avail_out 	= sizeof(n->out);
+	n->strm.total_out	= 0;
+
+	n->vf.Flush				= NULL;
+	n->vf.GetLen			= NULL;
+	n->vf.ReadBytes			= NULL;
+	n->vf.Seek				= NULL;
+	n->vf.Tell				= NULL;
+	n->vf.Close				= FS_GZ_Dec_Close;
+	n->vf.WriteBytes		= FS_GZ_Dec_Write;
+	n->vf.seekingisabadplan	= true;
+
+	qinflateInit2(&n->strm, -MAX_WBITS);
+
+	return &n->vf;
+}
+
+
 #endif
 
 

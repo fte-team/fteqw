@@ -870,6 +870,9 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	if (r_refdef.recurse >= R_MAX_RECURSE-1)
 		return;
 
+	if (!mesh->xyz_array)
+		return;
+
 	if (!mesh->normals_array)
 	{
 		VectorSet(plane.normal, 0, 0, 1);

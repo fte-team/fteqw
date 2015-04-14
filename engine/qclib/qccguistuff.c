@@ -5,10 +5,11 @@
 
 pbool fl_nondfltopts;
 pbool fl_hexen2;
-pbool fl_autohighlight;
+pbool fl_ftetarg;
 pbool fl_compileonstart;
 pbool fl_showall;
 pbool fl_log;
+pbool fl_extramargins;
 
 char parameters[16384];
 char progssrcname[256];
@@ -63,7 +64,7 @@ int Grep(char *filename, char *string)
 void GoToDefinition(char *name)
 {
 	QCC_def_t *def;
-	QCC_dfunction_t *fnc;
+	QCC_function_t *fnc;
 
 	char *strip;	//trim whitespace (for convieniance).
 	while (*name <= ' ' && *name)
@@ -92,22 +93,259 @@ void GoToDefinition(char *name)
 		if (def->type->type == ev_function && def->constant)
 		{
 			fnc = &functions[((int *)qcc_pr_globals)[def->ofs]];
-			if (fnc->first_statement>=0 && fnc->s_file)
+			if (fnc->code>=0 && fnc->s_file)
 			{
-				EditFile(fnc->s_file+strings, statements[fnc->first_statement].linenum-1);
+				EditFile(strings+fnc->s_file, statements[fnc->code].linenum-1, false);
 				return;
 			}
 		}
 		if (!def->s_file)
 			GUI_DialogPrint("Not found", "Global definition of var was not specified.");
 		else
-			EditFile(def->s_file+strings, def->s_line-1);
+			EditFile(def->s_file+strings, def->s_line-1, false);
 	}
 	else
 		GUI_DialogPrint("Not found", "Global instance of var was not found.");
 }
 
+static void GUI_WriteConfigLine(FILE *file, char *part1, char *part2, char *part3, char *desc)
+{
+	int align = 0;
+	if (part1)
+	{
+		if (strchr(part1, ' '))
+			align += fprintf(file, "\"%s\" ", part1);
+		else
+			align += fprintf(file, "%s ", part1);
+		for (; align < 14; align++)
+			fputc(' ', file);
+	}
+	if (part2)
+	{
+		if (strchr(part2, ' '))
+			align += fprintf(file, "\"%s\" ", part2);
+		else
+			align += fprintf(file, "%s ", part2);
+		for (; align < 28; align++)
+			fputc(' ', file);
+	}
+	if (part3)
+	{
+		if (strchr(part3, ' '))
+			align += fprintf(file, "\"%s\" ", part3);
+		else
+			align += fprintf(file, "%s ", part3);
+		for (; align < 40; align++)
+			fputc(' ', file);
+	}
 
+	if (desc)
+	{
+		if (align > 40)
+		{
+			fputc('\n', file);
+			align = 0;
+		}
+		for (; align < 40; align++)
+			fputc(' ', file);
+		fputs("# ", file);
+		align -= 40;
+		if (align < 0)
+			align = 0;
+		while(*desc)
+		{
+			if (*desc == '\n' || (*desc == ' ' && align > 60))
+			{
+				fputs("\n", file);
+				for (align = 0; align < 40; align++)
+					fputc(' ', file);
+				fputs("# ", file);
+				align = 0;
+			}
+			else
+			{
+				fputc(*desc, file);
+				align++;
+			}
+			desc++;
+		}
+	}
+	fputs("\n", file);
+}
+void GUI_SaveConfig(void)
+{
+	FILE *file = fopen("fteqcc.ini", "wt");
+	int p;
+	if (!file)
+		return;
+	for (p = 0; optimisations[p].enabled; p++)
+	{
+		if ((!(optimisations[p].flags&FLAG_SETINGUI)) == (!(optimisations[p].flags&FLAG_ASDEFAULT)))
+			GUI_WriteConfigLine(file, "optimisation",	optimisations[p].abbrev,	"default",		optimisations[p].description);
+		else
+			GUI_WriteConfigLine(file, "optimisation",	optimisations[p].abbrev,	(optimisations[p].flags&FLAG_SETINGUI)?"on":"off",		optimisations[p].description);
+	}
+
+	for (p = 0; compiler_flag[p].enabled; p++)
+	{
+		if (!strncmp(compiler_flag[p].fullname, "Keyword: ", 9))
+			GUI_WriteConfigLine(file, "keyword",	compiler_flag[p].abbrev,	(compiler_flag[p].flags&FLAG_SETINGUI)?"true":"false",	compiler_flag[p].description);
+		else
+			GUI_WriteConfigLine(file, "flag",		compiler_flag[p].abbrev,	(compiler_flag[p].flags&FLAG_SETINGUI)?"true":"false",	compiler_flag[p].description);
+	}
+
+	GUI_WriteConfigLine(file, "showall",			fl_showall?"on":"off",			NULL, "Show all keyword options in the gui");
+	GUI_WriteConfigLine(file, "compileonstart",		fl_compileonstart?"on":"off",	NULL, "Recompile on GUI startup");
+	GUI_WriteConfigLine(file, "log",				fl_log?"on":"off",				NULL, "Write out a compile log");
+
+	GUI_WriteConfigLine(file, "enginebinary",		enginebinary,					NULL, "Location of the engine binary to run. Change this to something else to run a different engine, but not all support debugging.");
+	GUI_WriteConfigLine(file, "basedir",			enginebasedir,					NULL, "The base directory of the game that contains your sub directory");
+	GUI_WriteConfigLine(file, "engineargs",			enginecommandline,				NULL, "The engine commandline to use when debugging. You'll likely want to ensure this contains -window as well as the appropriate -game argument.");
+	GUI_WriteConfigLine(file, "srcfile",			progssrcname,					NULL, "The progs.src file to load to find ordering of other qc files.");
+	GUI_WriteConfigLine(file, "src",				progssrcdir,					NULL, "Additional subdir to read qc files from. Typically blank (ie: the working directory).");
+
+	GUI_WriteConfigLine(file, "extramargins",		fl_extramargins?"on":"off",		NULL, "Enables line number and folding margins.");
+	GUI_WriteConfigLine(file, "hexen2",				fl_hexen2?"on":"off",			NULL, "Enable the extra tweaks needed for compatibility with hexen2 engines.");
+	GUI_WriteConfigLine(file, "extendedopcodes",	fl_ftetarg?"on":"off",			NULL, "Utilise an extended instruction set, providing support for pointers and faster arrays and other speedups.");
+
+	GUI_WriteConfigLine(file, "parameters",			parameters,						NULL, "Other additional parameters that are not supported by the gui. Likely including -DFOO");
+
+	fclose(file);
+}
+//grabs a token. modifies original string.
+static char *GUI_ParseInPlace(char **state)
+{
+	char *str = *state, *end;
+	while(*str == ' ' || *str == '\t')
+		str++;
+	if (*str == '\"')
+	{
+		char *fmt;
+		str++;
+		for (end = str, fmt = str; *end; )
+		{
+			if (*end == '\"')
+				break;
+			else if (*end == '\'' && end[1] == '\\')
+				*fmt = '\\';
+			else if (*end == '\'' && end[1] == '\"')
+				*fmt = '\"';
+			else if (*end == '\'' && end[1] == '\n')
+				*fmt = '\n';
+			else if (*end == '\'' && end[1] == '\r')
+				*fmt = '\r';
+			else if (*end == '\'' && end[1] == '\t')
+				*fmt = '\t';
+			else
+			{
+				*fmt++ = *end++;
+				continue;
+			}
+			fmt+=1;
+			end+=2;
+		}
+	}
+	else
+		for (end = str; *end&&*end!=' '&&*end !='\t' && *end != '#'; end++)
+			;
+	*end = 0;
+	*state = end+1;
+	return str;
+}
+static int GUI_ParseBooleanInPlace(char **state, int defaultval)
+{
+	char *token = GUI_ParseInPlace(state);
+	if (!stricmp(token, "default"))
+		return defaultval;
+	else if (!stricmp(token, "on") || !stricmp(token, "true") || !stricmp(token, "yes"))
+		return 1;
+	else if (!stricmp(token, "off") || !stricmp(token, "false") || !stricmp(token, "no"))
+		return 0;
+	else
+		return !!atoi(token);
+}
+void GUI_LoadConfig(void)
+{
+	char buf[2048];
+	char *token, *str;
+	FILE *file = fopen("fteqcc.ini", "rb");
+	int p;
+	if (!file)
+		return;
+	fl_nondfltopts = false;
+	while (fgets(buf, sizeof(buf), file))
+	{
+		str = buf;
+		token = GUI_ParseInPlace(&str);
+		if (!stricmp(token, "optimisation") || !stricmp(token, "opt"))
+		{
+			char *item = GUI_ParseInPlace(&str);
+			int value = GUI_ParseBooleanInPlace(&str, -1);
+			for (p = 0; optimisations[p].enabled; p++)
+				if (!stricmp(item, optimisations[p].abbrev))
+				{
+					if (value == -1)
+						value = !!(optimisations[p].flags & FLAG_ASDEFAULT);
+					else
+						fl_nondfltopts = true;
+					if (value)
+						optimisations[p].flags |= FLAG_SETINGUI;
+					else
+						optimisations[p].flags &= ~FLAG_SETINGUI;
+					break;
+				}
+			//don't worry if its not known	
+		}
+		else if (!stricmp(token, "flag") || !stricmp(token, "fl") || !stricmp(token, "keyword"))
+		{
+			char *item = GUI_ParseInPlace(&str);
+			int value = GUI_ParseBooleanInPlace(&str, -1);
+			for (p = 0; compiler_flag[p].enabled; p++)
+				if (!stricmp(item, compiler_flag[p].abbrev))
+				{
+					if (value == -1)
+						value = !!(compiler_flag[p].flags & FLAG_ASDEFAULT);
+					if (value)
+						compiler_flag[p].flags |= FLAG_SETINGUI;
+					else
+						compiler_flag[p].flags &= ~FLAG_SETINGUI;
+					break;
+				}
+			//don't worry if its not known
+		}
+		else if (!stricmp(token, "enginebinary"))
+			QC_strlcpy(enginebinary, GUI_ParseInPlace(&str), sizeof(enginebinary));
+		else if (!stricmp(token, "basedir"))
+			QC_strlcpy(enginebasedir, GUI_ParseInPlace(&str), sizeof(enginebasedir));
+		else if (!stricmp(token, "engineargs"))
+			QC_strlcpy(enginecommandline, GUI_ParseInPlace(&str), sizeof(enginecommandline));
+		else if (!stricmp(token, "srcfile"))
+			QC_strlcpy(progssrcname, GUI_ParseInPlace(&str), sizeof(progssrcname));
+		else if (!stricmp(token, "src"))
+			QC_strlcpy(progssrcdir, GUI_ParseInPlace(&str), sizeof(progssrcdir));
+		else if (!stricmp(token, "parameters"))
+			QC_strlcpy(parameters, GUI_ParseInPlace(&str), sizeof(parameters));
+
+		else if (!stricmp(token, "log"))
+			fl_log = GUI_ParseBooleanInPlace(&str, false);
+		else if (!stricmp(token, "compileonstart"))
+			fl_compileonstart = GUI_ParseBooleanInPlace(&str, false);
+		else if (!stricmp(token, "showall"))
+			fl_showall = GUI_ParseBooleanInPlace(&str, false);
+
+		else if (!stricmp(token, "extramargins"))
+			fl_extramargins = GUI_ParseBooleanInPlace(&str, false);
+		else if (!stricmp(token, "hexen2"))
+			fl_hexen2 = GUI_ParseBooleanInPlace(&str, false);
+		else if (!stricmp(token, "extendedopcodes"))
+			fl_ftetarg = GUI_ParseBooleanInPlace(&str, false);
+		else if (*token)
+		{
+			puts("Unknown setting: "); puts(token); puts("\n");
+		}
+	}
+	fclose(file);
+}
 
 
 //this function takes the windows specified commandline and strips out all the options menu items.
@@ -116,13 +354,55 @@ void GUI_ParseCommandLine(char *args)
 	int paramlen=0;
 	int l, p;
 	char *next;
-	pbool isfirst = true;
+
+	//find the first argument
+	while (*args == ' ' || *args == '\t')
+		args++;
+	for (next = args; *next&&*next!=' '&&*next !='\t'; next++)
+		;
+
+	if (*args != '-')
+	{
+		pbool qt = *args == '\"';
+		l = 0;
+		if (qt)
+			args++;
+		while (*args != ' ' && *args)
+		{
+			if (qt && *args == '\"')
+			{
+				args++;
+				break;
+			}
+			progssrcname[l++] = *args++;
+		}
+		progssrcname[l] = 0;
+
+		next = args;
+
+		args = strrchr(progssrcname, '\\');
+		while(args && strchr(args, '/'))
+			args = strchr(args, '/');
+		if (args)
+		{
+			memcpy(progssrcdir, progssrcname, args-progssrcname);
+			progssrcdir[args-progssrcname] = 0;
+			args++;
+			memmove(progssrcname, args, strlen(args)+1);
+
+			SetCurrentDirectoryA(progssrcdir);
+			*progssrcdir = 0;
+		}
+		args = next;
+	}
+
+	GUI_LoadConfig();
+
 	while(*args)
 	{
-		while (*args <= ' ' && *args)
+		while (*args == ' ' || *args == '\t')
 			args++;
-
-		for (next = args; *next>' '; next++)
+		for (next = args; *next&&*next!=' '&&*next !='\t'; next++)
 			;
 
 		strncpy(parameters+paramlen, args, next-args);
@@ -242,10 +522,6 @@ void GUI_ParseCommandLine(char *args)
 		{
 			fl_showall = true;
 		}
-		else if (!strnicmp(parameters+paramlen, "-ah", 3) || !strnicmp(parameters+paramlen, "/ah", 3))
-		{
-			fl_autohighlight = true;
-		}
 		else if (!strnicmp(parameters+paramlen, "-ac", 3) || !strnicmp(parameters+paramlen, "/ac", 3))
 		{
 			fl_compileonstart = true;
@@ -308,6 +584,7 @@ void GUI_ParseCommandLine(char *args)
 				paramlen += l;
 			}
 		}
+		/*
 		else if (isfirst && *args != '-' && *args != '/')
 		{
 			pbool qt = *args == '\"';
@@ -339,13 +616,12 @@ void GUI_ParseCommandLine(char *args)
 				*progssrcdir = 0;
 			}
 		}
+		*/
 		else
 		{
 			parameters[paramlen+next-args] = ' ';
 			paramlen += l;
 		}
-
-		isfirst = false;
 
 		args=next;
 	}
@@ -402,6 +678,8 @@ int GUI_BuildParms(char *args, char **argv, pbool quick)
 	int argc;
 	char *next;
 	int i;
+	int targ;
+	char *targs[] = {"", "-Th2", "-Tfte", "-Tfteh2"};
 
 
 	argc = 1;
@@ -429,9 +707,12 @@ int GUI_BuildParms(char *args, char **argv, pbool quick)
 		args=next;
 	}
 
-	if (fl_hexen2)
+	targ = 0;
+	targ |= fl_hexen2?1:0;
+	targ |= fl_ftetarg?2:0;
+	if (*targs[targ])
 	{
-		strcpy(param+paramlen, "-Th2");
+		strcpy(param+paramlen, targs[targ]);
 		argv[argc++] = param+paramlen;
 		paramlen += strlen(param+paramlen)+1;
 	}

@@ -1,6 +1,6 @@
 void GoToDefinition(char *name);
 int Grep(char *filename, char *string);
-void EditFile(char *name, int line);
+void EditFile(char *name, int line, pbool setcontrol);
 
 void GUI_SetDefaultOpts(void);
 int GUI_BuildParms(char *args, char **argv, pbool quick);
@@ -17,6 +17,7 @@ extern char progssrcdir[256];
 
 extern pbool fl_nondfltopts;
 extern pbool fl_hexen2;
+extern pbool fl_ftetarg;
 extern pbool fl_autohighlight;
 extern pbool fl_compileonstart;
 extern pbool fl_showall;

@@ -8,7 +8,7 @@
 LoadFile
 ==============
 */
-unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len)
+unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz)
 {
 	long    length;
 	FILE *f;
@@ -21,6 +21,8 @@ unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len)
 	if (length != len)
 		return NULL;
 
+	if (sz)
+		*sz = length;
 	return buffer;
 }
 int PDECL QCC_FileSize (const char *fname)
@@ -84,14 +86,17 @@ int logprintf(const char *format, ...)
 	va_end (argptr);
 
 	printf("%s", string);
+//	fputs(string, stderr);
 	if (logfile)
 		fputs(string, logfile);
 
 	return 0;
 }
 
+#include <windows.h>
 int main (int argc, char **argv)
 {
+	unsigned int i;
 	pbool sucess;
 	progexterns_t ext;
 	progfuncs_t funcs;
@@ -105,6 +110,15 @@ int main (int argc, char **argv)
 	funcs.funcs.parms->Printf = logprintf;
 	funcs.funcs.parms->Sys_Error = Sys_Error;
 	logfile = fopen("fteqcc.log", "wt");
+	fputs("Args:", logfile);
+	for (i = 0; i < argc; i++)
+	{
+		if (strchr(argv[i], ' '))
+			fprintf(logfile, " \"%s\"", argv[i]);
+		else
+			fprintf(logfile, " %s", argv[i]);
+	}
+	fprintf(logfile, "\n");
 	sucess = CompileParams(&funcs, true, argc, argv);
 	qccClearHunk();
 	if (logfile)

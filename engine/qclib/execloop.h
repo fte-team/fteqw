@@ -57,8 +57,14 @@ cont:	//last statement may have been a breakpoint
 		case ev_float:
 			printf("Watch point hit in %s, \"%s\" changed from %g to %g.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), prinst.watch_name, prinst.watch_old._float, prinst.watch_ptr->_float);
 			break;
+		case ev_vector:
+			printf("Watch point hit in %s, \"%s\" changed from '%g %g %g' to '%g %g %g'.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), prinst.watch_name, prinst.watch_old._vector[0], prinst.watch_old._vector[1], prinst.watch_old._vector[2], prinst.watch_ptr->_vector[0], prinst.watch_ptr->_vector[1], prinst.watch_ptr->_vector[2]);
+			break;
 		default:
 			printf("Watch point hit in %s, \"%s\" changed from %i to %i.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), prinst.watch_name, prinst.watch_old._int, prinst.watch_ptr->_int);
+			break;
+		case ev_entity:
+			printf("Watch point hit in %s, \"%s\" changed from %i(%s) to %i(%s).\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), prinst.watch_name, prinst.watch_old._int, PR_GetEdictClassname(progfuncs, prinst.watch_old._int), prinst.watch_ptr->_int, PR_GetEdictClassname(progfuncs, prinst.watch_ptr->_int));
 			break;
 		case ev_function:
 		case ev_string:
@@ -364,7 +370,10 @@ reeval:
 		{
 			if (OPB->_int == -1)
 				break;
-			QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
+			if (OPB->_int == 0)
+				QCFAULT(&progfuncs->funcs, "bad pointer write in %s (null pointer)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+			else
+				QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), OPB->_int, prinst.addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_int = OPA->_int;

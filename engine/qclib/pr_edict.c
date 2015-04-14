@@ -515,6 +515,9 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 	if (current_progstate && pr_types)
 		type = pr_types[type].type;
 
+	if (!val)
+		type = ev_void;
+
 	switch (type)
 	{
 	case ev_struct:
@@ -1440,7 +1443,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax
 	ddef16_t		*def16;
 	unsigned int			i;
 	unsigned int j;
-	char	*name;
+	const char	*name;
 	int			type;
 	int curprogs = pr_typecurrent;
 	int len;
@@ -1515,9 +1518,11 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax
 	case PST_FTE32:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
+			size_t nlen;
 			def32 = &pr_globaldefs32[i];
-			name = def32->s_name + progfuncs->funcs.stringtable;
-			if (name[strlen(name)-2] == '_')
+			name = PR_StringToNative(&progfuncs->funcs, def32->s_name);
+			nlen = strlen(name);
+			if (nlen >= 3 && name[nlen-2] == '_')
 				continue;	// skip _x, _y, _z vars (vector components, which are saved as one vector not 3 floats)
 
 			type = def32->type;
@@ -2523,6 +2528,62 @@ void PR_TestForWierdness(progfuncs_t *progfuncs)
 }
 #endif
 */
+
+void PR_CleanUpStatements16(progfuncs_t *progfuncs, dstatement16_t *st, pbool hexencalling)
+{
+	unsigned int numst = pr_progs->numstatements;
+	unsigned int numglob = pr_progs->numglobals+3;	//+3 because I'm too lazy to deal with vectors
+	unsigned int i;
+	for (i=0 ; i<numst ; i++)
+	{
+		if (st[i].op >= OP_CALL1 && st[i].op <= OP_CALL8 && hexencalling)
+			st[i].op += OP_CALL1H - OP_CALL1;
+		if (st[i].op >= OP_RAND0 && st[i].op <= OP_RANDV2 && hexencalling)
+			if (!st[i].c)
+				st[i].c = OFS_RETURN;
+
+		if (st[i].a < 0 || st[i].a >= numglob)
+			if (st[i].op != OP_GOTO)
+				st[i].op = ~0;
+		if (st[i].b < 0 || st[i].b >= numglob)
+			if (st[i].op != OP_IFNOT_I && st[i].op != OP_IF_I &&
+				st[i].op != OP_IFNOT_F && st[i].op != OP_IF_F &&
+				st[i].op != OP_IFNOT_S && st[i].op != OP_IF_S &&
+				st[i].op != OP_BOUNDCHECK && st[i].op != OP_CASE)
+				st[i].op = ~0;
+		if (st[i].c < 0 || st[i].c >= numglob)
+			if (st[i].op != OP_BOUNDCHECK && st[i].op != OP_CASERANGE)
+				st[i].op = ~0;
+	}
+}
+void PR_CleanUpStatements32(progfuncs_t *progfuncs, dstatement32_t *st, pbool hexencalling)
+{
+	unsigned int numst = pr_progs->numstatements;
+	unsigned int numglob = pr_progs->numglobals+3;	//+3 because I'm too lazy to deal with vectors
+	unsigned int i;
+	for (i=0 ; i<numst ; i++)
+	{
+		if (st[i].op >= OP_CALL1 && st[i].op <= OP_CALL8 && hexencalling)
+			st[i].op += OP_CALL1H - OP_CALL1;
+		if (st[i].op >= OP_RAND0 && st[i].op <= OP_RANDV2 && hexencalling)
+			if (!st[i].c)
+				st[i].c = OFS_RETURN;
+
+		if (st[i].a < 0 || st[i].a >= numglob)
+			if (st[i].op != OP_GOTO)
+				st[i].op = ~0;
+		if (st[i].b < 0 || st[i].b >= numglob)
+			if (st[i].op != OP_IFNOT_I && st[i].op != OP_IF_I &&
+				st[i].op != OP_IFNOT_F && st[i].op != OP_IF_F &&
+				st[i].op != OP_IFNOT_S && st[i].op != OP_IF_S &&
+				st[i].op != OP_BOUNDCHECK)
+				st[i].op = ~0;
+		if (st[i].c < 0 || st[i].c >= numglob)
+			if (st[i].op != OP_BOUNDCHECK)
+				st[i].op = ~0;
+	}
+}
+
 char *decode(int complen, int len, int method, char *info, char *buffer);
 /*
 ===============
@@ -2798,7 +2859,7 @@ retry:
 		if (pr_progs->blockscompressed & 32)	//globals
 		{
 			len=sizeof(float)*pr_progs->numglobals;
-			s = PRHunkAlloc(progfuncs, len, "dglobaltable");
+			s = PRHunkAlloc(progfuncs, len + sizeof(float)*2, "dglobaltable");
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_globals), len, 2, (char *)(((int *)pr_globals)+1), s);
 
 			glob = pr_globals = (float *)s;
@@ -2827,7 +2888,7 @@ retry:
 	pr_strings = (char *)s;
 
 	len=sizeof(float)*pr_progs->numglobals;
-	s = PRAddressableExtend(progfuncs, len);
+	s = PRAddressableExtend(progfuncs, len + sizeof(float)*2);
 	memcpy(s, pr_globals, len);
 	glob = pr_globals = (float *)s;
 
@@ -3115,6 +3176,7 @@ retry:
 			// could use the line info as lno information maybe? is it really worth it?
 			// also never assuming h2 calling mechanism
 		}
+		PR_CleanUpStatements16(progfuncs, st16, false);
 		break;
 	case PST_DEFAULT:
 		for (i=0 ; i<pr_progs->numstatements ; i++)
@@ -3134,17 +3196,7 @@ retry:
 				}
 			}
 		}
-		if (hexencalling)
-		{
-			for (i=0 ; i<pr_progs->numstatements ; i++)
-			{
-				if (st16[i].op >= OP_CALL1 && st16[i].op <= OP_CALL8)
-					st16[i].op += OP_CALL1H - OP_CALL1;
-				if (st16[i].op >= OP_RAND0 && st16[i].op <= OP_RANDV2)
-					if (!st16[i].c)
-						st16[i].c = OFS_RETURN;
-			}
-		}
+		PR_CleanUpStatements16(progfuncs, st16, hexencalling);
 		break;
 
 	case PST_KKQWSV:	//24 sucks. Guess why.
@@ -3166,17 +3218,7 @@ retry:
 				}
 			}
 		}
-		if (hexencalling)
-		{
-			for (i=0 ; i<pr_progs->numstatements ; i++)
-			{
-				if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
-					pr_statements32[i].op += OP_CALL1H - OP_CALL1;
-				if (pr_statements32[i].op >= OP_RAND0 && pr_statements32[i].op <= OP_RANDV2)
-					if (!pr_statements32[i].c)
-						pr_statements32[i].c = OFS_RETURN;
-			}
-		}
+		PR_CleanUpStatements32(progfuncs, pr_statements32, hexencalling);
 		break;
 	}
 
@@ -3225,7 +3267,7 @@ retry:
 				break;
 			case ev_string:
 				if (((unsigned int *)glob)[gd16[i].ofs]>=progstate->progs->numstrings)
-					printf("Insane value\n");
+					printf("PR_LoadProgs: invalid string value (%x >= %x) in '%s'\n", ((unsigned int *)glob)[gd16[i].ofs], progstate->progs->numstrings, gd16[i].s_name+pr_strings-stringadjust);
 				else if (isfriked != -1)
 				{
 					if (pr_strings[((int *)glob)[gd16[i].ofs]])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.

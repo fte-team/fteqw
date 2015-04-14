@@ -16,6 +16,7 @@ char *QCC_PR_CheckCompConstString(char *def);
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
 int QCC_PR_CheckCompConst(void);
 pbool QCC_Include(char *filename);
+void QCC_FreeDef(QCC_def_t *def);
 
 char *compilingfile;
 
@@ -31,7 +32,7 @@ token_type_t	pr_token_type;
 int				pr_token_line;
 int				pr_token_line_last;
 QCC_type_t		*pr_immediate_type;
-QCC_eval_t		pr_immediate;
+QCC_evalstorage_t		pr_immediate;
 
 char	pr_immediate_string[8192];
 
@@ -46,7 +47,7 @@ extern pbool expandedemptymacro;
 //really these should not be in here
 extern unsigned int locals_end, locals_start;
 extern QCC_type_t *pr_classtype;
-QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_type_t *type);
+QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *type);
 
 
 static void Q_strlcpy(char *dest, const char *src, int sizeofdest)
@@ -981,41 +982,57 @@ pbool QCC_PR_Precompiler(void)
 				extern pbool qcc_nopragmaoptimise;
 				if (pr_scope)
 					QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s: unable to change optimisation options mid-function", qcc_token);
-				else if (qcc_nopragmaoptimise)
-					QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s %s: overriden by commandline", qcc_token, msg);
 				else if (*msg >= '0' && *msg <= '3')
 				{
 					int lev = atoi(msg);
+					pbool state;
+					int once = false;
 					for (o = 0; optimisations[o].enabled; o++)
 					{
-						if (optimisations[o].optimisationlevel <= lev)
-							*optimisations[o].enabled = true;
+						state = optimisations[o].optimisationlevel <= lev;
+						if (qcc_nopragmaoptimise && *optimisations[o].enabled != state)
+						{
+							if (!once++)
+								QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s %s: overriden by commandline", qcc_token, msg);
+						}
+						else
+							*optimisations[o].enabled = state;
+					}
+				}
+				else if (!strnicmp(msg, "addon", 5) || !strnicmp(msg, "mutator", 7))
+				{
+					int lev = 2;
+					pbool state = false;
+					for (o = 0; optimisations[o].enabled; o++)
+					{
+						if (optimisations[o].optimisationlevel > lev)
+						{
+							if (qcc_nopragmaoptimise && *optimisations[o].enabled != state)
+								QCC_PR_ParseWarning(WARN_IGNORECOMMANDLINE, "pragma %s %s: disabling %s", qcc_token, msg, optimisations[o].fullname);
+							*optimisations[o].enabled = state;
+						}
 					}
 				}
 				else
 				{
+					char *opt = msg;
+					pbool state = true;
 					if (!strnicmp(msg, "no-", 3))
 					{
-						for (o = 0; optimisations[o].enabled; o++)
+						state = false;
+						opt += 3;
+					}
+					for (o = 0; optimisations[o].enabled; o++)
+						if ((*optimisations[o].abbrev && !stricmp(opt, optimisations[o].abbrev)) || !stricmp(opt, optimisations[o].fullname))
 						{
-							if ((*optimisations[o].abbrev && !stricmp(msg+3, optimisations[o].abbrev)) || !stricmp(msg+3, optimisations[o].fullname))
-							{
-								*optimisations[o].enabled = false;
-								break;
-							}
+							if (qcc_nopragmaoptimise && *optimisations[o].enabled != state)
+								QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s %s: overriden by commandline", qcc_token, optimisations[o].fullname);
+							else
+								*optimisations[o].enabled = state;
+							break;
 						}
-					}
-					else
-					{
-						for (o = 0; optimisations[o].enabled; o++)
-							if ((*optimisations[o].abbrev && !stricmp(msg, optimisations[o].abbrev)) || !stricmp(msg, optimisations[o].fullname))
-							{
-								*optimisations[o].enabled = true;
-								break;
-							}
-					}
 					if (!optimisations[o].enabled)
-						QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s: %s unsupported", qcc_token, msg);
+						QCC_PR_ParseWarning(WARN_BADPRAGMA, "pragma %s: %s unsupported", qcc_token, opt);
 				}
 			}
 			else if (!QC_strcasecmp(qcc_token, "sourcefile"))
@@ -1335,7 +1352,7 @@ void QCC_PR_LexString (void)
 	char	*end, *cnst;
 	int		raw;
 	char	rawdelim[64];
-	int		code;
+	unsigned int		code;
 
 	int texttype;
 	pbool first = true;
@@ -1939,7 +1956,7 @@ Parses an identifier
 */
 void QCC_PR_LexName (void)
 {
-	int		c;
+	unsigned int		c;
 	int		len;
 
 	len = 0;
@@ -2389,7 +2406,7 @@ CompilerConstant_t *QCC_PR_DefineName(char *name)
 	cnst = qccHunkAlloc(sizeof(CompilerConstant_t));
 
 	cnst->used = false;
-	cnst->numparams = 0;
+	cnst->numparams = -1;
 	cnst->evil = false;
 	strcpy(cnst->name, name);
 	cnst->namelen = strlen(name);
@@ -2433,6 +2450,7 @@ void QCC_PR_PreProcessor_Define(pbool append)
 
 	if (*pr_file_p == '(')
 	{
+		cnst->numparams = 0;
 		pr_file_p++;
 		while(qcc_iswhitesameline(*pr_file_p))
 			pr_file_p++;
@@ -2605,6 +2623,8 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 					s+=2;
 					break;
 				}
+				if (s[0] == '\n')
+					pr_source_line++;
 				s++;
 			}
 			continue;
@@ -3239,13 +3259,18 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 		}
 	}
 }
+void QCC_PR_ParsePrintSRef (int type, QCC_sref_t def)
+{
+	QCC_PR_ParsePrintDef(type, def.sym);
+}
+
 void *errorscope;
 void QCC_PR_PrintScope (void)
 {
 	if (pr_scope)
 	{
 		if (errorscope != pr_scope)
-			printf ("in function %s (line %i),\n", pr_scope->name, pr_scope->s_line);
+			printf ("in function %s (line %i),\n", pr_scope->name, pr_scope->line);
 		errorscope = pr_scope;
 	}
 	else
@@ -3270,7 +3295,7 @@ Aborts the current file load
 void editbadfile(char *file, int line);
 #endif
 //will abort.
-void VARGS QCC_PR_ParseError (int errortype, char *error, ...)
+void VARGS QCC_PR_ParseError (int errortype, const char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -3292,7 +3317,7 @@ void VARGS QCC_PR_ParseError (int errortype, char *error, ...)
 	longjmp (pr_parse_abort, 1);
 }
 //will abort.
-void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error, ...)
+void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, const char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -3315,7 +3340,30 @@ void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error
 	longjmp (pr_parse_abort, 1);
 }
 
-pbool VARGS QCC_PR_PrintWarning (int type, char *file, int line, char *string)
+void VARGS QCC_PR_ParseErrorPrintSRef (int errortype, QCC_sref_t def, const char *error, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr,error);
+	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+#ifndef QCC
+	editbadfile(strings+s_file, pr_source_line);
+#endif
+	QCC_PR_PrintScope();
+	if (flag_msvcstyle)
+		printf ("%s(%i) : error: %s\n", strings + s_file, pr_source_line, string);
+	else
+		printf ("%s:%i: error: %s\n", strings + s_file, pr_source_line, string);
+
+	QCC_PR_ParsePrintSRef(WARN_ERROR, def);
+
+	longjmp (pr_parse_abort, 1);
+}
+
+pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const char *string)
 {
 	char *wnam = QCC_NameForWarning(type);
 	if (!wnam)
@@ -3324,7 +3372,7 @@ pbool VARGS QCC_PR_PrintWarning (int type, char *file, int line, char *string)
 	QCC_PR_PrintScope();
 	if (type >= ERR_PARSEERRORS)
 	{
-		if (!file)
+		if (!file || !*file)
 			printf ("error%s: %s\n", wnam, string);
 		else if (flag_msvcstyle)
 			printf ("%s(%i) : error%s: %s\n", file, line, wnam, string);
@@ -3334,7 +3382,7 @@ pbool VARGS QCC_PR_PrintWarning (int type, char *file, int line, char *string)
 	}
 	else if (qccwarningaction[type] == 2)
 	{	//-werror
-		if (!file)
+		if (!file || !*file)
 			printf ("werror%s: %s\n", wnam, string);
 		else if (flag_msvcstyle)
 			printf ("%s(%i) : werror%s: %s\n", file, line, wnam, string);
@@ -3344,7 +3392,7 @@ pbool VARGS QCC_PR_PrintWarning (int type, char *file, int line, char *string)
 	}
 	else
 	{
-		if (!file)
+		if (!file || !*file)
 			printf ("warning%s: %s\n", wnam, string);
 		else if (flag_msvcstyle)
 			printf ("%s(%i) : warning%s: %s\n", file, line, wnam, string);
@@ -3354,7 +3402,7 @@ pbool VARGS QCC_PR_PrintWarning (int type, char *file, int line, char *string)
 	}
 	return true;
 }
-pbool VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
+pbool VARGS QCC_PR_Warning (int type, const char *file, int line, const char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -3370,7 +3418,7 @@ pbool VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
 }
 
 //can be used for errors, qcc execution will continue.
-pbool VARGS QCC_PR_ParseWarning (int type, char *error, ...)
+pbool VARGS QCC_PR_ParseWarning (int type, const char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -3385,7 +3433,7 @@ pbool VARGS QCC_PR_ParseWarning (int type, char *error, ...)
 	return QCC_PR_PrintWarning(type, strings + s_file, pr_source_line, string);
 }
 
-void VARGS QCC_PR_Note (int type, char *file, int line, char *error, ...)
+void VARGS QCC_PR_Note (int type, const char *file, int line, const char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -3416,7 +3464,7 @@ Gets the next token
 =============
 */
 #ifndef COMMONINLINES
-void QCC_PR_Expect (char *string)
+void QCC_PR_Expect (const char *string)
 {
 	if (STRCMP (string, pr_token))
 		QCC_PR_ParseError (ERR_EXPECTED, "expected %s, found %s",string, pr_token);
@@ -3424,7 +3472,7 @@ void QCC_PR_Expect (char *string)
 }
 #endif
 
-pbool QCC_PR_CheckTokenComment(char *string, char **comment)
+pbool QCC_PR_CheckTokenComment(const char *string, char **comment)
 {
 	char c;
 	char *start;
@@ -3551,7 +3599,7 @@ Returns false and does nothing otherwise
 =============
 */
 #ifndef COMMONINLINES
-pbool QCC_PR_CheckToken (char *string)
+pbool QCC_PR_CheckToken (const char *string)
 {
 	if (pr_token_type != tt_punct)
 		return false;
@@ -3563,7 +3611,7 @@ pbool QCC_PR_CheckToken (char *string)
 	return true;
 }
 
-pbool QCC_PR_CheckImmediate (char *string)
+pbool QCC_PR_CheckImmediate (const char *string)
 {
 	if (pr_token_type != tt_immediate)
 		return false;
@@ -3575,7 +3623,7 @@ pbool QCC_PR_CheckImmediate (char *string)
 	return true;
 }
 
-pbool QCC_PR_CheckName(char *string)
+pbool QCC_PR_CheckName(const char *string)
 {
 	if (pr_token_type != tt_name)
 		return false;
@@ -3593,7 +3641,7 @@ pbool QCC_PR_CheckName(char *string)
 	return true;
 }
 
-pbool QCC_PR_CheckKeyword(int keywordenabled, char *string)
+pbool QCC_PR_CheckKeyword(int keywordenabled, const char *string)
 {
 	if (!keywordenabled)
 		return false;
@@ -3622,14 +3670,14 @@ Checks to see if the current token is a valid name
 */
 char *QCC_PR_ParseName (void)
 {
-	static char	ident[MAX_NAME];
+	char	ident[MAX_NAME];
 	char *ret;
 
 	if (pr_token_type != tt_name)
 	{
 		if (pr_token_type == tt_eof)
 			QCC_PR_ParseError (ERR_EOF, "unexpected EOF", pr_token);
-		else
+		else if (strcmp(pr_token, "..."))	//seriously? someone used '...' as an intrinsic NAME?
 			QCC_PR_ParseError (ERR_NOTANAME, "\"%s\" - not a name", pr_token);
 	}
 	if (strlen(pr_token) >= MAX_NAME-1)
@@ -3653,7 +3701,7 @@ a new one and copies it out.
 */
 
 //requires EVERYTHING to be the same
-int typecmp_strict(QCC_type_t *a, QCC_type_t *b)
+static int typecmp_strict(QCC_type_t *a, QCC_type_t *b)
 {
 	int i;
 	if (a == b)
@@ -4087,6 +4135,11 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			paramlist[numparms].paramname = "";
 			if (STRCMP(pr_token, ",") && STRCMP(pr_token, ")"))
 			{
+				if (QCC_PR_CheckToken ("..."))
+				{
+					ftype->vargs = true;
+					break;
+				}
 				newtype = true;
 				name = QCC_PR_ParseName ();
 				paramlist[numparms].paramname = qccHunkAlloc(strlen(name)+1);
@@ -4253,7 +4306,7 @@ QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, QCC_type_t **args, char
 
 extern char *basictypenames[];
 extern QCC_type_t **basictypes[];
-QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int arraysize, unsigned int ofs, int referable, unsigned int flags);
+QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_function_t *scope, int arraysize, QCC_def_t *rootsymbol, unsigned int ofs, int referable, unsigned int flags);
 
 pbool type_inlinefunction;
 /*newtype=true: creates a new type always
@@ -4379,7 +4432,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			char *fieldtypename;
 			QCC_type_t *fieldtype;
 			QCC_type_t *indextype;
-			QCC_def_t *def;
+			QCC_sref_t def;
 			QCC_type_t *functype;
 			char *argname[3];
 			QCC_type_t *arg[3];
@@ -4457,53 +4510,27 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				if (pr_token_type != tt_name)
 				{
 					QCC_function_t *f;
-					QCC_dfunction_t *df;
 					char funcname[256];
 					QC_snprintfz(funcname, sizeof(funcname), "%s::%s_%s", newt->name, setnotget?"set":"get", accessorname);
 
-					def = QCC_PR_GetDef(functype, funcname, NULL, true, 0, GDF_CONST | (isinline?GDF_INLINE:0));
+					def = QCC_PR_GetSRef(functype, funcname, NULL, true, 0, GDF_CONST | (isinline?GDF_INLINE:0));
 
-					pr_scope = def;
 					//pr_classtype = newt;
-					f = QCC_PR_ParseImmediateStatements (functype);
+					f = QCC_PR_ParseImmediateStatements (def.sym, functype);
 					pr_classtype = NULL;
 					pr_scope = NULL;
-					G_FUNCTION(def->ofs) = numfunctions;
-					f->def = def;
-					def->initialized = 1;
-
-					if (numfunctions >= MAX_FUNCTIONS)
-						QCC_Error(ERR_INTERNAL, "Too many function defs");
-
-					// fill in the dfunction
-					df = &functions[numfunctions];
-					numfunctions++;
-					if (f->builtin)
-						df->first_statement = -f->builtin;
-					else
-						df->first_statement = f->code;
-
-					if (f->builtin && opt_function_names)
-						optres_function_names += strlen(f->def->name);
-					else
-						df->s_name = QCC_CopyString (f->def->name);
-					df->s_file = s_file;
-					df->numparms =  f->def->type->num_parms;
-					df->locals = locals_end - locals_start;
-					df->parm_start = locals_start;
-					for (i=0 ; i<df->numparms ; i++)
-					{
-						df->parm_size[i] = functype->params[i].type->size;
-					}
+					def.sym->symboldata[def.ofs].function = f - functions;
+					f->def = def.sym;
+					def.sym->initialized = 1;
 				}
 				else
 				{
 					funcname = QCC_PR_ParseName();
-					def = QCC_PR_GetDef(functype, funcname, NULL, true, 0, GDF_CONST|(isinline?GDF_INLINE:0));
-					if (!def)
+					def = QCC_PR_GetSRef(functype, funcname, NULL, true, 0, GDF_CONST|(isinline?GDF_INLINE:0));
+					if (!def.cast)
 						QCC_Error(ERR_NOFUNC, "%s::set_%s: %s was not defined", newt->name, accessorname, funcname);
 				}
-				if (!def)
+				if (!def.cast || !def.sym || def.sym->temp)
 					QCC_Error(ERR_NOFUNC, "%s::%s_%s function invalid", newt->name, setnotget?"set":"get", accessorname);
 				
 				for (acc = newt->accessors; acc; acc = acc->next)
@@ -4519,10 +4546,11 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					newt->accessors = acc;
 				}
 
-				if (acc->getset_func[setnotget])
+				if (acc->getset_func[setnotget].cast)
 					QCC_Error(ERR_TOOMANYINITIALISERS, "%s::%s_%s already declared", newt->name, setnotget?"set":"get", accessorname);
 				acc->getset_func[setnotget] = def;
 				acc->getset_isref[setnotget] = isref;
+				QCC_FreeTemp(def);
 			} while (QCC_PR_CheckToken(",") || QCC_PR_CheckToken(";"));
 			QCC_PR_Expect("}");
 		}
@@ -4686,7 +4714,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			{
 				QCC_def_t *def;
 				QCC_function_t *f;
-				QCC_dfunction_t *df;
 				if (pr_scope)
 					QCC_Error(ERR_INTERNAL, "Nested function declaration");
 
@@ -4695,7 +4722,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				if (isnull)
 				{
 					def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, 0);
-					G_FUNCTION(def->ofs) = 0;
+					def->symboldata[def->ofs].function = 0;
 					def->initialized = 1;
 				}
 				else
@@ -4728,41 +4755,17 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						}
 						else
 						{
-							pr_scope = def;
 							pr_classtype = newt;
-							f = QCC_PR_ParseImmediateStatements (newparm);
+							f = QCC_PR_ParseImmediateStatements (def, newparm);
 							pr_classtype = NULL;
 							pr_scope = NULL;
-							G_FUNCTION(def->ofs) = numfunctions;
+							def->symboldata[def->ofs].function = f - functions;
 							f->def = def;
 							def->initialized = 1;
-
-							if (numfunctions >= MAX_FUNCTIONS)
-								QCC_Error(ERR_INTERNAL, "Too many function defs");
-
-							// fill in the dfunction
-							df = &functions[numfunctions];
-							numfunctions++;
-							if (f->builtin)
-								df->first_statement = -f->builtin;
-							else
-								df->first_statement = f->code;
-
-							if (f->builtin && opt_function_names)
-								optres_function_names += strlen(f->def->name);
-							else
-								df->s_name = QCC_CopyString (f->def->name);
-							df->s_file = s_file;
-							df->numparms =  f->def->type->num_parms;
-							df->locals = locals_end - locals_start;
-							df->parm_start = locals_start;
-							for (i=0 ; i<df->numparms ; i++)
-							{
-								df->parm_size[i] = newparm->params[i].type->size;
-							}
 						}
 					}
 				}
+				QCC_FreeDef(def);
 
 				if (!isvirt)	
 				{
@@ -4800,7 +4803,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			if (isnonvirt || isstatic || (newparm->type == ev_function && !arraysize))
 			{
 				QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
-				QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
+				QCC_FreeDef(QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST));
 
 				if (isnonvirt || isstatic)
 					continue;
@@ -4877,19 +4880,20 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				{
 					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, 0, GDF_CONST);
 					for (i = 0; (unsigned int)i < newparm->size; i++)
-						((int *)qcc_pr_globals)[i+d->ofs] = pr.size_fields + i;
+						d->symboldata[i]._int = pr.size_fields+i;
 					pr.size_fields += i;
 
-					d->references++;	//always referenced, so you can inherit safely.
+					d->referenced = true;	//always referenced, so you can inherit safely.
 				}
 			}
+			QCC_FreeDef(d);
 
 			//and make sure we can do member::__fname
 			//actually, that seems pointless.
 			QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, classname, parmname);
 //			printf("define %s -> %s\n", membername, d->name);
-			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d->ofs, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
-			d->references++;	//always referenced, so you can inherit safely.
+			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d, 0, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
+			d->referenced = true;	//always referenced, so you can inherit safely.
 		}
 
 		if (redeclaration)
@@ -4921,8 +4925,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//if there's a constructor, make sure the spawnfunc_ function is defined so that its available to maps.
 			QC_snprintfz(membername, sizeof(membername), "spawnfunc_%s", classname);
 			d = QCC_PR_GetDef(type_function, membername, NULL, true, 0, GDF_CONST);
-			d->timescalled++;
-			d->references++;
+			d->funccalled = true;
+			d->referenced = true;
+			QCC_FreeDef(d);
 		}
 
 		QCC_PR_Expect(";");
@@ -4979,7 +4984,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				newparm = QCC_PR_NewType(newparm->name, newparm->type, false);
 			}
 			else
-				newparm = QCC_PR_ParseType(true, false);
+				newparm = QCC_PR_ParseType(false, false);
 
 			arraysize = 0;
 

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 #include <shlobj.h>
+#include <shlwapi.h>
 
 #include "qcc.h"
 #include "gui.h"
@@ -50,9 +51,13 @@ void GUI_RevealOptions(void);
 #define SCI_SETSAVEPOINT 2014
 #define SCI_GETCURLINE 2027
 #define SCI_SETCODEPAGE 2037
+#define SCI_MARKERDEFINE 2040
+#define SCI_MARKERSETFORE 2041
+#define SCI_MARKERSETBACK 2042
 #define SCI_MARKERADD 2043
 #define SCI_MARKERDELETE 2044
 #define SCI_MARKERDELETEALL 2045
+#define SCI_MARKERSETALPHA 2476
 #define SCI_MARKERGET 2046
 #define SCI_MARKERNEXT 2047
 #define SCI_STYLECLEARALL 2050
@@ -70,6 +75,9 @@ void GUI_RevealOptions(void);
 #define SCI_GETTEXT 2182
 #define SCI_CALLTIPSHOW 2200
 #define SCI_CALLTIPCANCEL 2201
+#define SCI_TOGGLEFOLD 2231
+#define SCI_SETMARGINWIDTHN 2242
+#define SCI_SETMARGINMASKN 2244
 #define SCI_SETMARGINSENSITIVEN 2246
 #define SCI_SETMOUSEDWELLTIME 2264
 #define SCI_CHARLEFT 2304
@@ -141,6 +149,47 @@ void GUI_RevealOptions(void);
 #define STYLE_BRACELIGHT 34
 #define STYLE_BRACEBAD 35
 
+#define SC_MARKNUM_FOLDEREND 25
+#define SC_MARKNUM_FOLDEROPENMID 26
+#define SC_MARKNUM_FOLDERMIDTAIL 27
+#define SC_MARKNUM_FOLDERTAIL 28
+#define SC_MARKNUM_FOLDERSUB 29
+#define SC_MARKNUM_FOLDER 30
+#define SC_MARKNUM_FOLDEROPEN 31
+#define SC_MASK_FOLDERS 0xFE000000
+#define SC_MARK_CIRCLE 0
+#define SC_MARK_ROUNDRECT 1
+#define SC_MARK_ARROW 2
+#define SC_MARK_SMALLRECT 3
+#define SC_MARK_SHORTARROW 4
+#define SC_MARK_EMPTY 5
+#define SC_MARK_ARROWDOWN 6
+#define SC_MARK_MINUS 7
+#define SC_MARK_PLUS 8
+#define SC_MARK_VLINE 9
+#define SC_MARK_LCORNER 10
+#define SC_MARK_TCORNER 11
+#define SC_MARK_BOXPLUS 12
+#define SC_MARK_BOXPLUSCONNECTED 13
+#define SC_MARK_BOXMINUS 14
+#define SC_MARK_BOXMINUSCONNECTED 15
+#define SC_MARK_LCORNERCURVE 16
+#define SC_MARK_TCORNERCURVE 17
+#define SC_MARK_CIRCLEPLUS 18
+#define SC_MARK_CIRCLEPLUSCONNECTED 19
+#define SC_MARK_CIRCLEMINUS 20
+#define SC_MARK_CIRCLEMINUSCONNECTED 21
+#define SC_MARK_BACKGROUND 22
+#define SC_MARK_DOTDOTDOT 23
+#define SC_MARK_ARROWS 24
+#define SC_MARK_PIXMAP 25
+#define SC_MARK_FULLRECT 26
+#define SC_MARK_LEFTRECT 27
+#define SC_MARK_AVAILABLE 28
+#define SC_MARK_UNDERLINE 29
+#define SC_MARK_RGBAIMAGE 30
+#define SC_MARK_BOOKMARK 31
+
 #define SCN_CHARADDED 2001
 #define SCN_SAVEPOINTREACHED 2002
 #define SCN_SAVEPOINTLEFT 2003
@@ -205,6 +254,7 @@ typedef struct
 static pbool EngineCommandf(char *message, ...);
 static void EngineGiveFocus(void);
 
+/*
 static pbool QCC_RegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
 {
 	pbool result = false;
@@ -237,6 +287,7 @@ static pbool QCC_RegSetValue(HKEY base, char *keyname, char *valuename, int type
 	}
 	return result;
 }
+*/
 
 /*
 ==============
@@ -498,6 +549,7 @@ void GUIPrint(HWND wnd, char *msg);
 
 char finddef[256];
 char greptext[256];
+extern pbool fl_extramargins;
 extern char enginebinary[MAX_PATH];
 extern char enginebasedir[MAX_PATH];
 extern char enginecommandline[8192];
@@ -517,6 +569,7 @@ pbool resetprogssrc;	//progs.src was changed, reload project info.
 HWND mainwindow;
 HWND gamewindow;
 HWND mdibox;
+HWND optionsmenu;
 HWND outputwindow;
 HWND outputbox;
 HWND projecttree;
@@ -605,7 +658,7 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 					{
 						if (!SendMessage(editor->editpane, SCI_AUTOCACTIVE, 0, 0))
 						{
-							char buffer[65536];
+							static char buffer[65536];
 							char prefixbuffer[128];
 							char *pre = WordUnderCursor(editor, prefixbuffer, sizeof(prefixbuffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0));
 							if (pre && *pre)
@@ -648,6 +701,65 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 			}
 			return 0;
 		}
+	}
+	if (uMsg == WM_LBUTTONDBLCLK && hWnd == outputbox)
+	{
+		CHARRANGE selrange = {0};
+		SendMessage(hWnd, EM_EXGETSEL, 0, (LPARAM)&selrange);
+		if (1)	//some text is selected.
+		{
+			unsigned int bytes;
+			char line[1024];
+			char *colon1, *colon2 = NULL;
+
+			int l1;
+			int l2;
+
+			l1 = Edit_LineFromChar(hWnd, selrange.cpMin);
+			l2 = Edit_LineFromChar(hWnd, selrange.cpMax);
+			if (l1 == l2)
+			{
+				bytes = Edit_GetLine(hWnd, Edit_LineFromChar(outputbox, selrange.cpMin), line, sizeof(line)-1);
+				line[bytes] = 0;
+
+				for (colon1 = line+strlen(line)-1; *colon1 <= ' ' && colon1>=line; colon1--)
+					*colon1 = '\0';
+				if (!strncmp(line, "warning: ", 9))
+					memmove(line, line+9, sizeof(line));
+				colon1=line;
+				do
+				{
+					colon1 = strchr(colon1+1, ':');
+				} while (colon1 && colon1[1] == '\\');
+
+				if (colon1)
+				{
+					colon2 = strchr(colon1+1, ':');
+					while (colon2 && colon2[1] == '\\')
+					{
+						colon2 = strchr(colon2+1, ':');
+					}
+					if (colon2)
+					{
+						*colon1 = '\0';
+						*colon2 = '\0';
+						EditFile(line, atoi(colon1+1)-1, false);
+					}
+					else if (!strncmp(line, "Source file: ", 13))
+						EditFile(line+13, -1, false);
+					else if (!strncmp(line, "Including: ", 11))
+						EditFile(line+11, -1, false);
+				}
+				else if (!strncmp(line, "including ", 10))
+					EditFile(line+10, -1, false);
+				else if (!strncmp(line, "compiling ", 10))
+					EditFile(line+10, -1, false);
+				else if (!strncmp(line, "prototyping ", 12))
+					EditFile(line+12, -1, false);
+				Edit_SetSel(hWnd, selrange.cpMin, selrange.cpMin);	//deselect it.
+			}
+		}
+		return 0;
 	}
 	return pDefSubclassProc(hWnd, uMsg, wParam, lParam);
 }
@@ -786,12 +898,56 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 					"virtual nonvirtual class static nonstatic local return"
 					);
 
-		SendMessage(newc, SCI_SETPROPERTY,  (WPARAM)"fold", (LPARAM)"1");
 		SendMessage(newc, SCI_SETMOUSEDWELLTIME, 1000, 0);
 		SendMessage(newc, SCI_AUTOCSETORDER, SC_ORDER_PERFORMSORT, 0);
 		SendMessage(newc, SCI_AUTOCSETFILLUPS, 0, (LPARAM)".,[<>(*/+-=\t\n");
 
-		SendMessage(newc, SCI_SETMARGINSENSITIVEN, 1, (LPARAM)true);
+		//line numbers
+		SendMessage(newc, SCI_SETMARGINWIDTHN,		0, (LPARAM)fl_extramargins?40:0);
+
+		//add margin for breakpoints
+		SendMessage(newc, SCI_SETMARGINMASKN,		1, (LPARAM)~SC_MASK_FOLDERS);
+		SendMessage(newc, SCI_SETMARGINWIDTHN,		1, (LPARAM)16);
+		SendMessage(newc, SCI_SETMARGINSENSITIVEN,	1, (LPARAM)true);
+		//give breakpoints a nice red circle.
+		SendMessage(newc, SCI_MARKERDEFINE,			0,	SC_MARK_CIRCLE);
+		SendMessage(newc, SCI_MARKERSETFORE,		0,	RGB(0x7F, 0x00, 0x00));
+		SendMessage(newc, SCI_MARKERSETBACK,		0,	RGB(0xFF, 0x00, 0x00));
+		//give current line a yellow arrow
+		SendMessage(newc, SCI_MARKERDEFINE,			1,	SC_MARK_SHORTARROW);
+		SendMessage(newc, SCI_MARKERSETFORE,		1,	RGB(0xFF, 0xFF, 0x00));
+		SendMessage(newc, SCI_MARKERSETBACK,		1,	RGB(0x7F, 0x7F, 0x00));
+		SendMessage(newc, SCI_MARKERDEFINE,			2,	SC_MARK_BACKGROUND);
+		SendMessage(newc, SCI_MARKERSETFORE,		2,	RGB(0x00, 0x00, 0x00));
+		SendMessage(newc, SCI_MARKERSETBACK,		2,	RGB(0xFF, 0xFF, 0x00));
+		SendMessage(newc, SCI_MARKERSETALPHA,		2,	0x40);
+
+		//add margin for folding
+		SendMessage(newc, SCI_SETPROPERTY,  (WPARAM)"fold", (LPARAM)"1");
+		SendMessage(newc, SCI_SETMARGINWIDTHN,		2, (LPARAM)fl_extramargins?16:0);
+		SendMessage(newc, SCI_SETMARGINMASKN,		2, (LPARAM)SC_MASK_FOLDERS);
+		SendMessage(newc, SCI_SETMARGINSENSITIVEN,	2, (LPARAM)true);
+		//stop the images from being stupid
+		SendMessage(newc, SCI_MARKERDEFINE,		SC_MARKNUM_FOLDEROPEN,		SC_MARK_BOXMINUS);
+		SendMessage(newc, SCI_MARKERDEFINE,		SC_MARKNUM_FOLDER,			SC_MARK_BOXPLUS);
+		SendMessage(newc, SCI_MARKERDEFINE,		SC_MARKNUM_FOLDERSUB,		SC_MARK_VLINE);
+		SendMessage(newc, SCI_MARKERDEFINE,		SC_MARKNUM_FOLDERTAIL,		SC_MARK_LCORNERCURVE);
+		SendMessage(newc, SCI_MARKERDEFINE,		SC_MARKNUM_FOLDEREND,		SC_MARK_BOXPLUSCONNECTED);
+		SendMessage(newc, SCI_MARKERDEFINE,		SC_MARKNUM_FOLDEROPENMID,	SC_MARK_BOXMINUSCONNECTED);
+		SendMessage(newc, SCI_MARKERDEFINE,		SC_MARKNUM_FOLDERMIDTAIL,	SC_MARK_TCORNERCURVE);
+		//and fuck with colours so that its visible.
+#define FOLDBACK RGB(0x50, 0x50, 0x50)
+		SendMessage(newc, SCI_MARKERSETFORE,	SC_MARKNUM_FOLDER,			RGB(0xFF, 0xFF, 0xFF));
+		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDER,			FOLDBACK);
+		SendMessage(newc, SCI_MARKERSETFORE,	SC_MARKNUM_FOLDEROPEN,		RGB(0xFF, 0xFF, 0xFF));
+		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDEROPEN,		FOLDBACK);
+		SendMessage(newc, SCI_MARKERSETFORE,	SC_MARKNUM_FOLDEROPENMID,	RGB(0xFF, 0xFF, 0xFF));
+		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDEROPENMID,	FOLDBACK);
+		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDERSUB,		FOLDBACK);
+		SendMessage(newc, SCI_MARKERSETFORE,	SC_MARKNUM_FOLDEREND,		RGB(0xFF, 0xFF, 0xFF));
+		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDEREND,		FOLDBACK);
+		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDERTAIL,		FOLDBACK);
+		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDERMIDTAIL,	FOLDBACK);
 	}
 	else
 	{
@@ -837,6 +993,7 @@ enum {
 	IDM_GREP,
 	IDM_GOTODEF,
 	IDM_OUTPUT_WINDOW,
+	IDM_SHOWLINENUMBERS,
 	IDM_SAVE,
 	IDM_RECOMPILE,
 	IDM_FIND,
@@ -865,10 +1022,10 @@ enum {
 	IDI_O_ADDITIONALPARAMETERS,
 	IDI_O_OPTIMISATION,
 	IDI_O_COMPILER_FLAG,
-	IDI_O_USE,
+	IDI_O_APPLYSAVE,
 	IDI_O_APPLY,
-	IDI_O_TARGET,
-	IDI_O_SYNTAX_HIGHLIGHTING,
+	IDI_O_TARGETH2,
+	IDI_O_TARGETFTE,
 	IDI_O_ENGINE,
 	IDI_O_ENGINEBASEDIR,
 	IDI_O_ENGINECOMMANDLINE,
@@ -878,7 +1035,7 @@ enum {
 
 static void EditorReload(editor_t *editor);
 int EditorSave(editor_t *edit);
-void EditFile(char *name, int line);
+void EditFile(char *name, int line, pbool setcontrol);
 pbool EditorModified(editor_t *e);
 
 void QueryOpenFile(void)
@@ -894,7 +1051,7 @@ void QueryOpenFile(void)
 	memset(filename, 0, sizeof(filename));
 	GetCurrentDirectory(sizeof(oldpath)-1, oldpath);
 	if (GetOpenFileName(&ofn))
-		EditFile(filename, -1);
+		EditFile(filename, -1, false);
 	SetCurrentDirectory(oldpath);
 }
 
@@ -933,7 +1090,27 @@ void GenericMenu(WPARAM wParam)
 			SetFocus(outputbox);
 		}
 		break;
+	case IDM_SHOWLINENUMBERS:
+		{
+			editor_t *ed;
+			MENUITEMINFO mii = {sizeof(mii)};
+			fl_extramargins = !fl_extramargins;
+			mii.fMask = MIIM_STATE;
+			mii.fState = fl_extramargins?MFS_CHECKED:MFS_UNCHECKED;
+			SetMenuItemInfo(GetMenu(mainwindow), IDM_SHOWLINENUMBERS, FALSE, &mii);
+
+			for (ed = editors; ed; ed = ed->next)
+			{
+				if (ed->scintilla)
+				{
+					SendMessage(ed->editpane, SCI_SETMARGINWIDTHN,		0, (LPARAM)fl_extramargins?40:0);
+					SendMessage(ed->editpane, SCI_SETMARGINWIDTHN,		2, (LPARAM)fl_extramargins?16:0);
+				}
+			}
+		}
+		break;
 	case IDM_DEBUG_RUN:
+		EditFile(NULL, -1, true);
 		EngineGiveFocus();
 		if (!EngineCommandf("qcresume\n"))
 			RunEngine();
@@ -942,12 +1119,15 @@ void GenericMenu(WPARAM wParam)
 		buttons[ID_COMPILE].washit = true;
 		return;
 	case IDM_DEBUG_STEPOVER:
+		EditFile(NULL, -1, true);
 		EngineCommandf("qcstep over\n");
 		return;
 	case IDM_DEBUG_STEPINTO:
+		EditFile(NULL, -1, true);
 		EngineCommandf("qcstep into\n");
 		return;
 	case IDM_DEBUG_STEPOUT:
+		EditFile(NULL, -1, true);
 		EngineCommandf("qcstep out\n");
 		return;
 	}
@@ -969,7 +1149,7 @@ void EditorMenu(editor_t *editor, WPARAM wParam)
 				break;
 			}
 			else
-				EditFile(buffer, -1);
+				EditFile(buffer, -1, false);
 		}
 		break;
 	case IDM_SAVE:
@@ -1207,7 +1387,7 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 		line = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
 
 		//FIXME: we may need to display types too
-		for (fno = 0, def = NULL; fno < sourcefilesnumdefs; fno++)
+		for (fno = 0, def = NULL; fno < sourcefilesnumdefs && !def; fno++)
 		{
 			for (def = sourcefilesdefs[fno]; def; def = def->next)
 			{
@@ -1224,11 +1404,19 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 		if (def)
 		{
 			char typebuf[1024];
+			char valuebuf[1024];
+			char *value = "";
+			if (def->constant && def->type->type == ev_float)
+				QC_snprintfz(value=valuebuf, sizeof(valuebuf), " = %g", def->symboldata[def->ofs]._float);
+			else if (def->constant && def->type->type == ev_integer)
+				QC_snprintfz(value=valuebuf, sizeof(valuebuf), " = %i", def->symboldata[def->ofs]._int);
+			else if (def->constant && def->type->type == ev_vector)
+				QC_snprintfz(value=valuebuf, sizeof(valuebuf), " = '%g %g %g'", def->symboldata[def->ofs].vector[0], def->symboldata[def->ofs].vector[1], def->symboldata[def->ofs].vector[2]);
 			//note function argument names do not persist beyond the function def. we might be able to read the function's localdefs for them, but that's unreliable/broken with builtins where they're most needed.
 			if (def->comment)
-				QC_snprintfz(buffer, sizeof(buffer)-1, "%s %s\r\n%s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name, def->comment);
+				QC_snprintfz(buffer, sizeof(buffer)-1, "%s %s%s\r\n%s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name, value, def->comment);
 			else
-				QC_snprintfz(buffer, sizeof(buffer)-1, "%s %s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name);
+				QC_snprintfz(buffer, sizeof(buffer)-1, "%s %s%s", TypeName(def->type, typebuf, sizeof(typebuf)), def->name, value);
 
 			if (dwell)
 			{
@@ -1463,11 +1651,18 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 				switch(nmhdr->code)
 				{
 				case SCN_MARGINCLICK:
-					/*fixme: should we scan the statements to ensure the line is valid? this applies to the f9 key too*/
 					l = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, not->position, 0);
-					mode = !(SendMessage(editor->editpane, SCI_MARKERGET, l, 0) & 1);
-					SendMessage(editor->editpane, mode?SCI_MARKERADD:SCI_MARKERDELETE, l, 0);
-					EngineCommandf("qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, l+1);
+					if (not->margin == 1)
+					{
+						/*fixme: should we scan the statements to ensure the line is valid? this applies to the f9 key too*/
+						mode = !(SendMessage(editor->editpane, SCI_MARKERGET, l, 0) & 1);
+						SendMessage(editor->editpane, mode?SCI_MARKERADD:SCI_MARKERDELETE, l, 0);
+						EngineCommandf("qcbreakpoint %i \"%s\" %i\n", mode, editor->filename, l+1);
+					}
+					else if (not->margin == 2)
+					{
+						SendMessage(editor->editpane, SCI_TOGGLEFOLD, l, 0);
+					}
 					break;
 				case SCN_CHARADDED:
 					if (not->ch == '(')
@@ -1660,12 +1855,26 @@ static void EditorReload(editor_t *editor)
 }
 
 //line is 0-based. use -1 for no reselection
-void EditFile(char *name, int line)
+void EditFile(char *name, int line, pbool setcontrol)
 {
 	char title[1024];
 	editor_t *neweditor;
 	WNDCLASS wndclass;
 	HMENU menu, menufile, menuhelp, menunavig;
+
+	if (setcontrol)
+	{
+		for (neweditor = editors; neweditor; neweditor = neweditor->next)
+		{
+			if (neweditor->scintilla)
+			{
+				SendMessage(neweditor->editpane, SCI_MARKERDELETEALL, 1, 0);
+				SendMessage(neweditor->editpane, SCI_MARKERDELETEALL, 2, 0);
+			}
+		}
+	}
+	if (!name)
+		return;
 
 	for (neweditor = editors; neweditor; neweditor = neweditor->next)
 	{
@@ -1675,6 +1884,12 @@ void EditFile(char *name, int line)
 			{
 				Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line), Edit_LineIndex(neweditor->editpane, line+1)-1);
 				Edit_ScrollCaret(neweditor->editpane);
+
+				if (setcontrol && neweditor->scintilla)
+				{
+					SendMessage(neweditor->editpane, SCI_MARKERADD, line, 1);
+					SendMessage(neweditor->editpane, SCI_MARKERADD, line, 2);
+				}
 			}
 			if (mdibox)
 				SendMessage(mdibox, WM_MDIACTIVATE, (WPARAM)neweditor->window, 0);
@@ -1785,6 +2000,12 @@ void EditFile(char *name, int line)
 	SetFocus(mainwindow);
 	SetFocus(neweditor->window);
 	SetFocus(neweditor->editpane);
+
+	if (setcontrol && neweditor->scintilla)
+	{
+		SendMessage(neweditor->editpane, SCI_MARKERADD, line, 1);
+		SendMessage(neweditor->editpane, SCI_MARKERADD, line, 2);
+	}
 }
 
 int EditorSave(editor_t *edit)
@@ -1793,36 +2014,45 @@ int EditorSave(editor_t *edit)
 	char title[2048];
 	struct stat sbuf;
 	int len;
-	wchar_t *file;
+	wchar_t *wfile;
+	char *afile;
 	if (edit->scintilla)
 	{
-		len = SendMessage(edit->editpane, SCI_GETLENGTH, 0, 0)+1;
-		file = malloc(len);
-		SendMessage(edit->editpane, SCI_GETTEXT, len, (LPARAM)file);
-		if (!QCC_WriteFile(edit->filename, file, len))
-		{
-			MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
-			return false;
-		}
-		SendMessage(edit->editpane, SCI_SETSAVEPOINT, 0, 0);
-	}
-	else
-	{
-		len = GetWindowTextLengthW(edit->editpane);
-		file = malloc((len+1)*2);
-		if (!file)
+		len = SendMessage(edit->editpane, SCI_GETLENGTH, 0, 0);
+		afile = malloc(len+1);
+		if (!afile)
 		{
 			MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
 			return false;
 		}
-		GetWindowTextW(edit->editpane, file, len+1);
-		if (!QCC_WriteFileW(edit->filename, file, len))
+		SendMessage(edit->editpane, SCI_GETTEXT, len+1, (LPARAM)afile);
+		if (!QCC_WriteFile(edit->filename, afile, len))
 		{
+			free(afile);
 			MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
 			return false;
 		}
+		SendMessage(edit->editpane, SCI_SETSAVEPOINT, 0, 0);
+		free(afile);
 	}
-	free(file);
+	else
+	{
+		len = GetWindowTextLengthW(edit->editpane);
+		wfile = malloc((len+1)*2);
+		if (!wfile)
+		{
+			MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
+			return false;
+		}
+		GetWindowTextW(edit->editpane, wfile, len+1);
+		if (!QCC_WriteFileW(edit->filename, wfile, len))
+		{
+			free(wfile);
+			MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
+			return false;
+		}
+		free(wfile);
+	}
 
 	/*now whatever is on disk should have the current time*/
 	edit->modified = false;
@@ -1893,7 +2123,7 @@ int GUIFileSize(const char *fname)
 		{
 			int len;
 			if (e->scintilla)
-				len = SendMessage(e->editpane, SCI_GETLENGTH, 0, 0)+1;
+				len = SendMessage(e->editpane, SCI_GETLENGTH, 0, 0);
 			else
 				len = (GetWindowTextLengthW(e->editpane)+1)*2;
 			return len;
@@ -2133,6 +2363,11 @@ unsigned int WINAPI threadwrapper(void *args)
 {
 	enginewindow_t *ctx = args;
 	{
+		char workingdir[MAX_PATH+10];
+		char absexe[MAX_PATH+10];
+		char absbase[MAX_PATH+10];
+		char mssucks[MAX_PATH+10];
+		char *gah;
 		PROCESS_INFORMATION childinfo;
 		STARTUPINFO startinfo;
 		SECURITY_ATTRIBUTES pipesec = {sizeof(pipesec), NULL, TRUE};
@@ -2172,7 +2407,34 @@ unsigned int WINAPI threadwrapper(void *args)
 			WriteFile(ctx->pipetoengine, message, strlen(message), &written, NULL);
 		}
 
-		CreateProcess(NULL, cmdline, NULL, NULL, TRUE, 0, NULL, enginebasedir, &startinfo, &childinfo);
+		GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
+		strcpy(mssucks, enginebasedir);
+		while ((gah = strchr(mssucks, '/')))
+			*gah = '\\';
+		PathCombine(absbase, workingdir, mssucks);
+		strcpy(mssucks, enginebinary);
+		while ((gah = strchr(mssucks, '/')))
+			*gah = '\\';
+		PathCombine(absexe, absbase, mssucks);
+		if (!CreateProcess(absexe, cmdline, NULL, NULL, TRUE, 0, NULL, absbase, &startinfo, &childinfo))
+		{
+			HRESULT hr = GetLastError();
+			switch(hr)
+			{
+			case ERROR_FILE_NOT_FOUND:
+				MessageBox(mainwindow, "File Not Found", "Cannot Start Engine", 0);
+				break;
+			case ERROR_PATH_NOT_FOUND:
+				MessageBox(mainwindow, "Path Not Found", "Cannot Start Engine", 0);
+				break;
+			case ERROR_ACCESS_DENIED:
+				MessageBox(mainwindow, "Access Denied", "Cannot Start Engine", 0);
+				break;
+			default:
+				MessageBox(mainwindow, qcva("gla: %x", hr), "Cannot Start Engine", 0);
+				break;
+			}
+		}
 
 		//these ends of the pipes were inherited by now, so we can discard them in the caller.
 		CloseHandle(startinfo.hStdOutput);
@@ -2339,8 +2601,9 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 		break;
 	case WM_USER:
 		//engine broke. show code.
-		SetForegroundWindow(mainwindow);
-		EditFile((char*)lParam, wParam-1);
+		if (lParam)
+			SetForegroundWindow(mainwindow);
+		EditFile((char*)lParam, wParam-1, true);
 		break;
 	case WM_USER+1:
 		//engine loaded a progs, reset breakpoints.
@@ -2435,8 +2698,9 @@ void PromptForEngine(int force)
 #define OFN_DONTADDTORECENT 0x02000000
 #endif
 
+	char oldworkingdir[MAX_PATH+10];	//cmdlg changes it...
 	char workingdir[MAX_PATH+10];
-	GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
+	GetCurrentDirectory(sizeof(oldworkingdir)-1, oldworkingdir);
 	if (!*enginebasedir || force==1)
 	{
 		BROWSEINFO bi;
@@ -2444,6 +2708,7 @@ void PromptForEngine(int force)
 		memset(&bi, 0, sizeof(bi));
 		bi.hwndOwner = mainwindow;
 		bi.pidlRoot = NULL;
+		GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
 		bi.pszDisplayName = workingdir;
 		bi.lpszTitle = "Please locate your base directory";
 		bi.ulFlags = BIF_RETURNONLYFSDIRS|BIF_STATUSTEXT;
@@ -2451,41 +2716,51 @@ void PromptForEngine(int force)
 		bi.lParam = 0;
 		bi.iImage = 0;
 		il = SHBrowseForFolder(&bi);
+		SetCurrentDirectory(oldworkingdir);	//revert microsoft stupidity.
 		if (il)
 		{
-			SHGetPathFromIDList(il, enginebasedir);
+			char *foo;
+			char absbase[MAX_PATH+10];
+			SHGetPathFromIDList(il, absbase);
 			CoTaskMemFree(il);
+			GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
+			//use the relative path instead. this'll be stored in a file, and I expect people will zip+email without thinking.
+			if (!PathRelativePathToA(enginebasedir, workingdir, FILE_ATTRIBUTE_DIRECTORY, absbase, FILE_ATTRIBUTE_DIRECTORY))
+				QC_strlcpy(enginebasedir, absbase, sizeof(enginebasedir));
+			while(foo = strchr(enginebasedir, '\\'))
+				*foo = '/';
 		}
 		else
 			return;
 
-		QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebasedir", REG_SZ, enginebasedir, strlen(enginebasedir));
+		if (optionsmenu)
+			DestroyWindow(optionsmenu);
+		buttons[ID_OPTIONS].washit = true;
 	}
 
 	if (!*enginebinary || force==2)
 	{
 		char *s;
 		char initialdir[MAX_PATH+10];
+		char absengine[MAX_PATH+10];
 		OPENFILENAME ofn;
 		pbool okay;
 		memset(&ofn, 0, sizeof(ofn));
 		ofn.lStructSize = sizeof(ofn);
 		ofn.hwndOwner = mainwindow;
 		ofn.hInstance = ghInstance;
-		ofn.lpstrFile = enginebinary;
+		ofn.lpstrFile = absengine;
 		ofn.Flags = OFN_EXPLORER|OFN_FILEMUSTEXIST|OFN_DONTADDTORECENT;
 		ofn.lpstrTitle = "Please choose an engine";
 		ofn.nMaxFile = sizeof(enginebinary)-1;
 		ofn.lpstrFilter = "Executables\0*.exe\0All files\0*.*\0";
-		strcpy(enginebinary, "fteglqw.exe");
-		if (enginebasedir[0] == '.' && enginebasedir[1] == '.' && (!enginebasedir[2] || enginebasedir[2] == '/' || enginebasedir[2] == '\\'))
-		{
-			_snprintf(initialdir, sizeof(initialdir), "%s/%s", workingdir, enginebasedir);
-			strcat(initialdir, "/");
-			strcat(initialdir, enginebasedir);
-		}
-		else
-			strcpy(initialdir, enginebasedir);
+		GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
+		_snprintf(absengine, sizeof(absengine), "%s/", enginebasedir);
+		for (s = absengine; *s; s++)
+			if (*s == '/')
+				*s = '\\';
+		PathCombine(initialdir, workingdir, absengine);
+		strcpy(absengine, "fteglqw.exe");
 		//and the fuck-you-microsoft loop
 		for (s = initialdir; *s; s++)
 			if (*s == '/')
@@ -2503,12 +2778,49 @@ void PromptForEngine(int force)
 			}
 			break;
 		}
+		if (!PathRelativePathToA(enginebinary, initialdir, FILE_ATTRIBUTE_DIRECTORY, absengine, FILE_ATTRIBUTE_DIRECTORY))
+			QC_strlcpy(enginebinary, absengine, sizeof(enginebasedir));
+		if (!strncmp(enginebinary, ".\\", 2))
+			memmove(enginebinary, enginebinary+2, strlen(enginebinary+2)+1);
 		//undo any damage caused by microsoft's stupidity
-		SetCurrentDirectory(workingdir);
+		SetCurrentDirectory(oldworkingdir);
 		if (!okay)
 			return;
 
-		QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebinary", REG_SZ, enginebinary, strlen(enginebinary));
+		if (optionsmenu)
+			DestroyWindow(optionsmenu);
+		buttons[ID_OPTIONS].washit = true;
+
+		if (*enginebinary && (!*enginecommandline || force==2))
+		{
+			char absbase[MAX_PATH+10];
+			char guessdir[MAX_PATH+10];
+			char *slash;
+			GetCurrentDirectory(sizeof(workingdir)-1, workingdir);
+			_snprintf(guessdir, sizeof(guessdir), "%s/", enginebasedir);
+			for (s = guessdir; *s; s++)
+				if (*s == '/')
+					*s = '\\';
+			PathCombine(absbase, workingdir, guessdir);
+			if (PathRelativePathToA(guessdir, absbase, FILE_ATTRIBUTE_DIRECTORY, workingdir, FILE_ATTRIBUTE_DIRECTORY))
+			{
+				if (!strncmp(guessdir, ".\\", 2))
+					memmove(guessdir, guessdir+2, strlen(guessdir+2)+1);
+				slash = strchr(guessdir, '/');
+				if (slash)
+					*slash = 0;
+				slash = strchr(guessdir, '\\');
+				if (slash)
+					*slash = 0;
+				if (!*guessdir)
+					QC_snprintfz(enginecommandline, sizeof(enginecommandline), "-window -nohome");
+				else if (!strchr(guessdir, ' '))
+					QC_snprintfz(enginecommandline, sizeof(enginecommandline), "-window -nohome -game %s", guessdir);
+				else
+					QC_snprintfz(enginecommandline, sizeof(enginecommandline), "-window -nohome -game \"%s\"", guessdir);
+			}
+		}
+
 	}
 }
 void RunEngine(void)
@@ -2565,8 +2877,8 @@ void RunEngine(void)
 
 
 
-HWND optionsmenu;
-HWND hexen2item;
+HWND targitem_hexen2;
+HWND targitem_fte;
 HWND nokeywords_coexistitem;
 HWND autoprototype_item;
 //HWND autohighlight_item;
@@ -2589,7 +2901,7 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 	case WM_COMMAND:
 		switch(wParam)
 		{
-		case IDI_O_USE:
+		case IDI_O_APPLYSAVE:
 		case IDI_O_APPLY:
 			for (i = 0; optimisations[i].enabled; i++)
 			{
@@ -2601,7 +2913,8 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				else
 					optimisations[i].flags &= ~FLAG_SETINGUI;
 			}
-			fl_hexen2 = Button_GetCheck(hexen2item);
+			fl_hexen2 = Button_GetCheck(targitem_hexen2);
+			fl_ftetarg = Button_GetCheck(targitem_fte);
 			for (i = 0; compiler_flag[i].enabled; i++)
 			{
 				if (compiler_flag[i].flags & FLAG_HIDDENINGUI)
@@ -2611,20 +2924,16 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				else
 					compiler_flag[i].flags &= ~FLAG_SETINGUI;
 			}
-			fl_autohighlight = false;//Button_GetCheck(autohighlight_item);
 			Edit_GetText(extraparmsitem, parameters, sizeof(parameters)-1);
 #ifdef EMBEDDEBUG
 			Edit_GetText(w_enginebinary, enginebinary, sizeof(enginebinary)-1);
 			Edit_GetText(w_enginebasedir, enginebasedir, sizeof(enginebasedir)-1);
 			Edit_GetText(w_enginecommandline, enginecommandline, sizeof(enginecommandline)-1);
-
-			QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebinary", REG_SZ, enginebinary, strlen(enginebinary));
-			QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebasedir", REG_SZ, enginebasedir, strlen(enginebasedir));
-			QCC_RegSetValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginecommandline", REG_SZ, enginecommandline, strlen(enginecommandline));
 #endif
 
-			if (wParam == IDI_O_USE)
-				buttons[ID_COMPILE].washit = true;
+			if (wParam == IDI_O_APPLYSAVE)
+				GUI_SaveConfig();
+			DestroyWindow(hWnd);
 			break;
 		case IDI_O_CHANGE_PROGS_SRC:
 			{
@@ -2757,10 +3066,10 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				MessageBox(hWnd, "Type in additional commandline parameters here. Use -Dname to define a named precompiler constant before compiling.", "Help", MB_OK|MB_ICONINFORMATION);
 				break;
 			case IDI_O_APPLY:
-				MessageBox(hWnd, "Apply changes shown, but do not recompile yet.", "Help", MB_OK|MB_ICONINFORMATION);
+				MessageBox(hWnd, "Apply changes shown.", "Help", MB_OK|MB_ICONINFORMATION);
 				break;
-			case IDI_O_USE:
-				MessageBox(hWnd, "Apply changes shown here and recompile.", "Help", MB_OK|MB_ICONINFORMATION);
+			case IDI_O_APPLYSAVE:
+				MessageBox(hWnd, "Apply changes shown and save the settings for next time.", "Help", MB_OK|MB_ICONINFORMATION);
 				break;
 			case IDI_O_OPTIMISATION:
 				for (i = 0; optimisations[i].enabled; i++)
@@ -2782,11 +3091,11 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 					}
 				}
 				break;
-			case IDI_O_TARGET:
-				MessageBox(hWnd, "Click here to compile a hexen2 compatible progs. Note that this uses the -Thexen2. There are other targets available.", "Help", MB_OK|MB_ICONINFORMATION);
+			case IDI_O_TARGETH2:
+				MessageBox(hWnd, "Click here to compile a hexen2 compatible progs, as well as enable all hexen2 keywords. Note that this uses the -Thexen2. There are other targets available.", "Help", MB_OK|MB_ICONINFORMATION);
 				break;
-			case IDI_O_SYNTAX_HIGHLIGHTING:
-				MessageBox(hWnd, "Should syntax be highlighted automatically when a file is opened?", "Help", MB_OK|MB_ICONINFORMATION);
+			case IDI_O_TARGETFTE:
+				MessageBox(hWnd, "Click here to allow the use of extended instructions not found in the original instruction set.", "Help", MB_OK|MB_ICONINFORMATION);
 				break;
 			}
 		}
@@ -2798,6 +3107,7 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 }
 void OptionsDialog(void)
 {
+	char nicername[256], *us;
 	HWND subsection;
 	RECT r;
 	WNDCLASS wndclass;
@@ -2892,7 +3202,11 @@ void OptionsDialog(void)
 			continue;
 		}
 
-		optimisations[i].guiinfo = wnd = CreateWindow("BUTTON",optimisations[i].fullname,
+		QC_strlcpy(nicername, optimisations[i].fullname, sizeof(nicername));
+		while((us = strchr(nicername, '_')))
+			*us = ' ';
+
+		optimisations[i].guiinfo = wnd = CreateWindow("BUTTON",nicername,
 			   WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
 			   8+200*(num&1),16+16*(num/2),200-16,16,
 			   subsection,
@@ -2991,11 +3305,11 @@ void OptionsDialog(void)
 		   (HMENU)IDI_O_APPLY,
 		   ghInstance,
 		   NULL);
-	CreateWindow("BUTTON","Use",
+	CreateWindow("BUTTON","Save",
 		   WS_CHILD | WS_VISIBLE,
 		   8+64,height-40,64,32,
 		   optionsmenu,
-		   (HMENU)IDI_O_USE,
+		   (HMENU)IDI_O_APPLYSAVE,
 		   ghInstance,
 		   NULL);
 	CreateWindow("BUTTON","progs.src",
@@ -3009,15 +3323,28 @@ void OptionsDialog(void)
 
 
 		y=4;
-	hexen2item = wnd = CreateWindow("BUTTON","HexenC",
+	targitem_hexen2 = wnd = CreateWindow("BUTTON","HexenC",
 		   WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
 		   408,y,200-16,16,
 		   optionsmenu,
-		   (HMENU)IDI_O_TARGET,
+		   (HMENU)IDI_O_TARGETH2,
 		   ghInstance,
 		   NULL);
 	y+=16;
 	if (fl_hexen2)
+		Button_SetCheck(wnd, 1);
+	else
+		Button_SetCheck(wnd, 0);
+
+	targitem_fte = wnd = CreateWindow("BUTTON","Extended Instructions",
+		   WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+		   408,y,200-16,16,
+		   optionsmenu,
+		   (HMENU)IDI_O_TARGETFTE,
+		   ghInstance,
+		   NULL);
+	y+=16;
+	if (fl_ftetarg)
 		Button_SetCheck(wnd, 1);
 	else
 		Button_SetCheck(wnd, 0);
@@ -3168,6 +3495,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					AppendMenu(m, 0, IDM_GOTODEF, "Go to definition\tF12");
 					AppendMenu(m, 0, IDM_OPENDOCU, "Open selected file");
 					AppendMenu(m, 0, IDM_OUTPUT_WINDOW, "Show Output Window\tF6");
+					AppendMenu(m, (fl_extramargins?MF_CHECKED:MF_UNCHECKED), IDM_SHOWLINENUMBERS, "Show Line Numbers");
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = windowmenu = CreateMenu()),	"&Window");
 					AppendMenu(m, 0, IDM_CASCADE, "Cascade");
 					AppendMenu(m, 0, IDM_TILE_HORIZ, "Tile Horizontally");
@@ -3369,7 +3697,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 						filename[newlen] = '/';
 						strncpy(filename, i.pszText, newlen);
 					}
-					EditFile(filename, -1);
+					EditFile(filename, -1, false);
 					break;
 				}
 			}
@@ -3499,6 +3827,7 @@ int GUIprintf(const char *msg, ...)
 	buf[sizeof(buf)-1] = 0;
 
 	printf("%s", buf);
+	//OutputDebugStringA(buf);
 	if (logfile)
 		fprintf(logfile, "%s", buf);
 
@@ -3962,12 +4291,12 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	GUI_SetDefaultOpts();
 
-	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebinary", enginebinary, sizeof(enginebinary)))
+//	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebinary", enginebinary, sizeof(enginebinary)))
 		strcpy(enginebinary, "");
-	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebasedir", enginebasedir, sizeof(enginebasedir)))
+//	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginebasedir", enginebasedir, sizeof(enginebasedir)))
 		strcpy(enginebasedir, "");
-	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginecommandline", enginecommandline, sizeof(enginecommandline)))
-		strcpy(enginecommandline, "-window +map start -nohome");
+//	if (!QCC_RegGetStringValue(HKEY_CURRENT_USER, "Software\\FTE QuakeWorld\\fteqccgui", "enginecommandline", enginecommandline, sizeof(enginecommandline)))
+		strcpy(enginecommandline, "");
 
 	if(strstr(lpCmdLine, "-stdout"))
 	{
@@ -3982,7 +4311,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		FILE *f;
 		char *s;
 
-		f = fopen("fteqcc.cfg", "rb");
+		f = fopen("fteqcc.arg", "rb");
 		if (f)
 		{
 			fseek(f, 0, SEEK_END);
@@ -4167,63 +4496,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				DoTranslateMessage(&msg);
 		}
 
-		if (mainwindow)
+		if (mainwindow) 
 		{
-			i = Edit_GetSel(outputbox);
-			if ((i>>16) != (i&0xffff) && i != -1)	//some text is selected.
-			{
-				int bytes;
-				char line[1024];
-				char *colon1, *colon2 = NULL;
-
-				int l1;
-				int l2;
-
-				l1 = Edit_LineFromChar(outputbox, i&0xffff);
-				l2 = Edit_LineFromChar(outputbox, (i>>16)&0xffff);
-				if (l1 == l2)
-				{
-					bytes = Edit_GetLine(outputbox, Edit_LineFromChar(outputbox, i&0xffff), line, sizeof(line)-1);
-					line[bytes] = 0;
-
-					for (colon1 = line+strlen(line)-1; *colon1 <= ' ' && colon1>=line; colon1--)
-						*colon1 = '\0';
-					if (!strncmp(line, "warning: ", 9))
-						memmove(line, line+9, sizeof(line));
-					colon1=line;
-					do
-					{
-						colon1 = strchr(colon1+1, ':');
-					} while (colon1 && colon1[1] == '\\');
-
-					if (colon1)
-					{
-						colon2 = strchr(colon1+1, ':');
-						while (colon2 && colon2[1] == '\\')
-						{
-							colon2 = strchr(colon2+1, ':');
-						}
-						if (colon2)
-						{
-							*colon1 = '\0';
-							*colon2 = '\0';
-							EditFile(line, atoi(colon1+1)-1);
-						}
-						else if (!strncmp(line, "Source file: ", 13))
-							EditFile(line+13, -1);
-						else if (!strncmp(line, "Including: ", 11))
-							EditFile(line+11, -1);
-					}
-					else if (!strncmp(line, "including ", 10))
-						EditFile(line+10, -1);
-					else if (!strncmp(line, "compiling ", 10))
-						EditFile(line+10, -1);
-					else if (!strncmp(line, "prototyping ", 12))
-						EditFile(line+12, -1);
-					Edit_SetSel(outputbox, i&0xffff, i&0xffff);	//deselect it.
-				}
-			}
-
 			if (buttons[ID_COMPILE].washit)
 			{
 				CreateOutputWindow();
@@ -4235,7 +4509,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			{
 				buttons[ID_EDIT].washit = false;
 				if (*progssrcname)
-					EditFile(progssrcname, -1);
+					EditFile(progssrcname, -1, false);
 			}
 #ifdef EMBEDDEBUG
 			if (buttons[ID_RUN].washit)

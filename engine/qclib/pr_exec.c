@@ -140,6 +140,7 @@ void PDECL PR_GenerateStatementString (pubprogfuncs_t *ppf, int statementnum, ch
 	default:
 		return;
 	}
+	op = op & ~0x8000;	//break points.
 
 	if (current_progstate->linenums)
 	{
@@ -244,6 +245,7 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 			ddef16_t *fld = ED_GlobalAtOfs16(progfuncs, st16[st].b);
 			pbool skip = false;
 			edictrun_t *ed;
+			unsigned int entnum;
 			eval_t *ptr;
 			fdef_t *fdef;
 			fdef_t *cnfd;
@@ -265,17 +267,26 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 			}
 			if (skip)
 				continue;
-			ed = PROG_TO_EDICT(progfuncs, ((eval_t *)&pr_globals[st16[st].a])->edict);
-			ptr = (eval_t *)(((int *)edvars(ed)) + ((eval_t *)&pr_globals[st16[st].b])->_int + progfuncs->funcs.fieldadjust);
-
-			cnfd = ED_FindField(progfuncs, "classname");
-			if (cnfd)
+			entnum = ((eval_t *)&pr_globals[st16[st].a])->edict;
+			if (entnum >= sv_num_edicts)
 			{
-				string_t *v = (string_t *)((char *)edvars(ed) + cnfd->ofs*4);
-				classname = PR_StringToNative(&progfuncs->funcs, *v);
+				classname = "INVALID";
+				ptr = NULL;
 			}
 			else
-				classname = "";
+			{
+				ed = PROG_TO_EDICT(progfuncs, entnum);
+				ptr = (eval_t *)(((int *)edvars(ed)) + ((eval_t *)&pr_globals[st16[st].b])->_int + progfuncs->funcs.fieldadjust);
+
+				cnfd = ED_FindField(progfuncs, "classname");
+				if (cnfd)
+				{
+					string_t *v = (string_t *)((char *)edvars(ed) + cnfd->ofs*4);
+					classname = PR_StringToNative(&progfuncs->funcs, *v);
+				}
+				else
+					classname = "";
+			}
 			if (*classname)
 				fdef = ED_ClassFieldAtOfs(progfuncs, ((eval_t *)&pr_globals[st16[st].b])->_int, classname);
 			else
@@ -296,6 +307,7 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 	int progs;
 	int arg;
 	int *globalbase;
+	int tracing = progfuncs->funcs.debug_trace;
 	progs = -1;
 
 	if (pr_depth == 0)
@@ -303,6 +315,8 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 		printf ("<NO STACK>\n");
 		return;
 	}
+
+	progfuncs->funcs.debug_trace = -10;
 
 	//point this to the function's locals
 	globalbase = (int *)pr_globals + pr_xfunction->parm_start + pr_xfunction->locals;
@@ -328,13 +342,13 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 				printf ("<%s>\n", pr_progstate[progs].filename);
 			}
 			if (!f->s_file)
-				printf ("stripped     : %s\n", f->s_name+progfuncs->funcs.stringtable);
+				printf ("stripped     : %s\n", PR_StringToNative(ppf, f->s_name));
 			else
 			{
 				if (pr_progstate[progs].linenums)
-					printf ("%12s:%i: %s\n", f->s_file+progfuncs->funcs.stringtable, pr_progstate[progs].linenums[pr_stack[i].s], f->s_name+progfuncs->funcs.stringtable);
+					printf ("%12s:%i: %s\n", PR_StringToNative(ppf, f->s_file), pr_progstate[progs].linenums[pr_stack[i].s], PR_StringToNative(ppf, f->s_name));
 				else
-					printf ("%12s : %s\n", f->s_file+progfuncs->funcs.stringtable, f->s_name+progfuncs->funcs.stringtable);
+					printf ("%12s : %s\n", PR_StringToNative(ppf, f->s_file), PR_StringToNative(ppf, f->s_name));
 			}
 
 			//locals:0 = no locals
@@ -365,6 +379,7 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 				globalbase = localstack + localstack_used;
 		}
 	}
+	progfuncs->funcs.debug_trace = tracing;
 }
 
 /*
@@ -713,6 +728,14 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 	char *assignment;
 	etype_t type;
 	eval_t fakeval;
+
+	if (*key == '&')
+	{
+		if (!LocateDebugTerm(progfuncs, key+1, &val, &type, &fakeval) && val != &fakeval)
+			return "(unable to evaluate)";
+		QC_snprintfz(buf, sizeof(buf), "%#x", (char*)val - progfuncs->funcs.stringtable);
+		return buf;
+	}
 
 	assignment = strchr(key, '=');
 	if (assignment)
@@ -1286,6 +1309,18 @@ pbool PR_RunWarning (pubprogfuncs_t *ppf, char *error, ...)
 	return false;
 }
 
+//For debugging. Assumes classname field exists.
+const char *PR_GetEdictClassname(progfuncs_t *progfuncs, int edict)
+{
+	fdef_t *cnfd = ED_FindField(progfuncs, "classname");
+	if (cnfd && edict < maxedicts)
+	{
+		string_t *v = (string_t *)((char *)edvars(PROG_TO_EDICT(progfuncs, edict)) + cnfd->ofs*4);
+		return PR_StringToNative(&progfuncs->funcs, *v);
+	}
+	return "";
+}
+
 
 static pbool casecmp_f(progfuncs_t *progfuncs, eval_t *ref, eval_t *val)	{return ref->_float == val->_float;}
 static pbool casecmp_i(progfuncs_t *progfuncs, eval_t *ref, eval_t *val)	{return ref->_int == val->_int;}
@@ -1454,8 +1489,14 @@ static void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 		case ev_float:
 			printf("Watch point \"%s\" changed by engine from %g to %g.\n", prinst.watch_name, prinst.watch_old._float, prinst.watch_ptr->_float);
 			break;
+		case ev_vector:
+			printf("Watch point \"%s\" changed by engine from '%g %g %g' to '%g %g %g'.\n", prinst.watch_name, prinst.watch_old._vector[0], prinst.watch_old._vector[1], prinst.watch_old._vector[2], prinst.watch_ptr->_vector[0], prinst.watch_ptr->_vector[1], prinst.watch_ptr->_vector[2]);
+			break;
 		default:
 			printf("Watch point \"%s\" changed by engine from %i to %i.\n", prinst.watch_name, prinst.watch_old._int, prinst.watch_ptr->_int);
+			break;
+		case ev_entity:
+			printf("Watch point \"%s\" changed by engine from %i(%s) to %i(%s).\n", prinst.watch_name, prinst.watch_old._int, PR_GetEdictClassname(progfuncs, prinst.watch_old._int), prinst.watch_ptr->_int, PR_GetEdictClassname(progfuncs, prinst.watch_ptr->_int));
 			break;
 		case ev_function:
 		case ev_string:

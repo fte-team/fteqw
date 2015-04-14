@@ -363,6 +363,7 @@ enum qcop_e {
 	OP_MULSTOREP_VI,
 
 	OP_LOADA_STRUCT,
+	OP_LOADP_P,
 	OP_STOREP_P,
 
 	OP_BITNOT_F,
@@ -396,6 +397,9 @@ enum qcop_e {
 	OP_BITXOR_F,		//140
 	OP_RSHIFT_F,
 	OP_LSHIFT_F,
+
+	OP_AND_ANY,
+	OP_OR_ANY,		//190
 
 	OP_NUMOPS
 };
@@ -445,11 +449,17 @@ typedef struct statement32_s
 #define QCC_dstatement16_t dstatement16_t
 #define QCC_dstatement32_t dstatement32_t
 
+typedef struct
+{
+	struct QCC_def_s *sym;
+	unsigned int ofs;
+	struct QCC_type_s *cast;	//the entire sref is considered null if there is no cast, although it *MAY* have an ofs specified if its part of a jump instruction
+} QCC_sref_t;
 typedef struct qcc_statement_s
 {
-	unsigned int	op;
-	unsigned int	a,b,c;
-	unsigned int	linenum;
+	unsigned int		op;
+	QCC_sref_t			a, b, c;
+	unsigned int		linenum;
 } QCC_statement_t;
 
 //these should be the same except the string type
@@ -505,20 +515,6 @@ typedef struct
 	int		numparms;
 	qbyte	parm_size[MAX_PARMS];
 } dfunction_t;
-typedef struct
-{
-	unsigned int		first_statement;	// negative numbers are builtins
-	unsigned int		parm_start;
-	int		locals;				// total ints of parms + locals
-	
-	int		profile;		// runtime
-	
-	QCC_string_t	s_name;
-	QCC_string_t	s_file;			// source file defined in
-	
-	int		numparms;
-	qbyte	parm_size[MAX_PARMS];
-} QCC_dfunction_t;
 
 typedef struct
 {

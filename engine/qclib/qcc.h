@@ -294,6 +294,28 @@ typedef struct QCC_function_s QCC_function_t;
 
 #define	MAX_PARMS	8
 
+//keep this sizeof(float)
+typedef union QCC_eval_s
+{
+	QCC_string_t			string;
+	float				_float;
+	float				vector[1];
+	func_t				function;
+	int					_int;
+//	union QCC_eval_s		*ptr;
+} QCC_eval_t;
+
+//must be the maximum size possible for a single basic type.
+typedef union QCC_evalstorage_s
+{
+	QCC_string_t			string;
+	float				_float;
+	float				vector[3];
+	func_t				function;
+	int					_int;
+//	union QCC_eval_s		*ptr;
+} QCC_evalstorage_t;
+
 struct QCC_typeparam_s
 {
 	struct QCC_type_s *type;
@@ -307,7 +329,7 @@ struct accessor_s
 	struct accessor_s *next;
 	struct QCC_type_s *type;
 	struct QCC_type_s *indexertype;	//null if not indexer
-	struct QCC_def_s *getset_func[2];
+	QCC_sref_t getset_func[2];
 	pbool getset_isref[2];
 	char *fieldname;
 };
@@ -335,18 +357,9 @@ typedef struct QCC_type_s
 int typecmp(QCC_type_t *a, QCC_type_t *b);
 int typecmp_lax(QCC_type_t *a, QCC_type_t *b);
 
-typedef struct temp_s {
-	gofs_t ofs;
-	struct QCC_def_s	*scope;
-#ifdef WRITEASM
-	struct QCC_def_s	*lastfunc;
-#endif
-	int laststatement;
-	struct temp_s	*next;
-	int used;
-	unsigned int size;
-} temp_t;
+typedef struct temp_s temp_t;
 void QCC_PurgeTemps(void);
+void QCC_FinaliseTemps(void);
 
 //not written
 typedef struct QCC_def_s
@@ -357,29 +370,51 @@ typedef struct QCC_def_s
 	struct QCC_def_s	*next;
 	struct QCC_def_s	*nextlocal;	//provides a chain of local variables for the opt_locals_marshalling optimisation.
 	gofs_t		ofs;
-	struct QCC_def_s	*scope;		// function the var was defined in, or NULL
+	struct QCC_function_s	*scope;		// function the var was defined in, or NULL
 	struct QCC_def_s	*deftail;	// arrays and structs create multiple globaldef objects providing different types at the different parts of the single object (struct), or alternative names (vectors). this allows us to correctly set the const type based upon how its initialised.
 	struct QCC_def_s	*generatedfor;
 	int			initialized;	// 1 when a declaration included "= immediate". 2 = extern. 3 = don't warn (unless actually called)
 	int			constant;		// 1 says we can use the value over and over again
 
-	int references;
+	struct QCC_def_s	*symbolheader;	//this is the original symbol within which the def is stored.
+	union QCC_eval_s	*symboldata;	//null if uninitialised.
+	unsigned int		symbolsize;		//total byte size of symbol
+
+	int refcount;			//if 0, temp can be reused. tracked on globals too in order to catch bugs that would otherwise be a little too obscure.
 	int timescalled;	//part of the opt_stripfunctions optimisation.
 
 	int s_file;
 	int s_line;
 
 	int arraysize;
-	pbool shared:1;
-	pbool saved:1;
-	pbool isstatic:1;
-	pbool subscoped_away:1;
-	pbool followptr:1;
-	pbool strip:1;
-	pbool allowinline:1;
+	//should really use proper flags
+	pbool funccalled:1;			//was called somewhere.
+	pbool read:1;			//variable was read
+	pbool written:1;		//variable was written
+	pbool referenced:1;		//was used somewhere in the code (even if it can still be stripped). this controls warnings only.
+	pbool shared:1;			//weird multiprogs flag thing.
+	pbool saved:1;			//def may be saved to saved games.
+	pbool isstatic:1;		//global, even if scoped. also specific to the file it was seen in.
+	pbool subscoped_away:1;	//this local is no longer linked into the locals hash table. don't do remove it twice.
+//	pbool followptr:1;
+	pbool strip:1;			//info about this def should be stripped. it may still consume globals space however, and its storage can still be used, its just not visible.
+	pbool allowinline:1;	//calls to this function will attempt to inline the specified function. requires const, supposedly.
+	pbool used:1;			//if it remains 0, it may be stripped. this is forced for functions and fields. commonly 0 on fields.
+	pbool localscope:1;		//is a local, as opposed to a static (which is only visible within its scope)
 
+	int	fromstatement;		//statement that it is valid from.
 	temp_t *temp;
 } QCC_def_t;
+
+struct temp_s {
+	QCC_def_t *def;
+	unsigned char locked;
+	unsigned int size;
+
+	struct QCC_function_s *lastfunc;
+	unsigned int laststatement;
+};
+extern size_t tempsused;
 
 typedef struct
 {
@@ -393,8 +428,8 @@ typedef struct
 		REF_ACCESSOR //buf_create()[5]
 	} type;
 
-	QCC_def_t *base;
-	QCC_def_t *index;
+	QCC_sref_t base;
+	QCC_sref_t index;
 	QCC_type_t *cast;	//entity.float is float, not pointer.
 	struct accessor_s *accessor;	//the accessor field of base that we're trying to use
 	int		postinc;	//+1 or -1
@@ -411,16 +446,6 @@ extern char QCC_copyright[1024];
 extern char QCC_Packname[5][128];
 extern int QCC_packid;
 
-typedef union QCC_eval_s
-{
-	QCC_string_t			string;
-	float				_float;
-	float				vector[3];
-	func_t				function;
-	int					_int;
-	union QCC_eval_s		*ptr;
-} QCC_eval_t;
-
 const extern	unsigned int		type_size[];
 //extern	QCC_def_t	*def_for_type[9];
 
@@ -428,11 +453,16 @@ extern	QCC_type_t	*type_void, *type_string, *type_float, *type_vector, *type_ent
 
 struct QCC_function_s
 {
-	int					builtin;	// if non 0, call an internal function
-	int					code;		// first statement
-	char				*file;		// source file with definition
-	int					file_line;
-	struct QCC_def_s		*def;
+	int					builtin;	// the builtin number. >= 0
+	int					code;		// first statement. if -1, is a builtin.
+	string_t			s_file;		// source file with definition
+	const char			*file;
+	int					line;
+	char				*name;		//internal name of function
+	struct QCC_type_s	*type;		//same as the def's type
+	struct QCC_def_s	*def;
+	struct QCC_def_s	*firstlocal;
+	pbool				privatelocals;	//false means locals may overlap with other functions, true is needed for compat if stuff is uninitialised.
 //	unsigned int		parm_ofs[MAX_PARMS];	// always contiguous, right?
 };
 
@@ -449,9 +479,10 @@ typedef struct
 	
 	QCC_def_t		def_head;		// unused head of linked list
 	QCC_def_t		*def_tail;		// add new defs after this and move it
-	QCC_def_t		*localvars;		// chain of variables which need to be pushed and stuff.
+	QCC_def_t		local_head;		// chain of variables which need to be pushed and stuff (head unused).
+	QCC_def_t		*local_tail;	// add new defs after this and move it
 	
-	int			size_fields;
+	unsigned int	size_fields;
 } QCC_pr_info_t;
 
 extern	QCC_pr_info_t	pr;
@@ -490,7 +521,7 @@ extern	token_type_t	pr_token_type;
 extern	int				pr_token_line;
 extern	int				pr_token_line_last;
 extern	QCC_type_t		*pr_immediate_type;
-extern	QCC_eval_t		pr_immediate;
+extern	QCC_evalstorage_t		pr_immediate;
 
 extern pbool keyword_asm;
 extern pbool keyword_break;
@@ -524,6 +555,8 @@ extern pbool keyword_extern;	//function is external, don't error or warn if the 
 extern pbool keyword_shared;	//mark global to be copied over when progs changes (part of FTE_MULTIPROGS)
 extern pbool keyword_noref;	//nowhere else references this, don't strip it.
 extern pbool keyword_nosave;	//don't write the def to the output.
+extern pbool keyword_inline;	//don't write the def to the output.
+extern pbool keyword_strip;	//don't write the def to the output.
 extern pbool keyword_union;	//you surly know what a union is!
 
 
@@ -531,8 +564,7 @@ extern pbool keywords_coexist;
 extern pbool output_parms;
 extern pbool autoprototype, autoprototyped, parseonly;
 extern pbool pr_subscopedlocals;
-extern pbool flag_ifstring;
-extern pbool flag_iffloat;
+extern pbool flag_nullemptystr, flag_ifstring, flag_iffloat, flag_ifvector, flag_vectorlogic;
 extern pbool flag_acc;
 extern pbool flag_caseinsensitive;
 extern pbool flag_laxcasts;
@@ -608,26 +640,26 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
 char *QCC_PR_ParseName (void);
 CompilerConstant_t *QCC_PR_DefineName(char *name);
 
-void QCC_RemapOffsets(unsigned int firststatement, unsigned int laststatement, unsigned int min, unsigned int max, unsigned int newmin);
-
 int QCC_PR_IntConstExpr(void);
 
 #ifndef COMMONINLINES
-pbool QCC_PR_CheckImmediate (char *string);
-pbool QCC_PR_CheckToken (char *string);
-pbool QCC_PR_CheckName (char *string);
-void QCC_PR_Expect (char *string);
-pbool QCC_PR_CheckKeyword(int keywordenabled, char *string);
+pbool QCC_PR_CheckImmediate (const char *string);
+pbool QCC_PR_CheckToken (const char *string);
+pbool QCC_PR_CheckName (const char *string);
+void QCC_PR_Expect (const char *string);
+pbool QCC_PR_CheckKeyword(int keywordenabled, const char *string);
 #endif
-pbool QCC_PR_CheckTokenComment(char *string, char **comment);
-void VARGS QCC_PR_ParseError (int errortype, char *error, ...);
-pbool VARGS QCC_PR_ParseWarning (int warningtype, char *error, ...);
-pbool VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...);
-void VARGS QCC_PR_Note (int type, char *file, int line, char *error, ...);
+pbool QCC_PR_CheckTokenComment(const char *string, char **comment);
+void VARGS QCC_PR_ParseError (int errortype, const char *error, ...);
+pbool VARGS QCC_PR_ParseWarning (int warningtype, const char *error, ...);
+pbool VARGS QCC_PR_Warning (int type, const char *file, int line, const char *error, ...);
+void VARGS QCC_PR_Note (int type, const char *file, int line, const char *error, ...);
 void QCC_PR_ParsePrintDef (int warningtype, QCC_def_t *def);
-void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error, ...);
+void QCC_PR_ParsePrintSRef (int warningtype, QCC_sref_t sref);
+void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, const char *error, ...);
+void VARGS QCC_PR_ParseErrorPrintSRef (int errortype, QCC_sref_t sref, const char *error, ...);
 
-int QCC_WarningForName(char *name);
+int QCC_WarningForName(const char *name);
 char *QCC_NameForWarning(int idx);
 
 //QccMain.c must be changed if this is changed.
@@ -672,7 +704,6 @@ enum {
 	WARN_MACROINSTRING,
 	WARN_BADPARAMS,
 	WARN_IMPLICITCONVERSION,
-	WARN_FIXEDRETURNVALUECONFLICT,
 	WARN_EXTRAPRECACHE,
 	WARN_NOTPRECACHED,
 	WARN_DEADCODE,
@@ -698,6 +729,7 @@ enum {
 	WARN_UNARYNOTSCOPE,			//!foo & bar  the ! applies to the result of &. This is unlike C.
 	WARN_STRICTTYPEMISMATCH,	//self.think = T_Damage; both are functions, but the arguments/return types/etc differ.
 	WARN_MISUSEDAUTOCVAR,		//various issues with autocvar definitions.
+	WARN_IGNORECOMMANDLINE,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
@@ -845,7 +877,7 @@ void *QCC_PR_Malloc (int size);
 #define	RESERVED_OFS	28
 
 
-extern	QCC_def_t	*pr_scope;
+extern	struct QCC_function_s	*pr_scope;
 extern	int		pr_error_count, pr_warning_count;
 
 void QCC_PR_NewLine (pbool incomment);
@@ -856,7 +888,10 @@ void QCC_PR_NewLine (pbool incomment);
 #define GDF_STRIP	8	//always stripped, regardless of optimisations. used for class member fields
 #define GDF_SILENT	16	//used by the gui, to suppress ALL warnings.
 #define GDF_INLINE	32	//attempt to inline calls to this function
-QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool allocate, int arraysize, unsigned int flags);
+#define GDF_USED	64	//don't strip this, ever.
+QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
+QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
+void QCC_FreeTemp(QCC_sref_t t);
 char *QCC_PR_CheckCompConstTooltip(char *word, char *outstart, char *outend);
 
 void QCC_PR_PrintDefs (void);
@@ -867,16 +902,10 @@ extern char *pr_parm_argcount_name;
 #define MAX_EXTRA_PARMS 128
 #ifdef MAX_EXTRA_PARMS
 extern	char		pr_parm_names[MAX_PARMS+MAX_EXTRA_PARMS][MAX_NAME];
-extern QCC_def_t *extra_parms[MAX_EXTRA_PARMS];
+extern	QCC_sref_t	extra_parms[MAX_EXTRA_PARMS];
 #else
 extern	char		pr_parm_names[MAX_PARMS][MAX_NAME];
 #endif
-
-#define	G_FLOAT(o) (qcc_pr_globals[o])
-#define	G_INT(o) (*(int *)&qcc_pr_globals[o])
-#define	G_VECTOR(o) (&qcc_pr_globals[o])
-#define	G_STRING(o) (strings + *(QCC_string_t *)&qcc_pr_globals[o])
-#define	G_FUNCTION(o) (*(func_t *)&qcc_pr_globals[o])
 
 char *QCC_PR_ValueString (etype_t type, void *val);
 
@@ -891,22 +920,21 @@ extern	QCC_string_t	s_file;			// filename for function definition
 
 extern	QCC_def_t	def_ret, def_parms[MAX_PARMS];
 
-void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *thearray, char *arrayname);
-void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *thearray, char *arrayname);
-void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype);
+void QCC_PR_EmitArrayGetFunction(QCC_def_t *defscope, QCC_def_t *thearray, char *arrayname);
+void QCC_PR_EmitArraySetFunction(QCC_def_t *defscope, QCC_def_t *thearray, char *arrayname);
+void QCC_PR_EmitClassFromFunction(QCC_def_t *defscope, QCC_type_t *basetype);
 
 void PostCompile(void);
 pbool PreCompile(void);
 void QCC_Cleanup(void);
 
 
-#define FIRST_LOCAL (MAX_REGS)
-#define FIRST_TEMP (MAX_REGS+MAX_LOCALS)
+#define FIRST_LOCAL 0//(MAX_REGS)
 //=============================================================================
 
 extern char	pr_immediate_string[8192];
 
-extern float		*qcc_pr_globals;
+extern QCC_eval_t		*qcc_pr_globals;
 extern unsigned int	numpr_globals;
 
 extern char		*strings;
@@ -915,7 +943,8 @@ extern int			strofs;
 extern QCC_statement_t	*statements;
 extern int			numstatements;
 
-extern QCC_dfunction_t	*functions;
+extern QCC_function_t	*functions;
+extern dfunction_t	*dfunctions;
 extern int			numfunctions;
 
 extern QCC_ddef_t		*qcc_globals;

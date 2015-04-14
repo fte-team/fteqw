@@ -10,6 +10,11 @@
 
 #include "errno.h"
 
+//#define DEBUG_DUMP
+//#define DISASM "M_Preset"
+
+extern QCC_def_t tempsdef;
+
 char QCC_copyright[1024];
 int QCC_packid;
 char QCC_Packname[5][128];
@@ -17,9 +22,10 @@ char QCC_Packname[5][128];
 extern int optres_test1;
 extern int optres_test2;
 
-int writeasm;
+pbool writeasm;
 pbool verbose;
 pbool qcc_nopragmaoptimise;
+pbool opt_stripunusedfields;
 extern unsigned int locals_marshalled;
 extern int qccpersisthunk;
 
@@ -28,6 +34,7 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor);
 
 void *FS_ReadToMem(char *fname, void *membuf, int *len);
 void FS_CloseFromMem(void *mem);
+const char *QCC_VarAtOffset(QCC_sref_t ref, unsigned int size);
 
 unsigned int MAX_REGS;
 unsigned int MAX_LOCALS = 0x10000;
@@ -43,7 +50,6 @@ int max_temps;
 
 int *qcc_tempofs;
 int tempsstart;
-int numtemps;
 
 #define MAXSOURCEFILESLIST 8
 char sourcefileslist[MAXSOURCEFILESLIST][1024];
@@ -61,7 +67,7 @@ pbool	compressoutput;
 pbool newstylesource;
 char		destfile[1024];
 
-float		*qcc_pr_globals;
+QCC_eval_t		*qcc_pr_globals;
 unsigned int	numpr_globals;
 
 char		*strings;
@@ -70,7 +76,9 @@ int			strofs;
 QCC_statement_t	*statements;
 int			numstatements;
 
-QCC_dfunction_t	*functions;
+
+QCC_function_t	*functions;
+dfunction_t	*dfunctions;
 int			numfunctions;
 
 QCC_ddef_t		*qcc_globals;
@@ -182,6 +190,7 @@ struct {
 	{" F306", WARN_SAMENAMEASGLOBAL},
 	{" F307", WARN_STRICTTYPEMISMATCH},
 	{" F308", WARN_TYPEMISMATCHREDECOPTIONAL},
+	{" F309", WARN_IGNORECOMMANDLINE},
 
 	//frikqcc errors
 	//Q608: PrecacheSound: numsounds
@@ -208,7 +217,7 @@ char *QCC_NameForWarning(int idx)
 	}
 	return NULL;
 }
-int QCC_WarningForName(char *name)
+int QCC_WarningForName(const char *name)
 {
 	int i;
 	for (i = 0; warningnames[i].name; i++)
@@ -241,13 +250,14 @@ optimisations_t optimisations[] =
 	{&opt_overlaptemps,				"r",	1,	FLAG_ASDEFAULT,			"overlaptemps",		"Optimises the pr_globals count by overlapping temporaries. In QC, every multiplication, division or operation in general produces a temporary variable. This optimisation prevents excess, and in the case of Hexen2's gamecode, reduces the count by 50k. This is the most important optimisation, ever."},
 	{&opt_constantarithmatic,		"a",	1,	FLAG_ASDEFAULT,			"constantarithmatic", "5*6 actually emits an operation into the progs. This prevents that happening, effectivly making the compiler see 30"},
 	{&opt_precache_file,			"pf",	2,	0,						"precache_file",	"Strip out stuff wasted used in function calls and strings to the precache_file builtin (which is actually a stub in quake)."},
-	{&opt_return_only,				"ro",	3,	FLAG_KILLSDEBUGGERS,	"return_only",		"Functions ending in a return statement do not need a done statement at the end of the function. This can confuse some decompilers, making functions appear larger than they were."},
-	{&opt_compound_jumps,			"cj",	3,	FLAG_KILLSDEBUGGERS,	"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
+	{&opt_return_only,				"ro",	2,	FLAG_KILLSDEBUGGERS,	"return_only",		"Functions ending in a return statement do not need a done statement at the end of the function. This can confuse some decompilers, making functions appear larger than they were."},
+	{&opt_compound_jumps,			"cj",	2,	FLAG_KILLSDEBUGGERS,	"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
 //	{&opt_comexprremoval,			"cer",	4,	0,						"expression_removal",	"Eliminate common sub-expressions"},	//this would be too hard...
 	{&opt_stripfunctions,			"sf",	3,	FLAG_KILLSDEBUGGERS,	"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games. This can affect FTE_MULTIPROGS."},
-	{&opt_locals_overlapping,		"lo",	3,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
+	{&opt_locals_overlapping,		"lo",	2,	FLAG_KILLSDEBUGGERS,	"locals_overlapping", "Store all locals in a single section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps.\nHowever, locals are no longer automatically initialised to 0 (and never were in the case of recursion, but at least then its the same type).\nIf locals appear uninitialised, fteqcc will disable this optimisation for the affected functions, you can optionally get a warning about these locals using: #pragma warning enable F302"},
 	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,	"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
 	{&opt_classfields,				"cf",	2,	FLAG_KILLSDEBUGGERS,	"class_fields",		"Strip class field names. This will harm debugging and can result in 'gibberish' names appearing in saved games. Has no effect on engines other than FTEQW, which will not recognise these anyway."},
+//	{&opt_stripunusedfields,		"uf",	4,	0,						"strip_unused_fields","Strips any fields that have no references. This may result in extra warnings at load time, or disabling support for mapper-specified alpha in engines that do not provide that."},
 	{NULL}
 };
 
@@ -274,6 +284,8 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_integer,		defaultkeyword, "integer",		"Keyword: integer",		"Disables the 'integer' keyword."},
 	{&keyword_noref,		defaultkeyword, "noref",		"Keyword: noref",		"Disables the 'noref' keyword."},	//nowhere else references this, don't strip it.
 	{&keyword_nosave,		defaultkeyword, "nosave",		"Keyword: nosave",		"Disables the 'nosave' keyword."},	//don't write the def to the output.
+	{&keyword_inline,		defaultkeyword, "inline",		"Keyword: inline",		"Disables the 'inline' keyword."},	//don't write the def to the output.
+	{&keyword_strip,		defaultkeyword, "strip",		"Keyword: strip",		"Disables the 'strip' keyword."},	//don't write the def to the output.
 	{&keyword_shared,		defaultkeyword, "shared",		"Keyword: shared",		"Disables the 'shared' keyword."},	//mark global to be copied over when progs changes (part of FTE_MULTIPROGS)
 	{&keyword_state,		nondefaultkeyword,"state",		"Keyword: state",		"Disables the 'state' keyword."},
 	{&keyword_optional,		defaultkeyword,"optional",		"Keyword: optional",	"Disables the 'optional' keyword."},
@@ -295,15 +307,18 @@ compiler_flag_t compiler_flag[] = {
 	{&autoprototype,		0,				"autoproto",	"Automatic Prototyping","Causes compilation to take two passes instead of one. The first pass, only the definitions are read. The second pass actually compiles your code. This means you never have to remember to prototype functions again."},	//so you no longer need to prototype functions and things in advance.
 	{&writeasm,				0,				"wasm",			"Dump Assembler",		"Writes out a qc.asm which contains all your functions but in assembler. This is a great way to look for bugs in fteqcc, but can also be used to see exactly what your functions turn into, and thus how to optimise statements better."},			//spit out a qc.asm file, containing an assembler dump of the ENTIRE progs. (Doesn't include initialisation of constants)
 	{&flag_guiannotate,		FLAG_MIDCOMPILE,"annotate",		"Annotate Sourcecode",	"Annotate source code with assembler statements on compile (requires gui)."},
+	{&flag_nullemptystr,	FLAG_MIDCOMPILE,"nullemptystr",	"Null String Immediates",		"Empty string immediates will have the raw value 0 instead of 1."},
 	{&flag_ifstring,		FLAG_MIDCOMPILE,"ifstring",		"if(string) fix",		"Causes if(string) to behave identically to if(string!="") This is most useful with addons of course, but also has adverse effects with FRIK_FILE's fgets, where it becomes impossible to determin the end of the file. In such a case, you can still use asm {IF string 2;RETURN} to detect eof and leave the function."},		//correction for if(string) no-ifstring to get the standard behaviour.
 	{&flag_iffloat,			FLAG_MIDCOMPILE,"iffloat","if(-0.0) fix","Fixes certain floating point logic."},
+	{&flag_ifvector,		FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"ifvector","if('0 1 0') fix","Fixes conditional vector logic."},
+	{&flag_vectorlogic,		FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"vectorlogic","v&&v||v fix",	"Fixes conditional vector logic."},
 	{&flag_acc,				0,				"acc",			"Reacc support",		"Reacc is a pascall like compiler. It was released before the Quake source was released. This flag has a few effects. It sorts all qc files in the current directory into alphabetical order to compile them. It also allows Reacc global/field distinctions, as well as allows ¦ as EOF. Whilst case insensitivity and lax type checking are supported by reacc, they are seperate compiler flags in fteqcc."},		//reacc like behaviour of src files.
 	{&flag_caseinsensitive,	0,				"caseinsens",	"Case insensitivity",	"Causes fteqcc to become case insensitive whilst compiling names. It's generally not advised to use this as it compiles a little more slowly and provides little benefit. However, it is required for full reacc support."},	//symbols will be matched to an insensitive case if the specified case doesn't exist. This should b usable for any mod
 	{&flag_laxcasts,		FLAG_MIDCOMPILE,"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatible types. This is required for reacc support, and can also allow certain (evil) mods to compile that were originally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 	{&flag_hashonly,		FLAG_MIDCOMPILE,"hashonly",		"Hash-only constants",	"Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile"},
 	{&opt_logicops,			FLAG_MIDCOMPILE,"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions (without iffloat also enabled). This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
 	{&flag_msvcstyle,		FLAG_MIDCOMPILE,"msvcstyle",	"MSVC-style errors",	"Generates warning and error messages in a format that msvc understands, to facilitate ide integration."},
-	{&flag_debugmacros,		FLAG_MIDCOMPILE,"flag_debugmacros",	"Verbose Macro Expansion",	"Print out the contents of macros that are expanded. This can help look inside macros that are expanded and is especially handy if people are using preprocessor hacks."},
+	{&flag_debugmacros,		FLAG_MIDCOMPILE,"debugmacros",	"Verbose Macro Expansion",	"Print out the contents of macros that are expanded. This can help look inside macros that are expanded and is especially handy if people are using preprocessor hacks."},
 	{&flag_filetimes,		0,				"filetimes",	"Check Filetimes",		"Recompiles the progs only if the file times are modified."},
 	{&flag_fasttrackarrays,	FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"fastarrays","fast arrays where possible",	"Generates extra instructions inside array handling functions to detect engine and use extension opcodes only in supporting engines.\nAdds a global which is set by the engine if the engine supports the extra opcodes. Note that this applies to all arrays or none."},
 	{&flag_assume_integer,	FLAG_MIDCOMPILE,"assumeint",	"Assume Integers",		"Numerical constants are assumed to be integers, instead of floats."},
@@ -311,6 +326,7 @@ compiler_flag_t compiler_flag[] = {
 	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
 	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
 	{&flag_noboundchecks,	FLAG_MIDCOMPILE,"noboundchecks","Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
+//	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
 	{NULL}
 };
 
@@ -404,7 +420,7 @@ int	QCC_CopyString (char *str)
 	if (!str)
 		return 0;
 	if (!*str)
-		return 1;
+		return !flag_nullemptystr;
 
 	if (opt_noduplicatestrings || !strcmp(str, "IMMEDIATE"))
 	{
@@ -590,7 +606,6 @@ int WriteSourceFiles(int h, dprograms_t *progs, pbool sourceaswell)
 void QCC_InitData (void)
 {
 	static char parmname[12][MAX_PARMS];
-	static temp_t ret_temp;
 	int		i;
 
 	qcc_sourcefile = NULL;
@@ -607,17 +622,12 @@ void QCC_InitData (void)
 	fields[numfielddefs].ofs = 0;
 	numfielddefs++;	//FIXME: do we actually need a null field? is there any point to this at all?
 
-	memset(&ret_temp, 0, sizeof(ret_temp));
-
+	memset(&def_ret, 0, sizeof(def_ret));
 	def_ret.ofs = OFS_RETURN;
 	def_ret.name = "return";
-	def_ret.temp = &ret_temp;
 	def_ret.constant = false;
 	def_ret.type	= NULL;
-	ret_temp.ofs = def_ret.ofs;
-	ret_temp.scope = NULL;
-	ret_temp.size = 3;
-	ret_temp.next = NULL;
+	def_ret.symbolheader = &def_ret;
 	for (i=0 ; i<MAX_PARMS ; i++)
 	{
 		def_parms[i].temp = NULL;
@@ -636,7 +646,7 @@ int WriteBodylessFuncs (int handle)
 	{
 		if (d->type->type == ev_function && !d->scope)// function parms are ok
 		{
-			if (!(d->initialized & 1) && d->references>0)
+			if (!(d->initialized & 1) && d->referenced)
 			{
 				SafeWrite(handle, d->name, strlen(d->name)+1);
 				ret++;
@@ -647,51 +657,173 @@ int WriteBodylessFuncs (int handle)
 	return ret;
 }
 
+void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
+{
+	QCC_def_t *sym;
+	size_t i;
+	//make sure system defs are not hurt by this.
+	for (sym = pr.def_head.next; sym; sym = sym->next)
+	{
+		sym->used = true;
+		if (sym == endsyssym)
+			break;
+	}
+	//non-system fields should maybe be present too.
+	for (; sym; sym = sym->next)
+	{
+		if (sym->constant && sym->type->type == ev_field && !opt_stripunusedfields)
+			sym->symbolheader->used = true;	//fields should always be present, annoyingly enough, as they're often used to silence map warnings.
+		else if (sym->constant && sym->type->type == ev_function)
+		{						//non-builtins must be present, because of spawn functions and other entrypoints.
+			unsigned int fnum = sym->symboldata[sym->ofs]._int;
+			if (fnum < numfunctions && functions[fnum].code == -1)
+				sym->symbolheader->used = true;
+		}
+	}
+
+	for (i=0 ; i<numstatements ; i++)
+	{
+		if ((sym = statements[i].a.sym))
+			if (sym->symbolheader)
+				sym->symbolheader->used = true;
+		if ((sym = statements[i].b.sym))
+			if (sym->symbolheader)
+				sym->symbolheader->used = true;
+		if ((sym = statements[i].c.sym))
+			if (sym->symbolheader)
+				sym->symbolheader->used = true;
+	}
+}
+
+//allocates final space for the def, making it a true def
+void QCC_FinaliseDef(QCC_def_t *def)
+{
+	if (def->symbolheader == def && def->deftail)
+	{
+		//for head symbols, we go through and touch all of their children
+		QCC_def_t *prev, *sub;
+		if (!def->referenced)
+		{
+			pbool ignoreone = true;
+			//touch all but one child
+			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+			{
+				if (sub->referenced)
+					def->referenced=true;
+				else if (!sub->referenced && ignoreone)
+					ignoreone = false;
+				else
+					sub->referenced |= def->referenced;			
+			}
+			if (!def->referenced)
+				for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+					sub->referenced = true;
+		}
+		else
+		{
+			//touch children
+			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
+				sub->referenced |= def->referenced;
+		}
+	}
+	else if (def->symbolheader)	//if a child symbol is referenced, mark the entire parent as referenced too. this avoids vec_x+vec_y with no vec or vec_z from generating warnings about vec being unreferenced
+		def->symbolheader->referenced |= def->referenced;
+
+	if (!def->symbolheader->used)
+	{
+		if (verbose >= 3)
+			printf("not needed: %s\n", def->name);
+		return;
+	}
+
+	else if (def->symbolheader != def)
+		def->ofs += def->symbolheader->ofs;
+	else
+	{
+		if (def->arraysize)
+		{
+			if (numpr_globals+1+def->symbolsize >= MAX_REGS)
+			{
+				if (!opt_overlaptemps || !opt_locals_overlapping)
+					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS - you'll need to use more optimisations");
+				else
+					QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS");
+			}
+
+			//for hexen2 arrays, we need to emit a length first
+			if (def->type->type == ev_vector)
+				((int *)qcc_pr_globals)[numpr_globals] = def->arraysize-1;
+			else
+				((int *)qcc_pr_globals)[numpr_globals] = (def->arraysize*def->type->size)-1;	//using float arrays for structs.
+			numpr_globals+=1;
+		}
+		else if (numpr_globals+def->symbolsize >= MAX_REGS)
+		{
+			if (!opt_overlaptemps || !opt_locals_overlapping)
+				QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS - you'll need to use more optimisations");
+			else
+				QCC_Error(ERR_TOOMANYGLOBALS, "numpr_globals exceeded MAX_REGS");
+		}
+		def->ofs += numpr_globals;
+		numpr_globals += def->symbolsize;
+
+		if (def->symboldata)
+			memcpy(qcc_pr_globals+def->ofs, def->symboldata, def->symbolsize*sizeof(float));
+		else
+			memset(qcc_pr_globals+def->ofs, 0, def->symbolsize*sizeof(float));
+	}
+	def->symboldata = qcc_pr_globals;
+	def->symbolsize = numpr_globals;
+
+#ifdef DEBUG_DUMP
+	if (!def->referenced)
+		printf("Unreferenced ");
+	printf("Finalise %s(%p) @ %i+%i\n", def->name, def, def->ofs, ssize);
+#endif
+}
+
 //marshalled locals still point to the FIRST_LOCAL range.
 //this function remaps all the locals back into actual usable defs.
 void QCC_UnmarshalLocals(void)
 {
-	QCC_def_t		*def;
-	unsigned int ofs;
-	unsigned int maxo;
-	int i;
-	extern int tempsused;
-
-	ofs = numpr_globals;
-	maxo = ofs+locals_marshalled;
-
-	for (def = pr.def_head.next ; def ; def = def->next)
+	QCC_def_t *d;
+	unsigned int onum, biggest, eog = numpr_globals;
+	size_t i;
+	//first, finalize private locals.
+	for (i=0 ; i<numfunctions ; i++)
 	{
-		if (def->ofs >= FIRST_LOCAL)	//unmap defs.
+		if (functions[i].privatelocals)
 		{
-			def->ofs = def->ofs + ofs - FIRST_LOCAL;
-			if (maxo < def->ofs + def->type->size)
-				maxo = def->ofs + def->type->size;
+#ifdef DEBUG_DUMP
+			printf("function %s locals:\n", functions[i].name);
+#endif
+			for (d = functions[i].firstlocal; d; d = d->nextlocal)
+				QCC_FinaliseDef(d);
 		}
 	}
 
-	for (i = 0; i < numfunctions; i++)
+	onum = biggest = numpr_globals;
+	for (i=0 ; i<numfunctions ; i++)
 	{
-		if (functions[i].parm_start == FIRST_LOCAL)
-			functions[i].parm_start = ofs;
+		if (!functions[i].privatelocals)
+		{
+			numpr_globals = onum;
+			for (d = functions[i].firstlocal; d; d = d->nextlocal)
+				QCC_FinaliseDef(d);
+			if (biggest < numpr_globals)
+				biggest = numpr_globals;
+		}
 	}
-
-	QCC_RemapOffsets(0, numstatements, FIRST_LOCAL, FIRST_LOCAL+(maxo-ofs), ofs);
-	QCC_RemapOffsets(0, numstatements, FIRST_TEMP, FIRST_TEMP+tempsused, maxo);
-
-	numpr_globals = maxo+tempsused;
-	if (numpr_globals > MAX_REGS)
-		QCC_Error(ERR_TOOMANYGLOBALS, "Too many globals are in use to unmarshal all locals");
-
-	if (verbose)
-		printf("Total of %i locals, %i temps\n", maxo-ofs, tempsused);
+	numpr_globals = biggest;
+	printf("%i shared locals, %i private, %i total\n", biggest - onum, onum - eog, numpr_globals-eog);
 }
+
+
 
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
 pbool QCC_WriteData (int crc)
 {
-	char element[MAX_NAME];
-	QCC_def_t		*def, *comp_x, *comp_y, *comp_z;
+	QCC_def_t		*def;
 	QCC_ddef_t		*dd;
 	dprograms_t	progs;
 	int			h;
@@ -701,6 +833,10 @@ pbool QCC_WriteData (int crc)
 	int outputsttype = PST_DEFAULT;
 	int warnedunref = 0;
 	int			*statement_linenums;
+	void		*funcdata;
+	size_t		funcdatasize;
+
+	extern char *basictypenames[];
 
 	if (numstatements==1 && numfunctions==1 && numglobaldefs==1 && numfielddefs==1)
 	{
@@ -716,7 +852,23 @@ pbool QCC_WriteData (int crc)
 	if (strofs > MAX_STRINGS)
 		QCC_Error(ERR_TOOMANYSTRINGS, "Too many strings - %i\nAdd \"MAX_STRINGS\" \"%i\" to qcc.cfg", strofs, (strofs+32768)&~32767);
 
+	//part of how compilation works. This def is always present, and never used.
+	def = QCC_PR_GetDef(NULL, "end_sys_globals", NULL, false, 0, false);
+	if (def)
+		def->referenced = true;
+
+	def = QCC_PR_GetDef(NULL, "end_sys_fields", NULL, false, 0, false);
+	if (def)
+		def->referenced = true;
+	QCC_DetermineNeededSymbols(def);
+
+	for (def = pr.def_head.next ; def ; def = def->next)
+	{
+		if (!def->localscope)
+			QCC_FinaliseDef(def);
+	}
 	QCC_UnmarshalLocals();
+	QCC_FinaliseTemps();
 
 	switch (qcc_targetformat)
 	{
@@ -810,30 +962,118 @@ pbool QCC_WriteData (int crc)
 		Sys_Error("invalid progs type chosen!");
 	}
 
-	//part of how compilation works. This def is always present, and never used.
-	def = QCC_PR_GetDef(NULL, "end_sys_globals", NULL, false, 0, false);
-	if (def)
-		def->references++;
 
-	def = QCC_PR_GetDef(NULL, "end_sys_fields", NULL, false, 0, false);
-	if (def)
-		def->references++;
+	switch (outputsttype)
+	{
+	case PST_QTEST:
+		{
+			// this sucks but the structures are just too different
+			qtest_function_t *funcs = (qtest_function_t *)qccHunkAlloc(sizeof(qtest_function_t)*numfunctions);
+
+			for (i=0 ; i<numfunctions ; i++)
+			{
+				int j;
+
+				funcs[i].unused1 = 0;
+				funcs[i].profile = 0;
+				if (functions[i].code == -1)
+					funcs[i].first_statement = PRLittleLong (-functions[i].builtin);
+				else
+					funcs[i].first_statement = PRLittleLong (functions[i].code);
+				funcs[i].first_statement = PRLittleLong (functions[i].code);
+				funcs[i].parm_start = 0;//PRLittleLong (functions[i].parm_start);
+				funcs[i].s_name = PRLittleLong (QCC_CopyString(functions[i].name));
+				funcs[i].s_file = PRLittleLong (functions[i].s_file);
+				funcs[i].numparms = 0;//PRLittleLong ((functions[i].numparms>MAX_PARMS)?MAX_PARMS:functions[i].numparms);
+				funcs[i].locals = 0;//PRLittleLong (functions[i].locals);
+				for (j = 0; j < MAX_PARMS; j++)
+					funcs[i].parm_size[j] = 0;//PRLittleLong((int)functions[i].parm_size[j]);
+			}
+			funcdata = funcs;
+			funcdatasize = numfunctions*sizeof(*funcs);
+		}
+		break;
+	case PST_DEFAULT:
+	case PST_KKQWSV:
+	case PST_FTE32:
+		{
+			dfunction_t *funcs = (dfunction_t *)qccHunkAlloc(sizeof(dfunction_t)*numfunctions);
+			for (i=0 ; i<numfunctions ; i++)
+			{
+				QCC_def_t *local;
+				unsigned int p;
+				if (functions[i].code == -1)
+					funcs[i].first_statement = PRLittleLong (-functions[i].builtin);
+				else
+					funcs[i].first_statement = PRLittleLong (functions[i].code);
+				if (opt_function_names && functions[i].builtin)
+				{
+					//builtins don't need a name entry. the def is constant, so no string need be emitted at all.
+					optres_function_names += strlen(functions[i].name)+1;
+					funcs[i].s_name = 0;
+				}
+				else
+					funcs[i].s_name = PRLittleLong (QCC_CopyString(functions[i].name));
+				funcs[i].s_file = PRLittleLong (functions[i].s_file);
+
+				if (functions[i].code == -1)
+				{
+					funcs[i].parm_start = 0;
+					funcs[i].locals = 0;
+					funcs[i].numparms = functions[i].type->num_parms;
+					if (funcs[i].numparms > MAX_PARMS)
+						funcs[i].numparms = MAX_PARMS;	//shouldn't happen for builtins.
+					p = 0;
+				}
+				else if (functions[i].firstlocal)
+				{
+					funcs[i].parm_start = functions[i].firstlocal->ofs;
+					for (local = functions[i].firstlocal, p = 0; local && p < MAX_PARMS && p < functions[i].type->num_parms; local = local->deftail->nextlocal, p++)
+					{
+						funcs[i].locals += local->type->size;
+						funcs[i].parm_size[p] = local->type->size;
+					}
+					for (; local; local = local->nextlocal)
+						funcs[i].locals += local->type->size;
+					funcs[i].numparms = p;
+				}
+				else
+				{
+					//fucked up functions with no params.
+					funcs[i].parm_start = 0;
+					funcs[i].locals = 0;
+					funcs[i].numparms = 0;
+					p = 0;
+				}
+				while(p < MAX_PARMS)
+					funcs[i].parm_size[p++] = 0;
+				funcs[i].parm_start = PRLittleLong(funcs[i].parm_start);
+				funcs[i].locals = PRLittleLong(funcs[i].locals);
+				funcs[i].numparms = PRLittleLong(funcs[i].numparms);
+
+#ifdef DEBUG_DUMP
+				printf("code: %s:%i: func %s @%i locals@%i+%i, %i parms\n", strings+funcs[i].s_file, 0, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
+#endif
+			}
+			funcdata = funcs;
+			funcdatasize = numfunctions*sizeof(*funcs);
+		}
+		break;
+	default:
+		Sys_Error("structtype error");
+	}
 
 	for (def = pr.def_head.next ; def ; def = def->next)
 	{
 		if ((def->type->type == ev_struct || def->type->type == ev_union || def->arraysize) && def->deftail)
 		{
-			QCC_def_t		*d;
-			d = def;
-			while (d != def->deftail)
-			{
-				d = d->next;
-				h = d->references;
-				d->references += def->references;
-				def->references += h;
-			}
+#ifdef DEBUG_DUMP
+			printf("code: %s:%i: strip struct %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+#endif
+			//the head of an array/struct is never written. only, its member fields are.
+			continue;
 		}
-		if (def->type->type == ev_vector || (def->type->type == ev_field && def->type->aux_type->type == ev_vector))
+/*		if (def->type->type == ev_vector || (def->type->type == ev_field && def->type->aux_type->type == ev_vector))
 		{	//do the references, so we don't get loadsa not referenced VEC_HULL_MINS_x
 			s_file = def->s_file;
 			QC_snprintfz (element, sizeof(element), "%s_x", def->name);
@@ -867,23 +1107,27 @@ pbool QCC_WriteData (int crc)
 					comp_z->references = h;
 			}
 		}
-		if (def->references<=0)
+*/
+		if (!def->referenced)
 		{
 			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
 			pr_scope = def->scope;
 			if (strcmp(def->name, "IMMEDIATE"))
 			{
 				char typestr[256];
-				if (warnedunref >= 10)
+				if (warnedunref == -1)
 				{
 					if (qccwarningaction[wt])
 						pr_warning_count++;
 				}
-				else if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name))
+				else if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name) && warnedunref != -1)
 				{
 					warnedunref++;
-					if (warnedunref == 10)
+					if (warnedunref == 10 && !verbose)
+					{
 						QCC_PR_Note(wt, NULL, 0, "Not reporting other unreferenced variables. You can use the noref prefix or pragma to silence these messages as you clearly don't care.");
+						warnedunref = -1;
+					}
 				}
 			}
 			pr_scope = NULL;
@@ -891,20 +1135,29 @@ pbool QCC_WriteData (int crc)
 			if (opt_unreferenced && def->type->type != ev_field)
 			{
 				optres_unreferenced++;
+#ifdef DEBUG_DUMP
+				printf("code: %s:%i: strip noref %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+#endif
 				continue;
 			}
 		}
 
-		if (def->strip)
+		if (def->strip || !def->symbolheader->used)
+		{
+#ifdef DEBUG_DUMP
+			printf("code: %s:%i: strip %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+#endif
 			continue;
+		}
 
 		if (def->type->type == ev_function)
 		{
-			if (opt_function_names && def->initialized && functions[G_FUNCTION(def->ofs)].first_statement<0)
+			if (opt_function_names && def->initialized && functions[def->symboldata[def->ofs].function].code<0)
 			{
 				optres_function_names++;
 				def->name = "";
 			}
+#if IAMNOTLAZY
 			if (!def->timescalled)
 			{
 				if (def->references<=1 && strncmp(def->name, "spawnfunc_", 10))
@@ -915,12 +1168,12 @@ pbool QCC_WriteData (int crc)
 			if (opt_stripfunctions && def->constant && def->timescalled >= def->references-1)	//make sure it's not copied into a different var.
 			{								//if it ever does self.think then it could be needed for saves.
 				optres_stripfunctions++;	//if it's only ever called explicitly, the engine doesn't need to know.
+#ifdef DEBUG_DUMP
+				printf("code: %s:%i: strip const %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+#endif
 				continue;
 			}
-
-//			df = &functions[numfunctions];
-//			numfunctions++;
-
+#endif
 		}
 		else if (def->type->type == ev_field && def->constant && (!def->scope || def->isstatic || def->initialized))
 		{
@@ -930,7 +1183,7 @@ pbool QCC_WriteData (int crc)
 			numfielddefs++;
 			dd->type = def->type->aux_type->type;
 			dd->s_name = QCC_CopyString (def->name);
-			dd->ofs = G_INT(def->ofs);
+			dd->ofs = def->symboldata[def->ofs]._int;
 		}
 		else if ((def->scope||def->constant) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
 		{
@@ -940,6 +1193,13 @@ pbool QCC_WriteData (int crc)
 					optres_constant_names_strings += strlen(def->name);
 				else
 					optres_constant_names += strlen(def->name);
+
+#ifdef DEBUG_DUMP
+				if (def->scope)
+					printf("code: %s:%i: strip local %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+				else if (def->constant)
+					printf("code: %s:%i: strip const %s %s@%i;\n", strings+def->s_file, def->s_line, def->type->name, def->name, def->ofs);
+#endif
 				continue;
 			}
 		}
@@ -954,10 +1214,10 @@ pbool QCC_WriteData (int crc)
 		else
 			dd->type = def->type->type;
 #ifdef DEF_SAVEGLOBAL
-		if ( def->saved && ((!def->initialized || def->type->type == ev_function)
+		if ( def->saved && !def->constant// || def->type->type == ev_function)
 //		&& def->type->type != ev_function
 		&& def->type->type != ev_field
-		&& def->scope == NULL))
+		&& def->scope == NULL)
 		{
 			dd->type |= DEF_SAVEGLOBAL;
 		}
@@ -973,6 +1233,23 @@ pbool QCC_WriteData (int crc)
 		else
 			dd->s_name = QCC_CopyString (def->name);
 		dd->ofs = def->ofs;
+
+#ifdef DEBUG_DUMP
+		if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_string)
+			printf("code: %s:%i: %s%s%s %s@%i = \"%s\"\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, ((unsigned)def->symboldata[def->ofs].string>=(unsigned)strofs)?"???":(strings + def->symboldata[def->ofs].string));
+		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_float)
+			printf("code: %s:%i: %s%s%s %s@%i = %g\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._float);
+		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_integer)
+			printf("code: %s:%i: %s%s%s %s@%i = %i\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._int);
+		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_vector)
+			printf("code: %s:%i: %s%s%s %s@%i = '%g %g %g'\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs].vector[0], def->symboldata[def->ofs].vector[1], def->symboldata[def->ofs].vector[2]);
+		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_function)
+			printf("code: %s:%i: %s%s%s %s@%i = %i(%s)\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs].function, def->symboldata[def->ofs].function >= numfunctions?"???":functions[def->symboldata[def->ofs].function].name);
+		else if ((dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)) == ev_field)
+			printf("code: %s:%i: %s%s%s %s@%i = @%i\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs, def->symboldata[def->ofs]._int);
+		else
+			printf("code: %s:%i: %s%s%s %s@%i\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs);
+#endif
 	}
 
 	for (i = 0; i < numglobaldefs; i++)
@@ -1015,7 +1292,7 @@ pbool QCC_WriteData (int crc)
 				{
 					if (fields[h].type != ev_vector && fields[h].type != ev_struct && fields[h].type != ev_union)
 					{
-						QCC_PR_Warning(0, NULL, 0, "Mismatched union field types (%s and %s)", strings+dd->s_name, strings+fields[h].s_name);
+						QCC_PR_Warning(0, NULL, 0, "Mismatched union field types (%s and %s @%i)", strings+dd->s_name, strings+fields[h].s_name, dd->ofs);
 					}
 				}
 			}
@@ -1113,10 +1390,14 @@ strofs = (strofs+3)&~3;
 			QCC_dstatement32_t *statements32 = qccHunkAlloc(sizeof(*statements32) * numstatements);
 			for (i=0 ; i<numstatements ; i++)
 			{
-				statements32[i].op = PRLittleLong/*PRLittleShort*/(statements[i].op);
-				statements32[i].a = PRLittleLong/*PRLittleShort*/(statements[i].a);
-				statements32[i].b = PRLittleLong/*PRLittleShort*/(statements[i].b);
-				statements32[i].c = PRLittleLong/*PRLittleShort*/(statements[i].c);
+				statements32[i].op = PRLittleLong(statements[i].op);
+				statements32[i].a = PRLittleLong((statements[i].a.sym?statements[i].a.sym->ofs:0) + statements[i].a.ofs);
+				statements32[i].b = PRLittleLong((statements[i].b.sym?statements[i].b.sym->ofs:0) + statements[i].b.ofs);
+				statements32[i].c = PRLittleLong((statements[i].c.sym?statements[i].c.sym->ofs:0) + statements[i].c.ofs);
+
+#ifdef DEBUG_DUMP
+				printf("code: %s:%i: @%i %s %i %i %i\n", "???", statements[i].linenum, i, pr_opcodes[statements[i].op].name, statements32[i].a, statements32[i].b, statements32[i].c);
+#endif
 			}
 
 			if (progs.blockscompressed&1)
@@ -1138,21 +1419,24 @@ strofs = (strofs+3)&~3;
 			qtest_statement_t *qtst = qccHunkAlloc(sizeof(*qtst) * numstatements);
 			for (i=0 ; i<numstatements ; i++) // scale down from 16-byte internal to 12-byte qtest
 			{
-				QCC_statement_t stmt = statements[i];
-				qtst[i].line = 0; // no line support
-				qtst[i].op = PRLittleShort((unsigned short)stmt.op);
-				if (stmt.a < 0)
-					qtst[i].a = PRLittleShort((short)stmt.a);
+				unsigned int a = (statements[i].a.sym?statements[i].a.sym->ofs:0) + statements[i].a.ofs;
+				unsigned int b = (statements[i].b.sym?statements[i].b.sym->ofs:0) + statements[i].b.ofs;
+				unsigned int c = (statements[i].c.sym?statements[i].c.sym->ofs:0) + statements[i].c.ofs;
+
+				qtst[i].line = statements[i].linenum;
+				qtst[i].op = PRLittleShort((unsigned short)statements[i].op);
+				if (a < 0)
+					qtst[i].a = PRLittleShort((short)a);
 				else
-					qtst[i].a = (unsigned short)PRLittleShort((unsigned short)stmt.a);
-				if (stmt.b < 0)
-					qtst[i].b = PRLittleShort((short)stmt.b);
+					qtst[i].a = (unsigned short)PRLittleShort((unsigned short)a);
+				if (b < 0)
+					qtst[i].b = PRLittleShort((short)b);
 				else
-					qtst[i].b = (unsigned short)PRLittleShort((unsigned short)stmt.b);
-				if (stmt.c < 0)
-					qtst[i].c = PRLittleShort((short)stmt.c);
+					qtst[i].b = (unsigned short)PRLittleShort((unsigned short)b);
+				if (c < 0)
+					qtst[i].c = PRLittleShort((short)c);
 				else
-					qtst[i].c = (unsigned short)PRLittleShort((unsigned short)stmt.c);
+					qtst[i].c = (unsigned short)PRLittleShort((unsigned short)c);
 			}
 
 			// no compression
@@ -1162,21 +1446,51 @@ strofs = (strofs+3)&~3;
 	case PST_DEFAULT:
 		{
 			QCC_dstatement16_t *statements16 = qccHunkAlloc(sizeof(*statements16) * numstatements);
+#ifdef DISASM
+			int start, end;
+			for (i = 1; i < numfunctions; i++)
+			{
+				if (!strcmp(functions[i].name, DISASM))
+				{
+					start = functions[i].code;
+					end = functions[i+1].code;
+				}
+			}
+#endif
 			for (i=0 ; i<numstatements ; i++)	//resize as we go - scaling down
 			{
+				unsigned int a = (statements[i].a.sym?statements[i].a.sym->ofs:0) + statements[i].a.ofs;
+				unsigned int b = (statements[i].b.sym?statements[i].b.sym->ofs:0) + statements[i].b.ofs;
+				unsigned int c = (statements[i].c.sym?statements[i].c.sym->ofs:0) + statements[i].c.ofs;
 				statements16[i].op = PRLittleShort((unsigned short)statements[i].op);
-				if (statements[i].a < 0)
-					statements16[i].a = PRLittleShort((short)statements[i].a);
+
+#if defined(DISASM) && !defined(DEBUG_DUMP)
+				if (i >= start && i < end)
+#endif
+#if defined(DEBUG_DUMP) || defined(DISASM)
+				{
+					char *astr = statements[i].a.sym?statements[i].a.sym->name:"";
+					char *bstr = statements[i].b.sym?statements[i].b.sym->name:"";
+					char *cstr = statements[i].c.sym?statements[i].c.sym->name:"";
+					printf("code: %s:%i: @%i\t%s\t%i\t%i\t%i\t(%s", "???", statements[i].linenum, i, pr_opcodes[statements[i].op].opname, a, b, c, QCC_VarAtOffset(statements[i].a, 1));
+					printf(" %s", QCC_VarAtOffset(statements[i].b, 1));
+					printf(" %s)\n", QCC_VarAtOffset(statements[i].c, 1));
+				}
+#endif
+				if ((signed)a >= (signed)numpr_globals || (signed)b >= (signed)numpr_globals || (signed)c >= (signed)numpr_globals)
+					printf("invalid offset\n");
+				if (a < 0)
+					statements16[i].a = PRLittleShort(a);
 				else
-					statements16[i].a = (unsigned short)PRLittleShort((unsigned short)statements[i].a);
-				if (statements[i].b < 0)
-					statements16[i].b = PRLittleShort((short)statements[i].b);
+					statements16[i].a = (unsigned short)PRLittleShort(a);
+				if (b < 0)
+					statements16[i].b = PRLittleShort((short)b);
 				else
-					statements16[i].b = (unsigned short)PRLittleShort((unsigned short)statements[i].b);
-				if (statements[i].c < 0)
-					statements16[i].c = PRLittleShort((short)statements[i].c);
+					statements16[i].b = (unsigned short)PRLittleShort((unsigned short)b);
+				if (c < 0)
+					statements16[i].c = PRLittleShort((short)c);
 				else
-					statements16[i].c = (unsigned short)PRLittleShort((unsigned short)statements[i].c);
+					statements16[i].c = (unsigned short)PRLittleShort((unsigned short)c);
 			}
 
 			if (progs.blockscompressed&1)
@@ -1199,62 +1513,18 @@ strofs = (strofs+3)&~3;
 
 	progs.ofs_functions = SafeSeek (h, 0, SEEK_CUR);
 	progs.numfunctions = numfunctions;
-
-	switch (outputsttype)
+	if (progs.blockscompressed&8)
 	{
-	case PST_QTEST:
-		{
-			// this sucks but the structures are just too different
-			qtest_function_t *qtestfuncs = (qtest_function_t *)qccHunkAlloc(sizeof(qtest_function_t)*numfunctions);
-
-			for (i=0 ; i<numfunctions ; i++)
-			{
-				int j;
-
-				qtestfuncs[i].unused1 = 0;
-				qtestfuncs[i].profile = 0;
-				qtestfuncs[i].first_statement = PRLittleLong (functions[i].first_statement);
-				qtestfuncs[i].parm_start = PRLittleLong (functions[i].parm_start);
-				qtestfuncs[i].s_name = PRLittleLong (functions[i].s_name);
-				qtestfuncs[i].s_file = PRLittleLong (functions[i].s_file);
-				qtestfuncs[i].numparms = PRLittleLong ((functions[i].numparms>MAX_PARMS)?MAX_PARMS:functions[i].numparms);
-				qtestfuncs[i].locals = PRLittleLong (functions[i].locals);
-				for (j = 0; j < MAX_PARMS; j++)
-					qtestfuncs[i].parm_size[j] = PRLittleLong((int)functions[i].parm_size[j]);
-			}
-
-			SafeWrite (h, qtestfuncs, numfunctions*sizeof(qtest_function_t));
-		}
-		break;
-	case PST_DEFAULT:
-	case PST_KKQWSV:
-	case PST_FTE32:
-		for (i=0 ; i<numfunctions ; i++)
-		{
-			functions[i].first_statement = PRLittleLong (functions[i].first_statement);
-			functions[i].parm_start = PRLittleLong (functions[i].parm_start);
-			functions[i].s_name = PRLittleLong (functions[i].s_name);
-			functions[i].s_file = PRLittleLong (functions[i].s_file);
-			functions[i].numparms = PRLittleLong ((functions[i].numparms>MAX_PARMS)?MAX_PARMS:functions[i].numparms);
-			functions[i].locals = PRLittleLong (functions[i].locals);
-		}
-
-		if (progs.blockscompressed&8)
-		{
-			SafeWrite (h, &len, sizeof(int));	//save for later
-			len = QC_encode(progfuncs, numfunctions*sizeof(QCC_dfunction_t), 2, (char *)functions, h);	//write
-			i = SafeSeek (h, 0, SEEK_CUR);
-			SafeSeek(h, progs.ofs_functions, SEEK_SET);//seek back
-			len = PRLittleLong(len);
-			SafeWrite (h, &len, sizeof(int));	//write size.
-			SafeSeek(h, i, SEEK_SET);
-		}
-		else
-			SafeWrite (h, functions, numfunctions*sizeof(QCC_dfunction_t));
-		break;
-	default:
-		Sys_Error("structtype error");
+		SafeWrite (h, &len, sizeof(int));	//save for later
+		len = QC_encode(progfuncs, funcdatasize, 2, (char *)funcdata, h);	//write
+		i = SafeSeek (h, 0, SEEK_CUR);
+		SafeSeek(h, progs.ofs_functions, SEEK_SET);//seek back
+		len = PRLittleLong(len);
+		SafeWrite (h, &len, sizeof(int));	//write size.
+		SafeSeek(h, i, SEEK_SET);
 	}
+	else
+		SafeWrite (h, funcdata, funcdatasize);
 
 	if (verbose >= 2)
 		QCC_PrintFields();
@@ -1356,7 +1626,13 @@ strofs = (strofs+3)&~3;
 		for (i=0 ; i<numfielddefs ; i++)
 		{
 			fields16[i].type = (unsigned short)PRLittleShort ((unsigned short)fields[i].type);
-			fields16[i].ofs = (unsigned short)PRLittleShort ((unsigned short)fields[i].ofs);
+			if (fields[i].ofs > 0xffff)
+			{
+				printf("Offset for field %s overflowed 16 bits.\n", strings+fields[i].s_name);
+				fields16[i].ofs = 0;
+			}
+			else
+				fields16[i].ofs = (unsigned short)PRLittleShort ((unsigned short)fields[i].ofs);
 			fields16[i].s_name = PRLittleLong (fields[i].s_name);
 		}
 
@@ -1509,7 +1785,40 @@ strofs = (strofs+3)&~3;
 		return false;
 	}
 
-	printf("Compile finished: %s\n", destfile);
+
+
+
+
+	switch(qcc_targetformat)
+	{
+	case QCF_QTEST:
+		printf("Compile finished: %s (qtest format)\n", destfile);
+		break;
+	case QCF_KK7:
+		printf("Compile finished: %s (kk7 format)\n", destfile);
+		break;
+	case QCF_STANDARD:
+		printf("Compile finished: %s (id format)\n", destfile);
+		break;
+	case QCF_HEXEN2:
+		printf("Compile finished: %s (hexen2 format)\n", destfile);
+		break;
+	case QCF_DARKPLACES:
+		printf("Compile finished: %s (dp format)\n", destfile);
+		break;
+	case QCF_FTE:
+		printf("Compile finished: %s (fte format)\n", destfile);
+		break;
+	case QCF_FTEH2:
+		printf("Compile finished: %s (fteh2 format)\n", destfile);
+		break;
+	case QCF_FTEDEBUG:
+		printf("Compile finished: %s (ftedbg format)\n", destfile);
+		break;
+	default:
+		printf("Compile finished: %s\n", destfile);
+		break;
+	}
 
 	if (statement_linenums)
 	{
@@ -1627,7 +1936,7 @@ char *QCC_PR_ValueString (etype_t type, void *val)
 {
 	static char	line[256];
 	QCC_def_t		*def;
-	QCC_dfunction_t	*f;
+	QCC_function_t	*f;
 
 	switch (type)
 	{
@@ -1642,7 +1951,7 @@ char *QCC_PR_ValueString (etype_t type, void *val)
 		if (!f)
 			QC_snprintfz (line, sizeof(line), "undefined function");
 		else
-			QC_snprintfz (line, sizeof(line), "%s()", strings + f->s_name);
+			QC_snprintfz (line, sizeof(line), "%s()", f->name);
 		break;
 	case ev_field:
 		def = QCC_PR_DefForFieldOfs ( *(int *)val );
@@ -1826,6 +2135,7 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	pr.max_memory = memsize;
 
 	pr.def_tail = &pr.def_head;
+	pr.local_tail = &pr.local_head;
 
 	QCC_PR_ResetErrorScope();
 	pr_scope = NULL;
@@ -1870,11 +2180,11 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	if (output_parms)
 	{	//this tends to confuse the brains out of decompilers. :)
 		numpr_globals = 1;
-		QCC_PR_GetDef(type_vector, "RETURN", NULL, true, 0, false)->references++;
+		QCC_PR_GetDef(type_vector, "RETURN", NULL, true, 0, false)->referenced=true;
 		for (i = 0; i < MAX_PARMS; i++)
 		{
 			QC_snprintfz (name, sizeof(name), "PARM%i", i);
-			QCC_PR_GetDef(type_vector, name, NULL, true, 0, false)->references++;
+			QCC_PR_GetDef(type_vector, name, NULL, true, 0, false)->referenced=true;
 		}
 	}
 	else
@@ -2111,8 +2421,8 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	{
 		if (!strcmp (d->name, "end_sys_globals"))
 			break;
-		if (d->ofs<RESERVED_OFS)
-			continue;
+//		if (d->ofs<RESERVED_OFS)
+//			continue;
 
 		switch (d->type->type)
 		{
@@ -2773,28 +3083,41 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 		}
 		else if ( !strnicmp(myargv[i], "-F", 2) || !strnicmp(myargv[i], "/F", 2) )
 		{
+			pbool state;
+			const char *arg;
 			p = 0;
 			if (!strnicmp(myargv[i]+2, "no-", 3))
 			{
-				for (p = 0; compiler_flag[p].enabled; p++)
-					if (!stricmp(myargv[i]+5, compiler_flag[p].abbrev))
-					{
-						*compiler_flag[p].enabled = false;
-						break;
-					}
+				arg = myargv[i]+5;
+				state = false;
 			}
 			else
 			{
-				for (p = 0; compiler_flag[p].enabled; p++)
-					if (!stricmp(myargv[i]+2, compiler_flag[p].abbrev))
-					{
-						*compiler_flag[p].enabled = true;
-						break;
-					}
+				arg = myargv[i]+2;
+				state = true;
 			}
 
+			for (p = 0; compiler_flag[p].enabled; p++)
+				if (!stricmp(arg, compiler_flag[p].abbrev))
+				{
+					*compiler_flag[p].enabled = state;
+					break;
+				}
+
 			if (!compiler_flag[p].enabled)
-				QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised flag parameter (%s)", myargv[i]);
+			{
+				//compat flags.
+				if (!stricmp(arg, "short-logic"))
+					opt_logicops = state;
+				else if (!stricmp(arg, "correct-logic"))
+					flag_ifvector = flag_vectorlogic = state;
+				else if (!stricmp(arg, "false-empty-strings"))
+					flag_ifstring = state;
+				else if (!stricmp(arg, "true-empty-strings"))
+					flag_ifstring = flag_nullemptystr = state;
+				else
+					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised flag parameter (%s)", myargv[i]);
+			}
 		}
 
 
@@ -2824,8 +3147,6 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				for (j = 0; j < ERR_PARSEERRORS; j++)
 					if (qccwarningaction[j] == WA_IGNORE)
 					{
-						if (j == WARN_FIXEDRETURNVALUECONFLICT)
-							continue;
 						qccwarningaction[j] = WA_WARN;
 					}
 			}
@@ -2858,7 +3179,6 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningaction[WARN_BADPRAGMA] = WA_IGNORE;	//C specs say that these should be ignored. We're close enough to C that I consider that a valid statement.
 				qccwarningaction[WARN_IDENTICALPRECOMPILER] = WA_IGNORE;
 				qccwarningaction[WARN_UNDEFNOTDEFINED] = WA_IGNORE;
-				qccwarningaction[WARN_FIXEDRETURNVALUECONFLICT] = WA_IGNORE;
 				qccwarningaction[WARN_EXTRAPRECACHE] = WA_IGNORE;
 				qccwarningaction[WARN_CORRECTEDRETURNTYPE] = WA_IGNORE;
 				qccwarningaction[WARN_NOTUTF8] = WA_IGNORE;
@@ -2923,6 +3243,11 @@ void QCC_SetDefaultProperties (void)
 {
 	int level;
 	int i;
+#ifdef _WIN32
+#define FWDSLASHARGS 1
+#else
+#define FWDSLASHARGS 0
+#endif
 
 	Hash_InitTable(&compconstantstable, MAX_CONSTANTS, qccHunkAlloc(Hash_BytesForBuckets(MAX_CONSTANTS)));
 
@@ -2931,26 +3256,13 @@ void QCC_SetDefaultProperties (void)
 
 	QCC_PR_DefineName("FTEQCC");
 
-	if (QCC_CheckParm("/Oz"))
-	{
-		qcc_targetformat = QCF_FTE;
-		QCC_PR_DefineName("OP_COMP_STATEMENTS");
-		QCC_PR_DefineName("OP_COMP_DEFS");
-		QCC_PR_DefineName("OP_COMP_FIELDS");
-		QCC_PR_DefineName("OP_COMP_FUNCTIONS");
-		QCC_PR_DefineName("OP_COMP_STRINGS");
-		QCC_PR_DefineName("OP_COMP_GLOBALS");
-		QCC_PR_DefineName("OP_COMP_LINES");
-		QCC_PR_DefineName("OP_COMP_TYPES");
-	}
-
-	if (QCC_CheckParm("/O0") || QCC_CheckParm("-O0"))
+	if ((FWDSLASHARGS && QCC_CheckParm("/O0")) || QCC_CheckParm("-O0"))
 		level = 0;
-	else if (QCC_CheckParm("/O1") || QCC_CheckParm("-O1"))
+	else if ((FWDSLASHARGS && QCC_CheckParm("/O1")) || QCC_CheckParm("-O1"))
 		level = 1;
-	else if (QCC_CheckParm("/O2") || QCC_CheckParm("-O2"))
+	else if ((FWDSLASHARGS && QCC_CheckParm("/O2")) || QCC_CheckParm("-O2"))
 		level = 2;
-	else if (QCC_CheckParm("/O3") || QCC_CheckParm("-O3"))
+	else if ((FWDSLASHARGS && QCC_CheckParm("/O3")) || QCC_CheckParm("-O3"))
 		level = 3;
 	else
 		level = -1;
@@ -2998,7 +3310,6 @@ void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_NOTREFERENCEDCONST] = WA_IGNORE;
 	qccwarningaction[WARN_MACROINSTRING] = WA_IGNORE;
 //	qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_IGNORE;
-	qccwarningaction[WARN_FIXEDRETURNVALUECONFLICT] = WA_IGNORE;
 	qccwarningaction[WARN_EXTRAPRECACHE] = WA_IGNORE;
 	qccwarningaction[WARN_DEADCODE] = WA_IGNORE;
 	qccwarningaction[WARN_FTE_SPECIFIC] = WA_IGNORE;
@@ -3010,7 +3321,7 @@ void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_SELFNOTTHIS] = WA_IGNORE;
 	qccwarningaction[WARN_EVILPREPROCESSOR] = WA_WARN;//FIXME: make into WA_ERROR;
 
-	if (QCC_CheckParm("-h2"))
+	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)
 		qccwarningaction[WARN_CASEINSENSITIVEFRAMEMACRO] = WA_IGNORE;
 
 	//Check the command line
@@ -3024,7 +3335,7 @@ void QCC_SetDefaultProperties (void)
 		keyword_loop = true;
 	}
 
-	if (QCC_CheckParm("/Debug"))	//disable any debug optimisations
+	if ((FWDSLASHARGS && QCC_CheckParm("/Debug")))	//disable any debug optimisations
 	{
 		for (i = 0; optimisations[i].enabled; i++)
 		{
@@ -3095,11 +3406,10 @@ int QCC_FindQCFiles(const char *sourcedir)
 
 int qcc_compileactive = false;
 extern int accglobalsblock;
-extern int qcc_debugflag;
 char *originalqccmsrc;	//for autoprototype.
 pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 {
-	extern int			pr_bracelevel, tempsused;
+	extern int			pr_bracelevel;
 	time_t long_time;
 	extern QCC_type_t *pr_classtype;
 
@@ -3159,7 +3469,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	if (p>0)
 	{
 		s = qccHunkAlloc(p+1);
-		s = externs->ReadFile("qcc.cfg", s, p, NULL);
+		s = (char*)externs->ReadFile("qcc.cfg", s, p, NULL);
 
 		while(1)
 		{
@@ -3250,10 +3560,8 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	optres_test2 = 0;
 
 	accglobalsblock = 0;
-	qcc_debugflag = false;
 
 
-	numtemps = 0;
 	tempsused = 0;
 
 	QCC_PurgeTemps();
@@ -3264,7 +3572,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	statements = (void *)qccHunkAlloc(sizeof(QCC_statement_t) * MAX_STATEMENTS);
 	numstatements = 0;
 
-	functions = (void *)qccHunkAlloc(sizeof(QCC_dfunction_t) * MAX_FUNCTIONS);
+	functions = (void *)qccHunkAlloc(sizeof(QCC_function_t) * MAX_FUNCTIONS);
 	numfunctions=0;
 
 	pr_bracelevel = 0;
@@ -3367,7 +3675,28 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	QCC_PR_ClearGrabMacros (false);
 
-	if (flag_acc)
+	qccmsrc = NULL;
+	if (!numsourcefiles)
+	{
+		int i;
+		for (i = 1;i<myargc;i++)
+		{
+			if (*myargv[i] == '-')
+				break;
+
+			if (!qccmsrc)
+			{
+				qccmsrc = qccHunkAlloc(8192);
+				QC_strlcpy(qccmsrc, "progs.dat\n", 8192);
+			}
+			QC_strlcat(qccmsrc, myargv[i], 8192);
+			QC_strlcat(qccmsrc, "\n", 8192);
+		}
+	}
+
+	if (qccmsrc)
+		;
+	else if (flag_acc && !numsourcefiles)
 	{
 		if (!QCC_FindQCFiles(qccmsourcedir))
 			QCC_Error (ERR_COULDNTOPENFILE, "Couldn't find any qc files.");
@@ -3503,6 +3832,10 @@ newstyle:
 	}
 #endif
 
+	p = QCC_CheckParm ("-o");
+	if (p > 0 && p < argc-1 && argv[p+1][0] != '-')
+		sprintf (destfile, "%s", argv[p+1]);
+
 	if (flag_filetimes)
 	{
 		struct stat s, os;
@@ -3572,7 +3905,7 @@ void QCC_ContinueCompile(void)
 		{
 			qcc_compileactive = false;
 			sourcefilesdefs[currentsourcefile] = qccpersisthunk?pr.def_head.next:NULL;
-			sourcefilesnumdefs = sourcefilesnumdefs+1;
+			sourcefilesnumdefs = currentsourcefile+1;
 		}
 		else
 		{
@@ -3654,6 +3987,9 @@ void QCC_FinishCompile(void)
 	if (setjmp(pr_parse_abort))
 		QCC_Error(ERR_INTERNAL, "");
 
+	s_file = 0;
+	pr_source_line = 0;
+
 	if (!QCC_PR_FinishCompilation ())
 	{
 		QCC_Error (ERR_PARSEERRORS, "compilation errors");
@@ -3694,7 +4030,7 @@ void QCC_FinishCompile(void)
 	QCC_CopyFiles ();
 
 	sourcefilesdefs[currentsourcefile] = qccpersisthunk?pr.def_head.next:NULL;
-	sourcefilesnumdefs = sourcefilesnumdefs+1;
+	sourcefilesnumdefs = currentsourcefile+1;
 
 	if (donesomething)
 	{
@@ -3751,7 +4087,7 @@ void QCC_FinishCompile(void)
 			if (optres_test2)
 				printf("optres_test2 %i\n", optres_test2);
 
-			printf("numtemps %i\n", numtemps);
+			printf("numtemps %i\n", tempsused);
 		}
 		if (!flag_msvcstyle)
 			printf("Done. %i warnings\n", pr_warning_count);
@@ -3767,7 +4103,6 @@ void QCC_FinishCompile(void)
 extern QCC_string_t	s_file, s_file2;
 extern char		*pr_file_p;
 extern int			pr_source_line;
-extern QCC_def_t		*pr_scope;
 void QCC_PR_ParseDefs (char *classname);
 
 
@@ -3838,11 +4173,14 @@ void new_QCC_ContinueCompile(void)
 			else
 			{
 				sourcefilesdefs[currentsourcefile] = qccpersisthunk?pr.def_head.next:NULL;
-				sourcefilesnumdefs = sourcefilesnumdefs+1;
+				sourcefilesnumdefs = currentsourcefile+1;
 			}
 			PostCompile();
 			if (!QCC_main(myargc, myargv))
+			{
+				qcc_compileactive = false;
 				return;
+			}
 			return;
 		}
 	}

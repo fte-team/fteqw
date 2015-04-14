@@ -137,7 +137,7 @@ void QC_strlcat(char *dest, const char *src, size_t destsize)
 }
 void QC_strlcpy(char *dest, const char *src, size_t destsize)
 {
-	size_t curlen = strlen(dest);
+	size_t curlen = 0;
 	if (!destsize)
 		return;	//err
 	while(*src && ++curlen < destsize)
@@ -148,7 +148,7 @@ void QC_strlcpy(char *dest, const char *src, size_t destsize)
 }
 void QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize)
 {
-	size_t curlen = strlen(dest);
+	size_t curlen = 0;
 	if (!destsize)
 		return;	//err
 	for(; *src && srclen > 0 && ++curlen < destsize; srclen--)
@@ -502,32 +502,6 @@ char *VARGS qcva (char *text, ...)
 
 
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
-
-char *QC_strupr (char *start)
-{
-	char	*in;
-	in = start;
-	while (*in)
-	{
-		*in = toupper(*in);
-		in++;
-	}
-	return start;
-}
-
-char *QC_strlower (char *start)
-{
-	char	*in;
-	in = start;
-	while (*in)
-	{
-		*in = tolower(*in);
-		in++;
-	}
-	return start;
-}
-
-
 /*
 =============================================================================
 
@@ -969,7 +943,7 @@ unsigned int utf8_check(const void *in, unsigned int *value)
 
 //read utf-16 chars and output the 'native' utf-8.
 //we don't expect essays written in code, so we don't need much actual support for utf-8.
-static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, int *outlen, pbool usemalloc)
+static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, unsigned int *outlen, pbool usemalloc)
 {
 	char *utf8, *start;
 	unsigned int inc;
@@ -995,7 +969,7 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, in
 		break;
 	default:
 		*outlen = inbytes;
-		return inputf;
+		return (char*)inputf;
 	}
 	chars = inbytes / w;
 	if (usemalloc)
@@ -1136,15 +1110,20 @@ unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen)
 long	QCC_LoadFile (char *filename, void **bufferptr)
 {
 	char *mem;
-	int len;
-	len = externs->FileSize(filename);
-	if (len < 0)
+	int check;
+	int flen;
+	unsigned int len;
+	int line;
+	pbool warned = false;
+	flen = externs->FileSize(filename);
+	if (flen < 0)
 	{
 		QCC_Error(ERR_COULDNTOPENFILE, "Couldn't open file %s", filename);
 //		if (!externs->Abort)
 			return -1;
 //		externs->Abort("failed to find file %s", filename);
 	}
+	len = flen;
 	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+2);
 
 	((qcc_cachedsourcefile_t*)mem)->next = qcc_sourcefile;
@@ -1170,6 +1149,20 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 	//actual utf-8 handling is somewhat up to the engine. the qcc can only ensure that utf8 works in symbol names etc.
 	//its only in strings where it actually makes a difference, and the interpretation of those is basically entirely up to the engine.
 	//that said, we could insert a utf-8 BOM into ones with utf-8 chars, but that would mess up a lot of builtins+mods, so we won't.
+
+	for (check = 0, line = 1; check < len; check++)
+	{
+		if (mem[check] == '\n')
+			line++;
+		else if (!mem[check])
+		{
+			if (!warned)
+				QCC_PR_Warning(WARN_UNEXPECTEDPUNCT, filename, line, "file contains null bytes %u/%u", check, len);
+			warned = true;
+			//fixme: insert modified-utf-8 nulls instead.
+			mem[check] = ' ';
+		}
+	}
 
 	mem[len] = '\n';
 	mem[len+1] = '\0';

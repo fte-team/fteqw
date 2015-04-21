@@ -93,7 +93,6 @@ int logprintf(const char *format, ...)
 	return 0;
 }
 
-#include <windows.h>
 int main (int argc, char **argv)
 {
 	unsigned int i;

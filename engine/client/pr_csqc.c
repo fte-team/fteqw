@@ -4146,7 +4146,7 @@ typedef struct
 	unsigned int maxents;	//buffer size
 	struct
 	{
-		unsigned int n;	//don't rely on the ent->v->entnum
+		unsigned int n;	//don't rely on the ent->v->entnum, as csqc can corrupt that
 		csqcedict_t *e;	//the csqc ent
 	} *e;
 } csqcdelta_pack_t;
@@ -4165,8 +4165,7 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 	{
 		if (csqcdelta_playerents[playernum])
 		{
-			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)csqcdelta_playerents[playernum]);
-			PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+			CSQC_EntRemove(csqcdelta_playerents[playernum]);
 			csqcdelta_playerents[playernum] = NULL;
 		}
 		return false;
@@ -4198,8 +4197,7 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 	}
 	else if (csqcdelta_playerents[playernum])
 	{
-		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)csqcdelta_playerents[playernum]);
-		PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+		CSQC_EntRemove(csqcdelta_playerents[playernum]);
 		csqcdelta_playerents[playernum] = NULL;
 	}
 	return false;
@@ -4219,6 +4217,20 @@ void CSQC_DeltaStart(float time)
 	csqcdelta_pack_new.readpos = 0;
 	csqcdelta_pack_old.readpos = 0;
 }
+static CSQC_EntRemove(csqcedict_t *ed)
+{
+	if (csqcg.ent_remove)
+	{
+		*csqcg.self = EDICT_TO_PROG(csqcprogs, ed);
+		PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+	}
+	else
+	{
+		pe->DelinkTrailstate(&ed->trailstate);
+		World_UnlinkEdict((wedict_t*)ed);
+		ED_Free (csqcprogs, (void*)ed);
+	}
+}
 qboolean CSQC_DeltaUpdate(entity_state_t *src)
 {
 	//FTE ensures that this function is called with increasing ent numbers each time
@@ -4229,46 +4241,30 @@ qboolean CSQC_DeltaUpdate(entity_state_t *src)
 		void *pr_globals;
 		csqcedict_t *ent, *oldent;
 
-
-
-
-		if (csqcdelta_pack_old.readpos == csqcdelta_pack_old.numents)
-		{	//reached the end of the old frame's ents
-			oldent = NULL;
-		}
-		else
+		while (csqcdelta_pack_old.readpos < csqcdelta_pack_old.numents && csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].n < src->number)
 		{
-			while (csqcdelta_pack_old.readpos < csqcdelta_pack_old.numents && csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].n < src->number)
-			{
-				//this entity is stale, remove it.
-				oldent = csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].e;
-				*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)oldent);
-				PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
-				csqcdelta_pack_old.readpos++;
-			}
+			//this entity is stale, remove it.
+			CSQC_EntRemove(csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].e);
+			csqcdelta_pack_old.readpos++;
+		}
 
-			if (src->number < csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].n)
-				oldent = NULL;
-			else
-			{
-				oldent = csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].e;
-				csqcdelta_pack_old.readpos++;
-			}
+		if (csqcdelta_pack_old.readpos >= csqcdelta_pack_old.numents)
+			oldent = NULL;	//reached the end of the old frame's ents (so we must be new)
+		else if (src->number < csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].n)
+			oldent = NULL;	//there's a gap, this one must be new.
+		else
+		{	//already known.
+			oldent = csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].e;
+			csqcdelta_pack_old.readpos++;
 		}
 
 		if (src->number < maxcsqcentities && csqcent[src->number])
 		{
 			//in the csqc list (don't permit in the delta list too)
 			if (oldent)
-			{
-				*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)oldent);
-				PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
-			}
+				CSQC_EntRemove(oldent);
 			return false;
 		}
-
-
-
 
 		if (oldent)
 			ent = oldent;
@@ -4306,8 +4302,7 @@ void CSQC_DeltaEnd(void)
 	//remove any unreferenced ents stuck on the end
 	while (csqcdelta_pack_old.readpos < csqcdelta_pack_old.numents)
 	{
-		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].e);
-		PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+		CSQC_EntRemove(csqcdelta_pack_old.e[csqcdelta_pack_old.readpos].e);
 		csqcdelta_pack_old.readpos++;
 	}
 }
@@ -7019,8 +7014,7 @@ void CSQC_ParseEntities(void)
 			if (!ent)	//hrm.
 				continue;
 
-			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
-			PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+			CSQC_EntRemove(ent);
 			//the csqc is expected to call the remove builtin.
 		}
 		else

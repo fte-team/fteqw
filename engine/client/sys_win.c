@@ -2330,7 +2330,8 @@ typedef struct qICustomDestinationList
 static const IID qIID_ICustomDestinationList = {0x6332debf, 0x87b5, 0x4670, {0x90,0xc0,0x5e,0x57,0xb4,0x08,0xa4,0x9e}};
 static const CLSID qCLSID_DestinationList = {0x77f10cf0, 0x3db5, 0x4966, {0xb5,0x20,0xb7,0xc5,0x4f,0xd3,0x5e,0xd6}};
 
-static const IID qIID_IShellLinkW = {0x000214F9L, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
+static const IID qIID_IShellLinkW	= {0x000214F9L, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
+static const IID qIID_IPersistFile	= {0x0000010BL, 0, 0, {0xc0,0,0,0,0,0,0,0x46}};
 
 #define WIN7_APPNAME L"FTEQuake"
 
@@ -3506,7 +3507,7 @@ qboolean Sys_DoInstall(void)
 			psl->lpVtbl->SetPath(psl, wsz);
 			widen(wsz, sizeof(wsz), resultpath);
 			psl->lpVtbl->SetWorkingDirectory(psl, wsz);
-			hres = psl->lpVtbl->QueryInterface(psl, &IID_IPersistFile, (LPVOID*)&ppf);
+			hres = psl->lpVtbl->QueryInterface(psl, &qIID_IPersistFile, (LPVOID*)&ppf);
 			if (SUCCEEDED(hres) && SHGetSpecialFolderPath(NULL, startmenu, CSIDL_COMMON_PROGRAMS, TRUE))
 			{
 				WCHAR wsz[MAX_PATH];

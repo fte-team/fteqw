@@ -1468,7 +1468,7 @@ void Plug_Tick(void)
 			float rt = realtime;
 			float st = 0;
 #ifdef SERVERONLY 
-			st = sv.time
+			st = sv.time;
 #elif defined(CLIENTONLY)
 			st = cl.time;
 #else

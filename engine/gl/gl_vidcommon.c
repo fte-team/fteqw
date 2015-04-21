@@ -1180,7 +1180,11 @@ static const char *glsl_hdrs[] =
 				"};\n"
 				"layout(std140) unform u_bones\n"
 				"{\n"
+#ifdef GLESONLY
+					"vec4 m_bones[3*"STRINGIFY(MAX_GPU_BONES)"];\n"
+#else
 					"mat3x4 m_bones["STRINGIFY(MAX_GPU_BONES)"]\n"
+#endif
 				"};\n"
 			"#else\n"
 				"uniform mat4 m_model;\n"
@@ -1188,7 +1192,11 @@ static const char *glsl_hdrs[] =
 				"uniform mat4 m_modelview;\n"
 				"uniform mat4 m_projection;\n"
 //				"uniform mat4 m_modelviewprojection;\n"
+#ifdef GLESONLY
+				"uniform vec4 m_bones[3*"STRINGIFY(MAX_GPU_BONES)"];\n"
+#else
 				"uniform mat4 m_bones["STRINGIFY(MAX_GPU_BONES)"];\n"
+#endif
 				"uniform mat4 m_invviewprojection;\n"
 				"uniform mat4 m_invmodelviewprojection;\n"
 
@@ -1242,20 +1250,62 @@ static const char *glsl_hdrs[] =
 				"#ifndef DEFS_DEFINED\n"
 					"attribute vec4 v_bone;"
 					"attribute vec4 v_weight;"
+#ifdef GLESONLY
+					"uniform vec4 m_bones[3*"STRINGIFY(MAX_GPU_BONES)"];\n"
+#else
 					"uniform mat3x4 m_bones["STRINGIFY(MAX_GPU_BONES)"];\n"
+#endif
 				"#endif\n"
 				
 				"vec4 skeletaltransform()"
 				"{"
+#ifdef GLESONLY
+					"mat4 wmat;\n"
+					"wmat[0]  = m_bones[0+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[1]  = m_bones[1+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[2]  = m_bones[2+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[3] = vec4(0.0,0.0,0.0,1.0);\n"
+					"return m_modelviewprojection * (vec4(v_position.xyz, 1.0) * wmat);"
+#else
 					"mat3x4 wmat;\n"
 					"wmat = m_bones[int(v_bone.x)] * v_weight.x;\n"
 					"wmat += m_bones[int(v_bone.y)] * v_weight.y;\n"
 					"wmat += m_bones[int(v_bone.z)] * v_weight.z;\n"
 					"wmat += m_bones[int(v_bone.w)] * v_weight.w;\n"
 					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
+#endif
 				"}\n"
 				"vec4 skeletaltransform_nst(out vec3 n, out vec3 t, out vec3 b)"
 				"{"
+#ifdef GLESONLY
+					"mat4 wmat;\n"
+					"wmat[0]  = m_bones[0+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[1]  = m_bones[1+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[2]  = m_bones[2+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[3] = vec4(0.0,0.0,0.0,1.0);\n"
+					"n = (vec4(v_normal.xyz, 0.0) * wmat).xyz;"
+					"t = (vec4(v_svector.xyz, 0.0) * wmat).xyz;"
+					"b = (vec4(v_tvector.xyz, 0.0) * wmat).xyz;"
+					"return m_modelviewprojection * (vec4(v_position.xyz, 1.0) * wmat);"
+#else
 					"mat3x4 wmat;\n"
 					"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
 					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
@@ -1265,9 +1315,31 @@ static const char *glsl_hdrs[] =
 					"t = vec4(v_svector.xyz, 0.0) * wmat;"
 					"b = vec4(v_tvector.xyz, 0.0) * wmat;"
 					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
+#endif
 				"}\n"
 				"vec4 skeletaltransform_wnst(out vec3 w, out vec3 n, out vec3 t, out vec3 b)"
 				"{"
+#ifdef GLESONLY
+					"mat4 wmat;\n"
+					"wmat[0]  = m_bones[0+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[1]  = m_bones[1+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[2]  = m_bones[2+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[3] = vec4(0.0,0.0,0.0,1.0);\n"
+					"n = (vec4(v_normal.xyz, 0.0) * wmat).xyz;"
+					"t = (vec4(v_svector.xyz, 0.0) * wmat).xyz;"
+					"b = (vec4(v_tvector.xyz, 0.0) * wmat).xyz;"
+					"w = (vec4(v_position.xyz, 1.0) * wmat).xyz;"
+					"return m_modelviewprojection * (vec4(v_position.xyz, 1.0) * wmat);"
+#else
 					"mat3x4 wmat;\n"
 					"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
 					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
@@ -1278,9 +1350,28 @@ static const char *glsl_hdrs[] =
 					"b = vec4(v_tvector.xyz, 0.0) * wmat;"
 					"w = vec4(v_position.xyz, 1.0) * wmat;"
 					"return m_modelviewprojection * vec4(w, 1.0);"
+#endif
 				"}\n"
 				"vec4 skeletaltransform_n(out vec3 n)"
 				"{"
+#ifdef GLESONLY
+					"mat4 wmat;\n"
+					"wmat[0]  = m_bones[0+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[0] += m_bones[0+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[1]  = m_bones[1+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[1] += m_bones[1+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[2]  = m_bones[2+3*int(v_bone.x)] * v_weight.x;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.y)] * v_weight.y;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.z)] * v_weight.z;\n"
+					"wmat[2] += m_bones[2+3*int(v_bone.w)] * v_weight.w;\n"
+					"wmat[3] = vec4(0.0,0.0,0.0,1.0);\n"
+					"n = (vec4(v_normal.xyz, 0.0) * wmat).xyz;"
+					"return m_modelviewprojection * (vec4(v_position.xyz, 1.0) * wmat);"
+#else
 					"mat3x4 wmat;\n"
 					"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
 					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
@@ -1288,6 +1379,7 @@ static const char *glsl_hdrs[] =
 					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
 					"n = vec4(v_normal.xyz, 0.0) * wmat;"
 					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
+#endif
 				"}\n"
 			"#else\n"
 				"#define skeletaltransform() ftetransform()\n"
@@ -1622,7 +1714,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 		if (ver > gl_config.maxglslversion)
 			return 0;
 #ifdef FTE_TARGET_WEB
-		//emscripten prefixes our shader with a precision specifier, and then the browser bitches as the (otherwise valid) #version, so don't say anything at all if its ver 100, and the browser won't complain
+		//emscripten prefixes our shader with a precision specifier, and then the browser bitches at the following (otherwise valid) #version, so don't say anything at all if its ver 100, and the browser won't complain
 		if (ver != 100)
 #endif
 		{
@@ -2037,8 +2129,10 @@ qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned 
 	if (!ver)
 	{
 		ver = gl_config.gles?100:110;
+#ifndef GLESONLY
 		if (permu & PERMUTATION_SKELETAL)
 			ver = 120;
+#endif
 	}
 	prog->permu[permu].handle = GLSlang_CreateProgram(name, ver, precompilerconstants, vert, tcs, tes, frag, noerrors, blobfile);
 	if (prog->permu[permu].handle.glsl.handle)

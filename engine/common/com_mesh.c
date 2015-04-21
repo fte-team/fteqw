@@ -1661,6 +1661,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	mesh->numvertexes = inf->numverts;
 	mesh->indexes = inf->ofs_indexes;
 	mesh->numindexes = inf->numindexes;
+	mesh->numbones = 0;
 
 #ifndef SERVERONLY
 	mesh->colors4f_array[0] = inf->ofs_rgbaf;

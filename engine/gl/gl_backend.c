@@ -734,10 +734,22 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				qglVertexAttribPointer(VATTR_TNORMALS, 3, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->tvector.gl.addr);
 				break;
 			case VATTR_BONENUMS:
+				/*if (!shaderstate.sourcevbo->bonenums.gl.vbo && !shaderstate.sourcevbo->bonenums.gl.addr)
+				{
+					shaderstate.sha_attr &= ~(1u<<i);
+					qglDisableVertexAttribArray(i);
+					continue;
+				}*/
 				GL_SelectVBO(shaderstate.sourcevbo->bonenums.gl.vbo);
 				qglVertexAttribPointer(VATTR_BONENUMS, 4, GL_UNSIGNED_BYTE, GL_FALSE, 0, shaderstate.sourcevbo->bonenums.gl.addr);
 				break;
 			case VATTR_BONEWEIGHTS:
+				/*if (!shaderstate.sourcevbo->boneweights.gl.vbo && !shaderstate.sourcevbo->boneweights.gl.addr)
+				{
+					shaderstate.sha_attr &= ~(1u<<i);
+					qglDisableVertexAttribArray(i);
+					continue;
+				}*/
 				GL_SelectVBO(shaderstate.sourcevbo->boneweights.gl.vbo);
 				qglVertexAttribPointer(VATTR_BONEWEIGHTS, 4, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->boneweights.gl.addr);
 				break;
@@ -3048,7 +3060,12 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			break;
 		case SP_M_ENTBONES:
 			{
+#ifdef GLESONLY
+				//cop out.
+				qglUniform4fvARB(ph, shaderstate.sourcevbo->numbones*3, shaderstate.sourcevbo->bones);
+#else
 				qglUniformMatrix3x4fv(ph, shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
+#endif
 			}
 			break;
 		case SP_M_INVVIEWPROJECTION:
@@ -4181,6 +4198,45 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 			shaderstate.dummyvbo.colours[0].gl.addr = NULL;
 			shaderstate.dummyvbo.colours[0].gl.vbo = 0;
 			shaderstate.colourarraytype = GL_FLOAT;
+		}
+
+		if (m->normals_array)
+		{
+			memcpy(buffer+len, m->normals_array, sizeof(*m->normals_array) * m->numvertexes);
+			shaderstate.dummyvbo.normals.gl.addr = (void*)len;
+			shaderstate.dummyvbo.normals.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			len += sizeof(*m->normals_array) * m->numvertexes;
+		}
+		else
+		{
+			shaderstate.dummyvbo.normals.gl.addr = NULL;
+			shaderstate.dummyvbo.normals.gl.vbo = 0;
+		}
+
+		if (m->bonenums)
+		{
+			memcpy(buffer+len, m->bonenums, sizeof(*m->bonenums) * m->numvertexes);
+			shaderstate.dummyvbo.bonenums.gl.addr = (void*)len;
+			shaderstate.dummyvbo.bonenums.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			len += sizeof(*m->bonenums) * m->numvertexes;
+		}
+		else
+		{
+			shaderstate.dummyvbo.bonenums.gl.addr = NULL;
+			shaderstate.dummyvbo.bonenums.gl.vbo = 0;
+		}
+
+		if (m->boneweights)
+		{
+			memcpy(buffer+len, m->boneweights, sizeof(*m->boneweights) * m->numvertexes);
+			shaderstate.dummyvbo.boneweights.gl.addr = (void*)len;
+			shaderstate.dummyvbo.boneweights.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			len += sizeof(*m->boneweights) * m->numvertexes;
+		}
+		else
+		{
+			shaderstate.dummyvbo.boneweights.gl.addr = NULL;
+			shaderstate.dummyvbo.boneweights.gl.vbo = 0;
 		}
 
 		//FIXME: normals, svector, tvector, bone nums, bone weights

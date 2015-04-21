@@ -3634,7 +3634,7 @@ void Shader_Programify (shader_t *s)
 		T_MODEL
 	} type = 0;*/
 	int i;
-	shaderpass_t *pass, *lightmap = NULL, *modellighting = NULL;
+	shaderpass_t *pass, *lightmap = NULL, *modellighting = NULL, *vertexlighting = NULL;
 	for (i = 0; i < s->numpasses; i++)
 	{
 		pass = &s->passes[i];
@@ -3642,6 +3642,8 @@ void Shader_Programify (shader_t *s)
 			modellighting = pass;
 		else if (pass->rgbgen == RGB_GEN_ENTITY)
 			modellighting = pass;
+		else if (pass->rgbgen == RGB_GEN_VERTEX_LIGHTING || pass->rgbgen == RGB_GEN_VERTEX_EXACT)
+			vertexlighting = pass;
 		else if (pass->texgen == T_GEN_LIGHTMAP && pass->tcgen == TC_GEN_LIGHTMAP)
 			lightmap = pass;
 	}
@@ -3655,6 +3657,11 @@ void Shader_Programify (shader_t *s)
 	{
 		pass = modellighting;
 		prog = "defaultwall";
+	}
+	else if (vertexlighting)
+	{
+		pass = vertexlighting;
+		prog = "default2d";
 	}
 	else
 	{

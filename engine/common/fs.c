@@ -3117,6 +3117,7 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 
 qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
 {
+#ifndef SERVERONLY
 	char resultpath[MAX_PATH];
 	BROWSEINFO bi;
 	LPITEMIDLIST il;
@@ -3160,6 +3161,7 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 		}
 		return true;
 	}
+#endif
 	return false;
 }
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
@@ -4318,12 +4320,14 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		{
 			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), !man->doinstall) && FS_DirHasAPackage(realpath, man))
 				Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
+#ifndef SERVERONLY
 			else
 			{
 				Z_Free(man->updatefile);
 				man->updatefile = NULL;
 				com_installer = true;
 			}
+#endif
 		}
 	}
 	if (!fixedbasedir && !com_installer)

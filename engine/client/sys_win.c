@@ -3178,10 +3178,11 @@ static int Sys_ProcessCommandline(char **argv, int maxargc, char *argv0)
 	return i;
 }
 
+#ifdef WEBCLIENT
 //using this like posix' access function, but with much more code, microsoftisms, and no errno codes/info
 //no, I don't really have a clue why it needs to be so long.
 #include <svrapi.h>
-BOOL microsoft_access(LPCSTR pszFolder, DWORD dwAccessDesired)
+static BOOL microsoft_access(LPCSTR pszFolder, DWORD dwAccessDesired)
 {
 	HANDLE			hToken;
 	PRIVILEGE_SET	PrivilegeSet;
@@ -3211,7 +3212,7 @@ BOOL microsoft_access(LPCSTR pszFolder, DWORD dwAccessDesired)
 	return fAccessGranted;
 }
 
-int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
+static int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
 {
 	wchar_t widecaption[256];
 	wchar_t widetext[2048];
@@ -3223,7 +3224,7 @@ int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
 
 
 static WNDPROC omgwtfwhyohwhy;
-LRESULT CALLBACK stoopidstoopidstoopid(HWND w, UINT m, WPARAM wp, LPARAM lp)
+static LRESULT CALLBACK stoopidstoopidstoopid(HWND w, UINT m, WPARAM wp, LPARAM lp)
 {
 	switch (m)
 	{
@@ -3764,6 +3765,7 @@ static void Sys_MakeInstaller(const char *name)
 	if (error)
 		Sys_Error("%s", error);
 }
+#endif
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -3943,6 +3945,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				Sys_Error ("Couldn't determine current directory");
 		}
 
+#ifdef WEBCLIENT
 		c = COM_CheckParm("-makeinstaller");
 		if (c)
 		{
@@ -3950,6 +3953,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			return true;
 		}
 		parms.manifest = Sys_FindManifest();
+#endif
 
 		if (parms.argc >= 2)
 		{

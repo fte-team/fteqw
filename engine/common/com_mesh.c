@@ -1207,6 +1207,7 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 		}
 	}
 
+#ifndef SERVERONLY
 	if (r_nolerp.ival && l > 1)
 	{	//when lerping is completely disabled, find the strongest influence
 		frame1 = 0;
@@ -1223,7 +1224,9 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 		lerps->pose[0] = lerps->pose[frame1];
 		l = 1;
 	}
-	else if (l && totalweight != 1)
+	else
+#endif
+		if (l && totalweight != 1)
 	{	//don't rescale if some animation got dropped.
 		totalweight = 1 / totalweight;
 		for (b = 0; b < l; b++)

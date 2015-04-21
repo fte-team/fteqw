@@ -851,7 +851,9 @@ static void VARGS png_onerror(png_structp png_ptr, png_const_charp error_msg)
 static void VARGS png_onwarning(png_structp png_ptr, png_const_charp warning_msg)
 {
 	struct pngerr *err = qpng_get_error_ptr(png_ptr);
+#ifndef NPFTE
 	Con_DPrintf("libpng %s: %s\n", err->fname, warning_msg);
+#endif
 }
 
 qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *fname)
@@ -4393,6 +4395,7 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 		Image_LoadHiResTextureWorker(tex, NULL, 0, 0);
 	else
 	{
+#ifdef WEBCLIENT
 		if (!strncmp(tex->ident, "http://", 7) || !strncmp(tex->ident, "https://", 8))
 		{
 			struct dl_download *dl = HTTP_CL_Get(tex->ident, NULL, Image_Downloaded);
@@ -4405,7 +4408,9 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 			tex->status = TEX_FAILED;	//HACK: so nothing waits for it.
 #endif
 		}
-		else if (lowpri)
+		else
+#endif
+			if (lowpri)
 			COM_AddWork(5, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
 		else
 			COM_AddWork(2+(seq++%3), Image_LoadHiResTextureWorker, tex, NULL, 0, 0);

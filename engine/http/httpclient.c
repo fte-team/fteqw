@@ -1097,10 +1097,12 @@ qboolean DL_Decide(struct dl_download *dl)
 #endif	/*!defined(NACL)*/
 
 #ifdef MULTITHREAD
+#if defined(LOADERTHREAD) && !defined(NPFTE)
 static void HTTP_Wake_Think(void *ctx, void *data, size_t a, size_t b)
 {
 	HTTP_CL_Think();
 }
+#endif
 static int DL_Thread_Work(void *arg)
 {
 	struct dl_download *dl = arg;
@@ -1123,8 +1125,9 @@ static int DL_Thread_Work(void *arg)
 		}
 	}
 
+#if defined(LOADERTHREAD) && !defined(NPFTE)
 	COM_AddWork(0, HTTP_Wake_Think, NULL, NULL, 0, 0);
-
+#endif
 	return 0;
 }
 

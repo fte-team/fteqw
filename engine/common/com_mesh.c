@@ -1151,6 +1151,7 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 	galiasanimation_t *g;
 	unsigned int b;
 	float totalweight = 0;
+	extern cvar_t r_nolerp;
 
 	lerps->skeltype = SKEL_IDENTITY;	//sometimes nothing else is valid.
 
@@ -1187,8 +1188,10 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 			else if (lerps->skeltype != g->skeltype)
 				continue;	//oops, can't cope with mixed blend types
 
-			if (frame1 == frame2 || r_noframegrouplerp.ival)
+			if (frame1 == frame2)
 				mlerp = 0;
+			else if (r_noframegrouplerp.ival)
+				mlerp = (mlerp>0.5)?1:0;
 			lerps->frac[l] = (1-mlerp)*fs->lerpweight[b];
 			if (lerps->frac[l]>0)
 			{
@@ -1204,7 +1207,23 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 		}
 	}
 
-	if (l && totalweight != 1)
+	if (r_nolerp.ival && l > 1)
+	{	//when lerping is completely disabled, find the strongest influence
+		frame1 = 0;
+		mlerp = lerps->frac[0];
+		for (b = 1; b < l; b++)
+		{
+			if (lerps->frac[b] > mlerp)
+			{
+				frame1 = b;
+				mlerp = lerps->frac[b];
+			}
+		}
+		lerps->frac[0] = 1;
+		lerps->pose[0] = lerps->pose[frame1];
+		l = 1;
+	}
+	else if (l && totalweight != 1)
 	{	//don't rescale if some animation got dropped.
 		totalweight = 1 / totalweight;
 		for (b = 0; b < l; b++)

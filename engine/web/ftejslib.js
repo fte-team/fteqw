@@ -305,6 +305,11 @@ mergeInto(LibraryManager.library,
 			events.forEach(function(event)
 			{
 				Module['canvas'].addEventListener(event, FTEC.handleevent, true);
+			});
+
+			var docevents = ['keypress', 'keydown', 'keyup'];
+			docevents.forEach(function(event)
+			{
 				document.addEventListener(event, FTEC.handleevent, true);
 			});
 

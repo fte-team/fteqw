@@ -1465,7 +1465,15 @@ void Plug_Tick(void)
 	{
 		if (currentplug->tick)
 		{
-			float rt = realtime, st = cl.time;
+			float rt = realtime;
+			float st = 0;
+#ifdef SERVERONLY 
+			st = sv.time
+#elif defined(CLIENTONLY)
+			st = cl.time;
+#else
+			st = sv.state?sv.time:cl.time;
+#endif
 			VM_Call(currentplug->vm, currentplug->tick, (int)(realtime*1000), *(int*)&(rt), *(int*)&(st));
 		}
 	}

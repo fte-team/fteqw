@@ -788,7 +788,7 @@ S_LoadSound
 ==============
 */
 
-qboolean S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
+void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 {
 	sfx_t *s = ctx;
 	char	namebuffer[256];
@@ -830,7 +830,7 @@ qboolean S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 		{
 			Con_SafePrintf ("Couldn't load %s\n", namebuffer);
 			s->loadstate = SLS_FAILED;
-			return false;
+			return;
 		}
 	}
 	else
@@ -844,7 +844,7 @@ qboolean S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 		{
 			//clq2_parsestartsound detects this also, and should not try playing these sounds.
 			s->loadstate = SLS_FAILED;
-			return false;
+			return;
 		}
 		else if (name[0] == '.' && name[1] == '.' && name[2] == '/')
 		{
@@ -879,7 +879,7 @@ qboolean S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 		//FIXME: check to see if queued for download.
 		Con_DPrintf ("Couldn't load %s\n", namebuffer);
 		s->loadstate = SLS_FAILED;
-		return false;
+		return;
 	}
 
 	for (i = sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0])-1; i >= 0; i--)
@@ -892,7 +892,7 @@ qboolean S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 				//wake up the main thread in case it decided to wait for us.
 				COM_AddWork(0, S_Wakeup, s, NULL, 0, 0);
 				BZ_Free(data);
-				return true;
+				return;
 			}
 		}
 	}
@@ -902,7 +902,7 @@ qboolean S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 
 	s->loadstate = SLS_FAILED;
 	BZ_Free(data);
-	return false;
+	return;
 }
 
 qboolean S_LoadSound (sfx_t *s)

@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <io.h>
 #include <direct.h>
 #include "pr_common.h"
+#include "fs.h"
 
 //#define RESTARTTEST
 
@@ -2695,7 +2696,7 @@ void Update_PromptedDownloaded(void *ctx, int foo)
 #endif
 		TL_Shutdown();
 
-		CreateProcess(ctx, va("\"%s\" %s", ctx, COM_Parse(GetCommandLineA())), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo);
+		CreateProcess(ctx, va("\"%s\" %s", (char*)ctx, COM_Parse(GetCommandLineA())), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo);
 		Z_Free(ctx);
 		exit(1);
 	}
@@ -2703,7 +2704,6 @@ void Update_PromptedDownloaded(void *ctx, int foo)
 		Z_Free(ctx);
 }
 
-#include "fs.h"
 void Update_Version_Updated(struct dl_download *dl)
 {
 	//happens in a thread, avoid va
@@ -3496,7 +3496,7 @@ qboolean Sys_DoInstall(void)
 	{
 		HRESULT hres;
 		IShellLinkW *psl;
-		hres = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, (LPVOID*)&psl);
+		hres = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &qIID_IShellLinkW, (LPVOID*)&psl);
 		if (SUCCEEDED(hres))
 		{
 			char startmenu[MAX_OSPATH];
@@ -3546,7 +3546,6 @@ qboolean Sys_RunInstaller(void)
 	return true;
 }
 
-#include "fs.h"
 #define RESLANG MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_UK)
 static const char *Sys_FindManifest(void)
 {

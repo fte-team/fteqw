@@ -1010,10 +1010,13 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
 	BASELDFLAGS=
 
+
 	# Allow 32bit FTE to access beyond the 2GB address space
 	ifeq ($(FTE_TARGET),win32)
 		BASELDFLAGS=-Wl,--large-address-aware
 	endif
+
+	BASELDFLAGS+=-lcomctl32
 
 	EXEPOSTFIX=.exe
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
@@ -1538,11 +1541,11 @@ _qcc-tmp: $(REQDIR)
 qcc-rel:
 	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qcctui.o"
 qccgui-rel:
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 qcc-dbg:
 	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qcctui.o"
 qccgui-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 
 #scintilla is messy as fuck when building statically. but at least we can strip out the lexers we don't use this way.

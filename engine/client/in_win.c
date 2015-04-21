@@ -2028,11 +2028,14 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char
 	for (idx = 0; idx < rawmicecount; idx++)
 		callback(ctx, "mouse", va("raw%i", idx), &rawmice[idx].qdeviceid);
 	for (idx = 0; idx < rawkbdcount; idx++)
-		callback(ctx, "keyboard", va("rawi", idx), &rawkbd[idx].qdeviceid);
+		callback(ctx, "keyboard", va("raw%i", idx), &rawkbd[idx].qdeviceid);
 
+#if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 	if (dinput >= DINPUT_VERSION_DX7 && g_pMouse7)
 		callback(ctx, "mouse", "di7", NULL);
-	else if (dinput && g_pMouse7)
+	else
+#endif
+		if (dinput && g_pMouse)
 		callback(ctx, "mouse", "di", NULL);
 	callback(ctx, "mouse", "system", NULL);
 

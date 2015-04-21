@@ -85,6 +85,7 @@ void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic);
 void R2D_ImageColours(float r, float g, float b, float a);
 void R2D_ImagePaletteColour(unsigned int i, float a);
 void R2D_FillBlock(float x, float y, float w, float h);
+void R2D_Line(float x1, float y1, float x2, float y2, mpic_t *pic);
 
 extern void	(*Draw_Init)							(void);
 
@@ -203,7 +204,10 @@ typedef enum uploadfmt
 		TF_DEPTH24,
 		TF_DEPTH32,
 		TF_RGBA16F,
-		TF_RGBA32F
+		TF_RGBA32F,
+
+		/*for weird systems where the gl driver needs to do the decode (read: webgl)*/
+		TF_SYSTEMDECODE
 } uploadfmt_t;
 
 enum
@@ -286,6 +290,8 @@ struct pendingtextureinfo
 		PTI_S3RGBA1,
 		PTI_S3RGBA3,
 		PTI_S3RGBA5,
+		//weird specialcase mess to take advantage of webgl so we don't need redundant bloat where we're already strugging with potential heap limits
+		PTI_WHOLEFILE,
 		//depth formats
 		PTI_DEPTH16,
 		PTI_DEPTH24,

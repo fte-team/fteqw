@@ -3978,6 +3978,8 @@ static void S_MP3_Purge(sfx_t *sfx)
 	if (dec->dstdata)
 		BZ_Free(dec->dstdata);
 	BZ_Free(dec);
+
+	sfx->loadstate = SLS_NOTLOADED;
 }
 
 /*must be thread safe*/

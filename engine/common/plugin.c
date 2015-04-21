@@ -514,6 +514,8 @@ static qintptr_t VARGS Plug_Cvar_GetNVFDG(void *offset, quintptr_t mask, const q
 	char *description = VM_POINTER(arg[3]);
 	char *groupname = VM_POINTER(arg[4]);
 
+	if (!defaultvalue)
+		return (qintptr_t)Cvar_FindVar(name);
 	return (qintptr_t)Cvar_Get2(name, defaultvalue, flags&1, description, groupname);
 }
 
@@ -1463,7 +1465,8 @@ void Plug_Tick(void)
 	{
 		if (currentplug->tick)
 		{
-			VM_Call(currentplug->vm, currentplug->tick, (int)(realtime*1000));
+			float rt = realtime, st = cl.time;
+			VM_Call(currentplug->vm, currentplug->tick, (int)(realtime*1000), *(int*)&(rt), *(int*)&(st));
 		}
 	}
 	currentplug = oldplug;
@@ -1629,7 +1632,7 @@ void Plug_SBar(playerview_t *pv)
 		return;
 
 	ret = 0;
-	if (!plug_sbar.ival || cl.splitclients > 1)
+	if (!plug_sbar.ival)
 		currentplug = NULL;
 	else
 	{
@@ -1639,7 +1642,7 @@ void Plug_SBar(playerview_t *pv)
 			{
 				//if you don't use splitscreen, use a full videosize rect.
 				R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
-				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[0], pv-cl.playerview, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, sb_showscores+sb_showteamscores*2);
+				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[0], pv-cl.playerview, (int)r_refdef.vrect.x, (int)r_refdef.vrect.y, (int)r_refdef.vrect.width, (int)r_refdef.vrect.height, sb_showscores+sb_showteamscores*2);
 				break;
 			}
 		}

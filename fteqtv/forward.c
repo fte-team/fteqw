@@ -180,8 +180,8 @@ void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 	int length;
 	int bufpos;
 
-	if (prox->drop)
-		return;
+//	if (prox->drop)
+//		return;
 
 	while (prox->bufferpos >= MAX_PROXY_BUFFER)
 	{	//so we never get any issues with wrapping..
@@ -212,12 +212,14 @@ void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 	{
 	case 0:	//eof / they disconnected
 		prox->drop = true;
+		prox->flushing = false;
 		break;
 	case -1:
 		if (qerrno != EWOULDBLOCK && qerrno != EAGAIN)	//not a problem, so long as we can flush it later.
 		{
 			Sys_Printf(cluster, "network error from client proxy\n");
 			prox->drop = true;	//drop them if we get any errors
+			prox->flushing = false;
 		}
 		break;
 	default:

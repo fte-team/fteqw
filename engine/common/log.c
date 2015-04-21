@@ -3,8 +3,8 @@
 #include "quakedef.h"
 
 // cvar callbacks
-void Log_Dir_Callback (struct cvar_s *var, char *oldvalue);
-void Log_Name_Callback (struct cvar_s *var, char *oldvalue);
+static void QDECL Log_Dir_Callback (struct cvar_s *var, char *oldvalue);
+static void QDECL Log_Name_Callback (struct cvar_s *var, char *oldvalue);
 
 // cvars
 #define CONLOGGROUP "Console logging"
@@ -32,7 +32,7 @@ qboolean	log_newline[LOG_TYPES];
 extern char gamedirfile[];
 
 // Log_Dir_Callback: called when a log_dir is changed
-void Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
+static void QDECL Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
 {
 	char *t = var->string;
 	char *e = t + (*t?strlen(t):0);
@@ -47,7 +47,7 @@ void Log_Dir_Callback (struct cvar_s *var, char *oldvalue)
 }
 
 // Log_Name_Callback: called when a log_name is changed
-void Log_Name_Callback (struct cvar_s *var, char *oldvalue)
+static void QDECL Log_Name_Callback (struct cvar_s *var, char *oldvalue)
 {
 	char *t = var->string;
 

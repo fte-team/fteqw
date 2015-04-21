@@ -64,7 +64,7 @@ int Surf_LightmapShift (model_t *model)
 	return lightmap_shift;
 }
 
-void Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue)
+void QDECL Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue)
 {
 	Mod_RebuildLightmaps();
 }

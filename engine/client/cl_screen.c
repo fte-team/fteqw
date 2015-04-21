@@ -1080,7 +1080,7 @@ void SCR_ShowPic_Script_f(void)
 
 //=============================================================================
 
-void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue)
+void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue)
 {
 	if (var->value < 10)
 	{
@@ -1094,7 +1094,7 @@ void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue)
 	}
 }
 
-void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue)
+void QDECL SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue)
 {
 	if (var->value < 30)
 	{
@@ -1108,7 +1108,7 @@ void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue)
 	}
 }
 
-void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL CL_Sbar_Callback(struct cvar_s *var, char *oldvalue)
 {
 }
 

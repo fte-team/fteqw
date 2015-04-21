@@ -226,7 +226,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 						else
 							SND_PaintChannel8_O8I1(ch, scache, count);
 					}
-					else
+					else if (scache->width == 2)
 					{
 						if (scache->numchannels==2)
 							SND_PaintChannel16_O2I2(ch, scache, ltime-sc->paintedtime, count);

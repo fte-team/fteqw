@@ -12,7 +12,7 @@
 #include "winquake.h"
 #endif
 
-static void fs_game_callback(cvar_t *var, char *oldvalue);
+static void QDECL fs_game_callback(cvar_t *var, char *oldvalue);
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
 qboolean com_installer = false;
@@ -31,7 +31,7 @@ static int fs_referencetype;
 int fs_finds;
 void COM_CheckRegistered (void);
 
-static void fs_game_callback(cvar_t *var, char *oldvalue)
+static void QDECL fs_game_callback(cvar_t *var, char *oldvalue)
 {
 	static qboolean runaway = false;
 	char buf[MAX_OSPATH];
@@ -4209,9 +4209,15 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		confpath[i] = loc.search?loc.search->handle:NULL;
 	}
 
+#if defined(NACL) || defined(FTE_TARGET_WEB) || defined(ANDROID) || defined(WINRT)
+	//these targets are considered to be sandboxed already, and have their own app-based base directory which they will always use.
+	Q_strncpyz (newbasedir, host_parms.basedir, sizeof(newbasedir));
+	fixedbasedir = true;
+#else
 	i = COM_CheckParm ("-basedir");
 	fixedbasedir = i && i < com_argc-1;
 	Q_strncpyz (newbasedir, fixedbasedir?com_argv[i+1]:host_parms.basedir, sizeof(newbasedir));
+#endif
 
 	//make sure it has a trailing slash, or is empty. woo.
 	FS_CleanDir(newbasedir, sizeof(newbasedir));
@@ -4409,7 +4415,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 #endif
 
 	{
-		void (*callback)(struct cvar_s *var, char *oldvalue) = fs_game.callback;
+		void (QDECL *callback)(struct cvar_s *var, char *oldvalue) = fs_game.callback;
 		fs_game.callback = NULL;
 		Cvar_ForceSet(&fs_game, FS_GetGamedir(false));
 		fs_game.callback = callback;

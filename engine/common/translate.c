@@ -12,7 +12,7 @@
 char sys_language[64] = "";
 struct language_s languages[MAX_LANGUAGES];
 
-void TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
+static void QDECL TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
 {
 #ifndef CLIENTONLY
 	svs.language = TL_FindLanguage(var->string);

@@ -357,6 +357,59 @@ int CL_CalcNet (float scale)
 	return percent;
 }
 
+float CL_CalcNet2 (float *ping, float *ping_min, float *ping_max, float *ping_stddev)
+{
+	int		i;
+	outframe_t	*frame;
+	int lost = 0;
+	int pending = 0;
+	int sent;
+	int valid = 0;
+//	char st[80];
+
+	*ping = 0;
+	*ping_max = 0;
+	*ping_min = 1000000000000;
+
+	sent = NET_TIMINGS;
+
+	for (i=cl.movesequence-UPDATE_BACKUP+1
+		; i <= cl.movesequence
+		; i++)
+	{
+		frame = &cl.outframes[i&UPDATE_MASK];
+		if (i > cl.lastackedmovesequence)
+		{	// no response yet
+			if (cl_countpendingpl.ival)
+				lost++;
+		}
+		else if (frame->latency == -1)
+			lost++;										// lost
+		else if (frame->latency == -2)
+			;											// choked
+		else if (frame->latency == -3)
+			sent--;										// c2spps
+//		else if (frame->invalid)
+//			packet_latency[i&NET_TIMINGSMASK] = 9998;	// invalid delta
+		else
+		{
+			*ping += frame->latency;
+			if (*ping_max < frame->latency)
+				*ping_max = frame->latency;
+			if (*ping_min > frame->latency)
+				*ping_min = frame->latency;
+			valid++;
+		}
+	}
+
+	*ping /= valid;
+
+	if (pending == sent || sent < 1)
+		return 1;	//shouldn't ever happen.
+	else
+		return lost / sent;
+}
+
 void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay)
 {
 	unsigned int i;
@@ -427,7 +480,7 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 	downloadlist_t *dl;
 	qboolean webdl = false;
 	char ext[8];
-	if (!strncmp(filename, "http://", 7))
+	if (!strncmp(filename, "http://", 7) || !strncmp(filename, "https://", 8))
 	{
 		if (!localname)
 			return false;
@@ -5741,37 +5794,41 @@ void CL_ParsePrecache(void)
 	}
 }
 
-void CL_DumpPacket(void)
+void Con_HexDump(qbyte *packet, size_t len)
 {
 	int i;
-	char *packet = net_message.data;
 	int pos;
 
 	pos = 0;
-	while(pos < net_message.cursize)
+	while(pos < len)
 	{
 		Con_Printf("%5i ", pos);
 		for (i = 0; i < 16; i++)
 		{
-			if (pos >= net_message.cursize)
+			if (pos >= len)
 				Con_Printf(" - ");
 			else
-				Con_Printf("%2x ", (unsigned char)packet[pos]);
+				Con_Printf("%2x ", packet[pos]);
 			pos++;
 		}
 		pos-=16;
 		for (i = 0; i < 16; i++)
 		{
-			if (pos >= net_message.cursize)
+			if (pos >= len)
 				Con_Printf("X");
 			else if (packet[pos] == 0 || packet[pos] == '\t' || packet[pos] == '\r' || packet[pos] == '\n')
 				Con_Printf(".");
 			else
-				Con_Printf("%c", (unsigned char)packet[pos]);
+				Con_Printf("%c", packet[pos]);
 			pos++;
 		}
 		Con_Printf("\n");
 	}
+
+}
+void CL_DumpPacket(void)
+{
+	Con_HexDump(net_message.data, net_message.cursize);
 }
 
 void CL_ParsePortalState(void)

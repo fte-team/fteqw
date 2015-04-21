@@ -367,7 +367,7 @@ extern cvar_t r_bloodstains;
 extern cvar_t gl_part_flame;
 
 // callbacks
-static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue);
 
 extern cvar_t r_particledesc;
 extern cvar_t r_part_rain_quantity;
@@ -3027,7 +3027,7 @@ static void R_Particles_KillAllEffects(void)
 	}
 }
 
-static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 {
 	char token[256];
 	qboolean		first;

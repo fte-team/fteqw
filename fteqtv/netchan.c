@@ -109,12 +109,29 @@ void NET_InitUDPSocket(cluster_t *cluster, int port, qboolean ipv6)
 		Sys_Printf(cluster, "opened udp port %i\n", port);
 }
 
-SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *adr)
+SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *toadr, netadr_t ina)
 {
 #ifdef AF_INET6
-	if (((struct sockaddr *)adr->sockaddr)->sa_family == AF_INET6)
+	if (((struct sockaddr *)ina.sockaddr)->sa_family == AF_INET6)
+	{
+		*toadr = ina;
 		return sock[1];
+	}
+	if (sock[0] == INVALID_SOCKET && sock[1] != INVALID_SOCKET)
+	{
+		struct sockaddr_in6 *out = (struct sockaddr_in6*)toadr->sockaddr;
+		struct sockaddr_in *in = (struct sockaddr_in*)ina.sockaddr;
+		toadr->tcpcon = ina.tcpcon;
+
+		memset(out, 0, sizeof(*out));
+		out->sin6_family = AF_INET6;
+		*(short*)&out->sin6_addr.s6_addr[10] = 0xffff;
+		*(int*)&out->sin6_addr.s6_addr[12] = in->sin_addr.s_addr;
+		out->sin6_port = in->sin_port;
+		return sock[1];
+	}
 #endif
+	*toadr = ina;
 	return sock[0];
 }
 
@@ -336,7 +353,7 @@ Netchan_OutOfBand
 Sends an out-of-band datagram
 ================
 */
-void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, void *data)
+void Netchan_OutOfBandSocket (cluster_t *cluster, SOCKET sock, netadr_t *adr, int length, void *data)
 {
 	netmsg_t	send;
 	unsigned char		send_buf[MAX_MSGLEN + PACKET_HEADER];
@@ -348,9 +365,21 @@ void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int lengt
 	WriteData (&send, data, length);
 
 // send the datagram
-	NET_SendPacket (cluster, sock, send.cursize, send.data, adr);
+	NET_SendPacket (cluster, sock, send.cursize, send.data, *adr);
 }
 
+/*
+===============
+Netchan_OutOfBand
+
+Sends an out-of-band datagram
+================
+*/
+void Netchan_OutOfBand (cluster_t *cluster, netadr_t adr, int length, void *data)
+{
+	netadr_t realadr;
+	Netchan_OutOfBandSocket(cluster, NET_ChooseSocket(cluster->qwdsocket, &realadr, adr), &realadr, length, data);
+}
 
 /*
 ===============
@@ -373,7 +402,7 @@ void Netchan_OutOfBandPrint (cluster_t *cluster, netadr_t adr, char *format, ...
 #endif // _WIN32
 	va_end (argptr);
 
-	Netchan_OutOfBand (cluster, NET_ChooseSocket(cluster->qwdsocket, &adr), adr, strlen(string), (unsigned char *)string);
+	Netchan_OutOfBandSocket(cluster, NET_ChooseSocket(cluster->qwdsocket, &adr, adr), &adr, strlen(string), (unsigned char *)string);
 }
 
 /*

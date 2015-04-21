@@ -4345,7 +4345,7 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 		extern cvar_t r_shadow_bumpscale_basetexture;
 		if (!TEXVALID(tex->bump) && *shader->mapname)
 			tex->bump = R_LoadHiResTexture(va("%s_norm", shader->mapname), NULL, imageflags|IF_TRYBUMP);
-		if (!TEXVALID(tex->bump))
+		if (!TEXVALID(tex->bump) && (r_shadow_bumpscale_basetexture.ival||*imagename=='*'||gl_load24bit.ival))
 			tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP, (r_shadow_bumpscale_basetexture.ival||*imagename=='*')?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
 	}
 

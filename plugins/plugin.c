@@ -59,19 +59,31 @@ BUILTIN(void, Con_Print, (const char *text));	//on to main console.
 BUILTIN(void, Con_SubPrint, (const char *conname, const char *text));	//on to named sub console (creating it too).
 #undef ARGNAMES
 #define ARGNAMES ,old,new
-BUILTIN(void, Con_RenameSub, (char *old, char *new));	//rename a subconsole
+BUILTIN(void, Con_RenameSub, (const char *old, const char *new));	//rename a subconsole
 #undef ARGNAMES
 #define ARGNAMES ,conname
-BUILTINR(int, Con_IsActive, (char *conname));
+BUILTINR(int, Con_IsActive, (const char *conname));
 #undef ARGNAMES
 #define ARGNAMES ,conname
-BUILTIN(void, Con_SetActive, (char *conname));
+BUILTIN(void, Con_SetActive, (const char *conname));
 #undef ARGNAMES
 #define ARGNAMES ,conname
-BUILTIN(void, Con_Destroy, (char *conname));
+BUILTIN(void, Con_Destroy, (const char *conname));
 #undef ARGNAMES
 #define ARGNAMES ,connum,conname,connamelen
 BUILTIN(void, Con_NameForNum, (int connum, char *conname, int connamelen));
+#undef ARGNAMES
+#define ARGNAMES ,conname,attribname
+BUILTINR(float, Con_GetConsoleFloat, (const char *conname, const char *attribname));
+#undef ARGNAMES
+#define ARGNAMES ,conname,attribname,PASSFLOAT(newvalue)
+BUILTIN(void, Con_SetConsoleFloat, (const char *conname, const char *attribname, float newvalue));
+#undef ARGNAMES
+#define ARGNAMES ,conname,attribname,value,valuesize
+BUILTINR(int, Con_GetConsoleString, (const char *conname, const char *attribname, const char *value, unsigned int valuesize));
+#undef ARGNAMES
+#define ARGNAMES ,conname,attribname,newvalue
+BUILTIN(void, Con_SetConsoleString, (const char *conname, const char *attribname, const char *newvalue));
 #undef ARGNAMES
 
 #define ARGNAMES ,message
@@ -129,6 +141,9 @@ BUILTINR(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
 #define ARGNAMES
 BUILTINR(int, LocalPlayerNumber, (void));
 #undef ARGNAMES
+#define ARGNAMES ,firstseat,numseats,playernums,spectracks
+BUILTINR(int, GetLocalPlayerNumbers, (int firstseat, int numseats, int *playernums, int *spectracks));
+#undef ARGNAMES
 #define ARGNAMES ,info,infolen
 BUILTIN(void, GetServerInfo, (char *info, int infolen));
 #undef ARGNAMES
@@ -148,17 +163,24 @@ BUILTIN(void, LocalSound, (char *soundname));
 BUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
 #undef ARGNAMES
 
+#define ARGNAMES ,ni,sizeofni
+BUILTINR(int, GetNetworkInfo, (vmnetinfo_t *ni, unsigned int sizeofni));
+#undef ARGNAMES
+
 #define ARGNAMES ,name,mime,data,datalen
-BUILTINR(qhandle_t, Draw_LoadImageData, (char *name, char *mime, void *data, unsigned int datalen));	//force-replace a texture.
+BUILTINR(qhandle_t, Draw_LoadImageData, (const char *name, const char *mime, const void *data, unsigned int datalen));	//force-replace a texture.
 #undef ARGNAMES
 #define ARGNAMES ,name,shaderscript
-BUILTINR(qhandle_t, Draw_LoadImageShader, (char *name, char *shaderscript));	//some shader script
+BUILTINR(qhandle_t, Draw_LoadImageShader, (const char *name, const char *shaderscript));	//some shader script
 #undef ARGNAMES
 #define ARGNAMES ,name,iswadimage
-BUILTINR(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad
+BUILTINR(qhandle_t, Draw_LoadImage, (const char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad
 #undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),PASSFLOAT(w),PASSFLOAT(h),PASSFLOAT(s1),PASSFLOAT(t1),PASSFLOAT(s2),PASSFLOAT(t2),image
 BUILTINR(int, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
+#undef ARGNAMES
+#define ARGNAMES ,image,x,y
+BUILTINR(int, Draw_ImageSize, (qhandle_t image, float *x, float *y));
 #undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(x1),PASSFLOAT(y1),PASSFLOAT(x2),PASSFLOAT(y2)
 BUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));
@@ -170,7 +192,7 @@ BUILTIN(void, Draw_Fill,	(float x, float y, float w, float h));
 BUILTIN(void, Draw_Character, (int x, int y, unsigned int character));
 #undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),string
-BUILTIN(void, Draw_String, (float x, float y, char *string));
+BUILTIN(void, Draw_String, (float x, float y, const char *string));
 #undef ARGNAMES
 #define ARGNAMES ,palcol
 BUILTIN(void, Draw_Colourp, (int palcol));
@@ -266,7 +288,17 @@ char	*va(const char *format, ...)	//Identical in function to the one in Quake, t
 	static char		string[1024];
 		
 	va_start (argptr, format);
+#ifdef Q3_VM
 	Q_vsnprintf (string, sizeof(string), format,argptr);
+#else
+	#ifdef _WIN32
+#undef _vsnprintf
+		_vsnprintf (string, sizeof(string), format,argptr);
+		string[sizeof(string)-1] = 0;
+	#else
+		vsnprintf (string, sizeof(string), format,argptr);
+	#endif
+#endif
 	va_end (argptr);
 
 	return string;	
@@ -375,18 +407,21 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(CL_GetStats);
 	CHECKBUILTIN(GetPlayerInfo);
 	CHECKBUILTIN(LocalPlayerNumber);
+	CHECKBUILTIN(GetLocalPlayerNumbers);
 	CHECKBUILTIN(GetServerInfo);
 	CHECKBUILTIN(SetUserInfo);
 	CHECKBUILTIN(LocalSound);
 	CHECKBUILTIN(Menu_Control);
 	CHECKBUILTIN(Key_GetKeyCode);
 	CHECKBUILTIN(GetLocationName);
+	CHECKBUILTIN(GetNetworkInfo);
 
 	//drawing routines
 	CHECKBUILTIN(Draw_LoadImageData);
 	CHECKBUILTIN(Draw_LoadImageShader);
 	CHECKBUILTIN(Draw_LoadImage);
 	CHECKBUILTIN(Draw_Image);
+	CHECKBUILTIN(Draw_ImageSize);
 	CHECKBUILTIN(Draw_Line);
 	CHECKBUILTIN(Draw_Fill);
 	CHECKBUILTIN(Draw_Character);
@@ -405,6 +440,10 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Con_SetActive);
 	CHECKBUILTIN(Con_Destroy);
 	CHECKBUILTIN(Con_NameForNum);
+	CHECKBUILTIN(Con_GetConsoleFloat);
+	CHECKBUILTIN(Con_SetConsoleFloat);
+	CHECKBUILTIN(Con_GetConsoleString);
+	CHECKBUILTIN(Con_SetConsoleString);
 }
 
 #ifndef Q3_VM
@@ -414,11 +453,11 @@ void NATIVEEXPORT dllEntry(qintptr_t (QDECL *funcptr)(qintptr_t,...))
 }
 #endif
 
-vmvideo_t vid;
+vmvideo_t pvid;
 qintptr_t QDECL Plug_UpdateVideo(qintptr_t *args)
 {
-	vid.width = args[0];
-	vid.height = args[1];
+	pvid.width = args[0];
+	pvid.height = args[1];
 
 	return true;
 }

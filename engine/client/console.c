@@ -1136,8 +1136,9 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 					maskedtext[p+cmdstart] = (unsigned int)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
 				if (p < key_linepos-cmdstart)
 					p = key_linepos-cmdstart;
-				maskedtext[p+cmdstart] = 0;
-				maskedtext[p+cmdstart+1] = 0;
+				p = min(p+cmdstart, sizeof(maskedtext)/sizeof(maskedtext[0]) - 2);
+				maskedtext[p] = 0;
+				maskedtext[p+1] = 0;
 			}
 		}
 	}

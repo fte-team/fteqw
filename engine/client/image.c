@@ -19,19 +19,16 @@ char *r_defaultimageextensions =
 	"dds "	//compressed or something
 #endif
 	"tga"	//fairly fast to load
-#ifdef AVAIL_PNGLIB
+#if defined(AVAIL_PNGLIB) || defined(FTE_TARGET_WEB)
 	" png"	//pngs, fairly common, but slow
 #endif
 	//" bmp"	//wtf? at least not lossy
-#ifdef AVAIL_JPEGLIB
+#if defined(AVAIL_JPEGLIB) || defined(FTE_TARGET_WEB)
 	" jpg"	//q3 uses some jpegs, for some reason
-#endif
-#ifdef IMAGEFMT_BLP
-	//" blp"	//blizzard picture, for the luls
 #endif
 	" pcx"	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
 	;
-void R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
 cvar_t r_imageexensions = CVARCD("r_imageexensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which fte should attempt to load.");
 extern cvar_t gl_lerpimages;
 extern cvar_t gl_picmip2d;
@@ -2708,7 +2705,7 @@ static struct
 {
 	char name[6];
 } tex_extensions[tex_extensions_max];
-void R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue)
 {
 	char *v = var->string;
 	tex_extensions_count = 0;
@@ -3831,7 +3828,7 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 			COM_FileExtension(fname, ext, sizeof(ext));
 			Q_strncatz(aname, "_alpha.", sizeof(aname));
 			Q_strncatz(aname, ext, sizeof(aname));
-			if ((alph = COM_LoadFile (aname, 5, &alphsize)))
+			if (!strchr(aname, ':') && (alph = COM_LoadFile (aname, 5, &alphsize)))
 			{
 				if ((alphadata = Read32BitImageFile(alph, alphsize, &alpha_width, &alpha_height, &hasalpha, aname)))
 				{
@@ -3859,6 +3856,28 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 		}
 		BZ_Free(rgbadata);
 	}
+#ifdef FTE_TARGET_WEB
+	else if (1)
+	{
+		struct pendingtextureinfo *mips;
+		mips = Z_Malloc(sizeof(*mips));
+		mips->type = (flags & IF_3DMAP)?PTI_3D:PTI_2D;
+		mips->mipcount = 1;
+		mips->encoding = PTI_WHOLEFILE;
+		mips->extrafree = NULL;
+		mips->mip[0].width = 1;
+		mips->mip[0].height = 1;
+		mips->mip[0].data = filedata;
+		mips->mip[0].datasize = filesize;
+		mips->mip[0].needfree = true;
+		//width+height are not yet known. bah.
+		if (flags & IF_NOWORKER)
+			Image_LoadTextureMips(tex, mips, 0, 0);
+		else
+			COM_AddWork(0, Image_LoadTextureMips, tex, mips, 0, 0);
+		return true;
+	}
+#endif
 	else
 		Sys_Printf("Unable to read file %s (format unsupported)\n", fname);
 
@@ -4250,6 +4269,32 @@ image_t *Image_CreateTexture (const char *identifier, const char *subdir, unsign
 	return image;
 }
 
+//called on main thread. oh well.
+void Image_Downloaded(struct dl_download *dl)
+{
+	qboolean success = false;
+	image_t *tex = dl->user_ctx;
+	image_t *p;
+
+	//make sure the renderer wasn't restarted mid-download
+	for (p = imagelist; p; p = p->next)
+		if (p == tex)
+			break;
+	if (p)
+	{
+		if (dl->status == DL_FINISHED)
+		{
+			size_t fsize = VFS_GETLEN(dl->file);
+			char *buf = BZ_Malloc(fsize);
+			if (VFS_READ(dl->file, buf, fsize) == fsize)
+				if (Image_LoadTextureFromMemory(tex, tex->flags, tex->ident, dl->url, buf, fsize))
+					success = true;
+		}
+		if (!success)
+			Image_LoadTexture_Failed(tex, NULL, 0, 0);
+	}
+}
+
 //find a texture. will try to load it from disk, using the fallback if it would fail.
 image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
 {
@@ -4348,7 +4393,19 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 		Image_LoadHiResTextureWorker(tex, NULL, 0, 0);
 	else
 	{
-		if (lowpri)
+		if (!strncmp(tex->ident, "http://", 7) || !strncmp(tex->ident, "https://", 8))
+		{
+			struct dl_download *dl = HTTP_CL_Get(tex->ident, NULL, Image_Downloaded);
+			dl->user_ctx = tex;
+			dl->file = VFSPIPE_Open();
+			dl->isquery = true;
+#ifdef MULTITHREAD
+			DL_CreateThread(dl, NULL, NULL);
+#else
+			tex->status = TEX_FAILED;	//HACK: so nothing waits for it.
+#endif
+		}
+		else if (lowpri)
 			COM_AddWork(5, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
 		else
 			COM_AddWork(2+(seq++%3), Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
@@ -4417,7 +4474,7 @@ static void Image_ParseTextureMode(char *cvarname, char *modename, int modes[3])
 	}
 	Con_Printf("%s: mode %s was not recognised\n", cvarname, modename);
 }
-void Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue)
+void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue)
 {
 	int mip[3]={1,0,1}, pic[3]={1,-1,1}, mipcap[2] = {0, 1000};
 	float anis = 1;

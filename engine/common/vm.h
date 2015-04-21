@@ -130,6 +130,9 @@ void Script_Get_File_And_Line(int handle, char *filename, int *line);
 #define VM_FS_APPEND2 3	//I don't know, don't ask me. look at q3 source
 int VM_fopen (char *name, int *handle, int fmode, int owner);
 int VM_FRead (char *dest, int quantity, int fnum, int owner);
+int VM_FWrite (char *dest, int quantity, int fnum, int owner);
+void VM_FSeek (int fnum, int offset, int seektype, int owner);
+int VM_FTell (int fnum, int owner);
 void VM_fclose (int fnum, int owner);
 void VM_fcloseall (int owner);
 int VM_GetFileList(char *path, char *ext, char *output, int buffersize);

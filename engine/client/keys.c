@@ -60,7 +60,7 @@ qboolean	keydown[K_MAX];
 char *releasecommand[K_MAX][MAX_INDEVS];	//this is the console command to be invoked when the key is released. should free it.
 qbyte releasecommandlevel[K_MAX][MAX_INDEVS];	//and this is the cbuf level it is to be run at.
 
-void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue);
 
 extern cvar_t con_displaypossibilities;
 cvar_t con_selectioncolour = CVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
@@ -488,7 +488,7 @@ int Con_ExecuteLine(console_t *con, char *line)
 
 vec3_t sccolor;
 
-void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (qrenderer != QR_NONE)
 		SCR_StringToRGB(var->string, sccolor, 1);

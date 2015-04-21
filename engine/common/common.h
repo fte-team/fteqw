@@ -596,8 +596,6 @@ typedef enum {
 	LOG_RCON,
 	LOG_TYPES
 } logtype_t;
-void Log_Dir_Callback (struct cvar_s *var, char *oldvalue);
-void Log_Name_Callback (struct cvar_s *var, char *oldvalue);
 void Log_String (logtype_t lognum, char *s);
 void Con_Log (char *s);
 void Log_Logfile_f (void);

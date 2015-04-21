@@ -420,7 +420,7 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 			ptr = COM_ParseToken(ptr, arg[1], ARG_LEN, "");
 			ptr = COM_ParseToken(ptr, arg[2], ARG_LEN, "");
 			NET_StringToAddr(arg[1], &adr, PROX_DEFAULTSERVERPORT);
-			Netchan_OutOfBand(tv->cluster, tv->sourcesock, adr, strlen(arg[2]), arg[2]);
+			Netchan_OutOfBandSocket(tv->cluster, tv->sourcesock, &adr, strlen(arg[2]), arg[2]);
 
 			//this is an evil hack
 			SendClientCommand(tv, "new\n");

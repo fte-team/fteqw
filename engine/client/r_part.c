@@ -483,7 +483,7 @@ void R_Clutter_Purge(void)
 
 
 
-void R_Rockettrail_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R_Rockettrail_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
 	model_t *mod;
@@ -501,7 +501,7 @@ void R_Rockettrail_Callback(struct cvar_s *var, char *oldvalue)
 	}
 }
 
-void R_Grenadetrail_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R_Grenadetrail_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
 	model_t *mod;
@@ -543,7 +543,7 @@ particleengine_t *particlesystem[] =
 	NULL,
 };
 
-void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
 	if (pe)

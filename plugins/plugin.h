@@ -196,11 +196,15 @@ EBUILTIN(qboolean, Plug_ExportNative, (const char *funcname, void *func));	//set
 EBUILTIN(void, Con_Print, (const char *text));	//on to main console.
 
 EBUILTIN(void, Con_SubPrint, (const char *subname, const char *text));	//on to sub console.
-EBUILTIN(void, Con_RenameSub, (char *oldname, char *newname));	//rename a console.
-EBUILTIN(int, Con_IsActive, (char *conname));
-EBUILTIN(void, Con_SetActive, (char *conname));
-EBUILTIN(void, Con_Destroy, (char *conname));
+EBUILTIN(void, Con_RenameSub, (const char *oldname, const char *newname));	//rename a console.
+EBUILTIN(int, Con_IsActive, (const char *conname));
+EBUILTIN(void, Con_SetActive, (const char *conname));
+EBUILTIN(void, Con_Destroy, (const char *conname));
 EBUILTIN(void, Con_NameForNum, (int connum, char *conname, int connamelen));
+EBUILTIN(float, Con_GetConsoleFloat, (const char *conname, const char *attribname));
+EBUILTIN(void, Con_SetConsoleFloat, (const char *conname, const char *attribname, float newvalue));
+EBUILTIN(int, Con_GetConsoleString, (const char *conname, const char *attribname, const char *value, unsigned int valuesize));
+EBUILTIN(void, Con_SetConsoleString, (const char *conname, const char *attribname, const char *newvalue));
 
 EBUILTIN(void, Sys_Error, (char *message));	//abort the entire engine.
 EBUILTIN(unsigned int, Sys_Milliseconds, ());
@@ -224,24 +228,61 @@ EBUILTIN(void, LocalSound, (char *soundname));
 EBUILTIN(int, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 EBUILTIN(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
 
-EBUILTIN(int, LocalPlayerNumber, (void));
+EBUILTIN(int, LocalPlayerNumber, (void));	//deprecated
+EBUILTIN(int, GetLocalPlayerNumbers, (int firstseat, int numseats, int *playernums, int *spectracks));
 EBUILTIN(void, GetServerInfo, (char *info, int infolen));
 EBUILTIN(void, SetUserInfo, (char *key, char *value));
 EBUILTIN(void, GetLocationName, (float *pos, char *buffer, int bufferlen));
+EBUILTIN(void, GetLocationName, (float *pos, char *buffer, int bufferlen));
+
+typedef struct {
+	int seats;
+	struct
+	{
+		float avg;
+		float mn;
+		float mx;
+		float stddev;
+		float loss;
+	} ping;
+	float mlatency;
+	float mrate;
+	float vlatency;
+	float vrate;
+	vec3_t speed;	//player speed
+	
+	struct
+	{
+		float in_pps;
+		float in_bps;
+		float out_pps;
+		float out_bps;
+	} clrate;
+	struct
+	{
+		float in_pps;
+		float in_bps;
+		float out_pps;
+		float out_bps;
+	} svrate;
+} vmnetinfo_t;
+EBUILTIN(int, GetNetworkInfo, (vmnetinfo_t *ni, unsigned int sizeofni));
+
 
 EBUILTIN(void, Menu_Control, (int mnum));
 #define MENU_CLEAR 0
 #define MENU_GRAB 1
 EBUILTIN(int, Key_GetKeyCode, (char *keyname));
 
-EBUILTIN(qhandle_t, Draw_LoadImageData, (char *name, char *mime, void *data, unsigned int datasize));	//load/replace a named texture
-EBUILTIN(qhandle_t, Draw_LoadImageShader, (char *name, char *defaultshader));	//loads a shader.
-EBUILTIN(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad. loads a shader.
+EBUILTIN(qhandle_t, Draw_LoadImageData, (const char *name, const char *mime, const void *data, unsigned int datasize));	//load/replace a named texture
+EBUILTIN(qhandle_t, Draw_LoadImageShader, (const char *name, const char *defaultshader));	//loads a shader.
+EBUILTIN(qhandle_t, Draw_LoadImage, (const char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad. loads a shader.
 EBUILTIN(int, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
+EBUILTIN(int, Draw_ImageSize, (qhandle_t image, float *x, float *y));
 EBUILTIN(void, Draw_Fill,	(float x, float y, float w, float h));
 EBUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));
 EBUILTIN(void, Draw_Character, (int x, int y, unsigned int character));
-EBUILTIN(void, Draw_String, (float x, float y, char *string));
+EBUILTIN(void, Draw_String, (float x, float y, const char *string));
 EBUILTIN(void, Draw_Colourp, (int palcol));
 EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));
 EBUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
@@ -324,11 +365,7 @@ typedef struct {
 	int width;
 	int height;
 } vmvideo_t;
-#ifdef _VM_H
-#define vid ohnoes
-#else
-extern vmvideo_t vid;
-#endif
+extern vmvideo_t pvid;
 
 #define VMCvar_SetString(c,v)							\
 	do{													\

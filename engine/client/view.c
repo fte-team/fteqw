@@ -299,7 +299,7 @@ void V_DriftPitch (playerview_t *pv)
 ==============================================================================
 */
 
-void V_Gamma_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL V_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
 cshift_t	cshift_empty = { {130,80,50}, 0 };
 cshift_t	cshift_water = { {130,80,50}, 128 };
@@ -372,7 +372,7 @@ void BuildGammaTable (float g, float c, float b)
 V_CheckGamma
 =================
 */
-void V_Gamma_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL V_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value, v_brightness.value);
 	V_UpdatePalette (true);

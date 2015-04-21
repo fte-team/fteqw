@@ -45,7 +45,7 @@ void Master_DetermineMasterTypes(void)
 #define MAX_MASTER_ADDRESSES 4	//each master might have multiple dns addresses, typically both ipv4+ipv6. we want to report to both address families so we work with remote single-stack hosts.
 
 #ifndef CLIENTONLY
-void Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue);
 static void SV_SetMaster_f (void);
 #else
 #define Net_Masterlist_Callback NULL
@@ -149,7 +149,7 @@ void Net_Master_Init(void)
 
 #ifndef CLIENTONLY
 
-void Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
 {
 	int i;
 
@@ -2000,7 +2000,10 @@ void MasterInfo_Request(master_t *mast)
 		{
 			mast->dl = HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPJSON);
 			if (mast->dl)
+			{
 				mast->dl->user_ctx = mast;
+				mast->dl->isquery = true;
+			}
 		}
 		break;
 	case MT_MASTERHTTP:
@@ -2008,7 +2011,10 @@ void MasterInfo_Request(master_t *mast)
 		{
 			mast->dl = HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTP);
 			if (mast->dl)
+			{
 				mast->dl->user_ctx = mast;
+				mast->dl->isquery = true;
+			}
 		}
 		break;
 #endif

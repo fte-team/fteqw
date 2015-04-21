@@ -43,20 +43,20 @@ extern cvar_t vid_conautoscale;
 extern cvar_t vid_conheight;
 extern cvar_t vid_conwidth;
 extern cvar_t con_textsize;
-void R2D_Font_Callback(struct cvar_s *var, char *oldvalue);
-void R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
-void R2D_ScreenAngle_Callback(struct cvar_s *var, char *oldvalue);
-void R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue);
-void R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R2D_Font_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R2D_ScreenAngle_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
 
 extern cvar_t crosshair;
 extern cvar_t crosshaircolor;
 extern cvar_t crosshairsize;
 extern cvar_t crosshairimage;
 extern cvar_t crosshairalpha;
-void R2D_Crosshair_Callback(struct cvar_s *var, char *oldvalue);
-void R2D_CrosshairImage_Callback(struct cvar_s *var, char *oldvalue);
-void R2D_CrosshairColor_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R2D_Crosshair_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R2D_CrosshairImage_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL R2D_CrosshairColor_Callback(struct cvar_s *var, char *oldvalue);
 
 
 //We need this for minor things though, so we'll just use the slow accurate method.
@@ -487,6 +487,29 @@ void R2D_FillBlock(float x, float y, float w, float h)
 		BE_DrawMesh_Single(shader_draw_fill, &draw_mesh, NULL, &shader_draw_fill->defaulttextures, r2d_be_flags);
 }
 
+void R2D_Line(float x1, float y1, float x2, float y2, shader_t *shader)
+{
+	VectorSet(draw_mesh_xyz[0], x1, y1, 0);
+	Vector2Set(draw_mesh_st[0], 0, 0);
+
+	VectorSet(draw_mesh_xyz[1], x2, y2, 0);
+	Vector2Set(draw_mesh_st[1], 1, 0);
+
+	if (!shader)
+	{
+		if (draw_mesh_colors[0][3] != 1)
+			shader = shader_draw_fill_trans;
+		else
+			shader = shader_draw_fill;
+	}
+
+	draw_mesh.numvertexes = 2;
+	draw_mesh.numindexes = 2;
+	BE_DrawMesh_Single(shader, &draw_mesh, NULL, &shader->defaulttextures, BEF_LINES);
+	draw_mesh.numvertexes = 4;
+	draw_mesh.numindexes = 6;
+}
+
 void R2D_ScalePic (float x, float y, float width, float height, mpic_t *pic)
 {
 	R2D_Image(x, y, width, height, 0, 0, 1, 1, pic);
@@ -642,7 +665,7 @@ void R2D_TileClear (float x, float y, float w, float h)
 	BE_DrawMesh_Single(draw_backtile, &draw_mesh, NULL, &draw_backtile->defaulttextures, r2d_be_flags);
 }
 
-void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (qrenderer == QR_NONE || !strcmp(var->string, "none"))
 	{
@@ -823,7 +846,7 @@ void R2D_Font_Changed(void)
 		font_console = font_default;
 }
 
-void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 {
 	con_textsize.modified = true;
 }
@@ -909,7 +932,7 @@ void R2D_Console_Resize(void)
 #endif
 }
 
-void R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (var->value > 1536)	//anything higher is unreadable.
 	{
@@ -925,7 +948,7 @@ void R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue)
 	R2D_Console_Resize();
 }
 
-void R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue)
 {
 	//let let the user be too crazy
 	if (var->value > 2048)	//anything higher is unreadable.
@@ -942,12 +965,12 @@ void R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue)
 	R2D_Console_Resize();
 }
 
-void R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue)
 {
 	R2D_Console_Resize();
 }
 
-void R2D_ScreenAngle_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R2D_ScreenAngle_Callback(struct cvar_s *var, char *oldvalue)
 {
 	R2D_Console_Resize();
 }
@@ -1258,17 +1281,17 @@ void R2D_Crosshair_Update(void)
 
 }
 
-void R2D_CrosshairImage_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R2D_CrosshairImage_Callback(struct cvar_s *var, char *oldvalue)
 {
 	R2D_Crosshair_Update();
 }
 
-void R2D_Crosshair_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R2D_Crosshair_Callback(struct cvar_s *var, char *oldvalue)
 {
 	R2D_Crosshair_Update();
 }
 
-void R2D_CrosshairColor_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL R2D_CrosshairColor_Callback(struct cvar_s *var, char *oldvalue)
 {
 	SCR_StringToRGB(var->string, ch_color, 255);
 

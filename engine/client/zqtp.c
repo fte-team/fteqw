@@ -67,7 +67,7 @@ qboolean suppress;
 #define Q_rint(f) ((int)((f)+0.5))
 
 // callbacks used for TP cvars
-void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
 
 //a list of all the cvars
 //this is down to the fact that I keep defining them but forgetting to register. :/
@@ -3441,7 +3441,7 @@ static void TP_MsgFilter_f (void)
 	}
 }
 
-void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue)
 {
 	Skin_FlushPlayers();
 }

@@ -254,7 +254,7 @@ void Menu_Draw(cluster_t *cluster, viewer_t *viewer)
 
 	sprintf(str, "FTEQTV build %i\n", cluster->buildnumber);
 	WriteString2(&m, str);
-	WriteString2(&m, "www.FTEQW.com\n");
+	WriteString2(&m, PROXYWEBSITE"\n");
 	WriteString2(&m, "-------------\n");
 	
 	if (strcmp(cluster->hostname, DEFAULT_HOSTNAME))

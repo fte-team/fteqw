@@ -5540,7 +5540,7 @@ qboolean NET_WasSpecialPacket(netsrc_t netsrc)
 	return false;
 }
 
-void NET_UPNPIGP_Callback(cvar_t *var, char *oldval)
+static void QDECL NET_UPNPIGP_Callback(cvar_t *var, char *oldval)
 {
 }
 cvar_t net_upnpigp = CVARCD("net_upnpigp", "0", NET_UPNPIGP_Callback, "If set, enables the use of the upnp-igd protocol to punch holes in your local NAT box.");
@@ -5642,42 +5642,42 @@ void NET_InitClient(void)
 
 #ifndef CLIENTONLY
 #ifdef HAVE_IPV4
-void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_TCP, true);
 }
 cvar_t	sv_port_tcp = CVARC("sv_port_tcp", "", SV_Tcpport_Callback);
 #endif
 #ifdef IPPROTO_IPV6
-void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_TCPV6, true);
 }
 cvar_t	sv_port_tcp6 = CVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
 #endif
 #ifdef HAVE_IPV4
-void SV_Port_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL SV_Port_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IP, true);
 }
 cvar_t  sv_port_ipv4 = CVARC("sv_port", STRINGIFY(PORT_QWSERVER), SV_Port_Callback);
 #endif
 #ifdef IPPROTO_IPV6
-void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPV6, true);
 }
 cvar_t  sv_port_ipv6 = CVARC("sv_port_ipv6", "", SV_PortIPv6_Callback);
 #endif
 #ifdef USEIPX
-void SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPX, true);
 }
 cvar_t  sv_port_ipx = CVARC("sv_port_ipx", "", SV_PortIPX_Callback);
 #endif
 #ifdef HAVE_NATPMP
-void SV_Port_NatPMP_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL SV_Port_NatPMP_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, va("natpmp://%s", var->string), NA_NATPMP, true);
 }

@@ -103,6 +103,7 @@ struct dl_download
 	unsigned int user_num;
 	float user_float;
 	void *user_ctx;
+	qboolean isquery;	//will not be displayed in the download/progress bar stuff.
 
 	qdownload_t qdownload;
 

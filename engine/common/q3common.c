@@ -128,9 +128,9 @@ int VM_FRead (char *dest, int quantity, int fnum, int owner)
 
 	return quantity;
 }
-/*
-void VM_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+int VM_FWrite (char *dest, int quantity, int fnum, int owner)
 {
+/*
 	int fnum = G_FLOAT(OFS_PARM0);
 	char *msg = PF_VarString(prinst, 1, pr_globals);
 	int len = strlen(msg);
@@ -157,8 +157,49 @@ void VM_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (pf_fopen_files[fnum].len < pf_fopen_files[fnum].ofs + len)
 		pf_fopen_files[fnum].len = pf_fopen_files[fnum].ofs + len;
 	pf_fopen_files[fnum].ofs+=len;
-}
 */
+	return 0;
+}
+void VM_FSeek (int fnum, int offset, int seektype, int owner)
+{
+	fnum--;
+	if (fnum < 0 || fnum >= MAX_VM_FILES)
+		return;	//out of range
+	if (vm_fopen_files[fnum].owner != owner)
+		return;	//cgs?
+	if (!vm_fopen_files[fnum].data)
+		return;	//not open
+
+	switch(seektype)
+	{
+	case 0:
+		offset = vm_fopen_files[fnum].ofs + offset;
+	case 1:
+		offset = vm_fopen_files[fnum].len + offset;
+		break;
+	default:
+	case 2:
+		offset = offset;
+		break;
+	}
+	if (offset < 0)
+		offset = 0;
+	if (offset > vm_fopen_files[fnum].len)
+		offset = vm_fopen_files[fnum].len;
+	vm_fopen_files[fnum].ofs = offset;
+}
+int VM_FTell (int fnum, int owner)
+{
+	fnum--;
+	if (fnum < 0 || fnum >= MAX_VM_FILES)
+		return 0;	//out of range
+	if (vm_fopen_files[fnum].owner != owner)
+		return 0;	//cgs?
+	if (!vm_fopen_files[fnum].data)
+		return 0;	//not open
+
+	return vm_fopen_files[fnum].ofs;
+}
 void VM_fcloseall (int owner)
 {
 	int i;

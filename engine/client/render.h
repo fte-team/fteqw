@@ -327,7 +327,7 @@ extern int numlightmaps;
 extern int			lightmap_bytes;		// 1, 3, or 4
 extern qboolean		lightmap_bgra;		/*true=bgra, false=rgba*/
 
-void Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
+void QDECL Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
 
 
 void R_SetSky(char *skyname);		/*override all sky shaders*/

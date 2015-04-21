@@ -477,6 +477,7 @@ typedef struct
 	float		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// host_framecount at start
 	float		td_starttime;		// realtime at second frame of timedemo
+	float		demostarttime;		// the time of the first frame, so we don't get weird results with qw demos
 
 	int			challenge;
 
@@ -1087,6 +1088,7 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result);
 #define NET_TIMINGSMASK 255
 extern int	packet_latency[NET_TIMINGS];
 int CL_CalcNet (float scale);
+float CL_CalcNet2 (float *ping, float *ping_min, float *ping_max, float *ping_stddev);
 void CL_ClearParseState(void);
 void CL_Parse_Disconnected(void);
 void CL_DumpPacket(void);

@@ -208,6 +208,45 @@ static void Plug_FreePlugImages(plugin_t *plug)
 	}
 }
 
+//int R2D_ImageSize (qhandle_t image, float *w, float *h)
+static qintptr_t VARGS Plug_Draw_ImageSize(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	float *w = VM_POINTER(arg[1]), *h = VM_POINTER(arg[2]);
+	int iw, ih, ret;
+	mpic_t *pic;
+	int i;
+	
+	if (VM_OOB(arg[1], sizeof(*w)) || VM_OOB(arg[2], sizeof(*w)))
+		return -1;
+	*w = 0;
+	*h = 0;
+	if (qrenderer == QR_NONE)
+		return 0;
+
+	i = VM_LONG(arg[0]);
+	if (i <= 0 || i > pluginimagearraylen)
+		return -1;	// you fool
+	i = i - 1;
+	if (pluginimagearray[i].plugin != currentplug)
+		return -1;
+
+	if (pluginimagearray[i].pic)
+		pic = pluginimagearray[i].pic;
+	else if (pluginimagearray[i].type == 1)
+		return 0;	//wasn't loaded.
+	else
+	{
+		pic = R2D_SafeCachePic(pluginimagearray[i].name);
+		if (!pic)
+			return -1;
+	}
+
+	ret = R_GetShaderSizes(pic, &iw, &ih, true);
+	*w = iw;
+	*h = ih;
+	return ret;
+}
+
 //int R2D_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
 static qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -240,21 +279,7 @@ static qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qint
 //x1,y1,x2,y2
 static qintptr_t VARGS Plug_Draw_Line(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
-	{
-#ifdef GLQUAKE
-	case QR_OPENGL:
-		qglDisable(GL_TEXTURE_2D);
-		qglBegin(GL_LINES);
-		qglVertex2f(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
-		qglVertex2f(VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
-		qglEnd();
-		qglEnable(GL_TEXTURE_2D);
-		break;
-#endif
-	default:
-		return 0;
-	}
+	R2D_Line(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), NULL);
 	return 1;
 }
 static qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -431,16 +456,61 @@ static qintptr_t VARGS Plug_LocalPlayerNumber(void *offset, quintptr_t mask, con
 {
 	return cl.playerview[0].playernum;
 }
+static qintptr_t VARGS Plug_GetLocalPlayerNumbers(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int i;
+	int	first = VM_LONG(arg[0]);
+	int	count = VM_LONG(arg[1]);
+	int *playernums = VM_POINTER(arg[2]);
+	int *spectracks = VM_POINTER(arg[3]);
+	if (count < 0 || count > 1000) count = 0;
+	if (VM_OOB(arg[2], sizeof(*playernums)*count) || VM_OOB(arg[3], sizeof(*playernums)*count))
+		return false;
+	if (first < 0) first = 0;
+	if (first > cl.splitclients) first = cl.splitclients;
+	if (first+count > cl.splitclients) count = cl.splitclients-first;
+	for (i = 0; i < count; i++)
+	{
+		playernums[i] = cl.playerview[i].playernum;
+		spectracks[i] = Cam_TrackNum(&cl.playerview[i]);
+	}
+	return count;
+}
 
 static qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *outptr = VM_POINTER(arg[0]);
 	unsigned int outlen = VM_LONG(arg[1]);
+	extern float demtime;
 
 	if (VM_OOB(arg[0], outlen))
 		return false;
 
 	Q_strncpyz(outptr, cl.serverinfo, outlen);
+	Q_strncatz(outptr, va("\\intermission\\%i", cl.intermission), outlen);
+	switch(cls.demoplayback)
+	{
+	case DPB_NONE:
+		break;
+	case DPB_MVD:
+	case DPB_EZTV:
+		Q_strncatz(outptr, "\\demotype\\mvd", outlen);
+		break;
+	case DPB_QUAKEWORLD:
+		Q_strncatz(outptr, "\\demotype\\qw", outlen);
+		break;
+#ifdef NQPROT
+	case DPB_NETQUAKE:
+		Q_strncatz(outptr, "\\demotype\\nq", outlen);
+		break;
+#endif
+#ifdef Q2CLIENT
+	case DPB_QUAKE2:
+		Q_strncatz(outptr, "\\demotype\\q2", outlen);
+		break;
+#endif
+	}
+	Q_strncatz(outptr, va("\\demotime\\%f", demtime-cls.demostarttime), outlen);
 
 	return true;
 }
@@ -454,6 +524,75 @@ static qintptr_t VARGS Plug_SetUserInfo(void *offset, quintptr_t mask, const qin
 
 	return true;
 }
+
+typedef struct {
+	int seats;
+	struct
+	{
+		float avg;
+		float mn;
+		float mx;
+		float stddev;
+		float loss;
+	} ping;
+	float mlatency;
+	float mrate;
+	float vlatency;
+	float vrate;
+	vec3_t speed;	//player speed
+	
+	struct
+	{
+		float in_pps;
+		float in_bps;
+		float out_pps;
+		float out_bps;
+	} clrate;
+	struct
+	{
+		float in_pps;
+		float in_bps;
+		float out_pps;
+		float out_bps;
+	} svrate;
+} vmnetinfo_t;
+#define has(x) (((quintptr_t)&((vmnetinfo_t*)NULL)->x + sizeof(((vmnetinfo_t*)NULL)->x)) <= outlen)
+//aka: misc other hud timing crap
+static qintptr_t VARGS Plug_GetNetworkInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	vmnetinfo_t *outptr = VM_POINTER(arg[0]);
+	unsigned int outlen = VM_LONG(arg[1]);
+	if (VM_OOB(arg[0], outlen))
+		return false;
+	
+	if (has(seats))
+		outptr->seats = cl.splitclients;
+	if (has(ping))		
+		outptr->ping.loss = CL_CalcNet2 (&outptr->ping.avg, &outptr->ping.mn, &outptr->ping.mx, &outptr->ping.stddev);
+		
+	if (has(mlatency))
+		outptr->mlatency = 0;
+	if (has(mrate))
+		outptr->mrate = 0;
+	if (has(vlatency))
+		outptr->vlatency = 0;
+		
+	if (has(speed))
+		VectorCopy(outptr->speed, r_refdef.playerview->simvel);
+
+	if (has(clrate))
+		NET_GetRates(cls.sockets, &outptr->clrate.in_pps, &outptr->clrate.out_pps, &outptr->clrate.in_bps, &outptr->clrate.out_bps);		
+	if (has(svrate))
+	{
+		memset(&outptr->svrate, 0, sizeof(outptr->svrate));
+#ifndef CLIENTONLY
+		NET_GetRates(svs.sockets, &outptr->svrate.in_pps, &outptr->svrate.out_pps, &outptr->svrate.in_bps, &outptr->svrate.out_bps);
+#endif
+	}
+	
+	return sizeof(vmnetinfo_t);
+}
+#undef has
 
 static qintptr_t VARGS Plug_GetLocationName(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -807,6 +946,7 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("Draw_LoadImageShader",	Plug_Draw_LoadImageShader, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_LoadImage",			Plug_Draw_LoadImagePic, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Image",				Plug_Draw_Image, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_ImageSize",			Plug_Draw_ImageSize, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Character",			Plug_Draw_Character, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_String",				Plug_Draw_String, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, PLUG_BIF_NEEDSRENDERER);
@@ -832,8 +972,10 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("GetLocationName",			Plug_GetLocationName, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("LocalPlayerNumber",		Plug_LocalPlayerNumber, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("GetLocalPlayerNumbers",	Plug_GetLocalPlayerNumbers, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetServerInfo",			Plug_GetServerInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SetUserInfo",				Plug_SetUserInfo, PLUG_BIF_NEEDSRENDERER);
+//	Plug_RegisterBuiltin("GetNetworkInfo",			Plug_GetNetworkInfo, PLUG_BIF_NEEDSRENDERER);
 	
 	Plug_RegisterBuiltin("S_RawAudio",				Plug_S_RawAudio, PLUG_BIF_NEEDSRENDERER);
 	

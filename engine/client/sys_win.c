@@ -3870,7 +3870,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		*COM_SkipPath(bindir) = 0;
 		parms.argv = (const char **)sys_argv;
 
-		host_parms.binarydir = bindir;
+		parms.binarydir = bindir;
 		COM_InitArgv (parms.argc, parms.argv);
 
 		c = COM_CheckParm("-qcdebug");

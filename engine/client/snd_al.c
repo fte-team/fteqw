@@ -133,6 +133,7 @@ static AL_API void (AL_APIENTRY *palSourceUnqueueBuffers)(ALuint source, ALsizei
 #define AL_ORIENTATION                            0x100F
 #define	AL_SOURCE_STATE							  0x1010
 #define	AL_PLAYING								  0x1012	
+#define	AL_BUFFERS_QUEUED						  0x1015
 #define	AL_BUFFERS_PROCESSED					  0x1016
 #define AL_REFERENCE_DISTANCE                     0x1020
 #define AL_ROLLOFF_FACTOR                         0x1021
@@ -285,10 +286,10 @@ extern int loaded_sfx;
 extern int num_sfx;
 
 
-static void OnChangeALMaxDistance (cvar_t *var, char *value);
-static void OnChangeALSpeedOfSound (cvar_t *var, char *value);
-static void OnChangeALDopplerFactor (cvar_t *var, char *value);
-static void OnChangeALDistanceModel (cvar_t *var, char *value);
+static void QDECL OnChangeALMaxDistance (cvar_t *var, char *value);
+static void QDECL OnChangeALSpeedOfSound (cvar_t *var, char *value);
+static void QDECL OnChangeALDopplerFactor (cvar_t *var, char *value);
+static void QDECL OnChangeALDistanceModel (cvar_t *var, char *value);
 /*
 static void S_Init_f(void);
 static void S_Info(void);
@@ -358,12 +359,19 @@ static void PrintALError(char *string)
 	Con_Printf("OpenAL - %s: %x: %s\n",string,err,text);
 }
 
-void OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
+qboolean OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 {
 	unsigned int fmt;
 	unsigned int size;
 	switch(sc->width)
 	{
+#ifdef FTE_TARGET_WEB
+	case 0:
+		palGenBuffers(1, bufptr);
+		emscriptenfte_al_loadaudiofile(*bufptr, sc->data, sc->length);
+		//not allowed to play it yet, because it (probably) doesn't exist yet.
+		return false;
+#endif
 	case 1:
 		if (sc->numchannels == 2)
 		{
@@ -389,7 +397,7 @@ void OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 		}
 		break;
 	default:
-		return;
+		return false;
 	}
 	PrintALError("pre Buffer Data");
 	palGenBuffers(1, bufptr);
@@ -436,12 +444,22 @@ void OpenAL_LoadCache(unsigned int *bufptr, sfxcache_t *sc, float volume)
 			free(tmp);
 		}
 		else
+		{
+#if 0
+			short *tmp = malloc(size);
+			memcpy(tmp, sc->data, size);
+			palBufferData(*bufptr, fmt, tmp, size, sc->speed);
+			free(tmp);
+#else
 			palBufferData(*bufptr, fmt, sc->data, size, sc->speed);
+#endif
+		}
 	}
 
 	//FIXME: we need to handle oal-oom error codes
 
 	PrintALError("Buffer Data");
+	return true;
 }
 
 void OpenAL_CvarInit(void)
@@ -519,16 +537,35 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		palSourceStop(src);
 
 	//reclaim any queued buffers
-	palGetSourcei(src, AL_SOURCE_TYPE, &buf);
-	if (buf == AL_STREAMING)
+	if (src)
 	{
-		for(;;)
+		palGetSourcei(src, AL_SOURCE_TYPE, &buf);
+		if (buf == AL_STREAMING)
 		{
-			palGetSourcei(src, AL_BUFFERS_PROCESSED, &buf);
-			if (!buf)
-				break;
-			palSourceUnqueueBuffers(src, 1, &buf);
-			palDeleteBuffers(1, &buf);
+			for(;;)
+			{
+				palGetSourcei(src, AL_BUFFERS_PROCESSED, &buf);
+				if (!buf)
+					break;
+				palSourceUnqueueBuffers(src, 1, &buf);
+				palDeleteBuffers(1, &buf);
+			}
+		}
+	}
+	if (!schanged && sfx
+#ifndef FTE_TARGET_WEB
+		&& (chan->looping || (!sfx->decoder.decodedata && sfx->decoder.buf && ((sfxcache_t*)sfx->decoder.buf)->loopstart))
+#endif
+		)
+	{
+		palGetSourcei(src, AL_SOURCE_STATE, &buf);
+		if (buf != AL_PLAYING)
+		{
+			schanged = true;
+			if (chan->looping)
+				chan->pos = 0;
+			else
+				sfx = chan->sfx = NULL;
 		}
 	}
 
@@ -560,47 +597,82 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 			if (!S_LoadSound(sfx))
 				return;	//can't load it
 			if (sfx->loadstate != SLS_LOADED)
+			{
+				if (sfx->loadstate == SLS_LOADING)
+				{
+					palDeleteSources(1, &src);
+					oali->source[chnum] = 0;
+				}
 				return;	//not available yet
+			}
 			if (sfx->decoder.decodedata)
 			{
 				int offset;
-				sfxcache_t sbuf, *sc = sfx->decoder.decodedata(sfx, &sbuf, chan->pos>>PITCHSHIFT, 65536);
-				memcpy(&sbuf, sc, sizeof(sbuf));
+				sfxcache_t sbuf, *sc;
+				palGetSourcei(src, AL_BUFFERS_QUEUED, &buf);
+				if (buf <= 2)
+				{	//decode periodically instead of all at the start.
+					sc = sfx->decoder.decodedata(sfx, &sbuf, chan->pos>>PITCHSHIFT, 65536);
+					memcpy(&sbuf, sc, sizeof(sbuf));
 
-				//hack up the sound to offset it correctly
-				offset = (chan->pos>>PITCHSHIFT) - sbuf.soundoffset;
-				sbuf.data += offset * sc->width*sc->numchannels;
-				sbuf.length -= offset;
+					//hack up the sound to offset it correctly
+					offset = (chan->pos>>PITCHSHIFT) - sbuf.soundoffset;
+					sbuf.data += offset * sc->width*sc->numchannels;
+					sbuf.length -= offset;
 
-				if (!sbuf.length && (chan->pos>>PITCHSHIFT) == sbuf.soundoffset)
-				{
-					chan->sfx = NULL;
-					if (sfx->decoder.ended)
+					if (!sbuf.length)// && (chan->pos>>PITCHSHIFT) == sbuf.soundoffset)
 					{
-						if (!S_IsPlayingSomewhere(sfx))
-							sfx->decoder.ended(sfx);
+						palGetSourcei(src, AL_SOURCE_STATE, &buf);
+						if (buf != AL_PLAYING)
+						{
+							if (chan->looping)
+								chan->pos = 0;
+							else if(sbuf.loopstart != -1)
+								chan->pos = sbuf.loopstart<<PITCHSHIFT;
+							else
+							{
+								chan->sfx = NULL;
+								if (sfx->decoder.ended)
+								{
+									if (!S_IsPlayingSomewhere(sfx))
+										sfx->decoder.ended(sfx);
+								}
+							}
+							return;
+						}
+					}
+					else
+					{
+						sbuf.soundoffset = 0;
+
+						//build a buffer with it and queue it up.
+						//buffer will be purged later on when its unqueued
+						OpenAL_LoadCache(&buf, &sbuf, max(1,cvolume));
+						palSourceQueueBuffers(src, 1, &buf);
+
+						//yay
+						chan->pos += sbuf.length<<PITCHSHIFT;
+
+						palGetSourcei(src, AL_SOURCE_STATE, &buf);
+						if (buf != AL_PLAYING)
+							schanged = true;
 					}
 				}
-				sbuf.soundoffset = 0;
-
-				//build a buffer with it and queue it up.
-				//buffer will be purged later on when its unqueued
-				OpenAL_LoadCache(&buf, &sbuf, max(1,cvolume));
-				palSourceQueueBuffers(src, 1, &buf);
-
-				//yay
-				chan->pos += sbuf.length<<PITCHSHIFT;
-
-				palGetSourcei(src, AL_SOURCE_STATE, &buf);
-				if (buf != AL_PLAYING)
-					schanged = true;
 			}
 			else
 			{
-				OpenAL_LoadCache(&sfx->openal_buffer, sfx->decoder.buf, 1);
+				if (!sfx->decoder.buf)
+					return;
+				if (!OpenAL_LoadCache(&sfx->openal_buffer, sfx->decoder.buf, 1))
+					return;
 				palSourcei(src, AL_BUFFER, sfx->openal_buffer);
 			}
 		}
+#ifdef FTE_TARGET_WEB
+		//loading an ogg is async, so we must wait until its valid.
+		else if (!palIsBuffer(sfx->openal_buffer))
+			return;
+#endif
 		else
 			palSourcei(src, AL_BUFFER, sfx->openal_buffer);
 	}
@@ -788,20 +860,20 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 	return true;
 }
 
-static void OnChangeALMaxDistance (cvar_t *var, char *oldvalue)
+static void QDECL OnChangeALMaxDistance (cvar_t *var, char *oldvalue)
 {
 }
-static void OnChangeALSpeedOfSound (cvar_t *var, char *value)
+static void QDECL OnChangeALSpeedOfSound (cvar_t *var, char *value)
 {
 	if (palSpeedOfSound)
 		palSpeedOfSound(var->value);
 }
-static void OnChangeALDopplerFactor (cvar_t *var, char *oldvalue)
+static void QDECL OnChangeALDopplerFactor (cvar_t *var, char *oldvalue)
 {
 	if (palDopplerFactor)
 		palDopplerFactor(var->value);
 }
-static void OnChangeALDistanceModel (cvar_t *var, char *value)
+static void QDECL OnChangeALDistanceModel (cvar_t *var, char *oldvalue)
 {
 	if (!palDistanceModel)
 		return;

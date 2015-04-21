@@ -789,7 +789,7 @@ readit:
 		}
 		break;
 
-	case dem_set :
+	case dem_set:
 		if (readdemobytes (&demopos, &j, 4) != 4)
 		{
 			olddemotime = demtime;
@@ -800,6 +800,7 @@ readit:
 			olddemotime = demtime;
 			return 0;
 		}
+		cls.demostarttime = demtime;
 		cls.netchan.outgoing_sequence = LittleLong(j);
 		cls.netchan.incoming_sequence = LittleLong(i);
 		cl.movesequence = cls.netchan.outgoing_sequence;
@@ -1658,6 +1659,7 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, 0);
 
 	demtime = -bufferdelay;
+	cls.demostarttime = 0;
 	cl.gametime = -bufferdelay;
 	cl.gametimemark = realtime;//demtime;
 	if (demtime < -0.5)

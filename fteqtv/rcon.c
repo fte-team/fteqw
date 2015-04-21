@@ -392,7 +392,7 @@ void Cmd_Master(cmdctxt_t *ctx)
 	strlcpy(ctx->cluster->master, newval, sizeof(ctx->cluster->master));
 	ctx->cluster->mastersendtime = ctx->cluster->curtime;
 
-	s = NET_ChooseSocket(ctx->cluster->qwdsocket, &addr);
+	s = NET_ChooseSocket(ctx->cluster->qwdsocket, &addr, addr);
 	if (s != INVALID_SOCKET)
 		NET_SendPacket (ctx->cluster, s, 1, "k", addr);
 	Cmd_Printf(ctx, "Master server set.\n");
@@ -821,7 +821,7 @@ void Cmd_Ping(cmdctxt_t *ctx)
 	char *val = Cmd_Argv(ctx, 1);
 	if (NET_StringToAddr(val, &addr, 27500))
 	{
-		NET_SendPacket (ctx->cluster, NET_ChooseSocket(ctx->cluster->qwdsocket, &addr), 1, "k", addr);
+		NET_SendPacket (ctx->cluster, NET_ChooseSocket(ctx->cluster->qwdsocket, &addr, addr), 1, "k", addr);
 		Cmd_Printf(ctx, "pinged\n");
 	}
 	Cmd_Printf(ctx, "couldn't resolve\n");
@@ -1249,6 +1249,7 @@ const rconcommands_t rconcommands[] =
 
 	{"help",		0, 1, Cmd_Help,		"shows the brief intro help text"},
 	{"commands",		0, 1, Cmd_Commands,	"prints the list of commands"},
+	{"apropos",		0, 1, Cmd_Commands,	"prints all commands"},
 	{"hostname",		0, 1, Cmd_Hostname,	"changes the hostname seen in server browsers"},
 	{"master",		0, 1, Cmd_Master,	"specifies which master server to use"},
 	{"udpport",		0, 1, Cmd_UDPPort,	"specifies to listen on a provided udp port for regular qw clients"},

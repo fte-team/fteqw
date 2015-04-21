@@ -801,6 +801,22 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	var->value = Q_atof (var->string);
 	var->ival = Q_atoi (var->string);
 
+	{
+		char *str = COM_Parse(var->string);
+		var->vec4[0] = atof(com_token);
+		str = COM_Parse(str);
+		var->vec4[1] = atof(com_token);
+		str = COM_Parse(str);
+		var->vec4[2] = atof(com_token);
+		if (!str || !*str)
+			var->vec4[3] = 1;
+		else
+		{
+			str = COM_Parse(str);
+			var->vec4[3] = atof(com_token);
+		}
+	}
+
 	if (latch)
 	{
 		if (strcmp(latch, value))
@@ -1364,7 +1380,7 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 	}
 }
 
-void Cvar_Hook(cvar_t *cvar, void (*callback) (struct cvar_s *var, char *oldvalue))
+void Cvar_Hook(cvar_t *cvar, void (QDECL *callback) (struct cvar_s *var, char *oldvalue))
 {
 	cvar->callback = callback;
 }
@@ -1398,7 +1414,7 @@ void Cvar_ApplyCallbacks(int callbackflag)
 }
 
 // standard callbacks
-void Cvar_Limiter_ZeroToOne_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL Cvar_Limiter_ZeroToOne_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (var->value > 1)
 	{

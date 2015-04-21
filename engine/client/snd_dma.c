@@ -117,7 +117,7 @@ cvar_t snd_device				= CVARAF(	"s_device", "",
 cvar_t snd_device_opts			= CVARFD(	"_s_device_opts", "", CVAR_NOSET, "The possible audio output devices, in \"value\" \"description\" pairs, for gamecode to read.");
 
 #ifdef VOICECHAT
-static void S_Voip_Play_Callback(cvar_t *var, char *oldval);
+static void QDECL S_Voip_Play_Callback(cvar_t *var, char *oldval);
 cvar_t snd_voip_capturedevice	= CVARF("cl_voip_capturedevice", "", CVAR_ARCHIVE);
 cvar_t snd_voip_capturedevice_opts	= CVARFD("_cl_voip_capturedevice_opts", "", CVAR_NOSET, "The possible audio capture devices, in \"value\" \"description\" pairs, for gamecode to read.");
 int voipbutton;	//+voip, no longer part of cl_voip_send to avoid it getting saved
@@ -1332,7 +1332,7 @@ static void S_Voip_f(void)
 			qspeex_preprocess_ctl(s_voip.speexdsp.preproc, SPEEX_PREPROCESS_SET_AGC_MAX_GAIN, &i);
 	}
 }
-static void S_Voip_Play_Callback(cvar_t *var, char *oldval)
+static void QDECL S_Voip_Play_Callback(cvar_t *var, char *oldval)
 {
 	if (cls.fteprotocolextensions2 & PEXT2_VOICECHAT)
 	{
@@ -2570,6 +2570,9 @@ void S_Music_Clear(sfx_t *onlyifsample)
 
 			sc->channel[i].pos = 0;
 			sc->channel[i].sfx = NULL;
+
+			if (sc->ChannelUpdate)
+				sc->ChannelUpdate(sc, &sc->channel[i], true);
 
 			if (s && s->decoder.ended && !S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
 				s->decoder.ended(s);

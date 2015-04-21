@@ -838,7 +838,7 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 	header = (buffer[0]<<24) + (buffer[1]<<16) + (buffer[2]<<8) + buffer[3];
 	*(int*)buffer = header;
 
-	NET_SendPacket (cluster, NET_ChooseSocket(cluster->qwdsocket, addr), len, buffer, *addr);
+	NET_SendPacket (cluster, NET_ChooseSocket(cluster->qwdsocket, addr, *addr), len, buffer, *addr);
 
 	if (!viewer)
 		return;
@@ -847,7 +847,7 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 	memset(viewer, 0, sizeof(*viewer));
 
 
-	Netchan_Setup (NET_ChooseSocket(cluster->qwdsocket, addr), &viewer->netchan, *addr, 0, false);
+	Netchan_Setup (NET_ChooseSocket(cluster->qwdsocket, addr, *addr), &viewer->netchan, *addr, 0, false);
 	viewer->netchan.isnqprotocol = true;
 	viewer->netchan.maxdatagramlen = MAX_NQDATAGRAM;
 	viewer->netchan.maxreliablelen = MAX_NQMSGLEN;
@@ -902,7 +902,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	}
 	memset(viewer, 0, sizeof(viewer_t));
 
-	Netchan_Setup (NET_ChooseSocket(cluster->qwdsocket, addr), &viewer->netchan, *addr, atoi(qport), false);
+	Netchan_Setup (NET_ChooseSocket(cluster->qwdsocket, addr, *addr), &viewer->netchan, *addr, atoi(qport), false);
 	viewer->netchan.message.maxsize = MAX_QWMSGLEN;
 	viewer->netchan.maxdatagramlen = MAX_QWMSGLEN;
 	viewer->netchan.maxreliablelen = MAX_QWMSGLEN;
@@ -1110,7 +1110,7 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 	}
 
 	WriteByte(&msg, 0);
-	NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, from), msg.cursize, msg.data, *from);
+	NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, from, *from), msg.cursize, msg.data, *from);
 }
 
 void QTV_StatusResponse(cluster_t *cluster, char *msg, netadr_t *from)
@@ -1219,7 +1219,7 @@ void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 	}
 	if (!strncmp(buffer, "ping", 4))
 	{	//ack
-		NET_SendPacket (cluster, NET_ChooseSocket(cluster->qwdsocket, from), 1, "l", *from);
+		Netchan_OutOfBandPrint(cluster, *from, "l");
 		return;
 	}
 	if (!strncmp(buffer, "status", 6))
@@ -1241,10 +1241,10 @@ void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 			NewQWClient(cluster, from, buffer);
 		return;
 	}
-	if (!strncmp(buffer, "l\n", 2))
-	{
-		Sys_Printf(cluster, "Ack\n");
-	}
+//	if (buffer[0] == 'l' && (!buffer[1] || buffer[1] == '\n'))
+//	{
+//		Sys_Printf(cluster, "Ack from %s\n", );
+//	}
 }
 
 
@@ -2405,7 +2405,7 @@ void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcomman
 
 	if (!strcmp(command, "help"))
 	{
-		QW_PrintfToViewer(v,	"Website: http://www.fteqw.com/\n"
+		QW_PrintfToViewer(v,	"Website: "PROXYWEBSITE"\n"
 					"Commands:\n"
 					".bind\n"
 					"  Bind your keys to drive the menu.\n"
@@ -4214,7 +4214,7 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 					WriteByte(m, cluster->maxviewers>255?255:cluster->maxviewers);
 					WriteByte(m, NQ_NETCHAN_VERSION);
 					*(int*)m->data = BigLong(NETFLAG_CTL | m->cursize);
-					NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from), m->cursize, m->data, from);
+					NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from, from), m->cursize, m->data, from);
 				}
 				break;
 			case CCREQ_CONNECT:
@@ -4300,7 +4300,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 		{
 			sprintf(buffer, "a\n%i\n0\n", cluster->mastersequence++);	//fill buffer with a heartbeat
 //why is there no \xff\xff\xff\xff ?..
-			NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from), strlen(buffer), buffer, from);
+			NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from, from), strlen(buffer), buffer, from);
 		}
 		else
 			Sys_Printf(cluster, "Cannot resolve master %s\n", cluster->master);

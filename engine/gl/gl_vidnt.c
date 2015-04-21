@@ -1480,7 +1480,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	return true;
 }
 
-void VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (qwglSwapIntervalEXT && *vid_vsync.string)
 		qwglSwapIntervalEXT(vid_vsync.value);
@@ -1524,7 +1524,7 @@ void GLVID_Recenter_f(void)
 	}
 }
 
-void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
 {
 	//this code tells windows to use the alpha channel of the screen, but does really nasty things with the mouse such that its unplayable.
 	//its not useful.
@@ -2109,6 +2109,7 @@ LONG WINAPI GLMainWndProc (
 			{
 				COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
 				Host_RunFile(cds->lpData, cds->cbData, NULL);
+				lRet = 1;
 			}
 			break;
 		case WM_KILLFOCUS:
@@ -2234,7 +2235,10 @@ LONG WINAPI GLMainWndProc (
 		case WM_INPUT:
 			// raw input handling
 			if (!vid_initializing)
+			{
 				INS_RawInput_Read((HANDLE)lParam);
+				lRet = 0;
+			}
 			break;
 
 		case WM_USER:

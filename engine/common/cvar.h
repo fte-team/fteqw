@@ -69,13 +69,14 @@ typedef struct cvar_s
 	//free style :)
 	char			*name2;
 
-	void			(*callback) (struct cvar_s *var, char *oldvalue);
+	void			(QDECL *callback) (struct cvar_s *var, char *oldvalue);
 	char			*description;
 	char			*enginevalue;		//when changing manifest dir, the cvar will be reset to this value. never freed.
 	char			*defaultstr;		//this is the current mod's default value. set on first update.
 
 
 	int				ival;
+	vec4_t			vec4;	//0,0,0,1 if something didn't parse.
 	qbyte			restriction;
 
 #ifdef HLSERVER
@@ -174,7 +175,7 @@ void Cvar_ConfigChanged(void);
 int Cvar_ApplyLatches(int latchflag);
 //sets vars to their latched values
 
-void Cvar_Hook(cvar_t *cvar, void (*callback) (struct cvar_s *var, char *oldvalue));
+void Cvar_Hook(cvar_t *cvar, void (QDECL *callback) (struct cvar_s *var, char *oldvalue));
 //hook a cvar with a given callback function at runtime
 
 void Cvar_Unhook(cvar_t *cvar);
@@ -186,7 +187,7 @@ void Cvar_ForceCallback(cvar_t *cvar);
 void Cvar_ApplyCallbacks(int callbackflag);
 //forces callbacks to be ran for given flags
 
-void Cvar_Limiter_ZeroToOne_Callback(struct cvar_s *var, char *oldvalue);
+void QDECL Cvar_Limiter_ZeroToOne_Callback(struct cvar_s *var, char *oldvalue);
 //cvar callback to limit cvar value to 0 or 1
 
 float	Cvar_VariableValue (const char *var_name);

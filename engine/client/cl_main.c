@@ -28,8 +28,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 #include <ctype.h>
 // callbacks
-void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue);
-void Name_Callback(struct cvar_s *var, char *oldvalue);
+void QDECL CL_Sbar_Callback(struct cvar_s *var, char *oldvalue);
+void QDECL Name_Callback(struct cvar_s *var, char *oldvalue);
 
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
@@ -57,7 +57,7 @@ cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be smoother, but they may be more laggy. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
-cvar_t	hud_tracking_show = CVAR("hud_tracking_show", "1");
+cvar_t	*hud_tracking_show;
 extern cvar_t net_compress;
 
 cvar_t	cl_defaultport		= CVARAFD("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0, "The default port to connect to servers.\nQW: "STRINGIFY(PORT_QWSERVER)", NQ: "STRINGIFY(PORT_NQSERVER)", Q2: "STRINGIFY(PORT_Q2SERVER)".");
@@ -3656,7 +3656,7 @@ void CL_Init (void)
 #endif
 	Cvar_Register (&cl_countpendingpl,				cl_controlgroup);
 	Cvar_Register (&cl_threadedphysics,				cl_controlgroup);
-	Cvar_Register (&hud_tracking_show,				"statusbar");
+	hud_tracking_show = Cvar_Get("hud_tracking_show", "1", 0, "statusbar");
 	Cvar_Register (&cl_download_mapsrc,				cl_controlgroup);
 
 	Cvar_Register (&cl_dlemptyterminate,				cl_controlgroup);

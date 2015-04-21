@@ -730,8 +730,31 @@ qboolean S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 
 qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
 
+#ifdef FTE_TARGET_WEB
+//web browsers contain their own decoding libraries that our openal stuff can use.
+qboolean S_LoadBrowserFile (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+{
+	sfxcache_t *sc;
+	s->decoder.buf = sc = BZ_Malloc(sizeof(sfxcache_t) + datalen);
+	sc->data = (qbyte*)(sc+1);
+	sc->length = datalen;
+	sc->width = 0;	//ie: not pcm
+	sc->loopstart = -1;
+	sc->speed = sndspeed;
+	sc->numchannels = 2;
+	sc->soundoffset = 0;
+	memcpy(sc->data, data, datalen);
+
+	return true;
+}
+#endif
+
+//highest priority is last.
 S_LoadSound_t AudioInputPlugins[10] =
 {
+#ifdef FTE_TARGET_WEB
+	S_LoadBrowserFile,
+#endif
 #ifdef AVAIL_OGGVORBIS
 	S_LoadOVSound,
 #endif

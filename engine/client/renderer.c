@@ -35,9 +35,9 @@ unsigned int	d_8to24bgrtable[256];
 extern int gl_anisotropy_factor;
 
 // callbacks used for cvars
-void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
-void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
-void Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
+void QDECL SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
+void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
+void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
 
 cvar_t vid_vsync							= CVARAF  ("vid_wait", "0",
 													   "vid_vsync", CVAR_ARCHIVE);

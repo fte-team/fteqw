@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 float in_sensitivityscale = 1;
 
-void CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue);
+static void QDECL CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue);
 
 cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
@@ -1011,7 +1011,7 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	}
 }
 
-void Name_Callback(struct cvar_s *var, char *oldvalue)
+void QDECL Name_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (cls.state <= ca_connected)
 		return;
@@ -1301,7 +1301,7 @@ void CL_UseIndepPhysics(qboolean allow)
 }
 #endif
 
-void CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue)
+static void QDECL CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue)
 {
 	if (var->value > 50)
 	{

@@ -4006,6 +4006,7 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		dl->user_ctx = w;
 		dl->user_float = id;
 		dl->user_num = *w->g.self;
+		dl->isquery = true;
 		G_FLOAT(OFS_RETURN) = 1;
 	}
 	else

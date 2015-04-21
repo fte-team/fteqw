@@ -202,6 +202,7 @@ static void HTTPSV_SendHTMLHeader(cluster_t *cluster, oproxy_t *dest, char *titl
 
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
+#if 0
 	if (plugin)
 	{
 		s =
@@ -225,6 +226,7 @@ static void HTTPSV_SendHTMLHeader(cluster_t *cluster, oproxy_t *dest, char *titl
 			"</script>";
 		Net_ProxySend(cluster, dest, s, strlen(s));
 	}
+#endif
 }
 
 static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
@@ -233,12 +235,14 @@ static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
 	char buffer[2048];
 
 	/*Proxy version*/
-	snprintf(buffer, sizeof(buffer), "<br/>Server Version: %i <a href=\"http://www.fteqw.com\" target=\"_blank\">www.fteqw.com</a>", cluster->buildnumber);
+	snprintf(buffer, sizeof(buffer), "<br/>Server Version: %i <a href=\""PROXYWEBSITE"\" target=\"_blank\">"PROXYWEBSITE"</a>", cluster->buildnumber);
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
+#if 0
 	/*Plugin version*/
 	s = "<script>if (parent.getplug != null) document.write(\"<br/>Plugin Version: \" + parent.getplug().build + parent.getplug().server);</script>";
 	Net_ProxySend(cluster, dest, s, strlen(s));
+#endif
 
 	/*terminate html page*/
 	s = "</body>\n"
@@ -790,11 +794,25 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 				"</iframe>"
 	"</div>"
 	"<div id=plugdiv style='position:fixed; left:50%; width:50%; top:0%; height:100%;'>"
+
+#if 1
+#define EMBEDDEDWEBGLORIGIN "http://86.191.129.12:80"//127.0.0.1:80"
+#define EMBEDDEDWEBGLURL EMBEDDEDWEBGLORIGIN"/ftewebgl.html"
+#else
+#define EMBEDDEDWEBGLORIGIN "http://triptohell.info"
+#define EMBEDDEDWEBGLURL EMBEDDEDWEBGLORIGIN"/moodles/web/ftewebgl.html"
+#endif
+
+#if 1
+		"<iframe frameborder=0 allowfullscreen=1 name=\"webgl\" src=\""EMBEDDEDWEBGLURL"\" width=\"100%\" height=\"100%\">"
+			"oh dear. your browser doesn't support this site"
+		"</iframe>"
+#else
 		/*once for IE*/
 		"<object	name=\"ieplug\""
 		" type=\"text/x-quaketvident\""
 		" classid=\"clsid:7d676c9f-fb84-40b6-b3ff-e10831557eeb\""
-		//" codebase=\"http://fteqw.com/test.cab\""
+		//" codebase=\""PROXYWEBSITE"/test.cab\""
 		" width=100%"
 		" height=100%"
 		" >"
@@ -833,9 +851,11 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 		"Plugin failed to load"
 		"</object>"
 		"</object>"
+#endif
 	"</div>"
 
 	"<script>"
+#if 0
 	"function getplugnp(d)\n"
 	"{\n"
 		"return document.npplug;\n"
@@ -851,6 +871,10 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 			html =
 			"\";\n"
 
+	"if (getplugie() != undefined && getplugie().plugver != undefined)\n"
+		"{\nparent.getplug = getplugie;\n}\n"
+	"else\n"
+		"{\nparent.getplug = getplugnp;\n}\n"
 
 	"function joinserver(d)\n"
 	"{\n"
@@ -875,14 +899,33 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 					"\";\n"
 		"getplug().running = 1;\n"
 	"}\n"
+#else
+	"function joinserver(d)"
+	"{"
+//		"webgl.postMessage({cmd:'mapsrc',url:\""
+//							;
+//			Net_ProxySend(cluster, dest, html, strlen(html));
+//			Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
+//						html = 
+//							"\"}, \""EMBEDDEDWEBGLORIGIN"\");"
+"webgl.postMessage({'cmd':'observeurl','url':'ws://86.191.129.12:27500'}, \""EMBEDDEDWEBGLORIGIN"\");"
+	"}\n"
+
+	"function playdemo(d)"
+	"{"
+//		"parent.webgl.postMessage({cmd:'mapsrc',url:\""
+//							;
+//			Net_ProxySend(cluster, dest, html, strlen(html));
+//			Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
+//						html = 
+//							"\"}, \""EMBEDDEDWEBGLORIGIN"\");"
+		"parent.webgl.postMessage({cmd:'demourl',url:d}, \""EMBEDDEDWEBGLORIGIN"\");"
+	"}\n"
+#endif
 
 	"parent.joinserver = joinserver;\n"
 	"parent.playdemo = playdemo;\n"
 
-	"if (getplugie() != undefined && getplugie().plugver != undefined)\n"
-		"{\nparent.getplug = getplugie;\n}\n"
-	"else\n"
-		"{\nparent.getplug = getplugnp;\n}\n"
 /*	"if (getplug().plugver == undefined)"
 	"{"
 			"document.getElementById('plugdiv').style.left = '75%';"
@@ -1207,7 +1250,8 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 	else REDIRECTIF("/", "/plugin.html")
 #endif
 	else REDIRECTIF("/", "/nowplaying.html")
-	else REDIRECTIF("/about.html", "http://www.fteqw.com/")
+	else REDIRECTIF("/about.html", PROXYWEBSITE)
+#if 0
 	else REDIRECTIF("/qtvsplash.jpg", "/file/qtvsplash.jpg")	/*lame, very lame*/
 #if defined(_DEBUG) || defined(DEBUG)
 	else REDIRECTIF("/npfte.xpi", "/file/npfte_dbg.xpi")	/*lame, very lame*/
@@ -1216,6 +1260,7 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 #endif
 	else REDIRECTIF("/npfte.exe", "/file/npfte.exe")	/*lame, very lame*/
 	else REDIRECTIF("/iefte.exe", "/file/iefte.exe")	/*lame, very lame*/
+#endif
 	else if (uriargmatch(uri, "/demos.html", urilen, &args))
 	{
 		HTTPSV_GenerateDemoListing(cluster, pend, args);

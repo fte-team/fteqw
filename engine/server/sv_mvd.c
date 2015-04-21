@@ -30,7 +30,7 @@ void SV_MVDStop_f (void);
 
 #define demo_size_padding 0x1000
 
-static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
+static void QDECL SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
 cvar_t	sv_demoUseCache = CVARD("sv_demoUseCache", "0", "If set, demo data will be flushed only periodically");
 cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "0x80000"); //half a meg
@@ -731,7 +731,7 @@ void Sys_freedir(dir_t *dir)
 
 
 // only one .. is allowed (so we can get to the same dir as the quake exe)
-static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue)
+static void QDECL SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue)
 {
 	char *value;
 

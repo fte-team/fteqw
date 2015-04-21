@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "shader.h"
 
-extern cvar_t hud_tracking_show;
+extern cvar_t *hud_tracking_show;
 
 #define CON_ALTMASK (CON_2NDCHARSETTEXT|CON_WHITEMASK)
 
@@ -2734,7 +2734,7 @@ void Sbar_Draw (playerview_t *pv)
 			{
 				if (pv->cam_auto != CAM_TRACK)
 				{
-					if (hud_tracking_show.ival || cl_sbar.ival)
+					if (hud_tracking_show->ival || cl_sbar.ival)
 					{	//this is annoying.
 						Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
 						Sbar_DrawString (160-7*8,4, "SPECTATOR MODE");
@@ -2750,7 +2750,7 @@ void Sbar_Draw (playerview_t *pv)
 					else
 						Sbar_DrawNormal (pv);
 
-					if (hud_tracking_show.ival)
+					if (hud_tracking_show->ival)
 					{
 						Q_snprintfz(st, sizeof(st), "Tracking %-.64s",
 							cl.players[pv->cam_spec_track].name);

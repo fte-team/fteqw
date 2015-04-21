@@ -4146,7 +4146,7 @@ typedef struct
 	unsigned int maxents;	//buffer size
 	struct
 	{
-		unsigned short n;	//don't rely on the ent->v->entnum
+		unsigned int n;	//don't rely on the ent->v->entnum
 		csqcedict_t *e;	//the csqc ent
 	} *e;
 } csqcdelta_pack_t;

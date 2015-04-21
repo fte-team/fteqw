@@ -30,6 +30,7 @@ mpic_t	*R2D_SafeCachePic (const char *path);
 mpic_t *R2D_SafePicFromWad (const char *name);
 void R2D_ImageColours(float r, float g, float b, float a);
 void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);
+void R2D_Line(float x1, float y1, float x2, float y2, mpic_t *pic);
 void R2D_ScalePic (float x, float y, float width, float height, mpic_t *pic);
 void R2D_SubPic(float x, float y, float width, float height, mpic_t *pic, float srcx, float srcy, float srcwidth, float srcheight);
 void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque);
@@ -42,4 +43,4 @@ void R2D_Shutdown(void);
 void R2D_PolyBlend (void);
 void R2D_BrightenScreen (void);
 
-void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue);
+void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue);

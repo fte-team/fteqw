@@ -1097,6 +1097,10 @@ qboolean DL_Decide(struct dl_download *dl)
 #endif	/*!defined(NACL)*/
 
 #ifdef MULTITHREAD
+static void HTTP_Wake_Think(void *ctx, void *data, size_t a, size_t b)
+{
+	HTTP_CL_Think();
+}
 static int DL_Thread_Work(void *arg)
 {
 	struct dl_download *dl = arg;
@@ -1118,6 +1122,9 @@ static int DL_Thread_Work(void *arg)
 			break;
 		}
 	}
+
+	COM_AddWork(0, HTTP_Wake_Think, NULL, NULL, 0, 0);
+
 	return 0;
 }
 
@@ -1207,7 +1214,7 @@ struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*N
 	activedownloads = newdl;
 
 
-	if (!cls.download && localfile)
+	if (!cls.download && localfile && !newdl->isquery)
 	{
 		cls.download = &newdl->qdownload;
 		newdl->qdownload.method = DL_HTTP;
@@ -1269,7 +1276,7 @@ void HTTP_CL_Think(void)
 		}
 		link = &dl->next;
 
-		if (!cls.download)
+		if (!cls.download && !dl->isquery)
 		{
 			cls.download = &dl->qdownload;
 			dl->qdownload.method = DL_HTTP;

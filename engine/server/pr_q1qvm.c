@@ -132,7 +132,7 @@ typedef enum
 	g_acos,				//55
 	G_CMD_ARGC,
 	G_CMD_ARGV,
-	G_TraceCapsule,
+	G_TraceBox,			//was G_TraceCapsule
 	G_FS_OpenFile,
 	G_FS_CloseFile,		//60
 	G_FS_ReadFile,
@@ -340,7 +340,7 @@ typedef enum {
 static const char *q1qvmentstring;
 static vm_t *q1qvm;
 static pubprogfuncs_t q1qvmprogfuncs;
-static edict_t *q1qvmedicts[MAX_Q1QVM_EDICTS];
+static edict_t **q1qvmedicttable;
 
 
 static void *evars;	//pointer to the gamecodes idea of an edict_t
@@ -366,10 +366,10 @@ static edict_t *QDECL Q1QVMPF_EdictNum(pubprogfuncs_t *pf, unsigned int num)
 	if (/*num < 0 ||*/ num >= sv.world.max_edicts)
 		return NULL;
 
-	e = q1qvmedicts[num];
+	e = q1qvmedicttable[num];
 	if (!e)
 	{
-		e = q1qvmedicts[num] = Z_TagMalloc(sizeof(edict_t)+sizeof(extentvars_t), VMFSID_Q1QVM);
+		e = q1qvmedicttable[num] = Z_TagMalloc(sizeof(edict_t)+sizeof(extentvars_t), VMFSID_Q1QVM);
 		e->v = (stdentvars_t*)((char*)evars + (num * sv.world.edict_size) + WASTED_EDICT_T_SIZE);
 		e->xv = (extentvars_t*)(e+1);
 		e->entnum = num;
@@ -518,7 +518,7 @@ static int WrapQCBuiltin(builtin_t func, void *offset, quintptr_t mask, const qi
 			gv.param[argnum++].f = VM_FLOAT(*arg++);
 			break;
 		case 'i':
-			gv.param[argnum++].f = VM_LONG(*arg++);
+			gv.param[argnum++].f = VM_LONG(*arg++);	//vanilla qc does not support ints, but qvms do. this means ints need to be converted to floats for the builtin to understand them properly.
 			break;
 		case 'n':	//ent num
 			gv.param[argnum++].i = EDICT_TO_PROG(svprogfuncs, Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(*arg++)));
@@ -583,7 +583,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 	case G_REMOVE_ENT:
 		if (arg[0] >= sv.world.max_edicts)
 			return false;
-		Q1QVMPF_EntRemove(svprogfuncs, q1qvmedicts[arg[0]]);
+		Q1QVMPF_EntRemove(svprogfuncs, q1qvmedicttable[arg[0]]);
 		return true;
 
 	case G_PRECACHE_SOUND:
@@ -949,7 +949,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		}
 		break;
 
-	case G_TraceCapsule:
+	case G_TraceBox:
 		WrapQCBuiltin(PF_svtraceline, offset, mask, arg, "vvinvv");
 		break;
 
@@ -991,22 +991,17 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		if (VM_OOB(arg[0], arg[1]))
 			return 0;
 		return VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
-/*
+
 	//not supported, open will fail anyway
 	case G_FS_WriteFile:
+		if (VM_OOB(arg[0], arg[1]))
+			return 0;
 		return VM_FWrite(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
-		break;
-*/
-/*
 	case G_FS_SeekFile:
-//	int trap_FS_SeekFile( fileHandle_t handle, int offset, int type )
-		return VM_FSeek(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]));
-		break;
-*/
-/*
+		VM_FSeek(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
+		return 0;
 	case G_FS_TellFile:
-		break;
-*/
+		return VM_FTell(VM_LONG(arg[0]), VMFSID_Q1QVM);
 
 	case G_FS_GetFileList:
 		if (VM_OOB(arg[2], arg[3]))
@@ -1089,7 +1084,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 				match = "";
 			for (i = first+1; i < sv.world.num_edicts; i++)
 			{
-				e = q1qvmedicts[i];
+				e = q1qvmedicttable[i];
 				field = VM_POINTER(*((string_t*)e->v + ofs/4));
 				if (field == NULL)
 				{
@@ -1321,6 +1316,11 @@ void Q1QVM_Shutdown(void)
 		if (svprogfuncs == &q1qvmprogfuncs)
 			sv.world.progs = svprogfuncs = NULL;
 		Z_FreeTags(VMFSID_Q1QVM);
+		if (q1qvmedicttable)
+		{
+			Z_Free(q1qvmedicttable);
+			q1qvmedicttable = NULL;
+		}
 	}
 }
 
@@ -1368,9 +1368,16 @@ qboolean PR_LoadQ1QVM(void)
 	gameDataN_t *gd, gdm;
 	gameData32_t *gd32;
 	qintptr_t ret;
+	qintptr_t limit;
+	extern cvar_t	pr_maxedicts;
 
 	if (q1qvm)
 		VM_Destroy(q1qvm);
+	if (q1qvmedicttable)
+	{
+		Z_Free(q1qvmedicttable);
+		q1qvmedicttable = NULL;
+	}
 
 	q1qvm = VM_Create("qwprogs", com_nogamedirnativecode.ival?NULL:syscallnative, syscallqvm);
 	if (!q1qvm)
@@ -1412,7 +1419,7 @@ qboolean PR_LoadQ1QVM(void)
 	sv.world.max_edicts = 0;	//so clear these out, just in case
 	sv.world.edict_size = 0;	//if we get a division by zero, then at least its a safe crash
 
-	memset(q1qvmedicts, 0, sizeof(q1qvmedicts));
+	q1qvmedicttable = NULL;
 
 	q1qvmprogfuncs.stringtable = VM_MemoryBase(q1qvm);
 
@@ -1441,14 +1448,26 @@ qboolean PR_LoadQ1QVM(void)
 		gd = (gameDataN_t*)((char*)VM_MemoryBase(q1qvm) + ret);	//qvm is 32bit
 	}
 
+	sv.world.num_edicts = 1;
+	sv.world.max_edicts = bound(64, pr_maxedicts.ival, MAX_EDICTS);
+	q1qvmedicttable = Z_Malloc(sizeof(*q1qvmedicttable) * sv.world.max_edicts);
+
+	limit = VM_MemoryMask(q1qvm);
+	if ((qintptr_t)gd->ents < 0 || (qintptr_t)gd->ents > limit)
+		gd->ents = NULL;
+	if (gd->sizeofent < 0 || gd->sizeofent > (0xffffffff-(qintptr_t)gd->ents) / sv.world.max_edicts)
+		gd->sizeofent = 0xffffffff / MAX_EDICTS;
+	if ((qintptr_t)gd->global < 0 || (qintptr_t)gd->global > limit)
+		gd->global = NULL;
+	if ((qintptr_t)gd->fields < 0 || (qintptr_t)gd->fields > limit)
+		gd->fields = NULL;
+
 	sv.world.edict_size = gd->sizeofent;
 	vevars = (qintptr_t)gd->ents;
 	evars = ((char*)VM_MemoryBase(q1qvm) + vevars);
 	//FIXME: range check this pointer
 	//FIXME: range check the globals pointer
 
-	sv.world.num_edicts = 1;
-	sv.world.max_edicts = sizeof(q1qvmedicts)/sizeof(q1qvmedicts[0]);
 
 //WARNING: global is not remapped yet...
 //This code is written evilly, but works well enough

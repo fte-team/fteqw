@@ -1362,12 +1362,15 @@ void INS_Accumulate (void)
 #endif
 		{
 			GetCursorPos (&current_mouse_pos);
+			SetCursorPos (window_center_x, window_center_y);
 
 			IN_MouseMove(sysmouse.qdeviceid, false, current_mouse_pos.x - window_center_x, current_mouse_pos.y - window_center_y, 0, 0);
 		}
-
-	// force the mouse to the center, so there's room to move (rawinput ignore this apparently)
-		SetCursorPos (window_center_x, window_center_y);
+		else
+		{
+			// force the mouse to the center, so there's room to move (rawinput ignore this apparently)
+			SetCursorPos (window_center_x, window_center_y);
+		}
 	}
 
 	if (!mouseactive)

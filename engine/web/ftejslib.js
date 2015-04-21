@@ -649,5 +649,79 @@ console.log("onerror: " + _url + " status " + http.status);
 		};
 
 		http.send(null);
+	},
+
+	emscriptenfte_al_loadaudiofile : function(buf, dataptr, datasize)
+	{
+		//match emscripten's openal support.
+		if (!buf)
+			return;
+		buf = buf - 1;
+
+		var ctx = AL.currentContext;
+		try
+		{
+			//its async, so it needs its own copy of an arraybuffer
+			var abuf = new ArrayBuffer(datasize);
+			new Uint8Array(abuf).set(HEAPU8.subarray(dataptr, dataptr+datasize));
+			AL.currentContext.ctx.decodeAudioData(abuf, function(buffer)
+			{
+				ctx.buf[buf] = buffer;
+			}, function()
+			{
+				console.log("Audio Callback failed!");
+			});
+		}
+		catch (e)
+		{
+			console.log("unable to decode audio data");
+			console.log(e);
+		}
+	},
+
+	emscriptenfte_gl_loadtexturefile : function(texid, widthptr, heightptr, dataptr, datasize)
+	{
+		function encode64(data) {
+			var BASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+			var PAD = '=';
+			var ret = '';
+			var leftchar = 0;
+			var leftbits = 0;
+			for (var i = 0; i < data.length; i++) {
+				leftchar = (leftchar << 8) | data[i];
+				leftbits += 8;
+				while (leftbits >= 6) {
+					var curr = (leftchar >> (leftbits-6)) & 0x3f;
+					leftbits -= 6;
+					ret += BASE[curr];
+				}
+			}
+			if (leftbits == 2) {
+				ret += BASE[(leftchar&3) << 4];
+				ret += PAD + PAD;
+			} else if (leftbits == 4) {
+				ret += BASE[(leftchar&0xf) << 2];
+				ret += PAD;
+			}
+			return ret;
+		}
+
+		//make sure the texture is defined before its loaded, so we get no errors
+		GLctx.texImage2D(GLctx.TEXTURE_2D, 0, GLctx.RGBA, 1,1,0,GLctx.RGBA, GLctx.UNSIGNED_BYTE, null);
+
+		var img = new Image();
+		var gltex = GL.textures[texid];
+		img.onload = function()
+		{
+			console.log("Image Callback called!");
+			var oldtex = GLctx.getParameter(GLctx.TEXTURE_BINDING_2D);	//blurgh, try to avoid breaking anything in this unexpected event.
+			GLctx.bindTexture(GLctx.TEXTURE_2D, gltex);
+			GLctx.texImage2D(GLctx.TEXTURE_2D, 0, GLctx.RGBA, GLctx.RGBA, GLctx.UNSIGNED_BYTE, img);
+			GLctx.generateMipmap(GLctx.TEXTURE_2D);
+			GLctx.bindTexture(GLctx.TEXTURE_2D, oldtex);
+		};
+		img.crossorigin = true;
+		img.src = "data:image/png;base64," + encode64(HEAPU8.subarray(dataptr, dataptr+datasize));
+		img.onload();
 	}
 });

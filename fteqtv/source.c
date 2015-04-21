@@ -247,6 +247,7 @@ void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6)
 	struct sockaddr	*address;
 	int prot;
 	int addrsize;
+	int _true = true;
 //	int fromlen;
 
 	unsigned long nonblocking = true;
@@ -304,6 +305,13 @@ void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6)
 		return;
 	}
 
+#ifdef _WIN32 
+	//win32 is so fucked up
+//	setsockopt(newsocket, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char *)&_true, sizeof(_true));
+#endif
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&_true, sizeof(_true));
+
+
 	if (prot == AF_INET6)
 		if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only)) == -1)
 			v6only = true;
@@ -315,7 +323,7 @@ void Net_TCPListen(cluster_t *cluster, int port, qboolean ipv6)
 		return;
 	}
 
-	listen(sock, 2);	//don't listen for too many clients.
+	listen(sock, 2);	//don't listen for too many clients at once.
 
 	if (v6only)
 		Sys_Printf(cluster, "opened tcp%i port %i\n", ipv6?6:4, port);
@@ -1629,7 +1637,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 					sprintf(buffer, "connect %i %i %i \"%s\\name\\%s\"", 28, qtv->qport, qtv->challenge, "\\*ver\\fteqtv\\spectator\\0\\rate\\10000", qtv->cluster->hostname);
 				else
 					sprintf(buffer, "connect %i %i %i \"%s\\name\\%s\"", 28, qtv->qport, qtv->challenge, "\\*ver\\fteqtv\\spectator\\1\\rate\\10000", qtv->cluster->hostname);
-				Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, strlen(buffer), buffer);
+				Netchan_OutOfBandSocket(qtv->cluster, qtv->sourcesock, &qtv->serveraddress, strlen(buffer), buffer);
 				continue;
 			}
 			if (buffer[4] == 'n')
@@ -1874,7 +1882,7 @@ void QTV_Run(sv_t *qtv)
 			else if (qtv->autodisconnect == AD_STATUSPOLL)
 			{
 				QTV_DisconnectFromSource(qtv);
-				Netchan_OutOfBand(qtv->cluster, NET_ChooseSocket(qtv->cluster->qwdsocket, &qtv->serveraddress), qtv->serveraddress, 13, "status\n");
+				Netchan_OutOfBand(qtv->cluster, qtv->serveraddress, 13, "status\n");
 				qtv->nextconnectattempt = qtv->curtime + STATUSPOLL_TIME;
 				return;
 			}
@@ -1889,7 +1897,7 @@ void QTV_Run(sv_t *qtv)
 					}
 				}
 				if (qtv->errored == ERR_NONE)
-					Netchan_OutOfBand(qtv->cluster, qtv->sourcesock, qtv->serveraddress, 13, "getchallenge\n");
+					Netchan_OutOfBandSocket(qtv->cluster, qtv->sourcesock, &qtv->serveraddress, 13, "getchallenge\n");
 			}
 			qtv->nextconnectattempt = qtv->curtime + UDPRECONNECT_TIME;
 		}

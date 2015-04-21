@@ -390,6 +390,12 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 			}
 			switch(mips->encoding)
 			{
+#ifdef FTE_TARGET_WEB
+			case PTI_WHOLEFILE:
+				if (!i)
+					emscriptenfte_gl_loadtexturefile(tex->num, &tex->width, &tex->height, mips->mip[i].data, mips->mip[i].datasize);
+				break;
+#endif
 			case PTI_DEPTH16:
 				qglTexImage2D(targface, j, gl_config.gles?GL_DEPTH_COMPONENT:GL_DEPTH_COMPONENT16_ARB, mips->mip[i].width, mips->mip[i].height, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT, mips->mip[i].data);
 				break;

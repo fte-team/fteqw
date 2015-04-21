@@ -1930,7 +1930,7 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 				unsigned int line;
 				char *eol, *start;
 				qglGetShaderSource(shader, sizeof(str), NULL, str);
-				Con_Printf("Shader \"%s\" source:\n", name, str);
+				Con_Printf("Shader \"%s\" source:\n", name);
 				for(start = str, line = 1; ;line++)
 				{
 					eol = strchr(start, '\n');
@@ -2005,7 +2005,6 @@ GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLh
 qboolean GLSlang_ValidateProgram(union programhandle_u *h, const char *name, qboolean silent, vfsfile_t *blobfile)
 {
 	char		str[2048];
-	char *nullconstants = NULL;
 	GLint linked;
 
 	if (!h->glsl.handle)
@@ -2126,6 +2125,14 @@ qboolean GLSlang_ValidateProgramPermu(program_t *prog, const char *name, unsigne
 }
 qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
 {
+#ifdef FTE_TARGET_WEB
+	//emscripten's uniform code results in excessive stalls that hinder usability.
+	//the uniforms required for bones basically turn it into a DOS attack.
+	//so lets just do all the work inside javascript instead... (oh god this is going to be painful)
+	if (permu & PERMUTATION_SKELETAL)
+		return false;
+#endif
+
 	if (!ver)
 	{
 		ver = gl_config.gles?100:110;

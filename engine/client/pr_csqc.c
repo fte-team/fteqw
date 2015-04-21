@@ -4156,6 +4156,20 @@ float csqcdelta_time;
 
 static csqcedict_t *csqcdelta_playerents[MAX_CLIENTS];
 
+static void CSQC_EntRemove(csqcedict_t *ed)
+{
+	if (csqcg.ent_remove)
+	{
+		*csqcg.self = EDICT_TO_PROG(csqcprogs, ed);
+		PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
+	}
+	else
+	{
+		pe->DelinkTrailstate(&ed->trailstate);
+		World_UnlinkEdict((wedict_t*)ed);
+		ED_Free (csqcprogs, (void*)ed);
+	}
+}
 
 qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 {
@@ -4216,20 +4230,6 @@ void CSQC_DeltaStart(float time)
 
 	csqcdelta_pack_new.readpos = 0;
 	csqcdelta_pack_old.readpos = 0;
-}
-static CSQC_EntRemove(csqcedict_t *ed)
-{
-	if (csqcg.ent_remove)
-	{
-		*csqcg.self = EDICT_TO_PROG(csqcprogs, ed);
-		PR_ExecuteProgram(csqcprogs, csqcg.ent_remove);
-	}
-	else
-	{
-		pe->DelinkTrailstate(&ed->trailstate);
-		World_UnlinkEdict((wedict_t*)ed);
-		ED_Free (csqcprogs, (void*)ed);
-	}
 }
 qboolean CSQC_DeltaUpdate(entity_state_t *src)
 {

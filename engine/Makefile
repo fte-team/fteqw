@@ -1564,7 +1564,7 @@ scintilla$(BITS)_static:
 	@$(MAKE) reldir OUT_DIR=$(RELEASE_DIR)/qcc
 	@$(MAKE) $(RELEASE_DIR)/scintilla$(BITS).a VPATH="$(SCINTILLA_DIRS)" CFLAGS="$(SCINTILLA_INC) -DDISABLE_D2D -DSTATIC_BUILD -DSCI_LEXER" OUT_DIR=$(RELEASE_DIR)/qcc WCFLAGS="$(WCFLAGS) -Os"
 qccgui-scintilla: scintilla$(BITS)_static
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -lcomdlg32 -lcomctl32 -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 ifdef windir
 debugdir:

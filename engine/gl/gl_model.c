@@ -273,6 +273,8 @@ int RelightThread(void *arg)
 	free(threadctx);
 	return 0;
 }
+#else
+void *lightmainthreadctx;
 #endif
 
 void Mod_Think (void)
@@ -315,7 +317,9 @@ void Mod_Think (void)
 			return;
 		}
 #else
-		LightFace(lightcontext, relitsurface);
+		if (!lightmainthreadctx)
+			lightmainthreadctx = malloc(lightthreadctxsize);
+		LightFace(lightcontext, lightmainthreadctx, relitsurface);
 		Mod_UpdateLightmap(relitsurface);
 
 		relitsurface++;
@@ -338,6 +342,9 @@ void Mod_Think (void)
 				}
 				relightthreads = 0;
 			}
+#else
+			free(lightmainthreadctx);
+			lightmainthreadctx = NULL;
 #endif
 
 			LightShutdown(lightcontext, lightmodel);
@@ -447,6 +454,9 @@ void Mod_ClearAll (void)
 		relightthread[i] = NULL;
 	}
 	relightthreads = 0;
+#else
+	free(lightmainthreadctx);
+	lightmainthreadctx = NULL;
 #endif
 	lightmodel = NULL;
 #endif

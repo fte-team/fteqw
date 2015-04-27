@@ -59,14 +59,18 @@ void R_UpdateHDR(vec3_t org)
 		//fake and lame, but whatever.
 		vec3_t ambient, diffuse, dir;
 		float lev = 0;
+
+#ifdef RTLIGHTS
+		Sh_CalcPointLight(org, ambient);
+		lev += VectorLength(ambient);
+
+
 		if (!r_shadow_realtime_world.ival || r_shadow_realtime_world_lightmaps.value)
+#endif
 		{
 			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, org, ambient, diffuse, dir);
 			lev += (VectorLength(ambient) + VectorLength(diffuse))/256;
 		}
-
-		Sh_CalcPointLight(org, ambient);
-		lev += VectorLength(ambient);
 
 		lev += 0.001;	//no division by 0!
 		lev = r_hdr_irisadaptation_multiplier.value / lev;

@@ -647,6 +647,7 @@ COMMON_OBJS = \
 	fs_stdio.o		\
 	fs_pak.o		\
 	fs_zip.o		\
+	fs_xz.o		\
 	mathlib.o 		\
 	huff.o		\
 	md4.o 		\

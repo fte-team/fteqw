@@ -235,6 +235,7 @@ typedef struct
 	int			frustum_numplanes;
 
 	fogstate_t	globalfog;
+	float		hdr_value;
 
 	pxrect_t	pxrect;		/*vrect, but in pixels rather than virtual coords*/
 	qboolean	externalview; /*draw external models and not viewmodels*/
@@ -487,6 +488,7 @@ qbyte *R_MarkLeaves_Q3 (void);
 void R_SetFrustum (float projmat[16], float viewmat[16]);
 void R_SetRenderer(rendererinfo_t *ri);
 void R_AnimateLight (void);
+void R_UpdateHDR(vec3_t org);
 void R_UpdateLightStyle(unsigned int style, const char *stylestring, float r, float g, float b);
 struct texture_s *R_TextureAnimation (int frame, struct texture_s *base);	//mostly deprecated, only lingers for rtlights so world only.
 struct texture_s *R_TextureAnimation_Q2 (struct texture_s *base);	//mostly deprecated, only lingers for rtlights so world only.

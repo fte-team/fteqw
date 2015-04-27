@@ -607,6 +607,7 @@ struct playerview_s
 	vec3_t		simvel;
 	vec3_t		simangles;
 	float		rollangle;
+	float		hdr_last;
 
 	float		crouch;			// local amount for smoothing stepups
 	vec3_t		oldorigin;		// to track step smoothing

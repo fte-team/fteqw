@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 
 extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
+extern cvar_t r_hdr_irisadaptation, r_hdr_irisadaptation_multiplier, r_hdr_irisadaptation_minvalue, r_hdr_irisadaptation_maxvalue, r_hdr_irisadaptation_fade_down, r_hdr_irisadaptation_fade_up;
 
 
 int	r_dlightframecount;
@@ -50,6 +51,38 @@ void R_UpdateLightStyle(unsigned int style, const char *stylestring, float r, fl
 	cl_lightstyle[style].colourkey = (int)(cl_lightstyle[style].colours[0]*0x400) ^ (int)(cl_lightstyle[style].colours[1]*0x100000) ^ (int)(cl_lightstyle[style].colours[2]*0x40000000);
 }
 
+void Sh_CalcPointLight(vec3_t point, vec3_t light);
+void R_UpdateHDR(vec3_t org)
+{
+	if (r_hdr_irisadaptation.ival && cl.worldmodel && !(r_refdef.flags & RDF_NOWORLDMODEL))
+	{
+		//fake and lame, but whatever.
+		vec3_t ambient, diffuse, dir;
+		float lev = 0;
+		if (!r_shadow_realtime_world.ival || r_shadow_realtime_world_lightmaps.value)
+		{
+			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, org, ambient, diffuse, dir);
+			lev += (VectorLength(ambient) + VectorLength(diffuse))/256;
+		}
+
+		Sh_CalcPointLight(org, ambient);
+		lev += VectorLength(ambient);
+
+		lev += 0.001;	//no division by 0!
+		lev = r_hdr_irisadaptation_multiplier.value / lev;
+		lev = bound(r_hdr_irisadaptation_minvalue.value, lev, r_hdr_irisadaptation_maxvalue.value);
+		if (lev > r_refdef.playerview->hdr_last + r_hdr_irisadaptation_fade_up.value*host_frametime)
+			lev = r_refdef.playerview->hdr_last + r_hdr_irisadaptation_fade_up.value*host_frametime;
+		else if (lev < r_refdef.playerview->hdr_last - r_hdr_irisadaptation_fade_down.value*host_frametime)
+			lev = r_refdef.playerview->hdr_last - r_hdr_irisadaptation_fade_down.value*host_frametime;
+		lev = bound(r_hdr_irisadaptation_minvalue.value, lev, r_hdr_irisadaptation_maxvalue.value);
+		r_refdef.playerview->hdr_last = lev;
+		r_refdef.hdr_value = lev;
+	}
+	else
+		r_refdef.hdr_value = 1;
+}
+
 /*
 ==================
 R_AnimateLight
@@ -59,6 +92,7 @@ void R_AnimateLight (void)
 {
 	int			i,j;
 	float f;
+
 
 	//if (r_lightstylescale.value > 2)
 		//r_lightstylescale.value = 2;

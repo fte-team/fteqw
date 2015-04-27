@@ -114,6 +114,12 @@ cvar_t r_lightstylesmooth					= CVARF  ("r_lightstylesmooth", "0", CVAR_ARCHIVE)
 cvar_t r_lightstylesmooth_limit				= SCVAR  ("r_lightstylesmooth_limit", "2");
 cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
 cvar_t r_lightstylescale					= SCVAR  ("r_lightstylescale", "1");
+cvar_t r_hdr_irisadaptation					= SCVAR  ("r_hdr_irisadaptation", "0");
+cvar_t r_hdr_irisadaptation_multiplier		= SCVAR  ("r_hdr_irisadaptation_multiplier", "2");
+cvar_t r_hdr_irisadaptation_minvalue		= SCVAR  ("r_hdr_irisadaptation_minvalue", "0.5");
+cvar_t r_hdr_irisadaptation_maxvalue		= SCVAR  ("r_hdr_irisadaptation_maxvalue", "4");
+cvar_t r_hdr_irisadaptation_fade_down		= SCVAR  ("r_hdr_irisadaptation_fade_down", "0.5");
+cvar_t r_hdr_irisadaptation_fade_up			= SCVAR  ("r_hdr_irisadaptation_fade_up", "0.1");
 cvar_t r_loadlits							= CVARF  ("r_loadlit", "1", CVAR_ARCHIVE);
 cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
@@ -629,6 +635,13 @@ void Renderer_Init(void)
 	Cvar_Register(&r_lightstylesmooth_limit, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylespeed, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylescale, GRAPHICALNICETIES);
+
+	Cvar_Register(&r_hdr_irisadaptation, GRAPHICALNICETIES);
+	Cvar_Register(&r_hdr_irisadaptation_multiplier, GRAPHICALNICETIES);
+	Cvar_Register(&r_hdr_irisadaptation_minvalue, GRAPHICALNICETIES);
+	Cvar_Register(&r_hdr_irisadaptation_maxvalue, GRAPHICALNICETIES);
+	Cvar_Register(&r_hdr_irisadaptation_fade_down, GRAPHICALNICETIES);
+	Cvar_Register(&r_hdr_irisadaptation_fade_up, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_stains, GRAPHICALNICETIES);
 	Cvar_Register(&r_stainfadetime, GRAPHICALNICETIES);

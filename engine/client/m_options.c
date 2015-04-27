@@ -974,7 +974,7 @@ void M_Menu_Render_f (void)
 	};
 
 	menu_t *menu;
-	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled;
+	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation;
 #ifdef GLQUAKE
 	extern cvar_t r_bloom;
 #endif
@@ -998,6 +998,7 @@ void M_Menu_Render_f (void)
 #ifdef GLQUAKE
 		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
 #endif
+		MB_CHECKBOXCVAR("HDR", r_hdr_irisadaptation, 0),
 		MB_CHECKBOXCVAR("Model Bobbing", cl_item_bobbing, 0),
 		MB_END()
 	};

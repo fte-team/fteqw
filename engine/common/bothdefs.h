@@ -96,7 +96,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_DSOUND
 	#define AVAIL_D3D
 #endif
-//#define AVAIL_XZDEC
+#define AVAIL_XZDEC
 
 #if !defined(MINIMAL) && !defined(NPFTE) && !defined(NPQTV)
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)

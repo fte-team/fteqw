@@ -5264,8 +5264,10 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		else
 #endif
 			shaderstate.identitylighting = 1;
+
+		shaderstate.identitylighting *= r_refdef.hdr_value;
+
 		shaderstate.identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
-		shaderstate.identitylightmap =1;
 
 #ifdef RTLIGHTS
 		if (r_lightprepass.ival)

@@ -2005,6 +2005,7 @@ void Surf_SetupFrame(void)
 	else
 	{
 		VectorCopy(r_refdef.vieworg, pvsorg);
+		R_UpdateHDR(r_refdef.vieworg);
 	}
 
 	r_viewcontents = 0;

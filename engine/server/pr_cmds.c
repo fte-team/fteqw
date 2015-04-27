@@ -9280,7 +9280,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bwriteentity",	PF_qtBroadcast_WriteEntity,		0,		0,		0,		0,	D("void(entity val)", NULL), true},	//66
 #endif
 
-	{"sin",				PF_Sin,				0,		0,		62,		60,	"float(float angle)"},	//60
+	{"sin",				PF_Sin,				0,		0,		62,		60,	D("float(float angle)", "Forgive me father, for I have trigonometry homework.")},	//60
 	{"cos",				PF_Cos,				0,		0,		61,		61,	"float(float angle)"},	//61
 	{"sqrt",			PF_Sqrt,			0,		0,		84,		62,	"float(float value)"},	//62
 	{"modulo",			PF_mod,				0,		0,		0,		0,	"float(float a, float n)"},	//62
@@ -9289,7 +9289,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tracetoss",		PF_TraceToss,		0,		0,		0,		64,	"void(entity ent, entity ignore)"},
 	{"etos",			PF_etos,			0,		0,		0,		65,	"string(entity ent)"},
 
-	{"movetogoal",		PF_sv_movetogoal,	67,		67,		67,		0,	"void(float step)"},	//67
+	{"movetogoal",		PF_sv_movetogoal,	67,		67,		67,		0,	D("void(float step)", "Runs lots and lots of fancy logic in order to try to step the entity the specified distance towards its goalentity.")},	//67
 	{"precache_file",	PF_precache_file,	68,		68,		68,		0,	D("string(string s)", "This builtin does nothing. It was used only as a hint for pak generation.")},	//68
 	{"makestatic",		PF_makestatic,		69,		69,		69,		0,	D("void(entity e)", "Sends a copy of the entity's renderable fields to all clients, and REMOVES the entity, preventing further changes. This means it will be unmutable and non-solid.")},	//69
 
@@ -9875,9 +9875,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"acos",			PF_acos,			0,		0,		0,		472,	"float(float c)"},//DP_QC_ASINACOSATANATAN2TAN
 	{"atan",			PF_atan,			0,		0,		0,		473,	"float(float t)"},//DP_QC_ASINACOSATANATAN2TAN
 	{"atan2",			PF_atan2,			0,		0,		0,		474,	"float(float c, float s)"},//DP_QC_ASINACOSATANATAN2TAN
-	{"tan",				PF_tan,				0,		0,		0,		475,	"float(float a)"},//DP_QC_ASINACOSATANATAN2TAN
-	{"strlennocol",		PF_strlennocol,		0,		0,		0,		476,	"float(string s)"},//DP_QC_STRINGCOLORFUNCTIONS
-	{"strdecolorize",	PF_strdecolorize,	0,		0,		0,		477,	"string(string s)"},//DP_QC_STRINGCOLORFUNCTIONS
+	{"tan",				PF_tan,				0,		0,		0,		475,	D("float(float a)", "Forgive me father, for I have a sunbed and I'm not afraid to use it.")},//DP_QC_ASINACOSATANATAN2TAN
+	{"strlennocol",		PF_strlennocol,		0,		0,		0,		476,	D("float(string s)", "Returns the number of characters in the string after any colour codes or other markup has been parsed.")},//DP_QC_STRINGCOLORFUNCTIONS
+	{"strdecolorize",	PF_strdecolorize,	0,		0,		0,		477,	D("string(string s)", "Flattens any markup/colours, removing them from the string.")},//DP_QC_STRINGCOLORFUNCTIONS
 	{"strftime",		PF_strftime,		0,		0,		0,		478,	"string(float uselocaltime, string format, ...)"},	//DP_QC_STRFTIME
 	{"tokenizebyseparator",PF_tokenizebyseparator,0,0,		0,		479,	"float(string s, string separator1, ...)"},	//DP_QC_TOKENIZEBYSEPARATOR
 	{"strtolower",		PF_strtolower,		0,		0,		0,		480,	"string(string s)"},	//DP_QC_STRING_CASE_FUNCTIONS
@@ -9918,11 +9918,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"uri_unescape",	PF_uri_unescape,	0,		0,		0,		511,	"string(string in)"},//DP_QC_URI_ESCAPE
 	{"num_for_edict",	PF_num_for_edict,	0,		0,		0,		512,	"float(entity ent)"},//DP_QC_NUM_FOR_EDICT
 	{"uri_get",			PF_uri_get,			0,		0,		0,		513,	D("float(string uril, float id, optional string postmimetype, optional string postdata)", "uri_get() gets content from an URL and calls a callback \"uri_get_callback\" with it set as string; an unique ID of the transfer is returned\nreturns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string")},//DP_QC_URI_GET
-	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	"float(string str)"},
-	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515,	"float(float idx)"},
-	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	"float(float idx)"},
+	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	D("float(string str)", "Tokenize a string exactly as the console's tokenizer would do so. The regular tokenize builtin became bastardized for convienient string parsing, which resulted in a large disparity that can be exploited to bypass checks implemented in a naive SV_ParseClientCommand function, therefore you can use this builtin to make sure it exactly matches.")},
+	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515,	D("float(float idx)", "Returns the character index that the tokenized arg started at.")},
+	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	D("float(float idx)", "Returns the character index that the tokenized arg stopped at.")},
 	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(strbuf strbuf, string pattern, string antipattern)"},
-	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	"string(string cvarname)"},
+	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	D("string(string cvarname)", "Retrieves the description of a cvar, which might be useful for tooltips or help files. This may still not be useful.")},
 	{"gettime",			PF_gettime,			0,		0,		0,		519,	"float(optional float timetype)"},
 	{"keynumtostring_omgwtf",PF_Fixme,		0,		0,		0,		520,	"string(float keynum)"},	//excessive third version in dp's csqc.
 	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	"string(string command, optional float bindmap)"},
@@ -9962,8 +9962,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getmousetarget",	PF_Fixme,			0,		0,		0,		604,	"float()"},
 	{"callfunction",	PF_callfunction,	0,		0,		0,		605,	D("void(.../*, string funcname*/)", "Invokes the named function. The function name is always passed as the last parameter and must always be present. The others are passed to the named function as-is")},
 	{"writetofile",		PF_writetofile,		0,		0,		0,		606,	D("void(filestream fh, entity e)", "Writes an entity's fields to the named frik_file file handle.")},
-	{"isfunction",		PF_isfunction,		0,		0,		0,		607,	"float(string s)"},
-	{"getresolution",	PF_Fixme,			0,		0,		0,		608,	"vector(float vidmode, optional float forfullscreen)"},
+	{"isfunction",		PF_isfunction,		0,		0,		0,		607,	D("float(string s)", "Returns true if the named function exists and can be called with the callfunction builtin.")},
+	{"getresolution",	PF_Fixme,			0,		0,		0,		608,	D("vector(float vidmode, optional float forfullscreen)", "Supposed to query the driver for supported video modes. FTE does not query drivers in this way, nor would it trust drivers anyway.")},
 	{"keynumtostring_menu",PF_Fixme,		0,		0,		0,		609,	"string(float keynum)"},	//third copy of this builtin in dp's csqc.
 	{"findkeysforcommand_dp",PF_Fixme,		0,		0,		0,		610,	"string(string command, optional float bindmap)"},
 	{"keynumtostring",	PF_Fixme,			0,		0,		0,		609,	D("string(float keynum)", "Converts a qscancode key number into a mostly-human-readable name, matching the bind command.")},	//normal name is for menuqc standard.

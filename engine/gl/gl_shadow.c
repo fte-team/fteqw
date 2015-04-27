@@ -3401,6 +3401,56 @@ void Sh_CheckSettings(void)
 	}
 }
 
+void Sh_CalcPointLight(vec3_t point, vec3_t light)
+{
+	vec3_t colour;
+	dlight_t *dl;
+	vec3_t disp;
+	float dist;
+	float frac;
+	int i;
+	unsigned int ignoreflags;
+
+	vec3_t norm, impact;
+	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:LFLAG_NORMALMODE);
+
+	VectorClear(light);
+	if (ignoreflags)
+	for (dl = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, dl++)
+	{
+		if (!(dl->flags & ignoreflags))
+			continue;
+
+		colour[0] = dl->color[0];
+		colour[1] = dl->color[1];
+		colour[2] = dl->color[2];
+		if (dl->style)
+		{
+			colour[0] *= cl_lightstyle[dl->style-1].colours[0] * d_lightstylevalue[dl->style-1]/255.0f;
+			colour[1] *= cl_lightstyle[dl->style-1].colours[1] * d_lightstylevalue[dl->style-1]/255.0f;
+			colour[2] *= cl_lightstyle[dl->style-1].colours[2] * d_lightstylevalue[dl->style-1]/255.0f;
+		}
+		else
+		{
+			colour[0] *= r_lightstylescale.value;
+			colour[1] *= r_lightstylescale.value;
+			colour[2] *= r_lightstylescale.value;
+		}
+
+		if (colour[0] < 0.001 && colour[1] < 0.001 && colour[2] < 0.001)
+			continue;	//just switch these off.
+
+		VectorSubtract(dl->origin, point, disp);
+		dist = VectorLength(disp);
+		frac = dist / dl->radius;
+		if (frac >= 1)
+			continue;
+		//FIXME: this should be affected by the direction.
+		if (!TraceLineN(point, dl->origin, impact, norm))
+			VectorMA(light, 1-frac, colour, light);
+	}
+}
+
 int drawdlightnum;
 void Sh_DrawLights(qbyte *vis)
 {
@@ -3459,6 +3509,9 @@ void Sh_DrawLights(qbyte *vis)
 			colour[1] *= r_lightstylescale.value;
 			colour[2] *= r_lightstylescale.value;
 		}
+		colour[0] *= r_refdef.hdr_value;
+		colour[1] *= r_refdef.hdr_value;
+		colour[2] *= r_refdef.hdr_value;
 
 		if (colour[0] < 0.001 && colour[1] < 0.001 && colour[2] < 0.001)
 			continue;	//just switch these off.

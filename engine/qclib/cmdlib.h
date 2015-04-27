@@ -109,4 +109,15 @@ extern	int		qcc_eof;
 #define qcc_iswhitesameline(c) ((c) == ' ' || (c) == '\t')
 
 
+enum
+{
+	UTF8_RAW,
+	UTF8_BOM,
+	UTF_ANSI,
+	UTF16LE,
+	UTF16BE,
+	UTF32LE,
+	UTF32BE,
+};
+
 #endif

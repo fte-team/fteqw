@@ -581,6 +581,8 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 
 	for (l = 0; l < linecount; l++, y += Font_CharHeight())
 	{
+		if (y >= bottom)
+			break;
 		if (p->flags & CPRINT_RALIGN)
 		{
 			x = right - Font_LineWidth(line_start[l], line_end[l]);
@@ -609,7 +611,6 @@ void SCR_CheckDrawCenterString (void)
 	extern qboolean sb_showscores;
 	int pnum;
 	cprint_t *p;
-	vrect_t rect;
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
@@ -626,12 +627,12 @@ void SCR_CheckDrawCenterString (void)
 		if (sb_showscores)	//this was annoying
 			continue;
 
-		SCR_VRectForPlayer(&rect, pnum);
-		SCR_DrawCenterString(&rect, p, font_default);
+		if (cl.playerview[pnum].gamerectknown == cls.framecount)
+			SCR_DrawCenterString(&cl.playerview[pnum].gamerect, p, font_default);
 	}
 }
 
-void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags)
+void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags, struct font_s *font, vec2_t fontscale)
 {
 	cprint_t p;
 	vrect_t r;
@@ -647,7 +648,7 @@ void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int 
 	p.time_start = cl.time;
 	*p.titleimage = 0;
 
-	SCR_DrawCenterString(&r, &p, font_default);
+	SCR_DrawCenterString(&r, &p, font);
 }
 
 qboolean SCR_HardwareCursorIsActive(void)
@@ -2419,7 +2420,7 @@ void SCR_TileClear (void)
 {
 	if (r_refdef.vrect.width < r_refdef.grect.width)
 	{
-		int w;
+		float w;
 		// left
 		R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y, r_refdef.vrect.x-r_refdef.grect.x, r_refdef.grect.height - sb_lines);
 		// right
@@ -2445,7 +2446,7 @@ void SCR_TileClear (void)
 // The 2d refresh stuff.
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 {
-	qboolean consolefocused = !!Key_Dest_Has(kdm_console);
+	qboolean consolefocused = !!Key_Dest_Has(kdm_console|kdm_cwindows);
 	RSpeedMark();
 
 	R2D_ImageColours(1, 1, 1, 1);

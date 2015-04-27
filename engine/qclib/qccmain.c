@@ -815,7 +815,8 @@ void QCC_UnmarshalLocals(void)
 		}
 	}
 	numpr_globals = biggest;
-	printf("%i shared locals, %i private, %i total\n", biggest - onum, onum - eog, numpr_globals-eog);
+	if (verbose)
+		printf("%i shared locals, %i private, %i total\n", biggest - onum, onum - eog, numpr_globals-eog);
 }
 
 

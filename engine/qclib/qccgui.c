@@ -234,6 +234,7 @@ typedef struct editor_s {
 	int curline;
 	pbool modified;
 	pbool scintilla;
+	int savefmt;
 	time_t filemodifiedtime;
 	struct editor_s *next;
 } editor_t;
@@ -1069,7 +1070,7 @@ void GenericMenu(WPARAM wParam)
 		break;
 
 	case IDM_ABOUT:
-		MessageBox(NULL, "FTE QuakeC Compiler ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment, whoever that is.\n\n", "About", 0);
+		MessageBox(NULL, "FTE QuakeC Compiler ("__DATE__" "__TIME__")\nWritten by Forethought Entertainment, whoever that is.\n\nIf you have problems with wordpad corrupting your qc files, try saving them using utf-16 encoding via notepad.", "About", 0);
 		break;
 
 	case IDM_CASCADE:
@@ -1796,23 +1797,31 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 }
 
 unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen);
+char *QCC_SanitizeCharSet(char *mem, unsigned int *len, pbool *freeresult, int *origfmt);
 static void EditorReload(editor_t *editor)
 {
 	struct stat sbuf;
 	int flen;
+	char *rawfile;
 	char *file;
+	pbool dofree;
 
 	flen = QCC_RawFileSize(editor->filename);
 	if (flen >= 0)
 	{
-		file = malloc(flen+1);
+		rawfile = malloc(flen+1);
 
-		QCC_ReadFile(editor->filename, file, flen, NULL);
+		QCC_ReadFile(editor->filename, rawfile, flen, NULL);
 
-		file[flen] = 0;
+		rawfile[flen] = 0;
 	}
 	else
-		file = NULL;
+	{
+		rawfile = NULL;
+		flen = 0;
+	}
+
+	file = QCC_SanitizeCharSet(rawfile, &flen, &dofree, &editor->savefmt);
 
 	stat(editor->filename, &sbuf);
 	editor->filemodifiedtime = sbuf.st_mtime;
@@ -1849,7 +1858,9 @@ static void EditorReload(editor_t *editor)
 		SendMessage(editor->editpane, EM_SETEVENTMASK, 0, ENM_SELCHANGE|ENM_CHANGE);
 	}
 
-	free(file);
+	if (dofree)
+		free(file);
+	free(rawfile);
 
 	editor->modified = false;
 }
@@ -1916,6 +1927,7 @@ void EditFile(char *name, int line, pbool setcontrol)
 	neweditor->next = editors;
 	editors = neweditor;
 
+	neweditor->savefmt = UTF8_RAW;
 	strncpy(neweditor->filename, name, sizeof(neweditor->filename)-1);
 
 	if (!mdibox)
@@ -2016,24 +2028,88 @@ int EditorSave(editor_t *edit)
 	int len;
 	wchar_t *wfile;
 	char *afile;
+	BOOL failed = TRUE;
+	int saved = false;
 	if (edit->scintilla)
 	{
+		//wordpad will corrupt any embedded quake chars if we force a bom, because it'll re-save using the wrong char encoding by default.
+		int bomlen = 0;
+		if (edit->savefmt == UTF32BE || edit->savefmt == UTF32LE || edit->savefmt == UTF16BE)
+			edit->savefmt = UTF16LE;
+
+		if (edit->savefmt == UTF8_BOM)
+			bomlen = 3;
+		else if (edit->savefmt == UTF16BE || edit->savefmt == UTF16LE)
+			bomlen = 2;
+		else if (edit->savefmt == UTF32BE || edit->savefmt == UTF32LE)
+			bomlen = 4;
 		len = SendMessage(edit->editpane, SCI_GETLENGTH, 0, 0);
-		afile = malloc(len+1);
+		afile = malloc(bomlen+len+1);
 		if (!afile)
 		{
 			MessageBox(NULL, "Save failed - not enough mem", "Error", 0);
 			return false;
 		}
-		SendMessage(edit->editpane, SCI_GETTEXT, len+1, (LPARAM)afile);
-		if (!QCC_WriteFile(edit->filename, afile, len))
+		if (bomlen == 3)
+			memcpy(afile, "\xEF\xBB\xBF", bomlen);
+		else
+			memcpy(afile, "\xFF\xFE\x00\x00", bomlen);	//utf-16le or utf-32le. don't bother with be
+		SendMessage(edit->editpane, SCI_GETTEXT, len+1, bomlen+(LPARAM)afile);
+
+		//because wordpad saves in ansi by default instead of the format the file was originally saved in, we HAVE to use ansi without
+		if (edit->savefmt != UTF8_BOM && edit->savefmt != UTF8_RAW)
+		{
+			int mchars;
+			char *mc;
+			int wchars = MultiByteToWideChar(CP_UTF8, 0, afile, len, NULL, 0);
+			if (wchars)
+			{
+				wchar_t *wc = malloc(wchars * sizeof(wchar_t));
+				MultiByteToWideChar(CP_UTF8, 0, afile, len, wc, wchars);
+
+				if (edit->savefmt == UTF_ANSI)
+				{
+					mchars = WideCharToMultiByte(CP_ACP, 0, wc, wchars, NULL, 0, "", &failed);
+					if (mchars)
+					{
+						mc = malloc(mchars);
+						WideCharToMultiByte(CP_ACP, 0, wc, wchars, mc, mchars, "", &failed);
+						if (!failed)
+						{
+							if (!QCC_WriteFile(edit->filename, mc, mchars))
+								saved = -1;
+							else
+								saved = true;
+						}
+						free(mc);
+					}
+				}
+				else
+				{
+					if (!QCC_WriteFile(edit->filename, wc, wchars))
+						saved = -1;
+					else
+						saved = true;
+				}
+				free(wc);
+			}
+		}
+
+		if (!saved)
+		{
+			if (!QCC_WriteFile(edit->filename, afile, bomlen+len))
+				saved = -1;
+			else
+				saved = true;
+		}
+		free(afile);
+		if (saved < 0)
 		{
 			free(afile);
 			MessageBox(NULL, "Save failed\nCheck path and ReadOnly flags", "Failure", 0);
 			return false;
 		}
 		SendMessage(edit->editpane, SCI_SETSAVEPOINT, 0, 0);
-		free(afile);
 	}
 	else
 	{
@@ -3771,9 +3847,202 @@ void GUIPrint(HWND wnd, char *msg)
 	}
 	writing=false;
 }
+
+unsigned int utf8_decode(int *error, const void *in, char **out)
+{
+	//uc is the output unicode char
+	unsigned int uc = 0xfffdu;	//replacement character
+	//l is the length
+	unsigned int l = 1;
+	const unsigned char *str = in;
+
+	if ((*str & 0xe0) == 0xc0)
+	{
+		if ((str[1] & 0xc0) == 0x80)
+		{
+			l = 2;
+			uc = ((str[0] & 0x1f)<<6) | (str[1] & 0x3f);
+			if (!uc || uc >= (1u<<7))	//allow modified utf-8
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xf0) == 0xe0)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80)
+		{
+			l = 3;
+			uc = ((str[0] & 0x0f)<<12) | ((str[1] & 0x3f)<<6) | ((str[2] & 0x3f)<<0);
+			if (uc >= (1u<<11))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xf8) == 0xf0)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80)
+		{
+			l = 4;
+			uc = ((str[0] & 0x07)<<18) | ((str[1] & 0x3f)<<12) | ((str[2] & 0x3f)<<6) | ((str[3] & 0x3f)<<0);
+			if (uc >= (1u<<16))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xfc) == 0xf8)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+		{
+			l = 5;
+			uc = ((str[0] & 0x03)<<24) | ((str[1] & 0x3f)<<18) | ((str[2] & 0x3f)<<12) | ((str[3] & 0x3f)<<6) | ((str[4] & 0x3f)<<0);
+			if (uc >= (1u<<21))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xfe) == 0xfc)
+	{
+		//six bytes
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+		{
+			l = 6;
+			uc = ((str[0] & 0x01)<<30) | ((str[1] & 0x3f)<<24) | ((str[2] & 0x3f)<<18) | ((str[3] & 0x3f)<<12) | ((str[4] & 0x3f)<<6) | ((str[5] & 0x3f)<<0);
+			if (uc >= (1u<<26))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	//0xfe and 0xff, while plausable leading bytes, are not permitted.
+#if 0
+	else if ((*str & 0xff) == 0xfe)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+		{
+			l = 7;
+			uc = 0 | ((str[1] & 0x3f)<<30) | ((str[2] & 0x3f)<<24) | ((str[3] & 0x3f)<<18) | ((str[4] & 0x3f)<<12) | ((str[5] & 0x3f)<<6) | ((str[6] & 0x3f)<<0);
+			if (uc >= (1u<<31))
+				*error = 0;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+	else if ((*str & 0xff) == 0xff)
+	{
+		if ((str[1] & 0xc0) == 0x80 && (str[2] & 0xc0) == 0x80 && (str[3] & 0xc0) == 0x80 && (str[4] & 0xc0) == 0x80)
+		{
+			l = 8;
+			uc = 0 | ((str[1] & 0x3f)<<36) | ((str[2] & 0x3f)<<30) | ((str[3] & 0x3f)<<24) | ((str[4] & 0x3f)<<18) | ((str[5] & 0x3f)<<12) | ((str[6] & 0x3f)<<6) | ((str[7] & 0x3f)<<0);
+			if (uc >= (1llu<<36))
+				*error = false;
+			else
+				*error = 2;
+		}
+		else *error = 1;
+	}
+#endif
+	else if (*str & 0x80)
+	{
+		//sequence error
+		*error = 1;
+		uc = 0xe000u + *str;
+	}
+	else 
+	{
+		//ascii char
+		*error = 0;
+		uc = *str;
+	}
+
+	*out = (void*)(str + l);
+
+	if (!*error)
+	{
+		//try to deal with surrogates by decoding the low if we see a high.
+		if (uc >= 0xd800u && uc < 0xdc00u)
+		{
+#if 1
+			//cesu-8
+			char *lowend;
+			unsigned int lowsur = utf8_decode(error, str + l, &lowend);
+			if (*error == 4)
+			{
+				*out = lowend;
+				uc = (((uc&0x3ffu) << 10) | (lowsur&0x3ffu)) + 0x10000;
+				*error = false;
+			}
+			else
+#endif
+			{
+				*error = 3;	//bad - lead surrogate without tail.
+			}
+		}
+		if (uc >= 0xdc00u && uc < 0xe000u)
+			*error = 4;	//bad - tail surrogate
+
+		//these are meant to be illegal too
+		if (uc == 0xfffeu || uc == 0xffffu || uc > 0x10ffffu)
+			*error = 2;	//illegal code
+	}
+
+	return uc;
+}
+//outlen is the size of out in _BYTES_.
+wchar_t *widen(wchar_t *out, size_t outbytes, const char *utf8, const char *stripchars)
+{
+	size_t outlen;
+	wchar_t *ret = out;
+	//utf-8 to utf-16, not ucs-2.
+	unsigned int codepoint;
+	int error;
+	outlen = outbytes/sizeof(wchar_t);
+	if (!outlen)
+		return L"";
+	outlen--;
+	while (*utf8)
+	{
+		if (stripchars && strchr(stripchars, *utf8))
+		{	//skip certain ascii chars
+			utf8++;
+			continue;
+		}
+		codepoint = utf8_decode(&error, utf8, (void*)&utf8);
+		if (error || codepoint > 0x10FFFFu)
+			codepoint = 0xFFFDu;
+		if (codepoint > 0xffff)
+		{
+			if (outlen < 2)
+				break;
+			outlen -= 2;
+			codepoint -= 0x10000u;
+			*out++ = 0xD800 | (codepoint>>10);
+			*out++ = 0xDC00 | (codepoint&0x3ff);
+		}
+		else
+		{
+			if (outlen < 1)
+				break;
+			outlen -= 1;
+			*out++ = codepoint;
+		}
+	}
+	*out = 0;
+	return ret;
+}
 int GUIEmitOutputText(HWND wnd, int start, char *text, int len, DWORD colour)
 {
-	int c, cr;
+	wchar_t wc[2048];
+	int c;
 	CHARFORMAT cf;
 
 	if (!len)
@@ -3781,17 +4050,12 @@ int GUIEmitOutputText(HWND wnd, int start, char *text, int len, DWORD colour)
 
 	c = text[len];
 	text[len] = '\0';
-	Edit_SetSel(wnd,start,start);
-	Edit_ReplaceSel(wnd,text);
-
+//	wc = QCC_makeutf16(text, len, &ol);
+	widen(wc, sizeof(wc), text, "\r");
 	text[len] = c;
-
-	cr = 0;
-	for (c = 0; c < len; c++)
-		if (text[c] == '\r')
-			cr++;
-	if (cr)
-		len-=cr;
+	Edit_SetSel(wnd,start,start);
+	SendMessageW(wnd, EM_REPLACESEL, 0L, (LPARAM)wc);
+	len = wcslen(wc);
 
 	Edit_SetSel(wnd,start,start+len);
 	memset(&cf, 0, sizeof(cf));
@@ -3806,6 +4070,7 @@ int GUIEmitOutputText(HWND wnd, int start, char *text, int len, DWORD colour)
 }
 int outlen;
 int outstatus;
+pbool gui_doannotates;
 int GUIprintf(const char *msg, ...)
 {
 	va_list		argptr;
@@ -3847,10 +4112,13 @@ int GUIprintf(const char *msg, ...)
 		outstatus = 0;
 
 
-		for (ed = editors; ed; ed = ed->next)
+		if (gui_doannotates)
 		{
-			if (ed->scintilla)
-				SendMessage(ed->editpane, SCI_ANNOTATIONCLEARALL, 0, 0);
+			for (ed = editors; ed; ed = ed->next)
+			{
+				if (ed->scintilla)
+					SendMessage(ed->editpane, SCI_ANNOTATIONCLEARALL, 0, 0);
+			}
 		}
 		return 0;
 	}
@@ -3891,6 +4159,7 @@ int GUIprintf(const char *msg, ...)
 				outlen = GUIEmitOutputText(outputbox, outlen, rn, 1, col);
 			}
 
+			if (gui_doannotates)
 			{
 				char *colon1 = strchr(st, ':');
 				if (colon1)
@@ -4060,10 +4329,12 @@ void RunCompiler(char *args, pbool quick)
 }
 
 
-void CreateOutputWindow(void)
+void CreateOutputWindow(pbool doannoates)
 {
 	WNDCLASS wndclass;
 	MDICREATESTRUCT mcs;
+
+	gui_doannotates = doannoates;
 
 	if (!mdibox)	//should already be created
 		return;
@@ -4149,7 +4420,7 @@ int GrepSubFiles(HTREEITEM node, char *string)
 void GrepAllFiles(char *string)
 {
 	int found;
-	CreateOutputWindow();
+	CreateOutputWindow(false);
 	GUIprintf("");
 	found = GrepSubFiles(TreeView_GetChild(projecttree, TVI_ROOT), string);
 	if (found)
@@ -4456,7 +4727,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	if (fl_compileonstart)
 	{
-		CreateOutputWindow();
+		CreateOutputWindow(false);
 		RunCompiler(lpCmdLine, false);
 	}
 	else
@@ -4500,7 +4771,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{
 			if (buttons[ID_COMPILE].washit)
 			{
-				CreateOutputWindow();
+				CreateOutputWindow(true);
 				RunCompiler(parameters, false);
 
 				buttons[ID_COMPILE].washit = false;

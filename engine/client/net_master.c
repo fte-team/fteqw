@@ -1052,6 +1052,17 @@ float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
 	return 0;
 }
 
+void Master_DecodeColour(vec3_t ret, int col)
+{
+	if (col < 16)
+	{
+		col = Sbar_ColorForMap(col);
+		VectorSet(ret, host_basepal[col*3+0]/255.0, host_basepal[col*3+1]/255.0, host_basepal[col*3+2]/255.0);
+	}
+	else
+		VectorSet(ret, ((col&0xff0000)>>16)/255.0, ((col&0x00ff00)>>8)/255.0, ((col&0x0000ff)>>0)/255.0);
+}
+
 char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 {
 	static char adr[MAX_ADR_SIZE];
@@ -1059,7 +1070,41 @@ char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 	if (!server)
 		return "";
 
-	if (keynum < SLKEY_CUSTOM)
+	if (keynum >= SLKEY_CUSTOM)
+	{
+		if (server->moreinfo)
+		{
+			keynum -= SLKEY_CUSTOM;
+			if (keynum < sizeof(slist_keyname)/sizeof(slist_keyname[0]))
+				return Info_ValueForKey(server->moreinfo->info, slist_keyname[keynum]);
+		}
+		else if (!(server->special & SS_KEEPINFO))
+		{
+			server->special |= SS_KEEPINFO;
+			server->sends++;
+		}
+	}
+	else if (keynum >= SLKEY_PLAYER0)
+	{
+		if (server->moreinfo)
+		{
+			keynum -= SLKEY_PLAYER0;
+			if (keynum < server->moreinfo->numplayers)
+			{
+				vec3_t top, bot;
+				Master_DecodeColour(top, server->moreinfo->players[keynum].topc);
+				Master_DecodeColour(bot, server->moreinfo->players[keynum].botc);
+
+				return va("%i %i %g %i \"%s\" \"%s\" '%g %g %g' '%g %g %g'", server->moreinfo->players[keynum].userid, server->moreinfo->players[keynum].frags, server->moreinfo->players[keynum].time, server->moreinfo->players[keynum].ping, server->moreinfo->players[keynum].name, server->moreinfo->players[keynum].skin, top[0],top[1],top[2], bot[0], bot[1], bot[2]);
+			}
+		}
+		else if (!(server->special & SS_KEEPINFO))
+		{
+			server->special |= SS_KEEPINFO;
+			server->sends++;
+		}
+	}
+	else
 	{
 		switch(keynum)
 		{
@@ -1076,6 +1121,8 @@ char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 			return server->modname;
 		case SLKEY_QCSTATUS:
 			return server->qcstatus;
+		case SLKEY_SERVERINFO:
+			return server->moreinfo->info;
 
 		default:
 			{
@@ -1085,8 +1132,6 @@ char *Master_ReadKeyString(serverinfo_t *server, int keynum)
 			}
 		}
 	}
-	else if (server->moreinfo)
-		return Info_ValueForKey(server->moreinfo->info, slist_keyname[keynum-SLKEY_CUSTOM]);
 
 	return "";
 }
@@ -1130,6 +1175,10 @@ int Master_KeyForName(const char *keyname)
 		return SLKEY_ISLOCAL;
 	else if (!strcmp(keyname, "isproxy"))
 		return SLKEY_ISPROXY;
+	else if (!strcmp(keyname, "serverinfo"))
+		return SLKEY_SERVERINFO;
+	else if (!strncmp(keyname, "player", 6))
+		return SLKEY_PLAYER0 + atoi(keyname+6);
 
 	else if (slist_customkeys == SLIST_MAXKEYS)
 		return SLKEY_TOOMANY;
@@ -2694,7 +2743,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				details.players[clnum].botc = 0;
 				details.players[clnum].time = 0;
 			}
-			else	//qw responce
+			else	//qw response
 			{
 				details.players[clnum].time = atoi(token);
 				msg = token;

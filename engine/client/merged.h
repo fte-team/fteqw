@@ -10,6 +10,7 @@ struct entity_s;
 struct dlight_s;
 struct galiasbone_s;
 struct dlight_s;
+struct font_s;
 
 typedef enum
 {
@@ -108,7 +109,7 @@ extern void SCR_SetUpToDrawConsole					(void);
 extern void SCR_EraseCenterString					(void);
 extern void SCR_CenterPrint							(int pnum, char *str, qboolean skipgamecode);
 
-void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags);
+void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags, struct font_s *font, vec2_t fontscale);
 #define CPRINT_LALIGN		(1<<0)	//L
 #define CPRINT_TALIGN		(1<<1)	//T
 #define CPRINT_RALIGN		(1<<2)	//R

@@ -1134,6 +1134,12 @@ void V_ApplyRefdef (void)
 
 //========================================
 
+	if (r_refdef.playerview->gamerectknown != cls.framecount)
+	{
+		r_refdef.playerview->gamerectknown = cls.framecount;
+		r_refdef.playerview->gamerect = r_refdef.grect;
+	}
+
 // intermission is always full screen
 	if (cl.intermission || !r_refdef.drawsbar)
 		size = 120;
@@ -1554,9 +1560,10 @@ void R_DrawNameTags(void)
 				entstr = w->progs->saveent(w->progs, asciibuffer, &buflen, sizeof(asciibuffer), (edict_t*)e);	//will save just one entities vars
 				if (entstr)
 				{
+					vec2_t scale = {8,8};
 					x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
 					y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
-					R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN);
+					R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, scale);
 				}
 
 			}

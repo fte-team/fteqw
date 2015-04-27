@@ -5689,7 +5689,8 @@ void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	
 	//assume the worst.
 	G_INT(OFS_RETURN) = 0;
-	*out_contents = 0;
+	if (G_INT(OFS_PARM4))
+		*out_contents = 0;
 
 	if (!hm)
 		return;
@@ -5699,23 +5700,29 @@ void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		br = &hm->wbrushes[i];
 		if (br->id == brushid)
 		{
-			*out_contents = br->contents;
-			maxfaces = min(br->numplanes, maxfaces);
-
-			for (fa = 0; fa < maxfaces; fa++)
+			if (G_INT(OFS_PARM4))
+				*out_contents = br->contents;
+			if (!G_INT(OFS_PARM2))
+				G_INT(OFS_RETURN) = br->numplanes;
+			else
 			{
-				out_faces->shadername = PR_TempString(prinst, br->faces[fa].tex->shadername);
-				VectorCopy(br->planes[fa], out_faces->planenormal);
-				out_faces->planedist = br->planes[fa][3];
+				maxfaces = min(br->numplanes, maxfaces);
 
-				VectorCopy(br->faces[fa].stdir[0], out_faces->sdir);
-				out_faces->sbias = br->faces[fa].stdir[0][3];
-				VectorCopy(br->faces[fa].stdir[1], out_faces->tdir);
-				out_faces->tbias = br->faces[fa].stdir[1][3];
+				for (fa = 0; fa < maxfaces; fa++)
+				{
+					out_faces->shadername = PR_TempString(prinst, br->faces[fa].tex->shadername);
+					VectorCopy(br->planes[fa], out_faces->planenormal);
+					out_faces->planedist = br->planes[fa][3];
 
-				out_faces++;
+					VectorCopy(br->faces[fa].stdir[0], out_faces->sdir);
+					out_faces->sbias = br->faces[fa].stdir[0][3];
+					VectorCopy(br->faces[fa].stdir[1], out_faces->tdir);
+					out_faces->tbias = br->faces[fa].stdir[1][3];
+
+					out_faces++;
+				}
+				G_INT(OFS_RETURN) = fa;
 			}
-			G_INT(OFS_RETURN) = fa;
 			return;
 		}
 	}

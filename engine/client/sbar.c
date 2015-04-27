@@ -254,7 +254,8 @@ static qboolean largegame = false;
 #ifdef Q2CLIENT
 static void DrawHUDString (char *string, float x, float y, int centerwidth, qboolean alt)
 {
-	R_DrawTextField(x, y, centerwidth, 1024, string, alt?CON_ALTMASK:CON_WHITEMASK, CPRINT_TALIGN);
+	vec2_t fontscale = {8,8};
+	R_DrawTextField(x, y, centerwidth, 1024, string, alt?CON_ALTMASK:CON_WHITEMASK, CPRINT_TALIGN, font_default, fontscale);
 }
 #define STAT_MINUS		10	// num frame for '-' stats digit
 static char		*q2sb_nums[2][11] =
@@ -3089,6 +3090,8 @@ void Sbar_DeathmatchOverlay (int start)
 	int startx, rank_width;
 	playerview_t *pv = r_refdef.playerview;
 
+	vrect_t		gr = r_refdef.grect;
+
 	if (!pv)
 		return;
 
@@ -3124,7 +3127,7 @@ void Sbar_DeathmatchOverlay (int start)
 				if (R_GetShaderSizes(pic, &w, &h, false)>0)
 				{
 					k = (w * 24) / h;
-					R2D_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
+					R2D_ScalePic (gr.x + (gr.width-k)/2, gr.y, k, 24, pic);
 				}
 			}
 			y += 24;
@@ -3146,11 +3149,13 @@ void Sbar_DeathmatchOverlay (int start)
 		y += 8;
 	}
 
+	y += gr.y;
+
 	showcolumns = 0;
 
 	rank_width = 0;
 
-#define COLUMN(title, cwidth, code) if (rank_width+(cwidth)+8 <= vid.width) {showcolumns |= (1<<COLUMN##title); rank_width += cwidth+8;}
+#define COLUMN(title, cwidth, code) if (rank_width+(cwidth)+8 <= gr.width) {showcolumns |= (1<<COLUMN##title); rank_width += cwidth+8;}
 //columns are listed here in priority order (if the screen is too narrow, later ones will be hidden)
 	COLUMN_NAME
 	COLUMN_PING
@@ -3183,7 +3188,8 @@ void Sbar_DeathmatchOverlay (int start)
 	}
 #undef COLUMN
 
-	startx = (vid.width-rank_width)/2;
+	startx = (gr.width-rank_width)/2;
+	startx += gr.x;
 
 	if (scr_scoreboard_newstyle.ival)
 	{

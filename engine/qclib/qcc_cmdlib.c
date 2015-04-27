@@ -889,14 +889,6 @@ pbool SafeClose(int hand)
 
 qcc_cachedsourcefile_t *qcc_sourcefile;
 
-enum
-{
-	UTF16LE,
-	UTF16BE,
-	UTF32LE,
-	UTF32BE,
-};
-
 //return 0 if the input is not valid utf-8.
 unsigned int utf8_check(const void *in, unsigned int *value)
 {
@@ -968,14 +960,15 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, un
 		maxperchar = 4;
 		break;
 	default:
-		*outlen = inbytes;
-		return (char*)inputf;
+		//error
+		*outlen = 0;
+		return NULL;
 	}
 	chars = inbytes / w;
 	if (usemalloc)
-		utf8 = start = malloc(chars * maxperchar + 2);
+		utf8 = start = malloc(chars * maxperchar + 2+1);
 	else
-		utf8 = start = qccHunkAlloc(chars * maxperchar + 2);
+		utf8 = start = qccHunkAlloc(chars * maxperchar + 2+1);
 	for (i = 0; i < chars; i++)
 	{
 		switch(type)
@@ -1048,6 +1041,7 @@ static char *decodeUTF(int type, unsigned char *inputf, unsigned int inbytes, un
 		}
 	}
 	*outlen = utf8 - start;
+	*utf8 = 0;
 	return start;
 }
 
@@ -1107,6 +1101,66 @@ unsigned short *QCC_makeutf16(char *mem, unsigned int len, int *outlen)
 	return outstart;
 }
 
+//input is a raw file (will not be changed
+//output is utf-8 data
+char *QCC_SanitizeCharSet(char *mem, unsigned int *len, pbool *freeresult, int *origfmt)
+{
+	if (freeresult)
+		*freeresult = true;
+	if (*len >= 4 && mem[0] == '\xff' && mem[1] == '\xfe' && mem[2] == '\x00' && mem[3] == '\x00')
+		mem = decodeUTF(*origfmt=UTF32LE, (unsigned char*)mem+4, *len-4, len, !!freeresult);
+	else if (*len >= 4 && mem[0] == '\x00' && mem[1] == '\x00' && mem[2] == '\xfe' && mem[3] == '\xff')
+		mem = decodeUTF(*origfmt=UTF32BE, (unsigned char*)mem+4, *len-4, len, !!freeresult);
+	else if (*len >= 2 && mem[0] == '\xff' && mem[1] == '\xfe')
+		mem = decodeUTF(*origfmt=UTF16LE, (unsigned char*)mem+2, *len-2, len, !!freeresult);
+	else if (*len >= 2 && mem[0] == '\xfe' && mem[1] == '\xff')
+		mem = decodeUTF(*origfmt=UTF16BE, (unsigned char*)mem+2, *len-2, len, !!freeresult);
+	//utf-8 BOM, for compat with broken text editors (like windows notepad).
+	else if (*len >= 3 && mem[0] == '\xef' && mem[1] == '\xbb' && mem[2] == '\xbf')
+	{
+		*origfmt=UTF8_BOM;
+		mem += 3;
+		*len -= 3;
+		if (freeresult)
+			*freeresult = false;
+	}
+	else
+	{
+		*origfmt=UTF8_RAW;
+		if (freeresult)
+			*freeresult = false;
+/*
+#ifdef _WIN32
+		//even if we wrote the bom, resaving with wordpad will translate the file to the system's active code page, which will fuck up any comments. thanks for that, wordpad.
+		//(weirdly, notepad does the right thing)
+		int wchars = MultiByteToWideChar(CP_ACP, 0, mem, *len, NULL, 0);
+
+		if (wchars)
+		{
+			BOOL failed = false;
+			wchar_t *wc = malloc(wchars * sizeof(wchar_t));
+			int mchars;
+			MultiByteToWideChar(CP_ACP, 0, mem, *len, wc, wchars);
+			mchars = WideCharToMultiByte(CP_UTF8, 0, wc, wchars, NULL, 0, NULL, NULL);
+			if (mchars && !failed)
+			{
+				mem = (freeresult?malloc(mchars+2):qccHunkAlloc(mchars+2));
+				mem[mchars] = 0;
+				*len = mchars;
+				if (freeresult)
+					*freeresult = true;
+				WideCharToMultiByte(CP_UTF8, 0, wc, wchars, mem, mchars, NULL, NULL);
+			}
+			free(wc);
+		}
+#endif
+*/
+	}
+
+
+	return mem;
+}
+
 long	QCC_LoadFile (char *filename, void **bufferptr)
 {
 	char *mem;
@@ -1114,6 +1168,7 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 	int flen;
 	unsigned int len;
 	int line;
+	int orig;
 	pbool warned = false;
 	flen = externs->FileSize(filename);
 	if (flen < 0)
@@ -1132,20 +1187,8 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 
 	externs->ReadFile(filename, mem, len+2, NULL);
 
-	if (len >= 4 && mem[0] == '\xff' && mem[1] == '\xfe' && mem[2] == '\x00' && mem[3] == '\x00')
-		mem = decodeUTF(UTF32LE, (unsigned char*)mem+4, len-4, &len, false);
-	else if (len >= 4 && mem[0] == '\x00' && mem[1] == '\x00' && mem[2] == '\xfe' && mem[3] == '\xff')
-		mem = decodeUTF(UTF32BE, (unsigned char*)mem+4, len-4, &len, false);
-	else if (len >= 2 && mem[0] == '\xff' && mem[1] == '\xfe')
-		mem = decodeUTF(UTF16LE, (unsigned char*)mem+2, len-2, &len, false);
-	else if (len >= 2 && mem[0] == '\xfe' && mem[1] == '\xff')
-		mem = decodeUTF(UTF16BE, (unsigned char*)mem+2, len-2, &len, false);
-	//utf-8 BOM, for compat with broken text editors (like windows notepad).
-	else if (len >= 3 && mem[0] == '\xef' && mem[1] == '\xbb' && mem[2] == '\xbf')
-	{
-		mem += 3;
-		len -= 3;
-	}
+	mem = QCC_SanitizeCharSet(mem, &len, NULL, &orig);
+
 	//actual utf-8 handling is somewhat up to the engine. the qcc can only ensure that utf8 works in symbol names etc.
 	//its only in strings where it actually makes a difference, and the interpretation of those is basically entirely up to the engine.
 	//that said, we could insert a utf-8 BOM into ones with utf-8 chars, but that would mess up a lot of builtins+mods, so we won't.

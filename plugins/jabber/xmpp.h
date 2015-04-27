@@ -9,7 +9,7 @@
 #define FILETRANSFERS		//IBB only, speeds suck. autoaccept is forced on. no protection from mods stuffcmding sendfile commands. needs more extensive testing
 #define QUAKECONNECT		//including quake ICE connections (depends upon jingle)
 #define VOIP				//enables voice chat (depends upon jingle)
-#define VOIP_LEGACY			//enables google-only voice chat compat. google have not kept up with the standardisation of jingle (aka: gingle).
+//#define VOIP_LEGACY			//enables google-only voice chat compat. google have not kept up with the standardisation of jingle (aka: gingle).
 //#define VOIP_LEGACY_ONLY	//disables jingle feature (advert+detection only)
 #define JINGLE				//enables jingle signalling
 
@@ -21,7 +21,7 @@
 #endif
 
 
-#define JCL_BUILD "3"
+#define JCL_BUILD "4"
 #define DEFAULTDOMAIN ""
 #define DEFAULTRESOURCE "Quake"
 #define QUAKEMEDIAXMLNS "http://fteqw.com/protocol/quake"
@@ -34,7 +34,7 @@
 
 
 
-#define JCL_MAXMSGLEN 10000
+#define JCL_MAXMSGLEN 0x10000
 
 //values are not on the wire or anything
 #define CAP_VOICE			(1u<<0)		//supports voice
@@ -60,6 +60,7 @@ typedef struct bresource_s
 	char fstatus[128];	//full status
 	char server[256];
 	int servertype;	//0=none, 1=already a client, 2=joinable
+	int priority;
 
 	unsigned int buggycaps;
 	unsigned int caps;
@@ -102,6 +103,7 @@ typedef struct jclient_s
 		JCL_ACTIVE		//we're connected, we got a buddy list and everything
 	} status;
 	unsigned int timeout;		//reconnect/ping timer
+	char errormsg[256];
 
 	unsigned int enabledcapabilities;
 
@@ -260,7 +262,20 @@ typedef struct jclient_s
 	int privateidseq;
 #endif
 
+
+	//persistant achived info about buddies, to avoid spamming the server every time we connect
+	//such things might result in lag mid game!
+	struct buddyinfo_s
+	{
+		struct buddyinfo_s *next;
+		char *image;
+		char *imagehash;
+		char *imagemime;
+		char accountdomain[1];
+	} *buddyinfo;
+
 	buddy_t *buddies;
+	struct iq_s *avatarupdate;	//we only grab one buddy's photo at a time, this is to avoid too much spam.
 } jclient_t;
 
 
@@ -279,7 +294,8 @@ qboolean JCL_FindBuddy(jclient_t *jcl, char *jid, buddy_t **buddy, bresource_t *
 
 //quake functionality
 void JCL_GenLink(jclient_t *jcl, char *out, int outlen, char *action, char *context, char *contextres, char *sid, char *txtfmt, ...);
-void Con_SubPrintf(char *subname, char *format, ...);
+void Con_SubPrintf(const char *subname, char *format, ...);
+void XMPP_ConversationPrintf(const char *context, const char *title, char *format, ...);
 
 //jingle functions
 void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int protocol);

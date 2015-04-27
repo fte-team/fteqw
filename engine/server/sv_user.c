@@ -1538,7 +1538,7 @@ void SVQW_Spawn_f (void)
 	}
 	if (host_client->prespawn_stage != PRESPAWN_DONE)
 	{
-		Con_Printf ("client sent spawn without prespawn!\n");
+		Con_Printf ("%s sent spawn without prespawn!\n", host_client->name);
 		SV_New_f ();
 		return;
 	}

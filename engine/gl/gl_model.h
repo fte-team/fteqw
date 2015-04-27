@@ -1042,7 +1042,7 @@ int		CM_BoxLeafnums (struct model_s *mod, vec3_t mins, vec3_t maxs, int *list, i
 int		CM_PointContents (struct model_s *mod, vec3_t p);
 int		CM_TransformedPointContents (struct model_s *mod, vec3_t p, int headnode, vec3_t origin, vec3_t angles);
 int		CM_HeadnodeForBox (struct model_s *mod, vec3_t mins, vec3_t maxs);
-struct trace_s	CM_TransformedBoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask, vec3_t origin, vec3_t angles);
+//struct trace_s	CM_TransformedBoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask, vec3_t origin, vec3_t angles);
 struct model_s *CM_TempBoxModel(vec3_t mins, vec3_t maxs);
 
 void	CMQ2_SetAreaPortalState (model_t *mod, unsigned int portalnum, qboolean open);

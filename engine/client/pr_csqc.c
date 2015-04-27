@@ -232,6 +232,8 @@ static void CSQC_ChangeLocalPlayer(int seat)
 			*csqcg.player_localentnum = csqc_playerview->viewentity;
 		else if (cl.spectator && Cam_TrackNum(csqc_playerview) >= 0)
 			*csqcg.player_localentnum = Cam_TrackNum(csqc_playerview) + 1;
+		else if (csqc_playerview == &csqc_nullview)
+			*csqcg.player_localentnum = 0;
 		else
 			*csqcg.player_localentnum = csqc_playerview->playernum+1;
 	}
@@ -1570,8 +1572,12 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	case VF_ACTIVESEAT:
 		if (prinst == csqc_world.progs)
 		{
-			CSQC_ChangeLocalPlayer(*p);
-			V_CalcRefdef(csqc_playerview);	//set up the default position+angles for the named player.
+			if (csqc_playerseat != *p)
+			{
+				CSQC_ChangeLocalPlayer(*p);
+				if (prinst->callargc < 3 || G_FLOAT(OFS_PARM2))
+					V_CalcRefdef(csqc_playerview);	//set up the default position+angles for the named player.
+			}
 		}
 		break;
 	case VF_VIEWENTITY:
@@ -2868,7 +2874,10 @@ static void QCBUILTIN PF_cs_getentitytoken (pubprogfuncs_t *prinst, struct globa
 		{
 			csqcmapentitydata = COM_ParseToken(csqcmapentitydata, "{}()\'\":,");
 		}
-		RETURN_TSTRING(com_token);
+		if (!csqcmapentitydata)	//hit the end
+			G_INT(OFS_RETURN) = 0;
+		else
+			RETURN_TSTRING(com_token);
 	}
 }
 

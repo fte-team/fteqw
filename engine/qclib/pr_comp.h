@@ -380,6 +380,7 @@ enum qcop_e {
 	OP_BITCLR_F,
 	OP_BITCLR_I,
 
+	OP_ADD_SI,
 	OP_ADD_PF,
 	OP_ADD_FP,
 	OP_ADD_PI,

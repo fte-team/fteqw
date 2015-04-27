@@ -5729,6 +5729,8 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 #endif
 			else
 			{
+				if (!strncmp(stufftext, "cmd ", 4))
+					Cbuf_AddText (va("p%i ", destsplit+1), RESTRICT_SERVER+destsplit);	//without this, in_forceseat can break directed cmds.
 				Cbuf_AddText (stufftext, RESTRICT_SERVER+destsplit);
 				Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
 			}

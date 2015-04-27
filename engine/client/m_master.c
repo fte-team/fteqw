@@ -445,22 +445,22 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 	mpic_t *pic;
 
-	pic = R2D_SafeCachePic("scrollbars/slidebg.png");
+	pic = R2D_SafeCachePic("scrollbars/slidebg.tga");
 	if (pic)
 	{
 		R2D_ScalePic(x + ths->common.width - 8, y+8, 8, ths->common.height-16, pic);
 
-		pic = R2D_SafeCachePic("scrollbars/arrow_up.png");
+		pic = R2D_SafeCachePic("scrollbars/arrow_up.tga");
 		R2D_ScalePic(x + ths->common.width - 8, y, 8, 8, pic);
 
-		pic = R2D_SafeCachePic("scrollbars/arrow_down.png");
+		pic = R2D_SafeCachePic("scrollbars/arrow_down.tga");
 		R2D_ScalePic(x + ths->common.width - 8, y + ths->common.height - 8, 8, 8, pic);
 
 		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (float)(ths->common.height-(64+16-1));
 
 		y += 8;
 
-		pic = R2D_SafeCachePic("scrollbars/slider.png");
+		pic = R2D_SafeCachePic("scrollbars/slider.tga");
 		R2D_ScalePic(x + ths->common.width - 8, y, 8, 64, pic);
 	}
 	else
@@ -484,7 +484,7 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 			my = mousecursor_y;
 			my -= ths->common.posy;
-			if (R2D_SafeCachePic("scrollbars/slidebg.png"))
+			if (R2D_SafeCachePic("scrollbars/slidebg.tga"))
 			{
 				my -= 32+8;
 				my /= ths->common.height - (64+16);

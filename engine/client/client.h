@@ -596,6 +596,9 @@ struct playerview_s
 	float		driftmove;
 	double		laststop;
 
+	int gamerectknown;		//equals cls.framecount if valid
+	vrect_t	gamerect;		//position the player's main view was drawn at this frame.
+
 	//prediction state
 	int			pmovetype;
 	float		entgravity;

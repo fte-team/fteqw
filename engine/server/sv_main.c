@@ -1772,7 +1772,10 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	{
 		client->max_net_clients = NQMAX_CLIENTS;
 		client->datagram.maxsize = MAX_NQDATAGRAM;	//vanilla limit
-		client->max_net_ents = bound(512, pr_maxedicts.ival, 600);
+		if (client->protocol == SCP_PROQUAKE)
+			client->max_net_ents = bound(512, pr_maxedicts.ival, 8192);
+		else
+			client->max_net_ents = bound(512, pr_maxedicts.ival, 600);
 	}
 
 	if (client->fteprotocolextensions2 & PEXT2_MAXPLAYERS)

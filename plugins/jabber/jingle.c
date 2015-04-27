@@ -556,10 +556,10 @@ void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int proto
 
 				JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
 				JCL_GenLink(jcl, hanguplink, sizeof(hanguplink), "jdeny", target, NULL, c2c->sid, "%s", "Hang Up");
-				Con_SubPrintf(b->name, "%s %s %s.\n",  protocol==ICEP_VOICE?"Calling":"Requesting session with", convolink, hanguplink);
+				XMPP_ConversationPrintf(b->accountdomain, b->name, "%s %s %s.\n",  protocol==ICEP_VOICE?"Calling":"Requesting session with", convolink, hanguplink);
 			}
 			else
-				Con_SubPrintf(b->name, "That session has expired.\n");
+				XMPP_ConversationPrintf(b->accountdomain, b->name, "That session has expired.\n");
 		}
 		else if (c2c->creator)
 		{
@@ -567,16 +567,16 @@ void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int proto
 			//resend initiate if they've not acked it... I dunno...
 			JCL_JingleSend(jcl, c2c, "session-initiate");
 			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-			Con_SubPrintf(b->name, "Restarting session with %s.\n", convolink);
+			XMPP_ConversationPrintf(b->accountdomain, b->name, "Restarting session with %s.\n", convolink);
 		}
 		else if (c2c->accepted)
-			Con_SubPrintf(b->name, "That session was already accepted.\n");
+			XMPP_ConversationPrintf(b->accountdomain, b->name, "That session was already accepted.\n");
 		else
 		{
 			char convolink[512];
 			JCL_JingleSend(jcl, c2c, "session-accept");
 			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-			Con_SubPrintf(b->name, "Accepting session from %s.\n", convolink);
+			XMPP_ConversationPrintf(b->accountdomain, b->name, "Accepting session from %s.\n", convolink);
 		}
 	}
 	else
@@ -586,10 +586,10 @@ void JCL_Join(jclient_t *jcl, char *target, char *sid, qboolean allow, int proto
 			char convolink[512];
 			JCL_JingleSend(jcl, c2c, "session-terminate");
 			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, target, NULL, NULL, "%s", target);
-			Con_SubPrintf(b->name, "Terminating session with %s.\n", convolink);
+			XMPP_ConversationPrintf(b->accountdomain, b->name, "Terminating session with %s.\n", convolink);
 		}
 		else
-			Con_SubPrintf(b->name, "That session has already expired.\n");
+			XMPP_ConversationPrintf(b->accountdomain, b->name, "That session has already expired.\n");
 	}
 }
 
@@ -805,7 +805,7 @@ static qboolean JCL_JingleHandleInitiate_GoogleSession(jclient_t *jcl, xmltree_t
 				char convolink[512];
 				JCL_JingleSend(jcl, c2c, "terminate");
 				JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, from, NULL, NULL, "%s", b->name);
-				Con_SubPrintf(b->name, "%s does not support any compatible audio codecs, and is unable to call you.\n", convolink);
+				XMPP_ConversationPrintf(b->accountdomain, b->name, "%s does not support any compatible audio codecs, and is unable to call you.\n", convolink);
 				return false;
 			}
 		}
@@ -822,14 +822,14 @@ static qboolean JCL_JingleHandleInitiate_GoogleSession(jclient_t *jcl, xmltree_t
 				JCL_GenLink(jcl, denylink, sizeof(denylink), "jdeny", from, NULL, sid, "%s", "Reject");
 
 				//show a prompt for it, send the reply when the user decides.
-				Con_SubPrintf(b->name,
+				XMPP_ConversationPrintf(b->accountdomain, b->name,
 						"%s %s. %s %s\n", convolink, offer, authlink, denylink);
 				pCon_SetActive(b->name);
 				return true;
 			}
 			else
 			{
-				Con_SubPrintf(b->name, "Auto-accepting session from %s\n", convolink);
+				XMPP_ConversationPrintf(b->accountdomain, b->name, "Auto-accepting session from %s\n", convolink);
 				response = "accept";
 			}
 		}
@@ -938,7 +938,7 @@ static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, ch
 		{
 			char convolink[512];
 			JCL_GenLink(jcl, convolink, sizeof(convolink), NULL, from, NULL, NULL, "%s", b->name);
-			Con_SubPrintf(b->name, "%s does not support any compatible codecs, and is unable to call you.\n", convolink);
+			XMPP_ConversationPrintf(b->accountdomain, b->name, "%s does not support any compatible codecs, and is unable to call you.\n", convolink);
 
 			if (c2c->content[c].ice)
 				piceapi->ICE_Close(c2c->content[c].ice);
@@ -974,14 +974,14 @@ static qboolean JCL_JingleHandleSessionTerminate(jclient_t *jcl, xmltree_t *tree
 	int c;
 	if (!c2c)
 	{
-		Con_Printf("Received session-terminate without an active session\n");
+		XMPP_ConversationPrintf(b->accountdomain, b->name, "Received session-terminate without an active session\n");
 		return false;
 	}
 
 	if (reason && reason->child)
-		Con_SubPrintf(b->name, "Session ended: %s\n", reason->child->name);
+		XMPP_ConversationPrintf(b->accountdomain, b->name, "Session ended: %s\n", reason->child->name);
 	else
-		Con_SubPrintf(b->name, "Session ended\n");
+		XMPP_ConversationPrintf(b->accountdomain, b->name, "Session ended\n");
 
 	//unlink it
 	for (link = &jcl->c2c; *link; link = &(*link)->next)
@@ -1032,7 +1032,7 @@ static qboolean JCL_JingleHandleSessionAccept(jclient_t *jcl, xmltree_t *tree, c
 		{
 			return false;
 		}
-		Con_SubPrintf(b->name, "Session Accepted!\n");
+		XMPP_ConversationPrintf(b->accountdomain, b->name, "Session Accepted!\n");
 //			XML_ConPrintTree(tree, 0);
 
 		JCL_JingleParsePeerPorts(jcl, c2c, tree, from, XML_GetParameter(tree, "sid", ""));
@@ -1324,13 +1324,13 @@ qboolean JCL_ParseJingle(jclient_t *jcl, xmltree_t *tree, char *from, char *id)
 				JCL_GenLink(jcl, denylink, sizeof(denylink), "jdeny", from, NULL, sid, "%s", "Reject");
 
 				//show a prompt for it, send the reply when the user decides.
-				Con_SubPrintf(b->name,
+				XMPP_ConversationPrintf(b->accountdomain, b->name,
 						"%s %s. %s %s\n", convolink, offer, authlink, denylink);
-				pCon_SetActive(b->name);
+				pCon_SetActive(b->accountdomain);
 			}
 			else
 			{
-				Con_SubPrintf(b->name, "Auto-accepting session from %s\n", convolink);
+				XMPP_ConversationPrintf(b->accountdomain, b->name, "Auto-accepting session from %s\n", convolink);
 				JCL_Join(jcl, from, sid, true, ICEP_INVALID);
 			}
 		}

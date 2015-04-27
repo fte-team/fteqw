@@ -581,12 +581,13 @@ COM_Path_f
 */
 static void COM_PathLine(searchpath_t *s)
 {
-	Con_Printf("%s  %s%s%s%s%s\n", s->logicalpath,
+	Con_Printf("%s  %s%s%s%s%s%s\n", s->logicalpath,
 		(s->flags & SPF_REFERENCED)?"^[(ref)\\tip\\Referenced\\desc\\Package will auto-download to clients^]":"",
 		(s->flags & SPF_TEMPORARY)?"^[(temp)\\tip\\Temporary\\desc\\Flushed on map change^]":"",
 		(s->flags & SPF_COPYPROTECTED)?"^[(c)\\tip\\Copyrighted\\desc\\Copy-Protected and is not downloadable^]":"",
 		(s->flags & SPF_EXPLICIT)?"^[(e)\\tip\\Explicit\\desc\\Loaded explicitly by the gamedir^]":"",
-		(s->flags & SPF_UNTRUSTED)?"^[(u)\\tip\\Untrusted\\desc\\Configs and scripts will not be given access to passwords^]":"" );
+		(s->flags & SPF_UNTRUSTED)?"^[(u)\\tip\\Untrusted\\desc\\Configs and scripts will not be given access to passwords^]":"",
+		(s->handle->GeneratePureCRC)?va("^[(h)\\tip\\Hash: %x^]", s->handle->GeneratePureCRC(s->handle, 0, 0)):"");
 }
 void COM_Path_f (void)
 {

@@ -294,13 +294,16 @@ void M_ToggleMenu_f (void)
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand("togglemenu"))
 	{
-		Key_Dest_Remove(kdm_console);
+		Key_Dest_Remove(kdm_console|kdm_cwindows);
 		return;
 	}
 #endif
 #ifdef MENU_DAT
 	if (MP_Toggle())
+	{
+		Key_Dest_Remove(kdm_console|kdm_cwindows);
 		return;
+	}
 #endif
 #ifdef VM_UI
 	if (UI_OpenMenu())
@@ -314,8 +317,8 @@ void M_ToggleMenu_f (void)
 		m_state = m_none;
 		return;
 	}
-	if (Key_Dest_Has(kdm_console))
-		Key_Dest_Remove(kdm_console);
+	if (Key_Dest_Has(kdm_console|kdm_cwindows))
+		Key_Dest_Remove(kdm_console|kdm_cwindows);
 /*
 	{
 		if (cls.state != ca_active)

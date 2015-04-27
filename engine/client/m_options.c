@@ -2646,6 +2646,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	entity_t ent;
 	vec3_t fwd, rgt, up;
 	const char *fname;
+	vec2_t fs = {8,8};
 
 	modelview_t *mods = c->dptr;
 
@@ -2732,7 +2733,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			"end: skin+=1\n"
 			"pgup: frame+=1\n"
 			"pgdn: frame-=1\n"
-			, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN);
+			, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		break;
 	case MV_BONES:
 #ifdef SKELETALMODELS
@@ -2746,7 +2747,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 				M_BoneDisplay(&ent, b, &y, 0, -1, 0, bonecount);
 			}
 			else
-				R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, "No bones in model", CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN);
+				R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, "No bones in model", CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		}
 #endif
 		break;
@@ -2757,7 +2758,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->skingroup));
 				mods->shadertext = Z_StrDup(body);
 			}
-			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+16, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN);
+			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+16, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 
 			//fixme: draw the shader's textures.
 		}

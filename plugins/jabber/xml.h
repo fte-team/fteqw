@@ -2,7 +2,7 @@ typedef struct xmlparams_s
 {
 	char val[256];	//FIXME: make pointer
 	struct xmlparams_s *next;
-	char name[64];	//FIXME: make variable sized
+	char name[128];	//FIXME: make variable sized
 } xmlparams_t;
 
 typedef struct subtree_s

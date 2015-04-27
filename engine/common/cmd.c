@@ -2937,7 +2937,7 @@ void Cmd_WriteConfig_f(void)
 	char sysname[MAX_OSPATH];
 	qboolean all = true;
 
-	if (Cmd_IsInsecure())
+	if (Cmd_IsInsecure() && Cmd_Argc() > 1)
 	{
 		Con_Printf ("%s not allowed\n", Cmd_Argv(0));
 		return;

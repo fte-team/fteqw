@@ -90,9 +90,9 @@ void GoToDefinition(char *name)
 	{
 		//with functions, the def is the prototype.
 		//we want the body, so zoom to the first statement of the function instead
-		if (def->type->type == ev_function && def->constant)
+		if (def->type->type == ev_function && def->constant && !def->arraysize)
 		{
-			fnc = &functions[((int *)qcc_pr_globals)[def->ofs]];
+			fnc = &functions[def->symboldata->function];
 			if (fnc->code>=0 && fnc->s_file)
 			{
 				EditFile(strings+fnc->s_file, statements[fnc->code].linenum-1, false);

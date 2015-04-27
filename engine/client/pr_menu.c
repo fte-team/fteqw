@@ -107,12 +107,13 @@ struct font_s *PR_CL_ChooseFont(float *fontsel, float szx, float szy)
 void PR_CL_BeginString(pubprogfuncs_t *prinst, float vx, float vy, float szx, float szy, float *px, float *py)
 {
 	world_t *world = prinst->parms->user;
-	struct font_s *font = PR_CL_ChooseFont(world->g.drawfont, szx, szy);
+	struct font_s *font;
 	if (world->g.drawfontscale && (world->g.drawfontscale[0] || world->g.drawfontscale[1]))
 	{
 		szx *= world->g.drawfontscale[0];
 		szy *= world->g.drawfontscale[1];
 	}
+	font = PR_CL_ChooseFont(world->g.drawfont, szx, szy);
 	Font_BeginScaledString(font, vx, vy, szx, szy, px, py);
 }
 int PR_findnamedfont(const char *name, qboolean isslotname)
@@ -367,7 +368,17 @@ void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s 
 	unsigned int flags = G_FLOAT(OFS_PARM2);
 	const char *text = PR_GetStringOfs(prinst, OFS_PARM3);
 
-	R_DrawTextField(pos[0], pos[1], size[0], size[1], text, CON_WHITEMASK, flags);
+	world_t *world = prinst->parms->user;
+	vec2_t scale = {8, 8};
+	struct font_s *font;
+	if (world->g.drawfontscale && (world->g.drawfontscale[0] || world->g.drawfontscale[1]))
+	{
+		scale[0] *= world->g.drawfontscale[0];
+		scale[1] *= world->g.drawfontscale[1];
+	}
+	font = PR_CL_ChooseFont(world->g.drawfont, scale[0], scale[1]);
+
+	R_DrawTextField(pos[0], pos[1], size[0], size[1], text, CON_WHITEMASK, flags, font, scale);
 }
 
 //float	drawstring(vector position, string text, vector scale, float alpha, float flag) = #455;
@@ -2002,6 +2013,7 @@ static struct {
 	{"stringwidth",				PF_CL_stringwidth,			468},
 	{"drawsubpic",				PF_CL_drawsubpic,			469},
 	{"drawrotsubpic",			PF_CL_drawrotsubpic,		0},
+	{"drawtextfield",			PF_CL_DrawTextField,		0},
 															//470
 //MERGES WITH CLIENT+SERVER BUILTIN MAPPINGS BELOW
 	{"asin",					PF_asin,					471},

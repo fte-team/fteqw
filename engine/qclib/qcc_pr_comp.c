@@ -620,6 +620,7 @@ QCC_opcode_t pr_opcodes[] =
  {7, "&~", "BITCLR_F",	6, ASSOC_LEFT,					&type_float, &type_float, &type_float},
  {7, "&~", "BITCLR_I",	6, ASSOC_LEFT,					&type_integer, &type_integer, &type_integer},
 
+ {7, "+", "ADD_SI",	4, ASSOC_LEFT,						&type_string,	&type_integer,	&type_string},
  {7, "+", "ADD_PF",	6, ASSOC_LEFT,						&type_pointer,	&type_float,	&type_pointer},
  {7, "+", "ADD_FP",	6, ASSOC_LEFT,						&type_float,	&type_pointer,	&type_pointer},
  {7, "+", "ADD_PI",	6, ASSOC_LEFT,						&type_pointer,	&type_integer,	&type_pointer},
@@ -1600,6 +1601,8 @@ static QCC_sref_t QCC_GetTemp(QCC_type_t *type)
 
 	tempsinfo[u].lastfunc = pr_scope;
 	tempsinfo[u].laststatement = numstatements;
+
+	var_c.sym->referenced = true;
 	return var_c;
 }
 
@@ -2536,7 +2539,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			{
 				//you're allowed to assign 0i to anything
 				if (op - pr_opcodes == OP_STORE_V)	//make sure vectors get set properly.
+				{
+					QCC_FreeTemp(var_a);
 					var_a = QCC_MakeVectorConst(0, 0, 0);
+				}
 			}
 			/*else
 			{
@@ -2570,7 +2576,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			{
 				//you're allowed to assign 0i to anything
 				if (op - pr_opcodes == OP_STOREP_V)	//make sure vectors get set properly.
+				{
+					QCC_FreeTemp(var_a);
 					var_a = QCC_MakeVectorConst(0, 0, 0);
+				}
 			}
 			/*else
 			{
@@ -2765,6 +2774,29 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 //			QCC_PR_ParseWarning(0, "OP_LOADA_STRUCT: cannot emulate");
 			break;
 
+		case OP_ADD_SF:
+			var_c = QCC_PR_GetSRef(NULL, "AddStringFloat", NULL, false, 0, 0);
+			if (var_c.cast)
+			{
+				QCC_type_t *types[2] = {type_string, type_float};
+				QCC_sref_t evals[2];
+				evals[0] = var_a;	//stupid msvc bug
+				evals[1] = var_b;
+				var_a = QCC_PR_GenerateFunctionCall(nullsref, var_c, evals, types, 2);
+			}
+			else
+			{
+				QCC_PR_ParseWarning(0, "string(string,float) AddStringFloat: emulation depends upon denormals");
+				var_b = QCC_SupplyConversion(var_b, ev_integer, true);	//FIXME: this should be an unconditional float->int conversion
+				var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], var_a, var_b, NULL, 0);
+			}
+			var_c.cast = type_string;
+			return var_c;
+		case OP_ADD_SI:
+			QCC_PR_ParseWarning(0, "OP_ADD_SI: denormals may be unsafe");
+			var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_F], var_a, var_b, NULL, 0);
+			var_c.cast = type_string;
+			return var_c;
 		case OP_ADD_PF:
 		case OP_ADD_FP:
 		case OP_ADD_PI:
@@ -2933,7 +2965,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				{
 					var_c = QCC_PR_GetSRef(NULL, "itof", NULL, false, 0, 0);
 					if (!var_c.cast)
+					{
 						QCC_PR_ParseError(0, "itof function not defined: cannot emulate int -> float conversions");
+					}
 					var_a = QCC_PR_GenerateFunctionCall(nullsref, var_c, &var_a, &type_integer, 1);
 					var_a.cast = type_float;
 				}
@@ -2954,8 +2988,13 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				{
 					var_c = QCC_PR_GetSRef(NULL, "ftoi", NULL, false, 0, 0);
 					if (!var_c.cast)
-						QCC_PR_ParseError(0, "ftoi function not defined: cannot emulate float -> int conversions");
-					var_a = QCC_PR_GenerateFunctionCall(nullsref, var_c, &var_a, &type_float, 1);
+					{
+						//with denormals, 5 * 1i -> 5i
+						QCC_PR_ParseWarning(0, "ftoi emulation: denormals have limited precision");
+						var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_F], var_a, QCC_MakeIntConst(1), NULL, 0);
+					}
+					else
+						var_a = QCC_PR_GenerateFunctionCall(nullsref, var_c, &var_a, &type_float, 1);
 					var_a.cast = type_integer;
 				}
 				if (var_b.cast)
@@ -3178,6 +3217,11 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
+			if (QCC_OPCodeValid(&pr_opcodes[OP_BITCLRSTORE_I]))
+			{
+				op = &pr_opcodes[OP_BITCLRSTORE_I];
+				break;
+			}
 			//fallthrough
 		case OP_BITCLRSTORE_I:
 			//b = var, a = bit field.
@@ -3192,6 +3236,11 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			var_c = var_b;
 			var_b = var_a;
 			var_a = var_c;
+			if (QCC_OPCodeValid(&pr_opcodes[OP_BITCLRSTORE_F]))
+			{
+				op = &pr_opcodes[OP_BITCLRSTORE_F];
+				break;
+			}
 			//fallthrough
 		case OP_BITCLRSTORE_F:
 			//b = var, a = bit field.
@@ -3594,11 +3643,20 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 	statement->b = var_b;
 
 	if (var_c.cast && var_c.sym && !var_c.sym->referenced)
-		printf("that wasn't referenced\n");
-	if (var_b.cast && var_a.sym && !var_b.sym->referenced)
-		printf("that wasn't referenced\n");
-	if (var_a.cast && var_b.sym && !var_a.sym->referenced)
-		printf("that wasn't referenced\n");
+	{
+		QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: var_c was not referenced");
+		QCC_PR_ParsePrintSRef(WARN_DEBUGGING, var_c);
+	}
+	if (var_b.cast && var_b.sym && !var_b.sym->referenced)
+	{
+		QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: var_b was not referenced");
+		QCC_PR_ParsePrintSRef(WARN_DEBUGGING, var_b);
+	}
+	if (var_a.cast && var_a.sym && !var_a.sym->referenced)
+	{
+		QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: var_a was not referenced");
+		QCC_PR_ParsePrintSRef(WARN_DEBUGGING, var_a);
+	}
 
 	if (var_c.cast)
 		statement->c = var_c;
@@ -5692,6 +5750,8 @@ static QCC_ref_t *QCC_PR_ParseField(QCC_ref_t *refbuf, QCC_ref_t *lhs)
 		}
 
 		lhs = QCC_PR_ParseField(refbuf, lhs);
+
+		lhs = QCC_PR_ParseRefArrayPointer (refbuf, lhs, false, false);
 	}
 	else if (t->accessors && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
 	{
@@ -9177,7 +9237,8 @@ void QCC_PR_ParseState (void)
 	s1 = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 	s1 = QCC_SupplyConversion(s1, ev_float, true);
 
-	QCC_PR_Expect (",");
+	if (!QCC_PR_CheckToken (","))
+		QCC_PR_ParseWarning(WARN_UNEXPECTEDPUNCT, "missing comma in state definition");
 
 	pr_assumetermtype = type_function;
 	def = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
@@ -11225,7 +11286,7 @@ QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, char *name, QCC_function_t *scope, 
 	return nullsref;
 }
 
-QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_function_t *scope, int arraysize, unsigned int *fieldofs, pbool saved)
+QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_function_t *scope, int arraysize, unsigned int *fieldofs, unsigned int saved)
 {
 	char array[64];
 	char newname[256];
@@ -11326,7 +11387,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_function_t *sc
 						def = QCC_PR_GetDef(ftype, newname, scope, true, 0, saved);
 						if (parttype->type == ev_function)
 							def->initialized = true;
-						((int *)qcc_pr_globals)[def->ofs] = *fieldofs;
+						def->symboldata->_int = *fieldofs;
 						*fieldofs += parttype->size;
 					}
 					else
@@ -11334,6 +11395,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_function_t *sc
 						QCC_PR_ParseWarning(WARN_CONFLICTINGUNIONMEMBER, "conflicting offsets for union/struct expansion of %s. Ignoring new def.", newname);
 						QCC_PR_ParsePrintDef(WARN_CONFLICTINGUNIONMEMBER, def);
 					}
+					QCC_FreeDef(def);
 					break;
 				case ev_void:
 					break;
@@ -11355,7 +11417,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_function_t *sc
 void QCC_PR_ExpandUnionToFields(QCC_type_t *type, unsigned int *fields)
 {
 	QCC_type_t *pass = type->aux_type;
-	QCC_PR_DummyFieldDef(pass, "", pr_scope, 1, fields, true);
+	QCC_PR_DummyFieldDef(pass, "", pr_scope, 1, fields, GDF_SAVED|GDF_CONST);
 }
 
 void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t def)

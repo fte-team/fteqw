@@ -419,14 +419,14 @@ void R_SetupGL (float stereooffset)
 		}
 		else
 		{
-			x = r_refdef.vrect.x * (int)vid.fbpwidth/(int)vid.width;
-			x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * (int)vid.fbpwidth/(int)vid.width;
-			y = (r_refdef.vrect.y) * (int)vid.fbpheight/(int)vid.height;
-			y2 = (r_refdef.vrect.y + r_refdef.vrect.height) * (int)vid.fbpheight/(int)vid.height;
+			x = floor(r_refdef.vrect.x * (float)vid.fbpwidth/(float)vid.width);
+			x2 = ceil((r_refdef.vrect.x + r_refdef.vrect.width) * (float)vid.fbpwidth/(float)vid.width);
+			y = floor(r_refdef.vrect.y * (float)vid.fbpheight/(float)vid.height);
+			y2 = ceil((r_refdef.vrect.y + r_refdef.vrect.height) * (float)vid.fbpheight/(float)vid.height);
 
 
 			// fudge around because of frac screen scale
-			if (x > 0)
+/*			if (x > 0)
 				x--;
 			if (x2 < vid.fbpwidth)
 				x2++;
@@ -434,7 +434,7 @@ void R_SetupGL (float stereooffset)
 				y2++;
 			if (y > 0)
 				y--;
-
+*/
 			w = x2 - x;
 			h = y2 - y;
 

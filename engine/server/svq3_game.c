@@ -574,16 +574,23 @@ static int SVQ3_Contact(vec3_t mins, vec3_t maxs, q3sharedEntity_t *ent, qboolea
 {
 	model_t *mod;
 	trace_t tr;
+	float *ang;
 
 	if (ent->r.bmodel)
+	{
+		ang = ent->r.currentAngles;
 		mod = Q3G_GetCModel(ent->s.modelindex);
+	}
 	else
+	{
+		ang = vec3_origin;
 		mod = CM_TempBoxModel(ent->r.mins, ent->r.maxs);
+	}
 
 	if (!mod || !mod->funcs.NativeTrace)
 		return false;
 
-	tr = CM_TransformedBoxTrace(mod, vec3_origin, vec3_origin, mins, maxs, 0xffffffff, ent->r.currentOrigin, ent->r.currentAngles);
+	World_TransformedTrace(mod, 0, 0, vec3_origin, vec3_origin, mins, maxs, capsule, &tr, ent->r.currentOrigin, ang, 0xffffffff);
 
 	if (tr.startsolid)
 		return true;

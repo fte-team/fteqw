@@ -1,17 +1,3 @@
-enum
-{
-	MODE_INITIAL=0,
-
-	MODE_LIGHTEDIT=1,
-	MODE_SPLINEEDIT=2,
-	MODE_TERRAINEDIT=3,
-	MODE_PARTICLEEDIT=4,
-	MODE_ENTSEDIT=5,
-
-	MODE_COUNT=5
-};
-
-string editornames[] = {"LIGHTS", "SPLINES", "TERRAIN", "PARTICLES", "ENTITIES"};
 
 float autocvar_ca_show;
 var float autocvar_ca_editormode = MODE_LIGHTEDIT;
@@ -23,6 +9,7 @@ vector mousediff;
 vector originalmousepos;
 float mousedown;
 float shiftdown;
+float ctrldown;
 vector mousenear;
 vector mousefar;
 
@@ -31,10 +18,12 @@ vector pointedsurfacenormal;
 entity pointedent;
 float pointedsurface;
 
+float editorrsd[editornames.length];
+
 /*the renderscene builtin in the parent progs is redirected to here*/
 void() wrap_renderscene =
 {
-	local int retval;
+	float x;
 	vector col;
 	local float i;
 
@@ -53,8 +42,11 @@ void() wrap_renderscene =
 		mousefar = unproject((vidsize*0.5) + '0 0 8192');
 		mousenear = unproject(vidsize*0.5);
 
+#ifdef CAMQUAKE
 		if (isdemo())
 			spline_overrides(gettime(5));
+#endif
+
 		renderscene();
 
 		if (autocvar_ca_colourtint)
@@ -116,46 +108,65 @@ void() wrap_renderscene =
 	setproperty(VF_DRAWENGINESBAR, 0);
 	setproperty(VF_DRAWCROSSHAIR, 0);
 
-	mousefar = unproject(curmousepos + '0 0 8192');
-	mousenear = unproject(curmousepos);
+	vector mn = (vector)getproperty(VF_MIN);
+	vector sz = (vector)getproperty(VF_SIZE);
+	if (curmousepos_x >= mn_x && curmousepos_x <= mn_x+sz_x && curmousepos_y >= mn_y && curmousepos_y <= mn_y+sz_y)
+	{
+		mousefar = unproject(curmousepos + '0 0 8192');
+		mousenear = unproject(curmousepos);
+	}
 
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_add();
 	else if (autocvar_ca_editormode == MODE_ENTSEDIT)
 		editor_ents_add();
+#ifdef CAMQUAKE
 	else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
 		editor_spline_add();
+#endif
 	else if (autocvar_ca_editormode == MODE_TERRAINEDIT)
 		editor_terrain_add(curmousepos);
+	else if (autocvar_ca_editormode == MODE_BRUSHEDIT)
+		editor_brushes_add(curmousepos);
 
 	renderscene();
 
-	for (i = 0; i < MODE_COUNT; i+=1)
+	for (i = 0, x = 0; i < editornames.length; i+=1)
 	{
-		if (autocvar_ca_editormode == i+1)
-			col = '1 0 0';
-		else if (curmousepos_y < 8 && curmousepos_x >= 64*(i) && curmousepos_x < 64*(i+1))
-			col = '0 0 1';
-		else
-			col = '1 1 1';
-		drawrawstring('64 0 0'*i, editornames[i], '8 8 0', col, 1);
+		if (editornames[i])
+		{
+			float w = stringwidth(editornames[i], TRUE, '8 8 0') + 8;
+			if (autocvar_ca_editormode == i)
+				col = '1 0 0';
+			else if (curmousepos_y < 8 && curmousepos_x >= x && curmousepos_x < x+w)
+				col = '0 0 1';
+			else
+				col = '1 1 1';
+			drawrawstring([x,0], editornames[i], '8 8 0', col, 1);
 
+			x += w;
+		}
+		editorrsd[i] = x;
 	}
 
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_overlay(curmousepos);
+#ifdef CAMQUAKE
 	else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
 	{
 		editor_spline_overlay(&curmousepos, mousediff);
 		originalmousepos = curmousepos;
 		mousediff = '0 0 0';
 	}
+#endif
 	else if (autocvar_ca_editormode == MODE_PARTICLEEDIT)
 		editor_particles_overlay(curmousepos);
 	else if (autocvar_ca_editormode == MODE_TERRAINEDIT)
 		editor_terrain_overlay(curmousepos);
 	else if (autocvar_ca_editormode == MODE_ENTSEDIT)
 		editor_ents_overlay(curmousepos);
+	else if (autocvar_ca_editormode == MODE_BRUSHEDIT)
+		editor_brushes_overlay(curmousepos);
 
 	drawcharacter(curmousepos - '4 4', '+', '8 8', '1 1 1', 1);
 };
@@ -163,13 +174,28 @@ void() wrap_renderscene =
 var float(float,float,float) orig_input_event = __NULL__;
 float (float event, float parama, float paramb) wrap_InputEvent =
 {
+	if (event == IE_KEYDOWN || event == IE_KEYUP)
+	{
+		if (parama == K_RSHIFT || parama == K_LSHIFT)
+			shiftdown = (event == IE_KEYDOWN);
+		if (parama == K_RCTRL || parama == K_LCTRL)
+			ctrldown = (event == IE_KEYDOWN);
+	}
 	if (autocvar_ca_show)
 	{
-		if (event == 0)
+		if (event == IE_KEYDOWN)
 		{
-			if (parama == 512 && curmousepos_y < 8)
+			if (parama == K_MOUSE1 && curmousepos_y < 8)
 			{
-				cvar_set("ca_editormode", ftos(floor(curmousepos_x / 64)+1));
+				float i, nm = 0;
+				for (i = editorrsd.length-1; i >= 0; i--)
+				{
+					if (curmousepos_x < editorrsd[i])
+						nm = i;
+					else
+						break;
+				}
+				cvar_set("ca_editormode", ftos(nm));
 				return TRUE;
 			}
 			if (autocvar_ca_editormode == MODE_LIGHTEDIT)
@@ -177,6 +203,7 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 				if (editor_lights_key(parama, paramb, curmousepos))
 					return TRUE;
 			}
+#ifdef CAMQUAKE
 			else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
 			{
 				if (editor_spline_key(parama, paramb, &curmousepos, mousediff))
@@ -186,6 +213,7 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 					return TRUE;
 				}
 			}
+#endif
 			else if (autocvar_ca_editormode == MODE_PARTICLEEDIT)
 			{
 				if (editor_particles_key(parama, paramb, curmousepos))
@@ -196,23 +224,33 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 				if (editor_terrain_key(parama, paramb, curmousepos))
 					return TRUE;
 			}
-			if (parama == 512)
+			else if (autocvar_ca_editormode == MODE_BRUSHEDIT)
+			{
+				if (editor_brushes_key(parama, paramb, curmousepos))
+					return TRUE;
+			}
+			else if (autocvar_ca_editormode == MODE_ENTSEDIT)
+			{
+				if (editor_ents_key(parama, paramb, curmousepos))
+					return TRUE;
+			}
+			if (parama == K_MOUSE1)
 			{
 				mousedown = 1;
 				return TRUE;
 			}
-			if (parama == 513)
+			if (parama == K_MOUSE2)
 			{
 				mousedown = 2;
 				return TRUE;
 			}
 		}
-		else if (event == 1)
+		else if (event == IE_KEYUP)
 		{
-			if (parama == 511+mousedown)
+			if (parama == K_MOUSE1-1+mousedown)
 				mousedown = FALSE;
 		}
-		else if (event == 2)
+		else if (event == IE_MOUSEDELTA)
 		{
 			if (mousedown == 2)
 				return FALSE;
@@ -230,7 +268,7 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 				curmousepos_y = vidsize_y;
 			return TRUE;
 		}
-		else if (event == 3)
+		else if (event == IE_MOUSEABS)
 		{
 			curmousepos_x = parama;
 			curmousepos_y = paramb;
@@ -241,7 +279,7 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 	}
 	else if (pointedshadername != "")
 	{
-/*		if (parama == 513)
+/*		if (parama == K_MOUSE2)
 		{
 			strunzone(pointedshadername);
 			pointedshadername = "";
@@ -249,7 +287,7 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 			return TRUE;
 		}
 */
-		if (event == 0 || event == 1)
+		if (event == IE_KEYDOWN || event == IE_KEYUP)
 		{
 			gecko_keyevent(pointedshadername, parama, event);
 			if (event == 0)
@@ -274,16 +312,68 @@ void(float mask) wrap_addentities =
 	addentities(mask);
 };
 
-
+var float autocvar_fov = 90;
+static void(float seat, vector mn, vector sz) renderscene_helper =
+{
+#ifndef VF_ACTIVESEAT
+#define VF_ACTIVESEAT VF_LPLAYER
+#endif
+	if (seat)
+	{
+		setproperty(VF_ACTIVESEAT, seat, TRUE);	//updates globals, true means resets view properties too (but not ents)
+		setproperty(VF_VIEWENTITY, player_localentnum);
+		if (!intermission)
+			wrap_addentities(MASK_VIEWMODEL);
+	}
+	setproperty(VF_VIEWPORT, mn, sz);
+	setproperty(VF_AFOV, autocvar_fov);
+	wrap_renderscene();
+};
 
 /*this is a fallback function, in case the main progs does not have one*/
 void(float width, float height, float do2d) CSQC_UpdateView =
 {
+	float foo;
 	clearscene();
+	setproperty(VF_ACTIVESEAT, 0, TRUE);	//in_forceseat can prevent this from already being true, sadly. silly csqc mods with no splitscreen support...
 	setproperty(VF_DRAWENGINESBAR, 1);
 	setproperty(VF_DRAWCROSSHAIR, 1);
 	wrap_addentities(intermission?MASK_ENGINE:(MASK_VIEWMODEL|MASK_ENGINE));
-	wrap_renderscene();
+
+	foo = numclientseats;
+//	if (autocvar_ca_show)
+//		foo = 0;
+	switch(foo)
+	{
+	case 0:	//just in case someone runs us in dp
+	case 1:
+		wrap_renderscene();
+		break;
+	case 2:
+		renderscene_helper(0, [0, 0], [width, height/2]);
+		renderscene_helper(1, [0, height/2], [width, height/2]);
+		setviewprop(VF_LPLAYER, 0, FALSE);
+		drawline(1, [0, height/2], [width, height/2], '0 0 0', 1);
+		break;
+	case 3:
+		renderscene_helper(0, [0, 0], [width, height/2]);
+		renderscene_helper(1, [0, height/2], [width/2, height/2]);
+		renderscene_helper(2, [width/2, height/2], [width/2, height/2]);
+		setviewprop(VF_LPLAYER, 0, FALSE);
+		drawline(1, [0, height/2], [width, height/2], '0 0 0', 1);
+		drawline(1, [width/2, height/2], [width/2, height], '0 0 0', 1);
+		break;
+	default:
+	case 4:
+		renderscene_helper(0, [0, 0], [width/2, height/2]);
+		renderscene_helper(1, [width/2, 0], [width/2, height/2]);
+		renderscene_helper(2, [0, height/2], [width/2, height/2]);
+		renderscene_helper(3, [width/2, height/2], [width/2, height/2]);
+		setviewprop(VF_LPLAYER, 0, FALSE);
+		drawline(1, [0, height/2], [width, height/2], '0 0 0', 1);
+		drawline(1, [width/2, 0], [width/2, height], '0 0 0', 1);
+		break;
+	}
 };
 
 void() CSQC_Input_Frame =
@@ -308,6 +398,7 @@ void() CSQC_Input_Frame =
 				pointedshadername = "";
 			else
 			{
+				//fixme: no unfocus!
 				pointedshadername = strzone(pointedshadername);
 				//print("sending input to ", pointedshadername, "\n");
 
@@ -372,7 +463,7 @@ void() CSQC_Input_Frame =
 			float d1 = dir1*xyz1;
 			float p = dir1*trace_endpos;
 			float d2 = dir1*(xyz1+dir1);
-			float f1 = (p-d1) / (d2 - d1);
+			f1 = (p-d1) / (d2 - d1);
 
 			d1 = dir2*xyz1;
 			p = dir2*trace_endpos;
@@ -408,7 +499,11 @@ float (float event, float parama, float paramb, float devid) CSQC_InputEvent =
 
 void(float prevprogs) init =
 {
+#ifdef CAMQUAKE
 	Cam_Init();
+#else
+	editornames[MODE_SPLINEEDIT] = 0;
+#endif
 
 	if (prevprogs >= 0)
 	{
@@ -417,7 +512,7 @@ void(float prevprogs) init =
 		externset(0, wrap_addentities, "addentities");
 
 		/*wrap the parent's input event function*/
-		orig_input_event = externvalue(0, "CSQC_InputEvent");
+		orig_input_event = (float(float, float, float))externvalue(0, "CSQC_InputEvent");
 		externset(0, wrap_InputEvent, "CSQC_InputEvent");
 	}
 	csfixups();
@@ -430,6 +525,8 @@ void(float prevprogs) init =
 
 void() CSQC_Shutdown =
 {
+#ifdef CAMQUAKE
 	spline_shutdown();
+#endif
 };
 

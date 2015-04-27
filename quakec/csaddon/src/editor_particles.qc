@@ -1,7 +1,7 @@
 
 static float cureffect;
 static float curmodified;
-textfield_linedesc_t fields[100] =
+const textfield_linedesc_t fields[100] =
 {
 	{"shader", "shader <shadername>\\n{\\nshaderbody\\n}"},
 	{"texture", "texture <shadername>"},
@@ -88,7 +88,7 @@ textfield_linedesc_t fields[100] =
 	{__NULL__}
 };
 
-static textfield_t tf_particle;
+strip static textfield_t tf_particle;
 
 #define MAXPARTICLETYPES 200
 typedef struct
@@ -97,12 +97,11 @@ typedef struct
 	int start;
 	int end;
 } particledesc_t;
-particledesc_t pdesc[MAXPARTICLETYPES];
+strip particledesc_t pdesc[MAXPARTICLETYPES];
 int numptypes;
 string particlesfile;
 
 static entity ptrailent;
-float mousedown;
 
 static void(string descname) saveparticle;
 
@@ -216,11 +215,14 @@ static void(string descname) loadparticles =
 	particlesfile = (string)0;
 
 /*load new string*/
-	f = fopen(strcat("particles/", descname, ".cfg"), FILE_READNL);
-	if (f >= 0)
+	if (descname != "")
 	{
-		particlesfile = strzone(fgets(f));
-		fclose(f);
+		f = fopen(strcat("particles/", descname, ".cfg"), FILE_READNL);
+		if (f >= 0)
+		{
+			particlesfile = strzone(fgets(f));
+			fclose(f);
+		}
 	}
 
 	/*and find out where the particles are*/

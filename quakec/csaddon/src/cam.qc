@@ -1,3 +1,4 @@
+#ifdef CAMQUAKE
 typedef struct
 {
 	int numpoints;
@@ -32,7 +33,7 @@ static camdata_t *camdata;
 static var float splinefile = -1;
 static var int edit_type = 0;
 static vector submenu_position;
-static var float autocvar_cl_demospeed = 1;
+var float autocvar_cl_demospeed = 1;
 
 void(int *dest, int bytes) memclr =
 {
@@ -481,11 +482,10 @@ void(float attime) spline_overrides =
 void() editor_spline_add =
 {
 	local int i;
-	local float ctime, stime;
+	local float ctime;
+	//local float stime;
 
-	local vector tdir;
-	tdir_x = 16 * cos(time);
-	tdir_y = 16 * sin(time);
+	local vector tdir = [16 * cos(time), 16 * sin(time)];
 //	drawlame3dtext("charset", '300 -500 50', tdir, '0 0 -16', "hello jogi\ndoes this string appear for you?", '1 1 1', 1);
 //	drawlame3dtext("charset", '300 -500 50', -tdir, '0 0 -16', "hello jogi\ndoes this string appear for you?", '1 1 1', 1);
 
@@ -503,8 +503,8 @@ void() editor_spline_add =
 	/*sort out the overrides*/
 //	spline_overrides(simtime);
 };
-float slidertestfloat1, slidertestfloat2, slidertestfloat3;
-static float *curslider;
+//float slidertestfloat1, slidertestfloat2, slidertestfloat3;
+//static float *curslider;
 static menu_t menu;
 
 void (vector *curmousepos, vector mousediff, float key) submenu =
@@ -665,7 +665,7 @@ int (vector *curmousepos, vector mousediff, float key) testmenu =
 int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 {
 	local vector pos, v;
-	local spline_t *s;
+//	local spline_t *s;
 	local int ri;
 	local string str;
 	local float minv, sec;
@@ -1119,8 +1119,10 @@ float(string str) CSQC_ConsoleCommand =
 	}
 	return FALSE;
 };
+
 void() Cam_Init =
 {
 	registercommand("examplecommandforjogi");
 //	registercommand("crashandcatchfire");
 };
+#endif

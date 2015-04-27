@@ -133,7 +133,7 @@ static void(float fld, string newval) writefield =
 		dynamiclight_set(selectedlight, LFIELD_RADIUS, stof(newval));
 		return;
 	case 5:
-		float fl;
+		var float fl = 0;
 		if (strstrofs(newval, "d")>=0) fl |= LFLAG_NORMALMODE;
 		if (strstrofs(newval, "w")>=0) fl |= LFLAG_REALTIMEMODE;
 		if (strstrofs(newval, "l")>=0) fl |= LFLAG_LIGHTMAP;
@@ -190,7 +190,7 @@ void(vector m) editor_lights_overlay =
 	fldname[NUMLFIELDS+2] = strcat("realtime world: ", cvar("r_shadow_realtime_world")?"on":"off");
 	fldname[NUMLFIELDS+3] = strcat("realtime dlight: ", cvar("r_shadow_realtime_dynamic")?"on":"off");
 
-	for (i = 1f; i <= NUMLFIELDS; i+=1)
+	for (i = 1; i <= NUMLFIELDS; i++)
 	{
 		if (editfield == i)
 			s = editvalue;
@@ -354,7 +354,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 		editvalue = strzone(readfield(editfield, 1));
 	}
 	else if (unic == '=')
-		selectedlight+=1;
+		selectedlight++;
 	else if (unic == '-')
 		selectedlight-=1;
 	else if (unic == 'n' || unic == 'N')

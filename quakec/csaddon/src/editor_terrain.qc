@@ -52,7 +52,7 @@ static var string tint[8] = {"1 1 1", "1.2 0.9 0.9", "0 1 0"};
 static string meshname;
 static var float curtool = ter_blank;
 static var float lasttool = ter_blank;
-static int painttex;
+static float painttex;
 static float mautorepeattime;
 static entity tempent;
 static var float texturesearch = -1;
@@ -197,7 +197,6 @@ void(vector m, float repeated) editor_do =
 		else
 			terrain_edit(TEREDIT_TEX_REPLACE, trace_endpos, eradius, tex[painttex]);
 		break;
-		break;
 	case ter_tex_kill:
 		if (autocvar_mod_terrain_networked && !isserver())
 			sendevent("teredit", "fvffs", TEREDIT_TEX_KILL, trace_endpos, eradius, equant, tex[painttex]);
@@ -282,6 +281,7 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 			txt = itos((int)equant);
 		if (curtool == ter_strength)
 			txt = itos((int)epercent);
+
 		if (curtool == ter_mesh)
 			txt = meshname;
 		if (curtool == ter_tintval)
@@ -556,8 +556,9 @@ void(vector mousepos) editor_terrain_overlay =
 			}
 			else
 				drawstring(pos, sprintf("Tex%1i: %s", painttex, tex[painttex]), '8 8 0', colour, 1, 0);
-			if (tex[painttex] != "" && whichpack(strcat("textures/", tex[painttex], ".tga")) != "")
-				drawpic(pos + '0 8 0', tex[painttex], '128 128 0', '1 1 1', 1);
+			if (tex[painttex] != "")
+				if (whichpack(strcat("textures/", tex[painttex], ".tga")) != "")
+					drawpic(pos + '0 8 0', tex[painttex], '128 128 0', '1 1 1', 1);
 		
 		}
 		else if (i == ter_tintval)

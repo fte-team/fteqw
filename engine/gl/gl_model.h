@@ -30,6 +30,7 @@ struct wedict_s;
 struct model_s;
 struct world_s;
 struct dlight_s;
+typedef struct builddata_s builddata_t;
 
 typedef enum {
 	SHADER_SORT_NONE,

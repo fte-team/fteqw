@@ -52,11 +52,11 @@ void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
 
-typedef struct builddata_s
+struct builddata_s
 {
 	void (*buildfunc)(model_t *mod, msurface_t *surf, struct builddata_s *bd);
 	void *facedata;
-} builddata_t;
+};
 void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b);	//data === builddata_t
 
 

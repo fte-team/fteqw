@@ -4134,13 +4134,17 @@ done:;
 			{T_GEN_DELUXMAP,		0},
 		};
 
+#ifndef NOMEDIA
 		cin_t *cin = R_ShaderGetCinematic(s);
+#endif
 
 		//if the glsl doesn't specify all samplers, just trim them.
 		s->numpasses = s->prog->numsamplers;
 
+#ifndef NOMEDIA
 		if (cin && R_ShaderGetCinematic(s) == cin)
 			cin = NULL;
+#endif
 
 		//if the glsl has specific textures listed, be sure to provide a pass for them.
 		for (i = 0; i < sizeof(defaulttgen)/sizeof(defaulttgen[0]); i++)
@@ -4152,6 +4156,7 @@ done:;
 				s->passes[s->numpasses].flags &= ~SHADER_PASS_DEPTHCMP;
 				if (defaulttgen[i].gen == T_GEN_SHADOWMAP)
 					s->passes[s->numpasses].flags |= SHADER_PASS_DEPTHCMP;
+#ifndef NOMEDIA
 				if (!i && cin)
 				{
 					s->passes[s->numpasses].texgen = T_GEN_VIDEOMAP;
@@ -4159,9 +4164,12 @@ done:;
 					cin = NULL;
 				}
 				else
+#endif
 				{
 					s->passes[s->numpasses].texgen = defaulttgen[i].gen;
+#ifndef NOMEDIA
 					s->passes[s->numpasses].cin = NULL;
+#endif
 				}
 				s->numpasses++;
 				s->flags |= defaulttgen[i].flags;
@@ -4171,12 +4179,18 @@ done:;
 		//must have at least one texture.
 		if (!s->numpasses)
 		{
+#ifndef NOMEDIA
 			s->passes[0].texgen = cin?T_GEN_VIDEOMAP:T_GEN_DIFFUSE;
 			s->passes[0].cin = cin;
+#else
+			s->passes[0].texgen = T_GEN_DIFFUSE;
+#endif
 			s->numpasses = 1;
 		}
+#ifndef NOMEDIA
 		else if (cin)
 			Media_ShutdownCin(cin);
+#endif
 		s->passes->numMergedPasses = s->numpasses;
 	}
 }

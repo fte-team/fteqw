@@ -1941,7 +1941,11 @@ void CLQ2_AddEntities (void)
 	if (cls.state != ca_active)
 		return;
 
-	if (cl.time*1000 > cl.q2frame.servertime)
+	cl.lerpfrac = 1.0 - (cl.q2frame.servertime - cl.time*1000) * 0.01;
+//	Con_Printf("%g: %g\n", cl.q2frame.servertime - (cl.time*1000), cl.lerpfrac);
+	cl.lerpfrac = bound(0, cl.lerpfrac, 1);
+
+/*	if (cl.time*1000 > cl.q2frame.servertime)
 	{
 //		if (cl_showclamp.value)
 //			Con_Printf ("high clamp %f\n", cl.time - cl.q2frame.servertime);
@@ -1957,7 +1961,7 @@ void CLQ2_AddEntities (void)
 	}
 	else
 		cl.lerpfrac = 1.0 - (cl.q2frame.servertime - cl.time*1000) * 0.01;
-
+*/
 	CLQ2_CalcViewValues ();
 	CLQ2_AddPacketEntities (&cl.q2frame);
 #if 0

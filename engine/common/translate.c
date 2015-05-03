@@ -10,6 +10,7 @@
 
 
 char sys_language[64] = "";
+static char langpath[MAX_OSPATH] = "";
 struct language_s languages[MAX_LANGUAGES];
 
 static void QDECL TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
@@ -62,7 +63,7 @@ static int TL_LoadLanguage(char *lang)
 		return 0;
 
 	if (*lang)
-		f = FS_OpenVFS(va("fteqw.%s.po", lang), "rb", FS_BINARYPATH);
+		f = FS_OpenVFS(va("%sfteqw.%s.po", langpath, lang), "rb", FS_SYSTEM);
 	else
 		f = NULL;
 	if (!f && *lang)
@@ -88,10 +89,12 @@ int TL_FindLanguage(const char *lang)
 }
 
 //need to set up default languages for any early prints before cvars are inited.
-void TL_InitLanguages(void)
+void TL_InitLanguages(char *newlangpath)
 {
 	int i;
 	char *lang;
+
+	Q_strncpyz(langpath, newlangpath, sizeof(langpath));
 
 	//lang can override any environment or system settings.
 	if ((i = COM_CheckParm("-lang")))

@@ -29,11 +29,11 @@ struct v2f
 #endif
 
 #ifdef FRAGMENT_SHADER
-	Texture2D shaderTexture;
-	SamplerState SampleType;
+	Texture2D t_lightmap : register(t0);
+	SamplerState s_lightmap : register(s0);
 
 	float4 main (v2f inp) : SV_TARGET
 	{
-		return inp.col * shaderTexture.Sample(SampleType, inp.lmtc);
+		return inp.col * t_lightmap.Sample(s_lightmap, inp.lmtc);
 	}
 #endif

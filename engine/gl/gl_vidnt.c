@@ -107,6 +107,12 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info);	//-1 on bpp or hz for defau
 
 qboolean		scr_skipupdate;
 
+//#define WTHREAD
+#ifdef WTHREAD
+static HANDLE	windowthread;
+static void		*windowmutex;
+#endif
+
 static DEVMODE	gdevmode;
 static qboolean	vid_initialized = false;
 static qboolean vid_canalttab = false;
@@ -1013,12 +1019,43 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 
 	return stat;
 }
+
+#ifdef WTHREAD
+rendererstate_t *rs;
+int GLVID_WindowThread(void *cond)
+{
+	extern qboolean mouseshowtoggle;
+	int cursor = 1;
+	MSG		msg;
+	HWND wnd;
+	CreateMainWindow(rs);
+	wnd = mainwindow;
+	Sys_ConditionSignal(cond);
+
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+      	TranslateMessage (&msg);
+      	DispatchMessage (&msg);
+
+		//ShowCursor is thread-local.
+		if (cursor != mouseshowtoggle)
+		{
+			cursor = mouseshowtoggle;
+			ShowCursor(cursor);
+		}
+	}
+	DestroyWindow(wnd);
+	return 0;
+}
+#endif
+
 BOOL CheckForcePixelFormat(rendererstate_t *info);
 void VID_UnSetMode (void);
 int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 {
 	int				temp;
 	qboolean		stat;
+	void			*cond;
 #ifndef NPFTE
     MSG				msg;
 #endif
@@ -1035,7 +1072,22 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	// Set either the fullscreen or windowed mode
 	qwglChoosePixelFormatARB = NULL;
 	qwglCreateContextAttribsARB = NULL;
+
+#ifdef WTHREAD
+	cond = Sys_CreateConditional();
+	Sys_LockConditional(cond);
+	rs = info;
+	windowthread = Sys_CreateThread("windowthread", GLVID_WindowThread, cond, 0, 0);
+	if (!Sys_ConditionWait(cond))
+		Con_SafePrintf ("Looks like the window thread isn't starting up\n");
+	Sys_UnlockConditional(cond);
+	Sys_DestroyConditional(cond);
+
+	stat = !!mainwindow;
+#else
 	stat = CreateMainWindow(info);
+#endif
+
 	if (stat)
 	{
 		stat = VID_AttachGL(info);
@@ -1168,7 +1220,16 @@ void VID_UnSetMode (void)
 	//	ShowWindow(mainwindow, SW_HIDE);
 	//	SetWindowLongPtr(mainwindow, GWL_WNDPROC, DefWindowProc);
 	//	PostMessage(mainwindow, WM_CLOSE, 0, 0);
-		DestroyWindow(mainwindow);
+#ifdef WTHREAD
+		if (windowthread)
+		{
+			SendMessage(mainwindow, WM_USER+4, 0, 0);
+			CloseHandle((HANDLE)windowthread);
+			windowthread = NULL;
+		}
+		else
+#endif
+			DestroyWindow(mainwindow);
 		mainwindow = NULL;
 	}
 
@@ -2087,8 +2148,40 @@ static void Win_Touch_Event(int points, HTOUCHINPUT ti)
 	pCloseTouchInputHandle(ti);
 }
 
+#ifdef WTHREAD
+void MainThreadWndProc(void *ctx, void *data, size_t msg, size_t ex)
+{
+	switch(msg)
+	{
+	case WM_COPYDATA:
+		Host_RunFile(data, ex, NULL);
+		Z_Free(data);
+		break;
+	case WM_SIZE:
+	case WM_MOVE:
+		Cvar_ForceCallback(&vid_conautoscale);	//FIXME: thread
+		break;
+	case WM_KILLFOCUS:
+		GLAppActivate(FALSE, Minimized);//FIXME: thread
+		if (modestate == MS_FULLDIB)
+			ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
+		ClearAllStates ();	//FIXME: thread
+		break;
+	case WM_SETFOCUS:
+		if (!GLAppActivate(TRUE, Minimized))//FIXME: thread
+			break;
+		ClearAllStates ();	//FIXME: thread
+		break;
+	}
+}
+#endif
 
-/* main window procedure */
+/* main window procedure
+due to moving the main window over to a different thread, we gain access to input timestamps (as well as video refreshes when dragging etc)
+however, we have to tread carefully. the main/render thread will be running the whole time, and may trigger messages that we need to respond to _now_.
+this means that the main and window thread cannot be allowed to contest any mutexes where anything but memory is touched before its unlocked.
+(or in other words, we can't have the main thread near-perma-lock any mutexes that can be locked-to-sync here)
+*/
 LONG WINAPI GLMainWndProc (
 	HWND	hWnd,
 	UINT	uMsg,
@@ -2108,20 +2201,32 @@ LONG WINAPI GLMainWndProc (
 		case WM_COPYDATA:
 			{
 				COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
+#ifdef WTHREAD
+				COM_AddWork(0, MainThreadWndProc, NULL, memcpy(Z_Malloc(cds->cbData), cds->lpData, cds->cbData), uMsg, cds->cbData);
+#else
 				Host_RunFile(cds->lpData, cds->cbData, NULL);
+#endif
 				lRet = 1;
 			}
 			break;
 		case WM_KILLFOCUS:
-			GLAppActivate(FALSE, Minimized);
+#ifdef WTHREAD
+			COM_AddWork(0, MainThreadWndProc, NULL, NULL, uMsg, 0);
+#else
+			GLAppActivate(FALSE, Minimized);//FIXME: thread
 			if (modestate == MS_FULLDIB)
 				ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
-			ClearAllStates ();
+			ClearAllStates ();	//FIXME: thread
+#endif
 			break;
 		case WM_SETFOCUS:
-			if (!GLAppActivate(TRUE, Minimized))
+#ifdef WTHREAD
+			COM_AddWork(0, MainThreadWndProc, NULL, NULL, uMsg, 0);
+#else
+			if (!GLAppActivate(TRUE, Minimized))//FIXME: thread
 				break;
-			ClearAllStates ();
+			ClearAllStates ();	//FIXME: thread
+#endif
 			break;
 
 		case WM_TOUCH:
@@ -2133,7 +2238,11 @@ LONG WINAPI GLMainWndProc (
 
 		case WM_MOVE:
 			VID_UpdateWindowStatus (hWnd);
+#ifdef WTHREAD
+			COM_AddWork(0, MainThreadWndProc, NULL, NULL, uMsg, 0);
+#else
 			Cvar_ForceCallback(&vid_conautoscale);
+#endif
 			break;
 
 		case WM_KEYDOWN:
@@ -2209,7 +2318,7 @@ LONG WINAPI GLMainWndProc (
 				temp |= 512;
 
 			if (!vid_initializing)
-				INS_MouseEvent (temp);
+				INS_MouseEvent (temp);	//FIXME: thread (halflife)
 
 			break;
 
@@ -2221,13 +2330,13 @@ LONG WINAPI GLMainWndProc (
 			{
 				if ((short) HIWORD(wParam&0xffffffff) > 0)
 				{
-					Key_Event(0, K_MWHEELUP, 0, true);
-					Key_Event(0, K_MWHEELUP, 0, false);
+					IN_KeyEvent(0, true, K_MWHEELUP, 0);
+					IN_KeyEvent(0, false, K_MWHEELUP, 0);
 				}
 				else
 				{
-					Key_Event(0, K_MWHEELDOWN, 0, true);
-					Key_Event(0, K_MWHEELDOWN, 0, false);
+					IN_KeyEvent(0, true, K_MWHEELDOWN, 0);
+					IN_KeyEvent(0, false, K_MWHEELDOWN, 0);
 				}
 			}
 			break;
@@ -2241,6 +2350,9 @@ LONG WINAPI GLMainWndProc (
 			}
 			break;
 
+		case WM_USER+4:
+			PostQuitMessage(0);
+			break;
 		case WM_USER:
 #ifndef NOMEDIA
 			STT_Event();
@@ -2265,13 +2377,17 @@ LONG WINAPI GLMainWndProc (
 			if (!vid_initializing)
 			{
 				VID_UpdateWindowStatus (hWnd);
+#ifdef WTHREAD
+				COM_AddWork(0, MainThreadWndProc, NULL, NULL, uMsg, 0);
+#else
 				Cvar_ForceCallback(&vid_conautoscale);
+#endif
 			}
 			break;
 
 		case WM_CLOSE:
 			if (!vid_initializing)
-				if (MessageBox (mainwindow, "Are you sure you want to quit?", "Confirm Exit",
+				if (MessageBox (hWnd, "Are you sure you want to quit?", "Confirm Exit",
 							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION) == IDYES)
 				{
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
@@ -2280,24 +2396,28 @@ LONG WINAPI GLMainWndProc (
 
 			break;
 
+		case WM_ERASEBKGND:
+			lRet = TRUE;
+			break;
+/*
 		case WM_ACTIVATE:
 //			fActive = LOWORD(wParam);
 //			fMinimized = (BOOL) HIWORD(wParam);
 //			if (!GLAppActivate(!(fActive == WA_INACTIVE), fMinimized))
 				break;//so, urm, tell me microsoft, what changed?
 			if (modestate == MS_FULLDIB)
-				ShowWindow(mainwindow, SW_SHOWNORMAL);
+				ShowWindow(hWnd, SW_SHOWNORMAL);
 
+#ifdef WTHREAD
+#else
 		// fix the leftover Alt from any Alt-Tab or the like that switched us away
-			ClearAllStates ();
+			ClearAllStates ();	//FIXME: thread
 
-			Cvar_ForceCallback(&vid_conautoscale);
-
+			Cvar_ForceCallback(&vid_conautoscale);	//FIXME: thread
+#endif
 			break;
-
+*/
 		case WM_DESTROY:
-			if (dibwindow)
-				DestroyWindow (dibwindow);
 			break;
 		case WM_SETCURSOR:
 			//only use a custom cursor if the cursor is inside the client area
@@ -2318,9 +2438,11 @@ LONG WINAPI GLMainWndProc (
 			}
 			break;
 
+#ifndef WTHREAD
 		case MM_MCINOTIFY:
-			lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
+			lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);	//FIXME: thread
 			break;
+#endif
 
 		default:
 			/* pass all unhandled messages to DefWindowProc */

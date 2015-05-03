@@ -781,7 +781,7 @@ void QCBUILTIN PF_CL_drawline (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			"}\n"
 		"}\n");
 
-	BE_DrawMesh_Single(shader_draw_line, &mesh, NULL, &shader_draw_line->defaulttextures, flags|BEF_LINES);
+	BE_DrawMesh_Single(shader_draw_line, &mesh, NULL, flags|BEF_LINES);
 }
 
 //vector  drawgetimagesize(string pic) = #460;

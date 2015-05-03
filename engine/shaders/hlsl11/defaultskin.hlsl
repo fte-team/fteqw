@@ -30,14 +30,22 @@ struct v2f
 	}
 #endif
 #ifdef FRAGMENT_SHADER
-	Texture2D shaderTexture[4];	//diffuse, lower, upper, fullbright
+	Texture2D t_diffuse		: register(t0);
+#ifdef UPPER
+	Texture2D t_upper		: register(t1);
+	Texture2D t_lower		: register(t2);
+	Texture2D t_fullbright	: register(t3);
+#else
+	Texture2D t_fullbright	: register(t1);
+#endif
+
 	SamplerState SampleType;
 
 //uniform vec4 e_colourident;
 	float4 main (v2f inp) : SV_TARGET
 	{
 		float4 col;
-		col = shaderTexture[0].Sample(SampleType, inp.tc);
+		col = t_diffuse.Sample(SampleType, inp.tc);
 
 		#ifdef MASK
 			#ifndef MASKOP
@@ -49,18 +57,18 @@ struct v2f
 		#endif
 
 #ifdef UPPER
-		float4 uc = shaderTexture[2].Sample(SampleType, inp.tc);
-		col.rgb = mix(col.rgb, uc.rgb*e_uppercolour, uc.a);
+		float4 uc = t_upper.Sample(SampleType, inp.tc);
+		col.rgb = lerp(col.rgb, uc.rgb*e_uppercolour, uc.a);
 #endif
 #ifdef LOWER
-		float4 lc = shaderTexture[1].Sample(SampleType, inp.tc);
-		col.rgb = mix(col.rgb, lc.rgb*e_lowercolour, lc.a);
+		float4 lc = t_lower.Sample(SampleType, inp.tc);
+		col.rgb = lerp(col.rgb, lc.rgb*e_lowercolour, lc.a);
 #endif
 		col.rgb *= inp.light;
-#ifdef FULLBRIGHT
-		float4 fb = shaderTexture[3].Sample(SampleType, inp.tc);
-		col.rgb = mix(col.rgb, fb.rgb, fb.a);
-#endif
+//#ifdef FULLBRIGHT
+		float4 fb = t_fullbright.Sample(SampleType, inp.tc);
+		col.rgb = lerp(col.rgb, fb.rgb, fb.a);
+//#endif
 		return col;
 //		return fog4(col * e_colourident);
 	}

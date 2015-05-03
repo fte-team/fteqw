@@ -236,7 +236,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		Sys_Printf("Starting up (apk=%s, usr=%s)\n", args[2], parms.basedir);
 
 		COM_InitArgv(parms.argc, parms.argv);
-		TL_InitLanguages();
+		TL_InitLanguages(sys_basedir);
 		#ifdef SERVERONLY
 			SV_Init(&parms);
 		#else

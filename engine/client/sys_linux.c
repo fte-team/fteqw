@@ -754,7 +754,6 @@ int main (int c, const char **v)
 	parms.argc = c;
 	parms.argv = v;
 	COM_InitArgv(parms.argc, parms.argv);
-	TL_InitLanguages();
 
 #ifdef __linux__
 	if (!COM_CheckParm("-nodumpstack"))
@@ -789,6 +788,7 @@ int main (int c, const char **v)
 	}
 */
 #endif
+	TL_InitLanguages(parms.binarydir);
 
 	isPlugin = !!COM_CheckParm("-plugin");
 	if (isPlugin)

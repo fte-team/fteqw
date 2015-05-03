@@ -929,6 +929,7 @@ typedef struct model_s
 	void	*vis;
 	qbyte		*lightdata;
 	qbyte		*deluxdata;
+	unsigned	lightdatasize;
 	q3lightgridinfo_t *lightgrid;
 	mfog_t		*fogs;
 	int			numfogs;

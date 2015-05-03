@@ -41,6 +41,7 @@ sh_config_t sh_config;
 
 //cvars that affect shader generation
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
+cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitup", CVAR_SHADERSYSTEM, "Reduce the shader to a single texture, and then make stuff up about its mother. The resulting fist fight results in more colour when you shine a light upon its face.\nSet to 2 to ignore 'depthfunc equal' and 'tcmod scale' in order to tolerate bizzare shaders made for a bizzare engine.");
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_deluxemapping;
 extern cvar_t r_fastturb, r_fastsky, r_skyboxname, r_softwarebanding;
@@ -633,13 +634,15 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 		{
 			*name+=9;
 			flags|= IF_NEAREST;
-			pass->flags |= SHADER_PASS_NEAREST;
+			if (pass)
+				pass->flags |= SHADER_PASS_NEAREST;
 		}
 		else if (!Q_strnicmp(*name, "$linear:", 8))
 		{
 			*name+=8;
 			flags|= IF_LINEAR;
-			pass->flags |= SHADER_PASS_LINEAR;
+			if (pass)
+				pass->flags |= SHADER_PASS_LINEAR;
 		}
 		else
 			break;
@@ -651,6 +654,7 @@ static int Shader_SetImageFlags(shader_t *shader, shaderpass_t *pass, char **nam
 		flags |= IF_NOMIPMAP;
 	if (shader->flags & SHADER_NOPICMIP)
 		flags |= IF_NOPICMIP;
+	flags |= IF_MIPCAP;
 
 	return flags;
 }
@@ -685,6 +689,7 @@ texid_t R_LoadColourmapImage(void)
 
 static texid_t Shader_FindImage ( char *name, int flags )
 {
+	extern texid_t missing_texture_normal;
 	if (parsestate.mode == SPM_DOOM3)
 	{
 		if (!Q_stricmp (name, "_default"))
@@ -701,6 +706,13 @@ static texid_t Shader_FindImage ( char *name, int flags )
 	{
 		if (!Q_stricmp (name, "$whiteimage"))
 			return r_whiteimage;
+		if (!Q_stricmp (name, "$blackimage"))
+		{
+			int wibuf[16] = {0};
+			return R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
+		}
+		if (!Q_stricmp (name, "$identitynormal"))
+			return missing_texture_normal;
 		if (!Q_stricmp (name, "$colourmap"))
 			return R_LoadColourmapImage();
 	}
@@ -954,7 +966,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		"#define BUMP\n",
 		"#define FULLBRIGHT\n",
 		"#define UPPERLOWER\n",
-		"#define DELUXE\n",
+		"#define REFLECTCUBEMASK\n",
 		"#define SKELETAL\n",
 		"#define FOG\n",
 		"#define FRAMEBLEND\n",
@@ -1095,6 +1107,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			{
 				//we 'recognise' ones that are force-defined, despite not being actual permutations.
 				if (strncmp("SPECULAR", script, end - script))
+				if (strncmp("DELUXE", script, end - script))
 				if (strncmp("OFFSETMAPPING", script, end - script))
 				if (strncmp("RELIEFMAPPING", script, end - script))
 					Con_DPrintf("Unknown pemutation in glsl program %s\n", name);
@@ -1289,6 +1302,9 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 				if (r_glsl_offsetmapping_reliefmapping.ival && (p & PERMUTATION_BUMPMAP))
 					permutationdefines[pn++] = "#define RELIEFMAPPING\n";
 			}
+
+			if (r_deluxemapping.ival)	//fixme: should be per-model really
+				permutationdefines[pn++] = "#define DELUXE\n";
 		}
 		permutationdefines[pn++] = NULL;
 
@@ -1903,41 +1919,54 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 #endif
 }
 
+static void Shader_ReflectCube(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->reflectcube = Shader_FindImage(token, flags|IF_CUBEMAP);
+}
+static void Shader_ReflectMask(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->reflectmask = Shader_FindImage(token, flags);
+}
+
 static void Shader_DiffuseMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	char *token;
-	token = Shader_ParseString(ptr);
-	shader->defaulttextures.base = R_LoadHiResTexture(token, NULL, 0);
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->base = Shader_FindImage(token, flags);
 }
 static void Shader_SpecularMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	char *token;
-	token = Shader_ParseString(ptr);
-	shader->defaulttextures.specular = R_LoadHiResTexture(token, NULL, 0);
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->specular = Shader_FindImage(token, flags);
 }
-static void Shader_BumpMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+static void Shader_NormalMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	char *token;
-	token = Shader_ParseString(ptr);
-	shader->defaulttextures.bump = R_LoadHiResTexture(token, NULL, 0);
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->bump = Shader_FindImage(token, flags);
 }
 static void Shader_FullbrightMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	char *token;
-	token = Shader_ParseString(ptr);
-	shader->defaulttextures.fullbright = R_LoadHiResTexture(token, NULL, 0);
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->fullbright = Shader_FindImage(token, flags);
 }
 static void Shader_UpperMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	char *token;
-	token = Shader_ParseString(ptr);
-	shader->defaulttextures.upperoverlay = R_LoadHiResTexture(token, NULL, 0);
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->upperoverlay = Shader_FindImage(token, flags);
 }
 static void Shader_LowerMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	char *token;
-	token = Shader_ParseString(ptr);
-	shader->defaulttextures.loweroverlay = R_LoadHiResTexture(token, NULL, 0);
+	char *token = Shader_ParseString(ptr);
+	unsigned int flags = Shader_SetImageFlags (shader, NULL, &token);
+	shader->defaulttextures->loweroverlay = Shader_FindImage(token, flags);
 }
 
 static qboolean Shaderpass_MapGen (shader_t *shader, shaderpass_t *pass, char *tname);
@@ -2074,16 +2103,21 @@ static shaderkey_t shaderkeys[] =
 
 	{"bemode",			Shader_BEMode,				"fte"},
 
+	{"diffusemap",		Shader_DiffuseMap,			"fte"},
+	{"normalmap",		Shader_NormalMap,			"fte"},
+	{"specularmap",		Shader_SpecularMap,			"fte"},
+	{"fullbrightmap",	Shader_FullbrightMap,		"fte"},
+	{"uppermap",		Shader_UpperMap,			"fte"},
+	{"lowermap",		Shader_LowerMap,			"fte"},
+	{"reflectmask",		Shader_ReflectMask,			"fte"},
+
 	//dp compat
 	{"camera",			Shader_DP_Camera,			"dp"},
+	{"reflectcube",		Shader_ReflectCube,			"dp"},
 
 	/*doom3 compat*/
 	{"diffusemap",		Shader_DiffuseMap,			"doom3"},	//macro for "{\nstage diffusemap\nmap <map>\n}"
-	{"bumpmap",			Shader_BumpMap,				"doom3"},	//macro for "{\nstage bumpmap\nmap <map>\n}"
-	{"specularmap",		Shader_SpecularMap,			"doom3"},//macro for "{\nstage specularmap\nmap <map>\n}"
-	{"fullbrightmap",	Shader_FullbrightMap,		"doom3"},//macro for "{\nstage specularmap\nmap <map>\n}"
-	{"uppermap",		Shader_UpperMap,			"doom3"},//macro for "{\nstage specularmap\nmap <map>\n}"
-	{"lowermap",		Shader_LowerMap,			"doom3"},//macro for "{\nstage specularmap\nmap <map>\n}"
+	{"bumpmap",			Shader_NormalMap,			"doom3"},	//macro for "{\nstage bumpmap\nmap <map>\n}"
 	{"discrete",		NULL,						"doom3"},
 	{"nonsolid",		NULL,						"doom3"},
 	{"noimpact",		NULL,						"doom3"},
@@ -2250,8 +2284,8 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 
 		if (pass->tcgen == TC_GEN_UNSPECIFIED)
 			pass->tcgen = TC_GEN_BASE;
-		if (!*shader->mapname && *token != '$' && pass->tcgen == TC_GEN_BASE)
-			Q_strncpyz(shader->mapname, token, sizeof(shader->mapname));
+		if (!*shader->defaulttextures->mapname && *token != '$' && pass->tcgen == TC_GEN_BASE)
+			Q_strncpyz(shader->defaulttextures->mapname, token, sizeof(shader->defaulttextures->mapname));
 		pass->anim_frames[0] = Shader_FindImage (token, flags);
 	}
 }
@@ -2261,6 +2295,7 @@ static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr
 	int flags;
 	char *token;
 	texid_t image;
+	qboolean isdiffuse = false;
 
 	flags = Shader_SetImageFlags (shader, pass, NULL);
 
@@ -2279,10 +2314,27 @@ static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr
 			break;
 		}
 
+		if (!pass->anim_numframes && !*shader->defaulttextures->mapname && *token != '$' && pass->tcgen == TC_GEN_BASE)
+		{
+			isdiffuse = true;
+			shader->defaulttextures_fps = pass->anim_fps;
+		}
+
 		if (pass->anim_numframes < SHADER_MAX_ANIMFRAMES)
 		{
 			image = Shader_FindImage (token, flags);
 
+			if (isdiffuse)
+			{
+				if (shader->numdefaulttextures < pass->anim_numframes+1)
+				{
+					int newmax = pass->anim_numframes+1;
+					shader->defaulttextures = BZ_Realloc(shader->defaulttextures, sizeof(*shader->defaulttextures) * (newmax));
+					memset(shader->defaulttextures+shader->numdefaulttextures, 0, sizeof(*shader->defaulttextures) * (newmax-shader->numdefaulttextures));
+					shader->numdefaulttextures = newmax;
+				}
+				Q_strncpyz(shader->defaulttextures[pass->anim_numframes].mapname, token, sizeof(shader->defaulttextures[pass->anim_numframes].mapname));
+			}
 			if (!TEXVALID(image))
 			{
 				pass->anim_frames[pass->anim_numframes++] = missing_texture;
@@ -2975,7 +3027,8 @@ void Shader_Free (shader_t *shader)
 	}
 	shader->uses = 0;
 
-	memset(&shader->defaulttextures, 0, sizeof(shader->defaulttextures));
+	Z_Free(shader->defaulttextures);
+	shader->defaulttextures = NULL;
 }
 
 
@@ -3188,12 +3241,15 @@ void Shader_Reset(shader_t *s)
 	int uses = s->uses;
 	shader_gen_t *defaultgen = s->generator;
 	char *genargs = s->genargs;
-	texnums_t dt = s->defaulttextures;
+	texnums_t *dt = s->defaulttextures;
+	int dtcount = s->numdefaulttextures;
+	float dtrate = s->defaulttextures_fps;	//FIXME!
 	int w = s->width;
 	int h = s->height;
 	unsigned int uf = s->usageflags;
 	Q_strncpyz(name, s->name, sizeof(name));
 	s->genargs = NULL;
+	s->defaulttextures = NULL;
 	Shader_Free(s);
 	memset(s, 0, sizeof(*s));
 
@@ -3204,6 +3260,8 @@ void Shader_Reset(shader_t *s)
 	s->width = w;
 	s->height = h;
 	s->defaulttextures = dt;
+	s->numdefaulttextures = dtcount;
+	s->defaulttextures_fps = dtrate;
 	s->generator = defaultgen;
 	s->genargs = genargs;
 	s->usageflags = uf;
@@ -3407,18 +3465,18 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		{
 		case ST_DIFFUSEMAP:
 			if (pass->texgen == T_GEN_SINGLEMAP)
-				shader->defaulttextures.base = pass->anim_frames[0];
+				shader->defaulttextures->base = pass->anim_frames[0];
 			break;
 		case ST_AMBIENT:
 			break;
 		case ST_BUMPMAP:
 			if (pass->texgen == T_GEN_SINGLEMAP)
-				shader->defaulttextures.bump = pass->anim_frames[0];
+				shader->defaulttextures->bump = pass->anim_frames[0];
 			ignore = true;	//fixme: scrolling etc may be important. but we're not doom3.
 			break;
 		case ST_SPECULARMAP:
 			if (pass->texgen == T_GEN_SINGLEMAP)
-				shader->defaulttextures.specular = pass->anim_frames[0];
+				shader->defaulttextures->specular = pass->anim_frames[0];
 			ignore = true;	//fixme: scrolling etc may be important. but we're not doom3.
 			break;
 		}
@@ -3673,9 +3731,12 @@ void Shader_Programify (shader_t *s)
 	mask = Shader_AlphaMaskProgArgs(s);
 
 	s->prog = Shader_FindGeneric(va("%s%s", prog, mask), qrenderer);
-	s->numpasses = 0;
-	s->passes[s->numpasses++].texgen = T_GEN_DIFFUSE;
-	s->flags |= SHADER_HASDIFFUSE;
+	if (s->prog)
+	{
+		s->numpasses = 0;
+		s->passes[s->numpasses++].texgen = T_GEN_DIFFUSE;
+		s->flags |= SHADER_HASDIFFUSE;
+	}
 }
 
 void Shader_Finish (shader_t *s)
@@ -3733,7 +3794,7 @@ void Shader_Finish (shader_t *s)
 		pass = &s->passes[s->numpasses++];
 		pass = &s->passes[0];
 		pass->tcgen = TC_GEN_BASE;
-		if (TEXVALID(s->defaulttextures.base))
+		if (TEXVALID(s->defaulttextures->base))
 			pass->texgen = T_GEN_DIFFUSE;
 		else
 		{
@@ -3859,17 +3920,17 @@ void Shader_Finish (shader_t *s)
 done:;
 
 	//if we've no specular map, try and find whatever the q3 syntax said. hopefully it'll be compatible...
-	if (!TEXVALID(s->defaulttextures.specular))
+	if (!TEXVALID(s->defaulttextures->specular))
 	{
 		for (pass = s->passes, i = 0; i < s->numpasses; i++, pass++)
 		{
 			if (pass->alphagen == ALPHA_GEN_SPECULAR)
 				if (pass->texgen == T_GEN_ANIMMAP || pass->texgen == T_GEN_SINGLEMAP)
-					s->defaulttextures.specular = pass->anim_frames[0];
+					s->defaulttextures->specular = pass->anim_frames[0];
 		}
 	}
 
-	if (!TEXVALID(s->defaulttextures.base))
+	if (!TEXVALID(s->defaulttextures->base))
 	{
 		shaderpass_t *best = NULL;
 		int bestweight = 9999999;
@@ -3903,11 +3964,11 @@ done:;
 			if (best->texgen == T_GEN_ANIMMAP || best->texgen == T_GEN_SINGLEMAP)
 			{
 				if (best->anim_frames[0] && *best->anim_frames[0]->ident != '$')
-					s->defaulttextures.base = best->anim_frames[0];
+					s->defaulttextures->base = best->anim_frames[0];
 			}
 #ifndef NOMEDIA
 			else if (pass->texgen == T_GEN_VIDEOMAP && pass->cin)
-				s->defaulttextures.base = Media_UpdateForShader(best->cin);
+				s->defaulttextures->base = Media_UpdateForShader(best->cin);
 #endif
 		}
 	}
@@ -3948,7 +4009,7 @@ done:;
 			Shader_SetBlendmode (pass);
 
 			if (pass->blendmode == PBM_ADD)
-				s->defaulttextures.fullbright = pass->anim_frames[0];
+				s->defaulttextures->fullbright = pass->anim_frames[0];
 		}
 
 		if (!(s->flags & SHADER_SKY ) && !s->sort)
@@ -4035,8 +4096,16 @@ done:;
 				"}\n");
 	}
 
-	if (!s->prog && sh_config.progs_required)
+	if (!s->prog && (sh_config.progs_required || (sh_config.progs_supported && r_forceprogramify.ival)))
+	{
 		Shader_Programify(s);
+		if (r_forceprogramify.ival >= 2)
+		{
+			if (s->passes[0].numtcmods == 1 && s->passes[0].tcmods[0].type == SHADER_TCMOD_SCALE)
+				s->passes[0].numtcmods = 0;	//DP sucks and doesn't use normalized texture coords *if* there's a shader specified. so lets ignore any extra scaling that this imposes.
+			s->passes[0].shaderbits &= ~SBITS_MISC_DEPTHEQUALONLY;	//DP ignores this too.
+		}
+	}
 
 	if (s->prog)
 	{
@@ -4055,6 +4124,8 @@ done:;
 			{T_GEN_PALETTED,		SHADER_HASPALETTED},
 			{T_GEN_SHADOWMAP,		0},
 			{T_GEN_LIGHTCUBEMAP,	0},
+			{T_GEN_REFLECTCUBE,		0},
+			{T_GEN_REFLECTMASK,		0},
 //			{T_GEN_REFLECTION,		SHADER_HASREFLECT},
 //			{T_GEN_REFRACTION,		SHADER_HASREFRACT},
 //			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},
@@ -4062,18 +4133,36 @@ done:;
 			{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},
 			{T_GEN_DELUXMAP,		0},
 		};
+
+		cin_t *cin = R_ShaderGetCinematic(s);
+
 		//if the glsl doesn't specify all samplers, just trim them.
 		s->numpasses = s->prog->numsamplers;
+
+		if (cin && R_ShaderGetCinematic(s) == cin)
+			cin = NULL;
 
 		//if the glsl has specific textures listed, be sure to provide a pass for them.
 		for (i = 0; i < sizeof(defaulttgen)/sizeof(defaulttgen[0]); i++)
 		{
 			if (s->prog->defaulttextures & (1u<<i))
 			{
+				if (s->numpasses >= SHADER_PASS_MAX)
+					break;	//panic...
 				s->passes[s->numpasses].flags &= ~SHADER_PASS_DEPTHCMP;
 				if (defaulttgen[i].gen == T_GEN_SHADOWMAP)
 					s->passes[s->numpasses].flags |= SHADER_PASS_DEPTHCMP;
-				s->passes[s->numpasses].texgen = defaulttgen[i].gen;
+				if (!i && cin)
+				{
+					s->passes[s->numpasses].texgen = T_GEN_VIDEOMAP;
+					s->passes[s->numpasses].cin = cin;
+					cin = NULL;
+				}
+				else
+				{
+					s->passes[s->numpasses].texgen = defaulttgen[i].gen;
+					s->passes[s->numpasses].cin = NULL;
+				}
 				s->numpasses++;
 				s->flags |= defaulttgen[i].flags;
 			}
@@ -4082,9 +4171,12 @@ done:;
 		//must have at least one texture.
 		if (!s->numpasses)
 		{
-			s->passes[0].texgen = T_GEN_DIFFUSE;
+			s->passes[0].texgen = cin?T_GEN_VIDEOMAP:T_GEN_DIFFUSE;
+			s->passes[0].cin = cin;
 			s->numpasses = 1;
 		}
+		else if (cin)
+			Media_ShutdownCin(cin);
 		s->passes->numMergedPasses = s->numpasses;
 	}
 }
@@ -4151,11 +4243,14 @@ void Shader_UpdateRegistration (void)
 	}
 */
 void Shader_DefaultSkin(const char *shortname, shader_t *s, const void *args);
-void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
+void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader)
 {
 	char *h;
 	char imagename[MAX_QPATH];
+	char mapname[MAX_QPATH];
 	char *subpath = NULL;
+	texnums_t *tex;
+	unsigned int a, aframes;
 	unsigned int imageflags = 0;
 	strcpy(imagename, shader->name);
 	h = strchr(imagename, '#');
@@ -4171,94 +4266,131 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 	if (shader->generator == Shader_DefaultSkin)
 		subpath = shader->genargs;
 
-	if (!tn)
-		tn = &shader->defaulttextures;
-	if (!TEXVALID(shader->defaulttextures.base))
+	tex = shader->defaulttextures;
+	aframes = max(1, shader->numdefaulttextures);
+	//if any were specified explicitly, replicate that into all.
+	//this means animmap can be used, with any explicit textures overriding all.
+	if (!shader->numdefaulttextures && src)
 	{
-		/*dlights/realtime lighting needs some stuff*/
-		if (!TEXVALID(tn->base) && *shader->mapname)// && (shader->flags & SHADER_HASDIFFUSE))
-			tn->base = R_LoadHiResTexture(shader->mapname, NULL, 0);
-		if (!TEXVALID(tn->base))
-			tn->base = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA);
-
-		TEXASSIGN(shader->defaulttextures.base, tn->base);
+		//only do this if there wasn't an animmap thing to break everything.
+		if (!TEXVALID(tex->base))
+			tex->base			= src->base;
+		if (!TEXVALID(tex->bump))
+			tex->bump			= src->bump;
+		if (!TEXVALID(tex->fullbright))
+			tex->fullbright		= src->fullbright;
+		if (!TEXVALID(tex->specular))
+			tex->specular		= src->specular;
+		if (!TEXVALID(tex->loweroverlay))
+			tex->loweroverlay	= src->loweroverlay;
+		if (!TEXVALID(tex->upperoverlay))
+			tex->upperoverlay	= src->upperoverlay;
+		if (!TEXVALID(tex->reflectmask))
+			tex->reflectmask	= src->reflectmask;
+		if (!TEXVALID(tex->reflectcube))
+			tex->reflectcube	= src->reflectcube;
 	}
-
-	if (!TEXVALID(shader->defaulttextures.paletted))
+	for (a = 1; a < aframes; a++)
 	{
-		/*dlights/realtime lighting needs some stuff*/
-//		if (!TEXVALID(tn->paletted) && *shader->mapname)// && (shader->flags & SHADER_HASDIFFUSE))
-//			tn->paletted = R_LoadHiResTexture(shader->mapname, NULL, 0);
-//		if (!TEXVALID(tn->paletted))
-//			tn->paletted = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA);
-
-		TEXASSIGN(shader->defaulttextures.paletted, tn->paletted);
+		if (!TEXVALID(tex[a].base))
+			tex[a].base			= tex[0].base;
+		if (!TEXVALID(tex[a].bump))
+			tex[a].bump			= tex[0].bump;
+		if (!TEXVALID(tex[a].fullbright))
+			tex[a].fullbright	= tex[0].fullbright;
+		if (!TEXVALID(tex[a].specular))
+			tex[a].specular		= tex[0].specular;
+		if (!TEXVALID(tex[a].loweroverlay))
+			tex[a].loweroverlay	= tex[0].loweroverlay;
+		if (!TEXVALID(tex[a].upperoverlay))
+			tex[a].upperoverlay	= tex[0].upperoverlay;
+		if (!TEXVALID(tex[a].reflectmask))
+			tex[a].reflectmask	= tex[0].reflectmask;
+		if (!TEXVALID(tex[a].reflectcube))
+			tex[a].reflectcube	= tex[0].reflectcube;
 	}
-
-	imageflags |= IF_LOWPRIORITY;
-
-	COM_StripExtension(imagename, imagename, sizeof(imagename));
-
-	if (!TEXVALID(shader->defaulttextures.bump))
+	for (a = 0; a < aframes; a++, tex++)
 	{
-		if (r_loadbumpmapping || (shader->flags & SHADER_HASNORMALMAP))
+		COM_StripExtension(tex->mapname, mapname, sizeof(mapname));
+
+		if (!TEXVALID(tex->base))
 		{
-			if (!TEXVALID(tn->bump) && *shader->mapname && (shader->flags & SHADER_HASNORMALMAP))
-				tn->bump = R_LoadHiResTexture(va("%s_norm", shader->mapname), NULL, imageflags|IF_TRYBUMP);
-			if (!TEXVALID(tn->bump))
-				tn->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP);
+			/*dlights/realtime lighting needs some stuff*/
+			if (!TEXVALID(tex->base) && *tex->mapname)// && (shader->flags & SHADER_HASDIFFUSE))
+				tex->base = R_LoadHiResTexture(tex->mapname, NULL, 0);
+			if (!TEXVALID(tex->base))
+				tex->base = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA);
 		}
-		TEXASSIGN(shader->defaulttextures.bump, tn->bump);
-	}
 
-	if (!TEXVALID(shader->defaulttextures.loweroverlay))
-	{
-		if (shader->flags & SHADER_HASTOPBOTTOM)
+		if (!TEXVALID(tex->paletted))
 		{
-			if (!TEXVALID(tn->loweroverlay) && *shader->mapname)
-				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->mapname), NULL, imageflags);
-			if (!TEXVALID(tn->loweroverlay))
-				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", imagename), subpath, imageflags);	/*how rude*/
+			/*dlights/realtime lighting needs some stuff*/
+	//		if (!TEXVALID(tn->paletted) && *shader->mapname)// && (shader->flags & SHADER_HASDIFFUSE))
+	//			tn->paletted = R_LoadHiResTexture(shader->mapname, NULL, 0);
+	//		if (!TEXVALID(tn->paletted))
+	//			tn->paletted = R_LoadHiResTexture(imagename, subpath, (*imagename=='{')?0:IF_NOALPHA);
 		}
-		TEXASSIGN(shader->defaulttextures.loweroverlay, tn->loweroverlay);
-	}
 
-	if (!TEXVALID(shader->defaulttextures.upperoverlay))
-	{
-		if (shader->flags & SHADER_HASTOPBOTTOM)
-		{
-			if (!TEXVALID(tn->upperoverlay) && *shader->mapname)
-				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->mapname), NULL, imageflags);
-			if (!TEXVALID(tn->upperoverlay))
-				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", imagename), subpath, imageflags);
-		}
-		TEXASSIGN(shader->defaulttextures.upperoverlay, tn->upperoverlay);
-	}
+		imageflags |= IF_LOWPRIORITY;
 
-	if (!TEXVALID(shader->defaulttextures.specular))
-	{
-		extern cvar_t gl_specular;
-		if ((shader->flags & SHADER_HASGLOSS) && gl_specular.value && gl_load24bit.value)
-		{
-			if (!TEXVALID(tn->specular) && *shader->mapname)
-				tn->specular = R_LoadHiResTexture(va("%s_gloss", shader->mapname), NULL, imageflags);
-			if (!TEXVALID(tn->specular))
-				tn->specular = R_LoadHiResTexture(va("%s_gloss", imagename), subpath, imageflags);
-		}
-		TEXASSIGN(shader->defaulttextures.specular, tn->specular);
-	}
+		COM_StripExtension(imagename, imagename, sizeof(imagename));
 
-	if (!TEXVALID(shader->defaulttextures.fullbright))
-	{
-		extern cvar_t r_fb_bmodels;
-		if ((shader->flags & SHADER_HASFULLBRIGHT) && r_fb_bmodels.value && gl_load24bit.value)
+		if (!TEXVALID(tex->bump))
 		{
-			if (!TEXVALID(tn->fullbright) && *shader->mapname)
-				tn->fullbright = R_LoadHiResTexture(va("%s_luma", shader->mapname), NULL, imageflags);
-			if (!TEXVALID(tn->fullbright))
-				tn->fullbright = R_LoadHiResTexture(va("%s_luma", imagename), subpath, imageflags);
+			if (r_loadbumpmapping || (shader->flags & SHADER_HASNORMALMAP))
+			{
+				if (!TEXVALID(tex->bump) && *mapname && (shader->flags & SHADER_HASNORMALMAP))
+					tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP);
+				if (!TEXVALID(tex->bump))
+					tex->bump = R_LoadHiResTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP);
+			}
 		}
-		TEXASSIGN(shader->defaulttextures.fullbright, tn->fullbright);
+
+		if (!TEXVALID(tex->loweroverlay))
+		{
+			if (shader->flags & SHADER_HASTOPBOTTOM)
+			{
+				if (!TEXVALID(tex->loweroverlay) && *mapname)
+					tex->loweroverlay = R_LoadHiResTexture(va("%s_pants", mapname), NULL, imageflags);
+				if (!TEXVALID(tex->loweroverlay))
+					tex->loweroverlay = R_LoadHiResTexture(va("%s_pants", imagename), subpath, imageflags);	/*how rude*/
+			}
+		}
+
+		if (!TEXVALID(tex->upperoverlay))
+		{
+			if (shader->flags & SHADER_HASTOPBOTTOM)
+			{
+				if (!TEXVALID(tex->upperoverlay) && *mapname)
+					tex->upperoverlay = R_LoadHiResTexture(va("%s_shirt", mapname), NULL, imageflags);
+				if (!TEXVALID(tex->upperoverlay))
+					tex->upperoverlay = R_LoadHiResTexture(va("%s_shirt", imagename), subpath, imageflags);
+			}
+		}
+
+		if (!TEXVALID(tex->specular))
+		{
+			extern cvar_t gl_specular;
+			if ((shader->flags & SHADER_HASGLOSS) && gl_specular.value && gl_load24bit.value)
+			{
+				if (!TEXVALID(tex->specular) && *mapname)
+					tex->specular = R_LoadHiResTexture(va("%s_gloss", mapname), NULL, imageflags);
+				if (!TEXVALID(tex->specular))
+					tex->specular = R_LoadHiResTexture(va("%s_gloss", imagename), subpath, imageflags);
+			}
+		}
+
+		if (!TEXVALID(tex->fullbright))
+		{
+			extern cvar_t r_fb_bmodels;
+			if ((shader->flags & SHADER_HASFULLBRIGHT) && r_fb_bmodels.value && gl_load24bit.value)
+			{
+				if (!TEXVALID(tex->fullbright) && *mapname)
+					tex->fullbright = R_LoadHiResTexture(va("%s_luma", mapname), NULL, imageflags);
+				if (!TEXVALID(tex->fullbright))
+					tex->fullbright = R_LoadHiResTexture(va("%s_luma", imagename), subpath, imageflags);
+			}
+		}
 	}
 }
 
@@ -4267,8 +4399,10 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 {
 	char *h;
 	char imagename[MAX_QPATH];
+	char mapname[MAX_QPATH];	//as specified by the shader.
 	//extern cvar_t gl_miptexLevel;
-	texnums_t *tex = &shader->defaulttextures;
+	texnums_t *tex = shader->defaulttextures;
+	int a, aframes;
 	unsigned int imageflags;
 	qbyte *dontcrashme[4] = {NULL};
 	if (!mipdata)
@@ -4310,89 +4444,125 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 
 	COM_StripExtension(imagename, imagename, sizeof(imagename));
 
-	/*dlights/realtime lighting needs some stuff*/
-	if (loadflags & SHADER_HASDIFFUSE)
+	aframes = max(1, shader->numdefaulttextures);
+	//if any were specified explicitly, replicate that into all.
+	//this means animmap can be used, with any explicit textures overriding all.
+	for (a = 1; a < aframes; a++)
 	{
-		if (!TEXVALID(tex->base) && *shader->mapname)
-			tex->base = R_LoadHiResTexture(shader->mapname, NULL, imageflags);
-		if (!TEXVALID(tex->base) && fallbackname)
+		if (!TEXVALID(tex[a].base))
+			tex[a].base			= tex[0].base;
+		if (!TEXVALID(tex[a].bump))
+			tex[a].bump			= tex[0].bump;
+		if (!TEXVALID(tex[a].fullbright))
+			tex[a].fullbright	= tex[0].fullbright;
+		if (!TEXVALID(tex[a].specular))
+			tex[a].specular		= tex[0].specular;
+		if (!TEXVALID(tex[a].loweroverlay))
+			tex[a].loweroverlay	= tex[0].loweroverlay;
+		if (!TEXVALID(tex[a].upperoverlay))
+			tex[a].upperoverlay	= tex[0].upperoverlay;
+		if (!TEXVALID(tex[a].reflectmask))
+			tex[a].reflectmask	= tex[0].reflectmask;
+		if (!TEXVALID(tex[a].reflectcube))
+			tex[a].reflectcube	= tex[0].reflectcube;
+	}
+	for (a = 0; a < aframes; a++, tex++)
+	{
+		COM_StripExtension(tex->mapname, mapname, sizeof(mapname));
+
+		/*dlights/realtime lighting needs some stuff*/
+		if (loadflags & SHADER_HASDIFFUSE)
 		{
-			if (gl_load24bit.ival)
+			if (!TEXVALID(tex->base) && *mapname)
+				tex->base = R_LoadHiResTexture(mapname, NULL, imageflags);
+			if (!TEXVALID(tex->base) && fallbackname)
 			{
-				tex->base = Image_GetTexture(imagename, subpath, imageflags|IF_NOWORKER, NULL, NULL, width, height, basefmt);
-				if (!TEXLOADED(tex->base))
+				if (gl_load24bit.ival)
 				{
-					tex->base = Image_GetTexture(fallbackname, subpath, imageflags|IF_NOWORKER, NULL, NULL, width, height, basefmt);
-					if (TEXLOADED(tex->base))
-						Q_strncpyz(imagename, fallbackname, sizeof(imagename));
+					tex->base = Image_GetTexture(imagename, subpath, imageflags|IF_NOWORKER, NULL, NULL, width, height, basefmt);
+					if (!TEXLOADED(tex->base))
+					{
+						tex->base = Image_GetTexture(fallbackname, subpath, imageflags|IF_NOWORKER, NULL, NULL, width, height, basefmt);
+						if (TEXLOADED(tex->base))
+							Q_strncpyz(imagename, fallbackname, sizeof(imagename));
+					}
 				}
+				if (!TEXLOADED(tex->base))
+					tex->base = Image_GetTexture(imagename, subpath, imageflags, mipdata[0], palette, width, height, basefmt);
 			}
-			if (!TEXLOADED(tex->base))
+			else if (!TEXVALID(tex->base))
 				tex->base = Image_GetTexture(imagename, subpath, imageflags, mipdata[0], palette, width, height, basefmt);
 		}
-		else if (!TEXVALID(tex->base))
-			tex->base = Image_GetTexture(imagename, subpath, imageflags, mipdata[0], palette, width, height, basefmt);
-	}
 
-	if (loadflags & SHADER_HASPALETTED)
-	{
-		if (!TEXVALID(tex->paletted) && *shader->mapname)
-			tex->paletted = R_LoadHiResTexture(va("%s_pal", shader->mapname), NULL, imageflags|IF_NEAREST);
-		if (!TEXVALID(tex->paletted))
-			tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST, mipdata[0], palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_LUM8:TF_LUM8);
-	}
-
-	imageflags |= IF_LOWPRIORITY;
-	//all the rest need/want an alpha channel in some form.
-	imageflags &= ~IF_NOALPHA;
-	imageflags |= IF_NOGAMMA;
-
-	if (loadflags & SHADER_HASNORMALMAP)
-	{
-		extern cvar_t r_shadow_bumpscale_basetexture;
-		if (!TEXVALID(tex->bump) && *shader->mapname)
-			tex->bump = R_LoadHiResTexture(va("%s_norm", shader->mapname), NULL, imageflags|IF_TRYBUMP);
-		if (!TEXVALID(tex->bump) && (r_shadow_bumpscale_basetexture.ival||*imagename=='*'||gl_load24bit.ival))
-			tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP, (r_shadow_bumpscale_basetexture.ival||*imagename=='*')?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
-	}
-
-	if (loadflags & SHADER_HASTOPBOTTOM)
-	{
-		if (!TEXVALID(tex->loweroverlay) && *shader->mapname)
-			tex->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->mapname), NULL, imageflags);
-		if (!TEXVALID(tex->loweroverlay))
-			tex->loweroverlay = Image_GetTexture(va("%s_pants", imagename), subpath, imageflags, NULL, palette, width, height, 0);
-	}
-	if (loadflags & SHADER_HASTOPBOTTOM)
-	{
-		if (!TEXVALID(tex->upperoverlay) && *shader->mapname)
-			tex->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->mapname), NULL, imageflags);
-		if (!TEXVALID(tex->upperoverlay))
-			tex->upperoverlay = Image_GetTexture(va("%s_shirt", imagename), subpath, imageflags, NULL, palette, width, height, 0);
-	}
-
-	if (loadflags & SHADER_HASGLOSS)
-	{
-		if (!TEXVALID(tex->specular) && *shader->mapname)
-			tex->specular = R_LoadHiResTexture(va("%s_gloss", shader->mapname), NULL, imageflags);
-		if (!TEXVALID(tex->specular))
-			tex->specular = Image_GetTexture(va("%s_gloss", imagename), subpath, imageflags, NULL, palette, width, height, 0);
-	}
-
-	if (loadflags & SHADER_HASFULLBRIGHT)
-	{
-		if (!TEXVALID(tex->fullbright) && *shader->mapname)
-			tex->fullbright = R_LoadHiResTexture(va("%s_luma", shader->mapname), NULL, imageflags);
-		if (!TEXVALID(tex->fullbright))
+		if (loadflags & SHADER_HASPALETTED)
 		{
-			int s=-1;
-			if (mipdata[0])
-			for(s = width*height; s-->0; )
+			if (!TEXVALID(tex->paletted) && *mapname)
+				tex->paletted = R_LoadHiResTexture(va("%s_pal", mapname), NULL, imageflags|IF_NEAREST);
+			if (!TEXVALID(tex->paletted))
+				tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST, mipdata[0], palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_LUM8:TF_LUM8);
+		}
+
+		imageflags |= IF_LOWPRIORITY;
+		//all the rest need/want an alpha channel in some form.
+		imageflags &= ~IF_NOALPHA;
+		imageflags |= IF_NOGAMMA;
+
+		if (loadflags & SHADER_HASNORMALMAP)
+		{
+			extern cvar_t r_shadow_bumpscale_basetexture;
+			if (!TEXVALID(tex->bump) && *mapname)
+				tex->bump = R_LoadHiResTexture(va("%s_norm", mapname), NULL, imageflags|IF_TRYBUMP);
+			if (!TEXVALID(tex->bump) && (r_shadow_bumpscale_basetexture.ival||*imagename=='*'||gl_load24bit.ival))
+				tex->bump = Image_GetTexture(va("%s_norm", imagename), subpath, imageflags|IF_TRYBUMP, (r_shadow_bumpscale_basetexture.ival||*imagename=='*')?mipdata[0]:NULL, palette, width, height, TF_HEIGHT8PAL);
+		}
+
+		if (loadflags & SHADER_HASTOPBOTTOM)
+		{
+			if (!TEXVALID(tex->loweroverlay) && *mapname)
+				tex->loweroverlay = R_LoadHiResTexture(va("%s_pants", mapname), NULL, imageflags);
+			if (!TEXVALID(tex->loweroverlay))
+				tex->loweroverlay = Image_GetTexture(va("%s_pants", imagename), subpath, imageflags, NULL, palette, width, height, 0);
+		}
+		if (loadflags & SHADER_HASTOPBOTTOM)
+		{
+			if (!TEXVALID(tex->upperoverlay) && *mapname)
+				tex->upperoverlay = R_LoadHiResTexture(va("%s_shirt", mapname), NULL, imageflags);
+			if (!TEXVALID(tex->upperoverlay))
+				tex->upperoverlay = Image_GetTexture(va("%s_shirt", imagename), subpath, imageflags, NULL, palette, width, height, 0);
+		}
+
+		if (loadflags & SHADER_HASGLOSS)
+		{
+			if (!TEXVALID(tex->specular) && *mapname)
+				tex->specular = R_LoadHiResTexture(va("%s_gloss", mapname), NULL, imageflags);
+			if (!TEXVALID(tex->specular))
+				tex->specular = Image_GetTexture(va("%s_gloss", imagename), subpath, imageflags, NULL, palette, width, height, 0);
+		}
+		
+		if (tex->reflectcube)
+		{
+			extern cvar_t r_shadow_bumpscale_basetexture;
+			if (!TEXVALID(tex->reflectmask) && *mapname)
+				tex->reflectmask = R_LoadHiResTexture(va("%s_reflect", mapname), NULL, imageflags);
+			if (!TEXVALID(tex->reflectmask))
+				tex->reflectmask = Image_GetTexture(va("%s_reflect", imagename), subpath, imageflags, NULL, NULL, width, height, TF_INVALID);
+		}
+
+		if (loadflags & SHADER_HASFULLBRIGHT)
+		{
+			if (!TEXVALID(tex->fullbright) && *mapname)
+				tex->fullbright = R_LoadHiResTexture(va("%s_luma", mapname), NULL, imageflags);
+			if (!TEXVALID(tex->fullbright))
 			{
-				if (mipdata[0][s] >= 256-vid.fullbright)
-					break;
+				int s=-1;
+				if (mipdata[0])
+				for(s = width*height; s-->0; )
+				{
+					if (mipdata[0][s] >= 256-vid.fullbright)
+						break;
+				}
+				tex->fullbright = Image_GetTexture(va("%s_luma", imagename), subpath, imageflags, (s>=0)?mipdata[0]:NULL, palette, width, height, TF_TRANS8_FULLBRIGHT);
 			}
-			tex->fullbright = Image_GetTexture(va("%s_luma", imagename), subpath, imageflags, (s>=0)?mipdata[0]:NULL, palette, width, height, TF_TRANS8_FULLBRIGHT);
 		}
 	}
 }
@@ -4935,9 +5105,9 @@ void Shader_DefaultBSPVertex(const char *shortname, shader_t *s, const void *arg
 	}
 	else*/
 	{
-		s->defaulttextures.base = R_LoadHiResTexture(shortname, NULL, 0);
+		s->defaulttextures->base = R_LoadHiResTexture(shortname, NULL, 0);
 		pass->texgen = T_GEN_DIFFUSE;
-		if (!TEXVALID(s->defaulttextures.base))
+		if (!TEXVALID(s->defaulttextures->base))
 			Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
 	}
 
@@ -5059,7 +5229,7 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 				"sort additive\n"
 			"}\n"
 			);
-		TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(s->name, NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
 	}
 	else
 	{
@@ -5076,7 +5246,7 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 				"sort additive\n"
 			"}\n"
 			);
-		TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(s->name, NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
 	}
 }
 
@@ -5327,11 +5497,18 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 
 	s = r_shaders[f];
 	if (!s)
+	{
 		s = r_shaders[f] = Z_Malloc(sizeof(*s));
+	}
 	s->id = f;
 	if (r_numshaders < f+1)
 		r_numshaders = f+1;
 
+	if (!s->defaulttextures)
+	{
+		s->defaulttextures = Z_Malloc(sizeof(*s->defaulttextures));
+		s->numdefaulttextures = 0;
+	}
 	Q_strncpyz(s->name, cleanname, sizeof(s->name));
 	s->usageflags = usageflags;
 	s->generator = defaultgen;
@@ -5673,11 +5850,11 @@ int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blockti
 					return -1;
 				COM_WorkerPartialSync(shader->passes[i].anim_frames[0], &shader->passes[i].anim_frames[0]->status, TEX_LOADING);
 			}
-			if (shader->passes[i].texgen == T_GEN_DIFFUSE && (shader->defaulttextures.base && shader->defaulttextures.base->status == TEX_LOADING))
+			if (shader->passes[i].texgen == T_GEN_DIFFUSE && (shader->defaulttextures->base && shader->defaulttextures->base->status == TEX_LOADING))
 			{
 				if (!blocktillloaded)
 					return -1;
-				COM_WorkerPartialSync(shader->defaulttextures.base, &shader->defaulttextures.base->status, TEX_LOADING);
+				COM_WorkerPartialSync(shader->defaulttextures->base, &shader->defaulttextures->base->status, TEX_LOADING);
 			}
 		}
 
@@ -5693,12 +5870,12 @@ int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blockti
 				}
 				break;
 			}
-			if (shader->passes[i].texgen == T_GEN_DIFFUSE && shader->defaulttextures.base)
+			if (shader->passes[i].texgen == T_GEN_DIFFUSE && shader->defaulttextures->base)
 			{
-				if (shader->defaulttextures.base->status == TEX_LOADED)
+				if (shader->defaulttextures->base->status == TEX_LOADED)
 				{
-					shader->width = shader->defaulttextures.base->width;
-					shader->height = shader->defaulttextures.base->height;
+					shader->width = shader->defaulttextures->base->width;
+					shader->height = shader->defaulttextures->base->height;
 				}
 				break;
 			}

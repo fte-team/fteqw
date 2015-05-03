@@ -777,6 +777,15 @@ void SVQ2_Ents_Init(void)
 		svs_client_entities = Z_Malloc (sizeof(entity_state_t)*svs_num_client_entities);
 	}
 }
+void SVQ2_Ents_Shutdown(void)
+{
+	if (svs_client_entities)
+	{
+		Z_Free(svs_client_entities);
+		svs_client_entities = NULL;
+		svs_num_client_entities = 0;
+	}
+}
 #endif
 
 #endif

@@ -409,6 +409,8 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 		"s_paletted",
 		"s_shadowmap",
 		"s_projectionmap",
+		"s_reflectcube",
+		"s_reflectmask",
 		"s_lightmap",
 		"s_deluxmap"
 #if MAXRLIGHTMAPS > 1
@@ -612,7 +614,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 			{
 				int tmu;
 				D3D11_SHADER_INPUT_BIND_DESC bdesc = {0};
-				for (i = prog->numsamplers; i < 8; i++)
+				for (i = prog->numsamplers; i < be_maxpasses; i++)
 				{
 					if (SUCCEEDED(freflect->lpVtbl->GetResourceBindingDescByName(freflect, va("t_%i", i), &bdesc)))
 						prog->numsamplers = i+1;

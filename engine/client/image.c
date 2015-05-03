@@ -3688,18 +3688,22 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_S3RGBA1:	//mostly compatible, but I don't want to push it.
 		case PTI_S3RGBA3:
 		case PTI_S3RGBA5:
+		case PTI_WHOLEFILE:
 			//erk. meh.
 			break;
+		case PTI_R8:
+		case PTI_RG8:
 		case PTI_RGB565:
 		case PTI_RGBX8:
 		case PTI_BGRX8:
 		case PTI_S3RGB1:
-			break;
+			break;	//already no alpha in these formats
 		case PTI_DEPTH16:
 		case PTI_DEPTH24:
 		case PTI_DEPTH32:
 		case PTI_DEPTH24_8:
 			break;
+		case PTI_MAX: break;	//stfu
 		}
 		//FIXME: fill alpha channel with 255?
 	}
@@ -4305,7 +4309,7 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 
 	qboolean dontposttoworker = (flags & (IF_NOWORKER | IF_LOADNOW));
 	qboolean lowpri = (flags & IF_LOWPRIORITY);
-	qboolean highpri = (flags & IF_HIGHPRIORITY);
+//	qboolean highpri = (flags & IF_HIGHPRIORITY);
 	flags &= ~(IF_LOADNOW | IF_LOWPRIORITY | IF_HIGHPRIORITY);
 
 #ifdef LOADERTHREAD

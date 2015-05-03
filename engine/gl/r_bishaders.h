@@ -390,17 +390,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "struct a2v\n"
 "{\n"
 "float4 pos: POSITION;\n"
-"float3 normal: NORMAL;\n"
-"#ifdef MASK\n"
-"float4 tc: TEXCOORD0;\n"
-"#endif\n"
 "};\n"
 "struct v2f\n"
 "{\n"
+"float3 col: TEXCOORD;\n"
 "float4 pos: SV_POSITION;\n"
-"#ifdef MASK\n"
-"float2 tc: TEXCOORD0;\n"
-"#endif\n"
 "};\n"
 
 "#include <ftedefs.h>\n"
@@ -412,43 +406,24 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "outp.pos = mul(m_model, inp.pos);\n"
 "outp.pos = mul(m_view, outp.pos);\n"
 "outp.pos = mul(m_projection, outp.pos);\n"
-
-"#ifdef MASK\n"
-"outp.tc = inp.tc.xy;\n"
-"#endif\n"
-
+"outp.col = inp.pos.xyz - l_lightposition;\n"
 "return outp;\n"
 "}\n"
 "#endif\n"
-"#ifdef FRAGMENT_SHADER\n"
-"#ifdef MASK\n"
-"Texture2D shaderTexture[1];\n"
-"SamplerState SampleType[1];\n"
-"#endif\n"
 
-"#if LEVEL < 1000\n"
+"#ifdef FRAGMENT_SHADER\n"
+"#if LEVEL < 0x10000\n"
 //pre dx10 requires that we ALWAYS write to a target.
 "float4 main (v2f inp) : SV_TARGET\n"
+"{\n"
+"return float4(0, 0, 0, 1);\n"
+"}\n"
 "#else\n"
 //but on 10, it'll write depth automatically and we don't care about colour.
-"void main (v2f inp) //dx10-level\n"
-"#endif\n"
+"void main (v2f inp)\n"
 "{\n"
-
-"#ifdef MASK\n"
-"float alpha = shaderTexture[0].Sample(SampleType[0], inp.tc).a;\n"
-"#ifndef MASKOP\n"
-"#define MASKOP >= //drawn if (alpha OP ref) is true.\n"
-"#endif\n"
-//support for alpha masking
-"if (!(alpha MASKOP MASK))\n"
-"discard;\n"
-"#endif\n"
-
-"#if LEVEL < 1000\n"
-"return float4(0, 0, 0, 1);\n"
-"#endif\n"
 "}\n"
+"#endif\n"
 "#endif\n"
 },
 #endif
@@ -507,9 +482,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "v2f main (a2v inp)\n"
 "{\n"
 "v2f outp;\n"
-"outp.pos = mul(m_model, inp.pos);\n"
-"outp.pos = mul(m_view, outp.pos);\n"
-"outp.pos = mul(m_projection, outp.pos);\n"
+"outp.pos = mul(m_projection, inp.pos);\n"
 "outp.tc = inp.tc;\n"
 "outp.vcol = inp.vcol;\n"
 "return outp;\n"
@@ -517,11 +490,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef FRAGMENT_SHADER\n"
-"Texture2D shaderTexture;\n"
-"SamplerState SampleType;\n"
+"Texture2D t_t0;\n"
+"SamplerState s_t0;\n"
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
-"return shaderTexture.Sample(SampleType, inp.tc) * inp.vcol;\n"
+"return t_t0.Sample(s_t0, inp.tc) * inp.vcol;\n"
 "}\n"
 "#endif\n"
 },
@@ -693,14 +666,22 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 "#endif\n"
 "#ifdef FRAGMENT_SHADER\n"
-"Texture2D shaderTexture[4]; //diffuse, lower, upper, fullbright\n"
+"Texture2D t_diffuse  : register(t0);\n"
+"#ifdef UPPER\n"
+"Texture2D t_upper  : register(t1);\n"
+"Texture2D t_lower  : register(t2);\n"
+"Texture2D t_fullbright : register(t3);\n"
+"#else\n"
+"Texture2D t_fullbright : register(t1);\n"
+"#endif\n"
+
 "SamplerState SampleType;\n"
 
 //uniform vec4 e_colourident;
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
 "float4 col;\n"
-"col = shaderTexture[0].Sample(SampleType, inp.tc);\n"
+"col = t_diffuse.Sample(SampleType, inp.tc);\n"
 
 "#ifdef MASK\n"
 "#ifndef MASKOP\n"
@@ -712,18 +693,18 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef UPPER\n"
-"float4 uc = shaderTexture[2].Sample(SampleType, inp.tc);\n"
-"col.rgb = mix(col.rgb, uc.rgb*e_uppercolour, uc.a);\n"
+"float4 uc = t_upper.Sample(SampleType, inp.tc);\n"
+"col.rgb = lerp(col.rgb, uc.rgb*e_uppercolour, uc.a);\n"
 "#endif\n"
 "#ifdef LOWER\n"
-"float4 lc = shaderTexture[1].Sample(SampleType, inp.tc);\n"
-"col.rgb = mix(col.rgb, lc.rgb*e_lowercolour, lc.a);\n"
+"float4 lc = t_lower.Sample(SampleType, inp.tc);\n"
+"col.rgb = lerp(col.rgb, lc.rgb*e_lowercolour, lc.a);\n"
 "#endif\n"
 "col.rgb *= inp.light;\n"
-"#ifdef FULLBRIGHT\n"
-"float4 fb = shaderTexture[3].Sample(SampleType, inp.tc);\n"
-"col.rgb = mix(col.rgb, fb.rgb, fb.a);\n"
-"#endif\n"
+//#ifdef FULLBRIGHT
+"float4 fb = t_fullbright.Sample(SampleType, inp.tc);\n"
+"col.rgb = lerp(col.rgb, fb.rgb, fb.a);\n"
+//#endif
 "return col;\n"
 //		return fog4(col * e_colourident);
 "}\n"
@@ -852,8 +833,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef FRAGMENT_SHADER\n"
-"Texture2D shaderTexture[2];\n"
-"SamplerState SampleType;\n"
+"Texture2D t_diffuse   : register(t0);\n"
+"Texture2D t_fullbright : register(t1);\n"
+"SamplerState s_diffuse  : register(s0);\n"
+"SamplerState s_fullbright : register(s1);\n"
 
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
@@ -862,10 +845,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "dir.z *= 3.0;\n"
 "dir.xy /= 0.5*length(dir);\n"
 "tccoord = (dir.xy + e_time*0.03125);\n"
-"float4 solid = shaderTexture[0].Sample(SampleType, tccoord);\n"
+"float4 solid = t_diffuse.Sample(s_diffuse, tccoord);\n"
 "tccoord = (dir.xy + e_time*0.0625);\n"
-"float4 clouds = shaderTexture[1].Sample(SampleType, tccoord);\n"
-"return (solid*(1.0-clouds.a)) + (clouds.a*clouds);\n"
+"float4 clouds = t_fullbright.Sample(s_fullbright, tccoord);\n"
+"return lerp(solid, clouds, clouds.a);\n"
 "}\n"
 "#endif\n"
 },
@@ -992,11 +975,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef FRAGMENT_SHADER\n"
-"Texture2D shaderTexture;\n"
-"SamplerState SampleType;\n"
+"Texture2D t_diffuse  : register(t0);\n"
+"SamplerState s_diffuse : register(s0);\n"
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
-"float4 tex = shaderTexture.Sample(SampleType, inp.tc);\n"
+"float4 tex = t_diffuse.Sample(s_diffuse, inp.tc);\n"
 "#ifdef MASK\n"
 "if (tex.a < float(MASK))\n"
 "discard;\n"
@@ -1015,6 +998,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu LIGHTSTYLED\n"
 "!!permu BUMP\n"
 "!!permu SPECULAR\n"
+"!!permu REFLECTCUBEMASK\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvarf gl_specular\n"
 
@@ -1024,8 +1008,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //note that the '286' preset uses drawflat_walls instead.
 
 "#include \"sys/fog.h\"\n"
-"#if defined(OFFSETMAPPING) || defined(SPECULAR)\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
 "varying vec3 eyevector;\n"
+"#endif\n"
+
+"#ifdef REFLECTCUBEMASK\n"
+"varying mat3 invsurface;\n"
 "#endif\n"
 
 "varying vec2 tc;\n"
@@ -1040,11 +1028,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef VERTEX_SHADER\n"
 "void main ()\n"
 "{\n"
-"#if defined(OFFSETMAPPING) || defined(SPECULAR)\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
 "vec3 eyeminusvertex = e_eyepos - v_position.xyz;\n"
 "eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n"
 "eyevector.y = dot(eyeminusvertex, v_tvector.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, v_normal.xyz);\n"
+"#endif\n"
+"#ifdef REFLECTCUBEMASK\n"
+"invsurface[0] = v_svector;\n"
+"invsurface[1] = v_tvector;\n"
+"invsurface[2] = v_normal;\n"
 "#endif\n"
 "tc = v_texcoord;\n"
 "lm0 = v_lmcoord;\n"
@@ -1090,9 +1083,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 //yay, regular texture!
 "gl_FragColor = texture2D(s_diffuse, tc);\n"
 
-"#if defined(BUMP) && (defined(DELUXE) || defined(SPECULAR))\n"
+"#if defined(BUMP) && (defined(DELUXE) || defined(SPECULAR) || defined(REFLECTCUBEMASK))\n"
 "vec3 norm = normalize(texture2D(s_normalmap, tc).rgb - 0.5);\n"
-"#elif defined(SPECULAR) || defined(DELUXE)\n"
+"#elif defined(SPECULAR) || defined(DELUXE) || defined(REFLECTCUBEMASK)\n"
 "vec3 norm = vec3(0, 0, 1); //specular lighting expects this to exist.\n"
 "#endif\n"
 
@@ -1138,6 +1131,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "gl_FragColor.rgb += spec * specs.rgb;\n"
 "#endif\n"
 
+"#ifdef REFLECTCUBEMASK\n"
+"vec3 rtc = reflect(-eyevector, norm);\n"
+"rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];\n"
+"rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;\n"
+"gl_FragColor.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;\n"
+"#endif\n"
+
 "#ifdef EIGHTBIT //FIXME: with this extra flag, half the permutations are redundant.\n"
 "lightmaps *= 0.5; //counter the fact that the colourmap contains overbright values and logically ranges from 0 to 2 intead of to 1.\n"
 "float pal = texture2D(s_paletted, tc).r; //the palette index. hopefully not interpolated.\n"
@@ -1154,7 +1154,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "gl_FragColor.rgb += texture2D(s_fullbright, tc).rgb;\n"
 "#endif\n"
 "#endif\n"
-
 
 //entity modifiers
 "gl_FragColor = gl_FragColor * e_colourident;\n"
@@ -1197,24 +1196,23 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef FRAGMENT_SHADER\n"
-"Texture2D shaderTexture[2];\n"
-"SamplerState SampleType[2];\n"
+"Texture2D t_lightmap : register(t2);\n"
+"SamplerState s_lightmap : register(s2);\n"
+
+"Texture2D t_diffuse : register(s0);\n"
+"SamplerState s_diffuse : register(s0);\n"
+
+"Texture2D t_fullbright : register(s1);\n"
+"SamplerState s_fullbright : register(s1);\n"
 
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
-"float4 tex = shaderTexture[0].Sample(SampleType[0], inp.tc);\n"
-"float4 lm = shaderTexture[1].Sample(SampleType[1], inp.lmtc);\n"
-
-"#ifdef MASK\n"
-"#ifndef MASKOP\n"
-"#define MASKOP >= //drawn if (alpha OP ref) is true.\n"
-"#endif\n"
-//support for alpha masking
-"if (!(tex.a MASKOP MASK))\n"
-"discard;\n"
-"#endif\n"
-
-"return tex * lm.bgra;\n"
+"float4 result;\n"
+"result = t_diffuse.Sample(s_diffuse, inp.tc);\n"
+"result.rgb *= t_lightmap.Sample(s_lightmap, inp.lmtc).bgr * e_lmscale[0].rgb;\n"
+"float4 fb = t_fullbright.Sample(s_fullbright, inp.tc);\n"
+"result.rgb += fb.rgb * fb.a;//lerp(result.rgb, fb.rgb, fb.a);\n"
+"return result;\n"
 "}\n"
 "#endif\n"
 },
@@ -1331,15 +1329,14 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FRAGMENT_SHADER\n"
 //	float cvar_r_wateralpha;
 //	float e_time;
-//	sampler s_t0;
-"Texture2D shaderTexture;\n"
-"SamplerState SampleType;\n"
+"SamplerState s_diffuse;\n"
+"Texture2D t_diffuse;\n"
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
 "float2 ntc;\n"
 "ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;\n"
 "ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
-"return shaderTexture.Sample(SampleType, ntc);\n"
+"return t_diffuse.Sample(s_diffuse, ntc);\n"
 "}\n"
 "#endif\n"
 },
@@ -1437,12 +1434,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "#ifdef FRAGMENT_SHADER\n"
-"Texture2D shaderTexture;\n"
-"SamplerState SampleType;\n"
+"Texture2D t_lightmap : register(t0);\n"
+"SamplerState s_lightmap : register(s0);\n"
 
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
-"return inp.col * shaderTexture.Sample(SampleType, inp.lmtc);\n"
+"return inp.col * t_lightmap.Sample(s_lightmap, inp.lmtc);\n"
 "}\n"
 "#endif\n"
 },
@@ -1664,6 +1661,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu SKELETAL\n"
 "!!permu UPPERLOWER\n"
 "!!permu FOG\n"
+"!!permu REFLECTCUBEMASK\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 "!!cvardf r_glsl_pcf\n"
 
@@ -1691,11 +1689,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define r_glsl_pcf 9\n"
 "#endif\n"
 
-
-//texturegather is a gl4 feature, but these shaders are gl2.0 or something
-"#if #include \"cvar/texgather\" && defined(GL_ARB_texture_gather) && defined(PCF) \n"
+"#if 0 && defined(GL_ARB_texture_gather) && defined(PCF) \n"
 "#extension GL_ARB_texture_gather : enable\n"
-"#define DOTEXTUREGATHER\n"
 "#endif\n"
 
 "#ifdef UPPERLOWER\n"
@@ -1714,8 +1709,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "varying vec2 tcbase;\n"
 "varying vec3 lightvector;\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "varying vec3 eyevector;\n"
+"#endif\n"
+"#ifdef REFLECTCUBEMASK\n"
+"varying mat3 invsurface;\n"
+"uniform mat4 m_model;\n"
 "#endif\n"
 "#if defined(PCF) || defined(CUBE) || defined(SPOT)\n"
 "varying vec4 vtexprojcoord;\n"
@@ -1729,7 +1728,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/skeletal.h\"\n"
 "uniform vec3 l_lightposition;\n"
 "attribute vec2 v_texcoord;\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "uniform vec3 e_eyepos;\n"
 "#endif\n"
 "void main ()\n"
@@ -1747,11 +1746,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "lightvector.y = dot(lightminusvertex, t.xyz);\n"
 "lightvector.z = dot(lightminusvertex, n.xyz);\n"
 "#endif\n"
-"#if defined(SPECULAR)||defined(OFFSETMAPPING)\n"
+"#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
 "eyevector.x = dot(eyeminusvertex, s.xyz);\n"
 "eyevector.y = dot(eyeminusvertex, t.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, n.xyz);\n"
+"#endif\n"
+"#ifdef REFLECTCUBEMASK\n"
+"invsurface[0] = v_svector;\n"
+"invsurface[1] = v_tvector;\n"
+"invsurface[2] = v_normal;\n"
 "#endif\n"
 "#if defined(PCF) || defined(SPOT) || defined(CUBE)\n"
 //for texture projections/shadowmapping on dlights
@@ -1767,7 +1771,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/fog.h\"\n"
 "uniform sampler2D s_t0; //diffuse\n"
 
-"#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+"#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
 "uniform sampler2D s_t1; //normalmap\n"
 "#endif\n"
 "#ifdef SPECULAR\n"
@@ -1794,6 +1798,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef UPPER\n"
 "uniform sampler2D s_t6;  //shirt colours\n"
 "uniform vec3 e_uppercolour;\n"
+"#endif\n"
+
+"#ifdef REFLECTCUBEMASK\n"
+"uniform sampler2D s_reflectmask;\n"
+"uniform samplerCube s_reflectcube;\n"
 "#endif\n"
 
 
@@ -1854,7 +1863,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec3 shadowcoord = ShadowmapCoord();\n"
 
-"#ifdef DOTEXTUREGATHER\n"
+"#if 0//def GL_ARB_texture_gather\n"
 "vec2 ipart, fpart;\n"
 "#define dosamp(x,y) textureGatherOffset(s_t4, ipart.xy, vec2(x,y)))\n"
 "vec4 tl = step(shadowcoord.z, dosamp(-1.0, -1.0));\n"
@@ -1924,8 +1933,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 lc = texture2D(s_t5, tcbase);\n"
 "bases.rgb += lc.rgb*e_lowercolour*lc.a;\n"
 "#endif\n"
-"#if defined(BUMP) || defined(SPECULAR)\n"
+"#if defined(BUMP) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
 "vec3 bumps = normalize(vec3(texture2D(s_t1, tcbase)) - 0.5);\n"
+"#elif defined(REFLECTCUBEMASK)\n"
+"vec3 bumps = vec3(0.0,0.0,1.0);\n"
 "#endif\n"
 "#ifdef SPECULAR\n"
 "vec4 specs = texture2D(s_t2, tcbase);\n"
@@ -1953,7 +1964,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "diff += l_lightcolourscale.z * spec * specs.rgb;\n"
 "#endif\n"
 
-
+"#ifdef REFLECTCUBEMASK\n"
+"vec3 rtc = reflect(-eyevector, bumps);\n"
+"rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];\n"
+"rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;\n"
+"diff += texture2D(s_reflectmask, tcbase).rgb * textureCube(s_reflectcube, rtc).rgb;\n"
+"#endif\n"
 
 "#ifdef CUBE\n"
 /*filter the colour by the cubemap projection*/
@@ -1979,6 +1995,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);\n"
+
 "}\n"
 "#endif\n"
 
@@ -2130,21 +2147,22 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef FRAGMENT_SHADER\n"
 
-"Texture2D tx_base : register(t0);\n"
-"Texture2D tx_bump : register(t1);\n"
-"Texture2D tx_spec : register(t2);\n"
-"TextureCube tx_cube : register(t3);\n"
-"Texture2D tx_smap : register(t4);\n"
-"Texture2D tx_lower : register(t5);\n"
-"Texture2D tx_upper : register(t6);\n"
+"Texture2D t_diffuse : register(t0);\n"
+"Texture2D t_normalmap : register(t1);\n"
+"Texture2D t_specular : register(t2);\n"
+"Texture2D t_upper : register(t3);\n"
+"Texture2D t_lower : register(t4);\n"
+"Texture2D t_shadowmap : register(t5);\n"
+"TextureCube t_projectionmap : register(t6);\n"
 
-"SamplerState ss_base : register(s0);\n"
-"SamplerState ss_bump : register(s1);\n"
-"SamplerState ss_spec : register(s2);\n"
-"SamplerState ss_cube : register(s3);\n"
-"SamplerComparisonState ss_smap : register(s4);\n"
-"SamplerState ss_lower : register(s5);\n"
-"SamplerState ss_upper : register(s6);\n"
+"SamplerState s_diffuse : register(s0);\n"
+"SamplerState s_normalmap : register(s1);\n"
+"SamplerState s_specular : register(s2);\n"
+"SamplerState s_upper : register(s3);\n"
+"SamplerState s_lower : register(s4);\n"
+"SamplerComparisonState s_shadowmap : register(s5);\n"
+"SamplerState s_projectionmap  : register(s6);\n"
+
 
 "#ifdef PCF\n"
 "float3 ShadowmapCoord(float3 vtexprojcoord)\n"
@@ -2201,9 +2219,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 //	#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r
 
-//	#define dosamp(x,y) (tx_smap.Sample(ss_smap, shadowcoord.xy + (float2(x,y)*l_shadowmapscale.xy)).r < shadowcoord.z)
-"#define dosamp(x,y) (tx_smap.SampleCmpLevelZero(ss_smap, shadowcoord.xy+(float2(x,y)*l_shadowmapscale.xy), shadowcoord.z))\n"
-
+//	#define dosamp(x,y) (t_shadowmap.Sample(s_shadowmap, shadowcoord.xy + (float2(x,y)*l_shadowmapscale.xy)).r < shadowcoord.z)
+"#define dosamp(x,y) (t_shadowmap.SampleCmpLevelZero(s_shadowmap, shadowcoord.xy+(float2(x,y)*l_shadowmapscale.xy), shadowcoord.z))\n"
 
 "float s = 0.0;\n"
 "#if r_glsl_pcf >= 1 && r_glsl_pcf < 5\n"
@@ -2215,7 +2232,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "s += dosamp(0.0, 0.0);\n"
 "s += dosamp(0.0, 1.0);\n"
 "s += dosamp(1.0, 0.0);\n"
-"return s/5.0;\n"
+"return s * (1.0/5.0);\n"
 "#else\n"
 "s += dosamp(-1.0, -1.0);\n"
 "s += dosamp(-1.0, 0.0);\n"
@@ -2226,7 +2243,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "s += dosamp(1.0, -1.0);\n"
 "s += dosamp(1.0, 0.0);\n"
 "s += dosamp(1.0, 1.0);\n"
-"return s/9.0;\n"
+"return s * (1.0/9.0);\n"
 "#endif\n"
 "}\n"
 "#endif\n"
@@ -2236,23 +2253,23 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "float2 tc = inp.tc; //TODO: offsetmapping.\n"
 
-"float4 base = tx_base.Sample(ss_base, tc);\n"
+"float4 base = t_diffuse.Sample(s_diffuse, tc);\n"
 "#ifdef BUMP\n"
-"float4 bump = tx_bump.Sample(ss_bump, tc);\n"
+"float4 bump = t_normalmap.Sample(s_normalmap, tc);\n"
 "bump.rgb = normalize(bump.rgb - 0.5);\n"
 "#else\n"
 "float4 bump = float4(0, 0, 1, 0);\n"
 "#endif\n"
-"float4 spec = tx_spec.Sample(ss_spec, tc);\n"
+"float4 spec = t_specular.Sample(s_specular, tc);\n"
 "#ifdef CUBE\n"
-"float4 cubemap = tx_cube.Sample(ss_cube, inp.vtexprojcoord);\n"
+"float4 cubemap = t_projectionmap.Sample(s_projectionmap, inp.vtexprojcoord);\n"
 "#endif\n"
 "#ifdef LOWER\n"
-"float4 lower = tx_lower.Sample(ss_lower, tc);\n"
+"float4 lower = t_lower.Sample(s_lower, tc);\n"
 "base += lower;\n"
 "#endif\n"
 "#ifdef UPPER\n"
-"float4 upper = tx_upper.Sample(ss_upper, tc);\n"
+"float4 upper = t_upper.Sample(s_upper, tc);\n"
 "base += upper;\n"
 "#endif\n"
 

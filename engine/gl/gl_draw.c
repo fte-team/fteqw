@@ -254,7 +254,7 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 	if (gl_anisotropy_factor)	//0 means driver doesn't support
 	{
 		//only use anisotrophy when using linear any linear, because of drivers that forces linear sampling when anis is active (annoyingly this is allowed by the spec).
-		if ((min == GL_LINEAR || min == GL_LINEAR_MIPMAP_LINEAR || min == GL_LINEAR_MIPMAP_NEAREST) && mag == GL_LINEAR)
+		if ((min == GL_LINEAR_MIPMAP_LINEAR || min == GL_LINEAR_MIPMAP_NEAREST) && mag == GL_LINEAR)
 			qglTexParameterf(targ, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_anisotropy_factor);
 		else
 			qglTexParameterf(targ, GL_TEXTURE_MAX_ANISOTROPY_EXT, 1);
@@ -327,10 +327,18 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 	//this is available in gles3
 	if (!gl_config.gles)
 	{
-		if (targ != GL_TEXTURE_CUBE_MAP_ARB && (tex->flags & IF_MIPCAP))
+		if (targ != GL_TEXTURE_CUBE_MAP_ARB)
 		{
-			qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, min(mips->mipcount-1, gl_mipcap_min));
-			qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(mips->mipcount-1, gl_mipcap_max));
+			if (tex->flags & IF_MIPCAP)
+			{
+				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, min(mips->mipcount-1, gl_mipcap_min));
+				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, min(mips->mipcount-1, gl_mipcap_max));
+			}
+			else
+			{
+				qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, 0);
+				qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, mips->mipcount-1);
+			}
 		}
 	}
 

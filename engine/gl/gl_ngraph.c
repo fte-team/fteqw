@@ -197,5 +197,5 @@ void R_NetgraphInit(void)
 			"}\n"
 		"}\n"
 		);
-	netgraphshader->defaulttextures.base = netgraphtexture;
+	netgraphshader->defaulttextures->base = netgraphtexture;
 }

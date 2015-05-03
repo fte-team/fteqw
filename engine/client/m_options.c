@@ -680,6 +680,7 @@ const char *presetexec[] =
 	"seta gl_polyblend 0;"
 	"seta gl_flashblend 0;"
 	"seta gl_specular 0;"
+	"seta r_deluxemapping 0;"
 	"seta r_loadlit 0;"
 	"seta r_fastsky 1;"
 	"seta r_drawflame 0;"
@@ -779,10 +780,12 @@ const char *presetexec[] =
 	"r_shadow_realtime_dlight 1;"
 //	"gl_detail 1;"
 	"r_lightstylesmooth 1;"
+	"r_deluxemapping 1;"
 	"gl_texture_anisotropic_filtering 4;"
 
 	, // realtime options
 	"r_bloom 1;"
+	"r_deluxemapping 0;"	//won't be seen anyway
 	"r_particledesc \"high tsshaft\";"
 	"r_waterstyle 3;"
 	"r_glsl_offsetmapping 1;"

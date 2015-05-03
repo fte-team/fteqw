@@ -343,7 +343,7 @@ int main(int argc, char **argv)
 	memset(&parms, 0, sizeof(parms));
 
 	COM_InitArgv(argc, argv);
-	TL_InitLanguages();
+	TL_InitLanguages("");
 
 	parms.basedir = "";
 	parms.argc = argc;

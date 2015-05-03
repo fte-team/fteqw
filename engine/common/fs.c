@@ -4191,6 +4191,25 @@ ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, q
 	return man;
 }
 
+qboolean FS_FixPath(char *path, size_t pathsize)
+{
+	size_t len = strlen(path);
+	if (len)
+	{
+		if (path[len-1] == '/')
+			return true;
+#ifdef _WIN32
+		if (path[len-1] == '\\')
+			return true;
+#endif
+		if (len >= pathsize-1)
+			return false;
+		path[len] = '/';
+		path[len+1] = 0;
+	}
+	return true;
+}
+
 //this is potentially unsafe. needs lots of testing.
 qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean allowbasedirchange)
 {
@@ -4308,7 +4327,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 				builtingame = true;
 				if (!fixedbasedir && !FS_DirHasGame(newbasedir, i))
-					if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), !man->doinstall) && FS_DirHasGame(realpath, i))
+					if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), !man->doinstall) && FS_FixPath(realpath, sizeof(realpath)) && FS_DirHasGame(realpath, i))
 						Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
 				break;
 			}
@@ -4319,7 +4338,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	{
 		if (!builtingame && !fixedbasedir && !FS_DirHasAPackage(newbasedir, man))
 		{
-			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), !man->doinstall) && FS_DirHasAPackage(realpath, man))
+			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), !man->doinstall) && FS_FixPath(realpath, sizeof(realpath)) && FS_DirHasAPackage(realpath, man))
 				Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
 #ifndef SERVERONLY
 			else

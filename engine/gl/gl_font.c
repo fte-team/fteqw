@@ -384,10 +384,10 @@ static void Font_Flush(void)
 		font_backmesh.numvertexes = font_foremesh.numvertexes;
 		font_backmesh.istrifan = font_foremesh.istrifan;
 
-		BE_DrawMesh_Single(fontplanes.backshader, &font_backmesh, NULL, &fontplanes.backshader->defaulttextures, r2d_be_flags);
+		BE_DrawMesh_Single(fontplanes.backshader, &font_backmesh, NULL, r2d_be_flags);
 	}
-	TEXASSIGN(fontplanes.shader->defaulttextures.base, font_texture);
-	BE_DrawMesh_Single(fontplanes.shader, &font_foremesh, NULL, &fontplanes.shader->defaulttextures, r2d_be_flags);
+	TEXASSIGN(fontplanes.shader->defaulttextures->base, font_texture);
+	BE_DrawMesh_Single(fontplanes.shader, &font_foremesh, NULL, r2d_be_flags);
 	font_foremesh.numindexes = 0;
 	font_foremesh.numvertexes = 0;
 }

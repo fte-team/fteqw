@@ -4,6 +4,7 @@
 !!permu LIGHTSTYLED
 !!permu BUMP
 !!permu SPECULAR
+!!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
 !!cvarf gl_specular
 
@@ -13,8 +14,12 @@
 //note that the '286' preset uses drawflat_walls instead.
 
 #include "sys/fog.h"
-#if defined(OFFSETMAPPING) || defined(SPECULAR)
+#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
 varying vec3 eyevector;
+#endif
+
+#ifdef REFLECTCUBEMASK
+varying mat3 invsurface;
 #endif
 
 varying vec2 tc;
@@ -29,11 +34,16 @@ varying vec2 lm0;
 #ifdef VERTEX_SHADER
 void main ()
 {
-#if defined(OFFSETMAPPING) || defined(SPECULAR)
+#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
 	vec3 eyeminusvertex = e_eyepos - v_position.xyz;
 	eyevector.x = dot(eyeminusvertex, v_svector.xyz);
 	eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
 	eyevector.z = dot(eyeminusvertex, v_normal.xyz);
+#endif
+#ifdef REFLECTCUBEMASK
+	invsurface[0] = v_svector;
+	invsurface[1] = v_tvector;
+	invsurface[2] = v_normal;
 #endif
 	tc = v_texcoord;
 	lm0 = v_lmcoord;
@@ -79,9 +89,9 @@ void main ()
 //yay, regular texture!
 	gl_FragColor = texture2D(s_diffuse, tc);
 
-#if defined(BUMP) && (defined(DELUXE) || defined(SPECULAR))
+#if defined(BUMP) && (defined(DELUXE) || defined(SPECULAR) || defined(REFLECTCUBEMASK))
 	vec3 norm = normalize(texture2D(s_normalmap, tc).rgb - 0.5);
-#elif defined(SPECULAR) || defined(DELUXE)
+#elif defined(SPECULAR) || defined(DELUXE) || defined(REFLECTCUBEMASK)
 	vec3 norm = vec3(0, 0, 1);	//specular lighting expects this to exist.
 #endif
 
@@ -127,6 +137,13 @@ void main ()
 	gl_FragColor.rgb += spec * specs.rgb;
 #endif
 
+#ifdef REFLECTCUBEMASK
+	vec3 rtc = reflect(-eyevector, norm);
+	rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];
+	rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;
+	gl_FragColor.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
+#endif
+
 #ifdef EIGHTBIT //FIXME: with this extra flag, half the permutations are redundant.
 	lightmaps *= 0.5;	//counter the fact that the colourmap contains overbright values and logically ranges from 0 to 2 intead of to 1.
 	float pal = texture2D(s_paletted, tc).r;	//the palette index. hopefully not interpolated.
@@ -143,7 +160,6 @@ void main ()
 	gl_FragColor.rgb += texture2D(s_fullbright, tc).rgb;
 #endif
 #endif
-
 
 //entity modifiers
 	gl_FragColor = gl_FragColor * e_colourident;

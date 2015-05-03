@@ -60,6 +60,7 @@ static cvar_t gl_driver						= CVARF ("gl_driver", "",
 													 CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfaces from quake1 bsps using this pattern for the purposes of shader names.");
 extern cvar_t r_vertexlight;
+extern cvar_t r_forceprogramify;
 
 cvar_t mod_md3flags							= CVAR  ("mod_md3flags", "1");
 
@@ -490,6 +491,7 @@ void GLRenderer_Init(void)
 //	Cvar_Register (&gl_schematics, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
+	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
 
@@ -1057,6 +1059,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 	TRACE(("dbg: R_ApplyRenderer: old renderer closed\n"));
 
 	pmove.numphysent = 0;
+	pmove.physents[0].model = NULL;
 
 	if (qrenderer != QR_NONE)	//graphics stuff only when not dedicated
 	{
@@ -1067,6 +1070,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 #endif
 		if (newr)
 			Con_TPrintf("Setting mode %i*%i*%i*%i %s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->renderer->description);
+
+		vid.fullbright=0;
 
 		if (host_basepal)
 			BZ_Free(host_basepal);
@@ -1093,11 +1098,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 		{
 			qbyte *colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", NULL);
-			if (!colormap)
-			{
-				vid.fullbright=0;
-			}
-			else
+			if (colormap)
 			{
 				j = VID_GRADES-1;
 				data = colormap + j*256;

@@ -111,16 +111,18 @@ typedef struct serverinfo_s
 	char name[64];	//hostname.
 	netadr_t adr;
 
+	short special;	//flags
+	short protocol;
+
 	unsigned char players;
 	unsigned char maxplayers;
-	qbyte special;	//flags
 	qbyte sends;
 	qbyte insortedlist;
 
 	qbyte numhumans;
 	qbyte numbots;
 	qbyte freeslots;
-	qbyte protocol;
+	qbyte pad;
 
 	char modname[8+1];
 	char qcstatus[8+1];

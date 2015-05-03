@@ -3069,7 +3069,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 			b->mesh[0] = &hm->skymesh;
 			b->meshes = 1;
 			b->buildmeshes = NULL;
-			b->skin = &b->shader->defaulttextures;
+			b->skin = NULL;
 			b->texture = NULL;
 	//		vbo = b->vbo = hm->vbo[x+y*MAXSECTIONS];
 			b->vbo = NULL;
@@ -5171,7 +5171,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 				miptex_t *tx = W_GetMipTex(bt->shadername);
 				if (tx)
 				{
-					R_InitSky (&bt->shader->defaulttextures, bt->shadername, (qbyte*)tx + tx->offsets[0], tx->width, tx->height);
+					R_InitSky (bt->shader, bt->shadername, (qbyte*)tx + tx->offsets[0], tx->width, tx->height);
 					BZ_Free(tx);
 				}
 				else
@@ -5302,7 +5302,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 				b->mesh = &bb->pmesh;
 				b->meshes = 1;
 				b->buildmeshes = NULL;
-				b->skin = &b->shader->defaulttextures;
+				b->skin = NULL;
 				b->texture = NULL;
 				b->vbo = &bb->vbo;
 

@@ -3,6 +3,7 @@
 !!permu SKELETAL
 !!permu UPPERLOWER
 !!permu FOG
+!!permu REFLECTCUBEMASK
 !!cvarf r_glsl_offsetmapping_scale
 !!cvardf r_glsl_pcf
 
@@ -50,8 +51,12 @@
 
 varying vec2 tcbase;
 varying vec3 lightvector;
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 varying vec3 eyevector;
+#endif
+#ifdef REFLECTCUBEMASK
+varying mat3 invsurface;
+uniform mat4 m_model;
 #endif
 #if defined(PCF) || defined(CUBE) || defined(SPOT)
 varying vec4 vtexprojcoord;
@@ -65,7 +70,7 @@ uniform mat4 l_cubematrix;
 #include "sys/skeletal.h"
 uniform vec3 l_lightposition;
 attribute vec2 v_texcoord;
-#if defined(SPECULAR) || defined(OFFSETMAPPING)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 uniform vec3 e_eyepos;
 #endif
 void main ()
@@ -83,11 +88,16 @@ void main ()
 	lightvector.y = dot(lightminusvertex, t.xyz);
 	lightvector.z = dot(lightminusvertex, n.xyz);
 #endif
-#if defined(SPECULAR)||defined(OFFSETMAPPING)
+#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
 	eyevector.x = dot(eyeminusvertex, s.xyz);
 	eyevector.y = dot(eyeminusvertex, t.xyz);
 	eyevector.z = dot(eyeminusvertex, n.xyz);
+#endif
+#ifdef REFLECTCUBEMASK
+	invsurface[0] = v_svector;
+	invsurface[1] = v_tvector;
+	invsurface[2] = v_normal;
 #endif
 #if defined(PCF) || defined(SPOT) || defined(CUBE)
 	//for texture projections/shadowmapping on dlights
@@ -103,7 +113,7 @@ void main ()
 #include "sys/fog.h"
 uniform sampler2D s_t0;	//diffuse
 
-#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING)
+#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
 uniform sampler2D s_t1;	//normalmap
 #endif
 #ifdef SPECULAR
@@ -130,6 +140,11 @@ uniform vec3 e_lowercolour;
 #ifdef UPPER
 uniform sampler2D s_t6;		//shirt colours
 uniform vec3 e_uppercolour;
+#endif
+
+#ifdef REFLECTCUBEMASK
+uniform sampler2D s_reflectmask;
+uniform samplerCube s_reflectcube;
 #endif
 
 
@@ -260,8 +275,10 @@ void main ()
 	vec4 lc = texture2D(s_t5, tcbase);
 	bases.rgb += lc.rgb*e_lowercolour*lc.a;
 #endif
-#if defined(BUMP) || defined(SPECULAR)
+#if defined(BUMP) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
 	vec3 bumps = normalize(vec3(texture2D(s_t1, tcbase)) - 0.5);
+#elif defined(REFLECTCUBEMASK)
+	vec3 bumps = vec3(0.0,0.0,1.0);
 #endif
 #ifdef SPECULAR
 	vec4 specs = texture2D(s_t2, tcbase);
@@ -289,7 +306,12 @@ void main ()
 	diff += l_lightcolourscale.z * spec * specs.rgb;
 #endif
 
-
+#ifdef REFLECTCUBEMASK
+	vec3 rtc = reflect(-eyevector, bumps);
+	rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];
+	rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;
+	diff += texture2D(s_reflectmask, tcbase).rgb * textureCube(s_reflectcube, rtc).rgb;
+#endif
 
 #ifdef CUBE
 	/*filter the colour by the cubemap projection*/
@@ -315,6 +337,7 @@ void main ()
 #endif
 
 	gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);
+
 }
 #endif
 

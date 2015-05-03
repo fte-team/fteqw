@@ -36,6 +36,10 @@ extern texid_t missing_texture_normal;
 extern texid_t scenepp_postproc_cube;
 extern texid_t r_whiteimage;
 
+#ifndef GLSLONLY
+static void GenerateTCMods(const shaderpass_t *pass, int passnum);
+#endif
+
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
 	program rtlight%s\n\
@@ -674,8 +678,8 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				break;
 #endif
 			case VATTR_TEXCOORD:
-				GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
-				qglVertexAttribPointer(VATTR_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->texcoord.gl.addr);
+				GL_SelectVBO(shaderstate.pendingtexcoordvbo[0]);
+				qglVertexAttribPointer(VATTR_TEXCOORD, shaderstate.pendingtexcoordparts[0], GL_FLOAT, GL_FALSE, 0, shaderstate.pendingtexcoordpointer[0]);
 				break;
 			case VATTR_LMCOORD:
 				if (!shaderstate.sourcevbo->lmcoord[0].gl.vbo && !shaderstate.sourcevbo->lmcoord[0].gl.addr)
@@ -1169,6 +1173,12 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		break;
 	case T_GEN_FULLBRIGHT:
 		t = shaderstate.curtexnums->fullbright;
+		break;
+	case T_GEN_REFLECTCUBE:
+		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, shaderstate.curtexnums->reflectcube);
+		return;
+	case T_GEN_REFLECTMASK:
+		t = shaderstate.curtexnums->reflectmask;
 		break;
 	case T_GEN_SHADOWMAP:
 		t = shaderstate.curshadowmap;
@@ -3360,8 +3370,10 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_UPPERLOWER;
 	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].handle.glsl.handle)
 		perm |= PERMUTATION_FOG;
-	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl.handle && TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
-		perm |= PERMUTATION_DELUXE;
+//	if (p->permu[perm|PERMUTATION_DELUXE].handle.glsl.handle && TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+//		perm |= PERMUTATION_DELUXE;
+	if (TEXLOADED(shaderstate.curtexnums->reflectcube) && p->permu[perm|PERMUTATION_REFLECTCUBEMASK].handle.glsl.handle)
+		perm |= PERMUTATION_REFLECTCUBEMASK;
 #if MAXRLIGHTMAPS > 1
 	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].handle.glsl.handle)
 		perm |= PERMUTATION_LIGHTSTYLES;
@@ -3380,7 +3392,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	BE_Program_Set_Attributes(p, perm, i);
 
 	BE_SendPassBlendDepthMask(pass->shaderbits);
-	BE_EnableShaderAttributes(p->permu[perm].attrmask, shaderstate.sourcevbo->vao);
+
 #ifndef GLSLONLY
 	if (!p->nofixedcompat)
 	{
@@ -3399,6 +3411,17 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	else
 #endif
 	{
+#ifndef GLSLONLY
+		if (pass->numtcmods)
+			GenerateTCMods(pass, 0);
+		else
+#endif
+		{
+			shaderstate.pendingtexcoordparts[0] = 2;
+			shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+			shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+		}
+
 		for (i = 0; i < pass->numMergedPasses; i++)
 		{
 			Shader_BindTextureForPass(i, pass+i);
@@ -3418,6 +3441,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
 		shaderstate.lastpasstmus = i;	//in case it was already lower
 	}
+	BE_EnableShaderAttributes(p->permu[perm].attrmask, shaderstate.sourcevbo->vao);
 	BE_SubmitMeshChain(p->permu[perm].handle.glsl.usetesselation);
 }
 
@@ -4286,6 +4310,7 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 {
 	shaderstate.curbatch = &shaderstate.dummybatch;
 	shaderstate.curshader = shader->remapto;
+
 	if (!vbo)
 	{
 		mesh_t *m;
@@ -4294,7 +4319,12 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 		if (shaderstate.curentity != &r_worldentity)
 			GLBE_SelectEntity(&r_worldentity);
 		shaderstate.curtime = shaderstate.updatetime - (shaderstate.curentity->shaderTime + shader->remaptime);
-		shaderstate.curtexnums = texnums;
+		if (texnums)
+			shaderstate.curtexnums = texnums;
+		else if (shader->numdefaulttextures)
+			shaderstate.curtexnums = shader->defaulttextures + ((int)(shader->defaulttextures_fps * shaderstate.curtime) % shader->numdefaulttextures);
+		else
+			shaderstate.curtexnums = shader->defaulttextures;
 
 		while (nummeshes--)
 		{
@@ -4316,21 +4346,27 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 		if (shaderstate.curentity != &r_worldentity)
 			GLBE_SelectEntity(&r_worldentity);
 		shaderstate.curtime = shaderstate.updatetime - (shaderstate.curentity->shaderTime + shader->remaptime);
-		shaderstate.curtexnums = texnums;
+		if (texnums)
+			shaderstate.curtexnums = texnums;
+		else if (shader->numdefaulttextures)
+			shaderstate.curtexnums = shader->defaulttextures + ((int)(shader->defaulttextures_fps * shaderstate.curtime) % shader->numdefaulttextures);
+		else
+			shaderstate.curtexnums = shader->defaulttextures;
 
 		shaderstate.meshcount = nummeshes;
 		shaderstate.meshes = meshlist;
 		DrawMeshes();
 	}
 }
-void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags)
+void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, unsigned int beflags)
 {
 	shader->next = NULL;
-	BE_DrawMesh_List(shader, 1, &mesh, NULL, texnums, beflags);
+	BE_DrawMesh_List(shader, 1, &mesh, NULL, NULL, beflags);
 }
 
 void GLBE_SubmitBatch(batch_t *batch)
 {
+	shader_t *sh;
 	shaderstate.curbatch = batch;
 	if (batch->vbo)
 	{
@@ -4344,15 +4380,18 @@ void GLBE_SubmitBatch(batch_t *batch)
 			return;
 	}
 
-	shaderstate.curshader = batch->shader->remapto;
+	sh = batch->shader;
+	shaderstate.curshader = sh->remapto;
 	shaderstate.flags = batch->flags;
 	if (shaderstate.curentity != batch->ent)
 		GLBE_SelectEntity(batch->ent);
-	shaderstate.curtime = shaderstate.updatetime - (shaderstate.curentity->shaderTime + batch->shader->remaptime);
+	shaderstate.curtime = shaderstate.updatetime - (shaderstate.curentity->shaderTime + sh->remaptime);
 	if (batch->skin)
 		shaderstate.curtexnums = batch->skin;
+	else if (sh->numdefaulttextures)
+		shaderstate.curtexnums = sh->defaulttextures + ((int)(sh->defaulttextures_fps * shaderstate.curtime) % sh->numdefaulttextures);
 	else
-		shaderstate.curtexnums = &batch->shader->defaulttextures;
+		shaderstate.curtexnums = sh->defaulttextures;
 
 	if (0)
 	{

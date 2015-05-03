@@ -2416,7 +2416,19 @@ void CL_Laser (vec3_t start, vec3_t end, int colors)
 	ex->framerate = 100; // smoother fading
 }
 
-static qbyte splash_color[] = {0x00, 0xe0, 0xb0, 0x50, 0xd0, 0xe0, 0xe8};
+static struct{
+	qbyte colour;
+	char *name;
+} q2splash_info[] =
+{
+	{0x00, "q2part.te_splashunknown"}, 
+	{0xe0, "q2part.te_splashsparks"},
+	{0xb0, "q2part.te_splashbluewater"},
+	{0x50, "q2part.te_splashbrownwater"},
+	{0xd0, "q2part.te_splashslime"},
+	{0xe0, "q2part.te_splashlava"},
+	{0xe8, "q2part.te_splashblood"}
+};
 
 #define ATTN_NONE	0
 #define ATTN_NORM 1
@@ -2632,16 +2644,10 @@ fixme:
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 		r = MSG_ReadByte ();
-		if (r > 6)
-			color = 0x00;
-		else
-			color = splash_color[r];
-		P_RunParticleEffect (pos, dir, color, cnt);
-
-		if (r == Q2SPLASH_BLUE_WATER || r == Q2SPLASH_BROWN_WATER)
-		{
-			P_RunParticleEffectTypeString(pos, dir, 1, "te_watersplash");
-		}
+		if (r > sizeof(q2splash_info)/sizeof(q2splash_info[0]))
+			r = 0;
+		if (P_RunParticleEffectTypeString(pos, dir, cnt, q2splash_info[r].name))
+			P_RunParticleEffect (pos, dir, q2splash_info[r].colour, cnt);
 		if (r == Q2SPLASH_SPARKS)
 		{
 			r = rand() & 3;
@@ -2651,13 +2657,6 @@ fixme:
 				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/spark6.wav"), 1, ATTN_NORM, 0);
 			else
 				Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("world/spark7.wav"), 1, ATTN_NORM, 0);
-
-//			if (r == 0)
-//				Q2S_StartSound (pos, 0, 0, cl_sfx_spark5, 1, ATTN_STATIC, 0);
-//			else if (r == 1)
-//				Q2S_StartSound (pos, 0, 0, cl_sfx_spark6, 1, ATTN_STATIC, 0);
-//			else
-//				Q2S_StartSound (pos, 0, 0, cl_sfx_spark7, 1, ATTN_STATIC, 0);
 		}
 		break;
 

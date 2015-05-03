@@ -475,7 +475,7 @@ int QDECL main(int argc, char **argv)
 
 	COM_InitArgv (parms.argc, parms.argv);
 
-	TL_InitLanguages();
+	TL_InitLanguages(parms.basedir);
 
 	Sys_Printf ("Host_Init\n");
 	Host_Init (&parms);

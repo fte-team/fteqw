@@ -80,7 +80,7 @@ struct shadertype_s
 } shadertype[] =
 {
 	{"glsl/%s.glsl", 	"GLQUAKE", 	"QR_OPENGL", 		110},	//gl2+
-	{"gles/%s.glsl", 	"GLQUAKE", 	"QR_OPENGL", 		100},	//gles
+	//{"gles/%s.glsl", 	"GLQUAKE", 	"QR_OPENGL", 		100},	//gles
 	{"hlsl9/%s.hlsl", 	"D3D9QUAKE", 	"QR_DIRECT3D9", 	9},	//d3d9
 	{"hlsl11/%s.hlsl", 	"D3D11QUAKE", 	"QR_DIRECT3D11", 	11},	//d3d11
 };

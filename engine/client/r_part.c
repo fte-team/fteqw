@@ -113,7 +113,7 @@ static void R_Clutter_Insert_Soup(clutter_build_ctx_t *ctx, shader_t *shader, ve
 				"}\n"
 			"}\n"
 		);
-	shader->defaulttextures = os->defaulttextures;
+	*shader->defaulttextures = *os->defaulttextures;
 
 
 	for (i = 0, soup = ctx->soups; i < ctx->numsoups; i++, soup++)

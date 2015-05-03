@@ -1369,8 +1369,6 @@ void StartQuakeServer(void)
 
 	memset(&parms, 0, sizeof(parms));
 
-	TL_InitLanguages();
-
 	parms.argc = com_argc;
 	parms.argv = com_argv;
 
@@ -1379,6 +1377,8 @@ void StartQuakeServer(void)
 	parms.binarydir = bindir;
 
 	parms.basedir = "./";
+
+	TL_InitLanguages(parms.basedir);
 
 	SV_Init (&parms);
 

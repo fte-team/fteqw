@@ -2230,7 +2230,7 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], shadowmesh_t *smesh, i
 			tex = cl.worldmodel->shadowbatches[tno].tex;
 			if (tex->shader->flags & SHADER_NODLIGHT)	//FIXME: shadows not lights
 				continue;
-			BE_DrawMesh_List(tex->shader, smesh->batches[tno].count, smesh->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &tex->shader->defaulttextures, 0);
+			BE_DrawMesh_List(tex->shader, smesh->batches[tno].count, smesh->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, NULL, 0);
 		}
 		break;
 	}
@@ -2606,7 +2606,7 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 			if (shader->flags & SHADER_NODLIGHT)
 				continue;
 			//FIXME: it may be worth building a dedicated ebo
-			BE_DrawMesh_List(shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &shader->defaulttextures, 0);
+			BE_DrawMesh_List(shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, NULL, 0);
 			RQuantAdd(RQUANT_LITFACES, sm->batches[tno].count);
 		}
 
@@ -3226,7 +3226,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 
 	BE_SelectMode(BEM_STANDARD);
 
-	GLBE_DrawMesh_Single(crepuscular_shader, &mesh, NULL, &crepuscular_shader->defaulttextures, 0);
+	BE_DrawMesh_Single(crepuscular_shader, &mesh, NULL, 0);
 
 	GLBE_FBO_Sources(oldsrccol, NULL);
 #endif

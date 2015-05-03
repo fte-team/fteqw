@@ -2667,7 +2667,7 @@ void CLQ1_AddShadow(entity_t *ent)
 				"alphagen vertex\n"
 			"}\n"
 		"}\n");
-	TEXASSIGN(s->defaulttextures.base, balltexture);
+	TEXASSIGN(s->defaulttextures->base, balltexture);
 
 	tx = ent->model->maxs[0] - ent->model->mins[0];
 	ty = ent->model->maxs[1] - ent->model->mins[1];

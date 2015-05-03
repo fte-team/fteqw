@@ -421,9 +421,17 @@ void SWBE_TransformVerticies(swvert_t *v, mesh_t *mesh)
 //		v->colour[3] = mesh->colors4b_array[i][3];
 	}
 }
-void SWBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags)
+static void SWBE_DrawMesh_Internal(shader_t *shader, mesh_t *mesh, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags)
 {
 	wqcom_t *com;
+
+	if (!texnums)
+	{
+//		if (shader->numdefaulttextures)
+//			texnums = shader->defaulttextures + ;
+//		else
+			texnums = shader->defaulttextures;
+	}
 
 	shaderstate.curshader = shader;
 
@@ -456,8 +464,12 @@ void SWBE_DrawMesh_List(shader_t *shader, int nummeshes, struct mesh_s **mesh, s
 {
 	while(nummeshes-->0)
 	{
-		SWBE_DrawMesh_Single(shader, *mesh++, vbo, texnums, be_flags);
+		SWBE_DrawMesh_Internal(shader, *mesh++, vbo, texnums, be_flags);
 	}
+}
+void SWBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, struct vbo_s *vbo, unsigned int be_flags)
+{
+	SWBE_DrawMesh_Internal(shader, mesh, vbo, NULL, be_flags);
 }
 void SWBE_SubmitBatch(struct batch_s *batch)
 {
@@ -465,7 +477,7 @@ void SWBE_SubmitBatch(struct batch_s *batch)
 	SWBE_SelectEntity(batch->ent);
 	for (m = 0; m < batch->meshes; m++)
 	{
-		SWBE_DrawMesh_Single(batch->shader, batch->mesh[m], batch->vbo, batch->skin?batch->skin:&batch->shader->defaulttextures, batch->flags);
+		SWBE_DrawMesh_Internal(batch->shader, batch->mesh[m], batch->vbo, batch->skin, batch->flags);
 	}
 }
 struct batch_s *SWBE_GetTempBatch(void)

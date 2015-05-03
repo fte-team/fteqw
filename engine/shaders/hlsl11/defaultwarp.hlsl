@@ -28,14 +28,13 @@ struct v2f
 #ifdef FRAGMENT_SHADER
 //	float cvar_r_wateralpha;
 //	float e_time;
-//	sampler s_t0;
-	Texture2D shaderTexture;
-	SamplerState SampleType;
+	SamplerState s_diffuse;
+	Texture2D t_diffuse;
 	float4 main (v2f inp) : SV_TARGET
 	{
 		float2 ntc;
 		ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;
 		ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;
-		return shaderTexture.Sample(SampleType, ntc);
+		return t_diffuse.Sample(s_diffuse, ntc);
 	}
 #endif

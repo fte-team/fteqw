@@ -478,6 +478,10 @@ void SV_DropClient (client_t *drop)
 #ifdef SVCHAT
 	SV_WipeChat(drop);
 #endif
+
+	if (sv.world.worldmodel->loadstate != MLS_LOADED)
+		Con_Printf(CON_WARNING "Warning: not notifying gamecode about client disconnection due to invalid worldmodel\n");
+	else
 	switch(svs.gametype)
 	{
 	case GT_MAX:

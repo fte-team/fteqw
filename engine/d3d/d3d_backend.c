@@ -281,17 +281,17 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 		int *filter = (flags & SHADER_PASS_UIPIC)?shaderstate.picfilter:shaderstate.mipfilter;
 
 		if ((filter[2] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
-			mag = D3DTEXF_LINEAR;
+			mag = D3DTEXF_ANISOTROPIC;//D3DTEXF_LINEAR;
 		else
 			mag = D3DTEXF_POINT;
 		if (filter[1] == -1 || (flags & IF_NOMIPMAP))
 			mip = D3DTEXF_NONE;
 		else if ((filter[1] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
-			mip = D3DTEXF_LINEAR;
+			mip = D3DTEXF_ANISOTROPIC;//D3DTEXF_LINEAR;
 		else
 			mip = D3DTEXF_POINT;
 		if ((filter[0] && !(flags & SHADER_PASS_NEAREST)) || (flags & SHADER_PASS_LINEAR))
-			min = D3DTEXF_LINEAR;
+			min = D3DTEXF_ANISOTROPIC;//D3DTEXF_LINEAR;
 		else
 			min = D3DTEXF_POINT;
 
@@ -313,6 +313,8 @@ void D3D9_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3]
 	{
 		shaderstate.tmuflags[i] = ~shaderstate.tmuflags[i];
 		BE_ApplyTMUState(i, ~shaderstate.tmuflags[i]);
+
+		IDirect3DDevice9_SetSamplerState(pD3DDev9, i, D3DSAMP_MAXANISOTROPY, anis);
 	}
 }
 
@@ -1604,11 +1606,11 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 
 	for (i = 0; i < lastpass; i++)
 	{
-		if (pass[i].texgen == T_GEN_UPPEROVERLAY && !TEXVALID(shaderstate.curtexnums->upperoverlay))
+		if (pass[i].texgen == T_GEN_UPPEROVERLAY && !TEXLOADED(shaderstate.curtexnums->upperoverlay))
 			continue;
-		if (pass[i].texgen == T_GEN_LOWEROVERLAY && !TEXVALID(shaderstate.curtexnums->loweroverlay))
+		if (pass[i].texgen == T_GEN_LOWEROVERLAY && !TEXLOADED(shaderstate.curtexnums->loweroverlay))
 			continue;
-		if (pass[i].texgen == T_GEN_FULLBRIGHT && !TEXVALID(shaderstate.curtexnums->fullbright))
+		if (pass[i].texgen == T_GEN_FULLBRIGHT && !TEXLOADED(shaderstate.curtexnums->fullbright))
 			continue;
 		break;
 	}
@@ -1625,11 +1627,11 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 	/*activate tmus*/
 	for (passno = 0; passno < lastpass; passno++)
 	{
-		if (pass[passno].texgen == T_GEN_UPPEROVERLAY && !TEXVALID(shaderstate.curtexnums->upperoverlay))
+		if (pass[passno].texgen == T_GEN_UPPEROVERLAY && !TEXLOADED(shaderstate.curtexnums->upperoverlay))
 			continue;
-		if (pass[passno].texgen == T_GEN_LOWEROVERLAY && !TEXVALID(shaderstate.curtexnums->loweroverlay))
+		if (pass[passno].texgen == T_GEN_LOWEROVERLAY && !TEXLOADED(shaderstate.curtexnums->loweroverlay))
 			continue;
-		if (pass[passno].texgen == T_GEN_FULLBRIGHT && !TEXVALID(shaderstate.curtexnums->fullbright))
+		if (pass[passno].texgen == T_GEN_FULLBRIGHT && !TEXLOADED(shaderstate.curtexnums->fullbright))
 			continue;
 
 		SelectPassTexture(tmu, pass+passno);
@@ -1841,14 +1843,14 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 		perm |= PERMUTATION_BUMPMAP;
 	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.hlsl.vert)
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (p->permu[perm|PERMUTATION_UPPERLOWER].handle.hlsl.vert && (TEXVALID(shaderstate.curtexnums->upperoverlay) || TEXVALID(shaderstate.curtexnums->loweroverlay)))
+	if (p->permu[perm|PERMUTATION_UPPERLOWER].handle.hlsl.vert && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;
 	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].handle.hlsl.vert)
 		perm |= PERMUTATION_FOG;
 	if (p->permu[perm|PERMUTATION_FRAMEBLEND].handle.hlsl.vert && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
 		perm |= PERMUTATION_FRAMEBLEND;
-	if (p->permu[perm|PERMUTATION_DELUXE].handle.hlsl.vert && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
-		perm |= PERMUTATION_DELUXE;
+//	if (p->permu[perm|PERMUTATION_DELUXE].handle.hlsl.vert && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+//		perm |= PERMUTATION_DELUXE;
 	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].handle.hlsl.vert)
 		perm |= PERMUTATION_LIGHTSTYLES;
 
@@ -2740,6 +2742,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 void D3D9BE_SubmitBatch(batch_t *batch)
 {
+	shader_t *shader = batch->shader;
 	shaderstate.nummeshes = batch->meshes - batch->firstmesh;
 	if (!shaderstate.nummeshes)
 		return;
@@ -2750,8 +2753,13 @@ void D3D9BE_SubmitBatch(batch_t *batch)
 	}
 	shaderstate.batchvbo = batch->vbo;
 	shaderstate.meshlist = batch->mesh + batch->firstmesh;
-	shaderstate.curshader = batch->shader;
-	shaderstate.curtexnums = batch->skin?batch->skin:&batch->shader->defaulttextures;
+	shaderstate.curshader = shader;
+	if (batch->skin)
+		shaderstate.curtexnums = batch->skin;
+	else if (shader->numdefaulttextures)
+		shaderstate.curtexnums = shader->defaulttextures + ((int)(shader->defaulttextures_fps * shaderstate.curtime) % shader->numdefaulttextures);
+	else
+		shaderstate.curtexnums = shader->defaulttextures;
 	shaderstate.curbatch = batch;
 	shaderstate.flags = batch->flags;
 	if ((unsigned)batch->lightmap[0] < (unsigned)numlightmaps)
@@ -2776,12 +2784,15 @@ void D3D9BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vb
 	BE_DrawMeshChain_Internal();
 }
 
-void D3D9BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags)
+void D3D9BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, unsigned int beflags)
 {
 	shaderstate.batchvbo = vbo;
 	shaderstate.curtime = realtime;
 	shaderstate.curshader = shader;
-	shaderstate.curtexnums = texnums?texnums:&shader->defaulttextures;
+	if (shader->numdefaulttextures)
+		shaderstate.curtexnums = shader->defaulttextures + ((int)(shader->defaulttextures_fps * shaderstate.curtime) % shader->numdefaulttextures);
+	else
+		shaderstate.curtexnums = shader->defaulttextures;
 	shaderstate.curlightmap = r_nulltex;
 	shaderstate.meshlist = &meshchain;
 	shaderstate.nummeshes = 1;
@@ -2800,8 +2811,6 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->buildmeshes)
 			batch->buildmeshes(batch);
-		else if (batch->texture)
-			batch->skin = &batch->shader->defaulttextures;
 
 		if (batch->shader->flags & SHADER_NODLIGHT)
 			if (shaderstate.mode == BEM_LIGHT)

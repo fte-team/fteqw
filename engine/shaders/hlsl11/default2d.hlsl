@@ -17,9 +17,7 @@ struct v2f
 	v2f main (a2v inp)
 	{
 		v2f outp;
-		outp.pos = mul(m_model, inp.pos);
-		outp.pos = mul(m_view, outp.pos);
-		outp.pos = mul(m_projection, outp.pos);
+		outp.pos = mul(m_projection, inp.pos);
 		outp.tc = inp.tc;
 		outp.vcol = inp.vcol;
 		return outp;
@@ -27,10 +25,10 @@ struct v2f
 #endif
 
 #ifdef FRAGMENT_SHADER
-	Texture2D shaderTexture;
-	SamplerState SampleType;
+	Texture2D t_t0;
+	SamplerState s_t0;
 	float4 main (v2f inp) : SV_TARGET
 	{
-		return shaderTexture.Sample(SampleType, inp.tc) * inp.vcol;
+		return t_t0.Sample(s_t0, inp.tc) * inp.vcol;
 	}
 #endif

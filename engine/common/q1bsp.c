@@ -1162,7 +1162,6 @@ struct fragmentdecal_s
 	void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader);
 	void *ctx;
 };
-typedef struct fragmentdecal_s fragmentdecal_t;
 
 //#define SHOWCLIPS
 //#define FRAGMENTASTRIANGLES	//works, but produces more fragments.

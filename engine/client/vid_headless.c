@@ -148,7 +148,7 @@ static void	Headless_BE_SelectMode	(backendmode_t mode)
 static void	Headless_BE_DrawMesh_List	(shader_t *shader, int nummeshes, struct mesh_s **mesh, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags)
 {
 }
-static void	Headless_BE_DrawMesh_Single	(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags)
+static void	Headless_BE_DrawMesh_Single	(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, unsigned int be_flags)
 {
 }
 static void	Headless_BE_SubmitBatch	(struct batch_s *batch)

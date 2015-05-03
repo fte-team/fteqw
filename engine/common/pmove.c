@@ -400,7 +400,7 @@ int PM_StepSlideMove (qboolean in_air)
 	}
 
 	//FIXME gravitydir
-	if (in_air && originalvel[2] < 0)
+	if ((in_air || movevars.slidefix) && originalvel[2] < 0)
 		VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 
 	PM_SlideMove ();
@@ -770,7 +770,11 @@ void PM_AirMove (void)
 	{
 		if (movevars.slidefix)
 		{
-			pmove.velocity[2] = min(pmove.velocity[2], 0);	// bound above by 0
+			if (DotProduct(pmove.velocity, pmove.gravitydir) < 0)
+			{
+				VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
+				//pmove.velocity[2] = min(pmove.velocity[2], 0);	// bound above by 0
+			}
 			PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
 			// add gravity
 			VectorMA(pmove.velocity, movevars.entgravity * movevars.gravity * frametime, pmove.gravitydir, pmove.velocity);
@@ -938,47 +942,50 @@ void PM_CategorizePosition (void)
 	//bsp objects marked as ladders mark regions to stand in to be classed as on a ladder.
 	cont = PM_ExtraBoxContents(pmove.origin);
 
+	if (pmove.physents[0].model)
+	{
 #ifdef Q3BSPS
-	//q3 has surfaceflag-based ladders
-	if (pmove.physents[0].model->fromgame == fg_quake3)
-	{
-		trace_t t;
-		vec3_t flatforward, fwd1;
-
-		flatforward[0] = forward[0];
-		flatforward[1] = forward[1];
-		flatforward[2] = 0;
-		VectorNormalize (flatforward);
-
-		VectorMA (pmove.origin, 24, flatforward, fwd1);
-
-		pmove.physents[0].model->funcs.NativeTrace(pmove.physents[0].model, 0, 0, NULL, pmove.origin, fwd1, pmove.player_mins, pmove.player_maxs, pmove.capsule, MASK_PLAYERSOLID, &t);
-		if (t.surface && t.surface->flags & Q3SURF_LADDER)
+		//q3 has surfaceflag-based ladders
+		if (pmove.physents[0].model->fromgame == fg_quake3)
 		{
-			pmove.onladder = true;
-			pmove.onground = false;	// too steep
+			trace_t t;
+			vec3_t flatforward, fwd1;
+
+			flatforward[0] = forward[0];
+			flatforward[1] = forward[1];
+			flatforward[2] = 0;
+			VectorNormalize (flatforward);
+
+			VectorMA (pmove.origin, 24, flatforward, fwd1);
+
+			pmove.physents[0].model->funcs.NativeTrace(pmove.physents[0].model, 0, 0, NULL, pmove.origin, fwd1, pmove.player_mins, pmove.player_maxs, pmove.capsule, MASK_PLAYERSOLID, &t);
+			if (t.surface && t.surface->flags & Q3SURF_LADDER)
+			{
+				pmove.onladder = true;
+				pmove.onground = false;	// too steep
+			}
 		}
-	}
 #endif
-	//q2 has contents-based ladders
-	if ((cont & FTECONTENTS_LADDER) || ((cont & Q2CONTENTS_LADDER) && pmove.physents[0].model->fromgame == fg_quake2))
-	{
-		trace_t t;
-		vec3_t flatforward, fwd1;
-
-		flatforward[0] = forward[0];
-		flatforward[1] = forward[1];
-		flatforward[2] = 0;
-		VectorNormalize (flatforward);
-
-		VectorMA (pmove.origin, 24, flatforward, fwd1);
-
-		//if we hit a wall when going forwards and we are in a ladder region, then we are on a ladder.
-		t = PM_PlayerTrace(pmove.origin, fwd1, MASK_PLAYERSOLID);
-		if (t.fraction < 1)
+		//q2 has contents-based ladders
+		if ((cont & FTECONTENTS_LADDER) || ((cont & Q2CONTENTS_LADDER) && pmove.physents[0].model->fromgame == fg_quake2))
 		{
-			pmove.onladder = true;
-			pmove.onground = false;	// too steep
+			trace_t t;
+			vec3_t flatforward, fwd1;
+
+			flatforward[0] = forward[0];
+			flatforward[1] = forward[1];
+			flatforward[2] = 0;
+			VectorNormalize (flatforward);
+
+			VectorMA (pmove.origin, 24, flatforward, fwd1);
+
+			//if we hit a wall when going forwards and we are in a ladder region, then we are on a ladder.
+			t = PM_PlayerTrace(pmove.origin, fwd1, MASK_PLAYERSOLID);
+			if (t.fraction < 1)
+			{
+				pmove.onladder = true;
+				pmove.onground = false;	// too steep
+			}
 		}
 	}
 
@@ -1127,7 +1134,7 @@ void PM_NudgePosition (void)
 		base[i] = ((int)(base[i]*8)) * 0.125;
 
 	//if we're moving, allow that spot without snapping to any grid
-	if (pmove.velocity[0] || pmove.velocity[1] || pmove.velocity[2])
+//	if (pmove.velocity[0] || pmove.velocity[1] || pmove.velocity[2])
 		if (PM_TestPlayerPosition (pmove.origin, false))
 			return;
 
@@ -1266,8 +1273,8 @@ were contacted during the move.
 */
 void PM_PlayerMove (float gamespeed)
 {
-//	int i;
-//	int tmp;	//for rounding
+	int i;
+	int tmp;	//for rounding
 
 	frametime = pmove.cmd.msec * 0.001*gamespeed;
 	pmove.numtouch = 0;
@@ -1330,6 +1337,16 @@ void PM_PlayerMove (float gamespeed)
 	else
 		PM_AirMove ();
 
+	//round to network precision
+	for (i = 0; i < 3; i++)
+	{
+		tmp = floor(pmove.velocity[i]*8 + 0.5);
+		pmove.velocity[i] = tmp/8.0;
+		tmp = floor(pmove.origin[i]*8 + 0.5);
+		pmove.origin[i] = tmp/8.0;
+	}
+	PM_NudgePosition ();
+
 	// set onground, watertype, and waterlevel for final spot
 	PM_CategorizePosition ();
 
@@ -1340,15 +1357,4 @@ void PM_PlayerMove (float gamespeed)
 	{
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
 	}
-
-/*
-	//round to network precision
-	for (i = 0; i < 3; i++)
-	{
-		tmp = floor(pmove.velocity[i]*8 + 0.5);
-		pmove.velocity[i] = tmp/8.0;
-		tmp = floor(pmove.origin[i]*8 + 0.5);
-		pmove.origin[i] = tmp/8.0;
-	}
-*/
 }

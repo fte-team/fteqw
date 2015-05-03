@@ -147,7 +147,7 @@ void R2D_Init(void)
 	int i;
 	unsigned int glossval;
 	unsigned int normval;
-	extern cvar_t gl_specular_fallback, gl_specular_fallbackexp;
+	extern cvar_t gl_specular_fallback, gl_specular_fallbackexp, gl_texturemode;
 	conback = NULL;
 
 	Shader_Init();
@@ -198,13 +198,13 @@ void R2D_Init(void)
 				"map $diffuse\n"
 			"}\n"
 		"}\n");
-	TEXDOWAIT(draw_backtile->defaulttextures.base);
-	if (!TEXLOADED(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOWORKER);
-	if (!TEXLOADED(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOWORKER);
-	if (!TEXLOADED(draw_backtile->defaulttextures.base))
-		draw_backtile->defaulttextures.base = R_LoadHiResTexture("pics/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOWORKER);
+	TEXDOWAIT(draw_backtile->defaulttextures->base);
+	if (!TEXLOADED(draw_backtile->defaulttextures->base))
+		draw_backtile->defaulttextures->base = R_LoadHiResTexture("gfx/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOWORKER);
+	if (!TEXLOADED(draw_backtile->defaulttextures->base))
+		draw_backtile->defaulttextures->base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOWORKER);
+	if (!TEXLOADED(draw_backtile->defaulttextures->base))
+		draw_backtile->defaulttextures->base = R_LoadHiResTexture("pics/backtile", NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOWORKER);
 
 	shader_draw_fill = R_RegisterShader("fill_opaque", SUF_NONE,
 		"{\n"
@@ -340,6 +340,7 @@ void R2D_Init(void)
 	Cvar_ForceCallback(&gl_conback);
 	Cvar_ForceCallback(&vid_conautoscale);
 	Cvar_ForceCallback(&gl_font);
+	Cvar_ForceCallback(&gl_texturemode);
 
 	Cvar_ForceCallback(&crosshair);
 	Cvar_ForceCallback(&crosshaircolor);
@@ -349,6 +350,8 @@ void R2D_Init(void)
 #endif
 
 	R2D_Font_Changed();
+
+	R_NetgraphInit();
 }
 
 mpic_t	*R2D_SafeCachePic (const char *path)
@@ -416,7 +419,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 	{
 		if (pic->passes[i].texgen == T_GEN_SINGLEMAP && pic->passes[i].anim_frames[0] && pic->passes[i].anim_frames[0]->status == TEX_LOADING)
 			return;
-		if (pic->passes[i].texgen == T_GEN_DIFFUSE && pic->defaulttextures.base && pic->defaulttextures.base->status == TEX_LOADING)
+		if (pic->passes[i].texgen == T_GEN_DIFFUSE && pic->defaulttextures->base && pic->defaulttextures->base->status == TEX_LOADING)
 			return;
 	}
 
@@ -440,7 +443,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 	draw_mesh_st[3][0] = s1;
 	draw_mesh_st[3][1] = t2;
 
-	BE_DrawMesh_Single(pic, &draw_mesh, NULL, &pic->defaulttextures, r2d_be_flags);
+	BE_DrawMesh_Single(pic, &draw_mesh, NULL, r2d_be_flags);
 }
 void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
 {
@@ -453,7 +456,7 @@ void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
 	{
 		if (pic->passes[i].texgen == T_GEN_SINGLEMAP && pic->passes[i].anim_frames[0] && pic->passes[i].anim_frames[0]->status == TEX_LOADING)
 			return;
-		if (pic->passes[i].texgen == T_GEN_DIFFUSE && pic->defaulttextures.base && pic->defaulttextures.base->status == TEX_LOADING)
+		if (pic->passes[i].texgen == T_GEN_DIFFUSE && pic->defaulttextures->base && pic->defaulttextures->base->status == TEX_LOADING)
 			return;
 	}
 
@@ -463,7 +466,7 @@ void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
 		Vector2Copy(texcoords[i], draw_mesh_st[i]);
 	}
 
-	BE_DrawMesh_Single(pic, &draw_mesh, NULL, &pic->defaulttextures, r2d_be_flags);
+	BE_DrawMesh_Single(pic, &draw_mesh, NULL, r2d_be_flags);
 }
 
 /*draws a block of the current colour on the screen*/
@@ -482,9 +485,9 @@ void R2D_FillBlock(float x, float y, float w, float h)
 	draw_mesh_xyz[3][1] = y+h;
 
 	if (draw_mesh_colors[0][3] != 1)
-		BE_DrawMesh_Single(shader_draw_fill_trans, &draw_mesh, NULL, &shader_draw_fill_trans->defaulttextures, r2d_be_flags);
+		BE_DrawMesh_Single(shader_draw_fill_trans, &draw_mesh, NULL, r2d_be_flags);
 	else
-		BE_DrawMesh_Single(shader_draw_fill, &draw_mesh, NULL, &shader_draw_fill->defaulttextures, r2d_be_flags);
+		BE_DrawMesh_Single(shader_draw_fill, &draw_mesh, NULL, r2d_be_flags);
 }
 
 void R2D_Line(float x1, float y1, float x2, float y2, shader_t *shader)
@@ -505,7 +508,7 @@ void R2D_Line(float x1, float y1, float x2, float y2, shader_t *shader)
 
 	draw_mesh.numvertexes = 2;
 	draw_mesh.numindexes = 2;
-	BE_DrawMesh_Single(shader, &draw_mesh, NULL, &shader->defaulttextures, BEF_LINES);
+	BE_DrawMesh_Single(shader, &draw_mesh, NULL, BEF_LINES);
 	draw_mesh.numvertexes = 4;
 	draw_mesh.numindexes = 6;
 }
@@ -559,7 +562,7 @@ void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic,
 					"alphagen vertex\n"
 				"}\n"
 			"}\n");
-		translate_shader->defaulttextures.base = translate_texture;
+		translate_shader->defaulttextures->base = translate_texture;
 	}
 	/* could avoid reuploading already translated textures but this func really isn't used enough anyway */
 	Image_Upload(translate_texture, TF_RGBA32, trans, NULL, 64, 64, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
@@ -662,7 +665,7 @@ void R2D_TileClear (float x, float y, float w, float h)
 	draw_mesh_st[3][0] = newsl;
 	draw_mesh_st[3][1] = newth;
 
-	BE_DrawMesh_Single(draw_backtile, &draw_mesh, NULL, &draw_backtile->defaulttextures, r2d_be_flags);
+	BE_DrawMesh_Single(draw_backtile, &draw_mesh, NULL, r2d_be_flags);
 }
 
 void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
@@ -1249,8 +1252,8 @@ void R2D_Crosshair_Update(void)
 		return;
 	else if (crosshairimage.string[0] && c == 1)
 	{
-		shader_crosshair->defaulttextures.base = R_LoadHiResTexture (crosshairimage.string, "crosshairs", IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
-		if (TEXVALID(shader_crosshair->defaulttextures.base))
+		shader_crosshair->defaulttextures->base = R_LoadHiResTexture (crosshairimage.string, "crosshairs", IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+		if (TEXVALID(shader_crosshair->defaulttextures->base))
 			return;
 	}
 	else if (c <= 1)
@@ -1261,7 +1264,7 @@ void R2D_Crosshair_Update(void)
 
 	if (!TEXVALID(ch_int_texture))
 		ch_int_texture = Image_CreateTexture("***crosshair***", NULL, IF_UIPIC|IF_NOMIPMAP);
-	shader_crosshair->defaulttextures.base = ch_int_texture;
+	shader_crosshair->defaulttextures->base = ch_int_texture;
 
 	Q_memset(crossdata, 0, sizeof(crossdata));
 

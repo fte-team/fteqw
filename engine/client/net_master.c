@@ -762,13 +762,21 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 	case SLKEY_TOOMANY:
 		break;
 
-	// warning: enumeration value ‘SLKEY_*’ not handled in switch
+	case SLKEY_ISPROXY:
+		return Master_CompareInteger(a->special & SS_PROXY, b->special & SS_PROXY, SLIST_TEST_LESS);
+	case SLKEY_ISLOCAL:
+		return Master_CompareInteger(a->special & SS_LOCAL, b->special & SS_LOCAL, SLIST_TEST_LESS);
+	case SLKEY_ISFAVORITE:
+		return Master_CompareInteger(a->special & SS_FAVORITE, b->special & SS_FAVORITE, SLIST_TEST_LESS);
+
 	case SLKEY_MOD:
 	case SLKEY_PROTOCOL:
 	case SLKEY_NUMBOTS:
 	case SLKEY_NUMHUMANS:
 	case SLKEY_QCSTATUS:
-	case SLKEY_ISFAVORITE:
+	case SLKEY_SERVERINFO:
+	case SLKEY_PLAYER0:
+	default:
 		break;
 
 	}

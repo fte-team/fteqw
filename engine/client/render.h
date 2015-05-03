@@ -281,7 +281,7 @@ void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *
 void R_LightArrays(const entity_t *entity, vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals, float scale);
 
 void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
-void R_InitSky (struct texnums_s *tn, const char *skyname, qbyte *src, unsigned int width, unsigned int height);	/*generate q1 sky texnums*/
+void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int width, unsigned int height);	/*generate q1 sky texnums*/
 
 void R_Clutter_Emit(struct batch_s **batches);
 void R_Clutter_Purge(void);
@@ -335,7 +335,6 @@ void R_SetSky(char *skyname);		/*override all sky shaders*/
 
 #if defined(GLQUAKE)
 void GLR_Init (void);
-void GLR_ReInit (void);
 void GLR_InitTextures (void);
 void GLR_InitEfrags (void);
 void GLR_RenderView (void);		// must set r_refdef first
@@ -443,6 +442,15 @@ struct model_s *Mod_FindName (const char *name);
 void	*Mod_Extradata (struct model_s *mod);	// handles caching
 void	Mod_TouchModel (const char *name);
 void Mod_RebuildLightmaps (void);
+
+typedef struct
+{
+	unsigned int *offsets;
+	unsigned short *extents;
+	unsigned char *styles;
+	unsigned char *shifts;
+} lightmapoverrides_t;
+void Mod_LoadLighting (struct model_s *loadmodel, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides);
 
 struct mleaf_s *Mod_PointInLeaf (struct model_s *model, float *p);
 

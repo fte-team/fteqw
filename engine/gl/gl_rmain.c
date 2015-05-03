@@ -122,8 +122,8 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 				"}\n"
 			"}\n"
 			);
-		scenepp_waterwarp->defaulttextures.upperoverlay = scenepp_texture_warp;
-		scenepp_waterwarp->defaulttextures.loweroverlay = scenepp_texture_edge;
+		scenepp_waterwarp->defaulttextures->upperoverlay = scenepp_texture_warp;
+		scenepp_waterwarp->defaulttextures->loweroverlay = scenepp_texture_edge;
 	}
 }
 

@@ -453,6 +453,31 @@ public class FTEDroidActivity extends Activity
 			}
 		}
 		
+/*		private FTEJoystickInputEvent joystickevent;
+		class FTEJoystickInputEvent
+		{
+			//API level 12+
+			public boolean go(MotionEvent event)
+			{
+				if (event.isFromSource(InputDevice.SOURCE_CLASS_JOYSTICK))
+				{
+					//FIXME: get MotionRange values from the device, so we can query the ideal size of the deadzone
+					FTEDroidEngine.axischange(0, event.getAxisValue(MotionEvent.AXIS_X));
+					FTEDroidEngine.axischange(1, event.getAxisValue(MotionEvent.AXIS_Y));
+					FTEDroidEngine.axischange(2, event.getAxisValue(MotionEvent.AXIS_Z));
+					FTEDroidEngine.axischange(3, event.getAxisValue(MotionEvent.AXIS_RZ));
+					FTEDroidEngine.axischange(4, event.getAxisValue(MotionEvent.AXIS_HAT_X));
+					FTEDroidEngine.axischange(5, event.getAxisValue(MotionEvent.AXIS_HAT_Y));
+					FTEDroidEngine.axischange(6, event.getAxisValue(MotionEvent.AXIS_LTRIGGER));
+					FTEDroidEngine.axischange(7, event.getAxisValue(MotionEvent.AXIS_RTRIGGER));
+					FTEDroidEngine.axischange(8, event.getAxisValue(MotionEvent.AXIS_BREAK));
+					FTEDroidEngine.axischange(9, event.getAxisValue(MotionEvent.AXIS_GAS));
+					return true;
+				}
+				return false;
+			}
+		}
+*/		
 		private FTELegacyInputEvent inputevent;
 		class FTEMultiTouchInputEvent extends FTELegacyInputEvent
 		{
@@ -537,6 +562,9 @@ public class FTEDroidActivity extends Activity
 				inputevent = new FTEMultiTouchInputEvent();
 			else
 				inputevent = new FTELegacyInputEvent();
+				
+//			if (android.os.Build.VERSION.SDK_INT >= 12)
+//				joystickevent = new FTEJoystickInputEvent();
 
 			rndr = new FTERenderer(this, context);
 			setRenderer(rndr);
@@ -574,6 +602,16 @@ public class FTEDroidActivity extends Activity
 		private static final int K_SEARCH		= 242;
 		private static final int K_VOLUP		= 243;
 		private static final int K_VOLDOWN		= 244;
+		
+		private static final int K_JOY1			= 203;
+		private static final int K_JOY2			= 204;
+		private static final int K_JOY3			= 205;
+		private static final int K_JOY4			= 206;
+		private static final int K_AUX1			= 207;
+		private static final int K_AUX2			= 208;
+		private static final int K_AUX3			= 209;
+		private static final int K_AUX4			= 210;
+				
 		private int mapKey(int acode, int unicode)
 		{
 			switch(acode)
@@ -603,6 +641,24 @@ public class FTEDroidActivity extends Activity
 				return K_VOLDOWN;	//"voldown"
 			case KeyEvent.KEYCODE_VOLUME_UP:
 				return K_VOLUP;		//"volup"
+				
+			case 99/*KeyEvent.KEYCODE_BUTTON_X*/:
+				return K_JOY1;
+			case 96/*KeyEvent.KEYCODE_BUTTON_A*/:
+				return K_JOY2;
+			case 100/*KeyEvent.KEYCODE_BUTTON_Y*/:
+				return K_JOY3;
+			case 97/*KeyEvent.KEYCODE_BUTTON_B*/:
+				return K_JOY4;
+			case 102/*KeyEvent.KEYCODE_BUTTON_L1*/:
+				return K_AUX1;
+			case 103/*KeyEvent.KEYCODE_BUTTON_R1*/:
+				return K_AUX2;
+			case 106/*KeyEvent.KEYCODE_BUTTON_THUMBL*/:
+				return K_AUX3;
+			case 107/*KeyEvent.KEYCODE_BUTTON_THUMBR*/:
+				return K_AUX4;
+
 			default:
 				if (unicode < 128)
 					return Character.toLowerCase(unicode);
@@ -625,6 +681,19 @@ public class FTEDroidActivity extends Activity
 			sendKey(false, mapKey(keyCode, uc), uc);
 			return true;
 		}
+		
+/*
+		@Override
+		public boolean onGenericMotionEvent(android.view.MotionEvent event)
+		{
+			if (joystickevent)
+				if (joystickevent.go(event))
+					return true;
+			//FIXME: handle mouse and mousewheel
+			return false;
+		}
+*/
+		
 /*
 		@Override
 		public InputConnection onCreateInputConnection(EditorInfo outAttrs)

@@ -162,9 +162,9 @@ static void R_SetupBloomTextures(int w, int h)
 				"map $upperoverlay\n"
 			"}\n"
 		"}\n");
-	bloomfinal->defaulttextures.base			= pingtex[0][0];
-	bloomfinal->defaulttextures.loweroverlay	= pingtex[0][1];
-	bloomfinal->defaulttextures.upperoverlay	= pingtex[0][2];
+	bloomfinal->defaulttextures->base			= pingtex[0][0];
+	bloomfinal->defaulttextures->loweroverlay	= pingtex[0][1];
+	bloomfinal->defaulttextures->upperoverlay	= pingtex[0][2];
 }
 qboolean R_CanBloom(void)
 {

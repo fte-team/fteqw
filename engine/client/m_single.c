@@ -87,7 +87,7 @@ static void M_Menu_LoadSave_Remove(menu_t *menu)
 	loadsavemenuinfo_t *info = menu->data;
 	if (info->picshader)
 	{
-		Image_UnloadTexture(info->picshader->defaulttextures.base);
+		Image_UnloadTexture(info->picshader->defaulttextures->base);
 		R_UnloadShader(info->picshader);
 	}
 }
@@ -107,7 +107,7 @@ static void M_Menu_LoadSave_Preview_Draw(int x, int y, menucustom_t *item, menu_
 			info->picslot = slot;
 			if (info->picshader)
 			{
-				Image_UnloadTexture(info->picshader->defaulttextures.base);
+				Image_UnloadTexture(info->picshader->defaulttextures->base);
 				R_UnloadShader(info->picshader);
 			}
 			info->picshader = R_RegisterPic(va("saves/s%i/screeny.tga", slot));

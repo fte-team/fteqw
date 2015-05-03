@@ -1002,6 +1002,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	gl_config.arb_shadow = GL_CheckExtension("GL_ARB_shadow");
 	//gl_config.arb_shadow |= GL_CheckExtension("GL_EXT_shadow_samplers");	//gles2. nvidia fucks up. depend on brute-force. :s
 
+	if (GL_CheckExtension("GL_ARB_seamless_cube_map"))
+		qglEnable(0x884F);	//TEXTURE_CUBE_MAP_SEAMLESS                   0x884F
+
 #ifdef GL_STATIC
 	gl_config.ext_framebuffer_objects = true;				//exists as core in gles2
 #else
@@ -1124,6 +1127,8 @@ static const char *glsl_hdrs[] =
 			"uniform sampler2D s_paletted;\n"
 			"uniform sampler2D s_shadowmap;\n"
 			"uniform samplerCube s_projectionmap;\n"
+			"uniform samplerCube s_reflectcube;\n"
+			"uniform sampler2D s_reflectmask;\n"
 			"uniform sampler2D s_lightmap;\n"
 			"uniform sampler2D s_deluxmap;\n"
 #if MAXRLIGHTMAPS > 1
@@ -2206,6 +2211,8 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 		"s_paletted",
 		"s_shadowmap",
 		"s_projectionmap",
+		"s_reflectcube",
+		"s_reflectmask",
 		"s_lightmap",
 		"s_deluxmap"
 #if MAXRLIGHTMAPS > 1
@@ -2217,6 +2224,8 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 		,"s_deluxmap3"
 #endif
 	};
+#define ALTLIGHTMAPSAMP 13
+#define ALTDELUXMAPSAMP 16
 
 	unsigned int i, p;
 	qboolean found;
@@ -2348,10 +2357,10 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 	}
 
 	//multiple lightmaps is kinda hacky. if any are set, all must be. 
-	if (prog->defaulttextures & ((1u<<11) | (1u<<12) | (1u<<13)))
-		prog->defaulttextures |=((1u<<11) | (1u<<12) | (1u<<13));
-	if (prog->defaulttextures & ((1u<<14) | (1u<<15) | (1u<<16)))
-		prog->defaulttextures |=((1u<<14) | (1u<<15) | (1u<<16));
+	if (prog->defaulttextures & ((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2))))
+		prog->defaulttextures |=((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2)));
+	if (prog->defaulttextures & ((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2))))
+		prog->defaulttextures |=((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2)));
 
 	if (prog->defaulttextures)
 	{

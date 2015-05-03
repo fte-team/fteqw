@@ -4869,7 +4869,7 @@ void QCBUILTIN PF_localcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	char	*str;
 
 	str = PF_VarString(prinst, 0, pr_globals);
-	if (developer.ival)
+	if (developer.ival >= 2)
 	{
 		PR_StackTrace(prinst, false);
 		Con_Printf("localcmd: %s\n", str);

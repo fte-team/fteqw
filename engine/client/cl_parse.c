@@ -1094,6 +1094,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 #define endstage() if (!cls.timedemo && giveuptime<Sys_DoubleTime()) return -1;
 
 	pmove.numphysent = 0;
+	pmove.physents[0].model = NULL;
 
 /*#ifdef PEXT_CSQC
 	if (atstage())

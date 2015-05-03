@@ -91,7 +91,7 @@ static qboolean	restore_spi;
 static int		originalmouseparms[3], newmouseparms[3] = {0, 0, 0};
 qboolean		mouseinitialized;
 static qboolean	mouseparmsvalid, mouseactivatetoggle;
-static qboolean	mouseshowtoggle = 1;
+qboolean	mouseshowtoggle = 1;
 static qboolean	dinput_acquired;
 unsigned int uiWheelMessage;
 
@@ -2192,7 +2192,7 @@ void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdev
 			if (!in_nonstandarddeadkeys.ival)
 			{
 				for (unicode = 0; unicode < chars-1; unicode++)
-					Key_Event (qdeviceid, 0, wchars[unicode], down);
+					IN_KeyEvent(qdeviceid, down, 0, wchars[unicode]);
 			}
 			unicode = wchars[chars-1];
 		}
@@ -2204,6 +2204,6 @@ void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdev
 		if (shift_down && unicode < K_MAX && keyshift[unicode])
 			unicode = keyshift[unicode]; 
 	}
-	Key_Event (qdeviceid, qcode, unicode, down);
+	IN_KeyEvent(qdeviceid, down, qcode, unicode);
 }
 #endif

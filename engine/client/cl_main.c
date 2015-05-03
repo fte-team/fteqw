@@ -288,20 +288,23 @@ void CL_UpdateWindowTitle(void)
 {
 	if (VID_SetWindowCaption)
 	{
+		char title[2048];
 		switch (cls.state)
 		{
 		default:
 #ifndef CLIENTONLY
 			if (sv.state)
-				VID_SetWindowCaption(va("%s: %s", fs_gamename.string, sv.name));
+				Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, sv.name);
 			else
 #endif
-				VID_SetWindowCaption(va("%s: %s", fs_gamename.string, cls.servername));
+				Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, cls.servername);
 			break;
 		case ca_disconnected:
-			VID_SetWindowCaption(va("%s: disconnected", fs_gamename.string));
+			Q_snprintfz(title, sizeof(title), "%s: disconnected", fs_gamename.string);
 			break;
 		}
+
+		VID_SetWindowCaption(title);
 	}
 }
 

@@ -27,11 +27,11 @@ struct v2f
 #endif
 
 #ifdef FRAGMENT_SHADER
-	Texture2D shaderTexture;
-	SamplerState SampleType;
+	Texture2D t_diffuse		: register(t0);
+	SamplerState s_diffuse	: register(s0);
 	float4 main (v2f inp) : SV_TARGET
 	{
-		float4 tex = shaderTexture.Sample(SampleType, inp.tc);
+		float4 tex = t_diffuse.Sample(s_diffuse, inp.tc);
 #ifdef MASK
 		if (tex.a < float(MASK))
 			discard;

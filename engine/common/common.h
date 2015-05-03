@@ -575,7 +575,7 @@ int version_number(void);
 char *version_string(void);
 
 
-void TL_InitLanguages(void);
+void TL_InitLanguages(char *langpath);	//langpath is where the .po files can be found
 void TL_Shutdown(void);
 void T_FreeStrings(void);
 char *T_GetString(int num);

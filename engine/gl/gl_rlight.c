@@ -408,7 +408,7 @@ void R_RenderDlights (void)
 		if (!R_BuildDlightMesh (l, intensity, cscale, coronastyle) && !coronastyle)
 			AddLightBlend (l->color[0], l->color[1], l->color[2], l->radius * 0.0003);
 		else
-			BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures, (coronastyle?BEF_FORCENODEPTH|BEF_FORCEADDITIVE:0)|beflags);
+			BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, (coronastyle?BEF_FORCENODEPTH|BEF_FORCEADDITIVE:0)|beflags);
 	}
 }
 
@@ -481,7 +481,7 @@ void R_GenDlightBatches(batch_t *batches[])
 		b->mesh = NULL;
 		b->firstmesh = 0;
 		b->meshes = 1;
-		b->skin = &lpplight_shader->defaulttextures;
+		b->skin = NULL;
 		b->texture = NULL;
 		b->shader = lpplight_shader;
 		for (j = 0; j < MAXRLIGHTMAPS; j++)

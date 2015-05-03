@@ -77,21 +77,22 @@ struct v2f
 
 #ifdef FRAGMENT_SHADER
 
-	Texture2D tx_base : register(t0);
-	Texture2D tx_bump : register(t1);
-	Texture2D tx_spec : register(t2);
-	TextureCube tx_cube : register(t3);
-	Texture2D tx_smap : register(t4);
-	Texture2D tx_lower : register(t5);
-	Texture2D tx_upper : register(t6);
+	Texture2D t_diffuse : register(t0);
+	Texture2D t_normalmap : register(t1);
+	Texture2D t_specular : register(t2);
+	Texture2D t_upper : register(t3);
+	Texture2D t_lower : register(t4);
+	Texture2D t_shadowmap : register(t5);
+	TextureCube t_projectionmap : register(t6);
 
-	SamplerState ss_base : register(s0);
-	SamplerState ss_bump : register(s1);
-	SamplerState ss_spec : register(s2);
-	SamplerState ss_cube : register(s3);
-	SamplerComparisonState ss_smap : register(s4);
-	SamplerState ss_lower : register(s5);
-	SamplerState ss_upper : register(s6);
+	SamplerState s_diffuse : register(s0);
+	SamplerState s_normalmap : register(s1);
+	SamplerState s_specular : register(s2);
+	SamplerState s_upper : register(s3);
+	SamplerState s_lower : register(s4);
+	SamplerComparisonState s_shadowmap : register(s5);
+	SamplerState s_projectionmap	 : register(s6);
+
 
 #ifdef PCF
 float3 ShadowmapCoord(float3 vtexprojcoord)
@@ -148,9 +149,8 @@ float ShadowmapFilter(float3 vtexprojcoord)
 
 //	#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r
 
-//	#define dosamp(x,y) (tx_smap.Sample(ss_smap, shadowcoord.xy + (float2(x,y)*l_shadowmapscale.xy)).r < shadowcoord.z)
-	#define dosamp(x,y) (tx_smap.SampleCmpLevelZero(ss_smap, shadowcoord.xy+(float2(x,y)*l_shadowmapscale.xy), shadowcoord.z))
-
+//	#define dosamp(x,y) (t_shadowmap.Sample(s_shadowmap, shadowcoord.xy + (float2(x,y)*l_shadowmapscale.xy)).r < shadowcoord.z)
+	#define dosamp(x,y) (t_shadowmap.SampleCmpLevelZero(s_shadowmap, shadowcoord.xy+(float2(x,y)*l_shadowmapscale.xy), shadowcoord.z))
 
 	float s = 0.0;
 	#if r_glsl_pcf >= 1 && r_glsl_pcf < 5
@@ -162,7 +162,7 @@ float ShadowmapFilter(float3 vtexprojcoord)
 		s += dosamp(0.0, 0.0);
 		s += dosamp(0.0, 1.0);
 		s += dosamp(1.0, 0.0);
-		return s/5.0;
+		return s * (1.0/5.0);
 	#else
 		s += dosamp(-1.0, -1.0);
 		s += dosamp(-1.0, 0.0);
@@ -173,7 +173,7 @@ float ShadowmapFilter(float3 vtexprojcoord)
 		s += dosamp(1.0, -1.0);
 		s += dosamp(1.0, 0.0);
 		s += dosamp(1.0, 1.0);
-		return s/9.0;
+		return s * (1.0/9.0);
 	#endif
 }
 #endif
@@ -183,23 +183,23 @@ float ShadowmapFilter(float3 vtexprojcoord)
 	{
 		float2 tc = inp.tc;	//TODO: offsetmapping.
 
-		float4 base = tx_base.Sample(ss_base, tc);
+		float4 base = t_diffuse.Sample(s_diffuse, tc);
 #ifdef BUMP
-		float4 bump = tx_bump.Sample(ss_bump, tc);
+		float4 bump = t_normalmap.Sample(s_normalmap, tc);
 		bump.rgb = normalize(bump.rgb - 0.5);
 #else
 		float4 bump = float4(0, 0, 1, 0);
 #endif
-		float4 spec = tx_spec.Sample(ss_spec, tc);
+		float4 spec = t_specular.Sample(s_specular, tc);
 #ifdef CUBE
-		float4 cubemap = tx_cube.Sample(ss_cube, inp.vtexprojcoord);
+		float4 cubemap = t_projectionmap.Sample(s_projectionmap, inp.vtexprojcoord);
 #endif
 #ifdef LOWER
-		float4 lower = tx_lower.Sample(ss_lower, tc);
+		float4 lower = t_lower.Sample(s_lower, tc);
 		base += lower;
 #endif
 #ifdef UPPER
-		float4 upper = tx_upper.Sample(ss_upper, tc);
+		float4 upper = t_upper.Sample(s_upper, tc);
 		base += upper;
 #endif
 

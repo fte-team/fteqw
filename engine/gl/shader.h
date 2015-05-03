@@ -32,7 +32,7 @@ lights are then added over the top based upon the diffusemap, bumpmap and specul
 typedef void (shader_gen_t)(const char *name, shader_t*, const void *args);
 
 #define SHADER_TMU_MAX 16
-#define SHADER_PASS_MAX	8
+#define SHADER_PASS_MAX	16
 #define SHADER_MAX_TC_MODS	8
 #define SHADER_DEFORM_MAX	8
 #define SHADER_MAX_ANIMFRAMES	16
@@ -256,6 +256,8 @@ typedef struct shaderpass_s {
 		T_GEN_LOWEROVERLAY,	//texture's default team colour
 		T_GEN_FULLBRIGHT,	//texture's default fullbright overlay
 		T_GEN_PALETTED,		//texture's original paletted data (8bit)
+		T_GEN_REFLECTCUBE,	//dpreflectcube
+		T_GEN_REFLECTMASK,	//dpreflectcube mask
 
 		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
 
@@ -316,7 +318,7 @@ enum{
 	PERMUTATION_BUMPMAP = 1,
 	PERMUTATION_FULLBRIGHT = 2,
 	PERMUTATION_UPPERLOWER = 4,
-	PERMUTATION_DELUXE = 8,
+	PERMUTATION_REFLECTCUBEMASK = 8,
 	PERMUTATION_SKELETAL = 16,
 	PERMUTATION_FOG	= 32,
 	PERMUTATION_FRAMEBLEND = 64,
@@ -489,7 +491,6 @@ enum
 struct shader_s
 {
 	char name[MAX_QPATH];
-	char mapname[MAX_QPATH];
 	enum {
 		SUF_NONE		= 0,
 		SUF_LIGHTMAP	= 1<<0,	//$lightmap passes are valid. otherwise collapsed to an rgbgen
@@ -499,7 +500,9 @@ struct shader_s
 	int width;	//when used as an image, this is the logical 'width' of the image. FIXME.
 	int height;
 	int numpasses;
-	texnums_t defaulttextures;
+	unsigned int numdefaulttextures;	//0 is effectively 1.
+	float	defaulttextures_fps;
+	texnums_t *defaulttextures;	//must always have at least one entry. multiple will only appear if the diffuse texture was animmapped.
 	struct shader_s *next;
 	int id;
 	//end of shared fields.
@@ -694,7 +697,7 @@ void GLBE_Init(void);
 void GLBE_Shutdown(void);
 void GLBE_SelectMode(backendmode_t mode);
 void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
-void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, unsigned int beflags);
 void GLBE_SubmitBatch(batch_t *batch);
 batch_t *GLBE_GetTempBatch(void);
 void GLBE_GenBrushModelVBO(model_t *mod);
@@ -724,7 +727,7 @@ void D3D9BE_Init(void);
 void D3D9BE_Shutdown(void);
 void D3D9BE_SelectMode(backendmode_t mode);
 void D3D9BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
-void D3D9BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void D3D9BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, unsigned int beflags);
 void D3D9BE_SubmitBatch(batch_t *batch);
 batch_t *D3D9BE_GetTempBatch(void);
 void D3D9BE_GenBrushModelVBO(model_t *mod);
@@ -748,7 +751,7 @@ void D3D11BE_Init(void);
 void D3D11BE_Shutdown(void);
 void D3D11BE_SelectMode(backendmode_t mode);
 void D3D11BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
-void D3D11BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void D3D11BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, unsigned int beflags);
 void D3D11BE_SubmitBatch(batch_t *batch);
 batch_t *D3D11BE_GetTempBatch(void);
 void D3D11BE_GenBrushModelVBO(model_t *mod);

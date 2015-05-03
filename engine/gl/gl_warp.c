@@ -90,7 +90,7 @@ void R_DrawSkyChain (batch_t *batch)
 	if (skyshader->numpasses)
 	{
 #if defined(GLQUAKE) && !defined(ANDROID)
-		if (*r_fastsky.string && qrenderer == QR_OPENGL && TEXVALID(batch->shader->defaulttextures.base) && TEXVALID(batch->shader->defaulttextures.fullbright))
+		if (*r_fastsky.string && qrenderer == QR_OPENGL && TEXVALID(batch->shader->defaulttextures->base) && TEXVALID(batch->shader->defaulttextures->fullbright))
 		{
 			R_CalcSkyChainBounds(batch);
 
@@ -459,7 +459,7 @@ static void GL_SkyForceDepth(batch_t *batch)
 	if (!cls.allow_skyboxes && batch->texture)	//allow a little extra fps.
 	{
 		BE_SelectMode(BEM_DEPTHONLY);
-		BE_DrawMesh_List(batch->shader, batch->meshes-batch->firstmesh, batch->mesh+batch->firstmesh, batch->vbo, &batch->shader->defaulttextures, batch->flags);
+		BE_DrawMesh_List(batch->shader, batch->meshes-batch->firstmesh, batch->mesh+batch->firstmesh, batch->vbo, NULL, batch->flags);
 		BE_SelectMode(BEM_STANDARD);	/*skys only render in standard mode anyway, so this is safe*/
 	}
 }
@@ -494,7 +494,7 @@ static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 	b.mesh = &m;
 	b.ent = &skyent;
 	b.shader = shader;
-	b.skin = &shader->defaulttextures;
+	b.skin = NULL;
 	b.texture = NULL;
 	b.vbo = NULL;
 	BE_SubmitBatch(&b);
@@ -643,7 +643,7 @@ static void GL_DrawSkyGrid (texture_t *tex)
 	int i;
 	float time = cl.gametime+realtime-cl.gametimemark;
 
-	GL_LazyBind(0, GL_TEXTURE_2D, tex->shader->defaulttextures.base);
+	GL_LazyBind(0, GL_TEXTURE_2D, tex->shader->defaulttextures->base);
 
 	speedscale = time*8;
 	speedscale -= (int)speedscale & ~127;
@@ -656,7 +656,7 @@ static void GL_DrawSkyGrid (texture_t *tex)
 	}
 
 	qglEnable (GL_BLEND);
-	GL_LazyBind(0, GL_TEXTURE_2D, tex->shader->defaulttextures.fullbright);
+	GL_LazyBind(0, GL_TEXTURE_2D, tex->shader->defaulttextures->fullbright);
 
 	speedscale = time*16;
 	speedscale -= (int)speedscale & ~127;
@@ -730,7 +730,7 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 		GL_MakeSkyVec (skymaxs[0][i], skymaxs[1][i], i, skyface_vertex[2], skyface_texcoord[2]);
 		GL_MakeSkyVec (skymaxs[0][i], skymins[1][i], i, skyface_vertex[3], skyface_texcoord[3]);
 
-		skyboxface->defaulttextures.base = texnums[skytexorder[i]];
+		skyboxface->defaulttextures->base = texnums[skytexorder[i]];
 		R_DrawSkyMesh(s, &skyfacemesh, skyboxface);
 	}
 }
@@ -744,7 +744,7 @@ R_InitSky
 A sky texture is 256*128, with the right side being a masked overlay
 ==============
 */
-void R_InitSky (struct texnums_s *tn, const char *skyname, qbyte *src, unsigned int width, unsigned int height)
+void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int width, unsigned int height)
 {
 	int			i, j, p;
 	unsigned	trans[128*128];
@@ -755,8 +755,6 @@ void R_InitSky (struct texnums_s *tn, const char *skyname, qbyte *src, unsigned 
 
 	unsigned int stride = width;
 	width /= 2;
-
-	memset(tn, 0, sizeof(*tn));
 
 	if (width < 1 || height < 1 || stride != width*2)
 		return;
@@ -776,28 +774,34 @@ void R_InitSky (struct texnums_s *tn, const char *skyname, qbyte *src, unsigned 
 			b += ((qbyte *)rgba)[2];
 		}
 
-	Q_snprintfz(name, sizeof(name), "%s_solid", skyname);
-	Q_strlwr(name);
-	tn->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, trans, width, height, TF_RGBX32);
+	if (!shader->defaulttextures->base)
+	{
+		Q_snprintfz(name, sizeof(name), "%s_solid", skyname);
+		Q_strlwr(name);
+		shader->defaulttextures->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA, trans, width, height, TF_RGBX32);
+	}
 
-	((qbyte *)&transpix)[0] = r/(width*height);
-	((qbyte *)&transpix)[1] = g/(width*height);
-	((qbyte *)&transpix)[2] = b/(width*height);
-	((qbyte *)&transpix)[3] = 0;
-	alphamask = LittleLong(0x7fffffff);
-	for (i=0 ; i<height ; i++)
-		for (j=0 ; j<width ; j++)
-		{
-			p = src[i*stride + j];
-			if (p == 0)
-				trans[(i*width) + j] = transpix;
-			else
-				trans[(i*width) + j] = d_8to24rgbtable[p] & alphamask;
-		}
+	if (!shader->defaulttextures->fullbright)
+	{
+		((qbyte *)&transpix)[0] = r/(width*height);
+		((qbyte *)&transpix)[1] = g/(width*height);
+		((qbyte *)&transpix)[2] = b/(width*height);
+		((qbyte *)&transpix)[3] = 0;
+		alphamask = LittleLong(0x7fffffff);
+		for (i=0 ; i<height ; i++)
+			for (j=0 ; j<width ; j++)
+			{
+				p = src[i*stride + j];
+				if (p == 0)
+					trans[(i*width) + j] = transpix;
+				else
+					trans[(i*width) + j] = d_8to24rgbtable[p] & alphamask;
+			}
 
-	//FIXME: support _trans
-	Q_snprintfz(name, sizeof(name), "%s_alpha", skyname);
-	Q_strlwr(name);
-	tn->fullbright = R_LoadReplacementTexture(name, NULL, 0, trans, width, height, TF_RGBA32);
+		//FIXME: support _trans
+		Q_snprintfz(name, sizeof(name), "%s_alpha", skyname);
+		Q_strlwr(name);
+		shader->defaulttextures->fullbright = R_LoadReplacementTexture(name, NULL, 0, trans, width, height, TF_RGBA32);
+	}
 }
 #endif

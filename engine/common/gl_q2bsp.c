@@ -56,7 +56,6 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l);
-void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe);
 
 
 static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
@@ -3870,7 +3869,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	char			loadname[32];
 	qbyte			*mod_base = (qbyte *)filein;
 
-	void (*buildmeshes)(model_t *mod, msurface_t *surf, void *cookie) = NULL;
+	void (*buildmeshes)(model_t *mod, msurface_t *surf, builddata_t *cookie) = NULL;
 	qbyte *facedata = NULL;
 	unsigned int facesize = 0;
 	cminfo_t	*prv;
@@ -4188,7 +4187,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
 			noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
 			if (noerrors)
-				Mod_LoadLighting							(mod, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W);
+				Mod_LoadLighting							(mod, mod_base, &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, NULL);
 			noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
 			noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[Q2LUMP_PLANES]);
 			noerrors = noerrors && CModQ2_LoadTexInfo		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO], loadname);

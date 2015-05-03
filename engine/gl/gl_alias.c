@@ -232,7 +232,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 		memset(registeredskins + numregisteredskins, 0, (newn-numregisteredskins)*sizeof(*registeredskins));
 		numregisteredskins = newn;
 	}
-	
+
 	skin = Z_Malloc(sizeof(*skin) - sizeof(skin->mappings) + sizeof(skin->mappings[0])*4);
 	skin->maxmappings = 4;
 	Q_strncpyz(skin->skinname, skinname, sizeof(skin->skinname));
@@ -261,7 +261,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
 				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
-				skin->mappings[skin->nummappings].texnums = skin->mappings[skin->nummappings].shader->defaulttextures;
+				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 				skin->nummappings++;
 			}
 		}
@@ -280,7 +280,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
 				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
-				skin->mappings[skin->nummappings].texnums = skin->mappings[skin->nummappings].shader->defaulttextures;
+				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 
 				for(;;)
 				{
@@ -351,7 +351,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
 				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader);
-				skin->mappings[skin->nummappings].texnums = skin->mappings[skin->nummappings].shader->defaulttextures;
+				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 				skin->nummappings++;
 			}
 		}
@@ -596,8 +596,8 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum), NULL);
 		if (s)
 		{
-			if (!TEXVALID(s->defaulttextures.base))
-				s->defaulttextures.base = R_LoadHiResTexture(va("gfx/skin%d.lmp", e->skinnum), NULL, 0);
+//			if (!TEXVALID(s->defaulttextures.base))
+//				s->defaulttextures.base = R_LoadHiResTexture(va("gfx/skin%d.lmp", e->skinnum), NULL, 0);
 			return s;
 		}
 	}
@@ -702,9 +702,10 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			{
 				if (!plskin)
 				{
+					texnums_t *tex = shader->defaulttextures;
 					//do this for the loading case too, in the hope that it'll avoid generating a per-player skin at all
-					if ((shader->defaulttextures.loweroverlay && (shader->defaulttextures.loweroverlay->status == TEX_LOADING || shader->defaulttextures.loweroverlay->status == TEX_LOADED)) || 
-						(shader->defaulttextures.upperoverlay && (shader->defaulttextures.upperoverlay->status == TEX_LOADING || shader->defaulttextures.upperoverlay->status == TEX_LOADED)))
+					if ((tex->loweroverlay && (tex->loweroverlay->status == TEX_LOADING || tex->loweroverlay->status == TEX_LOADED)) || 
+						(tex->upperoverlay && (tex->upperoverlay->status == TEX_LOADING || tex->upperoverlay->status == TEX_LOADED)))
 						return shader;
 				}
 				if (shader->prog && shader->prog->permu[PERMUTATION_UPPERLOWER].handle.glsl.handle && !h2playertranslations)
@@ -727,7 +728,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			}
 
 			//colourmap isn't present yet.
-			cm = BZ_Malloc(sizeof(*cm));
+			cm = Z_Malloc(sizeof(*cm));
 			*forcedtex = &cm->texnum;
 			Q_strncpyz(cm->name, skinname, sizeof(cm->name));
 			Hash_Add(&skincolourmapped, cm->name, cm, &cm->bucket);
@@ -736,20 +737,13 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			cm->pclass = pc;	//is this needed? surely it'll be baked as part of the modelname?
 			cm->skinnum = e->skinnum;
 			cm->subframe = subframe;
-			cm->texnum.fullbright = r_nulltex;
-			cm->texnum.base = r_nulltex;
-			cm->texnum.bump = r_nulltex;
-			cm->texnum.specular = r_nulltex;
-			cm->texnum.loweroverlay = r_nulltex;
-			cm->texnum.upperoverlay = r_nulltex;
-			cm->texnum.paletted = r_nulltex;
 
 			//q2 has no surfaces in its player models, so don't crash from that
 			//note that q2 should also always have a custom skin set. its not our problem (here) if it doesn't.
 			if (!shader)
 				shader = R_RegisterSkin(skinname, NULL);
 
-			cm->texnum.bump = shader->defaulttextures.bump;	//can't colour bumpmapping
+			cm->texnum.bump = shader->defaulttextures->bump;	//can't colour bumpmapping
 			if (plskin)
 			{
 				/*q1 only reskins the player model, not gibbed heads (which have the same colourmap)*/
@@ -764,6 +758,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					cm->texnum.base = plskin->textures.base;
 					cm->texnum.fullbright = plskin->textures.fullbright;
 					cm->texnum.specular = plskin->textures.specular;
+					cm->texnum.paletted = r_nulltex;
+					cm->texnum.reflectcube = r_nulltex;
+					cm->texnum.reflectmask = r_nulltex;
 					return shader;
 				}
 			}
@@ -959,9 +956,11 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				cm->texnum.base = R_LoadTexture(va("base$%x$%x$%i$%i$%i$%s", tc, bc, cm->skinnum, subframe, pc, cm->name),
 								scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, IF_NOMIPMAP);
 
-				cm->texnum.bump = shader->defaulttextures.bump;
-				cm->texnum.fullbright = shader->defaulttextures.fullbright;
-				cm->texnum.specular = shader->defaulttextures.specular;
+				cm->texnum.bump = shader->defaulttextures->bump;
+				cm->texnum.fullbright = shader->defaulttextures->fullbright;
+				cm->texnum.specular = shader->defaulttextures->specular;
+				cm->texnum.reflectcube = shader->defaulttextures->reflectcube;
+				cm->texnum.reflectmask = shader->defaulttextures->reflectmask;
 				/*if (!h2playertranslations)
 				{
 					qboolean valid = false;
@@ -1044,7 +1043,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			else
 			{
 				/*model has no original skin info and thus cannot be reskinned, copy over the default textures so that the skincache doesn't break things when it gets reused*/
-				cm->texnum = shader->defaulttextures;
+				cm->texnum = *shader->defaulttextures;
 			}
 			return shader;
 		}
@@ -1058,7 +1057,13 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		skins += e->skinnum;
 	else
 	{
-		Con_DPrintf("Skin number out of range (%u > %u - %s)\n", e->skinnum, inf->numskins, model->name);
+		if (developer.ival)
+		{
+			static int lastframe;
+			if (lastframe != r_framecount && lastframe != r_framecount-1)	//patented anti-spam technology!... actually, I wonder if it would actually be eligable for a patent.
+				Con_DPrintf("Skin number out of range (%u >= %u - %s)\n", e->skinnum, inf->numskins, model->name);
+			lastframe = r_framecount;
+		}
 		if (!inf->numskins)
 			return NULL;
 	}
@@ -1504,7 +1509,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 		regshader = GL_ChooseSkin(inf, clmodel, surfnum, e, &skin);
 		if (!regshader)
 			continue;
-		skin = skin?skin:&regshader->defaulttextures;
+		skin = skin?skin:NULL;
 		shader = e->forcedshader?e->forcedshader:regshader;
 		if (shader)
 		{
@@ -2006,7 +2011,7 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 
 
 
-#ifdef Q3CLIENT
+#if defined(Q2CLIENT) || defined(Q3CLIENT)
 //q3 lightning gun / q3 railgun / q2 beams
 static void R_Beam_GenerateTrisoup(entity_t *e, int bemode)
 {
@@ -2020,23 +2025,18 @@ static void R_Beam_GenerateTrisoup(entity_t *e, int bemode)
 	float scale, length;
 	vec3_t dir, v, cr;
 
-	if (e->forcedshader)
-	{
-		shader = e->forcedshader;
-		if (!shader)
-			shader = R_RegisterShader("q2beam", SUF_NONE,
+	shader = e->forcedshader;
+	if (!shader)
+		shader = R_RegisterShader("q2beam", SUF_NONE,
+			"{\n"
 				"{\n"
-					"{\n"
-						"map $whiteimage\n"
-						"rgbgen vertex\n"
-						"alphagen vertex\n"
-						"blendfunc blend\n"
-					"}\n"
+					"map $whiteimage\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+					"blendfunc blend\n"
 				"}\n"
-				);
-	}
-	else
-		return;
+			"}\n"
+			);
 
 	batchflags = 0;
 //	if (e->flags & RF_NOSHADOW)
@@ -2114,9 +2114,12 @@ static void R_Beam_GenerateTrisoup(entity_t *e, int bemode)
 	t->numvert += 4;
 	cl_numstrisvert += 4;
 
-	scale = e->scale*10;
+	scale = e->scale*5;
 	if (!scale)
-		scale = 10;
+		scale = 5;
+
+	if (shader->flags & SHADER_CULL_FRONT)
+		scale *= -1;
 
 	VectorSubtract(e->origin, e->oldorigin, dir);
 	length = Length(dir);
@@ -2452,7 +2455,7 @@ static void BE_GenPolyBatches(batch_t **batches)
 		b->mesh = NULL;
 		b->firstmesh = 0;
 		b->meshes = 1;
-		b->skin = &shader->defaulttextures;
+		b->skin = NULL;
 		b->texture = NULL;
 		b->shader = shader;
 		for (j = 0; j < MAXRLIGHTMAPS; j++)
@@ -2592,14 +2595,14 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			R_Sprite_GenerateTrisoup(ent, bemode);
 			break;
 
-#ifdef Q3CLIENT
 		case RT_BEAM:
 		case RT_RAIL_RINGS:
 		case RT_LIGHTNING:
 		case RT_RAIL_CORE:
+#if defined(Q2CLIENT) || defined(Q3CLIENT)
 			R_Beam_GenerateTrisoup(ent, bemode);
-			continue;
 #endif
+			break;
 
 		case RT_POLY:
 			/*not implemented*/

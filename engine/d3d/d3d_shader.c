@@ -264,6 +264,8 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cv
 		"s_paletted",
 		"s_shadowmap",
 		"s_projectionmap",
+		"s_reflectcube",
+		"s_reflectmask",
 		"s_lightmap",
 		"s_deluxmap"
 #if MAXRLIGHTMAPS > 1
@@ -275,6 +277,8 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cv
 		,"s_deluxmap3"
 #endif
 	};
+#define ALTLIGHTMAPSAMP 13
+#define ALTDELUXMAPSAMP 16
 
 	prog->numparams = 0;
 
@@ -355,10 +359,10 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cv
 	}
 
 	//multiple lightmaps is kinda hacky. if any are set, all must be. 
-	if (prog->defaulttextures & ((1u<<11) | (1u<<12) | (1u<<13)))
-		prog->defaulttextures |=((1u<<11) | (1u<<12) | (1u<<13));
-	if (prog->defaulttextures & ((1u<<14) | (1u<<15) | (1u<<16)))
-		prog->defaulttextures |=((1u<<14) | (1u<<15) | (1u<<16));
+	if (prog->defaulttextures & ((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2))))
+		prog->defaulttextures |=((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2)));
+	if (prog->defaulttextures & ((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2))))
+		prog->defaulttextures |=((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2)));
 
 	if (prog->defaulttextures)
 	{

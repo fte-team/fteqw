@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern int			total_loading_size, current_loading_size, loading_stage;
 char *T_GetString(int num);
 
+void SVQ2_Ents_Shutdown(void);
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+(i)*ge->edict_size)
 
 server_static_t	svs;				// persistant server info
@@ -597,6 +598,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 #endif
 #ifdef Q2SERVER
 		SVQ2_ShutdownGameProgs();
+		SVQ2_Ents_Shutdown();
 #endif
 #ifdef HLSERVER
 		SVHL_ShutdownGame();

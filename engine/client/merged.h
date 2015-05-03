@@ -355,6 +355,7 @@ typedef struct
 } srect_t;
 
 typedef struct texnums_s {
+	char	mapname[MAX_QPATH];	//the 'official' name of the diffusemap. used to generate filenames for other textures.
 	texid_t base;			//regular diffuse texture. may have alpha if surface is transparent
 	texid_t bump;			//normalmap. height values packed in alpha.
 	texid_t specular;		//specular lighting values.
@@ -362,6 +363,8 @@ typedef struct texnums_s {
 	texid_t loweroverlay;	//diffuse texture for the lower body(trouser colour). no alpha channel. added to base.rgb
 	texid_t paletted;		//8bit paletted data, just because.
 	texid_t fullbright;
+	texid_t reflectcube;
+	texid_t reflectmask;
 } texnums_t;
 
 //not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
@@ -414,7 +417,7 @@ typedef struct rendererinfo_s {
 	/*Draws an entire mesh list from a VBO. vbo can be null, in which case the chain may be drawn without batching.
 	  Rules for using a list: Every mesh must be part of the same VBO, shader, lightmap, and must have the same pointers set*/
 	void	(*BE_DrawMesh_List)(shader_t *shader, int nummeshes, struct mesh_s **mesh, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags);
-	void	(*BE_DrawMesh_Single)(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags);
+	void	(*BE_DrawMesh_Single)(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, unsigned int be_flags);
 	void	(*BE_SubmitBatch)(struct batch_s *batch);
 	struct batch_s *(*BE_GetTempBatch)(void);
 	//Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required

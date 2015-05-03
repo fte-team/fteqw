@@ -1281,7 +1281,7 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		cl_numstrisvert = csqc_poly_startvert;
 		cl_numstrisidx = csqc_poly_startidx;
 
-		BE_DrawMesh_Single(csqc_poly_shader, &mesh, NULL, &csqc_poly_shader->defaulttextures, 0);
+		BE_DrawMesh_Single(csqc_poly_shader, &mesh, NULL, 0);
 	}
 	else
 	{

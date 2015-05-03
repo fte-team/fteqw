@@ -28,6 +28,7 @@ qboolean D3D9_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 	IDirect3DTexture9 *dt;
 	qboolean swap = false;
 	unsigned int pixelsize = 4;
+	unsigned int blocksize = 0;
 
 	switch(mips->encoding)
 	{
@@ -67,15 +68,17 @@ qboolean D3D9_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 	//too lazy to support these for now
 	case PTI_S3RGB1:
 	case PTI_S3RGBA1:	//d3d doesn't distinguish between these
-//		fmt = D3DFMT_DXT1;
-//		break;
+		fmt = D3DFMT_DXT1;
+		blocksize = 8;
+		break;
 	case PTI_S3RGBA3:
-//		fmt = D3DFMT_DXT3;
-//		break;
+		fmt = D3DFMT_DXT3;
+		blocksize = 16;
+		break;
 	case PTI_S3RGBA5:
-//		fmt = D3DFMT_DXT5;
-//		break;
-		return false;
+		fmt = D3DFMT_DXT5;
+		blocksize = 16;
+		break;
 
 	default:	//no idea
 		return false;
@@ -96,7 +99,13 @@ qboolean D3D9_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 
 		IDirect3DTexture9_LockRect(dt, i, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_DISCARD);
 		//can't do it in one go. pitch might contain padding or be upside down.
-		if (swap)
+		if (blocksize)
+		{
+			if (lock.Pitch == ((mips->mip[i].width+3)/4)*blocksize)
+			//for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*pixelsize)
+			memcpy(lock.pBits, mips->mip[i].data, mips->mip[i].datasize);
+		}
+		else if (swap)
 		{
 			for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*4)
 			{

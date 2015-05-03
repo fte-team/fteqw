@@ -236,16 +236,6 @@ texid_t GenerateNormalisationCubeMap(void)
 texid_t normalisationCubeMap;
 #endif
 
-/*
-===============
-R_Init
-===============
-*/
-void GLR_ReInit (void)
-{
-	R_NetgraphInit();
-}
-
 #if 0
 typedef struct
 {
@@ -473,8 +463,6 @@ void GLR_Init (void)
 	Cmd_AddCommand ("timerefresh", GLR_TimeRefresh_f);
 
 //	Cmd_AddCommand ("makewad", R_MakeTexWad_f);
-
-	GLR_ReInit();
 }
 
 /*

@@ -164,7 +164,7 @@ void		SW_DestroyTexture		(texid_t tex);
 
 void SWBE_SelectMode(backendmode_t mode);
 void SWBE_DrawMesh_List(shader_t *shader, int nummeshes, struct mesh_s **mesh, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags);
-void SWBE_DrawMesh_Single(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags);
+void SWBE_DrawMesh_Single(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, unsigned int be_flags);
 void SWBE_SubmitBatch(struct batch_s *batch);
 struct batch_s *SWBE_GetTempBatch(void);
 void SWBE_DrawWorld(qboolean drawworld, qbyte *vis);

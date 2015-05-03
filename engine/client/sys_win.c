@@ -4011,7 +4011,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				Q_snprintfz(sys_language, sizeof(sys_language), "%s", lang); 
 		}
 
-		TL_InitLanguages();
+		TL_InitLanguages(parms.binarydir);
 		//tprints are now allowed
 
 		if (*cwd && cwd[strlen(cwd)-1] != '\\' && cwd[strlen(cwd)-1] != '/')

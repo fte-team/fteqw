@@ -2126,13 +2126,13 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		{
 			Key_Dest_Remove(kdm_console);
 			Key_Dest_Remove(kdm_cwindows);
-			if (!cls.state && !Key_Dest_Has(~kdm_game))
+			if (!cls.state && !Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
 				M_ToggleMenu_f ();
 		}
 		else if (Key_Dest_Has(kdm_cwindows))
 		{
 			Key_Dest_Remove(kdm_cwindows);
-			if (!cls.state && !Key_Dest_Has(~kdm_game))
+			if (!cls.state && !Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
 				M_ToggleMenu_f ();
 		}
 #ifdef TEXTEDITOR

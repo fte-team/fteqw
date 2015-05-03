@@ -116,7 +116,7 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 			"}\n"
 			"sort additive\n"
 		"}\n");
-	if (!p->defaulttextures.base)
+	if (!p->defaulttextures->base)
 	{
 		void *file;
 		qofs_t fsize = FS_LoadFile("gfx/menu/bigfont.lmp", &file);
@@ -125,11 +125,11 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 			unsigned int w = ((unsigned int*)file)[0];
 			unsigned int h = ((unsigned int*)file)[1];
 			if (8+w*h==fsize)
-				p->defaulttextures.base = R_LoadReplacementTexture("gfx/menu/bigfont.lmp", NULL, IF_NOPCX|IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP, (qbyte*)file+8, w, h, TF_H2_TRANS8_0);
+				p->defaulttextures->base = R_LoadReplacementTexture("gfx/menu/bigfont.lmp", NULL, IF_NOPCX|IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP, (qbyte*)file+8, w, h, TF_H2_TRANS8_0);
 			FS_FreeFile(file);	//got image data
 		}
-		if (!p->defaulttextures.base)
-			p->defaulttextures.base = R_LoadHiResTexture("gfx/menu/bigfont.lmp", NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
+		if (!p->defaulttextures->base)
+			p->defaulttextures->base = R_LoadHiResTexture("gfx/menu/bigfont.lmp", NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
 	}
 
 	while(*text)

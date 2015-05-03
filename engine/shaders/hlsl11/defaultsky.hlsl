@@ -29,8 +29,10 @@ struct v2f
 #endif
 
 #ifdef FRAGMENT_SHADER
-	Texture2D shaderTexture[2];
-	SamplerState SampleType;
+	Texture2D t_diffuse 		: register(t0);
+	Texture2D t_fullbright	: register(t1);
+	SamplerState s_diffuse 	: register(s0);
+	SamplerState s_fullbright	: register(s1);
 
 	float4 main (v2f inp) : SV_TARGET
 	{
@@ -39,9 +41,9 @@ struct v2f
 		dir.z *= 3.0;
 		dir.xy /= 0.5*length(dir);
 		tccoord = (dir.xy + e_time*0.03125);
-		float4 solid = shaderTexture[0].Sample(SampleType, tccoord);
+		float4 solid = t_diffuse.Sample(s_diffuse, tccoord);
 		tccoord = (dir.xy + e_time*0.0625);
-		float4 clouds = shaderTexture[1].Sample(SampleType, tccoord);
-		return (solid*(1.0-clouds.a)) + (clouds.a*clouds);
+		float4 clouds = t_fullbright.Sample(s_fullbright, tccoord);
+		return lerp(solid, clouds, clouds.a);
 	}
 #endif

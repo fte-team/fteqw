@@ -37,6 +37,7 @@ cvar_t mod_loadentfiles						= CVAR("sv_loadentfiles", "1");
 cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .vis patches for quake maps, allowing transparent water to work properly.");
 cvar_t mod_warnmodels						= CVARD("mod_warnmodels", "1", "Warn if any models failed to load. Set to 0 if your mod is likely to lack optional models (like its in development).");	//set to 0 for hexen2 and its otherwise-spammy-as-heck demo.
 cvar_t mod_litsprites						= CVARD("mod_litsprites", "0", "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
+cvar_t temp_lit2support						= CVARD("temp_mod_lit2support", "0", "Set to 1 to enable lit2 support. This cvar will be removed once the format is finalised.");
 #ifdef SERVERONLY
 cvar_t gl_overbright, gl_specular, gl_load24bit, r_replacemodels, gl_miptexLevel, r_fb_bmodels;	//all of these can/should default to 0
 cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
@@ -239,7 +240,7 @@ static void Mod_BlockTextureColour_f (void)
 					continue;	//happens on e1m2
 
 				if (!stricmp(tx->name, match))
-					tx->shader->defaulttextures.base = Image_GetTexture(texname, NULL, IF_NOMIPMAP|IF_NEAREST, &rgba, NULL, 1, 1, TF_BGRA32);
+					tx->shader->defaulttextures->base = Image_GetTexture(texname, NULL, IF_NOMIPMAP|IF_NEAREST, &rgba, NULL, 1, 1, TF_BGRA32);
 			}
 		}
 	}
@@ -555,6 +556,7 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_warnmodels, "Graphical Nicaties");
 		Cvar_Register(&mod_litsprites, "Graphical Nicaties");
 		Cvar_Register(&mod_loadentfiles, NULL);
+		Cvar_Register(&temp_lit2support, NULL);
 		Cmd_AddCommand("version_modelformats", Mod_PrintFormats_f);
 	}
 
@@ -1283,7 +1285,7 @@ void Mod_FinishTexture(texture_t *tx, const char *loadname)
 	}
 
 	if (!strncmp(tx->name, "sky", 3))
-		R_InitSky (&tx->shader->defaulttextures, shadername, tx->mips[0], tx->width, tx->height);
+		R_InitSky (tx->shader, shadername, tx->mips[0], tx->width, tx->height);
 	else
 	{
 		unsigned int maps = 0;
@@ -1291,7 +1293,7 @@ void Mod_FinishTexture(texture_t *tx, const char *loadname)
 		maps |= SHADER_HASDIFFUSE;
 		if (r_fb_bmodels.ival)
 			maps |= SHADER_HASFULLBRIGHT;
-		if (r_loadbumpmapping || (r_waterstyle.ival > 1 && *tx->name == '*'))
+		if (r_loadbumpmapping || (r_waterstyle.ival > 1 && *tx->name == '*') || tx->shader->defaulttextures->reflectcube)
 			maps |= SHADER_HASNORMALMAP;
 		if (gl_specular.ival)
 			maps |= SHADER_HASGLOSS;
@@ -1578,12 +1580,27 @@ void BuildLightMapGammaTable (float g, float c)
 	}
 }
 
+typedef struct
+{
+	unsigned int magic; //"QLIT"
+	unsigned int version; //2
+	unsigned int numsurfs;
+	unsigned int lmsize;	//samples, not bytes (same size as vanilla lighting lump in a q1 bsp).
+
+	//uint		lmoffsets[numsurfs];	//completely overrides the bsp lightmap info
+	//ushort	lmextents[numsurfs*2];	//only to avoid precision issues. width+height pairs, actual lightmap sizes on disk (so +1).
+	//byte		lmstyles[numsurfs*4];	//completely overrides the bsp lightmap info
+	//byte		lmshifts[numsurfs];		//default is 4 (1<<4=16), for 1/16th lightmap-to-texel ratio
+	//byte		litdata[lmsize*3];		//rgb data
+	//byte		luxdata[lmsize*3];		//stn light dirs (unsigned bytes
+} qlit2_t;
+
 /*
 =================
 Mod_LoadLighting
 =================
 */
-void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe)
+void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides)
 {
 	qboolean luxtmp = true;
 	qboolean littmp = true;
@@ -1628,6 +1645,145 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		return;
 
 #ifndef SERVERONLY
+	if (!litdata && r_loadlits.value)
+	{
+		char *litname;
+		char litnamemaps[MAX_QPATH];
+		char litnamelits[MAX_QPATH];
+		int depthmaps;
+		int depthlits;
+		size_t litsize;
+		qboolean inhibitvalidation = false;
+		
+		{							
+			Q_strncpyz(litnamemaps, loadmodel->name, sizeof(litnamelits));
+			COM_StripExtension(loadmodel->name, litnamemaps, sizeof(litnamemaps));
+			COM_DefaultExtension(litnamemaps, ".lit", sizeof(litnamemaps));
+			depthmaps = COM_FDepthFile(litnamemaps, false); 
+		}
+		{
+			Q_strncpyz(litnamelits, "lits/", sizeof(litnamelits));
+			COM_StripExtension(COM_SkipPath(loadmodel->name), litnamelits+5, sizeof(litnamelits) - 5);
+			Q_strncatz(litnamelits, ".lit", sizeof(litnamelits));
+			depthlits = COM_FDepthFile(litnamelits, false);
+		}
+
+		if (depthmaps <= depthlits)
+			litname = litnamemaps;	//maps has priority over lits
+		else
+			litname = litnamelits;
+
+		litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize);
+		if (litdata)
+		{	//validate it, if we loaded one.
+			if (litdata[0] != 'Q' || litdata[1] != 'L' || litdata[2] != 'I' || litdata[3] != 'T')
+			{
+				litdata = NULL;
+				Con_Printf("lit \"%s\" isn't a lit\n", litname);
+			}
+			else if (LittleLong(*(int *)&litdata[4]) == 1 && l->filelen && samples*3 != (litsize-8))
+			{
+				litdata = NULL;
+				Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
+			}
+			else if (LittleLong(*(int *)&litdata[4]) == 1)
+			{
+				//header+version
+				litdata += 8;
+			}
+			else if (LittleLong(*(int *)&litdata[4]) == 2 && overrides)
+			{
+				qlit2_t *ql2 = (qlit2_t*)litdata;
+				unsigned int *offsets = (unsigned int*)(ql2+1);
+				unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
+				unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
+				unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
+				if (!temp_lit2support.ival)
+				{
+					litdata = NULL;
+					Con_Printf("lit2 support is disabled, pending format finalisation.\n", litname);
+				}
+				else if (loadmodel->numsurfaces != ql2->numsurfs)
+				{
+					litdata = NULL;
+					Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
+				}
+				else
+				{
+					inhibitvalidation = true;
+
+					//surface code needs to know the overrides.
+					overrides->offsets = offsets;
+					overrides->extents = extents;
+					overrides->styles = styles;
+					overrides->shifts = shifts;
+
+					//we're now using this amount of data.
+					samples = ql2->lmsize;
+
+					litdata = shifts+ql2->numsurfs;
+					if (r_deluxemapping.ival)
+						luxdata = litdata+samples*3;
+				}
+			}
+			else
+			{
+				Con_Printf("lit \"%s\" isn't version 1 or 2.\n", litname);
+				litdata = NULL;
+			}
+		}
+
+		littmp = false;
+		if (!litdata)
+		{
+			int size;
+			/*FIXME: bspx support for extents+lmscale, may require style+offset lumps too, not sure what to do here*/
+			litdata = Q1BSPX_FindLump("RGBLIGHTING", &size);
+			if (size != samples*3)
+				litdata = NULL;
+			littmp = true;
+		}
+		else if (!inhibitvalidation)
+		{
+			if (lumdata)
+			{
+				float prop;
+				int i;
+				qbyte *lum;
+				qbyte *lit;
+
+				//now some cheat protection.
+				lum = lumdata;
+				lit = litdata;
+
+				for (i = 0; i < samples; i++)	//force it to the same intensity. (or less, depending on how you see it...)
+				{
+#define m(a, b, c) (a>(b>c?b:c)?a:(b>c?b:c))
+					prop = (float)m(lit[0],  lit[1], lit[2]);
+
+					if (!prop)
+					{
+						lit[0] = *lum;
+						lit[1] = *lum;
+						lit[2] = *lum;
+					}
+					else
+					{
+						prop = *lum / prop;
+						lit[0] *= prop;
+						lit[1] *= prop;
+						lit[2] *= prop;
+					}
+
+					lum++;
+					lit+=3;
+				}
+				//end anti-cheat
+			}
+		}
+	}
+
+
 	if (!luxdata && r_loadlits.ival && r_deluxemapping.ival)
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];
@@ -1689,104 +1845,6 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 				luxdata=NULL;
 			}
 		}	
-	}
-
-	if (!litdata && r_loadlits.value)
-	{
-		char *litname;
-		char litnamemaps[MAX_QPATH];
-		char litnamelits[MAX_QPATH];
-		int depthmaps;
-		int depthlits;
-		size_t litsize;
-		
-		{							
-			Q_strncpyz(litnamemaps, loadmodel->name, sizeof(litnamelits));
-			COM_StripExtension(loadmodel->name, litnamemaps, sizeof(litnamemaps));
-			COM_DefaultExtension(litnamemaps, ".lit", sizeof(litnamemaps));
-			depthmaps = COM_FDepthFile(litnamemaps, false); 
-		}
-		{
-			Q_strncpyz(litnamelits, "lits/", sizeof(litnamelits));
-			COM_StripExtension(COM_SkipPath(loadmodel->name), litnamelits+5, sizeof(litnamelits) - 5);
-			Q_strncatz(litnamelits, ".lit", sizeof(litnamelits));
-			depthlits = COM_FDepthFile(litnamelits, false);
-		}
-
-		if (depthmaps <= depthlits)
-			litname = litnamemaps;	//maps has priority over lits
-		else
-			litname = litnamelits;
-
-		litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize);
-		if (litdata)
-		{	//validate it, if we loaded one.
-			if (litdata[0] != 'Q' || litdata[1] != 'L' || litdata[2] != 'I' || litdata[3] != 'T')
-			{
-				litdata = NULL;
-				Con_Printf("lit \"%s\" isn't a lit\n", litname);
-			}
-			else if (LittleLong(*(int *)&litdata[4]) == 1 && l->filelen && samples*3 != (litsize-8))
-			{
-				litdata = NULL;
-				Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
-			}
-			else if (LittleLong(*(int *)&litdata[4]) != 1)
-			{
-				Con_Printf("lit \"%s\" isn't version 1.\n", litname);
-				litdata = NULL;
-			}
-		}
-
-		littmp = false;
-		if (!litdata)
-		{
-			int size;
-			litdata = Q1BSPX_FindLump("RGBLIGHTING", &size);
-			if (size != samples*3)
-				litdata = NULL;
-			littmp = true;
-		}
-		else
-		{
-			if (lumdata)
-			{
-				float prop;
-				int i;
-				qbyte *lum;
-				qbyte *lit;
-
-				litdata += 8;
-
-				//now some cheat protection.
-				lum = lumdata;
-				lit = litdata;
-
-				for (i = 0; i < samples; i++)	//force it to the same intensity. (or less, depending on how you see it...)
-				{
-#define m(a, b, c) (a>(b>c?b:c)?a:(b>c?b:c))
-					prop = (float)m(lit[0],  lit[1], lit[2]);
-
-					if (!prop)
-					{
-						lit[0] = *lum;
-						lit[1] = *lum;
-						lit[2] = *lum;
-					}
-					else
-					{
-						prop = *lum / prop;
-						lit[0] *= prop;
-						lit[1] *= prop;
-						lit[2] *= prop;
-					}
-
-					lum++;
-					lit+=3;
-				}
-				//end anti-cheat
-			}
-		}
 	}
 #endif
 
@@ -1865,6 +1923,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	}
 
 	/*apply lightmap gamma to the entire lightmap*/
+	loadmodel->lightdatasize = samples;
 	out = loadmodel->lightdata;
 	if (interleaveddeluxe)
 	{
@@ -2302,17 +2361,21 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s);
 Mod_LoadFaces
 =================
 */
-qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm)
+qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *lightlump, qboolean lm)
 {
 	dsface_t		*ins;
 	dlface_t		*inl;
 	msurface_t 	*out;
 	int			count, surfnum;
 	int			i, planenum, side;
-	int tn, lofs;
+	int tn;
+	unsigned int lofs, lend;
 
 	unsigned short lmshift, lmscale;
 	char buf[64];
+	lightmapoverrides_t overrides;
+
+	memset(&overrides, 0, sizeof(overrides));
 
 	lmscale = atoi(Mod_ParseWorldspawnKey(loadmodel->entities, "lightmap_scale", buf, sizeof(buf)));
 	if (!lmscale)
@@ -2350,6 +2413,9 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 //	*meshlist = ZG_Malloc(&loadmodel->memgroup, count*sizeof(**meshlist));
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
+
+	Mod_LoadLighting (loadmodel, mod_base, lightlump, false, &overrides);
+
 	for ( surfnum=0 ; surfnum<count ; surfnum++, out++)
 	{
 		if (lm)
@@ -2371,7 +2437,7 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 			out->firstedge = LittleLong(ins->firstedge);
 			out->numedges = LittleShort(ins->numedges);
 			tn = LittleShort (ins->texinfo);
-			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
+			for (i=0 ; i<MAXRLIGHTMAPS ; i++)
 				out->styles[i] = ins->styles[i];
 			lofs = LittleLong(ins->lightofs);
 			ins++;
@@ -2392,13 +2458,22 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 		}
 		out->texinfo = loadmodel->texinfo + tn;
 
-		out->lmshift = lmshift;
+		if (overrides.shifts)
+			out->lmshift = overrides.shifts[surfnum];
+		else
+			out->lmshift = lmshift;
+		if (overrides.offsets)
+			lofs = overrides.offsets[surfnum];
+		if (overrides.styles)
+			for (i=0 ; i<MAXRLIGHTMAPS ; i++)
+				out->styles[i] = overrides.styles[surfnum*4+i];
 
 		CalcSurfaceExtents (loadmodel, out);
-		if (lofs == -1)
-			out->samples = NULL;
-		else if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && loadmodel->fromgame != fg_halflife)
-			out->samples = loadmodel->lightdata + lofs*3;
+		if (lofs != (unsigned int)-1 && (loadmodel->engineflags & MDLF_RGBLIGHTING) && loadmodel->fromgame != fg_halflife)
+			lofs *= 3;
+		lend = lofs+(out->extents[0]+1)*(out->extents[1]+1);
+		if (lofs > loadmodel->lightdatasize || lend < lofs)
+			out->samples = NULL;	//should includes -1
 		else
 			out->samples = loadmodel->lightdata + lofs;
 
@@ -2447,7 +2522,7 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 }
 
 #ifndef SERVERONLY
-void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
+void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *cookie)
 {
 	unsigned int vertidx;
 	int i, lindex;
@@ -2456,6 +2531,7 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 	float *vec;
 	float s, t, d;
 	int sty;
+	int w,h;
 
 	//output the mesh's indicies
 	for (i=0 ; i<mesh->numvertexes-2 ; i++)
@@ -2485,8 +2561,18 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
 		t = DotProduct (vec, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3];
 
 		VectorCopy (vec, mesh->xyz_array[i]);
-		mesh->st_array[i][0] = s/surf->texinfo->texture->width;
-		mesh->st_array[i][1] = t/surf->texinfo->texture->height;
+
+/*		if (R_GetShaderSizes(surf->texinfo->texture->shader, &w, &h, false) > 0)
+		{
+			mesh->st_array[i][0] = s/w;
+			mesh->st_array[i][1] = t/h;
+		}
+		else
+*/
+		{
+			mesh->st_array[i][0] = s/surf->texinfo->texture->width;
+			mesh->st_array[i][1] = t/surf->texinfo->texture->height;
+		}
 
 		if (gl_lightmap_average.ival)
 		{
@@ -4433,9 +4519,6 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	{
 		TRACE(("Loading Textures\n"));
 		noerrors = noerrors && Mod_LoadTextures (mod, mod_base, &header->lumps[LUMP_TEXTURES]);
-		TRACE(("Loading Lighting\n"));
-		if (noerrors)
-			Mod_LoadLighting (mod, mod_base, &header->lumps[LUMP_LIGHTING], false);
 	}
 	TRACE(("Loading Submodels\n"));
 	noerrors = noerrors && Mod_LoadSubmodels (mod, mod_base, &header->lumps[LUMP_MODELS]);
@@ -4453,7 +4536,7 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 		TRACE(("Loading Texinfo\n"));
 		noerrors = noerrors && Mod_LoadTexinfo (mod, mod_base, &header->lumps[LUMP_TEXINFO]);
 		TRACE(("Loading Faces\n"));
-		noerrors = noerrors && Mod_LoadFaces (mod, mod_base, &header->lumps[LUMP_FACES], longm);
+		noerrors = noerrors && Mod_LoadFaces (mod, mod_base, &header->lumps[LUMP_FACES], &header->lumps[LUMP_LIGHTING], longm);
 	}
 	if (!isDedicated)
 	{
@@ -4678,7 +4761,7 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 	else
 		shadertext = SPRITE_SHADER_MAIN SPRITE_SHADER_UNLIT SPRITE_SHADER_FOOTER;
 	frameinfo->shader = R_RegisterShader(name, SUF_NONE, shadertext);
-	frameinfo->shader->defaulttextures.base = frameinfo->image;
+	frameinfo->shader->defaulttextures->base = frameinfo->image;
 	frameinfo->shader->width = frameinfo->right-frameinfo->left;
 	frameinfo->shader->height = frameinfo->up-frameinfo->down;
 #endif

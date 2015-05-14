@@ -714,7 +714,6 @@ qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
 	return true;
 }
 extern qboolean	WinNT;
-qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen);
 qboolean MyRegGetStringValueMultiSz(HKEY base, char *keyname, char *valuename, void *data, int datalen);
 void R2D_Font_AddFontLink(char *buffer, int buffersize, char *fontname)
 {
@@ -786,15 +785,14 @@ void R2D_Font_Changed(void)
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
 	if (!strcmp(gl_font.string, "?"))
 	{
-		BOOL (APIENTRY *pChooseFontA)(LPCHOOSEFONTA) = NULL;
+		BOOL (APIENTRY *pChooseFontW)(LPCHOOSEFONTW) = NULL;
 		dllfunction_t funcs[] =
 		{
-			{(void*)&pChooseFontA, "ChooseFontA"},
+			{(void*)&pChooseFontW, "ChooseFontW"},
 			{NULL}
 		};
-		qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen);
-		LOGFONT lf = {0};
-		CHOOSEFONTA cf = {sizeof(cf)};
+		LOGFONTW lf = {0};
+		CHOOSEFONTW cf = {sizeof(cf)};
 		extern HWND	mainwindow;
 		font_default = Font_LoadFont(8, "");
 		if (tsize != 8)
@@ -807,28 +805,30 @@ void R2D_Font_Changed(void)
 		cf.Flags = CF_FORCEFONTEXIST | CF_TTONLY;
 		cf.lpLogFont = &lf;
 
-		Sys_LoadLibrary("Comdlg32.dll", funcs);
+		Sys_LoadLibrary("comdlg32.dll", funcs);
 					
-		if (pChooseFontA && pChooseFontA(&cf))
+		if (pChooseFontW && pChooseFontW(&cf))
 		{
 			char fname[MAX_OSPATH*8];
+			char lfFaceName[MAX_OSPATH];
 			char *keyname;
+			narrowen(lfFaceName, sizeof(lfFaceName), lf.lfFaceName);
 			*fname = 0;
 			//FIXME: should enumerate and split & and ignore sizes and () crap.
 			if (!*fname)
 			{
-				keyname = va("%s%s%s (TrueType)", lf.lfFaceName, lf.lfWeight>=FW_BOLD?" Bold":"", lf.lfItalic?" Italic":"");
+				keyname = va("%s%s%s (TrueType)", lfFaceName, lf.lfWeight>=FW_BOLD?" Bold":"", lf.lfItalic?" Italic":"");
 				if (!MyRegGetStringValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, fname, sizeof(fname)))
 					*fname = 0;
 			}
 			if (!*fname)
 			{
-				keyname = va("%s (OpenType)", lf.lfFaceName);
+				keyname = va("%s (OpenType)", lfFaceName);
 				if (!MyRegGetStringValue(HKEY_LOCAL_MACHINE, WinNT?"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts":"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Fonts", keyname, fname, sizeof(fname)))
 					*fname = 0;
 			}
 
-			R2D_Font_AddFontLink(fname, sizeof(fname), lf.lfFaceName);
+			R2D_Font_AddFontLink(fname, sizeof(fname), lfFaceName);
 			Cvar_Set(&gl_font, fname);
 		}
 		return;

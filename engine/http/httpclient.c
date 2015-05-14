@@ -542,7 +542,15 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		}
 
 		if (dl->notifystarted)
-			dl->notifystarted(dl, *mimetype?mimetype:NULL);
+		{
+			if (!dl->notifystarted(dl, *mimetype?mimetype:NULL))
+			{
+				dl->notifycomplete = NULL;
+				dl->status = DL_FAILED;
+				return false;
+			}
+		}
+
 
 		if (!dl->file)
 		{
@@ -853,7 +861,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 		Q_snprintfz(con->buffer, con->bufferlen,
 			"GET %s HTTP/1.1\r\n"
 			"Host: %s\r\n"
-			"Connection: close\r\n"
+			"Connection: close\r\n"			//theoretically, this is not needed. but as our code will basically do it anyway, it might as well be here FIXME: implement connection reuse.
 #if !defined(NPFTE) && defined(AVAIL_ZLIB)
 			"Accept-Encoding: gzip\r\n"
 #endif

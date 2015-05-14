@@ -1,24 +1,117 @@
 #include "quakedef.h"
 #include "winquake.h"
 
+#ifdef DYNAMIC_SDL
+#define SDL_MAJOR_VERSION 2
+//if we're not an sdl build, we probably want to link to sdl libraries dynamically or something.
+#include <stdint.h>
+#define SDL_AudioDeviceID uint32_t
+#define SDL_INIT_AUDIO          0x00000010
+#define SDL_INIT_NOPARACHUTE    0x00100000
+#define SDL_AUDIO_ALLOW_FREQUENCY_CHANGE    0x00000001
+#define SDL_AUDIO_ALLOW_FORMAT_CHANGE       0x00000002
+#define SDL_AUDIO_ALLOW_CHANNELS_CHANGE     0x00000004
+#define AUDIO_S16LSB    0x8010
+#define AUDIO_S16MSB    0x9010
+#if __BYTE_ORDER == __BIG_ENDIAN
+#define AUDIO_S16SYS    AUDIO_S16MSB
+#else
+#define AUDIO_S16SYS    AUDIO_S16LSB
+#endif
+
+typedef uint16_t SDL_AudioFormat;
+typedef void VARGS (*SDL_AudioCallback)(void *userdata, uint8_t *stream, int len);
+
+typedef struct SDL_AudioSpec
+{
+	int freq;
+	SDL_AudioFormat format;
+	uint8_t channels;
+	uint8_t silence;
+	uint16_t samples;
+	uint16_t padding;
+	uint32_t size;
+	SDL_AudioCallback callback;
+	void *userdata;
+} SDL_AudioSpec;
+
+static int (*SDL_Init)							(uint32_t flags);
+static int (*SDL_InitSubSystem)					(uint32_t flags);
+static SDL_AudioDeviceID (*SDL_OpenAudioDevice)	(const char *dev, int iscapture, const SDL_AudioSpec *desired, SDL_AudioSpec *obtained, int allowed_changes);
+static void (*SDL_PauseAudioDevice)				(SDL_AudioDeviceID fd, int pausestate);
+static void (*SDL_LockAudioDevice)				(SDL_AudioDeviceID fd);
+static void (*SDL_UnlockAudioDevice)			(SDL_AudioDeviceID fd);
+static int (*SDL_CloseAudioDevice)				(SDL_AudioDeviceID fd);
+static int (*SDL_GetNumAudioDevices)			(int iscapture);
+static const char *(*SDL_GetAudioDeviceName)	(int index, int iscapture);
+static const char *(*SDL_GetError)				(void);
+#else
 #include <SDL.h>
+#endif
 
 #define SELFPAINT
 
 //SDL calls a callback each time it needs to repaint the 'hardware' buffers
-//This results in extra latency.
-//SDL runs does this multithreaded.
+//This results in extra latency due it needing to buffer that much data.
 //So we tell it a fairly pathetically sized buffer and try and get it to copy often
 //hopefully this lowers sound latency, and has no suddenly starting sounds and stuff.
 //It still has greater latency than direct access, of course.
+//On the plus side, SDL calls the callback from another thread. this means we can set up some tiny buffer size, and if we're mixing inside the callback then you can actually get lower latency than waiting for an entire frame (yay rtlights)
 
-//FIXME: One thing I saw in quakeforge was that quakeforge basically leaves the audio locked except for a really short period of time.
-//An interesting idea, which ensures the driver can only paint in a small time-frame. this would possibly allow lower latency painting.
+static qboolean SSDL_InitAudio(void)
+{
+	static qboolean inited = false;
+#ifdef DYNAMIC_SDL
+	static dllfunction_t funcs[] =
+	{
+		{(void*)&SDL_Init, "SDL_Init"},
+		{(void*)&SDL_InitSubSystem, "SDL_InitSubSystem"},
+		{(void*)&SDL_OpenAudioDevice, "SDL_OpenAudioDevice"},
+		{(void*)&SDL_PauseAudioDevice, "SDL_PauseAudioDevice"},
+		{(void*)&SDL_LockAudioDevice, "SDL_LockAudioDevice"},
+		{(void*)&SDL_UnlockAudioDevice, "SDL_UnlockAudioDevice"},
+		{(void*)&SDL_CloseAudioDevice, "SDL_CloseAudioDevice"},
+		{(void*)&SDL_GetNumAudioDevices, "SDL_GetNumAudioDevices"},
+		{(void*)&SDL_GetAudioDeviceName, "SDL_GetAudioDeviceName"},
+		{(void*)&SDL_GetError, "SDL_GetError"},
+		{NULL, NULL}
+	};
+	static dllhandle_t *libsdl;
+	if (!libsdl)
+	{
+		libsdl = Sys_LoadLibrary("libSDL2.so", funcs);
+		if (libsdl)
+			SDL_Init(SDL_INIT_NOPARACHUTE);
+		else
+		{
+			Con_Printf("Unable to load libSDL2 library\n");
+			return false;
+		}
+	}
+#endif
+
+	if (!inited)
+		if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
+		{
+			Con_Printf("Couldn't initialize SDL audio subsystem (%s)\n", SDL_GetError());
+			return false;
+		}
+	inited = true;
+
+	return true;
+}
+
 
 static void SSDL_Shutdown(soundcardinfo_t *sc)
 {
 	Con_DPrintf("Shutdown SDL sound\n");
+
+#if SDL_MAJOR_VERSION >= 2
+	SDL_PauseAudioDevice(sc->audio_fd, 1);
+	SDL_CloseAudioDevice(sc->audio_fd);
+#else
 	SDL_CloseAudio();
+#endif
 #ifndef SELFPAINT
 	if (sc->sn.buffer)
 		free(sc->sn.buffer);
@@ -67,14 +160,22 @@ static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
 
 static void *SSDL_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 {
+#if SDL_MAJOR_VERSION >= 2
+	SDL_LockAudioDevice(sc->audio_fd);
+#else
 	SDL_LockAudio();
+#endif
 
 	return sc->sn.buffer;
 }
 
 static void SSDL_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
 {
+#if SDL_MAJOR_VERSION >= 2
+	SDL_UnlockAudioDevice(sc->audio_fd);
+#else
 	SDL_UnlockAudio();
+#endif
 }
 
 static void SSDL_SetUnderWater(soundcardinfo_t *sc, qboolean uw)
@@ -87,18 +188,11 @@ static void SSDL_Submit(soundcardinfo_t *sc, int start, int end)
 	//SDL will call SSDL_Paint to paint when it's time, and the sound buffer is always there...
 }
 
-static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
+static qboolean SDL_InitCard(soundcardinfo_t *sc, const char *devicename)
 {
 	SDL_AudioSpec desired, obtained;
 
-	if (cardnum)
-	{	//our init code actually calls this function multiple times, in the case that the user has multiple sound cards
-		return 2;	//erm. SDL won't allow multiple sound cards anyway.
-	}
-
-	Con_Printf("Initing SDL audio.\n");
-
-	if(SDL_InitSubSystem(SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE))
+	if(!SSDL_InitAudio())
 	{
 		Con_Printf("Couldn't initialize SDL audio subsystem\n");
 		return false;
@@ -114,19 +208,26 @@ static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 	desired.userdata = sc;
 	memcpy(&obtained, &desired, sizeof(obtained));
 
-#ifdef FTE_TARGET_WEB
-	if ( SDL_OpenAudio(&desired, NULL) < 0 )
+#if SDL_MAJOR_VERSION >= 2
+	sc->audio_fd = SDL_OpenAudioDevice(devicename, false, &desired, &obtained, (sndcardinfo?0:SDL_AUDIO_ALLOW_FREQUENCY_CHANGE) | SDL_AUDIO_ALLOW_CHANNELS_CHANGE);
+	if (!sc->audio_fd)
 	{
-		Con_Printf("SDL: SNDDMA_Init: couldn't open sound device (%s).\n", SDL_GetError());
+		Con_Printf("SDL_OpenAudioDevice(%s) failed: couldn't open sound device (%s).\n", devicename?devicename:"default", SDL_GetError());
 		return false;
 	}
-	obtained = desired;
+	if (devicename)
+		Con_Printf("Initing SDL audio device '%s'.\n", devicename);
+	else
+		Con_Printf("Initing default SDL audio device.\n");
 #else
+	if (sndcardinfo)
+		return false;	//SDL1 only supports opening one audio device at a time. the existing one might not be sdl, but I don't care.
 	if ( SDL_OpenAudio(&desired, &obtained) < 0 )
 	{
-		Con_Printf("SDL: SNDDMA_Init: couldn't open sound device (%s).\n", SDL_GetError());
+		Con_Printf("SDL_OpenAudio failed: couldn't open sound device (%s).\n", SDL_GetError());
 		return false;
 	}
+	Con_Printf("Initing default SDL audio device.\n");
 #endif
 	sc->sn.numchannels = obtained.channels;
 	sc->sn.speed = obtained.freq;
@@ -155,10 +256,41 @@ static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 	sc->Shutdown		= SSDL_Shutdown;
 	sc->GetDMAPos		= SSDL_GetDMAPos;
 
+#if SDL_MAJOR_VERSION >= 2
+	SDL_PauseAudioDevice(sc->audio_fd, 0);
+#else
 	SDL_PauseAudio(0);
+#endif
 
 	return true;
 }
 
-sounddriver pSDL_InitCard = &SDL_InitCard;
+#define SDRVNAME "SDL"
+static qboolean QDECL SDL_Enumerate(void (QDECL *cb) (const char *drivername, const char *devicecode, const char *readablename))
+{
+#if SDL_MAJOR_VERSION >= 2
+	int max, i;
+	if(SSDL_InitAudio())
+	{
+		max = SDL_GetNumAudioDevices(false);
+		for (i = 0; i < max; i++)
+		{
+			const char *devname = SDL_GetAudioDeviceName(i, false);
+			if (devname)
+				cb(SDRVNAME, devname, va("SDL (%s)", devname));
+		}
+	}
+	return true;
+#else
+	return false;
+#endif
+}
+
+sounddriver_t SDL_Output =
+{
+	SDRVNAME,
+	SDL_InitCard,
+	SDL_Enumerate
+};
+
 

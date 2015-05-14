@@ -38,30 +38,43 @@ static void R_LineGraph (int x, int h)
 {
 	int		i;
 	int		s;
-	int		color;
+	int		color, color2 = 0xff;
 
 	s = NET_GRAPHHEIGHT;
 
-	if (h == 10000)
-		color = 0x6f;	// yellow
+	if (h == 10000 || h<0)
+	{
+		color = 0;	// yellow
+		color2 = 1;
+		h=abs(h);
+	}
 	else if (h == 9999)
-		color = 0x4f;	// red
+	{
+		color = 2;	// red
+		color2 = 3;
+	}
 	else if (h == 9998)
-		color = 0xd0;	// blue
+	{
+		color = 4;	// blue
+		color2 = 5;
+	}
 	else
-		color = 0xfe;	// white
+	{
+		color = 6;	// white
+		color2 = 7;
+	}
 
 	if (h>s)
 		h = s;
 	
 	for (i=0 ; i<h ; i++)
 		if (i & 1)
-			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = 0xff;
+			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (qbyte)color2;
 		else
 			ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (qbyte)color;
 
 	for ( ; i<s ; i++)
-		ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (qbyte)0xff;
+		ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (qbyte)8;
 }
 
 /*
@@ -94,6 +107,19 @@ static void Draw_CharToNetGraph (int x, int y, int num)
 R_NetGraph
 ==============
 */
+//instead of assuming the quake palette, we should use a predictable lookup table. it makes the docs much easier.
+static unsigned ngraph_palette[] =
+{
+	0xff00ffff,	//yellow
+	0xff00efef,	//yellow2
+	0xff0000ff,	//red
+	0xff0000ef,	//red2
+	0xffff0000,	//blue
+	0xffef0000,	//blue2
+	0xffffffff,	//white
+	0xffefefef,	//white2
+	0x00000000	//invisible.
+};
 void R_NetGraph (void)
 {
 	int		a, x, i, y;
@@ -116,18 +142,23 @@ void R_NetGraph (void)
 	}
 	else
 	{
+		int last = 10000;
 		lost = CL_CalcNet(r_netgraph.value);
 		for (a=0 ; a<NET_TIMINGS ; a++)
 		{
 			i = (cl.movesequence-a) & NET_TIMINGSMASK;
-			R_LineGraph (NET_TIMINGS-1-a, packet_latency[i]);
+			if (packet_latency[i] != 10000)
+				last = packet_latency[i];
+			else if (last >= 0)
+				last = -last;
+			R_LineGraph (NET_TIMINGS-1-a, last);
 		}
 	}
 
 	// now load the netgraph texture into gl and draw it
 	for (y = 0; y < NET_GRAPHHEIGHT; y++)
 		for (x = 0; x < NET_TIMINGS; x++)
-			ngraph_pixels[y][x] = d_8to24rgbtable[ngraph_texels[y][x]];
+			ngraph_pixels[y][x] = ngraph_palette[ngraph_texels[y][x]];
 
 	x =	((vid.width - 320)>>1);
 	x=-x;

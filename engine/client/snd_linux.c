@@ -82,7 +82,7 @@ static void OSS_Alsa_Submit(soundcardinfo_t *sc, int start, int end)
 	{
 		if (result >= 0)
 			sc->snd_sent += result;
-		printf("full?\n");
+//		printf("full?\n");
 		return;
 	}
 	sc->snd_sent += chunk;
@@ -119,7 +119,7 @@ static void OSS_Unlock(soundcardinfo_t *sc, void *buffer)
 {
 }
 
-static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
+static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 {	//FIXME: implement snd_multipledevices somehow.
 	int rc;
 	int fmt;
@@ -127,8 +127,6 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	int i;
 	struct audio_buf_info info;
 	int caps;
-	char *snddev = NULL;
-	cvar_t *devname;
 	qboolean alsadetected = false;
 
 #ifdef __linux__
@@ -137,11 +135,13 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		alsadetected = true;
 #endif
 
-	devname = Cvar_Get(va("snd_devicename%i", cardnum+1), cardnum?"":"/dev/dsp", 0, "Sound controls");
-	snddev = devname->string;
-
-	if (!*snddev)
-		return 2;
+	if (!snddev || !*snddev)
+		snddev = "/dev/dsp";
+	else if (strncmp(snddev, "/dev/dsp", 8))
+	{
+		Con_Printf("Refusing to use non-dsp device\n");
+		return false;
+	}
 
 	sc->inactive_sound = true;	//linux sound devices always play sound, even when we're not the active app...
 
@@ -165,7 +165,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		perror(snddev);
 		Con_Printf(CON_ERROR "OSS: Could not open %s\n", snddev);
 		OSS_Shutdown(sc);
-		return 0;
+		return false;
 	}
 	Q_strncpyz(sc->name, snddev, sizeof(sc->name));
 
@@ -176,7 +176,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		perror(snddev);
 		Con_Printf(CON_ERROR "OSS: Could not reset %s\n", snddev);
 		OSS_Shutdown(sc);
-		return 0;
+		return false;
 	}
 
 //check its general capabilities, we need trigger+mmap
@@ -185,7 +185,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		perror(snddev);
 		Con_Printf(CON_ERROR "OSS: Sound driver too old\n");
 		OSS_Shutdown(sc);
-		return 0;
+		return false;
 	}
 
 //choose channels
@@ -197,7 +197,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		perror(snddev);
 		Con_Printf(CON_ERROR "OSS: Could not set %s to channels=%d\n", snddev, sc->sn.numchannels);
 		OSS_Shutdown(sc);
-		return 0;
+		return false;
 	}
 	sc->sn.numchannels = tmp;
 #else
@@ -210,7 +210,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		perror(snddev);
 		Con_Printf(CON_ERROR "OSS: Could not set %s to stereo=%d\n", snddev, sc->sn.numchannels);
 		OSS_Shutdown(sc);
-		return 0;
+		return false;
 	}
 	if (tmp)
 		sc->sn.numchannels = 2;
@@ -227,7 +227,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	{	//their card doesn't support 8bit which we're trying to use.
 		Con_Printf(CON_ERROR "OSS: No needed sample formats supported\n");
 		OSS_Shutdown(sc);
-		return 0;
+		return false;
 	}
 	if (sc->sn.samplebits == 16)
 	{
@@ -238,7 +238,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 			perror(snddev);
 			Con_Printf(CON_ERROR "OSS: Could not support 16-bit data.  Try 8-bit.\n");
 			OSS_Shutdown(sc);
-			return 0;
+			return false;
 		}
 	}
 	else if (sc->sn.samplebits == 8)
@@ -250,7 +250,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 			perror(snddev);
 			Con_Printf(CON_ERROR "OSS: Could not support 8-bit data.\n");
 			OSS_Shutdown(sc);
-			return 0;
+			return false;
 		}
 	}
 	else
@@ -258,7 +258,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		perror(snddev);
 		Con_Printf(CON_ERROR "OSS: %d-bit sound not supported.\n", sc->sn.samplebits);
 		OSS_Shutdown(sc);
-		return 0;
+		return false;
 	}
 
 //choose speed
@@ -276,7 +276,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 			perror(snddev);
 			Con_Printf(CON_ERROR "OSS: Failed to obtain a suitable rate\n");
 			OSS_Shutdown(sc);
-			return 0;
+			return false;
 		}
 	}
 	sc->sn.speed = tmp;
@@ -287,7 +287,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		perror("GETOSPACE");
 		Con_Printf(CON_ERROR "OSS: Um, can't do GETOSPACE?\n");
 		OSS_Shutdown(sc);
-		return 0;
+		return false;
 	}
 	sc->sn.samples = info.fragstotal * info.fragsize;
 	sc->sn.samples /= (sc->sn.samplebits/8);
@@ -297,7 +297,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	sc->sn.buffer = MAP_FAILED;
 	if (alsadetected)
 	{
-		Con_Printf("Alsa detected. Refusing to mmap.\n");
+		Con_Printf("Refusing to mmap oss device in case alsa's oss emulation crashes.\n");
 	}
 	else if ((caps & DSP_CAP_TRIGGER) && (caps & DSP_CAP_MMAP))
 	{
@@ -335,7 +335,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 			perror(snddev);
 			Con_Printf(CON_ERROR "OSS: Could not toggle.\n");
 			OSS_Shutdown(sc);
-			return 0;
+			return false;
 		}
 		tmp = PCM_ENABLE_OUTPUT;
 		rc = ioctl(sc->audio_fd, SNDCTL_DSP_SETTRIGGER, &tmp);
@@ -344,7 +344,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 			perror(snddev);
 			Con_Printf(CON_ERROR "OSS: Could not toggle.\n");
 			OSS_Shutdown(sc);
-			return 0;
+			return false;
 		}
 		sc->Submit		= OSS_MMap_Submit;
 		sc->GetDMAPos	= OSS_MMap_GetDMAPos;
@@ -357,10 +357,103 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 	sc->SetWaterDistortion = OSS_SetUnderWater;
 	sc->Shutdown	= OSS_Shutdown;
 
-	return 1;
+	return true;
 }
 
-int (*pOSS_InitCard) (soundcardinfo_t *sc, int cardnum) = &OSS_InitCard;
+#define SDRVNAME "OSS"
+typedef struct oss_sysinfo {
+	char product[32];   /* E.g. SunOS Audio */
+	char version[32];   /* E.g. 4.0a */
+	int versionnum;     /* See OSS_GETVERSION */
+	char options[128];  /* NOT SUPPORTED */
+	int numaudios;      /* # of audio/dsp devices */
+	int openedaudio[8]; /* Reserved, always 0 */
+	int numsynths;        /* NOT SUPPORTED, always 0 */
+	int nummidis;         /* NOT SUPPORTED, always 0 */
+	int numtimers;        /* NOT SUPPORTED, always 0 */
+	int nummixers;        /* # of mixer devices */
+	int openedmidi[8];    /* Mask of midi devices are busy */
+	int numcards;         /* Number of sound cards in the system */
+	int numaudioengines;  /* Number of audio engines in the system */
+	char license[16];     /* E.g. "GPL" or "CDDL" */
+	char revision_info[256];  /* Reserved */
+	int filler[172];          /* Reserved */
+} oss_sysinfo;
+#define SNDCTL_SYSINFO          _IOR ('X', 1, oss_sysinfo)
+
+typedef struct oss_audioinfo {
+	int dev;  /* Device to query */
+	char name[64];  /* Human readable name */
+	int busy;  /* reserved */
+	int pid;  /* reserved */
+	int caps;  /* PCM_CAP_INPUT, PCM_CAP_OUTPUT */
+	int iformats;  /* Supported input formats */
+	int oformats;  /* Supported output formats */
+	int magic;  /* reserved */
+	char cmd[64];  /* reserved */
+	int card_number;
+	int port_number;  /* reserved */
+	int mixer_dev;
+	int legacy_device; /* Obsolete field. Replaced by devnode */
+	int enabled;  /* reserved */
+	int flags;  /* reserved */
+	int min_rate;  /* Minimum sample rate */
+	int max_rate;  /* Maximum sample rate */
+	int min_channels;  /* Minimum number of channels */
+	int max_channels;  /* Maximum number of channels */
+	int binding;  /* reserved */
+	int rate_source;  /* reserved */
+	char handle[32];  /* reserved */
+	unsigned int nrates;  /* reserved */
+	unsigned int rates[20];  /* reserved */
+	char song_name[64];  /* reserved */
+	char label[16];  /* reserved */
+	int latency;  /* reserved */
+	char devnode[32];  /* Device special file name (absolute path) */
+	int next_play_engine;  /* reserved */
+	int next_rec_engine;  /* reserved */
+	int filler[184];  /* reserved */
+} oss_audioinfo;
+#define SNDCTL_AUDIOINFO      _IOWR('X', 7, oss_audioinfo)
+
+static qboolean QDECL OSS_Enumerate(void (QDECL *cb) (const char *drivername, const char *devicecode, const char *readablename))
+{
+	int i;
+	int fd = open("/dev/mixer", O_RDWR, 0);
+	oss_sysinfo si;
+	if (fd == -1)
+		return true;	//oss not supported. don't list any devices.
+
+	if (ioctl(fd, SNDCTL_SYSINFO, &si) != -1)
+	{
+		if ((si.versionnum>>16) >= 4)
+		{	//only trust all the fields if its recent enough
+			for(i = 0; i < si.numaudios; i++)
+			{
+				oss_audioinfo ai;
+				ai.dev = i;
+				if (ioctl(fd, SNDCTL_AUDIOINFO, &ai) != -1)
+					cb(SDRVNAME, ai.devnode, ai.name);
+			}
+			close(fd);
+			return true;
+		}
+		else
+			printf("Not enumerating OSS %u.%u.%u devices.\n", (si.versionnum>>16)&0xffff, (si.versionnum>>8)&0xff, si.versionnum&0xff);
+	}
+	else
+		printf("OSS driver is too old to support device enumeration.\n");
+	close(fd);
+	return false;	//enumeration failed.
+}
+
+sounddriver_t OSS_Output =
+{
+	SDRVNAME,
+	OSS_InitCard,
+	OSS_Enumerate
+};
+
 
 
 

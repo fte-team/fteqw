@@ -142,7 +142,7 @@ struct dl_download
 
 	/*not used internally by the backend, but used by HTTP_CL_Get/thread wrapper*/
 	struct dl_download *next;
-	void (*notifystarted) (struct dl_download *dl, char *mimetype);	//mime can be null for some protocols, read dl->totalsize for size.
+	qboolean (*notifystarted) (struct dl_download *dl, char *mimetype);	//mime can be null for some protocols, read dl->totalsize for size. false if the mime just isn't acceptable.
 	void (*notifycomplete) (struct dl_download *dl);
 };
 

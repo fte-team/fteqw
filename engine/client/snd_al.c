@@ -809,7 +809,13 @@ static qboolean OpenAL_InitLibrary(void)
 	if (!openallib_tried)
 	{
 		openallib_tried = true;
+#ifdef _WIN32
 		openallib = Sys_LoadLibrary("OpenAL32", openalfuncs);
+#else
+		openallib = Sys_LoadLibrary("libopenal.so.1", openalfuncs);
+		if (!openallib)
+			openallib = Sys_LoadLibrary("libopenal", openalfuncs);
+#endif
 	}
 	return !!openallib;
 #endif

@@ -1184,17 +1184,24 @@ static void WPhys_Physics_Noclip (world_t *w, wedict_t *ent)
 	VectorMA (ent->v->angles, host_frametime, ent->v->avelocity, ent->v->angles);
 	VectorMA (ent->v->origin, host_frametime, ent->v->velocity, end);
 
-	trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NOMONSTERS, (wedict_t*)ent);
-	impact = trace.ent;
-	if (impact && impact->v->solid == SOLID_PORTAL)
+#ifndef CLIENTONLY
+	//allow spectators to no-clip through portals without bogging down sock's mods.
+	if (ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots && w == &sv.world)
 	{
-		vec3_t move;
-		vec3_t from;
-		VectorCopy(trace.endpos, from);	//just in case
-		VectorSubtract(end, trace.endpos, move);
-		WPhys_PortalTransform(w, ent, impact, from, move);
-		VectorAdd(from, move, end);
+		trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NOMONSTERS, (wedict_t*)ent);
+		impact = trace.ent;
+		if (impact && impact->v->solid == SOLID_PORTAL)
+		{
+			vec3_t move;
+			vec3_t from;
+			VectorCopy(trace.endpos, from);	//just in case
+			VectorSubtract(end, trace.endpos, move);
+			WPhys_PortalTransform(w, ent, impact, from, move);
+			VectorAdd(from, move, end);
+		}
 	}
+#endif
+
 	VectorCopy(end, ent->v->origin);
 
 	World_LinkEdict (w, (wedict_t*)ent, false);

@@ -179,7 +179,7 @@ int fs_hash_files;
 
 
 
-static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
+const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
 void FS_RegisterDefaultFileSystems(void);
 static void	COM_CreatePath (char *path);
 ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, qboolean fixedbasedir);
@@ -1232,7 +1232,7 @@ void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags)
 }
 
 //outbuf might not be written into
-static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen)
+const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen)
 {
 	const char *s;
 	char *o;
@@ -1264,6 +1264,11 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 				{
 					Con_Printf("Error: absolute path in filename %s\n", pattern);
 					return NULL;
+				}
+				if (!*s)
+				{
+					*o++ = '\0';
+					break;
 				}
 				Con_Printf("Error: empty directory name (%s)\n", pattern);
 				s++;
@@ -1958,6 +1963,105 @@ searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, const char *pakname)
 	return NULL;
 }
 
+static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath, const char *logicalpaths, searchpath_t *search, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc))
+{
+	int				i;
+	searchpathfuncs_t	*handle;
+	unsigned int	keptflags;
+	vfsfile_t *vfs;
+	flocation_t loc;
+	
+	int ptlen, palen;
+	ptlen = strlen(purepath);
+	for (i = 0; i < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); i++)
+	{
+		char ext[8];
+		if (fs_manifest->package[i].path && !strcmp(COM_FileExtension(fs_manifest->package[i].path, ext, sizeof(ext)), extension))
+		{
+			palen = strlen(fs_manifest->package[i].path);
+			if (palen > ptlen && (fs_manifest->package[i].path[ptlen] == '/' || fs_manifest->package[i].path[ptlen] == '\\' )&& !strncmp(purepath, fs_manifest->package[i].path, ptlen))
+			{
+				searchpath_t *oldp;
+				char pname[MAX_OSPATH];
+				char lname[MAX_OSPATH];
+				char lname2[MAX_OSPATH];
+				if (fs_manifest->package[i].crcknown)
+					snprintf(lname, sizeof(lname), "%#x", fs_manifest->package[i].crc);
+				else
+					snprintf(lname, sizeof(lname), "");
+				if (!FS_GenCachedPakName(fs_manifest->package[i].path, lname, pname, sizeof(pname)))
+					continue;
+				snprintf (lname, sizeof(lname), "%s%s", logicalpaths, pname+ptlen+1);
+				snprintf (lname2, sizeof(lname), "%s%s", logicalpaths, fs_manifest->package[i].path+ptlen+1);
+
+				for (oldp = com_searchpaths; oldp; oldp = oldp->next)
+				{
+					if (!Q_strcasecmp(oldp->purepath, fs_manifest->package[i].path))
+						break;
+					if (!Q_strcasecmp(oldp->logicalpath, lname))
+						break;
+					if (!Q_strcasecmp(oldp->logicalpath, lname2))
+						break;
+				}
+				if (!oldp)
+				{
+					handle = FS_GetOldPath(oldpaths, lname2, &keptflags);
+					if (!handle)
+						handle = FS_GetOldPath(oldpaths, lname, &keptflags);
+					if (!handle)
+					{
+						vfs = NULL;
+						if (search)
+						{
+							if (search->handle->FindFile(search->handle, &loc, pname+ptlen+1, NULL))
+								vfs = search->handle->OpenVFS(search->handle, &loc, "r");
+						}
+						else
+						{
+							vfs = FS_OpenVFS(fs_manifest->package[i].path, "rb", FS_ROOT);
+							if (vfs)
+								snprintf (lname, sizeof(lname), "%s", lname2);
+							else
+								vfs = FS_OpenVFS(pname, "rb", FS_ROOT);
+						}
+
+						if (vfs)
+							handle = OpenNew (vfs, lname);
+					}
+					if (handle && fs_manifest->package[i].crcknown)
+					{
+						int truecrc = handle->GeneratePureCRC(handle, 0, false);
+						if (truecrc != fs_manifest->package[i].crc)
+						{
+							Con_Printf(CON_ERROR "File \"%s\" has hash %#x (required: %#x). Please delete it or move it away\n", lname, truecrc, fs_manifest->package[i].crc);
+							handle->ClosePath(handle);
+							handle = NULL;
+						}
+					}
+					if (handle)
+						FS_AddPathHandle(oldpaths, fs_manifest->package[i].path, lname, handle, SPF_COPYPROTECTED|SPF_UNTRUSTED|keptflags, (unsigned int)-1);
+				}
+			}
+		}
+	}
+}
+
+static void FS_AddDownloadManifestPackages(searchpath_t **oldpaths, unsigned int loadstuff)//, const char *purepath, searchpath_t *search, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc))
+{
+	int i;
+	char logicalroot[MAX_OSPATH];
+	FS_NativePath("downloads/", FS_ROOT, logicalroot, sizeof(logicalroot));
+	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
+	{
+		if (!searchpathformats[i].extension || !searchpathformats[i].OpenNew)// || !searchpathformats[i].loadscan)
+			continue;
+		if (loadstuff & (1<<i))
+		{
+			FS_AddManifestPackages(oldpaths, "downloads", logicalroot, NULL, searchpathformats[i].extension, searchpathformats[i].OpenNew);
+		}
+	}
+}
+
 static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const char *logicalpath, searchpath_t *search, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc))
 {
 	//search is the parent
@@ -2006,66 +2110,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 	wp.oldpaths = oldpaths;
 	search->handle->EnumerateFiles(search->handle, pakfile, FS_AddWildDataFiles, &wp);
 
-
-	//and load any named in the manifest (this happens when they're crced or whatever)
-	{
-		int ptlen, palen;
-		ptlen = strlen(purepath);
-		for (i = 0; i < sizeof(fs_manifest->package) / sizeof(fs_manifest->package[0]); i++)
-		{
-			char ext[8];
-			if (fs_manifest->package[i].path && !strcmp(COM_FileExtension(fs_manifest->package[i].path, ext, sizeof(ext)), extension))
-			{
-				palen = strlen(fs_manifest->package[i].path);
-				if (palen > ptlen && (fs_manifest->package[i].path[ptlen] == '/' || fs_manifest->package[i].path[ptlen] == '\\' )&& !strncmp(purepath, fs_manifest->package[i].path, ptlen))
-				{
-					searchpath_t *oldp;
-					char pname[MAX_OSPATH];
-					char lname[MAX_OSPATH];
-					if (fs_manifest->package[i].crcknown)
-						snprintf(lname, sizeof(lname), "%#x", fs_manifest->package[i].crc);
-					else
-						snprintf(lname, sizeof(lname), "");
-					if (!FS_GenCachedPakName(fs_manifest->package[i].path, lname, pname, sizeof(pname)))
-						continue;
-					snprintf (lname, sizeof(lname), "%s%s", logicalpaths, pname+ptlen+1);
-
-					for (oldp = com_searchpaths; oldp; oldp = oldp->next)
-					{
-						if (!Q_strcasecmp(oldp->purepath, fs_manifest->package[i].path))
-							break;
-						if (!Q_strcasecmp(oldp->logicalpath, lname))
-							break;
-					}
-					if (!oldp)
-					{
-						handle = FS_GetOldPath(oldpaths, lname, &keptflags);
-						if (!handle)
-						{
-							if (search->handle->FindFile(search->handle, &loc, pname+ptlen+1, NULL))
-							{
-								vfs = search->handle->OpenVFS(search->handle, &loc, "r");
-								if (vfs)
-									handle = OpenNew (vfs, lname);
-							}
-						}
-						if (handle && fs_manifest->package[i].crcknown)
-						{
-							int truecrc = handle->GeneratePureCRC(handle, 0, false);
-							if (truecrc != fs_manifest->package[i].crc)
-							{
-								Con_Printf(CON_ERROR "File \"%s\" has hash %#x (required: %#x). Please delete it or move it away\n", lname, truecrc, fs_manifest->package[i].crc);
-								handle->ClosePath(handle);
-								handle = NULL;
-							}
-						}
-						if (handle)
-							FS_AddPathHandle(oldpaths, fs_manifest->package[i].path, lname, handle, SPF_COPYPROTECTED|SPF_UNTRUSTED|keptflags, (unsigned int)-1);
-					}
-				}
-			}
-		}
-	}
+	FS_AddManifestPackages(oldpaths, purepath, logicalpaths, search, extension, OpenNew);
 }
 
 static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *logicalpath, searchpathfuncs_t *handle, unsigned int flags, unsigned int loadstuff)
@@ -2308,6 +2353,43 @@ void FS_ExtractDir(char *in, char *out, int outlen)
 	*out = 0;
 }
 
+qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize)
+{
+	const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
+	char tmp[MAX_QPATH];
+	char *o = tmp, *e = o + sizeof(tmp)-1;
+	const char *i = url;
+	strcpy(o, "downloads/");
+	o += strlen(o);
+	while(*i)
+	{
+		if (*i == ':' || *i == '?' || *i == '*' || *i == '&')
+		{
+			if (i[0] == ':' && i[1] == '/' && i[2] == '/')
+			{
+				i+=2;
+				continue;
+			}
+			*o++ = '_';
+			i++;
+			continue;
+		}
+		if (*i == '\\')
+		{
+			*o++ = '/';
+			i++;
+			continue;
+		}
+		*o++ = *i++;
+	}
+	*o = 0;
+
+	if (!FS_GetCleanPath(tmp, path, pathsize))
+		return false;
+
+	return true;
+}
+
 /*
 ================
 COM_Gamedir
@@ -2315,7 +2397,7 @@ COM_Gamedir
 Sets the gamedir and path to a different directory.
 ================
 */
-void COM_Gamedir (const char *dir)
+void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 {
 	ftemanifest_t *man;
 	if (!fs_manifest)
@@ -2323,7 +2405,7 @@ void COM_Gamedir (const char *dir)
 
 	//don't allow leading dots, hidden files are evil.
 	//don't allow complex paths. those are evil too.
-	if (!*dir || *dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
+	if (*dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
 		|| strstr(dir, "\\") || strstr(dir, ":") )
 	{
 		Con_Printf ("Gamedir should be a single filename, not a path\n");
@@ -2333,7 +2415,7 @@ void COM_Gamedir (const char *dir)
 	man = NULL;
 	if (!man)
 	{
-		vfsfile_t *f = VFSOS_Open(va("%s%s.fmf", com_gamepath, dir), "rb");
+		vfsfile_t *f = *dir?VFSOS_Open(va("%s%s.fmf", com_gamepath, dir), "rb"):NULL;
 		if (f)
 		{
 			size_t len = VFS_GETLEN(f);
@@ -2363,7 +2445,7 @@ void COM_Gamedir (const char *dir)
 		FS_Manifest_PurgeGamedirs(man);
 		if (*dir)
 		{
-			char token[MAX_QPATH];
+			char token[MAX_QPATH], quot[MAX_QPATH];
 			char *dup = Z_StrDup(dir);	//FIXME: is this really needed?
 			dir = dup;
 			while ((dir = COM_ParseStringSet(dir, token, sizeof(token))))
@@ -2373,10 +2455,18 @@ void COM_Gamedir (const char *dir)
 				if (!*token)
 					continue;
 
-				Cmd_TokenizeString(va("gamedir \"%s\"", token), false, false);
+				Cmd_TokenizeString(va("gamedir %s", COM_QuotedString(token, quot, sizeof(quot), false)), false, false);
 				FS_Manifest_ParseTokens(man);
 			}
 			Z_Free(dup);
+		}
+		while(packagespaths && packagespaths->path)
+		{
+			char quot[MAX_QPATH];
+			char quot2[MAX_OSPATH];
+			Cmd_TokenizeString(va("package %s - %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->url, quot2, sizeof(quot2), false)), false, false);
+			FS_Manifest_ParseTokens(man);
+			packagespaths++;
 		}
 	}
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
@@ -2482,7 +2572,15 @@ qboolean FS_GenCachedPakName(char *pname, char *crc, char *local, int llen)
 		return false;
 	}
 
-	fn = COM_SkipPath(pname);
+	for (fn = pname; *fn; fn++)
+	{
+		if (*fn == '\\' || *fn == '/')
+		{
+			fn++;
+			break;
+		}
+	}
+//	fn = COM_SkipPath(pname);
 	if (fn == pname)
 	{	//only allow it if it has some game path first.
 		*local = 0;
@@ -2504,11 +2602,13 @@ qboolean FS_GenCachedPakName(char *pname, char *crc, char *local, int llen)
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags)
 {
 	int i;
-	char *ext = COM_FileExtension(pname);
+	char *ext = "zip";//(pname);
 	searchpathfuncs_t *handle;
 	searchpath_t *oldlist = NULL;
 
 	searchpath_t *sp;
+
+	com_fschanged = true;
 
 	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
 	{
@@ -2536,7 +2636,7 @@ qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, in
 
 			if (sp)
 			{
-				FS_FlushFSHashReally();
+				com_fschanged = true;
 				return true;
 			}
 		}
@@ -2828,6 +2928,8 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		}
 	}
 
+	FS_AddDownloadManifestPackages(&oldpaths, reloadflags);
+
 	/*sv_pure: Reload pure paths*/
 	if (fs_purenames && fs_purecrcs)
 	{
@@ -3067,11 +3169,13 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 	DWORD resultlen;
 	HKEY key = NULL;
 	
-	if (RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
+	if (RegOpenKeyExW(HKEY_CURRENT_USER, L"SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
 	{
-		resultlen = basepathlen;
-		RegQueryValueEx(key, "SteamPath", NULL, NULL, basepath, &resultlen);
+		wchar_t suckysucksuck[MAX_OSPATH];
+		resultlen = sizeof(suckysucksuck);
+		RegQueryValueExW(key, L"SteamPath", NULL, NULL, (void*)suckysucksuck, &resultlen);
 		RegCloseKey(key);
+		narrowen(basepath, basepathlen, suckysucksuck);
 		Q_strncatz(basepath, va("/SteamApps/common/%s", steamdir), basepathlen);
 		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
 		{
@@ -3086,12 +3190,12 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) 
 {	//'stolen' from microsoft's knowledge base.
 	//required to work around microsoft being annoying.
-	TCHAR szDir[MAX_PATH];
-	char *foo;
+	wchar_t szDir[MAX_PATH];
+	wchar_t *foo;
 	switch(uMsg) 
 	{
 	case BFFM_INITIALIZED: 
-		if (GetCurrentDirectory(sizeof(szDir)/sizeof(TCHAR), szDir))
+		if (GetCurrentDirectoryW(sizeof(szDir)/sizeof(TCHAR), szDir))
 		{
 //			foo = strrchr(szDir, '\\');
 //			if (foo)
@@ -3099,16 +3203,23 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 //			foo = strrchr(szDir, '\\');
 //			if (foo)
 //				*foo = 0;
-			SendMessage(hwnd, BFFM_SETSELECTION, TRUE, (LPARAM)szDir);
+			SendMessageW(hwnd, BFFM_SETSELECTION, TRUE, (LPARAM)szDir);
 		}
 		break;
+	case BFFM_VALIDATEFAILEDW:
+		break;	//FIXME: validate that the gamedir contains what its meant to
 	case BFFM_SELCHANGED: 
-		if (SHGetPathFromIDList((LPITEMIDLIST) lp ,szDir))
+		if (SHGetPathFromIDListW((LPITEMIDLIST) lp, szDir))
 		{
-			while(foo = strchr(szDir, '\\'))
+			wchar_t statustxt[MAX_OSPATH];
+			while(foo = wcschr(szDir, '\\'))
 				*foo = '/';
-			//fixme: verify that id1 is a subdir perhaps?
-			SendMessage(hwnd,BFFM_SETSTATUSTEXT,0,pData?(LPARAM)va("%s/%s", szDir, pData):(LPARAM)szDir);
+			if (pData)
+				_snwprintf(statustxt, countof(statustxt), L"%s/%s", szDir, pData);
+			else
+				_snwprintf(statustxt, countof(statustxt), L"%s", szDir);
+			statustxt[countof(statustxt)-1] = 0;	//ms really suck.
+			SendMessageW(hwnd,BFFM_SETSTATUSTEXT,0,(LPARAM)statustxt);
 		}
 		break;
 	}
@@ -3119,15 +3230,20 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
 {
 #ifndef SERVERONLY
-	char resultpath[MAX_PATH];
-	BROWSEINFO bi;
+	wchar_t resultpath[MAX_OSPATH];
+	wchar_t title[MAX_OSPATH];
+	BROWSEINFOW bi;
 	LPITEMIDLIST il;
 	memset(&bi, 0, sizeof(bi));
 	bi.hwndOwner = mainwindow; //note that this is usually still null
 	bi.pidlRoot = NULL;
-	GetCurrentDirectory(sizeof(resultpath)-1, resultpath);
+	GetCurrentDirectoryW(sizeof(resultpath)-1, resultpath);
 	bi.pszDisplayName = resultpath;
-	bi.lpszTitle = va("Please locate your existing %s installation", poshname);
+
+	widen(resultpath, sizeof(resultpath), poshname);
+	_snwprintf(title, countof(title), L"Please locate your existing %s installation", resultpath);
+	bi.lpszTitle = title;
+
 	bi.ulFlags = BIF_RETURNONLYFSDIRS|BIF_STATUSTEXT;
 	bi.lpfn = StupidBrowseCallbackProc;
 	bi.lParam = 0;//(LPARAM)poshname;
@@ -3136,18 +3252,17 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 	//force mouse to deactivate, so that we can actually see it.
 	INS_UpdateGrabs(false, false);
 
-	il = SHBrowseForFolder(&bi);
+	il = SHBrowseForFolderW(&bi);
 	if (il)
 	{
-		SHGetPathFromIDList(il, resultpath);
+		SHGetPathFromIDListW(il, resultpath);
 		CoTaskMemFree(il);
-		Q_strncpyz(basepath, resultpath, basepathsize);
-
+		narrowen(basepath, basepathsize, resultpath);
 		if (savedname)
 		{
 			HKEY key = NULL;
 			//and save it into the windows registry
-			if (RegCreateKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths",
+			if (RegCreateKeyExW(HKEY_CURRENT_USER, L"SOFTWARE\\" _L(FULLENGINENAME) L"\\GamePaths",
 				0, NULL,
 				REG_OPTION_NON_VOLATILE,
 				KEY_WRITE,
@@ -3155,7 +3270,9 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 				&key,
 				NULL) == ERROR_SUCCESS)
 			{
-				RegSetValueEx(key, savedname, 0, REG_SZ, basepath, strlen(basepath));
+				wchar_t wsavedname[MAX_OSPATH];
+				widen(wsavedname, sizeof(wsavedname), savedname);
+				RegSetValueExW(key, wsavedname, 0, REG_SZ, (BYTE*)resultpath, sizeof(wchar_t)*wcslen(resultpath));
 
 				RegCloseKey(key);
 			}
@@ -3165,29 +3282,24 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 #endif
 	return false;
 }
+
+DWORD GetFileAttributesU(const char * lpFileName)
+{
+	wchar_t wide[MAX_OSPATH];
+	widen(wide, sizeof(wide), lpFileName);
+	return GetFileAttributesW(wide);
+}
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
 {
-	DWORD resultlen;
-	HKEY key = NULL;
-
 #ifndef INVALID_FILE_ATTRIBUTES
 	#define INVALID_FILE_ATTRIBUTES ((DWORD)-1)
 #endif
 
 	//first, try and find it in our game paths location
-	if (RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
+	if (MyRegGetStringValue(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", gamename, basepath, basepathlen))
 	{
-		resultlen = basepathlen;
-		if (!RegQueryValueEx(key, gamename, NULL, NULL, basepath, &resultlen))
-		{
-			if (GetFileAttributes(basepath) != INVALID_FILE_ATTRIBUTES)
-			{
-				RegCloseKey(key);
-				return true;
-			}
-		}
-
-		RegCloseKey(key);
+		if (GetFileAttributesU(basepath) != INVALID_FILE_ATTRIBUTES)
+			return true;
 	}
 
 
@@ -3197,8 +3309,10 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		{
 			"c:/quake/",						//quite a lot of people have it in c:\quake, as that's the default install location from the quake cd.
 			"c:/games/quake/",					//personally I use this
+
+			"c:/nquake/",						//nquake seems to have moved out of programfiles now. woo.
 #ifdef _WIN64
-			//quite a few people have nquake installed. we need to an api function to read the directory for non-english-windows users.
+			//quite a few people have nquake installed. FIXME: we need to an api function to read the directory for non-english-windows users.
 			va("%s/nQuake/", getenv("%ProgramFiles(x86)%")),	//64bit builds should look in both places
 			va("%s/nQuake/", getenv("%ProgramFiles%")),			//
 #else
@@ -3207,7 +3321,6 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			NULL
 		};
 		int i;
-		FILE *f;
 
 		//try and find it via steam
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
@@ -3222,9 +3335,14 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		{
 			char syspath[MAX_OSPATH];
 			Q_snprintfz(syspath, sizeof(syspath), "%sid1/pak0.pak", prefix[i]);
-			if ((f = fopen("c:/quake/quake.exe", "rb")))
+			if (GetFileAttributesU(syspath) != INVALID_FILE_ATTRIBUTES)
 			{
-				fclose(f);
+				Q_strncpyz(basepath, prefix[i], sizeof(basepath));
+				return true;
+			}
+			Q_snprintfz(syspath, sizeof(syspath), "%squake.exe", prefix[i]);
+			if (GetFileAttributesU(syspath) != INVALID_FILE_ATTRIBUTES)
+			{
 				Q_strncpyz(basepath, prefix[i], sizeof(basepath));
 				return true;
 			}
@@ -3233,21 +3351,11 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 
 	if (!strcmp(gamename, "quake2"))
 	{
-		FILE *f;
-		DWORD resultlen;
-		HKEY key = NULL;
-
 		//look for HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Quake2_exe\Path
-		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Quake2_exe", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Quake2_exe", "Path", basepath, basepathlen))
 		{
-			resultlen = basepathlen;
-			RegQueryValueEx(key, "Path", NULL, NULL, basepath, &resultlen);
-			RegCloseKey(key);
-			if ((f = fopen(va("%s/quake2.exe", basepath), "rb")))
-			{
-				fclose(f);
+			if (GetFileAttributesU(va("%s/quake2.exe", basepath)) != INVALID_FILE_ATTRIBUTES)
 				return true;
-			}
 		}
 
 		if (Sys_SteamHasFile(basepath, basepathlen, "quake 2", "quake2.exe"))
@@ -3256,43 +3364,22 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 
 	if (!strcmp(gamename, "et"))
 	{
-		FILE *f;
-		DWORD resultlen;
-		HKEY key = NULL;
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Activision\Wolfenstein - Enemy Territory
-		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Activision\\Wolfenstein - Enemy Territory", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\Activision\\Wolfenstein - Enemy Territory", "InstallPath", basepath, basepathlen))
 		{
-			resultlen = basepathlen;
-			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
-			RegCloseKey(key);
-
-			if ((f = fopen(va("%s/ET.exe", basepath), "rb")))
-			{
-				fclose(f);
-				return true;
-			}
+//			if (GetFileAttributesU(va("%s/ET.exe", basepath) != INVALID_FILE_ATTRIBUTES)
+//				return true;
 			return true;
 		}
 	}
 
 	if (!strcmp(gamename, "quake3"))
 	{
-		FILE *f;
-		DWORD resultlen;
-		HKEY key = NULL;
-
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Quake III Arena\InstallPath
-		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Quake III Arena", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Quake III Arena", "InstallPath", basepath, basepathlen))
 		{
-			resultlen = basepathlen;
-			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
-			RegCloseKey(key);
-
-			if ((f = fopen(va("%s/quake3.exe", basepath), "rb")))
-			{
-				fclose(f);
+			if (GetFileAttributesU(va("%s/quake3.exe", basepath)) != INVALID_FILE_ATTRIBUTES)
 				return true;
-			}
 		}
 
 		if (Sys_SteamHasFile(basepath, basepathlen, "quake 3 arena", "quake3.exe"))
@@ -3301,31 +3388,16 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 
 	if (!strcmp(gamename, "wop"))
 	{
-		DWORD resultlen;
-		HKEY key = NULL;
-		//reads HKEY_LOCAL_MACHINE\SOFTWARE\World Of Padman\Path
-		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\World Of Padman", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
-		{
-			resultlen = basepathlen;
-			RegQueryValueEx(key, "Path", NULL, NULL, basepath, &resultlen);
-			RegCloseKey(key);
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\World Of Padman", "Path", basepath, basepathlen))
 			return true;
-		}
 	}
 
 /*
 	if (!strcmp(gamename, "d3"))
 	{
-		DWORD resultlen;
-		HKEY key = NULL;
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Doom 3\InstallPath
-		if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Doom 3", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
-		{
-			resultlen = basepathlen;
-			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
-			RegCloseKey(key);
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, L"SOFTWARE\\id\\Doom 3", "InstallPath", basepath, basepathlen))
 			return true;
-		}
 	}
 */
 
@@ -4668,7 +4740,7 @@ qboolean FS_FixupGamedirForExternalFile(char *input, char *filename, size_t fnam
 	{
 		Con_Printf("switching gamedir for %s\n", filename);
 		*sep = 0;
-		COM_Gamedir(filename);
+		COM_Gamedir(filename, NULL);
 		memmove(filename, sep+1, strlen(sep+1)+1);
 		return true;
 	}
@@ -4767,22 +4839,28 @@ void COM_InitFilesystem (void)
 
 #if defined(_WIN32) && !defined(WINRT)
 	{	//win32 sucks.
-		HMODULE shfolder = LoadLibrary("shfolder.dll");
-		DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
-
-		if (shfolder)
+		HRESULT (WINAPI *dSHGetFolderPathW) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, wchar_t *pszPath) = NULL;
+		dllfunction_t funcs[] =
 		{
-			HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
-			dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
-			if (dSHGetFolderPath)
+			{(void**)&dSHGetFolderPathW, "SHGetFolderPathW"},
+			{NULL,NULL}
+		};
+		DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
+		/*HMODULE shfolder =*/ Sys_LoadLibrary("shfolder.dll", funcs);
+
+		if (dSHGetFolderPathW)
+		{
+			wchar_t wfolder[MAX_PATH];
+			char folder[MAX_PATH];
+			// 0x5 == CSIDL_PERSONAL
+			if (dSHGetFolderPathW(NULL, 0x5, NULL, 0, wfolder) == S_OK)
 			{
-				char folder[MAX_PATH];
-				// 0x5 == CSIDL_PERSONAL
-				if (dSHGetFolderPath(NULL, 0x5, NULL, 0, folder) == S_OK)
-					Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Games/%s/", folder, FULLENGINENAME);
+				narrowen(folder, sizeof(folder), wfolder);
+				Q_snprintfz(com_homepath, sizeof(com_homepath), "%s/My Games/%s/", folder, FULLENGINENAME);
 			}
-//			FreeLibrary(shfolder);
 		}
+//		if (shfolder)
+//			FreeLibrary(shfolder);
 
 		if (!*com_homepath)
 		{
@@ -4803,13 +4881,15 @@ void COM_InitFilesystem (void)
 		else if (winver >= 0x5) // Windows 2000/XP/2003
 		{
 			HMODULE advapi32;
-			advapi32 = LoadLibrary("advapi32.dll");
-
+			BOOL (WINAPI *dCheckTokenMembership) (HANDLE TokenHandle, PSID SidToCheck, PBOOL IsMember) = NULL;
+			dllfunction_t funcs[] =
+			{
+				{(void**)&dCheckTokenMembership, "CheckTokenMembership"},
+				{NULL,NULL}
+			};
+			advapi32 = Sys_LoadLibrary("advapi32.dll", funcs);
 			if (advapi32)
 			{
-				BOOL (WINAPI *dCheckTokenMembership) (HANDLE TokenHandle, PSID SidToCheck, PBOOL IsMember);
-				dCheckTokenMembership = (void *)GetProcAddress(advapi32, "CheckTokenMembership");
-
 				if (dCheckTokenMembership)
 				{
 					// on XP systems, only use a home directory by default if we're a limited user or if we're on a network
@@ -4843,7 +4923,7 @@ void COM_InitFilesystem (void)
 					FreeSid(adminSID);
 				}
 
-				FreeLibrary(advapi32);
+				Sys_CloseLibrary(advapi32);
 			}
 		}
 #endif

@@ -631,10 +631,13 @@ void SVQ2_BuildClientFrame (client_t *client)
 	numprojs = 0; // no projectiles yet
 #endif
 
-	// this is the frame we are creating
-	frame = &client->frameunion.q2frames[sv.framenum & Q2UPDATE_MASK];
+	// this is the frame the client will be acking (EVIL HACKS!)
+	frame = &client->frameunion.q2frames[client->netchan.outgoing_sequence & Q2UPDATE_MASK];
 
 	frame->senttime = realtime*1000; // save it for ping calc later
+
+	// this is the frame we are creating
+	frame = &client->frameunion.q2frames[sv.framenum & Q2UPDATE_MASK];
 
 	// find the client's PVS
 	for (i=0 ; i<3 ; i++)

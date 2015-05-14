@@ -79,8 +79,8 @@ static qboolean Headless_VID_Init				(rendererstate_t *info, unsigned char *pale
 	//tray icon crap, so the user can still restore the game.
 	extern HWND	mainwindow;
 	extern HINSTANCE	global_hInstance;
-	WNDCLASSA wc;
-	NOTIFYICONDATA data;
+	WNDCLASSW wc;
+	NOTIFYICONDATAW data;
 
 	//Shell_NotifyIcon requires a window to provide events etc.
     wc.style         = 0;
@@ -92,18 +92,18 @@ static qboolean Headless_VID_Init				(rendererstate_t *info, unsigned char *pale
     wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wc.hbrBackground = NULL;
     wc.lpszMenuName  = 0;
-    wc.lpszClassName = "FTEHeadlessClass";
-	RegisterClassA(&wc);
+    wc.lpszClassName = L"FTEHeadlessClass";
+	RegisterClassW(&wc);
 
-	mainwindow = CreateWindowExA(0L, wc.lpszClassName, "FTE QuakeWorld", 0, 0, 0, 0, 0, NULL, NULL, global_hInstance, NULL);
+	mainwindow = CreateWindowExW(0L, wc.lpszClassName, L"FTE QuakeWorld", 0, 0, 0, 0, 0, NULL, NULL, global_hInstance, NULL);
 	data.cbSize = sizeof(data);
 	data.hWnd = mainwindow;
 	data.uID = 0;
 	data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
 	data.uCallbackMessage = WM_USER;
 	data.hIcon = wc.hIcon;
-	strcpy(data.szTip, "Right-click to restore");
-	Shell_NotifyIcon(NIM_ADD, &data);
+	wcscpy(data.szTip, L"Right-click to restore");
+	Shell_NotifyIconW(NIM_ADD, &data);
 #endif
 	return true;
 }

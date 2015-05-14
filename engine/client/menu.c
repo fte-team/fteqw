@@ -38,8 +38,16 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 	cx = x;
 	cy = y;
 	p = R2D_SafeCachePic ("gfx/box_tl.lmp");
-	if (!p)
-		return;	//assume we can't find any
+	switch(R_GetShaderSizes(p, NULL, NULL, false))
+	{
+	case -1:
+		return;	//still pending
+	case 0:
+		R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
+		R2D_FillBlock(x + ((vid.width - 320)>>1), y, width*8+16, lines*8+16);
+		R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
+		return;
+	}
 	M_DrawScalePic (cx, cy, 8, 8, p);
 	p = R2D_SafeCachePic ("gfx/box_ml.lmp");
 	if (p)

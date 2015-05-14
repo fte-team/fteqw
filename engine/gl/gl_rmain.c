@@ -1354,12 +1354,10 @@ static void R_RenderMotionBlur(void)
 			"}\n"
 		"}\n"
 		);
-//	GLBE_RenderToTexture(sceneblur_texture, r_nulltex, r_nulltex, r_nulltex, false);
-	Con_Printf("FIXME: tex_sourcecolour = sceneblur_texture\n");
+	GLBE_FBO_Sources(sceneblur_texture, r_nulltex);
 	R2D_ImageColours(1, 1, 1, gl_motionblur.value);
 	R2D_Image(0, 0, vid.width, vid.height, cs-vs, ct+vt, cs+vs, ct-vt, shader);
-	Con_Printf("FIXME: tex_sourcecolour = reset\n");
-//	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, r_nulltex, false);
+	GLBE_RenderToTextureUpdate2d(false);
 
 	//grab the current image so we can feed that back into the next frame.
 	GL_MTBind(0, GL_TEXTURE_2D, sceneblur_texture);
@@ -1786,8 +1784,8 @@ void GLR_RenderView (void)
 
 	GLBE_FBO_Sources(r_nulltex, r_nulltex);
 
-//	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
-//		R_RenderMotionBlur();
+	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
+		R_RenderMotionBlur();
 
 	checkglerror();
 }

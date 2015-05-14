@@ -7000,27 +7000,6 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 		SV_DropClient(cl);
 	}
 
-	// calc ping time
-	frame = &cl->frameunion.q2frames[cl->netchan.incoming_acknowledged & Q2UPDATE_MASK];
-	if (frame->senttime != -1)
-	{
-		int ping_time = realtime*1000 - frame->senttime;	//no more phenomanally low pings please
-		if (ping_time > sv_minping.value+1)
-		{
-			cl->delay -= 0.001;
-			if (cl->delay < 0)
-				cl->delay = 0;
-		}
-		if (ping_time < sv_minping.value)
-		{
-			cl->delay += 0.001;
-			if (cl->delay > 1)
-				cl->delay = 1;
-		}
-		frame->senttime = -1;
-		frame->ping_time = ping_time;
-	}
-
 	// make sure the reply sequence number matches the incoming
 	// sequence number
 	if (cl->netchan.incoming_sequence >= cl->netchan.outgoing_sequence)
@@ -7028,9 +7007,39 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 	else
 		cl->send_message = false;	// don't reply, sequences have slipped
 
+	// calc ping time
+	if (cl->netchan.outgoing_sequence - cl->netchan.incoming_acknowledged > Q2UPDATE_MASK)
+	{
+		cl->delay -= 0.001;
+		if (cl->delay < 0)
+			cl->delay = 0;
+	}
+	else
+	{
+		frame = &cl->frameunion.q2frames[cl->netchan.incoming_acknowledged & Q2UPDATE_MASK];
+		if (frame->senttime != -1)
+		{
+			int ping_time = (int)(realtime*1000) - frame->senttime;	//no more phenomanally low pings please
+			if (ping_time > sv_minping.value+1)
+			{
+				cl->delay -= 0.001;
+				if (cl->delay < 0)
+					cl->delay = 0;
+			}
+			if (ping_time < sv_minping.value)
+			{
+				cl->delay += 0.001;
+				if (cl->delay > 1)
+					cl->delay = 1;
+			}
+			frame->senttime = -1;
+			frame->ping_time = ping_time;
+		}
+	}
+
 	// save time for ping calculations
-	cl->frameunion.q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].senttime = realtime*1000;
-	cl->frameunion.q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].ping_time = -1;
+//	cl->frameunion.q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].senttime = realtime*1000;
+//	cl->frameunion.q2frames[cl->netchan.outgoing_sequence & Q2UPDATE_MASK].ping_time = -1;
 
 	host_client = cl;
 	sv_player = host_client->edict;
@@ -7115,6 +7124,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 				newcmd.upmove = 0;
 			}
 
+			host_client->q2edict->client->ping = SV_CalcPing (host_client, false);
 			if (!sv.paused)
 			{
 				if (net_drop < 20)

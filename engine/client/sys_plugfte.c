@@ -578,7 +578,7 @@ vfsfile_t *VFSPIPE_Open(void)
 #endif
 
 #ifdef _WIN32
-qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, DWORD datalen)
+qboolean MyRegGetStringValue(HKEY base, const char *keyname, const char *valuename, void *data, size_t datalen)
 {
 	qboolean result = false;
 	HKEY subkey;

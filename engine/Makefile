@@ -1100,15 +1100,15 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD -fPIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
 	NPFTEB_DIR=npfte_linux$(BITS)
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o sys_linux_threads.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
 	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) $(OGGVORBISLDFLAGS)
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DMULTITHREAD -DLIBVORBISFILE_STATIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include $(SPEEXCFLAGS) -DMULTITHREAD -DLIBVORBISFILE_STATIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG -DDYNAMIC_SDL
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o sys_linux_threads.o
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) $(SPEEX_OBJS) gl_vidlinuxglx.o gl_videgl.o snd_linux.o snd_sdl.o snd_alsa.o cd_linux.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
 	M_LDFLAGS=$(GL_LDFLAGS)

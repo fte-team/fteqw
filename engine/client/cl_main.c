@@ -3970,12 +3970,13 @@ void Host_RunFileNotify(struct dl_download *dl)
 #define HRF_QTVINFO		(1<<12)
 #define HRF_MANIFEST	(1<<13)
 #define HRF_BSP			(1<<14)
-#define HRF_PACKAGE		(1<<15)
-#define HRF_MODEL		(1<<16)
+#define HRF_PACKAGE		(1<<15)	//pak or pk3 that should be installed.
+#define	HRF_ARCHIVE		(1<<16)	//zip - treated as a multiple-file 'installer'
+#define HRF_MODEL		(1<<17)
 
 #define HRF_ACTION (HRF_OVERWRITE|HRF_NOOVERWRITE|HRF_ABORT)
 #define HRF_DEMO		(HRF_DEMO_MVD|HRF_DEMO_QWD|HRF_DEMO_DM2|HRF_DEMO_DEM)
-#define HRF_FILETYPES	(HRF_DEMO|HRF_QTVINFO|HRF_MANIFEST|HRF_BSP|HRF_PACKAGE|HRF_MODEL)
+#define HRF_FILETYPES	(HRF_DEMO|HRF_QTVINFO|HRF_MANIFEST|HRF_BSP|HRF_PACKAGE|HRF_MODEL|HRF_ARCHIVE)
 typedef struct {
 	unsigned int flags;
 	vfsfile_t *srcfile;
@@ -3987,18 +3988,27 @@ int waitingformanifest;
 void Host_DoRunFile(hrf_t *f);
 void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *, char *filename, qboolean issyspath, int demotype, float bufferdelay);
 void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name);
+qboolean FS_PathURLCache(char *url, char *path, size_t pathsize);
 
 void Host_RunFileDownloaded(struct dl_download *dl)
 {
-	//fixme: sort out flags from mime type....
 	hrf_t *f = dl->user_ctx;
-	f->srcfile = dl->file;
-	dl->file = NULL;
+	if (dl->status == DL_FAILED)
+	{
+		f->flags |= HRF_ABORT;
+		f->srcfile = NULL;
+	}
+	else
+	{
+		f->srcfile = dl->file;
+		dl->file = NULL;
+	}
 
 	Host_DoRunFile(f);
 }
-void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
+qboolean Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 {
+	qboolean result = false;
 	//at this point the file is still downloading, so don't copy it out just yet.
 	hrf_t *f = dl->user_ctx;
 
@@ -4020,6 +4030,8 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 			f->flags |= HRF_MANIFEST;
 		else if (!strcmp(mimetype, "application/x-multiviewdemo"))
 			f->flags |= HRF_DEMO_MVD;
+		else if (!strcmp(mimetype, "application/zip"))
+			f->flags |= HRF_ARCHIVE;
 //		else if (!strcmp(mimetype, "application/x-ftebsp"))
 //			f->flags |= HRF_BSP;
 //		else if (!strcmp(mimetype, "application/x-ftepackage"))
@@ -4051,11 +4063,14 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 			f->flags |= HRF_PACKAGE;
 		else
 		{
-			Con_Printf("file extension of %s not recognised\n", f->fname);
+			if (mimetype)
+				Con_Printf("mime type \"%s\" and file extension of \"%s\" not recognised\n", mimetype, f->fname);
+			else
+				Con_Printf("file extension of \"%s\" not recognised\n", f->fname);
 			//file type not guessable from extension either.
 			f->flags |= HRF_ABORT;
 			Host_DoRunFile(f);
-			return;
+			return false;
 		}
 
 		if (f->flags & HRF_MANIFEST)
@@ -4079,16 +4094,37 @@ void Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 	{
 		//just use a pipe instead of a temp file, working around an issue with temp files on android
 		dl->file = VFSPIPE_Open();
-		return;
+		return true;
+	}
+	else if (f->flags & HRF_ARCHIVE)
+	{
+		char cachename[MAX_QPATH];
+		if (!FS_PathURLCache(f->fname, cachename, sizeof(cachename)))
+			return false;
+		f->srcfile = FS_OpenVFS(cachename, "rb", FS_ROOT);
+		if (f->srcfile)
+		{
+			f->flags |= HRF_OPENED;
+			Host_DoRunFile(f);
+			return false;
+		}
+		FS_CreatePath(cachename, FS_ROOT);
+		dl->file = FS_OpenVFS(cachename, "wb", FS_ROOT);
+		if (dl->file)
+			return true;	//okay, continue downloading.
 	}
 	else if (f->flags & HRF_DEMO)
 		Con_Printf("%s: format not supported\n", f->fname);	//demos that are not supported in this build for one reason or another
 	else
-		return;
+		return true;
+
+	//demos stream, so we want to continue the http download, but we don't want to do anything with the result.
+	if (f->flags & HRF_DEMO)
+		result = true;
 
 	f->flags |= HRF_ABORT;
 	Host_DoRunFile(f);
-	return;
+	return result;
 }
 void Host_RunFilePrompted(void *ctx, int button)
 {
@@ -4288,6 +4324,21 @@ void Host_DoRunFile(hrf_t *f)
 			Con_Printf("%s is not within the current gamedir\n", f->fname);
 		else
 			Cbuf_AddText(va("modelviewer \"%s\"\n", loadcommand), RESTRICT_LOCAL);
+		f->flags |= HRF_ABORT;
+		Host_DoRunFile(f);
+		return;
+	}
+	else if (f->flags & HRF_ARCHIVE)
+	{
+		struct gamepacks packagespaths[2];
+		if (f->srcfile)
+			VFS_CLOSE(f->srcfile);
+		f->srcfile = NULL;
+
+		memset(packagespaths, 0, sizeof(packagespaths));
+		packagespaths[0].url = f->fname;
+
+		COM_Gamedir("", packagespaths);
 		f->flags |= HRF_ABORT;
 		Host_DoRunFile(f);
 		return;

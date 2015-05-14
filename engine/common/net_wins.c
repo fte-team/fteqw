@@ -5556,21 +5556,13 @@ void NET_Init (void)
 #if defined(_WIN32) && defined(HAVE_PACKET)
 	int		r;
 #ifdef IPPROTO_IPV6
-	HMODULE ws2_32dll;
-	ws2_32dll = LoadLibrary("ws2_32.dll");
-	if (ws2_32dll)
+	dllfunction_t fncs[] =
 	{
-		pfreeaddrinfo = (void *)GetProcAddress(ws2_32dll, "freeaddrinfo");
-		pgetaddrinfo = (void *)GetProcAddress(ws2_32dll, "getaddrinfo");
-		if (!pgetaddrinfo || !pfreeaddrinfo)
-		{
-			pgetaddrinfo = NULL;
-			pfreeaddrinfo = NULL;
-            FreeLibrary(ws2_32dll);
-		}
-	}
-	else
-	    pgetaddrinfo = NULL;
+		{(void**)&pfreeaddrinfo, "getaddrinfo"},
+		{(void**)&pgetaddrinfo, "freeaddrinfo"},
+		{NULL, NULL}
+	};
+	Sys_LoadLibrary("ws2_32.dll", fncs);
 #endif
 
 	r = WSAStartup (MAKEWORD(2, 2), &winsockdata);

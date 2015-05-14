@@ -79,7 +79,7 @@ typedef BOOL (WINAPI *lpfnSetLayeredWindowAttributes)(HWND hwnd, COLORREF crKey,
 extern cvar_t vid_conwidth, vid_conautoscale;
 
 
-#define WINDOW_CLASS_NAME "FTEGLQuake"
+#define WINDOW_CLASS_NAME L"FTEGLQuake"
 
 #define MAX_MODE_LIST	128
 #define VID_ROW_SIZE	3
@@ -187,8 +187,8 @@ extern cvar_t		vid_gl_context_selfreset;
 int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
 RECT		window_rect;
 
-HMODULE hInstGL = NULL;
-HMODULE hInstwgl = NULL;
+dllhandle_t *hInstGL = NULL;
+dllhandle_t *hInstwgl = NULL;
 static qboolean usingminidriver;
 static char reqminidriver[MAX_OSPATH];
 static char opengldllname[MAX_OSPATH];
@@ -387,7 +387,7 @@ void *getwglfunc(char *name)
 		if (!hInstwgl)
 		{
 			TRACE(("dbg: getwglfunc: explicitly loading opengl32.dll\n", name));
-			hInstwgl = LoadLibrary("opengl32.dll");
+			hInstwgl = LoadLibraryA("opengl32.dll");
 		}
 		TRACE(("dbg: getwglfunc: %s: wglgetting\n", name));
 		proc = GetProcAddress(hInstwgl, name);
@@ -459,10 +459,10 @@ qboolean GLInitialise (char *renderer)
 	{
 		usingminidriver = false;
 		if (hInstGL)
-			FreeLibrary(hInstGL);
+			Sys_CloseLibrary(hInstGL);
 		hInstGL=NULL;
 		if (hInstwgl)
-			FreeLibrary(hInstwgl);
+			Sys_CloseLibrary(hInstwgl);
 		hInstwgl=NULL;
 
 		Q_strncpyz(reqminidriver, renderer, sizeof(reqminidriver));
@@ -471,8 +471,7 @@ qboolean GLInitialise (char *renderer)
 		if (*renderer && stricmp(renderer, "opengl32.dll") && stricmp(renderer, "opengl32"))
 		{
 			Con_DPrintf ("Loading renderer dll \"%s\"", renderer);
-			hInstGL = LoadLibrary(opengldllname);
-
+			hInstGL = Sys_LoadLibrary(opengldllname, NULL);
 			if (hInstGL)
 			{
 				usingminidriver = true;
@@ -490,7 +489,7 @@ qboolean GLInitialise (char *renderer)
 			strcpy(opengldllname, "opengl32");
 			Con_DPrintf ("Loading renderer dll \"%s\"", opengldllname);
 			emode = SetErrorMode(SEM_FAILCRITICALERRORS); /*no annoying errors if they use glide*/
-			hInstGL = LoadLibrary(opengldllname);
+			hInstGL = Sys_LoadLibrary(opengldllname, NULL);
 			SetErrorMode(emode);
 
 			if (hInstGL)
@@ -766,10 +765,10 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	WindowRect = centerrect(pleft, ptop, pwidth, pheight, wwidth, wheight);
 
 	// Create the DIB window
-	dibwindow = CreateWindowEx (
+	dibwindow = CreateWindowExW (
 		 ExWindowStyle,
 		 WINDOW_CLASS_NAME,
-		 FULLENGINENAME,
+		 _L(FULLENGINENAME),
 		 WindowStyle,
 		 WindowRect.left, WindowRect.top,
 		 WindowRect.right - WindowRect.left,
@@ -797,7 +796,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 			av = 70;
 		if (av < 255)
 		{
-			HMODULE hm = GetModuleHandle("user32.dll");
+			HMODULE hm = GetModuleHandleA("user32.dll");
 			lpfnSetLayeredWindowAttributes pSetLayeredWindowAttributes;
 			pSetLayeredWindowAttributes = (void*)GetProcAddress(hm, "SetLayeredWindowAttributes");
 
@@ -864,7 +863,9 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 
 void GLVID_SetCaption(char *text)
 {
-	SetWindowText(mainwindow, text);
+	wchar_t wide[2048];
+	widen(wide, sizeof(wide), text);
+	SetWindowTextW(mainwindow, wide);
 }
 
 
@@ -926,10 +927,10 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	wheight = rect.bottom - rect.top;
 
 	// Create the DIB window
-	dibwindow = CreateWindowEx (
+	dibwindow = CreateWindowExW (
 		 ExWindowStyle,
 		 WINDOW_CLASS_NAME,
-		 FULLENGINENAME,
+		 _L(FULLENGINENAME),
 		 WindowStyle,
 		 rect.left, rect.top,
 		 wwidth,
@@ -1001,6 +1002,21 @@ static void Win_Touch_Init(HWND wnd);
 static qboolean CreateMainWindow(rendererstate_t *info)
 {
 	qboolean		stat;
+	WNDCLASSW		wc;
+	/* Register the frame class */
+    wc.style         = CS_OWNDC;
+    wc.lpfnWndProc   = (WNDPROC)GLMainWndProc;
+    wc.cbClsExtra    = 0;
+    wc.cbWndExtra    = 0;
+    wc.hInstance     = global_hInstance;
+    wc.hIcon         = hIcon;
+    wc.hCursor       = hArrowCursor;
+	wc.hbrBackground = NULL;
+    wc.lpszMenuName  = 0;
+    wc.lpszClassName = WINDOW_CLASS_NAME;
+	if (!RegisterClassW (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
+		Con_Printf("RegisterClass failed\n");
+
 	if (!info->fullscreen)
 	{
 		TRACE(("dbg: GLVID_SetMode: VID_SetWindowedMode\n"));
@@ -1032,10 +1048,10 @@ int GLVID_WindowThread(void *cond)
 	wnd = mainwindow;
 	Sys_ConditionSignal(cond);
 
-	while (GetMessage(&msg, NULL, 0, 0))
+	while (GetMessageW(&msg, NULL, 0, 0))
 	{
-      	TranslateMessage (&msg);
-      	DispatchMessage (&msg);
+		TranslateMessageW (&msg);
+		DispatchMessageW (&msg);
 
 		//ShowCursor is thread-local.
 		if (cursor != mouseshowtoggle)
@@ -1347,13 +1363,15 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 		if (!*info->subrenderer || !stricmp(info->subrenderer, "opengl32.dll") || !stricmp(info->subrenderer, "opengl32"))	//go for windows system dir if we failed with the default. Should help to avoid the 3dfx problem.
 		{
+			wchar_t systemglw[MAX_OSPATH+1];
 			char systemgl[MAX_OSPATH+1];
-			GetSystemDirectory(systemgl, sizeof(systemgl)-1);
-			strncat(systemgl, "\\", sizeof(systemgl)-1);
+			GetSystemDirectoryW(systemglw, countof(systemglw)-1);
+			narrowen(systemgl, sizeof(systemgl), systemglw);
+			Q_strncatz(systemgl, "\\", sizeof(systemgl));
 			if (*info->subrenderer)
-				strncat(systemgl, info->subrenderer, sizeof(systemgl)-1);
+				Q_strncatz(systemgl, info->subrenderer, sizeof(systemgl));
 			else
-				strncat(systemgl, "opengl32.dll", sizeof(systemgl)-1);
+				Q_strncatz(systemgl, "opengl32.dll", sizeof(systemgl));
 			TRACE(("dbg: VID_AttachGL: GLInitialise (system dir specific)\n"));
 			if (GLInitialise(systemgl))
 			{
@@ -1616,7 +1634,7 @@ static void QDECL VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldva
 	if (modestate==MS_WINDOWED)
 	{
 		int av;
-		HMODULE hm = GetModuleHandle("user32.dll");
+		HMODULE hm = GetModuleHandleA("user32.dll");
 		lpfnSetLayeredWindowAttributes pSetLayeredWindowAttributes;
 		pSetLayeredWindowAttributes = (void*)GetProcAddress(hm, "SetLayeredWindowAttributes");
 
@@ -2106,7 +2124,7 @@ static BOOL (WINAPI *pCloseTouchInputHandle)(HTOUCHINPUT hTouchInput);
 static void Win_Touch_Init(HWND wnd)
 {
 	HMODULE lib;
-	lib = LoadLibrary("user32.dll");
+	lib = LoadLibraryA("user32.dll");
 	pRegisterTouchWindow = (void*)GetProcAddress(lib, "RegisterTouchWindow");
 	pGetTouchInputInfo = (void*)GetProcAddress(lib, "GetTouchInputInfo");
 	pCloseTouchInputHandle = (void*)GetProcAddress(lib, "CloseTouchInputHandle");
@@ -2387,7 +2405,7 @@ LONG WINAPI GLMainWndProc (
 
 		case WM_CLOSE:
 			if (!vid_initializing)
-				if (MessageBox (hWnd, "Are you sure you want to quit?", "Confirm Exit",
+				if (MessageBoxW (hWnd, L"Are you sure you want to quit?", L"Confirm Exit",
 							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION) == IDYES)
 				{
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
@@ -2433,7 +2451,7 @@ LONG WINAPI GLMainWndProc (
 				lRet = TRUE;
 				break;
 			default:
-				lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
+				lRet = DefWindowProcW (hWnd, uMsg, wParam, lParam);
 				break;
 			}
 			break;
@@ -2446,7 +2464,7 @@ LONG WINAPI GLMainWndProc (
 
 		default:
 			/* pass all unhandled messages to DefWindowProc */
-			lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
+			lRet = DefWindowProcW (hWnd, uMsg, wParam, lParam);
 			break;
 	}
 
@@ -2503,7 +2521,7 @@ void GLVID_DeInit (void)
 	Cvar_Unhook(&vid_wndalpha);
 	Cmd_RemoveCommand("vid_recenter");
 
-	UnregisterClass(WINDOW_CLASS_NAME, global_hInstance);
+	UnregisterClassW(WINDOW_CLASS_NAME, global_hInstance);
 }
 
 /*
@@ -2516,7 +2534,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	extern int isPlugin;
 //	qbyte	*ptmp;
 	DEVMODE	devmode;
-	WNDCLASS wc;
 
 	memset(&devmode, 0, sizeof(devmode));
 
@@ -2526,21 +2543,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	rf->VID_CreateCursor = WIN_CreateCursor;
 	rf->VID_DestroyCursor = WIN_DestroyCursor;
 	rf->VID_SetCursor = WIN_SetCursor;
-
-	/* Register the frame class */
-    wc.style         = CS_OWNDC;
-    wc.lpfnWndProc   = (WNDPROC)GLMainWndProc;
-    wc.cbClsExtra    = 0;
-    wc.cbWndExtra    = 0;
-    wc.hInstance     = global_hInstance;
-    wc.hIcon         = hIcon;
-    wc.hCursor       = hArrowCursor;
-	wc.hbrBackground = NULL;
-    wc.lpszMenuName  = 0;
-    wc.lpszClassName = WINDOW_CLASS_NAME;
-
-	if (!RegisterClass (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
-		MessageBox(NULL, "RegisterClass failed", "GAH", 0);
 
 	vid_initialized = false;
 	vid_initializing = true;

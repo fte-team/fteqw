@@ -28,7 +28,7 @@ static struct
 	BOOL (WINAPI *pCertGetCertificateChain)					(HCERTCHAINENGINE,PCCERT_CONTEXT,LPFILETIME,HCERTSTORE,PCERT_CHAIN_PARA,DWORD,LPVOID,PCCERT_CHAIN_CONTEXT*);
 	BOOL (WINAPI *pCertVerifyCertificateChainPolicy)		(LPCSTR,PCCERT_CHAIN_CONTEXT,PCERT_CHAIN_POLICY_PARA,PCERT_CHAIN_POLICY_STATUS);
 	void (WINAPI *pCertFreeCertificateChain)				(PCCERT_CHAIN_CONTEXT);
-	DWORD (WINAPI *pCertNameToStrA)							(DWORD dwCertEncodingType, PCERT_NAME_BLOB pName, DWORD dwStrType, LPTSTR psz, DWORD csz);
+	DWORD (WINAPI *pCertNameToStrA)							(DWORD dwCertEncodingType, PCERT_NAME_BLOB pName, DWORD dwStrType, LPCSTR psz, DWORD csz);
 
 	PCCERT_CONTEXT (WINAPI *pCertCreateSelfSignCertificate)	(HCRYPTPROV,PCERT_NAME_BLOB,DWORD,PCRYPT_KEY_PROV_INFO,PCRYPT_ALGORITHM_IDENTIFIER,PSYSTEMTIME,PSYSTEMTIME,PCERT_EXTENSIONS);
 	BOOL (WINAPI *pCertStrToNameA)							(DWORD,LPCSTR,DWORD,void *,BYTE *,DWORD *,LPCSTR *);
@@ -112,20 +112,24 @@ typedef struct {
 	char headerdata[1024], footerdata[1024];
 } sslfile_t;
 
-static int SSPI_CopyIntoBuffer(struct sslbuf *buf, const void *data, unsigned int bytes)
-{
-	if (bytes > buf->datasize - buf->avail)
-		bytes = buf->datasize - buf->avail;
-	memcpy(buf->data + buf->avail, data, bytes);
-	buf->avail += bytes;
-
-	return bytes;
-}
 static int SSPI_ExpandBuffer(struct sslbuf *buf, size_t bytes)
 {
 	if (bytes < buf->datasize)
 		return buf->datasize;
 	Z_ReallocElements(&buf->data, &buf->datasize, bytes, 1);
+	return bytes;
+}
+
+static int SSPI_CopyIntoBuffer(struct sslbuf *buf, const void *data, unsigned int bytes, qboolean expand)
+{
+	if (bytes > buf->datasize - buf->avail)
+	{
+		if (!expand || SSPI_ExpandBuffer(buf, buf->avail + bytes + 1024) < buf->avail + bytes)
+			bytes = buf->datasize - buf->avail;
+	}
+	memcpy(buf->data + buf->avail, data, bytes);
+	buf->avail += bytes;
+
 	return bytes;
 }
 
@@ -177,7 +181,6 @@ static void SSPI_Decode(sslfile_t *f)
 	SecBufferDesc		BuffDesc;
 	SecBuffer			SecBuff[4];
 	ULONG				ulQop = 0;
-	SecBuffer			*data = NULL;
 	SecBuffer			*extra = NULL;
 	int i;
 
@@ -216,15 +219,27 @@ static void SSPI_Decode(sslfile_t *f)
 
 	for (i = 0; i < BuffDesc.cBuffers; i++)
 	{
-		if (SecBuff[i].BufferType == SECBUFFER_DATA && !data)
-			data = &SecBuff[i];
-		if (SecBuff[i].BufferType == SECBUFFER_EXTRA && !extra)
+		switch(SecBuff[i].BufferType)
+		{
+		case SECBUFFER_DATA:
+			if (SSPI_CopyIntoBuffer(&f->inraw, SecBuff[i].pvBuffer, SecBuff[i].cbBuffer, true) != SecBuff[i].cbBuffer)
+				SSPI_Error(f, "outraw buffer overflowed\n");
+			break;
+		case SECBUFFER_EXTRA:
+			if (extra)
+				SSPI_Error(f, "multiple extra buffers\n");
 			extra = &SecBuff[i];
+			break;
+		case SECBUFFER_EMPTY:
+		case SECBUFFER_MISSING:
+		case SECBUFFER_STREAM_TRAILER:
+		case SECBUFFER_STREAM_HEADER:
+			break;
+		default:
+			SSPI_Error(f, "got unexpected buffer type\n");
+			break;
+		}
 	}
-
-	//copy the data out to the result, yay.
-	if (data)
-		SSPI_CopyIntoBuffer(&f->inraw, data->pvBuffer, data->cbBuffer);
 
 	//retain the extra. if there's no extra then mark it so.
 	if (extra)
@@ -288,17 +303,17 @@ static void SSPI_Encode(sslfile_t *f)
 	f->outraw.avail = 0;
 
 	//fixme: these should be made non-fatal.
-	if (SSPI_CopyIntoBuffer(&f->outcrypt, SecBuff[0].pvBuffer, SecBuff[0].cbBuffer) < SecBuff[0].cbBuffer)
+	if (SSPI_CopyIntoBuffer(&f->outcrypt, SecBuff[0].pvBuffer, SecBuff[0].cbBuffer, true) < SecBuff[0].cbBuffer)
 	{
 		SSPI_Error(f, "crypt buffer overflowed\n");
 		return;
 	}
-	if (SSPI_CopyIntoBuffer(&f->outcrypt, SecBuff[1].pvBuffer, SecBuff[1].cbBuffer) < SecBuff[1].cbBuffer)
+	if (SSPI_CopyIntoBuffer(&f->outcrypt, SecBuff[1].pvBuffer, SecBuff[1].cbBuffer, true) < SecBuff[1].cbBuffer)
 	{
 		SSPI_Error(f, "crypt buffer overflowed\n");
 		return;
 	}
-	if (SSPI_CopyIntoBuffer(&f->outcrypt, SecBuff[2].pvBuffer, SecBuff[2].cbBuffer) < SecBuff[2].cbBuffer)
+	if (SSPI_CopyIntoBuffer(&f->outcrypt, SecBuff[2].pvBuffer, SecBuff[2].cbBuffer, true) < SecBuff[2].cbBuffer)
 	{
 		SSPI_Error(f, "crypt buffer overflowed\n");
 		return;
@@ -686,7 +701,7 @@ static void SSPI_Handshake (sslfile_t *f)
 		}
 	}
 
-	if (SSPI_CopyIntoBuffer(&f->outcrypt, OutSecBuff.pvBuffer, OutSecBuff.cbBuffer) < OutSecBuff.cbBuffer)
+	if (SSPI_CopyIntoBuffer(&f->outcrypt, OutSecBuff.pvBuffer, OutSecBuff.cbBuffer, true) < OutSecBuff.cbBuffer)
 	{
 		SSPI_Error(f, "crypt overflow\n");
 		return;
@@ -765,7 +780,12 @@ static int QDECL SSPI_WriteBytes (struct vfsfile_s *file, const void *buffer, in
 {
 	sslfile_t *f = (sslfile_t *)file;
 
-	bytestowrite = SSPI_CopyIntoBuffer(&f->outraw, buffer, bytestowrite);
+	//don't endlessly accept data faster than we can push it out.
+	//we'll buffer a little, but don't go overboard
+	if (f->outcrypt.avail > 8192)
+		return false;
+
+	bytestowrite = SSPI_CopyIntoBuffer(&f->outraw, buffer, bytestowrite, false);
 
 	if (f->handshaking)
 	{

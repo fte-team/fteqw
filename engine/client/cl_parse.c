@@ -320,7 +320,7 @@ int CL_CalcNet (float scale)
 		; i++)
 	{
 		frame = &cl.outframes[i&UPDATE_MASK];
-		if (i > cl.lastackedmovesequence)
+		if (i > cl.ackedmovesequence)
 		{
 			// no response yet
 			if (cl_countpendingpl.ival)
@@ -2861,7 +2861,7 @@ void CLQW_ParseServerData (void)
 #endif
 	{
 		COM_FlushTempoaryPacks();
-		COM_Gamedir(str);
+		COM_Gamedir(str, NULL);
 #ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", str, MAX_SERVERINFO_STRING);
 #endif
@@ -3092,9 +3092,9 @@ void CLQ2_ParseServerData (void)
 
 	// set gamedir
 	if (!*str)
-		COM_Gamedir("baseq2");
+		COM_Gamedir("baseq2", NULL);
 	else
-		COM_Gamedir(str);
+		COM_Gamedir(str, NULL);
 //	if ((*str && (!fs_gamedirvar->string || !*fs_gamedirvar->string || strcmp(fs_gamedirvar->string, str))) || (!*str && (fs_gamedirvar->string || *fs_gamedirvar->string)))
 //		Cvar_Set("game", str);
 

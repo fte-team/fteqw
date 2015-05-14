@@ -1387,7 +1387,7 @@ static const char *glsl_hdrs[] =
 #endif
 				"}\n"
 			"#else\n"
-				"#define skeletaltransform() ftetransform()\n"
+				"#define skeletaltransform ftetransform\n"
 				"vec4 skeletaltransform_wnst(out vec3 w, out vec3 n, out vec3 t, out vec3 b)"
 				"{"
 					"n = v_normal;"
@@ -1820,8 +1820,12 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 					"#define v_position v_position1\n"
 					"#endif\n"
 					"uniform mat4 m_modelviewprojection;\n"
-//					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
+#if 1//def FTE_TARGET_WEB
+					//IE is buggy
 					"vec4 ftetransform() { return m_modelviewprojection * vec4(v_position, 1.0); }\n"
+#else
+					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
+#endif
 				;
 			length[strings] = strlen(prstrings[strings]);
 			strings++;

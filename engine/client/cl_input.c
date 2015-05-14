@@ -1361,11 +1361,12 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 	int checksumIndex, i;
 	int lightlev;
 
-	seq_hash = cls.netchan.outgoing_sequence;
+	cl.movesequence = cls.netchan.outgoing_sequence;	//make sure its correct even over map changes.
+	seq_hash = cl.movesequence;
 
 // send this and the previous cmds in the message, so
 // if the last packet was dropped, it can be recovered
-	i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+	i = cl.movesequence & UPDATE_MASK;
 	cmd = &cl.outframes[i].cmd[0];
 
 	if (cls.resendinfo)

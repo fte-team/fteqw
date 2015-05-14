@@ -610,7 +610,7 @@ int INS_InitDInput (void)
 
 	if (!hInstDI)
 	{
-		hInstDI = LoadLibrary("dinput.dll");
+		hInstDI = Sys_LoadLibrary("dinput.dll", NULL);
 
 		if (hInstDI == NULL)
 		{

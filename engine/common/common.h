@@ -458,6 +458,16 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 vfsfile_t *FS_OpenTemp(void);
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
 
+#ifdef _WIN32
+//windows doesn't support utf-8. Which is a shame really, because that's the charset we expect from everything.
+#define countof(array) (sizeof(array)/sizeof(array[0]))
+char *narrowen(char *out, size_t outlen, wchar_t *wide);
+wchar_t *widen(wchar_t *out, size_t outbytes, const char *utf8);
+#define __L(x) L ## x
+#define _L(x) __L(x)
+qboolean MyRegGetStringValue(void *hkey_base, const char *keyname, const char *valuename, void *data, size_t datalen);
+#endif
+
 void FS_UnloadPackFiles(void);
 void FS_ReloadPackFiles(void);
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
@@ -522,7 +532,12 @@ void COM_InitFilesystem (void);	//does not set up any gamedirs.
 qboolean FS_DownloadingPackage(void);
 qboolean FS_ChangeGame(ftemanifest_t *newgame, qboolean allowreloadconfigs, qboolean allowbasedirchange);
 void FS_Shutdown(void);
-void COM_Gamedir (const char *dir);
+struct gamepacks
+{
+	char *path;
+	char *url;
+};
+void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths);
 char *FS_GetGamedir(qboolean publicpathonly);
 char *FS_GetBasedir(void);
 char *FS_GetManifestArgs(void);

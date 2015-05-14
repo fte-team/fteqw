@@ -43,10 +43,6 @@ __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
 __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;	//13.35+
 
 
-wchar_t *widen(wchar_t *out, size_t outlen, const char *utf8);
-char *narrowen(char *out, size_t outlen, wchar_t *wide);
-
-
 #ifdef WINRT	//you're going to need a different sys_ port.
 qboolean isDedicated = false;
 qboolean ActiveApp;
@@ -368,15 +364,20 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
 	HMODULE lib;
+	wchar_t wide[MAX_OSPATH];
 
-	lib = LoadLibrary(name);
+	widen(wide, sizeof(wide), name);
+	lib = LoadLibraryW(wide);
 	if (!lib)
 	{
+		if (!strstr(COM_SkipPath(name), ".dll"))
+		{	//.dll implies that it is a system dll, or something that is otherwise windows-specific already.
 #ifdef _WIN64
-		lib = LoadLibrary(va("%s_64", name));
+			lib = LoadLibrary(va("%s_64", name));
 #elif defined(_WIN32)
-		lib = LoadLibrary(va("%s_32", name));
+			lib = LoadLibrary(va("%s_32", name));
 #endif
+		}
 		if (!lib)
 			return NULL;
 	}
@@ -763,7 +764,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 
 	//generate a minidump, but only if we were compiled by something that used usable debugging info. its a bit pointless otherwise.
 #ifdef _MSC_VER
-	hDbgHelp = LoadLibrary ("DBGHELP");
+	hDbgHelp = LoadLibraryA ("DBGHELP");
 	if (hDbgHelp)
 		fnMiniDumpWriteDump = (MINIDUMPWRITEDUMP)GetProcAddress (hDbgHelp, "MiniDumpWriteDump");
 	else
@@ -790,9 +791,9 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 		else if (*com_gamepath)
 			Q_strncpyz(dumpPath, com_gamepath, sizeof(dumpPath));
 		else
-			GetTempPath (sizeof(dumpPath)-16, dumpPath);
+			GetTempPathA (sizeof(dumpPath)-16, dumpPath);
 		Q_strncatz(dumpPath, DISTRIBUTION"CrashDump.dmp", sizeof(dumpPath));
-		dumpfile = CreateFile (dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		dumpfile = CreateFileA (dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (dumpfile)
 		{
 			MINIDUMP_EXCEPTION_INFORMATION crashinfo;
@@ -803,19 +804,19 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 			{
 				CloseHandle(dumpfile);
 				Q_snprintfz(msg, sizeof(msg), "You can find the crashdump at:\n%s\nPlease send this file to someone.\n\nWarning: sensitive information (like your current user name) might be present in the dump.\nYou will probably want to compress it.", dumpPath);
-				MessageBox(NULL, msg, DISTRIBUTION " Sucks", 0);
+				MessageBoxA(NULL, msg, DISTRIBUTION " Sucks", 0);
 			}
 			else
-				MessageBox(NULL, "MiniDumpWriteDump failed", "oh noes", 0);
+				MessageBoxA(NULL, "MiniDumpWriteDump failed", "oh noes", 0);
 		}
 		else
 		{
 			Q_snprintfz(msg, sizeof(msg), "unable to open %s\nno dump created.", dumpPath);
-			MessageBox(NULL, msg, "oh noes", 0);
+			MessageBoxA(NULL, msg, "oh noes", 0);
 		}
 	}
 	else
-		MessageBox(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
+		MessageBoxA(NULL, "Kaboom! Sorry. No MiniDumpWriteDump function.", DISTRIBUTION " Sucks", 0);
 #endif
 	return EXCEPTION_EXECUTE_HANDLER;
 }
@@ -1071,7 +1072,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 			memcpy(tmproot, match, neststart);
 			strcpy(tmproot+neststart, "*.*");
 
-			r = FindFirstFile(tmproot, &fd);
+			r = FindFirstFileA(tmproot, &fd);
 			strcpy(tmproot+neststart, "");
 			if (r==(HANDLE)-1)
 				return 1;
@@ -1093,7 +1094,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						}
 					}
 				}
-			} while(FindNextFile(r, &fd) && go);
+			} while(FindNextFileA(r, &fd) && go);
 			FindClose(r);
 		}
 		else
@@ -1107,7 +1108,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 			memcpy(tmproot, match, neststart);
 			strcpy(tmproot+neststart, "*.*");
 
-			r = FindFirstFile(tmproot, &fd);
+			r = FindFirstFileA(tmproot, &fd);
 			strcpy(tmproot+neststart, "");
 			if (r==(HANDLE)-1)
 				return 1;
@@ -1138,7 +1139,7 @@ static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart
 						}
 					}
 				}
-			} while(FindNextFile(r, &fd) && go);
+			} while(FindNextFileA(r, &fd) && go);
 			FindClose(r);
 		}
 	}
@@ -1458,7 +1459,6 @@ void VARGS Sys_Error (const char *error, ...)
 {
 	va_list		argptr;
 	char		text[1024];
-	//, text2[1024];
 //	DWORD		dummy;
 
  	va_start (argptr, error);
@@ -1474,7 +1474,11 @@ void VARGS Sys_Error (const char *error, ...)
 	SV_Shutdown();
 #endif
 
-	MessageBox(NULL, text, "Error", 0);
+	{
+		wchar_t		wtext[1024];
+		widen(wtext, sizeof(wtext), text);
+		MessageBoxW(NULL, wtext, L"Error", 0);
+	}
 
 #ifndef SERVERONLY
 	CloseHandle (qwclsemaphore);
@@ -1991,11 +1995,11 @@ qboolean Sys_InitTerminal (void)
 	SetConsoleCtrlHandler (HandlerRoutine, TRUE);
 	SetConsoleCP(CP_UTF8);
 	SetConsoleOutputCP(CP_UTF8);
-	SetConsoleTitle (FULLENGINENAME " dedicated server");
+	SetConsoleTitleW (_L(FULLENGINENAME) L" dedicated server");
 	if (isPlugin)
 	{
-		hinput = CreateFile("CONIN$",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
-		houtput = CreateFile("CONOUT$",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
+		hinput = CreateFileA("CONIN$",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
+		houtput = CreateFileA("CONOUT$",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
 	}
 	else
 	{
@@ -2415,7 +2419,7 @@ void Win7_Init(void)
 	HRESULT (WINAPI *pSetCurrentProcessExplicitAppUserModelID)(PCWSTR AppID);
 
 
-	h = LoadLibrary("shell32.dll");
+	h = LoadLibraryW(L"shell32.dll");
 	if (h)
 	{
 		pSHOpenWithDialog = (void*)GetProcAddress(h, "SHOpenWithDialog");
@@ -2549,29 +2553,35 @@ int MyRegGetIntValue(HKEY base, char *keyname, char *valuename, int defaultval)
 	DWORD datalen = sizeof(result);
 	HKEY subkey;
 	DWORD type = REG_NONE;
-	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	wchar_t wide[MAX_PATH];
+	if (RegOpenKeyExW(base, widen(wide, sizeof(wide), keyname), 0, KEY_READ, &subkey) == ERROR_SUCCESS)
 	{
-		if (ERROR_SUCCESS != RegQueryValueEx(subkey, valuename, NULL, &type, (void*)&result, &datalen) || type != REG_DWORD)
+		if (ERROR_SUCCESS != RegQueryValueExW(subkey, widen(wide, sizeof(wide), valuename), NULL, &type, (void*)&result, &datalen) || type != REG_DWORD)
 			result = defaultval;
 		RegCloseKey (subkey);
 	}
 	return result;
 }
-qboolean MyRegGetStringValue(HKEY base, char *keyname, char *valuename, void *data, int datalen)
+//result is utf-8
+qboolean MyRegGetStringValue(HKEY base, const char *keyname, const char *valuename, void *data, size_t datalen)
 {
 	qboolean result = false;
 	HKEY subkey;
 	DWORD type = REG_NONE;
-	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	wchar_t wide[MAX_PATH];
+	wchar_t wdata[MAX_PATH];
+	DWORD dwlen = sizeof(wdata) - sizeof(wdata[0]);
+	if (RegOpenKeyExW(base, widen(wide, sizeof(wide), keyname), 0, KEY_READ, &subkey) == ERROR_SUCCESS)
 	{
-		DWORD dwlen = datalen;
-		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &dwlen);
-		datalen = dwlen;
+		result = ERROR_SUCCESS == RegQueryValueExW(subkey, widen(wide, sizeof(wide), valuename), NULL, &type, (BYTE*)wdata, &dwlen);
 		RegCloseKey (subkey);
 	}
 
 	if (result && (type == REG_SZ || type == REG_EXPAND_SZ))
-		((char*)data)[datalen] = 0;
+	{
+		wdata[dwlen/sizeof(wchar_t)] = 0;
+		narrowen(data, datalen, wdata);
+	}
 	else
 		((char*)data)[0] = 0;
 	return result;
@@ -3196,9 +3206,9 @@ static BOOL microsoft_access(LPCSTR pszFolder, DWORD dwAccessDesired)
 	DWORD			dwNeeded;
 	wchar_t			wpath[MAX_OSPATH];
 	widen(wpath, sizeof(wpath), pszFolder);
-	GetFileSecurity(pszFolder,si,NULL,0,&dwNeeded);
+	GetFileSecurityW(wpath,si,NULL,0,&dwNeeded);
 	psdSD = malloc(dwNeeded);
-	GetFileSecurity(pszFolder,si,psdSD,dwNeeded,&dwNeeded);
+	GetFileSecurityW(wpath,si,psdSD,dwNeeded,&dwNeeded);
 	ImpersonateSelf(SecurityImpersonation);
 	OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &hToken);
 	memset(&GenericMapping, 0xff, sizeof(GENERIC_MAPPING));
@@ -3275,7 +3285,7 @@ static LRESULT CALLBACK stoopidstoopidstoopid(HWND w, UINT m, WPARAM wp, LPARAM 
 
 struct egadsthisisretarded
 {
-	char title[MAX_OSPATH];
+	wchar_t title[MAX_OSPATH];
 	char subdir[MAX_OSPATH];
 	char parentdir[MAX_OSPATH];
 	char statustext[MAX_OSPATH];
@@ -3294,13 +3304,13 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 	switch(uMsg)
 	{
 	case BFFM_INITIALIZED:
-		OutputDebugString("initialised\n");
+		OutputDebugStringA("initialised\n");
 
 		//combat windows putting new windows behind everything else if it takes a while for UAC prompts to go away
 		SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE);
 
 		//combat windows bug where renaming something doesn't update the dialog's path
-		list = FindWindowEx(hwnd, NULL, "SHBROWSEFORFOLDER SHELLNAMESPACE CONTROL", NULL);
+		list = FindWindowExW(hwnd, NULL, L"SHBROWSEFORFOLDER SHELLNAMESPACE CONTROL", NULL);
 		if (list)
 			omgwtfwhyohwhy = (WNDPROC)SetWindowLongPtr(list, GWLP_WNDPROC, (LONG_PTR)stoopidstoopidstoopid);
 
@@ -3317,7 +3327,7 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 			;
 		else
 #endif
-			if (GetCurrentDirectory(sizeof(szDir)/sizeof(TCHAR), szDir) && microsoft_access(szDir, ACCESS_READ | ACCESS_WRITE))
+			if (GetCurrentDirectory(sizeof(szDir)/sizeof(TCHAR), szDir))// && microsoft_access(szDir, ACCESS_READ | ACCESS_WRITE))
 				;
 		SendMessage(hwnd, BFFM_SETSELECTION, TRUE, (LPARAM)szDir);
 //		SendMessage(hwnd, BFFM_SETEXPANDED, TRUE, (LPARAM)szDir);
@@ -3336,7 +3346,7 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 	case BFFM_VALIDATEFAILEDW:
 		return 1;//!microsoft_access("C:\\Games\\", ACCESS_READ | ACCESS_WRITE))
 	case BFFM_SELCHANGED: 
-		OutputDebugString("selchanged\n");
+		OutputDebugStringA("selchanged\n");
 		if (SHGetPathFromIDList((LPITEMIDLIST)lp, pData->parentdir))
 		{
 //			OutputDebugString(va("selchanged: %s\n", szDir));
@@ -3345,7 +3355,8 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 			//fixme: verify that id1 is a subdir perhaps?
 			if (edit)
 			{
-				SetWindowText(edit, fs_gamename.string);
+				wchar_t wide[128];
+				SetWindowTextW(edit, widen(wide, sizeof(wide), fs_gamename.string));
 				SendMessageA(hwnd, BFFM_SETSTATUSTEXT, 0, (LPARAM)va("%s", pData->parentdir));
 			}
 			else
@@ -3365,14 +3376,25 @@ LRESULT CALLBACK NoCloseWindowProc(HWND w, UINT m, WPARAM wp, LPARAM lp)
 	return DefWindowProc(w, m, wp, lp);
 }
 
+void FS_Directorize(char *fname, size_t fnamesize)
+{
+	size_t l = strlen(fname);
+	if (!l)	//technically already a directory
+		return;
+	if (fname[l-1] == '\\' || fname[l-1] == '//')
+		return;	//already a directory
+	Q_strncatz(fname, "/", fnamesize);
+}
+
 void FS_CreateBasedir(const char *path);
 qboolean Sys_DoInstall(void)
 {
 	extern ftemanifest_t *fs_manifest;
 	char exepath[MAX_OSPATH];
 	char newexepath[MAX_OSPATH];
-	char resultpath[MAX_PATH];
-	BROWSEINFO bi;
+	wchar_t wide[MAX_PATH];
+	char resultpath[MAX_OSPATH];
+	BROWSEINFOW bi;
 	LPITEMIDLIST il;
 	struct egadsthisisretarded diediedie;
 
@@ -3385,9 +3407,9 @@ qboolean Sys_DoInstall(void)
 	memset(&bi, 0, sizeof(bi));
 	bi.hwndOwner = mainwindow; //note that this is usually still null
 	bi.pidlRoot = NULL;
-	GetCurrentDirectory(sizeof(resultpath)-1, resultpath);
-	bi.pszDisplayName = resultpath;
-	Q_snprintfz(diediedie.title, sizeof(diediedie.title), "Where would you like to install %s to?", fs_gamename.string);
+	_snwprintf(diediedie.title, countof(diediedie.title), L"Where would you like to install %s to?", widen(wide, sizeof(wide), fs_gamename.string));
+	GetCurrentDirectoryW(countof(wide)-1, wide);
+	bi.pszDisplayName = wide;
 	bi.lpszTitle = diediedie.title;
 	bi.ulFlags = BIF_RETURNONLYFSDIRS|BIF_STATUSTEXT | BIF_EDITBOX|BIF_NEWDIALOGSTYLE|BIF_VALIDATE;
 	bi.lpfn = StupidBrowseCallbackProc;
@@ -3396,20 +3418,21 @@ qboolean Sys_DoInstall(void)
 
 	Q_strncpyz(diediedie.subdir, fs_gamename.string, sizeof(diediedie.subdir));
 
-	il = SHBrowseForFolder(&bi);
+	il = SHBrowseForFolderW(&bi);
 	if (il)
 	{
-		SHGetPathFromIDList(il, resultpath);
+		SHGetPathFromIDListW(il, wide);
 		CoTaskMemFree(il);
 	}
 	else
 		return true;
+	narrowen(resultpath, sizeof(resultpath), wide);
 
-	Q_strncatz(resultpath, "/", sizeof(resultpath));
+	FS_Directorize(resultpath, sizeof(resultpath));
 	if (*diediedie.subdir)
 	{
 		Q_strncatz(resultpath, diediedie.subdir, sizeof(resultpath));
-		Q_strncatz(resultpath, "/", sizeof(resultpath));
+		FS_Directorize(resultpath, sizeof(resultpath));
 	}
 
 	FS_CreateBasedir(resultpath);
@@ -3836,7 +3859,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 
 #ifdef CATCHCRASH
-	LoadLibrary ("DBGHELP");	//heap corruption can prevent loadlibrary from working properly, so do this in advance.
+	LoadLibraryA ("DBGHELP");	//heap corruption can prevent loadlibrary from working properly, so do this in advance.
 #ifdef _MSC_VER
 	__try
 #else
@@ -3966,11 +3989,11 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 					HWND old;
 					qtvfile = parms.argv[1];
 
-					old = FindWindow("FTEGLQuake", NULL);
+					old = FindWindowW(L"FTEGLQuake", NULL);
 					if (!old)
-						old = FindWindow("FTED3D11QUAKE", NULL);
+						old = FindWindowW(L"FTED3D11QUAKE", NULL);
 					if (!old)
-						old = FindWindow("FTED3D9QUAKE", NULL);
+						old = FindWindowW(L"FTED3D9QUAKE", NULL);
 					if (old)
 					{
 						COPYDATASTRUCT cds;

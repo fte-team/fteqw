@@ -1647,34 +1647,44 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 #ifndef SERVERONLY
 	if (!litdata && r_loadlits.value)
 	{
-		char *litname;
-		char litnamemaps[MAX_QPATH];
-		char litnamelits[MAX_QPATH];
-		int depthmaps;
-		int depthlits;
+		char *litnames[] = {
+			"maps/%s.lit2",
+			"maps/%s.lit",
+			"lits/%s.lit2",
+			"lits/%s.lit"
+		};
+		char litbase[MAX_QPATH];
+		int depth;
+		int bestdepth = 0x7fffffff;
+		int best = -1;
+		int i;
+		char litname[MAX_QPATH];
 		size_t litsize;
 		qboolean inhibitvalidation = false;
-		
-		{							
-			Q_strncpyz(litnamemaps, loadmodel->name, sizeof(litnamelits));
-			COM_StripExtension(loadmodel->name, litnamemaps, sizeof(litnamemaps));
-			COM_DefaultExtension(litnamemaps, ".lit", sizeof(litnamemaps));
-			depthmaps = COM_FDepthFile(litnamemaps, false); 
-		}
+
+		COM_StripExtension(loadmodel->name, litbase, sizeof(litbase));
+		for (i = 0; i < sizeof(litnames)/sizeof(litnames[0]); i++)
 		{
-			Q_strncpyz(litnamelits, "lits/", sizeof(litnamelits));
-			COM_StripExtension(COM_SkipPath(loadmodel->name), litnamelits+5, sizeof(litnamelits) - 5);
-			Q_strncatz(litnamelits, ".lit", sizeof(litnamelits));
-			depthlits = COM_FDepthFile(litnamelits, false);
+			Q_snprintfz(litname, sizeof(litname), litnames[i], litbase);
+			depth = COM_FDepthFile(litname, false);
+			if (depth < bestdepth)
+			{
+				bestdepth = depth;
+				best = i;
+			}
+		}
+		if (best >= 0)
+		{
+			Q_snprintfz(litname, sizeof(litname), litnames[best], litbase);
+			litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize);
+		}
+		else
+		{
+			litdata = NULL;
+			litsize = 0;
 		}
 
-		if (depthmaps <= depthlits)
-			litname = litnamemaps;	//maps has priority over lits
-		else
-			litname = litnamelits;
-
-		litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize);
-		if (litdata)
+		if (litdata && litsize >= 8)
 		{	//validate it, if we loaded one.
 			if (litdata[0] != 'Q' || litdata[1] != 'L' || litdata[2] != 'I' || litdata[3] != 'T')
 			{
@@ -2531,7 +2541,7 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 	float *vec;
 	float s, t, d;
 	int sty;
-	int w,h;
+//	int w,h;
 
 	//output the mesh's indicies
 	for (i=0 ; i<mesh->numvertexes-2 ; i++)

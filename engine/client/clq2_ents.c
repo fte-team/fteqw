@@ -722,6 +722,9 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 	unsigned int		oldindex, oldnum;
 
 	cl.validsequence = cls.netchan.incoming_sequence;
+	cl.ackedmovesequence = cl.validsequence;
+
+	cl.outframes[cl.ackedmovesequence&UPDATE_MASK].latency = realtime - cl.outframes[cl.ackedmovesequence&UPDATE_MASK].senttime;
 
 	newframe->parse_entities = cl.parse_entities;
 	newframe->num_entities = 0;

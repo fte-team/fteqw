@@ -236,7 +236,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 		if (sv.state)
 			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
 #endif
-		Host_EndGame("Reloading QC");
+//		Host_EndGame("Reloading QC");
 	}
 	else if (!strncmp(text, "qcbreakpoint ", 13))
 	{

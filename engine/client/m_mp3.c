@@ -251,9 +251,9 @@ int loadedtracknames;
 #ifdef WINAMP
 qboolean WinAmp_GetHandle (void)
 {
-	if ((hwnd_winamp = FindWindow("Winamp", NULL)))
+	if ((hwnd_winamp = FindWindowW(L"Winamp", NULL)))
 		return true;
-	if ((hwnd_winamp = FindWindow("Winamp v1.x", NULL)))
+	if ((hwnd_winamp = FindWindowW(L"Winamp v1.x", NULL)))
 		return true;
 
 	*currenttrack.nicename = '\0';

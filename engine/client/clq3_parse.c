@@ -511,7 +511,7 @@ qboolean CLQ3_SystemInfoChanged(char *str)
 		COM_FlushTempoaryPacks();
 		if (!*value)
 			value = "baseq3";
-		COM_Gamedir(value);
+		COM_Gamedir(value, NULL);
 #ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", value, MAX_SERVERINFO_STRING);
 #endif

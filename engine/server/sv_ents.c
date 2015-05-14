@@ -3099,8 +3099,8 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			}
 		}
 		else if (progstype == PROG_UNKNOWN)
-		{
-			if (state->effects & 16)
+		{	//unknown progs crc. things here are basically hacks.
+			if (state->effects & 16)	//tenebrae's EF_FULLDYNAMIC
 			{
 				state->effects &= ~16;
 				state->lightpflags |= PFLAGS_FULLDYNAMIC;

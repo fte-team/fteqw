@@ -3385,7 +3385,7 @@ retry:
 				d16 = ED_FindGlobal16(progfuncs, s);
 				if (!d16)
 				{
-					printf("Progs requires \"%s\" the external function \"%s\", but the definition was stripped\n", filename, s);
+					printf("\"%s\" requires the external function \"%s\", but the definition was stripped\n", filename, s);
 					PRHunkFree(progfuncs, hmark);
 					pr_progs=NULL;
 					return false;

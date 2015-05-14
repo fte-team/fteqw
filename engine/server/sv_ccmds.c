@@ -2315,7 +2315,7 @@ static void SV_Gamedir_f (void)
 	}
 
 	dir = Z_StrDup(dir);
-	COM_Gamedir (dir);
+	COM_Gamedir (dir, NULL);
 	Info_SetValueForStarKey (svs.info, "*gamedir", dir, MAX_SERVERINFO_STRING);
 	Z_Free(dir);
 }

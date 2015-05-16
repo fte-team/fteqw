@@ -363,7 +363,7 @@ noheader:
 	}
 
 
-	n->strm.next_in = buffer;
+	n->strm.next_in = (char*)buffer;
 	n->strm.avail_in = len;
 
 	while(n->strm.avail_in)

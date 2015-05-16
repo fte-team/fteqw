@@ -2507,6 +2507,7 @@ void Win7_TaskListInit(void)
 	}
 }
 
+//#define SVNREVISION 1
 #if defined(SVNREVISION) && !defined(MINIMAL)
 	#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
 	#if defined(OFFICIAL_RELEASE)
@@ -2546,126 +2547,26 @@ void Win7_TaskListInit(void)
 	#define EXETYPE "qw"
 #endif
 
-
-int MyRegGetIntValue(HKEY base, char *keyname, char *valuename, int defaultval)
-{
-	int result = defaultval;
-	DWORD datalen = sizeof(result);
-	HKEY subkey;
-	DWORD type = REG_NONE;
-	wchar_t wide[MAX_PATH];
-	if (RegOpenKeyExW(base, widen(wide, sizeof(wide), keyname), 0, KEY_READ, &subkey) == ERROR_SUCCESS)
-	{
-		if (ERROR_SUCCESS != RegQueryValueExW(subkey, widen(wide, sizeof(wide), valuename), NULL, &type, (void*)&result, &datalen) || type != REG_DWORD)
-			result = defaultval;
-		RegCloseKey (subkey);
-	}
-	return result;
-}
-//result is utf-8
-qboolean MyRegGetStringValue(HKEY base, const char *keyname, const char *valuename, void *data, size_t datalen)
-{
-	qboolean result = false;
-	HKEY subkey;
-	DWORD type = REG_NONE;
-	wchar_t wide[MAX_PATH];
-	wchar_t wdata[MAX_PATH];
-	DWORD dwlen = sizeof(wdata) - sizeof(wdata[0]);
-	if (RegOpenKeyExW(base, widen(wide, sizeof(wide), keyname), 0, KEY_READ, &subkey) == ERROR_SUCCESS)
-	{
-		result = ERROR_SUCCESS == RegQueryValueExW(subkey, widen(wide, sizeof(wide), valuename), NULL, &type, (BYTE*)wdata, &dwlen);
-		RegCloseKey (subkey);
-	}
-
-	if (result && (type == REG_SZ || type == REG_EXPAND_SZ))
-	{
-		wdata[dwlen/sizeof(wchar_t)] = 0;
-		narrowen(data, datalen, wdata);
-	}
-	else
-		((char*)data)[0] = 0;
-	return result;
-}
-qboolean MyRegGetStringValueMultiSz(HKEY base, char *keyname, char *valuename, void *data, int datalen)
-{
-	qboolean result = false;
-	HKEY subkey;
-	DWORD type = REG_NONE;
-	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
-	{
-		DWORD dwlen = datalen;
-		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &dwlen);
-		datalen = dwlen;
-		RegCloseKey (subkey);
-	}
-
-	if (type == REG_MULTI_SZ)
-		return result;
-	return false;
-}
-
-qboolean MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, int datalen)
-{
-	qboolean result = false;
-	HKEY subkey;
-
-	//'trivially' return success if its already set.
-	//this allows success even when we don't have write access.
-	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
-	{
-		DWORD oldtype;
-		char olddata[2048];
-		DWORD olddatalen = sizeof(olddata);
-		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &oldtype, olddata, &olddatalen);
-		RegCloseKey (subkey);
-
-		if (oldtype == REG_SZ || oldtype == REG_EXPAND_SZ)
-		{
-			while(olddatalen > 0 && olddata[olddatalen-1] == 0)
-				olddatalen--;
-		}
-
-		if (result && datalen == olddatalen && type == oldtype && !memcmp(data, olddata, datalen))
-			return result;
-		result = false;
-	}
-
-	if (RegCreateKeyEx(base, keyname, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subkey, NULL) == ERROR_SUCCESS)
-	{
-		if (ERROR_SUCCESS == RegSetValueEx(subkey, valuename, 0, type, data, datalen))
-			result = true;
-		RegCloseKey (subkey);
-	}
-	return result;
-}
-void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
-{
-	HKEY subkey;
-	if (RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey) == ERROR_SUCCESS)
-	{
-		RegDeleteValue(subkey, valuename);
-		RegCloseKey (subkey);
-	}
-}
 #ifdef UPDATE_URL_ROOT
 
 int sys_autoupdatesetting;
 
 qboolean Update_GetHomeDirectory(char *homedir, int homedirsize)
 {
-	HMODULE shfolder = LoadLibrary("shfolder.dll");
+	HMODULE shfolder = LoadLibraryA("shfolder.dll");
 
 	if (shfolder)
 	{
-		HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
-		dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
-		if (dSHGetFolderPath)
+		HRESULT (WINAPI *dSHGetFolderPathW) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPWSTR pszPath);
+		dSHGetFolderPathW = (void *)GetProcAddress(shfolder, "SHGetFolderPathW");
+		if (dSHGetFolderPathW)
 		{
-			char folder[MAX_PATH];
+			wchar_t folderw[MAX_PATH];
 			// 0x5 == CSIDL_PERSONAL
-			if (dSHGetFolderPath(NULL, 0x5, NULL, 0, folder) == S_OK)
+			if (dSHGetFolderPathW(NULL, 0x5, NULL, 0, folderw) == S_OK)
 			{
-				Q_snprintfz(homedir, homedirsize, "%s/My Games/%s/", folder, FULLENGINENAME);
+				narrowen(homedir, homedirsize, folderw);
+				Q_strncatz(homedir, "/My Games/"FULLENGINENAME"/", homedirsize);
 				return true;
 			}
 		}
@@ -2695,7 +2596,10 @@ void Update_PromptedDownloaded(void *ctx, int foo)
 	if (foo == 0 && ctx)
 	{
 		PROCESS_INFORMATION childinfo;
-		STARTUPINFO startinfo = {sizeof(startinfo)};
+		STARTUPINFOW startinfo = {sizeof(startinfo)};
+		wchar_t widearg[2048];
+		wchar_t wideexe[2048];
+		char cmdline[2048];
 
 #ifndef SERVERONLY
 		SetHookState(false);
@@ -2707,7 +2611,11 @@ void Update_PromptedDownloaded(void *ctx, int foo)
 #endif
 		TL_Shutdown();
 
-		CreateProcess(ctx, va("\"%s\" %s", (char*)ctx, COM_Parse(GetCommandLineA())), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo);
+		narrowen(cmdline, sizeof(cmdline), GetCommandLineW());
+		widen(wideexe, sizeof(wideexe), ctx);
+		widen(widearg, sizeof(widearg), va("\"%s\" %s", ctx, COM_Parse(cmdline)));
+
+		CreateProcessW(wideexe, widearg, NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo);
 		Z_Free(ctx);
 		exit(1);
 	}
@@ -2749,10 +2657,12 @@ void Update_Version_Updated(struct dl_download *dl)
 					//figure out the original binary that was executed, so we can start from scratch.
 					//this is to attempt to avoid the new process appearing as 'foo.tmp'. which needlessly confuses firewall rules etc.
 					int ffe = COM_CheckParm("--fromfrontend");
-					char binarypath[MAX_PATH];
+					wchar_t wbinarypath[MAX_PATH];
+					char ubinarypath[MAX_PATH];
 					char *ffp;
-					GetModuleFileName(NULL, binarypath, sizeof(binarypath)-1);
-					ffp = Z_StrDup(ffe?com_argv[ffe+2]:binarypath);
+					GetModuleFileNameW(NULL, wbinarypath, countof(wbinarypath)-1);
+					narrowen(ubinarypath, sizeof(ubinarypath), wbinarypath);
+					ffp = Z_StrDup(ffe?com_argv[ffe+2]:ubinarypath);
 
 					//make it pending
 					MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, "pending" UPD_BUILDTYPE EXETYPE, REG_SZ, pendingname, strlen(pendingname)+1);
@@ -2772,7 +2682,7 @@ void Update_PromptedForUpdate(void *ctx, int foo)
 	{
 		struct dl_download *dl;
 		Con_Printf("Downloading update\n");
-		dl = HTTP_CL_Get(va(UPDATE_URL_BUILD, ctx), NULL, Update_Version_Updated);
+		dl = HTTP_CL_Get(va(UPDATE_URL_BUILD, (char*)ctx), NULL, Update_Version_Updated);
 		dl->file = FS_OpenTemp();
 #ifdef MULTITHREAD
 		DL_CreateThread(dl, NULL, NULL);
@@ -2852,6 +2762,18 @@ void Sys_SetAutoUpdateSetting(int newval)
 	Update_Check();
 }
 
+BOOL DeleteFileU(const char *path)
+{
+	wchar_t wide[2048];
+	return DeleteFileW(widen(wide, sizeof(wide), path));
+}
+BOOL MoveFileU(const char *src, const char *dst)
+{
+	wchar_t wide1[2048];
+	wchar_t wide2[2048];
+	return MoveFileW(widen(wide1, sizeof(wide1), src), widen(wide2, sizeof(wide2), dst));
+}
+
 qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 {
 	int ffe = COM_CheckParm("--fromfrontend");
@@ -2896,20 +2818,20 @@ qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 			Update_GetHomeDirectory(updatedpath, sizeof(updatedpath));
 			Update_CreatePath(updatedpath);
 			Q_strncatz(updatedpath, "cur" UPD_BUILDTYPE EXETYPE".exe", sizeof(updatedpath));
-			DeleteFile(updatedpath);
-			okay = MoveFile(pendingpath, updatedpath);
+			DeleteFileU(updatedpath);
+			okay = MoveFileU(pendingpath, updatedpath);
 			if (!okay)
 			{	//if we just downloaded an update, we may need to wait for the existing process to close.
 				//sadly I'm too lazy to provide any sync mechanism (and wouldn't trust any auto-released handles or whatever), so lets just retry after a delay.
 				Sleep(2000);
-				okay = MoveFile(pendingpath, updatedpath);
+				okay = MoveFileU(pendingpath, updatedpath);
 			}
 			if (okay)
 				MyRegSetValue(HKEY_CURRENT_USER, "Software\\"FULLENGINENAME, UPD_BUILDTYPE EXETYPE, REG_SZ, updatedpath, strlen(updatedpath)+1);
 			else
 			{
 				MessageBox(NULL, va("Unable to rename %s to %s", pendingpath, updatedpath), FULLENGINENAME" autoupdate", 0);
-				DeleteFile(pendingpath);
+				DeleteFileU(pendingpath);
 			}
 		}
 
@@ -3381,7 +3303,7 @@ void FS_Directorize(char *fname, size_t fnamesize)
 	size_t l = strlen(fname);
 	if (!l)	//technically already a directory
 		return;
-	if (fname[l-1] == '\\' || fname[l-1] == '//')
+	if (fname[l-1] == '\\' || fname[l-1] == '/')
 		return;	//already a directory
 	Q_strncatz(fname, "/", fnamesize);
 }

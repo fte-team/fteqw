@@ -5558,8 +5558,8 @@ void NET_Init (void)
 #ifdef IPPROTO_IPV6
 	dllfunction_t fncs[] =
 	{
-		{(void**)&pfreeaddrinfo, "getaddrinfo"},
-		{(void**)&pgetaddrinfo, "freeaddrinfo"},
+		{(void**)&pgetaddrinfo, "getaddrinfo"},
+		{(void**)&pfreeaddrinfo, "freeaddrinfo"},
 		{NULL, NULL}
 	};
 	Sys_LoadLibrary("ws2_32.dll", fncs);

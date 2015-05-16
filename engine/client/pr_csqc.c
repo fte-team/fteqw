@@ -4891,6 +4891,7 @@ static struct {
 	{"bound",					PF_bound,	96},				// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
 	{"pow",						PF_pow,	97},					// #97 float(float value) pow (DP_QC_SINCOSSQRTPOW)
 	{"findfloat",				PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
+	{"findentity",				PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
 	{"checkextension",			PF_checkextension,	99},		// #99 float(string extname) checkextension (EXT_CSQC)
 	{"anglemod",				PF_anglemod,		102},
 

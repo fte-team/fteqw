@@ -2,6 +2,9 @@
 #include "fs.h"
 #include "winquake.h"
 
+//FIXME: find somewhere better for this win32 utility code.
+//(its here instead of sys_win.c because dedicated servers don't use sys_win.c)
+
 //outlen is the size of out in _BYTES_.
 wchar_t *widen(wchar_t *out, size_t outbytes, const char *utf8)
 {
@@ -71,6 +74,119 @@ char *narrowen(char *out, size_t outlen, wchar_t *wide)
 	*out = 0;
 	return ret;
 }
+
+int MyRegGetIntValue(void *base, const char *keyname, const char *valuename, int defaultval)
+{
+	int result = defaultval;
+	DWORD datalen = sizeof(result);
+	HKEY subkey;
+	DWORD type = REG_NONE;
+	wchar_t wide[MAX_PATH];
+	if (RegOpenKeyExW(base, widen(wide, sizeof(wide), keyname), 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	{
+		if (ERROR_SUCCESS != RegQueryValueExW(subkey, widen(wide, sizeof(wide), valuename), NULL, &type, (void*)&result, &datalen) || type != REG_DWORD)
+			result = defaultval;
+		RegCloseKey (subkey);
+	}
+	return result;
+}
+//result is utf-8
+qboolean MyRegGetStringValue(void *base, const char *keyname, const char *valuename, void *data, size_t datalen)
+{
+	qboolean result = false;
+	HKEY subkey;
+	DWORD type = REG_NONE;
+	wchar_t wide[MAX_PATH];
+	wchar_t wdata[2048];
+	DWORD dwlen = sizeof(wdata) - sizeof(wdata[0]);
+	if (RegOpenKeyExW(base, widen(wide, sizeof(wide), keyname), 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	{
+		result = ERROR_SUCCESS == RegQueryValueExW(subkey, widen(wide, sizeof(wide), valuename), NULL, &type, (BYTE*)wdata, &dwlen);
+		RegCloseKey (subkey);
+	}
+
+	if (result && (type == REG_SZ || type == REG_EXPAND_SZ))
+	{
+		wdata[dwlen/sizeof(wchar_t)] = 0;
+		narrowen(data, datalen, wdata);
+	}
+	else
+		((char*)data)[0] = 0;
+	return result;
+}
+qboolean MyRegGetStringValueMultiSz(HKEY base, const char *keyname, const char *valuename, void *data, int datalen)
+{
+	qboolean result = false;
+	HKEY subkey;
+	wchar_t wide[MAX_PATH];
+	DWORD type = REG_NONE;
+	if (RegOpenKeyExW(base, widen(wide, sizeof(wide), keyname), 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	{
+		DWORD dwlen = datalen;
+		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &dwlen);
+		datalen = dwlen;
+		RegCloseKey (subkey);
+	}
+
+	if (type == REG_MULTI_SZ)
+		return result;
+	return false;
+}
+
+qboolean MyRegSetValue(void *base, const char *keyname, const char *valuename, int type, const void *data, int datalen)
+{
+	qboolean result = false;
+	HKEY subkey;
+	wchar_t wide[MAX_PATH];
+	wchar_t wided[2048];
+
+	if (type == REG_SZ)
+	{
+		data = widen(wided, sizeof(wided), data);
+		datalen = wcslen(wided)*2;
+	}
+
+	//'trivially' return success if its already set.
+	//this allows success even when we don't have write access.
+	if (RegOpenKeyExW(base, widen(wide, sizeof(wide), keyname), 0, KEY_READ, &subkey) == ERROR_SUCCESS)
+	{
+		DWORD oldtype;
+		char olddata[2048];
+		DWORD olddatalen = sizeof(olddata);
+		result = ERROR_SUCCESS == RegQueryValueExW(subkey, widen(wide, sizeof(wide), valuename), NULL, &oldtype, olddata, &olddatalen);
+		RegCloseKey (subkey);
+
+		if (oldtype == REG_SZ || oldtype == REG_EXPAND_SZ)
+		{	//ignore any null terminators that may have come along for the ride
+			while(olddatalen > 1 && olddata[olddatalen-2] && olddata[olddatalen-1] == 0)
+				olddatalen-=2;
+		}
+
+		if (result && datalen == olddatalen && type == oldtype && !memcmp(data, olddata, datalen))
+			return result;
+		result = false;
+	}
+
+	if (RegCreateKeyExW(base, widen(wide, sizeof(wide), keyname), 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subkey, NULL) == ERROR_SUCCESS)
+	{
+		result = ERROR_SUCCESS == RegSetValueExW(subkey, widen(wide, sizeof(wide), valuename), 0, type, data, datalen);
+		RegCloseKey (subkey);
+	}
+	return result;
+}
+void MyRegDeleteKeyValue(HKEY base, const char *keyname, const char *valuename)
+{
+	HKEY subkey;
+	wchar_t wide[MAX_PATH];
+	if (RegOpenKeyExW(base, widen(wide, sizeof(wide), keyname), 0, KEY_WRITE, &subkey) == ERROR_SUCCESS)
+	{
+		RegDeleteValueW(subkey, widen(wide, sizeof(wide), valuename));
+		RegCloseKey (subkey);
+	}
+}
+
+
+
 
 
 #ifndef WINRT	//winrt is too annoying. lets just use stdio.

@@ -512,7 +512,7 @@ static qboolean XI2_Init(void)
 //qboolean is8bit = false;
 //qboolean isPermedia = false;
 qboolean ActiveApp = false;
-static qboolean gracefulexit;
+extern qboolean sys_gracefulexit;
 
 #define SYS_CLIPBOARD_SIZE 512
 char clipboard_buffer[SYS_CLIPBOARD_SIZE];
@@ -1270,18 +1270,6 @@ void GLVID_DeInit(void)	//FIXME:....
 	GLVID_Shutdown();
 }
 
-
-void signal_handler_graceful(int sig)
-{
-	gracefulexit = true;
-//	signal(sig, signal_handler);
-}
-
-void InitSig(void)
-{
-	signal(SIGINT, signal_handler_graceful);
-}
-
 static Cursor CreateNullCursor(Display *display, Window root)
 {
 	Pixmap cursormask;
@@ -1809,8 +1797,6 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		break;
 	}
 
-	InitSig(); // trap evil signals
-
 	//probably going to be resized in the event handler
 	vid.pixelwidth = fullscreenwidth = width;
 	vid.pixelheight = fullscreenheight = height;
@@ -1872,10 +1858,10 @@ void Sys_SendKeyEvents(void)
 	//this is stupid
 	SV_GetConsoleCommands();
 #endif
-	if (gracefulexit)
+	if (sys_gracefulexit)
 	{
 		Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
-		gracefulexit = false;
+		sys_gracefulexit = false;
 	}
 	if (vid_dpy && vid_window)
 	{

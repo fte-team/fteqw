@@ -4320,7 +4320,8 @@ void RunCompiler(char *args, pbool quick)
 		if (!quick)
 		{
 			EngineGiveFocus();
-			EngineCommandf("qcresume\nmenu_restart\nrestart\n");
+			EngineCommandf("qcresume\nqcreload\n");
+//			EngineCommandf("qcresume\nmenu_restart\nrestart\n");
 		}
 	}
 

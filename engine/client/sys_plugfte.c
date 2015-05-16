@@ -596,7 +596,7 @@ qboolean MyRegGetStringValue(HKEY base, const char *keyname, const char *valuena
 	return result;
 }
 
-void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *data, DWORD datalen)
+qboolean MyRegSetValue(void *base, const char *keyname, const char *valuename, int type, const void *data, int datalen)
 {
 	HKEY subkey;
 	if (RegCreateKeyEx(base, keyname, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_WRITE, NULL, &subkey, NULL) == ERROR_SUCCESS)
@@ -604,8 +604,9 @@ void MyRegSetValue(HKEY base, char *keyname, char *valuename, int type, void *da
 		RegSetValueEx(subkey, valuename, 0, type, data, datalen);
 		RegCloseKey (subkey);
 	}
+	return true;
 }
-void MyRegDeleteKeyValue(HKEY base, char *keyname, char *valuename)
+void MyRegDeleteKeyValue(void *base, const char *keyname, const char *valuename)
 {
 	HKEY subkey;
 	if (RegOpenKeyEx(base, keyname, 0, KEY_WRITE, &subkey) == ERROR_SUCCESS)

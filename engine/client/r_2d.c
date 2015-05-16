@@ -714,7 +714,6 @@ qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
 	return true;
 }
 extern qboolean	WinNT;
-qboolean MyRegGetStringValueMultiSz(HKEY base, char *keyname, char *valuename, void *data, int datalen);
 void R2D_Font_AddFontLink(char *buffer, int buffersize, char *fontname)
 {
 	char link[1024];

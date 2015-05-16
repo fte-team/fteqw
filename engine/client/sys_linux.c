@@ -71,6 +71,7 @@ int sys_parenttop;
 int sys_parentwidth;
 int sys_parentheight;
 long	sys_parentwindow;
+qboolean sys_gracefulexit;
 
 qboolean X11_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 
@@ -625,6 +626,7 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 
     switch(sig)
     {
+	case SIGINT:    strcpy(signame, "SIGINT");  break;
     case SIGILL:    strcpy(signame, "SIGILL");  break;
     case SIGFPE:    strcpy(signame, "SIGFPE");  break;
     case SIGBUS:    strcpy(signame, "SIGBUS");  break;
@@ -649,7 +651,10 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
     fprintf(stderr, "Error: signal %s:\n", signame);
     backtrace_symbols_fd(array+firstframe, size-firstframe, 2);
 
-    fd = open("crash.log", O_WRONLY|O_CREAT|O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP);
+	if (sig == SIGINT)
+		fd = -1;	//don't write out crash logs on ctrl+c
+	else
+		fd = open("crash.log", O_WRONLY|O_CREAT|O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP);
     if (fd != -1)
     {
         time_t rawtime;
@@ -765,6 +770,7 @@ int main (int c, const char **v)
 		sigaction(SIGILL, &act, NULL);
 		sigaction(SIGSEGV, &act, NULL);
 		sigaction(SIGBUS, &act, NULL);
+		sigaction(SIGINT, &act, NULL);
 	}
 #endif
 

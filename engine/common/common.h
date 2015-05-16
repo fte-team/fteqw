@@ -465,7 +465,11 @@ char *narrowen(char *out, size_t outlen, wchar_t *wide);
 wchar_t *widen(wchar_t *out, size_t outbytes, const char *utf8);
 #define __L(x) L ## x
 #define _L(x) __L(x)
-qboolean MyRegGetStringValue(void *hkey_base, const char *keyname, const char *valuename, void *data, size_t datalen);
+int MyRegGetIntValue(void *base, const char *keyname, const char *valuename, int defaultval);
+qboolean MyRegGetStringValue(void *base, const char *keyname, const char *valuename, void *data, size_t datalen);	//data is utf8
+qboolean MyRegGetStringValueMultiSz(void *base, const char *keyname, const char *valuename, void *data, int datalen);
+qboolean MyRegSetValue(void *base, const char *keyname, const char *valuename, int type, const void *data, int datalen);	//string values are utf8
+void MyRegDeleteKeyValue(void *base, const char *keyname, const char *valuename);
 #endif
 
 void FS_UnloadPackFiles(void);

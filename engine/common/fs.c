@@ -341,7 +341,7 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int type, char *pat
 	{
 		if (!strchr(path, '/') || strchr(path, ':') || strchr(path, '\\'))
 		{
-			Con_Printf("invalid package path specified in manifest\n");
+			Con_Printf("invalid package path specified in manifest (%s)\n", path);
 			return false;
 		}
 	}

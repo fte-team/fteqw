@@ -2512,9 +2512,9 @@ qbool HUD_Editor_MouseEvent(float x, float y)
 void HUD_Editor_Key(int key, int unichar, qbool down)
 {
 	static int planmode = 1;
+#ifdef HAXX
 	int togglekeys[2];
 
-#ifdef HAXX
 	EZ_tree_KeyEvent(&help_control_tree, key, unichar, down);
 
 	M_FindKeysForCommand("toggleconsole", togglekeys);

@@ -1848,6 +1848,7 @@ static struct {
 	{"remove",					PF_Remove_,					23},
 	{"find",					PF_FindString,				24},
 	{"findfloat",				PF_FindFloat,				25},
+	{"findentity",				PF_FindFloat,				25},
 	{"findchain",				PF_menu_findchain,			26},
 	{"findchainfloat",			PF_menu_findchainfloat,		27},
 	{"precache_file",			PF_CL_precache_file,		28},

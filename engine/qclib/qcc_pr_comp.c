@@ -1608,7 +1608,7 @@ static QCC_sref_t QCC_GetTemp(QCC_type_t *type)
 
 void QCC_FinaliseTemps(void)
 {
-	int i;
+	unsigned int i;
 	for (i = 0; i < tempsused; )
 	{
 		tempsinfo[i].def->ofs = numpr_globals;
@@ -4026,7 +4026,7 @@ static QCC_sref_t QCC_PR_InlineFindDef(struct inlinectx_s *ctx, QCC_sref_t src, 
 	{
 		//if its a parm, use that
 		QCC_def_t *local;
-		for (local = ctx->func->firstlocal, p = 0; local && p < MAX_PARMS && p < ctx->func->type->num_parms; local = local->deftail->nextlocal, p++)
+		for (local = ctx->func->firstlocal, p = 0; local && p < MAX_PARMS && (unsigned int)p < ctx->func->type->num_parms; local = local->deftail->nextlocal, p++)
 		{
 			if (src.sym->symbolheader == local)
 			{
@@ -6936,6 +6936,12 @@ void QCC_StoreToArray(QCC_sref_t base, QCC_sref_t index, QCC_sref_t source, QCC_
 
 		if (source.cast->type != t->type)
 			QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, base, "Type Mismatch on array assignment");
+
+		if (base.cast->type == ev_vector)
+		{
+			//FIXME: we may very well have a *3 already, dividing by 3 again is crazy.
+			index = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], index, QCC_MakeFloatConst(3), NULL);
+		}
 
 		args[0] = QCC_SupplyConversion(index, ev_float, true);
 		args[1] = source;
@@ -10814,6 +10820,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 	if (numfunctions >= MAX_FUNCTIONS)
 		QCC_Error(ERR_INTERNAL, "Too many function defs");
 
+	s_file = arraydef->s_file;
 	pr_scope = QCC_PR_GenerateQCFunction(scope, scope->type);
 	pr_source_line = pr_token_line_last = pr_scope->line = thearray.sym->s_line;	//thankfully these functions are emitted after compilation.
 	pr_scope->s_file = thearray.sym->s_file;
@@ -12005,18 +12012,19 @@ void QCC_PR_ParseDefs (char *classname)
 
 			if (!def->initialized)
 			{
+				unsigned int u;
 				def->initialized = 1;
-				for (i = 0; i < def->type->size*(def->arraysize?def->arraysize:1); i++)	//make arrays of fields work.
+				for (u = 0; u < def->type->size*(def->arraysize?def->arraysize:1); u++)	//make arrays of fields work.
 				{
-					if (*(int *)&def->symboldata[def->ofs+i])
+					if (*(int *)&def->symboldata[def->ofs+u])
 					{
 						QCC_PR_ParseWarning(0, "Field def already has a value:");
 						QCC_PR_ParsePrintDef(0, def);
 					}
-					*(int *)&def->symboldata[def->ofs+i] = pr.size_fields+i;
+					*(int *)&def->symboldata[def->ofs+u] = pr.size_fields+u;
 				}
 
-				pr.size_fields += i;
+				pr.size_fields += u;
 			}
 
 			QCC_PR_Expect (";");

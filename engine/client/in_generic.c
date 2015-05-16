@@ -137,8 +137,6 @@ void IN_DeviceIDs_Enumerate(void *ctx, char *type, char *devicename, int *qdevid
 
 void IN_DeviceIDs_f(void)
 {
-	int i;
-	char *s;
 	struct remapctx ctx;
 
 	if (Cmd_Argc() > 3)

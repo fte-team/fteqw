@@ -114,7 +114,7 @@ qboolean MyRegGetStringValue(void *base, const char *keyname, const char *valuen
 		((char*)data)[0] = 0;
 	return result;
 }
-qboolean MyRegGetStringValueMultiSz(HKEY base, const char *keyname, const char *valuename, void *data, int datalen)
+qboolean MyRegGetStringValueMultiSz(void *base, const char *keyname, const char *valuename, void *data, int datalen)
 {
 	qboolean result = false;
 	HKEY subkey;

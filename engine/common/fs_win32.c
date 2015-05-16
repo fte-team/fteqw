@@ -174,7 +174,7 @@ qboolean MyRegSetValue(void *base, const char *keyname, const char *valuename, i
 	}
 	return result;
 }
-void MyRegDeleteKeyValue(HKEY base, const char *keyname, const char *valuename)
+void MyRegDeleteKeyValue(void *base, const char *keyname, const char *valuename)
 {
 	HKEY subkey;
 	wchar_t wide[MAX_PATH];

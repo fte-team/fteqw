@@ -515,7 +515,6 @@ CLIENT_OBJS = \
 	wad.o			\
 				\
 	ftpclient.o		\
-	httpclient.o 	\
 				\
 				\
 	pr_menu.o
@@ -656,6 +655,7 @@ COMMON_OBJS = \
 	net_chan.o 		\
 	net_wins.o 		\
 	net_ice.o 		\
+	httpclient.o 	\
 	zone.o 		\
 	qvm.o	\
 	r_d3.o	\

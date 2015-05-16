@@ -4144,6 +4144,14 @@ float SV_Frame (void)
 	if (!sv.gamespeed)
 		sv.gamespeed = 1;
 
+#ifdef WEBCLIENT
+	if (isDedicated)
+	{
+//		FTP_ClientThink();
+		HTTP_CL_Think();
+	}
+#endif
+
 #ifndef SERVERONLY
 	isidle = !isDedicated && sv.allocated_client_slots == 1 && Key_Dest_Has(~kdm_game) && cls.state == ca_active;
 	/*server is effectively paused if there are no clients*/

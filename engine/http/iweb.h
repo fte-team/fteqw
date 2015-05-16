@@ -105,7 +105,9 @@ struct dl_download
 	void *user_ctx;
 	qboolean isquery;	//will not be displayed in the download/progress bar stuff.
 
+#ifndef SERVERONLY
 	qdownload_t qdownload;
+#endif
 
 	/*stream config*/
 	char *url;	/*original url*/

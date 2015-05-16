@@ -704,7 +704,7 @@ BOTLIB_OBJS = 			\
 	l_struct.o	
 
 #the defaults for sdl come first
-#CC_MACHINE:=$(shell TESTamch $(CC) -dumpmachine)
+#CC_MACHINE:=$(shell $(CC) -dumpmachine)
 ifeq ($(FTE_TARGET),SDL2)
 	SDLCONFIG?=sdl2-config
 	FTE_FULLTARGET?=sdl2$(BITS)
@@ -834,7 +834,7 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
 	EXEPOSTFIX=.exe
 
-	CC_MACHINE:=$(shell TESTaseh $(CC) -dumpmachine)
+	CC_MACHINE:=$(shell $(CC) -dumpmachine)
 	ARCH_PREDEP=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)/bin/sdl2-config
 	SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs/SDL2-2.0.1/$(CC_MACHINE)
 	ARCH_CFLAGS=`$(SDLCONFIG) --cflags`

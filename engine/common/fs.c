@@ -17,7 +17,7 @@ hashtable_t filesystemhash;
 qboolean com_fschanged = true;
 qboolean com_installer = false;
 qboolean fs_readonly;
-extern int waitingformanifest;
+int waitingformanifest;
 static unsigned int fs_restarts;
 void *fs_thread_mutex;
 

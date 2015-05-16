@@ -35,7 +35,9 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
+#ifdef WEBCLIENT
 	Cvar_Register (&pr_enable_uriget, cvargroup_progs);
+#endif
 	Cvar_Register (&pr_enable_profiling, cvargroup_progs);
 	Cvar_Register (&pr_sourcedir, cvargroup_progs);
 
@@ -3960,7 +3962,10 @@ static void PR_uri_get_callback(struct dl_download *dl)
 //float(string uril, float id) uri_get = #513;
 void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#ifdef WEBCLIENT
+#ifndef WEBCLIENT
+	Con_Printf("uri_get is not implemented in this build\n");
+	G_FLOAT(OFS_RETURN) = 0;
+#else
 	world_t *w = prinst->parms->user;
 	struct dl_download *dl;
 
@@ -4010,8 +4015,8 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		G_FLOAT(OFS_RETURN) = 1;
 	}
 	else
-#endif
 		G_FLOAT(OFS_RETURN) = 0;
+#endif
 }
 void QCBUILTIN PF_netaddress_resolve(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -5719,8 +5724,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add annother extension...
 	{"DP_QC_UNLIMITEDTEMPSTRINGS",		0,	NULL, {NULL}, "Supersedes DP_QC_MULTIPLETEMPSTRINGS, superseded by FTE_QC_PERSISTENTTEMPSTRINGS. All temp strings will be valid at least until the QCVM returns."},
 	{"DP_QC_URI_ESCAPE",				2,	NULL, {"uri_escape", "uri_unescape"}},
+#ifdef WEBCLIENT
 	{"DP_QC_URI_GET",					1,	NULL, {"uri_get"}},
 	{"DP_QC_URI_POST",					1,	NULL, {"uri_get"}},
+#endif
 	{"DP_QC_VECTOANGLES_WITH_ROLL"},
 	{"DP_QC_VECTORVECTORS",				1,	NULL, {"vectorvectors"}},
 	{"DP_QC_WHICHPACK",					1,	NULL, {"whichpack"}},

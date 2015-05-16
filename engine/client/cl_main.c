@@ -3984,7 +3984,7 @@ typedef struct {
 	char fname[1];	//system path or url.
 } hrf_t;
 
-int waitingformanifest;
+extern int waitingformanifest;
 void Host_DoRunFile(hrf_t *f);
 void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *, char *filename, qboolean issyspath, int demotype, float bufferdelay);
 void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name);

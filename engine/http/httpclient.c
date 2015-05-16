@@ -1186,7 +1186,7 @@ struct dl_download *DL_Create(const char *url)
 /*destroys an entire download context*/
 void DL_Close(struct dl_download *dl)
 {
-#ifndef NPFTE
+#if !defined(NPFTE) && !defined(SERVERONLY)
 	if (cls.download == &dl->qdownload)
 		cls.download = NULL;
 #endif
@@ -1225,6 +1225,7 @@ struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*N
 	activedownloads = newdl;
 
 
+#ifndef SERVERONLY
 	if (!cls.download && localfile && !newdl->isquery)
 	{
 		cls.download = &newdl->qdownload;
@@ -1236,6 +1237,7 @@ struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*N
 		Q_strncpyz(newdl->qdownload.remotename, newdl->url, sizeof(newdl->qdownload.remotename));
 		newdl->qdownload.starttime = Sys_DoubleTime();
 	}
+#endif
 
 	return newdl;
 }
@@ -1287,6 +1289,7 @@ void HTTP_CL_Think(void)
 		}
 		link = &dl->next;
 
+#ifndef SERVERONLY
 		if (!cls.download && !dl->isquery)
 		{
 			cls.download = &dl->qdownload;
@@ -1318,6 +1321,7 @@ void HTTP_CL_Think(void)
 			dl->qdownload.rate = (dl->qdownload.completedbytes - dl->qdownload.ratebytes) / 1;
 			dl->qdownload.ratebytes = dl->qdownload.completedbytes;
 		}
+#endif
 	}
 }
 #endif

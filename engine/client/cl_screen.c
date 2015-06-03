@@ -1879,6 +1879,8 @@ void SCR_SetUpToDrawConsole (void)
 			}
 			if (!con_stayhidden.ival && !startuppending && Key_Dest_Has(kdm_console))
 				scr_con_current = scr_conlines = vid.height * fullscreenpercent;
+			else
+				scr_conlines = 0;
 		}
 		else if ((Key_Dest_Has(kdm_console) || scr_chatmode))
 		{

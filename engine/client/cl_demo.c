@@ -82,6 +82,8 @@ void CL_StopPlayback (void)
 
 	if (cls.timedemo)
 		CL_FinishTimeDemo ();
+
+	TP_ExecTrigger("f_demoend");
 }
 
 /*
@@ -1792,6 +1794,8 @@ void CL_PlayDemo(char *demoname, qboolean usesystempath)
 	{
 		Con_Printf ("ERROR: couldn't open \"%s\".\n", demoname);
 		cls.demonum = -1;		// stop demo loop
+
+		TP_ExecTrigger ("f_demoend");
 		return;
 	}
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));

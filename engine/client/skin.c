@@ -428,6 +428,8 @@ qbyte	*Skin_Cache8 (qwskin_t *skin)
 			skin->loadstate = SKIN_LOADED;
 			return NULL;	//can use the high-res textures instead.
 		}
+		else
+			skin->textures.base = r_nulltex;
 	}
 
 	if (skin->loadstate == SKIN_FAILED)

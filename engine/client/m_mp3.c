@@ -2508,12 +2508,12 @@ qboolean captureframeforce;
 
 qboolean capturepaused;
 cvar_t capturerate = CVAR("capturerate", "30");
-#if defined(WINAVI)
+#if 0//defined(WINAVI)
 cvar_t capturedriver = CVARD("capturedriver", "avi", "The driver to use to capture the demo. avformat can be supported via a plugin.\navi: capture directly to avi (capturecodec should be a fourcc value).\nraw: capture to a series of screenshots.");
 cvar_t capturecodec = CVAR("capturecodec", "divx");
 #else
 cvar_t capturedriver = CVARD("capturedriver", "raw", "The driver to use to capture the demo. avformat can be supported via a plugin.\nraw: capture to a series of screenshots.");
-cvar_t capturecodec = CVAR("capturecodec", "tga");
+cvar_t capturecodec = CVARD("capturecodec", "tga", "the compression/encoding codec to use. With raw capturing, this should be one of tga,png,jpg,pcx (ie: screenshot extensions).\nWith (win)avi, this should be a fourcc code like divx or xvid.");
 #endif
 cvar_t capturesound = CVAR("capturesound", "1");
 cvar_t capturesoundchannels = CVAR("capturesoundchannels", "1");
@@ -2558,6 +2558,7 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 		if (*sndchannels < 1)
 			*sndchannels = 1;
 		Q_snprintfz(filename, sizeof(filename), "%s/audio_%ichan_%ikhz_%ib.raw", ctx->videonameprefix, *sndchannels, *sndkhz/1000, *sndbits);
+		FS_CreatePath(filename, FS_GAMEONLY);
 		ctx->audio = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
 	}
 	if (!ctx->audio)
@@ -3183,6 +3184,12 @@ void Media_RecordDemo_f(void)
 		return;
 	if (Cmd_FromGamecode())
 		return;
+
+	if (!Renderer_Started() && !isDedicated)
+	{
+		Cbuf_AddText(va("wait;%s %s\n", Cmd_Argv(0), Cmd_Args()), Cmd_ExecLevel);
+		return;
+	}
 
 	CL_PlayDemo(Cmd_Argv(1), false);
 	if (Cmd_Argc() > 2)

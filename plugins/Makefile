@@ -1,11 +1,11 @@
 
 #windows is special as always, but we don't support itanium, and microsoft don't support anything else (not even arm with the nt win32 api)
 ifeq ($(FTE_TARGET),win32)
-PLUG_NATIVE_EXT=x86.dll
+PLUG_NATIVE_EXT=_x86.dll
 PLUG_LDFLAGS=-Lavplug/lib32 -L../engine/libs/mingw-libs -lzlib
 endif
 ifeq ($(FTE_TARGET),win64)
-PLUG_NATIVE_EXT=amd.dll
+PLUG_NATIVE_EXT=_amd.dll
 PLUG_LDFLAGS=-Lavplug/lib64 -L../engine/libs/mingw64-libs -lz -Wl,--support-old-code
 endif
 
@@ -23,11 +23,11 @@ endif
 ifeq ($(FTE_TARGET),cygwin)
 ifeq ($(BITS),64)
 PLUG_DEFFILE=plugin.def
-PLUG_NATIVE_EXT=amd.dll
+PLUG_NATIVE_EXT=_amd.dll
 endif
 ifneq ($(BITS),64)
 PLUG_DEFFILE=plugin.def
-PLUG_NATIVE_EXT=x86.dll
+PLUG_NATIVE_EXT=_x86.dll
 endif
 endif
 
@@ -36,21 +36,21 @@ endif
 ifeq ($(PLUG_NATIVE_EXT),)
 LIBRESOLV=-lresolv
 ifneq ($(shell echo|$(CC) -E -dM -|grep __amd64__),)
-PLUG_NATIVE_EXT=amd.so
+PLUG_NATIVE_EXT=_amd.so
 endif
 ifneq ($(shell echo|$(CC) -E -dM -|grep __i386__),)
-PLUG_NATIVE_EXT=x86.so
+PLUG_NATIVE_EXT=_x86.so
 endif
 ifneq ($(shell echo|$(CC) -E -dM -|grep __arm__),)
-PLUG_NATIVE_EXT=arm.so
+PLUG_NATIVE_EXT=_arm.so
 endif
 ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc__),)
-PLUG_NATIVE_EXT=ppc.so
+PLUG_NATIVE_EXT=_ppc.so
 endif
 endif
 
 #fallback
-PLUG_NATIVE_EXT?=unk.so
+PLUG_NATIVE_EXT?=_unk.so
 
 PLUG_DEFFILE?=
 PLUG_CFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic
@@ -126,5 +126,10 @@ native: $(OUT_DIR)/fteplug_xmpp$(PLUG_NATIVE_EXT)
 $(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT): irc/ircclient.c plugin.c qvm_api.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iirc $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 native: $(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT)
+
+#for compat with ezquake
+$(OUT_DIR)/fteplug_ezhud$(PLUG_NATIVE_EXT): ezhud/ezquakeisms.c ezhud/hud.c ezhud/hud_common.c ezhud/hud_editor.c plugin.c qvm_api.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_ezhud$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iirc $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+native: $(OUT_DIR)/fteplug_ezhud$(PLUG_NATIVE_EXT)
 
 native: 

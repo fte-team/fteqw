@@ -4589,7 +4589,11 @@ double Host_Frame (double time)
 #endif
 		Key_Dest_Has(kdm_menu) || 
 		Key_Dest_Has(kdm_editor) ||
-		cl.paused || !ActiveApp;
+#ifdef _WIN32
+		!ActiveApp ||
+#endif
+		cl.paused
+		;
 	// TODO: check if minimized or unfocused
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.

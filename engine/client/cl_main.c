@@ -5245,7 +5245,9 @@ void Host_Shutdown(void)
 	}
 	host_initialized = false;
 
+#ifdef WEBCLIENT
 	HTTP_CL_Terminate();
+#endif
 
 #ifdef PLUGINS
 	Plug_Shutdown(false);

@@ -30,7 +30,6 @@ void Editor_Key(int key, int unicode);
 void Key_ConsoleInsert(char *instext);
 void Key_ClearTyping (void);
 
-#define		KEY_MODIFIERSTATES 8
 unsigned char	*key_lines[CON_EDIT_LINES_MASK+1];
 int		key_linepos;
 int		shift_down=false;
@@ -1561,11 +1560,11 @@ int Key_StringToKeynum (const char *str, int *modifier)
 			if (!underscore || !underscore[1])
 				break;	//nothing afterwards or no underscore.
 			if (!strnicmp(str, "shift_", 6))
-				*modifier |= 1;
+				*modifier |= KEY_MODIFIER_SHIFT;
 			else if (!strnicmp(str, "alt_", 4))
-				*modifier |= 2;
+				*modifier |= KEY_MODIFIER_ALT;
 			else if (!strnicmp(str, "ctrl_", 5))
-				*modifier |= 4;
+				*modifier |= KEY_MODIFIER_CTRL;
 			else
 				break;
 			str = underscore+1;	//next char.
@@ -1616,7 +1615,7 @@ char *Key_KeynumToString (int keynum)
 	
 	if (keynum == -1)
 		return "<KEY NOT FOUND>";
-	if (keynum > 32 && keynum < 127)
+	if (keynum > 32 && keynum < 127 && keynum != '\'' && keynum != '\"')
 	{	// printable ascii
 		tinystr[0] = keynum;
 		tinystr[1] = 0;
@@ -1853,11 +1852,11 @@ void Key_WriteBindings (vfsfile_t *f)
 			if (strcmp(binding, base) || (m==0 && keybindings[i][0]) || bindcmdlevel[i][m] != bindcmdlevel[i][0])
 			{
 				*prefix = '\0';
-				if (m & 4)
+				if (m & KEY_MODIFIER_CTRL)
 					strcat(prefix, "CTRL_");
-				if (m & 2)
+				if (m & KEY_MODIFIER_ALT)
 					strcat(prefix, "ALT_");
-				if (m & 1)
+				if (m & KEY_MODIFIER_SHIFT)
 					strcat(prefix, "SHIFT_");
 
 				s = va("%s%s", prefix, Key_KeynumToString(i));

@@ -252,7 +252,7 @@ static qboolean EditorSaveFile(char *s)	//returns true if succesful
 		pos++;
 	}
 
-	COM_WriteFile(s, data, len);
+	COM_WriteFile(s, FS_GAMEONLY, data, len);
 
 	madechanges = false;
 	editenabled = true;

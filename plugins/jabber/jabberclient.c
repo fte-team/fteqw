@@ -60,6 +60,12 @@ client compat:
 #include <time.h>
 #include "xmpp.h"
 
+#ifdef DEFAULTDOMAIN
+	#define EXAMPLEDOMAIN DEFAULTDOMAIN	//used in examples / default text field (but not otherwise assumed when omitted)
+#else
+	#define EXAMPLEDOMAIN "gmail.com"	//used in examples
+#endif
+
 
 #ifdef JINGLE
 icefuncs_t *piceapi;
@@ -1578,7 +1584,7 @@ qintptr_t JCL_ConsoleLink(qintptr_t *args)
 	else if (!strcmp(what, "newaccount"))
 	{
 		pCon_SetConsoleFloat(BUDDYLISTTITLE, "linebuffered", true);
-		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your account name");
+		pCon_SetConsoleString(BUDDYLISTTITLE, "footer", "Please enter your XMPP account name\neg: example@"EXAMPLEDOMAIN);
 		jclient_action_cl = jcl;
 		jclient_action_buddy = NULL;
 		jclient_action = ACT_NEWACCOUNT;
@@ -1746,7 +1752,7 @@ qintptr_t JCL_ConExecuteCommand(qintptr_t *args)
 		case ACT_NONE:
 			break;
 		case ACT_NEWACCOUNT:
-			if (*args)
+			if (!*args)
 				break;	//they didn't enter anything! oh well.
 			for (i = 0; i < sizeof(jclients)/sizeof(jclients[0]); i++)
 			{
@@ -2208,14 +2214,13 @@ jclient_t *JCL_Connect(int accnum, char *server, int forcetls, char *account, ch
 	}
 	else
 	{
+#ifdef DEFAULTDOMAIN
 		domain = DEFAULTDOMAIN;
-		if (domain && *domain)
-			Con_Printf("XMPP: domain not specified, assuming %s\n", domain);
-		else
-		{
-			Con_Printf("XMPP: domain not specified\n");
-			return NULL;
-		}
+		Con_Printf("XMPP: domain not specified, assuming %s\n", domain);
+#else
+		Con_Printf("XMPP: domain not specified\n");
+		return NULL;
+#endif
 	}
 
 	x = XML_CreateNode(NULL, "account", "", "");
@@ -5401,7 +5406,7 @@ void XMPP_Menu_Connect(void)
 	y = 36;
 	pCmd_AddText(va("menutext 48 %i \"^sXMPP Sign In\"\n", y), false); y+=16;
 	pCmd_AddText(va("menueditpriv 48 %i \"Username\" \"example\"\n", y), false);y+=16;
-	pCmd_AddText(va("menueditpriv 48 %i \"Domain\" \"gmail.com\"\n", y), false);y+=16;
+	pCmd_AddText(va("menueditpriv 48 %i \"Domain\" \""EXAMPLEDOMAIN"\"\n", y), false);y+=16;
 	pCmd_AddText(va("menueditpriv 48 %i \"Resource\" \"\"\n", y), false);y+=32;
 	pCmd_AddText(va("menutext 48 %i \"Sign In\" SignIn\n", y), false);
 	pCmd_AddText(va("menutext 256 %i \"Cancel\" cancel\n", y), false);

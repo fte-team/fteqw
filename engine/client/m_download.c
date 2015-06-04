@@ -6,7 +6,7 @@
 
 #ifdef DOWNLOADMENU
 
-#define ROOTDOWNLOADABLESSOURCE "http://fteqw.com/downloadables.txt"
+#define ROOTDOWNLOADABLESSOURCE "http://fte.triptohell.info/downloadables.txt"
 #define INSTALLEDFILES	"installed.lst"	//the file that resides in the quakedir (saying what's installed).
 
 #define DPF_HAVEAVERSION	1	//any old version

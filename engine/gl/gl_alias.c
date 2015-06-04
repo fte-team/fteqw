@@ -582,9 +582,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			if (!sk->qwskin && *sk->qwskinname)
 				sk->qwskin = Skin_Lookup(sk->qwskinname);
 			if (sk->q1lower != Q1UNSPECIFIED)
-				bc = sk->q1lower;
+				bc = e->bottomcolour = sk->q1lower;
 			if (sk->q1upper != Q1UNSPECIFIED)
-				bc = sk->q1upper;
+				bc = e->topcolour = sk->q1upper;
 			plskin = sk->qwskin;
 		}
 	}
@@ -610,7 +610,9 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 	if (!gl_nocolors.ival || forced)
 	{
-		if (!plskin || plskin->loadstate == SKIN_FAILED)
+		if (plskin && plskin->loadstate == SKIN_LOADING)
+			plskin = NULL;
+		else if (!plskin || plskin->loadstate != SKIN_LOADED)
 		{
 			if (e->playerindex >= 0 && e->playerindex <= MAX_CLIENTS)
 			{

@@ -6620,7 +6620,7 @@ void Mod_Terrain_Create_f(void)
 			"origin \"0 0 1024\"\n"
 		"}\n"
 		, Cmd_Argv(2));
-	COM_WriteFile(mname, mdata, strlen(mdata));
+	COM_WriteFile(mname, FS_GAMEONLY, mdata, strlen(mdata));
 
 	//FIXME: create 4 sections around the origin
 }

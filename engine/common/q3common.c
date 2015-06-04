@@ -102,7 +102,7 @@ void VM_fclose (int fnum, int owner)
 	case VM_FS_WRITE:
 	case VM_FS_APPEND:
 	case VM_FS_APPEND2:
-		COM_WriteFile(vm_fopen_files[fnum].name, vm_fopen_files[fnum].data, vm_fopen_files[fnum].len);
+		COM_WriteFile(vm_fopen_files[fnum].name, FS_GAMEONLY, vm_fopen_files[fnum].data, vm_fopen_files[fnum].len);
 		BZ_Free(vm_fopen_files[fnum].data);
 		break;
 	}

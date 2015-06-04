@@ -4,7 +4,7 @@
 #include "shader.h"
 
 #ifdef _WIN32
-#include <windows.h>
+#include "winquake.h"
 #include "resource.h"
 #else
 #include <unistd.h>
@@ -68,7 +68,10 @@ LRESULT CALLBACK HeadlessWndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lpara
 		}
 		return 0;
 	default:
-		return DefWindowProcA(wnd, msg, wparam, lparam);
+		if (WinNT)
+			return DefWindowProcW(wnd, msg, wparam, lparam);
+		else
+			return DefWindowProcA(wnd, msg, wparam, lparam);
 	}
 }
 #endif
@@ -79,31 +82,64 @@ static qboolean Headless_VID_Init				(rendererstate_t *info, unsigned char *pale
 	//tray icon crap, so the user can still restore the game.
 	extern HWND	mainwindow;
 	extern HINSTANCE	global_hInstance;
-	WNDCLASSW wc;
-	NOTIFYICONDATAW data;
+	if (WinNT)
+	{
+		WNDCLASSW wc;
+		NOTIFYICONDATAW data;
 
-	//Shell_NotifyIcon requires a window to provide events etc.
-    wc.style         = 0;
-    wc.lpfnWndProc   = (WNDPROC)HeadlessWndProc;
-    wc.cbClsExtra    = 0;
-    wc.cbWndExtra    = 0;
-    wc.hInstance     = global_hInstance;
-    wc.hIcon         = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
-    wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
-	wc.hbrBackground = NULL;
-    wc.lpszMenuName  = 0;
-    wc.lpszClassName = L"FTEHeadlessClass";
-	RegisterClassW(&wc);
+		//Shell_NotifyIcon requires a window to provide events etc.
+		wc.style         = 0;
+		wc.lpfnWndProc   = (WNDPROC)HeadlessWndProc;
+		wc.cbClsExtra    = 0;
+		wc.cbWndExtra    = 0;
+		wc.hInstance     = global_hInstance;
+		wc.hIcon         = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
+		wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
+		wc.hbrBackground = NULL;
+		wc.lpszMenuName  = 0;
+		wc.lpszClassName = L"FTEHeadlessClass";
+		RegisterClassW(&wc);
 
-	mainwindow = CreateWindowExW(0L, wc.lpszClassName, L"FTE QuakeWorld", 0, 0, 0, 0, 0, NULL, NULL, global_hInstance, NULL);
-	data.cbSize = sizeof(data);
-	data.hWnd = mainwindow;
-	data.uID = 0;
-	data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
-	data.uCallbackMessage = WM_USER;
-	data.hIcon = wc.hIcon;
-	wcscpy(data.szTip, L"Right-click to restore");
-	Shell_NotifyIconW(NIM_ADD, &data);
+		mainwindow = CreateWindowExW(0L, wc.lpszClassName, L"FTE QuakeWorld", 0, 0, 0, 0, 0, NULL, NULL, global_hInstance, NULL);
+		data.cbSize = sizeof(data);
+		data.hWnd = mainwindow;
+		data.uID = 0;
+		data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+		data.uCallbackMessage = WM_USER;
+		data.hIcon = wc.hIcon;
+		wcscpy(data.szTip, L"Right-click to restore");
+		if (pShell_NotifyIconW)
+			pShell_NotifyIconW(NIM_ADD, &data);
+	}
+	else
+	{
+		WNDCLASSA wc;
+		NOTIFYICONDATAA data;
+
+		//Shell_NotifyIcon requires a window to provide events etc.
+		wc.style         = 0;
+		wc.lpfnWndProc   = (WNDPROC)HeadlessWndProc;
+		wc.cbClsExtra    = 0;
+		wc.cbWndExtra    = 0;
+		wc.hInstance     = global_hInstance;
+		wc.hIcon         = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
+		wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
+		wc.hbrBackground = NULL;
+		wc.lpszMenuName  = 0;
+		wc.lpszClassName = "FTEHeadlessClass";
+		RegisterClassA(&wc);
+
+		mainwindow = CreateWindowExA(0L, wc.lpszClassName, "FTE QuakeWorld", 0, 0, 0, 0, 0, NULL, NULL, global_hInstance, NULL);
+		data.cbSize = sizeof(data);
+		data.hWnd = mainwindow;
+		data.uID = 0;
+		data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+		data.uCallbackMessage = WM_USER;
+		data.hIcon = wc.hIcon;
+		//fixme: proper multibyte
+		Q_strncpyz(data.szTip, "Right-click to restore", sizeof(data.szTip));
+		Shell_NotifyIconA(NIM_ADD, &data);
+	}
 #endif
 	return true;
 }
@@ -111,6 +147,7 @@ static void	 Headless_VID_DeInit				(void)
 {
 #ifdef _WIN32
 	//tray icon crap, so the user can still restore the game.
+	//FIXME: remove tray icon. win95 won't do this automagically.
 	extern HWND	mainwindow;
 	DestroyWindow(mainwindow);
 	mainwindow = NULL;

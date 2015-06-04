@@ -468,6 +468,7 @@ void M_Keyup (int key, int unicode);
 void M_Draw (int uimenu);
 #endif
 void M_FindKeysForCommand (int pnum, const char *command, int *twokeys);
+int M_FindKeysForBind (char *command, int *keylist, int *keymods, int total);
 
 void M_Media_Draw (void);
 void M_Media_Key (int key);

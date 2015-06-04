@@ -166,6 +166,11 @@ K_PRINTSCREEN	= 248,
 K_MAX			= 256
 };
 
+#define KEY_MODIFIER_SHIFT	(1<<0)
+#define KEY_MODIFIER_ALT	(1<<1)
+#define KEY_MODIFIER_CTRL	(1<<2)
+#define	KEY_MODIFIERSTATES	(1<<3)
+
 #define K_SHIFT K_LSHIFT
 #define K_CTRL K_LCTRL
 #define K_ALT K_LALT

@@ -902,7 +902,7 @@ void PM_CategorizePosition (void)
 			pmove.onground = false;
 		else
 		{
-			pmove.onground = true;
+			pmove.onground = !trace.startsolid;
 			pmove.groundent = trace.entnum;
 			groundplane = trace.plane;
 			pmove.waterjumptime = 0;
@@ -1273,8 +1273,8 @@ were contacted during the move.
 */
 void PM_PlayerMove (float gamespeed)
 {
-	int i;
-	int tmp;	//for rounding
+//	int i;
+//	int tmp;	//for rounding
 
 	frametime = pmove.cmd.msec * 0.001*gamespeed;
 	pmove.numtouch = 0;
@@ -1337,7 +1337,7 @@ void PM_PlayerMove (float gamespeed)
 	else
 		PM_AirMove ();
 
-	//round to network precision
+/*	//round to network precision
 	for (i = 0; i < 3; i++)
 	{
 		tmp = floor(pmove.velocity[i]*8 + 0.5);
@@ -1346,7 +1346,7 @@ void PM_PlayerMove (float gamespeed)
 		pmove.origin[i] = tmp/8.0;
 	}
 	PM_NudgePosition ();
-
+*/
 	// set onground, watertype, and waterlevel for final spot
 	PM_CategorizePosition ();
 

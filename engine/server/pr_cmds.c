@@ -205,11 +205,11 @@ void PDECL ED_Spawned (struct edict_s *ent, int loading)
 
 	if (!loading || !ent->xv->Version)
 	{
-		ent->xv->dimension_see = 255;
-		ent->xv->dimension_seen = 255;
+		ent->xv->dimension_see = pr_global_struct->dimension_default;
+		ent->xv->dimension_seen = pr_global_struct->dimension_default;
 		ent->xv->dimension_ghost = 0;
-		ent->xv->dimension_solid = 255;
-		ent->xv->dimension_hit = 255;
+		ent->xv->dimension_solid = pr_global_struct->dimension_default;
+		ent->xv->dimension_hit = pr_global_struct->dimension_default;
 		if (progstype != PROG_H2)
 			ent->xv->drawflags = SCALE_ORIGIN_ORIGIN;	//if not running hexen2, default the scale origin to the actual origin.
 
@@ -666,6 +666,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	static float svphysicsmode = 2;
 	static float writeonly;
 	static float dimension_send_default;
+	static float dimension_default = 255;
 	static float zero_default;
 	static float input_buttons_default;
 	static float input_timelength_default;
@@ -725,6 +726,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalfunc		(false, SetChangeParms);
 	globalfloat		(false, cycle_wrapped);
 	globalfloat		(false, dimension_send);
+	globalfloat		(false, dimension_default);
 
 
 	globalfloat		(false, clientcommandframe);
@@ -747,6 +749,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 
 	// make sure these entries are always valid pointers
 	ensureglobal(dimension_send, dimension_send_default);
+	ensureglobal(dimension_default, dimension_default);
 	ensureglobal(trace_endcontents, writeonly);
 	ensureglobal(trace_surfaceflags, writeonly);
 
@@ -804,8 +807,8 @@ void PR_LoadGlabalStruct(qboolean muted)
 
 	//this can be a map start or a loadgame. don't hurt stuff.
 	if (!pr_global_struct->dimension_send)
-		pr_global_struct->dimension_send = 255;
-/*	pr_global_struct->dimension_send = 255;
+		pr_global_struct->dimension_send = pr_global_struct->dimension_default;
+/*
 	pr_global_struct->serverflags = 0;
 	pr_global_struct->total_secrets = 0;
 	pr_global_struct->total_monsters = 0;
@@ -1218,7 +1221,7 @@ void PR_SSCoreDump_f(void)
 		int size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
 		svprogfuncs->save_ents(svprogfuncs, buffer, &size, size, 3);
-		COM_WriteFile("ssqccore.txt", buffer, size);
+		COM_WriteFile("ssqccore.txt", FS_GAMEONLY, buffer, size);
 		BZ_Free(buffer);
 	}
 }
@@ -9681,7 +9684,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"keynumtostring_csqc",PF_Fixme,0,		0,		0,		340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (found in menuqc)
 	{"stringtokeynum",	PF_Fixme,	0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (EXT_CSQC)
 	{"stringtokeynum_csqc",	PF_Fixme,0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (found in menuqc)
-	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum)", "Finds the current binding for the given key (ignores modifiers like shift/alt/ctrl).")},// (EXT_CSQC)
+	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum)", "Returns the current binding for the given key (returning only the command executed when no modifiers are pressed).")},// (EXT_CSQC)
 
 	{"setcursormode",	PF_Fixme,	0,		0,		0,		343,	D("void(float usecursor, optional string cursorimage, optional vector hotspot, optional float scale)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking). If the image name is specified, the engine will use that image for a cursor (use an empty string to clear it again), in a way that will not conflict with the console. Images specified this way will be hardware accelerated, if supported by the platform/port.")},
 	{"getmousepos",		PF_Fixme,	0,		0,		0,		344,	D("vector()", "Nasty convoluted DP extension. Typically returns deltas instead of positions. Use CSQC_InputEvent for such things in csqc mods.")},	// #344 This is a DP extension
@@ -9918,7 +9921,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510,	"string(string in)"},//DP_QC_URI_ESCAPE
 	{"uri_unescape",	PF_uri_unescape,	0,		0,		0,		511,	"string(string in)"},//DP_QC_URI_ESCAPE
 	{"num_for_edict",	PF_num_for_edict,	0,		0,		0,		512,	"float(entity ent)"},//DP_QC_NUM_FOR_EDICT
-	{"uri_get",			PF_uri_get,			0,		0,		0,		513,	D("#define uri_post uri_get\nfloat(string uril, float id, optional string postmimetype, optional string postdata)", "uri_get() gets content from an URL and calls a callback \"uri_get_callback\" with it set as string; an unique ID of the transfer is returned\nreturns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string")},//DP_QC_URI_GET
+	{"uri_get",			PF_uri_get,			0,		0,		0,		513,	D("#define uri_post uri_get\nfloat(string uril, float id, optional string postmimetype, optional string postdata)", "uri_get() gets content from an URL and calls a callback \"uri_get_callback\" with it set as string; an unique ID of the transfer is returned\nreturns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string\nFor a POST request, you will typically want the postmimetype set to application/x-www-form-urlencoded.\nFor a GET request, omit the mime+data entirely.\nConsult your webserver/php/etc documentation for best-practise.")},//DP_QC_URI_GET
 	{"uri_post",		PF_uri_get,			0,		0,		0,		513,	D("float(string uril, float id, optional string postmimetype, optional string postdata)", "uri_get() gets content from an URL and calls a callback \"uri_get_callback\" with it set as string; an unique ID of the transfer is returned\nreturns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string"), true},//DP_QC_URI_POST
 	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	D("float(string str)", "Tokenize a string exactly as the console's tokenizer would do so. The regular tokenize builtin became bastardized for convienient string parsing, which resulted in a large disparity that can be exploited to bypass checks implemented in a naive SV_ParseClientCommand function, therefore you can use this builtin to make sure it exactly matches.")},
 	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515,	D("float(float idx)", "Returns the character index that the tokenized arg started at.")},
@@ -9927,7 +9930,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	D("string(string cvarname)", "Retrieves the description of a cvar, which might be useful for tooltips or help files. This may still not be useful.")},
 	{"gettime",			PF_gettime,			0,		0,		0,		519,	"float(optional float timetype)"},
 	{"keynumtostring_omgwtf",PF_Fixme,		0,		0,		0,		520,	"string(float keynum)"},	//excessive third version in dp's csqc.
-	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	"string(string command, optional float bindmap)"},
+	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	D("string(string command, optional float bindmap)", "Returns a list of keycodes that perform the given console command in a format that can only be parsed via tokenize (NOT tokenize_console). This only and always returns two values - if only one key is actually bound, -1 will be returned. The bindmap argument is listed for compatibility with dp-specific defs, but is ignored in FTE.")},
+	{"findkeysforcommandex",PF_Fixme,		0,		0,		0,		0,		D("string(string command)", "Returns a list of key bindings in keyname format instead of keynums. Use tokenize to parse. This list may contain modifiers. May return large numbers of keys.")},
 //	{"initparticlespawner",PF_Fixme,		0,		0,		0,		522,	"void(float max_themes)"},
 //	{"resetparticle",	PF_Fixme,			0,		0,		0,		523,	"void()"},
 //	{"particletheme",	PF_Fixme,			0,		0,		0,		524,	"void(float theme)"},
@@ -10698,6 +10702,8 @@ void PR_DumpPlatform_f(void)
 		{"parm17, parm18, parm19, parm20, parm21, parm22, parm23, parm24, parm25, parm26, parm27, parm28, parm29, parm30, parm31, parm32", "float", QW|NQ},
 		{"parm33, parm34, parm35, parm36, parm37, parm38, parm39, parm40, parm41, parm42, parm43, parm44, parm45, parm46, parm47, parm48", "float", QW|NQ},
 		{"parm49, parm50, parm51, parm52, parm53, parm54, parm55, parm56, parm57, parm58, parm59, parm60, parm61, parm62, parm63, parm64", "float", QW|NQ},
+		{"dimension_send",			"var float", QW|NQ, "Used by multicast functionality. Multicasts (and related builtins that multicast internally) will only be sent to players where (player.dimension_see & dimension_send) is non-zero."},
+		{"dimension_default",		"//var float", QW|NQ, "Default dimension bitmask", 255},
 		{"physics_mode",			"var float", QW|NQ|CS, "0: original csqc - physics are not run\n1: DP-compat. Thinks occur, but not true movetypes.\n2: movetypes occur just as they do in ssqc.", 2},
 		{"gamespeed",				"float", CS, "Set by the engine, this is the value of the sv_gamespeed cvar"},
 		{"numclientseats",			"float", CS, "This is the number of splitscreen clients currently running on this client."},

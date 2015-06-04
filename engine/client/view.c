@@ -575,10 +575,20 @@ void V_BonusFlash_f (void)
 {
 	if (v_bonusflash.value || !Cmd_FromGamecode())
 	{
-		cl.cshifts[CSHIFT_BONUS].destcolor[0] = 215;
-		cl.cshifts[CSHIFT_BONUS].destcolor[1] = 186;
-		cl.cshifts[CSHIFT_BONUS].destcolor[2] = 69;
-		cl.cshifts[CSHIFT_BONUS].percent = 50*v_bonusflash.value;
+		if (Cmd_Argc() > 1)
+		{	//this is how I understand DP expects them.
+			cl.cshifts[CSHIFT_BONUS].destcolor[0] = atof(Cmd_Argv(1));
+			cl.cshifts[CSHIFT_BONUS].destcolor[1] = atof(Cmd_Argv(2));
+			cl.cshifts[CSHIFT_BONUS].destcolor[2] = atof(Cmd_Argv(3));
+			cl.cshifts[CSHIFT_BONUS].percent = atof(Cmd_Argv(4))*255*v_bonusflash.value;
+		}
+		else
+		{
+			cl.cshifts[CSHIFT_BONUS].destcolor[0] = 215;
+			cl.cshifts[CSHIFT_BONUS].destcolor[1] = 186;
+			cl.cshifts[CSHIFT_BONUS].destcolor[2] = 69;
+			cl.cshifts[CSHIFT_BONUS].percent = 50*v_bonusflash.value;
+		}
 	}
 }
 void V_DarkFlash_f (void)
@@ -1544,7 +1554,8 @@ void R_DrawNameTags(void)
 			e = WEDICT_NUM(w->progs, i);
 			if (e->isfree)
 				continue;
-			VectorInterpolate(e->v->absmin, 0.5, e->v->absmax, org);
+			VectorInterpolate(e->v->mins, 0.5, e->v->maxs, org);
+			VectorAdd(org, e->v->origin, org);
 			VectorSubtract(org, r_refdef.vieworg, diff);
 			if (DotProduct(diff, diff) > 256*256)
 				continue;

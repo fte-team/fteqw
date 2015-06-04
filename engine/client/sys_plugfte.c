@@ -585,7 +585,9 @@ qboolean MyRegGetStringValue(HKEY base, const char *keyname, const char *valuena
 	DWORD type = REG_NONE;
 	if (RegOpenKeyEx(base, keyname, 0, KEY_READ, &subkey) == ERROR_SUCCESS)
 	{
-		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &datalen);
+		DWORD dl = datalen;
+		result = ERROR_SUCCESS == RegQueryValueEx(subkey, valuename, NULL, &type, data, &dl);
+		datalen = dl;
 		RegCloseKey (subkey);
 	}
 

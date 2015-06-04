@@ -22,7 +22,7 @@
 
 
 #define JCL_BUILD "4"
-#define DEFAULTDOMAIN ""
+//#define DEFAULTDOMAIN "triptohell.info"
 #define DEFAULTRESOURCE "Quake"
 #define QUAKEMEDIAXMLNS "http://fteqw.com/protocol/quake"
 #define DISCONODE		"http://fteqw.com/ftexmpp"	//some sort of client identifier

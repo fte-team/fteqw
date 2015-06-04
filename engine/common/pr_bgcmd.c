@@ -514,7 +514,7 @@ pbool QDECL QC_WriteFile(const char *name, void *data, int len)
 {
 	char buffer[256];
 	Q_snprintfz(buffer, sizeof(buffer), "%s", name);
-	COM_WriteFile(buffer, data, len);
+	COM_WriteFile(buffer, FS_GAMEONLY, data, len);
 	return true;
 }
 
@@ -1879,7 +1879,7 @@ void PF_fclose_i (int fnum)
 	switch(pf_fopen_files[fnum].accessmode)
 	{
 	case FRIK_FILE_MMAP_RW:
-		COM_WriteFile(pf_fopen_files[fnum].name, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
+		COM_WriteFile(pf_fopen_files[fnum].name, FS_GAMEONLY, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
 		/*fall through*/
 	case FRIK_FILE_MMAP_READ:
 		pf_fopen_files[fnum].prinst->AddressableFree(pf_fopen_files[fnum].prinst, pf_fopen_files[fnum].data);
@@ -1891,7 +1891,7 @@ void PF_fclose_i (int fnum)
 		break;
 	case 1:
 	case 2:
-		COM_WriteFile(pf_fopen_files[fnum].name, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
+		COM_WriteFile(pf_fopen_files[fnum].name, FS_GAMEONLY, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
 		BZ_Free(pf_fopen_files[fnum].data);
 		break;
 	case 3:
@@ -2859,7 +2859,7 @@ void QCBUILTIN PF_chr2str (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	{
 		ch = G_FLOAT(OFS_PARM0 + i*3);
 		if (VMUTF8 || ch > 0xff)
-			s += unicode_encode(s, ch, (string+sizeof(string)-1)-s, VMUTF8MARKUP);
+			s += unicode_encode(s, ch, (string+sizeof(string)-1)-s, VMUTF8MARKUP||(ch>0xff));
 		else
 			*s++ = G_FLOAT(OFS_PARM0 + i*3);
 	}
@@ -4818,7 +4818,7 @@ void QCBUILTIN PF_coredump (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	int size = 1024*1024*8;
 	char *buffer = BZ_Malloc(size);
 	prinst->save_ents(prinst, buffer, &size, size, 3);
-	COM_WriteFile("core.txt", buffer, size);
+	COM_WriteFile("core.txt", FS_GAMEONLY, buffer, size);
 	BZ_Free(buffer);
 }
 void QCBUILTIN PF_eprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

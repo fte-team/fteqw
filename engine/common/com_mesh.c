@@ -5065,6 +5065,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	int bonemap[MAX_BONES];
 	char *e;
 	size_t psasize;
+	void *psabuffer;
 
 	pskpnts_t *pnts = NULL;
 	pskvtxw_t *vtxw = NULL;
@@ -5205,13 +5206,14 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 	/*attempt to load a psa file. don't die if we can't find one*/
 	COM_StripExtension(mod->name, psaname, sizeof(psaname));
 	Q_strncatz(psaname, ".psa", sizeof(psaname));
-	buffer = COM_LoadFile(psaname, 5, &psasize);
-	if (buffer)
+	buffer = NULL;//test
+	psabuffer = COM_LoadFile(psaname, 5, &psasize);
+	if (psabuffer)
 	{
 		pos = 0;
 		while (pos < psasize && !fail)
 		{
-			chunk = (pskchunk_t*)((char*)buffer + pos);
+			chunk = (pskchunk_t*)((char*)psabuffer + pos);
 			chunk->version = LittleLong(chunk->version);
 			chunk->recordsize = LittleLong(chunk->recordsize);
 			chunk->numrecords = LittleLong(chunk->numrecords);
@@ -5224,7 +5226,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			else if (!strcmp("BONENAMES", chunk->id) && chunk->recordsize == sizeof(pskboneinfo_t))
 			{
 				/*parsed purely to ensure that the bones match the main model*/
-				pskboneinfo_t *animbones = (pskboneinfo_t*)((char*)buffer + pos);
+				pskboneinfo_t *animbones = (pskboneinfo_t*)((char*)psabuffer + pos);
 				pos += chunk->recordsize * chunk->numrecords;
 				if (num_boneinfo != chunk->numrecords)
 				{
@@ -5262,7 +5264,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			else if (!strcmp("ANIMINFO", chunk->id) && chunk->recordsize == sizeof(pskaniminfo_t))
 			{
 				num_animinfo = chunk->numrecords;
-				animinfo = (pskaniminfo_t*)((char*)buffer + pos);
+				animinfo = (pskaniminfo_t*)((char*)psabuffer + pos);
 				pos += chunk->recordsize * chunk->numrecords;
 
 				for (i = 0; i < num_animinfo; i++)
@@ -5277,7 +5279,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			else if (!strcmp("ANIMKEYS", chunk->id) && chunk->recordsize == sizeof(pskanimkeys_t))
 			{
 				num_animkeys = chunk->numrecords;
-				animkeys = (pskanimkeys_t*)((char*)buffer + pos);
+				animkeys = (pskanimkeys_t*)((char*)psabuffer + pos);
 				pos += chunk->recordsize * chunk->numrecords;
 
 				for (i = 0; i < num_animkeys; i++)
@@ -5317,11 +5319,11 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 			num_animkeys = 0;
 			fail = false;
 		}
-		BZ_Free(buffer);
 	}
 
 	if (fail)
 	{
+		BZ_Free(psabuffer);
 		return false;
 	}
 
@@ -5613,6 +5615,7 @@ qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		gmdl[i].nextsurf = (i != num_matt-1)?&gmdl[i+1]:NULL;
 	}
 
+	BZ_Free(psabuffer);
 	if (fail)
 	{
 		return false;

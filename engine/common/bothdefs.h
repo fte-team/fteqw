@@ -528,8 +528,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ARCH_DL_POSTFIX ".so"
 #endif
 
-#if defined(__amd64__)
-	#define ARCH_CPU_POSTFIX "amd"
+#if defined(_M_AMD64) || defined(__amd64__)
+#ifdef _WIN32
+	#define ARCH_CPU_POSTFIX "x64"
+#else
+	#define ARCH_CPU_POSTFIX "amd64"
+#endif
 #elif defined(_M_IX86) || defined(__i386__)
 	#define ARCH_CPU_POSTFIX "x86"
 #elif defined(__powerpc__) || defined(__ppc__)

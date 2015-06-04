@@ -1950,6 +1950,7 @@ static void Lua_SetupGlobals(world_t *world)
 	memset(&lua.globals, 0, sizeof(lua.globals));
 	lua.globals.physics_mode = 2;
 	lua.globals.dimension_send = 255;
+	lua.globals.dimension_default = 255;
 
 	flds = 0;
 	bucks = 64;

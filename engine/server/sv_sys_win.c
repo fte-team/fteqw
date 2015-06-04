@@ -1053,17 +1053,41 @@ void ApplyColour(unsigned int chr)
 	}
 }
 
-void Sys_PrintColouredChar(unsigned int chr)
+//this could be much more efficient.
+static void Sys_PrintColouredChars(conchar_t *start, conchar_t *end)
 {
+	conchar_t m;
+	wchar_t wc[256];
+	int l;
 	DWORD dummy;
-	wchar_t wc;
 
-	if (chr & CON_HIDDEN)
-		return;
-	ApplyColour(chr);
+	while(start < end)
+	{
+		l = 0;
+		m = *start & CON_FLAGSMASK;
+		for (;;)
+		{
+			if (start == end || m != (*start & CON_FLAGSMASK) || l >= countof(wc))
+			{
+				ApplyColour(m);
+				if (WinNT)
+					WriteConsoleW(hconsoleout, wc, l, &dummy, NULL);
+				else
+				{
+					//win95 doesn't support wide chars *sigh*. blank consoles suck.
+					char ac[256];
+					l = WideCharToMultiByte(CP_ACP, 0, wc, l, ac, sizeof(ac), NULL, NULL);
+					WriteConsole(hconsoleout, ac, l, &dummy, NULL);
+				}
+				break;
+			}
+			if (!(*start & CON_HIDDEN))
+				wc[l++] = *start & CON_CHARMASK;
+			start++;
+		}
+	}
 
-	wc = chr & CON_CHARMASK;
-	WriteConsoleW(hconsoleout, &wc, 1, &dummy, NULL);
+	ApplyColour(CON_WHITEMASK);
 }
 
 /*
@@ -1112,13 +1136,9 @@ void Sys_Printf (char *fmt, ...)
 
 		if (sys_colorconsole.value && hconsoleout)
 		{
-			conchar_t out[MAXPRINTMSG], *c, *end;
+			conchar_t out[MAXPRINTMSG], *end;
 			end = COM_ParseFunString(CON_WHITEMASK, msg, out, sizeof(out), false);
-
-			for (c = out; c < end; c++) 
-				Sys_PrintColouredChar (*c);
-
-			ApplyColour(CON_WHITEMASK);
+			Sys_PrintColouredChars (out, end);
 		}
 		else
 		{

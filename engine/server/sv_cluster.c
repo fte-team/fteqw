@@ -119,9 +119,11 @@ pubsubserver_t *MSV_FindSubServer(unsigned int id)
 }
 
 //"5" finds server 5 only
+//"5:" is equivelent to the above
 //"5:dm4" finds server 5, and will start it if not known (even if a different node is running the same map)
 //"0:dm4" starts a new server running dm4, even if its already running
 //":dm4" finds any server running dm4. starts a new one if needed.
+//"dm4" is ambiguous, in the case of a map beginning with a number (bah). don't use.
 pubsubserver_t *MSV_FindSubServerName(const char *servername)
 {
 	pubsubserver_t *s;
@@ -136,8 +138,11 @@ pubsubserver_t *MSV_FindSubServerName(const char *servername)
 			forcenew = true;
 		mapname++;
 	}
-	else
+	else if (*mapname)
+	{
+		Con_Printf("Invalid node name (lacks colon): %s\n", servername);
 		mapname = "";
+	}
 
 	if (id)
 	{
@@ -216,17 +221,9 @@ void MSV_MapCluster_f(void)
 
 	//child processes return 0 and fall through
 	memset(&sv, 0, sizeof(sv));
-	if (Cmd_Argc() > 1)
+	if (atoi(Cmd_Argv(1)))
 	{
-		char *dbname = Cmd_Argv(1);
-		char *sqlparams[] =
-		{
-			"",	//host
-			"",	//username
-			"",	//password
-			dbname,	//db
-		};
-		Con_Printf("Opening database \"%s\"\n", dbname);
+		Con_Printf("Opening database \"%s\"\n", sqlparams[3]);
 		sv.logindatabase = SQL_NewServer("sqlite", sqlparams);
 		if (sv.logindatabase == -1)
 		{
@@ -777,9 +774,22 @@ void SSV_ReadFromControlServer(void)
 				for (i = 0; i < sv.allocated_client_slots; i++)
 				{
 					cl = &svs.clients[i];
+					if (cl->state >= ca_connected)
 					if (!*dest || !strcmp(dest, cl->name))
 					{
-						SV_PrintToClient(cl, PRINT_HIGH, va("%s from [%s]: %s\n", cmd, from, info));
+						if (!strcmp(cmd, "say"))
+							SV_PrintToClient(cl, PRINT_HIGH, va("^[%s^]: %s\n", from, info));
+						else if (!strcmp(cmd, "join"))
+						{
+							SV_PrintToClient(cl, PRINT_HIGH, va("^[%s^] is joining you\n", from));
+							SSV_Send(from, cl->name, "joinnode", va("%i", svs.clusterserverid));
+						}
+						else if (!strcmp(cmd, "joinnode"))
+						{
+							SSV_InitiatePlayerTransfer(cl, info);
+						}
+						else
+							SV_PrintToClient(cl, PRINT_HIGH, va("%s from [%s]: %s\n", cmd, from, info));
 						if (*dest)
 							break;
 					}
@@ -815,7 +825,7 @@ void SSV_UpdateAddresses(void)
 		{
 			if (addr[i].type == NA_IP)
 			{
-				NET_StringToAdr(sv_serverip.string, BigShort(addr[i].port), &addr[0]);
+				NET_StringToAdr2(sv_serverip.string, BigShort(addr[i].port), &addr[0], sizeof(addr)/sizeof(addr[0]));
 				count = 1;
 				break;
 			}

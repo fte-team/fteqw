@@ -81,6 +81,7 @@ typedef struct nqglobalvars_s
 	func_t	*SetChangeParms;
 	float *cycle_wrapped;
 	float *dimension_send;
+	float *dimension_default;
 
 	float *physics_mode;
 	float *clientcommandframe;

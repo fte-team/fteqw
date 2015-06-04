@@ -79,7 +79,8 @@ typedef BOOL (WINAPI *lpfnSetLayeredWindowAttributes)(HWND hwnd, COLORREF crKey,
 extern cvar_t vid_conwidth, vid_conautoscale;
 
 
-#define WINDOW_CLASS_NAME L"FTEGLQuake"
+#define WINDOW_CLASS_NAME_W L"FTEGLQuake"
+#define WINDOW_CLASS_NAME_A "FTEGLQuake"
 
 #define MAX_MODE_LIST	128
 #define VID_ROW_SIZE	3
@@ -470,8 +471,10 @@ qboolean GLInitialise (char *renderer)
 
 		if (*renderer && stricmp(renderer, "opengl32.dll") && stricmp(renderer, "opengl32"))
 		{
+			unsigned int emode = SetErrorMode(SEM_FAILCRITICALERRORS); /*no annoying errors if they use glide*/
 			Con_DPrintf ("Loading renderer dll \"%s\"", renderer);
 			hInstGL = Sys_LoadLibrary(opengldllname, NULL);
+			SetErrorMode(emode);
 			if (hInstGL)
 			{
 				usingminidriver = true;
@@ -531,7 +534,7 @@ qboolean GLInitialise (char *renderer)
 	}
 	else
 	{
-		qwglSwapLayerBuffers	= (void *)getwglfunc("wglSwapLayerBuffers");
+		qwglSwapLayerBuffers	= NULL;//(void *)getwglfunc("wglSwapLayerBuffers");
 		qSwapBuffers			= SwapBuffers;
 		qChoosePixelFormat		= ChoosePixelFormat;
 		qSetPixelFormat			= SetPixelFormat;
@@ -765,18 +768,36 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	WindowRect = centerrect(pleft, ptop, pwidth, pheight, wwidth, wheight);
 
 	// Create the DIB window
-	dibwindow = CreateWindowExW (
-		 ExWindowStyle,
-		 WINDOW_CLASS_NAME,
-		 _L(FULLENGINENAME),
-		 WindowStyle,
-		 WindowRect.left, WindowRect.top,
-		 WindowRect.right - WindowRect.left,
-		 WindowRect.bottom - WindowRect.top,
-		 sys_parentwindow,
-		 NULL,
-		 global_hInstance,
-		 NULL);
+	if (WinNT)
+	{
+		dibwindow = CreateWindowExW (
+			 ExWindowStyle,
+			 WINDOW_CLASS_NAME_W,
+			 _L(FULLENGINENAME),
+			 WindowStyle,
+			 WindowRect.left, WindowRect.top,
+			 WindowRect.right - WindowRect.left,
+			 WindowRect.bottom - WindowRect.top,
+			 sys_parentwindow,
+			 NULL,
+			 global_hInstance,
+			 NULL);
+	}
+	else
+	{
+		dibwindow = CreateWindowExA (
+			 ExWindowStyle,
+			 WINDOW_CLASS_NAME_A,
+			 FULLENGINENAME,
+			 WindowStyle,
+			 WindowRect.left, WindowRect.top,
+			 WindowRect.right - WindowRect.left,
+			 WindowRect.bottom - WindowRect.top,
+			 sys_parentwindow,
+			 NULL,
+			 global_hInstance,
+			 NULL);
+	}
 
 	if (!dibwindow)
 	{
@@ -889,7 +910,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 		gdevmode.dmBitsPerPel = info->bpp;
 		if (info->bpp && (gdevmode.dmBitsPerPel < 15))
 		{
-			Con_Printf("Forcing at least 16bpp\n");
+			Con_Printf("Forcing at least 15bpp\n");
 			gdevmode.dmBitsPerPel = 16;
 		}
 		gdevmode.dmDisplayFrequency = info->rate;
@@ -899,7 +920,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 
 		if (ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
 		{
-			Con_SafePrintf((gdevmode.dmFields&DM_DISPLAYFREQUENCY)?"Windows rejected mode %i*%i*%i*%i\n":"Windows rejected mode %i*%i*%i\n", (int)gdevmode.dmPelsWidth, (int)gdevmode.dmPelsHeight, (int)gdevmode.dmBitsPerPel, (int)gdevmode.dmDisplayFrequency);
+			Con_SafePrintf((gdevmode.dmFields&DM_DISPLAYFREQUENCY)?"Windows rejected mode %i*%i*%ibpp@%ihz\n":"Windows rejected mode %i*%i*%ibpp\n", (int)gdevmode.dmPelsWidth, (int)gdevmode.dmPelsHeight, (int)gdevmode.dmBitsPerPel, (int)gdevmode.dmDisplayFrequency);
 			return false;
 		}
 	}
@@ -927,18 +948,36 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	wheight = rect.bottom - rect.top;
 
 	// Create the DIB window
-	dibwindow = CreateWindowExW (
-		 ExWindowStyle,
-		 WINDOW_CLASS_NAME,
-		 _L(FULLENGINENAME),
-		 WindowStyle,
-		 rect.left, rect.top,
-		 wwidth,
-		 wheight,
-		 NULL,
-		 NULL,
-		 global_hInstance,
-		 NULL);
+	if(WinNT)
+	{
+		dibwindow = CreateWindowExW (
+			ExWindowStyle,
+			WINDOW_CLASS_NAME_W,
+			_L(FULLENGINENAME),
+			WindowStyle,
+			rect.left, rect.top,
+			wwidth,
+			wheight,
+			NULL,
+			NULL,
+			global_hInstance,
+			NULL);
+	}
+	else
+	{
+		dibwindow = CreateWindowExA (
+			ExWindowStyle,
+			WINDOW_CLASS_NAME_A,
+			FULLENGINENAME,
+			WindowStyle,
+			rect.left, rect.top,
+			wwidth,
+			wheight,
+			NULL,
+			NULL,
+			global_hInstance,
+			NULL);
+	}
 
 	if (!dibwindow)
 		Sys_Error ("Couldn't create DIB window");
@@ -1002,20 +1041,40 @@ static void Win_Touch_Init(HWND wnd);
 static qboolean CreateMainWindow(rendererstate_t *info)
 {
 	qboolean		stat;
-	WNDCLASSW		wc;
-	/* Register the frame class */
-    wc.style         = CS_OWNDC;
-    wc.lpfnWndProc   = (WNDPROC)GLMainWndProc;
-    wc.cbClsExtra    = 0;
-    wc.cbWndExtra    = 0;
-    wc.hInstance     = global_hInstance;
-    wc.hIcon         = hIcon;
-    wc.hCursor       = hArrowCursor;
-	wc.hbrBackground = NULL;
-    wc.lpszMenuName  = 0;
-    wc.lpszClassName = WINDOW_CLASS_NAME;
-	if (!RegisterClassW (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
-		Con_Printf("RegisterClass failed\n");
+	if (WinNT)
+	{
+		WNDCLASSW		wc;
+		/* Register the frame class */
+		wc.style         = CS_OWNDC;
+		wc.lpfnWndProc   = (WNDPROC)GLMainWndProc;
+		wc.cbClsExtra    = 0;
+		wc.cbWndExtra    = 0;
+		wc.hInstance     = global_hInstance;
+		wc.hIcon         = hIcon;
+		wc.hCursor       = hArrowCursor;
+		wc.hbrBackground = NULL;
+		wc.lpszMenuName  = 0;
+		wc.lpszClassName = WINDOW_CLASS_NAME_W;
+		if (!RegisterClassW (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
+			Con_Printf("RegisterClass failed\n");
+	}
+	else
+	{
+		WNDCLASSA		wc;
+		/* Register the frame class */
+		wc.style         = CS_OWNDC;
+		wc.lpfnWndProc   = (WNDPROC)GLMainWndProc;
+		wc.cbClsExtra    = 0;
+		wc.cbWndExtra    = 0;
+		wc.hInstance     = global_hInstance;
+		wc.hIcon         = hIcon;
+		wc.hCursor       = hArrowCursor;
+		wc.hbrBackground = NULL;
+		wc.lpszMenuName  = 0;
+		wc.lpszClassName = WINDOW_CLASS_NAME_A;
+		if (!RegisterClassA (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
+			Con_Printf("RegisterClass failed\n");
+	}
 
 	if (!info->fullscreen)
 	{
@@ -2464,7 +2523,10 @@ LONG WINAPI GLMainWndProc (
 
 		default:
 			/* pass all unhandled messages to DefWindowProc */
-			lRet = DefWindowProcW (hWnd, uMsg, wParam, lParam);
+			if (WinNT)
+				lRet = DefWindowProcW (hWnd, uMsg, wParam, lParam);
+			else
+				lRet = DefWindowProcA (hWnd, uMsg, wParam, lParam);
 			break;
 	}
 
@@ -2521,7 +2583,10 @@ void GLVID_DeInit (void)
 	Cvar_Unhook(&vid_wndalpha);
 	Cmd_RemoveCommand("vid_recenter");
 
-	UnregisterClassW(WINDOW_CLASS_NAME, global_hInstance);
+	if (WinNT)
+		UnregisterClassW(WINDOW_CLASS_NAME_W, global_hInstance);
+	else
+		UnregisterClassA(WINDOW_CLASS_NAME_A, global_hInstance);
 }
 
 /*

@@ -1170,7 +1170,7 @@ static void P_ParticleEffect_f(void)
 			ptype->alpha = atof(value);
 		else if (!strcmp(var, "alphachange"))
 		{
-			Con_DPrintf("alphachange is deprechiated, use alphadelta\n");
+			Con_DPrintf("alphachange is deprecated, use alphadelta\n");
 			ptype->alphachange = atof(value);
 		}
 		else if (!strcmp(var, "alphadelta"))
@@ -1195,7 +1195,7 @@ static void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "diesubrand"))
 		{
-			Con_DPrintf("diesubrand is deprechiated, use die with two arguments\n");
+			Con_DPrintf("diesubrand is deprecated, use die with two arguments\n");
 			ptype->randdie = atof(value);
 		}
 
@@ -1550,7 +1550,7 @@ static void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "isbeam"))
 		{
-			Con_DPrintf("isbeam is deprechiated, use type beam\n");
+			Con_DPrintf("isbeam is deprecated, use type beam\n");
 			ptype->looks.type = PT_BEAM;
 		}
 		else if (!strcmp(var, "spawntime"))
@@ -1589,22 +1589,22 @@ static void P_ParticleEffect_f(void)
 		// old names
 		else if (!strcmp(var, "areaspread"))
 		{
-			Con_DPrintf("areaspread is deprechiated, use spawnorg\n");
+			Con_DPrintf("areaspread is deprecated, use spawnorg\n");
 			ptype->areaspread = atof(value);
 		}
 		else if (!strcmp(var, "areaspreadvert"))
 		{
-			Con_DPrintf("areaspreadvert is deprechiated, use spawnorg\n");
+			Con_DPrintf("areaspreadvert is deprecated, use spawnorg\n");
 			ptype->areaspreadvert = atof(value);
 		}
 		else if (!strcmp(var, "offsetspread"))
 		{
-			Con_DPrintf("offsetspread is deprechiated, use spawnvel\n");
+			Con_DPrintf("offsetspread is deprecated, use spawnvel\n");
 			ptype->spawnvel = atof(value);
 		}
 		else if (!strcmp(var, "offsetspreadvert"))
 		{
-			Con_DPrintf("offsetspreadvert is deprechiated, use spawnvel\n");
+			Con_DPrintf("offsetspreadvert is deprecated, use spawnvel\n");
 			ptype->spawnvelvert  = atof(value);
 		}
 
@@ -1640,7 +1640,7 @@ static void P_ParticleEffect_f(void)
 				ptype->rampmode = RAMP_NONE;
 			else if (!strcmp(value, "absolute"))
 			{
-				Con_DPrintf("'rampmode absolute' is deprechiated, use 'rampmode nearest'\n");
+				Con_DPrintf("'rampmode absolute' is deprecated, use 'rampmode nearest'\n");
 				ptype->rampmode = RAMP_NEAREST;
 			}
 			else if (!strcmp(value, "nearest"))
@@ -2902,7 +2902,7 @@ static void P_ExportBuiltinSet_f(void)
 			file = *partset_list[i].data;
 			if (file)
 			{
-				COM_WriteFile(va("particles/%s.cfg", efname), file, strlen(file));
+				COM_WriteFile(va("particles/%s.cfg", efname), FS_GAMEONLY, file, strlen(file));
 				Con_Printf("Written particles/%s.cfg\n", efname);
 			}
 			else

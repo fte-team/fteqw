@@ -2271,7 +2271,8 @@ unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen, qboolean 
 {
 	static const char hex[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 	//FIXME: is it a bug that we can't distinguish between true ascii and 0xe0XX ?
-	if (((unicode >= 32 || unicode == '\n' || unicode == '\t' || unicode == '\r') && unicode < 128) || (unicode >= 0xe000 && unicode <= 0xe0ff))
+	//ntrv are considered special by parsefunstring and are not remapped back to the quake glyphs, so try to keep them as quake glyphs where possible
+	if (((unicode >= 32 || unicode == '\n' || unicode == '\t' || unicode == '\r') && unicode < 128) || (unicode >= 0xe000 && unicode <= 0xe0ff && unicode != (0xe000|'\n') && unicode != (0xe000|'\t') && unicode != (0xe000|'\r') && unicode != (0xe000|'\v')))
 	{	//quake compatible chars
 		if (maxlen < 1)
 			return 0;
@@ -2965,7 +2966,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 	while(*str)
 	{
-		if (*str & 0x80 && utf8 > 0)
+		if ((*str & 0x80) && utf8 > 0)
 		{	//check for utf-8
 			int decodeerror;
 			char *end;

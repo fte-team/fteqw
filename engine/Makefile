@@ -1624,11 +1624,6 @@ help:
 	@-echo "vc - Attempts to use msvc8+ to compile. Note: uses profile guided optimisations. You must build+run the relevent profile target before a release target will compile properly. Debug doesn't care."
 	@-echo "android, npfte, nacl targets explicitly cross compile, and should generally not be given an FTE_TARGET."
 
-install:
-	-cp debug/*.* /opt/quake/
-	-cp release/*.* /opt/quake/
-	-cp profile/*.* /opt/quake
-
 clean:
 	-rm -f -r $(RELEASE_DIR)
 	-rm -f -r $(DEBUG_DIR)
@@ -1847,3 +1842,16 @@ else
 	test -f libvorbis-$(VORBISVER).tar.gz || wget http://downloads.xiph.org/releases/vorbis/libvorbis-$(VORBISVER).tar.gz
 	-test -f libs-$(ARCH)/libvorbisfile.a || (cd libs-$(ARCH) && tar -xvzf ../libvorbis-$(VORBISVER).tar.gz && cd libvorbis-$(VORBISVER) && $(TOOLOVERRIDES) ./configure PKG_CONFIG= $(CONFIGARGS) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/libogg-$(OGGVER)/include && $(TOOLOVERRIDES) $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../ )
 endif
+
+
+prefix ?= /usr/local
+exec_prefix ?= $(prefix)
+bindir ?= $(exec_prefix)/bin
+sbindir ?= $(exec_prefix)/sbin
+INSTALL ?= install
+INSTALL_PROGRAM ?= $(INSTALL)
+INSTALL_DATA ?= ${INSTALL} -m 644
+install: sv-rel gl-rel mingl-rel qcc-rel
+	$(INSTALL_PROGRAM) $(RELEASE_DIR)fteqw $(DESTDIR)$(bindir)/fteqw
+	$(INSTALL_PROGRAM) $(RELEASE_DIR)fteqwsv $(DESTDIR)$(bindir)/fteqwsv
+	$(INSTALL_PROGRAM) $(RELEASE_DIR)fteqcc $(DESTDIR)$(bindir)/fteqcc

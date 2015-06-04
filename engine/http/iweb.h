@@ -150,6 +150,7 @@ struct dl_download
 
 vfsfile_t *VFSPIPE_Open(void);
 void HTTP_CL_Think(void);
+void HTTP_CL_Terminate(void);	//kills all active downloads
 struct dl_download *HTTP_CL_Get(const char *url, const char *localfile, void (*NotifyFunction)(struct dl_download *dl));
 struct dl_download *HTTP_CL_Put(const char *url, const char *mime, const char *data, size_t datalen, void (*NotifyFunction)(struct dl_download *dl));
 

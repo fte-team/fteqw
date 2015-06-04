@@ -184,6 +184,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalvector(input_cursor_impact,	"input_cursor_trace_endpos");	/*float		filled by getinputstate*/ \
 	globalfloat(input_cursor_entitynumber,	"input_cursor_entitynumber");	/*float		filled by getinputstate*/ \
 	\
+	globalfloat(dimension_default,		"dimension_default");	/*float		default value for dimension_hit+dimension_solid*/ \
 	globalfloat(autocvar_vid_conwidth,	"autocvar_vid_conwidth");	/*float		hackfix for dp mods*/	\
 	globalfloat(autocvar_vid_conheight,	"autocvar_vid_conheight");	/*float		hackfix for dp mods*/	\
 
@@ -278,6 +279,7 @@ static void CSQC_ChangeLocalPlayer(int seat)
 static void CSQC_FindGlobals(void)
 {
 	static float csphysicsmode = 0;
+	static float dimension_default = 255;
 #define globalfloat(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalint(name,qcname) csqcg.name = (int*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
@@ -319,6 +321,9 @@ static void CSQC_FindGlobals(void)
 		csphysicsmode = 0;	/*note: dp handles think functions as part of addentity rather than elsewhere. if we're in a compat mode, we don't want to have to duplicate work*/
 		csqc_world.g.physics_mode = &csphysicsmode;
 	}
+
+	if (!csqcg.dimension_default)
+		csqcg.dimension_default = &dimension_default;
 
 	if (csqcg.maxclients)
 		*csqcg.maxclients = cl.allocated_client_slots;
@@ -492,6 +497,7 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 	}
 
 	//and the normal frames.
+	out->g[FS_REG].endbone = 0x7fffffff;
 	out->g[FS_REG].frame[0] = in->v->frame;
 	out->g[FS_REG].frame[1] = in->xv->frame2;
 	out->g[FS_REG].frame[2] = in->xv->frame3;
@@ -1757,6 +1763,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 }
 
 void R2D_PolyBlend (void);
+void R_DrawNameTags(void);
 static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (csqc_worldchanged)
@@ -1775,6 +1782,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	V_ApplyRefdef();
 	R_RenderView();
 	R2D_PolyBlend ();
+	R_DrawNameTags();
 
 	{
 		srect_t srect;
@@ -4062,8 +4070,6 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 
 	ent->v->colormap = src->colormap;
 	ent->v->skin = src->skinnum;
-//	ent->v->glowsize = src->glowsize;
-//	ent->v->glowcolor = src->glowcolour;
 	ent->xv->scale = src->scale/16.0f;
 	ent->xv->fatness = src->fatness/16.0f;
 //	ent->xv->drawflags = src->hexen2flags;
@@ -4072,16 +4078,23 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 	ent->xv->colormod[0] = src->colormod[0]*(8/256.0f);
 	ent->xv->colormod[1] = src->colormod[1]*(8/256.0f);
 	ent->xv->colormod[2] = src->colormod[2]*(8/256.0f);
+	ent->xv->glowmod[0] = src->glowmod[0]*(8/256.0f);
+	ent->xv->glowmod[1] = src->glowmod[1]*(8/256.0f);
+	ent->xv->glowmod[2] = src->glowmod[2]*(8/256.0f);
+//	ent->xv->glow_size = src->glowsize*4;
+//	ent->xv->glow_color = src->glowcolour;
+//	ent->xv->glow_trail = !!(state->dpflags & RENDER_GLOWTRAIL);
 	ent->xv->alpha = src->trans/255.0f;
+//	ent->v->solid = src->solid;
+//	ent->v->color[0] = src->light[0]/255.0;
+//	ent->v->color[1] = src->light[1]/255.0;
+//	ent->v->color[2] = src->light[2]/255.0;
+//	ent->v->light_lev = src->light[3];
 //	ent->xv->style = src->lightstyle;
 //	ent->xv->pflags = src->lightpflags;
-//	ent->v->solid = src->solid;
-//	ent->v->color[0] = src->light[0];
-//	ent->v->color[1] = src->light[1];
-//	ent->v->color[2] = src->light[2];
-//	ent->v->light_lev = src->light[3];
-//	ent->xv->tagentity = src->tagentity;
-//	ent->xv->tagindex = src->tagindex;
+
+	ent->xv->tag_entity = src->tagentity;
+	ent->xv->tag_index = src->tagindex;
 
 	if (src->solid == ES_SOLID_BSP)
 	{
@@ -5346,6 +5359,7 @@ static struct {
 
 	{"keynumtostring_omgwtf",	PF_cl_keynumtostring,		520},
 	{"findkeysforcommand",		PF_cl_findkeysforcommand,	521},
+	{"findkeysforcommandex",	PF_cl_findkeysforcommandex,	0},
 
 	{"loadfromdata",			PF_loadfromdata,			529},
 	{"loadfromfile",			PF_loadfromfile,			530},
@@ -5373,7 +5387,7 @@ static struct {
 	{"getresolution",			PF_cl_getresolution,		608},
 	{"keynumtostring_menu",		PF_cl_keynumtostring,		609},	//while present in dp's menuqc, dp doesn't actually support keynumtostring=609 in csqc. Which is probably a good thing because csqc would have 3 separate versions if it did.
 
-	{"findkeysforcommand_dp",	PF_cl_findkeysforcommand,	610},
+	{"findkeysforcommand_menu",	PF_cl_findkeysforcommand,	610},
 	{"gethostcachevalue",		PF_cl_gethostcachevalue,	611},
 	{"gethostcachestring",		PF_cl_gethostcachestring,	612},
 	{"parseentitydata",			PF_parseentitydata,			613},
@@ -5474,7 +5488,7 @@ void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 		int size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
 		csqcprogs->save_ents(csqcprogs, buffer, &size, size, 3);
-		COM_WriteFile("csqccore.txt", buffer, size);
+		COM_WriteFile("csqccore.txt", FS_GAMEONLY, buffer, size);
 		BZ_Free(buffer);
 	}
 
@@ -5506,11 +5520,11 @@ void PDECL CSQC_EntSpawn (struct edict_s *e, int loading)
 
 	if (1)
 	{
-//		ent->xv->dimension_see = 255;
-//		ent->xv->dimension_seen = 255;
+//		ent->xv->dimension_see = csqc_world.dimension_default;
+//		ent->xv->dimension_seen = csqc_world.dimension_default;
 //		ent->xv->dimension_ghost = 0;
-		ent->xv->dimension_solid = 255;
-		ent->xv->dimension_hit = 255;
+		ent->xv->dimension_solid = *csqcg.dimension_default;
+		ent->xv->dimension_hit = *csqcg.dimension_default;
 	}
 }
 
@@ -5710,7 +5724,7 @@ qbyte *PDECL CSQC_PRLoadFile (const char *path, void *buffer, int bufsize, size_
 
 #ifndef FTE_TARGET_WEB
 				//back it up
-				COM_WriteFile(newname, file, *sz);
+				COM_WriteFile(newname, FS_GAMEONLY, file, *sz);
 #endif
 			}
 		}
@@ -6147,7 +6161,7 @@ void CSQC_CoreDump(void)
 		int size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
 		csqcprogs->save_ents(csqcprogs, buffer, &size, size, 3);
-		COM_WriteFile("csqccore.txt", buffer, size);
+		COM_WriteFile("csqccore.txt", FS_GAMEONLY, buffer, size);
 		BZ_Free(buffer);
 	}
 

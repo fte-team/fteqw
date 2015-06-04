@@ -204,7 +204,7 @@ cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
 cvar_t vid_renderer							= CVARFD ("vid_renderer", "",
 													 CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
 
-cvar_t vid_bpp								= CVARFD ("vid_bpp", "32",
+cvar_t vid_bpp								= CVARFD ("vid_bpp", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The number of colour bits to request from the renedering context");
 cvar_t vid_desktopsettings					= CVARFD ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");

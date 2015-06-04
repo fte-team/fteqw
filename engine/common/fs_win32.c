@@ -328,12 +328,13 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 
 	if (!WinNT)
 	{
+		//FILE_SHARE_DELETE is not supported in 9x, sorry.
 		if ((write && read) || append)
-			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		else if (write)
 			h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		else if (read)
-			h = CreateFileA(osname, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+			h = CreateFileA(osname, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 		else
 			h = INVALID_HANDLE_VALUE;
 	}
@@ -341,7 +342,6 @@ static vfsfile_t *QDECL VFSW32_OpenInternal(vfsw32path_t *handle, const char *qu
 	{
 		wchar_t wide[MAX_OSPATH];
 		widen(wide, sizeof(wide), osname);
-
 		h = INVALID_HANDLE_VALUE;
 		if (write || append)
 		{

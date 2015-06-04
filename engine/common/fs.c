@@ -581,7 +581,7 @@ COM_Path_f
 */
 static void COM_PathLine(searchpath_t *s)
 {
-	Con_Printf("%s  %s%s%s%s%s%s\n", s->logicalpath,
+	Con_Printf(U8("%s")"  %s%s%s%s%s%s\n", s->logicalpath,
 		(s->flags & SPF_REFERENCED)?"^[(ref)\\tip\\Referenced\\desc\\Package will auto-download to clients^]":"",
 		(s->flags & SPF_TEMPORARY)?"^[(temp)\\tip\\Temporary\\desc\\Flushed on map change^]":"",
 		(s->flags & SPF_COPYPROTECTED)?"^[(c)\\tip\\Copyrighted\\desc\\Copy-Protected and is not downloadable^]":"",
@@ -672,15 +672,18 @@ COM_Locate_f
 void COM_Locate_f (void)
 {
 	flocation_t loc;
-	if (FS_FLocateFile(Cmd_Argv(1), FSLFRT_LENGTH, &loc)>=0)
+	char *f = Cmd_Argv(1);
+	if (strchr(f, '^'))	//fte's filesystem is assumed to be utf-8, but that doesn't mean that console input is. and I'm too lazy to utf-8ify the string (in part because markup can be used to exploit ascii assumptions).
+		Con_Printf("Warning: filename contains markup. If this is because of unicode, set com_parseutf8 1\n");
+	if (FS_FLocateFile(f, FSLFRT_LENGTH, &loc)>=0)
 	{
 		if (!*loc.rawname)
 		{
-			Con_Printf("File is %u bytes compressed inside %s\n", (unsigned)loc.len, loc.search->logicalpath);
+			Con_Printf("File is %u bytes compressed inside "U8("%s")"\n", (unsigned)loc.len, loc.search->logicalpath);
 		}
 		else
 		{
-			Con_Printf("Inside %s (%u bytes)\n  %s\n", loc.rawname, (unsigned)loc.len, loc.search->logicalpath);
+			Con_Printf("Inside "U8("%s")" (%u bytes)\n  "U8("%s")"\n", loc.rawname, (unsigned)loc.len, loc.search->logicalpath);
 		}
 	}
 	else
@@ -694,14 +697,14 @@ COM_WriteFile
 The filename will be prefixed by the current game directory
 ============
 */
-void COM_WriteFile (const char *filename, const void *data, int len)
+void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len)
 {
 	vfsfile_t *vfs;
 
 	Sys_Printf ("COM_WriteFile: %s\n", filename);
 
-	FS_CreatePath(filename, FS_GAMEONLY);
-	vfs = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+	FS_CreatePath(filename, fsroot);
+	vfs = FS_OpenVFS(filename, "wb", fsroot);
 	if (vfs)
 	{
 		VFS_WRITE(vfs, data, len);
@@ -928,7 +931,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 {
 	int depth=0;
 	searchpath_t	*search;
-	char cleanpath[MAX_QPATH];
+	char cleanpath[MAX_OSPATH];
 	flocation_t allownoloc;
 
 	void *pf;
@@ -3158,7 +3161,6 @@ void FS_ReloadPackFiles_f(void)
 #ifdef MINGW
 #define byte BYTE	//some versions of mingw headers are broken slightly. this lets it compile.
 #endif
-#include <shlobj.h>
 static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)
 {
 	/*
@@ -3209,7 +3211,7 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 	case BFFM_VALIDATEFAILEDW:
 		break;	//FIXME: validate that the gamedir contains what its meant to
 	case BFFM_SELCHANGED: 
-		if (SHGetPathFromIDListW((LPITEMIDLIST) lp, szDir))
+		if (pSHGetPathFromIDListW((LPITEMIDLIST) lp, szDir))
 		{
 			wchar_t statustxt[MAX_OSPATH];
 			while(foo = wcschr(szDir, '\\'))
@@ -3225,6 +3227,7 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 	}
 	return 0;
 }
+int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType);
 #endif
 
 qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
@@ -3242,6 +3245,10 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 
 	widen(resultpath, sizeof(resultpath), poshname);
 	_snwprintf(title, countof(title), L"Please locate your existing %s installation", resultpath);
+
+	//force mouse to deactivate, so that we can actually see it.
+	INS_UpdateGrabs(false, false);
+
 	bi.lpszTitle = title;
 
 	bi.ulFlags = BIF_RETURNONLYFSDIRS|BIF_STATUSTEXT;
@@ -3249,33 +3256,16 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 	bi.lParam = 0;//(LPARAM)poshname;
 	bi.iImage = 0;
 
-	//force mouse to deactivate, so that we can actually see it.
-	INS_UpdateGrabs(false, false);
-
-	il = SHBrowseForFolderW(&bi);
+	il = pSHBrowseForFolderW?pSHBrowseForFolderW(&bi):NULL;
 	if (il)
 	{
-		SHGetPathFromIDListW(il, resultpath);
+		pSHGetPathFromIDListW(il, resultpath);
 		CoTaskMemFree(il);
 		narrowen(basepath, basepathsize, resultpath);
 		if (savedname)
 		{
-			HKEY key = NULL;
-			//and save it into the windows registry
-			if (RegCreateKeyExW(HKEY_CURRENT_USER, L"SOFTWARE\\" _L(FULLENGINENAME) L"\\GamePaths",
-				0, NULL,
-				REG_OPTION_NON_VOLATILE,
-				KEY_WRITE,
-				NULL,
-				&key,
-				NULL) == ERROR_SUCCESS)
-			{
-				wchar_t wsavedname[MAX_OSPATH];
-				widen(wsavedname, sizeof(wsavedname), savedname);
-				RegSetValueExW(key, wsavedname, 0, REG_SZ, (BYTE*)resultpath, sizeof(wchar_t)*wcslen(resultpath));
-
-				RegCloseKey(key);
-			}
+			if (MessageBoxU(mainwindow, va("Would you like to save the location of %s as:\n%s", poshname, resultpath), "Save Instaltion path", MB_YESNO|MB_DEFBUTTON2) == IDYES)
+				MyRegSetValue(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", savedname, REG_SZ, basepath, strlen(basepath));
 		}
 		return true;
 	}

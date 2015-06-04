@@ -285,6 +285,7 @@ int MP_TranslateQCtoFTECodes(int code)
 void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
+	//float bindmap = G_FLOAT(OFS_PARM1);
 	int keynums[2];
 	char keyname[512];
 
@@ -294,6 +295,26 @@ void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalva
 
 	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoQCCodes(keynums[0])), sizeof(keyname));
 	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoQCCodes(keynums[1])), sizeof(keyname));
+
+	RETURN_TSTRING(keyname);
+}
+
+void QCBUILTIN PF_cl_findkeysforcommandex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int keynums[256];
+	int keymods[countof(keynums)];
+	char keyname[512];
+	int i, count;
+
+	count = M_FindKeysForBind(cmdname, keynums, keymods, countof(keynums));
+
+	keyname[0] = '\0';
+
+	for (i = 0; i < count; i++)
+	{
+		Q_strncatz (keyname, va("%s%s%s%s ", (keymods[i]&KEY_MODIFIER_CTRL)?"CTRL_":"", (keymods[i]&KEY_MODIFIER_ALT)?"ALT_":"", (keymods[i]&KEY_MODIFIER_SHIFT)?"SHIFT_":"", Key_KeynumToString(keynums[i])), sizeof(keyname));
+	}
 
 	RETURN_TSTRING(keyname);
 }

@@ -1101,10 +1101,10 @@ float CL_FilterTime (double time, float wantfps, qboolean ignoreserver)	//now re
 			fps = bound (6.7, wantfps, fpscap);	//we actually cap ourselves to 150msecs (1000/7 = 142)
 	}
 
-	if (time < 1000 / fps)
+	if (time < ceil(1000 / fps))
 		return 0;
 
-	return time - (1000 / fps);
+	return time - ceil(1000 / fps);
 }
 
 qboolean allowindepphys;

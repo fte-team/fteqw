@@ -977,7 +977,7 @@ error:
 
 
 #ifndef NPFTE
-int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height)
+int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, qbyte *pixels, int width, int height)
 {
 	char name[MAX_OSPATH];
 	int i;
@@ -987,7 +987,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	png_byte **row_pointers;
 	struct pngerr errctx;
 
-	if (!FS_NativePath(filename, FS_GAMEONLY, name, sizeof(name)))
+	if (!FS_NativePath(filename, fsroot, name, sizeof(name)))
 		return false;
 
 	if (!LibPNG_Init())
@@ -1533,7 +1533,7 @@ METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo)
 {
   longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-qboolean screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
+qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
 {
 	qbyte	*buffer;
 	vfsfile_t	*outfile;
@@ -1544,10 +1544,10 @@ qboolean screenshotJPEG(char *filename, int compression, qbyte *screendata, int 
 	if (!LIBJPEG_LOADED())
 		return false;
 
-	if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
+	if (!(outfile = FS_OpenVFS(filename, "wb", fsroot)))
 	{
-		FS_CreatePath (filename, FS_GAMEONLY);
-		if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
+		FS_CreatePath (filename, fsroot);
+		if (!(outfile = FS_OpenVFS(filename, "wb", fsroot)))
 		{
 			Con_Printf("Error opening %s\n", filename);
 			return false;
@@ -1632,7 +1632,7 @@ qboolean screenshotJPEG(char *filename, int compression, qbyte *screendata, int 
 WritePCXfile
 ==============
 */
-void WritePCXfile (const char *filename, qbyte *data, int width, int height,
+void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height,
 	int rowbytes, qbyte *palette, qboolean upload) //data is 8bit.
 {
 	int		i, j, length;
@@ -1695,7 +1695,7 @@ void WritePCXfile (const char *filename, qbyte *data, int width, int height,
 	if (upload)
 		CL_StartUpload((void *)pcx, length);
 	else
-		COM_WriteFile (filename, pcx, length);
+		COM_WriteFile (filename, fsroot, pcx, length);
 }
 #endif
 

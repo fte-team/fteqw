@@ -9,7 +9,7 @@ PLUG_NATIVE_EXT=_amd.dll
 PLUG_LDFLAGS=-Lavplug/lib64 -L../engine/libs/mingw64-libs -lz -Wl,--support-old-code
 endif
 
-PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lz
+PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lz -lm
 
 ifneq ($(PLUG_NATIVE_EXT),)
 #if we're on windows, we'll put our windows-specific hacks here.
@@ -129,7 +129,7 @@ native: $(OUT_DIR)/fteplug_irc$(PLUG_NATIVE_EXT)
 
 #for compat with ezquake
 $(OUT_DIR)/fteplug_ezhud$(PLUG_NATIVE_EXT): ezhud/ezquakeisms.c ezhud/hud.c ezhud/hud_common.c ezhud/hud_editor.c plugin.c qvm_api.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_ezhud$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iirc $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(OUT_DIR)/fteplug_ezhud$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Iezhud $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 native: $(OUT_DIR)/fteplug_ezhud$(PLUG_NATIVE_EXT)
 
 native: 

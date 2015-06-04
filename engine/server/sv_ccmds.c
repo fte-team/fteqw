@@ -2573,6 +2573,31 @@ void SV_ReallyEvilHack_f(void)
 }
 */
 
+void SV_PrecacheList_f(void)
+{
+	unsigned int i;
+	for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
+	{
+		if (sv.strings.vw_model_precache[i])
+			Con_Printf("vweap %u: %s\n", i, sv.strings.vw_model_precache[i]);
+	}
+	for (i = 0; i < MAX_PRECACHE_MODELS; i++)
+	{
+		if (sv.strings.model_precache[i])
+			Con_Printf("model %u: %s\n", i, sv.strings.model_precache[i]);
+	}
+	for (i = 0; i < MAX_PRECACHE_SOUNDS; i++)
+	{
+		if (*sv.strings.sound_precache[i])
+			Con_Printf("sound %u: %s\n", i, sv.strings.sound_precache[i]);
+	}
+	for (i = 0; i < MAX_SSPARTICLESPRE; i++)
+	{
+		if (*sv.strings.particle_precache[i])
+			Con_Printf("pticl %u: %s\n", i, sv.strings.particle_precache[i]);
+	}
+}
+
 /*
 ==================
 SV_InitOperatorCommands
@@ -2636,6 +2661,7 @@ void SV_InitOperatorCommands (void)
 
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
 	Cmd_AddCommand ("map", SV_Map_f);
+	Cmd_AddCommandD ("precaches", SV_PrecacheList_f, "Displays a list of current server precaches.");
 #ifdef Q3SERVER
 	Cmd_AddCommand ("spmap", SV_Map_f);
 #endif

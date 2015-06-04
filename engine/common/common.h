@@ -344,8 +344,6 @@ extern char	com_homepath[MAX_OSPATH];
 extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 //extern	char	*com_basedir;
 
-void COM_WriteFile (const char *filename, const void *data, int len);
-
 //qofs_Make is used to 'construct' a variable of qofs_t type. this is so the code can merge two 32bit ints on old systems and use a long long type internally without generating warnings about bit shifts when qofs_t is only 32bit instead.
 #if defined(__amd64__) || defined(_AMD64_) || __WORDSIZE == 64
 	#define FS_64BIT
@@ -443,6 +441,8 @@ enum fs_relative{
 	FS_SYSTEM		//a system path. absolute paths are explicitly allowed and expected.
 };
 
+void COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len);
+
 void FS_FlushFSHashReally(qboolean domutexes);
 void FS_FlushFSHashWritten(void);
 void FS_FlushFSHashRemoved(void);
@@ -458,9 +458,9 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 vfsfile_t *FS_OpenTemp(void);
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
 
+#define countof(array) (sizeof(array)/sizeof(array[0]))
 #ifdef _WIN32
 //windows doesn't support utf-8. Which is a shame really, because that's the charset we expect from everything.
-#define countof(array) (sizeof(array)/sizeof(array[0]))
 char *narrowen(char *out, size_t outlen, wchar_t *wide);
 wchar_t *widen(wchar_t *out, size_t outbytes, const char *utf8);
 #define __L(x) L ## x

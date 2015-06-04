@@ -1215,7 +1215,7 @@ void SV_Savegame (char *savename)
 			rgbbuffer = VID_GetRGBInfo(0, &width, &height);
 			if (rgbbuffer)
 			{
-				SCR_ScreenShot(savefilename, rgbbuffer, width, height);
+				SCR_ScreenShot(savefilename, FS_GAMEONLY, rgbbuffer, width, height);
 				BZ_Free(rgbbuffer);
 	
 

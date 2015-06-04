@@ -2530,6 +2530,7 @@ void *currentcapture_ctx;
 struct capture_raw_ctx
 {
 	int frames;
+	enum fs_relative fsroot;
 	char videonameprefix[MAX_QPATH];
 	char videonameextension[16];
 	vfsfile_t *audio;
@@ -2544,7 +2545,12 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 	else
 		Q_strncpyz(ctx->videonameextension, "tga", sizeof(ctx->videonameextension));
 
-	Q_strncpyz(ctx->videonameprefix, streamname, sizeof(ctx->videonameprefix));
+	if (!FS_NativePath(va("%s", streamname), FS_GAMEONLY, ctx->videonameprefix, sizeof(ctx->videonameprefix)))
+	{
+		Z_Free(ctx);
+		return NULL;
+	}
+	ctx->fsroot = FS_SYSTEM;
 	ctx->audio = NULL;
 	if (*sndkhz)
 	{
@@ -2558,8 +2564,8 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 		if (*sndchannels < 1)
 			*sndchannels = 1;
 		Q_snprintfz(filename, sizeof(filename), "%s/audio_%ichan_%ikhz_%ib.raw", ctx->videonameprefix, *sndchannels, *sndkhz/1000, *sndbits);
-		FS_CreatePath(filename, FS_GAMEONLY);
-		ctx->audio = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+		FS_CreatePath(filename, ctx->fsroot);
+		ctx->audio = FS_OpenVFS(filename, "wb", ctx->fsroot);
 	}
 	if (!ctx->audio)
 	{
@@ -2575,7 +2581,7 @@ static void QDECL capture_raw_video (void *vctx, void *data, int frame, int widt
 	char filename[MAX_OSPATH];
 	ctx->frames = frame+1;
 	Q_snprintfz(filename, sizeof(filename), "%s/%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
-	SCR_ScreenShot(filename, data, width, height);
+	SCR_ScreenShot(filename, ctx->fsroot, data, width, height);
 }
 static void QDECL capture_raw_audio (void *vctx, void *data, int bytes)
 {

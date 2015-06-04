@@ -360,22 +360,38 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	FreeLibrary((HMODULE)lib);
 }
+HMODULE LoadLibraryU(const char *name)
+{
+	if (WinNT)
+	{
+		wchar_t wide[MAX_OSPATH];
+		widen(wide, sizeof(wide), name);
+
+		return LoadLibraryW(wide);
+	}
+	else
+	{
+		wchar_t wide[MAX_OSPATH];
+		char ansi[MAX_OSPATH];
+		widen(wide, sizeof(wide), name);
+		ansi[WideCharToMultiByte(CP_ACP, 0, wide, wcslen(wide), ansi, sizeof(ansi)-1, NULL, NULL)] = 0;
+		return LoadLibraryA(ansi);
+	}
+}
 dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
 	HMODULE lib;
-	wchar_t wide[MAX_OSPATH];
 
-	widen(wide, sizeof(wide), name);
-	lib = LoadLibraryW(wide);
+	lib = LoadLibraryU(name);
 	if (!lib)
 	{
 		if (!strstr(COM_SkipPath(name), ".dll"))
 		{	//.dll implies that it is a system dll, or something that is otherwise windows-specific already.
 #ifdef _WIN64
-			lib = LoadLibrary(va("%s_64", name));
+			lib = LoadLibraryU(va("%s_64", name));
 #elif defined(_WIN32)
-			lib = LoadLibrary(va("%s_32", name));
+			lib = LoadLibraryU(va("%s_32", name));
 #endif
 		}
 		if (!lib)
@@ -1537,7 +1553,15 @@ void VARGS Sys_Printf (char *fmt, ...)
 	if (debugout)
 		OutputDebugStringW(wide);
 	if (houtput)
-		WriteConsoleW(houtput, wide, wlen, &dummy, NULL);
+	{
+		if (WinNT)
+			WriteConsoleW(houtput, wide, wlen, &dummy, NULL);
+		else
+		{
+			//win95 doesn't support wide chars *sigh*. blank consoles suck. this conversion might loose stuff if the multibytes are too long.
+			WriteConsole(houtput, text, WideCharToMultiByte(CP_ACP, 0, wide, wlen, text, sizeof(text), NULL, NULL), &dummy, NULL);
+		}
+	}
 }
 
 void Sys_Quit (void)
@@ -1941,7 +1965,13 @@ char *Sys_ConsoleInput (void)
 						} else if (ch >= ' ')
 						{
 							wchar_t wch = ch;
-							WriteConsoleW(houtput, &wch, 1, &dummy, NULL);
+							if (WinNT)
+								WriteConsoleW(houtput, &wch, 1, &dummy, NULL);
+							else
+							{
+								char mb[8];	//hopefully ucs-2-only will be sufficient...
+								WriteConsoleA(houtput, mb, WideCharToMultiByte(CP_ACP, 0, &wch, 1, mb, sizeof(mb), NULL, NULL), &dummy, NULL);
+							}
 							len += utf8_encode(text+len, ch, sizeof(text)-1-len);
 						}
 
@@ -2169,8 +2199,6 @@ int			global_nCmdShow;
 HWND		hwnd_dialog;
 
 
-
-#define COBJMACROS
 
 #include <shlobj.h>
 
@@ -2413,15 +2441,24 @@ typedef struct {
 } qOPENASINFO;
 HRESULT (WINAPI *pSHOpenWithDialog)(HWND hwndParent, const qOPENASINFO *poainfo);
 
+
+LPITEMIDLIST (STDAPICALLTYPE *pSHBrowseForFolderW)(LPBROWSEINFOW lpbi);
+BOOL (STDAPICALLTYPE *pSHGetPathFromIDListW)(LPCITEMIDLIST pidl, LPWSTR pszPath);
+BOOL (STDAPICALLTYPE *pSHGetSpecialFolderPathW)(HWND hwnd, LPWSTR pszPath, int csidl, BOOL fCreate);
+BOOL (STDAPICALLTYPE *pShell_NotifyIconW)(DWORD dwMessage, PNOTIFYICONDATAW lpData);
 void Win7_Init(void)
 {
 	HANDLE h;
 	HRESULT (WINAPI *pSetCurrentProcessExplicitAppUserModelID)(PCWSTR AppID);
 
-
-	h = LoadLibraryW(L"shell32.dll");
+	h = LoadLibraryU("shell32.dll");
 	if (h)
 	{
+		pSHBrowseForFolderW			= (void*)GetProcAddress(h, "SHBrowseForFolderW");
+		pSHGetPathFromIDListW		= (void*)GetProcAddress(h, "SHGetPathFromIDListW");
+		pSHGetSpecialFolderPathW	= (void*)GetProcAddress(h, "SHGetSpecialFolderPathW");
+		pShell_NotifyIconW			= (void*)GetProcAddress(h, "Shell_NotifyIconW");
+
 		pSHOpenWithDialog = (void*)GetProcAddress(h, "SHOpenWithDialog");
 
 		pSetCurrentProcessExplicitAppUserModelID = (void*)GetProcAddress(h, "SetCurrentProcessExplicitAppUserModelID");
@@ -2505,6 +2542,13 @@ void Win7_TaskListInit(void)
 		cdl->lpVtbl->CommitList(cdl);
 		cdl->lpVtbl->Release(cdl);
 	}
+}
+
+BOOL CopyFileU(const char *src, const char *dst, BOOL bFailIfExists)
+{
+	wchar_t wide1[2048];
+	wchar_t wide2[2048];
+	return CopyFileW(widen(wide1, sizeof(wide1), src), widen(wide2, sizeof(wide2), dst), bFailIfExists);
 }
 
 //#define SVNREVISION 1
@@ -3115,7 +3159,7 @@ static int Sys_ProcessCommandline(char **argv, int maxargc, char *argv0)
 //using this like posix' access function, but with much more code, microsoftisms, and no errno codes/info
 //no, I don't really have a clue why it needs to be so long.
 #include <svrapi.h>
-static BOOL microsoft_access(LPCSTR pszFolder, DWORD dwAccessDesired)
+static BOOL microsoft_accessW(LPWSTR pszFolder, DWORD dwAccessDesired)
 {
 	HANDLE			hToken;
 	PRIVILEGE_SET	PrivilegeSet;
@@ -3126,11 +3170,9 @@ static BOOL microsoft_access(LPCSTR pszFolder, DWORD dwAccessDesired)
 	SECURITY_INFORMATION si = (SECURITY_INFORMATION)( OWNER_SECURITY_INFORMATION|GROUP_SECURITY_INFORMATION|DACL_SECURITY_INFORMATION);
 	PSECURITY_DESCRIPTOR psdSD = NULL;
 	DWORD			dwNeeded;
-	wchar_t			wpath[MAX_OSPATH];
-	widen(wpath, sizeof(wpath), pszFolder);
-	GetFileSecurityW(wpath,si,NULL,0,&dwNeeded);
+	GetFileSecurityW(pszFolder,si,NULL,0,&dwNeeded);
 	psdSD = malloc(dwNeeded);
-	GetFileSecurityW(wpath,si,psdSD,dwNeeded,&dwNeeded);
+	GetFileSecurityW(pszFolder,si,psdSD,dwNeeded,&dwNeeded);
 	ImpersonateSelf(SecurityImpersonation);
 	OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &hToken);
 	memset(&GenericMapping, 0xff, sizeof(GENERIC_MAPPING));
@@ -3144,8 +3186,13 @@ static BOOL microsoft_access(LPCSTR pszFolder, DWORD dwAccessDesired)
 	free(psdSD);
 	return fAccessGranted;
 }
+static BOOL microsoft_accessU(LPCSTR pszFolder, DWORD dwAccessDesired)
+{
+	wchar_t			wpath[MAX_OSPATH];
+	return microsoft_accessW(widen(wpath, sizeof(wpath), pszFolder), dwAccessDesired);
+}
 
-static int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
+int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
 {
 	wchar_t widecaption[256];
 	wchar_t widetext[2048];
@@ -3175,8 +3222,8 @@ static LRESULT CALLBACK stoopidstoopidstoopid(HWND w, UINT m, WPARAM wp, LPARAM 
 				gah.ptDrag.x = gah.ptDrag.y = 0;
 				gah.hdr = fu->hdr;
 				gah.hdr.code = TVN_SELCHANGEDW;
-				r = CallWindowProc(omgwtfwhyohwhy,w,m,wp,lp);
-				CallWindowProc(omgwtfwhyohwhy,w,WM_NOTIFY,wp,(LPARAM)&gah);
+				r = CallWindowProcW(omgwtfwhyohwhy,w,m,wp,lp);
+				CallWindowProcW(omgwtfwhyohwhy,w,WM_NOTIFY,wp,(LPARAM)&gah);
 				return r;
 			}
 			break;
@@ -3191,8 +3238,8 @@ static LRESULT CALLBACK stoopidstoopidstoopid(HWND w, UINT m, WPARAM wp, LPARAM 
 				gah.ptDrag.x = gah.ptDrag.y = 0;
 				gah.hdr = fu->hdr;
 				gah.hdr.code = TVN_SELCHANGEDA;
-				r = CallWindowProc(omgwtfwhyohwhy,w,m,wp,lp);
-				CallWindowProc(omgwtfwhyohwhy,w,WM_NOTIFY,wp,(LPARAM)&gah);
+				r = CallWindowProcW(omgwtfwhyohwhy,w,m,wp,lp);
+				CallWindowProcW(omgwtfwhyohwhy,w,WM_NOTIFY,wp,(LPARAM)&gah);
 				return r;
 			}
 			break;
@@ -3202,7 +3249,7 @@ static LRESULT CALLBACK stoopidstoopidstoopid(HWND w, UINT m, WPARAM wp, LPARAM 
 		}
 		break;
 	}
-	return CallWindowProc(omgwtfwhyohwhy,w,m,wp,lp);
+	return CallWindowProcW(omgwtfwhyohwhy,w,m,wp,lp);
 }
 
 struct egadsthisisretarded
@@ -3213,11 +3260,20 @@ struct egadsthisisretarded
 	char statustext[MAX_OSPATH];
 };
 
+void FS_Directorize(char *fname, size_t fnamesize)
+{
+	size_t l = strlen(fname);
+	if (!l)	//technically already a directory
+		return;
+	if (fname[l-1] == '\\' || fname[l-1] == '/')
+		return;	//already a directory
+	Q_strncatz(fname, "/", fnamesize);
+}
+
 static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pDatafoo) 
 {	//'stolen' from microsoft's knowledge base.
 	//required to work around microsoft being annoying.
 	struct egadsthisisretarded *pData = (struct egadsthisisretarded*)pDatafoo;
-	TCHAR szDir[MAX_PATH];
 //	char *foo;
 	HWND edit = FindWindowEx(hwnd, NULL, "EDIT", NULL);
 	HWND list;
@@ -3226,8 +3282,6 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 	switch(uMsg)
 	{
 	case BFFM_INITIALIZED:
-		OutputDebugStringA("initialised\n");
-
 		//combat windows putting new windows behind everything else if it takes a while for UAC prompts to go away
 		SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE|SWP_NOSIZE);
 
@@ -3236,53 +3290,68 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 		if (list)
 			omgwtfwhyohwhy = (WNDPROC)SetWindowLongPtr(list, GWLP_WNDPROC, (LONG_PTR)stoopidstoopidstoopid);
 
+		{
+			wchar_t szDir[MAX_PATH];
 #ifndef _DEBUG
-		//the standard location iiuc
-		if (com_homepathenabled && SHGetSpecialFolderPath(NULL, szDir, CSIDL_PROGRAM_FILES, TRUE) && microsoft_access(szDir, ACCESS_READ | ACCESS_WRITE))
-			;
-		else if (microsoft_access("C:\\Games\\", ACCESS_READ | ACCESS_WRITE))
-			Q_strncpyz(szDir, "C:\\Games\\", sizeof(szDir));
-		else if (microsoft_access("C:\\", ACCESS_READ | ACCESS_WRITE))
-			Q_strncpyz(szDir, "C:\\", sizeof(szDir));
-		//if we're not an admin, install it somewhere else.
-		else if (SHGetSpecialFolderPath(NULL, szDir, CSIDL_LOCAL_APPDATA, TRUE) && microsoft_access(szDir, ACCESS_READ | ACCESS_WRITE))
-			;
-		else
-#endif
-			if (GetCurrentDirectory(sizeof(szDir)/sizeof(TCHAR), szDir))// && microsoft_access(szDir, ACCESS_READ | ACCESS_WRITE))
+			//the standard location iiuc
+			if (com_homepathenabled && pSHGetSpecialFolderPathW(NULL, szDir, CSIDL_PROGRAM_FILES, TRUE) && microsoft_accessW(szDir, ACCESS_READ | ACCESS_WRITE))
 				;
-		SendMessage(hwnd, BFFM_SETSELECTION, TRUE, (LPARAM)szDir);
-//		SendMessage(hwnd, BFFM_SETEXPANDED, TRUE, (LPARAM)szDir);
-		SendMessageW(hwnd, BFFM_SETOKTEXT, TRUE, (LPARAM)L"Install");
+			else if (microsoft_accessU("C:\\Games\\", ACCESS_READ | ACCESS_WRITE))
+				widen(szDir, sizeof(szDir), "C:\\Games\\");
+			else if (microsoft_accessU("C:\\", ACCESS_READ | ACCESS_WRITE))
+				widen(szDir, sizeof(szDir), "C:\\");
+			//if we're not an admin, install it somewhere else.
+			else if (pSHGetSpecialFolderPathW(NULL, szDir, CSIDL_LOCAL_APPDATA, TRUE) && microsoft_accessW(szDir, ACCESS_READ | ACCESS_WRITE))
+				;
+			else
+#endif
+				if (GetCurrentDirectoryW(countof(szDir), szDir))// && microsoft_access(szDir, ACCESS_READ | ACCESS_WRITE))
+					;
+			SendMessageW(hwnd, BFFM_SETSELECTIONW, TRUE, (LPARAM)szDir);
+			SendMessageW(hwnd, BFFM_SETEXPANDED, TRUE, (LPARAM)szDir);
+			SendMessageW(hwnd, BFFM_SETOKTEXT, TRUE, (LPARAM)widen(szDir, sizeof(szDir), "Install"));
+		}
 		break;
 	case BFFM_VALIDATEFAILEDA:
-		if (!microsoft_access(pData->parentdir, ACCESS_READ | ACCESS_WRITE))
-			return 1;
-		if (edit)
-			GetWindowText(edit, pData->subdir, sizeof(pData->subdir));
-
-		if (microsoft_access(va("%s\\%s", pData->parentdir, pData->subdir), ACCESS_READ))
-			return MessageBoxU(hwnd, va("%s\\%s already exists!\nThis installer will (generally) not overwrite.\nIf you want to re-install, you must manually uninstall it first.\n\nContinue?", pData->parentdir, pData->subdir), fs_gamename.string, MB_ICONWARNING|MB_OKCANCEL|MB_TOPMOST) == IDCANCEL;
-		else
-			return MessageBoxU(hwnd, va("Install to %s\\%s ?", pData->parentdir, pData->subdir), fs_gamename.string, MB_OKCANCEL) == IDCANCEL;
 	case BFFM_VALIDATEFAILEDW:
-		return 1;//!microsoft_access("C:\\Games\\", ACCESS_READ | ACCESS_WRITE))
-	case BFFM_SELCHANGED: 
-		OutputDebugStringA("selchanged\n");
-		if (SHGetPathFromIDList((LPITEMIDLIST)lp, pData->parentdir))
+		if (!microsoft_accessU(pData->parentdir, ACCESS_READ | ACCESS_WRITE))
 		{
-//			OutputDebugString(va("selchanged: %s\n", szDir));
-//			while(foo = strchr(pData->parentdir, '\\'))
-//				*foo = '/';
-			//fixme: verify that id1 is a subdir perhaps?
-			if (edit)
+			MessageBoxU(hwnd, va("%s is not writable.", pData->parentdir), fs_gamename.string, 0);
+			return 1;
+		}
+		if (edit)
+		{
+			wchar_t wide[256];
+			GetWindowTextW(edit, wide, countof(wide));
+			narrowen(pData->subdir, sizeof(pData->subdir), wide);
+		}
+
+		if (microsoft_accessU(va("%s%s", pData->parentdir, pData->subdir), ACCESS_READ))
+			return MessageBoxU(hwnd, va("%s%s already exists!\nThis installer will (generally) not overwrite existing data files.\nIf you want to re-install, you must manually uninstall it first.\n\nContinue?", pData->parentdir, pData->subdir), fs_gamename.string, MB_ICONWARNING|MB_OKCANCEL|MB_TOPMOST) == IDCANCEL;
+		else
+			return MessageBoxU(hwnd, va("Install to %s%s ?", pData->parentdir, pData->subdir), fs_gamename.string, MB_OKCANCEL) == IDCANCEL;
+	case BFFM_SELCHANGED: 
+		{
+			wchar_t wide[MAX_PATH*2+2];
+			char *foo;
+			if (pSHGetPathFromIDListW((LPITEMIDLIST)lp, wide))
 			{
-				wchar_t wide[128];
-				SetWindowTextW(edit, widen(wide, sizeof(wide), fs_gamename.string));
-				SendMessageA(hwnd, BFFM_SETSTATUSTEXT, 0, (LPARAM)va("%s", pData->parentdir));
+				narrowen(pData->parentdir, sizeof(pData->parentdir), wide);
+				FS_Directorize(pData->parentdir, sizeof(pData->parentdir));
+
+				//this'll make microsoft happy.
+				while(foo = strchr(pData->parentdir, '/'))
+					*foo = '\\';
+
+				if (edit)
+				{
+					wchar_t wide[128];
+					SetWindowTextW(edit, widen(wide, sizeof(wide), fs_gamename.string));
+					SendMessageW(hwnd, BFFM_SETSTATUSTEXT, 0, (LPARAM)widen(wide, sizeof(wide), va("%s", pData->parentdir)));
+				}
+				else
+					SendMessageW(hwnd, BFFM_SETSTATUSTEXT, 0, (LPARAM)widen(wide, sizeof(wide), va("%s%s", pData->parentdir, fs_gamename.string)));
 			}
-			else
-				SendMessageA(hwnd, BFFM_SETSTATUSTEXT, 0, (LPARAM)va("%s/%s", pData->parentdir, fs_gamename.string));
 		}
 		break;
 	case BFFM_IUNKNOWN:
@@ -3298,16 +3367,6 @@ LRESULT CALLBACK NoCloseWindowProc(HWND w, UINT m, WPARAM wp, LPARAM lp)
 	return DefWindowProc(w, m, wp, lp);
 }
 
-void FS_Directorize(char *fname, size_t fnamesize)
-{
-	size_t l = strlen(fname);
-	if (!l)	//technically already a directory
-		return;
-	if (fname[l-1] == '\\' || fname[l-1] == '/')
-		return;	//already a directory
-	Q_strncatz(fname, "/", fnamesize);
-}
-
 void FS_CreateBasedir(const char *path);
 qboolean Sys_DoInstall(void)
 {
@@ -3315,10 +3374,17 @@ qboolean Sys_DoInstall(void)
 	char exepath[MAX_OSPATH];
 	char newexepath[MAX_OSPATH];
 	wchar_t wide[MAX_PATH];
+	wchar_t wide2[MAX_PATH];
 	char resultpath[MAX_OSPATH];
 	BROWSEINFOW bi;
 	LPITEMIDLIST il;
 	struct egadsthisisretarded diediedie;
+
+	if (!pSHGetSpecialFolderPathW)
+	{
+		MessageBoxU(NULL, "SHGetSpecialFolderPathW is not supported\n", fs_gamename.string, 0);
+		return TRUE;
+	}
 
 	if (fs_manifest && fs_manifest->eula)
 	{
@@ -3326,11 +3392,13 @@ qboolean Sys_DoInstall(void)
 			return TRUE;
 	}
 
+	Q_strncpyz(diediedie.subdir, fs_gamename.string, sizeof(diediedie.subdir));
+	_snwprintf(diediedie.title, countof(diediedie.title), L"Where would you like to install %s to?", widen(wide, sizeof(wide), fs_gamename.string));
+	GetCurrentDirectoryW(countof(wide)-1, wide);
+
 	memset(&bi, 0, sizeof(bi));
 	bi.hwndOwner = mainwindow; //note that this is usually still null
 	bi.pidlRoot = NULL;
-	_snwprintf(diediedie.title, countof(diediedie.title), L"Where would you like to install %s to?", widen(wide, sizeof(wide), fs_gamename.string));
-	GetCurrentDirectoryW(countof(wide)-1, wide);
 	bi.pszDisplayName = wide;
 	bi.lpszTitle = diediedie.title;
 	bi.ulFlags = BIF_RETURNONLYFSDIRS|BIF_STATUSTEXT | BIF_EDITBOX|BIF_NEWDIALOGSTYLE|BIF_VALIDATE;
@@ -3338,12 +3406,10 @@ qboolean Sys_DoInstall(void)
 	bi.lParam = (LPARAM)&diediedie;
 	bi.iImage = 0;
 
-	Q_strncpyz(diediedie.subdir, fs_gamename.string, sizeof(diediedie.subdir));
-
-	il = SHBrowseForFolderW(&bi);
+	il = pSHBrowseForFolderW?pSHBrowseForFolderW(&bi):NULL;
 	if (il)
 	{
-		SHGetPathFromIDListW(il, wide);
+		pSHGetPathFromIDListW(il, wide);
 		CoTaskMemFree(il);
 	}
 	else
@@ -3359,9 +3425,10 @@ qboolean Sys_DoInstall(void)
 
 	FS_CreateBasedir(resultpath);
 
-	GetModuleFileName(NULL, exepath, sizeof(exepath));
+	GetModuleFileNameW(NULL, wide, countof(wide));
+	narrowen(exepath, sizeof(exepath), wide);
 	FS_NativePath(va("%s.exe", fs_gamename.string), FS_ROOT, newexepath, sizeof(newexepath));
-	CopyFile(exepath, newexepath, FALSE);
+	CopyFileU(exepath, newexepath, FALSE);
 
 	/*the game can now be run (using regular autoupdate stuff), but most installers are expected to install the data instead of just more downloaders, so lets do that with a 'nice' progress box*/
 	{
@@ -3453,13 +3520,15 @@ qboolean Sys_DoInstall(void)
 			widen(wsz, sizeof(wsz), resultpath);
 			psl->lpVtbl->SetWorkingDirectory(psl, wsz);
 			hres = psl->lpVtbl->QueryInterface(psl, &qIID_IPersistFile, (LPVOID*)&ppf);
-			if (SUCCEEDED(hres) && SHGetSpecialFolderPath(NULL, startmenu, CSIDL_COMMON_PROGRAMS, TRUE))
+			if (SUCCEEDED(hres) && pSHGetSpecialFolderPathW(NULL, wsz, CSIDL_COMMON_PROGRAMS, TRUE))
 			{
 				WCHAR wsz[MAX_PATH];
+				narrowen(startmenu, sizeof(startmenu), wsz);
 				widen(wsz, sizeof(wsz), va("%s/%s.lnk", startmenu, fs_gamename.string));
 				hres = ppf->lpVtbl->Save(ppf, wsz, TRUE);
-				if (hres == E_ACCESSDENIED && SHGetSpecialFolderPath(NULL, startmenu, CSIDL_PROGRAMS, TRUE))
+				if (hres == E_ACCESSDENIED && pSHGetSpecialFolderPathW(NULL, wsz, CSIDL_PROGRAMS, TRUE))
 				{
+					narrowen(startmenu, sizeof(startmenu), wsz);
 					widen(wsz, sizeof(wsz), va("%s/%s.lnk", startmenu, fs_gamename.string));
 					hres = ppf->lpVtbl->Save(ppf, wsz, TRUE);
 				}
@@ -3470,7 +3539,7 @@ qboolean Sys_DoInstall(void)
 	}
 
 	//now start it up properly.
-	ShellExecute(mainwindow, "open", newexepath, Q_strcasecmp(fs_manifest->installation, "quake")?"":"+sys_register_file_associations", resultpath, SW_SHOWNORMAL);
+	ShellExecuteW(mainwindow, L"open", widen(wide, sizeof(wide), newexepath), Q_strcasecmp(fs_manifest->installation, "quake")?L"":L"+sys_register_file_associations", widen(wide2, sizeof(wide2), resultpath), SW_SHOWNORMAL);
 	return true;
 }
 qboolean Sys_RunInstaller(void)
@@ -3742,11 +3811,11 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	memset(&parms, 0, sizeof(parms));
 
-	#ifndef MINGW
-	#if _MSC_VER > 1200
+//	#ifndef MINGW
+//	#if _MSC_VER > 1200
 		Win7_Init();
-	#endif
-	#endif
+//	#endif
+//	#endif
 
 #ifdef _MSC_VER
 #if _M_IX86_FP >= 1
@@ -3781,11 +3850,16 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 
 #ifdef CATCHCRASH
-	LoadLibraryA ("DBGHELP");	//heap corruption can prevent loadlibrary from working properly, so do this in advance.
+	LoadLibraryU ("DBGHELP");	//heap corruption can prevent loadlibrary from working properly, so do this in advance.
 #ifdef _MSC_VER
 	__try
 #else
-	AddVectoredExceptionHandler(true, nonmsvc_CrashExceptionHandler);
+	{
+		PVOID (WINAPI *pAddVectoredExceptionHandler)(ULONG	FirstHandler,	PVECTORED_EXCEPTION_HANDLER VectoredHandler);
+		dllfunction_t dbgfuncs[] = {{(void*)&pAddVectoredExceptionHandler, "AddVectoredExceptionHandler"}, {NULL,NULL}};
+		if (Sys_LoadLibrary("kernel32.dll", dbgfuncs) && pAddVectoredExceptionHandler)
+			pAddVectoredExceptionHandler(0, nonmsvc_CrashExceptionHandler);
+	}
 #endif
 #endif
 	{

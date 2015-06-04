@@ -50,6 +50,11 @@ pbool keyword_struct;
 pbool keyword_var;		//allow it to be initialised and set around the place.
 pbool keyword_vector;	//for skipping the local
 
+pbool keyword_static;
+pbool keyword_nonstatic;
+pbool keyword_used;
+pbool keyword_unused;
+
 
 pbool keyword_enum;	//kinda like in c, but typedef not supported.
 pbool keyword_enumflags;	//like enum, but doubles instead of adds 1.
@@ -69,6 +74,7 @@ pbool keyword_noref;	//nowhere else references this, don't strip it.
 pbool keyword_nosave;	//don't write the def to the output.
 pbool keyword_inline;
 pbool keyword_strip;
+pbool keyword_ignore;
 pbool keyword_union;	//you surly know what a union is!
 
 #define keyword_not			1	//hexenc support needs this, and fteqcc can optimise without it, but it adds an extra token after the if, so it can cause no namespace conflicts
@@ -2038,6 +2044,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				case OP_LOADA_I:
 					{
 						QCC_sref_t nd = var_a;
+						QCC_FreeTemp(var_b);
 						nd.ofs += eval_b->_int;
 						//FIXME: case away the array...
 						return nd;
@@ -2884,7 +2891,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					//a - (n * floor(a/n));
 					//(except using v|v instead of floor)
 					var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], var_a, var_b, NULL, STFL_CONVERTA|STFL_CONVERTB|STFL_PRESERVEA|STFL_PRESERVEB);
-					var_c = QCC_PR_Statement(&pr_opcodes[OP_BITOR_F], var_c, var_c, NULL);
+					var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_F], var_c, var_c, NULL, STFL_PRESERVEA);
 					var_c = QCC_PR_Statement(&pr_opcodes[OP_MUL_F], var_b, var_c, NULL);
 					return QCC_PR_Statement(&pr_opcodes[OP_SUB_F], var_a, var_c, NULL);
 
@@ -2960,7 +2967,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			{
 				const QCC_eval_t *eval_a = QCC_SRef_EvalConst(var_a);
 				if (eval_a)
+				{
+					QCC_FreeTemp(var_a);
 					var_a = QCC_MakeFloatConst(eval_a->_int);
+				}
 				else
 				{
 					var_c = QCC_PR_GetSRef(NULL, "itof", NULL, false, 0, 0);
@@ -2983,7 +2993,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			{
 				const QCC_eval_t *eval_a = QCC_SRef_EvalConst(var_a);
 				if (eval_a)
+				{
+					QCC_FreeTemp(var_a);
 					var_a = QCC_MakeIntConst(eval_a->_float);
+				}
 				else
 				{
 					var_c = QCC_PR_GetSRef(NULL, "ftoi", NULL, false, 0, 0);
@@ -3972,6 +3985,7 @@ struct inlinectx_s
 	{
 		QCC_def_t *def;
 		QCC_def_t *srcsym;
+		int bias;
 	} locals[64];
 	int numlocals;
 };
@@ -3993,6 +4007,7 @@ static pbool QCC_PR_InlinePushResult(struct inlinectx_s *ctx, QCC_sref_t src, QC
 	else if (ctx->locals[i].def)
 		QCC_FreeDef(ctx->locals[i].def);
 	ctx->locals[i].def = mappedto.sym;
+	ctx->locals[i].bias = mappedto.ofs - src.ofs;	//FIXME: this feels unsafe (needed for array[immediate] fixups)
 	return true;
 }
 
@@ -4015,10 +4030,11 @@ static QCC_sref_t QCC_PR_InlineFindDef(struct inlinectx_s *ctx, QCC_sref_t src, 
 			{
 				QCC_FreeDef(ctx->locals[p].def);
 				ctx->locals[p].def = NULL;
+				ctx->locals[p].bias = 0;
 				d = NULL;
 				return QCC_MakeSRefForce(NULL, 0, NULL);
 			}
-			return QCC_MakeSRefForce(d, src.ofs, src.cast);
+			return QCC_MakeSRefForce(d, src.ofs + ctx->locals[p].bias, src.cast);
 		}
 	}
 
@@ -4030,7 +4046,7 @@ static QCC_sref_t QCC_PR_InlineFindDef(struct inlinectx_s *ctx, QCC_sref_t src, 
 		{
 			if (src.sym->symbolheader == local)
 			{
-				return QCC_MakeSRefForce(ctx->arglist[p].sym->symbolheader, ctx->arglist[p].sym->ofs+src.ofs, src.cast);
+				return QCC_MakeSRefForce(ctx->arglist[p].sym->symbolheader, src.ofs, src.cast);
 			}
 		}
 
@@ -4082,9 +4098,14 @@ static QCC_sref_t QCC_PR_InlineFindDef(struct inlinectx_s *ctx, QCC_sref_t src, 
 //returns a string saying why inlining failed.
 static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 {
+	/*FIXME: what happens with:
+	t = foo;
+	foo = 5;
+	return t;
+	*/
 	QCC_sref_t a, b, c;
 	QCC_statement_t *st;
-//	const QCC_eval_t *eval;
+	const QCC_eval_t *eval;
 //	float af,bf;
 //	int i;
 
@@ -4099,6 +4120,10 @@ static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 		case OP_IFNOT_I:
 		case OP_IF_S:
 		case OP_IFNOT_S:
+			if (st->b.ofs > 0 && st[st->b.ofs].op == OP_DONE)
+			{
+				//logically, an if statement around the entire function is safe because the locals are safe
+			}
 		case OP_GOTO:
 		case OP_SWITCH_F:
 		case OP_SWITCH_I:
@@ -4138,20 +4163,18 @@ static char *QCC_PR_InlineStatements(struct inlinectx_s *ctx)
 					return "OP_RETURN no a";
 			}
 			return NULL;
-#ifdef IAMNOTLAZY
 		case OP_BOUNDCHECK:
-			a = QCC_PR_InlineFindDef(ctx, st->a);
+			a = QCC_PR_InlineFindDef(ctx, st->a, false);
 			QCC_PR_InlinePushResult(ctx, st->a, a);
-			eval = QCC_SRef_EvalConst(st->a);
+			eval = QCC_SRef_EvalConst(a);
 			if (eval)
 			{
-				if (eval->_int < st->c || eval->_int >= st->b)
+				if (eval->_int < (int)st->c.ofs || eval->_int >= (int)st->b.ofs)
 					QCC_PR_ParseWarning(0, "constant value exceeds bounds failed bounds check while inlining\n");
 			}
 			else
-				QCC_PR_SimpleStatement(OP_BOUNDCHECK, a->ofs, st->b, st->c, false);
+				QCC_PR_SimpleStatement(&pr_opcodes[OP_BOUNDCHECK], a, st->b, st->c, false);
 			break;
-#endif
 		default:
 			if ((st->op >= OP_CALL0 && st->op <= OP_CALL8) || (st->op >= OP_CALL1H && st->op <= OP_CALL8H))
 			{
@@ -4910,6 +4933,7 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 			if (!func.sym->initialized)
 				func.sym->initialized = 3;
 			func.sym->referenced = true;
+			QCC_FreeTemp(func);
 
 			e = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 			QCC_PR_Expect(")");
@@ -4917,6 +4941,7 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 			d = QCC_PR_GetSRef(NULL, "nextent", NULL, false, 0, false);
 			if (!d.cast)
 				QCC_PR_ParseError(0, "the nextent builtin is not defined");
+			QCC_UnFreeTemp(e);
 			d = QCC_PR_GenerateFunctionCall (nullsref, d, &e, &type_float, 1);
 			d = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], d, QCC_MakeIntConst(1), NULL, 0);
 			e = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], e, d, NULL, 0);
@@ -5600,7 +5625,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 	pr.local_head.nextlocal = NULL;
 	pr.local_tail = &pr.local_head;
 
-
+	scope->initialized = true;
 	scope->symboldata[scope->ofs].function = pr_scope - functions;
 
 	ed = QCC_PR_GetSRef(type_entity, "self", NULL, true, 0, false);
@@ -6294,6 +6319,8 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 			}
 		}
 	}
+
+	d.sym->referenced = true;
 
 	//class code uses self as though it was 'this'. its a hack, but this is QC.
 	if (assumeclass && pr_classtype && !strcmp(name, "self"))
@@ -7340,11 +7367,11 @@ QCC_sref_t QCC_StoreToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable, pb
 				TypeName(source.cast, typea, sizeof(typea));
 				TypeName(dest->cast, typeb, sizeof(typeb));
 				if (dest->type == REF_FIELD)
-					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s to %s %s.%s", typea, typeb, dest->base.cast->name, QCC_GetSRefName(dest->index));
+					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s %s to %s %s.%s", typea, QCC_GetSRefName(source), typeb, QCC_GetSRefName(dest->base), QCC_GetSRefName(dest->index));
 				else if (dest->index.cast)
-					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s to %s[%s]", typea, typeb, QCC_GetSRefName(dest->base), QCC_GetSRefName(dest->index));
+					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s %s to %s[%s]", typea, QCC_GetSRefName(source), typeb, QCC_GetSRefName(dest->base), QCC_GetSRefName(dest->index));
 				else
-					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s to %s %s", typea, typeb, QCC_GetSRefName(dest->base));
+					QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "type mismatch: %s %s to %s %s", typea, QCC_GetSRefName(source), typeb, QCC_GetSRefName(dest->base));
 			}
 		}
 	}
@@ -10646,6 +10673,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 
 	index = QCC_PR_GetSRef(type_float, "__indexg", pr_scope, true, 0, false);
 
+	scope->initialized = true;
 	scope->symboldata[scope->ofs]._int = pr_scope - functions;
 
 /*	if (fasttrackpossible)
@@ -10828,6 +10856,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, QCC_def_t *arraydef, char *ar
 	index = QCC_PR_GetSRef(type_float, "indexs___", pr_scope, true, 0, false);
 	value = QCC_PR_GetSRef(thearray.cast, "value___", pr_scope, true, 0, false);
 
+	scope->initialized = true;
 	scope->symboldata[scope->ofs]._int = pr_scope - functions;
 
 	if (fasttrackpossible.cast)
@@ -11272,6 +11301,8 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *s
 			QCC_PR_ParseWarning(WARN_MISUSEDAUTOCVAR, "Autocvar \"%s\" defined as constant", name);
 		else if (flags & GDF_STATIC)
 			QCC_PR_ParseWarning(WARN_MISUSEDAUTOCVAR, "Autocvar \"%s\" defined as static", name);
+		if (!(flags & GDF_STRIP))
+			flags |= GDF_USED;
 	}
 
 	def = QCC_PR_DummyDef(type, name, scope, arraysize, NULL, ofs, true, flags);
@@ -11829,7 +11860,7 @@ void QCC_PR_ParseDefs (char *classname)
 	pbool inlinefunction = false;
 	pbool allowinline = false;
 	pbool dostrip = false;
-	pbool ignored = false;
+	pbool forceused = false;
 	int arraysize;
 	unsigned int gd_flags;
 
@@ -12046,20 +12077,24 @@ void QCC_PR_ParseDefs (char *classname)
 			isconstant = true;
 		else if (QCC_PR_CheckKeyword(keyword_var, "var"))
 			isvar = true;
-		else if (QCC_PR_CheckKeyword(keyword_var, "static"))
+		else if (QCC_PR_CheckKeyword(keyword_static, "static"))
 			isstatic = true;
-		else if (!pr_scope && QCC_PR_CheckKeyword(keyword_var, "nonstatic"))
+		else if (!pr_scope && QCC_PR_CheckKeyword(keyword_nonstatic, "nonstatic"))
 			isstatic = false;
 		else if (QCC_PR_CheckKeyword(keyword_noref, "noref"))
 			noref=true;
+		else if (QCC_PR_CheckKeyword(keyword_unused, "unused"))
+			noref=true;
+		else if (QCC_PR_CheckKeyword(keyword_used, "used"))
+			forceused=true;
 		else if (QCC_PR_CheckKeyword(keyword_nosave, "nosave"))
 			nosave = true;
 		else if (QCC_PR_CheckKeyword(keyword_strip, "strip"))
 			dostrip = true;
 		else if (QCC_PR_CheckKeyword(keyword_inline, "inline"))
 			allowinline = true;
-		else if (QCC_PR_CheckKeyword(keyword_inline, "ignore"))
-			ignored = true;
+		else if (QCC_PR_CheckKeyword(keyword_ignore, "ignore"))
+			dostrip = true;
 		else
 			break;
 	}
@@ -12085,7 +12120,7 @@ void QCC_PR_ParseDefs (char *classname)
 
 		def = QCC_PR_GetDef (type, name, NULL, true, 0, false);
 
-		if (autoprototype || ignored)
+		if (autoprototype || dostrip)
 		{	//ignore the code and stuff
 
 			if (QCC_PR_CheckKeyword(keyword_external, "external"))
@@ -12283,7 +12318,7 @@ void QCC_PR_ParseDefs (char *classname)
 			gd_flags |= GDF_INLINE;
 		if (dostrip)
 			gd_flags |= GDF_STRIP;
-		if (isvar && !ignored)	//FIXME: make proper pragma(used) thingie
+		else if (forceused)	//FIXME: make proper pragma(used) thingie
 			gd_flags |= GDF_USED;
 
 #if IAMNOTLAZY
@@ -12366,10 +12401,12 @@ void QCC_PR_ParseDefs (char *classname)
 //					QCC_PR_ParseErrorPrintDef(ERR_REDECLARATION, def, "%s redeclared", name);
 			}
 
-			if (autoprototype || ignored)
+			if (autoprototype || dostrip)
 			{	//ignore the code and stuff
-				if (ignored && !def->initialized)
+				if (dostrip && !def->initialized)
 					def->initialized = 3;
+				if (dostrip)
+					def->referenced = true;
 				if (QCC_PR_CheckToken("["))
 				{
 					while (!QCC_PR_CheckToken("]"))
@@ -12425,7 +12462,12 @@ void QCC_PR_ParseDefs (char *classname)
 			if (type->type == ev_function)
 				isconstant = !isvar;
 
-			if (type->type == ev_field)
+			if (dostrip)
+			{
+				def->constant = isconstant;
+				def->referenced = true;
+			}
+			else if (type->type == ev_field)
 			{
 				//fields are const by default, even when not initialised (as they are initialised behind the scenes)
 				if (isconstant)

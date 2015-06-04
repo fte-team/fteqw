@@ -559,6 +559,11 @@ extern pbool keyword_inline;	//don't write the def to the output.
 extern pbool keyword_strip;	//don't write the def to the output.
 extern pbool keyword_union;	//you surly know what a union is!
 
+extern pbool keyword_unused;
+extern pbool keyword_used;
+extern pbool keyword_static;
+extern pbool keyword_nonstatic;
+extern pbool keyword_ignore;
 
 extern pbool keywords_coexist;
 extern pbool output_parms;

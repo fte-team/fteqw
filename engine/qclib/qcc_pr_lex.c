@@ -4642,6 +4642,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			pbool isvirt = false;
 			pbool isnonvirt = false;
 			pbool isstatic = false;
+			pbool isignored = false;
 			while(1)
 			{
 				if (QCC_PR_CheckKeyword(1, "nonvirtual"))
@@ -4650,6 +4651,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					isstatic = true;
 				else if (QCC_PR_CheckKeyword(1, "virtual"))
 					isvirt = true;
+				else if (QCC_PR_CheckKeyword(1, "ignore"))
+					isignored = true;
+				else if (QCC_PR_CheckKeyword(1, "strip"))
+					isignored = true;
 				else
 					break;
 			}
@@ -4721,19 +4726,27 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
 				if (isnull)
 				{
-					def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, 0);
-					def->symboldata[def->ofs].function = 0;
-					def->initialized = 1;
+					if (isignored)
+						def = NULL;
+					else
+					{
+						def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, 0);
+						def->symboldata[def->ofs].function = 0;
+						def->initialized = 1;
+					}
 				}
 				else
 				{
-					def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
+					if (isignored)
+						def = NULL;
+					else
+						def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
 
 					if (newparm->type != ev_function)
 						QCC_Error(ERR_INTERNAL, "Can only initialise member functions");
 					else
 					{
-						if (autoprototype)
+						if (autoprototype || isignored)
 						{
 							QCC_PR_Expect("{");
 
@@ -4765,9 +4778,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						}
 					}
 				}
-				QCC_FreeDef(def);
+				if (def)
+					QCC_FreeDef(def);
 
-				if (!isvirt)	
+				if (!isvirt && !isignored)
 				{
 					QCC_def_t *fdef;
 					QCC_type_t *pc;
@@ -4798,6 +4812,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			}
 
 			QCC_PR_Expect(";");
+
+			if (isignored)	//member doesn't really exist
+				continue;
 
 			//static members are technically just funny-named globals, and do not generate fields.
 			if (isnonvirt || isstatic || (newparm->type == ev_function && !arraysize))

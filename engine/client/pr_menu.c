@@ -1038,6 +1038,7 @@ static struct
 	evalc_t frame1time;
 	evalc_t frame2time;
 	evalc_t renderflags;
+	evalc_t skinobject;
 } menuc_eval;
 static playerview_t menuview;
 
@@ -1670,6 +1671,29 @@ static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s 
 	if (mod && maxsval)
 		VectorCopy(mod->maxs, maxsval->_vector);
 }
+static void QCBUILTIN PF_m_setcustomskin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	menuedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
+	const char *fname = PR_GetStringOfs(prinst, OFS_PARM1);
+	const char *skindata = PF_VarString(prinst, 2, pr_globals);
+	eval_t *val = prinst->GetEdictFieldValue(prinst, (void*)ent, "skinobject", &menuc_eval.skinobject);
+	if (!val)
+		return;
+
+	if (val->_float > 0)
+	{
+		Mod_WipeSkin(val->_float);
+		val->_float = 0;
+	}
+
+	if (*fname || *skindata)
+	{
+		if (*skindata)
+			val->_float = Mod_ReadSkinFile(fname, skindata);
+		else
+			val->_float = -(int)Mod_RegisterSkinFile(fname);
+	}
+}
 //trivially basic
 static void QCBUILTIN PF_m_setorigin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1707,6 +1731,7 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 	eval_t *frame2timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame2time", &menuc_eval.frame2time);
 	eval_t *colormapval = prinst->GetEdictFieldValue(prinst, (void*)in, "colormap", &menuc_eval.colormap);
 	eval_t *renderflagsval = prinst->GetEdictFieldValue(prinst, (void*)in, "renderflags", &menuc_eval.renderflags);
+	eval_t *skinobjectval = prinst->GetEdictFieldValue(prinst, (void*)in, "skinobject", &menuc_eval.skinobject);
 	int ival;
 	int rflags;
 
@@ -1729,6 +1754,8 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 	out->framestate.g[FS_REG].lerpweight[0] = 1-out->framestate.g[FS_REG].lerpweight[1];
 	out->framestate.g[FS_REG].frametime[0] = frame1timeval?frame1timeval->_float:0;
 	out->framestate.g[FS_REG].frametime[1] = frame2timeval?frame2timeval->_float:0;
+
+	out->customskin = skinobjectval?skinobjectval->_float:0;
 
 	//FIXME: colourmap
 	ival = colormapval?colormapval->_float:0;
@@ -1968,6 +1995,10 @@ static struct {
 															//gap
 	{"findfont",				PF_CL_findfont,				356},
 	{"loadfont",				PF_CL_loadfont,				357},
+															//gap
+//	{"dynamiclight_get",		PF_R_DynamicLight_Get,		372},
+//	{"dynamiclight_set",		PF_R_DynamicLight_Set,		373},
+	{"setcustomskin",			PF_m_setcustomskin,			376},
 															//gap
 	{"memalloc",				PF_memalloc,				384},
 	{"memfree",					PF_memfree,					385},
@@ -2245,7 +2276,7 @@ void VARGS Menu_Abort (char *format, ...)
 		int size = 1024*1024*8;
 		buffer = Z_Malloc(size);
 		menu_world.progs->save_ents(menu_world.progs, buffer, &size, size, 3);
-		COM_WriteFile("menucore.txt", buffer, size);
+		COM_WriteFile("menucore.txt", FS_GAMEONLY, buffer, size);
 		Z_Free(buffer);
 	}
 
@@ -2422,7 +2453,7 @@ void MP_CoreDump_f(void)
 		int size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
 		menu_world.progs->save_ents(menu_world.progs, buffer, &size, size, 3);
-		COM_WriteFile("menucore.txt", buffer, size);
+		COM_WriteFile("menucore.txt", FS_GAMEONLY, buffer, size);
 		BZ_Free(buffer);
 	}
 }

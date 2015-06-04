@@ -105,30 +105,50 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 		M_DrawScalePic (cx, cy+8, 8, 8, p);
 }
 
-int M_FindKeysForBind (char *command, int *keylist, int total)
+int M_FindKeysForBind (char *command, int *keylist, int *keymods, int total)
 {
 	int		count;
-	int		j;
-	int		l;
+	int		j, m;
+	int		l, p;
 	char	*b;
 
-	for (count = 0; count < total; count++)
-		keylist[count] = -1;
 	l = strlen(command);
 	count = 0;
 
 	for (j=0 ; j<256 ; j++)
 	{
-		b = keybindings[j][0];
-		if (!b)
-			continue;
-		if (!strncmp (b, command, l) && (!b[l] || b[l] == ' ' || b[l] == ';'))
+		for (m = 0; m < KEY_MODIFIERSTATES; m++)
 		{
-			keylist[count] = j;
-			count++;
-			if (count == total)
-				break;
+			b = keybindings[j][m];
+			if (!b)
+				continue;
+			if (!strncmp (b, command, l) && (!b[l] || b[l] == ' ' || b[l] == ';'))
+			{
+				//if ctrl_a and ctrl_shift_a do the same thing, don't report ctrl_shift_a because its redundant.
+				for (p = 0; p < m; p++)
+				{
+					if (p&~m)	//ignore shift_a if we're checking ctrl_a
+						continue;
+					if (!strcmp(keybindings[j][p], b))
+						break;	//break+continue
+				}
+				if (p != m)
+					continue;
+
+				keylist[count] = j;
+				if (keymods)
+					keymods[count] = j;
+				count++;
+				if (count == total)
+					return count;
+			}
 		}
+	}
+	for (j = count; j < total; j++)
+	{
+		keylist[j] = -1;
+		if (keymods)
+			keymods[j] = 0;
 	}
 	return count;
 }
@@ -160,7 +180,7 @@ void M_FindKeysForCommand (int pnum, const char *command, int *twokeys)
 			prefix[3] = 0;
 		}
 	}
-	M_FindKeysForBind(va("%s%s", prefix, command), twokeys, 2);
+	M_FindKeysForBind(va("%s%s", prefix, command), twokeys, NULL, 2);
 }
 
 #ifndef NOBUILTINMENUS

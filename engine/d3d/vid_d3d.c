@@ -595,13 +595,13 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 		d3d9dll = LoadLibrary("d3d9.dll");
 	if (!d3d9dll)
 	{
-		Con_Printf("Direct3d 9 does not appear to be installed\n");
+		Con_Printf(CON_ERROR "Direct3d 9 does not appear to be installed\n");
 		return;
 	}
 	pDirect3DCreate9 = (void*)GetProcAddress(d3d9dll, "Direct3DCreate9");
 	if (!pDirect3DCreate9)
 	{
-		Con_Printf("Direct3d 9 does not appear to be installed properly\n");
+		Con_Printf(CON_ERROR "Direct3d 9 does not appear to be installed properly\n");
 		return;
 	}
 

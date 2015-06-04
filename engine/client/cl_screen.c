@@ -1959,12 +1959,12 @@ typedef struct _TargaHeader {
 
 
 #if defined(AVAIL_JPEGLIB) && !defined(NO_JPEG)
-qboolean screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight);
+qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int screenwidth, int screenheight);
 #endif
 #ifdef AVAIL_PNGLIB
-int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height);
+int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, qbyte *pixels, int width, int height);
 #endif
-void WriteBMPFile(char *filename, qbyte *in, int width, int height);
+void WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int width, int height);
 
 /*
 Find closest color in the palette for named color
@@ -1999,9 +1999,9 @@ int MipColor(int r, int g, int b)
 	return best;
 }
 
-qboolean SCR_ScreenShot (char *filename, void *rgb_buffer, int width, int height)
+qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void *rgb_buffer, int width, int height)
 {
-	int                     i, c, temp;
+	int		i, c, temp;
 #if defined(AVAIL_PNGLIB) || defined(AVAIL_JPEGLIB)
 	extern cvar_t scr_sshot_compression;
 #endif
@@ -2016,14 +2016,14 @@ qboolean SCR_ScreenShot (char *filename, void *rgb_buffer, int width, int height
 #ifdef AVAIL_PNGLIB
 	if (!Q_strcasecmp(ext, "png"))
 	{
-		return Image_WritePNG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
+		return Image_WritePNG(filename, fsroot, scr_sshot_compression.value, rgb_buffer, width, height);
 	}
 	else
 #endif
 #ifdef AVAIL_JPEGLIB
 		if (!Q_strcasecmp(ext, "jpeg") || !Q_strcasecmp(ext, "jpg"))
 	{
-		return screenshotJPEG(filename, scr_sshot_compression.value, rgb_buffer, width, height);
+		return screenshotJPEG(filename, fsroot, scr_sshot_compression.value, rgb_buffer, width, height);
 	}
 	else
 #endif
@@ -2049,13 +2049,13 @@ qboolean SCR_ScreenShot (char *filename, void *rgb_buffer, int width, int height
 			}
 		}
 
-		WritePCXfile (filename, newbuf, width, height, width, host_basepal, false);
+		WritePCXfile (filename, fsroot, newbuf, width, height, width, host_basepal, false);
 	}
 	else if (!Q_strcasecmp(ext, "tga"))	//tga
 	{
 		vfsfile_t *vfs;
-		FS_CreatePath(filename, FS_GAMEONLY);
-		vfs = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+		FS_CreatePath(filename, fsroot);
+		vfs = FS_OpenVFS(filename, "wb", fsroot);
 		if (vfs)
 		{
 			unsigned char header[18];
@@ -2144,7 +2144,7 @@ void SCR_ScreenShot_f (void)
 	rgbbuffer = VID_GetRGBInfo(0, &width, &height);
 	if (rgbbuffer)
 	{
-		if (SCR_ScreenShot(pcxname, rgbbuffer, width, height))
+		if (SCR_ScreenShot(pcxname, FS_GAMEONLY, rgbbuffer, width, height))
 		{
 			Con_Printf ("Wrote %s\n", sysname);
 			BZ_Free(rgbbuffer);
@@ -2217,7 +2217,7 @@ void SCR_ScreenShot_Mega_f(void)
 		rgbbuffer = VID_GetRGBInfo(0, &width, &height);
 		if (rgbbuffer)
 		{
-			if (SCR_ScreenShot(filename, rgbbuffer, width, height))
+			if (SCR_ScreenShot(filename, FS_GAMEONLY, rgbbuffer, width, height))
 			{
 				char			sysname[1024];
 				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
@@ -2385,7 +2385,7 @@ qboolean SCR_RSShot (void)
 	Q_strncpyz(st, name.string, sizeof(st));
 	SCR_DrawStringToSnap (st, newbuf, w - strlen(st)*8, h - 21, w);
 
-	WritePCXfile ("snap.pcx", newbuf, w, h, w, host_basepal, true);
+	WritePCXfile ("snap.pcx", FS_GAMEONLY, newbuf, w, h, w, host_basepal, true);
 
 	BZ_Free(newbuf);
 

@@ -85,7 +85,12 @@ unsigned int WINAPI threadwrapper(void *args)
 	Sys_SetThreadName(GetCurrentThreadId(), ((threadwrap_t *)args)->name);
 #endif
 #ifdef CATCHCRASH
-	AddVectoredExceptionHandler(true, nonmsvc_CrashExceptionHandler);
+	{
+		PVOID (WINAPI *pAddVectoredExceptionHandler)(ULONG	FirstHandler,	PVECTORED_EXCEPTION_HANDLER VectoredHandler);
+		dllfunction_t dbgfuncs[] = {{(void*)&pAddVectoredExceptionHandler, "AddVectoredExceptionHandler"}, {NULL,NULL}};
+		if (Sys_LoadLibrary("kernel32.dll", dbgfuncs) && pAddVectoredExceptionHandler)
+			pAddVectoredExceptionHandler(0, nonmsvc_CrashExceptionHandler);
+	}
 #endif
 
 	free(args);
@@ -177,7 +182,7 @@ void *Sys_CreateMutex(void)
 	return (void *)mutex;
 }
 
-qboolean Sys_TryLockMutex(void *mutex)
+/*qboolean Sys_TryLockMutex(void *mutex)
 {
 #ifdef _DEBUG
 	if (!mutex)
@@ -196,7 +201,7 @@ qboolean Sys_TryLockMutex(void *mutex)
 		return true;
 	}
 	return false;
-}
+}*/
 
 qboolean Sys_LockMutex(void *mutex)
 {

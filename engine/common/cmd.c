@@ -581,6 +581,20 @@ void Cmd_Exec_f (void)
 		int defdepth = COM_FDepthFile("default.cfg", true);
 		if (defdepth < cfgdepth)
 			Cbuf_InsertText("exec default.cfg\n", ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel), false);
+
+		//hack to work around the more insideous hacks of other engines.
+		//namely: vid_restart at the end of config.cfg is evil, and NOT desired in FTE as it generally means any saved video settings are wrong.
+		if (l >= 13 && !strcmp(f+l-13, "\nvid_restart\n"))
+		{
+			Con_Printf(CON_WARNING "WARNING: %s came from a different engine\n", loc.rawname);
+			l -= 12;
+		}
+		else if (l >= 14 && !strcmp(f+l-14, "\nvid_restart\r\n"))
+		{
+			Con_Printf(CON_WARNING "WARNING: %s came from a different engine\n", loc.rawname);
+			l -= 13;
+		}
+		f[l] = 0;
 	}
 	// don't execute anything if it was from server (either the stuffcmd/localcmd, or the file)
 	if (!strcmp(name, "default.cfg") && !(Cmd_FromGamecode() || untrusted))

@@ -199,28 +199,30 @@ static void R_Clutter_Insert_Mesh(clutter_build_ctx_t *ctx, model_t *mod, float 
 	if (!mod)
 		return;
 
-	//fill in the parts of the entity_t that Alias_GAliasBuildMesh needs.
-	memset(&re, 0, sizeof(re));
-//	memset(&re.framestate, 0, sizeof(re.framestate));
-	re.framestate.g[FS_REG].lerpweight[0] = 1;
-	re.model = mod;
-
-	inf = (galiasinfo_t*)Mod_Extradata (mod);
-	while(inf)
+	if (mod->type == mod_alias)
 	{
-		galiasskin_t *skins = inf->ofsskins;
-		re.framestate.g[FS_REG].frame[0] = randanim%inf->numanimations;
-		if (skins->numframes)
+		//fill in the parts of the entity_t that Alias_GAliasBuildMesh needs.
+		memset(&re, 0, sizeof(re));
+		re.framestate.g[FS_REG].lerpweight[0] = 1;
+		re.model = mod;
+
+		inf = (galiasinfo_t*)Mod_Extradata (mod);
+		while(inf)
 		{
-			unsigned int frame = randskin%skins->numframes;
-			Alias_GAliasBuildMesh(&mesh, NULL, inf, surfnum, &re, false);
-			surfnum++;
-			//fixme: if shares verts, rewind the verts and don't add more somehow, while being careful with shaders
-			R_Clutter_Insert_Soup(ctx, skins->frame[frame].shader, mesh.xyz_array, mesh.st_array, mesh.normals_array, mesh.snormals_array, mesh.tnormals_array, mesh.colors4f_array[0], mesh.numvertexes, mesh.indexes, mesh.numindexes, scale, origin, axis);
+			galiasskin_t *skins = inf->ofsskins;
+			re.framestate.g[FS_REG].frame[0] = randanim%inf->numanimations;
+			if (skins->numframes)
+			{
+				unsigned int frame = randskin%skins->numframes;
+				Alias_GAliasBuildMesh(&mesh, NULL, inf, surfnum, &re, false);
+				surfnum++;
+				//fixme: if shares verts, rewind the verts and don't add more somehow, while being careful with shaders
+				R_Clutter_Insert_Soup(ctx, skins->frame[frame].shader, mesh.xyz_array, mesh.st_array, mesh.normals_array, mesh.snormals_array, mesh.tnormals_array, mesh.colors4f_array[0], mesh.numvertexes, mesh.indexes, mesh.numindexes, scale, origin, axis);
+			}
+			inf = inf->nextsurf;
 		}
-		inf = inf->nextsurf;
+		Alias_FlushCache();	//it got built using an entity on the stack, make sure other stuff doesn't get hurt.
 	}
-	Alias_FlushCache();	//it got built using an entity on the stack, make sure other stuff doesn't get hurt.
 }
 static void R_Clutter_Insert(void *vctx, vec3_t *fte_restrict points, size_t numtris, shader_t *surface)
 {

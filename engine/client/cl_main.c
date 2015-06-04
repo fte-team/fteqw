@@ -333,6 +333,9 @@ CL_Quit_f
 */
 void CL_Quit_f (void)
 {
+	if (!host_initialized)
+		return;
+
 	if (forcesaveprompt && strcmp(Cmd_Argv(1), "force"))
 	{
 		forcesaveprompt = false;
@@ -4586,7 +4589,7 @@ double Host_Frame (double time)
 #endif
 		Key_Dest_Has(kdm_menu) || 
 		Key_Dest_Has(kdm_editor) ||
-		cl.paused;
+		cl.paused || !ActiveApp;
 	// TODO: check if minimized or unfocused
 
 	//read packets early and always, so we don't have stuff waiting for reception quite so often.
@@ -5237,6 +5240,8 @@ void Host_Shutdown(void)
 		return;
 	}
 	host_initialized = false;
+
+	HTTP_CL_Terminate();
 
 #ifdef PLUGINS
 	Plug_Shutdown(false);

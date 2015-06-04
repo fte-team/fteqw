@@ -740,6 +740,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 
 		if (var->latched_string && !strcmp(var->latched_string, value))	//no point, this would force the same
 			return NULL;
+		Cvar_ConfigChanged();
 		if (var->latched_string)
 			Z_Free(var->latched_string);
 		if (!strcmp(var->string, value))	//latch to the original value? remove the latch.

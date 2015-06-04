@@ -4346,7 +4346,7 @@ void Cmd_Fly_f (void)
 }
 
 #ifdef SUBSERVERS
-void Cmd_Transfer_f(void)
+void Cmd_SSV_Transfer_f(void)
 {
 	char *dest = Cmd_Argv(1);
 	if (!SV_MayCheat())
@@ -4356,6 +4356,46 @@ void Cmd_Transfer_f(void)
 	}
 
 	SSV_InitiatePlayerTransfer(host_client, dest);
+}
+
+void Cmd_SSV_AllSay_f(void)
+{
+	char *text = Cmd_Args();
+	if (!SV_MayCheat())
+	{
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		return;
+	}
+
+	SSV_Send("", host_client->name, "say", text);
+}
+
+void Cmd_SSV_Join_f(void)
+{
+	int i;
+	char *who = Cmd_Argv(1);
+	if (!SV_MayCheat())
+	{
+		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
+		return;
+	}
+
+	for (i = 0; i < sv.allocated_client_slots; i++)
+	{
+		if (!strcmp(who, svs.clients[i].name))
+		{
+//			VectorCopy(svs.clients[i].edict->v->origin, sv_player->v->oldorigin);
+			VectorCopy(svs.clients[i].edict->v->origin, sv_player->v->origin);
+			World_LinkEdict (&sv.world, (wedict_t*)sv_player, false);
+
+			sv_player->xv->dimension_hit	= (int)sv_player->xv->dimension_hit & ~128;
+			sv_player->xv->dimension_solid	= (int)sv_player->xv->dimension_solid & 128;
+			svs.clients[i].edict->xv->dimension_hit		= (int)svs.clients[i].edict->xv->dimension_hit & ~128;
+			svs.clients[i].edict->xv->dimension_solid	= (int)svs.clients[i].edict->xv->dimension_solid & 128;
+			return;
+		}
+	}
+	SSV_Send(who, host_client->name, "join", "");
 }
 #endif
 
@@ -5272,7 +5312,9 @@ ucmd_t ucmds[] =
 	{"notarget", Cmd_Notarget_f},
 	{"setpos", Cmd_SetPos_f},
 #ifdef SUBSERVERS
-	{"transfer", Cmd_Transfer_f},	//transfer the player to a different map/server
+	{"ssvtransfer", Cmd_SSV_Transfer_f},//transfer the player to a different map/server
+	{"ssvsay",		Cmd_SSV_AllSay_f},	//transfer the player to a different map/server
+	{"ssvjoin",		Cmd_SSV_Join_f},	//transfer the player to a different map/server
 #endif
 
 #ifdef NQPROT

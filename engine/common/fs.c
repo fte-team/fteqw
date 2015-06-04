@@ -3188,7 +3188,7 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 	return false;
 }
 
-#ifdef _WIN32
+#ifndef SERVERONLY
 static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) 
 {	//'stolen' from microsoft's knowledge base.
 	//required to work around microsoft being annoying.

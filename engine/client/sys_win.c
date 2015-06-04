@@ -3155,6 +3155,15 @@ static int Sys_ProcessCommandline(char **argv, int maxargc, char *argv0)
 	return i;
 }
 
+int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
+{
+	wchar_t widecaption[256];
+	wchar_t widetext[2048];
+	widen(widetext, sizeof(widetext), lpText);
+	widen(widecaption, sizeof(widecaption), lpCaption);
+	return MessageBoxW(hWnd, widetext, widecaption, uType);
+}
+
 #ifdef WEBCLIENT
 //using this like posix' access function, but with much more code, microsoftisms, and no errno codes/info
 //no, I don't really have a clue why it needs to be so long.
@@ -3190,15 +3199,6 @@ static BOOL microsoft_accessU(LPCSTR pszFolder, DWORD dwAccessDesired)
 {
 	wchar_t			wpath[MAX_OSPATH];
 	return microsoft_accessW(widen(wpath, sizeof(wpath), pszFolder), dwAccessDesired);
-}
-
-int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
-{
-	wchar_t widecaption[256];
-	wchar_t widetext[2048];
-	widen(widetext, sizeof(widetext), lpText);
-	widen(widecaption, sizeof(widecaption), lpCaption);
-	return MessageBoxW(hWnd, widetext, widecaption, uType);
 }
 
 

@@ -482,7 +482,7 @@ extern struct model_s		*currentmodel;
 qboolean Media_ShowFilm(void);
 void Media_CaptureDemoEnd(void);
 void Media_RecordFrame (void);
-qboolean Media_PausedDemo (void);
+qboolean Media_PausedDemo (qboolean fortiming);
 int Media_Capturing (void);
 double Media_TweekCaptureFrameTime(double oldtime, double time);
 

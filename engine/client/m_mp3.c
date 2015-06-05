@@ -2847,7 +2847,7 @@ qboolean Media_UnregisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *f
 	}
 	return success;
 }
-
+ 
 //returns 0 if not capturing. 1 if capturing live. 2 if capturing a demo (where frame timings are forced).
 int Media_Capturing (void)
 {
@@ -2861,12 +2861,17 @@ void Media_CapturePause_f (void)
 	capturepaused = !capturepaused;
 }
 
-qboolean Media_PausedDemo (void)
+qboolean Media_PausedDemo (qboolean fortiming)
 {
+	//if fortiming is set, then timing might need to advance if we still need to parse the demo to get the first valid data out of it.
+
+	if (capturepaused)
+		return true;
+
 	//capturedemo doesn't record any frames when the console is visible
 	//but that's okay, as we don't load any demo frames either.
-	if ((cls.demoplayback && Media_Capturing()) || capturepaused)
-		if (Key_Dest_Has(~kdm_game) || scr_con_current > 0 || !cl.validsequence || capturepaused)
+	if ((cls.demoplayback && Media_Capturing()))
+		if (Key_Dest_Has(~kdm_game) || scr_con_current > 0 || (!fortiming&&!cl.validsequence))
 			return true;
 
 	return false;
@@ -2908,7 +2913,7 @@ void Media_RecordFrame (void)
 		captureframe = 0;
 	}
 */
-	if (Media_PausedDemo())
+	if (Media_PausedDemo(false))
 	{
 		int y = vid.height -32-16;
 		if (y < scr_con_current) y = scr_con_current;

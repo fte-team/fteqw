@@ -77,6 +77,7 @@ void IPX_CloseSocket (int socket);
 #endif
 cvar_t	net_hybriddualstack = CVAR("net_hybriddualstack", "1");
 cvar_t	net_fakeloss	= CVARFD("net_fakeloss", "0", CVAR_CHEAT, "Simulates packetloss in both receiving and sending, on a scale from 0 to 1.");
+cvar_t	net_enabled		= CVARD("net_enabled", "1", "If 0, disables all network access, including name resolution and socket creation. Does not affect loopback/internal connections.");
 
 extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
 
@@ -938,8 +939,6 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 
 	memset(a, 0, sizeof(*a)*numaddresses);
 
-	Con_DPrintf("Resolving address: %s\n", s);
-
 	if (!numaddresses)
 		return false;
 
@@ -948,6 +947,7 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		a->type = NA_LOOPBACK;
 		return true;
 	}
+
 	if (!strncmp(s, "QLoopBack", 9))
 	{
 		a->type = NA_LOOPBACK;
@@ -957,6 +957,10 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 			a->port = defaultport;
 		return true;
 	}
+
+	if (!net_enabled.ival)
+		return false;
+	Con_DPrintf("Resolving address: %s\n", s);
 
 #ifdef HAVE_WEBSOCKCL
 	if (!strncmp (s, "ws://", 5) || !strncmp (s, "wss://", 6))
@@ -2557,17 +2561,19 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a)
 {
 	char *e;
-	int port;
-	port = strtoul(s, &e, 10);
-	if (*e)	//if *e then its not just a single number in there, so treat it as a proper address.
-		return NET_StringToAdr(s, 0, a);
-	else if (e != s)	//if we actually read something (even a 0)
+	if (net_enabled.ival || adrfamily == NA_LOOPBACK)
 	{
-		memset(a, 0, sizeof(*a));
-		a->port = htons((unsigned short)port);
-		a->type = adrfamily;
+		int port = strtoul(s, &e, 10);
+		if (*e)	//if *e then its not just a single number in there, so treat it as a proper address.
+			return NET_StringToAdr(s, 0, a);
+		else if (e != s)	//if we actually read something (even a 0)
+		{
+			memset(a, 0, sizeof(*a));
+			a->port = htons((unsigned short)port);
+			a->type = adrfamily;
 
-		return a->type != NA_INVALID;
+			return a->type != NA_INVALID;
+		}
 	}
 	a->type = NA_INVALID;
 	return false;
@@ -5553,23 +5559,27 @@ NET_Init
 */
 void NET_Init (void)
 {
-#if defined(_WIN32) && defined(HAVE_PACKET)
-	int		r;
-#ifdef IPPROTO_IPV6
-	dllfunction_t fncs[] =
+	Cvar_Register(&net_enabled, "networking");
+	if (!net_enabled.ival)
 	{
-		{(void**)&pgetaddrinfo, "getaddrinfo"},
-		{(void**)&pfreeaddrinfo, "freeaddrinfo"},
-		{NULL, NULL}
-	};
-	Sys_LoadLibrary("ws2_32.dll", fncs);
+#if defined(_WIN32) && defined(HAVE_PACKET)
+		int		r;
+#ifdef IPPROTO_IPV6
+		dllfunction_t fncs[] =
+		{
+			{(void**)&pgetaddrinfo, "getaddrinfo"},
+			{(void**)&pfreeaddrinfo, "freeaddrinfo"},
+			{NULL, NULL}
+		};
+		Sys_LoadLibrary("ws2_32.dll", fncs);
 #endif
 
-	r = WSAStartup (MAKEWORD(2, 2), &winsockdata);
+		r = WSAStartup (MAKEWORD(2, 2), &winsockdata);
 
-	if (r)
-		Sys_Error ("Winsock initialization failed.");
+		if (r)
+			Sys_Error ("Winsock initialization failed.");
 #endif
+	}
 
 	Cvar_Register(&net_hybriddualstack, "networking");
 	Cvar_Register(&net_fakeloss, "networking");
@@ -5591,7 +5601,7 @@ void NET_Init (void)
 	Net_Master_Init();
 }
 #ifndef SERVERONLY
-void NET_InitClient(void)
+void NET_InitClient(qboolean loopbackonly)
 {
 	const char *port;
 	int p;
@@ -5608,10 +5618,13 @@ void NET_InitClient(void)
 		port = com_argv[p+1];
 	}
 
-	cls.sockets = FTENET_CreateCollection(false);
+	if (!cls.sockets)
+		cls.sockets = FTENET_CreateCollection(false);
 #ifndef CLIENTONLY
 	FTENET_AddToCollection(cls.sockets, "CLLoopback", "1", NA_LOOPBACK, true);
 #endif
+	if (loopbackonly)
+		port = "";
 #ifdef HAVE_IPV4
 	FTENET_AddToCollection(cls.sockets, "CLUDP4", port, NA_IP, true);
 #endif

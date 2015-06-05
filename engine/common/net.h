@@ -86,7 +86,7 @@ struct ftenet_connections_s;
 void		NET_Init (void);
 void		NET_Tick (void);
 void		SVNET_RegisterCvars(void);
-void		NET_InitClient (void);
+void		NET_InitClient (qboolean loopbackonly);
 void		NET_InitServer (void);
 qboolean	NET_WasSpecialPacket(netsrc_t netsrc);
 void		NET_CloseServer (void);

@@ -363,7 +363,7 @@ void CL_ProgressDemoTime(void)
 {
 	extern cvar_t cl_demospeed;
 
-	if (cl.parsecount && Media_PausedDemo())
+	if (cl.parsecount && Media_PausedDemo(true))
 	{	//console visible whilst democapturing
 		cls.netchan.last_received = realtime;
 		return;
@@ -1634,6 +1634,8 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 	CL_Disconnect_f ();
 
 	demo_flushcache();
+
+	NET_InitClient(true);
 //
 // open the demo file
 //
@@ -1703,6 +1705,8 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 		VFS_READ(f, &type, sizeof(type));
 		VFS_READ(f, &protocol, sizeof(protocol));
 		VFS_SEEK(f, start);
+		len = LittleLong(len);
+		protocol = LittleLong(protocol);
 		if (len > 5 && type == svcq2_serverdata && protocol == PROTOCOL_VERSION_Q2)
 		{
 			CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKE2, 0);

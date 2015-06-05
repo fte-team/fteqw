@@ -677,6 +677,9 @@ void CL_CheckForResend (void)
 		pext2 = 0;
 		connectinfo.trying = true;
 		connectinfo.istransfer = false;
+
+		NET_InitClient(true);
+
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
 		Cvar_ForceSet(&cl_servername, cls.servername);
 		NET_StringToAdr(cls.servername, 0, &connectinfo.adr);
@@ -841,6 +844,8 @@ void CL_CheckForResend (void)
 	*/
 	if (connectinfo.time && realtime - connectinfo.time < 5.0)
 		return;
+
+	NET_InitClient(false);
 
 	t1 = Sys_DoubleTime ();
 	if (!connectinfo.istransfer)
@@ -5171,7 +5176,6 @@ void Host_Init (quakeparms_t *parms)
 #endif
 	Host_FixupModelNames();
 
-	NET_InitClient ();
 	Netchan_Init ();
 	Renderer_Init();
 	Mod_Init(true);

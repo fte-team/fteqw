@@ -119,7 +119,7 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 	cmd.msec = pcmd->msec;
 
 	for (i = 0; i < 3; i++)
-		cmd.angles[i] = LittleFloat(pcmd->angles[i]*65536/360);
+		cmd.angles[i] = LittleShort((pcmd->angles[i]*360.0)/65535);
 
 	cmd.forwardmove = LittleShort(pcmd->forwardmove);
 	cmd.sidemove    = LittleShort(pcmd->sidemove);
@@ -682,7 +682,7 @@ readnext:
 		else
 		{
 			// user sent input
-			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+			i = cl.movesequence & UPDATE_MASK;
 			pcmd = &cl.outframes[i].cmd[0];
 			r = readdemobytes (&demopos, &q1cmd, sizeof(q1cmd));
 			if (r != sizeof(q1cmd))

@@ -2716,7 +2716,7 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 		hr = qAVIMakeCompressedStream(&ctx->compressed_video_stream, ctx->uncompressed_video_stream, &opts, NULL);
 		if (FAILED(hr))
 		{
-			Con_Printf("AVIMakeCompressedStream failed. check codec.\n");
+			Con_Printf("AVIMakeCompressedStream failed. check video codec.\n");
 			capture_avi_end(ctx);
 			return NULL;
 		}
@@ -3138,6 +3138,8 @@ void Media_RecordFilm_f (void)
 	if (captureframeinterval < 0.001)
 		captureframeinterval = 0.001;	//no more than 1000 images per second.
 	capturelastvideotime = realtime = 0;
+
+	Con_ClearNotify();
 
 	captureframe = 0;
 	for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)

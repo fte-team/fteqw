@@ -1046,17 +1046,17 @@ typedef struct usercmd_s
 	qbyte	lightlevel;
 
 	//freestyle
-	int msec;
-	int buttons;
-	int weapon;
-	int servertime;
-	float fservertime;
-	float fclienttime;
+	float	msec;
+	int		buttons;
+	int		weapon;
+	int		servertime;
+	float	fservertime;
+	float	fclienttime;
 
-	vec2_t cursor_screen;
-	vec3_t cursor_start;
-	vec3_t cursor_impact;
-	int cursor_entitynumber;
+	vec2_t	cursor_screen;
+	vec3_t	cursor_start;
+	vec3_t	cursor_impact;
+	int		cursor_entitynumber;
 } usercmd_t;
 
 typedef struct q2usercmd_s

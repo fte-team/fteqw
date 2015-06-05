@@ -4411,7 +4411,7 @@ void CL_ParseClientdata (void)
 	cl.parsecount = i;
 	i &= UPDATE_MASK;
 	parsecountmod = i;
-	parsecounttime = cl.outframes[i].senttime;
+	parsecounttime = realtime;//cl.outframes[i].senttime;
 
 	if (cls.protocol == CP_QUAKEWORLD)
 		CL_AckedInputFrame(cls.netchan.incoming_sequence, cl.parsecount, false);

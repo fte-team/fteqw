@@ -842,13 +842,14 @@ void CL_PredictMovePNum (int seat)
 	int			fromframe, toframe;
 	outframe_t	*backdate;
 	player_state_t *fromstate, *tostate, framebuf[2];	//need two framebufs so we can interpolate between two states.
-	usercmd_t	*cmdto;
+	usercmd_t	*cmdfrom = NULL, *cmdto = NULL;
 	double		fromtime, totime;
 	int			oldphysent;
 	double		simtime;	//this is server time if nopred is set (lerp-only), and local time if we're predicting
 	extern cvar_t cl_netfps;
 	lerpents_t	*le;
 	qboolean	nopred;
+	qboolean	lerpangles = false;
 	
 	//these are to make svc_viewentity work better
 	float netfps = cl_netfps.value;
@@ -883,6 +884,7 @@ void CL_PredictMovePNum (int seat)
 		}
 	}
 
+	simtime -= cls.latency;
 	simtime += bound(-0.5, cl_predict_timenudge.value, 0.5);
 
 	pv->nolocalplayer = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || (cls.protocol != CP_QUAKEWORLD);
@@ -923,9 +925,15 @@ void CL_PredictMovePNum (int seat)
 			}
 			else
 				VectorCopy(cl.currentpackentities->fixedangles[seat], pv->simangles);
+
+			if (cl.currentpackentities->fixangles[seat] == 2)
+				lerpangles = (cls.demoplayback == DPB_QUAKEWORLD);
 		}
 		else
+		{
+			lerpangles = (cls.demoplayback == DPB_QUAKEWORLD);
 			VectorCopy (pv->viewangles, pv->simangles);
+		}
 	}
 
 	if (pv->cam_locked && pv->cam_spec_track >= 0)
@@ -1024,8 +1032,10 @@ void CL_PredictMovePNum (int seat)
 			}
 			toframe = fromframe;
 			totime = fromtime;
+			cmdto = cmdfrom;
 			fromframe = i;
 			fromtime = backdate->senttime;
+			cmdfrom = &backdate->cmd[seat];
 			if (fromtime < simtime && fromframe != toframe)
 				break;	//okay, we found the first frame that is older, no need to continue looking
 		}
@@ -1053,6 +1063,11 @@ void CL_PredictMovePNum (int seat)
 	}
 	pv->pmovetype = tostate->pm_type;
 	le = &cl.lerpplayers[pv->playernum];
+
+	if (!cmdfrom)
+		cmdfrom = &cl.outframes[fromframe & UPDATE_MASK].cmd[pv->playernum];
+	if (!cmdto)
+		cmdto = &cl.outframes[toframe & UPDATE_MASK].cmd[pv->playernum];
 
 	//if our network protocol doesn't have a concept of separate players, make sure our player states are updated from those entities
 	//fixme: use entity states instead of player states to avoid the extra work here
@@ -1103,8 +1118,6 @@ void CL_PredictMovePNum (int seat)
 	//just in case we don't run any prediction
 	VectorCopy(tostate->gravitydir, pmove.gravitydir);
 
-	cmdto = &cl.outframes[cl.ackedmovesequence & UPDATE_MASK].cmd[seat];
-
 	if (nopred)
 	{	//still need the player's size for onground detection and bobbing.
 		VectorCopy(tostate->szmins, pmove.player_mins);
@@ -1140,6 +1153,7 @@ void CL_PredictMovePNum (int seat)
 			fromtime = totime;
 			fromstate = tostate;
 			fromframe = toframe;	//qw debug
+			cmdfrom = cmdto;
 
 			cmdto = &of->cmd[seat];
 			totime = of->senttime;
@@ -1166,6 +1180,7 @@ void CL_PredictMovePNum (int seat)
 				fromstate = tostate;
 				fromtime = totime;
 				fromframe = toframe;
+				cmdfrom = cmdto;
 
 				tostate = &framebuf[i++&1];
 				if (independantphysics[seat].msec && !cls.demoplayback)
@@ -1175,6 +1190,12 @@ void CL_PredictMovePNum (int seat)
 				cmdto = &indcmd;
 				totime = simtime;
 				toframe+=1;
+
+				if (cls.demoplayback)
+				{
+					extern cvar_t cl_demospeed;
+					msec *= cl_demospeed.value;
+				}
 
 				cmdto->msec = bound(0, msec, 250);
 
@@ -1219,15 +1240,17 @@ void CL_PredictMovePNum (int seat)
 		{
 			for (i=0 ; i<3 ; i++)
 			{
+				extern cvar_t temp1;
 				pv->simorg[i] = (1-f)*fromstate->origin[i]   + f*tostate->origin[i];
 				pv->simvel[i] = (1-f)*fromstate->velocity[i] + f*tostate->velocity[i];
-
 
 				if (pv->viewentity && pv->viewentity != pv->playernum+1 && pv->cam_locked)
 				{
 					pv->simangles[i] = LerpAngles360(fromstate->viewangles[i], tostate->viewangles[i], f);// * (360.0/65535);
 //					pv->viewangles[i] = LerpAngles16(fromstate->command.angles[i], tostate->command.angles[i], f) * (360.0/65535);
 				}
+				else if (lerpangles)
+					pv->simangles[i] = LerpAngles16(cmdfrom->angles[i], cmdto->angles[i], f) * (360.0/65535);
 			}
 		}
 	}

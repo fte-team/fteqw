@@ -977,9 +977,12 @@ void CLQW_ParsePacketEntities (qboolean delta)
 	}
 	else if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
 	{
+		extern cvar_t cl_demospeed;
+		float scale = cls.demoplayback?cl_demospeed.value:1;
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = cl.gametimemark;
-		cl.gametime = realtime;//cl.frames[newpacket].senttime - cl.frames[(newpacket-1)&UPDATE_MASK].senttime;
+		if (realtime - cl.gametimemark > 0)
+			cl.gametime += (realtime - cl.gametimemark)*scale;//cl.frames[newpacket].senttime - cl.frames[(newpacket-1)&UPDATE_MASK].senttime;
 		cl.gametimemark = realtime;
 	}
 
@@ -3824,7 +3827,7 @@ void CL_MVDUpdateSpectator(void)
 
 void CL_ParsePlayerinfo (void)
 {
-	int			msec;
+	float			msec;
 	unsigned int			flags;
 	player_info_t	*info;
 	player_state_t	*state, *oldstate;
@@ -3990,8 +3993,12 @@ void CL_ParsePlayerinfo (void)
 	// the exact time it was valid at
 	if (flags & PF_MSEC)
 	{
+		extern cvar_t cl_demospeed;
 		msec = MSG_ReadByte ();
-		state->state_time = parsecounttime - msec*0.001;
+		if (cls.demoplayback)
+			state->state_time = parsecounttime - msec*0.001 * cl_demospeed.value;
+		else
+			state->state_time = parsecounttime - msec*0.001;
 	}
 	else
 	{
@@ -4315,8 +4322,8 @@ void CL_LinkPlayers (void)
 	player_state_t	exact;
 	double			playertime;
 	entity_t		*ent;
-	int				msec;
-	inframe_t			*frame;
+	float			msec;
+	inframe_t		*frame;
 	int				oldphysent;
 	vec3_t			angles;
 	qboolean		predictplayers;
@@ -4325,12 +4332,15 @@ void CL_LinkPlayers (void)
 	static int		flicker;
 	float			predictmsmult = 1000*cl_predict_players_frac.value;
 	int				modelindex2;
+	extern cvar_t	cl_demospeed;
 
 	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
 	if (cl.paused)
 		predictmsmult = 0;
+	if (cls.demoplayback)
+		predictmsmult *= cl_demospeed.value;
 
 	playertime = realtime - cls.latency + 0.02;
 	if (playertime > realtime)
@@ -4867,7 +4877,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	int				msec;
 	inframe_t			*frame;
 	struct predicted_player *pplayer;
-	extern cvar_t cl_nopred;
+	extern cvar_t cl_nopred, cl_demospeed;
 	float predictmsmult = 1000*cl_predict_players_frac.value;
 
 	int s;
@@ -4878,6 +4888,9 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 
 	if (cl_nopred.value || /*cls.demoplayback ||*/ cl.paused || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
+
+	if (cls.demoplayback)
+		predictmsmult *= cl_demospeed.value;
 
 	frame = &cl.inframes[cl.parsecount&UPDATE_MASK];
 

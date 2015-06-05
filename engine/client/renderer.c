@@ -330,7 +330,7 @@ cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
 cvar_t	gl_maxdist							= CVARD	("gl_maxdist", "0", "The distance of the far clip plane. If set to 0, some fancy maths will be used to place it at an infinite distance.");
 
 #ifdef SPECULAR
-cvar_t gl_specular							= CVARF  ("gl_specular", "1", CVAR_ARCHIVE);
+cvar_t gl_specular							= CVARF  ("gl_specular", "0.3", CVAR_ARCHIVE);
 cvar_t gl_specular_fallback					= CVARF  ("gl_specular_fallback", "0.05", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 #endif

@@ -1133,7 +1133,7 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 	  		MSG_WriteByte (buf, cmd->buttons);
  		if (bits & Q2CM_IMPULSE)
 			MSG_WriteByte (buf, cmd->impulse);
-		MSG_WriteByte (buf, cmd->msec);
+		MSG_WriteByte (buf, bound(0, cmd->msec, 255));
 
 		MSG_WriteByte (buf, cmd->lightlevel);
 
@@ -1178,7 +1178,7 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 	  		MSG_WriteByte (buf, cmd->buttons);
  		if (bits & CM_IMPULSE)
 			MSG_WriteByte (buf, cmd->impulse);
-		MSG_WriteByte (buf, cmd->msec&0xff);
+		MSG_WriteByte (buf, bound(0, cmd->msec, 255));
 	}
 }
 

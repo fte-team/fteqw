@@ -4190,7 +4190,7 @@ void Media_RecordFilm_f (void){}
 void M_Menu_Media_f (void) {}
 
 char *Media_NextTrack(int musicchannelnum) {return NULL;}
-qboolean Media_PausedDemo(void) {return false;}
+qboolean Media_PausedDemo(qboolean fortiming) {return false;}
 
 int filmtexture;
 #endif

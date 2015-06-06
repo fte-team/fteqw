@@ -5560,7 +5560,7 @@ NET_Init
 void NET_Init (void)
 {
 	Cvar_Register(&net_enabled, "networking");
-	if (!net_enabled.ival)
+	if (net_enabled.ival)
 	{
 #if defined(_WIN32) && defined(HAVE_PACKET)
 		int		r;

@@ -5594,6 +5594,12 @@ void NET_Init (void)
 	Cvar_Register (&net_upnpigp, "networking");
 	net_upnpigp.restriction = RESTRICT_MAX;
 
+	//
+	// init the message buffer
+	//
+	net_message.maxsize = sizeof(net_message_buffer);
+	net_message.data = net_message_buffer;
+
 #if defined(HAVE_WINSSPI)
 	SSL_Init();
 #endif
@@ -5635,13 +5641,7 @@ void NET_InitClient(qboolean loopbackonly)
 	FTENET_AddToCollection(cls.sockets, "CLIPX", port, NA_IPX, true);
 #endif
 
-	//
-	// init the message buffer
-	//
-	net_message.maxsize = sizeof(net_message_buffer);
-	net_message.data = net_message_buffer;
-
-//	Con_TPrintf("Client port Initialized\n");
+	//	Con_TPrintf("Client port Initialized\n");
 }
 #endif
 
@@ -5797,13 +5797,6 @@ void NET_InitServer(void)
 		FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, true);
 #endif
 	}
-
-
-	//
-	// init the message buffer
-	//
-	net_message.maxsize = sizeof(net_message_buffer);
-	net_message.data = net_message_buffer;
 }
 #endif
 

@@ -884,7 +884,8 @@ void CL_PredictMovePNum (int seat)
 		}
 	}
 
-	simtime -= cls.latency;
+	if (cls.demoplayback == DPB_QUAKEWORLD)
+		simtime -= cls.latency;
 	simtime += bound(-0.5, cl_predict_timenudge.value, 0.5);
 
 	pv->nolocalplayer = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || (cls.protocol != CP_QUAKEWORLD);

@@ -4493,6 +4493,8 @@ QCC_sref_t QCC_PR_GenerateFunctionCall (QCC_sref_t newself, QCC_sref_t func, QCC
 		QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(argcount), va_passcount, NULL, 0));
 	}
 
+	QCC_ClobberDef(&def_ret);
+
 	/*can free temps used for arguments now*/
 	if (callconvention == OP_CALL1H)
 	{
@@ -4500,7 +4502,6 @@ QCC_sref_t QCC_PR_GenerateFunctionCall (QCC_sref_t newself, QCC_sref_t func, QCC
 			QCC_FreeTemp(arglist[i]);
 	}
 
-	QCC_ClobberDef(&def_ret);
 	//we dont need to lock the local containing the function index because its thrown away after the call anyway
 	//(if a function is called in the argument list then it'll be locked as part of that call)
 	QCC_LockActiveTemps(func);	//any temps before are likly to be used with the return value.

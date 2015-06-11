@@ -1362,7 +1362,8 @@ void QDECL Q1QVMPF_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed,
 qboolean PR_LoadQ1QVM(void)
 {
 	static float writable;
-	static float dimensionsend;
+	static float dimensionsend = 255;
+	static float dimensiondefault = 255;
 	static float physics_mode = 2;
 	int i;
 	gameDataN_t *gd, gdm;
@@ -1453,13 +1454,13 @@ qboolean PR_LoadQ1QVM(void)
 	q1qvmedicttable = Z_Malloc(sizeof(*q1qvmedicttable) * sv.world.max_edicts);
 
 	limit = VM_MemoryMask(q1qvm);
-	if ((qintptr_t)gd->ents < 0 || (qintptr_t)gd->ents > limit)
-		gd->ents = NULL;
 	if (gd->sizeofent < 0 || gd->sizeofent > (0xffffffff-(qintptr_t)gd->ents) / sv.world.max_edicts)
 		gd->sizeofent = 0xffffffff / MAX_EDICTS;
-	if ((qintptr_t)gd->global < 0 || (qintptr_t)gd->global > limit)
+	if ((quintptr_t)gd->ents+(gd->sizeofent*MAX_Q1QVM_EDICTS) < (quintptr_t)gd->ents || (quintptr_t)gd->ents > (quintptr_t)limit)
+		gd->ents = NULL;
+	if ((quintptr_t)(gd->global+1) < (quintptr_t)gd->global || (quintptr_t)gd->global > (quintptr_t)limit)
 		gd->global = NULL;
-	if ((qintptr_t)gd->fields < 0 || (qintptr_t)gd->fields > limit)
+	if (/*(quintptr_t)gd->fields < (quintptr_t)gd->fields ||*/ (quintptr_t)gd->fields > limit)
 		gd->fields = NULL;
 
 	sv.world.edict_size = gd->sizeofent;
@@ -1522,6 +1523,7 @@ qboolean PR_LoadQ1QVM(void)
 
 	pr_global_ptrs->trace_surfaceflags = &writable;
 	pr_global_ptrs->trace_endcontents = &writable;
+	pr_global_ptrs->dimension_default = &dimensiondefault;
 	pr_global_ptrs->dimension_send = &dimensionsend;
 	pr_global_ptrs->physics_mode = &physics_mode;
 

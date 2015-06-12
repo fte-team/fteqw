@@ -6408,6 +6408,92 @@ QCC_sref_t QCC_PR_GenerateLogicalNot(QCC_sref_t e, const char *errormessage)
 	}
 }
 
+QCC_sref_t QCC_EvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
+{
+//casting from an accessor uses the base type of that accessor (this allows us to properly read void* accessors)
+	if (src.cast->type == ev_accessor)
+		src.cast = src.cast->parentclass;
+
+	/*you may cast from a type to itself*/
+	if (!typecmp(src.cast, cast))
+	{
+		//no-op
+	}
+	/*you may cast from const 0 to any other basic type for free (from either int or float for simplicity). things get messy when its a struct*/
+	else if (QCC_SRef_IsNull(src) && cast->type != ev_struct && cast->type != ev_union)
+	{
+		QCC_FreeTemp(src);
+		if (cast->size == 3)// || cast->type == ev_variant)
+			src = QCC_MakeVectorConst(0,0,0);
+		else
+			src = QCC_MakeIntConst(0);
+		src.cast = cast;
+	}
+	/*cast from int->float will convert*/
+	else if (cast->type == ev_float && src.cast->type == ev_integer)
+		src = QCC_PR_Statement (&pr_opcodes[OP_CONV_ITOF], src, nullsref, NULL);
+	/*cast from float->int will convert*/
+	else if (cast->type == ev_integer && src.cast->type == ev_float)
+		src = QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], src, nullsref, NULL);
+	else if (cast->type == ev_entity && src.cast->type == ev_entity)
+	{
+		if (implicit)
+		{	//this is safe if the source inherits from the dest type
+			//but we should warn if the other way around
+			QCC_type_t *t = src.cast;
+			while(t)
+			{
+				if (!typecmp_lax(t, cast))
+					break;
+				t = t->parentclass;
+			}
+			if (!t)
+			{
+				char typea[256];
+				char typeb[256];
+				TypeName(src.cast, typea, sizeof(typea));
+				TypeName(cast, typeb, sizeof(typeb));
+				QCC_PR_ParseWarning(0, "Implicit cast from %s to %s\n", typea, typeb);
+			}
+		}
+		src.cast = cast;
+	}
+	/*variants can be cast from/to anything without warning, even implicitly. FIXME: size issues*/
+	else if (cast->type == ev_variant || src.cast->type == ev_variant)
+		src.cast = cast;
+	/*these casts are fine when explicit*/
+	else if (
+		/*you may explicitly cast between pointers and ints (strings count as pointers - WARNING: some strings may not be expressable as pointers)*/
+		((cast->type == ev_pointer || cast->type == ev_string || cast->type == ev_integer) && (src.cast->type == ev_pointer || src.cast->type == ev_string || src.cast->type == ev_integer))
+		//functions can be explicitly cast from one to another
+		|| (cast->type == ev_function && src.cast->type == ev_function)
+		//ents->ints || ints->ents. WARNING: the integer value of ent types is engine specific.
+		|| (cast->type == ev_entity && src.cast->type == ev_integer)
+		|| (cast->type == ev_integer && src.cast->type == ev_entity)
+		)
+	{
+		//direct cast
+		if (implicit && typecmp_lax(src.cast, cast))
+		{
+			char typea[256];
+			char typeb[256];
+			TypeName(src.cast, typea, sizeof(typea));
+			TypeName(cast, typeb, sizeof(typeb));
+			QCC_PR_ParseWarning(0, "Implicit cast from %s to %s\n", typea, typeb);
+		}
+		src.cast = cast;
+	}
+	else
+	{
+		char typea[256];
+		char typeb[256];
+		TypeName(src.cast, typea, sizeof(typea));
+		TypeName(cast, typeb, sizeof(typeb));
+		QCC_PR_ParseError(0, "Cannot cast from %s to %s\n", typea, typeb);
+	}
+	return src;
+}
+
 /*
 ============
 PR_Term
@@ -6583,55 +6669,7 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 					//not a single term, so we can cast the result of function calls. just make sure its not too high a priority
 					//and yeah, okay, use defs not refs. whatever.
 					e = QCC_PR_Expression (UNARY_PRIORITY, EXPR_DISALLOW_COMMA);
-
-					//casting from an accessor uses the base type of that accessor (this allows us to properly read void* accessors)
-					if (e.cast->type == ev_accessor)
-						e.cast = e.cast->parentclass;
-
-					/*you may cast from a type to itself*/
-					if (!typecmp(e.cast, newtype))
-					{
-					}
-					/*you may cast from const 0 to any type of same size for free (from either int or float for simplicity)*/
-					else if (newtype->size == e.cast->size && QCC_SRef_IsNull(e))
-					{
-						e.sym->referenced = true;
-						//direct cast
-						return QCC_PR_BuildRef(retbuf, REF_GLOBAL, e, nullsref, newtype, true);
-					}
-					/*cast from int->float will convert*/
-					else if (newtype->type == ev_float && e.cast->type == ev_integer)
-						return QCC_DefToRef(retbuf, QCC_PR_Statement (&pr_opcodes[OP_CONV_ITOF], e, nullsref, NULL));
-					/*cast from float->int will convert*/
-					else if (newtype->type == ev_integer && e.cast->type == ev_float)
-						return QCC_DefToRef(retbuf, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], e, nullsref, NULL));
-					/*you may freely cast between pointers (and ints, as this is explicit) (strings count as pointers - WARNING: some strings may not be expressable as pointers)*/
-					else if (
-						//pointers
-						((newtype->type == ev_pointer || newtype->type == ev_string || newtype->type == ev_integer) && (e.cast->type == ev_pointer || e.cast->type == ev_string || e.cast->type == ev_integer))
-						//ents/classs
-						|| (newtype->type == ev_entity && e.cast->type == ev_entity)
-						//functions can be explicitly cast from one to another
-						|| (newtype->type == ev_function && e.cast->type == ev_function)
-						//variants are fine too
-						|| (newtype->type == ev_variant || e.cast->type == ev_variant)
-	//					|| (newtype->type == ev_accessor && newtype->parentclass->type == e.cast->type)
-	//					|| (e->type->type == ev_accessor && e.cast->parentclass->type == newtype->type)
-						|| !typecmp(e.cast, newtype)
-						)
-					{
-						e.sym->referenced = true;
-						//direct cast
-						return QCC_PR_BuildRef(retbuf, REF_GLOBAL, e, nullsref, newtype, true);
-					}
-					else
-					{
-						char typea[256];
-						char typeb[256];
-						TypeName(e.cast, typea, sizeof(typea));
-						TypeName(newtype, typeb, sizeof(typeb));
-						QCC_PR_ParseError(0, "Cannot cast from %s to %s\n", typea, typeb);
-					}
+					e = QCC_EvaluateCast(e, newtype, false);
 				}
 				return QCC_DefToRef(retbuf, e);
 			}
@@ -11468,16 +11506,19 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 	{
 		//arrays go recursive
 		QCC_PR_Expect("{");
-		for (i = 0; i < arraysize; i++)
+		if (!QCC_PR_CheckToken("}"))
 		{
-			if (QCC_PR_CheckToken("}"))
-				break;
-			QCC_PR_ParseInitializerType(0, basedef, def);
-			def.ofs += def.cast->size;
-			if (!QCC_PR_CheckToken(","))
+			for (i = 0; i < arraysize; i++)
 			{
-				QCC_PR_Expect("}");
-				break;
+				QCC_PR_ParseInitializerType(0, basedef, def);
+				def.ofs += def.cast->size;
+				if (!QCC_PR_CheckToken(","))
+				{
+					QCC_PR_Expect("}");
+					break;
+				}
+				if (QCC_PR_CheckToken("}"))
+					break;
 			}
 		}
 	}
@@ -11649,35 +11690,7 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 		else
 		{
 			tmp = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
-			if (typecmp(type, tmp.cast))
-			{
-				/*you can cast from const 0 to anything*/
-				if (tmp.cast->size == type->size && QCC_SRef_IsNull(tmp))
-				{
-				}
-				/*universal pointers can assign without casts*/
-				else if (type->type == ev_pointer && tmp.cast->type == ev_pointer && (type->aux_type->type == ev_void || tmp.cast->aux_type->type == ev_void || type->aux_type->type == ev_variant || tmp.cast->aux_type->type == ev_variant))
-				{
-				}
-				/*cast from int->float will convert*/
-				else if (type->type == ev_float && tmp.cast->type == ev_integer)
-					tmp = QCC_PR_Statement (&pr_opcodes[OP_CONV_ITOF], tmp, nullsref, NULL);
-				/*cast from float->int will convert*/
-				else if (type->type == ev_integer && tmp.cast->type == ev_float)
-					tmp = QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], tmp, nullsref, NULL);
-				else if (	(type->type == ev_accessor && type->parentclass->type == tmp.cast->type)
-						||  (tmp.cast->type == ev_accessor && tmp.cast->parentclass->type == type->type))
-				{
-				}
-				else
-				{
-					char gottype[256];
-					char needtype[256];
-					TypeName(tmp.cast, gottype, sizeof(gottype));
-					TypeName(type, needtype, sizeof(needtype));
-					QCC_PR_ParseErrorPrintSRef (ERR_BADIMMEDIATETYPE, def, "wrong initializer type for %s. got %s, needed %s", QCC_GetSRefName(def), gottype, needtype);
-				}
-			}
+			tmp = QCC_EvaluateCast(tmp, type, true);
 		}
 
 		if (!pr_scope || basedef->constant || basedef->isstatic)
@@ -11686,7 +11699,14 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 			if (!tmp.sym->constant)
 			{
 				QCC_PR_ParseWarning(ERR_BADIMMEDIATETYPE, "initializer is not constant");
-				QCC_PR_ParsePrintSRef(ERR_BADIMMEDIATETYPE, def);
+				QCC_PR_ParsePrintSRef(ERR_BADIMMEDIATETYPE, tmp);
+			}
+
+			if (!tmp.sym->initialized)
+			{
+				//FIXME: we NEED to support relocs somehow
+				QCC_PR_ParseWarning(WARN_UNINITIALIZED, "initializer is not initialised, %s will be treated as 0", QCC_GetSRefName(tmp));
+				QCC_PR_ParsePrintSRef(WARN_UNINITIALIZED, tmp);
 			}
 
 			if (basedef->initialized && basedef->initialized != 3)
@@ -12237,7 +12257,11 @@ void QCC_PR_ParseDefs (char *classname)
 						break;
 					}
 					else if (depth == 1 && QCC_PR_CheckToken(","))
+					{
+						if (QCC_PR_CheckToken("}"))
+							break;
 						arraysize++;
+					}
 					else if (QCC_PR_CheckToken("{") || QCC_PR_CheckToken("["))
 						depth++;
 					else if (QCC_PR_CheckToken("}") || QCC_PR_CheckToken("]"))
@@ -12444,7 +12468,10 @@ void QCC_PR_ParseDefs (char *classname)
 					else
 					{
 						QCC_PR_CheckToken("#");
-						QCC_PR_Lex();
+						do
+						{
+							QCC_PR_Lex();
+						} while (*pr_token && strcmp(pr_token, ",") && strcmp(pr_token, ";"));
 					}
 				}
 				QCC_FreeDef(def);

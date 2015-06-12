@@ -333,7 +333,7 @@ void startquake(char *manif)
 	Sys_Printf("Starting up (Built "__DATE__ ", " __TIME__")\n");
 
 	COM_InitArgv(parms.argc, parms.argv);
-	TL_InitLanguages();
+	TL_InitLanguages("");
 	#ifdef SERVERONLY
 		SV_Init(&parms);
 	#else

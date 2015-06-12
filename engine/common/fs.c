@@ -1438,6 +1438,24 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		else
 			snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
 		break;
+	case FS_PUBGAMEONLY:
+		last = NULL;
+		for (i = 0; i < sizeof(fs_manifest->gamepath)/sizeof(fs_manifest->gamepath[0]); i++)
+		{
+			if (fs_manifest->gamepath[i].path)
+			{
+				if (*fs_manifest->gamepath[i].path == '*')
+					continue;
+				last = fs_manifest->gamepath[i].path;
+			}
+		}
+		if (!last)
+			return false;	//eep?
+		if (com_homepathenabled)
+			snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
+		else
+			snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
+		break;
 	case FS_PUBBASEGAMEONLY:
 		last = NULL;
 		for (i = 0; i < sizeof(fs_manifest->gamepath)/sizeof(fs_manifest->gamepath[0]); i++)
@@ -1512,14 +1530,19 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 			return VFSOS_Open(fullname, mode);
 		}
 		return NULL;
+	case FS_PUBGAMEONLY:
+		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
+		if (*mode == 'w')
+			COM_CreatePath(fullname);
+		return VFSOS_Open(fullname, mode);
 	case FS_GAME:	//load from paks in preference to system paths. overwriting be damned.
 	case FS_PUBBASEGAMEONLY:	//load from paks in preference to system paths. overwriting be damned.
 		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
 		break;
 	case FS_BINARYPATH:
+		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
 		if (*mode == 'w')
 			COM_CreatePath(fullname);
-		FS_NativePath(filename, relativeto, fullname, sizeof(fullname));
 		return VFSOS_Open(fullname, mode);
 	case FS_ROOT:	//always bypass packs and gamedirs
 		if (com_installer)
@@ -3327,13 +3350,13 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			Q_snprintfz(syspath, sizeof(syspath), "%sid1/pak0.pak", prefix[i]);
 			if (GetFileAttributesU(syspath) != INVALID_FILE_ATTRIBUTES)
 			{
-				Q_strncpyz(basepath, prefix[i], sizeof(basepath));
+				Q_strncpyz(basepath, prefix[i], basepathlen);
 				return true;
 			}
 			Q_snprintfz(syspath, sizeof(syspath), "%squake.exe", prefix[i]);
 			if (GetFileAttributesU(syspath) != INVALID_FILE_ATTRIBUTES)
 			{
-				Q_strncpyz(basepath, prefix[i], sizeof(basepath));
+				Q_strncpyz(basepath, prefix[i], basepathlen);
 				return true;
 			}
 		}

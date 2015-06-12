@@ -2883,21 +2883,23 @@ qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 		
 		if (*updatedpath)
 		{
+//fixme: unicode paths/commandline.
 			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
-			if (CreateProcess(updatedpath, va("\"%s\" %s --fromfrontend \"%s\" \"%s\"", frontendpath, COM_Parse(GetCommandLineA()), SVNREVISIONSTR, frontendpath), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+			if (CreateProcess(updatedpath, va("%s --fromfrontend \"%s\" \"%s\"", GetCommandLineA(), SVNREVISIONSTR, frontendpath), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
 				return true;
 		}
 	}
 	else
 	{
-		char frontendpath[MAX_OSPATH];
+//		char frontendpath[MAX_OSPATH];
 		//com_argv[ffe+1] is frontend revision
 		//com_argv[ffe+2] is frontend location
 		if (atoi(com_argv[ffe+1]) > atoi(SVNREVISIONSTR))
 		{
+			wchar_t wide1[2048];
 			//ping-pong it back, to make sure we're running the most recent version.
-			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
-			if (CreateProcess(com_argv[ffe+2], va("--fromfrontend \"%s\" \"%s\" %s", "", "", COM_Parse(GetCommandLineA())), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+//			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
+			if (CreateProcessW(widen(wide1, sizeof(wide1), com_argv[ffe+2]), GetCommandLineW(), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
 				return true;
 		}
 		if (com_argv[ffe+2])
@@ -3167,7 +3169,11 @@ int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
 #ifdef WEBCLIENT
 //using this like posix' access function, but with much more code, microsoftisms, and no errno codes/info
 //no, I don't really have a clue why it needs to be so long.
-#include <svrapi.h>
+//#include <svrapi.h>
+#ifndef ACCESS_READ	
+#define         ACCESS_READ     0x1
+#define         ACCESS_WRITE    0x2
+#endif
 static BOOL microsoft_accessW(LPWSTR pszFolder, DWORD dwAccessDesired)
 {
 	HANDLE			hToken;
@@ -3354,8 +3360,8 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 			}
 		}
 		break;
-	case BFFM_IUNKNOWN:
-		break;
+//	case BFFM_IUNKNOWN:
+//		break;
 	}
 	return 0;
 }

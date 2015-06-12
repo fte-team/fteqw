@@ -2536,6 +2536,7 @@ struct capture_raw_ctx
 	vfsfile_t *audio;
 };
 
+qboolean FS_FixPath(char *path, size_t pathsize);
 static void *QDECL capture_raw_begin (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits)
 {
 	struct capture_raw_ctx *ctx = Z_Malloc(sizeof(*ctx));
@@ -2546,6 +2547,11 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 		Q_strncpyz(ctx->videonameextension, "tga", sizeof(ctx->videonameextension));
 
 	if (!FS_NativePath(va("%s", streamname), FS_GAMEONLY, ctx->videonameprefix, sizeof(ctx->videonameprefix)))
+	{
+		Z_Free(ctx);
+		return NULL;
+	}
+	if (!FS_FixPath(ctx->videonameprefix, sizeof(ctx->videonameprefix)))
 	{
 		Z_Free(ctx);
 		return NULL;
@@ -2563,7 +2569,7 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 			*sndchannels = 6;
 		if (*sndchannels < 1)
 			*sndchannels = 1;
-		Q_snprintfz(filename, sizeof(filename), "%s/audio_%ichan_%ikhz_%ib.raw", ctx->videonameprefix, *sndchannels, *sndkhz/1000, *sndbits);
+		Q_snprintfz(filename, sizeof(filename), "%saudio_%ichan_%ikhz_%ib.raw", ctx->videonameprefix, *sndchannels, *sndkhz/1000, *sndbits);
 		FS_CreatePath(filename, ctx->fsroot);
 		ctx->audio = FS_OpenVFS(filename, "wb", ctx->fsroot);
 	}
@@ -2580,7 +2586,7 @@ static void QDECL capture_raw_video (void *vctx, void *data, int frame, int widt
 	struct capture_raw_ctx *ctx = vctx;
 	char filename[MAX_OSPATH];
 	ctx->frames = frame+1;
-	Q_snprintfz(filename, sizeof(filename), "%s/%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
+	Q_snprintfz(filename, sizeof(filename), "%s%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
 	SCR_ScreenShot(filename, ctx->fsroot, data, width, height);
 }
 static void QDECL capture_raw_audio (void *vctx, void *data, int bytes)
@@ -3205,6 +3211,12 @@ void Media_RecordDemo_f(void)
 	}
 
 	CL_PlayDemo(Cmd_Argv(1), false);
+	if (!cls.demoplayback)
+	{
+		Con_Printf("unable to play demo, not capturing\n");
+		return;
+	}
+	//FIXME: mamke sure it loaded okay
 	if (Cmd_Argc() > 2)
 		Cmd_ShiftArgs(1, false);
 	Media_RecordFilm_f();

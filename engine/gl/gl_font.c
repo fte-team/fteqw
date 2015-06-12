@@ -1371,7 +1371,7 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 		//default to only map the ascii-compatible chars from the quake font.
 		if (*fontfilename)
 		{
-			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts", IF_UIPIC|IF_NOMIPMAP);
+			f->singletexture = R_LoadHiResTexture(fontfilename, "fonts:charsets", IF_UIPIC|IF_NOMIPMAP);
 			if (f->singletexture->status == TEX_LOADING)
 				COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
 		}

@@ -530,7 +530,7 @@ struct shader_s
 		SHADER_DEFORMV_BULGE	= 1 << 5,
 		SHADER_AUTOSPRITE		= 1 << 6,
 		SHADER_FLARE			= 1 << 7,
-		SHADER_IMAGEPENDING		= 1 << 8,	//FIXME
+		//8
 		SHADER_ENTITY_MERGABLE	= 1 << 9,
 		SHADER_VIDEOMAP			= 1 << 10,
 		SHADER_DEPTHWRITE		= 1 << 11,	//some pass already wrote depth. not used by the renderer.

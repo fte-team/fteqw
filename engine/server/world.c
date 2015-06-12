@@ -225,7 +225,7 @@ static areanode_t *World_CreateAreaNode (world_t *w, int depth, vec3_t mins, vec
 
 	ClearLink (&anode->edicts);
 	
-	if (depth == AREA_DEPTH)
+	if (depth == w->areanodedepth)
 	{
 		anode->axis = -1;
 		anode->children[0] = anode->children[1] = NULL;
@@ -260,23 +260,37 @@ SV_ClearWorld
 */
 void World_ClearWorld (world_t *w)
 {
+	int maxdepth;
+	vec3_t mins, maxs;
+	if (w->worldmodel)
+	{
+		VectorCopy(w->worldmodel->mins, mins);
+		VectorCopy(w->worldmodel->maxs, maxs);
+	}
+	else
+	{
+		VectorSet(mins, -4096, -4096, -4096);
+		VectorSet(maxs, 4096, 4096, 4096);
+	}
+
 	World_InitBoxHull ();
 	
 	memset (&w->portallist, 0, sizeof(w->portallist));
 	ClearLink (&w->portallist.edicts);
 	w->portallist.axis = -1;
 
-	memset (w->areanodes, 0, sizeof(w->areanodes));
-	w->numareanodes = 0;
-	if (!w->worldmodel)
+	maxdepth = 4;
+
+	if (!w->areanodes || w->areanodedepth != maxdepth)
 	{
-		vec3_t mins, maxs;
-		VectorSet(mins, -4096, -4096, -4096);
-		VectorSet(maxs, 4096, 4096, 4096);
-		World_CreateAreaNode (w, 0, mins, maxs);
+		Z_Free(w->areanodes);
+		w->areanodedepth = maxdepth;
+		w->areanodes = Z_Malloc(sizeof(*w->areanodes) * pow(2, w->areanodedepth+1));
 	}
 	else
-		World_CreateAreaNode (w, 0, w->worldmodel->mins, w->worldmodel->maxs);
+		memset (w->areanodes, 0, sizeof(w->areanodes));
+	w->numareanodes = 0;
+	World_CreateAreaNode (w, 0, mins, maxs);
 }
 
 

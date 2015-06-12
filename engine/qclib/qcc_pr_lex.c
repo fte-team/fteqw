@@ -3824,6 +3824,10 @@ int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
 	if (typecmp_lax(a->aux_type, b->aux_type))
 		return 1;
 
+	//variants and args don't make sense, and are considered equivelent(ish).
+	if (a->type == ev_variant || b->type == ev_variant)
+		return 0;
+
 	//optional arg types must match, even if they're not specified in one.
 	for (t = 0; t < minargs; t++)
 	{
@@ -4308,6 +4312,8 @@ extern char *basictypenames[];
 extern QCC_type_t **basictypes[];
 QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_function_t *scope, int arraysize, QCC_def_t *rootsymbol, unsigned int ofs, int referable, unsigned int flags);
 
+void QCC_PR_ParseInitializerDef(QCC_def_t *def);
+
 pbool type_inlinefunction;
 /*newtype=true: creates a new type always
   silentfail=true: function is permitted to return NULL if it was not given a type, otherwise never returns NULL
@@ -4576,6 +4582,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		QCC_def_t *d;
 		QCC_type_t *pc;
 		pbool found = false;
+		int assumevirtual = 0;	//0=erk, 1=yes, -1=no
 
 		parmname = QCC_PR_ParseName();
 		classname = qccHunkAlloc(strlen(parmname)+1);
@@ -4643,6 +4650,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			pbool isnonvirt = false;
 			pbool isstatic = false;
 			pbool isignored = false;
+			pbool ispublic = false;
+			pbool isprivate = false;
+			pbool isprotected = false;
 			while(1)
 			{
 				if (QCC_PR_CheckKeyword(1, "nonvirtual"))
@@ -4655,8 +4665,22 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					isignored = true;
 				else if (QCC_PR_CheckKeyword(1, "strip"))
 					isignored = true;
+				else if (QCC_PR_CheckKeyword(1, "public"))
+					ispublic = true;
+				else if (QCC_PR_CheckKeyword(1, "private"))
+					isprivate = true;
+				else if (QCC_PR_CheckKeyword(1, "protected"))
+					isprotected = true;
 				else
 					break;
+			}
+			if (QCC_PR_CheckToken(":"))
+			{
+				if (isvirt && !isnonvirt)
+					assumevirtual = 1;
+				else if (isnonvirt && !isvirt)
+					assumevirtual = -1;
+				continue;
 			}
 			newparm = QCC_PR_ParseType(false, false);
 
@@ -4693,8 +4717,12 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				}
 				else if (!isvirt && !isnonvirt && !isstatic)
 				{
-					QCC_PR_ParseWarning(WARN_MISSINGMEMBERQUALIFIER, "%s::%s was not qualified. Assuming non-virtual.", classname, parmname);
-					isnonvirt = true;
+					if (assumevirtual == 1)
+						isvirt = true;
+					else if (assumevirtual == -1)
+						isnonvirt = true;
+					else
+						QCC_PR_ParseWarning(WARN_MISSINGMEMBERQUALIFIER, "%s::%s was not qualified. Assuming non-virtual.", classname, parmname);
 				}
 				if (isvirt+isnonvirt+isstatic != 1)
 					QCC_PR_ParseError(ERR_INTERNAL, "Multiple conflicting qualifiers on %s::%s.", classname, pr_token);
@@ -4718,7 +4746,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			if (havebody)
 			{
 				QCC_def_t *def;
-				QCC_function_t *f;
 				if (pr_scope)
 					QCC_Error(ERR_INTERNAL, "Nested function declaration");
 
@@ -4748,6 +4775,15 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					{
 						if (autoprototype || isignored)
 						{
+							if (QCC_PR_CheckToken("["))
+							{
+								while (!QCC_PR_CheckToken("]"))
+								{
+									if (pr_token_type == tt_eof)
+										break;
+									QCC_PR_Lex();
+								}
+							}
 							QCC_PR_Expect("{");
 
 							{
@@ -4769,12 +4805,16 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						else
 						{
 							pr_classtype = newt;
+							QCC_PR_ParseInitializerDef(def);
+							QCC_FreeDef(def);
+							pr_classtype = NULL;
+							/*
 							f = QCC_PR_ParseImmediateStatements (def, newparm);
 							pr_classtype = NULL;
 							pr_scope = NULL;
 							def->symboldata[def->ofs].function = f - functions;
 							f->def = def;
-							def->initialized = 1;
+							def->initialized = 1;*/
 						}
 					}
 				}

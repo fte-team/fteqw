@@ -71,6 +71,7 @@ void GUI_RevealOptions(void);
 #define SCI_GETLINE 2153
 #define SCI_LINEFROMPOSITION 2166
 #define SCI_POSITIONFROMLINE 2167
+#define SCI_REPLACESEL 2170
 #define SCI_SETTEXT 2181
 #define SCI_GETTEXT 2182
 #define SCI_CALLTIPSHOW 2200
@@ -757,6 +758,8 @@ LRESULT CALLBACK MySubclassWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
 					EditFile(line+10, -1, false);
 				else if (!strncmp(line, "prototyping ", 12))
 					EditFile(line+12, -1, false);
+				else if (!strncmp(line, "Couldn't open file ", 19))
+					EditFile(line+19, -1, false);
 				Edit_SetSel(hWnd, selrange.cpMin, selrange.cpMin);	//deselect it.
 			}
 		}
@@ -1709,7 +1712,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 						if (pos == linestart)
 						{
 							scin_get_line_indent(editor->editpane, lineidx, linebuf, sizeof(linebuf));
-							SendMessage(editor->editpane, EM_REPLACESEL, 0, (LPARAM)linebuf);
+							SendMessage(editor->editpane, SCI_REPLACESEL, 0, (LPARAM)linebuf);
 						}
 					}
 					else if (0)//(!SendMessage(editor->editpane, SCI_AUTOCACTIVE, 0, 0))
@@ -1912,9 +1915,9 @@ void EditFile(char *name, int line, pbool setcontrol)
 
 	if (QCC_RawFileSize(name) == -1)
 	{
-		QC_snprintfz(title, sizeof(title), "File not found.\n%s", name);
-		MessageBox(NULL, title, "Error", 0);
-		return;
+		QC_snprintfz(title, sizeof(title), "File not found:\n%s\nCreate it?", name);
+		if (MessageBox(NULL, title, "Error", MB_ICONWARNING|MB_YESNO|MB_DEFBUTTON2) != IDYES)
+			return;
 	}
 
 	neweditor = malloc(sizeof(editor_t));

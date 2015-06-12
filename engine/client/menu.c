@@ -105,7 +105,7 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 		M_DrawScalePic (cx, cy+8, 8, 8, p);
 }
 
-int M_FindKeysForBind (char *command, int *keylist, int *keymods, int total)
+int M_FindKeysForBind (const char *command, int *keylist, int *keymods, int total)
 {
 	int		count;
 	int		j, m;

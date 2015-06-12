@@ -524,6 +524,10 @@ void Stats_Clear(void)
 
 #define Z_Copy(tk) tz = Z_Malloc(strlen(tk)+1);strcpy(tz, tk)	//remember the braces
 
+void Stats_Init(void)
+{
+	Cvar_Register(&r_tracker_frags, NULL);
+}
 static void Stats_LoadFragFile(char *name)
 {
 	char filename[MAX_QPATH];

@@ -191,7 +191,7 @@ typedef struct player_info_s
 	int prevcount;
 
 	int stats[MAX_CL_STATS];
-	int statsf[MAX_CL_STATS];
+	float statsf[MAX_CL_STATS];
 } player_info_t;
 
 
@@ -708,6 +708,7 @@ typedef struct
 	//when running splitscreen, we have multiple viewports all active at once
 	int			splitclients;	//we are running this many clients split screen.
 	playerview_t	playerview[MAX_SPLITS];
+	int			defaultnetsplit;//which multiview splitscreen to parse the message for (set by mvd playback code)
 
 	// localized movement vars
 	float		bunnyspeedcap;
@@ -1092,7 +1093,7 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result);
 #define NET_TIMINGSMASK 255
 extern int	packet_latency[NET_TIMINGS];
 int CL_CalcNet (float scale);
-float CL_CalcNet2 (float *ping, float *ping_min, float *ping_max, float *ping_stddev);
+void CL_CalcNet2 (float *pings, float *pings_min, float *pings_max, float *pingms_stddev, float *pingfr, int *pingfr_min, int *pingfr_max, float *dropped, float *choked, float *invalid);
 void CL_ClearParseState(void);
 void CL_Parse_Disconnected(void);
 void CL_DumpPacket(void);
@@ -1284,6 +1285,7 @@ void Cam_Reset(void);
 void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg);
 void Cam_Lock(playerview_t *pv, int playernum);
 void CL_InitCam(void);
+void Cam_AutoTrack_Update(const char *mode);
 
 void QDECL vectoangles(vec3_t fwd, vec3_t ang);
 
@@ -1484,6 +1486,7 @@ int qm_stricmp(char *s1, char *s2);
 qboolean Stats_ParsePrintLine(char *line);
 void Stats_NewMap(void);
 void Stats_Clear(void);
+void Stats_Init(void);
 
 enum uploadfmt;
 typedef struct

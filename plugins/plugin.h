@@ -206,45 +206,53 @@ EBUILTIN(void, Con_SetConsoleFloat, (const char *conname, const char *attribname
 EBUILTIN(int, Con_GetConsoleString, (const char *conname, const char *attribname, const char *value, unsigned int valuesize));
 EBUILTIN(void, Con_SetConsoleString, (const char *conname, const char *attribname, const char *newvalue));
 
-EBUILTIN(void, Sys_Error, (char *message));	//abort the entire engine.
+EBUILTIN(void, Sys_Error, (const char *message));	//abort the entire engine.
 EBUILTIN(unsigned int, Sys_Milliseconds, ());
 
-EBUILTIN(int, Cmd_AddCommand, (char *buffer));	//abort the entire engine.
+EBUILTIN(int, Cmd_AddCommand, (const char *buffer));	//abort the entire engine.
 EBUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//abort the entire engine.
 EBUILTIN(void, Cmd_Argv, (int argnum, char *buffer, int bufsize));	//abort the entire engine.
 EBUILTIN(int, Cmd_Argc, (void));	//abort the entire engine.
-EBUILTIN(void, Cmd_AddText, (char *text, qboolean insert));
-EBUILTIN(void, Cmd_Tokenize, (char *msg));	//abort the entire engine.
+EBUILTIN(void, Cmd_AddText, (const char *text, qboolean insert));
+EBUILTIN(void, Cmd_Tokenize, (const char *msg));	//abort the entire engine.
 
-EBUILTIN(void, Cvar_SetString, (char *name, char *value));
-EBUILTIN(void, Cvar_SetFloat, (char *name, float value));
-EBUILTIN(qboolean, Cvar_GetString, (char *name, char *retstring, int sizeofretstring));
-EBUILTIN(float, Cvar_GetFloat, (char *name));
-EBUILTIN(qhandle_t,	Cvar_Register, (char *name, char *defaultval, int flags, char *grouphint));
+EBUILTIN(void, Cvar_SetString, (const char *name, char *value));
+EBUILTIN(void, Cvar_SetFloat, (const char *name, float value));
+EBUILTIN(qboolean, Cvar_GetString, (const char *name, char *retstring, int sizeofretstring));
+EBUILTIN(float, Cvar_GetFloat, (const char *name));
+EBUILTIN(qhandle_t,	Cvar_Register, (const char *name, const char *defaultval, int flags, const char *grouphint));
 EBUILTIN(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
 
 EBUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
-EBUILTIN(void, LocalSound, (char *soundname));
+EBUILTIN(void, LocalSound, (const char *soundname));
 EBUILTIN(int, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 EBUILTIN(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));
 
 EBUILTIN(int, LocalPlayerNumber, (void));	//deprecated
 EBUILTIN(int, GetLocalPlayerNumbers, (int firstseat, int numseats, int *playernums, int *spectracks));
 EBUILTIN(void, GetServerInfo, (char *info, int infolen));
-EBUILTIN(void, SetUserInfo, (char *key, char *value));
-EBUILTIN(void, GetLocationName, (float *pos, char *buffer, int bufferlen));
-EBUILTIN(void, GetLocationName, (float *pos, char *buffer, int bufferlen));
+EBUILTIN(void, SetUserInfo, (const char *key, const char *value));
+EBUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
+EBUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
 
 typedef struct {
 	int seats;
 	struct
 	{
-		float avg;
-		float mn;
-		float mx;
-		float stddev;
-		float loss;
+		float s_avg;
+		float s_mn;
+		float s_mx;
+		float ms_stddev;	//calculated in milliseconds for more sane numbers
+		float fr_avg;
+		int fr_mn;
+		int fr_mx;
 	} ping;
+	struct
+	{	//decimals
+		float dropped;
+		float choked;
+		float invalid;
+	} loss;
 	float mlatency;
 	float mrate;
 	float vlatency;
@@ -265,6 +273,7 @@ typedef struct {
 		float out_pps;
 		float out_bps;
 	} svrate;
+	int capturing;	//avi capturing
 } vmnetinfo_t;
 EBUILTIN(int, GetNetworkInfo, (vmnetinfo_t *ni, unsigned int sizeofni));
 

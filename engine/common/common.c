@@ -1937,7 +1937,7 @@ void COM_FileBase (const char *in, char *out, int outlen)
 
 	s = in + strlen(in) - 1;
 
-	while (s > in && *s != '.')
+	while (s > in && *s != '.' && *s != '/')
 		s--;
 
 	for (s2 = s ; s2 > in && *s2 && *s2 != '/' ; s2--)

@@ -3253,8 +3253,6 @@ void Shader_Reset(shader_t *s)
 	Shader_Free(s);
 	memset(s, 0, sizeof(*s));
 
-	s->flags |= SHADER_IMAGEPENDING;
-
 	s->remapto = s;
 	s->id = id;
 	s->width = w;
@@ -5127,7 +5125,7 @@ void Shader_DefaultBSPVertex(const char *shortname, shader_t *s, const void *arg
 
 	s->numpasses = 1;
 	s->numdeforms = 0;
-	s->flags = SHADER_IMAGEPENDING|SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
+	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
 	s->sort = SHADER_SORT_OPAQUE;
 	s->uses = 1;
 }
@@ -5138,7 +5136,7 @@ void Shader_DefaultBSPFlare(const char *shortname, shader_t *s, const void *args
 		return;
 
 	pass = &s->passes[0];
-	pass->flags = SHADER_IMAGEPENDING|SHADER_PASS_NOCOLORARRAY;
+	pass->flags = SHADER_PASS_NOCOLORARRAY;
 	pass->shaderbits |= SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ONE;
 	pass->anim_frames[0] = R_LoadHiResTexture(shortname, NULL, 0);
 	pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
@@ -5156,7 +5154,7 @@ void Shader_DefaultBSPFlare(const char *shortname, shader_t *s, const void *args
 
 	s->numpasses = 1;
 	s->numdeforms = 0;
-	s->flags = SHADER_IMAGEPENDING|SHADER_FLARE;
+	s->flags = SHADER_FLARE;
 	s->sort = SHADER_SORT_ADDITIVE;
 	s->uses = 1;
 
@@ -5243,7 +5241,7 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 				"sort additive\n"
 			"}\n"
 			);
-		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
 	}
 	else
 	{
@@ -5260,7 +5258,7 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 				"sort additive\n"
 			"}\n"
 			);
-		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, NULL, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
+		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
 	}
 }
 
@@ -5374,7 +5372,7 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 	parsestate.mode = parsemode;
 
 // set defaults
-	s->flags = SHADER_IMAGEPENDING|SHADER_CULL_FRONT;
+	s->flags = SHADER_CULL_FRONT;
 	s->uses = 1;
 
 	while (Shader_ReadShaderTerms(s, &shadersource, parsemode, &conddepth, sizeof(cond)/sizeof(cond[0]), cond))
@@ -5849,7 +5847,7 @@ int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blockti
 {
 	if (!shader)
 		return false;
-	if (shader->flags &	SHADER_IMAGEPENDING)
+	if (!shader->width && !shader->height)
 	{
 		int i;
 		if (width)
@@ -5872,7 +5870,6 @@ int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blockti
 			}
 		}
 
-		shader->flags &= ~SHADER_IMAGEPENDING;
 		for (i = 0; i < shader->numpasses; i++)
 		{
 			if (shader->passes[i].texgen == T_GEN_SINGLEMAP)

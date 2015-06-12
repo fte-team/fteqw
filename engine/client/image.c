@@ -2281,6 +2281,7 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 {
 	texid_t tex = ctx;
 	struct pendingtextureinfo *mips = data;
+
 	tex->width = mips->mip[0].width;
 	tex->height = mips->mip[0].height;
 	if (rf->IMG_LoadTextureMips(tex, mips))
@@ -2288,6 +2289,16 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 	else
 		tex->status = TEX_FAILED;
 	BZ_Free(mips);
+
+	if (!strncmp(tex->ident, "gfx/", 4))
+	{
+		qpic_t *pic = W_SafeGetLumpName(tex->ident+4);
+		if (pic)
+		{
+			tex->width = pic->width;
+			tex->height = pic->height;
+		}
+	}
 }
 
 #ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
@@ -4432,6 +4443,8 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 	Image_GenerateMips(&mips, flags);
 	Image_ChangeFormat(&mips, fmt);
 	rf->IMG_LoadTextureMips(tex, &mips);
+	tex->width = mips.mip[0].width;
+	tex->height = mips.mip[0].height;
 	tex->status = TEX_LOADED;
 }
 

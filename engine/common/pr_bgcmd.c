@@ -279,7 +279,10 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		if (wantquit)
 			return DEBUG_TRACE_ABORT;
 		if (!*filename || !line || !*line)	//don't try editing an empty line, it won't work
+		{
+			Con_Printf("Unable to debug, pelase disable optimisations\n");
 			return DEBUG_TRACE_OFF;
+		}
 		Sys_SendKeyEvents();
 		debuggerresume = -1;
 		debuggerresumeline = *line;
@@ -532,6 +535,13 @@ void VARGS PR_CB_Free(void *mem)
 ////////////////////////////////////////////////////
 //model functions
 //DP_QC_GETSURFACE
+static void PF_BuildSurfaceMesh(model_t *model, unsigned int surfnum)
+{
+	void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *cookie);
+	if (model->fromgame == fg_quake)
+		ModQ1_Batches_BuildQ1Q2Poly(model, &model->surfaces[surfnum], NULL);
+	//fixme: q3...
+}
 // #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
 void QCBUILTIN PF_getsurfacenumpoints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -551,9 +561,11 @@ void QCBUILTIN PF_getsurfacenumpoints(pubprogfuncs_t *prinst, struct globalvars_
 	{
 		surfnum += model->firstmodelsurface;
 		if (!model->surfaces[surfnum].mesh)
-			G_FLOAT(OFS_RETURN) = 0;	//not loaded properly.
-		else
+			PF_BuildSurfaceMesh(model, surfnum);
+		if (model->surfaces[surfnum].mesh)
 			G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numvertexes;
+		else
+			G_FLOAT(OFS_RETURN) = 0;	//not loaded properly.
 	}
 }
 // #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
@@ -701,6 +713,13 @@ static float getsurface_clippointtri(model_t *model, msurface_t *surf, vec3_t po
 	float dist;
 	int e;
 	float *v1, *v2;
+	if (!mesh)
+	{
+		PF_BuildSurfaceMesh(model, surf - model->surfaces);
+		mesh = surf->mesh;
+		if (!mesh)
+			return 0;
+	}
 	for (j = 0; j < mesh->numindexes; j+=3)
 	{
 		//calculate the distance from the plane
@@ -765,7 +784,7 @@ void QCBUILTIN PF_getsurfacenearpoint(pubprogfuncs_t *prinst, struct globalvars_
 	if (!model || model->type != mod_brush)
 		return;
 
-	if (model->fromgame == fg_quake)
+	if (model->fromgame == fg_quake || model->fromgame == fg_quake2)
 	{
 		//all polies, we can skip parts. special case.
 		surf = model->surfaces + model->firstmodelsurface;
@@ -855,7 +874,12 @@ void QCBUILTIN PF_getsurfacenumtriangles(pubprogfuncs_t *prinst, struct globalva
 	else
 	{
 		surfnum += model->firstmodelsurface;
-		G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numindexes/3;
+		if (!model->surfaces[surfnum].mesh)
+			PF_BuildSurfaceMesh(model, surfnum);
+		if (model->surfaces[surfnum].mesh)
+			G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numindexes/3;
+		else
+			G_FLOAT(OFS_RETURN) = 0;
 	}
 }
 // #629 float(entity e, float s) getsurfacetriangle
@@ -876,6 +900,9 @@ void QCBUILTIN PF_getsurfacetriangle(pubprogfuncs_t *prinst, struct globalvars_s
 	{
 		surfnum += model->firstmodelsurface;
 
+		if (!model->surfaces[surfnum].mesh)
+			PF_BuildSurfaceMesh(model, surfnum);
+		if (model->surfaces[surfnum].mesh)
 		if (firstidx+2 < model->surfaces[surfnum].mesh->numindexes)
 		{
 			G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->indexes[firstidx+0];
@@ -905,6 +932,8 @@ void QCBUILTIN PF_getsurfacepointattribute(pubprogfuncs_t *prinst, struct global
 	if (model && model->type == mod_brush && surfnum < model->nummodelsurfaces)
 	{
 		surfnum += model->firstmodelsurface;
+		if (!model->surfaces[surfnum].mesh)
+			PF_BuildSurfaceMesh(model, surfnum);
 		if (model->surfaces[surfnum].mesh)
 		if (pointnum < model->surfaces[surfnum].mesh->numvertexes)
 		{
@@ -1367,12 +1396,20 @@ void QCBUILTIN PF_memalloc (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	int size = G_INT(OFS_PARM0);
 	void *ptr = prinst->AddressableAlloc(prinst, size);
-	memset(ptr, 0, size);
-	G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;
+	if (ptr)
+	{
+		memset(ptr, 0, size);
+		G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;
+	}
+	else
+		G_INT(OFS_RETURN) = 0;
 }
 void QCBUILTIN PF_memfree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	prinst->AddressableFree(prinst, prinst->stringtable + G_INT(OFS_PARM0));
+	int qcptr = G_INT(OFS_PARM0);
+	void *cptr = prinst->stringtable + G_INT(OFS_PARM0);
+	if (qcptr)
+		prinst->AddressableFree(prinst, cptr);
 }
 void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1731,7 +1768,7 @@ qboolean QC_FixFileName(const char *name, const char **result, const char **fall
 
 	*fallbackread = name;
 	//if its a user config, ban any fallback locations so that csqc can't read passwords or whatever.
-	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) && !stricmp(COM_FileExtension(name, ext, sizeof(ext)), "cfg"))
+	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) && !stricmp(COM_FileExtension(name, ext, sizeof(ext)), "cfg") && strnicmp(name, "particles/", 10))
 		*fallbackread = NULL;
 	*result = va("data/%s", name);
 	return true;

@@ -357,7 +357,7 @@ int CL_CalcNet (float scale)
 	return percent;
 }
 
-float CL_CalcNet2 (float *ping, float *ping_min, float *ping_max, float *ping_stddev)
+void CL_CalcNet2 (float *pings, float *pings_min, float *pings_max, float *pingms_stddev, float *pingfr, int *pingfr_min, int *pingfr_max, float *dropped, float *choked, float *invalid)
 {
 	int		i;
 	outframe_t	*frame;
@@ -365,11 +365,19 @@ float CL_CalcNet2 (float *ping, float *ping_min, float *ping_max, float *ping_st
 	int pending = 0;
 	int sent;
 	int valid = 0;
+	int fr;
+	int nchoked = 0;
+	int ninvalid = 0;
 //	char st[80];
 
-	*ping = 0;
-	*ping_max = 0;
-	*ping_min = 1000000000000;
+	*pings = 0;
+	*pings_max = 0;
+	*pings_min = 1000000000000;
+	*pingfr = 0;
+	*pingfr_max = 0;
+	*pingfr_min = 0x7fffffff;
+	*pingms_stddev = 0;
+
 
 	sent = NET_TIMINGS;
 
@@ -386,28 +394,53 @@ float CL_CalcNet2 (float *ping, float *ping_min, float *ping_max, float *ping_st
 		else if (frame->latency == -1)
 			lost++;										// lost
 		else if (frame->latency == -2)
-			;											// choked
+			nchoked++;									// choked
 		else if (frame->latency == -3)
 			sent--;										// c2spps
-//		else if (frame->invalid)
-//			packet_latency[i&NET_TIMINGSMASK] = 9998;	// invalid delta
+		else if (frame->latency == -4)
+			ninvalid++;									//corrupt/wrong/dodgy/egads
 		else
 		{
-			*ping += frame->latency;
-			if (*ping_max < frame->latency)
-				*ping_max = frame->latency;
-			if (*ping_min > frame->latency)
-				*ping_min = frame->latency;
+			*pings += frame->latency;
+			if (*pings_max < frame->latency)
+				*pings_max = frame->latency;
+			if (*pings_min > frame->latency)
+				*pings_min = frame->latency;
+
+			fr = frame->cmd_sequence-frame->server_message_num;
+			*pingfr += fr;
+			if (*pingfr_max < fr)
+				*pingfr_max = fr;
+			if (*pingfr_min > fr)
+				*pingfr_min = fr;
 			valid++;
 		}
 	}
 
-	*ping /= valid;
+	if (valid)
+	{
+		*pings /= valid;
+		*pingfr /= valid;
+
+		//determine stddev, in milliseconds instead of seconds.
+		for (i=cl.movesequence-UPDATE_BACKUP+1; i <= cl.movesequence; i++)
+		{
+			frame = &cl.outframes[i&UPDATE_MASK];
+			if (i <= cl.lastackedmovesequence && frame->latency >= 0)
+			{
+				float dev = (frame->latency - *pings) * 1000;
+				*pingms_stddev += dev*dev;
+			}
+		}
+		*pingms_stddev = sqrt(*pingms_stddev/valid);
+	}
 
 	if (pending == sent || sent < 1)
-		return 1;	//shouldn't ever happen.
+		*dropped = 1;	//shouldn't ever happen.
 	else
-		return lost / sent;
+		*dropped = (float)lost / sent;
+	*choked = (float)nchoked / sent;
+	*invalid = (float)ninvalid / sent;
 }
 
 void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay)
@@ -1725,7 +1758,7 @@ qboolean DL_Begun(qdownload_t *dl)
 	else if (!strncmp(dl->tempname,"skins/",6))
 		dl->fsroot = FS_PUBBASEGAMEONLY;	//shared between gamedirs, so only use the basegame.
 	else
-		dl->fsroot = FS_GAMEONLY;	//other files are relative to the active gamedir.
+		dl->fsroot = FS_PUBGAMEONLY;//FS_GAMEONLY;	//other files are relative to the active gamedir.
 
 	Q_snprintfz(dl->dclname, sizeof(dl->dclname), "%s.dcl", dl->tempname);
 
@@ -3040,6 +3073,7 @@ void CLQW_ParseServerData (void)
 
 	// now waiting for downloads, etc
 	cls.state = ca_onserver;
+	Cam_AutoTrack_Update(NULL);
 
 	cl.sendprespawn = false;
 
@@ -3107,6 +3141,7 @@ void CLQ2_ParseServerData (void)
 	cl.minpitch = -89;
 	cl.maxpitch = 89;
 	cl.servercount = svcnt;
+	Cam_AutoTrack_Update(NULL);
 
 	Stats_NewMap();
 
@@ -3352,6 +3387,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	cls.signon = 0;
 	cls.state = ca_onserver;
+	Cam_AutoTrack_Update(NULL);
 
 
 	//fill in the csqc stuff
@@ -5500,13 +5536,16 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 // CL_PrintStandardMessage: takes non-chat net messages and performs name coloring
 // NOTE: msg is considered destroyable
 char acceptedchars[] = {'.', '?', '!', '\'', ',', ':', ' ', '\0'};
-void CL_PrintStandardMessage(char *msg, int printlevel)
+void CL_PrintStandardMessage(char *msgtext, int printlevel)
 {
 	int i;
 	player_info_t *p;
-	extern cvar_t cl_standardmsg;
-	char *begin = msg;
+	extern cvar_t cl_standardmsg, msg;
+	char *begin = msgtext;
 	char fullmessage[2048];
+
+	if (printlevel < msg.ival)
+		return;
 
 	fullmessage[0] = 0;
 
@@ -5523,7 +5562,7 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 		if (!(*name))
 			continue;
 		len = strlen(name);
-		v = strstr(msg, name);
+		v = strstr(msgtext, name);
 		while (v)
 		{
 			// name parsing rules
@@ -5554,8 +5593,8 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 			*v = 0; // cut off message
 
 			// print msg chunk
-			Q_strncatz(fullmessage, msg, sizeof(fullmessage));
-			msg = v + len; // update search point
+			Q_strncatz(fullmessage, msgtext, sizeof(fullmessage));
+			msgtext = v + len; // update search point
 
 			// get name color
 			if (p->spectator || cl_standardmsg.ival)
@@ -5573,7 +5612,7 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 	}
 
 	// print final chunk
-	Q_strncatz(fullmessage, msg, sizeof(fullmessage));
+	Q_strncatz(fullmessage, msgtext, sizeof(fullmessage));
 	Con_Printf("%s", fullmessage);
 }
 
@@ -5703,6 +5742,11 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			else if (!strncmp(stufftext, "//at ", 5))
 			{
 				Cam_SetAutoTrack(atoi(stufftext+5));
+			}
+			else if (!strncmp(stufftext, "//wps ", 5))
+			{
+				//weapon stats, eg:
+				//wps CLIENT WNAME attacks hits
 			}
 			else if (!strncmp(stufftext, "//kickfile ", 11))
 			{
@@ -5958,7 +6002,7 @@ void CLQW_ParseServerMessage (void)
 			cmd = MSG_ReadByte();
 		}
 		else
-			destsplit = 0;
+			destsplit = cl.defaultnetsplit;
 
 		if (cmd == -1)
 		{

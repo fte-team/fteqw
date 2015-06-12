@@ -298,7 +298,8 @@ static void ASMCALL CStateOp (pubprogfuncs_t *prinst, float first, float last, f
 		e->v->nextthink = pr_global_struct->time+0.1;
 	e->v->think = currentfunc;
 
-	pr_global_struct->cycle_wrapped = false;
+	if (pr_global_ptrs->cycle_wrapped)
+		pr_global_struct->cycle_wrapped = false;
 
 	if (first > last)
 	{	//going backwards
@@ -319,7 +320,8 @@ static void ASMCALL CStateOp (pubprogfuncs_t *prinst, float first, float last, f
 		frame += step;
 		if (frame < min || frame > max)
 		{	//became out of range, must have wrapped
-			pr_global_struct->cycle_wrapped = true;
+			if (pr_global_ptrs->cycle_wrapped)
+				pr_global_struct->cycle_wrapped = true;
 			frame = first;
 		}
 	}
@@ -8034,6 +8036,23 @@ static void QCBUILTIN PF_te_beam(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	SV_beam_tempentity(G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TEQW_BEAM);
 }
 
+static void QCBUILTIN PF_te_muzzleflash(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	edict_t *e = G_EDICT(prinst, OFS_PARM0);
+//this is for lamers with old (or unsupported) clients
+	if (progstype == PROG_QW)
+	{
+		MSG_WriteByte (&sv.multicast, svc_muzzleflash);
+		MSG_WriteEntity (&sv.multicast, NUM_FOR_EDICT(prinst, e));
+
+		SV_MulticastProtExt (e->v->origin, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
+	}
+	else
+	{	//consistent with nq, this'll be cleaned up elsewhere.
+		e->v->effects = (int)e->v->effects | EF_MUZZLEFLASH;
+	}
+}
+
 //DP_TE_SPARK
 static void QCBUILTIN PF_te_spark(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -9443,7 +9462,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fgets",			PF_fgets,			0,		0,		0,		112, "string(filestream fhandle)"},	// (FRIK_FILE)
 	{"fputs",			PF_fputs,			0,		0,		0,		113, "void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},	// (FRIK_FILE)
 	{"strlen",			PF_strlen,			0,		0,		0,		114, "float(string s)"},	// (FRIK_FILE)
-	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, ...)"},	// (FRIK_FILE)
+	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, string s8)"},	// (FRIK_FILE)
 	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
 	{"stov",			PF_stov,			0,		0,		0,		117, "vector(string s)"},	// (FRIK_FILE)
 #ifdef QCGC
@@ -9528,6 +9547,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"skinforname",		PF_skinforname,		0,		0,		0,		237,	"float(float mdlindex, string skinname)"},		// #237
 	{"shaderforname",	PF_Fixme,			0,		0,		0,		238,	D("float(string shadername, optional string defaultshader, ...)", "Caches the named shader and returns a handle to it.\nIf the shader could not be loaded from disk (missing file or ruleset_allow_shaders 0), it will be created from the 'defaultshader' string if specified, or a 'skin shader' default will be used.\ndefaultshader if not empty should include the outer {} that you would ordinarily find in a shader.")},
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239,	"void(vector org, optional float count)"},
+	{"te_muzzleflash",	PF_te_muzzleflash,	0,		0,		0,		0,		"void(entity ent)"},
 
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240,	"float(vector viewpos, entity entity)"},
 	{"matchclientname",	PF_matchclient,		0,		0,		0,		241,	"entity(string match, optional float matchnum)"},
@@ -11101,11 +11121,12 @@ void PR_DumpPlatform_f(void)
 		{"TEREDIT_TEX_UNIFY",	"const float", CS, NULL, ter_tex_concentrate},
 		{"TEREDIT_TEX_NOISE",	"const float", CS, NULL, ter_tex_noise},
 		{"TEREDIT_TEX_BLUR",	"const float", CS, NULL, ter_tex_blur},
+		{"TEREDIT_TEX_REPLACE",	"const float", CS, NULL, ter_tex_replace},
+		{"TEREDIT_TEX_SETMASK",	"const float", CS, NULL, ter_tex_mask},
 		{"TEREDIT_WATER_SET",	"const float", CS, NULL, ter_water_set},
 		{"TEREDIT_MESH_ADD",	"const float", CS, NULL, ter_mesh_add},
 		{"TEREDIT_MESH_KILL",	"const float", CS, NULL, ter_mesh_kill},
 		{"TEREDIT_TINT",		"const float", CS, NULL, ter_tint},
-		{"TEREDIT_TEX_REPLACE",	"const float", CS, NULL, ter_tex_replace},
 		{"TEREDIT_RESET_SECT",	"const float", CS, NULL, ter_reset},
 		{"TEREDIT_RELOAD_SECT",	"const float", CS, NULL, ter_reloadsect},
 

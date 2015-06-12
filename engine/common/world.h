@@ -135,8 +135,6 @@ typedef struct areanode_s
 	link_t	edicts;
 } areanode_t;
 
-#define	AREA_DEPTH	4
-#define	AREA_NODES	32 //pow(2, AREA_DEPTH+1)
 #define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,wedict_t,area)
 
 typedef struct wedict_s wedict_t;
@@ -186,7 +184,8 @@ struct world_s
 	struct pubprogfuncs_s *progs;
 	qboolean		usesolidcorpse;	//to disable SOLID_CORPSE when running hexen2 due to conflict.
 	model_t			*worldmodel;
-	areanode_t	areanodes[AREA_NODES];
+	areanode_t		*areanodes;
+	int				areanodedepth;
 	int			numareanodes;
 	areanode_t	portallist;
 

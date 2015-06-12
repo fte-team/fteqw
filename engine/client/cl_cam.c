@@ -37,14 +37,163 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 char cl_spectatorgroup[] = "Spectator Tracking";
 
+enum
+{
+	TM_USER,			//user hit jump and changed pov explicitly
+	TM_HIGHTRACK,		//tracking the player with the highest frags
+	TM_KILLER,			//switch to the previous person's killer.
+	TM_MODHINTS,		//using the mod's //at hints
+	TM_STATS			//parsing mvd stats and making our own choices
+} autotrackmode;
+int autotrack_hint;		//the latest hint from the mod, might be negative for invalid.
+int autotrack_killer;	//if someone kills the guy we're tracking, this is the guy we should switch to.
+char *autotrack_statsrule;
+static void QDECL CL_AutoTrackChanged(cvar_t *v, char *oldval)
+{
+	Cam_AutoTrack_Update(v->string);
+}
 // track high fragger
+cvar_t cl_autotrack = CVARCD("cl_autotrack", "auto", CL_AutoTrackChanged, "Specifies the default tracking mode at the start of the map. Use the 'autotrack' command to reset/apply an auto-tracking mode without changing the default.\nValid values are: high, ^hkiller^h, mod, user. Other values are treated as weighting scripts for mvd playback, where available.");
 cvar_t cl_hightrack = SCVAR("cl_hightrack", "0");
-
-cvar_t cl_chasecam = SCVAR("cl_chasecam", "1");
-cvar_t cl_selfcam = SCVAR("cl_selfcam", "1");
 
 //cvar_t cl_camera_maxpitch = {"cl_camera_maxpitch", "10" };
 //cvar_t cl_camera_maxyaw = {"cl_camera_maxyaw", "30" };
+cvar_t cl_chasecam = SCVAR("cl_chasecam", "1");
+cvar_t cl_selfcam = SCVAR("cl_selfcam", "1");
+
+void Cam_AutoTrack_Update(const char *mode)
+{
+	if (!mode)
+		mode = cl_autotrack.string;
+	Z_Free(autotrack_statsrule);
+	autotrack_statsrule = NULL;
+	if (!*mode || !Q_strcasecmp(mode, "auto"))
+	{
+		if (cl_hightrack.ival)
+			autotrackmode = TM_HIGHTRACK;
+		else
+			autotrackmode = TM_MODHINTS;
+	}
+	else if (!Q_strcasecmp(mode, "high"))
+		autotrackmode = TM_HIGHTRACK;
+	else if (!Q_strcasecmp(mode, "killer"))
+		autotrackmode = TM_KILLER;
+	else if (!Q_strcasecmp(mode, "mod"))
+		autotrackmode = TM_MODHINTS;
+	else if (!Q_strcasecmp(mode, "user") || !Q_strcasecmp(mode, "off"))
+		autotrackmode = TM_USER;
+	else
+	{
+		autotrackmode = TM_STATS;
+		autotrack_statsrule = Z_StrDup(mode);
+	}
+}
+static void Cam_AutoTrack_f(void)
+{
+	if (*Cmd_Argv(1))
+		Cam_AutoTrack_Update(Cmd_Argv(1));
+	else
+		Cam_AutoTrack_Update(NULL);
+}
+
+
+static float CL_TrackScore(player_info_t *pl, char *rule)
+{
+	float score = 0;
+	float val;
+	int r;
+	while (*rule)
+	{
+		r = *rule++;
+		if (r == 'f')
+			val = pl->frags;
+		else if (r == 'l')
+			val = pl->ping;
+		else if (r == 'h')
+			val = pl->statsf[STAT_HEALTH];
+		else if (r == 'q')
+			val = (pl->stats[STAT_ITEMS] & IT_QUAD)?1:0;
+		else if (r == 'p')
+			val = (pl->stats[STAT_ITEMS] & IT_INVULNERABILITY)?1:0;
+		else if (r == 's')
+		{
+			int i = strtol(rule, &rule, 10);
+			val = pl->statsf[i];
+		}
+		else if (r == '#')
+			val = strtod(rule, &rule);
+		else
+			val = 0;
+
+		if (*rule == '*')
+		{
+			val *= strtod(rule+1, &rule);
+		}
+
+		score += val;
+		if (*rule == '+')
+			rule++;
+		else
+			break;
+	}
+	return score;
+}
+//returns the player with the highest frags
+static int CL_FindHighTrack(int seat, char *rule)
+{
+	int j = -1;
+	int i, k;
+	float max, score;
+	player_info_t *s;
+
+	//set a default to the currently tracked player, to reuse the current player we're tracking if someone lower equalises.
+	j = cl.playerview[seat].cam_spec_track;
+	if (j >= 0)
+		max = CL_TrackScore(&cl.players[j], rule);
+	else
+		max = -9999;
+
+	for (i = 0; i < cl.allocated_client_slots; i++)
+	{
+		s = &cl.players[i];
+		score = CL_TrackScore(s, rule);
+		if (s->name[0] && !s->spectator && score > max)
+		{
+			if (j == i)	//this was our default.
+				continue;
+			//skip it if an earlier seat is watching it already
+			for (k = 0; k < seat; k++)
+			{
+				if (Cam_TrackNum(&cl.playerview[k]) == i)
+					break;
+			}
+			if (cl.teamplay && seat && cl.playerview[0].cam_spec_track >= 0 && strcmp(cl.players[cl.playerview[0].cam_spec_track].team, s->team))
+				continue;	//when using multiview, keep tracking the team
+			if (k == seat)
+			{
+				max = CL_TrackScore(s, rule);
+				j = i;
+			}
+		}
+	}
+	return j;
+}
+
+static int CL_AutoTrack_Choose(int seat)
+{
+	int best = -1;
+	if (autotrackmode == TM_KILLER)
+		best = autotrack_killer;
+	if (autotrackmode == TM_MODHINTS && seat == 0 && autotrack_hint >= 0)
+		best = autotrack_hint;
+	if (autotrackmode == TM_STATS && cls.demoplayback == DPB_MVD)
+		best = CL_FindHighTrack(seat, autotrack_statsrule);
+	if (autotrackmode == TM_HIGHTRACK || best == -1)
+		best = CL_FindHighTrack(seat, "f");
+	//TM_USER should generally avoid autotracking
+	autotrack_killer = best;	//killer should continue to track whatever is currently tracked until its changed by frag message parsing
+	return best;
+}
 
 static int Cam_FindSortedPlayer(int number);
 
@@ -111,6 +260,8 @@ void Cam_Lock(playerview_t *pv, int playernum)
 		memcpy(&pv->stats, cl.players[playernum].stats, sizeof(pv->stats));
 		pv->cam_locked = true;	//instantly lock if the player is valid.
 		pv->viewentity = playernum+1;
+		if (cls.z_ext & Z_EXT_VIEWHEIGHT)
+			pv->viewheight = cl.players[playernum].statsf[STAT_VIEWHEIGHT];
 	}
 
 	Sbar_Changed();
@@ -245,32 +396,13 @@ static qboolean InitFlyby(playerview_t *pv, vec3_t selforigin, vec3_t playerorig
 
 static void Cam_CheckHighTarget(playerview_t *pv)
 {
-	int i, j, max;
-	player_info_t	*s;
+	int j;
 	playerview_t *spv;
 
-	j = -1;
-	for (i = 0, max = -9999; i < cl.allocated_client_slots; i++)
-	{
-		s = &cl.players[i];
-		if (s->name[0] && !s->spectator && s->frags > max)
-		{
-			//skip it if an earlier seat is watching it already
-			for (spv = pv-1; spv >= cl.playerview && spv < &cl.playerview[cl.splitclients]; spv--)
-			{
-				if (Cam_TrackNum(spv) == i)
-					break;
-			}
-			if (!(spv >= cl.playerview && spv < &cl.playerview[cl.splitclients]))
-			{
-				max = s->frags;
-				j = i;
-			}
-		}
-	}
+	j = CL_AutoTrack_Choose(pv - cl.playerview);
 	if (j >= 0)
 	{
-		if (!pv->cam_locked || cl.players[j].frags > cl.players[pv->cam_spec_track].frags)
+		if (!pv->cam_locked || pv->cam_spec_track != j)
 		{
 			Cam_Lock(pv, j);
 			//un-lock any higher seats watching our new target. this keeps things ordered.
@@ -350,7 +482,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	if (!cl.spectator || !cl.worldmodel)	//can happen when the server changes level
 		return;
 	
-	if (cl_hightrack.value && !pv->cam_locked)
+	if (autotrackmode != TM_USER && !pv->cam_locked)
 		Cam_CheckHighTarget(pv);
 
 	if (!pv->cam_auto || cls.state != ca_active || cl.worldmodel->loadstate != MLS_LOADED)
@@ -359,7 +491,7 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	if (pv->cam_locked && (!cl.players[pv->cam_spec_track].name[0] || cl.players[pv->cam_spec_track].spectator))
 	{
 		pv->cam_locked = false;
-		if (cl_hightrack.value)
+		if (autotrackmode != TM_USER)
 			Cam_CheckHighTarget(pv);
 		else
 			Cam_Unlock(pv);
@@ -443,7 +575,18 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 
 void Cam_SetAutoTrack(int userid)
 {	//this is a hint from the server about who to track
-
+	int slot;
+	playerview_t *pv = &cl.playerview[0];
+	autotrack_hint = -1;
+	for (slot = 0; slot < cl.allocated_client_slots; slot++)
+	{
+		if (cl.players[slot].userid == userid)
+		{
+			autotrack_hint = slot;
+			return;
+		}
+	}
+	Con_Printf("//at: invalid userid\n");
 }
 
 void Cam_TrackCrosshairedPlayer(playerview_t *pv)
@@ -594,10 +737,15 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 		}
 	}
 
-	if (pv->cam_auto && cl_hightrack.ival) 
+	if (pv->cam_auto && autotrackmode != TM_USER) 
 	{
-		Cam_CheckHighTarget(pv);
-		return;
+		if ((cmd->buttons & BUTTON_JUMP) && !(pv->cam_oldbuttons & BUTTON_JUMP))
+			autotrackmode = TM_USER;
+		else
+		{
+			Cam_CheckHighTarget(pv);
+			return;
+		}
 	}
 
 	if (pv->cam_locked) 
@@ -692,7 +840,7 @@ static int Cam_FindSortedPlayer(int number)
 void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg)
 {
 	playerview_t *pv = &cl.playerview[seat];
-	int slot, sortednum;
+	int slot;
 	player_info_t	*s;
 	char *e;
 
@@ -840,12 +988,14 @@ void Cam_Track4_f(void)
 
 void CL_InitCam(void)
 {
+	Cvar_Register (&cl_autotrack, cl_spectatorgroup);
 	Cvar_Register (&cl_hightrack, cl_spectatorgroup);
 	Cvar_Register (&cl_chasecam, cl_spectatorgroup);
 //	Cvar_Register (&cl_camera_maxpitch, cl_spectatorgroup);
 //	Cvar_Register (&cl_camera_maxyaw, cl_spectatorgroup);
 //	Cvar_Register (&cl_selfcam, cl_spectatorgroup);
 
+	Cmd_AddCommand("autotrack", Cam_AutoTrack_f);	//reset it, if they jumped or something.
 	Cmd_AddCommand("track", Cam_Track_f);
 	Cmd_AddCommand("track1", Cam_Track1_f);
 	Cmd_AddCommand("track2", Cam_Track2_f);

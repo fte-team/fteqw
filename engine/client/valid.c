@@ -526,23 +526,27 @@ void Validation_Apply_Ruleset(void)
 	rulesetrule_t *rule;
 	cvar_t *var;
 	int i;
+	char *rulesetname = ruleset.string;
+
+	if  (!strcmp(rulesetname, "smackdown"))	//officially, smackdown cannot authorise this, thus we do not use that name. however, imported configs tend to piss people off.
+		rulesetname = "strict";
 
 #ifdef warningmsg
 #pragma warningmsg("fixme: the following line should not be needed. ensure this is the case")
 #endif
 	Validation_DelatchRulesets();	//make sure there's no old one
 
-	if (!*ruleset.string || !strcmp(ruleset.string, "none") || !strcmp(ruleset.string, "default"))
+	if (!*rulesetname || !strcmp(rulesetname, "none") || !strcmp(rulesetname, "default"))
 		return;	//no ruleset is set
 
 	for (rs = rulesets; rs->rulesetname; rs++)
 	{
-		if (!stricmp(rs->rulesetname, ruleset.string))
+		if (!stricmp(rs->rulesetname, rulesetname))
 			break;
 	}
 	if (!rs->rulesetname)
 	{
-		Con_Printf("Cannot apply ruleset %s - not recognised\n", ruleset.string);
+		Con_Printf("Cannot apply ruleset %s - not recognised\n", rulesetname);
 		return;
 	}
 	

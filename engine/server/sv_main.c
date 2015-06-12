@@ -76,22 +76,23 @@ extern cvar_t	password;
 #endif
 cvar_t	spectator_password = CVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
 
-cvar_t	allow_download = CVAR("allow_download", "1");
-cvar_t	allow_download_skins = CVAR("allow_download_skins", "1");
-cvar_t	allow_download_models = CVAR("allow_download_models", "1");
-cvar_t	allow_download_sounds = CVAR("allow_download_sounds", "1");
-cvar_t	allow_download_demos = CVAR("allow_download_demos", "1");
-cvar_t	allow_download_maps = CVAR("allow_download_maps", "1");
-cvar_t	allow_download_anymap = CVAR("allow_download_pakmaps", "0");
-cvar_t	allow_download_pakcontents = CVARD("allow_download_pakcontents", "1", "controls whether clients connected to this server are allowed to download files from within packages. Does NOT implicitly allow downloading bsps, set allow_download_pakmaps to enable that.");
-cvar_t	allow_download_root = CVARD("allow_download_root", "0", "If set, enables downloading from the root of the gamedir (not the basedir). This setting is dangerous as it can allow downloading configs.");
-cvar_t	allow_download_textures = CVAR("allow_download_textures", "1");
-cvar_t	allow_download_packages = CVAR("allow_download_packages", "1");
-cvar_t	allow_download_refpackages = CVARD("allow_download_refpackages", "1", "If set to 1, packages that contain files needed during spawn functions will be become 'referenced' and automatically downloaded to clients.\nThis cvar should probably not be set if you have large packages that provide replacement pickup models on public servers.\nThe path command will show a '(ref)' tag next to packages which clients will automatically attempt to download.");
-cvar_t	allow_download_wads = CVAR("allow_download_wads", "1");
-cvar_t	allow_download_configs = CVAR("allow_download_configs", "0");
-cvar_t	allow_download_copyrighted = CVAR("allow_download_copyrighted", "0");
-cvar_t	allow_download_other = CVAR("allow_download_other", "0");
+cvar_t	allow_download				= CVARD("allow_download", "1", "If 1, permits downloading. Set to 0 to unconditionally block *ALL* downloads.");
+cvar_t	allow_download_skins		= CVARD("allow_download_skins", "1", "0 blocks downloading of any file in the skins/ directory");
+cvar_t	allow_download_models		= CVARD("allow_download_models", "1", "0 blocks downloading of any file in the progs/ or models/ directory");
+cvar_t	allow_download_sounds		= CVARD("allow_download_sounds", "1", "0 blocks downloading of any file in the sound/ directory");
+cvar_t	allow_download_demos		= CVARD("allow_download_demos", "1", "0 blocks downloading of any file in the demos/ directory");
+cvar_t	allow_download_maps			= CVARD("allow_download_maps", "1", "0 blocks downloading of any file in the maps/ directory");
+cvar_t	allow_download_logs			= CVARD("allow_download_logs", "0", "1 permits downloading files with the extension .log\n"CON_ERROR"THIS IS DANGEROUS AS IT POTENTIALLY ALLOWS PEOPLE TO SEE PASSWORDS OR OTHER PRIVATE INFORMATION.\nNote that it can be switch on/off via rcon.");
+cvar_t	allow_download_anymap		= CVARD("allow_download_pakmaps", "0", "If 1, permits downloading of maps from within packages. This is normally disabled in order to prevent copyrighted content from being downloaded.");
+cvar_t	allow_download_pakcontents	= CVARD("allow_download_pakcontents", "1", "controls whether clients connected to this server are allowed to download files from within packages.\nDoes NOT implicitly allow downloading bsps, set allow_download_pakmaps to enable that.\nWhile treating each file contained within packages is often undesirable, this is often needed for compatibility with legacy clients (despite it potentially allowing copyright violations).");
+cvar_t	allow_download_root			= CVARD("allow_download_root", "0", "If set, enables downloading from the root of the gamedir (not the basedir). This setting has a lower priority than extension-based checks.");
+cvar_t	allow_download_textures		= CVARD("allow_download_textures", "1", "0 blocks downloading of any file in the textures/ directory");
+cvar_t	allow_download_packages		= CVARD("allow_download_packages", "1", "if 1, permits downloading files (from root directory or elsewhere) with known package extensions (eg: pak+pk3). Packages with a name starting 'pak' are covered by allow_download_copyrighted as well. This does not prevent ");
+cvar_t	allow_download_refpackages	= CVARD("allow_download_refpackages", "1", "If set to 1, packages that contain files needed during spawn functions will be become 'referenced' and automatically downloaded to clients.\nThis cvar should probably not be set if you have large packages that provide replacement pickup models on public servers.\nThe path command will show a '(ref)' tag next to packages which clients will automatically attempt to download.");
+cvar_t	allow_download_wads			= CVARD("allow_download_wads", "1", "0 blocks downloading of any file in the wads/ directory, or is in the root directory with the extension .wad");
+cvar_t	allow_download_configs		= CVARD("allow_download_configs", "0", "1 allows downloading of config files, either with the extension .cfg or in the subdir configs/.\n"CON_ERROR"THIS IS DANGEROUS AS IT CAN ALLOW PEOPLE TO READ YOUR RCON PASSWORD.");
+cvar_t	allow_download_copyrighted	= CVARD("allow_download_copyrighted", "0", "0 blocks download of packages that are considered copyrighted. Specifically, this means packages with a leading 'pak' prefix on the filename.\nIf you take your copyrights seriously, you should also set allow_download_pakmaps 0 and allow_download_pakcontents 0.");
+cvar_t	allow_download_other		= CVARD("allow_download_other", "0", "0 blocks downloading of any file that was not covered by any of the directory download blocks.");
 
 cvar_t sv_serverip = CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
 cvar_t sv_public = CVAR("sv_public", "0");

@@ -1399,38 +1399,6 @@ void SCR_DrawFPS (void)
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
 }
 
-void SCR_DrawUPS (void)
-{
-	extern cvar_t show_speed;
-	static double lastupstime;
-	double t;
-	static float lastups;
-	char str[80];
-	float *vel;
-	int track;
-
-	if (!show_speed.ival)
-		return;
-
-	t = Sys_DoubleTime();
-	if ((t - lastupstime) >= 1.0/20)
-	{
-		if (cl.spectator)
-			track = Cam_TrackNum(&cl.playerview[0]);
-		else
-			track = -1;
-		if (track != -1)
-			vel = cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[track].velocity;
-		else
-			vel = cl.playerview[0].simvel;
-		lastups = sqrt((vel[0]*vel[0]) + (vel[1]*vel[1]));
-		lastupstime = t;
-	}
-
-	sprintf(str, "%3.1f UPS", lastups);
-	SCR_StringXY(str, show_speed_x.value, show_speed_y.value);
-}
-
 void SCR_DrawClock(void)
 {
 	struct tm *newtime;
@@ -2486,7 +2454,6 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			SCR_DrawNet ();
 			SCR_DrawDisk();
 			SCR_DrawFPS ();
-			SCR_DrawUPS ();
 			SCR_DrawClock();
 			SCR_DrawGameClock();
 			SCR_DrawTurtle ();
@@ -2494,12 +2461,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			SCR_ShowPics_Draw();
 		}
 		else
-		{
 			SCR_DrawFPS ();
-			SCR_DrawUPS ();
-			SCR_DrawClock();
-			SCR_DrawGameClock();
-		}
 		SCR_CheckDrawCenterString ();
 	}
 

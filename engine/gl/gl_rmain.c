@@ -489,7 +489,7 @@ void R_SetupGL (float stereooffset)
 		}
 		else
 		{
-			Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, 0, gl_maxdist.value>=1?gl_maxdist.value:9999);
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, gl_mindist.value, gl_maxdist.value>=1?gl_maxdist.value:9999);
 		}
 
 		newa[0] = r_refdef.viewangles[0];

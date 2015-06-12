@@ -33,40 +33,40 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	char soname[MAX_OSPATH];
-        int i;
-        dllhandle_t lib;
+	int i;
+	dllhandle_t *lib;
 
-        lib = NULL;
-        if (!lib)
+	lib = NULL;
+	if (!lib)
 	{
 		Q_snprintfz(soname, sizeof(soname), "%s.so", name);
-                lib = dlopen (soname, RTLD_LAZY);
+		lib = (dllhandle_t*)dlopen (soname, RTLD_LAZY);
 	}
-        if (!lib)
-                lib = dlopen (name, RTLD_LAZY);
-        if (!lib)
-        {
-                Con_Printf("%s\n", dlerror());
-                return NULL;
-        }
+	if (!lib)
+		lib = (dllhandle_t*)dlopen (name, RTLD_LAZY);
+	if (!lib)
+	{
+		Con_Printf("%s\n", dlerror());
+		return NULL;
+	}
 
-        if (funcs)
-        {
-                for (i = 0; funcs[i].name; i++)
-                {
-                        *funcs[i].funcptr = dlsym(lib, funcs[i].name);
-                        if (!*funcs[i].funcptr)
-                                break;
-                }
-                if (funcs[i].name)
-                {
-                        Con_Printf("Unable to find symbol \"%s\" in \"%s\"\n", funcs[i].name, name);
-                        Sys_CloseLibrary((dllhandle_t*)lib);
-                        lib = NULL;
-                }
-        }
+	if (funcs)
+	{
+		for (i = 0; funcs[i].name; i++)
+		{
+			*funcs[i].funcptr = dlsym(lib, funcs[i].name);
+			if (!*funcs[i].funcptr)
+				break;
+		}
+		if (funcs[i].name)
+		{
+			Con_Printf("Unable to find symbol \"%s\" in \"%s\"\n", funcs[i].name, name);
+			Sys_CloseLibrary((dllhandle_t*)lib);
+			lib = NULL;
+		}
+	}
 
-        return (dllhandle_t*)lib;
+	return (dllhandle_t*)lib;
 }
 #endif
 
@@ -578,7 +578,7 @@ vfsfile_t *VFSPIPE_Open(void)
 #endif
 
 #ifdef _WIN32
-qboolean MyRegGetStringValue(HKEY base, const char *keyname, const char *valuename, void *data, size_t datalen)
+qboolean MyRegGetStringValue(void *base, const char *keyname, const char *valuename, void *data, size_t datalen)
 {
 	qboolean result = false;
 	HKEY subkey;

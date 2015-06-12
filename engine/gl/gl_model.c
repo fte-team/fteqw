@@ -2531,7 +2531,6 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *
 	return true;
 }
 
-#ifndef SERVERONLY
 void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *cookie)
 {
 	unsigned int vertidx;
@@ -2542,6 +2541,22 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 	float s, t, d;
 	int sty;
 //	int w,h;
+
+	if (!mesh)
+	{
+		mesh = surf->mesh = ZG_Malloc(&mod->memgroup, sizeof(mesh_t) + (sizeof(vecV_t)+sizeof(vec2_t)*(1+1)+sizeof(vec3_t)*3+sizeof(vec4_t)*1)* surf->numedges + sizeof(index_t)*(surf->numedges-2)*3);
+		mesh->numvertexes = surf->numedges;
+		mesh->numindexes = (mesh->numvertexes-2)*3;
+		mesh->istrifan = true;
+		mesh->xyz_array = (vecV_t*)(mesh+1);
+		mesh->st_array = (vec2_t*)(mesh->xyz_array+mesh->numvertexes);
+		mesh->lmst_array[0] = (vec2_t*)(mesh->st_array+mesh->numvertexes);
+		mesh->normals_array = (vec3_t*)(mesh->lmst_array[0]+mesh->numvertexes);
+		mesh->snormals_array = (vec3_t*)(mesh->normals_array+mesh->numvertexes);
+		mesh->tnormals_array = (vec3_t*)(mesh->snormals_array+mesh->numvertexes);
+		mesh->colors4f_array[0] = (vec4_t*)(mesh->tnormals_array+mesh->numvertexes);
+		mesh->indexes = (index_t*)(mesh->colors4f_array[0]+mesh->numvertexes);
+	}
 
 	//output the mesh's indicies
 	for (i=0 ; i<mesh->numvertexes-2 ; i++)
@@ -2580,10 +2595,15 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 		else
 */
 		{
-			mesh->st_array[i][0] = s/surf->texinfo->texture->width;
-			mesh->st_array[i][1] = t/surf->texinfo->texture->height;
+			mesh->st_array[i][0] = s;
+			mesh->st_array[i][1] = t;
+			if (surf->texinfo->texture->width)
+				mesh->st_array[i][0] /= surf->texinfo->texture->width;
+			if (surf->texinfo->texture->height)
+				mesh->st_array[i][1] /= surf->texinfo->texture->height;
 		}
 
+#ifndef SERVERONLY
 		if (gl_lightmap_average.ival)
 		{
 			for (sty = 0; sty < 1; sty++)
@@ -2593,6 +2613,7 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 			}
 		}
 		else
+#endif
 		{
 			for (sty = 0; sty < 1; sty++)
 			{
@@ -2635,6 +2656,7 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 	}
 }
 
+#ifndef SERVERONLY
 static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindicies, void (*build)(model_t *mod, msurface_t *surf, builddata_t *bd), builddata_t *bd)
 {
 	batch_t *batch;

@@ -2657,6 +2657,7 @@ qboolean SV_AllowDownload (const char *name)
 	extern	cvar_t	allow_download_packages;
 	extern	cvar_t	allow_download_wads;
 	extern	cvar_t	allow_download_root;
+	extern	cvar_t	allow_download_logs;
 	extern	cvar_t	allow_download_configs;
 	extern	cvar_t	allow_download_copyrighted;
 	extern	cvar_t	allow_download_other;
@@ -2689,7 +2690,9 @@ qboolean SV_AllowDownload (const char *name)
 
 	//block attempts to download logs
 	if (!Q_strcasecmp("log", ext))
-		return false;
+		return !!allow_download_logs.value;
+	if (strncmp(name,	"logs/", 5) == 0)
+		return !!allow_download_logs.value;
 
 	if (!strncmp(name, "package/", 8))
 	{
@@ -2727,10 +2730,13 @@ qboolean SV_AllowDownload (const char *name)
 	if (strncmp(name,	"textures/", 9) == 0)
 		return !!allow_download_textures.value;
 
+	if (strncmp(name,	"config/", 9) == 0)
+		return !!allow_download_configs.value;
+
 	//wads
 	if (strncmp(name,	"wads/", 5) == 0)
 		return !!allow_download_wads.value;
-	if (!strcmp("wad", ext))
+	if (!strchr(name, '/') && !strcmp("wad", ext))
 		return !!allow_download_wads.value;
 
 	//pak/pk3s.
@@ -2739,7 +2745,7 @@ qboolean SV_AllowDownload (const char *name)
 		if (strnicmp(name, "pak", 3))	//don't give out core pak/pk3 files. This matches q3 logic.
 			return !!allow_download_packages.value;
 		else
-			return !!allow_download_copyrighted.value;
+			return !!allow_download_packages.value && !!allow_download_copyrighted.value;
 	}
 
 	if (!strcmp("cfg", ext))
@@ -2754,7 +2760,7 @@ qboolean SV_AllowDownload (const char *name)
 	}
 
 	//any other subdirs are allowed
-	return !!allow_download_other.value;;
+	return !!allow_download_other.value;
 }
 
 static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementname, qboolean redirectpaks)
@@ -3359,6 +3365,12 @@ void SV_Say (qboolean team)
 	if (svprogfuncs)
 		if (PR_QCChat(p, team))	//true if handled.
 			return;
+
+	if (strstr(p, "password"))
+	{
+		Z_Free(host_client->centerprintstring);
+		host_client->centerprintstring = Z_StrDup("big brother is watching you");
+	}
 
 	Q_strcat(text, p);
 

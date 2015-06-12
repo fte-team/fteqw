@@ -2615,6 +2615,42 @@ static void Sbar_Voice(int y)
 #endif
 }
 
+void SCR_StringXY(char *str, float x, float y);
+void SCR_DrawClock(void);
+void SCR_DrawGameClock(void);
+static void Sbar_DrawUPS(playerview_t *pv)
+{
+	extern cvar_t show_speed;
+	static double lastupstime;
+	double t;
+	static float lastups;
+	char str[80];
+	float *vel;
+	int track;
+extern cvar_t	show_speed_x;
+extern cvar_t	show_speed_y;
+
+	if (!show_speed.ival)
+		return;
+
+	t = Sys_DoubleTime();
+	if ((t - lastupstime) >= 1.0/20)
+	{
+		if (cl.spectator)
+			track = Cam_TrackNum(pv);
+		else
+			track = -1;
+		if (track != -1)
+			vel = cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[track].velocity;
+		else
+			vel = pv->simvel;
+		lastups = sqrt((vel[0]*vel[0]) + (vel[1]*vel[1]));
+		lastupstime = t;
+	}
+
+	sprintf(str, "%3.1f UPS", lastups);
+	SCR_StringXY(str, show_speed_x.value, show_speed_y.value);
+}
 
 /*
 ===============
@@ -2807,6 +2843,11 @@ void Sbar_Draw (playerview_t *pv)
 		if (scr_chatmode)
 			Sbar_ChatModeOverlay(pv);
 	}
+
+
+	Sbar_DrawUPS (pv);
+	SCR_DrawClock();
+	SCR_DrawGameClock();
 }
 
 //=============================================================================

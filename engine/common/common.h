@@ -436,7 +436,8 @@ enum fs_relative{
 	FS_ROOT,		//./ (the root basepath or root homepath.)
 	FS_GAMEONLY,	//$gamedir/
 	FS_GAMEDOWNLOADCACHE,	//typically the same as FS_GAMEONLY 
-	FS_BASEGAMEONLY,	//fte/ (fixme: should be the last basegame.)
+	FS_BASEGAMEONLY,	//fte/
+	FS_PUBGAMEONLY,		//$gamedir/ or qw/ but not fte/
 	FS_PUBBASEGAMEONLY,	//qw/ (fixme: should be the last non-private basedir)
 	FS_SYSTEM		//a system path. absolute paths are explicitly allowed and expected.
 };

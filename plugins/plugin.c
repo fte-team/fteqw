@@ -87,14 +87,14 @@ BUILTIN(void, Con_SetConsoleString, (const char *conname, const char *attribname
 #undef ARGNAMES
 
 #define ARGNAMES ,message
-BUILTIN(void, Sys_Error, (char *message));	//abort the entire engine.
+BUILTIN(void, Sys_Error, (const char *message));	//abort the entire engine.
 #undef ARGNAMES
 #define ARGNAMES 
 BUILTINR(unsigned int, Sys_Milliseconds, (void));	//get the time the engine has been running.
 #undef ARGNAMES
 
 #define ARGNAMES ,buffer
-BUILTINR(int, Cmd_AddCommand, (char *buffer));	//register a command.
+BUILTINR(int, Cmd_AddCommand, (const char *buffer));	//register a command.
 #undef ARGNAMES
 #define ARGNAMES ,buffer,bufsize
 BUILTIN(void, Cmd_Args, (char *buffer, int bufsize));	//retrieve some arguments.
@@ -110,23 +110,23 @@ BUILTIN(void, Cmd_TokenizeString, (char *msg));	//tokenize a string.
 #undef ARGNAMES
 
 #define ARGNAMES ,text,insert
-BUILTIN(void, Cmd_AddText, (char *text, qboolean insert));	//add stuff to the console input.
+BUILTIN(void, Cmd_AddText, (const char *text, qboolean insert));	//add stuff to the console input.
 #undef ARGNAMES
 
 #define ARGNAMES ,name,value
-BUILTIN(void, Cvar_SetString, (char *name, char *value));	//set a cvar string
+BUILTIN(void, Cvar_SetString, (const char *name, char *value));	//set a cvar string
 #undef ARGNAMES
 #define ARGNAMES ,name,PASSFLOAT(value)
-BUILTIN(void, Cvar_SetFloat, (char *name, float value));	//set a cvar float
+BUILTIN(void, Cvar_SetFloat, (const char *name, float value));	//set a cvar float
 #undef ARGNAMES
 #define ARGNAMES ,name,retstring,sizeofretstring
-BUILTINR(qboolean, Cvar_GetString, (char *name, char *retstring, int sizeofretstring));	//retrieve a cvar string
+BUILTINR(qboolean, Cvar_GetString, (const char *name, char *retstring, int sizeofretstring));	//retrieve a cvar string
 #undef ARGNAMES
 #define ARGNAMES ,name
-BUILTINR(float, Cvar_GetFloat, (char *name));			//get a cvar's value
+BUILTINR(float, Cvar_GetFloat, (const char *name));			//get a cvar's value
 #undef ARGNAMES
 #define ARGNAMES ,name,defaultval,flags,grouphint
-BUILTINR(qhandle_t,	Cvar_Register, (char *name, char *defaultval, int flags, char *grouphint));	//register a new cvar
+BUILTINR(qhandle_t,	Cvar_Register, (const char *name, const char *defaultval, int flags, const char *grouphint));	//register a new cvar
 #undef ARGNAMES
 #define ARGNAMES ,handle,modificationcount,stringv,floatv
 BUILTINR(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
@@ -148,15 +148,15 @@ BUILTINR(int, GetLocalPlayerNumbers, (int firstseat, int numseats, int *playernu
 BUILTIN(void, GetServerInfo, (char *info, int infolen));
 #undef ARGNAMES
 #define ARGNAMES ,key,value
-BUILTIN(void, SetUserInfo, (char *key, char *value));
+BUILTIN(void, SetUserInfo, (const char *key, const char *value));
 #undef ARGNAMES
 
 #define ARGNAMES ,pos,buffer,bufferlen
-BUILTIN(void, GetLocationName, (float *pos, char *buffer, int bufferlen));
+BUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
 #undef ARGNAMES
 
 #define ARGNAMES ,soundname
-BUILTIN(void, LocalSound, (char *soundname));
+BUILTIN(void, LocalSound, (const char *soundname));
 #undef ARGNAMES
 
 #define ARGNAMES ,plugnum, buffer, bufsize

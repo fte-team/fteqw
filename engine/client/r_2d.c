@@ -366,23 +366,12 @@ mpic_t	*R2D_SafeCachePic (const char *path)
 
 mpic_t *R2D_SafePicFromWad (const char *name)
 {
-	char newnamewad[32];
-	char newnamegfx[32];
+	void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs);
 	shader_t *s;
-	
-	snprintf(newnamewad, sizeof(newnamewad), "wad/%s", name);
-	snprintf(newnamegfx, sizeof(newnamegfx), "gfx/%s", name);
-
-	/*
-	s = R_RegisterPic(newnamewad);
-	if (!(s->flags & SHADER_NOIMAGE))
-		return s;
-	*/
-	s = R_RegisterPic(newnamegfx);
-//	if (!(s->flags & SHADER_NOIMAGE))
-		return s;
-
-//	return NULL;
+	if (!qrenderer)
+		return NULL;
+	s = R_RegisterCustom (va("gfx/%s", name), SUF_2D, Shader_Default2D, "wad");
+	return s;
 }
 
 

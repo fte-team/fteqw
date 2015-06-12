@@ -341,6 +341,7 @@ typedef struct heightmap_s
 
 
 
+	char *texmask;	//for editing - visually masks off the areas which CANNOT accept this texture
 	struct relight_ctx_s *relightcontext;
 	struct llightinfo_s *lightthreadmem;
 	qboolean inheritedlightthreadmem;
@@ -462,6 +463,7 @@ static qboolean Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 		hm->numusedlmsects++;
 
 		Z_Free(lms);
+		initialise = true;
 	}
 
 	if (initialise && s->lightmap >= 0)
@@ -1873,7 +1875,7 @@ static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy
 			for (x = 0; x < SECTIONSPERBLOCK; x++)
 			{
 				s = Terr_GetSection(hm, sx+x, sy+y, TGS_WAITLOAD|TGS_NODOWNLOAD);
-				if (s && s->loadstate == TSLS_LOADED)
+				if (s && s->loadstate == TSLS_LOADED && Terr_InitLightmap(s, false))
 				{
 					dbh.offset[y*SECTIONSPERBLOCK + x] = VFS_TELL(f);
 					Terr_Save(hm, s, f, sx+x, sy+y, writever);
@@ -1974,6 +1976,7 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int 
 		if (section->loadstate == TSLS_FAILED && (flags & TGS_DEFAULTONFAIL))
 		{
 			section->flags = (section->flags & ~TSF_EDITED);
+			section->loadstate = TSLS_LOADED;
 			Terr_ClearSection(section);
 			Terr_GenerateDefault(hm, section);
 		}
@@ -2972,6 +2975,24 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 			if (R_CullBox(mins, maxs))
 				return;
 
+
+		if (hm->texmask)
+		{
+			for (i = 0; i < 4; i++)
+			{
+				if (!*s->texname[i])
+					break;
+				if (!strcmp(s->texname[i], hm->texmask))
+					break;
+			}
+			if (i == 4)
+			{	//flicker if the surface cannot accept the named texture
+				int xor = (x&1)^(y&1);
+				if (((int)(realtime*10) & 1) ^ xor)
+					return;
+			}
+		}
+
 		b = BE_GetTempBatch();
 		if (!b)
 			return;
@@ -3864,8 +3885,8 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	*/
 
 	//make sure the start tile is valid
-	for (y = pos[1] + emins[1]; y <= pos[1] + emaxs[1]; y++)
-		for (x = pos[0] + emins[0]; x <= pos[0] + emaxs[0]; x++)
+	for (y = pos[1] + emins[1]; y <= (int)(pos[1] + emaxs[1]); y++)
+		for (x = pos[0] + emins[0]; x <= (int)(pos[0] + emaxs[0]); x++)
 			Heightmap_Trace_Square(&hmtrace, x, y);
 	for(;;)
 	{
@@ -4239,7 +4260,7 @@ static void ted_texpaint(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 	unsigned char *lm = ted_getlightmap(s, idx);
 	const char *texname = ctx;
 	int t;
-	vec3_t newval;
+	vec4_t newval;
 	if (w > 1)
 		w = 1;
 
@@ -4249,12 +4270,21 @@ static void ted_texpaint(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 	{
 		if (!strncmp(s->texname[t], texname, sizeof(s->texname[t])-1))
 		{
+			int extra;
 			newval[0] = (t == 0);
 			newval[1] = (t == 1);
 			newval[2] = (t == 2);
+			newval[3] = (t == 3);
+			extra = 255 - (lm[0]+lm[1]+lm[2]);
 			lm[2] = lm[2]*(1-w) + (255*newval[0]*(w));
 			lm[1] = lm[1]*(1-w) + (255*newval[1]*(w));
 			lm[0] = lm[0]*(1-w) + (255*newval[2]*(w));
+			extra = extra*(1-w) + (255*newval[3]*(w));
+
+			//the extra stuff is to cope with numerical precision. add any lost values to the new texture instead of the implicit one
+			extra = 255 - (extra+lm[0]+lm[1]+lm[2]);
+			if (t != 3)
+				lm[2-t] += extra;
 			return;
 		}
 	}
@@ -4650,6 +4680,15 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			x = bound(0, quant, 3);
 			G_INT(OFS_RETURN) = PR_TempString(prinst, s->texname[x]);
 		}
+		break;
+	case ter_tex_mask:
+		Z_Free(hm->texmask);
+		hm->texmask = NULL;
+
+		if (G_INT(OFS_PARM1) == 0)
+			hm->texmask = NULL;
+		else
+			hm->texmask = Z_StrDup(PR_GetStringOfs(prinst, OFS_PARM1));
 		break;
 	case ter_tex_kill:
 		{

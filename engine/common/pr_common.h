@@ -736,6 +736,8 @@ enum terrainedit_e
 
 //	ter_autopaint_h,	//vector pos, float radius, float percent, string tex1, string tex2				(paint tex1/tex2
 //	ter_autopaint_n	//vector pos, float radius, float percent, string tex1, string tex2
+
+	ter_tex_mask		//string tex
 };
 
 enum

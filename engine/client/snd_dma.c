@@ -2455,16 +2455,19 @@ void S_StopAllSounds(qboolean clear)
 			if (sc->channel[i].sfx)
 			{
 				s = sc->channel[i].sfx;
-				sc->channel[i].sfx = NULL;
 				if (s->loadstate == SLS_LOADING)
-					COM_WorkerPartialSync(s, &s->loadstate, SLS_LOADING);
-				if (s->decoder.ended)
-				if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
+					;//COM_WorkerPartialSync(s, &s->loadstate, SLS_LOADING);
+				else
 				{
-					s->decoder.ended(s);
+					sc->channel[i].sfx = NULL;
+					if (s->decoder.ended)
+					if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
+					{
+						s->decoder.ended(s);
+					}
+					if (sc->ChannelUpdate)
+						sc->ChannelUpdate(sc, &sc->channel[i], true);
 				}
-				if (sc->ChannelUpdate)
-					sc->ChannelUpdate(sc, &sc->channel[i], true);
 			}
 
 		sc->total_chans = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS;	// no statics

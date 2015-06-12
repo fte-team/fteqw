@@ -2950,6 +2950,7 @@ void Cmd_WriteConfig_f(void)
 	char fname[MAX_OSPATH];
 	char sysname[MAX_OSPATH];
 	qboolean all = true;
+	extern cvar_t cfg_save_all;
 
 	if (Cmd_IsInsecure() && Cmd_Argc() > 1)
 	{
@@ -2969,7 +2970,7 @@ void Cmd_WriteConfig_f(void)
 		FS_CreatePath(fname, FS_GAMEONLY);
 		f = FS_OpenVFS(fname, "wbp", FS_GAMEONLY);
 
-		all = false;
+		all = cfg_save_all.ival;
 	}
 	else
 	{
@@ -2985,7 +2986,7 @@ void Cmd_WriteConfig_f(void)
 		FS_CreatePath(fname, FS_BASEGAMEONLY);
 		f = FS_OpenVFS(fname, "wbp", FS_BASEGAMEONLY);
 
-		all = true;
+		all = cfg_save_all.ival || !*cfg_save_all.string;
 	}
 	if (!f)
 	{

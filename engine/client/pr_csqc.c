@@ -1310,17 +1310,21 @@ void buildmatricies(void)
 	float modelview[16];
 	float proj[16];
 	float ofovx = r_refdef.fov_x,ofovy=r_refdef.fov_y;
+	extern cvar_t gl_mindist, gl_maxdist;
 
 	V_ApplyAFov(csqc_playerview);
 
-	/*build modelview and projection*/
+	/*build view and projection matricies*/
 	Matrix4x4_CM_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
-	Matrix4x4_CM_Projection2(proj, r_refdef.fov_x, r_refdef.fov_y, 4);
+	if (r_refdef.useperspective)
+		Matrix4x4_CM_Projection2(proj, r_refdef.fov_x, r_refdef.fov_y, 4);
+	else
+		Matrix4x4_CM_Orthographic(proj, -r_refdef.fov_x/2, r_refdef.fov_x/2, -r_refdef.fov_y/2, r_refdef.fov_y/2, gl_mindist.value, gl_maxdist.value>=1?gl_maxdist.value:9999);
 
-	/*build the project matrix*/
+	/*build the vp matrix*/
 	Matrix4_Multiply(proj, modelview, csqc_proj_matrix);
 
-	/*build the unproject matrix (inverted project matrix)*/
+	/*build the unproject matrix (inverted vp matrix)*/
 	Matrix4_Invert(csqc_proj_matrix, csqc_proj_matrix_inverse);
 
 	csqc_rebuildmatricies = false;
@@ -1378,7 +1382,7 @@ static void QCBUILTIN PF_cs_unproject (pubprogfuncs_t *prinst, struct globalvars
 		ty = 1-ty;
 		v[0] = tx*2-1;
 		v[1] = ty*2-1;
-		v[2] = in[2];//*2-1;
+		v[2] = in[2]*2-1;	//gl projection matrix scales -1 to 1 (unlike d3d, which is 0 to 1)
 		v[3] = 1;
 
 		//don't use 1, because the far clip plane really is an infinite distance away. and that tends to result division by infinity.
@@ -4229,7 +4233,7 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 
 		csqcdelta_playerents[playernum] = ent;
 
-		return true;
+		return G_FLOAT(OFS_RETURN);
 	}
 	else if (csqcdelta_playerents[playernum])
 	{

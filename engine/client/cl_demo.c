@@ -473,6 +473,9 @@ qboolean CL_GetDemoMessage (void)
 		if (cls.timedemo)
 		if (cls.td_startframe == -1 && cls.state == ca_active)
 		{	//start the timer only once we are connected.
+			//make sure everything is loaded, to avoid stalls
+			COM_WorkerFullSync();
+
 			cls.td_starttime = Sys_DoubleTime();
 			cls.td_startframe = host_framecount;
 
@@ -748,6 +751,7 @@ readit:
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
 			int seat;
+			cl.defaultnetsplit = 0;
 			switch(cls_lasttype)
 			{
 			case dem_multiple:
@@ -764,20 +768,30 @@ readit:
 					olddemotime = demotime;
 					goto readnext;
 				}
+				cl.defaultnetsplit = seat;
 				break;
 			case dem_single:
-				for (seat = 0; seat < cl.splitclients; seat++)
 				{
-					tracknum = cl.playerview[seat].cam_spec_track;
-					if (!cl.playerview[seat].cam_auto)
-						tracknum = -1;
-					if (tracknum == -1 || !(cls_lastto != tracknum))
-						continue;
-				}
-				if (seat == cl.splitclients)
-				{
-					olddemotime = demotime;
-					goto readnext;
+					int maxseat = cl.splitclients;
+					//only accept single messages that are directed to the first player view.
+					//this is too problematic otherwise (apparently mvdsv doesn't use dem_multiple for team says any more).
+					if (1)
+						maxseat = 1;
+					for (seat = 0; seat < maxseat; seat++)
+					{
+						tracknum = cl.playerview[seat].cam_spec_track;
+						if (!cl.playerview[seat].cam_auto)
+							tracknum = -1;
+						if (tracknum == -1 || (cls_lastto != tracknum))
+							continue;
+						break;
+					}
+					if (seat == maxseat)
+					{
+						olddemotime = demotime;
+						goto readnext;
+					}
+					cl.defaultnetsplit = seat;
 				}
 				break;
 			case dem_all:

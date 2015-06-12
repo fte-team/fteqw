@@ -393,6 +393,10 @@ void SCR_HUD_DrawFPS(hud_t *hud)
 
     if (HUD_PrepareDraw(hud, strlen(st)*8, 8, &x, &y))
     {
+		vmnetinfo_t *netinfo = GetNetworkInfo();
+		if (netinfo->capturing == 2)	//don't show fps if its locked to something anyway.
+			return;
+
 		if ((hud_fps_style->value) == 1)
 			Draw_Alt_String(x, y, st);
 		else if ((hud_fps_style->value) == 2) {
@@ -674,11 +678,11 @@ static void SCR_HUD_DrawPing(hud_t *hud)
 
 //        period = max(hud_ping_period->value, 0);
 
-        ping_avg = (int)(netinfo->ping.avg*1000 + 0.5);
-        ping_min = (int)(netinfo->ping.mn*1000 + 0.5);
-        ping_max = (int)(netinfo->ping.mx*1000 + 0.5);
-        ping_dev = netinfo->ping.stddev;
-		pl = netinfo->ping.loss*100;
+        ping_avg = (int)(netinfo->ping.s_avg*1000 + 0.5);
+        ping_min = (int)(netinfo->ping.s_mn*1000 + 0.5);
+        ping_max = (int)(netinfo->ping.s_mx*1000 + 0.5);
+        ping_dev = netinfo->ping.ms_stddev;
+		pl = netinfo->loss.dropped*100;
 
         clamp(ping_avg, 0, 999);
         clamp(ping_min, 0, 999);
@@ -937,28 +941,28 @@ static void SCR_NetStats(int x, int y, float period, vmnetinfo_t *netinfo)
 
         last_calculated = t;
 
-        ping_avg = (int)(netinfo->ping.avg + 0.5);
-        ping_min = (int)(netinfo->ping.mn + 0.5);
-        ping_max = (int)(netinfo->ping.mx + 0.5);
-        ping_dev = netinfo->ping.stddev;
+        ping_avg = (int)(netinfo->ping.s_avg*1000 + 0.5);
+        ping_min = (int)(netinfo->ping.s_mn*1000 + 0.5);
+        ping_max = (int)(netinfo->ping.s_mx*1000 + 0.5);
+        ping_dev = netinfo->ping.ms_stddev;
 
         clamp(ping_avg, 0, 999);
         clamp(ping_min, 0, 999);
         clamp(ping_max, 0, 999);
         clamp(ping_dev, 0, 99.9);
 
-        f_avg = -1;//(int)(result.ping_f_avg + 0.5);
-        f_min = -1;//(int)(result.ping_f_min + 0.5);
-        f_max = -1;//(int)(result.ping_f_max + 0.5);
+        f_avg = (int)(netinfo->ping.fr_avg+0.5);
+        f_min = netinfo->ping.fr_mn;
+        f_max = netinfo->ping.fr_mx;
 
-        clamp(f_avg, 0, 99.9);
-        clamp(f_min, 0, 99.9);
-        clamp(f_max, 0, 99.9);
+        clamp(f_avg, 0, 99);
+        clamp(f_min, 0, 99);
+        clamp(f_max, 0, 99);
 
-        lost_lost     = (int)(netinfo->ping.loss  + 0.5);
-        lost_rate     = -1;//(int)(result.lost_rate  + 0.5);
-        lost_delta    = -1;//(int)(result.lost_delta + 0.5);
-        lost_total    = -1;//(int)(result.lost_lost + result.lost_rate + result.lost_delta + 0.5);
+        lost_lost     = (int)(netinfo->loss.dropped*100  + 0.5);
+        lost_rate     = (int)(netinfo->loss.choked*100  + 0.5);
+        lost_delta    = (int)(netinfo->loss.invalid*100  + 0.5);
+        lost_total    = (int)((netinfo->loss.dropped + netinfo->loss.choked + netinfo->loss.invalid)*100 + 0.5);
 
         clamp(lost_lost,  0, 100);
         clamp(lost_rate,  0, 100);
@@ -966,9 +970,9 @@ static void SCR_NetStats(int x, int y, float period, vmnetinfo_t *netinfo)
         clamp(lost_total, 0, 100);
 
 		//per packet sizes
-//        size_in  = (int)(netinfo->clrate.size_in  + 0.5);
-//        size_out = (int)(netinfo->size_out + 0.5);
-//        size_all = (int)(netinfo->size_in + result.size_out + 0.5);
+        size_in  = (int)(netinfo->clrate.in_bps/netinfo->clrate.in_pps + 0.5);
+        size_out = (int)(netinfo->clrate.out_bps/netinfo->clrate.out_pps + 0.5);
+        size_all = (int)(netinfo->clrate.in_bps/netinfo->clrate.in_pps + netinfo->clrate.out_bps/netinfo->clrate.out_pps + 0.5);
 
 		//overall rate
         bandwidth_in  = (int)(netinfo->clrate.in_bps  + 0.5);
@@ -982,25 +986,25 @@ static void SCR_NetStats(int x, int y, float period, vmnetinfo_t *netinfo)
         clamp(bandwidth_out, 0, 99999);
         clamp(bandwidth_all, 0, 99999);
 
-//        with_delta = result.delta;
+        with_delta = !pCvar_GetFloat("cl_nodelta");
     }
 
     Draw_Alt_String(x+36, y, "latency");
     y+=12;
 
-    snprintf (line, sizeof (line), "min  %4.1f %3d ms", f_min, ping_min);
+    snprintf (line, sizeof (line), "min  %4f %3d ms", f_min, ping_min);
     Draw_String(x, y, line);
     y+=8;
 
-    snprintf(line, sizeof (line), "avg  %4.1f %3d ms", f_avg, ping_avg);
+    snprintf(line, sizeof (line), "avg  %4f %3d ms", f_avg, ping_avg);
     Draw_String(x, y, line);
     y+=8;
 
-    snprintf(line, sizeof (line), "max  %4.1f %3d ms", f_max, ping_max);
+    snprintf(line, sizeof (line), "max  %4f %3d ms", f_max, ping_max);
     Draw_String(x, y, line);
     y+=8;
 
-    snprintf(line, sizeof (line), "dev     %5.2f ms", ping_dev);
+    snprintf(line, sizeof (line), "dev     %f ms", ping_dev);
     Draw_String(x, y, line);
     y+=12;
 
@@ -1060,9 +1064,11 @@ static void SCR_HUD_DrawNetStats(hud_t *hud)
     width = 16*8 ;
     height = 12 + 8 + 8 + 8 + 8 + 16 + 8 + 8 + 8 + 8 + 16 + 8 + 8 + 8;
 
-    if (HUD_PrepareDraw(hud, width, height, &x, &y))
+	if (!netinfo || netinfo->capturing==2)
+		HUD_PrepareDraw(hud, 0, 0, &x, &y);
+	else if (HUD_PrepareDraw(hud, width, height, &x, &y))
 	{
-//        SCR_NetStats(x, y, hud_net_period->value);
+        SCR_NetStats(x, y, hud_net_period->value, netinfo);
 	}
 }
 
@@ -2401,7 +2407,7 @@ static void SCR_HUD_NetProblem (hud_t *hud) {
 	if(scale == NULL)
 		scale = HUD_FindVar(hud, "scale");
 
-	if (netinfo->ping.loss < 1)
+	if (netinfo->loss.dropped < 1)
 	{
 		if (hud_editor)
 			HUD_PrepareDraw(hud, picwidth, picheight, &x, &y);
@@ -2440,7 +2446,12 @@ void SCR_HUD_DrawGroup(hud_t *hud, int width, int height, mpic_t *pic, int pic_s
 	float picwidth = 64;
 	float picheight = 64;
 
-	pDraw_ImageSize((intptr_t)pic, &picwidth, &picheight);
+	if (pic && pDraw_ImageSize((intptr_t)pic, &picwidth, &picheight) <= 0)
+	{
+		pic = NULL;
+		picwidth = 64;
+		picheight = 64;
+	}
 
 	clamp(width, 1, 99999);
     clamp(height, 1, 99999);
@@ -7862,7 +7873,7 @@ void CommonDraw_Init(void)
 	HUD_Register("tracking", NULL, "Shows the name of tracked player.",
 		HUD_PLUSMINUS, ca_active, 9, SCR_HUD_DrawTracking,
 		"1", "face", "center", "before", "0", "0", "0", "0 0 0", NULL,
-		"format", "^mTracking:^m %t %n, ^mJUMP^m for next", //"Tracking: team name, JUMP for next", "Tracking:" and "JUMP" are brown. default: "Tracking %t %n, [JUMP] for next"
+		"format", "^mTracking:^m %t %n"/*, ^mJUMP^m for next"*/, //"Tracking: team name, JUMP for next", "Tracking:" and "JUMP" are brown. default: "Tracking %t %n, [JUMP] for next"
 		"scale", "1",
 		NULL);
 

@@ -2314,9 +2314,12 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 
 	if (key == K_MOUSE1 && IN_MouseDevIsTouch(devid))
 	{
-		dc = SCR_ShowPics_ClickCommand(mousecursor_x, mousecursor_y);
-		if (dc)
+		char *button = SCR_ShowPics_ClickCommand(mousecursor_x, mousecursor_y);
+		if (button)
+		{
+			dc = button;
 			bl = RESTRICT_INSECURE;
+		}
 		else
 		{
 			int bkey = Sbar_TranslateHudClick();
@@ -2327,7 +2330,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 			}
 		}
 
-		if (!dc)	//no buttons to click, 
+		if (!button)	//no buttons to click, 
 		{
 			bkey = IN_TranslateMButtonPress(devid);
 			if (bkey)
@@ -2335,7 +2338,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 				dc = keybindings[bkey][modifierstate];
 				bl = bindcmdlevel[bkey][modifierstate];
 			}
-			else
+			else if (!Key_MouseShouldBeFree())
 			{
 				key_repeats[key] = 0;
 				return;

@@ -247,6 +247,8 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(style,"Used by the light util to decide how an entity's light should animate. On an entity with pflags set, this also affects realtime lights.")\
 	comfieldfloat(pflags,"Realtime lighting flags")\
 	comfieldfloat(clientcolors,NULL)\
+	/*comfieldfloat(baseframe,"Specifies the current frame(group) to use for the lower (numerically) bones of a skeletal model. The basebone field specifies the bone where the regular frame field takes over.")*/	/*FTESS_QC_BASEFRAME*/\
+	/*comfieldfloat(basebone,"Specifies the bone at which the baseframe* fields stop being effective.")*/	/*FTE_SSQC_BASEFRAME*/\
 	comfieldfloat(dimension_see,"This is the dimension mask (bitfield) that the client is allowed to see. Entities and events not in this dimension mask will be invisible.")/*EXT_DIMENSION_VISIBLE*/\
 	comfieldfloat(dimension_seen,"This is the dimension mask (bitfield) that the client is visible within. Clients that cannot see this dimension mask will not see this entity.")/*EXT_DIMENSION_VISIBLE*/\
 	comfieldfloat(dimension_ghost,"If this entity is visible only within these dimensions, it will become transparent, as if a ghost.")/*EXT_DIMENSION_GHOST*/\

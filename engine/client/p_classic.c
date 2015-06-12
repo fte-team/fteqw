@@ -389,7 +389,10 @@ static void PClassic_DrawParticles(void)
 		particleframe = -1;
 	}
 
-	r_partscale = 0.004 * tan (r_refdef.fov_x * (M_PI / 180) * 0.5f);
+	if (r_refdef.useperspective)
+		r_partscale = 0.004 * tan (r_refdef.fov_x * (M_PI / 180) * 0.5f);
+	else
+		r_partscale = 0;
 	VectorScale (vup, 1.5, up);
 	VectorScale (vright, 1.5, right);
 

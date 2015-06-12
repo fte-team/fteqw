@@ -2338,8 +2338,15 @@ int FTENET_Generic_GetLocalAddresses(struct ftenet_generic_connection_s *con, un
 			!*(int*)&adr.address.ip6[12])
 		{
 			//ipv6 socket bound to the ipv4-any address is a bit weird, but oh well.
-			//FIXME: should we first validate that we support hybrid sockets?
+#ifdef _WIN32
+			//win32 is buggy and treats binding to [::] as [::ffff:0.0.0.0] (even with pure ipv6 sockets)
+			//explicitly binding to [::ffff:0.0.0.0] appears to fail in windows, thus any such socket will definitely support ipv6.
+			qboolean canipv4 = (con->addrtype[0] == NA_IP) || (con->addrtype[1] == NA_IP);
+			found = FTENET_GetLocalAddress(adr.port, false, canipv4, true, adrflags, addresses, maxaddresses);
+#else
+			//FIXME: we should validate that we support hybrid sockets?
 			found = FTENET_GetLocalAddress(adr.port, false, true, false, adrflags, addresses, maxaddresses);
+#endif
 		}
 		else
 		{
@@ -2357,13 +2364,7 @@ int FTENET_Generic_GetLocalAddresses(struct ftenet_generic_connection_s *con, un
 					ipx = true;
 				else if (adr.type == NA_IPV6)
 				{
-#ifdef IPV6_V6ONLY
-					int ipv6only = true;
-					int optlen = sizeof(ipv6only);
-					getsockopt(con->thesocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&ipv6only, &optlen);
-					if (!ipv6only)
-						ipv4 = true;
-#endif
+					ipv4 = (con->addrtype[0] == NA_IP) || (con->addrtype[1] == NA_IP);
 					ipv6 = true;
 				}
 
@@ -2633,6 +2634,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 */
 				((struct sockaddr_in6*)&qs)->sin6_port = port;
 				temp = sizeof(struct sockaddr_in6);
+				adr.type = NA_IPV6;
 				hybrid = true;
 			}
 			else
@@ -5000,6 +5002,7 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 	netadr_t	addr[64];
 	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
 	int			flags[sizeof(addr)/sizeof(addr[0])];
+	qboolean	warn = true;
 
 	if (!collection)
 		return;
@@ -5008,11 +5011,73 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 
 	for (i = 0; i < m; i++)
 	{
-		if (addr[i].type == NA_INVALID)
-			Con_Printf("net address (%s): no addresses\n", con[i]->name);
-		else
+		if (addr[i].type != NA_INVALID)
+		{
+			warn = false;
+			if (addr[i].type == NA_LOOPBACK)
+			{
+				//we don't list 127.0.0.1 or ::1, so don't bother with this either. its not interesting.
+//				Con_Printf("internal address (%s): %s\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+				continue;
+			}
+			if (addr[i].type == NA_IPV6)
+			{
+				if ((*(int*)addr[i].address.ip6&BigLong(0xffc00000)) == BigLong(0xfe800000))	//fe80::/10
+				{
+					Con_Printf("lan address (%s): %s (link-local)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					continue;
+				}
+				if ((*(int*)addr[i].address.ip6&BigLong(0xfe000000)) == BigLong(0xfc00000))	//fc::/7
+				{
+					Con_Printf("lan address (%s): %s (ULA/private)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					continue;
+				}
+				if (*(int*)addr[i].address.ip6 == BigLong(0x20010000)) //2001::/32
+				{
+					Con_Printf("net address (%s): %s (toredo)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					continue;
+				}
+				if ((*(int*)addr[i].address.ip6&BigLong(0xffff0000)) == BigLong(0x20020000)) //2002::/16
+				{
+					Con_Printf("net address (%s): %s (6to4)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					continue;
+				}
+			}
+			if (addr[i].type == NA_IP)
+			{
+				if ((*(int*)addr[i].address.ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
+				{
+					Con_Printf("lan address (%s): %s (link-local)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					continue;
+				}
+				if ((*(int*)addr[i].address.ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
+				{
+					Con_Printf("lan address (%s): %s (private)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					continue;
+				}
+				if ((*(int*)addr[i].address.ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
+				{
+					Con_Printf("lan address (%s): %s (private)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					continue;
+				}
+				if ((*(int*)addr[i].address.ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
+				{
+					Con_Printf("lan address (%s): %s (private)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					continue;
+				}
+				if ((*(int*)addr[i].address.ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//10.64.x.x/10
+				{
+					Con_Printf("lan address (%s): %s (CGNAT)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+					continue;
+				}
+			}
 			Con_Printf("net address (%s): %s\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+
+		}
 	}
+
+	if (warn)
+		Con_Printf("net address (%s): no addresses\n", con[i]->name);
 }
 
 //=============================================================================

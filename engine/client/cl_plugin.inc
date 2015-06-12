@@ -529,12 +529,20 @@ typedef struct {
 	int seats;
 	struct
 	{
-		float avg;
-		float mn;
-		float mx;
-		float stddev;
-		float loss;
+		float s_avg;
+		float s_mn;
+		float s_mx;
+		float ms_stddev;
+		float fr_avg;
+		int fr_mn;
+		int fr_mx;
 	} ping;
+	struct
+	{	//decimals
+		float dropped;
+		float choked;
+		float invalid;
+	} loss;
 	float mlatency;
 	float mrate;
 	float vlatency;
@@ -555,6 +563,7 @@ typedef struct {
 		float out_pps;
 		float out_bps;
 	} svrate;
+	int capturing;
 } vmnetinfo_t;
 #define has(x) (((quintptr_t)&((vmnetinfo_t*)NULL)->x + sizeof(((vmnetinfo_t*)NULL)->x)) <= outlen)
 //aka: misc other hud timing crap
@@ -564,11 +573,20 @@ static qintptr_t VARGS Plug_GetNetworkInfo(void *offset, quintptr_t mask, const 
 	unsigned int outlen = VM_LONG(arg[1]);
 	if (VM_OOB(arg[0], outlen))
 		return false;
+
+	if (has(capturing))
+	{
+#ifdef NOMEDIA
+		outptr->capturing = 0;
+#else
+		outptr->capturing = Media_Capturing();
+#endif
+	}
 	
 	if (has(seats))
 		outptr->seats = cl.splitclients;
 	if (has(ping))		
-		outptr->ping.loss = CL_CalcNet2 (&outptr->ping.avg, &outptr->ping.mn, &outptr->ping.mx, &outptr->ping.stddev);
+		CL_CalcNet2 (&outptr->ping.s_avg, &outptr->ping.s_mn, &outptr->ping.s_mx, &outptr->ping.ms_stddev, &outptr->ping.fr_avg, &outptr->ping.fr_mn, &outptr->ping.fr_mx, &outptr->loss.dropped, &outptr->loss.choked, &outptr->loss.invalid);
 		
 	if (has(mlatency))
 		outptr->mlatency = 0;
@@ -975,7 +993,7 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("GetLocalPlayerNumbers",	Plug_GetLocalPlayerNumbers, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetServerInfo",			Plug_GetServerInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SetUserInfo",				Plug_SetUserInfo, PLUG_BIF_NEEDSRENDERER);
-//	Plug_RegisterBuiltin("GetNetworkInfo",			Plug_GetNetworkInfo, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("GetNetworkInfo",			Plug_GetNetworkInfo, PLUG_BIF_NEEDSRENDERER);
 	
 	Plug_RegisterBuiltin("S_RawAudio",				Plug_S_RawAudio, PLUG_BIF_NEEDSRENDERER);
 	

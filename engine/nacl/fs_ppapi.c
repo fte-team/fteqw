@@ -395,7 +395,7 @@ static void FSPPAPI_ClosePath(searchpathfuncs_t *handle)
 	Z_Free(handle);
 }
 
-int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(const char *, qofs_t, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
 	int rootlen = strlen(rootpath);
 	char *sub;
@@ -412,7 +412,7 @@ int Sys_EnumerateFiles (const char *rootpath, const char *match, int (*func)(con
 			sub++;
 		if (wildcmp(match, sub))
 		{
-			if (!func(sub, f->length, parm, spath))
+			if (!func(sub, f->length, (time_t)0, parm, spath))
 				return false;
 		}
 	}

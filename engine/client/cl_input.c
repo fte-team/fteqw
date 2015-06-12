@@ -2015,6 +2015,7 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("+jump",		IN_JumpDown);
 	Cmd_AddCommand ("-jump",		IN_JumpUp);
 	Cmd_AddCommand ("impulse",		IN_Impulse);
+	Cmd_AddCommandD("weapon",		IN_Impulse, "Partial implementation for compatibility");	//for pseudo-compat with ezquake.
 	Cmd_AddCommand ("+klook",		IN_KLookDown);
 	Cmd_AddCommand ("-klook",		IN_KLookUp);
 	Cmd_AddCommand ("+mlook",		IN_MLookDown);

@@ -223,8 +223,51 @@ char *TP_ItemName(unsigned int itbit)
 	return "Dunno";
 }
 
-void Replace_In_String(char *string, size_t strsize, char leadchar, int patterns, ...)
+void Replace_In_String(char *src, size_t strsize, char leadchar, int patterns, ...)
 {
+	char orig[1024];
+	char *out, *outstop;
+	va_list ap;
+	int i;
+
+	strlcpy(orig, src, sizeof(orig));
+	out = src;
+	outstop = out + strsize-1;
+	src = orig;
+
+	while(*src)
+	{
+		if (out == outstop)
+			break;
+		if (*src != leadchar)
+			*out++ = *src++;
+		else if (*++src == leadchar)
+			*out++ = leadchar;
+		else
+		{
+			va_start(ap, patterns);
+			for (i = 0; i < patterns; i++)
+			{
+				const char *arg = va_arg(ap, const char *);
+				const char *val = va_arg(ap, const char *);
+				size_t alen = strlen(arg);
+				if (!strncmp(src, arg, strlen(arg)))
+				{
+					strlcpy(out, val, (outstop-out)+1);
+					out += strlen(out);
+					src += alen;
+					break;
+				}
+			}
+			if (i == patterns)
+			{
+				strlcpy(out, "unknown", (outstop-out)+1);
+				out += strlen(out);
+			}
+			va_end(ap);
+		}
+	}
+	*out = 0;
 }
 
 int SCR_GetClockStringWidth(const char *s, qbool big, float scale)
@@ -354,6 +397,13 @@ void SCR_DrawSmallClock(int x, int y, int style, int blink, float scale, const c
         x+= 8*scale;
         t++;
     }
+}
+
+#include "builtin_huds.h"
+void EZHud_UseNquake_f(void)
+{
+	const char *hudstr = builtin_hud_nquake;
+	pCmd_AddText(hudstr, true); 
 }
 
 struct 
@@ -577,6 +627,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 		Plug_Export("Tick", EZHud_Tick) &&
 		Plug_Export("ExecuteCommand", EZHud_ExecuteCommand))
 	{
+		Cmd_AddCommand("ezhud_nquake", EZHud_UseNquake_f);
 		HUD_Init();
 		HUD_Editor_Init();
 		return 1;

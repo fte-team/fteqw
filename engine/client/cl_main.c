@@ -63,7 +63,6 @@ extern cvar_t net_compress;
 cvar_t	cl_defaultport		= CVARAFD("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0, "The default port to connect to servers.\nQW: "STRINGIFY(PORT_QWSERVER)", NQ: "STRINGIFY(PORT_NQSERVER)", Q2: "STRINGIFY(PORT_Q2SERVER)".");
 
 cvar_t	cfg_save_name = CVARFD("cfg_save_name", "fte", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "This is the config name that is saved by default when no argument is specified.");
-cvar_t	cfg_save_all = CVARFD("cfg_save_all", "", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, cfg_save ALWAYS saves all cvars. If 0, cfg_save only ever saves archived cvars. If empty, cfg_saves all cvars only when an explicit filename was given.");
 
 cvar_t	cl_splitscreen = CVARD("cl_splitscreen", "0", "Enables splitscreen support. See also: allow_splitscreen, in_rawinput*, the \"p\" command.");
 
@@ -3558,7 +3557,6 @@ void CL_Init (void)
 	Cvar_Register (&developer, cl_controlgroup);
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
-	Cvar_Register (&cfg_save_all, cl_controlgroup);
 
 	Cvar_Register (&cl_sendguid, cl_controlgroup);
 	Cvar_Register (&cl_defaultport, cl_controlgroup);

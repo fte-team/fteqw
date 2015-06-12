@@ -47,6 +47,7 @@ typedef struct cmdalias_s
 
 cmdalias_t	*cmd_alias;
 
+cvar_t	cfg_save_all = CVARFD("cfg_save_all", "", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, cfg_save ALWAYS saves all cvars. If 0, cfg_save only ever saves archived cvars. If empty, cfg_saves all cvars only when an explicit filename was given.");
 cvar_t cl_warncmd			= CVARF("cl_warncmd", "1", CVAR_NOSAVE|CVAR_NORESET);
 cvar_t cl_aliasoverlap		= CVARF("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER);
 
@@ -3244,6 +3245,7 @@ void Cmd_Init (void)
 
 	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");
 	Cvar_Register (&cl_warncmd, "Warnings");
+	Cvar_Register (&cfg_save_all, "client operation options");
 
 #ifndef SERVERONLY
 	rcon_level.ival = atof(rcon_level.enginevalue);	//client is restricted to not be allowed to change restrictions.

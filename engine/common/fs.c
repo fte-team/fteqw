@@ -1483,7 +1483,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 //returns false to stop the enumeration. check the return value of the fs enumerator to see if it was canceled by this return value.
 static int QDECL FS_NullFSEnumerator(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
-	return FALSE;
+	return false;
 }
 
 //opens a file in the same (writable) path that contains an existing version of the file or one of the other patterns listed

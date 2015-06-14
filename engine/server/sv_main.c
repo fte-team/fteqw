@@ -1828,7 +1828,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))// || ISDPCLIENT(&temp))
 		{
 			char *ptr;
-			int maxents = client->max_net_ents;//maxpacketentities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+			int maxents = /*client->max_net_ents;//*/maxpacketentities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
 			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
 							sizeof(*client->pendingentbits)*client->max_net_ents+
 							sizeof(unsigned int)*maxents*UPDATE_BACKUP+
@@ -3862,7 +3862,7 @@ if necessary
 void SV_CheckTimeouts (void)
 {
 	int		i;
-	client_t	*cl;
+	client_t	*cl, *cont;
 	float	droptime;
 	int	nclients;
 
@@ -3875,7 +3875,10 @@ void SV_CheckTimeouts (void)
 		{
 			if (!cl->spectator)
 				nclients++;
-			if (cl->netchan.last_received < droptime && cl->netchan.remote_address.type != NA_LOOPBACK && cl->protocol != SCP_BAD)
+			cont = cl;
+			if (cont->controller)
+				cont = cont->controller;
+			if (cont->netchan.last_received < droptime && cl->netchan.remote_address.type != NA_LOOPBACK && cl->protocol != SCP_BAD)
 			{
 				SV_BroadcastTPrintf (PRINT_HIGH, "Client %s timed out\n", cl->name);
 				SV_DropClient (cl);

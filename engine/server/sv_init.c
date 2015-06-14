@@ -435,39 +435,41 @@ void SV_CalcPHS (void)
 	unsigned	*dest, *src;
 	qbyte	*scan, *lf;
 	int		count, vcount;
+	model_t *model = sv.world.worldmodel;
 
-	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
+	if (model->pvs || model->fromgame == fg_quake2 || model->fromgame == fg_quake3)
 	{
 		//PHS calcs are pointless with Q2 bsps
 		return;
 	}
 
-	num = sv.world.worldmodel->numclusters;
+	//FIXME: this can take a significant time on some maps, and should ideally be pushed to a worker thread.
+	num = model->numclusters;
 	rowwords = (num+31)>>5;
 	rowbytes = rowwords*4;
 
 	if (!sv_calcphs.ival || (sv_calcphs.ival == 2 && (rowbytes*num >= 0x100000 || (!deathmatch.ival && !coop.ival))))
 	{
-		sv.pvs = ZG_Malloc(&sv.world.worldmodel->memgroup, rowbytes*num);
-		scan = sv.pvs;
+		model->pvs = ZG_Malloc(&model->memgroup, rowbytes*num);
+		scan = model->pvs;
 		for (i=0 ; i<num ; i++, scan+=rowbytes)
 		{
-			lf = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, i, scan, rowbytes);
+			lf = model->funcs.ClusterPVS(model, i, scan, rowbytes);
 			if (lf != scan)
 				memcpy (scan, lf, rowbytes);
 		}
 
 		Con_DPrintf("Skipping PHS\n");
-		sv.phs = NULL;
+		model->phs = NULL;
 		return;
 	}
 
-	sv.pvs = ZG_Malloc(&sv.world.worldmodel->memgroup, rowbytes*num);
-	scan = sv.pvs;
+	model->pvs = ZG_Malloc(&model->memgroup, rowbytes*num);
+	scan = model->pvs;
 	vcount = 0;
 	for (i=0 ; i<num ; i++, scan+=rowbytes)
 	{
-		lf = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, i, scan, rowbytes);
+		lf = model->funcs.ClusterPVS(model, i, scan, rowbytes);
 		if (lf != scan)
 			memcpy (scan, lf, rowbytes);
 		if (i == 0)
@@ -483,7 +485,7 @@ void SV_CalcPHS (void)
 	if (developer.value)
 		Con_TPrintf ("Building PHS...\n");
 
-	sv.phs = ZG_Malloc (&sv.world.worldmodel->memgroup, rowbytes*num);
+	model->phs = ZG_Malloc (&model->memgroup, rowbytes*num);
 
 	/*this routine takes an exponential amount of time, so cache it if its too big*/
 	if (rowbytes*num >= 0x100000)
@@ -495,7 +497,7 @@ void SV_CalcPHS (void)
 			VFS_READ(f, hdr, sizeof(hdr));
 			if (memcmp(hdr, "QPHS\1\0\0\0", 8) || VFS_GETLEN(f) != rowbytes*num + 8)
 			{
-				VFS_READ(f, sv.phs, rowbytes*num);
+				VFS_READ(f, model->phs, rowbytes*num);
 				VFS_CLOSE(f);
 				Con_DPrintf("Loaded cached PHS\n");
 				return;
@@ -507,8 +509,8 @@ void SV_CalcPHS (void)
 	}
 
 	count = 0;
-	scan = sv.pvs;
-	dest = (unsigned *)sv.phs;
+	scan = model->pvs;
+	dest = (unsigned *)model->phs;
 	for (i=0 ; i<num ; i++, dest += rowwords, scan += rowbytes)
 	{
 		memcpy (dest, scan, rowbytes);
@@ -527,7 +529,7 @@ void SV_CalcPHS (void)
 				index = ((j<<3)+k);
 				if (index >= num)
 					continue;
-				src = (unsigned *)sv.pvs + index*rowwords;
+				src = (unsigned *)model->pvs + index*rowwords;
 				for (l=0 ; l<rowwords ; l++)
 					dest[l] |= src[l];
 			}
@@ -546,7 +548,7 @@ void SV_CalcPHS (void)
 		if (f)
 		{
 			VFS_WRITE(f, "QPHS\1\0\0\0", 8);
-			VFS_WRITE(f, sv.phs, rowbytes*num);
+			VFS_WRITE(f, model->phs, rowbytes*num);
 			VFS_CLOSE(f);
 			Con_Printf("Written PHS cache (%u bytes)\n", rowbytes*num);
 		}

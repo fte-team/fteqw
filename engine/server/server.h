@@ -157,7 +157,6 @@ typedef struct
 	int			spawned_observer_slots;
 
 	model_t	*models[MAX_PRECACHE_MODELS];
-	qbyte		*pvs, *phs;			// fully expanded and decompressed
 
 	struct client_s	*skipbprintclient;	//SV_BroadcastPrint skips this client
 

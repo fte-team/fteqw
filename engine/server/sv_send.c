@@ -776,13 +776,13 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
-			if (!sv.phs)	/*broadcast if no pvs*/
+			if (!sv.world.worldmodel->phs)	/*broadcast if no pvs*/
 				mask = NULL;
 			else
 			{
 				cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
 				if (cluster >= 0)
-					mask = sv.phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+					mask = sv.world.worldmodel->phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
 				else
 					mask = NULL;
 			}
@@ -793,7 +793,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PVS:
 			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin);
 			if (cluster >= 0)
-				mask = sv.pvs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+				mask = sv.world.worldmodel->pvs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
 			else
 				mask = NULL;
 			break;

@@ -2598,6 +2598,42 @@ void SV_PrecacheList_f(void)
 	}
 }
 
+void SV_MemInfo_f(void)
+{
+	int sz, i, fr, csfr;
+	laggedpacket_t *lp;
+	client_t *cl;
+	Cmd_ExecuteString("mod_memlist;hunkprint", Cmd_ExecLevel);
+	for (i = 0; i < svs.allocated_client_slots; i++)
+	{
+		cl = &svs.clients[i];
+		if (cl->state)
+		{
+			Con_Printf("%s\n", cl->name);
+			sz = 0;
+			for (lp = cl->laggedpacket; lp; lp = lp->next)
+				sz += lp->length;
+
+			fr = 0;
+			if (cl->pendingentbits)
+			{
+				int maxents = cl->frameunion.frames[0].entities.max_entities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+				fr =	sizeof(cl)*UPDATE_BACKUP+
+						sizeof(*cl->pendingentbits)*cl->max_net_ents+
+						sizeof(unsigned int)*maxents*UPDATE_BACKUP+
+						sizeof(unsigned int)*maxents*UPDATE_BACKUP;
+			}
+			else
+				fr = (sizeof(client_frame_t)+sizeof(entity_state_t)*cl->frameunion.frames[0].entities.max_entities)*UPDATE_BACKUP;
+			fr += sizeof(*cl->sentents.entities) * cl->sentents.max_entities;
+
+			csfr = sizeof(*cl->csqcentversions) * cl->max_net_ents;
+	
+			Con_Printf("%i minping=%i frame=%i, csqc=%i\n", sizeof(svs.clients[i]), sz, fr, csfr);
+		}
+	}
+}
+
 /*
 ==================
 SV_InitOperatorCommands
@@ -2682,6 +2718,8 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("pin_reload", SV_Pin_Reload_f);
 	Cmd_AddCommand ("pin_delete", SV_Pin_Delete_f);
 	Cmd_AddCommand ("pin_add", SV_Pin_Add_f);
+
+	Cmd_AddCommand("sv_meminfo", SV_MemInfo_f);
 
 //	Cmd_AddCommand ("reallyevilhack", SV_ReallyEvilHack_f);
 

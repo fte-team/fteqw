@@ -3364,7 +3364,8 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 				{
 					int cluster;
 					unsigned char *mask;
-					if (sv.phs)
+					qbyte *phs = sv.world.worldmodel->phs;
+					if (phs)
 					{
 						//FIXME: this lookup should be cachable or something.
 						if (client->edict)
@@ -3373,7 +3374,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 							cluster = -1;	//mvd
 						if (cluster >= 0)
 						{
-							mask = sv.phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
+							mask = phs + cluster * 4*((sv.world.worldmodel->numclusters+31)>>5);
 
 							cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, ent->v->origin);
 							if (cluster >= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )

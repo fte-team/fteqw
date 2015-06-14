@@ -926,6 +926,7 @@ typedef struct model_s
 	int			numtextures;
 	texture_t	**textures;
 
+	qbyte		*pvs, *phs;			// fully expanded and decompressed
 	qbyte		*visdata;
 	void	*vis;
 	qbyte		*lightdata;

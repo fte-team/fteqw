@@ -109,7 +109,6 @@ void Mod_UpdateLightmap(int snum)
 }
 #endif
 
-#ifndef SERVERONLY
 static void Mod_MemList_f(void)
 {
 	int m;
@@ -123,7 +122,7 @@ static void Mod_MemList_f(void)
 	}
 	Con_Printf("Total: %i bytes\n", total);
 }
-
+#ifndef SERVERONLY
 static void Mod_BatchList_f(void)
 {
 	int m, i;
@@ -535,7 +534,8 @@ Mod_Init
 */
 void Mod_Init (qboolean initial)
 {
-	mod_known = malloc(MAX_MOD_KNOWN * sizeof(*mod_known));
+	if (!mod_known)
+		mod_known = malloc(MAX_MOD_KNOWN * sizeof(*mod_known));
 	if (!initial)
 	{
 		Mod_ClearAll();	//shouldn't be needed
@@ -543,8 +543,8 @@ void Mod_Init (qboolean initial)
 		mod_numknown = 0;
 		Q1BSP_Init();
 
-#ifndef SERVERONLY
 		Cmd_AddCommand("mod_memlist", Mod_MemList_f);
+#ifndef SERVERONLY
 		Cmd_AddCommand("mod_batchlist", Mod_BatchList_f);
 		Cmd_AddCommand("mod_texturelist", Mod_TextureList_f);
 		Cmd_AddCommand("mod_usetexture", Mod_BlockTextureColour_f);
@@ -603,6 +603,9 @@ void Mod_Shutdown (qboolean final)
 {
 	if (final)
 	{
+		Mod_ClearAll();
+		Mod_Purge(MP_RESET);
+
 		Mod_UnRegisterAllModelFormats(NULL);
 #ifdef Q2BSPS
 		CM_Shutdown();

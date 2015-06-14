@@ -1884,7 +1884,7 @@ void Plug_Shutdown(qboolean preliminary)
 			if ((*p)->blockcloses)
 				p = &(*p)->next;
 			else
-				Plug_Close(plugs);
+				Plug_Close(*p);
 		}
 	}
 	else

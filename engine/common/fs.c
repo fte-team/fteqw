@@ -89,7 +89,7 @@ void FS_UnRegisterFileSystemModule(void *module)
 {
 	int i;
 	qboolean found = false;
-	if (Sys_LockMutex(fs_thread_mutex))
+	if (!fs_thread_mutex || Sys_LockMutex(fs_thread_mutex))
 	{
 		for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
 		{
@@ -100,10 +100,13 @@ void FS_UnRegisterFileSystemModule(void *module)
 				found = true;
 			}
 		}
-		Sys_UnlockMutex(fs_thread_mutex);
-		if (found)
+		if (fs_thread_mutex)
 		{
-			Cmd_ExecuteString("fs_restart", RESTRICT_LOCAL);
+			Sys_UnlockMutex(fs_thread_mutex);
+			if (found)
+			{
+				Cmd_ExecuteString("fs_restart", RESTRICT_LOCAL);
+			}
 		}
 	}
 }

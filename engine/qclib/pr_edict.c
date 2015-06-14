@@ -35,7 +35,7 @@ edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num)
 
 	prinst.edicttable[num] = *(struct edict_s **)&e = (void*)externs->memalloc(externs->edictsize);
 	memset(e, 0, externs->edictsize);
-	e->fields = PRAddressableExtend(progfuncs, fields_size);
+	e->fields = PRAddressableExtend(progfuncs, NULL, fields_size, 0);
 	e->entnum = num;
 	QC_ClearEdict(&progfuncs->funcs, (struct edict_s*)e);
 
@@ -2883,13 +2883,11 @@ retry:
 	}
 
 	len=sizeof(char)*pr_progs->numstrings;
-	s = PRAddressableExtend(progfuncs, len);
-	memcpy(s, pr_strings, len);
+	s = PRAddressableExtend(progfuncs, pr_strings, len, 0);
 	pr_strings = (char *)s;
 
 	len=sizeof(float)*pr_progs->numglobals;
-	s = PRAddressableExtend(progfuncs, len + sizeof(float)*2);
-	memcpy(s, pr_globals, len);
+	s = PRAddressableExtend(progfuncs, pr_globals, len, sizeof(float)*2);
 	glob = pr_globals = (float *)s;
 
 	if (progfuncs->funcs.stringtable)

@@ -5639,14 +5639,15 @@ void CSQC_Shutdown(void)
 		CSQC_ForgetThreads();
 		PR_ReleaseFonts(kdm_game);
 		PR_Common_Shutdown(csqcprogs, false);
+		World_Destroy(&csqc_world);
 		csqcprogs->CloseProgs(csqcprogs);
+		csqc_world.progs = csqcprogs = NULL;
 	}
-	csqc_world.progs = csqcprogs = NULL;
+	else
+		World_Destroy(&csqc_world);
 
 	Cmd_RemoveCommands(CS_ConsoleCommand_f);
 
-	if (csqc_world.rbe)
-		csqc_world.rbe->End(&csqc_world);
 
 	Z_Free(csqcdelta_pack_new.e);
 	memset(&csqcdelta_pack_new, 0, sizeof(csqcdelta_pack_new));

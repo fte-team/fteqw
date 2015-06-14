@@ -2097,18 +2097,21 @@ qboolean QDECL World_RegisterPhysicsEngine(const char *enginename, void(QDECL*st
 	world_current_physics_engine = startupfunc;
 	return true;
 }
-void QDECL World_ShutdownPhysics(world_t *world)
+static void World_ShutdownPhysics(world_t *world)
 {
 	unsigned int u;
 	wedict_t *ed;
 	if (!world->rbe)
 		return;
 
-	for (u = 0; u < world->num_edicts; u++)
+	if (world->progs)
 	{
-		ed = WEDICT_NUM(world->progs, u);
-		world->rbe->RemoveJointFromEntity(world, ed);
-		world->rbe->RemoveFromEntity(world, ed);
+		for (u = 0; u < world->num_edicts; u++)
+		{
+			ed = WEDICT_NUM(world->progs, u);
+			world->rbe->RemoveJointFromEntity(world, ed);
+			world->rbe->RemoveFromEntity(world, ed);
+		}
 	}
 	world->rbe->End(world);
 }
@@ -2136,6 +2139,16 @@ void World_RBE_Start(world_t *world)
 		world_current_physics_engine(world);
 }
 
+void World_Destroy(world_t *world)
+{
+	World_ShutdownPhysics(world);
+
+	Z_Free(world->areanodes);
+	world->areanodes = NULL;
+	world->areanodedepth = 0;
+
+	memset(world, 0, sizeof(*world));
+}
 
 #ifdef USERBE
 static qboolean GenerateCollisionMesh_BSP(world_t *world, model_t *mod, wedict_t *ed, vec3_t geomcenter)

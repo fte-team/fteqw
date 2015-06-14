@@ -80,9 +80,13 @@ void PRAddressableRelocate(progfuncs_t *progfuncs, char *oldb, char *newb, int o
 //for 64bit systems. :)
 //addressable memory is memory available to the vm itself for writing.
 //once allocated, it cannot be freed for the lifetime of the VM.
-void *PRAddressableExtend(progfuncs_t *progfuncs, int ammount)
+//if src is null, data srcsize is left uninitialised for speed.
+//pad is always 0-filled.
+void *PRAddressableExtend(progfuncs_t *progfuncs, void *src, size_t srcsize, int pad)
 {
-	ammount = (ammount + 4)&~3;	//round up to 4
+	char *ptr;
+	int ammount = (srcsize+pad + 4)&~3;	//round up to 4
+	pad = ammount - srcsize;
 	if (prinst.addressableused + ammount > prinst.addressablesize)
 	{
 		/*only do this if the caller states that it can cope with addressable-block relocations/resizes*/
@@ -133,6 +137,10 @@ void *PRAddressableExtend(progfuncs_t *progfuncs, int ammount)
 		Sys_Error("VirtualAlloc failed. Blame windows.");
 #endif
 
+	ptr = &prinst.addressablehunk[prinst.addressableused-ammount];
+	if (src)
+		memcpy(ptr, src, srcsize);
+	memset(ptr+srcsize, 0, pad);
 	return &prinst.addressablehunk[prinst.addressableused-ammount];
 }
 
@@ -265,13 +273,14 @@ static void *PDECL PR_memalloc (pubprogfuncs_t *ppf, unsigned int size)
 	/*assign more space*/
 	if (!ub)
 	{
-		ub = PRAddressableExtend(progfuncs, size);
+		ub = PRAddressableExtend(progfuncs, NULL, size, 0);
 		if (!ub)
 		{
 			printf("PF_memalloc: memory exausted\n");
 			PR_StackTrace(&progfuncs->funcs, false);
 			return NULL;
 		}
+		//FIXME: merge with previous block
 	}
 	memset(ub, 0, size);
 	ub->marker = MARKER;
@@ -441,7 +450,7 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 	prinst.edicttable = PRHunkAlloc(progfuncs, maxedicts*sizeof(struct edicts_s *), "edicttable");
 	sv_edicts = PRHunkAlloc(progfuncs, externs->edictsize, "edict0");
 	prinst.edicttable[0] = sv_edicts;
-	((edictrun_t*)prinst.edicttable[0])->fields = PRAddressableExtend(progfuncs, max_fields_size);
+	((edictrun_t*)prinst.edicttable[0])->fields = PRAddressableExtend(progfuncs, NULL, fields_size, max_fields_size-fields_size);
 	QC_ClearEdict(&progfuncs->funcs, sv_edicts);
 	sv_num_edicts = 1;
 
@@ -497,6 +506,9 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 		
 	maxprogs = max_progs;
 	pr_typecurrent=-1;
+
+	prinst.nexttempstring = 0;
+	prinst.maxtempstrings = 0;
 
 	prinst.reorganisefields = false;
 

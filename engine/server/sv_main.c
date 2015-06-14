@@ -253,13 +253,20 @@ void SV_Shutdown (void)
 
 	NET_Shutdown ();
 
+	Plug_Shutdown(true);
+	Mod_Shutdown(true);
 	COM_DestroyWorkerThread();
+	FS_Shutdown();
+	Plug_Shutdown(false);
+	Cvar_Shutdown();
+	Cmd_Shutdown();
 
 #ifdef WEBSERVER
 	IWebShutdown();
 #endif
 
 	COM_BiDi_Shutdown();
+	TL_Shutdown();
 	Memory_DeInit();
 }
 

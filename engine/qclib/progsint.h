@@ -224,7 +224,7 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 int PRHunkMark(progfuncs_t *progfuncs);
 void PRHunkFree(progfuncs_t *progfuncs, int mark);
 void *PRHunkAlloc(progfuncs_t *progfuncs, int size, char *name);
-void *PRAddressableExtend(progfuncs_t *progfuncs, int ammount);
+void *PRAddressableExtend(progfuncs_t *progfuncs, void *src, size_t srcsize, int pad);
 
 #ifdef printf
 #undef LIKEPRINTF

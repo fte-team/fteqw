@@ -23,7 +23,7 @@ struct sockaddr;
 #include "quakedef.h"
 #include "netinc.h"
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__linux__) && !defined(ANDROID)
 #define USE_GETHOSTNAME_LOCALLISTING
 #endif
 
@@ -2256,7 +2256,7 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 //in linux, looking up our own hostname to retrieve a list of local interface addresses will give no indication that other systems are able to do the same thing and is thus not supported.
 //there's some special api instead
 //glibc 2.3.
-//also available with certain bsds.
+//also available with certain bsds, I'm but unsure which preprocessor we can use.
 #include <ifaddrs.h>
 
 static struct ifaddrs *iflist;
@@ -2290,7 +2290,7 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 #ifdef HAVE_IPV4
 			(fam == AF_INET && ipv4) ||
 #endif
-#ifdef HAVE_IPV6
+#ifdef IPPROTO_IPV6
 			(fam == AF_INET6 && ipv6) ||
 #endif
 #ifdef USEIPX
@@ -2298,7 +2298,7 @@ int FTENET_GetLocalAddress(int port, qboolean ipx, qboolean ipv4, qboolean ipv6,
 #endif
 			0)
 		{
-			SockadrToNetadr((struct sockaddr_qstorage*)&ifa->ifa_addr, &addresses[idx]);
+			SockadrToNetadr((struct sockaddr_qstorage*)ifa->ifa_addr, &addresses[idx]);
 			addresses[idx].port = port;
 			adrflags[idx] = 0;
 			idx++;
@@ -5013,66 +5013,53 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 	{
 		if (addr[i].type != NA_INVALID)
 		{
-			warn = false;
+			char *scope = "net";
+			char *desc = NULL;
 			if (addr[i].type == NA_LOOPBACK)
 			{
 				//we don't list 127.0.0.1 or ::1, so don't bother with this either. its not interesting.
-//				Con_Printf("internal address (%s): %s\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-				continue;
+				scope = NULL/*"internal"*/, desc = "internal";
 			}
-			if (addr[i].type == NA_IPV6)
+			else if (addr[i].type == NA_IPV6)
 			{
 				if ((*(int*)addr[i].address.ip6&BigLong(0xffc00000)) == BigLong(0xfe800000))	//fe80::/10
-				{
-					Con_Printf("lan address (%s): %s (link-local)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-					continue;
-				}
-				if ((*(int*)addr[i].address.ip6&BigLong(0xfe000000)) == BigLong(0xfc00000))	//fc::/7
-				{
-					Con_Printf("lan address (%s): %s (ULA/private)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-					continue;
-				}
-				if (*(int*)addr[i].address.ip6 == BigLong(0x20010000)) //2001::/32
-				{
-					Con_Printf("net address (%s): %s (toredo)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-					continue;
-				}
-				if ((*(int*)addr[i].address.ip6&BigLong(0xffff0000)) == BigLong(0x20020000)) //2002::/16
-				{
-					Con_Printf("net address (%s): %s (6to4)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-					continue;
-				}
+					scope = "lan", desc = "link-local";
+				else if ((*(int*)addr[i].address.ip6&BigLong(0xfe000000)) == BigLong(0xfc00000))	//fc::/7
+					scope = "lan", desc = "ULA/private";
+				else if (*(int*)addr[i].address.ip6 == BigLong(0x20010000)) //2001::/32
+					scope = "net", desc = "toredo";
+				else if ((*(int*)addr[i].address.ip6&BigLong(0xffff0000)) == BigLong(0x20020000)) //2002::/16
+					scope = "net", desc = "6to4";
+				else if (memcmp(addr[i].address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1", 16) == 0)	//::1
+					scope = "local", desc = "localhost";
+				else if (memcmp(addr[i].address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) == 0)	//::
+					scope = "net", desc = "any";
 			}
-			if (addr[i].type == NA_IP)
+			else if (addr[i].type == NA_IP)
 			{
 				if ((*(int*)addr[i].address.ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
-				{
-					Con_Printf("lan address (%s): %s (link-local)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-					continue;
-				}
-				if ((*(int*)addr[i].address.ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
-				{
-					Con_Printf("lan address (%s): %s (private)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-					continue;
-				}
-				if ((*(int*)addr[i].address.ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
-				{
-					Con_Printf("lan address (%s): %s (private)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-					continue;
-				}
-				if ((*(int*)addr[i].address.ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
-				{
-					Con_Printf("lan address (%s): %s (private)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-					continue;
-				}
-				if ((*(int*)addr[i].address.ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//10.64.x.x/10
-				{
-					Con_Printf("lan address (%s): %s (CGNAT)\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-					continue;
-				}
+					scope = "lan", desc = "link-local";
+				else if ((*(int*)addr[i].address.ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
+					scope = "lan", desc = "private";
+				else if ((*(int*)addr[i].address.ip&BigLong(0xff000000)) == BigLong(0x7f000000))	//127.x.x.x/8
+					scope = "local", desc = "localhost";
+				else if ((*(int*)addr[i].address.ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
+					scope = "lan", desc = "private";
+				else if ((*(int*)addr[i].address.ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
+					scope = "lan", desc = "private";
+				else if ((*(int*)addr[i].address.ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//10.64.x.x/10
+					scope = "lan", desc = "CGNAT";
+				else if (*(int*)addr[i].address.ip == BigLong(0x00000000))	//0.0.0.0/32
+					scope = "lan", desc = "any";
 			}
-			Con_Printf("net address (%s): %s\n", con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
-
+			if (scope)
+			{
+				warn = false;
+				if (desc)
+					Con_Printf("%s address (%s): %s (%s)\n", scope, con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]), desc);
+				else
+					Con_Printf("%s address (%s): %s\n", scope, con[i]->name, NET_AdrToString(adrbuf, sizeof(adrbuf), &addr[i]));
+			}
 		}
 	}
 

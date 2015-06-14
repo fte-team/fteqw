@@ -623,6 +623,7 @@ void PR_Deinit(void)
 	if (svprogfuncs)
 	{
 		PR_Common_Shutdown(svprogfuncs, false);
+		World_Destroy(&sv.world);
 		if (svprogfuncs->CloseProgs)
 			svprogfuncs->CloseProgs(svprogfuncs);
 		sv.world.progs = NULL;
@@ -641,8 +642,7 @@ void PR_Deinit(void)
 		}
 	}
 
-	if (sv.world.rbe)
-		sv.world.rbe->End(&sv.world);
+	World_Destroy(&sv.world);
 
 #ifdef SQL
 	SQL_KillServers();

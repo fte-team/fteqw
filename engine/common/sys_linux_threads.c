@@ -34,7 +34,7 @@ void Sys_ThreadsInit(void)
 {
 	mainthread = pthread_self();
 }
-static qboolean Sys_IsThread(void *thread)
+qboolean Sys_IsThread(void *thread)
 {
 	return pthread_equal(pthread_self(), *(pthread_t*)thread);
 }

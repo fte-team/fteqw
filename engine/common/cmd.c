@@ -2967,9 +2967,8 @@ void Cmd_WriteConfig_f(void)
 #else
 		snprintf(fname, sizeof(fname), "fte.cfg");
 #endif
-		FS_NativePath(fname, FS_GAMEONLY, sysname, sizeof(sysname));
-		FS_CreatePath(fname, FS_GAMEONLY);
-		f = FS_OpenVFS(fname, "wbp", FS_GAMEONLY);
+
+		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 3, "quake.rc", "*.cfg", "configs/*.cfg");
 
 		all = cfg_save_all.ival;
 	}

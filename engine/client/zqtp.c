@@ -2207,9 +2207,13 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 				*plr = player;
 			}
 		}
-	}
 
-	if (!flags) // search for fake player
+//		if (i == cl.allocated_client_slots)
+//			return flags;
+
+	}
+/*
+	if (!flags) // search for fake/non player
 	{
 		if ((name = strstr(s, ": "))) // use name as temp
 		{
@@ -2220,6 +2224,7 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 				flags |= TPM_TEAM;
 		}
 	}
+*/
 
 	return flags;
 }

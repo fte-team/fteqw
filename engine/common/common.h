@@ -459,6 +459,8 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 vfsfile_t *FS_OpenTemp(void);
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport);
 
+vfsfile_t *FS_OpenWithFriends(const char *fname, char *sysname, size_t sysnamesize, int numfriends, ...);
+
 #define countof(array) (sizeof(array)/sizeof(array[0]))
 #ifdef _WIN32
 //windows doesn't support utf-8. Which is a shame really, because that's the charset we expect from everything.
@@ -485,7 +487,6 @@ qbyte *QDECL COM_LoadStackFile (const char *path, void *buffer, int bufsize, siz
 qbyte *COM_LoadTempFile (const char *path, size_t *fsize);
 qbyte *COM_LoadTempMoreFile (const char *path, size_t *fsize);	//allocates a little bit more without freeing old temp
 //qbyte *COM_LoadHunkFile (const char *path);
-qbyte *COM_LoadMallocFile (const char *path, size_t *fsize);
 
 searchpathfuncs_t *COM_IteratePaths (void **iterator, char *pathbuffer, int pathbuffersize, char *dirname, int dirnamesize);
 void COM_FlushFSCache(qboolean purge, qboolean domutex);	//a file was written using fopen

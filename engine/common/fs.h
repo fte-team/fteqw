@@ -74,4 +74,5 @@ void FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man),
 #define SPF_EXPLICIT		8	//a root gamedir (bumps depth on gamedir depth checks). 
 #define SPF_UNTRUSTED		16	//has been downloaded from somewhere. configs inside it should never be execed with local access rights.
 #define SPF_PRIVATE			32	//private to the client. ie: the fte dir.
+#define SPF_WRITABLE		64	//safe to write here. lots of weird rules etc.
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags);

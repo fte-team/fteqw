@@ -157,12 +157,12 @@ qboolean Sys_IsMainThread(void)
 {
 	return mainthread == GetCurrentThreadId();
 }
-/*
+
 qboolean Sys_IsThread(void *thread)
 {
 	return GetThreadId(thread) == GetCurrentThreadId();
 }
-*/
+
 
 /* Mutex calls */
 /*

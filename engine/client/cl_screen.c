@@ -239,6 +239,7 @@ cvar_t	show_speed	= SCVAR("show_speed", "0");
 cvar_t	show_speed_x	= SCVAR("show_speed_x", "-1");
 cvar_t	show_speed_y	= SCVAR("show_speed_y", "-9");
 cvar_t	scr_loadingrefresh = SCVAR("scr_loadingrefresh", "0");
+cvar_t	scr_showobituaries = CVAR("scr_showobituaries", "0");
 
 void *scr_curcursor;
 
@@ -263,6 +264,7 @@ void CLSCR_Init(void)
 	Cvar_Register(&show_speed_x, cl_screengroup);
 	Cvar_Register(&show_speed_y, cl_screengroup);
 	Cvar_Register(&scr_neticontimeout, cl_screengroup);
+	Cvar_Register(&scr_showobituaries, cl_screengroup);
 
 
 	memset(&key_customcursor, 0, sizeof(key_customcursor));
@@ -425,6 +427,8 @@ void VARGS Stats_Message(char *msg, ...)
 	va_list		argptr;
 	char str[2048];
 	cprint_t *p = &scr_centerprint[0];
+	if (!scr_showobituaries.ival)
+		return;
 	if (p->time_off >= 0)
 		return;
 
@@ -1433,23 +1437,18 @@ void SCR_DrawGameClock(void)
 	else
 		timelimit = 0;
 
-	if (cl.playerview[0].statsf[STAT_MATCHSTARTTIME])
+	if (cl.matchstate == MATCH_STANDBY)
+		showtime = cl.servertime;
+	else if (cl.playerview[0].statsf[STAT_MATCHSTARTTIME])
 		showtime = timelimit - (cl.servertime - cl.playerview[0].statsf[STAT_MATCHSTARTTIME]);
-	else
-		showtime = timelimit - cl.matchgametime;
+	else 
+		showtime = timelimit - (cl.servertime - cl.matchgametimestart);
 
 	if (showtime < 0)
-	{
 		showtime *= -1;
-		minutes = showtime/60;
-		seconds = (int)showtime - (minutes*60);
-	}
-	else
-	{
-		minutes = showtime/60;
-		seconds = (int)showtime - (minutes*60);
-	}
 
+	minutes = showtime/60;
+	seconds = (int)showtime - (minutes*60);
 	sprintf(str, " %02i:%02i", minutes, seconds);
 
 	SCR_StringXY(str, show_gameclock_x.value, show_gameclock_y.value);

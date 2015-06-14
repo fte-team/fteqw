@@ -102,6 +102,7 @@ void Sys_SetThreadName(unsigned int dwThreadID, char *threadName);
 void Sys_ThreadsInit(void);
 //qboolean Sys_IsThread(void *thread);
 qboolean Sys_IsMainThread(void);
+qboolean Sys_IsThread(void *thread);
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize);
 void Sys_WaitOnThread(void *thread);
 void Sys_DetachThread(void *thread);

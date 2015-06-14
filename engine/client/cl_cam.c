@@ -45,8 +45,6 @@ enum
 	TM_MODHINTS,		//using the mod's //at hints
 	TM_STATS			//parsing mvd stats and making our own choices
 } autotrackmode;
-int autotrack_hint;		//the latest hint from the mod, might be negative for invalid.
-int autotrack_killer;	//if someone kills the guy we're tracking, this is the guy we should switch to.
 char *autotrack_statsrule;
 static void QDECL CL_AutoTrackChanged(cvar_t *v, char *oldval)
 {
@@ -148,10 +146,13 @@ static int CL_FindHighTrack(int seat, char *rule)
 
 	//set a default to the currently tracked player, to reuse the current player we're tracking if someone lower equalises.
 	j = cl.playerview[seat].cam_spec_track;
-	if (j >= 0)
+	if (j >= 0 && cl.players[j].name[0] && !cl.players[j].spectator)
 		max = CL_TrackScore(&cl.players[j], rule);
 	else
+	{
 		max = -9999;
+		j = -1;
+	}
 
 	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
@@ -183,15 +184,15 @@ static int CL_AutoTrack_Choose(int seat)
 {
 	int best = -1;
 	if (autotrackmode == TM_KILLER)
-		best = autotrack_killer;
-	if (autotrackmode == TM_MODHINTS && seat == 0 && autotrack_hint >= 0)
-		best = autotrack_hint;
+		best = cl.autotrack_killer;
+	if (autotrackmode == TM_MODHINTS && seat == 0 && cl.autotrack_hint >= 0)
+		best = cl.autotrack_hint;
 	if (autotrackmode == TM_STATS && cls.demoplayback == DPB_MVD)
 		best = CL_FindHighTrack(seat, autotrack_statsrule);
 	if (autotrackmode == TM_HIGHTRACK || best == -1)
 		best = CL_FindHighTrack(seat, "f");
 	//TM_USER should generally avoid autotracking
-	autotrack_killer = best;	//killer should continue to track whatever is currently tracked until its changed by frag message parsing
+	cl.autotrack_killer = best;	//killer should continue to track whatever is currently tracked until its changed by frag message parsing
 	return best;
 }
 
@@ -402,8 +403,13 @@ static void Cam_CheckHighTarget(playerview_t *pv)
 	j = CL_AutoTrack_Choose(pv - cl.playerview);
 	if (j >= 0)
 	{
-		if (!pv->cam_locked || pv->cam_spec_track != j)
+		if (pv->cam_spec_track != j || !pv->cam_locked)
 		{
+			if (cl.teamplay)
+				Stats_Message("Now tracking:\n%s\n%s", cl.players[j].name, cl.players[j].team);
+			else
+				Stats_Message("Now tracking:\n%s", cl.players[j].name);
+			pv->cam_auto++;
 			Cam_Lock(pv, j);
 			//un-lock any higher seats watching our new target. this keeps things ordered.
 			for (spv = pv+1; spv >= cl.playerview && spv < &cl.playerview[cl.splitclients]; spv++)
@@ -577,12 +583,12 @@ void Cam_SetAutoTrack(int userid)
 {	//this is a hint from the server about who to track
 	int slot;
 	playerview_t *pv = &cl.playerview[0];
-	autotrack_hint = -1;
+	cl.autotrack_hint = -1;
 	for (slot = 0; slot < cl.allocated_client_slots; slot++)
 	{
 		if (cl.players[slot].userid == userid)
 		{
-			autotrack_hint = slot;
+			cl.autotrack_hint = slot;
 			return;
 		}
 	}
@@ -719,6 +725,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 			{
 				Cam_Unlock(pv);
 				VectorCopy(pv->viewangles, cmd->angles);
+				autotrackmode = TM_USER;
 				return;
 			}
 		}
@@ -728,7 +735,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 	else
 	{
 		pv->cam_oldbuttons &= ~BUTTON_ATTACK;
-		if (!pv->cam_auto)
+		if (!pv->cam_auto && autotrackmode == TM_USER)
 		{
 			if ((cmd->buttons & BUTTON_JUMP) && !(pv->cam_oldbuttons & BUTTON_JUMP))
 				Cam_TrackCrosshairedPlayer(pv);

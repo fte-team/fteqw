@@ -322,6 +322,7 @@ void CL_MakeActive(char *gamename)
 		Con_DPrintf("%i additional FS searches\n", fs_finds);
 		fs_finds = 0;
 	}
+	cl.matchgametimestart = 0;
 	cls.state = ca_active;
 	S_Purge(true);
 	CL_UpdateWindowTitle();
@@ -1408,6 +1409,8 @@ void CL_ClearState (void)
 	cl.gametime = 0;
 	cl.gametimemark = 0;
 	cl.splitclients = 1;
+	cl.autotrack_hint = -1;
+	cl.autotrack_killer = -1;
 }
 
 /*
@@ -1932,7 +1935,7 @@ void CL_CheckServerInfo(void)
 	else
 		cl.matchstate = MATCH_DONTKNOW;
 	if (oldstate != cl.matchstate)
-		cl.matchgametime = 0;
+		cl.matchgametimestart = cl.gametime;
 
 	CL_CheckServerPacks();
 
@@ -4688,10 +4691,6 @@ double Host_Frame (double time)
 		spare = 0;
 
 	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
-	if (!cl.paused)
-	{
-		cl.matchgametime += host_frametime;
-	}
 	oldrealtime = realtime;
 
 	CL_ProgressDemoTime();

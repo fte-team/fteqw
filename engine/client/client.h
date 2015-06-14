@@ -632,6 +632,7 @@ struct playerview_s
 	int			cam_oldbuttons;			//
 	vec3_t		cam_viewangles;			//
 	double		cam_lastviewtime;		//
+	float		cam_reautotrack;		// timer to throttle tracking changes.
 	int			cam_spec_track;			// player# of who we are tracking
 	enum
 	{
@@ -682,6 +683,8 @@ typedef struct
 	int			movesequence;	// client->server frames
 
 	int			spectator;
+	int			autotrack_hint;		//the latest hint from the mod, might be negative for invalid.
+	int			autotrack_killer;	//if someone kills the guy we're tracking, this is the guy we should switch to.
 
 	double		last_ping_request;	// while showing scoreboard
 	double		last_servermessage;
@@ -818,7 +821,7 @@ typedef struct
 	qboolean sendprespawn;
 	int contentstage;
 
-	double matchgametime;
+	double matchgametimestart;
 	enum {
 		MATCH_DONTKNOW,
 		MATCH_COUNTDOWN,

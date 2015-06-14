@@ -1520,7 +1520,7 @@ static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
 {
 	int i, m;
 	if (!v2 || !v1)
-		return false;
+		return true;
 	m = (cl.worldmodel->numclusters+7)>>3;
 
 	for (i=(m&~3) ; i<m ; i++)

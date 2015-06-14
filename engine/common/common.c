@@ -2182,7 +2182,7 @@ unsigned int unicode_decode(int *error, const void *in, char **out, qboolean mar
 	if (markup && ((char*)in)[0] == '^' && ((char*)in)[1] == 'U' && ishexcode(((char*)in)[2]) && ishexcode(((char*)in)[3]) && ishexcode(((char*)in)[4]) && ishexcode(((char*)in)[5]))
 	{
 		*out = (char*)in + 6;
-		charcode = (dehex(((char*)in)[2]) << 12) | (dehex(((char*)in)[2]) << 8) | (dehex(((char*)in)[2]) << 4) | (dehex(((char*)in)[2]) << 0);
+		charcode = (dehex(((char*)in)[2]) << 12) | (dehex(((char*)in)[3]) << 8) | (dehex(((char*)in)[4]) << 4) | (dehex(((char*)in)[5]) << 0);
 	}
 	else if (markup && ((char*)in)[0] == '^' && ((char*)in)[1] == '{')
 	{
@@ -4720,6 +4720,7 @@ static void Sys_ErrorThread(void *ctx, void *data, size_t a, size_t b)
 }
 void COM_WorkerAbort(char *message)
 {
+	int us;
 	struct com_work_s work;
 	com_fatalerror = true;
 	if (Sys_IsMainThread())
@@ -4728,6 +4729,7 @@ void COM_WorkerAbort(char *message)
 	if (!com_workercondition[0])
 		return;	//Sys_IsMainThread was probably called too early...
 
+	memset(&work, 0, sizeof(work));
 	work.func = Sys_ErrorThread;
 	work.ctx = NULL;
 	work.data = message;
@@ -4745,8 +4747,36 @@ void COM_WorkerAbort(char *message)
 	Sys_ConditionSignal(com_workercondition[0]);
 	Sys_UnlockConditional(com_workercondition[0]);
 
-	while(com_fatalerror)
-		Sys_Sleep(0.1);
+	//find out which worker we are
+	for (us = WORKERTHREADS-1; us > 0; us--)
+		if (Sys_IsThread(com_workerthread[us]))
+			break;
+	if (us)
+	{
+		//and post any pending work we have back over to the main thread, because we're going down as soon as we can.
+		while(!com_workerdone[us])
+		{
+			struct com_work_s *w;
+			Sys_LockConditional(com_workercondition[us]);
+			w = com_work_head[us];
+			if (w)
+				com_work_head[us] = w->next;
+			if (!com_work_head[us])
+				com_work_head[us] = com_work_tail[us] = NULL;
+			Sys_UnlockConditional(com_workercondition[us]);
+			if (w)
+			{
+				COM_AddWork(0, w->func, w->ctx, w->data, w->a, w->b);
+				Z_Free(w);
+			}
+			else
+				Sys_ConditionSignal(com_workercondition[0]);
+
+			Sys_Sleep(0.1);
+		}
+		com_workerdone[0] = true;
+		Sys_ConditionSignal(com_workercondition[0]);
+	}
 	Sys_ThreadAbort();
 }
 //return if there's *any* loading that needs to be done anywhere.
@@ -4880,6 +4910,7 @@ void COM_AssertMainThread(const char *msg)
 void COM_DestroyWorkerThread(void)
 {
 	int i;
+	COM_WorkerFullSync();
 	com_fatalerror = false;
 	for (i = 0; i < WORKERTHREADS; i++)
 	{
@@ -4917,6 +4948,7 @@ void COM_DestroyWorkerThread(void)
 		if (com_workercondition[i])
 			Sys_DestroyConditional(com_workercondition[i]);
 		com_workercondition[i] = NULL;
+		com_workerthread[i] = NULL;
 	}
 
 	if (com_resourcemutex)

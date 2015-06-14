@@ -5384,13 +5384,31 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 			*(msg - 2) = 0; // it's assumed that msg has 2 chars before it due to strstr
 	}*/
 
+	if (*msg == '\r')
+	{
+		name = msg;
+		msg = strstr(msg, ": ");
+		if (msg)
+		{
+			name++;
+			*msg = 0;
+			msg+=2;
+			plrflags &= ~TPM_TEAM|TPM_OBSERVEDTEAM;
+		}
+		else
+		{
+			msg = name;
+			name = NULL;
+		}
+	}
+
 	if (msg[0] == '/' && msg[1] == 'm' && msg[2] == 'e' && msg[3] == ' ')
 	{
 		msg += 4;
 		memessage = true; // special /me formatting
 	}
 
-	if (plr) // use special formatting with a real chat message
+	if (plr && !name) // use special formatting with a real chat message
 		name = plr->name; // use player's name
 
 	if (cl_standardchat.ival)
@@ -5463,6 +5481,8 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 		else
 			Q_strncatz(fullchatmessage, " ", sizeof(fullchatmessage));
 	}
+	else
+		Q_strncatz(fullchatmessage, "\1", sizeof(fullchatmessage));
 
 	// print message
 	if (cl_parsewhitetext.value && (cl_parsewhitetext.value == 1 || (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM))))
@@ -6668,8 +6688,9 @@ void CLNQ_ParseProQuakeMessage (char *s)
 		break;
 
 	case pqc_match_time:
-		cl.matchgametime = MSG_ReadBytePQ(&s)*60;
-		cl.matchgametime += MSG_ReadBytePQ(&s);
+		cl.matchgametimestart = MSG_ReadBytePQ(&s)*60;
+		cl.matchgametimestart += MSG_ReadBytePQ(&s);
+		cl.matchgametimestart = cl.gametime - cl.matchgametimestart;
 		break;
 
 	case pqc_match_reset:

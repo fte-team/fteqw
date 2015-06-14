@@ -62,7 +62,7 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose);
 static void Mod_PrintFormats_f(void);
 
 #ifdef MAP_DOOM
-qboolean Mod_LoadDoomLevel(model_t *mod);
+qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize);
 #endif
 
 #ifdef DSPMODELS
@@ -1392,7 +1392,7 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		if (!*mt->name)	//I HATE MAPPERS!
 		{
 			sprintf(mt->name, "unnamed%i", i);
-			Con_Printf(CON_WARNING "warning: unnamed texture in %s, renaming to %s\n", loadmodel->name, mt->name);
+			Con_DPrintf(CON_WARNING "warning: unnamed texture in %s, renaming to %s\n", loadmodel->name, mt->name);
 		}
 
 		mt->width = LittleLong (mt->width);

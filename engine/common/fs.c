@@ -1480,7 +1480,66 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 	return true;
 }
 
-/*locates and opens a file*/
+//returns false to stop the enumeration. check the return value of the fs enumerator to see if it was canceled by this return value.
+static int QDECL FS_NullFSEnumerator(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	return FALSE;
+}
+
+//opens a file in the same (writable) path that contains an existing version of the file or one of the other patterns listed
+vfsfile_t *FS_OpenWithFriends(const char *fname, char *sysname, size_t sysnamesize, int numfriends, ...)
+{
+	searchpath_t *search;
+	searchpath_t *lastwritable = NULL;
+	flocation_t loc;
+	va_list ap;
+	int i;
+	char cleanname[MAX_QPATH];
+
+	fname = FS_GetCleanPath(fname, cleanname, sizeof(cleanname));
+	if (!fname)
+		return NULL;
+
+	for (search = com_searchpaths; search ; search = search->next)
+	{
+		if ((search->flags & SPF_EXPLICIT) && (search->flags & SPF_WRITABLE))
+			lastwritable = search;
+		if (search->handle->FindFile(search->handle, &loc, fname, NULL))
+			break;
+		
+		va_start(ap, numfriends);
+		for (i = 0; i < numfriends; i++)
+		{
+			char *path = va_arg(ap, char*);
+			if (!search->handle->EnumerateFiles(search->handle, path, FS_NullFSEnumerator, NULL))
+				break;
+		}
+		va_end(ap);
+		if (i < numfriends)
+			break;
+	}
+	if (lastwritable)
+	{
+		//figure out the system path
+		Q_strncpyz(sysname, lastwritable->logicalpath, sysnamesize);
+		FS_CleanDir(sysname, sysnamesize);
+		Q_strncatz(sysname, fname, sysnamesize);
+
+		//create the dir if needed and open the file.
+		COM_CreatePath(sysname);
+		return VFSOS_Open(sysname, "wbp");
+	}
+	return NULL;
+}
+
+/*locates and opens a file
+modes:
+r = read
+w = write
+a = append
+t = text mode (because windows sucks). binary is otherwise assumed.
+p = persist (ie: saved games and configs, but not downloads or large content)
+*/
 vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto)
 {
 	char cleanname[MAX_QPATH];
@@ -2163,6 +2222,8 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 	search->handle = handle;
 	Q_strncpyz(search->purepath, purepath, sizeof(search->purepath));
 	Q_strncpyz(search->logicalpath, logicalpath, sizeof(search->logicalpath));
+
+	flags &= ~SPF_WRITABLE;
 
 	//temp packages also do not nest
 	if (!(flags & SPF_TEMPORARY))
@@ -2908,21 +2969,21 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			{
 				//paths with a leading * are private, and not announced to clients that ask what the current gamedir is.
 				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, dir+1);
-				FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE);
+				FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE|(com_homepathenabled?0:SPF_WRITABLE));
 				if (com_homepathenabled)
 				{
 					Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, dir+1);
-					FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE);
+					FS_AddGameDirectory(&oldpaths, dir+1, syspath, reloadflags, SPF_EXPLICIT|SPF_PRIVATE|SPF_WRITABLE);
 				}
 			}
 			else
 			{
 				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, dir);
-				FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT);
+				FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT|(com_homepathenabled?0:SPF_WRITABLE));
 				if (com_homepathenabled)
 				{
 					Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, dir);
-					FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT);
+					FS_AddGameDirectory(&oldpaths, dir, syspath, reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
 				}
 			}
 		}

@@ -3,6 +3,20 @@
 #include "glquake.h"
 #include "shader.h"
 
+
+
+char *va2(char *buffer, size_t buffersize, const char *format, ...)
+{
+	va_list		argptr;
+
+	va_start (argptr, format);
+	buffer[--buffersize] = 0;
+	vsnprintf (buffer, buffersize, format, argptr);
+	va_end (argptr);
+
+	return buffer;
+}
+
 int SignbitsForPlane (mplane_t *out);
 int	PlaneTypeForNormal ( vec3_t normal );
 
@@ -208,7 +222,7 @@ unsigned int vertexsglbase;
 
 typedef struct
 {
-	char name[8];
+	char name[16];
 	shader_t *shader;
 	unsigned short width;
 	unsigned short height;
@@ -272,7 +286,12 @@ int Doom_PointContents(model_t *model, vec3_t axis[3], vec3_t p)
 	return FTECONTENTS_EMPTY;
 }
 
-qboolean Doom_Trace(model_t *model, int hulloverride, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int contentstype, trace_t *trace)
+/*
+fixme:
+use q2-style bsp collision using the trisoup for flats collisions.
+use blockmap for walls
+*/
+qboolean Doom_Trace(model_t *model, int hulloverride, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean iscapsule, unsigned int contentstype, trace_t *trace)
 {
 #if 0
 #define TRACESTEP	16
@@ -657,8 +676,8 @@ qboolean Doom_Trace(model_t *model, int hulloverride, int frame, vec3_t axis[3],
 
 	trace->allsolid = trace->startsolid = false;
 //Con_Printf("total = %f\n", trace->fraction);
-	return trace->fraction==1;
 #endif
+	return trace->fraction==1;
 }
 
 
@@ -688,7 +707,7 @@ void Doom_LoadPalette(void)
 	if (!paletteloaded)
 	{
 		paletteloaded = true;
-		file = FS_LoadMallocFile("wad/playpal");
+		file = FS_LoadMallocFile("wad/playpal", NULL);
 		if (file)
 		{
 			memcpy(doompalette, file, 768);
@@ -706,10 +725,9 @@ void Doom_LoadPalette(void)
 	}
 }
 #endif
-int Doom_LoadFlat(char *flatname)
+int Doom_LoadFlat(model_t *mod, char *flatname)
 {
 #ifndef SERVERONLY
-	char *file;
 	char texname[64];
 	int texnum;
 
@@ -725,23 +743,10 @@ int Doom_LoadFlat(char *flatname)
 	memset(gldoomtextures + numgldoomtextures, 0, sizeof(gldoomtextures[numgldoomtextures]));
 	numgldoomtextures++;
 
-	strncpy(gldoomtextures[texnum].name, texname, 8);
-
-	gldoomtextures[texnum].shader = R_RegisterShader(texname, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\n}\n}\n");
+	Q_strncpyz(gldoomtextures[texnum].name, texname, sizeof(gldoomtextures[texnum].name));
 
 	gldoomtextures[texnum].width = 64;
 	gldoomtextures[texnum].height = 64;
-	gldoomtextures[texnum].meshptr = &gldoomtextures[texnum].mesh;
-	gldoomtextures[texnum].batch.mesh = &gldoomtextures[texnum].meshptr;
-	gldoomtextures[texnum].batch.next = loadmodel->batches[gldoomtextures[texnum].shader->sort];
-	loadmodel->batches[gldoomtextures[texnum].shader->sort] = &gldoomtextures[texnum].batch;
-
-	file = FS_LoadMallocFile(texname);
-	if (file)
-	{
-		gldoomtextures[texnum].shader->defaulttextures.base = R_LoadTexture8Pal24(texname, 64, 64, file, doompalette, 0);
-		Z_Free(file);
-	}
 
 	return texnum;
 #else
@@ -814,7 +819,8 @@ static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float z1,
 	mesh->numvertexes += 4;
 	mesh->numindexes += 6;
 
-	BE_DrawMesh_Single(tex->shader, mesh, NULL, &tex->shader->defaulttextures, 0);
+	if (tex->shader)
+		BE_DrawMesh_Single(tex->shader, mesh, NULL, 0);
 }
 
 static void GLR_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int ceilheight, int numverts, unsigned short *verts, unsigned int colour4b)
@@ -859,7 +865,8 @@ static void GLR_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int 
 		mesh->numvertexes += numverts;
 		mesh->numindexes += numverts;
 
-		BE_DrawMesh_Single(floortex->shader, mesh, NULL, &floortex->shader->defaulttextures, 0);
+		if (floortex->shader)
+			BE_DrawMesh_Single(floortex->shader, mesh, NULL, 0);
 	}
 
 	//ceiling
@@ -898,7 +905,8 @@ static void GLR_DrawFlats(int floortexnum, int floorheight, int ceiltexnum, int 
 		mesh->numvertexes += numverts;
 		mesh->numindexes += numverts;
 
-		BE_DrawMesh_Single(ceiltex->shader, mesh, NULL, &ceiltex->shader->defaulttextures, 0);
+		if (ceiltex->shader)
+			BE_DrawMesh_Single(ceiltex->shader, mesh, NULL, 0);
 	}
 }
 
@@ -1125,7 +1133,7 @@ void GLR_DoomWorld(void)
 	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
 	{
 		t = &gldoomtextures[texnum];
-		if (t->mesh.numindexes)
+		if (t->mesh.numindexes && t->shader)
 		{
 			t->batch.next = cl.worldmodel->batches[t->shader->sort];
 			cl.worldmodel->batches[t->shader->sort] = &t->batch;
@@ -1375,7 +1383,7 @@ static unsigned short *Triangulate_Finish(int *numtris, unsigned short *old, int
 	return out;
 }
 
-static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
+static void Triangulate_Sectors(model_t *mod, dsector_t *sectorl, qboolean glbspinuse)
 {
 	int seg, nsec;
 	int i, sec=-1;
@@ -1448,8 +1456,8 @@ static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 
 	for (i = 0; i < sectorc; i++)
 	{
-		sectorm[i].ceilingtex = Doom_LoadFlat(sectorl[i].ceilingtexture);
-		sectorm[i].floortex = Doom_LoadFlat(sectorl[i].floortexture);
+		sectorm[i].ceilingtex = Doom_LoadFlat(mod, sectorl[i].ceilingtexture);
+		sectorm[i].floortex = Doom_LoadFlat(mod, sectorl[i].floortexture);
 		sectorm[i].lightlev = sectorl[i].lightlevel;
 		sectorm[i].specialtype = sectorl[i].specialtype;
 		sectorm[i].tag = sectorl[i].tag;
@@ -1464,9 +1472,9 @@ static void *textures2;
 static char *pnames;
 static void Doom_LoadTextureInfos(void)
 {
-	textures1 = FS_LoadMallocFile("wad/texture1");
-	textures2 = FS_LoadMallocFile("wad/texture2");
-	pnames = FS_LoadMallocFile("wad/pnames");
+	textures1 = FS_LoadMallocFile("wad/texture1", NULL);
+	textures2 = FS_LoadMallocFile("wad/texture2", NULL);
+	pnames = FS_LoadMallocFile("wad/pnames", NULL);
 }
 
 typedef struct {
@@ -1494,7 +1502,7 @@ typedef struct {
 	short ypos;
 } doomimage_t;
 
-static void Doom_ExtractPName(unsigned int *out, doomimage_t *di, int outwidth, int outheight, int x, int y)
+static void Doom_ExtractPName(unsigned int *out, doomimage_t *di, size_t imgsize, int outwidth, int outheight, int x, int y)
 {
 	unsigned int *colpointers;
 	int c, fr, rc, extra;
@@ -1518,7 +1526,7 @@ static void Doom_ExtractPName(unsigned int *out, doomimage_t *di, int outwidth, 
 		if (c+x >= outwidth)
 			break;
 
-		if (colpointers[c] >= com_filesize)
+		if (colpointers[c] >= imgsize)
 			break;
 		coldata = data + colpointers[c];
 		while(1)
@@ -1535,7 +1543,8 @@ static void Doom_ExtractPName(unsigned int *out, doomimage_t *di, int outwidth, 
 
 			if (fr<0)
 			{
-				coldata -= fr;	//plus
+				coldata += -fr;	//plus
+				rc -= -fr;
 				fr = 0;
 			}
 
@@ -1587,11 +1596,16 @@ static texid_t Doom_LoadPatchFromTexWad(char *name, void *texlump, unsigned shor
 			tc = (ddoomtexturecomponant_t*)(tx+1);
 			for (i = 0; i < tx->componantcount; i++, tc++)
 			{
+				doomimage_t *img;
+				size_t imgsize;
 				strncpy(patch+8, pnames+4+8*tc->patchnum, 8);
 				Q_strlwr(patch+8);
 				patch[16] = '\0';
+				Q_strncatz(patch, ".pat", sizeof(patch));
 
-				Doom_ExtractPName(tex, (doomimage_t *)COM_LoadTempFile(patch), tx->width, tx->height, tc->xoffset, tc->yoffset);
+				img = (doomimage_t *)FS_LoadMallocFile(patch, &imgsize);
+				Doom_ExtractPName(tex, img, imgsize, tx->width, tx->height, tc->xoffset, tc->yoffset);
+				BZ_Free(img);
 			}
 
 			*hasalpha = false;
@@ -1614,15 +1628,15 @@ static texid_t Doom_LoadPatchFromTexWad(char *name, void *texlump, unsigned shor
 
 	return r_nulltex;
 }
-static int Doom_LoadPatch(char *name)
+static int Doom_LoadPatch(model_t *mod, char *name)
 {
-	texid_t tex;
 	qboolean hasalpha = false;
 	int texnum;
+	size_t nlen = strnlen(name, 8);
 
 	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
 	{
-		if(!strncmp(name, gldoomtextures[texnum].name, 8))
+		if(!memcmp(name, gldoomtextures[texnum].name, nlen) && !gldoomtextures[texnum].name[nlen])
 		{
 			return texnum;
 		}
@@ -1634,32 +1648,59 @@ static int Doom_LoadPatch(char *name)
 	memset(gldoomtextures + numgldoomtextures, 0, sizeof(gldoomtextures[numgldoomtextures]));
 	numgldoomtextures++;
 
-	strncpy(gldoomtextures[texnum].name, name, 8);
-
-	tex = r_nulltex;
-	if (textures1 && !TEXVALID(tex))
-		tex = Doom_LoadPatchFromTexWad(name, textures1, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height, &hasalpha);
-	if (textures2 && !TEXVALID(tex))
-		tex = Doom_LoadPatchFromTexWad(name, textures2, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height, &hasalpha);
-	if (!TEXVALID(tex))
-	{
-		//all else failed.
-		gldoomtextures[texnum].width = image_width;
-		gldoomtextures[texnum].height = image_height;
-		gldoomtextures[texnum].meshptr = &gldoomtextures[texnum].mesh;
-		gldoomtextures[texnum].batch.mesh = &gldoomtextures[texnum].meshptr;
-		gldoomtextures[texnum].batch.next = loadmodel->batches[gldoomtextures[texnum].shader->sort];
-		loadmodel->batches[gldoomtextures[texnum].shader->sort] = &gldoomtextures[texnum].batch;
-	}
-
-	if (hasalpha)
-		gldoomtextures[texnum].shader = R_RegisterShader(name, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\nalphafunc ge128\n}\n}\n");
-	else
-		gldoomtextures[texnum].shader = R_RegisterShader(name, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\n}\n}\n");
-	gldoomtextures[texnum].shader->defaulttextures.base = tex;
+	memcpy(gldoomtextures[texnum].name, name, nlen);
+	gldoomtextures[texnum].name[nlen] = 0;
 
 	return texnum;
 }
+
+static void Doom_LoadShaders(void *ctx, void *data, size_t a, size_t b)
+{
+	model_t *mod = ctx;
+	texnums_t tn;
+	qboolean hasalpha = false;
+	qboolean isflat;
+	int texnum;
+	char tmp[MAX_QPATH];
+
+	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
+	{
+		isflat = !strncmp(gldoomtextures[texnum].name, "flats/", 6);
+		memset(&tn, 0, sizeof(tn));
+		if (isflat)
+		{
+			void *file = FS_LoadMallocFile(va2(tmp, sizeof(tmp), "%s.raw", gldoomtextures[texnum].name), NULL);
+			if (file)
+			{
+				tn.base = Image_GetTexture(gldoomtextures[texnum].name, NULL, 0, file, doompalette, 64, 64, TF_8PAL24);
+				Z_Free(file);
+			}
+			gldoomtextures[texnum].width = 64;
+			gldoomtextures[texnum].height = 64;
+		}
+		else
+		{
+			if (textures1 && !TEXVALID(tn.base))
+				tn.base = Doom_LoadPatchFromTexWad(gldoomtextures[texnum].name, textures1, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height, &hasalpha);
+			if (textures2 && !TEXVALID(tn.base))
+				tn.base = Doom_LoadPatchFromTexWad(gldoomtextures[texnum].name, textures2, &gldoomtextures[texnum].width, &gldoomtextures[texnum].height, &hasalpha);
+		}
+		if (!TEXVALID(tn.base))
+		{
+			gldoomtextures[texnum].width = 64;
+			gldoomtextures[texnum].height = 64;
+			hasalpha = false;
+		}
+
+		if (hasalpha)
+			gldoomtextures[texnum].shader = R_RegisterShader(gldoomtextures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\nalphafunc ge128\n}\n}\n");
+		else
+			gldoomtextures[texnum].shader = R_RegisterShader(gldoomtextures[texnum].name, SUF_NONE, "{\n{\nmap $diffuse\nrgbgen vertex\nalphagen vertex\n}\n}\n");
+
+		R_BuildDefaultTexnums(&tn, gldoomtextures[texnum].shader);
+	}
+};
+
 static void Doom_Purge (struct model_s *mod)
 {
 	int texnum;
@@ -1674,7 +1715,7 @@ static void Doom_Purge (struct model_s *mod)
 	gldoomtextures = NULL;
 }
 #endif
-static void CleanWalls(dsidedef_t *sidedefsl)
+static void CleanWalls(model_t *mod, dsidedef_t *sidedefsl)
 {
 	int i;
 	char texname[64];
@@ -1697,7 +1738,7 @@ static void CleanWalls(dsidedef_t *sidedefsl)
 			else
 			{
 				strncpy(lastmiddle, texname, 8);
-				sidedefsm[i].middletex = lastmidtex = Doom_LoadPatch(texname);//Mod_LoadHiResTexture(texname, true, false); 
+				sidedefsm[i].middletex = lastmidtex = Doom_LoadPatch(mod, texname);
 			}
 		}
 
@@ -1712,7 +1753,7 @@ static void CleanWalls(dsidedef_t *sidedefsl)
 			else
 			{
 				strncpy(lastlower, texname, 8);
-				sidedefsm[i].lowertex = lastlowtex = Doom_LoadPatch(texname);//Mod_LoadHiResTexture(texname, true, true); 
+				sidedefsm[i].lowertex = lastlowtex = Doom_LoadPatch(mod, texname);
 			}
 		}
 
@@ -1727,7 +1768,7 @@ static void CleanWalls(dsidedef_t *sidedefsl)
 			else
 			{
 				strncpy(lastupper, texname, 8);
-				sidedefsm[i].uppertex = lastuptex = Doom_LoadPatch(texname);//Mod_LoadHiResTexture(texname, true, false); 
+				sidedefsm[i].uppertex = lastuptex = Doom_LoadPatch(mod, texname);
 			}
 		}
 #endif
@@ -1737,14 +1778,16 @@ static void CleanWalls(dsidedef_t *sidedefsl)
 	}
 }
 
-void QuakifyThings(dthing_t *thingsl)
+void QuakifyThings(model_t *mod, dthing_t *thingsl)
 {
 	int sector;
 	int spawnflags;
 	char *name;
 	int i;
 	int zpos;
-	static char newlump[1024*1024];
+	static char newlump[1024*1024];	//FIXME
+	char thingname[MAX_QPATH];
+	
 	char *ptr = newlump;
 	vec3_t point;
 
@@ -1793,7 +1836,7 @@ void QuakifyThings(dthing_t *thingsl)
 			break;
 
 		default:
-			name = va("thing_%i", thingsl[i].type);
+			name = va2(thingname, sizeof(thingname), "thing_%i", thingsl[i].type);
 			break;
 		}
 
@@ -1815,7 +1858,7 @@ void QuakifyThings(dthing_t *thingsl)
 		if (thingsl[i].flags & THING_DEAF)
 			spawnflags |= 1;
 
-		sprintf(ptr,	"{\n"
+		Q_snprintfz(ptr, newlump+sizeof(newlump)-ptr,	"{\n"
 						"\"classname\" \"%s\"\n"
 						"\"origin\" \"%i %i %i\"\n"
 						"\"spawnflags\" \"%i\"\n"
@@ -1829,8 +1872,8 @@ void QuakifyThings(dthing_t *thingsl)
 		ptr += strlen(ptr);
 	}
 
-	loadmodel->entities = BZ_Malloc(ptr-newlump+1);
-	memcpy(loadmodel->entities, newlump, ptr-newlump+1);
+	mod->entities = BZ_Malloc(ptr-newlump+1);
+	memcpy(mod->entities, newlump, ptr-newlump+1);
 }
 
 void Doom_GeneratePlanes(ddoomnode_t *nodel)
@@ -1949,11 +1992,13 @@ static void Doom_LoadVerticies(char *name)
 	int stdc, glc;
 	int *gl2;
 	int i;
+	size_t fsize;
+	char tmp[MAX_QPATH];
 
-	std		= (void *)COM_LoadTempFile	(va("%s.vertexes",	name));
-	stdc	= com_filesize/sizeof(*std);
+	std		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.vertexes",	name), &fsize);
+	stdc	= fsize/sizeof(*std);
 
-	gl2		= (void *)COM_LoadTempMoreFile	(va("%s.gl_vert",	name));
+	gl2		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.gl_vert",	name), &fsize);
 	if (!gl2)
 	{
 		glc = 0;
@@ -1962,53 +2007,57 @@ static void Doom_LoadVerticies(char *name)
 	else if (gl2[0] == *(int*)"gNd2")
 	{
 		gl2++;
-		glc = (com_filesize-4)/sizeof(int)/2;
+		glc = (fsize-4)/sizeof(int)/2;
 		gl1 = NULL;
 	}
 	else
 	{
-		glc	= com_filesize/sizeof(*gl1);
+		glc	= fsize/sizeof(*gl1);
 		gl1 = (ddoomvertex_t*)gl2;
 	}
 
-	if (!stdc)
-		return;
-
-	vertexesc = stdc + glc;
-	vertexesl = BZ_Malloc(vertexesc*sizeof(*vertexesl));
-
-	vertexsglbase = stdc;
-
-	for (i = 0; i < stdc; i++)
+	if (stdc)
 	{
-		vertexesl[i].xpos = std[i].xpos;
-		vertexesl[i].ypos = std[i].ypos;
-	}
-	if (gl1)
-	{
-		for (i = 0; i < glc; i++)
+		vertexesc = stdc + glc;
+		vertexesl = BZ_Malloc(vertexesc*sizeof(*vertexesl));
+
+		vertexsglbase = stdc;
+
+		for (i = 0; i < stdc; i++)
 		{
-			vertexesl[stdc+i].xpos = gl1[i].xpos;
-			vertexesl[stdc+i].ypos = gl1[i].ypos;
+			vertexesl[i].xpos = std[i].xpos;
+			vertexesl[i].ypos = std[i].ypos;
+		}
+		if (gl1)
+		{
+			for (i = 0; i < glc; i++)
+			{
+				vertexesl[stdc+i].xpos = gl1[i].xpos;
+				vertexesl[stdc+i].ypos = gl1[i].ypos;
+			}
+		}
+		else
+		{
+			for (i = 0; i < glc; i++)
+			{
+				vertexesl[stdc+i].xpos = (float)gl2[i*2] / 0x10000;
+				vertexesl[stdc+i].ypos = (float)gl2[i*2+1] / 0x10000;
+			}
 		}
 	}
-	else
-	{
-		for (i = 0; i < glc; i++)
-		{
-			vertexesl[stdc+i].xpos = (float)gl2[i*2] / 0x10000;
-			vertexesl[stdc+i].ypos = (float)gl2[i*2+1] / 0x10000;
-		}
-	}
+	Z_Free(std);
+	Z_Free(gl2);
 }
 
 static void Doom_LoadSSectors(char *name)
 {
-	ssectorsl	= (void *)FS_LoadMallocFile	(va("%s.gl_ssect",	name));
+	size_t fsize;
+	char tmp[MAX_QPATH];
+	ssectorsl	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.gl_ssect",	name), &fsize);
 	if (!ssectorsl)
-		ssectorsl	= (void *)FS_LoadMallocFile	(va("%s.ssectors",	name));
+		ssectorsl	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.ssectors",	name), &fsize);
 	//FIXME: "gNd3" means that it's glbsp version 3.
-	ssectorsc	= com_filesize/sizeof(*ssectorsl);
+	ssectorsc	= fsize/sizeof(*ssectorsl);
 }
 
 static void Doom_LoadSSegs(char *name)
@@ -2019,12 +2068,14 @@ static void Doom_LoadSSegs(char *name)
 	dgl_seg1_t	*s1;
 	dseg_t		*s0;
 	int i;
+	size_t fsize;
+	char tmp[MAX_QPATH];
 
-	file	= (void *)FS_LoadMallocFile	(va("%s.gl_segs",	name));
+	file	= (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.gl_segs",	name), &fsize);
 	if (!file)
 	{
-		s0 = (void *)FS_LoadMallocFile	(va("%s.segs",	name));
-		segsc	= com_filesize/sizeof(*s0);
+		s0 = (void *)FS_LoadMallocFile	(va2(tmp, sizeof(tmp), "%s.segs",	name), &fsize);
+		segsc	= fsize/sizeof(*s0);
 
 		segsl = BZ_Malloc(segsc * sizeof(*segsl));
 		for (i = 0; i < segsc; i++)
@@ -2039,7 +2090,7 @@ static void Doom_LoadSSegs(char *name)
 	else if (*(int *)file == *(int *)"gNd3")
 	{
 		s3 = file;
-		segsc	= com_filesize/sizeof(*s3);
+		segsc	= fsize/sizeof(*s3);
 
 		segsl = s3;
 	}
@@ -2048,7 +2099,7 @@ static void Doom_LoadSSegs(char *name)
 	else
 	{
 		s1 = file;
-		segsc	= com_filesize/sizeof(*s1);
+		segsc	= fsize/sizeof(*s1);
 
 		segsl = BZ_Malloc(segsc * sizeof(*segsl));
 		for (i = 0; i < segsc; i++)
@@ -2071,37 +2122,38 @@ static void Doom_LoadSSegs(char *name)
 	}
 }
 
-qboolean Mod_LoadDoomLevel(model_t *mod)
+qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 {
 	int h;
 	dsector_t		*sectorl;
 	dsidedef_t		*sidedefsl;
 	char name[MAX_QPATH];
+	char tmp[MAX_QPATH];
 
 	int *gl_nodes;
 
-	COM_StripExtension(mod->name, name, sizeof(name));
-
-	if (!COM_LoadTempFile(va("%s", mod->name)))
+	if (fsize != 4)
 	{
-		Con_Printf("Wad map %s does not exist\n", mod->name);
+		Con_Printf("Wad map %s does actually exist... weird.\n", mod->name);
 		return false;
 	}
 
-	gl_nodes	= (void *)FS_LoadMallocFile	(va("%s.gl_nodes",	name));
-	if (gl_nodes && com_filesize>0)
+	COM_StripExtension(mod->name, name, sizeof(name));
+
+	gl_nodes	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.gl_nodes",	name), &fsize);
+	if (gl_nodes && fsize>0)
 	{
 		nodel = (void *)gl_nodes;
-		nodec = com_filesize/sizeof(*nodel);
+		nodec = fsize/sizeof(*nodel);
 	}
 	else
 	{
 		gl_nodes=NULL;
-		nodel		= (void *)FS_LoadMallocFile	(va("%s.nodes",		name));
-		nodec		= com_filesize/sizeof(*nodel);
+		nodel		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.nodes",		name), &fsize);
+		nodec		= fsize/sizeof(*nodel);
 	}
-	sectorl		= (void *)FS_LoadMallocFile	(va("%s.sectors",	name));
-	sectorc		= com_filesize/sizeof(*sectorl);
+	sectorl		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.sectors",	name), &fsize);
+	sectorc		= fsize/sizeof(*sectorl);
 
 #ifndef SERVERONLY
 	numgldoomtextures=0;
@@ -2114,14 +2166,14 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 	Doom_LoadSSegs(name);
 	Doom_LoadSSectors(name);
 
-	thingsl		= (void *)FS_LoadMallocFile	(va("%s.things",	name));
-	thingsc		= com_filesize/sizeof(*thingsl);
-	linedefsl	= (void *)FS_LoadMallocFile	(va("%s.linedefs",	name));
-	linedefsc	= com_filesize/sizeof(*linedefsl);
-	sidedefsl	= (void *)FS_LoadMallocFile	(va("%s.sidedefs",	name));
-	sidedefsc	= com_filesize/sizeof(*sidedefsl);
-	blockmapl	= (void *)FS_LoadMallocFile	(va("%s.blockmap",	name));
-//	blockmaps	= com_filesize;
+	thingsl		= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.things",	name), &fsize);
+	thingsc		= fsize/sizeof(*thingsl);
+	linedefsl	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.linedefs",	name), &fsize);
+	linedefsc	= fsize/sizeof(*linedefsl);
+	sidedefsl	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.sidedefs",	name), &fsize);
+	sidedefsc	= fsize/sizeof(*sidedefsl);
+	blockmapl	= (void *)FS_LoadMallocFile	(va2(tmp,sizeof(tmp),"%s.blockmap",	name), &fsize);
+//	blockmaps	= fsize;
 #ifndef SERVERONLY
 	Doom_LoadTextureInfos();
 #endif
@@ -2151,17 +2203,17 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 
 	Doom_SetModelFunc(mod);
 
-	mod->needload = false;
 	mod->fromgame = fg_doom;
 	mod->type = mod_brush;
 	mod->nodes = (void*)0x1;
 
-	CleanWalls(sidedefsl);
+	CleanWalls(mod, sidedefsl);
 
-	Triangulate_Sectors(sectorl, !!gl_nodes);
+	Triangulate_Sectors(mod, sectorl, !!gl_nodes);
 
-	QuakifyThings(thingsl);
+	QuakifyThings(mod, thingsl);
 
+	COM_AddWork(0, Doom_LoadShaders, mod, NULL, 0, 0);
 	return true;
 }
 

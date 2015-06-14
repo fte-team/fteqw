@@ -1342,7 +1342,7 @@ void V_CalcRefdef (playerview_t *pv)
 
 	viewheight += pv->crouch;
 
-	if (pv->stats[STAT_HEALTH] < 0 && pv->cam_spec_track >= 0 && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
+	if (pv->stats[STAT_HEALTH] < 0 && (!cl.spectator || pv->cam_locked) && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
 		if (!cl.spectator || cl_chasecam.ival)
 			r_refdef.viewangles[ROLL] = 80*v_deathtilt.value;	// dead view angle

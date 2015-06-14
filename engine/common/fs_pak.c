@@ -476,7 +476,7 @@ newsection:
 				if (!strcmp(filename, "p_start"))
 				{
 					section = 3;
-					sprintf (newfiles[i].name, "patches/%s", filename); //the map loader will find these.
+					sprintf (newfiles[i].name, "patches/%s.pat", filename); //the map loader will find these.
 					break;
 				}
 				if (!strcmp(filename, "f_start"))
@@ -547,7 +547,7 @@ newsection:
 				section = 0;
 				goto newsection;
 			}
-			sprintf (newfiles[i].name, "patches/%s", filename);
+			sprintf (newfiles[i].name, "patches/%s.pat", filename);
 			break;
 		case 4:	//flats section
 			if (!strcmp(filename, "f_end"))
@@ -555,7 +555,7 @@ newsection:
 				section = 0;
 				goto newsection;
 			}
-			sprintf (newfiles[i].name, "flats/%s", filename);
+			sprintf (newfiles[i].name, "flats/%s.raw", filename);
 			break;
 		}
 	}
@@ -571,6 +571,8 @@ newsection:
 	pack->references++;
 
 	Con_TPrintf ("Added packfile %s (%i files)\n", desc, numpackfiles);
+
+	pack->mutex = Sys_CreateMutex();
 
 	pack->pub.fsver			= FSVER;
 	pack->pub.GetPathDetails = FSPAK_GetPathDetails;

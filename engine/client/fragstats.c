@@ -111,6 +111,11 @@ qboolean Stats_HaveKills(void)
 
 void VARGS Stats_Message(char *msg, ...);
 
+qboolean Stats_TrackerImageLoaded(char *in)
+{
+	qboolean error;
+	return Font_TrackerValid(unicode_decode(&error, in, &in, true));
+}
 static char *Stats_GenTrackerImageString(char *in)
 {	//images are of the form "foo \sg\ bar \q\"
 	//which should eg be remapped to: "foo ^Ue200 bar foo ^Ue201"
@@ -237,7 +242,7 @@ void Stats_FragMessage(int p1, int wid, int p2, qboolean teamkill)
 		}
 	}
 
-	Q_snprintfz(message, sizeof(message), "%s%s ^7%s %s%s\n", p1c, p1n, w->image?w->image:w->abrev, p2c, p2n);
+	Q_snprintfz(message, sizeof(message), "%s%s ^7%s %s%s\n", p1c, p1n, Stats_TrackerImageLoaded(w->image)?w->image:w->abrev, p2c, p2n);
 
 	tracker = Con_FindConsole("tracker");
 	if (!tracker)

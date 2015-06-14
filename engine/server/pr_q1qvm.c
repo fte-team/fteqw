@@ -466,7 +466,7 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf)
 static int QDECL Q1QVMPF_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, float spawnflags)
 {
 	q1qvmentstring = mapstring;
-	VM_Call(q1qvm, GAME_LOADENTS);
+	VM_Call(q1qvm, GAME_LOADENTS, 0, 0, 0);
 	q1qvmentstring = NULL;
 	return sv.world.edict_size;
 }
@@ -1310,6 +1310,7 @@ void Q1QVM_Shutdown(void)
 				Q_strncpyz(svs.clients[i].namebuf, svs.clients[i].name, sizeof(svs.clients[i].namebuf));
 			svs.clients[i].name = svs.clients[i].namebuf;
 		}
+		VM_Call(q1qvm, GAME_SHUTDOWN, 0, 0, 0);
 		VM_Destroy(q1qvm);
 		q1qvm = NULL;
 		VM_fcloseall(VMFSID_Q1QVM);
@@ -1332,7 +1333,7 @@ void Q1QVM_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
 	pr_global_struct->other = EDICT_TO_PROG(w->progs, o);
 	pr_global_struct->time = w->physicstime;
-	VM_Call(q1qvm, GAME_EDICT_TOUCH);
+	VM_Call(q1qvm, GAME_EDICT_TOUCH, 0, 0, 0);
 
 	pr_global_struct->self = oself;
 	pr_global_struct->other = oother;
@@ -1342,7 +1343,7 @@ void Q1QVM_Event_Think(world_t *w, wedict_t *s)
 {
 	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
 	pr_global_struct->other = EDICT_TO_PROG(w->progs, w->edicts);
-	VM_Call(q1qvm, GAME_EDICT_THINK);
+	VM_Call(q1qvm, GAME_EDICT_THINK, 0, 0, 0);
 }
 
 qboolean Q1QVM_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
@@ -1424,7 +1425,7 @@ qboolean PR_LoadQ1QVM(void)
 
 	q1qvmprogfuncs.stringtable = VM_MemoryBase(q1qvm);
 
-	ret = VM_Call(q1qvm, GAME_INIT, (qintptr_t)(sv.time*1000), rand());
+	ret = VM_Call(q1qvm, GAME_INIT, (qintptr_t)(sv.time*1000), rand(), 0, 0, 0);
 	if (!ret)
 	{
 		Q1QVM_Shutdown();
@@ -1466,9 +1467,6 @@ qboolean PR_LoadQ1QVM(void)
 	sv.world.edict_size = gd->sizeofent;
 	vevars = (qintptr_t)gd->ents;
 	evars = ((char*)VM_MemoryBase(q1qvm) + vevars);
-	//FIXME: range check this pointer
-	//FIXME: range check the globals pointer
-
 
 //WARNING: global is not remapped yet...
 //This code is written evilly, but works well enough
@@ -1527,7 +1525,7 @@ qboolean PR_LoadQ1QVM(void)
 	pr_global_ptrs->dimension_send = &dimensionsend;
 	pr_global_ptrs->physics_mode = &physics_mode;
 
-	dimensionsend = 255;
+	dimensionsend = dimensiondefault = 255;
 	for (i = 0; i < 16; i++)
 		pr_global_ptrs->spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&gd->global->parm1 + i));
 	for (; i < NUM_SPAWN_PARMS; i++)
@@ -1571,12 +1569,12 @@ void Q1QVM_ClientConnect(client_t *cl)
 	// call the spawn function
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-	VM_Call(q1qvm, GAME_CLIENT_CONNECT, cl->spectator);
+	VM_Call(q1qvm, GAME_CLIENT_CONNECT, cl->spectator, 0, 0, 0);
 
 	// actually spawn the player
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-	VM_Call(q1qvm, GAME_PUT_CLIENT_IN_SERVER, cl->spectator);
+	VM_Call(q1qvm, GAME_PUT_CLIENT_IN_SERVER, cl->spectator, 0, 0, 0);
 }
 
 qboolean Q1QVM_GameConsoleCommand(void)
@@ -1595,7 +1593,7 @@ qboolean Q1QVM_GameConsoleCommand(void)
 	pr_global_struct->self = 0;
 	pr_global_struct->other = 0;
 
-	VM_Call(q1qvm, GAME_CONSOLE_COMMAND);	//mod uses Cmd_Argv+co to get args
+	VM_Call(q1qvm, GAME_CONSOLE_COMMAND, 0, 0, 0);	//mod uses Cmd_Argv+co to get args
 
 	pr_global_struct->self = oldself;
 	pr_global_struct->other = oldother;
@@ -1610,7 +1608,7 @@ qboolean Q1QVM_ClientSay(edict_t *player, qboolean team)
 
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, player);
-	washandled = VM_Call(q1qvm, GAME_CLIENT_SAY, team);
+	washandled = VM_Call(q1qvm, GAME_CLIENT_SAY, team, 0, 0, 0);
 
 	return washandled;
 }
@@ -1622,53 +1620,53 @@ qboolean Q1QVM_UserInfoChanged(edict_t *player)
 
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, player);
-	return VM_Call(q1qvm, GAME_CLIENT_USERINFO_CHANGED);
+	return VM_Call(q1qvm, GAME_CLIENT_USERINFO_CHANGED, 0, 0, 0);
 }
 
 void Q1QVM_PlayerPreThink(void)
 {
-	VM_Call(q1qvm, GAME_CLIENT_PRETHINK, host_client->spectator);
+	VM_Call(q1qvm, GAME_CLIENT_PRETHINK, host_client->spectator, 0, 0, 0);
 }
 
 void Q1QVM_RunPlayerThink(void)
 {
-	VM_Call(q1qvm, GAME_EDICT_THINK);
-	VM_Call(q1qvm, GAME_CLIENT_THINK, host_client->spectator);
+	VM_Call(q1qvm, GAME_EDICT_THINK, 0, 0, 0);
+	VM_Call(q1qvm, GAME_CLIENT_THINK, host_client->spectator, 0, 0, 0);
 }
 
 void Q1QVM_PostThink(void)
 {
-	VM_Call(q1qvm, GAME_CLIENT_POSTTHINK, host_client->spectator);
+	VM_Call(q1qvm, GAME_CLIENT_POSTTHINK, host_client->spectator, 0, 0, 0);
 }
 
 void Q1QVM_StartFrame(void)
 {
-	VM_Call(q1qvm, GAME_START_FRAME, (qintptr_t)(sv.time*1000));
+	VM_Call(q1qvm, GAME_START_FRAME, (qintptr_t)(sv.time*1000), 0, 0, 0);
 }
 
 void Q1QVM_Blocked(void)
 {
-	VM_Call(q1qvm, GAME_EDICT_BLOCKED);
+	VM_Call(q1qvm, GAME_EDICT_BLOCKED, 0, 0, 0);
 }
 
 void Q1QVM_SetNewParms(void)
 {
-	VM_Call(q1qvm, GAME_SETNEWPARMS);
+	VM_Call(q1qvm, GAME_SETNEWPARMS, 0, 0, 0);
 }
 
 void Q1QVM_SetChangeParms(void)
 {
-	VM_Call(q1qvm, GAME_SETCHANGEPARMS);
+	VM_Call(q1qvm, GAME_SETCHANGEPARMS, 0, 0, 0);
 }
 
 void Q1QVM_ClientCommand(void)
 {
-	VM_Call(q1qvm, GAME_CLIENT_COMMAND);
+	VM_Call(q1qvm, GAME_CLIENT_COMMAND, 0, 0, 0);
 }
 
 void Q1QVM_GameCodePausedTic(float pausedduration)
 {
-	VM_Call(q1qvm, GAME_PAUSED_TIC, (qintptr_t)(pausedduration*1000));
+	VM_Call(q1qvm, GAME_PAUSED_TIC, (qintptr_t)(pausedduration*1000), 0, 0, 0);
 }
 
 void Q1QVM_DropClient(client_t *cl)
@@ -1677,7 +1675,7 @@ void Q1QVM_DropClient(client_t *cl)
 		Q_strncpyz(cl->namebuf, cl->name, sizeof(cl->namebuf));
 
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-	VM_Call(q1qvm, GAME_CLIENT_DISCONNECT);
+	VM_Call(q1qvm, GAME_CLIENT_DISCONNECT, 0, 0, 0);
 	cl->name = cl->namebuf;
 }
 

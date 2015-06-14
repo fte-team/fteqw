@@ -300,6 +300,25 @@ static image_t *Font_GetTrackerImage(unsigned int imid)
 		return NULL;
 	return trackerimages[imid].image;
 }
+qboolean Font_TrackerValid(unsigned int imid)
+{
+	imid -= TRACKERFIRST;
+	if (imid >= countof(trackerimages))
+		return false;
+	if (!trackerimages[imid].image)
+	{
+		if (!*trackerimages[imid].name)
+			return false;
+		trackerimages[imid].image = Image_GetTexture(trackerimages[imid].name, NULL, 0, NULL, NULL, 0, 0, TF_INVALID);
+	}
+	if (!trackerimages[imid].image)
+		return false;
+	if (trackerimages[imid].image->status == TEX_LOADING)
+		COM_WorkerPartialSync(trackerimages[imid].image, &trackerimages[imid].image->status, TEX_LOADING);
+	if (trackerimages[imid].image->status != TEX_LOADED)
+		return false;
+	return true;
+}
 
 //called at load time - initalises font buffers
 void Font_Init(void)
@@ -1121,13 +1140,14 @@ void Doom_ExpandPatch(doompatch_t *p, unsigned char *b, int stride)
 			if (col->length + col->topdelta > p->height)
 				break;
 
-			src = (unsigned char *)col + 3; /*why 3? why not, I suppose*/
+			src = (unsigned char *)col + 2; /*why 3? why not, I suppose*/
 			dst = b + stride*col->topdelta;
 			for (y = 0; y < col->length; y++)
 			{
 				*dst = *src++;
 				dst += stride;
 			}
+			src++;
 			col = (doomcolumn_t *)((unsigned char*)col + col->length + 4);
 		}
 		b++;
@@ -1245,14 +1265,18 @@ struct font_s *Font_LoadFont(float vheight, const char *fontfilename)
 					f->charheight = h;
 			}
 
-
 			FS_FreeFile(dp);
 		}
 
 		/*if all loaded okay, replicate the chars to the quake-compat range (both white+red chars)*/
 		if (i == '_'+1)
 		{
+			//doom doesn't have many chars, so make sure the lower case chars exist.
+			for (i = 'a'; i <= 'z'; i++)
+				f->chars[i] = f->chars[i-'a'+'A'];
+			//no space char either
 			f->chars[' '].advance = 8;
+
 			f->singletexture = R_LoadTexture8("doomfont", PLANEWIDTH, PLANEHEIGHT, buf, 0, true);
 			for (i = 0xe000; i <= 0xe0ff; i++)
 			{

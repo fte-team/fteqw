@@ -3721,7 +3721,8 @@ void CL_Init (void)
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
 	Cmd_AddCommand ("crashme_endgame", CL_CrashMeEndgame_f);
 
-	Cmd_AddCommandD ("showpic", SCR_ShowPic_Script_f, 	"showpic <imagename> <placename> <x> <y> <zone> [width] [height] [touchcommand]\nDisplays an image onscreen.");
+	Cmd_AddCommandD ("showpic", SCR_ShowPic_Script_f, 	"showpic <imagename> <placename> <x> <y> <zone> [width] [height] [touchcommand]\nDisplays an image onscreen, that potentially has a key binding attached to it when clicked/touched.\nzone should be one of: TL, TR, BL, BR, MM, TM, BM, ML, MR. This serves as an extra offset to move the image around the screen without any foreknowledge of the screen resolution.");
+	Cmd_AddCommandD ("showpic_removeall", SCR_ShowPic_Remove_f, 	"removes any pictures inserted with the showpic command.");
 
 	Cmd_AddCommand ("startdemos", CL_Startdemos_f);
 	Cmd_AddCommand ("demos", CL_Demos_f);
@@ -5288,10 +5289,12 @@ void Host_Shutdown(void)
 	M_Shutdown(true);
 	Mod_Shutdown(true);
 	Wads_Flush();
+	Con_History_Save();	//do this outside of the console code so that the filesystem is still running at this point but still allowing the filesystem to make console prints (you might not see them, but they should be visible to sys_printf still, for debugging).
 #ifndef CLIENTONLY
 	SV_Shutdown();
 #else
 	NET_Shutdown ();
+	FS_Shutdown();
 #endif
 
 	Stats_Clear();
@@ -5307,9 +5310,6 @@ void Host_Shutdown(void)
 
 	Cmd_Shutdown();
 	Key_Unbindall_f();
-	Con_History_Save();	//do this outside of the console code so that the filesystem is still running at this point but still allowing the filesystem to make console prints (you might not see them, but they should be visible to sys_printf still, for debugging).
-
-	FS_Shutdown();
 
 #ifdef PLUGINS
 	Plug_Shutdown(true);

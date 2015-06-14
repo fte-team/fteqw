@@ -73,9 +73,10 @@ void SCR_ShowPic_Create(void);
 void SCR_ShowPic_Hide(void);
 void SCR_ShowPic_Move(void);
 void SCR_ShowPic_Update(void);
-void SCR_ShowPic_Clear(qboolean all);
+void SCR_ShowPic_Clear(qboolean persistflag);
 char *SCR_ShowPics_ClickCommand(int cx, int cy);
 void SCR_ShowPic_Script_f(void);
+void SCR_ShowPic_Remove_f(void);
 
 //a header is better than none...
 void Draw_TextBox (int x, int y, int width, int lines);

@@ -802,9 +802,9 @@ static void SP_RecalcXY ( float *xx, float *yy, int origin )
 	midy = vid.height * 0.5;// >>1
 	midx = vid.width * 0.5;// >>1
 
-	// Tei - new showlmp
-	switch ( origin )
+	switch (origin)
 	{
+		//tei's original encoding
 		case SL_ORG_NW:
 			break;
 		case SL_ORG_NE:
@@ -835,6 +835,39 @@ static void SP_RecalcXY ( float *xx, float *yy, int origin )
 			y = midy + (y - 8000);//NegCoded
 			x = vid.height - x; //Inverse
 			break;
+
+		//spike's attempt to provide sane origins that are a little more predictable.
+		case SL_ORG_TL:
+			break;
+		case SL_ORG_TR:
+			x += vid.width;
+			break;
+		case SL_ORG_BL:
+			y += vid.height;
+			break;
+		case SL_ORG_BR:
+			x += vid.width;
+			y += vid.height;
+			break;
+		case SL_ORG_MM:
+			x += midx;
+			y += midy;
+			break;
+		case SL_ORG_TM:
+			x += midx;
+			break;
+		case SL_ORG_BM:
+			x += midx;
+			y += vid.height;
+			break;
+		case SL_ORG_ML:
+			y += midy;
+			break;
+		case SL_ORG_MR:
+			x += vid.height;
+			y += midy;
+			break;
+
 		default:
 			break;
 	}
@@ -912,7 +945,7 @@ char *SCR_ShowPics_ClickCommand(int cx, int cy)
 }
 
 //all=false clears only server pics, not ones from configs.
-void SCR_ShowPic_Clear(qboolean all)
+void SCR_ShowPic_Clear(qboolean persistflag)
 {
 	showpic_t **link, *sp;
 	int pnum;
@@ -925,7 +958,7 @@ void SCR_ShowPic_Clear(qboolean all)
 
 	for (link = &showpics; (sp=*link); )
 	{
-		if (sp->persist)
+		if (sp->persist == persistflag)
 		{
 			link = &sp->next;
 			continue;
@@ -1045,6 +1078,50 @@ void SCR_ShowPic_Update(void)
 	CL_CheckOrEnqueDownloadFile(sp->picname, sp->picname, 0);
 }
 
+static int SCR_ShowPic_MapZone(char *zone)
+{
+	//sane coding scheme
+	if (!Q_strcasecmp(zone, "tr"))
+		return SL_ORG_TR;
+	if (!Q_strcasecmp(zone, "tl"))
+		return SL_ORG_TL;
+	if (!Q_strcasecmp(zone, "br"))
+		return SL_ORG_BR;
+	if (!Q_strcasecmp(zone, "bl"))
+		return SL_ORG_BL;
+	if (!Q_strcasecmp(zone, "mm"))
+		return SL_ORG_MM;
+	if (!Q_strcasecmp(zone, "tm"))
+		return SL_ORG_TM;
+	if (!Q_strcasecmp(zone, "bm"))
+		return SL_ORG_BM;
+	if (!Q_strcasecmp(zone, "mr"))
+		return SL_ORG_MR;
+	if (!Q_strcasecmp(zone, "ml"))
+		return SL_ORG_MR;
+
+	//compasy directions (but uses tei's coding scheme...)
+	if (!Q_strcasecmp(zone, "nw"))
+		return SL_ORG_NW;
+	if (!Q_strcasecmp(zone, "ne"))
+		return SL_ORG_NE;
+	if (!Q_strcasecmp(zone, "sw"))
+		return SL_ORG_SW;
+	if (!Q_strcasecmp(zone, "sw"))
+		return SL_ORG_SE;
+	if (!Q_strcasecmp(zone, "cc"))
+		return SL_ORG_CC;
+	if (!Q_strcasecmp(zone, "cn"))
+		return SL_ORG_CN;
+	if (!Q_strcasecmp(zone, "cs"))
+		return SL_ORG_CS;
+	if (!Q_strcasecmp(zone, "cw"))
+		return SL_ORG_CW;
+	if (!Q_strcasecmp(zone, "ce"))
+		return SL_ORG_CE;
+
+	return atoi(zone);
+}
 void SCR_ShowPic_Script_f(void)
 {
 	char *imgname;
@@ -1058,7 +1135,7 @@ void SCR_ShowPic_Script_f(void)
 	name = Cmd_Argv(2);
 	x = atoi(Cmd_Argv(3));
 	y = atoi(Cmd_Argv(4));
-	zone = atoi(Cmd_Argv(5));
+	zone = SCR_ShowPic_MapZone(Cmd_Argv(5));
 
 	w = atoi(Cmd_Argv(6));
 	h = atoi(Cmd_Argv(7));
@@ -1081,6 +1158,11 @@ void SCR_ShowPic_Script_f(void)
 	if (!sp->persist)
 		sp->persist = !Cmd_FromGamecode();
 
+}
+
+void SCR_ShowPic_Remove_f(void)
+{
+	SCR_ShowPic_Clear(!Cmd_FromGamecode());
 }
 
 //=============================================================================

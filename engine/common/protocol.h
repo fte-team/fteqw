@@ -906,7 +906,7 @@ enum {
 #define CTE_PERSISTANT		64
 #define CTE_ISBEAM			128
 
-//FTE's version of TEI_SHOWLMP2
+//FTE's version of TEI_SHOWLMP2. tei's values and coding scheme which makes no sense to anyone but him.
 #define SL_ORG_NW	0
 #define SL_ORG_NE	1
 #define SL_ORG_SW	2
@@ -916,6 +916,17 @@ enum {
 #define SL_ORG_CS	6
 #define SL_ORG_CW	7
 #define SL_ORG_CE	8
+
+//relative coding where offsets are predictable
+#define SL_ORG_TL	20
+#define SL_ORG_TR	21
+#define SL_ORG_BL	22
+#define SL_ORG_BR	23
+#define SL_ORG_MM	24
+#define SL_ORG_TM	25
+#define SL_ORG_BM	26
+#define SL_ORG_ML	27
+#define SL_ORG_MR	28
 
 /*
 ==========================================================

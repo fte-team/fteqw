@@ -1433,7 +1433,7 @@ qboolean X_CheckWMFullscreenAvailable(void)
 	unsigned char *wmname;
 	int i;
 
-	if (!COM_CheckParm("-nowmfullscreen"))
+	if (COM_CheckParm("-nowmfullscreen"))
 	{
 		Con_Printf("Window manager fullscreen support disabled. Will attempt to hide from it instead.\n");
 		return success;

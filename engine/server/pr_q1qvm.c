@@ -1373,13 +1373,7 @@ qboolean PR_LoadQ1QVM(void)
 	qintptr_t limit;
 	extern cvar_t	pr_maxedicts;
 
-	if (q1qvm)
-		VM_Destroy(q1qvm);
-	if (q1qvmedicttable)
-	{
-		Z_Free(q1qvmedicttable);
-		q1qvmedicttable = NULL;
-	}
+	Q1QVM_Shutdown();
 
 	q1qvm = VM_Create("qwprogs", com_nogamedirnativecode.ival?NULL:syscallnative, syscallqvm);
 	if (!q1qvm)

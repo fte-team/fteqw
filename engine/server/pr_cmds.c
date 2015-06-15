@@ -620,6 +620,9 @@ void PR_Deinit(void)
 	int i;
 
 	PRSV_ClearThreads();
+#ifdef VM_Q1
+	Q1QVM_Shutdown();
+#endif
 	if (svprogfuncs)
 	{
 		PR_Common_Shutdown(svprogfuncs, false);

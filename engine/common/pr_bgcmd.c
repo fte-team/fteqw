@@ -15,12 +15,12 @@
 static char *cvargroup_progs = "Progs variables";
 
 cvar_t sv_gameplayfix_blowupfallenzombies = CVARD("sv_gameplayfix_blowupfallenzombies", "0", "Allow findradius to find non-solid entities. This may break certain mods.");
-cvar_t pr_droptofloorunits = CVAR("pr_droptofloorunits", "");
+cvar_t pr_droptofloorunits = CVARD("pr_droptofloorunits", "256", "Distance that droptofloor is allowed to drop to be considered successul.");
 cvar_t pr_brokenfloatconvert = CVAR("pr_brokenfloatconvert", "0");
-cvar_t pr_tempstringcount = CVAR("pr_tempstringcount", "");//"16");
-cvar_t pr_tempstringsize = CVAR("pr_tempstringsize", "4096");
+cvar_t pr_tempstringcount = CVARD("pr_tempstringcount", "", "Obsolete. Set to 16 if you want to recycle+reuse the same 16 tempstring references and break lots of mods.");
+cvar_t pr_tempstringsize = CVARD("pr_tempstringsize", "4096", "Obsolete");
 cvar_t	pr_sourcedir = CVARD("pr_sourcedir", "src", "Subdirectory where your qc source is located. Used by the internal compiler and qc debugging functionality.");
-cvar_t pr_enable_uriget = CVAR("pr_enable_uriget", "1");
+cvar_t pr_enable_uriget = CVARD("pr_enable_uriget", "1", "Allows gamecode to make direct http requests");
 cvar_t pr_enable_profiling = CVARD("pr_enable_profiling", "0", "Enables profiling support. Will run more slowly. Change the map and then use the profile_ssqc/profile_csqc commands to see the results.");
 int tokenizeqc(const char *str, qboolean dpfuckage);
 

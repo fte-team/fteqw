@@ -302,10 +302,32 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
 {
 	char *t;
 
-	rgbinputscale = 1/rgbinputscale;
+	//hex values
+	if (!strncmp(rgbstring, "0x", 2))
+	{
+		char *end;
+		unsigned int val = strtoul(rgbstring+2, &end, 16);
+		if (end == rgbstring + 5)
+		{
+			rgb[0] = ((val&0xf00)>>8)/15.0;
+			rgb[1] = ((val&0x0f0)>>4)/15.0;
+			rgb[2] = ((val&0x00f)>>0)/15.0;
+		}
+		else if (end == rgbstring + 8)
+		{
+			rgb[0] = ((val&0xff0000)>>12)/255.0;
+			rgb[1] = ((val&0x00ff00)>> 8)/255.0;
+			rgb[2] = ((val&0x0000ff)>> 0)/255.0;
+		}
+		else
+			rgb[0] = rgb[1] = rgb[2] = 1;
+
+		return ;
+	}
+
 	t = strstr(rgbstring, " ");
 
-	if (!t) // use standard coloring
+	if (!t) // palette index
 	{
 		qbyte *pal;
 		int i = atoi(rgbstring);
@@ -321,7 +343,7 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
 
 		VectorScale(rgb, 1/255.0, rgb);
 	}
-	else // use RGB coloring
+	else // use RGB coloring (input is scaled from 0-rgbinputscale)
 	{
 		t++;
 		rgb[0] = atof(rgbstring);
@@ -331,6 +353,8 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
 			rgb[2] = atof(t+1);
 		else
 			rgb[2] = 0.0;
+
+		rgbinputscale = 1/rgbinputscale;
 		VectorScale(rgb, rgbinputscale, rgb);
 	} // i contains the crosshair color
 }

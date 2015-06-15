@@ -2328,36 +2328,38 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 				dc = keybindings[bkey][modifierstate];
 				bl = bindcmdlevel[bkey][modifierstate];
 			}
-		}
-
-		if (!button)	//no buttons to click, 
-		{
-			bkey = IN_TranslateMButtonPress(devid);
-			if (bkey)
+			else
 			{
-				dc = keybindings[bkey][modifierstate];
-				bl = bindcmdlevel[bkey][modifierstate];
-			}
-			else if (!Key_MouseShouldBeFree())
-			{
-				key_repeats[key] = 0;
-				return;
+				bkey = IN_TranslateMButtonPress(devid);
+				if (bkey)
+				{
+					dc = keybindings[bkey][modifierstate];
+					bl = bindcmdlevel[bkey][modifierstate];
+				}
+				else if (!Key_MouseShouldBeFree())
+				{
+					key_repeats[key] = 0;
+					return;
+				}
 			}
 		}
 	}
 
-	if (!dc)
-		dc = "";
-	if (dc[0] == '+')
+	if (dc)
 	{
-		uc = va("-%s%s %i\n", p, dc+1, bkey);
-		dc = va("+%s%s %i\n", p, dc+1, bkey);
+		if (dc[0] == '+')
+		{
+			uc = va("-%s%s %i\n", p, dc+1, bkey);
+			dc = va("+%s%s %i\n", p, dc+1, bkey);
+		}
+		else
+		{
+			uc = NULL;
+			dc = va("%s%s\n", p, dc);
+		}
 	}
 	else
-	{
 		uc = NULL;
-		dc = va("%s%s\n", p, dc);
-	}
 
 	//don't mess up if we ran out of devices, just silently release the one that it conflicted with (and only if its in conflict).
 	if (releasecommand[key][devid%MAX_INDEVS] && (!uc || strcmp(uc, releasecommand[key][devid%MAX_INDEVS])))
@@ -2366,7 +2368,8 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		Z_Free(releasecommand[key][devid%MAX_INDEVS]);
 		releasecommand[key][devid%MAX_INDEVS] = NULL;
 	}
-	Cbuf_AddText (dc, bl);
+	if (dc)
+		Cbuf_AddText (dc, bl);
 	if (uc)
 		releasecommand[key][devid%MAX_INDEVS] = Z_StrDup(uc);
 	releasecommandlevel[key][devid%MAX_INDEVS] = bl;

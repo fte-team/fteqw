@@ -298,7 +298,6 @@ void IN_JumpUp (void)
 	KeyUp(&in_jump);
 }
 
-
 void IN_Button3Down(void) {KeyDown(&in_button3);}
 void IN_Button3Up(void) {KeyUp(&in_button3);}
 void IN_Button4Down(void) {KeyDown(&in_button4);}
@@ -315,6 +314,64 @@ void IN_Button8Up(void) {KeyUp(&in_button8);}
 float in_rotate;
 void IN_Rotate_f (void) {in_rotate += atoi(Cmd_Argv(1));}
 
+
+void IN_WriteButtons(vfsfile_t *f, qboolean all)
+{
+	int s,b;
+	struct
+	{
+		kbutton_t	*button;
+		char		*name;
+	} buttons [] =
+	{
+		{&in_mlook,		"mlook"},
+		{&in_klook,		"klook"},
+		{&in_left,		"left"},
+		{&in_right,		"right"},
+		{&in_forward,	"forward"},
+		{&in_back,		"back"},
+		{&in_lookup,	"lookup"},
+		{&in_lookdown,	"lookdown"},
+		{&in_moveleft,	"moveleft"},
+		{&in_moveright,	"moveright"},
+		{&in_strafe,	"strafe"},
+		{&in_speed,		"speed"},
+		{&in_use,		"use"},
+		{&in_jump,		"jump"},
+		{&in_attack,	"attack"},
+		{&in_rollleft,	"rollleft"},
+		{&in_rollright,	"rollright"},
+		{&in_up,		"up"},
+		{&in_down,		"down"},
+		{&in_button3,	"button3"},
+		{&in_button4,	"button4"},
+		{&in_button5,	"button5"},
+		{&in_button6,	"button6"},
+		{&in_button7,	"button7"},
+		{&in_button8,	"button8"}
+	};
+
+	s = 0;
+	VFS_PRINTF(f, "\n//Player 1 buttons\n");
+	for (b = 0; b < countof(buttons); b++)
+	{
+		if (buttons[b].button->state[s]&1)
+			VFS_PRINTF(f, "+%s\n", buttons[b].name);
+		else if (b || all)
+			VFS_PRINTF(f, "-%s\n", buttons[b].name);
+	}
+	for (; s < MAX_SPLITS; s++)
+	{
+		VFS_PRINTF(f, "\n//Player %i buttons\n", s+1);
+		for (b = 0; b < countof(buttons); b++)
+		{
+			if (buttons[b].button->state[s]&1)
+				VFS_PRINTF(f, "+p%i %s\n", s+1, buttons[b].name);
+			else if (b || all)
+				VFS_PRINTF(f, "-p%i %s\n", s+1, buttons[b].name);
+		}
+	}
+}
 
 //is this useful?
 

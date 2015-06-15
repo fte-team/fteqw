@@ -113,7 +113,7 @@ void VARGS Stats_Message(char *msg, ...);
 
 qboolean Stats_TrackerImageLoaded(char *in)
 {
-	qboolean error;
+	int error;
 	return Font_TrackerValid(unicode_decode(&error, in, &in, true));
 }
 static char *Stats_GenTrackerImageString(char *in)

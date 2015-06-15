@@ -102,6 +102,7 @@ qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routenam
 
 qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b);
 qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b);
+void		NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b);
 char		*NET_AdrToString (char *s, int len, netadr_t *a);
 char		*NET_BaseAdrToString (char *s, int len, netadr_t *a);
 size_t		NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount);

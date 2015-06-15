@@ -1130,7 +1130,9 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 {
 	int				temp;
 	qboolean		stat;
+#ifdef WTHREAD
 	void			*cond;
+#endif
 #ifndef NPFTE
     MSG				msg;
 #endif

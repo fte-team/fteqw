@@ -1225,6 +1225,7 @@ qboolean	Cvar_Command (int level)
 	cvar_t			*v;
 	char *str;
 	char buffer[65536];
+	int olev;
 
 // check variables
 	v = Cvar_FindVar (Cmd_Argv(0));
@@ -1291,9 +1292,9 @@ qboolean	Cvar_Command (int level)
 		return true;
 	}
 #ifndef SERVERONLY
-	if (Cmd_ExecLevel > RESTRICT_SERVER)
+	if (level > RESTRICT_SERVER)
 	{	//directed at a secondary player.
-		CL_SendClientCommand(true, "%i setinfo %s %s", Cmd_ExecLevel - RESTRICT_SERVER-1, v->name, COM_QuotedString(str, buffer, sizeof(buffer), false));
+		CL_SendClientCommand(true, "%i setinfo %s %s", level - RESTRICT_SERVER-1, v->name, COM_QuotedString(str, buffer, sizeof(buffer), false));
 		return true;
 	}
 
@@ -1324,10 +1325,59 @@ qboolean	Cvar_Command (int level)
 		}
 	}
 #endif
+
+	olev = Cmd_ExecLevel;
+	Cmd_ExecLevel = 0;//just to try to detect any bugs that could happen from this
 	Cvar_Set (v, str);	//will use all, quote included
+	Cmd_ExecLevel = olev;
 	return true;
 }
 
+static char *Cvar_AddDescription(char *buffer, size_t sizeofbuffer, const char *line, const char *cvardesc)
+{
+	if (!cvardesc || !*cvardesc || strlen(line)+100 > sizeofbuffer)
+		Q_snprintfz(buffer, sizeofbuffer, "%s\n", line);
+	else
+	{
+		//fixme: de-funstring.
+		char *out = buffer, *outend = out+sizeofbuffer-2;	// 2 for \n\0
+		int i,pad;
+		Q_snprintfz(out, outend-out, "%s", line);
+		out += strlen(out);
+
+		pad = (strlen(line)+8) & ~7;
+		if (pad < 24)
+			pad = 24;
+		for(i = out-buffer; i < pad; i++)
+			*out++ = ' ';
+		*out++ = '/';
+		*out++ = '/';
+
+		for (;;)
+		{
+			if (!*cvardesc || out == outend)
+			{
+				*out++ = '\n';
+				break;
+			}
+			if (*cvardesc == '\n')
+			{
+				cvardesc++;
+				*out++ = '\n';
+				if (out + pad + 2 >= outend)
+					break;
+				for(i = 0; i < pad; i++)
+					*out++ = ' ';
+				*out++ = '/';
+				*out++ = '/';
+			}
+			else
+				*out++ = *cvardesc++;
+		}
+		*out = 0;
+	}
+	return buffer;
+}
 
 /*
 ============
@@ -1370,12 +1420,13 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 				if (var->flags & CVAR_USERCREATED)
 				{
 					if (var->flags & CVAR_ARCHIVE)
-						s = va("seta %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+						s = va("seta %s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
 					else
-						s = va("set %s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+						s = va("set %s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
 				}
 				else
-					s = va("%s %s\n", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+					s = va("%s %s", var->name, COM_QuotedString(val, buffer, sizeof(buffer), false));
+				s = Cvar_AddDescription(buffer, sizeof(buffer), s, var->description);
 				VFS_WRITE(f, s, strlen(s));
 			}
 	}

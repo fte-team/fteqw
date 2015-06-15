@@ -2067,8 +2067,6 @@ void	Cmd_ExecuteString (char *text, int level)
 
 	char dest[8192];
 
-	Cmd_ExecLevel = level;
-
 	text = Cmd_ExpandString(text, dest, sizeof(dest), level, !Cmd_IsInsecure()?true:false, true);
 	Cmd_TokenizeString (text, level == RESTRICT_LOCAL?true:false, false);
 
@@ -2085,7 +2083,7 @@ void	Cmd_ExecuteString (char *text, int level)
 				break;	//yes, I know we found it... (but it's the wrong case, go for an alias or cvar instead FIRST)
 
 			if ((cmd->restriction?cmd->restriction:rcon_level.ival) > level)
-				Con_TPrintf("%s was restricted.\n", cmd_argv[0]);
+				Con_TPrintf("cmd '%s' was restricted.\n", cmd_argv[0]);
 			else if (!cmd->function)
 			{
 #ifdef VM_CG
@@ -2109,7 +2107,12 @@ void	Cmd_ExecuteString (char *text, int level)
 				Cmd_ForwardToServer ();
 			}
 			else
+			{
+				int olev = Cmd_ExecLevel;
+				Cmd_ExecLevel = level;
 				cmd->function ();
+				Cmd_ExecLevel = olev;
+			}
 			return;
 		}
 	}
@@ -2130,7 +2133,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 			if ((a->restriction?a->restriction:rcon_level.ival) > level)
 			{
-				Con_TPrintf("%s was restricted.\n", cmd_argv[0]);
+				Con_TPrintf("alias '%s' was restricted.\n", cmd_argv[0]);
 				return;
 			}
 			if (a->execlevel)
@@ -2165,11 +2168,16 @@ void	Cmd_ExecuteString (char *text, int level)
 	if (cmd)	//go for skipped ones
 	{
 		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > level)
-			Con_TPrintf("%s was restricted.\n", cmd_argv[0]);
+			Con_TPrintf("'%s' was restricted.\n", cmd_argv[0]);
 		else if (!cmd->function)
 			Cmd_ForwardToServer ();
 		else
+		{
+			int olev = Cmd_ExecLevel;
+			Cmd_ExecLevel = level;
 			cmd->function ();
+			Cmd_ExecLevel = olev;
+		}
 
 		return;
 	}
@@ -2997,6 +3005,7 @@ void Cmd_WriteConfig_f(void)
 	VFS_WRITE(f, "// FTE config file\n\n", 20);
 #ifndef SERVERONLY
 	Key_WriteBindings (f);
+	IN_WriteButtons(f, all);
 	CL_SaveInfo(f);
 #else
 	VFS_WRITE(f, "// Dedicated Server config\n\n", 28);

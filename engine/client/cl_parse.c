@@ -3504,7 +3504,7 @@ void CLNQ_ParseClientdata (void)
 
 	if (bits & SU_VIEWHEIGHT)
 		CL_SetStatInt(0, STAT_VIEWHEIGHT, MSG_ReadChar ());
-	else if (CPNQ_IS_DP || cls.protocol_nq == CPNQ_DP5)
+	else// if (CPNQ_IS_DP || cls.protocol_nq == CPNQ_DP5)
 		CL_SetStatInt(0, STAT_VIEWHEIGHT, DEFAULT_VIEWHEIGHT);
 
 	if (bits & SU_IDEALPITCH)

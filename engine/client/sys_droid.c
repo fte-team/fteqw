@@ -94,10 +94,11 @@ void INS_ReInit(void)
 void INS_Shutdown(void)
 {
 }
-JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_keypress(JNIEnv *env, jobject obj,
+JNIEXPORT int JNICALL Java_com_fteqw_FTEDroidEngine_keypress(JNIEnv *env, jobject obj,
                  jint down, jint keycode, jint unicode)
 {
 	IN_KeyEvent(0, down, keycode, unicode);
+	return true;
 }
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject obj,
                  jint act, jint ptrid, jfloat x, jfloat y, jfloat size)

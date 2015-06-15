@@ -5087,7 +5087,7 @@ static void COM_WorkerTest_f(void)
 }
 
 
-cvar_t worker_flush = CVARD("worker_flush", "1", "Is set, process the entire load queue, loading stuff faster but at the risk of stalling.");
+cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling.");
 static void COM_InitWorkerThread(void)
 {
 	int i;

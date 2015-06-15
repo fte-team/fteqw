@@ -572,9 +572,9 @@ public class FTEDroidActivity extends Activity
 			setFocusableInTouchMode(true);
 		}
 		
-		private void sendKey(final boolean presseddown, final int qcode, final int unicode)
+		private boolean sendKey(final boolean presseddown, final int qcode, final int unicode)
 		{
-			FTEDroidEngine.keypress(presseddown?1:0, qcode, unicode);
+			return 0!=FTEDroidEngine.keypress(presseddown?1:0, qcode, unicode);
 		}
 		@Override
 		public boolean onTouchEvent(MotionEvent event)
@@ -670,16 +670,16 @@ public class FTEDroidActivity extends Activity
 		public boolean onKeyDown(int keyCode, KeyEvent event)
 		{
 			int uc = event.getUnicodeChar();
-			sendKey(true, mapKey(keyCode, uc), uc);
-			return true;
+			int qc = mapKey(keyCode, uc);
+			return sendKey(true, qc, uc);
 		}
 
 		@Override
 		public boolean onKeyUp(int keyCode, KeyEvent event)
 		{
 			int uc = event.getUnicodeChar();
-			sendKey(false, mapKey(keyCode, uc), uc);
-			return true;
+			int qc = mapKey(keyCode, uc);
+			return sendKey(false, qc, uc);
 		}
 		
 /*

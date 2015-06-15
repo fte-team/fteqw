@@ -49,13 +49,13 @@ shader_t *crepuscular_shader;
 
 cvar_t r_shadow_shadowmapping_nearclip = CVAR("r_shadow_shadowmapping_nearclip", "1");
 cvar_t r_shadow_shadowmapping_bias = CVAR("r_shadow_shadowmapping_bias", "0.03");
-cvar_t r_shadow_scissor = CVAR("r_shadow_scissor", "1");
+cvar_t r_shadow_scissor = CVARD("r_shadow_scissor", "1", "constrains stencil shadows to the onscreen box that contains the maxmium extents of the light. This avoids unnecessary work.");
 
-cvar_t r_shadow_realtime_world				= CVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world				= CVARFD ("r_shadow_realtime_world", "0", CVAR_ARCHIVE, "Enables the use of static/world realtime lights.");
 cvar_t r_shadow_realtime_world_shadows		= CVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_world_lightmaps	= CVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
-cvar_t r_shadow_realtime_dlight				= CVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_dlight_shadows		= CVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
+cvar_t r_shadow_realtime_world_lightmaps	= CVARFD ("r_shadow_realtime_world_lightmaps", "0", 0, "Specifies how much of the map's normal lightmap to retain when using world realtime lights. 0 completely replaces lighting.");
+cvar_t r_shadow_realtime_dlight				= CVARFD ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE, "Enables the use of dynamic realtime lights, allowing explosions to use bumpmaps etc properly.");
+cvar_t r_shadow_realtime_dlight_shadows		= CVARFD ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE, "Allows dynamic realtime lights to cast shadows as they move.");
 cvar_t r_shadow_realtime_dlight_ambient		= CVAR ("r_shadow_realtime_dlight_ambient", "0");
 cvar_t r_shadow_realtime_dlight_diffuse		= CVAR ("r_shadow_realtime_dlight_diffuse", "1");
 cvar_t r_shadow_realtime_dlight_specular	= CVAR ("r_shadow_realtime_dlight_specular", "4");	//excessive, but noticable. its called stylized, okay? shiesh, some people
@@ -63,7 +63,7 @@ cvar_t r_editlights_import_radius			= CVAR ("r_editlights_import_radius", "1");
 cvar_t r_editlights_import_ambient			= CVAR ("r_editlights_import_ambient", "0");
 cvar_t r_editlights_import_diffuse			= CVAR ("r_editlights_import_diffuse", "1");
 cvar_t r_editlights_import_specular			= CVAR ("r_editlights_import_specular", "1");	//excessive, but noticable. its called stylized, okay? shiesh, some people
-cvar_t r_shadow_shadowmapping				= CVARD ("r_shadow_shadowmapping", "1", "Enables soft shadows");
+cvar_t r_shadow_shadowmapping				= CVARD ("r_shadow_shadowmapping", "1", "Enables soft shadows instead of stencil shadows.");
 cvar_t r_shadow_shadowmapping_precision		= CVARD ("r_shadow_shadowmapping_precision", "1", "Scales the shadowmap detail level up or down.");
 extern cvar_t r_shadow_shadowmapping_nearclip;
 extern cvar_t r_shadow_shadowmapping_bias;

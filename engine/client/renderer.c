@@ -62,7 +62,7 @@ cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfac
 extern cvar_t r_vertexlight;
 extern cvar_t r_forceprogramify;
 
-cvar_t mod_md3flags							= CVAR  ("mod_md3flags", "1");
+cvar_t mod_md3flags							= CVARD  ("mod_md3flags", "1", "The flags field of md3s was never officially defined. If this is set to 1, the flags will be treated identically to mdl files. Otherwise they will be ignored. Naturally, this is required to provide rotating pickups in quake.");
 
 cvar_t r_ambient							= CVARF ("r_ambient", "0",
 												CVAR_CHEAT);
@@ -73,8 +73,8 @@ cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "0",
 cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
 cvar_t r_drawflat							= CVARF ("r_drawflat", "0",
 												CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
-cvar_t r_wireframe							= CVARF ("r_wireframe", "0",
-												CVAR_CHEAT);
+cvar_t r_wireframe							= CVARFD ("r_wireframe", "0",
+												CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
 cvar_t r_wireframe_smooth					= CVAR ("r_wireframe_smooth", "0");
 cvar_t r_refract_fbo						= CVARD ("r_refract_fbo", "1", "Use an fbo for refraction. If 0, just renders as a portal and uses a copy of the current framebuffer.");
 cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
@@ -90,8 +90,8 @@ cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fb_bmodels							= CVARAF("r_fb_bmodels", "1",
 													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
-cvar_t r_fb_models							= CVARAF  ("r_fb_models", "1",
-													"gl_fb_models", CVAR_SEMICHEAT);
+cvar_t r_fb_models							= CVARAFD  ("r_fb_models", "1",
+													"gl_fb_models", CVAR_SEMICHEAT, "Force all non-player models to be fullbright in deathmatch. Because if you don't enable these cheats then you'll go splat because everone else uses them. QuakeWorld players suck.");
 cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_globalskin_first						= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
@@ -115,12 +115,12 @@ cvar_t r_lightstylesmooth					= CVARF  ("r_lightstylesmooth", "0", CVAR_ARCHIVE)
 cvar_t r_lightstylesmooth_limit				= SCVAR  ("r_lightstylesmooth_limit", "2");
 cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
 cvar_t r_lightstylescale					= SCVAR  ("r_lightstylescale", "1");
-cvar_t r_hdr_irisadaptation					= SCVAR  ("r_hdr_irisadaptation", "0");
-cvar_t r_hdr_irisadaptation_multiplier		= SCVAR  ("r_hdr_irisadaptation_multiplier", "2");
-cvar_t r_hdr_irisadaptation_minvalue		= SCVAR  ("r_hdr_irisadaptation_minvalue", "0.5");
-cvar_t r_hdr_irisadaptation_maxvalue		= SCVAR  ("r_hdr_irisadaptation_maxvalue", "4");
-cvar_t r_hdr_irisadaptation_fade_down		= SCVAR  ("r_hdr_irisadaptation_fade_down", "0.5");
-cvar_t r_hdr_irisadaptation_fade_up			= SCVAR  ("r_hdr_irisadaptation_fade_up", "0.1");
+cvar_t r_hdr_irisadaptation					= CVARF  ("r_hdr_irisadaptation", "0", CVAR_ARCHIVE);
+cvar_t r_hdr_irisadaptation_multiplier		= CVAR  ("r_hdr_irisadaptation_multiplier", "2");
+cvar_t r_hdr_irisadaptation_minvalue		= CVAR  ("r_hdr_irisadaptation_minvalue", "0.5");
+cvar_t r_hdr_irisadaptation_maxvalue		= CVAR  ("r_hdr_irisadaptation_maxvalue", "4");
+cvar_t r_hdr_irisadaptation_fade_down		= CVAR  ("r_hdr_irisadaptation_fade_down", "0.5");
+cvar_t r_hdr_irisadaptation_fade_up			= CVAR  ("r_hdr_irisadaptation_fade_up", "0.1");
 cvar_t r_loadlits							= CVARF  ("r_loadlit", "1", CVAR_ARCHIVE);
 cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
@@ -142,7 +142,7 @@ cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
 cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
-cvar_t r_postprocshader						= CVARD("r_postprocshader", "", "Specifies a shader to use as a post-processing shader");
+cvar_t r_postprocshader						= CVARD("r_postprocshader", "", "Specifies a custom shader to use as a post-processing shader");
 cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "128 128 128",
 													  "r_wallcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
 //cvar_t r_walltexture						= CVARF ("r_walltexture", "",
@@ -155,8 +155,8 @@ cvar_t r_slimealpha							= CVARF  ("r_slimealpha", "",
 												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_telealpha							= CVARF  ("r_telealpha", "",
 												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
-cvar_t r_waterwarp							= CVARF ("r_waterwarp", "1",
-												CVAR_ARCHIVE);
+cvar_t r_waterwarp							= CVARFD ("r_waterwarp", "1",
+												CVAR_ARCHIVE, "Enables fullscreen warp, preferably via glsl. -1 specifies to force the fov warp fallback instead which can give a smidge more performance.");
 
 cvar_t r_replacemodels						= CVARFD ("r_replacemodels", IFMINIMAL("","md3 md2"),
 												CVAR_ARCHIVE, "A list of filename extensions to attempt to use instead of mdl.");
@@ -214,19 +214,19 @@ cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "0",
 #else
 //these cvars will be given their names when they're registered, based upon whether -plugin was used. this means code can always use vid_fullscreen without caring, but gets saved properly.
 cvar_t vid_fullscreen						= CVARAFD (NULL, "1", "vid_fullscreen",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Whether to use fullscreen or not.");
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Whether to use fullscreen or not. A value of 2 specifies fullscreen windowed (aka borderless window) mode.");
 cvar_t vid_fullscreen_alternative			= CVARFD (NULL, "1",
-												CVAR_ARCHIVE, "Whether to use fuollscreen or not. This cvar is saved to your config but not otherwise used in this operating mode.");
+												CVAR_ARCHIVE, "Whether to use fullscreen or not. This cvar is saved to your config but not otherwise used in this operating mode.");
 #endif
 cvar_t vid_height							= CVARFD ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The screen height to attempt to use, in physical pixels. 0 means use desktop resolution.");
-cvar_t vid_multisample						= CVARF ("vid_multisample", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t vid_multisample						= CVARFD ("vid_multisample", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Set to 4 or so for multisample antialiasing (msaa).");
 cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_srgb								= CVARFD ("vid_srgb", "0",
 												CVAR_ARCHIVE, "The framebuffer should use sRGB colourspace. This has the effect of brightening the screen");
-cvar_t vid_wndalpha							= CVAR ("vid_wndalpha", "1");
+cvar_t vid_wndalpha							= CVARD ("vid_wndalpha", "1", "When running windowed, specifies the window's transparency level.");
 //more readable defaults to match conwidth/conheight.
 cvar_t vid_width							= CVARFD ("vid_width", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The screen width to attempt to use, in physical pixels. 0 means use desktop resolution.");
@@ -294,7 +294,7 @@ cvar_t gl_conback							= CVARFDC ("gl_conback", "",
 cvar_t gl_font								= CVARFD ("gl_font", "",
 													  CVAR_RENDERERCALLBACK, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used.\n"
 													  "When using TTF fonts, you will likely need to scale text to at least 150% - vid_conautoscale 1.5 will do this.\n"
-													  "TTF fonts may be loaded from your windows directory. \'gl_font cour:couri\' loads eg: c:\\windows\\fonts\\cour.ttf, and uses the italic version of courier for alternative text."
+													  "TTF fonts may be loaded from your windows directory. \'gl_font cour?col=1,1,1:couri?col=0,1,0\' loads eg: c:\\windows\\fonts\\cour.ttf, and uses the italic version of courier for alternative text, with specific colour tints."
 													  ));
 cvar_t gl_lateswap							= CVAR  ("gl_lateswap", "0");
 cvar_t gl_lerpimages						= CVARFD  ("gl_lerpimages", "1", CVAR_ARCHIVE, "Enables smoother resampling for images which are not power-of-two, when the drivers do not support non-power-of-two textures.");

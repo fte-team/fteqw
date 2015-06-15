@@ -52,7 +52,7 @@ static void QDECL CL_AutoTrackChanged(cvar_t *v, char *oldval)
 }
 // track high fragger
 cvar_t cl_autotrack = CVARCD("cl_autotrack", "auto", CL_AutoTrackChanged, "Specifies the default tracking mode at the start of the map. Use the 'autotrack' command to reset/apply an auto-tracking mode without changing the default.\nValid values are: high, ^hkiller^h, mod, user. Other values are treated as weighting scripts for mvd playback, where available.");
-cvar_t cl_hightrack = SCVAR("cl_hightrack", "0");
+cvar_t cl_hightrack = CVARD("cl_hightrack", "0", "Obsolete. If you want hightrack, use '[cl_]autotrack high' instead.");
 
 //cvar_t cl_camera_maxpitch = {"cl_camera_maxpitch", "10" };
 //cvar_t cl_camera_maxyaw = {"cl_camera_maxyaw", "30" };

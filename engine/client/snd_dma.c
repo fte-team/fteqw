@@ -74,9 +74,9 @@ cvar_t loadas8bit				= CVARAFD(	"s_loadas8bit", "0",
 											"loadas8bit", CVAR_ARCHIVE,
 											"Downsample sounds on load as lower quality 8-bit sound.");
 cvar_t ambient_level			= CVARAF(	"s_ambientlevel", "0.3",
-											"ambient_level", 0);
+											"ambient_level", CVAR_ARCHIVE);
 cvar_t ambient_fade				= CVARAF(	"s_ambientfade", "100",
-											"ambient_fade", 0);
+											"ambient_fade", CVAR_ARCHIVE);
 cvar_t snd_noextraupdate		= CVARAF(	"s_noextraupdate", "0",
 											"snd_noextraupdate", 0);
 cvar_t snd_show					= CVARAF(	"s_show", "0",
@@ -84,7 +84,7 @@ cvar_t snd_show					= CVARAF(	"s_show", "0",
 cvar_t snd_khz					= CVARAFD(	"s_khz", "48",
 											"snd_khz", CVAR_ARCHIVE, "Sound speed, in kilohertz. Common values are 11, 22, 44, 48. Values above 1000 are explicitly in hertz.");
 cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "1",
-											"snd_inactive", 0,
+											"snd_inactive", CVAR_ARCHIVE,
 											"Play sound while application is inactive (ex. tabbed out). Needs a snd_restart if changed."
 											);	//set if you want sound even when tabbed out.
 cvar_t _snd_mixahead			= CVARAFD(	"s_mixahead", "0.1",
@@ -100,7 +100,7 @@ cvar_t snd_buffersize			= CVARAF(	"s_buffersize", "0",
 cvar_t snd_samplebits			= CVARAF(	"s_bits", "16",
 											"snd_samplebits", CVAR_ARCHIVE);
 cvar_t snd_playersoundvolume	= CVARAFD(	"s_localvolume", "1",
-											"snd_localvolume", 0,
+											"snd_localvolume", CVAR_ARCHIVE,
 											"Sound level for sounds local or originating from the player such as firing and pain sounds.");	//sugested by crunch
 
 cvar_t snd_playbackrate			= CVARFD(	"snd_playbackrate", "1", CVAR_CHEAT, "Debugging cvar that changes the playback rate of all new sounds.");
@@ -113,7 +113,7 @@ cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
 cvar_t snd_mixerthread			= CVARAD(	"s_mixerthread", "1",
 											"snd_mixerthread", "When enabled sound mixing will be run on a separate thread. Currently supported only by directsound. Other drivers may unconditionally thread audio. Set to 0 only if you have issues.");
 cvar_t snd_device				= CVARAFD(	"s_device", "",
-										  "snd_device", CVAR_ARCHIVE, "This is the sound device(s) to use, in the form of driver:device. If desired, multiple devices can be listed in space-seperated (quoted) tokens. _s_device_opts contains any enumerated options. In all seriousness, use the menu to set this if you wish to keep your hair.");
+										  "snd_device", CVAR_ARCHIVE, "This is the sound device(s) to use, in the form of driver:device.\nIf desired, multiple devices can be listed in space-seperated (quoted) tokens. _s_device_opts contains any enumerated options.\nIn all seriousness, use the menu to set this if you wish to keep your hair.");
 cvar_t snd_device_opts			= CVARFD(	"_s_device_opts", "", CVAR_NOSET, "The possible audio output devices, in \"value\" \"description\" pairs, for gamecode to read.");
 
 #ifdef VOICECHAT
@@ -123,7 +123,7 @@ cvar_t snd_voip_capturedevice_opts	= CVARFD("_cl_voip_capturedevice_opts", "", C
 int voipbutton;	//+voip, no longer part of cl_voip_send to avoid it getting saved
 cvar_t snd_voip_send			= CVARFD("cl_voip_send", "0", CVAR_ARCHIVE, "Sends voice-over-ip data to the server whenever it is set.\n0: only send voice if +voip is pressed.\n1: voice activation.\n2: constantly send.\n+4: Do not send to game, only to rtp sessions.");
 cvar_t snd_voip_test			= CVARD("cl_voip_test", "0", "If 1, enables you to hear your own voice directly, bypassing the server and thus without networking latency, but is fine for checking audio levels. Note that sv_voip_echo can be set if you want to include latency and packetloss considerations, but setting that cvar requires server admin access and is thus much harder to use.");
-cvar_t snd_voip_vad_threshhold	= CVARD("cl_voip_vad_threshhold", "15", "This is the threshhold for voice-activation-detection when sending voip data");
+cvar_t snd_voip_vad_threshhold	= CVARFD("cl_voip_vad_threshhold", "15", CVAR_ARCHIVE, "This is the threshhold for voice-activation-detection when sending voip data");
 cvar_t snd_voip_vad_delay		= CVARD("cl_voip_vad_delay", "0.3", "Keeps sending voice data for this many seconds after voice activation would normally stop");
 cvar_t snd_voip_capturingvol	= CVARAFD("cl_voip_capturingvol", "0.5", NULL, CVAR_ARCHIVE, "Volume multiplier applied while capturing, to avoid your audio from being heard by others. Does not affect game volume when other speak (minimum of cl_voip_capturingvol and cl_voip_ducking is used).");
 cvar_t snd_voip_showmeter		= CVARAFD("cl_voip_showmeter", "1", NULL, CVAR_ARCHIVE, "Shows your speech volume above the standard hud. 0=hide, 1=show when transmitting, 2=ignore voice-activation disable");
@@ -1706,6 +1706,7 @@ S_Startup
 void S_ClearRaw(void);
 void S_Startup (void)
 {
+	qboolean nodefault = false;
 	char *s;
 
 	if (!snd_initialized)
@@ -1724,12 +1725,17 @@ void S_Startup (void)
 		if (!*com_token)
 			break;
 
-		sep = strchr(com_token, ':');
-		if (sep)
-			*sep++ = 0;
-		SNDDMA_Init(com_token, sep);
+		if (!Q_strcasecmp(com_token, "none"))
+			nodefault = true;
+		else
+		{
+			sep = strchr(com_token, ':');
+			if (sep)
+				*sep++ = 0;
+			SNDDMA_Init(com_token, sep);
+		}
 	}
-	if (!sndcardinfo)
+	if (!sndcardinfo && !nodefault)
 		SNDDMA_Init(NULL, NULL);
 
 	sound_started = true;

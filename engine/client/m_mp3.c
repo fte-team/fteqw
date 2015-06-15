@@ -3460,7 +3460,7 @@ void TTS_SayAsciiString(char *stringtosay)
 	TTS_SayUnicodeString(bigbuffer);
 }
 
-cvar_t tts_mode = CVAR("tts_mode", "1");
+cvar_t tts_mode = CVARD("tts_mode", "1", "Text to speech\n0: off\n1: Read only chat messages with a leading 'tts ' prefix.\n2: Read all chat messages\n3: Read every single console print.");
 void TTS_SayChatString(char **stringtosay)
 {
 	if (!strncmp(*stringtosay, "tts ", 4))

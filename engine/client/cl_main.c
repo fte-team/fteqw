@@ -70,7 +70,7 @@ cvar_t	lookspring = CVARF("lookspring","0", CVAR_ARCHIVE);
 cvar_t	lookstrafe = CVARF("lookstrafe","0", CVAR_ARCHIVE);
 cvar_t	sensitivity = CVARF("sensitivity","10", CVAR_ARCHIVE);
 
-cvar_t cl_staticsounds = CVAR("cl_staticsounds", "1", CVAR_ARCHIVE);
+cvar_t cl_staticsounds = CVARF("cl_staticsounds", "1", CVAR_ARCHIVE);
 
 cvar_t	m_pitch = CVARF("m_pitch","0.022", CVAR_ARCHIVE);
 cvar_t	m_yaw = CVARF("m_yaw","0.022", CVAR_ARCHIVE);

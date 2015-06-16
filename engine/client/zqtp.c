@@ -252,11 +252,14 @@ typedef struct item_vis_s {
 //								TRIGGERS
 //===========================================================================
 
-void TP_ExecTrigger (char *s)
+void TP_ExecTrigger (char *s, qboolean indemos)
 {
 	char *astr;
 
-	if (!cl_triggers.value || cls.demoplayback)
+	if (!cl_triggers.value)
+		return;
+
+	if (!indemos && cls.demoplayback)
 		return;
 
 	astr = Cmd_AliasExist(s, RESTRICT_LOCAL);
@@ -1225,6 +1228,7 @@ static char *TP_ParseMacroString (char *s)
 				case 'b':	macro_string = Macro_BestWeaponAndAmmo(); break;
 				case 'c':	macro_string = Macro_Cells(); break;
 				case 'd':	macro_string = Macro_LastDeath(); break;
+//				case 'D':
 				case 'h':	macro_string = Macro_Health(); break;
 				case 'i':	macro_string = Macro_TookAtLoc(); break;
 				case 'j':	macro_string = Macro_LastPointAtLoc(); break;
@@ -2065,7 +2069,7 @@ void TP_NewMap (void)
 	}
 
 	TP_UpdateAutoStatus();
-	TP_ExecTrigger ("f_newmap");
+	TP_ExecTrigger ("f_newmap", false);
 }
 
 /*
@@ -2687,7 +2691,7 @@ static void ExecTookTrigger (char *s, int flag, vec3_t org)
 	strncpy (vars.tookloc, TP_LocationName (org), sizeof(vars.tookloc)-1);
 
 	if ((tookflags_dmm & flag) && CheckTrigger())
-		TP_ExecTrigger ("f_took");
+		TP_ExecTrigger ("f_took", false);
 }
 
 void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info)
@@ -3215,7 +3219,7 @@ void TP_StatChanged (int stat, int value)
 				vars.respawntrigger_time = realtime;
 
 				if (!cl.spectator && CountTeammates())
-					TP_ExecTrigger ("f_respawn");
+					TP_ExecTrigger ("f_respawn", false);
 			}
 		}
 		else if (vars.health > 0)
@@ -3234,9 +3238,9 @@ void TP_StatChanged (int stat, int value)
 			{
 				if (cl.teamfortress && (cl.playerview[SP].stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2))
 					&& Cmd_AliasExist("f_flagdeath", RESTRICT_LOCAL))
-					TP_ExecTrigger ("f_flagdeath");
+					TP_ExecTrigger ("f_flagdeath", false);
 				else
-					TP_ExecTrigger ("f_death");
+					TP_ExecTrigger ("f_death", false);
 			}
 		}
 		vars.health = value;
@@ -3265,7 +3269,7 @@ void TP_StatChanged (int stat, int value)
 	else if (stat == STAT_ACTIVEWEAPON)
 	{
 		if (cl.playerview[SP].stats[STAT_ACTIVEWEAPON] != vars.activeweapon)
-			TP_ExecTrigger ("f_weaponchange");
+			TP_ExecTrigger ("f_weaponchange", false);
 		vars.activeweapon = cl.playerview[SP].stats[STAT_ACTIVEWEAPON];
 	}
 

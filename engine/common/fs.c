@@ -1532,6 +1532,7 @@ vfsfile_t *FS_OpenWithFriends(const char *fname, char *sysname, size_t sysnamesi
 		COM_CreatePath(sysname);
 		return VFSOS_Open(sysname, "wbp");
 	}
+	FS_NativePath(fname, FS_GAMEONLY, sysname, sysnamesize);
 	return NULL;
 }
 
@@ -3011,9 +3012,9 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			}
 			else
 			{
-				FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_gamepath, dir), reloadflags, SPF_EXPLICIT);
+				FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_gamepath, dir), reloadflags, SPF_EXPLICIT|(com_homepathenabled?0:SPF_WRITABLE));
 				if (com_homepathenabled)
-					FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_homepath, dir), reloadflags, SPF_EXPLICIT);
+					FS_AddGameDirectory(&oldpaths, dir, va("%s%s", com_homepath, dir), reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
 			}
 		}
 	}

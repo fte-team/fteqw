@@ -75,7 +75,7 @@ int UDP6_OpenSocket (int port, qboolean bcast);
 #ifdef USEIPX
 void IPX_CloseSocket (int socket);
 #endif
-cvar_t	net_hybriddualstack = CVAR("net_hybriddualstack", "1");
+cvar_t	net_hybriddualstack = CVARD("net_hybriddualstack", "1", "Uses hybrid ipv4+ipv6 sockets where possible. Not supported on xp or below.");
 cvar_t	net_fakeloss	= CVARFD("net_fakeloss", "0", CVAR_CHEAT, "Simulates packetloss in both receiving and sending, on a scale from 0 to 1.");
 cvar_t	net_enabled		= CVARD("net_enabled", "1", "If 0, disables all network access, including name resolution and socket creation. Does not affect loopback/internal connections.");
 
@@ -419,6 +419,34 @@ qboolean NET_AddressSmellsFunny(netadr_t *a)
 	default:
 		return true;
 	}
+}
+
+static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
+{
+	netadr_t *n = data;
+	struct sockaddr_qstorage s;
+	int ssz;
+	char *adrstring = Z_Malloc(NI_MAXHOST);
+	if (n->type == NA_LOOPBACK)
+		NET_BaseAdrToString(adrstring, NI_MAXHOST, n);
+	else
+	{
+		ssz = NetadrToSockadr(n, &s);
+		if (getnameinfo((struct sockaddr *)&s, ssz, adrstring, NI_MAXHOST, NULL, 0, NI_NUMERICSERV|NI_DGRAM))
+		{
+			NET_BaseAdrToString(adrstring, NI_MAXHOST, n);
+		}
+	}
+	COM_AddWork(0, *(void**)(n+1), ctx, adrstring, a, b);
+	Z_Free(n);
+}
+
+void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b)
+{
+	netadr_t *n = Z_Malloc(sizeof(*n) + sizeof(void*));
+	*n = *adr;
+	*(void**)(n+1) = resolved;
+	COM_AddWork(2, NET_AdrToStringDoResolve, ctx, n, a, b);
 }
 
 char	*NET_AdrToString (char *s, int len, netadr_t *a)
@@ -5724,7 +5752,7 @@ void QDECL SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, var->name, var->string, NA_IPV6, true);
 }
-cvar_t  sv_port_ipv6 = CVARC("sv_port_ipv6", "", SV_PortIPv6_Callback);
+cvar_t  sv_port_ipv6 = CVARCD("sv_port_ipv6", "", SV_PortIPv6_Callback, "Port to use for incoming ipv6 udp connections. Due to hybrid sockets this might not be needed. You can specify an ipv4 address:port for a second ipv4 port if you want.");
 #endif
 #ifdef USEIPX
 void QDECL SV_PortIPX_Callback(struct cvar_s *var, char *oldvalue)

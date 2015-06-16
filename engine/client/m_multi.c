@@ -308,7 +308,7 @@ void q2skin_destroy(q2skinsearch_t *s)
 	BZ_Free(s);
 }
 
-qboolean MSetupQ2_ChangeSkin (struct menucustom_s *option,struct menu_s *menu, int key)
+qboolean MSetupQ2_ChangeSkin (struct menucustom_s *option,struct menu_s *menu, int key, unsigned int unicode)
 {
 	setupmenu_t *info = menu->data;
 	q2skinsearch_t *s = Z_Malloc(sizeof(*s));

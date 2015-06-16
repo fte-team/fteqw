@@ -367,7 +367,7 @@ void GUI_ParseCommandLine(char *args)
 		l = 0;
 		if (qt)
 			args++;
-		while (*args != ' ' && *args)
+		while ((*args != ' ' || qt) && *args)
 		{
 			if (qt && *args == '\"')
 			{

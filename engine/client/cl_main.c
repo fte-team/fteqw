@@ -87,7 +87,7 @@ cvar_t	cl_serveraddress = CVARD("cl_serveraddress", "none", "The address of the 
 cvar_t	qtvcl_forceversion1 = CVAR("qtvcl_forceversion1", "0");
 cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
 
-cvar_t cl_demospeed = CVARAF("cl_demospeed", "1", "demo_setspeed", 0);
+cvar_t cl_demospeed = CVARF("cl_demospeed", "1", 0);
 cvar_t	cl_demoreel = CVARFD("cl_demoreel", "0", CVAR_SAVE, "When enabled, the engine will begin playing a demo loop on startup.");
 
 cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol to use for single-player/the internal client. Should be one of: qw, qwid, nqid, nq, fitz, dp6, dp7. If empty, will use qw protocols for qw mods, and nq protocols for nq mods.");
@@ -331,7 +331,11 @@ void CL_MakeActive(char *gamename)
 
 	Mod_Purge(MP_MAPCHANGED);
 
-	TP_ExecTrigger("f_spawn");
+	TP_ExecTrigger("f_begin", true);
+	if (cls.demoplayback)
+		TP_ExecTrigger("f_spawndemo", true);
+	else
+		TP_ExecTrigger("f_spawn", false);
 }
 /*
 ==================
@@ -353,7 +357,7 @@ void CL_Quit_f (void)
 		}
 	}
 
-	TP_ExecTrigger("f_quit");
+	TP_ExecTrigger("f_quit", true);
 	Cbuf_Execute();
 /*
 #ifndef CLIENTONLY
@@ -3507,6 +3511,18 @@ void CL_Status_f(void)
 		Con_Printf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
 }
 
+void CL_Demo_SetSpeed_f(void)
+{
+	char *s = Cmd_Argv(1);
+	if (s)
+	{
+		float f = atof(s)/100;
+		Cvar_SetValue(&cl_demospeed, f);
+	}
+	else
+		Con_Printf("demo playback speed %g%%\n", cl_demospeed.value * 100);
+}
+
 void CL_Skygroup_f(void);
 /*
 =================
@@ -3566,6 +3582,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_servername, cl_controlgroup);
 	Cvar_Register (&cl_serveraddress, cl_controlgroup);
 	Cvar_Register (&cl_demospeed, "Demo playback");
+	Cmd_AddCommand("demo_setspeed", CL_Demo_SetSpeed_f);
 	Cvar_Register (&cl_upspeed, cl_inputgroup);
 	Cvar_Register (&cl_forwardspeed, cl_inputgroup);
 	Cvar_Register (&cl_backspeed, cl_inputgroup);
@@ -4927,7 +4944,7 @@ void CL_StartCinematicOrMenu(void)
 
 	Con_ClearNotify();
 
-	TP_ExecTrigger("f_startup");
+	TP_ExecTrigger("f_startup", true);
 	Cbuf_Execute ();
 
 	if (com_installer)

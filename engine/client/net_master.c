@@ -706,25 +706,25 @@ qboolean Master_CompareString(const char *a, const char *b, slist_test_t rule)
 	switch(rule)
 	{
 	case SLIST_TEST_STARTSWITH:
-		return strnicmp(a, b, strlen(b))==0;
+		return Q_strncasecmp(a, b, strlen(b))==0;
 	case SLIST_TEST_NOTSTARTSWITH:
-		return strnicmp(a, b, strlen(b))!=0;
+		return Q_strncasecmp(a, b, strlen(b))!=0;
 	case SLIST_TEST_CONTAINS:
-		return !!strstr(a, b);
+		return !!Q_strcasestr(a, b);
 	case SLIST_TEST_NOTCONTAIN:
-		return !strstr(a, b);
+		return !Q_strcasestr(a, b);
 	case SLIST_TEST_LESSEQUAL:
-		return stricmp(a, b)<=0;
+		return Q_strcasecmp(a, b)<=0;
 	case SLIST_TEST_LESS:
-		return stricmp(a, b)<0;
+		return Q_strcasecmp(a, b)<0;
 	case SLIST_TEST_EQUAL:
-		return stricmp(a, b)==0;
+		return Q_strcasecmp(a, b)==0;
 	case SLIST_TEST_GREATER:
-		return stricmp(a, b)>0;
+		return Q_strcasecmp(a, b)>0;
 	case SLIST_TEST_GREATEREQUAL:
-		return stricmp(a, b)>=0;
+		return Q_strcasecmp(a, b)>=0;
 	case SLIST_TEST_NOTEQUAL:
-		return stricmp(a, b)!=0;
+		return Q_strcasecmp(a, b)!=0;
 	}
 	return false;
 }
@@ -734,6 +734,28 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 	switch(sortfield)
 	{
 	case SLKEY_ADDRESS:
+		if (a->adr.type != b->adr.type)
+			return a->adr.type < b->adr.type;
+		if (a->adr.type == NA_IP)
+		{
+			int i;
+			for (i = 0; i < 4; i++)
+			{
+				if (a->adr.address.ip[i] != b->adr.address.ip[i])
+					return a->adr.address.ip[i] < b->adr.address.ip[i];
+			}
+		}
+		if (a->adr.type == NA_IPV6)
+		{
+			int i;
+			for (i = 0; i < 16; i++)
+			{
+				if (a->adr.address.ip6[i] != b->adr.address.ip6[i])
+					return a->adr.address.ip6[i] < b->adr.address.ip6[i];
+			}
+		}
+		return false;
+
 		break;
 	case SLKEY_BASEGAME:
 		return Master_CompareInteger(a->special&SS_PROTOCOLMASK, b->special&SS_PROTOCOLMASK, SLIST_TEST_LESS);
@@ -1266,8 +1288,8 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 {
 	netadr_t adrs[MAX_MASTER_ADDRESSES];
 	char token[1024];
-	int found = 0;
-	qboolean first = true;
+	int found = 0, j, i;
+//	qboolean first = true;
 	char *str;
 	master_t *work = data;
 	//resolve all the addresses
@@ -1277,9 +1299,11 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 		str = COM_ParseOut(str, token, sizeof(token));
 		if (*token)
 			found += NET_StringToAdr2(token, 0, &adrs[found], MAX_MASTER_ADDRESSES-found);
-		if (first && found)
-			break;	//if we found one by name, don't try any fallback ip addresses.
-		first = false;
+		//we don't do this logic because windows doesn't look up ipv6 names if it only has teredo
+		//this means an ipv4+teredo client cannot see ivp6-only servers. and that sucks.
+//		if (first && found)
+//			break;	//if we found one by name, don't try any fallback ip addresses.
+//		first = false;
 	}
 
 	//add the main ip address
@@ -1287,18 +1311,28 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 	COM_AddWork(0, CLMaster_AddMaster_Worker_Resolved, NULL, work, a, b);
 
 	//add dupes too (eg: ipv4+ipv6)
-	while(found --> 1)
+	for (i = 1; i < found; i++)
 	{
-		master_t *alt = Z_Malloc(sizeof(master_t)+strlen(work->name)+1+strlen(work->address)+1);
-		alt->address = work->name + strlen(work->name)+1;
-		alt->mastertype = work->mastertype;
-		alt->protocoltype = work->protocoltype;
-		strcpy(alt->name, work->name);
-		strcpy(alt->address, work->address);
-		alt->sends = 1;
-		alt->nosave = true;
-		alt->adr = adrs[found];
-		COM_AddWork(0, CLMaster_AddMaster_Worker_Resolved, NULL, alt, a, b);
+		master_t *alt;
+		//don't add the same ip twice, because that's silly
+		for (j = 0; j < i; j++)
+		{
+			if (NET_CompareAdr(&adrs[j], &adrs[i]))
+				break;
+		}
+		if (j == i)
+		{	//not already added, hurrah
+			master_t *alt = Z_Malloc(sizeof(master_t)+strlen(work->name)+1+strlen(work->address)+1);
+			alt->address = work->name + strlen(work->name)+1;
+			alt->mastertype = work->mastertype;
+			alt->protocoltype = work->protocoltype;
+			strcpy(alt->name, work->name);
+			strcpy(alt->address, work->address);
+			alt->sends = 1;
+			alt->nosave = true;
+			alt->adr = adrs[i];
+			COM_AddWork(0, CLMaster_AddMaster_Worker_Resolved, NULL, alt, a, b);
+		}
 	}
 }
 

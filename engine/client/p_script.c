@@ -6008,14 +6008,14 @@ static void PScript_DrawParticleTypes (void)
 					P_RunParticleEffectType(p->org, p->vel, 1, type->emit);
 
 				// make sure stain effect runs
-				if (type->stainonimpact && r_bloodstains.ival)
+				if (type->stainonimpact && r_bloodstains.value)
 				{
 					if (traces-->0&&tr(oldorg, p->org, stop, normal))
 					{
 						Surf_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[1]*-10),
-											30*p->rgba[3]*type->stainonimpact);
+											30*p->rgba[3]*type->stainonimpact*r_bloodstains.value);
 					}
 				}
 
@@ -6235,11 +6235,11 @@ static void PScript_DrawParticleTypes (void)
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
-					if (type->stainonimpact && r_bloodstains.ival)
+					if (type->stainonimpact && r_bloodstains.value)
 						Surf_AddStain(stop,	p->rgba[1]*-10+p->rgba[2]*-10,
 											p->rgba[0]*-10+p->rgba[2]*-10,
 											p->rgba[0]*-10+p->rgba[1]*-10,
-											30*p->rgba[3]);
+											30*p->rgba[3]*r_bloodstains.value);
 
 					if (part_type + type->cliptype == type)
 					{	//bounce
@@ -6269,7 +6269,7 @@ static void PScript_DrawParticleTypes (void)
 					}
 				}
 			}
-			else if (type->stainonimpact && r_bloodstains.ival)
+			else if (type->stainonimpact && r_bloodstains.value)
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
@@ -6277,12 +6277,12 @@ static void PScript_DrawParticleTypes (void)
 						Surf_AddStain(stop,	(p->rgba[0]*-1),
 											(p->rgba[1]*-1),
 											(p->rgba[2]*-1),
-											p->scale*-type->stainonimpact);
+											p->scale*-type->stainonimpact*r_bloodstains.value);
 					else
 						Surf_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[1]*-10),
-											30*p->rgba[3]*type->stainonimpact);
+											30*p->rgba[3]*type->stainonimpact*r_bloodstains.value);
 					p->die = -1;
 					continue;
 				}

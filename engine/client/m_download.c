@@ -304,7 +304,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 		}
 	}
 }
-static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key)
+static qboolean MD_Key (struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
 {
 	package_t *p, *p2;
 	p = c->dptr;

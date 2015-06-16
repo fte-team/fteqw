@@ -1806,7 +1806,7 @@ void M_Complex_Key(int key, int unicode)
 
 	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_custom && (key == K_DOWNARROW || key == K_UPARROW || key == K_TAB))
 		if (currentmenu->selecteditem->custom.key)
-			if (currentmenu->selecteditem->custom.key(&currentmenu->selecteditem->custom, currentmenu, key))
+			if (currentmenu->selecteditem->custom.key(&currentmenu->selecteditem->custom, currentmenu, key, unicode))
 				return;
 
 	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_bind)
@@ -1912,7 +1912,7 @@ void M_Complex_Key(int key, int unicode)
 			break;
 		case mt_custom:
 			if (currentmenu->selecteditem->custom.key)
-				currentmenu->selecteditem->custom.key(&currentmenu->selecteditem->custom, currentmenu, key);
+				currentmenu->selecteditem->custom.key(&currentmenu->selecteditem->custom, currentmenu, key, unicode);
 			break;
 		case mt_edit:
 			MC_EditBox_Key(&currentmenu->selecteditem->edit, key, unicode);

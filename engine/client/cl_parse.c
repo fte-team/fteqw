@@ -3504,7 +3504,7 @@ void CLNQ_ParseClientdata (void)
 
 	if (bits & SU_VIEWHEIGHT)
 		CL_SetStatInt(0, STAT_VIEWHEIGHT, MSG_ReadChar ());
-	else// if (CPNQ_IS_DP || cls.protocol_nq == CPNQ_DP5)
+	else if (!CPNQ_IS_DP || cls.protocol_nq <= CPNQ_DP5)
 		CL_SetStatInt(0, STAT_VIEWHEIGHT, DEFAULT_VIEWHEIGHT);
 
 	if (bits & SU_IDEALPITCH)
@@ -3560,7 +3560,7 @@ void CLNQ_ParseClientdata (void)
 
 		CL_SetStatInt(0, STAT_ACTIVEWEAPON, (unsigned short)MSG_ReadShort());
 	}
-	else if (CPNQ_IS_DP)
+	else if (CPNQ_IS_DP && cls.protocol_nq > CPNQ_DP5)
 	{
 		/*nothing in dp6+*/
 	}
@@ -3621,7 +3621,7 @@ void CLNQ_ParseClientdata (void)
 	{
 		if (bits & DPSU_VIEWZOOM)
 		{
-			if (cls.protocol_nq)
+			if (cls.protocol_nq >= CPNQ_DP5)
 				i = (unsigned short) MSG_ReadShort();
 			else
 				i = MSG_ReadByte();
@@ -4646,7 +4646,7 @@ void CL_UpdateUserinfo (void)
 		char *qz;
 		qz = Info_ValueForKey(player->userinfo, "Qizmo");
 		if (*qz)
-			TP_ExecTrigger("f_qizmoconnect");
+			TP_ExecTrigger("f_qizmoconnect", false);
 	}
 }
 
@@ -4723,9 +4723,9 @@ static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 		if (cl.playerview[pnum].stats[stat] != ivalue)
 		{
 			if (ivalue == 0)
-				TP_ExecTrigger ("f_reloadstart");
+				TP_ExecTrigger ("f_reloadstart", false);
 			else if (cl.playerview[pnum].stats[stat] == 0)
-				TP_ExecTrigger ("f_reloadend");
+				TP_ExecTrigger ("f_reloadend", false);
 		}
 	}
 
@@ -5988,7 +5988,7 @@ void CLQW_ParseServerMessage (void)
 
 	//vanilla QW has no timing info in the client and depends upon the client for all timing.
 	//using the demo's timing for interpolation prevents unneccesary drift, and solves issues with demo seeking and other such things.
-	if (cls.demoplayback && !(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS))
+	if (cls.demoplayback == DPB_QUAKEWORLD && !(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS))
 	{
 		extern float demtime;
 		if (cl.gametime != demtime)
@@ -6314,7 +6314,11 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_intermission:
 			if (!cl.intermission)
-				TP_ExecTrigger ("f_mapend");
+			{
+				TP_ExecTrigger ("f_mapend", false);
+				if (cl.spectator)
+					TP_ExecTrigger ("f_specmapend", true);
+			}
 			cl.intermission = 1;
 			cl.completed_time = cl.gametime;
 			for (i=0 ; i<3 ; i++)
@@ -7162,7 +7166,7 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_intermission:
 			if (!cl.intermission)
-				TP_ExecTrigger ("f_mapend");
+				TP_ExecTrigger ("f_mapend", false);
 			cl.intermission = 1;
 			cl.completed_time = cl.gametime;
 			break;

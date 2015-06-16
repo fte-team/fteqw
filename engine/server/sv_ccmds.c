@@ -1762,6 +1762,8 @@ static void SV_Status_f (void)
 				else
 					s = "ParmZombie";
 			}
+			else if (cl->reversedns)
+				s = cl->reversedns;
 			else if (cl->state == cs_zombie && cl->netchan.remote_address.type == NA_INVALID)
 				s = "none";
 			else if (cl->protocol == SCP_BAD)
@@ -1802,6 +1804,8 @@ static void SV_Status_f (void)
 				else
 					s = "ParmZombie";
 			}
+			else if (cl->reversedns)
+				s = cl->reversedns;
 			else if (cl->state == cs_zombie && cl->netchan.remote_address.type == NA_INVALID)
 				s = "none";
 			else if (cl->protocol == SCP_BAD)

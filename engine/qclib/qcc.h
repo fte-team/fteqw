@@ -353,6 +353,8 @@ typedef struct QCC_type_s
 	char *aname;
 
 	struct accessor_s *accessors;
+
+	struct QCC_type_s *ptrto;	//this points to a type that is a pointer back to this type. yeah, weird.
 } QCC_type_t;
 int typecmp(QCC_type_t *a, QCC_type_t *b);
 int typecmp_lax(QCC_type_t *a, QCC_type_t *b);

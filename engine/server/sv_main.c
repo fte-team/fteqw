@@ -1863,6 +1863,21 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 }
 
 
+//void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b);
+void SV_UserDNSResolved(void *ctx, void *data, size_t idx, size_t uid)
+{
+	if (idx < svs.allocated_client_slots)
+	{
+		if (svs.clients[idx].userid == uid)
+		{
+			Z_Free(svs.clients[idx].reversedns);
+			svs.clients[idx].reversedns = data;
+			return;
+		}
+	}
+	Con_DPrintf("stale dns lookup result: %s\n", data);
+	Z_Free(data);
+}
 
 /*
 ==================
@@ -2541,6 +2556,8 @@ client_t *SVC_DirectConnect(void)
 	temp.name = newcl->name;
 	temp.team = newcl->team;
 	*newcl = temp;
+
+//	NET_AdrToStringResolve(&adr, SV_UserDNSResolved, NULL, newcl-svs.clients, newcl->userid);
 
 	newcl->challenge = challenge;
 	newcl->zquake_extensions = atoi(Info_ValueForKey(newcl->userinfo, "*z_ext"));

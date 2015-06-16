@@ -2,32 +2,40 @@
 
 #if defined(CL_MASTER) && !defined(NOBUILTINMENUS)
 #include "cl_master.h"
+#include "shader.h"
 
 //filtering
-static cvar_t	sb_hideempty		= SCVARF("sb_hideempty",	"0",	CVAR_ARCHIVE);
-static cvar_t	sb_hidenotempty		= SCVARF("sb_hidenotempty",	"0",	CVAR_ARCHIVE);
-static cvar_t	sb_hidefull			= SCVARF("sb_hidefull",		"0",	CVAR_ARCHIVE);
-static cvar_t	sb_hidedead			= SCVARF("sb_hidedead",		"1",	CVAR_ARCHIVE);
-static cvar_t	sb_hidenetquake		= SCVARF("sb_hidenetquake",	"0",	CVAR_ARCHIVE);
-static cvar_t	sb_hidequakeworld	= SCVARF("sb_hidequakeworld","0",	CVAR_ARCHIVE);
-static cvar_t	sb_hideproxies		= SCVARF("sb_hideproxies",	"0",	CVAR_ARCHIVE);
+static cvar_t	sb_sortcolumn		= CVARF("sb_sortcolumn",	"0",	CVAR_ARCHIVE);
+static cvar_t	sb_filtertext		= CVARF("sb_filtertext",	"",		CVAR_ARCHIVE);
+static cvar_t	sb_hideempty		= CVARF("sb_hideempty",		"0",	CVAR_ARCHIVE);
+static cvar_t	sb_hidenotempty		= CVARF("sb_hidenotempty",	"0",	CVAR_ARCHIVE);
+static cvar_t	sb_hidefull			= CVARF("sb_hidefull",		"0",	CVAR_ARCHIVE);
+static cvar_t	sb_hidedead			= CVARF("sb_hidedead",		"1",	CVAR_ARCHIVE);
+static cvar_t	sb_hidenetquake		= CVARF("sb_hidenetquake",	"0",	CVAR_ARCHIVE);
+static cvar_t	sb_hidequakeworld	= CVARF("sb_hidequakeworld","0",	CVAR_ARCHIVE);
+static cvar_t	sb_hideproxies		= CVARF("sb_hideproxies",	"0",	CVAR_ARCHIVE);
 
-static cvar_t	sb_showping			= SCVARF("sb_showping",		"1",	CVAR_ARCHIVE);
-static cvar_t	sb_showaddress		= SCVARF("sb_showaddress",	"0",	CVAR_ARCHIVE);
-static cvar_t	sb_showmap			= SCVARF("sb_showmap",		"0",	CVAR_ARCHIVE);
-static cvar_t	sb_showgamedir		= SCVARF("sb_showgamedir",	"0",	CVAR_ARCHIVE);
-static cvar_t	sb_showplayers		= SCVARF("sb_showplayers",	"1",	CVAR_ARCHIVE);
-static cvar_t	sb_showfraglimit	= SCVARF("sb_showfraglimit","0",	CVAR_ARCHIVE);
-static cvar_t	sb_showtimelimit	= SCVARF("sb_showtimelimit","0",	CVAR_ARCHIVE);
+static cvar_t	sb_showping			= CVARF("sb_showping",		"1",	CVAR_ARCHIVE);
+static cvar_t	sb_showaddress		= CVARF("sb_showaddress",	"0",	CVAR_ARCHIVE);
+static cvar_t	sb_showmap			= CVARF("sb_showmap",		"0",	CVAR_ARCHIVE);
+static cvar_t	sb_showgamedir		= CVARF("sb_showgamedir",	"0",	CVAR_ARCHIVE);
+static cvar_t	sb_showplayers		= CVARF("sb_showplayers",	"1",	CVAR_ARCHIVE);
+static cvar_t	sb_showfraglimit	= CVARF("sb_showfraglimit",	"0",	CVAR_ARCHIVE);
+static cvar_t	sb_showtimelimit	= CVARF("sb_showtimelimit",	"0",	CVAR_ARCHIVE);
+
+static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.3",	CVAR_ARCHIVE);
 
 
 extern cvar_t slist_writeserverstxt;
 extern cvar_t slist_cacheinfo;
 
+static void CalcFilters(menu_t *menu);
+
 void M_Serverlist_Init(void)
 {
 	char *grp = "Server Browser Vars";
 
+	Cvar_Register(&sb_alpha, grp);
 	Cvar_Register(&sb_hideempty, grp);
 	Cvar_Register(&sb_hidenotempty, grp);
 	Cvar_Register(&sb_hidefull, grp);
@@ -35,6 +43,8 @@ void M_Serverlist_Init(void)
 	Cvar_Register(&sb_hidenetquake, grp);
 	Cvar_Register(&sb_hidequakeworld, grp);
 	Cvar_Register(&sb_hideproxies, grp);
+	Cvar_Register(&sb_filtertext, grp);
+	Cvar_Register(&sb_sortcolumn, grp);
 
 	Cvar_Register(&sb_showping, grp);
 	Cvar_Register(&sb_showaddress, grp);
@@ -52,10 +62,12 @@ typedef struct {
 	int visibleslots;
 	int scrollpos;
 	int selectedpos;
+	int filtermodcount;
 
 	int numslots;
 	qboolean stillpolling;
 	qbyte filter[8];
+	menuedit_t *filtertext;
 
 	char refreshtext[64];
 
@@ -111,11 +123,13 @@ static void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	SL_DrawColumnTitle(NULL, y, x, mx, "hostname ", (sf==SLKEY_NAME), clr, &filldraw);
 }
 
-static qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
+static qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key, unsigned int unicode)
 {
 	int x;
 	int mx = mousecursor_x/8;
 	int sortkey;
+	qboolean descending;
+	char sortchar = 0;
 
 	if (key != K_MOUSE1)
 		return false;
@@ -123,30 +137,35 @@ static qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
 	do {
 		x = ths->common.width/8;
 		if (mx > x) return false;	//out of bounds
-		if (sb_showtimelimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_TIMELIMIT; break;}}
-		if (sb_showfraglimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_FRAGLIMIT; break;}}
-		if (sb_showplayers.value)	{x-=6;if (mx > x) {sortkey = SLKEY_NUMPLAYERS; break;}}
-		if (sb_showmap.value)		{x-=9;if (mx > x) {sortkey = SLKEY_MAP; break;}}
-		if (sb_showgamedir.value)	{x-=9;if (mx > x) {sortkey = SLKEY_GAMEDIR; break;}}
-		if (sb_showping.value)		{x-=4;if (mx > x) {sortkey = SLKEY_PING; break;}}
-		if (sb_showaddress.value)	{x-=22;if (mx > x) {sortkey = SLKEY_ADDRESS; break;}}
-			sortkey = SLKEY_NAME;break;
+		if (sb_showtimelimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_TIMELIMIT;	sortchar='t';	break;}}
+		if (sb_showfraglimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_FRAGLIMIT;	sortchar='f';	break;}}
+		if (sb_showplayers.value)	{x-=6;if (mx > x) {sortkey = SLKEY_NUMPLAYERS;	sortchar='p';	break;}}
+		if (sb_showmap.value)		{x-=9;if (mx > x) {sortkey = SLKEY_MAP;			sortchar='m';	break;}}
+		if (sb_showgamedir.value)	{x-=9;if (mx > x) {sortkey = SLKEY_GAMEDIR;		sortchar='g';	break;}}
+		if (sb_showping.value)		{x-=4;if (mx > x) {sortkey = SLKEY_PING;		sortchar='l';	break;}}
+		if (sb_showaddress.value)	{x-=22;if (mx > x) {sortkey = SLKEY_ADDRESS;	sortchar='a';	break;}}
+														sortkey = SLKEY_NAME;		sortchar='n';	break;
 	} while (0);
 
-	if (sortkey == SLKEY_ADDRESS)
-		return true;
+//	if (sortkey == SLKEY_ADDRESS)
+//		return true;
 
 	switch(sortkey)
 	{
 	case SLKEY_NUMPLAYERS:
 		//favour descending order (low first)
-		Master_SetSortField(sortkey, Master_GetSortField()!=sortkey||!Master_GetSortDescending());
+		descending = Master_GetSortField()!=sortkey||!Master_GetSortDescending();
 		break;
 	default:
 		//favour ascending order (low first)
-		Master_SetSortField(sortkey, Master_GetSortField()==sortkey&&!Master_GetSortDescending());
+		descending = Master_GetSortField()==sortkey&&!Master_GetSortDescending();
 		break;
 	}
+	if (descending)
+		Cvar_Set(&sb_sortcolumn, va("-%c", sortchar));
+	else
+		Cvar_Set(&sb_sortcolumn, va("+%c", sortchar));
+	Master_SetSortField(sortkey, descending);
 	return true;
 }
 
@@ -237,6 +256,9 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	servertypes_t stype;
 	char adr[MAX_ADR_SIZE];
 
+	if (sb_filtertext.modified != info->filtermodcount)
+		CalcFilters(menu);
+
 	si = Master_SortedServer(thisone);
 	if (si)
 	{
@@ -251,16 +273,16 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 				1.0);
 		}
 		else if (thisone == info->scrollpos + (int)(mousecursor_y-16)/8 && mousecursor_x < x)
-			R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
+			R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, sb_alpha.value);
 		else if (selectedserver.inuse && NET_CompareAdr(&si->adr, &selectedserver.adr))
-			R2D_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, 1.0);
+			R2D_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, sb_alpha.value);
 		else
 		{
 			R2D_ImageColours(
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][0],
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][1],
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][2],
-				1.0);
+				sb_alpha.value);
 		}
 		R2D_FillBlock(0, y, ths->common.width, 8);
 
@@ -274,7 +296,8 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		Draw_FunStringWidth(0, y, si->name, x, false, false);
 	}
 }
-static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
+void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode);
+static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned int unicode)
 {
 	static int lastclick;
 	int curtime;
@@ -282,6 +305,8 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *server;
 	char adr[MAX_ADR_SIZE];
+	extern qboolean	keydown[];
+	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 
 	if (key == K_MOUSE1)
 	{
@@ -315,7 +340,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 		return true;
 	}
 
-	if (key == 'f')
+	else if (ctrl && key == 'f')
 	{
 		server = Master_SortedServer(info->selectedpos);
 		if (server)
@@ -324,7 +349,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 		}
 	}
 
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_KP_ENTER || key == 's' || key == 'j' || key == K_SPACE)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_KP_ENTER || (ctrl && (key == 's' || key == 'j')) || key == K_SPACE)
 	{
 		server = Master_SortedServer(info->selectedpos);
 		if (server)
@@ -344,6 +369,11 @@ joinserver:
 
 			M_RemoveAllMenus();
 		}
+		return true;
+	}
+	else
+	{
+		MC_EditBox_Key(info->filtertext, key, unicode);
 		return true;
 	}
 	return false;
@@ -446,7 +476,7 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	mpic_t *pic;
 
 	pic = R2D_SafeCachePic("scrollbars/slidebg.tga");
-	if (pic)
+	if (pic && R_GetShaderSizes(pic, NULL, NULL, false)>0)
 	{
 		R2D_ScalePic(x + ths->common.width - 8, y+8, 8, ths->common.height-16, pic);
 
@@ -504,7 +534,7 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 			info->sliderpressed = false;
 	}
 }
-static qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key)
+static qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key, unsigned int unicode)
 {
 	if (key == K_MOUSE1)
 	{
@@ -537,6 +567,7 @@ static qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key)
 static void CalcFilters(menu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
+	info->filtermodcount = sb_filtertext.modified;
 
 	Master_ClearMasks();
 
@@ -554,6 +585,8 @@ static void CalcFilters(menu_t *menu)
 	if (info->filter[5]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_FAVORITE, SLIST_TEST_CONTAINS);
 	if (info->filter[6]) Master_SetMaskInteger(false, SLKEY_NUMPLAYERS, 0, SLIST_TEST_NOTEQUAL);
 	if (info->filter[7]) Master_SetMaskInteger(false, SLKEY_FREEPLAYERS, 0, SLIST_TEST_NOTEQUAL);
+
+	if (*sb_filtertext.string) Master_SetMaskString(false, SLKEY_NAME, sb_filtertext.string, SLIST_TEST_CONTAINS);
 }
 
 static qboolean SL_ReFilter (menucheck_t *option, menu_t *menu, chk_set_t set)
@@ -606,6 +639,9 @@ void M_Menu_ServerList2_f(void)
 	menu_t *menu;
 	menucustom_t *cust;
 	serverlist_t *info;
+	qboolean descending;
+	int sortkey;
+	char *sc;
 
 	if (!qrenderer)
 	{
@@ -642,6 +678,8 @@ void M_Menu_ServerList2_f(void)
 	for (i = 0, y = 16; i <= info->visibleslots; y +=8, i++)
 	{
 		cust = MC_AddCustom(menu, 0, y, NULL, i);
+		if (i==0)
+			menu->selecteditem = (menuoption_t*)&cust->common;
 		cust->draw = SL_ServerDraw;
 		cust->key = SL_ServerKey;
 		cust->common.height = 8;
@@ -681,6 +719,8 @@ void M_Menu_ServerList2_f(void)
 	}
 #endif
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "Hide Proxies", SL_ReFilter, 3);
+	info->filtertext =
+	MC_AddEditCvar    (menu, 128, 200, vid.height - 64+8*4, "Filter",	sb_filtertext.name, true);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, 5);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
@@ -697,7 +737,29 @@ void M_Menu_ServerList2_f(void)
 
 	CalcFilters(menu);
 
-	Master_SetSortField(SLKEY_PING, false);
+	descending = false;
+
+	sc = sb_sortcolumn.string;
+	if (*sc == '-')
+		descending = true;
+	else if (*sc == '+')
+		descending = false;
+	else
+		sc--;
+	sc++;
+	switch(*sc)
+	{
+	case 't':	sortkey = SLKEY_TIMELIMIT;	break;
+	case 'f':	sortkey = SLKEY_FRAGLIMIT;	break;
+	case 'p':	sortkey = SLKEY_NUMPLAYERS;	break;
+	case 'm':	sortkey = SLKEY_MAP;		break;
+	case 'g':	sortkey = SLKEY_GAMEDIR;	break;
+	case 'l':	sortkey = SLKEY_PING;		break;
+	case 'a':	sortkey = SLKEY_ADDRESS;	break;
+	case 'n':	sortkey = SLKEY_NAME;		break;
+	default:	sortkey = SLKEY_PING;		break;
+	}
+	Master_SetSortField(sortkey, descending);
 
 	MasterInfo_Refresh();
 }

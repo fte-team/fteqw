@@ -68,7 +68,7 @@ typedef struct {
 		stat kills;		//times they killed (including by you)
 		stat teamkills;	//times they killed a team member.
 		stat teamdeaths;	//times they died to a team member.
-		stat suisides;	//times they were stupid.
+		stat suicides;	//times they were stupid.
 	} clienttotals[MAX_CLIENTS];
 
 	qboolean readcaps;
@@ -100,9 +100,17 @@ int Stats_GetCaptures(int playernum)
 	return fragstats.clienttotals[playernum].caps;
 }
 
-qboolean Stats_HaveFlags(void)
+qboolean Stats_HaveFlags(int showtype)
 {
-	return fragstats.readcaps;
+	int i;
+	for (i = 0; i < cl.allocated_client_slots; i++)
+	{
+		if (fragstats.clienttotals[i].caps ||
+			fragstats.clienttotals[i].drops ||
+			fragstats.clienttotals[i].grabs)
+			return fragstats.readcaps;
+	}
+	return false;
 }
 qboolean Stats_HaveKills(void)
 {
@@ -303,7 +311,7 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 
 		fragstats.weapontotals[wid].suicides++;
 		fragstats.weapontotals[wid].kills++;
-		fragstats.clienttotals[p1].suisides++;
+		fragstats.clienttotals[p1].suicides++;
 		fragstats.clienttotals[p1].deaths++;
 		fragstats.totalsuicides++;
 		fragstats.totaldeaths++;

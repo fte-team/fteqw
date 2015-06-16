@@ -513,7 +513,7 @@ static void M_DemoDraw(int x, int y, menucustom_t *control, menu_t *menu)
 	}
 }
 static void ShowDemoMenu (menu_t *menu, const char *path);
-static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key)
+static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned int unicode)
 {
 	demomenu_t *info = menu->data;
 	int i;

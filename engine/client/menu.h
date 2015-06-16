@@ -213,7 +213,7 @@ typedef struct menucustom_s {
 	void *dptr;
 	int dint;
 	void (*draw) (int x, int y, struct menucustom_s *, struct menu_s *);
-	qboolean (*key) (struct menucustom_s *, struct menu_s *, int key);
+	qboolean (*key) (struct menucustom_s *, struct menu_s *, int key, unsigned int unicode);
 } menucustom_t;
 
 typedef struct {

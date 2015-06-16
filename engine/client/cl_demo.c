@@ -83,7 +83,7 @@ void CL_StopPlayback (void)
 	if (cls.timedemo)
 		CL_FinishTimeDemo ();
 
-	TP_ExecTrigger("f_demoend");
+	TP_ExecTrigger("f_demoend", true);
 }
 
 /*
@@ -1684,7 +1684,7 @@ void CL_PlayDemoStream(vfsfile_t *file, struct dl_download *dl, char *filename, 
 		Con_Printf("Buffering for %g seconds\n", bufferdelay);
 	cls.netchan.last_received=demtime;
 
-	TP_ExecTrigger ("f_demostart");
+	TP_ExecTrigger ("f_demostart", true);
 }
 
 vfsfile_t *CL_OpenFileInZipOrSys(char *name, qboolean usesystempath)
@@ -1813,7 +1813,7 @@ void CL_PlayDemo(char *demoname, qboolean usesystempath)
 		Con_Printf ("ERROR: couldn't open \"%s\".\n", demoname);
 		cls.demonum = -1;		// stop demo loop
 
-		TP_ExecTrigger ("f_demoend");
+		TP_ExecTrigger ("f_demoend", true);
 		return;
 	}
 	Q_strncpyz (lastdemoname, demoname, sizeof(lastdemoname));
@@ -2435,7 +2435,7 @@ void CL_FinishTimeDemo (void)
 
 	cls.td_startframe = 0;
 
-	TP_ExecTrigger ("f_timedemoend");
+	TP_ExecTrigger ("f_timedemoend", true);
 
 	vw = Cvar_FindVar("vid_wait");
 	Cvar_Set(vw, vw->string);

@@ -4263,7 +4263,11 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto)
 {
 	QCC_type_t	*ptype, *e;
-	ptype = QCC_PR_NewType("ptr", ev_pointer, false);
+	char name[128];
+	if (pointsto->ptrto)
+		return pointsto->ptrto;
+	QC_snprintfz(name, sizeof(name), "%s*", pointsto->name);
+	ptype = QCC_PR_NewType(name, ev_pointer, false);
 	ptype->aux_type = pointsto;
 	e = QCC_PR_FindType (ptype);
 	if (e == ptype)
@@ -4273,6 +4277,7 @@ QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto)
 		e->name = qccHunkAlloc(strlen(name)+1);
 		strcpy(e->name, name);
 	}
+	pointsto->ptrto = e;
 	return e;
 }
 QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)

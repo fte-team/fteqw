@@ -29,8 +29,11 @@ extern cvar_t *hud_tracking_show;
 cvar_t scr_scoreboard_drawtitle = SCVAR("scr_scoreboard_drawtitle", "1");
 cvar_t scr_scoreboard_forcecolors = SCVAR("scr_scoreboard_forcecolors", "0");	//damn americans
 cvar_t scr_scoreboard_newstyle = SCVAR("scr_scoreboard_newstyle", "1");	// New scoreboard style ported from Electro, by Molgrum
-cvar_t scr_scoreboard_showfrags = SCVAR("scr_scoreboard_showfrags", "0");
+cvar_t scr_scoreboard_showfrags = CVARD("scr_scoreboard_showfrags", "0", "Display kills+deaths+teamkills, as determined by fragfile.dat-based conprint parsing. These may be inaccurate if you join mid-game.");
+cvar_t scr_scoreboard_showflags = CVARD("scr_scoreboard_showflags", "2", "Display flag caps+touches on the scoreboard, where our fragfile.dat supports them.\n0: off\n1: on\n2: on only if someone appears to have interacted with a flag.");
+cvar_t scr_scoreboard_fillalpha = CVAR("scr_scoreboard_fillalpha", "0.7");
 cvar_t scr_scoreboard_teamscores = SCVAR("scr_scoreboard_teamscores", "1");
+cvar_t scr_scoreboard_teamsort = SCVAR("scr_scoreboard_teamsort", "1");
 cvar_t scr_scoreboard_titleseperator = SCVAR("scr_scoreboard_titleseperator", "1");
 cvar_t sbar_teamstatus = SCVAR("sbar_teamstatus", "1");
 
@@ -1047,7 +1050,10 @@ void Sbar_Init (void)
 	Cvar_Register(&scr_scoreboard_forcecolors, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_newstyle, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_showfrags, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_showflags, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_fillalpha, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_teamscores, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_teamsort, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_titleseperator, "Scoreboard settings");
 
 	Cvar_Register(&sbar_teamstatus, "Status bar settings");
@@ -1186,16 +1192,16 @@ void Sbar_FillPC (float x, float y, float w, float h, unsigned int pcolour)
 		R2D_FillBlock (x, y, w, h);
 	}
 }
-static void Sbar_FillPCDark (float x, float y, float w, float h, unsigned int pcolour)
+static void Sbar_FillPCDark (float x, float y, float w, float h, unsigned int pcolour, float alpha)
 {
 	if (pcolour >= 16)
 	{
-		R2D_ImageColours (((pcolour&0xff0000)>>16)/1024.0f, ((pcolour&0xff00)>>8)/1024.0f, (pcolour&0xff)/1024.0f, 1.0);
+		R2D_ImageColours (((pcolour&0xff0000)>>16)/1024.0f, ((pcolour&0xff00)>>8)/1024.0f, (pcolour&0xff)/1024.0f, alpha);
 		R2D_FillBlock (x, y, w, h);
 	}
 	else
 	{
-		R2D_ImagePaletteColour(Sbar_ColorForMap(pcolour)-1, 1.0);
+		R2D_ImagePaletteColour(Sbar_ColorForMap(pcolour)-1, alpha);
 		R2D_FillBlock (x, y, w, h);
 	}
 }
@@ -1362,12 +1368,12 @@ void Sbar_PQ_Team_Reset(void)
 Sbar_SortFrags
 ===============
 */
-void Sbar_SortFrags (qboolean includespec, qboolean teamsort)
+void Sbar_SortFrags (qboolean includespec, qboolean doteamsort)
 {
 	int		i, j, k;
 
 	if (!cl.teamplay)
-		teamsort = false;
+		doteamsort = false;
 
 // sort by frags
 	scoreboardlines = 0;
@@ -1384,31 +1390,26 @@ void Sbar_SortFrags (qboolean includespec, qboolean teamsort)
 	}
 
 	for (i=0 ; i<scoreboardlines ; i++)
-		for (j=0 ; j<scoreboardlines-1-i ; j++)
+		for (j = i + 1; j < scoreboardlines; j++)
 		{
-			int t1 = playerteam[fragsort[j]];
-			int t2 = playerteam[fragsort[j+1]];
-			if (!teamsort || t1 == t2)
+			int t1 = playerteam[fragsort[i]];
+			int t2 = playerteam[fragsort[j]];
+			int w1, w2;
+
+			//teams are already sorted by frags
+			w1 = t1<0?-999:-teamsort[t1];
+			w2 = t2<0?-999:-teamsort[t2];
+			//okay, they're on the same team then? go ahead and sort by personal frags
+			if (!doteamsort || w1 == w2)
 			{
-				if (cl.players[fragsort[j]].frags < cl.players[fragsort[j+1]].frags)
-				{
-					k = fragsort[j];
-					fragsort[j] = fragsort[j+1];
-					fragsort[j+1] = k;
-				}
+				w1 = cl.players[fragsort[i]].frags;
+				w2 = cl.players[fragsort[j]].frags;
 			}
-			else
+			if (w1 < w2)
 			{
-				if (t1 == -1)
-					t1 = MAX_CLIENTS;
-				if (t2 == -1)
-					t2 = MAX_CLIENTS;
-				if (t1 > t2)
-				{
-					k = fragsort[j];
-					fragsort[j] = fragsort[j+1];
-					fragsort[j+1] = k;
-				}
+				k = fragsort[i];
+				fragsort[i] = fragsort[j];
+				fragsort[j] = k;
 			}
 		}
 }
@@ -2917,6 +2918,9 @@ void Sbar_TeamOverlay (void)
 	int pw,ph;
 	playerview_t *pv = r_refdef.playerview;
 
+	int rank_width = 320-32*2;
+	int startx;
+
 	if (!pv)
 		pv = &cl.playerview[0];
 
@@ -2942,6 +2946,20 @@ void Sbar_TeamOverlay (void)
 
 	x = l = (vid.width - 320)/2 + 36;
 
+	startx = x;
+
+	if (scr_scoreboard_newstyle.ival)
+	{
+		y += 8;
+		// Electro's scoreboard eyecandy: Draw top border
+		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
+		R2D_FillBlock(startx - 3, y - 1, rank_width - 1, 1);
+
+		// Electro's scoreboard eyecandy: Draw the title row background
+		R2D_ImagePaletteColour (1, scr_scoreboard_fillalpha.value);
+		R2D_FillBlock(startx - 2, y, rank_width - 3, 9);
+	}
+
 #define COLUMN(title, cwidth, code) Draw_FunString(x, y, title), x+=cwidth + 8;
 	ALL_TEAM_COLUMNS
 //	if (rank_width+(cwidth)+8 <= vid.width) {showcolumns |= (1<<COLUMN##title); rank_width += cwidth+8;}
@@ -2954,12 +2972,28 @@ void Sbar_TeamOverlay (void)
 //	Draw_String(x, y, "------------ ---- ----- -------");
 	x = l;
 #undef COLUMN
+
+	if (scr_scoreboard_newstyle.ival)
+	{
+		// Electro's scoreboard eyecandy: Draw top border (under header)
+		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
+		R2D_FillBlock (startx - 3, y + 1, rank_width - 1, 1);
+		// Electro's scoreboard eyecandy: Don't go over the black border, move the rest down
+		y += 2;
+		// Electro's scoreboard eyecandy: Draw left border
+		R2D_FillBlock (startx - 3, y - 10, 1, 9);
+		// Electro's scoreboard eyecandy: Draw right border
+		R2D_FillBlock (startx - 3 + rank_width - 2, y - 10, 1, 9);
+	}
+	else if (scr_scoreboard_titleseperator.ival)
+	{
 #define COLUMN(title, cwidth, code) {char buf[64*6]; int t = (cwidth)/8; int c=0; while (t-->0) {buf[c++] = '^'; buf[c++] = 'U'; buf[c++] = 'e'; buf[c++] = '0'; buf[c++] = '1'; buf[c] = (c==5?'d':(!t?'f':'e')); c++;} buf[c] = 0; Draw_FunString(x, y, buf); x += cwidth + 8;}
-	ALL_TEAM_COLUMNS
-//	Draw_FunString(x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f");
-	y += 8;
+		ALL_TEAM_COLUMNS
+//		Draw_FunString(x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01e^Ue01f ^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f");
+		y += 8;
 
 #undef COLUMN
+	}
 
 // sort the teams
 	Sbar_SortTeams(pv);
@@ -2969,6 +3003,26 @@ void Sbar_TeamOverlay (void)
 	{
 		k = teamsort[i];
 		tm = teams + k;
+
+		if (scr_scoreboard_newstyle.ival)
+		{
+			// Electro's scoreboard eyecandy: Render the main background transparencies behind players row
+			// TODO: Alpha values on the background
+			int background_color;
+
+			if (!(strcmp("red", tm->team)))
+				background_color = 4; // forced red
+			else if (!(strcmp("blue", tm->team)))
+				background_color = 13; // forced blue
+			else
+				background_color = tm->bottomcolour;
+
+			Sbar_FillPCDark (startx - 2, y, rank_width - 3, 8, background_color, scr_scoreboard_fillalpha.value);
+
+			R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
+			R2D_FillBlock (startx - 3, y, 1, 8); // Electro - Border - Left
+			R2D_FillBlock (startx - 3 + rank_width - 2, y, 1, 8); // Electro - Border - Right
+		}
 
 	// draw pings
 		plow = tm->plow;
@@ -3014,7 +3068,14 @@ void Sbar_TeamOverlay (void)
 #endif
 		y += 8;
 	}
-	y += 8;
+
+	if (scr_scoreboard_newstyle.ival)
+	{
+		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
+		R2D_FillBlock (startx - 3, y, rank_width - 1, 1); // Electro - Border - Bottom
+	}
+	else
+		y += 8;
 	Sbar_DeathmatchOverlay(y);
 }
 
@@ -3176,7 +3237,7 @@ void Sbar_DeathmatchOverlay (int start)
 	}
 
 // scores
-	Sbar_SortFrags(true, true);
+	Sbar_SortFrags(true, scr_scoreboard_teamsort.ival);
 
 // draw the text
 	if (start)
@@ -3210,11 +3271,11 @@ void Sbar_DeathmatchOverlay (int start)
 	{
 		COLUMN_TEAMNAME
 	}
-	if (cl.teamplay && Stats_HaveFlags())
+	if (scr_scoreboard_showflags.ival && cl.teamplay && Stats_HaveFlags(scr_scoreboard_showflags.ival&1))
 	{
 		COLUMN_CAPS
 	}
-	if (scr_scoreboard_showfrags.value && Stats_HaveKills())
+	if (scr_scoreboard_showfrags.ival && Stats_HaveKills())
 	{
 		COLUMN_KILLS
 		COLUMN_DEATHS
@@ -3223,7 +3284,7 @@ void Sbar_DeathmatchOverlay (int start)
 			COLUMN_TKILLS
 		}
 	}
-	if (cl.teamplay && Stats_HaveFlags())
+	if (scr_scoreboard_showflags.ival && cl.teamplay && Stats_HaveFlags(scr_scoreboard_showflags.ival&1))
 	{
 		COLUMN_TOUCHES
 	}
@@ -3235,11 +3296,11 @@ void Sbar_DeathmatchOverlay (int start)
 	if (scr_scoreboard_newstyle.ival)
 	{
 		// Electro's scoreboard eyecandy: Draw top border
-		R2D_ImagePaletteColour (0, 1.0);
+		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
 		R2D_FillBlock(startx - 3, y - 1, rank_width - 1, 1);
 
 		// Electro's scoreboard eyecandy: Draw the title row background
-		R2D_ImagePaletteColour (1, 1.0);
+		R2D_ImagePaletteColour (1, scr_scoreboard_fillalpha.value);
 		R2D_FillBlock(startx - 2, y, rank_width - 3, 9);
 	}
 
@@ -3271,7 +3332,7 @@ if (showcolumns & (1<<COLUMN##title)) \
 	if (scr_scoreboard_newstyle.ival)
 	{
 		// Electro's scoreboard eyecandy: Draw top border (under header)
-		R2D_ImagePaletteColour (0, 1.0);
+		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
 		R2D_FillBlock (startx - 3, y + 1, rank_width - 1, 1);
 		// Electro's scoreboard eyecandy: Don't go over the black border, move the rest down
 		y += 2;
@@ -3321,17 +3382,17 @@ if (showcolumns & (1<<COLUMN##title)) \
 				else
 					background_color = bottom;
 
-				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, background_color);
+				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, background_color, scr_scoreboard_fillalpha.value);
 			}
 			else if (S_Voip_Speaking(k))
-				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, 0x00ff00);
+				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, 0x00ff00, scr_scoreboard_fillalpha.value);
 			else
 			{
-				R2D_ImagePaletteColour (2, 1.0);
+				R2D_ImagePaletteColour (2, scr_scoreboard_fillalpha.value);
 				R2D_FillBlock (startx - 2, y, rank_width - 3, skip);
 			}
 
-			R2D_ImagePaletteColour (0, 1.0);
+			R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
 			R2D_FillBlock (startx - 3, y, 1, skip); // Electro - Border - Left
 			R2D_FillBlock (startx - 3 + rank_width - 2, y, 1, skip); // Electro - Border - Right
 		}
@@ -3349,7 +3410,7 @@ if (showcolumns & (1<<COLUMN##title)) \
 
 	if (scr_scoreboard_newstyle.ival)
 	{
-		R2D_ImagePaletteColour (0, 1.0);
+		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
 		R2D_FillBlock (startx - 3, y + skip, rank_width - 1, 1); // Electro - Border - Bottom
 	}
 

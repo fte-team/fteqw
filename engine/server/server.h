@@ -633,6 +633,7 @@ typedef struct client_s
 	int realip_status;
 	int realip_num;
 	int realip_ping;
+	char *reversedns;
 
 	unsigned int plimitwarned;
 

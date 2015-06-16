@@ -2769,7 +2769,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		break;
 	}
 }
-static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int key)
+static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
 {
 	modelview_t *mods = c->dptr;
 
@@ -2884,7 +2884,7 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct menu_s *m)
 			Draw_FunString(x, y, mods->manifests[i]->formalname);
 	}
 }
-static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key)
+static qboolean Mods_Key(struct menucustom_s *c, struct menu_s *m, int key, unsigned int unicode)
 {
 	modmenu_t *mods = c->dptr;
 	int i;

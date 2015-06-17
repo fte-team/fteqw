@@ -1314,6 +1314,9 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 	for (i = 1; i < found; i++)
 	{
 		master_t *alt;
+		if (adrs[i].type == NA_INVALID)
+			continue;
+
 		//don't add the same ip twice, because that's silly
 		for (j = 0; j < i; j++)
 		{

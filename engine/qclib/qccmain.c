@@ -3462,7 +3462,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	MAX_STATEMENTS	= 0x80000;
 	MAX_FUNCTIONS	= 16384;
 	maxtypeinfos	= 16384;
-	MAX_CONSTANTS	= 2048;
+	MAX_CONSTANTS	= 4096;
 
 	compressoutput = 0;
 

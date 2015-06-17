@@ -8,6 +8,7 @@ float scr_con_current;
 int sb_showteamscores;
 int sb_showscores;
 int host_screenupdatecount;
+float alphamul;
 
 cvar_t *scr_newHud;
 
@@ -19,22 +20,23 @@ float infofloat(char *info, char *findkey, float def);
 
 void Draw_SetOverallAlpha(float a)
 {
+	alphamul = a;
 }
 void Draw_AlphaFillRGB(float x, float y, float w, float h, qbyte r, qbyte g, qbyte b, qbyte a)
 {
-	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0);
+	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
 	pDraw_Fill(x, y, w, h);
 	pDraw_Colour4f(1, 1, 1, 1);
 }
 void Draw_Fill(float x, float y, float w, float h, qbyte pal)
 {
-	pDraw_Colourp(pal);
+	pDraw_Colourpa(pal, alphamul);
 	pDraw_Fill(x, y, w, h);
 	pDraw_Colour4f(1, 1, 1, 1);
 }
-char *ColorNameToRGBString (const char *newval)
+const char *ColorNameToRGBString (const char *newval)
 {
-	return "";
+	return newval;
 }
 byte *StringToRGB(const char *str)
 {
@@ -71,6 +73,14 @@ void Draw_SSubPic(float x, float y, mpic_t *pic, float s1, float t1, float s2, f
 	pDraw_ImageSize(image, &w, &h);
 	pDraw_Image(x, y, (s2-s1)*scale, (t2-t1)*scale, s1/w, t1/h, s2/w, t2/h, image);
 }
+void Draw_EZString(float x, float y, char *str, float scale, qboolean red)
+{
+	unsigned int flags = 0;
+	if (red)
+		flags |= 1;
+	pDraw_StringH(x, y, scale, flags, str);
+}
+
 #define Draw_STransPic Draw_SPic
 void Draw_Character(float x, float y, unsigned int ch)
 {
@@ -78,7 +88,7 @@ void Draw_Character(float x, float y, unsigned int ch)
 }
 void Draw_SCharacter(float x, float y, unsigned int ch, float scale)
 {
-	pDraw_Character(x, y, ch);	//FIXME
+	pDraw_CharacterH(x, y, 8*scale, 0, ch);
 }
 
 void SCR_DrawWadString(float x, float y, float scale, char *str)
@@ -91,14 +101,14 @@ void Draw_SAlphaSubPic2(float x, float y, mpic_t *pic, float s1, float t1, float
 	qhandle_t image = (intptr_t)pic;
 	float w, h;
 	pDraw_ImageSize(image, &w, &h);
-	pDraw_Colour4f(1, 1, 1, alpha);
+	pDraw_Colour4f(1, 1, 1, alpha * alphamul);
 	pDraw_Image(x, y, (s2-s1)*sw, (t2-t1)*sh, s1/w, t1/h, s2/w, t2/h, image);
 	pDraw_Colour4f(1, 1, 1, 1);
 }
 
 void Draw_AlphaFill(float x, float y, float w, float h, qbyte pal, float alpha)
 {
-	pDraw_Colour4f(1, 1, 1, alpha);
+	pDraw_Colour4f(1, 1, 1, alpha * alphamul);
 	pDraw_Colourp(pal);
 	pDraw_Fill(x, y, w, h);
 	pDraw_Colour4f(1, 1, 1, 1);
@@ -108,7 +118,7 @@ void Draw_AlphaPic(float x, float y, mpic_t *pic, float alpha)
 	qhandle_t image = (intptr_t)pic;
 	float w, h;
 	pDraw_ImageSize(image, &w, &h);
-	pDraw_Colour4f(1, 1, 1, alpha);
+	pDraw_Colour4f(1, 1, 1, alpha * alphamul);
 	pDraw_Image(x, y, w, h, 0, 0, 1, 1, image);
 	pDraw_Colour4f(1, 1, 1, 1);
 }
@@ -117,7 +127,7 @@ void Draw_AlphaSubPic(float x, float y, mpic_t *pic, float s1, float t1, float s
 	qhandle_t image = (intptr_t)pic;
 	float w, h;
 	pDraw_ImageSize(image, &w, &h);
-	pDraw_Colour4f(1, 1, 1, alpha);
+	pDraw_Colour4f(1, 1, 1, alpha * alphamul);
 	pDraw_Image(x, y, s2-s1, t2-t1, s1/w, t1/h, s2/w, t2/h, image);
 	pDraw_Colour4f(1, 1, 1, 1);
 }
@@ -131,7 +141,7 @@ void SCR_HUD_DrawBar(int direction, int value, float max_value, float *rgba, int
 	else// left-right
 		amount = Q_rint(abs((width * value) / max_value));
 
-	pDraw_Colour4f(rgba[0]/255.0, rgba[1]/255.0, rgba[2]/255.0, rgba[3]/255.0);
+	pDraw_Colour4f(rgba[0]/255.0, rgba[1]/255.0, rgba[2]/255.0, rgba[3]/255.0 * alphamul);
 	if(direction == 0)
 		// left->right
 		pDraw_Fill(x, y, amount, height);
@@ -149,13 +159,13 @@ void SCR_HUD_DrawBar(int direction, int value, float max_value, float *rgba, int
 
 void Draw_Polygon(int x, int y, vec3_t *vertices, int num_vertices, qbool fill, byte r, byte g, byte b, byte a)
 {
-	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0);
+	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
 //	pDraw_Line(x1, y1, x2, y1);
 	pDraw_Colour4f(1, 1, 1, 1);
 }
 void Draw_ColoredString3(float x, float y, const char *str, clrinfo_t *clr, int huh, int wut)
 {
-	pDraw_Colour4f(clr->c[0]/255.0, clr->c[1]/255.0, clr->c[2]/255.0, clr->c[3]/255.0);
+	pDraw_Colour4f(clr->c[0]/255.0, clr->c[1]/255.0, clr->c[2]/255.0, clr->c[3]/255.0 * alphamul);
 	pDraw_String(x, y, str);
 	pDraw_Colour4f(1, 1, 1, 1);
 }
@@ -168,7 +178,7 @@ void Draw_AlphaRectangleRGB(int x, int y, int w, int h, int foo, int bar, byte r
 	float x2 = x+w;
 	float y1 = y;
 	float y2 = y+h;
-	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0);
+	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
 	pDraw_Line(x1, y1, x2, y1);
 	pDraw_Line(x2, y1, x2, y2);
 	pDraw_Line(x1, y2, x2, y2);
@@ -177,7 +187,7 @@ void Draw_AlphaRectangleRGB(int x, int y, int w, int h, int foo, int bar, byte r
 }
 void Draw_AlphaLineRGB(float x1, float y1, float x2, float y2, float width, byte r, byte g, byte b, byte a)
 {
-	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0);
+	pDraw_Colour4f(r/255.0, g/255.0, b/255.0, a/255.0 * alphamul);
 	pDraw_Line(x1, y1, x2, y2);
 	pDraw_Colour4f(1, 1, 1, 1);
 }
@@ -305,7 +315,7 @@ char *SCR_GetGameTime(int t, char *buffer, size_t buffersize)
 	if (cl.countdown || cl.standby)
 		SecondsToMinutesString(timelimit, buffer, buffersize);
 	else
-		SecondsToMinutesString((int) abs(timelimit - (cl.time - cl.stats[STAT_MATCHSTARTTIME])), buffer, buffersize);
+		SecondsToMinutesString((int) abs(timelimit - (cl.time - cl.matchstart)), buffer, buffersize);
 	return buffer;
 }
 	
@@ -553,6 +563,7 @@ qintptr_t EZHud_Draw(qintptr_t *args)
 	infostring(cl.serverinfo, "status", val, sizeof(val));
 	cl.standby = !strcmp(val, "standby");
 	cl.countdown = !strcmp(val, "countdown");
+	cl.matchstart = infofloat(cl.serverinfo, "matchstart", 0);
 	cls.state = ca_active;
 	vid.width = pvid.width;
 	vid.height = pvid.height;

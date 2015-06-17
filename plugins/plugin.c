@@ -194,6 +194,15 @@ BUILTIN(void, Draw_Character, (int x, int y, unsigned int character));
 #define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),string
 BUILTIN(void, Draw_String, (float x, float y, const char *string));
 #undef ARGNAMES
+#define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),PASSFLOAT(h),flags,character
+BUILTIN(void, Draw_CharacterH, (float x, float y, float h, unsigned int flags, unsigned int character));
+#undef ARGNAMES
+#define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),PASSFLOAT(h),flags,string
+BUILTIN(void, Draw_StringH, (float x, float y, float h, unsigned int flags, const char *string));
+#undef ARGNAMES
+#define ARGNAMES ,palcol,PASSFLOAT(a)
+BUILTIN(void, Draw_Colourpa, (int palcol, float a));
+#undef ARGNAMES
 #define ARGNAMES ,palcol
 BUILTIN(void, Draw_Colourp, (int palcol));
 #undef ARGNAMES
@@ -426,6 +435,9 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Draw_Fill);
 	CHECKBUILTIN(Draw_Character);
 	CHECKBUILTIN(Draw_String);
+	CHECKBUILTIN(Draw_CharacterH);
+	CHECKBUILTIN(Draw_StringH);
+	CHECKBUILTIN(Draw_Colourpa);
 	CHECKBUILTIN(Draw_Colourp);
 	CHECKBUILTIN(Draw_Colour3f);
 	CHECKBUILTIN(Draw_Colour4f);

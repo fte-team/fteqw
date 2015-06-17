@@ -423,6 +423,7 @@ typedef struct
 	enum{
 		REF_GLOBAL,	//(global.ofs)				- use vector[2] is an array ref or vector_z
 		REF_ARRAY,	//(global.ofs+wordoffset)	- constant offsets should be direct references, variable offsets will generally result in function calls
+		REF_ARRAYHEAD,//(global)				- like REF_ARRAY, but otherwise convert to a pointer.
 		REF_POINTER,//*(pointerdef+wordindex)	- maths...
 		REF_FIELD,	//(entity.field)			- reading is a single load, writing requires address+storep
 		REF_STRING,	//"hello"[1]=='e'			- special opcodes, or str2chr builtin, or something

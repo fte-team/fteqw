@@ -292,6 +292,25 @@ static qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const 
 	Font_EndString(font_default);
 	return 0;
 }
+static qintptr_t VARGS Plug_Draw_CharacterH(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	float x = VM_FLOAT(arg[0]);
+	float y = VM_FLOAT(arg[1]);
+	float h = VM_FLOAT(arg[2]);
+	unsigned int flags = VM_LONG(arg[3]);
+	unsigned int charc = VM_LONG(arg[4]);
+	conchar_t cmask = CON_WHITEMASK;
+	if (qrenderer == QR_NONE)
+		return 0;
+	if (flags & 1)
+		cmask |= CON_2NDCHARSETTEXT;
+	if (!(flags & 2))
+		cmask |= 0xe000;
+	Font_BeginScaledString(font_default, x, y, h, h, &x, &y);
+	Font_DrawScaleChar(x, y, cmask | charc);
+	Font_EndString(font_default);
+	return 0;
+}
 static qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	int ipx, px, py;
@@ -315,6 +334,39 @@ static qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qin
 	Font_EndString(font_default);
 	return 0;
 }
+static qintptr_t VARGS Plug_Draw_StringH(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	float x = VM_FLOAT(arg[0]);
+	float y = VM_FLOAT(arg[1]);
+	float h = VM_FLOAT(arg[2]);
+	unsigned int flags = VM_LONG(arg[3]);
+	char *instr = VM_POINTER(arg[4]);
+	float ipx;
+	conchar_t buffer[2048], *str, cmask = CON_WHITEMASK;
+	unsigned int parseflags = 0;
+	if (qrenderer == QR_NONE)
+		return 0;
+	if (flags & 1)
+		cmask |= CON_2NDCHARSETTEXT;
+	if (flags & 2)
+		parseflags |= PFS_FORCEUTF8;
+	COM_ParseFunString(CON_WHITEMASK, instr, buffer, sizeof(buffer), parseflags);
+	str = buffer;
+	Font_BeginScaledString(font_default, x, y, h, h, &x, &y);
+	ipx = x;
+	while(*str)
+	{
+		if ((*str & CON_CHARMASK) == '\n')
+			y += Font_CharScaleHeight();
+		else if ((*str & CON_CHARMASK) == '\r')
+			x = ipx;
+		else
+			x = Font_DrawScaleChar(x, y, *str);
+		str++;
+	}
+	Font_EndString(font_default);
+	return 0;
+}
 
 static qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -331,10 +383,21 @@ static qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintp
 }
 static qintptr_t VARGS Plug_Draw_ColourP(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (arg[0]<0 || arg[0]>255)
+	int p = VM_LONG(arg[0]);
+	if (p<0 || p>255)
 		return false;
 
-	R2D_ImagePaletteColour(arg[0], 1);
+	R2D_ImagePaletteColour(p, 1);
+	return 1;
+}
+static qintptr_t VARGS Plug_Draw_ColourPA(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int p = VM_LONG(arg[0]);
+	float a = VM_FLOAT(arg[1]);
+	if (p<0 || p>255)
+		return false;
+
+	R2D_ImagePaletteColour(p, a);
 	return 1;
 }
 static qintptr_t VARGS Plug_Draw_Colour3f(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -511,6 +574,11 @@ static qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const q
 #endif
 	}
 	Q_strncatz(outptr, va("\\demotime\\%f", demtime-cls.demostarttime), outlen);
+
+	if (cl.playerview[0].statsf[STAT_MATCHSTARTTIME])
+		Q_strncatz(outptr, va("\\matchstart\\%f", cl.playerview[0].statsf[STAT_MATCHSTARTTIME]), outlen);
+	else 
+		Q_strncatz(outptr, va("\\matchstart\\%f", cl.matchgametimestart), outlen);
 
 	return true;
 }
@@ -966,10 +1034,13 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("Draw_Image",				Plug_Draw_Image, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_ImageSize",			Plug_Draw_ImageSize, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Character",			Plug_Draw_Character, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_CharacterH",			Plug_Draw_CharacterH, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_String",				Plug_Draw_String, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_StringH",			Plug_Draw_StringH, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Line",				Plug_Draw_Line, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_Colourpa",			Plug_Draw_ColourPA, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Colour3f",			Plug_Draw_Colour3f, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Colour4f",			Plug_Draw_Colour4f, PLUG_BIF_NEEDSRENDERER);
 

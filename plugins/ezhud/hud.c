@@ -863,7 +863,7 @@ void HUD_CalcFrameExtents(hud_t *hud, int width, int height,									// In.
 void HUD_OnChangeFrameColor(cvar_t *var, char *oldval)
 {
 	// Converts "red" into "255 0 0", etc. or returns input as it was.
-	char *new_color = ColorNameToRGBString (var->string);
+	const char *new_color = ColorNameToRGBString (var->string);
 	char buf[256], buf2[128];
 	size_t hudname_len;
 	hud_t* hud_elem;

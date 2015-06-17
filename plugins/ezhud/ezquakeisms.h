@@ -60,6 +60,7 @@ struct {
 	int tracknum;
 	vec3_t simvel;
 	float time;
+	float matchstart;
 	float faceanimtime;
 	qboolean spectator;
 	qboolean standby;
@@ -87,14 +88,16 @@ struct {
 void Draw_SetOverallAlpha(float a);
 void Draw_AlphaFillRGB(float x, float y, float w, float h, qbyte r, qbyte g, qbyte b, qbyte a);
 void Draw_Fill(float x, float y, float w, float h, qbyte pal);
-char *ColorNameToRGBString (const char *newval);
+const char *ColorNameToRGBString (const char *newval);
 byte *StringToRGB(const char *str);
 
 #define Draw_String					pDraw_String
-#define Draw_Alt_String				pDraw_String //FIXME
-#define Draw_ColoredString(x,y,str,alt)			pDraw_String(x,y,str) //FIXME
-#define Draw_SString(x,y,str,sc)	pDraw_String(x,y,str) //FIXME
-#define Draw_SAlt_String(x,y,str,sc)	pDraw_String(x,y,str) //FIXME
+
+void Draw_EZString(float x, float y, char *str, float scale, qboolean red);
+#define Draw_Alt_String(x,y,s)			Draw_EZString(x,y,s,8,true)
+#define Draw_ColoredString(x,y,str,alt)	Draw_EZString(x,y,str,8,alt)
+#define Draw_SString(x,y,str,sc)		Draw_EZString(x,y,str,8*sc,false)
+#define Draw_SAlt_String(x,y,str,sc)	Draw_EZString(x,y,str,8*sc,true)
 
 void Draw_SPic(float x, float y, mpic_t *pic, float scale);
 void Draw_SSubPic(float x, float y, mpic_t *pic, float s1, float t1, float s2, float t2, float scale);

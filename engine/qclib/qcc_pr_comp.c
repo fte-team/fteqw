@@ -3821,7 +3821,7 @@ QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand)
 				QCC_PR_PointerType((operand->index.cast->type == ev_field)?operand->index.cast->aux_type:type_variant),
 				true);
 	}
-	if (operand->type == REF_GLOBAL || operand->type == REF_ARRAY)
+	if (operand->type == REF_ARRAYHEAD || operand->type == REF_GLOBAL || operand->type == REF_ARRAY)
 	{
 		if (!QCC_OPCodeValid(&pr_opcodes[OP_GLOBALADDRESS]))
 			QCC_PR_ParseError (ERR_BADEXTENSION, "Address-of operator is not supported in this form without extensions. Consider the use of: #pragma target fte");
@@ -4615,13 +4615,10 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 #if 1
 				QCC_ref_t refbuf, *r;
 				r = QCC_PR_ParseRefValue(&refbuf, pr_classtype, false, false, false);
-				if (r->type == REF_GLOBAL && !r->index.cast)
+				if (r->type == REF_ARRAYHEAD && !r->index.cast)
 				{
 					e = r->base;
-					if (!e.sym->arraysize)	//FIXME
-						sz = 1;
-					else
-						sz = e.sym->arraysize;
+					sz = e.sym->arraysize;
 				}
 				else
 					sz = 1;
@@ -5833,10 +5830,10 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 	pbool allowarray;
 	unsigned int arraysize;
 	unsigned int rewindpoint = numstatements;
+	pbool dereference = false;
 
 	t = r->cast;
-	if (r->type == REF_GLOBAL && r->cast == r->base.cast && r->base.sym)
-		//FIXME
+	if (r->type == REF_ARRAYHEAD && r->cast == r->base.cast && r->base.sym)
 		arraysize = r->base.sym->arraysize;
 	else
 		arraysize = 0;
@@ -5881,9 +5878,10 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 			if (!idx.cast && t->type == ev_pointer && !arraysize)
 				t = t->aux_type;
 
-			if (!idx.cast && r->cast->type == ev_pointer)
+			if (!idx.cast && r->cast->type == ev_pointer && !arraysize)
 			{
 				/*no bounds checks on pointer dereferences*/
+				dereference = true;
 			}
 			else if (!idx.cast && r->cast->type == ev_string && !arraysize)
 			{
@@ -5996,7 +5994,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 			QCC_FreeTemp(idx);
 			return QCC_PR_BuildRef(retbuf, REF_GLOBAL, QCC_MakeIntConst(arraysize), nullsref, type_integer, true);
 		}
-		else if ((t->type == ev_pointer || t->type == ev_struct || t->type == ev_union) && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
+		else if (((t->type == ev_pointer && !arraysize) || t->type == ev_struct || t->type == ev_union) && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
 		{
 			char *tname;
 			unsigned int i;
@@ -6046,11 +6044,23 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 
 	if (idx.cast)
 	{
-		//okay, not a pointer, we'll have to read it in somehow
-		if (r->cast->type == ev_pointer)
+		QCC_sref_t base;
+		if (r->type == REF_ARRAYHEAD)
 		{
-			//generate a reference to ptr[x]
-			QCC_PR_BuildRef(retbuf, REF_POINTER, QCC_RefToDef(r, true), idx, t, r->readonly);
+			r->type = REF_ARRAY;
+			base = QCC_RefToDef(r, true);
+			r->type = REF_ARRAYHEAD;
+		}
+		else
+			base = QCC_RefToDef(r, true);
+
+		//okay, not a pointer, we'll have to read it in somehow
+		if (dereference)
+		{
+			r = QCC_PR_BuildRef(retbuf, REF_POINTER, base, idx, t, r->readonly);
+			r = QCC_PR_ParseRefArrayPointer(retbuf, r, allowarrayassign, makearraypointers);
+			r = QCC_PR_ParseField(retbuf, r);
+			return r;
 		}
 /*		else if (d->type->type == ev_vector && d->arraysize == 0)
 		{	//array notation on vectors (non-field)
@@ -6064,7 +6074,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 		}
 */		else
 		{
-			QCC_PR_BuildRef(retbuf, REF_ARRAY, QCC_RefToDef(r, true), idx, t, r->readonly);
+			QCC_PR_BuildRef(retbuf, REF_ARRAY, base, idx, t, r->readonly);
 		}
 		r = retbuf;
 
@@ -6072,7 +6082,10 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 		r = QCC_PR_ParseRefArrayPointer(retbuf, r, allowarrayassign, makearraypointers);
 
 		if (arraysize && makearraypointers)
+		{
+			QCC_PR_ParseWarning(0, "Is this still needed?");
 			r = QCC_PR_GenerateAddressOf(retbuf, r);
+		}
 	}
 
 	r = QCC_PR_ParseField(retbuf, r);
@@ -6369,6 +6382,20 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		return QCC_PR_ParseRefArrayPointer(refbuf, refbuf, allowarrayassign, makearraypointers); //opportunistic vecmember[0] handling
 	}
 
+	if (d.sym->arraysize)
+	{
+		QCC_ref_t *r;
+		QCC_DefToRef(refbuf, d);
+		refbuf->type = REF_ARRAYHEAD;
+		r = QCC_PR_ParseRefArrayPointer(refbuf, refbuf, allowarrayassign, makearraypointers);
+		/*if (r->type == REF_ARRAYHEAD)
+		{
+			r->type = REF_GLOBAL;
+			return QCC_PR_GenerateAddressOf(refbuf, r);
+		}*/
+		return r;
+	}
+
 	return QCC_PR_ParseRefArrayPointer(refbuf, QCC_DefToRef(refbuf, d), allowarrayassign, makearraypointers);
 }
 
@@ -6578,7 +6605,7 @@ QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 		if (QCC_PR_CheckToken ("*"))
 		{
 			e = QCC_PR_Expression (UNARY_PRIORITY, EXPR_DISALLOW_COMMA);
-			if (e.cast->type == ev_pointer)
+			if (e.cast->type == ev_pointer)	//FIXME: arrays
 				return QCC_PR_BuildRef(retbuf, REF_POINTER, e, nullsref, e.cast->aux_type, false);
 			else if (e.cast->accessors)
 			{
@@ -7289,6 +7316,13 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 		else
 			QCC_UnFreeTemp(ret);
 		break;
+	case REF_ARRAYHEAD:
+		{
+			QCC_ref_t buf;
+			ref = QCC_PR_GenerateAddressOf(&buf, ref);
+			return QCC_RefToDef(ref, freetemps);
+		}
+		break;
 	case REF_GLOBAL:
 	case REF_ARRAY:
 		if (ref->index.cast)
@@ -7327,10 +7361,15 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	case REF_POINTER:
 		tmp = QCC_GetTemp(ref->cast);
 		if (ref->index.cast)
+		{
+//			if (!freetemps)
+				QCC_UnFreeTemp(ref->index);
 			idx = QCC_SupplyConversion(ref->index, ev_integer, true);
+		}
 		else
 			idx = nullsref;
 		QCC_LoadFromPointer(tmp, ref->base, idx, ref->cast);
+		QCC_FreeTemp(idx);
 		if (freetemps)
 			QCC_PR_DiscardRef(ref);
 		return tmp;
@@ -11732,7 +11771,13 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 				if (type->size - i >= 3)
 				{
 					rhs.cast = def.cast = type_vector;
-					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_V], rhs, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
+					if (type->size - i == 3)
+					{
+						QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], rhs, def, NULL, STFL_PRESERVEB));
+						return;
+					}
+					else
+						QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_V], rhs, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
 					i+=3;
 					def.ofs += 3;
 					rhs.ofs += 3;
@@ -11740,7 +11785,13 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 				else
 				{
 					rhs.cast = def.cast = type_float;
-					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], rhs, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
+					if (type->size - i == 1)
+					{
+						QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], rhs, def, NULL, STFL_PRESERVEB));
+						return;
+					}
+					else
+						QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], rhs, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
 					i++;
 					def.ofs++;
 					rhs.ofs++;

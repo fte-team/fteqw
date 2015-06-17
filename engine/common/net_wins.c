@@ -421,12 +421,14 @@ qboolean NET_AddressSmellsFunny(netadr_t *a)
 	}
 }
 
+/*
 static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
 {
 	netadr_t *n = data;
 	struct sockaddr_qstorage s;
 	int ssz;
 	char *adrstring = Z_Malloc(NI_MAXHOST);
+	void (*resolved)(void *ctx, void *data, size_t a, size_t b) = *(void**)(n+1);
 	if (n->type == NA_LOOPBACK)
 		NET_BaseAdrToString(adrstring, NI_MAXHOST, n);
 	else
@@ -437,7 +439,7 @@ static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
 			NET_BaseAdrToString(adrstring, NI_MAXHOST, n);
 		}
 	}
-	COM_AddWork(0, *(void**)(n+1), ctx, adrstring, a, b);
+	COM_AddWork(0, resolved, ctx, adrstring, a, b);
 	Z_Free(n);
 }
 
@@ -448,6 +450,7 @@ void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *da
 	*(void**)(n+1) = resolved;
 	COM_AddWork(2, NET_AdrToStringDoResolve, ctx, n, a, b);
 }
+*/
 
 char	*NET_AdrToString (char *s, int len, netadr_t *a)
 {

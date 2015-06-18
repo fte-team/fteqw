@@ -778,7 +778,13 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 	Scintilla_RegisterClasses(scintilla);
 #else
 	if (!scintilla && scintillaokay)
+	{
+#ifdef _WIN64
+		scintilla = LoadLibrary("SciLexer_64.dll");
+		if (!scintilla)
+#endif
 		scintilla = LoadLibrary("SciLexer.dll");
+	}
 #endif
 
 	if (!richedit)
@@ -1484,6 +1490,70 @@ static void scin_get_line_indent(HWND editpane, int lineidx, char *indentbuf, si
 	*indentbuf = 0;	//failed
 }
 
+void Scin_HandleCharAdded(editor_t *editor, struct SCNotification *not, int pos)
+{
+	if (not->ch == '(')
+	{
+		char *s = GetTooltipText(editor, pos-1, FALSE);
+		tooltip_editor = NULL;
+		if (s)
+			SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)pos, (LPARAM)s);
+	}
+	else if (not->ch == '}')
+	{	//if the first char on the line, fix up indents to match previous-1
+		char prevline[65536];
+		char newline[4096];
+		int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
+		int lineidx = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
+		int linestart = SendMessage(editor->editpane, SCI_POSITIONFROMLINE, lineidx, 0);
+		int plen;
+		int nlen = SendMessage(editor->editpane, SCI_LINELENGTH, lineidx, 0);
+		if (nlen >= sizeof(newline))
+			return;
+		nlen = SendMessage(editor->editpane, SCI_GETLINE, lineidx, (LPARAM)newline);
+		if (linestart > 2)
+		{
+			scin_get_line_indent(editor->editpane, lineidx, prevline, sizeof(prevline));
+			plen = strlen(prevline);
+			if (plen > nlen)
+				return;	//already indented a bit or something
+			if (!strncmp(prevline, newline, plen))	//same indent
+			{
+				SendMessage(editor->editpane, SCI_CHARLEFT, 0, 0);	//move to the indent
+				SendMessage(editor->editpane, SCI_BACKTAB, 0, 0);	//do shift-tab to un-indent the current selection (one line supposedly)
+				SendMessage(editor->editpane, SCI_CHARRIGHT, 0, 0);	//and move back to the right of the }
+			}
+		}
+	}
+	else if (not->ch == '\r' || not->ch == '\n')
+	{
+		char linebuf[65536];
+		int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
+		int lineidx = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
+		int linestart = SendMessage(editor->editpane, SCI_POSITIONFROMLINE, lineidx, 0);
+		int len = SendMessage(editor->editpane, SCI_LINELENGTH, lineidx, 0);
+		if (pos == linestart)
+		{
+			scin_get_line_indent(editor->editpane, lineidx, linebuf, sizeof(linebuf));
+			SendMessage(editor->editpane, SCI_REPLACESEL, 0, (LPARAM)linebuf);
+		}
+	}
+/*
+	else if (0)//(!SendMessage(editor->editpane, SCI_AUTOCACTIVE, 0, 0))
+	{
+		char buffer[65536];
+		char prefixbuffer[128];
+		char *pre = WordUnderCursor(editor, prefixbuffer, sizeof(prefixbuffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0));
+		if (pre && *pre)
+			if (GenAutoCompleteList(pre, buffer, sizeof(buffer)))
+			{
+				SendMessage(editor->editpane, SCI_AUTOCSETFILLUPS, 0, (LPARAM)"\t\n");
+				SendMessage(editor->editpane, SCI_AUTOCSHOW, strlen(pre), (LPARAM)buffer);
+			}
+	}
+*/
+}
+
 static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 				     WPARAM wParam,LPARAM lParam)
 {
@@ -1669,64 +1739,7 @@ static LRESULT CALLBACK EditorWndProc(HWND hWnd,UINT message,
 					}
 					break;
 				case SCN_CHARADDED:
-					if (not->ch == '(')
-					{
-						char *s = GetTooltipText(editor, pos-1, FALSE);
-						tooltip_editor = NULL;
-						if (s)
-							SendMessage(editor->editpane, SCI_CALLTIPSHOW, (WPARAM)pos, (LPARAM)s);
-					}
-					else if (not->ch == '}')
-					{	//if the first char on the line, fix up indents to match previous-1
-						char prevline[65536];
-						char newline[4096];
-						int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
-						int lineidx = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
-						int linestart = SendMessage(editor->editpane, SCI_POSITIONFROMLINE, lineidx, 0);
-						int plen;
-						int nlen = SendMessage(editor->editpane, SCI_LINELENGTH, lineidx, 0);
-						if (nlen >= sizeof(newline))
-							break;
-						nlen = SendMessage(editor->editpane, SCI_GETLINE, lineidx, (LPARAM)newline);
-						if (linestart > 2)
-						{
-							scin_get_line_indent(editor->editpane, lineidx, prevline, sizeof(prevline));
-							plen = strlen(prevline);
-							if (plen > nlen)
-								break;	//already indented a bit or something
-							if (!strncmp(prevline, newline, plen))	//same indent
-							{
-								SendMessage(editor->editpane, SCI_CHARLEFT, 0, 0);	//move to the indent
-								SendMessage(editor->editpane, SCI_BACKTAB, 0, 0);	//do shift-tab to un-indent the current selection (one line supposedly)
-								SendMessage(editor->editpane, SCI_CHARRIGHT, 0, 0);	//and move back to the right of the }
-							}
-						}
-					}
-					else if (not->ch == '\r' || not->ch == '\n')
-					{
-						char linebuf[65536];
-						int pos = SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0);
-						int lineidx = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
-						int linestart = SendMessage(editor->editpane, SCI_POSITIONFROMLINE, lineidx, 0);
-						int len = SendMessage(editor->editpane, SCI_LINELENGTH, lineidx, 0);
-						if (pos == linestart)
-						{
-							scin_get_line_indent(editor->editpane, lineidx, linebuf, sizeof(linebuf));
-							SendMessage(editor->editpane, SCI_REPLACESEL, 0, (LPARAM)linebuf);
-						}
-					}
-					else if (0)//(!SendMessage(editor->editpane, SCI_AUTOCACTIVE, 0, 0))
-					{
-						char buffer[65536];
-						char prefixbuffer[128];
-						char *pre = WordUnderCursor(editor, prefixbuffer, sizeof(prefixbuffer), NULL, 0, SendMessage(editor->editpane, SCI_GETCURRENTPOS, 0, 0));
-						if (pre && *pre)
-							if (GenAutoCompleteList(pre, buffer, sizeof(buffer)))
-							{
-								SendMessage(editor->editpane, SCI_AUTOCSETFILLUPS, 0, (LPARAM)"\t\n");
-								SendMessage(editor->editpane, SCI_AUTOCSHOW, strlen(pre), (LPARAM)buffer);
-							}
-					}
+					Scin_HandleCharAdded(editor, not, pos);
 					break;
 				case SCN_SAVEPOINTREACHED:
 					editor->modified = false;

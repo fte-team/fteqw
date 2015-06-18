@@ -5248,7 +5248,8 @@ char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 
 	if (flags)
 	{
-		if (cl_nofake.value == 1 || (cl_nofake.value == 2 && flags != 2)) {
+		if (cl_nofake.value == 1 || (cl_nofake.value == 2 && !(flags & (TPM_OBSERVEDTEAM | TPM_TEAM))))
+		{
 			for (p = s; *p; p++)
 				if (*p == 13 || (*p == 10 && p[1]))
 					*p = ' ';
@@ -5384,7 +5385,7 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 			*(msg - 2) = 0; // it's assumed that msg has 2 chars before it due to strstr
 	}*/
 
-	if (*msg == '\r')
+	if (0)//*msg == '\r')
 	{
 		name = msg;
 		msg = strstr(msg, ": ");
@@ -5441,7 +5442,9 @@ void CL_PrintChat(player_info_t *plr, char *msg, int plrflags)
 
 	c = '0' + c;
 
-	if (name)
+	if (plrflags & TPM_QTV)
+		Q_strncatz(fullchatmessage, "QTV ^m", sizeof(fullchatmessage));
+	else if (name)
 	{
 		if (memessage)
 		{

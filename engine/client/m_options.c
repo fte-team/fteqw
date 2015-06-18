@@ -353,7 +353,7 @@ void M_Menu_Audio_Speakers_f (void)
 	menu = M_CreateMenu(sizeof(audiomenuinfo_t));
 	info = menu->data;
 	menu->key = M_Audio_Key;
-	menu->event = M_Audio_StartSound;
+	menu->predraw = M_Audio_StartSound;
 
 	for (i = 0; i < 6; i++)
 		info->speaker[i] = MC_AddBufferedText(menu, 0, 0, 0, va("%i", i), false, true);
@@ -2570,7 +2570,7 @@ void M_Menu_Video_f (void)
 	menu->selecteditem = (union menuoption_s *)info->renderer;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, menu->selecteditem->common.posy, NULL, false);
 	*/
-	menu->event = CheckCustomMode;
+	menu->predraw = CheckCustomMode;
 }
 
 #ifndef MINIMAL

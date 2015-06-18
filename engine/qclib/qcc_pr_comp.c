@@ -436,7 +436,7 @@ QCC_opcode_t pr_opcodes[] =
  {7, "<CPIF>", "CP_ITOF", -1, ASSOC_LEFT,			&type_pointer, &type_integer, &type_float},
  {7, "<CPFI>", "CP_FTOI", -1, ASSOC_LEFT,			&type_pointer, &type_float, &type_integer},
 
- {7, ".", "INDIRECT", 1, ASSOC_LEFT,				&type_entity,	&type_field, &type_integer},
+ {7, ".", "LOADF_I", 1, ASSOC_LEFT,				&type_entity,	&type_field, &type_integer},
  {7, "=", "STOREP_I", 6, ASSOC_RIGHT,				&type_pointer,	&type_integer, &type_integer},
  {7, "=", "STOREP_IF", 6, ASSOC_RIGHT,				&type_pointer,	&type_float, &type_integer},
  {7, "=", "STOREP_FI", 6, ASSOC_RIGHT,				&type_pointer,	&type_integer, &type_float},
@@ -567,7 +567,12 @@ QCC_opcode_t pr_opcodes[] =
 
 {7, "<IF_F>",	"IF_F",		-1, ASSOC_RIGHT,				&type_float, NULL, &type_void},
 {7, "<IFNOT_F>","IFNOT_F",	-1, ASSOC_RIGHT,				&type_float, NULL, &type_void},
-
+/*
+{7, "<=>",	"STOREF_F",		-1, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
+{7, "<=>",	"STOREF_V",		-1, ASSOC_RIGHT,				&type_entity, &type_field, &type_vector},
+{7, "<=>",	"STOREF_IF",	-1, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
+{7, "<=>",	"STOREF_FI",	-1, ASSOC_RIGHT,				&type_entity, &type_field, &type_float},
+*/
 /* emulated ops begin here */
  {7, "<>",	"OP_EMULATED",		-1, ASSOC_LEFT,				&type_float,	&type_float,	&type_float},
 
@@ -2692,7 +2697,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 	{	//optimise based on last statement.
 		if (op - pr_opcodes == OP_IFNOT_I)
 		{
-			if (opt_shortenifnots && var_a.cast && (statements[numstatements-1].op == OP_NOT_F || statements[numstatements-1].op == OP_NOT_FNC || statements[numstatements-1].op == OP_NOT_ENT))
+			if (opt_shortenifnots && var_a.cast && var_a.sym->refcount == 1 && (statements[numstatements-1].op == OP_NOT_F || statements[numstatements-1].op == OP_NOT_FNC || statements[numstatements-1].op == OP_NOT_ENT))
 			{
 				if (statements[numstatements-1].c.sym == var_a.sym && statements[numstatements-1].c.ofs == var_a.ofs)
 				{
@@ -2711,7 +2716,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		}
 		else if (op - pr_opcodes == OP_IFNOT_F)
 		{
-			if (opt_shortenifnots && var_a.cast && statements[numstatements-1].op == OP_NOT_F)
+			if (opt_shortenifnots && var_a.cast && var_a.sym->refcount == 1 && statements[numstatements-1].op == OP_NOT_F)
 			{
 				if (statements[numstatements-1].c.sym == var_a.sym && statements[numstatements-1].c.ofs == var_a.ofs)
 				{
@@ -2772,6 +2777,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 	if (!QCC_OPCodeValid(op))
 	{
+		QCC_sref_t tmp;
 //FIXME: add support for flags so we don't corrupt temps
 		switch(op - pr_opcodes)
 		{
@@ -3030,79 +3036,81 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_F], var_c, var_a, NULL, STFL_PRESERVEA);
 
 		case OP_IF_S:
-			var_c = QCC_PR_GetSRef(type_string, "string_null", NULL, true, 0, false);
-			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_S], var_a, var_c, NULL);
+			tmp = QCC_MakeFloatConst(0);
+			tmp.cast = type_string;
+			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_S], var_a, tmp, NULL);
 			op = &pr_opcodes[OP_IF_I];
 			break;
 
 		case OP_IFNOT_S:
-			var_c = QCC_PR_GetSRef(type_string, "string_null", NULL, true, 0, false);
-			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_S], var_a, var_c, NULL);
+			tmp = QCC_MakeFloatConst(0);
+			tmp.cast = type_string;
+			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_S], var_a, tmp, NULL);
 			op = &pr_opcodes[OP_IFNOT_I];
 			break;
 
 		case OP_IF_F:
-			var_c = QCC_MakeFloatConst(0);
-			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_F], var_a, var_c, NULL);
+			tmp = QCC_MakeFloatConst(0);
+			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_F], var_a, tmp, NULL);
 			op = &pr_opcodes[OP_IF_I];
 			break;
 
 		case OP_IFNOT_F:
-			var_c = QCC_MakeFloatConst(0);
-			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_F], var_a, var_c, NULL);
+			tmp = QCC_MakeFloatConst(0);
+			var_a = QCC_PR_Statement(&pr_opcodes[OP_NE_F], var_a, tmp, NULL);
 			op = &pr_opcodes[OP_IFNOT_I];
 			break;
 
 		case OP_ADDSTORE_F:
 			op = &pr_opcodes[OP_ADD_F];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 		case OP_ADDSTORE_I:
 			op = &pr_opcodes[OP_ADD_I];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 		case OP_ADDSTORE_FI:
 			op = &pr_opcodes[OP_ADD_FI];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 //		case OP_ADDSTORE_IF:
 //			fixme: result is a float but needs to be an int
 //			op = &pr_opcodes[OP_ADD_IF];
-//			var_c = var_b;
+//			tmp = var_b;
 //			var_b = var_a;
-//			var_a = var_c;
+//			var_a = tmp;
 //			break;
 
 		case OP_SUBSTORE_F:
 			op = &pr_opcodes[OP_SUB_F];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 		case OP_SUBSTORE_FI:
 			op = &pr_opcodes[OP_SUB_FI];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 //		case OP_SUBSTORE_IF:
 //			fixme: result is a float but needs to be an int
 //			op = &pr_opcodes[OP_SUB_IF];
-//			var_c = var_b;
+//			tmp = var_b;
 //			var_b = var_a;
-//			var_a = var_c;
+//			var_a = tmp;
 //			break;
 		case OP_SUBSTORE_I:
 			op = &pr_opcodes[OP_SUB_I];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 
 		case OP_BITNOT_I:
@@ -3118,35 +3126,35 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 		case OP_DIVSTORE_F:
 			op = &pr_opcodes[OP_DIV_F];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 		case OP_DIVSTORE_FI:
 			op = &pr_opcodes[OP_DIV_FI];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 //		case OP_DIVSTORE_IF:
 //			fixme: result is a float, but needs to be an int
 //			op = &pr_opcodes[OP_DIV_IF];
-//			var_c = var_b;
+//			tmp = var_b;
 //			var_b = var_a;
-//			var_a = var_c;
+//			var_a = tmp;
 //			break;
 		case OP_DIVSTORE_I:
 			op = &pr_opcodes[OP_DIV_I];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 
 		case OP_MULSTORE_F:
 			op = &pr_opcodes[OP_MUL_F];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 //		case OP_MULSTORE_IF:
 //			fixme: result is a float, but needs to be an int
@@ -3157,49 +3165,49 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 //			break;
 		case OP_MULSTORE_FI:
 			op = &pr_opcodes[OP_MUL_FI];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 
 		case OP_ADDSTORE_V:
 			op = &pr_opcodes[OP_ADD_V];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 
 		case OP_SUBSTORE_V:
 			op = &pr_opcodes[OP_SUB_V];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 
 		case OP_MULSTORE_VF:
 			op = &pr_opcodes[OP_MUL_VF];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 		case OP_MULSTORE_VI:
 			op = &pr_opcodes[OP_MUL_VI];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 
 		case OP_BITSETSTORE_I:
 			op = &pr_opcodes[OP_BITOR_I];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 		case OP_BITSETSTORE_F:
 			op = &pr_opcodes[OP_BITOR_F];
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			break;
 
 		case OP_STOREP_P:
@@ -3227,9 +3235,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			break;
 
 		case OP_BITCLR_I:
-			var_c = var_b;
+			tmp = var_b;
 			var_b = var_a;
-			var_a = var_c;
+			var_a = tmp;
 			if (QCC_OPCodeValid(&pr_opcodes[OP_BITCLRSTORE_I]))
 			{
 				op = &pr_opcodes[OP_BITCLRSTORE_I];
@@ -8014,7 +8022,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 		}
 		else
 		{
-
+			QCC_statement_t *logicjump;
 			//go straight for the correct priority.
 			for (op = opcodeprioritized[priority][opnum]; op; op = opcodeprioritized[priority][++opnum])
 	//		for (op=pr_opcodes ; op->name ; op++)
@@ -8023,6 +8031,18 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 	//				continue;
 				if (!QCC_PR_CheckToken (op->name))
 					continue;
+
+				logicjump = NULL;
+				if (opt_logicops && lhsr->type == REF_GLOBAL)
+				{
+					lhsd = QCC_RefToDef(lhsr, true);
+					if (op == &pr_opcodes[OP_AND_F])		//guarenteed to be false if the lhs is false
+						logicjump = QCC_Generate_OP_IFNOT(lhsd, true);
+					else if (op == &pr_opcodes[OP_OR_F])	//guarenteed to be true if the lhs is true
+						logicjump = QCC_Generate_OP_IF(lhsd, true);
+				}
+				else
+					lhsd = QCC_RefToDef(lhsr, true);
 				
 				rhsr = QCC_PR_RefExpression (&rhsbuf, priority-1, exprflags | EXPR_DISALLOW_ARRAYASSIGN);
 
@@ -8032,10 +8052,23 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				}
 				else
 				{
-					lhsd = QCC_RefToDef(lhsr, true);
 					rhsd = QCC_RefToDef(rhsr, true);
 					op = QCC_PR_ChooseOpcode(lhsd, rhsd, &opcodeprioritized[priority][opnum]);
 				
+					if (logicjump)	//logic shortcut jumps to just before the if. the rhs is uninitialised if the jump was taken, but the lhs makes it deterministic.
+					{
+						logicjump->b.ofs = &statements[numstatements] - logicjump;
+						if (logicjump->b.ofs == 1)
+							numstatements--;	//err, that was pointless.
+						else if (logicjump->b.ofs == 2 && !(logicjump[1].op >= OP_CALL0 && logicjump[1].op <= OP_CALL8) && !(logicjump[1].op >= OP_CALL1H && logicjump[1].op <= OP_CALL8H))
+						{
+							logicjump[0] = logicjump[1];
+							numstatements--;	//don't bother if the jump is the same cost as the thing we're trying to skip (calls are expensive despite being a single opcode).
+						}
+						else
+							optres_logicops++;
+					}
+
 					lhsd = QCC_PR_Statement (op, lhsd, rhsd, NULL);
 					lhsr = QCC_DefToRef(retbuf, lhsd);
 				}

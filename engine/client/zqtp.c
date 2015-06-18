@@ -2230,6 +2230,44 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 	}
 */
 
+	if (!flags)
+	{
+		char *qtv = NULL;
+		if (!strncmp(s, "#0:qtv_say_game:#", 17))
+		{
+			qtv = s+16;
+			flags = TPM_QTV|TPM_SPECTATOR;
+		}
+		else if (!strncmp(s, "#0:qtv_say_team_game:#", 22))
+		{
+			qtv = s+21;
+			flags = TPM_QTV|TPM_TEAM|TPM_SPECTATOR;
+		}
+		if (flags)
+		{
+			*offset = (qtv - s);
+			for (;;)
+			{
+				char *sub = qtv;
+				if (*sub == '#')
+				{
+					strtoul(sub+1, &sub, 10);
+					if (*sub++ == ':')
+					{
+						qtv = strstr(sub, ": ");
+						if (qtv)
+						{
+							*offset = (sub - s);
+							qtv += 2;
+							continue;
+						}
+					}
+				}
+				break;
+			}
+		}
+	}
+
 	return flags;
 }
 

@@ -99,9 +99,10 @@ typedef struct serverdetailedinfo_s
 		float time;
 		int ping;
 		char name[64];
-		char skin[64];
+		char skin[16];
+		char team[16];
 		char topc;
-		char botc;				
+		char botc;
 	} players[MAX_CLIENTS];
 } serverdetailedinfo_t;
 
@@ -172,6 +173,7 @@ typedef struct player_s
 	int frags;
 	int colour;
 	char skin[8];
+	char team[8];
 	netadr_t adr;
 
 	struct player_s *next;
@@ -184,7 +186,7 @@ extern master_t *master;
 extern player_t *mplayers;
 
 void Master_SetupSockets(void);
-void CL_QueryServers(void);
+qboolean CL_QueryServers(void);
 int Master_CheckPollSockets(void);
 void MasterInfo_Shutdown(void);
 void MasterInfo_Request(master_t *mast);

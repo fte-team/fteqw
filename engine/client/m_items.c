@@ -703,10 +703,10 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 
 static void MenuDraw(menu_t *menu)
 {
-	if (menu->event)
-		menu->event(menu);
 	if (!menu->dontexpand)
 		menu->xpos = ((vid.width - 320)>>1);
+	if (menu->predraw)
+		menu->predraw(menu);
 	MenuDrawItems(menu->xpos, menu->ypos, menu->options, menu);
 	// draw tooltip
 	if (menu->selecteditem && menu->tooltip && realtime > menu->tooltiptime)
@@ -739,6 +739,9 @@ static void MenuDraw(menu_t *menu)
 				}
 			}
 	}
+
+	if (menu->postdraw)
+		menu->postdraw(menu);
 }
 
 
@@ -2030,14 +2033,12 @@ static qboolean MC_GuiKey(int key, menu_t *menu)
 }
 
 
+extern int m_save_demonum;
 qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 {
 	if (key == K_ESCAPE || key == K_MOUSE2)
 	{
-		extern int m_save_demonum;
 		extern cvar_t cl_demoreel, con_stayhidden;
-		if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected && cl_demoreel.ival)
-			CL_NextDemo ();
 
 		//don't spam menu open+close events if we're not going to be allowing the console to appear
 		if (con_stayhidden.ival && cls.state == ca_disconnected)
@@ -2046,7 +2047,15 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 
 		Key_Dest_Remove(kdm_menu);
 		m_state = m_none;
-		cls.demonum = m_save_demonum;
+/*		if (m_save_demonum != -1)
+		{
+			cls.demonum = m_save_demonum;
+			m_save_demonum = -1;
+
+			if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected && cl_demoreel.ival)
+				CL_NextDemo ();
+		}
+*/
 		return true;
 	}
 	return false;
@@ -2067,6 +2076,12 @@ void M_Menu_Main_f (void)
 		return;
 #endif
 
+/*	if (cls.demoplayback)
+	{
+		m_save_demonum = cls.demonum;
+		cls.demonum = -1;
+	}
+*/
 	SCR_EndLoadingPlaque();	//just in case...
 
 /*

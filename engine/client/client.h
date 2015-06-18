@@ -1301,6 +1301,7 @@ void QDECL vectoangles(vec3_t fwd, vec3_t ang);
 #define TPM_SPECTATOR  4
 #define TPM_FAKED     16
 #define TPM_OBSERVEDTEAM  32
+#define TPM_QTV       64		//should only be qtv_say_game/qtv_say_team_game
 
 void		CL_Say (qboolean team, char *extra);
 int			TP_CategorizeMessage (char *s, int *offset, player_info_t **plr);

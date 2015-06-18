@@ -285,9 +285,10 @@ typedef struct menu_s {
 
 	void *data;	//typecast
 
-	void (*remove)	(struct menu_s *);
+	void (*remove)		(struct menu_s *);
 	qboolean (*key)		(int key, struct menu_s *);	//true if key was handled
-	void (*event)	(struct menu_s *);
+	void (*predraw)		(struct menu_s *);
+	void (*postdraw)	(struct menu_s *);
 	menuoption_t *options;
 
 	menuoption_t *selecteditem;

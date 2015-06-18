@@ -564,7 +564,6 @@ cvar_t slist_cacheinfo = SCVAR("slist_cacheinfo", "0");	//this proves dangerous,
 cvar_t slist_writeserverstxt = SCVAR("slist_writeservers", "0");
 
 void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
-void CL_QueryServers(void);
 int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite);
 void MasterInfo_RemoveAllPlayers(void);
 
@@ -1313,7 +1312,7 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 	//add dupes too (eg: ipv4+ipv6)
 	for (i = 1; i < found; i++)
 	{
-		master_t *alt;
+//		master_t *alt;
 		if (adrs[i].type == NA_INVALID)
 			continue;
 
@@ -2162,9 +2161,11 @@ void MasterInfo_Request(master_t *mast)
 #endif
 #ifdef Q2CLIENT
 		case MP_QUAKE2:
+			NET_SendPollPacket (11, va("%c%c%c%cstatus\n", 255, 255, 255, 255), mast->adr);
+			break;
 #endif
 		case MP_QUAKEWORLD:
-			NET_SendPollPacket (11, va("%c%c%c%cstatus\n", 255, 255, 255, 255), mast->adr);
+			NET_SendPollPacket (11, va("%c%c%c%cstatus 23\n", 255, 255, 255, 255), mast->adr);
 			break;
 #ifdef NQPROT
 		case MP_NETQUAKE:
@@ -2382,7 +2383,7 @@ void Master_QueryServer(serverinfo_t *server)
 	NET_SendPollPacket (strlen(data), data, server->adr);
 }
 //send a packet to each server in sequence.
-void CL_QueryServers(void)
+qboolean CL_QueryServers(void)
 {
 	static int poll;
 	int op;
@@ -2431,7 +2432,7 @@ void CL_QueryServers(void)
 	if (!server)
 	{
 		poll = 0;
-		return;
+		return false;
 	}
 
 	if (op == 0)
@@ -2484,11 +2485,12 @@ void CL_QueryServers(void)
 			Master_QueryServer(server);
 		}
 		poll++;
-		return;
+		return true;
 	}
 
 
 	poll = 0;
+	return false;
 }
 
 unsigned int Master_TotalCount(void)
@@ -2510,7 +2512,7 @@ unsigned int Master_NumPolled(void)
 
 	for (info = firstserver; info; info = info->next)
 	{
-		if (info->maxplayers)
+		if (!info->sends)
 			count++;
 	}
 	return count;
@@ -2574,7 +2576,7 @@ void MasterInfo_RemovePlayers(netadr_t *adr)
 	}
 }
 
-void MasterInfo_AddPlayer(netadr_t *serveradr, char *name, int ping, int frags, int colours, char *skin)
+void MasterInfo_AddPlayer(netadr_t *serveradr, char *name, int ping, int frags, int colours, char *skin, char *team)
 {
 	player_t *p;
 	p = Z_Malloc(sizeof(player_t));
@@ -2582,6 +2584,7 @@ void MasterInfo_AddPlayer(netadr_t *serveradr, char *name, int ping, int frags, 
 	p->adr = *serveradr;
 	p->colour = colours;
 	p->frags = frags;
+	Q_strncpyz(p->team, team, sizeof(p->team));
 	Q_strncpyz(p->name, name, sizeof(p->name));
 	Q_strncpyz(p->skin, skin, sizeof(p->skin));
 	mplayers = p;
@@ -2790,13 +2793,11 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 			}
 			else	//qw response
 			{
-				details.players[clnum].time = atoi(token);
+				details.players[clnum].ping = atoi(token);
 				msg = token;
 				token = strchr(msg+1, ' ');
 				if (!token)
 					break;
-
-				details.players[clnum].ping = atoi(token);
 
 				token = strchr(token+1, '\"');
 				if (!token)
@@ -2830,9 +2831,24 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				if (!token)
 					break;
 				details.players[clnum].botc = atoi(token);
+
+				token = strchr(msg+1, '\"');
+				Q_strncpyz(details.players[clnum].team, "", sizeof(details.players[clnum].team));
+				if (token)
+				{
+					msg = strchr(token+1, '\"');
+					if (msg)
+					{
+						len = msg - token;
+						if (len >= sizeof(details.players[clnum].team))
+							len = sizeof(details.players[clnum].team);
+						Q_strncpyz(details.players[clnum].team, token+1, len);
+						details.players[clnum].team[len] = '\0';
+					}
+				}
 			}
 
-			MasterInfo_AddPlayer(&info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin);
+			MasterInfo_AddPlayer(&info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin, details.players[clnum].team);
 
 			info->players = ++details.numplayers;
 

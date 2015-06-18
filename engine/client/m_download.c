@@ -769,7 +769,7 @@ void Menu_DownloadStuff_f (void)
 	menu = M_CreateMenu(sizeof(dlmenu_t));
 	info = menu->data;
 
-	menu->event = M_Download_UpdateStatus;
+	menu->predraw = M_Download_UpdateStatus;
 /*
 	menu->selecteditem = (menuoption_t *)(info->list = MC_AddCustom(menu, 0, 32, NULL));
 	info->list->draw = M_Download_Draw;

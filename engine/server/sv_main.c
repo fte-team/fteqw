@@ -1038,6 +1038,7 @@ CONNECTIONLESS COMMANDS
 #define	STATUS_PLAYERS					2
 #define	STATUS_SPECTATORS				4
 #define	STATUS_SPECTATORS_AS_PLAYERS	8 //for ASE - change only frags: show as "S"
+#define STATUS_SHOWTEAMS				16
 
 /*
 ================
@@ -1056,6 +1057,7 @@ void SVC_Status (void)
 	int		ping;
 	int		top, bottom;
 	char frags[64];
+	char *skin, *team, *botpre;
 
 	int slots=0;
 
@@ -1079,32 +1081,42 @@ void SVC_Status (void)
 			ping = SV_CalcPing (cl, false);
 			name = cl->name;
 
+			skin = Info_ValueForKey (cl->userinfo, "skin");
+			team = Info_ValueForKey (cl->userinfo, "team");
+
 			if (!cl->state || cl->protocol == SCP_BAD)	//show bots differently. Just to be courteous.
-				Con_Printf ("%i %i %i %i \"BOT:%s\" \"%s\" %i %i\n", cl->userid,
-					cl->old_frags, (int)(realtime - cl->connection_started)/60,
-					ping, cl->name, Info_ValueForKey (cl->userinfo, "skin"), top, bottom);
+				botpre = "BOT:";
 			else
-			{
-				if (cl->spectator)
-				{	//silly mvdsv stuff
-					if (displayflags & STATUS_SPECTATORS_AS_PLAYERS)
-					{
-						frags[0] = 'S';
-						frags[1] = '\0';
-					}
-					else
-					{
-						ping = -ping;
-						sprintf(frags, "%i", -9999);
-						name  = va("\\s\\%s", name);
-					}
+				botpre = "";
+
+			if (cl->spectator)
+			{	//silly mvdsv stuff
+				if (displayflags & STATUS_SPECTATORS_AS_PLAYERS)
+				{
+					frags[0] = 'S';
+					frags[1] = '\0';
 				}
 				else
-					sprintf(frags, "%i", cl->old_frags);
+				{
+					ping = -ping;
+					sprintf(frags, "%i", -9999);
+					name  = va("\\s\\%s", name);
+				}
+			}
+			else
+				sprintf(frags, "%i", cl->old_frags);
 
-				Con_Printf ("%i %s %i %i \"%s\" \"%s\" %i %i\n", cl->userid,
+			if (displayflags & STATUS_SHOWTEAMS)
+			{
+				Con_Printf ("%i %s %i %i \"%s%s\" \"%s\" %i %i \"%s\"\n", cl->userid,
 					frags, (int)(realtime - cl->connection_started)/60,
-					ping, name, Info_ValueForKey (cl->userinfo, "skin"), top, bottom);
+					ping, botpre, name, skin, top, bottom, team);
+			}
+			else
+			{
+				Con_Printf ("%i %s %i %i \"%s%s\" \"%s\" %i %i\n", cl->userid,
+					frags, (int)(realtime - cl->connection_started)/60,
+					ping, botpre, name, skin, top, bottom);
 			}
 		}
 		else

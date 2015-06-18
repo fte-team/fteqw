@@ -345,8 +345,9 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 				printf ("stripped     : %s\n", PR_StringToNative(ppf, f->s_name));
 			else
 			{
+				int st = pr_stack[i].s;
 				if (pr_progstate[progs].linenums)
-					printf ("%12s:%i: %s\n", PR_StringToNative(ppf, f->s_file), pr_progstate[progs].linenums[pr_stack[i].s], PR_StringToNative(ppf, f->s_name));
+					printf ("%12s:%i: %s\n", PR_StringToNative(ppf, f->s_file), pr_progstate[progs].linenums[st], PR_StringToNative(ppf, f->s_name));
 				else
 					printf ("%12s : %s\n", PR_StringToNative(ppf, f->s_file), PR_StringToNative(ppf, f->s_name));
 			}

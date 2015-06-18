@@ -23,9 +23,11 @@ static cvar_t	sb_showplayers		= CVARF("sb_showplayers",	"1",	CVAR_ARCHIVE);
 static cvar_t	sb_showfraglimit	= CVARF("sb_showfraglimit",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_showtimelimit	= CVARF("sb_showtimelimit",	"0",	CVAR_ARCHIVE);
 
-static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.3",	CVAR_ARCHIVE);
+static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.5",	CVAR_ARCHIVE);
 
-
+static float refreshedtime;
+static int isrefreshing;
+static qboolean serverpreview;
 extern cvar_t slist_writeserverstxt;
 extern cvar_t slist_cacheinfo;
 
@@ -336,7 +338,8 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 			return true;
 		}
 		if (oldselection == info->selectedpos)
-			goto joinserver;
+			serverpreview = true;
+//			goto joinserver;
 		return true;
 	}
 
@@ -353,6 +356,8 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 	{
 		server = Master_SortedServer(info->selectedpos);
 		if (server)
+			serverpreview = true;
+/*
 		{
 			if (key == 's' || key == K_SPACE)
 				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
@@ -369,6 +374,7 @@ joinserver:
 
 			M_RemoveAllMenus();
 		}
+*/
 		return true;
 	}
 	else
@@ -383,15 +389,276 @@ static void SL_PreDraw	(menu_t *menu)
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	Master_CheckPollSockets();
 
-	CL_QueryServers();
+	if (isrefreshing)
+	{
+		if (!CL_QueryServers() && isrefreshing<=1)
+		{
+			//extra second, to ensure we got replies
+			isrefreshing = 2;
+			refreshedtime = Sys_DoubleTime()+1;
+		}
 
-	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u/%u/%u\n", Master_NumSorted(), Master_NumPolled(), Master_TotalCount());
+		if (isrefreshing == 2)
+		{
+			if (refreshedtime < Sys_DoubleTime())
+			{
+				isrefreshing = false;
+				Master_SortServers();
+			}
+		}
+
+	}
+
 	info->numslots = Master_NumSorted();
+	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u/%u/%u\n", info->numslots, Master_NumPolled(), Master_TotalCount());
+}
+static void SL_PostDraw	(menu_t *menu)
+{
+	static char *helpstrings[] =
+	{
+		"rmb: cancel",
+		"j: join",
+		"o: observe",
+		"v: say server info",
+		"ctrl-v: say_team server info",
+		"c: copy server info to clipboard",
+		"ctrl-c: copy server info only to clipboard",
+		"i: view serverinfo",
+		"k: toggle this info"
+	};
+
+	char buf[64];
+	serverlist_t *info = (serverlist_t*)(menu + 1);
+	Master_CheckPollSockets();
+
+	if (serverpreview)
+	{
+		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr):NULL;
+		R2D_ImageColours(1,1,1,1);
+		if (server && server->moreinfo)
+		{
+			int lx, x, y, i;
+			int h = 0;
+			if (serverpreview == 3)
+				h = countof(helpstrings);
+			else if (serverpreview == 2)
+			{
+				for (i = 0; ; i++)
+				{
+					char *key = Info_KeyForNumber(server->moreinfo->info, i);
+					if (!strcmp(key, "hostname") || !strcmp(key, "status"))	//these are part of the header
+						;
+					else if (*key)
+						h++;
+					else
+						break;
+				}
+			}
+			else
+				h += server->moreinfo->numplayers+2;
+			h += 4;
+			h *= 8;
+
+			Draw_TextBox(vid.width/2 - 100-12, vid.height/2 - h/2 - 8-8, 200/8+1, h/8+1);
+	//		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, "Refreshing, please wait", 200, 2, false);
+	//		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, va("%i of %i", Master_NumPolled(), Master_TotalCount()), 200, 2, false);
+
+			lx = vid.width/2 - 100;
+			y = vid.height/2 - h/2 - 4;
+
+			x = lx;
+			Draw_FunStringWidth (x, y, Info_ValueForKey(server->moreinfo->info, "hostname"), 200, 2, false);
+			y += 8;
+			Draw_FunStringWidth (x, y, Info_ValueForKey(server->moreinfo->info, "status"), 200, 2, false);
+			y += 8;
+			Draw_FunStringWidth (x, y, NET_AdrToString(buf, sizeof(buf), &server->adr), 200, 2, false);
+			y += 8;
+
+			Draw_FunStringWidth (x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", 200, 2, false);
+			y+=8;
+
+			if (serverpreview == 3)
+			{
+				x = lx;
+				for (i = 0; i < countof(helpstrings); i++)
+				{
+					Draw_FunStringWidth (x, y, helpstrings[i], 200, false, false);
+					y += 8;
+				}
+				Draw_FunStringWidth (x, y, Info_ValueForKey(server->moreinfo->info, "status"), 200, false, false);
+				y += 8;
+				Draw_FunStringWidth (x, y, NET_AdrToString(buf, sizeof(buf), &server->adr), 200, false, false);
+				y += 8;
+			}
+			else if (serverpreview == 2)
+			{
+				for (i = 0; ; i++)
+				{
+					char *key = Info_KeyForNumber(server->moreinfo->info, i);
+					if (!strcmp(key, "hostname") || !strcmp(key, "status"))
+						;
+					else if (*key)
+					{
+						char *value = Info_ValueForKey(server->moreinfo->info, key);
+						x = lx;
+						Draw_FunStringWidth (x, y, key, 100, false, false);
+						x+=100;
+						Draw_FunStringWidth (x, y, value, 100, false, false);
+						y += 8;
+					}
+					else
+						break;
+				}
+			}
+			else
+			{
+				int teamplay = atoi(Info_ValueForKey(server->moreinfo->info, "teamplay"));
+				x = lx;
+				Draw_FunStringWidth (x, y, "^mFrgs", 28, false, false);
+				x += 28+8;
+				Draw_FunStringWidth (x, y, "^mPng", 28, false, false);
+				x += 3*8+8;
+
+				if (teamplay)
+				{
+					Draw_FunStringWidth (x, y, "^mTeam", 4*8, false, false);
+					x += 4*8+8;
+					Draw_FunStringWidth (x, y, "^mName", 12*8, false, false);
+					x += 12*8+8;
+				}
+				else
+				{
+					Draw_FunStringWidth (x, y, "^mName", 16*8, false, false);
+					x += 16*8+8;
+				}
+
+				y+=8;
+				for (i = 0; i < server->moreinfo->numplayers; i++)
+				{
+					x = lx;
+					R2D_ImagePaletteColour (Sbar_ColorForMap(server->moreinfo->players[i].topc), 1.0);
+					R2D_FillBlock (x, y+1, 28, 3);
+					R2D_ImagePaletteColour (Sbar_ColorForMap(server->moreinfo->players[i].botc), 1.0);
+					R2D_FillBlock (x, y+4, 28, 4);
+					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].frags), 28, false, false);
+					x += 28+8;
+					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].ping), 28, false, false);
+					x += 3*8+8;
+
+					if (teamplay)
+					{
+						Draw_FunStringWidth (x, y, server->moreinfo->players[i].team, 4*8, false, false);
+						x += 4*8+8;
+						Draw_FunStringWidth (x, y, server->moreinfo->players[i].name, 12*8, false, false);
+						x += 12*8+8;
+					}
+					else
+					{
+						Draw_FunStringWidth (x, y, server->moreinfo->players[i].name, 16*8, false, false);
+						x += 16*8+8;
+					}
+
+					y += 8;
+				}
+
+				Draw_FunStringWidth (lx, y, "^h(press k for keybind help)", 200, false, false);
+			}
+		}
+		else
+		{
+			Draw_TextBox(vid.width/2 - 100-12, vid.height/2 - 32, 200/8, 64/8);
+			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, "Querying server", 200, 2, false);
+			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, "Please wait", 200, 2, false);
+		}
+	}
+	else if (isrefreshing)
+	{
+		R2D_ImageColours(1,1,1,1);
+		Draw_TextBox(vid.width/2 - 100-12, vid.height/2 - 32, 200/8, 64/8);
+		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, "Refreshing, please wait", 200, 2, false);
+		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, va("%i of %i", Master_NumPolled(), Master_TotalCount()), 200, 2, false);
+	}
+	else if (!info->numslots)
+	{
+		R2D_ImageColours(1,1,1,1);
+		if (!Master_TotalCount())
+		{
+			Draw_FunStringWidth(0, vid.height/2 - 8, "No servers found", vid.width, 2, false);
+			Draw_FunStringWidth(0, vid.height/2 + 0, "Check internet connection", vid.width, 2, false);
+		}
+		else
+		{
+			Draw_FunStringWidth(0, vid.height/2 - 8, "All servers were filtered out", vid.width, 2, false);
+			Draw_FunStringWidth(0, vid.height/2 + 0, "Change filter settings", vid.width, 2, false);
+		}
+	}
 }
 static qboolean SL_Key	(int key, menu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 
+	if (serverpreview)
+	{
+		char buf[64];
+		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr):NULL;
+		extern qboolean	keydown[];
+		qboolean ctrldown = keydown[K_LCTRL] || keydown[K_RCTRL];
+
+		if (key == K_ESCAPE || key == K_MOUSE2)
+		{
+			serverpreview = false;
+			return true;
+		}
+		else if (key == 'i')
+		{
+			serverpreview = ((serverpreview==2)?1:2);
+			return true;
+		}
+		else if (key == 'k')
+		{
+			serverpreview = ((serverpreview==3)?1:3);
+			return true;
+		}
+		else if (key == 'o' || key == 'j' || key == K_ENTER)	//join
+		{
+			if (key == 's' || key == 'o')
+				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
+			else if (key == 'j')
+				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
+
+			if ((server->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
+				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+			else
+				Cbuf_AddText(va("connect %s\n", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+			return true;
+		}
+		else if (server && key == 'c' && ctrldown)	//copy to clip
+		{
+			Sys_SaveClipboard(NET_AdrToString(buf, sizeof(buf), &server->adr));
+			return true;
+		}
+		else if (server && (key == 'v' || key == 'c'))	//say to current server
+		{
+			char *s;
+			char safename[128];
+			Q_strncpyz(safename, server->name, sizeof(safename));
+			//ALWAYS sanitize your inputs.
+			while(s = strchr(safename, ';'))
+				*s = ' ';
+			while(s = strchr(safename, '\n'))
+				*s = ' ';
+			if (key == 'c')
+				Sys_SaveClipboard(va("%s - %s\n", server->name, NET_StringToAdr(buf, sizeof(buf), &server->adr)));
+			else if (ctrldown)
+				Cbuf_AddText(va("say_team %s - %s\n", server->name, NET_StringToAdr(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+			else
+				Cbuf_AddText(va("say %s - %s\n", server->name, NET_StringToAdr(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+			return true;
+		}
+		//eat (nearly) all keys
+		else if (!(key == K_UPARROW || key == K_DOWNARROW))
+			return true;
+	}
 	if (key == K_HOME)
 	{
 		info->scrollpos = 0;
@@ -401,7 +668,7 @@ static qboolean SL_Key	(int key, menu_t *menu)
 	if (key == K_END)
 	{
 		info->selectedpos = info->numslots-1;
-		info->scrollpos = info->selectedpos - (vid.height-16-7)/8;
+		info->scrollpos = info->selectedpos - (vid.height-16-7)/8+8;
 		return true;
 	}
 	if (key == K_PGDN)
@@ -435,6 +702,12 @@ static qboolean SL_Key	(int key, menu_t *menu)
 		else
 		{
 			snprintf(info->mappic->picturename, 32, "levelshots/nomap");
+		}
+
+		if (serverpreview && server)
+		{
+			selectedserver.inuse = true;
+			SListOptionChanged(server);
 		}
 	}
 
@@ -471,6 +744,7 @@ static void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 
 static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
+	extern qboolean	keydown[K_MAX];
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 
 	mpic_t *pic;
@@ -504,9 +778,12 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		R2D_FillBlock(x, y, 8, 8);
 	}
 
+	if (keydown[K_MOUSE1])
+		if (mousecursor_x >= ths->common.posx && mousecursor_x < ths->common.posx + ths->common.width)
+			if (mousecursor_y >= ths->common.posy && mousecursor_y < ths->common.posy + ths->common.height)
+				info->sliderpressed = true;
 	if (info->sliderpressed)
 	{
-		extern qboolean	keydown[K_MAX];
 		if (keydown[K_MOUSE1])
 		{
 			float my;
@@ -514,7 +791,7 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 			my = mousecursor_y;
 			my -= ths->common.posy;
-			if (R2D_SafeCachePic("scrollbars/slidebg.tga"))
+			if (R_GetShaderSizes(R2D_SafeCachePic("scrollbars/slidebg.tga"), NULL, NULL, false)>0)
 			{
 				my -= 32+8;
 				my /= ths->common.height - (64+16);
@@ -543,7 +820,7 @@ static qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 
 		my = mousecursor_y;
 		my -= ths->common.posy;
-		if (R2D_SafeCachePic("scrollbars/slidebg.png"))
+		if (R_GetShaderSizes(R2D_SafeCachePic("scrollbars/slidebg.tga"), NULL, NULL, false)>0)
 		{
 			my -= 32+8;
 			my /= ths->common.height - (64+16);
@@ -630,6 +907,7 @@ static void SL_Remove	(menu_t *menu)
 static qboolean SL_DoRefresh (menuoption_t *opt, menu_t *menu, int key)
 {
 	MasterInfo_Refresh();
+	isrefreshing = true;
 	return true;
 }
 
@@ -653,7 +931,8 @@ void M_Menu_ServerList2_f(void)
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(serverlist_t));
-	menu->event = SL_PreDraw;
+	menu->predraw = SL_PreDraw;
+	menu->postdraw = SL_PostDraw;
 	menu->key = SL_Key;
 	menu->remove = SL_Remove;
 
@@ -674,7 +953,7 @@ void M_Menu_ServerList2_f(void)
 	cust->common.height = info->visibleslots;
 	cust->common.width = 8;
 
-	info->visibleslots = (info->visibleslots-7)/8;
+	info->visibleslots = (info->visibleslots-8)/8;
 	for (i = 0, y = 16; i <= info->visibleslots; y +=8, i++)
 	{
 		cust = MC_AddCustom(menu, 0, y, NULL, i);
@@ -720,7 +999,7 @@ void M_Menu_ServerList2_f(void)
 #endif
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "Hide Proxies", SL_ReFilter, 3);
 	info->filtertext =
-	MC_AddEditCvar    (menu, 128, 200, vid.height - 64+8*4, "Filter",	sb_filtertext.name, true);
+	MC_AddEditCvar    (menu, 128, 200, vid.height - 64+8*4, "Filter   ",	sb_filtertext.name, true);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, 5);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
 	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
@@ -762,6 +1041,7 @@ void M_Menu_ServerList2_f(void)
 	Master_SetSortField(sortkey, descending);
 
 	MasterInfo_Refresh();
+	isrefreshing = true;
 }
 
 static float quickconnecttimeout;
@@ -812,6 +1092,7 @@ static void M_QuickConnect_PreDraw(menu_t *menu)
 
 		//retry
 		MasterInfo_Refresh();
+		isrefreshing = true;
 
 		quickconnecttimeout = Sys_DoubleTime() + 5;
 	}
@@ -845,11 +1126,12 @@ void M_QuickConnect_f(void)
 	m_state = m_complex;
 
 	MasterInfo_Refresh();
+	isrefreshing = true;
 
 	quickconnecttimeout = Sys_DoubleTime() + 5;
 
 	menu = M_CreateMenu(sizeof(serverlist_t));
-	menu->event = M_QuickConnect_PreDraw;
+	menu->predraw = M_QuickConnect_PreDraw;
 	menu->key = M_QuickConnect_Key;
 	menu->remove = M_QuickConnect_Remove;
 

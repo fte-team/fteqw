@@ -11773,7 +11773,7 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 					rhs.cast = def.cast = type_vector;
 					if (type->size - i == 3)
 					{
-						QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], rhs, def, NULL, STFL_PRESERVEB));
+						QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_V], rhs, def, NULL, STFL_PRESERVEB));
 						return;
 					}
 					else

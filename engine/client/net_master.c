@@ -576,8 +576,6 @@ static serverinfo_t **visibleservers;
 static int numvisibleservers;
 static int maxvisibleservers;
 
-static double nextsort;
-
 static hostcachekey_t sortfield;
 static qboolean decreasingorder;
 
@@ -776,6 +774,10 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 		return Master_CompareString(a->name, b->name, SLIST_TEST_LESS);
 	case SLKEY_NUMPLAYERS:
 		return Master_CompareInteger(a->players, b->players, SLIST_TEST_LESS);
+	case SLKEY_NUMHUMANS:
+		return Master_CompareInteger(a->numhumans, b->numhumans, SLIST_TEST_LESS);
+	case SLKEY_NUMBOTS:
+		return Master_CompareInteger(a->numbots, b->numbots, SLIST_TEST_LESS);
 	case SLKEY_PING:
 		return Master_CompareInteger(a->ping, b->ping, SLIST_TEST_LESS);
 	case SLKEY_TIMELIMIT:
@@ -792,8 +794,6 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 
 	case SLKEY_MOD:
 	case SLKEY_PROTOCOL:
-	case SLKEY_NUMBOTS:
-	case SLKEY_NUMHUMANS:
 	case SLKEY_QCSTATUS:
 	case SLKEY_SERVERINFO:
 	case SLKEY_PLAYER0:
@@ -904,7 +904,6 @@ void Master_SetMaskString(qboolean or, hostcachekey_t field, const char *param, 
 	if (numvisrules == MAX_VISRULES)
 		return;	//just don't add it.
 
-	nextsort = 0;
 	visrules[numvisrules].fieldindex = field;
 	visrules[numvisrules].compareop = testop;
 	visrules[numvisrules].operands = param;
@@ -916,7 +915,6 @@ void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_t
 	if (numvisrules == MAX_VISRULES)
 		return;	//just don't add it.
 
-	nextsort = 0;
 	visrules[numvisrules].fieldindex = field;
 	visrules[numvisrules].compareop = testop;
 	visrules[numvisrules].operandi = param;
@@ -925,7 +923,6 @@ void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_t
 }
 void Master_SetSortField(hostcachekey_t field, qboolean descending)
 {
-	nextsort = 0;
 	sortfield = field;
 	decreasingorder = descending;
 }
@@ -1009,16 +1006,10 @@ void Master_SortServers(void)
 	{
 		Master_ResortServer(server);
 	}
-
-	if (nextsort < Sys_DoubleTime())
-		nextsort = Sys_DoubleTime() + 8;
 }
 
 serverinfo_t *Master_SortedServer(int idx)
 {
-//	if (nextsort < Sys_DoubleTime())
-//		Master_SortServers();
-
 	if (idx < 0 || idx >= numvisibleservers)
 		return NULL;
 
@@ -1027,9 +1018,6 @@ serverinfo_t *Master_SortedServer(int idx)
 
 int Master_NumSorted(void)
 {
-	if (nextsort < Sys_DoubleTime())
-		Master_SortServers();
-
 	return numvisibleservers;
 }
 
@@ -2165,7 +2153,7 @@ void MasterInfo_Request(master_t *mast)
 			break;
 #endif
 		case MP_QUAKEWORLD:
-			NET_SendPollPacket (11, va("%c%c%c%cstatus 23\n", 255, 255, 255, 255), mast->adr);
+			NET_SendPollPacket (14, va("%c%c%c%cstatus 23\n", 255, 255, 255, 255), mast->adr);
 			break;
 #ifdef NQPROT
 		case MP_NETQUAKE:
@@ -2342,7 +2330,6 @@ void MasterInfo_Refresh(void)
 	}
 
 	Master_SortServers();
-	nextsort = Sys_DoubleTime() + 2;
 }
 
 void Master_QueryServer(serverinfo_t *server)
@@ -2374,8 +2361,10 @@ void Master_QueryServer(serverinfo_t *server)
 		return;
 #endif
 	case SS_QUAKEWORLD:
+		Q_snprintfz(data, sizeof(data), "%c%c%c%cstatus 23\n", 255, 255, 255, 255);
+		break;
 	case SS_QUAKE2:
-		Q_snprintfz(data, sizeof(data), "%c%c%c%cstatus", 255, 255, 255, 255);
+		Q_snprintfz(data, sizeof(data), "%c%c%c%cstatus\n", 255, 255, 255, 255);
 		break;
 	default:
 		return;
@@ -2453,12 +2442,20 @@ qboolean CL_QueryServers(void)
 			default: enabled = false; break;
 			}
 			if (enabled)
-				break;
+			{
+				if (server && server->sends > 0)
+				{
+					Master_QueryServer(server);
+					poll++;
+					return true;
+				}
+			}
 			server = server->next;
 			poll++;
 		}
 		if (!server)
 		{
+			poll = 0;
 			server = firstserver;
 			while (server)
 			{
@@ -2474,22 +2471,20 @@ qboolean CL_QueryServers(void)
 				default: enabled = false; break;
 				}
 				if (enabled)
-					break;
+				{
+					if (server && server->sends > 0)
+					{
+						Master_QueryServer(server);
+						poll++;
+						return true;
+					}
+				}
 				server = server->next;
 				poll++;
 			}
-
 		}
-		if (server && server->sends > 0)
-		{
-			Master_QueryServer(server);
-		}
-		poll++;
-		return true;
 	}
 
-
-	poll = 0;
 	return false;
 }
 
@@ -2732,7 +2727,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 
 	info->gameversion = atoi(Info_ValueForKey(msg, "gameversion"));
 
-	info->numbots = atoi(Info_ValueForKey(msg, "bots"));
+	info->numbots = 0;//atoi(Info_ValueForKey(msg, "bots"));
 	info->numhumans = info->players - info->numbots;
 	info->freeslots = info->maxplayers - info->players;
 
@@ -2808,7 +2803,10 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				len = msg - token;
 				if (len >= sizeof(details.players[clnum].name))
 					len = sizeof(details.players[clnum].name);
-				Q_strncpyz(details.players[clnum].name, token+1, len);
+				if (!strncmp(token, "\"\\s\\", 4))
+					Q_strncpyz(details.players[clnum].name, token+4, len-3);
+				else
+					Q_strncpyz(details.players[clnum].name, token+1, len);
 				details.players[clnum].name[len] = '\0';
 
 				token = strchr(msg+1, '\"');
@@ -2850,7 +2848,13 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 
 			MasterInfo_AddPlayer(&info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin, details.players[clnum].team);
 
-			info->players = ++details.numplayers;
+
+			++details.numplayers;
+			if (details.players[clnum].ping == 807 || !strncmp(details.players[clnum].name, "BOT:", 4))
+				info->numbots++;
+			else
+				info->numhumans++;
+			info->players++;
 
 			msg = nl;
 			if (!msg)

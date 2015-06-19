@@ -738,9 +738,7 @@ qboolean Stats_ParsePrintLine(char *line)
 			{	//two players
 				m2 = line + strlen(ms->msgpart1);
 				p2 = Stats_ExtractName(&m2);
-				if (!ms->msgpart2)
-					continue;
-				if (!qm_stricmp(ms->msgpart2, m2))
+				if ((!ms->msgpart2 && *m2=='\n') || (ms->msgpart2 && !qm_stricmp(ms->msgpart2, m2)))
 				{
 					Stats_Evaluate(ms->type, ms->wid, p1, p2);
 					return true;	//done.

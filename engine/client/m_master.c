@@ -13,7 +13,7 @@ static cvar_t	sb_hidefull			= CVARF("sb_hidefull",		"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidedead			= CVARF("sb_hidedead",		"1",	CVAR_ARCHIVE);
 static cvar_t	sb_hidenetquake		= CVARF("sb_hidenetquake",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidequakeworld	= CVARF("sb_hidequakeworld","0",	CVAR_ARCHIVE);
-static cvar_t	sb_hideproxies		= CVARF("sb_hideproxies",	"0",	CVAR_ARCHIVE);
+static cvar_t	sb_hideproxies		= CVARF("sb_hideproxies",	"1",	CVAR_ARCHIVE);
 
 static cvar_t	sb_showping			= CVARF("sb_showping",		"1",	CVAR_ARCHIVE);
 static cvar_t	sb_showaddress		= CVARF("sb_showaddress",	"0",	CVAR_ARCHIVE);
@@ -25,6 +25,7 @@ static cvar_t	sb_showtimelimit	= CVARF("sb_showtimelimit",	"0",	CVAR_ARCHIVE);
 
 static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.5",	CVAR_ARCHIVE);
 
+vrect_t joinbutton;
 static float refreshedtime;
 static int isrefreshing;
 static qboolean serverpreview;
@@ -117,7 +118,7 @@ static void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		filldraw = true;
 	if (sb_showtimelimit.value)	{SL_DrawColumnTitle(&x, y, 3*8, mx, "tl", (sf==SLKEY_TIMELIMIT), clr, &filldraw);}
 	if (sb_showfraglimit.value)	{SL_DrawColumnTitle(&x, y, 3*8, mx, "fl", (sf==SLKEY_FRAGLIMIT), clr, &filldraw);}
-	if (sb_showplayers.value)	{SL_DrawColumnTitle(&x, y, 5*8, mx, "plyrs", (sf==SLKEY_NUMPLAYERS), clr, &filldraw);}
+	if (sb_showplayers.value)	{SL_DrawColumnTitle(&x, y, 5*8, mx, "plyrs", (sf==SLKEY_NUMHUMANS), clr, &filldraw);}
 	if (sb_showmap.value)		{SL_DrawColumnTitle(&x, y, 8*8, mx, "map", (sf==SLKEY_MAP), clr, &filldraw);}
 	if (sb_showgamedir.value)	{SL_DrawColumnTitle(&x, y, 8*8, mx, "gamedir", (sf==SLKEY_GAMEDIR), clr, &filldraw);}
 	if (sb_showping.value)		{SL_DrawColumnTitle(&x, y, 3*8, mx, "png", (sf==SLKEY_PING), clr, &filldraw);}
@@ -141,7 +142,7 @@ static qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 		if (mx > x) return false;	//out of bounds
 		if (sb_showtimelimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_TIMELIMIT;	sortchar='t';	break;}}
 		if (sb_showfraglimit.value)	{x-=4;if (mx > x) {sortkey = SLKEY_FRAGLIMIT;	sortchar='f';	break;}}
-		if (sb_showplayers.value)	{x-=6;if (mx > x) {sortkey = SLKEY_NUMPLAYERS;	sortchar='p';	break;}}
+		if (sb_showplayers.value)	{x-=6;if (mx > x) {sortkey = SLKEY_NUMHUMANS;	sortchar='p';	break;}}
 		if (sb_showmap.value)		{x-=9;if (mx > x) {sortkey = SLKEY_MAP;			sortchar='m';	break;}}
 		if (sb_showgamedir.value)	{x-=9;if (mx > x) {sortkey = SLKEY_GAMEDIR;		sortchar='g';	break;}}
 		if (sb_showping.value)		{x-=4;if (mx > x) {sortkey = SLKEY_PING;		sortchar='l';	break;}}
@@ -155,6 +156,7 @@ static qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 	switch(sortkey)
 	{
 	case SLKEY_NUMPLAYERS:
+	case SLKEY_NUMHUMANS:
 		//favour descending order (low first)
 		descending = Master_GetSortField()!=sortkey||!Master_GetSortDescending();
 		break;
@@ -168,6 +170,7 @@ static qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 	else
 		Cvar_Set(&sb_sortcolumn, va("+%c", sortchar));
 	Master_SetSortField(sortkey, descending);
+	Master_SortServers();
 	return true;
 }
 
@@ -290,7 +293,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 		if (sb_showtimelimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->tl), 3*8, false, false); x-=4*8;}
 		if (sb_showfraglimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->fl), 3*8, false, false); x-=4*8;}
-		if (sb_showplayers.value)	{Draw_FunStringWidth((x-5*8), y, va("%2i/%2i", si->players, si->maxplayers), 5*8, false, false); x-=6*8;}
+		if (sb_showplayers.value)	{Draw_FunStringWidth((x-5*8), y, va("%2i/%2i", si->numhumans, si->maxplayers), 5*8, false, false); x-=6*8;}
 		if (sb_showmap.value)		{Draw_FunStringWidth((x-8*8), y, si->map, 8*8, false, false); x-=9*8;}
 		if (sb_showgamedir.value)	{Draw_FunStringWidth((x-8*8), y, si->gamedir, 8*8, false, false); x-=9*8;}
 		if (sb_showping.value)		{Draw_FunStringWidth((x-3*8), y, va("%i", si->ping), 3*8, false, false); x-=4*8;}
@@ -306,7 +309,6 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 	int oldselection;
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *server;
-	char adr[MAX_ADR_SIZE];
 	extern qboolean	keydown[];
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 
@@ -339,7 +341,6 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 		}
 		if (oldselection == info->selectedpos)
 			serverpreview = true;
-//			goto joinserver;
 		return true;
 	}
 
@@ -352,29 +353,15 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 		}
 	}
 
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_KP_ENTER || (ctrl && (key == 's' || key == 'j')) || key == K_SPACE)
+	else if (key == K_ENTER || key == K_KP_ENTER || (ctrl && (key == 's' || key == 'j')) || key == K_SPACE)
 	{
 		server = Master_SortedServer(info->selectedpos);
 		if (server)
-			serverpreview = true;
-/*
 		{
-			if (key == 's' || key == K_SPACE)
-				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
-			else if (key == 'j')
-			{
-joinserver:
-				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
-			}
-
-			if ((server->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
-				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(adr, sizeof(adr), &server->adr)), RESTRICT_LOCAL);
-			else
-				Cbuf_AddText(va("connect %s\n", NET_AdrToString(adr, sizeof(adr), &server->adr)), RESTRICT_LOCAL);
-
-			M_RemoveAllMenus();
+			serverpreview = true;
+			selectedserver.inuse = true;
+			SListOptionChanged(server);
 		}
-*/
 		return true;
 	}
 	else
@@ -391,12 +378,17 @@ static void SL_PreDraw	(menu_t *menu)
 
 	if (isrefreshing)
 	{
-		if (!CL_QueryServers() && isrefreshing<=1)
+		if (!CL_QueryServers())
 		{
 			//extra second, to ensure we got replies
-			isrefreshing = 2;
-			refreshedtime = Sys_DoubleTime()+1;
+			if (isrefreshing != 2)
+			{
+				isrefreshing = 2;
+				refreshedtime = Sys_DoubleTime()+1;
+			}
 		}
+		else
+			isrefreshing = 1;	//something new came up
 
 		if (isrefreshing == 2)
 		{
@@ -434,11 +426,12 @@ static void SL_PostDraw	(menu_t *menu)
 	if (serverpreview)
 	{
 		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr):NULL;
+		int h = 0;
+		int w = 240;
 		R2D_ImageColours(1,1,1,1);
 		if (server && server->moreinfo)
 		{
 			int lx, x, y, i;
-			int h = 0;
 			if (serverpreview == 3)
 				h = countof(helpstrings);
 			else if (serverpreview == 2)
@@ -459,22 +452,20 @@ static void SL_PostDraw	(menu_t *menu)
 			h += 4;
 			h *= 8;
 
-			Draw_TextBox(vid.width/2 - 100-12, vid.height/2 - h/2 - 8-8, 200/8+1, h/8+1);
-	//		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, "Refreshing, please wait", 200, 2, false);
-	//		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, va("%i of %i", Master_NumPolled(), Master_TotalCount()), 200, 2, false);
+			Draw_TextBox(vid.width/2 - w/2-12, vid.height/2 - h/2 - 8-8, w/8+1, h/8+1);
 
-			lx = vid.width/2 - 100;
+			lx = vid.width/2 - w/2;
 			y = vid.height/2 - h/2 - 4;
 
 			x = lx;
-			Draw_FunStringWidth (x, y, Info_ValueForKey(server->moreinfo->info, "hostname"), 200, 2, false);
+			Draw_FunStringWidth (x, y, Info_ValueForKey(server->moreinfo->info, "hostname"), w, 2, false);
 			y += 8;
-			Draw_FunStringWidth (x, y, Info_ValueForKey(server->moreinfo->info, "status"), 200, 2, false);
+			Draw_FunStringWidth (x, y, Info_ValueForKey(server->moreinfo->info, "status"), w, 2, false);
 			y += 8;
-			Draw_FunStringWidth (x, y, NET_AdrToString(buf, sizeof(buf), &server->adr), 200, 2, false);
+			Draw_FunStringWidth (x, y, NET_AdrToString(buf, sizeof(buf), &server->adr), w, 2, false);
 			y += 8;
 
-			Draw_FunStringWidth (x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", 200, 2, false);
+			Draw_FunStringWidth (x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", w, 2, false);
 			y+=8;
 
 			if (serverpreview == 3)
@@ -482,13 +473,9 @@ static void SL_PostDraw	(menu_t *menu)
 				x = lx;
 				for (i = 0; i < countof(helpstrings); i++)
 				{
-					Draw_FunStringWidth (x, y, helpstrings[i], 200, false, false);
+					Draw_FunStringWidth (x, y, helpstrings[i], w, false, false);
 					y += 8;
 				}
-				Draw_FunStringWidth (x, y, Info_ValueForKey(server->moreinfo->info, "status"), 200, false, false);
-				y += 8;
-				Draw_FunStringWidth (x, y, NET_AdrToString(buf, sizeof(buf), &server->adr), 200, false, false);
-				y += 8;
 			}
 			else if (serverpreview == 2)
 			{
@@ -501,9 +488,9 @@ static void SL_PostDraw	(menu_t *menu)
 					{
 						char *value = Info_ValueForKey(server->moreinfo->info, key);
 						x = lx;
-						Draw_FunStringWidth (x, y, key, 100, false, false);
-						x+=100;
-						Draw_FunStringWidth (x, y, value, 100, false, false);
+						Draw_FunStringWidth (x, y, key, w/2 - 8, true, true);
+						x+=w/2;
+						Draw_FunStringWidth (x, y, value, w/2, false, false);
 						y += 8;
 					}
 					else
@@ -514,9 +501,9 @@ static void SL_PostDraw	(menu_t *menu)
 			{
 				int teamplay = atoi(Info_ValueForKey(server->moreinfo->info, "teamplay"));
 				x = lx;
-				Draw_FunStringWidth (x, y, "^mFrgs", 28, false, false);
+				Draw_FunStringWidth (x, y, "^mFrgs", 28, true, false);
 				x += 28+8;
-				Draw_FunStringWidth (x, y, "^mPng", 28, false, false);
+				Draw_FunStringWidth (x, y, "^mPng", 28, true, false);
 				x += 3*8+8;
 
 				if (teamplay)
@@ -540,28 +527,23 @@ static void SL_PostDraw	(menu_t *menu)
 					R2D_FillBlock (x, y+1, 28, 3);
 					R2D_ImagePaletteColour (Sbar_ColorForMap(server->moreinfo->players[i].botc), 1.0);
 					R2D_FillBlock (x, y+4, 28, 4);
-					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].frags), 28, false, false);
+					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].frags), 28, true, false);
 					x += 28+8;
-					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].ping), 28, false, false);
+					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].ping), 28, true, false);
 					x += 3*8+8;
 
 					if (teamplay)
 					{
 						Draw_FunStringWidth (x, y, server->moreinfo->players[i].team, 4*8, false, false);
 						x += 4*8+8;
-						Draw_FunStringWidth (x, y, server->moreinfo->players[i].name, 12*8, false, false);
-						x += 12*8+8;
 					}
-					else
-					{
-						Draw_FunStringWidth (x, y, server->moreinfo->players[i].name, 16*8, false, false);
-						x += 16*8+8;
-					}
+
+					Draw_FunStringWidth (x, y, server->moreinfo->players[i].name, lx+w-x, false, false);
 
 					y += 8;
 				}
 
-				Draw_FunStringWidth (lx, y, "^h(press k for keybind help)", 200, false, false);
+				Draw_FunStringWidth (lx, y, "^h(press k for keybind help)", w, false, false);
 			}
 		}
 		else
@@ -569,6 +551,34 @@ static void SL_PostDraw	(menu_t *menu)
 			Draw_TextBox(vid.width/2 - 100-12, vid.height/2 - 32, 200/8, 64/8);
 			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, "Querying server", 200, 2, false);
 			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, "Please wait", 200, 2, false);
+		}
+
+		{
+			int lx = vid.width/2 - w/2;
+			int y = vid.height/2 - h/2 - 4 + h;
+			int sw;
+			qboolean active = false;
+			w += 16;
+			h = 24;
+			lx += w-12;
+			w = strlen("join")*8 + 24;
+			w = ((w+15)/16) * 16;	//width must be a multiple of 16
+			lx -= w;
+
+			joinbutton.x = lx;
+			joinbutton.y = y;
+			joinbutton.width = w + 16;
+			joinbutton.height = h + 16;
+			R2D_ImageColours(1,1,1,1);
+			Draw_TextBox(lx, y, w/8, h/8);
+			y += 8;
+			lx += 8;
+
+			if (mousecursor_x >= joinbutton.x && mousecursor_x < joinbutton.x+joinbutton.width)
+				if (mousecursor_y >= joinbutton.y && mousecursor_y < joinbutton.y+joinbutton.height)
+					active = true;
+
+			Draw_FunStringWidth(lx, y + (h-8)/2, "Join", w, 2, active);y+=8;
 		}
 	}
 	else if (isrefreshing)
@@ -609,6 +619,16 @@ static qboolean SL_Key	(int key, menu_t *menu)
 			serverpreview = false;
 			return true;
 		}
+		else if (key == K_MOUSE1)
+		{
+			if (mousecursor_x >= joinbutton.x && mousecursor_x < joinbutton.x+joinbutton.width)
+				if (mousecursor_y >= joinbutton.y && mousecursor_y < joinbutton.y+joinbutton.height)
+				{
+					serverpreview = false;
+					goto doconnect;
+				}
+			return true;
+		}
 		else if (key == 'i')
 		{
 			serverpreview = ((serverpreview==2)?1:2);
@@ -619,17 +639,22 @@ static qboolean SL_Key	(int key, menu_t *menu)
 			serverpreview = ((serverpreview==3)?1:3);
 			return true;
 		}
-		else if (key == 'o' || key == 'j' || key == K_ENTER)	//join
+		else if (key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER)	//join
 		{
 			if (key == 's' || key == 'o')
 				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
 			else if (key == 'j')
+			{
+doconnect:
 				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
+			}
 
 			if ((server->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
 				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
 			else
 				Cbuf_AddText(va("connect %s\n", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+
+			M_RemoveAllMenus();
 			return true;
 		}
 		else if (server && key == 'c' && ctrldown)	//copy to clip
@@ -860,10 +885,12 @@ static void CalcFilters(menu_t *menu)
 	}
 	if (info->filter[3]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_NOTCONTAIN);
 	if (info->filter[5]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_FAVORITE, SLIST_TEST_CONTAINS);
-	if (info->filter[6]) Master_SetMaskInteger(false, SLKEY_NUMPLAYERS, 0, SLIST_TEST_NOTEQUAL);
+	if (info->filter[6]) Master_SetMaskInteger(false, SLKEY_NUMHUMANS, 0, SLIST_TEST_NOTEQUAL);
 	if (info->filter[7]) Master_SetMaskInteger(false, SLKEY_FREEPLAYERS, 0, SLIST_TEST_NOTEQUAL);
 
 	if (*sb_filtertext.string) Master_SetMaskString(false, SLKEY_NAME, sb_filtertext.string, SLIST_TEST_CONTAINS);
+
+	Master_SortServers();
 }
 
 static qboolean SL_ReFilter (menucheck_t *option, menu_t *menu, chk_set_t set)
@@ -926,6 +953,8 @@ void M_Menu_ServerList2_f(void)
 		Cbuf_AddText("wait; menu_servers\n", Cmd_ExecLevel);
 		return;
 	}
+
+	serverpreview = false;	//in case it was lingering.
 
 	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
@@ -1014,8 +1043,6 @@ void M_Menu_ServerList2_f(void)
 
 	info->mappic = (menupicture_t *)MC_AddPicture(menu, vid.width - 64, vid.height - 64, 64, 64, "012345678901234567890123456789012");
 
-	CalcFilters(menu);
-
 	descending = false;
 
 	sc = sb_sortcolumn.string;
@@ -1030,7 +1057,7 @@ void M_Menu_ServerList2_f(void)
 	{
 	case 't':	sortkey = SLKEY_TIMELIMIT;	break;
 	case 'f':	sortkey = SLKEY_FRAGLIMIT;	break;
-	case 'p':	sortkey = SLKEY_NUMPLAYERS;	break;
+	case 'p':	sortkey = SLKEY_NUMHUMANS;	break;
 	case 'm':	sortkey = SLKEY_MAP;		break;
 	case 'g':	sortkey = SLKEY_GAMEDIR;	break;
 	case 'l':	sortkey = SLKEY_PING;		break;
@@ -1040,8 +1067,13 @@ void M_Menu_ServerList2_f(void)
 	}
 	Master_SetSortField(sortkey, descending);
 
-	MasterInfo_Refresh();
-	isrefreshing = true;
+	if (!Master_TotalCount())
+	{
+		MasterInfo_Refresh();
+		isrefreshing = true;
+	}
+
+	CalcFilters(menu);
 }
 
 static float quickconnecttimeout;

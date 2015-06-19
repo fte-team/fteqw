@@ -523,6 +523,9 @@ void Mod_Purge(enum mod_purge_e ptype)
 			ZG_FreeGroup(&mod->memgroup);
 			mod->meshinfo = NULL;
 			mod->loadstate = MLS_NOTLOADED;
+
+			mod->pvs = NULL;
+			mod->phs = NULL;
 		}
 	}
 }

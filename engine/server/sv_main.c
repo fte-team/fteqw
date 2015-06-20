@@ -3349,10 +3349,13 @@ qboolean SVNQ_ConnectionlessPacket(void)
 					sb.data = buffer;
 
 					/*ack it, so dumb proquake clones can actually send the proper packet*/
-					SZ_Clear(&sb);
-					MSG_WriteLong(&sb, BigLong(NETFLAG_ACK | 8));
-					MSG_WriteLong(&sb, sequence);
-					NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+					if (!sequence)
+					{
+						SZ_Clear(&sb);
+						MSG_WriteLong(&sb, BigLong(NETFLAG_ACK | 8));
+						MSG_WriteLong(&sb, sequence);
+						NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
+					}
 
 
 					/*resend the cmd request, cos if they didn't send it then it must have gotten dropped.
@@ -3360,8 +3363,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 					a vanilla client will not start spamming nops until it has received the server info, so its only the proquake clients+clones that will send a nop before a challengeconnect
 					unfortunatly we don't know the modver+flags+password any more. I hope its not needed. if it does, server admins will be forced to use sv_listen_nq 1 instead of 2*/
 					SZ_Clear(&sb);
-					MSG_WriteLong(&sb, 0);
-					MSG_WriteLong(&sb, 0);
+					MSG_WriteLong(&sb, BigLong(0));
+					MSG_WriteLong(&sb, BigLong(1));	//sequence 1, because 0 matches the old sequence, and thus might get dropped. hopefully the client will cope with dupes properly and ignore any regular (but unreliable) stuff.
 
 					MSG_WriteByte(&sb, svc_stufftext);
 					MSG_WriteString(&sb, va("cmd challengeconnect %i %i\n", SV_NewChallenge(), 1/*MOD_PROQUAKE*/));
@@ -3445,8 +3448,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 
 
 				SZ_Clear(&sb);
-				MSG_WriteLong(&sb, 0);
-				MSG_WriteLong(&sb, 0);
+				MSG_WriteLong(&sb, BigLong(0));
+				MSG_WriteLong(&sb, BigLong(1));	//sequence 1, because 0 matches the old sequence, and thus might get dropped. hopefully the client will cope with dupes properly and ignore any regular (but unreliable) stuff.
 
 				MSG_WriteByte(&sb, svc_stufftext);
 				MSG_WriteString(&sb, va("cmd challengeconnect %i %i %i %i %i\n", SV_NewChallenge(), mod, modver, flags, passwd));

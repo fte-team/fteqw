@@ -4457,7 +4457,8 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	{
 		string_t preserve;
 		preserve = ent->v->netname;
-		Q1QVMED_ClearEdict(ent, true);
+		if (progstype != PROG_NQ)	//allow frikbots to work in NQ mods (but not qw!)
+			ED_Clear(svprogfuncs, ent);
 		ent->v->netname = preserve;
 	}
 	else
@@ -5002,17 +5003,24 @@ void SVNQ_Begin_f (void)
 					*pr_global_ptrs->spawnparamglobals[i] = host_client->spawn_parms[i];
 			}
 
-			// call the spawn function
 			sv.skipbprintclient = host_client;
-			pr_global_struct->time = sv.world.physicstime;
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
-			sv.skipbprintclient = NULL;
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				Q1QVM_ClientConnect(host_client);
+			else
+#endif
+			{
+				// call the spawn function
+				pr_global_struct->time = sv.world.physicstime;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+				sv.skipbprintclient = NULL;
 
-			// actually spawn the player
-			pr_global_struct->time = sv.world.physicstime;
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+				// actually spawn the player
+				pr_global_struct->time = sv.world.physicstime;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+			}
 		}
 	}
 
@@ -5066,6 +5074,12 @@ void SVNQ_Begin_f (void)
 
 
 	host_client->send_message = true;
+
+
+	SV_PreRunCmd();
+	host_client->lastcmd.msec = 0;
+	SV_RunCmd (&host_client->lastcmd, false);
+	SV_PostRunCmd();
 }
 void SVNQ_PreSpawn_f (void)
 {

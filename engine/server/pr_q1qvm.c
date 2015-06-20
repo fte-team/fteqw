@@ -395,13 +395,17 @@ static edict_t *QDECL Q1QVMPF_ProgsToEdict(pubprogfuncs_t *pf, int num)
 	return Q1QVMPF_EdictNum(pf, num);
 }
 
-void Q1QVMED_ClearEdict (edict_t *e, qboolean wipe)
+static void Q1QVMED_ClearEdict (edict_t *e, qboolean wipe)
 {
 	int num = e->entnum;
 	if (wipe)
 		memset (e->v, 0, sv.world.edict_size - WASTED_EDICT_T_SIZE);
 	e->isfree = false;
 	e->entnum = num;
+}
+static void Q1QVMPF_ClearEdict(pubprogfuncs_t *pf, edict_t *e)
+{
+	Q1QVMED_ClearEdict(e, true);
 }
 
 static void QDECL Q1QVMPF_EntRemove(pubprogfuncs_t *pf, edict_t *e)
@@ -1211,10 +1215,18 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 		{
 			char *dst = VM_POINTER(arg[0]);
 			char *src = VM_POINTER(arg[1]);
-			if (VM_OOB(arg[0], arg[2]))
+			if (VM_OOB(arg[0], arg[2]) || VM_LONG(arg[2]) < 1)
 				return -1;
-			Q_strncpyz(dst, src, VM_LONG(arg[2]));
-			//WARNING: no return value
+			else if (!src)
+			{
+				*dst = 0;
+				return 0;
+			}
+			else
+			{
+				Q_strncpyz(dst, src, VM_LONG(arg[2]));
+				return strlen(src);
+			}
 		}
 		break;
 	case G_strlcat:
@@ -1404,6 +1416,7 @@ qboolean PR_LoadQ1QVM(void)
 	q1qvmprogfuncs.StringToProgs = Q1QVMPF_StringToProgs;
 	q1qvmprogfuncs.StringToNative = Q1QVMPF_StringToNative;
 	q1qvmprogfuncs.SetStringField = Q1QVMPF_SetStringField;
+	q1qvmprogfuncs.EntClear = Q1QVMPF_ClearEdict;
 
 	sv.world.Event_Touch = Q1QVM_Event_Touch;
 	sv.world.Event_Think = Q1QVM_Event_Think;
@@ -1653,9 +1666,9 @@ void Q1QVM_SetChangeParms(void)
 	VM_Call(q1qvm, GAME_SETCHANGEPARMS, 0, 0, 0);
 }
 
-void Q1QVM_ClientCommand(void)
+qboolean Q1QVM_ClientCommand(void)
 {
-	VM_Call(q1qvm, GAME_CLIENT_COMMAND, 0, 0, 0);
+	return VM_Call(q1qvm, GAME_CLIENT_COMMAND, 0, 0, 0);
 }
 
 void Q1QVM_GameCodePausedTic(float pausedduration)

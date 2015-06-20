@@ -1879,8 +1879,7 @@ qboolean PR_UserCmd(char *s)
 	{
 		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		Q1QVM_ClientCommand();
-		return true;	//qvm can print something if it wants
+		return Q1QVM_ClientCommand();
 	}
 #endif
 
@@ -9973,8 +9972,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"log",				PF_Fixme,			0,		0,		0,		532,	"float(string mname)", true},
 	{"getsoundtime",	PF_Ignore,			0,		0,		0,		533,	"float(entity e, float channel)"},
 	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	"float(string sample)"},
-	{"buf_loadfile",	PF_buf_loadfile,	0,		0,		0,		535,	"float(string filename, strbuf bufhandle)"},
-	{"buf_writefile",	PF_buf_writefile,	0,		0,		0,		536,	"float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)"},
+	{"buf_loadfile",	PF_buf_loadfile,	0,		0,		0,		535,	D("float(string filename, strbuf bufhandle)", "Appends the named file into a string buffer (which must have been created in advance). The return value merely says whether the file was readable.")},
+	{"buf_writefile",	PF_buf_writefile,	0,		0,		0,		536,	D("float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)", "Writes the contents of a string buffer onto the end of the supplied filehandle (you must have already used fopen). Additional optional arguments permit you to constrain the writes to a subsection of the stringbuffer.")},
 //	{"bufstr_find",		PF_Fixme,			0,		0,		0,		537,	"float(float bufhandle, string match, float matchrule, float startpos)"},
 //	{"matchpattern",	PF_Fixme,			0,		0,		0,		538,	"float(string s, string pattern, float matchrule)"},
 //	{"undefined",		PF_Fixme,			0,		0,		0,		539,	""},

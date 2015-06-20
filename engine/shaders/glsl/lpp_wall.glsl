@@ -25,7 +25,7 @@ void main ()
 	nst = (1.0 + nst) / 2.0;
 	vec4 l = texture2D(s_t0, nst)*5.0;
 	vec4 c = texture2D(s_t1, tc);
-	vec3 lmsamp = texture2D(s_t2, lm).rgb*e_lmscale;
+	vec3 lmsamp = texture2D(s_t2, lm).rgb*e_lmscale.rgb;
 	vec3 diff = l.rgb;
 	vec3 chrom = diff / (0.001 + dot(diff, vec3(0.3, 0.59, 0.11)));
 	vec3 spec = chrom * l.a;

@@ -264,7 +264,7 @@ void CDAudio_Stop(void)
 
 	dwReturn = mciSendCommand(wDeviceID, MCI_STOP, 0, (DWORD_PTR)NULL);
     if (dwReturn)
-		Con_DPrintf("MCI_STOP failed (%i)", (int)dwReturn);
+		Con_DPrintf("MCI_STOP failed (%i)\n", (int)dwReturn);
 }
 
 
@@ -279,7 +279,7 @@ void CDAudio_Pause(void)
 	mciGenericParms.dwCallback = (DWORD_PTR)mainwindow;
 	dwReturn = mciSendCommand(wDeviceID, MCI_PAUSE, 0, (DWORD_PTR)(LPVOID) &mciGenericParms);
     if (dwReturn)
-		Con_DPrintf("MCI_PAUSE failed (%i)", (int)dwReturn);
+		Con_DPrintf("MCI_PAUSE failed (%i)\n", (int)dwReturn);
 
 	pollneeded = false;
 }

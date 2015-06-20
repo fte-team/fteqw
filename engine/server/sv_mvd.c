@@ -1777,8 +1777,8 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 			demo.recorder.prespawn_stage++;//client won't reply, so don't wait.
 			demo.recorder.prespawn_idx = 0;
 		}
-		if (demo.recorder.prespawn_stage == PRESPAWN_SOUNDLIST || demo.recorder.prespawn_stage == PRESPAWN_MODELLIST)
-			demo.recorder.prespawn_idx &= ~0x80000000;	//normally set for the server to wait for ack. we don't want to wait.
+		demo.recorder.prespawn_allow_soundlist = true;	//normally set for the server to wait for ack. we don't want to wait.
+		demo.recorder.prespawn_allow_modellist = true;	//normally set for the server to wait for ack. we don't want to wait.
 
 		SV_SendClientPrespawnInfo(&demo.recorder);
 		SV_WriteRecordMVDMessage (&demo.recorder.netchan.message);

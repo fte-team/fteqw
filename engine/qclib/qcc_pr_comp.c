@@ -7466,6 +7466,16 @@ QCC_sref_t QCC_StoreToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable, pb
 	{
 		switch(dest->type)
 		{
+		case REF_ARRAYHEAD:
+			QCC_PR_ParseWarning(ERR_PARSEERRORS, "left operand must be an l-value (add you mean %s[0]?)", QCC_GetSRefName(dest->base));
+			if (!preservedest)
+				QCC_PR_DiscardRef(dest);
+			break;
+		default:
+			QCC_PR_ParseWarning(ERR_PARSEERRORS, "left operand must be an l-value (unsupported reference type)", QCC_GetSRefName(dest->base));
+			if (!preservedest)
+				QCC_PR_DiscardRef(dest);
+			break;
 		case REF_GLOBAL:
 		case REF_ARRAY:
 			if (!dest->index.cast || dest->index.sym->constant)

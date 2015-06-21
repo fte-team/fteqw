@@ -2,6 +2,8 @@
 #include "progsint.h"
 #include <stdlib.h>
 
+static void PR_FreeAllTemps			(progfuncs_t *progfuncs);
+
 typedef struct prmemb_s {
 	struct prmemb_s *prev;
 	int level;
@@ -507,8 +509,7 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 	maxprogs = max_progs;
 	pr_typecurrent=-1;
 
-	prinst.nexttempstring = 0;
-	prinst.maxtempstrings = 0;
+	PR_FreeAllTemps(progfuncs);
 
 	prinst.reorganisefields = false;
 
@@ -1145,7 +1146,7 @@ void PR_FreeTemps			(progfuncs_t *progfuncs, int depth)
 	prinst.numtempstrings = depth;
 }
 #endif
-void PR_FreeAllTemps			(progfuncs_t *progfuncs)
+static void PR_FreeAllTemps			(progfuncs_t *progfuncs)
 {
 	unsigned int i;
 	for (i = 0; i < prinst.numtempstrings; i++)

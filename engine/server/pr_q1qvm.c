@@ -403,7 +403,7 @@ static void Q1QVMED_ClearEdict (edict_t *e, qboolean wipe)
 	e->isfree = false;
 	e->entnum = num;
 }
-static void Q1QVMPF_ClearEdict(pubprogfuncs_t *pf, edict_t *e)
+static void QDECL Q1QVMPF_ClearEdict(pubprogfuncs_t *pf, edict_t *e)
 {
 	Q1QVMED_ClearEdict(e, true);
 }

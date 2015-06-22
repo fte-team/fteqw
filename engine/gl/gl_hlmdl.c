@@ -719,10 +719,8 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 				b->skin = &shader->defaulttextures;
 				b->texture = NULL;
 				b->shader = shader;
-				b->lightmap[0] = -1;
-				b->lightmap[1] = -1;
-				b->lightmap[2] = -1;
-				b->lightmap[3] = -1;
+				for (j = 0; j < MAXRLIGHTMAPS; j++)
+					b->lightmap[j] = -1;
 				b->surf_first = batchid;
 				b->flags = 0;
 				sort = shader->sort;

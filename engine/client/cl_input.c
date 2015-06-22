@@ -286,7 +286,7 @@ void IN_JumpDown (void)
 		cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[pnum].playernum].messagenum == cl.validsequence && cl.playerview[pnum].waterlevel >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
 	)
 		KeyDown(&in_up);
-	else if (condition && cl.spectator && Cam_TrackNum(&cl.playerview[pnum]) == -1)
+	else if (condition && cl.spectator && !CAM_ISLOCKED(&cl.playerview[pnum]))
 		KeyDown(&in_up);
 	else
 		KeyDown(&in_jump);

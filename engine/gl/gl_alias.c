@@ -1531,7 +1531,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			b->texture = NULL;
 			b->shader = shader;
 			for (j = 0; j < MAXRLIGHTMAPS; j++)
-				b->lightmap[0] = -1;
+				b->lightmap[j] = -1;
 			b->surf_first = surfnum;
 			b->flags = 0;
 			sort = shader->sort;
@@ -1637,7 +1637,8 @@ void R_Sprite_GenerateBatches(entity_t *e, batch_t **batches)
 		b->skin = frame-;
 		b->texture = NULL;
 		b->shader = frame->shader;
-		b->lightmap = -1;
+		for (j = 0; j < MAXRLIGHTMAPS; j++)
+			b->lightmap[j] = -1;
 		b->surf_first = surfnum;
 		b->flags = 0;
 		b->vbo = NULL;

@@ -853,7 +853,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		for (i = 0; i < cl.splitclients; i++)
 		{
 			playerview_t *pv = &cl.playerview[i];
-			if (ent == (pv->cam_auto?(pv->cam_spec_track+1):(pv->playernum+1)))
+			if (ent == ((pv->cam_state == CAM_EYECAM)?(pv->cam_spec_track+1):(pv->playernum+1)))
 			{
 				VectorCopy(end, playerbeam_end[i]);
 				break;
@@ -3435,7 +3435,7 @@ void CL_UpdateBeams (void)
 			for (j = 0; j < cl.splitclients; j++)
 			{
 				playerview_t *pv = &cl.playerview[j];
-				if (b->entity == ((cl.spectator&&pv->cam_auto)?pv->cam_spec_track+1:(pv->playernum+1)))
+				if (b->entity == ((pv->cam_state == CAM_EYECAM)?pv->cam_spec_track+1:(pv->playernum+1)))
 				{
 //					player_state_t	*pl;
 		//			VectorSubtract(cl.simorg, b->start, org);

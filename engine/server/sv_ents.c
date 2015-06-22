@@ -3004,6 +3004,8 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			state->solid |= i<<5;
 			i = bound(0, ((ent->v->maxs[2]+32)/8), 63);	/*up can be negative*/
 			state->solid |= i<<10;
+			if (state->solid == 4096)
+				state->solid = 0;	//point sized stuff should just be non-solid. you'll thank me for splitscreens.
 		}
 	}
 	else

@@ -346,7 +346,7 @@ void R_Clutter_Emit(batch_t **batches)
 {
 	const float cluttersize = r_clutter_distance.value;
 	int vx, vy, vz;
-	int x, y, z, key, i;
+	int x, y, z, key, i, j;
 	cluttersector_t *sect;
 	batch_t *b;
 	qboolean rebuildlimit = false;
@@ -453,6 +453,8 @@ void R_Clutter_Emit(batch_t **batches)
 			if (!b)
 				return;
 			memset(b, 0, sizeof(*b));
+			for (j = 0; j < MAXRLIGHTMAPS; j++)
+				b->lightmap[j] = -1;
 			b->ent = &r_worldentity;
 			b->meshes = 1;
 			b->mesh = &sect->soups[i].pmesh;

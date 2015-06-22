@@ -240,7 +240,7 @@ void Netchan_Init (void)
 	port = ((int)(getpid()+getuid()*1000) * time(NULL)) & 0xffff;
 #endif
 	Q_snprintfz(qportstr, sizeof(qportstr), "%i", port);
-	qport.string = qportstr;
+	qport.enginevalue = qportstr;
 
 	Cvar_Register (&pext_predinfo, "Protocol Extensions");
 	Cvar_Register (&pext_replacementdeltas, "Protocol Extensions");

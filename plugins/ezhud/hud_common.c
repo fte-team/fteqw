@@ -577,10 +577,16 @@ void SCR_HUD_DrawTracking(hud_t *hud)
 	height *= hud_tracking_scale->value;
 	width *= hud_tracking_scale->value;
 
+	if (!(cl.spectator && autocam == CAM_TRACK))
+		height = 0;
+
 	if(!HUD_PrepareDraw(hud, width, height, &x, &y))
 	{
 		return;
 	}
+
+	if (height == 0)
+		return;
 
 #ifdef HAXX
 	if (cls.mvdplayback && cl_multiview->value && autocam == CAM_TRACK)

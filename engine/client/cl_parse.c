@@ -5764,7 +5764,7 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			}
 			else if (!strncmp(stufftext, "//at ", 5))
 			{
-				Cam_SetAutoTrack(atoi(stufftext+5));
+				Cam_SetModAutoTrack(atoi(stufftext+5));
 			}
 			else if (!strncmp(stufftext, "//wps ", 5))
 			{

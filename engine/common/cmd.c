@@ -2025,14 +2025,9 @@ void Cmd_ForwardToServer_f (void)
 	{
 		playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
 		if (!*Cmd_Argv(2))
-		{
 			Cam_Unlock(pv);
-		}
 		else
-		{
 			Cam_Lock(pv, atoi(Cmd_Argv(2)));
-			pv->cam_auto = CAM_TRACK;
-		}
 		return;
 	}
 

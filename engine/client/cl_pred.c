@@ -752,13 +752,14 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 	else
 		VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
 	VectorCopy(state->angles, plstate->viewangles);
-	if (state->u.q1.pmovetype)
-		plstate->viewangles[0] *= -3;
-	plstate->viewangles[2] = V_CalcRoll(plstate->viewangles, plstate->velocity);
+//	plstate->viewangles[2] = V_CalcRoll(plstate->viewangles, plstate->velocity);
 
 	plstate->viewangles[0] = SHORT2ANGLE(state->u.q1.vangle[0]);
 	plstate->viewangles[1] = SHORT2ANGLE(state->u.q1.vangle[1]);
 	plstate->viewangles[2] = SHORT2ANGLE(state->u.q1.vangle[2]);
+
+	if (state->u.q1.pmovetype)
+		plstate->viewangles[0] *= -3;
 
 	a[0] = ((-192-state->u.q1.gravitydir[0])/256.0f) * 360;
 	a[1] = (state->u.q1.gravitydir[1]/256.0f) * 360;
@@ -850,6 +851,8 @@ void CL_PredictMovePNum (int seat)
 	lerpents_t	*le;
 	qboolean	nopred;
 	qboolean	lerpangles = false;
+	int			trackent;
+	qboolean	cam_nowlocked = false;
 	
 	//these are to make svc_viewentity work better
 	float netfps = cl_netfps.value;
@@ -890,6 +893,9 @@ void CL_PredictMovePNum (int seat)
 
 	pv->nolocalplayer = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || (cls.protocol != CP_QUAKEWORLD);
 
+	if (!cl.spectator)	//just in case
+		pv->cam_state = CAM_FREECAM;
+
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
@@ -901,7 +907,7 @@ void CL_PredictMovePNum (int seat)
 	}
 #endif
 
-	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && (!cl.spectator || !pv->cam_auto))
+	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && pv->cam_state == CAM_FREECAM)
 		return;
 
 	if (!cl.validsequence)
@@ -937,31 +943,23 @@ void CL_PredictMovePNum (int seat)
 		}
 	}
 
-	if (pv->cam_locked && pv->cam_spec_track >= 0)
+	//if we now know where our target player is, we can finally lock on to them.
+	if (pv->cam_state == CAM_PENDING && pv->cam_spec_track >= 0 && pv->cam_spec_track < cl.allocated_client_slots && pv->viewentity != pv->cam_spec_track+1)
 	{
-		extern cvar_t cl_chasecam;
-		if (!cl_chasecam.ival)
+		if ((cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[pv->cam_spec_track].messagenum == cl.validsequence) ||
+			(pv->cam_spec_track+1 < cl.maxlerpents && cl.lerpents[pv->cam_spec_track+1].sequence == cl.lerpentssequence))
 		{
-			//FIXME: don't early out, so that we can smooth out angles too
-			VectorCopy(pv->cam_desired_position, pv->simorg);
-			VectorClear(pv->simvel);
-			return;
+			extern cvar_t cl_chasecam;
+			pv->cam_state = CAM_EYECAM;
+			pv->viewentity = pv->cam_spec_track+1;
+			cam_nowlocked = true;
 		}
 	}
 
-	if (!pv->cam_locked && pv->cam_auto && cl.spectator && pv->cam_spec_track >= 0 && pv->cam_spec_track < cl.allocated_client_slots && pv->viewentity != pv->cam_spec_track+1)
-	{
-		if (cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[pv->cam_spec_track].messagenum == cl.validsequence)
-		{
-			pv->cam_locked = true;
-			pv->viewentity = pv->cam_spec_track+1;
-		}
-		else if (pv->cam_spec_track+1 < cl.maxlerpents && cl.lerpents[pv->cam_spec_track+1].sequence == cl.lerpentssequence)
-		{
-			pv->cam_locked = true;
-			pv->viewentity = pv->cam_spec_track+1;
-		}
-	}
+	if (pv->cam_state == CAM_WALLCAM)
+		trackent = pv->cam_spec_track+1;
+	else
+		trackent = pv->viewentity;
 
 	nopred = cl_nopred.ival;
 
@@ -973,7 +971,7 @@ void CL_PredictMovePNum (int seat)
 
 	//these things also force-disable prediction
 	if ((cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) ||
-		cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE || pv->cam_locked)
+		cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE || CAM_ISLOCKED(pv))
 	{
 		nopred = true;
 	}
@@ -1044,10 +1042,10 @@ void CL_PredictMovePNum (int seat)
 
 //	Con_DPrintf("sim%f, %i(%i-%i): old%f, cur%f\n", simtime, cl.ackedmovesequence, fromframe, toframe, fromtime, totime);
 
-	if (pv->cam_locked && cl.spectator && pv->viewentity && pv->viewentity <= cl.allocated_client_slots)
+	if ((pv->cam_state == CAM_WALLCAM || pv->cam_state == CAM_EYECAM) && trackent && trackent <= cl.allocated_client_slots)
 	{
-		fromstate = &cl.inframes[fromframe & UPDATE_MASK].playerstate[pv->viewentity-1];
-		tostate = &cl.inframes[toframe & UPDATE_MASK].playerstate[pv->viewentity-1];
+		fromstate = &cl.inframes[fromframe & UPDATE_MASK].playerstate[trackent-1];
+		tostate = &cl.inframes[toframe & UPDATE_MASK].playerstate[trackent-1];
 	}
 	else
 	{
@@ -1078,7 +1076,7 @@ void CL_PredictMovePNum (int seat)
 		pe = &cl.inframes[fromframe & UPDATE_MASK].packet_entities;
 		for (i = 0; i < pe->num_entities; i++)
 		{
-			if (pe->entities[i].number == pv->viewentity)
+			if (pe->entities[i].number == trackent)
 			{
 				CL_EntStateToPlayerState(fromstate, &pe->entities[i]);
 				if (nopred)
@@ -1089,7 +1087,7 @@ void CL_PredictMovePNum (int seat)
 		pe = &cl.inframes[toframe & UPDATE_MASK].packet_entities;
 		for (i = 0; i < pe->num_entities; i++)
 		{
-			if (pe->entities[i].number == pv->viewentity)
+			if (pe->entities[i].number == trackent)
 			{
 				CL_EntStateToPlayerState(tostate, &pe->entities[i]);
 				if (nopred)
@@ -1107,14 +1105,14 @@ void CL_PredictMovePNum (int seat)
 				break;
 			}
 		}
-		if (pv->nolocalplayer && pv->viewentity < cl.maxlerpents)
-			le = &cl.lerpents[pv->viewentity];
+		if (pv->nolocalplayer && trackent < cl.maxlerpents)
+			le = &cl.lerpents[trackent];
 	}
 
 	// predict forward until cl.time <= to->senttime
 	oldphysent = pmove.numphysent;
 	CL_SetSolidPlayers();
-	pmove.skipent = pv->viewentity;
+	pmove.skipent = trackent;
 
 	//just in case we don't run any prediction
 	VectorCopy(tostate->gravitydir, pmove.gravitydir);
@@ -1166,7 +1164,7 @@ void CL_PredictMovePNum (int seat)
 				tostate = &framebuf[i&1];
 
 //			Con_DPrintf(" pred %i: %f-%f\n", cl.ackedmovesequence+i, fromtime, totime);
-			CL_PredictUsercmd (seat, pv->viewentity, fromstate, tostate, cmdto);
+			CL_PredictUsercmd (seat, trackent, fromstate, tostate, cmdto);
 		}
 
 		if (simtime > totime)
@@ -1201,7 +1199,7 @@ void CL_PredictMovePNum (int seat)
 				cmdto->msec = bound(0, msec, 250);
 
 //				Con_DPrintf(" extrap %i: %f-%f (%g)\n", toframe, fromtime, simtime, simtime-fromtime);
-				CL_PredictUsercmd (seat, pv->viewentity, fromstate, tostate, cmdto);
+				CL_PredictUsercmd (seat, trackent, fromstate, tostate, cmdto);
 			}
 		}
 		pv->onground = pmove.onground;
@@ -1215,7 +1213,7 @@ void CL_PredictMovePNum (int seat)
 		VectorCopy (tostate->velocity, pv->simvel);
 		VectorCopy (tostate->origin, pv->simorg);
 
-		if (pv->viewentity && pv->viewentity != pv->playernum+1 && pv->cam_locked)
+		if (trackent && trackent != pv->playernum+1 && pv->cam_state == CAM_EYECAM)
 			VectorCopy(tostate->viewangles, pv->simangles);
 //Con_DPrintf("%f %f %f\n", fromtime, simtime, totime);
 	}
@@ -1245,7 +1243,7 @@ void CL_PredictMovePNum (int seat)
 				pv->simorg[i] = (1-f)*fromstate->origin[i]   + f*tostate->origin[i];
 				pv->simvel[i] = (1-f)*fromstate->velocity[i] + f*tostate->velocity[i];
 
-				if (pv->viewentity && pv->viewentity != pv->playernum+1 && pv->cam_locked)
+				if (trackent && trackent != pv->playernum+1 && pv->cam_state == CAM_EYECAM)
 				{
 					pv->simangles[i] = LerpAngles360(fromstate->viewangles[i], tostate->viewangles[i], f);// * (360.0/65535);
 //					pv->viewangles[i] = LerpAngles16(fromstate->command.angles[i], tostate->command.angles[i], f) * (360.0/65535);
@@ -1262,9 +1260,12 @@ void CL_PredictMovePNum (int seat)
 
 	CL_CalcCrouch (pv);
 	pv->waterlevel = pmove.waterlevel;
-	VectorCopy(pmove.gravitydir, pv->gravitydir);
+	if (!DotProduct(pmove.gravitydir,pmove.gravitydir))
+		VectorSet(pmove.gravitydir, 0, 0, -1);
+	else
+		VectorCopy(pmove.gravitydir, pv->gravitydir);
 
-	if (le)
+	if (le && pv->cam_state == CAM_FREECAM)
 	{
 		//keep the entity tracking the prediction position, so mirrors don't go all weird
 		VectorMA(pv->simorg, -pv->crouch, pv->gravitydir, le->origin);
@@ -1276,6 +1277,29 @@ void CL_PredictMovePNum (int seat)
 			else
 				le->angles[0] *= -0.333;
 		}
+	}
+
+	if (cam_nowlocked)
+		Cam_NowLocked(pv);
+	if (pv->cam_state == CAM_WALLCAM)
+	{
+		vec3_t dir;
+
+		VectorSubtract(pv->simorg, pv->cam_desired_position, dir);
+		VectorAngles(dir, NULL, pv->simangles);
+		pv->simangles[0] *= -1;
+		VectorCopy(pv->simangles, pv->viewangles);
+		pv->viewangles[0] = anglemod(pv->viewangles[0]);
+		if (pv->viewangles[0] > 180)
+			pv->viewangles[0] -= 360;
+		VectorCopy(pv->cam_desired_position, pv->simorg);
+		VectorClear(pv->simvel);
+	}
+	if (cam_nowlocked)
+	{
+		//invalidate the roll, so we don't spin when switching povs
+		pv->rollangle = V_CalcRoll(pv->simangles, pv->simvel);
+		pv->vm.oldmodel = NULL;	//invalidate the viewmodel, so the lerps get reset
 	}
 }
 

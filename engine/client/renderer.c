@@ -358,6 +358,7 @@ cvar_t dpcompat_psa_ungroup					= SCVAR  ("dpcompat_psa_ungroup", "0");
 cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0", CVAR_ARCHIVE);
 cvar_t r_shadows							= CVARFD ("r_shadows", "0",	CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
+cvar_t r_showfields							= CVARD("r_showfields", "0", "Debugging. Shows entity fields boxes (entity closest to crosshair). 1=ssqc, 2=csqc.");
 cvar_t r_lightprepass						= CVARFD("r_lightprepass", "0", CVAR_SHADERSYSTEM, "Experimental. Attempt to use a different lighting mechanism.");
 
 cvar_t r_shadow_bumpscale_basetexture		= CVARD  ("r_shadow_bumpscale_basetexture", "0", "bumpyness scaler for generation of fallback normalmap textures from models");
@@ -748,6 +749,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_replacemodels, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_showbboxes, GLRENDEREROPTIONS);
+	Cvar_Register (&r_showfields, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_shadowmap_factor, GLRENDEREROPTIONS);

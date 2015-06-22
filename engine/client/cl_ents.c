@@ -2535,7 +2535,17 @@ void CLQ1_AddVisibleBBoxes(void)
 			CLQ1_AddOrientedCylinder(s, rad*2, height*2, true, matrix, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
 		}
 		else
-			CLQ1_AddOrientedCube(s, min, max, NULL, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
+		{
+			if (!e->v->solid && !e->v->movetype)
+			{
+				vec3_t ep = {1,1,1};
+				VectorAdd(max, ep, max);
+				VectorSubtract(min, ep, min);
+				CLQ1_AddOrientedCube(s, min, max, NULL, 0, 0.1, 0, 1);
+			}
+			else
+				CLQ1_AddOrientedCube(s, min, max, NULL, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
+		}
 	}
 }
 
@@ -3861,8 +3871,7 @@ void CL_ParsePlayerinfo (void)
 		info->prevcount = cl.parsecount;
 
 		if (cls.findtrack && info->stats[STAT_HEALTH] > 0)
-		{
-			cl.playerview[0].cam_auto = CAM_TRACK;
+		{	//FIXME: is this still needed with the autotrack stuff?
 			Cam_Lock(&cl.playerview[0], num);
 			cls.findtrack = false;
 		}
@@ -3950,15 +3959,13 @@ void CL_ParsePlayerinfo (void)
 				for (i = 0; i < cl.splitclients; i++)
 				{
 					playerview_t *pv = &cl.playerview[i];
-					if (pv->cam_auto && pv->cam_spec_track == num)
+					if (pv->cam_state != CAM_FREECAM && pv->cam_spec_track == num)
 						return;
 				}
 
 				if (i == cl.splitclients)
 				{
 					playerview_t *pv = &cl.playerview[cl.splitclients++];
-					pv->cam_auto = CAM_TRACK;
-					pv->cam_spec_track = num;
 					Cam_Lock(pv, num);
 				}
 			}
@@ -4503,7 +4510,7 @@ void CL_LinkPlayers (void)
 		angles[ROLL] = 0;
 		angles[ROLL] = V_CalcRoll (angles, state->velocity)*4;
 
-		if (j+1 == r_refdef.playerview->viewentity || (cl.spectator && r_refdef.playerview->cam_locked && r_refdef.playerview->cam_spec_track == j))
+		if (j+1 == r_refdef.playerview->viewentity || (r_refdef.playerview->cam_state == CAM_EYECAM && r_refdef.playerview->cam_spec_track == j))
 			ent->flags |= RF_EXTERNALMODEL;
 		// the player object gets added with flags | 2
 		for (pnum = 0; pnum < cl.splitclients; pnum++)

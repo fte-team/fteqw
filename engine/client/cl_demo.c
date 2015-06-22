@@ -758,7 +758,7 @@ readit:
 				for (seat = 0; seat < cl.splitclients; seat++)
 				{
 					tracknum = cl.playerview[seat].cam_spec_track;
-					if (!cl.playerview[seat].cam_auto)
+					if (cl.playerview[seat].cam_state == CAM_FREECAM)
 						tracknum = -1;
 					if (tracknum == -1 || !(cls_lastto & (1 << tracknum)))
 						continue;
@@ -780,7 +780,7 @@ readit:
 					for (seat = 0; seat < maxseat; seat++)
 					{
 						tracknum = cl.playerview[seat].cam_spec_track;
-						if (!cl.playerview[seat].cam_auto)
+						if (cl.playerview[seat].cam_state == CAM_FREECAM)
 							tracknum = -1;
 						if (tracknum == -1 || (cls_lastto != tracknum))
 							continue;

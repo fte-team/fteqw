@@ -41,6 +41,8 @@ extern cvar_t *cl_multiview;
 #define Cam_TrackNum() cl.tracknum
 #define spec_track cl.tracknum
 #define autocam ((spec_track==-1)?CAM_NONE:CAM_TRACK)
+#define CAM_TRACK true
+#define CAM_NONE false
 //#define HAXX
 
 #define vid plugvid

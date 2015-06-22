@@ -776,6 +776,8 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 		return Master_CompareInteger(a->players, b->players, SLIST_TEST_LESS);
 	case SLKEY_NUMHUMANS:
 		return Master_CompareInteger(a->numhumans, b->numhumans, SLIST_TEST_LESS);
+	case SLKEY_NUMSPECTATORS:
+		return Master_CompareInteger(a->numspectators, b->numspectators, SLIST_TEST_LESS);
 	case SLKEY_NUMBOTS:
 		return Master_CompareInteger(a->numbots, b->numbots, SLIST_TEST_LESS);
 	case SLKEY_PING:
@@ -849,6 +851,9 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 			break;
 		case SLKEY_NUMHUMANS:
 			res = Master_CompareInteger(a->numhumans, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_NUMSPECTATORS:
+			res = Master_CompareInteger(a->numspectators, visrules[i].operandi, visrules[i].compareop);
 			break;
 		case SLKEY_TIMELIMIT:
 			res = Master_CompareInteger(a->tl, visrules[i].operandi, visrules[i].compareop);
@@ -1052,6 +1057,8 @@ float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
 			return server->numbots;
 		case SLKEY_NUMHUMANS:
 			return server->numhumans;
+		case SLKEY_NUMSPECTATORS:
+			return server->numspectators;
 		case SLKEY_ISFAVORITE:
 			return !!(server->special & SS_FAVORITE);
 		case SLKEY_ISLOCAL:
@@ -1184,6 +1191,8 @@ int Master_KeyForName(const char *keyname)
 		return SLKEY_NUMBOTS;
 	else if (!strcmp(keyname, "numhumans"))
 		return SLKEY_NUMHUMANS;
+	else if (!strcmp(keyname, "numspectators"))
+		return SLKEY_NUMSPECTATORS;
 	else if (!strcmp(keyname, "qcstatus"))
 		return SLKEY_QCSTATUS;
 	else if (!strcmp(keyname, "isfavorite"))
@@ -2594,7 +2603,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 	char *nl;
 	char *name;
 	int ping;
-	int len;
+	int len, j, k;
 	serverinfo_t *info;
 	char adr[MAX_ADR_SIZE];
 
@@ -2748,6 +2757,8 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				break;
 			*nl = '\0';
 
+			details.players[clnum].isspec = false;
+
 			token = msg;
 			if (!token)
 				break;
@@ -2804,7 +2815,10 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				if (len >= sizeof(details.players[clnum].name))
 					len = sizeof(details.players[clnum].name);
 				if (!strncmp(token, "\"\\s\\", 4))
+				{
+					details.players[clnum].isspec = true;
 					Q_strncpyz(details.players[clnum].name, token+4, len-3);
+				}
 				else
 					Q_strncpyz(details.players[clnum].name, token+1, len);
 				details.players[clnum].name[len] = '\0';
@@ -2848,12 +2862,28 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 
 			MasterInfo_AddPlayer(&info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin, details.players[clnum].team);
 
-
-			++details.numplayers;
 			if (details.players[clnum].ping == 807 || !strncmp(details.players[clnum].name, "BOT:", 4))
 				info->numbots++;
+			else if (details.players[clnum].isspec)
+				info->numspectators++;
 			else
 				info->numhumans++;
+
+			for (k = clnum, j = clnum-1; j >= 0; j--)
+			{
+				if ((details.players[k].isspec != details.players[j].isspec && !details.players[k].isspec) ||
+					details.players[k].frags > details.players[j].frags)
+				{
+					struct serverdetailedplayerinfo_s t = details.players[j];
+					details.players[j] = details.players[k];
+					details.players[k] = t;
+					k = j;
+				}
+				else
+					break;
+			}
+			details.numplayers++;
+
 			info->players++;
 
 			msg = nl;

@@ -502,7 +502,7 @@ static void SL_PostDraw	(menu_t *menu)
 				int teamplay = atoi(Info_ValueForKey(server->moreinfo->info, "teamplay"));
 				x = lx;
 				Draw_FunStringWidth (x, y, "^mFrgs", 28, true, false);
-				x += 28+8;
+				x += 32+8;
 				Draw_FunStringWidth (x, y, "^mPng", 28, true, false);
 				x += 3*8+8;
 
@@ -523,12 +523,17 @@ static void SL_PostDraw	(menu_t *menu)
 				for (i = 0; i < server->moreinfo->numplayers; i++)
 				{
 					x = lx;
-					R2D_ImagePaletteColour (Sbar_ColorForMap(server->moreinfo->players[i].topc), 1.0);
-					R2D_FillBlock (x, y+1, 28, 3);
-					R2D_ImagePaletteColour (Sbar_ColorForMap(server->moreinfo->players[i].botc), 1.0);
-					R2D_FillBlock (x, y+4, 28, 4);
-					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].frags), 28, true, false);
-					x += 28+8;
+					if (server->moreinfo->players[i].isspec)
+						Draw_FunStringWidth (x, y, "spec", 32, true, false);
+					else
+					{
+						R2D_ImagePaletteColour (Sbar_ColorForMap(server->moreinfo->players[i].topc), 1.0);
+						R2D_FillBlock (x, y+1, 32, 3);
+						R2D_ImagePaletteColour (Sbar_ColorForMap(server->moreinfo->players[i].botc), 1.0);
+						R2D_FillBlock (x, y+4, 32, 4);
+						Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].frags), 32, true, false);
+					}
+					x += 32+8;
 					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].ping), 28, true, false);
 					x += 3*8+8;
 
@@ -956,6 +961,7 @@ void M_Menu_ServerList2_f(void)
 
 	serverpreview = false;	//in case it was lingering.
 
+	Key_Dest_Remove(kdm_console);
 	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
 

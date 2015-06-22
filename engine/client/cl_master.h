@@ -55,8 +55,9 @@ typedef enum
 
 	SLKEY_MOD,
 	SLKEY_PROTOCOL,
-	SLKEY_NUMBOTS,
-	SLKEY_NUMHUMANS,
+	SLKEY_NUMBOTS,		//uninteresting bots that will presumably get kicked if people join.
+	SLKEY_NUMSPECTATORS,//spectators
+	SLKEY_NUMHUMANS,	//actual players
 	SLKEY_QCSTATUS,
 //	SLKEY_PLAYERS,	//eep!
 	SLKEY_ISFAVORITE,//eep!
@@ -92,17 +93,18 @@ typedef struct serverdetailedinfo_s
 
 	int numplayers;
 
-	struct
+	struct serverdetailedplayerinfo_s
 	{
 		int userid;
 		int frags;
 		float time;
 		int ping;
 		char name[64];
-		char skin[16];
+		char skin[16];	//is this even useful?
 		char team[16];
 		char topc;
 		char botc;
+		qbyte isspec;
 	} players[MAX_CLIENTS];
 } serverdetailedinfo_t;
 
@@ -115,15 +117,15 @@ typedef struct serverinfo_s
 	short special;	//flags
 	short protocol;
 
-	unsigned char players;
-	unsigned char maxplayers;
+	qbyte players;
+	qbyte maxplayers;
 	qbyte sends;
 	qbyte insortedlist;
 
+	qbyte numspectators;
 	qbyte numhumans;
 	qbyte numbots;
 	qbyte freeslots;
-	qbyte pad;
 
 	char modname[8+1];
 	char qcstatus[8+1];

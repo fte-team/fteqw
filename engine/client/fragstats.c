@@ -190,7 +190,7 @@ void Stats_FragMessage(int p1, int wid, int p2, qboolean teamkill)
 	struct wt_s *w = &fragstats.weapontotals[wid];
 	const char *p1n = (p1 < 0)?nonplayers[-p1]:cl.players[p1].name;
 	const char *p2n = (p2 < 0)?nonplayers[-p2]:cl.players[p2].name;
-	int localplayer = (cl.spectator && cl.playerview[0].cam_locked)?cl.playerview[0].cam_spec_track:cl.playerview[0].playernum;
+	int localplayer = (cl.playerview[0].cam_state == CAM_EYECAM)?cl.playerview[0].cam_spec_track:cl.playerview[0].playernum;
 
 #define YOU_GOOD		S_COLOR_GREEN
 #define YOU_BAD			S_COLOR_BLUE

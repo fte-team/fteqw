@@ -628,17 +628,20 @@ struct playerview_s
 
 
 	vec3_t		cam_desired_position;	// where the camera wants to be
-	qboolean	cam_locked;				//
 	int			cam_oldbuttons;			//
 	vec3_t		cam_viewangles;			//
-	double		cam_lastviewtime;		//
+	double		cam_lastviewtime;		// timer for wallcam
 	float		cam_reautotrack;		// timer to throttle tracking changes.
-	int			cam_spec_track;			// player# of who we are tracking
+	int			cam_spec_track;			// player# of who we are tracking / want to track / might want to track
 	enum
 	{
-		CAM_NONE	= 0,
-		CAM_TRACK	= 1
-	} cam_auto;				//
+		CAM_FREECAM	= 0,		//not attached to another player. we are our own thing (or actually playing).
+		CAM_PENDING = 1,		//we want to lock on to cam_spec_track, but we don't have their position / stats yet. still freecamming
+		CAM_WALLCAM = 2,		//locked, cl_chasecam=0. we're watching them from a wall.
+		CAM_EYECAM	= 3			//locked, cl_chasecam=1. we know where they are, we're in their eyes.
+
+#define CAM_ISLOCKED(pv) ((pv)->cam_state > CAM_PENDING)
+	} cam_state;				//
 
 	vec3_t		vw_axis[3];	//weapons should be positioned relative to this
 	vec3_t		vw_origin;	//weapons should be positioned relative to this
@@ -1277,18 +1280,18 @@ void CL_CalcClientTime(void);
 //
 qboolean Cam_DrawViewModel(playerview_t *pv);
 int Cam_TrackNum(playerview_t *pv);
-void Cam_Unlock(playerview_t *pv);
-void Cam_Lock(playerview_t *pv, int playernum);
+void Cam_Unlock(playerview_t *pv);				//revert to freecam or so, because that entity failed.
+void Cam_Lock(playerview_t *pv, int playernum);	//attempt to lock on to the given player.
+void Cam_NowLocked(playerview_t *pv);						//player was located, track them now
 void Cam_SelfTrack(playerview_t *pv);
 void Cam_Track(playerview_t *pv, usercmd_t *cmd);
 void Cam_TrackCrosshairedPlayer(playerview_t *pv);
-void Cam_SetAutoTrack(int userid);
+void Cam_SetModAutoTrack(int userid);
 void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd);
 void Cam_Reset(void);
 void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg);
-void Cam_Lock(playerview_t *pv, int playernum);
 void CL_InitCam(void);
-void Cam_AutoTrack_Update(const char *mode);
+void Cam_AutoTrack_Update(const char *mode);	//reset autotrack setting (because we started a new map or whatever)
 
 void QDECL vectoangles(vec3_t fwd, vec3_t ang);
 

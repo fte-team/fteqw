@@ -26,16 +26,16 @@ extern cvar_t *hud_tracking_show;
 
 #define CON_ALTMASK (CON_2NDCHARSETTEXT|CON_WHITEMASK)
 
-cvar_t scr_scoreboard_drawtitle = SCVAR("scr_scoreboard_drawtitle", "1");
-cvar_t scr_scoreboard_forcecolors = SCVAR("scr_scoreboard_forcecolors", "0");	//damn americans
-cvar_t scr_scoreboard_newstyle = SCVAR("scr_scoreboard_newstyle", "1");	// New scoreboard style ported from Electro, by Molgrum
+cvar_t scr_scoreboard_drawtitle = CVARD("scr_scoreboard_drawtitle", "1", "Wastes screen space when looking at the scoreboard.");
+cvar_t scr_scoreboard_forcecolors = CVARD("scr_scoreboard_forcecolors", "0", "Makes the scoreboard colours obey enemycolor/teamcolor rules.");	//damn americans
+cvar_t scr_scoreboard_newstyle = CVARD("scr_scoreboard_newstyle", "1", "Display team colours and stuff in a style popularised by Electro. Looks more modern, but might not quite fit classic huds.");	// New scoreboard style ported from Electro, by Molgrum
 cvar_t scr_scoreboard_showfrags = CVARD("scr_scoreboard_showfrags", "0", "Display kills+deaths+teamkills, as determined by fragfile.dat-based conprint parsing. These may be inaccurate if you join mid-game.");
 cvar_t scr_scoreboard_showflags = CVARD("scr_scoreboard_showflags", "2", "Display flag caps+touches on the scoreboard, where our fragfile.dat supports them.\n0: off\n1: on\n2: on only if someone appears to have interacted with a flag.");
-cvar_t scr_scoreboard_fillalpha = CVAR("scr_scoreboard_fillalpha", "0.7");
-cvar_t scr_scoreboard_teamscores = SCVAR("scr_scoreboard_teamscores", "1");
-cvar_t scr_scoreboard_teamsort = SCVAR("scr_scoreboard_teamsort", "1");
+cvar_t scr_scoreboard_fillalpha = CVARD("scr_scoreboard_fillalpha", "0.7", "Transparency amount for newstyle scoreboard.");
+cvar_t scr_scoreboard_teamscores = CVARD("scr_scoreboard_teamscores", "1", "Makes +showscores act as +showteamscores. Because reasons.");
+cvar_t scr_scoreboard_teamsort = CVARD("scr_scoreboard_teamsort", "0", "On the scoreboard, sort players by their team BEFORE their personal score.");
 cvar_t scr_scoreboard_titleseperator = SCVAR("scr_scoreboard_titleseperator", "1");
-cvar_t sbar_teamstatus = SCVAR("sbar_teamstatus", "1");
+cvar_t sbar_teamstatus = CVARD("sbar_teamstatus", "1", "Display the last team say from each of your team members just above the sbar area.");
 
 //===========================================
 //rogue changed and added defines
@@ -2123,7 +2123,7 @@ void Sbar_DrawScoreboard (void)
 
 #ifndef CLIENTONLY
 	/*no scoreboard in single player (if you want bots, set deathmatch)*/
-	if (sv.state && !cls.deathmatch && sv.allocated_client_slots == 1)
+	if (sv.state && sv.allocated_client_slots == 1)
 	{
 		return;
 	}
@@ -2757,7 +2757,7 @@ void Sbar_Draw (playerview_t *pv)
 	// top line
 		if (sb_lines > 24)
 		{
-			if (!cl.spectator || pv->cam_auto == CAM_TRACK)
+			if (!cl.spectator || pv->cam_state == CAM_WALLCAM || pv->cam_state == CAM_EYECAM)
 				Sbar_DrawInventory (pv);
 			else if (cl_sbar.ival)
 				Sbar_DrawPic (0, -24, 320, 24, sb_scorebar);	//make sure we don't get HoM
@@ -2770,13 +2770,14 @@ void Sbar_Draw (playerview_t *pv)
 		{
 			if (cl.spectator)
 			{
-				if (pv->cam_auto != CAM_TRACK)
+				if (pv->cam_state == CAM_FREECAM || pv->cam_state == CAM_PENDING)
 				{
 					if (hud_tracking_show->ival || cl_sbar.ival)
 					{	//this is annoying.
 						Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
 						Sbar_DrawString (160-7*8,4, "SPECTATOR MODE");
-						Sbar_DrawString(160-14*8+4, 12, "Press [ATTACK] for AutoCamera");
+						if (pv->cam_state == CAM_FREECAM)
+							Sbar_DrawString(160-14*8+4, 12, "Press [ATTACK] for AutoCamera");
 					}
 				}
 				else
@@ -2888,7 +2889,7 @@ void Sbar_IntermissionNumber (float x, float y, int num, int digits, int color, 
 
 #define COL_TEAM_LOWAVGHIGH	COLUMN("low/avg/high", 12*8, {sprintf (num, "%3i/%3i/%3i", plow, pavg, phigh); Draw_FunString ( x, y, num); })
 #define COL_TEAM_TEAM		COLUMN("team", 4*8, 		{Draw_FunStringWidth ( x, y, tm->team, 4*8, false, false); \
-		if (!strncmp(cl.players[pv->playernum].team, tm->team, 16))\
+		if (!strncmp(cl.players[trackplayer].team, tm->team, 16))\
 		{\
 			Draw_FunString ( x - 1*8, y, "^Ue010");\
 			Draw_FunString ( x + 4*8, y, "^Ue011");\
@@ -2920,6 +2921,7 @@ void Sbar_TeamOverlay (void)
 
 	int rank_width = 320-32*2;
 	int startx;
+	int trackplayer;
 
 	if (!pv)
 		pv = &cl.playerview[0];
@@ -2998,6 +3000,11 @@ void Sbar_TeamOverlay (void)
 // sort the teams
 	Sbar_SortTeams(pv);
 
+	if (cl.spectator)
+		trackplayer = Cam_TrackNum(pv);
+	else
+		trackplayer = pv->playernum;
+
 // draw the text
 	for (i=0 ; i < scoreboardteams && y <= vid.height-10 ; i++)
 	{
@@ -3060,7 +3067,7 @@ void Sbar_TeamOverlay (void)
 		sprintf (num, "%5i", tm->players);
 		Draw_FunString (x + 104 + 88, y, num);
 
-		if (!strncmp(cl.players[cl.playernum[0]].team, tm->team, 16))
+		if (!strncmp(cl.players[trackplayer].team, tm->team, 16))
 		{
 			Draw_FunString ( x + 104 - 8, y, "^Ue010");
 			Draw_FunString ( x + 104 + 32, y, "^Ue011");
@@ -3132,20 +3139,20 @@ ping time frags name
 		f = s->frags;									\
 		sprintf(num, "%3i",f);							\
 														\
-		Font_BeginString(font_default, x+8, y, &cx, &cy);	\
-		Font_DrawChar(cx, cy, num[0] | 0xe000 | CON_WHITEMASK);	\
-		Font_BeginString(font_default, x+16, y, &cx, &cy);	\
-		Font_DrawChar(cx, cy, num[1] | 0xe000 | CON_WHITEMASK);	\
-		Font_BeginString(font_default, x+24, y, &cx, &cy);	\
-		Font_DrawChar(cx, cy, num[2] | 0xe000 | CON_WHITEMASK);	\
-														\
-		if ((cl.spectator && k == Cam_TrackNum(pv)) ||\
-			(!cl.spectator && k == pv->playernum))	\
-		{												\
-			Font_BeginString(font_default, x, y, &cx, &cy);	\
-			Font_DrawChar(cx, cy, 16 | 0xe000 | CON_WHITEMASK);	\
-			Font_BeginString(font_default, x+32, y, &cx, &cy);	\
-			Font_DrawChar(cx, cy, 17 | 0xe000 | CON_WHITEMASK);	\
+		Font_BeginString(font_default, x+8, y, &cx, &cy);				\
+		Font_DrawChar(cx, cy, num[0] | 0xe000 | CON_WHITEMASK);			\
+		Font_BeginString(font_default, x+16, y, &cx, &cy);				\
+		Font_DrawChar(cx, cy, num[1] | 0xe000 | CON_WHITEMASK);			\
+		Font_BeginString(font_default, x+24, y, &cx, &cy);				\
+		Font_DrawChar(cx, cy, num[2] | 0xe000 | CON_WHITEMASK);			\
+																		\
+		if ((pv->cam_state == CAM_FREECAM && k == pv->playernum) ||		\
+			(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track))	\
+		{																\
+			Font_BeginString(font_default, x, y, &cx, &cy);				\
+			Font_DrawChar(cx, cy, 16 | 0xe000 | CON_WHITEMASK);			\
+			Font_BeginString(font_default, x+32, y, &cx, &cy);			\
+			Font_DrawChar(cx, cy, 17 | 0xe000 | CON_WHITEMASK);			\
 		}												\
 		Font_EndString(font_default);					\
 	}													\
@@ -3590,7 +3597,7 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 		Font_BeginString(font_default, x+24, y, &px, &py);
 		Font_DrawChar ( px, py, num[2] | 0xe000 | CON_WHITEMASK);
 
-		if ((cl.spectator && k == pv->cam_spec_track && pv->cam_locked) ||
+		if ((cl.spectator && k == pv->cam_spec_track && pv->cam_state != CAM_FREECAM) ||
 			(!cl.spectator && k == pv->playernum))
 		{
 			Font_BeginString(font_default, x, y, &px, &py);

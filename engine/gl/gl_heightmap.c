@@ -663,11 +663,18 @@ static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy, qboole
 
 		s->loadstate = TSLS_LOADING1;
 
-		if (scheduleload)
-			COM_AddWork(1, Terr_LoadSectionWorker, s, hm, sx, sy);
-	}
+		if (!scheduleload)
+			return s;
+
 #ifdef LOADERTHREAD
-	Sys_UnlockMutex(com_resourcemutex);
+		Sys_UnlockMutex(com_resourcemutex);
+#endif
+		COM_AddWork(1, Terr_LoadSectionWorker, s, hm, sx, sy);
+		return s;
+	}
+	if (scheduleload)
+#ifdef LOADERTHREAD
+		Sys_UnlockMutex(com_resourcemutex);
 #endif
 	return s;
 }
@@ -1666,13 +1673,24 @@ static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b)
 				{
 					//noload avoids recursion.
 					s = Terr_GenerateSection(hm, sx+x, sy+y, false);
-					if (s->loadstate == TSLS_LOADING1)
+					if (s)
 					{
-						offset = block->offset[x + y*SECTIONSPERBLOCK];
-						if (!offset)
-							Terr_ReadSection(hm, s, ver, NULL, 0);	//no data in the file for this section
+						if (s->loadstate == TSLS_LOADING1)
+						{
+							s->loadstate = TSLS_LOADING1;
+#ifdef LOADERTHREAD
+							Sys_UnlockMutex(com_resourcemutex);
+#endif
+							offset = block->offset[x + y*SECTIONSPERBLOCK];
+							if (!offset)
+								Terr_ReadSection(hm, s, ver, NULL, 0);	//no data in the file for this section
+							else
+								Terr_ReadSection(hm, s, ver, (char*)diskimage + offset, len - offset);
+						}
+#ifdef LOADERTHREAD
 						else
-							Terr_ReadSection(hm, s, ver, (char*)diskimage + offset, len - offset);
+							Sys_UnlockMutex(com_resourcemutex);
+#endif
 					}
 				}
 		}

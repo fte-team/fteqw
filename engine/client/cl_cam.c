@@ -146,7 +146,7 @@ static int CL_FindHighTrack(int seat, char *rule)
 
 	//set a default to the currently tracked player, to reuse the current player we're tracking if someone lower equalises.
 	j = cl.playerview[seat].cam_spec_track;
-	if (j >= 0 && cl.players[j].name[0] && !cl.players[j].spectator)
+	if (j >= 0 && cl.players[j].userid && cl.players[j].name[0] && !cl.players[j].spectator)
 		max = CL_TrackScore(&cl.players[j], rule);
 	else
 	{
@@ -158,7 +158,7 @@ static int CL_FindHighTrack(int seat, char *rule)
 	{
 		s = &cl.players[i];
 		score = CL_TrackScore(s, rule);
-		if (s->name[0] && !s->spectator && score > max)
+		if (s->userid && s->name[0] && !s->spectator && score > max)
 		{
 			if (j == i)	//this was our default.
 				continue;
@@ -210,7 +210,7 @@ qboolean Cam_DrawViewModel(playerview_t *pv)
 {
 	if (cl.spectator)
 	{
-		if (pv->cam_auto && pv->cam_locked && cl_chasecam.ival)
+		if (pv->cam_state == CAM_EYECAM && cl_chasecam.ival)
 			return true;
 		return false;
 	}
@@ -224,18 +224,17 @@ qboolean Cam_DrawViewModel(playerview_t *pv)
 
 int Cam_TrackNum(playerview_t *pv)
 {
-	if (!pv->cam_auto)
-		return -1;
-	return pv->cam_spec_track;
+	if (pv->cam_state == CAM_EYECAM)
+		return pv->cam_spec_track;
+	return -1;
 }
 
 void Cam_Unlock(playerview_t *pv)
 {
-	if (pv->cam_auto)
+	if (pv->cam_state)
 	{
 		CL_SendClientCommand(true, "ptrack");
-		pv->cam_auto = CAM_NONE;
-		pv->cam_locked = false;
+		pv->cam_state = CAM_FREECAM;
 		pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);	//free floating
 		Sbar_Changed();
 	}
@@ -245,12 +244,12 @@ void Cam_Lock(playerview_t *pv, int playernum)
 {
 	int i;
 
-	pv->cam_lastviewtime = -1000;
+	pv->cam_lastviewtime = -1000;	//allow the wallcam to re-snap as soon as it can
 
 	CL_SendClientCommand(true, "ptrack %i", playernum);
 
 	pv->cam_spec_track = playernum;
-	pv->cam_locked = false;
+	pv->cam_state = CAM_PENDING;
 	pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);	//free floating until actually locked
 
 	
@@ -259,10 +258,16 @@ void Cam_Lock(playerview_t *pv, int playernum)
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		memcpy(&pv->stats, cl.players[playernum].stats, sizeof(pv->stats));
-		pv->cam_locked = true;	//instantly lock if the player is valid.
+//		pv->cam_state = CAM_;
+	
+//		pv->viewentity = playernum+1;
+		/*
+		pv->cam_state = cl_chasecam.ival?CAM_EYECAM:CAM_PENDING;	//instantly lock if the player is valid.
 		pv->viewentity = playernum+1;
+		*/
 		if (cls.z_ext & Z_EXT_VIEWHEIGHT)
 			pv->viewheight = cl.players[playernum].statsf[STAT_VIEWHEIGHT];
+
 	}
 
 	Sbar_Changed();
@@ -389,7 +394,7 @@ static qboolean InitFlyby(playerview_t *pv, vec3_t selforigin, vec3_t playerorig
 		return false;
 	}
 
-	pv->cam_locked = true;
+	pv->cam_state = CAM_WALLCAM;
 	pv->viewentity = pv->playernum+1;//pv->cam_spec_track+1;
 	VectorCopy(vec, pv->cam_desired_position); 
 	return true;
@@ -403,19 +408,18 @@ static void Cam_CheckHighTarget(playerview_t *pv)
 	j = CL_AutoTrack_Choose(pv - cl.playerview);
 	if (j >= 0)
 	{
-		if (pv->cam_spec_track != j || !pv->cam_locked)
+		if (pv->cam_spec_track != j || pv->cam_state == CAM_FREECAM)
 		{
 			if (cl.teamplay)
 				Stats_Message("Now tracking:\n%s\n%s", cl.players[j].name, cl.players[j].team);
 			else
 				Stats_Message("Now tracking:\n%s", cl.players[j].name);
-			pv->cam_auto++;
 			Cam_Lock(pv, j);
 			//un-lock any higher seats watching our new target. this keeps things ordered.
 			for (spv = pv+1; spv >= cl.playerview && spv < &cl.playerview[cl.splitclients]; spv++)
 			{
 				if (Cam_TrackNum(spv) == j)
-					spv->cam_locked = false;
+					spv->cam_state = CAM_FREECAM;
 			}
 		}
 	}
@@ -445,9 +449,9 @@ void Cam_SelfTrack(playerview_t *pv)
 		}
 		else
 		{	//view from a random wall
-			if (!pv->cam_locked || !Cam_IsVisible(pv->simorg, pv->cam_desired_position))
+			if (pv->cam_state != CAM_WALLCAM || !Cam_IsVisible(pv->simorg, pv->cam_desired_position))
 			{
-				if (!pv->cam_locked || realtime - pv->cam_lastviewtime > 0.1)
+				if (pv->cam_state != CAM_WALLCAM || realtime - pv->cam_lastviewtime > 0.1)
 				{
 					if (!InitFlyby(pv, pv->cam_desired_position, pv->simorg, pv->simangles, true))
 						InitFlyby(pv, pv->cam_desired_position, pv->simorg, pv->simangles, false);
@@ -460,7 +464,7 @@ void Cam_SelfTrack(playerview_t *pv)
 			}
 
 			//tracking failed.
-			if (!pv->cam_locked)
+			if (pv->cam_state != CAM_WALLCAM)
 				return;
 		}
 
@@ -471,6 +475,23 @@ void Cam_SelfTrack(playerview_t *pv)
 		VectorSubtract(pv->simorg, pv->cam_desired_position, vec);
 		VectorAngles(vec, NULL, r_refdef.viewangles);
 		r_refdef.viewangles[0] = -r_refdef.viewangles[0];
+	}
+}
+
+//player entity became visible, lock on to them (now that we know where they are etc)
+void Cam_NowLocked(playerview_t *pv)
+{
+	pv->cam_lastviewtime = realtime;
+	if (!cl_chasecam.ival)
+	{
+		if (pv->cam_state != CAM_WALLCAM || !Cam_IsVisible(pv->simorg, pv->cam_desired_position))
+		{
+			if (pv->cam_state != CAM_WALLCAM || realtime - pv->cam_lastviewtime > 0.1)
+			{
+				if (!InitFlyby(pv, pv->cam_desired_position, pv->simorg, pv->simangles, true))
+					InitFlyby(pv, pv->cam_desired_position, pv->simorg, pv->simangles, false);
+			}
+		}
 	}
 }
 
@@ -488,15 +509,15 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	if (!cl.spectator || !cl.worldmodel)	//can happen when the server changes level
 		return;
 	
-	if (autotrackmode != TM_USER && !pv->cam_locked)
+	if (autotrackmode != TM_USER && pv->cam_state == CAM_FREECAM)
 		Cam_CheckHighTarget(pv);
 
-	if (!pv->cam_auto || cls.state != ca_active || cl.worldmodel->loadstate != MLS_LOADED)
+	if (pv->cam_state == CAM_FREECAM || cls.state != ca_active || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
-	if (pv->cam_locked && (!cl.players[pv->cam_spec_track].name[0] || cl.players[pv->cam_spec_track].spectator))
+	if (CAM_ISLOCKED(pv) && (!cl.players[pv->cam_spec_track].name[0] || cl.players[pv->cam_spec_track].spectator))
 	{
-		pv->cam_locked = false;
+		pv->cam_state = CAM_FREECAM;
 		if (autotrackmode != TM_USER)
 			Cam_CheckHighTarget(pv);
 		else
@@ -508,22 +529,24 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	player = frame->playerstate + pv->cam_spec_track;
 	self = frame->playerstate + pv->playernum;
 
-	if (!cl_chasecam.value && (!pv->cam_locked || !Cam_IsVisible(player->origin, pv->cam_desired_position)))
+	if (!cl_chasecam.value && (pv->cam_state != CAM_WALLCAM || !Cam_IsVisible(player->origin, pv->cam_desired_position)))
 	{
-		if (!pv->cam_locked || realtime - pv->cam_lastviewtime > 0.1)
+		if (pv->cam_state != CAM_WALLCAM || realtime - pv->cam_lastviewtime > 0.1)
 		{
 			if (!InitFlyby(pv, self->origin, player->origin, player->viewangles, true))
 				InitFlyby(pv, self->origin, player->origin, player->viewangles, false);
 			pv->cam_lastviewtime = realtime;
 		}
 	}
+	else if (cl_chasecam.value && pv->cam_state == CAM_WALLCAM)
+		pv->cam_state = CAM_PENDING;
 	else
 	{
 		pv->cam_lastviewtime = realtime;
 	}
 
 	//tracking failed.
-	if (!pv->cam_locked || !pv->cam_auto)
+	if (pv->cam_state == CAM_FREECAM || pv->cam_state == CAM_PENDING)
 		return;
 
 
@@ -574,12 +597,12 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 	// move there locally immediately
 	VectorCopy(pv->cam_desired_position, self->origin);
 
-	VectorSubtract(player->origin, pv->cam_desired_position, vec);
-	VectorAngles(vec, NULL, pv->viewangles);
-	pv->viewangles[0] = -pv->viewangles[0];
+//	VectorSubtract(player->origin, pv->cam_desired_position, vec);
+//	VectorAngles(vec, NULL, pv->viewangles);
+//	pv->viewangles[0] = -pv->viewangles[0];
 }
 
-void Cam_SetAutoTrack(int userid)
+void Cam_SetModAutoTrack(int userid)
 {	//this is a hint from the server about who to track
 	int slot;
 	playerview_t *pv = &cl.playerview[0];
@@ -624,7 +647,6 @@ void Cam_TrackCrosshairedPlayer(playerview_t *pv)
 //	Con_Printf("Track %i? %f\n", best, bestdot);
 	if (best != -1)	//did we actually get someone?
 	{
-		pv->cam_auto++;
 		Cam_Lock(pv, best);
 	}
 }
@@ -719,9 +741,8 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 		if (!(pv->cam_oldbuttons & BUTTON_ATTACK)) 
 		{
 			pv->cam_oldbuttons |= BUTTON_ATTACK;
-			pv->cam_auto++;
 
-			if (pv->cam_auto > CAM_TRACK) 
+			if (pv->cam_state != CAM_FREECAM)
 			{
 				Cam_Unlock(pv);
 				VectorCopy(pv->viewangles, cmd->angles);
@@ -735,7 +756,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 	else
 	{
 		pv->cam_oldbuttons &= ~BUTTON_ATTACK;
-		if (!pv->cam_auto && autotrackmode == TM_USER)
+		if (pv->cam_state == CAM_FREECAM && autotrackmode == TM_USER)
 		{
 			if ((cmd->buttons & BUTTON_JUMP) && !(pv->cam_oldbuttons & BUTTON_JUMP))
 				Cam_TrackCrosshairedPlayer(pv);
@@ -744,7 +765,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 		}
 	}
 
-	if (pv->cam_auto && autotrackmode != TM_USER) 
+	if (autotrackmode != TM_USER) 
 	{
 		if ((cmd->buttons & BUTTON_JUMP) && !(pv->cam_oldbuttons & BUTTON_JUMP))
 			autotrackmode = TM_USER;
@@ -755,7 +776,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 		}
 	}
 
-	if (pv->cam_locked) 
+	if (pv->cam_state != CAM_FREECAM) 
 	{
 		if ((cmd->buttons & BUTTON_JUMP) && (pv->cam_oldbuttons & BUTTON_JUMP))
 			return;		// don't pogo stick
@@ -770,8 +791,8 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 
 //	Con_Printf("Selecting track target...\n");
 
-	if (pv->cam_locked && pv->cam_auto)
-		end = (pv->cam_spec_track + 1) % MAX_CLIENTS;
+	if (pv->cam_state != CAM_FREECAM)
+		end =		 (pv->cam_spec_track + 1) % MAX_CLIENTS;
 	else
 		end = pv->cam_spec_track;
 	i = end;
@@ -796,7 +817,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 		return;
 	}
 	Con_Printf("No target found ...\n");
-	pv->cam_auto = pv->cam_locked = false;
+	pv->cam_state = CAM_FREECAM;
 }
 
 void Cam_Reset(void)
@@ -805,7 +826,7 @@ void Cam_Reset(void)
 	for (pnum = 0; pnum < MAX_SPLITS; pnum++)
 	{
 		playerview_t *pv = &cl.playerview[pnum];
-		pv->cam_auto = CAM_NONE;
+		pv->cam_state = CAM_FREECAM;
 		pv->cam_spec_track = 0;
 	}
 }
@@ -919,11 +940,7 @@ void Cam_TrackPlayer(int seat, char *cmdname, char *plrarg)
 		}
 	}
 
-	pv->cam_auto = CAM_TRACK;
 	Cam_Lock(pv, slot);
-	//and force the lock here and now
-	pv->cam_locked = true;
-	pv->viewentity = slot+1;
 }
 
 void Cam_Track_f(void)

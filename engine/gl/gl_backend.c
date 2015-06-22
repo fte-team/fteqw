@@ -4461,6 +4461,7 @@ static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 {
 	batch_t *batch;
+	shader_t *bs;
 	for (batch = sortlist; batch; batch = batch->next)
 	{
 		if (batch->meshes == batch->firstmesh)
@@ -4482,31 +4483,33 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			batch->buildmeshes(batch);
 		}
 
-		TRACE(("GLBE_SubmitMeshesSortList: shader %s\n", batch->shader->name));
+		bs = batch->shader;
+
+		TRACE(("GLBE_SubmitMeshesSortList: shader %s\n", bs->name));
 
 		//FIXME:!!
-		if (!batch->shader)
+		if (!bs)
 		{
 			Con_Printf("Shader not set...\n");
 			if (batch->texture)
-				batch->shader = R_TextureAnimation(0, batch->texture)->shader;
+				bs = R_TextureAnimation(0, batch->texture)->shader;
 			else
 				continue;
 		}
 
-		if (batch->shader->flags & SHADER_NODRAW)
+		if (bs->flags & SHADER_NODRAW)
 			continue;
-		if (batch->shader->flags & SHADER_NODLIGHT)
+		if (bs->flags & SHADER_NODLIGHT)
 			if (shaderstate.mode == BEM_LIGHT)
 				continue;
-		if (batch->shader->flags & SHADER_NOSHADOWS)
+		if (bs->flags & SHADER_NOSHADOWS)
 			if (shaderstate.mode == BEM_STENCIL || shaderstate.mode == BEM_DEPTHONLY)	//fixme: depthonly is not just shadows.
 				continue;
-		if (batch->shader->flags & SHADER_SKY)
+		if (bs->flags & SHADER_SKY)
 		{
 			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)// || shaderstate.mode == BEM_WIREFRAME)
 			{
-				if (!batch->shader->prog)
+				if (!bs->prog)
 				{
 					R_DrawSkyChain (batch);
 					continue;
@@ -4516,7 +4519,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 		}
 
-		if ((batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP)) && shaderstate.mode != BEM_WIREFRAME)
+		if ((bs->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP)) && shaderstate.mode != BEM_WIREFRAME)
 		{
 			int oldfbo;
 			float oldil;
@@ -4529,7 +4532,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			oldbem = shaderstate.mode;
 			oldil = shaderstate.identitylighting;
 
-			if ((batch->shader->flags & SHADER_HASREFLECT) && gl_config.ext_framebuffer_objects)
+			if ((bs->flags & SHADER_HASREFLECT) && gl_config.ext_framebuffer_objects)
 			{
 				vrect_t orect = r_refdef.vrect;
 				pxrect_t oprect = r_refdef.pxrect;
@@ -4571,7 +4574,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				r_refdef.pxrect = oprect;
 				GL_ViewportUpdate();
 			}
-			if (batch->shader->flags & (SHADER_HASREFRACT|SHADER_HASREFRACTDEPTH))
+			if (bs->flags & (SHADER_HASREFRACT|SHADER_HASREFRACTDEPTH))
 			{
 				if (r_refract_fboival)
 				{
@@ -4603,7 +4606,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 						qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 					}
-					if (batch->shader->flags & SHADER_HASREFRACTDEPTH)
+					if (bs->flags & SHADER_HASREFRACTDEPTH)
 					{
 						if (!shaderstate.tex_refractiondepth)
 						{
@@ -4634,7 +4637,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					GL_ForceDepthWritable();
 					qglClearColor(0, 0, 0, 1);
 					qglClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-					GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, ((batch->shader->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
+					GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, ((bs->flags & SHADER_HASREFRACTDEPTH)?3:2));	//fixme
 					GLBE_FBO_Pop(oldfbo);
 
 					r_refdef.vrect = ovrect;
@@ -4644,7 +4647,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				else
 					GLR_DrawPortal(batch, cl.worldmodel->batches, NULL, 3);
 			}
-			if ((batch->shader->flags & SHADER_HASRIPPLEMAP) && gl_config.ext_framebuffer_objects)
+			if ((bs->flags & SHADER_HASRIPPLEMAP) && gl_config.ext_framebuffer_objects)
 			{
 				vrect_t orect = r_refdef.vrect;
 				pxrect_t oprect = r_refdef.pxrect;
@@ -5324,19 +5327,19 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 			RSpeedRemark();
 			GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 			RSpeedEnd(RSPEED_WORLD);
-		}
 
 #ifdef RTLIGHTS
-		if (drawworld)
-		{
-			RSpeedRemark();
-			TRACE(("GLBE_DrawWorld: drawing lights\n"));
-			GLBE_SelectEntity(&r_worldentity);
-			Sh_DrawLights(vis);
-			RSpeedEnd(RSPEED_STENCILSHADOWS);
-			TRACE(("GLBE_DrawWorld: lights drawn\n"));
-		}
+			if (drawworld)
+			{
+				RSpeedRemark();
+				TRACE(("GLBE_DrawWorld: drawing lights\n"));
+				GLBE_SelectEntity(&r_worldentity);
+				Sh_DrawLights(vis);
+				RSpeedEnd(RSPEED_STENCILSHADOWS);
+				TRACE(("GLBE_DrawWorld: lights drawn\n"));
+			}
 #endif
+		}
 
 		shaderstate.identitylighting = 1;
 

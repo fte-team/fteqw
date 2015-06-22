@@ -1342,7 +1342,7 @@ void V_CalcRefdef (playerview_t *pv)
 
 	viewheight += pv->crouch;
 
-	if (pv->stats[STAT_HEALTH] < 0 && (!cl.spectator || pv->cam_locked) && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
+	if (pv->stats[STAT_HEALTH] < 0 && (!cl.spectator || pv->cam_state == CAM_EYECAM) && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
 		if (!cl.spectator || cl_chasecam.ival)
 			r_refdef.viewangles[ROLL] = 80*v_deathtilt.value;	// dead view angle
@@ -1527,21 +1527,21 @@ void R_DrawNameTags(void)
 	vec3_t tagcenter;
 	lerpents_t *le;
 
-	extern cvar_t r_showbboxes;
-	if (r_showbboxes.ival && cls.allow_cheats)
+	extern cvar_t r_showfields;
+	if (r_showfields.ival && cls.allow_cheats)
 	{
 		world_t *w = NULL;
 		wedict_t *e;
 		vec3_t org;
 		vec3_t screenspace;
 		vec3_t diff;
-		if (r_showbboxes.ival == 1)
+		if ((r_showfields.ival & 3) == 1)
 		{
 #ifndef CLIENTONLY
 			w = &sv.world;
 #endif
 		}
-		else if (r_showbboxes.ival == 2)
+		else if ((r_showfields.ival & 3) == 2)
 		{
 #ifdef CSQC_DAT
 			extern world_t csqc_world;
@@ -1549,34 +1549,55 @@ void R_DrawNameTags(void)
 #endif
 		}
 		if (w && w->progs)
-		for (i = 1; i < w->num_edicts; i++)
 		{
-			e = WEDICT_NUM(w->progs, i);
-			if (e->isfree)
-				continue;
-			VectorInterpolate(e->v->mins, 0.5, e->v->maxs, org);
-			VectorAdd(org, e->v->origin, org);
-			VectorSubtract(org, r_refdef.vieworg, diff);
-			if (DotProduct(diff, diff) > 256*256)
-				continue;
-			if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
+			int best = 0;
+			float bestscore = 0, score = 0;
+			for (i = 1; i < w->num_edicts; i++)
 			{
-				char asciibuffer[8192];
-				char *entstr;
-				int buflen;
-				int x, y;
-
-				sprintf(asciibuffer, "entity %i ", e->entnum);
-				buflen = strlen(asciibuffer);
-				entstr = w->progs->saveent(w->progs, asciibuffer, &buflen, sizeof(asciibuffer), (edict_t*)e);	//will save just one entities vars
-				if (entstr)
+				e = WEDICT_NUM(w->progs, i);
+				if (e->isfree)
+					continue;
+				VectorInterpolate(e->v->mins, 0.5, e->v->maxs, org);
+				VectorAdd(org, e->v->origin, org);
+				VectorSubtract(org, r_refdef.vieworg, diff);
+				if (DotProduct(diff, diff) < 16*16)
+					continue;	//ignore stuff too close(like the player themselves)
+				VectorNormalize(diff);
+				score = DotProduct(diff, vpn);// r_refdef.viewaxis[0]);
+				if (score > bestscore)
 				{
-					vec2_t scale = {8,8};
-					x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
-					y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
-					R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, scale);
+					vec3_t imp;
+					if (!TraceLineN(r_refdef.vieworg, org, imp, NULL))
+					{
+						best = i;
+						bestscore = score;
+					}
 				}
+			}
+			if (best)
+			{
+				e = WEDICT_NUM(w->progs, best);
+				VectorInterpolate(e->v->mins, 0.5, e->v->maxs, org);
+				VectorAdd(org, e->v->origin, org);
+				if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
+				{
+					char asciibuffer[8192];
+					char *entstr;
+					int buflen;
+					int x, y;
 
+					sprintf(asciibuffer, "entity %i ", e->entnum);
+					buflen = strlen(asciibuffer);
+					entstr = w->progs->saveent(w->progs, asciibuffer, &buflen, sizeof(asciibuffer), (edict_t*)e);	//will save just one entities vars
+					if (entstr)
+					{
+						vec2_t scale = {8,8};
+						x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
+						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
+						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, scale);
+					}
+
+				}
 			}
 		}
 	}

@@ -1937,7 +1937,31 @@ void CL_CheckServerInfo(void)
 	else if (!stricmp(s, "countdown"))
 		cl.matchstate = MATCH_COUNTDOWN;
 	else
-		cl.matchstate = MATCH_DONTKNOW;
+	{
+		float time = strtod(s, &s);
+		if (!strcmp(s, " min left") || !strcmp(s, " mins left"))
+			time *= 60;
+		else if (!strcmp(s, " sec left") || !strcmp(s, " secs left"))
+			time *= 1;
+		else if (!strcmp(s, " hour left") || !strcmp(s, " hours left"))
+			time *= 60*60;
+		else
+			time = -1;
+
+		if (time >= 0)
+		{
+			//always update it. this is to try to cope with overtime.
+			oldstate = cl.matchstate = MATCH_INPROGRESS;
+			cl.matchgametimestart = cl.gametime + time - 60*atof(Info_ValueForKey(cl.serverinfo, "timelimit"));
+		}
+		else
+		{
+			if (*s && cl.matchstate == MATCH_INPROGRESS)
+				Con_DPrintf("Match state changed to unknown meaning: %s\n", s);
+			else
+				cl.matchstate = MATCH_DONTKNOW;	//don't revert from inprogress to don't know
+		}
+	}
 	if (oldstate != cl.matchstate)
 		cl.matchgametimestart = cl.gametime;
 

@@ -59,6 +59,14 @@ int CL_TargettedSplit(qboolean nowrap)
 	char *c;
 	int pnum;
 	int mod;
+
+	//explicitly targetted at some seat number from the server
+	if (Cmd_ExecLevel > RESTRICT_SERVER)
+		return Cmd_ExecLevel - RESTRICT_SERVER-1;
+	if (Cmd_ExecLevel == RESTRICT_SERVER)
+		return 0;
+
+	//locally executed command.
 	if (nowrap)
 		mod = MAX_SPLITS;
 	else
@@ -1579,6 +1587,23 @@ qboolean CLQW_SendCmd (sizebuf_t *buf)
 
 	if (cl.sendprespawn)
 		buf->cursize = st;	//don't send movement commands while we're still supposedly downloading. mvdsv does not like that.
+	else
+	{
+		//FIXME: user a timer.
+		if (!cls.netchan.message.cursize && cl.allocated_client_slots > 1 && cl.splitclients && (cls.fteprotocolextensions & PEXT_SPLITSCREEN))
+		{
+			int targ = cl_splitscreen.ival+1;
+			if (targ > MAX_SPLITS)
+				targ = MAX_SPLITS;
+			if (cl.splitclients < targ)
+			{
+				char buffer[2048];
+				CL_SendClientCommand(true, "addseat %i %s", cl.splitclients, COM_QuotedString(cls.userinfo[cl.splitclients], buffer, sizeof(buffer), false));
+			}
+			else if (cl.splitclients > targ)
+				CL_SendClientCommand(true, "addseat %i", targ);
+		}
+	}
 
 	return dontdrop;
 }

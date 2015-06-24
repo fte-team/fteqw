@@ -94,6 +94,8 @@ cvar_t	allow_download_configs		= CVARD("allow_download_configs", "0", "1 allows 
 cvar_t	allow_download_copyrighted	= CVARD("allow_download_copyrighted", "0", "0 blocks download of packages that are considered copyrighted. Specifically, this means packages with a leading 'pak' prefix on the filename.\nIf you take your copyrights seriously, you should also set allow_download_pakmaps 0 and allow_download_pakcontents 0.");
 cvar_t	allow_download_other		= CVARD("allow_download_other", "0", "0 blocks downloading of any file that was not covered by any of the directory download blocks.");
 
+extern cvar_t sv_allow_splitscreen;
+
 cvar_t sv_serverip = CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
 cvar_t sv_public = CVAR("sv_public", "0");
 cvar_t sv_listen_qw = CVARAF("sv_listen_qw", "1", "sv_listen", 0);
@@ -1891,6 +1893,101 @@ void SV_UserDNSResolved(void *ctx, void *data, size_t idx, size_t uid)
 	Z_Free(data);
 }
 
+client_t *SV_AddSplit(client_t *controller, char *info, int id)
+{
+	client_t *cl, *prev;
+	int i;
+	int curclients;
+
+	if (!(controller->fteprotocolextensions & PEXT_SPLITSCREEN))
+	{
+		SV_PrintToClient(controller, PRINT_HIGH, "Your client doesn't support splitscreen\n");
+		return NULL;
+	}
+	
+	for (curclients = 0, prev = cl = controller; cl; cl = cl->controlled)
+	{
+		prev = cl;
+		curclients++;
+	}
+
+	if (id && curclients != id)
+		return NULL;	//this would be weird.
+
+	if (curclients >= 16)
+		return NULL;	//protocol limit on stats.
+	if (curclients >= MAX_SPLITS)
+		return NULL;
+	//only allow splitscreen if its explicitly allowed. unless its the local client in which case its always allowed.
+	//wouldn't it be awesome if we could always allow it for spectators? the join command makes that awkward, though I suppose we could just drop the extras in that case.
+	if (!sv_allow_splitscreen.ival && controller->netchan.remote_address.type != NA_LOOPBACK)
+		return NULL;
+
+	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
+	{
+		if (cl->state == cs_free)
+		{
+			break;
+		}
+	}
+	if (i == sv.allocated_client_slots)
+	{
+		SV_PrintToClient(controller, PRINT_HIGH, "not enough free player slots\n");
+		return NULL;
+	}
+
+	cl->spectator = controller->spectator;
+	cl->netchan.remote_address = controller->netchan.remote_address;
+	cl->zquake_extensions = controller->zquake_extensions;
+	cl->fteprotocolextensions = controller->fteprotocolextensions;
+	cl->fteprotocolextensions2 = controller->fteprotocolextensions2;
+	cl->penalties = controller->penalties;
+	cl->protocol = controller->protocol;
+
+
+	Q_strncatz(cl->guid, va("%s:%i", controller->guid, curclients), sizeof(cl->guid));
+	cl->name = cl->namebuf;
+	cl->team = cl->teambuf;
+
+	nextuserid++;	// so every client gets a unique id
+	cl->userid = nextuserid;
+
+	cl->playerclass = 0;
+	cl->pendingentbits = NULL;
+	cl->edict = EDICT_NUM(svprogfuncs, i+1);
+
+	prev->controlled = cl;
+	prev = cl;
+	cl->controller = prev->controller?prev->controller:host_client;
+	cl->controlled = NULL;
+
+	Q_strncpyS (cl->userinfo, info, sizeof(cl->userinfo)-1);
+	cl->userinfo[sizeof(cl->userinfo)-1] = '\0';
+
+	if (controller->spectator)
+	{
+		Info_RemoveKey (cl->userinfo, "spectator");
+		//this is a hint rather than a game breaker should it fail.
+		Info_SetValueForStarKey (cl->userinfo, "*spectator", "1", sizeof(cl->userinfo));
+	}
+	else
+		Info_RemoveKey (cl->userinfo, "*spectator");
+
+	SV_ExtractFromUserinfo (cl, true);
+	SV_GetNewSpawnParms(cl);
+
+	cl->state = controller->state;
+
+	if (cl->state >= cs_connected)
+	{
+		cl->sendinfo = true;
+		SV_SetUpClientEdict(cl, cl->edict);
+	}
+	if (cl->state >= cs_spawned)
+		SV_Begin_Core(cl);
+	return cl;
+}
+
 /*
 ==================
 SVC_DirectConnect
@@ -2806,7 +2903,13 @@ client_t *SVC_DirectConnect(void)
 		Info_SetValueForStarKey (cl->userinfo, "*spectator", "1", sizeof(cl->userinfo));
 	}
 
-	newcl->fteprotocolextensions &= ~PEXT_SPLITSCREEN;
+	//only advertise PEXT_SPLITSCREEN when splitscreen is allowed, to avoid spam. this might mean people need to reconnect after its enabled. oh well.
+	if (!sv_allow_splitscreen.ival)
+		newcl->fteprotocolextensions &= ~PEXT_SPLITSCREEN;
+
+	for (clients = 1; clients < numssclients; clients++)
+		SV_AddSplit(newcl, userinfo[clients], clients);
+#if 0
 	for (clients = 1; clients < numssclients; clients++)
 	{
 		for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
@@ -2818,8 +2921,6 @@ client_t *SVC_DirectConnect(void)
 		}
 		if (i == sv.allocated_client_slots)
 			break;
-
-		newcl->fteprotocolextensions |= PEXT_SPLITSCREEN;
 
 		temp.frameunion.frames = cl->frameunion.frames;	//don't touch these.
 		temp.edict = cl->edict;
@@ -2869,6 +2970,7 @@ client_t *SVC_DirectConnect(void)
 
 		SV_EvaluatePenalties(cl);
 	}
+#endif
 	newcl->controller = NULL;
 
 	if (!redirect)

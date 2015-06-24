@@ -464,7 +464,7 @@ typedef struct {
 	char name[PLUGMAX_SCOREBOARDNAME];
 	int ping;
 	int pl;
-	int starttime;
+	float activetime;
 	int userid;
 	int spectator;
 	char userinfo[1024];
@@ -501,7 +501,7 @@ static qintptr_t VARGS Plug_GetPlayerInfo(void *offset, quintptr_t mask, const q
 		Q_strncpyz(out->name, cl.players[i].name, PLUGMAX_SCOREBOARDNAME);
 		out->ping = cl.players[i].ping;
 		out->pl = cl.players[i].pl;
-		out->starttime = cl.players[i].entertime;
+		out->activetime = realtime - cl.players[i].realentertime;
 		out->userid = cl.players[i].userid;
 		out->spectator = cl.players[i].spectator;
 		Q_strncpyz(out->userinfo, cl.players[i].userinfo, sizeof(out->userinfo));

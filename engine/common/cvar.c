@@ -1226,6 +1226,7 @@ qboolean	Cvar_Command (int level)
 	char *str;
 	char buffer[65536];
 	int olev;
+	int seat;
 
 // check variables
 	v = Cvar_FindVar (Cmd_Argv(0));
@@ -1243,6 +1244,7 @@ qboolean	Cvar_Command (int level)
 		Con_Printf ("Server tried setting %s cvar\n", v->name);
 		return true;
 	}
+
 // perform a variable print or set
 	if (Cmd_Argc() == 1)
 	{
@@ -1291,10 +1293,21 @@ qboolean	Cvar_Command (int level)
 			Con_Printf ("Cvar %s may not be set via the console\n", v->name);
 		return true;
 	}
+
 #ifndef SERVERONLY
-	if (level > RESTRICT_SERVER)
-	{	//directed at a secondary player.
-		CL_SendClientCommand(true, "%i setinfo %s %s", level - RESTRICT_SERVER-1, v->name, COM_QuotedString(str, buffer, sizeof(buffer), false));
+	seat = CL_TargettedSplit(true);
+	if (v->flags & CVAR_USERINFO)
+	{
+		if (Cmd_FromGamecode() && cls.protocol == CP_QUAKEWORLD)
+		{	//don't bother even changing the cvar locally, just update the server's version.
+			//fixme: quake2/quake3 latching.
+			if (seat)
+				CL_SendClientCommand(true, "%i setinfo %s \"%s\"", seat+1, v->name, str);
+			else
+				CL_SendClientCommand(true, "setinfo %s \"%s\"", v->name, str);
+		}
+		else
+			CL_SetInfo(seat, v->name, str);
 		return true;
 	}
 

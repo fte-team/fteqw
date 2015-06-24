@@ -35,9 +35,6 @@ qc must build the skeletal object still, which fills the skeletal object from th
 
 #include "quakedef.h"
 
-qboolean Mod_FrameInfoForNum(model_t *model, int num, char **name, int *numframes, float *duration, qboolean *loop);
-const char *Mod_SkinNameForNum(model_t *model, int num);
-
 #if defined(RAGDOLL) || defined(SKELETALOBJECTS)
 
 #include "pr_common.h"
@@ -870,7 +867,7 @@ void skel_generateragdoll_f(void)
 		int numframes;
 		float duration;
 		qboolean loop;
-		if (!Mod_FrameInfoForNum(mod, i, &fname, &numframes, &duration, &loop))
+		if (!Mod_FrameInfoForNum(mod, 0, i, &fname, &numframes, &duration, &loop))
 			break;
 		VFS_PUTS(f, va("//%i %s (%i frames) (%f secs)%s", i, fname, numframes, duration, loop?" (loop)":""));
 	}
@@ -882,7 +879,7 @@ void skel_generateragdoll_f(void)
 	for (i = 0; i < 32768; i++)
 	{
 		const char *sname;
-		sname = Mod_SkinNameForNum(mod, i);
+		sname = Mod_SkinNameForNum(mod, 0, i);
 		if (!sname)
 			break;
 		VFS_PUTS(f, va("//%i %s", i, sname));
@@ -2193,17 +2190,15 @@ void QCBUILTIN PF_gettagindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		G_FLOAT(OFS_RETURN) = 0;
 }
 
-const char *Mod_FrameNameForNum(model_t *model, int num);
-const char *Mod_SkinNameForNum(model_t *model, int num);
-
 //string(float modidx, float framenum) frametoname
 void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	unsigned int skinnum = G_FLOAT(OFS_PARM1);
+	int surfaceidx = 0;
 	model_t *mod = w->Get_CModel(w, modelindex);
-	const char *n = Mod_FrameNameForNum(mod, skinnum);
+	const char *n = Mod_FrameNameForNum(mod, surfaceidx, skinnum);
 
 	if (n)
 		RETURN_TSTRING(n);
@@ -2215,11 +2210,12 @@ void QCBUILTIN PF_frameforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 {
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	int surfaceidx = 0;
 	char *str = PF_VarString(prinst, 1, pr_globals);
 	model_t *mod = w->Get_CModel(w, modelindex);
 
 	if (mod)
-		G_FLOAT(OFS_RETURN) = Mod_FrameNumForName(mod, str);
+		G_FLOAT(OFS_RETURN) = Mod_FrameNumForName(mod, surfaceidx, str);
 	else
 		G_FLOAT(OFS_RETURN) = -1;
 }
@@ -2228,10 +2224,11 @@ void QCBUILTIN PF_frameduration (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	unsigned int framenum = G_FLOAT(OFS_PARM1);
+	int surfaceidx = 0;
 	model_t *mod = w->Get_CModel(w, modelindex);
 
 	if (mod)
-		G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, framenum);
+		G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, surfaceidx, framenum);
 	else
 		G_FLOAT(OFS_RETURN) = 0;
 }
@@ -2242,8 +2239,9 @@ void QCBUILTIN PF_skintoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	unsigned int skinnum = G_FLOAT(OFS_PARM1);
+	int surfaceidx = 0;
 	model_t *mod = w->Get_CModel(w, modelindex);
-	const char *n = Mod_SkinNameForNum(mod, skinnum);
+	const char *n = Mod_SkinNameForNum(mod, surfaceidx, skinnum);
 
 	if (n)
 		RETURN_TSTRING(n);
@@ -2256,10 +2254,11 @@ void QCBUILTIN PF_skinforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	world_t *w = prinst->parms->user;
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	char *str = PF_VarString(prinst, 1, pr_globals);
+	int surfaceidx = 0;
 	model_t *mod = w->Get_CModel(w, modelindex);
 
 	if (mod)
-		G_FLOAT(OFS_RETURN) = Mod_SkinNumForName(mod, str);
+		G_FLOAT(OFS_RETURN) = Mod_SkinNumForName(mod, surfaceidx, str);
 	else
 #endif
 		G_FLOAT(OFS_RETURN) = -1;

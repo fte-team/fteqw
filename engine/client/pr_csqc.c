@@ -3090,11 +3090,16 @@ static void QCBUILTIN PF_cs_getplayerkey (pubprogfuncs_t *prinst, struct globalv
 		ret = buffer;
 		sprintf(ret, "%i", cl.players[pnum].pl);
 	}
-	else if (!strcmp(keyname, "entertime"))	//packet loss
+	else if (!strcmp(keyname, "activetime"))	//packet loss
 	{
 		ret = buffer;
-		sprintf(ret, "%i", (int)cl.players[pnum].entertime);
+		sprintf(ret, "%f", realtime - cl.players[pnum].realentertime);
 	}
+//	else if (!strcmp(keyname, "entertime"))	//packet loss
+//	{
+//		ret = buffer;
+//		sprintf(ret, "%i", (int)cl.players[pnum].entertime);
+//	}
 	else if (!strcmp(keyname, "topcolor_rgb"))	//packet loss
 	{
 		unsigned int col = cl.players[pnum].ttopcolor;

@@ -2581,6 +2581,7 @@ typedef struct
 		MV_BONES,
 		MV_SHADER
 	} mode;
+	int surfaceidx;
 	int skingroup;
 	int framegroup;
 	double framechangetime;
@@ -2619,9 +2620,7 @@ static unsigned int genhsv(float h_, float s, float v)
 		((int)(r*255)<<16) |
 		((int)(g*255)<<8) |
 		((int)(b*255)<<0);
-};
-const char *Mod_FrameNameForNum(model_t *model, int num);
-const char *Mod_SkinNameForNum(model_t *model, int num);
+}
 
 #include "com_mesh.h"
 #ifdef SKELETALMODELS
@@ -2650,6 +2649,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	entity_t ent;
 	vec3_t fwd, rgt, up;
 	const char *fname;
+	shader_t *shader;
 	vec2_t fs = {8,8};
 
 	modelview_t *mods = c->dptr;
@@ -2713,15 +2713,27 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 
 	y = 0;
 
-	fname = Mod_FrameNameForNum(ent.model, mods->framegroup);
+	fname = Mod_SurfaceNameForNum(ent.model, mods->surfaceidx);
 	if (!fname)
-		fname = "Unknown Frame";
-	Draw_FunString(0, y, va("%i: %s", mods->framegroup, fname));
+		fname = "Unknown Surface";
+	Draw_FunString(0, y, va("Surf %i: %s", mods->surfaceidx, fname));
 	y+=8;
-	fname = Mod_SkinNameForNum(ent.model, mods->skingroup);
+	
+	{
+		char *fname;
+		int numframes = 0;
+		float duration = 0;
+		qboolean loop = false;
+		if (!Mod_FrameInfoForNum(ent.model, mods->surfaceidx, mods->framegroup, &fname, &numframes, &duration, &loop))
+			fname = "Unknown Frame";
+		Draw_FunString(0, y, va("Frame%i: %s (%i poses, %f secs, %s)", mods->framegroup, fname, numframes, duration, loop?"looped":"unlooped"));
+		y+=8;
+	}
+	fname = Mod_SkinNameForNum(ent.model, mods->surfaceidx, mods->skingroup);
 	if (!fname)
 		fname = "Unknown Skin";
-	Draw_FunString(0, y, va("%i: %s", mods->skingroup, fname));
+	shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup);
+	Draw_FunString(0, y, va("Skin %i: (%s) %s", mods->skingroup, fname, shader?shader->name:"NO SHADER"));
 	y+=8;
 
 	switch(mods->mode)
@@ -2759,7 +2771,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 		{
 			if (!mods->shadertext)
 			{
-				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->skingroup));
+				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup));
 				mods->shadertext = Z_StrDup(body);
 			}
 			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+16, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
@@ -2814,16 +2826,32 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct menu_s *m, int k
 	{
 		mods->skingroup += 1;
 		mods->skinchangetime = realtime;
+		Z_Free(mods->shadertext);
+		mods->shadertext = NULL;
 	}
 	else if (key == K_PGDN)
 	{
 		mods->framegroup = max(0, mods->framegroup-1);
 		mods->framechangetime = realtime;
+		Z_Free(mods->shadertext);
+		mods->shadertext = NULL;
 	}
 	else if (key == K_PGUP)
 	{
 		mods->framegroup += 1;
 		mods->framechangetime = realtime;
+	}
+	else if (key == K_INS)
+	{
+		mods->surfaceidx = max(0, mods->surfaceidx-1);
+		Z_Free(mods->shadertext);
+		mods->shadertext = NULL;
+	}
+	else if (key == K_DEL)
+	{
+		mods->surfaceidx += 1;
+		Z_Free(mods->shadertext);
+		mods->shadertext = NULL;
 	}
 	else
 		return false;

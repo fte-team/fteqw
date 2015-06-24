@@ -136,6 +136,20 @@ static float CL_TrackScore(player_info_t *pl, char *rule)
 	}
 	return score;
 }
+static qboolean CL_MayTrack(int seat, int player)
+{
+	if (player < 0)
+		return false;
+	if (!cl.players[player].userid || !cl.players[player].name[0] || cl.players[player].spectator)
+		return false;
+	for (seat--; seat >= 0; seat--)
+	{
+		//not valid if an earlier view is tracking it.
+		if (Cam_TrackNum(&cl.playerview[seat]) == player)
+			return false;
+	}
+	return true;
+}
 //returns the player with the highest frags
 static int CL_FindHighTrack(int seat, char *rule)
 {
@@ -146,7 +160,7 @@ static int CL_FindHighTrack(int seat, char *rule)
 
 	//set a default to the currently tracked player, to reuse the current player we're tracking if someone lower equalises.
 	j = cl.playerview[seat].cam_spec_track;
-	if (j >= 0 && cl.players[j].userid && cl.players[j].name[0] && !cl.players[j].spectator)
+	if (CL_MayTrack(seat, j))
 		max = CL_TrackScore(&cl.players[j], rule);
 	else
 	{
@@ -158,23 +172,16 @@ static int CL_FindHighTrack(int seat, char *rule)
 	{
 		s = &cl.players[i];
 		score = CL_TrackScore(s, rule);
-		if (s->userid && s->name[0] && !s->spectator && score > max)
+		if (score > max)
 		{
 			if (j == i)	//this was our default.
 				continue;
-			//skip it if an earlier seat is watching it already
-			for (k = 0; k < seat; k++)
-			{
-				if (Cam_TrackNum(&cl.playerview[k]) == i)
-					break;
-			}
+			if (!CL_MayTrack(seat, i))
+				continue;
 			if (cl.teamplay && seat && cl.playerview[0].cam_spec_track >= 0 && strcmp(cl.players[cl.playerview[0].cam_spec_track].team, s->team))
 				continue;	//when using multiview, keep tracking the team
-			if (k == seat)
-			{
-				max = CL_TrackScore(s, rule);
-				j = i;
-			}
+			max = CL_TrackScore(s, rule);
+			j = i;
 		}
 	}
 	return j;
@@ -224,7 +231,7 @@ qboolean Cam_DrawViewModel(playerview_t *pv)
 
 int Cam_TrackNum(playerview_t *pv)
 {
-	if (pv->cam_state == CAM_EYECAM)
+	if (cl.spectator && pv->cam_state == CAM_EYECAM)
 		return pv->cam_spec_track;
 	return -1;
 }

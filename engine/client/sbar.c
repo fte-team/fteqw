@@ -3113,10 +3113,7 @@ ping time frags name
 })
 #define COLUMN_TIME COLUMN(time, 4*8,					\
 {														\
-	if (cl.intermission)								\
-		total = cl.completed_time - s->entertime;		\
-	else												\
-		total = cl.servertime - s->entertime;			\
+	total = realtime - s->realentertime;				\
 	minutes = (int)total/60;							\
 	sprintf (num, "%4i", minutes);						\
 	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\

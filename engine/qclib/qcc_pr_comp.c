@@ -6008,7 +6008,10 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 			char *tname;
 			unsigned int i;
 			if (!idx.cast && t->type == ev_pointer && !arraysize)
+			{
 				t = t->aux_type;
+				dereference = true;
+			}
 			tname = t->name;
 
 			if (t->type == ev_struct || t->type == ev_union)
@@ -10071,6 +10074,10 @@ pbool QCC_CheckUninitialised(int firststatement, int laststatement)
 	unsigned int paramend = FIRST_LOCAL;
 	QCC_type_t *type = pr_scope->type;
 	int err;
+
+	//assume all, because we don't care for optimisations once we know we're not going to compile anything (removes warning about uninitialised unknown variables/typos).
+	if (pr_error_count)
+		return true;
 
 	for (i = 0; i < type->num_parms; i++)
 	{

@@ -552,7 +552,7 @@ void CL_CalcClientTime(void)
 	}
 	else// if (cls.protocol != CP_QUAKE3)
 	{
-		float oldst = realtime;
+//		float oldst = realtime;
 
 		if (cls.demoplayback && cls.timedemo)
 		{	//more deterministic. one frame is drawn per demo packet parsed. so sync to it as closely as possible.
@@ -574,7 +574,7 @@ void CL_CalcClientTime(void)
 		{
 			float min, max;
 
-			oldst = cl.servertime;
+//			oldst = cl.servertime;
 
 			max = cl.gametime;
 			min = cl.oldgametime;
@@ -624,7 +624,7 @@ void CL_CalcClientTime(void)
 			}
 		}
 		cl.time = cl.servertime;
-		if (oldst == 0)
+/*		if (oldst == 0)
 		{
 			int i;
 			for (i = 0; i < cl.allocated_client_slots; i++)
@@ -632,9 +632,11 @@ void CL_CalcClientTime(void)
 				cl.players[i].entertime += cl.servertime;
 			}
 		}
+*/
 		return;
 	}
 
+#if 0
 	if (cls.protocol == CP_NETQUAKE || (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV))
 	{
 		float want;
@@ -669,6 +671,7 @@ void CL_CalcClientTime(void)
 		if (cl.time > realtime)
 			cl.time = realtime;
 	}
+#endif
 }
 
 static void CL_DecodeStateSize(unsigned short solid, int modelindex, vec3_t mins, vec3_t maxs)
@@ -894,7 +897,10 @@ void CL_PredictMovePNum (int seat)
 	pv->nolocalplayer = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || (cls.protocol != CP_QUAKEWORLD);
 
 	if (!cl.spectator)	//just in case
+	{
 		pv->cam_state = CAM_FREECAM;
+		pv->cam_spec_track = -1;
+	}
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)

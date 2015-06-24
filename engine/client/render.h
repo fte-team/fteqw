@@ -432,9 +432,9 @@ skinfile_t *Mod_LookupSkin(skinid_t id);
 void	Mod_Init (qboolean initial);
 void Mod_Shutdown (qboolean final);
 int Mod_TagNumForName(struct model_s *model, const char *name);
-int Mod_SkinNumForName(struct model_s *model, const char *name);
-int Mod_FrameNumForName(struct model_s *model, const char *name);
-float Mod_GetFrameDuration(struct model_s *model, int frameno);
+int Mod_SkinNumForName(struct model_s *model, int surfaceidx, const char *name);
+int Mod_FrameNumForName(struct model_s *model, int surfaceidx, const char *name);
+float Mod_GetFrameDuration(struct model_s *model, int surfaceidx, int frameno);
 
 void Mod_ResortShaders(void);
 void	Mod_ClearAll (void);

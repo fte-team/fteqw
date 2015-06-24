@@ -3655,6 +3655,48 @@ void SV_Pause_f (void)
 
 }
 
+static void SV_UpdateSeats(client_t *controller)
+{
+	client_t *cl, *prev;
+	int curclients;
+	
+	for (curclients = 0, cl = controller; cl; cl = cl->controlled)
+	{
+		prev = cl;
+		curclients++;
+	}
+
+	ClientReliableWrite_Begin(controller, svc_signonnum, 2+curclients);
+	ClientReliableWrite_Byte(controller, curclients);
+	for (curclients = 0, cl = controller; cl; cl = cl->controlled, curclients++)
+	{
+		ClientReliableWrite_Byte(controller, cl - svs.clients);
+	}
+
+	for (curclients = 0, cl = controller; cl; cl = cl->controlled, curclients++)
+	{
+// send a fixangle over the reliable channel to make sure it gets there
+// Never send a roll angle, because savegames can catch the server
+// in a state where it is expecting the client to correct the angle
+// and it won't happen if the game was just loaded, so you wind up
+// with a permanent head tilt
+		ClientReliableWrite_Begin(controller, svcfte_choosesplitclient, 2+curclients);
+		ClientReliableWrite_Byte (controller, curclients);
+		ClientReliableWrite_Byte (controller, svc_setangle);
+		if (cl->edict->v->fixangle)
+		{
+			ClientReliableWrite_Angle(controller, cl->edict->v->angles[0]);
+			ClientReliableWrite_Angle(controller, cl->edict->v->angles[1]);
+			ClientReliableWrite_Angle(controller, 0);//cl->edict->v->angles[2]);
+		}
+		else
+		{
+			ClientReliableWrite_Angle(controller, cl->edict->v->v_angle[0]);
+			ClientReliableWrite_Angle(controller, cl->edict->v->v_angle[1]);
+			ClientReliableWrite_Angle(controller, 0);//cl->edict->v->v_angle[2]);
+		}
+	}
+}
 
 /*
 =================
@@ -3666,6 +3708,7 @@ The client is going to disconnect, so remove the connection immediately
 void SV_Drop_f (void)
 {
 	extern cvar_t sv_fullredirect;
+	client_t *prev;
 
 	SV_EndRedirect ();
 	if (!host_client->drop)
@@ -3680,6 +3723,26 @@ void SV_Drop_f (void)
 				SV_BroadcastTPrintf (PRINT_HIGH, "%s dropped\n", host_client->name);
 		}
 		host_client->drop = true;
+	}
+
+	//if splitscreen, orphan the dropper
+	if (host_client->controller)
+	{
+		for (prev = host_client->controller; prev; prev = prev->controlled)
+		{
+			if (prev->controlled == host_client)
+			{
+				prev->controlled = host_client->controlled;
+				host_client->netchan.remote_address.type = NA_INVALID;	//so the remaining client doesn't get the kick too.
+				host_client->protocol = SCP_BAD;	//make it a bit like a bot, so we don't try sending any datagrams/reliables at someone that isn't able to receive anything.
+
+				SV_UpdateSeats(host_client->controller);
+				host_client->controller->joinobservelockeduntil = realtime + 3;
+				host_client->controlled = NULL;
+				host_client->controller = NULL;
+				break;
+			}
+		}
 	}
 }
 
@@ -4494,6 +4557,78 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	ent->v->frags = 0;
 	cl->connection_started = realtime;
 }
+
+//dynamically add/remove a splitscreen client
+static void Cmd_AddSeat_f(void)
+{
+	client_t *cl, *prev;
+	qboolean changed = false;
+	//don't allow an altseat to add. paranoia.
+	if (host_client->controller)
+		return;
+
+	if (host_client->state != cs_spawned)
+		return;
+
+	if (!(host_client->fteprotocolextensions & PEXT_SPLITSCREEN))
+		return;
+
+	if (Cmd_Argc()>1)
+	{
+		int num = atoi(Cmd_Argv(1));
+		int count;
+
+		if (!num || host_client->joinobservelockeduntil > realtime)
+			return;
+		host_client->joinobservelockeduntil = realtime + 2;
+
+		for (count = 1, prev = host_client, cl = host_client->controlled; cl; cl = cl->controlled)
+		{
+			if (count >= num)
+			{
+				for(; cl; cl = prev->controlled)
+				{
+					//unlink it
+					prev->controlled = cl->controlled;
+					cl->controller = NULL;
+					cl->controlled = NULL;
+
+					//make it into a pseudo-bot
+					cl->netchan.remote_address.type = NA_INVALID;	//so the remaining client doesn't get the kick too.
+					cl->protocol = SCP_BAD;	//make it a bit like a bot, so we don't try sending any datagrams/reliables at someone that isn't able to receive anything.
+
+					//okay, it can get lost now.
+					cl->drop = true;
+				}
+				host_client->controller->joinobservelockeduntil = realtime + 3;
+				changed = true;
+				break;
+			}
+			prev = cl;
+			count++;
+		}
+	
+		if (!changed && count <= num)
+			changed = !!SV_AddSplit(host_client, Cmd_Argv(2), num);
+	}
+	else
+	{
+		cl = NULL;
+/*		if (host_client->joinobservelockeduntil > realtime)
+		{
+			SV_TPrintToClient(host_client, PRINT_HIGH, va("Please wait %.1g more seconds\n", host_client->joinobservelockeduntil-realtime));
+			return;
+		}
+		host_client->joinobservelockeduntil = realtime + 2;
+
+		cl = SV_AddSplit(host_client, host_client->userinfo, 0);
+*/
+	}
+
+	if (cl || changed)
+		SV_UpdateSeats(host_client);
+}
+
 /*
 ==================
 Cmd_Join_f
@@ -4825,6 +4960,9 @@ void Cmd_FPSList_f(void)
 
 void SV_EnableClientsCSQC(void)
 {
+	if (host_client->controller)
+		return;
+
 #ifdef PEXT_CSQC
 //	if ((host_client->fteprotocolextensions & PEXT_CSQC) || atoi(Cmd_Argv(1)))
 	{
@@ -5314,6 +5452,7 @@ ucmd_t ucmds[] =
 	{"nextdl", SV_NextDownload_f, true},
 
 	/*quakeworld specific things*/
+	{"addseat", Cmd_AddSeat_f},
 	{"join", Cmd_Join_f},
 	{"observe", Cmd_Observe_f},
 	{"snap", SV_NoSnap_f},

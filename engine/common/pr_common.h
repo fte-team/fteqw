@@ -33,6 +33,7 @@ struct wedict_s
 	/*the above is shared with qclib*/
 	link_t	area;
 	pvscache_t pvsinfo;
+	int lastruntime;
 
 #ifdef USERBE
 	entityode_t ode;

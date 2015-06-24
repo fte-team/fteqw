@@ -2083,9 +2083,10 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	else
 #endif
 	{
-		if ((unsigned int)ent->v->lastruntime == w->framenum)
+		if (ent->lastruntime == w->framenum)
 			return;
-		ent->v->lastruntime = w->framenum;
+		ent->lastruntime = w->framenum;
+		ent->v->lastruntime = w->physicstime;
 #ifndef CLIENTONLY
 		svent = NULL;
 #endif
@@ -2439,7 +2440,7 @@ qboolean SV_Physics (void)
 			old_bot_time = newbottime;
 			for (i = 1; i <= sv.allocated_client_slots; i++)
 			{
-				if (svs.clients[i-1].state && svs.clients[i-1].protocol == SCP_BAD)
+				if (svs.clients[i-1].state > cs_zombie && svs.clients[i-1].protocol == SCP_BAD)
 				{	//then this is a bot
 					oldhost = host_client;
 					oldplayer = sv_player;

@@ -147,9 +147,9 @@ extern const char *Mod_FixName					(const char *modname, const char *worldname);
 char *Mod_ParseWorldspawnKey					(const char *ents, const char *key, char *buffer, size_t sizeofbuffer);
 
 extern void	Mod_Think							(void);
-extern int Mod_SkinNumForName					(struct model_s *model, const char *name);
-extern int Mod_FrameNumForName					(struct model_s *model, const char *name);
-extern float Mod_GetFrameDuration				(struct model_s *model, int framenum);
+extern int Mod_SkinNumForName					(struct model_s *model, int surfaceidx, const char *name);
+extern int Mod_FrameNumForName					(struct model_s *model, int surfaceidx, const char *name);
+extern float Mod_GetFrameDuration				(struct model_s *model, int surfaceidx, int framenum);
 
 #undef FNC
 

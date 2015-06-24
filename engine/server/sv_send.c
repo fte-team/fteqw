@@ -837,6 +837,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 			}
 
+			if (client->penalties & BAN_BLIND)
+				continue;
+
 			if (pnum >= 0)
 			{
 				if (pnum != j)
@@ -844,31 +847,32 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			}
 			else if (svprogfuncs)
 			{
-				if (!((int)client->edict->xv->dimension_see & dimension_mask))
-					continue;
-
-				if (!mask)	//no pvs? broadcast.
-					goto inrange;
-
-				if (client->penalties & BAN_BLIND)
-					continue;
-
-				if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
+				client_t *seat = client;
+				for(seat = client; seat; seat = seat->controlled)
 				{
-					vec3_t delta;
-					VectorSubtract(origin, client->edict->v->origin, delta);
-					if (DotProduct(delta, delta) <= 1024*1024)
-						goto inrange;
-				}
-
-				{
-					vec3_t pos;
-					VectorAdd(client->edict->v->origin, client->edict->v->view_ofs, pos);
-					cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos);
-					if (cluster>= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )
-					{
-		//				Con_Printf ("PVS supressed multicast\n");
+					if (!((int)seat->edict->xv->dimension_see & dimension_mask))
 						continue;
+
+					if (!mask)	//no pvs? broadcast.
+						goto inrange;
+
+					if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
+					{
+						vec3_t delta;
+						VectorSubtract(origin, seat->edict->v->origin, delta);
+						if (DotProduct(delta, delta) <= 1024*1024)
+							goto inrange;
+					}
+
+					{
+						vec3_t pos;
+						VectorAdd(seat->edict->v->origin, seat->edict->v->view_ofs, pos);
+						cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos);
+						if (cluster>= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )
+						{
+			//				Con_Printf ("PVS supressed multicast\n");
+							continue;
+						}
 					}
 				}
 			}

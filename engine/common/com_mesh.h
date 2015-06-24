@@ -209,8 +209,12 @@ void Mod_DestroyMesh(galiasinfo_t *galias);
 void Alias_FlushCache(void);
 void Alias_Shutdown(void);
 void Alias_Register(void);
-shader_t *Mod_ShaderForSkin(model_t *model, int num);
-const char *Mod_SkinNameForNum(model_t *model, int num);
+shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num);
+const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num);
+const char *Mod_SurfaceNameForNum(model_t *model, int num);
+const char *Mod_FrameNameForNum(model_t *model, int surfaceidx, int num);
+const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num);
+qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop);
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 

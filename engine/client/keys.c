@@ -419,7 +419,7 @@ int Con_ExecuteLine(console_t *con, char *line)
 		waschat = true;
 		if (keydown[K_CTRL])
 			Cbuf_AddText ("say_team ", RESTRICT_LOCAL);
-		else if (keydown[K_SHIFT])
+		else if (keydown[K_SHIFT] || *line == ' ')
 			Cbuf_AddText ("say ", RESTRICT_LOCAL);
 		else
 			waschat = false;

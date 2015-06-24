@@ -159,7 +159,7 @@ typedef struct player_info_s
 	// scoreboard information
 	char	name[MAX_SCOREBOARDNAME];
 	char	team[MAX_INFO_KEY];
-	float	entertime;
+	float	realentertime;	//pegged against realtime, to cope with potentially not knowing the server's time when we first receive this message
 	int		frags;
 	int		ping;
 	qbyte	pl;
@@ -826,7 +826,7 @@ typedef struct
 
 	double matchgametimestart;
 	enum {
-		MATCH_DONTKNOW,
+		MATCH_DONTKNOW,	//assumed to be in progress.
 		MATCH_COUNTDOWN,
 		MATCH_STANDBY,
 		MATCH_INPROGRESS

@@ -3512,6 +3512,8 @@ static void QCBUILTIN PF_spawnclient (pubprogfuncs_t *prinst, struct globalvars_
 			svs.clients[i].datagram.allowoverflow = true;
 			svs.clients[i].datagram.maxsize = 0;
 
+			svs.clients[i].edict = EDICT_NUM(prinst, i+1);
+
 			SV_SetUpClientEdict (&svs.clients[i], svs.clients[i].edict);
 
 			RETURN_EDICT(prinst, svs.clients[i].edict);

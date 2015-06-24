@@ -4169,7 +4169,7 @@ int Mod_TagNumForName(model_t *model, const char *name)
 	return 0;
 }
 
-int Mod_FrameNumForName(model_t *model, const char *name)
+int Mod_FrameNumForName(model_t *model, int surfaceidx, const char *name)
 {
 	galiasanimation_t *group;
 	galiasinfo_t *inf;
@@ -4186,17 +4186,22 @@ int Mod_FrameNumForName(model_t *model, const char *name)
 
 	inf = Mod_Extradata(model);
 
-	group = inf->ofsanimations;
-	for (i = 0; i < inf->numanimations; i++, group++)
+	while(surfaceidx-->0 && inf)
+		inf = inf->nextsurf;
+	if (inf)
 	{
-		if (!strcmp(group->name, name))
-			return i;
+		group = inf->ofsanimations;
+		for (i = 0; i < inf->numanimations; i++, group++)
+		{
+			if (!strcmp(group->name, name))
+				return i;
+		}
 	}
 	return -1;
 }
 
 #ifndef SERVERONLY
-int Mod_SkinNumForName(model_t *model, const char *name)
+int Mod_SkinNumForName(model_t *model, int surfaceidx, const char *name)
 {
 	int i;
 	galiasinfo_t *inf;
@@ -4206,18 +4211,22 @@ int Mod_SkinNumForName(model_t *model, const char *name)
 		return -1;
 	inf = Mod_Extradata(model);
 
-	skin = inf->ofsskins;
-	for (i = 0; i < inf->numskins; i++, skin++)
+	while(surfaceidx-->0 && inf)
+		inf = inf->nextsurf;
+	if (inf)
 	{
-		if (!strcmp(skin->name, name))
-			return i;
+		skin = inf->ofsskins;
+		for (i = 0; i < inf->numskins; i++, skin++)
+		{
+			if (!strcmp(skin->name, name))
+				return i;
+		}
 	}
-
 	return -1;
 }
 #endif
 
-const char *Mod_FrameNameForNum(model_t *model, int num)
+const char *Mod_FrameNameForNum(model_t *model, int surfaceidx, int num)
 {
 	galiasanimation_t *group;
 	galiasinfo_t *inf;
@@ -4229,13 +4238,16 @@ const char *Mod_FrameNameForNum(model_t *model, int num)
 
 	inf = Mod_Extradata(model);
 
-	if (num >= inf->numanimations)
+	while(surfaceidx-->0 && inf)
+		inf = inf->nextsurf;
+
+	if (!inf || num >= inf->numanimations)
 		return NULL;
 	group = inf->ofsanimations;
 	return group[num].name;
 }
 
-qboolean Mod_FrameInfoForNum(model_t *model, int num, char **name, int *numframes, float *duration, qboolean *loop)
+qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop)
 {
 	galiasanimation_t *group;
 	galiasinfo_t *inf;
@@ -4247,7 +4259,10 @@ qboolean Mod_FrameInfoForNum(model_t *model, int num, char **name, int *numframe
 
 	inf = Mod_Extradata(model);
 
-	if (num >= inf->numanimations)
+	while(surfaceidx-->0 && inf)
+		inf = inf->nextsurf;
+
+	if (!inf || num >= inf->numanimations)
 		return false;
 	group = inf->ofsanimations;
 
@@ -4259,7 +4274,7 @@ qboolean Mod_FrameInfoForNum(model_t *model, int num, char **name, int *numframe
 }
 
 #ifndef SERVERONLY
-shader_t *Mod_ShaderForSkin(model_t *model, int num)
+shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num)
 {
 	galiasinfo_t *inf;
 	galiasskin_t *skin;
@@ -4268,13 +4283,16 @@ shader_t *Mod_ShaderForSkin(model_t *model, int num)
 		return NULL;
 	inf = Mod_Extradata(model);
 
-	if (num >= inf->numskins)
+	while(surfaceidx-->0 && inf)
+		inf = inf->nextsurf;
+
+	if (!inf || num >= inf->numskins)
 		return NULL;
 	skin = inf->ofsskins;
 	return skin[num].frame[0].shader;
 }
 #endif
-const char *Mod_SkinNameForNum(model_t *model, int num)
+const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num)
 {
 #ifdef SERVERONLY
 	return NULL;
@@ -4286,17 +4304,39 @@ const char *Mod_SkinNameForNum(model_t *model, int num)
 		return NULL;
 	inf = Mod_Extradata(model);
 
-	if (num >= inf->numskins)
+	while(surfaceidx-->0 && inf)
+		inf = inf->nextsurf;
+	if (!inf || num >= inf->numskins)
 		return NULL;
 	skin = inf->ofsskins;
-	if (!*skin[num].name)
-		return skin[num].frame[0].shadername;
-	else
+//	if (!*skin[num].name)
+//		return skin[num].frame[0].shadername;
+//	else
 		return skin[num].name;
 #endif
 }
 
-float Mod_GetFrameDuration(model_t *model, int frameno)
+const char *Mod_SurfaceNameForNum(model_t *model, int num)
+{
+#ifdef SERVERONLY
+	return NULL;
+#else
+	galiasinfo_t *inf;
+
+	if (!model || model->type != mod_alias)
+		return NULL;
+	inf = Mod_Extradata(model);
+
+	while(num-->0 && inf)
+		inf = inf->nextsurf;
+	if (inf)
+		return inf->surfacename;
+	else
+		return NULL;
+#endif
+}
+
+float Mod_GetFrameDuration(model_t *model, int surfaceidx, int frameno)
 {
 	galiasinfo_t *inf;
 	galiasanimation_t *group;
@@ -4304,12 +4344,20 @@ float Mod_GetFrameDuration(model_t *model, int frameno)
 	if (!model || model->type != mod_alias)
 		return 0;
 	inf = Mod_Extradata(model);
+	
+	while(surfaceidx-->0 && inf)
+		inf = inf->nextsurf;
 
-	group = inf->ofsanimations;
-	if (frameno < 0 || frameno >= inf->numanimations)
-		return 0;
-	group += frameno;
-	return group->numposes/group->rate;
+	if (inf)
+	{
+		group = inf->ofsanimations;
+		if (frameno >= 0 && frameno < inf->numanimations)
+		{
+			group += frameno;
+			return group->numposes/group->rate;
+		}
+	}
+	return 0;
 }
 
 
@@ -6476,6 +6524,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 			skin++;
 
 			Q_strncpyz(skinframe[j].shadername, strings+mesh[i].material, sizeof(skinframe[j].shadername));
+			skinframe++;
 		}
 #endif
 

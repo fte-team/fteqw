@@ -6099,6 +6099,24 @@ void CLQW_ParseServerMessage (void)
 			Cbuf_Execute ();		// make sure any stuffed commands are done
  			CLQW_ParseServerData ();
 			break;
+		case svc_signonnum:
+			cl.splitclients = MSG_ReadByte();
+			for (i = 0; i < cl.splitclients && i < 4; i++)
+			{
+				cl.playerview[i].playernum = MSG_ReadByte();
+				cl.playerview[i].viewentity = cl.playerview[i].playernum+1;
+			}
+			if (i < cl.splitclients)
+			{
+				Con_Printf("Server sent us too many seats!\n");
+				for (; i < cl.splitclients; i++)
+				{	//svcfte_choosesplitclient has a modulo that is also broken, but at least there's no parse errors this way
+					MSG_ReadByte();
+//					CL_SendClientCommand(true, va("%i drop", i+1));
+				}
+				cl.splitclients = MAX_SPLITS;
+			}
+			break;
 #ifdef PEXT_SETVIEW
 		case svc_setview:
 			if (!(cls.fteprotocolextensions & PEXT_SETVIEW))
@@ -6224,7 +6242,7 @@ void CLQW_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i >= MAX_CLIENTS)
 				Host_EndGame ("CL_ParseServerMessage: svc_updateentertime > MAX_SCOREBOARD");
-			cl.players[i].entertime = cl.servertime - MSG_ReadFloat ();
+			cl.players[i].realentertime = realtime - MSG_ReadFloat ();
 			break;
 
 		case svc_spawnbaseline:

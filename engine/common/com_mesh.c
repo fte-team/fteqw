@@ -6026,114 +6026,114 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 
 struct iqmheader
 {
-    char magic[16];
-    unsigned int version;
-    unsigned int filesize;
-    unsigned int flags;
-    unsigned int num_text, ofs_text;
-    unsigned int num_meshes, ofs_meshes;
-    unsigned int num_vertexarrays, num_vertexes, ofs_vertexarrays;
-    unsigned int num_triangles, ofs_triangles, ofs_adjacency;
-    unsigned int num_joints, ofs_joints;
-    unsigned int num_poses, ofs_poses;
-    unsigned int num_anims, ofs_anims;
-    unsigned int num_frames, num_framechannels, ofs_frames, ofs_bounds;
-    unsigned int num_comment, ofs_comment;
-    unsigned int num_extensions, ofs_extensions;
+	char magic[16];
+	unsigned int version;
+	unsigned int filesize;
+	unsigned int flags;
+	unsigned int num_text, ofs_text;
+	unsigned int num_meshes, ofs_meshes;
+	unsigned int num_vertexarrays, num_vertexes, ofs_vertexarrays;
+	unsigned int num_triangles, ofs_triangles, ofs_adjacency;
+	unsigned int num_joints, ofs_joints;
+	unsigned int num_poses, ofs_poses;
+	unsigned int num_anims, ofs_anims;
+	unsigned int num_frames, num_framechannels, ofs_frames, ofs_bounds;
+	unsigned int num_comment, ofs_comment;
+	unsigned int num_extensions, ofs_extensions;
 };
 
 struct iqmmesh
 {
-    unsigned int name;
-    unsigned int material;
-    unsigned int first_vertex, num_vertexes;
-    unsigned int first_triangle, num_triangles;
+	unsigned int name;
+	unsigned int material;
+	unsigned int first_vertex, num_vertexes;
+	unsigned int first_triangle, num_triangles;
 };
 
 enum
 {
-    IQM_POSITION     = 0,
-    IQM_TEXCOORD     = 1,
-    IQM_NORMAL       = 2,
-    IQM_TANGENT      = 3,
-    IQM_BLENDINDEXES = 4,
-    IQM_BLENDWEIGHTS = 5,
-    IQM_COLOR        = 6,
-    IQM_CUSTOM       = 0x10
+	IQM_POSITION     = 0,
+	IQM_TEXCOORD     = 1,
+	IQM_NORMAL       = 2,
+	IQM_TANGENT      = 3,
+	IQM_BLENDINDEXES = 4,
+	IQM_BLENDWEIGHTS = 5,
+	IQM_COLOR        = 6,
+	IQM_CUSTOM       = 0x10
 };
 
 enum
 {
-    IQM_BYTE   = 0,
-    IQM_UBYTE  = 1,
-    IQM_SHORT  = 2,
-    IQM_USHORT = 3,
-    IQM_INT    = 4,
-    IQM_UINT   = 5,
-    IQM_HALF   = 6,
-    IQM_FLOAT  = 7,
-    IQM_DOUBLE = 8,
+	IQM_BYTE   = 0,
+	IQM_UBYTE  = 1,
+	IQM_SHORT  = 2,
+	IQM_USHORT = 3,
+	IQM_INT    = 4,
+	IQM_UINT   = 5,
+	IQM_HALF   = 6,
+	IQM_FLOAT  = 7,
+	IQM_DOUBLE = 8,
 };
 
 struct iqmtriangle
 {
-    unsigned int vertex[3];
+	unsigned int vertex[3];
 };
 
 struct iqmjoint1
 {
-    unsigned int name;
-    int parent;
-    float translate[3], rotate[3], scale[3];
+	unsigned int name;
+	int parent;
+	float translate[3], rotate[3], scale[3];
 };
 struct iqmjoint2
 {
-    unsigned int name;
-    int parent;
-    float translate[3], rotate[4], scale[3];
+	unsigned int name;
+	int parent;
+	float translate[3], rotate[4], scale[3];
 };
 
 struct iqmpose1
 {
-    int parent;
-    unsigned int mask;
-    float channeloffset[9];
-    float channelscale[9];
+	int parent;
+	unsigned int mask;
+	float channeloffset[9];
+	float channelscale[9];
 };
 struct iqmpose2
 {
-    int parent;
-    unsigned int mask;
-    float channeloffset[10];
-    float channelscale[10];
+	int parent;
+	unsigned int mask;
+	float channeloffset[10];
+	float channelscale[10];
 };
 
 struct iqmanim
 {
-    unsigned int name;
-    unsigned int first_frame, num_frames;
-    float framerate;
-    unsigned int flags;
+	unsigned int name;
+	unsigned int first_frame, num_frames;
+	float framerate;
+	unsigned int flags;
 };
 
 enum
 {
-    IQM_LOOP = 1<<0
+	IQM_LOOP = 1<<0
 };
 
 struct iqmvertexarray
 {
-    unsigned int type;
-    unsigned int flags;
-    unsigned int format;
-    unsigned int size;
-    unsigned int offset;
+	unsigned int type;
+	unsigned int flags;
+	unsigned int format;
+	unsigned int size;
+	unsigned int offset;
 };
 
 struct iqmbounds
 {
-    float bbmin[3], bbmax[3];
-    float xyradius, radius;
+	float bbmin[3], bbmax[3];
+	float xyradius, radius;
 };
 
 /*
@@ -6166,6 +6166,214 @@ galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, f
 }
 */
 
+static qboolean IQM_ImportArray4B(qbyte *base, struct iqmvertexarray *src, byte_vec4_t *out, size_t count, unsigned int maxval)
+{
+	size_t i;
+	unsigned int j;
+	unsigned int sz = LittleLong(src->size);
+	unsigned int fmt = LittleLong(src->format);
+	unsigned int offset = LittleLong(src->offset);
+	qboolean invalid = false;
+	maxval = min(256,maxval);
+	if (!offset)
+	{
+		sz = 0;
+		fmt = IQM_UBYTE;
+	}
+	switch(fmt)
+	{
+	default:
+		sz = 0;
+		invalid = true;
+		break;
+	case IQM_BYTE:	//FIXME: should be signed, but this makes no sense for our uses
+	case IQM_UBYTE:
+		{
+			qbyte *in = (qbyte*)(base+offset);
+			/*if (sz == 4)
+				memcpy(out, in, count * sizeof(*out));	//the fast path.
+			else*/ for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < 4 && j < sz; j++)
+				{
+					if (in[i*sz+j] >= maxval)
+					{
+						out[i][j] = 0;
+						invalid = true;
+					}
+					else
+						out[i][j] = in[i*sz+j];
+				}
+			}
+		}
+		break;
+	case IQM_SHORT://FIXME: should be signed, but this makes no sense for our uses
+	case IQM_USHORT:
+		{
+			unsigned short *in = (unsigned short*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < 4 && j < sz; j++)
+				{
+					if (in[i*sz+j] >= maxval)
+					{
+						out[i][j] = 0;
+						invalid = true;
+					}
+					else
+						out[i][j] = in[i*sz+j];
+				}
+			}
+		}
+		break;
+	case IQM_INT://FIXME: should be signed, but this makes no sense for our uses
+	case IQM_UINT:
+		{
+			unsigned int *in = (unsigned int*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < 4 && j < sz; j++)
+				{
+					if (in[i*sz+j] >= maxval)
+					{
+						out[i][j] = 0;
+						invalid = true;
+					}
+					else
+						out[i][j] = in[i*sz+j];
+				}
+			}
+		}
+		break;
+	//float types don't really make sense
+	}
+
+	//if there were not enough elements, pad it.
+	if (sz < 4)
+	{
+		for (i = 0; i < count; i++)
+		{
+			for (j = sz; j < 4; j++)
+				out[i][j] = 0;
+		}
+	}
+
+	return !invalid;
+}
+static void IQM_ImportArrayF(qbyte *base, struct iqmvertexarray *src, float *out, size_t e, size_t count, float *def)
+{
+	size_t i;
+	unsigned int j;
+	unsigned int sz = LittleLong(src->size);
+	unsigned int fmt = LittleLong(src->format);
+	unsigned int offset = LittleLong(src->offset);
+	if (!offset)
+	{
+		sz = 0;
+		fmt = IQM_FLOAT;
+	}
+	switch(fmt)
+	{
+	default:
+		sz = 0;
+		break;
+	case IQM_BYTE:	//FIXME: should be signed
+		{
+			char *in = (qbyte*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = in[i*sz+j] * (1.0/127);
+			}
+		}
+		break;
+	case IQM_UBYTE:
+		{
+			qbyte *in = (qbyte*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = in[i*sz+j] * (1.0/255);
+			}
+		}
+		break;
+	case IQM_SHORT:
+		{
+			short *in = (short*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = in[i*sz+j] * (1.0/32767);
+			}
+		}
+		break;
+	case IQM_USHORT:
+		{
+			unsigned short *in = (unsigned short*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = in[i*sz+j] * (1.0/65535);
+			}
+		}
+		break;
+	case IQM_INT://FIXME: should be signed
+	case IQM_UINT:
+		{
+			unsigned int *in = (unsigned int*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = in[i*sz+j];
+			}
+		}
+		break;
+
+	/*case IQM_HALF:
+		{
+			__fp16 *in = (qbyte*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = in[i*sz+j];
+			}
+		}
+		break;*/
+	case IQM_FLOAT:
+		{
+			float *in = (float*)(base+offset);
+			if (e == sz)
+				memcpy(out, in, e * sizeof(float) * count);
+			else for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = in[i*sz+j];
+			}
+		}
+		break;
+	case IQM_DOUBLE:
+		{
+			double *in = (double*)(base+offset);
+			for (i = 0; i < count; i++)
+			{
+				for (j = 0; j < e && j < sz; j++)
+					out[i*e+j] = in[i*sz+j];
+			}
+		}
+		break;
+	}
+
+	//if there were not enough elements, pad it.
+	if (sz < e)
+	{
+		for (i = 0; i < count; i++)
+		{
+			for (j = sz; j < e; j++)
+				out[i*e+j] = def[j];
+		}
+	}
+}
+
 galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 {
 	struct iqmheader *h = (struct iqmheader *)buffer;
@@ -6177,10 +6385,13 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 
 	char *strings;
 
-	float *vpos = NULL, *vtcoord = NULL, *vnorm = NULL, *vtang = NULL, *vrgbaf = NULL;
-	unsigned char *vbone = NULL, *vweight = NULL, *vrgbaub = NULL;
+	float *vtang = NULL;
+	struct iqmvertexarray vpos = {0}, vnorm = {0}, vtcoord = {0}, vbone = {0}, vweight = {0}, vrgba = {0};
 	unsigned int type, fmt, size, offset;
 	unsigned short *framedata;
+	vec4_t defaultcolour = {1,1,1,1};
+	vec4_t defaultweight = {0,0,0,0};
+	vec4_t defaultvert = {0,0,0,1};
 
 	int memsize;
 	qbyte *obase=NULL;
@@ -6230,24 +6441,22 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 		fmt = LittleLong(varray[i].format);
 		size = LittleLong(varray[i].size);
 		offset = LittleLong(varray[i].offset);
-		if (type == IQM_POSITION && fmt == IQM_FLOAT && size == 3)
-			vpos = (float*)(buffer + offset);
-		else if (type == IQM_TEXCOORD && fmt == IQM_FLOAT && size == 2)
-			vtcoord = (float*)(buffer + offset);
-		else if (type == IQM_NORMAL && fmt == IQM_FLOAT && size == 3)
-			vnorm = (float*)(buffer + offset);
-		else if (type == IQM_TANGENT && fmt == IQM_FLOAT && size == 4) /*yup, 4*/
+		if (type == IQM_POSITION)
+			vpos = varray[i];
+		else if (type == IQM_TEXCOORD)
+			vtcoord = varray[i];
+		else if (type == IQM_NORMAL)
+			vnorm = varray[i];
+		else if (type == IQM_TANGENT && fmt == IQM_FLOAT && size == 4) /*yup, 4, extra is side, for the bitangent*/
 			vtang = (float*)(buffer + offset);
-		else if (type == IQM_BLENDINDEXES && fmt == IQM_UBYTE && size == 4)
-			vbone = (unsigned char *)(buffer + offset);
-		else if (type == IQM_BLENDWEIGHTS && fmt == IQM_UBYTE && size == 4)
-			vweight = (unsigned char *)(buffer + offset);
-		else if (type == IQM_COLOR && fmt == IQM_UBYTE && size == 4)
-			vrgbaub = (qbyte *)(buffer + offset);
-		else if (type == IQM_COLOR && fmt == IQM_FLOAT && size == 4)
-			vrgbaf = (float *)(buffer + offset);
+		else if (type == IQM_BLENDINDEXES)
+			vbone = varray[i];
+		else if (type == IQM_BLENDWEIGHTS)
+			vweight = varray[i];
+		else if (type == IQM_COLOR)
+			vrgba = varray[i];
 		else
-			Con_Printf("Unrecognised iqm info\n");
+			Con_Printf("Unrecognised iqm info (type=%i, fmt=%i, size=%i)\n", type, fmt, size);
 	}
 
 	if (!h->num_meshes)
@@ -6260,12 +6469,12 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	//we also require texcoords because we can.
 	//we don't require normals
 	//we don't require weights, but such models won't animate.
-	if (h->num_vertexes > 0 && (!vpos || !vtcoord))
+	if (h->num_vertexes > 0 && (!vpos.offset || !vtcoord.offset))
 	{
 		Con_Printf("%s is missing vertex array data\n", mod->name);
 		return NULL;
 	}
-	noweights = !vbone || !vweight;
+	noweights = !vbone.offset || !vweight.offset;
 	if (noweights)
 	{
 		if (h->num_frames || h->num_anims || h->num_joints)
@@ -6348,11 +6557,11 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 			oweight = NULL;
 		}
 #ifndef SERVERONLY
-		if (vtcoord)
+		if (vtcoord.offset)
 			dalloc(otcoords, h->num_vertexes);
 		else
 			otcoords = NULL;
-		if (vrgbaf || vrgbaub)
+		if (vrgba.offset)
 			dalloc(orgbaf, h->num_vertexes);
 		else
 			orgbaf = NULL;
@@ -6545,45 +6754,30 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 		gai[i].shares_verts = i;
 		gai[i].numverts = LittleLong(mesh[i].num_vertexes);
 		gai[i].ofs_skel_xyz = (opos+offset);
-		gai[i].ofs_skel_norm = vnorm?(onorm1+offset):NULL;
-		gai[i].ofs_skel_svect = (vnorm&&vtang)?(onorm2+offset):NULL;
-		gai[i].ofs_skel_tvect = (vnorm&&vtang)?(onorm3+offset):NULL;
+		gai[i].ofs_skel_norm = (onorm1+offset);
+		gai[i].ofs_skel_svect = (onorm2+offset);
+		gai[i].ofs_skel_tvect = (onorm3+offset);
 		gai[i].ofs_skel_idx = oindex?(oindex+offset):NULL;
 		gai[i].ofs_skel_weight = oweight?(oweight+offset):NULL;
 	}
 	if (!noweights)
 	{
-		for (i = 0; i < h->num_vertexes; i++)
-		{
-			Vector4Copy(vbone+i*4, oindex[i]);
-			Vector4Scale(vweight+i*4, 1/255.0, oweight[i]);
-
-			//FIXME: should we be normalising?
-			if (!oweight[i][0] && !oweight[i][1] && !oweight[i][2] && !oweight[i][3])
-				oweight[i][0] = 1;
-		}
+		if (!IQM_ImportArray4B(buffer, &vbone, oindex, h->num_vertexes, h->num_joints))
+			Con_Printf(CON_WARNING "Invalid bone indexes detected inside %s\n", mod->name);
+		IQM_ImportArrayF(buffer, &vweight, (float*)oweight, 4, h->num_vertexes, defaultweight);
 	}
 
 	if (otcoords)
-		memcpy(otcoords, vtcoord, h->num_vertexes*sizeof(*otcoords));
+		IQM_ImportArrayF(buffer, &vtcoord, (float*)otcoords, 2, h->num_vertexes, defaultweight);
 	if (orgbaf)
+		IQM_ImportArrayF(buffer, &vrgba, (float*)orgbaf, 4, h->num_vertexes, defaultcolour);
+
+	IQM_ImportArrayF(buffer, &vnorm, (float*)onorm1, 3, h->num_vertexes, defaultcolour);
+	IQM_ImportArrayF(buffer, &vpos, (float*)opos, sizeof(opos[0])/sizeof(float), h->num_vertexes, defaultvert);
+
+	if (vnorm.offset && vtang)
 	{
-		if (vrgbaf)
-			memcpy(orgbaf, vrgbaf, h->num_vertexes*sizeof(*orgbaf));
-		else
-		{
-			for (i = 0; i < h->num_vertexes; i++)
-				Vector4Scale(vrgbaub+i*4, 1/255.0f, orgbaf[i]);
-		}
-	}
-	for (i = 0; i < h->num_vertexes; i++)
-	{
-		VectorCopy(vpos+i*3, opos[i]);
-		if (vnorm)
-		{
-			VectorCopy(vnorm+i*3, onorm1[i]);
-		}
-		if (vnorm && vtang)
+		for (i = 0; i < h->num_vertexes; i++)
 		{
 			VectorCopy(vtang+i*4, onorm2[i]);
 			if(LittleFloat(vtang[i*4 + 3]) < 0)
@@ -6592,6 +6786,18 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 				CrossProduct(onorm1[i], onorm2[i], onorm3[i]);
 		}
 	}
+	else if (h->num_vertexes)
+	{	//make something up
+		for (i = 0; i < h->num_meshes; i++)
+		{
+			Mod_AccumulateTextureVectors(gai[i].ofs_skel_xyz, gai[i].ofs_st_array, gai[i].ofs_skel_norm, gai[i].ofs_skel_svect, gai[i].ofs_skel_tvect, gai[i].ofs_indexes, gai[i].numindexes);
+		}
+		for (i = 0; i < h->num_meshes; i++)
+		{
+			Mod_NormaliseTextureVectors(gai[i].ofs_skel_norm, gai[i].ofs_skel_svect, gai[i].ofs_skel_tvect, gai[i].numverts);
+		}
+	}
+
 	return gai;
 }
 

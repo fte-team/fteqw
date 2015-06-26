@@ -15,7 +15,7 @@ static f_modified_t *f_modified_list;
 qboolean care_f_modified;
 qboolean f_modified_particles;
 
-void QDECL rulesetcallback(cvar_t *var, char *oldval)
+static void QDECL rulesetcallback(cvar_t *var, char *oldval)
 {
 	Validation_Apply_Ruleset();
 }

@@ -6786,6 +6786,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 				CrossProduct(onorm1[i], onorm2[i], onorm3[i]);
 		}
 	}
+#ifndef SERVERONLY	//hopefully dedicated servers won't need this too often...
 	else if (h->num_vertexes)
 	{	//make something up
 		for (i = 0; i < h->num_meshes; i++)
@@ -6797,6 +6798,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 			Mod_NormaliseTextureVectors(gai[i].ofs_skel_norm, gai[i].ofs_skel_svect, gai[i].ofs_skel_tvect, gai[i].numverts);
 		}
 	}
+#endif
 
 	return gai;
 }

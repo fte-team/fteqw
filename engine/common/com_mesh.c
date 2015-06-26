@@ -1231,7 +1231,7 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 		totalweight = 1 / totalweight;
 		for (b = 0; b < l; b++)
 		{
-			lerps->frac[l] *= totalweight;
+			lerps->frac[b] *= totalweight;
 		}
 	}
 
@@ -2746,6 +2746,31 @@ static void Alias_LoadPose(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t 
 		}
 	}
 }
+static void Alias_LoadPose16(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype)
+{
+	//quakeforge's MD16 format has regular 8bit stuff, trailed by an extra low-order set of the verts providing the extra 8bits of precision.
+	//its worth noting that the model could be rendered using the high-order parts only, if your software renderer only supports that or whatever.
+	dtrivertx_t *pinframelow =  pinframe + pq1inmodel->numverts;
+	int j;
+	vec3_t exscale;
+	VectorScale(pq1inmodel->scale, 1.0/256, exscale);
+	for (j = 0; j < pq1inmodel->numverts; j++)
+	{
+		verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0] + pinframelow[j].v[0]*exscale[0] + pq1inmodel->scale_origin[0];
+		verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1] + pinframelow[j].v[1]*exscale[1] + pq1inmodel->scale_origin[1];
+		verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2] + pinframelow[j].v[2]*exscale[2] + pq1inmodel->scale_origin[2];
+#ifndef SERVERONLY
+		VectorCopy(r_avertexnormals[pinframe[j].lightnormalindex], normals[j]);
+#endif
+		if (seamremaps[j] != j)
+		{
+			VectorCopy(verts[j], verts[seamremaps[j]]);
+#ifndef SERVERONLY
+			VectorCopy(normals[j], normals[seamremaps[j]]);
+#endif
+		}
+	}
+}
 static void *Alias_LoadFrameGroup (model_t *loadmodel, daliasframetype_t *pframetype, int *seamremaps, int mdltype)
 {
 	galiaspose_t *pose;
@@ -2799,11 +2824,19 @@ static void *Alias_LoadFrameGroup (model_t *loadmodel, daliasframetype_t *pframe
 			pose->ofstvector = tvec;
 #endif
 
-			Alias_LoadPose(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+			if (mdltype & 16)
+			{
+				Alias_LoadPose16(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+				pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts*2];
+			}
+			else
+			{
+				Alias_LoadPose(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+				pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
+			}
 
 //			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
 
-			pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
 			break;
 
 		case ALIAS_GROUP:
@@ -2853,7 +2886,16 @@ static void *Alias_LoadFrameGroup (model_t *loadmodel, daliasframetype_t *pframe
 						Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
 				}
 
-				Alias_LoadPose(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+				if (mdltype & 16)
+				{
+					Alias_LoadPose16(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+					pinframe += pq1inmodel->numverts*2;
+				}
+				else
+				{
+					Alias_LoadPose(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+					pinframe += pq1inmodel->numverts;
+				}
 
 #ifndef SERVERONLY
 				verts = (vecV_t*)&tvec[galias->numverts];
@@ -2864,8 +2906,6 @@ static void *Alias_LoadFrameGroup (model_t *loadmodel, daliasframetype_t *pframe
 				verts = &verts[galias->numverts];
 #endif
 				pose++;
-
-				pinframe += pq1inmodel->numverts;
 			}
 
 //			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
@@ -3224,6 +3264,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 	index_t *indexes;
 	daliasskintype_t *skinstart;
 	uploadfmt_t skintranstype;
+	qboolean sixteenbit;
 
 	int size;
 	unsigned int hdrsize;
@@ -3240,14 +3281,16 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 	mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 
+	sixteenbit = pq1inmodel->ident == LittleLong(('6'<<24)+('1'<<16)+('D'<<8)+'M');	//quakeforge's 16bit mdls
+
 	version = LittleLong(pq1inmodel->version);
-	if (version == QTESTALIAS_VERSION)
+	if (version == QTESTALIAS_VERSION && !sixteenbit)
 	{
 		hdrsize = (size_t)&((dmdl_t*)NULL)->flags;
 		qtest = true;
 	}
 #ifdef HEXEN2
-	else if (version == 50)
+	else if (version == 50 && !sixteenbit)
 	{
 		hdrsize = sizeof(dmdl_t);
 		rapo = true;
@@ -3481,7 +3524,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		end = &pinq1triangles[pq1inmodel->numtris];
 
 		//frames
-		if (Alias_LoadFrameGroup(mod, (daliasframetype_t *)end, seamremap, qtest ? 1 : 0) == NULL)
+		if (Alias_LoadFrameGroup(mod, (daliasframetype_t *)end, seamremap, (sixteenbit?16:0) | (qtest?1:0)) == NULL)
 		{
 			BZ_Free(seamremap);
 			ZG_FreeGroup(&mod->memgroup);
@@ -7616,6 +7659,7 @@ qboolean QDECL Mod_LoadCompositeAnim(model_t *mod, void *buffer, size_t fsize)
 void Alias_Register(void)
 {
 	Mod_RegisterModelFormatMagic(NULL, "Quake1 Model (mdl)",				IDPOLYHEADER,							Mod_LoadQ1Model);
+	Mod_RegisterModelFormatMagic(NULL, "QuakeForge 16bit Model",			(('6'<<24)+('1'<<16)+('D'<<8)+'M'),		Mod_LoadQ1Model);
 #ifdef HEXEN2
 	Mod_RegisterModelFormatMagic(NULL, "Hexen2 Model (mdl)",				RAPOLYHEADER,							Mod_LoadQ1Model);
 #endif

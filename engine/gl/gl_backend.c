@@ -656,12 +656,14 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				}
 				break;
 			case VATTR_COLOUR:
-				if (shaderstate.sourcevbo->colours[0].gl.addr)
+				if (!shaderstate.sourcevbo->colours[0].gl.addr)
 				{
-					GL_SelectVBO(shaderstate.sourcevbo->colours[0].gl.vbo);
-					qglVertexAttribPointer(VATTR_COLOUR, 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.sourcevbo->colours[0].gl.addr);
-					break;
+					shaderstate.sha_attr &= ~(1u<<i);
+					qglDisableVertexAttribArray(i);
+					continue;
 				}
+				GL_SelectVBO(shaderstate.sourcevbo->colours[0].gl.vbo);
+				qglVertexAttribPointer(VATTR_COLOUR, 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.sourcevbo->colours[0].gl.addr);
 				break;
 #if MAXRLIGHTMAPS > 1
 			case VATTR_COLOUR2:
@@ -738,22 +740,22 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				qglVertexAttribPointer(VATTR_TNORMALS, 3, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->tvector.gl.addr);
 				break;
 			case VATTR_BONENUMS:
-				/*if (!shaderstate.sourcevbo->bonenums.gl.vbo && !shaderstate.sourcevbo->bonenums.gl.addr)
+				if (!shaderstate.sourcevbo->bonenums.gl.vbo && !shaderstate.sourcevbo->bonenums.gl.addr)
 				{
 					shaderstate.sha_attr &= ~(1u<<i);
 					qglDisableVertexAttribArray(i);
 					continue;
-				}*/
+				}
 				GL_SelectVBO(shaderstate.sourcevbo->bonenums.gl.vbo);
 				qglVertexAttribPointer(VATTR_BONENUMS, 4, GL_UNSIGNED_BYTE, GL_FALSE, 0, shaderstate.sourcevbo->bonenums.gl.addr);
 				break;
 			case VATTR_BONEWEIGHTS:
-				/*if (!shaderstate.sourcevbo->boneweights.gl.vbo && !shaderstate.sourcevbo->boneweights.gl.addr)
+				if (!shaderstate.sourcevbo->boneweights.gl.vbo && !shaderstate.sourcevbo->boneweights.gl.addr)
 				{
 					shaderstate.sha_attr &= ~(1u<<i);
 					qglDisableVertexAttribArray(i);
 					continue;
-				}*/
+				}
 				GL_SelectVBO(shaderstate.sourcevbo->boneweights.gl.vbo);
 				qglVertexAttribPointer(VATTR_BONEWEIGHTS, 4, GL_FLOAT, GL_FALSE, 0, shaderstate.sourcevbo->boneweights.gl.addr);
 				break;

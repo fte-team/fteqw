@@ -5181,6 +5181,7 @@ char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 	int check_flood;
 
 	flags = TP_CategorizeMessage (text, &offset, player);
+	*msgflags = flags;
 
 	s = text + offset;
 
@@ -5255,8 +5256,6 @@ char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 					*p = ' ';
 		}
 	}
-
-	*msgflags = flags;
 
 	return s;
 }

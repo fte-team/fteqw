@@ -5609,21 +5609,27 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 
 	Cmd_ExecLevel=1;
 
-	if (!fromQC && host_client->controlled && atoi(Cmd_Argv(0))>0)	//now see if it's meant to be from a slave client
-	{
-		int pnum = atoi(Cmd_Argv(0));
-		client_t *sp;
-		for (sp = host_client; sp; sp = sp->controlled)
+	if (!fromQC && host_client->controlled)	//now see if it's meant to be from a slave client
+	{	//'cmd 2 say hi' should 
+		char *a=Cmd_Argv(0), *e;
+		int pnum = strtoul(a, &e, 10);
+		
+		if (e == a+1 && pnum >= 1 && pnum <= MAX_SPLITS)
 		{
-			if (!--pnum)
+			client_t *sp;
+			for (sp = host_client; sp; sp = sp->controlled)
 			{
-				host_client = sp;
-				break;
+				if (!--pnum)
+				{
+					host_client = sp;
+					break;
+				}
 			}
+
+			sv_player = host_client->edict;
+			s = Cmd_Args();
+			Cmd_ShiftArgs(1, false);
 		}
-		sv_player = host_client->edict;
-		s = Cmd_Args();
-		Cmd_ShiftArgs(1, false);
 	}
 
 #ifdef Q2SERVER

@@ -9258,7 +9258,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"walkmove",		PF_walkmove,		32,		32,		32,		0,	D("float(float yaw, float dist, optional float settraceglobals)", "Attempt to walk the entity at a given angle for a given distance.\nif settraceglobals is set, the trace_* globals will be set, showing the results of the movement.\nThis function will trigger touch events.")},
 //	{"qtest_flymove",	NULL,	33},	// float(vector dir) flymove = #33;
 //qbism super8's 'private'sound #33
-	{"droptofloor",		PF_droptofloor,		34,		34,		34,		0,	D("float()", "Instantly moves the entity downwards until it hits the ground. If the entity would need to drop more than 'pr_droptofloorunits' quake units, its position will be considered invalid and the builtin will abort.")},
+	{"droptofloor",		PF_droptofloor,		34,		34,		34,		0,	D("float()", "Instantly moves the entity downwards until it hits the ground. If the entity is in solid or would need to drop more than 'pr_droptofloorunits' quake units, its position will be considered invalid and the builtin will abort, returning FALSE, otherwise TRUE.")},
 	{"lightstyle",		PF_lightstyle,		35,		35,		35,		0,	D("void(float lightstyle, string stylestring, optional vector rgb)", "Specifies an auto-animating string that specifies the light intensity for entities using that lightstyle.\na is off, z is fully lit. Should be lower case only.\nrgb will recolour all lights using that lightstyle.\n")},
 	{"rint",			PF_rint,			36,		36,		36,		0,	D("float(float)", "Rounds the given float up or down to the closest integeral value. X.5 rounds away from 0")},
 	{"floor",			PF_floor,			37,		37,		37,		0,	D("float(float)", "Rounds the given float downwards, even when negative.")},

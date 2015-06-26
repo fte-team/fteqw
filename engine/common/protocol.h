@@ -283,6 +283,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svcfte_setangledelta		85	// [angle3] add this to the current viewangles
 #define svcfte_updateentities		86
 #define svcfte_brushedit			87	// networked brush editing, paired with clcfte_brushedit.
+#define	svcfte_updateseats			88	// byte count, byte playernum[count]
 
 
 //fitz svcs

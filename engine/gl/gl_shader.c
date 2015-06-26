@@ -4693,6 +4693,9 @@ void Shader_DefaultBSPLM(const char *shortname, shader_t *s, const void *args)
 			);
 
 	Shader_DefaultScript(shortname, s, builtin);
+
+	if (r_lightprepass.ival)
+		s->flags |= SHADER_HASNORMALMAP;
 }
 
 void Shader_DefaultCinematic(const char *shortname, shader_t *s, const void *args)
@@ -5656,21 +5659,29 @@ void Shader_DoReload(void)
 	int oldsort;
 	qboolean resort = false;
 
-	if (shader_rescan_needed && ruleset_allow_shaders.ival)
+	if (shader_rescan_needed)
 	{
 		Shader_FlushCache();
 
-		COM_EnumerateFiles("materials/*.mtr", Shader_InitCallback, NULL);
-		COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
-		COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
-		COM_EnumerateFiles("scripts/*.rscript", Shader_InitCallback, NULL);
+		if (ruleset_allow_shaders.ival)
+		{
+			COM_EnumerateFiles("materials/*.mtr", Shader_InitCallback, NULL);
+			COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
+			COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
+			COM_EnumerateFiles("scripts/*.rscript", Shader_InitCallback, NULL);
+		}
 
 		shader_reload_needed = true;
 		shader_rescan_needed = false;
-	}
 
-	if (!shader_reload_needed)
-		return;
+		Con_DPrintf("Rescanning shaders\n");
+	}
+	else
+	{
+		if (!shader_reload_needed)
+			return;
+		Con_DPrintf("Reloading shaders\n");
+	}
 	shader_reload_needed = false;
 	Font_InvalidateColour();
 	Shader_ReloadGenerics();

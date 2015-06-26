@@ -15,6 +15,10 @@ static f_modified_t *f_modified_list;
 qboolean care_f_modified;
 qboolean f_modified_particles;
 
+void QDECL rulesetcallback(cvar_t *var, char *oldval)
+{
+	Validation_Apply_Ruleset();
+}
 
 cvar_t allow_f_version		= SCVAR("allow_f_version", "1");
 cvar_t allow_f_server		= SCVAR("allow_f_server", "1");
@@ -26,7 +30,7 @@ cvar_t allow_f_fakeshaft	= SCVAR("allow_f_fakeshaft", "1");
 cvar_t allow_f_system		= SCVAR("allow_f_system", "0");
 cvar_t allow_f_cmdline		= SCVAR("allow_f_cmdline", "0");
 cvar_t auth_validateclients	= SCVAR("auth_validateclients", "1");
-cvar_t ruleset			= SCVAR("ruleset", "none");
+cvar_t ruleset			= CVARC("ruleset", "none", rulesetcallback);
 
 
 #define SECURITY_INIT_BAD_CHECKSUM	1
@@ -410,6 +414,7 @@ static ruleset_t rulesets[] =
 	{NULL}
 };
 
+static qboolean ruleset_locked;
 void RulesetLatch(cvar_t *cvar)
 {
 	cvar->flags |= CVAR_RULESETLATCH;
@@ -417,6 +422,7 @@ void RulesetLatch(cvar_t *cvar)
 
 void Validation_DelatchRulesets(void)
 {	//game has come to an end, allow the ruleset to be changed
+	ruleset_locked = false;
 	if (Cvar_ApplyLatches(CVAR_RULESETLATCH))
 		Con_DPrintf("Ruleset deactivated\n");
 }
@@ -427,6 +433,9 @@ qboolean Validation_GetCurrentRulesetName(char *rsnames, int resultbuflen, qbool
 	cvar_t *var;
 	ruleset_t *rs;
 	int i;
+
+	if (enforcechosenrulesets)
+		ruleset_locked = true;
 
 	rs = rulesets;
 	*rsnames = '\0';
@@ -504,7 +513,8 @@ void Validation_AllChecks(void)
 		playername[0] = 0;
 	else
 	{
-		memset(playername, ' ', 15-localpnamelen-1);
+		//pad the left side to compensate for the player name prefix the server will add in the final svc_print
+		memset(playername, ' ', 15-localpnamelen);
 		playername[15-localpnamelen] = 0;
 	}
 
@@ -528,16 +538,26 @@ void Validation_Apply_Ruleset(void)
 	int i;
 	char *rulesetname = ruleset.string;
 
+	if (ruleset_locked)
+	{
+		if (ruleset.modified)
+		{
+			Con_Printf("Cannot change rulesets after the current ruleset has been announced\n");
+			ruleset.modified = false;
+		}
+		return;
+	}
+	ruleset.modified = false;
+
 	if  (!strcmp(rulesetname, "smackdown"))	//officially, smackdown cannot authorise this, thus we do not use that name. however, imported configs tend to piss people off.
 		rulesetname = "strict";
 
-#ifdef warningmsg
-#pragma warningmsg("fixme: the following line should not be needed. ensure this is the case")
-#endif
-	Validation_DelatchRulesets();	//make sure there's no old one
-
 	if (!*rulesetname || !strcmp(rulesetname, "none") || !strcmp(rulesetname, "default"))
+	{
+		if (Cvar_ApplyLatches(CVAR_RULESETLATCH))
+			Con_DPrintf("Ruleset deactivated\n");
 		return;	//no ruleset is set
+	}
 
 	for (rs = rulesets; rs->rulesetname; rs++)
 	{
@@ -547,6 +567,8 @@ void Validation_Apply_Ruleset(void)
 	if (!rs->rulesetname)
 	{
 		Con_Printf("Cannot apply ruleset %s - not recognised\n", rulesetname);
+		if (Cvar_ApplyLatches(CVAR_RULESETLATCH))
+			Con_DPrintf("Ruleset deactivated\n");
 		return;
 	}
 	

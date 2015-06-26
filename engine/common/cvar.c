@@ -881,8 +881,8 @@ qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag)
 #ifdef warningmsg
 #pragma warningmsg("this means the callback will never be called")
 #endif
-		latch = var->string;
-		var->string = NULL;
+		latch = Z_StrDup(var->string);
+//		var->string = NULL;
 	}
 #ifdef warningmsg
 #pragma warningmsg("set or forceset?")
@@ -924,16 +924,15 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 		if (!(var->flags & (CVAR_CHEAT|CVAR_SEMICHEAT)))
 			continue;
 
+		if (var->flags & CVAR_RULESETLATCH)
+		{
+			Con_Printf("Hello\n");
+		}
+
 		latch = var->latched_string;
 		var->latched_string = NULL;
 		if (!latch)
-		{
-#ifdef warningmsg
-#pragma warningmsg("this means the callback will never be called")
-#endif
-			latch = var->string;
-			var->string = NULL;
-		}
+			latch = Z_StrDup(var->string);
 
 		if (var->flags & CVAR_CHEAT)
 		{
@@ -944,7 +943,9 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 		}
 		if (var->flags & CVAR_SEMICHEAT)
 		{
-			if (!semicheats)
+			if (var->flags & CVAR_RULESETLATCH)
+				;	//this is too problematic. the ruleset should cover it.
+			else if (!semicheats)
 				Cvar_ForceSet(var, "");
 			else
 				Cvar_ForceSet(var, latch);

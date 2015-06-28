@@ -3944,6 +3944,14 @@ static void DrawMeshes(void)
 		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
 	}
 
+#ifdef _DEBUG
+	if (!shaderstate.pendingvertexpointer && !shaderstate.pendingvertexvbo)
+	{
+		Con_Printf(CON_ERROR "pendingvertexpointer+vbo are both null! shader is %s\n", shaderstate.curshader->name);
+		return;
+	}
+#endif
+
 #ifdef FTE_TARGET_WEB
 	if (!shaderstate.pendingvertexvbo)
 		return;
@@ -4499,7 +4507,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 		}
 
-		if (bs->flags & SHADER_NODRAW)
+		if ((bs->flags & SHADER_NODRAW) || !batch->meshes)
 			continue;
 		if (bs->flags & SHADER_NODLIGHT)
 			if (shaderstate.mode == BEM_LIGHT)

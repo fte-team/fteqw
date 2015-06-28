@@ -484,6 +484,9 @@ void GLR_TimeRefresh_f (void)
 	if (frames < 1)
 		frames = 128;
 
+	if (!r_refdef.playerview)
+		r_refdef.playerview = &cl.playerview[0];
+
 	if (finish == 2)
 	{
 		qglFinish ();

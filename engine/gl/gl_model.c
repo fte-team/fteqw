@@ -125,7 +125,7 @@ static void Mod_MemList_f(void)
 #ifndef SERVERONLY
 static void Mod_BatchList_f(void)
 {
-	int m, i;
+	int m, i, lm;
 	model_t *mod;
 	batch_t *batch;
 	unsigned int count;
@@ -2663,14 +2663,14 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 }
 
 #ifndef SERVERONLY
-static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindicies, void (*build)(model_t *mod, msurface_t *surf, builddata_t *bd), builddata_t *bd)
+static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindicies, void (*build)(model_t *mod, msurface_t *surf, builddata_t *bd), builddata_t *bd, int lmmerge)
 {
 	batch_t *batch;
 	msurface_t *surf;
 	mesh_t *mesh;
 	int numverts = 0;
 	int numindicies = 0;
-	int j;
+	int j, i;
 	int sortid;
 	int sty;
 	vbo_t vbo;
@@ -2749,6 +2749,23 @@ static void Mod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindi
 				mesh->vbofirstelement = 0;
 
 				build(mod, surf, bd);
+
+				if (lmmerge != 1)
+				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
+				{
+					if (surf->lightmaptexturenums[sty] >= 0)
+					{
+						if (mesh->lmst_array[sty])
+						{
+							for (i = 0; i < mesh->numvertexes; i++)
+							{
+								mesh->lmst_array[sty][i][1] += surf->lightmaptexturenums[sty] % lmmerge;
+								mesh->lmst_array[sty][i][1] /= lmmerge;
+							}
+						}
+						surf->lightmaptexturenums[sty] /= lmmerge;
+					}
+				}
 			}
 			batch->meshes = 0;
 			batch->firstmesh = 0;
@@ -2810,10 +2827,11 @@ void Mod_UpdateBatchShader_Q2 (struct batch_s *batch)
 	batch->shader = base->shader;
 }
 
+#define lmmerge(i) ((i>=0)?i/merge:i)
 /*
 batch->firstmesh is set only in and for this function, its cleared out elsewhere
 */
-static void Mod_Batches_Generate(model_t *mod)
+static int Mod_Batches_Generate(model_t *mod)
 {
 	int i;
 	msurface_t *surf;
@@ -2821,6 +2839,18 @@ static void Mod_Batches_Generate(model_t *mod)
 	int sortid;
 	batch_t *batch, *lbatch = NULL;
 	vec4_t plane;
+
+	int merge = sh_config.texture_maxsize / mod->lightmaps.height;
+	while (merge > mod->lightmaps.count)
+		merge /= 2;
+
+	if (merge < 1)//erk?
+		merge = 1;
+
+	mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
+	mod->lightmaps.count /= merge;
+	mod->lightmaps.height *= merge;
+
 
 	//for each surface, find a suitable batch to insert it into.
 	//we use 'firstmesh' to avoid chucking out too many verts in a single vbo (gl2 hardware tends to have a 16bit limit)
@@ -2862,13 +2892,13 @@ static void Mod_Batches_Generate(model_t *mod)
 
 		if (lbatch && (
 					lbatch->texture == surf->texinfo->texture &&
-					lbatch->lightmap[0] == surf->lightmaptexturenums[0] &&
+					lbatch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
 					Vector4Compare(plane, lbatch->plane) &&
 					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES) &&
 #if MAXRLIGHTMAPS > 1
-					lbatch->lightmap[1] == surf->lightmaptexturenums[1] &&
-					lbatch->lightmap[2] == surf->lightmaptexturenums[2] &&
-					lbatch->lightmap[3] == surf->lightmaptexturenums[3] &&
+					lbatch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
+					lbatch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
+					lbatch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
 #endif
 					lbatch->fog == surf->fog)
 			batch = lbatch;
@@ -2878,13 +2908,13 @@ static void Mod_Batches_Generate(model_t *mod)
 			{
 				if (
 							batch->texture == surf->texinfo->texture &&
-							batch->lightmap[0] == surf->lightmaptexturenums[0] &&
+							batch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
 							Vector4Compare(plane, batch->plane) &&
 							batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
 #if MAXRLIGHTMAPS > 1
-							batch->lightmap[1] == surf->lightmaptexturenums[1] &&
-							batch->lightmap[2] == surf->lightmaptexturenums[2] &&
-							batch->lightmap[3] == surf->lightmaptexturenums[3] &&
+							batch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
+							batch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
+							batch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
 #endif
 							batch->fog == surf->fog)
 					break;
@@ -2893,11 +2923,11 @@ static void Mod_Batches_Generate(model_t *mod)
 		if (!batch)
 		{
 			batch = ZG_Malloc(&mod->memgroup, sizeof(*batch));
-			batch->lightmap[0] = surf->lightmaptexturenums[0];
+			batch->lightmap[0] = lmmerge(surf->lightmaptexturenums[0]);
 #if MAXRLIGHTMAPS > 1
-			batch->lightmap[1] = surf->lightmaptexturenums[1];
-			batch->lightmap[2] = surf->lightmaptexturenums[2];
-			batch->lightmap[3] = surf->lightmaptexturenums[3];
+			batch->lightmap[1] = lmmerge(surf->lightmaptexturenums[1]);
+			batch->lightmap[2] = lmmerge(surf->lightmaptexturenums[2]);
+			batch->lightmap[3] = lmmerge(surf->lightmaptexturenums[3]);
 #endif
 			batch->texture = surf->texinfo->texture;
 			batch->shader = surf->texinfo->texture->shader;
@@ -2922,6 +2952,9 @@ static void Mod_Batches_Generate(model_t *mod)
 
 		lbatch = batch;
 	}
+
+	return merge;
+#undef lmmerge
 }
 
 void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe, unsigned int width, unsigned int height, int firstlm)
@@ -2938,7 +2971,7 @@ void Mod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
 {
 	mod->lightmaps.first = lmallocator->firstlm;
 	mod->lightmaps.count = (lmallocator->lmnum - lmallocator->firstlm);
-	if (lmallocator->allocated[0])
+	if (lmallocator->allocated[0])	//lmnum was only *COMPLETE* lightmaps that we allocated, and does not include the one we're currently building.
 		mod->lightmaps.count++;
 
 	if (lmallocator->deluxe)
@@ -3015,7 +3048,7 @@ static void Mod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int 
 	Mod_LightmapAllocBlock (lmallocator, smax, tmax, &surf->light_s[surfstyle], &surf->light_t[surfstyle], &surf->lightmaptexturenums[surfstyle]);
 }
 
-static void Mod_Batches_SplitLightmaps(model_t *mod)
+static void Mod_Batches_SplitLightmaps(model_t *mod, int lmmerge)
 {
 	batch_t *batch;
 	batch_t *nb;
@@ -3023,14 +3056,13 @@ static void Mod_Batches_SplitLightmaps(model_t *mod)
 	msurface_t *surf;
 	int sty;
 
-
 	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
 	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
 	{
 		surf = (msurface_t*)batch->mesh[0];
 		for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 		{
-			batch->lightmap[sty] = surf->lightmaptexturenums[sty];
+			batch->lightmap[sty] = (surf->lightmaptexturenums[sty]>=0)?surf->lightmaptexturenums[sty]/lmmerge:surf->lightmaptexturenums[sty];
 			batch->lmlightstyle[sty] = surf->styles[sty];
 		}
 
@@ -3039,7 +3071,8 @@ static void Mod_Batches_SplitLightmaps(model_t *mod)
 			surf = (msurface_t*)batch->mesh[j];
 			for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 			{
-				if (surf->lightmaptexturenums[sty] != batch->lightmap[sty] ||
+				int lm = (surf->lightmaptexturenums[sty]>=0)?surf->lightmaptexturenums[sty]/lmmerge:surf->lightmaptexturenums[sty];
+				if (lm != batch->lightmap[sty] ||
 					//fixme: we should merge later (reverted matching) surfaces into the prior batch
 					surf->styles[sty] != batch->lmlightstyle[sty] ||
 					surf->vlstyles[sty] != batch->vtlightstyle[sty])
@@ -3056,7 +3089,8 @@ static void Mod_Batches_SplitLightmaps(model_t *mod)
 				batch->maxmeshes = j;
 				for (sty = 0; sty < MAXRLIGHTMAPS; sty++)
 				{
-					nb->lightmap[sty] = surf->lightmaptexturenums[sty];
+					int lm = (surf->lightmaptexturenums[sty]>=0)?surf->lightmaptexturenums[sty]/lmmerge:surf->lightmaptexturenums[sty];
+					nb->lightmap[sty] = lm;
 					nb->lmlightstyle[sty] = surf->styles[sty];
 					nb->vtlightstyle[sty] = surf->vlstyles[sty];
 				}
@@ -3179,6 +3213,7 @@ static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 	int sortid;
 	batch_t *batch;
 	mesh_t *meshlist;
+	int merge = 1;
 
 	currentmodel = mod;
 
@@ -3208,7 +3243,7 @@ static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 	}
 
 	/*assign each mesh to a batch, generating as needed*/
-	Mod_Batches_Generate(mod);
+	merge = Mod_Batches_Generate(mod);
 
 	bmeshes = ZG_Malloc(&mod->memgroup, sizeof(*bmeshes)*mod->nummodelsurfaces*R_MAX_RECURSE);
 
@@ -3227,17 +3262,17 @@ static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 		surf->sbatch->mesh[surf->sbatch->meshes++] = (mesh_t*)surf;
 	}
 	if (bd)	//q3
-		Mod_Batches_SplitLightmaps(mod);
+		Mod_Batches_SplitLightmaps(mod, merge);
 	else
 		Mod_Batches_AllocLightmaps(mod);
 
 	if (!bd)
 	{
 		mod->lightmaps.surfstyles = 1;
-		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, ModQ1_Batches_BuildQ1Q2Poly, bd);
+		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, ModQ1_Batches_BuildQ1Q2Poly, bd, merge);
 	}
 	else
-		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, bd->buildfunc, bd);
+		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, bd->buildfunc, bd, merge);
 
 	if (BE_GenBrushModelVBO)
 		BE_GenBrushModelVBO(mod);

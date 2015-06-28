@@ -1086,24 +1086,26 @@ LIGHT SAMPLING
 mplane_t		*lightplane;
 vec3_t			lightspot;
 
+static void GLQ3_AddLatLong(qbyte latlong[2], vec3_t dir, float mag)
+{
+	float lat = (float)latlong[0] * (2 * M_PI)*(1.0 / 255.0);
+	float lng = (float)latlong[1] * (2 * M_PI)*(1.0 / 255.0);
+	dir[0] += mag * cos ( lng ) * sin ( lat );
+	dir[1] += mag * sin ( lng ) * sin ( lat );
+	dir[2] += mag * cos ( lat );
+}
+
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
 	q3lightgridinfo_t *lg = (q3lightgridinfo_t *)cl.worldmodel->lightgrid;
 	int index[8];
 	int vi[3];
 	int i, j;
-	float t[8], direction_uv[3];
+	float t[8];
 	vec3_t vf, vf2;
-	vec3_t ambient, diffuse;
+	vec3_t ambient, diffuse, direction;
 
-	if (res_dir)
-	{
-		res_dir[0] = 1;
-		res_dir[1] = 1;
-		res_dir[2] = 0.1;
-	}
-
-	if (!lg || !lg->lightgrid)
+	if (!lg || (!lg->lightgrid && !lg->rbspelements) || lg->numlightgridelems < 1)
 	{
 		if(res_ambient)
 		{
@@ -1117,6 +1119,13 @@ void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_a
 			res_diffuse[0] = 192;
 			res_diffuse[1] = 192;
 			res_diffuse[2] = 192;
+		}
+
+		if (res_dir)
+		{
+			res_dir[0] = 1;
+			res_dir[1] = 1;
+			res_dir[2] = 0.1;
 		}
 		return;
 	}
@@ -1132,73 +1141,64 @@ void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_a
 		vf2[i] = 1.0f - vf[i];
 	}
 
-	index[0] = vi[2]*lg->gridBounds[3] + vi[1]*lg->gridBounds[0] + vi[0];
-	index[1] = index[0] + lg->gridBounds[0];
-	index[2] = index[0] + lg->gridBounds[3];
-	index[3] = index[2] + lg->gridBounds[0];
-
-	index[4] = index[0]+(index[0]<(lg->numlightgridelems-1));
-	index[5] = index[1]+(index[1]<(lg->numlightgridelems-1));
-	index[6] = index[2]+(index[2]<(lg->numlightgridelems-1));
-	index[7] = index[3]+(index[3]<(lg->numlightgridelems-1));
-
 	for ( i = 0; i < 8; i++ )
 	{
-		if ( index[i] < 0 || index[i] >= (lg->numlightgridelems) )
-		{
-			res_ambient[0] = 255;	//out of the map
-			res_ambient[1] = 255;
-			res_ambient[2] = 255;
+		//bound it properly
+		index[i] =	bound(0, vi[0]+((i&1)?1:0), lg->gridBounds[0]-1) * 1                 +
+					bound(0, vi[1]+((i&2)?1:0), lg->gridBounds[1]-1) * lg->gridBounds[0] +
+					bound(0, vi[2]+((i&4)?1:0), lg->gridBounds[2]-1) * lg->gridBounds[3] ;
+		t[i] =	((i&1)?vf[0]:vf2[0]) *
+				((i&2)?vf[1]:vf2[1]) *
+				((i&4)?vf[2]:vf2[2]) ;
+	}
 
-			if (res_diffuse)
+	//rbsp has a separate grid->index lookup for compression.
+	if (lg->rbspindexes)
+	{
+		for (i = 0; i < 8; i++)
+			index[i] = lg->rbspindexes[index[i]];
+	}
+
+	VectorClear(ambient);
+	VectorClear(diffuse);
+	VectorClear(direction);
+	if (lg->rbspelements)
+	{
+		for (i = 0; i < 8; i++)
+		{	//rbsp has up to 4 styles per grid element, which needs to be scaled by that style's current value
+			float tot = 0;
+			for (j = 0; j < countof(lg->rbspelements[index[i]].styles); j++)
 			{
-				res_diffuse[0] = 255;
-				res_diffuse[1] = 255;
-				res_diffuse[2] = 255;
+				qbyte st = lg->rbspelements[index[i]].styles[j];
+				if (st != 255)
+				{
+					float mag = d_lightstylevalue[st] * 1.0/255 * t[i];
+					//FIXME: cl_lightstyle[st].colours[rgb]
+					VectorMA (ambient,      mag, lg->rbspelements[index[i]].ambient[j],   ambient);
+					VectorMA (diffuse,      mag, lg->rbspelements[index[i]].diffuse[j],   diffuse);
+					tot += mag;
+				}
 			}
-			return;
+			GLQ3_AddLatLong(lg->rbspelements[index[i]].direction, direction, tot);
 		}
 	}
-
-	t[0] = vf2[0] * vf2[1] * vf2[2];
-	t[1] = vf[0] * vf2[1] * vf2[2];
-	t[2] = vf2[0] * vf[1] * vf2[2];
-	t[3] = vf[0] * vf[1] * vf2[2];
-	t[4] = vf2[0] * vf2[1] * vf[2];
-	t[5] = vf[0] * vf2[1] * vf[2];
-	t[6] = vf2[0] * vf[1] * vf[2];
-	t[7] = vf[0] * vf[1] * vf[2];
-
-	for ( j = 0; j < 3; j++ )
+	else
 	{
-		ambient[j] = 0;
-		diffuse[j] = 0;
-
-		for ( i = 0; i < 4; i++ )
+		for (i = 0; i < 8; i++)
 		{
-			ambient[j] += t[i*2] * lg->lightgrid[ index[i]].ambient[j];
-			ambient[j] += t[i*2+1] * lg->lightgrid[ index[i+4]].ambient[j];
-
-			diffuse[j] += t[i*2] * lg->lightgrid[ index[i]].diffuse[j];
-			diffuse[j] += t[i*2+1] * lg->lightgrid[ index[i+4]].diffuse[j];
-		}
-	}
-
-	for ( j = 0; j < 2; j++ )
-	{
-		direction_uv[j] = 0;
-
-		for ( i = 0; i < 4; i++ )
-		{
-			direction_uv[j] += t[i*2] * lg->lightgrid[ index[i]].direction[j];
-			direction_uv[j] += t[i*2+1] * lg->lightgrid[ index[i+4]].direction[j];
+			VectorMA (ambient,      t[i], lg->lightgrid[index[i]].ambient,   ambient);
+			VectorMA (diffuse,      t[i], lg->lightgrid[index[i]].diffuse,   diffuse);
+			GLQ3_AddLatLong(lg->lightgrid[index[i]].direction, direction, t[i]);
 		}
 
-		direction_uv[j] = anglemod ( direction_uv[j] );
+		VectorScale(ambient, d_lightstylevalue[0]/255.0, ambient);
+		VectorScale(diffuse, d_lightstylevalue[0]/255.0, diffuse);
+		//FIXME: cl_lightstyle[0].colours[rgb]
 	}
 
-	VectorScale(ambient, 4, ambient);
-	VectorScale(diffuse, 4, diffuse);
+	//q3bsp has *4 overbrighting.
+//	VectorScale(ambient, 4, ambient);
+//	VectorScale(diffuse, 4, diffuse);
 
 	/*ambient is the min level*/
 	/*diffuse is the max level*/
@@ -1206,11 +1206,7 @@ void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_a
 	if (res_diffuse)
 		VectorAdd(diffuse, ambient, res_diffuse);
 	if (res_dir)
-	{
-		vec3_t right, left;
-		direction_uv[2] = 0;
-		AngleVectors(direction_uv, res_dir, right, left);
-	}
+		VectorCopy(direction, res_dir);
 }
 
 int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)

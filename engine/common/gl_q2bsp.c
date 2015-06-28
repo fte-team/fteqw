@@ -2895,6 +2895,7 @@ qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			out->lightmaptexturenums[sty] = -1;
 		}
 		out->lmshift = LMSHIFT_DEFAULT;
+		//fixme: determine texturemins from lightmap_origin
 		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<out->lmshift;
 		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<out->lmshift;
 		out->samples=NULL;
@@ -3466,6 +3467,7 @@ void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 	loadmodel->engineflags |= MDLF_RGBLIGHTING;
 	loadmodel->lightdata = out = ZG_Malloc(&loadmodel->memgroup, samples);
+	loadmodel->lightdatasize = samples;
 
 	//be careful here, q3bsp deluxemapping is done using interleaving. we want to unoverbright ONLY lightmaps and not deluxemaps.
 	for (m = 0; m < maps; m++)
@@ -4451,23 +4453,19 @@ void CM_InitBoxHull (void)
 	{
 		side = i&1;
 
-		// brush sides
+		//the pointers
 		s = &box_sides[i];
-		s->plane = 	box_planes + (i*2+side);
+		p = &box_planes[i];
+
+		// brush sides
+		s->plane = 	p;
 		s->surface = &nullsurface;
 
 		// planes
-		p = &box_planes[i*2];
-		p->type = i>>1;
+		p->type = ((i>=3)?i-3:i);
 		p->signbits = 0;
 		VectorClear (p->normal);
-		p->normal[i>>1] = 1;
-
-		p = &box_planes[i*2+1];
-		p->type = 3 + (i>>1);
-		p->signbits = 0;
-		VectorClear (p->normal);
-		p->normal[i>>1] = -1;
+		p->normal[p->type] = ((i>=3)?-1:1);
 	}
 }
 
@@ -4483,17 +4481,11 @@ BSP trees instead of being compared directly.
 void CM_SetTempboxSize (vec3_t mins, vec3_t maxs)
 {
 	box_planes[0].dist = maxs[0];
-	box_planes[1].dist = -maxs[0];
-	box_planes[2].dist = mins[0];
+	box_planes[1].dist = maxs[1];
+	box_planes[2].dist = maxs[2];
 	box_planes[3].dist = -mins[0];
-	box_planes[4].dist = maxs[1];
-	box_planes[5].dist = -maxs[1];
-	box_planes[6].dist = mins[1];
-	box_planes[7].dist = -mins[1];
-	box_planes[8].dist = maxs[2];
-	box_planes[9].dist = -maxs[2];
-	box_planes[10].dist = mins[2];
-	box_planes[11].dist = -mins[2];
+	box_planes[4].dist = -mins[1];
+	box_planes[5].dist = -mins[2];
 }
 
 model_t *CM_TempBoxModel(vec3_t mins, vec3_t maxs)
@@ -5837,18 +5829,18 @@ static qboolean BM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3
 
 	if (contents & FTECONTENTS_BODY)
 	{
+		trace_contents = contents;
+		VectorCopy (start, trace_start);
+		VectorCopy (end, trace_end);
+		VectorCopy (mins, trace_mins);
+		VectorCopy (maxs, trace_maxs);
+
 		if (trace_mins[0] == 0 && trace_mins[1] == 0 && trace_mins[2] == 0 && trace_maxs[0] == 0 && trace_maxs[1] == 0 && trace_maxs[2] == 0)
 			trace_shape = shape_ispoint;
 		else if (capsule)
 			trace_shape = shape_iscapsule;
 		else
 			trace_shape = shape_isbox;
-
-		trace_contents = contents;
-		VectorCopy (start, trace_start);
-		VectorCopy (end, trace_end);
-		VectorCopy (mins, trace_mins);
-		VectorCopy (maxs, trace_maxs);
 
 		CM_ClipBoxToBrush (trace_mins, trace_maxs, trace_start, trace_end, trace, &box_brush);
 	}

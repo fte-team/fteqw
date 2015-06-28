@@ -156,14 +156,18 @@ static void Q3G_UnlinkEntity(q3sharedEntity_t *ent)
 
 static model_t *Q3G_GetCModel(unsigned int modelindex)
 {
+	//0 is world
+	//1 == *1
+	//this is not how quake's precaches normally work.
+	modelindex++;
 	if ((unsigned int)modelindex < MAX_PRECACHE_MODELS)
 	{
 		if (!sv.models[modelindex])
 		{
-			if (modelindex == 0)
+			if (modelindex == 1)
 				sv.models[modelindex] = sv.world.worldmodel;
 			else
-				sv.models[modelindex] = Mod_ForName(Mod_FixName(va("*%i", modelindex), sv.modelname), MLV_WARN);
+				sv.models[modelindex] = Mod_ForName(Mod_FixName(va("*%i", modelindex-1), sv.modelname), MLV_WARN);
 		}
 
 		if (sv.models[modelindex]->loadstate == MLS_LOADING)

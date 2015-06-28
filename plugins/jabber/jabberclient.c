@@ -903,7 +903,7 @@ static int sasl_scramsha1_challenge(jclient_t *jcl, char *in, int inlen, char *o
 
 	SHA1_Hi(salted_password, password, strlen(password), &salt, atoi(itr.buf));
 	SHA1_HMAC(clientkey, sizeof(clientkey), "Client Key", strlen("Client Key"), salted_password, sizeof(salted_password));
-	SHA1(storedkey, sizeof(storedkey), clientkey, sizeof(clientkey));
+	SHA1(storedkey, sizeof(storedkey), clientkey, sizeof(clientkey));	//FIXME: switch the account's plain password to store this digest instead (with salt+itr).
 	SHA1_HMAC(clientsignature, sizeof(clientsignature), sigkey.buf, sigkey.len, storedkey, sizeof(storedkey));
 
 	for (i = 0; i < sizeof(proof); i++)

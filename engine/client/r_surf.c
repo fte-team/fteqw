@@ -2735,7 +2735,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 			{
 				if (lightmap_bgra && lightmap_bytes == 4)
 				{
-					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
+					for (j = min((m->lightdatasize-i*m->lightmaps.width*m->lightmaps.height*3)/3,m->lightmaps.width*m->lightmaps.height); j > 0; j--, dst += 4, src += 3)
 					{
 						dst[0] = src[2];
 						dst[1] = src[1];

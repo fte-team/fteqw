@@ -1444,6 +1444,11 @@ void R_GAlias_DrawBatch(batch_t *batch)
 			{
 				/*needrecolour =*/ Alias_GAliasBuildMesh(&mesh, &batch->vbo, inf, surfnum, e, batch->shader->prog && batch->shader->prog->permu[PERMUTATION_SKELETAL].handle.glsl.handle);
 				batch->mesh = &meshl;
+				if (!mesh.numindexes)
+				{
+					batch->meshes = 0;	//something went screwy
+					batch->mesh = NULL;
+				}
 				return;
 			}
 		}

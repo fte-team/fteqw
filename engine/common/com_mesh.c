@@ -1825,6 +1825,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	else
 #endif
 	{
+		//FIXME: replace most of this logic with Alias_BuildSkelLerps
+
 		frame1 = e->framestate.g[FS_REG].frame[0];
 		frame2 = e->framestate.g[FS_REG].frame[1];
 		lerp = e->framestate.g[FS_REG].lerpweight[1];	//FIXME
@@ -1859,6 +1861,15 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 		g1 = &inf->ofsanimations[frame1];
 		g2 = &inf->ofsanimations[frame2];
+
+		if (!inf->numanimations || !g1->numposes || !g2->numposes)
+		{
+			Con_Printf("Invalid animation data on entity with model %s\n", e->model->name);
+			//no animation data. panic!
+			memset(mesh, 0, sizeof(*mesh));
+			*vbop = NULL;
+			return false;
+		}
 
 		if (g1 == g2)	//lerping within group is only done if not changing group
 		{

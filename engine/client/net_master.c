@@ -1873,6 +1873,7 @@ void SListOptionChanged(serverinfo_t *newserver)
 		Info_SetValueForKey(newserver->moreinfo->info, "hostname", newserver->name, sizeof(newserver->moreinfo->info));
 
 
+		selectedserver.refreshtime = realtime+4;
 		newserver->sends++;
 		Master_QueryServer(newserver);
 	}

@@ -163,6 +163,7 @@ extern struct selectedserver_s
 {
 	qboolean inuse;
 	netadr_t adr;
+	float	refreshtime;
 
 	serverdetailedinfo_t *detail;
 

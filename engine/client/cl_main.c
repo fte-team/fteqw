@@ -78,8 +78,10 @@ cvar_t	m_forward = CVARF("m_forward","1", CVAR_ARCHIVE);
 cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
 cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "1", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
-cvar_t	cl_predict_players = CVARD("cl_predict_players", "1", "Clear this cvar to see ents exactly how they are on the server.");
-cvar_t	cl_predict_players_frac = CVARD("cl_predict_players_frac", "0.9", "How much of other players to predict. Values less than 1 will help minimize overruns.");
+cvar_t	cl_predict_players			= CVARD("cl_predict_players", "1", "Clear this cvar to see ents exactly how they are on the server.");
+cvar_t	cl_predict_players_frac		= CVARD("cl_predict_players_frac", "0.9", "How much of other players to predict. Values less than 1 will help minimize overruns.");
+cvar_t	cl_predict_players_latency	= CVARD("cl_predict_players_latency", "1.0", "Push the player back according to your latency, to give a smooth consistent simulation of the server.");
+cvar_t	cl_predict_players_nudge	= CVARD("cl_predict_players_nudge", "0.02", "An extra nudge of time, to cover video latency.");
 cvar_t	cl_solid_players = CVARD("cl_solid_players", "1", "Consider other players as solid for player prediction.");
 cvar_t	cl_noblink = CVARD("cl_noblink", "0", "Disable the ^^b text blinking feature.");
 cvar_t	cl_servername = CVARD("cl_servername", "none", "The hostname of the last server you connected to");
@@ -3638,6 +3640,8 @@ void CL_Init (void)
 	Cvar_Register (&cl_lerp_players, cl_controlgroup);
 	Cvar_Register (&cl_predict_players,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_players_frac,	cl_predictiongroup);
+	Cvar_Register (&cl_predict_players_latency,	cl_predictiongroup);
+	Cvar_Register (&cl_predict_players_nudge,	cl_predictiongroup);
 	Cvar_Register (&cl_solid_players,	cl_predictiongroup);
 
 #ifdef QUAKESPYAPI

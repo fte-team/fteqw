@@ -890,7 +890,7 @@ void CL_PredictMovePNum (int seat)
 		}
 	}
 
-	if (cls.demoplayback == DPB_QUAKEWORLD)
+	if (cls.demoplayback == DPB_QUAKEWORLD || pv->cam_state == CAM_EYECAM)
 		simtime -= cls.latency;
 	simtime += bound(-0.5, cl_predict_timenudge.value, 0.5);
 

@@ -6,7 +6,7 @@
 
 //filtering
 static cvar_t	sb_sortcolumn		= CVARF("sb_sortcolumn",	"0",	CVAR_ARCHIVE);
-static cvar_t	sb_filtertext		= CVARF("sb_filtertext",	"",		CVAR_ARCHIVE);
+static cvar_t	sb_filtertext		= CVARF("sb_filtertext",	"",		CVAR_NOSAVE);
 static cvar_t	sb_hideempty		= CVARF("sb_hideempty",		"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidenotempty		= CVARF("sb_hidenotempty",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidefull			= CVARF("sb_hidefull",		"0",	CVAR_ARCHIVE);
@@ -23,7 +23,7 @@ static cvar_t	sb_showplayers		= CVARF("sb_showplayers",	"1",	CVAR_ARCHIVE);
 static cvar_t	sb_showfraglimit	= CVARF("sb_showfraglimit",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_showtimelimit	= CVARF("sb_showtimelimit",	"0",	CVAR_ARCHIVE);
 
-static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.5",	CVAR_ARCHIVE);
+static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.7",	CVAR_ARCHIVE);
 
 vrect_t joinbutton;
 static float refreshedtime;
@@ -428,6 +428,12 @@ static void SL_PostDraw	(menu_t *menu)
 		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr):NULL;
 		int h = 0;
 		int w = 240;
+		if (server && selectedserver.refreshtime < realtime)
+		{
+			selectedserver.refreshtime = realtime + 4;
+			server->sends++;
+			Master_QueryServer(server);
+		}
 		R2D_ImageColours(1,1,1,1);
 		if (server && server->moreinfo)
 		{
@@ -531,7 +537,7 @@ static void SL_PostDraw	(menu_t *menu)
 						R2D_FillBlock (x, y+1, 32, 3);
 						R2D_ImagePaletteColour (Sbar_ColorForMap(server->moreinfo->players[i].botc), 1.0);
 						R2D_FillBlock (x, y+4, 32, 4);
-						Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].frags), 32, true, false);
+						Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].frags), 32-4, true, false);
 					}
 					x += 32+8;
 					Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].ping), 28, true, false);
@@ -644,6 +650,18 @@ static qboolean SL_Key	(int key, menu_t *menu)
 			serverpreview = ((serverpreview==3)?1:3);
 			return true;
 		}
+		else if (key == K_LEFTARROW)
+		{
+			if (--serverpreview < 1)
+				serverpreview = 3;
+			return true;
+		}
+		else if (key == K_RIGHTARROW)
+		{
+			if (++serverpreview > 3)
+				serverpreview = 1;
+			return true;
+		}
 		else if (key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER)	//join
 		{
 			if (key == 's' || key == 'o')
@@ -678,11 +696,11 @@ doconnect:
 			while(s = strchr(safename, '\n'))
 				*s = ' ';
 			if (key == 'c')
-				Sys_SaveClipboard(va("%s - %s\n", server->name, NET_StringToAdr(buf, sizeof(buf), &server->adr)));
+				Sys_SaveClipboard(va("%s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)));
 			else if (ctrldown)
-				Cbuf_AddText(va("say_team %s - %s\n", server->name, NET_StringToAdr(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("say_team %s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
 			else
-				Cbuf_AddText(va("say %s - %s\n", server->name, NET_StringToAdr(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText(va("say %s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
 			return true;
 		}
 		//eat (nearly) all keys
@@ -693,15 +711,13 @@ doconnect:
 	{
 		info->scrollpos = 0;
 		info->selectedpos = 0;
-		return true;
 	}
-	if (key == K_END)
+	else if (key == K_END)
 	{
 		info->selectedpos = info->numslots-1;
 		info->scrollpos = info->selectedpos - (vid.height-16-7)/8+8;
-		return true;
 	}
-	if (key == K_PGDN)
+	else if (key == K_PGDN)
 		info->selectedpos += 10;
 	else if (key == K_PGUP)
 		info->selectedpos -= 10;
@@ -734,7 +750,7 @@ doconnect:
 			snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 
-		if (serverpreview && server)
+		if (/*serverpreview &&*/ server)
 		{
 			selectedserver.inuse = true;
 			SListOptionChanged(server);
@@ -761,13 +777,19 @@ static void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 			if (ths->dint < selectedserver.detail->numplayers)
 			{
 				int i = ths->dint;
-				R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
-				R2D_FillBlock (x, y, 28, 4);
-				R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
-				R2D_FillBlock (x, y+4, 28, 4);
-				Draw_FunStringWidth (x, y, va("%3i", selectedserver.detail->players[i].frags), 28, false, false);
+				if (selectedserver.detail->players[i].isspec)
+					Draw_FunStringWidth (x, y, "spectator", 32, false, false);
+				else
+				{
+					R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
+					R2D_FillBlock (x, y, 32, 4);
+					R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
+					R2D_FillBlock (x, y+4, 32, 4);
 
-				Draw_FunStringWidth (x+28, y, selectedserver.detail->players[i].name, 12*8, false, false);
+					Draw_FunStringWidth (x, y, va("%3i", selectedserver.detail->players[i].frags), 32-4, true, false);
+				}
+
+				Draw_FunStringWidth (x+36, y, selectedserver.detail->players[i].name, 128-36, false, false);
 			}
 	}
 }

@@ -25,6 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern	cvar_t	cl_predict_players;
 extern	cvar_t	cl_predict_players_frac;
+extern	cvar_t	cl_predict_players_latency;
+extern	cvar_t	cl_predict_players_nudge;
 extern	cvar_t	cl_lerp_players;
 extern	cvar_t	cl_solid_players;
 extern	cvar_t	cl_item_bobbing;
@@ -920,7 +922,7 @@ void CLFTE_ParseEntities(void)
 
 	if (cl.do_lerp_players)
 	{
-		float packetage = (realtime - cl.outframes[cl.ackedmovesequence & UPDATE_MASK].senttime) - cls.latency;
+		float packetage = (realtime - cl.outframes[cl.ackedmovesequence & UPDATE_MASK].senttime) - cls.latency*cl_predict_players_latency.value + cl_predict_players_nudge.value;
 		//predict in-place based upon calculated latencies and stuff, stuff can then be interpolated properly
 		for (oldindex = 0; oldindex < newp->num_entities; oldindex++)
 		{
@@ -2991,7 +2993,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 						from = &latest->entities[i];
 						//use realtime instead.
 						//also, use the sent timings instead of received as those are assumed to be more reliable
-						age = (realtime - cl.outframes[cl.ackedmovesequence & UPDATE_MASK].senttime) - cls.latency;
+						age = (realtime - cl.outframes[cl.ackedmovesequence & UPDATE_MASK].senttime) - cls.latency*cl_predict_players_latency.value + cl_predict_players_nudge.value;
 						break;
 					}
 				}
@@ -4189,12 +4191,10 @@ guess_pm_type:
 	if (cl.worldmodel && cl.do_lerp_players && cl_predict_players.ival)
 	{
 		player_state_t exact;
-		msec += cls.latency*1000;
+		msec -= 1000 * (cls.latency*cl_predict_players_latency.value-cl_predict_players_nudge.value);
 //		msec = 1000*((realtime - cls.latency + 0.02) - state->state_time);
 		// predict players movement
-		if (msec > 255)
-			msec = 255;
-		state->command.msec = msec;
+		state->command.msec = bound(0, msec, 255);
 
 		//FIXME: flag these and do the pred elsewhere.
 		CL_SetSolidEntities();
@@ -4349,7 +4349,7 @@ void CL_LinkPlayers (void)
 	if (cls.demoplayback)
 		predictmsmult *= cl_demospeed.value;
 
-	playertime = realtime - cls.latency + 0.02;
+	playertime = realtime - cls.latency*cl_predict_players_latency.value + cl_predict_players_nudge.value;
 	if (playertime > realtime)
 		playertime = realtime;
 
@@ -4889,7 +4889,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 
 	int s;
 
-	playertime = realtime - cls.latency + 0.02;
+	playertime = realtime - cls.latency*cl_predict_players_latency.value + cl_predict_players_nudge.value;
 	if (playertime > realtime)
 		playertime = realtime;
 

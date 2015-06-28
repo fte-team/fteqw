@@ -351,7 +351,7 @@ void R_Clutter_Emit(batch_t **batches)
 	batch_t *b;
 	qboolean rebuildlimit = false;
 
-	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || r_clutter_density.value <= 0)
+	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || r_clutter_density.value <= 0 || (r_refdef.flags & RDF_NOWORLDMODEL))
 		return;
 
 	if (qrenderer != QR_OPENGL)	//vbo only!

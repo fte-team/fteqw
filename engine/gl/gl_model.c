@@ -2840,13 +2840,18 @@ static int Mod_Batches_Generate(model_t *mod)
 	batch_t *batch, *lbatch = NULL;
 	vec4_t plane;
 
-	int merge = sh_config.texture_maxsize / mod->lightmaps.height;
-	while (merge > mod->lightmaps.count)
-		merge /= 2;
+	int merge = 1;
+/*
+	if (mod->fromgame == fg_quake3 && *mod->name != '*')
+	{
+		int limit = min(sh_config.texture_maxsize / mod->lightmaps.height, mod_mergeq3lightmaps.ival);
+		while (merge*2 <= limit)
+			merge *= 2;
 
-	if (merge < 1)//erk?
-		merge = 1;
-
+		if (merge < 1)//erk?
+			merge = 1;
+	}
+*/
 	mod->lightmaps.count = (mod->lightmaps.count+merge-1) & ~(merge-1);
 	mod->lightmaps.count /= merge;
 	mod->lightmaps.height *= merge;

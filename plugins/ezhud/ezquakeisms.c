@@ -57,6 +57,12 @@ void Draw_TextBox (int x, int y, int width, int lines)
 {
 }
 
+char *TP_LocationName (vec3_t location)
+{
+	static char locname[256];
+	pGetLocationName(location, locname, sizeof(locname));
+	return locname;
+}
 
 
 void Draw_SPic(float x, float y, mpic_t *pic, float scale)
@@ -224,9 +230,35 @@ int Sbar_BottomColor(player_info_t *pi)
 {
 	return Sbar_ColorForMap(pi->bottomcolour);
 }
+int dehex(char nib)
+{
+	if (nib >= '0' && nib <= '9')
+		return nib - '0';
+	if (nib >= 'a' && nib <= 'f')
+		return nib - 'a' + 10;
+	if (nib >= 'A' && nib <= 'F')
+		return nib - 'A' + 10;
+	return 0;
+}
 char *TP_ParseFunChars(char *str, qbool chat)
 {
-	return str;
+	static char resultbuf[1024];
+	char *out = resultbuf, *end = resultbuf+sizeof(resultbuf)-1;
+
+	while (out < end)
+	{
+		if (str[0] == '$' && str[1] == 'x' && str[2] && str[3])
+		{
+			*out++ = (dehex(str[2]) << 4) | dehex(str[3]);
+			str+=4;
+		}
+		else if (*str)
+			*out++ = *str++;
+		else
+			break;
+	}
+	*out = 0;
+	return resultbuf;
 }
 char *TP_ItemName(unsigned int itbit)
 {
@@ -633,6 +665,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 	CHECKBUILTIN(Cvar_GetNVFDG);
 	if (BUILTINISVALID(Cvar_GetNVFDG) &&
 		BUILTINISVALID(Draw_ImageSize) &&
+		BUILTINISVALID(GetTeamInfo) &&
 		Plug_Export("SbarBase", EZHud_Draw) &&
 		Plug_Export("MenuEvent", EZHud_MenuEvent) &&
 		Plug_Export("Tick", EZHud_Tick) &&

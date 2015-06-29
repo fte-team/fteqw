@@ -5265,19 +5265,15 @@ static void SCR_HUD_DrawTeamHoldInfo(hud_t *hud)
 }
 #endif
 
-#ifdef HAXX
-static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxname, int maxloc, qbool width_only, hud_t *hud);
-#endif
+static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int maxname, int maxloc, qbool width_only, hud_t *hud);
 
-#ifdef HAXX
+#define FONTWIDTH 8
 static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 {
 	int x, y, _y, width, height;
-	int i, j, k, slots[MAX_CLIENTS], slots_num, maxname, maxloc;
+	int i, j, k, slots_num, maxname, maxloc;
 	char tmp[1024], *nick;
-
-	// Used for hud_teaminfo, data is collected in screen.c / scr_teaminfo
-	extern ti_player_t ti_clients[MAX_CLIENTS];
+	teamplayerinfo_t ti_clients[MAX_CLIENTS];
 
 	extern qbool hud_editor;
 
@@ -5302,45 +5298,29 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 	}
 
 	// Don't update hud item unless first view is beeing displayed
-	if ( CURRVIEW != 1 && CURRVIEW != 0)
-		return;
+//	if ( CURRVIEW != 1 && CURRVIEW != 0)
+//		return;
 
-	if (cls.mvdplayback)
-		Update_TeamInfo();
+	slots_num = pGetTeamInfo(ti_clients, countof(ti_clients), hud_teaminfo_show_enemies->ival, hud_teaminfo_show_self->ival);
 
 	// fill data we require to draw teaminfo
-	for ( maxloc = maxname = slots_num = i = 0; i < MAX_CLIENTS; i++ ) {
-		if ( !cl.players[i].name[0] || cl.players[i].spectator
-				|| !ti_clients[i].time || ti_clients[i].time + 5 < cl.time
-		 	)
-			continue;
-
-		// do not show enemy players unless it's MVD and user wishes to show them
-		if (VX_TrackerIsEnemy( i ) && (!cls.mvdplayback || !hud_teaminfo_show_enemies->integer))
-				continue;
-
-		// do not show tracked player to spectator
-		if ((cl.spectator && Cam_TrackNum() == i) && hud_teaminfo_show_self->integer == 0)
-			continue;
-
+	for ( maxloc = maxname = i = 0; i < slots_num; i++ ) {
 		// dynamically guess max length of name/location
 		nick = (ti_clients[i].nick[0] ? ti_clients[i].nick : cl.players[i].name); // we use nick or name
 		maxname = max(maxname, strlen(TP_ParseFunChars(nick, false)));
 
 		strlcpy(tmp, TP_LocationName(ti_clients[i].org), sizeof(tmp));
 		maxloc  = max(maxloc,  strlen(TP_ParseFunChars(tmp,  false)));
-
-		slots[slots_num++] = i;
 	}
 
 	// well, better use fixed loc length
-	maxloc  = bound(0, hud_teaminfo_loc_width->integer, 100);
+	maxloc  = bound(0, hud_teaminfo_loc_width->ival, 100);
 	// limit name length
-	maxname = bound(0, maxname, hud_teaminfo_name_width->integer);
+	maxname = bound(0, maxname, hud_teaminfo_name_width->ival);
 
 	// this does't draw anything, just calculate width
 	width = FONTWIDTH * hud_teaminfo_scale->value * SCR_HudDrawTeamInfoPlayer(&ti_clients[0], 0, 0, maxname, maxloc, true, hud);
-	height = FONTWIDTH * hud_teaminfo_scale->value * (hud_teaminfo_show_enemies->integer?slots_num+n_teams:slots_num);
+	height = FONTWIDTH * hud_teaminfo_scale->value * (hud_teaminfo_show_enemies->ival?slots_num+n_teams:slots_num);
 
 	if (hud_editor)
 		HUD_PrepareDraw(hud, width , FONTWIDTH, &x, &y);
@@ -5359,7 +5339,7 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 
 	// If multiple teams are displayed then sort the display and print team header on overlay
 	k=0;
-	if (hud_teaminfo_show_enemies->integer)
+	if (hud_teaminfo_show_enemies->ival)
 	{
 		while (sorted_teams[k].name)
 		{
@@ -5369,10 +5349,10 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 			_y += FONTWIDTH * hud_teaminfo_scale->value;
 			for ( j = 0; j < slots_num; j++ ) 
 			{
-				i = slots[j];
+				i = ti_clients[j].client;
 				if (!strcmp(cl.players[i].team,sorted_teams[k].name))
 				{
-					SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, false, hud);
+					SCR_HudDrawTeamInfoPlayer(&ti_clients[j], x, _y, maxname, maxloc, false, hud);
 					_y += FONTWIDTH * hud_teaminfo_scale->value;
 				}
 			}
@@ -5382,22 +5362,61 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 	else 
 	{
 		for ( j = 0; j < slots_num; j++ ) {
-			i = slots[j];
-			SCR_HudDrawTeamInfoPlayer(&ti_clients[i], x, _y, maxname, maxloc, false, hud);
+			SCR_HudDrawTeamInfoPlayer(&ti_clients[j], x, _y, maxname, maxloc, false, hud);
 			_y += FONTWIDTH * hud_teaminfo_scale->value;
 		}
 	}
 }
-#endif
 
 qbool Has_Both_RL_and_LG (int flags) { return (flags & IT_ROCKET_LAUNCHER) && (flags & IT_LIGHTNING); }
-#ifdef HAXX
-static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxname, int maxloc, qbool width_only, hud_t *hud)
+#define FONTWIDTH 8
+void str_align_right (char *target, size_t size, const char *source, size_t length)
+{
+	if (length > size - 1)
+		length = size - 1;
+
+	if (strlen(source) >= length) {
+		strlcpy(target, source, size);
+		target[length] = 0;
+	} else {
+		int i;
+
+		for (i = 0; i < length - strlen(source); i++) {
+			target[i] = ' ';
+		}
+
+		strlcpy(target + i, source, size - i);
+	}
+}
+int Player_GetTrackId(int uid)
+{
+	return uid;
+}
+unsigned int BestWeaponFromStatItems(unsigned int items)
+{
+	int i;
+	for (i = 1<<7; i; i>>=1)
+	{
+		if (items & i)
+			return i;
+	}
+	return 0;
+}
+mpic_t * SCR_GetWeaponIconByFlag (int flag)
+{
+	int i, j;
+	for (i = 0, j = 1; i < 7; i++, j*=2)
+	{
+		if (flag == j)
+			return sb_weapons[0][i];
+	}
+	return NULL;
+}
+static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int maxname, int maxloc, qbool width_only, hud_t *hud)
 {
 	extern mpic_t * SCR_GetWeaponIconByFlag (int flag);
-	extern cvar_t tp_name_rlg;
 
-	char *s, *loc, tmp[1024], tmp2[MAX_MACRO_STRING], *aclr;
+	char *s, *loc, tmp[1024], tmp2[1024], *aclr;
 	int x_in = x; // save x
 	int i;
 	mpic_t *pic;
@@ -5442,11 +5461,11 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxna
 				break;
 			case 'w': // draw "best" weapon icon/name
 
-				switch (HUD_FindVar(hud, "weapon_style")->integer) {
+				switch (HUD_FindVar(hud, "weapon_style")->ival) {
 				case 1:
 					if(!width_only) {
 						if (Has_Both_RL_and_LG(ti_cl->items)) {
-							char *weap_str = tp_name_rlg.string;
+							char *weap_str = pCvar_GetNVFDG("tp_name_rlg", "rlg", 0, NULL, NULL)->string;
 							char weap_white_stripped[32];
 							Util_SkipChars(weap_str, "{}", weap_white_stripped, 32);
 							Draw_ColoredString (x, y, weap_white_stripped, false);
@@ -5475,7 +5494,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxna
 			case 'H': // draw health, padding with space on right side
 
 				if(!width_only) {
-					snprintf(tmp, sizeof(tmp), (s[0] == 'h' ? "%s%3d" : "%s%-3d"), (ti_cl->health < HUD_FindVar(hud, "low_health")->integer ? "&cf00" : ""), ti_cl->health);
+					snprintf(tmp, sizeof(tmp), (s[0] == 'h' ? "%s%3d" : "%s%-3d"), (ti_cl->health < HUD_FindVar(hud, "low_health")->ival ? "&cf00" : ""), (int)ti_cl->health);
 					Draw_SString (x, y, tmp, scale);
 				}
 				x += 3 * FONTWIDTH * scale;
@@ -5489,7 +5508,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxna
 				//
 				// different styles of armor
 				//
-				switch (HUD_FindVar(hud,"armor_style")->integer) {
+				switch (HUD_FindVar(hud,"armor_style")->ival) {
 				case 1: // image prefixed armor value
 					if(!width_only) {
 						if (ti_cl->items & IT_ARMOR3)
@@ -5546,7 +5565,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxna
 				}
 
 				if(!width_only) { // value drawed no matter which style
-					snprintf(tmp, sizeof(tmp), (s[0] == 'a' ? "%s%3d" : "%s%-3d"), aclr, ti_cl->armor);
+					snprintf(tmp, sizeof(tmp), (s[0] == 'a' ? "%s%3d" : "%s%-3d"), aclr, (int)ti_cl->armor);
 					Draw_SString (x, y, tmp, scale);
 				}
 				x += 3 * FONTWIDTH * scale;
@@ -5566,7 +5585,7 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxna
 
 				break;
 			case 'p': // draw powerups
-			switch (HUD_FindVar(hud, "powerup_style")->integer) {
+			switch (HUD_FindVar(hud, "powerup_style")->ival) {
 				case 1: // quad/pent/ring image
 					if(!width_only) {
 						if (ti_cl->items & IT_QUAD)
@@ -5658,7 +5677,6 @@ static int SCR_HudDrawTeamInfoPlayer(ti_player_t *ti_cl, int x, int y, int maxna
 
 	return (x - x_in) / (FONTWIDTH * scale); // return width
 }
-#endif
 
 #ifdef HAXX
 void SCR_HUD_DrawItemsClock(hud_t *hud)
@@ -8046,7 +8064,6 @@ void CommonDraw_Init(void)
 		"maxname", "16",
 		NULL);
 
-#ifdef HAXX
     HUD_Register("teaminfo", NULL, "Show information about your team in short form.",
         0, ca_active, 0, SCR_HUD_DrawTeamInfo,
         "0", "", "right", "center", "0", "0", "0.2", "20 20 20", NULL,
@@ -8062,7 +8079,6 @@ void CommonDraw_Init(void)
 		"scale","1",
 		"powerup_style","1",
 		NULL);
-#endif
 
 	HUD_Register("mp3_title", NULL, "Shows current mp3 playing.",
         HUD_PLUSMINUS, ca_disconnected, 0, SCR_HUD_DrawMP3_Title,

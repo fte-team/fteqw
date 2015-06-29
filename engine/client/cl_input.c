@@ -1714,6 +1714,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		}
 
 		IN_Move (NULL, 0, frametime);
+
+		Cbuf_Waited();	//its okay to stop waiting now
 		return; // sendcmds come from the demo
 	}
 
@@ -1803,6 +1805,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		{
 			CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
 			CL_FinishMove(&independantphysics[plnum], msecstouse, plnum);
+
+			Cbuf_Waited();	//its okay to stop waiting now
 		}
 
 		// if we are spectator, try autocam

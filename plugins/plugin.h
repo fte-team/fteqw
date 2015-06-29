@@ -233,7 +233,17 @@ EBUILTIN(int, GetLocalPlayerNumbers, (int firstseat, int numseats, int *playernu
 EBUILTIN(void, GetServerInfo, (char *info, int infolen));
 EBUILTIN(void, SetUserInfo, (const char *key, const char *value));
 EBUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
-EBUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
+
+typedef struct
+{
+	unsigned int client;
+	unsigned int items;
+	float armor;
+	float health;
+	vec3_t org;
+	char nick[16];
+} teamplayerinfo_t;
+EBUILTIN(int, GetTeamInfo, (teamplayerinfo_t *clients, unsigned int maxclients, int showenemies, int showself));
 
 typedef struct {
 	int seats;

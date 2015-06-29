@@ -6512,15 +6512,15 @@ static void QCBUILTIN PF_clientcommand (pubprogfuncs_t *prinst, struct globalvar
 {
 	client_t *oldhostclient = host_client;
 	edict_t *oldsvplayer = sv_player;
-	int i;
+	unsigned int i;
 
 	//find client for this entity
-	i = NUM_FOR_EDICT(prinst, G_EDICT(prinst, OFS_PARM0)) - 1;
-	if (i < 0 || i >= sv.allocated_client_slots)
+	i = NUM_FOR_EDICT(prinst, G_EDICT(prinst, OFS_PARM0));
+	if (i <= 0 || i > sv.allocated_client_slots)
 		PR_BIError(prinst, "PF_clientcommand: entity is not a client");
 	else
 	{
-		host_client = &svs.clients[i];
+		host_client = &svs.clients[i-1];
 		sv_player = host_client->edict;
 		if (host_client->state == cs_connected || host_client->state == cs_spawned)
 		{

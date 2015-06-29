@@ -4663,19 +4663,22 @@ void CL_ParseSetInfo (void)
 	char value[MAX_QWMSGLEN];
 
 	slot = MSG_ReadByte ();
-	if (slot >= MAX_CLIENTS)
-		Host_EndGame ("CL_ParseServerMessage: svc_setinfo > MAX_SCOREBOARD");
-
-	player = &cl.players[slot];
 
 	Q_strncpyz (key, MSG_ReadString(), sizeof(key));
 	Q_strncpyz (value, MSG_ReadString(), sizeof(value));
 
-	Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, value);
+	if (slot >= MAX_CLIENTS)
+		Con_Printf("INVALID SETINFO %i: %s=%s\n", slot, key, value);
+	else
+	{
+		player = &cl.players[slot];
 
-	Info_SetValueForStarKey (player->userinfo, key, value, sizeof(player->userinfo));
+		Con_DPrintf("SETINFO %s: %s=%s\n", player->name, key, value);
 
-	CL_ProcessUserInfo (slot, player);
+		Info_SetValueForStarKey (player->userinfo, key, value, sizeof(player->userinfo));
+
+		CL_ProcessUserInfo (slot, player);
+	}
 }
 
 /*
@@ -5691,6 +5694,32 @@ void CL_ParsePrint(char *msg, int level)
 }
 
 
+void CL_ParseTeamInfo(void)
+{
+	unsigned int pidx = atoi(Cmd_Argv(1));
+	vec3_t org =
+	{
+		atof(Cmd_Argv(2)),
+		atof(Cmd_Argv(3)),
+		atof(Cmd_Argv(4))
+	};
+	float health = atof(Cmd_Argv(5));
+	float armour = atof(Cmd_Argv(6));
+	unsigned int items = strtoul(Cmd_Argv(7), NULL, 0);
+	char *nick = Cmd_Argv(8);
+
+	if (pidx < cl.allocated_client_slots)
+	{
+		player_info_t *pl = &cl.players[pidx];
+		pl->tinfo.time = cl.time+5;
+		pl->tinfo.health = health;
+		pl->tinfo.armour = armour;
+		pl->tinfo.items = items;
+		VectorCopy(org, pl->tinfo.org);
+		Q_strncpyz(pl->tinfo.nick, nick, sizeof(pl->tinfo.nick));
+	}
+}
+
 
 char stufftext[4096];
 void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from network segregation.
@@ -5781,7 +5810,8 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			else if (!strncmp(stufftext, "//tinfo ", 8))
 			{
 				Cmd_TokenizeString(stufftext+2, false, false);
-				Plug_Command_f();
+				CL_ParseTeamInfo();
+				Plug_Command_f();	//FIXME: deprecate this call
 			}
 			else if (!strncmp(stufftext, "//sn ", 5))
 			{

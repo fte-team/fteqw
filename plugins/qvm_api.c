@@ -15,6 +15,7 @@ int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
 	int tokens=0;
 	char *string;
 	char tempbuffer[64];
+	char sign;
 	unsigned int _uint;
 	int _int;
 	float _float;
@@ -176,25 +177,22 @@ Con_Printf("%i bytes left\n", maxlen);
 				}
 				if (_int < 0)
 				{
-					if (maxlen-- == 0) 
-						{*buffer++='\0';return tokens;}
-					*buffer++ = '-';
+					sign = '-';
 					_int *= -1;
 				}
 				else if (plus)
-				{
-					if (maxlen-- == 0) 
-						{*buffer++='\0';return tokens;}
-					*buffer++ = '+';
-				}
+					sign = '+';
+				else
+					sign = 0;
 				i = sizeof(tempbuffer)-2;
 				tempbuffer[sizeof(tempbuffer)-1] = '\0';
 				while(_int)
 				{
-					tempbuffer[i] = _int%10 + '0';
+					tempbuffer[i--] = _int%10 + '0';
 					_int/=10;
-					i--;
 				}
+				if (sign)
+					tempbuffer[i--] = sign;
 				string = tempbuffer+i+1;
 
 				if (!*string)

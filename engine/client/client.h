@@ -164,6 +164,16 @@ typedef struct player_info_s
 	int		ping;
 	qbyte	pl;
 
+	struct
+	{
+		float time;	//invalid if too old.
+		int health;
+		int armour;
+		unsigned int items;
+		vec3_t org;
+		char nick[8];	//kinda short, yes.
+	} tinfo;
+
 	qboolean ignored;
 	qboolean vignored;
 

@@ -924,11 +924,6 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 		if (!(var->flags & (CVAR_CHEAT|CVAR_SEMICHEAT)))
 			continue;
 
-		if (var->flags & CVAR_RULESETLATCH)
-		{
-			Con_Printf("Hello\n");
-		}
-
 		latch = var->latched_string;
 		var->latched_string = NULL;
 		if (!latch)

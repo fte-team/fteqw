@@ -2294,6 +2294,7 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 	/*set cvar unirforms*/
 	for (i = 0; cvarnames[i]; i++)
 	{
+		char *tmpval;
 		if (prog->numparams == SHADER_PROGPARMS_MAX)
 		{
 			Con_Printf("Too many cvar paramters for program\n");
@@ -2302,7 +2303,14 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 		for (p = 0; cvarnames[i][p] && (unsigned char)cvarnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
 			tmpname[p] = cvarnames[i][p];
 		tmpname[p] = 0;
-		cvar = Cvar_Get(tmpname, "0", CVAR_SHADERSYSTEM, "glsl cvars");
+		tmpval = strchr(tmpname, '=');
+		if (tmpval)
+			*tmpval++ = 0;
+		else
+			tmpval = "0";
+		while(p > 0 && (tmpname[p-1] == ' ' || tmpname[p-1] == '\t'))
+			tmpname[--p] = 0;
+		cvar = Cvar_Get(tmpname, tmpval, CVAR_SHADERSYSTEM, "glsl cvars");
 		if (!cvar)
 			continue;
 		cvar->flags |= CVAR_SHADERSYSTEM;

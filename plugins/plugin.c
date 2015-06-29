@@ -155,6 +155,10 @@ BUILTIN(void, SetUserInfo, (const char *key, const char *value));
 BUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
 #undef ARGNAMES
 
+#define ARGNAMES ,clients,maxclients,showenemies,showself
+BUILTINR(int, GetTeamInfo, (teamplayerinfo_t *clients, unsigned int maxclients, int showenemies, int showself));
+#undef ARGNAMES
+
 #define ARGNAMES ,soundname
 BUILTIN(void, LocalSound, (const char *soundname));
 #undef ARGNAMES
@@ -423,6 +427,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Menu_Control);
 	CHECKBUILTIN(Key_GetKeyCode);
 	CHECKBUILTIN(GetLocationName);
+	CHECKBUILTIN(GetTeamInfo);
 	CHECKBUILTIN(GetNetworkInfo);
 
 	//drawing routines

@@ -1031,9 +1031,22 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			{
 				cvar_t *var;
 				char namebuf[64];
+				char valuebuf[64];
 				memcpy(namebuf, script, end - script);
 				namebuf[end - script] = 0;
-				var = Cvar_Get(namebuf, "0", CVAR_SHADERSYSTEM, "GLSL Variables");
+				while (*end == ' ' || *end == '\t')
+					end++;
+				if (*end == '=')
+				{
+					script = ++end;
+					while (*end && *end != '\n' && *end != '\r' && end < script+sizeof(namebuf)-1)
+						end++;
+					memcpy(valuebuf, script, end - script);
+					valuebuf[end - script] = 0;
+				}
+				else
+					strcpy(valuebuf, "0");
+				var = Cvar_Get(namebuf, valuebuf, CVAR_SHADERSYSTEM, "GLSL Variables");
 				if (var)
 					permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %g\n", namebuf, var->value));
 			}

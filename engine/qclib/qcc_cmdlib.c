@@ -4,6 +4,8 @@
 #include <ctype.h>
 //#include <sys/time.h>
 
+#undef progfuncs
+
 #define PATHSEPERATOR   '/'
 
 #ifndef QCC
@@ -131,8 +133,8 @@ void QC_strlcat(char *dest, const char *src, size_t destsize)
 	dest += curlen;
 	while(*src && ++curlen < destsize)
 		*dest++ = *src++;
-	if (*src)
-		printf("QC_strlcpy: truncation\n");
+//	if (*src)
+//		printf("QC_strlcpy: truncation\n");
 	*dest = 0;
 }
 void QC_strlcpy(char *dest, const char *src, size_t destsize)
@@ -142,8 +144,8 @@ void QC_strlcpy(char *dest, const char *src, size_t destsize)
 		return;	//err
 	while(*src && ++curlen < destsize)
 		*dest++ = *src++;
-	if (*src)
-		printf("QC_strlcpy: truncation\n");
+//	if (*src)
+//		printf("QC_strlcpy: truncation\n");
 	*dest = 0;
 }
 void QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize)
@@ -153,8 +155,8 @@ void QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize)
 		return;	//err
 	for(; *src && srclen > 0 && ++curlen < destsize; srclen--)
 		*dest++ = *src++;
-	if (srclen)
-		printf("QC_strlcpy: truncation\n");
+//	if (srclen)
+//		printf("QC_strlcpy: truncation\n");
 	*dest = 0;
 }
 
@@ -312,7 +314,7 @@ skipwhite:
 			}
 			else if (c=='\0')
 			{
-				printf("ERROR: Unterminated string\n");
+//				printf("ERROR: Unterminated string\n");
 				qcc_token[len] = 0;
 				return (char*)data;
 			}
@@ -324,7 +326,7 @@ skipwhite:
 				//so \r\n terminates the string if the last char was an escaped quote, but not otherwise.
 				if (len > 0 && qcc_token[len-1] == '\"')
 				{
-					printf("ERROR: new line in string\n");
+//					printf("ERROR: new line in string\n");
 					qcc_token[len] = 0;
 					return (char*)data;
 				}
@@ -519,6 +521,7 @@ For abnormal program terminations
 */
 void VARGS QCC_Error (int errortype, const char *error, ...)
 {
+	progfuncs_t *progfuncs = qccprogfuncs;
 	extern int numsourcefiles;
 	va_list argptr;
 	char msg[2048];
@@ -877,6 +880,7 @@ int SafeSeek(int hand, int ofs, int mode)
 }
 pbool SafeClose(int hand)
 {
+	progfuncs_t *progfuncs = qccprogfuncs;
 	pbool ret;
 	ret = externs->WriteFile(qccfile[hand].name, qccfile[hand].buff, qccfile[hand].maxofs);
 //	if (qccfile[hand].buffismalloc)
@@ -1163,6 +1167,7 @@ char *QCC_SanitizeCharSet(char *mem, unsigned int *len, pbool *freeresult, int *
 
 long	QCC_LoadFile (char *filename, void **bufferptr)
 {
+	progfuncs_t *progfuncs = qccprogfuncs;
 	char *mem;
 	int check;
 	int flen;
@@ -1221,6 +1226,7 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 }
 void	QCC_AddFile (char *filename)
 {
+	progfuncs_t *progfuncs = qccprogfuncs;
 	char *mem;
 	int len;
 	len = externs->FileSize(filename);
@@ -1241,6 +1247,7 @@ void	QCC_AddFile (char *filename)
 }
 void *FS_ReadToMem(char *filename, void *mem, int *len)
 {
+	progfuncs_t *progfuncs = qccprogfuncs;
 	if (!mem)
 	{
 		*len = externs->FileSize(filename);
@@ -1251,6 +1258,7 @@ void *FS_ReadToMem(char *filename, void *mem, int *len)
 
 void FS_CloseFromMem(void *mem)
 {
+	progfuncs_t *progfuncs = qccprogfuncs;
 	externs->memfree(mem);
 }
 

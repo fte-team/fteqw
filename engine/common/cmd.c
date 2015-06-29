@@ -153,6 +153,12 @@ struct {
 } cmd_text[RESTRICT_MAX+3+MAX_SPLITS];	//max is local.
 							//RESTRICT_MAX+1 is the from sever buffer (max+2 is for second player...)
 
+void Cbuf_Waited(void)
+{
+	//input packet was sent to server, its okay to continue executing stuff like -attack now
+	cmd_text[RESTRICT_LOCAL].waitattime = 0;
+}
+
 /*
 ============
 Cmd_Wait_f
@@ -423,6 +429,15 @@ Cbuf_Execute
 void Cbuf_Execute (void)
 {
 	int level;
+
+#ifndef SERVERONLY
+	if (cmd_text[RESTRICT_LOCAL].waitattime && cls.state == ca_active)
+	{
+		//keep binds blocked until after the next input frame was sent to the server (at which point it will be cleared
+		//this ensures that wait and +attack etc works synchronously, as though your client never even supported network independance! yay... I guess.
+		cmd_text[RESTRICT_LOCAL].waitattime = realtime;
+	}
+#endif
 
 	for (level = 0; level < sizeof(cmd_text)/sizeof(cmd_text[0]); level++)
 		if (cmd_text[level].buf.cursize)

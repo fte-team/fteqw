@@ -695,6 +695,95 @@ static qintptr_t VARGS Plug_GetLocationName(void *offset, quintptr_t mask, const
 	return VM_LONG(arg[1]);
 }
 
+typedef struct
+{
+	unsigned int client;
+	unsigned int items;
+	float armor;
+	float health;
+	vec3_t org;
+	char nick[16];
+} teamplayerinfo_t;
+static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	teamplayerinfo_t *players = VM_POINTER(arg[0]);
+	size_t maxplayers = VM_LONG(arg[1]);
+	qboolean showenemies = VM_LONG(arg[2]);
+	qboolean showself = VM_LONG(arg[3]);
+	int count = 0;
+	int i;
+	int self;
+	lerpents_t		*le;
+	player_info_t	*pl;
+
+	if (VM_OOB(arg[0], maxplayers*sizeof(*players)))
+		return 0;
+	maxplayers = min(maxplayers, cl.allocated_client_slots);
+	
+	Cvar_Get("ti", "1", CVAR_USERINFO, "Hacks because ktx sucks. Must be 1 in order to receive team information in ktx.");
+	
+	self = cl.playerview[0].playernum;
+	if (cl.playerview[0].cam_state != CAM_FREECAM)
+		self = cl.playerview[0].cam_spec_track;
+	
+	for (i = 0; i < cl.allocated_client_slots && maxplayers > 0; i++)
+	{
+		if (!*cl.players[i].name)	//empty slot
+			continue;
+		if (cl.players[i].spectator)	//shoo!
+			continue;
+		if (i == self && !showself)
+			continue;
+		if (!showenemies && strcmp(cl.players[i].team, cl.players[self].team))
+			continue;
+		players->client = i;
+		
+		pl = &cl.players[i];
+		if (pl->tinfo.time > cl.time)
+		{	//mod is explicitly telling us this junk
+			players->items = pl->tinfo.items;
+			players->health = pl->tinfo.health;
+			players->armor = pl->tinfo.armour;
+			VectorCopy(pl->tinfo.org, players->org);
+			Q_strncpyz(players->nick, pl->tinfo.nick, sizeof(players->nick));
+		}
+		else if (i == self)
+		{	//oh hey look, its me.
+			players->items = cl.playerview[0].stats[STAT_ITEMS];
+			players->armor = cl.playerview[0].statsf[STAT_ARMOR];
+			players->health = cl.playerview[0].statsf[STAT_HEALTH];
+			Q_strncpyz(players->nick, "", sizeof(players->nick));
+		}
+		else
+		{	//scrape it from the mvd (assuming there is one...
+			players->items = cl.players[i].stats[STAT_ITEMS];
+			players->armor = cl.players[i].statsf[STAT_ARMOR];
+			players->health = cl.players[i].statsf[STAT_HEALTH];
+			Q_strncpyz(players->nick, "", sizeof(players->nick));
+			
+			VectorClear(players->org);
+		}
+		
+		//scrape origin from interpolation, if its more valid.
+		if (i+1 < cl.maxlerpents && cl.lerpentssequence && cl.lerpents[i+1].sequence == cl.lerpentssequence)
+		{
+			le = &cl.lerpents[i+1];
+			VectorCopy(le->origin, players->org);
+		}
+		else if (cl.lerpentssequence && cl.lerpplayers[i].sequence == cl.lerpentssequence)
+		{
+			le = &cl.lerpplayers[i];
+			VectorCopy(le->origin, players->org);
+		}
+
+		players++;
+		maxplayers--;
+		count++;
+	}
+	
+	return VM_LONG(count);
+}
+
 static qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	char *name = VM_POINTER(arg[0]);
@@ -1058,6 +1147,7 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, PLUG_BIF_NEEDSRENDERER);
 
+	Plug_RegisterBuiltin("GetTeamInfo",				Plug_GetTeamInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetLocationName",			Plug_GetLocationName, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("LocalPlayerNumber",		Plug_LocalPlayerNumber, PLUG_BIF_NEEDSRENDERER);

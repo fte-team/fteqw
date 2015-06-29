@@ -1283,6 +1283,7 @@
 				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;SERVERONLY;MULTITHREAD"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
+				SmallerTypeCheck="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
 				FloatingPointModel="2"

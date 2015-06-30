@@ -370,7 +370,7 @@ typedef struct {
 } ruleset_t;
 
 rulesetrule_t rulesetrules_strict[] = {
-	{"ruleset_allow_shaders", "0"},
+	{"ruleset_allow_shaders", "0"},	/*users can potentially create all sorts of wallhacks or spiked models with this*/
 	{"r_vertexlight", "0"},
 	{"ruleset_allow_playercount", "0"},
 	{"ruleset_allow_frj", "0"},
@@ -382,6 +382,7 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_sensitive_texture_replacements", "0"},
 	{"ruleset_allow_localvolume", "0"},
 	{"ruleset_allow_fbmodels", "0"},
+	{"scr_autoid_team", "0"},	/*sort of a wallhack*/
 	{"tp_disputablemacros", "0"},
 	{"cl_instantrotate", "0"},
 	{"v_projectionmode", "0"},	/*no extended fovs*/

@@ -98,7 +98,13 @@ cvar_t	v_gunkick_q2 = SCVAR("v_gunkick_q2", "1");
 cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
 cvar_t	v_projectionmode = SCVAR("v_projectionmode", "0");
 
-cvar_t	scr_autoid = SCVAR("scr_autoid", "1");
+cvar_t	scr_autoid				= CVARD("scr_autoid", "1", "Display nametags above all players while spectating.");
+cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "1", "Display nametags above team members (regardless of occlusion).");
+cvar_t	scr_autoid_health		= CVARD("scr_autoid_health", "1", "Display health as part of nametags (when known).");
+cvar_t	scr_autoid_armour		= CVARD("scr_autoid_armor", "1", "Display armour as part of nametags (when known).");
+cvar_t	scr_autoid_weapon		= CVARD("scr_autoid_weapon", "1", "Display the player's best weapon as part of their nametag (when known).");
+cvar_t	scr_autoid_teamcolour	= CVARD("scr_autoid_teamcolour", STRINGIFY(COLOR_BLUE), "The colour for the text on the nametags of team members.");
+cvar_t	scr_autoid_enemycolour	= CVARD("scr_autoid_enemycolour", STRINGIFY(COLOR_WHITE), "The colour for the text on the nametags of non-team members.");
 
 cvar_t	chase_active = CVAR("chase_active", "0");
 cvar_t	chase_back = CVAR("chase_back", "48");
@@ -1514,18 +1520,172 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	}
 }
 
-#include "pr_common.h"
 void Draw_ExpandedString(float x, float y, conchar_t *str);
+
+static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
+{
+	conchar_t buffer[256];
+	int len;
+	vec3_t center;
+	vec3_t tagcenter;
+	float alpha;
+	qboolean obscured;
+	int health, armour;
+	unsigned int items;
+	int x, y;
+	int r;
+	float barwidth;
+	qboolean haveinfo;
+	unsigned int textflags;
+
+	static vec4_t healthcolours[] =
+	{
+		{0.7, 0.45, 0.45, 1},
+		{0.3, 0, 0, 1},
+		{1, 0, 0, 1},
+		{1, 0.4, 0, 1},
+		{1, 1, 1, 1}
+	};
+	static vec4_t armourcolours[] =
+	{
+		{25, 170, 0, 0.2},
+		{25, 170, 0, 1},
+		{225, 220, 0, 0.2},
+		{225, 220, 0, 1},
+		{255, 0, 0, 0.2},
+		{255, 0, 0, 1}
+	};
+
+	extern cvar_t tp_name_sg,tp_name_ssg,tp_name_ng,tp_name_sng,tp_name_gl,tp_name_rl,tp_name_lg;
+	static cvar_t *wbitnames[] =
+	{
+		&tp_name_sg,
+		&tp_name_ssg,
+		&tp_name_ng,
+		&tp_name_sng,
+		&tp_name_gl,
+		&tp_name_rl,
+		&tp_name_lg
+	};
+
+	VectorCopy(org, tagcenter);
+	tagcenter[2] += 32;
+	if (!Matrix4x4_CM_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
+		return;	//offscreen
+
+	obscured = !TP_IsPlayerVisible(org);
+	
+	if (obscured && !isteam)
+		return;	//only teammembers are drawn when obscured
+	if (isteam)
+		textflags = scr_autoid_teamcolour.ival << CON_FGSHIFT;
+	else
+		textflags = scr_autoid_enemycolour.ival << CON_FGSHIFT;
+	if (obscured)
+	{
+		textflags |= CON_HALFALPHA;
+		alpha = 0.25;
+	}
+	else
+		alpha = 1;
+
+	x = center[0]*r_refdef.vrect.width+r_refdef.vrect.x;
+	y = (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y;
+
+	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	{
+		health = pl->statsf[STAT_HEALTH];
+		armour = pl->statsf[STAT_ARMOR];
+		items = pl->stats[STAT_ITEMS];
+		haveinfo = true;
+	}
+	else
+	{
+		health = pl->tinfo.health;
+		armour = pl->tinfo.armour;
+		items = pl->tinfo.items;
+		haveinfo = pl->tinfo.time > cl.time;
+	}
+
+	y -= 8;
+	len = COM_ParseFunString(textflags, pl->name, buffer, sizeof(buffer), false) - buffer;
+	Draw_ExpandedString(x - len*4, y, buffer);
+
+	if (!haveinfo)
+		return;	//we don't trust the info that we have, so no ids.
+
+	//display health bar
+	if (scr_autoid_health.ival)
+	{
+		if (health < 0)
+			health = 0;
+		r = health / 100;
+		health -= r*100;
+		if (r > countof(healthcolours)-2)
+		{
+			r = countof(healthcolours)-2;
+			health = 100;
+		}
+		barwidth = 32;
+		y -= 8;
+		R2D_ImageColours(healthcolours[r][0], healthcolours[r][1], healthcolours[r][2], healthcolours[r][3]*alpha);
+		R2D_FillBlock(x - barwidth*0.5 + barwidth * health/100.0, y, barwidth * (100-health)/100.0, 8);
+		r++;
+		R2D_ImageColours(healthcolours[r][0], healthcolours[r][1], healthcolours[r][2], healthcolours[r][3]*alpha);
+		R2D_FillBlock(x - barwidth*0.5, y, barwidth * health/100.0, 8);
+	}
+
+	if (scr_autoid_armour.ival)
+	{
+		//display armour bar above that
+		if (items & IT_ARMOR3)
+			r = 4, health = 200;
+		else if (items & IT_ARMOR2)
+			r = 2, health = 150;
+		else if (items & IT_ARMOR1)
+			r = 0, health = 100;
+		else r = -1;
+		if (r >= 0)
+		{
+			y -= 8;
+			armour = bound(0, armour, health);
+			barwidth = 32;
+			R2D_ImageColours(armourcolours[r][0], armourcolours[r][1], armourcolours[r][2], armourcolours[r][3]*alpha);
+			R2D_FillBlock(x - barwidth*0.5 + barwidth * armour/(float)health, y, barwidth * (health-armour)/(float)health, 8);
+			r++;
+			R2D_ImageColours(armourcolours[r][0], armourcolours[r][1], armourcolours[r][2], armourcolours[r][3]*alpha);
+			R2D_FillBlock(x - barwidth*0.5, y, barwidth * armour/(float)health, 8);
+		}
+	}
+
+	if (scr_autoid_weapon.ival)
+	{
+		if (scr_autoid_armour.ival && scr_autoid_health.ival)
+			y += 4;
+		else if (!scr_autoid_armour.ival && !scr_autoid_health.ival)
+			y -= 8;
+
+		for (r = 7; r>=0; r--)
+			if (items & (1<<r))
+				break;
+		R2D_ImageColours(1, 1, 1, 1);
+		if (r >= 0)
+		{
+			len = COM_ParseFunString(textflags, wbitnames[r]->string, buffer, sizeof(buffer), false) - buffer;
+			Draw_ExpandedString(x + barwidth*0.5 + 4, y, buffer);
+		}
+	}
+}
+
+#include "pr_common.h"
 extern vec3_t nametagorg[MAX_CLIENTS];
 extern qboolean nametagseen[MAX_CLIENTS];
 void R_DrawNameTags(void)
 {
-	conchar_t buffer[256];
 	int i;
-	int len;
-	vec3_t center;
-	vec3_t tagcenter;
 	lerpents_t *le;
+	qboolean isteam;
+	char *ourteam;
 
 	extern cvar_t r_showfields;
 	if (r_showfields.ival && cls.allow_cheats)
@@ -1602,47 +1762,57 @@ void R_DrawNameTags(void)
 		}
 	}
 
-	if (!cl.spectator && !cls.demoplayback)
-		return;
-	if (!scr_autoid.ival)
+	if ((!cl.spectator && !cls.demoplayback || !scr_autoid.ival) && (!cl.teamplay || !scr_autoid_team.ival))
 		return;
 	if (cls.state != ca_active || !cl.validsequence)
 		return;
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		GL_Set2D(false);
-	}
-#endif
+	if (r_refdef.playerview->cam_state && r_refdef.playerview->cam_spec_track >= 0)
+		ourteam = cl.players[r_refdef.playerview->cam_spec_track].team;
+	else
+		ourteam = cl.players[r_refdef.playerview->playernum].team;
 
 	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
+		if (!*cl.players[i].name)
+			continue;	//slot is empty.
+
 		if (!nametagseen[i])
 		{
-			if (i+1 >= cl.maxlerpents || !cl.lerpentssequence || cl.lerpents[i+1].sequence != cl.lerpentssequence)
+			if (i+1 < cl.maxlerpents && cl.lerpentssequence && cl.lerpents[i+1].sequence == cl.lerpentssequence)
+			{
+				le = &cl.lerpents[i+1];
+				VectorCopy(le->origin, nametagorg[i]);
+			}
+			else if (cl.lerpplayers[i].sequence == cl.lerpentssequence)
+			{
+				le = &cl.lerpplayers[i];
+				VectorCopy(le->origin, nametagorg[i]);
+			}
+			else if (cl.players[i].tinfo.time > cl.time)
+				VectorCopy(cl.players[i].tinfo.org, nametagorg[i]);
+			else
 				continue;
-			le = &cl.lerpents[i+1];
-			VectorCopy(le->origin, nametagorg[i]);
 		}
+
 		//while cl.lerpplayers exists, it tends to not be configured properly.
 		if (i == r_refdef.playerview->playernum)
 			continue;	// Don't draw tag for the local player
 		if (cl.players[i].spectator)
 			continue;
-		if (i == Cam_TrackNum(r_refdef.playerview))
+		if (i == Cam_TrackNum(r_refdef.playerview))	//no tag for the player that you're tracking, either.
 			continue;
 
-		if (TP_IsPlayerVisible(nametagorg[i]))
+		if (!cl.teamplay || !scr_autoid_team.ival || strcmp(cl.players[i].team, ourteam))
 		{
-			VectorCopy(nametagorg[i], tagcenter);
-			tagcenter[2] += 32;
-			if (!Matrix4x4_CM_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
-				continue;
-
-			len = COM_ParseFunString(CON_WHITEMASK, cl.players[i].name, buffer, sizeof(buffer), false) - buffer;
-			Draw_ExpandedString(center[0]*r_refdef.vrect.width+r_refdef.vrect.x - len*4, (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y, buffer);
+			if (!cl.spectator && !cls.demoplayback || !scr_autoid.ival)
+				continue;	//only show our team when playing, too cheaty otherwise.
+			isteam = false;
 		}
+		else
+			isteam = true;
+
+		SCR_DrawAutoID(nametagorg[i], &cl.players[i], isteam);
 	}
 }
 
@@ -1927,6 +2097,12 @@ void V_Init (void)
 	Cvar_Register (&v_deathtilt, VIEWVARS);
 
 	Cvar_Register (&scr_autoid, VIEWVARS);
+	Cvar_Register (&scr_autoid_team, VIEWVARS);
+	Cvar_Register (&scr_autoid_health, VIEWVARS);
+	Cvar_Register (&scr_autoid_armour, VIEWVARS);
+	Cvar_Register (&scr_autoid_weapon, VIEWVARS);
+	Cvar_Register (&scr_autoid_teamcolour, VIEWVARS);
+	Cvar_Register (&scr_autoid_enemycolour, VIEWVARS);
 
 #ifdef SIDEVIEWS
 #define SECONDARYVIEWVARS "Secondary view vars"

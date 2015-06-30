@@ -4373,6 +4373,7 @@ void CL_LinkPlayers (void)
 		}
 
 		CL_UpdateNetFrameLerpState(false, state->frame, &cl.lerpplayers[j]);
+		cl.lerpplayers[j].sequence = cl.lerpentssequence;
 
 #ifdef CSQC_DAT
 		if (CSQC_DeltaPlayer(j, state))

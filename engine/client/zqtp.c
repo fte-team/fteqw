@@ -2057,7 +2057,7 @@ void TP_NewMap (void)
 	if (strcmp(host_mapname.string, last_map))
 	{	// map name has changed
 		loc_numentries = 0;	// clear loc file
-		if (tp_loadlocs.value && cl.allocated_client_slots > 1 && !cls.demoplayback)
+		if (tp_loadlocs.value && cl.allocated_client_slots > 1)// && !cls.demoplayback)
 		{
 			Q_snprintfz (locname, sizeof(locname), "%s.loc", host_mapname.string);
 			TP_LoadLocFile (locname, true);

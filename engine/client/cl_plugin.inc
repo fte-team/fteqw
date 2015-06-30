@@ -737,7 +737,7 @@ static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qin
 		if (!showenemies && strcmp(cl.players[i].team, cl.players[self].team))
 			continue;
 		players->client = i;
-		
+
 		pl = &cl.players[i];
 		if (pl->tinfo.time > cl.time)
 		{	//mod is explicitly telling us this junk
@@ -754,7 +754,7 @@ static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qin
 			players->health = cl.playerview[0].statsf[STAT_HEALTH];
 			Q_strncpyz(players->nick, "", sizeof(players->nick));
 		}
-		else
+		else if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{	//scrape it from the mvd (assuming there is one...
 			players->items = cl.players[i].stats[STAT_ITEMS];
 			players->armor = cl.players[i].statsf[STAT_ARMOR];
@@ -763,7 +763,9 @@ static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qin
 			
 			VectorClear(players->org);
 		}
-		
+		else
+			continue;	//no stats, don't bother telling the plugin.
+
 		//scrape origin from interpolation, if its more valid.
 		if (i+1 < cl.maxlerpents && cl.lerpentssequence && cl.lerpents[i+1].sequence == cl.lerpentssequence)
 		{

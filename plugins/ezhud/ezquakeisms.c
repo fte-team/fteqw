@@ -252,6 +252,42 @@ char *TP_ParseFunChars(char *str, qbool chat)
 			*out++ = (dehex(str[2]) << 4) | dehex(str[3]);
 			str+=4;
 		}
+		else if (str[0] == '$')
+		{
+			int c = 0;
+			switch (str[1])
+			{
+				case '\\': c = 0x0D; break;
+				case ':': c = 0x0A; break;
+				case '[': c = 0x10; break;
+				case ']': c = 0x11; break;
+				case 'G': c = 0x86; break;
+				case 'R': c = 0x87; break;
+				case 'Y': c = 0x88; break;
+				case 'B': c = 0x89; break;
+				case '(': c = 0x80; break;
+				case '=': c = 0x81; break;
+				case ')': c = 0x82; break;
+				case 'a': c = 0x83; break;
+				case '<': c = 0x1d; break;
+				case '-': c = 0x1e; break;
+				case '>': c = 0x1f; break;
+				case ',': c = 0x1c; break;
+				case '.': c = 0x9c; break;
+				case 'b': c = 0x8b; break;
+				case 'c':
+				case 'd': c = 0x8d; break;
+				case '$': c = '$'; break;
+				case '^': c = '^'; break;
+				case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7':case '8':case '9': c = str[1] -'0' + 0x12;break;
+			}
+			if (c)
+			{
+				*out++ = c;
+				str++;
+			}
+			str++;
+		}
 		else if (*str)
 			*out++ = *str++;
 		else

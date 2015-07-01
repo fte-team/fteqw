@@ -236,6 +236,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 										  void *vblob, size_t vsize,
 										  void *hblob, size_t hsize,
 										  void *dblob, size_t dsize,
+										  void *gblob, size_t gsize,
 										  void *fblob, size_t fsize)
 {
 	qboolean success = true;
@@ -254,6 +255,9 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 	}
 	else
 		prog->permu[permu].handle.hlsl.topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+	if (gblob && FAILED(ID3D11Device_CreateGeometryShader(pD3DDev11, gblob, gsize, NULL, (ID3D11GeometryShader**)&prog->permu[permu].handle.hlsl.geom)))
+		success = false;
 
 	if (FAILED(ID3D11Device_CreatePixelShader(pD3DDev11, fblob, fsize, NULL, (ID3D11PixelShader**)&prog->permu[permu].handle.hlsl.frag)))
 		success = false;
@@ -358,8 +362,8 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 static qboolean D3D11Shader_LoadBlob(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile)
 {
 	qboolean success;
-	char *vblob, *hblob, *dblob, *fblob;
-	unsigned int vsz, hsz, dsz, fsz;
+	char *vblob, *hblob, *dblob, *gblob, *fblob;
+	unsigned int vsz, hsz, dsz, gsz, fsz;
 
 	VFS_READ(blobfile, &vsz, sizeof(vsz));
 	vblob = Z_Malloc(vsz);
@@ -383,20 +387,30 @@ static qboolean D3D11Shader_LoadBlob(program_t *prog, const char *name, unsigned
 	else
 		dblob = NULL;
 
+	VFS_READ(blobfile, &gsz, sizeof(gsz));
+	if (dsz != ~0u)
+	{
+		gblob = Z_Malloc(gsz);
+		VFS_READ(blobfile, gblob, gsz);
+	}
+	else
+		gblob = NULL;
+
 	VFS_READ(blobfile, &fsz, sizeof(fsz));
 	fblob = Z_Malloc(fsz);
 	VFS_READ(blobfile, fblob, fsz);
 
 
-	success = D3D11Shader_CreateShaders(prog, name, permu, vblob, vsz, hblob, hsz, dblob, dsz, fblob, fsz);
+	success = D3D11Shader_CreateShaders(prog, name, permu, vblob, vsz, hblob, hsz, dblob, dsz, gblob, gsz, fblob, fsz);
 	Z_Free(vblob);
 	Z_Free(hblob);
 	Z_Free(dblob);
+	Z_Free(gblob);
 	Z_Free(fblob);
 	return success;
 }
 
-qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *hull, const char *domain, const char *frag, qboolean silenterrors, vfsfile_t *blobfile)
+qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *hull, const char *domain, const char *geom, const char *frag, qboolean silenterrors, vfsfile_t *blobfile)
 {
 	static const char *defaultsamplers[] =
 	{
@@ -427,8 +441,9 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 	char *hsformat = NULL;
 	char *dsformat = NULL;
 	char *fsformat;
+	char *gsformat = NULL;
 	D3D_SHADER_MACRO defines[64];
-	ID3DBlob *vcode = NULL, *hcode = NULL, *dcode = NULL, *fcode = NULL, *errors = NULL;
+	ID3DBlob *vcode = NULL, *hcode = NULL, *dcode = NULL, *gcode = NULL, *fcode = NULL, *errors = NULL;
 	qboolean success = false;
 	ID3D11ShaderReflection *freflect;
 	int i;
@@ -438,16 +453,19 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 		vsformat = "vs_5_0";
 		hsformat = "hs_5_0";
 		dsformat = "ds_5_0";
+		gsformat = "gs_5_0";
 		fsformat = "ps_5_0";
 	}
 	else if (d3dfeaturelevel >= D3D_FEATURE_LEVEL_10_1)
 	{
 		vsformat = "vs_4_1";
+		gsformat = "gs_4_1";
 		fsformat = "ps_4_1";
 	}
 	else if (d3dfeaturelevel >= D3D_FEATURE_LEVEL_10_0)
 	{
 		vsformat = "vs_4_0";
+		gsformat = "gs_4_0";
 		fsformat = "ps_4_0";
 	}
 	else if (d3dfeaturelevel >= D3D_FEATURE_LEVEL_9_3)
@@ -463,6 +481,9 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 
 	prog->permu[permu].handle.hlsl.vert = NULL;
 	prog->permu[permu].handle.hlsl.frag = NULL;
+	prog->permu[permu].handle.hlsl.hull = NULL;
+	prog->permu[permu].handle.hlsl.domain = NULL;
+	prog->permu[permu].handle.hlsl.geom = NULL;
 	prog->permu[permu].handle.hlsl.layout = NULL;
 
 	if (pD3DCompile)
@@ -547,6 +568,24 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 			}
 		}
 
+		if (geom)
+		{
+			if (!dsformat)
+				success = false;
+			else
+			{
+				defines[0].Name = "GEOMETRY_SHADER";
+				if (FAILED(pD3DCompile(domain, strlen(domain), name, defines, &myd3dinclude, "main", gsformat, 0, 0, &gcode, &errors)))
+					success = false;
+				if (errors && !silenterrors)
+				{
+					char *messages = ID3DBlob_GetBufferPointer(errors);
+					Con_Printf("geometry shader %s:\n%s", name, messages);
+					ID3DBlob_Release(errors);
+				}
+			}
+		}
+
 		defines[0].Name = "FRAGMENT_SHADER";
 		if (FAILED(pD3DCompile(frag, strlen(frag), name, defines, &myd3dinclude, "main", fsformat, 0, 0, &fcode, &errors)))
 			success = false;
@@ -568,6 +607,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 				ID3DBlob_GetBufferPointer(vcode), ID3DBlob_GetBufferSize(vcode),
 				hcode?ID3DBlob_GetBufferPointer(hcode):NULL, hcode?ID3DBlob_GetBufferSize(hcode):0,
 				dcode?ID3DBlob_GetBufferPointer(dcode):NULL, dcode?ID3DBlob_GetBufferSize(dcode):0,
+				gcode?ID3DBlob_GetBufferPointer(gcode):NULL, gcode?ID3DBlob_GetBufferSize(gcode):0,
 				ID3DBlob_GetBufferPointer(fcode), ID3DBlob_GetBufferSize(fcode));
 
 		if (success && blobfile)
@@ -599,6 +639,18 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 				sz = ID3DBlob_GetBufferSize(dcode);
 				VFS_WRITE(blobfile, &sz, sizeof(sz));
 				VFS_WRITE(blobfile, ID3DBlob_GetBufferPointer(dcode), sz);
+			}
+
+			if (!gcode)
+			{
+				sz = ~0u;
+				VFS_WRITE(blobfile, &sz, sizeof(sz));
+			}
+			else
+			{
+				sz = ID3DBlob_GetBufferSize(gcode);
+				VFS_WRITE(blobfile, &sz, sizeof(sz));
+				VFS_WRITE(blobfile, ID3DBlob_GetBufferPointer(gcode), sz);
 			}
 
 			sz = ID3DBlob_GetBufferSize(fcode);
@@ -641,6 +693,8 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 			ID3DBlob_Release(hcode);
 		if (dcode)
 			ID3DBlob_Release(dcode);
+		if (gcode)
+			ID3DBlob_Release(gcode);
 		if (fcode)
 			ID3DBlob_Release(fcode);
 	}

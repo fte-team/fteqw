@@ -3962,7 +3962,7 @@ static void PR_uri_get_callback(struct dl_download *dl)
 	int selfnum = dl->user_num;
 	func_t func;
 
-	if (!prinst)
+	if (!prinst || dl->user_sequence != svs.spawncount)
 		return;
 	
 	func = PR_FindFunction(prinst, "URI_Get_Callback", PR_ANY);
@@ -4048,6 +4048,7 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		dl->user_ctx = w;
 		dl->user_float = id;
 		dl->user_num = *w->g.self;
+		dl->user_sequence = svs.spawncount;
 		dl->isquery = true;
 		G_FLOAT(OFS_RETURN) = 1;
 	}

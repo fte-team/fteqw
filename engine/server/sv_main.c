@@ -668,7 +668,7 @@ void SV_DropClient (client_t *drop)
 	else if (ISQ3CLIENT(drop))
 	{
 	}
-	if (drop->netchan.remote_address.type != NA_INVALID)
+	if (drop->netchan.remote_address.type != NA_INVALID && drop->netchan.message.maxsize)
 	{
 		//send twice, to cover packetloss a little.
 		Netchan_Transmit (&drop->netchan, termmsg.cursize, termmsg.data, 10000);
@@ -1958,7 +1958,7 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 
 	prev->controlled = cl;
 	prev = cl;
-	cl->controller = prev->controller?prev->controller:host_client;
+	cl->controller = controller;
 	cl->controlled = NULL;
 
 	Q_strncpyS (cl->userinfo, info, sizeof(cl->userinfo)-1);

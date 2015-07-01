@@ -896,10 +896,11 @@ void CL_PredictMovePNum (int seat)
 
 	pv->nolocalplayer = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || (cls.protocol != CP_QUAKEWORLD);
 
-	if (!cl.spectator)	//just in case
+	if (!cl.spectator && (pv->cam_state != CAM_FREECAM || pv->cam_spec_track != -1))	//just in case
 	{
 		pv->cam_state = CAM_FREECAM;
 		pv->cam_spec_track = -1;
+		pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);
 	}
 
 #ifdef Q2CLIENT

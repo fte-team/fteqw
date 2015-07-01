@@ -483,11 +483,11 @@ void QCBUILTIN PF_setspawnparms (pubprogfuncs_t *prinst, struct globalvars_s *pr
 void QCBUILTIN PF_precache_vwep_model(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *value);
 int PF_checkclient_Internal (pubprogfuncs_t *prinst);
-void PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s);
+int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s);
 int PF_precache_model_Internal (pubprogfuncs_t *prinst, const char *s, qboolean queryonly);
 void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m);
 char *PF_infokey_Internal (int entnum, const char *value);
-void PF_stuffcmd_Internal(int entnum, const char *str);
+void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags);
 void PF_centerprint_Internal (int entnum, qboolean plaque, const char *s);
 void PF_WriteString_Internal (int target, const char *str);
 pbool QDECL ED_CanFree (edict_t *ed);

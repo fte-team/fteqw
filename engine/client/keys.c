@@ -601,6 +601,15 @@ void Key_ConsoleInsert(char *instext)
 	}
 	key_linepos += len;
 }
+void Key_ConsoleReplace(char *instext)
+{
+	if (!*instext)
+		return;
+
+	key_linepos = 1;
+	key_lines[edit_line][key_linepos] = 0;
+	Key_ConsoleInsert(instext);
+}
 
 void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 {
@@ -790,6 +799,12 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
 		Cbuf_AddText(va("\nmap %s\n", c), RESTRICT_LOCAL);
+		return;
+	}
+	c = Info_ValueForKey(info, "type");
+	if (*c)
+	{
+		Key_ConsoleReplace(c);
 		return;
 	}
 	c = Info_ValueForKey(info, "cmd");
@@ -1716,6 +1731,18 @@ void Key_Unbindall_f (void)
 			Key_SetBinding (i, ~0, NULL, Cmd_ExecLevel);
 }
 
+void Key_AliasEdit_f (void)
+{
+	char *alias = Cmd_AliasExist(Cmd_Argv(1), RESTRICT_LOCAL);
+	char quotedalias[2048];
+	if (alias)
+	{
+		COM_QuotedString(alias, quotedalias, sizeof(quotedalias), false);
+		Key_ConsoleReplace(va("alias %s %s", Cmd_Argv(1), quotedalias));
+	}
+	else
+		Con_Printf("Not an alias\n");
+}
 
 /*
 ===================
@@ -1747,7 +1774,19 @@ void Key_Bind_f (void)
 		if (modifier == ~0)	//modifier unspecified. default to no modifier
 			modifier = 0;
 		if (keybindings[b][modifier])
-			Con_Printf ("\"%s\" = \"%s\"\n", Cmd_Argv(1), keybindings[b][modifier] );
+		{
+			char *alias = Cmd_AliasExist(keybindings[b][modifier], RESTRICT_LOCAL);
+			char quotedbind[2048];
+			char quotedalias[2048];
+			COM_QuotedString(keybindings[b][modifier], quotedbind, sizeof(quotedbind), false);
+			if (alias)
+			{
+				COM_QuotedString(alias, quotedalias, sizeof(quotedalias), false);
+				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = ^[\"%s\"\\type\\alias %s %s^]\n", Cmd_Argv(1), Cmd_Argv(1), quotedbind, keybindings[b][modifier], keybindings[b][modifier], quotedalias);
+			}
+			else
+				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = \"%s\"\n", Cmd_Argv(1), keybindings[b][modifier], Cmd_Argv(1), keybindings[b][modifier] );
+		}
 		else
 			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(1) );
 		return;
@@ -1976,6 +2015,7 @@ void Key_Init (void)
 	Cmd_AddCommand ("bindlevel",Key_BindLevel_f);
 	Cmd_AddCommand ("unbind",Key_Unbind_f);
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
+	Cmd_AddCommand ("aliasedit",Key_AliasEdit_f);
 
 	Cvar_Register (&con_selectioncolour, "Console variables");
 	Cvar_Register (&con_echochat, "Console variables");

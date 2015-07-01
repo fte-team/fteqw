@@ -983,6 +983,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	unsigned int permuoffsets[PERMUTATIONS], initoffset=0;
 	unsigned int blobheaderoffset=0;
 	qboolean blobadded;
+	qboolean geom = false;
 	qboolean tess = false;
 
 	char *cvarnames[64];
@@ -1013,6 +1014,11 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		{
 			prog->nofixedcompat = false;
 			script += 7;
+		}
+		else if (!strncmp(script, "!!geom", 6))
+		{
+			geom = true;
+			script += 6;
 		}
 		else if (!strncmp(script, "!!tess", 6))
 		{
@@ -1334,7 +1340,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			initoffset = VFS_GETLEN(blobfile);
 			VFS_SEEK(blobfile, initoffset);
 		}
-		if (!sh_config.pCreateProgram(prog, name, p, ver, permutationdefines, script, tess?script:NULL, tess?script:NULL, script, (p & PERMUTATION_SKELETAL)?true:onefailed, sh_config.pValidateProgram?NULL:blobfile))
+		if (!sh_config.pCreateProgram(prog, name, p, ver, permutationdefines, script, tess?script:NULL, tess?script:NULL, geom?script:NULL, script, (p & PERMUTATION_SKELETAL)?true:onefailed, sh_config.pValidateProgram?NULL:blobfile))
 		{
 			if (!(p & PERMUTATION_SKELETAL))
 				onefailed = true;	//don't flag it if skeletal failed.

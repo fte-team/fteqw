@@ -1893,12 +1893,14 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 	ID3D11DeviceContext_VSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.vert, NULL, 0);
 	ID3D11DeviceContext_HSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.hull, NULL, 0);
 	ID3D11DeviceContext_DSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.domain, NULL, 0);
+	ID3D11DeviceContext_GSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.geom, NULL, 0);
 	ID3D11DeviceContext_PSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.frag, NULL, 0);
 	ID3D11DeviceContext_IASetPrimitiveTopology(d3ddevctx, prog->permu[permu].handle.hlsl.topology);
 
 	ID3D11DeviceContext_VSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 	ID3D11DeviceContext_HSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 	ID3D11DeviceContext_DSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
+	ID3D11DeviceContext_GSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 	ID3D11DeviceContext_PSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 }
 

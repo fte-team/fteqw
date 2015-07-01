@@ -1005,6 +1005,11 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	if (GL_CheckExtension("GL_ARB_seamless_cube_map"))
 		qglEnable(0x884F);	//TEXTURE_CUBE_MAP_SEAMLESS                   0x884F
 
+	if (!gl_config.gles && gl_config.glversion >= 3.2)
+		gl_config.geometryshaders = true;
+	else
+		gl_config.geometryshaders = false;
+
 #ifdef GL_STATIC
 	gl_config.ext_framebuffer_objects = true;				//exists as core in gles2
 #else
@@ -1773,6 +1778,11 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			strings++;
 		}
 		break;
+	case GL_GEOMETRY_SHADER_ARB:
+		prstrings[strings] = "#define GEOMETRY_SHADER\n";
+		length[strings] = strlen(prstrings[strings]);
+		strings++;
+		break;
 	case GL_TESS_CONTROL_SHADER_ARB:
 		prstrings[strings] = "#define TESS_CONTROL_SHADER\n";
 		length[strings] = strlen(prstrings[strings]);
@@ -1976,12 +1986,13 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 	return shader;
 }
 
-GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLhandleARB cont, GLhandleARB eval, GLhandleARB frag, qboolean silent)
+GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLhandleARB cont, GLhandleARB eval, GLhandleARB geom, GLhandleARB frag, qboolean silent)
 {
 	GLhandleARB	program;
 
 	program = qglCreateProgramObjectARB();
 	if (vert) qglAttachObjectARB(program, vert);
+	if (geom) qglAttachObjectARB(program, geom);
 	if (cont) qglAttachObjectARB(program, cont);
 	if (eval) qglAttachObjectARB(program, eval);
 	if (frag) qglAttachObjectARB(program, frag);
@@ -2058,10 +2069,11 @@ qboolean GLSlang_ValidateProgram(union programhandle_u *h, const char *name, qbo
 	return true;
 }
 
-union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *frag, qboolean silent, vfsfile_t *blobfile)
+union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *geom, const char *frag, qboolean silent, vfsfile_t *blobfile)
 {
 	union programhandle_u ret;
 	GLhandleARB vs;
+	GLhandleARB gs;
 	GLhandleARB fs;
 	GLhandleARB cs;
 	GLhandleARB es;
@@ -2073,7 +2085,12 @@ union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const cha
 		return ret;
 	if ((cont || eval) && !qglPatchParameteriARB)
 	{
-		Con_Printf("GLSlang_CreateProgram: %s requires tesselation support, but your gl drivers do not appear to support this\n", name);
+		Con_Printf("GLSlang_CreateProgram: %s requires tesselation support, but your gl drivers do not appear to support this (gl4.0 feature)\n", name);
+		return ret;
+	}
+	if (geom && !gl_config.geometryshaders)
+	{
+		Con_Printf("GLSlang_CreateProgram: %s requires geometry shader support, but your gl drivers do not appear to support this (gl3.2 feature)\n", name);
 		return ret;
 	}
 
@@ -2081,11 +2098,13 @@ union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const cha
 		precompilerconstants = &nullconstants;
 
 	fs = GLSlang_CreateShader(name, ver, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB, silent);
+	gs = GLSlang_CreateShader(name, ver, precompilerconstants, geom, GL_GEOMETRY_SHADER_ARB, silent);
 	vs = GLSlang_CreateShader(name, ver, precompilerconstants, vert, GL_VERTEX_SHADER_ARB, silent);
 	cs = GLSlang_CreateShader(name, ver, precompilerconstants, cont, GL_TESS_CONTROL_SHADER_ARB, silent);
 	es = GLSlang_CreateShader(name, ver, precompilerconstants, eval, GL_TESS_EVALUATION_SHADER_ARB, silent);
 
 	fs = GLSlang_FinishShader(fs, name, GL_FRAGMENT_SHADER_ARB, silent);
+	gs = GLSlang_FinishShader(gs, name, GL_GEOMETRY_SHADER_ARB, silent);
 	vs = GLSlang_FinishShader(vs, name, GL_VERTEX_SHADER_ARB, silent);
 	cs = GLSlang_FinishShader(cs, name, GL_TESS_CONTROL_SHADER_ARB, silent);
 	es = GLSlang_FinishShader(es, name, GL_TESS_EVALUATION_SHADER_ARB, silent);
@@ -2093,9 +2112,10 @@ union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const cha
 	if (!vs || !fs)
 		ret.glsl.handle = 0;
 	else
-		ret.glsl.handle = GLSlang_CreateProgramObject(name, vs, cs, es, fs, silent);
+		ret.glsl.handle = GLSlang_CreateProgramObject(name, vs, cs, es, gs, fs, silent);
 	//delete ignores 0s.
 	if (vs) qglDeleteShaderObject_(vs);
+	if (gs) qglDeleteShaderObject_(gs);
 	if (fs) qglDeleteShaderObject_(fs);
 	if (cs) qglDeleteShaderObject_(cs);
 	if (es) qglDeleteShaderObject_(es);
@@ -2132,7 +2152,7 @@ qboolean GLSlang_ValidateProgramPermu(program_t *prog, const char *name, unsigne
 {
 	return GLSlang_ValidateProgram(&prog->permu[permu].handle, name, noerrors, blobfile);
 }
-qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
+qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile)
 {
 #ifdef FTE_TARGET_WEB
 	//emscripten's uniform code results in excessive stalls that hinder usability.
@@ -2150,7 +2170,7 @@ qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned 
 			ver = 120;
 #endif
 	}
-	prog->permu[permu].handle = GLSlang_CreateProgram(name, ver, precompilerconstants, vert, tcs, tes, frag, noerrors, blobfile);
+	prog->permu[permu].handle = GLSlang_CreateProgram(name, ver, precompilerconstants, vert, tcs, tes, geom, frag, noerrors, blobfile);
 	if (prog->permu[permu].handle.glsl.handle)
 		return true;
 	return false;

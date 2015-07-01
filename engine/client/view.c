@@ -1537,6 +1537,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	float barwidth;
 	qboolean haveinfo;
 	unsigned int textflags;
+	int h;
 
 	static vec4_t healthcolours[] =
 	{
@@ -1614,6 +1615,8 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	if (!haveinfo)
 		return;	//we don't trust the info that we have, so no ids.
 
+	h = 0;
+
 	//display health bar
 	if (scr_autoid_health.ival)
 	{
@@ -1627,6 +1630,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 			health = 100;
 		}
 		barwidth = 32;
+		h += 8;
 		y -= 8;
 		R2D_ImageColours(healthcolours[r][0], healthcolours[r][1], healthcolours[r][2], healthcolours[r][3]*alpha);
 		R2D_FillBlock(x - barwidth*0.5 + barwidth * health/100.0, y, barwidth * (100-health)/100.0, 8);
@@ -1647,6 +1651,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		else r = -1;
 		if (r >= 0)
 		{
+			h += 8;
 			y -= 8;
 			armour = bound(0, armour, health);
 			barwidth = 32;
@@ -1660,10 +1665,9 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 
 	if (scr_autoid_weapon.ival)
 	{
-		if (scr_autoid_armour.ival && scr_autoid_health.ival)
-			y += 4;
-		else if (!scr_autoid_armour.ival && !scr_autoid_health.ival)
-			y -= 8;
+		if (h < 8)
+			h = 8;
+		y += (h-8)/2;
 
 		for (r = 7; r>=0; r--)
 			if (items & (1<<r))
@@ -1672,7 +1676,19 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		if (r >= 0)
 		{
 			len = COM_ParseFunString(textflags, wbitnames[r]->string, buffer, sizeof(buffer), false) - buffer;
-			Draw_ExpandedString(x + barwidth*0.5 + 4, y, buffer);
+			if (textflags & CON_HALFALPHA)
+			{
+				for (r = 0; r < len; r++)
+					if (!(buffer[r] & CON_RICHFORECOLOUR))
+						buffer[r] |= CON_HALFALPHA;
+			}
+			if (len && (buffer[0] & CON_CHARMASK) == '{' && (buffer[len-1] & CON_CHARMASK) == '}')
+			{	//these are often surrounded by {} to make them white in chat messages, and recoloured.
+				buffer[len-1] = 0;
+				Draw_ExpandedString(x + barwidth*0.5 + 4, y, buffer+1);
+			}
+			else
+				Draw_ExpandedString(x + barwidth*0.5 + 4, y, buffer);
 		}
 	}
 }

@@ -2165,6 +2165,8 @@ void	Cmd_ExecuteString (char *text, int level)
 
 			Cmd_ExpandStringArguments (a->value, dest, sizeof(dest));
 			Cbuf_InsertText (dest, execlevel, false);
+
+			Con_DPrintf("Execing alias %s:\n%s\n", a->name, a->value);
 			return;
 		}
 	}
@@ -2806,7 +2808,7 @@ void Cmd_set_f(void)
 
 	if (Cmd_Argc()<3)
 	{
-		Con_TPrintf("set <var> <equation>\n");
+		Con_TPrintf("%s %s <equation>\n", Cmd_Argv(0), *Cmd_Argv(1)?Cmd_Argv(1):"<var>");
 		return;
 	}
 

@@ -4653,7 +4653,7 @@ void Cmd_Join_f (void)
 	if (host_client->state != cs_spawned)
 		return;
 
-	if (svs.gametype != GT_PROGS)
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
 	{
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
 		return;
@@ -4714,7 +4714,9 @@ void Cmd_Join_f (void)
 		// call the prog function for removing a client
 		// this will set the body to a dead frame, among other things
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		if (SpectatorDisconnect)
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_DropClient(host_client);
+		else if (SpectatorDisconnect)
 			PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
 		sv.spawned_observer_slots--;
 
@@ -4727,7 +4729,9 @@ void Cmd_Join_f (void)
 		// FIXME, bump the client's userid?
 
 		// call the progs to get default spawn parms for the new client
-		if (pr_global_ptrs->SetNewParms)
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_SetNewParms();
+		else if (pr_global_ptrs->SetNewParms)
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 		{
@@ -4737,15 +4741,20 @@ void Cmd_Join_f (void)
 				host_client->spawn_parms[i] = 0;
 		}
 
-		// call the spawn function
-		pr_global_struct->time = sv.world.physicstime;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_ClientConnect(host_client);
+		else
+		{
+			// call the spawn function
+			pr_global_struct->time = sv.world.physicstime;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
-		// actually spawn the player
-		pr_global_struct->time = sv.world.physicstime;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+			// actually spawn the player
+			pr_global_struct->time = sv.world.physicstime;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+		}
 		sv.spawned_client_slots++;
 
 		// send notification to all clients
@@ -4781,7 +4790,7 @@ void Cmd_Observe_f (void)
 	if (host_client->state != cs_spawned)
 		return;
 
-	if (svs.gametype != GT_PROGS)
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
 	{
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
 		return;
@@ -4835,8 +4844,13 @@ void Cmd_Observe_f (void)
 
 		// call the prog function for removing a client
 		// this will set the body to a dead frame, among other things
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_DropClient(host_client);
+		else
+		{
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+		}
 		sv.spawned_client_slots--;
 
 		SV_SetUpClientEdict (host_client, host_client->edict);
@@ -4848,7 +4862,9 @@ void Cmd_Observe_f (void)
 		// FIXME, bump the client's userid?
 
 		// call the progs to get default spawn parms for the new client
-		if (pr_global_ptrs->SetNewParms)
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_SetNewParms();
+		else if (pr_global_ptrs->SetNewParms)
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 		{
@@ -4861,17 +4877,22 @@ void Cmd_Observe_f (void)
 		SV_SpawnSpectator ();
 
 		// call the spawn function
-		if (SpectatorConnect)
-		{
-			pr_global_struct->time = sv.world.physicstime;
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-			PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
-		}
+		if (svs.gametype == GT_Q1QVM)
+			Q1QVM_ClientConnect(host_client);
 		else
 		{
-			sv_player->v->movetype = MOVETYPE_NOCLIP;
-			sv_player->v->model = 0;
-			sv_player->v->modelindex = 0;
+			if (SpectatorConnect)
+			{
+				pr_global_struct->time = sv.world.physicstime;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+				PR_ExecuteProgram (svprogfuncs, SpectatorConnect);
+			}
+			else
+			{
+				sv_player->v->movetype = MOVETYPE_NOCLIP;
+				sv_player->v->model = 0;
+				sv_player->v->modelindex = 0;
+			}
 		}
 		sv.spawned_observer_slots++;
 

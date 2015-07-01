@@ -443,6 +443,7 @@ union programhandle_u
 			int topology;	//D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST
 			void *hull;
 			void *domain;
+			void *geom;
 			void *layout;
 		#endif
 	} hlsl;
@@ -674,7 +675,7 @@ typedef struct
 
 	void	 (*pDeleteProg)		(program_t *prog, unsigned int permu);
 	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);
-	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
+	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 	qboolean (*pValidateProgram)(program_t *prog, const char *name, unsigned int permu, qboolean noerrors, vfsfile_t *blobfile);
 	void	 (*pProgAutoFields)	(program_t *prog, char **cvarnames, int *cvartypes);
 } sh_config_t;

@@ -235,6 +235,8 @@ typedef struct {
 
 	qboolean arb_texture_compression;
 
+	qboolean geometryshaders;
+
 //	qboolean arb_fragment_program;
 	qboolean arb_shader_objects;
 	qboolean arb_shadow;
@@ -1077,7 +1079,7 @@ extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
 
 
 //glslang helper api
-union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *frag, qboolean silent, vfsfile_t *blobfile);
+union programhandle_u GLSlang_CreateProgram(const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *geom, const char *frag, qboolean silent, vfsfile_t *blobfile);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
 void GL_SelectProgram(int program);
 #define GLSlang_UseProgram(prog) GL_SelectProgram(prog)

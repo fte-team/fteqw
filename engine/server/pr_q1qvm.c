@@ -334,7 +334,18 @@ typedef enum {
 
 
 
+#define emufields \
+		emufield(gravity,	F_FLOAT)	\
+		emufield(maxspeed,	F_FLOAT)	\
+		emufield(movement,	F_VECTOR)	\
+		emufield(vw_index,	F_FLOAT)
 
+struct
+{
+#define emufield(n,t) int n;
+	emufields
+#undef emufield
+} fofs;
 
 
 static const char *q1qvmentstring;
@@ -545,734 +556,1063 @@ static int WrapQCBuiltin(builtin_t func, void *offset, quintptr_t mask, const qi
 	return gv.ret.i;
 }
 
-#define VALIDATEPOINTER(o,l) if ((qintptr_t)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", (int)fn);	//out of bounds.
-static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
+#define VALIDATEPOINTER(o,l) if ((qintptr_t)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap passes invalid pointer\n");	//out of bounds.
+static qintptr_t QVM_GetAPIVersion (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	switch (fn)
+	return GAME_API_VERSION;
+}
+
+static qintptr_t QVM_DPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	Con_DPrintf("%s", (char*)VM_POINTER(arg[0]));
+	return 0;
+}
+
+static qintptr_t QVM_Error (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	SV_Error("Q1QVM: %s", (char*)VM_POINTER(arg[0]));
+	return 0;
+}
+
+static qintptr_t QVM_GetEntityToken (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	if (VM_OOB(arg[0], arg[1]) || !arg[1])
+		return false;
+	if (q1qvmentstring)
 	{
-	case G_GETAPIVERSION:
-		return GAME_API_VERSION;
+		char *ret = VM_POINTER(arg[0]);
+		q1qvmentstring = COM_Parse(q1qvmentstring);
+		Q_strncpyz(ret, com_token, VM_LONG(arg[1]));
+		return *com_token != 0;
+	}
+	else
+	{
+		char *ret = VM_POINTER(arg[0]);
+		*ret = '\0';
+		return false;
+	}
+}
 
-	case G_DPRINT:
-		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
-		break;
+static qintptr_t QVM_Spawn_Ent (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return Q1QVMPF_EntAlloc(svprogfuncs)->entnum;
+}
 
-	case G_ERROR:
-		SV_Error("Q1QVM: %s", (char*)VM_POINTER(arg[0]));
-		break;
+static qintptr_t QVM_Remove_Ent (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	if (arg[0] >= sv.world.max_edicts)
+		return false;
+	Q1QVMPF_EntRemove(svprogfuncs, q1qvmedicttable[arg[0]]);
+	return true;
+}
 
-	case G_GetEntityToken:
-		{
-			if (VM_OOB(arg[0], arg[1]) || !arg[1])
-				return false;
-			if (q1qvmentstring)
-			{
-				char *ret = VM_POINTER(arg[0]);
-				q1qvmentstring = COM_Parse(q1qvmentstring);
-				Q_strncpyz(ret, com_token, VM_LONG(arg[1]));
-				return *com_token != 0;
-			}
-			else
-			{
-				char *ret = VM_POINTER(arg[0]);
-				*ret = '\0';
-				return false;
-			}
-		}
-		break;
+static qintptr_t QVM_Precache_Sound (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return PF_precache_sound_Internal(svprogfuncs, VM_POINTER(arg[0]));
+}
+static qintptr_t QVM_Precache_Model (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return PF_precache_model_Internal(svprogfuncs, VM_POINTER(arg[0]), false);
+}
+static qintptr_t QVM_LightStyle (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	vec3_t rgb = {1,1,1};
+	PF_applylightstyle(VM_LONG(arg[0]), VM_POINTER(arg[1]), rgb);
+	return 0;
+}
+static qintptr_t QVM_SetOrigin (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0]));
+	if (!e || e->isfree)
+		return false;
 
-	case G_SPAWN_ENT:
-		return Q1QVMPF_EntAlloc(svprogfuncs)->entnum;
+	e->v->origin[0] = VM_FLOAT(arg[1]);
+	e->v->origin[1] = VM_FLOAT(arg[2]);
+	e->v->origin[2] = VM_FLOAT(arg[3]);
+	World_LinkEdict (&sv.world, (wedict_t*)e, false);
+	return true;
+}
+static qintptr_t QVM_SetSize (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, arg[0]);
+	if (!e || e->isfree)
+		return false;
 
-	case G_REMOVE_ENT:
-		if (arg[0] >= sv.world.max_edicts)
-			return false;
-		Q1QVMPF_EntRemove(svprogfuncs, q1qvmedicttable[arg[0]]);
-		return true;
+	e->v->mins[0] = VM_FLOAT(arg[1]);
+	e->v->mins[1] = VM_FLOAT(arg[2]);
+	e->v->mins[2] = VM_FLOAT(arg[3]);
 
-	case G_PRECACHE_SOUND:
-		PF_precache_sound_Internal(svprogfuncs, VM_POINTER(arg[0]));
-		break;
+	e->v->maxs[0] = VM_FLOAT(arg[4]);
+	e->v->maxs[1] = VM_FLOAT(arg[5]);
+	e->v->maxs[2] = VM_FLOAT(arg[6]);
 
-	case G_PRECACHE_MODEL:
-		PF_precache_model_Internal(svprogfuncs, VM_POINTER(arg[0]), false);
-		break;
-
-	case G_LIGHTSTYLE:
-		{
-			vec3_t rgb = {1,1,1};
-			PF_applylightstyle(VM_LONG(arg[0]), VM_POINTER(arg[1]), rgb);
-		}
-		break;
-
-	case G_SETORIGIN:
-		{
-			edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0]));
-			if (!e || e->isfree)
-				return false;
-
-			e->v->origin[0] = VM_FLOAT(arg[1]);
-			e->v->origin[1] = VM_FLOAT(arg[2]);
-			e->v->origin[2] = VM_FLOAT(arg[3]);
-			World_LinkEdict (&sv.world, (wedict_t*)e, false);
-			return true;
-		}
-		break;
-		
-	case G_SETSIZE:
-		{
-			edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, arg[0]);
-			if (!e || e->isfree)
-				return false;
-
-			e->v->mins[0] = VM_FLOAT(arg[1]);
-			e->v->mins[1] = VM_FLOAT(arg[2]);
-			e->v->mins[2] = VM_FLOAT(arg[3]);
-
-			e->v->maxs[0] = VM_FLOAT(arg[4]);
-			e->v->maxs[1] = VM_FLOAT(arg[5]);
-			e->v->maxs[2] = VM_FLOAT(arg[6]);
-
-			VectorSubtract (e->v->maxs, e->v->mins, e->v->size);
-			World_LinkEdict (&sv.world, (wedict_t*)e, false);
-			return true;
-		}
-	case G_SETMODEL:
-		{
-			edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, arg[0]);
-			PF_setmodel_Internal(svprogfuncs, e, VM_POINTER(arg[1]));
-		}
-		break;
-
-	case G_BPRINT:
-		SV_BroadcastPrintf(arg[0], "%s", (char*)VM_POINTER(arg[1]));
-		break;
-
-	case G_SPRINT:
-		if ((unsigned)VM_LONG(arg[0]) > sv.allocated_client_slots)
-			return 0;
-		SV_ClientPrintf(&svs.clients[VM_LONG(arg[0])-1], VM_LONG(arg[1]), "%s", (char*)VM_POINTER(arg[2]));
-		break;
-
-	case G_CENTERPRINT:
-		PF_centerprint_Internal(VM_LONG(arg[0]), false, VM_POINTER(arg[1]));
-		break;
-
-	case G_AMBIENTSOUND:
-		{
-			vec3_t pos;
-			pos[0] = VM_FLOAT(arg[0]);
-			pos[1] = VM_FLOAT(arg[1]);
-			pos[2] = VM_FLOAT(arg[2]);
-			PF_ambientsound_Internal(pos, VM_POINTER(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]));
-		}
-		break;
-
-	case G_SOUND:
-//		( int edn, int channel, char *samp, float vol, float att )
-		SVQ1_StartSound (NULL, (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0);
-		break;
-
-	case G_TRACELINE:
-		WrapQCBuiltin(PF_svtraceline, offset, mask, arg, "vvin");
-		break;
-
-	case G_CHECKCLIENT:
-		return PF_checkclient_Internal(svprogfuncs);
-
-	case G_STUFFCMD:
-		PF_stuffcmd_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
-		break;
-
-	case G_LOCALCMD:
-		Cbuf_AddText (VM_POINTER(arg[0]), RESTRICT_INSECURE);
-		break;
-
-	case G_CVAR:
-		{
-			int i;
-			cvar_t *c;
-			char *vname = VM_POINTER(arg[0]);
-
-			//paused state is not a cvar.
-			if (!strcmp(vname, "sv_paused"))
-			{
-				float f;
-				f = sv.paused;
-				return VM_LONG(f);
-			}
-
-			c = Cvar_Get(vname, "", 0, "Gamecode");
-			i = VM_LONG(c->value);
-			return i;
-		}
-
-	case G_CVAR_SET:
-		{
-			cvar_t *var;
-			var = Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "Gamecode variables");
-			if (!var)
-				return -1;
-			Cvar_Set (var, VM_POINTER(arg[1]));
-		}
-		break;
-
-	case G_FINDRADIUS:
-		{
-			int start = ((char*)VM_POINTER(arg[0]) - (char*)evars) / sv.world.edict_size;
-			edict_t *ed;
-			vec3_t diff;
-			float *org = VM_POINTER(arg[1]);
-			float rad = VM_FLOAT(arg[2]);
-			rad *= rad;
-			for(start++; start < sv.world.num_edicts; start++)
-			{
-				ed = EDICT_NUM(svprogfuncs, start);
-				if (ed->isfree)
-					continue;
-				VectorSubtract(ed->v->origin, org, diff);
-				if (rad > DotProduct(diff, diff))
-					return (qintptr_t)(vevars + start*sv.world.edict_size);
-			}
-			return 0;
-		}
-
-	case G_WALKMOVE:
-		{
-			wedict_t *ed = WEDICT_NUM(svprogfuncs, arg[0]);
-			float yaw = VM_FLOAT(arg[1]);
-			float dist = VM_FLOAT(arg[2]);
-			vec3_t move;
-			vec3_t axis[3];
-
-			World_GetEntGravityAxis(ed, axis);
-
-			yaw = yaw*M_PI*2 / 360;
-			move[0] = cos(yaw)*dist;
-			move[1] = sin(yaw)*dist;
-			move[2] = 0;
-
-			return World_movestep(&sv.world, (wedict_t*)ed, move, axis, true, false, NULL, NULL);
-		}
-
-	case G_DROPTOFLOOR:
-		{
-			edict_t		*ent;
-			vec3_t		end;
-			vec3_t		start;
-			trace_t		trace;
-			extern cvar_t pr_droptofloorunits;
-
-			ent = EDICT_NUM(svprogfuncs, arg[0]);
-
-			VectorCopy (ent->v->origin, end);
-			if (pr_droptofloorunits.value > 0)
-				end[2] -= pr_droptofloorunits.value;
-			else
-				end[2] -= 256;
-
-			VectorCopy (ent->v->origin, start);
-			trace = World_Move (&sv.world, start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
-
-			if (trace.fraction == 1 || trace.allsolid)
-				return false;
-			else
-			{
-				VectorCopy (trace.endpos, ent->v->origin);
-				World_LinkEdict (&sv.world, (wedict_t*)ent, false);
-				ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
-				ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, trace.ent);
-				return true;
-			}
-		}
-		break;
-
-	case G_CHECKBOTTOM:
-		{
-			vec3_t up = {0,0,1};
-			return World_CheckBottom(&sv.world, (wedict_t*)EDICT_NUM(svprogfuncs, VM_LONG(arg[0])), up);
-		}
-
-	case G_POINTCONTENTS:
-		{
-			vec3_t v;
-			v[0] = VM_FLOAT(arg[0]);
-			v[1] = VM_FLOAT(arg[1]);
-			v[2] = VM_FLOAT(arg[2]);
-			return sv.world.worldmodel->funcs.PointContents(sv.world.worldmodel, NULL, v);
-		}
-		break;
-	
-	case G_NEXTENT:
-		{	//input output are entity numbers
-			unsigned int i;
-			edict_t	*ent;
-
-			i = VM_LONG(arg[0]);
-			while (1)
-			{
-				i++;
-				if (i >= sv.world.num_edicts)
-				{
-					return 0;
-				}
-				ent = EDICT_NUM(svprogfuncs, i);
-				if (!ent->isfree)
-				{
-					return i;
-				}
-			}
-			break;
-		}
-		/*
-	case G_AIM:	//not in mvdsv anyway
-		break;
-*/
-	case G_MAKESTATIC:
-		WrapQCBuiltin(PF_makestatic, offset, mask, arg, "n");
-		break;
-
-	case G_SETSPAWNPARAMS:
-		WrapQCBuiltin(PF_setspawnparms, offset, mask, arg, "n");
-		break;
-
-	case G_CHANGELEVEL:
-		WrapQCBuiltin(PF_changelevel, offset, mask, arg, "s");
-		break;
-
-	case G_LOGFRAG:
-		WrapQCBuiltin(PF_logfrag, offset, mask, arg, "nn");
-		break;
-	case G_PRECACHE_VWEP_MODEL:
-		{
-		int i = WrapQCBuiltin(PF_precache_vwep_model, offset, mask, arg, "s");
-		float f = *(float*)&i;
-		return f;
-		}
-		break;
-
-	case G_GETINFOKEY:
-		{
-			char *v;
-			if (VM_OOB(arg[2], arg[3]))
-				return -1;
-			v = PF_infokey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
-			Q_strncpyz(VM_POINTER(arg[2]), v, VM_LONG(arg[3]));
-		}
-		break;
-
-	case G_MULTICAST:
-		WrapQCBuiltin(PF_multicast, offset, mask, arg, "vi");
-		break;
-
-	case G_DISABLEUPDATES:
-		//FIXME: remember to ask mvdsv people why this is useful
-		Con_Printf("G_DISABLEUPDATES: not supported\n");
-		break;
-
-	case G_WRITEBYTE:
-		WrapQCBuiltin(PF_WriteByte, offset, mask, arg, "ii");
-		break;
-	case G_WRITECHAR:
-		WrapQCBuiltin(PF_WriteChar, offset, mask, arg, "ii");
-		break;
-	case G_WRITESHORT:
-		WrapQCBuiltin(PF_WriteShort, offset, mask, arg, "ii");
-		break;
-	case G_WRITELONG:
-		WrapQCBuiltin(PF_WriteLong, offset, mask, arg, "ii");
-		break;
-	case G_WRITEANGLE:
-		WrapQCBuiltin(PF_WriteAngle, offset, mask, arg, "if");
-		break;
-	case G_WRITECOORD:
-		WrapQCBuiltin(PF_WriteCoord, offset, mask, arg, "if");
-		break;
-	case G_WRITESTRING:
-		PF_WriteString_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
-		break;
-	case G_WRITEENTITY:
-		WrapQCBuiltin(PF_WriteEntity, offset, mask, arg, "in");
-		break;
-
-	case G_FLUSHSIGNON:
-		SV_FlushSignon ();
-		break;
-
-	case g_memset:
-		{
-			void *dst = VM_POINTER(arg[0]);
-			VALIDATEPOINTER(arg[0], arg[2]);
-			memset(dst, arg[1], arg[2]);
-			return arg[0];
-		}
-	case g_memcpy:
-		{
-			void *dst = VM_POINTER(arg[0]);
-			void *src = VM_POINTER(arg[1]);
-			VALIDATEPOINTER(arg[0], arg[2]);
-			memmove(dst, src, arg[2]);
-			return arg[0];
-		}
-		break;
-	case g_strncpy:
-		VALIDATEPOINTER(arg[0], arg[2]);
-		Q_strncpyS(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
-		return arg[0];
-	case g_sin:
-		VM_FLOAT(fn)=(float)sin(VM_FLOAT(arg[0]));
-		return fn;
-	case g_cos:
-		VM_FLOAT(fn)=(float)cos(VM_FLOAT(arg[0]));
-		return fn;
-	case g_atan2:
-		VM_FLOAT(fn)=(float)atan2(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
-		return fn;
-	case g_sqrt:
-		VM_FLOAT(fn)=(float)sqrt(VM_FLOAT(arg[0]));
-		return fn;
-	case g_floor:
-		VM_FLOAT(fn)=(float)floor(VM_FLOAT(arg[0]));
-		return fn;
-	case g_ceil:
-		VM_FLOAT(fn)=(float)ceil(VM_FLOAT(arg[0]));
-		return fn;
-	case g_acos:
-		VM_FLOAT(fn)=(float)acos(VM_FLOAT(arg[0]));
-		return fn;
-
-	case G_CMD_ARGC:
-		return Cmd_Argc();
-	case G_CMD_ARGV:
-		{
-			char *c;
-			c = Cmd_Argv(VM_LONG(arg[0]));
-			if (VM_OOB(arg[1], arg[2]))
-				return -1;
-			Q_strncpyz(VM_POINTER(arg[1]), c, VM_LONG(arg[2]));
-		}
-		break;
-
-	case G_TraceBox:
-		WrapQCBuiltin(PF_svtraceline, offset, mask, arg, "vvinvv");
-		break;
-
-	case G_FS_OpenFile:
-		//0 = name
-		//1 = &handle
-		//2 = mode
-		//ret = filesize or -1
-		
-	//	Con_Printf("G_FSOpenFile: %s (mode %i)\n", VM_POINTER(arg[0]), arg[2]);
-		{
-			int mode;
-			switch((q1qvmfsMode_t)arg[2])
-			{
-			default:
-				return -1;
-			case FS_READ_BIN:
-			case FS_READ_TXT:
-				mode = VM_FS_READ;
-				break;
-			case FS_WRITE_BIN:
-			case FS_WRITE_TXT:
-				mode = VM_FS_WRITE;
-				break;
-			case FS_APPEND_BIN:
-			case FS_APPEND_TXT:
-				mode = VM_FS_APPEND;
-				break;
-			}
-			return VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), mode, VMFSID_Q1QVM);
-		}
-		break;
-
-	case G_FS_CloseFile:
-		VM_fclose(arg[0], VMFSID_Q1QVM);
-		break;
-
-	case G_FS_ReadFile:
-		if (VM_OOB(arg[0], arg[1]))
-			return 0;
-		return VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
-
-	//not supported, open will fail anyway
-	case G_FS_WriteFile:
-		if (VM_OOB(arg[0], arg[1]))
-			return 0;
-		return VM_FWrite(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
-	case G_FS_SeekFile:
-		VM_FSeek(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
+	VectorSubtract (e->v->maxs, e->v->mins, e->v->size);
+	World_LinkEdict (&sv.world, (wedict_t*)e, false);
+	return true;
+}
+static qintptr_t QVM_SetModel (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	edict_t *e = Q1QVMPF_EdictNum(svprogfuncs, arg[0]);
+	PF_setmodel_Internal(svprogfuncs, e, VM_POINTER(arg[1]));
+	return 0;
+}
+static qintptr_t QVM_BPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	SV_BroadcastPrintf(arg[0], "%s", (char*)VM_POINTER(arg[1]));
+	return 0;
+}
+static qintptr_t QVM_SPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	if ((unsigned)VM_LONG(arg[0]) > sv.allocated_client_slots)
 		return 0;
-	case G_FS_TellFile:
-		return VM_FTell(VM_LONG(arg[0]), VMFSID_Q1QVM);
+	SV_ClientPrintf(&svs.clients[VM_LONG(arg[0])-1], VM_LONG(arg[1]), "%s", (char*)VM_POINTER(arg[2]));
+	return 0;
+}
+static qintptr_t QVM_CenterPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	PF_centerprint_Internal(VM_LONG(arg[0]), false, VM_POINTER(arg[1]));
+	return 0;
+}
+static qintptr_t QVM_AmbientSound (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	vec3_t pos;
+	pos[0] = VM_FLOAT(arg[0]);
+	pos[1] = VM_FLOAT(arg[1]);
+	pos[2] = VM_FLOAT(arg[2]);
+	PF_ambientsound_Internal(pos, VM_POINTER(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]));
+	return 0;
+}
+static qintptr_t QVM_Sound (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+//	( int edn, int channel, char *samp, float vol, float att )
+	SVQ1_StartSound (NULL, (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0);
+	return 0;
+}
+static qintptr_t QVM_TraceLine (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_svtraceline, offset, mask, arg, "vvin");
+	return 0;
+}
+static qintptr_t QVM_CheckClient (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return PF_checkclient_Internal(svprogfuncs);
+}
+static qintptr_t QVM_StuffCmd (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	PF_stuffcmd_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
+	return 0;
+}
+static qintptr_t QVM_LocalCmd (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	Cbuf_AddText (VM_POINTER(arg[0]), RESTRICT_INSECURE);
+	return 0;
+}
+static qintptr_t QVM_CVar (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	cvar_t *c;
+	char *vname = VM_POINTER(arg[0]);
 
-	case G_FS_GetFileList:
-		if (VM_OOB(arg[2], arg[3]))
-			return 0;
-		return VM_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+	//paused state is not a cvar in fte.
+	if (!strcmp(vname, "sv_paused"))
+		return VM_LONG(sv.paused);
 
-	case G_CVAR_SET_FLOAT:
-		{
-			cvar_t *var;
-			var = Cvar_Get(VM_POINTER(arg[0]), va("%f", VM_FLOAT(arg[1])), 0, "Gamecode variables");
-			if (!var)
-				return -1;
-			Cvar_SetValue (var, VM_FLOAT(arg[1]));
-		}
-		break;
+	c = Cvar_Get(vname, "", 0, "Gamecode");
+	return VM_LONG(c->value);
+}
+static qintptr_t QVM_CVar_Set (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	cvar_t *var;
+	var = Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "Gamecode variables");
+	if (!var)
+		return -1;
+	Cvar_Set (var, VM_POINTER(arg[1]));
+	return 0;
+}
 
-	case G_CVAR_STRING:
-		{
-			char *n = VM_POINTER(arg[0]);
-			cvar_t *cv;
-			if (VM_OOB(arg[1], arg[2]))
-				return -1;
-			if (!strcmp(n, "version"))
-			{
-				n = version_string();
-				Q_strncpyz(VM_POINTER(arg[1]), n, VM_LONG(arg[2]));
-			}
-			else
-			{
-				cv = Cvar_Get(n, "", 0, "QC variables");
-				if (cv)
-					Q_strncpyz(VM_POINTER(arg[1]), cv->string, VM_LONG(arg[2]));
-				else
-					Q_strncpyz(VM_POINTER(arg[1]), "", VM_LONG(arg[2]));
-			}
-		}
-		break;
-	
-	case G_Map_Extension:
-		//yes, this does exactly match mvdsv...
-		if (VM_LONG(arg[1]) < G_MAX)
-			return -2;	//can't map that there
-		else
-			return -1;	//extension not known
-	
-	case G_strcmp:
-		{
-			char *a = VM_POINTER(arg[0]);
-			char *b = VM_POINTER(arg[1]);
-			return strcmp(a, b);
-		}
-	case G_strncmp:
-		{
-			char *a = VM_POINTER(arg[0]);
-			char *b = VM_POINTER(arg[1]);
-			return strncmp(a, b, VM_LONG(arg[2]));
-		}
-	case G_stricmp:
-		{
-			char *a = VM_POINTER(arg[0]);
-			char *b = VM_POINTER(arg[1]);
-			return stricmp(a, b);
-		}
-	case G_strnicmp:
-		{
-			char *a = VM_POINTER(arg[0]);
-			char *b = VM_POINTER(arg[1]);
-			return strnicmp(a, b, VM_LONG(arg[2]));
-		}
-
-	case G_Find:
-		{
-			edict_t *e = VM_POINTER(arg[0]);
-			int ofs = VM_LONG(arg[1]) - WASTED_EDICT_T_SIZE;
-			char *match = VM_POINTER(arg[2]);
-			char *field;
-			int first = e?((char*)e - (char*)evars)/sv.world.edict_size:0;
-			int i;
-			if (!match)
-				match = "";
-			for (i = first+1; i < sv.world.num_edicts; i++)
-			{
-				e = q1qvmedicttable[i];
-				field = VM_POINTER(*((string_t*)e->v + ofs/4));
-				if (field == NULL)
-				{
-					if (*match == '\0')
-						return ((char*)e->v - (char*)offset)-WASTED_EDICT_T_SIZE;
-				}
-				else
-				{
-					if (!strcmp(field, match))
-						return ((char*)e->v - (char*)offset)-WASTED_EDICT_T_SIZE;
-				}
-			}
-		}
-		return 0;
-
-	case G_executecmd:
-		WrapQCBuiltin(PF_ExecuteCommand, offset, mask, arg, "");
-		break;
-
-	case G_conprint:
-		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
-		break;
-
-	case G_readcmd:
-		{
-			extern char outputbuf[];
-			extern redirect_t sv_redirected;
-			extern int sv_redirectedlang;
-			redirect_t old;
-			int oldl;
-
-			char *s = VM_POINTER(arg[0]);
-			char *output = VM_POINTER(arg[1]);
-			int outputlen = VM_LONG(arg[2]);
-
-			if (VM_OOB(arg[1], arg[2]))
-				return -1;
-
-			Cbuf_Execute();	//FIXME: this code is flawed
-			Cbuf_AddText (s, RESTRICT_LOCAL);
-
-			old = sv_redirected;
-			oldl = sv_redirectedlang;
-			if (old != RD_NONE)
-				SV_EndRedirect();
-
-			SV_BeginRedirect(RD_OBLIVION, TL_FindLanguage(""));
-			Cbuf_Execute();
-			Q_strncpyz(output, outputbuf, outputlen);
-			SV_EndRedirect();
-
-			if (old != RD_NONE)
-				SV_BeginRedirect(old, oldl);
-
-Con_DPrintf("PF_readcmd: %s\n%s", s, output);
-
-		}
-		break;
-
-	case G_redirectcmd:
-		//FIXME: KTX uses this, along with a big fat warning.
-		//it shouldn't be vital to the normal functionality
-		//just restricts admin a little (did these guys never hear of rcon?)
-		//I'm too lazy to implement it though.
-		return 0;
-
-	case G_Add_Bot:
-		//FIXME: not implemented, always returns failure.
-		//the other bot functions only ever work on bots anyway, so don't need to be implemented until this one is
-		return 0;
-/*
-	case G_Remove_Bot:
-		break;
-	case G_SetBotCMD:
-		break;
-*/
-	case G_SETUSERINFO:
-		{
-			char *key = VM_POINTER(arg[1]);
-			if (*key == '*' && (VM_LONG(arg[3])&1))
-				return -1;	//denied!
-			return PF_ForceInfoKey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
-		}
-		//fallthrough
-
-	case G_SetBotUserInfo:
-		return PF_ForceInfoKey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
-
-	case G_MOVETOGOAL:
-		return World_MoveToGoal(&sv.world, (wedict_t*)Q1QVMPF_ProgsToEdict(svprogfuncs, pr_global_struct->self), VM_FLOAT(arg[0]));
-
-
-	case G_strftime:
-		{
-			char *out = VM_POINTER(arg[0]);
-			char *fmt = VM_POINTER(arg[2]);
-			time_t curtime;
-			struct tm *local;
-			if (VM_OOB(arg[0], arg[1]) || !out)
-				return -1;	//please don't corrupt me
-			time(&curtime);
-			curtime += VM_LONG(arg[3]);
-			local = localtime(&curtime);
-			strftime(out, VM_LONG(arg[1]), fmt, local);
-		}
-		break;
-	case G_CMD_ARGS:
-		{
-			char *c;
-			c = Cmd_Args();
-			if (VM_OOB(arg[0], arg[1]))
-				return -1;
-			Q_strncpyz(VM_POINTER(arg[0]), c, VM_LONG(arg[1]));
-		}
-		break;
-	case G_CMD_TOKENIZE:
-		{
-			char *str = VM_POINTER(arg[0]);
-			Cmd_TokenizeString(str, false, false);
-			return Cmd_Argc();
-		}
-		break;
-	case G_strlcpy:
-		{
-			char *dst = VM_POINTER(arg[0]);
-			char *src = VM_POINTER(arg[1]);
-			if (VM_OOB(arg[0], arg[2]) || VM_LONG(arg[2]) < 1)
-				return -1;
-			else if (!src)
-			{
-				*dst = 0;
-				return 0;
-			}
-			else
-			{
-				Q_strncpyz(dst, src, VM_LONG(arg[2]));
-				return strlen(src);
-			}
-		}
-		break;
-	case G_strlcat:
-		{
-			char *dst = VM_POINTER(arg[0]);
-			char *src = VM_POINTER(arg[1]);
-			if (VM_OOB(arg[0], arg[2]))
-				return -1;
-			Q_strncatz(dst, src, VM_LONG(arg[2]));
-			//WARNING: no return value
-		}
-		break;
-
-	case G_MAKEVECTORS:
-		AngleVectors(VM_POINTER(arg[0]), P_VEC(v_forward), P_VEC(v_right), P_VEC(v_up));
-		break;
-
-	case G_NEXTCLIENT:
-		{
-			unsigned int start = ((char*)VM_POINTER(arg[0]) - (char*)evars) / sv.world.edict_size;
-			while (start < sv.allocated_client_slots)
-			{
-				if (svs.clients[start].state == cs_spawned)
-					return (qintptr_t)(vevars + (start+1) * sv.world.edict_size);
-				start++;
-			}
-			return 0;
-		}
-		break;
-
-	case G_SETPAUSE:
-		{
-			int pause = VM_LONG(arg[0]);
-			if ((sv.paused&1) == (pause&1))
-				break;	//nothing changed, ignore it.
-			sv.paused = pause;
-			sv.pausedstart = Sys_DoubleTime();
-		}
-		break;
-
-	default:
-		SV_Error("Q1QVM: Trap %i not implemented\n", (int)fn);
-		break;
+static qintptr_t QVM_FindRadius (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int start = ((char*)VM_POINTER(arg[0]) - (char*)evars) / sv.world.edict_size;
+	edict_t *ed;
+	vec3_t diff;
+	float *org = VM_POINTER(arg[1]);
+	float rad = VM_FLOAT(arg[2]);
+	rad *= rad;
+	for(start++; start < sv.world.num_edicts; start++)
+	{
+		ed = EDICT_NUM(svprogfuncs, start);
+		if (ed->isfree)
+			continue;
+		VectorSubtract(ed->v->origin, org, diff);
+		if (rad > DotProduct(diff, diff))
+			return (qintptr_t)(vevars + start*sv.world.edict_size);
 	}
 	return 0;
 }
+static qintptr_t QVM_WalkMove (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	wedict_t *ed = WEDICT_NUM(svprogfuncs, arg[0]);
+	float yaw = VM_FLOAT(arg[1]);
+	float dist = VM_FLOAT(arg[2]);
+	vec3_t move;
+	vec3_t axis[3];
+
+	World_GetEntGravityAxis(ed, axis);
+
+	yaw = yaw*M_PI*2 / 360;
+	move[0] = cos(yaw)*dist;
+	move[1] = sin(yaw)*dist;
+	move[2] = 0;
+
+	return World_movestep(&sv.world, (wedict_t*)ed, move, axis, true, false, NULL, NULL);
+}
+static qintptr_t QVM_DropToFloor (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	edict_t		*ent;
+	vec3_t		end;
+	vec3_t		start;
+	trace_t		trace;
+	extern cvar_t pr_droptofloorunits;
+
+	ent = EDICT_NUM(svprogfuncs, arg[0]);
+
+	VectorCopy (ent->v->origin, end);
+	if (pr_droptofloorunits.value > 0)
+		end[2] -= pr_droptofloorunits.value;
+	else
+		end[2] -= 256;
+
+	VectorCopy (ent->v->origin, start);
+	trace = World_Move (&sv.world, start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
+
+	if (trace.fraction == 1 || trace.allsolid)
+		return false;
+	else
+	{
+		VectorCopy (trace.endpos, ent->v->origin);
+		World_LinkEdict (&sv.world, (wedict_t*)ent, false);
+		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
+		ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, trace.ent);
+		return true;
+	}
+}
+static qintptr_t QVM_CheckBottom (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	vec3_t up = {0,0,1};
+	return World_CheckBottom(&sv.world, (wedict_t*)EDICT_NUM(svprogfuncs, VM_LONG(arg[0])), up);
+}
+static qintptr_t QVM_PointContents (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	vec3_t v;
+	v[0] = VM_FLOAT(arg[0]);
+	v[1] = VM_FLOAT(arg[1]);
+	v[2] = VM_FLOAT(arg[2]);
+	return sv.world.worldmodel->funcs.PointContents(sv.world.worldmodel, NULL, v);
+}
+static qintptr_t QVM_NextEnt (void *offset, quintptr_t mask, const qintptr_t *arg)
+{	//input output are entity numbers
+	unsigned int i;
+	edict_t	*ent;
+
+	i = VM_LONG(arg[0]);
+	while (1)
+	{
+		i++;
+		if (i >= sv.world.num_edicts)
+		{
+			return 0;
+		}
+		ent = EDICT_NUM(svprogfuncs, i);
+		if (!ent->isfree)
+		{
+			return i;
+		}
+	}
+}
+static qintptr_t QVM_Aim (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	Con_DPrintf("QVM_Aim: not implemented\n");
+	return 0;	//not in mvdsv anyway
+}
+static qintptr_t QVM_MakeStatic (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_makestatic, offset, mask, arg, "n");
+	return 0;
+}
+static qintptr_t QVM_SetSpawnParams (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_setspawnparms, offset, mask, arg, "n");
+	return 0;
+}
+static qintptr_t QVM_ChangeLevel (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_changelevel, offset, mask, arg, "s");
+	return 0;
+}
+static qintptr_t QVM_ChangeLevel2 (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_changelevel, offset, mask, arg, "ss");
+	return 0;
+}
+static qintptr_t QVM_LogFrag (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_logfrag, offset, mask, arg, "nn");
+	return 0;
+}
+static qintptr_t QVM_Precache_VWep_Model (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int i = WrapQCBuiltin(PF_precache_vwep_model, offset, mask, arg, "s");
+	float f = *(float*)&i;
+	return f;
+}
+static qintptr_t QVM_GetInfoKey (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *v;
+	if (VM_OOB(arg[2], arg[3]))
+		return -1;
+	v = PF_infokey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	Q_strncpyz(VM_POINTER(arg[2]), v, VM_LONG(arg[3]));
+	return 0;
+}
+static qintptr_t QVM_Multicast (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_multicast, offset, mask, arg, "vi");
+	return 0;
+}
+static qintptr_t QVM_DisableUpdates (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	//FIXME: remember to ask mvdsv people why this is useful
+	Con_Printf("G_DISABLEUPDATES: not supported\n");
+	return 0;
+}
+static qintptr_t QVM_WriteByte (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_WriteByte, offset, mask, arg, "ii");
+	return 0;
+}
+static qintptr_t QVM_WriteChar (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_WriteChar, offset, mask, arg, "ii");
+	return 0;
+}
+static qintptr_t QVM_WriteShort (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_WriteShort, offset, mask, arg, "ii");
+	return 0;
+}
+static qintptr_t QVM_WriteLong (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_WriteLong, offset, mask, arg, "ii");
+	return 0;
+}
+static qintptr_t QVM_WriteAngle (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_WriteAngle, offset, mask, arg, "if");
+	return 0;
+}
+static qintptr_t QVM_WriteCoord (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_WriteCoord, offset, mask, arg, "if");
+	return 0;
+}
+static qintptr_t QVM_WriteString (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	PF_WriteString_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+	return 0;
+}
+static qintptr_t QVM_WriteEntity (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_WriteEntity, offset, mask, arg, "in");
+	return 0;
+}
+static qintptr_t QVM_FlushSignon (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	SV_FlushSignon ();
+	return 0;
+}
+static qintptr_t QVM_memset (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	void *dst = VM_POINTER(arg[0]);
+	VALIDATEPOINTER(arg[0], arg[2]);
+	memset(dst, arg[1], arg[2]);
+	return arg[0];
+}
+static qintptr_t QVM_memcpy (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	void *dst = VM_POINTER(arg[0]);
+	void *src = VM_POINTER(arg[1]);
+	VALIDATEPOINTER(arg[0], arg[2]);
+	memmove(dst, src, arg[2]);
+	return arg[0];
+}
+static qintptr_t QVM_strncpy (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	VALIDATEPOINTER(arg[0], arg[2]);
+	Q_strncpyS(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+	return arg[0];
+}
+static qintptr_t QVM_sin (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	qintptr_t fn;
+	VM_FLOAT(fn)=(float)sin(VM_FLOAT(arg[0]));
+	return fn;
+}
+static qintptr_t QVM_cos (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	qintptr_t fn;
+	VM_FLOAT(fn)=(float)cos(VM_FLOAT(arg[0]));
+	return fn;
+}
+static qintptr_t QVM_atan2 (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int fn;
+	VM_FLOAT(fn)=(float)atan2(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
+	return fn;
+}
+static qintptr_t QVM_sqrt (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int fn;
+	VM_FLOAT(fn)=(float)sqrt(VM_FLOAT(arg[0]));
+	return fn;
+}
+static qintptr_t QVM_floor (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int fn;
+	VM_FLOAT(fn)=(float)floor(VM_FLOAT(arg[0]));
+	return fn;
+}
+static qintptr_t QVM_ceil (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int fn;
+	VM_FLOAT(fn)=(float)ceil(VM_FLOAT(arg[0]));
+	return fn;
+}
+static qintptr_t QVM_acos (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int fn;
+	VM_FLOAT(fn)=(float)acos(VM_FLOAT(arg[0]));
+	return fn;
+}
+static qintptr_t QVM_Cmd_ArgC (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return Cmd_Argc();
+}
+static qintptr_t QVM_Cmd_ArgV (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *c;
+	c = Cmd_Argv(VM_LONG(arg[0]));
+	if (VM_OOB(arg[1], arg[2]))
+		return -1;
+	Q_strncpyz(VM_POINTER(arg[1]), c, VM_LONG(arg[2]));
+	return 0;
+}
+static qintptr_t QVM_TraceBox (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_svtraceline, offset, mask, arg, "vvinvv");
+	return 0;
+}
+static qintptr_t QVM_FS_OpenFile (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+//0 = name
+//1 = &handle
+//2 = mode
+//ret = filesize or -1
+
+//	Con_Printf("G_FSOpenFile: %s (mode %i)\n", VM_POINTER(arg[0]), arg[2]);
+	int mode;
+	switch((q1qvmfsMode_t)arg[2])
+	{
+	default:
+		return -1;
+	case FS_READ_BIN:
+	case FS_READ_TXT:
+		mode = VM_FS_READ;
+		break;
+	case FS_WRITE_BIN:
+	case FS_WRITE_TXT:
+		mode = VM_FS_WRITE;
+		break;
+	case FS_APPEND_BIN:
+	case FS_APPEND_TXT:
+		mode = VM_FS_APPEND;
+		break;
+	}
+	return VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), mode, VMFSID_Q1QVM);
+}
+static qintptr_t QVM_FS_CloseFile (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	VM_fclose(arg[0], VMFSID_Q1QVM);
+	return 0;
+}
+static qintptr_t QVM_FS_ReadFile (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	if (VM_OOB(arg[0], arg[1]))
+		return 0;
+	return VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
+}
+static qintptr_t QVM_FS_WriteFile (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	if (VM_OOB(arg[0], arg[1]))
+		return 0;
+	return VM_FWrite(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
+}
+static qintptr_t QVM_FS_SeekFile (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	//fixme: what should the return value be?
+	VM_FSeek(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
+	return 0;
+}
+static qintptr_t QVM_FS_TellFile (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return VM_FTell(VM_LONG(arg[0]), VMFSID_Q1QVM);
+}
+static qintptr_t QVM_FS_GetFileList (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	if (VM_OOB(arg[2], arg[3]))
+		return 0;
+	return VM_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+}
+static qintptr_t QVM_CVar_Set_Float (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	cvar_t *var;
+	var = Cvar_Get(VM_POINTER(arg[0]), va("%f", VM_FLOAT(arg[1])), 0, "Gamecode variables");
+	if (!var)
+		return -1;
+	Cvar_SetValue (var, VM_FLOAT(arg[1]));
+	return 0;
+}
+static qintptr_t QVM_CVar_String (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *n = VM_POINTER(arg[0]);
+	cvar_t *cv;
+	if (VM_OOB(arg[1], arg[2]))
+		return -1;
+	if (!strcmp(n, "version"))
+	{
+		n = version_string();
+		Q_strncpyz(VM_POINTER(arg[1]), n, VM_LONG(arg[2]));
+	}
+	else
+	{
+		cv = Cvar_Get(n, "", 0, "QC variables");
+		if (cv)
+			Q_strncpyz(VM_POINTER(arg[1]), cv->string, VM_LONG(arg[2]));
+		else
+			Q_strncpyz(VM_POINTER(arg[1]), "", VM_LONG(arg[2]));
+	}
+	return 0;
+}
+static qintptr_t QVM_strcmp (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *a = VM_POINTER(arg[0]);
+	char *b = VM_POINTER(arg[1]);
+	return strcmp(a, b);
+}
+static qintptr_t QVM_strncmp (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *a = VM_POINTER(arg[0]);
+	char *b = VM_POINTER(arg[1]);
+	return strncmp(a, b, VM_LONG(arg[2]));
+}
+static qintptr_t QVM_stricmp (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *a = VM_POINTER(arg[0]);
+	char *b = VM_POINTER(arg[1]);
+	return stricmp(a, b);
+}
+static qintptr_t QVM_strnicmp (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *a = VM_POINTER(arg[0]);
+	char *b = VM_POINTER(arg[1]);
+	return strnicmp(a, b, VM_LONG(arg[2]));
+}
+static qintptr_t QVM_Find (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	edict_t *e = VM_POINTER(arg[0]);
+	int ofs = VM_LONG(arg[1]) - WASTED_EDICT_T_SIZE;
+	char *match = VM_POINTER(arg[2]);
+	char *field;
+	int first = e?((char*)e - (char*)evars)/sv.world.edict_size:0;
+	int i;
+	if (!match)
+		match = "";
+	for (i = first+1; i < sv.world.num_edicts; i++)
+	{
+		e = q1qvmedicttable[i];
+		field = VM_POINTER(*((string_t*)e->v + ofs/4));
+		if (field == NULL)
+		{
+			if (*match == '\0')
+				return ((char*)e->v - (char*)offset)-WASTED_EDICT_T_SIZE;
+		}
+		else
+		{
+			if (!strcmp(field, match))
+				return ((char*)e->v - (char*)offset)-WASTED_EDICT_T_SIZE;
+		}
+	}
+	return 0;
+}
+static qintptr_t QVM_ExecuteCmd (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	WrapQCBuiltin(PF_ExecuteCommand, offset, mask, arg, "");
+	return 0;
+}
+static qintptr_t QVM_ConPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	Con_Printf("%s", (char*)VM_POINTER(arg[0]));
+	return 0;
+}
+static qintptr_t QVM_ReadCmd (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	extern char outputbuf[];
+	extern redirect_t sv_redirected;
+	extern int sv_redirectedlang;
+	redirect_t old;
+	int oldl;
+
+	char *s = VM_POINTER(arg[0]);
+	char *output = VM_POINTER(arg[1]);
+	int outputlen = VM_LONG(arg[2]);
+
+	if (VM_OOB(arg[1], arg[2]))
+		return -1;
+
+	Cbuf_Execute();	//FIXME: this code is flawed
+	Cbuf_AddText (s, RESTRICT_LOCAL);
+
+	old = sv_redirected;
+	oldl = sv_redirectedlang;
+	if (old != RD_NONE)
+		SV_EndRedirect();
+
+	SV_BeginRedirect(RD_OBLIVION, TL_FindLanguage(""));
+	Cbuf_Execute();
+	Q_strncpyz(output, outputbuf, outputlen);
+	SV_EndRedirect();
+
+	if (old != RD_NONE)
+		SV_BeginRedirect(old, oldl);
+
+Con_DPrintf("PF_readcmd: %s\n%s", s, output);
+
+	return 0;
+}
+static qintptr_t QVM_RedirectCmd (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	//FIXME: KTX uses this, along with a big fat warning.
+	//it shouldn't be vital to the normal functionality
+	//just restricts admin a little (did these guys never hear of rcon?)
+	//I'm too lazy to implement it though.
+
+	Con_DPrintf("QVM_RedirectCmd: not implemented\n");
+	return 0;
+}
+static qintptr_t QVM_Add_Bot (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	//FIXME: not implemented, always returns failure.
+	//the other bot functions only ever work on bots anyway, so don't need to be implemented until this one is
+
+	//return WrapQCBuiltin(PF_spawnclient, offset, mask, arg, "");
+	Con_DPrintf("QVM_Add_Bot: not implemented\n");
+	return 0;
+}
+static qintptr_t QVM_Remove_Bot (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	//fixme: should become general kick
+
+	Con_DPrintf("QVM_Remove_Bot: not implemented\n");
+
+	//WrapQCBuiltin(PF_dropclient, offset, mask, arg, "n");
+	return 0;
+}
+static qintptr_t QVM_SetBotCMD (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	//in mvdsv, this is run *after* the frame.
+	Con_DPrintf("QVM_SetBotCMD: not implemented\n");
+	return 0;
+}
+static qintptr_t QVM_SetUserInfo (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *key = VM_POINTER(arg[1]);
+	if (*key == '*' && (VM_LONG(arg[3])&1))
+		return -1;	//denied!
+	return PF_ForceInfoKey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+}
+static qintptr_t QVM_SetBotUserInfo (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return PF_ForceInfoKey_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
+}
+static qintptr_t QVM_MoveToGoal (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return World_MoveToGoal(&sv.world, (wedict_t*)Q1QVMPF_ProgsToEdict(svprogfuncs, pr_global_struct->self), VM_FLOAT(arg[0]));
+}
+static qintptr_t QVM_strftime (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *out = VM_POINTER(arg[0]);
+	char *fmt = VM_POINTER(arg[2]);
+	time_t curtime;
+	struct tm *local;
+	if (VM_OOB(arg[0], arg[1]) || !out)
+		return -1;	//please don't corrupt me
+	time(&curtime);
+	curtime += VM_LONG(arg[3]);
+	local = localtime(&curtime);
+	strftime(out, VM_LONG(arg[1]), fmt, local);
+	return 0;
+}
+static qintptr_t QVM_Cmd_ArgS (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *c;
+	c = Cmd_Args();
+	if (VM_OOB(arg[0], arg[1]))
+		return -1;
+	Q_strncpyz(VM_POINTER(arg[0]), c, VM_LONG(arg[1]));
+	return arg[0];
+}
+static qintptr_t QVM_Cmd_Tokenize (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *str = VM_POINTER(arg[0]);
+	Cmd_TokenizeString(str, false, false);
+	return Cmd_Argc();
+}
+static qintptr_t QVM_strlcpy (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *dst = VM_POINTER(arg[0]);
+	char *src = VM_POINTER(arg[1]);
+	if (VM_OOB(arg[0], arg[2]) || VM_LONG(arg[2]) < 1)
+		return -1;
+	else if (!src)
+	{
+		*dst = 0;
+		return 0;
+	}
+	else
+	{
+		Q_strncpyz(dst, src, VM_LONG(arg[2]));
+		return strlen(src);
+	}
+}
+static qintptr_t QVM_strlcat (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *dst = VM_POINTER(arg[0]);
+	char *src = VM_POINTER(arg[1]);
+	if (VM_OOB(arg[0], arg[2]))
+		return -1;
+	Q_strncatz(dst, src, VM_LONG(arg[2]));
+	//WARNING: no return value
+	return 0;
+}
+static qintptr_t QVM_MakeVectors (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	AngleVectors(VM_POINTER(arg[0]), P_VEC(v_forward), P_VEC(v_right), P_VEC(v_up));
+	return 0;
+}
+static qintptr_t QVM_NextClient (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	unsigned int start = ((char*)VM_POINTER(arg[0]) - (char*)evars) / sv.world.edict_size;
+	while (start < sv.allocated_client_slots)
+	{
+		if (svs.clients[start].state == cs_spawned)
+			return (qintptr_t)(vevars + (start+1) * sv.world.edict_size);
+		start++;
+	}
+	return 0;
+}
+static qintptr_t QVM_SetPause (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int pause = VM_LONG(arg[0]);
+	if ((sv.paused&1) == (pause&1))
+		return sv.paused&1;	//nothing changed, ignore it.
+	sv.paused = pause;
+	sv.pausedstart = Sys_DoubleTime();
+	return sv.paused&1;
+}
+static qintptr_t QVM_NotYetImplemented (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	SV_Error("Q1QVM: Trap not implemented\n");
+	return 0;
+}
+
+static int QVM_FindExtField(char *fname)
+{
+	extentvars_t *xv = NULL;
+#define comfieldfloat(name,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
+#define comfieldvector(name,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
+#define comfieldentity(name,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
+#define comfieldstring(name,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
+#define comfieldfunction(name, typestr,desc) if (!strcmp(fname, #name)) return ((int*)&xv->name - (int*)xv);
+comextqcfields
+svextqcfields
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+	return -1;	//unsupported
+}
+static qintptr_t QVM_SetExtField (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	edict_t *e = VM_POINTER(arg[0]);
+	int i = QVM_FindExtField(VM_POINTER(arg[1]));
+	int value = VM_LONG(arg[2]);
+
+	if (i < 0)
+		return 0;
+	((int*)e->xv)[i] = value;
+	return value;
+}
+static qintptr_t QVM_GetExtField (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	edict_t *e = VM_POINTER(arg[0]);
+	int i = QVM_FindExtField(VM_POINTER(arg[1]));
+
+	if (i < 0)
+		return 0;
+	return ((int*)e->xv)[i];
+}
+
+#ifdef WEBCLIENT
+static void QVM_uri_query_callback(struct dl_download *dl)
+{
+	void *cb_context = dl->user_ctx;
+	int cb_entry = dl->user_float;
+	int selfnum = dl->user_num;
+
+	if (svs.gametype != GT_Q1QVM || svs.spawncount != dl->user_sequence)
+		return;	//the world moved on.
+	//fixme: pointers might not still be valid if the map changed.
+
+	*sv.world.g.self = selfnum;
+	if (dl->file)
+	{
+		size_t len = VFS_GETLEN(dl->file);
+		char *buffer = malloc(len+1);
+		buffer[len] = 0;
+		VFS_READ(dl->file, buffer, len);
+		Cmd_Args_Set(buffer);
+		free(buffer);
+	}
+	else
+		Cmd_Args_Set(NULL);
+	VM_Call(q1qvm, cb_entry, cb_context, dl->replycode, 0, 0, 0);
+}
+
+//bool uri_get(char *uri, int cb_entry, void *cb_ctx, char *mime, void *data, unsigned datasize)
+static qintptr_t QVM_uri_query (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	struct dl_download *dl;
+
+	const unsigned char *url = VM_POINTER(arg[0]);
+	int cb_entry = VM_LONG(arg[1]);
+	void *cb_context = VM_POINTER(arg[2]);
+	const char *mimetype = VM_POINTER(arg[3]);
+	const char *data = VM_POINTER(arg[4]);
+	size_t datasize = VM_LONG(arg[5]);
+	extern cvar_t pr_enable_uriget;
+	
+	if (!pr_enable_uriget.ival)
+	{
+		Con_Printf("QVM_uri_query(\"%s\",%x): %s disabled\n", url, (int)cb_context, pr_enable_uriget.name);
+		return 0;
+	}
+
+	if (mimetype && *mimetype)
+	{
+		VALIDATEPOINTER(arg[4],datasize);
+		Con_DPrintf("QVM_uri_query(%s,%x)\n", url, (int)cb_context);
+		dl = HTTP_CL_Put(url, mimetype, data, datasize, QVM_uri_query_callback);
+	}
+	else
+	{
+		Con_DPrintf("QVM_uri_query(%s,%x)\n", url, (int)cb_context);
+		dl = HTTP_CL_Get(url, NULL, QVM_uri_query_callback);
+	}
+	if (dl)
+	{
+		dl->user_ctx = cb_context;
+		dl->user_float = cb_entry;
+		dl->user_num = *sv.world.g.self;
+		dl->user_sequence = svs.spawncount;
+		dl->isquery = true;
+		return 1;
+	}
+	else
+		return 0;
+}
+#endif
+
+void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+static qintptr_t QVM_particleeffectnum (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int i = WrapQCBuiltin(PF_sv_particleeffectnum, offset, mask, arg, "s");
+	return VM_FLOAT(i);
+}
+static qintptr_t QVM_trailparticles (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return WrapQCBuiltin(PF_sv_trailparticles, offset, mask, arg, "invv");
+}
+static qintptr_t QVM_pointparticles (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	return WrapQCBuiltin(PF_sv_pointparticles, offset, mask, arg, "ivvi");
+}
+
+static qintptr_t QVM_Map_Extension (void *offset, quintptr_t mask, const qintptr_t *arg);
+
+typedef qintptr_t (*traps_t) (void *offset, quintptr_t mask, const qintptr_t *arg);
+traps_t bitraps[G_MAX] =
+{
+	QVM_GetAPIVersion,
+	QVM_DPrint,
+	QVM_Error,
+	QVM_GetEntityToken,
+	QVM_Spawn_Ent,
+	QVM_Remove_Ent,
+	QVM_Precache_Sound,
+	QVM_Precache_Model,
+	QVM_LightStyle,
+	QVM_SetOrigin,
+	QVM_SetSize,			//10
+	QVM_SetModel,
+	QVM_BPrint,
+	QVM_SPrint,
+	QVM_CenterPrint,
+	QVM_AmbientSound,		//15
+	QVM_Sound,
+	QVM_TraceLine,
+	QVM_CheckClient,
+	QVM_StuffCmd,
+	QVM_LocalCmd,			//20
+	QVM_CVar,
+	QVM_CVar_Set,
+	QVM_FindRadius,
+	QVM_WalkMove,
+	QVM_DropToFloor,		//25
+	QVM_CheckBottom,
+	QVM_PointContents,
+	QVM_NextEnt,
+	QVM_Aim,
+	QVM_MakeStatic,		//30
+	QVM_SetSpawnParams,
+	QVM_ChangeLevel,
+	QVM_LogFrag,
+	QVM_GetInfoKey,
+	QVM_Multicast,		//35
+	QVM_DisableUpdates,
+	QVM_WriteByte,     
+	QVM_WriteChar,     
+	QVM_WriteShort,    
+	QVM_WriteLong,		//40
+	QVM_WriteAngle,    
+	QVM_WriteCoord,    
+	QVM_WriteString,   
+	QVM_WriteEntity,
+	QVM_FlushSignon,		//45
+	QVM_memset,
+	QVM_memcpy,		
+	QVM_strncpy,		
+	QVM_sin,	
+	QVM_cos,				//50
+	QVM_atan2,	
+	QVM_sqrt,	
+	QVM_floor,	
+	QVM_ceil,	
+	QVM_acos,				//55
+	QVM_Cmd_ArgC,
+	QVM_Cmd_ArgV,
+	QVM_TraceBox,			//was G_TraceCapsule
+	QVM_FS_OpenFile,
+	QVM_FS_CloseFile,		//60
+	QVM_FS_ReadFile,
+	QVM_FS_WriteFile,
+	QVM_FS_SeekFile,
+	QVM_FS_TellFile,
+	QVM_FS_GetFileList,	//65
+	QVM_CVar_Set_Float,
+	QVM_CVar_String,
+	QVM_Map_Extension,
+	QVM_strcmp,
+	QVM_strncmp,			//70
+	QVM_stricmp,
+	QVM_strnicmp,
+	QVM_Find,
+	QVM_ExecuteCmd,
+	QVM_ConPrint,			//75
+	QVM_ReadCmd,
+	QVM_RedirectCmd,
+	QVM_Add_Bot,
+	QVM_Remove_Bot,
+	QVM_SetBotUserInfo,	//80
+	QVM_SetBotCMD,
+
+	QVM_strftime,
+	QVM_Cmd_ArgS,
+	QVM_Cmd_Tokenize,
+	QVM_strlcpy,		//85
+	QVM_strlcat,
+	QVM_MakeVectors,
+	QVM_NextClient,
+
+	QVM_Precache_VWep_Model,
+	QVM_SetPause,
+	QVM_SetUserInfo,
+	QVM_MoveToGoal
+};
+
+struct
+{
+	char *extname;
+	traps_t trap;
+} qvmextensions[] =
+{
+	{"SetExtField",			QVM_SetExtField},
+	{"GetExtField",			QVM_GetExtField},
+	{"ChangeLevel2",		QVM_ChangeLevel2},	//with start spot
+	{"URI_Query",			QVM_uri_query},	//with start spot
+	{"particleeffectnum",	QVM_particleeffectnum},
+	{"trailparticles",		QVM_trailparticles},
+	{"pointparticles",		QVM_pointparticles},
+
+	//sql?
+	//model querying?
+	//heightmap / brush editing?
+	//custom stats (mod can always writebyte, I guess, sounds horrible though)
+	//csqc ents
+	{NULL, NULL}
+};
+
+traps_t traps[512];
+
+static qintptr_t QVM_Map_Extension (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	char *extname = VM_POINTER(arg[0]);
+	unsigned int slot = VM_LONG(arg[1]);
+	int i;
+
+	if (slot >= countof(traps))
+		return -2;	//invalid slot.
+
+	if (!extname)
+	{	//special handling for vauge compat with mvdsv, for testing how many 'known' builtins are implemented.
+		if (slot < G_MAX)
+			return -2;
+		return -1;
+	}
+
+	//find the extension and map it to the slot if found.
+	for (i = 0; qvmextensions[i].extname; i++)
+	{
+		if (!Q_strcasecmp(extname, qvmextensions[i].extname))
+		{
+			traps[slot] = qvmextensions[i].trap;
+			return slot;
+		}
+	}
+	return -1;	//extension not known
+}
+
+//============== general Quake services ==================
 
 #if __WORDSIZE == 64
 static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
@@ -1281,10 +1621,17 @@ static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
 	int i;
 	for (i = 0; i < 13; i++)
 		args[i] = arg[i];
-	return syscallhandle(offset, mask, fn, args);
+	if (fn >= countof(traps))
+		return QVM_NotYetImplemented(offset, mask, args);
+	return traps[fn](offset, mask, args);
 }
 #else
-#define syscallqvm (sys_callqvm_t)syscallhandle
+static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
+{
+	if (fn >= countof(traps))
+		return QVM_NotYetImplemented(offset, mask, arg);
+	return traps[fn](offset, mask, arg);
+}
 #endif
 
 static qintptr_t EXPORT_FN syscallnative (qintptr_t arg, ...)
@@ -1308,7 +1655,9 @@ static qintptr_t EXPORT_FN syscallnative (qintptr_t arg, ...)
 	args[12]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
-	return syscallhandle(NULL, ~0, arg, args);
+	if (arg >= countof(traps))
+		return QVM_NotYetImplemented(NULL, ~(quintptr_t)0, args);
+	return traps[arg](NULL, ~(quintptr_t)0, args);
 }
 
 void Q1QVM_Shutdown(void)
@@ -1389,12 +1738,21 @@ qboolean PR_LoadQ1QVM(void)
 
 	q1qvm = VM_Create("qwprogs", com_nogamedirnativecode.ival?NULL:syscallnative, syscallqvm);
 	if (!q1qvm)
+		q1qvm = VM_Create("qwprogs", syscallnative, NULL);
+	if (!q1qvm)
 	{
 		if (svprogfuncs == &q1qvmprogfuncs)
 			sv.world.progs = svprogfuncs = NULL;
 		return false;
 	}
 
+	for(i = 0; i < G_MAX; i++)
+		traps[i] = bitraps[i];
+	for(; i < countof(traps); i++)
+		traps[i] = QVM_NotYetImplemented;
+
+
+	memset(&fofs, 0, sizeof(fofs));
 
 	progstype = PROG_QW;
 
@@ -1538,6 +1896,14 @@ qboolean PR_LoadQ1QVM(void)
 	for (; i < NUM_SPAWN_PARMS; i++)
 		pr_global_ptrs->spawnparamglobals[i] = NULL;
 
+	for (i = 0; gd->fields[i].name; i++)
+	{
+		const char *fname = Q1QVMPF_StringToNative(&q1qvmprogfuncs, gd->fields[i].name);
+#define emufield(n,t) if (gd->fields[i].type == t && !strcmp(#n, fname)) {fofs.n = (gd->fields[i].ofs - WASTED_EDICT_T_SIZE)/sizeof(float); continue;}
+		emufields
+#undef emufield
+	}
+
 
 	sv.world.progs = &q1qvmprogfuncs;
 	sv.world.edicts = (wedict_t*)EDICT_NUM(svprogfuncs, 0);
@@ -1545,6 +1911,8 @@ qboolean PR_LoadQ1QVM(void)
 
 	if ((unsigned)gd->global->mapname && (unsigned)gd->global->mapname+MAPNAME_LEN < VM_MemoryMask(q1qvm))
 		Q_strncpyz((char*)VM_MemoryBase(q1qvm) + gd->global->mapname, sv.mapname, MAPNAME_LEN);
+	else
+		gd->global->mapname = Q1QVMPF_StringToProgs(sv.world.progs, sv.mapname);
 
 	PR_SV_FillWorldGlobals(&sv.world);
 	return true;
@@ -1572,6 +1940,11 @@ void Q1QVM_ClientConnect(client_t *cl)
 	}
 	else
 		Con_Printf("WARNING: Mod provided no netname buffer. Player names will not be set properly.\n");
+
+	if (fofs.gravity)
+		((float*)sv_player->v)[fofs.gravity] = sv_player->xv->gravity;
+	if (fofs.maxspeed)
+		((float*)sv_player->v)[fofs.maxspeed] = sv_player->xv->maxspeed;
 
 	// call the spawn function
 	pr_global_struct->time = sv.world.physicstime;
@@ -1632,6 +2005,17 @@ qboolean Q1QVM_UserInfoChanged(edict_t *player)
 
 void Q1QVM_PlayerPreThink(void)
 {
+	if (fofs.movement)
+	{
+		sv_player->xv->movement[0] = ((float*)sv_player->v)[fofs.movement+0];
+		sv_player->xv->movement[1] = ((float*)sv_player->v)[fofs.movement+1];
+		sv_player->xv->movement[2] = ((float*)sv_player->v)[fofs.movement+2];
+	}
+	if (fofs.gravity)
+		sv_player->xv->gravity = ((float*)sv_player->v)[fofs.gravity];
+	if (fofs.maxspeed)
+		sv_player->xv->maxspeed = ((float*)sv_player->v)[fofs.maxspeed];
+
 	VM_Call(q1qvm, GAME_CLIENT_PRETHINK, host_client->spectator, 0, 0, 0);
 }
 
@@ -1644,6 +2028,9 @@ void Q1QVM_RunPlayerThink(void)
 void Q1QVM_PostThink(void)
 {
 	VM_Call(q1qvm, GAME_CLIENT_POSTTHINK, host_client->spectator, 0, 0, 0);
+
+	if (fofs.vw_index)
+		sv_player->xv->vw_index = ((float*)sv_player->v)[fofs.vw_index];
 }
 
 void Q1QVM_StartFrame(void)

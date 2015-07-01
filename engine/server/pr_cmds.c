@@ -3375,7 +3375,7 @@ static void QCBUILTIN PF_checkclient (pubprogfuncs_t *prinst, struct globalvars_
 
 //============================================================================
 
-void PF_stuffcmd_Internal(int entnum, const char *str)
+void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 {
 	client_t	*cl;
 	static qboolean expectingcolour;
@@ -3468,7 +3468,7 @@ stuffcmd (clientent, value)
 */
 static void QCBUILTIN PF_stuffcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	PF_stuffcmd_Internal(G_EDICTNUM(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1));
+	PF_stuffcmd_Internal(G_EDICTNUM(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1), 0);
 }
 
 //DP_QC_DROPCLIENT
@@ -3700,7 +3700,7 @@ void PR_CheckEmptyString (char *s)
 */
 
 //float(string effectname) particleeffectnum (EXT_CSQC)
-static void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *s = PR_GetStringOfs(prinst, OFS_PARM0);
 /*
@@ -3762,14 +3762,14 @@ static void QCBUILTIN PF_precache_file (pubprogfuncs_t *prinst, struct globalvar
 	FS_FLocateFile(s, FSLFRT_IFFOUND, NULL);
 }
 
-void PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
+int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
 {
 	int		i;
 
 	if (s[0] <= ' ')
 	{
 		PR_BIError (prinst, "PF_precache_sound: Bad string");
-		return;
+		return 0;
 	}
 
 	for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
@@ -3793,12 +3793,13 @@ void PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
 				MSG_WriteString(&sv.nqreliable_datagram, s);
 #endif
 			}
-			return;
+			return i;
 		}
 		if (!strcmp(sv.strings.sound_precache[i], s))
-			return;
+			return i;
 	}
 	PR_BIError (prinst, "PF_precache_sound: overflow");
+	return 0;
 }
 static void QCBUILTIN PF_precache_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -7724,7 +7725,7 @@ static void QCBUILTIN PF_CustomTEnt(pubprogfuncs_t *prinst, struct globalvars_s 
 }
 
 //void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
-static void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef PEXT_CSQC
 	int efnum;
@@ -7768,7 +7769,7 @@ static void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct global
 #endif
 }
 //void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
-static void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef PEXT_CSQC
 	int efnum = G_FLOAT(OFS_PARM0);

@@ -2279,6 +2279,7 @@ static void Image_LoadTexture_Failed(void *ctx, void *data, size_t a, size_t b)
 }
 static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 {
+	int i;
 	texid_t tex = ctx;
 	struct pendingtextureinfo *mips = data;
 
@@ -2288,6 +2289,12 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 		tex->status = TEX_LOADED;
 	else
 		tex->status = TEX_FAILED;
+
+	for (i = 0; i < mips->mipcount; i++)
+		if (mips->mip[i].needfree)
+			BZ_Free(mips->mip[i].data);
+	if (mips->extrafree)
+		BZ_Free(mips->extrafree);
 	BZ_Free(mips);
 
 	if (!strncmp(tex->ident, "gfx/", 4))

@@ -376,9 +376,6 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 				qglTexImage3D(targface, i, GL_RGB, size, size, size, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, mips->mip[i].data);
 				break;
 			}
-
-			if (mips->mip[i].needfree)
-				Z_Free(mips->mip[i].data);
 		}
 	}
 	else
@@ -466,13 +463,9 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 				qglCompressedTexImage2DARB(targface, j, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, mips->mip[i].width, mips->mip[i].height, 0, mips->mip[i].datasize, mips->mip[i].data);
 				break;
 			}
-			if (mips->mip[i].needfree)
-				Z_Free(mips->mip[i].data);
 		}
 	}
 
-	if (mips->extrafree)
-		Z_Free(mips->extrafree);
 	return true;
 }
 

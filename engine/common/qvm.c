@@ -99,12 +99,29 @@ dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_
 				hVM = Sys_LoadLibrary(fname, funcs);
 			if (!hVM && FS_NativePath(dllname_anycpu, FS_BINARYPATH, fname, sizeof(fname)))
 				hVM = Sys_LoadLibrary(fname, funcs);
+
+			// run through the search paths
+			iterator = NULL;
+			while (!hVM && COM_IteratePaths(&iterator, NULL, 0, gpath, sizeof(gpath)))
+			{
+				if (!hVM && FS_NativePath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
+				{
+					Con_DPrintf("Loading native: %s\n", fname);
+					hVM = Sys_LoadLibrary(fname, funcs);
+				}
+
+				if (!hVM && FS_NativePath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
+				{
+					Con_DPrintf("Loading native: %s\n", fname);
+					hVM = Sys_LoadLibrary(fname, funcs);
+				}
+			}
 		}
 		else
 		{
 			// run through the search paths
 			iterator = NULL;
-			while (!hVM && COM_IteratePaths(&iterator, gpath, sizeof(gpath), NULL, false))
+			while (!hVM && COM_IteratePaths(&iterator, gpath, sizeof(gpath), NULL, 0))
 			{
 				if (!hVM)
 				{

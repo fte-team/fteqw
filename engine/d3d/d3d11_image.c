@@ -246,14 +246,6 @@ qboolean D3D11_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 	D3D11_DestroyTexture(tex);
 	hr = ID3D11Device_CreateTexture2D(pD3DDev11, &tdesc, (mips->mip[0].data?subresdesc:NULL), (ID3D11Texture2D**)&tex->ptr);
 
-	for (i = 0; i < mips->mipcount; i++)
-	{
-		if (mips->mip[i].needfree)
-			BZ_Free(mips->mip[i].data);
-	}
-	if (mips->extrafree)
-		BZ_Free(mips->extrafree);
-
 	return !FAILED(hr);
 }
 void D3D11_UploadLightmap(lightmapinfo_t *lm)

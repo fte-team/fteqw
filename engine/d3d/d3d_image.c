@@ -84,6 +84,8 @@ qboolean D3D9_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 		return false;
 	}
 
+	if (!pD3DDev9)
+		return false;	//can happen on errors
 	if (FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, mips->mip[0].width, mips->mip[0].height, mips->mipcount, 0, fmt, D3DPOOL_MANAGED, &dt, NULL)))
 		return false;
 

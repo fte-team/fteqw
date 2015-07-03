@@ -83,7 +83,7 @@ void QCC_FinishCompile(void);
 
 int comp_nump;char **comp_parms;
 //void Editor(char *fname, int line, int numparms, char **compileparms);
-pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms)
+pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, char **parms)
 {
 	comp_nump = nump;
 	comp_parms = parms;
@@ -103,7 +103,12 @@ pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms)
 		return false;
 
 	while(qcc_compileactive)
+	{
+		if (cb)
+			cb();
+
 		QCC_ContinueCompile();
+	}
 
 	PostCompile();
 
@@ -201,7 +206,7 @@ pbool CompileFile(progfuncs_t *progfuncs, const char *filename)
 //	p[2][strlen(p[2])-4] = '\0';
 //	strcat(p[2], "/");
 
-	while (!CompileParams(progfuncs, true, parms, p))
+	while (!CompileParams(progfuncs, NULL, parms, p))
 	{
 		return false;
 	}

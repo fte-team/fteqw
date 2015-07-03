@@ -631,7 +631,7 @@ extern int optres_locals_overlapping;
 extern int optres_logicops;
 extern int optres_inlines;
 
-pbool CompileParams(progfuncs_t *progfuncs, int doall, int nump, char **parms);
+pbool CompileParams(progfuncs_t *progfuncs, void(*cb)(void), int nump, char **parms);
 
 void QCC_PR_PrintStatement (QCC_statement_t *s);
 
@@ -738,6 +738,7 @@ enum {
 	WARN_STRICTTYPEMISMATCH,	//self.think = T_Damage; both are functions, but the arguments/return types/etc differ.
 	WARN_MISUSEDAUTOCVAR,		//various issues with autocvar definitions.
 	WARN_IGNORECOMMANDLINE,
+	WARN_COMPATIBILITYHACK,		//work around old defs.qc or invalid dpextensions.qc
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 

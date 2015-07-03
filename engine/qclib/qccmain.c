@@ -161,6 +161,8 @@ struct {
 	//126: numfielddefs exceeds limit 
 	//127: numpr_globals exceeds limit 
 	//128: rededeclared with different parms 
+	{" F129", WARN_COMPATIBILITYHACK},	//multiple errors are replaced by this, for compat purposes.
+
 	{" Q203", WARN_MISSINGRETURNVALUE},
 	{" Q204", WARN_WRONGRETURNTYPE},
 	{" Q205", WARN_POINTLESSSTATEMENT},
@@ -191,6 +193,7 @@ struct {
 	{" F307", WARN_STRICTTYPEMISMATCH},
 	{" F308", WARN_TYPEMISMATCHREDECOPTIONAL},
 	{" F309", WARN_IGNORECOMMANDLINE},
+	{" F310", WARN_MISUSEDAUTOCVAR},
 
 	//frikqcc errors
 	//Q608: PrecacheSound: numsounds
@@ -326,7 +329,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_msvcstyle,		FLAG_MIDCOMPILE,"msvcstyle",	"MSVC-style errors",	"Generates warning and error messages in a format that msvc understands, to facilitate ide integration."},
 	{&flag_debugmacros,		FLAG_MIDCOMPILE,"debugmacros",	"Verbose Macro Expansion",	"Print out the contents of macros that are expanded. This can help look inside macros that are expanded and is especially handy if people are using preprocessor hacks."},
 	{&flag_filetimes,		0,				"filetimes",	"Check Filetimes",		"Recompiles the progs only if the file times are modified."},
-	{&flag_fasttrackarrays,	FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"fastarrays","fast arrays where possible",	"Generates extra instructions inside array handling functions to detect engine and use extension opcodes only in supporting engines.\nAdds a global which is set by the engine if the engine supports the extra opcodes. Note that this applies to all arrays or none."},
+	{&flag_fasttrackarrays,	FLAG_MIDCOMPILE,"fastarrays",	"fast arrays where possible",	"Generates extra instructions inside array handling functions to detect engine and use extension opcodes only in supporting engines.\nAdds a global which is set by the engine if the engine supports the extra opcodes. Note that this applies to all arrays or none."},
 	{&flag_assume_integer,	FLAG_MIDCOMPILE,"assumeint",	"Assume Integers",		"Numerical constants are assumed to be integers, instead of floats."},
 	{&pr_subscopedlocals,	FLAG_MIDCOMPILE,"subscope",		"Subscoped Locals",		"Restrict the scope of locals to the block they are actually defined within, as in C."},
 	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
@@ -526,6 +529,8 @@ void QCC_PrintFields (void)
 	int		i;
 	QCC_ddef_t	*d;
 
+	printf("Fields Listing:\n");
+
 	for (i=0 ; i<numfielddefs ; i++)
 	{
 		d = &fields[i];
@@ -538,10 +543,100 @@ void QCC_PrintGlobals (void)
 	int		i;
 	QCC_ddef_t	*d;
 
+	printf("Globals Listing:\n");
+
 	for (i=0 ; i<numglobaldefs ; i++)
 	{
 		d = &qcc_globals[i];
 		printf ("%5i : (%i) %s\n", d->ofs, d->type, strings + d->s_name);
+	}
+}
+
+void QCC_PrintAutoCvars (void)
+{
+	int		i;
+	QCC_ddef_t	*d;
+	char *n;
+
+	printf("Auto Cvars:\n");
+	for (i=0 ; i<numglobaldefs ; i++)
+	{
+		d = &qcc_globals[i];
+		n = strings + d->s_name;
+		if (!strncmp(n, "autocvar_", 9))
+		{
+			char *desc;
+			QCC_eval_t *val = &qcc_pr_globals[d->ofs];
+			QCC_def_t *def = QCC_PR_GetDef(NULL, n, NULL, false, 0, 0);
+			n += 9;
+
+			if (def->comment)
+				desc = def->comment;
+			else
+				desc = NULL;
+
+			switch(d->type & ~(DEF_SAVEGLOBAL|DEF_SHARED))
+			{
+			case ev_float:
+				printf ("set %s\t%g%s%s\n",				n, val->_float,										desc?"\t//":"", desc?desc:"");
+				break;
+			case ev_vector:
+				printf ("set %s\t\"%g %g %g\"%s%s\n",	n, val->vector[0], val->vector[1], val->vector[2],	desc?"\t//":"", desc?desc:"");
+				break;
+			case ev_integer:
+				printf ("set %s\t%i%s%s\n",				n, val->_int,										desc?"\t//":"", desc?desc:"");
+				break;
+			case ev_string:
+				printf ("set %s\t\"%s\"%s%s\n",			n, strings + val->_int,								desc?"\t//":"", desc?desc:"");
+				break;
+			default:
+				printf ("//set %s\t ?%s%s\n",			n,													desc?"\t//":"", desc?desc:"");
+				break;
+			}
+		}
+	}
+	printf("\n");
+}
+
+void QCC_PrintFiles (void)
+{
+	struct
+	{
+		precache_t *list;
+		int count;
+	} precaches[] =
+	{
+		{ precache_sound, numsounds},
+		{ precache_texture, numtextures},
+		{ precache_model, nummodels},
+		{ precache_file, numfiles}
+	};
+
+	int		g, i, b;
+	pbool header;
+
+	printf("\nFile lists:\n");
+	for (b = 0; b < 64; b++)
+	{
+		for (header = false, g = 0; g < sizeof(precaches)/sizeof(precaches[0]); g++)
+		{
+			for (i = 0; i < precaches[g].count; i++)
+			{
+				if (precaches[g].list[i].block == b)
+				{
+					if (*precaches[g].list[i].name == '*')
+						continue;	//*-prefixed models are not real, and shouldn't be included in file lists.
+					if (!header)
+					{
+						printf("pak%i:\n", b);
+						header=true;
+					}
+					printf("%s\n", precaches[g].list[i].name);
+				}
+			}
+		}
+		if (header)
+			printf("\n");
 	}
 }
 
@@ -679,6 +774,7 @@ void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 	{
 		if (sym->constant && sym->type->type == ev_field && !opt_stripunusedfields)
 			sym->symbolheader->used = true;	//fields should always be present, annoyingly enough, as they're often used to silence map warnings.
+											//FIXME: we want to strip these. fte/dp extensions.qc have a LOT of fields that could be stripped.
 		else if (sym->constant && sym->type->type == ev_function)
 		{						//non-builtins must be present, because of spawn functions and other entrypoints.
 			unsigned int fnum = sym->symboldata[sym->ofs]._int;
@@ -1070,7 +1166,7 @@ pbool QCC_WriteData (int crc)
 		Sys_Error("structtype error");
 	}
 
-	for (def = pr.def_head.next ; def ; def = def->next)
+	for (warnedunref = 0, def = pr.def_head.next ; def ; def = def->next)
 	{
 		if ((def->type->type == ev_struct || def->type->type == ev_union || def->arraysize) && def->deftail)
 		{
@@ -1119,23 +1215,13 @@ pbool QCC_WriteData (int crc)
 		{
 			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
 			pr_scope = def->scope;
-			if (strcmp(def->name, "IMMEDIATE"))
+			if (strcmp(def->name, "IMMEDIATE") && qccwarningaction[wt])
 			{
 				char typestr[256];
-				if (warnedunref == -1)
-				{
-					if (qccwarningaction[wt])
-						pr_warning_count++;
-				}
-				else if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name) && warnedunref != -1)
-				{
-					warnedunref++;
-					if (warnedunref == 10 && !verbose)
-					{
-						QCC_PR_Note(wt, NULL, 0, "Not reporting other unreferenced variables. You can use the noref prefix or pragma to silence these messages as you clearly don't care.");
-						warnedunref = -1;
-					}
-				}
+				if (warnedunref++ >= 10 && !verbose)
+					pr_warning_count++;
+				else
+					QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name);
 			}
 			pr_scope = NULL;
 
@@ -1258,6 +1344,9 @@ pbool QCC_WriteData (int crc)
 			printf("code: %s:%i: %s%s%s %s@%i\n", strings+def->s_file, def->s_line, dd->type&DEF_SAVEGLOBAL?"save ":"nosave ", dd->type&DEF_SHARED?"shared ":"", basictypenames[dd->type&~(DEF_SHARED|DEF_SAVEGLOBAL)], strings+dd->s_name, dd->ofs);
 #endif
 	}
+
+	if (warnedunref > 10 && !verbose)
+		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more warnings about unreferenced variables, as you clearly don't care about the first 10.", warnedunref-10);
 
 	for (i = 0; i < numglobaldefs; i++)
 	{
@@ -1534,7 +1623,13 @@ strofs = (strofs+3)&~3;
 		SafeWrite (h, funcdata, funcdatasize);
 
 	if (verbose >= 2)
+		QCC_PrintFiles();
+
+	if (verbose >= 2)
 		QCC_PrintFields();
+
+	if (verbose >= 2)
+		QCC_PrintAutoCvars();
 
 	switch(outputsttype)
 	{

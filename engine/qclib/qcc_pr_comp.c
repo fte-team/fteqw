@@ -4933,6 +4933,43 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 
 			return result;
 		}
+		else if (!strcmp(funcname, "autocvar") && !QCC_PR_CheckToken(")"))
+		{
+			char autocvarname[256];
+			char *desc = NULL;
+			QCC_FreeTemp(func);
+			QC_snprintfz(autocvarname, sizeof(autocvarname), "autocvar_%s", QCC_PR_ParseName());
+			QCC_PR_Expect(",");
+			e = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			if (QCC_PR_CheckToken(","))
+			{
+				if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_string)
+				{	//okay, its a string immediate, consume it for the description, being careful to not generate any string immediate defs (which still require an entry in the string table).
+					desc = qccHunkAlloc(strlen(pr_immediate_string)+1);
+					strcpy(desc, pr_immediate_string);
+					QCC_PR_Lex ();
+				}
+			}
+			QCC_PR_Expect(")");
+			d = QCC_PR_GetSRef(e.cast, autocvarname, NULL, true, 0, GDF_USED);
+			if (!d.sym->comment)
+				d.sym->comment = desc;
+			if (!e.sym->constant)
+				QCC_PR_ParseWarning(ERR_BADIMMEDIATETYPE, "autocvar default value is not constant");
+			
+			if (d.sym->initialized)
+			{
+				if (memcmp(&d.sym->symboldata[d.ofs], &e.sym->symboldata[e.ofs], d.sym->symbolsize*sizeof(int)))
+					QCC_PR_ParseErrorPrintSRef (ERR_REDECLARATION, d, "autocvar %s was already initialised with another value", autocvarname+9);
+			}
+			else
+			{
+				memcpy(&d.sym->symboldata[d.ofs], &e.sym->symboldata[e.ofs], d.sym->symbolsize*sizeof(int));
+				d.sym->initialized = true;
+			}
+			QCC_FreeTemp(e);
+			return d;
+		}
 		else if (!strcmp(funcname, "entnum") && !QCC_PR_CheckToken(")"))
 		{
 			//t = (a/%1) / (nextent(world)/%1)
@@ -5132,20 +5169,22 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 		if (arg+1==np && !strcmp(QCC_GetSRefName(func), "makestatic"))
 		{
 			//vanilla QC sucks. I want fteextensions.qc to compile with vanilla, yet also result in errors for when the mod fucks up.
-			QCC_PR_ParseWarning (WARN_BADPARAMS, "too few parameters on call to %s. Passing 'self'.", QCC_GetSRefName(func));
-			QCC_PR_ParsePrintSRef (WARN_BADPARAMS, func);
+			QCC_PR_ParseWarning (WARN_COMPATIBILITYHACK, "too few parameters on call to %s. Passing 'self'.", QCC_GetSRefName(func));
+			QCC_PR_ParsePrintSRef (WARN_COMPATIBILITYHACK, func);
 
 			param[arg] = QCC_PR_GetSRef(NULL, "self", NULL, 0, 0, false);
 			paramtypes[arg] = param[arg].cast;
+			arg++;
 		}
 		else if (arg+1==np && !strcmp(QCC_GetSRefName(func), "ai_charge"))
 		{
 			//vanilla QC sucks. I want fteextensions.qc to compile with vanilla, yet also result in errors for when the mod fucks up.
-			QCC_PR_ParseWarning (WARN_BADPARAMS, "too few parameters on call to %s. Passing 0.", QCC_GetSRefName(func));
-			QCC_PR_ParsePrintSRef (WARN_BADPARAMS, func);
+			QCC_PR_ParseWarning (WARN_COMPATIBILITYHACK, "too few parameters on call to %s. Passing 0.", QCC_GetSRefName(func));
+			QCC_PR_ParsePrintSRef (WARN_COMPATIBILITYHACK, func);
 
 			param[arg] = QCC_MakeFloatConst(0);
 			paramtypes[arg] = param[arg].cast;
+			arg++;
 		}
 		else
 		{
@@ -6284,6 +6323,7 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		else if (	(!strcmp(name, "randomv"))	||
 				(!strcmp(name, "sizeof"))	||
 				(!strcmp(name, "entnum"))	||
+				(!strcmp(name, "autocvar"))	||
 				(!strcmp(name, "va_arg"))	||
 				(!strcmp(name, "..."))		||	//for compat. otherwise wtf?
 				(!strcmp(name, "_"))		)	//intrinsics, any old function with no args will do.
@@ -7897,7 +7937,8 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 
 		if (pr_token_type != tt_punct)
 		{
-			QCC_PR_ParseWarning(WARN_UNEXPECTEDPUNCT, "Expected punctuation");
+			if (priority == TOP_PRIORITY)
+				QCC_PR_ParseWarning(WARN_UNEXPECTEDPUNCT, "Expected punctuation");
 		}
 
 		if (priority == 6)
@@ -11266,6 +11307,19 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *s
 
 	if (!allocate)
 		arraysize = -1;
+	else if (!strncmp(name, "autocvar_", 9))
+	{
+		if (scope)
+			QCC_PR_ParseWarning(WARN_MISUSEDAUTOCVAR, "Autocvar \"%s\" defined with local scope. promoting to global.", name);
+		else if (flags & GDF_CONST)
+			QCC_PR_ParseWarning(WARN_MISUSEDAUTOCVAR, "Autocvar \"%s\" defined as constant. attempting to correct that for you.", name);
+		else if (flags & GDF_STATIC)
+			QCC_PR_ParseWarning(WARN_MISUSEDAUTOCVAR, "Autocvar \"%s\" defined as static. attempting to correct that for you.", name);
+		scope = NULL;
+		flags &= ~(GDF_CONST|GDF_STATIC);
+		if (!(flags & GDF_STRIP))
+			flags |= GDF_USED;
+	}
 
 	if (pHash_Get != &Hash_Get)
 	{
@@ -11345,12 +11399,15 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *s
 			{
 				if (pr_scope || typecmp_lax(def->type, type))
 				{
-					if (!strcmp("droptofloor", def->name))
+					if (!strcmp("droptofloor", def->name)	||	//vanilla
+						!strcmp("callfunction", def->name)	||	//should be (..., string name) but dpextensions gets this wrong.
+						!strcmp("trailparticles", def->name)	//dp got the two arguments the wrong way. fteqw doesn't care any more, but dp is still wrong.
+						)
 					{
 						//this is a hack. droptofloor was wrongly declared in vanilla qc, which causes problems with replacement extensions.qc.
 						//yes, this is a selfish lazy hack for this, there's probably a better way, but at least we spit out a warning still.
-						QCC_PR_ParseWarning (WARN_LAXCAST, "%s builtin was wrongly defined as %s. ignoring invalid dupe definition",name, TypeName(type, typebuf1, sizeof(typebuf1)));
-						QCC_PR_ParsePrintDef(WARN_LAXCAST, def);
+						QCC_PR_ParseWarning (WARN_COMPATIBILITYHACK, "%s builtin was wrongly defined as %s. ignoring invalid dupe definition",name, TypeName(type, typebuf1, sizeof(typebuf1)));
+						QCC_PR_ParsePrintDef(WARN_COMPATIBILITYHACK, def);
 					}
 					else
 					{
@@ -11423,18 +11480,6 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *s
 	}
 
 	ofs = 0;
-
-	if (!strncmp(name, "autocvar_", 9))
-	{
-		if (scope)
-			QCC_PR_ParseWarning(WARN_MISUSEDAUTOCVAR, "Autocvar \"%s\" defined with local scope", name);
-		else if (flags & GDF_CONST)
-			QCC_PR_ParseWarning(WARN_MISUSEDAUTOCVAR, "Autocvar \"%s\" defined as constant", name);
-		else if (flags & GDF_STATIC)
-			QCC_PR_ParseWarning(WARN_MISUSEDAUTOCVAR, "Autocvar \"%s\" defined as static", name);
-		if (!(flags & GDF_STRIP))
-			flags |= GDF_USED;
-	}
 
 	def = QCC_PR_DummyDef(type, name, scope, arraysize, NULL, ofs, true, flags);
 
@@ -11808,7 +11853,7 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 			tmp = QCC_EvaluateCast(tmp, type, true);
 		}
 
-		if (!pr_scope || basedef->constant || basedef->isstatic)
+		if (!basedef->scope || basedef->constant || basedef->isstatic)
 		{
 			tmp.sym->referenced = true;
 			if (!tmp.sym->constant)
@@ -11828,7 +11873,17 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *basedef, QCC_sref_t d
 			{
 				for (i = 0; (unsigned)i < type->size; i++)
 					if (def.sym->symboldata[def.ofs+i]._int != tmp.sym->symboldata[tmp.ofs+i]._int)
-						QCC_PR_ParseErrorPrintSRef (ERR_REDECLARATION, def, "incompatible redeclaration");
+					{
+						if (!def.sym->arraysize && def.cast->type == ev_function && !strcmp(def.sym->name, "parseentitydata") && (functions[def.sym->symboldata[def.ofs+i]._int].builtin == 608 || functions[def.sym->symboldata[def.ofs+i]._int].builtin == 613))
+						{	//dpextensions is WRONG, and claims it to be 608.
+							if (functions[def.sym->symboldata[def.ofs+i]._int].builtin == 608)
+								functions[def.sym->symboldata[def.ofs+i]._int].builtin = 613;
+							QCC_PR_ParseWarning (WARN_COMPATIBILITYHACK, "incompatible redeclaration. Please validate builtin numbers. parseentitydata is #613");
+							QCC_PR_ParsePrintSRef(WARN_COMPATIBILITYHACK, tmp);
+						}
+						else
+							QCC_PR_ParseErrorPrintSRef (ERR_REDECLARATION, def, "incompatible redeclaration");
+					}
 			}
 			else
 			{

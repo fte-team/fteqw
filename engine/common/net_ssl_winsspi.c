@@ -8,6 +8,20 @@ cvar_t *tls_ignorecertificateerrors;
 #include <sspi.h>
 #include <schannel.h>
 
+#define SP_PROT_TLS1_1_SERVER		0x00000100
+#define SP_PROT_TLS1_1_CLIENT		0x00000200
+
+#define SP_PROT_TLS1_2_SERVER		0x00000400
+#define SP_PROT_TLS1_2_CLIENT		0x00000800
+
+#define SP_PROT_DTLS_SERVER		0x00010000
+#define SP_PROT_DTLS_CLIENT		0x00020000
+
+//avoid the use of outdated/insecure protocols
+//so no ssl2/ssl3
+#define USE_PROT_SERVER (SP_PROT_TLS1_SERVER | SP_PROT_TLS1_1_SERVER | SP_PROT_TLS1_2_SERVER)
+#define USE_PROT_CLIENT (SP_PROT_TLS1_CLIENT | SP_PROT_TLS1_1_CLIENT | SP_PROT_TLS1_2_CLIENT)
+
 //hungarian ensures we hit no macros.
 static struct
 {
@@ -61,7 +75,7 @@ void SSL_Init(void)
 	};
 
 	tls_ignorecertificateerrors = Cvar_Get("tls_ignorecertificateerrors", "0", CVAR_NOTFROMSERVER, "TLS");
-	
+
 	if (!secur.lib)
 		secur.lib = Sys_LoadLibrary("secur32.dll", secur_functable);
 	if (!crypt.lib)
@@ -526,7 +540,7 @@ static void SSPI_GenServerCredentials(sslfile_t *f)
 
 	memset(&SchannelCred, 0, sizeof(SchannelCred));
 	SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
-	SchannelCred.grbitEnabledProtocols = (SP_PROT_TLS1|SP_PROT_SSL3) & SP_PROT_SERVERS;
+	SchannelCred.grbitEnabledProtocols = USE_PROT_SERVER;
 	SchannelCred.dwFlags |= SCH_CRED_NO_SYSTEM_MAPPER|SCH_CRED_DISABLE_RECONNECTS;	/*don't use windows login info or anything*/
 
 	cred = SSPI_GetServerCertificate();
@@ -585,7 +599,7 @@ static void SSPI_Handshake (sslfile_t *f)
 
 		memset(&SchannelCred, 0, sizeof(SchannelCred));
 		SchannelCred.dwVersion = SCHANNEL_CRED_VERSION;
-		SchannelCred.grbitEnabledProtocols = SP_PROT_TLS1 | SP_PROT_SSL3;
+		SchannelCred.grbitEnabledProtocols = USE_PROT_CLIENT;
 		SchannelCred.dwFlags |= SCH_CRED_NO_DEFAULT_CREDS;	/*don't use windows login info or anything*/
 
 		ss = secur.pAcquireCredentialsHandleA (NULL, UNISP_NAME_A, SECPKG_CRED_OUTBOUND, NULL, &SchannelCred, NULL, NULL, &f->cred, &Lifetime);

@@ -3836,7 +3836,7 @@ static LRESULT CALLBACK OutputWindowProc(HWND hWnd,UINT message,
 
 void GUIPrint(HWND wnd, char *msg)
 {
-	MSG        wmsg;
+//	MSG        wmsg;
 	int len;
 	static int writing;
 
@@ -3855,12 +3855,14 @@ void GUIPrint(HWND wnd, char *msg)
 		Edit_SetSel(wnd,len,len);
 	Edit_ReplaceSel(wnd,msg);
 
+	/*
 	while (PeekMessage (&wmsg, NULL, 0, 0, PM_NOREMOVE))
 	{
 		if (!GetMessage (&wmsg, NULL, 0, 0))
 			break;
 		DoTranslateMessage(&wmsg);
 	}
+	*/
 	writing=false;
 }
 
@@ -4233,12 +4235,6 @@ int GUIprintf(const char *msg, ...)
 	if (*st)
 		outlen = GUIEmitOutputText(outputbox, outlen, st, strlen(st), col);
 
-	while (PeekMessage (&wmsg, NULL, 0, 0, PM_NOREMOVE))
-	{
-		if (!GetMessage (&wmsg, NULL, 0, 0))
-			break;
-		DoTranslateMessage(&wmsg);
-	}
 /*
 	s = st = buf;
 	while(*s)
@@ -4262,6 +4258,17 @@ int GUIprintf(const char *msg, ...)
 int Dummyprintf(const char *msg, ...){return 0;}
 
 #undef Sys_Error
+
+void compilecb(void)
+{
+	//used to repaint the output window periodically instead of letting it redraw as stuff gets sent to it. this can save significant time on mods with boatloads of warnings.
+	MSG wmsg;
+	SendMessage(outputbox, WM_SETREDRAW, TRUE, 0);
+	RedrawWindow(outputbox, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
+	while (PeekMessage (&wmsg, NULL, 0, 0, PM_REMOVE))
+		DoTranslateMessage(&wmsg);
+	SendMessage(outputbox, WM_SETREDRAW, FALSE, 0);
+}
 
 void Sys_Error(const char *text, ...);
 void RunCompiler(char *args, pbool quick)
@@ -4329,9 +4336,11 @@ void RunCompiler(char *args, pbool quick)
 	else
 		logfile = NULL;
 
+	SendMessage(outputbox, WM_SETREDRAW, FALSE, 0);
+
 	argc = GUI_BuildParms(args, argv, quick);
 
-	if (CompileParams(&funcs, true, argc, argv))
+	if (CompileParams(&funcs, compilecb, argc, argv))
 	{
 		if (!quick)
 		{
@@ -4340,6 +4349,9 @@ void RunCompiler(char *args, pbool quick)
 //			EngineCommandf("qcresume\nmenu_restart\nrestart\n");
 		}
 	}
+
+	SendMessage(outputbox, WM_SETREDRAW, TRUE, 0);
+	RedrawWindow(outputbox, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
 
 	if (logfile)
 		fclose(logfile);

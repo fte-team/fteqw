@@ -1578,7 +1578,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "nst = (1.0 + nst) / 2.0;\n"
 "vec4 l = texture2D(s_t0, nst)*5.0;\n"
 "vec4 c = texture2D(s_t1, tc);\n"
-"vec3 lmsamp = texture2D(s_t2, lm).rgb*e_lmscale;\n"
+"vec3 lmsamp = texture2D(s_t2, lm).rgb*e_lmscale.rgb;\n"
 "vec3 diff = l.rgb;\n"
 "vec3 chrom = diff / (0.001 + dot(diff, vec3(0.3, 0.59, 0.11)));\n"
 "vec3 spec = chrom * l.a;\n"
@@ -1645,10 +1645,100 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec3 tc; \n"
 "float ang; \n"
-"ang = texcoord.x*-radians(cvar_ffov); \n"
+"ang = texcoord.x*radians(cvar_ffov); \n"
 "tc.x = sin(ang); \n"
 "tc.y = -texcoord.y; \n"
 "tc.z = cos(ang); \n"
+"gl_FragColor = textureCube(s_t0, tc);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
+{QR_OPENGL, 110, "postproc_laea",
+"!!cvarf ffov\n"
+
+//my attempt at lambert azimuthal equal-area view rendering, because you'll remember that name easily.
+
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"varying vec2 texcoord;\n"
+"uniform float cvar_ffov;\n"
+"void main()\n"
+"{\n"
+"texcoord = v_texcoord.xy;\n"
+
+//make sure the ffov cvar actually does something meaningful
+"texcoord *= cvar_ffov / 90.0;\n"
+
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"uniform samplerCube s_t0;\n"
+"varying vec2 texcoord;\n"
+"void main()\n"
+"{\n"
+"vec3 tc; \n"
+"vec2 d; \n"
+"vec2 ang; \n"
+"d = texcoord; \n"
+
+//compute the 2d->3d projection
+"float sq = d.x*d.x+d.y*d.y;\n"
+"if (sq > 4.0)\n"
+"gl_FragColor = vec4(0,0,0,1);\n"
+"else\n"
+"{\n"
+"tc.x = sqrt(1.0-(sq/4.0))*d.x;\n"
+"tc.y = sqrt(1.0-(sq/4.0))*d.y;\n"
+"tc.z = -1.0 + (sq/2.0);\n"
+
+"tc.y *= -1.0;\n"
+"tc.z *= -1.0;\n"
+
+"gl_FragColor = textureCube(s_t0, tc);\n"
+"}\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
+{QR_OPENGL, 110, "postproc_stereographic",
+"!!cvarf ffov\n"
+
+//stereographic view rendering, for high fovs that are still playable.
+
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"varying vec2 texcoord;\n"
+"uniform float cvar_ffov;\n"
+"void main()\n"
+"{\n"
+"texcoord = v_texcoord.xy;\n"
+
+//make sure the ffov cvar actually does something meaningful
+"texcoord *= cvar_ffov / 90.0;\n"
+
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"uniform samplerCube s_t0;\n"
+"varying vec2 texcoord;\n"
+"void main()\n"
+"{\n"
+"vec3 tc; \n"
+"vec2 d; \n"
+"vec2 ang; \n"
+"d = texcoord; \n"
+
+//compute the 2d->3d projection
+"float div = 1.0 + d.x*d.x + d.y*d.y;\n"
+"tc.x = 2.0*d.x/div;\n"
+"tc.y = -2.0*d.y/div;\n"
+"tc.z = -(-1.0 + d.x*d.x + d.y*d.y)/div;\n"
+
 "gl_FragColor = textureCube(s_t0, tc);\n"
 "}\n"
 "#endif\n"

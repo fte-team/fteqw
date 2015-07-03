@@ -19,7 +19,7 @@ void main()
 {
 	vec3 tc;	
 	float ang;	
-	ang = texcoord.x*-radians(cvar_ffov);	
+	ang = texcoord.x*radians(cvar_ffov);	
 	tc.x = sin(ang);	
 	tc.y = -texcoord.y;	
 	tc.z = cos(ang);	

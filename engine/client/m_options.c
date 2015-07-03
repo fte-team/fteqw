@@ -182,7 +182,7 @@ void M_Options_Remove(menu_t *m)
 //options menu.
 void M_Menu_Options_f (void)
 {
-	extern cvar_t crosshair;
+	extern cvar_t crosshair, r_projection;
 	int y;
 
 	menuoption_t *updatecbo;
@@ -194,13 +194,31 @@ void M_Menu_Options_f (void)
 		NULL
 	};
 
+	static const char *projections[] = {
+		"Regular",
+		"Stereographic",
+		"Fisheye",
+		"Panoramic",
+		"Lambert Azimuthal Equal-Area",
+		NULL
+	};
+	static const char *projectionvalues[] = {
+		"0",
+		"1",
+		"2",
+		"3",
+		"4",
+		NULL
+	};
+
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
 		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
 		MB_CONSOLECMD("Reset to defaults", "cvarreset *\nexec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
 		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
 		MB_SPACING(4),
-		MB_SLIDER("Field of View", scr_fov, 80, 110, 5, NULL),
+		MB_COMBOCVAR("View Projection", r_projection, projections, projectionvalues, NULL),
+		MB_SLIDER("Field of View", scr_fov, 70, 360, 5, NULL),
 		MB_SLIDER("Mouse Speed", sensitivity, 1, 10, 0.2, NULL),
 		MB_SLIDER("Crosshair", crosshair, 0, 22, 1, NULL), // move this to hud setup?
 		MB_CHECKBOXFUNC("Always Run", M_Options_AlwaysRun, 0, "Set movement to run at fastest speed by default."),

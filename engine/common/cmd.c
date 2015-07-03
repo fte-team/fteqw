@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "fs.h"
 
+cvar_t ruleset_allow_in		= SCVAR("ruleset_allow_in", "1");
 cvar_t rcon_level			= SCVAR("rcon_level", "20");
 cvar_t cmd_maxbuffersize	= SCVAR("cmd_maxbuffersize", "65536");
 cvar_t dpcompat_set         = SCVAR("dpcompat_set", "0");
@@ -179,6 +180,58 @@ void Cmd_Wait_f (void)
 #endif
 	cmd_didwait = true;
 	cmd_text[Cmd_ExecLevel].waitattime = realtime;
+}
+
+/*
+lame timers. :s
+*/
+typedef struct cmdtimer_s {
+	struct cmdtimer_s *next;
+	float timer;
+	int level;
+	char cmdtext[1];
+} cmdtimer_t;
+static cmdtimer_t *cmdtimers;
+static void Cmd_ExecuteTimers(void)
+{
+	cmdtimer_t **link, *t;
+	//FIXME: we should probably insert these in order instead, then early out.
+	//really, it depends on just how many we end up with
+	for(link = &cmdtimers; (t = *link); )
+	{
+		if (t->timer < realtime)
+		{
+			*link = t->next;
+			Cbuf_InsertText(t->cmdtext, t->level, true);
+			Z_Free(t);
+		}
+		else
+			link = &t->next;
+	}
+}
+static void Cmd_In_f(void)
+{
+	cmdtimer_t *n;
+	float delay = atof(Cmd_Argv(1));
+	char *cmd;
+	if (Cmd_Argc() < 3)
+	{
+		Con_Printf("%s <seconds to wait> <command to execute>\n", Cmd_Argv(0));
+		return;
+	}
+	Cmd_ShiftArgs(1, false);
+	cmd = Cmd_Args();
+
+	if (ruleset_allow_in.ival)
+	{
+		n = Z_Malloc(sizeof(*n) + strlen(cmd));
+		strcpy(n->cmdtext, cmd);
+		n->timer = realtime + delay;
+		n->level = Cmd_ExecLevel;
+
+		n->next = cmdtimers;
+		cmdtimers = n;
+	}
 }
 
 /*
@@ -438,6 +491,7 @@ void Cbuf_Execute (void)
 		cmd_text[RESTRICT_LOCAL].waitattime = realtime;
 	}
 #endif
+	Cmd_ExecuteTimers();
 
 	for (level = 0; level < sizeof(cmd_text)/sizeof(cmd_text[0]); level++)
 		if (cmd_text[level].buf.cursize)
@@ -3262,6 +3316,9 @@ void Cmd_Init (void)
 	Cmd_AddMacro("qt", Macro_Quote, false);
 
 	Cvar_Register(&tp_disputablemacros, "Teamplay");
+
+	Cvar_Register(&ruleset_allow_in, "Console");
+	Cmd_AddCommandD ("in", Cmd_In_f, "Issues the given command after a time delay. Disabled if ruleset_allow_in is 0.");
 
 	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");
 	Cvar_Register (&cl_warncmd, "Warnings");

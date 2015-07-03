@@ -125,7 +125,7 @@ void (APIENTRY *qglNormal3fv) (const GLfloat *v);
 void (APIENTRY *qglMatrixMode) (GLenum mode);
 void (APIENTRY *qglMultMatrixf) (const GLfloat *m);
 void (APIENTRY *qglNewList) (GLuint list, GLenum mode);
-void (APIENTRY *qglOrtho) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+//void (APIENTRY *qglOrtho) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 void (APIENTRY *qglPolygonMode) (GLenum face, GLenum mode);
 void (APIENTRY *qglPopMatrix) (void);
 void (APIENTRY *qglPushMatrix) (void);
@@ -2333,7 +2333,7 @@ static void GLSlang_ProgAutoFields(program_t *prog, char **cvarnames, int *cvart
 		cvar = Cvar_Get(tmpname, tmpval, CVAR_SHADERSYSTEM, "glsl cvars");
 		if (!cvar)
 			continue;
-		cvar->flags |= CVAR_SHADERSYSTEM;
+//		cvar->flags |= CVAR_SHADERSYSTEM;
 		prog->parm[prog->numparams].type = cvartypes[i];
 		prog->parm[prog->numparams].pval = cvar;
 		found = false;
@@ -2485,7 +2485,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglNormal3fv		= (void *)getglcore("glNormal3fv");
 	qglMatrixMode		= (void *)getglcore("glMatrixMode");
 	qglMultMatrixf		= (void *)getglcore("glMultMatrixf");
-	qglOrtho			= (void *)getglcore("glOrtho");
+//	qglOrtho			= (void *)getglcore("glOrtho");
 	qglPolygonMode		= (void *)getglcore("glPolygonMode");
 	qglPopMatrix		= (void *)getglcore("glPopMatrix");
 	qglPushMatrix		= (void *)getglcore("glPushMatrix");

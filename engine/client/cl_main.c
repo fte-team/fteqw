@@ -326,12 +326,21 @@ void CL_MakeActive(char *gamename)
 	}
 	cl.matchgametimestart = 0;
 	cls.state = ca_active;
+
+	//this might be expensive, don't count any of this as time spent *playing* the demo. this avoids skipping the first $LOADDURATION seconds.
+	cl.stillloading = true;
+
+	//kill sounds left over from the last map.
 	S_Purge(true);
-	CL_UpdateWindowTitle();
+
+	//kill models left over from the last map.
+	Mod_Purge(MP_MAPCHANGED);
+
+	//and reload shaders now if needed (this was blocked earlier)
+	Shader_DoReload();
 
 	SCR_EndLoadingPlaque();
-
-	Mod_Purge(MP_MAPCHANGED);
+	CL_UpdateWindowTitle();
 
 	TP_ExecTrigger("f_begin", true);
 	if (cls.demoplayback)
@@ -1832,9 +1841,6 @@ void CL_CheckServerInfo(void)
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_lmgamma")))
 		cls.allow_lightmapgamma=true;
 
-	s = Info_ValueForKey(cl.serverinfo, "allow_fish");
-	if (cl.spectator || cls.demoplayback || !*s || atoi(s))
-		cls.allow_postproc=true;
 	s = Info_ValueForKey(cl.serverinfo, "allow_postproc");
 	if (cl.spectator || cls.demoplayback || !*s || atoi(s))
 		cls.allow_postproc=true;
@@ -1893,9 +1899,13 @@ void CL_CheckServerInfo(void)
 	}
 	else
 	{
-		cl.maxpitch = 89.9;
-		cl.minpitch = -89.9;
+		cl.maxpitch = 90;
+		cl.minpitch = -90;
 	}
+	//bound it, such that we never end up looking slightly more back than forwards
+	//FIXME: we should probably tweak our movement code instead.
+	cl.maxpitch = bound(-89.9, cl.maxpitch, 89.9);
+	cl.minpitch = bound(-89.9, cl.minpitch, 89.9);
 
 	cl.hexen2pickups = atoi(Info_ValueForKey(cl.serverinfo, "sv_pupglow"));
 
@@ -4599,6 +4609,7 @@ double Host_Frame (double time)
 	qboolean maxfpsignoreserver;
 	qboolean idle;
 	extern qboolean r_blockvidrestart;
+	static qboolean hadwork;
 
 	RSpeedLocals();
 
@@ -4633,8 +4644,6 @@ double Host_Frame (double time)
 	}
 	if (startuppending)
 		CL_StartCinematicOrMenu();
-
-	COM_MainThreadWork();
 
 #ifdef PLUGINS
 	Plug_Tick();
@@ -4739,7 +4748,16 @@ double Host_Frame (double time)
 	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
 	oldrealtime = realtime;
 
-	CL_ProgressDemoTime();
+	if (cls.demoplayback && !cl.stillloading)
+	{
+		extern qboolean shader_reload_needed; //this can take some time when you have weird glsl.
+		qboolean haswork = cl.sendprespawn || COM_HasWork();
+		if (!hadwork && !haswork)
+			CL_ProgressDemoTime();
+		hadwork = haswork;
+	}
+	cl.stillloading = cl.sendprespawn || (cls.state < ca_active && COM_HasWork());
+	COM_MainThreadWork();
 
 
 #if defined(Q2CLIENT)

@@ -4801,7 +4801,7 @@ void CL_SetStatInt (int pnum, int stat, int value)
 		cl.players[cls_lastto].statsf[stat]=value;
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
-			if (cl.playerview[pnum].cam_spec_track == cls_lastto)
+			if (cl.playerview[pnum].cam_spec_track == cls_lastto && cl.playerview[pnum].cam_state != CAM_FREECAM)
 				CL_SetStat_Internal(pnum, stat, value, value);
 	}
 	else
@@ -4823,7 +4823,7 @@ void CL_SetStatFloat (int pnum, int stat, float value)
 		cl.players[cls_lastto].stats[stat]=value;
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
-			if (cl.playerview[pnum].cam_spec_track == cls_lastto)
+			if (cl.playerview[pnum].cam_spec_track == cls_lastto && cl.playerview[pnum].cam_state != CAM_FREECAM)
 			{
 				cl.playerview[pnum].statsf[stat] = value;
 				cl.playerview[pnum].stats[stat] = value;

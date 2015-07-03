@@ -1386,38 +1386,43 @@ qboolean R_RenderScene_Cubemap(void)
 
 	shader_t *shader;
 	int facemask;
+	extern cvar_t r_projection;
 
 	/*needs glsl*/
 	if (!gl_config.arb_shader_objects)
 		return false;
-	if (!ffov.value)
-		return false;
 	if (!cls.allow_postproc)
 		return false;
 
+	if (!*ffov.string || !strcmp(ffov.string, "0"))
+		ffov.value = scr_fov.value;
+
 	facemask = 0;
-	if (ffov.value < 0)
+	switch(r_projection.ival)
 	{
-		shader = R_RegisterShader("postproc_panorama", SUF_NONE,
+	default:	//invalid.
+		return false;
+	case 1:
+		shader = R_RegisterShader("postproc_stereographic", SUF_NONE,
 				"{\n"
-					"program postproc_panorama\n"
+					"program postproc_stereographic\n"
 					"{\n"
 						"map $sourcecube\n"
 					"}\n"
 				"}\n"
 				);
 
-		//panoramic view needs at most the four sides
 		facemask |= 1<<4; /*front view*/
-		if (ffov.value < -90)
+		if (ffov.value > 70)
 		{
-			facemask |= (1<<0) | (1<<1); /*side views*/
-			if (ffov.value < -270)
+			facemask |= (1<<0) | (1<<1); /*side/top*/
+			if (ffov.value > 85)
+				facemask |= (1<<2) | (1<<3); /*bottom views*/
+			if (ffov.value > 300)
 				facemask |= 1<<5; /*back view*/
 		}
-	}
-	else
-	{
+		break;
+	case 2:
 		shader = R_RegisterShader("postproc_fisheye", SUF_NONE,
 				"{\n"
 					"program postproc_fisheye\n"
@@ -1433,7 +1438,47 @@ qboolean R_RenderScene_Cubemap(void)
 			facemask |= (1<<0) | (1<<1) | (1<<2) | (1<<3); /*side/top/bottom views*/
 		if (ffov.value > 270)
 			facemask |= 1<<5; /*back view*/
+		break;
+	case 3:
+		shader = R_RegisterShader("postproc_panorama", SUF_NONE,
+				"{\n"
+					"program postproc_panorama\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		//panoramic view needs at most the four sides
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 90)
+		{
+			facemask |= (1<<0) | (1<<1); /*side views*/
+			if (ffov.value > 270)
+				facemask |= 1<<5; /*back view*/
+		}
+		break;
+	case 4:
+		shader = R_RegisterShader("postproc_laea", SUF_NONE,
+				"{\n"
+					"program postproc_laea\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 90)
+		{
+			facemask |= (1<<0) | (1<<1) | (1<<2) | (1<<3); /*side/top/bottom views*/
+			if (ffov.value > 270)
+				facemask |= 1<<5; /*back view*/
+		}
+		break;
 	}
+
+	//FIXME: we should be able to rotate the view
 
 	vrect = r_refdef.vrect;
 	prect = r_refdef.pxrect;
@@ -1494,6 +1539,9 @@ qboolean R_RenderScene_Cubemap(void)
 	ang[1][1] = 90;
 	ang[1][2] = saveang[0];
 	ang[5][0] = -saveang[0]*2;
+	//in theory, we could use a geometry shader to duplicate the polygons to each face.
+	//that would of course require that every bit of glsl had such a geometry shader.
+	//it would at least reduce cpu load quite a bit.
 	for (i = 0; i < 6; i++)
 	{
 		if (!(facemask & (1<<i)))
@@ -1532,7 +1580,16 @@ qboolean R_RenderScene_Cubemap(void)
 	qglLoadIdentity ();
 */
 	// draw it through the shader
-	R2D_Image(0, 0, vid.width, vid.height, -0.5, 0.5, 0.5, -0.5, shader);
+	if (vrect.width > vrect.height)
+	{
+		float aspect = (0.5 * vrect.height) / vrect.width;
+		R2D_Image(0, 0, vid.width, vid.height, -0.5, aspect, 0.5, -aspect, shader);
+	}
+	else
+	{
+		float aspect = (0.5 * vrect.width) / vrect.height;
+		R2D_Image(0, 0, vid.width, vid.height, -aspect, 0.5, aspect, -0.5, shader);
+	}
 
 	//revert the matricies
 /*	qglMatrixMode(GL_PROJECTION);
@@ -1624,7 +1681,8 @@ void GLR_RenderView (void)
 	}
 	if (r_refdef.flags & RDF_UNDERWATER)
 	{
-		if (!r_waterwarp.value)
+		extern cvar_t r_projection;
+		if (!r_waterwarp.value || r_projection.ival)
 			r_refdef.flags &= ~RDF_UNDERWATER;	//no warp at all
 		else if (r_waterwarp.value > 0 && scenepp_waterwarp)
 			r_refdef.flags |= RDF_WATERWARP;	//try fullscreen warp instead if we can

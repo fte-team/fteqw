@@ -27,6 +27,8 @@ char shaders[][64] =
 	"lpp_wall",
 	"postproc_fisheye",
 	"postproc_panorama",
+	"postproc_laea",
+	"postproc_stereographic",
 	"rtlight",
 	"underwaterwarp",
 	"menutint",

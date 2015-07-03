@@ -244,6 +244,8 @@ void Cam_Unlock(playerview_t *pv)
 		pv->cam_state = CAM_FREECAM;
 		pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);	//free floating
 		Sbar_Changed();
+
+		Skin_FlushPlayers();
 	}
 }
 

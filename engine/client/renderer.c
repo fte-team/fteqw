@@ -530,6 +530,45 @@ void	R_InitTextures (void)
 	}
 }
 
+static int QDECL ShowFileList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	//ignore non-diffuse texture filenames, because they're annoying as heck.
+	if (!strstr(name, "_pants.") && !strstr(name, "_shirt.") && !strstr(name, "_upper.") && !strstr(name, "_lower.") && !strstr(name, "_bump.") && !strstr(name, "_norm.") && !strstr(name, "_gloss.") && !strstr(name, "_luma."))
+	{
+		Con_Printf("%s\n", name);
+	}
+	return true;
+}
+void R_ListConfigs_f(void)
+{
+	COM_EnumerateFiles("*.cfg", ShowFileList, NULL);
+	COM_EnumerateFiles("configs/*.cfg", ShowFileList, NULL);
+}
+void R_ListFonts_f(void)
+{
+	COM_EnumerateFiles("charsets/*.*", ShowFileList, NULL);
+	COM_EnumerateFiles("textures/charsets/*.*", ShowFileList, NULL);
+}
+void R_ListSkins_f(void)
+{
+	COM_EnumerateFiles("skins/*.*", ShowFileList, NULL);
+}
+void R_ListSkyBoxes_f(void)
+{
+	//FIXME: this demonstrates why we need a nicer result printer.
+	COM_EnumerateFiles("env/*rt.*", ShowFileList, NULL);
+	COM_EnumerateFiles("env/*px.*", ShowFileList, NULL);
+	COM_EnumerateFiles("env/*posx.*", ShowFileList, NULL);
+	COM_EnumerateFiles("gfx/env/*rt.*", ShowFileList, NULL);
+	COM_EnumerateFiles("gfx/env/*px.*", ShowFileList, NULL);
+	COM_EnumerateFiles("gfx/env/*posx.*", ShowFileList, NULL);
+	COM_EnumerateFiles("textures/env/*rt.*", ShowFileList, NULL);
+	COM_EnumerateFiles("textures/env/*px.*", ShowFileList, NULL);
+	COM_EnumerateFiles("textures/env/*posx.*", ShowFileList, NULL);
+	COM_EnumerateFiles("textures/gfx/env/*rt.*", ShowFileList, NULL);
+	COM_EnumerateFiles("textures/gfx/env/*px.*", ShowFileList, NULL);
+	COM_EnumerateFiles("textures/gfx/env/*posx.*", ShowFileList, NULL);
+}
 
 
 void R_SetRenderer_f (void);
@@ -759,6 +798,11 @@ void Renderer_Init(void)
 
 // misc
 	Cvar_Register(&con_ocranaleds, "Console controls");
+
+	Cmd_AddCommand ("listfonts", R_ListFonts_f);
+	Cmd_AddCommand ("listskins", R_ListSkins_f);
+	Cmd_AddCommand ("listskyboxes", R_ListSkyBoxes_f);
+	Cmd_AddCommand ("listconfigs", R_ListConfigs_f);
 
 	P_InitParticleSystem();
 	R_InitTextures();

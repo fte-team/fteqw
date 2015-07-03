@@ -33,7 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern texid_t missing_texture;
 texid_t r_whiteimage;
-static qboolean shader_reload_needed;
+qboolean shader_reload_needed;
 static qboolean shader_rescan_needed;
 static char **saveshaderbody;
 
@@ -5677,6 +5677,10 @@ void Shader_DoReload(void)
 	char cleanname[MAX_QPATH];
 	int oldsort;
 	qboolean resort = false;
+
+	//don't spam shader reloads while we're connecting, as that's just wasteful.
+	if (cls.state && cls.state < ca_active)
+		return;
 
 	if (shader_rescan_needed)
 	{

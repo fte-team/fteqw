@@ -680,6 +680,8 @@ typedef struct
 	qboolean	csqcdebug;
 	qboolean	allowsendpacket;
 
+	qboolean	stillloading;	// set when doing something slow, and the game is still loading.
+
 	char		serverinfo[MAX_SERVERINFO_STRING];
 	char		serverpaknames[1024];
 	char		serverpakcrcs[1024];

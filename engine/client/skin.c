@@ -56,40 +56,41 @@ char *Skin_FindName (player_info_t *sc)
 			Q_strncpyz(name, baseskin.string, sizeof(name));
 	}
 
-	if (cl.spectator && (tracknum = Cam_TrackNum(&cl.playerview[0])) != -1)
-		skinforcing_team = cl.players[tracknum].team;
-	else if (cl.spectator)
+	if (cl.playerview[0].cam_state == CAM_FREECAM)
+		tracknum = cl.playerview[0].playernum;
+	else
+		tracknum = cl.playerview[0].cam_spec_track;
+
+	if (cl.players[tracknum].spectator)
 		skinforcing_team = "spec";
 	else
-		skinforcing_team = cl.players[cl.playerview[0].playernum].team;
+		skinforcing_team = cl.players[tracknum].team;
 
 	//Don't force skins in splitscreen (it's probable that the new skin would be wrong).
-	//Don't force skins in TF (where skins are forced on a class basis by the mod).
+	//Don't force skins in TF (where skins are already forced on a class basis by the mod).
 	//Don't force skins on servers that have it disabled.
+	//Don't force the local player's skin
 	if (cl.splitclients<2 && !cl.teamfortress && !(cl.fpd & FPD_NO_FORCE_SKIN))
+	if (&cl.players[tracknum] != sc)
 	{
 		char *skinname = NULL;
-//		player_state_t *state;
 		qboolean teammate;
 
 		teammate = (cl.teamplay && !strcmp(sc->team, skinforcing_team)) ? true : false;
 /*
-		if (!cl.validsequence)
-			goto nopowerups;
-
-		state = cl.frames[cl.parsecount & UPDATE_MASK].playerstate + (sc - cl.players);
-
-		if (state->messagenum != cl.parsecount)
-			goto nopowerups;
-
-		if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
-			skinname = teammate ? cl_teambothskin.string : cl_enemybothskin.string;
-		else if (state->effects & EF_BLUE)
-			skinname = teammate ? cl_teamquadskin.string : cl_enemyquadskin.string;
-		else if (state->effects & EF_RED)
-			skinname = teammate ? cl_teampentskin.string : cl_enemypentskin.string;
-
-	nopowerups:
+		if (cl.validsequence)
+		{
+			player_state_t *state = cl.frames[cl.parsecount & UPDATE_MASK].playerstate + (sc - cl.players);
+			if (state->messagenum == cl.parsecount)
+			{
+				if ((state->effects & (EF_BLUE | EF_RED)) == (EF_BLUE | EF_RED))
+					skinname = teammate ? cl_teambothskin.string : cl_enemybothskin.string;
+				else if (state->effects & EF_BLUE)
+					skinname = teammate ? cl_teamquadskin.string : cl_enemyquadskin.string;
+				else if (state->effects & EF_RED)
+					skinname = teammate ? cl_teampentskin.string : cl_enemypentskin.string;
+			}
+		}
 */
 		if (!skinname || !skinname[0])
 			skinname = teammate ? cl_teamskin.string : cl_enemyskin.string;

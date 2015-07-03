@@ -1194,15 +1194,8 @@ void SCR_ShowPic_Remove_f(void)
 void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue)
 {
 	if (var->value < 10)
-	{
-		Cvar_ForceSet (var, "10");
-		return;
-	}
-	if (var->value > 170)
-	{
-		Cvar_ForceSet (var, "170");
-		return;
-	}
+		Cvar_ForceSet(var, "10");
+	//highs are capped elsewhere. this allows fisheye to use this cvar automatically.
 }
 
 void QDECL SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue)

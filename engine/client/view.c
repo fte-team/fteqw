@@ -26,7 +26,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h> // for isdigit();
 
-cvar_t ffov = SCVAR("ffov", "0");
+cvar_t r_projection = CVARD("r_projection", "0", "0: regular perspective.\n1: stereographic (aka: pannini).\n2: fisheye.\n3: panoramic.\n4: lambert azimuthal equal-area.");
+cvar_t ffov = CVARFD("ffov", "", 0, "Allows you to set a specific field of view for when a custom projection is specified. If empty, will use regular fov cvar, which might get messy.");
 #if defined(_WIN32) && !defined(MINIMAL)
 //amusing gimmick / easteregg.
 #include "winquake.h"
@@ -1114,6 +1115,7 @@ void V_ApplyAFov(playerview_t *pv)
 			afov = scr_fov.value;
 		if (pv && pv->stats[STAT_VIEWZOOM])
 			afov *= pv->stats[STAT_VIEWZOOM]/255.0f;
+		afov = min(afov, 170);
 
 		ws = 1;
 		if (r_stereo_method.ival == 5 && r_stereo_separation.value)
@@ -1488,7 +1490,7 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	case 3:
 #ifdef GLQUAKE
 		if (qrenderer == QR_OPENGL && vid.rotpixelwidth > vid.rotpixelheight * 2
-			&& ffov.value >= 0 /*panoramic view always stacks player views*/
+			&& r_projection.ival == 2 /*panoramic view always stacks player views*/
 			)
 		{	//over twice as wide as high, assume dual moniter, horizontal.
 			vrect->width = vid.fbvwidth/cl.splitclients;
@@ -1703,7 +1705,11 @@ void R_DrawNameTags(void)
 	qboolean isteam;
 	char *ourteam;
 
-	extern cvar_t r_showfields;
+	extern cvar_t r_showfields, r_projection;
+
+	if (r_projection.ival)	//we don't actually know how to transform the points unless the projection is coded in advance. and it isn't.
+		return;
+
 	if (r_showfields.ival && cls.allow_cheats)
 	{
 		world_t *w = NULL;
@@ -1783,7 +1789,7 @@ void R_DrawNameTags(void)
 	if (cls.state != ca_active || !cl.validsequence)
 		return;
 
-	if (r_refdef.playerview->cam_state && r_refdef.playerview->cam_spec_track >= 0)
+	if (r_refdef.playerview->cam_state != CAM_FREECAM && r_refdef.playerview->cam_spec_track >= 0)
 		ourteam = cl.players[r_refdef.playerview->cam_spec_track].team;
 	else
 		ourteam = cl.players[r_refdef.playerview->playernum].team;
@@ -2134,6 +2140,7 @@ void V_Init (void)
 #endif
 
 	Cvar_Register (&ffov, VIEWVARS);
+	Cvar_Register (&r_projection, VIEWVARS);
 
 	BuildGammaTable (1.0, 1.0, 0.0);	// no gamma yet
 	Cvar_Register (&v_gamma, VIEWVARS);

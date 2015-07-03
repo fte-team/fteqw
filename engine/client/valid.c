@@ -387,6 +387,8 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"cl_instantrotate", "0"},
 	{"v_projectionmode", "0"},	/*no extended fovs*/
 	{"r_shadow_realtime_world", "0"}, /*static lighting can be used to cast shadows around corners*/
+	{"ruleset_allow_in", "0"},
+	{"r_projection", "0"},
 	{NULL}
 };
 
@@ -404,6 +406,8 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"r_vertexlight", "0"},
 	{"v_projectionmode", "0"},
 	{"sbar_teamstatus", "0"},
+	{"ruleset_allow_in", "0"},
+	{"r_projection", "0"},
 	{NULL}
 };
 

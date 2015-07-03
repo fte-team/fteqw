@@ -894,7 +894,7 @@ extern void (APIENTRY *qglNormal3iv) (const GLint *v);
 extern void (APIENTRY *qglNormal3s) (GLshort nx, GLshort ny, GLshort nz);
 extern void (APIENTRY *qglNormal3sv) (const GLshort *v);
 extern void (APIENTRY *qglNormalPointer) (GLenum type, GLsizei stride, const GLvoid *pointer);
-extern void (APIENTRY *qglOrtho) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+//extern void (APIENTRY *qglOrtho) (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 extern void (APIENTRY *qglPassThrough) (GLfloat token);
 extern void (APIENTRY *qglPixelMapfv) (GLenum map, GLsizei mapsize, const GLfloat *values);
 extern void (APIENTRY *qglPixelMapuiv) (GLenum map, GLsizei mapsize, const GLuint *values);

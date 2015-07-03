@@ -2932,6 +2932,13 @@ void Media_RecordFrame (void)
 		return;
 	}
 
+	//don't capture frames while we're loading.
+	if (cl.sendprespawn || (cls.state < ca_active && COM_HasWork()))
+	{
+		capturelastvideotime += captureframeinterval;
+		return;
+	}
+
 //overlay this on the screen, so it appears in the film
 	if (*capturemessage.string)
 	{

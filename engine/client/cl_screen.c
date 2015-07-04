@@ -1539,7 +1539,7 @@ void SCR_DrawGameClock(void)
 	if (cl.matchstate == MATCH_STANDBY)
 		showtime = cl.servertime;
 	else if (cl.playerview[0].statsf[STAT_MATCHSTARTTIME])
-		showtime = timelimit - (cl.servertime - cl.playerview[0].statsf[STAT_MATCHSTARTTIME]);
+		showtime = timelimit - (cl.servertime - cl.playerview[0].statsf[STAT_MATCHSTARTTIME]/1000);
 	else 
 		showtime = timelimit - (cl.servertime - cl.matchgametimestart);
 
@@ -2516,6 +2516,8 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 {
 	qboolean consolefocused = !!Key_Dest_Has(kdm_console|kdm_cwindows);
 	RSpeedMark();
+
+	r_refdef.playerview = &cl.playerview[0];
 
 	R2D_ImageColours(1, 1, 1, 1);
 

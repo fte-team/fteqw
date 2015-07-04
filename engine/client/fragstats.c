@@ -122,7 +122,9 @@ void VARGS Stats_Message(char *msg, ...);
 qboolean Stats_TrackerImageLoaded(char *in)
 {
 	int error;
-	return Font_TrackerValid(unicode_decode(&error, in, &in, true));
+	if (in)
+		return Font_TrackerValid(unicode_decode(&error, in, &in, true));
+	return false;
 }
 static char *Stats_GenTrackerImageString(char *in)
 {	//images are of the form "foo \sg\ bar \q\"
@@ -250,7 +252,7 @@ void Stats_FragMessage(int p1, int wid, int p2, qboolean teamkill)
 		}
 	}
 
-	Q_snprintfz(message, sizeof(message), "%s%s ^7%s %s%s\n", p1c, p1n, Stats_TrackerImageLoaded(w->image)?w->image:w->abrev, p2c, p2n);
+	Q_snprintfz(message, sizeof(message), "%s%s ^7%s %s%s\n", p2c, p2n, Stats_TrackerImageLoaded(w->image)?w->image:w->abrev, p1c, p1n);
 
 	tracker = Con_FindConsole("tracker");
 	if (!tracker)
@@ -732,13 +734,13 @@ qboolean Stats_ParsePrintLine(char *line)
 	
 	for (ms = fragstats.message; ms; ms = ms->next)
 	{
-		if (!qm_stricmp(ms->msgpart1, line))
+		if (!Q_strcmp(ms->msgpart1, line))
 		{
 			if (ms->type >= ff_frags)
 			{	//two players
 				m2 = line + strlen(ms->msgpart1);
 				p2 = Stats_ExtractName(&m2);
-				if ((!ms->msgpart2 && *m2=='\n') || (ms->msgpart2 && !qm_stricmp(ms->msgpart2, m2)))
+				if ((!ms->msgpart2 && *m2=='\n') || (ms->msgpart2 && !Q_strcmp(ms->msgpart2, m2)))
 				{
 					Stats_Evaluate(ms->type, ms->wid, p1, p2);
 					return true;	//done.

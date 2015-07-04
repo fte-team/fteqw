@@ -576,7 +576,7 @@ static qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const q
 	Q_strncatz(outptr, va("\\demotime\\%f", demtime-cls.demostarttime), outlen);
 
 	if (cl.playerview[0].statsf[STAT_MATCHSTARTTIME])
-		Q_strncatz(outptr, va("\\matchstart\\%f", cl.playerview[0].statsf[STAT_MATCHSTARTTIME]), outlen);
+		Q_strncatz(outptr, va("\\matchstart\\%f", cl.playerview[0].statsf[STAT_MATCHSTARTTIME]/1000), outlen);
 	else 
 		Q_strncatz(outptr, va("\\matchstart\\%f", cl.matchgametimestart), outlen);
 

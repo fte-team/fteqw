@@ -23,6 +23,7 @@ typedef enum {
 typedef struct statmessage_s {
 	fragfilemsgtypes_t type;
 	int wid;
+	size_t l1, l2;
 	char *msgpart1;
 	char *msgpart2;
 	struct statmessage_s *next;
@@ -495,11 +496,13 @@ static void Stats_StatMessage(fragfilemsgtypes_t type, int wid, char *token1, ch
 	t = (char *)(ms+1);
 	ms->msgpart1 = t;
 	strcpy(t, token1);
+	ms->l1 = strlen(ms->msgpart1);
 	if (token2 && *token2)
 	{
 		t += strlen(t)+1;
 		ms->msgpart2 = t;
 		strcpy(t, token2);
+		ms->l2 = strlen(ms->msgpart2);
 	}
 	ms->type = type;
 	ms->wid = wid;
@@ -665,6 +668,7 @@ static void Stats_LoadFragFile(char *name)
 	}
 }
 
+/*
 int qm_strcmp(char *s1, char *s2)//not like strcmp at all...
 {
 	while(*s1)
@@ -694,7 +698,7 @@ int qm_stricmp(char *s1, char *s2)//not like strcmp at all...
 	}
 	return 0;
 }
-
+*/
 
 static int Stats_ExtractName(char **line)
 {
@@ -734,13 +738,13 @@ qboolean Stats_ParsePrintLine(char *line)
 	
 	for (ms = fragstats.message; ms; ms = ms->next)
 	{
-		if (!Q_strcmp(ms->msgpart1, line))
+		if (!Q_strncmp(ms->msgpart1, line, ms->l1))
 		{
 			if (ms->type >= ff_frags)
 			{	//two players
-				m2 = line + strlen(ms->msgpart1);
+				m2 = line + ms->l1;
 				p2 = Stats_ExtractName(&m2);
-				if ((!ms->msgpart2 && *m2=='\n') || (ms->msgpart2 && !Q_strcmp(ms->msgpart2, m2)))
+				if ((!ms->msgpart2 && *m2=='\n') || (ms->msgpart2 && !Q_strncmp(ms->msgpart2, m2, ms->l2)))
 				{
 					Stats_Evaluate(ms->type, ms->wid, p1, p2);
 					return true;	//done.

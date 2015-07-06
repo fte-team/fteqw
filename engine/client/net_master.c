@@ -350,7 +350,7 @@ void SV_Master_Heartbeat (void)
 	int			i;
 	qboolean	enabled;
 
-	if (!sv_public.ival || SSV_IsSubServer())
+	if (sv_public.ival<=0 || SSV_IsSubServer())
 		return;
 
 	if (realtime-HEARTBEAT_SECONDS - svs.last_heartbeat < HEARTBEAT_SECONDS)

@@ -721,7 +721,7 @@ void GLBE_FBO_Sources(texid_t sourcecolour, texid_t sourcedepth);
 int GLBE_FBO_Push(fbostate_t *state);
 void GLBE_FBO_Pop(int oldfbo);
 void GLBE_FBO_Destroy(fbostate_t *state);
-int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, int colourbuffers, texid_t destdepth, int width, int height);
+int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, int colourbuffers, texid_t destdepth, int width, int height, int layer);
 #endif
 #ifdef D3D9QUAKE
 void D3D9BE_Init(void);

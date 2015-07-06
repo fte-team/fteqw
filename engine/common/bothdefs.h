@@ -491,17 +491,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PLATFORM		"Web"
 	#elif defined(NACL)
 		#define PLATFORM		"Nacl"
+	#elif defined(_WIN32_WCE)
+		#define PLATFORM	"WinCE"
+		#define ARCH_DL_POSTFIX ".dll"
 	#elif defined(_WIN32)
-		#if defined(__amd64__)
+		#if defined(WINRT)
+			#define PLATFORM	"WinRT"		/*those poor poor souls. maybe just maybe I'll actually get the tools for a port, its just a shame that I won't be able to release said port*/
+		#elif defined(__amd64__)
 			#define PLATFORM	"Win64"
 		#else
 			#define PLATFORM	"Win32"
 		#endif
 		#define ARCH_DL_POSTFIX ".dll"
+	#elif defined(_WIN16)
+		#define PLATFORM		"Win16"
+		#define ARCH_DL_POSTFIX ".dll"
 	#elif defined(__CYGWIN__)
 		#define PLATFORM		"Cygwin"	/*technically also windows*/
 		#define ARCH_DL_POSTFIX ".dll"
-	#elif defined(ANDROID)
+	#elif defined(ANDROID) || defined(__ANDROID__)
 		#define PLATFORM		"Android"	/*technically also linux*/
 	#elif defined(__linux__)
 		#if defined(__amd64__)
@@ -509,16 +517,33 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#else
 			#define PLATFORM	"Linux"
 		#endif
+	#elif defined(__APPLE__)
+	    #include "TargetConditionals.h"
+		#if TARGET_IPHONE_SIMULATOR
+			 #define PLATFORM	"iOSSim"
+		#elif TARGET_OS_IPHONE
+			#define PLATFORM	"iOS"
+		#elif TARGET_OS_MAC
+			#define PLATFORM	"Mac"
+		#else
+			#define PLATFORM	"Apple"
+		#endif
 	#elif defined(__FreeBSD__)
 		#define PLATFORM	"FreeBSD"
 	#elif defined(__OpenBSD__)
 		#define PLATFORM	"OpenBSD"
 	#elif defined(__NetBSD__)
 		#define PLATFORM	"NetBSD"
+	#elif defined(BSD)
+		#define PLATFORM	"BSD"
 	#elif defined(__MORPHOS__)
 		#define PLATFORM	"MorphOS"
+	#elif defined(__amigaos__)
+		#define PLATFORM	"AmigaOS"
 	#elif defined(MACOSX)
 		#define PLATFORM	"MacOS X"
+	#elif defined(__DOS__)
+		#define PLATFORM	"Dos"
 	#else
 		#define PLATFORM	"Unknown"
 	#endif

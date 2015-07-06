@@ -685,6 +685,7 @@ void SV_DropClient (client_t *drop)
 	if (drop->controlled)
 	{
 		drop->controlled->controller = NULL;
+		drop->controlled->protocol = SCP_BAD;	//with the controller dead, make sure we don't try sending anything to it
 		SV_DropClient(drop->controlled);
 		drop->controlled = NULL;
 	}
@@ -2904,11 +2905,17 @@ client_t *SVC_DirectConnect(void)
 	}
 
 	//only advertise PEXT_SPLITSCREEN when splitscreen is allowed, to avoid spam. this might mean people need to reconnect after its enabled. oh well.
-	if (!sv_allow_splitscreen.ival)
+	if (!sv_allow_splitscreen.ival && newcl->netchan.remote_address.type != NA_LOOPBACK)
+	{
 		newcl->fteprotocolextensions &= ~PEXT_SPLITSCREEN;
-
-	for (clients = 1; clients < numssclients; clients++)
-		SV_AddSplit(newcl, userinfo[clients], clients);
+		if (numssclients > 1)
+			SV_PrintToClient(newcl, PRINT_HIGH, "Splitscreen is disabled on this server\n");
+	}
+	else
+	{
+		for (clients = 1; clients < numssclients; clients++)
+			SV_AddSplit(newcl, userinfo[clients], clients);
+	}
 #if 0
 	for (clients = 1; clients < numssclients; clients++)
 	{
@@ -3285,8 +3292,9 @@ qboolean SV_ConnectionlessPacket (void)
 		SVC_ACK ();
 	else if (!strcmp(c,"status"))
 	{
-		if (SVC_ThrottleInfo())
-			SVC_Status ();
+		if (sv_public.ival >= 0)
+			if (SVC_ThrottleInfo())
+				SVC_Status ();
 	}
 	else if (!strcmp(c,"log"))
 	{
@@ -3296,8 +3304,9 @@ qboolean SV_ConnectionlessPacket (void)
 #ifdef Q2SERVER
 	else if (!strcmp(c, "info"))
 	{
-		if (SVC_ThrottleInfo())
-			SVC_InfoQ2 ();
+		if (sv_public.ival >= 0)
+			if (SVC_ThrottleInfo())
+				SVC_InfoQ2 ();
 	}
 #endif
 	else if (!strncmp(c,"connect", 7))
@@ -3346,13 +3355,15 @@ qboolean SV_ConnectionlessPacket (void)
 	/*for DP*/
 	else if (!strcmp(c, "getstatus"))
 	{
-		if (SVC_ThrottleInfo())
-			SVC_GetInfo(Cmd_Args(), true);
+		if (sv_public.ival >= 0)
+			if (SVC_ThrottleInfo())
+				SVC_GetInfo(Cmd_Args(), true);
 	}
 	else if (!strcmp(c, "getinfo"))
 	{
-		if (SVC_ThrottleInfo())
-			SVC_GetInfo(Cmd_Args(), false);
+		if (sv_public.ival >= 0)
+			if (SVC_ThrottleInfo())
+				SVC_GetInfo(Cmd_Args(), false);
 	}
 #endif
 	else if (!strcmp(c, "rcon"))
@@ -3570,6 +3581,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		}
 		return true;
 	case CCREQ_SERVER_INFO:
+		if (sv_public.ival < 0)
+			return false;
 		if (SV_BannedReason (&net_from))
 			return false;
 		if (Q_strcmp (MSG_ReadString(), NQ_NETCHAN_GAMENAME) != 0)
@@ -3598,6 +3611,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 		return true;
 	case CCREQ_PLAYER_INFO:
+		if (sv_public.ival < 0)
+			return false;
 		if (SV_BannedReason (&net_from))
 			return false;
 		/*one request per player, ouch ouch ouch, what will it make of 32 players, I wonder*/
@@ -3628,6 +3643,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 		return true;
 	case CCREQ_RULE_INFO:
+		if (sv_public.ival < 0)
+			return false;
 		if (SV_BannedReason (&net_from))
 			return false;
 

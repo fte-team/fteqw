@@ -14,7 +14,7 @@
 
 #define EMBEDDEBUG
 
-void AddSourceFile(char *format, ...);
+void AddSourceFile(const char *parentsrc, const char *filename);
 void GUI_ParseCommandLine(char *args);
 void GUI_RevealOptions(void);
 
@@ -331,10 +331,7 @@ int PDECL QCC_PopFileSize (const char *fname)
 	int len = QCC_RawFileSize(fname);
 	if (len >= 0 && qcc_compileactive)
 	{
-		if (strcmp(compilingrootfile, fname))
-			AddSourceFile("%s/%s", compilingrootfile, fname);
-		else
-			AddSourceFile("%s", fname);
+		AddSourceFile(compilingrootfile,	fname);
 	}
 	return len;
 }
@@ -4096,7 +4093,7 @@ int GUIprintf(const char *msg, ...)
 	char rn[3] = "\n";
 	char *st, *s;
 	int args;
-	MSG        wmsg;
+//	MSG        wmsg;
 
 	DWORD col;
 
@@ -4141,7 +4138,7 @@ int GUIprintf(const char *msg, ...)
 		return 0;
 	}
 
-	if (strstr(buf, ": error"))
+	if (strstr(buf, ": error") || strstr(buf, ": werror"))
 	{
 		if (outstatus < 2)
 		{
@@ -4336,11 +4333,12 @@ void RunCompiler(char *args, pbool quick)
 	else
 		logfile = NULL;
 
-	SendMessage(outputbox, WM_SETREDRAW, FALSE, 0);
+	if (outputbox)
+		SendMessage(outputbox, WM_SETREDRAW, FALSE, 0);
 
 	argc = GUI_BuildParms(args, argv, quick);
 
-	if (CompileParams(&funcs, compilecb, argc, argv))
+	if (CompileParams(&funcs, outputbox?compilecb:NULL, argc, argv))
 	{
 		if (!quick)
 		{
@@ -4350,8 +4348,11 @@ void RunCompiler(char *args, pbool quick)
 		}
 	}
 
-	SendMessage(outputbox, WM_SETREDRAW, TRUE, 0);
-	RedrawWindow(outputbox, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
+	if (outputbox)
+	{
+		SendMessage(outputbox, WM_SETREDRAW, TRUE, 0);
+		RedrawWindow(outputbox, NULL, NULL, RDW_ERASE | RDW_FRAME | RDW_INVALIDATE | RDW_ALLCHILDREN);
+	}
 
 	if (logfile)
 		fclose(logfile);
@@ -4457,10 +4458,11 @@ void GrepAllFiles(char *string)
 	else
 		GUIprintf("grep found nothing\n");
 }
-void AddSourceFile(char *format, ...)
+void AddSourceFile(const char *parentpath, const char *filename)
 {
-	va_list		argptr;
 	char		string[1024];
+
+	unsigned int flags = 0;
 
 	HANDLE pi;
 	TVINSERTSTRUCT item;
@@ -4468,9 +4470,7 @@ void AddSourceFile(char *format, ...)
 	char parentstring[256];
 	char *slash;
 
-	va_start (argptr, format);
-	vsnprintf (string,sizeof(string)-1, format,argptr);
-	va_end (argptr);
+	QC_strlcpy(string, filename, sizeof(string));
 
 
 	memset(&item, 0, sizeof(item));
@@ -4482,12 +4482,41 @@ void AddSourceFile(char *format, ...)
 	item.item.state = TVIS_EXPANDED;
 	item.item.stateMask = TVIS_EXPANDED;
 	item.item.mask = TVIF_TEXT|TVIF_STATE|TVIF_PARAM;
+
+	if (parentpath && stricmp(parentpath, filename))
+	{
+		item.hParent = TreeView_GetChild(projecttree, item.hParent);
+		do
+		{
+			parent.hItem = item.hParent;
+			parent.mask = TVIF_TEXT;
+			parent.pszText = parentstring;
+			parent.cchTextMax = sizeof(parentstring)-1;
+			if (TreeView_GetItem(projecttree, &parent))
+			{
+				if (!stricmp(parent.pszText, parentpath))
+				{
+					pi = item.hParent;
+					break;
+				}
+			}
+		} while(item.hParent=TreeView_GetNextSibling(projecttree, item.hParent));
+	}
+	else
+		parentpath = NULL;
+
 	while(item.item.pszText)
 	{
-		slash = strchr(item.item.pszText, '/');
-		if (slash)
-			*slash++ = '\0';
-		item.hParent = TreeView_GetChild(projecttree, item.hParent);
+		if (parentpath)
+		{
+			slash = strchr(item.item.pszText, '/');
+			if (slash)
+				*slash++ = '\0';
+		}
+		else
+			slash = NULL;
+
+		item.hParent = TreeView_GetChild(projecttree, pi); 
 		do
 		{
 			parent.hItem = item.hParent;
@@ -4500,10 +4529,11 @@ void AddSourceFile(char *format, ...)
 					break;
 			}
 		} while(item.hParent=TreeView_GetNextSibling(projecttree, item.hParent));
+
 		if (!item.hParent)
 		{	//add a directory.
 			item.hParent = pi;
-			item.item.lParam = !slash;
+			item.item.lParam = !slash;	//lparam = false if we're only adding this node to get at a child.
 			pi = (HANDLE)SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
 			item.hParent = pi;
 		}
@@ -4548,15 +4578,15 @@ void SetProgsSrc(void)
 		if (*qcc_token == '#')
 		{
 			//aaaahhh! newstyle!
-			AddSourceFile("%s", progssrcname);
+			AddSourceFile(NULL, progssrcname);
 		}
 		else
 		{
 			pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
-			AddSourceFile("%s", progssrcname);
+			AddSourceFile(NULL, progssrcname);
 			while(pr_file_p)
 			{
-				AddSourceFile("%s/%s", progssrcname, qcc_token);
+				AddSourceFile(progssrcname, qcc_token);
 				pr_file_p = QCC_COM_Parse(pr_file_p);	//we dont care about the produced progs.dat
 			}
 		}

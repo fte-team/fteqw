@@ -1387,6 +1387,9 @@ qboolean R_RenderScene_Cubemap(void)
 	shader_t *shader;
 	int facemask;
 	extern cvar_t r_projection;
+	int oldfbo = -1;
+	qboolean usefbo = true;		//this appears to be a 20% speedup in my tests.
+	static fbostate_t fbostate;	//FIXME
 
 	/*needs glsl*/
 	if (!gl_config.arb_shader_objects)
@@ -1494,13 +1497,21 @@ qboolean R_RenderScene_Cubemap(void)
 		else
 			cmapsize = prect.height;
 	}
-	else
+	else if (!usefbo)
 	{
 		while (cmapsize > prect.width || cmapsize > prect.height)
 		{
 			cmapsize /= 2;
 		}
 	}
+
+	if (usefbo)
+	{
+		r_refdef.flags |= RDF_FISHEYE;
+		vid.fbpwidth = vid.fbpheight = cmapsize;
+	}
+
+	//FIXME: gl_max_size
 
 	VectorCopy(r_refdef.viewangles, saveang);
 	saveang[2] = 0;
@@ -1539,6 +1550,7 @@ qboolean R_RenderScene_Cubemap(void)
 	ang[1][1] = 90;
 	ang[1][2] = saveang[0];
 	ang[5][0] = -saveang[0]*2;
+
 	//in theory, we could use a geometry shader to duplicate the polygons to each face.
 	//that would of course require that every bit of glsl had such a geometry shader.
 	//it would at least reduce cpu load quite a bit.
@@ -1547,23 +1559,37 @@ qboolean R_RenderScene_Cubemap(void)
 		if (!(facemask & (1<<i)))
 			continue;
 
+		if (usefbo)
+		{
+			int r = GLBE_FBO_Update(&fbostate, FBO_RB_DEPTH, &scenepp_postproc_cube, 1, r_nulltex,  cmapsize, cmapsize, i);
+			if (oldfbo < 0)
+				oldfbo = r;
+		}
+
 		r_refdef.fov_x = 90;
 		r_refdef.fov_y = 90;
 		r_refdef.viewangles[0] = saveang[0]+ang[i][0];
 		r_refdef.viewangles[1] = saveang[1]+ang[i][1];
 		r_refdef.viewangles[2] = saveang[2]+ang[i][2];
 
-		R_Clear (false);
+		R_Clear (usefbo);
+		if (r_clear.ival)
+			qglClear(GL_COLOR_BUFFER_BIT);
 
 		GL_SetShaderState2D(false);
 
 		// render normal view
 		R_RenderScene ();
 
-		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
-//FIXME: use a render target instead.
-		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
+		if (!usefbo)
+		{
+			GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
+			qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
+		}
 	}
+
+	if (usefbo)
+		GLBE_FBO_Pop(oldfbo);
 
 	r_refdef.vrect = vrect;
 	r_refdef.pxrect = prect;
@@ -1614,7 +1640,7 @@ texid_t R_RenderPostProcess (texid_t sourcetex, int type, shader_t *shader, char
 			int w = (r_refdef.vrect.width * vid.pixelwidth) / vid.width;
 			int h = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
 			sourcetex = R2D_RT_Configure(restexname, w, h, TF_RGBA32);
-			GLBE_FBO_Update(&fbo_postproc, 0, &sourcetex, 1, r_nulltex, w, h);
+			GLBE_FBO_Update(&fbo_postproc, 0, &sourcetex, 1, r_nulltex, w, h, 0);
 			R2D_ScalePic(0, vid.pixelheight-r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height, scenepp_waterwarp);
 			GLBE_RenderToTextureUpdate2d(true);
 		}
@@ -1745,7 +1771,7 @@ void GLR_RenderView (void)
 			flags |= FBO_TEX_DEPTH;
 		else
 			flags |= FBO_RB_DEPTH;
-		GLBE_FBO_Update(&fbo_gameview, flags, col, mrt, depth, vid.fbpwidth, vid.fbpheight);
+		GLBE_FBO_Update(&fbo_gameview, flags, col, mrt, depth, vid.fbpwidth, vid.fbpheight, 0);
 	}
 	else if (r_refdef.flags & (RDF_ALLPOSTPROC))
 	{
@@ -1755,7 +1781,7 @@ void GLR_RenderView (void)
 
 		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, /*(r_refdef.flags&RDF_BLOOM)?TF_RGBA16F:*/TF_RGBA32);
 
-		GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight);
+		GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
 		dofbo = true;
 	}
 	else

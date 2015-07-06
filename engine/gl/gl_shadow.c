@@ -3207,7 +3207,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 
 	BE_Scissor(NULL);
 
-	oldfbo = GLBE_FBO_Update(&crepuscular_fbo, FBO_RB_DEPTH, &crepuscular_texture_id, 1, r_nulltex, vid.pixelwidth, vid.pixelheight);
+	oldfbo = GLBE_FBO_Update(&crepuscular_fbo, FBO_RB_DEPTH, &crepuscular_texture_id, 1, r_nulltex, vid.pixelwidth, vid.pixelheight, 0);
 
 	GL_ForceDepthWritable();
 //	qglClearColor(0, 0, 0, 1);

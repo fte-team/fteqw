@@ -2369,15 +2369,38 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 		divsize = 4;
 		blocksize = 8;
 	}
-	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT2" || *(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT3")
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT2")	//dx3 with premultiplied alpha
 	{
+//		if (!(tex->flags & IF_PREMULTIPLYALPHA))
+			return false;
 		encoding = PTI_S3RGBA3;
 		pad = 8;
 		divsize = 4;
 		blocksize = 16;
 	}
-	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT4" || *(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT5")
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT3")
 	{
+		if (tex->flags & IF_PREMULTIPLYALPHA)
+			return false;
+		encoding = PTI_S3RGBA3;
+		pad = 8;
+		divsize = 4;
+		blocksize = 16;
+	}
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT4")	//dx5 with premultiplied alpha
+	{
+//		if (!(tex->flags & IF_PREMULTIPLYALPHA))
+			return false;
+		encoding = PTI_S3RGBA5;
+		pad = 8;
+		divsize = 4;
+		blocksize = 16;
+	}
+	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT5")
+	{
+		if (tex->flags & IF_PREMULTIPLYALPHA)
+			return false;
+
 		encoding = PTI_S3RGBA5;
 		pad = 8;
 		divsize = 4;
@@ -3128,14 +3151,20 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 
 	if (flags & IF_NOMIPMAP)
 	{
-		*scaled_width >>= gl_picmip2d.ival;
-		*scaled_height >>= gl_picmip2d.ival;
+		if (gl_picmip2d.ival > 0)
+		{
+			*scaled_width >>= gl_picmip2d.ival;
+			*scaled_height >>= gl_picmip2d.ival;
+		}
 	}
 	else
 	{
-		TRACE(("dbg: GL_RoundDimensions: %f\n", gl_picmip.value));
-		*scaled_width >>= gl_picmip.ival;
-		*scaled_height >>= gl_picmip.ival;
+		if (gl_picmip.ival > 0)
+		{
+			TRACE(("dbg: GL_RoundDimensions: %f\n", gl_picmip.value));
+			*scaled_width >>= gl_picmip.ival;
+			*scaled_height >>= gl_picmip.ival;
+		}
 	}
 
 	TRACE(("dbg: GL_RoundDimensions: %f\n", gl_max_size.value));

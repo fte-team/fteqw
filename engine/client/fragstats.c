@@ -668,8 +668,8 @@ static void Stats_LoadFragFile(char *name)
 	}
 }
 
-/*
-int qm_strcmp(char *s1, char *s2)//not like strcmp at all...
+
+static int qm_strcmp(char *s1, char *s2)//not like strcmp at all...
 {
 	while(*s1)
 	{
@@ -678,8 +678,8 @@ int qm_strcmp(char *s1, char *s2)//not like strcmp at all...
 	}
 	return 0;
 }
-
-int qm_stricmp(char *s1, char *s2)//not like strcmp at all...
+/*
+static int qm_stricmp(char *s1, char *s2)//not like strcmp at all...
 {
 	int c1,c2;
 	while(*s1)

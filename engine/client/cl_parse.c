@@ -7175,6 +7175,19 @@ void CLNQ_ParseServerMessage (void)
 			CL_SetStatFloat (0, i, j);
 			CL_SetStatInt (0, i, j);
 			break;
+		case svcfte_updatestatstring:
+			i = MSG_ReadByte();
+			s = MSG_ReadString();
+			CL_SetStatString (destsplit, i, s);
+			break;
+		case svcfte_updatestatfloat:
+			i = MSG_ReadByte();
+			{
+			float f = MSG_ReadFloat();
+			CL_SetStatInt (destsplit, i, f);
+			CL_SetStatFloat (destsplit, i, f);
+			}
+			break;
 		case svc_setangle:
 			{
 				inframe_t *inf = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK];

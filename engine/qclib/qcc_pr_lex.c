@@ -3373,7 +3373,7 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 	if (type >= ERR_PARSEERRORS)
 	{
 		if (!file || !*file)
-			printf ("error%s: %s\n", wnam, string);
+			printf (":: error%s: %s\n", wnam, string);
 		else if (flag_msvcstyle)
 			printf ("%s(%i) : error%s: %s\n", file, line, wnam, string);
 		else
@@ -3383,7 +3383,7 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 	else if (qccwarningaction[type] == 2)
 	{	//-werror
 		if (!file || !*file)
-			printf ("werror%s: %s\n", wnam, string);
+			printf (": werror%s: %s\n", wnam, string);
 		else if (flag_msvcstyle)
 			printf ("%s(%i) : werror%s: %s\n", file, line, wnam, string);
 		else
@@ -3393,7 +3393,7 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 	else
 	{
 		if (!file || !*file)
-			printf ("warning%s: %s\n", wnam, string);
+			printf (": warning%s: %s\n", wnam, string);
 		else if (flag_msvcstyle)
 			printf ("%s(%i) : warning%s: %s\n", file, line, wnam, string);
 		else

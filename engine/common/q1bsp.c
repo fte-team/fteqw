@@ -850,12 +850,14 @@ hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, vec3_t mins, vec3_t m
 		{
 			if (size[0] < 3 || !model->hulls[1].available)
 				hull = &model->hulls[0];
-			else if (size[0] <= 32.1)
+			else if (size[0] <= 32.1 || !model->hulls[2].available)
 			{
 				if (size[2] < 54.1 && model->hulls[3].available)
 					hull = &model->hulls[3]; // 32x32x36 (half-life's crouch)
-				else
+				else if (model->hulls[1].available)
 					hull = &model->hulls[1];
+				else
+					hull = &model->hulls[0];
 			}
 			else
 				hull = &model->hulls[2];

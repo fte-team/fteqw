@@ -57,15 +57,17 @@ QCC_def_t *sourcefilesdefs[MAXSOURCEFILESLIST];
 int sourcefilesnumdefs;
 int currentsourcefile;
 int numsourcefiles;
-extern char *compilingfile;
-char compilingrootfile[1024];
+extern char *compilingfile;		//file currently being compiled
+char compilingrootfile[1024];	//the .src file we started from (the current one, not original)
+
+char	qccmsourcedir[1024];	//the -src path, for #includes
 
 void QCC_PR_ResetErrorScope(void);
 
 pbool	compressoutput;
 
 pbool newstylesource;
-char		destfile[1024];
+char		destfile[1024];		//the file we're going to output to
 
 QCC_eval_t		*qcc_pr_globals;
 unsigned int	numpr_globals;
@@ -760,14 +762,18 @@ int WriteBodylessFuncs (int handle)
 
 void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 {
-	QCC_def_t *sym;
+	QCC_def_t *sym = pr.def_head.next;
 	size_t i;
 	//make sure system defs are not hurt by this.
-	for (sym = pr.def_head.next; sym; sym = sym->next)
+	if (endsyssym)
 	{
-		sym->used = true;
-		if (sym == endsyssym)
-			break;
+		for (; sym; sym = sym->next)
+		{
+			sym->used = true;
+			sym->referenced = true;	//silence warnings about unreferenced things that can't be stripped
+			if (sym == endsyssym)
+				break;
+		}
 	}
 	//non-system fields should maybe be present too.
 	for (; sym; sym = sym->next)
@@ -1573,8 +1579,10 @@ strofs = (strofs+3)&~3;
 					printf(" %s)\n", QCC_VarAtOffset(statements[i].c, 1));
 				}
 #endif
-				if ((signed)a >= (signed)numpr_globals || (signed)b >= (signed)numpr_globals || (signed)c >= (signed)numpr_globals)
-					printf("invalid offset\n");
+#ifdef _DEBUG
+				if (((signed)a >= (signed)numpr_globals && statements[i].a.sym) || ((signed)b >= (signed)numpr_globals && statements[i].b.sym) || ((signed)c >= (signed)numpr_globals && statements[i].c.sym))
+					printf("invalid offset on %s instruction\n", pr_opcodes[statements[i].op].opname);
+#endif
 				if (a < 0)
 					statements16[i].a = PRLittleShort(a);
 				else
@@ -2674,10 +2682,10 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 		break;
 
 	case 32401:
-		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "Warning: please update your tenebrae system defs.\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "please update your tenebrae system defs.\n");
 		break;
 	default:
-		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "Warning: progs CRC not recognised from quake nor clones\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "progs CRC not recognised from quake nor clones\n");
 		break;
 	}
 
@@ -3328,7 +3336,6 @@ char	*qccmsrc;
 char	*qccmsrc2;
 char	qccmfilename[1024];
 char	qccmprogsdat[1024];
-char	qccmsourcedir[1024];
 
 void QCC_FinishCompile(void);
 
@@ -3502,6 +3509,65 @@ int QCC_FindQCFiles(const char *sourcedir)
 	return numfiles;
 }
 
+
+void QCC_GenerateRelativePath(char *dest, size_t destsize, char *base, char *relative)
+{
+	int p;
+	char *s1, *s2;
+	QC_strlcpy (dest, base, destsize);
+	s1 = strchr(dest, '\\');
+	s2 = strchr(dest, '/');
+	if (s2 > s1)
+		s1 = s2;
+	if (s1)
+		*s1 = 0;
+	else
+		*dest = 0;
+
+	p=0;
+	s2 = relative;
+	for (;;)
+	{
+		if (!strncmp(s2, "./", 2))
+			s2+=2;
+		else if(!strncmp(s2, "../", 3))
+		{
+			s2+=3;
+			p++;
+		}
+		else
+			break;
+	}
+	for (s1=dest+strlen(dest)-1;p && s1>=dest; s1--)
+	{
+		if (*s1 == '/' || *s1 == '\\')
+		{
+			*s1 = '\0';
+			p--;
+		}
+	}
+	if (*dest)
+	{
+		if (p)
+		{	//we were still looking for a separator, but didn't find one, so kill the entire path.
+			QC_strlcpy(dest, "", destsize);
+			p--;
+		}
+		else
+			QC_strlcat(dest, "/", destsize);
+	}
+	QC_strlcat(dest, s2, destsize);
+
+	while (p>0 && strlen(dest)+3 < destsize)
+	{
+		memmove(dest+3, dest, strlen(dest)+1);
+		dest[0] = '.';
+		dest[1] = '.';
+		dest[2] = '/';
+		p--;
+	}
+}
+
 int qcc_compileactive = false;
 extern int accglobalsblock;
 char *originalqccmsrc;	//for autoprototype.
@@ -3514,9 +3580,6 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 	int		p;
 	extern int qccpersisthunk;
 
-#ifndef QCCONLY
-	char	destfile2[1024], *s2;
-#endif
 	char *s;
 
 	if (numsourcefiles && currentsourcefile == numsourcefiles)
@@ -3894,41 +3957,8 @@ newstyle:
 
 	if (!qccmsrc)
 		QCC_Error (ERR_NOOUTPUT, "No destination filename.  qcc -help for info.");
-	strcpy (destfile, qcc_token);
 
-#ifndef QCCONLY
-	p=0;
-	s2 = strcpy(destfile2, destfile);
-	if (!strncmp(s2, "./", 2))
-		s2+=2;
-	else
-	{
-		while(!strncmp(s2, "../", 3))
-		{
-			s2+=3;
-			p++;
-		}
-	}
-	strcpy(qccmfilename, qccmsourcedir);
-	for (s=qccmfilename+strlen(qccmfilename);p && s>=qccmfilename; s--)
-	{
-		if (*s == '/' || *s == '\\')
-		{
-			*(s+1) = '\0';
-			p--;
-		}
-	}
-	sprintf(destfile, "%s", s2);
-
-	while (p>0)
-	{
-		memmove(destfile+3, destfile, strlen(destfile)+1);
-		destfile[0] = '.';
-		destfile[1] = '.';
-		destfile[2] = '/';
-		p--;
-	}
-#endif
+	QCC_GenerateRelativePath(destfile, sizeof(destfile), qccmprogsdat, qcc_token);
 
 	p = QCC_CheckParm ("-o");
 	if (p > 0 && p < argc-1 && argv[p+1][0] != '-')
@@ -3977,7 +4007,6 @@ void new_QCC_ContinueCompile(void);
 //called between exe frames - won't loose net connection (is the theory)...
 void QCC_ContinueCompile(void)
 {
-	char *s, *s2;
 	currentchunk = NULL;
 	if (!qcc_compileactive)
 		//HEY!
@@ -4032,38 +4061,8 @@ void QCC_ContinueCompile(void)
 		}
 		return;
 	}
-	s = qcc_token;
+	QCC_GenerateRelativePath(qccmfilename, sizeof(qccmfilename), compilingrootfile, qcc_token);
 
-	strcpy (qccmfilename, qccmsourcedir);
-	while(1)
-	{
-		if (!strncmp(s, "..\\", 3) || !strncmp(s, "../", 3))
-		{
-			s2 = qccmfilename + strlen(qccmfilename)-2;
-			while (s2>=qccmfilename)
-			{
-				if (*s2 == '/' || *s2 == '\\')
-				{
-					s2[1] = '\0';
-					break;
-				}
-				s2--;
-			}
-			if (s2>=qccmfilename)
-			{
-				s+=3;
-				continue;
-			}
-		}
-		if (!strncmp(s, ".\\", 2) || !strncmp(s, "./", 2))
-		{
-			s+=2;
-			continue;
-		}
-
-		break;
-	}
-	strcat (qccmfilename, s);
 	if (autoprototype)
 		printf ("prototyping %s\n", qccmfilename);
 	else
@@ -4117,6 +4116,9 @@ void QCC_FinishCompile(void)
 
 // write progdefs.h
 	crc = QCC_PR_WriteProgdefs ("progdefs.h");
+
+	if (pr_error_count)
+		QCC_Error (ERR_PARSEERRORS, "compilation errors");
 
 // write data file
 	donesomething = QCC_WriteData (crc);

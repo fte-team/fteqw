@@ -147,6 +147,7 @@ cvar_t  cl_gunanglex			= CVAR("cl_gunanglex", "0");
 cvar_t  cl_gunangley			= CVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez			= CVAR("cl_gunanglez", "0");
 
+cvar_t	cl_proxyaddr			= CVAR("cl_proxyaddr", "");
 cvar_t	cl_sendguid				= CVARD("cl_sendguid", "0", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.\nIf set to 2, all servers will see the same guid. Be warned that this can show other people the guid that you're using.");
 cvar_t	cl_downloads			= CVARFD("cl_downloads", "1", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
 cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
@@ -505,6 +506,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 #endif
 	int clients;
 	int c;
+	char *a;
 
 // JACK: Fixed bug where DNS lookups would cause two connects real fast
 //       Now, adds lookup time to the connect time.
@@ -610,11 +612,21 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 
 	Q_strncatz(data, va(" %i %i", cls.qport, connectinfo.challenge), sizeof(data));
 
-	//userinfo 0 + zquake extension info.
-	if (connectinfo.protocol == CP_QUAKEWORLD)
-		Q_strncatz(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo[0], SUPPORTED_Z_EXTENSIONS), sizeof(data));
-	else
-		Q_strncatz(data, va(" \"%s\"", cls.userinfo[0]), sizeof(data));
+	//userinfo0 has some twiddles for extensions from other qw engines.
+	Q_strncatz(data, " \"", sizeof(data));
+	//qwfwd proxy routing
+	if ((a = strrchr(cls.servername, '@')))
+	{
+		*a = 0;
+		Q_strncatz(data, va("\\prx\\%s", cls.servername), sizeof(data));
+		*a = '@';
+	}
+	//the info itself
+	Q_strncatz(data, cls.userinfo[0], sizeof(data));
+	if (connectinfo.protocol == CP_QUAKEWORLD)	//zquake extension info.
+		Q_strncatz(data, va("\\*z_ext\\%i", cls.userinfo[0], SUPPORTED_Z_EXTENSIONS), sizeof(data));
+
+	Q_strncatz(data, "\"", sizeof(data));
 	for (c = 1; c < clients; c++)
 	{
 		Q_strncatz(data, va(" \"%s\"", cls.userinfo[c]), sizeof(data));
@@ -690,6 +702,7 @@ void CL_CheckForResend (void)
 	double t1, t2;
 	int contype = 0;
 	qboolean keeptrying = true;
+	char *host;
 
 #ifndef CLIENTONLY
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
@@ -872,7 +885,13 @@ void CL_CheckForResend (void)
 	t1 = Sys_DoubleTime ();
 	if (!connectinfo.istransfer)
 	{
-		if (!NET_StringToAdr (cls.servername, connectinfo.defaultport, &connectinfo.adr))
+		host = strrchr(cls.servername, '@');
+		if (host)
+			host++;
+		else
+			host = cls.servername;
+
+		if (!NET_StringToAdr (host, connectinfo.defaultport, &connectinfo.adr))
 		{
 			Con_TPrintf ("Bad server address\n");
 			connectinfo.trying = false;
@@ -971,8 +990,13 @@ void CL_CheckForResend (void)
 	}
 }
 
-void CL_BeginServerConnect(int port)
+void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 {
+	if (strstr(host, "://") || !*cl_proxyaddr.string || noproxy)
+		Q_strncpyz (cls.servername, host, sizeof(cls.servername));
+	else
+		Q_snprintfz(cls.servername, sizeof(cls.servername), "%s@%s", host, cl_proxyaddr.string);
+
 	if (!port)
 		port = cl_defaultport.value;
 	memset(&connectinfo, 0, sizeof(connectinfo));
@@ -1060,11 +1084,44 @@ void CL_Connect_f (void)
 #endif
 		CL_Disconnect_f ();
 
-	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect(0);
+	CL_BeginServerConnect(server, 0, false);
+}
+static void CL_ConnectBestRoute_f (void)
+{
+	char	server[1024];
+	int		proxies;
+	int		directcost, chainedcost;
+	if (Cmd_Argc() != 2)
+	{
+		Con_TPrintf ("usage: connectbr <server>\n");
+		return;
+	}
+
+	proxies = Master_FindBestRoute(Cmd_Argv(1), server, sizeof(server), &directcost, &chainedcost);
+	if (!*server)
+	{
+		Con_TPrintf ("Unable to route to server\n");
+		return;
+	}
+	else if (proxies < 0)
+		Con_TPrintf ("Routing database is not initialised, connecting directly\n");
+	else if (!proxies)
+		Con_TPrintf ("Routing table favours a direct connection\n");
+	else if (proxies == 1)
+		Con_TPrintf ("Routing table favours a single proxy (%ims vs %ims)\n", chainedcost, directcost);
+	else
+		Con_TPrintf ("Routing table favours chaining through %i proxies (%ims vs %ims)\n", proxies, chainedcost, directcost);
+
+#ifndef CLIENTONLY
+	if (sv.state == ss_clustermode)
+		CL_Disconnect ();
+	else
+#endif
+		CL_Disconnect_f ();
+	CL_BeginServerConnect(server, 0, true);
 }
 
-void CL_Join_f (void)
+static void CL_Join_f (void)
 {
 	char	*server;
 
@@ -1088,8 +1145,7 @@ void CL_Join_f (void)
 
 	Cvar_Set(&spectator, "0");
 
-	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect(0);
+	CL_BeginServerConnect(server, 0, false);
 }
 
 void CL_Observe_f (void)
@@ -1116,8 +1172,7 @@ void CL_Observe_f (void)
 
 	Cvar_Set(&spectator, "1");
 
-	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect(0);
+	CL_BeginServerConnect(server, 0, false);
 }
 
 #ifdef NQPROT
@@ -1135,8 +1190,7 @@ void CLNQ_Connect_f (void)
 
 	CL_Disconnect_f ();
 
-	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect(26000);
+	CL_BeginServerConnect(server, 26000, true);
 }
 #endif
  
@@ -1150,9 +1204,7 @@ void CL_IRCConnect_f (void)
 		char *server;
 		server = Cmd_Argv (1);
 
-		strcpy(cls.servername, "irc://");
-		Q_strncpyz (cls.servername+6, server, sizeof(cls.servername)-6);
-		CL_BeginServerConnect(0);
+		CL_BeginServerConnect(va("irc://%s", server), 0, true);
 	}
 }
 #endif
@@ -3613,6 +3665,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
+	Cvar_Register (&cl_proxyaddr, cl_controlgroup);
 	Cvar_Register (&cl_sendguid, cl_controlgroup);
 	Cvar_Register (&cl_defaultport, cl_controlgroup);
 	Cvar_Register (&cl_servername, cl_controlgroup);
@@ -3789,7 +3842,14 @@ void CL_Init (void)
 	Cmd_AddCommand ("cl_status", CL_Status_f);
 	Cmd_AddCommandD ("quit", CL_Quit_f, "Use this command when you get angry. Does not save any cvars. Use cfg_save to save settings, or use the menu for a prompt.");
 
-	Cmd_AddCommandD ("connect", CL_Connect_f, "connect scheme://address:port\nConnect to a server. Use a scheme of tcp:// or tls:// to connect via non-udp protocols."
+	Cmd_AddCommandD ("connectbr", CL_ConnectBestRoute_f, "connect address:port\nConnect to a qw server using the best route we can detect.");
+
+	Cmd_AddCommandD ("connect", CL_Connect_f, "connect scheme://address:port\nConnect to a server. "
+#if defined(FTE_TARGET_WEB)
+		"Use a scheme of ws:// or wss:// to connect via using websockets."
+#else
+		"Use a scheme of tcp:// or tls:// to connect via non-udp protocols."
+#endif
 #if defined(NQPROT) || defined(Q2CLIENT) || defined(Q3CLIENT)
 		"\nDefault port is port "STRINGIFY(PORT_QWSERVER)"."
 #ifdef NQPROT

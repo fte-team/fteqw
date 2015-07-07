@@ -971,7 +971,7 @@ qboolean CL_DemoBehind(void);
 void CL_SaveInfo(vfsfile_t *f);
 void CL_SetInfo (int pnum, char *key, char *value);
 
-void CL_BeginServerConnect(int port);
+void CL_BeginServerConnect(const char *host, int port, qboolean noproxy);
 char *CL_TryingToConnect(void);
 
 void CL_ExecInitialConfigs(char *defaultexec);
@@ -1045,6 +1045,7 @@ int  CL_ReadFromServer (void);
 void CL_WriteToServer (usercmd_t *cmd);
 void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps);
 
+int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcost, int *chainedcost);
 
 float CL_KeyState (kbutton_t *key, int pnum, qboolean noslowstart);
 char *Key_KeynumToString (int keynum);

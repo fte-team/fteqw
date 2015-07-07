@@ -1225,6 +1225,121 @@ int Master_KeyForName(const char *keyname)
 	}
 }
 
+
+static void Master_FloodRoute(serverinfo_t *node)
+{
+	unsigned int i;
+	struct peers_s *peer = node->peers;
+	for (i = 0; i < node->numpeers; i++, peer++)
+	{
+		if (peer->ping)
+		if ((unsigned int)(peer->peer->cost) > (unsigned int)(node->cost + peer->ping))
+		{	//we found a shorter route. flood into it.
+			peer->peer->prevpeer = node;
+			peer->peer->cost = node->cost + peer->ping;
+			Master_FloodRoute(peer->peer);
+		}
+	}
+}
+serverinfo_t *Master_FindRoute(netadr_t target)
+{
+	serverinfo_t *info, *targ, *prox;
+	extern cvar_t cl_proxyaddr;
+	targ = Master_InfoForServer(&target);
+	if (!targ)	//you wot?
+		return NULL;
+
+	//never flood into a peer if its just going to be more expensive than a direct connection
+	if (*cl_proxyaddr.string)
+	{
+		//fixme: we don't handle chained proxies properly, as we assume we can directly hop to the named final proxy.
+		//fixme: we'll find the same route, we just won't display the correct expected ping.
+		netadr_t pa;
+		char *chain = strchr(cl_proxyaddr.string, '@');
+		if (chain)
+			*chain = 0;
+
+		NET_StringToAdr(cl_proxyaddr.string, 0, &pa);
+
+		prox = Master_InfoForServer(&pa);
+		if (chain)
+			*chain = '@';
+	}
+	else
+		prox = NULL;
+
+	if (prox)
+	{
+		for (info = firstserver; info; info = info->next)
+		{
+			info->cost = info->ping;
+			info->prevpeer = prox;
+		}
+		prox->cost = prox->ping;
+		prox->prevpeer = NULL;
+		Master_FloodRoute(prox);
+	}
+	else
+	{
+		for (info = firstserver; info; info = info->next)
+		{
+			info->cost = info->ping;
+			info->prevpeer = NULL;
+		}
+
+		//flood through all proxies
+		for (info = firstserver; info; info = info->next)
+			Master_FloodRoute(info);
+	}
+
+	if (targ->prevpeer)
+		return targ;
+	return NULL;
+}
+
+int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcost, int *chainedcost)
+{
+	serverinfo_t *route;
+	netadr_t adr;
+	int ret = 0;
+	char buf[256];
+	*out = 0;
+	*directcost = 0;
+	*chainedcost = 0;
+	if (!NET_StringToAdr(server, 0, &adr))
+		return -1;
+
+	if (!firstserver)
+	{	//routing isn't initialised. you do actually need to refresh the serverbrowser for this junk
+		Q_strncpyz(out, server, outsize);
+		return -1;
+	}
+
+	route = Master_FindRoute(adr);
+
+	if (!route)
+	{	//routing didn't find anything, just go directly.
+		Q_strncpyz(out, server, outsize);
+		return 0;
+	}
+
+	*directcost = route->ping;
+	*chainedcost = route->cost;
+
+	Q_strncatz(out, NET_AdrToString(buf, sizeof(buf), &route->adr), outsize);
+	for (ret = 0, route = route->prevpeer; route; route = route->prevpeer, ret++)
+		Q_strncatz(out, va("@%s", NET_AdrToString(buf, sizeof(buf), &route->adr)), outsize);
+
+	return ret;
+}
+
+
+
+
+
+
+
+
 //main thread
 void CLMaster_AddMaster_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 {
@@ -1365,6 +1480,8 @@ void MasterInfo_Shutdown(void)
 	{
 		sv = firstserver;
 		firstserver = sv->next;
+		if (sv->peers)
+			Z_Free(sv->peers);
 		Z_Free(sv);
 	}
 	while(master)
@@ -2633,8 +2750,6 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 	}
 	else
 	{
-		MasterInfo_RemovePlayers(&info->adr);
-
 		//determine the ping
 		if (info->refreshtime)
 		{
@@ -2653,6 +2768,59 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 		*nl = '\0';
 		nl++;
 	}
+
+	if (info->special & SS_PROXY)
+	{
+		if (!*Info_ValueForKey(msg, "hostname"))
+		{	//qq, you suck
+			//this is a proxy peer list, not an actual serverinfo update.
+			unsigned char *ptr = net_message.data + 5;
+			int remaining = net_message.cursize - 5;
+			struct peers_s *peer;
+			netadr_t pa;
+			memset(&pa, 0, sizeof(pa));
+			remaining /= 8;
+
+			NET_AdrToString(adr, sizeof(adr), &info->adr);
+
+			Z_Free(info->peers);
+			info->numpeers = remaining;
+			peer = info->peers = Z_Malloc(sizeof(*peer)*info->numpeers);
+
+			while (remaining --> 0)
+			{
+				pa.type = NA_IP;
+				pa.address.ip[0] = *ptr++;
+				pa.address.ip[1] = *ptr++;
+				pa.address.ip[2] = *ptr++;
+				pa.address.ip[3] = *ptr++;
+
+				pa.port  = *ptr++<<8;
+				pa.port |= *ptr++;
+				peer->ping  = *ptr++;
+				peer->ping |= *ptr++<<8;
+
+				peer->peer = Master_InfoForServer(&pa);
+				if (!peer->peer)
+				{
+					//generate some lame peer node that we can use.
+					peer->peer = Z_Malloc(sizeof(serverinfo_t));
+					peer->peer->adr = pa;
+					peer->peer->sends = 1;
+					peer->peer->special = 0;
+					peer->peer->refreshtime = 0;
+					peer->peer->ping = 0xffff;
+					peer->peer->next = firstserver;
+					firstserver = peer->peer;
+				}
+				peer++;
+			}
+			return false;
+		}
+	}
+
+	MasterInfo_RemovePlayers(&info->adr);
+
 	name = Info_ValueForKey(msg, "hostname");
 	if (!*name)
 		name = Info_ValueForKey(msg, "sv_hostname");
@@ -2717,7 +2885,12 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 	if (!strcmp(Info_ValueForKey(msg, "*progs"), "666") && !strcmp(Info_ValueForKey(msg, "*version"), "2.91"))
 		info->special |= SS_PROXY;	//qizmo
 	if (!Q_strncmp(Info_ValueForKey(msg, "*version"), "qwfwd", 5))
+	{
+		char *msg = "\xff\xff\xff\xffpingstatus";
+		NET_SendPollPacket(strlen(msg), msg, info->adr);
+
 		info->special |= SS_PROXY;	//qwfwd
+	}
 	if (!Q_strncasecmp(Info_ValueForKey(msg, "*version"), "qtv ", 4))
 		info->special |= SS_PROXY;	//eztv
 

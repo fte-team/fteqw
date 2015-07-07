@@ -143,6 +143,15 @@ typedef struct serverinfo_s
 
 	serverdetailedinfo_t *moreinfo;
 
+	struct serverinfo_s *prevpeer;
+	unsigned short cost;
+	unsigned short numpeers;
+	struct peers_s
+	{
+		struct serverinfo_s *peer;
+		unsigned short ping;
+	} *peers;
+
 	struct serverinfo_s *next;
 } serverinfo_t;
 
@@ -216,3 +225,4 @@ void Master_ClearMasks(void);
 serverinfo_t *Master_SortedServer(int idx);
 void Master_SetMaskString(qboolean or, hostcachekey_t field, const char *param, slist_test_t testop);
 void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_test_t testop);
+serverinfo_t *Master_FindRoute(netadr_t target);

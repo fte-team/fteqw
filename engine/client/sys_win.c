@@ -2381,7 +2381,7 @@ static IShellLinkW *CreateShellLink(char *command, char *target, char *title, ch
 	if (FAILED(hr))
 		return NULL;
 
-	GetModuleFileNameW(NULL, buf, sizeof(buf)/sizeof(wchar_t)-1);
+	GetModuleFileNameW(NULL, buf, countof(buf)-1);
 	IShellLinkW_SetIconLocation(link, buf, 0);  /*grab the first icon from our exe*/
 	IShellLinkW_SetPath(link, buf); /*program to run*/
 
@@ -2394,10 +2394,8 @@ static IShellLinkW *CreateShellLink(char *command, char *target, char *title, ch
 		else
 			*s = tolower(*s);
 	}
-	_snwprintf(buf, sizeof(buf), L"%ls \"%ls\" -basedir \"%ls\"", command, target, tmp);
-	IShellLinkW_SetArguments(link, buf); /*args*/
-	_snwprintf(buf, sizeof(buf), L"%ls", desc);
-	IShellLinkW_SetDescription(link, buf);  /*tooltip*/
+	IShellLinkW_SetArguments(link, widen(buf, sizeof(buf), va("%s \"%s\" -basedir \"%s\"", command, target, tmp))); /*args*/
+	IShellLinkW_SetDescription(link, widen(buf, sizeof(buf), desc));  /*tooltip*/
 
 
 	hr = IShellLinkW_QueryInterface(link, &qIID_IPropertyStore, (void**)&prop_store);

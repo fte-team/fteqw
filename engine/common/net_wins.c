@@ -5095,7 +5095,7 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 	}
 
 	if (warn)
-		Con_Printf("net address (%s): no addresses\n", con[i]->name);
+		Con_Printf("net address: no addresses\n");
 }
 
 //=============================================================================

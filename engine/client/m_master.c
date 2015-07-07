@@ -28,7 +28,7 @@ static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.7",	CVAR_ARCHIVE);
 vrect_t joinbutton;
 static float refreshedtime;
 static int isrefreshing;
-static qboolean serverpreview;
+static int serverpreview;
 extern cvar_t slist_writeserverstxt;
 extern cvar_t slist_cacheinfo;
 
@@ -411,6 +411,7 @@ static void SL_PostDraw	(menu_t *menu)
 		"rmb: cancel",
 		"j: join",
 		"o: observe",
+		"b: join with automatic best route",
 		"v: say server info",
 		"ctrl-v: say_team server info",
 		"c: copy server info to clipboard",
@@ -438,7 +439,15 @@ static void SL_PostDraw	(menu_t *menu)
 		if (server && server->moreinfo)
 		{
 			int lx, x, y, i;
-			if (serverpreview == 3)
+			if (serverpreview == 4)
+			{
+				//count the number of proxies the best route will need
+				serverinfo_t *prox;
+				for (h = 1, prox = server; prox; h++, prox = prox->prevpeer)
+					;
+				w += 120;
+			}
+			else if (serverpreview == 3)
 				h = countof(helpstrings);
 			else if (serverpreview == 2)
 			{
@@ -474,7 +483,18 @@ static void SL_PostDraw	(menu_t *menu)
 			Draw_FunStringWidth (x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", w, 2, false);
 			y+=8;
 
-			if (serverpreview == 3)
+			if (serverpreview == 4)
+			{
+				serverinfo_t *prox;
+				for (prox = server; prox; prox = prox->prevpeer)
+				{
+					Draw_FunStringWidth (x, y, va("%i", prox->cost), 32-8, true, false);
+					Draw_FunStringWidth (x + 32, y, NET_AdrToString(buf, sizeof(buf), &prox->adr), w/2 - 8 - 32, true, false);
+					Draw_FunStringWidth (x + w/2, y, prox->name, w/2, false, false);
+					y += 8;
+				}
+			}
+			else if (serverpreview == 3)
 			{
 				x = lx;
 				for (i = 0; i < countof(helpstrings); i++)
@@ -653,16 +673,27 @@ static qboolean SL_Key	(int key, menu_t *menu)
 		else if (key == K_LEFTARROW)
 		{
 			if (--serverpreview < 1)
-				serverpreview = 3;
+				serverpreview = 4;
+
+			if (serverpreview == 4)
+				Master_FindRoute(server->adr);
 			return true;
 		}
 		else if (key == K_RIGHTARROW)
 		{
-			if (++serverpreview > 3)
+			if (++serverpreview > 4)
 				serverpreview = 1;
+
+			if (serverpreview == 4)
+				Master_FindRoute(server->adr);
 			return true;
 		}
-		else if (key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER)	//join
+		else if (key == 'b' && serverpreview != 4)
+		{
+			Master_FindRoute(server->adr);
+			serverpreview = 4;
+		}
+		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER)	//join
 		{
 			if (key == 's' || key == 'o')
 				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
@@ -672,10 +703,23 @@ doconnect:
 				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
 			}
 
+			//which connect command are we using?
 			if ((server->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
-				Cbuf_AddText(va("nqconnect %s\n", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText("nqconnect ", RESTRICT_LOCAL);
 			else
-				Cbuf_AddText(va("connect %s\n", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+				Cbuf_AddText("connect ", RESTRICT_LOCAL);
+
+			//output the server's address
+			Cbuf_AddText(va("%s", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+			if (serverpreview == 4 || key == 'b')
+			{	//and postfix it with routing info if we're going for a proxied route.
+				if (serverpreview != 4)
+					Master_FindRoute(server->adr);
+				for (server = server->prevpeer; server; server = server->prevpeer)
+					Cbuf_AddText(va("@%s", NET_AdrToString(buf, sizeof(buf), &server->adr)), RESTRICT_LOCAL);
+			}
+			Cbuf_AddText("\n", RESTRICT_LOCAL);
+
 
 			M_RemoveAllMenus();
 			return true;
@@ -754,6 +798,9 @@ doconnect:
 		{
 			selectedserver.inuse = true;
 			SListOptionChanged(server);
+
+			if (serverpreview == 4)
+				Master_FindRoute(server->adr);
 		}
 	}
 

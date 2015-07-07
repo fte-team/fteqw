@@ -118,7 +118,7 @@ int main (int argc, char **argv)
 			fprintf(logfile, " %s", argv[i]);
 	}
 	fprintf(logfile, "\n");
-	sucess = CompileParams(&funcs, true, argc, argv);
+	sucess = CompileParams(&funcs, NULL, argc, argv);
 	qccClearHunk();
 	if (logfile)
 		fclose(logfile);

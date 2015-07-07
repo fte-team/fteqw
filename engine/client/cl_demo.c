@@ -34,6 +34,7 @@ static qboolean lastdemowassystempath;
 
 extern cvar_t qtvcl_forceversion1;
 extern cvar_t qtvcl_eztvextensions;
+extern cvar_t record_flush;
 
 static unsigned char demobuffer[1024*66];	//input buffer
 static int demooffset;		//start offset of demo buffer
@@ -133,7 +134,8 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 		VFS_WRITE (cls.demooutfile, &fl, 4);
 	}
 
-	VFS_FLUSH (cls.demooutfile);
+	if (record_flush.ival)
+		VFS_FLUSH (cls.demooutfile);
 }
 
 /*
@@ -196,7 +198,8 @@ void CL_WriteDemoMessage (sizebuf_t *msg, int payloadoffset)
 		VFS_WRITE(cls.demooutfile, net_message.data + payloadoffset, net_message.cursize - payloadoffset);
 		break;
 	}
-	VFS_FLUSH (cls.demooutfile);
+	if (record_flush.ival)
+		VFS_FLUSH (cls.demooutfile);
 }
 
 int demo_preparsedemo(unsigned char *buffer, int bytes)
@@ -948,7 +951,8 @@ void CL_WriteRecordDemoMessage (sizebuf_t *msg, int seq)
 
 	VFS_WRITE (cls.demooutfile, msg->data, msg->cursize);
 
-	VFS_FLUSH (cls.demooutfile);
+	if (record_flush.ival)
+		VFS_FLUSH (cls.demooutfile);
 }
 
 
@@ -974,7 +978,8 @@ void CL_WriteSetDemoMessage (void)
 	len = LittleLong(cls.netchan.incoming_sequence);
 	VFS_WRITE (cls.demooutfile, &len, 4);
 
-	VFS_FLUSH (cls.demooutfile);
+	if (record_flush.ival)
+		VFS_FLUSH (cls.demooutfile);
 }
 
 

@@ -89,6 +89,7 @@ cvar_t	cl_serveraddress = CVARD("cl_serveraddress", "none", "The address of the 
 cvar_t	qtvcl_forceversion1 = CVAR("qtvcl_forceversion1", "0");
 cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
 
+cvar_t	record_flush = CVARD("record_flush", "0", "If set, explicitly flushes demo data to disk while recording. This may be inefficient, depending on how your operating system is configured.");
 cvar_t cl_demospeed = CVARF("cl_demospeed", "1", 0);
 cvar_t	cl_demoreel = CVARFD("cl_demoreel", "0", CVAR_SAVE, "When enabled, the engine will begin playing a demo loop on startup.");
 
@@ -3760,6 +3761,7 @@ void CL_Init (void)
 	Cvar_Register (&w_switch,					cl_controlgroup);
 
 	Cvar_Register (&cl_demoreel,				cl_controlgroup);
+	Cvar_Register (&record_flush,					cl_controlgroup);
 
 	Cvar_Register (&cl_nofake,					cl_controlgroup);
 	Cvar_Register (&cl_chatsound,					cl_controlgroup);

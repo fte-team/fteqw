@@ -2784,8 +2784,8 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 			NET_AdrToString(adr, sizeof(adr), &info->adr);
 
 			Z_Free(info->peers);
-			info->numpeers = remaining;
-			peer = info->peers = Z_Malloc(sizeof(*peer)*info->numpeers);
+			info->numpeers = 0;
+			peer = info->peers = Z_Malloc(sizeof(*peer)*remaining);
 
 			while (remaining --> 0)
 			{
@@ -2800,20 +2800,24 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 				peer->ping  = *ptr++;
 				peer->ping |= *ptr++<<8;
 
-				peer->peer = Master_InfoForServer(&pa);
-				if (!peer->peer)
+				if (NET_ClassifyAddress(&pa, NULL) >= ASCOPE_NET)
 				{
-					//generate some lame peer node that we can use.
-					peer->peer = Z_Malloc(sizeof(serverinfo_t));
-					peer->peer->adr = pa;
-					peer->peer->sends = 1;
-					peer->peer->special = 0;
-					peer->peer->refreshtime = 0;
-					peer->peer->ping = 0xffff;
-					peer->peer->next = firstserver;
-					firstserver = peer->peer;
+					peer->peer = Master_InfoForServer(&pa);
+					if (!peer->peer)
+					{
+						//generate some lame peer node that we can use.
+						peer->peer = Z_Malloc(sizeof(serverinfo_t));
+						peer->peer->adr = pa;
+						peer->peer->sends = 1;
+						peer->peer->special = 0;
+						peer->peer->refreshtime = 0;
+						peer->peer->ping = 0xffff;
+						peer->peer->next = firstserver;
+						firstserver = peer->peer;
+					}
+					peer++;
+					info->numpeers++;
 				}
-				peer++;
 			}
 			return false;
 		}

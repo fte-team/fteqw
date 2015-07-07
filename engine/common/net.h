@@ -100,6 +100,15 @@ void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
 qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, qboolean islisten);
 
+enum addressscope_e
+{
+	ASCOPE_PROCESS=0,
+	ASCOPE_HOST=1,
+	ASCOPE_LAN=2,
+	ASCOPE_NET=3
+};
+enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc);
+
 qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b);
 qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b);
 void		NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *data, size_t a, size_t b), void *ctx, size_t a, size_t b);

@@ -5024,6 +5024,53 @@ int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_gener
 	return found;
 }
 
+enum addressscope_e NET_ClassifyAddress(netadr_t *adr, char **outdesc)
+{
+	int scope = ASCOPE_NET;
+	char *desc = NULL;
+
+	if (adr->type == NA_LOOPBACK)
+	{
+		//we don't list 127.0.0.1 or ::1, so don't bother with this either. its not interesting.
+		scope = ASCOPE_PROCESS, desc = "internal";
+	}
+	else if (adr->type == NA_IPV6 || adr->type == NA_BROADCAST_IP6 || adr->type == NA_TCPV6 || adr->type == NA_TLSV6)
+	{
+		if ((*(int*)adr->address.ip6&BigLong(0xffc00000)) == BigLong(0xfe800000))	//fe80::/10
+			scope = ASCOPE_LAN, desc = "link-local";
+		else if ((*(int*)adr->address.ip6&BigLong(0xfe000000)) == BigLong(0xfc00000))	//fc::/7
+			scope = ASCOPE_LAN, desc = "ULA/private";
+		else if (*(int*)adr->address.ip6 == BigLong(0x20010000)) //2001::/32
+			scope = ASCOPE_NET, desc = "toredo";
+		else if ((*(int*)adr->address.ip6&BigLong(0xffff0000)) == BigLong(0x20020000)) //2002::/16
+			scope = ASCOPE_NET, desc = "6to4";
+		else if (memcmp(adr->address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1", 16) == 0)	//::1
+			scope = ASCOPE_HOST, desc = "localhost";
+		else if (memcmp(adr->address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) == 0)	//::
+			scope = ASCOPE_NET, desc = "any";
+	}
+	else if (adr->type == NA_IP || adr->type == NA_BROADCAST_IP || adr->type == NA_TCP || adr->type == NA_TLSV4)
+	{
+		if ((*(int*)adr->address.ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
+			scope = ASCOPE_LAN, desc = "link-local";
+		else if ((*(int*)adr->address.ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
+			scope = ASCOPE_LAN, desc = "private";
+		else if ((*(int*)adr->address.ip&BigLong(0xff000000)) == BigLong(0x7f000000))	//127.x.x.x/8
+			scope = ASCOPE_HOST, desc = "localhost";
+		else if ((*(int*)adr->address.ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
+			scope = ASCOPE_LAN, desc = "private";
+		else if ((*(int*)adr->address.ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
+			scope = ASCOPE_LAN, desc = "private";
+		else if ((*(int*)adr->address.ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//10.64.x.x/10
+			scope = ASCOPE_LAN, desc = "CGNAT";
+		else if (*(int*)adr->address.ip == BigLong(0x00000000))	//0.0.0.0/32
+			scope = ASCOPE_LAN, desc = "any";
+	}
+	if (outdesc)
+		*outdesc = desc;
+	return scope;
+}
+
 #define MAXADDRESSES 64
 void NET_PrintAddresses(ftenet_connections_t *collection)
 {
@@ -5044,45 +5091,10 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 	{
 		if (addr[i].type != NA_INVALID)
 		{
-			char *scope = "net";
-			char *desc = NULL;
-			if (addr[i].type == NA_LOOPBACK)
-			{
-				//we don't list 127.0.0.1 or ::1, so don't bother with this either. its not interesting.
-				scope = NULL/*"internal"*/, desc = "internal";
-			}
-			else if (addr[i].type == NA_IPV6)
-			{
-				if ((*(int*)addr[i].address.ip6&BigLong(0xffc00000)) == BigLong(0xfe800000))	//fe80::/10
-					scope = "lan", desc = "link-local";
-				else if ((*(int*)addr[i].address.ip6&BigLong(0xfe000000)) == BigLong(0xfc00000))	//fc::/7
-					scope = "lan", desc = "ULA/private";
-				else if (*(int*)addr[i].address.ip6 == BigLong(0x20010000)) //2001::/32
-					scope = "net", desc = "toredo";
-				else if ((*(int*)addr[i].address.ip6&BigLong(0xffff0000)) == BigLong(0x20020000)) //2002::/16
-					scope = "net", desc = "6to4";
-				else if (memcmp(addr[i].address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1", 16) == 0)	//::1
-					scope = "local", desc = "localhost";
-				else if (memcmp(addr[i].address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) == 0)	//::
-					scope = "net", desc = "any";
-			}
-			else if (addr[i].type == NA_IP)
-			{
-				if ((*(int*)addr[i].address.ip&BigLong(0xffff0000)) == BigLong(0xA9FE0000))	//169.254.x.x/16
-					scope = "lan", desc = "link-local";
-				else if ((*(int*)addr[i].address.ip&BigLong(0xff000000)) == BigLong(0x0a000000))	//10.x.x.x/8
-					scope = "lan", desc = "private";
-				else if ((*(int*)addr[i].address.ip&BigLong(0xff000000)) == BigLong(0x7f000000))	//127.x.x.x/8
-					scope = "local", desc = "localhost";
-				else if ((*(int*)addr[i].address.ip&BigLong(0xfff00000)) == BigLong(0xac100000))	//172.16.x.x/12
-					scope = "lan", desc = "private";
-				else if ((*(int*)addr[i].address.ip&BigLong(0xffff0000)) == BigLong(0xc0a80000))	//192.168.x.x/16
-					scope = "lan", desc = "private";
-				else if ((*(int*)addr[i].address.ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//10.64.x.x/10
-					scope = "lan", desc = "CGNAT";
-				else if (*(int*)addr[i].address.ip == BigLong(0x00000000))	//0.0.0.0/32
-					scope = "lan", desc = "any";
-			}
+			char *scopes[] = {NULL, "local", "lan", "net"};
+			char *scope;
+			char *desc;
+			scope = scopes[NET_ClassifyAddress(&addr[i], &desc)];
 			if (scope)
 			{
 				warn = false;

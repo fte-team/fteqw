@@ -2724,9 +2724,9 @@ static void QCBUILTIN PF_cl_getcursormode (pubprogfuncs_t *prinst, struct global
 	if (G_FLOAT(OFS_PARM0))
 		G_FLOAT(OFS_RETURN) = Key_MouseShouldBeFree();
 	else if (key_dest_absolutemouse & world->keydestmask)
-		G_FLOAT(OFS_RETURN) = TRUE;
+		G_FLOAT(OFS_RETURN) = true;
 	else
-		G_FLOAT(OFS_RETURN) = FALSE;
+		G_FLOAT(OFS_RETURN) = false;
 }
 
 //get the input commands, and stuff them into some globals.

@@ -152,6 +152,12 @@ char *Cvar_FlagToName(int flag)
 		return "shadersystem";
 	case CVAR_NOSAVE:
 		return "nosave";
+	case CVAR_TELLGAMECODE:
+		return "autocvar";
+	case CVAR_CONFIGDEFAULT:
+		return "";
+	case CVAR_NORESET:
+		return "noreset";
 	}
 
 	return NULL;
@@ -190,6 +196,9 @@ void Cvar_List_f (void)
 "  cvar indicates the cvar to show, wildcards (*,?) accepted\n"
 "Cvar flags are:"
 ;
+
+	if (Cmd_Argc() == 1)
+		goto showhelp;
 
 	gsearch = search = NULL;
 	for (i = 1; i < Cmd_Argc(); i++)
@@ -270,6 +279,7 @@ void Cvar_List_f (void)
 					listflags |= CLF_FLAGS;
 					break;
 				case 'h':
+showhelp:
 					// list options
 					Con_Printf("%s", cvarlist_help);
 

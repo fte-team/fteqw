@@ -2718,6 +2718,17 @@ static void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct global
 	}
 }
 
+static void QCBUILTIN PF_cl_getcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	if (G_FLOAT(OFS_PARM0))
+		G_FLOAT(OFS_RETURN) = Key_MouseShouldBeFree();
+	else if (key_dest_absolutemouse & world->keydestmask)
+		G_FLOAT(OFS_RETURN) = TRUE;
+	else
+		G_FLOAT(OFS_RETURN) = FALSE;
+}
+
 //get the input commands, and stuff them into some globals.
 static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -5115,6 +5126,7 @@ static struct {
 	{"getkeybind",				PF_cl_getkeybind,				342},	// #342 string(float keynum) getkeybind (EXT_CSQC)
 
 	{"setcursormode",			PF_cl_setcursormode,			343},	// #343 This is originally a DP extension
+	{"getcursormode",			PF_cl_getcursormode,			0},	// #343 This is originally a DP extension
 	{"getmousepos",				PF_cl_getmousepos,				344},	// #344 This is a DP extension
 
 	{"getinputstate",			PF_cs_getinputstate,			345},	// #345 float(float framenum) getinputstate (EXT_CSQC)

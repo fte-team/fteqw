@@ -1135,7 +1135,6 @@ void M_Init_Internal (void)
 #endif
 	Cmd_AddCommand ("menu_single", M_Menu_SinglePlayer_f);
 	Cmd_AddCommand ("menu_multi", M_Menu_MultiPlayer_f);
-	Cmd_AddCommand ("menu_demo", M_Menu_Demos_f);
 
 	Cmd_AddCommand ("menu_keys", M_Menu_Keys_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
@@ -1148,8 +1147,6 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("modelviewer", M_Menu_ModelViewer_f);
 
 #ifdef CL_MASTER
-	Cmd_AddCommand ("menu_servers", M_Menu_ServerList2_f);
-
 	Cmd_AddCommand ("menu_slist", M_Menu_ServerList2_f);
 #endif
 	Cmd_AddCommand ("menu_setup", M_Menu_Setup_f);
@@ -1207,7 +1204,6 @@ void M_DeInit_Internal (void)
 #endif
 	Cmd_RemoveCommand ("menu_single");
 	Cmd_RemoveCommand ("menu_multi");
-	Cmd_RemoveCommand ("menu_demo");
 
 	Cmd_RemoveCommand ("menu_keys");
 	Cmd_RemoveCommand ("help");
@@ -1218,7 +1214,6 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_mediafiles");
 
 #ifdef CL_MASTER
-	Cmd_RemoveCommand ("menu_servers");
 	Cmd_RemoveCommand ("menu_slist");
 #endif
 	Cmd_RemoveCommand ("menu_setup");
@@ -1284,6 +1279,15 @@ void M_Init (void)
 	Cmd_AddCommand("closemenu", M_CloseMenu_f);
 	Cmd_AddCommand("fps_preset", FPS_Preset_f);
 	Cmd_AddCommand("menupop", M_MenuPop_f);
+
+	//server browser is kinda complex, and has clipboard integration which we need to sandbox a little
+#ifdef CL_MASTER
+	Cmd_AddCommand ("menu_servers", M_Menu_ServerList2_f);
+#endif
+	//demo menu is allowed to see outside of the quakedir. you can't replicate that in qc's sandbox.
+	Cmd_AddCommand ("menu_demo", M_Menu_Demos_f);
+
+
 
 	Cvar_Register(&m_preset_chosen, "Menu thingumiebobs");
 	Cvar_Register(&m_helpismedia, "Menu thingumiebobs");

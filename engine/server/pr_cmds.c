@@ -9467,7 +9467,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fgets",			PF_fgets,			0,		0,		0,		112, "string(filestream fhandle)"},	// (FRIK_FILE)
 	{"fputs",			PF_fputs,			0,		0,		0,		113, "void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)"},	// (FRIK_FILE)
 	{"strlen",			PF_strlen,			0,		0,		0,		114, "float(string s)"},	// (FRIK_FILE)
-	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, string s8)"},	// (FRIK_FILE)
+	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)"},	// (FRIK_FILE)
 	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
 	{"stov",			PF_stov,			0,		0,		0,		117, "vector(string s)"},	// (FRIK_FILE)
 #ifdef QCGC
@@ -9712,6 +9712,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum)", "Returns the current binding for the given key (returning only the command executed when no modifiers are pressed).")},// (EXT_CSQC)
 
 	{"setcursormode",	PF_Fixme,	0,		0,		0,		343,	D("void(float usecursor, optional string cursorimage, optional vector hotspot, optional float scale)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking). If the image name is specified, the engine will use that image for a cursor (use an empty string to clear it again), in a way that will not conflict with the console. Images specified this way will be hardware accelerated, if supported by the platform/port.")},
+	{"getcursormode",	PF_Fixme,	0,		0,		0,		0,		D("float(float effective)", "Reports the cursor mode this module previously attempted to use. If 'effective' is true, reports the cursor mode currently active (if was overriden by a different module which has precidence, for instance, or if there is only a touchscreen and no mouse).")},
 	{"getmousepos",		PF_Fixme,	0,		0,		0,		344,	D("vector()", "Nasty convoluted DP extension. Typically returns deltas instead of positions. Use CSQC_InputEvent for such things in csqc mods.")},	// #344 This is a DP extension
 
 	{"getinputstate",	PF_Fixme,	0,		0,		0,		345,	D("float(float inputsequencenum)", "Looks up an input frame from the log, setting the input_* globals accordingly.\nThe sequence number range used for prediction should normally be servercommandframe < sequence <= clientcommandframe.\nThe sequence equal to clientcommandframe will change between input frames.")},// (EXT_CSQC)
@@ -10642,8 +10643,8 @@ void PR_DumpPlatform_f(void)
 		{"input_cursor_trace_endpos",	"vector",	CS/*|QW|NQ*/},
 		{"input_cursor_trace_entnum",	"float",	CS/*|QW|NQ*/},
 
-		{"trace_brush_id",			"float", QW|NQ|CS},
-		{"trace_brush_faceid",		"float", QW|NQ|CS},
+		{"trace_brush_id",			"int", QW|NQ|CS},
+		{"trace_brush_faceid",		"int", QW|NQ|CS},
 
 #define comfieldfloat(name,desc) {#name, ".float", FL, desc},
 #define comfieldvector(name,desc) {#name, ".vector", FL, desc},

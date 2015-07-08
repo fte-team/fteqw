@@ -1672,7 +1672,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 			h = 8;
 		y += (h-8)/2;
 
-		for (r = 7; r>=0; r--)
+		for (r = countof(wbitnames)-1; r>=0; r--)
 			if (items & (1<<r))
 				break;
 		R2D_ImageColours(1, 1, 1, 1);

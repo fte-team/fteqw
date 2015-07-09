@@ -2961,7 +2961,8 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 			VectorCopy(mins, cl_static_entities[i].ent.origin);
 			VectorCopy(maxs, cl_static_entities[i].ent.origin);
 		}
-		cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
+		if (cl.worldmodel->funcs.FindTouchedLeafs)
+			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
 		cl_static_entities[i].emit = NULL;
 	}
 

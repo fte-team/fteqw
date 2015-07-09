@@ -932,6 +932,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 		Con_DPrintf("GLSL available\n");
 	}
+
+	if (gl_config.arb_shader_objects)
+		qglGetIntegerv(GL_MAX_VERTEX_ATTRIBS_ARB, &gl_config.maxattribs);
 #endif
 
 	qglGetProgramBinary = NULL;
@@ -1999,24 +2002,34 @@ GLhandleARB GLSlang_CreateProgramObject (const char *name, GLhandleARB vert, GLh
 
 	qglBindAttribLocationARB(program, VATTR_VERTEX1, "v_position1");
 	qglBindAttribLocationARB(program, VATTR_COLOUR, "v_colour");
-#if MAXRLIGHTMAPS > 1
-	qglBindAttribLocationARB(program, VATTR_COLOUR2, "v_colour2");
-	qglBindAttribLocationARB(program, VATTR_COLOUR3, "v_colour3");
-	qglBindAttribLocationARB(program, VATTR_COLOUR4, "v_colour4");
-#endif
 	qglBindAttribLocationARB(program, VATTR_TEXCOORD, "v_texcoord");
 	qglBindAttribLocationARB(program, VATTR_LMCOORD, "v_lmcoord");
-#if MAXRLIGHTMAPS > 1
-	qglBindAttribLocationARB(program, VATTR_LMCOORD2, "v_lmcoord2");
-	qglBindAttribLocationARB(program, VATTR_LMCOORD3, "v_lmcoord3");
-	qglBindAttribLocationARB(program, VATTR_LMCOORD4, "v_lmcoord4");
-#endif
 	qglBindAttribLocationARB(program, VATTR_NORMALS, "v_normal");
 	qglBindAttribLocationARB(program, VATTR_SNORMALS, "v_svector");
 	qglBindAttribLocationARB(program, VATTR_TNORMALS, "v_tvector");
-	qglBindAttribLocationARB(program, VATTR_BONENUMS, "v_bone");
-	qglBindAttribLocationARB(program, VATTR_BONEWEIGHTS, "v_weight");
 	qglBindAttribLocationARB(program, VATTR_VERTEX2, "v_position2");
+
+	//the following MAY not be valid in gles2.
+	if (gl_config.maxattribs > VATTR_BONENUMS)
+		qglBindAttribLocationARB(program, VATTR_BONENUMS, "v_bone");
+	if (gl_config.maxattribs > VATTR_BONEWEIGHTS)
+		qglBindAttribLocationARB(program, VATTR_BONEWEIGHTS, "v_weight");
+#if MAXRLIGHTMAPS > 1
+	if (gl_config.maxattribs > VATTR_COLOUR2)
+		qglBindAttribLocationARB(program, VATTR_COLOUR2, "v_colour2");
+	if (gl_config.maxattribs > VATTR_COLOUR3)
+		qglBindAttribLocationARB(program, VATTR_COLOUR3, "v_colour3");
+	if (gl_config.maxattribs > VATTR_COLOUR4)
+		qglBindAttribLocationARB(program, VATTR_COLOUR4, "v_colour4");
+#endif
+#if MAXRLIGHTMAPS > 1
+	if (gl_config.maxattribs > VATTR_LMCOORD2)
+		qglBindAttribLocationARB(program, VATTR_LMCOORD2, "v_lmcoord2");
+	if (gl_config.maxattribs > VATTR_LMCOORD3)
+		qglBindAttribLocationARB(program, VATTR_LMCOORD3, "v_lmcoord3");
+	if (gl_config.maxattribs > VATTR_LMCOORD4)
+		qglBindAttribLocationARB(program, VATTR_LMCOORD4, "v_lmcoord4");
+#endif
 
 	qglLinkProgramARB(program);
 	return program;
@@ -2170,6 +2183,13 @@ qboolean GLSlang_CreateProgramPermu(program_t *prog, const char *name, unsigned 
 			ver = 120;
 #endif
 	}
+	if ((permu & PERMUTATION_SKELETAL) && gl_config.maxattribs < 10)
+		return false;	//can happen in gles2
+#if MAXRLIGHTMAPS > 1
+	if ((permu & PERMUTATION_LIGHTSTYLES) && gl_config.maxattribs < 16)
+		return false;	//can happen in gles2
+#endif
+
 	prog->permu[permu].handle = GLSlang_CreateProgram(name, ver, precompilerconstants, vert, tcs, tes, geom, frag, noerrors, blobfile);
 	if (prog->permu[permu].handle.glsl.handle)
 		return true;

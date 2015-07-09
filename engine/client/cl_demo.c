@@ -862,6 +862,7 @@ readit:
 
 	olddemotime = demotime;
 
+	net_from.type = NA_INVALID;
 	return 1;
 }
 

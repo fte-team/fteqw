@@ -446,13 +446,18 @@ typedef struct demoitem_s {
 } demoitem_t;
 
 typedef struct {
+	int fsroot;	//FS_SYSTEM, FS_GAME, FS_GAMEONLY. if FS_SYSTEM, executed command will have a leading #
+	char path[MAX_OSPATH];
+	char selname[MAX_OSPATH];
+} demoloc_t;
+
+typedef struct {
 	menucustom_t *list;
 	demoitem_t *selected;
 	demoitem_t *firstitem;
 
+	demoloc_t *fs; 
 	int pathlen;
-	char path[MAX_OSPATH];
-	int fsroot;	//FS_SYSTEM, FS_GAME, FS_GAMEONLY. if FS_SYSTEM, executed command will have a leading #
 
 	char *command[64];	//these let the menu be used for nearly any sort of file browser.
 	char *ext[64];
@@ -524,34 +529,34 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned
 	case K_UPARROW:
 		if (info->selected && info->selected->prev)
 			info->selected = info->selected->prev;
-		return true;
+		break;
 	case K_MWHEELDOWN:
 	case K_DOWNARROW:
 		if (info->selected && info->selected->next)
 			info->selected = info->selected->next;
-		return true;
+		break;
 	case K_HOME:
 		info->selected = info->items;
-		return true;
+		break;
 	case K_END:
 		info->selected = info->items;
 		while(info->selected->next)
 			info->selected = info->selected->next;
-		return true;
+		break;
 	case K_PGUP:
 		for (i = 0; i < 10; i++)
 		{
 			if (info->selected && info->selected->prev)
 				info->selected = info->selected->prev;
 		}
-		return true;
+		break;
 	case K_PGDN:
 		for (i = 0; i < 10; i++)
 		{
 			if (info->selected && info->selected->next)
 				info->selected = info->selected->next;
 		}
-		return true;
+		break;
 	case K_ENTER:
 	case K_KP_ENTER:
 		if (info->selected)
@@ -568,13 +573,20 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned
 				if (extnum == info->numext)	//wasn't on our list of extensions.
 					extnum = 0;
 
-				Cbuf_AddText(va("%s \"%s%s\"\n", info->command[extnum], (info->fsroot==FS_SYSTEM)?"#":"", info->selected->name), RESTRICT_LOCAL);
-				M_RemoveMenu(menu);				
+				Cbuf_AddText(va("%s \"%s%s\"\n", info->command[extnum], (info->fs->fsroot==FS_SYSTEM)?"#":"", info->selected->name), RESTRICT_LOCAL);
+				M_RemoveMenu(menu);
+				return true;
 			}
 		}
-		return true;
+		break;
+	default:
+		return false;
 	}
-	return false;
+	if (info->selected)
+		Q_strncpyz(info->fs->selname, info->selected->name, sizeof(info->fs->selname));
+	else
+		Q_strncpyz(info->fs->selname, "", sizeof(info->fs->selname));
+	return true;
 }
 
 static int QDECL DemoAddItem(const char *filename, qofs_t size, time_t modified, void *parm, searchpathfuncs_t *spath)
@@ -730,23 +742,27 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 	char *s;
 	char match[256];
 
-	if (*path == '/')
-		path++;
-	Q_strncpyz(info->path, path, sizeof(info->path));
-	if (info->fsroot == FS_GAME)
+	if (path != info->fs->path)
+	{
+		if (*path == '/')
+			path++;
+		Q_strncpyz(info->fs->path, path, sizeof(info->fs->path));
+	}
+
+	if (info->fs->fsroot == FS_GAME)
 	{
 		if (!strcmp(path, "../"))
 		{
-			FS_NativePath("", FS_ROOT, info->path, sizeof(info->path));
-			info->fsroot = FS_SYSTEM;
-			while((s = strchr(info->path, '\\')))
+			FS_NativePath("", FS_ROOT, info->fs->path, sizeof(info->fs->path));
+			info->fs->fsroot = FS_SYSTEM;
+			while((s = strchr(info->fs->path, '\\')))
 				*s = '/';
 		}
 	}
-	while (!strcmp(info->path+strlen(info->path)-3, "../"))
+	while (!strcmp(info->fs->path+strlen(info->fs->path)-3, "../"))
 	{
 		c = 0;
-		for (s = info->path+strlen(info->path)-3; s >= info->path; s--)
+		for (s = info->fs->path+strlen(info->fs->path)-3; s >= info->fs->path; s--)
 		{
 			if (*s == '/')
 			{
@@ -757,71 +773,85 @@ static void ShowDemoMenu (menu_t *menu, const char *path)
 			}
 		}
 		if (c<2)
-			*info->path = '\0';
+			*info->fs->path = '\0';
 	}
 	info->selected = NULL;
-	info->pathlen = strlen(info->path);
+	info->pathlen = strlen(info->fs->path);
 
 	M_Demo_Flush(menu->data);
-	if (info->fsroot == FS_SYSTEM)
+	if (info->fs->fsroot == FS_SYSTEM)
 	{
-		s = strchr(info->path, '/');
+		s = strchr(info->fs->path, '/');
 		if (s && strchr(s+1, '/'))
 		{
-			Q_snprintfz(match, sizeof(match), "%s../", info->path);
+			Q_snprintfz(match, sizeof(match), "%s../", info->fs->path);
 			DemoAddItem(match, 0, 0, info, NULL);
 		}
 	}
-	else if (*info->path)
+	else if (*info->fs->path)
 	{
-		Q_snprintfz(match, sizeof(match), "%s../", info->path);
+		Q_snprintfz(match, sizeof(match), "%s../", info->fs->path);
 		DemoAddItem(match, 0, 0, info, NULL);
 	}
-	else if (info->fsroot == FS_GAME)
+	else if (info->fs->fsroot == FS_GAME)
 	{
 		Q_snprintfz(match, sizeof(match), "../");
 		DemoAddItem(match, 0, 0, info, NULL);
 	}
-	if (info->fsroot == FS_SYSTEM)
+	if (info->fs->fsroot == FS_SYSTEM)
 	{
-		if (info->path)
-			Q_snprintfz(match, sizeof(match), "%s*", info->path);
+		if (info->fs->path)
+			Q_snprintfz(match, sizeof(match), "%s*", info->fs->path);
 		else
 			Q_snprintfz(match, sizeof(match), "/*");
 		Sys_EnumerateFiles("", match, DemoAddItem, info, NULL);
 	}
 	else
 	{
-		Q_snprintfz(match, sizeof(match), "%s*", info->path);
+		Q_snprintfz(match, sizeof(match), "%s*", info->fs->path);
 		COM_EnumerateFiles(match, DemoAddItem, info);
 	}
 	M_Demo_Flatten(info);
+}
+void M_Demo_Reselect(demomenu_t *info, const char *name)
+{
+	demoitem_t *item;
+	for(item = info->items; item; item = item->next)
+	{
+		if (!strcmp(item->name, name))
+		{
+			info->selected = item;
+			return;
+		}
+	}
 }
 
 void M_Menu_Demos_f (void)
 {
 	demomenu_t *info;
-	menu_t *menu;	
+	menu_t *menu;
+	static demoloc_t mediareenterloc = {FS_GAME};
 
 	Key_Dest_Add(kdm_menu);
+	Key_Dest_Remove(kdm_console);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
 	menu->remove = M_Demo_Remove;
 	info = menu->data;
 
-	info->fsroot = FS_GAME;
+	info->fs = &mediareenterloc;
 
 	info->numext = 0;
-	info->command[info->numext] = "playdemo";
+	info->command[info->numext] = "closemenu;playdemo";
 	info->ext[info->numext++] = ".qwd";
-	info->command[info->numext] = "playdemo";
+	info->command[info->numext] = "closemenu;playdemo";
 	info->ext[info->numext++] = ".dem";
-	info->command[info->numext] = "playdemo";
+	info->command[info->numext] = "closemenu;playdemo";
 	info->ext[info->numext++] = ".dm2";
-	info->command[info->numext] = "playdemo";
+	info->command[info->numext] = "closemenu;playdemo";
 	info->ext[info->numext++] = ".mvd";
-	info->command[info->numext] = "playdemo";
+	info->command[info->numext] = "closemenu;playdemo";
 	info->ext[info->numext++] = ".mvd.gz";
 	//there are also qizmo demos (.qwz) out there...
 	//we don't support them, but if we were to ask quizmo to decode them for us, we could do.
@@ -845,13 +875,15 @@ void M_Menu_Demos_f (void)
 
 	menu->selecteditem = (menuoption_t*)info->list;
 
-	ShowDemoMenu(menu, "");
+	ShowDemoMenu(menu, info->fs->path);
+	M_Demo_Reselect(info, info->fs->selname);
 }
 
 void M_Menu_MediaFiles_f (void)
 {
 	demomenu_t *info;
-	menu_t *menu;	
+	menu_t *menu;
+	static demoloc_t mediareenterloc = {FS_GAME};
 
 	Key_Dest_Add(kdm_menu);
 	m_state = m_complex;
@@ -860,7 +892,7 @@ void M_Menu_MediaFiles_f (void)
 	menu->remove = M_Demo_Remove;
 	info = menu->data;
 
-	info->fsroot = FS_GAME;
+	info->fs = &mediareenterloc;
 
 	info->ext[0] = ".m3u";
 	info->command[0] = "mediaplaylist";
@@ -889,6 +921,7 @@ void M_Menu_MediaFiles_f (void)
 
 	menu->selecteditem = (menuoption_t*)info->list;
 
-	ShowDemoMenu(menu, "");
+	ShowDemoMenu(menu, info->fs->path);
+	M_Demo_Reselect(info, info->fs->selname);
 }
 #endif

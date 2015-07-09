@@ -315,21 +315,24 @@ typedef struct
 
 enum{
 	PERMUTATION_GENERIC = 0,
-	PERMUTATION_BUMPMAP = 1,
-	PERMUTATION_FULLBRIGHT = 2,
-	PERMUTATION_UPPERLOWER = 4,
-	PERMUTATION_REFLECTCUBEMASK = 8,
+	PERMUTATION_BUMPMAP = 1,			//FIXME: make argument somehow
+	PERMUTATION_FULLBRIGHT = 2,			//FIXME: make argument somehow
+	PERMUTATION_UPPERLOWER = 4,			//FIXME: make argument somehow
+	PERMUTATION_REFLECTCUBEMASK = 8,	//FIXME: make argument somehow
 	PERMUTATION_SKELETAL = 16,
-	PERMUTATION_FOG	= 32,
+	PERMUTATION_FOG	= 32,				//FIXME: remove.
 	PERMUTATION_FRAMEBLEND = 64,
 #if MAXRLIGHTMAPS > 1
-	PERMUTATION_LIGHTSTYLES = 128,
+	PERMUTATION_LIGHTSTYLES = 128,		//FIXME: make argument
 #endif
 	PERMUTATIONS = 256
 };
 
 enum shaderattribs_e
 {
+	//GLES2 has a limit of 8.
+	//GL2 has a limit of 16.
+	//vendors may provide more.
 	VATTR_VERTEX1=0,	//NOTE: read the comment about VATTR_LEG_VERTEX
 	VATTR_VERTEX2=1,
 	VATTR_COLOUR=2,

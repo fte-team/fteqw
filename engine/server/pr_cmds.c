@@ -9768,7 +9768,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"con_printf",		PF_Fixme,			0,		0,		0,		392,	D("void(string conname, string messagefmt, ...)", "Prints onto a named console.")},
 	{"con_draw",		PF_Fixme,			0,		0,		0,		393,	D("void(string conname, vector pos, vector size, float fontsize)", "Draws the named console.")},
 	{"con_input",		PF_Fixme,			0,		0,		0,		394,	D("float(string conname, float inevtype, float parama, float paramb, float paramc)", "Forwards input events to the named console. Mouse updates should be absolute only.")},
-	{"cvar_unsaved",	PF_Fixme,			0,		0,		0,		0,		D("float()", "Returns true if any archived cvar has an unsaved value.")},
+	{"cvars_haveunsaved",PF_Fixme,			0,		0,		0,		0,		D("float()", "Returns true if any archived cvar has an unsaved value.")},
 //end fte extras
 
 //DP extras

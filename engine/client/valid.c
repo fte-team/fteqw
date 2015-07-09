@@ -389,6 +389,7 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"r_shadow_realtime_world", "0"}, /*static lighting can be used to cast shadows around corners*/
 	{"ruleset_allow_in", "0"},
 	{"r_projection", "0"},
+	{"gl_shadeq1_name", "*"},
 	{NULL}
 };
 
@@ -408,6 +409,7 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"sbar_teamstatus", "0"},
 	{"ruleset_allow_in", "0"},
 	{"r_projection", "0"},
+	{"gl_shadeq1_name", "*"},
 	{NULL}
 };
 

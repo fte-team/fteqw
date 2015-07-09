@@ -313,10 +313,10 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 	}
 #endif
 
-	Sys_Error("NET_CompareAdr: Bad address type");
+	Con_Printf("NET_CompareAdr: Bad address type\n");
 	return false;
 }
-
+ 
 /*
 ===================
 NET_CompareBaseAdr

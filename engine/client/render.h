@@ -80,23 +80,25 @@ typedef unsigned int skinid_t;	//skin 0 is 'unused'
 struct dlight_s;
 typedef struct entity_s
 {
+	//FIXME: instancing somehow. separate visentity+visinstance. only viable with full glsl though.
+	//will need to generate a vbo somehow for the instances.
+
 	int						keynum;			// for matching entities in different frames
 	vec3_t					origin;
-	vec3_t					angles;
+	vec3_t					angles;			// fixme: should be redundant.
 	vec3_t					axis[3];
 
 	vec4_t					shaderRGBAf; /*colormod+alpha, available for shaders to mix*/
 	float					shaderTime;  /*timestamp, for syncing shader times to spawns*/
 	vec3_t					glowmod;     /*meant to be a multiplier for the fullbrights*/
 
-	int						light_known; /*bsp lighting has been caled*/
+	int						light_known; /*bsp lighting has been calced*/
 	vec3_t                  light_avg;   /*midpoint level*/
 	vec3_t                  light_range; /*avg + this = max, avg - this = min*/
 	vec3_t                  light_dir;
 
-	vec3_t					oldorigin;
-	vec3_t					oldangles;
-	
+	vec3_t					oldorigin;	/*for q2/q3 beams*/
+
 	struct model_s			*model;			// NULL = no model
 	int						skinnum;		// for Alias models
 	skinid_t				customskin;		// quake3 style skins

@@ -383,9 +383,9 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 	VectorCopy (from->velocity, pmove.velocity);
 	VectorCopy (from->gravitydir, pmove.gravitydir);
 
-	if (!(pmove.velocity[0] == 0) && !(pmove.velocity[0] != 0))
+	if (IS_NAN(pmove.velocity[0]))
 	{
-		Con_Printf("nan velocity!\n");
+		Con_DPrintf("nan velocity!\n");
 		pmove.velocity[0] = 0;
 		pmove.velocity[1] = 0;
 		pmove.velocity[2] = 0;

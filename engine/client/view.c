@@ -1540,6 +1540,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	qboolean haveinfo;
 	unsigned int textflags;
 	int h;
+	char *pname;
 
 	static vec4_t healthcolours[] =
 	{
@@ -1600,6 +1601,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		health = pl->statsf[STAT_HEALTH];
 		armour = pl->statsf[STAT_ARMOR];
 		items = pl->stats[STAT_ITEMS];
+		pname = pl->name;
 		haveinfo = true;
 	}
 	else
@@ -1607,12 +1609,16 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		health = pl->tinfo.health;
 		armour = pl->tinfo.armour;
 		items = pl->tinfo.items;
+		pname = ((*pl->tinfo.nick)?pl->tinfo.nick:(cl.teamfortress?"-":pl->name));
 		haveinfo = pl->tinfo.time > cl.time;
 	}
 
-	y -= 8;
-	len = COM_ParseFunString(textflags, pl->name, buffer, sizeof(buffer), false) - buffer;
-	Draw_ExpandedString(x - len*4, y, buffer);
+	if (strcmp(pname, "-"))	//a tinfo nick of - hides names. this can be used for TF to hide names for spies.
+	{
+		y -= 8;
+		len = COM_ParseFunString(textflags, pname, buffer, sizeof(buffer), false) - buffer;
+		Draw_ExpandedString(x - len*4, y, buffer);
+	}
 
 	if (!haveinfo)
 		return;	//we don't trust the info that we have, so no ids.
@@ -1705,6 +1711,7 @@ void R_DrawNameTags(void)
 	lerpents_t *le;
 	qboolean isteam;
 	char *ourteam;
+	int ourcolour;
 
 	extern cvar_t r_showfields, r_projection;
 
@@ -1791,9 +1798,15 @@ void R_DrawNameTags(void)
 		return;
 
 	if (r_refdef.playerview->cam_state != CAM_FREECAM && r_refdef.playerview->cam_spec_track >= 0)
+	{
 		ourteam = cl.players[r_refdef.playerview->cam_spec_track].team;
+		ourcolour = cl.players[r_refdef.playerview->cam_spec_track].rbottomcolor;
+	}
 	else
+	{
 		ourteam = cl.players[r_refdef.playerview->playernum].team;
+		ourcolour = cl.players[r_refdef.playerview->playernum].rbottomcolor;
+	}
 
 	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
@@ -1826,14 +1839,16 @@ void R_DrawNameTags(void)
 		if (i == Cam_TrackNum(r_refdef.playerview))	//no tag for the player that you're tracking, either.
 			continue;
 
-		if (!cl.teamplay || !scr_autoid_team.ival || strcmp(cl.players[i].team, ourteam))
-		{
+		if (!cl.teamplay || !scr_autoid_team.ival)
+			isteam = false;
+		else if (cl.teamfortress && !cl.spectator)	//teamfortress should go by their colours instead, because spies. primarily this is to allow enemy spies to appear through walls as well as your own team (note that the qc will also need tinfo stuff for tf, to avoid issues with just checking player names).
+			isteam = cl.players[i].rbottomcolor == ourcolour;
+		else
+			isteam = !strcmp(cl.players[i].team, ourteam);
+
+		if (!isteam)
 			if (!cl.spectator && !cls.demoplayback || !scr_autoid.ival)
 				continue;	//only show our team when playing, too cheaty otherwise.
-			isteam = false;
-		}
-		else
-			isteam = true;
 
 		SCR_DrawAutoID(nametagorg[i], &cl.players[i], isteam);
 	}

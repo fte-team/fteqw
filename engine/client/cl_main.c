@@ -2263,11 +2263,15 @@ void CL_Packet_f (void)
 
 	if (Cmd_FromGamecode())	//some mvd servers stuffcmd a packet command which lets them know which ip the client is from.
 	{						//unfortunatly, 50% of servers are badly configured.
+		if (cls.demoplayback)
+		{
+			Con_DPrintf ("Not sending realip packet from demo\n");
+			return;
+		}
+
 		if (adr.type == NA_IP)
-			if (adr.address.ip[0] == 127)
-			if (adr.address.ip[1] == 0)
-			if (adr.address.ip[2] == 0)
-			if (adr.address.ip[3] == 1)
+			if ((adr.address.ip[0] == 127 && adr.address.ip[1] == 0 && adr.address.ip[2] == 0 && adr.address.ip[3] == 1) ||
+				(adr.address.ip[0] == 0   && adr.address.ip[1] == 0 && adr.address.ip[2] == 0 && adr.address.ip[3] == 0))
 			{
 				adr.address.ip[0] = cls.netchan.remote_address.address.ip[0];
 				adr.address.ip[1] = cls.netchan.remote_address.address.ip[1];
@@ -2613,32 +2617,36 @@ void CL_ConnectionlessPacket (void)
 			Con_TPrintf ("redirect to %s\n", data);
 			NET_StringToAdr(data, PORT_QWSERVER, &adr);
 			data = "\xff\xff\xff\xffgetchallenge\n";
-			connectinfo.istransfer = true;
-			connectinfo.adr = adr;
-			NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
+
+			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			{
+				connectinfo.istransfer = true;
+				connectinfo.adr = adr;
+				NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
+			}
 			return;
 		}
 		else if (!strcmp(s, "reject"))
 		{	//generic rejection. stop trying.
 			char *data = MSG_ReadStringLine();
 			Con_Printf ("reject\n%s\n", data);
-			connectinfo.trying = false;
+			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+				connectinfo.trying = false;
 			return;
 		}
 		else if (!strcmp(s, "badname"))
 		{	//rejected purely because of player name
-			Con_Printf ("f%s\n", s);
-			connectinfo.trying = false;
-			return;
+			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+				connectinfo.trying = false;
 		}
 		else if (!strcmp(s, "badaccount"))
 		{	//rejected because username or password is wrong
-			Con_Printf ("f%s\n", s);
-			connectinfo.trying = false;
-			return;
+			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+				connectinfo.trying = false;
 		}
-		else
-			Con_Printf ("f%s", s);
+		
+		Con_Printf ("f%s\n", s);
+		return;
 	}
 
 	if (c == S2C_CHALLENGE)
@@ -2916,6 +2924,8 @@ void CL_ConnectionlessPacket (void)
 #ifdef Q2CLIENT
 client_connect:	//fixme: make function
 #endif
+		if (net_from.type == NA_INVALID)
+			return;	//I've found a qizmo demo that contains one of these. its best left ignored.
 
 		if (!NET_CompareAdr(&connectinfo.adr, &net_from))
 		{
@@ -2980,7 +2990,7 @@ client_connect:	//fixme: make function
 	{
 		char	cmdtext[2048];
 
-		if (net_from.type != net_local_cl_ipadr.type || net_from.type != NA_IP
+		if (net_from.type == NA_INVALID || net_from.type != net_local_cl_ipadr.type || net_from.type != NA_IP
 			|| ((*(unsigned *)net_from.address.ip != *(unsigned *)net_local_cl_ipadr.address.ip) && (*(unsigned *)net_from.address.ip != htonl(INADDR_LOOPBACK))))
 		{
 			Con_TPrintf ("Command packet from remote host.  Ignored.\n");
@@ -3047,7 +3057,7 @@ client_connect:	//fixme: make function
 	}
 
 //happens in demos
-	if (c == svc_disconnect && cls.demoplayback != DPB_NONE)
+	if (c == svc_disconnect && cls.demoplayback != DPB_NONE && net_from.type == NA_INVALID)
 	{
 		Host_EndGame ("End of Demo");
 		return;

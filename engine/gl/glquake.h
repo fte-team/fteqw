@@ -220,6 +220,7 @@ qboolean GL_CheckExtension(char *extname);
 typedef struct {
 	float glversion;
 	int maxglslversion;
+	int maxattribs;	//max generic attributes. probably only 16 on nvidia.
 	qboolean nofixedfunc;
 	qboolean gles;
 	qboolean webgl_ie;	//workaround ie webgl bugs/omissions.

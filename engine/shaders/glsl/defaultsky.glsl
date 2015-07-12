@@ -1,3 +1,6 @@
+!!permu FOG
+#include "sys/fog.h"
+
 //regular sky shader for scrolling q1 skies
 //the sky surfaces are thrown through this as-is.
 
@@ -25,6 +28,6 @@ void main ()
 	vec3 solid = vec3(texture2D(s_t0, tccoord));
 	tccoord = (dir.xy + e_time*0.0625);
 	vec4 clouds = texture2D(s_t1, tccoord);
-	gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);
+	gl_FragColor.rgb = fog3((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb));
 }
 #endif

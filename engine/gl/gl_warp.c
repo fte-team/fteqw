@@ -759,6 +759,15 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 	if (width < 1 || height < 1 || stride != width*2)
 		return;
 
+	if (width*height > countof(trans))
+	{
+		unsigned int wibuf[16] = {0};
+		shader->defaulttextures->base = R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
+		shader->defaulttextures->base = R_LoadReplacementTexture(skyname, NULL, 0, src, stride, height, TF_SOLID8);
+		shader->defaulttextures->fullbright = shader->defaulttextures->base;
+		return;
+	}
+
 	// make an average value for the back to avoid
 	// a fringe on the top level
 

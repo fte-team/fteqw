@@ -197,6 +197,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "bloom_final",
 "!!cvarf r_bloom\n"
+"!!cvarf r_bloom_retain=1.0\n"
 //add them together
 //optionally apply tonemapping
 
@@ -216,10 +217,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_t2;\n"
 "uniform sampler2D s_t3;\n"
 "uniform float cvar_r_bloom;\n"
+"uniform float cvar_r_bloom_retain;\n"
 "void main ()\n"
 "{\n"
 "gl_FragColor = \n"
-"texture2D(s_t0, tc) +\n"
+"cvar_r_bloom_retain * texture2D(s_t0, tc) +\n"
 "cvar_r_bloom*(\n"
 "texture2D(s_t1, tc) +\n"
 "texture2D(s_t2, tc) +\n"
@@ -713,6 +715,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "defaultsky",
+"!!permu FOG\n"
+"#include \"sys/fog.h\"\n"
+
 //regular sky shader for scrolling q1 skies
 //the sky surfaces are thrown through this as-is.
 
@@ -740,7 +745,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec3 solid = vec3(texture2D(s_t0, tccoord));\n"
 "tccoord = (dir.xy + e_time*0.0625);\n"
 "vec4 clouds = texture2D(s_t1, tccoord);\n"
-"gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
+"gl_FragColor.rgb = fog3((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb));\n"
 "}\n"
 "#endif\n"
 },
@@ -1740,6 +1745,83 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "tc.z = -(-1.0 + d.x*d.x + d.y*d.y)/div;\n"
 
 "gl_FragColor = textureCube(s_t0, tc);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
+{QR_OPENGL, 110, "fxaa",
+/*
+"This shader implements super-sampled anti-aliasing.\n"
+"*/\n"
+
+"varying vec2 texcoord;\n"
+
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"void main()\n"
+"{\n"
+"texcoord = v_texcoord.xy;\n"
+"texcoord.y = 1.0 - texcoord.y;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"uniform sampler2D s_t0;\n"
+"uniform vec2 e_sourcesize;\n"
+
+"void main( void )\n"
+"{\n"
+//gl_FragColor.xyz = texture2D(buf0,texcoord).xyz;
+//return;
+
+"float FXAA_SPAN_MAX = 8.0;\n"
+"float FXAA_REDUCE_MUL = 1.0/8.0;\n"
+"float FXAA_REDUCE_MIN = 1.0/128.0;\n"
+
+"vec3 rgbNW=texture2D(s_t0,texcoord+(vec2(-1.0,-1.0)/e_sourcesize)).xyz;\n"
+"vec3 rgbNE=texture2D(s_t0,texcoord+(vec2(1.0,-1.0)/e_sourcesize)).xyz;\n"
+"vec3 rgbSW=texture2D(s_t0,texcoord+(vec2(-1.0,1.0)/e_sourcesize)).xyz;\n"
+"vec3 rgbSE=texture2D(s_t0,texcoord+(vec2(1.0,1.0)/e_sourcesize)).xyz;\n"
+"vec3 rgbM=texture2D(s_t0,texcoord).xyz;\n"
+
+"vec3 luma=vec3(0.299, 0.587, 0.114);\n"
+"float lumaNW = dot(rgbNW, luma);\n"
+"float lumaNE = dot(rgbNE, luma);\n"
+"float lumaSW = dot(rgbSW, luma);\n"
+"float lumaSE = dot(rgbSE, luma);\n"
+"float lumaM  = dot(rgbM,  luma);\n"
+
+"float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));\n"
+"float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));\n"
+
+"vec2 dir;\n"
+"dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));\n"
+"dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));\n"
+
+"float dirReduce = max(\n"
+"(lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL),\n"
+"FXAA_REDUCE_MIN);\n"
+
+"float rcpDirMin = 1.0/(min(abs(dir.x), abs(dir.y)) + dirReduce);\n"
+
+"dir = min(vec2( FXAA_SPAN_MAX,  FXAA_SPAN_MAX),\n"
+"max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),\n"
+"dir * rcpDirMin)) / e_sourcesize;\n"
+
+"vec3 rgbA = (1.0/2.0) * (\n"
+"texture2D(s_t0, texcoord.xy + dir * (1.0/3.0 - 0.5)).xyz +\n"
+"texture2D(s_t0, texcoord.xy + dir * (2.0/3.0 - 0.5)).xyz);\n"
+"vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (\n"
+"texture2D(s_t0, texcoord.xy + dir * (0.0/3.0 - 0.5)).xyz +\n"
+"texture2D(s_t0, texcoord.xy + dir * (3.0/3.0 - 0.5)).xyz);\n"
+"float lumaB = dot(rgbB, luma);\n"
+
+"if((lumaB < lumaMin) || (lumaB > lumaMax)){\n"
+"gl_FragColor.xyz=rgbA;\n"
+"}else{\n"
+"gl_FragColor.xyz=rgbB;\n"
+"}\n"
 "}\n"
 "#endif\n"
 },

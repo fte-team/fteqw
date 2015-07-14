@@ -1751,9 +1751,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "fxaa",
-/*
-"This shader implements super-sampled anti-aliasing.\n"
-"*/\n"
+//
+//This shader implements super-sampled anti-aliasing.
+//
 
 "varying vec2 texcoord;\n"
 
@@ -1772,9 +1772,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "void main( void )\n"
 "{\n"
-//gl_FragColor.xyz = texture2D(buf0,texcoord).xyz;
-//return;
-
 "float FXAA_SPAN_MAX = 8.0;\n"
 "float FXAA_REDUCE_MUL = 1.0/8.0;\n"
 "float FXAA_REDUCE_MIN = 1.0/128.0;\n"
@@ -1799,9 +1796,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));\n"
 "dir.y =  ((lumaNW + lumaSW) - (lumaNE + lumaSE));\n"
 
-"float dirReduce = max(\n"
-"(lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL),\n"
-"FXAA_REDUCE_MIN);\n"
+"float dirReduce = max((lumaNW + lumaNE + lumaSW + lumaSE) * (0.25 * FXAA_REDUCE_MUL), FXAA_REDUCE_MIN);\n"
 
 "float rcpDirMin = 1.0/(min(abs(dir.x), abs(dir.y)) + dirReduce);\n"
 
@@ -1809,19 +1804,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "max(vec2(-FXAA_SPAN_MAX, -FXAA_SPAN_MAX),\n"
 "dir * rcpDirMin)) / e_sourcesize;\n"
 
-"vec3 rgbA = (1.0/2.0) * (\n"
-"texture2D(s_t0, texcoord.xy + dir * (1.0/3.0 - 0.5)).xyz +\n"
-"texture2D(s_t0, texcoord.xy + dir * (2.0/3.0 - 0.5)).xyz);\n"
-"vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (\n"
-"texture2D(s_t0, texcoord.xy + dir * (0.0/3.0 - 0.5)).xyz +\n"
-"texture2D(s_t0, texcoord.xy + dir * (3.0/3.0 - 0.5)).xyz);\n"
+"vec3 rgbA = (1.0/2.0) * (texture2D(s_t0, texcoord.xy + dir * (1.0/3.0 - 0.5)).xyz + texture2D(s_t0, texcoord.xy + dir * (2.0/3.0 - 0.5)).xyz);\n"
+"vec3 rgbB = rgbA * (1.0/2.0) + (1.0/4.0) * (texture2D(s_t0, texcoord.xy + dir * (0.0/3.0 - 0.5)).xyz + texture2D(s_t0, texcoord.xy + dir * (3.0/3.0 - 0.5)).xyz);\n"
 "float lumaB = dot(rgbB, luma);\n"
 
-"if((lumaB < lumaMin) || (lumaB > lumaMax)){\n"
+"if((lumaB < lumaMin) || (lumaB > lumaMax))\n"
 "gl_FragColor.xyz=rgbA;\n"
-"}else{\n"
+"else\n"
 "gl_FragColor.xyz=rgbB;\n"
-"}\n"
+"gl_FragColor.a = 1.0;\n"
 "}\n"
 "#endif\n"
 },

@@ -2545,6 +2545,7 @@ conchar_t q3codemasks[MAXQ3COLOURS] = {
 //Converts a conchar_t string into a char string. returns the null terminator. pass NULL for stop to calc it
 char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, qboolean ignoreflags)
 {
+	unsigned int codeflags, codepoint;
 	if (!stop)
 	{
 		for (stop = str; *stop; stop++)
@@ -2575,12 +2576,13 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 		fl = CON_WHITEMASK;
 		while(str < stop)
 		{
-			if ((*str & CON_HIDDEN) && ignoreflags)
+			str = Font_Decode(str, &codeflags, &codepoint);
+			if ((codeflags & CON_HIDDEN) && ignoreflags)
 			{
 				str++;
 				continue;
 			}
-			if (*str == CON_LINKSTART)
+			if (codeflags == (CON_LINKSPECIAL | CON_HIDDEN) && codepoint == '[')
 			{
 				if (!ignoreflags)
 				{
@@ -2595,7 +2597,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 				str++;
 				continue;
 			}
-			else if (*str == CON_LINKEND)
+			else if (codeflags == (CON_LINKSPECIAL | CON_HIDDEN) && codepoint == ']')
 			{
 				if (!ignoreflags)
 				{
@@ -2609,9 +2611,9 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 				str++;
 				continue;
 			}
-			else if ((*str & CON_FLAGSMASK) != fl && !ignoreflags)
+			else if (codeflags != fl && !ignoreflags)
 			{
-				d = fl^(*str & CON_FLAGSMASK);
+				d = fl^codeflags;
 //				if (fl & CON_NONCLEARBG)	//not represented.
 				if (d & CON_BLINKTEXT)
 				{
@@ -2644,15 +2646,15 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 											0,   0,   0,   0,
 											0,	 '4', '2', '5',
 											'1', '6', '3', '7'};
-					if (!(d & (CON_BGMASK | CON_NONCLEARBG)) && q3[(*str & CON_FGMASK) >> CON_FGSHIFT] && !((d|fl) & CON_HALFALPHA))
+					if (!(d & (CON_BGMASK | CON_NONCLEARBG)) && q3[(codeflags & CON_FGMASK) >> CON_FGSHIFT] && !((d|fl) & CON_HALFALPHA))
 					{
 						if (outsize<=2)
 							break;
 						outsize -= 2;
 
-						d = (*str & CON_FLAGSMASK);
+						d = codeflags;
 						*out++ = '^';
-						*out++ = q3[(*str & CON_FGMASK) >> CON_FGSHIFT];
+						*out++ = q3[(codeflags & CON_FGMASK) >> CON_FGSHIFT];
 					}
 					else
 					{
@@ -2660,7 +2662,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 							break;
 						outsize -= 4;
 
-						d = (*str & CON_FLAGSMASK);
+						d = codeflags;
 						*out++ = '^';
 						*out++ = '&';
 						if ((d & CON_FGMASK) == CON_WHITEMASK)
@@ -2676,14 +2678,14 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 					}
 				}
 
-				fl = (*str & CON_FLAGSMASK);
+				fl = codeflags;
 			}
 
 			//don't magically show hidden text
-			if (ignoreflags && (*str & CON_HIDDEN))
+			if (ignoreflags && (codeflags & CON_HIDDEN))
 				continue;
 
-			c = unicode_encode(out, (*str++ & CON_CHARMASK), outsize-1, !ignoreflags);
+			c = unicode_encode(out, codepoint, outsize-1, !ignoreflags);
 			if (!c)
 				break;
 			outsize -= c;
@@ -2979,10 +2981,18 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 			else
 			{
-				if (uc > CON_CHARMASK)
+				if (uc > 0x10ffff)
 					uc = 0xfffd;
 				if (!--outsize)
 					break;
+
+				if (uc > 0xffff)
+				{
+					if (!--outsize)
+						break;
+					*out++ = uc>>16 | CON_LONGCHAR | (ext & CON_HIDDEN);
+					uc &= 0xffff;
+				}
 				*out++ = uc | ext;
 				str = end;
 				continue;
@@ -3156,11 +3166,18 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 					if (str[len] == '}')
 						len++;
 
-					if (uc > CON_CHARMASK)
+					if (uc > 0x10ffff)	//utf-16 imposes a limit on standard unicode codepoints (any encoding)
 						uc = 0xfffd;
 
 					if (!--outsize)
 						break;
+					if (uc > 0xffff)	//utf-16 imposes a limit on standard unicode codepoints (any encoding)
+					{
+						if (!--outsize)
+							break;
+						*out++ = uc>>16 | CON_LONGCHAR | (ext & CON_HIDDEN);
+						uc &= 0xffff;
+					}
 					*out++ = uc | ext;
 					str += len;
 

@@ -601,6 +601,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
+#if __STDC_VERSION__ >= 199901L
+	//C99 specifies that an inline function is used as a hint. there should be an actual body/copy somewhere (extern inline foo).
+	#define fte_inline inline	//must have non-line 'int foo();' somewhere
+	#define fte_inlinebody extern inline
+#elif defined(_MSC_VER)
+	//msvc will inline like C++. and that's fine.
+	#define fte_inline __inline //c++ style
+	#define fte_inlinebody
+#elif (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5))
+	//gcc will generally inline where it can - so long as its static. but that doesn't stop it warning
+	#define fte_inline __attribute__((unused)) static
+	#define fte_inlinebody static
+#else
+	//make it static so we at least don't get errors (might still get warnings. see above)
+	#define fte_inline static
+	#define fte_inlinebody static
+#endif
+
+
 #ifndef FTE_DEPRECATED
 #define FTE_DEPRECATED
 #endif

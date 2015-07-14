@@ -31,10 +31,12 @@ extern consolecolours_t consolecolours[MAXCONCOLOURS];
 #define MAXQ3COLOURS 10
 extern conchar_t q3codemasks[MAXQ3COLOURS];
 
+#define CON_LONGCHAR_MASK	(CON_LONGCHAR|CON_RICHFORECOLOUR)
+
 #define CON_NONCLEARBG		0x00800000	//disabled if CON_RICHFORECOLOUR
 #define CON_HALFALPHA		0x00400000	//disabled if CON_RICHFORECOLOUR
 #define CON_LINKSPECIAL		0x00200000	//disabled if CON_RICHFORECOLOUR
-#define CON_UNUSED1			0x00100000	//disabled if CON_RICHFORECOLOUR
+#define CON_LONGCHAR		0x00100000	//flags (other than hidden) are found in the following conchar. disabled if CON_RICHFORECOLOUR
 #define CON_HIDDEN			0x00080000
 #define CON_BLINKTEXT		0x00040000
 #define CON_2NDCHARSETTEXT	0x00020000

@@ -2859,6 +2859,7 @@ static void DrawPass(const shaderpass_t *pass)
 			//second pass should be an ADD
 			//this depends upon rgbgens for light levels, so each pass *must* be pushed to hardware individually
 
+#if MAXRLIGHTMAPS > 1
 			for (j = 1; j < MAXRLIGHTMAPS && shaderstate.curbatch->lightmap[j] >= 0; j++)
 			{
 				if (j == 1)
@@ -2901,6 +2902,7 @@ static void DrawPass(const shaderpass_t *pass)
 
 				tmu++;
 			}
+#endif
 
 			//might need to break the pass here
 			if (j > 1 && i != lastpass)
@@ -3211,6 +3213,24 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			qglUniform3fvARB(ph, 1, param4);
 			break;
 
+		case SP_SOURCESIZE:
+			if (shaderstate.tex_sourcecol)
+			{
+				param4[0] = shaderstate.tex_sourcecol->width;
+				param4[1] = shaderstate.tex_sourcecol->height;
+			}
+			else if (shaderstate.tex_sourcedepth)
+			{
+				param4[0] = shaderstate.tex_sourcedepth->width;
+				param4[1] = shaderstate.tex_sourcedepth->height;
+			}
+			else
+			{
+				param4[0] = 1;
+				param4[1] = 1;
+			}
+			qglUniform2fvARB(ph, 1, param4);
+			break;
 		case SP_RENDERTEXTURESCALE:
 			if (sh_config.texture_non_power_of_two_pic)
 			{

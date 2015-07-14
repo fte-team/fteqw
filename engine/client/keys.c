@@ -2036,7 +2036,7 @@ qboolean Key_MouseShouldBeFree(void)
 //	if (!ActiveApp)
 //		return true;
 
-	if (Key_Dest_Has(kdm_menu))
+	if (Key_Dest_Has(kdm_emenu))
 	{
 		if (m_state == m_complex || m_state == m_plugin /*|| m_state == m_menu_dat*/)
 			return true;
@@ -2178,8 +2178,12 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		else if (Key_Dest_Has(kdm_editor))
 			Editor_Key (key, unicode);
 #endif
-		else if (Key_Dest_Has(kdm_menu))
+		else if (Key_Dest_Has(kdm_emenu))
 			M_Keydown (key, unicode);
+#ifdef MENU_DAT
+		else if (Key_Dest_Has(kdm_gmenu))
+			MP_Keydown (key, unicode);
+#endif
 		else if (Key_Dest_Has(kdm_message))
 			Key_Dest_Remove(kdm_message);
 		else
@@ -2219,8 +2223,12 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 				Key_ConsoleRelease(con, key, unicode);
 			}
 		}
-		if (Key_Dest_Has(kdm_menu))
+		if (Key_Dest_Has(kdm_emenu))
 			M_Keyup (key, unicode);
+#ifdef MENU_DAT
+		if (Key_Dest_Has(kdm_gmenu))
+			MP_Keyup (key, unicode);
+#endif
 #ifndef NOMEDIA
 		if (Media_PlayingFullScreen())
 			Media_Send_KeyEvent(NULL, key, unicode, down?0:1);
@@ -2297,11 +2305,18 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		return;
 	}
 #endif
-	if (Key_Dest_Has(kdm_menu))
+	if (Key_Dest_Has(kdm_emenu))
 	{
 		M_Keydown (key, unicode);
 		return;
 	}
+#ifdef MENU_DAT
+	if (Key_Dest_Has(kdm_gmenu))
+	{
+		MP_Keydown (key, unicode);
+		return;
+	}
+#endif
 	if (Key_Dest_Has(kdm_message))
 	{
 		Key_Message (key, unicode);

@@ -1768,8 +1768,10 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			meshcache.vbo.svector = inf->vbo_skel_svector;
 			meshcache.vbo.tvector = inf->vbo_skel_tvector;
 			meshcache.vbo.colours[0] = inf->vborgba;
-			meshcache.vbo.bonenums = inf->vbo_skel_bonenum;
-			meshcache.vbo.boneweights = inf->vbo_skel_bweight;
+			memset(&meshcache.vbo.bonenums, 0, sizeof(meshcache.vbo.bonenums));
+			memset(&meshcache.vbo.boneweights, 0, sizeof(meshcache.vbo.boneweights));
+			meshcache.vbo.numbones = 0;
+			meshcache.vbo.bones = NULL;
 			if (meshcache.vbo.indicies.sysptr)
 				*vbop = meshcache.vbop = &meshcache.vbo;
 		}
@@ -1820,6 +1822,26 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			mesh->normals_array = inf->ofs_skel_norm;
 			mesh->snormals_array = inf->ofs_skel_svect;
 			mesh->tnormals_array = inf->ofs_skel_tvect;
+
+			if (vbop)
+			{
+				meshcache.vbo.indicies = inf->vboindicies;
+				meshcache.vbo.indexcount = inf->numindexes;
+				meshcache.vbo.vertcount = inf->numverts;
+				meshcache.vbo.texcoord = inf->vbotexcoords;
+				meshcache.vbo.coord = inf->vbo_skel_verts;
+				memset(&meshcache.vbo.coord2, 0, sizeof(meshcache.vbo.coord2));
+				meshcache.vbo.normals = inf->vbo_skel_normals;
+				meshcache.vbo.svector = inf->vbo_skel_svector;
+				meshcache.vbo.tvector = inf->vbo_skel_tvector;
+				meshcache.vbo.colours[0] = inf->vborgba;
+				meshcache.vbo.bonenums = inf->vbo_skel_bonenum;
+				meshcache.vbo.boneweights = inf->vbo_skel_bweight;
+				meshcache.vbo.numbones = inf->numbones;
+				meshcache.vbo.bones = meshcache.usebonepose;
+				if (meshcache.vbo.indicies.sysptr)
+					*vbop = meshcache.vbop = &meshcache.vbo;
+			}
 		}
 	}
 	else
@@ -1917,6 +1939,13 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			meshcache.vbo.indexcount = inf->numindexes;
 			meshcache.vbo.vertcount = inf->numverts;
 			meshcache.vbo.texcoord = inf->vbotexcoords;
+
+#ifdef SKELETALMODELS
+			memset(&meshcache.vbo.bonenums, 0, sizeof(meshcache.vbo.bonenums));
+			memset(&meshcache.vbo.boneweights, 0, sizeof(meshcache.vbo.boneweights));
+			meshcache.vbo.numbones = 0;
+			meshcache.vbo.bones = 0;
+#endif
 
 #ifdef SERVERONLY
 			mesh->xyz_array = p1->ofsverts;
@@ -6228,7 +6257,7 @@ static qboolean IQM_ImportArray4B(qbyte *base, struct iqmvertexarray *src, byte_
 	unsigned int fmt = LittleLong(src->format);
 	unsigned int offset = LittleLong(src->offset);
 	qboolean invalid = false;
-	maxval = min(256,maxval);
+	maxval = min(256,maxval);	//output is bytes.
 	if (!offset)
 	{
 		sz = 0;
@@ -6446,6 +6475,8 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	vec4_t defaultcolour = {1,1,1,1};
 	vec4_t defaultweight = {0,0,0,0};
 	vec4_t defaultvert = {0,0,0,1};
+
+	struct iqmbounds	*inbounds;
 
 	int memsize;
 	qbyte *obase=NULL;
@@ -6752,6 +6783,24 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	}
 	free(framegroups);
 
+	//determine the bounds
+	inbounds = (struct iqmbounds*)(buffer + h->ofs_bounds);
+	for (i = 0; i < h->num_frames; i++)
+	{
+		vec3_t mins, maxs;
+		mins[0] = LittleFloat(inbounds[i].bbmin[0]);
+		mins[1] = LittleFloat(inbounds[i].bbmin[1]);
+		mins[2] = LittleFloat(inbounds[i].bbmin[2]);
+		AddPointToBounds(mins, mod->mins, mod->maxs);
+		maxs[0] = LittleFloat(inbounds[i].bbmax[0]);
+		maxs[1] = LittleFloat(inbounds[i].bbmax[1]);
+		maxs[2] = LittleFloat(inbounds[i].bbmax[2]);
+		AddPointToBounds(maxs, mod->mins, mod->maxs);
+	}
+	//fixme: shouldn't really be needed for an animated model
+	for (i = 0; i < h->num_vertexes; i++)
+		AddPointToBounds(opos[i], mod->mins, mod->maxs);
+
 	for (i = 0; i < h->num_meshes; i++)
 	{
 		gai[i].nextsurf = (i == (h->num_meshes-1))?NULL:&gai[i+1];
@@ -6799,9 +6848,9 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 		gai[i].ofs_indexes = idx;
 		for (t = 0; t < nt; t++)
 		{
-			*idx++ = LittleShort(tris[t].vertex[0]) - offset;
-			*idx++ = LittleShort(tris[t].vertex[1]) - offset;
-			*idx++ = LittleShort(tris[t].vertex[2]) - offset;
+			*idx++ = LittleLong(tris[t].vertex[0]) - offset;
+			*idx++ = LittleLong(tris[t].vertex[1]) - offset;
+			*idx++ = LittleLong(tris[t].vertex[2]) - offset;
 		}
 
 		/*verts*/
@@ -6866,9 +6915,10 @@ qboolean Mod_ParseIQMAnim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 
 qboolean QDECL Mod_LoadInterQuakeModel(model_t *mod, void *buffer, size_t fsize)
 {
-	int i;
 	galiasinfo_t *root;
 	struct iqmheader *h = (struct iqmheader *)buffer;
+
+	ClearBounds(mod->mins, mod->maxs);
 
 	root = Mod_ParseIQMMeshModel(mod, buffer, fsize);
 	if (!root)
@@ -6878,9 +6928,7 @@ qboolean QDECL Mod_LoadInterQuakeModel(model_t *mod, void *buffer, size_t fsize)
 
 	mod->flags = h->flags;
 
-	ClearBounds(mod->mins, mod->maxs);
-	for (i = 0; i < root->numverts; i++)
-		AddPointToBounds(root->ofs_skel_xyz[i], mod->mins, mod->maxs);
+	mod->radius = RadiusFromBounds(mod->mins, mod->maxs);
 
 	Mod_ClampModelSize(mod);
 

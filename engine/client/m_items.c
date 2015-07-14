@@ -567,12 +567,12 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 				option->slider.vx = x;
 				x -= 8;
 				Font_BeginString(font_default, x, y, &x, &y);
-				x = Font_DrawChar(x, y, 0xe080 | CON_WHITEMASK);
+				x = Font_DrawChar(x, y, CON_WHITEMASK, 0xe080);
 				s = x;
 				for (i=0 ; i<SLIDER_RANGE ; i++)
-					x = Font_DrawChar(x, y, 0xe081 | CON_WHITEMASK);
-				Font_DrawChar(x, y, 0xe082 | CON_WHITEMASK);
-				Font_DrawChar(s + (x-s) * range - Font_CharWidth(0xe083 | CON_WHITEMASK)/2, y, 0xe083 | CON_WHITEMASK);
+					x = Font_DrawChar(x, y, CON_WHITEMASK, 0xe081);
+				Font_DrawChar(x, y, CON_WHITEMASK, 0xe082);
+				Font_DrawChar(s + (x-s) * range - Font_CharWidth(CON_WHITEMASK, 0xe083)/2, y, CON_WHITEMASK, 0xe083);
 				Font_EndString(font_default);
 			}
 			break;
@@ -1678,13 +1678,24 @@ void M_RemoveMenu (menu_t *menu)
 		currentmenu = firstmenu;
 }
 
-void M_RemoveAllMenus (void)
+void M_RemoveAllMenus (qboolean leaveprompts)
 {
-	if (!firstmenu)
-		return;
+	menu_t **link, *m;
 
-	while(firstmenu)
-		M_RemoveMenu(firstmenu);
+	for (link = &firstmenu; *link; )
+	{
+		m = *link;
+		if (!m->exclusive && leaveprompts)
+		{
+			//this is WEIRD.
+			if (m == firstmenu)
+				link = &m->parent;
+			else
+				link = &m->child;
+		}
+		else
+			M_RemoveMenu(m);
+	}
 
 }
 void M_MenuPop_f (void)
@@ -1701,7 +1712,7 @@ void M_Complex_Draw(void)
 
 	if (!firstmenu)
 	{
-		Key_Dest_Remove(kdm_menu);
+		Key_Dest_Remove(kdm_emenu);
 		m_state = m_none;
 		return;
 	}
@@ -2045,7 +2056,7 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 			if (!CL_TryingToConnect())
 				return true;
 
-		Key_Dest_Remove(kdm_menu);
+		Key_Dest_Remove(kdm_emenu);
 		m_state = m_none;
 /*		if (m_save_demonum != -1)
 		{
@@ -2118,7 +2129,7 @@ void M_Menu_Main_f (void)
 		if (R_GetShaderSizes(R2D_SafeCachePic("pics/m_main_quit"), NULL, NULL, true) > 0)
 		{
 			m_state = m_complex;
-			Key_Dest_Add(kdm_menu);
+			Key_Dest_Add(kdm_emenu);
 
 			mainm = M_CreateMenu(0);
 			mainm->key = MC_Main_Key;
@@ -2176,7 +2187,7 @@ void M_Menu_Main_f (void)
 			return;
 
 		m_state = m_complex;
-		Key_Dest_Add(kdm_menu);
+		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 		mainm->key = MC_Main_Key;
 
@@ -2216,7 +2227,7 @@ void M_Menu_Main_f (void)
 	{
 		int y;
 		m_state = m_complex;
-		Key_Dest_Add(kdm_menu);
+		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
@@ -2271,7 +2282,7 @@ void M_Menu_Main_f (void)
 	else
 	{
 		m_state = m_complex;
-		Key_Dest_Add(kdm_menu);
+		Key_Dest_Add(kdm_emenu);
 		mainm = M_CreateMenu(0);
 
 		p = R2D_SafeCachePic("gfx/ttl_main.lmp");

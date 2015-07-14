@@ -27,19 +27,19 @@ static qintptr_t VARGS Plug_Menu_Control(void *offset, quintptr_t mask, const qi
 			Plug_Menu_Event(3, 0);
 			menuplug = NULL;
 			currentplug = oldplug;
-			Key_Dest_Remove(kdm_menu);
+			Key_Dest_Remove(kdm_emenu);
 		}
 		if (VM_LONG(arg[0]) != 1)
 			return 1;
 		//give us menu control
 		menuplug = currentplug;
-		Key_Dest_Add(kdm_menu);
+		Key_Dest_Add(kdm_emenu);
 		m_state = m_plugin;
 		return 1;
 	case 2: //weather it's us or not.
 		return currentplug == menuplug && m_state == m_plugin;
 	case 3:	//weather a menu is active
-		return !!Key_Dest_Has(kdm_menu);
+		return !!Key_Dest_Has(kdm_emenu|kdm_gmenu);
 	default:
 		return 0;
 	}
@@ -288,7 +288,7 @@ static qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const 
 	if (qrenderer == QR_NONE)
 		return 0;
 	Font_BeginString(font_default, arg[0], arg[1], &x, &y);
-	Font_DrawChar(x, y, CON_WHITEMASK | 0xe000 | (unsigned int)arg[2]);
+	Font_DrawChar(x, y, CON_WHITEMASK, 0xe000 | (unsigned int)arg[2]);
 	Font_EndString(font_default);
 	return 0;
 }
@@ -307,7 +307,7 @@ static qintptr_t VARGS Plug_Draw_CharacterH(void *offset, quintptr_t mask, const
 	if (!(flags & 2))
 		cmask |= 0xe000;
 	Font_BeginScaledString(font_default, x, y, h, h, &x, &y);
-	Font_DrawScaleChar(x, y, cmask | charc);
+	Font_DrawScaleChar(x, y, cmask, charc);
 	Font_EndString(font_default);
 	return 0;
 }
@@ -315,6 +315,7 @@ static qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qin
 {
 	int ipx, px, py;
 	conchar_t buffer[2048], *str;
+	unsigned int codeflags, codepoint;
 	if (qrenderer == QR_NONE)
 		return 0;
 	COM_ParseFunString(CON_WHITEMASK, VM_POINTER(arg[2]), buffer, sizeof(buffer), false);
@@ -323,13 +324,13 @@ static qintptr_t VARGS Plug_Draw_String(void *offset, quintptr_t mask, const qin
 	ipx = px;
 	while(*str)
 	{
-		if ((*str & CON_CHARMASK) == '\n')
+		str = Font_Decode(str, &codeflags, &codepoint);
+		if (codepoint == '\n')
 			py += Font_CharHeight();
-		else if ((*str & CON_CHARMASK) == '\r')
+		else if (codepoint == '\r')
 			px = ipx;
 		else
-			px = Font_DrawChar(px, py, *str);
-		str++;
+			px = Font_DrawChar(px, py, codeflags, codepoint);
 	}
 	Font_EndString(font_default);
 	return 0;
@@ -343,6 +344,7 @@ static qintptr_t VARGS Plug_Draw_StringH(void *offset, quintptr_t mask, const qi
 	char *instr = VM_POINTER(arg[4]);
 	float ipx;
 	conchar_t buffer[2048], *str, cmask = CON_WHITEMASK;
+	unsigned int codeflags, codepoint;
 	unsigned int parseflags = 0;
 	if (qrenderer == QR_NONE)
 		return 0;
@@ -356,13 +358,13 @@ static qintptr_t VARGS Plug_Draw_StringH(void *offset, quintptr_t mask, const qi
 	ipx = x;
 	while(*str)
 	{
-		if ((*str & CON_CHARMASK) == '\n')
+		str = Font_Decode(str, &codeflags, &codepoint);
+		if (codepoint == '\n')
 			y += Font_CharScaleHeight();
-		else if ((*str & CON_CHARMASK) == '\r')
+		else if (codepoint == '\r')
 			x = ipx;
 		else
-			x = Font_DrawScaleChar(x, y, *str);
-		str++;
+			x = Font_DrawScaleChar(x, y, codeflags, codepoint);
 	}
 	Font_EndString(font_default);
 	return 0;
@@ -1171,7 +1173,7 @@ void Plug_Client_Close(plugin_t *plug)
 	if (menuplug == plug)
 	{
 		menuplug = NULL;
-		Key_Dest_Remove(kdm_menu);
+		Key_Dest_Remove(kdm_emenu);
 	}
 	if (protocolclientplugin == plug)
 	{

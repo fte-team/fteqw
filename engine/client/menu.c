@@ -300,10 +300,10 @@ int m_save_demonum;
 
 void M_CloseMenu_f (void)
 {
-	if (!Key_Dest_Has(kdm_menu))
+	if (!Key_Dest_Has(kdm_emenu))
 		return;
-	M_RemoveAllMenus();
-	Key_Dest_Remove(kdm_menu);
+	M_RemoveAllMenus(false);
+	Key_Dest_Remove(kdm_emenu);
 	m_state = m_none;
 }
 /*
@@ -315,7 +315,7 @@ void M_ToggleMenu_f (void)
 {
 	if (m_state)
 	{
-		Key_Dest_Add(kdm_menu);
+		Key_Dest_Add(kdm_emenu);
 		return;
 	}
 
@@ -339,9 +339,9 @@ void M_ToggleMenu_f (void)
 #endif
 
 	//it IS a toggle, so close the menu if its already active
-	if (Key_Dest_Has(kdm_menu))
+	if (Key_Dest_Has(kdm_emenu))
 	{
-		Key_Dest_Remove(kdm_menu);
+		Key_Dest_Remove(kdm_emenu);
 		m_state = m_none;
 		return;
 	}
@@ -494,7 +494,7 @@ void M_Menu_Keys_f (void)
 	menu_t *menu;
 	vfsfile_t *bindslist;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(0);
@@ -618,7 +618,7 @@ struct
 void M_Menu_Help_f (void)
 {
 	int i;
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_help;
 	help_page = 0;
 
@@ -734,7 +734,7 @@ void M_Menu_Prompt (void (*callback)(void *, int), void *ctx, char *m1, char *m2
 	promptmenu_t *m;
 	char *t;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	m = (promptmenu_t*)M_CreateMenuInfront(sizeof(*m) - sizeof(m->m) + strlen(m1)+strlen(m2)+strlen(m3)+strlen(optionyes)+strlen(optionyes)+strlen(optioncancel)+6);
@@ -1035,7 +1035,7 @@ void M_Menu_Quit_f (void)
 #endif
 		break;
 	case 2:
-		Key_Dest_Add(kdm_menu);
+		Key_Dest_Add(kdm_emenu);
 		Key_Dest_Remove(kdm_console);
 		m_state = m_complex;
 
@@ -1059,7 +1059,7 @@ void M_Menu_Quit_f (void)
 		MC_AddBox (quitmenu, 56, 76, 25, 5);
 		break;
 	case 1:
-		Key_Dest_Add(kdm_menu);
+		Key_Dest_Add(kdm_emenu);
 		Key_Dest_Remove(kdm_console);
 		m_state = m_complex;
 
@@ -1139,10 +1139,6 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("menu_keys", M_Menu_Keys_f);
 	Cmd_AddCommand ("help", M_Menu_Help_f);
 	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
-#ifndef NOMEDIAMENU
-	Cmd_AddCommand ("menu_media", M_Menu_Media_f);
-#endif
-	Cmd_AddCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
 	Cmd_AddCommand ("menu_mods", M_Menu_Mods_f);
 	Cmd_AddCommand ("modelviewer", M_Menu_ModelViewer_f);
 
@@ -1191,7 +1187,7 @@ void M_Init_Internal (void)
 
 void M_DeInit_Internal (void)
 {
-	M_RemoveAllMenus();
+	M_RemoveAllMenus(true);
 
 	if (!internalmenusregistered)
 		return;
@@ -1208,10 +1204,6 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_keys");
 	Cmd_RemoveCommand ("help");
 	Cmd_RemoveCommand ("menu_quit");
-#ifndef NOMEDIAMENU
-	Cmd_RemoveCommand ("menu_media");
-#endif
-	Cmd_RemoveCommand ("menu_mediafiles");
 
 #ifdef CL_MASTER
 	Cmd_RemoveCommand ("menu_slist");
@@ -1286,6 +1278,7 @@ void M_Init (void)
 #endif
 	//demo menu is allowed to see outside of the quakedir. you can't replicate that in qc's sandbox.
 	Cmd_AddCommand ("menu_demo", M_Menu_Demos_f);
+	Cmd_AddCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
 
 
 
@@ -1341,18 +1334,18 @@ void M_Draw (int uimenu)
 #ifndef NOBUILTINMENUS
 	if (m_state != m_complex)
 	{
-		M_RemoveAllMenus();
+		M_RemoveAllMenus(false);
 		menu_mousedown = false;
 	}
 #endif
 
-	if (!Key_Dest_Has(kdm_menu))
+	if (!Key_Dest_Has(kdm_emenu))
 	{
 		m_state = m_none;
 		return;
 	}
 
-	if (m_state == m_none || m_state == m_menu_dat)
+	if (m_state == m_none)
 		return;
 
 #ifndef NOBUILTINMENUS
@@ -1388,21 +1381,10 @@ void M_Draw (int uimenu)
 		break;
 #endif
 
-#ifndef NOMEDIAMENU
-	case m_media:
-		M_Media_Draw ();
-		break;
-#endif
-
 #ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (0, (int)(realtime*1000));
 		break;
-#endif
-#ifdef MENU_DAT
-	case m_menu_dat:
-//		MP_Draw();
-		return;
 #endif
 	}
 }
@@ -1414,7 +1396,7 @@ void M_Keydown (int key, int unicode)
 	{
 	default:
 	case m_none:
-		Key_Dest_Remove(kdm_menu);
+		Key_Dest_Remove(kdm_emenu);
 		return;
 #ifndef NOBUILTINMENUS
 	case m_help:
@@ -1429,20 +1411,9 @@ void M_Keydown (int key, int unicode)
 		return;
 #endif
 
-#ifndef NOMEDIAMENU
-	case m_media:
-		M_Media_Key (key);
-		return;
-#endif
-
 #ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (1, key);
-		return;
-#endif
-#ifdef MENU_DAT
-	case m_menu_dat:
-		MP_Keydown(key, unicode);
 		return;
 #endif
 	}
@@ -1463,11 +1434,6 @@ void M_Keyup (int key, int unicode)
 #ifdef PLUGINS
 	case m_plugin:
 		Plug_Menu_Event (2, key);
-		return;
-#endif
-#ifdef MENU_DAT
-	case m_menu_dat:
-		MP_Keyup(key, unicode);
 		return;
 #endif
 	default:

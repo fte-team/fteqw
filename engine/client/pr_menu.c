@@ -10,6 +10,8 @@
 #if defined(MENU_DAT) || defined(CSQC_DAT)
 #include "cl_master.h"
 
+qbyte mpkeysdown[K_MAX/8];
+
 extern unsigned int r2d_be_flags;
 #define DRAWFLAG_NORMAL 0
 #define DRAWFLAG_ADD 1
@@ -391,6 +393,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 	float flag = 0;
 	float r, g, b;
 	float px, py, ipx;
+	unsigned int codeflags, codepoint;
 
 	conchar_t buffer[2048], *str;
 
@@ -426,13 +429,13 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 	Font_ForceColour(r, g, b, alpha);
 	while(*str)
 	{
-		if ((*str & CON_CHARMASK) == '\n')
+		str = Font_Decode(str, &codeflags, &codepoint);
+		if (codepoint == '\n')
 			py += Font_CharHeight();
-		else if ((*str & CON_CHARMASK) == '\r')
+		else if (codepoint == '\r')
 			px = ipx;
 		else
-			px = Font_DrawScaleChar(px, py, *str);
-		str++;
+			px = Font_DrawScaleChar(px, py, codeflags, codepoint);
 	}
 	Font_InvalidateColour();
 	Font_EndString(NULL);
@@ -682,7 +685,7 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
-	Font_DrawScaleChar(x, y, CON_WHITEMASK | chara);
+	Font_DrawScaleChar(x, y, CON_WHITEMASK, chara);
 	Font_InvalidateColour();
 	Font_EndString(NULL);
 	r2d_be_flags = 0;
@@ -727,7 +730,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 			else if (c & 0x80)
 				c |= 0xe000;	//if its a high char, just use the quake range instead. we could colour it, but why bother
 		}
-		x = Font_DrawScaleChar(x, y, CON_WHITEMASK|c);
+		x = Font_DrawScaleChar(x, y, CON_WHITEMASK, c);
 	}
 	Font_InvalidateColour();
 	Font_EndString(NULL);
@@ -1236,25 +1239,25 @@ void QCBUILTIN PF_CL_precache_sound (pubprogfuncs_t *prinst, struct globalvars_s
 //void	setkeydest(float dest) 	= #601;
 void QCBUILTIN PF_cl_setkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	//these arguments are stupid
 	switch((int)G_FLOAT(OFS_PARM0))
 	{
 	case 0:
 		// key_game
-		if (Key_Dest_Has(kdm_menu))
+		if (Key_Dest_Has(kdm_gmenu))
 		{
-			Key_Dest_Remove(kdm_menu);
+			Key_Dest_Remove(kdm_gmenu);
 //			Key_Dest_Remove(kdm_message);
-			if (cls.state == ca_disconnected)
-				Key_Dest_Add(kdm_console);
+//			if (cls.state == ca_disconnected)
+//				Key_Dest_Add(kdm_console);
 		}
 		break;
 	case 2:
 		// key_menu
-		m_state = m_menu_dat;
 		Key_Dest_Remove(kdm_message);
-		if (!Key_Dest_Has(kdm_menu))
+		if (!Key_Dest_Has(kdm_gmenu))
 			Key_Dest_Remove(kdm_console);
-		Key_Dest_Add(kdm_menu);
+		Key_Dest_Add(kdm_gmenu);
 		break;
 	case 1:
 		// key_message
@@ -1268,13 +1271,10 @@ void QCBUILTIN PF_cl_setkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr
 //float	getkeydest(void)	= #602;
 void QCBUILTIN PF_cl_getkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (Key_Dest_Has(kdm_menu))
-	{
-		if (m_state == m_menu_dat)
-			G_FLOAT(OFS_RETURN) = 2;
-		else
-			G_FLOAT(OFS_RETURN) = 3;
-	}
+	if (Key_Dest_Has(kdm_emenu))
+		G_FLOAT(OFS_RETURN) = 3;
+	else if (Key_Dest_Has(kdm_gmenu))
+		G_FLOAT(OFS_RETURN) = 2;
 //	else if (Key_Dest_Has(kdm_message))
 //		G_FLOAT(OFS_RETURN) = 1;
 	else
@@ -2241,19 +2241,14 @@ void MP_Shutdown (void)
 	PR_Common_Shutdown(menu_world.progs, false);
 	menu_world.progs->CloseProgs(menu_world.progs);
 	memset(&menu_world, 0, sizeof(menu_world));
-	PR_ReleaseFonts(kdm_menu);
+	PR_ReleaseFonts(kdm_gmenu);
 
 #ifdef CL_MASTER
 	Master_ClearMasks();
 #endif
 
-	if (m_state == m_menu_dat)
-	{
-		Key_Dest_Remove(kdm_menu);
-		m_state = 0;
-	}
-
-	key_dest_absolutemouse &= ~kdm_menu;
+	Key_Dest_Remove(kdm_gmenu);
+	key_dest_absolutemouse &= ~kdm_gmenu;
 }
 
 void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
@@ -2358,7 +2353,7 @@ qboolean MP_Init (void)
 
 	menuprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	menuprogparms.user = &menu_world;
-	menu_world.keydestmask = kdm_menu;
+	menu_world.keydestmask = kdm_gmenu;
 
 	menutime = Sys_DoubleTime();
 	if (!menu_world.progs)
@@ -2537,6 +2532,7 @@ void MP_Draw(void)
 	inmenuprogs--;
 }
 
+
 void MP_Keydown(int key, int unicode)
 {
 	extern qboolean	keydown[K_MAX];
@@ -2558,6 +2554,8 @@ void MP_Keydown(int key, int unicode)
 			return;
 		}
 	}
+
+	mpkeysdown[key>>3] |= (1<<(key&7));
 
 	menutime = Sys_DoubleTime();
 	if (menu_world.g.time)
@@ -2583,6 +2581,10 @@ void MP_Keyup(int key, int unicode)
 
 	if (setjmp(mp_abort))
 		return;
+
+	if (key && !(mpkeysdown[key>>3] & (1<<(key&7))))
+		return;
+	mpkeysdown[key>>3] &= ~(1<<(key&7));
 
 	menutime = Sys_DoubleTime();
 	if (menu_world.g.time)

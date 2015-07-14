@@ -157,6 +157,7 @@ extern "C" {
 #include "protocol.h"
 #include "cmd.h"
 #include "wad.h"
+#include "console.h"
 #include "screen.h"
 #include "sbar.h"
 #include "sound.h"
@@ -169,7 +170,6 @@ extern "C" {
 
 #include "input.h"
 #include "keys.h"
-#include "console.h"
 #include "view.h"
 #include "menu.h"
 #include "crc.h"

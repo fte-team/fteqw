@@ -18,7 +18,7 @@ void M_Menu_MultiPlayer_f (void)
 	static menuresel_t resel;
 
 	p = NULL;
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	mgt = M_GameType();
@@ -442,7 +442,7 @@ void M_Menu_Setup_f (void)
 			mpic_t *p;
 			menucustom_t *cu;
 			m_state = m_complex;
-			Key_Dest_Add(kdm_menu);
+			Key_Dest_Add(kdm_emenu);
 
 			menu = M_CreateMenu(sizeof(setupmenu_t));
 			info = menu->data;
@@ -468,7 +468,7 @@ void M_Menu_Setup_f (void)
 	}
 #endif
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(setupmenu_t));
@@ -591,7 +591,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key
 		Cbuf_AddText("echo You can use the setrenderer command to return to a graphical interface at any time\n", RESTRICT_LOCAL);
 	}
 
-	M_RemoveAllMenus();
+	M_RemoveAllMenus(true);
 
 	return true;
 }
@@ -656,7 +656,7 @@ void M_Menu_GameOptions_f (void)
 	int mgt;
 	int players;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(newmultimenu_t));

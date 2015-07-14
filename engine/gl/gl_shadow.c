@@ -3421,6 +3421,9 @@ void Sh_CalcPointLight(vec3_t point, vec3_t light)
 		if (!(dl->flags & ignoreflags))
 			continue;
 
+		if (dl->key == cl.playerview[0].viewentity)	//ignore the light if its emitting from the player. generally the player can't *SEE* that light so it still counts.
+			continue;								//disable this check if this function gets used for anything other than iris adaptation
+
 		colour[0] = dl->color[0];
 		colour[1] = dl->color[1];
 		colour[2] = dl->color[2];

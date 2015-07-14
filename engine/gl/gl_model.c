@@ -125,7 +125,7 @@ static void Mod_MemList_f(void)
 #ifndef SERVERONLY
 static void Mod_BatchList_f(void)
 {
-	int m, i, lm;
+	int m, i;
 	model_t *mod;
 	batch_t *batch;
 	unsigned int count;
@@ -2441,7 +2441,7 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *
 			out->firstedge = LittleLong(inl->firstedge);
 			out->numedges = LittleLong(inl->numedges);
 			tn = LittleLong (inl->texinfo);
-			for (i=0 ; i<MAXRLIGHTMAPS ; i++)
+			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
 				out->styles[i] = inl->styles[i];
 			lofs = LittleLong(inl->lightofs);
 			inl++;
@@ -2453,7 +2453,7 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *
 			out->firstedge = LittleLong(ins->firstedge);
 			out->numedges = LittleShort(ins->numedges);
 			tn = LittleShort (ins->texinfo);
-			for (i=0 ; i<MAXRLIGHTMAPS ; i++)
+			for (i=0 ; i<MAXQ1LIGHTMAPS ; i++)
 				out->styles[i] = ins->styles[i];
 			lofs = LittleLong(ins->lightofs);
 			ins++;

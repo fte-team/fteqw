@@ -1232,7 +1232,6 @@ qboolean	Cvar_Command (int level)
 	char *str;
 	char buffer[65536];
 	int olev;
-	int seat;
 
 // check variables
 	v = Cvar_FindVar (Cmd_Argv(0));
@@ -1301,9 +1300,9 @@ qboolean	Cvar_Command (int level)
 	}
 
 #ifndef SERVERONLY
-	seat = CL_TargettedSplit(true);
 	if (v->flags & CVAR_USERINFO)
 	{
+		int seat = CL_TargettedSplit(true);
 		if (Cmd_FromGamecode() && cls.protocol == CP_QUAKEWORLD)
 		{	//don't bother even changing the cvar locally, just update the server's version.
 			//fixme: quake2/quake3 latching.

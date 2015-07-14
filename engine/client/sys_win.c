@@ -1540,11 +1540,13 @@ void VARGS Sys_Printf (char *fmt, ...)
 	out = wide;
 	in = msg;
 	wlen = 0;
-	for (in = msg; in < end; in++)
+	for (in = msg; in < end; )
 	{
-		if (!(*in & CON_HIDDEN))
+		unsigned int flags, cp;
+		in = Font_Decode(in, &flags, &cp);
+		if (!(flags & CON_HIDDEN))
 		{
-			*out++ = COM_DeQuake(*in & CON_CHARMASK);
+			*out++ = COM_DeQuake(cp);
 			wlen++;
 		}
 	}
@@ -1686,9 +1688,21 @@ char *Sys_GetClipboard(void)
 				utf8 = cliputf8 = malloc(l);
 				while(*clipWText)
 				{
-					if (clipWText[0] == '\r' && clipWText[1] == '\n')	//bloomin microsoft.
-						clipWText++;
-					c = utf8_encode(utf8, *clipWText++, l);
+					unsigned int cp = *clipWText++;
+					if (cp == '\r' && *clipWText == '\n')	//bloomin microsoft.
+						cp = *clipWText++;
+					if (cp >= 0xD800u && cp <= 0xDBFFu)
+					{	//handle utf-16 surrogates
+						if (*clipWText >= 0xDC00u && *clipWText <= 0xDFFFu)
+						{
+							cp = (cp&0x3ff)<<10;
+							cp |= *clipWText++ & 0x3ff;
+						}
+						else
+							cp = 0xFFFDu;
+					}
+
+					c = utf8_encode(utf8, cp, l);
 					if (!c)
 						break;
 					l -= c;
@@ -1756,13 +1770,14 @@ void Sys_SaveClipboard(char *text)
 	HANDLE glob;
 	char *temp;
 	unsigned short *tempw;
+	unsigned int codepoint;
 	if (!OpenClipboard(NULL))
 		return;
-    EmptyClipboard();
+	EmptyClipboard();
 
 	if (com_parseutf8.ival > 0)
 	{
-		glob = GlobalAlloc(GMEM_MOVEABLE, (strlen(text) + 1)*2);
+		glob = GlobalAlloc(GMEM_MOVEABLE, (strlen(text) + 1)*4);
 		if (glob)
 		{
 			tempw = GlobalLock(glob);
@@ -1771,8 +1786,20 @@ void Sys_SaveClipboard(char *text)
 				int error;
 				while(*text)
 				{
-					//NOTE: should be \r\n and not just \n
-					*tempw++ = utf8_decode(&error, text, &text);
+					codepoint = utf8_decode(&error, text, &text);
+					if (codepoint == '\n')
+					{	//windows is stupid and annoying.
+						*tempw++ = '\r';
+						*tempw++ = '\n';
+					}
+					else if (codepoint > 0xffff)
+					{	//and badly designed, too.
+						codepoint -= 0x10000;
+						*tempw++ = 0xD800 | ((codepoint>>10)&0x3ff);
+						*tempw++ = 0xDC00 | (codepoint&0x3ff);
+					}
+					else
+						*tempw++ = codepoint;
 				}
 				*tempw = 0;
 				GlobalUnlock(glob);
@@ -2818,9 +2845,10 @@ BOOL MoveFileU(const char *src, const char *dst)
 
 qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 {
+	wchar_t wide1[2048];
 	int ffe = COM_CheckParm("--fromfrontend");
 	PROCESS_INFORMATION childinfo;
-	STARTUPINFO startinfo = {sizeof(startinfo)};
+	STARTUPINFOW startinfo = {sizeof(startinfo)};
 
 	char *e;
 	strtoul(SVNREVISIONSTR, &e, 10);
@@ -2847,7 +2875,6 @@ qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 	else if (!ffe)
 	{
 		//if we're not from the frontend (ie: we ARE the frontend), we should run the updated build instead
-		char frontendpath[MAX_OSPATH];
 		char pendingpath[MAX_OSPATH];
 		char updatedpath[MAX_OSPATH];
 
@@ -2881,9 +2908,10 @@ qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 		
 		if (*updatedpath)
 		{
-//fixme: unicode paths/commandline.
-			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
-			if (CreateProcess(updatedpath, va("%s --fromfrontend \"%s\" \"%s\"", GetCommandLineA(), SVNREVISIONSTR, frontendpath), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
+			wchar_t widefe[MAX_OSPATH], wargs[2048];
+			GetModuleFileNameW(NULL, widefe, countof(widefe)-1);
+			_snwprintf(wargs, countof(wargs), L"%s --fromfrontend \"%s\" \"%s\"", GetCommandLineW(), widen(wide1, sizeof(wide1), SVNREVISIONSTR), widefe);
+			if (CreateProcessW(widen(wide1, sizeof(wide1), updatedpath), wargs, NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))
 				return true;
 		}
 	}
@@ -2894,7 +2922,6 @@ qboolean Sys_CheckUpdated(char *bindir, size_t bindirsize)
 		//com_argv[ffe+2] is frontend location
 		if (atoi(com_argv[ffe+1]) > atoi(SVNREVISIONSTR))
 		{
-			wchar_t wide1[2048];
 			//ping-pong it back, to make sure we're running the most recent version.
 //			GetModuleFileName(NULL, frontendpath, sizeof(frontendpath)-1);
 			if (CreateProcessW(widen(wide1, sizeof(wide1), com_argv[ffe+2]), GetCommandLineW(), NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo))

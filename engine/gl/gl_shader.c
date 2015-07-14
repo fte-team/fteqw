@@ -970,7 +970,9 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		"#define SKELETAL\n",
 		"#define FOG\n",
 		"#define FRAMEBLEND\n",
+#if MAXRLIGHTMAPS > 1
 		"#define LIGHTSTYLED\n",
+#endif
 		NULL
 	};
 #define MAXMODIFIERS 64
@@ -1340,9 +1342,10 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			initoffset = VFS_GETLEN(blobfile);
 			VFS_SEEK(blobfile, initoffset);
 		}
-		if (!sh_config.pCreateProgram(prog, name, p, ver, permutationdefines, script, tess?script:NULL, tess?script:NULL, geom?script:NULL, script, (p & PERMUTATION_SKELETAL)?true:onefailed, sh_config.pValidateProgram?NULL:blobfile))
+#define SILENTPERMUTATIONS (developer.ival?0:PERMUTATION_SKELETAL)
+		if (!sh_config.pCreateProgram(prog, name, p, ver, permutationdefines, script, tess?script:NULL, tess?script:NULL, geom?script:NULL, script, (p & SILENTPERMUTATIONS)?true:onefailed, sh_config.pValidateProgram?NULL:blobfile))
 		{
-			if (!(p & PERMUTATION_SKELETAL))
+			if (!(p & SILENTPERMUTATIONS))
 				onefailed = true;	//don't flag it if skeletal failed.
 			if (!p)	//give up if permutation 0 failed. that one failing is fatal.
 				break;
@@ -1672,6 +1675,7 @@ struct shader_field_names_s shader_unif_names[] =
 	{"l_shadowmapproj",			SP_LIGHTSHADOWMAPPROJ},
 	{"l_shadowmapscale",		SP_LIGHTSHADOWMAPSCALE},
 
+	{"e_sourcesize",			SP_SOURCESIZE},
 	{"e_rendertexturescale",	SP_RENDERTEXTURESCALE},
 	{NULL}
 };

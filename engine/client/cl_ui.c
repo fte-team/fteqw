@@ -1519,8 +1519,8 @@ void UI_Reset(void)
 
 int UI_MenuState(void)
 {
-	if (Key_Dest_Has(kdm_menu))
-	{
+	if (Key_Dest_Has(kdm_gmenu) || Key_Dest_Has(kdm_emenu))
+	{	//engine's menus take precedence over q3's ui
 		return false;
 	}
 	if (!uivm)

@@ -779,8 +779,10 @@ qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc)
 	return false;
 }
 
-void S_Wakeup (void *ctx, void *ctxdata, size_t a, size_t b)
+void S_LoadedOrFailed (void *ctx, void *ctxdata, size_t a, size_t b)
 {
+	sfx_t *s = ctx;
+	s->loadstate = a;
 }
 /*
 ==============
@@ -829,7 +831,7 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 		else
 		{
 			Con_SafePrintf ("Couldn't load %s\n", namebuffer);
-			s->loadstate = SLS_FAILED;
+			COM_AddWork(0, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
 			return;
 		}
 	}
@@ -878,7 +880,7 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 	{
 		//FIXME: check to see if queued for download.
 		Con_DPrintf ("Couldn't load %s\n", namebuffer);
-		s->loadstate = SLS_FAILED;
+		COM_AddWork(0, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
 		return;
 	}
 
@@ -890,7 +892,7 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 			{
 				s->loadstate = SLS_LOADED;
 				//wake up the main thread in case it decided to wait for us.
-				COM_AddWork(0, S_Wakeup, s, NULL, 0, 0);
+				COM_AddWork(0, S_LoadedOrFailed, s, NULL, SLS_LOADED, 0);
 				BZ_Free(data);
 				return;
 			}
@@ -900,7 +902,7 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 	if (s->loadstate != SLS_FAILED)
 		Con_Printf ("Format not recognised: %s\n", namebuffer);
 
-	s->loadstate = SLS_FAILED;
+	COM_AddWork(0, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
 	BZ_Free(data);
 	return;
 }

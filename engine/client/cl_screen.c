@@ -703,13 +703,10 @@ void SCR_DrawCursor(void)
 	//choose the cursor based upon the module that has primary focus
 	if (key_dest_mask & key_dest_absolutemouse & (kdm_console|kdm_cwindows|kdm_editor))
 		cmod = kc_console;
-	else if ((key_dest_mask & key_dest_absolutemouse & kdm_menu))
-	{
-		if (m_state == m_menu_dat)
-			cmod = kc_menu;
-		else
-			cmod = kc_console;
-	}
+	else if ((key_dest_mask & key_dest_absolutemouse & kdm_emenu))
+		cmod = kc_console;
+	else if ((key_dest_mask & key_dest_absolutemouse & kdm_gmenu))
+		cmod = kc_menu;
 	else// if (key_dest_mask & key_dest_absolutemouse)
 		cmod = prydoncursornum?kc_console:kc_game;
 
@@ -778,9 +775,9 @@ void SCR_DrawCursor(void)
 	{
 		float x, y;
 		Font_BeginScaledString(font_default, mousecursor_x, mousecursor_y, 8, 8, &x, &y);
-		x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+		x -= Font_CharScaleWidth(CON_WHITEMASK, '+' | 0xe000)/2;
 		y -= Font_CharHeight()/2;
-		Font_DrawScaleChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
+		Font_DrawScaleChar(x, y, CON_WHITEMASK, '+' | 0xe000);
 		Font_EndString(font_default);
 	}
 }
@@ -793,9 +790,9 @@ static void SCR_DrawSimMTouchCursor(void)
 		if (multicursor_active[i])
 		{
 			Font_BeginScaledString(font_default, multicursor_x[i], multicursor_y[i], 8, 8, &x, &y);
-			x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+			x -= Font_CharScaleWidth(CON_WHITEMASK, '+' | 0xe000)/2;
 			y -= Font_CharHeight()/2;
-			Font_DrawScaleChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
+			Font_DrawScaleChar(x, y, CON_WHITEMASK, '+' | 0xe000);
 			Font_EndString(font_default);
 		}
 	}
@@ -1382,6 +1379,7 @@ void SCR_DrawNet (void)
 	R2D_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
 }
 
+//FIXME: no support for UTF-8 input
 void SCR_StringXY(char *str, float x, float y)
 {
 	char *s2;
@@ -1392,14 +1390,14 @@ void SCR_StringXY(char *str, float x, float y)
 	if (x < 0)
 	{
 		for (s2 = str; *s2; s2++)
-			px -= Font_CharWidth(*s2);
+			px -= Font_CharWidth(CON_WHITEMASK, *s2);
 	}
 
 	if (y < 0)
 		py += y*Font_CharHeight();
 
 	while (*str)
-		px = Font_DrawChar(px, py, CON_WHITEMASK|*str++);
+		px = Font_DrawChar(px, py, CON_WHITEMASK, *str++);
 	Font_EndString(font_default);
 }
 
@@ -1568,7 +1566,7 @@ void SCR_DrawPause (void)
 	if (!cl.paused)
 		return;
 
-	if (Key_Dest_Has(kdm_menu))
+	if (Key_Dest_Has(kdm_emenu) || Key_Dest_Has(kdm_gmenu))
 		return;
 
 	pic = R2D_SafeCachePic ("gfx/pause.lmp");
@@ -1911,7 +1909,7 @@ void SCR_SetUpToDrawConsole (void)
 //			Key_Dest_Add(kdm_console);
 			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
 		}
-		else if (!startuppending && !Key_Dest_Has(kdm_menu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
+		else if (!startuppending && !Key_Dest_Has(kdm_emenu|kdm_gmenu) && (!Key_Dest_Has(~((!con_stayhidden.ival?kdm_console:0)|kdm_game))) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active && !Media_PlayingFullScreen() && !CSQC_UnconnectedOkay(false))
 		{
 			//go fullscreen if we're not doing anything
 			if (con_curwindow && !cls.state)
@@ -1996,7 +1994,7 @@ void SCR_DrawConsole (qboolean noback)
 {
 	if (!scr_con_current)
 	{
-		if (!Key_Dest_Has(kdm_console|kdm_menu))
+		if (!Key_Dest_Has(kdm_console|kdm_gmenu|kdm_emenu))
 			Con_DrawNotify ();      // only draw notify in game
 	}
 	if (scr_con_current || Key_Dest_Has(kdm_cwindows))
@@ -2574,10 +2572,10 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	if (!consolefocused)
 		SCR_DrawConsole (false);
 
-	M_Draw (uimenu);
 #ifdef MENU_DAT
 	MP_Draw();
 #endif
+	M_Draw (uimenu);
 
 	//but if the console IS focused, then always show it infront.
 	if (consolefocused)

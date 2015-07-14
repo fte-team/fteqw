@@ -17,17 +17,21 @@ void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, 
 void Font_Transform(float vx, float vy, int *px, int *py);
 int Font_CharHeight(void);
 float Font_CharScaleHeight(void);
-int Font_CharWidth(unsigned int charcode);
-float Font_CharScaleWidth(unsigned int charcode);
-int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode);
-int Font_DrawChar(int px, int py, unsigned int charcode);
-float Font_DrawScaleChar(float px, float py, unsigned int charcode); /*avoid using*/
+int Font_CharWidth(unsigned int charflags, unsigned int codepoint);
+float Font_CharScaleWidth(unsigned int charflags, unsigned int codepoint);
+int Font_CharEndCoord(struct font_s *font, int x, unsigned int charflags, unsigned int codepoint);
+int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint);
+float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned int codepoint); /*avoid using*/
 void Font_EndString(struct font_s *font);
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 struct font_s *font_default;
 struct font_s *font_console;
 struct font_s *font_tiny;
 extern unsigned int r2d_be_flags;
+
+//by adding 'extern' to one definition of a function in a translation unit, then the definition in that TU is NOT considered an inline definition. meaning non-inlined references in other TUs can link to it instead of their own if needed.
+fte_inlinebody conchar_t *Font_Decode(conchar_t *start, unsigned int *codeflags, unsigned int *codepoint);
+
 
 #ifdef AVAIL_FREETYPE
 #include <ft2build.h>
@@ -718,9 +722,15 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 }
 
 //obtains a cached char, null if not cached
-static struct charcache_s *Font_GetChar(font_t *f, CHARIDXTYPE charidx)
+static struct charcache_s *Font_GetChar(font_t *f, unsigned int codepoint)
 {
-	struct charcache_s *c = &f->chars[charidx];
+	CHARIDXTYPE charidx;
+	struct charcache_s *c;
+	if (codepoint > CON_CHARMASK)
+		charidx = 0xfffd;
+	else
+		charidx = codepoint;
+	c = &f->chars[charidx];
 	if (c->texplane == INVALIDPLANE)
 	{
 		if (charidx >= TRACKERFIRST && charidx < TRACKERFIRST+100)
@@ -1575,19 +1585,20 @@ float Font_CharScaleHeight(void)
 This is where the character ends.
 Note: this function supports tabs - x must always be based off 0, with Font_LineDraw actually used to draw the line.
 */
-int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode)
+int Font_CharEndCoord(struct font_s *font, int x, unsigned int charflags, unsigned int codepoint)
 {
 	struct charcache_s *c;
+
 #define TABWIDTH (8*20)
-	if (charcode&CON_HIDDEN)
+	if (charflags&CON_HIDDEN)
 		return x;
-	if ((charcode&CON_CHARMASK) == '\t')
+	if (codepoint == '\t')
 		return x + ((TABWIDTH - (x % TABWIDTH)) % TABWIDTH);
 
-	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+	if ((charflags & CON_2NDCHARSETTEXT) && font->alt)
 		font = font->alt;
 
-	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	c = Font_GetChar(font, codepoint);
 	if (!c)
 	{
 		return x+0;
@@ -1598,16 +1609,18 @@ int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode)
 
 //obtains the width of a character from a given font. This is how wide it is. The next char should be drawn at x + result.
 //FIXME: this function cannot cope with tab and should not be used.
-int Font_CharWidth(unsigned int charcode)
+int Font_CharWidth(unsigned int charflags, unsigned int codepoint)
 {
 	struct charcache_s *c;
 	struct font_s *font = curfont;
-	if (charcode&CON_HIDDEN)
+
+	if (charflags&CON_HIDDEN)
 		return 0;
-	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+
+	if ((charflags & CON_2NDCHARSETTEXT) && font->alt)
 		font = font->alt;
 
-	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	c = Font_GetChar(curfont, codepoint);
 	if (!c)
 	{
 		return 0;
@@ -1618,22 +1631,46 @@ int Font_CharWidth(unsigned int charcode)
 
 //obtains the width of a character from a given font. This is how wide it is. The next char should be drawn at x + result.
 //FIXME: this function cannot cope with tab and should not be used.
-float Font_CharScaleWidth(unsigned int charcode)
+float Font_CharScaleWidth(unsigned int charflags, unsigned int codepoint)
 {
 	struct charcache_s *c;
 	struct font_s *font = curfont;
-	if (charcode&CON_HIDDEN)
+
+	if (charflags&CON_HIDDEN)
 		return 0;
-	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+	if ((charflags & CON_2NDCHARSETTEXT) && font->alt)
 		font = font->alt;
 
-	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	c = Font_GetChar(curfont, codepoint);
 	if (!c)
 	{
 		return 0;
 	}
 
 	return c->advance * curfont_scale[0];
+}
+
+conchar_t *Font_DecodeReverse(conchar_t *start, conchar_t *stop, unsigned int *codeflags, unsigned int *codepoint)
+{
+	if (start <= stop)
+	{
+		*codeflags = 0;
+		*codepoint = 0;
+		return stop;
+	}
+
+	start--;
+	if (start > stop && start[-1] & CON_LONGCHAR)
+		if (!(start[-1] & CON_RICHFORECOLOUR))
+		{
+			start--;
+			*codeflags = start[1];
+			*codepoint = ((start[0] & CON_CHARMASK)<<16) | (start[1] & CON_CHARMASK);
+			return start;
+		}
+	*codeflags = start[0];
+	*codepoint = start[0] & CON_CHARMASK;
+	return start;
 }
 
 //for a given font, calculate the line breaks and word wrapping for a block of text
@@ -1643,41 +1680,49 @@ float Font_CharScaleWidth(unsigned int charcode)
 //maxpixelwidth is the width of the display area in pixels
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends)
 {
-	int l, bt;
+	conchar_t *l, *bt, *n;
 	int px;
 	int foundlines = 0;
 	struct font_s *font = curfont;
+	unsigned int codeflags, codepoint;
 
 	while (start < end)
 	{
 	// scan the width of the line
-		for (px=0, l=0 ; px <= maxpixelwidth; )
+		for (px=0, l=start ; px <= maxpixelwidth; )
 		{
-			if (start+l >= end || (start[l]&(CON_CHARMASK|CON_HIDDEN)) == '\n' || (start[l]&(CON_CHARMASK|CON_HIDDEN)) == '\v')
+			if (l >= end)
 				break;
-			px = Font_CharEndCoord(font, px, start[l]);
-			l++;
+			n = Font_Decode(l, &codeflags, &codepoint);
+			if (!(codeflags & CON_HIDDEN) && (codepoint == '\n' || codepoint == '\v'))
+				break;
+			px = Font_CharEndCoord(font, px, codeflags, codepoint);
+			l = n;
 		}
 		//if we did get to the end
 		if (px > maxpixelwidth)
 		{
 			bt = l;
 			//backtrack until we find a space
-			while(l > 0 && (start[l-1]&CON_CHARMASK)>' ')
+			for(;;)
 			{
-				l--;
+				n = Font_DecodeReverse(l, start, &codeflags, &codepoint);
+				if (codepoint > ' ')
+					l = n;
+				else
+					break;
 			}
-			if (l == 0 && bt>0)
-				l = bt-1;
+			if (l == start && bt>start)
+				l = Font_DecodeReverse(bt, start, &codeflags, &codepoint);
 		}
 
 		starts[foundlines] = start;
-		ends[foundlines] = start+l;
+		ends[foundlines] = l;
 		foundlines++;
 		if (foundlines == maxlines)
 			break;
 
-		start+=l;
+		start=l;
 		if (start == end)
 			break;
 
@@ -1693,9 +1738,11 @@ int Font_LineWidth(conchar_t *start, conchar_t *end)
 	//fixme: does this do the right thing with tabs?
 	int x = 0;
 	struct font_s *font = curfont;
+	unsigned int codeflags, codepoint;
 	for (; start < end; start++)
 	{
-		x = Font_CharEndCoord(font, x, *start);
+		start = Font_Decode(start, &codeflags, &codepoint);
+		x = Font_CharEndCoord(font, x, codeflags, codepoint);
 	}
 	return x;
 }
@@ -1703,9 +1750,11 @@ float Font_LineScaleWidth(conchar_t *start, conchar_t *end)
 {
 	int x = 0;
 	struct font_s *font = curfont;
-	for (; start < end; start++)
+	unsigned int codeflags, codepoint;
+	for (; start < end; start)
 	{
-		x = Font_CharEndCoord(font, x, *start);
+		start = Font_Decode(start, &codeflags, &codepoint);
+		x = Font_CharEndCoord(font, x, codeflags, codepoint);
 	}
 	return x * curfont_scale[0];
 }
@@ -1713,10 +1762,12 @@ void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end)
 {
 	int lx = 0;
 	struct font_s *font = curfont;
-	for (; start < end; start++)
+	unsigned int codeflags, codepoint;
+	for (; start < end; )
 	{
-		Font_DrawChar(x+lx, y, *start);
-		lx = Font_CharEndCoord(font, lx, *start);
+		start = Font_Decode(start, &codeflags, &codepoint);
+		Font_DrawChar(x+lx, y, codeflags, codepoint);
+		lx = Font_CharEndCoord(font, lx, codeflags, codepoint);
 	}
 }
 
@@ -1747,7 +1798,7 @@ void Font_InvalidateColour(void)
 }
 
 //draw a character from the current font at a pixel location.
-int Font_DrawChar(int px, int py, unsigned int charcode)
+int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint)
 {
 	struct charcache_s *c;
 	float s0, s1;
@@ -1762,30 +1813,30 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 #else
 #define dxbias 0
 #endif
-	if (charcode & CON_HIDDEN)
+	if (charflags & CON_HIDDEN)
 		return px;
 
-	if (charcode & CON_2NDCHARSETTEXT)
+	if (charflags & CON_2NDCHARSETTEXT)
 	{
 		if (font->alt)
 		{
 			font = font->alt;
-//			charcode &= ~CON_2NDCHARSETTEXT;
+//			charflags &= ~CON_2NDCHARSETTEXT;
 		}
-		else if ((charcode&CON_CHARMASK) >= 0xe000 && (charcode&CON_CHARMASK) <= 0xe0ff)
-			charcode &= ~CON_2NDCHARSETTEXT;	//don't double-dip
+		else if ((codepoint) >= 0xe000 && (codepoint) <= 0xe0ff)
+			charflags &= ~CON_2NDCHARSETTEXT;	//don't double-dip
 	}
 
 	//crash if there is no current font.
-	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	c = Font_GetChar(font, codepoint);
 	if (!c)
 		return px;
 
 	nextx = px + c->advance;
 
-	if ((charcode & CON_CHARMASK) == '\t')
+	if (codepoint == '\t')
 		return px + ((TABWIDTH - (px % TABWIDTH)) % TABWIDTH);
-	if ((charcode & CON_CHARMASK) == ' ')
+	if (codepoint == ' ')
 		return nextx;
 
 /*	if (charcode & CON_BLINKTEXT)
@@ -1795,9 +1846,9 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 				return nextx;
 	}
 */
-	if (charcode & CON_RICHFORECOLOUR)
+	if (charflags & CON_RICHFORECOLOUR)
 	{
-		col = charcode & (CON_2NDCHARSETTEXT|CON_BLINKTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
+		col = charflags & (CON_2NDCHARSETTEXT|CON_BLINKTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
 		if (col != font_colourmask)
 		{
 			vec4_t rgba;
@@ -1814,7 +1865,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 			font_backcolour[1] = 0;
 			font_backcolour[2] = 0;
 			font_backcolour[3] = 0;
-			if (charcode & CON_2NDCHARSETTEXT)
+			if (charflags & CON_2NDCHARSETTEXT)
 			{
 				rgba[0] *= font->alttint[0];
 				rgba[1] *= font->alttint[1];
@@ -1830,7 +1881,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 			rgba[1] *= font_foretint[1];
 			rgba[2] *= font_foretint[2];
 			rgba[3] *= font_foretint[3];
-			if (charcode & CON_BLINKTEXT)
+			if (charflags & CON_BLINKTEXT)
 			{
 				float a = (sin(realtime*3)+1)*0.4 + 0.2;
 				rgba[3] *= a;
@@ -1843,7 +1894,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	}
 	else
 	{
-		col = charcode & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA|CON_BLINKTEXT);
+		col = charflags & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA|CON_BLINKTEXT);
 		if (col != font_colourmask)
 		{
 			vec4_t rgba;
@@ -1851,19 +1902,19 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 				Font_Flush();
 			font_colourmask = col;
 
-			col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
+			col = (charflags&CON_FGMASK)>>CON_FGSHIFT;
 			rgba[0] = consolecolours[col].fr*255;
 			rgba[1] = consolecolours[col].fg*255;
 			rgba[2] = consolecolours[col].fb*255;
-			rgba[3] = (charcode & CON_HALFALPHA)?127:255;
+			rgba[3] = (charflags & CON_HALFALPHA)?127:255;
 
-			col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
+			col = (charflags&CON_BGMASK)>>CON_BGSHIFT;
 			font_backcolour[0] = consolecolours[col].fr*255;
 			font_backcolour[1] = consolecolours[col].fg*255;
 			font_backcolour[2] = consolecolours[col].fb*255;
-			font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
+			font_backcolour[3] = (charflags & CON_NONCLEARBG)?127:0;
 
-			if (charcode & CON_2NDCHARSETTEXT)
+			if (charflags & CON_2NDCHARSETTEXT)
 			{
 				rgba[0] *= font->alttint[0];
 				rgba[1] *= font->alttint[1];
@@ -1879,7 +1930,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 			rgba[1] *= font_foretint[1];
 			rgba[2] *= font_foretint[2];
 			rgba[3] *= font_foretint[3];
-			if (charcode & CON_BLINKTEXT)
+			if (charflags & CON_BLINKTEXT)
 			{
 				float a = (sin(realtime*3)+1)*0.4 + 0.2;
 				rgba[3] *= a;
@@ -1968,7 +2019,7 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 }
 
 /*there is no sane way to make this pixel-correct*/
-float Font_DrawScaleChar(float px, float py, unsigned int charcode)
+float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned int codepoint)
 {
 	struct charcache_s *c;
 	float s0, s1;
@@ -1988,40 +2039,40 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 //	if (!curfont_scaled)
 //		return Font_DrawChar(px, py, charcode);
 
-	if (charcode & CON_2NDCHARSETTEXT)
+	if (charflags & CON_2NDCHARSETTEXT)
 	{
 		if (font->alt)
 		{
 			font = font->alt;
-			charcode &= ~CON_2NDCHARSETTEXT;
+			charflags &= ~CON_2NDCHARSETTEXT;
 		}
-		else if ((charcode&CON_CHARMASK) >= 0xe000 && (charcode&CON_CHARMASK) <= 0xe0ff)
-			charcode &= ~CON_2NDCHARSETTEXT;	//don't double-dip
+		else if (codepoint >= 0xe000 && codepoint <= 0xe0ff)
+			charflags &= ~CON_2NDCHARSETTEXT;	//don't double-dip
 	}
 
 	cw = curfont_scale[0];
 	ch = curfont_scale[1];
 
 	//crash if there is no current font.
-	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	c = Font_GetChar(font, codepoint);
 	if (!c)
 		return px;
 
 	nextx = px + c->advance*cw;
 
-	if ((charcode & CON_CHARMASK) == ' ')
+	if (codepoint == ' ')
 		return nextx;
 
-	if (charcode & CON_BLINKTEXT)
+	if (charflags & CON_BLINKTEXT)
 	{
 		if (!cl_noblink.ival)
 			if ((int)(realtime*3) & 1)
 				return nextx;
 	}
 
-	if (charcode & CON_RICHFORECOLOUR)
+	if (charflags & CON_RICHFORECOLOUR)
 	{
-		col = charcode & (CON_2NDCHARSETTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
+		col = charflags & (CON_2NDCHARSETTEXT|CON_RICHFORECOLOUR|(0xfff<<CON_RICHBSHIFT));
 		if (col != font_colourmask)
 		{
 			vec4_t rgba;
@@ -2039,7 +2090,7 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 			font_backcolour[2] = 0;
 			font_backcolour[3] = 0;
 
-			if (charcode & CON_2NDCHARSETTEXT)
+			if (charflags & CON_2NDCHARSETTEXT)
 			{
 				rgba[0] *= font->alttint[0];
 				rgba[1] *= font->alttint[1];
@@ -2063,27 +2114,27 @@ float Font_DrawScaleChar(float px, float py, unsigned int charcode)
 	}
 	else
 	{
-		col = charcode & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
+		col = charflags & (CON_2NDCHARSETTEXT|CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
 		if (col != font_colourmask)
 		{
 			vec4_t rgba;
-			if (font_backcolour[3] != ((charcode & CON_NONCLEARBG)?127:0))
+			if (font_backcolour[3] != ((charflags & CON_NONCLEARBG)?127:0))
 				Font_Flush();
 			font_colourmask = col;
 
-			col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
+			col = (charflags&CON_FGMASK)>>CON_FGSHIFT;
 			rgba[0] = consolecolours[col].fr*255;
 			rgba[1] = consolecolours[col].fg*255;
 			rgba[2] = consolecolours[col].fb*255;
-			rgba[3] = (charcode & CON_HALFALPHA)?127:255;
+			rgba[3] = (charflags & CON_HALFALPHA)?127:255;
 
-			col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
+			col = (charflags&CON_BGMASK)>>CON_BGSHIFT;
 			font_backcolour[0] = consolecolours[col].fr*255;
 			font_backcolour[1] = consolecolours[col].fg*255;
 			font_backcolour[2] = consolecolours[col].fb*255;
-			font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
+			font_backcolour[3] = (charflags & CON_NONCLEARBG)?127:0;
 
-			if (charcode & CON_2NDCHARSETTEXT)
+			if (charflags & CON_2NDCHARSETTEXT)
 			{
 				rgba[0] *= font->alttint[0];
 				rgba[1] *= font->alttint[1];

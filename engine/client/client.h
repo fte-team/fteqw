@@ -1033,7 +1033,30 @@ void CL_ParseTEnt (qboolean nqprot);
 void CL_ParseTEnt (void);
 #endif
 void CL_UpdateTEnts (void);
-void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end);
+
+enum beamtype_e
+{	//these are internal ids, matching the beam table
+	BT_Q1LIGHTNING1,
+	BT_Q1LIGHTNING2,
+	BT_Q1LIGHTNING3,
+	BT_Q1BEAM,
+
+	BT_Q2PARASITE,
+	BT_Q2GRAPPLE,
+	BT_Q2HEATBEAM,
+
+	BT_H2LIGHTNING_SMALL,
+	BT_H2CHAIN,
+	BT_H2SUNSTAFF1,
+	BT_H2SUNSTAFF1_SUB,	//inner beam hack
+	BT_H2SUNSTAFF2,		//same model as 1, but different particle effect
+	BT_H2LIGHTNING,
+	BT_H2COLORBEAM,
+	BT_H2ICECHUNKS,
+	BT_H2GAZE,
+	BT_H2FAMINE,
+};
+void CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end);
 
 void CL_ClearState (void);
 void CLQ2_ClearState(void);

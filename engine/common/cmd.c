@@ -1318,8 +1318,8 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 	int		i, len;
 	int		quotes = 0;
 	char	*str;
-	char	*bestmacro, *bestvar;
-	int		name_length, macro_length, var_length;
+	char	*bestvar;
+	int		name_length, var_length;
 	qboolean striptrailing;
 
 	len = 0;
@@ -1340,8 +1340,6 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 			buf[0] = 0;
 			buf[1] = 0;
 			bestvar = NULL;
-			bestmacro = NULL;
-			macro_length=0;
 			var_length = 0;
 			while ((c = *data) > 32)
 			{
@@ -1350,21 +1348,13 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 				data++;
 				buf[i++] = c;
 				buf[i] = 0;
-				if (!bestmacro)
-				{
-					if ((str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, &var_length)))
-						bestvar = str;
-				}
-				if (expandmacros && (str = TP_MacroString (buf+striptrailing, &macro_length)))
-					bestmacro = str;
+				if (expandcvars && (str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, &var_length)))
+					bestvar = str;
+				if (expandmacros && (str = TP_MacroString (buf+striptrailing, &var_length)))
+					bestvar = str;
 			}
 
-			if (bestmacro)
-			{
-				str = bestmacro;
-				name_length = macro_length;
-			}
-			else if (bestvar)
+			if (bestvar)
 			{
 				str = bestvar;
 				name_length = var_length;
@@ -3253,6 +3243,12 @@ static char *Macro_Quote (void)
 	return "\"";
 }
 
+static char *Macro_Random(void)
+{
+	Q_snprintfz(macro_buf, sizeof(macro_buf), "%u", rand());
+	return macro_buf;
+}
+
 /*
 ============
 Cmd_Init
@@ -3307,6 +3303,7 @@ void Cmd_Init (void)
 
 	Cmd_AddCommandD ("apropos", Cmd_Apropos_f, "Lists all cvars or commands with the specified substring somewhere in their name or descrition.");
 
+	Cmd_AddMacro("random", Macro_Random, true);
 	Cmd_AddMacro("time", Macro_Time, true);
 	Cmd_AddMacro("ukdate", Macro_UKDate, false);
 	Cmd_AddMacro("usdate", Macro_USDate, false);

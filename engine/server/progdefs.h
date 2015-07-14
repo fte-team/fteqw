@@ -206,7 +206,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(tag_entity,NULL)\
 	comfieldfloat(tag_index,NULL)\
 	comfieldfloat(skeletonindex,"This object serves as a container for the skeletal bone states used to override the animation data.")		/*FTE_CSQC_SKELETONOBJECTS*/\
-	comfieldvector(colormod,NULL)\
+	comfieldvector(colormod,"Provides a colour tint for the entity.")\
 	comfieldvector(glowmod,NULL)\
 	comfieldvector(gravitydir,"Specifies the direction in which gravity acts. Must be normalised. '0 0 0' also means down. Use '0 0 1' if you want the player to be able to run on ceilings.")\
 	comfieldfunction(camera_transform,".vector(vector org, vector ang)", "Provides portal transform information for portal surfaces attached to this entity. Also used to open up pvs in ssqc.")\

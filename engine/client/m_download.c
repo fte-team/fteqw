@@ -763,7 +763,7 @@ void Menu_DownloadStuff_f (void)
 	menu_t *menu;
 	dlmenu_t *info;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(dlmenu_t));

@@ -3667,7 +3667,7 @@ static void QCBUILTIN PF_cl_te_lightning1 (pubprogfuncs_t *prinst, struct global
 	float *start = G_VECTOR(OFS_PARM1);
 	float *end = G_VECTOR(OFS_PARM2);
 
-	CL_AddBeam(0, ent->entnum+MAX_EDICTS, start, end);
+	CL_AddBeam(BT_Q1LIGHTNING1, ent->entnum+MAX_EDICTS, start, end);
 }
 static void QCBUILTIN PF_cl_te_lightning2 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3675,7 +3675,7 @@ static void QCBUILTIN PF_cl_te_lightning2 (pubprogfuncs_t *prinst, struct global
 	float *start = G_VECTOR(OFS_PARM1);
 	float *end = G_VECTOR(OFS_PARM2);
 
-	CL_AddBeam(1, ent->entnum+MAX_EDICTS, start, end);
+	CL_AddBeam(BT_Q1LIGHTNING2, ent->entnum+MAX_EDICTS, start, end);
 }
 static void QCBUILTIN PF_cl_te_lightning3 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3683,7 +3683,7 @@ static void QCBUILTIN PF_cl_te_lightning3 (pubprogfuncs_t *prinst, struct global
 	float *start = G_VECTOR(OFS_PARM1);
 	float *end = G_VECTOR(OFS_PARM2);
 
-	CL_AddBeam(2, ent->entnum+MAX_EDICTS, start, end);
+	CL_AddBeam(BT_Q1LIGHTNING3, ent->entnum+MAX_EDICTS, start, end);
 }
 static void QCBUILTIN PF_cl_te_beam (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3691,7 +3691,7 @@ static void QCBUILTIN PF_cl_te_beam (pubprogfuncs_t *prinst, struct globalvars_s
 	float *start = G_VECTOR(OFS_PARM1);
 	float *end = G_VECTOR(OFS_PARM2);
 
-	CL_AddBeam(5, ent->entnum+MAX_EDICTS, start, end);
+	CL_AddBeam(BT_Q1BEAM, ent->entnum+MAX_EDICTS, start, end);
 }
 static void QCBUILTIN PF_cl_te_plasmaburn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

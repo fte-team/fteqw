@@ -2098,6 +2098,9 @@ void S_Purge(qboolean retaintouched)
 		if (retaintouched && sfx->touched)
 			continue;
 
+		if (S_IsPlayingSomewhere(sfx))
+			continue;	//eep?!?
+
 		sfx->loadstate = SLS_NOTLOADED;
 		/*nothing to do if there's no data within*/
 		if (!sfx->decoder.buf)
@@ -2380,6 +2383,48 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float f
 	S_UnlockMixer();
 }
 
+qboolean S_GetMusicInfo(int musicchannel, float *time, float *duration)
+{
+	qboolean result = false;
+	soundcardinfo_t *sc;
+	sfxcache_t scachebuf, *c;
+	sfx_t *sfx;
+	*time = 0;
+	*duration = 0;
+
+	musicchannel += MUSIC_FIRST;
+
+	S_LockMixer();
+	for (sc = sndcardinfo; sc; sc = sc->next)
+	{
+		sfx = sc->channel[musicchannel].sfx;
+		if (sfx)
+		{
+			if (sfx->loadstate != SLS_LOADED)
+				c = NULL;
+			else if (sfx->decoder.decodedata)
+			{
+				if (sfx->decoder.querydata)
+					c = sfx->decoder.querydata(sfx, &scachebuf);
+				else
+					c = NULL;	//don't bother trying to actually decode anything here.
+			}
+			else
+				c = sfx->decoder.buf;
+
+			if (c)
+			{
+				*duration = c->length / c->speed;
+				*time = (sc->channel[musicchannel].pos>>PITCHSHIFT) / (float)snd_speed;	//the time into the sound, ignoring play rate.
+				result = true;
+			}
+		}
+	}
+	S_UnlockMixer();
+
+	return result;
+}
+
 float S_GetSoundTime(int entnum, int entchannel)
 {
 	int i;
@@ -2448,6 +2493,7 @@ void S_StopAllSounds(qboolean clear)
 {
 	int		i;
 	sfx_t *s;
+	channel_t musics[NUM_MUSICS];
 
 	soundcardinfo_t *sc;
 
@@ -2458,12 +2504,15 @@ void S_StopAllSounds(qboolean clear)
 	for (sc = sndcardinfo; sc; sc = sc->next)
 	{
 		for (i=0 ; i<sc->total_chans ; i++)
+		{
+			if (i >= MUSIC_FIRST && i < MUSIC_FIRST+NUM_MUSICS && sc->selfpainting)
+				continue;	//don't reset music if is safe to continue playing it without stuttering
 			if (sc->channel[i].sfx)
 			{
 				s = sc->channel[i].sfx;
 				if (s->loadstate == SLS_LOADING)
-					;//COM_WorkerPartialSync(s, &s->loadstate, SLS_LOADING);
-				else
+					COM_WorkerPartialSync(s, &s->loadstate, SLS_LOADING);
+//				else
 				{
 					sc->channel[i].sfx = NULL;
 					if (s->decoder.ended)
@@ -2475,12 +2524,15 @@ void S_StopAllSounds(qboolean clear)
 						sc->ChannelUpdate(sc, &sc->channel[i], true);
 				}
 			}
+		}
 
 		sc->total_chans = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS;	// no statics
 
+		memcpy(musics, &sc->channel[MUSIC_FIRST], sizeof(musics));
 		Q_memset(sc->channel, 0, MAX_CHANNELS * sizeof(channel_t));
+		memcpy(&sc->channel[MUSIC_FIRST], musics, sizeof(musics));
 
-		if (clear)
+		if (clear && !sc->selfpainting)	//if its self-painting, then the mixer will continue painting anyway (which is important if its still painting music, but otherwise don't stutter at all when loading)
 			S_ClearBuffer (sc);
 	}
 
@@ -2613,12 +2665,24 @@ void S_Music_Seek(float time)
 	}
 }
 
+//mixer must be locked
+qboolean S_Music_Playing(int musicchannel)
+{
+	soundcardinfo_t *sc;
+	musicchannel += MUSIC_FIRST;
+	for (sc = sndcardinfo; sc; sc=sc->next)
+	{
+		if (sc->channel[musicchannel].sfx)
+			return true;
+	}
+	return false;
+}
+
 /*
 ===================
 S_UpdateAmbientSounds
 ===================
 */
-char *Media_NextTrack(int musicchannelnum);
 mleaf_t *Q1BSP_LeafForPoint (model_t *model, vec3_t p);
 void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 {
@@ -2656,7 +2720,27 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		if (chan->sfx)
 		{
 			chan->flags = CF_ABSVOLUME;	//bypasses volume cvar completely.
-			chan->master_vol = bound(0, 255*bgmvolume.value*voicevolumemod, 255);
+			vol = 255*bgmvolume.value*voicevolumemod;
+			vol = bound(0, vol, 255);
+			vol = Media_CrossFade(i-MUSIC_FIRST, vol);
+			if (vol < 0)
+			{	//cross fading wants to KILL this track now, apparently.
+				sfx_t *s = chan->sfx;
+
+				if (s->loadstate != SLS_LOADING)
+				{
+					chan->pos = 0;
+					chan->sfx = NULL;
+
+					if (sc->ChannelUpdate)
+						sc->ChannelUpdate(sc, chan, true);
+
+					if (s && s->decoder.ended && !S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
+						s->decoder.ended(s);
+				}
+				continue;
+			}
+			chan->master_vol = bound(0, vol, 255);
 			chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
 			if (sc->ChannelUpdate)
 				sc->ChannelUpdate(sc, chan, changed);
@@ -3059,9 +3143,14 @@ void S_SoundList_f(void)
 	total = 0;
 	for (sfx=known_sfx, i=0 ; i<num_sfx ; i++, sfx++)
 	{
-		if (sfx->decoder.decodedata)
+		if (sfx->loadstate != SLS_LOADED)
+			sc = NULL;
+		else if (sfx->decoder.decodedata)
 		{
-			sc = sfx->decoder.decodedata(sfx, &scachebuf, 0, 0x0fffffff);
+			if (sfx->decoder.querydata)
+				sc = sfx->decoder.querydata(sfx, &scachebuf);
+			else
+				sc = NULL;	//don't bother trying to actually decode anything here.
 			if (!sc)
 			{
 				Con_Printf("S(      )            : %s\n", sfx->name);

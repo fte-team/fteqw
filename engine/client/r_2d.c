@@ -1315,10 +1315,10 @@ void R2D_DrawCrosshair(void)
 		{
 			SCR_CrosshairPosition(&cl.playerview[sc], &sx, &sy);
 			Font_BeginScaledString(font_default, sx, sy, size, size, &sx, &sy);
-			sx -= Font_CharScaleWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+			sx -= Font_CharScaleWidth(CON_WHITEMASK, '+' | 0xe000)/2;
 			sy -= Font_CharScaleHeight()/2;
 			Font_ForceColour(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
-			Font_DrawScaleChar(sx, sy, '+' | 0xe000 | CON_WHITEMASK);
+			Font_DrawScaleChar(sx, sy, CON_WHITEMASK, '+' | 0xe000);
 			Font_InvalidateColour();
 			Font_EndString(font_default);
 		}

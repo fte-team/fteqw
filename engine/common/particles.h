@@ -52,12 +52,6 @@ extern int
 #endif
 
 	rtqw_railtrail,	//common to zquake/fuhquake/fte
-	rtfte_lightning1,
-	ptfte_lightning1_end,
-	rtfte_lightning2,
-	ptfte_lightning2_end,
-	rtfte_lightning3,
-	ptfte_lightning3_end,
 	ptfte_bullet,
 	ptfte_superbullet;
 

@@ -137,7 +137,7 @@ void M_Menu_Save_f (void)
 	if (cl.intermission)
 		return;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
@@ -164,7 +164,7 @@ void M_Menu_Load_f (void)
 	menu_t *menu;
 	int		i;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 	
 	menu = M_CreateMenu(sizeof(loadsavemenuinfo_t));
@@ -201,7 +201,7 @@ void M_Menu_SinglePlayer_f (void)
 #endif
 	static menuresel_t resel;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 #ifdef CLIENTONLY
@@ -565,6 +565,7 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned
 				ShowDemoMenu(menu, info->selected->name);
 			else
 			{
+				extern int		shift_down;
 				int extnum;
 				for (extnum = 0; extnum < info->numext; extnum++)
 					if (!stricmp(info->selected->name + strlen(info->selected->name)-4, info->ext[extnum]))
@@ -574,7 +575,8 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned
 					extnum = 0;
 
 				Cbuf_AddText(va("%s \"%s%s\"\n", info->command[extnum], (info->fs->fsroot==FS_SYSTEM)?"#":"", info->selected->name), RESTRICT_LOCAL);
-				M_RemoveMenu(menu);
+				if (!shift_down)
+					M_RemoveMenu(menu);
 				return true;
 			}
 		}
@@ -832,7 +834,7 @@ void M_Menu_Demos_f (void)
 	menu_t *menu;
 	static demoloc_t mediareenterloc = {FS_GAME};
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	Key_Dest_Remove(kdm_console);
 	m_state = m_complex;
 
@@ -885,7 +887,7 @@ void M_Menu_MediaFiles_f (void)
 	menu_t *menu;
 	static demoloc_t mediareenterloc = {FS_GAME};
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(demomenu_t));
@@ -893,19 +895,28 @@ void M_Menu_MediaFiles_f (void)
 	info = menu->data;
 
 	info->fs = &mediareenterloc;
+	info->numext = 0;
 
-	info->ext[0] = ".m3u";
-	info->command[0] = "mediaplaylist";
-	info->ext[1] = ".mp3";
-	info->command[1] = "mediaadd";
-	info->ext[2] = ".wav";
-	info->command[2] = "mediaadd";
-	info->ext[3] = ".ogg";	//will this ever be added properly?
-	info->command[3] = "mediaadd";
-	info->ext[4] = ".roq";
-	info->command[4] = "playfilm";
-	info->numext = 5;
+	info->ext[info->numext] = ".m3u";
+	info->command[info->numext] = "mediaplaylist";
+	info->numext++;
+#if defined(_WIN32) || defined(FTE_TARGET_WEB)
+	info->ext[info->numext] = ".mp3";
+	info->command[info->numext] = "media_add";
+	info->numext++;
+#endif
+	info->ext[info->numext] = ".wav";
+	info->command[info->numext] = "media_add";
+	info->numext++;
+#if defined(AVAIL_OGGVORBIS) || defined(FTE_TARGET_WEB)
+	info->ext[info->numext] = ".ogg";	//will this ever be added properly?
+	info->command[info->numext] = "media_add";
+	info->numext++;
+#endif
 
+	info->ext[info->numext] = ".roq";
+	info->command[info->numext] = "playfilm";
+	info->numext++;
 #ifdef _WIN32	//avis are only playable on windows due to a windows dll being used to decode them.
 	info->ext[info->numext] = ".avi";
 	info->command[info->numext] = "playfilm";

@@ -1077,6 +1077,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 	conchar_t *cursor;
 	conchar_t *cchar;
 	qboolean cursorframe;
+	unsigned int codeflags, codepoint;
 
 	int x;
 
@@ -1152,44 +1153,52 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 #endif
 		cursorframe = ((int)(realtime*con_cursorspeed)&1);
 
-	for (lhs = 0, i = cursor - maskedtext-1; i >= 0; i--)
+	//FIXME: support tab somehow
+	for (lhs = 0, cchar = maskedtext-1; cchar < cursor; )
 	{
-		lhs += Font_CharWidth(maskedtext[i]);
+		cchar = Font_Decode(cchar, &codeflags, &codepoint);
+		lhs += Font_CharWidth(codeflags, codepoint);
 	}
-	for (rhs = 0, i = cursor - maskedtext; maskedtext[i]; i++)
+	for (rhs = 0, cchar = cursor; *cchar; )
 	{
-		rhs += Font_CharWidth(maskedtext[i]);
+		cchar = Font_Decode(cchar, &codeflags, &codepoint);
+		rhs += Font_CharWidth(codeflags, codepoint);
 	}
 
 	//put the cursor in the middle
 	x = (right-left)/2 + left;
 	//move the line to the right if there's not enough text to touch the right hand side
-	if (x < right-rhs - Font_CharWidth(0xe000|11|CON_WHITEMASK))
-		x = right - rhs - Font_CharWidth(0xe000|11|CON_WHITEMASK);
+	if (x < right-rhs - Font_CharWidth(CON_WHITEMASK, 0xe000|11))
+		x = right - rhs - Font_CharWidth(CON_WHITEMASK, 0xe000|11);
 	//if the left hand side is on the right of the left point (overrides right alignment)
 	if (x > lhs + left)
 		x = lhs + left;
 
 	lhs = x - lhs;
-	for (cchar = maskedtext; cchar < cursor; cchar++)
+	for (cchar = maskedtext; cchar < cursor; )
 	{
-		lhs = Font_DrawChar(lhs, y, *cchar);
+		cchar = Font_Decode(cchar, &codeflags, &codepoint);
+		lhs = Font_DrawChar(lhs, y, codeflags, codepoint);
 	}
 	rhs = x;
+	Font_Decode(cursor, &codeflags, &codepoint);
 	if (cursorframe)
 	{
 //		extern cvar_t com_parseutf8;
 //		if (com_parseutf8.ival)
 //			Font_DrawChar(rhs, y, (*cursor&~(CON_BGMASK|CON_FGMASK)) | (COLOR_BLUE<<CON_BGSHIFT) | CON_NONCLEARBG | CON_WHITEMASK);
 //		else
-			Font_DrawChar(rhs, y, 0xe000|11|CON_WHITEMASK);
+			Font_DrawChar(rhs, y, CON_WHITEMASK, 0xe000|11);
 	}
 	else if (*cursor)
-		Font_DrawChar(rhs, y, *cursor);
-	rhs += Font_CharWidth(*cursor);
-	for (cchar = cursor+1; *cchar; cchar++)
 	{
-		rhs = Font_DrawChar(rhs, y, *cchar);
+		Font_DrawChar(rhs, y, codeflags, codepoint);
+	}
+	rhs += Font_CharWidth(codeflags, codepoint);
+	for (cchar = cursor+1; *cchar; )
+	{
+		cchar = Font_Decode(cchar, &codeflags, &codepoint);
+		rhs = Font_DrawChar(rhs, y, codeflags, codepoint);
 	}
 
 	/*if its getting completed to something, show some help about the command that is going to be used*/
@@ -1261,6 +1270,7 @@ void Con_DrawNotifyOne (console_t *con)
 	int nx, y;
 	int nw;
 	int x;
+	unsigned int codeflags, codepoint;
 
 	int maxlines;
 	float t;
@@ -1330,17 +1340,19 @@ void Con_DrawNotifyOne (console_t *con)
 		Font_ForceColour(1, 1, 1, alphas[lines]);
 		if (con->flags & CONF_NOTIFY_RIGHT)
 		{
-			for (c = starts[lines]; c < ends[lines]; c++)
+			for (c = starts[lines]; c < ends[lines]; )
 			{
-				x += Font_CharWidth(*c);
+				c = Font_Decode(c, &codeflags, &codepoint);
+				x += Font_CharWidth(codeflags, codepoint);
 			}
 			x = (nw - x);
 		}
 		else if (con_centernotify.value)
 		{
-			for (c = starts[lines]; c < ends[lines]; c++)
+			for (c = starts[lines]; c < ends[lines]; )
 			{
-				x += Font_CharWidth(*c);
+				c = Font_Decode(c, &codeflags, &codepoint);
+				x += Font_CharWidth(codeflags, codepoint);
 			}
 			x = (nw - x) / 2;
 		}
@@ -1487,7 +1499,7 @@ static int Con_DrawProgress(int left, int right, int y)
 	extern int relitsurface;
 #endif
 
-	conchar_t			dlbar[1024];
+	conchar_t			dlbar[1024], *chr;
 	unsigned char	progresspercenttext[128];
 	char *progresstext = NULL;
 	char *txt;
@@ -1495,6 +1507,7 @@ static int Con_DrawProgress(int left, int right, int y)
 	int i, j;
 	int barwidth, barleft;
 	float progresspercent = 0;
+	unsigned int codeflags, codepoint;
 	*progresspercenttext = 0;
 
 	// draw the download bar
@@ -1564,9 +1577,10 @@ static int Con_DrawProgress(int left, int right, int y)
 
 		x = 0;
 		COM_ParseFunString(CON_WHITEMASK, txt, dlbar, sizeof(dlbar), false);
-		for (i = 0; dlbar[i]; )
+		for (i=0,chr = dlbar; *chr; )
 		{
-			x += Font_CharWidth(dlbar[i]);
+			chr = Font_Decode(chr, &codeflags, &codepoint);
+			x += Font_CharWidth(codeflags, codepoint);
 			i++;
 		}
 
@@ -1574,11 +1588,11 @@ static int Con_DrawProgress(int left, int right, int y)
 		if (x > (right - left)/3)
 		{
 			//truncate the file name and add ...
-			x += 3*Font_CharWidth('.'|CON_WHITEMASK);
-			while (x > (right - left)/3 && i > 0)
+			x += 3*Font_CharWidth(CON_WHITEMASK, '.');
+			while (x > (right - left)/3)
 			{
-				i--;
-				x -= Font_CharWidth(dlbar[i]);
+				chr = Font_DecodeReverse(chr, dlbar, &codeflags, &codepoint);
+				x -= Font_CharWidth(codeflags, codepoint);
 			}
 
 			dlbar[i++] = '.'|CON_WHITEMASK;
@@ -1591,46 +1605,52 @@ static int Con_DrawProgress(int left, int right, int y)
 
 		//add a couple chars
 		dlbar[i] = ':'|CON_WHITEMASK;
-		x += Font_CharWidth(dlbar[i]);
+		x += Font_CharWidth(CON_WHITEMASK, ':');
 		i++;
 		dlbar[i] = ' '|CON_WHITEMASK;
-		x += Font_CharWidth(dlbar[i]);
+		x += Font_CharWidth(CON_WHITEMASK, ' ');
 		i++;
 
 		COM_ParseFunString(CON_WHITEMASK, progresspercenttext, dlbar+i, sizeof(dlbar)-i*sizeof(conchar_t), false);
-		for (j = i, tw = 0; dlbar[j]; )
+		for (chr = &dlbar[i], tw = 0; *chr; )
 		{
-			tw += Font_CharWidth(dlbar[j]);
-			j++;
+			chr = Font_Decode(chr, &codeflags, &codepoint);
+			tw += Font_CharWidth(codeflags, codepoint);
 		}
 
 		barwidth = (right-left) - (x + tw);
 
 		//draw the right hand side
 		x = right - tw;
-		for (j = i; dlbar[j]; j++)
-			x = Font_DrawChar(x, y, dlbar[j]);
+		for (chr = &dlbar[i]; *chr; )
+		{
+			chr = Font_Decode(chr, &codeflags, &codepoint);
+			x = Font_DrawChar(x, y, codeflags, codepoint);
+		}
 
 		//draw the left hand side
 		x = left;
-		for (j = 0; j < i; j++)
-			x = Font_DrawChar(x, y, dlbar[j]);
+		for (chr = dlbar; chr < &dlbar[i]; )
+		{
+			chr = Font_Decode(chr, &codeflags, &codepoint);
+			x = Font_DrawChar(x, y, codeflags, codepoint);
+		}
 
 		//and in the middle we have lots of stuff
 
-		barwidth -= (Font_CharWidth(0xe080|CON_WHITEMASK) + Font_CharWidth(0xe082|CON_WHITEMASK));
-		x = Font_DrawChar(x, y, 0xe080|CON_WHITEMASK);
+		barwidth -= (Font_CharWidth(CON_WHITEMASK, 0xe080) + Font_CharWidth(CON_WHITEMASK, 0xe082));
+		x = Font_DrawChar(x, y, CON_WHITEMASK, 0xe080);
 		barleft = x;
 		for(;;)
 		{
-			if (x + Font_CharWidth(0xe081|CON_WHITEMASK) > barleft+barwidth)
+			if (x + Font_CharWidth(CON_WHITEMASK, 0xe081) > barleft+barwidth)
 				break;
-			x = Font_DrawChar(x, y, 0xe081|CON_WHITEMASK);
+			x = Font_DrawChar(x, y, CON_WHITEMASK, 0xe081);
 		}
-		x = Font_DrawChar(x, y, 0xe082|CON_WHITEMASK);
+		x = Font_DrawChar(x, y, CON_WHITEMASK, 0xe082);
 
 		if (progresspercent >= 0)
-			Font_DrawChar(barleft+(barwidth*progresspercent)/100 - Font_CharWidth(0xe083|CON_WHITEMASK)/2, y, 0xe083|CON_WHITEMASK);
+			Font_DrawChar(barleft+(barwidth*progresspercent)/100 - Font_CharWidth(CON_WHITEMASK, 0xe083)/2, y, CON_WHITEMASK, 0xe083);
 
 		y += Font_CharHeight();
 	}
@@ -1646,6 +1666,7 @@ int Con_DrawAlternateConsoles(int lines)
 	int consshown = 0;
 	console_t *con = &con_main, *om = con_mouseover;
 	conchar_t buffer[512], *end, *start;
+	unsigned int codeflags, codepoint;
 
 	for (con = &con_main; con; con = con->next)
 	{
@@ -1669,19 +1690,20 @@ int Con_DrawAlternateConsoles(int lines)
 			end = COM_ParseFunString(CON_WHITEMASK, va("^&%c%i%s", ((con!=om)?'F':'B'), (con==con_current)+con->unseentext*4, txt), buffer, sizeof(buffer), false);
 
 			lx = 0;
-			for (lx = x, start = buffer; start < end; start++)
+			for (lx = x, start = buffer; start < end; )
 			{
-				lx = Font_CharEndCoord(font_console, lx, *start);
+				start = Font_Decode(start, &codeflags, &codepoint);
+				lx = Font_CharEndCoord(font_console, lx, codeflags, codepoint);
 			}
 			if (lx > Font_ScreenWidth())
 			{
 				x = 0;
 				y += h;
 			}
-			for (lx = x, start = buffer; start < end; start++)
+			for (lx = x, start = buffer; start < end; )
 			{
-				Font_DrawChar(lx, y, *start);
-				lx = Font_CharEndCoord(font_console, lx, *start);
+				start = Font_Decode(start, &codeflags, &codepoint);
+				lx = Font_DrawChar(lx, y, codeflags, codepoint);
 			}
 			lx += 8;
 			if (mx >= x && mx < lx && my >= y && my < y+h)
@@ -1701,12 +1723,12 @@ int Con_DrawAlternateConsoles(int lines)
 static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, int y, int top, qboolean selactive, int selsx, int selex, int selsy, int seley)
 {
 	int linecount;
-	int linelength;
 	conchar_t *starts[64], *ends[sizeof(starts)/sizeof(starts[0])];
-	conchar_t *s;
+	conchar_t *s, *e, *c;
 	int i;
 	int x;
 	int charh = Font_CharHeight();
+	unsigned int codeflags, codepoint;
 
 	if (l != con->completionline)
 	if (l != con->footerline)
@@ -1715,7 +1737,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 		y -= 8;
 	// draw arrows to show the buffer is backscrolled
 		for (x = sx ; x<ex; )
-			x = (Font_DrawChar (x, y, '^'|CON_WHITEMASK)-x)*4+x;
+			x = (Font_DrawChar (x, y, CON_WHITEMASK, '^')-x)*4+x;
 	}
 
 	if (!selactive)
@@ -1860,7 +1882,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 		while(linecount-- > 0)
 		{
 			s = starts[linecount];
-			linelength = ends[linecount] - s;
+			e = ends[linecount];
 
 			y -= Font_CharHeight();
 
@@ -1877,12 +1899,15 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						int send;
 						sstart = sx+picw;
 						send = sstart;
-						for (i = 0; i < linelength; i++)
-							send = Font_CharEndCoord(font_console, send, s[i]);
+						for (c = s; c < e; )
+						{
+							c = Font_Decode(c, &codeflags, &codepoint);
+							send = Font_CharEndCoord(font_console, send, codeflags, codepoint);
+						}
 
 						//show something on blank lines
 						if (send == sstart)
-							send = Font_CharEndCoord(font_console, send, ' ');
+							send = Font_CharEndCoord(font_console, send, CON_WHITEMASK, ' ');
 
 						if (y+charh >= seley && y < selsy)
 						{	//if they're both on the same line, make sure sx is to the left of ex, so our stuff makes sense
@@ -1897,9 +1922,10 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						if (y+charh >= seley)
 						{
 							send = sstart;
-							for (i = 0; i < linelength; )
+							for (c = s; c < e; )
 							{
-								send = Font_CharEndCoord(font_console, send, s[i++]);
+								c = Font_Decode(c, &codeflags, &codepoint);
+								send = Font_CharEndCoord(font_console, send, codeflags, codepoint);
 
 								if (send > selex)
 									break;
@@ -1907,23 +1933,25 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 
 							con->selendline = l;
 							if (s)
-								con->selendoffset = (s+i) - (conchar_t*)(l+1);
+								con->selendoffset = c - (conchar_t*)(l+1);
 							else
 								con->selendoffset = 0;
 						}
 						if (y < selsy)
 						{
-							for (i = 0; i < linelength; i++)
+							for (c = s; c < e; )
 							{
-								x = Font_CharEndCoord(font_console, sstart, s[i]);
+								Font_Decode(c, &codeflags, &codepoint);
+								x = Font_CharEndCoord(font_console, sstart, codeflags, codepoint);
 								if (x > selsx)
 									break;
+								c = Font_Decode(c, &codeflags, &codepoint);
 								sstart = x;
 							}
 
 							con->selstartline = l;
 							if (s)
-								con->selstartoffset = (s+i) - (conchar_t*)(l+1);
+								con->selstartoffset = c - (conchar_t*)(l+1);
 							else
 								con->selstartoffset = 0;
 						}
@@ -1942,7 +1970,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 
 			x = sx + picw;
-			Font_LineDraw(x, y, s, s+linelength);
+			Font_LineDraw(x, y, s, e);
 
 			if (y < top)
 				break;
@@ -2092,10 +2120,11 @@ void Con_DrawConsole (int lines, qboolean noback)
 			int i;
 			Font_BeginString(font_console, vid.width, lines, &x, &y);
 			y -= Font_CharHeight();
+			//assumption: version == ascii
 			for (i = 0; version[i]; i++)
-				x -= Font_CharWidth(version[i] | CON_WHITEMASK|CON_HALFALPHA);
+				x -= Font_CharWidth(CON_WHITEMASK|CON_HALFALPHA, version[i]);
 			for (i = 0; version[i]; i++)
-				x = Font_DrawChar(x, y, version[i] | CON_WHITEMASK|CON_HALFALPHA);
+				x = Font_DrawChar(x, y, CON_WHITEMASK|CON_HALFALPHA, version[i]);
 		}
 
 		Font_EndString(font_console);

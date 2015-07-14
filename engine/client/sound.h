@@ -40,6 +40,7 @@ typedef struct
 
 typedef struct {
 	struct sfxcache_s *(*decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length);	//retrurn true when done.
+	struct sfxcache_s *(*querydata) (struct sfx_s *sfx, struct sfxcache_s *buf);	//reports length + format info without actually decoding anything.
 	void (*ended) (struct sfx_s *sfx);	//sound stopped playing and is now silent (allow rewinding or something).
 	void (*purge) (struct sfx_s *sfx);	//sound is being purged from memory. destroy everything.
 	void *buf;
@@ -141,6 +142,10 @@ qboolean S_HaveOutput(void);
 
 void S_Music_Clear(sfx_t *onlyifsample);
 void S_Music_Seek(float time);
+qboolean S_GetMusicInfo(int musicchannel, float *time, float *duration);
+qboolean S_Music_Playing(int musicchannel);
+float Media_CrossFade(int musicchanel, float vol);	//queries the volume we're meant to be playing (checks for fade out). -1 for no more, otherwise returns vol.
+char *Media_NextTrack(int musicchanel);	//queries the track we're meant to be playing now.
 
 sfx_t *S_FindName (const char *name, qboolean create);
 sfx_t *S_PrecacheSound (const char *sample);

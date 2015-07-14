@@ -1139,12 +1139,12 @@ static const char *glsl_hdrs[] =
 			"uniform sampler2D s_reflectmask;\n"
 			"uniform sampler2D s_lightmap;\n"
 			"uniform sampler2D s_deluxmap;\n"
-#if MAXRLIGHTMAPS > 1
 			"#define s_lightmap0 s_lightmap\n"
+			"#define s_deluxmap0 s_deluxmap\n"
+#if MAXRLIGHTMAPS > 1
 			"uniform sampler2D s_lightmap1;\n"
 			"uniform sampler2D s_lightmap2;\n"
 			"uniform sampler2D s_lightmap3;\n"
-			"#define s_deluxmap0 s_deluxmap\n"
 			"uniform sampler2D s_deluxmap1;\n"
 			"uniform sampler2D s_deluxmap2;\n"
 			"uniform sampler2D s_deluxmap3;\n"
@@ -1205,11 +1205,13 @@ static const char *glsl_hdrs[] =
 				"uniform mat4 m_modelview;\n"
 				"uniform mat4 m_projection;\n"
 //				"uniform mat4 m_modelviewprojection;\n"
+				"#ifdef SKELETAL\n"	//skeletal permutation tends to require glsl 120
 #ifdef GLESONLY
-				"uniform vec4 m_bones[3*"STRINGIFY(MAX_GPU_BONES)"];\n"
+					"uniform vec4 m_bones[3*"STRINGIFY(MAX_GPU_BONES)"];\n"
 #else
-				"uniform mat4 m_bones["STRINGIFY(MAX_GPU_BONES)"];\n"
+					"uniform mat3x4 m_bones["STRINGIFY(MAX_GPU_BONES)"];\n"
 #endif
+				"#endif\n"
 				"uniform mat4 m_invviewprojection;\n"
 				"uniform mat4 m_invmodelviewprojection;\n"
 
@@ -1920,6 +1922,7 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 		char	*typedesc;
 		char	str[8192];
 
+		*str = 0;
 		qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
 		if (!silent)
 		{

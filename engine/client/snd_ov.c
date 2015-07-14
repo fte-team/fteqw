@@ -75,9 +75,10 @@ typedef struct {
 	sfx_t *s;
 } ovdecoderbuffer_t;
 
-sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length);
-void OV_CancelDecoder(sfx_t *s);
-qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
+static sfxcache_t *OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf);
+static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length);
+static void OV_CancelDecoder(sfx_t *s);
+static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
 
 qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
@@ -93,6 +94,7 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	buffer->s = s;
 	s->decoder.buf = buffer;
 	s->decoder.decodedata = OV_DecodeSome;
+	s->decoder.querydata = OV_Query;
 	s->decoder.purge = OV_CancelDecoder;
 	s->decoder.ended = OV_CancelDecoder;
 
@@ -117,7 +119,25 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	return true;
 }
 
-sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length)
+static sfxcache_t *OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf)
+{
+	ovdecoderbuffer_t *dec = sfx->decoder.buf;
+	if (!dec)
+		buf = NULL;
+	if (buf)
+	{
+		buf->data = NULL;	//you're not meant to actually be using the data here
+		buf->soundoffset = 0;
+		buf->length = p_ov_pcm_total(&dec->vf, -1);
+		buf->loopstart = -1;
+		buf->numchannels = dec->srcchannels;
+		buf->speed = dec->srcspeed;
+		buf->width = 2;
+	}
+	return buf;
+}
+
+static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length)
 {
 	extern int snd_speed;
 	extern cvar_t snd_linearresample_stream;
@@ -141,9 +161,16 @@ sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, 
 		dec->decodedbytestart = start;
 
 		//check pos
+		//fixme: seeking might not be supported
 		p_ov_pcm_seek(&dec->vf, dec->decodedbytestart);
 	}
 
+/*	if (start > dec->decodedbytestart + dec->decodedbytecount)
+	{
+		dec->decodedbytestart = start;
+		p_ov_pcm_seek(&dec->vf, dec->decodedbytestart);
+	}
+*/
 	if (dec->decodedbytecount > snd_speed*8)
 	{
 		/*everything is okay, but our buffer is getting needlessly large.
@@ -243,14 +270,22 @@ sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, 
 	}
 	return buf;
 }
-void OV_CancelDecoder(sfx_t *s)
+static void OV_CanceledDecoder(void *ctx, void *data, size_t a, size_t b)
+{
+	sfx_t *s = ctx;
+	if (s->loadstate != SLS_LOADING)
+		s->loadstate = SLS_NOTLOADED;
+}
+static void OV_CancelDecoder(sfx_t *s)
 {
 	ovdecoderbuffer_t *dec;
+	s->loadstate = SLS_FAILED;
 
 	dec = s->decoder.buf;
 	s->decoder.buf = NULL;
 	s->decoder.purge = NULL;
 	s->decoder.ended = NULL;
+	s->decoder.querydata = NULL;
 	s->decoder.decodedata = NULL;
 	p_ov_clear (&dec->vf);	//close the decoder
 
@@ -264,6 +299,11 @@ void OV_CancelDecoder(sfx_t *s)
 	dec->decodedbuffer = NULL;
 
 	BZ_Free(dec);
+
+	//due to the nature of message passing, we can get into a state where the main thread is going to flag us as loaded when we have already failed.
+	//that is bad.
+	//so post a message to the main thread to override it, just in case.
+//	COM_AddWork(0, OV_CanceledDecoder, s, NULL, SLS_NOTLOADED, 0);
 	s->loadstate = SLS_NOTLOADED;
 }
 
@@ -316,7 +356,7 @@ static ov_callbacks callbacks = {
 	close_func,
 	tell_func,
 };
-qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer)
+static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer)
 {
 #ifndef LIBVORBISFILE_STATIC
 	static qboolean tried;

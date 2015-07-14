@@ -24,12 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //m_none	- menu is disabled
 //m_complex	- hirachy of item types
 //m_help	- old q1 style help menu (fixme: make m_complex)
-//m_keys	- old q1 style key menu (fixme: make m_complex)
-//m_slist	- serverbrowser. Takes full control of screen.
-//m_media	- an mp3 player type thing. It was never really compleate.
-//			  It should perhaps either be fixed or removed.
 //m_plugin	- A QVM based or DLL based plugin.
-//m_menu_dat- A QC based version of m_plugin. This should be compatible with DP's menu.dat stuff.
 
 
 //the m_complex menu state is the most advanced, and drives the bulk of FTE's menus in an event driven way.
@@ -96,11 +91,9 @@ void M_SomeInitialisationFunctionCalledAtStartup(void)
 }
 */
 
-typedef enum {m_none, m_complex, m_help, m_media, m_plugin, m_menu_dat} m_state_t;
+typedef enum {m_none, m_complex, m_help, m_plugin} m_state_t;
 extern m_state_t m_state;
 void M_DrawTextBox (int x, int y, int width, int lines);
-
-#define NOMEDIAMENU
 
 #ifndef NOBUILTINMENUS
 
@@ -380,7 +373,7 @@ void M_AddMenu (menu_t *menu);
 void M_AddMenuFront (menu_t *menu);
 void M_HideMenu (menu_t *menu);
 void M_RemoveMenu (menu_t *menu);
-void M_RemoveAllMenus (void);
+void M_RemoveAllMenus (qboolean leaveprompts);
 
 void M_Complex_Key(int key, int unicode);
 void M_Complex_Draw(void);
@@ -404,7 +397,6 @@ void M_Menu_LanConfig_f (void);
 void M_Menu_GameOptions_f (void);
 void M_Menu_Search_f (void);
 void M_Menu_ServerList_f (void);
-void M_Menu_Media_f (void);
 
 /*
 void M_Main_Draw (void);
@@ -440,10 +432,6 @@ void M_Search_Key (int key);
 void M_ServerList_Key (int key);
 */
 
-void MasterInfo_Refresh(void);
-void M_DrawServers(void);
-void M_SListKey(int key);
-
 //drawing funcs
 void M_BuildTranslationTable(unsigned int pc, unsigned int top, unsigned int bottom, unsigned int *translationTable);
 void M_DrawCharacter (int cx, int line, unsigned int num);
@@ -471,9 +459,7 @@ void M_Draw (int uimenu);
 void M_FindKeysForCommand (int pnum, const char *command, int *twokeys);
 int M_FindKeysForBind (const char *command, int *keylist, int *keymods, int total);
 
-void M_Media_Draw (void);
-void M_Media_Key (int key);
-
+#ifdef MENU_DAT
 void MP_CvarChanged(cvar_t *var);
 qboolean MP_Init (void);
 void MP_Shutdown (void);
@@ -483,6 +469,7 @@ void MP_RegisterCvarsAndCmds(void);
 void MP_Keydown(int key, int unicode);
 void MP_Keyup(int key, int unicode);
 int MP_BuiltinValid(char *name, int num);
+#endif
 
 #define MGT_BAD    ~0
 #define MGT_QUAKE1 0

@@ -56,12 +56,13 @@ extern cvar_t	gl_part_flame;
 extern cvar_t	r_bloom;
 extern cvar_t	r_wireframe_smooth;
 
+cvar_t	r_renderscale = CVARD("r_renderscale", "1", "Provides a way to enable subsampling or super-sampling");
 cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
 extern cvar_t	r_stereo_separation;
 extern cvar_t	r_stereo_method;
-extern cvar_t	r_postprocshader;
+extern cvar_t	r_postprocshader, r_fxaa;
 
 extern cvar_t	gl_screenangle;
 
@@ -87,6 +88,8 @@ cvar_t	r_xflip = SCVAR("leftisright", "0");
 
 extern	cvar_t	scr_fov;
 
+shader_t *scenepp_rescaled;
+shader_t *scenepp_antialias;
 shader_t *scenepp_waterwarp;
 
 // post processing stuff
@@ -140,6 +143,23 @@ void GL_InitSceneProcessingShaders (void)
 	{
 		GL_InitSceneProcessingShaders_WaterWarp();
 	}
+
+	scenepp_rescaled = R_RegisterShader("fte_rescaler", 0, 
+		"{\n"
+			"program default2d\n"
+			"{\n"
+				"map $sourcecolour\n"
+			"}\n"
+		"}\n"
+		);
+	scenepp_antialias = R_RegisterShader("fte_ppantialias", 0, 
+		"{\n"
+			"program fxaa\n"
+			"{\n"
+				"map $sourcecolour\n"
+			"}\n"
+		"}\n"
+		);
 
 	r_wireframe_smooth.modified = true;
 	gl_dither.modified = true;	//fixme: bad place for this, but hey
@@ -1641,13 +1661,13 @@ texid_t R_RenderPostProcess (texid_t sourcetex, int type, shader_t *shader, char
 			int h = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
 			sourcetex = R2D_RT_Configure(restexname, w, h, TF_RGBA32);
 			GLBE_FBO_Update(&fbo_postproc, 0, &sourcetex, 1, r_nulltex, w, h, 0);
-			R2D_ScalePic(0, vid.pixelheight-r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height, scenepp_waterwarp);
+			R2D_ScalePic(0, vid.pixelheight-r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height, shader);
 			GLBE_RenderToTextureUpdate2d(true);
 		}
 		else
 		{	//yay, dump it to the screen
 			//update stuff now that we're not rendering the 3d scene
-			R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, scenepp_waterwarp);
+			R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, shader);
 		}
 	}
 
@@ -1667,6 +1687,7 @@ void GLR_RenderView (void)
 	double	time1 = 0, time2;
 	texid_t sourcetex = r_nulltex;
 	shader_t *custompostproc = NULL;
+	float renderscale = r_renderscale.value;	//extreme, but whatever
 
 	checkglerror();
 
@@ -1721,6 +1742,9 @@ void GLR_RenderView (void)
 			r_refdef.flags |= RDF_CUSTOMPOSTPROC;
 	}
 
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && r_fxaa.ival) //overlays will have problems.
+		r_refdef.flags |= RDF_ANTIALIAS;
+
 	//disable stuff if its simply not supported.
 	if (dofbo || !gl_config.arb_shader_objects || !gl_config.ext_framebuffer_objects || !sh_config.texture_non_power_of_two_pic)
 		r_refdef.flags &= ~(RDF_ALLPOSTPROC);	//block all of this stuff
@@ -1773,11 +1797,21 @@ void GLR_RenderView (void)
 			flags |= FBO_RB_DEPTH;
 		GLBE_FBO_Update(&fbo_gameview, flags, col, mrt, depth, vid.fbpwidth, vid.fbpheight, 0);
 	}
-	else if (r_refdef.flags & (RDF_ALLPOSTPROC))
+	else if ((r_refdef.flags & (RDF_ALLPOSTPROC)) || renderscale != 1)
 	{
 		//the game needs to be drawn to a texture for post processing
-		vid.fbvwidth = vid.fbpwidth = (r_refdef.vrect.width * vid.pixelwidth) / vid.width;
-		vid.fbvheight = vid.fbpheight = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
+		vid.fbpwidth = (r_refdef.vrect.width * vid.pixelwidth) / vid.width;
+		vid.fbpheight = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
+
+		vid.fbpwidth *= renderscale;
+		vid.fbpheight *= renderscale;
+
+		//well... err... meh.
+		vid.fbpwidth = bound(1, vid.fbpwidth, sh_config.texture_maxsize);
+		vid.fbpheight = bound(1, vid.fbpheight, sh_config.texture_maxsize);
+
+		vid.fbvwidth = vid.fbpwidth;
+		vid.fbvheight = vid.fbpheight;
 
 		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, /*(r_refdef.flags&RDF_BLOOM)?TF_RGBA16F:*/TF_RGBA32);
 
@@ -1861,10 +1895,19 @@ void GLR_RenderView (void)
 
 	// SCENE POST PROCESSING
 
-	sourcetex = R_RenderPostProcess (sourcetex, RDF_WATERWARP, scenepp_waterwarp, "rt/$waterwarped");
-	sourcetex = R_RenderPostProcess (sourcetex, RDF_CUSTOMPOSTPROC, custompostproc, "rt/$postproced");
-	if (r_refdef.flags & RDF_BLOOM)
-		R_BloomBlend(sourcetex, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
+	if (renderscale != 1 && !(r_refdef.flags & RDF_ALLPOSTPROC))
+	{
+		GLBE_FBO_Sources(sourcetex, r_nulltex);
+		R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 1, 1, 0, scenepp_rescaled);
+	}
+	else
+	{
+		sourcetex = R_RenderPostProcess (sourcetex, RDF_WATERWARP, scenepp_waterwarp, "rt/$waterwarped");
+		sourcetex = R_RenderPostProcess (sourcetex, RDF_CUSTOMPOSTPROC, custompostproc, "rt/$postproced");
+		sourcetex = R_RenderPostProcess (sourcetex, RDF_ANTIALIAS, scenepp_antialias, "rt/$antialiased");
+		if (r_refdef.flags & RDF_BLOOM)
+			R_BloomBlend(sourcetex, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
+	}
 
 	GLBE_FBO_Sources(r_nulltex, r_nulltex);
 

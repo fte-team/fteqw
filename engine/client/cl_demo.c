@@ -484,7 +484,8 @@ qboolean CL_GetDemoMessage (void)
 
 			//force the console up, we're done loading.
 			Key_Dest_Remove(kdm_console);
-			Key_Dest_Remove(kdm_menu);
+			Key_Dest_Remove(kdm_gmenu);
+			Key_Dest_Remove(kdm_emenu);
 			scr_con_current = 0;
 		}
 
@@ -2031,7 +2032,7 @@ void CL_QTVPoll (void)
 				if (!sourcesmenu)
 				{
 					m_state = m_complex;
-					Key_Dest_Add(kdm_menu);
+					Key_Dest_Add(kdm_emenu);
 					sourcesmenu = M_CreateMenu(0);
 
 					MC_AddPicture(sourcesmenu, 16, 4, 32, 144, "gfx/qplaque.lmp");

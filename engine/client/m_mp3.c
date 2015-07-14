@@ -8,8 +8,8 @@
 #include "shader.h"
 
 #if !defined(NOMEDIA)
-#if defined(_WIN32) && !defined(WINRT)
-#define WINAMP
+#if defined(_WIN32) && !defined(WINRT) && !defined(NOMEDIAMENU)
+//#define WINAMP
 #endif
 #if defined(_WIN32) && !defined(WINRT)
 #define WINAVI
@@ -22,6 +22,8 @@ typedef struct mediatrack_s{
 	int length;
 	struct mediatrack_s *next;
 } mediatrack_t;
+qboolean media_fadeout;
+float media_fadeouttime;
 
 static mediatrack_t currenttrack;
 int media_playing=true;//try to continue from the standard playlist
@@ -56,9 +58,10 @@ void Media_Clear (void)
 	Q_strncpyz(currenttrack.filename, "", sizeof(currenttrack.filename));
 	fakecdactive = false;
 	media_playing = false;
-#endif
 
-	S_Music_Clear(NULL);
+	media_fadeout = true;
+	media_fadeouttime = realtime;
+#endif
 }
 
 //fake cd tracks.
@@ -579,20 +582,67 @@ void Media_Next_f (void)
 
 
 
+void Media_AddTrack(const char *fname)
+{
+	mediatrack_t *newtrack;
+	if (!*fname)
+		return;
+	for (newtrack = tracks; newtrack; newtrack = newtrack->next)
+	{
+		if (!strcmp(newtrack->filename, fname))
+			return;	//already added. ho hum
+	}
+	newtrack = Z_Malloc(sizeof(mediatrack_t));
+	Q_strncpyz(newtrack->filename, fname, sizeof(newtrack->filename));
+	Q_strncpyz(newtrack->nicename, COM_SkipPath(fname), sizeof(newtrack->nicename));
+	newtrack->length = 0;
+	newtrack->next = tracks;
+	tracks = newtrack;
+	numtracks++;
+}
+void Media_RemoveTrack(const char *fname)
+{
+	mediatrack_t **link, *newtrack;
+	if (!*fname)
+		return;
+	for (link = &tracks; *link; link = &(*link)->next)
+	{
+		newtrack = *link;
+		if (!strcmp(newtrack->filename, fname))
+		{
+			*link = newtrack->next;
+			Z_Free(newtrack);
+			numtracks--;
+			return;
+		}
+	}
+}
+void M_Media_Add_f (void)
+{
+	char *fname = Cmd_Argv(1);
+
+	if (Cmd_Argc() == 1)
+		Con_Printf("%s <track>\n", Cmd_Argv(0));
+	else
+		Media_AddTrack(fname);
+}
+void M_Media_Remove_f (void)
+{
+	char *fname = Cmd_Argv(1);
+
+	if (Cmd_Argc() == 1)
+		Con_Printf("%s <track>\n", Cmd_Argv(0));
+	else
+		Media_RemoveTrack(fname);
+}
+
 
 #ifndef NOMEDIAMENU
 
-void M_Menu_Media_f (void)
-{
-	Key_Dest_Add(kdm_menu);
-	m_state = m_media;
-}
-
 void Media_LoadTrackNames (char *listname);
 
-#define MEDIA_MIN	-8
-#define MEDIA_VOLUME -8
-#define MEDIA_REWIND -7
+#define MEDIA_MIN	-7
+#define MEDIA_VOLUME -7
 #define MEDIA_FASTFORWARD -6
 #define MEDIA_CLEARLIST -5
 #define MEDIA_ADDTRACK -4
@@ -600,7 +650,7 @@ void Media_LoadTrackNames (char *listname);
 #define MEDIA_SHUFFLE -2
 #define MEDIA_REPEAT -1
 
-void M_Media_Draw (void)
+void M_Media_Draw (menu_t *menu)
 {
 	mpic_t	*p;
 	mediatrack_t *track;
@@ -609,9 +659,6 @@ void M_Media_Draw (void)
 
 #define MP_Hightlight(x,y,text,hl) (hl?M_PrintWhite(x, y, text):M_Print(x, y, text))
 
-	p = R2D_SafeCachePic ("gfx/p_option.lmp");
-	if (p)
-		M_DrawScalePic ( (320-p->width)/2, 4, 144, 24, p);
 	if (!bgmvolume.value)
 		M_Print (12, 32, "Not playing - no volume");
 	else if (!*currenttrack.nicename)
@@ -634,18 +681,18 @@ void M_Media_Draw (void)
 		M_Print (12, 40, currenttrack.nicename);
 	}
 
-	op = selectedoption - (vid.height-52)/16;
-	if (op + (vid.height-52)/8>numtracks)
-		op = numtracks - (vid.height-52)/8;
+	y=52;
+	op = selectedoption - (vid.height-y)/16;
+	if (op + (vid.height-y)/8>numtracks)
+		op = numtracks - (vid.height-y)/8;
 	if (op < MEDIA_MIN)
 		op = MEDIA_MIN;
-	y=52;
 	while(op < 0)
 	{
 		switch(op)
 		{
 		case MEDIA_VOLUME:
-			MP_Hightlight (12, y, "Volume", op == selectedoption);
+			MP_Hightlight (12, y, va("<< Volume %2i%%    >>", (int)(100*bgmvolume.value)), op == selectedoption);
 			y+=8;
 			break;
 		case MEDIA_CLEARLIST:
@@ -653,11 +700,13 @@ void M_Media_Draw (void)
 			y+=8;
 			break;
 		case MEDIA_FASTFORWARD:
-			MP_Hightlight (12, y, ">> Fast Forward", op == selectedoption);
-			y+=8;
-			break;
-		case MEDIA_REWIND:
-			MP_Hightlight (12, y, "<< Rewind", op == selectedoption);
+			{
+				float time, duration;
+				if (S_GetMusicInfo(0, &time, &duration))
+					MP_Hightlight (12, y, va("<< %i:%02i / %i:%02i - %i%% >>", (int)time/60, (int)time%60, (int)duration/60, (int)duration%60, (int)(100*time/duration)), op == selectedoption);
+				else
+					MP_Hightlight (12, y, "<<    skip		 >>", op == selectedoption);
+			}
 			y+=8;
 			break;
 		case MEDIA_ADDTRACK:
@@ -713,7 +762,7 @@ void M_Media_Draw (void)
 char compleatenamepath[MAX_OSPATH];
 char compleatenamename[MAX_OSPATH];
 qboolean compleatenamemultiple;
-int QDECL Com_CompleatenameCallback(const char *name, qofs_t size, void *data, searchpathfuncs_t *spath)
+int QDECL Com_CompleatenameCallback(const char *name, qofs_t size, time_t mtime, void *data, searchpathfuncs_t *spath)
 {
 	if (*compleatenamename)
 		compleatenamemultiple = true;
@@ -739,17 +788,12 @@ void Com_CompleateOSFileName(char *name)
 		strcpy(name, compleatenamename);
 }
 
-void M_Media_Key (int key)
+qboolean M_Media_Key (int key, menu_t *menu)
 {
 	int dir;
 	if (key == K_ESCAPE)
 	{
-#ifndef NOBUILTINMENUS
-		M_Menu_Main_f();
-#else
-		m_state = m_none;
-		Key_Dest_Remove(kdm_menu);
-#endif
+		return false;
 	}
 	else if (key == K_RIGHTARROW || key == K_LEFTARROW)
 	{
@@ -765,6 +809,9 @@ void M_Media_Key (int key)
 			if (bgmvolume.value > 1)
 				bgmvolume.value = 1;
 			Cvar_SetValue (&bgmvolume, bgmvolume.value);
+			break;
+		case MEDIA_FASTFORWARD:
+			Media_Seek(15*dir);
 			break;
 		default:
 			if (selectedoption >= 0)
@@ -829,9 +876,6 @@ void M_Media_Key (int key)
 		case MEDIA_FASTFORWARD:
 			Media_Seek(15);
 			break;
-		case MEDIA_REWIND:
-			Media_Seek(-15);
-			break;
 		case MEDIA_CLEARLIST:
 			{
 				mediatrack_t *prevtrack;
@@ -851,16 +895,9 @@ void M_Media_Key (int key)
 			break;
 		case MEDIA_ADDTRACK:
 			if (*media_iofilename)
-			{
-				mediatrack_t *newtrack;
-				newtrack = Z_Malloc(sizeof(mediatrack_t));
-				Q_strncpyz(newtrack->filename, media_iofilename, sizeof(newtrack->filename));
-				Q_strncpyz(newtrack->nicename, COM_SkipPath(media_iofilename), sizeof(newtrack->nicename));
-				newtrack->length = 0;
-				newtrack->next = tracks;
-				tracks = newtrack;
-				numtracks++;
-			}
+				Media_AddTrack(media_iofilename);
+			else
+				Cmd_ExecuteString("menu_mediafiles", RESTRICT_LOCAL);
 			break;
 		case MEDIA_ADDLIST:
 			if (*media_iofilename)
@@ -878,27 +915,34 @@ void M_Media_Key (int key)
 				media_playing = true;
 				nexttrack = selectedoption;
 				Media_Next_f();
+				return true;
 			}
-			break;
+			return false;
 		}
+		return true;
 	}
 	else
 	{
 		if (selectedoption == MEDIA_ADDLIST || selectedoption == MEDIA_ADDTRACK)
 		{
 			if (key == K_TAB)
+			{
 				Com_CompleateOSFileName(media_iofilename);
+				return true;
+			}
 			else if (key == K_BACKSPACE)
 			{
 				dir = strlen(media_iofilename);
 				if (dir)
 					media_iofilename[dir-1] = '\0';
+				return true;
 			}
 			else if ((key >= 'a' && key <= 'z') || (key >= '0' && key <= '9') || key == '/' || key == '_' || key == '.' || key == ':')
 			{
 				dir = strlen(media_iofilename);
 				media_iofilename[dir] = key;
 				media_iofilename[dir+1] = '\0';
+				return true;
 			}
 		}
 		else if (selectedoption>=0)
@@ -915,25 +959,40 @@ void M_Media_Key (int key)
 				num++;
 			}
 			if (!tr)
-				return;
+				return false;
 
 			if (key == K_BACKSPACE)
 			{
 				dir = strlen(tr->nicename);
 				if (dir)
 					tr->nicename[dir-1] = '\0';
+				return true;
 			}
 			else if ((key >= 'a' && key <= 'z') || (key >= '0' && key <= '9') || key == '/' || key == '_' || key == '.' || key == ':'  || key == '&' || key == '|' || key == '#' || key == '\'' || key == '\"' || key == '\\' || key == '*' || key == '@' || key == '!' || key == '(' || key == ')' || key == '%' || key == '^' || key == '?' || key == '[' || key == ']' || key == ';' || key == ':' || key == '+' || key == '-' || key == '=')
 			{
 				dir = strlen(tr->nicename);
 				tr->nicename[dir] = key;
 				tr->nicename[dir+1] = '\0';
+				return true;
 			}
 		}
 	}
+	return false;
 }
 
+void M_Menu_Media_f (void)
+{
+	menu_t *menu;
+	m_state = m_complex;
+	Key_Dest_Add(kdm_emenu);
+	menu = M_CreateMenu(0);
 
+//	MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+	MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
+
+	menu->key = M_Media_Key;
+	menu->postdraw = M_Media_Draw;
+}
 
 
 
@@ -945,7 +1004,8 @@ void Media_LoadTrackNames (char *listname)
 	char *filename;
 	char *trackname;
 	mediatrack_t *newtrack;
-	char *data = COM_LoadTempFile(listname);
+	size_t fsize;
+	char *data = COM_LoadTempFile(listname, &fsize);
 
 	loadedtracknames=true;
 
@@ -1032,21 +1092,33 @@ void Media_LoadTrackNames (char *listname)
 }
 #endif
 
-//safeprints only.
+//mixer is locked, its safe to do stuff, but try not to block
+float Media_CrossFade(int musicchanel, float vol)
+{
+	if (media_fadeout)
+	{
+		float fadetime = 1;
+		float frac = (fadetime + media_fadeouttime - realtime)/fadetime;
+		vol *= frac;
+	}
+	return vol;
+}
+
+//mixer is locked, its safe to do stuff, but try not to block
 char *Media_NextTrack(int musicchannelnum)
 {
-#ifdef WINAMP
-	if (media_hijackwinamp.value)
-	{
-		WinAmp_Think();
-		return NULL;
-	}
-#endif
 	if (bgmvolume.value <= 0 || !media_playing)
 		return NULL;
 
+	if (media_fadeout)
+	{
+		if (S_Music_Playing(musicchannelnum))
+			return NULL;	//can't pick a new track until they've all stopped.
+	}
+
 	if (!fakecdactive)
 		Media_EndedTrack();
+	media_fadeout = false;
 
 #ifndef NOMEDIAMENU
 	if (!loadedtracknames)
@@ -2274,11 +2346,13 @@ qboolean Media_PlayFilm(char *name, qboolean enqueue)
 		CDAudio_Stop();
 		SCR_EndLoadingPlaque();
 
-		if (Key_Dest_Has(kdm_menu))
+		if (Key_Dest_Has(kdm_emenu))
 		{
-			Key_Dest_Remove(kdm_menu);
+			Key_Dest_Remove(kdm_emenu);
 			m_state = m_none;
 		}
+		if (Key_Dest_Has(kdm_gmenu))
+			Key_Dest_Remove(kdm_gmenu);	//FIXME
 		if (!Key_Dest_Has(kdm_console))
 			scr_con_current=0;
 		return true;
@@ -3228,7 +3302,7 @@ void Media_RecordDemo_f(void)
 		Cmd_ShiftArgs(1, false);
 	Media_RecordFilm_f();
 	scr_con_current=0;
-	Key_Dest_Remove(kdm_console|kdm_menu);
+	Key_Dest_Remove(kdm_console|kdm_emenu|kdm_gmenu);
 
 	if (currentcapture_funcs)
 		recordingdemo = true;
@@ -3981,6 +4055,9 @@ void Media_Init(void)
 #endif
 	Cvar_Register(&media_shuffle,	"Media player things");
 	Cvar_Register(&media_repeat,	"Media player things");
+	Cmd_AddCommand ("media_add", M_Media_Add_f);
+	Cmd_AddCommand ("media_rmeove", M_Media_Remove_f);
+	Cmd_AddCommand ("menu_media", M_Menu_Media_f);
 }
 
 
@@ -4209,6 +4286,7 @@ void Media_RecordAudioFrame (short *sample_buffer, int samples) {}
 void Media_StopRecordFilm_f (void) {}
 void Media_RecordFilm_f (void){}
 void M_Menu_Media_f (void) {}
+float Media_CrossFade(int ch, float vol) {return vol;}
 
 char *Media_NextTrack(int musicchannelnum) {return NULL;}
 qboolean Media_PausedDemo(qboolean fortiming) {return false;}

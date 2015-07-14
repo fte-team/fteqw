@@ -142,6 +142,7 @@ cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
 cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
+cvar_t r_fxaa								= CVARD("r_fxaa", "0", "Runs a post-procesing pass to strip the jaggies.");
 cvar_t r_postprocshader						= CVARD("r_postprocshader", "", "Specifies a custom shader to use as a post-processing shader");
 cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "128 128 128",
 													  "r_wallcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
@@ -430,6 +431,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lerpimages, GLRENDEREROPTIONS);
 	Cvar_Register (&r_postprocshader, GLRENDEREROPTIONS);
+	Cvar_Register (&r_fxaa, GLRENDEREROPTIONS);
+	Cvar_Register (&r_renderscale, GLRENDEREROPTIONS);
 
 	Cvar_Register (&dpcompat_psa_ungroup, GLRENDEREROPTIONS);
 	Cvar_Register (&r_lerpmuzzlehack, GLRENDEREROPTIONS);

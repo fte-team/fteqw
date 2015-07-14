@@ -103,7 +103,7 @@ menu_t *M_Options_Title(int *y, int infosize)
 	struct menu_s *menu;
 	*y = 32;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(infosize);
@@ -365,7 +365,7 @@ void M_Menu_Audio_Speakers_f (void)
 	audiomenuinfo_t *info;
 	menu_t *menu;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(audiomenuinfo_t));
@@ -2651,7 +2651,7 @@ static void M_BoneDisplay(entity_t *e, galiasbone_t *b, int *y, int depth, int p
 		{
 			float result[12];
 			memset(result, 0, sizeof(result));
-			if (Mod_GetTag(e->model, i, &e->framestate, result))
+			if (Mod_GetTag(e->model, i+1, &e->framestate, result))
 				Draw_FunString(depth*16, *y, va("%i: %s (%g %g %g)", i, b[i].name, result[3], result[7], result[11]));
 			else
 				Draw_FunString(depth*16, *y, va("%i: %s", i, b[i].name));
@@ -2882,7 +2882,7 @@ void M_Menu_ModelViewer_f(void)
 	menucustom_t *c;
 	menu_t *menu;
 		
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 
 	menu = M_CreateMenu(sizeof(*mv));
 	mv = menu->data;
@@ -2996,7 +2996,7 @@ void M_Menu_Mods_f (void)
 	}
 	else
 	{
-		Key_Dest_Add(kdm_menu);
+		Key_Dest_Add(kdm_emenu);
 
 		menu = M_CreateMenu(sizeof(modmenu_t));
 		*(modmenu_t*)menu->data = mods;

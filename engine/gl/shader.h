@@ -324,8 +324,10 @@ enum{
 	PERMUTATION_FRAMEBLEND = 64,
 #if MAXRLIGHTMAPS > 1
 	PERMUTATION_LIGHTSTYLES = 128,		//FIXME: make argument
-#endif
 	PERMUTATIONS = 256
+#else
+	PERMUTATIONS = 128
+#endif
 };
 
 enum shaderattribs_e
@@ -399,6 +401,7 @@ typedef struct {
 		SP_M_INVMODELVIEWPROJECTION,
 
 		SP_RENDERTEXTURESCALE,	/*multiplier for currentrender->texcoord*/
+		SP_SOURCESIZE,			/*size of $sourcecolour*/
 
 		SP_LIGHTRADIUS, /*these light values are realtime lighting*/
 		SP_LIGHTCOLOUR,

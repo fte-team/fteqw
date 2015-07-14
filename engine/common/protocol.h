@@ -1207,12 +1207,14 @@ typedef struct q1usercmd_s
 #define	Q2RDF_IRGOGGLES			(1u<<2)		//ents with Q2RF_IR_VISIBLE show up pure red.
 #define Q2RDF_UVGOGGLES			(1u<<3)		//usused / reserved
 //ROGUE
+
 #define RDF_BLOOM				(1u<<16)
 #define RDF_FISHEYE				(1u<<17)
 #define RDF_WATERWARP			(1u<<18)
 #define RDF_CUSTOMPOSTPROC		(1u<<19)
+#define RDF_ANTIALIAS			(1u<<20)	//fxaa, or possibly even just fsaa
 
-#define RDF_ALLPOSTPROC			(RDF_BLOOM|RDF_FISHEYE|RDF_WATERWARP|RDF_CUSTOMPOSTPROC)	//these flags require rendering to an fbo for the various different post-processing shaders.
+#define RDF_ALLPOSTPROC			(RDF_BLOOM|RDF_FISHEYE|RDF_WATERWARP|RDF_CUSTOMPOSTPROC|RDF_ANTIALIAS)	//these flags require rendering to an fbo for the various different post-processing shaders.
 
 
 

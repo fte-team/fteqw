@@ -956,7 +956,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 				nnx-=(nnx - -viewportx)%ts;
 			}
 			else
-				nnx = Font_CharEndCoord(font_default, nx, (int)d[i] | (colour));
+				nnx = Font_CharEndCoord(font_default, nx, colour, (int)d[i]);
 
 			if (smx >= nx && smx <= nnx)
 			{
@@ -999,7 +999,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 		{
 			if (d == c)
 			{
-				int e = Font_DrawChar(nx, y, (int)0xe00b | (CON_WHITEMASK|CON_BLINKTEXT));
+				int e = Font_DrawChar(nx, y, CON_WHITEMASK|CON_BLINKTEXT, (int)0xe00b);
 				if (e >= vid.pixelwidth)
 					viewportx += e - vid.pixelwidth;
 				if (nx < 0)
@@ -1015,12 +1015,12 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 			continue;
 		}
 		if (nx <= (int)vid.pixelwidth || cursorx>=0)
-			nnx = Font_DrawChar(nx, y, (int)*d | (colour));
+			nnx = Font_DrawChar(nx, y, colour, (int)*d);
 		else nnx = vid.pixelwidth;
 
 		if (d == c)
 		{
-			int e = Font_DrawChar(nx, y, (int)0xe00b | (CON_WHITEMASK|CON_BLINKTEXT));
+			int e = Font_DrawChar(nx, y, CON_WHITEMASK|CON_BLINKTEXT, (int)0xe00b);
 			if (e >= vid.pixelwidth)
 				viewportx += e - vid.pixelwidth;
 			if (nx < 0)
@@ -1038,7 +1038,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 	/*we didn't do the cursor! stick it at the end*/
 	if (c && c >= d)
 	{
-		int e = Font_DrawChar(nx, y, (int)0xe00b | (CON_WHITEMASK|CON_BLINKTEXT));
+		int e = Font_DrawChar(nx, y, CON_WHITEMASK|CON_BLINKTEXT, (int)0xe00b);
 		if (e >= vid.pixelwidth)
 			viewportx += e - vid.pixelwidth;
 		if (nx < 0)
@@ -1058,7 +1058,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 			{
 				if (*tooltip == '\n')
 					break;
-				smx = Font_CharEndCoord(font_default, smx, *tooltip);
+				smx = Font_CharEndCoord(font_default, smx, (COLOR_CYAN<<CON_FGSHIFT), *tooltip);
 			}
 			y = Font_CharHeight();
 			Font_EndString(font_default);
@@ -1068,7 +1068,7 @@ static void Draw_Line(int vy, fileblock_t *b, int cursorx)
 			Font_BeginString(font_default, nx, vy, &y, &y);
 			for(smx = nx; t < tooltip; t++)
 			{
-				smx = Font_DrawChar(smx, smy, (COLOR_CYAN<<CON_FGSHIFT) | *t);
+				smx = Font_DrawChar(smx, smy, (COLOR_CYAN<<CON_FGSHIFT), *t);
 			}
 			if (*tooltip == '\n')
 				tooltip++;

@@ -721,7 +721,7 @@ doconnect:
 			Cbuf_AddText("\n", RESTRICT_LOCAL);
 
 
-			M_RemoveAllMenus();
+			M_RemoveAllMenus(true);
 			return true;
 		}
 		else if (server && key == 'c' && ctrldown)	//copy to clip
@@ -1031,7 +1031,7 @@ void M_Menu_ServerList2_f(void)
 	serverpreview = false;	//in case it was lingering.
 
 	Key_Dest_Remove(kdm_console);
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	menu = M_CreateMenu(sizeof(serverlist_t));
@@ -1229,7 +1229,7 @@ void M_QuickConnect_f(void)
 	menucustom_t *cust;
 	menu_t *menu;
 
-	Key_Dest_Add(kdm_menu);
+	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
 
 	MasterInfo_Refresh();

@@ -46,13 +46,16 @@ http://prideout.net/archive/bloom/ contains some sample code
 #include "glquake.h"
 cvar_t		r_bloom = CVARAFD("r_bloom", "0", "gl_bloom", CVAR_ARCHIVE, "Enables bloom (light bleeding from bright objects). Fractional values reduce the amount shown.");
 cvar_t		r_bloom_filter = CVARD("r_bloom_filter", "0.7 0.7 0.7", "Controls how bright the image must get before it will bloom (3 separate values, in RGB order).");
-cvar_t		r_bloom_scale = CVARD("r_bloom_scale", "0.5", "Controls the initial downscale size. Smaller values will bloom further but be more random.");
+cvar_t		r_bloom_size = CVARD("r_bloom_size", "4", "Target bloom kernel size (assuming a video width of 320).");
+cvar_t		r_bloom_downsize = CVARD("r_bloom_downsize", "0", "Technically more correct with a value of 1, but you probably won't notice.");
+cvar_t		r_bloom_initialscale = CVARD("r_bloom_initialscale", "1", "Initial scaling factor for bloom. should be either 1 or 0.5");
+
 static shader_t *bloomfilter;
 static shader_t *bloomrescale;
 static shader_t *bloomblur;
 static shader_t *bloomfinal;
 
-#define MAXLEVELS 3	//presumably this could be up to 16, but that will be too expensive.
+#define MAXLEVELS 16
 texid_t pingtex[2][MAXLEVELS];
 fbostate_t fbo_bloom;
 static int scrwidth, scrheight;
@@ -78,24 +81,23 @@ void R_BloomRegister(void)
 {
 	Cvar_Register (&r_bloom, "bloom");
 	Cvar_Register (&r_bloom_filter, "bloom");
-	Cvar_Register (&r_bloom_scale, "bloom");
+	Cvar_Register (&r_bloom_size, "bloom");
+	Cvar_Register (&r_bloom_downsize, "bloom");
+	Cvar_Register (&r_bloom_initialscale, "bloom");
 }
 static void R_SetupBloomTextures(int w, int h)
 {
 	int i, j;
-	char name[64];
-	if (w == scrwidth && h == scrheight && !r_bloom_scale.modified)
+	if (w == scrwidth && h == scrheight && !r_bloom_initialscale.modified)
 		return;
-	r_bloom_scale.modified = false;
+	r_bloom_initialscale.modified = false;
 	scrwidth = w;
 	scrheight = h;
 	//I'm depending on npot here
-	w *= r_bloom_scale.value;
-	h *= r_bloom_scale.value;
+	w *= r_bloom_initialscale.value;
+	h *= r_bloom_initialscale.value;
 	for (i = 0; i < MAXLEVELS; i++)
 	{
-		w /= 2;
-		h /= 2;
 		/*I'm paranoid*/
 		if (w < 4)
 			w = 4;
@@ -104,19 +106,19 @@ static void R_SetupBloomTextures(int w, int h)
 
 		texwidth[i] = w;
 		texheight[i] = h;
+
+		w /= 2;
+		h /= 2;
 	}
 
-	/*now create textures for each level*/
+	/*destroy textures for each level, to ensure they're created fresh as needed*/
 	for (j = 0; j < MAXLEVELS; j++)
 	{
 		for (i = 0; i < 2; i++)
 		{
-			if (!TEXVALID(pingtex[i][j]))
-			{
-				sprintf(name, "***bloom*%c*%i***", 'a'+i, j);
-				TEXASSIGN(pingtex[i][j], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
-			}
-			Image_Upload(pingtex[i][j], TF_RGBA32, NULL, NULL, texwidth[j], texheight[j], IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR);
+			if (TEXVALID(pingtex[i][j]))
+				Image_UnloadTexture(pingtex[i][j]);
+			pingtex[i][j] = r_nulltex;
 		}
 	}
 
@@ -162,9 +164,6 @@ static void R_SetupBloomTextures(int w, int h)
 				"map $upperoverlay\n"
 			"}\n"
 		"}\n");
-	bloomfinal->defaulttextures->base			= pingtex[0][0];
-	bloomfinal->defaulttextures->loweroverlay	= pingtex[0][1];
-	bloomfinal->defaulttextures->upperoverlay	= pingtex[0][2];
 }
 qboolean R_CanBloom(void)
 {
@@ -184,6 +183,12 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 {
 	int i;
 	int oldfbo = 0;
+	texid_t intex;
+	int pixels = 1;
+	int targetpixels = r_bloom_size.value * vid.pixelwidth / 320;
+	char name[64];
+
+	targetpixels *= r_bloom_initialscale.value;
 
 	/*whu?*/
 	if (!w || !h)
@@ -192,51 +197,75 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 	/*update textures if we need to resize them*/
 	R_SetupBloomTextures(w, h);
 
-	for (i = 0; i < MAXLEVELS; i++)
+	/*filter the screen into a downscaled image*/
+	if (!TEXVALID(pingtex[0][0]))
 	{
-		if (i == 0)
+		sprintf(name, "***bloom*%c*%i***", 'a'+0, 0);
+		TEXASSIGN(pingtex[0][0], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
+		Image_Upload(pingtex[0][0], TF_RGBA32, NULL, NULL, texwidth[0], texheight[0], IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR);
+	}
+	oldfbo = GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[0][0], 1, r_nulltex, 0, 0, 0);
+	GLBE_FBO_Sources(source, r_nulltex);
+	qglViewport (0, 0, texwidth[0], texheight[0]);
+	R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomfilter);
+
+	intex = pingtex[0][0];
+
+	for (pixels = 1, i = 0; pixels < targetpixels && i < MAXLEVELS; i++, pixels <<= 1)
+	{
+		/*create any textures if they're not valid yet*/
+		if (!TEXVALID(pingtex[0][i]))
 		{
-			/*filter the screen into a downscaled image*/
-			oldfbo = GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[0][0], 1, r_nulltex, 0, 0, 0);
-			GLBE_FBO_Sources(source, r_nulltex);
-			qglViewport (0, 0, texwidth[0], texheight[0]);
-			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomfilter);
+			sprintf(name, "***bloom*%c*%i***", 'a'+0, i);
+			TEXASSIGN(pingtex[0][i], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
+			Image_Upload(pingtex[0][i], TF_RGBA32, NULL, NULL, texwidth[i], texheight[i], IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR);
 		}
-		else
+		if (!TEXVALID(pingtex[1][i]))
+		{
+			sprintf(name, "***bloom*%c*%i***", 'a'+1, i);
+			TEXASSIGN(pingtex[1][i], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
+			Image_Upload(pingtex[1][i], TF_RGBA32, NULL, NULL, texwidth[i], texheight[i], IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR);
+		}
+
+		//downsize the blur, for added accuracy
+		if (i > 0 && r_bloom_downsize.ival)
 		{
 			/*simple downscale that multiple times*/
 			GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[0][i], 1, r_nulltex, 0, 0, 0);
 			GLBE_FBO_Sources(pingtex[0][i-1], r_nulltex);
 			qglViewport (0, 0, texwidth[i], texheight[i]);
 			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomrescale);
+			intex = pingtex[0][i];
+			r_worldentity.glowmod[0] = 1.0 / intex->width;
 		}
-//	}
-//	for (i = 0; i < MAXLEVELS; i++)
-//	{
-		/*gaussian filter the mips to bloom more smoothly
-		the blur is done with two passes. first samples horizontally then vertically.
-		the 1.2 pixels thing gives us a 5*5 filter by weighting the edge accordingly
-		*/
-		r_worldentity.glowmod[0] = 1.2 / texwidth[i];
+		else
+			r_worldentity.glowmod[0] = 2.0 / intex->width;
+
 		r_worldentity.glowmod[1] = 0;
 		GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[1][i], 1, r_nulltex, 0, 0, 0);
-		GLBE_FBO_Sources(pingtex[0][i], r_nulltex);
-		qglViewport (0, 0, texwidth[i], texheight[i]);
+		GLBE_FBO_Sources(intex, r_nulltex);
+		qglViewport (0, 0, pingtex[1][i]->width, pingtex[1][i]->height);
 		BE_SelectEntity(&r_worldentity);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
 
 		r_worldentity.glowmod[0] = 0;
-		r_worldentity.glowmod[1] = 1.2 / texheight[i];
+		r_worldentity.glowmod[1] = 1.0 / pingtex[1][i]->height;
 		GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[0][i], 1, r_nulltex, 0, 0, 0);
 		GLBE_FBO_Sources(pingtex[1][i], r_nulltex);
-		qglViewport (0, 0, texwidth[i], texheight[i]);
+		qglViewport (0, 0, pingtex[0][i]->width, pingtex[0][i]->height);
 		BE_SelectEntity(&r_worldentity);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
+
+		intex = pingtex[0][i];
 	}
 	r_worldentity.glowmod[0] = 0;
 	r_worldentity.glowmod[1] = 0;
 
 	GL_Set2D(false);
+
+	bloomfinal->defaulttextures->base			= intex;
+	bloomfinal->defaulttextures->loweroverlay	= (i >= 2)?pingtex[0][i-2]:0;
+	bloomfinal->defaulttextures->upperoverlay	= (i >= 3)?pingtex[0][i-3]:0;
 
 	/*combine them onto the screen*/
 	GLBE_FBO_Pop(oldfbo);

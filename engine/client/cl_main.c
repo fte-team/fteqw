@@ -3549,7 +3549,7 @@ void CL_FTP_f(void)
 void CL_Fog_f(void)
 {
 	if ((cl.fog_locked && !Cmd_FromGamecode()) || Cmd_Argc() <= 1)
-		Con_Printf("Current fog %f (r:%f g:%f b:%f)\n", cl.fog.density, cl.fog.colour[0], cl.fog.colour[1], cl.fog.colour[2]);
+		Con_Printf("Current fog %f (r:%f g:%f b:%f, a:%f bias:%f)\n", cl.fog.density, cl.fog.colour[0], cl.fog.colour[1], cl.fog.colour[2], cl.fog.alpha, cl.fog.depthbias);
 	else
 	{
 		CL_ResetFog();
@@ -3923,7 +3923,7 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("topten", NULL);
 
-	Cmd_AddCommand ("fog", CL_Fog_f);
+	Cmd_AddCommandD ("fog", CL_Fog_f, "fog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommand ("kill", NULL);
 	Cmd_AddCommand ("pause", NULL);
 	Cmd_AddCommand ("say", CL_Say_f);
@@ -4729,7 +4729,8 @@ double Host_Frame (double time)
 #ifdef VM_UI
 		UI_MenuState() != 0 || 
 #endif
-		Key_Dest_Has(kdm_menu) || 
+		Key_Dest_Has(kdm_gmenu) || 
+		Key_Dest_Has(kdm_emenu) || 
 		Key_Dest_Has(kdm_editor) ||
 #ifdef _WIN32
 		!ActiveApp ||
@@ -5052,7 +5053,9 @@ void CL_StartCinematicOrMenu(void)
 	UI_Start();
 #endif
 
+#ifdef MENU_DAT
 	Cbuf_AddText("menu_restart\n", RESTRICT_LOCAL);
+#endif
 
 	Con_TPrintf ("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081 %s %sInitialized ^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082\n", *fs_gamename.string?fs_gamename.string:"Nothing", com_installer?"Installer ":"");
 

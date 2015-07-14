@@ -244,30 +244,39 @@ int
 	rtq2_grenade=P_INVALID,
 
 	rtqw_railtrail=P_INVALID,
-	rtfte_lightning1=P_INVALID,
-	ptfte_lightning1_end=P_INVALID,
-	rtfte_lightning2=P_INVALID,
-	ptfte_lightning2_end=P_INVALID,
-	rtfte_lightning3=P_INVALID,
-	ptfte_lightning3_end=P_INVALID,
 	ptfte_bullet=P_INVALID,
 	ptfte_superbullet=P_INVALID;
 
+typedef struct {
+	/*static stuff*/
+	char *modelname;
+	char *beamparticles;
+	char *beamimpactparticle;
+	int bflags;
+
+	/*cached stuff*/
+	model_t *model;
+	int ef_beam;
+	int ef_impact;
+} tentmodels_t;
+
 typedef struct
 {
+	tentmodels_t *info;
 	int		entity;
 	short	tag;
-	qbyte	active;
+//	short	pad;
+//	qbyte	pad;
 	qbyte	bflags;
 	qbyte	type;
 	qbyte	skin;
 	unsigned int rflags;
-	struct model_s	*model;
+
 	float	endtime;
 	float	alpha;
 	vec3_t	start, end;
 	vec3_t	offset;	//when attached, this is the offset from the owning entity. probably only z is meaningful.
-	int		particleeffect;
+//	int		particlecolour;	//some effects have specific colours. which is weird.
 	trailstate_t *trailstate;
 	trailstate_t *emitstate;
 } beam_t;
@@ -304,6 +313,30 @@ int			cl_explosions_max;
 
 static int explosions_running;
 static int beams_running;
+
+static tentmodels_t beamtypes[] =
+{
+	{"progs/bolt.mdl",				"TE_LIGHTNING1",				"TE_LIGHTNING1_END"},
+	{"progs/bolt2.mdl",				"TE_LIGHTNING2",				"TE_LIGHTNING2_END"},
+	{"progs/bolt3.mdl",				"TE_LIGHTNING3",				"TE_LIGHTNING3_END"},
+	{"progs/beam.mdl",				"te_beam",						"te_beam_end"},	//a CTF addition, but has other potential uses, sadly.
+
+	{"q2cl_mod_parasite_segment",	"te_parasite_attack",			"te_parasite_attack_end"},
+	{"q2cl_mod_grapple_cable",		"te_grapple_cable",				"te_grapple_cable_end"},
+	{"models/proj/beam/tris.md2",	"te_heatbeam",					"te_heatbeam_end"},
+
+	{"models/stltng2.mdl",			"te_stream_lightning_small",	NULL},
+	{"models/stchain.mdl",			"te_stream_chain",				NULL},
+	{"models/stsunsf1.mdl",			"te_stream_sunstaff1",			NULL},
+	{"models/stsunsf2.mdl",			NULL,							NULL},
+	{"models/stsunsf1.mdl",			"te_stream_sunstaff2",			NULL},
+	{"models/stlghtng.mdl",			"te_stream_lightning",			NULL},
+	{"models/stclrbm.mdl",			"te_stream_colorbeam",			NULL},
+	{"models/stice.mdl",			"te_stream_icechunks",			NULL},
+	{"models/stmedgaz.mdl",			"te_stream_gaze",				NULL},
+	{"models/fambeam.mdl",			"te_stream_famine",				NULL},
+};
+
 
 sfx_t			*cl_sfx_wizhit;
 sfx_t			*cl_sfx_knighthit;
@@ -578,16 +611,22 @@ void CL_RegisterParticles(void)
 #endif
 
 	rtqw_railtrail			= P_FindParticleType("TE_RAILTRAIL");
-	rtfte_lightning1		= P_FindParticleType("TE_LIGHTNING1");
-	ptfte_lightning1_end	= P_FindParticleType("TE_LIGHTNING1_END");
-	rtfte_lightning2		= P_FindParticleType("TE_LIGHTNING2");
-	ptfte_lightning2_end	= P_FindParticleType("TE_LIGHTNING2_END");
-	rtfte_lightning3		= P_FindParticleType("TE_LIGHTNING3");
-	ptfte_lightning3_end	= P_FindParticleType("TE_LIGHTNING3_END");
 	ptfte_bullet			= P_FindParticleType("TE_BULLET");
 	ptfte_superbullet		= P_FindParticleType("TE_SUPERBULLET");
 
 	CL_RefreshCustomTEnts();
+
+	for (i = 0; i < countof(beamtypes); i++)
+	{
+		//we can normally expect the server to have precache_modeled these models, so any lookups should be just a lookup, and thus relatively cheap.
+		beamtypes[i].model = NULL;
+		beamtypes[i].ef_beam = beamtypes[i].beamparticles?P_FindParticleType(beamtypes[i].beamparticles):P_INVALID;
+		beamtypes[i].ef_impact = beamtypes[i].beamimpactparticle?P_FindParticleType(beamtypes[i].beamimpactparticle):P_INVALID;
+	}
+
+	//FIXME
+	for (i = 0; i < cl_explosions_max; i++)
+		cl_explosions[i].model = NULL;
 }
 
 #ifdef Q2CLIENT
@@ -595,24 +634,16 @@ enum {
 	q2cl_mod_explode,
 	q2cl_mod_smoke,
 	q2cl_mod_flash,
-	q2cl_mod_parasite_segment,
-	q2cl_mod_grapple_cable,
 	q2cl_mod_parasite_tip,
 	q2cl_mod_explo4,
 	q2cl_mod_bfg_explo,
 	q2cl_mod_powerscreen,
 	q2cl_mod_max
 };
-typedef struct {
-	char *modelname;
-
-} tentmodels_t;
 tentmodels_t q2tentmodels[q2cl_mod_max] = {
 	{"models/objects/explode/tris.md2"},
 	{"models/objects/smoke/tris.md2"},
 	{"models/objects/flash/tris.md2"},
-	{"models/monsters/parasite/segment/tris.md2"},
-	{"models/ctf/segment/tris.md2"},
 	{"models/monsters/parasite/tip/tris.md2"},
 	{"models/objects/r_explode/tris.md2"},
 	{"sprites/s_bfg2.sp2"},
@@ -726,7 +757,7 @@ explosion_t *CL_AllocExplosion (vec3_t org)
 CL_ParseBeam
 =================
 */
-beam_t	*CL_NewBeam (int entity, int tag)
+beam_t	*CL_NewBeam (int entity, int tag, tentmodels_t *btype)
 {
 	beam_t	*b;
 	int i;
@@ -737,7 +768,7 @@ beam_t	*CL_NewBeam (int entity, int tag)
 		for (i=0, b=cl_beams; i < beams_running; i++, b++)
 			if (b->entity == entity && b->tag == tag)
 			{
-				b->active = true;
+				b->info = btype;
 				return b;
 			}
 	}
@@ -745,9 +776,9 @@ beam_t	*CL_NewBeam (int entity, int tag)
 // find a free beam
 	for (i=0, b=cl_beams; i < beams_running; i++, b++)
 	{
-		if (!b->active)
+		if (!b->info)
 		{
-			b->active = true;
+			b->info = btype;
 			return b;
 		}
 	}
@@ -765,7 +796,7 @@ beam_t	*CL_NewBeam (int entity, int tag)
 		}
 
 		beams_running++;
-		cl_beams[i].active = true;
+		cl_beams[i].info = btype;
 		return &cl_beams[i];
 	}
 
@@ -773,7 +804,7 @@ beam_t	*CL_NewBeam (int entity, int tag)
 }
 #define STREAM_ATTACHED			16
 #define STREAM_TRANSLUCENT		32
-void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ numbers instead of 0 - 5
+void CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ numbers instead of 0 - 5
 {
 	beam_t	*b;
 
@@ -782,11 +813,11 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	int i;
 	vec3_t impact, normal;
 	vec3_t extra;
-	char *mname;
 
+	//zquake compat requires some parsing weirdness.
 	switch(tent)
 	{
-	case 0:
+	case BT_Q1LIGHTNING1:
 		if (ent < 0 && ent >= -512)	//a zquake concept. ent between -1 and -maxplayers is to be taken to be a railtrail from a particular player instead of a beam.
 		{
 			// TODO: add support for those finnicky colored railtrails...
@@ -794,55 +825,27 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 				P_ParticleTrailIndex(start, end, 208, 8, NULL);
 			return;
 		}
-	default:
-		mname = "progs/bolt.mdl";
-		btype = rtfte_lightning1;
-		etype = ptfte_lightning1_end;
 		break;
-	case 1:
+	case BT_Q1LIGHTNING2:
 		if (ent < 0 && ent >= -MAX_CLIENTS)	//based on the railgun concept - this adds a rogue style TE_BEAM effect.
-		{
-	case 5:
-			mname = "progs/beam.mdl";	//remember to precache!
-			btype = P_FindParticleType("te_beam");
-			etype = P_FindParticleType("te_beam_end");
-		}
-		else
-		{
-			mname = "progs/bolt2.mdl";
-			btype = rtfte_lightning2;
-			etype = ptfte_lightning2_end;
-		}
+			tent = BT_Q1BEAM;
 		break;
-	case 2:
-		mname = "progs/bolt3.mdl";
-		btype = rtfte_lightning3;
-		etype = ptfte_lightning3_end;
+	default:
 		break;
-#ifdef Q2CLIENT
-	case 3:
-		mname = q2tentmodels[q2cl_mod_parasite_segment].modelname;
-		btype = P_FindParticleType("te_parasite_attack");
-		etype = P_FindParticleType("te_parasite_attack_end");
-		break;
-	case 4:
-		mname = q2tentmodels[q2cl_mod_grapple_cable].modelname;
-		btype = P_FindParticleType("te_grapple_cable");
-		etype = P_FindParticleType("te_grapple_cable_end");
-		break;
-	case 6:
-		mname = "models/proj/beam/tris.md2";
-		btype = P_FindParticleType("te_heatbeam");
-		etype = P_FindParticleType("te_heatbeam_end");
-		break;
-#endif
 	}
+
+	btype = beamtypes[tent].ef_beam;
+	etype = beamtypes[tent].ef_impact;
 
 	/*don't bother loading the model if we have a particle effect for it instead*/
 	if (ruleset_allow_particle_lightning.ival && btype >= 0)
 		m = NULL;
 	else
-		m = Mod_ForName(mname, MLV_WARN);
+	{
+		m = beamtypes[tent].model;
+		if (!m)
+			m = beamtypes[tent].model = Mod_ForName(beamtypes[tent].modelname, MLV_WARN);
+	}
 
 	if (m && m->loadstate != MLS_LOADED)
 		CL_CheckOrEnqueDownloadFile(m->name, NULL, 0);
@@ -878,7 +881,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		}
 	}
 
-	b = CL_NewBeam(ent, -1);
+	b = CL_NewBeam(ent, -1, &beamtypes[tent]);
 	if (!b)
 	{
 		Con_Printf ("beam list overflow!\n");
@@ -887,8 +890,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 
 	b->rflags = RF_NOSHADOW;
 	b->entity = ent;
-	b->model = m;
-	b->particleeffect = btype;
+	b->info = &beamtypes[tent];
 	b->tag = -1;
 	b->bflags |= /*STREAM_ATTACHED|*/1;
 	b->endtime = cl.time + 0.2;
@@ -902,7 +904,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, -10, 20);
 	}
 }
-void CL_ParseBeam (int tent)
+void CL_ParseBeam (enum beamtype_e tent)
 {
 	int		ent;
 	vec3_t	start, end;
@@ -950,6 +952,7 @@ void CL_ParseStream (int type)
 	int tag;
 	float duration;
 	int skin;
+	tentmodels_t *info;
 
 	ent = MSGCL_ReadEntity();
 	flags = MSG_ReadByte();
@@ -968,7 +971,47 @@ void CL_ParseStream (int type)
 	end[1] = MSG_ReadCoord();
 	end[2] = MSG_ReadCoord();
 
-	b = CL_NewBeam(ent, tag);
+	switch(type)
+	{
+	case TEH2_STREAM_LIGHTNING_SMALL:
+		info = &beamtypes[BT_H2LIGHTNING_SMALL];
+		flags |= 2;
+		break;
+	case TEH2_STREAM_LIGHTNING:
+		info = &beamtypes[BT_H2LIGHTNING];
+		flags |= 2;
+		break;
+	case TEH2_STREAM_ICECHUNKS:
+		info = &beamtypes[BT_H2ICECHUNKS];
+		flags |= 2;
+		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, 0, 20);
+		break;
+	case TEH2_STREAM_SUNSTAFF1:
+		info = &beamtypes[BT_H2SUNSTAFF1];
+		break;
+	case TEH2_STREAM_SUNSTAFF2:
+		info = &beamtypes[BT_H2SUNSTAFF2];
+		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, -10, 20);
+		break;
+	case TEH2_STREAM_COLORBEAM:
+		info = &beamtypes[BT_H2COLORBEAM];
+		break;
+	case TEH2_STREAM_GAZE:
+		info = &beamtypes[BT_H2GAZE];
+		break;
+	case TEH2_STREAM_FAMINE:
+		info = &beamtypes[BT_H2FAMINE];
+		break;
+	case TEH2_STREAM_CHAIN:
+		info = &beamtypes[BT_H2CHAIN];
+		break;
+	default:
+		Con_Printf("CL_ParseStream: type %i\n", type);
+		info = &beamtypes[BT_H2LIGHTNING];
+		break;
+	}
+
+	b = CL_NewBeam(ent, tag, info);
 	if (!b)
 	{
 		Con_Printf ("beam list overflow!\n");
@@ -979,8 +1022,6 @@ void CL_ParseStream (int type)
 	b->entity = ent;
 	b->tag = tag;
 	b->bflags = flags;
-	b->model = NULL;
-	b->particleeffect = -1;
 	b->endtime = cl.time + duration;
 	b->alpha = 1;
 	b->skin = skin;
@@ -998,30 +1039,13 @@ void CL_ParseStream (int type)
 		}
 	}
 
+	//special handling...
 	switch(type)
 	{
-	case TEH2_STREAM_LIGHTNING_SMALL:
-		b->model = 	Mod_ForName("models/stltng2.mdl", MLV_WARN);
-		b->bflags |= 2;
-		b->particleeffect = P_FindParticleType("te_stream_lightning_small");
-		break;
-	case TEH2_STREAM_LIGHTNING:
-		b->model = 	Mod_ForName("models/stlghtng.mdl", MLV_WARN);
-		b->bflags |= 2;
-		b->particleeffect = P_FindParticleType("te_stream_lightning");
-		break;
-	case TEH2_STREAM_ICECHUNKS:
-		b->model = 	Mod_ForName("models/stice.mdl", MLV_WARN);
-		b->bflags |= 2;
-		b->particleeffect = P_FindParticleType("te_stream_icechunks");
-		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, 0, 20);
-		break;
 	case TEH2_STREAM_SUNSTAFF1:
-		b->model = Mod_ForName("models/stsunsf1.mdl", MLV_WARN);
-		b->particleeffect = P_FindParticleType("te_stream_sunstaff1");
-		if (b->particleeffect < 0)
+		if (info->ef_beam == P_INVALID)
 		{
-			b2 = CL_NewBeam(ent, tag+128);
+			b2 = CL_NewBeam(ent, tag+128, &beamtypes[BT_H2SUNSTAFF1_SUB]);
 			if (b2)
 			{
 				P_DelinkTrailstate(&b2->trailstate);
@@ -1029,36 +1053,11 @@ void CL_ParseStream (int type)
 				memcpy(b2, b, sizeof(*b2));
 				b2->trailstate = NULL;
 				b2->emitstate = NULL;
-				b2->model = Mod_ForName("models/stsunsf2.mdl", MLV_WARN);
 				b2->alpha = 0.5;
 				b2->rflags = RF_TRANSLUCENT|RF_NOSHADOW;
 			}
 		}
 		//FIXME: we don't add the blob corners+smoke
-		break;
-	case TEH2_STREAM_SUNSTAFF2:
-		b->model = 	Mod_ForName("models/stsunsf1.mdl", MLV_WARN);
-		b->particleeffect = P_FindParticleType("te_stream_sunstaff2");
-		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, -10, 20);
-		break;
-	case TEH2_STREAM_COLORBEAM:
-		b->model = Mod_ForName("models/stclrbm.mdl", MLV_WARN);
-		b->particleeffect = P_FindParticleType("te_stream_colorbeam");
-		break;
-	case TEH2_STREAM_GAZE:
-		b->model = Mod_ForName("models/stmedgaz.mdl", MLV_WARN);
-		b->particleeffect = P_FindParticleType("te_stream_gaze");
-		break;
-	case TEH2_STREAM_FAMINE:
-		b->model = Mod_ForName("models/fambeam.mdl", MLV_WARN);
-		b->particleeffect = P_FindParticleType("te_stream_famine");
-		break;
-	case TEH2_STREAM_CHAIN:
-		b->model = Mod_ForName("models/stchain.mdl", MLV_WARN);
-		b->particleeffect = P_FindParticleType("te_stream_chain");
-		break;
-	default:
-		Con_Printf("CL_ParseStream: type %i\n", type);
 		break;
 	}
 }
@@ -1470,11 +1469,13 @@ void CL_ParseTEnt (void)
 		break;
 
 	case TE_LIGHTNING1:				// lightning bolts
+		CL_ParseBeam (BT_Q1LIGHTNING1);
+		break;
 	case TE_LIGHTNING2:				// lightning bolts
-		CL_ParseBeam (type - TE_LIGHTNING1);
+		CL_ParseBeam (BT_Q1LIGHTNING2);
 		break;
 	case TE_LIGHTNING3:				// lightning bolts
-		CL_ParseBeam (2);
+		CL_ParseBeam (BT_Q1LIGHTNING3);
 		break;
 
 	case TE_LAVASPLASH:
@@ -1546,7 +1547,7 @@ void CL_ParseTEnt (void)
 		break;
 
 	case TEQW_BEAM:
-		CL_ParseBeam (5);
+		CL_ParseBeam (BT_Q1BEAM);
 		break;
 
 	case TE_RAILTRAIL:
@@ -2524,14 +2525,14 @@ void CLQ2_ParseTEnt (void)
 
 	case Q2TE_PARASITE_ATTACK:
 	case Q2TE_MEDIC_CABLE_ATTACK:
-		CL_ParseBeam (3);
+		CL_ParseBeam (BT_Q2PARASITE);
 		break;
 	case Q2TE_HEATBEAM:
 	case Q2TE_MONSTER_HEATBEAM:
-		CL_ParseBeam (6);
+		CL_ParseBeam (BT_Q2HEATBEAM);
 		break;
 	case Q2TE_GRAPPLE_CABLE:
-		CL_ParseBeam (4);
+		CL_ParseBeam (BT_Q2GRAPPLE);
 		MSG_ReadPos (pos);
 		break;
 
@@ -2544,7 +2545,7 @@ void CLQ2_ParseTEnt (void)
 		pos2[0] = MSG_ReadCoord ();
 		pos2[1] = MSG_ReadCoord ();
 		pos2[2] = MSG_ReadCoord ();
-		CL_AddBeam(0, ent, pos, pos2);
+		CL_AddBeam(BT_Q1LIGHTNING1, ent, pos, pos2);
 		break;
 
 
@@ -3407,13 +3408,15 @@ void CL_UpdateBeams (void)
 	float		yaw, pitch;
 	float		forward, offset;
 	int lastrunningbeam = -1;
+	tentmodels_t *type;
 
 	extern cvar_t cl_truelightning, v_viewheight;
 
 // update lightning
 	for (bnum=0, b=cl_beams; bnum < beams_running; bnum++, b++)
 	{
-		if (!b->active)
+		type = b->info;
+		if (!type)
 			continue;
 
 		if (b->endtime < cl.time)
@@ -3422,7 +3425,7 @@ void CL_UpdateBeams (void)
 			{	/*don't let lightning decay while paused*/
 				P_DelinkTrailstate(&b->trailstate);
 				P_DelinkTrailstate(&b->emitstate);
-				b->active = false;
+				b->info = NULL;
 				continue;
 			}
 		}
@@ -3554,11 +3557,15 @@ void CL_UpdateBeams (void)
 				pitch += 360;
 		}
 
-		if (ruleset_allow_particle_lightning.ival || !b->model)
-			if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, b->entity, NULL, &b->trailstate))
+		if (ruleset_allow_particle_lightning.ival || !type->modelname)
+			if (type->ef_beam >= 0 && !P_ParticleTrail(b->start, b->end, type->ef_beam, b->entity, NULL, &b->trailstate))
 				continue;
-		if (!b->model)
-			continue;
+		if (!type->model)
+		{
+			type->model = type->modelname?Mod_ForName(type->modelname, MLV_WARN):NULL;
+			if (!type->model)
+				continue;
+		}
 
 	// add new entities for the lightning
 		VectorCopy (b->start, org);
@@ -3579,7 +3586,7 @@ void CL_UpdateBeams (void)
 			if (!ent)
 				return;
 			VectorCopy (org, ent->origin);
-			ent->model = b->model;
+			ent->model = type->model;
 			ent->drawflags |= MLS_ABSLIGHT;
 			ent->abslight = 64 + 128 * bound(0, cl_shaftlight.value, 1);
 			ent->shaderRGBAf[3] = b->alpha;

@@ -628,6 +628,9 @@ void Cache_Flush(void)
 	S_Purge(false);
 #endif
 	Mod_Purge(MP_FLUSH);
+#ifndef SERVERONLY
+	Image_Purge();
+#endif
 }
 
 static void Hunk_Print_f (void)

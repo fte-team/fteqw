@@ -381,11 +381,13 @@ enum qcop_e {
 	OP_BITCLR_I,
 
 	OP_ADD_SI,
+	OP_ADD_IS,
 	OP_ADD_PF,
 	OP_ADD_FP,
 	OP_ADD_PI,
 	OP_ADD_IP,
 
+	OP_SUB_SI,
 	OP_SUB_PF,
 	OP_SUB_PI,
 
@@ -395,12 +397,12 @@ enum qcop_e {
 	OP_MOD_I,
 	OP_MOD_V,
 
-	OP_BITXOR_F,		//140
+	OP_BITXOR_F,
 	OP_RSHIFT_F,
 	OP_LSHIFT_F,
 
 	OP_AND_ANY,
-	OP_OR_ANY,		//190
+	OP_OR_ANY,
 
 	OP_NUMOPS
 };

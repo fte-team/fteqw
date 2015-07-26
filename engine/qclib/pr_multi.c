@@ -19,11 +19,11 @@ int maxshares;
 //switches progs without preserving parms/ret/shared
 pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type)
 {	
-	if ((unsigned)type >= maxprogs)
+	if ((unsigned)type >= prinst.maxprogs)
 	{
 		if (type == -1)
 		{
-			pr_typecurrent = -1;
+			prinst.pr_typecurrent = -1;
 			current_progstate = NULL;
 			return true;
 		}
@@ -36,7 +36,7 @@ pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type)
 
 	current_progstate = &pr_progstate[(unsigned)type];
 
-	pr_typecurrent = type;
+	prinst.pr_typecurrent = type;
 
 	return true;
 }
@@ -47,7 +47,7 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 
 	unsigned int a;
 	progstate_t *np;
 	progstate_t *op;
-	int oldpr = pr_typecurrent;
+	int oldpr = prinst.pr_typecurrent;
 
 	if (newpr == oldpr)
 	{
@@ -58,12 +58,12 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 
 	np = &pr_progstate[(int)newpr];
 	op = &pr_progstate[(int)oldpr];
 
-	if ((unsigned)newpr >= maxprogs || !np->globals)
+	if ((unsigned)newpr >= prinst.maxprogs || !np->globals)
 	{
 		printf("QCLIB: Bad prog type - %i", newpr);
 		return false;
 	}
-	if ((unsigned)oldpr >= maxprogs || !op->globals)	//startup?
+	if ((unsigned)oldpr >= prinst.maxprogs || !op->globals)	//startup?
 		return PR_SwitchProgs(progfuncs, newpr);
 
 	//copy parms.
@@ -78,9 +78,9 @@ pbool PR_SwitchProgsParms(progfuncs_t *progfuncs, progsnum_t newpr)	//from 2 to 
 	np->globals[OFS_RETURN+2] = op->globals[OFS_RETURN+2];
 
 	//move the vars defined as shared.
-	for (a = 0; a < numshares; a++)//fixme: make offset per progs
+	for (a = 0; a < prinst.numshares; a++)//fixme: make offset per progs
 	{
-		memmove(&((int *)np->globals)[shares[a].varofs], &((int *)op->globals)[shares[a].varofs], shares[a].size*4);
+		memmove(&((int *)np->globals)[prinst.shares[a].varofs], &((int *)op->globals)[prinst.shares[a].varofs], prinst.shares[a].size*4);
 /*		((int *)p1->globals)[shares[a].varofs] = ((int *)p2->globals)[shares[a].varofs];
 		if (shares[a].size > 1)
 		{
@@ -98,12 +98,12 @@ progsnum_t PDECL PR_LoadProgs(pubprogfuncs_t *ppf, const char *s)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int a;
 	progsnum_t oldtype;
-	oldtype = pr_typecurrent;	
-	for (a = 0; a < maxprogs; a++)
+	oldtype = prinst.pr_typecurrent;	
+	for (a = 0; a < prinst.maxprogs; a++)
 	{
 		if (pr_progstate[a].progs == NULL)
 		{
-			pr_typecurrent = a;
+			prinst.pr_typecurrent = a;
 			current_progstate = &pr_progstate[a];
 			if (PR_ReallyLoadProgs(progfuncs, s, &pr_progstate[a], false))	//try and load it			
 			{
@@ -136,7 +136,7 @@ void PR_ShiftParms(progfuncs_t *progfuncs, int amount)
 void PR_Clear(progfuncs_t *progfuncs)
 {
 	unsigned int a;
-	for (a = 0; a < maxprogs; a++)
+	for (a = 0; a < prinst.maxprogs; a++)
 	{
 #ifdef QCJIT
 		if (pr_progstate[a].jit)
@@ -150,11 +150,11 @@ void PR_Clear(progfuncs_t *progfuncs)
 
 void QC_StartShares(progfuncs_t *progfuncs)
 {
-	numshares = 0;
-	maxshares = 32;
-	if (shares)
-		externs->memfree(shares);
-	shares = externs->memalloc(sizeof(sharedvar_t)*maxshares);
+	prinst.numshares = 0;
+	prinst.maxshares = 32;
+	if (prinst.shares)
+		externs->memfree(prinst.shares);
+	prinst.shares = externs->memalloc(sizeof(sharedvar_t)*prinst.maxshares);
 }
 void PDECL QC_AddSharedVar(pubprogfuncs_t *ppf, int start, int size)	//fixme: make offset per progs and optional
 {
@@ -162,33 +162,33 @@ void PDECL QC_AddSharedVar(pubprogfuncs_t *ppf, int start, int size)	//fixme: ma
 	int ofs;
 	unsigned int a;
 
-	if (numshares >= maxshares)
+	if (prinst.numshares >= prinst.maxshares)
 	{
 		void *buf;
-		buf = shares;
-		maxshares += 16;		
-		shares = externs->memalloc(sizeof(sharedvar_t)*maxshares);
+		buf = prinst.shares;
+		prinst.maxshares += 16;		
+		prinst.shares = externs->memalloc(sizeof(sharedvar_t)*prinst.maxshares);
 
-		memcpy(shares, buf, sizeof(sharedvar_t)*numshares);
+		memcpy(prinst.shares, buf, sizeof(sharedvar_t)*prinst.numshares);
 
 		externs->memfree(buf);
 	}
 	ofs = start;
-	for (a = 0; a < numshares; a++)
+	for (a = 0; a < prinst.numshares; a++)
 	{
-		if (shares[a].varofs+shares[a].size == ofs)
+		if (prinst.shares[a].varofs+prinst.shares[a].size == ofs)
 		{
-			shares[a].size += size;	//expand size.
+			prinst.shares[a].size += size;	//expand size.
 			return;
 		}
-		if (shares[a].varofs == start)
+		if (prinst.shares[a].varofs == start)
 			return;
 	}
 
 
-	shares[numshares].varofs = start;
-	shares[numshares].size = size;
-	numshares++;
+	prinst.shares[prinst.numshares].varofs = start;
+	prinst.shares[prinst.numshares].size = size;
+	prinst.numshares++;
 }
 
 
@@ -240,9 +240,9 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 
 	if (!name)	//engine can use this to offset all progs fields
 	{			//which fixes constant field offsets (some ktpro arrays)
-		progfuncs->funcs.fieldadjust = fields_size/4;
+		progfuncs->funcs.fieldadjust = prinst.fields_size/4;
 #ifdef MAPPING_DEBUG
-		printf("FIELD ADJUST: %i %i %i\n", progfuncs->funcs.fieldadjust, fields_size, (int)fields_size/4);
+		printf("FIELD ADJUST: %i %i %i\n", progfuncs->funcs.fieldadjust, prinst.fields_size, (int)prinst.fields_size/4);
 #endif
 		return 0;
 	}
@@ -322,7 +322,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 	}
 	else
 	{	//we just found a new fieldname inside a progs
-		prinst.field[fnum].ofs = ofs = fields_size/4;	//add on the end
+		prinst.field[fnum].ofs = ofs = prinst.fields_size/4;	//add on the end
 
 		//if the progs field offset matches annother offset in the same progs, make it match up with the earlier one.
 		if (progsofs>=0)
@@ -361,10 +361,10 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, char *name
 		}
 	}
 //	if (type != ev_vector)
-		if (fields_size < (ofs+type_size[type])*4)
-			fields_size = (ofs+type_size[type])*4;
+		if (prinst.fields_size < (ofs+type_size[type])*4)
+			prinst.fields_size = (ofs+type_size[type])*4;
 
-	if (max_fields_size && fields_size > max_fields_size)
+	if (prinst.max_fields_size && prinst.fields_size > prinst.max_fields_size)
 		Sys_Error("Allocated too many additional fields after ents were inited.");
 
 #ifdef MAPPING_DEBUG

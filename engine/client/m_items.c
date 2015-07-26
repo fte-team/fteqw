@@ -641,33 +641,32 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu
 			{
 				int x = xpos+option->common.posx;
 				int y = ypos+option->common.posy;
-				int		keys[2];
+				int		keys[8], keymods[countof(keys)];
+				int keycount;
 				char *keyname;
+				int j;
 
 				Draw_FunStringWidth(x, y, option->bind.caption, option->bind.captionwidth, true, !menu->cursoritem && menu->selecteditem == option);
 				x += option->bind.captionwidth + 3*8;
 
-				{
-					M_FindKeysForCommand (cl_forceseat.ival, option->bind.command, keys);
+				keycount = M_FindKeysForCommand (0, cl_forceseat.ival, option->bind.command, keys, keymods, countof(keys));
 
-					if (bindingactive && menu->selecteditem == option)
-					{
-						Draw_FunString (x, y, "Press key");
-					}
-					else if (keys[0] == -1)
-					{
-						Draw_FunString (x, y, "???");
-					}
-					else
-					{
-						keyname = Key_KeynumToString (keys[0]);
+				if (bindingactive && menu->selecteditem == option)
+					Draw_FunString (x, y, "Press key");
+				else if (!keycount)
+					Draw_FunString (x, y, "???");
+				else
+				{
+					for (j = 0; j < keycount; j++)
+					{	/*these offsets are wrong*/
+						if (j)
+						{
+							Draw_FunString (x + 8, y, "or");
+							x += 32;
+						}
+						keyname = Key_KeynumToString (keys[j], keymods[j]);
 						Draw_FunString (x, y, keyname);
 						x += strlen(keyname) * 8;
-						if (keys[1] != -1)
-						{	/*these offsets are wrong*/
-							Draw_FunString (x + 8, y, "or");
-							Draw_FunString (x + 32, y, Key_KeynumToString (keys[1]));
-						}
 					}
 				}
 			}
@@ -1840,7 +1839,22 @@ void M_Complex_Key(int key, int unicode)
 
 			if (key != K_ESCAPE && key != '`')
 			{
-				Cbuf_InsertText (va("bind \"%s\" \"%s\"\n", Key_KeynumToString (key), currentmenu->selecteditem->bind.command), RESTRICT_LOCAL, false);
+				int modifiers = 0;
+				extern qboolean keydown[];
+				if (keydown[K_LSHIFT] && key != K_LSHIFT)
+					modifiers |= 1;
+				if (keydown[K_RSHIFT] && key != K_RSHIFT)
+					modifiers |= 1;
+				if (keydown[K_LALT] && key != K_LALT)
+					modifiers |= 2;
+				if (keydown[K_RALT] && key != K_RALT)
+					modifiers |= 2;
+				if (keydown[K_LCTRL] && key != K_LCTRL)
+					modifiers |= 4;
+				if (keydown[K_RCTRL] && key != K_RCTRL)
+					modifiers |= 4;
+
+				Cbuf_InsertText (va("bind \"%s\" \"%s\"\n", Key_KeynumToString (key, modifiers), currentmenu->selecteditem->bind.command), RESTRICT_LOCAL, false);
 			}
 			bindingactive = false;
 			return;

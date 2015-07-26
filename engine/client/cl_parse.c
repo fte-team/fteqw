@@ -2283,7 +2283,7 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 					for (b = dl->dlblocks; b; b = n)
 					{
 						if (b->state == DLB_RECEIVED)
-							VFS_PRINTF(parts, "c %#llx %#llx\n", (long long)b->start, (long long)b->end);
+							VFS_PRINTF(parts, "c "fPRIllx" "fPRIllx"\n", (long long)b->start, (long long)b->end);
 						else
 						{
 							for(;;)
@@ -2298,7 +2298,7 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 								}
 								break;
 							}
-							VFS_PRINTF(parts, "m %#llx %#llx\n", (long long)b->start, (long long)b->end);
+							VFS_PRINTF(parts, "m "fPRIllx" "fPRIllx"\n", (long long)b->start, (long long)b->end);
 						}
 
 						n = b->next;
@@ -3888,7 +3888,7 @@ void CLQ2_ParseConfigString (void)
 	}
 	else if (i == Q2CS_CDTRACK)
 	{
-		Media_BackgroundTrack (s, NULL);
+		Media_NamedTrack (s, NULL);
 	}
 	else if (i >= Q2CS_MODELS && i < Q2CS_MODELS+Q2MAX_MODELS)
 	{
@@ -4050,6 +4050,7 @@ Static entities are non-interactive world objects
 like torches
 =====================
 */
+void R_StaticEntityToRTLight(int i);
 void CL_ParseStatic (int version)
 {
 	entity_t *ent;
@@ -4168,6 +4169,11 @@ void CL_ParseStatic (int version)
 		VectorCopy(es.origin, maxs);
 	}
 	cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
+
+#ifdef RTLIGHTS
+	//and now handle any rtlight fields on it
+	R_StaticEntityToRTLight(i);
+#endif
 }
 
 /*
@@ -4246,7 +4252,7 @@ void CLQW_ParseStartSoundPacket(void)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
 
 #ifdef PEXT_CSQC
-	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, 100))
+	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, 100, 0))
 #endif
 	{
 		if (!sound_num)
@@ -4347,23 +4353,24 @@ void CLQ2_ParseStartSoundPacket(void)
 #if defined(NQPROT) || defined(PEXT_SOUNDDBL)
 void CLNQ_ParseStartSoundPacket(void)
 {
-    vec3_t  pos;
-    int 	channel, ent;
-    int 	sound_num;
-    int 	volume;
-    int 	field_mask;
-    float 	attenuation;
+	vec3_t  pos;
+	int 	channel, ent;
+	int 	sound_num;
+	int 	volume;
+	int 	field_mask;
+	float 	attenuation;
  	int		i;
 	int		pitchadj;
+	float	timeofs;
 
-    field_mask = MSG_ReadByte();
+	field_mask = MSG_ReadByte();
 
-    if (field_mask & NQSND_VOLUME)
+	if (field_mask & NQSND_VOLUME)
 		volume = MSG_ReadByte ();
 	else
 		volume = DEFAULT_SOUND_PACKET_VOLUME;
 
-    if (field_mask & NQSND_ATTENUATION)
+	if (field_mask & NQSND_ATTENUATION)
 		attenuation = MSG_ReadByte () / 64.0;
 	else
 		attenuation = DEFAULT_SOUND_PACKET_ATTENUATION;
@@ -4372,6 +4379,11 @@ void CLNQ_ParseStartSoundPacket(void)
 		pitchadj = MSG_ReadByte();
 	else
 		pitchadj = 100;
+
+	if (field_mask & FTESND_TIMEOFS)
+		timeofs = MSG_ReadShort() / 1000.0;
+	else
+		timeofs = 0;
 
 	if (field_mask & DPSND_LARGEENTITY)
 	{
@@ -4400,13 +4412,13 @@ void CLNQ_ParseStartSoundPacket(void)
 		pos[i] = MSG_ReadCoord ();
 
 #ifdef PEXT_CSQC
-	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, pitchadj))
+	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, pitchadj, timeofs))
 #endif
 	{
 		if (!sound_num)
 			S_StopSound(ent, channel);
 		else
-			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0, pitchadj);
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, timeofs, pitchadj);
 	}
 
 	if (ent == cl.playerview[0].playernum+1)
@@ -4493,7 +4505,7 @@ void CL_NewTranslation (int slot)
 		if (player->model->loadstate == MLS_FAILED && strcmp(mod, "male"))
 		{	//fall back on male if the model doesn't exist. yes, sexist.
 			mod = "male";
-			player->model = Mod_ForName(va("players/male/tris.md2", mod), 0);
+			player->model = Mod_ForName(va("players/%s/tris.md2", mod), 0);
 		}
 		player->skinid = Mod_RegisterSkinFile(va("players/%s/%s.skin", mod,skin));
 		if (!player->skinid)
@@ -5217,11 +5229,11 @@ char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 		if ((int)msg_filter.value & flags)
 			return NULL;	//filter chat
 
-		check_flood = Ignore_Check_Flood(s, flags, offset);
+		check_flood = Ignore_Check_Flood(*player, s, flags);
 		if (check_flood == IGNORE_NO_ADD)
 			return NULL;
 		else if (check_flood == NO_IGNORE_ADD)
-			Ignore_Flood_Add(s);
+			Ignore_Flood_Add(*player, s);
 	}
 #ifdef PLUGINS
 	else
@@ -7264,13 +7276,13 @@ void CLNQ_ParseServerMessage (void)
 			Cmd_ExecuteString("bf", RESTRICT_SERVER);
 			break;
 		case svcfitz_fog:
-			CL_ResetFog();
-			cl.fog.density = MSG_ReadByte()/255.0f;
-			cl.fog.colour[0] = MSG_ReadByte()/255.0f;
-			cl.fog.colour[1] = MSG_ReadByte()/255.0f;
-			cl.fog.colour[2] = MSG_ReadByte()/255.0f;
-			cl.fog.time += ((unsigned short)MSG_ReadShort()) / 100.0;
-			cl.fog_locked = !!cl.fog.density;
+			CL_ResetFog(0);
+			cl.fog[0].density = MSG_ReadByte()/255.0f;
+			cl.fog[0].colour[0] = MSG_ReadByte()/255.0f;
+			cl.fog[0].colour[1] = MSG_ReadByte()/255.0f;
+			cl.fog[0].colour[2] = MSG_ReadByte()/255.0f;
+			cl.fog[0].time += ((unsigned short)MSG_ReadShort()) / 100.0;
+			cl.fog_locked = !!cl.fog[0].density;
 			break;
 		case svcfitz_spawnbaseline2:
 			i = MSGCL_ReadEntity ();

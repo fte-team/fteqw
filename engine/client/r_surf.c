@@ -36,10 +36,9 @@ model_t		*currentmodel;
 int		lightmap_bytes;		// 1, 3 or 4
 qboolean lightmap_bgra;
 
-#define MAX_LIGHTMAP_SIZE 1024//LMBLOCK_WIDTH
-
-vec3_t			blocknormals[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
-unsigned		blocklights[3*MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
+size_t			maxblocksize;
+vec3_t			*blocknormals;
+unsigned		*blocklights;
 
 lightmapinfo_t **lightmap;
 int numlightmaps;
@@ -874,7 +873,8 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 {
 	int			smax, tmax;
 	int			t;
-	int			i, j, size;
+	int			i, j;
+	size_t		size;
 	qbyte		*lightmap;
 	unsigned	scale;
 	int			maps;
@@ -887,13 +887,17 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 
 	smax = (surf->extents[0]>>surf->lmshift)+1;
 	tmax = (surf->extents[1]>>surf->lmshift)+1;
-	size = smax*tmax;
+	size = (size_t)smax*tmax;
 	lightmap = surf->samples;
 
-	if (size > MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE)
+	if (size > maxblocksize)
 	{	//fixme: fill in?
-		Con_Printf("Lightmap too large\n");
-		return;
+		BZ_Free(blocklights);
+		BZ_Free(blocknormals);
+
+		maxblocksize = size;
+		blocknormals = BZ_Malloc(maxblocksize * sizeof(*blocknormals));	//already a vector
+		blocklights = BZ_Malloc(maxblocksize * 3*sizeof(*blocklights));
 	}
 
 	if (currentmodel->deluxdata)
@@ -2136,18 +2140,18 @@ void Surf_SetupFrame(void)
 		V_SetContentsColor (r_viewcontents);
 
 
-	if (r_refdef.audio.defaulted)
+	if (r_refdef.playerview->audio.defaulted)
 	{
 		//first scene is the 'main' scene and audio defaults to that (unless overridden later in the frame)
-		r_refdef.audio.defaulted = false;
-		VectorCopy(r_refdef.vieworg, r_refdef.audio.origin);
-		VectorCopy(vpn, r_refdef.audio.forward);
-		VectorCopy(vright, r_refdef.audio.right);
-		VectorCopy(vup, r_refdef.audio.up);
+		r_refdef.playerview->audio.defaulted = false;
+		VectorCopy(r_refdef.vieworg, r_refdef.playerview->audio.origin);
+		VectorCopy(vpn, r_refdef.playerview->audio.forward);
+		VectorCopy(vright, r_refdef.playerview->audio.right);
+		VectorCopy(vup, r_refdef.playerview->audio.up);
 		if (r_viewcontents & FTECONTENTS_FLUID)
-			r_refdef.audio.inwater = true;
+			r_refdef.playerview->audio.inwater = true;
 		else
-			r_refdef.audio.inwater = false;
+			r_refdef.playerview->audio.inwater = false;
 	}
 }
 
@@ -2451,6 +2455,7 @@ void Surf_DeInit(void)
 
 void Surf_Clear(model_t *mod)
 {
+	int i;
 	vbo_t *vbo;
 	if (mod->fromgame == fg_doom3)
 		return;/*they're on the hunk*/
@@ -2461,12 +2466,29 @@ void Surf_Clear(model_t *mod)
 		BE_ClearVBO(vbo);
 	}
 
+	if (!mod->submodelof)
+	{
+		for (i = 0; i < mod->numtextures; i++)
+		{
+			R_UnloadShader(mod->textures[i]->shader);
+			mod->textures[i]->shader = NULL;
+		}
+	}
+	mod->numtextures = 0;
+
+
 	BZ_Free(mod->shadowbatches);
 	mod->numshadowbatches = 0;
 	mod->shadowbatches = NULL;
 #ifdef RTLIGHTS
 	Sh_PurgeShadowMeshes();
 #endif
+
+	BZ_Free(blocklights);
+	BZ_Free(blocknormals);
+	blocklights = NULL;
+	blocknormals = NULL;
+	maxblocksize = 0;
 }
 
 //pick fastest mode for lightmap data
@@ -2953,6 +2975,11 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 		//fixme: no rotation
 		if (cl_static_entities[i].ent.model)
 		{
+			//unfortunately, we need to know the actual size so that we can get this right. bum.
+			if (cl_static_entities[i].ent.model->loadstate == MLS_NOTLOADED)
+				Mod_LoadModel(cl_static_entities[i].ent.model, MLV_SILENT);
+			if (cl_static_entities[i].ent.model->loadstate == MLS_LOADING)
+				COM_WorkerPartialSync(cl_static_entities[i].ent.model, &cl_static_entities[i].ent.model->loadstate, MLS_LOADING);
 			VectorAdd(cl_static_entities[i].ent.origin, cl_static_entities[i].ent.model->mins, mins);
 			VectorAdd(cl_static_entities[i].ent.origin, cl_static_entities[i].ent.model->maxs, maxs);
 		}

@@ -643,7 +643,7 @@ void Sbar_ExecuteLayoutString (char *s)
 
 static void Sbar_Q2DrawInventory(void)
 {
-	int keys[2];
+	int keys[1], keymods[1];
 	char cmd[1024];
 	const char *boundkey;
 	unsigned int validlist[Q2MAX_ITEMS], rows, i, item, selected = cl.q2frame.playerstate.stats[Q2STAT_SELECTED_ITEM];
@@ -679,11 +679,10 @@ static void Sbar_Q2DrawInventory(void)
 		item = validlist[i];
 
 		Q_snprintfz(cmd, sizeof(cmd), "use %s", Get_Q2ConfigString(Q2CS_ITEMS+item));
-		M_FindKeysForCommand(0, cmd, keys);
-		if (keys[0] == -1)
+		if (!M_FindKeysForCommand(0, 0, cmd, keys, keymods, countof(keys)))
 			boundkey = "";	//we don't actually know which ones can be selected at all.
 		else
-			boundkey = Key_KeynumToString(keys[0]);
+			boundkey = Key_KeynumToString(keys[0], keymods[0]);
 
 		Q_snprintfz(cmd, sizeof(cmd), "%6s %3i %s", boundkey, cl.inventory[item], Get_Q2ConfigString(Q2CS_ITEMS+item));
 		Draw_FunStringWidth(x, y, cmd, 256-24*2+8, false, item != selected);	y+=8;
@@ -1144,6 +1143,8 @@ void Draw_TinyString (float x, float y, const qbyte *str)
 {
 	float xstart;
 	int px, py;
+	unsigned int codepoint;
+	int error;
 
 	if (!font_tiny)
 	{
@@ -1157,15 +1158,16 @@ void Draw_TinyString (float x, float y, const qbyte *str)
 
 	while (*str)
 	{
-		if (*str == '\n')
+		codepoint = unicode_decode(&error, str, (char**)&str, true);
+
+		if (codepoint == '\n')
 		{
 			px = xstart;
 			py += Font_CharHeight();
 			str++;
 			continue;
 		}
-		//fixme: utf-8 encoding.
-		px = Font_DrawChar(px, py, CON_WHITEMASK, *str++);
+		px = Font_DrawChar(px, py, CON_WHITEMASK, codepoint);
 	}
 	Font_EndString(font_tiny);
 }

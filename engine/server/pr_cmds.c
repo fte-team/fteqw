@@ -1392,7 +1392,7 @@ void Q_InitProgs(void)
 		for (j = 0; j < maps; j++)
 		{
 			f = COM_Parse(f);
-			if (!Q_strcasecmp(sv.name, com_token))
+			if (!Q_strcasecmp(svs.name, com_token))
 			{
 				f = COM_Parse(f);
 				strcpy(addons, com_token);
@@ -1592,7 +1592,7 @@ void Q_InitProgs(void)
 	}
 
 	//progs depended on by maps.
-	a = as = COM_LoadStackFile(va("maps/%s.inf", sv.name), addons, sizeof(addons), NULL);
+	a = as = COM_LoadStackFile(va("maps/%s.inf", svs.name), addons, sizeof(addons), NULL);
 	if (a)
 	{
 		as = strstr(a, "qwprogs=");
@@ -3033,6 +3033,7 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	float attenuation;
 	int			pitchadj;
 	int flags;
+	float	timeofs;
 
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
@@ -3045,7 +3046,7 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		pitchadj = 0;
 	if (svprogfuncs->callargc > 6)
 	{
-		flags = G_FLOAT(OFS_PARM5);
+		flags = G_FLOAT(OFS_PARM6);
 		if (channel < 0)
 			channel = 0;
 	}
@@ -3056,6 +3057,7 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		//demangle it so the upper bits are still useful.
 		channel = (channel & 7) | ((channel & 0x1f0) >> 1);
 	}
+	timeofs = (svprogfuncs->callargc>7)?G_FLOAT(OFS_PARM7):0;
 
 	if (volume < 0)	//erm...
 		return;
@@ -3063,11 +3065,11 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	if (volume > 255)
 		volume = 255;
 
+	//should probably be an argument instead, but whatever.
 	if (flags & 1)
 		channel |= 256;
 
-	//shift the reliable flag to 256 instead.
-	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, sample, volume, attenuation, pitchadj);
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, sample, volume, attenuation, pitchadj, timeofs);
 }
 
 static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3087,7 +3089,7 @@ static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s 
 	else
 		pitchpct = 0;
 
-	SVQ1_StartSound (origin, sv.world.edicts, 0, sample, volume, attenuation, pitchpct);
+	SVQ1_StartSound (origin, sv.world.edicts, 0, sample, volume, attenuation, pitchpct, 0);
 }
 
 //an evil one from telejano.
@@ -6087,7 +6089,6 @@ string readmcmd (string str)
 static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *s;
-	static char output[8000];
 	extern char outputbuf[];
 	extern redirect_t sv_redirected;
 	extern int sv_redirectedlang;
@@ -6106,14 +6107,12 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 
 	SV_BeginRedirect(RD_OBLIVION, TL_FindLanguage(""));
 	Cbuf_Execute();
-	Q_strncpyz(output, outputbuf, sizeof(output));
+	Con_Printf("PF_readcmd: %s\n%s", s, outputbuf);
+	G_INT(OFS_RETURN) = (int)PR_TempString(prinst, outputbuf);
 	SV_EndRedirect();
 
 	if (old != RD_NONE)
 		SV_BeginRedirect(old, oldl);
-
-Con_Printf("PF_readcmd: %s\n%s", s, output);
-	G_INT(OFS_RETURN) = (int)PR_SetString(prinst, output);
 }
 
 /*
@@ -6647,11 +6646,18 @@ void SV_AddDebugPolygons(void)
 	int i;
 	if (gfuncs.AddDebugPolygons)
 	{
+#ifdef PROGS_DAT
+		extern qboolean csqc_dp_lastwas3d;
+		csqc_dp_lastwas3d = true;
+#endif
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 		for (i = 0; i < sv.allocated_client_slots; i++)
 			if (svs.clients[i].netchan.remote_address.type == NA_LOOPBACK)
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 		PR_ExecuteProgram (svprogfuncs, gfuncs.AddDebugPolygons);
+#ifdef PROGS_DAT
+		csqc_dp_lastwas3d = false;
+#endif
 	}
 }
 
@@ -7564,7 +7570,7 @@ static void QCBUILTIN PF_h2StopSound(pubprogfuncs_t *prinst, struct globalvars_s
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 
-	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, "", 1, 0, 0);
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, "", 1, 0, 0, 0);
 }
 
 static void QCBUILTIN PF_h2updatesoundpos(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9227,7 +9233,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"qtest_setabssize",PF_setsize,			5,		0,		0,		0,	D("void(entity e, vector min, vector max)", "qtest"), true},
 	{"breakpoint",		PF_break,			6,		6,		6,		0,	D("void()", "Trigger a debugging event. FTE will break into the qc debugger. Other engines may crash with a debug execption.")},
 	{"random",			PF_random,			7,		7,		7,		0,	D("float()", "Returns a random value between 0 and 1. Be warned, this builtin can return 1 in most engines, which can break arrays.")},
-	{"sound",			PF_sound,			8,		8,		8,		0,	D("void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags)", "Starts a sound centered upon the given entity.\nchan is the entity sound channel to use, channel 0 will allow you to mix many samples at once, others will replace the old sample\n'samp' must have been precached first\nif specified, 'speedpct' should normally be around 100 (or =0), 200 for double speed or 50 for half speed.\nflags&1 means the sound should be sent reliably.")},
+	{"sound",			PF_sound,			8,		8,		8,		0,	D("void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags, optional float timeofs)", "Starts a sound centered upon the given entity.\nchan is the entity sound channel to use, channel 0 will allow you to mix many samples at once, others will replace the old sample\n'samp' must have been precached first\nif specified, 'speedpct' should normally be around 100 (or =0), 200 for double speed or 50 for half speed.\nIf flags is specified, the reliable flag in the channels argument is used for additional channels. Flags should be made from SOUNDFLAG_* constants\ntimeofs should be negative in order to provide a delay before the sound actually starts.")},
 	{"normalize",		PF_normalize,		9,		9,		9,		0,	D("vector(vector v)", "Shorten or lengthen a direction vector such that it is only one quake unit long.")},
 	{"error",			PF_error,			10,		10,		10,		0,	D("void(string e)", "Ends the game with an easily readable error message.")},
 	{"objerror",		PF_objerror,		11,		11,		11,		0,	D("void(string e)", "Displays a non-fatal easily readable error message concerning the self entity, including a field dump. self will be removed!")},
@@ -9537,6 +9543,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"strcasecmp",		PF_strncasecmp,		0,		0,		0,		229,	D("float(string s1, string s2)",  "Compares the two strings without case sensitivity.\nReturns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon.")},
 	{"strncasecmp",		PF_strncasecmp,		0,		0,		0,		230,	D("float(string s1, string s2, float len, optional float s1ofs, optional float s2ofs)", "Compares up to 'len' chars in the two strings without case sensitivity. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.\nReturns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon.")},
 //END FTE_STRINGS
+	{"strtrim",			PF_strtrim,			0,		0,		0,		0,		D("string(string s)", "Trims the whitespace from the start+end of the string.")},
 
 //FTE_CALLTIMEOFDAY
 	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231,	D("void()", "Asks the engine to instantly call the qc's 'timeofday' function, before returning. For compatibility with mvdsv.\ntimeofday should have the prototype: void(float secs, float mins, float hour, float day, float mon, float year, string strvalue)\nThe strftime builtin is more versatile and less weird.")},
@@ -9579,10 +9586,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257,	"string(float serveridx)"}, // sqlversion (FTE_SQL)
 	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258,	"float(float serveridx, float queryidx, float row, float column)"}, // sqlreadfloat (FTE_SQL)
 
-	{"stoi",			PF_stoi,			0,		0,		0,		259,	D("int(string)", "Converts the given string into an integer. Base 8, 10, or 16 is determined based upon the format of the string.")},
-	{"itos",			PF_itos,			0,		0,		0,		260,	D("string(int)", "Converts the passed integer into a base10 string.")},
+	{"stoi",			PF_stoi,			0,		0,		0,		259,	D("int(string)", "Converts the given string into a true integer. Base 8, 10, or 16 is determined based upon the format of the string.")},
+	{"itos",			PF_itos,			0,		0,		0,		260,	D("string(int)", "Converts the passed true integer into a base10 string.")},
 	{"stoh",			PF_stoh,			0,		0,		0,		261,	D("int(string)", "Reads a base-16 string (with or without 0x prefix) as an integer. Bugs out if given a base 8 or base 10 string. :P")},
 	{"htos",			PF_htos,			0,		0,		0,		262,	D("string(int)", "Formats an integer as a base16 string, with leading 0s and no prefix. Always returns 8 characters.")},
+	{"ftoi",			PF_ftoi,			0,		0,		0,		0,		D("int(float)", "Converts the given float into a true integer without depending on extended qcvm instructions.")},
+	{"itof",			PF_itof,			0,		0,		0,		0,		D("float(int)", "Converts the given true integer into a float without depending on extended qcvm instructions.")},
 
 	{"skel_create",		PF_skel_create,		0,		0,		0,		263,	D("float(float modlindex, optional float useabstransforms)", "Allocates a new uninitiaised skeletal object, with enough bone info to animate the given model.\neg: self.skeletonobject = skel_create(self.modelindex);")}, // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_build",		PF_skel_build,		0,		0,		0,		264,	D("float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addfrac)", "Animation data (according to the entity's frame info) is pulled from the specified model and blended into the specified skeletal object.\nIf retainfrac is set to 0 on the first call and 1 on the others, you can blend multiple animations together according to the addfrac value. The final weight should be 1. Other values will result in scaling and/or other weirdness. You can use firstbone and lastbone to update only part of the skeletal object, to allow legs to animate separately from torso, use 0 for both arguments to specify all, as bones are 1-based.")}, // (FTE_CSQC_SKELETONOBJECTS)
@@ -9654,7 +9663,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"dynamiclight_add",PF_Fixme,	0,		0,		0,		305,	D("float(vector org, float radius, vector lightcolours, optional float style, optional string cubemapname, optional float pflags)", "Adds a temporary dlight, ready to be drawn via addscene. Cubemap orientation will be read from v_forward/v_right/v_up.")},// (EXT_CSQC)
 
 	//gonna expose these to ssqc as a debugging extension
-	{"R_BeginPolygon",	PF_R_PolygonBegin,0,0,		0,		306,	D("void(string texturename, optional float flags)", "Specifies the shader to use for the following polygons, along with optional flags.\nIf flags&4, the polygon will be drawn as soon as the EndPolygon call is made, rather than waiting for renderscene. This allows complex 2d effects.")},// (EXT_CSQC_???)
+	{"R_BeginPolygon",	PF_R_PolygonBegin,0,0,		0,		306,	D("void(string texturename, optional float flags, optional float is2d)", "Specifies the shader to use for the following polygons, along with optional flags.\nIf is2d, the polygon will be drawn as soon as the EndPolygon call is made, rather than waiting for renderscene. This allows complex 2d effects.")},// (EXT_CSQC_???)
 	{"R_PolygonVertex",	PF_R_PolygonVertex,0,0,		0,		307,	D("void(vector org, vector texcoords, vector rgb, float alpha)", "Specifies a polygon vertex with its various properties.")},// (EXT_CSQC_???)
 	{"R_EndPolygon",	PF_R_PolygonEnd,0,	0,		0,		308,	D("void()", "Ends the current polygon. At least 3 verticies must have been specified. You do not need to call beginpolygon if you wish to draw another polygon with the same shader.")},
 
@@ -9763,6 +9772,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"memgetval",		PF_memgetval,		0,		0,		0,		388,	D("__variant(__variant *dst, float ofs)", "Looks up the 32bit value stored at a pointer-with-offset.")},
 	{"memsetval",		PF_memsetval,		0,		0,		0,		389,	D("void(__variant *dst, float ofs, __variant val)", "Changes the 32bit value stored at the specified pointer-with-offset.")},
 	{"memptradd",		PF_memptradd,		0,		0,		0,		390,	D("__variant*(__variant *base, float ofs)", "Perform some pointer maths. Woo.")},
+	{"memstrsize",		PF_memstrsize,		0,		0,		0,		0,		D("float(string s)", "strlen, except ignores utf-8")},
 
 	{"con_getset",		PF_Fixme,			0,		0,		0,		391,	D("string(string conname, string field, optional string newvalue)", "Reads or sets a property from a console object. The old value is returned. Iterrate through consoles with the 'next' field. Valid properties: 	title, name, next, unseen, markup, forceutf8, close, clear, hidden, linecount")},
 	{"con_printf",		PF_Fixme,			0,		0,		0,		392,	D("void(string conname, string messagefmt, ...)", "Prints onto a named console.")},
@@ -9957,7 +9967,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"gettime",			PF_gettime,			0,		0,		0,		519,	"float(optional float timetype)"},
 	{"keynumtostring_omgwtf",PF_Fixme,		0,		0,		0,		520,	"string(float keynum)"},	//excessive third version in dp's csqc.
 	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	D("string(string command, optional float bindmap)", "Returns a list of keycodes that perform the given console command in a format that can only be parsed via tokenize (NOT tokenize_console). This only and always returns two values - if only one key is actually bound, -1 will be returned. The bindmap argument is listed for compatibility with dp-specific defs, but is ignored in FTE.")},
-	{"findkeysforcommandex",PF_Fixme,		0,		0,		0,		0,		D("string(string command)", "Returns a list of key bindings in keyname format instead of keynums. Use tokenize to parse. This list may contain modifiers. May return large numbers of keys.")},
+	{"findkeysforcommandex",PF_Fixme,		0,		0,		0,		0,		D("string(string command, optional float bindmap)", "Returns a list of key bindings in keyname format instead of keynums. Use tokenize to parse. This list may contain modifiers. May return large numbers of keys.")},
 //	{"initparticlespawner",PF_Fixme,		0,		0,		0,		522,	"void(float max_themes)"},
 //	{"resetparticle",	PF_Fixme,			0,		0,		0,		523,	"void()"},
 //	{"particletheme",	PF_Fixme,			0,		0,		0,		524,	"void(float theme)"},
@@ -9974,8 +9984,9 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	//end mvdsv extras
 	//restart dp extras
 //	{"log",				PF_Fixme,			0,		0,		0,		532,	"float(string mname)", true},
-	{"getsoundtime",	PF_Ignore,			0,		0,		0,		533,	"float(entity e, float channel)"},
-	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	"float(string sample)"},
+	{"soundupdate",		PF_Fixme,			0,		0,		0,		0,		D("float(entity e, float channel, string newsample, float volume, float attenuation, float pitchpct, float flags, float timeoffset)", "Changes the properties of the current sound being played on the given entity channel. newsample may be empty, and will be ignored in this case. timeoffset is relative to the current position (subtract the result of getsoundtime for absolute positions). Negative volume can be used to stop the sound. Return value is a fractional value based upon the number of audio devices that could be updated - test against TRUE rather than non-zero.")},
+	{"getsoundtime",	PF_Ignore,			0,		0,		0,		533,	D("float(entity e, float channel)", "Returns the current playback time of the sample on the given entity's channel. Beware CHAN_AUTO (in csqc, channels are not limited by network protocol).")},
+	{"soundlength",		PF_Ignore,			0,		0,		0,		534,	D("float(string sample)", "Provides a way to query the duration of a sound sample, allowing you to set up a timer to chain samples.")},
 	{"buf_loadfile",	PF_buf_loadfile,	0,		0,		0,		535,	D("float(string filename, strbuf bufhandle)", "Appends the named file into a string buffer (which must have been created in advance). The return value merely says whether the file was readable.")},
 	{"buf_writefile",	PF_buf_writefile,	0,		0,		0,		536,	D("float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings)", "Writes the contents of a string buffer onto the end of the supplied filehandle (you must have already used fopen). Additional optional arguments permit you to constrain the writes to a subsection of the stringbuffer.")},
 //	{"bufstr_find",		PF_Fixme,			0,		0,		0,		537,	"float(float bufhandle, string match, float matchrule, float startpos)"},
@@ -10021,8 +10032,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,0,0,0,		628,	"float(entity e, float s)"},
 	{"getsurfacetriangle",PF_getsurfacetriangle,0,	0,		0,		629,	"vector(entity e, float s, float n)"},
 //	{"setkeybind",		PF_Fixme,			0,		0,		0,		630,	"float(float key, string bind, optional float bindmap)"},
-	{"getbindmaps",		PF_Fixme,			0,		0,		0,		631,	"vector()" STUB},
-	{"setbindmaps",		PF_Fixme,			0,		0,		0,		632,	"float(vector bm)" STUB},
+	{"getbindmaps",		PF_Fixme,			0,		0,		0,		631,	"vector()"},
+	{"setbindmaps",		PF_Fixme,			0,		0,		0,		632,	"float(vector bm)"},
 	{"crypto_getkeyfp",	PF_Fixme,			0,		0,		0,		633,	"string(string addr)"  STUB},
 	{"crypto_getidfp",	PF_Fixme,			0,		0,		0,		634,	"string(string addr)"  STUB},
 	{"crypto_getencryptlevel",PF_Fixme,		0,		0,		0,		635,	"string(string addr)"  STUB},
@@ -10703,12 +10714,12 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_Parse_Print",		"void(string printmsg, float printlvl)", CS, "Gives the CSQC a chance to intercept sprint/bprint builtin calls. CSQC should filter by the client's current msg setting and then pass the message on to the print command, or handle them itself."},
 		{"CSQC_Parse_Event",		"void()", CS, "Called when the client receives an SVC_CGAMEPACKET. The csqc should read the data or call the error builtin if it does not recognise the message."},
 		{"CSQC_InputEvent",			"float(float evtype, float scanx, float chary, float devid)", CS, "Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
-		{"CSQC_Input_Frame",		"void()", CS, "Called just before each time clientcommandframe is updated. You can edit the input_* globals in order to apply your own player inputs within csqc, which may allow you a convienient way to pass certain info to ssqc."},
+		{"CSQC_Input_Frame",		"__used void()", CS, "Called just before each time clientcommandframe is updated. You can edit the input_* globals in order to apply your own player inputs within csqc, which may allow you a convienient way to pass certain info to ssqc."},
 		{"CSQC_ConsoleCommand",		"float(string cmd)", CS, "Called if the user uses any console command registed via registercommand."},
 		{"CSQC_ConsoleLink",		"float(string text, string info)", CS, "Called if the user clicks a ^[text\\infokey\\infovalue^] link. Use infoget to read/check each supported key. Return true if you wish the engine to not attempt to handle the link itself."},
 		{"CSQC_Ent_Update",			"void(float isnew)", CS},
 		{"CSQC_Ent_Remove",			"void()", CS},
-		{"CSQC_Event_Sound",		"float(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod)", CS},
+		{"CSQC_Event_Sound",		"float(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags"/*", float timeofs*/")", CS},
 //		{"CSQC_ServerSound",		"//void()", CS},
 		{"CSQC_LoadResource",		"float(string resname, string restype)", CS, "Called each time some resource is being loaded. CSQC can invoke various draw calls to provide a loading screen, until WorldLoaded is called."},
 		{"CSQC_Parse_TempEntity",	"float()", CS,	"Please don't use this. Use CSQC_Parse_Event and multicasts instead."},
@@ -10730,7 +10741,7 @@ void PR_DumpPlatform_f(void)
 		{"parm49, parm50, parm51, parm52, parm53, parm54, parm55, parm56, parm57, parm58, parm59, parm60, parm61, parm62, parm63, parm64", "float", QW|NQ},
 		{"dimension_send",			"var float", QW|NQ, "Used by multicast functionality. Multicasts (and related builtins that multicast internally) will only be sent to players where (player.dimension_see & dimension_send) is non-zero."},
 		{"dimension_default",		"//var float", QW|NQ, "Default dimension bitmask", 255},
-		{"physics_mode",			"var float", QW|NQ|CS, "0: original csqc - physics are not run\n1: DP-compat. Thinks occur, but not true movetypes.\n2: movetypes occur just as they do in ssqc.", 2},
+		{"physics_mode",			"__used var float", QW|NQ|CS, "0: original csqc - physics are not run\n1: DP-compat. Thinks occur, but not true movetypes.\n2: movetypes occur just as they do in ssqc.", 2},
 		{"gamespeed",				"float", CS, "Set by the engine, this is the value of the sv_gamespeed cvar"},
 		{"numclientseats",			"float", CS, "This is the number of splitscreen clients currently running on this client."},
 		{"drawfontscale",			"var vector", CS|MENU, "Specifies a scaler for all text rendering. There are other ways to implement this.", 0, "'1 1 0'"},
@@ -10826,6 +10837,10 @@ void PR_DumpPlatform_f(void)
 		{"CHAN_VOICE",		"const float", QW|NQ|CS, NULL, CHAN_VOICE},
 		{"CHAN_ITEM",		"const float", QW|NQ|CS, NULL, CHAN_ITEM},
 		{"CHAN_BODY",		"const float", QW|NQ|CS, NULL, CHAN_BODY},
+		{"CHANF_RELIABLE",	"const float", QW,		 NULL, 8},
+
+		{"SOUNDFLAG_RELIABLE",	"const float", QW|NQ,	 NULL, 1},
+//		{"SOUNDFLAG_ABSOLUTEVOL",	"const float", CS,		 NULL, 256},
 
 		{"ATTN_NONE",		"const float", QW|NQ|CS, "Sounds with this attenuation can be heard throughout the map", ATTN_NONE},
 		{"ATTN_NORM",		"const float", QW|NQ|CS, "Standard attenuation", ATTN_NORM},
@@ -10901,6 +10916,7 @@ void PR_DumpPlatform_f(void)
 		{"SERVERKEY_PAUSESTATE","const string", CS, "1 if the server claimed to be paused. 0 otherwise", 0, "\"pausestate\""},
 		{"SERVERKEY_DLSTATE",	"const string", CS,	"The progress of any current downloads. Empty string if no download is active, otherwise a tokenizable string containing this info:\nfiles-remaining, total-size, unknown-sizes-flag, file-localname, file-remotename, file-percent, file-rate, file-received-bytes, file-total-bytes\nIf the current file info is omitted, then we are waiting for a download to start.", 0, "\"dlstate\""},
 		{"SERVERKEY_PROTOCOL",	"const string", CS,	"The protocol we are connected to the server with.", 0, "\"protocol\""},
+		{"SERVERKEY_MAXPLAYERS","const string", CS,	"The protocol we are connected to the server with.", 0, "\"maxplayers\""},
 
 		// edict.flags
 		{"FL_FLY",				"const float", QW|NQ|CS, NULL, FL_FLY},
@@ -10950,6 +10966,7 @@ void PR_DumpPlatform_f(void)
 		{"EF_ADDITIVE",			"const float",    NQ|CS, NULL, NQEF_ADDITIVE},
 		{"EF_BLUE",				"const float", QW|NQ|CS, NULL, EF_BLUE},
 		{"EF_RED",				"const float", QW|NQ|CS, NULL, EF_RED},
+		{"EF_GREEN",			"const float", QW|NQ|CS, NULL, EF_GREEN},
 		{"EF_FULLBRIGHT",		"const float", QW|NQ|CS, NULL, EF_FULLBRIGHT},
 		{"EF_NODEPTHTEST",		"const float", QW|NQ|CS, NULL, EF_NODEPTHTEST},
 

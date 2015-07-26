@@ -200,6 +200,51 @@ extern "C" {
 #include <crtdbg.h>
 #endif
 
+
+//msvcrt lacks any and all c99 support.
+#ifdef _WIN32
+	#define fPRIp "%p"
+	//totally different from any other system
+	#define fPRIllx "%I64x"
+	#define fPRIllu "%I64u"
+	#define fPRIlli "%I64i"
+#else
+	//make SURE we get 0xdeadbeef for this
+	#if FTE_WORDSIZE != 32
+		#define fPRIp "%#zx"
+	#else
+		#define fPRIp "%#x"
+	#endif
+
+	//assume some c99 support where we print long long int types.
+	#define fPRIllx "%llx"
+	#define fPRIllu "%llu"
+	#define fPRIlli "%lli"
+#endif
+#ifdef _WIN32
+	//windows does not follow c99 at all
+	#ifdef _WIN64
+		#define fPRIzx "%Ix"
+		#define fPRIzu "%Iu"
+		#define fPRIzi "%Ii"
+	#else
+		#define fPRIzx "%x"
+		#define fPRIzu "%u"
+		#define fPRIzi "%i"
+	#endif
+#elif FTE_WORDSIZE != 32
+	//64bit systems are expected to have an awareness of c99
+	#define fPRIzx "%zx"
+	#define fPRIzu "%zu"
+	#define fPRIzi "%zi"
+#else
+	//regular old c89 for 32bit platforms.
+	#define fPRIzx "%x"
+	#define fPRIzu "%u"
+	#define fPRIzi "%i"
+#endif
+
+
 #ifdef _WIN32
 #if (_MSC_VER >= 1400)
 //with MSVC 8, use MS extensions

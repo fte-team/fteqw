@@ -1488,7 +1488,7 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 
 	if (file)
 	{
-		Con_DPrintf("Loaded %s from disk\n", basicname);
+		Con_DPrintf("Loaded %s from disk\n", va(sh_config.progpath, basicname));
 		g->failed = !Shader_LoadPermutations(g->name, &g->prog, file, qrtype, 0, blobname);
 		FS_FreeFile(file);
 		return;
@@ -3029,6 +3029,7 @@ void Shader_Free (shader_t *shader)
 
 	if (shader->skydome)
 		Z_Free (shader->skydome);
+	shader->skydome = NULL;
 	while (shader->clutter)
 	{
 		void *t = shader->clutter;
@@ -5671,6 +5672,44 @@ void Shader_ShowShader_f(void)
 	}
 	else
 		Con_Printf("Shader \"%s\" is not loaded\n", sourcename);
+}
+
+void Shader_TouchTextures(void)
+{
+	int i, j, k;
+	shader_t *s;
+	shaderpass_t *p;
+	texnums_t *t;
+	for (i = 0; i < r_numshaders; i++)
+	{
+		s = r_shaders[i];
+		if (!s || !s->uses)
+			continue;
+
+		for (j = 0; j < s->numpasses; j++)
+		{
+			p = &s->passes[j];
+			for (k = 0; k < countof(p->anim_frames); k++)
+				if (p->anim_frames[k])
+					p->anim_frames[k]->regsequence = r_regsequence;
+		}
+		for (j = 0; j < max(1,s->numdefaulttextures); j++)
+		{
+			t = &s->defaulttextures[j];
+			if (t->base)
+				t->base->regsequence = r_regsequence;
+			if (t->bump)
+				t->bump->regsequence = r_regsequence;
+			if (t->fullbright)
+				t->fullbright->regsequence = r_regsequence;
+			if (t->specular)
+				t->specular->regsequence = r_regsequence;
+			if (t->upperoverlay)
+				t->upperoverlay->regsequence = r_regsequence;
+			if (t->loweroverlay)
+				t->loweroverlay->regsequence = r_regsequence;
+		}
+	}
 }
 
 void Shader_DoReload(void)

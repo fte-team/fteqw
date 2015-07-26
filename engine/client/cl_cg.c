@@ -934,10 +934,10 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_S_STARTBACKGROUNDTRACK:
-		Media_BackgroundTrack(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		Media_NamedTrack(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
 		return 0;
 	case CG_S_STOPBACKGROUNDTRACK:
-		Media_BackgroundTrack(NULL, NULL);
+		Media_NamedTrack(NULL, NULL);
 		return 0;
 	case CG_S_CLEARLOOPINGSOUNDS:
 		//clearall
@@ -954,13 +954,13 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			vec3_t *axis = VM_POINTER(arg[2]);
 			int inwater = VM_LONG(arg[3]);
 
-			r_refdef.audio.defaulted = false;
+			cl.playerview[0].audio.defaulted = false;
 			//r_refdef.audio.entity = VM_LONG(arg[0]);
-			VectorCopy(org, r_refdef.audio.origin);
-			VectorCopy(axis[0], r_refdef.audio.forward);
-			VectorCopy(axis[1], r_refdef.audio.right);
-			VectorCopy(axis[2], r_refdef.audio.up);
-			r_refdef.audio.inwater = inwater;
+			VectorCopy(org, cl.playerview[0].audio.origin);
+			VectorCopy(axis[0], cl.playerview[0].audio.forward);
+			VectorCopy(axis[1], cl.playerview[0].audio.right);
+			VectorCopy(axis[2], cl.playerview[0].audio.up);
+			cl.playerview[0].audio.inwater = inwater;
 		}
 		break;
 
@@ -976,8 +976,8 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case CG_KEY_GETKEY:
 		{
-			int ret[2];
-			M_FindKeysForCommand (0, VM_POINTER(arg[0]), ret);
+			int ret[1];
+			M_FindKeysForCommand (0, 0, VM_POINTER(arg[0]), ret, NULL, countof(ret));
 			return ret[0];
 		}
 		break;

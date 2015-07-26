@@ -46,6 +46,7 @@ struct key_cursor_s key_customcursor[kc_max];
 
 int		key_count;			// incremented every key event
 
+int		key_bindmaps[2];
 char	*keybindings[K_MAX][KEY_MODIFIERSTATES];
 qbyte	bindcmdlevel[K_MAX][KEY_MODIFIERSTATES];
 qboolean	consolekeys[K_MAX];	// if true, can't be rebound while in console
@@ -77,6 +78,30 @@ static int KeyModifier (qboolean shift, qboolean alt, qboolean ctrl)
 		stateset |= 4;
 
 	return stateset;
+}
+
+void Key_GetBindMap(int *bindmaps)
+{
+	int i;
+	for (i = 0; i < countof(key_bindmaps); i++)
+	{
+		if (key_bindmaps[i])
+			bindmaps[i] = (key_bindmaps[i]&~KEY_MODIFIER_ALTBINDMAP) + 1;
+		else
+			bindmaps[i] = 0;
+	}
+}
+
+void Key_SetBindMap(int *bindmaps)
+{
+	int i;
+	for (i = 0; i < countof(key_bindmaps); i++)
+	{
+		if (bindmaps[i] > 0 && bindmaps[i] <= KEY_MODIFIER_ALTBINDMAP)
+			key_bindmaps[i] = (bindmaps[i]-1)|KEY_MODIFIER_ALTBINDMAP;
+		else
+			key_bindmaps[i] = 0;
+	}
 }
 
 typedef struct
@@ -227,6 +252,7 @@ keyname_t keynames[] =
 	{"SCROLLLOCK", K_SCRLCK},
 
 	{"SEMICOLON", ';'},	// because a raw semicolon seperates commands
+	{"PLUS", '+'},	// because "shift++" is inferior to shift+plus
 
 	{"TILDE", '~'},
 	{"BACKQUOTE", '`'},
@@ -1543,11 +1569,28 @@ void Key_Message (int key, int unicode)
 
 //============================================================================
 
-char *Key_GetBinding(int keynum)
+//for qc
+char *Key_GetBinding(int keynum, int bindmap, int modifier)
 {
-	if (keynum >= 0 && keynum < K_MAX)
-		return keybindings[keynum][0];
-	return NULL;
+	char *key = NULL;
+	if (keynum < 0 || keynum >= K_MAX)
+		;
+	else if (bindmap < 0)
+	{
+		key = NULL;
+		if (!key)
+			key = keybindings[keynum][key_bindmaps[0]];
+		if (!key)
+			key = keybindings[keynum][key_bindmaps[1]];
+	}
+	else
+	{
+		if (bindmap)
+			modifier = (bindmap-1) + KEY_MODIFIER_ALTBINDMAP;
+		if (modifier >= 0 && modifier < KEY_MODIFIERSTATES)
+			key = keybindings[keynum][modifier];
+	}
+	return key;
 }
 
 /*
@@ -1562,27 +1605,36 @@ the K_* names are matched up.
 int Key_StringToKeynum (const char *str, int *modifier)
 {
 	keyname_t	*kn;
-	char *underscore;
 
-	if (!strnicmp(str, "std_", 4))
+	if (!strnicmp(str, "std_", 4) || !strnicmp(str, "std+", 4))
 		*modifier = 0;
 	else
 	{
-		*modifier = 0;
-		while(1)
+		struct
 		{
-			underscore = strchr(str, '_');
-			if (!underscore || !underscore[1])
-				break;	//nothing afterwards or no underscore.
-			if (!strnicmp(str, "shift_", 6))
-				*modifier |= KEY_MODIFIER_SHIFT;
-			else if (!strnicmp(str, "alt_", 4))
-				*modifier |= KEY_MODIFIER_ALT;
-			else if (!strnicmp(str, "ctrl_", 5))
-				*modifier |= KEY_MODIFIER_CTRL;
-			else
-				break;
-			str = underscore+1;	//next char.
+			char *prefix;
+			int len;
+			int mod;
+		} mods[] =
+		{
+			{"shift",	5, KEY_MODIFIER_SHIFT},
+			{"ctrl",	4, KEY_MODIFIER_CTRL},
+			{"alt",		3, KEY_MODIFIER_ALT},
+		};
+		int i;
+		*modifier = 0;
+		for (i = 0; i < countof(mods); )
+		{
+			if (!Q_strncasecmp(mods[i].prefix, str, mods[i].len))
+				if (str[mods[i].len] == '_' || str[mods[i].len] == '+' || str[mods[i].len] == ' ')
+				if (str[mods[i].len+1])
+				{
+					*modifier |= mods[i].mod;
+					str += mods[i].len+1;
+					i = 0;
+					continue;
+				}
+			i++;
 		}
 		if (!*modifier)
 			*modifier = ~0;
@@ -1623,7 +1675,7 @@ given keynum.
 FIXME: handle quote special (general escape sequence?)
 ===================
 */
-char *Key_KeynumToString (int keynum)
+static char *Key_KeynumToStringRaw (int keynum)
 {
 	keyname_t	*kn;	
 	static	char	tinystr[2];
@@ -1650,6 +1702,31 @@ char *Key_KeynumToString (int keynum)
 	return "<UNKNOWN KEYNUM>";
 }
 
+char *Key_KeynumToString (int keynum, int modifier)
+{
+	char *r = Key_KeynumToStringRaw(keynum);
+	if (r[0] == '<' && r[1])
+		modifier = 0;	//would be too weird.
+	switch(modifier)
+	{
+	case KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT:
+		return va("Ctrl+Alt+Shift+%s", r);
+	case KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT:
+		return va("Alt+Shift+%s", r);
+	case KEY_MODIFIER_CTRL|KEY_MODIFIER_SHIFT:
+		return va("Ctrl+Shift+%s", r);
+	case KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT:
+		return va("Ctrl+Alt+%s", r);
+	case KEY_MODIFIER_CTRL:
+		return va("Ctrl+%s", r);
+	case KEY_MODIFIER_ALT:
+		return va("Alt+%s", r);
+	case KEY_MODIFIER_SHIFT:
+		return va("Shift+%s", r);
+	default:
+		return r;
+	}
+}
 
 /*
 ===================
@@ -1663,8 +1740,16 @@ void Key_SetBinding (int keynum, int modifier, char *binding, int level)
 
 	if (modifier == ~0)	//all of the possibilities.
 	{
-		for (l = 0; l < KEY_MODIFIERSTATES; l++)
-			Key_SetBinding(keynum, l, binding, level);
+		if (binding)
+		{	//bindmaps are meant to be independant of each other.
+			for (l = 0; l < KEY_MODIFIER_ALTBINDMAP; l++)
+				Key_SetBinding(keynum, l, binding, level);
+		}
+		else
+		{	//when unbinding, unbind all bindmaps.
+			for (l = 0; l < KEY_MODIFIERSTATES; l++)
+				Key_SetBinding(keynum, l, binding, level);
+		}
 		return;
 	}
 			
@@ -1753,6 +1838,13 @@ void Key_Bind_f (void)
 {
 	int			i, c, b, modifier;
 	char		cmd[1024];
+	int bindmap = 0;
+
+	if (!strcmp("in_bind", Cmd_Argv(0)))
+	{
+		bindmap = atoi(Cmd_Argv(1));
+		Cmd_ShiftArgs(1, Cmd_ExecLevel==RESTRICT_LOCAL);
+	}
 	
 	c = Cmd_Argc();
 
@@ -1767,6 +1859,20 @@ void Key_Bind_f (void)
 		if (cl_warncmd.ival)
 			Con_Printf ("\"%s\" isn't a valid key\n", Cmd_Argv(1));
 		return;
+	}
+	if (bindmap)
+	{
+		if (bindmap < 0 || bindmap > KEY_MODIFIER_ALTBINDMAP)
+		{
+			Con_Printf ("unsupported bindmap %i\n", bindmap);
+			return;
+		}
+		if (modifier != ~0)
+		{
+			Con_Printf ("modifiers cannot be combined with bindmaps\n");
+			return;
+		}
+		modifier = (bindmap-1) | KEY_MODIFIER_ALTBINDMAP;
 	}
 
 	if (c == 2)
@@ -1874,7 +1980,6 @@ void Key_WriteBindings (vfsfile_t *f)
 	int		i, m;
 	char *binding, *base;
 
-	char prefix[128];
 	char keybuf[256];
 	char commandbuf[2048];
 
@@ -1883,22 +1988,14 @@ void Key_WriteBindings (vfsfile_t *f)
 		base = keybindings[i][0];	//plus we can use the config with other clients.
 		if (!base)
 			base = "";
-		for (m = 0; m < KEY_MODIFIERSTATES; m++)
+		for (m = 0; m < KEY_MODIFIER_ALTBINDMAP; m++)
 		{
 			binding = keybindings[i][m];
 			if (!binding)
 				binding = "";
 			if (strcmp(binding, base) || (m==0 && keybindings[i][0]) || bindcmdlevel[i][m] != bindcmdlevel[i][0])
 			{
-				*prefix = '\0';
-				if (m & KEY_MODIFIER_CTRL)
-					strcat(prefix, "CTRL_");
-				if (m & KEY_MODIFIER_ALT)
-					strcat(prefix, "ALT_");
-				if (m & KEY_MODIFIER_SHIFT)
-					strcat(prefix, "SHIFT_");
-
-				s = va("%s%s", prefix, Key_KeynumToString(i));
+				s = Key_KeynumToString(i, m);
 				//quote it as required
 				if (i == ';' || i <= ' ' || i == '\"')
 					s = COM_QuotedString(s, keybuf, sizeof(keybuf), false);
@@ -1907,6 +2004,21 @@ void Key_WriteBindings (vfsfile_t *f)
 					s = va("bindlevel %s %i %s\n", s, bindcmdlevel[i][m], COM_QuotedString(binding, commandbuf, sizeof(commandbuf), false));
 				else
 					s = va("bind %s %s\n", s, COM_QuotedString(binding, commandbuf, sizeof(commandbuf), false));
+				VFS_WRITE(f, s, strlen(s));
+			}
+		}
+		//now generate some special in_binds for bindmaps.
+		for (m = 0; m < KEY_MODIFIER_ALTBINDMAP; m++)
+		{
+			binding = keybindings[i][m|KEY_MODIFIER_ALTBINDMAP];
+			if (binding && *binding)
+			{
+				s = va("%s", Key_KeynumToString(i, 0));
+				//quote it as required
+				if (i == ';' || i <= ' ' || i == '\"')
+					s = COM_QuotedString(s, keybuf, sizeof(keybuf), false);
+
+				s = va("in_bind %i %s %s\n", m+1, s, COM_QuotedString(binding, commandbuf, sizeof(commandbuf), false));
 				VFS_WRITE(f, s, strlen(s));
 			}
 		}
@@ -2012,6 +2124,7 @@ void Key_Init (void)
 // register our functions
 //
 	Cmd_AddCommand ("bind",Key_Bind_f);
+	Cmd_AddCommand ("in_bind",Key_Bind_f);
 	Cmd_AddCommand ("bindlevel",Key_BindLevel_f);
 	Cmd_AddCommand ("unbind",Key_Unbind_f);
 	Cmd_AddCommand ("unbindall",Key_Unbindall_f);
@@ -2125,8 +2238,8 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		}
 
 	//yes, csqc is allowed to steal the escape key.
-	if (key != '`' && (!down || key != K_ESCAPE || (!Key_Dest_Has(~kdm_game) && !shift_down)))
-	if (!Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
+	if (key != '`' && (!down || key != K_ESCAPE || (!Key_Dest_Has(~kdm_game) && !shift_down)) &&
+		!Key_Dest_Has(~kdm_game) && !Media_PlayingFullScreen())
 	{
 #ifdef CSQC_DAT
 		if (CSQC_KeyPress(key, unicode, down, devid))	//give csqc a chance to handle it.
@@ -2135,6 +2248,13 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 #ifdef VM_CG
 		if (CG_KeyPress(key, unicode, down))
 			return;
+#endif
+	}
+	else if (!down && key)
+	{
+#ifdef CSQC_DAT
+		//csqc should still be told of up events. note that there's some filering to prevent notifying about events that it shouldn't receive (like all the up events when typing at the console).
+		CSQC_KeyPress(key, unicode, down, devid);
 #endif
 	}
 
@@ -2159,7 +2279,13 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 #endif
 
 		if (!down)
+		{
+#ifdef MENU_DAT
+			if (Key_Dest_Has(kdm_gmenu) && !Key_Dest_Has(kdm_editor|kdm_console|kdm_cwindows))
+				MP_Keyup (key, unicode);
+#endif
 			return;
+		}
 
 		if (Key_Dest_Has(kdm_console))
 		{
@@ -2342,8 +2468,27 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	else
 		*p = 0;
 
-	dc = keybindings[key][modifierstate];
-	bl = bindcmdlevel[key][modifierstate];
+	//assume the worst
+	dc = NULL;
+	bl = 0;
+	//try bindmaps if they're set
+	if (key_bindmaps[0] && (!dc || !*dc))
+	{
+		dc = keybindings[key][key_bindmaps[0]];
+		bl = bindcmdlevel[key][key_bindmaps[0]];
+	}
+	if (key_bindmaps[1] && (!dc || !*dc))
+	{
+		dc = keybindings[key][key_bindmaps[1]];
+		bl = bindcmdlevel[key][key_bindmaps[1]];
+	}
+
+	//regular ctrl_alt_shift_foo binds
+	if (!dc || !*dc)
+	{
+		dc = keybindings[key][modifierstate];
+		bl = bindcmdlevel[key][modifierstate];
+	}
 
 	//simulate singular shift+alt+ctrl for binds (no left/right). really though, this code should translate to csqc/menu keycodes and back to resolve the weirdness instead.
 	if (key == K_RALT && (!dc || !*dc))

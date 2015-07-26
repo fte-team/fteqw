@@ -1735,6 +1735,13 @@ void GLR_RenderView (void)
 			r_refdef.flags |= RDF_WATERWARP;	//try fullscreen warp instead if we can
 	}
 
+	if (!r_refdef.globalfog.density)
+	{
+		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[1].density)?1:0;
+		CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[fogtype], realtime, &cl.fog[fogtype]);
+		r_refdef.globalfog.density /= 64;	//FIXME
+	}
+
 	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && (*r_postprocshader.string))
 	{
 		custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);

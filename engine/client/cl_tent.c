@@ -2434,9 +2434,9 @@ static struct{
 #define ATTN_NONE	0
 #define ATTN_NORM 1
 #define ATTN_STATIC 1
-void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs)
+void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float delay)
 {
-	S_StartSound(entnum, entchannel, sfx, origin, fvol, attenuation, timeofs, 0);
+	S_StartSound(entnum, entchannel, sfx, origin, fvol, attenuation, -delay, 0);
 }
 void CLQ2_ParseTEnt (void)
 {
@@ -3401,7 +3401,7 @@ void CL_UpdateBeams (void)
 	int			i, j;
 	beam_t		*b;
 	vec3_t		dist, org;
-	float		*vieworg, *viewang;
+	float		*vieworg;
 	float		d;
 	entity_t	*ent;
 	entity_state_t *st;
@@ -3447,7 +3447,7 @@ void CL_UpdateBeams (void)
 //					pl = &cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
 //					if (pl->messagenum == cl.parsecount || cls.protocol == CP_NETQUAKE)
 					{
-						vec3_t	fwd, org, ang;
+						vec3_t	fwd, org, ang, viewang;
 						float	delta, f, len;
 
 //						if (cl.spectator && pv->cam_auto)
@@ -3456,15 +3456,16 @@ void CL_UpdateBeams (void)
 //						}
 //						else
 							vieworg = pv->simorg;
-						viewang = pv->simangles;
 
-						if (cl_truelightning.ival >= 2 && cls.netchan.outgoing_sequence > cl_truelightning.ival)
+						if (cl_truelightning.ival > 1 && cl.movesequence > cl_truelightning.ival)
 						{
-							inframe_t *frame = &cl.inframes[(cls.netchan.outgoing_sequence-cl_truelightning.ival)&UPDATE_MASK];
-							viewang = frame->playerstate[pv->playernum].viewangles;
-							viewang[0] = (frame->playerstate[pv->playernum].command.angles[0] * 360) / 65336.0;
-							viewang[1] = (frame->playerstate[pv->playernum].command.angles[1] * 360) / 65336.0;
+							outframe_t *frame = &cl.outframes[(cl.movesequence-cl_truelightning.ival)&UPDATE_MASK];
+							viewang[0] = SHORT2ANGLE(frame->cmd[j].angles[0]);
+							viewang[1] = SHORT2ANGLE(frame->cmd[j].angles[1]);
+							viewang[2] = SHORT2ANGLE(frame->cmd[j].angles[2]);
 						}
+						else
+							VectorCopy(pv->simangles, viewang);
 
 						VectorCopy (vieworg, b->start);
 						b->start[2] += pv->crouch + bound(-7, v_viewheight.value, 4);
@@ -3486,7 +3487,7 @@ void CL_UpdateBeams (void)
 						ang[0] += (viewang[0] - ang[0]) * f;
 
 						// lerp yaw
-						delta = viewang[1] - ang[1];
+						delta = anglemod(viewang[1] - ang[1]);
 						if (delta > 180)
 							delta -= 360;
 						if (delta < -180)

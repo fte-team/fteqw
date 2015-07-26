@@ -641,6 +641,7 @@ mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 #define BEF_NOSHADOWS			128 //don't appear in shadows
 #define BEF_FORCECOLOURMOD		256 //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
 #define BEF_LINES				512	//draw line pairs instead of triangles.
+#define BEF_FORCETWOSIDED		1024 //more evilness.
 
 typedef struct
 {

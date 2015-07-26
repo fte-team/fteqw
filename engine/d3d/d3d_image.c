@@ -101,7 +101,9 @@ qboolean D3D9_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 
 		IDirect3DTexture9_LockRect(dt, i, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_DISCARD);
 		//can't do it in one go. pitch might contain padding or be upside down.
-		if (blocksize)
+		if (!mips->mip[i].data)
+			;
+		else if (blocksize)
 		{
 			if (lock.Pitch == ((mips->mip[i].width+3)/4)*blocksize)
 			//for (y = 0, out = lock.pBits, in = mips->mip[i].data; y < mips->mip[i].height; y++, out += lock.Pitch, in += mips->mip[i].width*pixelsize)

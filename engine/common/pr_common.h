@@ -185,6 +185,8 @@ void QCBUILTIN PF_itos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_stoi (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_stoh (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_htos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_ftoi (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_itof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PR_fclose_progs (pubprogfuncs_t *prinst);
 char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename);
@@ -322,6 +324,7 @@ void QCBUILTIN PF_infoget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 void QCBUILTIN PF_strncmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_strncasecmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_strtrim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_digest_hex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
@@ -445,6 +448,7 @@ void QCBUILTIN PF_memfill8	(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 void QCBUILTIN PF_memgetval	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memsetval	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memptradd	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memstrsize(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_calltimeofday (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

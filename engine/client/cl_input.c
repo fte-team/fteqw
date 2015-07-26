@@ -847,6 +847,9 @@ void CL_ClampPitch (int pnum)
 	pv->viewangles[PITCH] += pv->viewanglechange[PITCH];
 	pv->viewangles[YAW] += pv->viewanglechange[YAW];
 	pv->viewangles[ROLL] += pv->viewanglechange[ROLL];
+	pv->viewangles[YAW] /= 360;
+	pv->viewangles[YAW] = pv->viewangles[YAW] - (int)pv->viewangles[YAW];
+	pv->viewangles[YAW] *= 360;
 	VectorClear(pv->viewanglechange);
 
 #ifdef Q2CLIENT

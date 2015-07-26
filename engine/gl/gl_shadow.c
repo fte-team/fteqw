@@ -2649,6 +2649,9 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	model_t *model;
 	msurface_t *surf;
 
+	if (qrenderer != QR_OPENGL)
+		return;
+
 	if (BE_LightCullModel(e->origin, e->model))
 		return;
 
@@ -3054,10 +3057,9 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 		/*draw the shadows*/
 		Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
 
-		//disable stencil writing, switch culling back to normal
+		//disable stencil writing
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILZFAIL, D3DSTENCILOP_KEEP);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_TWOSIDEDSTENCILMODE, false);
-		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CW);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILFUNC, D3DCMP_EQUAL);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILREF, sref);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILMASK, ~0);
@@ -3250,6 +3252,7 @@ void Sh_PurgeShadowMeshes(void)
 	maxedge = 0;
 }
 
+void R_StaticEntityToRTLight(int i);
 void Sh_PreGenerateLights(void)
 {
 	unsigned int ignoreflags;
@@ -3260,16 +3263,22 @@ void Sh_PreGenerateLights(void)
 	int i;
 
 	r_shadow_realtime_world_lightmaps.value = atof(r_shadow_realtime_world_lightmaps.string);
-	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
+	if ((r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival) && rtlights_max == RTL_FIRST)
 	{
-		if (RTL_FIRST == rtlights_max)
-			R_LoadRTLights();
-		if (RTL_FIRST == rtlights_max)
-			R_ImportRTLights(cl.worldmodel->entities);
-		if (RTL_FIRST == rtlights_max && r_shadow_realtime_world.ival)
+		qboolean okay = false;
+		if (!okay)
+			okay |= R_LoadRTLights();
+		if (!okay)
+			okay |= R_ImportRTLights(cl.worldmodel->entities);
+		if (!okay && r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value != 1)
 		{
 			r_shadow_realtime_world_lightmaps.value = 1;
-			Con_Printf(CON_ERROR "No lights detected in map. Disabling realtime lights.\n");
+			Con_Printf(CON_WARNING "No lights detected in map.\n");
+		}
+
+		for (i = 0; i < cl.num_statics; i++)
+		{
+			R_StaticEntityToRTLight(i);
 		}
 	}
 
@@ -3348,12 +3357,10 @@ void Sh_CheckSettings(void)
 #endif
 #ifdef D3D9QUAKE
 	case QR_DIRECT3D9:
-		#ifndef GLQUAKE
 		canshadowless = true;
 		//the code still has a lot of ifdefs, so will crash if you try it in a merged build.
 		//its not really usable in d3d-only builds either, so no great loss.
 		canstencil = true;
-		#endif
 		break;
 #endif
 #ifdef D3D11QUAKE
@@ -3391,7 +3398,8 @@ void Sh_CheckSettings(void)
 		//only one shadow method
 		if (!!r_shadow_shadowmapping.ival != cansmap)
 		{
-			Con_Printf("Missing driver extensions: forcing shadowmapping %s.\n", cansmap?"on":"off");
+			if (r_shadow_shadowmapping.ival && ((r_shadow_realtime_world.ival&&r_shadow_realtime_world_shadows.ival)||(r_shadow_realtime_dlight.ival&&r_shadow_realtime_dlight_shadows.ival)))
+				Con_Printf("Missing driver extensions: forcing shadowmapping %s.\n", cansmap?"on":"off");
 			r_shadow_shadowmapping.ival = cansmap;
 		}
 	}
@@ -3518,6 +3526,9 @@ void Sh_DrawLights(qbyte *vis)
 
 		if (colour[0] < 0.001 && colour[1] < 0.001 && colour[2] < 0.001)
 			continue;	//just switch these off.
+
+		if (!dl->lightcolourscales[0] && !dl->lightcolourscales[1] && !dl->lightcolourscales[2])
+			continue;	//these lights are just coronas.
 
 		if (dl->rotation[0] || dl->rotation[1] || dl->rotation[2])
 		{	//auto-rotating (static) rtlights

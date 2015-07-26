@@ -456,8 +456,8 @@ void M_Keydown (int key, int unicode);
 void M_Keyup (int key, int unicode);
 void M_Draw (int uimenu);
 #endif
-void M_FindKeysForCommand (int pnum, const char *command, int *twokeys);
-int M_FindKeysForBind (const char *command, int *keylist, int *keymods, int total);
+int M_FindKeysForCommand (int bindmap, int pnum, const char *command, int *keylist, int *keymods, int keycount);
+int M_FindKeysForBind (int bindmap, const char *command, int *keylist, int *keymods, int keycount);
 
 #ifdef MENU_DAT
 void MP_CvarChanged(cvar_t *var);

@@ -145,10 +145,11 @@ typedef struct
 	int	isnqprotocol;
 	qboolean	nqreliable_allowed;	//says the peer has acked the last reliable (or timed out and needs resending).
 	float		nqreliable_resendtime;//force nqreliable_allowed, thereby forcing a resend of anything n
-	qboolean	nqunreliableonly;	//prohibits new reliables, but allows resends.
+	qbyte		nqunreliableonly;	//nq can't cope with certain reliables some times. if 2, we have a reliable that result in a block (that should be sent). if 1, we are blocking. if 0, we can send reliables freely.
 #endif
 	struct netprim_s netprim;
 	int			fragmentsize;
+	int			dupe;
 
 	float		last_received;		// for timeouts
 

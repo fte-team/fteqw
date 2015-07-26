@@ -560,9 +560,8 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 			rect.bottom = rect.top+d3dpp.BackBufferHeight;
 			AdjustWindowRectEx(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0);
 			MoveWindow(d3dpp.hDeviceWindow, rect.left, rect.top, rect.right-rect.left, rect.bottom-rect.top, false);
-
-			D3D9Shader_Init();
 		}
+		D3D9Shader_Init();
 		return true;	//successful
 	}
 	else
@@ -731,6 +730,8 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 		mouseactive = false;
 	}
 
+//	D3D9BE_Reset(false);
+
 	return true;
 }
 
@@ -741,6 +742,8 @@ static void	 (D3D9_VID_DeInit)				(void)
 	/*final shutdown, kill the video stuff*/
 	if (pD3DDev9)
 	{
+		D3D9BE_Reset(true);
+
 		/*try and knock it back into windowed mode to avoid d3d bugs*/
 		d3dpp.Windowed = true;
 		IDirect3DDevice9_Reset(pD3DDev9, &d3dpp);
@@ -906,6 +909,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	{
 	case D3DERR_DEVICELOST:
 		//the user has task switched away from us or something, don't draw anything until they switch back to us
+		D3D9BE_Reset(true);
 		return;
 	case D3DERR_DEVICENOTRESET:
 		D3D9BE_Reset(true);
@@ -916,13 +920,14 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 			Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
 			return;
 		}
-		D3D9BE_Reset(false);
 
 		Cvar_ForceCallback(&v_gamma);
 		break;
 	default:
 		break;
 	}
+
+	D3D9BE_Reset(false);
 
 	if (scr_disabled_for_loading)
 	{
@@ -1035,8 +1040,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 		nohud = true;
 	}
-	else if (!nohud)
-		SCR_TileClear ();
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
 

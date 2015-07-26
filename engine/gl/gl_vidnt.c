@@ -2632,7 +2632,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	if (isPlugin >= 2)
 	{
-		fprintf(stdout, "refocuswindow %#p\n", mainwindow);
+		fprintf(stdout, "refocuswindow "fPRIp"\n", mainwindow);
 		fflush(stdout);
 	}
 

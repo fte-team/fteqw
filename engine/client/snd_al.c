@@ -554,7 +554,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	}
 	if (!schanged && sfx
 #ifndef FTE_TARGET_WEB
-		&& (chan->looping || (!sfx->decoder.decodedata && sfx->decoder.buf && ((sfxcache_t*)sfx->decoder.buf)->loopstart))
+		&& ((chan->flags & CF_FORCELOOP) || (!sfx->decoder.decodedata && sfx->decoder.buf && ((sfxcache_t*)sfx->decoder.buf)->loopstart))
 #endif
 		)
 	{
@@ -562,7 +562,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		if (buf != AL_PLAYING)
 		{
 			schanged = true;
-			if (chan->looping)
+			if (chan->flags & CF_FORCELOOP)
 				chan->pos = 0;
 			else
 				sfx = chan->sfx = NULL;
@@ -625,7 +625,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 						palGetSourcei(src, AL_SOURCE_STATE, &buf);
 						if (buf != AL_PLAYING)
 						{
-							if (chan->looping)
+							if (chan->flags & CF_FORCELOOP)
 								chan->pos = 0;
 							else if(sbuf.loopstart != -1)
 								chan->pos = sbuf.loopstart<<PITCHSHIFT;
@@ -696,7 +696,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 			palSource3i(src, AL_AUXILIARY_SEND_FILTER, oali->effectslot, 0, AL_FILTER_NULL);
 #endif
 
-		palSourcei(src, AL_LOOPING, chan->looping?AL_TRUE:AL_FALSE);
+		palSourcei(src, AL_LOOPING, (chan->flags & CF_FORCELOOP)?AL_TRUE:AL_FALSE);
 		if (chan->entnum == -1 || chan->entnum == cl.playerview[0].viewentity)
 		{
 			palSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);

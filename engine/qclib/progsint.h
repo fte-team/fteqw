@@ -68,6 +68,7 @@ typedef struct
 	unsigned long long	timestamp;
 } prstack_t;
 
+//FIXME: the defines hidden inside this structure are evil.
 typedef struct prinst_s
  {
 	char **tempstrings;
@@ -86,10 +87,8 @@ typedef struct prinst_s
 	struct progstate_s * progstate;
 #define pr_progstate prinst.progstate
 
-	progsnum_t pr_typecurrent;
-#define pr_typecurrent prinst.pr_typecurrent
+	progsnum_t pr_typecurrent;	//active index into progstate array. fixme: remove in favour of only using current_progstate
 	unsigned int maxprogs;
-#define maxprogs prinst.maxprogs
 
 	struct progstate_s *current_progstate;
 #define current_progstate prinst.current_progstate
@@ -100,20 +99,16 @@ typedef struct prinst_s
 	etype_t watch_type;
 
 	unsigned int numshares;
-#define numshares prinst.numshares
 	sharedvar_t *shares;	//shared globals, not including parms
-#define shares prinst.shares
 	unsigned int maxshares;
-#define maxshares prinst.maxshares
 
 	struct prmemb_s     *memblocks;
-#define memb prinst.memblocks
 
 	unsigned int maxfields;
 	unsigned int numfields;
 	fdef_t *field;	//biggest size
 
-int reorganisefields;
+	int reorganisefields;
 
 
 //pr_exec.c
@@ -123,13 +118,10 @@ int reorganisefields;
 	int pr_depth;
 #define pr_depth prinst.pr_depth
 	int spushed;
-#define pr_spushed prinst.spushed
 
 #define	LOCALSTACK_SIZE		4096
 	int localstack[LOCALSTACK_SIZE];
-#define localstack prinst.localstack
 	int localstack_used;
-#define localstack_used prinst.localstack_used
 
 	int debugstatement;
 	int continuestatement;
@@ -144,18 +136,10 @@ int reorganisefields;
 //pr_edict.c
 
 	unsigned int maxedicts;
-#define maxedicts prinst.maxedicts
 
 	evalc_t spawnflagscache;
-#define spawnflagscache prinst.spawnflagscache
-
-
-
-
 	unsigned int fields_size;	// in bytes
-#define fields_size prinst.fields_size
 	unsigned int max_fields_size;
-#define max_fields_size prinst.max_fields_size
 
 
 //initlib.c

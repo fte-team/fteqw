@@ -388,11 +388,15 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 	{
 		if (!strstr(COM_SkipPath(name), ".dll"))
 		{	//.dll implies that it is a system dll, or something that is otherwise windows-specific already.
+			char libname[MAX_OSPATH];
 #ifdef _WIN64
-			lib = LoadLibraryU(va("%s_64", name));
+			Q_snprintfz(libname, sizeof(libname), "%s_64", name);
 #elif defined(_WIN32)
-			lib = LoadLibraryU(va("%s_32", name));
+			Q_snprintfz(libname, sizeof(libname), "%s_32", name);
+#else
+#error wut? not win32?
 #endif
+			lib = LoadLibraryU(libname);
 		}
 		if (!lib)
 			return NULL;
@@ -2104,46 +2108,45 @@ void Sys_SendKeyEvents (void)
 		}
 		else if (avail)
 		{
-			if (avail > sizeof(text)-1-avail)
-				avail = sizeof(text)-1-avail;
+			if (avail > sizeof(text)-1-textpos)
+				avail = sizeof(text)-1-textpos;
 			if (ReadFile(input, text+textpos, avail, &avail, NULL))
 			{
 				textpos += avail;
 				if (textpos > sizeof(text)-1)
 					Sys_Error("No.");
-				while(1)
-				{
-					text[textpos] = 0;
-					nl = strchr(text, '\n');
-					if (nl)
-					{
-						*nl++ = 0;
-						if (qrenderer <= QR_NONE && !strncmp(text, "vid_recenter ", 13))
-						{
-							Cmd_TokenizeString(text, false, false);
-							sys_parentleft = strtoul(Cmd_Argv(1), NULL, 0);
-							sys_parenttop = strtoul(Cmd_Argv(2), NULL, 0);
-							sys_parentwidth = strtoul(Cmd_Argv(3), NULL, 0);
-							sys_parentheight = strtoul(Cmd_Argv(4), NULL, 0); 
-							sys_parentwindow = (HWND)(intptr_t)strtoull(Cmd_Argv(5), NULL, 16);
-						}
-#if !defined(CLIENTONLY) || defined(CSQC_DAT) || defined(MENU_DAT)
-						else if (QCExternalDebuggerCommand(text))
-							/*handled elsewhere*/;
-#endif
-						else
-						{
-							Cbuf_AddText(text, RESTRICT_LOCAL);
-							Cbuf_AddText("\n", RESTRICT_LOCAL);
-						}
-						memmove(text, nl, textpos - (nl - text));
-						textpos -= (nl - text);
-					}
-					else
-						break;
-				}
 			}
-
+		}
+		while (textpos)
+		{
+			text[textpos] = 0;
+			nl = strchr(text, '\n');
+			if (nl)
+			{
+				*nl++ = 0;
+				if (qrenderer <= QR_NONE && !strncmp(text, "vid_recenter ", 13))
+				{
+					Cmd_TokenizeString(text, false, false);
+					sys_parentleft = strtoul(Cmd_Argv(1), NULL, 0);
+					sys_parenttop = strtoul(Cmd_Argv(2), NULL, 0);
+					sys_parentwidth = strtoul(Cmd_Argv(3), NULL, 0);
+					sys_parentheight = strtoul(Cmd_Argv(4), NULL, 0); 
+					sys_parentwindow = (HWND)(intptr_t)strtoull(Cmd_Argv(5), NULL, 16);
+				}
+#if !defined(CLIENTONLY) || defined(CSQC_DAT) || defined(MENU_DAT)
+				else if (QCExternalDebuggerCommand(text))
+					/*handled elsewhere*/;
+#endif
+				else
+				{
+					Cbuf_AddText(text, RESTRICT_LOCAL);
+					Cbuf_AddText("\n", RESTRICT_LOCAL);
+				}
+				memmove(text, nl, textpos - (nl - text));
+				textpos -= (nl - text);
+			}
+			else
+				break;
 		}
 	}
 	if (isDedicated)
@@ -2682,7 +2685,7 @@ void Update_PromptedDownloaded(void *ctx, int foo)
 
 		narrowen(cmdline, sizeof(cmdline), GetCommandLineW());
 		widen(wideexe, sizeof(wideexe), ctx);
-		widen(widearg, sizeof(widearg), va("\"%s\" %s", ctx, COM_Parse(cmdline)));
+		widen(widearg, sizeof(widearg), va("\"%s\" %s", (char*)ctx, COM_Parse(cmdline)));
 
 		CreateProcessW(wideexe, widearg, NULL, NULL, TRUE, 0, NULL, NULL, &startinfo, &childinfo);
 		Z_Free(ctx);
@@ -2809,6 +2812,7 @@ void Update_Check(void)
 		dl = HTTP_CL_Get(va(UPDATE_URL_VERSION, updateroot), NULL, Update_Versioninfo_Available);
 		dl->file = FS_OpenTemp();
 		dl->user_ctx = updateroot;
+		dl->isquery = true;
 #ifdef MULTITHREAD
 		DL_CreateThread(dl, NULL, NULL);
 #endif

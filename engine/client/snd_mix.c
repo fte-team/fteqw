@@ -159,7 +159,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 						ch->pos = 0;
 						if (scache->loopstart != -1)
 							ch->pos = scache->loopstart<<PITCHSHIFT;
-						else if (!ch->looping)
+						else if (!(ch->flags & CF_FORCELOOP))
 						{
 							ch->sfx = NULL;
 							if (s->decoder.ended)
@@ -257,7 +257,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 							break;
 						}
 					}
-					else if (ch->looping && scache->length)	/*(static)channels which are explicitly looping always loop from the start*/
+					else if ((ch->flags & CF_FORCELOOP) && scache->length)	/*(static)channels which are explicitly looping always loop from the start*/
 					{
 						/*restart it*/
 						ch->pos = 0;

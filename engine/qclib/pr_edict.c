@@ -24,7 +24,7 @@ void PDECL QC_ClearEdict (pubprogfuncs_t *ppf, struct edict_s *ed)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *e = (edictrun_t *)ed;
 	int num = e->entnum;
-	memset (e->fields, 0, fields_size);
+	memset (e->fields, 0, prinst.fields_size);
 	e->isfree = false;
 	e->entnum = num;
 }
@@ -35,7 +35,7 @@ edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num)
 
 	prinst.edicttable[num] = *(struct edict_s **)&e = (void*)externs->memalloc(externs->edictsize);
 	memset(e, 0, externs->edictsize);
-	e->fields = PRAddressableExtend(progfuncs, NULL, fields_size, 0);
+	e->fields = PRAddressableExtend(progfuncs, NULL, prinst.fields_size, 0);
 	e->entnum = num;
 	QC_ClearEdict(&progfuncs->funcs, (struct edict_s*)e);
 
@@ -80,7 +80,7 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf)
 		}
 	}
 
-	if (i >= maxedicts-1)	//try again, but use timed out ents.
+	if (i >= prinst.maxedicts-1)	//try again, but use timed out ents.
 	{
 		for ( i=0 ; i<sv_num_edicts ; i+=STEP)
 		{
@@ -100,17 +100,17 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf)
 			}
 		}
 
-		if (i >= maxedicts-2)
+		if (i >= prinst.maxedicts-2)
 		{
 			PR_RunWarning(&progfuncs->funcs, "Running out of edicts\n");
 		}
-		if (i >= maxedicts-1)
+		if (i >= prinst.maxedicts-1)
 		{
 			int size;
 			char *buf;
 			buf = PR_SaveEnts(&progfuncs->funcs, NULL, &size, 0, 0);
 			progfuncs->funcs.parms->WriteFile("edalloc.dump", buf, size);
-			Sys_Error ("ED_Alloc: no free edicts (max is %i)", maxedicts);
+			Sys_Error ("ED_Alloc: no free edicts (max is %i)", prinst.maxedicts);
 		}
 	}
 
@@ -456,14 +456,14 @@ mfunction_t *ED_FindFunction (progfuncs_t *progfuncs, const char *name, progsnum
 			if (fromprogs>=0)
 				pnum = fromprogs;
 			else
-				pnum = pr_typecurrent;
+				pnum = prinst.pr_typecurrent;
 		}
 		*prnum = pnum;
 	}
 	else
-		pnum = pr_typecurrent;
+		pnum = prinst.pr_typecurrent;
 
-	if ((unsigned)pnum > (unsigned)maxprogs)
+	if ((unsigned)pnum > (unsigned)prinst.maxprogs)
 	{
 		printf("Progsnum %i out of bounds\n", pnum);
 		return NULL;
@@ -560,7 +560,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 			QC_snprintfz (line, sizeof(line), "NULL function");
 		else
 		{
-			if ((val->function & 0xff000000)>>24 >= (unsigned)maxprogs || !pr_progstate[(val->function & 0xff000000)>>24].functions)
+			if ((val->function & 0xff000000)>>24 >= prinst.maxprogs || !pr_progstate[(val->function & 0xff000000)>>24].functions)
 				QC_snprintfz (line, sizeof(line), "Bad function %i:%i", (val->function & 0xff000000)>>24, val->function & ~0xff000000);
 			else
 			{
@@ -696,7 +696,7 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 		break;
 	case ev_function:
 		i = (val->function & 0xff000000)>>24;	//progs number
-		if ((unsigned)i >= maxprogs || !pr_progstate[(unsigned)i].progs)
+		if ((unsigned)i >= prinst.maxprogs || !pr_progstate[(unsigned)i].progs)
 			sprintf (line, "BAD FUNCTION INDEX: %i", val->function);
 		else
 		{
@@ -1445,7 +1445,7 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax
 	unsigned int j;
 	const char	*name;
 	int			type;
-	int curprogs = pr_typecurrent;
+	int curprogs = prinst.pr_typecurrent;
 	int len;
 	switch(current_progstate->structtype)
 	{
@@ -1693,7 +1693,7 @@ char *SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax)
 			AddS ("\t}\n");
 
 			if (i == pr_depth)
-				globalbase = localstack + localstack_used - f->locals;
+				globalbase = prinst.localstack + prinst.localstack_used - f->locals;
 			else
 				globalbase -= f->locals;
 		}
@@ -1726,12 +1726,12 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 		//engine will need to store references to progs type and will need to preload the progs and inti the ents itself before loading.
 
 		//Make sure there is only 1 progs loaded.
-		for (a = 1; a < maxprogs; a++)
+		for (a = 1; a < prinst.maxprogs; a++)
 		{
 			if (pr_progstate[a].progs)
 				break;
 		}
-		if (!pr_progstate[0].progs || a != maxprogs)	//the state of the progs wasn't Q1 compatible.
+		if (!pr_progstate[0].progs || a != prinst.maxprogs)	//the state of the progs wasn't Q1 compatible.
 		{
 			externs->memfree(buffree);
 			return NULL;
@@ -1740,7 +1740,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 		//write the globals
 		AddS ("{\n");
 
-		oldprogs = pr_typecurrent;
+		oldprogs = prinst.pr_typecurrent;
 		PR_SwitchProgs(progfuncs, 0);
 
 		ED_WriteGlobals(progfuncs, buf, bufofs, bufmax);
@@ -1769,16 +1769,16 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 	if (alldata)
 	{
 		AddS("general {\n");
-		AddS(qcva("\"maxprogs\" \"%i\"\n", maxprogs));
+		AddS(qcva("\"maxprogs\" \"%i\"\n", prinst.maxprogs));
 //		AddS(qcva("\"maxentities\" \"%i\"\n", maxedicts));
 //		AddS(qcva("\"mem\" \"%i\"\n", hunksize));
 //		AddS(qcva("\"crc\" \"%i\"\n", header_crc));
 		AddS(qcva("\"numentities\" \"%i\"\n", sv_num_edicts));
 		AddS("}\n");
 
-		oldprogs = pr_typecurrent;
+		oldprogs = prinst.pr_typecurrent;
 
-		for (a = 0; a < maxprogs; a++)
+		for (a = 0; a < prinst.maxprogs; a++)
 		{
 			if (!pr_progstate[a].progs)
 				continue;
@@ -1798,7 +1798,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 			AddS("}\n");
 		}
 
-		for (a = 0; a < maxprogs; a++)	//I would mix, but external functions rely on other progs being loaded
+		for (a = 0; a < prinst.maxprogs; a++)	//I would mix, but external functions rely on other progs being loaded
 		{
 			if (!pr_progstate[a].progs)
 				continue;
@@ -1892,7 +1892,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 		{
 			if (entsize == 0 && resethunk)	//edicts have not yet been initialized, and this is a compleate load (memsize has been set)
 			{
-				entsize = PR_InitEnts(&progfuncs->funcs, maxedicts);
+				entsize = PR_InitEnts(&progfuncs->funcs, prinst.maxedicts);
 //				sv_num_edicts = numents;
 
 				for (num = 0; num < numents; num++)
@@ -1933,7 +1933,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			if (killonspawnflags)
 			{
-				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)&ed, "spawnflags", &spawnflagscache);
+				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)&ed, "spawnflags", &prinst.spawnflagscache);
 				if (var)
 				{
 					if ((int)var->_float & (int)killonspawnflags)
@@ -2006,7 +2006,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 		{
 			if (entsize == 0 && resethunk)	//by the time we parse some globals, we MUST have loaded all progs
 			{
-				entsize = PR_InitEnts(&progfuncs->funcs, maxedicts);
+				entsize = PR_InitEnts(&progfuncs->funcs, prinst.maxedicts);
 //				sv_num_edicts = numents;
 
 				for (num = 0; num < numents; num++)
@@ -2083,7 +2083,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 			QC_StartShares(progfuncs);
 //			QC_InitShares();	//forget stuff
 //			pr_edict_size = 0;
-			max_fields_size=0;
+			prinst.max_fields_size=0;
 
 			file = QCC_COM_Parse(file);
 			if (qcc_token[0] != '{')
@@ -2096,7 +2096,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 					Sys_Error("EOF in general block");
 
 				if (!strcmp("maxprogs", qcc_token))	//check key get and save values
-					{file = QCC_COM_Parse(file); maxprogs = atoi(qcc_token);}
+					{file = QCC_COM_Parse(file); prinst.maxprogs = atoi(qcc_token);}
 //				else if (!strcmp("maxentities", com_token))
 //					{file = QCC_COM_Parse(file); maxedicts = atoi(qcc_token);}
 //				else if (!strcmp("mem", com_token))
@@ -2129,8 +2129,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 			PRAddressableFlush(progfuncs, 0);
 			resethunk=true;
 
-			pr_progstate = PRHunkAlloc(progfuncs, sizeof(progstate_t) * maxprogs, "progstatetable");
-			pr_typecurrent=0;
+			pr_progstate = PRHunkAlloc(progfuncs, sizeof(progstate_t) * prinst.maxprogs, "progstatetable");
+			prinst.pr_typecurrent=0;
 
 			sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 			sv_edicts=(struct edict_s *)&tempedict;
@@ -2206,7 +2206,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			if (entsize == 0 && resethunk)	//edicts have not yet been initialized, and this is a compleate load (memsize has been set)
 			{
-				entsize = PR_InitEnts(&progfuncs->funcs, maxedicts);
+				entsize = PR_InitEnts(&progfuncs->funcs, prinst.maxedicts);
 //				sv_num_edicts = numents;
 
 				for (num = 0; num < numents; num++)
@@ -2232,7 +2232,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			if (killonspawnflags)
 			{
-				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "spawnflags", &spawnflagscache);
+				var = QC_GetEdictFieldValue (&progfuncs->funcs, (struct edict_s *)ed, "spawnflags", &prinst.spawnflagscache);
 				if (var)
 				{
 					if ((int)var->_float & (int)killonspawnflags)
@@ -2311,7 +2311,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 						//only warn on the first occurence of the classname, don't spam.
 						int i;
 						const char *fnc = PR_StringToNative(&progfuncs->funcs, var->string);
-						if (pr_typecurrent >= 0)
+						if (prinst.pr_typecurrent >= 0)
 						for (i = 0; i < sizeof(spawnwarned)/sizeof(spawnwarned[0]); i++)
 						{
 							if (!spawnwarned[i])
@@ -2349,7 +2349,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 		return entsize;
 	}
 	else
-		return max_fields_size;
+		return prinst.max_fields_size;
 }
 
 //FIXME: maxsize is ignored.
@@ -2630,7 +2630,7 @@ int PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstate_
 //	for (i=0 ; i<GEFV_CACHESIZE ; i++)
 //		gefvCache[i].field[0] = 0;
 
-	memset(&spawnflagscache, 0, sizeof(evalc_t));
+	memset(&prinst.spawnflagscache, 0, sizeof(evalc_t));
 
 	if (externs->autocompile == PR_COMPILEALWAYS)	//always compile before loading
 	{
@@ -2751,7 +2751,7 @@ retry:
 	if (!trysleft)	//the progs exists, let's just be happy about it.
 		printf("Progs is out of date and uncompilable\n");
 
-	if (externs->CheckHeaderCrc && !externs->CheckHeaderCrc(&progfuncs->funcs, pr_typecurrent, pr_progs->crc))
+	if (externs->CheckHeaderCrc && !externs->CheckHeaderCrc(&progfuncs->funcs, prinst.pr_typecurrent, pr_progs->crc))
 	{
 //		printf ("%s system vars have been modified, progdefs.h is out of date\n", filename);
 		PRHunkFree(progfuncs, hmark);
@@ -3048,7 +3048,7 @@ retry:
 				else
 					type = fld16[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 
-				if (progfuncs->funcs.fieldadjust && !pr_typecurrent)	//we need to make sure all fields appear in their original place.
+				if (progfuncs->funcs.fieldadjust && !prinst.pr_typecurrent)	//we need to make sure all fields appear in their original place.
 					QC_RegisterFieldVar(&progfuncs->funcs, type, fld16[i].s_name+pr_strings, 4*(fld16[i].ofs+progfuncs->funcs.fieldadjust), -1);
 				else if (type == ev_vector)	//emit vector vars early, so their fields cannot be alocated before the vector itself. (useful against scramblers)
 				{
@@ -3073,14 +3073,14 @@ retry:
 				nf->progsofs = fld16[i].ofs;
 				nf->ofs = fld16[i].ofs;
 
-				if (fields_size < (nf->ofs+type_size[nf->type])*4)
-					fields_size = (nf->ofs+type_size[nf->type])*4;
+				if (prinst.fields_size < (nf->ofs+type_size[nf->type])*4)
+					prinst.fields_size = (nf->ofs+type_size[nf->type])*4;
 
 				prinst.numfields++;
 			}
 			fld16[i].s_name += stringadjust;
 		}
-		if (reorg && !(progfuncs->funcs.fieldadjust && !pr_typecurrent))
+		if (reorg && !(progfuncs->funcs.fieldadjust && !prinst.pr_typecurrent))
 		for (i=0 ; i<pr_progs->numfielddefs ; i++)
 		{
 			if (pr_types)
@@ -3136,14 +3136,14 @@ retry:
 					type = pr_types[pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL)].type;
 				else
 					type = pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
-				if (progfuncs->funcs.fieldadjust && !pr_typecurrent)	//we need to make sure all fields appear in their original place.
+				if (progfuncs->funcs.fieldadjust && !prinst.pr_typecurrent)	//we need to make sure all fields appear in their original place.
 					QC_RegisterFieldVar(&progfuncs->funcs, type, pr_fielddefs32[i].s_name+pr_strings, 4*(pr_fielddefs32[i].ofs+progfuncs->funcs.fieldadjust), -1);
 				else if (type == ev_vector)
 					QC_RegisterFieldVar(&progfuncs->funcs, type, pr_fielddefs32[i].s_name+pr_strings, -1, pr_fielddefs32[i].ofs);
 			}
 			pr_fielddefs32[i].s_name += stringadjust;
 		}
-		if (reorg && !(progfuncs->funcs.fieldadjust && !pr_typecurrent))
+		if (reorg && !(progfuncs->funcs.fieldadjust && !prinst.pr_typecurrent))
 		for (i=0 ; i<pr_progs->numfielddefs ; i++)
 		{
 			if (pr_types)
@@ -3234,8 +3234,8 @@ retry:
 //	QC_StartShares(progfuncs);
 
 	isfriked = true;
-	if (!pr_typecurrent)	//progs 0 always acts as string stripped.
-		isfriked = -1;		//partly to avoid some bad progs.
+	if (!prinst.pr_typecurrent)	//progs 0 always acts as string stripped.
+		isfriked = -1;			//partly to avoid some bad/optimised progs.
 
 //	len = 0;
 	switch(current_progstate->structtype)
@@ -3344,7 +3344,7 @@ retry:
 		Sys_Error("Bad struct type");
 	}
 
-	if ((isfriked && pr_typecurrent))	//friked progs only allow one file.
+	if ((isfriked && prinst.pr_typecurrent))	//friked progs only allow one file.
 	{
 		printf("You are trying to load a string-stripped progs as an addon.\nThis behaviour is not supported. Try removing some optimizations.");
 		PRHunkFree(progfuncs, hmark);
@@ -3442,7 +3442,7 @@ retry:
 struct edict_s *PDECL QC_EDICT_NUM(pubprogfuncs_t *ppf, unsigned int n)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	if (n >= maxedicts)
+	if (n >= prinst.maxedicts)
 		Sys_Error ("QCLIB: EDICT_NUM: bad number %i", n);
 
 	return prinst.edicttable[n];
@@ -3452,7 +3452,7 @@ unsigned int PDECL QC_NUM_FOR_EDICT(pubprogfuncs_t *ppf, struct edict_s *e)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *er = (edictrun_t*)e;
-	if (er->entnum >= maxedicts)
+	if (!er || er->entnum >= prinst.maxedicts)
 		Sys_Error ("QCLIB: NUM_FOR_EDICT: bad pointer (%p)", e);
 	return er->entnum;
 }

@@ -226,7 +226,7 @@ static void SSPI_Decode(sslfile_t *f)
 		switch(ss)
 		{
 		case SEC_E_INVALID_HANDLE:	SSPI_Error(f, "DecryptMessage failed: SEC_E_INVALID_HANDLE\n"); break;
-		default:					SSPI_Error(f, va("DecryptMessage failed: %0#x\n", ss)); break;
+		default:					SSPI_Error(f, va("DecryptMessage failed: %0#lx\n", ss)); break;
 		}
 		return;
 	}
@@ -392,37 +392,37 @@ static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data,
 
 static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServerName, DWORD dwCertFlags)
 {
-    HTTPSPolicyCallbackData polHttps;
-    CERT_CHAIN_POLICY_PARA PolicyPara;
-    CERT_CHAIN_POLICY_STATUS PolicyStatus;
-    CERT_CHAIN_PARA ChainPara;
-    PCCERT_CHAIN_CONTEXT pChainContext;
-    DWORD Status;
-    LPSTR rgszUsages[]		=
+	HTTPSPolicyCallbackData polHttps;
+	CERT_CHAIN_POLICY_PARA PolicyPara;
+	CERT_CHAIN_POLICY_STATUS PolicyStatus;
+	CERT_CHAIN_PARA ChainPara;
+	PCCERT_CHAIN_CONTEXT pChainContext;
+	DWORD Status;
+	LPSTR rgszUsages[]		=
 	{
 		szOID_PKIX_KP_SERVER_AUTH,
 		szOID_SERVER_GATED_CRYPTO,
 		szOID_SGC_NETSCAPE
 	};
-    DWORD cUsages			=	sizeof(rgszUsages) / sizeof(LPSTR);
+	DWORD cUsages			=	sizeof(rgszUsages) / sizeof(LPSTR);
 
-    if(pServerCert == NULL)
+	if(pServerCert == NULL)
 		return SEC_E_WRONG_PRINCIPAL;
-    if(!*pwszServerName)
+	if(!*pwszServerName)
 		return SEC_E_WRONG_PRINCIPAL;
 
-    // Build certificate chain.
-    memset(&ChainPara, 0, sizeof(ChainPara));
-    ChainPara.cbSize = sizeof(ChainPara);
-    ChainPara.RequestedUsage.dwType = USAGE_MATCH_TYPE_OR;
-    ChainPara.RequestedUsage.Usage.cUsageIdentifier = cUsages;
-    ChainPara.RequestedUsage.Usage.rgpszUsageIdentifier = rgszUsages;
+	// Build certificate chain.
+	memset(&ChainPara, 0, sizeof(ChainPara));
+	ChainPara.cbSize = sizeof(ChainPara);
+	ChainPara.RequestedUsage.dwType = USAGE_MATCH_TYPE_OR;
+	ChainPara.RequestedUsage.Usage.cUsageIdentifier = cUsages;
+	ChainPara.RequestedUsage.Usage.rgpszUsageIdentifier = rgszUsages;
 
-    if (!crypt.pCertGetCertificateChain(NULL, pServerCert, NULL, pServerCert->hCertStore, &ChainPara, 0, NULL, &pChainContext))
-    {
-        Status = GetLastError();
-        Sys_Printf("Error 0x%x returned by CertGetCertificateChain!\n", (unsigned int)Status);
-    }
+	if (!crypt.pCertGetCertificateChain(NULL, pServerCert, NULL, pServerCert->hCertStore, &ChainPara, 0, NULL, &pChainContext))
+	{
+		Status = GetLastError();
+		Sys_Printf("Error %#lx returned by CertGetCertificateChain!\n", Status);
+	}
 	else
 	{
 		// Validate certificate chain.
@@ -442,7 +442,7 @@ static DWORD VerifyServerCertificate(PCCERT_CONTEXT pServerCert, PWSTR pwszServe
 		if (!crypt.pCertVerifyCertificateChainPolicy(CERT_CHAIN_POLICY_SSL, pChainContext, &PolicyPara, &PolicyStatus))
 		{
 			Status = GetLastError();
-			Sys_Printf("Error 0x%x returned by CertVerifyCertificateChainPolicy!\n", (unsigned int)Status);
+			Sys_Printf("Error %#lx returned by CertVerifyCertificateChainPolicy!\n", Status);
 		}
 		else
 		{
@@ -700,7 +700,7 @@ static void SSPI_Handshake (sslfile_t *f)
 		case SEC_E_INVALID_HANDLE:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_INVALID_HANDLE\n");		break;
 		case SEC_E_ILLEGAL_MESSAGE:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_ILLEGAL_MESSAGE\n");		break;
 		case SEC_E_INVALID_TOKEN:		SSPI_Error(f, "InitializeSecurityContext failed: SEC_E_INVALID_TOKEN\n");		break;
-		default:						SSPI_Error(f, va("InitializeSecurityContext failed: %#x\n", ss));				break;
+		default:						SSPI_Error(f, va("InitializeSecurityContext failed: %#lx\n", ss));				break;
 		}
 		return;
 	}

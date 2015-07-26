@@ -578,7 +578,7 @@ reeval:
 
 			glob = NULL;	//try to derestrict it.
 
-			callerprogs=pr_typecurrent;			//so we can revert to the right caller.
+			callerprogs=prinst.pr_typecurrent;			//so we can revert to the right caller.
 			newpr = (fnum & 0xff000000)>>24;	//this is the progs index of the callee
 			fnum &= ~0xff000000;				//the callee's function index.
 
@@ -607,7 +607,7 @@ reeval:
 			if (newf->first_statement <= 0)
 			{	// negative statements are built in functions
 				/*calling a builtin in another progs may affect that other progs' globals instead, is the theory anyway, so args and stuff need to move over*/
-				if (pr_typecurrent != 0)
+				if (prinst.pr_typecurrent != 0)
 				{
 					//builtins quite hackily refer to only a single global.
 					//for builtins to affect the globals of other progs, we need to first switch to the progs that it will affect, so they'll be correct when we switch back

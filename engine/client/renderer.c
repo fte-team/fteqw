@@ -67,9 +67,9 @@ cvar_t mod_md3flags							= CVARD  ("mod_md3flags", "1", "The flags field of md3
 cvar_t r_ambient							= CVARF ("r_ambient", "0",
 												CVAR_CHEAT);
 cvar_t r_bloodstains						= CVARF  ("r_bloodstains", "1", CVAR_ARCHIVE);
-cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "0",
+cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "1",
 												CVAR_ARCHIVE,
-												"Enables particle interaction with world surfaces, allowing for bouncy particles.");
+												"Enables particle interaction with world surfaces, allowing for bouncy particles, stains, and decals.");
 cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
 cvar_t r_drawflat							= CVARF ("r_drawflat", "0",
 												CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
@@ -2640,7 +2640,7 @@ void R_InitParticleTexture (void)
 				data[y*32+x][3] = 255;
 		}
 	}
-	particlecqtexture = R_LoadTexture32("classicparticle", 32, 32, data, IF_NOMIPMAP|IF_NOPICMIP);
+	particlecqtexture = Image_GetTexture("classicparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 32, 32, TF_RGBA32);
 
 	//draw a square in the top left. still a triangle.
 	for (x=0 ; x<16 ; x++)
@@ -2650,8 +2650,7 @@ void R_InitParticleTexture (void)
 			data[y*32+x][3] = 255;
 		}
 	}
-	R_LoadTexture32("classicparticle_square", 32, 32, data, IF_NOMIPMAP|IF_NOPICMIP);
-
+	Image_GetTexture("classicparticle_square", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 32, 32, TF_RGBA32);
 
 
 	for (x=0 ; x<16 ; x++)
@@ -2664,7 +2663,7 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = exptexture[x][y]*255/9.0;
 		}
 	}
-	explosiontexture = R_LoadTexture32("fte_fuzzyparticle", 16, 16, data, IF_NOMIPMAP|IF_NOPICMIP);
+	explosiontexture = Image_GetTexture("fte_fuzzyparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 16, 16, TF_RGBA32);
 
 	for (x=0 ; x<16 ; x++)
 	{
@@ -2676,7 +2675,19 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = exptexture[x][y]*255/9.0;
 		}
 	}
-	R_LoadTexture32("fte_bloodparticle", 16, 16, data, IF_NOMIPMAP|IF_NOPICMIP);
+	Image_GetTexture("fte_bloodparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 16, 16, TF_RGBA32);
+
+	for (x=0 ; x<16 ; x++)
+	{
+		for (y=0 ; y<16 ; y++)
+		{
+			data[y*16+x][0] = min(255, exptexture[x][y]*255/9.0);
+			data[y*16+x][1] = min(255, exptexture[x][y]*255/5.0);
+			data[y*16+x][2] = min(255, exptexture[x][y]*255/5.0);
+			data[y*16+x][3] = 255;
+		}
+	}
+	Image_GetTexture("fte_blooddecal", "particles", IF_NOMIPMAP|IF_NOPICMIP, data, NULL, 16, 16, TF_RGBA32);
 
 	memset(data, 255, sizeof(data));
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)

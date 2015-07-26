@@ -1935,7 +1935,7 @@ void QCC_PR_LexVector (void)
 		if (*pr_file_p == '\'' && i == 1)
 		{
 			if (i < 2)
-				QCC_PR_ParseWarning (WARN_FTE_SPECIFIC, "Bad vector");
+				QCC_PR_ParseWarning (WARN_FTE_SPECIFIC, "2d vector");
 
 			for (i++ ; i<3 ; i++)
 				pr_immediate.vector[i] = 0;
@@ -3369,10 +3369,14 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 	if (!wnam)
 		wnam = "";
 
-	QCC_PR_PrintScope();
+	if (string)
+		QCC_PR_PrintScope();
+
 	if (type >= ERR_PARSEERRORS)
 	{
-		if (!file || !*file)
+		if (!string)
+			;
+		else if (!file || !*file)
 			printf (":: error%s: %s\n", wnam, string);
 		else if (flag_msvcstyle)
 			printf ("%s(%i) : error%s: %s\n", file, line, wnam, string);
@@ -3382,7 +3386,9 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 	}
 	else if (qccwarningaction[type] == 2)
 	{	//-werror
-		if (!file || !*file)
+		if (!string)
+			;
+		else if (!file || !*file)
 			printf (": werror%s: %s\n", wnam, string);
 		else if (flag_msvcstyle)
 			printf ("%s(%i) : werror%s: %s\n", file, line, wnam, string);
@@ -3392,7 +3398,9 @@ pbool VARGS QCC_PR_PrintWarning (int type, const char *file, int line, const cha
 	}
 	else
 	{
-		if (!file || !*file)
+		if (!string)
+			;
+		else if (!file || !*file)
 			printf (": warning%s: %s\n", wnam, string);
 		else if (flag_msvcstyle)
 			printf ("%s(%i) : warning%s: %s\n", file, line, wnam, string);
@@ -3409,6 +3417,9 @@ pbool VARGS QCC_PR_Warning (int type, const char *file, int line, const char *er
 
 	if (!qccwarningaction[type])
 		return false;
+
+	if (!error)
+		return QCC_PR_PrintWarning(type, file, line, NULL);
 
 	va_start (argptr,error);
 	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
@@ -3643,17 +3654,28 @@ pbool QCC_PR_CheckName(const char *string)
 
 pbool QCC_PR_CheckKeyword(int keywordenabled, const char *string)
 {
-	if (!keywordenabled)
-		return false;
-	if (flag_caseinsensitive)
+	if (pr_token[0] == '_' && pr_token[1] == '_')
 	{
-		if (stricmp (string, pr_token))
+		//lets just always go insensitive with a leading underscore pair.
+		if (stricmp(string, pr_token+2))
 			return false;
+		QCC_PR_Lex ();
+		return true;
 	}
 	else
 	{
-		if (STRCMP(string, pr_token))
+		if (!keywordenabled)
 			return false;
+		if (flag_caseinsensitive)
+		{
+			if (stricmp (string, pr_token))
+				return false;
+		}
+		else
+		{
+			if (STRCMP(string, pr_token))
+				return false;
+		}
 	}
 	QCC_PR_Lex ();
 	return true;
@@ -3833,6 +3855,8 @@ int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
 	{
 		if (a->params[t].type->type != b->params[t].type->type)
 			return 1;
+		if (a->params[t].out != b->params[t].out)
+			return 1;
 		//classes/structs/unions are matched on class names rather than the contents of the class
 		//it gets too painful otherwise, with recursive definitions.
 		if (a->params[t].type->type == ev_entity || a->params[t].type->type == ev_struct || a->params[t].type->type == ev_union)
@@ -3936,6 +3960,8 @@ char *TypeName(QCC_type_t *type, char *buffer, int buffersize)
 		Q_strlcat(buffer, "(", buffersize);
 		for (i = 0; i < type->num_parms; )
 		{
+			if (type->params[i].out)
+				Q_strlcat(buffer, "inout ", buffersize);
 			if (type->params[i].optional)
 				Q_strlcat(buffer, "optional ", buffersize);
 			args--;
@@ -4111,6 +4137,11 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 				break;
 			}
 
+			if (QCC_PR_CheckKeyword(keyword_inout, "inout"))
+				paramlist[numparms].out = true;
+			else
+				paramlist[numparms].out = false;
+
 			if (QCC_PR_CheckKeyword(keyword_optional, "optional"))
 			{
 				paramlist[numparms].optional = true;
@@ -4232,7 +4263,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 				break;
 //			type->name = "FUNC PARAMETER";
 
-
+			paramlist[numparms].out = false;
 			paramlist[numparms].optional = false;
 			paramlist[numparms].ofs = 0;
 			paramlist[numparms].arraysize = 0;
@@ -4306,6 +4337,7 @@ QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, QCC_type_t **args, char
 		p->paramname = qccHunkAlloc(strlen(argnames[i])+1);
 		strcpy(p->paramname, argnames[i]);
 		p->type = args[i];
+		p->out = 0;
 		p->optional = false;
 		p->ofs = 0;
 		p->arraysize = 0;
@@ -4356,8 +4388,6 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	}
 	if (QCC_PR_CheckToken ("."))
 	{
-		newt = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
-
 		//.float *foo; is annoying.
 		//technically it is a pointer to a .float
 		//most people will want a .(float*) foo;
@@ -4366,14 +4396,19 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		//this is pretty much an evil syntax hack.
 		if (QCC_PR_CheckToken ("*"))
 		{
-			newt->aux_type = QCC_PR_NewType("POINTER TYPE", ev_pointer, false);
-			newt->aux_type->aux_type = QCC_PR_ParseType (false, false);
-
-			newt->aux_type->size = newt->aux_type->aux_type->size;
+			type = QCC_PR_NewType("POINTER TYPE", ev_pointer, false);
+			type->aux_type = QCC_PR_ParseType (false, false);
+			type->size = type->aux_type->size;
 		}
 		else
-			newt->aux_type = QCC_PR_ParseType (false, false);
+			type = QCC_PR_ParseType (false, false);
 
+		name = qccHunkAlloc(strlen(type->name)+2);
+		*name = '.';
+		strcpy(name+1, type->name);
+
+		newt = QCC_PR_NewType(name, ev_field, false);
+		newt->aux_type = type;
 		newt->size = newt->aux_type->size;
 
 		if (newtype)
@@ -4878,6 +4913,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 			parms = realloc(parms, sizeof(*parms) * (numparms+1));
 			parms[numparms].ofs = 0;
+			parms[numparms].out = false;
 			parms[numparms].optional = false;
 			parms[numparms].paramname = parmname;
 			parms[numparms].arraysize = arraysize;
@@ -4918,8 +4954,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 							found = true;
 							break;
 						}
-						if ((unsigned int)basicindex < pp[i].ofs+1)	//if we found one with the index
-							basicindex = pp[i].ofs+1;	//make sure we don't union it.
+						if ((unsigned int)basicindex < pp[i].ofs+(pp[i].arraysize?pp[i].arraysize:1))	//if we found one with the index
+							basicindex = pp[i].ofs+(pp[i].arraysize?pp[i].arraysize:1);	//make sure we don't union it.
 					}
 				}
 			}
@@ -4940,13 +4976,15 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				d = QCC_PR_GetDef(NULL, membername, NULL, 0, 0, GDF_CONST);
 				if (!d)
 				{
-					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, 0, GDF_CONST);
-					for (i = 0; (unsigned int)i < newparm->size; i++)
+					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, arraysize, GDF_CONST);
+					for (i = 0; (unsigned int)i < newparm->size*(arraysize?arraysize:1); i++)
 						d->symboldata[i]._int = pr.size_fields+i;
 					pr.size_fields += i;
 
 					d->referenced = true;	//always referenced, so you can inherit safely.
 				}
+				else if (d->arraysize != arraysize)
+					QCC_PR_ParseError(ERR_INTERNAL, "array members are kinda limited, sorry. try rearranging them or adding padding for alignment\n");	//FIXME: add relocs to cope with this all of a type can then be contiguous and thus allow arrays.
 			}
 			QCC_FreeDef(d);
 
@@ -4954,7 +4992,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//actually, that seems pointless.
 			QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, classname, parmname);
 //			printf("define %s -> %s\n", membername, d->name);
-			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, 0, d, 0, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
+			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, arraysize, d, 0, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
 			d->referenced = true;	//always referenced, so you can inherit safely.
 		}
 
@@ -5050,6 +5088,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 			arraysize = 0;
 
+			while (QCC_PR_CheckToken("*"))
+				newparm = QCC_PointerTypeTo(newparm);
+
 			if (!QCC_PR_CheckToken(";"))
 			{
 				parmname = qccHunkAlloc(strlen(pr_token)+1);
@@ -5067,6 +5108,12 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			else
 				parmname = "";
 
+			if (newparm == newt || ((newparm->type == ev_struct || newparm->type == ev_union) && !newparm->size))
+			{
+				QCC_PR_ParseWarning(ERR_NOTANAME, "type %s not fully defined yet", newparm->name);
+				continue;
+			}
+
 
 			parms = realloc(parms, sizeof(*parms) * (numparms+1));
 			if (structtype == ev_union)
@@ -5081,6 +5128,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				newt->size += newparm->size*(arraysize?arraysize:1);
 			}
 			parms[numparms].arraysize = arraysize;
+			parms[numparms].out = false;
 			parms[numparms].optional = false;
 			parms[numparms].paramname = parmname;
 			parms[numparms].type = newparm;

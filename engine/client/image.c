@@ -1,6 +1,8 @@
 #include "quakedef.h"
 #include "shader.h"
 
+//#define PURGEIMAGES	//somewhat experimental still. we're still flushing more than we should.
+
 //FIXME
 texid_t GL_FindTextureFallback (const char *identifier, unsigned int flags, void *fallback, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt);
 //FIXME
@@ -3444,6 +3446,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 {
 	unsigned int *rgbadata = rawdata;
 	int i;
+	qboolean valid;
 
 	mips->mip[0].width = imgwidth;
 	mips->mip[0].height = imgheight;
@@ -3604,16 +3607,24 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	case TF_TRANS8_FULLBRIGHT:
 		mips->encoding = PTI_RGBA8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		for (i = 0; i < imgwidth * imgheight; i++)
+		for (i = 0, valid = false; i < imgwidth * imgheight; i++)
 		{
-			if (((qbyte*)rawdata)[i] < 255-vid.fullbright)
+			if (((qbyte*)rawdata)[i] < 256-vid.fullbright)
 				rgbadata[i] = 0;
 			else
+			{
 				rgbadata[i] = d_8to24rgbtable[((qbyte*)rawdata)[i]];
+				valid = true;
+			}
 		}
 		if (freedata)
 			BZ_Free(rawdata);
 		freedata = true;
+		if (!valid)
+		{
+			BZ_Free(rgbadata);
+			return false;
+		}
 		break;
 
 	case TF_HEIGHT8PAL:
@@ -3636,6 +3647,27 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		mips->encoding = PTI_RGBA8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
 		Image_GenerateNormalMap(rawdata, rgbadata, imgwidth, imgheight, r_shadow_bumpscale_bumpmap.value, r_shadow_heightscale_bumpmap.value);
+		if (freedata)
+			BZ_Free(rawdata);
+		freedata = true;
+		break;
+
+	case TF_BGR24_FLIP:
+		mips->encoding = PTI_RGBX8;
+		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
+		for (i = 0; i < imgheight; i++)
+		{
+			int x;
+			qbyte *in = (qbyte*)rawdata + (imgheight-i-1) * imgwidth * 3;
+			qbyte *out = (qbyte*)rgbadata + i * imgwidth * 4;
+			for (x = 0; x < imgwidth; x++, in+=3, out+=4)
+			{
+				out[0] = in[2];
+				out[1] = in[1];
+				out[2] = in[0];
+				out[3] = 0xff;
+			}
+		}
 		if (freedata)
 			BZ_Free(rawdata);
 		freedata = true;
@@ -3723,7 +3755,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			mips->encoding = PTI_RGBX8;
 			break;
 		case PTI_BGRA8:
-			mips->encoding = PTI_RGBX8;
+			mips->encoding = PTI_BGRX8;
 			break;
 		case PTI_RGBA16F:
 		case PTI_RGBA32F:
@@ -3823,6 +3855,10 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 	if (!Image_GenMip0(mips, flags, rawdata, palettedata, imgwidth, imgheight, fmt, true))
 	{
 		Z_Free(mips);
+		if (flags & IF_NOWORKER)
+			Image_LoadTexture_Failed(tex, NULL, 0, 0);
+		else
+			COM_AddWork(0, Image_LoadTexture_Failed, tex, NULL, 0, 0);
 		return false;
 	}
 	Image_GenerateMips(mips, flags);
@@ -4264,15 +4300,22 @@ void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 image_t *Image_FindTexture(const char *identifier, const char *subdir, unsigned int flags)
 {
 	image_t *tex;
+	if (!subdir)
+		subdir = "";
 	tex = Hash_Get(&imagetable, identifier);
 	while(tex)
 	{
-		if ((tex->flags ^ flags) & IF_CLAMP)
+		if (!((tex->flags ^ flags) & IF_CLAMP))
 		{
-			tex = Hash_GetNext(&imagetable, identifier, tex);
-			continue;
+#ifdef PURGEIMAGES
+			if (!strcmp(subdir, tex->subpath?tex->subpath:""))
+#endif
+			{
+				tex->regsequence = r_regsequence;
+				return tex;
+			}
 		}
-		return tex;
+		tex = Hash_GetNext(&imagetable, identifier, tex);
 	}
 	return NULL;
 }
@@ -4471,6 +4514,7 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
 	struct pendingtextureinfo mips;
+	size_t i;
 
 	mips.extrafree = NULL;
 	mips.type = (flags & IF_3DMAP)?PTI_3D:PTI_2D;
@@ -4482,6 +4526,12 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 	tex->width = mips.mip[0].width;
 	tex->height = mips.mip[0].height;
 	tex->status = TEX_LOADED;
+
+	for (i = 0; i < mips.mipcount; i++)
+		if (mips.mip[i].needfree)
+			BZ_Free(mips.mip[i].data);
+	if (mips.extrafree)
+		BZ_Free(mips.extrafree);
 }
 
 typedef struct
@@ -4593,26 +4643,68 @@ void Image_DestroyTexture(image_t *tex)
 		Hash_RemoveData(&imagetable, tex->ident, tex);
 	Z_Free(tex);
 }
-void Image_List_f(void)
+
+
+void Shader_TouchTextures(void);
+void Image_Purge(void)
 {
-	image_t *tex;
-	char *status;
+#ifdef PURGEIMAGES
+	image_t *tex, *a;
+	int loaded = 0, total = 0;
+	size_t mem = 0;
+	Shader_TouchTextures();
 	for (tex = imagelist; tex; tex = tex->next)
 	{
-		if (tex->status == TEX_LOADED)
-			status = "^2loaded";
-		else if (tex->status == TEX_FAILED)
-			status = "^1failed";
-		else if (tex->status == TEX_NOTLOADED)
-			status = "^5not loaded";
-		else
-			status = "^bloading";
-		if (tex->subpath)
-			Con_Printf("%s^h(%s)^h: %s\n", tex->ident, tex->subpath, status);
-		else
-			Con_Printf("%s: %s\n", tex->ident, status);
+		if (tex->flags & IF_NOPURGE)
+			continue;
+		if (tex->regsequence != r_regsequence)
+			Image_UnloadTexture(tex);
 	}
+#endif
 }
+
+
+void Image_List_f(void)
+{
+	image_t *tex, *a;
+	int loaded = 0, total = 0;
+	size_t mem = 0;
+	for (tex = imagelist; tex; tex = tex->next)
+	{
+		total++;
+		if (tex->subpath)
+			Con_Printf("^h(%s)^h%s: ", tex->subpath, tex->ident);
+		else
+			Con_Printf("%s: ", tex->ident);
+
+		for (a = tex->aliasof; a; a = a->aliasof)
+		{
+			if (a->subpath)
+				Con_Printf("^3^h(%s)^h%s: ", a->subpath, a->ident);
+			else
+				Con_Printf("^3%s: ", a->ident);
+		}
+
+		if (tex->status == TEX_LOADED)
+		{
+			Con_Printf("^2loaded\n");
+			if (!tex->aliasof)
+			{
+				mem += tex->width * tex->height * 4;
+				loaded++;
+			}
+		}
+		else if (tex->status == TEX_FAILED)
+			Con_Printf("^1failed\n");
+		else if (tex->status == TEX_NOTLOADED)
+			Con_Printf("^5not loaded\n");
+		else
+			Con_Printf("^bloading\n");
+	}
+
+	Con_Printf("%i images loaded (%i known)\n", loaded, total);
+}
+
 //may not create any images yet.
 void Image_Init(void)
 {

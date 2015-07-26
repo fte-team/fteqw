@@ -491,7 +491,7 @@ void SV_CalcPHS (void)
 	if (rowbytes*num >= 0x100000)
 	{
 		char hdr[8];
-		vfsfile_t *f = FS_OpenVFS(va("maps/%s.phs", sv.name), "rb", FS_GAME);
+		vfsfile_t *f = FS_OpenVFS(va("maps/%s.phs", svs.name), "rb", FS_GAME);
 		if (f)
 		{
 			VFS_READ(f, hdr, sizeof(hdr));
@@ -544,7 +544,7 @@ void SV_CalcPHS (void)
 
 	if (rowbytes*num >= 0x100000)
 	{
-		vfsfile_t *f = FS_OpenVFS(va("maps/%s.phs", sv.name), "wb", FS_GAMEONLY);
+		vfsfile_t *f = FS_OpenVFS(va("maps/%s.phs", svs.name), "wb", FS_GAMEONLY);
 		if (f)
 		{
 			VFS_WRITE(f, "QPHS\1\0\0\0", 8);
@@ -610,7 +610,6 @@ void SV_UnspawnServer (void)	//terminate the running server.
 #endif
 		sv.world.worldmodel = NULL;
 		sv.state = ss_dead;
-		*sv.name = '\0';
 		if (sv.csqcentversion)
 		{
 			BZ_Free(sv.csqcentversion);
@@ -869,6 +868,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 
 	Mod_ClearAll ();
+#ifndef SERVERONLY
+	r_regsequence++;
+#endif
 
 	PR_Deinit();
 
@@ -884,7 +886,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (allow_download_refpackages.ival)
 		FS_ReferenceControl(1, 1);
 
-	Q_strncpyz (sv.name, server, sizeof(sv.name));
+	Q_strncpyz (svs.name, server, sizeof(svs.name));
 #ifndef SERVERONLY
 	current_loading_size+=10;
 	//SCR_BeginLoadingPlaque();
@@ -931,7 +933,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize);
 
-		Q_strncpyz (sv.name, server, sizeof(sv.name));
+		Q_strncpyz (svs.name, server, sizeof(svs.name));
 		Q_strncpyz (sv.modelname, "", sizeof(sv.modelname));
 
 		sv.world.worldmodel = Mod_FindName (sv.modelname);
@@ -947,7 +949,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		//if you want to load a .map, just use 'map foo.map' instead.
 		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ NULL};
 		int depth, bestdepth;
-		Q_strncpyz (sv.name, server, sizeof(sv.name));
+		Q_strncpyz (svs.name, server, sizeof(svs.name));
 		Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[0], server);
 		bestdepth = COM_FDepthFile(sv.modelname, false);
 		for (i = 1; exts[i]; i++)
@@ -1372,7 +1374,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef VM_Q1
 		if (svs.gametype != GT_Q1QVM)	//we cannot do this with qvm
 #endif
-			svprogfuncs->SetStringField(svprogfuncs, NULL, &pr_global_struct->mapname, sv.name, true);
+			svprogfuncs->SetStringField(svprogfuncs, NULL, &pr_global_struct->mapname, svs.name, true);
 
 		// serverflags are for cross level information (sigils)
 		pr_global_struct->serverflags = svs.serverflags;
@@ -1500,7 +1502,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		break;
 #ifdef Q2SERVER
 	case GT_QUAKE2:
-		ge->SpawnEntities(sv.name, file, startspot?startspot:"");
+		ge->SpawnEntities(svs.name, file, startspot?startspot:"");
 		break;
 #endif
 	case GT_QUAKE3:
@@ -1518,7 +1520,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_ImageName(server);
 #endif
 
-	Q_strncpyz(sv.mapname, sv.name, sizeof(sv.mapname));
+	Q_strncpyz(sv.mapname, svs.name, sizeof(sv.mapname));
 	if (svprogfuncs)
 	{
 		eval_t *val;
@@ -1535,7 +1537,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				snprintf(sv.mapname, sizeof(sv.mapname), "%s", PR_GetString(svprogfuncs, val->string));
 		}
 		else
-			snprintf(sv.mapname, sizeof(sv.mapname), "%s", sv.name);
+			snprintf(sv.mapname, sizeof(sv.mapname), "%s", svs.name);
 		if (Cvar_Get("sv_readonlyworld", "1", 0, "DP compatability")->value)
 		{
 			ent->readonly = true;	//lock it down!
@@ -1600,7 +1602,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SV_GibFilterInit();
 	SV_FilterImpulseInit();
 
-	Info_SetValueForKey (svs.info, "map", sv.name, MAX_SERVERINFO_STRING);
+	Info_SetValueForKey (svs.info, "map", svs.name, MAX_SERVERINFO_STRING);
 	if (sv.allocated_client_slots != 1)
 		Con_TPrintf ("Server spawned.\n");	//misc filenotfounds can be misleading.
 

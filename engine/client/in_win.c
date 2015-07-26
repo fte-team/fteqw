@@ -32,6 +32,49 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void INS_Accumulate (void);
 
+#define AVAIL_XINPUT
+#ifdef AVAIL_XINPUT
+//#define AVAIL_XINPUT_DLL "xinput9_1_0.dll"
+#define AVAIL_XINPUT_DLL "xinput1_3.dll"
+typedef struct _XINPUT_GAMEPAD {
+	WORD  wButtons;
+	BYTE  bLeftTrigger;
+	BYTE  bRightTrigger;
+	SHORT sThumbLX;
+	SHORT sThumbLY;
+	SHORT sThumbRX;
+	SHORT sThumbRY;
+} XINPUT_GAMEPAD, *PXINPUT_GAMEPAD;
+typedef struct _XINPUT_STATE {
+	DWORD          dwPacketNumber;
+	XINPUT_GAMEPAD Gamepad;
+} XINPUT_STATE, *PXINPUT_STATE;
+typedef struct _XINPUT_VIBRATION {
+  WORD wLeftMotorSpeed;
+  WORD wRightMotorSpeed;
+} XINPUT_VIBRATION, *PXINPUT_VIBRATION;
+DWORD (WINAPI *pXInputGetState)(DWORD dwUserIndex, XINPUT_STATE *pState);
+DWORD (WINAPI *pXInputSetState)(DWORD dwUserIndex, XINPUT_VIBRATION *pState);
+enum
+{
+	XINPUT_GAMEPAD_DPAD_UP			= 0x0001,
+	XINPUT_GAMEPAD_DPAD_DOWN		= 0x0002,
+	XINPUT_GAMEPAD_DPAD_LEFT		= 0x0004,
+	XINPUT_GAMEPAD_DPAD_RIGHT		= 0x0008,
+	XINPUT_GAMEPAD_START			= 0x0010,
+	XINPUT_GAMEPAD_BACK				= 0x0020,
+	XINPUT_GAMEPAD_LEFT_THUMB		= 0x0040,
+	XINPUT_GAMEPAD_RIGHT_THUMB		= 0x0080,
+	XINPUT_GAMEPAD_LEFT_SHOULDER	= 0x0100,
+	XINPUT_GAMEPAD_RIGHT_SHOULDER	= 0x0200,
+	XINPUT_GAMEPAD_A				= 0x1000,
+	XINPUT_GAMEPAD_B				= 0x2000,
+	XINPUT_GAMEPAD_X				= 0x4000,
+	XINPUT_GAMEPAD_Y				= 0x8000
+};
+#endif
+
+
 #ifdef AVAIL_DINPUT
 
 #ifndef _MSC_VER
@@ -53,9 +96,13 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 
 // mouse variables
 static cvar_t	in_dinput = CVARF("in_dinput","0", CVAR_ARCHIVE);
+static cvar_t	in_xinput = CVARFD("in_xinput","0", CVAR_ARCHIVE, "Enables the use of xinput for controllers.\nNote that if you have a headset plugged in, that headset will be used for audio playback if no specific audio device is configured (may require snd_restart too).");
 static cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
 static cvar_t in_simulatemultitouch = CVAR("in_simulatemultitouch", "0");
 static cvar_t	in_nonstandarddeadkeys = CVARD("in_nonstandarddeadkeys", "1", "Discard input events that result in multiple keys. Only the last key will be used. This results in behaviour that differs from eg notepad. To use a dead key, press it twice instead of the dead key followed by space.");
+
+static cvar_t	xinput_leftvibrator = CVARFD("xinput_leftvibrator","0", CVAR_ARCHIVE, "");
+static cvar_t	xinput_rightvibrator = CVARFD("xinput_rightvibrator","0", CVAR_ARCHIVE, "Enables the use of xinput for controllers.\nNote that if you have a headset plugged in, that headset will be used for audio playback if no specific audio device is configured (may require snd_restart too).");
 
 static cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
 static cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
@@ -102,25 +149,7 @@ qboolean	mouseactive;
 #define JOY_ABSOLUTE_AXIS	0x00000000		// control like a joystick
 #define JOY_RELATIVE_AXIS	0x00000010		// control like a mouse, spinner, trackball
 #define	JOY_MAX_AXES		6				// X, Y, Z, R, U, V
-#define JOY_AXIS_X			0
-#define JOY_AXIS_Y			1
-#define JOY_AXIS_Z			2
-#define JOY_AXIS_R			3
-#define JOY_AXIS_U			4
-#define JOY_AXIS_V			5
 
-enum _ControlList
-{
-	AxisNada = 0, AxisForward, AxisLook, AxisSide, AxisTurn
-};
-
-static DWORD	dwAxisFlags[JOY_MAX_AXES] =
-{
-	JOY_RETURNX, JOY_RETURNY, JOY_RETURNZ, JOY_RETURNR, JOY_RETURNU, JOY_RETURNV
-};
-
-static DWORD	dwAxisMap[JOY_MAX_AXES];
-static DWORD	dwControlMap[JOY_MAX_AXES];
 
 // none of these cvars are saved over a session
 // this means that advanced controller configuration needs to be executed
@@ -128,30 +157,12 @@ static DWORD	dwControlMap[JOY_MAX_AXES];
 // or when changing from one controller to another.  this way at least something
 // works.
 static cvar_t	in_joystick				= CVARF("joystick","0", CVAR_ARCHIVE);
-static cvar_t	joy_name				= CVAR("joyname", "joystick");
-static cvar_t	joy_advanced			= CVAR("joyadvanced", "0");
-static cvar_t	joy_advaxisx			= CVAR("joyadvaxisx", "0");
-static cvar_t	joy_advaxisy			= CVAR("joyadvaxisy", "0");
-static cvar_t	joy_advaxisz			= CVAR("joyadvaxisz", "0");
-static cvar_t	joy_advaxisr			= CVAR("joyadvaxisr", "0");
-static cvar_t	joy_advaxisu			= CVAR("joyadvaxisu", "0");
-static cvar_t	joy_advaxisv			= CVAR("joyadvaxisv", "0");
-static cvar_t	joy_forwardthreshold	= CVAR("joyforwardthreshold", "0.15");
-static cvar_t	joy_sidethreshold		= CVAR("joysidethreshold", "0.15");
-static cvar_t	joy_pitchthreshold		= CVAR("joypitchthreshold", "0.15");
-static cvar_t	joy_yawthreshold		= CVAR("joyyawthreshold", "0.15");
-static cvar_t	joy_forwardsensitivity	= CVAR("joyforwardsensitivity", "-1.0");
-static cvar_t	joy_sidesensitivity		= CVAR("joysidesensitivity", "-1.0");
-static cvar_t	joy_pitchsensitivity	= CVAR("joypitchsensitivity", "1.0");
-static cvar_t	joy_yawsensitivity		= CVAR("joyyawsensitivity", "-1.0");
-static cvar_t	joy_wwhack1				= CVAR("joywwhack1", "0.0");
-static cvar_t	joy_wwhack2				= CVAR("joywwhack2", "0.0");
-
 static qboolean	joy_advancedinit;
 
 static DWORD		joy_flags;
-#define MAX_JOYSTICKS 4
+#define MAX_JOYSTICKS 8
 static struct wjoy_s {
+	qboolean			isxinput;	//xinput device
 	unsigned int		id;		//windows id. device id is the index.
 	unsigned int		devid;	//quake id (generally player index)
 	DWORD	numbuttons;
@@ -160,8 +171,6 @@ static struct wjoy_s {
 	DWORD	oldpovstate;
 	DWORD	buttonstate;
 	DWORD	oldbuttonstate;
-
-	DWORD	axis[JOY_MAX_AXES];
 } wjoy[MAX_JOYSTICKS];
 static int joy_count;
 
@@ -285,7 +294,6 @@ void INS_RawInput_DeInit(void);
 
 // forward-referenced functions
 void INS_StartupJoystick (void);
-void Joy_AdvancedUpdate_f (void);
 void INS_JoyMove (float *movements, int pnum);
 
 /*
@@ -538,7 +546,7 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 
 	if (activeapp)
 	{
-		if (!SCR_HardwareCursorIsActive() && (fullscreen || in_simulatemultitouch.ival || _windowed_mouse.value) && (current_mouse_pos.x >= window_rect.left && current_mouse_pos.y >= window_rect.top && current_mouse_pos.x <= window_rect.right && current_mouse_pos.y <= window_rect.bottom))
+		if (!SCR_HardwareCursorIsActive() && (fullscreen || in_simulatemultitouch.ival || _windowed_mouse.value) && (fullscreen || (current_mouse_pos.x >= window_rect.left && current_mouse_pos.y >= window_rect.top && current_mouse_pos.x <= window_rect.right && current_mouse_pos.y <= window_rect.bottom)))
 		{
 			INS_HideMouse();
 		}
@@ -1115,7 +1123,14 @@ void INS_Init (void)
 	//keyboard variables
 	Cvar_Register (&cl_keypad, "Input Controls");
 
+#ifdef AVAIL_DINPUT
 	Cvar_Register (&in_dinput, "Input Controls");
+#endif
+#ifdef AVAIL_XINPUT
+	Cvar_Register (&in_xinput, "Input Controls");
+	Cvar_Register (&xinput_leftvibrator, "Input Controls");
+	Cvar_Register (&xinput_rightvibrator, "Input Controls");
+#endif
 	Cvar_Register (&in_builtinkeymap, "Input Controls");
 	Cvar_Register (&in_nonstandarddeadkeys, "Input Controls");
 	Cvar_Register (&in_simulatemultitouch, "Input Controls");
@@ -1143,27 +1158,7 @@ void INS_Init (void)
 	// joystick variables
 	Cvar_Register (&in_joystick, "Joystick variables");
 
-	Cvar_Register (&joy_name, "Joystick variables");
-	Cvar_Register (&joy_advanced, "Joystick variables");
-	Cvar_Register (&joy_advaxisx, "Joystick variables");
-	Cvar_Register (&joy_advaxisy, "Joystick variables");
-	Cvar_Register (&joy_advaxisz, "Joystick variables");
-	Cvar_Register (&joy_advaxisr, "Joystick variables");
-	Cvar_Register (&joy_advaxisu, "Joystick variables");
-	Cvar_Register (&joy_advaxisv, "Joystick variables");
-	Cvar_Register (&joy_forwardthreshold, "Joystick variables");
-	Cvar_Register (&joy_sidethreshold, "Joystick variables");
-	Cvar_Register (&joy_pitchthreshold, "Joystick variables");
-	Cvar_Register (&joy_yawthreshold, "Joystick variables");
-	Cvar_Register (&joy_forwardsensitivity, "Joystick variables");
-	Cvar_Register (&joy_sidesensitivity, "Joystick variables");
-	Cvar_Register (&joy_pitchsensitivity, "Joystick variables");
-	Cvar_Register (&joy_yawsensitivity, "Joystick variables");
-	Cvar_Register (&joy_wwhack1, "Joystick variables");
-	Cvar_Register (&joy_wwhack2, "Joystick variables");
-
 	Cmd_AddCommand ("force_centerview", Force_CenterView_f);
-	Cmd_AddCommand ("joyadvancedupdate", Joy_AdvancedUpdate_f);
 
 	uiWheelMessage = RegisterWindowMessageA ( "MSWHEEL_ROLLMSG" );
 
@@ -1590,6 +1585,46 @@ static void INS_StartupJoystickId(unsigned int id)
 
 	joy_count++;
 }
+void INS_SetupControllerAudioDevices(void)
+{
+#ifdef AVAIL_XINPUT
+	int i;
+	static DWORD (WINAPI *pXInputGetDSoundAudioDeviceGuids)(DWORD dwUserIndex, GUID* pDSoundRenderGuid, GUID* pDSoundCaptureGuid);
+	static dllhandle_t *xinput;
+	if (!xinput)
+	{
+		dllfunction_t funcs[] =
+		{
+			{(void**)&pXInputGetDSoundAudioDeviceGuids, "XInputGetDSoundAudioDeviceGuids"},
+			{NULL}
+		};
+		xinput = Sys_LoadLibrary(AVAIL_XINPUT_DLL, funcs);
+	}
+
+	if (!pXInputGetDSoundAudioDeviceGuids)
+		return;
+
+	for (i = 0; i < joy_count; i++)
+	{
+		char audiodevicename[MAX_QPATH];
+		wchar_t mssuck[MAX_QPATH];
+		GUID gplayback = GUID_NULL;
+		GUID gcapture = GUID_NULL;
+		if (!wjoy[i].isxinput)
+			continue;
+		if (pXInputGetDSoundAudioDeviceGuids(wjoy[i].id, &gplayback, &gcapture) != ERROR_SUCCESS)
+			continue;	//probably not plugged in
+
+		if (!memcmp(&gplayback, &GUID_NULL, sizeof(gplayback)))
+			continue;	//we have a controller, but no headset.
+
+		StringFromGUID2(&gplayback, mssuck, sizeof(mssuck)/sizeof(mssuck[0]));
+		narrowen(audiodevicename, sizeof(audiodevicename), mssuck);
+		Con_Printf("Controller %i uses audio device %s\n", wjoy[i].id, audiodevicename);
+		S_SetupDeviceSeat("DirectSound", audiodevicename, wjoy[i].devid);
+	}
+#endif
+}
 void INS_StartupJoystick (void)
 {
 	unsigned int	id, numdevs;
@@ -1598,8 +1633,45 @@ void INS_StartupJoystick (void)
  	// assume no joysticks
 	joy_count = 0;
 
+#ifdef AVAIL_XINPUT
+	if (in_xinput.ival)
+	{
+		static dllhandle_t *xinput;
+		if (!xinput)
+		{
+			dllfunction_t funcs[] =
+			{
+				{(void**)&pXInputGetState, "XInputGetState"},
+				{(void**)&pXInputSetState, "XInputSetState"},
+				{NULL}
+			};
+			xinput = Sys_LoadLibrary(AVAIL_XINPUT_DLL, funcs);
+		}
+		if (pXInputGetState)
+		{
+			DWORD (WINAPI *pXInputGetDSoundAudioDeviceGuids)(DWORD dwUserIndex, GUID* pDSoundRenderGuid, GUID* pDSoundCaptureGuid);
+			pXInputGetDSoundAudioDeviceGuids = Sys_GetAddressForName(xinput, "XInputGetDSoundAudioDeviceGuids");
+
+			for (id = 0; id < 4; id++)
+			{
+				if (joy_count == countof(wjoy))
+					break;
+				memset(&wjoy[id], 0, sizeof(wjoy[id]));
+				wjoy[joy_count].isxinput = true;
+				wjoy[joy_count].id = id;
+				wjoy[joy_count].devid = id;
+				wjoy[joy_count].numbuttons = 16;
+				joy_count++;
+			}
+			Con_Printf("XInput is enabled (max %i controllers)\n", id);
+		}
+		else
+			Con_Printf("XInput not installed\n");
+	}
+#endif
+
 	// abort startup if user requests no joystick
-	if ( COM_CheckParm ("-nojoy") )
+	if (!in_joystick.ival )
 		return;
 
 	// verify joystick driver is present
@@ -1632,86 +1704,71 @@ void INS_StartupJoystick (void)
 
 /*
 ===========
-Joy_AdvancedUpdate_f
-===========
-*/
-void Joy_AdvancedUpdate_f (void)
-{
-
-	// called once by INS_ReadJoystick and by user whenever an update is needed
-	// cvars are now available
-	int	i;
-	DWORD dwTemp;
-
-	// initialize all the maps
-	for (i = 0; i < JOY_MAX_AXES; i++)
-	{
-		dwAxisMap[i] = AxisNada;
-		dwControlMap[i] = JOY_ABSOLUTE_AXIS;
-	}
-
-	if( joy_advanced.value == 0.0)
-	{
-		// default joystick initialization
-		// 2 axes only with joystick control
-		dwAxisMap[JOY_AXIS_X] = AxisTurn;
-		// dwControlMap[JOY_AXIS_X] = JOY_ABSOLUTE_AXIS;
-		dwAxisMap[JOY_AXIS_Y] = AxisForward;
-		// dwControlMap[JOY_AXIS_Y] = JOY_ABSOLUTE_AXIS;
-	}
-	else
-	{
-		if (Q_strcmp (joy_name.string, "joystick") != 0)
-		{
-			// notify user of advanced controller
-			Con_Printf ("\n%s configured\n\n", joy_name.string);
-		}
-
-		// advanced initialization here
-		// data supplied by user via joy_axisn cvars
-		dwTemp = (DWORD) joy_advaxisx.value;
-		dwAxisMap[JOY_AXIS_X] = dwTemp & 0x0000000f;
-		dwControlMap[JOY_AXIS_X] = dwTemp & JOY_RELATIVE_AXIS;
-		dwTemp = (DWORD) joy_advaxisy.value;
-		dwAxisMap[JOY_AXIS_Y] = dwTemp & 0x0000000f;
-		dwControlMap[JOY_AXIS_Y] = dwTemp & JOY_RELATIVE_AXIS;
-		dwTemp = (DWORD) joy_advaxisz.value;
-		dwAxisMap[JOY_AXIS_Z] = dwTemp & 0x0000000f;
-		dwControlMap[JOY_AXIS_Z] = dwTemp & JOY_RELATIVE_AXIS;
-		dwTemp = (DWORD) joy_advaxisr.value;
-		dwAxisMap[JOY_AXIS_R] = dwTemp & 0x0000000f;
-		dwControlMap[JOY_AXIS_R] = dwTemp & JOY_RELATIVE_AXIS;
-		dwTemp = (DWORD) joy_advaxisu.value;
-		dwAxisMap[JOY_AXIS_U] = dwTemp & 0x0000000f;
-		dwControlMap[JOY_AXIS_U] = dwTemp & JOY_RELATIVE_AXIS;
-		dwTemp = (DWORD) joy_advaxisv.value;
-		dwAxisMap[JOY_AXIS_V] = dwTemp & 0x0000000f;
-		dwControlMap[JOY_AXIS_V] = dwTemp & JOY_RELATIVE_AXIS;
-	}
-
-	// compute the axes to collect from DirectInput
-	joy_flags = JOY_RETURNCENTERED | JOY_RETURNBUTTONS | JOY_RETURNPOV;
-	for (i = 0; i < JOY_MAX_AXES; i++)
-	{
-		if (dwAxisMap[i] != AxisNada)
-		{
-			joy_flags |= dwAxisFlags[i];
-		}
-	}
-}
-
-
-/*
-===========
 INS_Commands
 ===========
 */
 void INS_Commands (void)
 {
-	int		i, key_index;
+	int		i;
 	DWORD	buttonstate, povstate;
 	unsigned int idx;
 	struct wjoy_s *joy;
+
+	static const int xinputjbuttons[] =
+	{	
+		K_UPARROW,	//XINPUT_GAMEPAD_DPAD_UP
+		K_DOWNARROW,	//XINPUT_GAMEPAD_DPAD_DOWN
+		K_LEFTARROW,	//XINPUT_GAMEPAD_DPAD_LEFT
+		K_RIGHTARROW,	//XINPUT_GAMEPAD_DPAD_RIGHT
+		K_AUX5, //XINPUT_GAMEPAD_START
+		K_AUX6, //XINPUT_GAMEPAD_BACK
+		K_AUX3, //XINPUT_GAMEPAD_LEFT_THUMB
+		K_AUX4, //XINPUT_GAMEPAD_RIGHT_THUMB
+		K_AUX1, //XINPUT_GAMEPAD_LEFT_SHOULDER
+		K_AUX2,	//XINPUT_GAMEPAD_RIGHT_SHOULDER
+		K_JOY2,	//XINPUT_GAMEPAD_A
+		K_JOY4,	//XINPUT_GAMEPAD_B
+		K_JOY1,	//XINPUT_GAMEPAD_X
+		K_JOY3	//XINPUT_GAMEPAD_Y
+	};
+	static const int dinputjbuttons[32] =
+	{
+		K_JOY1,
+		K_JOY2,
+		K_JOY3,
+		K_JOY4,
+		//yes, aux1-4 skipped for compat with other quake engines.
+		K_AUX5,
+		K_AUX6,
+		K_AUX7,
+		K_AUX8,
+		K_AUX9,
+		K_AUX10,
+		K_AUX11,
+		K_AUX12,
+		K_AUX13,
+		K_AUX14,
+		K_AUX15,
+		K_AUX16,
+		K_AUX17,
+		K_AUX18,
+		K_AUX19,
+		K_AUX20,
+		K_AUX21,
+		K_AUX22,
+		K_AUX23,
+		K_AUX24,
+		K_AUX25,
+		K_AUX26,
+		K_AUX27,
+		K_AUX28,
+		//29-32 used for the pov stuff, so lets switch back to aux1-4 to avoid wastage
+		K_AUX1,
+		K_AUX2,
+		K_AUX3,
+		K_AUX4
+	};
+
 
 	for (idx = 0; idx < joy_count; idx++)
 	{
@@ -1720,18 +1777,26 @@ void INS_Commands (void)
 		// loop through the joystick buttons
 		// key a joystick event or auxillary event for higher number buttons for each state change
 		buttonstate = joy->buttonstate;
-		for (i=0 ; i < joy->numbuttons ; i++)
+		if (joy->isxinput)
 		{
-			if ( (buttonstate & (1<<i)) && !(joy->oldbuttonstate & (1<<i)) )
+			for (i=0 ; i < joy->numbuttons ; i++)
 			{
-				key_index = (i < 4) ? K_JOY1 : K_AUX1;
-				Key_Event (joy->devid, key_index + i, 0, true);
-			}
+				if ( (buttonstate & (1<<i)) && !(joy->oldbuttonstate & (1<<i)) )
+					Key_Event (joy->devid, xinputjbuttons[i], 0, true);
 
-			if ( !(buttonstate & (1<<i)) && (joy->oldbuttonstate & (1<<i)) )
+				if ( !(buttonstate & (1<<i)) && (joy->oldbuttonstate & (1<<i)) )
+					Key_Event (joy->devid, xinputjbuttons[i], 0, false);
+			}
+		}
+		else
+		{
+			for (i=0 ; i < joy->numbuttons ; i++)
 			{
-				key_index = (i < 4) ? K_JOY1 : K_AUX1;
-				Key_Event (joy->devid, key_index + i, 0, false);
+				if ( (buttonstate & (1<<i)) && !(joy->oldbuttonstate & (1<<i)) )
+					Key_Event (joy->devid, dinputjbuttons[i], 0, true);
+
+				if ( !(buttonstate & (1<<i)) && (joy->oldbuttonstate & (1<<i)) )
+					Key_Event (joy->devid, dinputjbuttons[i], 0, false);
 			}
 		}
 		joy->oldbuttonstate = buttonstate;
@@ -1779,54 +1844,88 @@ INS_ReadJoystick
 */
 qboolean INS_ReadJoystick (struct wjoy_s *joy)
 {
-	memset (&ji, 0, sizeof(ji));
-	ji.dwSize = sizeof(ji);
-	ji.dwFlags = joy_flags;
-
-	if (joyGetPosEx (joy->id, &ji) == JOYERR_NOERROR)
+#ifdef AVAIL_XINPUT
+	if (joy->isxinput)
 	{
-		// this is a hack -- there is a bug in the Logitech WingMan Warrior DirectInput Driver
-		// rather than having 32768 be the zero point, they have the zero point at 32668
-		// go figure -- anyway, now we get the full resolution out of the device
-		if (joy_wwhack1.value != 0.0)
+		XINPUT_STATE xistate;
+		XINPUT_VIBRATION vibrator;
+		HRESULT hr = pXInputGetState(joy->id, &xistate);
+
+#if 1
+		//I don't have a controller to test this with, so we fake stuff.
+		if (joy->id == 3)
 		{
-			ji.dwUpos += 100;
+			POINT p;
+			GetCursorPos(&p);
+			hr = ERROR_SUCCESS;
+			xistate.Gamepad.wButtons = 0;
+			xistate.Gamepad.sThumbRX = 0;//(p.x/1920.0)*0xffff - 0x8000;
+			xistate.Gamepad.sThumbRY = 0;//(p.y/1080.0)*0xffff - 0x8000;
+			xistate.Gamepad.sThumbLX = (p.x/1920.0)*0xffff - 0x8000;
+			xistate.Gamepad.sThumbLY = (p.y/1080.0)*0xffff - 0x8000;
+			xistate.Gamepad.bLeftTrigger = 0;
+			xistate.Gamepad.bRightTrigger = 0;
 		}
-		joy->povstate = ji.dwPOV;
-		joy->buttonstate = ji.dwButtons;
-		joy->axis[JOY_AXIS_X] = ji.dwXpos;
-		joy->axis[JOY_AXIS_Y] = ji.dwYpos;
-		joy->axis[JOY_AXIS_Z] = ji.dwZpos;
-		joy->axis[JOY_AXIS_R] = ji.dwRpos;
-		joy->axis[JOY_AXIS_U] = ji.dwUpos;
-		joy->axis[JOY_AXIS_V] = ji.dwVpos;
-		return true;
+#endif
+
+		if (hr == ERROR_SUCCESS)
+		{	//ERROR_SUCCESS
+			//do we care about the dwPacketNumber?
+			joy->buttonstate = xistate.Gamepad.wButtons & 0xffff;
+
+			IN_JoystickAxisEvent(joy->devid, 0, xistate.Gamepad.sThumbRX / 32768.0);
+			IN_JoystickAxisEvent(joy->devid, 1, xistate.Gamepad.sThumbRY / 32768.0);
+			IN_JoystickAxisEvent(joy->devid, 2, xistate.Gamepad.bRightTrigger/255.0);
+			IN_JoystickAxisEvent(joy->devid, 3, xistate.Gamepad.sThumbLX / 32768.0);
+			IN_JoystickAxisEvent(joy->devid, 4, xistate.Gamepad.sThumbLY / 32768.0);
+			IN_JoystickAxisEvent(joy->devid, 5, xistate.Gamepad.bLeftTrigger/255.0);
+
+			vibrator.wLeftMotorSpeed = xinput_leftvibrator.value * 0xffff;
+			vibrator.wRightMotorSpeed = xinput_rightvibrator.value * 0xffff;
+			pXInputSetState(joy->id, &vibrator);
+			return true;
+		}
 	}
 	else
+#endif
 	{
-		joy->povstate = 0;
-		joy->buttonstate = 0;
-		joy->axis[JOY_AXIS_X] = 32768;
-		joy->axis[JOY_AXIS_Y] = 32768;
-		joy->axis[JOY_AXIS_Z] = 32768;
-		joy->axis[JOY_AXIS_R] = 32768;
-		joy->axis[JOY_AXIS_U] = 32768;
-		joy->axis[JOY_AXIS_V] = 32768;
+		memset (&ji, 0, sizeof(ji));
+		ji.dwSize = sizeof(ji);
+		ji.dwFlags = joy_flags;
 
-		// read error occurred
-		// turning off the joystick seems too harsh for 1 read error,
-		// but what should be done?
-		// Con_Printf ("INS_ReadJoystick: no response\n");
-		// joy_avail = false;
-		return false;
+		if (joyGetPosEx (joy->id, &ji) == JOYERR_NOERROR)
+		{
+			joy->povstate = ji.dwPOV;
+			joy->buttonstate = ji.dwButtons;
+			IN_JoystickAxisEvent(joy->devid, 0, (ji.dwXpos - 32768.0) / 32768);
+			IN_JoystickAxisEvent(joy->devid, 1, (ji.dwYpos - 32768.0) / 32768);
+			IN_JoystickAxisEvent(joy->devid, 2, (ji.dwZpos - 32768.0) / 32768);
+			IN_JoystickAxisEvent(joy->devid, 3, (ji.dwRpos - 32768.0) / 32768);
+			IN_JoystickAxisEvent(joy->devid, 4, (ji.dwUpos - 32768.0) / 32768);
+			IN_JoystickAxisEvent(joy->devid, 5, (ji.dwVpos - 32768.0) / 32768);
+			return true;
+		}
 	}
+
+	joy->povstate = 0;
+	joy->buttonstate = 0;
+	IN_JoystickAxisEvent(joy->devid, 0, 0);
+	IN_JoystickAxisEvent(joy->devid, 1, 0);
+	IN_JoystickAxisEvent(joy->devid, 2, 0);
+	IN_JoystickAxisEvent(joy->devid, 3, 0);
+	IN_JoystickAxisEvent(joy->devid, 4, 0);
+	IN_JoystickAxisEvent(joy->devid, 5, 0);
+
+	// read error occurred
+	// turning off the joystick seems too harsh for 1 read error,
+	// but what should be done?
+	// Con_Printf ("INS_ReadJoystick: no response\n");
+	// joy_avail = false;
+	return false;
 }
 
 static void INS_JoyMovePtr (struct wjoy_s *joy, float *movements, int pnum)
 {
-	float	speed, aspeed;
-	float	fAxisValue, fTemp;
-	int		i;
 	int wpnum;
 
 	/*each device will be processed when its player comes to be processed*/
@@ -1846,153 +1945,6 @@ static void INS_JoyMovePtr (struct wjoy_s *joy, float *movements, int pnum)
 	{
 		return;
 	}
-
-	if (in_speed.state[pnum] & 1)
-		speed = cl_movespeedkey.value;
-	else
-		speed = 1;
-	aspeed = speed * host_frametime;
-
-	// loop through the axes
-	for (i = 0; i < JOY_MAX_AXES; i++)
-	{
-		// get the floating point zero-centered, potentially-inverted data for the current axis
-		fAxisValue = (float) joy->axis[i];
-		// move centerpoint to zero
-		fAxisValue -= 32768.0;
-
-		if (joy_wwhack2.value != 0.0)
-		{
-			if (dwAxisMap[i] == AxisTurn)
-			{
-				// this is a special formula for the Logitech WingMan Warrior
-				// y=ax^b; where a = 300 and b = 1.3
-				// also x values are in increments of 800 (so this is factored out)
-				// then bounds check result to level out excessively high spin rates
-				fTemp = 300.0 * pow(abs(fAxisValue) / 800.0, 1.3);
-				if (fTemp > 14000.0)
-					fTemp = 14000.0;
-				// restore direction information
-				fAxisValue = (fAxisValue > 0.0) ? fTemp : -fTemp;
-			}
-		}
-
-		// convert range from -32768..32767 to -1..1
-		fAxisValue /= 32768.0;
-
-#ifdef CSQC_DAT
-		if (CSQC_JoystickAxis(i, fAxisValue, joy->devid))
-			continue;
-#endif
-
-		switch (dwAxisMap[i])
-		{
-		case AxisForward:
-			if ((joy_advanced.value == 0.0) && (in_mlook.state[pnum] & 1))
-			{
-				// user wants forward control to become look control
-				if (fabs(fAxisValue) > joy_pitchthreshold.value)
-				{
-					// if mouse invert is on, invert the joystick pitch value
-					// only absolute control support here (joy_advanced is false)
-					if (m_pitch.value < 0.0)
-					{
-						cl.playerview[pnum].viewanglechange[PITCH] -= (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
-					}
-					else
-					{
-						cl.playerview[pnum].viewanglechange[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
-					}
-					V_StopPitchDrift(&cl.playerview[pnum]);
-				}
-				else
-				{
-					// no pitch movement
-					// disable pitch return-to-center unless requested by user
-					// *** this code can be removed when the lookspring bug is fixed
-					// *** the bug always has the lookspring feature on
-					if(lookspring.value == 0.0)
-						V_StopPitchDrift(&cl.playerview[pnum]);
-				}
-			}
-			else
-			{
-				// user wants forward control to be forward control
-				if (fabs(fAxisValue) > joy_forwardthreshold.value)
-				{
-					movements[0] += (fAxisValue * joy_forwardsensitivity.value) * speed * cl_forwardspeed.value;
-				}
-			}
-			break;
-
-		case AxisSide:
-			if (fabs(fAxisValue) > joy_sidethreshold.value)
-			{
-				movements[1] += (fAxisValue * joy_sidesensitivity.value) * speed * cl_sidespeed.value;
-			}
-			break;
-
-		case AxisTurn:
-			if ((in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1)))
-			{
-				// user wants turn control to become side control
-				if (fabs(fAxisValue) > joy_sidethreshold.value)
-				{
-					movements[2] -= (fAxisValue * joy_sidesensitivity.value) * speed * cl_sidespeed.value;
-				}
-			}
-			else
-			{
-				// user wants turn control to be turn control
-				if (fabs(fAxisValue) > joy_yawthreshold.value)
-				{
-					if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
-					{
-						cl.playerview[pnum].viewanglechange[YAW] += (fAxisValue * joy_yawsensitivity.value) * aspeed * cl_yawspeed.value;
-					}
-					else
-					{
-						cl.playerview[pnum].viewanglechange[YAW] += (fAxisValue * joy_yawsensitivity.value) * speed * 180.0;
-					}
-
-				}
-			}
-			break;
-
-		case AxisLook:
-			if (in_mlook.state[pnum] & 1)
-			{
-				if (fabs(fAxisValue) > joy_pitchthreshold.value)
-				{
-					// pitch movement detected and pitch movement desired by user
-					if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
-					{
-						cl.playerview[pnum].viewanglechange[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
-					}
-					else
-					{
-						cl.playerview[pnum].viewanglechange[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * speed * 180.0;
-					}
-					V_StopPitchDrift(&cl.playerview[pnum]);
-				}
-				else
-				{
-					// no pitch movement
-					// disable pitch return-to-center unless requested by user
-					// *** this code can be removed when the lookspring bug is fixed
-					// *** the bug always has the lookspring feature on
-					if(lookspring.value == 0.0)
-						V_StopPitchDrift(&cl.playerview[pnum]);
-				}
-			}
-			break;
-
-		default:
-			break;
-		}
-	}
-
-	CL_ClampPitch(pnum);
 }
 /*
 ===========
@@ -2002,19 +1954,6 @@ INS_JoyMove
 void INS_JoyMove (float *movements, int pnum)
 {
 	unsigned int idx;
-
-	// complete initialization if first time in
-	// this is needed as cvars are not available at initialization time
-	if( joy_advancedinit != true )
-	{
-		Joy_AdvancedUpdate_f();
-		joy_advancedinit = true;
-	}
-
-	// verify joystick is available and that the user wants to use it
-	if (!in_joystick.value)
-		return;
-
 	for (idx = 0; idx < joy_count; idx++)
 	{
 		INS_JoyMovePtr(&wjoy[idx], movements, pnum);
@@ -2040,7 +1979,12 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char
 	callback(ctx, "mouse", "system", NULL);
 
 	for (idx = 0; idx < joy_count; idx++)
-		callback(ctx, "joy", va("mmj%i", idx), &wjoy[idx].devid);
+	{
+		if (wjoy[idx].isxinput)
+			callback(ctx, "joy", va("xi%i", wjoy[idx].id), &wjoy[idx].devid);
+		else
+			callback(ctx, "joy", va("mmj%i", wjoy[idx].id), &wjoy[idx].devid);
+	}
 }
 
 static qbyte        scantokey[] =

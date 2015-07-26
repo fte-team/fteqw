@@ -926,7 +926,11 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 
 void GL_CullFace(unsigned int sflags)
 {
-	sflags ^= r_refdef.flipcull;
+	if (shaderstate.flags & BEF_FORCETWOSIDED)
+		sflags = 0;
+	else if (sflags)
+		sflags ^= r_refdef.flipcull;
+
 #ifndef FORCESTATE
 	if (shaderstate.curcull == sflags)
 		return;
@@ -2902,7 +2906,6 @@ static void DrawPass(const shaderpass_t *pass)
 
 				tmu++;
 			}
-#endif
 
 			//might need to break the pass here
 			if (j > 1 && i != lastpass)
@@ -2920,6 +2923,7 @@ static void DrawPass(const shaderpass_t *pass)
 				BE_SendPassBlendDepthMask(pass[i+1].shaderbits);
 				GenerateColourMods(&pass[i+1]);
 			}
+#endif
 		}
 	}
 
@@ -3931,26 +3935,7 @@ static void DrawMeshes(void)
 	}
 
 	flags = shaderstate.curshader->flags;
-#ifndef FORCESTATE
-	if (shaderstate.curcull != ((flags^r_refdef.flipcull) & (SHADER_CULL_FRONT|SHADER_CULL_BACK)))
-#endif
-	{
-		shaderstate.curcull = ((flags^r_refdef.flipcull) & (SHADER_CULL_FRONT|SHADER_CULL_BACK));
-		if (shaderstate.curcull & SHADER_CULL_FRONT)
-		{
-			qglEnable(GL_CULL_FACE);
-			qglCullFace(GL_FRONT);
-		}
-		else if (shaderstate.curcull & SHADER_CULL_BACK)
-		{
-			qglEnable(GL_CULL_FACE);
-			qglCullFace(GL_BACK);
-		}
-		else
-		{
-			qglDisable(GL_CULL_FACE);
-		}
-	}
+	GL_CullFace(flags & (SHADER_CULL_FRONT|SHADER_CULL_BACK));
 
 #ifndef GLSLONLY
 	if (shaderstate.sourcevbo->coord2.gl.addr && (shaderstate.curshader->numdeforms || !shaderstate.curshader->prog))

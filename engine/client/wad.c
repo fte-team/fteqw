@@ -683,12 +683,17 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 		}
 		else if (!strcmp("fog", key))	//q1 extension. FIXME: should be made temporary.
 		{
-			void CL_Fog_f(void);
 			key[0] = 'f';
 			key[1] = 'o';
 			key[2] = 'g';
 			key[3] = ' ';
 			Q_strncpyz(key+4, token, sizeof(key)-4);
+			Cbuf_AddText(key, RESTRICT_INSECURE);
+		}
+		else if (!strcmp("waterfog", key))	//q1 extension. FIXME: should be made temporary.
+		{
+			memcpy(key, "waterfog ", 9);
+			Q_strncpyz(key+9, token, sizeof(key)-9);
 			Cbuf_AddText(key, RESTRICT_INSECURE);
 		}
 		else if (!strncmp("cvar_", key, 5)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).

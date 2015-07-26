@@ -562,7 +562,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	if ((bits & (UF_EFFECTS | UF_EFFECTS2)) == (UF_EFFECTS | UF_EFFECTS2))
 		news->effects = MSG_ReadLong();
 	else if (bits & UF_EFFECTS2)
-		news->effects = MSG_ReadShort();
+		news->effects = (unsigned short)MSG_ReadShort();
 	else if (bits & UF_EFFECTS)
 		news->effects = MSG_ReadByte();
 
@@ -639,9 +639,12 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 
 	if (!(predbits & UFP_VIEWANGLE) || !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
 	{
-		news->u.q1.vangle[0] = ANGLE2SHORT(news->angles[0]);
-		news->u.q1.vangle[1] = ANGLE2SHORT(news->angles[1]);
-		news->u.q1.vangle[2] = ANGLE2SHORT(news->angles[2]);
+		if (bits & UF_ANGLESXZ)
+			news->u.q1.vangle[0] = ANGLE2SHORT(news->angles[0] * ((bits & UF_PREDINFO)?-3:-1));
+		if (bits & UF_ANGLESY)
+			news->u.q1.vangle[1] = ANGLE2SHORT(news->angles[1]);
+		if (bits & UF_ANGLESXZ)
+			news->u.q1.vangle[2] = ANGLE2SHORT(news->angles[2]);
 	}
 
 	if (bits & UF_MODEL)
@@ -1202,6 +1205,10 @@ entity_state_t *CL_FindOldPacketEntity(int num)
 void DP5_ParseDelta(entity_state_t *s)
 {
 	int bits;
+
+	if (cl_shownet.ival >= 3)
+		Con_Printf("%3i:     Update %i", msg_readcount, s->number);
+
 	bits = MSG_ReadByte();
 	if (bits & E5_EXTEND1)
 	{
@@ -1212,6 +1219,43 @@ void DP5_ParseDelta(entity_state_t *s)
 			if (bits & E5_EXTEND3)
 				bits |= MSG_ReadByte() << 24;
 		}
+	}
+
+	if (cl_shownet.ival >= 3)
+	{
+		if (bits & E5_FULLUPDATE)		Con_Printf(" full");
+		if (bits & E5_ORIGIN)			Con_Printf(" origin");
+		if (bits & E5_ANGLES)			Con_Printf(" angles");
+		if (bits & E5_MODEL)			Con_Printf(" model");
+		if (bits & E5_FRAME)			Con_Printf(" frame");
+		if (bits & E5_SKIN)				Con_Printf(" kin");
+		if (bits & E5_EFFECTS)			Con_Printf(" effects");
+		if (bits & E5_EXTEND1)			Con_Printf(" extend1");
+		if (bits & E5_FLAGS)			Con_Printf(" flags");
+		if (bits & E5_ALPHA)			Con_Printf(" alpha");
+		if (bits & E5_SCALE)			Con_Printf(" scale");
+		if (bits & E5_ORIGIN32)			Con_Printf(" origin32");
+		if (bits & E5_ANGLES16)			Con_Printf(" angles16");
+		if (bits & E5_MODEL16)			Con_Printf(" model16");
+		if (bits & E5_COLORMAP)			Con_Printf(" colormap");
+		if (bits & E5_EXTEND2)			Con_Printf(" extend2");
+		if (bits & E5_ATTACHMENT)		Con_Printf(" attachment");
+		if (bits & E5_LIGHT)			Con_Printf(" light");
+		if (bits & E5_GLOW)				Con_Printf(" glow");
+		if (bits & E5_EFFECTS16)		Con_Printf(" effects16");
+		if (bits & E5_EFFECTS32)		Con_Printf(" effects32");
+		if (bits & E5_FRAME16)			Con_Printf(" frame16");
+		if (bits & E5_COLORMOD)			Con_Printf(" colormod");
+		if (bits & E5_EXTEND3)			Con_Printf(" extend3");
+		if (bits & E5_GLOWMOD)			Con_Printf(" glowmod");
+		if (bits & E5_COMPLEXANIMATION)	Con_Printf(" complexanimation");
+		if (bits & E5_TRAILEFFECTNUM)	Con_Printf(" traileffectnum");
+		if (bits & E5_UNUSED27)			Con_Printf(" unused27");
+		if (bits & E5_UNUSED28)			Con_Printf(" unused28");
+		if (bits & E5_UNUSED29)			Con_Printf(" unused29");
+		if (bits & E5_UNUSED30)			Con_Printf(" unused30");
+		if (bits & E5_EXTEND4)			Con_Printf(" extend4");
+		Con_Printf("\n");
 	}
 
 	if (bits & E5_ALLUNUSED)
@@ -1329,6 +1373,17 @@ void DP5_ParseDelta(entity_state_t *s)
 		s->u.q1.traileffectnum = MSG_ReadShort();
 }
 
+static int QDECL CLDP_SortEntities(const void *va, const void *vb)
+{
+	const entity_state_t *a = va, *b = vb;
+	if (a->inactiveflag && b->inactiveflag)
+		return 0;
+	if ((a->number < b->number || b->inactiveflag) && !a->inactiveflag)
+		return -1;
+	else
+		return 1;
+}
+
 void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 {
 	//the incoming entities do not come in in any order. :(
@@ -1339,12 +1394,11 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	//this gets in the way of tracking multiple frames, and thus doesn't match fte too well
 
 
-	packet_entities_t	*pack, oldpack;
-	static packet_entities_t	newpack;
+	packet_entities_t	*oldpack, *newpack;
 
 	entity_state_t		*to, *from;
 	unsigned int read;
-	int oldi, newi, lowesti, lowestv, newremaining;
+	int oldi;
 	qboolean remove;
 
 	//server->client sequence
@@ -1356,14 +1410,31 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	if (cls.protocol_nq >= CPNQ_DP7)
 		CL_AckedInputFrame(cls.netchan.incoming_sequence, MSG_ReadLong(), true); /*client input sequence which has been acked*/
 
+	if (cl.validsequence)
+		oldpack = &cl.inframes[(cl.validsequence)&UPDATE_MASK].packet_entities;
+	else
+		oldpack = NULL;
+	cl.validsequence = cls.netchan.incoming_sequence;
 	cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].receivedtime = realtime;
 	cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].frameid = cls.netchan.incoming_sequence;
-	pack = &cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
-	pack->servertime = cl.gametime;
-	oldpack = *pack;
-	oldi = 0;
+	newpack = &cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
+	newpack->servertime = cl.gametime;
 
-	newpack.num_entities = 0;
+	//copy old state to new state
+	if (newpack != oldpack)
+	{
+		if (oldpack)
+		{
+			newpack->num_entities = oldpack->num_entities;
+			newpack->max_entities = newpack->num_entities+16;	//for slop for new ents, to reduce reallocs
+			newpack->entities = BZ_Realloc(newpack->entities, sizeof(entity_state_t)*newpack->max_entities);
+			memcpy(newpack->entities, oldpack->entities, sizeof(entity_state_t)*newpack->num_entities);
+		}
+		else
+			newpack->num_entities = 0;
+	}
+	oldpack = NULL;
+
 	for (;;)
 	{
 		read = MSG_ReadShort();
@@ -1378,98 +1449,57 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			Host_EndGame("Too many entities.\n");
 
 		from = &nullentitystate;
+		to = NULL;
 
-		for (oldi=0 ; oldi<oldpack.num_entities ; oldi++)
+		for (oldi=0 ; oldi<newpack->num_entities ; oldi++)
 		{
-			if (read == oldpack.entities[oldi].number)
+			if (read == newpack->entities[oldi].number)
 			{
-				from = &oldpack.entities[oldi];
-				from->inactiveflag |= 1;	//so we don't copy it.
+				from = &newpack->entities[oldi];
+				to = &newpack->entities[oldi];
 				break;
 			}
 		}
 
-		if (remove)
-		{
-			continue;
-		}
+		if (!to)
+		{	//okay, so this is new
+			if (newpack->num_entities==newpack->max_entities)
+			{
+				newpack->max_entities = newpack->num_entities+16;
+				newpack->entities = BZ_Realloc(newpack->entities, sizeof(entity_state_t)*newpack->max_entities);
+			}
 
-		if (newpack.num_entities==newpack.max_entities)
-		{
-			newpack.max_entities = newpack.num_entities+16;
-			newpack.entities = BZ_Realloc(newpack.entities, sizeof(entity_state_t)*newpack.max_entities);
+			to = &newpack->entities[newpack->num_entities];
+			newpack->num_entities++;
 		}
-
-		to = &newpack.entities[newpack.num_entities];
-		newpack.num_entities++;
 
 		memcpy(to, from, sizeof(*to));
 		to->number = read;
-		DP5_ParseDelta(to);
-		to->inactiveflag &= ~1;
-	}
 
-	/*we're writing into the old one, clear it out prematurely (to make the malloc below trigger, and free it at the end)*/
-	pack->max_entities = 0;
-	pack->entities = NULL;
-
-	//make sure there's enough space for both lists
-	if (oldpack.num_entities + newpack.num_entities>=pack->max_entities)
-	{
-		pack->max_entities = oldpack.num_entities + newpack.num_entities;
-		pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
-	}
-	pack->num_entities = 0;
-
-	//we're read all the new states, so have current info
-	//merge the packets, sorting the new ones (so the output is always sorted)
-	for (oldi = 0, lowesti=0, lowestv = 0, newremaining = newpack.num_entities; newremaining || oldi < oldpack.num_entities; )
-	{
-		if (oldi == oldpack.num_entities)
-			from = NULL;
-		else
-		{
-			from = &oldpack.entities[oldi];
-			if (from->inactiveflag & 1)
-			{
-				oldi++;
-				continue;
-			}
-		}
-
-		if (newremaining && !lowestv)
-		{
-			lowestv = 0x7ffffffe;
-			for(newi = 0; newi < newpack.num_entities; newi++)
-			{
-				if (newpack.entities[newi].inactiveflag & 1)
-					continue;
-				if (newpack.entities[newi].number < lowestv)
-				{
-					lowestv = newpack.entities[newi].number;
-					lowesti = newi;
-				}
-			}
-		}
-
-		/*use the new packet instead if we need to*/
-		if (!from || (from->number > lowestv && lowestv))
-		{
-			from = &newpack.entities[lowesti];
-			from->inactiveflag |= 1;
-			lowestv = 0;	/*find the next oldest*/
-			newremaining--;
+		if (remove)
+		{	//ent is meant to be removed. flag it as such. we'll strip it out later.
+			if (cl_shownet.ival >= 3)
+				Con_Printf("Remove %i\n", read);
+			to->inactiveflag = 1;
 		}
 		else
-			oldi++;
-
-		to = &pack->entities[pack->num_entities];
-		pack->num_entities++;
-		memcpy(to, from, sizeof(*to));
-		to->inactiveflag &= ~1;
+		{
+//			Con_Printf("Update %i\n", read);
+			DP5_ParseDelta(to);
+			to->inactiveflag = 0;
+		}
 	}
 
-	BZ_Free(oldpack.entities);
+	qsort(newpack->entities, newpack->num_entities, sizeof(entity_state_t), CLDP_SortEntities);
+
+	//get rid of any removed ents (we sorted these to the end)
+	while (newpack->num_entities)
+	{
+		if (newpack->entities[newpack->num_entities-1].inactiveflag)
+			newpack->num_entities--;
+		else
+			break;
+	}
 }
 
 void CLNQ_ParseEntity(unsigned int bits)
@@ -2659,6 +2689,70 @@ void CL_AddDecal(shader_t *shader, vec3_t origin, vec3_t up, vec3_t side, vec3_t
 		cl_numstris--;
 }
 
+void R_AddItemTimer(vec3_t shadoworg, float yaw, float radius, float percent)
+{
+	vec3_t eang;
+	shader_t *s;
+	scenetris_t *t;
+	cl_adddecal_ctx_t ctx;
+
+//	if (!r_shadows.value)
+//		return;
+
+	s = R_RegisterShader("timershader", SUF_NONE,
+		"{\n"
+			"polygonoffset\n"
+			"program itemtimer\n"
+			"{\n"
+				"map $diffuse\n"
+				"blendfunc src_alpha one\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+			"}\n"
+		"}\n");
+	if (!s->prog)
+		return;
+	TEXASSIGN(s->defaulttextures->base, balltexture);
+
+
+	eang[0] = 0;
+	eang[1] = yaw;
+	eang[2] = 0;
+	AngleVectors(eang, ctx.axis[1], ctx.axis[2], ctx.axis[0]);
+	VectorNegate(ctx.axis[0], ctx.axis[0]);
+
+	ctx.offset[2] = DotProduct(shadoworg, ctx.axis[2]) + 0.5*radius;
+	ctx.offset[1] = DotProduct(shadoworg, ctx.axis[1]) + 0.5*radius;
+	ctx.offset[0] = DotProduct(shadoworg, ctx.axis[0]);
+	ctx.scale[1] = 1/radius;
+	ctx.scale[2] = 1/radius;
+	ctx.scale[0] = 0;//.5/radius;
+
+	/*reuse the previous trigroup if its the same shader*/
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == s && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = s;
+		t->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+	}
+
+	ctx.t = t;
+	Vector4Set(ctx.rgbavalue, 0.1, 0.1, 0.1, percent);
+	Mod_ClipDecal(cl.worldmodel, shadoworg, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, CL_AddDecal_Callback, &ctx);
+	if (!t->numidx)
+		cl_numstris--;
+}
 void CLQ1_AddShadow(entity_t *ent)
 {
 	float radius;
@@ -2738,7 +2832,7 @@ void CLQ1_AddShadow(entity_t *ent)
 void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects)
 {
 	entity_t *shell;
-	if (!(effects & (EF_BLUE | EF_RED)) || !v_powerupshell.value || !ent)
+	if (!(effects & (EF_BLUE | EF_RED | EF_GREEN)) || !v_powerupshell.value || !ent)
 		return;
 
 	if (cl_numvisedicts == cl_maxvisedicts)
@@ -3359,7 +3453,7 @@ void CL_LinkPacketEntities (void)
 
 		//bots or powerup glows. items always glow, bots can be disabled
 		if (state->modelindex != cl_playerindex || r_powerupglow.ival)
-		if (state->effects & (EF_BLUE | EF_RED | EF_BRIGHTLIGHT | EF_DIMLIGHT))
+		if (state->effects & (EF_GREEN | EF_BLUE | EF_RED | EF_BRIGHTLIGHT | EF_DIMLIGHT))
 		{
 			vec3_t colour;
 			float radius;
@@ -3394,6 +3488,13 @@ void CL_LinkPacketEntities (void)
 				radius = max(radius,200);
 				colour[0] += 3.0;
 				colour[1] += 0.5;
+				colour[2] += 0.5;
+			}
+			if (state->effects & EF_GREEN)
+			{
+				radius = max(radius,200);
+				colour[0] += 0.5;
+				colour[1] += 3.0;
 				colour[2] += 0.5;
 			}
 
@@ -3657,7 +3758,7 @@ void CL_LinkPacketEntities (void)
 			P_EmitEffect (ent->origin, model->particleeffect, &(le->emitstate));
 
 		//dlights are not so customisable.
-		if (r_rocketlight.value && (modelflags & MF_ROCKET))
+		if (r_rocketlight.value && (modelflags & MF_ROCKET) && !(state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)))
 		{
 			float rad = 0;
 			vec3_t dclr;

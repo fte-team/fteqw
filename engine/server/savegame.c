@@ -447,7 +447,7 @@ void SV_LegacySavegame_f (void)
 		VFS_PRINTF(f, "%f\n", coop.value);
 		VFS_PRINTF(f, "%f\n", teamplay.value);
 	}
-	VFS_PRINTF(f, "%s\n", sv.name);
+	VFS_PRINTF(f, "%s\n", svs.name);
 	VFS_PRINTF(f, "%f\n",sv.time);
 
 // write the light styles (only 64 are saved in legacy saved games)
@@ -868,16 +868,16 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		cache = svs.levcache;
 		while(cache)
 		{
-			if (!strcmp(cache->mapname, sv.name))
+			if (!strcmp(cache->mapname, svs.name))
 				break;
 
 			cache = cache->next;
 		}
 		if (!cache)	//not visited yet. Let us know that we went there.
 		{
-			cache = Z_Malloc(sizeof(levelcache_t)+strlen(sv.name)+1);
+			cache = Z_Malloc(sizeof(levelcache_t)+strlen(svs.name)+1);
 			cache->mapname = (char *)(cache+1);
-			strcpy(cache->mapname, sv.name);
+			strcpy(cache->mapname, svs.name);
 
 			cache->gametype = svs.gametype;
 			cache->next = svs.levcache;
@@ -886,9 +886,9 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	}
 
 	if (savedir)
-		Q_snprintfz (name, sizeof(name), "saves/%s/%s", savedir, sv.name);
+		Q_snprintfz (name, sizeof(name), "saves/%s/%s", savedir, svs.name);
 	else
-		Q_snprintfz (name, sizeof(name), "saves/%s", sv.name);
+		Q_snprintfz (name, sizeof(name), "saves/%s", svs.name);
 	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
 	FS_CreatePath(name, FS_GAMEONLY);
@@ -935,7 +935,9 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		//probably this should happen elsewhere.
 		for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)//fake dropping
 		{
-			if (cl->state < cs_spawned && !cl->istobeloaded)	//don't drop if they are still connecting
+			if (progstype == PROG_H2)
+				cl->edict->isfree = true;	//hexen2 has some annoying prints. it never formally dropped clients on map changes.
+			else if (cl->state < cs_spawned && !cl->istobeloaded)	//don't drop if they are still connecting
 			{
 				cl->edict->v->solid = 0;
 			}
@@ -976,7 +978,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		VFS_PRINTF (f, "deathmatch %s\n",	COM_QuotedString(deathmatch.string, buf, sizeof(buf), false));
 		VFS_PRINTF (f, "coop %s\n",			COM_QuotedString(coop.string, buf, sizeof(buf), false));
 		VFS_PRINTF (f, "teamplay %s\n",		COM_QuotedString(teamplay.string, buf, sizeof(buf), false));
-		VFS_PRINTF (f, "map %s\n",			COM_QuotedString(sv.name, buf, sizeof(buf), false));
+		VFS_PRINTF (f, "map %s\n",			COM_QuotedString(svs.name, buf, sizeof(buf), false));
 		VFS_PRINTF (f, "time %f\n",			sv.time);
 
 		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
@@ -1014,8 +1016,8 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		VFS_PRINTF (f, "%f\n", deathmatch.value);
 		VFS_PRINTF (f, "%f\n", coop.value);
 		VFS_PRINTF (f, "%f\n", teamplay.value);
-		VFS_PRINTF (f, "%s\n", sv.name);
-		VFS_PRINTF (f, "%f\n",sv.time);
+		VFS_PRINTF (f, "%s\n", svs.name);
+		VFS_PRINTF (f, "%f\n", sv.time);
 
 // write the light styles
 		VFS_PRINTF (f, "%i\n",MAX_LIGHTSTYLES);
@@ -1048,6 +1050,13 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	svprogfuncs->parms->memfree(s);
 
 	VFS_CLOSE (f);
+
+
+	if (!dontharmgame)
+	{
+		for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)
+			cl->edict->isfree = false;
+	}
 }
 
 #define FTESAVEGAME_VERSION 25000
@@ -1167,7 +1176,7 @@ void SV_Savegame (char *savename)
 	while(cache)
 	{
 		VFS_PRINTF(f, "%s\n", cache->mapname);
-		if (strcmp(cache->mapname, sv.name))
+		if (strcmp(cache->mapname, svs.name))
 		{
 			FS_Copy(va("saves/%s.lvc", cache->mapname), va("saves/%s/%s.lvc", savename, cache->mapname), FS_GAME, FS_GAME);
 		}
@@ -1175,7 +1184,7 @@ void SV_Savegame (char *savename)
 	}
 	VFS_PRINTF(f, "}\n");
 
-	VFS_PRINTF (f, "%s\n", sv.name);
+	VFS_PRINTF (f, "%s\n", svs.name);
 
 	VFS_PRINTF (f, "%g\n", (float)svs.serverflags);
 

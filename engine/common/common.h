@@ -30,6 +30,48 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
+
+#if __STDC_VERSION__ >= 199901L
+	//C99 has a stdint header which hopefully contains an intptr_t
+	//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
+	#include <stdint.h>
+	#define qintptr_t intptr_t
+	#define quintptr_t uintptr_t
+#else
+	#if defined(_WIN64)
+		#define qintptr_t __int64
+		#define FTE_WORDSIZE 64
+		#define quintptr_t unsigned qintptr_t
+	#elif defined(_WIN32)
+		#ifndef _MSC_VER
+			#define __w64
+		#endif
+		typedef __int32 __w64 qintptr_t;	//add __w64 if you need msvc to shut up about unsafe type conversions
+		typedef unsigned __int32 __w64 quintptr_t;
+//		#define qintptr_t __int32
+//		#define quintptr_t unsigned qintptr_t
+		#define FTE_WORDSIZE 32
+	#else
+		#if __WORDSIZE == 64
+			#define qintptr_t long long
+			#define FTE_WORDSIZE 64
+		#else
+			#define qintptr_t long
+			#define FTE_WORDSIZE 32
+		#endif
+		#define quintptr_t unsigned qintptr_t
+	#endif
+#endif
+
+#ifndef FTE_WORDSIZE
+#ifdef __WORDSIZE
+#define FTE_WORDSIZE __WORDSIZE
+#else
+#define FTE_WORDSIZE 32
+#endif
+#endif
+
+
 typedef unsigned char 		qbyte;
 
 // KJB Undefined true and false defined in SciTech's DEBUG.H header

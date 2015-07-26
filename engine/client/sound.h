@@ -22,24 +22,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __SOUND__
 #define __SOUND__
 
-// !!! if this is changed, it much be changed in asm_i386.h too !!!
 #define MAXSOUNDCHANNELS 8	//on a per device basis
 
-// !!! if this is changed, it much be changed in asm_i386.h too !!!
+//pitch shifting can 
+#define ssamplepos_t qintptr_t
+#define usamplepos_t quintptr_t
+#define PITCHSHIFT 6	/*max audio file length = (1<<32>>PITCHSHIFT)/KHZ*/
+
 struct sfx_s;
-/*typedef struct
-{
-	int left;
-	int right;
-} portable_samplepair_t;
-*/
 typedef struct
 {
 	int s[MAXSOUNDCHANNELS];
 } portable_samplegroup_t;
 
 typedef struct {
-	struct sfxcache_s *(*decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length);	//retrurn true when done.
+	struct sfxcache_s *(*decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);	//return true when done.
 	struct sfxcache_s *(*querydata) (struct sfx_s *sfx, struct sfxcache_s *buf);	//reports length + format info without actually decoding anything.
 	void (*ended) (struct sfx_s *sfx);	//sound stopped playing and is now silent (allow rewinding or something).
 	void (*purge) (struct sfx_s *sfx);	//sound is being purged from memory. destroy everything.
@@ -69,12 +66,12 @@ typedef struct sfx_s
 // !!! if this is changed, it much be changed in asm_i386.h too !!!
 typedef struct sfxcache_s
 {
-	unsigned int length;	//sample count
+	usamplepos_t length;	//sample count
 	unsigned int loopstart;	//-1 or sample index to begin looping at once the sample ends
 	unsigned int speed;
 	unsigned int width;
 	unsigned int numchannels;
-	unsigned int soundoffset;	//byte index into the sound
+	usamplepos_t soundoffset;	//byte index into the sound
 	qbyte	*data;		// variable sized
 } sfxcache_t;
 
@@ -92,17 +89,15 @@ typedef struct
 	unsigned char	*buffer;				// pointer to mixed pcm buffer (not directly used by mixer)
 } dma_t;
 
-#define PITCHSHIFT 6	/*max audio file length = (1<<32>>PITCHSHIFT)/KHZ*/
-
 #define CF_ABSVOLUME	1	// ignores volume cvar.
+#define CF_FORCELOOP	2	// forces looping. set on static sounds.
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
 	int		vol[MAXSOUNDCHANNELS];		// volume, .8 fixed point.
-	int 	pos;			// sample position in sfx, <0 means delay sound start (shifted up by 8)
+	ssamplepos_t pos;		// sample position in sfx, <0 means delay sound start (shifted up by 8)
 	int     rate;			// 24.8 fixed point rate scaling
 	int		flags;			// cf_ flags
-	int		looping;		// where to loop, -1 = no looping
 	int		entnum;			// to allow overriding a specific sound
 	int		entchannel;		// to avoid overriding a specific sound too easily
 	vec3_t	origin;			// origin of sound effect
@@ -128,15 +123,19 @@ void S_Startup (void);
 void S_Shutdown (qboolean final);
 float S_GetSoundTime(int entnum, int entchannel);
 void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj);
+float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds(qboolean clear);
-void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
-void S_GetListenerInfo(float *origin, float *forward, float *right, float *up);
+void S_UpdateListener(int seat, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean underwater);
+void S_GetListenerInfo(int seat, float *origin, float *forward, float *right, float *up);
 void S_Update (void);
 void S_ExtraUpdate (void);
 void S_MixerThread(soundcardinfo_t *sc);
 void S_Purge(qboolean retaintouched);
+
+void S_LockMixer(void);
+void S_UnlockMixer(void);
 
 qboolean S_HaveOutput(void);
 
@@ -144,8 +143,8 @@ void S_Music_Clear(sfx_t *onlyifsample);
 void S_Music_Seek(float time);
 qboolean S_GetMusicInfo(int musicchannel, float *time, float *duration);
 qboolean S_Music_Playing(int musicchannel);
-float Media_CrossFade(int musicchanel, float vol);	//queries the volume we're meant to be playing (checks for fade out). -1 for no more, otherwise returns vol.
-char *Media_NextTrack(int musicchanel);	//queries the track we're meant to be playing now.
+float Media_CrossFade(int musicchanel, float vol, float time);	//queries the volume we're meant to be playing (checks for fade out). -1 for no more, otherwise returns vol.
+char *Media_NextTrack(int musicchanel, float *time);	//queries the track we're meant to be playing now.
 
 sfx_t *S_FindName (const char *name, qboolean create);
 sfx_t *S_PrecacheSound (const char *sample);
@@ -192,7 +191,6 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 
 // restart entire sound subsystem (doesn't flush old sounds, so make sure that happens)
 void S_DoRestart (void);
-void S_SetUnderWater(qboolean underwater);
 
 void S_Restart_f (void);
 
@@ -235,10 +233,6 @@ void OpenAL_CvarInit(void);
 
 extern int				snd_speed;
 
-extern vec3_t listener_origin;
-extern vec3_t listener_forward;
-extern vec3_t listener_right;
-extern vec3_t listener_up;
 extern vec_t sound_nominal_clip_dist;
 
 extern	cvar_t loadas8bit;
@@ -284,7 +278,9 @@ extern sounddriver pAHI_InitCard;
 
 struct soundcardinfo_s { //windows has one defined AFTER directsound
 	char name[256];	//a description of the card.
+	char guid[256];	//device name as detected (so input code can create sound devices without bugging out too much)
 	struct soundcardinfo_s *next;
+	int seat;
 
 //speaker orientations for spacialisation.
 	float dist[MAXSOUNDCHANNELS];
@@ -292,6 +288,7 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	vec3_t speakerdir[MAXSOUNDCHANNELS];
 
 //info on which sound effects are playing
+	//FIXME: use a linked list
 	channel_t   channel[MAX_CHANNELS];
 	int			total_chans;
 
@@ -337,5 +334,7 @@ typedef struct
 	void (QDECL *Stop) (void *ctx);		/*stop grabbing new data, old data may remain*/
 	void (QDECL *Shutdown) (void *ctx);	/*destroy everything*/
 } snd_capture_driver_t;
+
+void S_SetupDeviceSeat(char *driver, char *device, int seat);
 
 #endif

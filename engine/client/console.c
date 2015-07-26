@@ -878,7 +878,7 @@ void SV_FlushRedirect (void);
 #define	MAXPRINTMSG	4096
 static void Con_PrintFromThread (void *ctx, void *data, size_t a, size_t b)
 {
-	Con_Printf("%s", data);
+	Con_Printf("%s", (char*)data);
 	BZ_Free(data);
 }
 
@@ -1154,7 +1154,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		cursorframe = ((int)(realtime*con_cursorspeed)&1);
 
 	//FIXME: support tab somehow
-	for (lhs = 0, cchar = maskedtext-1; cchar < cursor; )
+	for (lhs = 0, cchar = maskedtext; cchar < cursor; )
 	{
 		cchar = Font_Decode(cchar, &codeflags, &codepoint);
 		lhs += Font_CharWidth(codeflags, codepoint);
@@ -1181,7 +1181,7 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 		lhs = Font_DrawChar(lhs, y, codeflags, codepoint);
 	}
 	rhs = x;
-	Font_Decode(cursor, &codeflags, &codepoint);
+	cchar = Font_Decode(cursor, &codeflags, &codepoint);
 	if (cursorframe)
 	{
 //		extern cvar_t com_parseutf8;
@@ -1190,15 +1190,18 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 //		else
 			Font_DrawChar(rhs, y, CON_WHITEMASK, 0xe000|11);
 	}
-	else if (*cursor)
+	else if (codepoint)
 	{
 		Font_DrawChar(rhs, y, codeflags, codepoint);
 	}
-	rhs += Font_CharWidth(codeflags, codepoint);
-	for (cchar = cursor+1; *cchar; )
+	if (codepoint)
 	{
-		cchar = Font_Decode(cchar, &codeflags, &codepoint);
-		rhs = Font_DrawChar(rhs, y, codeflags, codepoint);
+		rhs += Font_CharWidth(codeflags, codepoint);
+		while (*cchar)
+		{
+			cchar = Font_Decode(cchar, &codeflags, &codepoint);
+			rhs = Font_DrawChar(rhs, y, codeflags, codepoint);
+		}
 	}
 
 	/*if its getting completed to something, show some help about the command that is going to be used*/

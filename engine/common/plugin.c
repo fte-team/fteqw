@@ -688,7 +688,7 @@ static qintptr_t VARGS Plug_Cvar_GetString(void *offset, quintptr_t mask, const 
 #ifdef CLIENTONLY
 		Q_strncpyz(ret, "", retsize);
 #else
-		Q_strncpyz(ret, sv.name, retsize);
+		Q_strncpyz(ret, svs.name, retsize);
 #endif
 	}
 	else
@@ -1635,9 +1635,13 @@ void Plug_SBar(playerview_t *pv)
 
 	plugin_t *oc=currentplug;
 	int ret;
+	int cleared = false;
 
 	if (!Sbar_ShouldDraw())
+	{
+		SCR_TileClear (0);
 		return;
+	}
 
 	ret = 0;
 	if (!plug_sbar.ival)
@@ -1650,6 +1654,11 @@ void Plug_SBar(playerview_t *pv)
 			{
 				//if you don't use splitscreen, use a full videosize rect.
 				R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
+				if (!cleared)
+				{
+					cleared = true;
+					SCR_TileClear (0);
+				}
 				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[0], pv-cl.playerview, (int)r_refdef.vrect.x, (int)r_refdef.vrect.y, (int)r_refdef.vrect.width, (int)r_refdef.vrect.height, sb_showscores+sb_showteamscores*2);
 				break;
 			}
@@ -1657,6 +1666,8 @@ void Plug_SBar(playerview_t *pv)
 	}
 	if (!(ret & 1))
 	{
+		if (!cleared)
+			SCR_TileClear (sb_lines);
 		Sbar_Draw(pv);
 	}
 

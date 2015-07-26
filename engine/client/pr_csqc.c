@@ -67,6 +67,7 @@ world_t csqc_world;
 
 int	csqc_playerseat;	//can be negative.
 static playerview_t *csqc_playerview;
+qboolean csqc_dp_lastwas3d;	//to emulate DP correctly, we need to track whether drawpic/drawfill or clearscene was called last. blame 515.
 static qboolean csqc_isdarkplaces;
 static qboolean csqc_singlecheats; /*single player or cheats active, allowing custom addons*/
 static qboolean csqc_mayread;	//csqc is allowed to ReadByte();
@@ -276,7 +277,7 @@ static void CSQC_ChangeLocalPlayer(int seat)
 	}
 }
 
-static void CSQC_FindGlobals(void)
+static void CSQC_FindGlobals(qboolean nofuncs)
 {
 	static float csphysicsmode = 0;
 	static float dimension_default = 255;
@@ -285,7 +286,7 @@ static void CSQC_FindGlobals(void)
 #define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalentity(name,qcname) csqcg.name = (int*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalstring(name,qcname) csqcg.name = (string_t*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
-#define globalfunction(name,qcname) csqcg.name = PR_FindFunction(csqcprogs,qcname,PR_ANY);
+#define globalfunction(name,qcname) csqcg.name = nofuncs?0:PR_FindFunction(csqcprogs,qcname,PR_ANY);
 
 	csqcglobals
 
@@ -876,7 +877,7 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 		l->rebuildcache = true;
 		break;
 	case lfield_style:
-		l->style = G_FLOAT(OFS_PARM2);
+		l->style = G_FLOAT(OFS_PARM2)+1;
 		break;
 	case lfield_angles:
 		AngleVectors(G_VECTOR(OFS_PARM2), l->axis[0], l->axis[1], l->axis[2]);
@@ -960,11 +961,11 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		G_FLOAT(OFS_RETURN) = l->flags;
 		break;
 	case lfield_style:
-		G_FLOAT(OFS_RETURN) = l->style;
+		G_FLOAT(OFS_RETURN) = l->style-1;
 		break;
 	case lfield_angles:
 		VectorAngles(l->axis[0], l->axis[2], v);
-		G_FLOAT(OFS_RETURN+0) = v[0]?v[0]:0;
+		G_FLOAT(OFS_RETURN+0) = anglemod(v[0]?-v[0]:0);
 		G_FLOAT(OFS_RETURN+1) = v[1]?v[1]:0;
 		G_FLOAT(OFS_RETURN+2) = v[2]?v[2]:0;
 		break;
@@ -1172,12 +1173,31 @@ static shader_t *csqc_poly_shader;
 static int csqc_poly_startvert;
 static int csqc_poly_startidx;
 static int csqc_poly_flags;
+static int csqc_poly_2d;
 
 // #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqc_poly_flags = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
-	if (csqc_poly_flags & 4)
+
+	if (prinst->callargc > 2)
+		csqc_poly_2d = G_FLOAT(OFS_PARM2);
+	else if (csqc_isdarkplaces)
+	{
+		csqc_poly_2d = !csqc_dp_lastwas3d;
+		csqc_deprecated("guessing 2d mode based upon random builtin calls");
+	}
+	else
+		csqc_poly_2d = csqc_poly_flags & 4;
+	
+	if ((csqc_poly_flags & 3) == 1)
+		csqc_poly_flags = BEF_FORCEADDITIVE;
+	else
+		csqc_poly_flags = BEF_NOSHADOWS;
+	if (csqc_isdarkplaces)
+		csqc_poly_flags |= BEF_FORCETWOSIDED;
+
+	if (csqc_poly_2d)
 		csqc_poly_shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0));
 	else
 		csqc_poly_shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
@@ -1209,7 +1229,7 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	scenetris_t *t;
 	int i;
 	int nv;
-	int flags = BEF_NOSHADOWS;
+	int flags = csqc_poly_flags;
 
 	if (!csqc_poly_shader)
 		return;
@@ -1271,7 +1291,7 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		}
 	}
 
-	if (csqc_poly_flags & 4)
+	if (csqc_poly_2d)
 	{
 		mesh_t mesh;
 		memset(&mesh, 0, sizeof(mesh));
@@ -1287,7 +1307,7 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		cl_numstrisvert = csqc_poly_startvert;
 		cl_numstrisidx = csqc_poly_startidx;
 
-		BE_DrawMesh_Single(csqc_poly_shader, &mesh, NULL, 0);
+		BE_DrawMesh_Single(csqc_poly_shader, &mesh, NULL, csqc_poly_flags);
 	}
 	else
 	{
@@ -1404,6 +1424,8 @@ static void QCBUILTIN PF_R_ClearScene (pubprogfuncs_t *prinst, struct globalvars
 		CSQC_ChangeLocalPlayer(G_FLOAT(OFS_PARM0));
 
 	csqc_rebuildmatricies = true;
+	csqc_dp_lastwas3d = true;	//cleared by the next drawpic.
+	csqc_poly_shader = NULL;
 
 	CL_DecayLights ();
 
@@ -1770,6 +1792,8 @@ void R2D_PolyBlend (void);
 void R_DrawNameTags(void);
 static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	csqc_poly_shader = NULL;
+
 	if (csqc_worldchanged)
 	{
 		csqc_worldchanged = false;
@@ -1802,15 +1826,17 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 
 	if (r_refdef.drawsbar)
 	{
-		SCR_TileClear ();
 #ifdef PLUGINS
 		Plug_SBar (r_refdef.playerview);
 #else
 		if (Sbar_ShouldDraw())
 		{
+			SCR_TileClear (sb_lines);
 			Sbar_Draw (r_refdef.playerview);
 			Sbar_DrawScoreboard ();
 		}
+		else
+			SCR_TileClear (0);
 #endif
 		SCR_ShowPics_Draw();
 	}
@@ -1824,8 +1850,16 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 static void QCBUILTIN PF_cs_getstati(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int stnum = G_FLOAT(OFS_PARM0);
-	if (stnum >= 128 && csqc_isdarkplaces)
+	if (stnum < 0 || stnum >= MAX_CL_STATS)
+	{
+		G_FLOAT(OFS_RETURN) = 0;
+		PR_RunWarning(prinst, "invalid stat index");
+	}
+	else if (stnum >= 128 && csqc_isdarkplaces)
+	{	//dpp7 stats are fucked.
 		G_FLOAT(OFS_RETURN) = csqc_playerview->statsf[stnum];
+		csqc_deprecated("hacked stat type");
+	}
 	else
 		G_INT(OFS_RETURN) = csqc_playerview->stats[stnum];
 }
@@ -1834,7 +1868,12 @@ static void QCBUILTIN PF_cs_getstatbits(pubprogfuncs_t *prinst, struct globalvar
 	//if bits offsets are specified, reads explicitly the integer version of the stat, allowing high bits to be read for items2/serverflags. the float stat should have the same value, just with lower precision as a float can't hold a 32bit value. maybe we should just use doubles.
 
 	int stnum = G_FLOAT(OFS_PARM0);
-	if (prinst->callargc > 1)
+	if (stnum < 0 || stnum >= MAX_CL_STATS)
+	{
+		G_FLOAT(OFS_RETURN) = 0;
+		PR_RunWarning(prinst, "invalid stat index");
+	}
+	else if (prinst->callargc > 1)
 	{
 		int val = csqc_playerview->stats[stnum];
 		int first, count;
@@ -1846,7 +1885,11 @@ static void QCBUILTIN PF_cs_getstatbits(pubprogfuncs_t *prinst, struct globalvar
 		G_FLOAT(OFS_RETURN) = (((unsigned int)val)&(((1<<count)-1)<<first))>>first;
 	}
 	else if (csqc_isdarkplaces)
-		G_FLOAT(OFS_RETURN) = (int)csqc_playerview->statsf[stnum];	//stupid. mods like xonotic have a stupid hud if they're actually given any precision
+	{
+		G_FLOAT(OFS_RETURN) = (int)csqc_playerview->statsf[stnum];	//stupid. mods like xonotic end up with an ugly hud if they're actually given any precision
+		if (G_FLOAT(OFS_RETURN) != csqc_playerview->statsf[stnum])
+			csqc_deprecated("getstatf stat truncation");	//this is a common call. only get pissy if there's a reason to get pissy.
+	}
 	else
 		G_FLOAT(OFS_RETURN) = csqc_playerview->statsf[stnum];
 }
@@ -1854,20 +1897,32 @@ static void QCBUILTIN PF_cs_getstats(pubprogfuncs_t *prinst, struct globalvars_s
 {
 	int stnum = G_FLOAT(OFS_PARM0);
 
-	RETURN_TSTRING(csqc_playerview->statsstr[stnum]);
+	if (stnum < 0 || stnum >= MAX_CL_STATS)
+	{
+		G_INT(OFS_RETURN) = 0;
+		PR_RunWarning(prinst, "invalid stat index");
+	}
+	else if (cls.fteprotocolextensions & PEXT_CSQC)
+		RETURN_TSTRING(csqc_playerview->statsstr[stnum]);
+	else if (stnum >= MAX_CL_STATS-3)
+	{
+		G_INT(OFS_RETURN) = 0;
+		PR_RunWarning(prinst, "invalid stat index");
+	}
+	else
+	{
+		char out[17];
 
-	/*
-	char out[17];
+		//the network protocol byteswaps
 
-	//the network protocol byteswaps
+		((unsigned int*)out)[0] = LittleLong(csqc_playerview->stats[stnum+0]);
+		((unsigned int*)out)[1] = LittleLong(csqc_playerview->stats[stnum+1]);
+		((unsigned int*)out)[2] = LittleLong(csqc_playerview->stats[stnum+2]);
+		((unsigned int*)out)[3] = LittleLong(csqc_playerview->stats[stnum+3]);
+		((unsigned int*)out)[4] = 0;	//make sure it's null terminated
 
-	((unsigned int*)out)[0] = LittleLong(csqc_playerview->stats[stnum+0]);
-	((unsigned int*)out)[1] = LittleLong(csqc_playerview->stats[stnum+1]);
-	((unsigned int*)out)[2] = LittleLong(csqc_playerview->stats[stnum+2]);
-	((unsigned int*)out)[3] = LittleLong(csqc_playerview->stats[stnum+3]);
-	((unsigned int*)out)[4] = 0;	//make sure it's null terminated
-
-	RETURN_TSTRING(out);*/
+		RETURN_TSTRING(out);
+	}
 }
 
 static void QCBUILTIN PF_cs_SetOrigin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1877,7 +1932,7 @@ static void QCBUILTIN PF_cs_SetOrigin(pubprogfuncs_t *prinst, struct globalvars_
 	float *org = G_VECTOR(OFS_PARM1);
 	if (ent->readonly)
 	{
-		Con_Printf("setorigin on entity %i\n", ent->entnum);
+		PR_RunWarning(prinst, "setorigin on entity %i\n", ent->entnum);
 		return;
 	}
 	VectorCopy(org, ent->v->origin);
@@ -2956,6 +3011,10 @@ static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars
 		if (!ret)
 			ret = "";
 	}
+	else if (!strcmp(keyname, "maxplayers"))
+	{
+		ret = va("%i", cl.allocated_client_slots);
+	}
 	else if (!strcmp(keyname, "dlstate"))
 	{
 		if (!cl.downloadlist && !cls.download)
@@ -3192,12 +3251,34 @@ static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalva
 	G_FLOAT(OFS_RETURN) = false;
 }
 
+void QCBUILTIN PF_soundupdate (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t		*entity	= G_WEDICT(prinst, OFS_PARM0);
+	int				channel	= G_FLOAT(OFS_PARM1);
+	const char		*sample = PR_GetStringOfs(prinst, OFS_PARM2);
+	float			volume = G_FLOAT(OFS_PARM3);
+	float			attenuation = G_FLOAT(OFS_PARM4);
+	float			pitchpct = (prinst->callargc >= 6)?G_FLOAT(OFS_PARM5):0;
+//	unsigned int	flags = (prinst->callargc>=7)?G_FLOAT(OFS_PARM6):0;
+	float			startoffset = (prinst->callargc>=8)?G_FLOAT(OFS_PARM7):0;
+
+	sfx_t		*sfx = S_PrecacheSound(sample);
+
+	G_FLOAT(OFS_RETURN) = S_UpdateSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, startoffset, pitchpct);
+}
+void QCBUILTIN PF_stopsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t	*entity	= G_WEDICT(prinst, OFS_PARM0);
+	int			channel	= G_FLOAT(OFS_PARM1);
+
+	S_StopSound(-entity->entnum, channel);
+}
 void QCBUILTIN PF_getsoundtime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	wedict_t	*entity	= G_WEDICT(prinst, OFS_PARM0);
 	int			channel	= G_FLOAT(OFS_PARM1);
 
-	G_FLOAT(OFS_RETURN) = S_GetSoundTime(entity->entnum, channel);
+	G_FLOAT(OFS_RETURN) = S_GetSoundTime(-entity->entnum, channel);
 }
 static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3207,6 +3288,8 @@ static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *p
 	float volume;
 	float attenuation;
 	float pitchpct;
+//	unsigned int flags;
+	float startoffset;
 
 	sfx_t *sfx;
 
@@ -3215,14 +3298,13 @@ static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *p
 	sample = PR_GetStringOfs(prinst, OFS_PARM2);
 	volume = G_FLOAT(OFS_PARM3);
 	attenuation = G_FLOAT(OFS_PARM4);
-	if (prinst->callargc >= 6)
-		pitchpct = G_FLOAT(OFS_PARM5);
-	else
-		pitchpct = 0;
+	pitchpct = (prinst->callargc>=6)?G_FLOAT(OFS_PARM5):0;
+//	flags = (prinst->callargc>=7)?G_FLOAT(OFS_PARM6):0;
+	startoffset = (prinst->callargc>=8)?G_FLOAT(OFS_PARM7):0;
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, 0, pitchpct);
+		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, startoffset, pitchpct);
 };
 
 static void QCBUILTIN PF_cs_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4015,13 +4097,15 @@ static void QCBUILTIN PF_cs_setlistener (pubprogfuncs_t *prinst, struct globalva
 	float *up = G_VECTOR(OFS_PARM3);
 	int inwater = (prinst->callargc>4)?G_FLOAT(OFS_PARM4):false;
 
-	r_refdef.audio.defaulted = false;
+	int i = (csqc_playerseat>=0)?csqc_playerseat:0;
+
+	cl.playerview[i].audio.defaulted = false;
 //	r_refdef.audio.entity = 0;
-	VectorCopy(origin, r_refdef.audio.origin);
-	VectorCopy(forward, r_refdef.audio.forward);
-	VectorCopy(right, r_refdef.audio.right);
-	VectorCopy(up, r_refdef.audio.up);
-	r_refdef.audio.inwater = inwater;
+	VectorCopy(origin, cl.playerview[i].audio.origin);
+	VectorCopy(forward, cl.playerview[i].audio.forward);
+	VectorCopy(right, cl.playerview[i].audio.right);
+	VectorCopy(up, cl.playerview[i].audio.up);
+	cl.playerview[i].audio.inwater = inwater;
 }
 
 #define RSES_NOLERP 1
@@ -4984,6 +5068,7 @@ static struct {
 
 //230
 	{"strncasecmp",				PF_strncasecmp,	230},	// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
+	{"strtrim",					PF_strtrim,		0},
 	{"calltimeofday",			PF_calltimeofday,	231},
 	{"clientstat",				PF_NoCSQC,	232},		// #231 clientstat
 	{"runclientphys",			PF_NoCSQC,	233},		// #232 runclientphys
@@ -5018,6 +5103,8 @@ static struct {
 	{"itos",					PF_itos,			260},
 	{"stoh",					PF_stoh,			261},
 	{"htos",					PF_htos,			262},
+	{"ftoi",					PF_ftoi,			0},
+	{"itof",					PF_itof,			0},
 
 	{"skel_create",				PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_build",				PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addition) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
@@ -5181,6 +5268,7 @@ static struct {
 	{"memgetval",				PF_memgetval,				388},
 	{"memsetval",				PF_memsetval,				389},
 	{"memptradd",				PF_memptradd,				390},
+	{"memstrsize",				PF_memstrsize,				0},
 
 	{"con_getset",				PF_SubConGetSet,			391},
 	{"con_printf",				PF_SubConPrintf,			392},
@@ -5385,6 +5473,8 @@ static struct {
 	{"loadfromdata",			PF_loadfromdata,			529},
 	{"loadfromfile",			PF_loadfromfile,			530},
 
+	{"stopsound",				PF_stopsound,				0},
+	{"soundupdate",				PF_soundupdate,				0},
 	{"getsoundtime",			PF_getsoundtime,			533},
 	{"soundlength",				PF_soundlength,				534},
 	{"buf_loadfile",			PF_buf_loadfile,			535},
@@ -5603,7 +5693,7 @@ void CSQC_Event_Think(world_t *w, wedict_t *s)
 		PR_ExecuteProgram (w->progs, s->v->think);
 }
 
-void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj)
+void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeoffset)
 {
 	int i;
 	vec3_t originbuf;
@@ -5619,7 +5709,7 @@ void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char
 			origin = wentity->v->origin;
 	}
 
-	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume, attenuation, 0, pitchadj);
+	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume, attenuation, timeoffset, pitchadj);
 }
 
 qboolean CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
@@ -5872,8 +5962,12 @@ pbool PDECL CSQC_CheckHeaderCrc(pubprogfuncs_t *progs, progsnum_t num, int crc)
 		else
 		{
 			if (crc == 52195)
+			{
 				csqc_isdarkplaces = true;
-			Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
+				Con_DPrintf(CON_WARNING "Running darkplaces csprogs.dat version\n");
+			}
+			else
+				Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
 		}
 	}
 	return true;
@@ -6057,9 +6151,9 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		}
 
 		if (csqc_isdarkplaces)
-			memset(&csqcg, 0, sizeof(csqcg));
+			CSQC_FindGlobals(true);
 		else
-			CSQC_FindGlobals();
+			CSQC_FindGlobals(false);
 
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csqc_maxedicts.value);
 
@@ -6136,7 +6230,7 @@ void CSQC_WorldLoaded(void)
 		return;
 
 	if (csqc_isdarkplaces)
-		CSQC_FindGlobals();
+		CSQC_FindGlobals(false);
 
 	csqcmapentitydataloaded = true;
 	csqcmapentitydata = cl.worldmodel->entities;
@@ -6452,6 +6546,8 @@ qboolean CSQC_DrawView(void)
 	if (csqcg.frametime)
 		*csqcg.frametime = host_frametime;
 
+	csqc_dp_lastwas3d = false;
+
 	if (csqc_isdarkplaces && *csqc_world.g.physics_mode == 1)
 	{
 		csqc_world.physicstime = cl.servertime;
@@ -6492,7 +6588,19 @@ qboolean CSQC_DrawView(void)
 	CSQC_ChangeLocalPlayer(cl_forceseat.ival?(cl_forceseat.ival - 1) % cl.splitclients:0);
 
 	if (csqcg.frametime)
-		*csqcg.frametime = host_frametime;
+	{
+		if (csqc_isdarkplaces)
+		{
+			static float oldtime;
+			if (cl.paused)
+				*csqcg.frametime = 0;	//apparently people can't cope with microstutter when they're using this as a test to see if the game is paused.
+			else
+				*csqcg.frametime = bound(0, cl.time - oldtime, 0.1);
+			oldtime = cl.time;
+		}
+		else
+			*csqcg.frametime = host_frametime;
+	}
 
 	if (csqcg.numclientseats)
 		*csqcg.numclientseats = cl.splitclients;
@@ -6575,6 +6683,7 @@ qboolean CSQC_DrawView(void)
 
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 {
+	static qbyte csqckeysdown[K_MAX/8];
 	void *pr_globals;
 #ifdef TEXTEDITOR
 	extern qboolean editormodal;
@@ -6597,6 +6706,14 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 	{
 		qcinput_scan = G_FLOAT(OFS_PARM1);
 		qcinput_unicode = G_FLOAT(OFS_PARM2);
+
+		csqckeysdown[key>>3] |= (1<<(key&7));
+	}
+	else
+	{
+		if (key && !(csqckeysdown[key>>3] & (1<<(key&7))))
+			return false;
+		csqckeysdown[key>>3] &= ~(1<<(key&7));
 	}
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 	qcinput_scan = 0;	//and stop replay attacks
@@ -6931,7 +7048,7 @@ static void CSQC_EntityCheck(unsigned int entnum)
 	}
 }
 
-int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod)
+int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs)
 {
 	void *pr_globals;
 	csqcedict_t *ent;
@@ -6942,13 +7059,22 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 	{
 		pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 
+		CSQC_EntityCheck(entnum);
+		ent = csqcent[entnum];
+		if (ent)
+			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
+		else
+			*csqcg.self = 0;
+
 		G_FLOAT(OFS_PARM0) = entnum;
 		G_FLOAT(OFS_PARM1) = channel;
 		G_INT(OFS_PARM2) = PR_TempString(csqcprogs, soundname);
 		G_FLOAT(OFS_PARM3) = vol;
 		G_FLOAT(OFS_PARM4) = attenuation;
 		VectorCopy(pos, G_VECTOR(OFS_PARM5));
-		G_FLOAT(OFS_PARM6) = attenuation;
+		G_FLOAT(OFS_PARM6) = pitchmod;
+		G_FLOAT(OFS_PARM7) = 0/*flags*/;
+//		G_FLOAT(OFS_PARM8) = timeofs;
 
 		PR_ExecuteProgram(csqcprogs, csqcg.event_sound);
 
@@ -6969,6 +7095,8 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 		VectorCopy(pos, G_VECTOR(OFS_PARM2));
 		G_FLOAT(OFS_PARM3) = vol;
 		G_FLOAT(OFS_PARM4) = attenuation;
+		G_FLOAT(OFS_PARM5) = 0/*flags*/;
+		G_FLOAT(OFS_PARM6) = timeofs;
 
 		PR_ExecuteProgram(csqcprogs, csqcg.serversound);
 

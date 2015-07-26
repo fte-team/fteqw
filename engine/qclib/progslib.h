@@ -53,7 +53,14 @@ typedef struct {
 } evalc_t;
 #define sizeofevalc sizeof(evalc_t)
 typedef enum {ev_void, ev_string, ev_float, ev_vector, ev_entity, ev_field, ev_function, ev_pointer, ev_integer, ev_variant, ev_struct, ev_union, ev_accessor} etype_t;
-enum {DEBUG_TRACE_OFF, DEBUG_TRACE_INTO, DEBUG_TRACE_OVER, DEBUG_TRACE_UNBREAK, DEBUG_TRACE_OUT, DEBUG_TRACE_ABORT, DEBUG_TRACE_NORESUME};
+enum {
+	DEBUG_TRACE_OFF,		//debugging should be off.
+	DEBUG_TRACE_INTO,		//debug into functions
+	DEBUG_TRACE_OVER,		//switch debugging off while executing child functions (and back on afterwards)
+	DEBUG_TRACE_OUT,		//keep running until the end of the current function (trigger single-stepping again at that point)
+	DEBUG_TRACE_ABORT,		//give up with an endgame.
+	DEBUG_TRACE_NORESUME	//line number or something changed, but we should still be sitting at the debugger.
+};
 
 typedef struct fdef_s
 {

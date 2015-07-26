@@ -3090,7 +3090,7 @@ void Cmd_Condump_f(void)
 {
 	vfsfile_t *f;
 	char *filename;
-	unsigned char c;
+	char line[8192];
 
 	if (!con_current)
 	{
@@ -3120,17 +3120,12 @@ void Cmd_Condump_f(void)
 	{
 		console_t *curcon = &con_main;
 		conline_t *l;
-		int i;
 		conchar_t *t;
 		for (l = curcon->oldest; l; l = l->newer)
 		{
 			t = (conchar_t*)(l+1);
-			//FIXME: utf8?
-			for (i = 0; i < l->length; i++)
-			{
-				c = (qbyte)t[i]&0xff;
-				VFS_WRITE(f, &c, 1);
-			}
+			COM_DeFunString(t, t + l->length, line, sizeof(line), true);
+			VFS_WRITE(f, line, strlen(line));
 			VFS_WRITE(f, "\n", 1);
 		}
 	}

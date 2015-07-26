@@ -13,6 +13,9 @@ void M_Script_Option (menu_t *menu, char *optionvalue)
 	menuoption_t *mo;
 
 	char buf[8192];
+
+	Cbuf_AddText("wait\n", RESTRICT_LOCAL);
+
 	//update the option
 	Cbuf_AddText(va("set option %s\n", COM_QuotedString(optionvalue, buf, sizeof(buf), false)), RESTRICT_LOCAL);
 

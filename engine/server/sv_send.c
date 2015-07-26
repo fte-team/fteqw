@@ -979,7 +979,7 @@ Larger attenuations will drop off.  (max 4 attenuation)
 
 ==================
 */
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj)
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs)
 {
     int         sound_num;
     int			extfield_mask;
@@ -1074,19 +1074,23 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		extfield_mask |= DPSND_LARGESOUND;
 	if (pitchadj && (pitchadj != 100))
 		extfield_mask |= FTESND_PITCHADJ;
+	if (timeofs != 0)
+		extfield_mask |= FTESND_TIMEOFS;
 
 #ifdef PEXT_SOUNDDBL
-	if (channel >= 8 || ent >= 2048 || sound_num > 0xff || pitchadj)
+	if (channel >= 8 || ent >= 2048 || sound_num > 0xff || (pitchadj && pitchadj != 100))
 	{
 		//if any of the above conditions evaluates to true, then we can't use standard qw protocols
 		MSG_WriteByte (&sv.multicast, svcfte_soundextended);
 		MSG_WriteByte (&sv.multicast, extfield_mask);
 		if (extfield_mask & NQSND_VOLUME)
-			MSG_WriteByte (&sv.multicast, volume);
+			MSG_WriteByte (&sv.multicast, bound(0, volume, 255));
 		if (extfield_mask & NQSND_ATTENUATION)
 			MSG_WriteByte (&sv.multicast, bound(0, attenuation*64, 255));
 		if (extfield_mask & FTESND_PITCHADJ)
-			MSG_WriteByte (&sv.multicast, pitchadj);
+			MSG_WriteByte (&sv.multicast, bound(1, pitchadj, 255));
+		if (extfield_mask & FTESND_TIMEOFS)
+			MSG_WriteShort (&sv.multicast, bound(-32768, timeofs*1000, 32767));
 		if (extfield_mask & DPSND_LARGEENTITY)
 		{
 			MSG_WriteEntity (&sv.multicast, ent);
@@ -1142,6 +1146,8 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		MSG_WriteByte (&sv.nqmulticast, bound(0, attenuation*64, 255));
 	if (extfield_mask & FTESND_PITCHADJ)
 		MSG_WriteByte (&sv.nqmulticast, pitchadj);
+	if (extfield_mask & FTESND_TIMEOFS)
+		MSG_WriteShort (&sv.nqmulticast, bound(-32768, timeofs*1000, 32767));
 	if (extfield_mask & DPSND_LARGEENTITY)
 	{
 		MSG_WriteEntity (&sv.nqmulticast, ent);
@@ -1162,7 +1168,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
 }
 
-void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj)
+void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs)
 {
 	edict_t *entity = (edict_t*)wentity;
 	int i;
@@ -1193,7 +1199,7 @@ void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char 
 		}
 	}
 
-	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj);
+	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj, timeofs);
 }
 
 /*
@@ -1429,6 +1435,12 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
 		return;
 
+
+	if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+		nqjunk = false;
+	else
+		nqjunk = true;
+
 	bits = 0;
 
 	if (ent->v->view_ofs[2] != DEFAULT_VIEWHEIGHT)
@@ -1447,7 +1459,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		items = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 
 
-	bits |= SU_ITEMS;
+	if (nqjunk)
+		bits |= SU_ITEMS;
 
 	if ( (int)ent->v->flags & FL_ONGROUND)
 		bits |= SU_ONGROUND;
@@ -1463,12 +1476,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 			bits |= (SU_VELOCITY1<<i);
 	}
 
-	if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
-	{
-		//bits &= ~SU_ITEMS;
-		nqjunk = false;
-	}
-	else
+	if (nqjunk)
 	{
 		nqjunk = true;
 
@@ -1560,7 +1568,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 			MSG_WriteByte (msg, ent->v->armorvalue);
 	}
 	if (bits & SU_WEAPONMODEL)
-		MSG_WriteByte (msg, weaponmodelindex);
+		MSG_WriteByte (msg, weaponmodelindex&0xff);
 
 	if (nqjunk)
 	{
@@ -2665,7 +2673,7 @@ void SV_SendClientMessages (void)
 		//if they're running too slowly, FORCE them to run
 		//this little check is to guard against people using msecs=0 to hover in mid-air. also keeps players animating/moving/etc when timing
 		c->msecs += msecs;
-		while (c->msecs > 1000)
+		while (c->state >= cs_spawned && c->msecs > 1000)
 		{
 			if (c->msecs > 1200)
 				c->msecs = 1200;
@@ -2677,6 +2685,8 @@ void SV_SendClientMessages (void)
 				sv_player = c->edict;
 				SV_PreRunCmd();
 				cmd.msec = msecs;//25;
+				if (msecs > 1000)
+					msecs = 1000;	//really? I blame the debugger.
 				VectorCopy(c->lastcmd.angles, cmd.angles);
 				cmd.buttons = c->lastcmd.buttons;
 				SV_RunCmd (&cmd, true);
@@ -2773,7 +2783,8 @@ void SV_SendClientMessages (void)
 					c->nextservertimeupdate = 0;
 
 				c->netchan.cleartime = realtime - 100;
-				c->netchan.nqunreliableonly = !c->send_message;
+				if (c->netchan.nqunreliableonly == 1)
+					c->netchan.nqunreliableonly = !c->send_message;
 				c->datagram.cursize = 0;
 				if (!c->send_message && c->nextservertimeupdate < pt)
 				{

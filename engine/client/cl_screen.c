@@ -619,7 +619,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 			x = left;
 		else
 		{
-			x = (right + left - Font_LineWidth(line_start[l], line_end[l]))/2;
+			x = left + (right - left - Font_LineWidth(line_start[l], line_end[l]))/2;
 		}
 
 		remaining -= line_end[l]-line_start[l];
@@ -762,6 +762,9 @@ void SCR_DrawCursor(void)
 	if (scr_curcursor)
 		return;
 	//system doesn't support a hardware cursor, so try to draw a software one.
+
+	if (!*key_customcursor[cmod].name)
+		return;
 
 	p = R2D_SafeCachePic(key_customcursor[cmod].name);
 	if (!p || !R_GetShaderSizes(p, NULL, NULL, false))
@@ -1379,25 +1382,32 @@ void SCR_DrawNet (void)
 	R2D_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
 }
 
-//FIXME: no support for UTF-8 input
 void SCR_StringXY(char *str, float x, float y)
 {
 	char *s2;
 	int px, py;
+	unsigned int codepoint;
+	int error;
 
 	Font_BeginString(font_default, ((x<0)?vid.width:x), ((y<0)?vid.height - sb_lines:y), &px, &py);
 
 	if (x < 0)
 	{
-		for (s2 = str; *s2; s2++)
-			px -= Font_CharWidth(CON_WHITEMASK, *s2);
+		for (s2 = str; *s2; )
+		{
+			codepoint = unicode_decode(&error, s2, &s2, true);
+			px -= Font_CharWidth(CON_WHITEMASK, codepoint);
+		}
 	}
 
 	if (y < 0)
 		py += y*Font_CharHeight();
 
 	while (*str)
-		px = Font_DrawChar(px, py, CON_WHITEMASK, *str++);
+	{
+		codepoint = unicode_decode(&error, str, &str, true);
+		px = Font_DrawChar(px, py, CON_WHITEMASK, codepoint);
+	}
 	Font_EndString(font_default);
 }
 
@@ -2482,16 +2492,16 @@ void SCR_BringDownConsole (void)
 	cl.cshifts[CSHIFT_CONTENTS].percent = 0;              // no area contents palette on next frame
 }
 
-void SCR_TileClear (void)
+void SCR_TileClear (int skipbottom)
 {
 	if (r_refdef.vrect.width < r_refdef.grect.width)
 	{
 		float w;
 		// left
-		R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y, r_refdef.vrect.x-r_refdef.grect.x, r_refdef.grect.height - sb_lines);
+		R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y, r_refdef.vrect.x-r_refdef.grect.x, r_refdef.grect.height - skipbottom);
 		// right
 		w = (r_refdef.grect.x+r_refdef.grect.width) - (r_refdef.vrect.x+r_refdef.vrect.width);
-		R2D_TileClear ((r_refdef.grect.x+r_refdef.grect.width) - (w), r_refdef.grect.y, w, r_refdef.grect.height - sb_lines);
+		R2D_TileClear ((r_refdef.grect.x+r_refdef.grect.width) - (w), r_refdef.grect.y, w, r_refdef.grect.height - skipbottom);
 	}
 	if (r_refdef.vrect.height < r_refdef.grect.height)
 	{
@@ -2503,7 +2513,7 @@ void SCR_TileClear (void)
 		R2D_TileClear (r_refdef.vrect.x,
 			r_refdef.vrect.y + r_refdef.vrect.height,
 			r_refdef.vrect.width,
-			(r_refdef.grect.y+r_refdef.grect.height) - sb_lines - (r_refdef.vrect.y + r_refdef.vrect.height));
+			(r_refdef.grect.y+r_refdef.grect.height) - skipbottom - (r_refdef.vrect.y + r_refdef.vrect.height));
 	}
 }
 

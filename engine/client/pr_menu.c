@@ -12,6 +12,8 @@
 
 qbyte mpkeysdown[K_MAX/8];
 
+extern qboolean csqc_dp_lastwas3d;
+
 extern unsigned int r2d_be_flags;
 #define DRAWFLAG_NORMAL 0
 #define DRAWFLAG_ADD 1
@@ -19,6 +21,8 @@ extern unsigned int r2d_be_flags;
 #define DRAWFLAG_MODULATE2 3
 static unsigned int PF_SelectDPDrawFlag(int flag)
 {
+	csqc_dp_lastwas3d = false;	//for compat with dp's stupid beginpolygon
+
 	//flags:
 	//0 = blend
 	//1 = add
@@ -51,6 +55,8 @@ void QCBUILTIN PF_CL_drawfill (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_CL_drawsetcliparea (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	srect_t srect;
+	csqc_dp_lastwas3d = false;
+
 	srect.x = G_FLOAT(OFS_PARM0) / (float)vid.width;
 	srect.y = (G_FLOAT(OFS_PARM1) / (float)vid.height);
 	srect.width = G_FLOAT(OFS_PARM2) / (float)vid.width;
@@ -65,6 +71,8 @@ void QCBUILTIN PF_CL_drawsetcliparea (pubprogfuncs_t *prinst, struct globalvars_
 //void	drawresetcliparea(void) = #459;
 void QCBUILTIN PF_CL_drawresetcliparea (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	csqc_dp_lastwas3d = false;
+
 	BE_Scissor(NULL);
 	G_FLOAT(OFS_RETURN) = 1;
 }
@@ -486,7 +494,10 @@ void QCBUILTIN PF_CL_drawpic (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	R2D_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
+	if ((size[0] < 0) ^ (size[1] < 0))
+		R2D_Image(pos[0]+size[0], pos[1]+size[1], -size[0], -size[1], 1, 1, 0, 0, p);
+	else
+		R2D_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
 	r2d_be_flags = 0;
 }
 
@@ -554,11 +565,10 @@ void QCBUILTIN PF_CL_drawsubpic (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	R2D_Image(	pos[0], pos[1],
-				size[0], size[1],
-				srcPos[0], srcPos[1],
-				srcPos[0]+srcSize[0], srcPos[1]+srcSize[1],
-				p);
+	if ((size[0] < 0) ^ (size[1] < 0))
+		R2D_Image(pos[0]+size[0], pos[1]+size[1], -size[0], -size[1], srcPos[0]+srcSize[0], srcPos[1]+srcSize[1], srcPos[0], srcPos[1], p);
+	else
+		R2D_Image(pos[0], pos[1], size[0], size[1], srcPos[0], srcPos[1], srcPos[0]+srcSize[0], srcPos[1]+srcSize[1], p);
 	r2d_be_flags = 0;
 
 	G_FLOAT(OFS_RETURN) = 1;
@@ -1872,6 +1882,14 @@ static struct {
 	{"vtos",					PF_vtos,					19},
 	{"etos",					PF_etos,					20},
 	{"stof",					PF_stof,					21},
+	
+	{"stoi",					PF_stoi,					0},
+	{"itos",					PF_itos,					0},
+	{"stoh",					PF_stoh,					0},
+	{"htos",					PF_htos,					0},
+	{"ftoi",					PF_ftoi,					0},
+	{"itof",					PF_itof,					0},
+
 	{"spawn",					PF_Spawn,					22},
 	{"remove",					PF_Remove_,					23},
 	{"find",					PF_FindString,				24},
@@ -1960,6 +1978,7 @@ static struct {
 	{"strncmp",					PF_strncmp,					228},
 	{"strcasecmp",				PF_strncasecmp,				229},
 	{"strncasecmp",				PF_strncasecmp,				230},
+	{"strtrim",					PF_strtrim,					0},
 															//gap
 	{"shaderforname",			PF_shaderforname,			238},
 															//gap
@@ -2008,6 +2027,7 @@ static struct {
 	{"memgetval",				PF_memgetval,				388},
 	{"memsetval",				PF_memsetval,				389},
 	{"memptradd",				PF_memptradd,				390},
+	{"memstrsize",				PF_memstrsize,				0},
 	{"con_getset",				PF_SubConGetSet,			391},
 	{"con_printf",				PF_SubConPrintf,			392},
 	{"con_draw",				PF_SubConDraw,				393},
@@ -2354,6 +2374,9 @@ qboolean MP_Init (void)
 	menuprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 	menuprogparms.user = &menu_world;
 	menu_world.keydestmask = kdm_gmenu;
+
+	//default to free mouse, to match dp's default setting, and because its generally the right thing for a menu.
+	key_dest_absolutemouse |= kdm_gmenu;
 
 	menutime = Sys_DoubleTime();
 	if (!menu_world.progs)

@@ -521,7 +521,7 @@ const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *sourcedat
 	//a->ia->ir
 
 	if (bonecount > destbonecount || bonecount > MAX_BONES)
-		Sys_Error("Alias_ConvertBoneData: too many bones %i>%i\n", bonecount, destbonecount);
+		Sys_Error("Alias_ConvertBoneData: too many bones "fPRIzu">"fPRIzu"\n", bonecount, destbonecount);
 
 	//r(->a)->ia(->ir)
 	if (desttype == SKEL_INVERSE_RELATIVE && sourcetype == SKEL_RELATIVE)
@@ -3023,9 +3023,13 @@ static void *Q1_LoadSkins_GL (model_t *loadmodel, daliasskintype_t *pskintype, u
 		slash--;
 		memcpy(alttexpath, loadmodel->name, slash-loadmodel->name);
 		Q_strncpyz(alttexpath+(slash-loadmodel->name), ":models", sizeof(alttexpath)-(slash-loadmodel->name));	//fuhquake compat
+		slash++;
 	}
 	else
+	{
+		slash = loadmodel->name;
 		strcpy(alttexpath, "models");	//fuhquake compat
+	}
 
 	s = pq1inmodel->skinwidth*pq1inmodel->skinheight;
 	for (i = 0; i < pq1inmodel->numskins; i++)
@@ -3128,21 +3132,21 @@ static void *Q1_LoadSkins_GL (model_t *loadmodel, daliasskintype_t *pskintype, u
 			frames[0].defaultshader = NULL;
 			Q_snprintfz(frames[0].shadername, sizeof(frames[0].shadername), "%s_%i.lmp", basename, i);
 
-			Q_snprintfz(skinname, sizeof(skinname), "%s_%i.lmp", loadmodel->name, i);
+			Q_snprintfz(skinname, sizeof(skinname), "%s_%i.lmp", slash, i);
 			frames[0].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, skintranstype);
 			if (r_fb_models.ival)
 			{
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_luma.lmp", loadmodel->name, i);
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_luma.lmp", slash, i);
 				frames[0].texnums.fullbright = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_TRANS8_FULLBRIGHT);
 			}
 			if (r_loadbumpmapping)
 			{
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_norm.lmp", loadmodel->name, i);
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_norm.lmp", slash, i);
 				frames[0].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
 			}
-			Q_snprintfz(skinname, sizeof(skinname), "%s_%i_shirt.lmp", loadmodel->name, i);
+			Q_snprintfz(skinname, sizeof(skinname), "%s_%i_shirt.lmp", slash, i);
 			frames[0].texnums.upperoverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
-			Q_snprintfz(skinname, sizeof(skinname), "%s_%i_pants.lmp", loadmodel->name, i);
+			Q_snprintfz(skinname, sizeof(skinname), "%s_%i_pants.lmp", slash, i);
 			frames[0].texnums.loweroverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
 
 			switch(skintranstype)
@@ -3226,21 +3230,21 @@ static void *Q1_LoadSkins_GL (model_t *loadmodel, daliasskintype_t *pskintype, u
 				//other engines apparently don't flood fill. because flood filling is horrible, we won't either.
 				//Mod_FloodFillSkin(frames[t].texels, outskin->skinwidth, outskin->skinheight);
 
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i.lmp", loadmodel->name, i, t);
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i.lmp", slash, i, t);
 				frames[t].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[t].texels, outskin->skinwidth, outskin->skinheight, skintranstype);
 				if (r_fb_models.ival)
 				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma.lmp", loadmodel->name, i, t);
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma.lmp", slash, i, t);
 					frames[t].texnums.fullbright = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[t].texels, outskin->skinwidth, outskin->skinheight, TF_TRANS8_FULLBRIGHT);
 				}
 				if (r_loadbumpmapping)
 				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_norm.lmp", loadmodel->name, i, t);
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_norm.lmp", slash, i, t);
 					frames[t].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP, frames[t].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
 				}
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_shirt.lmp", loadmodel->name, i, t);
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_shirt.lmp", slash, i, t);
 				frames[t].texnums.upperoverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_pants.lmp", loadmodel->name, i, t);
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_pants.lmp", slash, i, t);
 				frames[t].texnums.loweroverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
 
 				Q_snprintfz(frames[t].shadername, sizeof(frames[t].shadername), "%s_%i_%i.lmp", basename, i, t);
@@ -6515,7 +6519,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	}
 	if (h->filesize != fsize)
 	{
-		Con_Printf("%s: size (%u != %u)\n", mod->name, h->filesize, fsize);
+		Con_Printf("%s: size (%u != "fPRIzu")\n", mod->name, h->filesize, fsize);
 		return NULL;
 	}
 

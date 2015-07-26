@@ -4,7 +4,6 @@
 //requires qvm implementation and existing q3 client stuff (or at least the overlapping stuff in q3common.c).
 
 #ifdef Q3SERVER
-float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
 #define USEBOTLIB
@@ -1791,7 +1790,7 @@ qboolean SVQ3_InitGame(void)
 	//q3 needs mapname (while qw has map serverinfo)
 	{
 		cvar_t *mapname = Cvar_Get("mapname", "", CVAR_SERVERINFO, "Q3 compatability");
-		Cvar_Set(mapname, sv.name);
+		Cvar_Set(mapname, svs.name);
 	}
 
 	SV_InitBotLib();
@@ -1804,7 +1803,7 @@ qboolean SVQ3_InitGame(void)
 	strcpy(buffer, svs.info);
 	Info_SetValueForKey(buffer, "map", "", sizeof(buffer));
 	Info_SetValueForKey(buffer, "maxclients", "", sizeof(buffer));
-	Info_SetValueForKey(buffer, "mapname", sv.name, sizeof(buffer));
+	Info_SetValueForKey(buffer, "mapname", svs.name, sizeof(buffer));
 	Info_SetValueForKey(buffer, "sv_maxclients", "32", sizeof(buffer));
 	Info_SetValueForKey(buffer, "sv_pure", "", sizeof(buffer));
 	SVQ3_SetConfigString(0, buffer);

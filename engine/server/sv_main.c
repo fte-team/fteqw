@@ -109,7 +109,7 @@ cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "100000",
 							"sv_maxdownloadrate", 0);
 cvar_t sv_minping = CVARF("sv_minping", "", CVAR_SERVERINFO);
 
-cvar_t sv_bigcoords = CVARFD("sv_bigcoords", "", CVAR_SERVERINFO, "Uses floats for coordinates instead of 16bit values. Affects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
+cvar_t sv_bigcoords = CVARFD("sv_bigcoords", "1", 0, "Uses floats for coordinates instead of 16bit values.\nAlso boosts angle precision, so can be useful even on small maps.\nAffects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
 cvar_t sv_calcphs = CVARFD("sv_calcphs", "2", CVAR_LATCH, "Enables culling of sound effects. 0=always skip phs. Sounds are globally broadcast. 1=always generate phs. Sounds are always culled. On large maps the phs will be dumped to disk. 2=On large single-player maps, generation of phs is skipped. Otherwise like option 1.");
 
 cvar_t sv_showconnectionlessmessages = CVARD("sv_showconnectionlessmessages", "0", "Display a line describing each connectionless message that arrives on the server. Primarily a debugging feature, but also potentially useful to admins.");
@@ -117,7 +117,7 @@ cvar_t sv_cullplayers_trace = CVARFD("sv_cullplayers_trace", "", CVAR_SERVERINFO
 cvar_t sv_cullentities_trace = CVARFD("sv_cullentities_trace", "", CVAR_SERVERINFO, "Attempt to cull non-player entities using tracelines as an extreeme anti-wallhack.");
 cvar_t sv_phs = CVARD("sv_phs", "1", "If 1, do not use the phs. It is generally better to use sv_calcphs instead, and leave this as 1.");
 cvar_t sv_resetparms = CVAR("sv_resetparms", "0");
-cvar_t sv_pupglow = CVARF("sv_pupglow", "", CVAR_SERVERINFO);
+cvar_t sv_pupglow = CVARFD("sv_pupglow", "", CVAR_SERVERINFO, "Instructs clients to enable hexen2-style powerup pulsing.");
 
 cvar_t sv_master = CVAR("sv_master", "0");
 cvar_t sv_masterport = CVAR("sv_masterport", "0");
@@ -1264,7 +1264,7 @@ void SVC_InfoQ2 (void)
 			if (svs.clients[i].state >= cs_connected)
 				count++;
 
-		snprintf (string, sizeof(string), "%16s %8s %2i/%2i\n", hostname.string, sv.name, count, (int)maxclients.value);
+		snprintf (string, sizeof(string), "%16s %8s %2i/%2i\n", hostname.string, svs.name, count, (int)maxclients.value);
 	}
 
 	Netchan_OutOfBandPrint (NS_SERVER, &net_from, "info\n%s", string);
@@ -1386,7 +1386,10 @@ int SV_NewChallenge (void)
 	for (i = 0 ; i < MAX_CHALLENGES ; i++)
 	{
 		if (NET_CompareBaseAdr (&net_from, &svs.challenges[i].adr))
+		{
+			svs.challenges[i].time = realtime;
 			return svs.challenges[i].challenge;
+		}
 		if (svs.challenges[i].time < oldestTime)
 		{
 			oldestTime = svs.challenges[i].time;
@@ -1418,136 +1421,109 @@ void SVC_GetChallenge (void)
 #ifdef HUFFNETWORK
 	int compressioncrc;
 #endif
-	int		i;
-	int		oldest;
-	int		oldestTime;
+	int		challenge;
+	char *buf;
+	int lng;
+	char *over;
 
 	if (!sv_listen_qw.value && !sv_listen_dp.value && !sv_listen_q3.ival)
 		return;
 
-	oldest = 0;
-	oldestTime = 0x7fffffff;
 
-	// see if we already have a challenge for this ip
-	for (i = 0 ; i < MAX_CHALLENGES ; i++)
-	{
-		if (NET_CompareBaseAdr (&net_from, &svs.challenges[i].adr))
-			break;
-		if (svs.challenges[i].time < oldestTime)
-		{
-			oldestTime = svs.challenges[i].time;
-			oldest = i;
-		}
-	}
-
-	if (i == MAX_CHALLENGES)
-	{
-		// overwrite the oldest
-		svs.challenges[oldest].challenge = (rand() << 16) ^ rand();
-		svs.challenges[oldest].adr = net_from;
-		svs.challenges[oldest].time = realtime;
-		i = oldest;
-	}
+	challenge = SV_NewChallenge();
 
 	// send it back
-	{
-		char *buf;
-		int lng;
-		char *over;
-
 #ifdef Q3SERVER
-		if (svs.gametype == GT_QUAKE3)	//q3 servers
-			buf = va("challengeResponse %i", svs.challenges[i].challenge);
-		else
+	if (svs.gametype == GT_QUAKE3)	//q3 servers
+		buf = va("challengeResponse %i", challenge);
+	else
 #endif
 #ifdef Q2SERVER
-			if (svs.gametype == GT_QUAKE2)	//quake 2 servers give a different challenge responce
-			buf = va("challenge %i", svs.challenges[i].challenge);
-		else
+		if (svs.gametype == GT_QUAKE2)	//quake 2 servers give a different challenge responce
+		buf = va("challenge %i", challenge);
+	else
 #endif
-			buf = va("%c%i", S2C_CHALLENGE, svs.challenges[i].challenge);
+		buf = va("%c%i", S2C_CHALLENGE, challenge);
 
-		over = buf + strlen(buf) + 1;
+	over = buf + strlen(buf) + 1;
 
-		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
-		{
+	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
+	{
 #ifdef PROTOCOL_VERSION_FTE
-			unsigned int mask;
-			//tell the client what fte extensions we support
-			mask = Net_PextMask(1, false);
-			if (mask)
-			{
-				lng = LittleLong(PROTOCOL_VERSION_FTE);
-				memcpy(over, &lng, sizeof(lng));
-				over+=sizeof(lng);
+		unsigned int mask;
+		//tell the client what fte extensions we support
+		mask = Net_PextMask(1, false);
+		if (mask)
+		{
+			lng = LittleLong(PROTOCOL_VERSION_FTE);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
 
-				lng = LittleLong(mask);
-				memcpy(over, &lng, sizeof(lng));
-				over+=sizeof(lng);
-			}
-			//tell the client what fte extensions we support
-			mask = Net_PextMask(2, false);
-			if (mask)
-			{
-				lng = LittleLong(PROTOCOL_VERSION_FTE2);
-				memcpy(over, &lng, sizeof(lng));
-				over+=sizeof(lng);
+			lng = LittleLong(mask);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+		}
+		//tell the client what fte extensions we support
+		mask = Net_PextMask(2, false);
+		if (mask)
+		{
+			lng = LittleLong(PROTOCOL_VERSION_FTE2);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
 
-				lng = LittleLong(mask);
-				memcpy(over, &lng, sizeof(lng));
-				over+=sizeof(lng);
-			}
+			lng = LittleLong(mask);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+		}
 #endif
 
-			mask = net_mtu.ival&~7;
-			if (mask > 64)
-			{
-				lng = LittleLong(PROTOCOL_VERSION_FRAGMENT);
-				memcpy(over, &lng, sizeof(lng));
-				over+=sizeof(lng);
+		mask = net_mtu.ival&~7;
+		if (mask > 64)
+		{
+			lng = LittleLong(PROTOCOL_VERSION_FRAGMENT);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
 
-				lng = LittleLong(mask);
-				memcpy(over, &lng, sizeof(lng));
-				over+=sizeof(lng);
-			}
+			lng = LittleLong(mask);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+		}
 
 #ifdef HUFFNETWORK
-			compressioncrc = Huff_PreferedCompressionCRC();
-			if (compressioncrc)
-			{
-				lng = LittleLong(PROTOCOL_VERSION_HUFFMAN);
-				memcpy(over, &lng, sizeof(lng));
-				over+=sizeof(lng);
-
-				lng = LittleLong(compressioncrc);
-				memcpy(over, &lng, sizeof(lng));
-				over+=sizeof(lng);
-			}
-#endif
-		}
-		if (sv_listen_qw.value || (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM))
-			Netchan_OutOfBand(NS_SERVER, &net_from, over-buf, buf);
-
-		if (sv_listen_dp.value && (sv_listen_nq.value || sv_bigcoords.value || !sv_listen_qw.value))
+		compressioncrc = Huff_PreferedCompressionCRC();
+		if (compressioncrc)
 		{
-		//dp (protocol6 upwards) can respond to this (and fte won't get confused because the challenge will be wrong)
-			buf = va("challenge "DISTRIBUTION"%i", svs.challenges[i].challenge);
-			Netchan_OutOfBand(NS_SERVER, &net_from, strlen(buf)+1, buf);
-		}
-#ifdef Q3SERVER
-		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
-		{
-			if (sv_listen_q3.ival)
-			{
-				buf = va("challengeResponse %i", svs.challenges[i].challenge);
-				Netchan_OutOfBand(NS_SERVER, &net_from, strlen(buf), buf);
-			}
+			lng = LittleLong(PROTOCOL_VERSION_HUFFMAN);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
+
+			lng = LittleLong(compressioncrc);
+			memcpy(over, &lng, sizeof(lng));
+			over+=sizeof(lng);
 		}
 #endif
 	}
 
-//	Netchan_OutOfBandPrint (net_from, "%c%i", S2C_CHALLENGE,
-//				svs.challenges[i].challenge);
+	if (sv_listen_dp.value && (sv_listen_nq.value || sv_bigcoords.value || !sv_listen_qw.value))
+	{
+	//dp (protocol6 upwards) can respond to this (and fte won't get confused because the challenge will be wrong)
+		char *dp = va("challenge "DISTRIBUTION"%i", challenge);
+		Netchan_OutOfBand(NS_SERVER, &net_from, strlen(dp)+1, dp);
+	}
+
+	if (sv_listen_qw.value || (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM))
+		Netchan_OutOfBand(NS_SERVER, &net_from, over-buf, buf);
+
+#ifdef Q3SERVER
+	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
+	{
+		if (sv_listen_q3.ival)
+		{
+			buf = va("challengeResponse %i", challenge);
+			Netchan_OutOfBand(NS_SERVER, &net_from, strlen(buf), buf);
+		}
+	}
+#endif
 }
 
 void VARGS SV_OutOfBandPrintf (int q2, netadr_t *adr, char *format, ...)
@@ -1605,6 +1581,25 @@ qboolean SV_ChallengePasses(int challenge)
 			if (challenge == svs.challenges[i].challenge)
 				return true;
 			return false;
+		}
+	}
+	return false;
+}
+
+//DP sends us a getchallenge followed by a CCREQ_CONNECT at about the same time.
+//this means that DP clients tend to connect as generic NQ clients.
+//and because DP _REQUIRES_ sv_bigcoords, they tend to end up being given fitz/rmq protocols
+//thus we don't respond to the connect if sv_listen_dp is 1, and we had a recent getchallenge request. recent is 2 secs.
+qboolean SV_ChallengeRecent(void)
+{
+	int curtime = realtime;	//yeah, evil. sue me. consitent with challenges.
+	int i;
+	for (i=0 ; i<MAX_CHALLENGES ; i++)
+	{	//one per ip.
+		if (NET_CompareBaseAdr (&net_from, &svs.challenges[i].adr))
+		{
+			if (svs.challenges[i].time > curtime - 2)
+				return true;
 		}
 	}
 	return false;
@@ -1890,7 +1885,7 @@ void SV_UserDNSResolved(void *ctx, void *data, size_t idx, size_t uid)
 			return;
 		}
 	}
-	Con_DPrintf("stale dns lookup result: %s\n", data);
+	Con_DPrintf("stale dns lookup result: %s\n", (char*)data);
 	Z_Free(data);
 }
 
@@ -2046,8 +2041,7 @@ client_t *SVC_DirectConnect(void)
 		//this is used by q3 (note, we already decrypted the huffman connection packet in a hack)
 		if (!sv_listen_q3.ival)
 		{
-			if (!sv_listen_nq.value)
-				SV_RejectMessage (SCP_DARKPLACES6, "Server is not accepting quake3 clients at this time.\n", version_string());
+			SV_RejectMessage (SCP_QUAKE3, "Server is not accepting quake3 clients at this time.\n", version_string());
 			Con_TPrintf ("* rejected connect from q3 client\n");
 			return NULL;
 		}
@@ -2084,7 +2078,7 @@ client_t *SVC_DirectConnect(void)
 	}
 	else if (*(Cmd_Argv(0)+7) == '\\')
 	{	//DP has the userinfo attached directly to the end of the connect command
-		if (!sv_listen_dp.value)
+		if (!sv_listen_dp.value && net_from.type != NA_LOOPBACK)
 		{
 			if (!sv_listen_nq.value)
 				SV_RejectMessage (SCP_DARKPLACES6, "Server is not accepting darkplaces clients at this time.\n", version_string());
@@ -2390,13 +2384,15 @@ client_t *SVC_DirectConnect(void)
 		if (cl->state == cs_free || cl->state == cs_loadzombie)
 			continue;
 		if (NET_CompareBaseAdr (&adr, &cl->netchan.remote_address)
-			&& ( cl->netchan.qport == qport
-			|| adr.port == cl->netchan.remote_address.port ))
+			&& ((protocol == SCP_QUAKEWORLD && cl->netchan.qport == qport) || adr.port == cl->netchan.remote_address.port ))
 		{
 			if (cl->state == cs_connected)
 			{
 				if (cl->protocol != protocol)
+				{
 					Con_TPrintf("%s: diff prot connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+					return NULL;
+				}
 				else
 					Con_TPrintf("%s:dup connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 			}
@@ -2405,8 +2401,9 @@ client_t *SVC_DirectConnect(void)
 				Con_Printf ("%s:reconnect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 			}*/
 			else
-				Con_TPrintf ("%s:%s:reconnect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+				Con_TPrintf ("%s:%s:reconnect\n", svs.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 			//silently drop the old connection, without causing the old client to get a disconnect or anything stupid like that.
+			return NULL;
 			cl->protocol = SCP_BAD;
 			SV_DropClient (cl);
 			cl->protocol = protocol;
@@ -2477,9 +2474,9 @@ client_t *SVC_DirectConnect(void)
 				if (((!strcmp(cl->name, name) || !*cl->name) && (!*cl->guid || !strcmp(guid, cl->guid))) || sv.allocated_client_slots <= 1)	//named, or first come first serve.
 				{
 					if (cl->istobeloaded)
-						Con_DPrintf("%s:Using loadzombie\n", sv.name);
+						Con_DPrintf("%s:Using loadzombie\n", svs.name);
 					else
-						Con_DPrintf("%s:Using parmzombie\n", sv.name);
+						Con_DPrintf("%s:Using parmzombie\n", svs.name);
 					newcl = cl;
 					preserveparms = true;
 					temp.istobeloaded = cl->istobeloaded;
@@ -2497,6 +2494,7 @@ client_t *SVC_DirectConnect(void)
 		if (SSV_IsSubServer())
 		{
 			SV_RejectMessage (protocol, "Direct connections are not permitted.\n");
+			Con_TPrintf ("* rejected direct connection\n");
 			return NULL;
 		}
 
@@ -2558,12 +2556,18 @@ client_t *SVC_DirectConnect(void)
 				if (spectator && spectators >= maxspectators.ival)
 				{
 					SV_RejectMessage (protocol, "\nserver is full (%i of %i spectators)\n\n", spectators, maxspectators.ival);
-					Con_TPrintf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+					Con_TPrintf ("%s:full connect (spectators)\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 				}
 				else if (!spectator && clients >= maxclients.ival)
+				{
 					SV_RejectMessage (protocol, "\nserver is full (%i of %i players)\n\n", clients, maxclients.ival);
+					Con_TPrintf ("%s:full connect (players)\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+				}
 				else
+				{
 					SV_RejectMessage (protocol, "\nserver is full (%i of %i connections)\n\n", clients+spectators, sv.allocated_client_slots);
+					Con_TPrintf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
+				}
 			}
 			return NULL;
 		}
@@ -2581,6 +2585,7 @@ client_t *SVC_DirectConnect(void)
 			if (!SVHL_ClientConnect(newcl, adr, reject))
 			{
 				SV_RejectMessage(protocol, "%s", reject);
+				Con_TPrintf ("%s:gamecode reject\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 				return NULL;
 			}
 		}
@@ -3432,6 +3437,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 						if (msg_readcount+17 <= net_message.cursize && !strncmp("challengeconnect ", &net_message.data[msg_readcount], 17))
 						{
 							client_t *newcl;
+							if (sv_showconnectionlessmessages.ival)
+								Con_Printf("CCREQ_CONNECT_COOKIE\n");
 							Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
 							/*okay, so this is a reliable packet from a client, containing a 'cmd challengeconnect $challenge' response*/
 							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NQ_NETCHAN_VERSION, 0, Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4), Cmd_Argv(5));
@@ -3499,6 +3506,9 @@ qboolean SVNQ_ConnectionlessPacket(void)
 	switch(MSG_ReadByte())
 	{
 	case CCREQ_CONNECT:
+		if (sv_showconnectionlessmessages.ival)
+			Con_Printf("CCREQ_CONNECT\n");
+
 		sb.maxsize = sizeof(buffer);
 		sb.data = buffer;
 		if (strcmp(MSG_ReadString(), NQ_NETCHAN_GAMENAME))
@@ -3545,6 +3555,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			/*dual-stack client, supporting either DP or QW protocols*/
 			SVC_GetChallenge ();
 		}
+		else if (SV_ChallengeRecent())
+			return true;
 		else
 		{
 			if (sv_listen_nq.ival == 2)
@@ -3581,6 +3593,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		}
 		return true;
 	case CCREQ_SERVER_INFO:
+		if (sv_showconnectionlessmessages.ival)
+			Con_Printf("CCREQ_SERVER_INFO\n");
 		if (sv_public.ival < 0)
 			return false;
 		if (SV_BannedReason (&net_from))
@@ -3603,7 +3617,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			if (svs.clients[i].state)
 				active++;
 		MSG_WriteString (&sb, hostname.string);
-		MSG_WriteString (&sb, sv.name);
+		MSG_WriteString (&sb, svs.name);
 		MSG_WriteByte (&sb, active);
 		MSG_WriteByte (&sb, maxclients.value);
 		MSG_WriteByte (&sb, NQ_NETCHAN_VERSION);
@@ -3611,6 +3625,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 		return true;
 	case CCREQ_PLAYER_INFO:
+		if (sv_showconnectionlessmessages.ival)
+			Con_Printf("CCREQ_PLAYER_INFO\n");
 		if (sv_public.ival < 0)
 			return false;
 		if (SV_BannedReason (&net_from))
@@ -3643,6 +3659,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, &net_from);
 		return true;
 	case CCREQ_RULE_INFO:
+		if (sv_showconnectionlessmessages.ival)
+			Con_Printf("CCREQ_RULE_INFO\n");
 		if (sv_public.ival < 0)
 			return false;
 		if (SV_BannedReason (&net_from))
@@ -5000,6 +5018,9 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 		cl->rate = atoi(val);
 	else
 		cl->rate = ISNQCLIENT(cl)?10000:2500;	//an nq client cannot cope with quakeworld's default rate, and typically doesn't have rate set either.
+
+	val = Info_ValueForKey (cl->userinfo, "dupe");
+	cl->netchan.dupe = atoi(val);
 
 	val = Info_ValueForKey (cl->userinfo, "drate");
 	if (strlen(val))

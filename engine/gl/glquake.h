@@ -47,7 +47,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void D3D9_Set2D (void);
 
-float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 void AddPointToBounds (vec3_t v, vec3_t mins, vec3_t maxs);
 qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 void ClearBounds (vec3_t mins, vec3_t maxs);
@@ -411,8 +410,8 @@ void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 #endif
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 void R_ReloadRTLights_f(void);
-void R_LoadRTLights(void);
-void R_ImportRTLights(char *entlump);
+qboolean R_LoadRTLights(void);
+qboolean R_ImportRTLights(char *entlump);
 void R_SaveRTLights_f(void);
 
 //doom

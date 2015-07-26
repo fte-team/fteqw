@@ -76,7 +76,7 @@ typedef struct {
 } ovdecoderbuffer_t;
 
 static sfxcache_t *OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf);
-static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length);
+static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);
 static void OV_CancelDecoder(sfx_t *s);
 static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
 
@@ -137,7 +137,7 @@ static sfxcache_t *OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf)
 	return buf;
 }
 
-static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length)
+static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length)
 {
 	extern int snd_speed;
 	extern cvar_t snd_linearresample_stream;
@@ -179,6 +179,11 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int 
 		*/
 		int trim = start - dec->decodedbytestart;
 		if (trim < 0)
+		{
+			dec->decodedbytecount = 0;
+			dec->decodedbytestart = start;
+		}
+		else if (trim > dec->decodedbytecount)
 		{
 			dec->decodedbytecount = 0;
 			dec->decodedbytestart = start;

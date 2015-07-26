@@ -47,7 +47,7 @@ typedef struct
 	size_t numsoups;
 } cluttersector_t;
 static cluttersector_t cluttersector[3*3*3];
-cvar_t r_clutter_density		= CVARD("r_clutter_density", "1", "Scaler for clutter counts. 0 disables clutter completely.\nClutter requires shaders with 'fte_clutter MODEL SPACING SCALEMIN SCALEMAX ZOFS ANGLEMIN ANGLEMAX' terms");
+cvar_t r_clutter_density		= CVARD("r_clutter_density", "0", "Scaler for clutter counts. 0 disables clutter completely.\nClutter requires shaders with 'fte_clutter MODEL SPACING SCALEMIN SCALEMAX ZOFS ANGLEMIN ANGLEMAX' terms");
 cvar_t r_clutter_distance		= CVARD("r_clutter_distance", "1024", "Distance at which clutter will become invisible.");	//should be used by various shaders to fade it out by here
 void R_Clutter_Init(void)
 {
@@ -616,6 +616,9 @@ cvar_t r_part_classic_expgrav = CVARFD("r_part_classic_expgrav", "10", CVAR_ARCH
 
 particleengine_t *pe;
 
+void P_ParticleEffect_f(void);
+static void P_ParticleEffectAlias_f(void);
+
 void P_InitParticleSystem(void)
 {
 	char *particlecvargroupname = "Particle effects";
@@ -644,7 +647,90 @@ void P_InitParticleSystem(void)
 	Cvar_Register (&r_rockettrail, particlecvargroupname);
 	Cvar_Register (&r_grenadetrail, particlecvargroupname);
 
+	//always registered to suck up stray r_part commands even when the scripted system is not active.
+#ifdef PSET_SCRIPT
+	Cmd_AddCommand("r_part", P_ParticleEffect_f);
+#endif
+	Cmd_AddCommand("r_partredirect", P_ParticleEffectAlias_f);
+
 	R_Clutter_Init();
+}
+
+static struct partalias_s
+{
+	struct partalias_s *next;
+	const char *from;
+	const char *to;
+} *partaliaslist;
+static void P_ParticleEffectAlias_f(void)
+{
+	struct partalias_s **link, *l;
+	char *from = Cmd_Argv(1);
+	char *to = Cmd_Argv(2);
+
+	//user wants to list all
+	if (!*from)
+	{
+		for (l = partaliaslist; l; l = l->next)
+		{
+			Con_Printf("%s -> %s\n", l->from, l->to);
+		}
+		return;
+	}
+
+	//unlink the current value
+	for (link = &partaliaslist; (l=*link); link = &(*link)->next)
+	{
+		if (!Q_strcasecmp(l->from, from))
+		{
+			//they didn't specify a to, so just print out this one effect without removing it.
+			if (Cmd_Argc() == 2)
+			{
+				Con_Printf("particle %s is currently remapped to %s\n", l->from, l->to);
+				return;
+			}
+			*link = l->next;
+			Z_Free(l);
+			break;
+		}
+	}
+
+	//create a new entry.
+	if (*to && Q_strcasecmp(from, to))
+	{
+		l = Z_Malloc(sizeof(*l) + strlen(from) + strlen(to) + 2);
+		l->from = (char*)(l + 1);
+		strcpy((char*)l->from, from);
+		l->to = l->from + strlen(l->from)+1;
+		strcpy((char*)l->to, to);
+		l->next = partaliaslist;
+		partaliaslist = l;
+	}
+
+	CL_RegisterParticles();
+}
+int P_FindParticleType(const char *efname)
+{
+	struct partalias_s *l;
+	int recurselimit = 5;
+	if (!pe)
+		return P_INVALID;
+	for (l = partaliaslist; l; )
+	{
+		if (!Q_strcasecmp(l->from, efname))
+		{
+			efname = l->to;
+
+			if (recurselimit --> 0)
+				l = partaliaslist;
+			else
+				return P_INVALID;
+		}
+		else
+			l = l->next;
+	}
+
+	return pe->FindParticleType(efname);
 }
 
 void P_Shutdown(void)

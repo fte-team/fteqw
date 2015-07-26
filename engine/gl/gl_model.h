@@ -177,7 +177,7 @@ m*_t structures are in-memory
 #define		DPEF_DOUBLESIDED_		(1<<15)	//disables culling
 #define		DPEF_NOSELFSHADOW_		(1<<16)	//doesn't cast shadows on any noselfshadow entities.
 #define		DPEF_DYNAMICMODELLIGHT_	(1<<17)
-#define EF_UNUSED18				(1<<18)
+#define EF_GREEN				(1<<18)
 #define EF_UNUSED19				(1<<19)
 #define		DPEF_RESTARTANIM_BIT_	(1<<20)	//exact semantics seems odd
 #define		DPEF_TELEPORT_BIT_		(1<<21)	//disable lerping while set
@@ -370,7 +370,7 @@ typedef struct msurface_s
 	unsigned short	numedges;	// are backwards edges
 
 	unsigned short		lmshift;	//texels>>lmshift = lightmap samples.
-	short		texturemins[2];
+	int			texturemins[2];
 	short		extents[2];
 
 	unsigned short	light_s[MAXRLIGHTMAPS], light_t[MAXRLIGHTMAPS];	// gl lightmap coordinates
@@ -854,6 +854,8 @@ typedef struct model_s
 	qboolean	tainted;
 	qboolean	pushdepth;		// bsp submodels have this flag set so you don't get z fighting on co-planar surfaces.
 
+	struct model_s *submodelof;
+
 	modtype_t	type;
 	fromgame_t	fromgame;
      
@@ -988,7 +990,7 @@ typedef struct model_s
 #endif	// __MODEL__
 
 
-
+float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
 //

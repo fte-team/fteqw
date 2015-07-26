@@ -629,7 +629,6 @@ void NPP_NQFlush(void)
 	if (!bufferlen)
 		return;
 
-
 	switch(majortype)
 	{
 	case svc_cdtrack:
@@ -1543,6 +1542,36 @@ void NPP_NQWriteEntity(int dest, int data)	//replacement write func (nq to qw)
 
 #ifdef NQPROT
 
+float NPP_ReadFloat(qbyte *buf)
+{
+	union
+	{
+		float f;
+		qbyte b[4];
+	} u;
+	memcpy(u.b, buf, sizeof(u.f));
+	return LittleFloat(u.f);
+}
+short NPP_ReadShort(qbyte *buf)
+{
+	union
+	{
+		short s;
+		qbyte b[2];
+	} u;
+	memcpy(u.b, buf, sizeof(u.s));
+	return LittleShort(u.s);
+}
+unsigned short NPP_ReadUShort(qbyte *buf)
+{
+	union
+	{
+		unsigned short s;
+		qbyte b[2];
+	} u;
+	memcpy(u.b, buf, sizeof(u.s));
+	return LittleShort(u.s);
+}
 
 //qw to nq translation is only useful if we allow nq clients to connect.
 
@@ -1568,7 +1597,9 @@ void NPP_QWFlush(void)
 			Con_Printf("QWFlush: svc_cdtrack wasn't the right length\n");
 		else
 		{
-			b = 0;
+			//qw cdtracks have only a loop byte.
+			//nq has initial+loop values.
+			b = (bufferlen==2)?buffer[1]:0;
 			NPP_AddData(&b, sizeof(qbyte));
 		}
 		break;
@@ -1596,13 +1627,36 @@ void NPP_QWFlush(void)
 					ClientReliableCheckBlock(cl, 1);
 					ClientReliableWrite_Byte(cl, svc_intermission);
 
-					org[0] = (*(short*)&buffer[1])/8.0f;
-					org[1] = (*(short*)&buffer[1+2])/8.0f;
-					org[2] = (*(short*)&buffer[1+4])/8.0f;
+					i = 1;
+					if (destprim->coordsize == 4)
+					{
+						org[0] = NPP_ReadFloat(buffer+i+0);
+						org[1] = NPP_ReadFloat(buffer+i+4);
+						org[2] = NPP_ReadFloat(buffer+i+8);
+						i += 12;
+					}
+					else
+					{
+						org[0] = NPP_ReadShort(buffer+i+0) / 8.0;
+						org[1] = NPP_ReadShort(buffer+i+2) / 8.0;
+						org[2] = NPP_ReadShort(buffer+i+4) / 8.0;
+						i += 6;
+					}
 
-					ang[0] = (*(qbyte*)&buffer[7])*360.0/255;
-					ang[1] = (*(qbyte*)&buffer[7+1])*360.0/255;
-					ang[2] = (*(qbyte*)&buffer[7+2])*360.0/255;
+					if (destprim->anglesize == 2)
+					{
+						ang[0] = NPP_ReadUShort(buffer+i+0)*360.0/0xffff;
+						ang[1] = NPP_ReadUShort(buffer+i+2)*360.0/0xffff;
+						ang[2] = NPP_ReadUShort(buffer+i+4)*360.0/0xffff;
+						i += 6;
+					}
+					else
+					{
+						ang[0] = (*(qbyte*)&buffer[i+0])*360.0/0xff;
+						ang[1] = (*(qbyte*)&buffer[i+1])*360.0/0xff;
+						ang[2] = (*(qbyte*)&buffer[i+2])*360.0/0xff;
+						i += 3;
+					}
 
 					//move nq players to origin + angle
 					VectorCopy(org, cl->edict->v->origin);
@@ -1913,7 +1967,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 1;
 			break;
 		case svc_intermission:
-			protocollen = 10;
+			protocollen = 1 + destprim->coordsize*3 + destprim->anglesize*3;
 			break;
 		case svc_finale:
 			protocollen = 2;

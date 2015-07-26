@@ -1419,7 +1419,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 
 			COM_TimeOfDay(&date);
 
-			snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, sv.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
+			snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, svs.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
 			VFS_WRITE(f, buf, strlen(buf));
 			VFS_FLUSH(f);
 			VFS_CLOSE(f);
@@ -2347,19 +2347,19 @@ void SV_MVDEasyRecord_f (void)
 				Q_strncatz (name, va("[%s]_%s_vs_[%s]_%s_%s",
 									Dem_Team(1), Dem_PlayerNameTeam(Dem_Team(1)),
 									Dem_Team(2), Dem_PlayerNameTeam(Dem_Team(2)),
-									sv.name), sizeof(name));
+									svs.name), sizeof(name));
 			} else
-				Q_strncatz (name, va("%s_vs_%s_%s", Dem_Team(1), Dem_Team(2), sv.name), sizeof(name));
+				Q_strncatz (name, va("%s_vs_%s_%s", Dem_Team(1), Dem_Team(2), svs.name), sizeof(name));
 		} else {
 			if (i == 2) {
 				// Duel
 				snprintf (name, sizeof(name), "duel_%s_vs_%s_%s",
 					Dem_PlayerName(1),
 					Dem_PlayerName(2),
-					sv.name);
+					svs.name);
 			} else {
 				// FFA
-				snprintf (name, sizeof(name), "ffa_%s(%d)", sv.name, i);
+				snprintf (name, sizeof(name), "ffa_%s(%d)", svs.name, i);
 			}
 		}
 	}

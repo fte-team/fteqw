@@ -239,6 +239,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
 #endif
 //		Host_EndGame("Reloading QC");
+		debuggerresume = DEBUG_TRACE_ABORT;
 	}
 	else if (!strncmp(text, "qcbreakpoint ", 13))
 	{
@@ -280,7 +281,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			return DEBUG_TRACE_ABORT;
 		if (!*filename || !line || !*line)	//don't try editing an empty line, it won't work
 		{
-			Con_Printf("Unable to debug, pelase disable optimisations\n");
+			Con_Printf("Unable to debug, please disable optimisations\n");
 			return DEBUG_TRACE_OFF;
 		}
 		Sys_SendKeyEvents();
@@ -321,6 +322,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 				VID_SwapBuffers();
 			}
 		}
+		Con_Footerf(NULL, false, "");
 		*line = debuggerresumeline;
 		debuggerinstance = NULL;
 		debuggerfile = NULL;
@@ -1450,11 +1452,13 @@ void QCBUILTIN PF_memgetval (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	if (ofs != (float)(int)ofs)
 		PR_BIError(prinst, "PF_memgetval: non-integer offset\n");
 	dst += ofs;
-	if (dst & 3 || dst < 0 || dst+size >= prinst->stringtablesize)
+	if (dst < 0 || dst+size >= prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_memgetval: invalid dest\n");
 		return;
 	}
+	if (dst & 3)
+		PF_Warningf(prinst, "PF_memgetval: misaligned pointer (%#x)\n", dst);
 	G_INT(OFS_RETURN) = *(int*)(prinst->stringtable + dst);
 }
 
@@ -1468,11 +1472,13 @@ void QCBUILTIN PF_memsetval (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	if (ofs != (float)(int)ofs)
 		PR_BIError(prinst, "PF_memsetval: non-integer offset\n");
 	dst += ofs;
-	if (dst & 3 || dst < 0 || dst+size >= prinst->stringtablesize)
+	if (dst < 0 || dst+size >= prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_memsetval: invalid dest\n");
 		return;
 	}
+	if (dst & 3)
+		PF_Warningf(prinst, "PF_memgetval: misaligned pointer (%#x)\n", dst);
 	*(int*)(prinst->stringtable + dst) = val;
 }
 
@@ -1488,6 +1494,12 @@ void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	G_INT(OFS_RETURN) = dst + ofs;
 }
+
+void QCBUILTIN PF_memstrsize(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = strlen(PR_GetStringOfs(prinst, OFS_PARM0));
+}
+
 //memory stuff
 ////////////////////////////////////////////////////
 //hash table stuff
@@ -1811,10 +1823,7 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		{
 			vfsfile_t *f = FS_OpenVFS(pf_fopen_files[i].name, "rb", FS_GAME);
 			if (!f && fallbackread)
-			{
-				Q_strncpyz(pf_fopen_files[i].name, fallbackread, sizeof(pf_fopen_files[i].name));
-				f = FS_OpenVFS(pf_fopen_files[i].name, "rb", FS_GAME);
-			}
+				f = FS_OpenVFS(fallbackread, "rb", FS_GAME);
 			if (f)
 			{
 				pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = VFS_GETLEN(f);
@@ -2753,6 +2762,27 @@ void QCBUILTIN PF_strpad (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	RETURN_TSTRING(destbuf);
 }
 
+void QCBUILTIN PF_strtrim (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *end;
+	char *news;
+	
+	//figure out the new start
+	while (*str == ' ' || *str == '\t' || *str == '\n' || *str == '\r')
+		str++;
+
+	//figure out the new end.
+	end = str + strlen(str);
+	while(end > str && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\n' || end[-1] == '\r'))
+		end--;
+
+	//copy that substring into a tempstring.
+	((int *)pr_globals)[OFS_RETURN] = prinst->AllocTempString(prinst, &news, end - str + 1);
+	memcpy(news, str, end-str);
+	news[end-str] = 0;
+}
+
 //part of PF_strconv
 static int chrconv_number(int i, int base, int conv)
 {
@@ -2985,6 +3015,15 @@ void QCBUILTIN PF_ftos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 		Q_ftoa (pr_string_temp, v);
 	RETURN_TSTRING(pr_string_temp);
+}
+
+void QCBUILTIN PF_ftoi (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = G_FLOAT(OFS_PARM0);
+}
+void QCBUILTIN PF_itof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = G_INT(OFS_PARM0);
 }
 
 //tstring(integer input) itos
@@ -4863,7 +4902,7 @@ void QCBUILTIN PF_eprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	int max = 1024*1024;
 	int size = 0;
-	char *buffer = BZ_Malloc(size);
+	char *buffer = BZ_Malloc(max);
 	char *buf;
 	buf = prinst->saveent(prinst, buffer, &size, max, (struct edict_s*)G_WEDICT(prinst, OFS_PARM0));
 	Con_Printf("Entity %i:\n%s\n", G_EDICTNUM(prinst, OFS_PARM0), buf);
@@ -5322,7 +5361,7 @@ void QCBUILTIN PF_findentityfield (pubprogfuncs_t *prinst, struct globalvars_s *
 	G_FLOAT(OFS_RETURN) = 0;
 	for (fidx = 0; fidx < count; fidx++)
 	{
-		if (!strcmp(fdef->name, fieldname))
+		if (!strcmp(fdef[fidx].name, fieldname))
 		{
 			G_FLOAT(OFS_RETURN) = fidx;
 			break;

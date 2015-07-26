@@ -15244,6 +15244,10 @@
 							/>
 						</FileConfiguration>
 					</File>
+					<File
+						RelativePath="..\client\snd_xaudio.c"
+						>
+					</File>
 				</Filter>
 			</Filter>
 			<Filter

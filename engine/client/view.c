@@ -1303,15 +1303,15 @@ void V_CalcRefdef (playerview_t *pv)
 {
 	float		bob;
 	float		viewheight;
+
 	r_refdef.playerview = pv;
+
+	memset(&r_refdef.globalfog, 0, sizeof(r_refdef.globalfog));
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 		return;
 #endif
-
-	CL_BlendFog(&r_refdef.globalfog, &cl.oldfog, realtime, &cl.fog);
-	r_refdef.globalfog.density /= 64;	//FIXME
 
 	if (v_viewheight.value < -7)
 		bob=-7;
@@ -1738,6 +1738,40 @@ void R_DrawNameTags(void)
 			w = &csqc_world;
 #endif
 		}
+		else if ((r_showfields.ival & 3) == 3)
+		{
+			inframe_t *frame;
+			packet_entities_t *pak;
+			entity_state_t *state;
+			model_t *mod;
+
+			frame = &cl.inframes[cl.parsecount & UPDATE_MASK];
+			pak = &frame->packet_entities;
+
+			for (i=0 ; i<pak->num_entities ; i++)
+			{
+				state = &pak->entities[i];
+
+				mod = cl.model_precache[state->modelindex];
+				VectorInterpolate(mod->mins, 0.5, mod->maxs, org);
+				VectorAdd(org, state->origin, org);
+				if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
+				{
+					char *entstr;
+					int x, y;
+
+					entstr = va("%i", state->number);
+					if (entstr)
+					{
+						vec2_t scale = {8,8};
+						x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
+						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
+						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, scale);
+					}
+
+				}
+			}
+		}
 		if (w && w->progs)
 		{
 			int best = 0;
@@ -1841,7 +1875,7 @@ void R_DrawNameTags(void)
 
 		if (!cl.teamplay || !scr_autoid_team.ival)
 			isteam = false;
-		else if (cl.teamfortress && !cl.spectator)	//teamfortress should go by their colours instead, because spies. primarily this is to allow enemy spies to appear through walls as well as your own team (note that the qc will also need tinfo stuff for tf, to avoid issues with just checking player names).
+		else if ((cl.teamfortress && !cl.spectator) || cls.protocol == CP_NETQUAKE)	//teamfortress should go by their colours instead, because spies. primarily this is to allow enemy spies to appear through walls as well as your own team (note that the qc will also need tinfo stuff for tf, to avoid issues with just checking player names).
 			isteam = cl.players[i].rbottomcolor == ourcolour;
 		else
 			isteam = !strcmp(cl.players[i].team, ourteam);
@@ -2055,15 +2089,17 @@ void V_RenderView (void)
 		V_RenderPlayerViews(r_refdef.playerview);
 
 #ifdef PLUGINS
-        Plug_SBar (r_refdef.playerview);
+		Plug_SBar (r_refdef.playerview);
 #else
-        if (Sbar_ShouldDraw())
-        {
-            Sbar_Draw (r_refdef.playerview);
-            Sbar_DrawScoreboard ();
-        }
+		if (Sbar_ShouldDraw())
+		{
+			SCR_TileClear (sb_lines);
+			Sbar_Draw (r_refdef.playerview);
+			Sbar_DrawScoreboard ();
+		}
+		else
+			SCR_TileClear (0);
 #endif
-		SCR_TileClear ();
 	}
 	r_refdef.playerview = NULL;
 }

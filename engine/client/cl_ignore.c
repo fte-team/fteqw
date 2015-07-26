@@ -66,7 +66,7 @@ int Player_StringtoSlot(char *arg)
 	return ((slot = Player_IdtoSlot(Q_atoi(arg))) >= 0) ? slot : PLAYER_ID_NOMATCH;
 }
 
-int Player_NametoSlot(char *name)
+int Player_NametoSlot(const char *name)
 {
 	int i;
 
@@ -95,17 +95,18 @@ char *Player_MyName (void)
 
 
 
-cvar_t		ignore_spec				= SCVAR("ignore_spec", "0");
-cvar_t		ignore_qizmo_spec		= SCVAR("ignore_qizmo_spec", "0");
-cvar_t		ignore_mode				= SCVAR("ignore_mode", "0");
-cvar_t		ignore_flood_duration	= SCVAR("ignore_flood_duration", "4");
-cvar_t		ignore_flood			= SCVAR("ignore_flood", "0");
-cvar_t		ignore_opponents		= SCVAR("ignore_opponents", "0");
+cvar_t		ignore_spec				= CVAR("ignore_spec", "0");
+cvar_t		ignore_qizmo_spec		= CVAR("ignore_qizmo_spec", "0");
+cvar_t		ignore_mode				= CVAR("ignore_mode", "0");
+cvar_t		ignore_flood_duration	= CVARD("ignore_flood_duration", "4", "Time limit for inbound messages to be considered duplicates.");
+cvar_t		ignore_flood			= CVARD("ignore_flood", "0", "Provides a way to reduce inbound spam from flooding out your chat (dupe messages are ignored).\n0: No inbound flood protection.\n1: Duplicate non-team messages will be filtered.\n2: ALL duplicate messages will be filtered\n");
+cvar_t		ignore_opponents		= CVAR("ignore_opponents", "0");
 
 char ignoreteamlist[MAX_TEAMIGNORELIST][16 + 1];
 
 typedef struct flood_s
 {
+	int playernum;
 	char data[2048];
 	float time;
 } flood_t;
@@ -492,47 +493,31 @@ static void UnignoreteamAll_f (void)
 	Con_Printf("Team ignore list cleared\n");
 }
 
-char Ignore_Check_Flood(char *s, int flags, int offset)
+char Ignore_Check_Flood(player_info_t *sender, const char *s, int flags)
 {
-	int i, p, q, len;
-	char name[MAX_INFO_KEY];
+	int i;
+	int slot;
 
 	if ( !(  
-			( (ignore_flood.value == 1 && (flags & TPM_NORMAL || flags & TPM_SPECTATOR)) ||
+			( (ignore_flood.value == 1 && ((flags & TPM_NORMAL) || (flags & TPM_SPECTATOR))) ||
 			(ignore_flood.value == 2 && flags != 0) )
 		)  )
 	{
 		return NO_IGNORE_NO_ADD;
 	}
 
-	if (flags == 1 || flags == TPM_SPECTATOR)
-	{
-		p = 0;
-		q = offset - 3;
-	}
-	else if (flags == TPM_TEAM)
-	{
-		p = 1;
-		q = offset - 4;
-	}
-	else if (flags == 8)
-	{
-		p = 7;
-		q = offset -3;
-	}
-	else
+	if (!sender)	//don't ignore system messages.
 		return NO_IGNORE_NO_ADD;
 
-	len = bound (0, q - p + 1, sizeof(name) - 1);
+	slot = sender - cl.players;
 
-	Q_strncpyz(name, s + p, len + 1);
-	if (!cls.demoplayback && !strcmp(name, Player_MyName()))
+	if (!cls.demoplayback && !strcmp(sender->name, Player_MyName()))
 	{
 		return NO_IGNORE_NO_ADD;
 	}
 	for (i = 0; i < FLOODLIST_SIZE; i++)
 	{
-		if (floodlist[i].data[0] && !strncmp(floodlist[i].data, s, sizeof(floodlist[i].data) - 1) &&
+		if (floodlist[i].playernum == slot && floodlist[i].data[0] && !strncmp(floodlist[i].data, s, sizeof(floodlist[i].data) - 1) &&
 			realtime - floodlist[i].time < ignore_flood_duration.value) {
 			return IGNORE_NO_ADD;
 		}
@@ -540,8 +525,9 @@ char Ignore_Check_Flood(char *s, int flags, int offset)
 	return NO_IGNORE_ADD;
 }
 
-void Ignore_Flood_Add(char *s)
+void Ignore_Flood_Add(player_info_t *sender, const char *s)
 {
+	floodlist[floodindex].playernum = sender - cl.players;
 	floodlist[floodindex].data[0] = 0;
 	Q_strncpyz(floodlist[floodindex].data, s, sizeof(floodlist[floodindex].data));
 	floodlist[floodindex].time = realtime;
@@ -551,10 +537,9 @@ void Ignore_Flood_Add(char *s)
 }
 
 
-qboolean Ignore_Message(char *s, int flags, int offset)
+qboolean Ignore_Message(const char *sendername, const char *s, int flags)
 {
-	int slot, i, p, q, len;	
-	char name[MAX_SCOREBOARDNAME];
+	int slot, i;	
 
 	if (!ignore_mode.ival && (flags & 2))
 		return false;		
@@ -565,35 +550,14 @@ qboolean Ignore_Message(char *s, int flags, int offset)
 	else if (ignore_spec.ival == 1 && (flags == 4) && !cl.spectator)
 		return true;
 
-	if (flags == 1 || flags == 4)
-	{
-		p = 0;
-		q = offset - 3;
-	}
-	else if (flags == 2)
-	{
-		p = 1;
-		q = offset - 4;
-	}
-	else if (flags == 8)
-	{
-		p = 7;
-		q = offset - 3;
-	}
-	else
-	{
+	if (!sendername)
 		return false;
-	}
 
-	len = bound (0, q - p + 1, sizeof(name) - 1);
-	Q_strncpyz(name, s + p, len + 1);
-
-	if ((slot = Player_NametoSlot(name)) == PLAYER_NAME_NOMATCH)
+	if ((slot = Player_NametoSlot(sendername)) == PLAYER_NAME_NOMATCH)
 		return false;	
 
 	if (IsIgnored(slot))
 		return true;
-	
 
 	if (ignore_opponents.ival && (
 				(int) ignore_opponents.ival == 1 ||
@@ -610,7 +574,7 @@ qboolean Ignore_Message(char *s, int flags, int offset)
 	if (!cl.teamplay)
 		return false;
 
-	if (cl.players[slot].spectator || !strcmp(Player_MyName(), name))
+	if (cl.players[slot].spectator || !strcmp(Player_MyName(), sendername))
 		return false;	
 
 	for (i = 0; i < MAX_TEAMIGNORELIST && ignoreteamlist[i][0]; i++)

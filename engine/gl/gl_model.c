@@ -34,6 +34,7 @@ extern cvar_t r_replacemodels;
 extern cvar_t gl_lightmap_average;
 extern cvar_t r_softwarebanding;
 cvar_t mod_loadentfiles						= CVAR("sv_loadentfiles", "1");
+cvar_t mod_loadentfiles_dir					= CVAR("sv_loadentfiles_dir", "");
 cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .vis patches for quake maps, allowing transparent water to work properly.");
 cvar_t mod_warnmodels						= CVARD("mod_warnmodels", "1", "Warn if any models failed to load. Set to 0 if your mod is likely to lack optional models (like its in development).");	//set to 0 for hexen2 and its otherwise-spammy-as-heck demo.
 cvar_t mod_litsprites						= CVARD("mod_litsprites", "0", "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
@@ -60,6 +61,7 @@ qboolean QDECL Mod_LoadQ2BrushModel (model_t *mod, void *buffer, size_t fsize);
 #endif
 model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose);
 static void Mod_PrintFormats_f(void);
+static void Mod_SaveEntFile_f(void);
 
 #ifdef MAP_DOOM
 qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize);
@@ -524,6 +526,7 @@ void Mod_Purge(enum mod_purge_e ptype)
 			mod->meshinfo = NULL;
 			mod->loadstate = MLS_NOTLOADED;
 
+			mod->submodelof = NULL;
 			mod->pvs = NULL;
 			mod->phs = NULL;
 		}
@@ -559,7 +562,9 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_warnmodels, "Graphical Nicaties");
 		Cvar_Register(&mod_litsprites, "Graphical Nicaties");
 		Cvar_Register(&mod_loadentfiles, NULL);
+		Cvar_Register(&mod_loadentfiles_dir, NULL);
 		Cvar_Register(&temp_lit2support, NULL);
+		Cmd_AddCommand("sv_saveentfile", Mod_SaveEntFile_f);
 		Cmd_AddCommand("version_modelformats", Mod_PrintFormats_f);
 	}
 
@@ -1717,7 +1722,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 				if (!temp_lit2support.ival)
 				{
 					litdata = NULL;
-					Con_Printf("lit2 support is disabled, pending format finalisation.\n", litname);
+					Con_Printf("lit2 support is disabled, pending format finalisation (%s).\n", litname);
 				}
 				else if (loadmodel->numsurfaces != ql2->numsurfs)
 				{
@@ -2017,6 +2022,49 @@ char *Mod_ParseWorldspawnKey(const char *ents, const char *key, char *buffer, si
 	return "";	//err...
 }
 
+static void Mod_SaveEntFile_f(void)
+{
+	char fname[MAX_QPATH];
+	model_t *mod = NULL;
+	char *n = Cmd_Argv(1);
+	if (*n)
+		mod = Mod_ForName(n, MLV_WARN);
+#ifndef CLIENTONLY
+	if (sv.state && !mod)
+		mod = sv.world.worldmodel;
+#endif
+#ifndef SERVERONLY
+	if (cls.state && !mod)
+		mod = cl.worldmodel;
+#endif
+	if (mod && mod->loadstate == MLS_LOADING)
+		COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+	if (!mod || mod->loadstate != MLS_LOADED)
+	{
+		Con_Printf("Map not loaded\n");
+		return;
+	}
+	if (!mod->entities)
+	{
+		Con_Printf("Map is not a map, and has no entities\n");
+		return;
+	}
+
+	if (*mod_loadentfiles_dir.string && !strncmp(mod->name, "maps/", 5))
+	{
+		Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, mod->name+5);
+		COM_StripExtension(fname, fname, sizeof(fname));
+		Q_strncatz(fname, ".ent", sizeof(fname));
+	}
+	else
+	{
+		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, ".ent", sizeof(fname));
+	}
+
+	COM_WriteFile(fname, FS_GAMEONLY, mod->entities, strlen(mod->entities));
+}
+
 /*
 =================
 Mod_LoadEntities
@@ -2031,6 +2079,16 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	if (!l->filelen)
 		return;
 
+	if (mod_loadentfiles.value && !loadmodel->entities && *mod_loadentfiles_dir.string)
+	{
+		if (!strncmp(loadmodel->name, "maps/", 5))
+		{
+			Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, loadmodel->name+5);
+			COM_StripExtension(fname, fname, sizeof(fname));
+			Q_strncatz(fname, ".ent", sizeof(fname));
+			loadmodel->entities = FS_LoadMallocGroupFile(&loadmodel->memgroup, fname, &sz);
+		}
+	}
 	if (mod_loadentfiles.value && !loadmodel->entities)
 	{
 		COM_StripExtension(loadmodel->name, fname, sizeof(fname));
@@ -4726,6 +4784,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 //				Q_snprintfz (name, sizeof(name), "*%i", i+1);
 			nextmod = Mod_FindName (name);
 			*nextmod = *submod;
+			nextmod->submodelof = mod;
 			Q_strncpyz(nextmod->name, name, sizeof(nextmod->name));
 			submod = nextmod;
 			memset(&submod->memgroup, 0, sizeof(submod->memgroup));
@@ -4835,7 +4894,29 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 	}
 
 	if (i == -1)	// a ! in the filename makes it non-fullbright (and can also be lit by rtlights too).
-		shadertext = SPRITE_SHADER_MAIN SPRITE_SHADER_LIT SPRITE_SHADER_FOOTER;
+	{
+		shadertext = 
+			"{\n"
+				"program defaultsprite\n"
+				"{\n"
+					"map $diffuse\n"
+					"blendfunc GL_SRC_ALPHA GL_ONE\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+				"}\n"
+				"surfaceparm noshadows\n"
+				"sort seethrough\n"
+				"bemode rtlight\n"
+				"{\n"
+					"program rtlight#NOBUMP\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc add\n"
+					"}\n"
+				"}\n"
+			"}\n"
+			;
+	}
 	else
 		shadertext = SPRITE_SHADER_MAIN SPRITE_SHADER_UNLIT SPRITE_SHADER_FOOTER;
 	frameinfo->shader = R_RegisterShader(name, SUF_NONE, shadertext);

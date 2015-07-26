@@ -196,6 +196,11 @@ struct {
 	{" F308", WARN_TYPEMISMATCHREDECOPTIONAL},
 	{" F309", WARN_IGNORECOMMANDLINE},
 	{" F310", WARN_MISUSEDAUTOCVAR},
+	{" F311", WARN_FTE_SPECIFIC},
+
+	{" F208", WARN_NOTREFERENCEDCONST},
+	{" F209", WARN_EXTRAPRECACHE},	
+	{" F210", WARN_NOTPRECACHED},
 
 	//frikqcc errors
 	//Q608: PrecacheSound: numsounds
@@ -300,6 +305,7 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_shared,		defaultkeyword, "shared",		"Keyword: shared",		"Disables the 'shared' keyword."},	//mark global to be copied over when progs changes (part of FTE_MULTIPROGS)
 	{&keyword_state,		nondefaultkeyword,"state",		"Keyword: state",		"Disables the 'state' keyword."},
 	{&keyword_optional,		defaultkeyword,"optional",		"Keyword: optional",	"Disables the 'optional' keyword."},
+	{&keyword_inout,		nondefaultkeyword,"inout",		"Keyword: inout",		"Disables the 'inout' keyword."},
 	{&keyword_string,		defaultkeyword, "string",		"Keyword: string",		"Disables the 'string' keyword."},
 	{&keyword_struct,		defaultkeyword, "struct",		"Keyword: struct",		"Disables the 'struct' keyword."},
 	{&keyword_switch,		defaultkeyword, "switch",		"Keyword: switch",		"Disables the 'switch' keyword."},
@@ -749,7 +755,7 @@ int WriteBodylessFuncs (int handle)
 	{
 		if (d->type->type == ev_function && !d->scope)// function parms are ok
 		{
-			if (!(d->initialized & 1) && d->referenced)
+			if ((d->initialized == 2) && d->referenced)
 			{
 				SafeWrite(handle, d->name, strlen(d->name)+1);
 				ret++;
@@ -817,13 +823,13 @@ void QCC_FinaliseDef(QCC_def_t *def)
 			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
 			{
 				if (sub->referenced)
-					def->referenced=true;
+					def->referenced=true;	//if one child is referenced, the composite is referenced
 				else if (!sub->referenced && ignoreone)
 					ignoreone = false;
 				else
 					sub->referenced |= def->referenced;			
 			}
-			if (!def->referenced)
+			if (!def->referenced)	//okay, at least one child was refrenced, lets just flag all as referenced to silence warnings about vec_z being unused
 				for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
 					sub->referenced = true;
 		}
@@ -834,8 +840,8 @@ void QCC_FinaliseDef(QCC_def_t *def)
 				sub->referenced |= def->referenced;
 		}
 	}
-	else if (def->symbolheader)	//if a child symbol is referenced, mark the entire parent as referenced too. this avoids vec_x+vec_y with no vec or vec_z from generating warnings about vec being unreferenced
-		def->symbolheader->referenced |= def->referenced;
+//	else if (def->symbolheader)	//if a child symbol is referenced, mark the entire parent as referenced too. this avoids vec_x+vec_y with no vec or vec_z from generating warnings about vec being unreferenced
+//		def->symbolheader->referenced |= def->referenced;
 
 	if (!def->symbolheader->used)
 	{
@@ -940,10 +946,11 @@ pbool QCC_WriteData (int crc)
 	pbool debugtarget = false;
 	pbool types = false;
 	int outputsttype = PST_DEFAULT;
-	int warnedunref = 0;
+	int dupewarncount = 0;
 	int			*statement_linenums;
 	void		*funcdata;
 	size_t		funcdatasize;
+
 
 	extern char *basictypenames[];
 
@@ -1136,14 +1143,27 @@ pbool QCC_WriteData (int crc)
 				}
 				else if (functions[i].firstlocal)
 				{
-					funcs[i].parm_start = functions[i].firstlocal->ofs;
-					for (local = functions[i].firstlocal, p = 0; local && p < MAX_PARMS && p < functions[i].type->num_parms; local = local->deftail->nextlocal, p++)
+					funcs[i].parm_start = 0;
+					for (local = functions[i].firstlocal, p = 0; local && p < MAX_PARMS && p < functions[i].type->num_parms; local = local->deftail->nextlocal)
 					{
+						if (!local->used)
+						{	//all params should have been assigned space. logically we could have safely omitted the last ones, but blurgh.
+							QCC_PR_Warning(ERR_INTERNAL, strings + local->s_file, local->s_line, "Argument %s was not marked used.\n", local->name);
+							continue;
+						}
+
+						if (!p)
+							funcs[i].parm_start = local->ofs;
 						funcs[i].locals += local->type->size;
-						funcs[i].parm_size[p] = local->type->size;
+						funcs[i].parm_size[p++] = local->type->size;
 					}
+					for (; local && !local->used; local = local->nextlocal)
+						;
+					if (!p && local)
+						funcs[i].parm_start = local->ofs;
 					for (; local; local = local->nextlocal)
-						funcs[i].locals += local->type->size;
+						if (local->used)
+							funcs[i].locals += local->type->size;
 					funcs[i].numparms = p;
 				}
 				else
@@ -1160,6 +1180,9 @@ pbool QCC_WriteData (int crc)
 				funcs[i].locals = PRLittleLong(funcs[i].locals);
 				funcs[i].numparms = PRLittleLong(funcs[i].numparms);
 
+				if (funcs[i].locals && !funcs[i].parm_start)
+					QCC_PR_Warning(0, strings + funcs[i].s_file, functions[i].line, "%s:%i: func %s @%i locals@%i+%i, %i parms\n", strings+funcs[i].s_file, 0, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
+
 #ifdef DEBUG_DUMP
 				printf("code: %s:%i: func %s @%i locals@%i+%i, %i parms\n", strings+funcs[i].s_file, 0, strings+funcs[i].s_name, funcs[i].first_statement, funcs[i].parm_start, funcs[i].locals, funcs[i].numparms);
 #endif
@@ -1172,7 +1195,7 @@ pbool QCC_WriteData (int crc)
 		Sys_Error("structtype error");
 	}
 
-	for (warnedunref = 0, def = pr.def_head.next ; def ; def = def->next)
+	for (dupewarncount = 0, def = pr.def_head.next ; def ; def = def->next)
 	{
 		if ((def->type->type == ev_struct || def->type->type == ev_union || def->arraysize) && def->deftail)
 		{
@@ -1221,13 +1244,12 @@ pbool QCC_WriteData (int crc)
 		{
 			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
 			pr_scope = def->scope;
-			if (strcmp(def->name, "IMMEDIATE") && qccwarningaction[wt])
+			if (!strncmp(def->name, "spawnfunc_", 10))
+				;	//no warnings from unreferenced entry points.
+			else if (strcmp(def->name, "IMMEDIATE") && qccwarningaction[wt] && !(def->type->type == ev_function && def->symbolheader->timescalled) && !def->symbolheader->used)
 			{
 				char typestr[256];
-				if (warnedunref++ >= 10 && !verbose)
-					pr_warning_count++;
-				else
-					QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name);
+				QCC_PR_Warning(wt, strings + def->s_file, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s  no references.", TypeName(def->type, typestr, sizeof(typestr)), def->name);
 			}
 			pr_scope = NULL;
 
@@ -1351,8 +1373,8 @@ pbool QCC_WriteData (int crc)
 #endif
 	}
 
-	if (warnedunref > 10 && !verbose)
-		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more warnings about unreferenced variables, as you clearly don't care about the first 10.", warnedunref-10);
+	if (dupewarncount > 10 && !verbose)
+		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more warnings about unreferenced variables, as you clearly don't care about the first 10.", dupewarncount-10);
 
 	for (i = 0; i < numglobaldefs; i++)
 	{
@@ -1405,13 +1427,26 @@ pbool QCC_WriteData (int crc)
 		QCC_Error(ERR_TOOMANYGLOBALS, "Too many globals - %i\nAdd \"MAX_GLOBALS\" \"%i\" to qcc.cfg", numglobaldefs, (numglobaldefs+32768)&~32767);
 
 
+	dupewarncount = 0;
 	for (i = 0; i < nummodels; i++)
 	{
 		if (!precache_model[i].used)
-			QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_model[i].filename, precache_model[i].fileline, "Model \"%s\" was precached but not directly used", precache_model[i].name);
+			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_model[i].filename, precache_model[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Model \"%s\" was precached but not directly used%s", precache_model[i].name, dupewarncount?"":" (annotate the usage with the used_model intrinsic to silence this warning)");
 		else if (!precache_model[i].block)
-			QCC_PR_Warning(WARN_NOTPRECACHED, precache_model[i].filename, precache_model[i].fileline, "Model \"%s\" was used but not precached", precache_model[i].name);
+			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_model[i].filename, precache_model[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Model \"%s\" was used but not precached", precache_model[i].name);
 	}
+
+	for (i = 0; i < numsounds; i++)
+	{
+		if (!precache_sound[i].used)
+			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Sound \"%s\" was precached but not directly used", precache_sound[i].name, dupewarncount?"":" (annotate the usage with the used_sound intrinsic to silence this warning)");
+		else if (!precache_sound[i].block)
+			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Sound \"%s\" was used but not precached", precache_sound[i].name);
+	}
+
+	if (dupewarncount > 10 && !verbose)
+		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more warnings about precaches.", dupewarncount-10);
+
 //PrintStrings ();
 //PrintFunctions ();
 //PrintFields ();
@@ -1801,6 +1836,10 @@ strofs = (strofs+3)&~3;
 	progs.ofs_types = 0;
 	progs.numtypes = 0;
 
+	
+	progs.ofsbodylessfuncs = SafeSeek (h, 0, SEEK_CUR);
+	progs.numbodylessfuncs = WriteBodylessFuncs(h);
+
 	switch(qcc_targetformat)
 	{
 	case QCF_QTEST:
@@ -1823,9 +1862,6 @@ strofs = (strofs+3)&~3;
 			progs.secondaryversion = PROG_SECONDARYVERSION32;
 		else
 			progs.secondaryversion = PROG_SECONDARYVERSION16;
-
-		progs.ofsbodylessfuncs = SafeSeek (h, 0, SEEK_CUR);
-		progs.numbodylessfuncs = WriteBodylessFuncs(h);
 
 		if (debugtarget && statement_linenums)
 		{
@@ -1873,6 +1909,10 @@ strofs = (strofs+3)&~3;
 		progs.ofsfiles = WriteSourceFiles(h, &progs, debugtarget);
 		break;
 	}
+
+	if (progs.version != PROG_EXTENDEDVERSION && progs.numbodylessfuncs)
+		printf ("WARNING: progs format cannot handle extern functions\n");
+
 
 	if (verbose)
 		printf ("%6i TOTAL SIZE\n", (int)SafeSeek (h, 0, SEEK_CUR));
@@ -3253,7 +3293,10 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				for (j = 0; j < ERR_PARSEERRORS; j++)
 					if (qccwarningaction[j] == WA_IGNORE)
 					{
-						qccwarningaction[j] = WA_WARN;
+						if (j != WARN_FTE_SPECIFIC &&		//kinda annoying when its actually valid code.
+							j != WARN_NOTREFERENCEDCONST &&	//warning about every single constant is annoying as heck. note that this includes both stuff like MOVETYPE_ and builtins.
+							j != WARN_EXTRAPRECACHE)		//we can't guarentee that we can parse this correctly. this warning is thus a common false positive. its available with -Wextra, and there's intrinsics to reduce false positives.
+							qccwarningaction[j] = WA_WARN;
 					}
 			}
 			else if (!stricmp(myargv[i]+2, "extra"))
@@ -3427,7 +3470,7 @@ void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_EVILPREPROCESSOR] = WA_WARN;//FIXME: make into WA_ERROR;
 
 	if (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_FTEH2)
-		qccwarningaction[WARN_CASEINSENSITIVEFRAMEMACRO] = WA_IGNORE;
+		qccwarningaction[WARN_CASEINSENSITIVEFRAMEMACRO] = WA_IGNORE;	//hexenc consides these fair game.
 
 	//Check the command line
 	QCC_PR_CommandLinePrecompilerOptions();
@@ -4187,7 +4230,7 @@ void QCC_FinishCompile(void)
 			if (optres_test2)
 				printf("optres_test2 %i\n", optres_test2);
 
-			printf("numtemps %i\n", tempsused);
+			printf("numtemps %u\n", (unsigned)tempsused);
 		}
 		if (!flag_msvcstyle)
 			printf("Done. %i warnings\n", pr_warning_count);

@@ -5180,7 +5180,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 				LightPlane (hm->relightcontext, hm->lightthreadmem, styles, br->faces[j].lightdata, NULL, br->planes[j], br->faces[j].stdir, exactmins, exactmaxs, br->faces[j].lmbias, texsize, br->faces[j].lmscale);	//special version that doesn't know what a face is or anything.
 				br->faces[j].relit = true;
 			}
-			if (br->faces[j].relit)
+			if (br->faces[j].relit && br->faces[j].lightmap >= 0)
 			{
 				int s,t;
 				qbyte *out, *in;
@@ -5474,8 +5474,16 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 			out->faces[oface].lmextents[k] = ceil((maxs[k])/out->faces[oface].lmscale)-out->faces[oface].lmbias[k]+1;
 			if (out->faces[oface].lmextents[k] > 128)
 			{	//surface is too large for lightmap data. just drop its resolution, because splitting the face in plane-defined geometry is a bad idea.
-				out->faces[oface].lmscale *= 2;
-				k = 0;
+				if (out->faces[oface].lmscale > 256)
+				{
+					out->faces[oface].relight = false;
+					k++;
+				}
+				else
+				{
+					out->faces[oface].lmscale *= 2;
+					k = 0;
+				}
 			}
 			else
 				k++;
@@ -5483,8 +5491,13 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 		out->faces[oface].lightmap = -1;
 		out->faces[oface].lmbase[0] = 0;
 		out->faces[oface].lmbase[1] = 0;
-		out->faces[oface].lightdata = BZ_Malloc(out->faces[oface].lmextents[0] * out->faces[oface].lmextents[1] * 3);
-		memset(out->faces[oface].lightdata, 0x3f, out->faces[oface].lmextents[0]*out->faces[oface].lmextents[1]*3);
+		if (out->faces[oface].relight)
+		{
+			out->faces[oface].lightdata = BZ_Malloc(out->faces[oface].lmextents[0] * out->faces[oface].lmextents[1] * 3);
+			memset(out->faces[oface].lightdata, 0x3f, out->faces[oface].lmextents[0]*out->faces[oface].lmextents[1]*3);
+		}
+		else
+			out->faces[oface].lightdata = NULL;
 
 //		Con_Printf("lm extents: %u %u (%i points)\n", out->faces[oface].lmextents[0], out->faces[oface].lmextents[1], numpoints);
 		oface++;
@@ -5724,7 +5737,7 @@ static void *validateqcpointer(pubprogfuncs_t *prinst, size_t qcptr, size_t elem
 		PR_BIError(prinst, "brush: elementcount %u is too large\n", (unsigned int)elementcount);
 		return NULL;
 	}
-	if (qcptr < 0 || qcptr+(elementsize*elementcount) >= prinst->stringtablesize)
+	if (qcptr < 0 || qcptr+(elementsize*elementcount) > prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "brush: invalid qc pointer\n");
 		return NULL;

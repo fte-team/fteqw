@@ -261,7 +261,7 @@ static void VARGS PFQ2_Configstring (int i, char *val)
 	strcpy(sv.strings.configstring[i], val);
 
 	if (i == Q2CS_NAME)
-		Q_strncpyz(sv.mapname, val, sizeof(sv.name));
+		Q_strncpyz(sv.mapname, val, sizeof(sv.mapname));
 
 /*
 	//work out range

@@ -754,15 +754,10 @@ static void CL_EntStateToPlayerState(player_state_t *plstate, entity_state_t *st
 	}
 	else
 		VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
-	VectorCopy(state->angles, plstate->viewangles);
-//	plstate->viewangles[2] = V_CalcRoll(plstate->viewangles, plstate->velocity);
 
 	plstate->viewangles[0] = SHORT2ANGLE(state->u.q1.vangle[0]);
 	plstate->viewangles[1] = SHORT2ANGLE(state->u.q1.vangle[1]);
 	plstate->viewangles[2] = SHORT2ANGLE(state->u.q1.vangle[2]);
-
-	if (state->u.q1.pmovetype)
-		plstate->viewangles[0] *= -3;
 
 	a[0] = ((-192-state->u.q1.gravitydir[0])/256.0f) * 360;
 	a[1] = (state->u.q1.gravitydir[1]/256.0f) * 360;

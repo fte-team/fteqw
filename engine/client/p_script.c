@@ -34,13 +34,6 @@ The engine has a few builtins.
 #endif
 #include "shader.h"
 
-#ifdef D3DQUAKE
-//d3d is awkward
-//we can't include two versions of header files
-extern void *d3dexplosiontexture;
-extern void *d3dballtexture;
-#endif
-
 #include "renderque.h"
 
 #include "r_partset.h"
@@ -152,7 +145,7 @@ typedef struct skytriblock_s
 //this is the required render state for each particle
 //dynamic per-particle stuff isn't important. only static state.
 typedef struct {
-	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_CDECAL, PT_UDECAL} type;
+	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_CDECAL, PT_UDECAL, PT_INVISIBLE} type;
 
 	blendmode_t blendmode;
 	shader_t *shader;
@@ -779,7 +772,13 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			ptype->s2 = 1;
 			ptype->t2 = 1;
 			ptype->randsmax = 1;
-			if (ptype->looks.type == PT_BEAM)
+			if (ptype->looks.type == PT_SPARK)
+			{
+				extern texid_t r_whiteimage;
+				ptype->looks.shader = R_RegisterShader(va("line%s", namepostfix), SUF_NONE, defaultshader);
+				TEXASSIGNF(tn.base, r_whiteimage);
+			}
+			else if (ptype->looks.type == PT_BEAM)
 			{
 				/*untextured beams get a single continuous blob*/
 				ptype->looks.shader = R_RegisterShader(va("beam%s", namepostfix), SUF_NONE, defaultshader);
@@ -904,7 +903,7 @@ void Cmd_if_f(void);
 
 //Uses FTE's multiline console stuff.
 //This is the function that loads the effect descriptions (via console).
-static void P_ParticleEffect_f(void)
+void P_ParticleEffect_f(void)
 {
 	char *var, *value;
 	char *buf;
@@ -940,7 +939,9 @@ static void P_ParticleEffect_f(void)
 	}
 
 	var = Cmd_Argv(1);
-	if (*var == '+')
+	if (!pe_script_enabled)
+		ptype = NULL;
+	else if (*var == '+')
 		ptype = P_GetParticleType(config, var+1);
 	else
 		ptype = P_GetParticleType(config, var);
@@ -1827,6 +1828,17 @@ static void P_ParticleEffect_f(void)
 		}
 	}
 
+	if (ptype->looks.type == PT_SPARK && r_part_sparks.ival<0)
+		ptype->looks.type = PT_INVISIBLE;
+	if (ptype->looks.type == PT_TEXTUREDSPARK && !r_part_sparks_textured.ival)
+		ptype->looks.type = PT_SPARK;
+	if (ptype->looks.type == PT_SPARKFAN && !r_part_sparks_trifan.ival)
+		ptype->looks.type = PT_SPARK;
+	if (ptype->looks.type == PT_SPARK && !r_part_sparks.ival)
+		ptype->looks.type = PT_INVISIBLE;
+	if (ptype->looks.type == PT_BEAM && r_part_beams.ival <= 0)
+		ptype->looks.type = PT_INVISIBLE;
+
 	if (ptype->looks.type == PT_BEAM && !setbeamlen)
 		ptype->rotationstartmin = 1/128.0;
 
@@ -2219,6 +2231,7 @@ static void P_BeamInfo_f (void)
 static void P_PartInfo_f (void)
 {
 	particle_t *p;
+	clippeddecal_t *d;
 	part_type_t *ptype;
 	int t = 0, r = 0, e = 0;
 
@@ -2236,6 +2249,8 @@ static void P_PartInfo_f (void)
 	{
 		j = 0;
 		for (p = part_type[i].particles; p; p = p->next)
+			j++;
+		for (d = part_type[i].clippeddecals; d; d = d->next)
 			j++;
 
 		if (j)
@@ -2731,7 +2746,6 @@ static qboolean PScript_InitParticles (void)
 
 	Cmd_AddCommand("pointfile", P_ReadPointFile_f);	//load the leak info produced from qbsp into the particle system to show a line. :)
 
-	Cmd_AddCommand("r_part", P_ParticleEffect_f);
 	pe_script_enabled = true;
 
 	Cmd_AddCommand("r_exportbuiltinparticles", P_ExportBuiltinSet_f);
@@ -3670,7 +3684,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3]
 			if (w <= tw)
 			{
 				if (*ptype->sounds[i].name && ptype->sounds[i].vol > 0)
-					S_StartSound(0, 0, S_PrecacheSound(ptype->sounds[i].name), org, ptype->sounds[i].vol, ptype->sounds[i].atten, ptype->sounds[i].delay, ptype->sounds[i].pitch);
+					S_StartSound(0, 0, S_PrecacheSound(ptype->sounds[i].name), org, ptype->sounds[i].vol, ptype->sounds[i].atten, -ptype->sounds[i].delay, ptype->sounds[i].pitch);
 				break;
 			}
 		}
@@ -3902,6 +3916,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			CrossProduct(dir, vec, ctx.tangent1);
 			Matrix4x4_CM_Transform3(Matrix4x4_CM_NewRotation(frandom()*360, dir[0], dir[1], dir[2]), ctx.tangent1, ctx.tangent2);
 			CrossProduct(dir, ctx.tangent2, ctx.tangent1);
+
+			VectorNormalize(ctx.tangent1);
+			VectorNormalize(ctx.tangent2);
 
 			ctx.ptype = ptype;
 			ctx.scale1 = ptype->s2 - ptype->s1;
@@ -5227,45 +5244,38 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 	}
 }
 
-static void R_AddLineSparkParticle(int count, particle_t **plist, plooks_t *type)
+//static void R_AddLineSparkParticle(int count, particle_t **plist, plooks_t *type)
+static void R_AddLineSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 {
-/*
-	particle_t *p;
-	while (count--)
+	if (cl_numstrisvert+2 > cl_maxstrisvert)
 	{
-		p = *plist++;
-
-		if (cl_numstrisvert+2 > cl_maxstrisvert)
-		{
-			cl_maxstrisvert+=64*2;
-			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
-			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
-			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
-		}
-
-		Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+0]);
-		VectorCopy(p->rgba, cl_strisvertc[cl_numstrisvert+1]);
-		cl_strisvertc[cl_numstrisvert+1][3] = 0;
-		Vector2Set(cl_strisvertt[cl_numstrisvert+0], p->s1, p->t1);
-		Vector2Set(cl_strisvertt[cl_numstrisvert+1], p->s2, p->t2);
-
-		VectorCopy(p->org, cl_strisvertv[cl_numstrisvert+0]);
-		VectorMA(p->org, -1/10, p->vel, cl_strisvertv[cl_numstrisvert+1]);
-		
-		if (cl_numstrisidx+2 > cl_maxstrisidx)
-		{
-			cl_maxstrisidx += 64*2;
-			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
-		}
-		cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 0;
-		cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 1;
-
-		cl_numstrisvert += 2;
-
-		t->numvert += 2;
-		t->numidx += 2;
+		cl_maxstrisvert+=64*2;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
 	}
-*/
+
+	Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+0]);
+	VectorCopy(p->rgba, cl_strisvertc[cl_numstrisvert+1]);
+	cl_strisvertc[cl_numstrisvert+1][3] = 0;
+	Vector2Set(cl_strisvertt[cl_numstrisvert+0], p->s1, p->t1);
+	Vector2Set(cl_strisvertt[cl_numstrisvert+1], p->s2, p->t2);
+
+	VectorCopy(p->org, cl_strisvertv[cl_numstrisvert+0]);
+	VectorMA(p->org, -1.0/10, p->vel, cl_strisvertv[cl_numstrisvert+1]);
+	
+	if (cl_numstrisidx+2 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx += 64*2;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 0;
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 1;
+
+	cl_numstrisvert += 2;
+
+	t->numvert += 2;
+	t->numidx += 2;
 }
 
 static void R_AddTSparkParticle(scenetris_t *t, particle_t *p, plooks_t *type)
@@ -5763,7 +5773,7 @@ static void R_AddTexturedParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 
 static void PScript_DrawParticleTypes (void)
 {
-	void (*sparklineparticles)(int count, particle_t **plist, plooks_t *type)=R_AddLineSparkParticle;
+//	void (*sparklineparticles)(int count, particle_t **plist, plooks_t *type)=R_AddLineSparkParticle;
 	void (*sparkfanparticles)(int count, particle_t **plist, plooks_t *type)=GL_DrawTrifanParticle;
 	void (*sparktexturedparticles)(int count, particle_t **plist, plooks_t *type)=GL_DrawTexturedSparkParticle;
 
@@ -5789,6 +5799,7 @@ static void PScript_DrawParticleTypes (void)
 	int traces=r_particle_tracelimit.ival;
 	int rampind;
 	static float oldtime;
+	int batchflags;
 	RSpeedMark();
 
 	if (r_plooksdirty)
@@ -5826,25 +5837,6 @@ static void PScript_DrawParticleTypes (void)
 	tr = TraceLineN;
 
 	kill_list = kill_first = NULL;
-
-	if (r_part_sparks_textured.ival < 0)
-		sparktexturedparticles = NULL;
-	else if (!r_part_sparks_textured.ival)
-		sparktexturedparticles = sparklineparticles;
-
-	if (r_part_sparks_trifan.ival < 0)
-		sparkfanparticles = NULL;
-	else if (!r_part_sparks_trifan.ival)
-		sparkfanparticles = sparklineparticles;
-
-	if (r_part_sparks.ival < 0)
-		sparklineparticles = NULL;
-	else if (!r_part_sparks.ival)
-	{
-		sparktexturedparticles = NULL;
-		sparkfanparticles = NULL;
-		sparklineparticles = NULL;
-	}
 
 	for (type = part_run_list, lastvalidtype = NULL; type != NULL; type = type->nexttorun)
 	{
@@ -5940,16 +5932,14 @@ static void PScript_DrawParticleTypes (void)
 		bdraw = NULL;
 		pdraw = NULL;
 		tdraw = NULL;
+		batchflags = 0;
 
 		// set drawing methods by type and cvars and hope branch
 		// prediction takes care of the rest
 		switch(type->looks.type)
 		{
 		case PT_BEAM:
-			if (r_part_beams.ival <= 0)
-				bdraw = NULL;
-			else
-				bdraw = GL_DrawParticleBeam;
+			bdraw = GL_DrawParticleBeam;
 			break;
 		case PT_CDECAL:
 			break;
@@ -5961,7 +5951,8 @@ static void PScript_DrawParticleTypes (void)
 			tdraw = R_AddTexturedParticle;
 			break;
 		case PT_SPARK:
-			pdraw = sparklineparticles;
+			tdraw = R_AddLineSparkParticle;
+			batchflags = BEF_LINES;
 			break;
 		case PT_SPARKFAN:
 			pdraw = sparkfanparticles;
@@ -5974,7 +5965,7 @@ static void PScript_DrawParticleTypes (void)
 
 		if (!tdraw || type->looks.shader->sort == SHADER_SORT_BLEND)
 			scenetri = NULL;
-		else if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader && cl_stris[cl_numstris-1].flags == 0)
+		else if (cl_numstris && cl_stris[cl_numstris-1].shader == type->looks.shader && cl_stris[cl_numstris-1].flags == batchflags)
 			scenetri = &cl_stris[cl_numstris-1];
 		else
 		{
@@ -5987,7 +5978,7 @@ static void PScript_DrawParticleTypes (void)
 			scenetri->shader = type->looks.shader;
 			scenetri->firstidx = cl_numstrisidx;
 			scenetri->firstvert = cl_numstrisvert;
-			scenetri->flags = 0;
+			scenetri->flags = batchflags;
 			scenetri->numvert = 0;
 			scenetri->numidx = 0;
 		}

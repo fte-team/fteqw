@@ -166,10 +166,11 @@ K_PRINTSCREEN	= 248,
 K_MAX			= 256
 };
 
-#define KEY_MODIFIER_SHIFT	(1<<0)
-#define KEY_MODIFIER_ALT	(1<<1)
-#define KEY_MODIFIER_CTRL	(1<<2)
-#define	KEY_MODIFIERSTATES	(1<<3)
+#define KEY_MODIFIER_SHIFT		(1<<0)
+#define KEY_MODIFIER_ALT		(1<<1)
+#define KEY_MODIFIER_CTRL		(1<<2)
+#define KEY_MODIFIER_ALTBINDMAP	(1<<3)
+#define	KEY_MODIFIERSTATES		(1<<4)
 
 #define K_SHIFT K_LSHIFT
 #define K_CTRL K_LCTRL
@@ -194,7 +195,7 @@ typedef enum	//highest has priority
 
 extern unsigned int key_dest_absolutemouse;	//if the active key dest bit is set, the mouse is absolute.
 extern unsigned int key_dest_mask;
-extern char *keybindings[K_MAX][8];
+extern char *keybindings[K_MAX][16];
 extern	int		key_repeats[K_MAX];
 extern	int		key_count;			// incremented every key event
 extern	int		key_lastpress;

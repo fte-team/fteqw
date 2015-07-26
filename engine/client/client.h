@@ -665,6 +665,16 @@ struct playerview_s
 		int prevframe;
 		int oldframe;
 	} vm;
+
+	struct
+	{
+		qboolean defaulted;
+		vec3_t origin;
+		vec3_t forward;
+		vec3_t right;
+		vec3_t up;
+		int inwater;
+	} audio;
 };
 
 //
@@ -789,8 +799,8 @@ typedef struct
 	vec3_t skyaxis;
 
 	qboolean	fog_locked;
-	fogstate_t	fog;
-	fogstate_t	oldfog;
+	fogstate_t	fog[2];	//0 = air, 1 = water. if water has no density fall back on air.
+	fogstate_t	oldfog[2];
 
 	char		levelname[40];	// for display on solo scoreboard
 
@@ -1071,9 +1081,11 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps);
 int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcost, int *chainedcost);
 
 float CL_KeyState (kbutton_t *key, int pnum, qboolean noslowstart);
-char *Key_KeynumToString (int keynum);
+char *Key_KeynumToString (int keynum, int modifier);
 int Key_StringToKeynum (const char *str, int *modifier);
-char *Key_GetBinding(int keynum);
+char *Key_GetBinding(int keynum, int bindmap, int modifier);
+void Key_GetBindMap(int *bindmaps);
+void Key_SetBindMap(int *bindmaps);
 
 void CL_UseIndepPhysics(qboolean allow);
 
@@ -1082,8 +1094,6 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...) LIKEPRINTF
 float CL_FilterTime (double time, float wantfps, qboolean ignoreserver);
 int CL_RemoveClientCommands(char *command);
 void CL_AllowIndependantSendCmd(qboolean allow);
-
-void CL_DrawPrydonCursor(void);
 
 //
 // cl_demo.c
@@ -1284,7 +1294,7 @@ qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid);
 qboolean CSQC_MousePosition(float xabs, float yabs, int devid);
 qboolean CSQC_JoystickAxis(int axis, float value, int devid);
 qboolean CSQC_Accelerometer(float x, float y, float z);
-int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod);
+int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs);
 void CSQC_ParseEntities(void);
 void CSQC_ResetTrails(void);
 
@@ -1501,7 +1511,7 @@ struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
 #endif
-qboolean Media_BackgroundTrack(const char *initialtrack, const char *looptrack);	//new background music interface
+qboolean Media_NamedTrack(const char *initialtrack, const char *looptrack);	//new background music interface
 void Media_NumberedTrack(unsigned int initialtrack, unsigned int looptrack);				//legacy cd interface for protocols that only support numbered tracks.
 void Media_EndedTrack(void);	//cd is no longer running, media code needs to pick a new track (cd track or faketrack)
 

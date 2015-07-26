@@ -546,7 +546,7 @@ void R_PushDlights (void)
 //rtlight loading
 
 #ifdef RTLIGHTS
-void R_ImportRTLights(char *entlump)
+qboolean R_ImportRTLights(char *entlump)
 {
 	typedef enum lighttype_e {LIGHTTYPE_MINUSX, LIGHTTYPE_RECIPX, LIGHTTYPE_RECIPXX, LIGHTTYPE_NONE, LIGHTTYPE_SUN, LIGHTTYPE_MINUSXX} lighttype_t;
 
@@ -556,6 +556,7 @@ void R_ImportRTLights(char *entlump)
 	float origin[3], angles[3], radius, color[3], light[4], fadescale, lightscale, originhack[3], overridecolor[3], vec[4];
 	char key[256], value[8192];
 	int nest;
+	qboolean okay = false;
 
 	COM_Parse(entlump);
 	if (!strcmp(com_token, "Version"))
@@ -743,7 +744,10 @@ void R_ImportRTLights(char *entlump)
 			{
 				//tenebrae compat. don't generate rtlights automagically if the world entity specifies this.
 				if (atoi(value))
-					return;
+				{
+					okay = true;
+					return okay;
+				}
 			}
 		}
 		if (!islight)
@@ -783,7 +787,7 @@ void R_ImportRTLights(char *entlump)
 			break;
 		}
 		VectorAdd(origin, originhack, origin);
-		if (radius >= 1)
+		if (radius >= 1 && !(cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, origin) & FTECONTENTS_SOLID))
 		{
 			dlight_t *dl = CL_AllocSlight();
 			if (!dl)
@@ -803,11 +807,15 @@ void R_ImportRTLights(char *entlump)
 			dl->lightcolourscales[2] = r_editlights_import_specular.value;
 			if (skin >= 16)
 				R_LoadNumberedLightTexture(dl, skin);
+
+			okay = true;
 		}
 	}
+
+	return okay;
 }
 
-void R_LoadRTLights(void)
+qboolean R_LoadRTLights(void)
 {
 	dlight_t *dl;
 	char fname[MAX_QPATH];
@@ -954,6 +962,7 @@ void R_LoadRTLights(void)
 		}
 		file = end+1;
 	}
+	return !!file;
 }
 
 void R_SaveRTLights_f(void)
@@ -995,7 +1004,7 @@ void R_SaveRTLights_f(void)
 			light->radius, light->color[0], light->color[1], light->color[2], 
 			light->style-1,
 			light->cubemapname, light->corona,
-			ang[0], ang[1], ang[2],
+			anglemod(-ang[0]), ang[1], ang[2],
 			light->coronascale, light->lightcolourscales[0], light->lightcolourscales[1], light->lightcolourscales[2], light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE|LFLAG_CREPUSCULAR),
 			light->rotation[0],light->rotation[1],light->rotation[2],light->fov
 			));
@@ -1025,7 +1034,7 @@ void R_StaticEntityToRTLight(int i)
 	if (!state->light[0] && !state->light[1] && !state->light[2])
 		VectorSet(dl->color, 1, 1, 1);
 	dl->flags = 0;
-	dl->flags |= LFLAG_REALTIMEMODE;
+	dl->flags |= LFLAG_NORMALMODE|LFLAG_REALTIMEMODE;
 	dl->flags |= (state->lightpflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
 	if (state->lightpflags & PFLAGS_CORONA)
 		dl->corona = 1;
@@ -1209,7 +1218,7 @@ void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_a
 		VectorCopy(direction, res_dir);
 }
 
-int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
+static int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 {
 	int			r;
 	float		front, back, frac;
@@ -1361,7 +1370,7 @@ int R_LightPoint (vec3_t p)
 
 #ifdef PEXT_LIGHTSTYLECOL
 
-float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
+static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, vec3_t start, vec3_t end)
 {
 	static float l[6];
 	float *r;
@@ -1377,7 +1386,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 	float	scale, overbright;
 	int			maps;
 
-	if (cl.worldmodel->fromgame == fg_quake2)
+	if (mod->fromgame == fg_quake2)
 	{
 		if (node->contents != -1)
 			return NULL;		// solid
@@ -1394,7 +1403,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 	side = front < 0;
 	
 	if ( (back < 0) == side)
-		return GLRecursiveLightPoint3C (node->children[side], start, end);
+		return GLRecursiveLightPoint3C (mod, node->children[side], start, end);
 	
 	frac = front / (front-back);
 	mid[0] = start[0] + (end[0] - start[0])*frac;
@@ -1402,7 +1411,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 	mid[2] = start[2] + (end[2] - start[2])*frac;
 	
 // go down front side	
-	r = GLRecursiveLightPoint3C (node->children[side], start, mid);
+	r = GLRecursiveLightPoint3C (mod, node->children[side], start, mid);
 	if (r && r[0]+r[1]+r[2] >= 0)
 		return r;		// hit something
 		
@@ -1413,7 +1422,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 	VectorCopy (mid, lightspot);
 	lightplane = plane;
 
-	surf = cl.worldmodel->surfaces + node->firstsurface;
+	surf = mod->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
 		if (surf->flags & SURF_DRAWTILED)
@@ -1450,11 +1459,11 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 		if (lightmap)
 		{
 			overbright = 1/255.0f;
-			if (cl.worldmodel->deluxdata)
+			if (mod->deluxdata)
 			{
-				if (cl.worldmodel->engineflags & MDLF_RGBLIGHTING)
+				if (mod->engineflags & MDLF_RGBLIGHTING)
 				{
-					deluxmap = surf->samples - cl.worldmodel->lightdata + cl.worldmodel->deluxdata;
+					deluxmap = surf->samples - mod->lightdata + mod->deluxdata;
 
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
 					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
@@ -1480,7 +1489,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 				}
 				else
 				{
-					deluxmap = (surf->samples - cl.worldmodel->lightdata)*3 + cl.worldmodel->deluxdata;
+					deluxmap = (surf->samples - mod->lightdata)*3 + mod->deluxdata;
 
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds);
 					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
@@ -1507,7 +1516,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 			}
 			else
 			{
-				if (cl.worldmodel->engineflags & MDLF_RGBLIGHTING)
+				if (mod->engineflags & MDLF_RGBLIGHTING)
 				{
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
@@ -1547,7 +1556,7 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 	}
 
 // go down back side
-	return GLRecursiveLightPoint3C (node->children[!side], mid, end);
+	return GLRecursiveLightPoint3C (mod, node->children[!side], mid, end);
 }
 
 #endif
@@ -1558,7 +1567,7 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 	float *r;
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 
-	if (!cl.worldmodel->lightdata || r_fullbright.ival)
+	if (!model->lightdata || r_fullbright.ival)
 	{
 		res_diffuse[0] = 0;
 		res_diffuse[1] = 0;
@@ -1579,7 +1588,7 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 	end[1] = point[1];
 	end[2] = point[2] - 2048;
 
-	r = GLRecursiveLightPoint3C(model->rootnode, point, end);
+	r = GLRecursiveLightPoint3C(model, model->rootnode, point, end);
 	if (r == NULL)
 	{
 		res_diffuse[0] = 0;

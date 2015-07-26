@@ -229,6 +229,7 @@ typedef struct image_s
 	unsigned int flags;
 	struct image_s *next;
 	struct image_s *prev;
+	struct image_s *aliasof;
 #if defined(D3DQUAKE) || defined(SWQUAKE)
 	void *ptr;	//texture
 	void *ptr2;	//view

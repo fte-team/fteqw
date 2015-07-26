@@ -105,19 +105,32 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 		M_DrawScalePic (cx, cy+8, 8, 8, p);
 }
 
-int M_FindKeysForBind (const char *command, int *keylist, int *keymods, int total)
+int M_FindKeysForBind (int bindmap, const char *command, int *keylist, int *keymods, int keycount)
 {
 	int		count;
 	int		j, m;
 	int		l, p;
 	char	*b;
+	int		firstmod, lastmod;
 
 	l = strlen(command);
 	count = 0;
 
+	if (bindmap > 0 && bindmap <= KEY_MODIFIER_ALTBINDMAP)
+	{
+		//bindmaps don't support modifiers
+		firstmod = (bindmap-1)|KEY_MODIFIER_ALTBINDMAP;
+		lastmod = firstmod+1;
+	}
+	else
+	{
+		firstmod = 0;
+		lastmod = KEY_MODIFIER_ALTBINDMAP;
+	}
+
 	for (j=0 ; j<256 ; j++)
 	{
-		for (m = 0; m < KEY_MODIFIERSTATES; m++)
+		for (m = firstmod; m < lastmod; m++)
 		{
 			b = keybindings[j][m];
 			if (!b)
@@ -125,11 +138,11 @@ int M_FindKeysForBind (const char *command, int *keylist, int *keymods, int tota
 			if (!strncmp (b, command, l) && (!b[l] || b[l] == ' ' || b[l] == ';'))
 			{
 				//if ctrl_a and ctrl_shift_a do the same thing, don't report ctrl_shift_a because its redundant.
-				for (p = 0; p < m; p++)
+				for (p = firstmod; p < m; p++)
 				{
 					if (p&~m)	//ignore shift_a if we're checking ctrl_a
 						continue;
-					if (!strcmp(keybindings[j][p], b))
+					if (keybindings[j][p] && !strcmp(keybindings[j][p], b))
 						break;	//break+continue
 				}
 				if (p != m)
@@ -137,14 +150,14 @@ int M_FindKeysForBind (const char *command, int *keylist, int *keymods, int tota
 
 				keylist[count] = j;
 				if (keymods)
-					keymods[count] = j;
+					keymods[count] = m;
 				count++;
-				if (count == total)
+				if (count == keycount)
 					return count;
 			}
 		}
 	}
-	for (j = count; j < total; j++)
+	for (j = count; j < keycount; j++)
 	{
 		keylist[j] = -1;
 		if (keymods)
@@ -152,7 +165,7 @@ int M_FindKeysForBind (const char *command, int *keylist, int *keymods, int tota
 	}
 	return count;
 }
-void M_FindKeysForCommand (int pnum, const char *command, int *twokeys)
+int M_FindKeysForCommand (int bindmap, int pnum, const char *command, int *keylist, int *keymods, int keycount)
 {
 	char prefix[5];
 
@@ -180,7 +193,7 @@ void M_FindKeysForCommand (int pnum, const char *command, int *twokeys)
 			prefix[3] = 0;
 		}
 	}
-	M_FindKeysForBind(va("%s%s", prefix, command), twokeys, NULL, 2);
+	return M_FindKeysForBind(bindmap, va("%s%s", prefix, command), keylist, keymods, keycount);
 }
 
 #ifndef NOBUILTINMENUS
@@ -582,16 +595,20 @@ void M_UnbindCommand (const char *command)
 	int		j;
 	int		l;
 	char	*b;
+	int m;
 
 	l = strlen(command);
 
 	for (j=0 ; j<256 ; j++)
-	{
-		b = keybindings[j][0];
-		if (!b)
-			continue;
-		if (!strncmp (b, command, l) )
-			Key_SetBinding (j, ~0, "", RESTRICT_LOCAL);
+	{	//FIXME: not sure what to do about bindmaps here. oh well.
+		for (m = 0; m < KEY_MODIFIERSTATES; m++)
+		{
+			b = keybindings[j][m];
+			if (!b)
+				continue;
+			if (!strncmp (b, command, l) )
+				Key_SetBinding (j, m, "", RESTRICT_LOCAL);
+		}
 	}
 }
 
@@ -1406,6 +1423,8 @@ void M_Keydown (int key, int unicode)
 	case m_complex:
 		if (key == K_MOUSE1)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
 			menu_mousedown = true;
+		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
+			;
 		else
 			M_Complex_Key (key, unicode);
 		return;
@@ -1427,6 +1446,8 @@ void M_Keyup (int key, int unicode)
 #ifndef NOBUILTINMENUS
 	case m_complex:
 		if (key == K_MOUSE1 && menu_mousedown)
+			M_Complex_Key (key, unicode);
+		else if (key == K_LSHIFT || key == K_RSHIFT || key == K_LALT || key == K_RALT || key == K_LCTRL || key == K_RCTRL)
 			M_Complex_Key (key, unicode);
 		menu_mousedown = false;
 		return;

@@ -13,7 +13,52 @@ static cvar_t m_strafeonright = CVARFD("m_strafeonright", "1", CVAR_ARCHIVE, "If
 static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.2", CVAR_ARCHIVE, "How fat your thumb has to be to register a fat press (touchscreens).");
 static cvar_t m_touchmajoraxis = CVARFD("m_touchmajoraxis", "1", CVAR_ARCHIVE, "When using a touchscreen, use only the major axis for strafing.");
 static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "10", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event (touchscreens).");
+static cvar_t	joy_advaxis[6] =
+{
+	CVARD("joyadvaxisx", "4", "Provides a way to remap each joystick/controller axis.\n0:dead, 1:fwd, 2:pitch, 3:side, 4:yaw, 5:up, 6:roll"),
+	CVAR("joyadvaxisy", "2"),
+	CVAR("joyadvaxisz", "5"),
+	CVAR("joyadvaxisr", "3"),
+	CVAR("joyadvaxisu", "1"),
+	CVAR("joyadvaxisv", "6")
+};
+static cvar_t	joy_advaxisscale[6] =
+{
+	CVARD("joyadvaxisx_scale", "1.0", "Because joyadvaxisx etc can be added together, this provides a way to rescale or invert an individual axis without affecting another with the same action."),
+	CVAR("joyadvaxisy_scale", "1.0"),
+	CVAR("joyadvaxisz_scale", "1.0"),
+	CVAR("joyadvaxisr_scale", "1.0"),
+	CVAR("joyadvaxisu_scale", "1.0"),
+	CVAR("joyadvaxisv_scale", "1.0")
+};
+static cvar_t	joy_anglesens[3] =
+{
+	CVARD("joypitchsensitivity", "1.0", "Scaler value for the controller when it is at its most extreme value"),
+	CVAR("joyyawsensitivity", "-1.0"),
+	CVAR("joyrollsensitivity", "1.0")
+};
+static cvar_t	joy_movesens[3] =
+{
+	CVAR("joyforwardsensitivity", "1.0"),
+	CVAR("joysidesensitivity", "-1.0"),
+	CVAR("joyupsensitivity", "1.0")
+};
+//comments on threshholds comes from microsoft's xinput docs.
+static cvar_t	joy_anglethreshold[3] =
+{
+	CVARD("joypitchthreshold", "0.19", "Values reported near the center of the analog joystick/controller are often erroneous and undesired.\nThe joystick threshholds are how much of the total values to ignore."),	//8689/32767 (right thumb)
+	CVAR("joyyawthreshold", "0.19"),	//8689/32767 (right thumb)
+	CVAR("joyrollthreshold", "0.118"),	//30/255	 (trigger)
+};
+static cvar_t	joy_movethreshold[3] =
+{
+	CVAR("joyforwardthreshold", "0.17"),//7849/32767 (left thumb)
+	CVAR("joysidethreshold", "0.17"),	//7849/32767 (left thumb)
+	CVAR("joyupthreshold", "0.118"),	//30/255	 (trigger)
+};
 
+static cvar_t joy_exponent = CVARD("joyexponent", "2", "Scales joystick/controller sensitivity non-linearly to increase precision in the center.\nA value of 1 is linear.");
+static cvar_t joy_radialdeadzone = CVARD("joyradialdeadzone", "1", "Treat controller dead zones as a pair, rather than per-axis.");
 extern cvar_t _windowed_mouse;
 
 
@@ -80,15 +125,16 @@ struct mouse_s
 	vec2_t old_delta;	//how far its moved previously, for mouse smoothing
 	float wheeldelta;
 	int down;
+	unsigned int updates;	//tracks updates per second
 } ptr[MAXPOINTERS];
 int touchcursor;	//the cursor follows whichever finger was most recently pressed in preference to any mouse also on the same system
 
 #define MAXJOYAXIS 6
-#define MAXJOYSTICKS 4
+#define MAXJOYSTICKS 8
 struct joy_s
 {
 	int qdeviceid;
-	int axis[MAXJOYAXIS];
+	float axis[MAXJOYAXIS];
 } joy[MAXJOYSTICKS];
 
 void IN_Shutdown(void)
@@ -102,12 +148,14 @@ void IN_ReInit(void)
 
 	for (i = 0; i < MAXPOINTERS; i++)
 	{
+		memset(&ptr[i], 0, sizeof(ptr[i]));
 		ptr[i].type = M_INVALID;
 		ptr[i].qdeviceid = i;
 	}
 
 	for (i = 0; i < MAXJOYSTICKS; i++)
 	{
+		memset(&joy[i], 0, sizeof(joy[i]));
 		joy[i].qdeviceid = i;
 	}
 
@@ -150,8 +198,23 @@ void IN_DeviceIDs_f(void)
 		INS_EnumerateDevices(NULL, IN_DeviceIDs_Enumerate);
 }
 
+float IN_DetermineMouseRate(void)
+{
+	float time = Sys_DoubleTime();
+	static float timer;
+	static float last;
+	if (fabs(time - timer) > 1)
+	{
+		timer = time;
+		last = ptr[0].updates;
+		ptr[0].updates = 0;
+	}
+	return last;
+}
+
 void IN_Init(void)
 {
+	int i;
 	events_avail = 0;
 	events_used = 0;
 
@@ -163,6 +226,21 @@ void IN_Init(void)
 	Cvar_Register (&m_fatpressthreshold, "input controls");
 	Cvar_Register (&m_slidethreshold, "input controls");
 	Cvar_Register (&m_touchmajoraxis, "input controls");
+
+	for (i = 0; i < 6; i++)
+	{
+		Cvar_Register (&joy_advaxis[i], "input controls");
+		Cvar_Register (&joy_advaxisscale[i], "input controls");
+	}
+	for (i = 0; i < 3; i++)
+	{
+		Cvar_Register (&joy_anglesens[i], "input controls");
+		Cvar_Register (&joy_movesens[i], "input controls");
+		Cvar_Register (&joy_anglethreshold[i], "input controls");
+		Cvar_Register (&joy_movethreshold[i], "input controls");
+	}
+	Cvar_Register (&joy_exponent, "input controls");
+	Cvar_Register (&joy_radialdeadzone, "input controls");
 
 	Cmd_AddCommand ("in_deviceids", IN_DeviceIDs_f);
 
@@ -287,6 +365,9 @@ void IN_Commands(void)
 					else if (ev->mouse.z < -mfwt)
 						ptr[ev->devid].wheeldelta += mfwt;
 				}
+
+				if (ev->mouse.x || ev->mouse.y)
+					ptr[ev->devid].updates++;
 			}
 			break;
 		case IEV_MOUSEABS:
@@ -319,6 +400,10 @@ void IN_Commands(void)
 		
 					ptr[ev->devid].moveddist += fabs(ev->mouse.x - ptr[ev->devid].oldpos[0]) + fabs(ev->mouse.y - ptr[ev->devid].oldpos[1]);
 				}
+
+				if (ptr[ev->devid].delta[0] != ev->mouse.x - ptr[ev->devid].oldpos[0] ||
+					ptr[ev->devid].delta[1] != ev->mouse.y - ptr[ev->devid].oldpos[1])
+					ptr[ev->devid].updates++;
 
 				ptr[ev->devid].oldpos[0] = ev->mouse.x;
 				ptr[ev->devid].oldpos[1] = ev->mouse.y;
@@ -573,6 +658,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	}
 }
 
+//rescales threshold-1 down 0-1
 static float joydeadzone(float mag, float deadzone)
 {
 	if (mag > 1)	//erg?
@@ -592,7 +678,12 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 	float mag;
 	vec3_t jlook, jstrafe;
 
-	int wpnum;
+	int wpnum, i;
+	for (i = 0; i < MAXJOYAXIS; i++)
+		if (joy->axis[i])
+			break;
+	if (i == MAXJOYAXIS)
+		return;
 
 	/*each device will be processed when its player comes to be processed*/
 	wpnum = cl.splitclients;
@@ -605,29 +696,69 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 	if (wpnum != pnum)
 		return;
 
-	jlook[0] = joy->axis[0];
-	jlook[1] = joy->axis[1];
-	jlook[2] = joy->axis[2];
+	memset(jstrafe, 0, sizeof(jstrafe));
+	memset(jlook, 0, sizeof(jlook));
 
-	jstrafe[0] = joy->axis[3];
-	jstrafe[1] = joy->axis[4];
-	jstrafe[2] = joy->axis[5];
+	for (i = 0; i < 6; i++)
+	{
+		switch(joy_advaxis[i].ival)
+		{
+		default:
+		case 0:	//dead axis
+			break;
+		case 1:
+			jstrafe[0] += joy->axis[i] * joy_advaxisscale[i].value;
+			break;
+		case 2:
+			jlook[0] += joy->axis[i] * joy_advaxisscale[i].value;
+			break;
+		case 3:
+			jstrafe[1] += joy->axis[i] * joy_advaxisscale[i].value;
+			break;
+		case 4:
+			jlook[1] += joy->axis[i] * joy_advaxisscale[i].value;
+			break;
+		case 5:
+			jstrafe[2] += joy->axis[i] * joy_advaxisscale[i].value;
+			break;
+		case 6:
+			jlook[2] += joy->axis[i] * joy_advaxisscale[i].value;
+			break;
+		}
+	}
 
 	//uses a radial deadzone for x+y axis, and separate out the z axis, just because most controllers are 2d affairs with any 3rd axis being a separate knob.
 	//deadzone values are stolen from microsoft's xinput documentation. they seem quite large to me - I guess that means that xbox controllers are just dodgy imprecise crap with excessive amounts of friction and finger grease.
-	mag = joydeadzone(sqrt(jlook[0]*jlook[0] + jlook[1]*jlook[1]), 0.239);
-	mag = pow(mag, 2);
-	jlook[0] *= mag;
-	jlook[1] *= mag;
-	mag = joydeadzone(fabs(jlook[2]), 0.00092);
-	jlook[2] *= mag;
 
-	mag = joydeadzone(sqrt(jstrafe[0]*jstrafe[0] + jstrafe[1]*jstrafe[1]), 0.265);
-	mag = pow(mag, 2);
-	jstrafe[0] *= mag;
-	jstrafe[1] *= mag;
-	mag = joydeadzone(fabs(jstrafe[2]), 0.00092);
-	jstrafe[2] *= mag;
+	if (joy_radialdeadzone.ival)
+	{
+		mag = joydeadzone(sqrt(jlook[0]*jlook[0] + jlook[1]*jlook[1]), sqrt(joy_anglethreshold[0].value*joy_anglethreshold[0].value + joy_anglethreshold[1].value*joy_anglethreshold[1].value));
+		mag = pow(mag, joy_exponent.value);
+		jlook[0] *= mag;
+		jlook[1] *= mag;
+		mag = joydeadzone(fabs(jlook[2]), joy_anglethreshold[2].value);
+		jlook[2] *= mag;
+
+		mag = joydeadzone(sqrt(jstrafe[0]*jstrafe[0] + jstrafe[1]*jstrafe[1]), sqrt(joy_movethreshold[0].value*joy_movethreshold[0].value + joy_movethreshold[1].value*joy_movethreshold[1].value));
+		mag = pow(mag, joy_exponent.value);
+		jstrafe[0] *= mag;
+		jstrafe[1] *= mag;
+		mag = joydeadzone(fabs(jstrafe[2]), joy_movethreshold[2].value);
+		jstrafe[2] *= mag;
+	}
+	else
+	{
+		for (i = 0; i < 3; i++)
+		{
+			mag = joydeadzone(fabs(jlook[i]), joy_anglethreshold[i].value);
+			mag = pow(mag, joy_exponent.value);
+			jlook[i] *= mag;
+
+			mag = joydeadzone(fabs(jstrafe[i]), joy_movethreshold[i].value);
+			mag = pow(mag, joy_exponent.value);
+			jstrafe[i] *= mag;
+		}
+	}
 
 	if (Key_Dest_Has(~kdm_game))
 	{
@@ -635,24 +766,28 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		VectorClear(jstrafe);
 	}
 
-	VectorScale(jlook, frametime, jlook);
-	VectorScale(jstrafe, frametime, jstrafe);
+	if (in_speed.state[pnum] & 1)
+	{
+		VectorScale(jlook, 360*cl_movespeedkey.value, jlook);
+		VectorScale(jstrafe, 360*cl_movespeedkey.value, jstrafe);
+	}
+	VectorScale(jlook, 360*frametime, jlook);
 
 	if (!movements)	//if this is null, gamecode should still get inputs, just no camera looking or anything.
 		return;
 
 	//angle changes
-	cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * jlook[0];
-	cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * jlook[1];
-//	cl.playerview[pnum].viewanglechange[ROLL] += m_roll.value * jlook[2];	//this would be too weird.
+	cl.playerview[pnum].viewanglechange[PITCH] += joy_anglesens[0].value * jlook[0];
+	cl.playerview[pnum].viewanglechange[YAW] += joy_anglesens[1].value * jlook[1];
+	cl.playerview[pnum].viewanglechange[ROLL] += joy_anglesens[2].value * jlook[2];
 
 	if (in_mlook.state[pnum] & 1)
 		V_StopPitchDrift (&cl.playerview[pnum]);
 
 	//movement
-	movements[1] += m_side.value * jstrafe[0];		//x=right=1
-	movements[0] -= m_forward.value * jstrafe[1];	//y=forward=0
-	movements[2] += m_side.value * jstrafe[2];		//z=up=2
+	movements[0] -= joy_movesens[0].value * cl_forwardspeed.value * jstrafe[0];
+	movements[1] -= joy_movesens[1].value * cl_sidespeed.value * jstrafe[1];
+	movements[2] -= joy_movesens[2].value * cl_upspeed.value * jstrafe[2];
 }
 
 void IN_Move (float *movements, int pnum, float frametime)

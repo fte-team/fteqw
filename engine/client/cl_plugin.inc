@@ -661,7 +661,7 @@ static qintptr_t VARGS Plug_GetNetworkInfo(void *offset, quintptr_t mask, const 
 	if (has(mlatency))
 		outptr->mlatency = 0;
 	if (has(mrate))
-		outptr->mrate = 0;
+		outptr->mrate = IN_DetermineMouseRate();
 	if (has(vlatency))
 		outptr->vlatency = 0;
 		

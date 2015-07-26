@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void IN_ReInit (void);
 
 void IN_Init (void);
+float IN_DetermineMouseRate(void);
 
 void IN_Shutdown (void);
 
@@ -58,6 +59,7 @@ void INS_Init (void);
 void INS_Shutdown (void);
 void INS_Commands (void);	//final chance to call IN_MouseMove/IN_KeyEvent each frame
 void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char *devicename, int *qdevid));
+void INS_SetupControllerAudioDevices(void);	//creates audio devices for each controller (where controllers have their own audio devices)
 
 extern cvar_t	cl_nodelta;
 extern cvar_t	cl_c2spps;

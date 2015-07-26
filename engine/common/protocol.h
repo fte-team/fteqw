@@ -811,6 +811,7 @@ enum clcq2_ops_e
 #define DPSND_LOOPING		(1<<2)		// a long, supposedly
 #define DPSND_LARGEENTITY	(1<<3)
 #define DPSND_LARGESOUND	(1<<4)
+#define FTESND_TIMEOFS		(1<<6)		//signed short, in milliseconds.
 #define FTESND_PITCHADJ		(1<<7)		//a byte (speed percent (0=100%))
 
 #define DEFAULT_SOUND_PACKET_VOLUME 255

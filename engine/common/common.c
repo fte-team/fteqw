@@ -5058,7 +5058,7 @@ void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 			Sys_UnlockConditional(com_workercondition[thread]);
 		}
 		if (!found)
-			Con_DPrintf("Might be in for a long wait for %s\n", priorityctx);
+			Con_DPrintf("Might be in for a long wait for %s\n", (char*)priorityctx);
 	}
 
 	Sys_LockConditional(com_workercondition[0]);

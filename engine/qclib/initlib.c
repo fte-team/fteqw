@@ -14,12 +14,12 @@ void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, char *name)
 	ammount = sizeof(prmemb_t)+((ammount + 3)&~3);
 	mem = progfuncs->funcs.parms->memalloc(ammount); 
 	memset(mem, 0, ammount);
-	mem->prev = memb;
-	if (!memb)
+	mem->prev = prinst.memblocks;
+	if (!prinst.memblocks)
 		mem->level = 1;
 	else
-		mem->level = ((prmemb_t *)memb)->level+1;
-	memb = mem;
+		mem->level = ((prmemb_t *)prinst.memblocks)->level+1;
+	prinst.memblocks = mem;
 
 	return ((char *)mem)+sizeof(prmemb_t);
 }
@@ -30,18 +30,18 @@ void *PDECL QC_HunkAlloc(pubprogfuncs_t *ppf, int ammount, char *name)
 
 int PRHunkMark(progfuncs_t *progfuncs)
 {
-	return ((prmemb_t *)memb)->level;
+	return ((prmemb_t *)prinst.memblocks)->level;
 }
 void PRHunkFree(progfuncs_t *progfuncs, int mark)
 {
 	prmemb_t *omem;
-	while(memb)
+	while(prinst.memblocks)
 	{
-		if (memb->level <= mark)
+		if (prinst.memblocks->level <= mark)
 			return;
 
-		omem = memb;
-		memb = memb->prev;
+		omem = prinst.memblocks;
+		prinst.memblocks = prinst.memblocks->prev;
 		externs->memfree(omem);
 	}
 	return;
@@ -52,7 +52,7 @@ void PRAddressableRelocate(progfuncs_t *progfuncs, char *oldb, char *newb, int o
 {
 	unsigned int i;
 	edictrun_t *e;
-	for (i=0 ; i<maxedicts; i++)
+	for (i=0 ; i<prinst.maxedicts; i++)
 	{
 		e = (edictrun_t *)(prinst.edicttable[i]);
 		if (e && (char*)e->fields >= oldb && (char*)e->fields < oldb+oldlen)
@@ -62,7 +62,7 @@ void PRAddressableRelocate(progfuncs_t *progfuncs, char *oldb, char *newb, int o
 	if (progfuncs->funcs.stringtable >= oldb && progfuncs->funcs.stringtable < oldb+oldlen)
 		progfuncs->funcs.stringtable = (progfuncs->funcs.stringtable - oldb) + newb;
 
-	for (i=0; i < maxprogs; i++)
+	for (i=0; i < prinst.maxprogs; i++)
 	{
 		if ((char*)prinst.progstate[i].globals >= oldb && (char*)prinst.progstate[i].globals < oldb+oldlen)
 			prinst.progstate[i].globals = (float*)(((char*)prinst.progstate[i].globals - oldb) + newb);
@@ -433,7 +433,7 @@ void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	maxedicts = max_ents;
+	prinst.maxedicts = max_ents;
 
 	sv_num_edicts = 0;
 
@@ -447,19 +447,19 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 	}
 #endif
 
-	max_fields_size = fields_size;
+	prinst.max_fields_size = prinst.fields_size;
 
-	prinst.edicttable = PRHunkAlloc(progfuncs, maxedicts*sizeof(struct edicts_s *), "edicttable");
+	prinst.edicttable = PRHunkAlloc(progfuncs, prinst.maxedicts*sizeof(struct edicts_s *), "edicttable");
 	sv_edicts = PRHunkAlloc(progfuncs, externs->edictsize, "edict0");
 	prinst.edicttable[0] = sv_edicts;
-	((edictrun_t*)prinst.edicttable[0])->fields = PRAddressableExtend(progfuncs, NULL, fields_size, max_fields_size-fields_size);
+	((edictrun_t*)prinst.edicttable[0])->fields = PRAddressableExtend(progfuncs, NULL, prinst.fields_size, prinst.max_fields_size-prinst.fields_size);
 	QC_ClearEdict(&progfuncs->funcs, sv_edicts);
 	sv_num_edicts = 1;
 
 	if (externs->entspawn)
 		externs->entspawn((struct edict_s *)sv_edicts, false);
 
-	return max_fields_size;
+	return prinst.max_fields_size;
 }
 edictrun_t tempedict;	//used as a safty buffer
 static float tempedictfields[2048];
@@ -470,13 +470,13 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 	unsigned int i;
 	edictrun_t *e;
 
-	max_fields_size=0;
-	fields_size = 0;
+	prinst.max_fields_size=0;
+	prinst.fields_size = 0;
 	progfuncs->funcs.stringtable = 0;
 	QC_StartShares(progfuncs);
 	QC_InitShares(progfuncs);
 
-	for ( i=1 ; i<maxedicts; i++)
+	for ( i=1 ; i<prinst.maxedicts; i++)
 	{
 		e = (edictrun_t *)(prinst.edicttable[i]);
 		prinst.edicttable[i] = NULL;
@@ -506,15 +506,15 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 		}		
 */
 		
-	maxprogs = max_progs;
-	pr_typecurrent=-1;
+	prinst.maxprogs = max_progs;
+	prinst.pr_typecurrent=-1;
 
 	PR_FreeAllTemps(progfuncs);
 
 	prinst.reorganisefields = false;
 
 	prinst.profiling = profiling;
-	maxedicts = 1;
+	prinst.maxedicts = 1;
 	prinst.edicttable = &sv_edicts;
 	sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 	sv_edicts=(struct edict_s *)&tempedict;
@@ -560,7 +560,7 @@ int PDECL PR_GetFuncArgCount(pubprogfuncs_t *ppf, func_t func)
 	pnum = (func & 0xff000000)>>24;
 	fnum = (func & 0x00ffffff);
 
-	if (pnum >= (unsigned)maxprogs || !pr_progstate[pnum].functions)
+	if (pnum >= prinst.maxprogs || !pr_progstate[pnum].functions)
 		return -1;
 	else if (fnum >= pr_progstate[pnum].progs->numfunctions)
 		return -1;
@@ -577,7 +577,7 @@ func_t PDECL PR_FindFunc(pubprogfuncs_t *ppf, const char *funcname, progsnum_t p
 	mfunction_t *f=NULL;
 	if (pnum == PR_ANY)
 	{
-		for (pnum = 0; (unsigned)pnum < maxprogs; pnum++)
+		for (pnum = 0; (unsigned)pnum < prinst.maxprogs; pnum++)
 		{
 			if (!pr_progstate[pnum].progs)
 				continue;
@@ -588,7 +588,7 @@ func_t PDECL PR_FindFunc(pubprogfuncs_t *ppf, const char *funcname, progsnum_t p
 	}
 	else if (pnum == PR_ANYBACK)	//run backwards
 	{
-		for (pnum = maxprogs-1; pnum >= 0; pnum--)
+		for (pnum = prinst.maxprogs-1; pnum >= 0; pnum--)
 		{
 			if (!pr_progstate[pnum].progs)
 				continue;
@@ -634,10 +634,10 @@ void PDECL QC_FindPrefixedGlobals(pubprogfuncs_t *ppf, int pnum, char *prefix, v
 	int len = strlen(prefix);
 
 	if (pnum == PR_CURRENT)
-		pnum = pr_typecurrent;
+		pnum = prinst.pr_typecurrent;
 	if (pnum == PR_ANY)
 	{
-		for (pnum = 0; (unsigned)pnum < maxprogs; pnum++)
+		for (pnum = 0; (unsigned)pnum < prinst.maxprogs; pnum++)
 		{
 			if (!pr_progstate[pnum].progs)
 				continue;
@@ -679,11 +679,11 @@ eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_
 	ddef16_t *var16;
 	ddef32_t *var32;
 	if (pnum == PR_CURRENT)
-		pnum = pr_typecurrent;
+		pnum = prinst.pr_typecurrent;
 	if (pnum == PR_ANY)
 	{
 		eval_t *ev;
-		for (i = 0; i < maxprogs; i++)
+		for (i = 0; i < prinst.maxprogs; i++)
 		{
 			if (!pr_progstate[i].progs)
 				continue;
@@ -693,7 +693,7 @@ eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_
 		}
 		return NULL;
 	}
-	if (pnum < 0 || (unsigned)pnum >= maxprogs || !pr_progstate[pnum].progs)
+	if (pnum < 0 || (unsigned)pnum >= prinst.maxprogs || !pr_progstate[pnum].progs)
 		return NULL;
 	switch(pr_progstate[pnum].structtype)
 	{
@@ -801,7 +801,7 @@ eval_t *PDECL QC_GetEdictFieldValue(pubprogfuncs_t *ppf, struct edict_s *ed, cha
 struct edict_s *PDECL ProgsToEdict (pubprogfuncs_t *ppf, int progs)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	if ((unsigned)progs >= (unsigned)maxedicts)
+	if ((unsigned)progs >= (unsigned)prinst.maxedicts)
 	{
 		printf("Bad entity index %i\n", progs);
 		if (pr_depth)
@@ -1178,7 +1178,7 @@ pbool PDECL PR_DumpProfiles (pubprogfuncs_t *ppf, pbool resetprofiles)
 
 	cpufrequency = Sys_GetClockRate();
 
-	for (i = 0; i < maxprogs; i++)
+	for (i = 0; i < prinst.maxprogs; i++)
 	{
 		ps = &pr_progstate[i];
 		if (ps->progs == NULL)	//we havn't loaded it yet, for some reason

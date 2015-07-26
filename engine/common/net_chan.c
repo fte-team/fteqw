@@ -582,8 +582,10 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		if (chan->nqreliable_allowed)
 		{
 			//consume the new reliable when we can.
-			if (!chan->reliable_length && chan->message.cursize && !chan->nqunreliableonly)
+			if (!chan->reliable_length && chan->message.cursize && chan->nqunreliableonly != 1)
 			{
+				if (chan->nqunreliableonly == 2)
+					chan->nqunreliableonly = 1;
 				memcpy (chan->reliable_buf, chan->message_buf, chan->message.cursize);
 				chan->reliable_length = chan->message.cursize;
 				chan->reliable_start = 0;
@@ -741,7 +743,11 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		int hsz = 10 + ((chan->sock == NS_CLIENT)?2:0); /*header size, if fragmentation is in use*/
 
 		if ((!chan->fragmentsize) || send.cursize-hsz < ((chan->fragmentsize - hsz)&~7))
-			NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
+		{
+			for (i = -1; i < chan->dupe; i++)
+				NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
+			send.cursize += send.cursize * chan->dupe;
+		}
 		else
 		{
 			int offset = chan->fragmentsize - hsz, no;

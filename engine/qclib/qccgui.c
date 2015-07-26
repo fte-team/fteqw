@@ -1378,6 +1378,7 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 		QCC_def_t *def;
 		int fno;
 		int line;
+		int best, bestline;
 		char *macro = QCC_PR_CheckCompConstTooltip(defname, buffer, buffer + sizeof(buffer));
 		if (macro && *macro)
 			return macro;
@@ -1392,6 +1393,81 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 		}
 
 		line = SendMessage(editor->editpane, SCI_LINEFROMPOSITION, pos, 0);
+
+		for (best = 0,bestline=0, fno = 1; fno < numfunctions; fno++)
+		{
+			if (line > functions[fno].line && bestline < functions[fno].line)
+			{
+				if (!strcmp(editor->filename, functions[fno].file))
+				{
+					best = fno;
+					bestline = functions[fno].line;
+				}
+			}
+		}
+		if (best)
+		{
+			if (strstr(functions[best].name, "::"))
+			{
+				QCC_type_t *type;
+				char tmp[256];
+				char *c;
+				QC_strlcpy(tmp, functions[best].name, sizeof(tmp));
+				c = strstr(tmp, "::");
+				if (c)
+					*c = 0;
+				type = QCC_TypeForName(tmp);
+
+				if (type->type == ev_entity)
+				{
+					QCC_def_t *def;
+					QC_snprintfz(tmp, sizeof(tmp), "%s::__m%s", type->name, term);
+
+					for (fno = 0, def = NULL; fno < sourcefilesnumdefs && !def; fno++)
+					{
+						for (def = sourcefilesdefs[fno]; def; def = def->next)
+						{
+							if (def->scope && def->scope != &functions[best])
+								continue;
+//							OutputDebugString(def->name);
+//							OutputDebugString("\n");
+							if (!strcmp(def->name, tmp))
+							{
+								//FIXME: look at the scope's function to find the start+end of the function and filter based upon that, to show locals
+								break;
+							}
+						}
+					}
+
+					if (def && def->type->type == ev_field)
+					{
+//						QC_strlcpy(tmp, term, sizeof(tmp));
+						QC_snprintfz(term, sizeof(term), "self.%s", tmp);
+					}
+					else
+					{
+						for (fno = 0, def = NULL; fno < sourcefilesnumdefs && !def; fno++)
+						{
+							for (def = sourcefilesdefs[fno]; def; def = def->next)
+							{
+								if (def->scope && def->scope != &functions[best])
+									continue;
+								if (!strcmp(def->name, term))
+								{
+									//FIXME: look at the scope's function to find the start+end of the function and filter based upon that, to show locals
+									break;
+								}
+							}
+						}
+						if (def && def->type->type == ev_field)
+						{
+							QC_strlcpy(tmp, term, sizeof(tmp));
+							QC_snprintfz(term, sizeof(term), "self.%s", tmp);
+						}
+					}
+				}
+			}
+		}
 
 		//FIXME: we may need to display types too
 		for (fno = 0, def = NULL; fno < sourcefilesnumdefs && !def; fno++)
@@ -4407,7 +4483,7 @@ int GrepSubFiles(HTREEITEM node, char *string)
 {
 	HTREEITEM ch, p;
 	char fullname[1024];
-	char parentstring[256], *sl;
+	char parentstring[256];
 	int pl, nl;
 	TV_ITEM parent;
 	int found = 0;
@@ -4430,14 +4506,17 @@ int GrepSubFiles(HTREEITEM node, char *string)
 		pl = strlen(parent.pszText);
 		if (nl + 1 + pl + 1 > sizeof(fullname))
 			return found;
+		p = TreeView_GetParent(projecttree, p);
+		if (!p && *fullname)
+			break;
+
+		//ignore the root node, unless we're actually querying that root node.
 		memmove(fullname+pl+1, fullname, nl+1);
 		memcpy(fullname, parent.pszText, pl);
 		fullname[pl] = nl?'/':'\0';
-		p = TreeView_GetParent(projecttree, p);
 	}
 	//skip the leading progs.src/ if its there, because that's an abstraction and does not match the filesystem.
-	sl = strchr(fullname, '/');
-	found += Grep(sl?sl+1:fullname, string);
+	found += Grep(fullname, string);
 
 	ch = TreeView_GetChild(projecttree, node);
 	found += GrepSubFiles(ch, string);

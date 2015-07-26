@@ -349,7 +349,7 @@ void M_Audio_StartSound (struct menu_s *menu)
 
 	if (lasttime+0.5 < Sys_DoubleTime())
 	{
-		S_GetListenerInfo(mat[0], mat[1], mat[2], mat[3]);
+		S_GetListenerInfo(0, mat[0], mat[1], mat[2], mat[3]);
 
 		lasttime = Sys_DoubleTime();
 		org[0] = mat[0][0] + 2*(mat[1][0]*(info->testsoundsource->common.posx-320/2) + mat[1][0]*(info->testsoundsource->common.posy-200/2));

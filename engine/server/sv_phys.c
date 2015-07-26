@@ -1254,7 +1254,7 @@ static void WPhys_CheckWaterTransition (world_t *w, wedict_t *ent)
 	{
 		if (ent->v->watertype == Q1CONTENTS_EMPTY && *sv_sound_watersplash.string)
 		{	// just crossed into water
-			w->Event_Sound(NULL, ent, 0, sv_sound_watersplash.string, 255, 1, 0);
+			w->Event_Sound(NULL, ent, 0, sv_sound_watersplash.string, 255, 1, 0, 0);
 		}
 		ent->v->watertype = cont;
 		ent->v->waterlevel = 1;
@@ -1263,7 +1263,7 @@ static void WPhys_CheckWaterTransition (world_t *w, wedict_t *ent)
 	{
 		if (ent->v->watertype != Q1CONTENTS_EMPTY && *sv_sound_watersplash.string)
 		{	// just crossed into open
-			w->Event_Sound(NULL, ent, 0, sv_sound_watersplash.string, 255, 1, 0);
+			w->Event_Sound(NULL, ent, 0, sv_sound_watersplash.string, 255, 1, 0, 0);
 		}
 		ent->v->watertype = Q1CONTENTS_EMPTY;
 		ent->v->waterlevel = cont;
@@ -1449,7 +1449,7 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 		{
 			if (hitsound && *sv_sound_land.string)
 			{
-				w->Event_Sound(NULL, ent, 0, sv_sound_land.string, 255, 1, 0);
+				w->Event_Sound(NULL, ent, 0, sv_sound_land.string, 255, 1, 0, 0);
 			}
 		}
 	}

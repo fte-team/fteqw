@@ -953,7 +953,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		if (VM_LONG(arg[0]) < 0 || VM_LONG(arg[0]) > 255 || (int)arg[1] + VM_LONG(arg[2]) >= mask || VM_POINTER(arg[1]) < offset || VM_LONG(arg[2]) < 1)
 			break;	//out of bounds.
 
-		Q_strncpyz(VM_POINTER(arg[1]), Key_KeynumToString(VM_LONG(arg[0])), VM_LONG(arg[2]));
+		Q_strncpyz(VM_POINTER(arg[1]), Key_KeynumToString(VM_LONG(arg[0]), 0), VM_LONG(arg[2]));
 		break;
 
 	case UI_KEY_GETBINDINGBUF:

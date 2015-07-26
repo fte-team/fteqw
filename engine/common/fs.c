@@ -2563,7 +2563,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
 }
 
-#define QCFG "set allow_download_refpackages 0\nmap_autoopenportals 1\n"
+#define QCFG "set allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"
 /*stuff that makes dp-only mods work a bit better*/
 #define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 /*nexuiz/xonotic has a few quirks/annoyances...*/
@@ -3352,7 +3352,7 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 		narrowen(basepath, basepathsize, resultpath);
 		if (savedname)
 		{
-			if (MessageBoxU(mainwindow, va("Would you like to save the location of %s as:\n%s", poshname, resultpath), "Save Instaltion path", MB_YESNO|MB_DEFBUTTON2) == IDYES)
+			if (MessageBoxU(mainwindow, va("Would you like to save the location of %s as:\n%s", poshname, basepath), "Save Instaltion path", MB_YESNO|MB_DEFBUTTON2) == IDYES)
 				MyRegSetValue(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", savedname, REG_SZ, basepath, strlen(basepath));
 		}
 		return true;

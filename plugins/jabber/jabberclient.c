@@ -2308,7 +2308,7 @@ struct stringprep_range stringprep_A1[] =
 	{0x05C5,0x05CF},
 	{0x05EB,0x05EF},
 	{0x05F5,0x060B},
-	{0x0600,~0},	//FIXME rest of A.1
+	{0x0600,~0},	//FIXME rest of A.1 (utf)
 };
 struct stringprep_range stringprep_B1[] =
 {
@@ -2355,7 +2355,7 @@ struct stringprep_range stringprep_C1[] =
 	{0x0020},
 	{0x00A0},
 	{0x1680},
-	//FIXME...
+	//FIXME... utf
 };
 struct stringprep_range stringprep_C2[] =
 {
@@ -2364,7 +2364,7 @@ struct stringprep_range stringprep_C2[] =
 	{0x007F, 0x007F},
 	//C.2.1
 	{0x0080, 0x009F},			//C.2.2
-	//FIXME...
+	//FIXME... utf
 	{0x06DD, ~0},
 };
 struct stringprep_range stringprep_C3[] =

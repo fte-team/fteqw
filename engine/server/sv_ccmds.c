@@ -469,7 +469,7 @@ void SV_Map_f (void)
 	if (!strcmp(level, "."))	//restart current
 	{
 		//grab the current map name
-		Q_strncpyz(level, sv.name, sizeof(level));
+		Q_strncpyz(level, svs.name, sizeof(level));
 		isrestart = true;
 		flushparms = false;
 		newunit = false;
@@ -628,7 +628,15 @@ void SV_Map_f (void)
 		if (host_client->controller == NULL)
 		{
 			if (ISNQCLIENT(host_client))
-				SV_StuffcmdToClient(host_client, va("reconnect \"%s\"\n", level));
+			{
+				if (ISDPCLIENT(host_client))
+				{
+					//DP clients cannot cope with being told the next map's name
+					SV_StuffcmdToClient(host_client, "reconnect\n");
+				}
+				else
+					SV_StuffcmdToClient(host_client, va("reconnect \"%s\"\n", level));
+			}
 			else
 				SV_StuffcmdToClient(host_client, va("changing \"%s\"\n", level));
 		}
@@ -678,7 +686,10 @@ void SV_Map_f (void)
 				continue;
 
 			if (ISNQCLIENT(host_client))
+			{
 				SVNQ_New_f();
+				host_client->send_message = true;
+			}
 			else
 				SV_New_f();
 		}
@@ -1183,7 +1194,7 @@ static void SV_BanList_f (void)
 		{
 			*middlebit = 0;
 			if (nb->expiretime)
-				Q_strncatz(middlebit, va(",\t+%llu", (unsigned long long)nb->expiretime - bantime), sizeof(middlebit));
+				Q_strncatz(middlebit, va(",\t+"fPRIllu, (unsigned long long)nb->expiretime - bantime), sizeof(middlebit));
 			if (nb->reason[0])
 				Q_strncatz(middlebit, ",\t", sizeof(middlebit));
 			Con_Printf("%s%s%s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), middlebit, nb->reason);
@@ -1234,7 +1245,7 @@ static void SV_FilterList_f (void)
 		if (nb->expiretime)
 		{
 			time_t secs = nb->expiretime - curtime;
-			Con_Printf("%s %s +%llu:%02llu\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflags, (unsigned long long)(secs/60), (unsigned long long)(secs%60));
+			Con_Printf("%s %s +"fPRIllu":%02u\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflags, (unsigned long long)(secs/60), (unsigned int)(secs%60));
 		}
 		else
 			Con_Printf("%s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflags);
@@ -1441,9 +1452,9 @@ static void SV_WriteIP_f (void)
 			}
 		}
 		if (bi->reason[0])
-			s = va("addip %s %s %llu \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags, (unsigned long long) bi->expiretime, bi->reason);
+			s = va("addip %s %s "fPRIllu" \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags, (unsigned long long) bi->expiretime, bi->reason);
 		else if (bi->expiretime)
-			s = va("addip %s %s %llu\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags, (unsigned long long) bi->expiretime);
+			s = va("addip %s %s "fPRIllu"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags, (unsigned long long) bi->expiretime);
 		else
 			s = va("addip %s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags);
 		VFS_WRITE(f, s, strlen(s));
@@ -1659,10 +1670,10 @@ SV_Status_f
 */
 static void SV_Status_f (void)
 {
-	int			i, j, l;
+	int			i;
 	client_t	*cl;
 	float		cpu, avg, pak;
-	char		*s;
+	char		*s, *p;
 	char		adr[MAX_ADR_SIZE];
 	float pi, po, bi, bo;
 
@@ -1711,9 +1722,9 @@ static void SV_Status_f (void)
 	Con_Printf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
 	//show the current map+name (but hide name if its too long or would be ugly)
 	if (columns >= 80 && *sv.mapname && strlen(sv.mapname) < 45 && !strchr(sv.mapname, '\n'))
-		Con_Printf ("current map      : %s (%s)\n", sv.name, sv.mapname);
+		Con_Printf ("current map      : %s (%s)\n", svs.name, sv.mapname);
 	else
-		Con_Printf ("current map      : %s\n", sv.name);
+		Con_Printf ("current map      : %s\n", svs.name);
 
 	if (svs.gametype == GT_PROGS)
 	{
@@ -1789,16 +1800,55 @@ static void SV_Status_f (void)
 	}
 	else
 	{
-		Con_Printf ("frags userid address         name            rate ping drop  qport dl%% dls\n");
-		Con_Printf ("----- ------ --------------- --------------- ---- ---- ----- ----- --- ----\n");
+#define COLUMNS C_FRAGS C_USERID C_ADDRESS C_NAME C_RATE C_PING C_DROP C_DLP C_DLS C_PROT C_ADDRESS2
+#define C_FRAGS		COLUMN(0, "frags", Con_Printf("%5i ", (int)cl->old_frags))
+#define C_USERID	COLUMN(1, "userid", Con_Printf("%6i ", (int)cl->userid))
+#define C_ADDRESS	COLUMN(2, "address        ", Con_Printf("%-16.16s", s))
+#define C_NAME		COLUMN(3, "name           ", Con_Printf("%-16.16s", cl->name))
+#define C_RATE		COLUMN(4, "rate", Con_Printf("%4i ", (int)(1/cl->netchan.frame_rate)))
+#define C_PING		COLUMN(5, "ping", Con_Printf("%4i ", (int)SV_CalcPing (cl, false)))
+#define C_DROP		COLUMN(6, "drop", Con_Printf("%4.1f ", 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence))
+#define C_DLP		COLUMN(7, "dl ", if (!cl->download)Con_Printf("    ");else Con_Printf("%3g ", (cl->downloadcount*100.0)/cl->downloadsize))
+#define C_DLS		COLUMN(8, "dls", if (!cl->download)Con_Printf("    ");else Con_Printf("%3u ", (unsigned int)(cl->downloadsize/1024)))
+#define C_PROT		COLUMN(9, "prot", Con_Printf("%-5.5s", p))
+#define C_ADDRESS2	COLUMN(10, "address        ", Con_Printf("%s", s))
+
+		int columns = (1<<6)-1;
+
+		for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
+		{
+			if (cl->netchan.drop_count)
+				columns |= 1<<6;
+			if (cl->download)
+			{
+				columns |= 1<<7;
+				columns |= 1<<8;
+			}
+			if (cl->protocol != SCP_QUAKEWORLD || cl->spectator || !(cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+				columns |= 1<<9;
+			if (cl->netchan.remote_address.type == NA_IPV6 || cl->netchan.remote_address.type == NA_TCPV6 || cl->netchan.remote_address.type == NA_TLSV6)
+				columns = (columns & ~(1<<2)) | (1<<10);
+		}
+
+#define COLUMN(f,t,v) if (columns&(1<<f)) Con_Printf(t" ");
+		COLUMNS
+#undef  COLUMN
+		Con_Printf("\n");
+#define COLUMN(f,t,v)  if (columns&(1<<f)){for (i = 0; i < sizeof(t)-1; i++) Con_Printf("-"); Con_Printf(" ");}
+		COLUMNS
+#undef  COLUMN
+		Con_Printf("\n");
+
+//		Con_Printf ("frags userid name            rate ping drop "" dl%% dls"" address         \n");
+//		Con_Printf ("----- ------ --------------- ---- ---- -----"" --- ---"" --------------- \n");
 		for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 		{
 			if (!cl->state)
 				continue;
-			Con_Printf ("%5i %6i ", (int)cl->old_frags,  cl->userid);
+
 
 			if (cl->state == cs_loadzombie)
-			{
+			{	//loadzombies have no specific address
 				if (cl->istobeloaded)
 					s = "LoadZombie";
 				else
@@ -1812,39 +1862,40 @@ static void SV_Status_f (void)
 				s = "bot";
 			else
 				s = NET_BaseAdrToString (adr, sizeof(adr), &cl->netchan.remote_address);
-			Con_Printf ("%s", s);
-			l = 16 - strlen(s);
-			for (j=0 ; j<l ; j++)
-				Con_Printf (" ");
 
-			Con_Printf ("%s", cl->name);
-			l = 16 - strlen(cl->name);
-			for (j=0 ; j<l ; j++)
-				Con_Printf (" ");
+			switch(cl->protocol)
+			{
+			default:
+			case SCP_BAD:
+				p = "";
+				break;
+			case SCP_QUAKEWORLD:
+				if (cl->spectator)
+					p = "s";
+				else if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+					p = "fte";
+				else
+					p = "qw";
+				break;
+			case SCP_QUAKE2:		p = "q2"; break;
+			case SCP_QUAKE3:		p = "q3"; break;
+			case SCP_NETQUAKE:		p = "nq"; break;
+			case SCP_PROQUAKE:		p = "pq"; break;
+			case SCP_FITZ666:		p = "fq"; break;
+			case SCP_DARKPLACES6:	p = "dp6"; break;
+			case SCP_DARKPLACES7:	p = "dp7"; break;
+			}
 			if (cl->state == cs_connected)
-			{
-				Con_Printf ("CONNECTING           ");
-			}
+				p = "con";
 			else if (cl->state == cs_zombie || cl->state == cs_loadzombie)
-			{
-				Con_Printf ("ZOMBIE               ");
-			}
-			else
-				Con_Printf ("%4i %4i %5.1f %4i"
-				, (int)(1000*cl->netchan.frame_rate)
-				, (int)SV_CalcPing (cl, false)
-				, 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence
-				, cl->netchan.qport);
-			if (cl->download)
-			{
-				Con_Printf (" %3g %4u", (cl->downloadcount*100.0)/cl->downloadsize, (unsigned int)(cl->downloadsize/1024));
-			}
-			if (cl->spectator)
-				Con_Printf(" (s)\n");
-			else
-				Con_Printf("\n");
+				p = "zom";
 
 
+#define COLUMN(f,t,v)  if (columns&(1<<f)){v;}
+			COLUMNS
+#undef  COLUMN
+
+			Con_Printf("\n");
 		}
 	}
 	Con_Printf ("\n");
@@ -2607,7 +2658,8 @@ void SV_MemInfo_f(void)
 	int sz, i, fr, csfr;
 	laggedpacket_t *lp;
 	client_t *cl;
-	Cmd_ExecuteString("mod_memlist;hunkprint", Cmd_ExecLevel);
+	Cmd_ExecuteString("mod_memlist", Cmd_ExecLevel);
+//	Cmd_ExecuteString("hunkprint", Cmd_ExecLevel);
 	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
 		cl = &svs.clients[i];
@@ -2633,9 +2685,11 @@ void SV_MemInfo_f(void)
 
 			csfr = sizeof(*cl->csqcentversions) * cl->max_net_ents;
 	
-			Con_Printf("%i minping=%i frame=%i, csqc=%i\n", sizeof(svs.clients[i]), sz, fr, csfr);
+			Con_Printf(fPRIzu" minping=%i frame=%i, csqc=%i\n", sizeof(svs.clients[i]), sz, fr, csfr);
 		}
 	}
+
+	//FIXME: report vm memory
 }
 
 /*

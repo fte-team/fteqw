@@ -134,7 +134,7 @@ cvar_t	cl_teamchatsound	= CVAR("cl_teamchatsound", "misc/talk.wav");
 cvar_t	r_torch					= CVARF("r_torch",	"0",	CVAR_CHEAT);
 cvar_t	r_rocketlight			= CVARFC("r_rocketlight",	"1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	r_lightflicker			= CVAR("r_lightflicker",	"1");
-cvar_t	cl_r2g					= CVARF("cl_r2g",	"0", CVAR_ARCHIVE);
+cvar_t	cl_r2g					= CVARFD("cl_r2g",	"0", CVAR_ARCHIVE, "Uses progs/grenade.mdl instead of progs/missile.mdl when 1.");
 cvar_t	r_powerupglow			= CVAR("r_powerupglow", "1");
 cvar_t	v_powerupshell			= CVARF("v_powerupshell", "0", CVAR_ARCHIVE);
 cvar_t	cl_gibfilter			= CVARF("cl_gibfilter", "0", CVAR_ARCHIVE);
@@ -298,7 +298,7 @@ void CL_UpdateWindowTitle(void)
 		default:
 #ifndef CLIENTONLY
 			if (sv.state)
-				Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, sv.name);
+				Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, svs.name);
 			else
 #endif
 			if (cls.demoplayback)
@@ -337,6 +337,7 @@ void CL_MakeActive(char *gamename)
 
 	//kill models left over from the last map.
 	Mod_Purge(MP_MAPCHANGED);
+	Image_Purge();
 
 	//and reload shaders now if needed (this was blocked earlier)
 	Shader_DoReload();
@@ -708,6 +709,7 @@ void CL_CheckForResend (void)
 #ifndef CLIENTONLY
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
 	{
+		extern cvar_t dpcompat_nopreparse;
 		unsigned int pext1, pext2;
 		pext1 = 0;
 		pext2 = 0;
@@ -784,6 +786,22 @@ void CL_CheckForResend (void)
 			{
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_FITZ666;
+				//FIXME: pext
+			}
+
+			if (dpcompat_nopreparse.ival)
+			{
+				if (progstype == PROG_QW && cls.protocol != CP_QUAKEWORLD)
+				{
+					cls.protocol = CP_QUAKEWORLD;
+					pext1 = Net_PextMask(1, false);
+					pext2 = Net_PextMask(2, false);
+				}
+				else if (progstype != PROG_QW && cls.protocol == CP_QUAKEWORLD)
+				{
+					cls.protocol = CP_NETQUAKE;
+					cls.protocol_nq = CPNQ_DP7;	//dpcompat_nopreparse is only really needed for DP mods that send unknowable svc_tempentity messages to the client.
+				}
 			}
 
 			//make sure the protocol within demos is actually correct/sane
@@ -1306,24 +1324,24 @@ void CL_BlendFog(fogstate_t *result, fogstate_t *oldf, float time, fogstate_t *n
 
 	result->time = time;
 }
-void CL_ResetFog(void)
+void CL_ResetFog(int ftype)
 {
 	//blend from the current state, not the old state. this means things work properly if we've not reached the new state yet.
-	CL_BlendFog(&cl.oldfog, &cl.oldfog, realtime, &cl.fog);
+	CL_BlendFog(&cl.oldfog[ftype], &cl.oldfog[ftype], realtime, &cl.fog[ftype]);
 
 	//reset the new state to defaults, to be filled in by the caller.
-	memset(&cl.fog, 0, sizeof(cl.fog));
-	cl.fog.time = realtime;
-	cl.fog.density = 0;
-	cl.fog.colour[0] = 0.3;
-	cl.fog.colour[1] = 0.3;
-	cl.fog.colour[2] = 0.3;
-	cl.fog.alpha = 1;
-	cl.fog.depthbias = 0;
+	memset(&cl.fog[ftype], 0, sizeof(cl.fog[ftype]));
+	cl.fog[ftype].time = realtime;
+	cl.fog[ftype].density = 0;
+	cl.fog[ftype].colour[0] = 0.3;
+	cl.fog[ftype].colour[1] = 0.3;
+	cl.fog[ftype].colour[2] = 0.3;
+	cl.fog[ftype].alpha = 1;
+	cl.fog[ftype].depthbias = 0;
 	/*
-	cl.fog.end = 16384;
-	cl.fog.height = 1<<30;
-	cl.fog.fadedepth = 128;
+	cl.fog[ftype].end = 16384;
+	cl.fog[ftype].height = 1<<30;
+	cl.fog[ftype].fadedepth = 128;
 	*/
 }
 
@@ -1352,7 +1370,6 @@ void CL_ClearState (void)
 	S_StopAllSounds (true);
 	S_UntouchAll();
 	S_ResetFailedLoad();
-	r_regsequence++;
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 
@@ -1364,6 +1381,7 @@ void CL_ClearState (void)
 			SV_UnspawnServer();
 #endif
 		Mod_ClearAll ();
+		r_regsequence++;
 
 		Cvar_ApplyLatches(CVAR_LATCH);
 	}
@@ -1440,7 +1458,8 @@ void CL_ClearState (void)
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
 
-	CL_ResetFog();
+	CL_ResetFog(0);
+	CL_ResetFog(1);
 
 	cl.allocated_client_slots = QWMAX_CLIENTS;
 #ifndef CLIENTONLY
@@ -3548,52 +3567,53 @@ void CL_FTP_f(void)
 //fixme: make a cvar
 void CL_Fog_f(void)
 {
+	int ftype = strcmp(Cmd_Argv(0), "fog");
 	if ((cl.fog_locked && !Cmd_FromGamecode()) || Cmd_Argc() <= 1)
-		Con_Printf("Current fog %f (r:%f g:%f b:%f, a:%f bias:%f)\n", cl.fog.density, cl.fog.colour[0], cl.fog.colour[1], cl.fog.colour[2], cl.fog.alpha, cl.fog.depthbias);
+		Con_Printf("Current fog %f (r:%f g:%f b:%f, a:%f bias:%f)\n", cl.fog[ftype].density, cl.fog[ftype].colour[0], cl.fog[ftype].colour[1], cl.fog[ftype].colour[2], cl.fog[ftype].alpha, cl.fog[ftype].depthbias);
 	else
 	{
-		CL_ResetFog();
+		CL_ResetFog(ftype);
 
 		switch(Cmd_Argc())
 		{
 		case 1:
 			break;
 		case 2:
-			cl.fog.density = atof(Cmd_Argv(1));
+			cl.fog[ftype].density = atof(Cmd_Argv(1));
 			break;
 		case 3:
-			cl.fog.density = atof(Cmd_Argv(1));
-			cl.fog.colour[0] = cl.fog.colour[1] = cl.fog.colour[2] = atof(Cmd_Argv(2));
+			cl.fog[ftype].density = atof(Cmd_Argv(1));
+			cl.fog[ftype].colour[0] = cl.fog[ftype].colour[1] = cl.fog[ftype].colour[2] = atof(Cmd_Argv(2));
 			break;
 		case 4:
-			cl.fog.density = 0.05;	//make something up for vauge compat with fitzquake, so it doesn't get the default of 0
-			cl.fog.colour[0] = atof(Cmd_Argv(1));
-			cl.fog.colour[1] = atof(Cmd_Argv(2));
-			cl.fog.colour[2] = atof(Cmd_Argv(3));
+			cl.fog[ftype].density = 0.05;	//make something up for vauge compat with fitzquake, so it doesn't get the default of 0
+			cl.fog[ftype].colour[0] = atof(Cmd_Argv(1));
+			cl.fog[ftype].colour[1] = atof(Cmd_Argv(2));
+			cl.fog[ftype].colour[2] = atof(Cmd_Argv(3));
 			break;
 		case 5:
 		default:
-			cl.fog.density = atof(Cmd_Argv(1));
-			cl.fog.colour[0] = atof(Cmd_Argv(2));
-			cl.fog.colour[1] = atof(Cmd_Argv(3));
-			cl.fog.colour[2] = atof(Cmd_Argv(4));
+			cl.fog[ftype].density = atof(Cmd_Argv(1));
+			cl.fog[ftype].colour[0] = atof(Cmd_Argv(2));
+			cl.fog[ftype].colour[1] = atof(Cmd_Argv(3));
+			cl.fog[ftype].colour[2] = atof(Cmd_Argv(4));
 			break;
 		}
 
 		if (cls.state == ca_active)
-			cl.fog.time += 1;
+			cl.fog[ftype].time += 1;
 
 		//fitz:
 		//if (Cmd_Argc() >= 6) cl.fog_time += atof(Cmd_Argv(5));
 		//dp:
-		if (Cmd_Argc() >= 6) cl.fog.alpha = atof(Cmd_Argv(5));
-		if (Cmd_Argc() >= 7) cl.fog.depthbias = atof(Cmd_Argv(6));
+		if (Cmd_Argc() >= 6) cl.fog[ftype].alpha = atof(Cmd_Argv(5));
+		if (Cmd_Argc() >= 7) cl.fog[ftype].depthbias = atof(Cmd_Argv(6));
 		//if (Cmd_Argc() >= 8) cl.fog.end = atof(Cmd_Argv(7));
 		//if (Cmd_Argc() >= 9) cl.fog.height = atof(Cmd_Argv(8));
 		//if (Cmd_Argc() >= 10) cl.fog.fadedepth = atof(Cmd_Argv(9));
 
 		if (Cmd_FromGamecode())
-			cl.fog_locked = !!cl.fog.density;
+			cl.fog_locked = !!cl.fog[ftype].density;
 	}
 }
 
@@ -3924,6 +3944,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("topten", NULL);
 
 	Cmd_AddCommandD ("fog", CL_Fog_f, "fog <density> <red> <green> <blue> <alpha> <depthbias>");
+	Cmd_AddCommandD ("waterfog", CL_Fog_f, "waterfog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommand ("kill", NULL);
 	Cmd_AddCommand ("pause", NULL);
 	Cmd_AddCommand ("say", CL_Say_f);
@@ -4673,7 +4694,7 @@ double Host_Frame (double time)
 	static double		time1 = 0;
 	static double		time2 = 0;
 	static double		time3 = 0;
-	int			pass0, pass1, pass2, pass3;
+	int			pass0, pass1, pass2, pass3, i;
 //	float fps;
 	double newrealtime;
 	static double spare;
@@ -4924,12 +4945,15 @@ double Host_Frame (double time)
 	if (host_speeds.ival)
 		time1 = Sys_DoubleTime ();
 
-	r_refdef.audio.defaulted = true;
-	VectorClear(r_refdef.audio.origin);
-	VectorSet(r_refdef.audio.forward, 1, 0, 0);
-	VectorSet(r_refdef.audio.right, 0, 1, 0);
-	VectorSet(r_refdef.audio.up, 0, 0, 1);
-	r_refdef.audio.inwater = false;
+	for (i = 0; i < MAX_SPLITS; i++)
+	{
+		cl.playerview[i].audio.defaulted = true;
+		VectorClear(cl.playerview[i].audio.origin);
+		VectorSet(cl.playerview[i].audio.forward, 1, 0, 0);
+		VectorSet(cl.playerview[i].audio.right, 0, 1, 0);
+		VectorSet(cl.playerview[i].audio.up, 0, 0, 1);
+		cl.playerview[i].audio.inwater = false;
+	}
 
 	if (SCR_UpdateScreen && !vid.isminimized)
 	{
@@ -4947,8 +4971,11 @@ double Host_Frame (double time)
 		time2 = Sys_DoubleTime ();
 
 	// update audio
-	S_UpdateListener (r_refdef.audio.origin, r_refdef.audio.forward, r_refdef.audio.right, r_refdef.audio.up);
-	S_SetUnderWater(r_refdef.audio.inwater);
+	for (i = 0 ; i < MAX_SPLITS; i++)
+	{
+		playerview_t *pv = &cl.playerview[cl.splitclients?i % cl.splitclients:0];
+		S_UpdateListener (i, pv->audio.origin, pv->audio.forward, pv->audio.right, pv->audio.up, pv->audio.inwater);
+	}
 
 	S_Update ();
 

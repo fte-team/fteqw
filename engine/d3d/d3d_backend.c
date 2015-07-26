@@ -43,7 +43,11 @@ Things to improve:
 extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 //#define d3dcheck(foo) foo
+#ifdef _DEBUG
 #define d3dcheck(foo) do{HRESULT err = foo; if (FAILED(err)) Sys_Error("D3D reported error on backend line %i - error 0x%x\n", __LINE__, (unsigned int)err);} while(0)
+#else
+#define d3dcheck(foo) foo
+#endif
 
 #define MAX_TMUS 16
 
@@ -506,6 +510,9 @@ void D3D9BE_Reset(qboolean before)
 		D3DVERTEXELEMENT9 decl[13], declend=D3DDECL_END();
 		int elements;
 
+		if (shaderstate.dynidx_buff)
+			return;
+
 		for (i = 0; i < D3D_VDEC_MAX; i++)
 		{
 			elements = 0;
@@ -595,7 +602,7 @@ void D3D9BE_Reset(qboolean before)
 		}
 
 		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynxyz_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynxyz_buff, NULL);
-		for (tmu = 0; tmu < D3D_VDEC_ST0; tmu++)
+		for (tmu = 0; tmu < MAX_TC_TMUS; tmu++)
 			IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynst_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynst_buff[tmu], NULL);
 		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynnorm_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynnorm_buff, NULL);
 		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dyncol_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dyncol_buff, NULL);
@@ -610,6 +617,9 @@ void D3D9BE_Reset(qboolean before)
 		/*force all state to change, thus setting a known state*/
 		shaderstate.shaderbits = ~0;
 		BE_ApplyShaderBits(0);
+
+
+		Surf_BuildLightmaps();
 	}
 }
 
@@ -1676,41 +1686,15 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 	return true;
 }
 
-static void BE_SubmitMeshChain(int idxfirst)
+static void BE_SubmitMeshChain(unsigned int vertbase, unsigned int firstvert, unsigned int vertcount, unsigned int idxfirst, int unsigned idxcount)
 {
-	int startv, starti, endv, endi;
-	int m;
-	mesh_t *mesh;
+	if (shaderstate.flags & BEF_LINES)
+		IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_LINELIST, vertbase, firstvert, vertcount, idxfirst, idxcount/2);
+	else
+		IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, vertbase, firstvert, vertcount, idxfirst, idxcount/3);
+	RQuantAdd(RQUANT_DRAWS, 1);
 
-//	if (shaderstate.batchvbo)
-//	IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, shaderstate.batchvbo->vertcount, idxfirst, shaderstate.batchvbo->indexcount/3);
-
-	for (m = 0, mesh = shaderstate.meshlist[0]; m < shaderstate.nummeshes; )
-	{
-		startv = mesh->vbofirstvert;
-		starti = mesh->vbofirstelement;
-
-		endv = startv+mesh->numvertexes;
-		endi = starti+mesh->numindexes;
-
-		//find consecutive surfaces
-		for (++m; m < shaderstate.nummeshes; m++)
-		{
-			mesh = shaderstate.meshlist[m];
-			if (endi == mesh->vbofirstelement)
-			{
-				endv = mesh->vbofirstvert+mesh->numvertexes;
-				endi = mesh->vbofirstelement+mesh->numindexes;
-			}
-			else
-			{
-				break;
-			}
-		}
-
-		IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, startv, endv - startv, idxfirst + starti, (endi-starti)/3);
-		RQuantAdd(RQUANT_DRAWS, 1);
- 	}
+	RQuantAdd(RQUANT_PRIMITIVEINDICIES, idxcount);
 }
 
 static void BE_ApplyUniforms(program_t *prog, int permu)
@@ -1824,9 +1808,9 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 	}
 }
 
-static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned int idxfirst, unsigned int idxcount)
+static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned int vertfirst, unsigned int vertcount, unsigned int idxfirst, unsigned int idxcount)
 {
-	int vdec = D3D_VDEC_ST0|D3D_VDEC_NORM;
+	int vdec = D3D_VDEC_ST0|D3D_VDEC_ST1|D3D_VDEC_NORM;
 	int passno;
 	int perm = 0;
 
@@ -2014,7 +1998,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 	}
 
 //	IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9,
-	BE_SubmitMeshChain(idxfirst);
+	BE_SubmitMeshChain(vertbase, vertfirst, vertcount, idxfirst, idxcount);
 
 	IDirect3DDevice9_SetVertexShader(pD3DDev9, NULL);
 	IDirect3DDevice9_SetPixelShader(pD3DDev9, NULL);
@@ -2049,7 +2033,7 @@ void D3D9BE_Cull(unsigned int cullflags)
 
 static void BE_DrawMeshChain_Internal(void)
 {
-	unsigned int vertcount, idxcount, idxfirst;
+	unsigned int vertbase, vertfirst, vertcount, idxcount, idxfirst;
 	mesh_t *m;
 	void *map;
 	int i;
@@ -2075,13 +2059,21 @@ static void BE_DrawMeshChain_Internal(void)
 //		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SLOPESCALEDEPTHBIAS, *(DWORD*)&shaderstate.depthfactor);
 //	}
 
+	//if anything is dynamic ALL must be dynamic
+	//might want to flag this for multi-mesh batches on pre-t&l cards too, so that there's no gaps.
+	if (shaderstate.curshader->numdeforms)
+		shaderstate.batchvbo = NULL;
+
 	if (shaderstate.batchvbo)
 	{
+		vertfirst = 0;
 		vertcount = shaderstate.batchvbo->vertcount;
+		idxfirst = 0;
 		idxcount = shaderstate.batchvbo->indexcount;
 	}
 	else
 	{
+		vertfirst = 0;
 		for (mno = 0, vertcount = 0, idxcount = 0; mno < shaderstate.nummeshes; mno++)
 		{
 			m = shaderstate.meshlist[mno];
@@ -2091,12 +2083,14 @@ static void BE_DrawMeshChain_Internal(void)
 	}
 
 	/*vertex buffers are common to all passes*/
-	if (shaderstate.batchvbo && !shaderstate.curshader->numdeforms)
+	if (shaderstate.batchvbo)
 	{
 		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, shaderstate.batchvbo->coord.d3d.buff, shaderstate.batchvbo->coord.d3d.offs, sizeof(vbovdata_t)));
+		vertfirst = 0;
 	}
 	else
 	{
+		vertfirst = 0;
 		allocvertexbuffer(shaderstate.dynxyz_buff, shaderstate.dynxyz_size, &shaderstate.dynxyz_offs, &map, vertcount*sizeof(vecV_t));
 		for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
 		{
@@ -2113,11 +2107,44 @@ static void BE_DrawMeshChain_Internal(void)
 		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, shaderstate.dynxyz_buff, shaderstate.dynxyz_offs - vertcount*sizeof(vecV_t), sizeof(vecV_t)));
 	}
 
-	/*so are index buffers*/
+	/*index buffers are also common (note that we may still need to stream these when dealing with bsp geometry, to cope with gaps. this is faster than using multiple draw calls.)*/
 	if (shaderstate.batchvbo)
 	{
-		d3dcheck(IDirect3DDevice9_SetIndices(pD3DDev9, shaderstate.batchvbo->indicies.d3d.buff));
-		idxfirst = 0;
+		if (shaderstate.nummeshes != 1)
+		{	//in this case, the vertex data is static, but the index data can have gaps.
+			//we're streaming index buffer data only so that we can avoid repeated draw calls. if this stuff was properly built in the first place we wouldn't need to do this. :s
+			idxcount = 0;
+			for (mno = 0; mno < shaderstate.nummeshes; mno++)
+			{
+				m = shaderstate.meshlist[mno];
+				idxcount += m->numindexes;
+			}
+			idxfirst = allocindexbuffer(&map, idxcount);
+			for (mno = 0; mno < shaderstate.nummeshes; mno++)
+			{
+				m = shaderstate.meshlist[mno];
+				for (i = 0; i < m->numindexes; i++)
+					((index_t*)map)[i] = m->vbofirstvert + m->indexes[i];
+				map = (char*)map + m->numindexes*sizeof(index_t);
+			}
+			d3dcheck(IDirect3DIndexBuffer9_Unlock(shaderstate.dynidx_buff));
+			d3dcheck(IDirect3DDevice9_SetIndices(pD3DDev9, shaderstate.dynidx_buff));
+
+			//we could constrain vertfirst+vertcount, but I suspect those only matter on pre t&l cards, of which there are very few.
+
+			vertbase = 0;
+		}
+		else
+		{
+			m = shaderstate.meshlist[0];
+			vertbase = 0;//-m->vbofirstvert;
+			idxfirst = m->vbofirstelement;
+			idxcount = m->numindexes;
+			vertfirst = m->vbofirstvert;
+			vertcount = m->numvertexes;
+
+			d3dcheck(IDirect3DDevice9_SetIndices(pD3DDev9, shaderstate.batchvbo->indicies.d3d.buff));
+		}
 	}
 	else
 	{
@@ -2132,13 +2159,43 @@ static void BE_DrawMeshChain_Internal(void)
 		}
 		d3dcheck(IDirect3DIndexBuffer9_Unlock(shaderstate.dynidx_buff));
 		d3dcheck(IDirect3DDevice9_SetIndices(pD3DDev9, shaderstate.dynidx_buff));
+		vertbase = 0;
 	}
 
 	switch (shaderstate.mode)
 	{
 	case BEM_LIGHT:
 		if (shaderstate.shader_rtlight->prog)
-			BE_RenderMeshProgram(shaderstate.shader_rtlight, vertcount, idxfirst, idxcount);
+			BE_RenderMeshProgram(shaderstate.shader_rtlight, vertbase, vertfirst, vertcount, idxfirst, idxcount);
+		break;
+	case BEM_DEPTHDARK:
+		shaderstate.lastpasscount = 0;
+		i = 0;
+		if (i != shaderstate.curvertdecl)
+		{
+			shaderstate.curvertdecl = i;
+			d3dcheck(IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, vertexdecls[shaderstate.curvertdecl]));
+		}
+		/*deactivate any extras*/
+		for (passno = 1; passno < shaderstate.lastpasscount; )
+		{
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+passno, NULL, 0, 0));
+			BindTexture(passno, NULL);
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_DISABLE));
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
+			passno++;
+		}
+		BindTexture(passno, NULL);
+		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG1));
+		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_COLORARG1, D3DTA_CONSTANT));
+		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_CONSTANT, D3DCOLOR_RGBA(0,0,0,255)));
+		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, 0, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
+		shaderstate.lastpasscount = 1;
+		BE_ApplyShaderBits(SBITS_MISC_DEPTHWRITE);
+
+		BE_SubmitMeshChain(vertbase, vertfirst, vertcount, idxfirst, idxcount);
+		break;
+	case BEM_STENCIL:
 		break;
 	case BEM_DEPTHONLY:
 		shaderstate.lastpasscount = 0;
@@ -2159,14 +2216,15 @@ static void BE_DrawMeshChain_Internal(void)
 			passno++;
 		}
 		shaderstate.lastpasscount = 0;
-		BE_SubmitMeshChain(idxfirst);
+		BE_ApplyShaderBits(SBITS_MISC_DEPTHWRITE);
+		BE_SubmitMeshChain(vertbase, vertfirst, vertcount, idxfirst, idxcount);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORWRITEENABLE, D3DCOLORWRITEENABLE_RED|D3DCOLORWRITEENABLE_GREEN|D3DCOLORWRITEENABLE_BLUE|D3DCOLORWRITEENABLE_ALPHA);
 		break;
 	default:
 	case BEM_STANDARD:
 		if (shaderstate.curshader->prog)
 		{
-			BE_RenderMeshProgram(shaderstate.curshader, vertcount, idxfirst, idxcount);
+			BE_RenderMeshProgram(shaderstate.curshader, vertbase, vertfirst, vertcount, idxfirst, idxcount);
 		}
 		else
 		{
@@ -2180,7 +2238,7 @@ static void BE_DrawMeshChain_Internal(void)
 				if (shaderstate.bench.clamp && shaderstate.bench.clamp < shaderstate.bench.draws)
 					continue;
 		#endif
-				BE_SubmitMeshChain(idxfirst);
+				BE_SubmitMeshChain(vertbase, vertfirst, vertcount, idxfirst, idxcount);
 //				d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
 			}
 		}
@@ -2570,8 +2628,8 @@ static void BE_UploadLightmaps(qboolean force)
 			glRect_t *theRect = &lm->rectchange;
 			int r;
 
-			if (!lm->lightmap_texture)
-				lm->lightmap_texture = Image_CreateTexture("", NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
+			if (!TEXLOADED(lm->lightmap_texture))
+				lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
 			tex = lm->lightmap_texture->ptr;
 			if (!tex)
 			{
@@ -2579,6 +2637,7 @@ static void BE_UploadLightmaps(qboolean force)
 				if (!tex)
 					continue;
 				lm->lightmap_texture->ptr = tex;
+				lm->lightmap_texture->status = TEX_LOADED;
 			}
 			
 			lm->modified = 0;
@@ -2774,7 +2833,12 @@ void D3D9BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vb
 {
 	shaderstate.batchvbo = vbo;
 	shaderstate.curshader = shader;
-	shaderstate.curtexnums = texnums;
+	if (texnums)
+		shaderstate.curtexnums = texnums;
+	else if (shader->numdefaulttextures)
+		shaderstate.curtexnums = shader->defaulttextures + ((int)(shader->defaulttextures_fps * shaderstate.curtime) % shader->numdefaulttextures);
+	else
+		shaderstate.curtexnums = shader->defaulttextures;
 	shaderstate.curlightmap = r_nulltex;
 	shaderstate.curbatch = &shaderstate.dummybatch;
 	shaderstate.meshlist = meshlist;
@@ -3148,6 +3212,17 @@ void D3D9BE_BaseEntTextures(void)
 
 void D3D9BE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vbuf, unsigned int numindicies, IDirect3DIndexBuffer9 *ibuf)
 {
+	float pushdepth;
+	extern cvar_t r_polygonoffset_submodel_factor;
+//	D3D9BE_Cull(0);//shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK));
+	pushdepth = (shaderstate.curshader->polyoffset.factor + ((0/*shaderstate.flags & BEF_PUSHDEPTH*/)?r_polygonoffset_submodel_factor.value:0))/0xffff;
+	if (pushdepth != shaderstate.depthbias)
+	{
+		shaderstate.depthbias = pushdepth;
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DEPTHBIAS, *(DWORD*)&shaderstate.depthbias);
+	}
+
+
 	IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, vbuf, 0, sizeof(vecV_t));
 	IDirect3DDevice9_SetIndices(pD3DDev9, ibuf);
 
@@ -3185,6 +3260,7 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 
 	if (drawworld)
 	{
+		float shaderstate_identitylighting;
 		BE_UploadLightmaps(false);
 
 		//make sure the world draws correctly
@@ -3196,7 +3272,19 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 		r_worldentity.axis[1][1] = 1;
 		r_worldentity.axis[2][2] = 1;
 
-		BE_SelectMode(BEM_STANDARD);
+#ifdef RTLIGHTS
+		if (drawworld && r_shadow_realtime_world.ival)
+			shaderstate_identitylighting = r_shadow_realtime_world_lightmaps.value;
+		else
+#endif
+			shaderstate_identitylighting = 1;
+		shaderstate_identitylighting *= r_refdef.hdr_value;
+//		shaderstate_identitylightmap = shaderstate.identitylighting / (1<<gl_overbright.ival);
+
+		if (shaderstate_identitylighting == 0)
+			BE_SelectMode(BEM_DEPTHDARK);
+		else
+			BE_SelectMode(BEM_STANDARD);
 
 		RSpeedRemark();
 		D3D9BE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
@@ -3211,6 +3299,8 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 			RSpeedEnd(RSPEED_STENCILSHADOWS);
 		}
 #endif
+
+		BE_SelectMode(BEM_STANDARD);
 
 		D3D9BE_SubmitMeshes(true, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);
 	}

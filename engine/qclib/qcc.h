@@ -320,6 +320,7 @@ struct QCC_typeparam_s
 {
 	struct QCC_type_s *type;
 	pbool optional;
+	pbool out;
 	unsigned int ofs;
 	unsigned int arraysize;
 	char *paramname;
@@ -531,6 +532,7 @@ extern pbool keyword_break;
 extern pbool keyword_case;
 extern pbool keyword_class;
 extern pbool keyword_const;
+extern pbool keyword_inout;
 extern pbool keyword_optional;
 extern pbool keyword_continue;
 extern pbool keyword_default;

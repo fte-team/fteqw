@@ -285,11 +285,11 @@ int MP_TranslateQCtoFTECodes(int code)
 void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
-	//float bindmap = G_FLOAT(OFS_PARM1);
+	int bindmap = G_FLOAT(OFS_PARM1);
 	int keynums[2];
 	char keyname[512];
 
-	M_FindKeysForCommand(0, cmdname, keynums);
+	M_FindKeysForCommand(bindmap, 0, cmdname, keynums, NULL, countof(keynums));
 
 	keyname[0] = '\0';
 
@@ -302,18 +302,19 @@ void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalva
 void QCBUILTIN PF_cl_findkeysforcommandex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int bindmap = G_FLOAT(OFS_PARM1);
 	int keynums[256];
 	int keymods[countof(keynums)];
 	char keyname[512];
 	int i, count;
 
-	count = M_FindKeysForBind(cmdname, keynums, keymods, countof(keynums));
+	count = M_FindKeysForBind(bindmap, cmdname, keynums, keymods, countof(keynums));
 
 	keyname[0] = '\0';
 
 	for (i = 0; i < count; i++)
 	{
-		Q_strncatz (keyname, va("%s%s%s%s ", (keymods[i]&KEY_MODIFIER_CTRL)?"CTRL_":"", (keymods[i]&KEY_MODIFIER_ALT)?"ALT_":"", (keymods[i]&KEY_MODIFIER_SHIFT)?"SHIFT_":"", Key_KeynumToString(keynums[i])), sizeof(keyname));
+		Q_strncatz (keyname, Key_KeynumToString(keynums[i], keymods[i]), sizeof(keyname));
 	}
 
 	RETURN_TSTRING(keyname);
@@ -321,7 +322,9 @@ void QCBUILTIN PF_cl_findkeysforcommandex (pubprogfuncs_t *prinst, struct global
 
 void QCBUILTIN PF_cl_getkeybind (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *binding = Key_GetBinding(MP_TranslateQCtoFTECodes(G_FLOAT(OFS_PARM0)));
+	int keymap = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
+	int modifier = (prinst->callargc > 2)?G_FLOAT(OFS_PARM2):0;
+	char *binding = Key_GetBinding(MP_TranslateQCtoFTECodes(G_FLOAT(OFS_PARM0)), keymap, modifier);
 	RETURN_TSTRING(binding);
 }
 
@@ -349,7 +352,7 @@ void QCBUILTIN PF_cl_keynumtostring (pubprogfuncs_t *prinst, struct globalvars_s
 
 	code = MP_TranslateQCtoFTECodes (code);
 
-	RETURN_TSTRING(Key_KeynumToString(code));
+	RETURN_TSTRING(Key_KeynumToString(code, 0));
 }
 
 
@@ -700,17 +703,21 @@ void QCBUILTIN PF_shaderforname (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 void QCBUILTIN PF_cl_GetBindMap (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_VECTOR(OFS_RETURN)[0] = 1;
-	G_VECTOR(OFS_RETURN)[1] = 0;
+	int bm[2];
+	Key_GetBindMap(bm);
+	G_VECTOR(OFS_RETURN)[0] = bm[0];
+	G_VECTOR(OFS_RETURN)[1] = bm[1];
 	G_VECTOR(OFS_RETURN)[2] = 0;
 }
 void QCBUILTIN PF_cl_SetBindMap (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-//	int primary = G_FLOAT(OFS_PARM0+0);
-//	int secondary = G_FLOAT(OFS_PARM0+1);
-//	if (IN_SetBindMap(primary, secondary))
-//		G_FLOAT(OFS_RETURN) = 1;
-	G_FLOAT(OFS_RETURN) = 0;
+	int bm[2] =
+	{
+		G_FLOAT(OFS_PARM0+0),
+		G_FLOAT(OFS_PARM0+1)
+	};
+	Key_SetBindMap(bm);
+	G_FLOAT(OFS_RETURN) = 1;
 }
 
 //evil builtins to pretend to be a server.

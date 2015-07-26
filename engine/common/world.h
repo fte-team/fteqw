@@ -171,7 +171,7 @@ struct world_s
 {
 	void (*Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o);
 	void (*Event_Think)(struct world_s *w, wedict_t *s);
-	void (*Event_Sound) (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj);
+	void (*Event_Sound) (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeoffset);
 	qboolean (*Event_ContentsTransition) (struct world_s *w, wedict_t *ent, int oldwatertype, int newwatertype);
 	model_t *(*Get_CModel)(struct world_s *w, int modelindex);
 	void (*Get_FrameState)(struct world_s *w, wedict_t *s, framestate_t *fstate);

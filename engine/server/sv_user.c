@@ -34,6 +34,7 @@ edict_t	*sv_player;
 
 usercmd_t	cmd;
 
+extern cvar_t dpcompat_nopreparse;
 #ifdef SERVERONLY
 cvar_t	cl_rollspeed = SCVAR("cl_rollspeed", "200");
 cvar_t	cl_rollangle = SCVAR("cl_rollangle", "2.0");
@@ -245,6 +246,14 @@ void SV_New_f (void)
 		}
 	}
 
+	if (dpcompat_nopreparse.ival && progstype != PROG_QW)
+	{
+		SV_PrintToClient(host_client, PRINT_HIGH, "This server now has network preparsing disabled, and thus only supports NetQuake clients\n");
+		Con_Printf("%s was not using NQ protocols\n");
+		host_client->drop = true;
+		return;
+	}
+
 /*	splitt delay
 	host_client->state = cs_connected;
 	host_client->connection_started = realtime;
@@ -278,6 +287,7 @@ void SV_New_f (void)
 	{
 		SV_ClientPrintf(host_client, 2, "\n\n\n\nSorry, but your client does not appear to support FTE's bigcoords\nFTE users will need to set cl_nopext to 0 and then reconnect, or to upgrade\n");
 		Con_Printf("%s does not support bigcoords\n", host_client->name);
+		host_client->drop = true;
 		return;
 	}
 
@@ -462,6 +472,13 @@ void SVNQ_New_f (void)
 		return;
 	}
 
+	if (dpcompat_nopreparse.ival && progstype == PROG_QW)
+	{
+		SV_PrintToClient(host_client, PRINT_HIGH, "This server now has network preparsing disabled, and thus only supports QuakeWorld clients\n");
+		Con_Printf("%s was not using QW protocols\n");
+		host_client->drop = true;
+		return;
+	}
 
 	Z_Free(host_client->csqcentversions);
 	host_client->csqcentversions = NULL;
@@ -508,7 +525,7 @@ void SVNQ_New_f (void)
 		}
 		else
 		{
-			host_client->protocol = (host_client->protocol==SCP_PROQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;	//identical other than the client->server angles
+			host_client->protocol = (host_client->protocol!=SCP_NETQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;	//identical other than the client->server angles
 			protmain = NQ_PROTOCOL_VERSION;
 			protoname = "NQ";
 		}
@@ -590,9 +607,7 @@ void SVNQ_New_f (void)
 	else
 		MSG_WriteByte (&host_client->netchan.message, GAME_COOP);
 
-	strcpy (message, sv.mapname);
-
-	MSG_WriteString (&host_client->netchan.message,message);
+	MSG_WriteString (&host_client->netchan.message, sv.mapname);
 
 
 	//fixme: don't send too many models.
@@ -617,6 +632,8 @@ void SVNQ_New_f (void)
 
 	host_client->prespawn_stage = PRESPAWN_SERVERINFO;
 	host_client->prespawn_idx = 0;
+
+	host_client->netchan.nqunreliableonly = 2;
 }
 
 
@@ -7457,7 +7474,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 		else
 			host_client->edict->v->v_angle[i] = MSG_ReadAngle ();
 
-		move->angles[i] = (host_client->edict->v->v_angle[i] * 256*256)/360;
+		move->angles[i] = ANGLE2SHORT(host_client->edict->v->v_angle[i]);
 	}
 
 // read movement

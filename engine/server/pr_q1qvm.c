@@ -685,7 +685,7 @@ static qintptr_t QVM_AmbientSound (void *offset, quintptr_t mask, const qintptr_
 static qintptr_t QVM_Sound (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 //	( int edn, int channel, char *samp, float vol, float att )
-	SVQ1_StartSound (NULL, (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0);
+	SVQ1_StartSound (NULL, (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0, 0);
 	return 0;
 }
 static qintptr_t QVM_TraceLine (void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -1412,19 +1412,19 @@ static qintptr_t QVM_uri_query (void *offset, quintptr_t mask, const qintptr_t *
 	
 	if (!pr_enable_uriget.ival)
 	{
-		Con_Printf("QVM_uri_query(\"%s\",%x): %s disabled\n", url, (int)cb_context, pr_enable_uriget.name);
+		Con_Printf("QVM_uri_query(\"%s\","fPRIp"): %s disabled\n", url, cb_context, pr_enable_uriget.name);
 		return 0;
 	}
 
 	if (mimetype && *mimetype)
 	{
 		VALIDATEPOINTER(arg[4],datasize);
-		Con_DPrintf("QVM_uri_query(%s,%x)\n", url, (int)cb_context);
+		Con_DPrintf("QVM_uri_query(%s,"fPRIp")\n", url, cb_context);
 		dl = HTTP_CL_Put(url, mimetype, data, datasize, QVM_uri_query_callback);
 	}
 	else
 	{
-		Con_DPrintf("QVM_uri_query(%s,%x)\n", url, (int)cb_context);
+		Con_DPrintf("QVM_uri_query(%s,"fPRIp")\n", url, cb_context);
 		dl = HTTP_CL_Get(url, NULL, QVM_uri_query_callback);
 	}
 	if (dl)
@@ -1614,7 +1614,7 @@ static qintptr_t QVM_Map_Extension (void *offset, quintptr_t mask, const qintptr
 
 //============== general Quake services ==================
 
-#if __WORDSIZE == 64
+#if FTE_WORDSIZE == 64
 static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
 {
 	qintptr_t args[13];
@@ -1910,9 +1910,9 @@ qboolean PR_LoadQ1QVM(void)
 	sv.world.usesolidcorpse = true;
 
 	if ((unsigned)gd->global->mapname && (unsigned)gd->global->mapname+MAPNAME_LEN < VM_MemoryMask(q1qvm))
-		Q_strncpyz((char*)VM_MemoryBase(q1qvm) + gd->global->mapname, sv.mapname, MAPNAME_LEN);
+		Q_strncpyz((char*)VM_MemoryBase(q1qvm) + gd->global->mapname, svs.name, MAPNAME_LEN);
 	else
-		gd->global->mapname = Q1QVMPF_StringToProgs(sv.world.progs, sv.mapname);
+		gd->global->mapname = Q1QVMPF_StringToProgs(sv.world.progs, svs.name);
 
 	PR_SV_FillWorldGlobals(&sv.world);
 	return true;

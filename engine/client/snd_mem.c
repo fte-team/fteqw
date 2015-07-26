@@ -824,7 +824,7 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 			result = VFS_READ(f, data, filesize);
 
 			if (result != filesize)
-				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected %i, result was %u\n", name, filesize, (unsigned int)result);
+				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected "fPRIzu", result was "fPRIzu"\n", name, filesize, result);
 
 			VFS_CLOSE(f);
 		}

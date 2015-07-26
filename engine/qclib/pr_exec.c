@@ -356,19 +356,21 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 			//locals:1 = top only
 			//locals:2 = ALL locals.
 			if ((i == pr_depth && showlocals == 1) || showlocals >= 2)
-			for (arg = 0; arg < f->locals; arg++)
 			{
-				ddef16_t *local;
-				local = ED_GlobalAtOfs16(progfuncs, f->parm_start+arg);
-				if (!local)
+				for (arg = 0; arg < f->locals; arg++)
 				{
-					//printf("    ofs %i: %f : %i\n", f->parm_start+arg, *(float *)(globalbase - f->locals+arg), *(int *)(globalbase - f->locals+arg) );
-				}
-				else
-				{
-					printf("    %s: %s\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase+arg), false));
-					if (local->type == ev_vector)
-						arg+=2;
+					ddef16_t *local;
+					local = ED_GlobalAtOfs16(progfuncs, f->parm_start+arg);
+					if (!local)
+					{
+						//printf("    ofs %i: %f : %i\n", f->parm_start+arg, *(float *)(globalbase - f->locals+arg), *(int *)(globalbase - f->locals+arg) );
+					}
+					else
+					{
+						printf("    %s: %s\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase+arg), false));
+						if (local->type == ev_vector)
+							arg+=2;
+					}
 				}
 			}
 			if (i == pr_depth)
@@ -377,7 +379,7 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 			}
 
 			if (i == pr_depth)
-				globalbase = localstack + localstack_used;
+				globalbase = prinst.localstack + prinst.localstack_used;
 		}
 	}
 	progfuncs->funcs.debug_trace = tracing;
@@ -405,7 +407,7 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsn
 	pr_stack[pr_depth].s = pr_xstatement;
 	pr_stack[pr_depth].f = pr_xfunction;
 	pr_stack[pr_depth].progsnum = progsnum;
-	pr_stack[pr_depth].pushed = pr_spushed;
+	pr_stack[pr_depth].pushed = prinst.spushed;
 	pr_stack[pr_depth].stepping = progfuncs->funcs.debug_trace;
 	if (progfuncs->funcs.debug_trace == DEBUG_TRACE_OVER)
 		progfuncs->funcs.debug_trace = DEBUG_TRACE_OFF;
@@ -427,20 +429,20 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsn
 		return pr_xstatement;
 	}
 
-	localstack_used += pr_spushed;	//make sure the call doesn't hurt pushed pointers
+	prinst.localstack_used += prinst.spushed;	//make sure the call doesn't hurt pushed pointers
 
 // save off any locals that the new function steps on (to a side place, fromwhere they are restored on exit)
 	c = f->locals;
-	if (localstack_used + c > LOCALSTACK_SIZE)
+	if (prinst.localstack_used + c > LOCALSTACK_SIZE)
 	{
-		localstack_used -= pr_spushed;
+		prinst.localstack_used -= prinst.spushed;
 		pr_depth--;
 		PR_RunError (&progfuncs->funcs, "PR_ExecuteProgram: locals stack overflow\n");
 	}
 
 	for (i=0 ; i < c ; i++)
-		localstack[localstack_used+i] = ((int *)pr_globals)[f->parm_start + i];
-	localstack_used += c;
+		prinst.localstack[prinst.localstack_used+i] = ((int *)pr_globals)[f->parm_start + i];
+	prinst.localstack_used += c;
 
 // copy parameters (set initial values)
 	o = f->parm_start;
@@ -471,18 +473,18 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 
 // restore locals from the stack
 	c = pr_xfunction->locals;
-	localstack_used -= c;
-	if (localstack_used < 0)
+	prinst.localstack_used -= c;
+	if (prinst.localstack_used < 0)
 		PR_RunError (&progfuncs->funcs, "PR_ExecuteProgram: locals stack underflow\n");
 
 	for (i=0 ; i < c ; i++)
-		((int *)pr_globals)[pr_xfunction->parm_start + i] = localstack[localstack_used+i];
+		((int *)pr_globals)[pr_xfunction->parm_start + i] = prinst.localstack[prinst.localstack_used+i];
 
 // up stack
 	pr_depth--;
 
 	PR_SwitchProgsParms(progfuncs, pr_stack[pr_depth].progsnum);
-	pr_spushed = pr_stack[pr_depth].pushed;
+	prinst.spushed = pr_stack[pr_depth].pushed;
 
 	if (!progfuncs->funcs.debug_trace)
 		progfuncs->funcs.debug_trace = pr_stack[pr_depth].stepping;
@@ -499,7 +501,7 @@ int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 	else
 		pr_xfunction = pr_stack[pr_depth].f;
 
-	localstack_used -= pr_spushed;
+	prinst.localstack_used -= prinst.spushed;
 	return pr_stack[pr_depth].s;
 }
 
@@ -510,10 +512,10 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 	ddef16_t *def16;
 	int i;
 
-	if (pr_typecurrent < 0)
+	if (prinst.pr_typecurrent < 0)
 		return NULL;
 
-	switch (pr_progstate[pr_typecurrent].structtype)
+	switch (pr_progstate[prinst.pr_typecurrent].structtype)
 	{
 	case PST_DEFAULT:
 	case PST_KKQWSV:
@@ -526,7 +528,7 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 				continue;
 			if (!strcmp(def16->s_name+progfuncs->funcs.stringtable, name))
 			{
-				*val = (eval_t *)&pr_progstate[pr_typecurrent].globals[pr_xfunction->parm_start+i];
+				*val = (eval_t *)&pr_progstate[prinst.pr_typecurrent].globals[pr_xfunction->parm_start+i];
 
 				//we need something like this for functions that are not the top layer
 	//			*val = (eval_t *)&localstack[localstack_used-pr_xfunction->numparms*4];
@@ -555,7 +557,7 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 				continue;
 			if (!strcmp(def32->s_name+progfuncs->funcs.stringtable, name))
 			{
-				*val = (eval_t *)&pr_progstate[pr_typecurrent].globals[pr_xfunction->parm_start+i];
+				*val = (eval_t *)&pr_progstate[prinst.pr_typecurrent].globals[pr_xfunction->parm_start+i];
 
 				//we need something like this for functions that are not the top layer
 	//			*val = (eval_t *)&localstack[localstack_used-pr_xfunction->numparms*4];
@@ -571,7 +573,7 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 		def32 = NULL;
 	}
 
-	*val = (eval_t *)&pr_progstate[pr_typecurrent].globals[def32->ofs];
+	*val = (eval_t *)&pr_progstate[prinst.pr_typecurrent].globals[def32->ofs];
 	return &def;
 }
 
@@ -672,7 +674,7 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 		ed = PROG_TO_EDICT(progfuncs, val->_int);
 		if (!ed)
 			return false;
-		if (fofs < 0 || fofs >= (int)max_fields_size)
+		if (fofs < 0 || fofs >= (int)prinst.max_fields_size)
 			return false;
 		val = (eval_t *) (((char *)ed->fields) + fofs*4);
 	}
@@ -908,7 +910,7 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 //int EditorHighlightLine(window_t *wnd, int line);
 void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 {
-	int pn = pr_typecurrent;
+	int pn = prinst.pr_typecurrent;
 	int snum;
 	const mfunction_t *f = pr_xfunction;
 
@@ -945,11 +947,11 @@ int PDECL PR_ToggleBreakpoint(pubprogfuncs_t *ppf, char *filename, int linenum, 
 	int ret=0;
 	unsigned int fl;
 	unsigned int i;
-	int pn = pr_typecurrent;
+	int pn = prinst.pr_typecurrent;
 	mfunction_t *f;
 	int op = 0; //warning about not being initialized before use
 
-	for (pn = 0; (unsigned)pn < maxprogs; pn++)
+	for (pn = 0; (unsigned)pn < prinst.maxprogs; pn++)
 	{
 		if (!pr_progstate || !pr_progstate[pn].progs)
 			continue;
@@ -1119,7 +1121,7 @@ static int lastline = 0;
 static int ignorestatement = 0;	//
 static const char *lastfile = 0;
 
-	int pn = pr_typecurrent;
+	int pn = prinst.pr_typecurrent;
 	int i;
 	const mfunction_t *f = pr_xfunction;
 	int faultline;
@@ -1202,6 +1204,13 @@ static const char *lastfile = 0;
 				continue;
 			else if(debugaction == DEBUG_TRACE_ABORT)
 				progfuncs->funcs.parms->Abort ("Debugging terminated");
+			else if (debugaction == DEBUG_TRACE_OFF)
+			{
+				//if we're resuming, don't hit any lingering step-over triggers
+				progfuncs->funcs.debug_trace = DEBUG_TRACE_OFF;
+				for (i = 0; i < pr_depth; i++)
+					pr_stack[pr_depth-1].stepping = DEBUG_TRACE_OFF;
+			}
 			else if (debugaction == DEBUG_TRACE_OUT)
 			{
 				//clear tracing for now, but ensure that it'll be reactivated once we reach the caller (if from qc)
@@ -1314,7 +1323,7 @@ pbool PR_RunWarning (pubprogfuncs_t *ppf, char *error, ...)
 const char *PR_GetEdictClassname(progfuncs_t *progfuncs, int edict)
 {
 	fdef_t *cnfd = ED_FindField(progfuncs, "classname");
-	if (cnfd && edict < maxedicts)
+	if (cnfd && edict < prinst.maxedicts)
 	{
 		string_t *v = (string_t *)((char *)edvars(PROG_TO_EDICT(progfuncs, edict)) + cnfd->ofs*4);
 		return PR_StringToNative(&progfuncs->funcs, *v);
@@ -1367,7 +1376,7 @@ static casecmprange_t casecmprange[] =
 		printf ("runaway loop error\n");		\
 		while(pr_depth > prinst.exitdepth)		\
 			PR_LeaveFunction(progfuncs);		\
-		pr_spushed = 0;							\
+		prinst.spushed = 0;							\
 		return -1;								\
 	}
 
@@ -1562,10 +1571,10 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 
 	unsigned int newprogs = (fnum & 0xff000000)>>24;
 
-	initial_progs = pr_typecurrent;
+	initial_progs = prinst.pr_typecurrent;
 	if (newprogs != initial_progs)
 	{
-		if (newprogs >= maxprogs || !&pr_progstate[newprogs].globals)	//can happen with hexen2...
+		if (newprogs >= prinst.maxprogs || !&pr_progstate[newprogs].globals)	//can happen with hexen2...
 		{
 			printf("PR_ExecuteProgram: tried branching into invalid progs\n");
 			return;
@@ -1701,7 +1710,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 		for (l = 0; l < f->locals; l++)
 		{
 			thread->lstack[localsoffset-baselocalsoffset + l ] = ((int *)pr_globals)[f->parm_start + l];
-			((int *)pr_globals)[f->parm_start + l] = localstack[localsoffset+l];	//copy the old value into the globals (so the older functions have the correct locals.
+			((int *)pr_globals)[f->parm_start + l] = prinst.localstack[localsoffset+l];	//copy the old value into the globals (so the older functions have the correct locals.
 		}
 	}
 
@@ -1721,8 +1730,8 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 	thread->lstackused = localsoffset - baselocalsoffset;
 
 	thread->xstatement = pr_xstatement;
-	thread->xfunction = pr_xfunction - pr_progstate[pr_typecurrent].functions;
-	thread->xprogs = pr_typecurrent;
+	thread->xfunction = pr_xfunction - pr_progstate[prinst.pr_typecurrent].functions;
+	thread->xprogs = prinst.pr_typecurrent;
 
 	return thread;
 }
@@ -1743,7 +1752,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 	progsnum_t prnum = thread->xprogs;
 	int fnum = thread->xfunction;
 
-	if (localstack_used + thread->lstackused > LOCALSTACK_SIZE)
+	if (prinst.localstack_used + thread->lstackused > LOCALSTACK_SIZE)
 		PR_RunError(&progfuncs->funcs, "Too many locals on resumtion of QC thread\n");
 
 	if (pr_depth + thread->fstackdepth > MAX_STACK_DEPTH)
@@ -1751,7 +1760,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 
 
 	//do progs switching stuff as appropriate. (fteqw only)
-	initial_progs = pr_typecurrent;
+	initial_progs = prinst.pr_typecurrent;
 	PR_SwitchProgsParms(progfuncs, prnum);
 
 
@@ -1781,7 +1790,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 			f = pr_progstate[thread->fstack[i+1].progsnum].functions + thread->fstack[i+1].fnum;
 		for (l = 0; l < f->locals; l++)
 		{
-			localstack[localstack_used++] = ((int *)pr_globals)[f->parm_start + l];
+			prinst.localstack[prinst.localstack_used++] = ((int *)pr_globals)[f->parm_start + l];
 			((int *)pr_globals)[f->parm_start + l] = thread->lstack[ls++];
 		}
 
@@ -1797,8 +1806,8 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 //	thread->lstackused -= f->locals;	//the current function is the odd one out.
 
 	//add on the locals stack
-	memcpy(localstack+localstack_used, thread->lstack, sizeof(int)*thread->lstackused);
-	localstack_used += thread->lstackused;
+	memcpy(prinst.localstack+prinst.localstack_used, thread->lstack, sizeof(int)*thread->lstackused);
+	prinst.localstack_used += thread->lstackused;
 
 	//bung the locals of the current function on the stack.
 //	for (i=0 ; i < f->locals ; i++)

@@ -37,7 +37,11 @@ struct texture_s;
 
 static const texid_t r_nulltex = NULL;
 
-
+//GLES2 requires GL_UNSIGNED_SHORT
+//geforce4 only does shorts. gffx can do ints, but with a performance hit (like most things on that gpu)
+//ati is generally more capable, but generally also has a smaller market share
+//desktop-gl will generally cope with ints, but expect a performance hit from that (so we don't bother)
+//dx10 can cope with ints, 
 #if 1 || defined(MINIMAL) || defined(D3DQUAKE) || defined(ANDROID)
 	#define sizeof_index_t 2
 #endif
@@ -196,7 +200,7 @@ typedef struct
 	float time;	//timestamp for when its current.
 } fogstate_t;
 void CL_BlendFog(fogstate_t *result, fogstate_t *oldf, float time, fogstate_t *newf);
-void CL_ResetFog(void);
+void CL_ResetFog(int fogtype);
 
 typedef struct {
 	char texname[MAX_QPATH];
@@ -254,16 +258,6 @@ typedef struct
 	qbyte		*forcedvis;
 	qboolean	areabitsknown;
 	qbyte		areabits[MAX_MAP_AREA_BYTES];
-
-	struct
-	{
-		qboolean defaulted;
-		vec3_t origin;
-		vec3_t forward;
-		vec3_t right;
-		vec3_t up;
-		int inwater;
-	} audio;
 } refdef_t;
 
 extern	refdef_t	r_refdef;
@@ -373,6 +367,8 @@ enum imageflags
 	IF_TEXTYPESHIFT = 8, /*0=2d, 1=3d, 2-7=cubeface*/
 	IF_MIPCAP = 1<<10,
 	IF_PREMULTIPLYALPHA = 1<<12,	//rgb *= alpha
+
+	IF_NOPURGE = 1<<22,
 	IF_HIGHPRIORITY = 1<<23,
 	IF_LOWPRIORITY = 1<<24,
 	IF_LOADNOW = 1<<25,			/*hit the disk now, and delay the gl load until its actually needed. this is used only so that the width+height are known in advance*/
@@ -395,6 +391,7 @@ image_t *Image_GetTexture	(const char *identifier, const char *subpath, unsigned
 qboolean Image_UnloadTexture(image_t *tex);	//true if it did something.
 void Image_DestroyTexture	(image_t *tex);
 void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
+void Image_Purge(void);	//purge any textures which are not needed any more (releases memory, but doesn't give null pointers).
 void Image_Init(void);
 void Image_Shutdown(void);
 

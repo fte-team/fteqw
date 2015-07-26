@@ -128,8 +128,8 @@ typedef struct
 	unsigned	model_player_checksum;
 	unsigned	eyes_player_checksum;
 
-	char		name[64];			// file map name
-	char		mapname[256];
+//	char		name[64];			// file map name (moved to svs, for restart)
+	char		mapname[256];		// text description of the map
 	char		modelname[MAX_QPATH];		// maps/<name>.bsp, for model_precache[0]
 
 	world_t world;
@@ -870,6 +870,7 @@ typedef struct
 	laggedpacket_t *free_lagged_packet;
 	packet_entities_t entstatebuffer; /*just a temp buffer*/
 
+	char		name[64];			// map name (base filename). static because of restart command after disconnecting.
 	levelcache_t *levcache;
 } server_static_t;
 
@@ -1137,8 +1138,8 @@ void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
 
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj);
-void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj);
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs);
+void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs);
 void SV_PrintToClient(client_t *cl, int level, const char *string);
 void SV_TPrintToClient(client_t *cl, int level, const char *string);
 void SV_StuffcmdToClient(client_t *cl, const char *string);

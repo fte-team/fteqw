@@ -1309,8 +1309,6 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 
 		nohud = true;
 	}
-	else if (!nohud)
-		SCR_TileClear ();
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
 

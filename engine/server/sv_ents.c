@@ -807,8 +807,8 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 #define UF_REMOVE		UF_16BIT	/*says we removed the entity in this frame*/
 #define UF_MOVETYPE		UF_EFFECTS2	/*this flag isn't present in the header itself*/
 #define UF_RESET2		UF_EXTEND1	/*so new ents are reset 3 times to avoid weird baselines*/
-#define UF_UNUSED		UF_EXTEND2	/**/
-#define UF_WEAPONFRAME_OLD	UF_EXTEND3
+//#define UF_UNUSED		UF_EXTEND2	/**/
+#define UF_WEAPONFRAME_OLD	UF_EXTEND2
 #define UF_VIEWANGLES	UF_EXTEND3	/**/
 
 static unsigned int SVFTE_DeltaPredCalcBits(entity_state_t *from, entity_state_t *to)
@@ -944,6 +944,11 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 	}
 	else
 	{
+		if (bits & UF_VIEWANGLES)
+		{
+			bits &= ~UF_VIEWANGLES;
+			bits |= UF_PREDINFO;
+		}
 		if (bits & UF_WEAPONFRAME_OLD)
 		{
 			bits &= ~UF_WEAPONFRAME_OLD;
@@ -1552,20 +1557,10 @@ void SVQW_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t
 void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew)
 {
 	int bits;
-//	if (!isnew && !memcmp(from, to, sizeof(entity_state_t)))
-//	{
-//		return;	//didn't change
-//	}
 
 	bits = 0;
 	if (isnew)
-	{
 		bits |= E5_FULLUPDATE;
-	}
-
-	bits |= E5_MODEL;
-	bits |= E5_ORIGIN;
-	bits |= E5_FRAME;
 
 	if (!VectorEquals(from->origin, to->origin))
 		bits |= E5_ORIGIN;
@@ -1596,9 +1591,9 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 	if (from->colormod[0] != to->colormod[0] || from->colormod[1] != to->colormod[1] || from->colormod[2] != to->colormod[2])
 		bits |= E5_COLORMOD;
 
-	if ((bits & E5_ORIGIN) && (/*!(to->flags & RENDER_LOWPRECISION) ||*/ to->origin[0] < -4096 || to->origin[0] >= 4096 || to->origin[1] < -4096 || to->origin[1] >= 4096 || to->origin[2] < -4096 || to->origin[2] >= 4096))
+	if ((bits & E5_ORIGIN) && (!(to->dpflags & RENDER_LOWPRECISION) || to->origin[0] < -4096 || to->origin[0] >= 4096 || to->origin[1] < -4096 || to->origin[1] >= 4096 || to->origin[2] < -4096 || to->origin[2] >= 4096))
 		bits |= E5_ORIGIN32;
-	if ((bits & E5_ANGLES)/* && !(to->flags & RENDER_LOWPRECISION)*/)
+	if ((bits & E5_ANGLES) && !(to->dpflags & RENDER_LOWPRECISION))
 		bits |= E5_ANGLES16;
 	if ((bits & E5_MODEL) && to->modelindex >= 256)
 		bits |= E5_MODEL16;
@@ -1728,19 +1723,19 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 	int		oldnum, newnum;
 	int		oldmax;
 
-	client->netchan.incoming_sequence++;
-
 	// this is the frame that we are going to delta update from
-	fromframe = &client->frameunion.frames[client->delta_sequence & UPDATE_MASK];
+	fromframe = &client->frameunion.frames[client->netchan.incoming_sequence-1 & UPDATE_MASK];
 	from = &fromframe->entities;
 	oldmax = from->num_entities;
 
 //	Con_Printf ("frame %i\n", client->netchan.incoming_sequence);
 
 	MSG_WriteByte(msg, svcdp_entities);
-	MSG_WriteLong(msg, client->netchan.incoming_sequence);
+	MSG_WriteLong(msg, client->netchan.incoming_sequence);	//sequence for the client to ack (any bits sent in unacked frames will be re-queued)
 	if (client->protocol == SCP_DARKPLACES7)
-		MSG_WriteLong(msg, client->last_sequence);
+		MSG_WriteLong(msg, client->last_sequence);			//movement sequence that we are acking.
+
+	client->netchan.incoming_sequence++;
 
 	//add in the bitmasks of dropped packets.
 
@@ -1772,6 +1767,7 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 
 		if (newnum > oldnum)
 		{	// the old entity isn't present in the new message
+//	Con_Printf("sRemove %i\n", oldnum);
 			MSG_WriteShort(msg, oldnum | 0x8000);
 			oldindex++;
 			continue;
@@ -3044,9 +3040,9 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->tagentity = ent->xv->tag_entity;
 	state->tagindex = ent->xv->tag_index;
 
-	state->light[0] = ent->xv->color[0]*255;
-	state->light[1] = ent->xv->color[1]*255;
-	state->light[2] = ent->xv->color[2]*255;
+	state->light[0] = ent->xv->color[0]*1024;
+	state->light[1] = ent->xv->color[1]*1024;
+	state->light[2] = ent->xv->color[2]*1024;
 	state->light[3] = ent->xv->light_lev;
 	state->lightstyle = ent->xv->style;
 	state->lightpflags = ent->xv->pflags;
@@ -3082,53 +3078,83 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	if (state->effects & EF_FULLBRIGHT)	//wrap the field for fte clients (this is horrible)
 		state->hexen2flags |= MLS_FULLBRIGHT;
 
-	if (progstype != PROG_QW && state->effects && client && ISQWCLIENT(client))	//don't send extra nq effects to a qw client.
+	if (progstype != PROG_QW)
 	{
-		//EF_NODRAW doesn't draw the model.
-		//The client still needs to know about it though, as it might have other effects on it.
-		if (progstype == PROG_H2)
-		{
-			if (state->effects == H2EF_NODRAW)
-			{
-				//actually, H2 is pretty lame about this
-				state->effects = 0;
-				state->modelindex = 0;
-				state->frame = 0;
-				state->colormap = 0;
-				state->abslight = 0;
-				state->skinnum = 0;
-				state->hexen2flags = 0;
-			}
-		}
-		else if (progstype == PROG_UNKNOWN)
+		if (progstype == PROG_UNKNOWN)
 		{	//unknown progs crc. things here are basically hacks.
-			if (state->effects & 16)	//tenebrae's EF_FULLDYNAMIC
+			//tenebrae has some hideous hacks
+			if (!strcmp(sv.strings.model_precache[state->modelindex], "progs/w_light.spr") ||
+				!strcmp(sv.strings.model_precache[state->modelindex], "progs/b_light.spr") ||
+				!strcmp(sv.strings.model_precache[state->modelindex], "progs/s_light.spr") ||
+				!strcmp(sv.strings.model_precache[state->modelindex], "progs/flame.mdl") ||
+				!strcmp(sv.strings.model_precache[state->modelindex], "progs/flame2.mdl"))
 			{
-				state->effects &= ~16;
+				//fixme: add some default colours
 				state->lightpflags |= PFLAGS_FULLDYNAMIC;
+				if (!state->light[3])
+					state->light[3] = 350;
 			}
-		}
-		else
-		{
-			if (state->effects & NQEF_NODRAW)
-				state->modelindex = 0;
-		}
 
-		if (state->number <= sv.allocated_client_slots) // clear only client ents
-			state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
-
-		if ((state->effects & EF_DIMLIGHT) && !(state->effects & (EF_RED|EF_BLUE)))
+			if (!strcmp (sv.strings.model_precache[state->modelindex], "progs/lavaball.mdl"))
+            {
+				state->lightpflags |= PFLAGS_FULLDYNAMIC;
+                state->skinnum = 17;
+				state->light[3] = 270;
+            }
+		}
+		if (state->effects && client && ISQWCLIENT(client))	//don't send extra nq effects to a qw client.
 		{
-			int it = ent->v->items;
-			state->effects &= ~EF_DIMLIGHT;
-			if ((it & (IT_INVULNERABILITY|IT_QUAD)) == (IT_INVULNERABILITY|IT_QUAD))
-				state->effects |= EF_RED|EF_BLUE;
-			else if (it & IT_INVULNERABILITY)
-				state->effects |= EF_RED;
-			else if (it & IT_QUAD)
-				state->effects |= EF_BLUE;
+			//EF_NODRAW doesn't draw the model.
+			//The client still needs to know about it though, as it might have other effects on it.
+			if (progstype == PROG_H2)
+			{
+				if (state->effects == H2EF_NODRAW)
+				{
+					//actually, H2 is pretty lame about this
+					state->effects = 0;
+					state->modelindex = 0;
+					state->frame = 0;
+					state->colormap = 0;
+					state->abslight = 0;
+					state->skinnum = 0;
+					state->hexen2flags = 0;
+				}
+			}
+			else if (progstype == PROG_UNKNOWN)
+			{	//unknown progs crc. things here are basically hacks.
+				if (state->effects & 16)	//tenebrae's EF_FULLDYNAMIC
+				{
+					state->effects &= ~16;
+					state->lightpflags |= PFLAGS_FULLDYNAMIC;
+				}
+				if (state->effects & 32)
+				{
+					state->effects &= ~32;
+					state->effects |= EF_GREEN;
+				}
+			}
 			else
-				state->effects |= EF_DIMLIGHT;
+			{
+				if (state->effects & NQEF_NODRAW)
+					state->modelindex = 0;
+			}
+
+			if (state->number <= sv.allocated_client_slots) // clear only client ents
+				state->effects &= ~ (QWEF_FLAG1|QWEF_FLAG2);
+
+			if ((state->effects & EF_DIMLIGHT) && !(state->effects & (EF_RED|EF_BLUE)))
+			{
+				int it = ent->v->items;
+				state->effects &= ~EF_DIMLIGHT;
+				if ((it & (IT_INVULNERABILITY|IT_QUAD)) == (IT_INVULNERABILITY|IT_QUAD))
+					state->effects |= EF_RED|EF_BLUE;
+				else if (it & IT_INVULNERABILITY)
+					state->effects |= EF_RED;
+				else if (it & IT_QUAD)
+					state->effects |= EF_BLUE;
+				else
+					state->effects |= EF_DIMLIGHT;
+			}
 		}
 	}
 
@@ -3637,7 +3663,6 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		return;
 
 	// put other visible entities into either a packet_entities or a nails message
-
 #ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demostatevalid)	//generate info from demo stats
 	{

@@ -2,6 +2,7 @@
 //was origonally an mp3 track selector, now handles lots of media specific stuff - like q3 films!
 //should rename to m_media.c
 #include "quakedef.h"
+
 #ifdef GLQUAKE
 #include "glquake.h"//fixme
 #endif
@@ -25,6 +26,10 @@ typedef struct mediatrack_s{
 
 qboolean media_fadeout;
 float media_fadeouttime;
+
+//info about the current stuff that is playing.
+static char media_currenttrack[MAX_QPATH];
+static char media_friendlyname[MAX_QPATH];
 #endif
 
 //higher bits have priority (if they have something to play).
@@ -32,11 +37,8 @@ float media_fadeouttime;
 #define MEDIA_CVARLIST	(1u<<1)	//cvar abuse. handy for preserving times when switching tracks.
 #define MEDIA_PLAYLIST	(1u<<2)	//
 static unsigned int media_playlisttypes;
-
-//info about the current stuff that is playing.
 static unsigned int media_playlistcurrent;
-static char media_currenttrack[MAX_QPATH];
-static char media_friendlyname[MAX_QPATH];
+
 static int cdplayingtrack;	//currently playing cd track (becomes 0 when paused)
 static int cdpausedtrack;	//currently paused cd track
 
@@ -78,7 +80,7 @@ static cvar_t music_playlist_sampleposition[] =
 #define CVAR_ABUSE_LIMIT countof(music_playlist_list)
 
 
-qboolean Media_Changed (unsigned int mediatype)
+static qboolean Media_Changed (unsigned int mediatype)
 {
 	//something changed, but it has a lower priority so we don't care
 	if (mediatype < media_playlistcurrent)
@@ -4384,9 +4386,9 @@ void Media_RecordAudioFrame (short *sample_buffer, int samples) {}
 void Media_StopRecordFilm_f (void) {}
 void Media_RecordFilm_f (void){}
 void M_Menu_Media_f (void) {}
-float Media_CrossFade(int ch, float vol) {return vol;}
+float Media_CrossFade(int ch, float vol, float time) {return vol;}
 
-char *Media_NextTrack(int musicchannelnum) {return NULL;}
+char *Media_NextTrack(int musicchannelnum, float *time) {return NULL;}
 qboolean Media_PausedDemo(qboolean fortiming) {return false;}
 
 int filmtexture;

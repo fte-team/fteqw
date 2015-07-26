@@ -1608,6 +1608,7 @@ void INS_SetupControllerAudioDevices(void)
 	{
 		char audiodevicename[MAX_QPATH];
 		wchar_t mssuck[MAX_QPATH];
+		static GUID GUID_NULL;
 		GUID gplayback = GUID_NULL;
 		GUID gcapture = GUID_NULL;
 		if (!wjoy[i].isxinput)

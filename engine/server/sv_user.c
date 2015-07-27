@@ -6333,14 +6333,14 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		{
 			vec3_t diffuse, ambient, dir;
 			float lev = 0;
-#ifdef RTLIGHTS
+#if defined(RTLIGHTS) && !defined(SERVERONLY)
 			Sh_CalcPointLight(sv_player->v->origin, ambient);
 			lev += VectorLength(ambient);
 
 			if (!r_shadow_realtime_world.ival || r_shadow_realtime_world_lightmaps.value)
 #endif
 			{
-				cl.worldmodel->funcs.LightPointValues(cl.worldmodel, sv_player->v->origin, ambient, diffuse, dir);
+				sv.world.worldmodel->funcs.LightPointValues(sv.world.worldmodel, sv_player->v->origin, ambient, diffuse, dir);
 				lev += (VectorLength(ambient) + VectorLength(diffuse)/2.0)/256;
 			}
 			sv_player->xv->light_level = lev * 255;

@@ -1306,7 +1306,7 @@ void SV_Loadgame_f (void)
 		return;
 	}
 
-#ifdef MENU_DAT
+#if defined(MENU_DAT) && !defined(SERVERONLY)
 	MP_Toggle(0);
 #endif
 

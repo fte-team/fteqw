@@ -610,7 +610,7 @@ void SV_Map_f (void)
 	}
 #endif
 
-#ifdef MENU_DAT
+#if defined(MENU_DAT) && !defined(SERVERONLY)
 	MP_Toggle(0);
 #endif
 

@@ -355,7 +355,7 @@ void M_Audio_StartSound (struct menu_s *menu)
 		org[0] = mat[0][0] + 2*(mat[1][0]*(info->testsoundsource->common.posx-320/2) + mat[1][0]*(info->testsoundsource->common.posy-200/2));
 		org[1] = mat[0][1] + 2*(mat[1][1]*(info->testsoundsource->common.posx-320/2) + mat[1][1]*(info->testsoundsource->common.posy-200/2));
 		org[2] = mat[0][2] + 2*(mat[1][2]*(info->testsoundsource->common.posx-320/2) + mat[1][2]*(info->testsoundsource->common.posy-200/2));
-		S_StartSound(-2, 0, S_PrecacheSound("player/pain3.wav"), org, 1, 4, 0, 0);
+		S_StartSound(-2, 0, S_PrecacheSound("player/pain3.wav"), org, 1, 4, 0, 0, 0);
 	}
 }
 

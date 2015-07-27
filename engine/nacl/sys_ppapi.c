@@ -169,6 +169,9 @@ void INS_ReInit(void)
 void INS_Shutdown(void)
 {
 }
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char *devicename, int *qdevid))
+{
+}
 
 /*
 //nacl supposedly has no way to implement this (other than us writing a listfile in each directory)

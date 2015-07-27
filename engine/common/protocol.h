@@ -808,9 +808,11 @@ enum clcq2_ops_e
 
 #define	NQSND_VOLUME		(1<<0)		// a qbyte
 #define	NQSND_ATTENUATION	(1<<1)		// a qbyte
-#define DPSND_LOOPING		(1<<2)		// a long, supposedly
+//#define DPSND_LOOPING		(1<<2)		// a long, supposedly
+#define FTESND_FLAGS		(1<<2)		//
 #define DPSND_LARGEENTITY	(1<<3)
 #define DPSND_LARGESOUND	(1<<4)
+//#define	DPSND_SPEEDUSHORT4000	(1<<5)		// ushort speed*4000 (speed is usually 1.0, a value of 0.0 is the same as 1.0)
 #define FTESND_TIMEOFS		(1<<6)		//signed short, in milliseconds.
 #define FTESND_PITCHADJ		(1<<7)		//a byte (speed percent (0=100%))
 

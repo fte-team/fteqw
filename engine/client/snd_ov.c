@@ -20,6 +20,7 @@
 	#define p_ov_info ov_info
 	#define p_ov_comment ov_comment
 	#define p_ov_pcm_total ov_pcm_total
+	#define p_ov_time_total ov_time_total
 	#define p_ov_read ov_read
 	#define p_ov_pcm_seek ov_pcm_seek
 #else
@@ -38,6 +39,7 @@
 		#define p_ov_info ov_info
 		#define p_ov_comment ov_comment
 		#define p_ov_pcm_total ov_pcm_total
+		#define p_ov_time_total ov_time_total
 		#define p_ov_read ov_read
 		#define p_ov_pcm_seek ov_pcm_seek
 	#else
@@ -46,8 +48,8 @@
 		vorbis_info *(VARGS *p_ov_info)(OggVorbis_File *vf,int link);
 		vorbis_comment *(VARGS *p_ov_comment) (OggVorbis_File *vf,int link);
 		ogg_int64_t (VARGS *p_ov_pcm_total)(OggVorbis_File *vf,int i);
-		long (VARGS *p_ov_read)(OggVorbis_File *vf,char *buffer,int length,
-					int bigendianp,int word,int sgned,int *bitstream);
+		double (VARGS *p_ov_time_total)(OggVorbis_File *vf,int i);
+		long (VARGS *p_ov_read)(OggVorbis_File *vf,char *buffer,int length,int bigendianp,int word,int sgned,int *bitstream);
 		int (VARGS *p_ov_pcm_seek)(OggVorbis_File *vf,ogg_int64_t pos);
 	#endif
 #endif
@@ -75,7 +77,7 @@ typedef struct {
 	sfx_t *s;
 } ovdecoderbuffer_t;
 
-static sfxcache_t *OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf);
+float OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf);
 static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);
 static void OV_CancelDecoder(sfx_t *s);
 static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
@@ -119,11 +121,11 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	return true;
 }
 
-static sfxcache_t *OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf)
+float OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf)
 {
 	ovdecoderbuffer_t *dec = sfx->decoder.buf;
 	if (!dec)
-		buf = NULL;
+		return -1;
 	if (buf)
 	{
 		buf->data = NULL;	//you're not meant to actually be using the data here
@@ -134,7 +136,7 @@ static sfxcache_t *OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf)
 		buf->speed = dec->srcspeed;
 		buf->width = 2;
 	}
-	return buf;
+	return p_ov_time_total(&dec->vf, -1);
 }
 
 static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length)
@@ -162,16 +164,16 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 
 		//check pos
 		//fixme: seeking might not be supported
-		p_ov_pcm_seek(&dec->vf, dec->decodedbytestart);
+		p_ov_pcm_seek(&dec->vf, (dec->decodedbytestart * dec->srcspeed) / outspeed);
 	}
 
 /*	if (start > dec->decodedbytestart + dec->decodedbytecount)
 	{
 		dec->decodedbytestart = start;
-		p_ov_pcm_seek(&dec->vf, dec->decodedbytestart);
+		p_ov_pcm_seek(&dec->vf, (dec->decodedbytestart * dec->srcspeed) / outspeed);
 	}
 */
-	if (dec->decodedbytecount > snd_speed*8)
+	if (dec->decodedbytecount > outspeed*8)
 	{
 		/*everything is okay, but our buffer is getting needlessly large.
 		keep anything after the 'new' position, but discard all before that
@@ -205,7 +207,7 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 		if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 128)	//expand if needed.
 		{
 	//		Con_Printf("Expand buffer\n");
-			dec->decodedbufferbytes = (start+length - dec->decodedbytestart) + snd_speed;
+			dec->decodedbufferbytes = (start+length - dec->decodedbytestart) + outspeed;
 			dec->decodedbuffer = BZ_Realloc(dec->decodedbuffer, dec->decodedbufferbytes);
 		}
 
@@ -371,6 +373,7 @@ static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdec
 		{(void*)&p_ov_open_callbacks, "ov_open_callbacks"},
 		{(void*)&p_ov_comment, "ov_comment"},
 		{(void*)&p_ov_pcm_total, "ov_pcm_total"},
+		{(void*)&p_ov_time_total, "ov_time_total"},
 		{(void*)&p_ov_clear, "ov_clear"},
 		{(void*)&p_ov_info, "ov_info"},
 		{(void*)&p_ov_read, "ov_read"},

@@ -737,7 +737,7 @@ void SCR_DrawCursor(void)
 
 		key_customcursor[cmod].dirty = false;
 		oldcurs = key_customcursor[cmod].handle;
-		if (rf->VID_CreateCursor)
+		if (rf->VID_CreateCursor && strcmp(key_customcursor[cmod].name, "none"))
 		{
 			key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
 			if (!key_customcursor[cmod].handle)
@@ -763,7 +763,7 @@ void SCR_DrawCursor(void)
 		return;
 	//system doesn't support a hardware cursor, so try to draw a software one.
 
-	if (!*key_customcursor[cmod].name)
+	if (!strcmp(key_customcursor[cmod].name, "none"))
 		return;
 
 	p = R2D_SafeCachePic(key_customcursor[cmod].name);

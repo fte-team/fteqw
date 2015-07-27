@@ -1105,6 +1105,7 @@ void CL_Connect_f (void)
 
 	CL_BeginServerConnect(server, 0, false);
 }
+#if defined(CL_MASTER)
 static void CL_ConnectBestRoute_f (void)
 {
 	char	server[1024];
@@ -1139,6 +1140,7 @@ static void CL_ConnectBestRoute_f (void)
 		CL_Disconnect_f ();
 	CL_BeginServerConnect(server, 0, true);
 }
+#endif
 
 static void CL_Join_f (void)
 {
@@ -3874,8 +3876,9 @@ void CL_Init (void)
 	Cmd_AddCommand ("cl_status", CL_Status_f);
 	Cmd_AddCommandD ("quit", CL_Quit_f, "Use this command when you get angry. Does not save any cvars. Use cfg_save to save settings, or use the menu for a prompt.");
 
+#if defined(CL_MASTER)
 	Cmd_AddCommandD ("connectbr", CL_ConnectBestRoute_f, "connect address:port\nConnect to a qw server using the best route we can detect.");
-
+#endif
 	Cmd_AddCommandD ("connect", CL_Connect_f, "connect scheme://address:port\nConnect to a server. "
 #if defined(FTE_TARGET_WEB)
 		"Use a scheme of ws:// or wss:// to connect via using websockets."

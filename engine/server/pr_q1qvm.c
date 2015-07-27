@@ -685,7 +685,14 @@ static qintptr_t QVM_AmbientSound (void *offset, quintptr_t mask, const qintptr_
 static qintptr_t QVM_Sound (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 //	( int edn, int channel, char *samp, float vol, float att )
-	SVQ1_StartSound (NULL, (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0, 0);
+	int channel = VM_LONG(arg[1]);
+	int flags = 0;
+	if (channel & 8)
+	{	//based on quakeworld, remember
+		channel = (channel & 7) | ((channel&~15)>>1);
+		flags |= CF_RELIABLE;
+	}
+	SVQ1_StartSound (NULL, (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), channel, VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0, 0, flags);
 	return 0;
 }
 static qintptr_t QVM_TraceLine (void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -952,45 +959,73 @@ static qintptr_t QVM_strncpy (void *offset, quintptr_t mask, const qintptr_t *ar
 }
 static qintptr_t QVM_sin (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	qintptr_t fn;
-	VM_FLOAT(fn)=(float)sin(VM_FLOAT(arg[0]));
-	return fn;
+	union
+	{
+		qintptr_t r;
+		float f;
+	} u = {0};
+	u.f = sin(VM_FLOAT(arg[0]));
+	return u.r;
 }
 static qintptr_t QVM_cos (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	qintptr_t fn;
-	VM_FLOAT(fn)=(float)cos(VM_FLOAT(arg[0]));
-	return fn;
+	union
+	{
+		qintptr_t r;
+		float f;
+	} u = {0};
+	u.f = cos(VM_FLOAT(arg[0]));
+	return u.r;
 }
 static qintptr_t QVM_atan2 (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int fn;
-	VM_FLOAT(fn)=(float)atan2(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
-	return fn;
+	union
+	{
+		qintptr_t r;
+		float f;
+	} u = {0};
+	u.f = atan2(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]));
+	return u.r;
 }
 static qintptr_t QVM_sqrt (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int fn;
-	VM_FLOAT(fn)=(float)sqrt(VM_FLOAT(arg[0]));
-	return fn;
+	union
+	{
+		qintptr_t r;
+		float f;
+	} u = {0};
+	u.f = sqrt(VM_FLOAT(arg[0]));
+	return u.r;
 }
 static qintptr_t QVM_floor (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int fn;
-	VM_FLOAT(fn)=(float)floor(VM_FLOAT(arg[0]));
-	return fn;
+	union
+	{
+		qintptr_t r;
+		float f;
+	} u = {0};
+	u.f = floor(VM_FLOAT(arg[0]));
+	return u.r;
 }
 static qintptr_t QVM_ceil (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int fn;
-	VM_FLOAT(fn)=(float)ceil(VM_FLOAT(arg[0]));
-	return fn;
+	union
+	{
+		qintptr_t r;
+		float f;
+	} u = {0};
+	u.f = ceil(VM_FLOAT(arg[0]));
+	return u.r;
 }
 static qintptr_t QVM_acos (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int fn;
-	VM_FLOAT(fn)=(float)acos(VM_FLOAT(arg[0]));
-	return fn;
+	union
+	{
+		qintptr_t r;
+		float f;
+	} u = {0};
+	u.f = acos(VM_FLOAT(arg[0]));
+	return u.r;
 }
 static qintptr_t QVM_Cmd_ArgC (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1614,7 +1649,14 @@ static qintptr_t QVM_Map_Extension (void *offset, quintptr_t mask, const qintptr
 
 //============== general Quake services ==================
 
-#if FTE_WORDSIZE == 64
+#if FTE_WORDSIZE == 32 && !defined(NACL)
+static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
+{
+	if (fn >= countof(traps))
+		return QVM_NotYetImplemented(offset, mask, arg);
+	return traps[fn](offset, mask, arg);
+}
+#else
 static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
 {
 	qintptr_t args[13];
@@ -1624,13 +1666,6 @@ static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
 	if (fn >= countof(traps))
 		return QVM_NotYetImplemented(offset, mask, args);
 	return traps[fn](offset, mask, args);
-}
-#else
-static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
-{
-	if (fn >= countof(traps))
-		return QVM_NotYetImplemented(offset, mask, arg);
-	return traps[fn](offset, mask, arg);
 }
 #endif
 

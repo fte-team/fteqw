@@ -610,6 +610,10 @@ void SV_Map_f (void)
 	}
 #endif
 
+#ifdef MENU_DAT
+	MP_Toggle(0);
+#endif
+
 	for (i=0 ; i<svs.allocated_client_slots ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
 	{
 		if (svs.clients[i].state>cs_connected)	//so that we don't send a datagram

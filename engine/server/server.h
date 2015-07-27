@@ -1138,8 +1138,8 @@ void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
 
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs);
-void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs);
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs, unsigned int flags);
+void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs, unsigned int flags);
 void SV_PrintToClient(client_t *cl, int level, const char *string);
 void SV_TPrintToClient(client_t *cl, int level, const char *string);
 void SV_StuffcmdToClient(client_t *cl, const char *string);

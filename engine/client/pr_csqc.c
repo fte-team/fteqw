@@ -3259,12 +3259,12 @@ void QCBUILTIN PF_soundupdate (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	float			volume = G_FLOAT(OFS_PARM3);
 	float			attenuation = G_FLOAT(OFS_PARM4);
 	float			pitchpct = (prinst->callargc >= 6)?G_FLOAT(OFS_PARM5):0;
-//	unsigned int	flags = (prinst->callargc>=7)?G_FLOAT(OFS_PARM6):0;
+	unsigned int	flags = (prinst->callargc>=7)?G_FLOAT(OFS_PARM6):0;
 	float			startoffset = (prinst->callargc>=8)?G_FLOAT(OFS_PARM7):0;
 
 	sfx_t		*sfx = S_PrecacheSound(sample);
 
-	G_FLOAT(OFS_RETURN) = S_UpdateSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, startoffset, pitchpct);
+	G_FLOAT(OFS_RETURN) = S_UpdateSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, startoffset, pitchpct, flags);
 }
 void QCBUILTIN PF_stopsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3288,7 +3288,7 @@ static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *p
 	float volume;
 	float attenuation;
 	float pitchpct;
-//	unsigned int flags;
+	unsigned int flags;
 	float startoffset;
 
 	sfx_t *sfx;
@@ -3299,12 +3299,12 @@ static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *p
 	volume = G_FLOAT(OFS_PARM3);
 	attenuation = G_FLOAT(OFS_PARM4);
 	pitchpct = (prinst->callargc>=6)?G_FLOAT(OFS_PARM5):0;
-//	flags = (prinst->callargc>=7)?G_FLOAT(OFS_PARM6):0;
+	flags = (prinst->callargc>=7)?G_FLOAT(OFS_PARM6):0;
 	startoffset = (prinst->callargc>=8)?G_FLOAT(OFS_PARM7):0;
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, startoffset, pitchpct);
+		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, startoffset, pitchpct, flags);
 };
 
 static void QCBUILTIN PF_cs_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3328,7 +3328,7 @@ static void QCBUILTIN PF_cs_pointsound(pubprogfuncs_t *prinst, struct globalvars
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(0, 0, sfx, origin, volume, attenuation, 0, pitchpct);
+		S_StartSound(0, 0, sfx, origin, volume, attenuation, 0, pitchpct, 0);
 }
 
 static void QCBUILTIN PF_cs_particle(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3610,14 +3610,14 @@ static void QCBUILTIN PF_cl_te_explosion (pubprogfuncs_t *prinst, struct globalv
 
 	Surf_AddStain(pos, -1, -1, -1, 100);
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0);
+	S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_tarexplosion (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	P_RunParticleEffectType(pos, NULL, 1, pt_tarexplosion);
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0);
+	S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_wizspike (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3625,7 +3625,7 @@ static void QCBUILTIN PF_cl_te_wizspike (pubprogfuncs_t *prinst, struct globalva
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
 		P_RunParticleEffect (pos, vec3_origin, 20, 30);
 
-	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0, 0);
+	S_StartSound (0, 0, cl_sfx_knighthit, pos, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_knightspike (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3633,7 +3633,7 @@ static void QCBUILTIN PF_cl_te_knightspike (pubprogfuncs_t *prinst, struct globa
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
 		P_RunParticleEffect (pos, vec3_origin, 226, 20);
 
-	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0, 0);
+	S_StartSound (0, 0, cl_sfx_knighthit, pos, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_lavasplash (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3696,7 +3696,7 @@ static void QCBUILTIN PF_cl_te_explosionquad (pubprogfuncs_t *prinst, struct glo
 		dl->channelfade[2] = 0.12;
 	}
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0);
+	S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
 }
 
 //void(vector org, float radius, float lifetime, vector color) te_customflash
@@ -3807,7 +3807,7 @@ static void QCBUILTIN PF_cl_te_explosionrgb (pubprogfuncs_t *prinst, struct glob
 		dl->channelfade[2] = 0;
 	}
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, org, 1, 1, 0, 0);
+	S_StartSound (0, 0, cl_sfx_r_exp3, org, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_particlerain (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -5709,7 +5709,7 @@ void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char
 			origin = wentity->v->origin;
 	}
 
-	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume, attenuation, timeoffset, pitchadj);
+	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume, attenuation, timeoffset, pitchadj, 0);
 }
 
 qboolean CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
@@ -7048,7 +7048,7 @@ static void CSQC_EntityCheck(unsigned int entnum)
 	}
 }
 
-int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs)
+int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs, unsigned int flags)
 {
 	void *pr_globals;
 	csqcedict_t *ent;
@@ -7073,7 +7073,7 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 		G_FLOAT(OFS_PARM4) = attenuation;
 		VectorCopy(pos, G_VECTOR(OFS_PARM5));
 		G_FLOAT(OFS_PARM6) = pitchmod;
-		G_FLOAT(OFS_PARM7) = 0/*flags*/;
+		G_FLOAT(OFS_PARM7) = flags;
 //		G_FLOAT(OFS_PARM8) = timeofs;
 
 		PR_ExecuteProgram(csqcprogs, csqcg.event_sound);
@@ -7095,7 +7095,7 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 		VectorCopy(pos, G_VECTOR(OFS_PARM2));
 		G_FLOAT(OFS_PARM3) = vol;
 		G_FLOAT(OFS_PARM4) = attenuation;
-		G_FLOAT(OFS_PARM5) = 0/*flags*/;
+		G_FLOAT(OFS_PARM5) = flags;
 		G_FLOAT(OFS_PARM6) = timeofs;
 
 		PR_ExecuteProgram(csqcprogs, csqcg.serversound);

@@ -340,7 +340,7 @@ void M_ToggleMenu_f (void)
 	}
 #endif
 #ifdef MENU_DAT
-	if (MP_Toggle())
+	if (MP_Toggle(1))
 	{
 		Key_Dest_Remove(kdm_console|kdm_cwindows);
 		return;

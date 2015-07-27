@@ -748,7 +748,17 @@ void M_Media_Draw (menu_t *menu)
 			{
 				float time, duration;
 				if (S_GetMusicInfo(0, &time, &duration))
-					MP_Hightlight (12, y, va("<< %i:%02i / %i:%02i - %i%% >>", (int)time/60, (int)time%60, (int)duration/60, (int)duration%60, (int)(100*time/duration)), op == selectedoption);
+				{
+					int itime = time;
+					int iduration = duration;
+					if (iduration)
+					{
+						int pct = (int)((100*time)/duration);
+						MP_Hightlight (12, y, va("<< %i:%02i / %i:%02i - %i%% >>", itime/60, itime%60, iduration/60, iduration%60, pct), op == selectedoption);
+					}
+					else
+						MP_Hightlight (12, y, va("<< %i:%02i >>", itime/60, itime%60), op == selectedoption);
+				}
 				else
 					MP_Hightlight (12, y, "<<    skip		 >>", op == selectedoption);
 			}

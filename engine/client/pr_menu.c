@@ -2322,6 +2322,8 @@ pbool PDECL Menu_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc)
 double  menutime;
 qboolean MP_Init (void)
 {
+	struct key_cursor_s *m = &key_customcursor[kc_menu];
+
 	if (qrenderer == QR_NONE)
 	{
 		return false;
@@ -2375,8 +2377,13 @@ qboolean MP_Init (void)
 	menuprogparms.user = &menu_world;
 	menu_world.keydestmask = kdm_gmenu;
 
-	//default to free mouse, to match dp's default setting, and because its generally the right thing for a menu.
+	//default to free mouse+hidden cursor, to match dp's default setting, and because its generally the right thing for a menu.
 	key_dest_absolutemouse |= kdm_gmenu;
+	Q_strncpyz(m->name, "none", sizeof(m->name));
+	m->hotspot[0] = 0;
+	m->hotspot[1] = 0;
+	m->scale = 1;
+	m->dirty = true;
 
 	menutime = Sys_DoubleTime();
 	if (!menu_world.progs)
@@ -2624,7 +2631,7 @@ void MP_Keyup(int key, int unicode)
 	inmenuprogs--;
 }
 
-qboolean MP_Toggle(void)
+qboolean MP_Toggle(int mode)
 {
 	if (!menu_world.progs)
 		return false;
@@ -2632,6 +2639,9 @@ qboolean MP_Toggle(void)
 	if (editormodal)
 		return false;
 #endif
+
+	if (!mode && !Key_Dest_Has(kdm_gmenu))
+		return false;
 
 	if (setjmp(mp_abort))
 		return false;
@@ -2644,7 +2654,7 @@ qboolean MP_Toggle(void)
 	if (mp_toggle_function)
 	{
 		void *pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
-		G_FLOAT(OFS_PARM0) = 1;
+		G_FLOAT(OFS_PARM0) = mode;
 		PR_ExecuteProgram(menu_world.progs, mp_toggle_function);
 	}
 	inmenuprogs--;

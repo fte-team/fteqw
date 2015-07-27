@@ -4252,13 +4252,13 @@ void CLQW_ParseStartSoundPacket(void)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
 
 #ifdef PEXT_CSQC
-	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, 100, 0))
+	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, 100, 0, 0))
 #endif
 	{
 		if (!sound_num)
 			S_StopSound(ent, channel);
 		else
-			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0, 0);
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0, 0, 0);
 	}
 
 
@@ -4346,7 +4346,7 @@ void CLQ2_ParseStartSoundPacket(void)
 		if (sfx->loadstate == SLS_FAILED)
 			sfx = S_PrecacheSound(va("players/male/%s", cl.sound_precache[sound_num]->name+1));
 	}
-	S_StartSound (ent, channel, sfx, pos, volume, attenuation, ofs, 0);
+	S_StartSound (ent, channel, sfx, pos, volume, attenuation, ofs, 0, 0);
 }
 #endif
 
@@ -4362,6 +4362,7 @@ void CLNQ_ParseStartSoundPacket(void)
  	int		i;
 	int		pitchadj;
 	float	timeofs;
+	unsigned int flags;
 
 	field_mask = MSG_ReadByte();
 
@@ -4384,6 +4385,11 @@ void CLNQ_ParseStartSoundPacket(void)
 		timeofs = MSG_ReadShort() / 1000.0;
 	else
 		timeofs = 0;
+
+//	if (field_mask & FTESND_FLAGS)
+//		flags = MSG_ReadByte();
+//	else
+		flags = 0;
 
 	if (field_mask & DPSND_LARGEENTITY)
 	{
@@ -4412,13 +4418,13 @@ void CLNQ_ParseStartSoundPacket(void)
 		pos[i] = MSG_ReadCoord ();
 
 #ifdef PEXT_CSQC
-	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, pitchadj, timeofs))
+	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation, pitchadj, timeofs, flags))
 #endif
 	{
 		if (!sound_num)
 			S_StopSound(ent, channel);
 		else
-			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, timeofs, pitchadj);
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, timeofs, pitchadj, flags);
 	}
 
 	if (ent == cl.playerview[0].playernum+1)

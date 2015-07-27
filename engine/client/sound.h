@@ -37,7 +37,7 @@ typedef struct
 
 typedef struct {
 	struct sfxcache_s *(*decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);	//return true when done.
-	struct sfxcache_s *(*querydata) (struct sfx_s *sfx, struct sfxcache_s *buf);	//reports length + format info without actually decoding anything.
+	float (*querydata) (struct sfx_s *sfx, struct sfxcache_s *buf);	//reports length + original format info without actually decoding anything.
 	void (*ended) (struct sfx_s *sfx);	//sound stopped playing and is now silent (allow rewinding or something).
 	void (*purge) (struct sfx_s *sfx);	//sound is being purged from memory. destroy everything.
 	void *buf;
@@ -89,8 +89,12 @@ typedef struct
 	unsigned char	*buffer;				// pointer to mixed pcm buffer (not directly used by mixer)
 } dma_t;
 
-#define CF_ABSVOLUME	1	// ignores volume cvar.
+#define CF_RELIABLE		1	// serverside only. yeah, evil. screw you.
 #define CF_FORCELOOP	2	// forces looping. set on static sounds.
+#define CF_NOSPACIALISE 4	// these sounds are played at a fixed volume
+//#define CF_PAUSED		8	// rate = 0. or something.
+#define CF_ABSVOLUME	16	// ignores volume cvar.
+
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
@@ -122,8 +126,8 @@ void S_Init (void);
 void S_Startup (void);
 void S_Shutdown (qboolean final);
 float S_GetSoundTime(int entnum, int entchannel);
-void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj);
-float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj);
+void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags);
+float S_UpdateSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj, unsigned int flags);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds(qboolean clear);

@@ -6157,6 +6157,8 @@ void SV_RunCmdCleanup(void)
 	playertouchmax = 0;
 }
 
+void Sh_CalcPointLight(vec3_t point, vec3_t light);
+
 /*
 ===========
 SV_RunCmd
@@ -6330,8 +6332,18 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		if (sv.world.worldmodel && sv.world.worldmodel->funcs.LightPointValues)
 		{
 			vec3_t diffuse, ambient, dir;
-			sv.world.worldmodel->funcs.LightPointValues(sv.world.worldmodel, sv_player->v->origin, diffuse, ambient, dir);
-			sv_player->xv->light_level = (ambient[0]+ambient[1]+ambient[2])/3.0+(diffuse[0]+diffuse[1]+diffuse[2])/6.0;
+			float lev = 0;
+#ifdef RTLIGHTS
+			Sh_CalcPointLight(sv_player->v->origin, ambient);
+			lev += VectorLength(ambient);
+
+			if (!r_shadow_realtime_world.ival || r_shadow_realtime_world_lightmaps.value)
+#endif
+			{
+				cl.worldmodel->funcs.LightPointValues(cl.worldmodel, sv_player->v->origin, ambient, diffuse, dir);
+				lev += (VectorLength(ambient) + VectorLength(diffuse)/2.0)/256;
+			}
+			sv_player->xv->light_level = lev * 255;
 		}
 		else	
 			sv_player->xv->light_level = 128;	//don't know, some dummy value.

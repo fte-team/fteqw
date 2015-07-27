@@ -1579,13 +1579,13 @@ static const char *glsl_hdrs[] =
 			"#endif\n"
 			"}\n"
 
-			"float ShadowmapFilter(sampler2DShadow samp)\n"
+			"float ShadowmapFilter(sampler2DShadow smap)\n"
 			"{\n"
 				"vec3 shadowcoord = ShadowmapCoord();\n"
 
 				"#if 0\n"//def GL_ARB_texture_gather
 					"vec2 ipart, fpart;\n"
-					"#define dosamp(x,y) textureGatherOffset(s_t4, ipart.xy, vec2(x,y)))\n"
+					"#define dosamp(x,y) textureGatherOffset(smap, ipart.xy, vec2(x,y)))\n"
 					"vec4 tl = step(shadowcoord.z, dosamp(-1.0, -1.0));\n"
 					"vec4 bl = step(shadowcoord.z, dosamp(-1.0, 1.0));\n"
 					"vec4 tr = step(shadowcoord.z, dosamp(1.0, -1.0));\n"
@@ -1597,7 +1597,7 @@ static const char *glsl_hdrs[] =
 							"mix(vec4(tl.rg, tr.rg), vec4(bl.ba, br.ba), fpart.y);\n" //top+bottom rows
 					"return dot(mix(col.rgb, col.agb, fpart.x), vec3(1.0/9.0));\n"	//blend r+a, gb are mixed because its pretty much free and gives a nicer dot instruction instead of lots of adds.
 				"#else\n"
-					"#define dosamp(x,y) shadow2D(samp, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r\n"
+					"#define dosamp(x,y) shadow2D(smap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r\n"
 					"float s = 0.0;\n"
 					"#if r_glsl_pcf >= 1 && r_glsl_pcf < 5\n"
 						"s += dosamp(0.0, 0.0);\n"

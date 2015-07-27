@@ -1306,6 +1306,10 @@ void SV_Loadgame_f (void)
 		return;
 	}
 
+#ifdef MENU_DAT
+	MP_Toggle(0);
+#endif
+
 	VFS_GETS(f, str, sizeof(str)-1);
 	version = atoi(str);
 	if (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX)

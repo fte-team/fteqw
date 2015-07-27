@@ -979,23 +979,15 @@ Larger attenuations will drop off.  (max 4 attenuation)
 
 ==================
 */
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs)
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs, unsigned int flags)
 {
-    int         sound_num;
-    int			extfield_mask;
+	int			sound_num;
+	int			extfield_mask;
 	int			qwflags;
-    int			i;
+	int			i;
 	qboolean	use_phs;
-	qboolean	reliable;
+	qboolean	reliable = flags & 1;
 	int requiredextensions = 0;
-
-	if (channel & 256)
-	{
-		channel &= ~256;
-		reliable = true;
-	}
-	else
-		reliable = false;
 
 	if (volume < 0 || volume > 255)
 	{
@@ -1078,7 +1070,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		extfield_mask |= FTESND_TIMEOFS;
 
 #ifdef PEXT_SOUNDDBL
-	if (channel >= 8 || ent >= 2048 || sound_num > 0xff || (pitchadj && pitchadj != 100))
+	if (channel >= 8 || ent >= 2048 || sound_num > 0xff || (pitchadj && pitchadj != 100) || timeofs)
 	{
 		//if any of the above conditions evaluates to true, then we can't use standard qw protocols
 		MSG_WriteByte (&sv.multicast, svcfte_soundextended);
@@ -1168,7 +1160,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
 }
 
-void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs)
+void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs, unsigned int flags)
 {
 	edict_t *entity = (edict_t*)wentity;
 	int i;
@@ -1186,7 +1178,7 @@ void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char 
 			//making them all reliable avoids packetloss and phs issues.
 			//this applies only to pushers. you won't get extra latency on player actions because of this.
 			//be warned that it does mean you might be able to hear people triggering stuff on the other side of the map however.
-			channel |= 256;
+			flags |= CF_RELIABLE;
 		}
 		else if (progstype == PROG_QW)
 		{	//quakeworld puts the sound ONLY at the entity's actual origin. this is annoying and stupid. I'm not really sure what to do here. it seems wrong.
@@ -1199,7 +1191,7 @@ void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char 
 		}
 	}
 
-	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj, timeofs);
+	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj, timeofs, flags);
 }
 
 /*

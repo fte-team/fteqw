@@ -3942,7 +3942,7 @@ void Shader_Finish (shader_t *s)
 done:;
 
 	//if we've no specular map, try and find whatever the q3 syntax said. hopefully it'll be compatible...
-	if (!TEXVALID(s->defaulttextures->specular))
+ 	if (!TEXVALID(s->defaulttextures->specular))
 	{
 		for (pass = s->passes, i = 0; i < s->numpasses; i++, pass++)
 		{
@@ -5397,6 +5397,12 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 
 	memset(&parsestate, 0, sizeof(parsestate));
 	parsestate.mode = parsemode;
+
+	if (!s->defaulttextures)
+	{
+		s->defaulttextures = Z_Malloc(sizeof(*s->defaulttextures));
+		s->numdefaulttextures = 0;
+	}
 
 // set defaults
 	s->flags = SHADER_CULL_FRONT;

@@ -3032,7 +3032,7 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	int 		volume;
 	float attenuation;
 	int			pitchadj;
-	int flags;
+	unsigned int flags;
 	float	timeofs;
 
 	entity = G_EDICT(prinst, OFS_PARM0);
@@ -3053,9 +3053,9 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	else
 	{
 		//QW uses channel&8 to mean reliable.
-		flags = (channel & 8)?1:0;
+		flags = (channel & 8)?CF_RELIABLE:0;
 		//demangle it so the upper bits are still useful.
-		channel = (channel & 7) | ((channel & 0x1f0) >> 1);
+		channel = (channel & 7) | ((channel & ~15) >> 1);
 	}
 	timeofs = (svprogfuncs->callargc>7)?G_FLOAT(OFS_PARM7):0;
 
@@ -3065,11 +3065,7 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	if (volume > 255)
 		volume = 255;
 
-	//should probably be an argument instead, but whatever.
-	if (flags & 1)
-		channel |= 256;
-
-	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, sample, volume, attenuation, pitchadj, timeofs);
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, sample, volume, attenuation, pitchadj, timeofs, flags);
 }
 
 static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3089,7 +3085,7 @@ static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s 
 	else
 		pitchpct = 0;
 
-	SVQ1_StartSound (origin, sv.world.edicts, 0, sample, volume, attenuation, pitchpct, 0);
+	SVQ1_StartSound (origin, sv.world.edicts, 0, sample, volume, attenuation, pitchpct, 0, 0);
 }
 
 //an evil one from telejano.
@@ -3105,7 +3101,7 @@ static void QCBUILTIN PF_LocalSound(pubprogfuncs_t *prinst, struct globalvars_s 
 	if (!isDedicated)
 	{
 		if ((sfx = S_PrecacheSound(s)))
-			S_StartSound(cl.playerview[0].playernum, chan, sfx, cl.playerview[0].simorg, vol, 0.0, 0, 0);
+			S_StartSound(cl.playerview[0].playernum, chan, sfx, cl.playerview[0].simorg, vol, 0.0, 0, 0, CF_NOSPACIALISE);
 	}
 #endif
 };
@@ -7570,7 +7566,7 @@ static void QCBUILTIN PF_h2StopSound(pubprogfuncs_t *prinst, struct globalvars_s
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 
-	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, "", 1, 0, 0, 0);
+	SVQ1_StartSound (NULL, (wedict_t*)entity, channel, "", 1, 0, 0, 0, 0);
 }
 
 static void QCBUILTIN PF_h2updatesoundpos(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -10734,7 +10730,7 @@ void PR_DumpPlatform_f(void)
 		{"m_draw",					"void()", MENU},
 		{"m_keydown",				"void(float scan, float chr)", MENU},
 		{"m_keyup",					"void(float scan, float chr)", MENU},
-		{"m_toggle",				"void(float mode)", MENU},
+		{"m_toggle",				"void(float wantmode)", MENU},
 
 		{"parm17, parm18, parm19, parm20, parm21, parm22, parm23, parm24, parm25, parm26, parm27, parm28, parm29, parm30, parm31, parm32", "float", QW|NQ},
 		{"parm33, parm34, parm35, parm36, parm37, parm38, parm39, parm40, parm41, parm42, parm43, parm44, parm45, parm46, parm47, parm48", "float", QW|NQ},
@@ -10839,8 +10835,10 @@ void PR_DumpPlatform_f(void)
 		{"CHAN_BODY",		"const float", QW|NQ|CS, NULL, CHAN_BODY},
 		{"CHANF_RELIABLE",	"const float", QW,		 NULL, 8},
 
-		{"SOUNDFLAG_RELIABLE",	"const float", QW|NQ,	 NULL, 1},
-//		{"SOUNDFLAG_ABSOLUTEVOL",	"const float", CS,		 NULL, 256},
+		{"SOUNDFLAG_RELIABLE",		"const float",	QW|NQ,	 NULL, CF_RELIABLE},
+		{"SOUNDFLAG_ABSVOLUME",		"const float",	/*QW|NQ|*/CS,NULL, CF_ABSVOLUME},
+		{"SOUNDFLAG_FORCELOOP",		"const float",	/*QW|NQ|*/CS,NULL, CF_FORCELOOP},
+		{"SOUNDFLAG_NOSPACIALISE",	"const float",	/*QW|NQ|*/CS,NULL, CF_NOSPACIALISE},
 
 		{"ATTN_NONE",		"const float", QW|NQ|CS, "Sounds with this attenuation can be heard throughout the map", ATTN_NONE},
 		{"ATTN_NORM",		"const float", QW|NQ|CS, "Standard attenuation", ATTN_NORM},

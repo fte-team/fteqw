@@ -463,7 +463,7 @@ int M_FindKeysForBind (int bindmap, const char *command, int *keylist, int *keym
 void MP_CvarChanged(cvar_t *var);
 qboolean MP_Init (void);
 void MP_Shutdown (void);
-qboolean MP_Toggle(void);
+qboolean MP_Toggle(int mode);
 void MP_Draw(void);
 void MP_RegisterCvarsAndCmds(void);
 void MP_Keydown(int key, int unicode);

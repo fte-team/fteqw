@@ -1862,14 +1862,16 @@ void Key_Bind_f (void)
 	}
 	if (bindmap)
 	{
-		if (bindmap < 0 || bindmap > KEY_MODIFIER_ALTBINDMAP)
+		if (bindmap <= 0 || bindmap > KEY_MODIFIER_ALTBINDMAP)
 		{
-			Con_Printf ("unsupported bindmap %i\n", bindmap);
+			if (cl_warncmd.ival)
+				Con_Printf ("unsupported bindmap %i\n", bindmap);
 			return;
 		}
 		if (modifier != ~0)
 		{
-			Con_Printf ("modifiers cannot be combined with bindmaps\n");
+			if (cl_warncmd.ival)
+				Con_Printf ("modifiers cannot be combined with bindmaps\n");
 			return;
 		}
 		modifier = (bindmap-1) | KEY_MODIFIER_ALTBINDMAP;
@@ -1997,10 +1999,10 @@ void Key_WriteBindings (vfsfile_t *f)
 			{
 				s = Key_KeynumToString(i, m);
 				//quote it as required
-				if (i == ';' || i <= ' ' || i == '\"')
+				if (i == ';' || i <= ' ' || strchr(s, ' ') || strchr(s, '+') || strchr(s, '\"'))
 					s = COM_QuotedString(s, keybuf, sizeof(keybuf), false);
 
-				if (bindcmdlevel[i][m] != bindcmdlevel[i][0])
+				if (bindcmdlevel[i][m] != RESTRICT_LOCAL)
 					s = va("bindlevel %s %i %s\n", s, bindcmdlevel[i][m], COM_QuotedString(binding, commandbuf, sizeof(commandbuf), false));
 				else
 					s = va("bind %s %s\n", s, COM_QuotedString(binding, commandbuf, sizeof(commandbuf), false));
@@ -2043,7 +2045,7 @@ void Key_Init (void)
 	key_linepos = 1;
 
 	key_dest_mask = kdm_game;
-	key_dest_absolutemouse = kdm_console | kdm_editor | kdm_cwindows;
+	key_dest_absolutemouse = kdm_console | kdm_editor | kdm_cwindows | kdm_emenu;
 	
 //
 // init ascii characters in console mode

@@ -3684,7 +3684,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3]
 			if (w <= tw)
 			{
 				if (*ptype->sounds[i].name && ptype->sounds[i].vol > 0)
-					S_StartSound(0, 0, S_PrecacheSound(ptype->sounds[i].name), org, ptype->sounds[i].vol, ptype->sounds[i].atten, -ptype->sounds[i].delay, ptype->sounds[i].pitch);
+					S_StartSound(0, 0, S_PrecacheSound(ptype->sounds[i].name), org, ptype->sounds[i].vol, ptype->sounds[i].atten, -ptype->sounds[i].delay, ptype->sounds[i].pitch, 0);
 				break;
 			}
 		}

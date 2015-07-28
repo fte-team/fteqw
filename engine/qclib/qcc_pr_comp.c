@@ -103,6 +103,7 @@ pbool flag_filetimes;
 pbool flag_typeexplicit;	//no implicit type conversions, you must do the casts yourself.
 pbool flag_noboundchecks;	//Disable generation of bound check instructions.
 pbool flag_guiannotate;
+pbool flag_brokenarrays;	//return array; returns array[0] instead of &array;
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.
@@ -3906,7 +3907,12 @@ QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand)
 	if (operand->type == REF_ARRAYHEAD || operand->type == REF_GLOBAL || operand->type == REF_ARRAY)
 	{
 		if (!QCC_OPCodeValid(&pr_opcodes[OP_GLOBALADDRESS]))
-			QCC_PR_ParseError (ERR_BADEXTENSION, "Address-of operator is not supported in this form without extensions. Consider the use of: #pragma target fte");
+		{
+			if (operand->type == REF_ARRAYHEAD)
+				QCC_PR_ParseError (ERR_BADEXTENSION, "Address-of operator is not supported in this form without extensions. Consider the use of either '#pragma target fte' or '#pragma flag enable brokenarray'");
+			else
+				QCC_PR_ParseError (ERR_BADEXTENSION, "Address-of operator is not supported in this form without extensions. Consider the use of: #pragma target fte");
+		}
 
 		//&foo (or &((&foo)[5]), which is basically an array). the result is a temp and thus cannot be assigned to (but should be possible to dereference further).
 		return QCC_PR_BuildRef(retbuf,
@@ -6666,6 +6672,8 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		QCC_DefToRef(refbuf, d);
 		refbuf->type = REF_ARRAYHEAD;
 		r = QCC_PR_ParseRefArrayPointer(refbuf, refbuf, allowarrayassign, makearraypointers);
+		if (r->type == REF_ARRAYHEAD && flag_brokenarrays)
+			r->type = REF_GLOBAL;
 		/*if (r->type == REF_ARRAYHEAD)
 		{
 			r->type = REF_GLOBAL;

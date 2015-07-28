@@ -586,6 +586,7 @@ extern pbool flag_debugmacros;
 extern pbool flag_filetimes;
 extern pbool flag_typeexplicit;
 extern pbool flag_noboundchecks;
+extern pbool flag_brokenarrays;
 extern pbool flag_guiannotate;
 
 extern pbool opt_overlaptemps;

@@ -4732,7 +4732,7 @@ void Image_Shutdown(void)
 		i++;
 	}
 	if (i)
-		Con_Printf("Destroyed %i/%i images\n", j, i);
+		Con_DPrintf("Destroyed %i/%i images\n", j, i);
 }
 
 //load the named file, without failing.

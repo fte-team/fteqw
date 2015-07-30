@@ -681,11 +681,11 @@ void PR_LoadGlabalStruct(qboolean muted)
 	int i;
 	int *v;
 	globalptrs_t *pr_globals = pr_global_ptrs;
-#define globalfloat(need,name)	(pr_globals)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static float fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_Printf("Could not find \""#name"\" export in progs\n");}
-#define globalint(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static int fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_Printf("Could not find \""#name"\" export in progs\n");}
-#define globalstring(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_Printf("Could not find \""#name"\" export in progs\n");}
-#define globalvec(need,name)	(pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static vec3_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_Printf("Could not find \""#name"\" export in progs\n");}
-#define globalfunc(need,name)	(pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name)			{static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need && !muted) Con_Printf("Could not find function \""#name"\" in progs\n"); }
+#define globalfloat(need,name)	(pr_globals)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static float fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalint(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static int fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalstring(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalvec(need,name)	(pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static vec3_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalfunc(need,name)	(pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name)			{static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need && !muted) Con_DPrintf("Could not find function \""#name"\" in progs\n"); }
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -773,7 +773,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 			static vec3_t fallback_trace_plane_normal;
 			(pr_globals)->trace_plane_normal = &fallback_trace_plane_normal;
 			if (!muted)
-				Con_Printf("Could not find export trace_plane_normal in progs\n");
+				Con_DPrintf("Could not find trace_plane_normal export in progs\n");
 		}
 	}
 	if (!(pr_globals)->trace_endpos)
@@ -784,7 +784,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 			static vec3_t fallback_trace_endpos;
 			(pr_globals)->trace_endpos = &fallback_trace_endpos;
 			if (!muted)
-				Con_Printf("Could not find export trace_endpos in progs\n");
+				Con_DPrintf("Could not find trace_endpos export in progs\n");
 		}
 	}
 	if (!(pr_globals)->trace_fraction)
@@ -795,7 +795,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 			static float fallback_trace_fraction;
 			(pr_globals)->trace_fraction = &fallback_trace_fraction;
 			if (!muted)
-				Con_Printf("Could not find export trace_fraction in progs\n");
+				Con_DPrintf("Could not find trace_fraction export in progs\n");
 		}
 	}
 	ensureglobal(serverflags, zero_default);
@@ -9622,7 +9622,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"brush_delete",	PF_brush_delete,	0,		0,		0,		0,		D("void(float modelidx, int brushid)", "Destroys the specified brush.")},
 	{"brush_selected",	PF_brush_selected,	0,		0,		0,		0,		D("float(float modelid, int brushid, int faceid, float selectedstate)", "Allows you to easily set transient visual properties of a brush. returns old value. selectedstate=-1 changes nothing (called for its return value).")},
 	{"brush_getfacepoints",PF_brush_getfacepoints,0,0,		0,		0,		D("int(float modelid, int brushid, int faceid, vector *points, int maxpoints)", "Returns the list of verticies surrounding the given face. If face is 0, returns the center of the brush (if space for 1 point) or the mins+maxs (if space for 2 points).")},
-//	{"brush_calcfacepoints",PF_brush_calcfacepoints,0,0,	0,		0,		D("int(brushface_t *in_faces, int numfaces, int faceid, vector *points, int maxpoints)", "Returns the list of verticies surrounding the given face. If face is 0, returns the center of the brush (if space for 1 point) or the mins+maxs (if space for 2 points). Returns 0 if a face is degenerate.")},
+	{"brush_calcfacepoints",PF_brush_calcfacepoints,0,0,	0,		0,		D("int(int faceid, brushface_t *in_faces, int numfaces, vector *points, int maxpoints)", "Determines the points of the specified face, if the specified brush were to actually be created.")},
 	{"brush_findinvolume",PF_brush_findinvolume,0,	0,		0,		0,		D("int(float modelid, vector *planes, float *dists, int numplanes, int *out_brushes, int *out_faces, int maxresults)", "Allows you to easily obtain a list of brushes+faces within the given bounding region. If out_faces is not null, the same brush might be listed twice.")},
 //	{"brush_editplane",	PF_brush_editplane,	0,		0,		0,		0,		D("float(float modelid, int brushid, int faceid, in brushface *face)", "Changes a surface's texture info.")},
 //	{"brush_transformselected",PF_brush_transformselected,0,0,0,	0,		D("int(float modelid, int brushid, float *matrix)", "Transforms selected brushes by the given transform")},
@@ -10711,6 +10711,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_Parse_Event",		"void()", CS, "Called when the client receives an SVC_CGAMEPACKET. The csqc should read the data or call the error builtin if it does not recognise the message."},
 		{"CSQC_InputEvent",			"float(float evtype, float scanx, float chary, float devid)", CS, "Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
 		{"CSQC_Input_Frame",		"__used void()", CS, "Called just before each time clientcommandframe is updated. You can edit the input_* globals in order to apply your own player inputs within csqc, which may allow you a convienient way to pass certain info to ssqc."},
+		{"CSQC_RendererRestarted",	"void(void)", CS, "Called by the engine after the video was restarted. This serves to notify the CSQC that any render targets that it may have cached were purged, and will need to be regenerated."},
 		{"CSQC_ConsoleCommand",		"float(string cmd)", CS, "Called if the user uses any console command registed via registercommand."},
 		{"CSQC_ConsoleLink",		"float(string text, string info)", CS, "Called if the user clicks a ^[text\\infokey\\infovalue^] link. Use infoget to read/check each supported key. Return true if you wish the engine to not attempt to handle the link itself."},
 		{"CSQC_Ent_Update",			"void(float isnew)", CS},

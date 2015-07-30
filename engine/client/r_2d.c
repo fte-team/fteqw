@@ -58,6 +58,7 @@ static void QDECL R2D_Crosshair_Callback(struct cvar_s *var, char *oldvalue);
 static void QDECL R2D_CrosshairImage_Callback(struct cvar_s *var, char *oldvalue);
 static void QDECL R2D_CrosshairColor_Callback(struct cvar_s *var, char *oldvalue);
 
+void (*R2D_Flush)(void);
 
 //We need this for minor things though, so we'll just use the slow accurate method.
 //this is unlikly to be called too often.
@@ -410,6 +411,9 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 			return;
 	}
 
+	if (R2D_Flush)
+		R2D_Flush();
+
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 	draw_mesh_st[0][0] = s1;
@@ -447,6 +451,9 @@ void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
 			return;
 	}
 
+	if (R2D_Flush)
+		R2D_Flush();
+
 	for (i = 0; i < 4; i++)
 	{
 		Vector2Copy(points[i], draw_mesh_xyz[i]);
@@ -459,6 +466,9 @@ void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
 /*draws a block of the current colour on the screen*/
 void R2D_FillBlock(float x, float y, float w, float h)
 {
+	if (R2D_Flush)
+		R2D_Flush();
+
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;
 
@@ -479,6 +489,9 @@ void R2D_FillBlock(float x, float y, float w, float h)
 
 void R2D_Line(float x1, float y1, float x2, float y2, shader_t *shader)
 {
+	if (R2D_Flush)
+		R2D_Flush();
+
 	VectorSet(draw_mesh_xyz[0], x1, y1, 0);
 	Vector2Set(draw_mesh_st[0], 0, 0);
 
@@ -631,6 +644,9 @@ void R2D_TileClear (float x, float y, float w, float h)
 	newth = newtl + (h)/(float)64;
 
 	R2D_ImageColours(1,1,1,1);
+
+	if (R2D_Flush)
+		R2D_Flush();
 
 	draw_mesh_xyz[0][0] = x;
 	draw_mesh_xyz[0][1] = y;

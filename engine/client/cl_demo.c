@@ -390,6 +390,12 @@ void CL_DemoJump_f(void)
 		return;
 	}
 
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("current time %.1f.\n", demtime);
+		return;
+	}
+
 	if (*s == '+' || *s == '-')
 	{
 		if (colon)

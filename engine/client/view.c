@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "winquake.h"
 #include "glquake.h"
+#include "gl_draw.h"
 
 #include <ctype.h> // for isdigit();
 
@@ -1466,12 +1467,12 @@ entity_t *CL_EntityNum(int num)
 #endif
 
 float CalcFov (float fov_x, float width, float height);
-void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
+static void SCR_VRectForPlayer(vrect_t *vrect, int pnum, unsigned maxseats)
 {
 #if MAX_SPLITS > 4
 #pragma warning "Please change this function to cope with the new MAX_SPLITS value"
 #endif
-	switch(cl.splitclients)
+	switch(maxseats)
 	{
 	case 1:
 		vrect->width = vid.fbvwidth;
@@ -1828,7 +1829,7 @@ void R_DrawNameTags(void)
 
 	if ((!cl.spectator && !cls.demoplayback || !scr_autoid.ival) && (!cl.teamplay || !scr_autoid_team.ival))
 		return;
-	if (cls.state != ca_active || !cl.validsequence)
+	if (cls.state != ca_active || !cl.validsequence || cl.intermission)
 		return;
 
 	if (r_refdef.playerview->cam_state != CAM_FREECAM && r_refdef.playerview->cam_spec_track >= 0)
@@ -2048,16 +2049,20 @@ void V_RenderPlayerViews(playerview_t *pv)
 void V_RenderView (void)
 {
 	int viewnum;
+	int maxviews = cl.splitclients;
 
 	Surf_LessenStains();
 
 	if (cls.state != ca_active)
 		return;
 
+	if (cl.intermission)
+		maxviews = 1;
+
 	R_PushDlights ();
 
 	r_secondaryview = 0;
-	for (viewnum = 0; viewnum < cl.splitclients; viewnum++)
+	for (viewnum = 0; viewnum < maxviews; viewnum++)
 	{
 		V_ClearRefdef(&cl.playerview[viewnum]);
 		if (viewnum)
@@ -2085,7 +2090,9 @@ void V_RenderView (void)
 				RSpeedEnd(RSPEED_LINKENTITIES);
 			}
 		}
-		SCR_VRectForPlayer(&r_refdef.grect, viewnum);
+		if (R2D_Flush)
+			R2D_Flush();
+		SCR_VRectForPlayer(&r_refdef.grect, viewnum, maxviews);
 		V_RenderPlayerViews(r_refdef.playerview);
 
 #ifdef PLUGINS

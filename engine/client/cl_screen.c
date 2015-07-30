@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_screen.c -- master for refresh, status bar, console, chat, notify, etc
 
 #include "quakedef.h"
+#include "gl_draw.h"
 #ifdef GLQUAKE
 #include "glquake.h"//would prefer not to have this
 #endif
@@ -2593,6 +2594,9 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 
 	SCR_DrawCursor();
 	SCR_DrawSimMTouchCursor();
+
+	if (R2D_Flush)
+		R2D_Flush();
 
 	RSpeedEnd(RSPEED_2D);
 }

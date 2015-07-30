@@ -3274,9 +3274,11 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 		return hm->exteriorcontents;
 	if (sx >= hm->maxsegx || sy >= hm->maxsegy)
 		return hm->exteriorcontents;
-	s = Terr_GetSection(hm, sx, sy, TGS_TRYLOAD);
-	if (!s)
+	s = Terr_GetSection(hm, sx, sy, TGS_TRYLOAD | TGS_ANYSTATE);
+	if (!s || s->loadstate != TSLS_LOADED)
 	{
+		if (s && s->loadstate == TSLS_FAILED)
+			return hm->exteriorcontents;
 		return FTECONTENTS_SOLID;
 	}
 
@@ -3590,17 +3592,20 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	else if (sy < tr->hm->firstsegy || sy >= tr->hm->maxsegy)
 		return;//s = NULL;
 	else
-		s = Terr_GetSection(tr->hm, sx, sy, TGS_TRYLOAD|TGS_WAITLOAD);
+		s = Terr_GetSection(tr->hm, sx, sy, TGS_TRYLOAD|TGS_WAITLOAD|TGS_ANYSTATE);
 
-	if (!s)
+	if (!s || s->loadstate != TSLS_LOADED)
 	{
-		//you're not allowed to walk into sections that have not loaded.
-		//might as well check the entire section instead of just one tile
-		Vector4Set(n[0],  1, 0, 0, (tx/(SECTHEIGHTSIZE-1) + 1 - CHUNKBIAS)*tr->hm->sectionsize);
-		Vector4Set(n[1], -1, 0, 0, -(tx/(SECTHEIGHTSIZE-1) + 0 - CHUNKBIAS)*tr->hm->sectionsize);
-		Vector4Set(n[2], 0,  1, 0, (ty/(SECTHEIGHTSIZE-1) + 1 - CHUNKBIAS)*tr->hm->sectionsize);
-		Vector4Set(n[3], 0, -1, 0, -(ty/(SECTHEIGHTSIZE-1) + 0 - CHUNKBIAS)*tr->hm->sectionsize);
-		Heightmap_Trace_Brush(tr, n, 4);
+		if ((tr->contents & tr->hm->exteriorcontents) || s->loadstate != TSLS_FAILED)
+		{
+			//you're not allowed to walk into sections that have not loaded.
+			//might as well check the entire section instead of just one tile
+			Vector4Set(n[0],  1, 0, 0, (tx/(SECTHEIGHTSIZE-1) + 1 - CHUNKBIAS)*tr->hm->sectionsize);
+			Vector4Set(n[1], -1, 0, 0, -(tx/(SECTHEIGHTSIZE-1) + 0 - CHUNKBIAS)*tr->hm->sectionsize);
+			Vector4Set(n[2], 0,  1, 0, (ty/(SECTHEIGHTSIZE-1) + 1 - CHUNKBIAS)*tr->hm->sectionsize);
+			Vector4Set(n[3], 0, -1, 0, -(ty/(SECTHEIGHTSIZE-1) + 0 - CHUNKBIAS)*tr->hm->sectionsize);
+			Heightmap_Trace_Brush(tr, n, 4);
+		}
 		return;
 	}
 
@@ -4576,14 +4581,20 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	if (!mod || !mod->terrain)
 	{
-		if (mod)
+		if (mod && mod->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+		if (mod && mod->loadstate == MLS_LOADED)
 		{
 			char basename[MAX_QPATH];
 			COM_FileBase(mod->name, basename, sizeof(basename));
 			mod->terrain = Mod_LoadTerrainInfo(mod, basename, true);
-			G_FLOAT(OFS_RETURN) = !!mod->terrain;
+			hm = mod->terrain;
+			if (!hm)
+				return;
+			Terr_FinishTerrain(mod);
 		}
-		return;
+		else
+			return;
 	}
 	hm = mod->terrain;
 
@@ -5400,8 +5411,24 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 	brushes_t *out;
 	vec2_t mins, maxs;
 	vec2_t lm;
+
 	if (!hm)
-		return NULL;
+	{
+		if (model && model->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
+		if (model && model->loadstate == MLS_LOADED)
+		{
+			char basename[MAX_QPATH];
+			COM_FileBase(model->name, basename, sizeof(basename));
+			model->terrain = Mod_LoadTerrainInfo(model, basename, true);
+			hm = model->terrain;
+			if (!hm)
+				return NULL;
+			Terr_FinishTerrain(model);
+		}
+		else
+			return NULL;
+	}
 
 	hm->wbrushes = BZ_Realloc(hm->wbrushes, sizeof(*hm->wbrushes) * (hm->numbrushes+1));
 	out = &hm->wbrushes[hm->numbrushes];
@@ -5815,7 +5842,22 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	G_INT(OFS_RETURN) = 0;
 
 	if (!hm)
-		return;
+	{
+		if (mod && mod->loadstate == MLS_LOADING)
+			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+		if (mod && mod->loadstate == MLS_LOADED)
+		{
+			char basename[MAX_QPATH];
+			COM_FileBase(mod->name, basename, sizeof(basename));
+			mod->terrain = Mod_LoadTerrainInfo(mod, basename, true);
+			hm = mod->terrain;
+			if (!hm)
+				return;
+			Terr_FinishTerrain(mod);
+		}
+		else
+			return;
+	}
 
 	planes = alloca(sizeof(*planes) * numfaces);
 	faces = alloca(sizeof(*faces) * numfaces);
@@ -5940,6 +5982,61 @@ void QCBUILTIN PF_brush_selected(pubprogfuncs_t *prinst, struct globalvars_s *pr
 		}
 	}
 }
+
+
+
+//	{"brush_calcfacepoints",PF_brush_calcfacepoints,0,0,		0,		0,		D("int(int faceid, brushface_t *in_faces, int numfaces, vector *points, int maxpoints)", "Determines the points of the specified face, if the specified brush were to actually be created.")},
+void QCBUILTIN PF_brush_calcfacepoints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int	faceid			= G_INT(OFS_PARM0);
+	unsigned int	numfaces		= G_INT(OFS_PARM2);
+	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces);
+	unsigned int	maxpoints		= G_INT(OFS_PARM4);
+	vec3_t			*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM3), sizeof(*out_verts), maxpoints);
+	vecV_t			facepoints[256];
+	vec4_t			planes[256];
+	unsigned int	j, numpoints;
+
+	faceid--;
+	if (faceid < 0 || faceid >= numfaces)
+	{
+		G_INT(OFS_RETURN) = 0;
+		return;
+	}
+
+	//make sure this isn't a dupe face
+	for (j = 0; j < faceid; j++)
+	{
+		if (in_faces[j].planenormal[0] == in_faces[faceid].planenormal[0] &&
+			in_faces[j].planenormal[1] == in_faces[faceid].planenormal[1] &&
+			in_faces[j].planenormal[2] == in_faces[faceid].planenormal[2] && 
+			in_faces[j].planedist == in_faces[faceid].planedist)
+		{
+			G_INT(OFS_RETURN) = 0;
+			return;
+		}
+	}
+
+	//generate a list that Terr_GenerateBrushFace can actually use, silly, but lets hope this isn't needed to be nippy
+	for (j = 0; j < numfaces; j++)
+	{
+		VectorCopy(in_faces[j].planenormal, planes[j]);
+		planes[j][3] = in_faces[j].planedist;
+	}
+
+	//generate points now (so we know the correct mins+maxs for the brush, and whether the plane is relevent)
+	numpoints = Terr_GenerateBrushFace(facepoints, countof(facepoints), planes, numfaces, planes[faceid]);
+	G_INT(OFS_RETURN) = numpoints;
+	if (numpoints > maxpoints)
+		numpoints = maxpoints;
+
+	//... and copy them out without padding. yeah, silly.
+	for (j = 0; j < numpoints; j++)
+	{
+		VectorCopy(facepoints[j], out_verts[j]);
+	}
+}
+
 //	{"brush_getfacepoints",PF_brush_getfacepoints,0,0,		0,		0,		D("int(float modelid, int brushid, int faceid, vector *points, int maxpoints)", "Allows you to easily set transient visual properties of a brush. If brush/face is -1, applies to all. returns old value. selectedstate=-1 changes nothing (called for its return value).")},
 void QCBUILTIN PF_brush_getfacepoints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -6057,7 +6154,8 @@ void Terr_WriteBrushInfo(vfsfile_t *file, brushes_t *br)
 		point[1] = br->faces[i].points[1];
 		point[2] = br->faces[i].points[2];
 
-		VFS_PRINTF(file, "\n( %g %g %g ) ( %g %g %g ) ( %g %g %g ) \"%s\" [ %g %g %g %g ] [ %g %g %g %g ] 0 1 1",
+		//%.9g is 'meant' to be lossless for a standard ieee single-precision float. (%.17g for a double)
+		VFS_PRINTF(file, "\n( %.9g %.9g %.9g ) ( %.9g %.9g %.9g ) ( %.9g %.9g %.9g ) \"%s\" [ %.9g %.9g %.9g %.9g ] [ %.9g %.9g %.9g %.9g ] 0 1 1",
 			point[0][0], point[0][1], point[0][2],
 			point[1][0], point[1][1], point[1][2],
 			point[2][0], point[2][1], point[2][2],

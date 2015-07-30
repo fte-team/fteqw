@@ -1026,6 +1026,8 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 			}
 		}
 
+	if (R2D_Flush)
+		R2D_Flush();
 	D3D9_Set2D();
 
 	R2D_BrightenScreen();
@@ -1051,6 +1053,8 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
 
+	if (R2D_Flush)
+		R2D_Flush();
 
 	d3d9error(IDirect3DDevice9_EndScene(pD3DDev9));
 	d3d9error(IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL));

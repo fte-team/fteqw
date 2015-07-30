@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "winquake.h"
+#include "gl_draw.h"
 #include <sys/types.h>
 #include "netinc.h"
 #include "cl_master.h"
@@ -4968,6 +4969,9 @@ double Host_Frame (double time)
 			scr_chatmode = 0;
 
 		SCR_UpdateScreen ();
+
+		if (R2D_Flush)
+			R2D_Flush();
 	}
 
 	if (host_speeds.ival)

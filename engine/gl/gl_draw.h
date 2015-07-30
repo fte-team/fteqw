@@ -40,6 +40,8 @@ void R2D_FadeScreen (void);
 void R2D_Init(void);
 void R2D_Shutdown(void);
 
+extern void (*R2D_Flush)(void);	//if set, something is queued and must be flushed at some point. if its set to what you will set it to, then you can build onto your batch yourself.
+
 void R2D_PolyBlend (void);
 void R2D_BrightenScreen (void);
 

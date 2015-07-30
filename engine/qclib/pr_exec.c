@@ -602,6 +602,7 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 	char *c, *c2;
 	etype_t type = ev_void;
 	struct edictrun_s *ed;
+	etype_t ptrtype = ev_void;
 
 	c = strchr(key, '.');
 	if (c) *c = '\0';
@@ -722,6 +723,43 @@ pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *ppf, char *key)
 	return true;
 }
 
+static char *PR_ParseCast(char *key, etype_t *t, pbool *isptr)
+{
+	extern char *basictypenames[];
+	int type;
+	*t = ev_void;
+	*isptr = false;
+	while(*key == ' ')
+		key++;
+	if (*key == '(')
+	{
+		key++;
+		for (type = 0; type < 10; type++)
+		{
+			if (!strncmp(key, basictypenames[type], strlen(basictypenames[type])))
+			{
+				key += strlen(basictypenames[type]);
+				while(*key == ' ')
+					key++;
+				if (*key == '*')
+				{
+					*isptr = true;
+					key++;
+				}
+				*t = type;
+				break;
+			}
+		}
+		if (type == 10)
+			return NULL;
+
+		while(*key == ' ')
+			key++;
+		if (*key++ != ')')
+			return NULL;
+	}
+	return key;
+}
 char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
@@ -731,12 +769,44 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 	char *assignment;
 	etype_t type;
 	eval_t fakeval;
+	extern char *basictypenames[];
 
+	if (*key == '*')
+	{
+		int ptr;
+		eval_t v;
+		etype_t cast;
+		pbool isptr;
+		type = ev_void;
+		key = PR_ParseCast(key+1, &cast, &isptr);
+		if (!key || !isptr)
+			return "(unable to evaluate)";
+		if (*key == '&')
+		{
+			if (!LocateDebugTerm(progfuncs, key+1, &val, &type, &fakeval) && val != &fakeval)
+				return "(unable to evaluate)";
+			v._int = (char*)val - progfuncs->funcs.stringtable;
+			val = &v;
+			type = ev_pointer;
+		}
+		else
+		{
+			if (!LocateDebugTerm(progfuncs, key, &val, &type, &fakeval) && val != &fakeval)
+				return "(unable to evaluate)";
+		}
+		if (type == ev_integer || type == ev_string || type == ev_pointer)
+			ptr = val->_int;
+		else if (type == ev_float)
+			ptr = val->_float;
+		else
+			return "(unable to evaluate)";
+		return PR_ValueString(progfuncs, cast, (eval_t*)(progfuncs->funcs.stringtable + ptr), true);
+	}
 	if (*key == '&')
 	{
 		if (!LocateDebugTerm(progfuncs, key+1, &val, &type, &fakeval) && val != &fakeval)
 			return "(unable to evaluate)";
-		QC_snprintfz(buf, sizeof(buf), "%#x", (char*)val - progfuncs->funcs.stringtable);
+		QC_snprintfz(buf, sizeof(buf), "(%s*)%#x", ((type>=10)?"???":basictypenames[type]), (char*)val - progfuncs->funcs.stringtable);
 		return buf;
 	}
 

@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "gl_draw.h"
 
 /*
 
@@ -111,6 +112,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfunction(parse_damage,		"CSQC_Parse_Damage");	\
 	globalfunction(input_event,			"CSQC_InputEvent");	\
 	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
+	globalfunction(rendererrestarted,	"CSQC_RendererRestarted");	\
 	globalfunction(console_command,		"CSQC_ConsoleCommand");	\
 	globalfunction(console_link,		"CSQC_ConsoleLink");	\
 	globalfunction(gamecommand,			"GameCommand");	/*DP extension*/\
@@ -1170,37 +1172,105 @@ static void QCBUILTIN PF_R_AddEntityMask(pubprogfuncs_t *prinst, struct globalva
 //vbuff_delete(vboidx), vboidx=0
 
 static shader_t *csqc_poly_shader;
+static int csqc_poly_origvert;
+static int csqc_poly_origidx;
 static int csqc_poly_startvert;
 static int csqc_poly_startidx;
 static int csqc_poly_flags;
 static int csqc_poly_2d;
 
+static void CSQC_PolyFlush(void)
+{
+	mesh_t mesh;
+	R2D_Flush = NULL;
+
+	//make sure there's actually something there...
+	if (cl_numstrisvert == csqc_poly_origvert)
+		return;
+
+	if (!csqc_poly_2d)
+	{
+		scenetris_t *t;
+		/*regular 3d polys are inserted into a 'scene trisoup' that the backend can then source from (multiple times, depending on how its drawn)*/
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris+=8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = csqc_poly_shader;
+		t->flags = csqc_poly_flags;
+		t->firstidx = csqc_poly_origidx;
+		t->firstvert = csqc_poly_origvert;
+
+		t->numidx = cl_numstrisidx - t->firstidx;
+		t->numvert = cl_numstrisvert-csqc_poly_origvert;
+	}
+	else
+	{
+		/*2d polys need to be flushed now*/
+		memset(&mesh, 0, sizeof(mesh));
+
+		mesh.istrifan = (csqc_poly_origvert == csqc_poly_startvert);
+		mesh.xyz_array = cl_strisvertv + csqc_poly_origvert;
+		mesh.st_array = cl_strisvertt + csqc_poly_origvert;
+		mesh.colors4f_array[0] = cl_strisvertc + csqc_poly_origvert;
+		mesh.indexes = cl_strisidx + csqc_poly_origidx;
+		mesh.numindexes = cl_numstrisidx - csqc_poly_origidx;
+		mesh.numvertexes = cl_numstrisvert-csqc_poly_origvert;
+		/*undo the positions so we don't draw the same verts more than once*/
+		cl_numstrisvert = csqc_poly_origvert;
+		cl_numstrisidx = csqc_poly_origvert;
+
+		BE_DrawMesh_Single(csqc_poly_shader, &mesh, NULL, csqc_poly_flags);
+	}
+
+	//must call begin before the next poly
+	csqc_poly_shader = NULL;
+}
+
 // #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 void QCBUILTIN PF_R_PolygonBegin(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	csqc_poly_flags = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
+	shader_t *shader;
+	int flags = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
+	qboolean twod;
 
 	if (prinst->callargc > 2)
-		csqc_poly_2d = G_FLOAT(OFS_PARM2);
+		twod = G_FLOAT(OFS_PARM2);
 	else if (csqc_isdarkplaces)
 	{
-		csqc_poly_2d = !csqc_dp_lastwas3d;
+		twod = !csqc_dp_lastwas3d;
 		csqc_deprecated("guessing 2d mode based upon random builtin calls");
 	}
 	else
-		csqc_poly_2d = csqc_poly_flags & 4;
+		twod = flags & 4;
 	
-	if ((csqc_poly_flags & 3) == 1)
-		csqc_poly_flags = BEF_FORCEADDITIVE;
+	if ((flags & 3) == 1)
+		flags = BEF_FORCEADDITIVE;
 	else
-		csqc_poly_flags = BEF_NOSHADOWS;
-	if (csqc_isdarkplaces)
-		csqc_poly_flags |= BEF_FORCETWOSIDED;
+		flags = BEF_NOSHADOWS;
+	if (csqc_isdarkplaces || (flags & 0x400))
+		flags |= BEF_FORCETWOSIDED;
 
 	if (csqc_poly_2d)
-		csqc_poly_shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0));
+		shader = R_RegisterPic(PR_GetStringOfs(prinst, OFS_PARM0));
 	else
-		csqc_poly_shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+		shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+
+	if (R2D_Flush && (R2D_Flush != CSQC_PolyFlush || csqc_poly_shader != shader || csqc_poly_flags != flags || csqc_poly_2d != twod))
+		R2D_Flush();
+	if (!R2D_Flush)
+	{	//this is where our current (2d) batch starts
+		csqc_poly_origvert = cl_numstrisvert;
+		csqc_poly_origidx = cl_numstrisidx;
+	}
+	R2D_Flush = CSQC_PolyFlush;
+	csqc_poly_shader = shader;
+	csqc_poly_flags = flags;
+	csqc_poly_2d = twod;
+
+	//this is where our current poly starts
 	csqc_poly_startvert = cl_numstrisvert;
 	csqc_poly_startidx = cl_numstrisidx;
 }
@@ -1226,10 +1296,10 @@ void QCBUILTIN PF_R_PolygonVertex(pubprogfuncs_t *prinst, struct globalvars_s *p
 // #308 void() R_EndPolygon (EXT_CSQC_???)
 void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	scenetris_t *t;
 	int i;
 	int nv;
 	int flags = csqc_poly_flags;
+	int first;
 
 	if (!csqc_poly_shader)
 		return;
@@ -1237,24 +1307,26 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	nv = cl_numstrisvert-csqc_poly_startvert;
 	if (nv == 2)
 		flags |= BEF_LINES;
-
-	/*if the shader didn't change, continue with the old poly*/
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == csqc_poly_shader && cl_stris[cl_numstris-1].flags == flags)
-		t = &cl_stris[cl_numstris-1];
 	else
+		flags &= ~BEF_LINES;
+
+	if (flags != csqc_poly_flags)
 	{
-		if (cl_numstris == cl_maxstris)
-		{
-			cl_maxstris+=8;
-			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
-		}
-		t = &cl_stris[cl_numstris++];
-		t->shader = csqc_poly_shader;
-		t->flags = flags;
-		t->firstidx = cl_numstrisidx;
-		t->firstvert = csqc_poly_startvert;
-		t->numvert = 0;
-		t->numidx = 0;
+		int sv = cl_numstrisvert - nv;
+		cl_numstrisvert -= nv;
+		CSQC_PolyFlush();
+
+		csqc_poly_origvert = cl_numstrisvert;
+		csqc_poly_origidx = cl_numstrisidx;
+		R2D_Flush = CSQC_PolyFlush;
+		csqc_poly_flags = flags;
+		csqc_poly_startvert = cl_numstrisvert;
+		csqc_poly_startidx = cl_numstrisidx;
+
+		memcpy(cl_strisvertv+cl_numstrisvert, cl_strisvertv + sv, sizeof(*cl_strisvertv) * nv);
+		memcpy(cl_strisvertt+cl_numstrisvert, cl_strisvertt + sv, sizeof(*cl_strisvertt) * nv);
+		memcpy(cl_strisvertc+cl_numstrisvert, cl_strisvertc + sv, sizeof(*cl_strisvertc) * nv);
+		cl_numstrisvert += nv;
 	}
 
 	if (flags & BEF_LINES)
@@ -1266,11 +1338,12 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 		}
 
+		first = csqc_poly_startvert - csqc_poly_origvert;
 		/*build the line list fan out of triangles*/
 		for (i = 1; i < nv; i++)
 		{
-			cl_strisidx[cl_numstrisidx++] = t->numvert + i-1;
-			cl_strisidx[cl_numstrisidx++] = t->numvert + i;
+			cl_strisidx[cl_numstrisidx++] = first + i-1;
+			cl_strisidx[cl_numstrisidx++] = first + i;
 		}
 	}
 	else
@@ -1282,42 +1355,19 @@ void QCBUILTIN PF_R_PolygonEnd(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 		}
 
+		first = csqc_poly_startvert - csqc_poly_origvert;
 		/*build the triangle fan out of triangles*/
 		for (i = 2; i < nv; i++)
 		{
-			cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
-			cl_strisidx[cl_numstrisidx++] = t->numvert + i-1;
-			cl_strisidx[cl_numstrisidx++] = t->numvert + i;
+			cl_strisidx[cl_numstrisidx++] = first + 0;
+			cl_strisidx[cl_numstrisidx++] = first + i-1;
+			cl_strisidx[cl_numstrisidx++] = first + i;
 		}
 	}
 
-	if (csqc_poly_2d)
-	{
-		mesh_t mesh;
-		memset(&mesh, 0, sizeof(mesh));
-
-		mesh.istrifan = true;
-		mesh.xyz_array = cl_strisvertv + csqc_poly_startvert;
-		mesh.st_array = cl_strisvertt + csqc_poly_startvert;
-		mesh.colors4f_array[0] = cl_strisvertc + csqc_poly_startvert;
-		mesh.indexes = cl_strisidx + csqc_poly_startidx;
-		mesh.numindexes = cl_numstrisidx - csqc_poly_startidx;
-		mesh.numvertexes = cl_numstrisvert-csqc_poly_startvert;
-		/*undo the positions so we don't draw the same verts more than once*/
-		cl_numstrisvert = csqc_poly_startvert;
-		cl_numstrisidx = csqc_poly_startidx;
-
-		BE_DrawMesh_Single(csqc_poly_shader, &mesh, NULL, csqc_poly_flags);
-	}
-	else
-	{
-		t->numidx = cl_numstrisidx - t->firstidx;
-		t->numvert += cl_numstrisvert-csqc_poly_startvert;
-
-		/*set up ready for the next poly*/
-		csqc_poly_startvert = cl_numstrisvert;
-		csqc_poly_startidx = cl_numstrisidx;
-	}
+	/*set up ready for the next poly*/
+	csqc_poly_startvert = cl_numstrisvert;
+	csqc_poly_startidx = cl_numstrisidx;
 }
 
 
@@ -1420,6 +1470,9 @@ static void QCBUILTIN PF_cs_unproject (pubprogfuncs_t *prinst, struct globalvars
 //clear scene, and set up the default stuff.
 static void QCBUILTIN PF_R_ClearScene (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (R2D_Flush)
+		R2D_Flush();
+
 	if (prinst->callargc > 0)
 		CSQC_ChangeLocalPlayer(G_FLOAT(OFS_PARM0));
 
@@ -1595,6 +1648,9 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		PF_R_GetViewFlag(prinst, pr_globals);
 		return;
 	}
+
+	if (R2D_Flush)
+		R2D_Flush();
 
 	csqc_rebuildmatricies = true;
 
@@ -1792,6 +1848,8 @@ void R2D_PolyBlend (void);
 void R_DrawNameTags(void);
 static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (R2D_Flush)
+		R2D_Flush();
 	csqc_poly_shader = NULL;
 
 	if (csqc_worldchanged)
@@ -5128,6 +5186,7 @@ static struct {
 	{"brush_delete",			PF_brush_delete,		0},
 	{"brush_selected",			PF_brush_selected,		0},
 	{"brush_getfacepoints",		PF_brush_getfacepoints,	0},
+	{"brush_calcfacepoints",	PF_brush_calcfacepoints,0},
 	{"brush_findinvolume",		PF_brush_findinvolume,	0},
 
 	{"touchtriggers",			PF_touchtriggers,		279},//void() touchtriggers = #279;
@@ -5693,7 +5752,7 @@ void CSQC_Event_Think(world_t *w, wedict_t *s)
 		PR_ExecuteProgram (w->progs, s->v->think);
 }
 
-void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeoffset)
+void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeoffset, unsigned int flags)
 {
 	int i;
 	vec3_t originbuf;
@@ -5709,7 +5768,7 @@ void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char
 			origin = wentity->v->origin;
 	}
 
-	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume, attenuation, timeoffset, pitchadj, 0);
+	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume, attenuation, timeoffset, pitchadj, flags);
 }
 
 qboolean CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
@@ -6199,6 +6258,10 @@ qboolean CSQC_Init (qboolean anycsqc, qboolean csdatenabled, unsigned int checks
 		csqcmapentitydataloaded = false;
 
 		csqc_world.physicstime = 0.1;
+
+
+		if (cls.state == ca_disconnected)
+			CSQC_WorldLoaded();
 	}
 
 	return true; //success!
@@ -6218,6 +6281,18 @@ void CSQC_RendererRestarted(void)
 	}
 
 	//FIXME: registered shaders
+
+	//let the csqc know that its rendertargets got purged
+	if (csqcg.rendererrestarted)
+		PR_ExecuteProgram(csqcprogs, csqcg.rendererrestarted);
+	//in case it drew to any render targets.
+	if (R2D_Flush)
+		R2D_Flush();
+	if (*r_refdef.rt_destcolour[0].texname)
+	{
+		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
+		BE_RenderToTextureUpdate2d(true);
+	}
 }
 
 void CSQC_WorldLoaded(void)
@@ -6233,14 +6308,14 @@ void CSQC_WorldLoaded(void)
 		CSQC_FindGlobals(false);
 
 	csqcmapentitydataloaded = true;
-	csqcmapentitydata = cl.worldmodel->entities;
+	csqcmapentitydata = cl.worldmodel?cl.worldmodel->entities:NULL;
 
 	csqc_world.worldmodel = cl.worldmodel;
 	World_RBE_Start(&csqc_world);
 
 	worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
 	worldent->v->solid = SOLID_BSP;
-	csqc_setmodel(csqcprogs, worldent, 1);
+	csqc_setmodel(csqcprogs, worldent, cl.worldmodel?1:0);
 
 	worldent->readonly = false;	//just in case
 
@@ -6595,8 +6670,8 @@ qboolean CSQC_DrawView(void)
 			if (cl.paused)
 				*csqcg.frametime = 0;	//apparently people can't cope with microstutter when they're using this as a test to see if the game is paused.
 			else
-				*csqcg.frametime = bound(0, cl.time - oldtime, 0.1);
-			oldtime = cl.time;
+				*csqcg.frametime = bound(0, cl.servertime - oldtime, 0.1);
+			oldtime = cl.servertime;
 		}
 		else
 			*csqcg.frametime = host_frametime;
@@ -6671,6 +6746,8 @@ qboolean CSQC_DrawView(void)
 	else
 		PR_ExecuteProgram(csqcprogs, csqcg.f_updateview);
 
+	if (R2D_Flush)
+		R2D_Flush();
 	if (*r_refdef.rt_destcolour[0].texname)
 	{
 		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));

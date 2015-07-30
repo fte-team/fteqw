@@ -95,10 +95,6 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	buffer->decodedbytecount = 0;
 	buffer->s = s;
 	s->decoder.buf = buffer;
-	s->decoder.decodedata = OV_DecodeSome;
-	s->decoder.querydata = OV_Query;
-	s->decoder.purge = OV_CancelDecoder;
-	s->decoder.ended = OV_CancelDecoder;
 
 	if (!OV_StartDecode(data, datalen, buffer))
 	{
@@ -115,6 +111,10 @@ qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 		s->loadstate = SLS_FAILED;	//failed!
 		return false;
 	}
+	s->decoder.decodedata = OV_DecodeSome;
+	s->decoder.querydata = OV_Query;
+	s->decoder.purge = OV_CancelDecoder;
+	s->decoder.ended = OV_CancelDecoder;
 
 	s->decoder.decodedata(s, NULL, 0, 100);
 

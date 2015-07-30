@@ -1078,7 +1078,8 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		return false;
 
 	time = Sys_DoubleTime();
-	M_Shutdown(false);
+	
+	M_RemoveAllMenus(true);
 	Media_CaptureDemoEnd();
 	R_ShutdownRenderer(true);
 	Con_DPrintf("video shutdown took %f seconds\n", Sys_DoubleTime() - time);
@@ -1691,7 +1692,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 	SCR_EndLoadingPlaque();
 
 	TRACE(("dbg: R_RestartRenderer_f success\n"));
-	M_Reinit();
+//	M_Reinit();
 }
 
 void R_RestartRenderer_f (void)

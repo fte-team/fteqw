@@ -225,6 +225,8 @@ void GLSCR_UpdateScreen (void)
 
 	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
+	if (R2D_Flush)
+		R2D_Flush();
 
 	RSpeedRemark();
 	GL_EndRendering ();

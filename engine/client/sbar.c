@@ -3112,21 +3112,21 @@ ping time frags name
 	if (p < 0 || p > 999) p = 999;						\
 	sprintf(num, "%4i", p);								\
 	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
-})
+},)
 
 #define COLUMN_PL COLUMN(pl, 2*8,						\
 {														\
 	int p = s->pl;										\
 	sprintf(num, "%2i", p);								\
 	Draw_FunStringWidth(x, y, num, 2*8, false, false);	\
-})
+},)
 #define COLUMN_TIME COLUMN(time, 4*8,					\
 {														\
 	total = realtime - s->realentertime;				\
 	minutes = (int)total/60;							\
 	sprintf (num, "%4i", minutes);						\
 	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
-})
+},)
 #define COLUMN_FRAGS COLUMN(frags, 5*8,					\
 {	\
 	int cx; int cy;										\
@@ -3136,12 +3136,6 @@ ping time frags name
 	}													\
 	else												\
 	{													\
-		if (largegame)									\
-			Sbar_FillPC(x, y+1, 40, 3, top);			\
-		else											\
-			Sbar_FillPC(x, y, 40, 4, top);				\
-		Sbar_FillPC(x, y+4, 40, 4, bottom);				\
-														\
 		f = s->frags;									\
 		sprintf(num, "%3i",f);							\
 														\
@@ -3162,6 +3156,15 @@ ping time frags name
 		}												\
 		Font_EndString(font_default);					\
 	}													\
+},{														\
+	if (!s->spectator)									\
+	{													\
+		if (largegame)									\
+			Sbar_FillPC(x, y+1, 40, 3, top);			\
+		else											\
+			Sbar_FillPC(x, y, 40, 4, top);				\
+		Sbar_FillPC(x, y+4, 40, 4, bottom);				\
+	}													\
 })
 #define COLUMN_TEAMNAME COLUMN(team, 4*8,				\
 {														\
@@ -3169,13 +3172,13 @@ ping time frags name
 	{													\
 		Draw_FunStringWidth(x, y, s->team, 4*8, false, false);			\
 	}													\
-})
-#define COLUMN_NAME COLUMN(name, (cl.teamplay ? 12*8 : 16*8),	{Draw_FunStringWidth(x, y, s->name, (cl.teamplay ? 12*8 : 16*8), false, false);})
-#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);})
-#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);})
-#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);})
-#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);})
-#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);})
+},)
+#define COLUMN_NAME COLUMN(name, (cl.teamplay ? 12*8 : 16*8),	{Draw_FunStringWidth(x, y, s->name, (cl.teamplay ? 12*8 : 16*8), false, false);},)
+#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);},)
+#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);},)
+#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);},)
+#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);},)
+#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);},)
 
 
 
@@ -3184,7 +3187,7 @@ ping time frags name
 
 enum
 {
-#define COLUMN(title, width, code) COLUMN##title,
+#define COLUMN(title, width, code, fill) COLUMN##title,
 	ALLCOLUMNS
 #undef COLUMN
 	COLUMN_MAX
@@ -3270,7 +3273,7 @@ void Sbar_DeathmatchOverlay (int start)
 
 	rank_width = 0;
 
-#define COLUMN(title, cwidth, code) if (rank_width+(cwidth)+8 <= gr.width) {showcolumns |= (1<<COLUMN##title); rank_width += cwidth+8;}
+#define COLUMN(title, cwidth, code, fill) if (rank_width+(cwidth)+8 <= gr.width) {showcolumns |= (1<<COLUMN##title); rank_width += cwidth+8;}
 //columns are listed here in priority order (if the screen is too narrow, later ones will be hidden)
 	COLUMN_NAME
 	COLUMN_PING
@@ -3318,7 +3321,7 @@ void Sbar_DeathmatchOverlay (int start)
 	}
 
 	x = startx;
-#define COLUMN(title, width, code) if (showcolumns & (1<<COLUMN##title)) {Draw_FunString(x, y, #title); x += width+8;}
+#define COLUMN(title, width, code, fill) if (showcolumns & (1<<COLUMN##title)) {Draw_FunString(x, y, #title); x += width+8;}
 	ALLCOLUMNS
 #undef COLUMN
 
@@ -3328,7 +3331,7 @@ void Sbar_DeathmatchOverlay (int start)
 	if (scr_scoreboard_titleseperator.ival && !scr_scoreboard_newstyle.ival)
 	{
 		x = startx;
-#define COLUMN(title, width, code) \
+#define COLUMN(title, width, code, fill) \
 if (showcolumns & (1<<COLUMN##title)) \
 { \
 	Draw_FunString(x, y, "^Ue01d"); \
@@ -3357,6 +3360,7 @@ if (showcolumns & (1<<COLUMN##title)) \
 
 	y -= skip;
 
+	//drawfills (these are split out to aid batching)
 	for (i = 0; i < scoreboardlines; i++)
 	{
 		char	team[5];
@@ -3411,7 +3415,38 @@ if (showcolumns & (1<<COLUMN##title)) \
 		}
 
 		x = startx;
-#define COLUMN(title, width, code) \
+#define COLUMN(title, width, code, fills) \
+if (showcolumns & (1<<COLUMN##title)) \
+{ \
+	fills \
+	x += width+8; \
+}
+		ALLCOLUMNS
+#undef COLUMN
+	}
+	if (scr_scoreboard_newstyle.ival)
+	{
+		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
+		R2D_FillBlock (startx - 3, y + skip, rank_width - 1, 1); // Electro - Border - Bottom
+	}
+	R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
+	y -= i * skip;
+
+	//text parts
+	for (i = 0; i < scoreboardlines; i++)
+	{
+		// TODO: Sort players so that the leading teams are drawn first
+		k = fragsort[i];
+		s = &cl.players[k];
+		if (!s->name[0])
+			continue;
+
+		y += skip;
+		if (y > vid.height-10)
+			break;
+
+		x = startx;
+#define COLUMN(title, width, code, fills) \
 if (showcolumns & (1<<COLUMN##title)) \
 { \
 	code \
@@ -3421,16 +3456,8 @@ if (showcolumns & (1<<COLUMN##title)) \
 #undef COLUMN
 	}
 
-	if (scr_scoreboard_newstyle.ival)
-	{
-		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
-		R2D_FillBlock (startx - 3, y + skip, rank_width - 1, 1); // Electro - Border - Bottom
-	}
-
 	if (y >= vid.height-10) // we ran over the screen size, squish
 		largegame = true;
-
-	R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 }
 
 void Sbar_ChatModeOverlay(playerview_t *pv)
@@ -3578,19 +3605,26 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 
 	x = sbar_rect.x + 320 + 4;
 
+	for (f = i, py = y; f < scoreboardlines && py < sbar_rect.y + sbar_rect.height - 8 + 1; f++)
+	{
+		k = fragsort[f];
+		s = &cl.players[k];
+		if (!s->name[0])
+			continue;
+	// draw ping
+		top = Sbar_TopColour(s);
+		bottom = Sbar_BottomColour(s);
+
+		Sbar_FillPC ( x, py+1, 40, 3, top);
+		Sbar_FillPC ( x, py+4, 40, 4, bottom);
+		py += 8;
+	}
 	for (/* */ ; i < scoreboardlines && y < sbar_rect.y + sbar_rect.height - 8 + 1; i++)
 	{
 		k = fragsort[i];
 		s = &cl.players[k];
 		if (!s->name[0])
 			continue;
-
-	// draw ping
-		top = Sbar_TopColour(s);
-		bottom = Sbar_BottomColour(s);
-
-		Sbar_FillPC ( x, y+1, 40, 3, top);
-		Sbar_FillPC ( x, y+4, 40, 4, bottom);
 
 	// draw number
 		f = s->frags;

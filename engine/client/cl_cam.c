@@ -67,7 +67,12 @@ void Cam_AutoTrack_Update(const char *mode)
 	autotrack_statsrule = NULL;
 	if (!*mode || !Q_strcasecmp(mode, "auto"))
 	{
-		if (cl_hightrack.ival)
+		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		{
+			autotrackmode = TM_STATS;
+			autotrack_statsrule = Z_StrDup("");	//default
+		}
+		else if (cl_hightrack.ival)
 			autotrackmode = TM_HIGHTRACK;
 		else
 			autotrackmode = TM_MODHINTS;
@@ -80,6 +85,11 @@ void Cam_AutoTrack_Update(const char *mode)
 		autotrackmode = TM_MODHINTS;
 	else if (!Q_strcasecmp(mode, "user") || !Q_strcasecmp(mode, "off"))
 		autotrackmode = TM_USER;
+	else if (!Q_strcasecmp(mode, "stats"))
+	{
+		autotrackmode = TM_STATS;
+		autotrack_statsrule = NULL;
+	}
 	else
 	{
 		autotrackmode = TM_STATS;
@@ -94,47 +104,131 @@ static void Cam_AutoTrack_f(void)
 		Cam_AutoTrack_Update(NULL);
 }
 
-
-static float CL_TrackScore(player_info_t *pl, char *rule)
+static float CL_TrackScoreProp(player_info_t *pl, char rule, float *weights)
 {
-	float score = 0;
-	float val;
-	int r;
-	while (*rule)
+	float r;
+	switch(rule)
 	{
-		r = *rule++;
-		if (r == 'f')
-			val = pl->frags;
-		else if (r == 'l')
-			val = pl->ping;
-		else if (r == 'h')
-			val = pl->statsf[STAT_HEALTH];
-		else if (r == 'q')
-			val = (pl->stats[STAT_ITEMS] & IT_QUAD)?1:0;
-		else if (r == 'p')
-			val = (pl->stats[STAT_ITEMS] & IT_INVULNERABILITY)?1:0;
-		else if (r == 's')
-		{
-			int i = strtol(rule, &rule, 10);
-			val = pl->statsf[i];
-		}
-		else if (r == '#')
-			val = strtod(rule, &rule);
-		else
-			val = 0;
-
-		if (*rule == '*')
-		{
-			val *= strtod(rule+1, &rule);
-		}
-
-		score += val;
-		if (*rule == '+')
-			rule++;
-		else
-			break;
+	case 'a':	//armour value
+		return pl->statsf[STAT_ARMOR];
+	case 'h':
+		return pl->statsf[STAT_HEALTH];
+	case 'A':	//armour type
+		if		(pl->stats[STAT_ITEMS] & IT_ARMOR3)	r = weights[10];
+		else if (pl->stats[STAT_ITEMS] & IT_ARMOR2)	r = weights[9];
+		else if (pl->stats[STAT_ITEMS] & IT_ARMOR1)	r = weights[8];
+		else										r = 0;
+		return r;
+	case 'W':	//best weapon
+		r = 0;
+		if (r < weights[0] && (pl->stats[STAT_ITEMS] & IT_AXE)) r = weights[0];
+		if (r < weights[1] && (pl->stats[STAT_ITEMS] & IT_SHOTGUN)) r = weights[1];
+		if (r < weights[2] && (pl->stats[STAT_ITEMS] & IT_SUPER_SHOTGUN)) r = weights[2];
+		if (r < weights[3] && (pl->stats[STAT_ITEMS] & IT_NAILGUN)) r = weights[3];
+		if (r < weights[4] && (pl->stats[STAT_ITEMS] & IT_SUPER_NAILGUN)) r = weights[4];
+		if (r < weights[5] && (pl->stats[STAT_ITEMS] & IT_GRENADE_LAUNCHER)) r = weights[5];
+		if (r < weights[6] && (pl->stats[STAT_ITEMS] & IT_ROCKET_LAUNCHER)) r = weights[6];
+		if (r < weights[7] && (pl->stats[STAT_ITEMS] & IT_LIGHTNING)) r = weights[7];
+		return r;
+	case 'p':	//powerups held
+		r = 0;
+		r += (pl->stats[STAT_ITEMS] & IT_INVISIBILITY)?weights[11]:0;
+		r += (pl->stats[STAT_ITEMS] & IT_QUAD)?weights[12]:0;
+		r += (pl->stats[STAT_ITEMS] & IT_INVULNERABILITY)?weights[13]:0;
+		return r;
+	case 'f':	//frags
+		return pl->frags;
+//	case 'F':	//team frags
+//		return 0;
+	case 'g':	//deaths
+		return Stats_GetDeaths(pl - cl.players);
+	case 'u':	//userid
+		return pl - cl.players;
+	default:
+		return 0;
 	}
-	return score;
+}
+#define PRI_TOP 2
+#define PRI_ADD 2
+#define PRI_MUL 1
+#define PRI_VAL 0
+static float CL_TrackScore(player_info_t *pl, char **rule, float *weights, int pri)
+{
+	float l, r;
+	char *s = *rule;
+	while (*s == ' ' || *s == '\t')
+		s++;
+	if (!pri)
+	{
+		if (*s == '(')
+		{
+			l = CL_TrackScore(pl, &s, weights, PRI_TOP);
+			while (*s == ' ' || *s == '\t')
+				s++;
+			if (*s == ')')
+				s++;
+		}
+		else if (*s == '%')
+		{
+			l = CL_TrackScoreProp(pl, *++s, weights);
+			s++;
+		}
+		else if (*s == '#')
+		{
+			int i = strtoul(s+1, &s, 0);
+			if (i >= 0 && i < MAX_CL_STATS)
+				l = pl->statsf[i];
+			else
+				l = 0;
+		}
+		else
+			l = strtod(s, &s);
+		while (*s == ' ' || *s == '\t')
+			s++;
+	}
+	else
+		l = CL_TrackScore(pl, &s, weights, pri-1);
+
+	for (;;)
+	{
+		if (pri == PRI_MUL)
+		{
+			if (*s == '*')
+			{
+				s++;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l *= r;
+				continue;
+			}
+			else if (*s == '/')
+			{
+				s++;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l /= r;
+				continue;
+			}
+		}
+		else if (pri == PRI_ADD)
+		{
+			if (*s == '+')
+			{
+				s++;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l += r;
+				continue;
+			}
+			else if (*s == '-')
+			{
+				s++;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l -= r;
+				continue;
+			}
+		}
+		break;
+	}
+	*rule = s;
+	return l;
 }
 static qboolean CL_MayTrack(int seat, int player)
 {
@@ -154,14 +248,60 @@ static qboolean CL_MayTrack(int seat, int player)
 static int CL_FindHighTrack(int seat, char *rule)
 {
 	int j = -1;
-	int i, k;
+	int i;
 	float max, score;
 	player_info_t *s;
+	float weights[14];
+	char *p;
+
+	if (rule && *rule == '[')
+	{
+		rule++;
+		weights[0] = strtod(rule, &rule);	//axe
+		weights[1] = strtod(rule, &rule);	//shot
+		weights[2] = strtod(rule, &rule);	//sshot
+		weights[3] = strtod(rule, &rule);	//nail
+		weights[4] = strtod(rule, &rule);	//snail
+		weights[5] = strtod(rule, &rule);	//gren
+		weights[6] = strtod(rule, &rule);	//rock
+		weights[7] = strtod(rule, &rule);	//lg
+		weights[8] = strtod(rule, &rule);	//ga
+		weights[9] = strtod(rule, &rule);	//ya
+		weights[10] = strtod(rule, &rule);	//ra
+		weights[11] = strtod(rule, &rule);	//ring
+		weights[12] = strtod(rule, &rule);	//quad
+		weights[13] = strtod(rule, &rule);	//pent
+		if (*rule == ']')
+			rule++;
+	}
+	else
+	{
+		weights[0] = 1;	//axe
+		weights[1] = 2;	//shot
+		weights[2] = 3;	//sshot
+		weights[3] = 2;	//nail
+		weights[4] = 3;	//snail
+		weights[5] = 3;	//gren
+		weights[6] = 8;	//rock
+		weights[7] = 8;	//lg
+		weights[8] = 1;	//ga
+		weights[9] = 2;	//ya
+		weights[10] = 3;	//ra
+		weights[11] = 500;	//ring
+		weights[12] = 900;	//quad
+		weights[13] = 1000;	//pent
+	}
+
+	if (!rule || !*rule)
+		rule = "%a * %A + 50 * %W + %p + %f";
 
 	//set a default to the currently tracked player, to reuse the current player we're tracking if someone lower equalises.
 	j = cl.playerview[seat].cam_spec_track;
 	if (CL_MayTrack(seat, j))
-		max = CL_TrackScore(&cl.players[j], rule);
+	{
+		p = rule;
+		max = CL_TrackScore(&cl.players[j], &p, weights, PRI_TOP);
+	}
 	else
 	{
 		max = -9999;
@@ -171,17 +311,39 @@ static int CL_FindHighTrack(int seat, char *rule)
 	for (i = 0; i < cl.allocated_client_slots; i++)
 	{
 		s = &cl.players[i];
-		score = CL_TrackScore(s, rule);
+		if (j == i)	//this was our default.
+			continue;
+		if (!CL_MayTrack(seat, i))
+			continue;
+		if (cl.teamplay && seat && cl.playerview[0].cam_spec_track >= 0 && strcmp(cl.players[cl.playerview[0].cam_spec_track].team, s->team))
+			continue;	//when using multiview, keep tracking the team
+		p = rule;
+		score = CL_TrackScore(s, &p, weights, PRI_TOP);
 		if (score > max)
 		{
+			max = score;
+			j = i;
+		}
+	}
+	if (j == -1 && cl.teamplay && seat)
+	{
+		//do it again, but with the teamplay check inverted
+		for (i = 0; i < cl.allocated_client_slots; i++)
+		{
+			s = &cl.players[i];
 			if (j == i)	//this was our default.
 				continue;
 			if (!CL_MayTrack(seat, i))
 				continue;
-			if (cl.teamplay && seat && cl.playerview[0].cam_spec_track >= 0 && strcmp(cl.players[cl.playerview[0].cam_spec_track].team, s->team))
+			if (!(cl.teamplay && seat && cl.playerview[0].cam_spec_track >= 0 && strcmp(cl.players[cl.playerview[0].cam_spec_track].team, s->team)))
 				continue;	//when using multiview, keep tracking the team
-			max = CL_TrackScore(s, rule);
-			j = i;
+			p = rule;
+			score = CL_TrackScore(s, &p, weights, PRI_TOP);
+			if (score > max)
+			{
+				max = score;
+				j = i;
+			}
 		}
 	}
 	return j;
@@ -194,10 +356,10 @@ static int CL_AutoTrack_Choose(int seat)
 		best = cl.autotrack_killer;
 	if (autotrackmode == TM_MODHINTS && seat == 0 && cl.autotrack_hint >= 0)
 		best = cl.autotrack_hint;
-	if (autotrackmode == TM_STATS && cls.demoplayback == DPB_MVD)
+	if (autotrackmode == TM_STATS && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
 		best = CL_FindHighTrack(seat, autotrack_statsrule);
 	if (autotrackmode == TM_HIGHTRACK || best == -1)
-		best = CL_FindHighTrack(seat, "f");
+		best = CL_FindHighTrack(seat, "%f");
 	//TM_USER should generally avoid autotracking
 	cl.autotrack_killer = best;	//killer should continue to track whatever is currently tracked until its changed by frag message parsing
 	return best;

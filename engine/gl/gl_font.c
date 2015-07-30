@@ -2,6 +2,7 @@
 
 #ifndef SERVERONLY
 #include "shader.h"
+#include "gl_draw.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -392,6 +393,7 @@ void Font_Init(void)
 //flush the font buffer, by drawing it to the screen
 static void Font_Flush(void)
 {
+	R2D_Flush = NULL;
 	if (!font_foremesh.numindexes)
 		return;
 	if (fontplanes.planechanged)
@@ -419,7 +421,7 @@ static int Font_BeginChar(texid_t tex)
 {
 	int fvert;
 
-	if (font_foremesh.numindexes == FONT_CHAR_BUFFER*6 || font_texture != tex)
+	if (font_foremesh.numindexes >= FONT_CHAR_BUFFER*6 || font_texture != tex)
 	{
 		Font_Flush();
 		TEXASSIGNF(font_texture, tex);
@@ -1521,7 +1523,9 @@ void Font_Free(struct font_s *f)
 //maps a given virtual screen coord to a pixel coord, which matches the font's height/width values
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 {
-	Font_Flush();
+	if (R2D_Flush && curfont != font)
+		R2D_Flush();
+	R2D_Flush = Font_Flush;
 
 	curfont = font;
 	*px = (vx*(int)vid.rotpixelwidth) / (float)vid.width;
@@ -1530,8 +1534,6 @@ void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 	curfont_scale[0] = curfont->charheight;
 	curfont_scale[1] = curfont->charheight;
 	curfont_scaled = false;
-
-	font_colourmask = ~0u;	//force the colour to be recalculated.
 }
 void Font_Transform(float vx, float vy, int *px, int *py)
 {
@@ -1542,7 +1544,9 @@ void Font_Transform(float vx, float vy, int *px, int *py)
 }
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py)
 {
-	Font_Flush();
+	if (R2D_Flush && curfont != font)
+		R2D_Flush();
+	R2D_Flush = Font_Flush;
 
 	curfont = font;
 	*px = (vx*(float)vid.rotpixelwidth) / (float)vid.width;
@@ -1560,13 +1564,14 @@ void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, 
 
 	curfont_scale[0] = (szx * (float)vid.rotpixelheight) / (curfont->charheight * (float)vid.height);
 	curfont_scale[1] = (szy * (float)vid.rotpixelheight) / (curfont->charheight * (float)vid.height);
-	font_colourmask = ~0u;	//force the colour to be recalculated.
 }
 
 void Font_EndString(struct font_s *font)
 {
-	Font_Flush();
-	curfont = NULL;
+//	Font_Flush();
+//	curfont = NULL;
+
+	R2D_Flush = Font_Flush;
 }
 
 //obtains the font's row height (each row of chars should be drawn using this increment)
@@ -1779,7 +1784,10 @@ void Font_ForceColour(float r, float g, float b, float a)
 		return;
 
 	if (font_colourmask & CON_NONCLEARBG)
+	{
 		Font_Flush();
+		R2D_Flush = Font_Flush;
+	}
 	font_colourmask = CON_WHITEMASK;
 
 	font_foretint[0] = r;
@@ -1853,7 +1861,10 @@ int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint
 		{
 			vec4_t rgba;
 			if (font_colourmask & CON_NONCLEARBG)
+			{
 				Font_Flush();
+				R2D_Flush = Font_Flush;
+			}
 			font_colourmask = col;
 
 			rgba[0] = ((col>>CON_RICHRSHIFT)&0xf)*0x11;
@@ -1899,7 +1910,10 @@ int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint
 		{
 			vec4_t rgba;
 			if ((col ^ font_colourmask) & CON_NONCLEARBG)
+			{
 				Font_Flush();
+				R2D_Flush = Font_Flush;
+			}
 			font_colourmask = col;
 
 			col = (charflags&CON_FGMASK)>>CON_FGSHIFT;
@@ -2077,7 +2091,10 @@ float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned in
 		{
 			vec4_t rgba;
 			if (font_backcolour[3])
+			{
 				Font_Flush();
+				R2D_Flush = Font_Flush;
+			}
 			font_colourmask = col;
 
 			rgba[0] = ((col>>CON_RICHRSHIFT)&0xf)*0x11;
@@ -2119,7 +2136,10 @@ float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned in
 		{
 			vec4_t rgba;
 			if (font_backcolour[3] != ((charflags & CON_NONCLEARBG)?127:0))
+			{
 				Font_Flush();
+				R2D_Flush = Font_Flush;
+			}
 			font_colourmask = col;
 
 			col = (charflags&CON_FGMASK)>>CON_FGSHIFT;

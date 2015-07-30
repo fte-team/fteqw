@@ -5465,7 +5465,7 @@ static qboolean Shader_ParseShader(char *parsename, shader_t *s)
 }
 void R_UnloadShader(shader_t *shader)
 {
-	if (shader->uses-- == 1)
+	if (--shader->uses == 0)
 		Shader_Free(shader);
 }
 static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const char *genargs)
@@ -5493,6 +5493,8 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 		//q3 has a separate (internal) shader for every lightmap.
 		if (!((s->usageflags ^ usageflags) & SUF_LIGHTMAP))
 		{
+			if (!s->uses)
+				break;
 			s->uses++;
 			return s;
 		}

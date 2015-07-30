@@ -568,6 +568,7 @@ pbool resetprogssrc;	//progs.src was changed, reload project info.
 HWND mainwindow;
 HWND gamewindow;
 HWND mdibox;
+HWND watches;
 HWND optionsmenu;
 HWND outputwindow;
 HWND outputbox;
@@ -2762,13 +2763,27 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 			free(ctx);
 		}
 		if (hWnd == gamewindow)
+		{
 			gamewindow = NULL;
+			PostMessage(mainwindow, WM_SIZE, 0, 0);
+		}
 		break;
 	case WM_USER:
 		//engine broke. show code.
 		if (lParam)
 			SetForegroundWindow(mainwindow);
 		EditFile((char*)lParam, wParam-1, true);
+
+		if (watches)
+		{
+			char text[MAX_PATH];
+			int i, lim = ListView_GetItemCount(watches);
+			for (i = 0; i < lim; i++)
+			{
+				ListView_GetItemText(watches, i, 0, text, sizeof(text));
+				EngineCommandWndf(hWnd, "qcinspect \"%s\" \"%s\"\n", text, ""); //term, scope
+			}
+		}
 		break;
 	case WM_USER+1:
 		//engine loaded a progs, reset breakpoints.
@@ -2808,6 +2823,17 @@ static LRESULT CALLBACK EngineWndProc(HWND hWnd,UINT message,
 					_snprintf(tip, sizeof(tip)-1, "%s %s = %s", tooltip_type, tooltip_variable, varvalue);
 
 				SendMessage(tooltip_editor->editpane, SCI_CALLTIPSHOW, (WPARAM)tooltip_position, (LPARAM)tip);
+			}
+			if (watches)
+			{
+				char text[MAX_PATH];
+				int i, lim = ListView_GetItemCount(watches);
+				for (i = 0; i < lim; i++)
+				{
+					ListView_GetItemText(watches, i, 0, text, sizeof(text));
+					if (!strcmp(text, varname))
+						ListView_SetItemText(watches, i, 1, varvalue);
+				}
 			}
 			free((char*)lParam);
 		}
@@ -3038,6 +3064,7 @@ void RunEngine(void)
 		enginewindow_t *e = (enginewindow_t*)(LONG_PTR)GetWindowLongPtr(gamewindow, GWLP_USERDATA);
 	}
 //	SendMessage(mdibox, WM_MDIACTIVATE, (WPARAM)gamewindow, 0);
+	PostMessage(mainwindow, WM_SIZE, 0, 0);
 }
 
 
@@ -3692,6 +3719,37 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 					0, 0, 320, 200, hWnd, (HMENU) 0xCAC, ghInstance, (LPSTR) &ccs);
 			ShowWindow(mdibox, SW_SHOW);
 
+			watches = CreateWindow(WC_LISTVIEW, (LPCTSTR) NULL,
+					WS_CHILD | WS_VSCROLL | WS_HSCROLL | LVS_REPORT | LVS_EDITLABELS,
+					0, 0, 320, 200, hWnd, (HMENU) 0xCAD, ghInstance, NULL);
+			ShowWindow(watches, SW_SHOW);
+
+			if (watches)
+			{
+				LVCOLUMN col;
+				LVITEM newi;
+//				ListView_SetUnicodeFormat(watches, TRUE);
+				ListView_SetExtendedListViewStyle(watches, LVS_EX_GRIDLINES);
+				memset(&col, 0, sizeof(col));
+				col.mask = LVCF_FMT | LVCF_TEXT | LVCF_WIDTH;
+				col.fmt = LVCFMT_LEFT;
+				col.cx = 320;
+				col.pszText = "Variable";
+				ListView_InsertColumn(watches, 0, &col);
+				col.pszText = "Value";
+				ListView_InsertColumn(watches, 1, &col);
+
+
+
+				memset(&newi, 0, sizeof(newi));                      
+
+				newi.pszText = "<click to add>";
+				newi.mask = LVIF_TEXT | LVIF_PARAM;
+				newi.lParam = ~0;
+				newi.iSubItem = 0;
+				ListView_InsertItem(watches, &newi); 
+			}
+
 			projecttree = CreateWindow(WC_TREEVIEW, (LPCTSTR) NULL,
 					WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL
 					|	TVS_HASBUTTONS |TVS_LINESATROOT|TVS_HASLINES,
@@ -3732,12 +3790,23 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 		GetClientRect(mainwindow, &rect);
 		if (projecttree)
 		{
+			int mdiheight, watchheight;
 			SetWindowPos(projecttree, NULL, 0, 0, 192, rect.bottom-rect.top - 34 - 48, 0);
 
 			SetWindowPos(search_name, NULL, 0, rect.bottom-rect.top - 33 - 48, 192, 24, 0);
 			SetWindowPos(search_gotodef, NULL, 0, rect.bottom-rect.top - 33 - 24, 192/2, 24, 0);
 			SetWindowPos(search_grep, NULL, 192/2, rect.bottom-rect.top - 33 - 24, 192/2, 24, 0);
-			SetWindowPos(mdibox?mdibox:outputbox, NULL, 192, 0, rect.right-rect.left-192, rect.bottom-rect.top - 32, 0);
+
+			if (gamewindow)
+				watchheight = (ListView_GetItemCount(watches) + 2) * 16;
+			else
+				watchheight = 0;
+			mdiheight = (rect.bottom-rect.top) - 32;
+			if (watchheight > mdiheight/2)
+				watchheight = mdiheight/2;
+			mdiheight -= watchheight;
+			SetWindowPos(watches, NULL, 192, mdiheight, rect.right-rect.left-192, watchheight, 0);
+			SetWindowPos(mdibox?mdibox:outputbox, NULL, 192, 0, rect.right-rect.left-192, mdiheight, 0);
 		}
 		else
 			SetWindowPos(mdibox?mdibox:outputbox, NULL, 0, 0, rect.right-rect.left, rect.bottom-rect.top - 32, 0);
@@ -3796,9 +3865,9 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 			GetWindowText(search_name, greptext, sizeof(greptext)-1);
 			return true;
 		}
-		if (i>0 && i <= NUMBUTTONS)
+		if (i>=20 && i < 20+NUMBUTTONS)
 		{
-			buttons[i-1].washit = 1;
+			buttons[i-20].washit = 1;
 			break;
 		}
 		if (i < IDM_FIRSTCHILD)
@@ -3831,7 +3900,84 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 			int oldlen;
 			int newlen;
 			nm = (NMHDR*)lParam;
-			if (nm->hwndFrom == projecttree)
+			if (nm->hwndFrom == watches)
+			{
+				NMLISTVIEW *lnm = (NMLISTVIEW*)nm;
+				switch(nm->code)
+				{
+				case LVN_BEGINLABELEDITA:
+					return FALSE;	//false to allow...
+				case LVN_BEGINLABELEDITW:
+//					OutputDebugString("Begin EditW\n");
+					return FALSE;	//false to allow...
+				case LVN_ENDLABELEDITA:
+					if (((NMLVDISPINFOA*)nm)->item.iItem == ListView_GetItemCount(watches)-1)
+					{
+						LVITEM newi;
+						memset(&newi, 0, sizeof(newi));
+						newi.iItem = ListView_GetItemCount(watches);
+						newi.pszText = "<click to add>";
+						newi.mask = LVIF_TEXT | LVIF_PARAM;
+						newi.lParam = ~0;
+						newi.iSubItem = 0;
+						ListView_InsertItem(watches, &newi);
+					}
+					EngineCommandf("qcinspect \"%s\" \"%s\"\n", ((NMLVDISPINFOA*)nm)->item.pszText, ""); //term, scope
+					PostMessage(mainwindow, WM_SIZE, 0, 0);
+					return TRUE;	//true to allow...
+/*				case LVN_ENDLABELEDITW:
+//					OutputDebugString("End EditW\n");
+					if (((NMLVDISPINFOW*)nm)->item.iItem == ListView_GetItemCount(watches)-1)
+					{
+						LVITEM newi;
+						memset(&newi, 0, sizeof(newi));
+						newi.iItem = ListView_GetItemCount(watches);
+						newi.pszText = "<click to add>";
+						newi.mask = LVIF_TEXT | LVIF_PARAM;
+						newi.lParam = ~0;
+						newi.iSubItem = 0;
+						ListView_InsertItem(watches, &newi);
+					}
+					EngineCommandf("qcinspect \"%s\" \"%s\"\n", ((NMLVDISPINFOW*)nm)->item.pszText, ""); //term, scope
+					return TRUE;	//true to allow...
+*/
+				case LVN_ITEMCHANGING:
+//					OutputDebugString("Changing\n");
+					return FALSE;	//false to allow...
+				case LVN_ITEMCHANGED:
+//					OutputDebugString("Changed\n");
+					return FALSE;
+				case LVN_GETDISPINFOA:
+//					OutputDebugString("LVN_GETDISPINFOA\n");
+					return FALSE;
+//				case LVN_GETDISPINFOW:
+//					OutputDebugString("LVN_GETDISPINFOW\n");
+//					return FALSE;
+				case NM_DBLCLK:
+//					OutputDebugString("NM_DBLCLK\n");
+					{
+						NMITEMACTIVATE *ia = (NMITEMACTIVATE*)nm;
+						LVHITTESTINFO ht;
+						memset(&ht, 0, sizeof(ht));
+						ht.pt = ia->ptAction;
+						ListView_SubItemHitTest(watches, &ht);
+						ListView_EditLabel(watches, ht.iItem);
+					}
+					return TRUE;
+				case LVN_ITEMACTIVATE:
+//					OutputDebugString("LVN_ITEMACTIVATE\n");
+					return FALSE;	//must return false
+				case LVN_COLUMNCLICK:
+//					OutputDebugString("LVN_COLUMNCLICK\n");
+					break;
+				default:
+//					sprintf(filename, "%i\n", nm->code);
+//					OutputDebugString(filename);
+					break;
+				}
+				return FALSE;
+			}
+			else if (nm->hwndFrom == projecttree)
 			{
 				switch(nm->code)
 				{
@@ -4856,7 +5002,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			WS_CHILD | WS_VISIBLE,
 			0, 0, 5, 5,
 			mainwindow,
-			(HMENU)(LONG_PTR)(i+1),
+			(HMENU)(LONG_PTR)(i+20),
 			ghInstance,
 			NULL); 
 	}

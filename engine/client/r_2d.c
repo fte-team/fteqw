@@ -294,8 +294,10 @@ void R2D_Init(void)
 					"rgbgen const $r_menutint\n"
 				"}\n"
 #else
-			"if $glsl && gl_menutint_shader != 0\n"
+			"if gl_menutint_shader != 0\n"
 				"program menutint\n"
+			"endif\n"
+			"if $haveprogram\n"
 				"{\n"
 					"map $currentrender\n"
 				"}\n"

@@ -1060,6 +1060,72 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			}
 			script = end;
 		}
+		else if (!strncmp(script, "!!cvard3", 8))
+		{
+			script += 8;
+			while (*script == ' ' || *script == '\t')
+				script++;
+			end = script;
+			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
+				end++;
+			if (nummodifiers < MAXMODIFIERS && end - script < 64)
+			{
+				cvar_t *var;
+				char namebuf[64];
+				char valuebuf[64];
+				memcpy(namebuf, script, end - script);
+				namebuf[end - script] = 0;
+				while (*end == ' ' || *end == '\t')
+					end++;
+				if (*end == '=')
+				{
+					script = ++end;
+					while (*end && *end != '\n' && *end != '\r' && end < script+sizeof(namebuf)-1)
+						end++;
+					memcpy(valuebuf, script, end - script);
+					valuebuf[end - script] = 0;
+				}
+				else
+					strcpy(valuebuf, "0");
+				var = Cvar_Get(namebuf, valuebuf, CVAR_SHADERSYSTEM, "GLSL Variables");
+				if (var)
+					permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec3":"float3"), var->vec4[0], var->vec4[1], var->vec4[2]));
+			}
+			script = end;
+		}
+		else if (!strncmp(script, "!!cvard4", 8))
+		{
+			script += 8;
+			while (*script == ' ' || *script == '\t')
+				script++;
+			end = script;
+			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
+				end++;
+			if (nummodifiers < MAXMODIFIERS && end - script < 64)
+			{
+				cvar_t *var;
+				char namebuf[64];
+				char valuebuf[64];
+				memcpy(namebuf, script, end - script);
+				namebuf[end - script] = 0;
+				while (*end == ' ' || *end == '\t')
+					end++;
+				if (*end == '=')
+				{
+					script = ++end;
+					while (*end && *end != '\n' && *end != '\r' && end < script+sizeof(namebuf)-1)
+						end++;
+					memcpy(valuebuf, script, end - script);
+					valuebuf[end - script] = 0;
+				}
+				else
+					strcpy(valuebuf, "0");
+				var = Cvar_Get(namebuf, valuebuf, CVAR_SHADERSYSTEM, "GLSL Variables");
+				if (var)
+					permutationdefines[nummodifiers++] = Z_StrDup(va("#define %s %s(%g,%g,%g,%g)\n", namebuf, ((qrenderer == QR_OPENGL)?"vec4":"float4"), var->vec4[0], var->vec4[1], var->vec4[2], var->vec4[3]));
+			}
+			script = end;
+		}
 		else if (!strncmp(script, "!!cvarf", 7))
 		{
 			script += 7;
@@ -5252,7 +5318,7 @@ void Shader_Default2D(const char *shortname, shader_t *s, const void *genargs)
 {
 	if (Shader_ParseShader("default2d", s))
 		return;
-	if (sh_config.progs_supported)
+	if (sh_config.progs_supported && qrenderer != QR_DIRECT3D9)
 	{
 		//hexen2 needs premultiplied alpha to avoid looking ugly
 		//but that results in problems where things are drawn with alpha not 0, so scale vertex colour by alpha in the fragment program

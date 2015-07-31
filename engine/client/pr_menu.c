@@ -57,10 +57,10 @@ void QCBUILTIN PF_CL_drawsetcliparea (pubprogfuncs_t *prinst, struct globalvars_
 	srect_t srect;
 	csqc_dp_lastwas3d = false;
 
-	srect.x = G_FLOAT(OFS_PARM0) / (float)vid.width;
-	srect.y = (G_FLOAT(OFS_PARM1) / (float)vid.height);
-	srect.width = G_FLOAT(OFS_PARM2) / (float)vid.width;
-	srect.height = G_FLOAT(OFS_PARM3) / (float)vid.height;
+	srect.x = G_FLOAT(OFS_PARM0) / (float)vid.fbvwidth;
+	srect.y = G_FLOAT(OFS_PARM1) / (float)vid.fbvheight;
+	srect.width = G_FLOAT(OFS_PARM2) / (float)vid.fbvwidth;
+	srect.height = G_FLOAT(OFS_PARM3) / (float)vid.fbvheight;
 	srect.dmin = -99999;
 	srect.dmax = 99999;
 	srect.y = (1-srect.y) - srect.height;
@@ -2010,6 +2010,8 @@ static struct {
 	{"keynumtostring_csqc",		PF_cl_keynumtostring,		340},
 	{"stringtokeynum_csqc",		PF_cl_stringtokeynum,		341},
 	{"getkeybind",				PF_cl_getkeybind,			342},
+	{"setcursormode",			PF_cl_setcursormode,		343},
+	{"getcursormode",			PF_cl_getcursormode,		0},	
 															//gap
 	{"isdemo",					PF_isdemo,					349},
 															//gap

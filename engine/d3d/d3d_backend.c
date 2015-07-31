@@ -770,9 +770,12 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		{
 			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_CONSTANT, shaderstate.passcolour);
 			last = D3DTA_CONSTANT;
+			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORVERTEX, FALSE);
 		}
 		else
 		{
+			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORVERTEX, TRUE);
+//			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_COLOR1);
 			last = D3DTA_DIFFUSE;
 		}
 	}
@@ -2006,7 +2009,11 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 
 void D3D9BE_Cull(unsigned int cullflags)
 {
-	cullflags ^= r_refdef.flipcull;
+	if (shaderstate.flags & BEF_FORCETWOSIDED)
+		cullflags = 0;
+	else if (cullflags)
+		cullflags ^= r_refdef.flipcull;
+
 	if (shaderstate.curcull != cullflags)
 	{
 		shaderstate.curcull = cullflags;
@@ -3333,10 +3340,10 @@ void D3D9BE_Scissor(srect_t *srect)
 	RECT rect;
 	if (srect)
 	{
-		rect.left = srect->x;
-		rect.right = srect->x + srect->width;
-		rect.top = srect->y;
-		rect.bottom = srect->y + srect->height;
+		rect.left = (srect->x) * vid.fbpwidth;
+		rect.right = (srect->x + srect->width) * vid.fbpwidth;
+		rect.top = (srect->y) * vid.fbpheight;
+		rect.bottom = (srect->y + srect->height) * vid.fbpheight;
 	}
 	else
 	{
@@ -3346,6 +3353,7 @@ void D3D9BE_Scissor(srect_t *srect)
 		rect.bottom = vid.pixelheight;
 	}
 	IDirect3DDevice9_SetScissorRect(pD3DDev9, &rect);
+	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SCISSORTESTENABLE, TRUE);
 }
 
 #endif

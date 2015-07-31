@@ -355,6 +355,38 @@ void QCBUILTIN PF_cl_keynumtostring (pubprogfuncs_t *prinst, struct globalvars_s
 	RETURN_TSTRING(Key_KeynumToString(code, 0));
 }
 
+//#343
+void QCBUILTIN PF_cl_setcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	if (G_FLOAT(OFS_PARM0))
+		key_dest_absolutemouse |= world->keydestmask;
+	else
+		key_dest_absolutemouse &= ~world->keydestmask;
+
+	if (prinst->callargc>1)
+	{
+		struct key_cursor_s *m = &key_customcursor[(world->keydestmask==kdm_game)?kc_game:kc_menu];
+		Q_strncpyz(m->name, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(m->name));
+		m->hotspot[0] = (prinst->callargc>2)?G_FLOAT(OFS_PARM2+0):0;
+		m->hotspot[1] = (prinst->callargc>2)?G_FLOAT(OFS_PARM2+1):0;
+		m->scale = (prinst->callargc>2)?G_FLOAT(OFS_PARM2+2):0;
+		if (m->scale <= 0)
+			m->scale = 1;
+		m->dirty = true;
+	}
+}
+
+void QCBUILTIN PF_cl_getcursormode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	if (G_FLOAT(OFS_PARM0))
+		G_FLOAT(OFS_RETURN) = Key_MouseShouldBeFree();
+	else if (key_dest_absolutemouse & world->keydestmask)
+		G_FLOAT(OFS_RETURN) = true;
+	else
+		G_FLOAT(OFS_RETURN) = false;
+}
 
 void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

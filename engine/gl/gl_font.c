@@ -367,7 +367,7 @@ void Font_Init(void)
 			"endif\n"
 			"nomipmaps\n"
 			"{\n"
-				"map $nearest:$diffuse\n"
+				"map $diffuse\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
 				"blendfunc blend\n"

@@ -240,10 +240,13 @@ typedef struct
 	int indexstreamcycle;
 	int indexstreamoffset;
 
+	texid_t currentrender;
+
 
 	int numlivevbos;
 	int numliveshadowbuffers;
 } d3d11backend_t;
+extern D3D_FEATURE_LEVEL d3dfeaturelevel;
 
 #define VERTEXSTREAMSIZE (1024*1024*2)	//2mb = 1 PAE jumbo page
 
@@ -314,6 +317,9 @@ void D3D11_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3
 			sampdesc.MinLOD = mipcap[0];
 			sampdesc.MaxLOD = mipcap[1];
 		}
+
+		if (d3dfeaturelevel < D3D_FEATURE_LEVEL_10_0)	//9.* sucks
+			sampdesc.MaxLOD = FLT_MAX;
 
 		if (shaderstate.sampstate[flags])
 			ID3D11SamplerState_Release(shaderstate.sampstate[flags]);
@@ -393,6 +399,8 @@ static void BE_DestroyVariousStates(void)
 			ID3D11Buffer_Release(shaderstate.ecbuffers[i]);
 		shaderstate.ecbuffers[i] = NULL;
 	}
+
+	D3D11_DestroyTexture(shaderstate.currentrender);
 
 	//make sure the device doesn't have any textures still referenced.
 	for (i = 0; i < MAX_TMUS/*shaderstate.lastpasscount*/; i++)
@@ -503,7 +511,7 @@ static void *D3D11BE_GenerateBlendState(unsigned int bits)
 		blend.RenderTarget[0].BlendEnable = FALSE;
 	}
 	blend.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-	blend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;//blend.RenderTarget[0].SrcBlend;
+	blend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;//blend.RenderTarget[0].SrcBlend;
 	blend.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;//blend.RenderTarget[0].DestBlend;
 	blend.RenderTarget[0].BlendOpAlpha = blend.RenderTarget[0].BlendOp;
 
@@ -905,6 +913,57 @@ void D3D11BE_UnbindAllTextures(void)
 	}
 }
 
+const GUID DECLSPEC_SELECTANY IID_ID3D11Texture2D = { 0x6f15aaf2, 0xd208, 0x4e89, { 0x9a,0xb4,0x48,0x95,0x35,0xd3,0x4f,0x9c } };
+
+static texid_t T_Gen_CurrentRender(void)
+{
+	int vwidth, vheight;
+	int pwidth = vid.fbpwidth;
+	int pheight = vid.fbpheight;
+
+	ID3D11Texture2D *backbuf;
+#ifdef WINRT
+	extern IDXGISwapChain1 *d3dswapchain;
+#else
+	extern IDXGISwapChain *d3dswapchain;
+#endif
+	D3D11_TEXTURE2D_DESC tdesc = {0};
+
+	if (r_refdef.recurse)
+		return r_nulltex;
+
+	//FIXME: should be willing to use the current rendertargets instead
+	IDXGISwapChain_GetBuffer(d3dswapchain, 0, &IID_ID3D11Texture2D, (LPVOID*)&backbuf);
+	ID3D11Texture2D_GetDesc(backbuf, &tdesc);
+
+	// copy the scene to texture
+	if (!TEXVALID(shaderstate.currentrender) || tdesc.Width != shaderstate.currentrender->width || tdesc.Height != shaderstate.currentrender->height)
+	{
+		if (!shaderstate.currentrender)
+			shaderstate.currentrender = Image_CreateTexture("***$currentrender***", NULL, 0);
+		if (!shaderstate.currentrender)
+			return r_nulltex;	//err
+
+		shaderstate.currentrender->width = tdesc.Width;
+		shaderstate.currentrender->height = tdesc.Height;
+
+		tdesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+		tdesc.CPUAccessFlags = 0;
+
+		if (shaderstate.currentrender->ptr)
+			ID3D11Texture2D_Release((ID3D11Texture2D*)shaderstate.currentrender->ptr);
+		shaderstate.currentrender->ptr = NULL;
+		ID3D11Device_CreateTexture2D(pD3DDev11, &tdesc, NULL, (ID3D11Texture2D**)&shaderstate.currentrender->ptr);
+	}
+	ID3D11DeviceContext_CopyResource(d3ddevctx, (ID3D11Resource*)shaderstate.currentrender->ptr, (ID3D11Resource*)backbuf);
+
+	if (shaderstate.currentrender->ptr2)
+		ID3D11ShaderResourceView_Release((ID3D11ShaderResourceView*)shaderstate.currentrender->ptr2);
+	shaderstate.currentrender->ptr2 = NULL;
+
+	return shaderstate.currentrender;
+}
+
 static void SelectPassTexture(unsigned int tu, const shaderpass_t *pass)
 {
 	extern texid_t r_whiteimage, missing_texture_gloss, missing_texture_normal;
@@ -966,9 +1025,9 @@ static void SelectPassTexture(unsigned int tu, const shaderpass_t *pass)
 		}
 		break;
 
-	/*case T_GEN_CURRENTRENDER:
-		FIXME: no code to grab the current screen and convert to a texture
-		break;*/
+	case T_GEN_CURRENTRENDER:
+		BindTexture(tu, T_Gen_CurrentRender());
+		break;
 	case T_GEN_VIDEOMAP:
 #ifndef NOMEDIA
 		if (pass->cin)
@@ -994,8 +1053,6 @@ static void SelectPassTexture(unsigned int tu, const shaderpass_t *pass)
 #endif
 		BindTexture(tu, r_nulltex);
 		break;
-
-	case T_GEN_CURRENTRENDER://copy the current screen to a texture, and draw that
 
 	case T_GEN_SOURCECOLOUR: //used for render-to-texture targets
 	case T_GEN_SOURCEDEPTH:	//used for render-to-texture targets
@@ -1898,9 +1955,12 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 	ID3D11DeviceContext_IASetPrimitiveTopology(d3ddevctx, prog->permu[permu].handle.hlsl.topology);
 
 	ID3D11DeviceContext_VSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
-	ID3D11DeviceContext_HSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
-	ID3D11DeviceContext_DSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
-	ID3D11DeviceContext_GSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
+	if (prog->permu[permu].handle.hlsl.hull)
+		ID3D11DeviceContext_HSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
+	if (prog->permu[permu].handle.hlsl.domain)
+		ID3D11DeviceContext_DSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
+	if (prog->permu[permu].handle.hlsl.geom)
+		ID3D11DeviceContext_GSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 	ID3D11DeviceContext_PSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 }
 
@@ -1950,7 +2010,10 @@ static void D3D11BE_Cull(unsigned int cullflags)
 	D3D11_RASTERIZER_DESC rasterdesc;
 	ID3D11RasterizerState *newrasterizerstate;
 
-	cullflags ^= r_refdef.flipcull;
+	if (shaderstate.flags & BEF_FORCETWOSIDED)
+		cullflags = 0;
+	else if (cullflags)
+		cullflags ^= r_refdef.flipcull;
 
 	if (shaderstate.curcull != cullflags)
 	{
@@ -1985,7 +2048,7 @@ static void D3D11BE_Cull(unsigned int cullflags)
 		rasterdesc.FillMode = 0?D3D11_FILL_WIREFRAME:D3D11_FILL_SOLID;
 		rasterdesc.FrontCounterClockwise = false;
 		rasterdesc.MultisampleEnable = false;
-		rasterdesc.ScissorEnable = false;//true;
+		rasterdesc.ScissorEnable = true;
 		rasterdesc.SlopeScaledDepthBias = 0.0f;
 
 		if (FAILED(hr=ID3D11Device_CreateRasterizerState(pD3DDev11, &rasterdesc, &newrasterizerstate)))
@@ -2289,7 +2352,10 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *mesh)
 				VectorClear(out[i].ndir);
 				VectorClear(out[i].sdir);
 				VectorClear(out[i].tdir);
-				Vector4Scale(mesh->colors4f_array[0][i], 255, out[i].colorsb);
+				out[i].colorsb[0] = bound(0, mesh->colors4f_array[0][i][0]*255, 255);
+				out[i].colorsb[1] = bound(0, mesh->colors4f_array[0][i][1]*255, 255);
+				out[i].colorsb[2] = bound(0, mesh->colors4f_array[0][i][2]*255, 255);
+				out[i].colorsb[3] = bound(0, mesh->colors4f_array[0][i][3]*255, 255);
 			}
 		}
 		else if (!mesh->normals_array && mesh->colors4b_array)
@@ -3520,17 +3586,22 @@ void D3D11BE_Scissor(srect_t *rect)
 	D3D11_RECT drect;
 	if (rect)
 	{
-		drect.left = (rect->x)*vid.pixelwidth;
-		drect.right = (rect->x + rect->width)*vid.pixelwidth;
-		drect.bottom = (1-(rect->y))*vid.pixelheight;
-		drect.top = (1-(rect->y + rect->height))*vid.pixelheight;
+		drect.left = (rect->x)*vid.fbpwidth;
+		drect.right = (rect->x + rect->width)*vid.fbpwidth;
+		drect.bottom = (1-(rect->y))*vid.fbpheight;
+		drect.top = (1-(rect->y + rect->height))*vid.fbpheight;
+
+		if (drect.left < 0)
+			drect.left = 0;
+		if (drect.top < 0)
+			drect.top = 0;
 	}
 	else
 	{
 		drect.left = 0;
-		drect.right = vid.pixelwidth;
+		drect.right = vid.fbpwidth;
 		drect.top = 0;
-		drect.bottom = vid.pixelheight;
+		drect.bottom = vid.fbpheight;
 	}
 	ID3D11DeviceContext_RSSetScissorRects(d3ddevctx, 1, &drect);
 }

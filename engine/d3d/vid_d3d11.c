@@ -1159,6 +1159,8 @@ void D3D11_Set2D (void)
 	vid.fbvheight = vid.height;
 	vid.fbpwidth = vid.pixelwidth;
 	vid.fbpheight = vid.pixelheight;
+
+	D3D11BE_Scissor(NULL);
 }
 
 static void	(D3D11_SCR_UpdateScreen)			(void)
@@ -1174,7 +1176,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 
 	if (r_clear.ival)
 	{
-		float colours[4] = {(r_clear.ival==2)?0:1, 0, 0, 0};
+		float colours[4] = {(r_clear.ival&1)?1:0, (r_clear.ival&2)?1:0, (r_clear.ival&4)?1:0, 1};
 		ID3D11DeviceContext_ClearRenderTargetView(d3ddevctx, fb_backbuffer, colours);
 	}
 

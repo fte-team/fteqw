@@ -5886,6 +5886,7 @@ lh_extension_t QSG_Extensions[] = {
 #endif
 	{"FTE_QC_CHECKCOMMAND",				1,	NULL, {"checkcommand"}},
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
+	{"FTE_QC_HARDWARECURSORS",			0,	NULL, {NULL}, "setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits, it will be emulated using regular draws - this at least still avoids conflicting cursors."},
 	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}},
 	{"FTE_QC_INTCONV",					4,	NULL, {"stoi", "itos", "stoh", "htos"}},
 	{"FTE_QC_MATCHCLIENTNAME",			1,	NULL, {"matchclientname"}},

@@ -929,6 +929,11 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 	D3D9BE_Reset(false);
 
+	if (r_clear.ival)
+	{
+		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB((r_clear.ival&1)?255:0,(r_clear.ival&2)?255:0,(r_clear.ival&4)?255:0), 1, 0));
+	}
+
 	if (scr_disabled_for_loading)
 	{
 		extern float scr_disabled_time;
@@ -1164,9 +1169,9 @@ static void	(D3D9_R_RenderView)				(void)
 
 	D3D9_SetupViewPortProjection();
 
-	if (r_clear.ival && !(r_refdef.flags & RDF_NOWORLDMODEL))
-		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(255,0,0), 1, 0));
-	else
+//	if (r_clear.ival && !(r_refdef.flags & RDF_NOWORLDMODEL))
+//		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(255,0,0), 1, 0));
+//	else
 		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
 
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);

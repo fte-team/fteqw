@@ -240,6 +240,7 @@ cvar_t	show_speed	= SCVAR("show_speed", "0");
 cvar_t	show_speed_x	= SCVAR("show_speed_x", "-1");
 cvar_t	show_speed_y	= SCVAR("show_speed_y", "-9");
 cvar_t	scr_loadingrefresh = SCVAR("scr_loadingrefresh", "0");
+cvar_t	scr_showloading	= CVAR("scr_showloading", "1");
 cvar_t	scr_showobituaries = CVAR("scr_showobituaries", "0");
 
 void *scr_curcursor;
@@ -252,6 +253,7 @@ void CLSCR_Init(void)
 
 	Cvar_Register(&con_stayhidden, cl_screengroup);
 	Cvar_Register(&scr_loadingrefresh, cl_screengroup);
+	Cvar_Register(&scr_showloading, cl_screengroup);
 	Cvar_Register(&show_fps, cl_screengroup);
 	Cvar_Register(&show_fps_x, cl_screengroup);
 	Cvar_Register(&show_fps_y, cl_screengroup);
@@ -729,7 +731,7 @@ void SCR_DrawCursor(void)
 
 	if (key_customcursor[cmod].dirty)
 	{
-		if (key_customcursor[cmod].scale <= 0)
+		if (key_customcursor[cmod].scale <= 0 || !*key_customcursor[cmod].name)
 		{
 			key_customcursor[cmod].hotspot[0] = cl_cursorbiasx.value;
 			key_customcursor[cmod].hotspot[1] = cl_cursorbiasy.value;
@@ -740,7 +742,9 @@ void SCR_DrawCursor(void)
 		oldcurs = key_customcursor[cmod].handle;
 		if (rf->VID_CreateCursor && strcmp(key_customcursor[cmod].name, "none"))
 		{
-			key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
+			key_customcursor[cmod].handle = NULL;
+			if (!key_customcursor[cmod].handle && *key_customcursor[cmod].name)
+				key_customcursor[cmod].handle = rf->VID_CreateCursor(key_customcursor[cmod].name, key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);
 			if (!key_customcursor[cmod].handle)
 				key_customcursor[cmod].handle = rf->VID_CreateCursor("gfx/cursor.tga", key_customcursor[cmod].hotspot[0], key_customcursor[cmod].hotspot[1], key_customcursor[cmod].scale);	//try the fallback
 			if (!key_customcursor[cmod].handle)
@@ -1669,105 +1673,108 @@ void SCR_DrawLoading (qboolean opaque)
 	else if (opaque)
 		R2D_ConsoleBackground (0, vid.height, true);
 
-	qdepth = COM_FDepthFile("gfx/loading.lmp", true);
-	h2depth = COM_FDepthFile("gfx/menu/loading.lmp", true);
+	if (scr_showloading.ival)
+	{
+		qdepth = COM_FDepthFile("gfx/loading.lmp", true);
+		h2depth = COM_FDepthFile("gfx/menu/loading.lmp", true);
 
-	if (qdepth < h2depth || h2depth > 0xffffff)
-	{	//quake files
+		if (qdepth < h2depth || h2depth > 0xffffff)
+		{	//quake files
 
-		pic = R2D_SafeCachePic ("gfx/loading.lmp");
-		if (R_GetShaderSizes(pic, &w, &h, true))
-		{
-			x = (vid.width - w)/2;
-			y = (vid.height - 48 - h)/2;
-			R2D_ScalePic (x, y, w, h, pic);
-			x = (vid.width/2) - 96;
-			y += h + 8;
+			pic = R2D_SafeCachePic ("gfx/loading.lmp");
+			if (R_GetShaderSizes(pic, &w, &h, true))
+			{
+				x = (vid.width - w)/2;
+				y = (vid.height - 48 - h)/2;
+				R2D_ScalePic (x, y, w, h, pic);
+				x = (vid.width/2) - 96;
+				y += h + 8;
+			}
+			else
+			{
+				x = (vid.width/2) - 96;
+				y = (vid.height/2) - 8;
+
+				Draw_FunString((vid.width-7*8)/2, y-16, "Loading");
+			}
+
+			if (!total_loading_size)
+				total_loading_size = 1;
+			if (loading_stage > LS_CONNECTION)
+			{
+				sizex = current_loading_size * 192 / total_loading_size;
+				if (loading_stage == LS_SERVER)
+				{
+					R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
+					R2D_FillBlock(x, y, sizex, 16);
+					R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
+					R2D_FillBlock(x+sizex, y, 192-sizex, 16);
+				}
+				else
+				{
+					R2D_ImageColours(1.0, 1.0, 0.0, 1.0);
+					R2D_FillBlock(x, y, sizex, 16);
+					R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
+					R2D_FillBlock(x+sizex, y, 192-sizex, 16);
+				}
+
+				Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
+					(loading_stage == LS_SERVER) ? "server" : "client",
+					current_loading_size * 100 / total_loading_size));
+			}
+			y += 16;
+
+			if (loadingfile)
+			{
+				Draw_FunString(x+8, y+4, loadingfile);
+				y+=8;
+			}
 		}
 		else
-		{
-			x = (vid.width/2) - 96;
-			y = (vid.height/2) - 8;
-
-			Draw_FunString((vid.width-7*8)/2, y-16, "Loading");
-		}
-
-		if (!total_loading_size)
-			total_loading_size = 1;
-		if (loading_stage > LS_CONNECTION)
-		{
-			sizex = current_loading_size * 192 / total_loading_size;
-			if (loading_stage == LS_SERVER)
+		{	//hexen2 files
+			pic = R2D_SafeCachePic ("gfx/menu/loading.lmp");
+			if (R_GetShaderSizes(pic, &w, &h, true))
 			{
-				R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
-				R2D_FillBlock(x, y, sizex, 16);
-				R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
-				R2D_FillBlock(x+sizex, y, 192-sizex, 16);
+				int		size, count, offset;
+
+				if (!scr_drawloading && loading_stage == 0)
+					return;
+
+				offset = (vid.width - w)/2;
+				R2D_ScalePic (offset, 0, w, h, pic);
+
+				if (loading_stage == LS_NONE)
+					return;
+
+				if (total_loading_size)
+					size = current_loading_size * 106 / total_loading_size;
+				else
+					size = 0;
+
+				if (loading_stage == LS_CLIENT)
+					count = size;
+				else
+					count = 106;
+
+				R2D_ImagePaletteColour (136, 1.0);
+				R2D_FillBlock (offset+42, 87, count, 1);
+				R2D_FillBlock (offset+42, 87+5, count, 1);
+				R2D_ImagePaletteColour (138, 1.0);
+				R2D_FillBlock (offset+42, 87+1, count, 4);
+
+				if (loading_stage == LS_SERVER)
+					count = size;
+				else
+					count = 0;
+
+				R2D_ImagePaletteColour(168, 1.0);
+				R2D_FillBlock (offset+42, 97, count, 1);
+				R2D_FillBlock (offset+42, 97+5, count, 1);
+				R2D_ImagePaletteColour(170, 1.0);
+				R2D_FillBlock (offset+42, 97+1, count, 4);
+
+				y = 104;
 			}
-			else
-			{
-				R2D_ImageColours(1.0, 1.0, 0.0, 1.0);
-				R2D_FillBlock(x, y, sizex, 16);
-				R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
-				R2D_FillBlock(x+sizex, y, 192-sizex, 16);
-			}
-
-			Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
-				(loading_stage == LS_SERVER) ? "server" : "client",
-				current_loading_size * 100 / total_loading_size));
-		}
-		y += 16;
-
-		if (loadingfile)
-		{
-			Draw_FunString(x+8, y+4, loadingfile);
-			y+=8;
-		}
-	}
-	else
-	{	//hexen2 files
-		pic = R2D_SafeCachePic ("gfx/menu/loading.lmp");
-		if (R_GetShaderSizes(pic, &w, &h, true))
-		{
-			int		size, count, offset;
-
-			if (!scr_drawloading && loading_stage == 0)
-				return;
-
-			offset = (vid.width - w)/2;
-			R2D_ScalePic (offset, 0, w, h, pic);
-
-			if (loading_stage == LS_NONE)
-				return;
-
-			if (total_loading_size)
-				size = current_loading_size * 106 / total_loading_size;
-			else
-				size = 0;
-
-			if (loading_stage == LS_CLIENT)
-				count = size;
-			else
-				count = 106;
-
-			R2D_ImagePaletteColour (136, 1.0);
-			R2D_FillBlock (offset+42, 87, count, 1);
-			R2D_FillBlock (offset+42, 87+5, count, 1);
-			R2D_ImagePaletteColour (138, 1.0);
-			R2D_FillBlock (offset+42, 87+1, count, 4);
-
-			if (loading_stage == LS_SERVER)
-				count = size;
-			else
-				count = 0;
-
-			R2D_ImagePaletteColour(168, 1.0);
-			R2D_FillBlock (offset+42, 97, count, 1);
-			R2D_FillBlock (offset+42, 97+5, count, 1);
-			R2D_ImagePaletteColour(170, 1.0);
-			R2D_FillBlock (offset+42, 97+1, count, 4);
-
-			y = 104;
 		}
 	}
 	R2D_ImageColours(1, 1, 1, 1);

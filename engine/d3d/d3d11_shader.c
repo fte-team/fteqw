@@ -668,7 +668,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 				D3D11_SHADER_INPUT_BIND_DESC bdesc = {0};
 				for (i = prog->numsamplers; i < be_maxpasses; i++)
 				{
-					if (SUCCEEDED(freflect->lpVtbl->GetResourceBindingDescByName(freflect, va("t_%i", i), &bdesc)))
+					if (SUCCEEDED(freflect->lpVtbl->GetResourceBindingDescByName(freflect, va("t_t%i", i), &bdesc)))
 						prog->numsamplers = i+1;
 				}
 

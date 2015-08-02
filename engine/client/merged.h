@@ -164,7 +164,7 @@ char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
 void Draw_FunString(float x, float y, const void *str);
 void Draw_AltFunString(float x, float y, const void *str);
-void Draw_FunStringWidth(float x, float y, const void *str, int width, qboolean rightalign, qboolean highlight);
+void Draw_FunStringWidth(float x, float y, const void *str, int width, int rightalign, qboolean highlight);
 
 extern int r_regsequence;
 

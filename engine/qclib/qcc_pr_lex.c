@@ -454,6 +454,83 @@ static void QCC_PR_SkipToEndOfLine(pbool errorifnonwhite)
 		}
 	}
 }
+
+//if hadtrue, then we allow elses, otherwise we skip them.
+pbool QCC_PR_FalsePreProcessorIf(pbool hadtrue, int originalline)
+{
+	int eval;
+	int level = 1;
+	while (1)
+	{
+		while(*pr_file_p && (*pr_file_p==' ' || *pr_file_p == '\t'))
+			pr_file_p++;
+
+		if (!*pr_file_p)
+		{
+			pr_source_line = originalline;
+			QCC_PR_ParseError (ERR_NOENDIF, "#if with no endif");
+		}
+
+		if (*pr_file_p == '#')
+		{
+			pr_file_p++;
+			while(*pr_file_p==' ' || *pr_file_p == '\t')
+				pr_file_p++;
+			if (!strncmp(pr_file_p, "endif", 5))
+				level--;
+			if (!strncmp(pr_file_p, "if", 2))
+				level++;
+			if (!hadtrue && !strncmp(pr_file_p, "else", 4) && level == 1)
+			{
+				pr_file_p+=4;
+				QCC_PR_SkipToEndOfLine(true);
+				return true;
+			}
+			if (!hadtrue && !strncmp(pr_file_p, "elif", 4) && level == 1)
+			{
+//				QCC_PR_ParseError(ERR_UNKNOWNPUCTUATION, "#elif not supported\n");
+
+				pr_file_p += 4;
+				if (!strncmp(pr_file_p, "def", 3))
+				{
+					eval = 1;
+					pr_file_p += 3;
+				}
+				else if (!strncmp(pr_file_p, "ndef", 4))
+				{
+					eval = 0;
+					pr_file_p += 4;
+				}
+				else
+					eval = 2;
+				if (*pr_file_p != ' ' && *pr_file_p != '\t')
+					QCC_PR_ParseError(ERR_UNKNOWNPUCTUATION, "malformed #elif\n");
+				if (eval == 2)
+					eval = ParsePrecompilerIf(PPI_TOPLEVEL);
+				else
+				{
+					QCC_PR_SimpleGetToken ();
+					if (eval)
+						eval = !!QCC_PR_CheckCompConstDefined(pr_token);
+					else
+						eval = !QCC_PR_CheckCompConstDefined(pr_token);
+				}
+				if (eval)
+				{
+					QCC_PR_SkipToEndOfLine(true);
+					return true;
+				}
+			}
+		}
+
+		QCC_PR_SkipToEndOfLine(false);
+
+		if (level <= 0)
+			return false;
+		pr_file_p++;	//next line
+		pr_source_line++;
+	}
+}
 /*
 ==============
 QCC_PR_Precompiler
@@ -467,7 +544,6 @@ pbool QCC_PR_Precompiler(void)
 	int ifmode;
 	int a;
 	static int ifs = 0;
-	int level;	//#if level
 	pbool eval = false;
 
 	if (*pr_file_p == '#')
@@ -551,96 +627,29 @@ pbool QCC_PR_Precompiler(void)
 				}
 
 				QCC_PR_SkipToEndOfLine(true);
-				level = 1;
 
 				if (eval)
 					ifs+=1;
 				else
-				{
-					while (1)
-					{
-						while(*pr_file_p && (*pr_file_p==' ' || *pr_file_p == '\t'))
-							pr_file_p++;
-
-						if (!*pr_file_p)
-						{
-							pr_source_line = originalline;
-							QCC_PR_ParseError (ERR_NOENDIF, "#if with no endif");
-						}
-
-						if (*pr_file_p == '#')
-						{
-							pr_file_p++;
-							while(*pr_file_p==' ' || *pr_file_p == '\t')
-								pr_file_p++;
-							if (!strncmp(pr_file_p, "endif", 5))
-								level--;
-							if (!strncmp(pr_file_p, "if", 2))
-								level++;
-							if (!strncmp(pr_file_p, "else", 4) && level == 1)
-							{
-								ifs+=1;
-								pr_file_p+=4;
-								QCC_PR_SkipToEndOfLine(true);
-								break;
-							}
-						}
-
-						QCC_PR_SkipToEndOfLine(false);
-
-						if (level <= 0)
-							break;
-						pr_file_p++;	//next line
-						pr_source_line++;
-					}
-				}
+					ifs += QCC_PR_FalsePreProcessorIf(false, originalline);
 			}
 		}
-		else if (!strncmp(directive, "else", 4))
+		else if (!strncmp(directive, "else", 4) || !strncmp(directive, "elif", 4))
 		{
 			int originalline = pr_source_line;
 
+			if (!ifs)
+				QCC_PR_ParseError(ERR_UNKNOWNPUCTUATION, "#else outside of #if\n");
+
 			ifs -= 1;
-			level = 1;
 
 			pr_file_p = directive+4;
-			QCC_PR_SkipToEndOfLine(true);
-			while (1)
-			{
-				while(*pr_file_p && (*pr_file_p==' ' || *pr_file_p == '\t'))
-					pr_file_p++;
-
-				if (!*pr_file_p)
-				{
-					pr_source_line = originalline;
-					QCC_PR_ParseError(ERR_NOENDIF, "#if with no endif");
-				}
-
-				if (*pr_file_p == '#')
-				{
-					pr_file_p++;
-					while(*pr_file_p==' ' || *pr_file_p == '\t')
-						pr_file_p++;
-
-					if (!strncmp(pr_file_p, "endif", 5))
-						level--;
-					if (!strncmp(pr_file_p, "if", 2))
-						level++;
-					if (!strncmp(pr_file_p, "else", 4) && level == 1)
-					{
-						ifs+=1;
-						pr_file_p+=4;
-						QCC_PR_SkipToEndOfLine(true);
-						break;
-					}
-				}
-
+			if (!strncmp(directive, "elif", 4))
 				QCC_PR_SkipToEndOfLine(false);
-				if (level <= 0)
-					break;
-				pr_file_p++;	//go off the end
-				pr_source_line++;
-			}
+			else
+				QCC_PR_SkipToEndOfLine(true);
+
+			ifs += QCC_PR_FalsePreProcessorIf(true, originalline);
 		}
 		else if (!strncmp(directive, "endif", 5))
 		{

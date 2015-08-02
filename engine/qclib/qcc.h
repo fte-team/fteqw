@@ -454,6 +454,7 @@ const extern	unsigned int		type_size[];
 //extern	QCC_def_t	*def_for_type[9];
 
 extern	QCC_type_t	*type_void, *type_string, *type_float, *type_vector, *type_entity, *type_field, *type_function, *type_floatfunction, *type_pointer, *type_floatpointer, *type_intpointer, *type_integer, *type_variant, *type_floatfield;
+extern char *basictypenames[];
 
 struct QCC_function_s
 {
@@ -574,7 +575,7 @@ extern pbool keywords_coexist;
 extern pbool output_parms;
 extern pbool autoprototype, autoprototyped, parseonly;
 extern pbool pr_subscopedlocals;
-extern pbool flag_nullemptystr, flag_ifstring, flag_iffloat, flag_ifvector, flag_vectorlogic;
+extern pbool flag_nullemptystr, flag_ifstring, flag_brokenifstring, flag_iffloat, flag_ifvector, flag_vectorlogic;
 extern pbool flag_acc;
 extern pbool flag_caseinsensitive;
 extern pbool flag_laxcasts;

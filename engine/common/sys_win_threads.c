@@ -74,6 +74,12 @@ typedef struct threadwrap_s
 	char name[1];
 } threadwrap_t;
 
+typedef struct
+{
+	HANDLE handle;
+	DWORD threadid;
+} threadctx_t;
+
 // the thread call is wrapped so we don't need WINAPI everywhere
 unsigned int WINAPI threadwrapper(void *args)
 {
@@ -104,42 +110,48 @@ unsigned int WINAPI threadwrapper(void *args)
 
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
+	threadctx_t *ctx = (threadctx_t *)malloc(sizeof(*ctx));
 	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t)+strlen(name));
-	HANDLE handle;
-	unsigned int tid;
 
-	if (!tw)
+	if (!tw || !ctx)
+	{
+		free(tw);
+		free(ctx);
 		return NULL;
+	}
 
 	stacksize += 128; // wrapper overhead, also prevent default stack size
 	tw->func = func;
 	tw->args = args;
 	strcpy(tw->name, name);
 #ifdef WIN32CRTDLL
-	handle = (HANDLE)CreateThread(NULL, stacksize, &threadwrapper, (void *)tw, 0, &tid);
+	ctx->handle = (HANDLE)CreateThread(NULL, stacksize, &threadwrapper, (void *)tw, 0, &ctx->threadid);
 #else
-	handle = (HANDLE)_beginthreadex(NULL, stacksize, &threadwrapper, (void *)tw, 0, &tid);
+	ctx->handle = (HANDLE)_beginthreadex(NULL, stacksize, &threadwrapper, (void *)tw, 0, &ctx->threadid);
 #endif
-	if (!handle)
+	if (!ctx->handle)
 	{
 		free(tw);
+		free(ctx);
 		return NULL;
 	}
 
-
-
-	return (void *)handle;
+	return (void *)ctx;
 }
 
 void Sys_DetachThread(void *thread)
 {
-	CloseHandle((HANDLE)thread);
+	threadctx_t *ctx = thread;
+	CloseHandle(ctx->handle);
+	free(ctx);
 }
 
 void Sys_WaitOnThread(void *thread)
 {
-	WaitForSingleObject((HANDLE)thread, INFINITE);
-	CloseHandle((HANDLE)thread);
+	threadctx_t *ctx = thread;
+	WaitForSingleObject(ctx->handle, INFINITE);
+	CloseHandle(ctx->handle);
+	free(ctx);
 }
 
 //used on fatal errors.
@@ -160,7 +172,8 @@ qboolean Sys_IsMainThread(void)
 
 qboolean Sys_IsThread(void *thread)
 {
-	return GetThreadId(thread) == GetCurrentThreadId();
+	threadctx_t *ctx = thread;
+	return ctx->threadid == GetCurrentThreadId();
 }
 
 

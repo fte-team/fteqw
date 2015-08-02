@@ -173,7 +173,7 @@ typedef struct
 	int			targetflags;	//weather we need to mark the progs as a newer version
 	char		*name;
 	char		*opname;
-	int		priority;	//FIXME: priority should be done differently...
+	int		priority_;	//FIXME: priority should be done differently...
 	enum {ASSOC_LEFT, ASSOC_RIGHT, ASSOC_RIGHT_RESULT}			associative;
 	struct QCC_type_s		**type_a, **type_b, **type_c;
 
@@ -556,4 +556,5 @@ void PR_CloseJit(struct jitstate *jit);
 
 char *QCC_COM_Parse (const char *data);
 extern char	qcc_token[1024];
+extern char *basictypenames[];
 #endif

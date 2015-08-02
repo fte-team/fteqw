@@ -608,22 +608,34 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		Con_DPrintf("Anisotropic filter extension found (%dx max).\n",gl_config.ext_texture_filter_anisotropic);
 	}
 
-	//FIXME: GL_ARB_texture_non_power_of_two is supposed to be mandatory in gl2+ and thus checking for it is redundant and not forwards-compatible
-	//geforcefx apparently software emulates it, so gl<3 is bad.
-	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two"))
-	{
+	if (!gl_config.gles && gl_config.glversion >= 3)
+	{	//GL_ARB_texture_non_power_of_two is supposed to be mandatory in gl2+ and thus checking for it is redundant and not forwards-compatible
+		//geforcefx apparently software emulates it, so only activate it unconditionally on gl3+ hardware.
 		sh_config.texture_non_power_of_two = true;
-	//gles2 has limited npot as standard, which is sufficient to make the hud not look like poo. lets use it.
-		if ((gl_config.gles && gl_config.glversion >= 2) || sh_config.texture_non_power_of_two)
-			sh_config.texture_non_power_of_two_pic = true;
+		sh_config.texture_non_power_of_two_pic = true;
 	}
-	else if (GL_CheckExtension("GL_OES_texture_npot"))
-	{
+	else if (GL_CheckExtension("GL_ARB_texture_non_power_of_two"))
+	{	//gl1 devices might still support npot
+		sh_config.texture_non_power_of_two = true;
+		sh_config.texture_non_power_of_two_pic = true;
+	}
+	else if (gl_config.gles && GL_CheckExtension("GL_OES_texture_npot"))
+	{	//gles devices might have full npot too, but with a different extension name. because consistancy is good...
+		sh_config.texture_non_power_of_two = true;
+		sh_config.texture_non_power_of_two_pic = true;
+	}
+	else if (gl_config.gles && gl_config.glversion >= 2)
+	{	//gles2 has npot (clamp + no mips) support as base.
+		sh_config.texture_non_power_of_two = false;
+		sh_config.texture_non_power_of_two_pic = true;
+	}
+	else if (gl_config.gles && GL_CheckExtension("GL_APPLE_texture_2D_limited_npot"))
+	{	//gles1 MIGHT have SOME npot support.
 		sh_config.texture_non_power_of_two = false;
 		sh_config.texture_non_power_of_two_pic = true;
 	}
 	else
-	{
+	{	//really old hardware/drivers with no npot support at all.
 		sh_config.texture_non_power_of_two = false;
 		sh_config.texture_non_power_of_two_pic = false;
 	}

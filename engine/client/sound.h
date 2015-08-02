@@ -67,7 +67,7 @@ typedef struct sfx_s
 typedef struct sfxcache_s
 {
 	usamplepos_t length;	//sample count
-	unsigned int loopstart;	//-1 or sample index to begin looping at once the sample ends
+	int loopstart;	//-1 or sample index to begin looping at once the sample ends
 	unsigned int speed;
 	unsigned int width;
 	unsigned int numchannels;

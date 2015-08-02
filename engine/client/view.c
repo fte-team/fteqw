@@ -1882,7 +1882,7 @@ void R_DrawNameTags(void)
 			isteam = !strcmp(cl.players[i].team, ourteam);
 
 		if (!isteam)
-			if (!cl.spectator && !cls.demoplayback || !scr_autoid.ival)
+			if ((!cl.spectator && !cls.demoplayback) || !scr_autoid.ival)
 				continue;	//only show our team when playing, too cheaty otherwise.
 
 		SCR_DrawAutoID(nametagorg[i], &cl.players[i], isteam);

@@ -204,7 +204,7 @@ void Draw_AltFunString(float x, float y, const void *str)
 }
 
 //Draws a marked up string no wider than $width virtual pixels.
-void Draw_FunStringWidth(float x, float y, const void *str, int width, qboolean rightalign, qboolean highlight)
+void Draw_FunStringWidth(float x, float y, const void *str, int width, int rightalign, qboolean highlight)
 {
 	conchar_t buffer[2048];
 	conchar_t *w;

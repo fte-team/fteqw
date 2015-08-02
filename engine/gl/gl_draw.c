@@ -342,8 +342,8 @@ qboolean GL_LoadTextureMips(texid_t tex, struct pendingtextureinfo *mips)
 		}
 	}
 
-	tex->width = mips->mip[0].width;
-	tex->height = mips->mip[0].height;
+//	tex->width = mips->mip[0].width;
+//	tex->height = mips->mip[0].height;
 	GL_Texturemode_Apply(targ, tex->flags);
 	if (targ == GL_TEXTURE_3D)
 	{

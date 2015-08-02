@@ -2814,6 +2814,11 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 					chan->rate = 1<<PITCHSHIFT;
 					chan->pos = (int)(time * sc->sn.speed) * chan->rate;
 					changed = true;
+
+					chan->master_vol = bound(0, 1, 255);
+					chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
+					if (sc->ChannelUpdate)
+						sc->ChannelUpdate(sc, chan, changed);
 				}
 			}
 		}
@@ -2997,7 +3002,8 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 		for (i=0 ; i<sc->total_chans; i++, ch++)
 			if (ch->sfx && (ch->vol[0] || ch->vol[1]) )
 			{
-//					Con_Printf ("%i, %i %i %i %i %i %i %s\n", i, ch->vol[0], ch->vol[1], ch->vol[2], ch->vol[3], ch->vol[4], ch->vol[5], ch->sfx->name);
+				if (snd_show.ival > 1)
+					Con_Printf ("%i, %i %i %i %i %i %i %s\n", i, ch->vol[0], ch->vol[1], ch->vol[2], ch->vol[3], ch->vol[4], ch->vol[5], ch->sfx->name);
 				total++;
 			}
 

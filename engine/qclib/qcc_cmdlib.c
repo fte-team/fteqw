@@ -33,6 +33,23 @@ const unsigned int		type_size[12] = {1,	//void
 						0	//ev_union. variable sized.
 						};
 
+
+char *basictypenames[] = {
+	"void",
+	"string",
+	"float",
+	"vector",
+	"entity",
+	"field",
+	"function",
+	"pointer",
+	"integer",
+	"variant",
+	"struct",
+	"union",
+	"accessor"
+};
+
 /*
 ============================================================================
 

@@ -6801,9 +6801,6 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 		maxs[2] = LittleFloat(inbounds[i].bbmax[2]);
 		AddPointToBounds(maxs, mod->mins, mod->maxs);
 	}
-	//fixme: shouldn't really be needed for an animated model
-	for (i = 0; i < h->num_vertexes; i++)
-		AddPointToBounds(opos[i], mod->mins, mod->maxs);
 
 	for (i = 0; i < h->num_meshes; i++)
 	{
@@ -6881,6 +6878,10 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 
 	IQM_ImportArrayF(buffer, &vnorm, (float*)onorm1, 3, h->num_vertexes, defaultcolour);
 	IQM_ImportArrayF(buffer, &vpos, (float*)opos, sizeof(opos[0])/sizeof(float), h->num_vertexes, defaultvert);
+
+	//fixme: shouldn't really be needed for an animated model
+	for (i = 0; i < h->num_vertexes; i++)
+		AddPointToBounds(opos[i], mod->mins, mod->maxs);
 
 	if (vnorm.offset && vtang)
 	{

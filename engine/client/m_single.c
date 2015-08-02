@@ -70,7 +70,7 @@ void M_ScanSaves (void)
 			memcpy(m_saves[i].map, line, 22);
 			m_saves[i].map[22] = 0;
 			memcpy(m_saves[i].kills, line+22, 39-22);
-			m_saves[i].kills[22] = 0;
+			m_saves[i].kills[39-22] = 0;
 			Q_strncpyz(m_saves[i].time, line+39, sizeof(m_saves[i].time));
 
 

@@ -4731,9 +4731,12 @@ void Cmd_Join_f (void)
 		// call the prog function for removing a client
 		// this will set the body to a dead frame, among other things
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+#ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 			Q1QVM_DropClient(host_client);
-		else if (SpectatorDisconnect)
+		else
+#endif
+			if (SpectatorDisconnect)
 			PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
 		sv.spawned_observer_slots--;
 
@@ -4746,9 +4749,12 @@ void Cmd_Join_f (void)
 		// FIXME, bump the client's userid?
 
 		// call the progs to get default spawn parms for the new client
+#ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 			Q1QVM_SetNewParms();
-		else if (pr_global_ptrs->SetNewParms)
+		else
+#endif
+			if (pr_global_ptrs->SetNewParms)
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 		{
@@ -4758,9 +4764,11 @@ void Cmd_Join_f (void)
 				host_client->spawn_parms[i] = 0;
 		}
 
+#ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 			Q1QVM_ClientConnect(host_client);
 		else
+#endif
 		{
 			// call the spawn function
 			pr_global_struct->time = sv.world.physicstime;
@@ -4861,9 +4869,11 @@ void Cmd_Observe_f (void)
 
 		// call the prog function for removing a client
 		// this will set the body to a dead frame, among other things
+#ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 			Q1QVM_DropClient(host_client);
 		else
+#endif
 		{
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
@@ -4879,9 +4889,12 @@ void Cmd_Observe_f (void)
 		// FIXME, bump the client's userid?
 
 		// call the progs to get default spawn parms for the new client
+#ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 			Q1QVM_SetNewParms();
-		else if (pr_global_ptrs->SetNewParms)
+		else
+#endif
+			if (pr_global_ptrs->SetNewParms)
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 		{
@@ -4894,9 +4907,11 @@ void Cmd_Observe_f (void)
 		SV_SpawnSpectator ();
 
 		// call the spawn function
+#ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 			Q1QVM_ClientConnect(host_client);
 		else
+#endif
 		{
 			if (SpectatorConnect)
 			{

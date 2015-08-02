@@ -3261,7 +3261,7 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				else if (!stricmp(arg, "false-empty-strings"))
 					flag_ifstring = state;
 				else if (!stricmp(arg, "true-empty-strings"))
-					flag_ifstring = flag_nullemptystr = state;
+					flag_brokenifstring = state;
 				else
 					QCC_PR_Warning(0, NULL, WARN_BADPARAMS, "Unrecognised flag parameter (%s)", myargv[i]);
 			}

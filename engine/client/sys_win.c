@@ -32,6 +32,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pr_common.h"
 #include "fs.h"
 
+//#define _MSC_SEH
+
 //#define RESTARTTEST
 
 #ifdef MULTITHREAD
@@ -3491,7 +3493,9 @@ qboolean Sys_DoInstall(void)
 		GetClientRect(wnd, &ca); 
 		sh = GetSystemMetrics(SM_CYVSCROLL);
 
-		InitCommonControls();
+		Sys_LoadLibrary("comctl32.dll", NULL);
+//		InitCommonControls();
+
 		label = CreateWindow("STATIC","", WS_CHILD | WS_VISIBLE | SS_PATHELLIPSIS, sh, ((ca.bottom-ca.top-sh)/3), ca.right-ca.left-2*sh, sh, wnd, NULL, hInstance, NULL);
 		progress = CreateWindowEx(0, PROGRESS_CLASS, NULL, WS_CHILD | WS_VISIBLE | PBS_SMOOTH, sh, ((ca.bottom-ca.top-sh)/3)*2, ca.right-ca.left-2*sh, sh, wnd, NULL, hInstance, NULL);
 
@@ -3816,6 +3820,9 @@ static void Sys_MakeInstaller(const char *name)
 }
 #endif
 
+#if defined(_MSC_VER) && defined(_AMD64_)
+#pragma optimize( "", off)	//64bit msvc sucks and falls over when trying to inline Host_Frame
+#endif
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
 //    MSG				msg;
@@ -3886,7 +3893,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 #ifdef CATCHCRASH
 	LoadLibraryU ("DBGHELP");	//heap corruption can prevent loadlibrary from working properly, so do this in advance.
-#ifdef _MSC_VER
+#ifdef _MSC_SEH
 	__try
 #else
 	{
@@ -4199,7 +4206,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 	}
 #ifdef CATCHCRASH
-#ifdef _MSC_VER
+#ifdef _MSC_SEH
 	__except (CrashExceptionHandler(false, GetExceptionCode(), GetExceptionInformation()))
 	{
 		return 1;
@@ -4210,6 +4217,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	/* return success of application */
 	return TRUE;
 }
+#ifdef _MSC_VER
+#pragma optimize( "", on)	//revert back to default optimisations again.
+#endif
 
 int __cdecl main(void)
 {

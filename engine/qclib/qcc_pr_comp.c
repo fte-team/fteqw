@@ -87,6 +87,7 @@ pbool autoprototyped;		//previously autoprototyped. no longer allowed to enable 
 pbool parseonly;			//parse defs and stuff, but don't bother compiling any actual code.
 pbool pr_subscopedlocals;	//causes locals to be valid ONLY within their statement block. (they simply can't be referenced by name outside of it)
 pbool flag_nullemptystr;	//null immediates are 0, not 1.
+pbool flag_brokenifstring;	//break strings even more
 pbool flag_ifstring;		//makes if (blah) equivelent to if (blah != "") which resolves some issues in multiprogs situations.
 pbool flag_iffloat;			//use an op_if_f instruction instead of op_if so if(-0) evaluates to false.
 pbool flag_ifvector;		//use an op_not_v instruction instead of testing only _x.
@@ -456,7 +457,7 @@ QCC_opcode_t pr_opcodes[] =
 
  {7, "!", "NOT_I", -1, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer},
 
- {7, "/", "DIV_VF", 3, ASSOC_LEFT,				&type_vector,	&type_float, &type_float},
+ {7, "/", "DIV_VF", 3, ASSOC_LEFT,				&type_vector,	&type_float, &type_vector},
 
  {7, "^", "BITXOR_I", 3, ASSOC_LEFT,				&type_integer,	&type_integer, &type_integer},
  {7, ">>", "RSHIFT_I", 3, ASSOC_LEFT,			&type_integer,	&type_integer, &type_integer},
@@ -707,12 +708,22 @@ pbool OpAssignsToB(unsigned int op)
 */
 #undef ASSOC_RIGHT_RESULT
 
-#define	TOP_PRIORITY	7
-#define FUNC_PRIORITY	1
-#define UNARY_PRIORITY	1
-#define	NOT_PRIORITY	5
-//conditional and/or
-#define CONDITION_PRIORITY 7
+#define FUNC_PRIORITY		1
+#define UNARY_PRIORITY		1	//~ !
+#define	NOT_PRIORITY		5	//UNARY_PRIORITY
+#define MULDIV_PRIORITY		3	//* / %
+#define ADDSUB_PRIORITY		4	//+ -
+#define BITSHIFT_PRIORITY	3	//<< >>
+#define COMPARISON_PRIORITY	5	//< <= > >=
+#define EQUALITY_PRIORITY	5	//== !=
+#define BITAND_PRIORITY		3	//&
+#define BITXOR_PRIORITY		3	//^
+#define BITOR_PRIORITY		3	//|
+#define LOGICAND_PRIORITY	7	//&&
+#define LOGICOR_PRIORITY	7	//||
+#define TERNARY_PRIORITY	6	//?:
+#define	ASSIGN_PRIORITY		6	//WRONG compared to C
+#define	TOP_PRIORITY		7
 
 QCC_opcode_t *opcodes_store[] =
 {
@@ -2037,7 +2048,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			QCC_UnFreeTemp(var_b);
 	}
 
-	if (op->priority != -1 && op->priority != CONDITION_PRIORITY)
+/*	if (op->priority != -1 && op->priority != CONDITION_PRIORITY)
 	{
 		if (op->associative!=ASSOC_LEFT)
 		{
@@ -2052,7 +2063,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				var_b = QCC_SupplyConversion(var_b, (*op->type_b)->type, false);
 		}
 	}
-
+*/
 	//maths operators
 	if (opt_constantarithmatic || !pr_scope)
 	{
@@ -3007,6 +3018,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			//v/f === v*(1/f)
 			op = &pr_opcodes[OP_MUL_VF];
 			var_b = QCC_PR_Statement(&pr_opcodes[OP_DIV_F], QCC_MakeFloatConst(1), var_b, NULL);
+			var_b.sym->referenced = true;
 			break;
 
 		case OP_CONV_ITOF:
@@ -3614,9 +3626,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		case OP_AND_IF:
 		case OP_AND_ANY:
 			if (var_a.cast->type == ev_vector && flag_vectorlogic)	//we can do a dot-product to test if a vector has a value, instead of a double-not
-				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_V], var_a, var_a, NULL, flags&STFL_PRESERVEA);
+				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_V], var_a, var_a, NULL, STFL_PRESERVEA | (flags&STFL_PRESERVEA?STFL_PRESERVEB:0));
 			if (var_b.cast->type == ev_vector && flag_vectorlogic)
-				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_V], var_b, var_b, NULL, flags&STFL_PRESERVEB);
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_V], var_b, var_b, NULL, STFL_PRESERVEA | (flags&STFL_PRESERVEB?STFL_PRESERVEB:0));
 
 			if (((var_a.cast->size != 1 && flag_vectorlogic) || (var_a.cast->type == ev_string && flag_ifstring)) && ((var_b.cast->size != 1 && flag_vectorlogic) || (var_b.cast->type == ev_string && flag_ifstring)))
 			{	//just 3 extra instructions instead of 4.
@@ -3643,9 +3655,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		case OP_OR_IF:
 		case OP_OR_ANY:
 			if (var_a.cast->type == ev_vector && flag_vectorlogic)	//we can do a dot-product to test if a vector has a value, instead of a double-not
-				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_V], var_a, var_a, NULL, flags&STFL_PRESERVEA);
+				var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_V], var_a, var_a, NULL, STFL_PRESERVEA | (flags&STFL_PRESERVEA?STFL_PRESERVEB:0));
 			if (var_b.cast->type == ev_vector && flag_vectorlogic)
-				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_V], var_b, var_b, NULL, flags&STFL_PRESERVEB);
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_V], var_b, var_b, NULL, STFL_PRESERVEA | (flags&STFL_PRESERVEB?STFL_PRESERVEB:0));
 
 			if (((var_a.cast->size != 1 && flag_vectorlogic) || (var_a.cast->type == ev_string && flag_ifstring)) && ((var_b.cast->size != 1 && flag_vectorlogic) || (var_b.cast->type == ev_string && flag_ifstring)))
 			{	//just 3 extra instructions instead of 4.
@@ -5664,22 +5676,6 @@ QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type)
 	return newtype;
 }
 
-char *basictypenames[] = {
-	"void",
-	"string",
-	"float",
-	"vector",
-	"entity",
-	"field",
-	"function",
-	"pointer",
-	"integer",
-	"variant",
-	"struct",
-	"union",
-	"accessor"
-};
-
 QCC_type_t **basictypes[] =
 {
 	&type_void,
@@ -6695,7 +6691,7 @@ QCC_sref_t QCC_PR_GenerateLogicalNot(QCC_sref_t e, const char *errormessage)
 	if (t == ev_float)
 		return QCC_PR_Statement (&pr_opcodes[OP_NOT_F], e, nullsref, NULL);
 	else if (t == ev_string)
-		return QCC_PR_Statement (&pr_opcodes[OP_NOT_S], e, nullsref, NULL);
+		return QCC_PR_Statement (&pr_opcodes[flag_brokenifstring?OP_NOT_ENT:OP_NOT_S], e, nullsref, NULL);
 	else if (t == ev_entity)
 		return QCC_PR_Statement (&pr_opcodes[OP_NOT_ENT], e, nullsref, NULL);
 	else if (t == ev_vector)
@@ -8042,9 +8038,9 @@ QCC_opcode_t *QCC_PR_ChooseOpcode(QCC_sref_t lhs, QCC_sref_t rhs, QCC_opcode_t *
 	}
 	if (bestop == NULL)
 	{
-		if (oldop->priority == CONDITION_PRIORITY)
-			op = oldop;
-		else
+//		if (oldop->priority == CONDITION_PRIORITY)
+//			op = oldop;
+//		else
 		{
 			op = oldop;
 			QCC_PR_ParseWarning(flag_laxcasts?WARN_LAXCAST:ERR_TYPEMISMATCH, "type mismatch for %s (%s and %s)", oldop->name, lhs.cast->name, rhs.cast->name);
@@ -8110,7 +8106,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 			lhsd = QCC_PR_ParseArrayPointer(lhsd, true, true);
 			lhsr = QCC_DefToRef(retbuf, lhsd);
 		}
-		if (priority == FUNC_PRIORITY && QCC_PR_CheckToken ("?"))
+		if (priority == TERNARY_PRIORITY && QCC_PR_CheckToken ("?"))
 		{
 			//if we have no int types, force all ints to floats here, just to ensure that we don't end up with non-constant ints that we then can't cope with.
 
@@ -8128,7 +8124,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 			{
 				fromj = QCC_Generate_OP_IFNOT(QCC_RefToDef(lhsr, true), false);
 
-				val = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+				val = QCC_PR_Expression(TOP_PRIORITY, 0);
 				if (val.cast->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
 					val = QCC_SupplyConversion(val, ev_float, true);
 				r = QCC_GetTemp(val.cast);
@@ -9748,7 +9744,7 @@ void QCC_PR_ParseAsm(void)
 		if (!STRCMP(pr_token, pr_opcodes[op].opname))
 		{
 			QCC_PR_Lex();
-			if (pr_opcodes[op].priority==-1 && pr_opcodes[op].associative!=ASSOC_LEFT)
+			if (/*pr_opcodes[op].priority==-1 &&*/ pr_opcodes[op].associative!=ASSOC_LEFT)
 			{
 				if (pr_opcodes[op].type_a==NULL)
 				{

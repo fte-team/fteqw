@@ -108,7 +108,7 @@ int main (int argc, char **argv)
 	funcs.funcs.parms->WriteFile = QCC_WriteFile;
 	funcs.funcs.parms->Printf = logprintf;
 	funcs.funcs.parms->Sys_Error = Sys_Error;
-	logfile = fopen("fteqcc.log", "wt");
+	logfile = fopen("fteqcc.log", "at");
 	fputs("Args:", logfile);
 	for (i = 0; i < argc; i++)
 	{

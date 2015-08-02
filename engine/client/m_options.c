@@ -2758,7 +2758,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	{
 	case MV_NONE:
 		R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, 
-			"arrows: pitch/rotate\n"
+			va("arrows: pitch/rotate\n"
 			"w: zoom in\n"
 			"s: zoom out\n"
 			"m: mode\n"
@@ -2767,6 +2767,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			"end: skin+=1\n"
 			"pgup: frame+=1\n"
 			"pgdn: frame-=1\n"
+			"mins: %g %g %g, maxs: %g %g %g\n", ent.model->mins[0], ent.model->mins[1], ent.model->mins[2], ent.model->maxs[0], ent.model->maxs[1], ent.model->maxs[2])
 			, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 		break;
 	case MV_BONES:

@@ -678,11 +678,16 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	}
 
 	palSourcef(src, AL_GAIN, min(cvolume, 1));	//openal only supports a max volume of 1. anything above is an error and will be clamped.
-	if (chan->entnum == -1 || chan->entnum == cl.playerview[0].viewentity)
+	if ((chan->flags & CF_NOSPACIALISE) || chan->entnum == cl.playerview[0].viewentity || !chan->dist_mult)
+	{
 		palSourcefv(src, AL_POSITION, vec3_origin);
+		palSourcefv(src, AL_VELOCITY, vec3_origin);
+	}
 	else
+	{
 		palSourcefv(src, AL_POSITION, chan->origin);
-	palSourcefv(src, AL_VELOCITY, vec3_origin);
+		palSourcefv(src, AL_VELOCITY, vec3_origin);	//FIXME
+	}
 
 	if (schanged)
 	{
@@ -697,7 +702,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 #endif
 
 		palSourcei(src, AL_LOOPING, (chan->flags & CF_FORCELOOP)?AL_TRUE:AL_FALSE);
-		if (chan->entnum == -1 || chan->entnum == cl.playerview[0].viewentity)
+		if ((chan->flags & CF_NOSPACIALISE) || chan->entnum == cl.playerview[0].viewentity || !chan->dist_mult)
 		{
 			palSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
 //			palSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);

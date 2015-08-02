@@ -255,11 +255,15 @@ void SV_Shutdown (void)
 
 	NET_Shutdown ();
 
+#ifdef PLUGINS
 	Plug_Shutdown(true);
+#endif
 	Mod_Shutdown(true);
 	COM_DestroyWorkerThread();
 	FS_Shutdown();
+#ifdef PLUGINS
 	Plug_Shutdown(false);
+#endif
 	Cvar_Shutdown();
 	Cmd_Shutdown();
 

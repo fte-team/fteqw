@@ -2299,7 +2299,6 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 		BZ_Free(mips->extrafree);
 	BZ_Free(mips);
 
-/*
 	if (!strncmp(tex->ident, "gfx/", 4))
 	{
 		qpic_t *pic = W_SafeGetLumpName(tex->ident+4);
@@ -2309,7 +2308,6 @@ static void Image_LoadTextureMips(void *ctx, void *data, size_t a, size_t b)
 			tex->height = pic->height;
 		}
 	}
-*/
 }
 
 #ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT

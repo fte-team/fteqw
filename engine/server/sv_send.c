@@ -1516,7 +1516,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 // send the data
 
 	MSG_WriteByte (msg, svcnq_clientdata);
-	MSG_WriteShort (msg, bits);
+	MSG_WriteShort (msg, bits & 0xffff);
 
 	if (bits & SU_EXTEND1)
 		MSG_WriteByte(msg, bits>>16);
@@ -1554,10 +1554,12 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		MSG_WriteByte (msg, ent->v->weaponframe);
 	if (bits & SU_ARMOR)
 	{
-		if (ent->v->armorvalue>255 && !(bits & FITZSU_ARMOR2))
+		if (ent->v->armorvalue < 0)
+			MSG_WriteByte (msg, 0);
+		else if (ent->v->armorvalue>255 && !(bits & FITZSU_ARMOR2))
 			MSG_WriteByte (msg, 255);
 		else
-			MSG_WriteByte (msg, ent->v->armorvalue);
+			MSG_WriteByte (msg, (int)ent->v->armorvalue&0xff);
 	}
 	if (bits & SU_WEAPONMODEL)
 		MSG_WriteByte (msg, weaponmodelindex&0xff);
@@ -1565,11 +1567,22 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	if (nqjunk)
 	{
 		MSG_WriteShort (msg, ent->v->health);
-		MSG_WriteByte (msg, min(ent->v->currentammo, 255));
-		MSG_WriteByte (msg, min(ent->v->ammo_shells, 255));
-		MSG_WriteByte (msg, min(ent->v->ammo_nails, 255));
-		MSG_WriteByte (msg, min(ent->v->ammo_rockets, 255));
-		MSG_WriteByte (msg, min(ent->v->ammo_cells, 255));
+		if (client->protocol == SCP_FITZ666)
+		{
+			MSG_WriteByte (msg, (int)ent->v->currentammo & 0xff);
+			MSG_WriteByte (msg, (int)ent->v->ammo_shells & 0xff);
+			MSG_WriteByte (msg, (int)ent->v->ammo_nails & 0xff);
+			MSG_WriteByte (msg, (int)ent->v->ammo_rockets & 0xff);
+			MSG_WriteByte (msg, (int)ent->v->ammo_cells & 0xff);
+		}
+		else
+		{
+			MSG_WriteByte (msg, min(ent->v->currentammo, 255));
+			MSG_WriteByte (msg, min(ent->v->ammo_shells, 255));
+			MSG_WriteByte (msg, min(ent->v->ammo_nails, 255));
+			MSG_WriteByte (msg, min(ent->v->ammo_rockets, 255));
+			MSG_WriteByte (msg, min(ent->v->ammo_cells, 255));
+		}
 
 		if (standard_quake)
 		{

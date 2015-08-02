@@ -1624,7 +1624,7 @@ char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buf, int *bufo
 #undef AddS
 }
 
-char *SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax)
+char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax)
 {
 #define AddS(str) PR_Cat(buf, str, bufofs, bufmax)
 	char buffer[8192];
@@ -1794,7 +1794,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 		{
 			//include callstack
 			AddS("stacktrace {\n");
-			SaveCallStack(progfuncs, buf, bufofs, bufmax);
+			PR_SaveCallStack(progfuncs, buf, bufofs, bufmax);
 			AddS("}\n");
 		}
 

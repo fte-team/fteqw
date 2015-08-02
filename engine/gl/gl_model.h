@@ -176,11 +176,11 @@ m*_t structures are in-memory
 #define		DPEF_SELECTABLE_		(1<<14)	//highlights when prydoncursored
 #define		DPEF_DOUBLESIDED_		(1<<15)	//disables culling
 #define		DPEF_NOSELFSHADOW_		(1<<16)	//doesn't cast shadows on any noselfshadow entities.
-#define		DPEF_DYNAMICMODELLIGHT_	(1<<17)
+#define		DPEF_DYNAMICMODELLIGHT_	(1<<17)	//forces dynamic lights... I have no idea what this is actually needed for.
 #define EF_GREEN				(1<<18)
 #define EF_UNUSED19				(1<<19)
-#define		DPEF_RESTARTANIM_BIT_	(1<<20)	//exact semantics seems odd
-#define		DPEF_TELEPORT_BIT_		(1<<21)	//disable lerping while set
+#define	EF_RESTARTANIM_BIT		(1<<20)	//restarts the anim when toggled between states
+#define	EF_TELEPORT_BIT			(1<<21)	//disable lerping when toggled between states
 #define DPEF_LOWPRECISION		(1<<22) //part of the protocol/server, not the client itself.
 #define EF_NOMODELFLAGS			(1<<23)
 #define EF_MF_ROCKET			(1<<24)

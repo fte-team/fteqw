@@ -33,6 +33,7 @@
 
 //=============================================================================
 
+char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax);
 /*
 =================
 PR_PrintStatement
@@ -1479,8 +1480,13 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 		reeval16:
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
 		pr_xstatement = st-pr_statements16;
-		PR_RunError (&progfuncs->funcs, "This platform does not support QC debugging.\n");
-		PR_StackTrace(&progfuncs->funcs, false);
+		char *stack = malloc(4*1024);	//this'll leak, but whatever, we're dead anyway.
+		int ofs;
+		strcpy(stack, "This platform does not support QC debugging\nStack Trace:");
+		ofs = strlen(stack);
+		PR_SaveCallStack (&progfuncs->funcs, stack, &ofs, 4*1024);
+		PR_RunError (&progfuncs->funcs, stack);
+		free(stack);
 		return -1;
 #else
 		#define DEBUGABLE

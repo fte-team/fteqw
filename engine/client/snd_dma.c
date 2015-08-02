@@ -2944,6 +2944,12 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 		if (!ch->sfx)
 			continue;
 
+		if (sc->ChannelUpdate)
+		{
+			sc->ChannelUpdate(sc, ch, false);
+			continue;
+		}
+
 		SND_Spatialize(sc, ch);         // respatialize channel
 		if (!ch->vol[0] && !ch->vol[1] && !ch->vol[2] && !ch->vol[3] && !ch->vol[4] && !ch->vol[5])
 			continue;

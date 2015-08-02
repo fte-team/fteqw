@@ -3116,7 +3116,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			sold__origin = sold->origin;
 		}
 		VectorSubtract(snew__origin, sold__origin, move);
-		if (DotProduct(move, move) > 200*200 || snew->modelindex != sold->modelindex)
+		if (DotProduct(move, move) > 200*200 || snew->modelindex != sold->modelindex || ((sold->effects ^ snew->effects) & EF_TELEPORT_BIT))
 		{
 			isnew = true;	//disable lerping (and indirectly trails)
 			VectorClear(move);
@@ -3142,6 +3142,9 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		}
 		else
 		{
+			if ((sold->effects ^ snew->effects) & EF_RESTARTANIM_BIT)
+				isnew = true;
+
 			if (snew->dpflags & RENDER_STEP)
 			{
 				float lfrac;

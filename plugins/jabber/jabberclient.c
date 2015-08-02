@@ -1197,7 +1197,7 @@ static int sasl_oauth2_initial(jclient_t *jcl, char *buf, int bufsize)
 		if (l < 0 || l > rl)
 			l = rl;
 		x = XML_FromJSON(NULL, "oauth2", result, &l, rl);
-		XML_ConPrintTree(x, "", 1);
+//		XML_ConPrintTree(x, "", 1);
 
 		newrefresh = XML_GetChildBody(x, "refresh_token", NULL);
 		free(jcl->oauth2.accesstoken);
@@ -2789,7 +2789,7 @@ static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 	const char *photomime;
 
 	buddy_t *b;
-	char *from = XML_GetParameter(tree, "from", jcl->domain);
+	char *from = iq->to;
 
 	if (jcl->avatarupdate == iq)
 	{
@@ -3430,8 +3430,8 @@ void JCL_ParseIQ(jclient_t *jcl, xmltree_t *tree)
 		}
 		else
 		{
-			Con_Printf("Unrecognised iq result\n");
-			XML_ConPrintTree(tree, "", 0);
+			Con_Printf("Unrecognised iq result from %s\n", from);
+//			XML_ConPrintTree(tree, "", 0);
 		}
 	}
 	
@@ -3451,7 +3451,7 @@ void XMPP_ConversationPrintf(const char *context, const char *title, char *forma
 	Q_vsnprintf (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
-	if (*context && pCon_GetConsoleFloat(context, "iswindow") < true)
+	if (*context && BUILTINISVALID(Con_GetConsoleFloat) && pCon_GetConsoleFloat(context, "iswindow") < true)
 	{
 		pCon_SetConsoleFloat(context, "iswindow", true);
 		pCon_SetConsoleFloat(context, "forceutf8", true);
@@ -3591,7 +3591,8 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 			{
 				jclient_poketime = jclient_curtime + 10*1000;
 				XMPP_ConversationPrintf(ctx, f, "%s is an attention whore.\n", f);
-				pCon_SetActive(ctx);
+				if (BUILTINISVALID(Con_SetActive))
+					pCon_SetActive(ctx);
 				if (BUILTINISVALID(LocalSound))
 					pLocalSound("misc/talk.wav");
 			}
@@ -3628,7 +3629,8 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 						XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s: %s.\n", who, link, reason);
 					else
 						XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s.\n", who, link);
-					pCon_SetActive(ctx);
+					if (BUILTINISVALID(Con_SetActive))
+						pCon_SetActive(ctx);
 				}
 				return; //ignore any body/jabber:x:conference
 			}
@@ -3648,7 +3650,8 @@ void JCL_ParseMessage(jclient_t *jcl, xmltree_t *tree)
 				XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s: %s.\n", f, link, reason);
 			else
 				XMPP_ConversationPrintf(ctx, f, "* ^2%s^7 has invited you to join %s.\n", f, link);
-			pCon_SetActive(ctx);
+			if (BUILTINISVALID(Con_SetActive))
+				pCon_SetActive(ctx);
 			return;	//ignore any body
 		}
 
@@ -4069,7 +4072,7 @@ void JCL_ParsePresence(jclient_t *jcl, xmltree_t *tree)
 				char *title = buddy->name;
 
 				//if we're not currently talking with them, put the status update into the main console instead (which will probably then get dropped).
-				if (pCon_GetConsoleFloat(conv, "iswindow") != true)
+				if (!BUILTINISVALID(Con_GetConsoleFloat) || pCon_GetConsoleFloat(conv, "iswindow") != true)
 					conv = "";
 
 				if (bres->servertype == 2)
@@ -5519,7 +5522,8 @@ void JCL_Command(int accid, char *console)
 			{
 				pCon_Destroy(console);
 				Con_SubPrintf(console, "");
-				pCon_SetActive(console);
+				if (BUILTINISVALID(Con_SetActive))
+					pCon_SetActive(console);
 			}
 			else
 				pCmd_AddText("\nclear\n", true);

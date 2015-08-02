@@ -552,11 +552,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 			}
 		}
 	}
-	if (!schanged && sfx
-#ifndef FTE_TARGET_WEB
-		&& ((chan->flags & CF_FORCELOOP) || (!sfx->decoder.decodedata && sfx->decoder.buf && ((sfxcache_t*)sfx->decoder.buf)->loopstart))
-#endif
-		)
+	if (!schanged && sfx)	//if we don't figure out when they've finished, they'll not get replaced properly.
 	{
 		palGetSourcei(src, AL_SOURCE_STATE, &buf);
 		if (buf != AL_PLAYING)
@@ -613,36 +609,16 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 				if (buf <= 2)
 				{	//decode periodically instead of all at the start.
 					sc = sfx->decoder.decodedata(sfx, &sbuf, chan->pos>>PITCHSHIFT, 65536);
-					memcpy(&sbuf, sc, sizeof(sbuf));
-
-					//hack up the sound to offset it correctly
-					offset = (chan->pos>>PITCHSHIFT) - sbuf.soundoffset;
-					sbuf.data += offset * sc->width*sc->numchannels;
-					sbuf.length -= offset;
-
-					if (!sbuf.length)// && (chan->pos>>PITCHSHIFT) == sbuf.soundoffset)
+					if (sc)
 					{
-						palGetSourcei(src, AL_SOURCE_STATE, &buf);
-						if (buf != AL_PLAYING)
-						{
-							if (chan->flags & CF_FORCELOOP)
-								chan->pos = 0;
-							else if(sbuf.loopstart != -1)
-								chan->pos = sbuf.loopstart<<PITCHSHIFT;
-							else
-							{
-								chan->sfx = NULL;
-								if (sfx->decoder.ended)
-								{
-									if (!S_IsPlayingSomewhere(sfx))
-										sfx->decoder.ended(sfx);
-								}
-							}
-							return;
-						}
-					}
-					else
-					{
+						memcpy(&sbuf, sc, sizeof(sbuf));
+
+						//hack up the sound to offset it correctly
+						offset = (chan->pos>>PITCHSHIFT) - sbuf.soundoffset;
+						sbuf.data += offset * sc->width*sc->numchannels;
+						sbuf.length -= offset;
+
+
 						sbuf.soundoffset = 0;
 
 						//build a buffer with it and queue it up.
@@ -656,6 +632,27 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 						palGetSourcei(src, AL_SOURCE_STATE, &buf);
 						if (buf != AL_PLAYING)
 							schanged = true;
+					}
+					else
+					{
+						palGetSourcei(src, AL_SOURCE_STATE, &buf);
+						if (buf != AL_PLAYING)
+						{
+							if (chan->flags & CF_FORCELOOP)
+								chan->pos = 0;
+//							else if(sbuf.loopstart != -1)
+//								chan->pos = sbuf.loopstart<<PITCHSHIFT;
+							else
+							{
+								chan->sfx = NULL;
+								if (sfx->decoder.ended)
+								{
+									if (!S_IsPlayingSomewhere(sfx))
+										sfx->decoder.ended(sfx);
+								}
+							}
+							return;
+						}
 					}
 				}
 			}

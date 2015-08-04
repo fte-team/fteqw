@@ -64,6 +64,11 @@ void GUI_RevealOptions(void);
 #define SCI_STYLESETFORE 2051
 #define SCI_STYLESETBACK 2052
 #define SCI_STYLESETBOLD 2053
+#define SCI_STYLESETITALIC 2054
+#define SCI_STYLESETSIZE 2055
+#define SCI_STYLESETFONT 2056
+#define SCI_STYLESETUNDERLINE 2059
+#define SCI_STYLESETCASE 2060
 #define SCI_AUTOCSHOW 2100
 #define SCI_AUTOCCANCEL 2101
 #define SCI_AUTOCACTIVE 2102
@@ -86,6 +91,14 @@ void GUI_RevealOptions(void);
 #define SCI_BACKTAB 2328 
 #define SCI_SEARCHANCHOR 2366
 #define SCI_SEARCHNEXT 2367
+#define SCI_STYLEGETFORE 2481
+#define SCI_STYLEGETBACK 2482
+#define SCI_STYLEGETBOLD 2483
+#define SCI_STYLEGETITALIC 2484
+#define SCI_STYLEGETSIZE 2485
+#define SCI_STYLEGETFONT 2486
+#define SCI_STYLEGETUNDERLINE 2488
+#define SCI_STYLEGETCASE 2489
 #define SCI_BRACEHIGHLIGHTINDICATOR 2498
 #define SCI_BRACEBADLIGHTINDICATOR 2499
 #define SCI_LINELENGTH 2350
@@ -149,6 +162,7 @@ void GUI_RevealOptions(void);
 
 #define STYLE_BRACELIGHT 34
 #define STYLE_BRACEBAD 35
+#define STYLE_LASTPREDEFINED 39
 
 #define SC_MARKNUM_FOLDEREND 25
 #define SC_MARKNUM_FOLDEROPENMID 26
@@ -857,6 +871,7 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 
 	if (scintillaokay)
 	{
+		FILE *f;
 		SendMessage(newc, SCI_SETCODEPAGE, SC_CP_UTF8, 0);
 		SendMessage(newc, SCI_SETLEXER,		SCLEX_CPP,						0);
 		SendMessage(newc, SCI_STYLESETFORE, SCE_C_DEFAULT,					RGB(0x00, 0x00, 0x00));
@@ -956,6 +971,77 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDEREND,		FOLDBACK);
 		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDERTAIL,		FOLDBACK);
 		SendMessage(newc, SCI_MARKERSETBACK,	SC_MARKNUM_FOLDERMIDTAIL,	FOLDBACK);
+
+		f = fopen("scintilla.cfg", "rt");
+		if (f)
+		{
+			char buf[256];
+			while(fgets(buf, sizeof(buf)-1, f))
+			{
+				int msg;
+				int lparam;
+				int wparam;
+				char *c;
+				buf[sizeof(buf)-1] = 0;
+				c = buf;
+				while(*c == ' ' || *c == '\t')
+					c++;
+				msg = strtoul(c, &c, 0);
+				while(*c == ' ' || *c == '\t')
+					c++;
+				wparam = strtoul(c, &c, 0);
+				while(*c == ' ' || *c == '\t')
+					c++;
+
+				//fixme: determine argument types based upon msg, to avoid crashes.
+				if (*c == '\"')
+				{
+					c++;
+					if (strrchr(c, '\"'))
+						*strrchr(c, '\"') = 0;
+
+					SendMessage(newc, msg,	wparam,	(LPARAM)c);
+				}
+				else
+				{
+					lparam = strtoul(c, &c, 0);
+
+					SendMessage(newc, msg,	wparam,	lparam);
+				}
+			}
+			if (!ftell(f))
+			{
+				fclose(f);
+				f = fopen("scintilla.cfg", "wt");
+				if (f)
+				{
+					int i;
+					int val;
+					for (i = 0; i < STYLE_LASTPREDEFINED; i++)
+					{
+						val = SendMessage(newc, SCI_STYLEGETFORE,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETFORE, i, val);
+						val = SendMessage(newc, SCI_STYLEGETBACK,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETBACK, i, val);
+						val = SendMessage(newc, SCI_STYLEGETUNDERLINE,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETUNDERLINE, i, val);
+						val = SendMessage(newc, SCI_STYLEGETITALIC,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETITALIC, i, val);
+						val = SendMessage(newc, SCI_STYLEGETBOLD,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETBOLD, i, val);
+						val = SendMessage(newc, SCI_STYLEGETSIZE,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETSIZE, i, val);
+						val = SendMessage(newc, SCI_STYLEGETCASE,	i,	0);
+						fprintf(f, "%i\t%i\t%#x\n", SCI_STYLESETCASE, i, val);
+						val = SendMessage(newc, SCI_STYLEGETFONT,	i,	(LPARAM)buf);
+						fprintf(f, "%i\t%i\t\"%s\"\n", SCI_STYLESETFONT, i, buf);
+					}
+					fclose(f);
+				}
+			}
+			else
+				fclose(f);
+		}
 	}
 	else
 	{

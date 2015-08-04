@@ -67,6 +67,10 @@ typedef struct {
 extern r_qrenderer_t qrenderer;
 extern char *q_renderername;
 
+apic_t *R2D_LoadAtlasedPic(const char *name);
+void R2D_ImageAtlas(float x, float y, float w, float h, float s1, float t1, float s2, float t2, apic_t *pic);
+#define R2D_ScalePicAtlas(x,y,w,h,p) R2D_ImageAtlas(x,y,w,h,0,0,1,1,p)
+
 mpic_t *R2D_SafeCachePic (const char *path);
 mpic_t *R2D_SafePicFromWad (const char *name);
 void R2D_DrawCrosshair (void);
@@ -106,7 +110,6 @@ extern void SCR_BeginLoadingPlaque					(void);
 extern void SCR_EndLoadingPlaque					(void);
 extern void SCR_DrawConsole							(qboolean noback);
 extern void SCR_SetUpToDrawConsole					(void);
-extern void SCR_EraseCenterString					(void);
 extern void SCR_CenterPrint							(int pnum, char *str, qboolean skipgamecode);
 
 void R_DrawTextField(int x, int y, int w, int h, const char *text, unsigned int defaultmask, unsigned int fieldflags, struct font_s *font, vec2_t fontscale);
@@ -319,6 +322,7 @@ typedef struct
 	size_t maxsize;
 	size_t pos;
 	int vboid[2];
+	void *vboptr[2];
 	void *fallback;
 } vbobctx_t;
 

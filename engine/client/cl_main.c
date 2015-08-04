@@ -139,7 +139,7 @@ cvar_t	cl_r2g					= CVARFD("cl_r2g",	"0", CVAR_ARCHIVE, "Uses progs/grenade.mdl 
 cvar_t	r_powerupglow			= CVAR("r_powerupglow", "1");
 cvar_t	v_powerupshell			= CVARF("v_powerupshell", "0", CVAR_ARCHIVE);
 cvar_t	cl_gibfilter			= CVARF("cl_gibfilter", "0", CVAR_ARCHIVE);
-cvar_t	cl_deadbodyfilter		= CVAR("cl_deadbodyfilter", "0");
+cvar_t	cl_deadbodyfilter		= CVARF("cl_deadbodyfilter", "0", CVAR_ARCHIVE);
 
 cvar_t  cl_gunx					= CVAR("cl_gunx", "0");
 cvar_t  cl_guny					= CVAR("cl_guny", "0");

@@ -3,6 +3,9 @@
 #include "shader.h"
 #include "gl_draw.h"
 
+#define WIN32_BLOATED
+#include "glquake.h"
+
 qboolean r2d_canhwgamma;	//says the video code has successfully activated hardware gamma
 texid_t missing_texture;
 texid_t missing_texture_gloss;
@@ -27,13 +30,26 @@ shader_t *shader_gammacb;
 shader_t *shader_polyblend;
 shader_t *shader_menutint;
 
+#define DRAW_QUADS 128
+static shader_t *draw_active_shader;
+static avec4_t	draw_active_colour;
 static mesh_t	draw_mesh;
-static vecV_t	draw_mesh_xyz[4];
-vec2_t	draw_mesh_st[4];
-static avec4_t	draw_mesh_colors[4];
-index_t r_quad_indexes[6] = {0, 1, 2, 2, 3, 0};
-unsigned int r2d_be_flags;
+static vecV_t	draw_mesh_xyz[DRAW_QUADS];
+vec2_t			draw_mesh_st[DRAW_QUADS];
+static avec4_t	draw_mesh_colors[DRAW_QUADS];
+index_t			r_quad_indexes[DRAW_QUADS*6];
+unsigned int	r2d_be_flags;
 
+struct
+{
+	lmalloc_t allocation;
+	qboolean dirty;
+	int lastid;
+	unsigned int *data;
+	shader_t *shader;
+	texid_t tex;
+	apic_t *pics;
+} atlas;
 
 extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
@@ -135,6 +151,16 @@ void R2D_Shutdown(void)
 #if defined(MENU_DAT) || defined(CSQC_DAT)
 	PR_ReloadFonts(false);
 #endif
+
+	while(atlas.pics)
+	{
+		apic_t *a = atlas.pics;
+		atlas.pics = a->next;
+		Z_Free(a);
+	}
+
+	Z_Free(atlas.data);
+	memset(&atlas, 0, sizeof(atlas));
 }
 
 /*
@@ -145,7 +171,7 @@ void R2D_Init(void)
 {
 	unsigned int nonorm[4*4];
 	unsigned int nogloss[4*4];
-	int i;
+	int i, j;
 	unsigned int glossval;
 	unsigned int normval;
 	extern cvar_t gl_specular_fallback, gl_specular_fallbackexp, gl_texturemode;
@@ -161,6 +187,16 @@ void R2D_Init(void)
 	draw_mesh.st_array = draw_mesh_st;
 	draw_mesh.colors4f_array[0] = draw_mesh_colors;
 	draw_mesh.indexes = r_quad_indexes;
+
+	for (i = 0, j = 0; i < countof(r_quad_indexes); i += 6, j += 4)
+	{
+		r_quad_indexes[i+0] = j+0;
+		r_quad_indexes[i+1] = j+1;
+		r_quad_indexes[i+2] = j+2;
+		r_quad_indexes[i+3] = j+2;
+		r_quad_indexes[i+4] = j+3;
+		r_quad_indexes[i+5] = j+0;
+	}
 
 
 	Font_Init();
@@ -353,6 +389,12 @@ void R2D_Init(void)
 	R2D_Font_Changed();
 
 	R_NetgraphInit();
+
+	atlas.lastid = -1;
+	atlas.shader = NULL;
+	atlas.data = NULL;
+	atlas.dirty = false;
+	Mod_LightmapAllocInit(&atlas.allocation, false, min(512, sh_config.texture_maxsize), min(512, sh_config.texture_maxsize), 0);
 }
 
 mpic_t	*R2D_SafeCachePic (const char *path)
@@ -375,28 +417,170 @@ mpic_t *R2D_SafePicFromWad (const char *name)
 	return s;
 }
 
+apic_t *R2D_LoadAtlasedPic(const char *name)
+{
+	apic_t *apic = Z_Malloc(sizeof(*apic));
+	qpic_t *qp;
+	int x,y;
+	qbyte *indata = NULL;
+	int atlasid;
+
+	if (!gl_load24bit.ival)
+	{
+		qp = W_SafeGetLumpName(name);
+		if (qp)
+		{
+			apic->width = qp->width;
+			apic->height = qp->height;
+			indata = qp->data;
+		}
+	}
+	
+	if (!indata || apic->width > atlas.allocation.width || apic->height > atlas.allocation.height)
+		atlasid = -1;	//can happen on voodoo cards
+	else
+		Mod_LightmapAllocBlock(&atlas.allocation, apic->width+2, apic->height+2, &apic->x, &apic->y, &atlasid);
+
+	if (atlasid >= 0)
+	{
+		unsigned int *out;
+		apic->x += 1;
+		apic->y += 1;
+
+		//FIXME: extend the atlas height instead, and keep going with a single atlas?
+		if (atlasid != atlas.lastid)
+		{
+			atlas.lastid = atlasid;
+			if (atlas.dirty)
+				Image_Upload(atlas.tex, TF_BGRA32, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, IF_NOMIPMAP);
+			atlas.tex = r_nulltex;
+			atlas.shader = NULL;
+			atlas.dirty = false;
+			if (atlas.data)	//clear atlas data instead of reallocating it.
+				memset(atlas.data, 0, sizeof(*atlas.data) * atlas.allocation.width * atlas.allocation.height);
+		}
+
+		if (!atlas.tex)
+			atlas.tex = Image_CreateTexture(va("fte_atlas%i", atlasid), NULL, IF_NOMIPMAP);
+		if (!atlas.shader)
+		{
+			atlas.shader = R_RegisterShader(va("fte_atlas%i", atlasid), SUF_NONE,
+				"{\n"
+					"affine\n"
+					"program default2d\n"
+					"{\n"
+						"map $diffuse\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"blendfunc gl_one gl_one_minus_src_alpha\n"
+					"}\n"
+				"}\n"
+			);
+			atlas.shader->defaulttextures->base = atlas.tex;
+		}
+
+		if (!atlas.data)
+			atlas.data = Z_Malloc(sizeof(*atlas.data) * atlas.allocation.width * atlas.allocation.height);
+
+		out = atlas.data;
+		out += apic->x;
+		out += apic->y * atlas.allocation.width;
+		apic->atlas = atlas.shader;
+
+		//pad above. extra casts because 64bit msvc is RETARDED.
+		out[-1 - (qintptr_t)atlas.allocation.width] = (indata[0] == 255)?0:d_8to24bgrtable[indata[0]];	//pad left
+		for (x = 0; x < apic->width; x++)
+			out[x-(qintptr_t)atlas.allocation.width] = (indata[x] == 255)?0:d_8to24bgrtable[indata[x]];
+		out[x - (qintptr_t)atlas.allocation.width] = (indata[x-1] == 255)?0:d_8to24bgrtable[indata[x-1]];	//pad right
+		for (y = 0; y < apic->height; y++)
+		{
+			out[-1] = (indata[0] == 255)?0:d_8to24bgrtable[indata[0]];	//pad left
+			for (x = 0; x < apic->width; x++)
+				out[x] = (indata[x] == 255)?0:d_8to24bgrtable[indata[x]];
+			out[x] = (indata[x-1] == 255)?0:d_8to24bgrtable[indata[x-1]];	//pad right
+			indata += x;
+			out += atlas.allocation.width;
+		}
+		//pad below
+		out[-1] = (indata[0] == 255)?0:d_8to24bgrtable[indata[0]];	//pad left
+		for (x = 0; x < apic->width; x++)
+			out[x] = (indata[x] == 255)?0:d_8to24bgrtable[indata[x]];
+		out[x] = (indata[x-1] == 255)?0:d_8to24bgrtable[indata[x-1]];	//pad right
+
+		//pinch inwards, for linear sampling
+		apic->sl = (apic->x+0.5)/(float)atlas.allocation.width;
+		apic->sh = (apic->width-1.0)/(float)atlas.allocation.width;
+
+		apic->tl = (apic->y+0.5)/(float)atlas.allocation.height;
+		apic->th = (apic->height-1.0)/(float)atlas.allocation.height;
+
+		atlas.dirty = true;
+
+		apic->next = atlas.pics;
+		atlas.pics = apic;
+	}
+	else if (1)
+	{
+		apic->atlas = R_RegisterPic(va("gfx/%s", name));
+		apic->sl = 0;
+		apic->sh = 1;
+		apic->tl = 0;
+		apic->th = 1;
+
+		apic->next = atlas.pics;
+		atlas.pics = apic;
+	}
+	else
+	{
+		Z_Free(apic);
+		return NULL;
+	}
+	return apic;
+}
 
 void R2D_ImageColours(float r, float g, float b, float a)
 {
-	draw_mesh_colors[0][0] = r;
-	draw_mesh_colors[0][1] = g;
-	draw_mesh_colors[0][2] = b;
-	draw_mesh_colors[0][3] = a;
-	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[1]);
-	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[2]);
-	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[3]);
+	draw_active_colour[0] = r;
+	draw_active_colour[1] = g;
+	draw_active_colour[2] = b;
+	draw_active_colour[3] = a;
 }
 void R2D_ImagePaletteColour(unsigned int i, float a)
 {
-	draw_mesh_colors[0][0] = host_basepal[i*3+0]/255.0;
-	draw_mesh_colors[0][1] = host_basepal[i*3+1]/255.0;
-	draw_mesh_colors[0][2] = host_basepal[i*3+2]/255.0;
-	draw_mesh_colors[0][3] = a;
-	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[1]);
-	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[2]);
-	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[3]);
+	draw_active_colour[0] = host_basepal[i*3+0]/255.0;
+	draw_active_colour[1] = host_basepal[i*3+1]/255.0;
+	draw_active_colour[2] = host_basepal[i*3+2]/255.0;
+	draw_active_colour[3] = a;
 }
 
+//awkward and weird to use
+void R2D_ImageAtlas(float x, float y, float w, float h, float s1, float t1, float s2, float t2, apic_t *pic)
+{
+	float newsl, newsh, newtl, newth;
+	if (!pic)
+		return;
+	if (atlas.dirty)
+	{
+		Image_Upload(atlas.tex, TF_BGRA32, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, IF_NOMIPMAP);
+		atlas.dirty = false;
+	}
+
+	newsl = pic->sl + s1 * pic->sh;
+	newsh = newsl + (s2-s1) * pic->sh;
+
+	newtl = pic->tl + t1 * pic->th;
+	newth = newtl + (t2-t1) * pic->th;
+
+	R2D_Image(x, y, w, h, newsl, newtl, newsh, newth, pic->atlas);
+}
+
+void R2D_ImageFlush(void)
+{
+	BE_DrawMesh_Single(draw_active_shader, &draw_mesh, NULL, r2d_be_flags);
+
+	R2D_Flush = NULL;
+	draw_active_shader = NULL;
+}
 //awkward and weird to use
 void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic)
 {
@@ -413,30 +597,36 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 			return;
 	}
 
-	if (R2D_Flush)
-		R2D_Flush();
+	if (draw_active_shader != pic || draw_mesh.numvertexes+4 > DRAW_QUADS)
+	{
+		if (R2D_Flush)
+			R2D_Flush();
 
-	draw_mesh_xyz[0][0] = x;
-	draw_mesh_xyz[0][1] = y;
-	draw_mesh_st[0][0] = s1;
-	draw_mesh_st[0][1] = t1;
+		draw_active_shader = pic;
+		R2D_Flush = R2D_ImageFlush;
 
-	draw_mesh_xyz[1][0] = x+w;
-	draw_mesh_xyz[1][1] = y;
-	draw_mesh_st[1][0] = s2;
-	draw_mesh_st[1][1] = t1;
+		draw_mesh.numindexes = 0;
+		draw_mesh.numvertexes = 0;
+	}
 
-	draw_mesh_xyz[2][0] = x+w;
-	draw_mesh_xyz[2][1] = y+h;
-	draw_mesh_st[2][0] = s2;
-	draw_mesh_st[2][1] = t2;
+	Vector2Set(draw_mesh_xyz[draw_mesh.numvertexes+0],	x, y);
+	Vector2Set(draw_mesh_st[draw_mesh.numvertexes+0],	s1, t1);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+0]);
 
-	draw_mesh_xyz[3][0] = x;
-	draw_mesh_xyz[3][1] = y+h;
-	draw_mesh_st[3][0] = s1;
-	draw_mesh_st[3][1] = t2;
+	Vector2Set(draw_mesh_xyz[draw_mesh.numvertexes+1],	x+w, y);
+	Vector2Set(draw_mesh_st[draw_mesh.numvertexes+1],	s2, t1);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+1]);
 
-	BE_DrawMesh_Single(pic, &draw_mesh, NULL, r2d_be_flags);
+	Vector2Set(draw_mesh_xyz[draw_mesh.numvertexes+2],	x+w, y+h);
+	Vector2Set(draw_mesh_st[draw_mesh.numvertexes+2],	s2, t2);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+2]);
+
+	Vector2Set(draw_mesh_xyz[draw_mesh.numvertexes+3],	x, y+h);
+	Vector2Set(draw_mesh_st[draw_mesh.numvertexes+3],	s1, t2);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+3]);
+
+	draw_mesh.numvertexes += 4;
+	draw_mesh.numindexes += 6;
 }
 void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
 {
@@ -468,25 +658,37 @@ void R2D_Image2dQuad(vec2_t points[], vec2_t texcoords[], mpic_t *pic)
 /*draws a block of the current colour on the screen*/
 void R2D_FillBlock(float x, float y, float w, float h)
 {
-	if (R2D_Flush)
-		R2D_Flush();
-
-	draw_mesh_xyz[0][0] = x;
-	draw_mesh_xyz[0][1] = y;
-
-	draw_mesh_xyz[1][0] = x+w;
-	draw_mesh_xyz[1][1] = y;
-
-	draw_mesh_xyz[2][0] = x+w;
-	draw_mesh_xyz[2][1] = y+h;
-
-	draw_mesh_xyz[3][0] = x;
-	draw_mesh_xyz[3][1] = y+h;
-
-	if (draw_mesh_colors[0][3] != 1)
-		BE_DrawMesh_Single(shader_draw_fill_trans, &draw_mesh, NULL, r2d_be_flags);
+	mpic_t *pic;
+	if (draw_active_colour[3] != 1)
+		pic = shader_draw_fill_trans;
 	else
-		BE_DrawMesh_Single(shader_draw_fill, &draw_mesh, NULL, r2d_be_flags);
+		pic = shader_draw_fill;
+	if (draw_active_shader != pic || draw_mesh.numvertexes+4 > DRAW_QUADS)
+	{
+		if (R2D_Flush)
+			R2D_Flush();
+
+		draw_active_shader = pic;
+		R2D_Flush = R2D_ImageFlush;
+
+		draw_mesh.numindexes = 0;
+		draw_mesh.numvertexes = 0;
+	}
+
+	Vector2Set(draw_mesh_xyz[draw_mesh.numvertexes+0], x, y);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+0]);
+
+	Vector2Set(draw_mesh_xyz[draw_mesh.numvertexes+1], x+w, y);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+1]);
+
+	Vector2Set(draw_mesh_xyz[draw_mesh.numvertexes+2], x+w, y+h);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+2]);
+
+	Vector2Set(draw_mesh_xyz[draw_mesh.numvertexes+3], x, y+h);
+	Vector4Copy(draw_active_colour, draw_mesh_colors[draw_mesh.numvertexes+3]);
+
+	draw_mesh.numvertexes += 4;
+	draw_mesh.numindexes += 6;
 }
 
 void R2D_Line(float x1, float y1, float x2, float y2, shader_t *shader)
@@ -502,7 +704,7 @@ void R2D_Line(float x1, float y1, float x2, float y2, shader_t *shader)
 
 	if (!shader)
 	{
-		if (draw_mesh_colors[0][3] != 1)
+		if (draw_active_colour[3] != 1)
 			shader = shader_draw_fill_trans;
 		else
 			shader = shader_draw_fill;
@@ -511,8 +713,6 @@ void R2D_Line(float x1, float y1, float x2, float y2, shader_t *shader)
 	draw_mesh.numvertexes = 2;
 	draw_mesh.numindexes = 2;
 	BE_DrawMesh_Single(shader, &draw_mesh, NULL, BEF_LINES);
-	draw_mesh.numvertexes = 4;
-	draw_mesh.numindexes = 6;
 }
 
 void R2D_ScalePic (float x, float y, float width, float height, mpic_t *pic)
@@ -647,30 +847,7 @@ void R2D_TileClear (float x, float y, float w, float h)
 
 	R2D_ImageColours(1,1,1,1);
 
-	if (R2D_Flush)
-		R2D_Flush();
-
-	draw_mesh_xyz[0][0] = x;
-	draw_mesh_xyz[0][1] = y;
-	draw_mesh_st[0][0] = newsl;
-	draw_mesh_st[0][1] = newtl;
-
-	draw_mesh_xyz[1][0] = x+w;
-	draw_mesh_xyz[1][1] = y;
-	draw_mesh_st[1][0] = newsh;
-	draw_mesh_st[1][1] = newtl;
-
-	draw_mesh_xyz[2][0] = x+w;
-	draw_mesh_xyz[2][1] = y+h;
-	draw_mesh_st[2][0] = newsh;
-	draw_mesh_st[2][1] = newth;
-
-	draw_mesh_xyz[3][0] = x;
-	draw_mesh_xyz[3][1] = y+h;
-	draw_mesh_st[3][0] = newsl;
-	draw_mesh_st[3][1] = newth;
-
-	BE_DrawMesh_Single(draw_backtile, &draw_mesh, NULL, r2d_be_flags);
+	R2D_Image(x, y, w, h, newsl, newtl, newsh, newth, draw_backtile);
 }
 
 void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
@@ -702,7 +879,6 @@ void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 }
 
 #if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)
-#include <windows.h>
 qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
 {
 	char *match;

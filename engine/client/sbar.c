@@ -80,39 +80,39 @@ int			sb_updates;		// if >= vid.numpages, no update needed
 qboolean	sbar_parsingteamstatuses;	//so we don't eat it if its not displayed
 
 #define STAT_MINUS		10	// num frame for '-' stats digit
-mpic_t		*sb_nums[2][11];
-mpic_t		*sb_colon, *sb_slash;
-mpic_t		*sb_ibar;
-mpic_t		*sb_sbar;
-mpic_t		*sb_scorebar;
+static apic_t		*sb_nums[2][11];
+static apic_t		*sb_colon, *sb_slash;
+static apic_t		*sb_ibar;
+static apic_t		*sb_sbar;
+static apic_t		*sb_scorebar;
 
-mpic_t		*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
-mpic_t		*sb_ammo[4];
-mpic_t		*sb_sigil[4];
-mpic_t		*sb_armor[3];
-mpic_t		*sb_items[32];
+static apic_t		*sb_weapons[7][8];	// 0 is active, 1 is owned, 2-5 are flashes
+static apic_t		*sb_ammo[4];
+static apic_t		*sb_sigil[4];
+static apic_t		*sb_armor[3];
+static apic_t		*sb_items[32];
 
-mpic_t	*sb_faces[7][2];		// 0 is gibbed, 1 is dead, 2-6 are alive
+static apic_t	*sb_faces[7][2];		// 0 is gibbed, 1 is dead, 2-6 are alive
 							// 0 is static, 1 is temporary animation
-mpic_t	*sb_face_invis;
-mpic_t	*sb_face_quad;
-mpic_t	*sb_face_invuln;
-mpic_t	*sb_face_invis_invuln;
+static apic_t	*sb_face_invis;
+static apic_t	*sb_face_quad;
+static apic_t	*sb_face_invuln;
+static apic_t	*sb_face_invis_invuln;
 
 //rogue pictures.
-qboolean	sbar_rogue;
-mpic_t      *rsb_invbar[2];
-mpic_t      *rsb_weapons[5];
-mpic_t      *rsb_items[2];
-mpic_t      *rsb_ammo[3];
-mpic_t      *rsb_teambord;
+static qboolean	sbar_rogue;
+static apic_t      *rsb_invbar[2];
+static apic_t      *rsb_weapons[5];
+static apic_t      *rsb_items[2];
+static apic_t      *rsb_ammo[3];
+static apic_t      *rsb_teambord;
 //all must be found for any to be used.
 
 //hipnotic pictures and stuff
-qboolean	sbar_hipnotic;
-mpic_t      *hsb_weapons[7][5];   // 0 is active, 1 is owned, 2-5 are flashes
-int         hipweapons[4] = {HIT_LASER_CANNON_BIT,HIT_MJOLNIR_BIT,4,HIT_PROXIMITY_GUN_BIT};
-mpic_t      *hsb_items[2];
+static qboolean	sbar_hipnotic;
+static apic_t      *hsb_weapons[7][5];   // 0 is active, 1 is owned, 2-5 are flashes
+static int         hipweapons[4] = {HIT_LASER_CANNON_BIT,HIT_MJOLNIR_BIT,4,HIT_PROXIMITY_GUN_BIT};
+static apic_t      *hsb_items[2];
 //end hipnotic
 
 qboolean	sb_showscores;
@@ -878,12 +878,12 @@ Sbar_Init
 
 static qboolean sbar_loaded;
 
-mpic_t *Sbar_PicFromWad(char *name)
+static apic_t *Sbar_PicFromWad(char *name)
 {
-	mpic_t *ret;
+	apic_t *ret;
 	char savedname[MAX_QPATH];
 	Q_strncpyz(savedname, name, sizeof(savedname));
-	ret = R2D_SafePicFromWad(savedname);
+	ret = R2D_LoadAtlasedPic(savedname);
 
 	if (ret)
 		return ret;
@@ -1092,7 +1092,11 @@ void Sbar_Init (void)
 Sbar_DrawPic
 =============
 */
-void Sbar_DrawPic (float x, float y, float w, float h, mpic_t *pic)
+static void Sbar_DrawPic (float x, float y, float w, float h, apic_t *pic)
+{
+	R2D_ImageAtlas(sbar_rect.x + x /* + ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), w, h, 0, 0, 1, 1, pic);
+}
+static void Sbar_DrawMPic (float x, float y, float w, float h, mpic_t *pic)
 {
 	R2D_ScalePic(sbar_rect.x + x /* + ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), w, h, pic);
 }
@@ -1104,9 +1108,17 @@ Sbar_DrawSubPic
 JACK: Draws a portion of the picture in the status bar.
 */
 
-void Sbar_DrawSubPic(float x, float y, float width, float height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight)
+static void Sbar_DrawSubPic(float x, float y, float width, float height, apic_t *pic, int srcx, int srcy, int srcwidth, int srcheight)
 {
-	R2D_SubPic (sbar_rect.x + x, sbar_rect.y + y+(sbar_rect.height-SBAR_HEIGHT), width, height, pic, srcx, srcy, srcwidth, srcheight);
+	float newsl, newtl, newsh, newth;
+
+	newsl = (srcx)/(float)srcwidth;
+	newsh = newsl + (width)/(float)srcwidth;
+
+	newtl = (srcy)/(float)srcheight;
+	newth = newtl + (height)/(float)srcheight;
+
+	R2D_ImageAtlas (sbar_rect.x + x, sbar_rect.y + y+(sbar_rect.height-SBAR_HEIGHT), width, height, newsl, newtl, newsh, newth, pic);
 }
 
 /*
@@ -1737,29 +1749,6 @@ void Sbar_DrawInventory (playerview_t *pv)
 		}
 	}
 
-// ammo counts
-	if (headsup)
-	{
-		for (i=0 ; i<4 ; i++)
-			Sbar_DrawSubPic((hudswap) ? sbar_rect_left : (sbar_rect.width-42), -24 - (4-i)*11, 42, 11, sb_ibar, 3+(i*48), 0, 320, 24);
-	}
-	for (i=0 ; i<4 ; i++)
-	{
-		snprintf (num, sizeof(num), "%3i", pv->stats[STAT_SHELLS+i] );
-		numc[0] = CON_WHITEMASK|0xe000|((num[0]!=' ')?(num[0] + 18-'0'):' ');
-		numc[1] = CON_WHITEMASK|0xe000|((num[1]!=' ')?(num[1] + 18-'0'):' ');
-		numc[2] = CON_WHITEMASK|0xe000|((num[2]!=' ')?(num[2] + 18-'0'):' ');
-		numc[3] = 0;
-		if (headsup)
-		{
-			Sbar_DrawExpandedString((hudswap) ? sbar_rect_left+3 : (sbar_rect.width-39), -24 - (4-i)*11, numc);
-		}
-		else
-		{
-			Sbar_DrawExpandedString((6*i+1)*8 - 2, -24, numc);
-		}
-	}
-
 	flashon = 0;
 // items
 	for (i=(sbar_hipnotic?2:0) ; i<6 ; i++)
@@ -1829,6 +1818,29 @@ void Sbar_DrawInventory (playerview_t *pv)
 				if (time &&	time > cl.time - 2)
 					sb_updates = 0;
 			}
+		}
+	}
+
+	// ammo counts
+	if (headsup)
+	{
+		for (i=0 ; i<4 ; i++)
+			Sbar_DrawSubPic((hudswap) ? sbar_rect_left : (sbar_rect.width-42), -24 - (4-i)*11, 42, 11, sb_ibar, 3+(i*48), 0, 320, 24);
+	}
+	for (i=0 ; i<4 ; i++)
+	{
+		snprintf (num, sizeof(num), "%3i", pv->stats[STAT_SHELLS+i] );
+		numc[0] = CON_WHITEMASK|0xe000|((num[0]!=' ')?(num[0] + 18-'0'):' ');
+		numc[1] = CON_WHITEMASK|0xe000|((num[1]!=' ')?(num[1] + 18-'0'):' ');
+		numc[2] = CON_WHITEMASK|0xe000|((num[2]!=' ')?(num[2] + 18-'0'):' ');
+		numc[3] = 0;
+		if (headsup)
+		{
+			Sbar_DrawExpandedString((hudswap) ? sbar_rect_left+3 : (sbar_rect.width-39), -24 - (4-i)*11, numc);
+		}
+		else
+		{
+			Sbar_DrawExpandedString((6*i+1)*8 - 2, -24, numc);
 		}
 	}
 }
@@ -2021,7 +2033,7 @@ void Sbar_DrawNormal (playerview_t *pv)
 	if (pv->stats[STAT_ITEMS] & IT_INVULNERABILITY)
 	{
 		Sbar_DrawNum (24, 0, 666, 3, 1);
-		Sbar_DrawPic (0, 0, 24, 24, draw_disc);
+		Sbar_DrawMPic (0, 0, 24, 24, draw_disc);
 	}
 	else
 	{
@@ -2140,11 +2152,19 @@ void Sbar_DrawScoreboard (void)
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
-		if (cl.playerview[pnum].stats[STAT_HEALTH] <= 0)
+		if (cl.spectator)
+		{
+			int t = cl.playerview[pnum].cam_spec_track;
+			if (t < 0)
+				continue;
+			if (cl.players[t].statsf[STAT_HEALTH] <= 0)
+				deadcount++;
+		}
+		else if (cl.playerview[pnum].statsf[STAT_HEALTH] <= 0)
 			deadcount++;
 	}
 
-	if (deadcount == cl.splitclients && !cl.spectator)
+	if (deadcount == cl.splitclients)// && !cl.spectator)
 	{
 		if (cl.teamplay > 0 && !sb_showscores)
 			Sbar_TeamOverlay();
@@ -2192,14 +2212,14 @@ static void Sbar_Hexen2DrawActiveStuff(playerview_t *pv)
 static void Sbar_Hexen2DrawItem(playerview_t *pv, float x, float y, int itemnum)
 {
 	int num;
-	Sbar_DrawPic(x, y, 29, 28, R2D_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
+	Sbar_DrawMPic(x, y, 29, 28, R2D_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
 
 	num = pv->stats[STAT_H2_CNT_TORCH+itemnum];
 	if(num > 0)
 	{
 		if (num >= 10)
-			Sbar_DrawPic(x+20, y+21, 4, 6, R2D_SafeCachePic(va("gfx/artinum%d.lmp", num/10)));
-		Sbar_DrawPic(x+20+4, y+21, 4, 6, R2D_SafeCachePic(va("gfx/artinum%d.lmp", num%10)));
+			Sbar_DrawMPic(x+20, y+21, 4, 6, R2D_SafeCachePic(va("gfx/artinum%d.lmp", num/10)));
+		Sbar_DrawMPic(x+20+4, y+21, 4, 6, R2D_SafeCachePic(va("gfx/artinum%d.lmp", num%10)));
 	}
 }
 
@@ -2239,7 +2259,7 @@ static void Sbar_Hexen2DrawInventory(playerview_t *pv)
 			continue;
 
 		if (i == pv->sb_hexen2_cur_item)
-			Sbar_DrawPic(x+9, y-12, 11, 11, R2D_SafeCachePic("gfx/artisel.lmp"));
+			Sbar_DrawMPic(x+9, y-12, 11, 11, R2D_SafeCachePic("gfx/artisel.lmp"));
 		Sbar_Hexen2DrawItem(pv, x, y, i);
 		x -= 33;
 	}
@@ -2250,7 +2270,7 @@ static void Sbar_Hexen2DrawInventory(playerview_t *pv)
 		if (i != pv->sb_hexen2_cur_item && !pv->stats[STAT_H2_CNT_TORCH+i])
 			continue;
 		if (i == pv->sb_hexen2_cur_item)
-			Sbar_DrawPic(x+9, y-12, 11, 11, R2D_SafeCachePic("gfx/artisel.lmp"));
+			Sbar_DrawMPic(x+9, y-12, 11, 11, R2D_SafeCachePic("gfx/artisel.lmp"));
 		Sbar_Hexen2DrawItem(pv, x, y, i);
 		x+=33;
 	}
@@ -2298,8 +2318,8 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 	//adjust it so there's space
 	sbar_rect.y -= 46+98-SBAR_HEIGHT;
 
-	Sbar_DrawPic(0, 46, 160, 98, R2D_SafeCachePic("gfx/btmbar1.lmp"));
-	Sbar_DrawPic(160, 46, 160, 98, R2D_SafeCachePic("gfx/btmbar2.lmp"));
+	Sbar_DrawMPic(0, 46, 160, 98, R2D_SafeCachePic("gfx/btmbar1.lmp"));
+	Sbar_DrawMPic(160, 46, 160, 98, R2D_SafeCachePic("gfx/btmbar2.lmp"));
 
 	Sbar_DrawTinyString (11, 48, pclassname[pclass]);
 
@@ -2332,7 +2352,7 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 	{
 		if (pv->stats[STAT_H2_ARMOUR1+i] > 0)
 		{
-			Sbar_DrawPic (164+i*40, 115, 28, 19, R2D_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
+			Sbar_DrawMPic (164+i*40, 115, 28, 19, R2D_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
 			Sbar_DrawTinyStringf (168+i*40, 136, "+%d", pv->stats[STAT_H2_ARMOUR1+i]);
 		}
 	}
@@ -2340,14 +2360,14 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 	{
 		if (pv->stats[STAT_H2_FLIGHT_T+i] > 0)
 		{
-			Sbar_DrawPic (ringpos[i], 119, 32, 22, R2D_SafeCachePic(va("gfx/ring_f.lmp")));
+			Sbar_DrawMPic (ringpos[i], 119, 32, 22, R2D_SafeCachePic(va("gfx/ring_f.lmp")));
 			val = pv->stats[STAT_H2_FLIGHT_T+i];
 			if (val > 100)
 				val = 100;
 			if (val < 0)
 				val = 0;
-			Sbar_DrawPic(ringpos[i]+29 - (int)(26 * (val/(float)100)),142, 26, 1, R2D_SafeCachePic("gfx/ringhlth.lmp"));
-			Sbar_DrawPic(ringpos[i]+29, 142, 26, 1, R2D_SafeCachePic("gfx/rhlthcvr.lmp"));
+			Sbar_DrawMPic(ringpos[i]+29 - (int)(26 * (val/(float)100)),142, 26, 1, R2D_SafeCachePic("gfx/ringhlth.lmp"));
+			Sbar_DrawMPic(ringpos[i]+29, 142, 26, 1, R2D_SafeCachePic("gfx/rhlthcvr.lmp"));
 		}
 	}
 
@@ -2356,12 +2376,12 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 	{
 		if (pv->statsstr[STAT_H2_PUZZLE1+i] && *pv->statsstr[STAT_H2_PUZZLE1+i])
 		{
-			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, 26, 26, R2D_SafeCachePic(va("gfx/puzzle/%s.lmp", pv->statsstr[STAT_H2_PUZZLE1+i])));
+			Sbar_DrawMPic (194+(slot%4)*31, slot<4?51:82, 26, 26, R2D_SafeCachePic(va("gfx/puzzle/%s.lmp", pv->statsstr[STAT_H2_PUZZLE1+i])));
 			slot++;
 		}
 	}
 
-	Sbar_DrawPic(134, 50, 49, 56, R2D_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
+	Sbar_DrawMPic(134, 50, 49, 56, R2D_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
 }
 
 static int Sbar_Hexen2ArmourValue(playerview_t *pv)
@@ -2402,11 +2422,11 @@ static void Sbar_Hexen2DrawBasic(playerview_t *pv)
 {
 	int chainpos;
 	int val, maxval;
-	Sbar_DrawPic(0, 0, 160, 46, R2D_SafeCachePic("gfx/topbar1.lmp"));
-	Sbar_DrawPic(160, 0, 160, 46, R2D_SafeCachePic("gfx/topbar2.lmp"));
-	Sbar_DrawPic(0, -23, 51, 23, R2D_SafeCachePic("gfx/topbumpl.lmp"));
-	Sbar_DrawPic(138, -8, 39, 8, R2D_SafeCachePic("gfx/topbumpm.lmp"));
-	Sbar_DrawPic(269, -23, 51, 23, R2D_SafeCachePic("gfx/topbumpr.lmp"));
+	Sbar_DrawMPic(0, 0, 160, 46, R2D_SafeCachePic("gfx/topbar1.lmp"));
+	Sbar_DrawMPic(160, 0, 160, 46, R2D_SafeCachePic("gfx/topbar2.lmp"));
+	Sbar_DrawMPic(0, -23, 51, 23, R2D_SafeCachePic("gfx/topbumpl.lmp"));
+	Sbar_DrawMPic(138, -8, 39, 8, R2D_SafeCachePic("gfx/topbumpm.lmp"));
+	Sbar_DrawMPic(269, -23, 51, 23, R2D_SafeCachePic("gfx/topbumpr.lmp"));
 
 	//mana1
 	maxval = pv->stats[STAT_H2_MAXMANA];
@@ -2415,8 +2435,8 @@ static void Sbar_Hexen2DrawBasic(playerview_t *pv)
 	Sbar_DrawTinyStringf(201, 22, "%03d", val);
 	if(val)
 	{
-		Sbar_DrawPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, R2D_SafeCachePic("gfx/bmana.lmp"));
-		Sbar_DrawPic(190, 27, 3, 19, R2D_SafeCachePic("gfx/bmanacov.lmp"));
+		Sbar_DrawMPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, R2D_SafeCachePic("gfx/bmana.lmp"));
+		Sbar_DrawMPic(190, 27, 3, 19, R2D_SafeCachePic("gfx/bmanacov.lmp"));
 	}
 
 	//mana2
@@ -2426,8 +2446,8 @@ static void Sbar_Hexen2DrawBasic(playerview_t *pv)
 	Sbar_DrawTinyStringf(243, 22, "%03d", val);
 	if(val)
 	{
-		Sbar_DrawPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, R2D_SafeCachePic("gfx/gmana.lmp"));
-		Sbar_DrawPic(232, 27, 3, 19, R2D_SafeCachePic("gfx/gmanacov.lmp"));
+		Sbar_DrawMPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, R2D_SafeCachePic("gfx/gmana.lmp"));
+		Sbar_DrawMPic(232, 27, 3, 19, R2D_SafeCachePic("gfx/gmanacov.lmp"));
 	}
 
 
@@ -2445,10 +2465,10 @@ static void Sbar_Hexen2DrawBasic(playerview_t *pv)
 	chainpos = (195.0f*pv->stats[STAT_HEALTH]) / pv->stats[STAT_H2_MAXHEALTH];
 	if (chainpos < 0)
 		chainpos = 0;
-	Sbar_DrawPic(45+((int)chainpos&7), 38, 222, 5, R2D_SafeCachePic("gfx/hpchain.lmp"));
-	Sbar_DrawPic(45+(int)chainpos, 36,	35, 9, R2D_SafeCachePic("gfx/hpgem.lmp"));
-	Sbar_DrawPic(43, 36, 10, 10, R2D_SafeCachePic("gfx/chnlcov.lmp"));
-	Sbar_DrawPic(267, 36, 10, 10, R2D_SafeCachePic("gfx/chnrcov.lmp"));
+	Sbar_DrawMPic(45+((int)chainpos&7), 38, 222, 5, R2D_SafeCachePic("gfx/hpchain.lmp"));
+	Sbar_DrawMPic(45+(int)chainpos, 36,	35, 9, R2D_SafeCachePic("gfx/hpgem.lmp"));
+	Sbar_DrawMPic(43, 36, 10, 10, R2D_SafeCachePic("gfx/chnlcov.lmp"));
+	Sbar_DrawMPic(267, 36, 10, 10, R2D_SafeCachePic("gfx/chnrcov.lmp"));
 
 
 	Sbar_Hexen2DrawItem(pv, 144, 3, pv->sb_hexen2_cur_item);
@@ -2458,8 +2478,8 @@ static void Sbar_Hexen2DrawMinimal(playerview_t *pv)
 {
 	int y;
 	y = -16;
-	Sbar_DrawPic(3, y, 31, 17, R2D_SafeCachePic("gfx/bmmana.lmp"));
-	Sbar_DrawPic(3, y+18, 31, 17, R2D_SafeCachePic("gfx/gmmana.lmp"));
+	Sbar_DrawMPic(3, y, 31, 17, R2D_SafeCachePic("gfx/bmmana.lmp"));
+	Sbar_DrawMPic(3, y+18, 31, 17, R2D_SafeCachePic("gfx/gmmana.lmp"));
 
 	Sbar_DrawTinyStringf(10, y+6, "%03d", pv->stats[STAT_H2_BLUEMANA]);
 	Sbar_DrawTinyStringf(10, y+18+6, "%03d", pv->stats[STAT_H2_GREENMANA]);
@@ -2726,6 +2746,16 @@ void Sbar_Draw (playerview_t *pv)
 
 	sb_updates++;
 
+	if (cl_sbar.value == 1 || scr_viewsize.value<100)
+	{
+		if (sbar_rect.x>r_refdef.grect.x)
+		{	// left
+			R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y+sbar_rect.height - sb_lines, sbar_rect.x - r_refdef.grect.x, sb_lines);
+		}
+		if (sbar_rect.x + 320 <= r_refdef.grect.x + sbar_rect.width && !headsup)
+			R2D_TileClear (sbar_rect.x + 320, r_refdef.grect.y+sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
+	}
+
 #ifdef HEXEN2
 	if (sbar_hexen2)
 	{
@@ -2763,17 +2793,6 @@ void Sbar_Draw (playerview_t *pv)
 	else
 	{
 	//standard quake(world) hud.
-	// top line
-		if (sb_lines > 24)
-		{
-			if (!cl.spectator || pv->cam_state == CAM_WALLCAM || pv->cam_state == CAM_EYECAM)
-				Sbar_DrawInventory (pv);
-			else if (cl_sbar.ival)
-				Sbar_DrawPic (0, -24, 320, 24, sb_scorebar);	//make sure we don't get HoM
-			if ((!headsup || sbar_rect.width<512) && cl.deathmatch)
-				Sbar_DrawFrags (pv);
-		}
-
 	// main area
 		if (sb_lines > 0)
 		{
@@ -2824,22 +2843,23 @@ void Sbar_Draw (playerview_t *pv)
 				Sbar_DrawNormal (pv);
 		}
 
+	// top line
+		if (sb_lines > 24)
+		{
+			if (!cl.spectator || pv->cam_state == CAM_WALLCAM || pv->cam_state == CAM_EYECAM)
+				Sbar_DrawInventory (pv);
+			else if (cl_sbar.ival)
+				Sbar_DrawPic (0, -24, 320, 24, sb_scorebar);	//make sure we don't get HoM
+			if ((!headsup || sbar_rect.width<512) && cl.deathmatch)
+				Sbar_DrawFrags (pv);
+		}
+
 		if (minidmoverlay)
 			Sbar_MiniDeathmatchOverlay (pv);
 
 		if (sb_lines > 0)
 			Sbar_DrawTeamStatus(pv);
 		R2D_ImageColours (1, 1, 1, 1);
-	}
-
-	if (cl_sbar.value == 1 || scr_viewsize.value<100)
-	{
-		if (sbar_rect.x>r_refdef.grect.x)
-		{	// left
-			R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y+sbar_rect.height - sb_lines, sbar_rect.x - r_refdef.grect.x, sb_lines);
-		}
-		if (sbar_rect.x + 320 <= r_refdef.grect.x + sbar_rect.width && !headsup)
-			R2D_TileClear (sbar_rect.x + 320, r_refdef.grect.y+sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
 	}
 
 	if (sb_lines > 24)
@@ -2890,7 +2910,7 @@ void Sbar_IntermissionNumber (float x, float y, int num, int digits, int color, 
 		else
 			frame = *ptr -'0';
 
-		R2D_ScalePic (x,y, 16, 24, sb_nums[color][frame]);
+		R2D_ScalePicAtlas (x,y, 16, 24, sb_nums[color][frame]);
 		x += 24;
 		ptr++;
 	}
@@ -3721,17 +3741,17 @@ void Sbar_CoopIntermission (void)
 	dig = cl.completed_time/60;
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 64, dig, 4, 0, false);
 	num = cl.completed_time - dig*60;
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 230,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_colon);
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 254,(sbar_rect.height - 200)/2 + 64, 16, 26, sb_nums[0][num/10]);
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 278,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_nums[0][num%10]);
+	R2D_ScalePicAtlas ((sbar_rect.width - 320)/2 + 230,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_colon);
+	R2D_ScalePicAtlas ((sbar_rect.width - 320)/2 + 254,(sbar_rect.height - 200)/2 + 64, 16, 26, sb_nums[0][num/10]);
+	R2D_ScalePicAtlas ((sbar_rect.width - 320)/2 + 278,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_nums[0][num%10]);
 
 //it is assumed that secrits/monsters are going to be constant for any player...
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_SECRETS], 4, 0, false);
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 230, (sbar_rect.height - 200)/2 + 104, 16, 24, sb_slash);
+	R2D_ScalePicAtlas ((sbar_rect.width - 320)/2 + 230, (sbar_rect.height - 200)/2 + 104, 16, 24, sb_slash);
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 254, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_TOTALSECRETS], 4, 0, true);
 
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 230 - 24*4, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_MONSTERS], 4, 0, false);
-	R2D_ScalePic ((sbar_rect.width - 320)/2 + 230,(sbar_rect.height - 200)/2 + 144, 16, 24, sb_slash);
+	R2D_ScalePicAtlas ((sbar_rect.width - 320)/2 + 230,(sbar_rect.height - 200)/2 + 144, 16, 24, sb_slash);
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 254, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_TOTALMONSTERS], 4, 0, true);
 }
 /*

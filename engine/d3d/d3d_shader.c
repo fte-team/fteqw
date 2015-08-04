@@ -146,6 +146,8 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, un
 	D3DXMACRO defines[64];
 	LPD3DXBUFFER code = NULL, errors = NULL;
 	qboolean success = false;
+	char defbuf[2048];
+	char *defbufe;
 
 	if (geom || tcs || tes)
 	{
@@ -174,10 +176,11 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, un
 		defines[consts].Definition = __DATE__;
 		consts++;
 
-		for (; *precompilerconstants; precompilerconstants++)
+		for (defbufe = defbuf; *precompilerconstants; precompilerconstants++)
 		{
-			defines[consts].Name = NULL;
-			defines[consts].Definition = NULL;
+			defines[consts].Definition = COM_ParseOut(*precompilerconstants+7, defbufe, defbuf+sizeof(defbuf) - defbufe-1);
+			defines[consts].Name = defbufe;
+			defbufe += strlen(defbufe)+1;
 			consts++;
 		}
 

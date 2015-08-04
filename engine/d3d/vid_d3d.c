@@ -702,10 +702,12 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	ShowWindow(mainwindow, SW_NORMAL);
 
-	IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+	IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
 	IDirect3DDevice9_BeginScene(pD3DDev9);
 	IDirect3DDevice9_EndScene(pD3DDev9);
 	IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
+
+	D3D9_Set2D();
 
 
 
@@ -1011,6 +1013,8 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	noworld = false;
 	nohud = false;
 
+	D3D9_Set2D();
+
 #ifdef VM_CG
 	if (CG_Refresh())
 		nohud = true;
@@ -1030,10 +1034,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 				noworld = true;
 			}
 		}
-
-	if (R2D_Flush)
-		R2D_Flush();
-	D3D9_Set2D();
 
 	R2D_BrightenScreen();
 

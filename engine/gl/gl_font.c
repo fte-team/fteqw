@@ -1523,7 +1523,7 @@ void Font_Free(struct font_s *f)
 //maps a given virtual screen coord to a pixel coord, which matches the font's height/width values
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 {
-	if (R2D_Flush && curfont != font)
+	if (R2D_Flush && (R2D_Flush != Font_Flush || curfont != font))
 		R2D_Flush();
 	R2D_Flush = Font_Flush;
 
@@ -1544,7 +1544,7 @@ void Font_Transform(float vx, float vy, int *px, int *py)
 }
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py)
 {
-	if (R2D_Flush && curfont != font)
+	if (R2D_Flush && (R2D_Flush != Font_Flush || curfont != font))
 		R2D_Flush();
 	R2D_Flush = Font_Flush;
 

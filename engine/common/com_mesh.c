@@ -1922,7 +1922,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		lerpcutoff = inf->lerpcutoff * r_lerpmuzzlehack.value;
 
 #ifndef SERVERONLY
-		if (qrenderer != QR_OPENGL || Sh_StencilShadowsActive() || e->fatness || lerpcutoff)
+		if (/*qrenderer != QR_OPENGL ||*/ Sh_StencilShadowsActive() || e->fatness || lerpcutoff)
 		{
 			mesh->xyz2_array = NULL;
 			mesh->xyz_blendw[0] = 1;
@@ -1982,6 +1982,9 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		}
 	}
 
+	meshcache.vbo.vao = 0;
+	meshcache.vbo.vaodynamic = ~0;
+	meshcache.vbo.vaoenabled = 0;
 	meshcache.acoords1 = mesh->xyz_array;
 	meshcache.acoords2 = mesh->xyz2_array;
 	meshcache.anorm = mesh->normals_array;

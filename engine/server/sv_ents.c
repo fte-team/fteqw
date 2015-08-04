@@ -2768,6 +2768,12 @@ void SV_GibFilterInit(void)
 		SV_GibFilterAdd("progs/gib2.mdl", -1, -1, false);
 		SV_GibFilterAdd("progs/gib3.mdl", -1, -1, false);
 		SV_GibFilterAdd("progs/h_player.mdl", -1, -1, false);
+//		SV_GibFilterAdd("progs/player.mdl", 49, 49, false);
+//		SV_GibFilterAdd("progs/player.mdl", 60, 60, false);
+//		SV_GibFilterAdd("progs/player.mdl", 69, 69, false);
+//		SV_GibFilterAdd("progs/player.mdl", 84, 84, false);
+//		SV_GibFilterAdd("progs/player.mdl", 93, 93, false);
+//		SV_GibFilterAdd("progs/player.mdl", 102, 102, false);
 		return;
 	}
 	while(file)

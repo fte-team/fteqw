@@ -680,6 +680,12 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				break;
 #endif
 			case VATTR_TEXCOORD:
+				if (!shaderstate.pendingtexcoordvbo[0] && !shaderstate.pendingtexcoordpointer[0])
+				{
+					shaderstate.sha_attr &= ~(1u<<i);
+					qglDisableVertexAttribArray(i);
+					continue;
+				}
 				GL_SelectVBO(shaderstate.pendingtexcoordvbo[0]);
 				qglVertexAttribPointer(VATTR_TEXCOORD, shaderstate.pendingtexcoordparts[0], GL_FLOAT, GL_FALSE, 0, shaderstate.pendingtexcoordpointer[0]);
 				break;
@@ -842,6 +848,9 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic)
 		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
 		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord.gl.addr;
 		shaderstate.colourarraytype = GL_FLOAT;
+		shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+		shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+		shaderstate.pendingtexcoordparts[0] = 2;
 
 		shaderstate.currentvao = vbo->vao;
 		qglBindVertexArray(vbo->vao);
@@ -1496,12 +1505,12 @@ void GLBE_Init(void)
 
 	R_InitFlashblends();
 
+	memset(&shaderstate.streamvbo, 0, sizeof(shaderstate.streamvbo));
+	memset(&shaderstate.streamebo, 0, sizeof(shaderstate.streamebo));
+	memset(&shaderstate.streamvao, 0, sizeof(shaderstate.streamvao));
 	//only do this where we have to.
 	if (qglBufferDataARB && gl_config_nofixedfunc)
 	{
-		memset(&shaderstate.streamvbo, 0, sizeof(shaderstate.streamvbo));
-		memset(&shaderstate.streamebo, 0, sizeof(shaderstate.streamebo));
-		memset(&shaderstate.streamvao, 0, sizeof(shaderstate.streamvao));
 		qglGenBuffersARB(sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]), shaderstate.streamvbo);
 		qglGenBuffersARB(sizeof(shaderstate.streamebo)/sizeof(shaderstate.streamebo[0]), shaderstate.streamebo);
 		if (qglGenVertexArrays)
@@ -3438,7 +3447,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 #endif
 	{
 #ifndef GLSLONLY
-		if (pass->numtcmods)
+		if (0)//pass->numtcmods)
 			GenerateTCMods(pass, 0);
 		else
 #endif
@@ -4387,6 +4396,11 @@ void GLBE_SubmitBatch(batch_t *batch)
 	{
 		shaderstate.sourcevbo = batch->vbo;
 		shaderstate.colourarraytype = GL_FLOAT;
+
+		if (!batch->vbo->vao)
+			batch->vbo->vao = shaderstate.streamvao[0];
+		batch->vbo->vaodynamic = ~0;
+		batch->vbo->vaoenabled = 0;
 	}
 	else
 	{

@@ -29,9 +29,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef _WIN32
+#ifndef WIN32_BLOATED
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
-#include <winsock2.h>
 
 #if defined(WINAPI_FAMILY) && !defined(WINRT)
 	#if WINAPI_FAMILY != WINAPI_FAMILY_DESKTOP_APP

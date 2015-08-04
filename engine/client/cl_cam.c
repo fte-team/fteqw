@@ -109,6 +109,17 @@ static float CL_TrackScoreProp(player_info_t *pl, char rule, float *weights)
 	float r;
 	switch(rule)
 	{
+	case '.':	//currently being tracked. combine with currently alive or something
+		{
+			int i;
+			for (i = 0; i < cl.splitclients; i++)
+			{
+				//not valid if an earlier view is tracking it.
+				if (Cam_TrackNum(&cl.playerview[i]) == pl-cl.players)
+					return 1;
+			}
+			return 0;
+		}
 	case 'a':	//armour value
 		return pl->statsf[STAT_ARMOR];
 	case 'h':
@@ -144,11 +155,36 @@ static float CL_TrackScoreProp(player_info_t *pl, char rule, float *weights)
 		return Stats_GetDeaths(pl - cl.players);
 	case 'u':	//userid
 		return pl - cl.players;
+	case 'c':	//'current run time'
+	case 'C':	//'current run frags'
+	case 'd':	//'current run teamfrags'
+	case 'I':	//ssg grabs
+	case 'j':	//ng grabs
+	case 'J':	//sng grabs
+	case 'k':	//gl grabs
+	case 'K':	//gl lost
+	case 'l':	//rl grabs
+	case 'L':	//rl lost
+	case 'm':	//lg grabs
+	case 'M':	//lg lost
+	case 'n':	//mh grabs
+	case 'N':	//ga grabs
+	case 'o':	//ya grabs
+	case 'O':	//ra grabs
+	case 'v':	//average run time
+	case 'V':	//average run frags
+	case 'w':	//average run teamfrags
+	case 'x':	//ring grabs
+	case 'X':	//ring losts
+	case 'y':	//quad grabs
+	case 'Y':	//quad losts
+	case 'z':	//pent grabs
 	default:
 		return 0;
 	}
 }
-#define PRI_TOP 2
+#define PRI_TOP 3
+#define PRI_LOGIC 3
 #define PRI_ADD 2
 #define PRI_MUL 1
 #define PRI_VAL 0
@@ -160,6 +196,11 @@ static float CL_TrackScore(player_info_t *pl, char **rule, float *weights, int p
 		s++;
 	if (!pri)
 	{
+		if (*s == '!')
+		{
+			s++;
+			l = !CL_TrackScore(pl, &s, weights, pri);
+		}
 		if (*s == '(')
 		{
 			l = CL_TrackScore(pl, &s, weights, PRI_TOP);
@@ -225,6 +266,79 @@ static float CL_TrackScore(player_info_t *pl, char **rule, float *weights, int p
 				continue;
 			}
 		}
+		else if (pri == PRI_LOGIC)
+		{
+			if (*s == '|' && s[1] == '|')
+			{
+				s+=2;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = l||r;
+				continue;
+			}
+			else if (*s == '&' && s[1] == '&')
+			{
+				s+=2;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = l&&r;
+				continue;
+			}
+			else if (*s == '&')
+			{
+				s++;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = (int)l&(int)r;
+				continue;
+			}
+			else if (*s == '|')
+			{
+				s++;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = (int)l|(int)r;
+				continue;
+			}
+			else if (*s == '>' && s[1] == '=')
+			{
+				s+=2;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = l>=r;
+				continue;
+			}
+			else if (*s == '<' && s[1] == '=')
+			{
+				s+=2;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = l<=r;
+				continue;
+			}
+			else if (*s == '>')
+			{
+				s+=1;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = l>r;
+				continue;
+			}
+			else if (*s == '<')
+			{
+				s+=1;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = l>r;
+				continue;
+			}
+			else if (*s == '!' && s[1] == '=')
+			{
+				s+=2;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = l!=r;
+				continue;
+			}
+			else if (*s == '=' && s[1] == '=')
+			{
+				s+=2;
+				r = CL_TrackScore(pl, &s, weights, pri-1);
+				l = l!=r;
+				continue;
+			}
+		}
 		break;
 	}
 	*rule = s;
@@ -253,6 +367,11 @@ static int CL_FindHighTrack(int seat, char *rule)
 	player_info_t *s;
 	float weights[14];
 	char *p;
+	qboolean instant;
+
+	instant = (rule && *rule == '!');
+	if (instant)
+		rule++;
 
 	if (rule && *rule == '[')
 	{
@@ -345,6 +464,20 @@ static int CL_FindHighTrack(int seat, char *rule)
 				j = i;
 			}
 		}
+	}
+
+	if (j != -1 && CL_MayTrack(seat, cl.playerview[seat].cam_spec_track) && !instant)
+	{
+		i = cl.playerview[seat].cam_spec_track;
+		//extra hacks to prevent 'random' switching mid-game
+		if ((cl.players[j].stats[STAT_ITEMS] ^ cl.players[i].stats[STAT_ITEMS]) & (IT_INVULNERABILITY|IT_QUAD))
+			;	//don't block if the players have different powerups
+		else if ((cl.players[j].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_LIGHTNING)) && !(cl.players[i].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_LIGHTNING)))
+			;	//don't block the switch if the new player has a decent weapon, and the guy we're tracking does not.
+		else if ((cl.players[j].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_INVULNERABILITY))==(IT_ROCKET_LAUNCHER|IT_INVULNERABILITY) && (cl.players[i].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_LIGHTNING)) != (IT_ROCKET_LAUNCHER|IT_INVULNERABILITY))
+			;	//don't block if we're switching to someone with pent+rl from someone that does not.
+		else
+			return cl.playerview[seat].cam_spec_track;
 	}
 	return j;
 }

@@ -723,6 +723,8 @@ const char *presetexec[] =
 	"seta cl_sbar 0;"
 	"seta sv_nqplayerphysics 0;"	//server settings in a preset might be bad.
 	"seta cl_demoreel 0;"
+	"seta cl_gibfilter 1;"
+	"if cl_deadbodyfilter == 0 then seta cl_deadbodyfilter 1;"		//as useful as 2 is, some mods use death frames for crouching etc.
 
 	, // fast options
 	"gl_texturemode ln;"
@@ -761,6 +763,8 @@ const char *presetexec[] =
 	"sv_nqplayerphysics 1;"		//gb wanted this
 	"cl_demoreel 1;"			//yup, arcadey
 	//"d_mipcap \"0 3\";"		//logically correct, but will fuck up on ATI drivers if increased mid-map, because ATI will just ignore any levels that are not currently enabled.
+	"seta cl_gibfilter 0;"
+	"seta cl_deadbodyfilter 0;"
 
 	, // normal (faithful) options, but with content replacement thrown in
 #ifdef MINIMAL

@@ -478,30 +478,6 @@ void SCR_CPrint_f(void)
 		SCR_CenterPrint(0, Cmd_Args(), true);
 }
 
-void SCR_EraseCenterString (void)
-{
-	cprint_t *p;
-	int pnum;
-	int		y;
-
-	if (cl.splitclients>1)
-		return;	//no viewsize with split
-
-	for (pnum = 0; pnum < cl.splitclients; pnum++)
-	{
-		p = &scr_centerprint[pnum];
-
-		if (p->erase_center++ > vid.numpages)
-		{
-			p->erase_lines = 0;
-			continue;
-		}
-
-		y = vid.height>>1;
-		R2D_TileClear (0, y, vid.width, min(8*p->erase_lines, vid.height - y - 1));
-	}
-}
-
 #define MAX_CPRINT_LINES 128
 void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 {
@@ -1864,8 +1840,7 @@ void SCR_ImageName (char *mapname)
 	strcpy(levelshotname, "levelshots/");
 	COM_FileBase(mapname, levelshotname + strlen(levelshotname), sizeof(levelshotname)-strlen(levelshotname));
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
+	if (qrenderer)
 	{
 		if (!R_GetShaderSizes(R2D_SafeCachePic (levelshotname), NULL, NULL, true))
 		{
@@ -1881,18 +1856,21 @@ void SCR_ImageName (char *mapname)
 
 	scr_disabled_for_loading = false;
 	scr_drawloading = true;
-	GL_BeginRendering ();
-	SCR_DrawLoading(false);
-	SCR_SetUpToDrawConsole();
-	if (Key_Dest_Has(kdm_console) || !*levelshotname)
-		SCR_DrawConsole(!!*levelshotname);
-	GL_EndRendering();
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		GL_BeginRendering ();
+		SCR_DrawLoading(false);
+		SCR_SetUpToDrawConsole();
+		if (Key_Dest_Has(kdm_console) || !*levelshotname)
+			SCR_DrawConsole(!!*levelshotname);
+		GL_EndRendering();
+	}
+#endif
 	scr_drawloading = false;
 
 	scr_disabled_time = Sys_DoubleTime();	//realtime tends to change... Hmmm....
 	scr_disabled_for_loading = true;
-
-#endif
 }
 
 

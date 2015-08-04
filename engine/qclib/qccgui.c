@@ -986,6 +986,10 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 				c = buf;
 				while(*c == ' ' || *c == '\t')
 					c++;
+				if (c[0] == '#')
+					continue;
+				if (c[0] == '/' && c[1] == '/')
+					continue;
 				msg = strtoul(c, &c, 0);
 				while(*c == ' ' || *c == '\t')
 					c++;

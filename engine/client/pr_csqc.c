@@ -1848,6 +1848,8 @@ void R2D_PolyBlend (void);
 void R_DrawNameTags(void);
 static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	qboolean scissored;
+
 	if (R2D_Flush)
 		R2D_Flush();
 	csqc_poly_shader = NULL;
@@ -1870,6 +1872,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	R2D_PolyBlend ();
 	R_DrawNameTags();
 
+	if (r_refdef.grect.x || r_refdef.grect.y || r_refdef.grect.width != vid.fbvwidth || r_refdef.grect.height != vid.fbvheight)
 	{
 		srect_t srect;
 		srect.x = (float)r_refdef.grect.x / vid.fbvwidth;
@@ -1880,7 +1883,10 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 		srect.dmax = 99999;
 		srect.y = (1-srect.y) - srect.height;
 		BE_Scissor(&srect);
+		scissored = true;
 	}
+	else
+		scissored = false;
 
 	if (r_refdef.drawsbar)
 	{
@@ -1902,7 +1908,13 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	if (r_refdef.drawcrosshair)
 		R2D_DrawCrosshair();
 
-	BE_Scissor(NULL);
+	if (scissored)
+	{
+		if (R2D_Flush)
+			R2D_Flush();
+
+		BE_Scissor(NULL);
+	}
 }
 
 static void QCBUILTIN PF_cs_getstati(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6713,10 +6725,10 @@ qboolean CSQC_DrawView(void)
 	else
 		PR_ExecuteProgram(csqcprogs, csqcg.f_updateview);
 
-	if (R2D_Flush)
-		R2D_Flush();
 	if (*r_refdef.rt_destcolour[0].texname)
 	{
+		if (R2D_Flush)
+			R2D_Flush();
 		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
 		BE_RenderToTextureUpdate2d(true);
 	}

@@ -3202,7 +3202,7 @@ static void Mod_Batches_AllocLightmaps(model_t *mod)
 	}
 	samps /= 4;
 	samps = sqrt(samps);
-	if (j > 128)
+	if (j > 128 || !r_dynamic.ival)
 		samps *= 2;
 	mod->lightmaps.width = bound(j, samps, LMBLOCK_SIZE_MAX);
 	mod->lightmaps.height = bound(j, samps, LMBLOCK_SIZE_MAX);

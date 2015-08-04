@@ -242,7 +242,8 @@ enum
 	D3D_VDEC_ST3 = 1<<4,
 	D3D_VDEC_NORM = 1<<5,
 	D3D_VDEC_SKEL = 1<<6,
-	D3D_VDEC_MAX = 1<<7,
+	D3D_VDEC_POS2 = 1<<7,
+	D3D_VDEC_MAX = 1<<8,
 
 };
 #define STRM_VERT	0
@@ -256,7 +257,8 @@ enum
 #define STRM_NORMT	8
 #define STRM_BONENUM	9
 #define STRM_BONEWEIGHT	10
-#define STRM_MAX 11
+#define STRM_VERT2	11
+#define STRM_MAX 12
 static IDirect3DVertexDeclaration9 *vertexdecls[D3D_VDEC_MAX];
 
 static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
@@ -523,6 +525,17 @@ void D3D9BE_Reset(qboolean before)
 			decl[elements].Usage = D3DDECLUSAGE_POSITION;
 			decl[elements].UsageIndex = 0;
 			elements++;
+
+			if (i & D3D_VDEC_POS2)
+			{
+				decl[elements].Stream = STRM_VERT2;
+				decl[elements].Offset = 0;
+				decl[elements].Type = D3DDECLTYPE_FLOAT3;
+				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
+				decl[elements].Usage = D3DDECLUSAGE_POSITION;
+				decl[elements].UsageIndex = 1;
+				elements++;
+			}
 
 			if (i & D3D_VDEC_COL4B)
 			{
@@ -1700,8 +1713,42 @@ static void BE_SubmitMeshChain(unsigned int vertbase, unsigned int firstvert, un
 	RQuantAdd(RQUANT_PRIMITIVEINDICIES, idxcount);
 }
 
+static void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
+{
+	int i;
+
+	if (cv >= 16)
+	{
+		rgb[0] = (((cv&0xff0000)>>16)**((unsigned char*)&d_8to24rgbtable[15]+0)) / (256.0*256);
+		rgb[1] = (((cv&0x00ff00)>>8)**((unsigned char*)&d_8to24rgbtable[15]+1)) / (256.0*256);
+		rgb[2] = (((cv&0x0000ff)>>0)**((unsigned char*)&d_8to24rgbtable[15]+2)) / (256.0*256);
+		return;
+	}
+	i = cv;
+	if (i >= 8)
+	{
+		i<<=4;
+	}
+	else
+	{
+		i<<=4;
+		i+=15;
+	}
+	i*=3;
+	rgb[0] = host_basepal[i+0] / 255.0;
+	rgb[1] = host_basepal[i+1] / 255.0;
+	rgb[2] = host_basepal[i+2] / 255.0;
+/*	if (!gammaworks)
+	{
+		*retred = gammatable[*retred];
+		*retgreen = gammatable[*retgreen];
+		*retblue = gammatable[*retblue];
+	}*/
+}
+
 static void BE_ApplyUniforms(program_t *prog, int permu)
 {
+	vec4_t param4;
 	int h;
 	int i;
 	IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->permu[permu].handle.hlsl.vert);
@@ -1709,6 +1756,8 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 	for (i = 0; i < prog->numparams; i++)
 	{
 		h = prog->permu[permu].parm[i];
+		if (h == -1)
+			continue;
 		switch (prog->parm[i].type)
 		{
 		case SP_M_PROJECTION:
@@ -1720,6 +1769,10 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		case SP_M_MODEL:
 			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, shaderstate.m_model, 4);
 			break;
+		case SP_E_VBLEND:
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, shaderstate.meshlist[0]->xyz_blendw, 2);
+			break;
+
 
 		case SP_V_EYEPOS:
 			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, r_origin, 1);
@@ -1783,15 +1836,22 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 			break;
 		case SP_E_COLOURSIDENT:
 			if (shaderstate.flags & BEF_FORCECOLOURMOD)
+				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, shaderstate.curentity->shaderRGBAf, 1);
+			else
 			{
 				vec4_t tmp = {1, 1, 1, shaderstate.curentity->shaderRGBAf[3]};
 				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, tmp, 1);
 			}
-			else
-				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, shaderstate.curentity->shaderRGBAf, 1);
 			break;
+
 		case SP_E_TOPCOLOURS:
+			R_FetchPlayerColour(shaderstate.curentity->topcolour, param4);
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, param4, 3);
+			break;
 		case SP_E_BOTTOMCOLOURS:
+			R_FetchPlayerColour(shaderstate.curentity->bottomcolour, param4);
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, h, param4, 3);
+			break;
 
 		case SP_M_ENTBONES:
 		case SP_M_MODELVIEW:
@@ -1835,7 +1895,10 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].handle.hlsl.vert)
 		perm |= PERMUTATION_FOG;
 	if (p->permu[perm|PERMUTATION_FRAMEBLEND].handle.hlsl.vert && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
+	{
 		perm |= PERMUTATION_FRAMEBLEND;
+		vdec |= D3D_VDEC_POS2;
+	}
 //	if (p->permu[perm|PERMUTATION_DELUXE].handle.hlsl.vert && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
 	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].handle.hlsl.vert)
@@ -1904,7 +1967,12 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 	if (vdec & D3D_VDEC_ST0)
 	{
 		if (shaderstate.batchvbo)
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vbovdata_t)));
+		{
+			if (shaderstate.batchvbo && !shaderstate.batchvbo->vaodynamic)
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vbovdata_t)));
+			else
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vec2_t)));
+		}
 		else
 		{
 			int mno;
@@ -1950,9 +2018,18 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 	{
 		if (shaderstate.batchvbo)
 		{
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORM, shaderstate.batchvbo->normals.d3d.buff, shaderstate.batchvbo->normals.d3d.offs, sizeof(vbovdata_t)));
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMS, shaderstate.batchvbo->svector.d3d.buff, shaderstate.batchvbo->svector.d3d.offs, sizeof(vbovdata_t)));
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMT, shaderstate.batchvbo->tvector.d3d.buff, shaderstate.batchvbo->tvector.d3d.offs, sizeof(vbovdata_t)));
+			if (shaderstate.batchvbo && !shaderstate.batchvbo->vaodynamic)
+			{
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORM, shaderstate.batchvbo->normals.d3d.buff, shaderstate.batchvbo->normals.d3d.offs, sizeof(vbovdata_t)));
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMS, shaderstate.batchvbo->svector.d3d.buff, shaderstate.batchvbo->svector.d3d.offs, sizeof(vbovdata_t)));
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMT, shaderstate.batchvbo->tvector.d3d.buff, shaderstate.batchvbo->tvector.d3d.offs, sizeof(vbovdata_t)));
+			}
+			else
+			{
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORM, shaderstate.batchvbo->normals.d3d.buff, shaderstate.batchvbo->normals.d3d.offs, sizeof(vec3_t)));
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMS, shaderstate.batchvbo->svector.d3d.buff, shaderstate.batchvbo->svector.d3d.offs, sizeof(vec3_t)));
+				d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMT, shaderstate.batchvbo->tvector.d3d.buff, shaderstate.batchvbo->tvector.d3d.offs, sizeof(vec3_t)));
+			}
 		}
 		else if (shaderstate.meshlist[0]->normals_array && shaderstate.meshlist[0]->snormals_array && shaderstate.meshlist[0]->tnormals_array)
 		{
@@ -2090,9 +2167,16 @@ static void BE_DrawMeshChain_Internal(void)
 	}
 
 	/*vertex buffers are common to all passes*/
-	if (shaderstate.batchvbo)
+	if (shaderstate.batchvbo && !shaderstate.batchvbo->vaodynamic)
 	{
 		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, shaderstate.batchvbo->coord.d3d.buff, shaderstate.batchvbo->coord.d3d.offs, sizeof(vbovdata_t)));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT2, shaderstate.batchvbo->coord2.d3d.buff, shaderstate.batchvbo->coord2.d3d.offs, sizeof(vbovdata_t)));
+		vertfirst = 0;
+	}
+	else if (shaderstate.batchvbo)
+	{
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, shaderstate.batchvbo->coord.d3d.buff, shaderstate.batchvbo->coord.d3d.offs, sizeof(vecV_t)));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT2, shaderstate.batchvbo->coord2.d3d.buff, shaderstate.batchvbo->coord2.d3d.offs, sizeof(vecV_t)));
 		vertfirst = 0;
 	}
 	else
@@ -2112,6 +2196,7 @@ static void BE_DrawMeshChain_Internal(void)
 		}
 		d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynxyz_buff));
 		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, shaderstate.dynxyz_buff, shaderstate.dynxyz_offs - vertcount*sizeof(vecV_t), sizeof(vecV_t)));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT2, NULL, 0, sizeof(vecV_t)));
 	}
 
 	/*index buffers are also common (note that we may still need to stream these when dealing with bsp geometry, to cope with gaps. this is faster than using multiple draw calls.)*/
@@ -2310,6 +2395,7 @@ static void D3D9BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *
 	IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, sizeof(*vbovdata) * maxvboverts, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &vbuff, NULL);
 
 	vbovdata = NULL;
+	vbo->vaodynamic = 0;
 	vbo->coord.d3d.buff = vbuff;
 	vbo->coord.d3d.offs = (quintptr_t)&vbovdata->coord;
 	vbo->texcoord.d3d.buff = vbuff;
@@ -3324,15 +3410,44 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 }
 void D3D9BE_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 {
+	IDirect3DVertexBuffer9 *buf;
+	IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, maxsize, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &buf, NULL);
+	ctx->vboptr[0] = buf;
+
+	IDirect3DVertexBuffer9_Lock(buf, 0, maxsize, &ctx->fallback, D3DLOCK_DISCARD);
+
+	ctx->pos = 0;
 }
 void D3D9BE_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
+	IDirect3DVertexBuffer9 *buf = ctx->vboptr[0];
+	memcpy((char*)ctx->fallback + ctx->pos, data, size);
+	varray->d3d.buff = buf;
+	varray->d3d.offs = ctx->pos;
+	ctx->pos += size;
 }
 void D3D9BE_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
 {
+	IDirect3DIndexBuffer9 *buf;
+	IDirect3DVertexBuffer9 *vbuf = ctx->vboptr[0];
+	IDirect3DVertexBuffer9_Unlock(vbuf);
+	ctx->fallback = NULL;
+
+	IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, esize, 0, D3DFMT_QINDEX, D3DPOOL_MANAGED, &buf, NULL);
+	ctx->vboptr[1] = buf;
+	IDirect3DIndexBuffer9_Lock(buf, 0, esize, &ctx->fallback, D3DLOCK_DISCARD);
+	memcpy(ctx->fallback, edata, esize);
+	IDirect3DIndexBuffer9_Unlock(buf);
+	ctx->fallback = NULL;
+
+	earray->d3d.buff = buf;
+	earray->d3d.offs = 0;
 }
 void D3D9BE_VBO_Destroy(vboarray_t *vearray)
 {
+	IUnknown *ebuf = vearray->d3d.buff;
+	if (ebuf)
+		ebuf->lpVtbl->Release(ebuf);
 }
 
 void D3D9BE_Scissor(srect_t *srect)

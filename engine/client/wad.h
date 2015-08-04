@@ -43,35 +43,22 @@ typedef struct
 	qbyte		data[4];			// variably sized
 } qpic_t;
 
-#ifdef GLQUAKE
-typedef struct
-{
-	int		texnum;
-	float	sl, tl, sh, th;
-} glpic_t;
-#endif
-
-/*
-//this is what's actually used.
-#define MPIC_ALPHA 1
-typedef struct	//use this so we don't have to go slow over pics, and don't have to shift too much data around.
-{
-	unsigned int	width;	//keeps alignment (which is handy in 32bit modes)
-	unsigned short	height;
-	qbyte flags;
-	qbyte pad;
-
-	union {
-		int dummy;
-#ifdef GLQUAKE
-		glpic_t gl;
-#endif
-	} d;
-	struct shader_s *shader;
-} mpic_t;
-*/
 typedef struct shader_s shader_t;
 #define mpic_t shader_t
+
+//atlased images within some larger atlas
+//must not be tiled etc
+typedef struct apic_s
+{
+	mpic_t	*atlas;
+	float	sl, tl, sh, th;
+	unsigned short x;
+	unsigned short y;
+	unsigned short width;
+	unsigned short height;
+
+	struct apic_s *next;
+} apic_t;
 
 extern	mpic_t		*draw_disc;	// also used on sbar
 

@@ -249,7 +249,7 @@ void SV_New_f (void)
 	if (dpcompat_nopreparse.ival && progstype != PROG_QW)
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "This server now has network preparsing disabled, and thus only supports NetQuake clients\n");
-		Con_Printf("%s was not using NQ protocols\n");
+		Con_Printf("%s was not using NQ protocols\n", host_client->name);
 		host_client->drop = true;
 		return;
 	}
@@ -475,7 +475,7 @@ void SVNQ_New_f (void)
 	if (dpcompat_nopreparse.ival && progstype == PROG_QW)
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "This server now has network preparsing disabled, and thus only supports QuakeWorld clients\n");
-		Con_Printf("%s was not using QW protocols\n");
+		Con_Printf("%s was not using QW protocols\n", host_client->name);
 		host_client->drop = true;
 		return;
 	}

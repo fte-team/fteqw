@@ -387,8 +387,10 @@ struct audiomenuinfo
 {
 	char **outdevnames;
 	char **outdevdescs;
+#ifdef VOICECHAT
 	char **capdevnames;
 	char **capdevdescs;
+#endif
 };
 void M_Menu_Audio_Remove(menu_t *menu)
 {
@@ -400,12 +402,14 @@ void M_Menu_Audio_Remove(menu_t *menu)
 	for (i = 0; info->outdevdescs[i]; i++)
 		Z_Free(info->outdevdescs[i]);
 	Z_Free(info->outdevdescs);
+#ifdef VOICECHAT
 	for (i = 0; info->capdevnames[i]; i++)
 		Z_Free(info->capdevnames[i]);
 	Z_Free(info->capdevnames);
 	for (i = 0; info->capdevdescs[i]; i++)
 		Z_Free(info->capdevdescs[i]);
 	Z_Free(info->capdevdescs);
+#endif
 }
 struct audiomenuinfo *M_Menu_Audio_Setup(menu_t *menu)
 {
@@ -1110,7 +1114,8 @@ void M_Menu_Textures_f (void)
 		MB_COMBOCVAR("2D Filter Mode", gl_texturemode2d, texture2dfilternames, texture2dfiltervalues, "Chooses the texture filtering method used for HUD, menus, and other 2D assets."),
 		MB_COMBOCVAR("Anisotropy", gl_texture_anisotropic_filtering, anisotropylevels, anisotropyvalues, NULL),
 		MB_SPACING(4),
-		MB_CHECKBOXCVAR("Deluxemapping", r_deluxemapping, 0),
+		MB_CHECKBOXCVAR("Software-style Rendering", r_softwarebanding_cvar, 0),
+		MB_CHECKBOXCVAR("Deluxemapping", r_deluxemapping_cvar, 0),
 		MB_CHECKBOXCVAR("Specular Highlights", gl_specular, 0),
 //		MB_CHECKBOXCVAR("Detail Textures", gl_detail, 0),
 		MB_CHECKBOXCVAR("offsetmapping", r_glsl_offsetmapping, 0),

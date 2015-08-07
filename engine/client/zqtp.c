@@ -2467,123 +2467,133 @@ typedef struct {
 	char	*modelname;
 	vec3_t	offset;		// offset of model graphics center
 	float	radius;		// model graphics radius
+	float	respawntime;// automatic respawn timer for mvds.
 	int		flags;		// TODO: "NOPICKUP" (disp), "TEAMENEMY" (flag, disp)
 } item_t;
 
 static item_t	tp_items[] = {
 	{	it_quad,	&tp_name_quad,	"progs/quaddama.mdl",
-		{0, 0, 24},	25,
+		{0, 0, 24},	25, 60
 	},
 	{	it_pent,	&tp_name_pent,	"progs/invulner.mdl",
-		{0, 0, 22},	25,
+		{0, 0, 22},	25, 5*60
 	},
 	{	it_ring,	&tp_name_ring,	"progs/invisibl.mdl",
-		{0, 0, 16},	12,
+		{0, 0, 16},	12, 5*60
 	},
 	{	it_suit,	&tp_name_suit,	"progs/suit.mdl",
-		{0, 0, 24}, 20,
+		{0, 0, 24}, 20, 60
 	},
 	{	it_lg,		&tp_name_lg,	"progs/g_light.mdl",
-		{0, 0, 30},	20,
+		{0, 0, 30},	20, 30
 	},
 	{	it_rl,		&tp_name_rl,	"progs/g_rock2.mdl",
-		{0, 0, 30},	20,
+		{0, 0, 30},	20, 30
 	},
 	{	it_gl,		&tp_name_gl,	"progs/g_rock.mdl",
-		{0, 0, 30},	20,
+		{0, 0, 30},	20, 30
 	},
 	{	it_sng,		&tp_name_sng,	"progs/g_nail2.mdl",
-		{0, 0, 30},	20,
+		{0, 0, 30},	20, 30
 	},
 	{	it_ng,		&tp_name_ng,	"progs/g_nail.mdl",
-		{0, 0, 30},	20,
+		{0, 0, 30},	20, 30
 	},
 	{	it_ssg,		&tp_name_ssg,	"progs/g_shot.mdl",
-		{0, 0, 30},	20,
+		{0, 0, 30},	20, 30
 	},
 	{	it_cells,	&tp_name_cells,	"maps/b_batt0.bsp",
-		{16, 16, 24},	18,
+		{16, 16, 24},	18, 30
 	},
 	{	it_cells,	&tp_name_cells,	"maps/b_batt1.bsp",
-		{16, 16, 24},	18,
+		{16, 16, 24},	18, 30
 	},
 	{	it_rockets,	&tp_name_rockets,"maps/b_rock0.bsp",
-		{8, 8, 20},	18,
+		{8, 8, 20},	18, 30
 	},
 	{	it_rockets,	&tp_name_rockets,"maps/b_rock1.bsp",
-		{16, 8, 20},	18,
+		{16, 8, 20},	18, 30
 	},
 	{	it_nails,	&tp_name_nails,	"maps/b_nail0.bsp",
-		{16, 16, 10},	18,
+		{16, 16, 10},	18, 30
 	},
 	{	it_nails,	&tp_name_nails,	"maps/b_nail1.bsp",
-		{16, 16, 10},	18,
+		{16, 16, 10},	18, 30
 	},
 	{	it_shells,	&tp_name_shells,"maps/b_shell0.bsp",
-		{16, 16, 10},	18,
+		{16, 16, 10},	18, 30
 	},
 	{	it_shells,	&tp_name_shells,"maps/b_shell1.bsp",
-		{16, 16, 10},	18,
+		{16, 16, 10},	18, 30
 	},
 	{	it_health,	&tp_name_health,"maps/b_bh10.bsp",
-		{16, 16, 8},	18,
+		{16, 16, 8},	18, 20
 	},
 	{	it_health,	&tp_name_health,"maps/b_bh25.bsp",
-		{16, 16, 8},	18,
+		{16, 16, 8},	18, 20
 	},
 	{	it_mh,		&tp_name_mh,	"maps/b_bh100.bsp",
-		{16, 16, 14},	20,
+		{16, 16, 14},	20, 0
 	},
 	{	it_pack,	&tp_name_backpack, "progs/backpack.mdl",
-		{0, 0, 18},	18,
+		{0, 0, 18},	18, 0
 	},
 	{	it_flag,	&tp_name_flag,	"progs/tf_flag.mdl",
-		{0, 0, 14},	25,
+		{0, 0, 14},	25, 0
 	},
 	{	it_flag,	&tp_name_flag,	"progs/tf_stan.mdl",
-		{0, 0, 45},	40,
+		{0, 0, 45},	40, 0
 	},
 	{	it_ra|it_ya|it_ga, NULL,	"progs/armor.mdl",
-		{0, 0, 24},	22,
+		{0, 0, 24},	22, 0
+	},
+	{	it_ga,		&tp_name_ga,		"progs/armor.mdl",
+		{0, 0, 24},	22, 20
+	},
+	{	it_ya,		&tp_name_ya,		"progs/armor.mdl",
+		{0, 0, 24},	22, 20
+	},
+	{	it_ra,		&tp_name_ra,		"progs/armor.mdl",
+		{0, 0, 24},	22, 20
 	},
 	{	it_flag,	&tp_name_flag,	"progs/w_g_key.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_flag,	&tp_name_flag,	"progs/w_s_key.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_flag,	&tp_name_flag,	"progs/m_g_key.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_flag,	&tp_name_flag,	"progs/m_s_key.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_flag,	&tp_name_flag,	"progs/b_s_key.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_flag,	&tp_name_flag,	"progs/b_g_key.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_flag,	&tp_name_flag,	"progs/flag.mdl",
-		{0, 0, 14},	25,
+		{0, 0, 14},	25, 0
 	},
 	{	it_runes,	&tp_name_rune_1,	"progs/end1.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_runes,	&tp_name_rune_2,	"progs/end2.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_runes,	&tp_name_rune_3,	"progs/end3.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_runes,	&tp_name_rune_4,	"progs/end4.mdl",
-		{0, 0, 20},	18,
+		{0, 0, 20},	18, 0
 	},
 	{	it_sentry, &tp_name_sentry, "progs/turrgun.mdl",
-		{0, 0, 23},	25,
+		{0, 0, 23},	25, 0
 	},
 	{	it_disp, &tp_name_disp,	"progs/disp.mdl",
-		{0, 0, 24},	25,
+		{0, 0, 24},	25, 0
 	}
 };
 
@@ -2612,18 +2622,16 @@ static void TP_FindModelNumbers (void)
 // on success, result is non-zero
 // on failure, result is zero
 // for armors, returns skinnum+1 on success
-static int FindNearestItem (int flags, item_t **pitem)
+static int FindNearestItem (vec3_t org, int flags, item_t **pitem)
 {
 	inframe_t		*frame;
 	packet_entities_t	*pak;
 	entity_state_t		*ent;
 	int	i = 0, bestidx = 0, bestskin = 0;
 	float bestdist = 0.0, dist = 0.0;
-	vec3_t	org, v;
+	vec3_t	v;
 	item_t	*item;
-
-	VectorCopy (cl.inframes[cl.validsequence&UPDATE_MASK]
-		.playerstate[cl.playerview[SP].playernum].origin, org);
+	entity_state_t *baseline;
 
 	// look in previous frame
 	frame = &cl.inframes[cl.oldvalidsequence&UPDATE_MASK];
@@ -2647,14 +2655,39 @@ static int FindNearestItem (int flags, item_t **pitem)
 
 		if (dist <= bestdist) {
 			bestdist = dist;
-			bestidx = ent->modelindex;
+			bestidx = ent->number;
 			bestskin = ent->skinnum;
 			*pitem = item;
 		}
 	}
 
+	if (!bestidx)
+	for (i=1; i<cl_baselines_count ; i++)
+	{
+		baseline = &cl_baselines[i];
+		item = model2item[baseline->modelindex];
+		if (!item)
+			continue;
+		if ( ! (item->itemflag & flags) )
+			continue;
+
+		VectorCopy(baseline->origin, v);
+		VectorSubtract (v, org, v);
+		VectorAdd (v, item->offset, v);
+		dist = VectorLength (v);
+//		Com_Printf ("%s %f\n", item->modelname, dist);
+
+		if (dist <= bestdist) {
+			bestdist = dist;
+			bestidx = i;
+			bestskin = baseline->skinnum;
+			*pitem = item;
+		}
+	}
+
 	if (bestidx && (*pitem)->itemflag == it_armor)
-		return bestskin + 1;	// 1=green, 2=yellow, 3=red
+		if (bestskin >= 0 && bestskin <= 3)
+			*pitem += bestskin + 1;
 
 	return bestidx;
 }
@@ -2708,7 +2741,7 @@ static qboolean CheckTrigger (void)
 	return count;
 }
 
-static void ExecTookTrigger (char *s, int flag, vec3_t org)
+static void ExecTookTrigger_ (char *s, int flag, vec3_t org)
 {
 	int pkflags_dmm, tookflags_dmm;
 
@@ -2730,6 +2763,34 @@ static void ExecTookTrigger (char *s, int flag, vec3_t org)
 
 	if ((tookflags_dmm & flag) && CheckTrigger())
 		TP_ExecTrigger ("f_took", false);
+}
+
+/*
+void TP_GetSimpleItemTexture ()
+{
+}
+*/
+
+static void TP_ItemTaken (char *s, int flag, vec3_t org, int entnum, item_t *item, int seat)
+{
+	if (seat == 0)
+		ExecTookTrigger_(s, flag, org);
+
+/*	if (entnum < cl_baselines_count && cl_baselines[entnum].modelindex && item && item->respawntime && (cl.spectator || cls.demoplayback))
+	{
+		struct itemtimer_s *timer = Z_Malloc(sizeof(*timer));
+		timer->next = cl.itemtimers;
+		cl.itemtimers = timer;
+		timer->origin[0] = cl_baselines[entnum].origin[0] + item->offset[0];
+		timer->origin[1] = cl_baselines[entnum].origin[1] + item->offset[1];
+		timer->origin[2] = cl_baselines[entnum].origin[2];
+		timer->start = cl.time;
+		timer->duration = item->respawntime;
+		timer->end = cl.time + item->respawntime;
+		timer->radius = item->radius;
+		timer->entnum = entnum;
+	}
+*/
 }
 
 void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info)
@@ -2763,7 +2824,7 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 	{
 		if ((state->effects & (QWEF_FLAG1|QWEF_FLAG2)) && !(oldstate->effects & (QWEF_FLAG1|QWEF_FLAG2)))
 		{
-			ExecTookTrigger (tp_name_flag.string, it_flag, cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[cl.playerview[SP].playernum].origin);
+			ExecTookTrigger_ (tp_name_flag.string, it_flag, cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[cl.playerview[SP].playernum].origin);
 		}
 		else if (!(state->effects & (QWEF_FLAG1|QWEF_FLAG2)) && (oldstate->effects & (QWEF_FLAG1|QWEF_FLAG2)))
 		{
@@ -2773,24 +2834,47 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 	}
 }
 
-void TP_CheckPickupSound (char *s, vec3_t org)
+void TP_CheckPickupSound (char *s, vec3_t org, int seat)
 {
+	int entnum;
+	item_t	*item;
+	//if we're spectating, we don't want to do any actual triggers, so pretend it was someone else.
 	if (cl.spectator)
-		return;
+		seat = -1;
+
+	//FIXME: on items/itembk2.wav kill relevant item timer.
 
 	if (!strcmp(s, "items/damage.wav"))
-		ExecTookTrigger (tp_name_quad.string, it_quad, org);
+	{
+		entnum = FindNearestItem (org, it_quad, &item);
+		TP_ItemTaken (tp_name_quad.string, it_quad, org, entnum, item, seat);
+	}
 	else if (!strcmp(s, "items/protect.wav"))
-		ExecTookTrigger (tp_name_pent.string, it_pent, org);
+	{
+		entnum = FindNearestItem (org, it_pent, &item);
+		TP_ItemTaken (tp_name_pent.string, it_pent, org, entnum, item, seat);
+	}
 	else if (!strcmp(s, "items/inv1.wav"))
-		ExecTookTrigger (tp_name_ring.string, it_ring, org);
+	{
+		entnum = FindNearestItem (org, it_ring, &item);
+		TP_ItemTaken (tp_name_ring.string, it_ring, org, entnum, item, seat);
+	}
 	else if (!strcmp(s, "items/suit.wav"))
-		ExecTookTrigger (tp_name_suit.string, it_suit, org);
+	{
+		entnum = FindNearestItem (org, it_suit, &item);
+		TP_ItemTaken (tp_name_suit.string, it_suit, org, entnum, item, seat);
+	}
 	else if (!strcmp(s, "items/health1.wav") ||
 			 !strcmp(s, "items/r_item1.wav"))
-		ExecTookTrigger (tp_name_health.string, it_health, org);
+	{
+		entnum = FindNearestItem (org, it_health, &item);
+		TP_ItemTaken (tp_name_health.string, it_health, org, entnum, item, seat);
+	}
 	else if (!strcmp(s, "items/r_item2.wav"))
-		ExecTookTrigger (tp_name_mh.string, it_mh, org);
+	{
+		entnum = FindNearestItem (org, it_mh, &item);
+		TP_ItemTaken (tp_name_mh.string, it_mh, org, entnum, item, seat);
+	}
 	else
 		goto more;
 	return;
@@ -2802,27 +2886,26 @@ more:
 	// weapons
 	if (!strcmp(s, "weapons/pkup.wav"))
 	{
-		item_t	*item;
-		if (FindNearestItem (it_weapons, &item)) {
-			ExecTookTrigger (item->cvar->string, item->itemflag, org);
-		}
-		else
+		entnum = FindNearestItem (org, it_weapons, &item);
+		if (item)
+			TP_ItemTaken (item->cvar->string, item->itemflag, org, entnum, item, seat);
+		else if (seat >= 0)
 		{
 			// we don't know what entity caused the sound, try to guess...
 			if (vars.stat_framecounts[STAT_ITEMS] == cls.framecount)
 			{
 				if (vars.items & ~vars.olditems & IT_LIGHTNING)
-					ExecTookTrigger (tp_name_lg.string, it_lg, cl.playerview[SP].simorg);
+					TP_ItemTaken (tp_name_lg.string, it_lg, cl.playerview[SP].simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_ROCKET_LAUNCHER)
-					ExecTookTrigger (tp_name_rl.string, it_rl, cl.playerview[SP].simorg);
+					TP_ItemTaken (tp_name_rl.string, it_rl, cl.playerview[SP].simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_GRENADE_LAUNCHER)
-					ExecTookTrigger (tp_name_gl.string, it_gl, cl.playerview[SP].simorg);
+					TP_ItemTaken (tp_name_gl.string, it_gl, cl.playerview[SP].simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_SUPER_NAILGUN)
-					ExecTookTrigger (tp_name_sng.string, it_sng, cl.playerview[SP].simorg);
+					TP_ItemTaken (tp_name_sng.string, it_sng, cl.playerview[SP].simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_NAILGUN)
-					ExecTookTrigger (tp_name_ng.string, it_ng, cl.playerview[SP].simorg);
+					TP_ItemTaken (tp_name_ng.string, it_ng, cl.playerview[SP].simorg, entnum, item, seat);
 				else if (vars.items & ~vars.olditems & IT_SUPER_SHOTGUN)
-					ExecTookTrigger (tp_name_ssg.string, it_ssg, cl.playerview[SP].simorg);
+					TP_ItemTaken (tp_name_ssg.string, it_ssg, cl.playerview[SP].simorg, entnum, item, seat);
 			}
 		}
 		return;
@@ -2833,16 +2916,20 @@ more:
 	{
 		item_t	*item;
 		qbool armor_updated;
-		int armortype;
 
 		armor_updated = (vars.stat_framecounts[STAT_ARMOR] == cls.framecount);
-		armortype = FindNearestItem (it_armor, &item);
-		if (armortype == 1 || (!armortype && armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 100))
-			ExecTookTrigger (tp_name_ga.string, it_ga, org);
-		else if (armortype == 2 || (!armortype && armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 150))
-			ExecTookTrigger (tp_name_ya.string, it_ya, org);
-		else if (armortype == 3 || (!armortype && armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 200))
-			ExecTookTrigger (tp_name_ra.string, it_ra, org);
+		entnum = FindNearestItem (org, it_armor, &item);
+		if (item)
+			TP_ItemTaken (item->cvar->string, item->itemflag, org, entnum, item, seat);
+		else if (seat >= 0)
+		{
+			if (armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 100)
+				TP_ItemTaken (tp_name_ga.string, it_ga, org, entnum, NULL, seat);
+			else if (armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 150)
+				TP_ItemTaken (tp_name_ya.string, it_ya, org, entnum, NULL, seat);
+			else if (armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 200)
+				TP_ItemTaken (tp_name_ra.string, it_ra, org, entnum, NULL, seat);
+		}
 		return;
 	}
 
@@ -2850,9 +2937,10 @@ more:
 	if (!strcmp (s, "weapons/lock4.wav"))
 	{
 		item_t	*item;
-		if (!FindNearestItem (it_ammo|it_pack|it_runes, &item))
+		entnum = FindNearestItem (org, it_ammo|it_pack|it_runes, &item);
+		if (!item && seat < 0)
 			return;
-		ExecTookTrigger (item->cvar->string, item->itemflag, org);
+		TP_ItemTaken (item->cvar->string, item->itemflag, org, entnum, item, seat);
 	}
 }
 
@@ -3290,7 +3378,7 @@ void TP_StatChanged (int stat, int value)
 		if (i & (IT_KEY1|IT_KEY2)) {
 			if (cl.teamfortress && !cl.spectator)
 			{
-				ExecTookTrigger (tp_name_flag.string, it_flag,
+				ExecTookTrigger_ (tp_name_flag.string, it_flag,
 						cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[SP].playernum].origin);
 			}
 		}

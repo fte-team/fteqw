@@ -36,6 +36,14 @@ int Doom_SectorNearPoint(vec3_t p);
 //4. That ALL sectors are fully enclosed, and not made of two areas.
 //5. That no sectors are inside out.
 
+/*FIXME:
+we need to do a bsp2prt type thing (walk nodes and determine actual leaf/ssector shapes based upon those).
+build sector geometry based upon this.
+this is because flats in doom were implemented using a flood-fill algorithm and thus omits various unecessary inner edges, while 3d rendering apis all need tri-soup instead.
+attempting to generate sane volumes from most doom maps is doomed to failure because quite often the sector values on linedefs is just buggy, resulting in some really whacky polygons that cannot be souped in any meaningful way.
+this may still result in a mess of floor polygons outside the world, so be sure to draw those last, for early-z.
+*/
+
 enum {
 	THING_PLAYER		= 1,
 	THING_PLAYER2		= 2,

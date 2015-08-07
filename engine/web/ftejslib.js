@@ -325,8 +325,6 @@ mergeInto(LibraryManager.library,
 				});
 			});
 		}
-		if (Module.print === undefined)
-			Module.print = function(msg){console.log(msg);};
 		var ctx = Browser.createContext(Module['canvas'], true, true);
 		if (ctx == null)
 		{
@@ -375,10 +373,38 @@ mergeInto(LibraryManager.library,
 	{
 		document.title = Pointer_stringify(txt);
 	},
-	emscriptenfte_abortmainloop : function(msg)
+	emscriptenfte_abortmainloop : function(fname)
 	{
-		msg = Pointer_stringify(msg);
-		throw 'oh noes! something bad happened in ' + msg + '!';
+		fname = Pointer_stringify(fname);
+		throw 'oh noes! something bad happened in ' + fname + '!\n' + Module['stackTrace']();
+	},
+
+	emscriptenfte_setupmainloop : function(fnc)
+	{
+		Module['noExitRuntime'] = true;
+
+		//Module.abort = abort = function(msg) {};
+
+		Module["sched"] = function()
+		{
+			var dovsync = false;
+			if (ABORT)
+				return;
+			try
+			{
+				dovsync = Runtime.dynCall('i', fnc, []);
+			}
+			catch(err)
+			{
+				console.log(err);
+			}
+			if (dovsync)
+				Browser.requestAnimationFrame(Module["sched"]);
+			else
+				setTimeout(Module["sched"], 0);
+		};
+		//don't start it instantly, so we can distinguish between types of errors (emscripten sucks!).
+		setTimeout(Module["sched"], 1);
 	},
 
 	emscriptenfte_ticks_ms : function()

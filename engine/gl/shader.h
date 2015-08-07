@@ -37,8 +37,6 @@ typedef void (shader_gen_t)(const char *name, shader_t*, const void *args);
 #define SHADER_DEFORM_MAX	8
 #define SHADER_MAX_ANIMFRAMES	16
 
-#define SHADER_PROGPARMS_MAX 16
-
 typedef enum {
 	SHADER_BSP,
 	SHADER_BSP_VERTEX,
@@ -427,48 +425,50 @@ typedef struct {
 		float fval;
 		void *pval;
 	};
+	unsigned int handle;
 } shaderprogparm_t;
-
-union programhandle_u
-{
-	struct
-	{
-		int handle;
-		qboolean usetesselation;
-	} glsl;
-#ifdef D3DQUAKE
-	struct
-	{
-		void *vert;
-		void *frag;
-		#ifdef D3D9QUAKE
-			void *ctabf;
-			void *ctabv;
-		#endif
-		#ifdef D3D11QUAKE
-			int topology;	//D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST
-			void *hull;
-			void *domain;
-			void *geom;
-			void *layout;
-		#endif
-	} hlsl;
-#endif
-};
 
 typedef struct programshared_s
 {
 	int refs;
 	qboolean nofixedcompat;
-	unsigned short numparams;
 	unsigned short numsamplers;	//shader system can strip any passes above this
 	unsigned int defaulttextures;	//diffuse etc
-	shaderprogparm_t parm[SHADER_PROGPARMS_MAX];
-	struct {
-		union programhandle_u handle;
+	struct programpermu_s
+	{
+		union programhandle_u
+		{
+			qintptr_t loaded;	//generic code must be able to test this to see if its valid. if not 0, then its considered loaded
+		#ifdef GLQUAKE
+			struct
+			{
+				int handle;
+				qboolean usetesselation;
+			} glsl;
+		#endif
+		#ifdef D3DQUAKE
+			struct
+			{
+				void *vert;
+				void *frag;
+				#ifdef D3D9QUAKE
+					void *ctabf;
+					void *ctabv;
+				#endif
+				#ifdef D3D11QUAKE
+					int topology;	//D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST
+					void *hull;
+					void *domain;
+					void *geom;
+					void *layout;
+				#endif
+			} hlsl;
+		#endif
+		} h;
 		unsigned int attrmask;
 		unsigned int texmask;	//'standard' textures that are in use
-		unsigned int parm[SHADER_PROGPARMS_MAX];
+		unsigned int numparms;
+		shaderprogparm_t *parm;
 	} permu[PERMUTATIONS];
 } program_t;
 
@@ -684,7 +684,7 @@ typedef struct
 	qboolean (*pLoadBlob)		(program_t *prog, const char *name, unsigned int permu, vfsfile_t *blobfile);
 	qboolean (*pCreateProgram)	(program_t *prog, const char *name, unsigned int permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 	qboolean (*pValidateProgram)(program_t *prog, const char *name, unsigned int permu, qboolean noerrors, vfsfile_t *blobfile);
-	void	 (*pProgAutoFields)	(program_t *prog, char **cvarnames, int *cvartypes);
+	void	 (*pProgAutoFields)	(program_t *prog, const char *name, char **cvarnames, int *cvartypes);
 } sh_config_t;
 extern sh_config_t sh_config;
 #endif

@@ -44,6 +44,8 @@ http://prideout.net/archive/bloom/ contains some sample code
 #ifdef GLQUAKE
 #include "shader.h"
 #include "glquake.h"
+#include "gl_draw.h"
+
 cvar_t		r_bloom = CVARAFD("r_bloom", "0", "gl_bloom", CVAR_ARCHIVE, "Enables bloom (light bleeding from bright objects). Fractional values reduce the amount shown.");
 cvar_t		r_bloom_filter = CVARD("r_bloom_filter", "0.7 0.7 0.7", "Controls how bright the image must get before it will bloom (3 separate values, in RGB order).");
 cvar_t		r_bloom_size = CVARD("r_bloom_size", "4", "Target bloom kernel size (assuming a video width of 320).");
@@ -204,10 +206,17 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 		TEXASSIGN(pingtex[0][0], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
 		Image_Upload(pingtex[0][0], TF_RGBA32, NULL, NULL, texwidth[0], texheight[0], IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR);
 	}
+
+	if (R2D_Flush)
+		R2D_Flush();
+
 	oldfbo = GLBE_FBO_Update(&fbo_bloom, 0, &pingtex[0][0], 1, r_nulltex, 0, 0, 0);
 	GLBE_FBO_Sources(source, r_nulltex);
 	qglViewport (0, 0, texwidth[0], texheight[0]);
 	R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomfilter);
+
+	if (R2D_Flush)
+		R2D_Flush();
 
 	intex = pingtex[0][0];
 
@@ -227,6 +236,8 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 			Image_Upload(pingtex[1][i], TF_RGBA32, NULL, NULL, texwidth[i], texheight[i], IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR);
 		}
 
+		if (R2D_Flush)
+			R2D_Flush();
 		//downsize the blur, for added accuracy
 		if (i > 0 && r_bloom_downsize.ival)
 		{
@@ -235,6 +246,8 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 			GLBE_FBO_Sources(pingtex[0][i-1], r_nulltex);
 			qglViewport (0, 0, texwidth[i], texheight[i]);
 			R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomrescale);
+			if (R2D_Flush)
+				R2D_Flush();
 			intex = pingtex[0][i];
 			r_worldentity.glowmod[0] = 1.0 / intex->width;
 		}
@@ -247,6 +260,8 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 		qglViewport (0, 0, pingtex[1][i]->width, pingtex[1][i]->height);
 		BE_SelectEntity(&r_worldentity);
 		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
+		if (R2D_Flush)
+			R2D_Flush();
 
 		r_worldentity.glowmod[0] = 0;
 		r_worldentity.glowmod[1] = 1.0 / pingtex[1][i]->height;
@@ -260,6 +275,9 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 	}
 	r_worldentity.glowmod[0] = 0;
 	r_worldentity.glowmod[1] = 0;
+
+	if (R2D_Flush)
+		R2D_Flush();
 
 	GL_Set2D(false);
 

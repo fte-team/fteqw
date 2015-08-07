@@ -39,8 +39,13 @@ void QDECL SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
 
+#ifdef FTE_TARGET_WEB	//webgl sucks too much to get a stable framerate without vsync.
+cvar_t vid_vsync							= CVARAF  ("vid_wait", "1",
+													   "vid_vsync", CVAR_ARCHIVE);
+#else
 cvar_t vid_vsync							= CVARAF  ("vid_wait", "0",
 													   "vid_vsync", CVAR_ARCHIVE);
+#endif
 
 cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",
 													 CVAR_ARCHIVE);
@@ -71,7 +76,7 @@ cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "1",
 												CVAR_ARCHIVE,
 												"Enables particle interaction with world surfaces, allowing for bouncy particles, stains, and decals.");
 cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
-cvar_t r_drawflat							= CVARF ("r_drawflat", "0",
+cvar_t r_drawflat							= CVARAF ("r_drawflat", "0", "gl_textureless",
 												CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t r_wireframe							= CVARFD ("r_wireframe", "0",
 												CVAR_CHEAT, "Developer feature where everything is drawn with wireframe over the top. Only active where cheats are permitted.");
@@ -135,7 +140,8 @@ cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
 cvar_t r_skyboxname							= SCVARF ("r_skybox", "",
 												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
-cvar_t r_softwarebanding					= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
+cvar_t r_softwarebanding_cvar				= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
+qboolean r_softwarebanding;
 cvar_t r_speeds								= SCVAR ("r_speeds", "0");
 cvar_t r_stainfadeammount					= SCVAR  ("r_stainfadeammount", "1");
 cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
@@ -283,8 +289,9 @@ cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t gl_ati_truform_tesselation			= CVAR  ("gl_ati_truform_tesselation", "3");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
-cvar_t r_deluxemapping						= CVARAFD ("r_deluxemapping", "0", "r_glsl_deluxemapping",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Enables bumpmapping based upon precomputed light directions");
+cvar_t r_deluxemapping_cvar					= CVARAFD ("r_deluxemapping", "0", "r_glsl_deluxemapping",
+												CVAR_ARCHIVE, "Enables bumpmapping based upon precomputed light directions");
+qboolean r_deluxemapping;
 cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
 cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
 cvar_t gl_conback							= CVARFDC ("gl_conback", "",
@@ -451,7 +458,7 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
-	Cvar_Register (&r_deluxemapping, GRAPHICALNICETIES);
+	Cvar_Register (&r_deluxemapping_cvar, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
@@ -668,7 +675,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
 	Cbuf_AddText("alias sky r_skybox\n", RESTRICT_LOCAL);	/*alternative name for users*/
-	Cvar_Register (&r_softwarebanding, GRAPHICALNICETIES);
+	Cvar_Register (&r_softwarebanding_cvar, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_dodgytgafiles, "Bug fixes");
 	Cvar_Register(&r_dodgypcxfiles, "Bug fixes");
@@ -1110,6 +1117,9 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 	pmove.numphysent = 0;
 	pmove.physents[0].model = NULL;
+
+	r_softwarebanding = r_softwarebanding_cvar.ival;
+	r_deluxemapping = r_deluxemapping_cvar.ival;
 
 	if (qrenderer != QR_NONE)	//graphics stuff only when not dedicated
 	{

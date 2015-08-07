@@ -346,6 +346,25 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				INS_RawInput_Read((HANDLE)lParam);
 			break;
 
+		case WM_SETCURSOR:
+			//only use a custom cursor if the cursor is inside the client area
+			switch(lParam&0xffff)
+			{
+			case 0:
+				break;
+			case HTCLIENT:
+				if (hCustomCursor)	//custom cursor enabled
+					SetCursor(hCustomCursor);
+				else				//fallback on an arrow cursor, just so we have something visible at startup or so
+					SetCursor(hArrowCursor);
+				lRet = TRUE;
+				break;
+			default:
+				lRet = DefWindowProcW (hWnd, uMsg, wParam, lParam);
+				break;
+			}
+			break;
+
 		case WM_GETMINMAXINFO:
 			{
 				RECT windowrect;
@@ -665,7 +684,7 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 		CLASSNAME
 	};
 
-	wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
+	wc.hCursor       = hArrowCursor = LoadCursor (NULL,IDC_ARROW);
 
 	vid_initializing = true;
 
@@ -733,6 +752,12 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	}
 
 //	D3D9BE_Reset(false);
+
+	//FIXME: old hardware is not guarenteed to support hardware cursors.
+	//this should not be a problem on dx9+ hardware, but might on earlier stuff.
+	rf->VID_CreateCursor = WIN_CreateCursor;
+	rf->VID_DestroyCursor = WIN_DestroyCursor;
+	rf->VID_SetCursor = WIN_SetCursor;
 
 	return true;
 }

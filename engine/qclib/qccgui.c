@@ -67,6 +67,7 @@ void GUI_RevealOptions(void);
 #define SCI_STYLESETITALIC 2054
 #define SCI_STYLESETSIZE 2055
 #define SCI_STYLESETFONT 2056
+#define SCI_STYLERESETDEFAULT 2058
 #define SCI_STYLESETUNDERLINE 2059
 #define SCI_STYLESETCASE 2060
 #define SCI_AUTOCSHOW 2100
@@ -160,6 +161,7 @@ void GUI_RevealOptions(void);
 #define SCE_C_TASKMARKER 26
 #define SCE_C_ESCAPESEQUENCE 27
 
+#define STYLE_DEFAULT 32
 #define STYLE_BRACELIGHT 34
 #define STYLE_BRACEBAD 35
 #define STYLE_LASTPREDEFINED 39
@@ -872,6 +874,11 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 	if (scintillaokay)
 	{
 		FILE *f;
+
+		SendMessage(newc, SCI_STYLERESETDEFAULT, 0, 0);
+		SendMessage(newc, SCI_STYLESETFONT, STYLE_DEFAULT, (LPARAM)"Consolas");
+		SendMessage(newc, SCI_STYLECLEARALL, 0, 0);
+
 		SendMessage(newc, SCI_SETCODEPAGE, SC_CP_UTF8, 0);
 		SendMessage(newc, SCI_SETLEXER,		SCLEX_CPP,						0);
 		SendMessage(newc, SCI_STYLESETFORE, SCE_C_DEFAULT,					RGB(0x00, 0x00, 0x00));
@@ -989,6 +996,8 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 				if (c[0] == '#')
 					continue;
 				if (c[0] == '/' && c[1] == '/')
+					continue;
+				if (c[0] == '\r' || c[0] == '\n' || !c[0])
 					continue;
 				msg = strtoul(c, &c, 0);
 				while(*c == ' ' || *c == '\t')
@@ -1627,7 +1636,7 @@ char *GetTooltipText(editor_t *editor, int pos, pbool dwell)
 static void scin_get_line_indent(HWND editpane, int lineidx, char *indentbuf, size_t sizeofbuf)
 {
 	int i;
-	int len;
+	size_t len;
 	while (lineidx --> 0)
 	{
 		len = SendMessage(editpane, SCI_LINELENGTH, lineidx, 0);
@@ -3157,7 +3166,28 @@ void RunEngine(void)
 	PostMessage(mainwindow, WM_SIZE, 0, 0);
 }
 
+static void SetProgsSrcFileAndPath(char *filename)
+{
+	char *s, *s2;
+	strcpy(progssrcdir, filename);
+	for(s = progssrcdir; s; s = s2)
+	{
+		s2 = strchr(s+1, '\\');
+		if (!s2)
+			break;
+		s = s2;
+	}
+	if (s)
+	{
+		*s = '\0';
+		strcpy(progssrcname, s+1);
+	}
+	else
+		strcpy(progssrcname, filename);
 
+	SetCurrentDirectory(progssrcdir);
+	*progssrcdir = '\0';
+}
 
 HWND targitem_hexen2;
 HWND targitem_fte;
@@ -3219,7 +3249,6 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 			break;
 		case IDI_O_CHANGE_PROGS_SRC:
 			{
-				char *s, *s2;
 				char filename[MAX_PATH];
 				char oldpath[MAX_PATH+10];
 				OPENFILENAME ofn;
@@ -3235,24 +3264,7 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 				ofn.lpstrInitialDir = oldpath;
 				if (GetOpenFileName(&ofn))
 				{
-					strcpy(progssrcdir, filename);
-					for(s = progssrcdir; s; s = s2)
-					{
-						s2 = strchr(s+1, '\\');
-						if (!s2)
-							break;
-						s = s2;
-					}
-					if (s)
-					{
-						*s = '\0';
-						strcpy(progssrcname, s+1);
-					}
-					else
-						strcpy(progssrcname, filename);
-
-					SetCurrentDirectory(progssrcdir);
-					*progssrcdir = '\0';
+					SetProgsSrcFileAndPath(filename);
 				}
 				resetprogssrc = true;
 			}
@@ -3764,6 +3776,9 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 			CLIENTCREATESTRUCT ccs;
 
 			HMENU rootmenu, windowmenu, m;
+
+			DragAcceptFiles(hWnd, TRUE);
+
 			rootmenu = CreateMenu();
 			
 				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&File");
@@ -3873,7 +3888,22 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd,UINT message,
 	case WM_CTLCOLORBTN:
 		return (LRESULT)GetSysColorBrush(COLOR_HIGHLIGHT);//COLOR_BACKGROUND;
 	case WM_DESTROY:
+		DragAcceptFiles(hWnd, FALSE);
 		mainwindow = NULL;
+		break;
+
+	case WM_DROPFILES:
+		{
+			HDROP p = (HDROP)wParam;
+			char fname[MAX_PATH];
+			if (DragQueryFile(p, ~0, (LPSTR) NULL, 0) == 1)
+			{
+				DragQueryFile(p, 0, fname, sizeof(fname));
+				SetProgsSrcFileAndPath(fname);
+				resetprogssrc = true;
+			}
+			DragFinish(p);
+		}
 		break;
 
 	case WM_SIZE:
@@ -4858,8 +4888,9 @@ void AddSourceFile(const char *parentpath, const char *filename)
 	}
 }
 
+//called when progssrcname has changed.
 //progssrcname should already have been set.
-void SetProgsSrc(void)
+void UpdateFileList(void)
 {
 	FILE *f;
 
@@ -5128,7 +5159,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (resetprogssrc)
 		{	//this here, with the compiler below, means that we don't run recursivly.
 			resetprogssrc = false;
-			SetProgsSrc();
+			UpdateFileList();
 		}
 
 		EditorsRun();

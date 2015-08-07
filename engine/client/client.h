@@ -753,6 +753,7 @@ typedef struct
 	float gametimemark;
 	float oldgametime;		//used as the old time to lerp cl.time from.
 	float oldgametimemark;	//if it's 0, cl.time will casually increase.
+	float demogametimebias;	//mvd timings are weird.
 
 	float minpitch;
 	float maxpitch;
@@ -828,6 +829,18 @@ typedef struct
 	vec3_t prediction_error;
 	float predicted_step_time;
 	float predicted_step;
+
+
+	struct itemtimer_s
+	{
+		float end;
+		int entnum;
+		float start;
+		float duration;
+		vec3_t origin;
+		float radius;
+		struct itemtimer_s *next;
+	} *itemtimers;
 
 	//interpolation+snapshots
 	float	packfrac;
@@ -1354,7 +1367,7 @@ void QDECL vectoangles(vec3_t fwd, vec3_t ang);
 
 void		CL_Say (qboolean team, char *extra);
 int			TP_CategorizeMessage (char *s, int *offset, player_info_t **plr);
-void		TP_CheckPickupSound(char *s, vec3_t org);
+void		TP_CheckPickupSound(char *s, vec3_t org, int seat);
 qboolean	TP_CheckSoundTrigger (char *str);
 int			TP_CountPlayers (void);
 char*		TP_EnemyName (void);

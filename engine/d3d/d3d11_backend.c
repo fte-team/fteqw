@@ -1946,20 +1946,20 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		shaderstate.lcbuffer							//light buffer that changes rarelyish
 	};
 	//FIXME: how many of these calls can we avoid?
-	ID3D11DeviceContext_IASetInputLayout(d3ddevctx, prog->permu[permu].handle.hlsl.layout);
-	ID3D11DeviceContext_VSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.vert, NULL, 0);
-	ID3D11DeviceContext_HSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.hull, NULL, 0);
-	ID3D11DeviceContext_DSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.domain, NULL, 0);
-	ID3D11DeviceContext_GSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.geom, NULL, 0);
-	ID3D11DeviceContext_PSSetShader(d3ddevctx, prog->permu[permu].handle.hlsl.frag, NULL, 0);
-	ID3D11DeviceContext_IASetPrimitiveTopology(d3ddevctx, prog->permu[permu].handle.hlsl.topology);
+	ID3D11DeviceContext_IASetInputLayout(d3ddevctx, prog->permu[permu].h.hlsl.layout);
+	ID3D11DeviceContext_VSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.vert, NULL, 0);
+	ID3D11DeviceContext_HSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.hull, NULL, 0);
+	ID3D11DeviceContext_DSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.domain, NULL, 0);
+	ID3D11DeviceContext_GSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.geom, NULL, 0);
+	ID3D11DeviceContext_PSSetShader(d3ddevctx, prog->permu[permu].h.hlsl.frag, NULL, 0);
+	ID3D11DeviceContext_IASetPrimitiveTopology(d3ddevctx, prog->permu[permu].h.hlsl.topology);
 
 	ID3D11DeviceContext_VSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
-	if (prog->permu[permu].handle.hlsl.hull)
+	if (prog->permu[permu].h.hlsl.hull)
 		ID3D11DeviceContext_HSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
-	if (prog->permu[permu].handle.hlsl.domain)
+	if (prog->permu[permu].h.hlsl.domain)
 		ID3D11DeviceContext_DSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
-	if (prog->permu[permu].handle.hlsl.geom)
+	if (prog->permu[permu].h.hlsl.geom)
 		ID3D11DeviceContext_GSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 	ID3D11DeviceContext_PSSetConstantBuffers(d3ddevctx, 0, 3, cbuf);
 }
@@ -1971,13 +1971,13 @@ static void BE_RenderMeshProgram(const shader_t *s, unsigned int vertcount, unsi
 
 	program_t *p = s->prog;
 
-	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.hlsl.vert)
+	if (TEXLOADED(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.hlsl.vert)
+	if (TEXLOADED(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (p->permu[perm|PERMUTATION_UPPERLOWER].handle.hlsl.vert && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
+	if (p->permu[perm|PERMUTATION_UPPERLOWER].h.loaded && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].handle.hlsl.vert)
+	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].h.loaded)
 		perm |= PERMUTATION_FOG;
 //	if (r_glsl_offsetmapping.ival && TEXLOADED(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET.hlsl.vert)
 //		perm |= PERMUTATION_OFFSET;

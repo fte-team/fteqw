@@ -1,7 +1,3 @@
-Module['preRun'] = function()
-{
-};
-
 {
 	Module['arguments'] = ['-nohome'];
 

@@ -220,9 +220,9 @@ void D3D11Shader_DeleteProg(program_t *prog, unsigned int permu)
 	ID3D11InputLayout *layout;
 	ID3D11PixelShader *frag;
 	ID3D11VertexShader *vert;
-	vert = prog->permu[permu].handle.hlsl.vert;
-	frag = prog->permu[permu].handle.hlsl.frag;
-	layout = prog->permu[permu].handle.hlsl.layout;
+	vert = prog->permu[permu].h.hlsl.vert;
+	frag = prog->permu[permu].h.hlsl.frag;
+	layout = prog->permu[permu].h.hlsl.layout;
 	if (vert)
 		ID3D11VertexShader_Release(vert);
 	if (frag)
@@ -241,25 +241,25 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 {
 	qboolean success = true;
 
-	if (FAILED(ID3D11Device_CreateVertexShader(pD3DDev11, vblob, vsize, NULL, (ID3D11VertexShader**)&prog->permu[permu].handle.hlsl.vert)))
+	if (FAILED(ID3D11Device_CreateVertexShader(pD3DDev11, vblob, vsize, NULL, (ID3D11VertexShader**)&prog->permu[permu].h.hlsl.vert)))
 		success = false;
 
 	if (hblob || dblob)
 	{
-		prog->permu[permu].handle.hlsl.topology = D3D11_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
-		if (FAILED(ID3D11Device_CreateHullShader(pD3DDev11, hblob, hsize, NULL, (ID3D11HullShader**)&prog->permu[permu].handle.hlsl.hull)))
+		prog->permu[permu].h.hlsl.topology = D3D11_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
+		if (FAILED(ID3D11Device_CreateHullShader(pD3DDev11, hblob, hsize, NULL, (ID3D11HullShader**)&prog->permu[permu].h.hlsl.hull)))
 			success = false;
 
-		if (FAILED(ID3D11Device_CreateDomainShader(pD3DDev11, dblob, dsize, NULL, (ID3D11DomainShader**)&prog->permu[permu].handle.hlsl.domain)))
+		if (FAILED(ID3D11Device_CreateDomainShader(pD3DDev11, dblob, dsize, NULL, (ID3D11DomainShader**)&prog->permu[permu].h.hlsl.domain)))
 			success = false;
 	}
 	else
-		prog->permu[permu].handle.hlsl.topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+		prog->permu[permu].h.hlsl.topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
-	if (gblob && FAILED(ID3D11Device_CreateGeometryShader(pD3DDev11, gblob, gsize, NULL, (ID3D11GeometryShader**)&prog->permu[permu].handle.hlsl.geom)))
+	if (gblob && FAILED(ID3D11Device_CreateGeometryShader(pD3DDev11, gblob, gsize, NULL, (ID3D11GeometryShader**)&prog->permu[permu].h.hlsl.geom)))
 		success = false;
 
-	if (FAILED(ID3D11Device_CreatePixelShader(pD3DDev11, fblob, fsize, NULL, (ID3D11PixelShader**)&prog->permu[permu].handle.hlsl.frag)))
+	if (FAILED(ID3D11Device_CreatePixelShader(pD3DDev11, fblob, fsize, NULL, (ID3D11PixelShader**)&prog->permu[permu].h.hlsl.frag)))
 		success = false;
 
 	if (success)
@@ -350,7 +350,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
 */
-		if (FAILED(ID3D11Device_CreateInputLayout(pD3DDev11, decl, elements, vblob, vsize, (ID3D11InputLayout**)&prog->permu[permu].handle.hlsl.layout)))
+		if (FAILED(ID3D11Device_CreateInputLayout(pD3DDev11, decl, elements, vblob, vsize, (ID3D11InputLayout**)&prog->permu[permu].h.hlsl.layout)))
 		{
 			Con_Printf("HLSL Shader %s requires unsupported inputs\n", name);
 			success = false;
@@ -479,12 +479,12 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 		fsformat = "ps_4_0_level_9_1";
 	}
 
-	prog->permu[permu].handle.hlsl.vert = NULL;
-	prog->permu[permu].handle.hlsl.frag = NULL;
-	prog->permu[permu].handle.hlsl.hull = NULL;
-	prog->permu[permu].handle.hlsl.domain = NULL;
-	prog->permu[permu].handle.hlsl.geom = NULL;
-	prog->permu[permu].handle.hlsl.layout = NULL;
+	prog->permu[permu].h.hlsl.vert = NULL;
+	prog->permu[permu].h.hlsl.frag = NULL;
+	prog->permu[permu].h.hlsl.hull = NULL;
+	prog->permu[permu].h.hlsl.domain = NULL;
+	prog->permu[permu].h.hlsl.geom = NULL;
+	prog->permu[permu].h.hlsl.layout = NULL;
 
 	if (pD3DCompile)
 	{

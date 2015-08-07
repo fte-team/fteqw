@@ -4527,8 +4527,8 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 	Image_GenerateMips(&mips, flags);
 	Image_ChangeFormat(&mips, fmt);
 	rf->IMG_LoadTextureMips(tex, &mips);
-	tex->width = mips.mip[0].width;
-	tex->height = mips.mip[0].height;
+	tex->width = width;
+	tex->height = height;
 	tex->status = TEX_LOADED;
 
 	for (i = 0; i < mips.mipcount; i++)

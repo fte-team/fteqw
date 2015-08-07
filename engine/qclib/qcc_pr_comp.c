@@ -1391,6 +1391,32 @@ const QCC_eval_t *QCC_SRef_EvalConst(QCC_sref_t ref)
 	return NULL;
 }
 
+const char *QCC_GetRefName(QCC_ref_t *ref, char *buffer, size_t buffersize)
+{
+	switch(ref->type)
+	{
+	case REF_FIELD:
+	case REF_NONVIRTUAL:
+		QC_snprintfz(buffer, buffersize, "%s.%s", QCC_GetSRefName(ref->base), QCC_GetSRefName(ref->index));
+		return buffer;
+	case REF_ARRAY:
+	case REF_STRING:
+		QC_snprintfz(buffer, buffersize, "%s[%s]", QCC_GetSRefName(ref->base), QCC_GetSRefName(ref->index));
+		return buffer;
+	case REF_POINTER:
+		QC_snprintfz(buffer, buffersize, "%s->%s", QCC_GetSRefName(ref->base), QCC_GetSRefName(ref->index));
+		return buffer;
+	case REF_ACCESSOR:
+		//FIXME
+		break;
+	case REF_ARRAYHEAD:
+	case REF_GLOBAL:
+	default:
+		break;
+	}
+	return QCC_GetSRefName(ref->base);
+}
+
 /*
 ============
 PR_Statement
@@ -1428,7 +1454,7 @@ static int QCC_ShouldConvert(QCC_type_t *from, etype_t wanted)
 	/*impossible*/
 	return -1;
 }
-QCC_sref_t QCC_SupplyConversionForAssignment(QCC_sref_t to, QCC_sref_t from, QCC_type_t *wanted, pbool fatal)
+QCC_sref_t QCC_SupplyConversionForAssignment(QCC_ref_t *to, QCC_sref_t from, QCC_type_t *wanted, pbool fatal)
 {
 	int o;
 
@@ -1443,25 +1469,25 @@ QCC_sref_t QCC_SupplyConversionForAssignment(QCC_sref_t to, QCC_sref_t from, QCC
 		return from;
 	if (flag_typeexplicit)
 	{
-		char totypename[256], fromtypename[256];
+		char totypename[256], fromtypename[256], destname[256];
 		TypeName(wanted, totypename, sizeof(totypename));
 		TypeName(from.cast, fromtypename, sizeof(fromtypename));
-		QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, from, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", QCC_GetSRefName(to), totypename, fromtypename);
+		QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, from, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", QCC_GetRefName(to, destname, sizeof(destname)), totypename, fromtypename);
 	}
 	if (o < 0)
 	{
 		if (fatal && wanted->type != ev_variant && from.cast->type != ev_variant)
 		{
-			char totypename[256], fromtypename[256];
+			char totypename[256], fromtypename[256], destname[256];
 			TypeName(wanted, totypename, sizeof(totypename));
 			TypeName(from.cast, fromtypename, sizeof(fromtypename));
 			if (flag_laxcasts)
 			{
-				QCC_PR_ParseWarning(WARN_LAXCAST, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", QCC_GetSRefName(to), totypename, fromtypename);
+				QCC_PR_ParseWarning(WARN_LAXCAST, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", QCC_GetRefName(to, destname, sizeof(destname)), totypename, fromtypename);
 				QCC_PR_ParsePrintSRef(WARN_LAXCAST, from);
 			}
 			else
-				QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, from, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", QCC_GetSRefName(to), totypename, fromtypename);
+				QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, from, "Implicit type mismatch on assignment to %s. Needed %s, got %s.", QCC_GetRefName(to, destname, sizeof(destname)), totypename, fromtypename);
 		}
 		return from;
 	}
@@ -8282,7 +8308,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 
 					//convert so we don't have issues with: i = (int)(float)(i+f)
 					//this will also catch things like vec *= vec; which would be trying to store a float into a vector.
-					rhsd = QCC_SupplyConversionForAssignment(lhsr->base, rhsd, lhsr->cast, true);
+					rhsd = QCC_SupplyConversionForAssignment(lhsr, rhsd, lhsr->cast, true);
 				}
 				else
 				{
@@ -8304,7 +8330,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 						rhsd.cast = lhsr->cast;
 					}
 					else
-						rhsd = QCC_SupplyConversionForAssignment(lhsr->base, rhsd, lhsr->cast, true);
+						rhsd = QCC_SupplyConversionForAssignment(lhsr, rhsd, lhsr->cast, true);
 				}
 				rhsd = QCC_StoreToRef(lhsr, rhsd, true, false);	//FIXME: this should not always be true, but we don't know if the caller actually needs it
 				qcc_usefulstatement = true;

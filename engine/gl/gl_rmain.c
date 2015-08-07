@@ -1652,22 +1652,31 @@ texid_t R_RenderPostProcess (texid_t sourcetex, int type, shader_t *shader, char
 	if (r_refdef.flags & type)
 	{
 		r_refdef.flags &= ~type;
-		GLBE_FBO_Sources(sourcetex, r_nulltex);
 
 		if (r_refdef.flags & RDF_ALLPOSTPROC)
 		{	//there's other post-processing passes that still need to be applied.
 			//thus we need to write this output to a texture.
 			int w = (r_refdef.vrect.width * vid.pixelwidth) / vid.width;
 			int h = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
+			if (R2D_Flush)
+				R2D_Flush();
+			GLBE_FBO_Sources(sourcetex, r_nulltex);
 			sourcetex = R2D_RT_Configure(restexname, w, h, TF_RGBA32);
 			GLBE_FBO_Update(&fbo_postproc, 0, &sourcetex, 1, r_nulltex, w, h, 0);
-			R2D_ScalePic(0, vid.pixelheight-r_refdef.vrect.height, r_refdef.vrect.width, r_refdef.vrect.height, shader);
+			R2D_ScalePic(0, 0, r_refdef.vrect.width, r_refdef.vrect.height, shader);
+			if (R2D_Flush)
+				R2D_Flush();
 			GLBE_RenderToTextureUpdate2d(true);
 		}
 		else
 		{	//yay, dump it to the screen
 			//update stuff now that we're not rendering the 3d scene
+			if (R2D_Flush)
+				R2D_Flush();
+			GLBE_FBO_Sources(sourcetex, r_nulltex);
 			R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, shader);
+			if (R2D_Flush)
+				R2D_Flush();
 		}
 	}
 
@@ -1915,6 +1924,9 @@ void GLR_RenderView (void)
 		if (r_refdef.flags & RDF_BLOOM)
 			R_BloomBlend(sourcetex, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
 	}
+
+	if (R2D_Flush)
+		R2D_Flush();
 
 	GLBE_FBO_Sources(r_nulltex, r_nulltex);
 

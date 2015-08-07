@@ -710,7 +710,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 						(tex->upperoverlay && (tex->upperoverlay->status == TEX_LOADING || tex->upperoverlay->status == TEX_LOADED)))
 						return shader;
 				}
-				if (shader->prog && shader->prog->permu[PERMUTATION_UPPERLOWER].handle.glsl.handle && !h2playertranslations)
+				if (shader->prog && shader->prog->permu[PERMUTATION_UPPERLOWER].h.loaded && !h2playertranslations)
 				{	//this shader can do permutations. this means we can generate only a black image, with separate top+bottom textures.
 					tc = 0xfe000000;
 					bc = 0xfe000000;
@@ -1442,7 +1442,7 @@ void R_GAlias_DrawBatch(batch_t *batch)
 		{
 			if (batch->surf_first == surfnum)
 			{
-				/*needrecolour =*/ Alias_GAliasBuildMesh(&mesh, &batch->vbo, inf, surfnum, e, batch->shader->prog && batch->shader->prog->permu[PERMUTATION_SKELETAL].handle.glsl.handle);
+				/*needrecolour =*/ Alias_GAliasBuildMesh(&mesh, &batch->vbo, inf, surfnum, e, batch->shader->prog && batch->shader->prog->permu[PERMUTATION_SKELETAL].h.loaded);
 				batch->mesh = &meshl;
 				if (!mesh.numindexes)
 				{

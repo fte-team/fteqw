@@ -5334,7 +5334,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 					BE_VBO_Data(&ctx, arrays->tvector,	sizeof(arrays->tvector	[0])*numverts,		&bb->vbo.tvector);
 					BE_VBO_Finish(&ctx, arrays->index,	sizeof(arrays->index	[0])*numindicies,	&bb->vbo.indicies);
 
-					bb->mesh.xyz_array = (avec4_t*)(bb+1);
+					bb->mesh.xyz_array = (vecV_t*)(bb+1);
 					memcpy(bb->mesh.xyz_array, arrays->coord, sizeof(*bb->mesh.xyz_array) * numverts);
 					bb->mesh.st_array = (vec2_t*)(bb->mesh.xyz_array+numverts);
 					memcpy(bb->mesh.st_array, arrays->texcoord, sizeof(*bb->mesh.st_array) * numverts);

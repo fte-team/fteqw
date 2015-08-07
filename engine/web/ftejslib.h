@@ -24,6 +24,7 @@ int emscriptenfte_ws_recv(int sockid, void *data, int len);		//receive data from
 //misc stuff for printf replacements
 void emscriptenfte_alert(const char *msg);
 void emscriptenfte_print(const char *msg);
+void emscriptenfte_setupmainloop(int(*mainloop)(void));
 void emscriptenfte_abortmainloop(const char *caller);
 
 //we're trying to avoid including libpng+libjpeg+libogg in javascript due to it being redundant bloat.

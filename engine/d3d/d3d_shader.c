@@ -155,8 +155,8 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, un
 		return false;
 	}
 
-	prog->permu[permu].handle.hlsl.vert = NULL;
-	prog->permu[permu].handle.hlsl.frag = NULL;
+	prog->permu[permu].h.hlsl.vert = NULL;
+	prog->permu[permu].h.hlsl.frag = NULL;
 
 	if (pD3DXCompileShader)
 	{
@@ -190,11 +190,11 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, un
 		success = true;
 
 		defines[0].Name = "VERTEX_SHADER";
-		if (FAILED(pD3DXCompileShader(vert, strlen(vert), defines, NULL, "main", "vs_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].handle.hlsl.ctabv)))
+		if (FAILED(pD3DXCompileShader(vert, strlen(vert), defines, NULL, "main", "vs_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].h.hlsl.ctabv)))
 			success = false;
 		else
 		{
-			IDirect3DDevice9_CreateVertexShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DVertexShader9**)&prog->permu[permu].handle.hlsl.vert);
+			IDirect3DDevice9_CreateVertexShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DVertexShader9**)&prog->permu[permu].h.hlsl.vert);
 			code->lpVtbl->Release(code);
 		}
 		if (errors)
@@ -205,11 +205,11 @@ static qboolean D3D9Shader_CreateProgram (program_t *prog, const char *sname, un
 		}
 
 		defines[0].Name = "FRAGMENT_SHADER";
-		if (FAILED(pD3DXCompileShader(frag, strlen(frag), defines, NULL, "main", "ps_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].handle.hlsl.ctabf)))
+		if (FAILED(pD3DXCompileShader(frag, strlen(frag), defines, NULL, "main", "ps_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->permu[permu].h.hlsl.ctabf)))
 			success = false;
 		else
 		{
-			IDirect3DDevice9_CreatePixelShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DPixelShader9**)&prog->permu[permu].handle.hlsl.frag);
+			IDirect3DDevice9_CreatePixelShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DPixelShader9**)&prog->permu[permu].h.hlsl.frag);
 			code->lpVtbl->Release(code);
 		}
 		if (errors)
@@ -254,13 +254,13 @@ static int D3D9Shader_FindUniform(union programhandle_u *h, int type, const char
 	return -1;
 }
 
-static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvartypes)
+static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, char **cvarnames, int *cvartypes)
 {
+	struct programpermu_s *pp;
 	unsigned int i, p;
-	qboolean found;
 	int uniformloc;
 	char tmpname[128];
-	cvar_t *cvar;
+	cvar_t *cvar[128];
 
 	static const char *defaultsamplers[] =
 	{
@@ -289,66 +289,76 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cv
 #define ALTLIGHTMAPSAMP 13
 #define ALTDELUXMAPSAMP 16
 
-	prog->numparams = 0;
-
 	prog->nofixedcompat = true;
+	prog->defaulttextures = 0;
+	prog->numsamplers = 0;
 
-	/*set cvar uniforms*/
-	for (i = 0; cvarnames[i]; i++)
+	memset(cvar, 0, sizeof(cvar));
+
+	for (p = 0; p < PERMUTATIONS; p++)
 	{
-		for (p = 0; cvarnames[i][p] && (unsigned char)cvarnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
-			tmpname[p] = cvarnames[i][p];
-		tmpname[p] = 0;
-		cvar = Cvar_FindVar(tmpname);
-		if (!cvar)
+		int maxparms = 0;
+		pp = &prog->permu[p];
+		pp->parm = NULL;
+		pp->numparms = 0;
+		if (!pp->h.loaded)
 			continue;
-		cvar->flags |= CVAR_SHADERSYSTEM;
-		for (p = 0; p < PERMUTATIONS; p++)
+		IDirect3DDevice9_SetVertexShader(pD3DDev9, pp->h.hlsl.vert);
+		IDirect3DDevice9_SetPixelShader(pD3DDev9, pp->h.hlsl.frag);
+
+		for (i = 0; shader_unif_names[i].name; i++)
 		{
-			if (!prog->permu[p].handle.hlsl.vert || !prog->permu[p].handle.hlsl.frag)
-				continue;
-			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 1, va("cvar_%s", tmpname));
+			uniformloc = D3D9Shader_FindUniform(&pp->h, 0, shader_unif_names[i].name);
 			if (uniformloc != -1)
 			{
-				vec4_t v = {cvar->value, 0, 0, 0};
-				IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->permu[p].handle.hlsl.vert);
+				if (pp->numparms == maxparms)
+				{
+					maxparms = maxparms?maxparms*2:8;
+					pp->parm = BZ_Realloc(pp->parm, sizeof(*pp->parm) * maxparms);
+				}
+				pp->parm[pp->numparms].handle = uniformloc;
+				pp->parm[pp->numparms].type = shader_unif_names[i].ptype;
+				pp->numparms++;
+			}
+		}
+
+		for (i = 0; cvarnames[i] && i < countof(cvar); i++)
+		{
+			if (!cvar[i])
+			{
+				for (p = 0; cvarnames[i][p] && (unsigned char)cvarnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
+					tmpname[p] = cvarnames[i][p];
+				tmpname[p] = 0;
+				cvar[i] = Cvar_FindVar(tmpname);
+				if (!cvar[i])
+					continue;
+				cvar[i]->flags |= CVAR_SHADERSYSTEM;
+			}
+
+			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 1, va("cvar_%s", tmpname));
+			if (uniformloc != -1)
+			{
+				vec4_t v = {cvar[i]->value, 0, 0, 0};
+				IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->permu[p].h.hlsl.vert);
 				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 0, v, 1);
 			}
-			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 2, va("cvar_%s", tmpname));
+			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, va("cvar_%s", tmpname));
 			if (uniformloc != -1)
 			{
-				vec4_t v = {cvar->value, 0, 0, 0};
-				IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].handle.hlsl.frag);
+				vec4_t v = {cvar[i]->value, 0, 0, 0};
+				IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].h.hlsl.frag);
 				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, 0, v, 1);
 			}
 		}
-	}
-	for (i = 0; shader_unif_names[i].name; i++)
-	{
-		found = false;
-		for (p = 0; p < PERMUTATIONS; p++)
-		{
-			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 0, shader_unif_names[i].name);
-			if (uniformloc != -1)
-				found = true;
-			prog->permu[p].parm[prog->numparams] = uniformloc;
-		}
-		if (found)
-		{
-			prog->parm[prog->numparams].type = shader_unif_names[i].ptype;
-			prog->numparams++;
-		}
-	}
-	/*set texture uniforms*/
-	for (p = 0; p < PERMUTATIONS; p++)
-	{
+
+		/*set texture uniforms*/
 		for (i = 0; i < 8; i++)
 		{
-			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 2, va("s_t%i", i));
+			uniformloc = D3D9Shader_FindUniform(&pp->h, 2, va("s_t%i", i));
 			if (uniformloc != -1)
 			{
 				int v[4] = {i};
-				IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].handle.hlsl.frag);
+				IDirect3DDevice9_SetPixelShader(pD3DDev9, pp->h.hlsl.frag);
 				IDirect3DDevice9_SetPixelShaderConstantI(pD3DDev9, 0, v, 1);
 
 				if (prog->numsamplers < i+1)
@@ -361,7 +371,7 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cv
 			//figure out which ones are needed.
 			if (prog->defaulttextures & (1u<<i))
 				continue;	//don't spam
-			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 2, defaultsamplers[i]);
+			uniformloc = D3D9Shader_FindUniform(&pp->h, 2, defaultsamplers[i]);
 			if (uniformloc != -1)
 				prog->defaulttextures |= (1u<<i);
 		}
@@ -379,18 +389,18 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cv
 		/*set default texture uniforms*/
 		for (p = 0; p < PERMUTATIONS; p++)
 		{
-			if (!prog->permu[p].handle.glsl.handle)
+			if (!prog->permu[p].h.loaded)
 				continue;
 			sampnum = prog->numsamplers;
 			for (i = 0; i < sizeof(defaultsamplers)/sizeof(defaultsamplers[0]); i++)
 			{
 				if (prog->defaulttextures & (1u<<i))
 				{
-					uniformloc = D3D9Shader_FindUniform(&prog->permu[p].handle, 2, defaultsamplers[i]);
+					uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, defaultsamplers[i]);
 					if (uniformloc != -1)
 					{
 						int v[4] = {sampnum};
-						IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].handle.hlsl.frag);
+						IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].h.hlsl.frag);
 						IDirect3DDevice9_SetPixelShaderConstantI(pD3DDev9, 0, v, 1);
 					}
 					sampnum++;
@@ -404,28 +414,28 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cv
 
 void D3D9Shader_DeleteProg(program_t *prog, unsigned int permu)
 {
-	if (prog->permu[permu].handle.hlsl.vert)
+	if (prog->permu[permu].h.hlsl.vert)
 	{
-		IDirect3DVertexShader9 *vs = prog->permu[permu].handle.hlsl.vert;
-		prog->permu[permu].handle.hlsl.vert = NULL;
+		IDirect3DVertexShader9 *vs = prog->permu[permu].h.hlsl.vert;
+		prog->permu[permu].h.hlsl.vert = NULL;
 		IDirect3DVertexShader9_Release(vs);
 	}
-	if (prog->permu[permu].handle.hlsl.frag)
+	if (prog->permu[permu].h.hlsl.frag)
 	{
-		IDirect3DPixelShader9 *fs = prog->permu[permu].handle.hlsl.frag;
-		prog->permu[permu].handle.hlsl.frag = NULL;
+		IDirect3DPixelShader9 *fs = prog->permu[permu].h.hlsl.frag;
+		prog->permu[permu].h.hlsl.frag = NULL;
 		IDirect3DPixelShader9_Release(fs);
 	}
-	if (prog->permu[permu].handle.hlsl.ctabv)
+	if (prog->permu[permu].h.hlsl.ctabv)
 	{
-		LPD3DXCONSTANTTABLE vct = prog->permu[permu].handle.hlsl.ctabv;
-		prog->permu[permu].handle.hlsl.ctabv = NULL;
+		LPD3DXCONSTANTTABLE vct = prog->permu[permu].h.hlsl.ctabv;
+		prog->permu[permu].h.hlsl.ctabv = NULL;
 		IUnknown_Release(vct);
 	}
-	if (prog->permu[permu].handle.hlsl.ctabf)
+	if (prog->permu[permu].h.hlsl.ctabf)
 	{
-		LPD3DXCONSTANTTABLE fct = prog->permu[permu].handle.hlsl.ctabf;
-		prog->permu[permu].handle.hlsl.ctabf = NULL;
+		LPD3DXCONSTANTTABLE fct = prog->permu[permu].h.hlsl.ctabf;
+		prog->permu[permu].h.hlsl.ctabf = NULL;
 		IUnknown_Release(fct);
 	}
 }

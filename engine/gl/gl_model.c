@@ -32,7 +32,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
 extern cvar_t gl_lightmap_average;
-extern cvar_t r_softwarebanding;
 cvar_t mod_loadentfiles						= CVAR("sv_loadentfiles", "1");
 cvar_t mod_loadentfiles_dir					= CVAR("sv_loadentfiles_dir", "");
 cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .vis patches for quake maps, allowing transparent water to work properly.");
@@ -1743,7 +1742,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 					samples = ql2->lmsize;
 
 					litdata = shifts+ql2->numsurfs;
-					if (r_deluxemapping.ival)
+					if (r_deluxemapping)
 						luxdata = litdata+samples*3;
 				}
 			}
@@ -1805,7 +1804,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	}
 
 
-	if (!luxdata && r_loadlits.ival && r_deluxemapping.ival)
+	if (!luxdata && r_loadlits.ival && r_deluxemapping)
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];
 		size_t luxsz = 0;
@@ -1870,7 +1869,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 #endif
 
 #ifdef RUNTIMELIGHTING
-	if (r_loadlits.value == 2 && !lightmodel && (!litdata || (!luxdata && r_deluxemapping.ival)))
+	if (r_loadlits.value == 2 && !lightmodel && (!litdata || (!luxdata && r_deluxemapping)))
 	{
 		if (!litdata)
 			writelitfile = true;
@@ -1897,7 +1896,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		}
 	}
 	/*if we're relighting, make sure there's the proper lux data to be updated*/
-	if (lightmodel == loadmodel && r_deluxemapping.ival && !luxdata)
+	if (lightmodel == loadmodel && r_deluxemapping && !luxdata)
 	{
 		int i;
 		luxdata = ZG_Malloc(&loadmodel->memgroup, samples*3);

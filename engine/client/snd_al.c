@@ -14,8 +14,11 @@ FIXME: a capture device would be useful (voice chat).
 #ifdef AVAIL_OPENAL
 
 #ifdef FTE_TARGET_WEB
-//our javascript port doesn't support dynamic linking.
-#define OPENAL_STATIC
+	//emscripten provides an openal -> webaudio wrapper. its not the best, but does get the job done.
+	#define OPENAL_STATIC		//our javascript port doesn't support dynamic linking  (bss+data segments get too messy).
+	#define SDRVNAME "WebAudio"	//IE doesn't support webaudio, resulting in noticable error messages about no openal, which is technically incorrect. So lets be clear about this.
+#else
+	#define SDRVNAME "OpenAL"
 #endif
 
 #ifdef OPENAL_STATIC
@@ -278,7 +281,7 @@ static AL_API ALvoid (AL_APIENTRY *palEffectf)(ALuint effect, ALenum param, ALfl
 static AL_API ALvoid (AL_APIENTRY *palEffectfv)(ALuint effect, ALenum param, const ALfloat *pflValues);
 #endif
 
-#define SOUNDVARS "OpenAL variables"
+#define SOUNDVARS SDRVNAME" variables"
 
 
 extern sfx_t *known_sfx;
@@ -830,13 +833,13 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 
 	if (!OpenAL_InitLibrary())
 	{
-		Con_Printf("OpenAL is not installed\n");
+		Con_Printf(SDRVNAME" is not installed\n");
 		return false;
 	}
 
 	if (oali->OpenAL_Context)
 	{
-		Con_Printf("OpenAL: only able to load one device at a time\n");
+		Con_Printf(SDRVNAME": only able to load one device at a time\n");
 		return false;
 	}
 
@@ -1085,17 +1088,17 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 	if (!devname || !*devname)
 		devname = palcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
 
-	Con_Printf("Initiating OpenAL: %s.\n", devname);
+	Con_Printf("Initiating "SDRVNAME": %s.\n", devname);
 
 	if (OpenAL_Init(sc, devname) == false)
 	{
-		Con_Printf(CON_ERROR "OpenAL init failed\n");
+		Con_Printf(CON_ERROR SDRVNAME " init failed\n");
 		return false;
 	}
 	oali = sc->handle;
 
-	Con_DPrintf("OpenAL AL Extension   : %s\n",palGetString(AL_EXTENSIONS));
-	Con_DPrintf("OpenAL ALC Extension  : %s\n",palcGetString(oali->OpenAL_Device,ALC_EXTENSIONS));
+	Con_DPrintf(SDRVNAME" AL Extension   : %s\n",palGetString(AL_EXTENSIONS));
+	Con_DPrintf(SDRVNAME" ALC Extension  : %s\n",palcGetString(oali->OpenAL_Device,ALC_EXTENSIONS));
 
 	sc->Lock = OpenAL_LockBuffer;
 	sc->Unlock = OpenAL_UnlockBuffer;
@@ -1142,7 +1145,6 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 	return true;
 }
 
-#define SDRVNAME "OpenAL"
 static qboolean QDECL OpenAL_Enumerate(void (QDECL *callback)(const char *driver, const char *devicecode, const char *readabledevice))
 {
 	const char *devnames;
@@ -1154,7 +1156,11 @@ static qboolean QDECL OpenAL_Enumerate(void (QDECL *callback)(const char *driver
 		devnames = palcGetString(NULL, ALC_DEVICE_SPECIFIER);
 	while(*devnames)
 	{
+#ifdef FTE_TARGET_WEB
+		callback(SDRVNAME, devnames, va("WebAudio:%s", devnames));
+#else
 		callback(SDRVNAME, devnames, va("OAL:%s", devnames));
+#endif
 		devnames += strlen(devnames)+1;
 	}
 	return true;

@@ -607,7 +607,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 		}
 		break;
 	case ev_accessor:
-		QC_snprintfz (line, sizeof(line), "(accessor)", type);
+		QC_snprintfz (line, sizeof(line), "(accessor)");
 		break;
 	default:
 		QC_snprintfz (line, sizeof(line), "(bad type %i)", type);

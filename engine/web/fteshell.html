@@ -6,12 +6,12 @@
 	<meta name=viewport content="width=device-width, initial-scale=1">
     <title>FTE QuakeWorld</title>
     <style>
-		body { background-color:#000000; color:#808080; height:100%;width:100%;margin:0;padding:0;}
-      .emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
-      div.emscripten { text-align: center; padding:0; margin: 0;}
-      div.emscripten_border { padding:0; margin: 0; }
-      /* the canvas *must not* have any border or padding, or mouse coords will be wrong */
-      canvas.emscripten { border: 0px none; width:100%; height:100%; padding:0; margin: 0;}
+	body { background-color:#000000; color:#808080; height:100%;width:100%;margin:0;padding:0;}
+	.emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
+	div.emscripten { text-align: center; padding:0; margin: 0;}
+	div.emscripten_border { padding:0; margin: 0; }
+	/* the canvas *must not* have any border or padding, or mouse coords will be wrong */
+	canvas.emscripten { border: 0px none; width:100%; height:100%; padding:0; margin: 0;}
     </style>
   </head>
   <body>
@@ -22,57 +22,67 @@
     <div class="emscripten_border">
       <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
     </div>
-<!--    <div class="emscripten">
-      <input type="checkbox" id="resize">Resize canvas
-      <input type="checkbox" id="pointerLock" checked>Lock/hide mouse pointer
-      &nbsp;&nbsp;&nbsp;
-      <input type="button" value="Fullscreen" onclick="Module.requestFullScreen(document.getElementById('pointerLock').checked, 
-                                                                                document.getElementById('resize').checked)">
-    </div>
--->
     <script type='text/javascript'>
-      // connect to canvas
-      var Module = {
-        preRun: [],
-        postRun: [],
-        print: (function() {
-        })(),
-        printErr: function(text) {
-          text = Array.prototype.slice.call(arguments).join(' ');
-          if (0) { // XXX disabled for safety typeof dump == 'function') {
-            dump(text + '\n'); // fast, straight to the real console
-          } else {
-            console.log(text);
-          }
-        },
+// connect to canvas
+var Module = {
+//	preRun: [],
+	postRun: [function()
+		{
+			if (Module["sched"] === undefined)	//if this happens then our main function failed to set up the main loop. ie: main didn't get called.
+				alert("Unable to initialise. You may need to restart your browser. If you get this often and inconsistently, consider using a 64bit browser instead.");
+		}],
+	print: function(msg)
+	{
+		console.log(msg);
+	},
+	printErr: function(text)
+	{
+		//this is infuriating as hell.
+		//emscripten is a piece of shit for actual released work.
+		if (text.substr(0, 28) == "Cannot enlarge memory arrays")
+			alert("Memory full/fragmented. Please reload the page.");
+		else
+			console.log(text);
+	},
         canvas: document.getElementById('canvas'),
-        setStatus: function(text) {
-          if (Module.setStatus.interval) clearInterval(Module.setStatus.interval);
-          var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
-          var statusElement = document.getElementById('status');
-          var progressElement = document.getElementById('progress');
-          if (m) {
-            text = m[1];
-            progressElement.value = parseInt(m[2])*100;
-            progressElement.max = parseInt(m[4])*100;
-            progressElement.hidden = false;
-          } else {
-            progressElement.value = null;
-            progressElement.max = null;
-            progressElement.hidden = true;
-          }
-          statusElement.innerHTML = text;
+        setStatus: function(text)
+	{
+		if (Module.setStatus.interval)
+			clearInterval(Module.setStatus.interval);
+		var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+		var statusElement = document.getElementById('status');
+		var progressElement = document.getElementById('progress');
+		if (m) {
+			text = m[1];
+			progressElement.value = parseInt(m[2])*100;
+			progressElement.max = parseInt(m[4])*100;
+			progressElement.hidden = false;
+		} else {
+			progressElement.value = null;
+			progressElement.max = null;
+			progressElement.hidden = true;
+		}
+		statusElement.innerHTML = text;
         },
         totalDependencies: 0,
-        monitorRunDependencies: function(left) {
-          this.totalDependencies = Math.max(this.totalDependencies, left);
-          Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
-        }
-      };
-      Module.setStatus('Downloading...');
+        monitorRunDependencies: function(left)
+	{
+		this.totalDependencies = Math.max(this.totalDependencies, left);
+		Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
+	}
+};
+Module.setStatus('Downloading...');
+
+// make a script
+var s = document.createElement('script');
+// set it up
+s.setAttribute('src',"ftewebgl.js");
+s.setAttribute('type',"text/javascript");
+s.setAttribute('charset',"utf-8");
+s.addEventListener('error', function() {alert("Oh noes! we got an error!");}, false);
+// add to DOM
+document.head.appendChild(s);
+
     </script>      
-
-      {{{ SCRIPT }}}
-
   </body>
 </html>

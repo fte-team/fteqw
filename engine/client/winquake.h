@@ -109,6 +109,11 @@ extern qboolean	mouseinitialized;
 
 //extern HANDLE	hinput, houtput;
 
+extern HCURSOR	hArrowCursor, hCustomCursor;
+void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale);
+qboolean WIN_SetCursor(void *cursor);
+void WIN_DestroyCursor(void *cursor);
+
 void INS_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);
 void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum, qboolean genkeystate);

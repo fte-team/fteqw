@@ -1300,6 +1300,21 @@ void SCR_Init (void)
 
 void SCR_DeInit (void)
 {
+	int i;
+	if (scr_curcursor)
+	{
+		rf->VID_SetCursor(scr_curcursor);
+		scr_curcursor = NULL;
+	}
+	for (i = 0; i < countof(key_customcursor); i++)
+	{
+		if (key_customcursor[i].handle)
+		{
+			rf->VID_DestroyCursor(key_customcursor[i].handle);
+			key_customcursor[i].handle = NULL;
+		}
+		key_customcursor[i].dirty = true;
+	}
 	if (scr_initialized)
 	{
 		scr_initialized = false;

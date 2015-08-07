@@ -972,12 +972,12 @@ void CLQW_ParsePacketEntities (qboolean delta)
 	cl.inframes[newpacket].frameid = cls.netchan.incoming_sequence;
 	cl.inframes[newpacket].receivedtime = realtime;
 
-	if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
+	if (cls.protocol == CP_QUAKEWORLD && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
 	{
 		extern float olddemotime;	//time from the most recent demo packet
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = cl.gametimemark;
-		cl.gametime = olddemotime;
+		cl.gametime = olddemotime + cl.demogametimebias;
 		cl.gametimemark = realtime;
 	}
 	else if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
@@ -3399,6 +3399,7 @@ void CL_LinkPacketEntities (void)
 	static int flicker;
 	int trailef, trailidx;
 	int modelflags;
+	struct itemtimer_s	*timer, **timerlink;
 
 	pack = cl.currentpackentities;
 	if (!pack)
@@ -3417,21 +3418,42 @@ void CL_LinkPacketEntities (void)
 	CSQC_DeltaStart(cl.currentpacktime);
 #endif
 
+
+	for (timerlink = &cl.itemtimers; (timer=*timerlink); )
+	{
+		if (cl.time > timer->end)
+		{
+			*timerlink = timer->next;
+			Z_Free(timer);
+		}
+		else
+		{
+			timerlink = &(*timerlink)->next;
+			if (timer->entnum >= cl.maxlerpents)
+				continue;
+			le = &cl.lerpents[timer->entnum];
+			if (le->sequence != cl.lerpentssequence)
+				continue;
+			R_AddItemTimer(timer->origin, cl.time*90 + timer->origin[0] + timer->origin[1] + timer->origin[2], timer->radius, (cl.time - timer->start) / timer->duration);
+		}
+	}
+
 	for (newpnum=0 ; newpnum<pack->num_entities ; newpnum++)
 	{
 		state = &pack->entities[newpnum];
-
-
-
-		if (cl_numvisedicts == cl_maxvisedicts)
-		{
-			break;
-		}
 
 #ifdef CSQC_DAT
 		if (CSQC_DeltaUpdate(state))
 			continue;
 #endif
+
+		if (cl_numvisedicts == cl_maxvisedicts)
+			break;
+
+		if (state->number >= cl.maxlerpents)
+			continue;
+
+		le = &cl.lerpents[state->number];
 
 		ent = &cl_visedicts[cl_numvisedicts];
 		ent->rtype = RT_MODEL;
@@ -3444,11 +3466,6 @@ void CL_LinkPacketEntities (void)
 #endif
 		ent->light_known = 0;
 		ent->forcedshader = NULL;
-
-		if (state->number >= cl.maxlerpents)
-			continue;
-
-		le = &cl.lerpents[state->number];
 
 		memset(&ent->framestate, 0, sizeof(ent->framestate));
 

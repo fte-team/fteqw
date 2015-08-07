@@ -3000,7 +3000,7 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 
 void Surf_PreNewMap(void)
 {
-	r_loadbumpmapping = r_deluxemapping.ival || r_glsl_offsetmapping.ival;
+	r_loadbumpmapping = r_deluxemapping || r_glsl_offsetmapping.ival;
 #ifdef RTLIGHTS
 	r_loadbumpmapping |= r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival;
 #endif

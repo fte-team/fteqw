@@ -568,7 +568,10 @@ extern	cvar_t	r_telestyle;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
-extern	cvar_t	r_deluxemapping;
+extern	cvar_t	r_deluxemapping_cvar;
+extern	qboolean r_deluxemapping;
+extern	cvar_t r_softwarebanding_cvar;
+extern	qboolean r_softwarebanding;
 
 #ifdef R_XFLIP
 extern cvar_t	r_xflip;

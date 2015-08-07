@@ -1484,7 +1484,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 		int ofs;
 		strcpy(stack, "This platform does not support QC debugging\nStack Trace:");
 		ofs = strlen(stack);
-		PR_SaveCallStack (&progfuncs->funcs, stack, &ofs, 4*1024);
+		PR_SaveCallStack (progfuncs, stack, &ofs, 4*1024);
 		PR_RunError (&progfuncs->funcs, stack);
 		free(stack);
 		return -1;

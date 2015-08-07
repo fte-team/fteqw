@@ -9276,7 +9276,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"localcmd",		PF_localcmd,		46,		46,		46,		0,	D("void(string, ...)", "Adds the string to the console command queue. Commands will not be executed immediately, but rather at the start of the following frame.")},
 	{"nextent",			PF_nextent,			47,		47,		47,		0,	D("entity(entity)", "Returns the following entity. Skips over removed entities. Returns world when passed the last valid entity.")},
 	{"particle",		PF_particle,		48,		0,		48,		48, D("void(vector pos, vector dir, float colour, float count)", "Spawn 'count' particles around 'pos' moving in the direction 'dir', with a palette colour index between 'colour' and 'colour+8'.")}, //48 nq readded. This isn't present in QW protocol (fte added it back).
-	{"changeyaw",		PF_changeyaw,		49,		49,		49,		0,	D("#define ChangeYaw changeyaw\nvoid()", "Changes the self.angles_y field towards self.ideal_yaw by up to self.yawspeed.")},
+	{"changeyaw",		PF_changeyaw,		49,		49,		49,		0,	D("#define ChangeYaw changeyaw\nvoid()", "Changes the self.angles_y field towards self.ideal_yaw by up to self.yaw_speed.")},
 //	{"qtest_precacheitem", NULL,			50}, // defined QTest builtin that is never called
 	{"vectoangles",		PF_vectoangles,		51,		51,		51,		0,	D("vector(vector fwd, optional vector up)", "Returns the angles (+x=UP) required to orient an entity to look in the given direction. The 'up' argument is required if you wish to set a roll angle, otherwise it will be limited to just monster-style turning.")},
 

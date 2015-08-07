@@ -1261,8 +1261,12 @@ ifeq ($(FTE_TARGET),web)
 	COMMON_OBJS+=sys_web.o fs_web.o
 	WEB_PREJS ?= --pre-js web/prejs.js
 #	WEB_MEMORY?=402653184	#384mb
-	ASMJS_MEMORY?=536870912	#512mb (required for asm.js)
-#	ASMJS_MEMORY?=268435456	#256mb (required for asm.js)
+#	ASMJS_MEMORY?=16777216	#16mb
+#	ASMJS_MEMORY?=33554432	#32mb
+	ASMJS_MEMORY?=268435456	#256mb
+#	ASMJS_MEMORY?=536870912	#512mb
+#	ASMJS_MEMORY?=1073741824 #1025mb
+#	ASMJS_MEMORY?=2147483648 #2048mb
 	WEB_MEMORY?=$(ASMJS_MEMORY)
 	JSLIBS=--js-library web/ftejslib.js -s LEGACY_GL_EMULATION=0
 	EMCC_ARGS=$(JSLIBS) $(WEB_PREJS) --shell-file web/fteshell.html  -s ERROR_ON_UNDEFINED_SYMBOLS=1
@@ -1292,7 +1296,7 @@ ifeq ($(FTE_TARGET),web)
 	#GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) cd_null.o
 	#GL_LDFLAGS=$(GLLDFLAGS)
 	GLB_DIR=gl_web
-	GL_EXE_NAME=../ftewebgl.html
+	GL_EXE_NAME=../ftewebgl.js
 
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 	GL_CFLAGS=$(GLCFLAGS)
@@ -1695,15 +1699,17 @@ EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/
 
 web-rel:
 	@$(MAKE) gl-rel FTE_TARGET=web	PATH="$(EMSCRIPTENPATH)" CC="emcc.bat"
+	cp $(BASE_DIR)/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.js
-	@gzip -f $(RELEASE_DIR)/ftewebgl.html.mem
+	@gzip -f $(RELEASE_DIR)/ftewebgl.js.mem
 
 web-dbg:
 	@$(MAKE) gl-dbg FTE_TARGET=web	PATH="$(EMSCRIPTENPATH)" CC="emcc.bat"
+	cp $(BASE_DIR)/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.js
-	@gzip -f $(DEBUG_DIR)/ftewebgl.html.map
+	@gzip -f $(DEBUG_DIR)/ftewebgl.js.map
 
 #################################################
 #android

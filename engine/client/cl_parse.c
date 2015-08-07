@@ -2919,6 +2919,7 @@ void CLQW_ParseServerData (void)
 	/*mvds have different parsing*/
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
+		extern float olddemotime;
 		int i,j;
 
 		if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
@@ -2932,6 +2933,8 @@ void CLQW_ParseServerData (void)
 		cl.gametimemark = realtime;
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = realtime;
+
+		cl.demogametimebias = cl.gametime - olddemotime;
 
 		for (j = 0; j < MAX_SPLITS; j++)
 		{
@@ -4261,9 +4264,15 @@ void CLQW_ParseStartSoundPacket(void)
 			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0, 0, 0);
 	}
 
-
-	if (ent == cl.playerview[0].playernum+1)
-		TP_CheckPickupSound(cl.sound_name[sound_num], pos);
+	for (i = 0; i < cl.splitclients; i++)
+	{
+		if (ent == cl.playerview[i].playernum+1)
+		{
+			TP_CheckPickupSound(cl.sound_name[sound_num], pos, i);
+			return;
+		}
+	}
+	TP_CheckPickupSound(cl.sound_name[sound_num], pos, -1);
 }
 
 #ifdef Q2CLIENT
@@ -4427,8 +4436,15 @@ void CLNQ_ParseStartSoundPacket(void)
 			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, timeofs, pitchadj, flags);
 	}
 
-	if (ent == cl.playerview[0].playernum+1)
-		TP_CheckPickupSound(cl.sound_name[sound_num], pos);
+	for (i = 0; i < cl.splitclients; i++)
+	{
+		if (ent == cl.playerview[i].playernum+1)
+		{
+			TP_CheckPickupSound(cl.sound_name[sound_num], pos, i);
+			return;
+		}
+	}
+	TP_CheckPickupSound(cl.sound_name[sound_num], pos, -1);
 }
 #endif
 

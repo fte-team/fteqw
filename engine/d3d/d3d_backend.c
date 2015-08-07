@@ -1748,17 +1748,17 @@ static void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
 
 static void BE_ApplyUniforms(program_t *prog, int permu)
 {
+	struct programpermu_s *perm = &prog->permu[permu];
+	shaderprogparm_t *pp;
 	vec4_t param4;
 	int h;
 	int i;
-	IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->permu[permu].handle.hlsl.vert);
-	IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[permu].handle.hlsl.frag);
-	for (i = 0; i < prog->numparams; i++)
+	IDirect3DDevice9_SetVertexShader(pD3DDev9, perm->h.hlsl.vert);
+	IDirect3DDevice9_SetPixelShader(pD3DDev9, perm->h.hlsl.frag);
+	for (i = 0, pp = perm->parm; i < perm->numparms; i++, pp++)
 	{
-		h = prog->permu[permu].parm[i];
-		if (h == -1)
-			continue;
-		switch (prog->parm[i].type)
+		h = pp->handle;
+		switch (pp->type)
 		{
 		case SP_M_PROJECTION:
 			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, h, d3d_trueprojection, 4);
@@ -1865,7 +1865,7 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 		case SP_CVARF:
 		case SP_CVAR3F:
 		case SP_TEXTURE:
-			Con_Printf("shader property %i not implemented\n", prog->parm[i].type);
+			Con_Printf("shader property %i not implemented\n", pp->type);
 			break;
 		}
 	}
@@ -1881,27 +1881,27 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 
 	if (shaderstate.batchvbo && shaderstate.batchvbo->numbones)
 	{
-		if (p->permu[perm|PERMUTATION_SKELETAL].handle.hlsl.vert)
+		if (p->permu[perm|PERMUTATION_SKELETAL].h.loaded)
 			perm |= PERMUTATION_SKELETAL;
 		else
 			return;
 	}
-	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].handle.hlsl.vert)
+	if (TEXVALID(shaderstate.curtexnums->bump) && p->permu[perm|PERMUTATION_BUMPMAP].h.loaded)
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].handle.hlsl.vert)
+	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->permu[perm|PERMUTATION_FULLBRIGHT].h.loaded)
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (p->permu[perm|PERMUTATION_UPPERLOWER].handle.hlsl.vert && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
+	if (p->permu[perm|PERMUTATION_UPPERLOWER].h.loaded && (TEXLOADED(shaderstate.curtexnums->upperoverlay) || TEXLOADED(shaderstate.curtexnums->loweroverlay)))
 		perm |= PERMUTATION_UPPERLOWER;
-	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].handle.hlsl.vert)
+	if (r_refdef.globalfog.density && p->permu[perm|PERMUTATION_FOG].h.loaded)
 		perm |= PERMUTATION_FOG;
-	if (p->permu[perm|PERMUTATION_FRAMEBLEND].handle.hlsl.vert && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
+	if (p->permu[perm|PERMUTATION_FRAMEBLEND].h.loaded && shaderstate.batchvbo && shaderstate.batchvbo->coord2.d3d.buff)
 	{
 		perm |= PERMUTATION_FRAMEBLEND;
 		vdec |= D3D_VDEC_POS2;
 	}
-//	if (p->permu[perm|PERMUTATION_DELUXE].handle.hlsl.vert && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
+//	if (p->permu[perm|PERMUTATION_DELUXE].h.loaded && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
-	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].handle.hlsl.vert)
+	if (shaderstate.curbatch->lightmap[1] >= 0 && p->permu[perm|PERMUTATION_LIGHTSTYLES].h.loaded)
 		perm |= PERMUTATION_LIGHTSTYLES;
 
 	BE_ApplyUniforms(p, perm);

@@ -14,6 +14,8 @@
 qboolean isDedicated;
 #endif
 
+quakeparms_t	parms;
+
 void Sys_Error (const char *error, ...)
 {
 	va_list argptr;
@@ -176,22 +178,30 @@ void Sys_CloseTerminal (void)
 {
 }
 
-void Sys_MainLoop(void)
+int Sys_MainLoop(void)
 {
+	extern cvar_t vid_vsync;
 	static float oldtime;
 	float newtime, time;
 	newtime = Sys_DoubleTime ();
 	if (!oldtime)
 		oldtime = newtime;
 	time = newtime - oldtime;
-	Host_Frame (time);
+	if (!host_initialized)
+	{
+		Sys_Printf ("Host_Init\n");
+		Host_Init (&parms);
+		return 1;
+	}
+
 	oldtime = newtime;
+	Host_Frame (time);
+
+	return vid_vsync.ival;
 }
 
 int QDECL main(int argc, char **argv)
 {
-	quakeparms_t	parms;
-
 	memset(&parms, 0, sizeof(parms));
 
 
@@ -204,11 +214,7 @@ int QDECL main(int argc, char **argv)
 
 	TL_InitLanguages("");
 
-	Sys_Printf ("Host_Init\n");
-	Host_Init (&parms);
-
-	//-1 fps should give vsync
-	emscripten_set_main_loop(Sys_MainLoop, -1, false);
+	emscriptenfte_setupmainloop(Sys_MainLoop);
 	return 0;
 }
 

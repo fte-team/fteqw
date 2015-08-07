@@ -2155,7 +2155,7 @@ void Sbar_DrawScoreboard (void)
 		if (cl.spectator)
 		{
 			int t = cl.playerview[pnum].cam_spec_track;
-			if (t < 0)
+			if (t < 0 || !CAM_ISLOCKED(&cl.playerview[pnum]))
 				continue;
 			if (cl.players[t].statsf[STAT_HEALTH] <= 0)
 				deadcount++;

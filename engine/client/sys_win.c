@@ -4275,4 +4275,122 @@ void Sys_Sleep (double seconds)
 {
 	Sleep(seconds * 1000);
 }
+
+
+
+
+HCURSOR	hArrowCursor, hCustomCursor;
+void *WIN_CreateCursor(char *filename, float hotx, float hoty, float scale)
+{
+	int width, height;
+	BITMAPV5HEADER bi;
+	DWORD x,y;
+	HCURSOR hAlphaCursor = NULL;
+	ICONINFO ii;
+	HDC maindc;
+
+	qbyte *rgbadata, *rgbadata_start, *bgradata, *bgradata_start;
+	qboolean hasalpha;
+	void *filedata;
+	int filelen;
+	if (!filename || !*filename)
+		return NULL;
+	filelen = FS_LoadFile(filename, &filedata);
+	if (!filedata)
+		return NULL;
+
+	rgbadata_start = Read32BitImageFile(filedata, filelen, &width, &height, &hasalpha, "cursor");
+	FS_FreeFile(filedata);
+	if (!rgbadata_start)
+		return NULL;
+
+	if (scale != 1)
+	{
+		int nw,nh;
+		qbyte *nd;
+		nw = width * scale;
+		nh = height * scale;
+		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128)	//don't go crazy.
+			return NULL;
+		nd = BZ_Malloc(nw*nh*4);
+		Image_ResampleTexture((unsigned int*)rgbadata_start, width, height, (unsigned int*)nd, nw, nh);
+		width = nw;
+		height = nh;
+		BZ_Free(rgbadata_start);
+		rgbadata_start = nd;
+	}
+
+	memset(&bi,0, sizeof(BITMAPV5HEADER));
+	bi.bV5Size			= sizeof(BITMAPV5HEADER);
+	bi.bV5Width			= width;
+	bi.bV5Height		= height;
+	bi.bV5Planes		= 1;
+	bi.bV5BitCount		= 32;
+	bi.bV5Compression	= BI_BITFIELDS;
+	// The following mask specification specifies a supported 32 BPP
+	// alpha format for Windows XP.
+	//FIXME: can we not just specify it as RGBA? meh.
+	bi.bV5RedMask		= 0x00FF0000;
+	bi.bV5GreenMask		= 0x0000FF00;
+	bi.bV5BlueMask		= 0x000000FF;
+	bi.bV5AlphaMask		= 0xFF000000; 
+
+	// Create the DIB section with an alpha channel.
+	maindc = GetDC(mainwindow);
+	ii.hbmColor = CreateDIBSection(maindc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, (void **)&bgradata_start, NULL, 0);
+	ReleaseDC(mainwindow, maindc);
+
+	if (!ii.hbmColor)
+	{
+		BZ_Free(rgbadata_start);
+		return NULL;
+	}
+
+	for (rgbadata=rgbadata_start,y=0;y<height;y++)
+	{
+		bgradata = bgradata_start + (height-1-y)*width*4;
+		for (x=0;x<width;x++)
+		{
+			bgradata[0] = rgbadata[2];
+			bgradata[1] = rgbadata[1];
+			bgradata[2] = rgbadata[0];
+			bgradata[3] = rgbadata[3];
+			bgradata+=4;
+			rgbadata+=4;
+		}
+	}
+
+	BZ_Free(rgbadata_start);
+
+	ii.fIcon = FALSE;  // Change fIcon to TRUE to create an alpha icon
+	ii.xHotspot = hotx;
+	ii.yHotspot = hoty;
+	ii.hbmMask = CreateBitmap(width,height,1,1,NULL);
+
+	// Create the alpha cursor with the alpha DIB section.
+	hAlphaCursor = CreateIconIndirect(&ii);
+
+	DeleteObject(ii.hbmColor);          
+	DeleteObject(ii.hbmMask); 
+
+	return hAlphaCursor;
+}
+
+qboolean WIN_SetCursor(void *cursor)
+{
+	static POINT		current_pos;	//static to avoid bugs in vista(32) with largeaddressaware (this is fixed in win7). fixed exe base address prevents this from going above 2gb.
+
+	hCustomCursor = cursor;
+
+	//move the cursor to ensure the WM_SETCURSOR thing is invoked properly.
+	//this ensures all the nastyness of random programs randomly setting the current global cursor is handled by microsoft's code instead of mine.
+	//if you're using rawinput there'll be no lost inpuit problems, yay...
+	GetCursorPos(&current_pos);
+	SetCursorPos(current_pos.x, current_pos.y);
+	return true;
+}
+void WIN_DestroyCursor(void *cursor)
+{
+	DestroyIcon(cursor);
+}
 #endif

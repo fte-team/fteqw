@@ -43,8 +43,7 @@ sh_config_t sh_config;
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
 cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitup", CVAR_SHADERSYSTEM, "Reduce the shader to a single texture, and then make stuff up about its mother. The resulting fist fight results in more colour when you shine a light upon its face.\nSet to 2 to ignore 'depthfunc equal' and 'tcmod scale' in order to tolerate bizzare shaders made for a bizzare engine.");
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
-extern cvar_t r_deluxemapping;
-extern cvar_t r_fastturb, r_fastsky, r_skyboxname, r_softwarebanding;
+extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
 extern cvar_t r_shaderblobs;
 
@@ -269,7 +268,9 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, char **ptr)
 		else if (!Q_stricmp(token, "lightmap"))
 			conditiontrue = conditiontrue == !r_fullbright.value;
 		else if (!Q_stricmp(token, "deluxmap"))
-			conditiontrue = conditiontrue == r_deluxemapping.ival;
+			conditiontrue = conditiontrue == r_deluxemapping;
+		else if (!Q_stricmp(token, "softwarebanding"))
+			conditiontrue = conditiontrue == r_softwarebanding;
 
 		//normalmaps are generated if they're not already known.
 		else if (!Q_stricmp(token, "normalmap"))
@@ -1368,7 +1369,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
-		memset(&prog->permu[p].handle, 0, sizeof(prog->permu[p].handle));
+		memset(&prog->permu[p].h, 0, sizeof(prog->permu[p].h));
 		if (nopermutation & p)
 		{
 			continue;
@@ -1390,7 +1391,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 					permutationdefines[pn++] = "#define RELIEFMAPPING\n";
 			}
 
-			if (r_deluxemapping.ival)	//fixme: should be per-model really
+			if (r_deluxemapping)	//fixme: should be per-model really
 				permutationdefines[pn++] = "#define DELUXE\n";
 		}
 		permutationdefines[pn++] = NULL;
@@ -1455,7 +1456,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	}
 
 	if (sh_config.pProgAutoFields)
-		sh_config.pProgAutoFields(prog, cvarnames, cvartypes);
+		sh_config.pProgAutoFields(prog, name, cvarnames, cvartypes);
 
 	if (blobfile && blobadded)
 	{
@@ -1937,7 +1938,7 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	else
 		token = Shader_ParseSensString(ptr);
 
-#ifdef GLQUAKE
+#if 0//def GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		int p;
@@ -5010,7 +5011,7 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 	}
-	else if (r_softwarebanding.ival)
+	else if (r_softwarebanding)
 	{
 		/*alpha bended*/
 		Shader_DefaultScript(shortname, s,
@@ -5168,7 +5169,7 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 		);
 	}
 
-	if (!builtin && r_softwarebanding.ival)
+	if (!builtin && r_softwarebanding)
 	{
 		/*alpha bended*/
 		builtin = (

@@ -31,7 +31,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define FTEPLUGIN
 #define pCvar_Register Cvar_Get
 #define pCvar_GetFloat(x) Cvar_FindVar(x)->value
-#define pSys_Error Sys_Error
+#define Sys_Errorf Sys_Error
+#define pSys_Error(p) Sys_Errorf("%s",p)
 #define Plug_Init Plug_ODE_Init
 #endif
 
@@ -2228,7 +2229,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			dMassSetCylinderTotal(&mass, massval, axisindex+1, radius, length);
 			break;
 		default:
-			pSys_Error(va("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid));
+			Sys_Errorf("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
 		}
 		Matrix3x4_InvertTo4x4_Simple(ed->ode.ode_offsetmatrix, ed->ode.ode_offsetimatrix);
 		ed->ode.ode_massbuf = BZ_Malloc(sizeof(dMass));

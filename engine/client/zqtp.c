@@ -2938,7 +2938,7 @@ more:
 	{
 		item_t	*item;
 		entnum = FindNearestItem (org, it_ammo|it_pack|it_runes, &item);
-		if (!item && seat < 0)
+		if (!item)
 			return;
 		TP_ItemTaken (item->cvar->string, item->itemflag, org, entnum, item, seat);
 	}

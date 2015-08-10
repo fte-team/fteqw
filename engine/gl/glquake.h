@@ -154,9 +154,6 @@ void Mod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short
 
 void GL_InitFogTexture(void);
 
-#define GL_BeginRendering()
-#define GL_EndRendering()
-
 // Function prototypes for the Texture Object Extension routines
 typedef GLboolean (APIENTRY *ARETEXRESFUNCPTR)(GLsizei, const GLuint *,
                     const GLboolean *);

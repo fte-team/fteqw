@@ -2670,8 +2670,8 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 		ss->sfx = sfx;
 		ss->rate = 1<<PITCHSHIFT;
 		VectorCopy (origin, ss->origin);
-		ss->master_vol = vol;
-		ss->dist_mult = (attenuation/64) / sound_nominal_clip_dist;
+		ss->master_vol = vol*255;
+		ss->dist_mult = attenuation / sound_nominal_clip_dist;
 		ss->pos = 0;
 		ss->flags = CF_FORCELOOP;
 

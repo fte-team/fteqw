@@ -2249,6 +2249,8 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 		batchflags |= BEF_FORCECOLOURMOD;
 	if (shader->flags & SHADER_NODLIGHT)
 		batchflags |= BEF_NODLIGHT;
+//	if (shader->flags & RF_TWOSIDED)
+//		batchflags |= BEF_FORCETWOSIDED;
 
 	if ((batchflags & BEF_NODLIGHT) || (shader->flags & SHADER_NODLIGHT) || bemode != BEM_STANDARD)
 	{
@@ -2330,8 +2332,8 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 
 	if (!frame)
 	{
-		genframe.up = genframe.left = -1;
-		genframe.down = genframe.right = 1;
+		genframe.down = genframe.left = -1;
+		genframe.up = genframe.right = 1;
 		sprtype = SPR_VP_PARALLEL;
 		frame = &genframe;
 	}

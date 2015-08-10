@@ -61,10 +61,6 @@ void GLDraw_Init (void)
 {
 	R2D_Init();
 
-	TRACE(("dbg: GLDraw_ReInit: GL_BeginRendering\n"));
-	GL_BeginRendering ();
-	TRACE(("dbg: GLDraw_ReInit: SCR_DrawLoading\n"));
-
 	qglDisable(GL_SCISSOR_TEST);
 	GL_Set2D(false);
 
@@ -78,7 +74,8 @@ void GLDraw_Init (void)
 	}
 
 	TRACE(("dbg: GLDraw_ReInit: GL_EndRendering\n"));
-	GL_EndRendering ();
+	if (R2D_Flush)
+		R2D_Flush();
 	VID_SwapBuffers();
 
 	GL_SetupSceneProcessingTextures();

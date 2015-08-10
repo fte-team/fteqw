@@ -111,34 +111,34 @@ void main ()
 
 #ifdef FRAGMENT_SHADER
 #include "sys/fog.h"
-uniform sampler2D s_t0;	//diffuse
+uniform sampler2D s_diffuse;	//diffuse
 
 #if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
-uniform sampler2D s_t1;	//normalmap
+uniform sampler2D s_normalmap;	//normalmap
 #endif
 #ifdef SPECULAR
-uniform sampler2D s_t2;	//specular
+uniform sampler2D s_specular;	//specular
 #endif
 #ifdef CUBE
-uniform samplerCube s_t3;	//projected cubemap
+uniform samplerCube s_projectionmap;	//projected cubemap
 #endif
 #ifdef PCF
 #ifdef CUBESHADOW
-uniform samplerCubeShadow s_t4;	//shadowmap
+uniform samplerCubeShadow s_shadowmap;	//shadowmap
 #else
 #if 0//def GL_ARB_texture_gather
-uniform sampler2D s_t4;
+uniform sampler2D s_shadowmap;
 #else
-uniform sampler2DShadow s_t4;
+uniform sampler2DShadow s_shadowmap;
 #endif
 #endif
 #endif
 #ifdef LOWER
-uniform sampler2D s_t5;		//pants colours
+uniform sampler2D s_lower;		//pants colours
 uniform vec3 e_lowercolour;
 #endif
 #ifdef UPPER
-uniform sampler2D s_t6;		//shirt colours
+uniform sampler2D s_upper;		//shirt colours
 uniform vec3 e_uppercolour;
 #endif
 
@@ -162,7 +162,7 @@ vec3 ShadowmapCoord(void)
 	return ((vtexprojcoord.xyz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);
 //#elif defined(CUBESHADOW)
 //	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
-//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
+//	#define dosamp(x,y) shadowCube(s_shadowmap, shadowcoord + vec2(x,y)*texscale.xy).r
 #else
 	//figure out which axis to use
 	//texture is arranged thusly:
@@ -207,7 +207,7 @@ float ShadowmapFilter(void)
 
 	#if 0//def GL_ARB_texture_gather
 		vec2 ipart, fpart;
-		#define dosamp(x,y) textureGatherOffset(s_t4, ipart.xy, vec2(x,y)))
+		#define dosamp(x,y) textureGatherOffset(s_shadowmap, ipart.xy, vec2(x,y)))
 		vec4 tl = step(shadowcoord.z, dosamp(-1.0, -1.0));
 		vec4 bl = step(shadowcoord.z, dosamp(-1.0, 1.0));
 		vec4 tr = step(shadowcoord.z, dosamp(1.0, -1.0));
@@ -222,10 +222,10 @@ float ShadowmapFilter(void)
 	#else
 #ifdef USE_ARB_SHADOW
 		//with arb_shadow, we can benefit from hardware acclerated pcf, for smoother shadows
-		#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r
+		#define dosamp(x,y) shadow2D(s_shadowmap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r
 #else
 		//this will probably be a bit blocky.
-		#define dosamp(x,y) float(texture2D(s_t4, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)
+		#define dosamp(x,y) float(texture2D(s_shadowmap, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)
 #endif
 		float s = 0.0;
 		#if r_glsl_pcf >= 1 && r_glsl_pcf < 5
@@ -263,25 +263,29 @@ void main ()
 {
 //read raw texture samples (offsetmapping munges the tex coords first)
 #ifdef OFFSETMAPPING
-	vec2 tcoffsetmap = offsetmap(s_t1, tcbase, eyevector);
+	vec2 tcoffsetmap = offsetmap(s_normalmap, tcbase, eyevector);
 #define tcbase tcoffsetmap
 #endif
-	vec3 bases = vec3(texture2D(s_t0, tcbase));
+#if defined(FLAT)
+	vec3 bases = vec3(1.0);
+#else
+	vec3 bases = vec3(texture2D(s_diffuse, tcbase));
+#endif
 #ifdef UPPER
-	vec4 uc = texture2D(s_t6, tcbase);
+	vec4 uc = texture2D(s_upper, tcbase);
 	bases.rgb += uc.rgb*e_uppercolour*uc.a;
 #endif
 #ifdef LOWER
-	vec4 lc = texture2D(s_t5, tcbase);
+	vec4 lc = texture2D(s_lower, tcbase);
 	bases.rgb += lc.rgb*e_lowercolour*lc.a;
 #endif
 #if defined(BUMP) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
-	vec3 bumps = normalize(vec3(texture2D(s_t1, tcbase)) - 0.5);
+	vec3 bumps = normalize(vec3(texture2D(s_normalmap, tcbase)) - 0.5);
 #elif defined(REFLECTCUBEMASK)
 	vec3 bumps = vec3(0.0,0.0,1.0);
 #endif
 #ifdef SPECULAR
-	vec4 specs = texture2D(s_t2, tcbase);
+	vec4 specs = texture2D(s_specular, tcbase);
 #endif
 
 	float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);
@@ -315,7 +319,7 @@ void main ()
 
 #ifdef CUBE
 	/*filter the colour by the cubemap projection*/
-	diff *= textureCube(s_t3, vtexprojcoord.xyz).rgb;
+	diff *= textureCube(s_projectionmap, vtexprojcoord.xyz).rgb;
 #endif
 
 #if defined(SPOT)
@@ -333,7 +337,7 @@ void main ()
 
 #if defined(PROJECTION)
 	/*2d projection, not used*/
-//	diff *= texture2d(s_t3, shadowcoord);
+//	diff *= texture2d(s_projectionmap, shadowcoord);
 #endif
 
 	gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);

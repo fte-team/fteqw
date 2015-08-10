@@ -3102,6 +3102,16 @@ void QCBUILTIN PF_vtos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING(pr_string_temp);
 }
 
+void QCBUILTIN PF_Logarithm (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	//log2(v) = ln(v)/ln(2)
+	double r;
+	r = log(G_FLOAT(OFS_PARM0));
+	if (prinst->callargc > 1)
+		r /= log(G_FLOAT(OFS_PARM1));
+	G_FLOAT(OFS_RETURN) = r;
+}
+
 
 void QCBUILTIN PF_strunzone(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

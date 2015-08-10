@@ -1269,7 +1269,7 @@ ifeq ($(FTE_TARGET),web)
 #	ASMJS_MEMORY?=2147483648 #2048mb
 	WEB_MEMORY?=$(ASMJS_MEMORY)
 	JSLIBS=--js-library web/ftejslib.js -s LEGACY_GL_EMULATION=0
-	EMCC_ARGS=$(JSLIBS) $(WEB_PREJS) --shell-file web/fteshell.html  -s ERROR_ON_UNDEFINED_SYMBOLS=1
+	EMCC_ARGS=$(JSLIBS) $(WEB_PREJS) -s ERROR_ON_UNDEFINED_SYMBOLS=1
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
 	DEBUG_CFLAGS=-g -DOMIT_QCC -DGL_STATIC -DFTE_TARGET_WEB
 	RELEASE_LDFLAGS=-s ASM_JS=1 -O3	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_ARGS)
@@ -1699,14 +1699,14 @@ EMSCRIPTENPATH=$(realpath $(EMSCRIPTENROOT)):$(realpath $(EMSCRIPTENROOT)/clang/
 
 web-rel:
 	@$(MAKE) gl-rel FTE_TARGET=web	PATH="$(EMSCRIPTENPATH)" CC="emcc.bat"
-	cp $(BASE_DIR)/fteshell.html $(RELEASE_DIR)/ftewebgl.html
+	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(RELEASE_DIR)/ftewebgl.js
 	@gzip -f $(RELEASE_DIR)/ftewebgl.js.mem
 
 web-dbg:
 	@$(MAKE) gl-dbg FTE_TARGET=web	PATH="$(EMSCRIPTENPATH)" CC="emcc.bat"
-	cp $(BASE_DIR)/fteshell.html $(RELEASE_DIR)/ftewebgl.html
+	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.html
 	@gzip -f $(DEBUG_DIR)/ftewebgl.js
 	@gzip -f $(DEBUG_DIR)/ftewebgl.js.map

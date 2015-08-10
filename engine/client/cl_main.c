@@ -160,6 +160,7 @@ cvar_t	requiredownloads		= CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join 
 
 cvar_t	cl_muzzleflash			= CVAR("cl_muzzleflash", "1");
 
+cvar_t	gl_simpleitems			= CVARF("gl_simpleitems", "0", CVAR_ARCHIVE);
 cvar_t	cl_item_bobbing			= CVARF("cl_model_bobbing", "0", CVAR_ARCHIVE);
 cvar_t	cl_countpendingpl		= CVARD("cl_countpendingpl", "0", "If set to 1, packet loss percentages will show packets still in transit as lost, even if they might still be received.");
 
@@ -3752,6 +3753,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_noblink,	"Console controls");	//for lack of a better group
 
 	Cvar_Register (&cl_item_bobbing, "Item effects");
+	Cvar_Register (&gl_simpleitems, "Item effects");
 
 	Cvar_Register (&cl_staticsounds, "Item effects");
 
@@ -4802,7 +4804,9 @@ double Host_Frame (double time)
 	*/
 	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
 
-	if ((cl_netfps.value>0 || cls.demoplayback || cl_threadedphysics.ival))
+	if (sv.state && cls.state != ca_active)
+		maxfps = 0;
+	else if ((cl_netfps.value>0 || cls.demoplayback || cl_threadedphysics.ival))
 	{	//limit the fps freely, and expect the netfps to cope.
 		maxfpsignoreserver = true;
 		maxfps = cl_maxfps.ival;

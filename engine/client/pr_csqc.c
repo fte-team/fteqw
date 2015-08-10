@@ -5044,6 +5044,7 @@ static struct {
 	{"max",						PF_max,	95},					// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
 	{"bound",					PF_bound,	96},				// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
 	{"pow",						PF_pow,	97},					// #97 float(float value) pow (DP_QC_SINCOSSQRTPOW)
+	{"logarithm",				PF_Logarithm,	0},
 	{"findfloat",				PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
 	{"findentity",				PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
 	{"checkextension",			PF_checkextension,	99},		// #99 float(string extname) checkextension (EXT_CSQC)
@@ -5510,6 +5511,7 @@ static struct {
 
 	{"loadfromdata",			PF_loadfromdata,			529},
 	{"loadfromfile",			PF_loadfromfile,			530},
+	{"log",						PF_Logarithm,				532},
 
 	{"stopsound",				PF_stopsound,				0},
 	{"soundupdate",				PF_soundupdate,				0},

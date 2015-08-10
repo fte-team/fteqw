@@ -941,6 +941,7 @@ typedef struct model_s
 	int			entitiescrc;
 
 	struct doll_s		*dollinfo;
+	shader_t	*simpleskin[4];
 
 	struct {
 		texture_t *tex;

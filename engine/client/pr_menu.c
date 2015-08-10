@@ -1916,6 +1916,7 @@ static struct {
 	{"max",						PF_max,						44},
 	{"bound",					PF_bound,					45},
 	{"pow",						PF_pow,						46},
+	{"logarithm",				PF_Logarithm,				0},
 	{"copyentity",				PF_CopyEntity,				47},
 	{"fopen",					PF_fopen,					48},
 	{"fclose",					PF_fclose,					49},
@@ -2116,6 +2117,8 @@ static struct {
 	{"argv_end_index",			PF_argv_end_index,			516},
 	{"buf_cvarlist",			PF_buf_cvarlist,			517},
 	{"cvar_description",		PF_cvar_description,		518},
+															//gap
+	{"log",						PF_Logarithm,				532},
 															//gap
 	{"soundlength",				PF_soundlength,				534},
 	{"buf_loadfile",			PF_buf_loadfile,			535},

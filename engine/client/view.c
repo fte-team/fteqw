@@ -1631,23 +1631,27 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	//display health bar
 	if (scr_autoid_health.ival)
 	{
-		if (health < 0)
-			health = 0;
-		r = health / 100;
-		health -= r*100;
+		float frac = health / 100;
+		if (frac < 0)
+			frac = 0;
+		r = frac;
+		frac -= r;
 		if (r > countof(healthcolours)-2)
 		{
 			r = countof(healthcolours)-2;
-			health = 100;
+			frac = 1;
 		}
 		h += 8;
 		y -= 8;
 		R2D_ImageColours(healthcolours[r][0], healthcolours[r][1], healthcolours[r][2], healthcolours[r][3]*alpha);
-		R2D_FillBlock(x - barwidth*0.5 + barwidth * health/100.0, y, barwidth * (100-health)/100.0, 8);
+		R2D_FillBlock(x - barwidth*0.5 + barwidth * frac, y, barwidth * (1-frac), 8);
 		r++;
 		R2D_ImageColours(healthcolours[r][0], healthcolours[r][1], healthcolours[r][2], healthcolours[r][3]*alpha);
-		R2D_FillBlock(x - barwidth*0.5, y, barwidth * health/100.0, 8);
+		R2D_FillBlock(x - barwidth*0.5, y, barwidth * frac, 8);
 	}
+
+	if (health <= 0)	//armour+weapons are not relevant when dead
+		return;
 
 	if (scr_autoid_armour.ival)
 	{

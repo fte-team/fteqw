@@ -2250,14 +2250,18 @@ static qboolean GLSlang_LoadBlob(program_t *prog, const char *name, unsigned int
 
 static void GLSlang_DeleteProg(program_t *prog, unsigned int permu)
 {
-	if (prog->permu[permu].h.glsl.handle)
+	if (prog->permu[permu].h.loaded)
 	{
 		qglDeleteProgramObject_(prog->permu[permu].h.glsl.handle);
 		prog->permu[permu].h.glsl.handle = 0;
+
+		BZ_Free(prog->permu[permu].parm);
+		prog->permu[permu].parm = NULL;
+		prog->permu[permu].numparms = 0;
 	}
 }
 
-static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, char **cvarnames, int *cvartypes)
+static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, cvar_t **cvars, char **cvarnames, int *cvartypes)
 {
 	static const char *defaultsamplers[] =
 	{
@@ -2286,10 +2290,9 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, char *
 #define ALTLIGHTMAPSAMP 13
 #define ALTDELUXMAPSAMP 16
 
-	unsigned int i, j, p;
+	unsigned int i, p;
 	int uniformloc;
 	char tmpname[128];
-	cvar_t *cvar[128];
 	struct programpermu_s *pp;
 
 	//figure out visible attributes
@@ -2311,7 +2314,6 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, char *
 		}
 	}
 
-	memset(cvar, 0, sizeof(cvar));
 	prog->numsamplers = 0;
 	prog->defaulttextures = 0;
 	for (p = 0; p < PERMUTATIONS; p++)
@@ -2336,35 +2338,19 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, char *
 				}
 				pp->parm[pp->numparms].type = shader_unif_names[i].ptype;
 				pp->parm[pp->numparms].handle = uniformloc;
+				pp->parm[pp->numparms].pval = NULL;
 				pp->numparms++;
 			}
 		}
 
 		/*set cvar uniforms*/
 		/*FIXME: enumerate cvars automatically instead*/
-		for (i = 0; cvarnames[i] && i < countof(cvar); i++)
-		{
-			char *tmpval;
-			
-			if (!cvar[i])
-			{
-				for (j = 0; cvarnames[i][j] && (unsigned char)cvarnames[i][j] > 32 && j < sizeof(tmpname)-1; j++)
-					tmpname[j] = cvarnames[i][j];
-				tmpname[j] = 0;
-				tmpval = strchr(tmpname, '=');
-				if (tmpval)
-					*tmpval++ = 0;
-				else
-					tmpval = "0";
-				while(j > 0 && (tmpname[j-1] == ' ' || tmpname[j-1] == '\t'))
-					tmpname[--j] = 0;
-				cvar[i] = Cvar_Get(tmpname, tmpval, CVAR_SHADERSYSTEM, "glsl cvars");
-				if (!cvar[i])
-					continue;
-				//cvar[i]->flags |= CVAR_SHADERSYSTEM;
-			}
+		for (i = 0; cvarnames[i]; i++)
+		{			
+			if (!cvars[i])
+				continue;
 
-			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, va("cvar_%s", cvar[i]->name));
+			uniformloc = qglGetUniformLocationARB(pp->h.glsl.handle, va("cvar_%s", cvarnames[i]));
 			if (uniformloc >= 0)
 			{
 				if (pp->numparms >= maxparms)
@@ -2373,7 +2359,7 @@ static void GLSlang_ProgAutoFields(program_t *prog, const char *progname, char *
 					pp->parm = BZ_Realloc(pp->parm, sizeof(*pp->parm) * maxparms);
 				}
 				pp->parm[pp->numparms].type = cvartypes[i];
-				pp->parm[pp->numparms].pval = cvar[i];
+				pp->parm[pp->numparms].pval = cvars[i];
 				pp->parm[pp->numparms].handle = uniformloc;
 				pp->numparms++;
 			}

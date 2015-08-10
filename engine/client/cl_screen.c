@@ -1874,12 +1874,10 @@ void SCR_ImageName (char *mapname)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		GL_BeginRendering ();
 		SCR_DrawLoading(false);
 		SCR_SetUpToDrawConsole();
 		if (Key_Dest_Has(kdm_console) || !*levelshotname)
 			SCR_DrawConsole(!!*levelshotname);
-		GL_EndRendering();
 	}
 #endif
 	scr_drawloading = false;

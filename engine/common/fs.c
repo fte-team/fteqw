@@ -2573,7 +2573,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
 #define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
 /*yay q2!*/
-#define Q2CFG "com_nogamedirnativecode 0\n"
+#define Q2CFG "com_nogamedirnativecode 0\nset sv_bigcoords 0\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
 #define Q3CFG "gl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\n"
 //#define RMQCFG "sv_bigcoords 1\n"
@@ -2821,6 +2821,10 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refnamelist, char *refcrclist, int pureseed)
 {
 	qboolean pureflush;
+
+	//if we're the server, we can't be impure.
+	if (sv.state)
+		return;
 
 	if (puremode == fs_puremode && fs_pureseed == pureseed)
 	{

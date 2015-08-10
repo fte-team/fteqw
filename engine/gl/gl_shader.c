@@ -959,6 +959,41 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 	shader->flags |= SHADER_ENTITY_MERGABLE;
 }
 
+static qboolean Shader_ParseProgramCvar(char *script, cvar_t **cvarrefs, char **cvarnames, int *cvartypes, int cvartype)
+{
+	char body[MAX_QPATH];
+	char *out;
+	char *namestart;
+	while (*script == ' ' || *script == '\t')
+		script++;
+	namestart = script;
+	while ((*script >= 'A' && *script <= 'Z') || (*script >= 'a' && *script <= 'z') || (*script >= '0' && *script <= '9') || *script == '_')
+		script++;
+
+	cvartypes[0] = cvartype;
+	cvarnames[0] = Z_Malloc(script - namestart + 1);
+	memcpy(cvarnames[0], namestart, script - namestart);
+	cvarnames[0][script - namestart] = 0;
+	cvarnames[1] = NULL;
+
+	while (*script == ' ' || *script == '\t')
+		script++;
+	if (*script == '=')
+	{
+		script++;
+		while (*script == ' ' || *script == '\t')
+			script++;
+
+		out = body;
+		while (out < com_token+countof(body) && *script != '\n')
+			*out++;
+		cvarrefs[0] = Cvar_Get(cvarnames[0], body, 0, "GLSL Variables");
+	}
+	else
+		cvarrefs[0] = Cvar_Get(cvarnames[0], "", 0, "GLSL Variables");
+	return true;
+}
+
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
 static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *script, int qrtype, int ver, char *blobfilename)
 {
@@ -989,6 +1024,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	qboolean geom = false;
 	qboolean tess = false;
 
+	cvar_t *cvarrefs[64];
 	char *cvarnames[64];
 	int cvartypes[64];
 	int cvarcount = 0;
@@ -1129,51 +1165,18 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		}
 		else if (!strncmp(script, "!!cvarf", 7))
 		{
-			script += 7;
-			while (*script == ' ' || *script == '\t')
-				script++;
-			end = script;
-			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
-				end++;
 			if (cvarcount+1 != sizeof(cvarnames)/sizeof(cvarnames[0]))
-			{
-				cvartypes[cvarcount] = SP_CVARF;
-				cvarnames[cvarcount++] = script;
-				cvarnames[cvarcount] = NULL;
-			}
-			script = end;
+				cvarcount += Shader_ParseProgramCvar(script+7, &cvarrefs[cvarcount], &cvarnames[cvarcount], &cvartypes[cvarcount], SP_CVARF);
 		}
 		else if (!strncmp(script, "!!cvari", 7))
 		{
-			script += 7;
-			while (*script == ' ' || *script == '\t')
-				script++;
-			end = script;
-			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
-				end++;
 			if (cvarcount+1 != sizeof(cvarnames)/sizeof(cvarnames[0]))
-			{
-				cvartypes[cvarcount] = SP_CVARI;
-				cvarnames[cvarcount++] = script;
-				cvarnames[cvarcount] = NULL;
-			}
-			script = end;
+				cvarcount += Shader_ParseProgramCvar(script+7, &cvarrefs[cvarcount], &cvarnames[cvarcount], &cvartypes[cvarcount], SP_CVARI);
 		}
 		else if (!strncmp(script, "!!cvarv", 7))
 		{
-			script += 7;
-			while (*script == ' ' || *script == '\t')
-				script++;
-			end = script;
-			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
-				end++;
 			if (cvarcount+1 != sizeof(cvarnames)/sizeof(cvarnames[0]))
-			{
-				cvartypes[cvarcount] = SP_CVAR3F;
-				cvarnames[cvarcount++] = script;
-				cvarnames[cvarcount] = NULL;
-			}
-			script = end;
+				cvarcount += Shader_ParseProgramCvar(script+7, &cvarrefs[cvarcount], &cvarnames[cvarcount], &cvartypes[cvarcount], SP_CVAR3F);
 		}
 		else if (!strncmp(script, "!!permu", 7))
 		{
@@ -1456,7 +1459,10 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	}
 
 	if (sh_config.pProgAutoFields)
-		sh_config.pProgAutoFields(prog, name, cvarnames, cvartypes);
+		sh_config.pProgAutoFields(prog, name, cvarrefs, cvarnames, cvartypes);
+
+	while(cvarcount)
+		Z_Free((char*)cvarnames[--cvarcount]);
 
 	if (blobfile && blobadded)
 	{
@@ -1498,7 +1504,7 @@ void Shader_UnloadProg(program_t *prog)
 			sh_config.pDeleteProg(prog, p);
 	}
 
-	free(prog);
+	Z_Free(prog);
 }
 static void Shader_FlushGenerics(void)
 {
@@ -1553,6 +1559,13 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 			*blobname = 0;
 	}
 
+	if (sh_config.pDeleteProg)
+	{
+		int p;
+		for (p = 0; p < PERMUTATIONS; p++)
+			sh_config.pDeleteProg(&g->prog, p);
+	}
+
 	if (file)
 	{
 		Con_DPrintf("Loaded %s from disk\n", va(sh_config.progpath, basicname));
@@ -1601,7 +1614,7 @@ static program_t *Shader_FindGeneric(char *name, int qrtype)
 	if (!sh_config.progs_supported)
 		return NULL;
 
-	g = malloc(sizeof(*g) + strlen(name)+1);
+	g = BZ_Malloc(sizeof(*g) + strlen(name)+1);
 	memset(g, 0, sizeof(*g));
 	g->name = (char*)(g+1);
 	strcpy(g->name, name);
@@ -1621,6 +1634,7 @@ static void Shader_ReloadGenerics(void)
 	sgeneric_t *g;
 	for (g = sgenerics; g; g = g->next)
 	{
+		//this happens if some cvar changed that affects the glsl itself. supposedly.
 		Shader_LoadGeneric(g, qrenderer);
 	}
 
@@ -1809,12 +1823,12 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 	programbody = Shader_ParseBody(shader->name, ptr);
 	if (programbody)
 	{
-		shader->prog = malloc(sizeof(*shader->prog));
+		shader->prog = BZ_Malloc(sizeof(*shader->prog));
 		memset(shader->prog, 0, sizeof(*shader->prog));
 		shader->prog->refs = 1;
 		if (!Shader_LoadPermutations(shader->name, shader->prog, programbody, qrtype, 0, NULL))
 		{
-			free(shader->prog);
+			BZ_Free(shader->prog);
 			shader->prog = NULL;
 		}
 
@@ -5221,7 +5235,6 @@ void Shader_DefaultBSPVertex(const char *shortname, shader_t *s, const void *arg
 	s->numdeforms = 0;
 	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
 	s->sort = SHADER_SORT_OPAQUE;
-	s->uses = 1;
 }
 void Shader_DefaultBSPFlare(const char *shortname, shader_t *s, const void *args)
 {
@@ -5250,7 +5263,6 @@ void Shader_DefaultBSPFlare(const char *shortname, shader_t *s, const void *args
 	s->numdeforms = 0;
 	s->flags = SHADER_FLARE;
 	s->sort = SHADER_SORT_ADDITIVE;
-	s->uses = 1;
 
 	s->flags |= SHADER_NODRAW;
 }
@@ -5473,7 +5485,6 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 
 // set defaults
 	s->flags = SHADER_CULL_FRONT;
-	s->uses = 1;
 
 	while (Shader_ReadShaderTerms(s, &shadersource, parsemode, &conddepth, sizeof(cond)/sizeof(cond[0]), cond))
 	{
@@ -5532,6 +5543,11 @@ static qboolean Shader_ParseShader(char *parsename, shader_t *s)
 }
 void R_UnloadShader(shader_t *shader)
 {
+	if (shader->uses <= 0)
+	{
+		Con_Printf("Shader double free (%s %i)\n", shader->name, shader->usageflags);
+		return;
+	}
 	if (--shader->uses == 0)
 		Shader_Free(shader);
 }
@@ -5619,15 +5635,16 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 		r_numshaders = f+1;
 
 	if (!s->defaulttextures)
-	{
 		s->defaulttextures = Z_Malloc(sizeof(*s->defaulttextures));
-		s->numdefaulttextures = 0;
-	}
+	else
+		memset(s->defaulttextures, 0, sizeof(*s->defaulttextures));
+	s->numdefaulttextures = 0;
 	Q_strncpyz(s->name, cleanname, sizeof(s->name));
 	s->usageflags = usageflags;
 	s->generator = defaultgen;
 	s->width = 0;
 	s->height = 0;
+	s->uses = 1;
 	if (genargs)
 		s->genargs = strdup(genargs);
 	else

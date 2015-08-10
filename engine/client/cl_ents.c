@@ -41,6 +41,7 @@ extern	cvar_t	cl_nolerp_netquake;
 extern	cvar_t	r_torch;
 extern  cvar_t r_shadows;
 extern	cvar_t	r_showbboxes;
+extern	cvar_t gl_simpleitems;
 
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
@@ -3674,8 +3675,51 @@ void CL_LinkPacketEntities (void)
 		ent->fatness = state->fatness/16.0;
 #endif
 
-		// rotate binary objects locally
-		if (modelflags & MF_ROTATE)
+		//swap items with sprites if desired.
+		if (gl_simpleitems.ival && ent->skinnum >= 0 && ent->skinnum < countof(model->simpleskin) && model)
+		{
+			if (!model->simpleskin[ent->skinnum])
+			{
+				char basename[64], name[MAX_QPATH];
+				COM_FileBase(model->name, basename, sizeof(basename));
+				if (!strncmp(model->name, "maps/", 5))
+					Q_snprintfz(name, sizeof(name), "textures/bmodels/simple_%s_%i.tga", basename, ent->skinnum);
+				else
+					Q_snprintfz(name, sizeof(name), "textures/models/simple_%s_%i.tga", basename, ent->skinnum);
+				model->simpleskin[ent->skinnum] = R_RegisterShader(name, 0, va("{\nprogram defaultsprite\nsurfaceparm noshadows\nsurfaceparm nodlight\nsort seethrough\n{\nmap \"%s\"\nalphafunc ge128\n}\n}\n", name));
+			}
+			VectorCopy(le->angles, angles);
+
+			if (R_GetShaderSizes(model->simpleskin[ent->skinnum], NULL, NULL, false) > 0)
+			{
+				float tr[2];
+				ent->forcedshader = model->simpleskin[ent->skinnum];
+				ent->rtype = RT_SPRITE;
+				ent->scale *= 16;
+
+				tr[0] = sin(le->angles[1] * M_PI / 180.0);
+				tr[1] = cos(le->angles[1] * M_PI / 180.0);
+				ent->origin[1] += tr[0] * (model->maxs[0] + model->mins[0])*0.5 + tr[1] * (model->maxs[1] + model->mins[1])*0.5;
+				ent->origin[0] += tr[1] * (model->maxs[1] + model->mins[1])*0.5 - tr[0] * (model->maxs[0] + model->mins[0])*0.5;
+				ent->origin[2] += model->mins[2];
+
+				ent->origin[2] += ent->scale;
+
+				if (cl_item_bobbing.value)
+					ent->origin[2] += 5+sin(cl.time*3+(ent->origin[0]+ent->origin[1])/8)*5.5;	//don't let it into the ground
+			}
+			else if (modelflags & MF_ROTATE)
+			{	//surely there's a more sane way to handle this.
+				angles[0] = 0;
+				angles[1] = autorotate;
+				angles[2] = 0;
+
+				if (cl_item_bobbing.value)
+					ent->origin[2] += 5+sin(cl.time*3+(state->origin[0]+state->origin[1])/8)*5.5;	//don't let it into the ground
+			}
+		}
+		// rotate pickup objects locally
+		else if (modelflags & MF_ROTATE)
 		{
 			angles[0] = 0;
 			angles[1] = autorotate;

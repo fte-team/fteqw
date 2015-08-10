@@ -1327,7 +1327,8 @@ static float *FTableForFunc ( unsigned int func )
 void Shader_LightPass(const char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, LIGHTPASS_SHADER, "");
+	extern cvar_t r_drawflat;
+	sprintf(shadertext, LIGHTPASS_SHADER, r_drawflat.ival?"#FLAT":"");
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 

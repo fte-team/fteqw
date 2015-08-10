@@ -518,9 +518,10 @@ void GLR_TimeRefresh_f (void)
 	time = stop-start;
 	Con_Printf ("%f seconds (%f fps)\n", time, frames/time);
 
+	if (R2D_Flush)
+		R2D_Flush();
 	if (qglDrawBuffer)
 		qglDrawBuffer  (GL_BACK);
-	GL_EndRendering ();
 	VID_SwapBuffers();
 }
 

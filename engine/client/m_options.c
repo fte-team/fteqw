@@ -729,6 +729,7 @@ const char *presetexec[] =
 	"seta cl_demoreel 0;"
 	"seta cl_gibfilter 1;"
 	"if cl_deadbodyfilter == 0 then seta cl_deadbodyfilter 1;"		//as useful as 2 is, some mods use death frames for crouching etc.
+	"seta gl_simpleitems 1;"
 
 	, // fast options
 	"gl_texturemode ln;"
@@ -743,6 +744,7 @@ const char *presetexec[] =
 	"r_waterstyle 1;"
 	"r_lavastyle 1;"
 	"r_nolightdir 0;"
+	"seta gl_simpleitems 0;"
 
 	, //vanilla options.
 	"r_part_density 1;"

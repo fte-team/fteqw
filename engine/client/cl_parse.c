@@ -4188,7 +4188,8 @@ void CL_ParseStaticSound (qboolean large)
 {
 	extern cvar_t cl_staticsounds;
 	vec3_t		org;
-	int			sound_num, vol, atten;
+	int			sound_num;
+	float		vol, atten;
 	int			i;
 
 	for (i=0 ; i<3 ; i++)
@@ -4197,8 +4198,8 @@ void CL_ParseStaticSound (qboolean large)
 		sound_num = (unsigned short)MSG_ReadShort();
 	else
 		sound_num = MSG_ReadByte ();
-	vol = MSG_ReadByte ();
-	atten = MSG_ReadByte ();
+	vol = MSG_ReadByte ()/255.0;
+	atten = MSG_ReadByte ()/64.0;
 
 	vol *= cl_staticsounds.value;
 	if (vol < 0)

@@ -7,6 +7,7 @@
 #include "glquake.h"//fixme
 #endif
 #include "shader.h"
+#include "gl_draw.h"
 
 #if !defined(NOMEDIA)
 #if defined(_WIN32) && !defined(WINRT) && !defined(NOMEDIAMENU)
@@ -2475,14 +2476,16 @@ qboolean Media_ShowFilm(void)
 		else if (cin)
 		{
 			int cw = cin->outwidth, ch = cin->outheight;
-			float ratiox, ratioy;
+			float ratiox, ratioy, aspect;
 			if (cin->cursormove)
 				cin->cursormove(cin, mousecursor_x/(float)vid.width, mousecursor_y/(float)vid.height);
 			if (cin->setsize)
 				cin->setsize(cin, vid.pixelwidth, vid.pixelheight);
 
 			//FIXME: should have a proper aspect ratio setting. RoQ files are always power of two, which makes things ugly.
-			if (1)
+			if (cin->getsize)
+				cin->getsize(cin, &cw, &ch, &aspect);
+			else
 			{
 				cw = 4;
 				ch = 3;
@@ -3136,6 +3139,9 @@ void Media_RecordFrame (void)
 		return;	//skip until we're tracking the right player.
 	}
 
+	if (R2D_Flush)
+		R2D_Flush();
+
 	//submit the current video frame. audio will be mixed to match.
 	buffer = VID_GetRGBInfo(0, &truewidth, &trueheight);
 	if (buffer)
@@ -3246,6 +3252,22 @@ void Media_InitFakeSoundDevice (int speed, int channels, int samplebits)
 	if (capture_fakesounddevice)
 		return;
 
+	//when we're recording a demo, we'll be timedemoing it as it were.
+	//this means that the actual sound devices and the fake device will be going at different rates
+	//which really confuses any stream decoding, like music.
+	//so just kill all actual sound devices.
+	if (recordingdemo)
+	{
+		soundcardinfo_t *next;
+		for (sc = sndcardinfo; sc; sc=next)
+		{
+			next = sc->next;
+			sc->Shutdown(sc);
+			Z_Free(sc);
+			sndcardinfo = next;
+		}
+	}
+
 	if (!snd_speed)
 		snd_speed = speed;
 
@@ -3288,6 +3310,9 @@ void Media_StopRecordFilm_f (void)
 	if (capture_fakesounddevice)
 		S_ShutdownCard(capture_fakesounddevice);
 	capture_fakesounddevice = NULL;
+
+	if (recordingdemo)	//start up their regular audio devices again.
+		Cmd_ExecuteString("snd_restart", RESTRICT_LOCAL);
 
 	recordingdemo=false;
 

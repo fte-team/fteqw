@@ -83,12 +83,12 @@ void GLSCR_UpdateScreen (void)
 			scr_disabled_for_loading = false;
 		}
 		else
-		{		
-			GL_BeginRendering ();
+		{
 			scr_drawloading = true;
 			SCR_DrawLoading (true);
 			scr_drawloading = false;
-			GL_EndRendering ();	
+			if (R2D_Flush)
+				R2D_Flush();
 			VID_SwapBuffers();
 			RSpeedEnd(RSPEED_TOTALREFRESH);
 			return;
@@ -104,7 +104,6 @@ void GLSCR_UpdateScreen (void)
 
 	Shader_DoReload();
 
-	GL_BeginRendering ();
 	qglDisable(GL_SCISSOR_TEST);
 #ifdef VM_UI
 	uimenu = UI_MenuState();
@@ -125,7 +124,8 @@ void GLSCR_UpdateScreen (void)
 		if (key_dest_mask & kdm_console)
 			Con_DrawConsole(vid.height/2, false);
 		SCR_DrawCursor();
-		GL_EndRendering ();	
+		if (R2D_Flush)
+			R2D_Flush();
 		VID_SwapBuffers();
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;
@@ -139,7 +139,8 @@ void GLSCR_UpdateScreen (void)
 		Media_RecordFrame();
 #endif
 		R2D_BrightenScreen();
-		GL_EndRendering ();	
+		if (R2D_Flush)
+			R2D_Flush();
 		GL_Set2D (false);
 		VID_SwapBuffers();
 		RSpeedEnd(RSPEED_TOTALREFRESH);
@@ -156,18 +157,6 @@ void GLSCR_UpdateScreen (void)
 
 	if (r_clear.ival)
 	{
-		int i = r_clear.ival&7;
-		vec3_t cleartab[] =
-		{
-			{0,0,0},	//black
-			{1,0,0},	//red
-			{0,1,0},	//green
-			{1,1,0},	//
-			{0,0,1},	//blue
-			{1,0,1},	//
-			{0,1,1},	//
-			{1,1,1}		//white
-		};
 		GL_ForceDepthWritable();
 		qglClearColor((r_clear.ival&1)?1:0, (r_clear.ival&2)?1:0, (r_clear.ival&4)?1:0, 1);
 		qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -223,13 +212,13 @@ void GLSCR_UpdateScreen (void)
 	Media_RecordFrame();
 #endif
 
-	RSpeedEnd(RSPEED_TOTALREFRESH);
-	RSpeedShow();
 	if (R2D_Flush)
 		R2D_Flush();
 
+	RSpeedEnd(RSPEED_TOTALREFRESH);
+	RSpeedShow();
+
 	RSpeedRemark();
-	GL_EndRendering ();
 	VID_SwapBuffers();
 	RSpeedEnd(RSPEED_FINISH);
 
@@ -312,7 +301,7 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 
 	if (gammaworks)
 	{
-		c = prepadbytes+(*truewidth), (*trueheight)*3;
+		c = prepadbytes+(*truewidth)*(*trueheight)*3;
 		for (i=prepadbytes ; i<c ; i+=3)
 		{
 			extern qbyte		gammatable[256];

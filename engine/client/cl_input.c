@@ -1487,7 +1487,7 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 }
 #endif
 
-qboolean CLQW_SendCmd (sizebuf_t *buf)
+qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 {
 	int seq_hash;
 	qboolean dontdrop = false;
@@ -1588,7 +1588,7 @@ qboolean CLQW_SendCmd (sizebuf_t *buf)
 	else
 		cl.inframes[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
 
-	if (cl.sendprespawn)
+	if (cl.sendprespawn || !actuallysend)
 		buf->cursize = st;	//don't send movement commands while we're still supposedly downloading. mvdsv does not like that.
 	else
 	{
@@ -1618,7 +1618,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	int			i, plnum;
 	usercmd_t	*cmd;
 	float wantfps;
-	qboolean fullsend;
+	int fullsend;	//-1: send for sequence, with no usercmd. 0: update input frame, but don't send anything. 1: time for a new usercmd
 
 	static float	pps_balance = 0;
 	static int	dropcount = 0;
@@ -1758,7 +1758,9 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	wantfps = cl_netfps.value;
 	fullsend = true;
 
-	if (!runningindepphys)
+	if (sv.state && cls.state != ca_active)
+		fullsend = -1;
+	else if (!runningindepphys)
 	{
 		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
 		if (cls.state < ca_active && !cls.download)
@@ -1898,7 +1900,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 #endif
 		case CP_QUAKEWORLD:
 			msecs -= (double)msecstouse;
-			dontdrop = CLQW_SendCmd (&buf);
+			dontdrop = CLQW_SendCmd (&buf, fullsend == true);
 			break;
 #ifdef Q2CLIENT
 		case CP_QUAKE2:

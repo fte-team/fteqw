@@ -2783,6 +2783,7 @@ static qboolean JCL_BindReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 }
 static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)
 {
+	char myself[256];
 	char photodata[65536];
 	xmltree_t *vc, *photo, *photobinval;
 	const char *nickname;
@@ -2790,6 +2791,12 @@ static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 
 	buddy_t *b;
 	char *from = iq->to;
+
+	if (!*from)
+	{
+		Q_snprintf(myself, sizeof(myself), "%s@%s", jcl->username, jcl->domain);
+		from = myself;
+	}
 
 	if (jcl->avatarupdate == iq)
 	{
@@ -2894,8 +2901,6 @@ static qboolean JCL_MyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s *i
 
 	//hack the from parametmer so it looks legit
 	Q_snprintf(photodata, sizeof(photodata), "%s@%s", jcl->username, jcl->domain);
-	if (!tree)
-		XML_AddParameter(tree, "from", photodata);
 
 	//make sure our image is loaded etc
 	JCL_BuddyVCardReply(jcl, tree, iq);

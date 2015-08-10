@@ -602,7 +602,6 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	{
 	case EXCEPTION_ACCESS_VIOLATION:
 	case EXCEPTION_DATATYPE_MISALIGNMENT:
-	case EXCEPTION_BREAKPOINT:
 	case EXCEPTION_SINGLE_STEP:
 	case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
 	case EXCEPTION_FLT_DENORMAL_OPERAND:
@@ -624,9 +623,16 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	case EXCEPTION_INVALID_HANDLE:
 //	case EXCEPTION_POSSIBLE_DEADLOCK:
 		break;
+	case EXCEPTION_BREAKPOINT:
+		hKernel = LoadLibrary ("kernel32");
+		pIsDebuggerPresent = (void*)GetProcAddress(hKernel, "IsDebuggerPresent");
+		if (pIsDebuggerPresent && pIsDebuggerPresent())
+			return EXCEPTION_CONTINUE_SEARCH;
+		break;
+		return EXCEPTION_CONTINUE_EXECUTION;
 	default:
 		//because windows is a steaming pile of shite, we have to ignore any software-generated exceptions, because most of them are not in fact fatal, *EVEN IF THEY CLAIM TO BE NON-CONTINUABLE*
-		return exceptionCode;
+		return EXCEPTION_CONTINUE_SEARCH;
 	}
 
 #ifdef PRINTGLARRAYS

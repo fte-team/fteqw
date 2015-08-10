@@ -14,9 +14,11 @@ FIXME: a capture device would be useful (voice chat).
 #ifdef AVAIL_OPENAL
 
 #ifdef FTE_TARGET_WEB
+#include <emscripten/emscripten.h>
 	//emscripten provides an openal -> webaudio wrapper. its not the best, but does get the job done.
 	#define OPENAL_STATIC		//our javascript port doesn't support dynamic linking  (bss+data segments get too messy).
 	#define SDRVNAME "WebAudio"	//IE doesn't support webaudio, resulting in noticable error messages about no openal, which is technically incorrect. So lets be clear about this.
+	qboolean firefoxstaticsounds;	//FireFox bugs out with static sounds. they all end up full volume AND THIS IS REALLY LOUD AND REALLY ANNOYING.
 #else
 	#define SDRVNAME "OpenAL"
 #endif
@@ -516,6 +518,11 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 	if (chnum >= NUM_SOURCES)
 		return;
 
+#ifdef FTE_TARGET_WEB
+	if (firefoxstaticsounds && chan->dist_mult >= 3.0 / sound_nominal_clip_dist)
+		sfx = NULL;
+#endif
+
 	src = oali->source[chnum];
 	if (!src)
 	{
@@ -716,7 +723,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned 
 		//this is disgustingly shit.
 		//logically we want to set the distance divisor to 1 and the rolloff factor to dist_mult.
 		//but openal clamps in an annoying order (probably to keep things signed in hardware) and webaudio refuses infinity, so we need to special case no attenuation to get around the issue
-		if (chan->dist_mult < 0.000001)
+		if (!chan->dist_mult)
 		{
 			palSourcef(src, AL_ROLLOFF_FACTOR, 0);
 			palSourcef(src, AL_REFERENCE_DISTANCE, 0);
@@ -767,6 +774,12 @@ static void S_Info (void)
 
 static qboolean OpenAL_InitLibrary(void)
 {
+#if FTE_TARGET_WEB
+	firefoxstaticsounds = !!strstr(emscripten_run_script_string("navigator.userAgent"), "Firefox");
+	if (firefoxstaticsounds)
+		Con_Printf("Firefox detected - disabling static sounds to avoid SORRY, I CAN'T HEAR YOU\n");
+#endif
+
 #ifdef OPENAL_STATIC
 	return true;
 #else

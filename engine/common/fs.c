@@ -2822,9 +2822,11 @@ void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refn
 {
 	qboolean pureflush;
 
+#ifndef CLIENTONLY
 	//if we're the server, we can't be impure.
 	if (sv.state)
 		return;
+#endif
 
 	if (puremode == fs_puremode && fs_pureseed == pureseed)
 	{

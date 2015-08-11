@@ -25,7 +25,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 #include "renderque.h"
 #include "shader.h"
-#include "gl_draw.h"
 
 void R_RenderBrushPoly (msurface_t *fa);
 
@@ -1697,10 +1696,11 @@ void GLR_RenderView (void)
 	texid_t sourcetex = r_nulltex;
 	shader_t *custompostproc = NULL;
 	float renderscale = r_renderscale.value;	//extreme, but whatever
+	int oldfbo = 0;
 
 	checkglerror();
 
-	if (r_norefresh.value || !vid.pixelwidth || !vid.pixelheight)
+	if (r_norefresh.value || !vid.fbpwidth || !vid.fbpwidth)
 		return;
 
 	//when loading/bugged, its possible that the world is still loading.
@@ -1811,13 +1811,21 @@ void GLR_RenderView (void)
 			flags |= FBO_TEX_DEPTH;
 		else
 			flags |= FBO_RB_DEPTH;
-		GLBE_FBO_Update(&fbo_gameview, flags, col, mrt, depth, vid.fbpwidth, vid.fbpheight, 0);
+		oldfbo = GLBE_FBO_Update(&fbo_gameview, flags, col, mrt, depth, vid.fbpwidth, vid.fbpheight, 0);
 	}
 	else if ((r_refdef.flags & (RDF_ALLPOSTPROC)) || renderscale != 1)
 	{
 		//the game needs to be drawn to a texture for post processing
-		vid.fbpwidth = (r_refdef.vrect.width * vid.pixelwidth) / vid.width;
-		vid.fbpheight = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
+		if (1)//vid.framebuffer)
+		{
+			vid.fbpwidth = (r_refdef.vrect.width * r_refdef.pxrect.width) / vid.width;
+			vid.fbpheight = (r_refdef.vrect.height * r_refdef.pxrect.width) / vid.height;
+		}
+		else
+		{
+			vid.fbpwidth = (r_refdef.vrect.width * vid.pixelwidth) / vid.width;
+			vid.fbpheight = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
+		}
 
 		vid.fbpwidth *= renderscale;
 		vid.fbpheight *= renderscale;
@@ -1831,8 +1839,15 @@ void GLR_RenderView (void)
 
 		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, /*(r_refdef.flags&RDF_BLOOM)?TF_RGBA16F:*/TF_RGBA32);
 
-		GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
+		oldfbo = GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
 		dofbo = true;
+	}
+	else if (vid.framebuffer)
+	{
+		vid.fbvwidth = vid.width;
+		vid.fbvheight = vid.height;
+		vid.fbpwidth = vid.framebuffer->width;
+		vid.fbpheight = vid.framebuffer->height;
 	}
 	else
 	{
@@ -1902,12 +1917,10 @@ void GLR_RenderView (void)
 
 	//update stuff now that we're not rendering the 3d scene
 	if (dofbo)
-		GLBE_RenderToTextureUpdate2d(true);
-	else
-	{
-		GLBE_RenderToTextureUpdate2d(false);
-		GL_Set2D (false);
-	}
+		GLBE_FBO_Pop(oldfbo);
+
+	GLBE_RenderToTextureUpdate2d(false);
+	GL_Set2D (false);
 
 	// SCENE POST PROCESSING
 

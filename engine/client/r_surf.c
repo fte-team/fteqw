@@ -2476,7 +2476,6 @@ void Surf_Clear(model_t *mod)
 	}
 	mod->numtextures = 0;
 
-
 	BZ_Free(mod->shadowbatches);
 	mod->numshadowbatches = 0;
 	mod->shadowbatches = NULL;

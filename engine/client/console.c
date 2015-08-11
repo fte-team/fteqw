@@ -1966,6 +1966,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 								R2D_FillBlock((send*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
 							else
 								R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
+							R2D_Flush();
 						}
 					}
 				}

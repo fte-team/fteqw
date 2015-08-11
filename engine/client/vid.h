@@ -68,6 +68,7 @@ typedef struct
 	unsigned		fbvheight; /*virtual 2d height*/
 	unsigned		fbpwidth; /*virtual 2d width*/
 	unsigned		fbpheight; /*virtual 2d height*/
+	struct image_s	*framebuffer; /*the framebuffer fbo (set by democapture)*/
 
 	unsigned		width; /*virtual 2d screen width*/
 	unsigned		height; /*virtual 2d screen height*/

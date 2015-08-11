@@ -7,7 +7,6 @@
 #include "glquake.h"//fixme
 #endif
 #include "shader.h"
-#include "gl_draw.h"
 
 #if !defined(NOMEDIA)
 #if defined(_WIN32) && !defined(WINRT) && !defined(NOMEDIAMENU)
@@ -2664,25 +2663,21 @@ void Media_PlayFilm_f (void)
 
 
 soundcardinfo_t *capture_fakesounddevice;
-/*
-int recordavi_video_frame_counter;
-int recordavi_audio_frame_counter;
-float recordavi_frametime;	//length of a frame in fractional seconds
-float recordavi_videotime;
-float recordavi_audiotime;
-*/
-//int capturesize;
-//int capturewidth;
-//char *capturevideomem;
-//short *captureaudiomem;
-//int captureaudiosamples;
+
 double captureframeinterval;	//interval between video frames
 double capturelastvideotime;	//time of last video frame
 int captureframe;
+fbostate_t capturefbo;
+int captureoldfbo;
+qboolean capturingfbo;
+texid_t	capturetexture;
 qboolean captureframeforce;
 
 qboolean capturepaused;
+extern cvar_t vid_conautoscale;
 cvar_t capturerate = CVAR("capturerate", "30");
+cvar_t capturewidth = CVARD("capturedemowidth", "0", "When using capturedemo, this specifies the width of the FBO image used.");
+cvar_t captureheight = CVARD("capturedemoheight", "0", "When using capturedemo, this specifies the width of the FBO image used.");
 #if 0//defined(WINAVI)
 cvar_t capturedriver = CVARD("capturedriver", "avi", "The driver to use to capture the demo. avformat can be supported via a plugin.\navi: capture directly to avi (capturecodec should be a fourcc value).\nraw: capture to a series of screenshots.");
 cvar_t capturecodec = CVAR("capturecodec", "divx");
@@ -2690,7 +2685,7 @@ cvar_t capturecodec = CVAR("capturecodec", "divx");
 cvar_t capturedriver = CVARD("capturedriver", "raw", "The driver to use to capture the demo. avformat can be supported via a plugin.\nraw: capture to a series of screenshots.");
 cvar_t capturecodec = CVARD("capturecodec", "tga", "the compression/encoding codec to use. With raw capturing, this should be one of tga,png,jpg,pcx (ie: screenshot extensions).\nWith (win)avi, this should be a fourcc code like divx or xvid.");
 #endif
-cvar_t capturesound = CVAR("capturesound", "1");
+cvar_t capturesound = CVARD("capturesound", "1", "Enables the capturing of game voice. If not using capturedemo, this can be combined with cl_voip_test to capture your own voice.");
 cvar_t capturesoundchannels = CVAR("capturesoundchannels", "1");
 cvar_t capturesoundbits = CVAR("capturesoundbits", "8");
 cvar_t capturemessage = CVAR("capturemessage", "");
@@ -2864,12 +2859,12 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 
 	memset(&bitmap_info_header, 0, sizeof(BITMAPINFOHEADER));
 	bitmap_info_header.biSize = 40;
-	bitmap_info_header.biWidth = vid.pixelwidth;
-	bitmap_info_header.biHeight = vid.pixelheight;
+	bitmap_info_header.biWidth = width;
+	bitmap_info_header.biHeight = height;
 	bitmap_info_header.biPlanes = 1;
 	bitmap_info_header.biBitCount = 24;
 	bitmap_info_header.biCompression = BI_RGB;
-	bitmap_info_header.biSizeImage = vid.pixelwidth*vid.pixelheight * 3;
+	bitmap_info_header.biSizeImage = width*height * 3;
 
 
 	memset(&stream_header, 0, sizeof(stream_header));
@@ -2877,7 +2872,7 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 	stream_header.fccHandler = ctx->codec_fourcc;
 	stream_header.dwScale = 100;
 	stream_header.dwRate = (unsigned long)(0.5 + 100.0/captureframeinterval);
-	SetRect(&stream_header.rcFrame, 0, 0, vid.pixelwidth, vid.pixelheight);
+	SetRect(&stream_header.rcFrame, 0, 0, width, height);
 
 	hr = qAVIFileCreateStreamA(ctx->file, &ctx->uncompressed_video_stream, &stream_header);
 	if (FAILED(hr))
@@ -2990,6 +2985,30 @@ static media_encoder_funcs_t capture_avi =
 };
 #endif
 
+#ifdef _DEBUG
+static void QDECL capture_null_end(void *vctx)
+{
+}
+static void *QDECL capture_null_begin (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits)
+{
+	return (void*)~0;
+}
+static void QDECL capture_null_video(void *vctx, void *vdata, int frame, int width, int height)
+{
+}
+static void QDECL capture_null_audio(void *vctx, void *data, int bytes)
+{
+}
+static media_encoder_funcs_t capture_null =
+{
+	"null",
+	capture_null_begin,
+	capture_null_video,
+	capture_null_audio,
+	capture_null_end
+};
+#endif
+
 static media_encoder_funcs_t *pluginencodersfunc[8];
 static struct plugin_s *pluginencodersplugin[8];
 qboolean Media_RegisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *funcs)
@@ -3015,9 +3034,10 @@ qboolean Media_UnregisterEncoder(struct plugin_s *plug, media_encoder_funcs_t *f
 
 	for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)
 	{
+		if (pluginencodersplugin[i])
 		if (pluginencodersfunc[i] == funcs || (!funcs && pluginencodersplugin[i] == plug))
 		{
-			if (currentcapture_funcs == funcs)
+			if (currentcapture_funcs == pluginencodersfunc[i])
 				Media_StopRecordFilm_f();
 			success = true;
 			pluginencodersfunc[i] = NULL;
@@ -3163,7 +3183,38 @@ skipframe:
 	if (y < scr_con_current) y = scr_con_current;
 	if (y > vid.height-8)
 		y = vid.height-8;
-	Draw_FunString((strlen(capturemessage.string)+1)*8, y, S_COLOR_RED"RECORDING");
+
+#ifdef GLQUAKE
+	if (capturingfbo)
+	{
+		shader_t *pic;
+		GLBE_FBO_Pop(captureoldfbo);
+		vid.framebuffer = NULL;
+		GL_Set2D(false);
+
+		pic = R_RegisterShader("capturdemofeedback", SUF_NONE,
+					"{\n"
+						"program default2d\n"
+						"{\n"
+							"map $diffuse\n"
+						"}\n"
+					"}\n");
+		pic->defaulttextures->base = capturetexture;
+		//pulse green slightly, so its a bit more obvious
+		R2D_ImageColours(1, 1+0.2*sin(realtime), 1, 1);
+		R2D_Image(0, 0, vid.width, vid.height, 0, 1, 1, 0, pic);
+		R2D_ImageColours(1, 1, 1, 1);
+		Draw_FunString(0, 0, S_COLOR_RED"RECORDING");
+		if (R2D_Flush)
+			R2D_Flush();
+
+		captureoldfbo = GLBE_FBO_Push(&capturefbo);
+		vid.framebuffer = capturetexture;
+		GL_Set2D(false);
+	}
+	else
+#endif
+		Draw_FunString((strlen(capturemessage.string)+1)*8, y, S_COLOR_RED"RECORDING");
 }
 }
 
@@ -3320,21 +3371,20 @@ void Media_StopRecordFilm_f (void)
 		currentcapture_funcs->capture_end(currentcapture_ctx);
 	currentcapture_ctx = NULL;
 	currentcapture_funcs = NULL;
+
+#ifdef GLQUAKE
+	if (capturingfbo)
+		GLBE_FBO_Pop(captureoldfbo);
+#endif
+	vid.framebuffer = NULL;
+	capturingfbo = false;
+
+	Cvar_ForceCallback(&vid_conautoscale);
 }
-void Media_RecordFilm_f (void)
+static void Media_RecordFilm (char *recordingname, qboolean demo)
 {
 	int sndkhz, sndchannels, sndbits;
 	int i;
-
-	if (Cmd_Argc() != 2)
-	{
-		Con_Printf("capture <filename>\nRecords video output in an avi file.\nUse capturerate and capturecodec to configure.\n");
-		return;
-	}
-
-	if (Cmd_IsInsecure())	//err... don't think so sonny.
-		return;
-
 
 	Media_StopRecordFilm_f();
 
@@ -3382,18 +3432,47 @@ void Media_RecordFilm_f (void)
 		sndchannels = 0;
 		sndbits = 0;
 	}
+
+#ifdef GLQUAKE
+	if (demo && capturewidth.ival && captureheight.ival && qrenderer == QR_OPENGL && gl_config.ext_framebuffer_objects)
+	{
+		capturingfbo = true;
+		capturetexture = R2D_RT_Configure("$democapture", capturewidth.ival, captureheight.ival, TF_BGRA32);
+		captureoldfbo = GLBE_FBO_Update(&capturefbo, FBO_RB_DEPTH, &capturetexture, 1, r_nulltex, capturewidth.ival, captureheight.ival, 0);
+		vid.fbpwidth = capturewidth.ival;
+		vid.fbpheight = captureheight.ival;
+		vid.framebuffer = capturetexture;
+	}
+#endif
+
+	recordingdemo = demo;
 	
 	if (!currentcapture_funcs->capture_begin)
 		currentcapture_ctx = NULL;
 	else
-		currentcapture_ctx = currentcapture_funcs->capture_begin(Cmd_Argv(1), capturerate.value, vid.pixelwidth, vid.pixelheight, &sndkhz, &sndchannels, &sndbits);
+		currentcapture_ctx = currentcapture_funcs->capture_begin(recordingname, capturerate.value, vid.fbpwidth, vid.fbpheight, &sndkhz, &sndchannels, &sndbits);
 	if (!currentcapture_ctx)
 	{
+		recordingdemo = false;
 		currentcapture_funcs = NULL;
 		Con_Printf("Unable to initialise capture driver\n");
 	}
 	else if (sndkhz)
 		Media_InitFakeSoundDevice(sndkhz, sndchannels, sndbits);
+
+	Cvar_ForceCallback(&vid_conautoscale);
+}
+static void Media_RecordFilm_f (void)
+{
+	if (Cmd_Argc() != 2)
+	{
+		Con_Printf("capture <filename>\nRecords video output in an avi file.\nUse capturerate and capturecodec to configure.\n");
+		return;
+	}
+	if (Cmd_IsInsecure())	//err... don't think so sonny.
+		return;
+
+	Media_RecordFilm(Cmd_Argv(1), false);
 }
 void Media_CaptureDemoEnd(void)
 {
@@ -3414,22 +3493,20 @@ void Media_RecordDemo_f(void)
 		return;
 	}
 
+	CL_Stopdemo_f();	//capturing failed for some reason
+
 	CL_PlayDemo(Cmd_Argv(1), false);
 	if (!cls.demoplayback)
 	{
 		Con_Printf("unable to play demo, not capturing\n");
 		return;
 	}
-	//FIXME: mamke sure it loaded okay
-	if (Cmd_Argc() > 2)
-		Cmd_ShiftArgs(1, false);
-	Media_RecordFilm_f();
+	//FIXME: make sure it loaded okay
+	Media_RecordFilm(Cmd_Argv(Cmd_Argc()>2?2:1), true);
 	scr_con_current=0;
 	Key_Dest_Remove(kdm_console|kdm_emenu|kdm_gmenu);
 
-	if (currentcapture_funcs)
-		recordingdemo = true;
-	else
+	if (!currentcapture_funcs)
 		CL_Stopdemo_f();	//capturing failed for some reason
 }
 
@@ -4137,6 +4214,9 @@ void Media_Init(void)
 	Media_RegisterEncoder(NULL, &capture_avi);
 #endif
 	Media_RegisterEncoder(NULL, &capture_raw);
+#ifdef _DEBUG
+	Media_RegisterEncoder(NULL, &capture_null);
+#endif
 
 	Cmd_AddCommand("playvideo", Media_PlayFilm_f);
 	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
@@ -4164,7 +4244,6 @@ void Media_Init(void)
 
 	media_playlisttypes = MEDIA_PLAYLIST | MEDIA_GAMEMUSIC | MEDIA_CVARLIST;
 
-#if defined(GLQUAKE)
 	Cmd_AddCommand("capture", Media_RecordFilm_f);
 	Cmd_AddCommand("capturedemo", Media_RecordDemo_f);
 	Cmd_AddCommand("capturestop", Media_StopRecordFilm_f);
@@ -4173,6 +4252,8 @@ void Media_Init(void)
 	Cvar_Register(&capturemessage,	"AVI capture controls");
 	Cvar_Register(&capturesound,	"AVI capture controls");
 	Cvar_Register(&capturerate,	"AVI capture controls");
+	Cvar_Register(&capturewidth,	"AVI capture controls");
+	Cvar_Register(&captureheight,	"AVI capture controls");
 	Cvar_Register(&capturedriver,	"AVI capture controls");
 	Cvar_Register(&capturecodec,	"AVI capture controls");
 
@@ -4181,8 +4262,6 @@ void Media_Init(void)
 	Cvar_Register(&capturesoundchannels,	"AVI capture controls");
 
 	S_RegisterSoundInputPlugin(S_LoadMP3Sound);
-#endif
-
 #endif
 
 #ifdef WINAMP

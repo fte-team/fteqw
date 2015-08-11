@@ -254,13 +254,12 @@ static int D3D9Shader_FindUniform(union programhandle_u *h, int type, const char
 	return -1;
 }
 
-static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, char **cvarnames, int *cvartypes)
+static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cvar_t **cvarrefs, char **cvarnames, int *cvartypes)
 {
 	struct programpermu_s *pp;
 	unsigned int i, p;
 	int uniformloc;
 	char tmpname[128];
-	cvar_t *cvar[128];
 
 	static const char *defaultsamplers[] =
 	{
@@ -293,8 +292,6 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cha
 	prog->defaulttextures = 0;
 	prog->numsamplers = 0;
 
-	memset(cvar, 0, sizeof(cvar));
-
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
 		int maxparms = 0;
@@ -322,32 +319,34 @@ static void D3D9Shader_ProgAutoFields(program_t *prog, const char *progname, cha
 			}
 		}
 
-		for (i = 0; cvarnames[i] && i < countof(cvar); i++)
+		for (i = 0; cvarnames[i]; i++)
 		{
-			if (!cvar[i])
-			{
-				for (p = 0; cvarnames[i][p] && (unsigned char)cvarnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
-					tmpname[p] = cvarnames[i][p];
-				tmpname[p] = 0;
-				cvar[i] = Cvar_FindVar(tmpname);
-				if (!cvar[i])
-					continue;
-				cvar[i]->flags |= CVAR_SHADERSYSTEM;
-			}
-
-			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 1, va("cvar_%s", tmpname));
+			if (!cvarrefs[i])
+				continue;
+			//just directly sets uniforms. can't cope with cvars dynamically changing.
+			cvarrefs[i]->flags |= CVAR_SHADERSYSTEM;
+		
+			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 1, va("cvar_%s", cvarnames[i]));
 			if (uniformloc != -1)
 			{
-				vec4_t v = {cvar[i]->value, 0, 0, 0};
-				IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->permu[p].h.hlsl.vert);
-				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 0, v, 1);
+				if (cvartypes[i] == SP_CVARI)
+				{
+					int v[4] = {cvarrefs[i]->ival, 0, 0, 0};
+					IDirect3DDevice9_SetVertexShaderConstantI(pD3DDev9, 0, v, 1);
+				}
+				else
+					IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 0, cvarrefs[i]->vec4, 1);
 			}
-			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, va("cvar_%s", tmpname));
+			uniformloc = D3D9Shader_FindUniform(&prog->permu[p].h, 2, va("cvar_%s", cvarnames[i]));
 			if (uniformloc != -1)
 			{
-				vec4_t v = {cvar[i]->value, 0, 0, 0};
-				IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->permu[p].h.hlsl.frag);
-				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, 0, v, 1);
+				if (cvartypes[i] == SP_CVARI)
+				{
+					int v[4] = {cvarrefs[i]->ival, 0, 0, 0};
+					IDirect3DDevice9_SetPixelShaderConstantI(pD3DDev9, 0, v, 1);
+				}
+				else
+					IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, 0, cvarrefs[i]->vec4, 1);
 			}
 		}
 

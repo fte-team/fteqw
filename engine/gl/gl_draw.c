@@ -134,7 +134,14 @@ void GL_Set2D (qboolean flipped)
 	float w = vid.width, h = vid.height;
 	qboolean fbo = !!*r_refdef.rt_destcolour[0].texname;
 
-	if (fbo)
+	if (vid.framebuffer)
+	{
+		vid.fbvwidth = vid.width;
+		vid.fbvheight = vid.height;
+		vid.fbpwidth = vid.framebuffer->width;
+		vid.fbpheight = vid.framebuffer->height;
+	}
+	else if (fbo)
 	{
 		R2D_RT_GetTexture(r_refdef.rt_destcolour[0].texname, &vid.fbpwidth, &vid.fbpheight);
 		vid.fbvwidth = vid.fbpwidth;

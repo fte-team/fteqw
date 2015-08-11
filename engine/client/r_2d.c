@@ -1045,18 +1045,27 @@ void R2D_Console_Resize(void)
 	float ang, rad;
 	extern cvar_t gl_screenangle;
 
+	int fbwidth = vid.pixelwidth;
+	int fbheight = vid.pixelheight;
+
+	if (vid.framebuffer)
+	{
+		fbwidth = vid.framebuffer->width;
+		fbheight = vid.framebuffer->height;
+	}
+
 	ang = (gl_screenangle.value>0?(gl_screenangle.value+45):(gl_screenangle.value-45))/90;
 	ang = (int)ang * 90;
 	if (ang)
 	{
 		rad = (ang * M_PI) / 180;
-		vid.rotpixelwidth = fabs(cos(rad)) * (vid.pixelwidth) + fabs(sin(rad)) * (vid.pixelheight);
-		vid.rotpixelheight = fabs(sin(rad)) * (vid.pixelwidth) + fabs(cos(rad)) * (vid.pixelheight);
+		vid.rotpixelwidth = fabs(cos(rad)) * (fbwidth) + fabs(sin(rad)) * (fbheight);
+		vid.rotpixelheight = fabs(sin(rad)) * (fbwidth) + fabs(cos(rad)) * (fbheight);
 	}
 	else
 	{
-		vid.rotpixelwidth = vid.pixelwidth;
-		vid.rotpixelheight = vid.pixelheight;
+		vid.rotpixelwidth = fbwidth;
+		vid.rotpixelheight = fbheight;
 	}
 
 	cwidth = vid_conwidth.value;

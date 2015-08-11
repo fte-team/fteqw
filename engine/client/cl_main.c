@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "winquake.h"
-#include "gl_draw.h"
 #include <sys/types.h>
 #include "netinc.h"
 #include "cl_master.h"
@@ -4804,9 +4803,12 @@ double Host_Frame (double time)
 	*/
 	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
 
+#ifndef CLIENTONLY
 	if (sv.state && cls.state != ca_active)
 		maxfps = 0;
-	else if ((cl_netfps.value>0 || cls.demoplayback || cl_threadedphysics.ival))
+	else
+#endif
+		if ((cl_netfps.value>0 || cls.demoplayback || cl_threadedphysics.ival))
 	{	//limit the fps freely, and expect the netfps to cope.
 		maxfpsignoreserver = true;
 		maxfps = cl_maxfps.ival;

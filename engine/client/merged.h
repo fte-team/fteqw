@@ -91,6 +91,7 @@ void R2D_ImageColours(float r, float g, float b, float a);
 void R2D_ImagePaletteColour(unsigned int i, float a);
 void R2D_FillBlock(float x, float y, float w, float h);
 void R2D_Line(float x1, float y1, float x2, float y2, mpic_t *pic);
+extern void (*R2D_Flush)(void);
 
 extern void	(*Draw_Init)							(void);
 
@@ -226,7 +227,7 @@ typedef struct image_s
 	char *ident;	//allocated on end
 	char *subpath;	//allocated on end
 	int regsequence;
-	int width;
+	int width;	//this is the logical size. the physical size is not considered important (except for render targets, which should not be loaded from disk).
 	int height;
 	int status;	//TEX_
 	unsigned int flags;

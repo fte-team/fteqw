@@ -848,6 +848,8 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 	mpic_t *pic;
 
+	R2D_ImageColours(1,1,1,1);
+
 	pic = R2D_SafeCachePic("scrollbars/slidebg.tga");
 	if (pic && R_GetShaderSizes(pic, NULL, NULL, false)>0)
 	{

@@ -892,6 +892,11 @@ void D3D9_Set2D (void)
 	vid.fbvheight = vid.height;
 	vid.fbpwidth = vid.pixelwidth;
 	vid.fbpheight = vid.pixelheight;
+
+	r_refdef.pxrect.x = 0;
+	r_refdef.pxrect.y = 0;
+	r_refdef.pxrect.width = vid.fbpwidth;
+	r_refdef.pxrect.height = vid.fbpheight;
 }
 
 static int d3d9error(int i)
@@ -1002,9 +1007,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	{
 		Editor_Draw();
 		V_UpdatePalette (false);
-#if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
-#endif
 		R2D_BrightenScreen();
 
 		if (key_dest == key_console)
@@ -1020,9 +1023,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	{
 		M_Draw(0);
 //		V_UpdatePalette (false);
-#if defined(_WIN32)
 		Media_RecordFrame();
-#endif
 //		R2D_BrightenScreen();
 		IDirect3DDevice9_EndScene(pD3DDev9);
 		IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
@@ -1076,9 +1077,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
 	V_UpdatePalette (false);
-#if defined(_WIN32) && defined(GLQUAKE)
 	Media_RecordFrame();
-#endif
 
 	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
@@ -1169,7 +1168,7 @@ static void D3D9_SetupViewPortProjection(void)
 	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
-	if (r_waterwarp.value<0 && r_viewcontents & FTECONTENTS_FLUID)
+	if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
 	{
 		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
@@ -1191,6 +1190,23 @@ static void D3D9_SetupViewPortProjection(void)
 static void	(D3D9_R_RenderView)				(void)
 {
 	Surf_SetupFrame();
+
+	//check if we can do underwater warp
+	if (cls.protocol != CP_QUAKE2)	//quake2 tells us directly
+	{
+		if (r_viewcontents & FTECONTENTS_FLUID)
+			r_refdef.flags |= RDF_UNDERWATER;
+		else
+			r_refdef.flags &= ~RDF_UNDERWATER;
+	}
+	if (r_refdef.flags & RDF_UNDERWATER)
+	{
+		extern cvar_t r_projection;
+		if (!r_waterwarp.value || r_projection.ival)
+			r_refdef.flags &= ~RDF_UNDERWATER;	//no warp at all
+//		else if (r_waterwarp.value > 0 && scenepp_waterwarp)
+//			r_refdef.flags |= RDF_WATERWARP;	//try fullscreen warp instead if we can
+	}
 
 	D3D9_SetupViewPortProjection();
 

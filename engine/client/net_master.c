@@ -2936,6 +2936,8 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 			*nl = '\0';
 
 			details.players[clnum].isspec = false;
+			details.players[clnum].team[0] = 0;
+			details.players[clnum].skin[0] = 0;
 
 			token = msg;
 			if (!token)

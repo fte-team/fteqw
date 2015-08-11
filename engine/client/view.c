@@ -23,7 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "winquake.h"
 #include "glquake.h"
-#include "gl_draw.h"
 
 #include <ctype.h> // for isdigit();
 
@@ -1125,7 +1124,7 @@ void V_ApplyAFov(playerview_t *pv)
 		//attempt to retain a classic fov
 		if (ws*r_refdef.vrect.width < (r_refdef.vrect.height*640)/432)
 		{
-			r_refdef.fov_y = CalcFov(afov, (ws*r_refdef.vrect.width*vid.pixelwidth)/vid.width, (r_refdef.vrect.height*vid.pixelheight)/vid.height);
+			r_refdef.fov_y = CalcFov(afov, (ws*r_refdef.vrect.width*r_refdef.pxrect.width)/vid.width, (r_refdef.vrect.height*r_refdef.pxrect.height)/vid.height);
 			r_refdef.fov_x = afov;//CalcFov(r_refdef.fov_y, 432, 640);
 		}
 		else

@@ -1758,9 +1758,12 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	wantfps = cl_netfps.value;
 	fullsend = true;
 
+#ifndef CLIENTONLY
 	if (sv.state && cls.state != ca_active)
 		fullsend = -1;
-	else if (!runningindepphys)
+	else 
+#endif
+		if (!runningindepphys)
 	{
 		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
 		if (cls.state < ca_active && !cls.download)

@@ -249,13 +249,8 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 	int i, c;
 	qbyte *ret;
 
-	*truewidth = vid.pixelwidth;
-	*trueheight = vid.pixelheight;
-
-	if (*r_refdef.rt_destcolour[0].texname)
-	{
-		R2D_RT_GetTexture(r_refdef.rt_destcolour[0].texname, truewidth, trueheight);
-	}
+	*truewidth = vid.fbpwidth;
+	*trueheight = vid.fbpheight;
 
 	/*if (1)
 	{
@@ -275,7 +270,7 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 		}
 		BZ_Free(p);
 	}
-	else*/ if (gl_config.gles || (vid.pixelwidth&3))
+	else*/ if (gl_config.gles || (*truewidth&3))
 	{
 		qbyte *p;
 

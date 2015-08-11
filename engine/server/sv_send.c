@@ -585,7 +585,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 //	to = MULTICAST_ALL;
 	//don't let things crash if the world model went away. can happen in broadcasts when reloading video with the map no longer available causing the server to die with the resulting broadcast messages about players dropping or gib effects appearing
-	if (sv.world.worldmodel->loadstate != MLS_LOADED)
+	if (sv.world.worldmodel->loadstate != MLS_LOADED || !sv.world.worldmodel->nodes)
 	{
 		switch(to)
 		{

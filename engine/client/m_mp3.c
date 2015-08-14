@@ -2671,10 +2671,11 @@ int captureoldfbo;
 qboolean capturingfbo;
 texid_t	capturetexture;
 qboolean captureframeforce;
-#ifdef GLQUAKE
+#if defined(GLQUAKE) && !defined(GLESONLY)
 //ring buffer
 int pbo_handles[4];
 enum uploadfmt pbo_format;
+#define CAN_USE_PBOS
 #endif
 int pbo_oldest;
 
@@ -3188,7 +3189,7 @@ void Media_RecordFrame (void)
 	if (R2D_Flush)
 		R2D_Flush();
 
-#ifdef GLQUAKE
+#ifdef CAN_USE_PBOS
 	if (pbo_format != TF_INVALID)
 	{
 		int imagesize = vid.fbpwidth * vid.fbpheight * 4;
@@ -3432,7 +3433,7 @@ void Media_InitFakeSoundDevice (int speed, int channels, int samplebits)
 
 void Media_StopRecordFilm_f (void)
 {
-#ifdef GLQUAKE
+#ifdef CAN_USE_PBOS
 	if (pbo_format)
 	{
 		int i;
@@ -3546,7 +3547,9 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 		vid.fbpheight = captureheight.ival;
 		vid.framebuffer = capturetexture;
 	}
+#endif
 
+#ifdef CAN_USE_PBOS
 	pbo_format = TF_INVALID;
 	if (qrenderer == QR_OPENGL && !gl_config.gles && gl_config.glversion >= 2.1)
 	{	//both tgas and vfw favour bgr24, so lets get the gl drivers to suffer instead of us.

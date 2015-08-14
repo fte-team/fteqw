@@ -2248,7 +2248,7 @@ void SCR_ScreenShot_f (void)
 	vfsfile_t *vfs;
 	void *rgbbuffer;
 	int width, height;
-	enum uploadmfmt fmt;
+	enum uploadfmt fmt;
 
 	if (!VID_GetRGBInfo)
 	{

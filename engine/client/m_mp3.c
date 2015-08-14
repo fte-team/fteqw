@@ -3553,7 +3553,10 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 	pbo_format = TF_INVALID;
 	if (qrenderer == QR_OPENGL && !gl_config.gles && gl_config.glversion >= 2.1)
 	{	//both tgas and vfw favour bgr24, so lets get the gl drivers to suffer instead of us.
-		pbo_format = TF_BGR24;
+		if (vid.fbpwidth & 3)
+			pbo_format = TF_BGRA32;	//don't bother changing pack alignment, just use something that is guarenteed to not need anything.
+		else
+			pbo_format = TF_BGR24;
 	}
 #endif
 

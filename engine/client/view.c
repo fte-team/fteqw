@@ -1630,7 +1630,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	//display health bar
 	if (scr_autoid_health.ival)
 	{
-		float frac = health / 100;
+		float frac = health / 100.0;
 		if (frac < 0)
 			frac = 0;
 		r = frac;

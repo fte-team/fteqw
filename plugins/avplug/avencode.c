@@ -115,20 +115,38 @@ void close_video(struct encctx *ctx)
 	}
 	av_free(ctx->video_outbuf);
 }
-static void AVEnc_Video (void *vctx, void *data, int frame, int width, int height)
+static void AVEnc_Video (void *vctx, void *data, int frame, int width, int height, enum uploadfmt qpfmt)
 {
 	struct encctx *ctx = vctx;
-	//weird maths to flip it.
-	const uint8_t *srcslices[2] = {(uint8_t*)data + (height-1)*width*3, NULL};
-	int srcstride[2] = {-width*3, 0};
+	const uint8_t *srcslices[2];
+	int srcstride[2];
 	int success;
 	AVPacket pkt;
+	int avpfmt;
+	int inbpp;
 
 	if (!ctx->video_st)
 		return;
 
+	switch(qpfmt)
+	{
+	case TF_BGRA32: avpfmt = AV_PIX_FMT_BGRA; inbpp = 4; break;
+	case TF_RGBA32: avpfmt = AV_PIX_FMT_RGBA; inbpp = 4; break;
+	case TF_BGR24: avpfmt = AV_PIX_FMT_BGR24; inbpp = 3; break;
+	case TF_RGB24: avpfmt = AV_PIX_FMT_RGB24; inbpp = 3; break;
+	default:
+		return;
+	}
+
+	//weird maths to flip it.
+	srcslices[0] = (uint8_t*)data + (height-1)*width*inbpp;
+	srcstride[0] = -width*inbpp;
+	srcslices[1] = NULL;
+	srcstride[1] = 0;
+
 	//convert RGB to whatever the codec needs (ie: yuv...).
-	ctx->scale_ctx = sws_getCachedContext(ctx->scale_ctx, width, height, AV_PIX_FMT_RGB24, ctx->picture->width, ctx->picture->height, ctx->video_st->codec->pix_fmt, SWS_POINT, 0, 0, 0);
+	//also rescales, but only if the user resizes the video while recording. which is a stupid thing to do.
+	ctx->scale_ctx = sws_getCachedContext(ctx->scale_ctx, width, height, qpfmt, ctx->picture->width, ctx->picture->height, ctx->video_st->codec->pix_fmt, SWS_POINT, 0, 0, 0);
 	sws_scale(ctx->scale_ctx, srcslices, srcstride, 0, height, ctx->picture->data, ctx->picture->linesize);
 
 	av_init_packet(&pkt);

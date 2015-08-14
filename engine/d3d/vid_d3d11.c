@@ -1102,7 +1102,7 @@ static qboolean	D3D11_VID_ApplyGammaRamps(unsigned short *ramps)
 	}
 	return false;
 }
-static char	*D3D11_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidheight)
+static char	*D3D11_VID_GetRGBInfo(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 	//don't directly map the frontbuffer, as that can hold other things.
 	//create a texture, copy the (gpu)backbuffer to that (cpu)texture
@@ -1132,8 +1132,7 @@ static char	*D3D11_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidhei
 	ID3D11Resource_Release(backbuffer);
 	if (!FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)texture, 0, D3D11_MAP_READ, 0, &lock)))
 	{
-		r = rgb = BZ_Malloc(prepad + 3 * vid.pixelwidth * vid.pixelheight);
-		r += prepad;
+		r = rgb = BZ_Malloc(3 * vid.pixelwidth * vid.pixelheight);
 		for (y = vid.pixelheight; y-- > 0; )
 		{
 			in = lock.pData;
@@ -1150,6 +1149,7 @@ static char	*D3D11_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidhei
 	ID3D11Texture2D_Release(texture);
 	*truevidwidth = vid.pixelwidth;
 	*truevidheight = vid.pixelheight;
+	*fmt = TF_RGB24;
 	return r;
 }
 static void	(D3D11_VID_SetWindowCaption)		(char *msg)

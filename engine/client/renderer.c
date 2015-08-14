@@ -856,7 +856,7 @@ void	(*R_RenderView)				(void);		// must set r_refdef first
 
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (*VID_DeInit)				(void);
-char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
+char	*(*VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
 void	(*VID_SetWindowCaption)		(char *msg);
 
 void	(*SCR_UpdateScreen)			(void);

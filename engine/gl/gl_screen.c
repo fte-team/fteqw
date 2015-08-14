@@ -243,7 +243,7 @@ void GLSCR_UpdateScreen (void)
 }
 
 
-char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
+char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt)
 {	//returns a BZ_Malloced array
 	extern qboolean gammaworks;
 	int i, c;
@@ -259,14 +259,14 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 		p = BZ_Malloc(vid.pixelwidth*vid.pixelheight*sizeof(float));
 		qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_DEPTH_COMPONENT, GL_FLOAT, p); 
 
-		ret = BZ_Malloc(prepadbytes + vid.pixelwidth*vid.pixelheight*3);
+		ret = BZ_Malloc(vid.pixelwidth*vid.pixelheight*3);
 
 		c = vid.pixelwidth*vid.pixelheight;
 		for (i = 1; i < c; i++)
 		{
-			ret[prepadbytes+i*3+0]=p[i]*p[i]*p[i]*255;
-			ret[prepadbytes+i*3+1]=p[i]*p[i]*p[i]*255;
-			ret[prepadbytes+i*3+2]=p[i]*p[i]*p[i]*255;
+			ret[i*3+0]=p[i]*p[i]*p[i]*255;
+			ret[i*3+1]=p[i]*p[i]*p[i]*255;
+			ret[i*3+2]=p[i]*p[i]*p[i]*255;
 		}
 		BZ_Free(p);
 	}
@@ -274,30 +274,46 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 	{
 		qbyte *p;
 
-		// gles only guarantees GL_RGBA/GL_UNSIGNED_BYTE so downconvert and resize
-		ret = BZ_Malloc(prepadbytes + (*truewidth)*(*trueheight)*4);
-		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGBA, GL_UNSIGNED_BYTE, ret + prepadbytes); 
+		//gles:
+		//Only two format/type parameter pairs are accepted.
+		//GL_RGBA/GL_UNSIGNED_BYTE is always accepted, and the other acceptable pair can be discovered by querying GL_IMPLEMENTATION_COLOR_READ_FORMAT and GL_IMPLEMENTATION_COLOR_READ_TYPE.
+		//thus its simpler to only use GL_RGBA/GL_UNSIGNED_BYTE
+		//desktopgl:
+		//total line byte length must be aligned to GL_PACK_ALIGNMENT. by reading rgba instead of rgb, we can ensure the line is a multiple of 4 bytes.
 
+		ret = BZ_Malloc((*truewidth)*(*trueheight)*4);
+		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGBA, GL_UNSIGNED_BYTE, ret); 
+
+		*fmt = TF_RGB24;
 		c = (*truewidth)*(*trueheight);
-		p = ret + prepadbytes;
+		p = ret;
 		for (i = 1; i < c; i++)
 		{
 			p[i*3+0]=p[i*4+0];
 			p[i*3+1]=p[i*4+1];
 			p[i*3+2]=p[i*4+2];
 		}
-		ret = BZ_Realloc(ret, prepadbytes + (*truewidth)*(*trueheight)*3);
+		ret = BZ_Realloc(ret, (*truewidth)*(*trueheight)*3);
 	}
+#ifdef _DEBUG
+	else if (!gl_config.gles && gl_config.glversion >= 1.2)
+	{
+		*fmt = TF_BGRA32;
+		ret = BZ_Malloc((*truewidth)*(*trueheight)*4);
+		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, ret); 
+	}
+#endif
 	else
 	{
-		ret = BZ_Malloc(prepadbytes + (*truewidth)*(*trueheight)*3);
-		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
+		*fmt = TF_RGB24;
+		ret = BZ_Malloc((*truewidth)*(*trueheight)*3);
+		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGB, GL_UNSIGNED_BYTE, ret); 
 	}
 
 	if (gammaworks)
 	{
-		c = prepadbytes+(*truewidth)*(*trueheight)*3;
-		for (i=prepadbytes ; i<c ; i+=3)
+		c = (*truewidth)*(*trueheight)*3;
+		for (i=0 ; i<c ; i+=3)
 		{
 			extern qbyte		gammatable[256];
 			ret[i+0] = gammatable[ret[i+0]];

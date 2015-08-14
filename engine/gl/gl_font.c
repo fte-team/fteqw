@@ -28,6 +28,7 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 struct font_s *font_default;
 struct font_s *font_console;
 struct font_s *font_tiny;
+static int font_be_flags;
 extern unsigned int r2d_be_flags;
 
 //by adding 'extern' to one definition of a function in a translation unit, then the definition in that TU is NOT considered an inline definition. meaning non-inlined references in other TUs can link to it instead of their own if needed.
@@ -409,10 +410,10 @@ static void Font_Flush(void)
 		font_backmesh.numvertexes = font_foremesh.numvertexes;
 		font_backmesh.istrifan = font_foremesh.istrifan;
 
-		BE_DrawMesh_Single(fontplanes.backshader, &font_backmesh, NULL, r2d_be_flags);
+		BE_DrawMesh_Single(fontplanes.backshader, &font_backmesh, NULL, font_be_flags);
 	}
 	TEXASSIGN(fontplanes.shader->defaulttextures->base, font_texture);
-	BE_DrawMesh_Single(fontplanes.shader, &font_foremesh, NULL, r2d_be_flags);
+	BE_DrawMesh_Single(fontplanes.shader, &font_foremesh, NULL, font_be_flags);
 	font_foremesh.numindexes = 0;
 	font_foremesh.numvertexes = 0;
 }
@@ -1523,10 +1524,10 @@ void Font_Free(struct font_s *f)
 //maps a given virtual screen coord to a pixel coord, which matches the font's height/width values
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py)
 {
-	if (R2D_Flush && (R2D_Flush != Font_Flush || curfont != font))
+	if (R2D_Flush && (R2D_Flush != Font_Flush || curfont != font || font_be_flags != r2d_be_flags))
 		R2D_Flush();
 	R2D_Flush = Font_Flush;
-
+	font_be_flags = r2d_be_flags;
 	curfont = font;
 	*px = (vx*(int)vid.rotpixelwidth) / (float)vid.width;
 	*py = (vy*(int)vid.rotpixelheight) / (float)vid.height;
@@ -1544,10 +1545,10 @@ void Font_Transform(float vx, float vy, int *px, int *py)
 }
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py)
 {
-	if (R2D_Flush && (R2D_Flush != Font_Flush || curfont != font))
+	if (R2D_Flush && (R2D_Flush != Font_Flush || curfont != font || font_be_flags != r2d_be_flags))
 		R2D_Flush();
 	R2D_Flush = Font_Flush;
-
+	font_be_flags = r2d_be_flags;
 	curfont = font;
 	*px = (vx*(float)vid.rotpixelwidth) / (float)vid.width;
 	*py = (vy*(float)vid.rotpixelheight) / (float)vid.height;

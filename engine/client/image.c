@@ -720,6 +720,7 @@ void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PST
 #else
 void (PNGAPI *qpng_set_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_1_2_4_to_8);
 #endif
+void (PNGAPI *qpng_set_bgr) PNGARG((png_structp png_ptr)) PSTATIC(png_set_bgr);
 void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
 void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
 png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_structp png_ptr, png_infop info_ptr, png_uint_32 *width, png_uint_32 *height,
@@ -767,6 +768,7 @@ qboolean LibPNG_Init(void)
                 #else
 		{(void **) &qpng_set_gray_1_2_4_to_8,	"png_set_gray_1_2_4_to_8"},
                 #endif
+		{(void **) &qpng_set_bgr,						"png_set_bgr"},
 		{(void **) &qpng_set_filler,					"png_set_filler"},
 		{(void **) &qpng_set_palette_to_rgb,			"png_set_palette_to_rgb"},
 		{(void **) &qpng_get_IHDR,						"png_get_IHDR"},
@@ -979,7 +981,7 @@ error:
 
 
 #ifndef NPFTE
-int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, qbyte *pixels, int width, int height)
+int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, qbyte *pixels, int width, int height, enum uploadfmt fmt)
 {
 	char name[MAX_OSPATH];
 	int i;
@@ -988,6 +990,7 @@ int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, qb
 	png_infop info_ptr;
 	png_byte **row_pointers;
 	struct pngerr errctx;
+	int pxsize;
 
 	if (!FS_NativePath(filename, fsroot, name, sizeof(name)))
 		return false;
@@ -1036,14 +1039,25 @@ err:
 #endif
 	qpng_set_compression_level(png_ptr, Z_NO_COMPRESSION + (compression*(Z_BEST_COMPRESSION-Z_NO_COMPRESSION))/100);
 
-	qpng_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+	if (fmt == TF_BGR24 || fmt == TF_BGRA32)
+		qpng_set_bgr(png_ptr);
+	if (fmt == TF_RGBA32 || fmt == TF_BGRA32)
+	{
+		pxsize = 4;
+		qpng_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+	}
+	else
+	{
+		pxsize = 3;
+		qpng_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+	}
 	qpng_write_info(png_ptr, info_ptr);
 
 	row_pointers = BZ_Malloc (sizeof(png_byte *) * height);
 	if (!row_pointers)
 		goto err;
 	for (i = 0; i < height; i++)
-		row_pointers[height - i - 1] = pixels + i * width * 3;
+		row_pointers[height - i - 1] = pixels + i * width * pxsize;
 	qpng_write_image(png_ptr, row_pointers);
 	qpng_write_end(png_ptr, info_ptr);
 	BZ_Free(row_pointers);
@@ -1463,6 +1477,19 @@ badjpeg:
 /*end read*/
 #ifndef NPFTE
 /*begin write*/
+
+
+#ifndef DYNAMIC_LIBJPEG
+#define qjpeg_std_error			jpeg_std_error
+#define qjpeg_destroy_compress	jpeg_destroy_compress
+#define qjpeg_CreateCompress	jpeg_CreateCompress
+#define qjpeg_set_defaults		jpeg_set_defaults
+#define qjpeg_set_quality		jpeg_set_quality
+#define qjpeg_start_compress	jpeg_start_compress
+#define qjpeg_write_scanlines	jpeg_write_scanlines
+#define qjpeg_finish_compress	jpeg_finish_compress
+#define qjpeg_destroy_compress	jpeg_destroy_compress
+#endif
 #define OUTPUT_BUF_SIZE 4096
 typedef struct  {
 	struct jpeg_error_mgr pub;
@@ -1535,13 +1562,16 @@ METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo)
 {
   longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
-qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
+qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int screenwidth, int screenheight, enum uploadfmt fmt)
 {
 	qbyte	*buffer;
 	vfsfile_t	*outfile;
 	jpeg_error_mgr_wrapper jerr;
 	struct jpeg_compress_struct cinfo;
 	JSAMPROW row_pointer[1];
+
+	if (fmt != TF_RGB24)
+		return false;
 
 	if (!LIBJPEG_LOADED())
 		return false;
@@ -1556,29 +1586,17 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 		}
 	}
 
-	#ifdef DYNAMIC_LIBJPEG
-		cinfo.err = qjpeg_std_error(&jerr.pub);
-	#else
-		cinfo.err = jpeg_std_error(&jerr.pub);
-	#endif
+	cinfo.err = qjpeg_std_error(&jerr.pub);
 	jerr.pub.error_exit = jpeg_error_exit;
 	if (setjmp(jerr.setjmp_buffer))
 	{
-		#ifdef DYNAMIC_LIBJPEG
-			qjpeg_destroy_compress(&cinfo);
-		#else
-			jpeg_destroy_compress(&cinfo);
-		#endif
+		qjpeg_destroy_compress(&cinfo);
 		VFS_CLOSE(outfile);
 		FS_Remove(filename, FS_GAME);
 		Con_Printf("Failed to create jpeg\n");
 		return false;
 	}
-	#ifdef DYNAMIC_LIBJPEG
-		qjpeg_create_compress(&cinfo);
-	#else
-		jpeg_create_compress(&cinfo);
-	#endif
+	qjpeg_create_compress(&cinfo);
 
 	buffer = screendata;
 
@@ -1587,42 +1605,18 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 	cinfo.image_height = screenheight;
 	cinfo.input_components = 3;
 	cinfo.in_color_space = JCS_RGB;
-	#ifdef DYNAMIC_LIBJPEG
-		qjpeg_set_defaults(&cinfo);
-	#else
-		jpeg_set_defaults(&cinfo);
-	#endif
-	#ifdef DYNAMIC_LIBJPEG
-		qjpeg_set_quality (&cinfo, bound(0, compression, 100), true);
-	#else
-		jpeg_set_quality (&cinfo, bound(0, compression, 100), true);
-	#endif
-	#ifdef DYNAMIC_LIBJPEG
-		qjpeg_start_compress(&cinfo, true);
-	#else
-		jpeg_start_compress(&cinfo, true);
-	#endif
+	qjpeg_set_defaults(&cinfo);
+	qjpeg_set_quality (&cinfo, bound(0, compression, 100), true);
+	qjpeg_start_compress(&cinfo, true);
 
 	while (cinfo.next_scanline < cinfo.image_height)
 	{
 		*row_pointer = &buffer[(cinfo.image_height - cinfo.next_scanline - 1) * cinfo.image_width * 3];
-		#ifdef DYNAMIC_LIBJPEG
-			qjpeg_write_scanlines(&cinfo, row_pointer, 1);
-		#else
-			jpeg_write_scanlines(&cinfo, row_pointer, 1);
-		#endif
+		qjpeg_write_scanlines(&cinfo, row_pointer, 1);
 	}
-	#ifdef DYNAMIC_LIBJPEG
-		qjpeg_finish_compress(&cinfo);
-	#else
-		jpeg_finish_compress(&cinfo);
-	#endif
+	qjpeg_finish_compress(&cinfo);
 	VFS_CLOSE(outfile);
-	#ifdef DYNAMIC_LIBJPEG
-		qjpeg_destroy_compress(&cinfo);
-	#else
-		jpeg_destroy_compress(&cinfo);
-	#endif
+	qjpeg_destroy_compress(&cinfo);
 	return true;
 }
 #endif
@@ -3155,21 +3149,24 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 		}
 	}
 
-	if (flags & IF_NOMIPMAP)
+	if (!(flags & IF_NOPICMIP))
 	{
-		if (gl_picmip2d.ival > 0)
+		if (flags & IF_NOMIPMAP)
 		{
-			*scaled_width >>= gl_picmip2d.ival;
-			*scaled_height >>= gl_picmip2d.ival;
+			if (gl_picmip2d.ival > 0)
+			{
+				*scaled_width >>= gl_picmip2d.ival;
+				*scaled_height >>= gl_picmip2d.ival;
+			}
 		}
-	}
-	else
-	{
-		if (gl_picmip.ival > 0)
+		else
 		{
-			TRACE(("dbg: GL_RoundDimensions: %f\n", gl_picmip.value));
-			*scaled_width >>= gl_picmip.ival;
-			*scaled_height >>= gl_picmip.ival;
+			if (gl_picmip.ival > 0)
+			{
+				TRACE(("dbg: GL_RoundDimensions: %f\n", gl_picmip.value));
+				*scaled_width >>= gl_picmip.ival;
+				*scaled_height >>= gl_picmip.ival;
+			}
 		}
 	}
 
@@ -3500,6 +3497,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	case TF_MIP4_LUM8:
 		//8bit opaque data
 		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+		flags |= IF_NOPICMIP;
 		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
 		{
 			unsigned int pixels =
@@ -3537,6 +3535,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	case TF_MIP4_SOLID8:
 		//8bit opaque data
 		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+		flags |= IF_NOPICMIP;
 		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && sh_config.texfmt[PTI_RGBX8])
 		{
 			unsigned int pixels =

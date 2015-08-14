@@ -110,6 +110,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette);
 qboolean GLVID_Is8bit(void);
 
 void GLVID_SwapBuffers(void);
-char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight);
+char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt);
 void GLVID_SetCaption(char *caption);
 #endif

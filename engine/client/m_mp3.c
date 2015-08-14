@@ -697,7 +697,6 @@ void Media_LoadTrackNames (char *listname);
 
 void M_Media_Draw (menu_t *menu)
 {
-	mpic_t	*p;
 	mediatrack_t *track;
 	int y;
 	int op, i;
@@ -2672,6 +2671,12 @@ int captureoldfbo;
 qboolean capturingfbo;
 texid_t	capturetexture;
 qboolean captureframeforce;
+#ifdef GLQUAKE
+//ring buffer
+int pbo_handles[4];
+enum uploadfmt pbo_format;
+#endif
+int pbo_oldest;
 
 qboolean capturepaused;
 extern cvar_t vid_conautoscale;
@@ -2751,13 +2756,13 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 	}
 	return ctx;
 }
-static void QDECL capture_raw_video (void *vctx, void *data, int frame, int width, int height)
+static void QDECL capture_raw_video (void *vctx, void *data, int frame, int width, int height, enum uploadfmt fmt)
 {
 	struct capture_raw_ctx *ctx = vctx;
 	char filename[MAX_OSPATH];
 	ctx->frames = frame+1;
 	Q_snprintfz(filename, sizeof(filename), "%s%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
-	SCR_ScreenShot(filename, ctx->fsroot, data, width, height);
+	SCR_ScreenShot(filename, ctx->fsroot, data, width, height, fmt);
 }
 static void QDECL capture_raw_audio (void *vctx, void *data, int bytes)
 {
@@ -2949,19 +2954,39 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 	return ctx;
 }
 
-static void QDECL capture_avi_video(void *vctx, void *vdata, int frame, int width, int height)
+static void QDECL capture_avi_video(void *vctx, void *vdata, int frame, int width, int height, enum uploadfmt fmt)
 {
 	struct capture_avi_ctx *ctx = vctx;
 	qbyte *data = vdata;
 	int c, i;
 	qbyte temp;
-	// swap rgb to bgr
-	c = width*height*3;
-	for (i=0 ; i<c ; i+=3)
+
+	if (fmt == TF_BGRA32)
 	{
-		temp = data[i];
-		data[i] = data[i+2];
-		data[i+2] = temp;
+		// truncate bgra to bgr
+		c = width*height;
+		for (i=0 ; i<c ; i++)
+		{
+			data[i*3+0] = data[i*4+0];
+			data[i*3+1] = data[i*4+1];
+			data[i*3+2] = data[i*4+2];
+		}
+	}
+	else if (fmt == TF_RGB24)
+	{
+		// swap rgb to bgr
+		c = width*height*3;
+		for (i=0 ; i<c ; i+=3)
+		{
+			temp = data[i];
+			data[i] = data[i+2];
+			data[i+2] = temp;
+		}
+	}
+	else if (fmt != TF_BGR24)
+	{
+		Con_Printf("Unsupported image format\n");
+		return;
 	}
 	//write it
 	if (FAILED(qAVIStreamWrite(avi_video_stream(ctx), frame, 1, data, width*height * 3, ((frame%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL)))
@@ -2993,7 +3018,7 @@ static void *QDECL capture_null_begin (char *streamname, int videorate, int widt
 {
 	return (void*)~0;
 }
-static void QDECL capture_null_video(void *vctx, void *vdata, int frame, int width, int height)
+static void QDECL capture_null_video(void *vctx, void *vdata, int frame, int width, int height, enum uploadfmt fmt)
 {
 }
 static void QDECL capture_null_audio(void *vctx, void *data, int bytes)
@@ -3098,6 +3123,7 @@ void Media_RecordFrame (void)
 {
 	char *buffer;
 	int truewidth, trueheight;
+	enum uploadfmt fmt;
 
 	if (!currentcapture_funcs)
 		return;
@@ -3162,17 +3188,65 @@ void Media_RecordFrame (void)
 	if (R2D_Flush)
 		R2D_Flush();
 
-	//submit the current video frame. audio will be mixed to match.
-	buffer = VID_GetRGBInfo(0, &truewidth, &trueheight);
-	if (buffer)
+#ifdef GLQUAKE
+	if (pbo_format != TF_INVALID)
 	{
-		currentcapture_funcs->capture_video(currentcapture_ctx, buffer, captureframe, truewidth, trueheight);
-		capturelastvideotime += captureframeinterval;
-		captureframe++;
-		BZ_Free (buffer);
+		int imagesize = vid.fbpwidth * vid.fbpheight * 4;
+		while (pbo_oldest + countof(pbo_handles) <= captureframe)
+		{
+			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pbo_handles[pbo_oldest%countof(pbo_handles)]);
+			buffer = qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
+			if (buffer)
+			{
+				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, pbo_oldest, vid.fbpwidth, vid.fbpheight, pbo_format);
+				qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
+			}
+			pbo_oldest++;
+		}
+
+		if (!pbo_handles[captureframe%countof(pbo_handles)])
+		{
+			qglGenBuffersARB(1, &pbo_handles[captureframe%countof(pbo_handles)]);
+			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pbo_handles[captureframe%countof(pbo_handles)]);
+			qglBufferDataARB(GL_PIXEL_PACK_BUFFER_ARB, imagesize, NULL, GL_STATIC_READ_ARB);
+		}
+		qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pbo_handles[captureframe%countof(pbo_handles)]);
+		switch(pbo_format)
+		{
+		case TF_BGR24:
+			qglReadPixels(0, 0, vid.fbpwidth, vid.fbpheight, GL_BGR_EXT, GL_UNSIGNED_BYTE, 0);
+			break;
+		case TF_BGRA32:
+			qglReadPixels(0, 0, vid.fbpwidth, vid.fbpheight, GL_BGRA_EXT, GL_UNSIGNED_INT_8_8_8_8_REV, 0);
+			break;
+		case TF_RGB24:
+			qglReadPixels(0, 0, vid.fbpwidth, vid.fbpheight, GL_RGB, GL_UNSIGNED_BYTE, 0);
+			break;
+		case TF_RGBA32:
+			qglReadPixels(0, 0, vid.fbpwidth, vid.fbpheight, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+			break;
+		}
+		qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0);
 	}
 	else
-		Con_DPrintf("Unable to grab video image\n");
+#endif
+	{
+		pbo_oldest = captureframe+1;
+		//submit the current video frame. audio will be mixed to match.
+		buffer = VID_GetRGBInfo(&truewidth, &trueheight, &fmt);
+		if (buffer)
+		{
+			currentcapture_funcs->capture_video(currentcapture_ctx, buffer, captureframe, truewidth, trueheight, fmt);
+			BZ_Free (buffer);
+		}
+		else
+		{
+			Con_DPrintf("Unable to grab video image\n");
+			currentcapture_funcs->capture_video(currentcapture_ctx, NULL, captureframe, 0, 0, TF_INVALID);
+		}
+	}
+	captureframe++;
+	capturelastvideotime += captureframeinterval;
 
 	captureframeforce = false;
 
@@ -3358,6 +3432,35 @@ void Media_InitFakeSoundDevice (int speed, int channels, int samplebits)
 
 void Media_StopRecordFilm_f (void)
 {
+#ifdef GLQUAKE
+	if (pbo_format)
+	{
+		int i;
+		int imagesize = vid.fbpwidth * vid.fbpheight * 4;
+		while (pbo_oldest < captureframe)
+		{
+			qbyte *buffer;
+			qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, pbo_handles[pbo_oldest%countof(pbo_handles)]);
+			buffer = qglMapBufferARB(GL_PIXEL_PACK_BUFFER_ARB, GL_READ_ONLY_ARB);
+			if (buffer)
+			{
+				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, pbo_oldest, vid.fbpwidth, vid.fbpheight, TF_BGR24);
+//				currentcapture_funcs->capture_video(currentcapture_ctx, buffer, pbo_oldest, vid.fbpwidth, vid.fbpheight, TF_BGRA32);
+				qglUnmapBufferARB(GL_PIXEL_PACK_BUFFER_ARB);
+			}
+			pbo_oldest++;
+		}
+
+		for (i = 0; i < countof(pbo_handles); i++)
+		{
+			if (pbo_handles[i])
+				qglDeleteBuffersARB(1, &pbo_handles[i]);
+			pbo_handles[i] = 0;
+		}
+	}
+#endif
+
+
 	if (capture_fakesounddevice)
 		S_ShutdownCard(capture_fakesounddevice);
 	capture_fakesounddevice = NULL;
@@ -3401,7 +3504,7 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 
 	Con_ClearNotify();
 
-	captureframe = 0;
+	captureframe = pbo_oldest = 0;
 	for (i = 0; i < sizeof(pluginencodersfunc)/sizeof(pluginencodersfunc[0]); i++)
 	{
 		if (pluginencodersfunc[i])
@@ -3438,10 +3541,16 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 	{
 		capturingfbo = true;
 		capturetexture = R2D_RT_Configure("$democapture", capturewidth.ival, captureheight.ival, TF_BGRA32);
-		captureoldfbo = GLBE_FBO_Update(&capturefbo, FBO_RB_DEPTH, &capturetexture, 1, r_nulltex, capturewidth.ival, captureheight.ival, 0);
+		captureoldfbo = GLBE_FBO_Update(&capturefbo, FBO_RB_DEPTH|(Sh_StencilShadowsActive()?FBO_RB_STENCIL:0), &capturetexture, 1, r_nulltex, capturewidth.ival, captureheight.ival, 0);
 		vid.fbpwidth = capturewidth.ival;
 		vid.fbpheight = captureheight.ival;
 		vid.framebuffer = capturetexture;
+	}
+
+	pbo_format = TF_INVALID;
+	if (qrenderer == QR_OPENGL && !gl_config.gles && gl_config.glversion >= 2.1)
+	{	//both tgas and vfw favour bgr24, so lets get the gl drivers to suffer instead of us.
+		pbo_format = TF_BGR24;
 	}
 #endif
 

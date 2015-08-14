@@ -55,6 +55,9 @@ void QCBUILTIN PF_CL_drawfill (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_CL_drawsetcliparea (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	srect_t srect;
+	if (R2D_Flush)
+		R2D_Flush();
+
 	csqc_dp_lastwas3d = false;
 
 	srect.x = G_FLOAT(OFS_PARM0) / (float)vid.fbvwidth;
@@ -71,6 +74,9 @@ void QCBUILTIN PF_CL_drawsetcliparea (pubprogfuncs_t *prinst, struct globalvars_
 //void	drawresetcliparea(void) = #459;
 void QCBUILTIN PF_CL_drawresetcliparea (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	if (R2D_Flush)
+		R2D_Flush();
+
 	csqc_dp_lastwas3d = false;
 
 	BE_Scissor(NULL);

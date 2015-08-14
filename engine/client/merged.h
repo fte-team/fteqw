@@ -101,7 +101,7 @@ extern void	(*R_RenderView)							(void);		// must set r_refdef first
 
 extern qboolean	(*VID_Init)							(rendererstate_t *info, unsigned char *palette);
 extern void	(*VID_DeInit)							(void);
-extern char *(*VID_GetRGBInfo)						(int prepad, int *truevidwidth, int *truevidheight);
+extern char *(*VID_GetRGBInfo)						(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
 extern void	(*VID_SetWindowCaption)					(char *msg);
 
 extern void SCR_Init								(void);
@@ -413,7 +413,7 @@ typedef struct rendererinfo_s {
 	void (*VID_DestroyCursor)			(void *cursor);	//may be null
 
 	void	(*VID_SetWindowCaption)		(char *msg);
-	char	*(*VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
+	char	*(*VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt);
 
 	void	(*SCR_UpdateScreen)			(void);
 

@@ -31,6 +31,7 @@ shader_t *shader_polyblend;
 shader_t *shader_menutint;
 
 #define DRAW_QUADS 128
+static int		draw_active_flags;
 static shader_t *draw_active_shader;
 static avec4_t	draw_active_colour;
 static mesh_t	draw_mesh;
@@ -576,7 +577,7 @@ void R2D_ImageAtlas(float x, float y, float w, float h, float s1, float t1, floa
 
 void R2D_ImageFlush(void)
 {
-	BE_DrawMesh_Single(draw_active_shader, &draw_mesh, NULL, r2d_be_flags);
+	BE_DrawMesh_Single(draw_active_shader, &draw_mesh, NULL, draw_active_flags);
 
 	R2D_Flush = NULL;
 	draw_active_shader = NULL;
@@ -597,12 +598,13 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 			return;
 	}
 
-	if (draw_active_shader != pic || draw_mesh.numvertexes+4 > DRAW_QUADS)
+	if (draw_active_shader != pic || draw_active_flags != r2d_be_flags || draw_mesh.numvertexes+4 > DRAW_QUADS)
 	{
 		if (R2D_Flush)
 			R2D_Flush();
 
 		draw_active_shader = pic;
+		draw_active_flags = r2d_be_flags;
 		R2D_Flush = R2D_ImageFlush;
 
 		draw_mesh.numindexes = 0;
@@ -663,12 +665,13 @@ void R2D_FillBlock(float x, float y, float w, float h)
 		pic = shader_draw_fill_trans;
 	else
 		pic = shader_draw_fill;
-	if (draw_active_shader != pic || draw_mesh.numvertexes+4 > DRAW_QUADS)
+	if (draw_active_shader != pic || draw_active_flags != r2d_be_flags || draw_mesh.numvertexes+4 > DRAW_QUADS)
 	{
 		if (R2D_Flush)
 			R2D_Flush();
 
 		draw_active_shader = pic;
+		draw_active_flags = r2d_be_flags;
 		R2D_Flush = R2D_ImageFlush;
 
 		draw_mesh.numindexes = 0;

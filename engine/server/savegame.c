@@ -1221,10 +1221,11 @@ void SV_Savegame (char *savename)
 		//okay, we drew something, we're good to save a screeny.
 		if (okay)
 		{
-			rgbbuffer = VID_GetRGBInfo(0, &width, &height);
+			enum uploadfmt fmt;
+			rgbbuffer = VID_GetRGBInfo(&width, &height, &fmt);
 			if (rgbbuffer)
 			{
-				SCR_ScreenShot(savefilename, FS_GAMEONLY, rgbbuffer, width, height);
+				SCR_ScreenShot(savefilename, FS_GAMEONLY, rgbbuffer, width, height, fmt);
 				BZ_Free(rgbbuffer);
 	
 

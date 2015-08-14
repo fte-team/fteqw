@@ -163,8 +163,9 @@ static qboolean Headless_VID_ApplyGammaRamps		(unsigned short *ramps)
 static void	Headless_VID_SetWindowCaption		(char *msg)
 {
 }
-static char	*Headless_VID_GetRGBInfo			(int prepad, int *truevidwidth, int *truevidheight)
+static char	*Headless_VID_GetRGBInfo			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
+	*fmt = TF_INVALID;
 	*truevidwidth = *truevidheight = 0;
 	return NULL;
 }

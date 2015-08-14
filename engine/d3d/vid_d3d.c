@@ -802,7 +802,7 @@ qboolean D3D9_VID_ApplyGammaRamps		(unsigned short *ramps)
 		IDirect3DDevice9_SetGammaRamp(pD3DDev9, 0, D3DSGR_NO_CALIBRATION, (D3DGAMMARAMP *)ramps);
 	return true;
 }
-static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight)
+static char	*(D3D9_VID_GetRGBInfo)			(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 	IDirect3DSurface9 *backbuf, *surf;
 	D3DLOCKED_RECT rect;
@@ -828,14 +828,16 @@ static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevi
 			if (!FAILED(IDirect3DDevice9_GetRenderTargetData(pD3DDev9, backbuf, surf)))
 			if (!FAILED(IDirect3DSurface9_LockRect(surf, &rect, NULL, D3DLOCK_NO_DIRTY_UPDATE|D3DLOCK_READONLY|D3DLOCK_NOSYSLOCK)))
 			{
-				ret = BZ_Malloc(prepad + desc.Width*desc.Height*3);
+				ret = BZ_Malloc(desc.Width*desc.Height*3);
 				if (ret)
 				{
+					*fmt = TF_RGB24;
+
 					// read surface rect and convert 32 bgra to 24 rgb and flip
-					c = prepad+desc.Width*desc.Height*3;
+					c = desc.Width*desc.Height*3;
 					p = (qbyte *)rect.pBits;
 
-					for (i=c-(3*desc.Width); i>=prepad; i-=(3*desc.Width))
+					for (i=c-(3*desc.Width); i>=0; i-=(3*desc.Width))
 					{
 						for (j=0; j<desc.Width; j++)
 						{
@@ -1239,7 +1241,6 @@ qboolean (D3D9_VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (D3D9_VID_DeInit)				(void);
 void	(D3D9_VID_SetPalette)			(unsigned char *palette);
 void	(D3D9_VID_ShiftPalette)			(unsigned char *palette);
-char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);
 void	(D3D9_VID_SetWindowCaption)		(char *msg);
 
 void	(D3D9_SCR_UpdateScreen)			(void);

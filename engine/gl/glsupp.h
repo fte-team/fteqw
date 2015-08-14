@@ -612,6 +612,10 @@ typedef void		(APIENTRYP PFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei
 #define GL_FRAMEBUFFER_SRGB							0x8DB9
 #endif
 
+#ifndef GL_ARB_pixel_buffer_object
+#define GL_PIXEL_PACK_BUFFER_ARB                        0x88EB
+#define GL_PIXEL_UNPACK_BUFFER_ARB                      0x88EC
+#endif
 
 #ifndef GL_ARB_vertex_buffer_object
 #define GL_BUFFER_SIZE_ARB                0x8764

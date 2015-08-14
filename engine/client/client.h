@@ -1572,7 +1572,7 @@ typedef struct
 typedef struct {
 	char *drivername;
 	void *(VARGS *capture_begin) (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits);
-	void (VARGS *capture_video) (void *ctx, void *data, int frame, int width, int height);
+	void (VARGS *capture_video) (void *ctx, void *data, int frame, int width, int height, enum uploadfmt fmt);
 	void (VARGS *capture_audio) (void *ctx, void *data, int bytes);
 	void (VARGS *capture_end) (void *ctx);
 } media_encoder_funcs_t;

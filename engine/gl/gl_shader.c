@@ -985,8 +985,9 @@ static qboolean Shader_ParseProgramCvar(char *script, cvar_t **cvarrefs, char **
 			script++;
 
 		out = body;
-		while (out < com_token+countof(body) && *script != '\n')
-			*out++;
+		while (out < com_token+countof(body)-1 && *script != '\n' && !(script[0] == '/' && script[1] == '/')) 
+			*out++ = *script++;
+		*out++ = 0;
 		cvarrefs[0] = Cvar_Get(cvarnames[0], body, 0, "GLSL Variables");
 	}
 	else

@@ -78,7 +78,7 @@ enum
 #ifdef AVAIL_DINPUT
 
 #ifndef _MSC_VER
-#define DIRECTINPUT_VERSION 0x0500
+#define DIRECTINPUT_VERSION 0x0700
 #endif
 
 #include <dinput.h>
@@ -754,6 +754,7 @@ void INS_CloseDInput (void)
 		IDirectInput7_Release(g_pdi7);
 		g_pdi7 = NULL;
 	}
+	pDirectInputCreateEx = NULL;
 #endif
 	if (g_pMouse)
 	{
@@ -770,7 +771,6 @@ void INS_CloseDInput (void)
 		FreeLibrary(hInstDI);
 		hInstDI = NULL;
 		pDirectInputCreate = NULL;
-		pDirectInputCreateEx = NULL;
 	}
 
 }

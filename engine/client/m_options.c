@@ -853,19 +853,26 @@ void M_Menu_Preset_f (void)
 		MB_CONSOLECMD("vanilla  (softwarey)",	"fps_preset vanilla;menupop\n",		"This is for purists! Party like its 1995! No sanity spared!"),
 		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"An updated but still faithful appearance, using content replacements where applicable"),
 		MB_CONSOLECMD("nice       (dynamic)",	"fps_preset nice;menupop\n",		"For people who like nice things, but still want to actually play"),
+#ifdef RTLIGHTS
 		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
+#endif
 		MB_END()
 	};
 	static menuresel_t resel;
-	int item;
+	int item, bias = 0;
 	extern cvar_t r_drawflat;
 	menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
 	menu->selecteditem = menu->options;
 	//bottoms up!
+#ifdef RTLIGHTS
 	if (r_shadow_realtime_world.ival)
 		item = 1;	//realtime
-	else if (r_deluxemapping_cvar.ival)
+	else
+#else
+	bias = 1;
+#endif
+		if (r_deluxemapping_cvar.ival)
 		item = 2;	//nice
 	else if (gl_load24bit.ival)
 		item = 3;	//normal
@@ -875,6 +882,7 @@ void M_Menu_Preset_f (void)
 		item = 5;
 	else
 		item = 6;
+	item -= bias;
 	while (item --> 0)
 		menu->selecteditem = menu->selecteditem->common.next;
 	menu->cursoritem->common.posy = menu->selecteditem->common.posy;

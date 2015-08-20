@@ -1329,7 +1329,12 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 // move origin
 	VectorScale (ent->v->velocity, host_frametime, move);
 	if (!DotProduct(move, move))
+	{
+		//rogue buzzsaws are vile and jerkily move via setorigin, and need to be relinked so that they can touch path corners.
+		if (ent->v->solid && ent->v->nextthink)
+			World_LinkEdict (w, ent, true);
 		return;
+	}
 
 	fl = 0;
 #ifndef CLIENTONLY
@@ -1340,7 +1345,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 	trace = WPhys_PushEntity (w, ent, move, fl);
 
-	if (trace.allsolid)
+	if (trace.allsolid && ent->v->solid != SOLID_NOT && ent->v->solid != SOLID_TRIGGER)
 	{
 #ifndef CLIENTONLY
 		if (progstype != PROG_H2)

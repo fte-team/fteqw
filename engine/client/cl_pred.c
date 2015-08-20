@@ -918,12 +918,14 @@ void CL_PredictMovePNum (int seat)
 		return;
 	}
 
-	if (cl.intermission==1 && cls.protocol == CP_QUAKEWORLD)
+	if (0)//cl.intermission==1 && cls.protocol == CP_QUAKEWORLD)
 	{
 		//quakeworld locks view position once you hit intermission.
 		VectorCopy (pv->intermissionangles, pv->simangles);
 		return;
 	}
+	else if (cl.intermission)
+		lerpangles = false;	//will do angles later.
 	else
 	{
 		if (cl.currentpackentities && cl.currentpackentities->fixangles[seat])
@@ -974,7 +976,7 @@ void CL_PredictMovePNum (int seat)
 
 	//these things also force-disable prediction
 	if ((cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) ||
-		cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE || CAM_ISLOCKED(pv))
+		cl.intermission || cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE || CAM_ISLOCKED(pv))
 	{
 		nopred = true;
 	}
@@ -1268,7 +1270,12 @@ void CL_PredictMovePNum (int seat)
 	else
 		VectorCopy(pmove.gravitydir, pv->gravitydir);
 
-	if (le && pv->cam_state == CAM_FREECAM)
+	if (cl.intermission && le)
+	{
+		VectorCopy(le->angles, pv->simangles);
+		VectorCopy(pv->simangles, pv->viewangles);
+	}
+	else if (le && pv->cam_state == CAM_FREECAM)
 	{
 		//keep the entity tracking the prediction position, so mirrors don't go all weird
 		VectorMA(pv->simorg, -pv->crouch, pv->gravitydir, le->origin);

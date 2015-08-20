@@ -370,9 +370,9 @@ tentsfx_t tentsfx[] =
 
 vec3_t playerbeam_end[MAX_SPLITS];
 
-struct associatedeffect
+typedef struct associatedeffect_s
 {
-	struct associatedeffect *next;
+	struct associatedeffect_s *next;
 	char mname[MAX_QPATH];
 	char pname[MAX_QPATH];
 	enum
@@ -381,13 +381,14 @@ struct associatedeffect
 		AE_EMIT,
 		AE_REPLACE
 	} type;
-} *associatedeffect;
+} associatedeffect_t;
+associatedeffect_t *associatedeffect;
 void CL_AssociateEffect_f(void)
 {
 	char *modelname = Cmd_Argv(1);
 	char *effectname = Cmd_Argv(2);
 	int type = atoi(Cmd_Argv(3));
-	struct associatedeffect *ae;
+	struct associatedeffect_s *ae;
 	if (!strcmp(Cmd_Argv(0), "r_trail"))
 		type = AE_TRAIL;
 	else
@@ -473,7 +474,7 @@ void CL_InitTEnts (void)
 
 void CL_ShutdownTEnts (void)
 {
-	struct associatedeffect *ae;
+	struct associatedeffect_s *ae;
 	while(associatedeffect)
 	{
 		ae = associatedeffect;
@@ -496,7 +497,7 @@ void CL_ClearTEntParticleState (void)
 
 void P_LoadedModel(model_t *mod)
 {
-	struct associatedeffect *ae;
+	struct associatedeffect_s *ae;
 
 	mod->particleeffect = P_INVALID;
 	mod->particletrail = P_INVALID;
@@ -1104,7 +1105,7 @@ void CL_ParseTEnt (void)
 			type = TEQW_BEAM;
 			break;
 		case TE_EXPLOSION:
-			type = TE_EXPLOSIONNOSPRITE;
+			type = TEQW_EXPLOSIONNOSPRITE;
 			break;
 		default:
 			break;
@@ -1334,7 +1335,7 @@ void CL_ParseTEnt (void)
 			ex->endalpha = ex->startalpha;	//don't fade out
 		}
 		break;
-	case TE_EXPLOSIONNOSPRITE:	//nq-style, no sprite
+	case TEQW_EXPLOSIONNOSPRITE:	//nq-style, no sprite
 	case TE_EXPLOSION:				//qw-style, with (optional) sprite
 	// particles
 		pos[0] = MSG_ReadCoord ();
@@ -1379,13 +1380,17 @@ void CL_ParseTEnt (void)
 		{
 			int colorStart;
 			int colorLength;
+			int ef;
 			pos[0] = MSG_ReadCoord ();
 			pos[1] = MSG_ReadCoord ();
 			pos[2] = MSG_ReadCoord ();
 			colorStart = MSG_ReadByte ();
 			colorLength = MSG_ReadByte ();
-			if (P_RunParticleEffectType(pos, NULL, 1, pt_explosion))
-				P_RunParticleEffect(pos, NULL, (colorStart + colorLength/2), 512);
+
+			ef = P_FindParticleType(va("TE_EXPLOSION2_%i_%i", colorStart, colorLength));
+			if (ef == P_INVALID)
+				ef = pt_explosion;
+			P_RunParticleEffectType(pos, NULL, 1, ef);
 			if (r_explosionlight.value)
 			{
 				dl = CL_AllocDlight (0);
@@ -1591,11 +1596,11 @@ void CL_ParseTEnt (void)
 		break;
 
 	case TEDP_SPARK:
-		pos[0] = MSG_ReadCoord ();
+		pos[0] = MSG_ReadCoord ();	//org
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		pos2[0] = MSG_ReadChar ();
+		pos2[0] = MSG_ReadChar ();	//vel
 		pos2[1] = MSG_ReadChar ();
 		pos2[2] = MSG_ReadChar ();
 
@@ -1606,22 +1611,21 @@ void CL_ParseTEnt (void)
 		break;
 
 	case TEDP_BLOODSHOWER:
-		pos[0] = MSG_ReadCoord ();
-		pos[1] = MSG_ReadCoord ();
-		pos[2] = MSG_ReadCoord ();
-
-		pos2[0] = MSG_ReadCoord ();
-		pos2[1] = MSG_ReadCoord ();
-		pos2[2] = MSG_ReadCoord ();
-
-		cnt = MSG_ReadCoord ();	//speed
-
-		cnt = MSG_ReadShort ();
-
 		{
-			VectorAdd(pos, pos2, pos);
-			VectorScale(pos, 0.5, pos);
-			P_RunParticleEffectTypeString(pos, NULL, cnt, "te_bloodshower");
+			vec3_t vel = {0,0,0};
+			pos[0] = MSG_ReadCoord ();
+			pos[1] = MSG_ReadCoord ();
+			pos[2] = MSG_ReadCoord ();
+
+			pos2[0] = MSG_ReadCoord ();
+			pos2[1] = MSG_ReadCoord ();
+			pos2[2] = MSG_ReadCoord ();
+
+			vel[2] = -MSG_ReadCoord ();
+
+			cnt = MSG_ReadShort ();
+
+			P_RunParticleCube(P_FindParticleType("te_bloodshower"), pos, pos2, vel, vel, cnt, 0, false, 0);
 		}
 		break;
 
@@ -1684,21 +1688,11 @@ void CL_ParseTEnt (void)
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 
-		// light
-		dl = CL_AllocDlight (0);
-		VectorCopy (pos, dl->origin);
-		dl->radius = 200;
-		dl->decay = 1000;
-		dl->die = cl.time + 0.2;
-		dl->color[0] = 1.0;
-		dl->color[1] = 1.0;
-		dl->color[2] = 1.0;
-
 		// stain (Hopefully this is close to how DP does it)
 		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -10, -10, 30);
 
-		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_plasmaburn"), 0, NULL, NULL))
-			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
+		if (P_RunParticleEffectType(pos, NULL, 1, P_FindParticleType("te_plasmaburn")))
+			P_RunParticleEffect(pos, vec3_origin, 15, 50);
 		break;
 
 	case TEDP_TEI_G3:	//nexuiz's nex beam

@@ -4998,6 +4998,14 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		MSG_WriteByte (&sv.nqmulticast, type);	//nq doesn't have a count.
 #endif
 		break;
+	case TEQW_EXPLOSIONNOSPRITE:
+		MSG_WriteByte (&sv.multicast, TE_EXPLOSION);
+#ifdef NQPROT
+		MSG_WriteByte (&sv.nqmulticast, TE_EXPLOSION);
+#endif
+		type = TEQW_EXPLOSIONNOSPRITE;
+		split = PEXT_TE_BULLET;
+		break;
 	case TE_LIGHTNING1:
 	case TE_LIGHTNING2:
 	case TE_LIGHTNING3:
@@ -7964,7 +7972,10 @@ static void QCBUILTIN PF_te_superspikequad(pubprogfuncs_t *prinst, struct global
 //void(vector org) te_explosion = #421;
 static void QCBUILTIN PF_te_explosion(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
+	if (progstype != PROG_QW)
+		SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_EXPLOSIONNOSPRITE, 1);
+	else
+		SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
 }
 //DP_TE_QUADEFFECTS1
 static void QCBUILTIN PF_te_explosionquad(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8008,11 +8019,32 @@ static void QCBUILTIN PF_te_teleport(pubprogfuncs_t *prinst, struct globalvars_s
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
-//void(vector org, float color) te_explosion2 = #427;
+//void(vector org, float color, float length) te_explosion2 = #427;
 static void QCBUILTIN PF_te_explosion2(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	//FIXME: QW doesn't support TE_EXPLOSION2...
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
+	float *org = G_VECTOR(OFS_PARM0);
+	int start = G_FLOAT(OFS_PARM1);
+	int length = G_FLOAT(OFS_PARM2);
+	start = bound(0, start, 255);
+	length = bound(0, length, 255-start);
+
+	MSG_WriteByte (&sv.multicast, svc_temp_entity);
+	MSG_WriteByte (&sv.multicast, TEQW_EXPLOSION2);
+	MSG_WriteCoord (&sv.multicast, org[0]);
+	MSG_WriteCoord (&sv.multicast, org[1]);
+	MSG_WriteCoord (&sv.multicast, org[2]);
+	MSG_WriteByte (&sv.multicast, start);
+	MSG_WriteByte (&sv.multicast, length);
+#ifdef NQPROT
+	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
+	MSG_WriteByte (&sv.nqmulticast, TENQ_EXPLOSION2);
+	MSG_WriteCoord (&sv.nqmulticast, org[0]);
+	MSG_WriteCoord (&sv.nqmulticast, org[1]);
+	MSG_WriteCoord (&sv.nqmulticast, org[2]);
+	MSG_WriteByte (&sv.nqmulticast, start);
+	MSG_WriteByte (&sv.nqmulticast, length);
+#endif
+	SV_MulticastProtExt(org, MULTICAST_PHS, pr_global_struct->dimension_send, 0, 0);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
@@ -8784,7 +8816,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	pmove.groundent = 0;
 	pmove.waterlevel = 0;
 	pmove.watertype = 0;
-	pmove.capsule = (ent->xv->geomtype == GEOMTYPE_CYLINDER);
+	pmove.capsule = (ent->xv->geomtype == GEOMTYPE_CAPSULE);
 
 	for (i=0 ; i<3 ; i++)
 	{
@@ -11152,6 +11184,9 @@ void PR_DumpPlatform_f(void)
 		{"TEREDIT_TINT",		"const float", CS, NULL, ter_tint},
 		{"TEREDIT_RESET_SECT",	"const float", CS, NULL, ter_reset},
 		{"TEREDIT_RELOAD_SECT",	"const float", CS, NULL, ter_reloadsect},
+		{"TEREDIT_ENTS_WIPE",	"const float", CS, NULL, ter_ents_wipe},
+		{"TEREDIT_ENTS_CONCAT",	"const float", CS, NULL, ter_ents_concat},
+		{"TEREDIT_ENTS_GET",	"const float", CS, NULL, ter_ents_get},
 
 		{"SLIST_HOSTCACHEVIEWCOUNT",	"const float", CS|MENU, NULL, SLIST_HOSTCACHEVIEWCOUNT},
 		{"SLIST_HOSTCACHETOTALCOUNT",	"const float", CS|MENU, NULL, SLIST_HOSTCACHETOTALCOUNT},

@@ -1611,8 +1611,9 @@ void Sbar_DrawInventory (playerview_t *pv)
 	float	time;
 	int		flashon;
 	qboolean	headsup;
-	qboolean    hudswap;
+	qboolean	hudswap;
 	float	wleft, wtop;
+	apic_t *ibar;
 
 	headsup = !(cl_sbar.value || (scr_viewsize.value<100&&cl.splitclients==1));
 	hudswap = cl_hudswap.value; // Get that nasty float out :)
@@ -1623,18 +1624,19 @@ void Sbar_DrawInventory (playerview_t *pv)
 	if (sbar_hipnotic)
 		wtop -= 16*2;
 
-	if (!headsup)
+	if (sbar_rogue)
 	{
-		if (sbar_rogue)
-		{
-			if ( pv->stats[STAT_ACTIVEWEAPON] >= RIT_LAVA_NAILGUN )
-				Sbar_DrawPic (0, -24, 320, 24, rsb_invbar[0]);
-			else
-				Sbar_DrawPic (0, -24, 320, 24, rsb_invbar[1]);
-		}
+		if ( pv->stats[STAT_ACTIVEWEAPON] >= RIT_LAVA_NAILGUN )
+			ibar = rsb_invbar[0];
 		else
-			Sbar_DrawPic (0, -24, 320, 24, sb_ibar);
+			ibar = rsb_invbar[1];
 	}
+	else
+		ibar = sb_ibar;
+
+	if (!headsup)
+		Sbar_DrawPic (0, -24, 320, 24, ibar);
+
 // weapons
 	for (i=0 ; i<7 ; i++)
 	{
@@ -1825,22 +1827,23 @@ void Sbar_DrawInventory (playerview_t *pv)
 	if (headsup)
 	{
 		for (i=0 ; i<4 ; i++)
-			Sbar_DrawSubPic((hudswap) ? sbar_rect_left : (sbar_rect.width-42), -24 - (4-i)*11, 42, 11, sb_ibar, 3+(i*48), 0, 320, 24);
+			Sbar_DrawSubPic((hudswap) ? sbar_rect_left : (sbar_rect.width-42), -24 - (4-i)*11, 42, 11, ibar, 3+(i*48), 0, 320, 24);
 	}
 	for (i=0 ; i<4 ; i++)
 	{
-		snprintf (num, sizeof(num), "%3i", pv->stats[STAT_SHELLS+i] );
+		snprintf (num, sizeof(num), "%4i", pv->stats[STAT_SHELLS+i] );
 		numc[0] = CON_WHITEMASK|0xe000|((num[0]!=' ')?(num[0] + 18-'0'):' ');
 		numc[1] = CON_WHITEMASK|0xe000|((num[1]!=' ')?(num[1] + 18-'0'):' ');
 		numc[2] = CON_WHITEMASK|0xe000|((num[2]!=' ')?(num[2] + 18-'0'):' ');
-		numc[3] = 0;
+		numc[3] = CON_WHITEMASK|0xe000|((num[3]!=' ')?(num[3] + 18-'0'):' ');
+		numc[4] = 0;
 		if (headsup)
 		{
-			Sbar_DrawExpandedString((hudswap) ? sbar_rect_left+3 : (sbar_rect.width-39), -24 - (4-i)*11, numc);
+			Sbar_DrawExpandedString(((hudswap) ? sbar_rect_left+3 : (sbar_rect.width-39)) - 4, -24 - (4-i)*11, numc);
 		}
 		else
 		{
-			Sbar_DrawExpandedString((6*i+1)*8 - 2, -24, numc);
+			Sbar_DrawExpandedString((6*i+1)*8 - 2 - 4, -24, numc);
 		}
 	}
 }

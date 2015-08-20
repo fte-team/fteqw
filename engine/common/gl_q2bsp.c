@@ -2037,7 +2037,7 @@ void CMod_LoadEntityString (model_t *mod, qbyte *mod_base, lump_t *l)
 //	if (l->filelen > MAX_Q2MAP_ENTSTRING)
 //		Host_Error ("Map has too large entity lump");
 
-	mod->entities = ZG_Malloc(&mod->memgroup, l->filelen+1);
+	mod->entities = Z_Malloc(l->filelen+1);
 	memcpy (mod->entities, mod_base + l->fileofs, l->filelen);
 }
 

@@ -256,19 +256,23 @@ extern cvar_t r_novis;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
 
-#ifdef ANDROID
+#if defined(ANDROID)
 //on android, these numbers seem to be generating major weirdness, so disable these.
-cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0");
-cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "0");
+cvar_t	r_polygonoffset_submodel_factor = CVAR("r_polygonoffset_submodel_factor", "0");
+cvar_t	r_polygonoffset_submodel_offset = CVAR("r_polygonoffset_submodel_offset", "0");
+#elif defined(FTE_TARGET_WEB)
+//on firefox (but not chrome or ie), these numbers seem to be generating major weirdness, so tone them down significantly by default.
+cvar_t	r_polygonoffset_submodel_factor = CVAR("r_polygonoffset_submodel_factor", "0.05");
+cvar_t	r_polygonoffset_submodel_offset = CVAR("r_polygonoffset_submodel_offset", "1");
 #else
-cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
-cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
+cvar_t	r_polygonoffset_submodel_factor = CVAR("r_polygonoffset_submodel_factor", "0.05");
+cvar_t	r_polygonoffset_submodel_offset = CVAR("r_polygonoffset_submodel_offset", "25");
 #endif
-cvar_t	r_polygonoffset_shadowmap_offset = SCVAR("r_polygonoffset_shadowmap_factor", "0.05");
-cvar_t	r_polygonoffset_shadowmap_factor = SCVAR("r_polygonoffset_shadowmap_offset", "0");
+cvar_t	r_polygonoffset_shadowmap_offset = CVAR("r_polygonoffset_shadowmap_factor", "0.05");
+cvar_t	r_polygonoffset_shadowmap_factor = CVAR("r_polygonoffset_shadowmap_offset", "0");
 
-cvar_t	r_polygonoffset_stencil_factor = SCVAR("r_polygonoffset_stencil_factor", "0.01");
-cvar_t	r_polygonoffset_stencil_offset = SCVAR("r_polygonoffset_stencil_offset", "1");
+cvar_t	r_polygonoffset_stencil_factor = CVAR("r_polygonoffset_stencil_factor", "0.01");
+cvar_t	r_polygonoffset_stencil_offset = CVAR("r_polygonoffset_stencil_offset", "1");
 
 rendererstate_t currentrendererstate;
 

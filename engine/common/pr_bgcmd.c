@@ -1645,7 +1645,7 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	int flags = (prinst->callargc>3)?G_FLOAT(OFS_PARM3):0;
 	int type = flags & 0xff;
 	pf_hashentry_t *ent = NULL;
-	if (tab)
+	if (tab && *name)	//our hash tables can't cope with empty keys.
 	{
 		if (!type)
 			type = tab->defaulttype;
@@ -1658,6 +1658,7 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 				BZ_Free(ent);
 			}
 		}
+
 		if (type == ev_string)
 		{	//strings copy their value out.
 			const char *value = PR_GetStringOfs(prinst, OFS_PARM2);
@@ -1667,7 +1668,8 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 			ent->name = (char*)(ent+1);
 			ent->type = ev_string;
 			ent->stringdata = ent->name+(nlen+1);
-			memcpy(ent->name, name, nlen+1);
+			memcpy(ent->name, name, nlen);
+			ent->name[nlen] = 0;
 			memcpy(ent->stringdata, value, vlen+1);
 			Hash_Add(&tab->tab, ent->name, ent, &ent->buck);
 		}
@@ -1677,7 +1679,8 @@ void QCBUILTIN PF_hash_add (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 			ent = BZ_Malloc(sizeof(*ent) + nlen + 1);
 			ent->name = (char*)(ent+1);
 			ent->type = type;
-			memcpy(ent->name, name, nlen+1);
+			memcpy(ent->name, name, nlen);
+			ent->name[nlen] = 0;
 			memcpy(ent->data, data, sizeof(vec3_t));
 			Hash_Add(&tab->tab, ent->name, ent, &ent->buck);
 		}
@@ -4058,7 +4061,7 @@ void QCBUILTIN PF_uri_get  (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	const unsigned char *url = PR_GetStringOfs(prinst, OFS_PARM0);
 	float id = G_FLOAT(OFS_PARM1);
 	const char *mimetype = (prinst->callargc >= 3)?PR_GetStringOfs(prinst, OFS_PARM2):"";
-	const char *dataorsep = PR_GetStringOfs(prinst, OFS_PARM3);
+	const char *dataorsep = (prinst->callargc >= 4)?PR_GetStringOfs(prinst, OFS_PARM3):"";
 	int strbufid = (prinst->callargc >= 5)?G_FLOAT(OFS_PARM4):0;
 	//float cryptokey = (prinst->callargc >= 5)?G_FLOAT(OFS_PARM5):0;	//DP feature, not supported in FTE.
 
@@ -5865,7 +5868,9 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
 	{"FTE_CSQC_ALTCONSOLES_WIP",		4,	NULL, {"con_getset", "con_printf", "con_draw", "con_input"}},
 	{"FTE_CSQC_BASEFRAME",				0,  NULL, {NULL}, "Specifies that .basebone, .baseframe, .baselerpfrac, etc exist. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations."},
+#ifdef HALFLIFEMODELS
 	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
+#endif
 	{"FTE_CSQC_SERVERBROWSER",			12,	NULL, {	"gethostcachevalue", "gethostcachestring", "resethostcachemasks", "sethostcachemaskstring", "sethostcachemasknumber",
 													"resorthostcache", "sethostcachesort", "refreshhostcache", "gethostcachenumber", "gethostcacheindexforkey",
 													"addwantedhostcachekey", "getextresponse"}},	//normally only available to the menu. this also adds them to csqc.

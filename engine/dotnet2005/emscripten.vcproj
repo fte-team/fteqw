@@ -59,6 +59,30 @@
 	<References>
 	</References>
 	<Files>
+		<File
+			RelativePath="..\web\fs_web.c"
+			>
+		</File>
+		<File
+			RelativePath="..\web\ftejslib.h"
+			>
+		</File>
+		<File
+			RelativePath="..\web\ftejslib.js"
+			>
+		</File>
+		<File
+			RelativePath="..\web\gl_vidweb.c"
+			>
+		</File>
+		<File
+			RelativePath="..\web\prejs.js"
+			>
+		</File>
+		<File
+			RelativePath="..\web\sys_web.c"
+			>
+		</File>
 	</Files>
 	<Globals>
 	</Globals>

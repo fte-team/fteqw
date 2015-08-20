@@ -2983,15 +2983,14 @@ static void QCBUILTIN PF_cs_getentitytoken (pubprogfuncs_t *prinst, struct globa
 	}
 	else
 	{
-		com_tokentype = TTP_LINEENDING;
-		while(com_tokentype == TTP_LINEENDING)
-		{
-			csqcmapentitydata = COM_ParseToken(csqcmapentitydata, "{}()\'\":,");
-		}
+		char *QCC_COM_Parse (const char *data);
+		extern char qcc_token[];
+		csqcmapentitydata = QCC_COM_Parse(csqcmapentitydata);
+
 		if (!csqcmapentitydata)	//hit the end
 			G_INT(OFS_RETURN) = 0;
 		else
-			RETURN_TSTRING(com_token);
+			RETURN_TSTRING(qcc_token);
 	}
 }
 
@@ -3757,6 +3756,12 @@ static void QCBUILTIN PF_cl_te_customflash (pubprogfuncs_t *prinst, struct globa
 
 static void QCBUILTIN PF_cl_te_bloodshower (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	float *minb = G_VECTOR(OFS_PARM0);
+	float *maxb = G_VECTOR(OFS_PARM1);
+	vec3_t vel = {0,0,-G_FLOAT(OFS_PARM2)};
+	float howmany = G_FLOAT(OFS_PARM3);
+	
+	P_RunParticleCube(P_FindParticleType("te_bloodshower"), minb, maxb, vel, vel, howmany, 0, false, 0);
 }
 static void QCBUILTIN PF_cl_te_particlecube (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3772,12 +3777,41 @@ static void QCBUILTIN PF_cl_te_particlecube (pubprogfuncs_t *prinst, struct glob
 }
 static void QCBUILTIN PF_cl_te_spark (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	float *pos = G_VECTOR(OFS_PARM0);
+	float *pos2 = G_VECTOR(OFS_PARM1);
+	float cnt = G_FLOAT(OFS_PARM2);
+	P_RunParticleEffectType(pos, pos2, cnt, ptdp_spark);
 }
 static void QCBUILTIN PF_cl_te_smallflash (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	float *pos = G_VECTOR(OFS_PARM0);
+	dlight_t *dl = CL_AllocDlight (0);
+	VectorCopy (pos, dl->origin);
+	dl->radius = 200;
+	dl->decay = 1000;
+	dl->die = cl.time + 0.2;
+	dl->color[0] = 2.0;
+	dl->color[1] = 2.0;
+	dl->color[2] = 2.0;
 }
 static void QCBUILTIN PF_cl_te_explosion2 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	float *pos = G_VECTOR(OFS_PARM0);
+	int colorStart = G_FLOAT(OFS_PARM1);
+	int colorLength = G_FLOAT(OFS_PARM2);
+	int ef = P_FindParticleType(va("TE_EXPLOSION2_%i_%i", colorStart, colorLength));
+	if (ef == P_INVALID)
+		ef = pt_explosion;
+	P_RunParticleEffectType(pos, NULL, 1, ef);
+	if (r_explosionlight.value)
+	{
+		dlight_t *dl = CL_AllocDlight (0);
+		VectorCopy (pos, dl->origin);
+		dl->radius = 350;
+		dl->die = cl.time + 0.5;
+		dl->decay = 300;
+	}
+	S_StartSound (0, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_lightning1 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3813,6 +3847,10 @@ static void QCBUILTIN PF_cl_te_beam (pubprogfuncs_t *prinst, struct globalvars_s
 }
 static void QCBUILTIN PF_cl_te_plasmaburn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	float *pos = G_VECTOR(OFS_PARM0);
+
+	if (P_RunParticleEffectType(pos, NULL, 1, P_FindParticleType("te_plasmaburn")))
+		P_RunParticleEffect(pos, vec3_origin, 15, 50);
 }
 static void QCBUILTIN PF_cl_te_explosionrgb (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

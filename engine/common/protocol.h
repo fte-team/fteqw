@@ -842,7 +842,7 @@ enum {
 	TE_SPIKE				= 0,
 	TE_SUPERSPIKE			= 1,
 	TE_GUNSHOT				= 2,
-	TE_EXPLOSION			= 3,
+	TE_EXPLOSION			= 3,	//remapped to TEQW_EXPLOSIONNOSPRITE for nq.
 	TE_TAREXPLOSION			= 4,
 	TE_LIGHTNING1			= 5,
 	TE_LIGHTNING2			= 6,
@@ -865,7 +865,7 @@ enum {
 	TE_RAILTRAIL			= 17,	//use the builtin, luke.
 	TEQW_BEAM				= 18,	//use the builtin, luke.
 	TEQW_EXPLOSION2			= 19,	//use the builtin, luke.
-	TE_EXPLOSIONNOSPRITE	= 20,	//use the builtin, luke.
+	TEQW_EXPLOSIONNOSPRITE	= 20,
 
 	// hexen 2
 	TEH2_STREAM_LIGHTNING_SMALL	= 24,

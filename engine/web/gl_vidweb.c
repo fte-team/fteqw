@@ -193,8 +193,12 @@ void DOM_LoadFile(char *loc, char *mime, int handle)
 }
 int VID_ShouldSwitchToFullscreen(void)
 {	//if false, mouse grabs won't work and we'll be forced to touchscreen mode.
+	//we can only go fullscreen when the user clicks something.
+	//this means that the user will get pissed off at the fullscreen state changing when they first click on the menus after it loading up.
+	//this is confounded by escape bringing up the menu. <ESC>GRR IT CHANGED MODE!<options>WTF IT CHANGED AGAIN FUCKING PIECE OF SHIT!.
+	//annoying, but that's web browsers for you. the best thing we can do is to not regrab until they next click while actually back in the game.
 	extern cvar_t vid_fullscreen;
-	return !!vid_fullscreen.value;
+	return !!vid_fullscreen.value && (!Key_Dest_Has(kdm_console | kdm_cwindows | kdm_emenu) || !Key_MouseShouldBeFree());
 }
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
@@ -280,6 +284,8 @@ void GLVID_SetCaption(char *text)
 void Sys_SendKeyEvents(void)
 {
 	/*most callbacks happen outside our code, we don't need to poll for events - except for joysticks*/
+	qboolean shouldbefree = Key_MouseShouldBeFree();
+	emscriptenfte_updatepointerlock(_windowed_mouse.ival && !shouldbefree, shouldbefree);
 	emscriptenfte_polljoyevents();
 }
 /*various stuff for joysticks, which we don't support in this port*/

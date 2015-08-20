@@ -29,6 +29,18 @@ The engine has a few builtins.
 
 #ifdef PSET_SCRIPT
 
+
+#ifdef FTE_TARGET_WEB
+#define rand myrand	//emscripten's libc is doing a terrible job of this.
+static int rand(void)
+{	//ripped from glibc
+	static int state = 0xdeadbeef;
+	int val = ((state * 1103515245) + 12345) & 0x7fffffff;
+	state = val;
+	return val;
+}
+#endif
+
 #ifdef GLQUAKE
 #include "glquake.h"//hack
 #endif
@@ -55,7 +67,6 @@ extern particleengine_t pe_classic;
 particleengine_t *fallback = NULL; //does this really need to be 'extern'?
 #define FALLBACKBIAS 0x1000000
 
-static int pt_pointfile = P_INVALID;
 static int pe_default = P_INVALID;
 static int pe_size2 = P_INVALID;
 static int pe_size3 = P_INVALID;
@@ -407,7 +418,7 @@ static struct {
 	{NULL}
 };
 
-static part_type_t *P_GetParticleType(char *config, char *name)
+static part_type_t *P_GetParticleType(const char *config, const char *name)
 {
 	int i;
 	part_type_t *ptype;
@@ -467,19 +478,66 @@ static part_type_t *P_GetParticleType(char *config, char *name)
 }
 
 //unconditionally allocates a particle object. this allows out-of-order allocations.
-static int P_AllocateParticleType(char *config, char *name)	//guarentees that the particle type exists, returning it's index.
+static int P_AllocateParticleType(const char *config, const char *name)	//guarentees that the particle type exists, returning it's index.
 {
 	part_type_t *pt = P_GetParticleType(config, name);
 	return pt - part_type;
 }
 
+static void PScript_RetintEffect(part_type_t *to, part_type_t *from, const char *colourcodes)
+{
+	char name[sizeof(to->name)];
+	char config[sizeof(to->config)];
+
+	Q_strncpyz(name, to->name, sizeof(to->name));
+	Q_strncpyz(config, to->config, sizeof(to->config));
+
+	//'to' was already purged, so we don't need to care about that.
+	memcpy(to, from, sizeof(*to));
+
+	Q_strncpyz(to->name, name, sizeof(to->name));
+	Q_strncpyz(to->config, config, sizeof(to->config));
+
+	//make sure 'to' has its own copy of any lists, so that we don't have issues when freeing this memory again.
+	if (to->models)
+	{
+		to->models = BZ_Malloc(to->nummodels * sizeof(*to->models));
+		memcpy(to->models, from->models, to->nummodels * sizeof(*to->models));
+	}
+	if (to->sounds)
+	{
+		to->sounds = BZ_Malloc(to->numsounds * sizeof(*to->sounds));
+		memcpy(to->sounds, from->sounds, to->numsounds * sizeof(*to->sounds));
+	}
+	if (to->ramp)
+	{
+		to->ramp = BZ_Malloc(to->rampindexes * sizeof(*to->ramp));
+		memcpy(to->ramp, from->ramp, to->rampindexes * sizeof(*to->ramp));
+	}
+
+	//'from' might still have some links so we need to clear those out.
+	to->nexttorun = NULL;
+	to->particles = NULL;
+	to->clippeddecals = NULL;
+	to->beams = NULL;
+	to->skytris = NULL;
+	to->slooks = &to->looks;
+	r_plooksdirty = true;
+
+	to->colorindex = strtoul(colourcodes, (char**)&colourcodes, 10);
+	if (*colourcodes == '_')
+		colourcodes++;
+	to->colorrand = strtoul(colourcodes, (char**)&colourcodes, 10);
+}
+
 //public interface. get without creating.
-static int PScript_FindParticleType(const char *name)
+static int PScript_FindParticleType(const char *fullname)
 {
 	int i;
 	part_type_t *ptype = NULL;
 	char cfg[MAX_QPATH];
 	char *dot;
+	const char *name = fullname;
 	dot = strchr(name, '.');
 	if (dot && (dot - name) < MAX_QPATH-1)
 	{
@@ -528,6 +586,16 @@ static int PScript_FindParticleType(const char *name)
 	}
 	if (!ptype || !ptype->loaded)
 	{
+		if (!strnicmp(name, "te_explosion2_", 14))
+		{
+			int from = PScript_FindParticleType(va("%s.te_explosion2", cfg));
+			if (from != P_INVALID)
+			{
+				int to = P_AllocateParticleType(cfg, name);
+				PScript_RetintEffect(&part_type[to], &part_type[from], name+14);
+				return to;
+			}
+		}
 		if (*cfg)
 			P_LoadParticleSet(cfg, true);
 
@@ -2757,13 +2825,6 @@ static qboolean PScript_InitParticles (void)
 	Cmd_AddCommand("r_beaminfo", P_BeamInfo_f);
 //#endif
 
-
-	pt_pointfile		= P_AllocateParticleType("", "PT_POINTFILE");
-	pe_default			= P_AllocateParticleType("", "PE_DEFAULT");
-	pe_size2			= P_AllocateParticleType("", "PE_SIZE2");
-	pe_size3			= P_AllocateParticleType("", "PE_SIZE3");
-	pe_defaulttrail		= P_AllocateParticleType("", "PE_DEFAULTTRAIL");
-
 	Cvar_Hook(&r_particledesc, R_ParticleDesc_Callback);
 	Cvar_ForceCallback(&r_particledesc);
 
@@ -2810,6 +2871,11 @@ static void PScript_Shutdown (void)
 	Cmd_RemoveCommand("r_partinfo");
 	Cmd_RemoveCommand("r_beaminfo");
 #endif
+
+	pe_default			= P_INVALID;
+	pe_size2			= P_INVALID;
+	pe_size3			= P_INVALID;
+	pe_defaulttrail		= P_INVALID;
 
 	while(loadedconfigs)
 	{
@@ -3078,6 +3144,7 @@ static void P_ReadPointFile_f (void)
 	char	name[MAX_OSPATH];
 	char line[1024];
 	char *s;
+	int pt_pointfile;
 
 	COM_StripExtension(cl.worldmodel->name, name, sizeof(name));
 	strcat(name, ".pts");
@@ -3093,6 +3160,8 @@ static void P_ReadPointFile_f (void)
 
 	Con_Printf ("Reading %s...\n", name);
 	c = 0;
+	pt_pointfile		= PScript_FindParticleType("PT_POINTFILE");
+	if (pt_pointfile != P_INVALID)
 	for ( ;; )
 	{
 		VFS_GETS(f, line, sizeof(line));
@@ -4372,25 +4441,25 @@ static void PScript_RunParticleEffect (vec3_t org, vec3_t dir, int color, int co
 	ptype = P_FindParticleType(va("pe_%i", color));
 	if (P_RunParticleEffectType(org, dir, count, ptype))
 	{
-		if (count > 130 && part_type[pe_size3].loaded)
+		if (count > 130 && pe_size3 != P_INVALID)
 		{
 			part_type[pe_size3].colorindex = color & ~0x7;
 			part_type[pe_size3].colorrand = 8;
 			P_RunParticleEffectType(org, dir, count, pe_size3);
 		}
-		else if (count > 20 && part_type[pe_size2].loaded)
+		else if (count > 20 && pe_size2 != P_INVALID)
 		{
 			part_type[pe_size2].colorindex = color & ~0x7;
 			part_type[pe_size2].colorrand = 8;
 			P_RunParticleEffectType(org, dir, count, pe_size2);
 		}
-		else if (part_type[pe_default].loaded || !fallback)
+		else if (pe_default != P_INVALID)
 		{
 			part_type[pe_default].colorindex = color & ~0x7;
 			part_type[pe_default].colorrand = 8;
 			P_RunParticleEffectType(org, dir, count, pe_default);
 		}
-		else
+		else if (fallback)
 			fallback->RunParticleEffect(org, dir, color, count);
 	}
 }
@@ -5106,9 +5175,12 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlk
 
 static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk)
 {
-	part_type[pe_defaulttrail].colorindex = color;
-	part_type[pe_defaulttrail].colorrand = crnd;
-	P_ParticleTrail(start, end, pe_defaulttrail, 0, NULL, tsk);
+	if (pe_defaulttrail != P_INVALID)
+	{
+		part_type[pe_defaulttrail].colorindex = color;
+		part_type[pe_defaulttrail].colorrand = crnd;
+		P_ParticleTrail(start, end, pe_defaulttrail, 0, NULL, tsk);
+	}
 }
 
 static vec3_t pright, pup;
@@ -5805,6 +5877,12 @@ static void PScript_DrawParticleTypes (void)
 	if (r_plooksdirty)
 	{
 		int i, j;
+
+		pe_default			= PScript_FindParticleType("PE_DEFAULT");
+		pe_size2			= PScript_FindParticleType("PE_SIZE2");
+		pe_size3			= PScript_FindParticleType("PE_SIZE3");
+		pe_defaulttrail		= PScript_FindParticleType("PE_DEFAULTTRAIL");
+
 		for (i = 0; i < numparticletypes; i++)
 		{
 			//set the fallback
@@ -5938,6 +6016,8 @@ static void PScript_DrawParticleTypes (void)
 		// prediction takes care of the rest
 		switch(type->looks.type)
 		{
+		case PT_INVISIBLE:
+			break;
 		case PT_BEAM:
 			bdraw = GL_DrawParticleBeam;
 			break;

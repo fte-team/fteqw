@@ -70,7 +70,7 @@ static void DL_OnError(void *c)
 #else
 	dl->replycode = 404;	//we don't actually know. should we not do this?
 #endif
-	Con_Printf("download %p: error %i\n", dl, dl->replycode);
+	Con_Printf("download: %s: error %i\n", dl->url, dl->replycode);
 	dl->status = DL_FAILED;
 }
 static void DL_OnProgress(void *c, int position, int totalsize)

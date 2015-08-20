@@ -397,6 +397,7 @@ void SV_Map_f (void)
 	char	spot[MAX_QPATH];
 	char	expanded[MAX_QPATH];
 	char	*nextserver;
+	qboolean preserveplayers= false;
 	qboolean isrestart		= false;	//don't hurt settings
 	qboolean newunit		= false;	//no hubcache
 	qboolean flushparms		= false;	//flush parms+serverflags
@@ -407,6 +408,7 @@ void SV_Map_f (void)
 	qboolean waschangelevel	= false;
 	int i;
 	char *startspot;
+	float oldtime;
 
 	nextserver = 0;
 
@@ -486,9 +488,17 @@ void SV_Map_f (void)
 			Q_strncpyz(level, "start", sizeof(level));
 		}
 
-		//override the startspot
-		Q_strncpyz(spot, Info_ValueForKey(svs.info, "*startspot"), sizeof(spot));
-		startspot = spot;
+		if (startspot && !strcmp(startspot, "."))
+		{
+			preserveplayers = true;
+			startspot = NULL;
+		}
+		if (!startspot)
+		{
+			//revert the startspot if its not overridden
+			Q_strncpyz(spot, Info_ValueForKey(svs.info, "*startspot"), sizeof(spot));
+			startspot = spot;
+		}
 	}
 
 	// check to make sure the level exists
@@ -614,10 +624,31 @@ void SV_Map_f (void)
 	MP_Toggle(0);
 #endif
 
-	for (i=0 ; i<svs.allocated_client_slots ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
+	oldtime = sv.time;
+	if (preserveplayers && svprogfuncs)
 	{
-		if (svs.clients[i].state>cs_connected)	//so that we don't send a datagram
-			svs.clients[i].state=cs_connected;
+		for (i=0 ; i<svs.allocated_client_slots ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
+		{
+			char buffer[8192], *buf;
+			size_t bufsize = 0;
+			if (svs.clients[i].state>cs_connected)
+			{
+				buf = svprogfuncs->saveent(svprogfuncs, buffer, &bufsize, sizeof(buffer), svs.clients[i].edict);
+				if (svs.clients[i].spawninfo)
+					Z_Free(svs.clients[i].spawninfo);
+				svs.clients[i].spawninfo = Z_Malloc(bufsize+1);
+				memcpy(svs.clients[i].spawninfo, buf, bufsize+1);
+				svs.clients[i].spawninfotime = sv.time;
+			}
+		}
+	}
+	else
+	{
+		for (i=0 ; i<svs.allocated_client_slots ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
+		{
+			if (svs.clients[i].state>cs_connected)	//so that we don't send a datagram
+				svs.clients[i].state=cs_connected;
+		}
 	}
 
 #ifndef SERVERONLY
@@ -626,31 +657,34 @@ void SV_Map_f (void)
 	SCR_ImageName(level);
 #endif
 
-	for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
+//	if (!preserveplayers)
 	{
-		/*pass the new map's name as an extension, so appropriate loading screens can be shown*/
-		if (host_client->controller == NULL)
+		for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 		{
-			if (ISNQCLIENT(host_client))
+			/*pass the new map's name as an extension, so appropriate loading screens can be shown*/
+			if (host_client->controller == NULL)
 			{
-				if (ISDPCLIENT(host_client))
+				if (ISNQCLIENT(host_client))
 				{
-					//DP clients cannot cope with being told the next map's name
-					SV_StuffcmdToClient(host_client, "reconnect\n");
+					if (ISDPCLIENT(host_client))
+					{
+						//DP clients cannot cope with being told the next map's name
+						SV_StuffcmdToClient(host_client, "reconnect\n");
+					}
+					else
+						SV_StuffcmdToClient(host_client, va("reconnect \"%s\"\n", level));
 				}
 				else
-					SV_StuffcmdToClient(host_client, va("reconnect \"%s\"\n", level));
+					SV_StuffcmdToClient(host_client, va("changing \"%s\"\n", level));
 			}
-			else
-				SV_StuffcmdToClient(host_client, va("changing \"%s\"\n", level));
+			host_client->prespawn_stage = PRESPAWN_INVALID;
+			host_client->prespawn_idx = 0;
 		}
-		host_client->prespawn_stage = PRESPAWN_INVALID;
-		host_client->prespawn_idx = 0;
-	}
-	SV_SendMessagesToAll ();
+		SV_SendMessagesToAll ();
 
-	if (flushparms)
-		svs.serverflags = 0;
+		if (flushparms)
+			svs.serverflags = 0;
+	}
 
 	SCR_SetLoadingFile("spawnserver");
 	if (newunit || !startspot || cinematic || !SV_LoadLevelCache(NULL, level, startspot, false))
@@ -678,6 +712,14 @@ void SV_Map_f (void)
 			host_client->spawninfo = NULL;
 			memset(host_client->spawn_parms, 0, sizeof(host_client->spawn_parms));
 			SV_GetNewSpawnParms(host_client);
+		}
+
+		if (preserveplayers && svprogfuncs && host_client->state == cs_spawned && host_client->spawninfo)
+		{
+			int j = 0;
+			svprogfuncs->restoreent(svprogfuncs, host_client->spawninfo, &j, host_client->edict);
+			host_client->istobeloaded = true;
+			host_client->state=cs_connected;
 		}
 
 		if (host_client->controller)

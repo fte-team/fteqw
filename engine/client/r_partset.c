@@ -1593,12 +1593,85 @@ char *particle_set_high =
 //hide it in nq - WARNING: some mods use this sprite as a flame thrower.
 //r_effect "progs/s_explod.spr" hidden 1
 
+
+//////////////////////////////////////////
+//rogue te_explosion2 effect
+//note: if not otherwise defined, te_explosion2_BASE_RAND maps to this, and specifies the palette colours.
+"r_part te_explosion2\n"
+"{\n"
+"type texturedspark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 65 31 95 256 8 32\n"
+"count 256\n"
+"scale 5\n"
+"scalefactor 1\n"
+"scaledelta -15\n"
+"alpha 0.2\n"
+"die 0.5\n"
+"blend add\n"
+"spawnmode ball\n"
+"spawnorg 1\n"
+"randomvel 1000\n"
+"friction 0.01\n"
+"gravity 100\n"
+"stretchfactor -80\n"
+"}\n"
+//dragon fireball
+//r_part te_explosion2_228_5
+
+//rogue multigrenade sub explosion
+//also triggered from a shielded rogue player touching another player (and doing some damage)
+//also used during the ending.
+//red particles
+//r_part te_explosion2_230_5
+
+//rogue plasma explosion
+//also rogue timemachine explosion
+//white particles splaying outwards
+//r_part te_explosion2_244_3
+
 //////////////////////////////////////////
 //for when a spawn dies.
 //also used by TF for emp explosions.
-//r_part te_tarexplosion
-//{
-//}
+"r_part te_tarexplosion\n"
+"{\n"
+"type texturedspark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 65 31 95 256 8 32\n"
+"count 128\n"
+"scale 5\n"
+"scalefactor 1\n"
+"scaledelta -15\n"
+"rgb 0 0 17\n"
+"alpha 0.5\n"
+"die 0.5\n"
+"spawnmode ball\n"
+"spawnorg 1\n"
+"randomvel 500\n"
+"friction 0.01\n"
+"gravity 100\n"
+"stretchfactor -80\n"
+"}\n"
+"r_part +te_tarexplosion\n"
+"{\n"
+"type texturedspark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 65 31 95 256 8 32\n"
+"count 256\n"
+"scale 5\n"
+"scalefactor 1\n"
+"scaledelta -15\n"
+"rgb 83 67 115\n"
+"alpha 0.3\n"
+"die 0.5\n"
+"blend add\n"
+"spawnmode ball\n"
+"spawnorg 1\n"
+"randomvel 500\n"
+"friction 0.01\n"
+"gravity 100\n"
+"stretchfactor -80\n"
+"}\n"
 
 //////////////////////////////////////////
 //cthon falling into lava.
@@ -1742,6 +1815,8 @@ char *particle_set_high =
 //rygel's pack sucks
 "r_trail \"progs/v_spike.mdl\" tr_vorespike\n"
 
+
+////////////////////
 //enforcer laser effect
 "r_part tr_enforcerlaser\n"
 "{\n"
@@ -1768,6 +1843,79 @@ char *particle_set_high =
 "lightcorona 2 0.25\n"
 "}\n"
 "r_trail \"progs/laser.mdl\" tr_enforcerlaser\n"
+
+/////////////////////////////////////////
+//rogue wrath enemy's projectiles
+"r_part tr_wrathball\n"
+"{\n"
+"type texturedspark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"scale 15\n"
+"step 4\n"
+"alpha 0.3\n"
+"die 0.5\n"
+"rgb 255 0 0\n"
+"veladd -32\n"
+"spawnmode spiral\n"
+"spawnvel 16\n"
+"randomvel 32\n"
+"friction 0\n"
+"scalefactor 1\n"
+"blend add\n"
+"lighttime 0.2\n"
+"lightshadows 0\n"
+"lightradius 150\n"
+"lightrgb    1 0.27 0\n"
+"lightrgbfade    5 1 0\n"
+"lightcorona 2 0.5\n"
+"}\n"
+"r_trail \"progs/w_ball.mdl\" tr_wrathball\n"
+
+//wrath death
+//grey particles
+//no difference from the fallback except for the blend mode. this should ensure that we are not quite so invisible.
+"r_part te_explosion2_0_4\n"
+"{\n"
+"type texturedspark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 65 31 95 256 8 32\n"
+"count 256\n"
+"scale 5\n"
+"scalefactor 1\n"
+"scaledelta -15\n"
+"alpha 0.2\n"
+"die 0.5\n"
+"spawnmode ball\n"
+"spawnorg 1\n"
+"randomvel 1000\n"
+"friction 0.01\n"
+"gravity 100\n"
+"stretchfactor -80\n"
+"}\n"
+
+/////////////////////////////////////////
+//rogue lavaspikes
+"r_part tr_lavaspike\n"
+"{\n"
+"type spark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"scale 15\n"
+"step 4\n"
+"alpha 0.3\n"
+"die 0.5\n"
+"rgb 255 0 0\n"
+"veladd -32\n"
+"spawnmode spiral\n"
+"spawnvel 16\n"
+"randomvel 32\n"
+"friction 0\n"
+"scalefactor 1\n"
+"blend add\n"
+"}\n"
+"r_trail \"progs/lspike.mdl\" tr_lavaspike\n"
+
 
 /////////////////////////////////////////
 //scrag missiles.

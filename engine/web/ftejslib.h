@@ -35,6 +35,7 @@ void emscriptenfte_al_loadaudiofile(int al_buf, void *data, int datasize);
 //avoid all of emscripten's sdl emulation.
 //this resolves input etc issues.
 unsigned long emscriptenfte_ticks_ms(void);
+void emscriptenfte_updatepointerlock(int wantpointerlock, int hidecursor);
 void emscriptenfte_polljoyevents(void);
 void emscriptenfte_settitle(const char *text);
 int emscriptenfte_setupcanvas(

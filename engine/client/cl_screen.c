@@ -541,6 +541,8 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p, struct font_s *font)
 		{
 			int w, h;
 			R_GetShaderSizes(pic, &w, &h, false);
+			w *= 24.0/h;
+			h = 24;
 			y+= 16;
 			R2D_ScalePic ( (vid.width-w)/2, 16, w, h, pic);
 			y+= h;

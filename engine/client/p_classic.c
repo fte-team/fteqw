@@ -27,6 +27,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define POLYS
 
+#ifdef FTE_TARGET_WEB
+#define rand myrand	//emscripten's libc is doing a terrible job of this.
+static int rand(void)
+{	//ripped from glibc
+	static int state = 0xdeadbeef;
+	int val = ((state * 1103515245) + 12345) & 0x7fffffff;
+	state = val;
+	return val;
+}
+#endif
+
+
 typedef enum {
 	DODGY,
 
@@ -44,6 +56,7 @@ typedef enum {
 	BLOBEXPLOSION_POINT,
 	LAVASPLASH_POINT,
 	EXPLOSION_POINT,
+	EXPLOSION2_POINT,
 	TELEPORTSPLASH_POINT,
 	MUZZLEFLASH_POINT,
 
@@ -78,7 +91,7 @@ typedef struct cparticle_s
 #define ABSOLUTE_MIN_PARTICLES	512
 #define ABSOLUTE_MAX_PARTICLES	8192
 static int r_numparticles;
-static cparticle_t	*particles, *fte_restrict active_particles, *free_particles;
+static cparticle_t	*particles, *active_particles, *free_particles;
 extern cvar_t r_part_density, r_part_classic_expgrav;
 
 static unsigned int particleframe;
@@ -132,6 +145,14 @@ static int PClassic_FindParticleType(const char *name)
 		return LAVASPLASH_POINT;
 	if (!stricmp("te_explosion", name))
 		return EXPLOSION_POINT;
+	if (!strnicmp("te_explosion2_", name, 14))
+	{
+		char *e;
+		int start = strtoul(name+14, &e, 10);
+		int len = strtoul((*e == '_')?e+1:e, &e, 10);
+		if (!*e && start >= 0 && start <= 255 && len >= 0 && len <= 255)
+			return EXPLOSION2_POINT | (start<<8)|(len<<16);
+	}
 	if (!stricmp("te_teleport", name))
 		return TELEPORTSPLASH_POINT;
 	if (!stricmp("te_muzzleflash", name))
@@ -145,7 +166,7 @@ static int PClassic_FindParticleType(const char *name)
 static qboolean PClassic_Query(int type, int body, char *outstr, int outstrlen)
 {
 	char *n = NULL;
-	switch(type)
+	switch(type&0xff)
 	{
 	case ROCKET_TRAIL:
 		n = "tr_rocket";
@@ -180,6 +201,9 @@ static qboolean PClassic_Query(int type, int body, char *outstr, int outstrlen)
 		break;
 	case EXPLOSION_POINT:
 		n = "te_explosion";
+		break;
+	case EXPLOSION2_POINT:
+		n = va("te_explosion2_%i_%i", (type>>8)&0xff, (type>>16)&0xff);
 		break;
 	case TELEPORTSPLASH_POINT:
 		n = "te_teleport";
@@ -627,6 +651,34 @@ static void Classic_ParticleExplosion (vec3_t org)
 	}
 }
 
+static void Classic_ParticleExplosion2 (vec3_t org, int colorStart, int colorLength)
+{
+	int			i, j;
+	cparticle_t	*p;
+	int			colorMod = 0;
+
+	for (i=0; i<512; i++)
+	{
+		if (!free_particles)
+			return;
+		p = free_particles;
+		free_particles = p->next;
+		p->next = active_particles;
+		active_particles = p;
+
+		p->die = cl.time + 0.3;
+		p->rgb = d_8to24rgbtable[(colorStart + (colorMod % colorLength)) & 255];
+		colorMod++;
+
+		p->type = pt_blob;
+		for (j=0 ; j<3 ; j++)
+		{
+			p->org[j] = org[j] + ((rand()%32)-16);
+			p->vel[j] = (rand()%512)-256;
+		}
+	}
+}
+
 static void Classic_BlobExplosion (vec3_t org)
 {
 	int i, j;
@@ -852,7 +904,7 @@ static void Classic_BrightField (vec3_t org)
 //use the trail state so fast/slow frames keep the correct particle counts on certain every-frame effects
 static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
 {
-	switch(typenum)
+	switch(typenum&0xff)
 	{
 	case BRIGHTFIELD_POINT:
 		Classic_BrightField(org);
@@ -865,6 +917,9 @@ static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count,
 		break;
 	case EXPLOSION_POINT:
 		Classic_ParticleExplosion(org);
+		break;
+	case EXPLOSION2_POINT:
+		Classic_ParticleExplosion2(org, (typenum>>8)&0xff, (typenum>>16)&0xff);
 		break;
 	case TELEPORTSPLASH_POINT:
 		Classic_TeleportSplash(org);

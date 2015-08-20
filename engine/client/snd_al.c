@@ -777,7 +777,7 @@ static qboolean OpenAL_InitLibrary(void)
 #if FTE_TARGET_WEB
 	firefoxstaticsounds = !!strstr(emscripten_run_script_string("navigator.userAgent"), "Firefox");
 	if (firefoxstaticsounds)
-		Con_Printf("Firefox detected - disabling static sounds to avoid SORRY, I CAN'T HEAR YOU\n");
+		Con_DPrintf("Firefox detected - disabling static sounds to avoid SORRY, I CAN'T HEAR YOU\n");
 #endif
 
 #ifdef OPENAL_STATIC

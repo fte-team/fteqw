@@ -24,7 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLDP_ParseDarkPlaces5Entities(void);
-void CL_SetStatInt (int pnum, int stat, int value);
+static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue);
+static void CL_SetStatInt (int pnum, int stat, int ivalue);
 static qboolean CL_CheckModelResources (char *name);
 
 char cl_dp_csqc_progsname[128];
@@ -2898,12 +2899,13 @@ void CLQW_ParseServerData (void)
 #ifndef CLIENTONLY
 		Info_SetValueForStarKey (svs.info, "*gamedir", str, MAX_SERVERINFO_STRING);
 #endif
-		Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 	}
 
 	CL_ClearState ();
 	Stats_NewMap();
 	cl.servercount = svcnt;
+
+	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
 	cl.teamfortress = !Q_strcasecmp(str, "fortress");
 
@@ -3569,10 +3571,10 @@ void CLNQ_ParseClientdata (void)
 	}
 	else
 	{
-		int weaponmodel = 0, armor = 0, weaponframe = 0, health = 0, currentammo = 0, shells = 0, nails = 0, rockets = 0, cells = 0, activeweapon = 0;
+		int weaponmodel = 0, armour = 0, weaponframe = 0, health = 0, currentammo = 0, shells = 0, nails = 0, rockets = 0, cells = 0, activeweapon = 0;
 
 		if (bits & SU_WEAPONFRAME)	weaponframe |= (unsigned char)MSG_ReadByte();
-		if (bits & SU_ARMOR)		armor |= (unsigned char)MSG_ReadByte();
+		if (bits & SU_ARMOR)		armour |= (unsigned char)MSG_ReadByte();
 		if (bits & SU_WEAPONMODEL)	weaponmodel |= (unsigned char)MSG_ReadByte();
 		health |= MSG_ReadShort();
 		currentammo |= MSG_ReadByte();
@@ -3587,7 +3589,7 @@ void CLNQ_ParseClientdata (void)
 			if (bits & FITZSU_WEAPONMODEL2)
 				weaponmodel |= MSG_ReadByte() << 8;
 			if (bits & FITZSU_ARMOR2)
-				armor |= MSG_ReadByte() << 8;
+				armour |= MSG_ReadByte() << 8;
 			if (bits & FITZSU_AMMO2)
 				currentammo |= MSG_ReadByte() << 8;
 			if (bits & FITZSU_SHELLS2)
@@ -3605,7 +3607,7 @@ void CLNQ_ParseClientdata (void)
 		}
 
 		CL_SetStatInt(0, STAT_WEAPONFRAME, weaponframe);
-		CL_SetStatInt(0, STAT_ARMOR, armor);
+		CL_SetStatInt(0, STAT_ARMOR, armour);
 		CL_SetStatInt(0, STAT_WEAPONMODELI, weaponmodel);
 
 		CL_SetStatInt(0, STAT_HEALTH, health);
@@ -4814,7 +4816,8 @@ void CL_SetStatMovevar(int pnum, int stat, float value)
 	}
 }
 
-void CL_SetStatInt (int pnum, int stat, int value)
+//the two values are expected to be the same, they're just both provided for precision.
+static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 {
 	if (stat < 0 || stat >= MAX_CL_STATS)
 		return;
@@ -4825,57 +4828,39 @@ void CL_SetStatInt (int pnum, int stat, int value)
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = cl.gametimemark;
 
-		cl.gametime = value * 0.001;
+		cl.gametime = fvalue * 0.001;
 		cl.gametimemark = realtime;
 	}
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		extern int cls_lastto;
-		cl.players[cls_lastto].stats[stat]=value;
-		cl.players[cls_lastto].statsf[stat]=value;
+		cl.players[cls_lastto].stats[stat]=ivalue;
+		cl.players[cls_lastto].statsf[stat]=fvalue;
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 			if (cl.playerview[pnum].cam_spec_track == cls_lastto && cl.playerview[pnum].cam_state != CAM_FREECAM)
-				CL_SetStat_Internal(pnum, stat, value, value);
+				CL_SetStat_Internal(pnum, stat, ivalue, fvalue);
 	}
 	else
-		CL_SetStat_Internal(pnum, stat, value, value);
-
-	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
-		CL_SetStatMovevar(pnum, stat, *(float*)&value);	//DP sucks.
-}
-void CL_SetStatFloat (int pnum, int stat, float value)
-{
-	if (stat < 0 || stat >= MAX_CL_STATS)
-		return;
-//		Host_EndGame ("CL_SetStat: %i is invalid", stat);
-
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
-	{
-		extern int cls_lastto;
-		cl.players[cls_lastto].statsf[stat]=value;
-		cl.players[cls_lastto].stats[stat]=value;
-
-		for (pnum = 0; pnum < cl.splitclients; pnum++)
-			if (cl.playerview[pnum].cam_spec_track == cls_lastto && cl.playerview[pnum].cam_state != CAM_FREECAM)
-			{
-				cl.playerview[pnum].statsf[stat] = value;
-				cl.playerview[pnum].stats[stat] = value;
-			}
-	}
-	else
-	{
-		cl.playerview[pnum].statsf[stat] = value;
-		cl.playerview[pnum].stats[stat] = value;
-	}
+		CL_SetStat_Internal(pnum, stat, ivalue, fvalue);
 
 	if (stat == STAT_VIEWHEIGHT && ((cls.z_ext & Z_EXT_VIEWHEIGHT) || cls.protocol == CP_NETQUAKE))
-		cl.playerview[pnum].viewheight = value;
+		cl.playerview[pnum].viewheight = fvalue;
 
-	if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
-		CL_SetStatMovevar(pnum, stat, value);
+	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
+	{
+		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
+			CL_SetStatMovevar(pnum, stat, fvalue);
+		else
+			CL_SetStatMovevar(pnum, stat, *(float*)&ivalue);	//DP sucks.
+	}
 }
+static void CL_SetStatInt (int pnum, int stat, int ivalue)
+{
+	CL_SetStatNumeric(pnum,stat,ivalue,ivalue);
+}
+
 void CL_SetStatString (int pnum, int stat, char *value)
 {
 	if (stat < 0 || stat >= MAX_CL_STATS)
@@ -6039,6 +6024,14 @@ void CLQW_ParseServerMessage (void)
 		inf->packet_entities.fixangles[0] = 2;
 		VectorCopy(demoangles, inf->packet_entities.fixedangles[0]);
 	}
+	else if (cl.intermission)
+	{
+		for (destsplit = 0; destsplit < cl.splitclients; destsplit++)
+		{
+			inf->packet_entities.fixangles[destsplit] = 2;
+			VectorCopy(cl.playerview[destsplit].intermissionangles, inf->packet_entities.fixedangles[destsplit]);
+		}
+	}
 
 //
 // if recording demos, copy the message out
@@ -6191,7 +6184,8 @@ void CLQW_ParseServerMessage (void)
 		case svcfte_setangledelta:
 			for (i=0 ; i<3 ; i++)
 				cl.playerview[destsplit].viewangles[i] += MSG_ReadAngle16 ();
-//			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
+			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
+			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].intermissionangles);
 			break;
 		case svc_setangle:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -6362,14 +6356,12 @@ void CLQW_ParseServerMessage (void)
 		case svcqw_updatestatbyte:
 			i = MSG_ReadByte ();
 			j = MSG_ReadByte ();
-			CL_SetStatFloat (destsplit, i, j);
-			CL_SetStatInt (destsplit, i, j);
+			CL_SetStatNumeric(destsplit, i, j, j);
 			break;
 		case svcqw_updatestatlong:
 			i = MSG_ReadByte ();
 			j = MSG_ReadLong ();	//make qbyte if nq compatability?
-			CL_SetStatFloat (destsplit, i, j);
-			CL_SetStatInt (destsplit, i, j);
+			CL_SetStatNumeric (destsplit, i, j, j);
 			break;
 
 		case svcfte_updatestatstring:
@@ -6380,8 +6372,7 @@ void CLQW_ParseServerMessage (void)
 		case svcfte_updatestatfloat:
 			i = MSG_ReadByte();
 			f = MSG_ReadFloat();
-			CL_SetStatInt (destsplit, i, f);
-			CL_SetStatFloat (destsplit, i, f);
+			CL_SetStatNumeric (destsplit, i, f, f);
 			break;
 
 		case svc_spawnstaticsound:
@@ -7201,14 +7192,12 @@ void CLNQ_ParseServerMessage (void)
 		case svcnq_updatestatlong:
 			i = MSG_ReadByte ();
 			j = MSG_ReadLong ();
-			CL_SetStatFloat (0, i, j);
-			CL_SetStatInt (0, i, j);
+			CL_SetStatNumeric (0, i, j, j);
 			break;
 		case svcdp_updatestatbyte:
 			i = MSG_ReadByte ();
 			j = MSG_ReadByte ();
-			CL_SetStatFloat (0, i, j);
-			CL_SetStatInt (0, i, j);
+			CL_SetStatNumeric (0, i, j, j);
 			break;
 		case svcfte_updatestatstring:
 			i = MSG_ReadByte();
@@ -7219,8 +7208,7 @@ void CLNQ_ParseServerMessage (void)
 			i = MSG_ReadByte();
 			{
 			float f = MSG_ReadFloat();
-			CL_SetStatInt (destsplit, i, f);
-			CL_SetStatFloat (destsplit, i, f);
+			CL_SetStatNumeric (destsplit, i, f, f);
 			}
 			break;
 		case svc_setangle:

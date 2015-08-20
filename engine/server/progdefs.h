@@ -265,6 +265,19 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(uniquespawnid,"Incremented by 1 whenever the entity is respawned. Persists across remove calls, for when the two-second grace period is insufficient.")/*FTE_ENT_UNIQUESPAWNID*/\
 	comfieldfunction(customizeentityforclient, ".float()","Called just before an entity is sent to a client (non-csqc protocol). This gives you a chance to tailor 'self' according to what 'other' should see.")
 
+#ifdef HALFLIFEMODELS
+#define HALFLIFEMODEL_FIELDS	\
+  	comfieldfloat(bonecontrol1,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol2,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol3,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol4,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(bonecontrol5,"Halflife model format bone controller. This typically affects the mouth.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(subblendfrac,"Weird animation value specific to halflife models. On player models, this typically affects the spine's pitch.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
+	comfieldfloat(basesubblendfrac,"See basebone")	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/
+#else
+#define HALFLIFEMODEL_FIELDS
+#endif
+
 //this is the list for all the csqc fields.
 //(the #define is so the list always matches the ones pulled out)
 #define csqcextfields	\
@@ -286,15 +299,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(baseframe2time,"See basebone")	/*FTE_CSQC_BASEFRAME*/\
 	comfieldfloat(baselerpfrac,"See basebone")	/*FTE_CSQC_BASEFRAME*/\
 	comfieldfloat(basebone,"The base* frame animations are equivelent to their non-base versions, except that they only affect bone numbers below the 'basebone' value. This means that the base* animation can affect the legs of a skeletal model independantly of the normal animation fields affecting the torso area. For more complex animation than this, use skeletal objects.")	/*FTE_CSQC_BASEFRAME*/\
-							\
-  	comfieldfloat(bonecontrol1,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol2,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol3,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol4,"Halflife model format bone controller. On player models, this typically affects the spine's yaw.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol5,"Halflife model format bone controller. This typically affects the mouth.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(subblendfrac,"Weird animation value specific to halflife models. On player models, this typically affects the spine's pitch.")	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(basesubblendfrac,"See basebone")	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
-							\
+	HALFLIFEMODEL_FIELDS	\
 	comfieldfloat(drawmask, "Matces the bitmask passed to the addentities builtin, to easily submit entities to the renderer. Not otherwise meaningful.")	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	comfieldfunction(predraw, ".float()","Called as part of the addentities builtin. Returns one of the PREDRAW_ constants. This gives you a chance to interpolate or animate entities as desired.")	/*If present, is called just before it's drawn.*/	
 

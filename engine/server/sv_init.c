@@ -923,7 +923,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	Q_strncpyz(cl.serverinfo, svs.info, sizeof(cl.serverinfo));
 	if (!isDedicated)
 		CL_CheckServerInfo();
-	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 #endif
 
 

@@ -59,6 +59,8 @@ mergeInto(LibraryManager.library,
 	$FTEC:
 	{
 		ctxwarned:0,
+		pointerislocked:0,
+		pointerwantlock:0,
 		linebuffer:'',
 		w: -1,
 		h: -1,
@@ -128,13 +130,21 @@ mergeInto(LibraryManager.library,
 					break;
 				case 'mousedown':
 					window.focus();
+					//older browsers need fullscreen in order for requestPointerLock to work.
+					//newer browsers can still break pointer locks when alt-tabbing, even without breaking fullscreen.
+					//so lets spam requests for it
 					if (Browser.isFullScreen == 0)
 					if (FTEC.evcb.wantfullscreen != 0)
 					if (Runtime.dynCall('i', FTEC.evcb.wantfullscreen, []))
 					{
 						Browser.requestFullScreen(true, true);
+					}
+					if (FTEC.pointerwantlock != 0 && FTEC.pointerislocked == 0)
+					{
+						FTEC.pointerislocked = -1;  //don't repeat the request on every click. firefox has a fit at that, so require the mouse to leave the element or something before we retry.
 						Module['canvas'].requestPointerLock();
 					}
+					//fallthrough
 				case 'mouseup':
 					if (FTEC.evcb.button != 0)
 					{
@@ -156,6 +166,16 @@ mergeInto(LibraryManager.library,
 						for (var i = 0; i < 8; i++)	
 							Runtime.dynCall('viii', FTEC.evcb.button, [0, false, i]);
 					}
+					if (FTEC.pointerislocked == -1)
+						FTEC.pointerislocked = 0;
+					break;
+				case 'focus':
+				case 'blur':
+					Runtime.dynCall('iiiii', FTEC.evcb.key, [0, false, 16, 0]); //shift
+					Runtime.dynCall('iiiii', FTEC.evcb.key, [0, false, 17, 0]); //alt
+					Runtime.dynCall('iiiii', FTEC.evcb.key, [0, false, 18, 0]); //ctrl
+					if (FTEC.pointerislocked == -1)
+						FTEC.pointerislocked = 0;
 					break;
 				case 'keypress':
 					if (FTEC.evcb.key != 0)
@@ -237,13 +257,39 @@ mergeInto(LibraryManager.library,
 							Runtime.dynCall('viid', FTEC.evcb.jbutton, [gp.index, j, 0]);
 					console.log("Gamepad disconnected from index %d: %s", gp.index, gp.id);
 					break;
+				case 'pointerlockchange':
+				case 'mozpointerlockchange':
+				case 'webkitpointerlockchange':
+					FTEC.pointerislocked =	document.pointerLockElement === Module['canvas'] ||
+											document.mozPointerLockElement === Module['canvas'] ||
+											document.webkitPointerLockElement === Module['canvas'];
+					console.log("Pointer lock now " + FTEC.pointerislocked);
+					break;
 				default:
 					console.log(event);
 					break;
 			}
 		}
 	},
-	emscriptenfte_polljoyevents : function(be,ae)
+	emscriptenfte_updatepointerlock : function(wantlock, softcursor)
+	{
+		FTEC.pointerwantlock = wantlock;
+		//we can only apply locks when we're clicked, but should be able to unlock any time.
+		if (wantlock == 0 && FTEC.pointerislocked != 0)
+		{
+			document.exitPointerLock =	document.exitPointerLock    ||
+										document.mozExitPointerLock ||
+										document.webkitExitPointerLock;
+			FTEC.pointerislocked = 0;
+			if (document.exitPointerLock)
+				document.exitPointerLock();
+		}
+		if (softcursor)
+			Module.canvas.style.cursor = "none";	//hide the cursor, we'll do a soft-cursor when one is needed.
+		else
+			Module.canvas.style.cursor = "default";	//restore the cursor
+	},
+	emscriptenfte_polljoyevents : function()
 	{
 		//with events, we can do unplug stuff properly.
 		//otherwise hot unplug might be buggy.
@@ -301,13 +347,21 @@ mergeInto(LibraryManager.library,
 		if (!FTEC.donecb)
 		{
 			FTEC.donecb = 1;
-			var events = ['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 'keypress', 'keydown', 'keyup', 'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove', 'dragenter', 'dragover', 'drop', 'gamepadconnected', 'gamepaddisconnected', 'message'];
+			var events = ['mousedown', 'mouseup', 'mousemove', 'wheel', 'mousewheel', 'mouseout', 
+						'keypress', 'keydown', 'keyup', 
+						'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove',
+						'dragenter', 'dragover', 'drop',
+						'gamepadconnected', 'gamepaddisconnected',
+						'message', 
+						'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange',
+						'focus', 'blur'];   //try to fix alt-tab
 			events.forEach(function(event)
 			{
 				Module['canvas'].addEventListener(event, FTEC.handleevent, true);
 			});
 
-			var docevents = ['keypress', 'keydown', 'keyup'];
+			var docevents = ['keypress', 'keydown', 'keyup',
+							'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange'];
 			docevents.forEach(function(event)
 			{
 				document.addEventListener(event, FTEC.handleevent, true);
@@ -354,11 +408,6 @@ mergeInto(LibraryManager.library,
 		};
 		window.onresize();
 
-		if (evmouse)
-			Module.canvas.style.cursor = "none";	//hide the cursor, we'll do a soft-cursor when one is needed.
-		else
-			Module.canvas.style.cursor = "default";	//restore the cursor
-
 		if (FTEC.evcb.hashchange)
 		{
 			window.onhashchange = function()
@@ -366,6 +415,8 @@ mergeInto(LibraryManager.library,
 				FTEC.loadurl(location.hash.substring(1), "", undefined);
 			};
 		}
+		
+		_emscriptenfte_updatepointerlock(false, false);
 
 		return 1;
 	},

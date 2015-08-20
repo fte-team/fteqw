@@ -41,6 +41,7 @@ cluster:
 */
 
 int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe);
+static size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *planes, size_t numplanes, vec4_t face);
 
 #define MAXCLUSTERS 64
 #define MAXSECTIONS 64	//this many sections within each cluster in each direction
@@ -170,6 +171,23 @@ struct hmwater_s
 	shader_t *shader;
 	qbyte holes[8];
 	float heights[9*9];
+
+/*
+	qboolean facesdown;
+	unsigned int contentmask;
+	float		heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
+#ifndef SERVERONLY
+	byte_vec4_t	colours[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
+	char texname[4][MAX_QPATH];
+	int lightmap;
+	int lmx, lmy;
+
+	texnums_t textures;
+	vbo_t vbo;
+	mesh_t mesh;
+	mesh_t *amesh;
+#endif
+*/
 };
 enum
 {
@@ -193,6 +211,7 @@ typedef struct
 	float minh, maxh;
 	struct heightmap_s *hmmod;
 
+	//FIXME: make layers, each with their own holes+heights+contents+textures+shader+mixes. water will presumably have specific values set for each part.
 	struct hmwater_s *water;
 
 	size_t traceseq;
@@ -315,7 +334,7 @@ typedef struct heightmap_s
 		size_t drawnframe;	//don't add it to the scene multiple times.
 		size_t traceseq;	//don't trace through this entity multiple times if its in different sections.
 		int refs;		//entity is free/reusable when its no longer referenced by any sections
-		entity_t ent;
+		entity_t ent;	//note: only model+modelmatrix info is relevant. fixme: implement instancing.
 
 		struct hmentity_s *next;	//used for freeing/allocating an entity
 	} *entities;
@@ -772,6 +791,9 @@ static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t ep
 		e->ent.drawflags = SCALE_ORIGIN_ORIGIN;
 		e->ent.scale = scale;
 		e->ent.playerindex = -1;
+		e->ent.framestate.g[FS_REG].lerpweight[0] = 1;
+		e->ent.topcolour = TOP_DEFAULT;
+		e->ent.bottomcolour = BOTTOM_DEFAULT;
 		e->ent.shaderRGBAf[0] = 1;
 		e->ent.shaderRGBAf[1] = 1;
 		e->ent.shaderRGBAf[2] = 1;
@@ -3164,6 +3186,19 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 	tdibctx.wmodel = e->model;
 	tdibctx.pvs = (e->model == cl.worldmodel)?frustumvis:NULL;
 	Terr_DrawInBounds(&tdibctx, bounds[0], bounds[2], bounds[1]-bounds[0], bounds[3]-bounds[2]);
+
+
+	/*{
+	trace_t trace;
+	vec3_t player_mins = {-16, -16, -24};
+	vec3_t player_maxs = {16, 16, 32};
+	vec3_t start, end;
+	VectorCopy(cl.playerview[0].simorg, start);
+	VectorCopy(start, end);
+	start[0] += 5;
+	end[2] -= 100;
+	Heightmap_Trace(cl.worldmodel, 0, 0, NULL, start, end, player_mins, player_maxs, false, ~0, &trace);
+	}*/
 }
 
 void Terrain_ClipDecal(fragmentdecal_t *dec, float *center, float radius, model_t *model)
@@ -3460,6 +3495,8 @@ typedef struct {
 	vec3_t maxs;
 	vec3_t absmins;
 	vec3_t absmaxs;
+	vec3_t up;
+	vec3_t capsulesize;
 	enum {ispoint, iscapsule, isbox} shape;
 	float frac;
 	float htilesize;
@@ -3467,6 +3504,10 @@ typedef struct {
 	int contents;
 	int hitcontentsmask;
 	trace_t *result;
+
+#ifdef _DEBUG
+	qboolean debug;
+#endif
 } hmtrace_t;
 
 static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
@@ -3503,7 +3544,11 @@ static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 			dist = DotProduct (ofs, planes[i]);
 			dist = planes[i][3] - dist;
 			break;
-//		capsuledist(dist,plane,mins,maxs)
+		case iscapsule:
+			dist = DotProduct(tr->up, planes[i]);
+			dist = dist*(tr->capsulesize[(dist<0)?1:2]) - tr->capsulesize[0];
+			dist = planes[i][3] - dist;
+			break;
 		case ispoint: // special point case
 			dist = planes[i][3];
 			break;
@@ -3548,6 +3593,57 @@ static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 
 	if (!startout)
 	{
+
+#if 0//def _DEBUG
+	if (tr->debug)
+	{
+		vecV_t			facepoints[256];
+		unsigned int	numpoints;
+
+		for (i = 0; i < numplanes; i++)
+		{
+			scenetris_t *t;
+			extern shader_t *shader_draw_fill;
+			//generate points now (so we know the correct mins+maxs for the brush, and whether the plane is relevent)
+			numpoints = Terr_GenerateBrushFace(facepoints, countof(facepoints), planes, numplanes, planes[i]);
+
+
+			if (cl_numstrisvert+numpoints > cl_maxstrisvert)
+				break;
+			if (cl_numstrisidx+(numpoints-2)*3 > cl_maxstrisidx)
+				break;
+
+			if (cl_numstris == cl_maxstris)
+			{
+				cl_maxstris+=8;
+				cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+			}
+			t = &cl_stris[cl_numstris++];
+			t->shader = shader_draw_fill;
+			t->flags = 0;
+			t->firstidx = cl_numstrisidx;
+			t->firstvert = cl_numstrisvert;
+			for (j = 2; j < numpoints; j++)
+			{
+				cl_strisidx[cl_numstrisidx++] = 0;
+				cl_strisidx[cl_numstrisidx++] = j-1;
+				cl_strisidx[cl_numstrisidx++] = j;
+			}
+			for (j = 0; j < numpoints; j++)
+			{
+				VectorCopy(facepoints[j], cl_strisvertv[cl_numstrisvert]);
+				cl_strisvertv[cl_numstrisvert][2] += 1;
+				Vector4Set(cl_strisvertc[cl_numstrisvert], 1, 0, 0, 0.2);
+				Vector2Set(cl_strisvertt[cl_numstrisvert], 0, 0);
+				cl_numstrisvert++;
+			}
+			t->numidx = cl_numstrisidx - t->firstidx;
+			t->numvert = cl_numstrisvert-t->firstvert;
+		}
+	}
+#endif
+
+
 		tr->frac = -1;
 		return false;
 	}
@@ -3561,6 +3657,58 @@ static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 			tr->frac = nearfrac;//enterfrac;
 			tr->plane[3] = enterdist;
 			VectorCopy(enterplane, tr->plane);
+
+
+#if 0//def _DEBUG
+	if (tr->debug)
+	{
+		vecV_t			facepoints[256];
+		unsigned int	numpoints;
+
+		for (i = 0; i < numplanes; i++)
+		{
+			scenetris_t *t;
+			extern shader_t *shader_draw_fill;
+			//generate points now (so we know the correct mins+maxs for the brush, and whether the plane is relevent)
+			numpoints = Terr_GenerateBrushFace(facepoints, countof(facepoints), planes, numplanes, planes[i]);
+
+
+			if (cl_numstrisvert+numpoints > cl_maxstrisvert)
+				break;
+			if (cl_numstrisidx+(numpoints-2)*3 > cl_maxstrisidx)
+				break;
+
+			if (cl_numstris == cl_maxstris)
+			{
+				cl_maxstris+=8;
+				cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+			}
+			t = &cl_stris[cl_numstris++];
+			t->shader = shader_draw_fill;
+			t->flags = 0;
+			t->firstidx = cl_numstrisidx;
+			t->firstvert = cl_numstrisvert;
+			for (j = 2; j < numpoints; j++)
+			{
+				cl_strisidx[cl_numstrisidx++] = 0;
+				cl_strisidx[cl_numstrisidx++] = j-1;
+				cl_strisidx[cl_numstrisidx++] = j;
+			}
+			for (j = 0; j < numpoints; j++)
+			{
+				VectorCopy(facepoints[j], cl_strisvertv[cl_numstrisvert]);
+				cl_strisvertv[cl_numstrisvert][2] += 1;
+				Vector4Set(cl_strisvertc[cl_numstrisvert], 0, 1, 0, 0.2);
+				Vector2Set(cl_strisvertt[cl_numstrisvert], 0, 0);
+				cl_numstrisvert++;
+			}
+			t->numidx = cl_numstrisidx - t->firstidx;
+			t->numvert = cl_numstrisvert-t->firstvert;
+		}
+	}
+#endif
+
+
 			return ((vec4_t*)enterplane - planes)+1;
 		}
 	}
@@ -3573,7 +3721,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 {
 	vec3_t d[2];
 	vec3_t p[4];
-	vec4_t n[5];
+	vec4_t n[6];
 	int t;
 	int i;
 
@@ -3630,8 +3778,8 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			//figure out where on the submodel the trace is.
 			VectorSubtract (tr->start, s->ents[i]->ent.origin, start_l);
 			VectorSubtract (tr->end, s->ents[i]->ent.origin, end_l);
-			start_l[2] -= tr->mins[2];
-			end_l[2] -= tr->mins[2];
+//			start_l[2] -= tr->mins[2];
+//			end_l[2] -= tr->mins[2];
 			VectorScale(start_l, s->ents[i]->ent.scale, start_l);
 			VectorScale(end_l, s->ents[i]->ent.scale, end_l);
 
@@ -3649,16 +3797,37 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			etr.fraction = 1;
 			model->funcs.NativeTrace (model, 0, frame, s->ents[i]->ent.axis, start_l, end_l, tr->mins, tr->maxs, tr->shape == iscapsule, tr->hitcontentsmask, &etr);
 
-			tr->result->startsolid |= etr.startsolid;
-			tr->result->allsolid |= etr.allsolid;
-			if (etr.fraction < tr->frac)
+			if (etr.startsolid)
+			{	//many many bsp objects are not enclosed 'properly' (qbsp strips any surfaces outside the world).
+				//this means that such bsps extend to infinity, resulting in sudden glitchy stuck issues when you enter a section containing such a bsp
+				//so if we started solid, constrain that solidity to the volume of the submodel
+				VectorCopy  (s->ents[i]->ent.axis[0], n[0]);
+				VectorNegate(s->ents[i]->ent.axis[0], n[1]);
+				VectorCopy  (s->ents[i]->ent.axis[1], n[2]);
+				VectorNegate(s->ents[i]->ent.axis[1], n[3]);
+				VectorCopy  (s->ents[i]->ent.axis[2], n[4]);
+				VectorNegate(s->ents[i]->ent.axis[2], n[5]);
+				n[0][3] = DotProduct(n[0], s->ents[i]->ent.origin) + model->maxs[0];
+				n[1][3] = DotProduct(n[1], s->ents[i]->ent.origin) + -model->mins[0];
+				n[2][3] = DotProduct(n[2], s->ents[i]->ent.origin) + model->maxs[1];
+				n[3][3] = DotProduct(n[3], s->ents[i]->ent.origin) + -model->mins[1];
+				n[4][3] = DotProduct(n[4], s->ents[i]->ent.origin) + model->maxs[2];
+				n[5][3] = DotProduct(n[5], s->ents[i]->ent.origin) + -model->mins[2];
+				Heightmap_Trace_Brush(tr, n, 6);
+			}
+			else
 			{
-				tr->contents = etr.contents;
-				tr->frac = etr.fraction;
-				tr->plane[3] = etr.plane.dist;
-				tr->plane[0] = etr.plane.normal[0];
-				tr->plane[1] = etr.plane.normal[1];
-				tr->plane[2] = etr.plane.normal[2];
+				tr->result->startsolid |= etr.startsolid;
+				tr->result->allsolid |= etr.allsolid;
+				if (etr.fraction < tr->frac)
+				{
+					tr->contents = etr.contents;
+					tr->frac = etr.fraction;
+					tr->plane[3] = etr.plane.dist;
+					tr->plane[0] = etr.plane.normal[0];
+					tr->plane[1] = etr.plane.normal[1];
+					tr->plane[2] = etr.plane.normal[2];
+				}
 			}
 		}
 		Sys_UnlockMutex(tr->hm->entitylock);
@@ -3697,110 +3866,116 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 		VectorSet(p[2], tr->htilesize*(sx+0), tr->htilesize*(sy+1), s->heights[(tx+0)+(ty+1)*SECTHEIGHTSIZE]);
 		VectorSet(p[3], tr->htilesize*(sx+1), tr->htilesize*(sy+1), s->heights[(tx+1)+(ty+1)*SECTHEIGHTSIZE]);
 
+		VectorSet(n[5], 0, 0, 1);
 #ifndef STRICTEDGES
 		d1 = fabs(p[0][2] - p[3][2]);
 		d2 = fabs(p[1][2] - p[2][2]);
 		if (d1 < d2)
 		{
-			for (t = 0; t < 2; t++)
+			/*generate the brush (in world space*/
 			{
-				/*generate the brush (in world space*/
-				if (t == 0)
-				{
-					VectorSubtract(p[3], p[2], d[0]);
-					VectorSubtract(p[2], p[0], d[1]);
-					//left-most
-					Vector4Set(n[0], -1, 0, 0, -tr->htilesize*(sx+0));
-					//bottom-most
-					Vector4Set(n[1], 0, 1, 0, tr->htilesize*(sy+1));
-					//top-right
-					VectorSet(n[2], 0.70710678118654752440084436210485, -0.70710678118654752440084436210485, 0);
-					n[2][3] = DotProduct(n[2], p[0]);
-					//top
-					VectorNormalize(d[0]);
-					VectorNormalize(d[1]);
-					CrossProduct(d[0], d[1], n[3]);
-					VectorNormalize(n[3]);
-					n[3][3] = DotProduct(n[3], p[0]);
-					//down
-					VectorNegate(n[3], n[4]);
-					n[4][3] = DotProduct(n[4], p[0]) - n[4][2]*TERRAINTHICKNESS;
-				}
-				else
-				{
-					VectorSubtract(p[1], p[0], d[0]);
-					VectorSubtract(p[3], p[1], d[1]);
+				VectorSubtract(p[3], p[0], d[0]);
+				VectorSubtract(p[2], p[0], d[1]);
+				//left-most
+				Vector4Set(n[0], -1, 0, 0, -tr->htilesize*(sx+0));
+				//bottom-most
+				Vector4Set(n[1], 0, 1, 0, tr->htilesize*(sy+1));
+				//top-right
+				VectorSet(n[2], 0.70710678118654752440084436210485, -0.70710678118654752440084436210485, 0);
+				n[2][3] = DotProduct(n[2], p[0]);
+				//top
+				VectorNormalize(d[0]);
+				VectorNormalize(d[1]);
+				CrossProduct(d[0], d[1], n[3]);
+				VectorNormalize(n[3]);
+				n[3][3] = DotProduct(n[3], p[0]);
+				//down
+				VectorNegate(n[3], n[4]);
+				n[4][3] = DotProduct(n[4], p[0]) - n[4][2]*TERRAINTHICKNESS;
 
-					//right-most
-					Vector4Set(n[0], 1, 0, 0, tr->htilesize*(sx+1));
-					//top-most
-					Vector4Set(n[1], 0, -1, 0, -tr->htilesize*(sy+0));
-					//bottom-left
-					VectorSet(n[2], -0.70710678118654752440084436210485, 0.70710678118654752440084436210485, 0);
-					n[2][3] = DotProduct(n[2], p[0]);
-					//top
-					VectorNormalize(d[0]);
-					VectorNormalize(d[1]);
-					CrossProduct(d[0], d[1], n[3]);
-					VectorNormalize(n[3]);
-					n[3][3] = DotProduct(n[3], p[0]);
-					//down
-					VectorNegate(n[3], n[4]);
-					n[4][3] = DotProduct(n[4], p[0]) - n[4][2]*TERRAINTHICKNESS;
-				}
-				Heightmap_Trace_Brush(tr, n, 5);
+				n[5][3] = max(p[0][2], p[2][2]);
+				n[5][3] = max(n[5][3], p[3][2]);
+				Heightmap_Trace_Brush(tr, n, 6);
+			}
+
+			{
+				VectorSubtract(p[3], p[0], d[0]);
+				VectorSubtract(p[3], p[1], d[1]);
+
+				//right-most
+				Vector4Set(n[0], 1, 0, 0, tr->htilesize*(sx+1));
+				//top-most
+				Vector4Set(n[1], 0, -1, 0, -tr->htilesize*(sy+0));
+				//bottom-left
+				VectorSet(n[2], -0.70710678118654752440084436210485, 0.70710678118654752440084436210485, 0);
+				n[2][3] = DotProduct(n[2], p[0]);
+				//top
+				VectorNormalize(d[0]);
+				VectorNormalize(d[1]);
+				CrossProduct(d[0], d[1], n[3]);
+				VectorNormalize(n[3]);
+				n[3][3] = DotProduct(n[3], p[0]);
+				//down
+				VectorNegate(n[3], n[4]);
+				n[4][3] = DotProduct(n[4], p[0]) - n[4][2]*TERRAINTHICKNESS;
+
+				n[5][3] = max(p[0][2], p[1][2]);
+				n[5][3] = max(n[5][3], p[3][2]);
+				Heightmap_Trace_Brush(tr, n, 6);
 			}
 		}
 		else
 #endif
 		{
-			for (t = 0; t < 2; t++)
+			/*generate the brush (in world space*/
 			{
-				/*generate the brush (in world space*/
-				if (t == 0)
-				{
-					VectorSubtract(p[1], p[0], d[0]);
-					VectorSubtract(p[2], p[0], d[1]);
-					//left-most
-					Vector4Set(n[0], -1, 0, 0, -tr->htilesize*(sx+0));
-					//top-most
-					Vector4Set(n[1], 0, -1, 0, -tr->htilesize*(sy+0));
-					//bottom-right
-					VectorSet(n[2], 0.70710678118654752440084436210485, 0.70710678118654752440084436210485, 0);
-					n[2][3] = DotProduct(n[2], p[1]);
-					//top
-					VectorNormalize(d[0]);
-					VectorNormalize(d[1]);
-					CrossProduct(d[0], d[1], n[3]);
-					VectorNormalize(n[3]);
-					n[3][3] = DotProduct(n[3], p[1]);
-					//down
-					VectorNegate(n[3], n[4]);
-					n[4][3] = DotProduct(n[4], p[1]) - n[4][2]*TERRAINTHICKNESS;
-				}
-				else
-				{
-					VectorSubtract(p[3], p[2], d[0]);
-					VectorSubtract(p[3], p[1], d[1]);
+				VectorSubtract(p[1], p[0], d[0]);
+				VectorSubtract(p[2], p[0], d[1]);
+				//left-most
+				Vector4Set(n[0], -1, 0, 0, -tr->htilesize*(sx+0));
+				//top-most
+				Vector4Set(n[1], 0, -1, 0, -tr->htilesize*(sy+0));
+				//bottom-right
+				VectorSet(n[2], 0.70710678118654752440084436210485, 0.70710678118654752440084436210485, 0);
+				n[2][3] = DotProduct(n[2], p[1]);
+				//top
+				VectorNormalize(d[0]);
+				VectorNormalize(d[1]);
+				CrossProduct(d[0], d[1], n[3]);
+				VectorNormalize(n[3]);
+				n[3][3] = DotProduct(n[3], p[1]);
+				//down
+				VectorNegate(n[3], n[4]);
+				n[4][3] = DotProduct(n[4], p[1]) - n[4][2]*TERRAINTHICKNESS;
 
-					//right-most
-					Vector4Set(n[0], 1, 0, 0, tr->htilesize*(sx+1));
-					//bottom-most
-					Vector4Set(n[1], 0, 1, 0, tr->htilesize*(sy+1));
-					//top-left
-					VectorSet(n[2], -0.70710678118654752440084436210485, -0.70710678118654752440084436210485, 0);
-					n[2][3] = DotProduct(n[2], p[1]);
-					//top
-					VectorNormalize(d[0]);
-					VectorNormalize(d[1]);
-					CrossProduct(d[0], d[1], n[3]);
-					VectorNormalize(n[3]);
-					n[3][3] = DotProduct(n[3], p[1]);
-					//down
-					VectorNegate(n[3], n[4]);
-					n[4][3] = DotProduct(n[4], p[1]) - n[4][2]*TERRAINTHICKNESS;
-				}
-				Heightmap_Trace_Brush(tr, n, 5);
+				n[5][3] = max(p[0][2], p[1][2]);
+				n[5][3] = max(n[5][3], p[2][2]);
+				Heightmap_Trace_Brush(tr, n, 6);
+			}
+			{
+				VectorSubtract(p[3], p[2], d[0]);
+				VectorSubtract(p[3], p[1], d[1]);
+
+				//right-most
+				Vector4Set(n[0], 1, 0, 0, tr->htilesize*(sx+1));
+				//bottom-most
+				Vector4Set(n[1], 0, 1, 0, tr->htilesize*(sy+1));
+				//top-left
+				VectorSet(n[2], -0.70710678118654752440084436210485, -0.70710678118654752440084436210485, 0);
+				n[2][3] = DotProduct(n[2], p[1]);
+				//top
+				VectorNormalize(d[0]);
+				VectorNormalize(d[1]);
+				CrossProduct(d[0], d[1], n[3]);
+				VectorNormalize(n[3]);
+				n[3][3] = DotProduct(n[3], p[1]);
+				//down
+				VectorNegate(n[3], n[4]);
+				n[4][3] = DotProduct(n[4], p[1]) - n[4][2]*TERRAINTHICKNESS;
+
+				n[5][3] = max(p[1][2], p[2][2]);
+				n[5][3] = max(n[5][3], p[3][2]);
+				Heightmap_Trace_Brush(tr, n, 6);
 			}
 		}
 		break;
@@ -3847,6 +4022,21 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	if (capsule)
 	{
 		hmtrace.shape = iscapsule;
+		zbias = 0;
+
+		if (mataxis)
+			VectorSet(hmtrace.up, mataxis[0][2], -mataxis[1][2], mataxis[2][2]);
+		else
+			VectorSet(hmtrace.up, 0, 0, 1);
+
+		//determine the capsule sizes
+		hmtrace.capsulesize[0] = ((maxs[0]-mins[0]) + (maxs[1]-mins[1]))/4.0;
+		hmtrace.capsulesize[1] = maxs[2];
+		hmtrace.capsulesize[2] = mins[2];
+//		zbias = (trace_capsulesize[1] > -hmtrace.capsulesize[2])?hmtrace.capsulesize[1]:-hmtrace.capsulesize[2];
+		hmtrace.capsulesize[1] -= hmtrace.capsulesize[0];
+		hmtrace.capsulesize[2] += hmtrace.capsulesize[0];
+
 		zbias = 0;
 	}
 	else if (mins[0] || mins[1] || mins[2] || maxs[0] || maxs[1] || maxs[2])
@@ -4189,6 +4379,21 @@ static void ted_heightsmooth(void *ctx, hmsection_t *s, int idx, float wx, float
 		s->heights[idx] = *(float*)ctx;
 	else
 		s->heights[idx] = s->heights[idx]*(1-w) + w**(float*)ctx;
+}
+static void ted_heightdebug(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+{
+	int tx = idx/SECTHEIGHTSIZE, ty = idx % SECTHEIGHTSIZE;
+	s->flags |= TSF_NOTIFY|TSF_DIRTY|TSF_EDITED|TSF_RELIGHT;
+	/*interpolate the terrain towards a certain value*/
+
+	if (tx == 16)
+		tx = 0;
+	if (ty == 16)
+		ty = 0;
+
+//	if (ty < tx)
+//		tx = ty;
+	s->heights[idx] = (tx>>1) * 32 + (ty>>1) * 32;
 }
 static void ted_heightraise(void *ctx, hmsection_t *s, int idx, float wx, float wy, float strength)
 {
@@ -4583,18 +4788,70 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	{
 		if (mod && mod->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
-		if (mod && mod->loadstate == MLS_LOADED)
+	}
+	if (mod->loadstate != MLS_LOADED)
+		return;
+
+	switch(action)
+	{
+	case ter_ents_wipe:
+		G_INT(OFS_RETURN) = PR_TempString(prinst, mod->entities);
+		mod->entities = Z_Malloc(1);
+		return;
+	case ter_ents_concat:
 		{
-			char basename[MAX_QPATH];
-			COM_FileBase(mod->name, basename, sizeof(basename));
-			mod->terrain = Mod_LoadTerrainInfo(mod, basename, true);
-			hm = mod->terrain;
-			if (!hm)
-				return;
-			Terr_FinishTerrain(mod);
+			char *olds = mod->entities;
+			const char *news = PR_GetStringOfs(prinst, OFS_PARM1);
+			size_t oldlen = strlen(olds);
+			size_t newlen = strlen(news);
+			mod->entities = Z_Malloc(oldlen + newlen + 1);
+			memcpy(mod->entities, olds, oldlen);
+			memcpy(mod->entities+oldlen, news, newlen);
+			mod->entities[oldlen + newlen] = 0;
+			Z_Free(olds);
+			G_FLOAT(OFS_RETURN) = oldlen + newlen;
+		}
+		return;
+	case ter_ents_get:
+		G_INT(OFS_RETURN) = PR_TempString(prinst, mod->entities);
+		return;
+	case ter_save:
+		if (mod->terrain)
+		{
+			quant = Heightmap_Save(mod->terrain);
+			Con_DPrintf("ter_save: %g sections saved\n", quant);
+		}
+		G_FLOAT(OFS_RETURN) = quant;
+		/*
+		if (mod->type == mod_brush)
+		{
+			Con_Printf("that model isn't a suitable worldmodel\n");
+			return;
 		}
 		else
+		{
+			FS_CreatePath(fname, FS_GAMEONLY);
+			file = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+			if (!file)
+				Con_Printf("unable to open %s\n", fname);
+			else
+			{
+				Terr_WriteMapFile(file, mod);
+				VFS_CLOSE(file);
+			}
+		}*/
+		return;
+	}
+
+	if (!mod->terrain)
+	{
+		char basename[MAX_QPATH];
+		COM_FileBase(mod->name, basename, sizeof(basename));
+		mod->terrain = Mod_LoadTerrainInfo(mod, basename, true);
+		hm = mod->terrain;
+		if (!hm)
 			return;
+		Terr_FinishTerrain(mod);
 	}
 	hm = mod->terrain;
 
@@ -4607,11 +4864,6 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	case ter_reload:
 		G_FLOAT(OFS_RETURN) = 1;
 		Terr_PurgeTerrainModel(mod, false, true);
-		break;
-	case ter_save:
-		quant = Heightmap_Save(hm);
-		Con_DPrintf("ter_save: %g sections saved\n", quant);
-		G_FLOAT(OFS_RETURN) = quant;
 		break;
 	case ter_sethole:
 	/*	{
@@ -4643,6 +4895,8 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		if (IS_NAN(tally[0]))
 			tally[0] = 0;
 		ted_itterate(hm, tid_exponential, pos, radius, quant, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
+
+		ted_itterate(hm, tid_exponential, pos, radius, quant, SECTHEIGHTSIZE, ted_heightdebug, &tally);
 		break;
 	case ter_height_smooth:
 		tally[0] = 0;
@@ -6242,7 +6496,7 @@ void Mod_Terrain_Save_f(void)
 	vfsfile_t *file;
 	model_t *mod;
 	const char *mapname = Cmd_Argv(1);
-	const char *fname = Cmd_Argv(2);
+	char fname[MAX_QPATH];
 	if (Cmd_IsInsecure())
 	{
 		Con_Printf("Please use this command via the console\n");
@@ -6262,24 +6516,51 @@ void Mod_Terrain_Save_f(void)
 		Con_Printf("no model loaded by that name\n");
 		return;
 	}
-	if (!mod->terrain || mod->loadstate != MLS_LOADED)
+	if (mod->loadstate != MLS_LOADED)
 	{
-		Con_Printf("that model has no content worth saving, or isn't fully loaded\n");
+		Con_Printf("that model isn't fully loaded\n");
 		return;
 	}
-	if (!*fname)
-		fname = mod->name;
+	if (*Cmd_Argv(2))
+		Q_snprintfz(fname, sizeof(fname), "maps/%s.map", Cmd_Argv(2));
 	else
-		fname = va("maps/%s.map", fname);
-	FS_CreatePath(fname, FS_GAMEONLY);
-	file = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
-	if (!file)
-		Con_Printf("unable to open %s\n", fname);
+		Q_snprintfz(fname, sizeof(fname), "%s", mod->name);
+
+	if (mod->type != mod_heightmap)
+	{
+		//warning: brushes are not saved unless its a .map
+		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, ".ent", sizeof(fname));
+
+		FS_CreatePath(fname, FS_GAMEONLY);
+		file = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+		if (!file)
+			Con_Printf("unable to open %s\n", fname);
+		else
+		{
+			VFS_WRITE(file, mod->entities, strlen(mod->entities));
+			VFS_CLOSE(file);
+		}
+	}
 	else
 	{
-		Terr_WriteMapFile(file, mod);
-		VFS_CLOSE(file);
+		if (mod->type != mod_brush)
+		{
+			Con_Printf("that model isn't a suitable worldmodel\n");
+			return;
+		}
+
+		FS_CreatePath(fname, FS_GAMEONLY);
+		file = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+		if (!file)
+			Con_Printf("unable to open %s\n", fname);
+		else
+		{
+			Terr_WriteMapFile(file, mod);
+			VFS_CLOSE(file);
+		}
 	}
+	FS_FlushFSHash();
 }
 qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 {
@@ -6306,7 +6587,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 #endif
 
 	/*FIXME: we need to re-form the entities lump to insert model fields as appropriate*/
-	mod->entities = out = ZG_Malloc(&mod->memgroup, buflen+1);
+	mod->entities = out = Z_Malloc(buflen+1);
 
 	while(entities)
 	{
@@ -6369,7 +6650,6 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 						if (submod->loadstate == MLS_NOTLOADED)
 						{
 							submod->type = mod_heightmap;
-							submod->entities = "";
 							subhm = submod->terrain = Mod_LoadTerrainInfo(submod, submod->name, true);
 
 							subhm->exteriorcontents = FTECONTENTS_EMPTY;

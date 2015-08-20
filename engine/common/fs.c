@@ -828,6 +828,10 @@ void FS_FlushFSHashRemoved(void)
 {
 	FS_FlushFSHashReally(true);
 }
+void FS_FlushFSHash(void)
+{
+	FS_FlushFSHashReally(true);
+}
 
 static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle)
 {
@@ -4377,11 +4381,20 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	qboolean builtingame = false;
 	flocation_t loc;
 
+	char *vidfile[] = {"gfx.wad", "gfx/conback.lmp"};
+	searchpathfuncs_t *vidpath[countof(vidfile)];
+
 	//if any of these files change location, the configs will be re-execed.
 	//note that we reuse path handles if they're still valid, so we can just check the pointer to see if it got unloaded/replaced.
-	char *conffile[] = {"quake.rc", "hexen.rc", "default.cfg", "server.cfg", NULL};
-	searchpathfuncs_t *confpath[sizeof(conffile)/sizeof(conffile[0])];
-	for (i = 0; conffile[i]; i++)
+	char *conffile[] = {"quake.rc", "hexen.rc", "default.cfg", "server.cfg"};
+	searchpathfuncs_t *confpath[countof(conffile)];
+
+	for (i = 0; i < countof(vidfile); i++)
+	{
+		FS_FLocateFile(vidfile[i], FSLFRT_IFFOUND, &loc);	//q1
+		vidpath[i] = loc.search?loc.search->handle:NULL;
+	}
+	for (i = 0; i < countof(conffile); i++)
 	{
 		FS_FLocateFile(conffile[i], FSLFRT_IFFOUND, &loc);	//q1
 		confpath[i] = loc.search?loc.search->handle:NULL;
@@ -4552,7 +4565,22 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 		if (allowreloadconfigs)
 		{
-			for (i = 0; conffile[i]; i++)
+			qboolean vidrestart = false;
+
+			if (qrenderer != QR_NONE)
+			{
+				for (i = 0; i < countof(vidfile); i++)
+				{
+					FS_FLocateFile(vidfile[i], FSLFRT_IFFOUND, &loc);
+					if (vidpath[i] != (loc.search?loc.search->handle:NULL))
+					{
+						vidrestart = true;
+						Con_DPrintf("Restarting video because %s has changed\n", vidfile[i]);
+					}
+				}
+			}
+
+			for (i = 0; i < countof(conffile); i++)
 			{
 				FS_FLocateFile(conffile[i], FSLFRT_IFFOUND, &loc);
 				if (confpath[i] != (loc.search?loc.search->handle:NULL))
@@ -4583,6 +4611,10 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	#endif
 				}
 			}
+#ifndef SERVERONLY
+			else if (vidrestart)
+				Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
+#endif
 		}
 
 		//rebuild the cache now, should be safe to waste some cycles on it

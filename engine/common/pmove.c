@@ -362,7 +362,7 @@ int PM_StepSlideMove (qboolean in_air)
 	if (!blocked)
 		return blocked;		// moved the entire distance
 
-	if (in_air) 
+	if (in_air)
 	{
 		// don't let us step up unless it's indeed a step we bumped in
 		// (that is, there's solid ground below)
@@ -808,7 +808,13 @@ void PM_AirMove (void)
 		// add gravity
 		VectorMA(pmove.velocity, movevars.entgravity * movevars.gravity * frametime, pmove.gravitydir, pmove.velocity);
 
-		if (movevars.airstep)
+		if (DotProduct(pmove.velocity,pmove.velocity) > 1000*1000)
+		{
+			//when in a windtunnel, step up from where we are rather than the actual ground in order to more closely match nq.
+			//this is needed for r1m5 (770 800 192), just beyond the silver key door.
+			blocked = PM_StepSlideMove (false);
+		}
+		else if (movevars.airstep)
 			blocked = PM_StepSlideMove (true);
 		else
 			blocked = PM_SlideMove ();

@@ -4829,6 +4829,8 @@ void CL_LinkViewModel(void)
 		&& r_drawviewmodelinvis.value < 1)
 		alpha *= r_drawviewmodelinvis.value;
 
+	//FIXME: scale alpha by the player's alpha too
+
 	if (alpha <= 0)
 		return;
 
@@ -4910,6 +4912,7 @@ void CL_LinkViewModel(void)
 */
 	CLQ1_AddPowerupShell(V_AddEntity(&ent), true, plstate?plstate->effects:0);
 
+	//small hack to mask depth so only the front faces of the weaponmodel appear (no glitchy intra faces).
 	if (alpha < 1 && qrenderer == QR_OPENGL)
 	{
 		ent.forcedshader = 	R_RegisterShader("viewmodeldepthmask", SUF_NONE,

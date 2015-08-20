@@ -20,7 +20,7 @@ shader_t *shader_crosshair;
 
 static mpic_t *conback;
 static mpic_t *draw_backtile;
-static shader_t *shader_draw_fill, *shader_draw_fill_trans;
+shader_t *shader_draw_fill, *shader_draw_fill_trans;
 mpic_t		*draw_disc;
 
 shader_t *shader_contrastup;

@@ -794,9 +794,32 @@ void NPP_NQFlush(void)
 				buffer[0] = svcfte_cgamepacket;
 			}
 			break;
+		case TE_EXPLOSION:
+			if (writedest == &sv.datagram)
+			{	//for old clients, use a te_explosion.
+				//for clients that support it, use a TEQW_EXPLOSIONNOSPRITE
+				vec3_t org;
+				coorddata cd;
+				if (sv.multicast.cursize + bufferlen > sv.multicast.maxsize)
+					SV_FlushBroadcasts();
+				SZ_Write(&sv.multicast, buffer, bufferlen);
+
+				memcpy(&cd, &buffer[2+destprim->coordsize*0], destprim->coordsize);
+				org[0] = MSG_FromCoord(cd, destprim->coordsize);
+				memcpy(&cd, &buffer[2+destprim->coordsize*1], destprim->coordsize);
+				org[1] = MSG_FromCoord(cd, destprim->coordsize);
+				memcpy(&cd, &buffer[2+destprim->coordsize*2], destprim->coordsize);
+				org[2] = MSG_FromCoord(cd, destprim->coordsize);
+
+				requireextension = PEXT_TE_BULLET;
+				SV_MulticastProtExt(org, multicasttype, pr_global_struct->dimension_send, 0, requireextension);
+				buffer[1] = TEQW_EXPLOSIONNOSPRITE;
+			}
+			break;
 		case TENQ_EXPLOSION2:	//happens with rogue.
-			bufferlen -= 2;	//trim the colour
-			buffer[1] = TE_EXPLOSION;
+			//bufferlen -= 2;	//trim the colour
+			//buffer[1] = TE_EXPLOSION;
+			buffer[1] = TEQW_EXPLOSION2;
 			break;
 		}
 		break;
@@ -1119,7 +1142,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_SPIKE:
 			case TE_SUPERSPIKE:
 				multicastpos=2;
-				multicasttype=MULTICAST_PHS_R;
+				multicasttype=MULTICAST_PHS;
 				protocollen = destprim->coordsize*3+sizeof(qbyte)*2;
 				break;
 			case TE_LAVASPLASH:
@@ -1143,7 +1166,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				data = TEQW_EXPLOSION2;
 				protocollen = sizeof(qbyte)*4 + destprim->coordsize*3;
 				multicastpos=2;
-				multicasttype=MULTICAST_PHS_R;
+				multicasttype=MULTICAST_PHS;
 				break;
 			case TE_EXPLOSIONSMALL2:
 				data = TE_EXPLOSION;

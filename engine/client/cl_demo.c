@@ -922,6 +922,8 @@ void CL_Stop_f (void)
 	cls.demooutfile = NULL;
 	cls.demorecording = false;
 	Con_Printf ("Completed demo\n");
+
+	FS_FlushFSHash();
 }
 
 

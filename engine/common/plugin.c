@@ -1782,7 +1782,7 @@ void Plug_Close(plugin_t *plug)
 		prev->next = plug->next;
 	}
 
-	if (!com_fatalerror)
+	if (!com_workererror)
 		Con_DPrintf("Closing plugin %s\n", plug->name);
 
 	//ensure any active contexts provided by the plugin are closed (stuff with destroy callbacks)

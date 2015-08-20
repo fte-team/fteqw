@@ -770,6 +770,7 @@ void INS_CloseDInput (void)
 		FreeLibrary(hInstDI);
 		hInstDI = NULL;
 		pDirectInputCreate = NULL;
+		pDirectInputCreateEx = NULL;
 	}
 
 }

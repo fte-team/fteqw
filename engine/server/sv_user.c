@@ -6397,7 +6397,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 //
 // angles
 // show 1/3 the pitch angle and all the roll angle
-	if (sv_player->v->health > 0)
+	if (sv_player->v->health > 0 && sv_player->v->movetype)
 	{
 		if (sv_player->v->movetype == MOVETYPE_6DOF)
 		{

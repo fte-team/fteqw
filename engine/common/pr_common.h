@@ -740,6 +740,11 @@ enum terrainedit_e
 	ter_tex_replace,	//vector pos, float radius, string texname
 	ter_reset,			//vector pos, float radius
 	ter_reloadsect,		//vector pos, float radius
+
+	ter_ents_wipe,		//none
+	ter_ents_concat,	//string
+	ter_ents_get,		//none
+
 //	ter_poly_add,		//add a poly, woo
 //	ter_poly_remove,	//remove polys
 

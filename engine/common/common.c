@@ -4721,7 +4721,7 @@ static void *com_workercondition[WORKERTHREADS];
 static qboolean com_workerdone[WORKERTHREADS];
 static void *com_workerthread[WORKERTHREADS];
 static unsigned int mainthreadid;
-qboolean com_fatalerror;
+qboolean com_workererror;
 static struct com_work_s
 {
 	struct com_work_s *next;
@@ -4739,9 +4739,9 @@ void COM_WorkerAbort(char *message)
 {
 	int us;
 	struct com_work_s work;
-	com_fatalerror = true;
 	if (Sys_IsMainThread())
 		return;
+	com_workererror = true;
 
 	if (!com_workercondition[0])
 		return;	//Sys_IsMainThread was probably called too early...
@@ -4813,7 +4813,7 @@ void COM_AddWork(int thread, void(*func)(void *ctx, void *data, size_t a, size_t
 	struct com_work_s *work;
 
 	//no worker there, just do it immediately on this thread instead of pushing it to the worker.
-	if (thread && (!com_workerthread[thread] || com_fatalerror))
+	if (thread && (!com_workerthread[thread] || com_workererror))
 	{
 		func(ctx, data, a, b);
 		return;
@@ -4928,7 +4928,7 @@ void COM_DestroyWorkerThread(void)
 {
 	int i;
 	COM_WorkerFullSync();
-	com_fatalerror = false;
+//	com_workererror = false;
 	for (i = 0; i < WORKERTHREADS; i++)
 	{
 		if (com_workerthread[i])
@@ -4942,7 +4942,7 @@ void COM_DestroyWorkerThread(void)
 			Sys_LockConditional(com_workercondition[0]);
 			do
 			{
-				if (com_fatalerror)
+				if (com_workererror)
 					break;
 				while(COM_DoWork(0, true))
 					;
@@ -4995,7 +4995,7 @@ void COM_WorkerFullSync(void)
 			Sys_LockConditional(com_workercondition[0]);
 			do
 			{
-				if (com_fatalerror)
+				if (com_workererror)
 					break;
 				while(COM_DoWork(0, true))
 					cmds++;
@@ -5003,7 +5003,7 @@ void COM_WorkerFullSync(void)
 					break;
 			} while (Sys_ConditionWait(com_workercondition[0]));
 			Sys_UnlockConditional(com_workercondition[0]);
-			if (com_fatalerror)
+			if (com_workererror)
 				break;
 			if (cmds > 1)
 				repeat = true;
@@ -5064,7 +5064,7 @@ void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 	Sys_LockConditional(com_workercondition[0]);
 	do
 	{
-		if (com_fatalerror)
+		if (com_workererror)
 			break;
 		while(COM_DoWork(0, true))
 		{

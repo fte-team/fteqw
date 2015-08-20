@@ -520,6 +520,9 @@ void Mod_Purge(enum mod_purge_e ptype)
 				mod->meshinfo = NULL;
 			}
 
+			Z_Free(mod->entities);
+			mod->entities = NULL;
+
 			//and obliterate anything else remaining in memory.
 			ZG_FreeGroup(&mod->memgroup);
 			mod->meshinfo = NULL;
@@ -2085,24 +2088,24 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 			Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, loadmodel->name+5);
 			COM_StripExtension(fname, fname, sizeof(fname));
 			Q_strncatz(fname, ".ent", sizeof(fname));
-			loadmodel->entities = FS_LoadMallocGroupFile(&loadmodel->memgroup, fname, &sz);
+			loadmodel->entities = FS_LoadMallocFile(fname, &sz);
 		}
 	}
 	if (mod_loadentfiles.value && !loadmodel->entities)
 	{
 		COM_StripExtension(loadmodel->name, fname, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
-		loadmodel->entities = FS_LoadMallocGroupFile(&loadmodel->memgroup, fname, &sz);
+		loadmodel->entities = FS_LoadMallocFile(fname, &sz);
 	}
 	if (mod_loadentfiles.value && !loadmodel->entities)
 	{	//tenebrae compat
 		COM_StripExtension(loadmodel->name, fname, sizeof(fname));
 		Q_strncatz(fname, ".edo", sizeof(fname));
-		loadmodel->entities = FS_LoadMallocGroupFile(&loadmodel->memgroup, fname, &sz);
+		loadmodel->entities = FS_LoadMallocFile(fname, &sz);
 	}
 	if (!loadmodel->entities)
 	{
-		loadmodel->entities = ZG_Malloc(&loadmodel->memgroup, l->filelen + 1);	
+		loadmodel->entities = Z_Malloc(l->filelen + 1);	
 		memcpy (loadmodel->entities, mod_base + l->fileofs, l->filelen);
 		loadmodel->entities[l->filelen] = 0;
 	}
@@ -4760,6 +4763,9 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 		submod->radius = RadiusFromBounds (submod->mins, submod->maxs);
 
 		submod->numclusters = bm->visleafs;
+
+		if (i)
+			submod->entities = NULL;
 
 		memset(&submod->batches, 0, sizeof(submod->batches));
 		submod->vbos = NULL;

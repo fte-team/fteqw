@@ -984,12 +984,14 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 //	if (con->buttonsdown == CB_MOVE)	//window title(move)
 		con->buttonsdown = CB_NONE;
 
+#ifndef NOMEDIA
 	if (con->backshader)
 	{
 		cin_t *cin = R_ShaderGetCinematic(con->backshader);
 		if (cin)
 			Media_Send_KeyEvent(cin, key, unicode, 1);
 	}
+#endif
 }
 //if the referenced (trailing) chevron is doubled up, then it doesn't act as part of any markup and should be ignored for such things.
 static qboolean utf_specialchevron(unsigned char *start, unsigned char *chev)
@@ -1370,12 +1372,14 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 	//console does not have any way to accept input, so don't try giving it any.
 	if (!con->linebuffered)
 	{
+#ifndef NOMEDIA
 		if (con->backshader)
 		{
 			cin_t *cin = R_ShaderGetCinematic(con->backshader);
 			if (cin)
 				Media_Send_KeyEvent(cin, key, unicode, 0);
 		}
+#endif
 		return false;
 	}
 	

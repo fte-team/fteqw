@@ -2060,6 +2060,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 				shader = w->backshader = R_RegisterPic(w->backimage);// R_RegisterCustom(w->backimage, SUF_NONE, Shader_DefaultCinematic, w->backimage);
 			if (shader)
 			{
+#ifndef NOMEDIA
 				cin_t *cin = R_ShaderGetCinematic(shader);
 				if (cin)
 				{
@@ -2070,6 +2071,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 					else
 						Media_Send_Command(cin, "cmd:unfocus");
 				}
+#endif
 				R2D_ImageColours(1, 1, 1, 1);
 				R2D_Image(w->wnd_x+8, w->wnd_y+8, w->wnd_w-16, w->wnd_h-16, 0, 0, 1, 1, shader);
 			}

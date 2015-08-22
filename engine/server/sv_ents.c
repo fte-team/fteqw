@@ -3086,8 +3086,8 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 
 	if (progstype != PROG_QW)
 	{
-		if (progstype == PROG_UNKNOWN)
-		{	//unknown progs crc. things here are basically hacks.
+		if (progstype == PROG_TENEBRAE)
+		{
 			//tenebrae has some hideous hacks
 			if (!strcmp(sv.strings.model_precache[state->modelindex], "progs/w_light.spr") ||
 				!strcmp(sv.strings.model_precache[state->modelindex], "progs/b_light.spr") ||
@@ -3126,14 +3126,14 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 					state->hexen2flags = 0;
 				}
 			}
-			else if (progstype == PROG_UNKNOWN)
-			{	//unknown progs crc. things here are basically hacks.
+			else if (progstype == PROG_TENEBRAE)
+			{
 				if (state->effects & 16)	//tenebrae's EF_FULLDYNAMIC
 				{
 					state->effects &= ~16;
 					state->lightpflags |= PFLAGS_FULLDYNAMIC;
 				}
-				if (state->effects & 32)
+				if (state->effects & 32)	//tenebrae's EF_GREEN
 				{
 					state->effects &= ~32;
 					state->effects |= EF_GREEN;

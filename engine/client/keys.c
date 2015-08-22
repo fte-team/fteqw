@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef _WIN32
 #include "winquake.h"
 #endif
+#include "shader.h"
 /*
 
 key up events are sent even if in console mode
@@ -982,6 +983,13 @@ void Key_ConsoleRelease(console_t *con, int key, int unicode)
 	}
 //	if (con->buttonsdown == CB_MOVE)	//window title(move)
 		con->buttonsdown = CB_NONE;
+
+	if (con->backshader)
+	{
+		cin_t *cin = R_ShaderGetCinematic(con->backshader);
+		if (cin)
+			Media_Send_KeyEvent(cin, key, unicode, 1);
+	}
 }
 //if the referenced (trailing) chevron is doubled up, then it doesn't act as part of any markup and should be ignored for such things.
 static qboolean utf_specialchevron(unsigned char *start, unsigned char *chev)
@@ -1353,12 +1361,23 @@ qboolean Key_Console (console_t *con, unsigned int unicode, int key)
 				con->buttonsdown = CB_SCROLL;
 		}
 
-		return true;
+		if ((con->buttonsdown == CB_COPY || con->buttonsdown == CB_SCROLL) && !con->linecount && !con->linebuffered)
+			con->buttonsdown = CB_NONE;
+		else
+			return true;
 	}
 
 	//console does not have any way to accept input, so don't try giving it any.
 	if (!con->linebuffered)
+	{
+		if (con->backshader)
+		{
+			cin_t *cin = R_ShaderGetCinematic(con->backshader);
+			if (cin)
+				Media_Send_KeyEvent(cin, key, unicode, 0);
+		}
 		return false;
+	}
 	
 	if (key == K_ENTER || key == K_KP_ENTER)
 	{	// backslash text are commands, else chat

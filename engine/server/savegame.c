@@ -971,6 +971,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		case PROG_NQ:		mode = "NQ";		break;
 		case PROG_H2:		mode = "H2";		break;
 		case PROG_PREREL:	mode = "PREREL";	break;
+		case PROG_TENEBRAE: mode = "TENEBRAE";	break;
 		case PROG_UNKNOWN:	mode = "UNKNOWN";	break;
 		}
 		VFS_PRINTF (f, "vmmode %s\n",		COM_QuotedString(mode, buf, sizeof(buf), false));

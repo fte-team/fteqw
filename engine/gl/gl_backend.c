@@ -629,7 +629,7 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 		}
 	}
 
-	if (!((bitstochange|bitstoendisable) & ~((1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR))))
+	if (!((bitstochange|bitstoendisable) & ((1u<<VATTR_LEG_FIRST)-1)))
 		return;
 
 	for (i = 0; i < VATTR_LEG_FIRST; i++)

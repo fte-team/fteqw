@@ -1005,7 +1005,7 @@ static qintptr_t VARGS Plug_Con_GetConsoleString(void *offset, quintptr_t mask, 
 {
 	const char *conname = VM_POINTER(arg[0]);
 	const char *attrib = VM_POINTER(arg[1]);
-	const char *value = VM_POINTER(arg[2]);
+	char *value = VM_POINTER(arg[2]);
 	size_t size = VM_LONG(arg[3]);
 	console_t *con = Con_FindConsole(conname);
 	
@@ -1016,6 +1016,17 @@ static qintptr_t VARGS Plug_Con_GetConsoleString(void *offset, quintptr_t mask, 
 		return 0;
 	else if (!strcmp(attrib, "footer"))
 		;
+	else if (!strcmp(attrib, "title"))
+	{
+		Q_strncpyz(value, con->title, size);
+	}
+	else if (!strcmp(attrib, "backimage"))
+	{
+		if (con->backshader)
+			Q_strncpyz(value, con->backshader->name, size);
+		else
+			Q_strncpyz(value, con->backimage, size);
+	}
 	return 0;
 }
 static qintptr_t VARGS Plug_Con_SetConsoleString(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -1039,6 +1050,19 @@ static qintptr_t VARGS Plug_Con_SetConsoleString(void *offset, quintptr_t mask, 
 		Con_Footerf(con, false, "%s", value);
 	else if (!strcmp(attrib, "title"))
 		Q_strncpyz(con->title, value, sizeof(con->title));
+	else if (!strcmp(attrib, "backimage"))
+	{
+		Q_strncpyz(con->backimage, value, sizeof(con->backimage));
+		if (con->backshader)
+			R_UnloadShader(con->backshader);
+	}
+	else if (!strcmp(attrib, "backvideomap"))
+	{
+		Q_strncpyz(con->backimage, "", sizeof(con->backimage));
+		if (con->backshader)
+			R_UnloadShader(con->backshader);
+		con->backshader = R_RegisterCustom(va("consolevid_%s", con->name), SUF_NONE, Shader_DefaultCinematic, value);
+	}
 	else
 		return -1;
 	return 0;

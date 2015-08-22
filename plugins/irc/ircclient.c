@@ -17,9 +17,10 @@ vmcvar_t	irc_debug = {"irc_debug", "0", irccvars, 0};
 vmcvar_t	irc_motd = {"irc_motd", "1", irccvars, 0};
 vmcvar_t	irc_nick = {"irc_nick", "anonymous", irccvars, 0};
 vmcvar_t	irc_altnick = {"irc_altnick", "unnamed", irccvars, 0};
-vmcvar_t	irc_realname = {"irc_realname", "FTE IRC-Plugin http://www.fteqw.com", irccvars, 0};
+vmcvar_t	irc_realname = {"irc_realname", "FTE IRC-Plugin", irccvars, 0};
 vmcvar_t	irc_ident = {"irc_ident", "FTE", irccvars, 0};
 vmcvar_t	irc_timestamp = {"irc_timestamp", "0", irccvars, 0};
+vmcvar_t	irc_quitmessage = {"irc_quitmessage", "", irccvars, 0};
 #undef irccvars
 
 vmcvar_t	*cvarlist[] ={
@@ -30,6 +31,7 @@ vmcvar_t	*cvarlist[] ={
 	&irc_realname,
 	&irc_ident,
 	&irc_timestamp,
+	&irc_quitmessage,
 	NULL
 };
 
@@ -37,12 +39,10 @@ vmcvar_t	*cvarlist[] ={
 char commandname[64]; // belongs to magic tokenizer
 char subvar[9][1000]; // etghack
 char casevar[9][1000]; //numbered_command
-time_t seconds; // irc_connect
-int irc_connecting = 0;
 char servername[64]; // store server name
 #define CURRENTCONSOLE "" // need to make this the current console
 #define DEFAULTCONSOLE ""
-#define RELEASE "__DATE__"
+#define RELEASE __DATE__
 
 void (*Con_TrySubPrint)(char *subname, char *text);
 void Con_FakeSubPrint(char *subname, char *text)
@@ -55,6 +55,7 @@ void Con_SubPrintf(char *subname, char *format, ...)
 	static char		string[1024];
 	char lwr[128];
 	int i;
+	char *channame = subname;
 
 	va_start (argptr, format);
 	Q_vsnprintf (string, sizeof(string), format,argptr);
@@ -76,6 +77,16 @@ void Con_SubPrintf(char *subname, char *format, ...)
 			lwr[i] = *subname;
 	}
 	lwr[i] = '\0';
+
+	if (BUILTINISVALID(Con_SetConsoleFloat) && pCon_GetConsoleFloat(lwr, "iswindow") < true)
+	{
+		pCon_SetConsoleString(lwr, "title", channame);
+		pCon_SetConsoleFloat(lwr, "iswindow", true);
+		pCon_SetConsoleFloat(lwr, "forceutf8", true);
+		pCon_SetConsoleFloat(lwr, "wnd_w", 256);
+		pCon_SetConsoleFloat(lwr, "wnd_h", 320);
+	}
+
 	Con_TrySubPrint(lwr, string);
 }
 
@@ -192,6 +203,7 @@ typedef struct {
 
 	qhandle_t socket;
 
+	qboolean connecting;
 	char nick[IRC_MAXNICKLEN];
 	char pwd[64];
 	char realname[128];
@@ -270,6 +282,7 @@ qintptr_t Plug_Init(qintptr_t *args)
 		}
 
 		IRC_InitCvars();
+		Q_strlcpy(defaultuser, "FTEUser", sizeof(defaultuser));
 		return true;
 	}
 	else
@@ -325,16 +338,13 @@ void IRC_AddClientMessage(ircclient_t *irc, char *msg)
 ircclient_t *IRC_Connect(char *server, int defport)
 {
 	ircclient_t *irc;
-	unsigned long _true = true;
-
-	seconds = time (NULL); // when we connected
-	irc_connecting = 1; //we are connecting.. so lets do the nickname stuff
 
 	irc = IRC_Malloc(sizeof(ircclient_t));
 	if (!irc)
 		return NULL;
 
 	memset(irc, 0, sizeof(ircclient_t));
+	irc->connecting = true;
 
 
 	irc->socket = pNet_TCPConnect(server, defport);	//port is only used if the url doesn't contain one. It's a default.
@@ -582,17 +592,20 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 	switch (comm)
 	{
-	case 001:
-	case 002:
-	case 003:
-	case 004:
-	case 005:
+	case   1:
+	case   2:
+	case   3:
+	case   4:
+	case   5:
 	{
-		irc_connecting = 0; // ok we are connected
+		irc->connecting = 0; // ok we are connected
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURYELLOW "SERVER STATS: %s\n",casevar[3]);
 		return;
 	}
+//	case 020:
+//		Con_SubPrintf(DEFAULTCONSOLE, COLOURYELLOW "SERVER STATS: %s\n",casevar[3]);
+//		return;
 	case 250:
 	case 251:
 	case 252:
@@ -769,11 +782,11 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 
 		Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s> is already in use.\n",nickname);
 
-		if ( !strcmp(nickname,irc_nick.string) && (irc_connecting == 1) )
+		if ( !strcmp(nickname,irc_nick.string) && (irc->connecting == 1) )
 		{
 			IRC_SetNick(irc, irc_altnick.string);
 		}
-		else if ( !strcmp(nickname,irc_altnick.string) && (irc_connecting == 1) )
+		else if ( !strcmp(nickname,irc_altnick.string) && (irc->connecting == 1) )
 		{
 			Con_SubPrintf(DEFAULTCONSOLE, COLOURRED "ERROR: <%s> AND <%s> both in use. Attempting generic nickname.\n",irc_nick.string,irc_altnick.string);
 			seedednick = va("FTE%i",rand());
@@ -783,7 +796,7 @@ void numbered_command(int comm,char *msg,ircclient_t *irc) // move vars up 1 mor
 		}
 		else
 		{
-			if (irc_connecting == 1)
+			if (irc->connecting == 1)
 			{
 				seedednick = va("FTE%i",rand());
 				IRC_SetNick(irc, seedednick);
@@ -1443,7 +1456,7 @@ void IRC_Command(char *dest)
 			if (*token)
 				IRC_AddClientMessage(ircclient, va("QUIT :%s", token));
 			else
-				IRC_AddClientMessage(ircclient, va("QUIT :FTE QuakeWorld IRC-Plugin Release: %s http://www.fteqw.com/plugins/", RELEASE));
+				IRC_AddClientMessage(ircclient, va("QUIT :%s", irc_quitmessage.string));
 		}
 		else if (!strcmp(token+1, "whois"))
 		{

@@ -734,7 +734,7 @@ void NPP_NQFlush(void)
 //		bufferlen = 0;
 		break;
 	case svcdp_hidelmp:
-		if (progstype == PROG_UNKNOWN)
+		if (progstype == PROG_TENEBRAE)
 		{
 			bufferlen = 0;
 			break;
@@ -743,7 +743,7 @@ void NPP_NQFlush(void)
 		buffer[0] = svcfte_hidepic;
 		break;
 	case svcdp_showlmp:
-		if (progstype == PROG_UNKNOWN)
+		if (progstype == PROG_TENEBRAE)
 		{
 			bufferlen = 0;
 			break;
@@ -1273,7 +1273,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			break;
 		case svcdp_hidelmp:
 			//tenebrae compat:
-			if (progstype == PROG_UNKNOWN)
+			if (progstype == PROG_TENEBRAE)
 			{
 				//svc, coord6, byte, long, long, effectname
 				if (bufferlen >= sizeof(qbyte)*2+destprim->coordsize*6+sizeof(int)*2 && !data)
@@ -1286,7 +1286,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			break;
 		case svcdp_showlmp:
 			//tenebrae compat:
-			if (progstype == PROG_UNKNOWN)
+			if (progstype == PROG_TENEBRAE)
 			{
 				//svc, coord3, byte, effectname
 				if (bufferlen >= sizeof(qbyte)*2+destprim->coordsize*3 && !data)

@@ -2221,6 +2221,7 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 #endif
 		}
 
+		trace->truefraction = 1;
 		if (Mod_Trace_Trisoup(posedata, indexes, mod->numindexes, start_l, end_l, mins, maxs, trace) && axis)
 		{
 			if (axis)
@@ -2250,9 +2251,9 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 			}*/
 
 			/*okay, this is where it hits this plane*/
-//			trace->endpos[0] = traceinfo.start[0] + frac*(traceinfo.end[0] - traceinfo.start[0]);
-//			trace->endpos[1] = traceinfo.start[1] + frac*(traceinfo.end[1] - traceinfo.start[1]);
-//			trace->endpos[2] = traceinfo.start[2] + frac*(traceinfo.end[2] - traceinfo.start[2]);
+			trace->endpos[0] = start[0] + trace->fraction*(end[0] - start[0]);
+			trace->endpos[1] = start[1] + trace->fraction*(end[1] - start[1]);
+			trace->endpos[2] = start[2] + trace->fraction*(end[2] - start[2]);
 		}
 
 		mod = mod->nextsurf;

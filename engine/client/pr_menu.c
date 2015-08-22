@@ -945,6 +945,27 @@ void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		if (value)
 			con->unseentext = atoi(value);
 	}
+	else if (!strcmp(field, "backimage"))
+	{
+		RETURN_TSTRING(con->backshader?con->backshader->name:con->backimage);
+		if (value)
+		{
+			Q_strncpyz(con->backimage, value, sizeof(con->backimage));
+			if (con->backshader)
+				R_UnloadShader(con->backshader);
+		}
+	}
+	else if (!strcmp(field, "backvideomap"))
+	{
+		RETURN_TSTRING(con->backshader?con->backshader->name:con->backimage);
+		if (value)
+		{
+			Q_strncpyz(con->backimage, "", sizeof(con->backimage));
+			if (con->backshader)
+				R_UnloadShader(con->backshader);
+			con->backshader = R_RegisterCustom(va("consolevid_%s", con->name), SUF_NONE, Shader_DefaultCinematic, value);
+		}
+	}
 }
 void QCBUILTIN PF_SubConPrintf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

@@ -108,7 +108,7 @@ struct rtpheader_s
 	unsigned int csrc[1];	//sized according to cc
 };
 void S_Voip_RTP_Parse(unsigned short sequence, const char *codec, const unsigned char *data, unsigned int datalen);
-qboolean S_Voip_RTP_CodecOkay(char *codec);
+qboolean S_Voip_RTP_CodecOkay(const char *codec);
 qboolean NET_RTP_Parse(void)
 {
 	struct rtpheader_s *rtpheader = (void*)net_message.data;
@@ -522,7 +522,64 @@ void ICE_ToStunServer(struct icestate_s *con)
 	NET_SendPacket((con->proto==ICEP_QWSERVER)?NS_SERVER:NS_CLIENT, buf.cursize, data, &con->pubstunserver);
 }
 
-qboolean QDECL ICE_Set(struct icestate_s *con, char *prop, char *value)
+void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandinfo_s *n)
+{
+	struct icecandidate_s *o;
+	qboolean isnew;
+	netadr_t peer;
+	//I don't give a damn about rtpc.
+	if (n->component != 1)
+		return;
+	if (n->transport != 0)
+		return;	//only UDP is supported.
+
+	if (!NET_StringToAdr(n->addr, n->port, &peer))
+		return;
+
+	if (peer.type == NA_IP)
+	{
+		//ignore invalid addresses
+		if (!peer.address.ip[0] && !peer.address.ip[1] && !peer.address.ip[2] && !peer.address.ip[3])
+			return;
+	}
+
+	for (o = con->rc; o; o = o->next)
+	{
+		//not sure that updating candidates is particuarly useful tbh, but hey.
+		if (!strcmp(o->info.candidateid, n->candidateid))
+			break;
+	}
+	if (!o)
+	{
+		o = Z_Malloc(sizeof(*o));
+		o->next = con->rc;
+		con->rc = o;
+		Q_strncpyz(o->info.candidateid, n->candidateid, sizeof(o->info.candidateid));
+
+		isnew = true;
+	}
+	else
+	{
+		isnew = false;
+	}
+	Q_strncpyz(o->info.addr, n->addr, sizeof(o->info.addr));
+	o->info.port = n->port;
+	o->info.type = n->type;
+	o->info.priority = n->priority;
+	o->info.network = n->network;
+	o->info.generation = n->generation;
+	o->info.foundation = n->foundation;
+	o->info.component = n->component;
+	o->info.transport = n->transport;
+	o->dirty = true;
+	o->peer = peer;
+	o->tried = 0;
+	o->reachable = 0;
+
+	Con_DPrintf("%s remote candidate %s: [%s]:%i\n", isnew?"Added":"Updated", o->info.candidateid, o->info.addr, o->info.port);
+}
+
+qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *value)
 {
 	if (!strcmp(prop, "state"))
 	{
@@ -619,6 +676,111 @@ qboolean QDECL ICE_Set(struct icestate_s *con, char *prop, char *value)
 		if (con->stunserver)
 			NET_StringToAdr(con->stunserver, con->stunport, &con->pubstunserver);
 	}
+/*
+	else if (!strcmp(prop, "sdp"))
+	{
+		const char *eol;
+		for (; *value; value = eol)
+		{
+			eol = strchr(value, '\n');
+			if (!eol)
+				eol = value+strlen(value);
+
+			if      (!strncmp(value, "a=ice-pwd:", 10))
+				ICE_Set(con, "rpwd", value+10);
+			else if (!strncmp(value, "a=ice-ufrag:", 12))
+				ICE_Set(con, "rufrag", value+12);
+			else if (!strncmp(value, "a=rtpmap:", 9))
+			{
+				char name[64];
+				int codec;
+				char *sl;
+				value += 9;
+				codec = strtoul(value, &value, 0);
+				if (*value == ' ') value++;
+
+				COM_ParseOut(value, name, sizeof(name));
+				sl = strchr(name, '/');
+				if (sl)
+					*sl = '@';
+				ICE_Set(con, va("codec%i", codec), name);
+			}
+			else if (!strncmp(value, "a=candidate:", 12))
+			{
+				struct icecandinfo_s n;
+				memset(&n, 0, sizeof(n));
+
+				value += 12;
+				n.foundation = strtoul(value, &value, 0);
+
+				if(*value == ' ')value++;
+				n.component = strtoul(value, &value, 0);
+
+				if(*value == ' ')value++;
+				if (!strncmp(value, "UDP ", 4))
+				{
+					n.transport = 0;
+					value += 3;
+				}
+				else
+					break;
+
+				if(*value == ' ')value++;
+				n.priority = strtoul(value, &value, 0);
+
+				if(*value == ' ')value++;
+				value = COM_ParseOut(value, n.addr, sizeof(n.addr));
+				if (!value) break;
+
+				if(*value == ' ')value++;
+				n.port = strtoul(value, &value, 0);
+				
+				if(*value == ' ')value++;
+				if (strncmp(value, "typ ", 4)) break;
+				value += 3;
+
+				if(*value == ' ')value++;
+				if (!strncmp(value, "host", 4))
+					n.type = ICE_HOST;
+				else if (!strncmp(value, "srflx", 4))
+					n.type = ICE_SRFLX;
+				else if (!strncmp(value, "prflx", 4))
+					n.type = ICE_PRFLX;
+				else if (!strncmp(value, "relay", 4))
+					n.type = ICE_RELAY;
+				else
+					break;
+
+				while (value < eol)
+				{
+					if(*value == ' ')value++;
+					if (!strncmp(value, "raddr ", 6))
+					{
+						value += 6;
+						value = COM_ParseOut(value, n.reladdr, sizeof(n.reladdr));
+						if (!value)
+							break;
+					}
+					else if (!strncmp(value, "rport ", 6))
+					{
+						value += 6;
+						n.relport = strtoul(value, &value, 0);
+					}
+					else
+					{
+						//this is meant to be extensible.
+						while (*value && value < eol && *value != ' ')
+							value++;
+						if(*value == ' ')value++;
+						while (*value && value < eol && *value != ' ')
+							value++;
+					}
+				}
+				ICE_AddRCandidateInfo(con, &n);
+			}
+		}
+	}
+*/
 	else
 		return false;
 	return true;
@@ -657,6 +819,83 @@ qboolean QDECL ICE_Get(struct icestate_s *con, char *prop, char *value, int valu
 			}
 		}
 	}
+/*
+	else if (!strcmp(prop, "sdp"))
+	{
+		struct icecandidate_s *can;
+		netadr_t sender;
+		char tmpstr[MAX_QPATH], *at;
+		int i;
+
+		{
+			netadr_t	addr[1];
+			struct ftenet_generic_connection_s *gcon[countof(addr)];
+			int			flags[countof(addr)];
+
+			if (!NET_EnumerateAddresses(ICE_PickConnection(con), gcon, flags, addr, countof(addr)))
+				sender.type = NA_INVALID;
+			else
+				sender = *addr;
+		}
+
+		Q_strncpyz(value, "v=0\n", valuelen);
+		Q_strncatz(value, va("o=$NAME $? $? IN IP4 $ADR\n"), valuelen);
+		Q_strncatz(value, "s=\n", valuelen);
+		Q_strncatz(value, va("c=IN %s %s\n", sender.type==NA_IPV6?"IP6":"IP4", NET_BaseAdrToString(tmpstr, sizeof(tmpstr), &sender)), valuelen);
+		Q_strncatz(value, "t=0 0\n", valuelen);
+		Q_strncatz(value, va("a=ice-pwd:%s\n", con->lpwd), valuelen);
+		Q_strncatz(value, va("a=ice-ufrag:%s\n", con->lufrag), valuelen);
+		
+		for (i = 0; i < countof(con->codec); i++)
+		{
+			int codec = atoi(prop+5);
+			if (!con->codec[i])
+				continue;
+
+			Q_strncatz(value, va("m=audio %i RTP/AVP %i\n", sender.port, i+96), valuelen);
+			Q_strncatz(value, va("b=RS:0\n"), valuelen);
+			Q_strncatz(value, va("b=RR:0\n"), valuelen);
+			Q_strncpyz(tmpstr, con->codec[i], sizeof(tmpstr));
+			at = strchr(tmpstr, '@');
+			if (at)
+			{
+				*at = '/';
+				Q_strncatz(value, va("a=rtpmap:%i %s\n", i+96, tmpstr), valuelen);
+			}
+			else
+				Q_strncatz(value, va("a=rtpmap:%i %s/%i\n", i+96, tmpstr, 8000), valuelen);
+
+			for (can = con->lc; can; can = can->next)
+			{
+				char *ctype = NULL;
+				can->dirty = false;	//doesn't matter now.
+				switch(can->info.type)
+				{
+				default:
+				case ICE_HOST: ctype = "host"; break;
+				case ICE_SRFLX: ctype = "srflx"; break;
+				case ICE_PRFLX: ctype = "prflx"; break;
+				case ICE_RELAY: ctype = "relay"; break;
+				}
+				Q_strncatz(value, va("a=candidate:%i %i %s %i %s %i typ %s",
+						can->info.foundation,
+						can->info.component,
+						can->info.transport==0?"UDP":"ERROR",
+						can->info.priority,
+						can->info.addr,
+						can->info.port,
+						ctype
+						), valuelen);
+				if (can->info.type != ICE_HOST)
+				{
+					Q_strncatz(value, va(" raddr %s", can->info.reladdr), valuelen);
+					Q_strncatz(value, va(" rport %i", can->info.relport), valuelen);
+				}
+				Q_strncatz(value, "\n", valuelen);
+			}
+		}
+	}
+*/
 	else
 		return false;
 	return true;
@@ -720,60 +959,6 @@ void QDECL ICE_AddLCandidateConn(ftenet_connections_t *col, netadr_t *addr, int 
 	}
 }
 
-void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandinfo_s *n)
-{
-	struct icecandidate_s *o;
-	qboolean isnew;
-	netadr_t peer;
-	//I don't give a damn about rtpc.
-	if (n->component != 1)
-		return;
-
-	if (!NET_StringToAdr(n->addr, n->port, &peer))
-		return;
-
-	if (peer.type == NA_IP)
-	{
-		//ignore invalid addresses
-		if (!peer.address.ip[0] && !peer.address.ip[1] && !peer.address.ip[2] && !peer.address.ip[3])
-			return;
-	}
-
-	for (o = con->rc; o; o = o->next)
-	{
-		//not sure that updating candidates is particuarly useful tbh, but hey.
-		if (!strcmp(o->info.candidateid, n->candidateid))
-			break;
-	}
-	if (!o)
-	{
-		o = Z_Malloc(sizeof(*o));
-		o->next = con->rc;
-		con->rc = o;
-		Q_strncpyz(o->info.candidateid, n->candidateid, sizeof(o->info.candidateid));
-
-		isnew = true;
-	}
-	else
-	{
-		isnew = false;
-	}
-	Q_strncpyz(o->info.addr, n->addr, sizeof(o->info.addr));
-	o->info.port = n->port;
-	o->info.type = n->type;
-	o->info.priority = n->priority;
-	o->info.network = n->network;
-	o->info.generation = n->generation;
-	o->info.foundation = n->foundation;
-	o->info.component = n->component;
-	o->info.transport = n->transport;
-	o->dirty = true;
-	o->peer = peer;
-	o->tried = 0;
-	o->reachable = 0;
-
-	Con_DPrintf("%s remote candidate %s: [%s]:%i\n", isnew?"Added":"Updated", o->info.candidateid, o->info.addr, o->info.port);
-}
 static void ICE_Destroy(struct icestate_s *con)
 {
 	if (con->connections)

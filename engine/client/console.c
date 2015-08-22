@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // console.c
 
 #include "quakedef.h"
+#include "shader.h"
 
 console_t	con_main;
 console_t	*con_curwindow;
@@ -103,6 +104,7 @@ int Con_IsActive (console_t *con)
 /*kills a console_t object. will never destroy the main console (which will only be cleared)*/
 void Con_Destroy (console_t *con)
 {
+	shader_t *shader;
 	console_t *prev;
 	conline_t *t;
 	/*purge the lines from the console*/
@@ -138,6 +140,8 @@ void Con_Destroy (console_t *con)
 		}
 	}
 
+	shader = con->backshader;
+
 	BZ_Free(con);
 
 	if (con_current == con)
@@ -154,6 +158,9 @@ void Con_Destroy (console_t *con)
 			Key_Dest_Remove(kdm_cwindows);
 	}
 	con_mouseover = NULL;
+
+	if (shader)
+		R_UnloadShader(shader);
 }
 /*obtains a console_t without creating*/
 console_t *Con_FindConsole(const char *name)
@@ -1720,7 +1727,7 @@ int Con_DrawAlternateConsoles(int lines)
 	}
 	return y;
 }
-#include "shader.h"
+
 //draws the conline_t list bottom-up within the width of the screen until the top of the screen is reached.
 //if text is selected, the selstartline globals will be updated, so make sure the lines persist or check them.
 static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, int y, int top, qboolean selactive, int selsx, int selex, int selsy, int seley)
@@ -2044,6 +2051,30 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 		R2D_ImageColours(0.0, 0.05, 0.1, 0.5);
 		R2D_FillBlock(w->wnd_x, w->wnd_y, w->wnd_w, w->wnd_h);
+
+
+		if (w->backshader || *w->backimage)
+		{
+			shader_t *shader = w->backshader;
+			if (!shader)
+				shader = w->backshader = R_RegisterPic(w->backimage);// R_RegisterCustom(w->backimage, SUF_NONE, Shader_DefaultCinematic, w->backimage);
+			if (shader)
+			{
+				cin_t *cin = R_ShaderGetCinematic(shader);
+				if (cin)
+				{
+					Media_Send_Resize(cin, ((w->wnd_w-16.0)*(int)vid.rotpixelwidth) / (float)vid.width, ((w->wnd_h-16.0)*(int)vid.rotpixelheight) / (float)vid.height);
+					Media_Send_MouseMove(cin, (w->mousecursor[0]-8.0) / (w->wnd_w-16.0), (w->mousecursor[1]-8.0) / (w->wnd_h-16.0));
+					if (con_curwindow==w)
+						Media_Send_Command(cin, "cmd:focus");
+					else
+						Media_Send_Command(cin, "cmd:unfocus");
+				}
+				R2D_ImageColours(1, 1, 1, 1);
+				R2D_Image(w->wnd_x+8, w->wnd_y+8, w->wnd_w-16, w->wnd_h-16, 0, 0, 1, 1, shader);
+			}
+		}
+
 		Draw_FunStringWidth(w->wnd_x, w->wnd_y, w->title, w->wnd_w-16, 2, (con_curwindow==w)?true:false);
 		Draw_FunStringWidth(w->wnd_x+w->wnd_w-8, w->wnd_y, "X", 8, 2, (w->buttonsdown == CB_CLOSE&& w->mousecursor[0] > w->wnd_w-8 && w->mousecursor[1] < 8)?true:false);
 

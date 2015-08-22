@@ -1119,7 +1119,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	}
 
 // if using hitmodel, we know it hit the bounding box, so try a proper trace now.
-	if (hitmodel && trace.fraction != 1 && !model)
+	if (hitmodel && (trace.fraction != 1 || trace.startsolid) && !model)
 	{
 		//okay, we hit the bbox
 		model = w->Get_CModel(w, mdlidx);

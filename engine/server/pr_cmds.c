@@ -523,6 +523,7 @@ static qboolean SVPR_Event_ContentsTransition(world_t *w, wedict_t *ent, int old
 #define QW_PROGHEADER_CRC	54730
 #define NQ_PROGHEADER_CRC	5927
 #define PREREL_PROGHEADER_CRC	26940	//prerelease
+#define TENEBRAE_PROGHEADER_CRC	32401	//tenebrae
 #define H2_PROGHEADER_CRC	38488	//basic hexen2
 #define H2MP_PROGHEADER_CRC	26905	//hexen2 mission pack uses slightly different defs... *sigh*...
 #define H2DEMO_PROGHEADER_CRC	14046	//I'm guessing this is from the original release or something
@@ -540,6 +541,8 @@ pbool PDECL PR_SSQC_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc
 #endif
 	else if (crc == PREREL_PROGHEADER_CRC)
 		modtype = PROG_PREREL;
+	else if (crc == TENEBRAE_PROGHEADER_CRC)
+		modtype = PROG_TENEBRAE;
 	else
 		modtype = PROG_UNKNOWN;
 

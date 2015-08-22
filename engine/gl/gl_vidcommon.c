@@ -811,6 +811,16 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglMapBufferARB = (void *)getglext("glMapBufferARB");
 		qglUnmapBufferARB = (void *)getglext("glUnmapBufferARB");
 	}
+	else
+	{
+		qglGenBuffersARB = NULL;
+		qglDeleteBuffersARB = NULL;
+		qglBindBufferARB = NULL;
+		qglBufferDataARB = NULL;
+		qglBufferSubDataARB = NULL;
+		qglMapBufferARB = NULL;
+		qglUnmapBufferARB = NULL;
+	}
 #endif
 
 #ifdef GL_STATIC

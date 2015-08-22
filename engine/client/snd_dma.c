@@ -737,14 +737,14 @@ void S_Voip_Decode(unsigned int sender, unsigned int codec, unsigned int gen, un
 }
 
 #ifdef SUPPORT_ICE
-qboolean S_Voip_RTP_CodecOkay(char *codec)
+qboolean S_Voip_RTP_CodecOkay(const char *codec)
 {
 	if (!strcmp(codec, "speex@8000") || !strcmp(codec, "speex@11025") || !strcmp(codec, "speex@16000") || !strcmp(codec, "speex@32000"))
 	{
 		if (S_Speex_Init())
 			return true;
 	}
-	else if (!strcmp(codec, "opus"))
+	else if (!strcmp(codec, "opus") || !strcmp(codec, "opus@48000"))
 	{
 		if (S_Opus_Init())
 			return true;
@@ -761,7 +761,7 @@ void S_Voip_RTP_Parse(unsigned short sequence, char *codec, unsigned char *data,
 		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_WIDE, 0, sequence&0xff, datalen, data);
 	if (!strcmp(codec, "speex@32000"))
 		S_Voip_Decode(MAX_CLIENTS-1, VOIP_SPEEX_ULTRAWIDE, 0, sequence, datalen, data);
-	if (!strcmp(codec, "opus"))
+	if (!strcmp(codec, "opus") || !strcmp(codec, "opus@48000"))
 		S_Voip_Decode(MAX_CLIENTS-1, VOIP_OPUS, 0, sequence, datalen, data);
 }
 qboolean NET_RTP_Transmit(unsigned int sequence, unsigned int timestamp, const char *codec, char *cdata, int clength);

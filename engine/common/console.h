@@ -130,6 +130,8 @@ typedef struct console_s
 	int nextlineid;	//the current line being written to. so we can rewrite links etc.
 	char name[128];
 	char title[128];
+	char backimage[MAX_QPATH];
+	shader_t *backshader;
 	float wnd_x;
 	float wnd_y;
 	float wnd_w;

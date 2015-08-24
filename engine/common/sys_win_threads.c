@@ -104,8 +104,8 @@ unsigned int WINAPI threadwrapper(void *args)
 		{
 		}
 #else
-		PVOID (WINAPI *[SetUnhandledExceptionFilter)(ULONG	FirstHandler,	PVECTORED_EXCEPTION_HANDLER VectoredHandler);
-		dllfunction_t dbgfuncs[] = {{(void*)&pAddVectoredExceptionHandler, "SetUnhandledExceptionFilter"}, {NULL,NULL}};
+		PVOID (WINAPI *pAddVectoredExceptionHandler)(ULONG	FirstHandler,	PVECTORED_EXCEPTION_HANDLER VectoredHandler);
+		dllfunction_t dbgfuncs[] = {{(void*)&pAddVectoredExceptionHandler, "AddVectoredExceptionHandler"}, {NULL,NULL}};
 		if (Sys_LoadLibrary("kernel32.dll", dbgfuncs) && pAddVectoredExceptionHandler)
 			pAddVectoredExceptionHandler(0, nonmsvc_CrashExceptionHandler);
 #endif

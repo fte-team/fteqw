@@ -58,7 +58,7 @@ typedef BOOL (WINAPI *MINIDUMPWRITEDUMP) (
 	PMINIDUMP_CALLBACK_INFORMATION CallbackParam
 	);
 
-DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
+DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
 {
 	char dumpPath[1024];
 	HANDLE hProc = GetCurrentProcess();
@@ -305,7 +305,7 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo)
 {
 	DWORD foo = EXCEPTION_CONTINUE_SEARCH;
-	foo = CrashExceptionHandler(/*false, */ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
+	foo = CrashExceptionHandler(false, ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
 	//we have no handler. thus we handle it by exiting.
 	if (foo == EXCEPTION_EXECUTE_HANDLER)
 		exit(1);
@@ -1602,7 +1602,7 @@ int main (int argc, char **argv)
 	}
 #ifdef CATCHCRASH
 #ifdef _MSC_VER
-	__except (CrashExceptionHandler(GetExceptionCode(), GetExceptionInformation()))
+	__except (CrashExceptionHandler(false, GetExceptionCode(), GetExceptionInformation()))
 	{
 		return 1;
 	}

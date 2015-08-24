@@ -26,10 +26,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if (defined(_DEBUG) || defined(DEBUG)) && !defined(NPFTE)
 #define CATCHCRASH
+#ifdef _MSC_VER
+#define MSVC_SEH
+DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo);
+#else
 LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo);
-
-#ifdef _MSC_VER	//nt5
-PVOID WINAPI AddVectoredExceptionHandler(ULONG FirstHandler, PVECTORED_EXCEPTION_HANDLER VectoredHandler);
 #endif
 #endif
 
@@ -93,15 +94,28 @@ unsigned int WINAPI threadwrapper(void *args)
 #ifdef CATCHCRASH
 	if (strcmp(((threadwrap_t *)args)->name, "watchdog"))	//don't do this for the watchdog timer, as it just breaks the 'no' option.
 	{
-		PVOID (WINAPI *pAddVectoredExceptionHandler)(ULONG	FirstHandler,	PVECTORED_EXCEPTION_HANDLER VectoredHandler);
-		dllfunction_t dbgfuncs[] = {{(void*)&pAddVectoredExceptionHandler, "AddVectoredExceptionHandler"}, {NULL,NULL}};
+#ifdef MSVC_SEH
+		__try
+		{
+			free(args);
+			tw.func(tw.args);
+		}
+		__except (CrashExceptionHandler(false, GetExceptionCode(), GetExceptionInformation()))
+		{
+		}
+#else
+		PVOID (WINAPI *[SetUnhandledExceptionFilter)(ULONG	FirstHandler,	PVECTORED_EXCEPTION_HANDLER VectoredHandler);
+		dllfunction_t dbgfuncs[] = {{(void*)&pAddVectoredExceptionHandler, "SetUnhandledExceptionFilter"}, {NULL,NULL}};
 		if (Sys_LoadLibrary("kernel32.dll", dbgfuncs) && pAddVectoredExceptionHandler)
 			pAddVectoredExceptionHandler(0, nonmsvc_CrashExceptionHandler);
-	}
 #endif
-
-	free(args);
-	tw.func(tw.args);
+	}
+	else
+#endif
+	{
+		free(args);
+		tw.func(tw.args);
+	}
 
 #ifndef WIN32CRTDLL
 	_endthreadex(0);

@@ -4859,7 +4859,10 @@ void CL_LinkViewModel(void)
 
 	ent.model = cl.model_precache[pv->stats[STAT_WEAPONMODELI]];
 	if (!ent.model)
+	{
+		pv->vm.oldmodel = NULL;
 		return;
+	}
 
 #ifdef HLCLIENT
 	if (!CLHL_AnimateViewEntity(&ent))
@@ -4870,7 +4873,7 @@ void CL_LinkViewModel(void)
 		{
 			pv->vm.oldmodel = ent.model;
 			pv->vm.oldframe = pv->vm.prevframe = pv->stats[STAT_WEAPONFRAME];
-			pv->vm.oldlerptime = pv->vm.lerptime = realtime;
+			pv->vm.oldlerptime = pv->vm.lerptime = cl.time;
 			pv->vm.frameduration = 0.1;
 		}
 		//if the frame changed, update the oldframe to lerp into the new frame
@@ -4880,19 +4883,19 @@ void CL_LinkViewModel(void)
 			pv->vm.prevframe = pv->stats[STAT_WEAPONFRAME];
 			pv->vm.oldlerptime = pv->vm.lerptime;
 
-			pv->vm.frameduration = (realtime - pv->vm.lerptime);
+			pv->vm.frameduration = (cl.time - pv->vm.lerptime);
 			if (pv->vm.frameduration < 0.01)//no faster than 100 times a second... to avoid divide by zero
 				pv->vm.frameduration = 0.01;
 			if (pv->vm.frameduration > 0.2)	//no slower than 5 times a second
 				pv->vm.frameduration = 0.2;
-			pv->vm.lerptime = realtime;
+			pv->vm.lerptime = cl.time;
 		}
 		//work out the blend fraction
 		ent.framestate.g[FS_REG].frame[0] = pv->vm.prevframe;
 		ent.framestate.g[FS_REG].frame[1] = pv->vm.oldframe;
-		ent.framestate.g[FS_REG].frametime[0] = realtime - pv->vm.lerptime;
-		ent.framestate.g[FS_REG].frametime[1] = realtime - pv->vm.oldlerptime;
-		ent.framestate.g[FS_REG].lerpweight[0] = (realtime-pv->vm.lerptime)/pv->vm.frameduration;
+		ent.framestate.g[FS_REG].frametime[0] = cl.time - pv->vm.lerptime;
+		ent.framestate.g[FS_REG].frametime[1] = cl.time - pv->vm.oldlerptime;
+		ent.framestate.g[FS_REG].lerpweight[0] = (cl.time-pv->vm.lerptime)/pv->vm.frameduration;
 		ent.framestate.g[FS_REG].lerpweight[0] = bound(0, ent.framestate.g[FS_REG].lerpweight[0], 1);
 		ent.framestate.g[FS_REG].lerpweight[1] = 1-ent.framestate.g[FS_REG].lerpweight[0];
 	}

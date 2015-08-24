@@ -2684,27 +2684,29 @@ void SV_SendClientMessages (void)
 				c->msecs = 1200;
 			if (c->isindependant && !sv.paused)
 			{
+				unsigned int stepmsec;
 				usercmd_t cmd;
 				memset(&cmd, 0, sizeof(cmd));
 				host_client = c;
 				sv_player = c->edict;
 				SV_PreRunCmd();
-				cmd.msec = msecs;//25;
-				if (msecs > 1000)
-					msecs = 1000;	//really? I blame the debugger.
+				stepmsec = 12;
+				cmd.msec = stepmsec;
 				VectorCopy(c->lastcmd.angles, cmd.angles);
 				cmd.buttons = c->lastcmd.buttons;
 				SV_RunCmd (&cmd, true);
 				SV_PostRunCmd();
-				if (msecs > c->msecs)
+				if (stepmsec > c->msecs)
 					c->msecs = 0;
 				else
-					c->msecs -= msecs;//25;
+					c->msecs -= stepmsec;
+				if (c->msecs > 2000)
+					c->msecs = 2000;	//assume debugger or system suspend/hibernate
 				host_client = NULL;
 				sv_player = NULL;
 			}
 			else
-				c->msecs = 500;
+				c->msecs = 500;	//for switching between.
 		}
 #endif
 

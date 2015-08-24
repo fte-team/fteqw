@@ -33,7 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "fs.h"
 
 #ifdef _MSC_VER
-#define _MSC_SEH
+#define MSVC_SEH
 #endif
 
 //#define RESTARTTEST
@@ -3903,7 +3903,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 #ifdef CATCHCRASH
 	LoadLibraryU ("DBGHELP");	//heap corruption can prevent loadlibrary from working properly, so do this in advance.
-#ifdef _MSC_SEH
+#ifdef MSVC_SEH
 	__try
 #else
 	{
@@ -4231,7 +4231,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 	}
 #ifdef CATCHCRASH
-#ifdef _MSC_SEH
+#ifdef MSVC_SEH
 	__except (CrashExceptionHandler(false, GetExceptionCode(), GetExceptionInformation()))
 	{
 		return 1;

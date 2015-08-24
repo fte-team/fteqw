@@ -443,12 +443,18 @@ void QCBUILTIN PF_cs_media_create_http (pubprogfuncs_t *prinst, struct globalvar
 // #488 void(string name) gecko_destroy
 void QCBUILTIN PF_cs_media_destroy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char *shader = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *shadername = PR_GetStringOfs(prinst, OFS_PARM0);
+	shader_t *shader = R_ShaderFind(shadername);
 	cin_t *cin;
-	cin = R_ShaderFindCinematic(shader);
-	if (!cin)
+	if (!shader)
 		return;
-	Media_Send_Reset(cin);	//FIXME. unloading shaders can be dangerous
+	cin = R_ShaderGetCinematic(shader);
+	if (cin && shader->uses > 1)
+	{
+		if (shader->uses > 1)
+			Media_Send_Reset(cin);	//will still be active afterwards.
+	}
+	R_UnloadShader(shader);
 }
 // #489 void(string name, string URI) gecko_navigate
 void QCBUILTIN PF_cs_media_command (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

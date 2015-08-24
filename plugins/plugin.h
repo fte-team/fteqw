@@ -94,7 +94,9 @@ void BadBuiltin(void);
 	#endif
 #endif
 
-#ifndef _WIN32
+#ifdef _WIN32
+#define NATIVEEXPORT __declspec(dllexport) QDECL
+#else
 #define NATIVEEXPORT __attribute__((visibility("default")))
 #endif
 
@@ -216,14 +218,14 @@ EBUILTIN(int, Cmd_Argc, (void));	//abort the entire engine.
 EBUILTIN(void, Cmd_AddText, (const char *text, qboolean insert));
 EBUILTIN(void, Cmd_Tokenize, (const char *msg));	//abort the entire engine.
 
-EBUILTIN(void, Cvar_SetString, (const char *name, char *value));
+EBUILTIN(void, Cvar_SetString, (const char *name, const char *value));
 EBUILTIN(void, Cvar_SetFloat, (const char *name, float value));
 EBUILTIN(qboolean, Cvar_GetString, (const char *name, char *retstring, int sizeofretstring));
 EBUILTIN(float, Cvar_GetFloat, (const char *name));
 EBUILTIN(qhandle_t,	Cvar_Register, (const char *name, const char *defaultval, int flags, const char *grouphint));
 EBUILTIN(int, Cvar_Update, (qhandle_t handle, int *modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
 
-EBUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
+EBUILTIN(void, Plug_GetPluginName, (int plugnum, char *buffer, int bufsize));
 EBUILTIN(void, LocalSound, (const char *soundname));
 EBUILTIN(int, CL_GetStats, (int pnum, unsigned int *stats, int maxstats));
 EBUILTIN(int, GetPlayerInfo, (int pnum, plugclientinfo_t *info));

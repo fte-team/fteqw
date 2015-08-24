@@ -114,7 +114,7 @@ BUILTIN(void, Cmd_AddText, (const char *text, qboolean insert));	//add stuff to 
 #undef ARGNAMES
 
 #define ARGNAMES ,name,value
-BUILTIN(void, Cvar_SetString, (const char *name, char *value));	//set a cvar string
+BUILTIN(void, Cvar_SetString, (const char *name, const char *value));	//set a cvar string
 #undef ARGNAMES
 #define ARGNAMES ,name,PASSFLOAT(value)
 BUILTIN(void, Cvar_SetFloat, (const char *name, float value));	//set a cvar float
@@ -164,7 +164,7 @@ BUILTIN(void, LocalSound, (const char *soundname));
 #undef ARGNAMES
 
 #define ARGNAMES ,plugnum, buffer, bufsize
-BUILTIN(void, GetPluginName, (int plugnum, char *buffer, int bufsize));
+BUILTIN(void, Plug_GetPluginName, (int plugnum, char *buffer, int bufsize));
 #undef ARGNAMES
 
 #define ARGNAMES ,ni,sizeofni
@@ -448,7 +448,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Draw_Colour4f);
 	CHECKBUILTIN(SCR_CenterPrint);
 
-	CHECKBUILTIN(GetPluginName);
+	CHECKBUILTIN(Plug_GetPluginName);
 
 	//sub consoles (optional)
 	CHECKBUILTIN(Con_SubPrint);

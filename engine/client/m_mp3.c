@@ -2546,8 +2546,8 @@ texid_tf Media_UpdateForShader(cin_t *cin)
 	if (!cin->outunchanged)
 	{
 		if (!TEXVALID(cin->texture))
-			TEXASSIGN(cin->texture, Image_CreateTexture("***cin***", NULL, IF_NOMIPMAP|IF_NOALPHA));
-		Image_Upload(cin->texture, cin->outtype, cin->outdata, cin->outpalette, cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
+			TEXASSIGN(cin->texture, Image_CreateTexture("***cin***", NULL, IF_NOMIPMAP));
+		Image_Upload(cin->texture, cin->outtype, cin->outdata, cin->outpalette, cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOGAMMA);
 	}
 
 	if (cin->doneframe)

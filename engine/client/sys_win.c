@@ -32,7 +32,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "pr_common.h"
 #include "fs.h"
 
-//#define _MSC_SEH
+#ifdef _MSC_VER
+#define _MSC_SEH
+#endif
 
 //#define RESTARTTEST
 
@@ -549,6 +551,7 @@ typedef BOOL (WINAPI *MINIDUMPWRITEDUMP) (
 	PMINIDUMP_CALLBACK_INFORMATION CallbackParam
 	);
 void DumpGLState(void);
+void *watchdogthread;
 DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
 {
 	char dumpPath[1024];
@@ -802,7 +805,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 	{
 		if (iswatchdog)
 		{
-			switch (MessageBoxA(NULL, "Fizzle... We hit an infinite loop! Or something is just really slow.\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNOCANCEL))
+			switch (MessageBoxA(NULL, "Fizzle... We hit an infinite loop! Or something is just really slow.\nBlame the monkey in the corner.\nI hope you saved your work.\nWould you like to take a dump now?\n(click cancel to wait a bit longer)", DISTRIBUTION " Sucks", MB_ICONSTOP|MB_YESNOCANCEL|MB_DEFBUTTON3))
 			{
 			case IDYES:
 				break;	//take a dump.
@@ -861,7 +864,8 @@ LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo)
 }
 
 volatile int watchdogframe;	//incremented each frame.
-int watchdogthread(void *arg)
+void *watchdogthread;
+int watchdogthreadfunction(void *arg)
 {
 #ifdef _MSC_VER
 	int oldframe = watchdogframe;
@@ -3942,6 +3946,19 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		parms.binarydir = bindir;
 		COM_InitArgv (parms.argc, parms.argv);
 
+		c = COM_CheckParm("--plugwrapper");
+		if (c)
+		{
+			int (QDECL *thefunc) (void);
+			void *dummy;
+			dllhandle_t *QVM_LoadDLL(const char *name, qboolean binroot, void **vmMain, sys_calldll_t syscall);
+			dllhandle_t *lib = QVM_LoadDLL(com_argv[c+1], true, &dummy, NULL);
+			thefunc = Sys_GetAddressForName(lib, com_argv[c+2]);
+			if (thefunc)
+				return thefunc();
+			return 0;
+		}
+
 		c = COM_CheckParm("-qcdebug");
 		if (c)
 			isPlugin = 3;
@@ -3981,8 +3998,10 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		*/
 
 #if defined(CATCHCRASH) && defined(MULTITHREAD)
+#ifdef _MSC_VER
 		if (COM_CheckParm("-watchdog"))
-			Sys_CreateThread("watchdog", watchdogthread, NULL, 0, 0); 
+			watchdogthread = Sys_CreateThread("watchdog", watchdogthreadfunction, NULL, 0, 0); 
+#endif
 #endif
 
 		if (isPlugin==1)

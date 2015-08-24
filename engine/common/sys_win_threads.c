@@ -91,6 +91,7 @@ unsigned int WINAPI threadwrapper(void *args)
 	Sys_SetThreadName(GetCurrentThreadId(), ((threadwrap_t *)args)->name);
 #endif
 #ifdef CATCHCRASH
+	if (strcmp(((threadwrap_t *)args)->name, "watchdog"))	//don't do this for the watchdog timer, as it just breaks the 'no' option.
 	{
 		PVOID (WINAPI *pAddVectoredExceptionHandler)(ULONG	FirstHandler,	PVECTORED_EXCEPTION_HANDLER VectoredHandler);
 		dllfunction_t dbgfuncs[] = {{(void*)&pAddVectoredExceptionHandler, "AddVectoredExceptionHandler"}, {NULL,NULL}};

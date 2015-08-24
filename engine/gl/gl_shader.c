@@ -5906,11 +5906,8 @@ cin_t *R_ShaderGetCinematic(shader_t *s)
 	return NULL;
 }
 
-cin_t *R_ShaderFindCinematic(const char *name)
+shader_t *R_ShaderFind(const char *name)
 {
-#ifdef NOMEDIA
-	return NULL;
-#else
 	int i;
 	char shortname[MAX_QPATH];
 	shader_t *s;
@@ -5930,9 +5927,17 @@ cin_t *R_ShaderFindCinematic(const char *name)
 			continue;
 
 		if (!Q_stricmp (shortname, s->name) )
-			return R_ShaderGetCinematic(s);
+			return s;
 	}
 	return NULL;
+}
+
+cin_t *R_ShaderFindCinematic(const char *name)
+{
+#ifdef NOMEDIA
+	return NULL;
+#else
+	return R_ShaderGetCinematic(R_ShaderFind(name));
 #endif
 }
 

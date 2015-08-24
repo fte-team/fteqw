@@ -256,10 +256,10 @@ qintptr_t Plug_Init(qintptr_t *args)
 	if (	Plug_Export("Tick", IRC_Frame) &&
 		Plug_Export("ExecuteCommand", IRC_ExecuteCommand))
 	{
-		if (BUILTINISVALID(GetPluginName))
+		if (BUILTINISVALID(Plug_GetPluginName))
 		{
 			char *s;
-			pGetPluginName(0, commandname, sizeof(commandname));
+			pPlug_GetPluginName(0, commandname, sizeof(commandname));
 			while((s = strchr(commandname, '/')))
 			{	//strip off the leading slashes.
 				memmove(commandname, s+1, strlen(s));

@@ -4700,6 +4700,12 @@ void COM_Version_f (void)
 	Con_Printf("\n");
 }
 
+#ifdef _DEBUG
+void COM_LoopMe_f(void)
+{
+	while(1)
+		;
+}
 void COM_CrashMe_f(void)
 {
 	int *crashaddr = (int*)0x05;
@@ -4711,6 +4717,7 @@ void COM_ErrorMe_f(void)
 {
 	Sys_Error("\"errorme\" command used");
 }
+#endif
 
 
 
@@ -5173,8 +5180,11 @@ void COM_Init (void)
 	Cmd_AddCommand ("flocate", COM_Locate_f);	//prints the pak or whatever where this file can be found.
 	Cmd_AddCommand ("version", COM_Version_f);	//prints the pak or whatever where this file can be found.
 
+#ifdef _DEBUG
+	Cmd_AddCommand ("loopme", COM_LoopMe_f);
 	Cmd_AddCommand ("crashme", COM_CrashMe_f);
 	Cmd_AddCommand ("errorme", COM_ErrorMe_f);
+#endif
 	COM_InitFilesystem ();
 
 	Cvar_Register (&sys_platform, "Gamecode");

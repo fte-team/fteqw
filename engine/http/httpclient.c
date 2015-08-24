@@ -278,6 +278,139 @@ It doesn't use persistant connections.
 
 */
 
+#define COOKIECOOKIECOOKIE
+typedef struct cookie_s
+{
+	struct cookie_s *next;
+	char *domain;
+	int secure;
+	char *name;
+	char *value;
+} cookie_t;
+cookie_t *cookies;
+
+//set a specific cookie.
+void Cookie_Feed(char *domain, int secure, char *name, char *value)
+{
+	cookie_t **link, *c;
+	for(link = &cookies; c = *link; link = &(*link)->next)
+	{
+		if (!strcmp(c->domain, domain) && c->secure == secure && !strcmp(c->name, name))
+			break;
+	}
+	//delete it, if it exists, so we can create it anew.
+	if (c)
+	{
+		*link = c->next;
+		Z_Free(c);
+	}
+	if (!value || !*value)
+	{
+//		Con_Printf("Deleting cookie http%s://%s/ %s\n", secure?"s":"", domain, name);
+		//no new value, hurrah.
+		return;
+	}
+//	Con_Printf("Setting cookie http%s://%s/ %s=%s\n", secure?"s":"", domain, name, value);
+	c = Z_Malloc(sizeof(*c) + strlen(domain) + strlen(name) + strlen(value) + 3);
+	c->domain = (char*)(c+1);
+	strcpy(c->domain, domain);
+	c->secure = secure;
+	c->name = c->domain+strlen(c->domain)+1;
+	strcpy(c->name, name);
+	c->value = c->name+strlen(c->name)+1;
+	strcpy(c->value, value);
+	c->next = cookies;
+	cookies = c;
+}
+
+//just removes all the cookies it can.
+void Cookie_Monster(void)
+{
+	cookie_t *c;
+	while (cookies)
+	{
+		c = cookies;
+		cookies = c->next;
+		Z_Free(c);
+	}
+}
+
+//parses Set-Cookie: THISPARTONLY\r\n
+//we don't support:
+//domain) we don't have a list of composite roots, like .co.uk, and thus this wouldn't work very safely anyway. thus we require the exact same host each time
+//path) I'm going to call this an optimisation feature and not bother with it... hopefully there won't be too many sites that have sub-paths or third-party stuff... gah.
+//httponly) irrelevant until we support javascript... which we don't.
+//secure) assumed to be true. https:// vs http:// are thus completely independant. sorry.
+//expires) gah, parsing time values sucks! plus we don't have persistent storage.
+void Cookie_Parse(char *domain, int secure, char *line, char *end)
+{
+	char *e;
+	while (*line == ' ' && line < end)
+		line++;
+	for (e = line; e < end; e++)
+		if (*e == ';')
+			end = e;
+
+	for (e = line; e < end; e++)
+		if (*e == '=')
+			break;
+
+	*e = 0;
+	*end = 0;
+	Cookie_Feed(domain, secure, line, e+1);
+}
+//outputs a complete http line: Cookie a=v1; b=v2\r\n
+void Cookie_Regurgitate(char *domain, int secure, char *buffer, size_t buffersize)
+{
+	qboolean hascookies = false;
+	cookie_t *c;
+	char *l = buffer;
+	buffersize -= 3;	//\r\n\0
+	*buffer = 0;
+	for (c = cookies; c; c = c->next)
+	{
+		if (!strcmp(c->domain, domain) && c->secure == secure)
+		{
+			int nlen,vlen;
+			if (!hascookies)
+			{
+				if (buffersize < 8)
+					break;
+				strcpy(buffer, "Cookie: ");
+				buffersize -= 8;
+				hascookies=true;
+			}
+			else
+			{
+				if (buffersize < 2)
+					break;
+				strcpy(buffer, "; ");
+				buffersize -= 2;
+			}
+			buffer += strlen(buffer);
+
+			nlen = strlen(c->name);
+			vlen = strlen(c->value);
+			
+			if (buffersize < nlen+1+vlen)
+				break;
+			memcpy(buffer, c->name, nlen);
+			buffer += nlen;
+			*buffer++ = '=';
+			memcpy(buffer, c->value, vlen);
+			buffer += vlen;
+		}
+	}
+
+	if (hascookies)
+		strcpy(buffer, "\r\n");
+	else
+		*buffer = 0;
+
+//	if (*l)
+//		Con_Printf("Sending cookie(s) to http%s://%s/ %s\n", secure?"s":"", domain, l);
+}
+
 struct http_dl_ctx_s {
 //	struct dl_download *dlctx;
 
@@ -288,6 +421,9 @@ struct http_dl_ctx_s {
 #endif
 
 	char *buffer;
+
+	char server[128];
+	qboolean secure;
 
 	size_t bufferused;
 	size_t bufferlen;
@@ -407,7 +543,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		*mimetype = 0;
 		*Location = 0;
 		if (strnicmp(msg, "HTTP/", 5))
-		{	//pre version 1. (lame servers.
+		{	//pre version 1 (lame servers). no response headers at all.
 			con->state = HC_GETTING;
 			dl->status = DL_ACTIVE;
 			con->contentlength = -1;	//meaning end of stream.
@@ -415,6 +551,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		}
 		else
 		{
+			//check if the headers are complete or not
 			qboolean hcomplete = false;
 			while(*msg)
 			{
@@ -440,6 +577,37 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				nl = strchr(msg, '\n');
 				if (!nl)
 					break;//not complete, don't bother trying to parse it.
+				msg = nl;
+			}
+
+			if (!hcomplete)
+				break;//headers not complete. break out of switch
+
+			//okay, they're complete, woot. we need to actually go through the headers now
+			msg = con->buffer;
+			while(*msg)
+			{
+				if (*msg == '\n')
+				{
+					if (msg[1] == '\n')
+					{	//tut tut, not '\r'? that's not really allowed...
+						msg+=2;
+						break;
+					}
+					if (msg[1] == '\r' && msg[2] == '\n')
+					{
+						msg+=3;
+						break;
+					}
+					msg++;
+				}
+				while (*msg == ' ' || *msg == '\t')
+					msg++;
+
+				nl = strchr(msg, '\n');
+				if (!nl)
+					break;//not complete, don't bother trying to parse it.
+
 				if (!strnicmp(msg, "Content-Length: ", 16))
 					con->contentlength = atoi(msg+16);
 				else if (!strnicmp(msg, "Content-Type:", 13))
@@ -465,6 +633,10 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 					char *chunk = strstr(msg, "chunked");
 					if (chunk < nl)
 						con->chunking = true;
+				}
+				else if (!strnicmp(msg, "Set-Cookie: ", 12))
+				{
+					Cookie_Parse(con->server, con->secure, msg+12, nl);
 				}
 				msg = nl;
 			}
@@ -735,7 +907,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 	struct http_dl_ctx_s *con;
 	qboolean https = false;
 
-	char server[128];
+	char cookies[8192];
 	char uri[MAX_OSPATH];
 	char *slash;
 	const char *url = dl->redir;
@@ -750,21 +922,22 @@ void HTTPDL_Establish(struct dl_download *dl)
 	else if (!strnicmp(url, "http://", 7))
 		url+=7;
 
+	con = malloc(sizeof(*con));
+	memset(con, 0, sizeof(*con));
+
 	slash = strchr(url, '/');
 	if (!slash)
 	{
-		Q_strncpyz(server, url, sizeof(server));
+		Q_strncpyz(con->server, url, sizeof(con->server));
 		Q_strncpyz(uri, "/", sizeof(uri));
 	}
 	else
 	{
 		Q_strncpyz(uri, slash, sizeof(uri));
-		Q_strncpyz(server, url, sizeof(server));
-		server[slash-url] = '\0';
+		Q_strncpyz(con->server, url, sizeof(con->server));
+		con->server[slash-url] = '\0';
 	}
 
-	con = malloc(sizeof(*con));
-	memset(con, 0, sizeof(*con));
 	dl->ctx = con;
 	dl->abort = HTTP_Cleanup;
 
@@ -775,16 +948,18 @@ void HTTPDL_Establish(struct dl_download *dl)
 	{
 #ifdef HAVE_SSL
 		//https uses port 443 instead of 80 by default
-		con->sock = FS_OpenTCP(server, 443);
+		con->sock = FS_OpenTCP(con->server, 443);
 		//and with an extra ssl/tls layer between tcp and http.
-		con->sock = FS_OpenSSL(server, con->sock, false);
+		con->sock = FS_OpenSSL(con->server, con->sock, false);
 #else
 		con->sock = NULL;
 #endif
+		con->secure = true;
 	}
 	else
 	{
-		con->sock = FS_OpenTCP(server, 80);
+		con->sock = FS_OpenTCP(con->server, 80);
+		con->secure = false;
 	}
 	if (!con->sock)
 	{
@@ -792,7 +967,8 @@ void HTTPDL_Establish(struct dl_download *dl)
 		return;
 	}
 #else
-	if (!NET_StringToSockaddr(server, 80, &serveraddr, &addressfamily, &addresssize))
+	con->secure = false;
+	if (https || !NET_StringToSockaddr(con->server, 80, &serveraddr, &addressfamily, &addresssize))
 	{
 		dl->status = DL_FAILED;
 		return;
@@ -818,13 +994,13 @@ void HTTPDL_Establish(struct dl_download *dl)
 		switch(err)
 		{
 		case NET_EACCES:
-			Con_Printf("HTTP: connect(%s): access denied. Check firewall.\n", server);
+			Con_Printf("HTTP: connect(%s): access denied. Check firewall.\n", con->server);
 			break;
 		case NET_ETIMEDOUT:
-			Con_Printf("HTTP: connect(%s): timed out.\n", server);
+			Con_Printf("HTTP: connect(%s): timed out.\n", con->server);
 			break;
 		default:
-			Con_Printf("HTTP: connect(%s): %s", server, strerror(neterrno()));
+			Con_Printf("HTTP: connect(%s): %s", con->server, strerror(neterrno()));
 			break;
 		}
 		dl->status = DL_FAILED;
@@ -837,12 +1013,14 @@ void HTTPDL_Establish(struct dl_download *dl)
 		return;
 	}
 #endif
+	Cookie_Regurgitate(con->server, con->secure, cookies, sizeof(cookies));
 	if (dl->postdata)
 	{
-		ExpandBuffer(con, 1024 + strlen(uri) + strlen(server) + strlen(dl->postmimetype) + dl->postlen);
+		ExpandBuffer(con, 1024 + strlen(uri) + strlen(con->server) + strlen(cookies) + strlen(dl->postmimetype) + dl->postlen);
 		Q_snprintfz(con->buffer, con->bufferlen,
 			"POST %s HTTP/1.1\r\n"
 			"Host: %s\r\n"
+			/*Cookie:*/ "%s"
 			"Content-Length: %u\r\n"
 			"Content-Type: %s\r\n"
 			"Connection: close\r\n"
@@ -850,7 +1028,7 @@ void HTTPDL_Establish(struct dl_download *dl)
 			"Accept-Encoding: gzip\r\n"
 #endif
 			"User-Agent: "FULLENGINENAME"\r\n"
-			"\r\n", uri, server, (unsigned int)dl->postlen, dl->postmimetype);
+			"\r\n", uri, con->server, cookies, (unsigned int)dl->postlen, dl->postmimetype);
 		con->bufferused = strlen(con->buffer);
 		memcpy(con->buffer + con->bufferused, dl->postdata, dl->postlen);
 		con->bufferused += dl->postlen;
@@ -861,12 +1039,13 @@ void HTTPDL_Establish(struct dl_download *dl)
 		Q_snprintfz(con->buffer, con->bufferlen,
 			"GET %s HTTP/1.1\r\n"
 			"Host: %s\r\n"
+			/*Cookie:*/ "%s"
 			"Connection: close\r\n"			//theoretically, this is not needed. but as our code will basically do it anyway, it might as well be here FIXME: implement connection reuse.
 #if !defined(NPFTE) && defined(AVAIL_ZLIB)
 			"Accept-Encoding: gzip\r\n"
 #endif
 			"User-Agent: "FULLENGINENAME"\r\n"
-			"\r\n", uri, server);
+			"\r\n", uri, con->server, cookies);
 		con->bufferused = strlen(con->buffer);
 	}
 	con->contentlength = -1;
@@ -1338,6 +1517,10 @@ void HTTP_CL_Terminate(void)
 		DL_Close(dl);
 	}
 	HTTP_CL_Think();
+
+#ifdef COOKIECOOKIECOOKIE
+	Cookie_Monster();
+#endif
 }
 #endif
 #endif	/*WEBCLIENT*/

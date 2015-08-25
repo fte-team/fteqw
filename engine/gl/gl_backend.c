@@ -1300,6 +1300,9 @@ static	float	r_squaretable[FTABLE_SIZE];
 static	float	r_sawtoothtable[FTABLE_SIZE];
 static	float	r_inversesawtoothtable[FTABLE_SIZE];
 
+//#define R_FastSin(x) sin((x)*(2*M_PI))
+#define R_FastSin(x) r_sintable[FTABLE_CLAMP(x)]
+
 static float *FTableForFunc ( unsigned int func )
 {
 	switch (func)
@@ -1521,11 +1524,11 @@ void GLBE_Init(void)
 
 //end tables
 
-#ifndef GLSLONLY
 #define MAX_ARRAY_VERTS 65535
+static vecV_t		vertexarray[MAX_ARRAY_VERTS];
+#ifndef GLSLONLY
 static avec4_t		coloursarray[MAX_ARRAY_VERTS];
 static float		texcoordarray[SHADER_PASS_MAX][MAX_ARRAY_VERTS*2];
-static vecV_t		vertexarray[MAX_ARRAY_VERTS];
 
 /*========================================== texture coord generation =====================================*/
 
@@ -1651,7 +1654,6 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 	float t1, t2;
 	float cost, sint;
 	int j;
-#define R_FastSin(x) sin((x)*(2*M_PI))
 	switch (tcmod->type)
 	{
 		case SHADER_TCMOD_ROTATE:
@@ -2011,6 +2013,7 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 		break;
 	}
 }
+#endif
 
 static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *dst, const mesh_t *mesh)
 {
@@ -2298,6 +2301,8 @@ static void GenerateVertexDeforms(const shader_t *shader)
 	shaderstate.pendingvertexpointer = vertexarray;
 	shaderstate.pendingvertexvbo = 0;
 }
+
+#ifndef GLSLONLY
 
 /*======================================alpha ===============================*/
 
@@ -3944,13 +3949,11 @@ static void DrawMeshes(void)
 	flags = shaderstate.curshader->flags;
 	GL_CullFace(flags & (SHADER_CULL_FRONT|SHADER_CULL_BACK));
 
-#ifndef GLSLONLY
 	if (shaderstate.sourcevbo->coord2.gl.addr && (shaderstate.curshader->numdeforms || !shaderstate.curshader->prog))
 		GenerateVertexBlends(shaderstate.curshader);
 	else if (shaderstate.curshader->numdeforms)
 		GenerateVertexDeforms(shaderstate.curshader);
 	else
-#endif
 	{
 		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord.gl.addr;
 		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
@@ -3966,7 +3969,22 @@ static void DrawMeshes(void)
 
 #ifdef FTE_TARGET_WEB
 	if (!shaderstate.pendingvertexvbo)
-		return;
+	{
+		int len = 0, m;
+		mesh_t *meshlist;
+		for (m = 0; m < shaderstate.meshcount; m++)
+		{
+			meshlist = shaderstate.meshes[m];
+			if (len < meshlist->vbofirstvert + meshlist->numvertexes)
+				len = meshlist->vbofirstvert + meshlist->numvertexes;
+		}
+		len *= sizeof(vecV_t);
+
+		shaderstate.streamid = (shaderstate.streamid + 1) & (sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]) - 1);
+		GL_SelectVBO(shaderstate.pendingvertexvbo = shaderstate.streamvbo[shaderstate.streamid]);
+		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, len, shaderstate.pendingvertexpointer, GL_STREAM_DRAW_ARB);
+		shaderstate.pendingvertexpointer = NULL;
+	}
 	if (!shaderstate.sourcevbo->indicies.gl.vbo)
 		return;
 #endif

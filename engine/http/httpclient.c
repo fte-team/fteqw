@@ -634,10 +634,12 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 					if (chunk < nl)
 						con->chunking = true;
 				}
+#ifdef COOKIECOOKIECOOKIE
 				else if (!strnicmp(msg, "Set-Cookie: ", 12))
 				{
 					Cookie_Parse(con->server, con->secure, msg+12, nl);
 				}
+#endif
 				msg = nl;
 			}
 			if (!hcomplete)
@@ -907,7 +909,11 @@ void HTTPDL_Establish(struct dl_download *dl)
 	struct http_dl_ctx_s *con;
 	qboolean https = false;
 
+#ifdef COOKIECOOKIECOOKIE
 	char cookies[8192];
+#else
+	char *cookies = "";
+#endif
 	char uri[MAX_OSPATH];
 	char *slash;
 	const char *url = dl->redir;
@@ -1013,7 +1019,9 @@ void HTTPDL_Establish(struct dl_download *dl)
 		return;
 	}
 #endif
+#ifdef COOKIECOOKIECOOKIE
 	Cookie_Regurgitate(con->server, con->secure, cookies, sizeof(cookies));
+#endif
 	if (dl->postdata)
 	{
 		ExpandBuffer(con, 1024 + strlen(uri) + strlen(con->server) + strlen(cookies) + strlen(dl->postmimetype) + dl->postlen);

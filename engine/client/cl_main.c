@@ -1356,6 +1356,7 @@ CL_ClearState
 */
 void CL_ClearState (void)
 {
+	extern cvar_t cfg_save_auto;
 	int			i, j;
 #ifndef CLIENTONLY
 #define serverrunning (sv.state != ss_dead)
@@ -1501,6 +1502,9 @@ void CL_ClearState (void)
 	cl.splitclients = 1;
 	cl.autotrack_hint = -1;
 	cl.autotrack_killer = -1;
+
+	if (cfg_save_auto.ival && Cvar_UnsavedArchive())
+		Cmd_ExecuteString("cfg_save\n", RESTRICT_LOCAL);
 }
 
 /*

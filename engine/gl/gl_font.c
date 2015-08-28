@@ -1078,6 +1078,26 @@ qbyte default_conchar[/*11356*/] =
 #include "lhfont.h"
 };
 
+static void Font_CopyGlyph(int src, int dst, void *data)
+{
+	int glyphsize = 16;
+	int y;
+	int x;
+	char *srcptr = (char*)data + (src&15)*glyphsize*4 + (src>>4)*glyphsize*256*4;
+	char *dstptr = (char*)data + (dst&15)*glyphsize*4 + (dst>>4)*glyphsize*256*4;
+	for (y = 0; y < glyphsize; y++)
+	{
+		for (x = 0; x < glyphsize; x++)
+		{
+			dstptr[x*4+0] = srcptr[x*4+0];
+			dstptr[x*4+1] = srcptr[x*4+1];
+			dstptr[x*4+2] = srcptr[x*4+2];
+			dstptr[x*4+3] = srcptr[x*4+3];
+		}
+		dstptr += 256*4;
+		srcptr += 256*4;
+	}
+}
 static texid_t Font_LoadFallbackConchars(void)
 {
 	texid_t tex;
@@ -1095,6 +1115,13 @@ static texid_t Font_LoadFallbackConchars(void)
 		lump[i*4+0] = 255;
 		lump[i*4+1] = 255;
 		lump[i*4+2] = 255;
+	}
+	if (width == 256 && height == 256)
+	{	//make up some scroll-bar/download-progress-bar chars, so that webgl doesn't look so buggy with the initial pak file(s).
+		Font_CopyGlyph('[', 128, lump);
+		Font_CopyGlyph('-', 129, lump);
+		Font_CopyGlyph(']', 130, lump);
+		Font_CopyGlyph('o', 131, lump);
 	}
 	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	BZ_Free(lump);

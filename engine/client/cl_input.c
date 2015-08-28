@@ -1145,8 +1145,11 @@ float CL_FilterTime (double time, float wantfps, qboolean ignoreserver)	//now re
 {
 	float fps, fpscap;
 
-	if (cls.timedemo || cls.protocol == CP_QUAKE3)
+	if (cls.timedemo)
 		return -1;
+
+	if (cls.protocol == CP_QUAKE3)
+		ignoreserver = true;
 
 	/*ignore the server if we're playing demos, sending to the server only as replies, or if its meant to be disabled (netfps depending on where its called from)*/
 	if (cls.demoplayback != DPB_NONE || (cls.protocol != CP_QUAKEWORLD && cls.protocol != CP_NETQUAKE) || ignoreserver)

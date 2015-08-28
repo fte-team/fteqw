@@ -153,6 +153,7 @@ enum
 	SBITS_ATEST_LT128					= 0x00002000,
 	SBITS_ATEST_GE128					= 0x00003000,
 #define SBITS_ATEST_BITS				  0x0000f000
+#define SBITS_ATEST_SHIFT				  12
 
 	SBITS_MISC_DEPTHWRITE				= 0x00010000,
 	SBITS_MISC_NODEPTHTEST				= 0x00020000,
@@ -401,6 +402,8 @@ typedef struct {
 		SP_RENDERTEXTURESCALE,	/*multiplier for currentrender->texcoord*/
 		SP_SOURCESIZE,			/*size of $sourcecolour*/
 
+		SP_S_COLOUR,
+
 		SP_LIGHTRADIUS, /*these light values are realtime lighting*/
 		SP_LIGHTCOLOUR,
 		SP_LIGHTCOLOURSCALE,
@@ -629,6 +632,8 @@ void Shader_NeedReload(qboolean rescanfs);
 void Shader_WriteOutGenerics_f(void);
 void Shader_RemapShader_f(void);
 void Shader_ShowShader_f(void);
+
+program_t *Shader_FindGeneric(char *name, int qrtype);
 
 mfog_t *Mod_FogForOrigin(model_t *wmodel, vec3_t org);
 

@@ -2017,34 +2017,34 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef FRAGMENT_SHADER\n"
 "#include \"sys/fog.h\"\n"
-"uniform sampler2D s_t0; //diffuse\n"
+"uniform sampler2D s_diffuse; //diffuse\n"
 
 "#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
-"uniform sampler2D s_t1; //normalmap\n"
+"uniform sampler2D s_normalmap; //normalmap\n"
 "#endif\n"
 "#ifdef SPECULAR\n"
-"uniform sampler2D s_t2; //specular\n"
+"uniform sampler2D s_specular; //specular\n"
 "#endif\n"
 "#ifdef CUBE\n"
-"uniform samplerCube s_t3; //projected cubemap\n"
+"uniform samplerCube s_projectionmap; //projected cubemap\n"
 "#endif\n"
 "#ifdef PCF\n"
 "#ifdef CUBESHADOW\n"
-"uniform samplerCubeShadow s_t4; //shadowmap\n"
+"uniform samplerCubeShadow s_shadowmap; //shadowmap\n"
 "#else\n"
 "#if 0//def GL_ARB_texture_gather\n"
-"uniform sampler2D s_t4;\n"
+"uniform sampler2D s_shadowmap;\n"
 "#else\n"
-"uniform sampler2DShadow s_t4;\n"
+"uniform sampler2DShadow s_shadowmap;\n"
 "#endif\n"
 "#endif\n"
 "#endif\n"
 "#ifdef LOWER\n"
-"uniform sampler2D s_t5;  //pants colours\n"
+"uniform sampler2D s_lower;  //pants colours\n"
 "uniform vec3 e_lowercolour;\n"
 "#endif\n"
 "#ifdef UPPER\n"
-"uniform sampler2D s_t6;  //shirt colours\n"
+"uniform sampler2D s_upper;  //shirt colours\n"
 "uniform vec3 e_uppercolour;\n"
 "#endif\n"
 
@@ -2068,7 +2068,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "return ((vtexprojcoord.xyz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);\n"
 //#elif defined(CUBESHADOW)
 //	vec3 shadowcoord = vshadowcoord.xyz / vshadowcoord.w;
-//	#define dosamp(x,y) shadowCube(s_t4, shadowcoord + vec2(x,y)*texscale.xy).r
+//	#define dosamp(x,y) shadowCube(s_shadowmap, shadowcoord + vec2(x,y)*texscale.xy).r
 "#else\n"
 //figure out which axis to use
 //texture is arranged thusly:
@@ -2113,7 +2113,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#if 0//def GL_ARB_texture_gather\n"
 "vec2 ipart, fpart;\n"
-"#define dosamp(x,y) textureGatherOffset(s_t4, ipart.xy, vec2(x,y)))\n"
+"#define dosamp(x,y) textureGatherOffset(s_shadowmap, ipart.xy, vec2(x,y)))\n"
 "vec4 tl = step(shadowcoord.z, dosamp(-1.0, -1.0));\n"
 "vec4 bl = step(shadowcoord.z, dosamp(-1.0, 1.0));\n"
 "vec4 tr = step(shadowcoord.z, dosamp(1.0, -1.0));\n"
@@ -2128,10 +2128,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#else\n"
 "#ifdef USE_ARB_SHADOW\n"
 //with arb_shadow, we can benefit from hardware acclerated pcf, for smoother shadows
-"#define dosamp(x,y) shadow2D(s_t4, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r\n"
+"#define dosamp(x,y) shadow2D(s_shadowmap, shadowcoord.xyz + (vec3(x,y,0.0)*l_shadowmapscale.xyx)).r\n"
 "#else\n"
 //this will probably be a bit blocky.
-"#define dosamp(x,y) float(texture2D(s_t4, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)\n"
+"#define dosamp(x,y) float(texture2D(s_shadowmap, shadowcoord.xy + (vec2(x,y)*l_shadowmapscale.xy)).r >= shadowcoord.z)\n"
 "#endif\n"
 "float s = 0.0;\n"
 "#if r_glsl_pcf >= 1 && r_glsl_pcf < 5\n"
@@ -2169,25 +2169,29 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 //read raw texture samples (offsetmapping munges the tex coords first)
 "#ifdef OFFSETMAPPING\n"
-"vec2 tcoffsetmap = offsetmap(s_t1, tcbase, eyevector);\n"
+"vec2 tcoffsetmap = offsetmap(s_normalmap, tcbase, eyevector);\n"
 "#define tcbase tcoffsetmap\n"
 "#endif\n"
-"vec3 bases = vec3(texture2D(s_t0, tcbase));\n"
+"#if defined(FLAT)\n"
+"vec3 bases = vec3(1.0);\n"
+"#else\n"
+"vec3 bases = vec3(texture2D(s_diffuse, tcbase));\n"
+"#endif\n"
 "#ifdef UPPER\n"
-"vec4 uc = texture2D(s_t6, tcbase);\n"
+"vec4 uc = texture2D(s_upper, tcbase);\n"
 "bases.rgb += uc.rgb*e_uppercolour*uc.a;\n"
 "#endif\n"
 "#ifdef LOWER\n"
-"vec4 lc = texture2D(s_t5, tcbase);\n"
+"vec4 lc = texture2D(s_lower, tcbase);\n"
 "bases.rgb += lc.rgb*e_lowercolour*lc.a;\n"
 "#endif\n"
 "#if defined(BUMP) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
-"vec3 bumps = normalize(vec3(texture2D(s_t1, tcbase)) - 0.5);\n"
+"vec3 bumps = normalize(vec3(texture2D(s_normalmap, tcbase)) - 0.5);\n"
 "#elif defined(REFLECTCUBEMASK)\n"
 "vec3 bumps = vec3(0.0,0.0,1.0);\n"
 "#endif\n"
 "#ifdef SPECULAR\n"
-"vec4 specs = texture2D(s_t2, tcbase);\n"
+"vec4 specs = texture2D(s_specular, tcbase);\n"
 "#endif\n"
 
 "float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);\n"
@@ -2221,7 +2225,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef CUBE\n"
 /*filter the colour by the cubemap projection*/
-"diff *= textureCube(s_t3, vtexprojcoord.xyz).rgb;\n"
+"diff *= textureCube(s_projectionmap, vtexprojcoord.xyz).rgb;\n"
 "#endif\n"
 
 "#if defined(SPOT)\n"
@@ -2239,7 +2243,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#if defined(PROJECTION)\n"
 /*2d projection, not used*/
-//	diff *= texture2d(s_t3, shadowcoord);
+//	diff *= texture2d(s_projectionmap, shadowcoord);
 "#endif\n"
 
 "gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);\n"
@@ -2910,6 +2914,51 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "return result;\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
+{QR_OPENGL, 110, "fixedemu",
+//this shader is present for support for gles/gl3core contexts
+//it is single-texture-with-vertex-colours, and doesn't do anything special.
+//beware that a few things use this, including apparently fonts and bloom rescaling.
+//its really not meant to do anything special.
+
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"varying vec2 tc;\n"
+"#ifndef UC\n"
+"attribute vec4 v_colour;\n"
+"varying vec4 vc;\n"
+"#endif\n"
+"void main ()\n"
+"{\n"
+"tc = v_texcoord;\n"
+"#ifndef UC\n"
+"vc = v_colour;\n"
+"#endif\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"uniform sampler2D s_t0;\n"
+"varying vec2 tc;\n"
+"#ifndef UC\n"
+"varying vec4 vc;\n"
+"#else\n"
+"uniform vec4 s_colour;\n"
+"#define vc s_colour\n"
+"#endif\n"
+"float e_time;\n"
+"void main ()\n"
+"{\n"
+"vec4 fc = texture2D(s_t0, tc) * vc;\n"
+"#ifdef ALPHATEST\n"
+"if (!(fc.a ALPHATEST))\n"
+"discard;\n"
+"#endif\n"
+"gl_FragColor = fc;\n"
 "}\n"
 "#endif\n"
 },

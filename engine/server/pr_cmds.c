@@ -6500,17 +6500,6 @@ static void QCBUILTIN PF_sv_findchainflags (pubprogfuncs_t *prinst, struct globa
 	RETURN_EDICT(prinst, chain);
 }
 
-//EXTENSION: DP_QC_VECTORVECTORS
-
-//void(vector dir) vectorvectors = #432
-//Writes new values for v_forward, v_up, and v_right based on the given forward vector
-static void QCBUILTIN PF_vectorvectors (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	VectorCopy(G_VECTOR(OFS_PARM0), P_VEC(v_forward));
-	VectorNormalize(P_VEC(v_forward));
-	VectorVectors(P_VEC(v_forward), P_VEC(v_right), P_VEC(v_up));
-}
-
 //EXTENSION: KRIMZON_SV_PARSECLIENTCOMMAND
 
 //void(entity e, string s) clientcommand = #440

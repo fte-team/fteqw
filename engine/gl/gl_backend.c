@@ -94,6 +94,8 @@ struct {
 		union programhandle_u	allblackshader;
 		int allblack_mvp;
 
+		program_t *programfixedemu[8];
+
 		qboolean initeddepthnorm;
 		const shader_t *depthnormshader;
 		texid_t tex_normals;
@@ -128,7 +130,6 @@ struct {
 
 		batch_t dummybatch;
 		vbo_t dummyvbo;
-		int colourarraytype;
 		int currentvbo;
 		int currentebo;
 		int currentvao;
@@ -139,6 +140,7 @@ struct {
 		float modelmatrixinv[16];
 		float modelviewmatrix[16];
 
+		int colourarraytype;
 		vec4_t pendingcolourflat;
 		int pendingcolourvbo;
 		void *pendingcolourpointer;
@@ -531,6 +533,7 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 {
 	unsigned int i;
 
+#ifndef GLSLONLY
 	//legacy colour attribute (including flat shaded)
 	if ((bitstochange) & (1u<<VATTR_LEG_COLOUR))
 	{
@@ -628,6 +631,7 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 			qglDisableClientState(GL_VERTEX_ARRAY);
 		}
 	}
+#endif
 
 	if (!((bitstochange|bitstoendisable) & ((1u<<VATTR_LEG_FIRST)-1)))
 		return;
@@ -656,14 +660,14 @@ static void BE_ApplyAttributes(unsigned int bitstochange, unsigned int bitstoend
 				}
 				break;
 			case VATTR_COLOUR:
-				if (!shaderstate.sourcevbo->colours[0].gl.addr)
+				if (!shaderstate.pendingcolourvbo && !shaderstate.pendingcolourpointer)
 				{
 					shaderstate.sha_attr &= ~(1u<<i);
 					qglDisableVertexAttribArray(i);
 					continue;
 				}
-				GL_SelectVBO(shaderstate.sourcevbo->colours[0].gl.vbo);
-				qglVertexAttribPointer(VATTR_COLOUR, 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.sourcevbo->colours[0].gl.addr);
+				GL_SelectVBO(shaderstate.pendingcolourvbo);
+				qglVertexAttribPointer(VATTR_COLOUR, 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.pendingcolourpointer);
 				break;
 #if MAXRLIGHTMAPS > 1
 			case VATTR_COLOUR2:
@@ -847,7 +851,7 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic)
 		shaderstate.sourcevbo = vbo;
 		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
 		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord.gl.addr;
-		shaderstate.colourarraytype = GL_FLOAT;
+		shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
 		shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
 		shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
 		shaderstate.pendingtexcoordparts[0] = 2;
@@ -1424,7 +1428,7 @@ void GLBE_Init(void)
 	memset(&shaderstate, 0, sizeof(shaderstate));
 
 	shaderstate.curentity = &r_worldentity;
-	be_maxpasses = gl_mtexarbable;
+	be_maxpasses = gl_config_nofixedfunc?1:gl_mtexarbable;
 	gl_stencilbits = 0;
 	if (gl_config.glversion >= 3.0 && gl_config_nofixedfunc)
 	{
@@ -1526,9 +1530,13 @@ void GLBE_Init(void)
 
 #define MAX_ARRAY_VERTS 65535
 static vecV_t		vertexarray[MAX_ARRAY_VERTS];
-#ifndef GLSLONLY
+#if 1//ndef GLSLONLY
 static avec4_t		coloursarray[MAX_ARRAY_VERTS];
+#ifdef FTE_TARGET_WEB
+static float		texcoordarray[1][MAX_ARRAY_VERTS*2];
+#else
 static float		texcoordarray[SHADER_PASS_MAX][MAX_ARRAY_VERTS*2];
+#endif
 
 /*========================================== texture coord generation =====================================*/
 
@@ -2302,7 +2310,7 @@ static void GenerateVertexDeforms(const shader_t *shader)
 	shaderstate.pendingvertexvbo = 0;
 }
 
-#ifndef GLSLONLY
+#if 1//ndef GLSLONLY
 
 /*======================================alpha ===============================*/
 
@@ -2419,10 +2427,11 @@ static void GenerateColourMods(const shaderpass_t *pass)
 	mesh_t *meshlist;
 	meshlist = shaderstate.meshes[0];
 
-	if (pass->flags & SHADER_PASS_NOCOLORARRAY && qglColor4fv)
+	if (pass->flags & SHADER_PASS_NOCOLORARRAY)
 	{
 		colourgen(pass, 1, meshlist->colors4f_array[0], &shaderstate.pendingcolourflat, meshlist);
 		alphagen(pass, 1, meshlist->colors4f_array[0], &shaderstate.pendingcolourflat, meshlist);
+		shaderstate.colourarraytype = 0;
 		shaderstate.pendingcolourvbo = 0;
 		shaderstate.pendingcolourpointer = NULL;
 	}
@@ -2435,6 +2444,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 			{
 				shaderstate.pendingcolourflat[0] = shaderstate.pendingcolourflat[1] = shaderstate.pendingcolourflat[2] = 0;
 				alphagen(pass, 1, meshlist->colors4f_array[0], &shaderstate.pendingcolourflat, meshlist);
+				shaderstate.colourarraytype = 0;
 				shaderstate.pendingcolourvbo = 0;
 				shaderstate.pendingcolourpointer = NULL;
 				return;
@@ -2443,6 +2453,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 			{
 				shaderstate.pendingcolourflat[0] = shaderstate.pendingcolourflat[1] = shaderstate.pendingcolourflat[2] = 1;
 				alphagen(pass, 1, meshlist->colors4f_array[0], &shaderstate.pendingcolourflat, meshlist);
+				shaderstate.colourarraytype = 0;
 				shaderstate.pendingcolourvbo = 0;
 				shaderstate.pendingcolourpointer = NULL;
 				return;
@@ -2451,6 +2462,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 			{
 				VectorCopy(shaderstate.curentity->light_avg, shaderstate.pendingcolourflat);
 				shaderstate.pendingcolourflat[3] = shaderstate.curentity->shaderRGBAf[3];
+				shaderstate.colourarraytype = 0;
 				shaderstate.pendingcolourvbo = 0;
 				shaderstate.pendingcolourpointer = NULL;
 				return;
@@ -2460,6 +2472,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 		//if its vetex lighting, just use the vbo
 		if (((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING && shaderstate.identitylighting == 1) || pass->rgbgen == RGB_GEN_VERTEX_EXACT) && pass->alphagen == ALPHA_GEN_VERTEX)
 		{
+			shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
 			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
 			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
 			return;
@@ -3214,6 +3227,12 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 		case SP_E_COLOURS:
 			qglUniform4fvARB(ph, 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
 			break;
+		case SP_S_COLOUR:
+			if (shaderstate.colourarraytype)
+				qglUniform4fARB(ph, 1, 1, 1, 1);	//invalid use
+			else
+				qglUniform4fvARB(ph, 1, (GLfloat*)shaderstate.pendingcolourflat);
+			break;
 		case SP_E_COLOURSIDENT:
 			if (shaderstate.flags & BEF_FORCECOLOURMOD)
 				qglUniform4fvARB(ph, 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
@@ -3383,9 +3402,8 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 	}
 }
 
-static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pass)
+static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pass, program_t *p)
 {
-	program_t *p = shader->prog;
 	int	i;
 
 	int perm;
@@ -3449,17 +3467,6 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	else
 #endif
 	{
-#ifndef GLSLONLY
-		if (0)//pass->numtcmods)
-			GenerateTCMods(pass, 0);
-		else
-#endif
-		{
-			shaderstate.pendingtexcoordparts[0] = 2;
-			shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
-			shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
-		}
-
 		for (i = 0; i < pass->numMergedPasses; i++)
 		{
 			Shader_BindTextureForPass(i, pass+i);
@@ -4001,7 +4008,15 @@ static void DrawMeshes(void)
 		if (!altshader)
 			altshader = shaderstate.shader_light[shaderstate.lightmode];
 		if (altshader && altshader->prog)
-			BE_RenderMeshProgram(altshader, altshader->passes);
+		{
+			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+			shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+			shaderstate.pendingtexcoordparts[0] = 2;
+			shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+			shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+			BE_RenderMeshProgram(altshader, altshader->passes, altshader->prog);
+		}
 #ifndef GLSLONLY
 		else
 			BE_LegacyLighting();
@@ -4012,7 +4027,15 @@ static void DrawMeshes(void)
 		if (!altshader)
 			altshader = shaderstate.depthnormshader;
 		if (altshader && altshader->prog)
-			BE_RenderMeshProgram(altshader, altshader->passes);
+		{
+			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+			shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+			shaderstate.pendingtexcoordparts[0] = 2;
+			shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+			shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+			BE_RenderMeshProgram(altshader, altshader->passes, altshader->prog);
+		}
 		break;
 #endif
 	case BEM_CREPUSCULAR:
@@ -4023,7 +4046,15 @@ static void DrawMeshes(void)
 			altshader = shaderstate.crepopaqueshader;
 
 		if (altshader && altshader->prog)
-			BE_RenderMeshProgram(altshader, altshader->passes);
+		{
+			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+			shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+			shaderstate.pendingtexcoordparts[0] = 2;
+			shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+			shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+			BE_RenderMeshProgram(altshader, altshader->passes, altshader->prog);
+		}
 		break;
 	case BEM_DEPTHONLY:
 		altshader = shaderstate.curshader->bemoverrides[bemoverride_depthonly];
@@ -4031,7 +4062,15 @@ static void DrawMeshes(void)
 			altshader = shaderstate.depthonlyshader;
 
 		if (altshader && altshader->prog)
-			BE_RenderMeshProgram(altshader, altshader->passes);
+		{
+			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+			shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+			shaderstate.pendingtexcoordparts[0] = 2;
+			shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+			shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+			BE_RenderMeshProgram(altshader, altshader->passes, altshader->prog);
+		}
 		else
 		{
 			GL_DeSelectProgram();
@@ -4132,13 +4171,89 @@ static void DrawMeshes(void)
 	default:
 		if (shaderstate.curshader->prog)
 		{
-			BE_RenderMeshProgram(shaderstate.curshader, shaderstate.curshader->passes);
+			shaderstate.pendingcolourvbo = shaderstate.sourcevbo->colours[0].gl.vbo;
+			shaderstate.pendingcolourpointer = shaderstate.sourcevbo->colours[0].gl.addr;
+			shaderstate.colourarraytype = shaderstate.sourcevbo->colours_bytes?GL_UNSIGNED_BYTE:GL_FLOAT;
+
+			shaderstate.pendingtexcoordparts[0] = 2;
+			shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
+			shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
+
+			BE_RenderMeshProgram(shaderstate.curshader, shaderstate.curshader->passes, shaderstate.curshader->prog);
 		}
-#ifdef GLSLONLY
-		break;
-#else
 		else if (gl_config_nofixedfunc)
+		{
+#ifdef FTE_TARGET_WEB
+			int maxverts = 0, m;
+			mesh_t *meshlist;
+			for (m = 0; m < shaderstate.meshcount; m++)
+			{
+				meshlist = shaderstate.meshes[m];
+				if (maxverts < meshlist->vbofirstvert + meshlist->numvertexes)
+					maxverts = meshlist->vbofirstvert + meshlist->numvertexes;
+			}
+#endif
+
+			while (passno < shaderstate.curshader->numpasses)
+			{
+				int emumode;
+				p = &shaderstate.curshader->passes[passno];
+				passno += p->numMergedPasses;
+
+				emumode = 0;
+				emumode = (p->shaderbits & SBITS_ATEST_BITS) >> SBITS_ATEST_SHIFT;
+
+				GenerateColourMods(p);
+				if (!shaderstate.colourarraytype)
+				{
+					emumode |= 4;
+					shaderstate.lastuniform = 0;	//FIXME: s_colour uniform might be wrong.
+				}
+#ifdef FTE_TARGET_WEB
+				else if (!shaderstate.pendingcolourvbo && shaderstate.pendingcolourpointer)
+				{
+					shaderstate.streamid = (shaderstate.streamid + 1) & (sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]) - 1);
+					GL_SelectVBO(shaderstate.pendingcolourvbo = shaderstate.streamvbo[shaderstate.streamid]);
+					switch(shaderstate.colourarraytype)
+					{
+					case GL_FLOAT:
+						qglBufferDataARB(GL_ARRAY_BUFFER_ARB, maxverts * sizeof(vec4_t), shaderstate.pendingcolourpointer, GL_STREAM_DRAW_ARB);
+						break;
+					case GL_UNSIGNED_BYTE:
+						qglBufferDataARB(GL_ARRAY_BUFFER_ARB, maxverts * sizeof(byte_vec4_t), shaderstate.pendingcolourpointer, GL_STREAM_DRAW_ARB);
+						break;
+					}
+					shaderstate.pendingcolourpointer = NULL;
+				}
+#endif
+
+				BE_GeneratePassTC(p, 0);
+#ifdef FTE_TARGET_WEB
+				if (!shaderstate.pendingtexcoordvbo[0] && shaderstate.pendingtexcoordpointer[0])
+				{
+					shaderstate.streamid = (shaderstate.streamid + 1) & (sizeof(shaderstate.streamvbo)/sizeof(shaderstate.streamvbo[0]) - 1);
+					GL_SelectVBO(shaderstate.pendingtexcoordvbo[0] = shaderstate.streamvbo[shaderstate.streamid]);
+					qglBufferDataARB(GL_ARRAY_BUFFER_ARB, maxverts * sizeof(float) * shaderstate.pendingtexcoordparts[0], shaderstate.pendingtexcoordpointer[0], GL_STREAM_DRAW_ARB);
+					shaderstate.pendingtexcoordpointer[0] = NULL;
+				}
+#endif
+
+				if (!shaderstate.programfixedemu[emumode])
+				{
+					char *modes[] = {
+						"","#ALPHATEST=>0.0","#ALPHATEST=<0.5","#ALPHATEST=>=0.5",
+						"#UC","#ALPHATEST=>0.0#UC","#ALPHATEST=<0.5#UC","#ALPHATEST=>=0.5#UC"
+					};
+					shaderstate.programfixedemu[emumode] = Shader_FindGeneric(va("fixedemu%s", modes[emumode]), QR_OPENGL);
+					if (!shaderstate.programfixedemu[emumode])
+						break;
+				}
+
+				BE_RenderMeshProgram(shaderstate.curshader, p, shaderstate.programfixedemu[emumode]);
+			}
 			break;
+		}
+#ifndef GLSLONLY
 		else
 		{
 			GL_DeSelectProgram();
@@ -4247,7 +4362,7 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 			shaderstate.dummyvbo.colours[0].gl.addr = (void*)len;
 			shaderstate.dummyvbo.colours[0].gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
 			len += sizeof(*m->colors4f_array[0]) * m->numvertexes;
-			shaderstate.colourarraytype = GL_FLOAT;
+			shaderstate.dummyvbo.colours_bytes = false;
 		}
 		else if (m->colors4b_array)
 		{
@@ -4255,13 +4370,13 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 			shaderstate.dummyvbo.colours[0].gl.addr = (void*)len;
 			shaderstate.dummyvbo.colours[0].gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
 			len += sizeof(*m->colors4b_array) * m->numvertexes;
-			shaderstate.colourarraytype = GL_UNSIGNED_BYTE;
+			shaderstate.dummyvbo.colours_bytes = true;
 		}
 		else
 		{
 			shaderstate.dummyvbo.colours[0].gl.addr = NULL;
 			shaderstate.dummyvbo.colours[0].gl.vbo = 0;
-			shaderstate.colourarraytype = GL_FLOAT;
+			shaderstate.dummyvbo.colours_bytes = false;
 		}
 
 		if (m->normals_array)
@@ -4327,12 +4442,12 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 		shaderstate.dummyvbo.tvector.gl.addr = m->tnormals_array;
 		if (m->colors4f_array[0])
 		{
-			shaderstate.colourarraytype = GL_FLOAT;
+			shaderstate.dummyvbo.colours_bytes = false;
 			shaderstate.dummyvbo.colours[0].gl.addr = m->colors4f_array[0];
 		}
 		else
 		{
-			shaderstate.colourarraytype = GL_UNSIGNED_BYTE;
+			shaderstate.dummyvbo.colours_bytes = true;
 			shaderstate.dummyvbo.colours[0].gl.addr = m->colors4b_array;
 		}
 		shaderstate.dummyvbo.bonenums.gl.addr = m->bonenums;
@@ -4381,7 +4496,6 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 	else
 	{
 		shaderstate.sourcevbo = vbo;
-		shaderstate.colourarraytype = GL_FLOAT;
 		shaderstate.flags = beflags;
 		if (shaderstate.curentity != &r_worldentity)
 			GLBE_SelectEntity(&r_worldentity);
@@ -4411,7 +4525,6 @@ void GLBE_SubmitBatch(batch_t *batch)
 	if (batch->vbo)
 	{
 		shaderstate.sourcevbo = batch->vbo;
-		shaderstate.colourarraytype = GL_FLOAT;
 
 		if (!batch->vbo->vao)
 			batch->vbo->vao = shaderstate.streamvao[0];

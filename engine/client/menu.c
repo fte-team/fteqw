@@ -1017,11 +1017,12 @@ void M_Menu_Quit_f (void)
 	menu_t *quitmenu;
 	int		i;
 	int mode;
-
+	extern cvar_t cfg_save_auto;
 	char *arg = Cmd_Argv(1);
+
 	if (!strcmp(arg, "force"))
 		mode = 0;
-	else if (!strcmp(arg, "forcesave"))
+	else if (!strcmp(arg, "forcesave") || cfg_save_auto.ival)
 	{
 		Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
 		mode = 0;

@@ -574,7 +574,7 @@ static void SL_PostDraw	(menu_t *menu)
 					y += 8;
 				}
 
-				Draw_FunStringWidth (lx, y, "^h(press k for keybind help)", w, false, false);
+				Draw_FunStringWidth (lx, y, "^h(left/rightarrow for different info)", w, false, false);
 			}
 		}
 		else

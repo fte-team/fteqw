@@ -1768,6 +1768,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			meshcache.vbo.svector = inf->vbo_skel_svector;
 			meshcache.vbo.tvector = inf->vbo_skel_tvector;
 			meshcache.vbo.colours[0] = inf->vborgba;
+			meshcache.vbo.colours_bytes = !!inf->ofs_rgbaub;
 			memset(&meshcache.vbo.bonenums, 0, sizeof(meshcache.vbo.bonenums));
 			memset(&meshcache.vbo.boneweights, 0, sizeof(meshcache.vbo.boneweights));
 			meshcache.vbo.numbones = 0;
@@ -1835,6 +1836,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 				meshcache.vbo.svector = inf->vbo_skel_svector;
 				meshcache.vbo.tvector = inf->vbo_skel_tvector;
 				meshcache.vbo.colours[0] = inf->vborgba;
+				meshcache.vbo.colours_bytes = !!inf->ofs_rgbaub;
 				meshcache.vbo.bonenums = inf->vbo_skel_bonenum;
 				meshcache.vbo.boneweights = inf->vbo_skel_bweight;
 				meshcache.vbo.numbones = inf->numbones;

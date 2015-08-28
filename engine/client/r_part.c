@@ -431,6 +431,7 @@ void R_Clutter_Emit(batch_t **batches)
 					BE_VBO_Data(&vctx, cctx.soups[i].sdir, sizeof(cctx.soups[i].sdir[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.svector);
 					BE_VBO_Data(&vctx, cctx.soups[i].tdir, sizeof(cctx.soups[i].tdir[0])*cctx.soups[i].numverts, &sect->soups[sect->numsoups].vbo.tvector);
 					BE_VBO_Finish(&vctx, cctx.soups[i].idx, sizeof(cctx.soups[i].idx[0])*cctx.soups[i].numidx, &sect->soups[sect->numsoups].vbo.indicies);
+					sect->soups[sect->numsoups].vbo.colours_bytes = false;
 
 					sect->soups[sect->numsoups].mesh.numindexes = sect->soups[sect->numsoups].vbo.indexcount = cctx.soups[i].numidx;
 					sect->soups[sect->numsoups].mesh.numvertexes = sect->soups[sect->numsoups].vbo.vertcount = cctx.soups[i].numverts;

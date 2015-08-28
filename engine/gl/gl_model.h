@@ -268,6 +268,7 @@ typedef struct vbo_s
 	vboarray_t svector;
 	vboarray_t tvector;
 
+	qboolean colours_bytes;
 	vboarray_t colours[MAXRLIGHTMAPS];
 
 	vboarray_t bonenums;

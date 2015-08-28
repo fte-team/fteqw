@@ -410,7 +410,7 @@ void R_SetupGL (float stereooffset)
 		//
 		// set up viewpoint
 		//
-		if (r_refdef.flags & (RDF_ALLPOSTPROC))
+		if (r_refdef.flags & (RDF_ALLPOSTPROC|RDF_RENDERSCALE))
 		{
 			//with fbo postprocessing, we disable all viewport.
 			r_refdef.pxrect.x = 0;
@@ -1156,11 +1156,9 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		{
 			qglMatrixMode(GL_PROJECTION);
 			qglLoadMatrixf(r_refdef.m_projection);
-
-			//portals to mask are relative to the old view still.
-			qglMatrixMode(GL_MODELVIEW);
-			qglLoadMatrixf(r_refdef.m_view);
 		}
+		//portals to mask are relative to the old view still.
+		GLBE_SelectEntity(&r_worldentity);
 		currententity = NULL;
 		if (gl_config.arb_depth_clamp)
 			qglEnable(GL_DEPTH_CLAMP_ARB);	//ignore the near clip plane(ish), this means nearer portals can still mask further ones.
@@ -1198,8 +1196,8 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		r_refdef.flipcull &= ~SHADER_CULL_FLIP;
 	if (r_refdef.m_projection[5]<0)
 		r_refdef.flipcull ^= SHADER_CULL_FLIP;
-	GL_CullFace(0);//make sure flipcull takes effect
 
+	r_framecount++;
 	//FIXME: just call Surf_DrawWorld instead?
 	R_RenderScene();
 //	if (qglClipPlane)
@@ -1229,10 +1227,8 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		/*put GL back the way it was*/
 		qglMatrixMode(GL_PROJECTION);
 		qglLoadMatrixf(r_refdef.m_projection);
-
-		qglMatrixMode(GL_MODELVIEW);
-		qglLoadMatrixf(r_refdef.m_view);
 	}
+	GLBE_SelectEntity(&r_worldentity);
 
 	GL_CullFace(0);//make sure flipcull reversion takes effect
 
@@ -1815,11 +1811,13 @@ void GLR_RenderView (void)
 	}
 	else if ((r_refdef.flags & (RDF_ALLPOSTPROC)) || renderscale != 1)
 	{
+		r_refdef.flags |= RDF_RENDERSCALE;
+
 		//the game needs to be drawn to a texture for post processing
 		if (1)//vid.framebuffer)
 		{
 			vid.fbpwidth = (r_refdef.vrect.width * r_refdef.pxrect.width) / vid.width;
-			vid.fbpheight = (r_refdef.vrect.height * r_refdef.pxrect.width) / vid.height;
+			vid.fbpheight = (r_refdef.vrect.height * r_refdef.pxrect.height) / vid.height;
 		}
 		else
 		{

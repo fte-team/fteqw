@@ -1066,6 +1066,65 @@ char *Macro_CombinedHealth(void)
 	return macro_buf;
 }
 
+char *Macro_Coloured_Armour(void)
+{
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR3)
+		return "{^s^xe00%%a^r}";
+	else if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR2)
+		return "{^s^xff0%%a^r}";
+	else if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR1)
+		return "{^s^x0b0%%a^r}";
+	else
+		return "{0}";
+}
+
+char *Macro_Coloured_Powerups(void)
+{
+	char *quad, *pent, *ring;
+	quad = (cl.playerview[SP].stats[STAT_ITEMS] & IT_QUAD)				?va("^x03f%s", tp_name_quad.string):"";
+	pent = (cl.playerview[SP].stats[STAT_ITEMS] & IT_INVULNERABILITY)	?va("^xe00%s", tp_name_pent.string):"";
+	ring = (cl.playerview[SP].stats[STAT_ITEMS] & IT_INVISIBILITY)		?va("^xff0%s", tp_name_ring.string):"";
+
+	if (*quad || *pent || *ring)
+	{
+		Q_snprintfz (macro_buf, 32, "{^s%s%s%s^r}", quad, pent, ring);
+		return macro_buf;
+	}
+	else
+		return "";
+}
+char *Macro_Coloured_Short_Powerups(void)
+{
+	char *quad, *pent, *ring;
+	quad = (cl.playerview[SP].stats[STAT_ITEMS] & IT_QUAD)				?"^x03fq":"";
+	pent = (cl.playerview[SP].stats[STAT_ITEMS] & IT_INVULNERABILITY)	?"^xe00p":"";
+	ring = (cl.playerview[SP].stats[STAT_ITEMS] & IT_INVISIBILITY)		?"^xff0r":"";
+
+	if (*quad || *pent || *ring)
+	{
+		Q_snprintfz (macro_buf, 32, "{^s%s%s%s^r}", quad, pent, ring);
+		return macro_buf;
+	}
+	else
+		return "";
+}
+char *Macro_LastIP(void)
+{
+	return "---";
+}
+char *Macro_MP3Info(void)
+{
+	return "---";
+}
+char *Macro_Match_Status(void)
+{
+	return "---";
+}
+char *Macro_LastTrigger_Match(void)
+{
+	return "---";
+}
+
 /*
 $matchname
 you can use to get the name of the match
@@ -1132,19 +1191,19 @@ static void TP_InitMacros(void)
 
 	Cmd_AddMacro("droploc", Macro_LastDrop, true);
 	Cmd_AddMacro("droptime", Macro_LastDropTime, true);
-//	Cmd_AddMacro("matchstatus", Macro_Match_Status, false);
-//	Cmd_AddMacro("mp3info", , false);
-//	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match, false);
+	Cmd_AddMacro("matchstatus", Macro_Match_Status, false);
+	Cmd_AddMacro("mp3info", Macro_MP3Info, false);
+	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match, false);
 
 	//new, fte only (at least when first implemented)
 	Cmd_AddMacro("chealth", Macro_CombinedHealth, true);
 
 	//added for ezquake compatability
-//	Cmd_AddMacro("lastip", Macro_LastIP, false);
+	Cmd_AddMacro("lastip", Macro_LastIP, false);
 	Cmd_AddMacro("ping", Macro_Latency, false);
-//	Cmd_AddMacro("colored_armor", Macro_Coloured_Armour, true);	//*shudder*
-//	Cmd_AddMacro("colored_powerups", Macro_Coloured_Powerups, true);
-//	Cmd_AddMacro("colored_short_powerups", Macro_Coloured_Short_Powerups, true);
+	Cmd_AddMacro("colored_armor", Macro_Coloured_Armour, true);	//*shudder*
+	Cmd_AddMacro("colored_powerups", Macro_Coloured_Powerups, true);
+	Cmd_AddMacro("colored_short_powerups", Macro_Coloured_Short_Powerups, true);
 	Cmd_AddMacro("gamedir", Macro_Gamedir, false);
 	Cmd_AddMacro("lastloc", Macro_Last_Location, true);
 	Cmd_AddMacro("lastpowerup", Macro_LastSeenPowerup, true);
@@ -2614,7 +2673,10 @@ static void TP_FindModelNumbers (void)
 			continue;
 		for (j=0, item=tp_items ; j<NUMITEMS ; j++, item++)
 			if (!strcmp(s, item->modelname))
+			{
 				model2item[i] = item;
+				break;
+			}
 	}
 }
 
@@ -2945,7 +3007,7 @@ more:
 }
 
 qboolean R_CullSphere (vec3_t org, float radius);
-static qboolean TP_IsItemVisible(item_vis_t *visitem)
+static qboolean TP_IsItemVisible(item_vis_t *visitem)	//BE sure that pmove.skipent is set correctly first
 {
 	vec3_t end, v;
 	trace_t trace;
@@ -2955,8 +3017,6 @@ static qboolean TP_IsItemVisible(item_vis_t *visitem)
 
 	if (R_CullSphere(visitem->entorg, visitem->radius))
 		return false;
-
-	pmove.skipent = -1;
 
 	VectorNegate (visitem->dir, v);
 	VectorNormalize (v);
@@ -3119,12 +3179,15 @@ static void TP_FindPoint (void)
 	player_info_t *info, *bestinfo = NULL;
 	item_vis_t visitem;
 	extern cvar_t v_viewheight;
+	int oldskip = pmove.skipent;
 
 	if (vars.pointtime == realtime)
 		return;
 
 	if (!cl.validsequence)
 		goto nothing;
+
+	pmove.skipent = cl.playerview[SP].viewentity;
 
 	ang[0] = cl.playerview[SP].viewangles[0]; ang[1] = cl.playerview[SP].viewangles[1]; ang[2] = 0;
 	AngleVectors (ang, visitem.forward, visitem.right, visitem.up);
@@ -3149,12 +3212,9 @@ static void TP_FindPoint (void)
 		// special check for armors
 		if (item->itemflag == (it_ra|it_ya|it_ga))
 		{
-			switch (ent->skinnum)
-			{
-				case 0: if (!(pointflags_dmm & it_ga)) continue;
-				case 1: if (!(pointflags_dmm & it_ya)) continue;
-				default: if (!(pointflags_dmm & it_ra)) continue;
-			}
+			item += 1 + bound(0, ent->skinnum, 2);
+			if (!(item->itemflag & pointflags_dmm))
+				continue;
 		}
 
 		VectorAdd (ent->origin, item->offset, visitem.entorg);
@@ -3266,13 +3326,7 @@ static void TP_FindPoint (void)
 
 		if (!bestitem->cvar)
 		{
-			// armors are special
-			switch (bestent->skinnum)
-			{
-				case 0: p = tp_name_ga.string; break;
-				case 1: p = tp_name_ya.string; break;
-				default: p = tp_name_ra.string;
-			}
+			p = tp_name_nothing.string;
 		}
 		else
 		{
@@ -3291,6 +3345,7 @@ nothing:
 		vars.pointtype = POINT_TYPE_ITEM;
 	}
 	vars.pointtime = realtime;
+	pmove.skipent = oldskip;
 }
 
 

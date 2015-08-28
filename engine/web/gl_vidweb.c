@@ -108,7 +108,7 @@ static unsigned int domkeytoshift(unsigned int code)
 static int DOM_KeyEvent(int devid, int down, int scan, int uni)
 {
 	extern int		shift_down;
-//	Con_Printf("Key %i %i:%c\n", scan, uni, (char)uni);
+//	Con_Printf("Key %s %i %i:%c\n", down?"down":"up", scan, uni, uni?(char)uni:' ');
 	if (shift_down)
 	{
 		uni = domkeytoshift(scan);

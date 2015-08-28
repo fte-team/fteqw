@@ -34,6 +34,7 @@ char shaders[][64] =
 	"underwaterwarp",
 	"menutint",
 	"terrain",
+	"fixedemu",
 	""
 };
 

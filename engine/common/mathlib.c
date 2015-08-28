@@ -269,25 +269,18 @@ if (sides == 0)
 
 void VVPerpendicularVector(vec3_t dst, const vec3_t src)
 {
-	if (!src[0])
+	if (!src[0] && !src[1])
 	{
-		dst[0] = 1;
-		dst[1] = dst[2] = 0;
-	}
-	else if (!src[1])
-	{
-		dst[1] = 1;
+		if (src[2])
+			dst[1] = -1;
+		else
+			dst[1] = 0;
 		dst[0] = dst[2] = 0;
-	}
-	else if (!src[2])
-	{
-		dst[2] = 1;
-		dst[0] = dst[1] = 0;
 	}
 	else
 	{
-		dst[0] = -src[1];
-		dst[1] = src[0];
+		dst[0] = src[1];
+		dst[1] = -src[0];
 		dst[2] = 0;
 		VectorNormalize(dst);
 	}

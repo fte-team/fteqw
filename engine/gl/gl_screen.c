@@ -248,6 +248,7 @@ char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt)
 	extern qboolean gammaworks;
 	int i, c;
 	qbyte *ret;
+	extern qboolean r2d_canhwgamma;
 
 	*truewidth = vid.fbpwidth;
 	*trueheight = vid.fbpheight;
@@ -310,15 +311,29 @@ char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt)
 		qglReadPixels (0, 0, (*truewidth), (*trueheight), GL_RGB, GL_UNSIGNED_BYTE, ret); 
 	}
 
-	if (gammaworks)
+	if (gammaworks && r2d_canhwgamma)
 	{
-		c = (*truewidth)*(*trueheight)*3;
-		for (i=0 ; i<c ; i+=3)
+		if (*fmt == TF_BGRA32 || *fmt == TF_RGBA32)
 		{
-			extern qbyte		gammatable[256];
-			ret[i+0] = gammatable[ret[i+0]];
-			ret[i+1] = gammatable[ret[i+1]];
-			ret[i+2] = gammatable[ret[i+2]];
+			c = (*truewidth)*(*trueheight)*4;
+			for (i=0 ; i<c ; i+=4)
+			{
+				extern qbyte		gammatable[256];
+				ret[i+0] = gammatable[ret[i+0]];
+				ret[i+1] = gammatable[ret[i+1]];
+				ret[i+2] = gammatable[ret[i+2]];
+			}
+		}
+		else
+		{
+			c = (*truewidth)*(*trueheight)*3;
+			for (i=0 ; i<c ; i+=3)
+			{
+				extern qbyte		gammatable[256];
+				ret[i+0] = gammatable[ret[i+0]];
+				ret[i+1] = gammatable[ret[i+1]];
+				ret[i+2] = gammatable[ret[i+2]];
+			}
 		}
 	}
 	

@@ -1470,8 +1470,22 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		ent.framestate.g[FS_REG].lerpweight[0] = fwds;
 		ent.framestate.g[FS_REG].lerpweight[1] = back;
 
+		if ((renderfx & Q2RF_IR_VISIBLE) && (r_refdef.flags & Q2RDF_IRGOGGLES))
+		{
+			//IR googles make ir visible ents visible in pure red.
+			ent.shaderRGBAf[0] = 1;
+			ent.shaderRGBAf[1] = 0;
+			ent.shaderRGBAf[2] = 0;
+			//bypasses world lighting
+			ent.light_known = true;
+			VectorSet(ent.light_avg, 1, 1, 1);
+			VectorSet(ent.light_range, 0, 0, 0);
+			//(yes, its a bit shit. not even a post-process thing)
+		}
+
 		// add to refresh list
 		V_AddEntity (&ent);
+		ent.light_known = false;
 
 
 		// color shells generate a seperate entity for the main model

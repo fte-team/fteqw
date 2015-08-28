@@ -4274,6 +4274,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		Q_snprintfz (name, sizeof(name), "*%i:%s", i, wmod->name);
 		mod = Mod_FindName (name);
 		*mod = *wmod;
+		mod->entities = NULL;
 		mod->submodelof = wmod;
 		Q_strncpyz(mod->name, name, sizeof(mod->name));
 		memset(&mod->memgroup, 0, sizeof(mod->memgroup));

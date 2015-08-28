@@ -2452,7 +2452,7 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float f
 		// pick a channel to play on
 		target_chan = SND_PickChannel(sc, entnum, entchannel);
 		if (!target_chan)
-			return;
+			break;
 
 		S_UpdateSoundCard(sc, false, target_chan, entnum, entchannel, sfx, origin, fvol, attenuation, timeofs, pitchadj, flags);
 	}

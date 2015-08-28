@@ -1596,7 +1596,7 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 		}
 	}
 }
-static program_t *Shader_FindGeneric(char *name, int qrtype)
+program_t *Shader_FindGeneric(char *name, int qrtype)
 {
 	sgeneric_t *g;
 
@@ -1746,6 +1746,8 @@ struct shader_field_names_s shader_unif_names[] =
 	{"e_light_dir",				SP_E_L_DIR},
 	{"e_light_mul",				SP_E_L_MUL},
 	{"e_light_ambient",			SP_E_L_AMBIENT},
+
+	{"s_colour",				SP_S_COLOUR},
 
 	/*rtlight properties, use with caution*/
 	{"l_lightscreen",			SP_LIGHTSCREEN},
@@ -3808,6 +3810,15 @@ void Shader_Programify (shader_t *s)
 			vertexlighting = pass;
 		else if (pass->texgen == T_GEN_LIGHTMAP && pass->tcgen == TC_GEN_LIGHTMAP)
 			lightmap = pass;
+
+		/*if (pass->numtcmods || (pass->shaderbits & SBITS_ATEST_BITS))
+			return;
+		if (pass->texgen == T_GEN_LIGHTMAP && pass->tcgen == TC_GEN_LIGHTMAP)
+			;
+		else if (pass->texgen != T_GEN_LIGHTMAP && pass->tcgen == TC_GEN_BASE)
+			;
+		else*/
+			return;
 	}
 
 	if (modellighting)

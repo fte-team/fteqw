@@ -48,7 +48,8 @@ typedef struct cmdalias_s
 
 cmdalias_t	*cmd_alias;
 
-cvar_t	cfg_save_all = CVARFD("cfg_save_all", "", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, cfg_save ALWAYS saves all cvars. If 0, cfg_save only ever saves archived cvars. If empty, cfg_saves all cvars only when an explicit filename was given.");
+cvar_t	cfg_save_all = CVARFD("cfg_save_all", "", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, cfg_save ALWAYS saves all cvars. If 0, cfg_save only ever saves archived cvars. If empty, cfg_save saves all cvars only when an explicit filename was given (ie: when not used internally via quit menu options).");
+cvar_t	cfg_save_auto = CVARFD("cfg_save_auto", "0", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, the config will automatically be saved and without prompts. If 0, you'll have to save your config manually (possibly via prompts from the quit menu).");
 cvar_t cl_warncmd			= CVARF("cl_warncmd", "1", CVAR_NOSAVE|CVAR_NORESET);
 cvar_t cl_aliasoverlap		= CVARF("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER);
 
@@ -2396,7 +2397,27 @@ const char *If_Token(const char *func, const char **end)
 	while(*func <= ' ' && *func)
 		func++;
 
-	s = COM_ParseToken(func, IFPUNCT);
+	if (*func == '\'')
+	{
+		char *o = com_token;
+		func++;
+		while (*func)
+		{
+			if (*func == '\'')
+			{
+				func++;
+				break;
+			}
+
+			if (o < com_token + sizeof(com_token)-1)
+				*o++ = *func;
+			func++;
+		}
+		*o = 0;
+		s = func;
+	}
+	else
+		s = COM_ParseToken(func, IFPUNCT);
 
 	if (*com_token == '(')
 	{
@@ -3280,6 +3301,7 @@ void Cmd_Init (void)
 	Cmd_AddCommand ("set", Cmd_set_f);
 	Cmd_AddCommand ("setfl", Cmd_set_f);
 	Cmd_AddCommand ("set_calc", Cmd_set_f);
+	Cmd_AddCommand ("set_tp", Cmd_set_f);
 	Cmd_AddCommand ("seta", Cmd_set_f);
 	Cmd_AddCommand ("seta_calc", Cmd_set_f);
 	Cmd_AddCommand ("vstr", Cmd_Vstr_f);

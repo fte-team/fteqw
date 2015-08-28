@@ -3456,13 +3456,6 @@ void QCBUILTIN PF_cl_ambientsound(pubprogfuncs_t *prinst, struct globalvars_s *p
 	S_StaticSound (S_PrecacheSound (samp), pos, vol, attenuation);
 }
 
-static void QCBUILTIN PF_cs_vectorvectors (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	VectorCopy(G_VECTOR(OFS_PARM0), csqcg.forward);
-	VectorNormalize(csqcg.forward);
-	VectorVectors(csqcg.forward, csqcg.right, csqcg.up);
-}
-
 static void QCBUILTIN PF_cs_lightstyle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int stnum = G_FLOAT(OFS_PARM0);
@@ -5392,7 +5385,7 @@ static struct {
 
 	{"te_lightning3",			PF_cl_te_lightning3,				430},		// #430 void(entity own, vector start, vector end) te_lightning3 (DP_TE_STANDARDEFFECTBUILTINS)
 	{"te_beam",					PF_cl_te_beam,						431},		// #431 void(entity own, vector start, vector end) te_beam (DP_TE_STANDARDEFFECTBUILTINS)
-	{"vectorvectors",			PF_cs_vectorvectors,				432},		// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
+	{"vectorvectors",			PF_vectorvectors,					432},		// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
 	{"te_plasmaburn",			PF_cl_te_plasmaburn,				433},		// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
 	{"getsurfacenumpoints",		PF_getsurfacenumpoints,				434},		// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
 

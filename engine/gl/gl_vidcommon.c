@@ -1120,6 +1120,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglGetDebugMessageLogARB = NULL;
 	}
 #endif
+
+	if (!gl_config.gles && gl_config_nofixedfunc)
+		qglDisableClientState(GL_VERTEX_ARRAY);
 }
 
 static const char *glsl_hdrs[] =

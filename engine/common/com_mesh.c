@@ -1632,6 +1632,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	float lerp;
 	float fg1time;
 //	float fg2time;
+	qboolean bytecolours = false;
 
 	if (!inf->numanimations)
 	{
@@ -1669,6 +1670,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #ifndef SERVERONLY
 	mesh->colors4f_array[0] = inf->ofs_rgbaf;
 	mesh->colors4b_array = inf->ofs_rgbaub;
+	bytecolours = !!inf->ofs_rgbaub;
 	mesh->st_array = inf->ofs_st_array;
 #endif
 	mesh->trneighbors = inf->ofs_trineighbours;
@@ -1768,7 +1770,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			meshcache.vbo.svector = inf->vbo_skel_svector;
 			meshcache.vbo.tvector = inf->vbo_skel_tvector;
 			meshcache.vbo.colours[0] = inf->vborgba;
-			meshcache.vbo.colours_bytes = !!inf->ofs_rgbaub;
+			meshcache.vbo.colours_bytes = bytecolours;
 			memset(&meshcache.vbo.bonenums, 0, sizeof(meshcache.vbo.bonenums));
 			memset(&meshcache.vbo.boneweights, 0, sizeof(meshcache.vbo.boneweights));
 			meshcache.vbo.numbones = 0;
@@ -1836,7 +1838,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 				meshcache.vbo.svector = inf->vbo_skel_svector;
 				meshcache.vbo.tvector = inf->vbo_skel_tvector;
 				meshcache.vbo.colours[0] = inf->vborgba;
-				meshcache.vbo.colours_bytes = !!inf->ofs_rgbaub;
+				meshcache.vbo.colours_bytes = bytecolours;
 				meshcache.vbo.bonenums = inf->vbo_skel_bonenum;
 				meshcache.vbo.boneweights = inf->vbo_skel_bweight;
 				meshcache.vbo.numbones = inf->numbones;

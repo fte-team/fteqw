@@ -290,11 +290,14 @@ void IN_JumpDown (void)
 		KeyDown(&in_up);
 	else
 #endif
+#ifdef QUAKESTATS
 		if (condition && cl.playerview[pnum].stats[STAT_HEALTH] > 0 && !cls.demoplayback && !cl.spectator && 
 		cl.inframes[cl.validsequence&UPDATE_MASK].playerstate[cl.playerview[pnum].playernum].messagenum == cl.validsequence && cl.playerview[pnum].waterlevel >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
 	)
 		KeyDown(&in_up);
-	else if (condition && cl.spectator && !CAM_ISLOCKED(&cl.playerview[pnum]))
+	else
+#endif
+		if (condition && cl.spectator && !CAM_ISLOCKED(&cl.playerview[pnum]))
 		KeyDown(&in_up);
 	else
 		KeyDown(&in_jump);
@@ -393,6 +396,7 @@ void IN_Impulse (void)
 
 	newimp = Q_atoi(Cmd_Argv(1));
 
+#ifdef QUAKESTATS
 	if (Cmd_Argc() > 2)
 	{
 		items = cl.playerview[pnum].stats[STAT_ITEMS];
@@ -443,6 +447,7 @@ void IN_Impulse (void)
 		if (best)
 			newimp = best;
 	}
+#endif
 
 	if (in_impulsespending[pnum]>=IN_IMPULSECACHE)
 	{
@@ -698,7 +703,7 @@ void CL_ClampPitch (int pnum)
 	playerview_t *pv = &cl.playerview[pnum];
 	oldtime = realtime;
 
-	if (cl.intermission)
+	if (cl.intermissionmode != IM_NONE)
 	{
 		memset(pv->viewanglechange, 0, sizeof(pv->viewanglechange));
 		return;

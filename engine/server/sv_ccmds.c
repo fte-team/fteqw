@@ -41,6 +41,25 @@ cvar_t sv_cheats = SCVARF("sv_cheats", "0", CVAR_LATCH);
 
 extern cvar_t sv_public;
 
+static const struct banflags_s
+{
+	unsigned int banflag;
+	const char *names[2];
+} banflags[] =
+{
+	{BAN_BAN,		"ban"},
+	{BAN_PERMIT,	"safe",		"permit"},
+	{BAN_CUFF,		"cuff"},
+	{BAN_MUTE,		"mute"},
+	{BAN_CRIPPLED,	"cripple"},
+	{BAN_DEAF,		"deaf"},
+	{BAN_LAGGED,	"lag",		"lagged"},
+	{BAN_VIP,		"vip"},
+	{BAN_BLIND,		"blind"},
+	{BAN_SPECONLY,	"spec"},
+	{BAN_STEALTH,	"stealth"}
+};
+
 //generic helper function for naming players.
 client_t *SV_GetClientForString(const char *name, int *id)
 {
@@ -263,7 +282,7 @@ static void SV_Noclip_f (void)
 	}
 }
 
-
+#ifdef QUAKESTATS
 /*
 ==================
 SV_Give_f
@@ -342,6 +361,7 @@ static void SV_Give_f (void)
 */
 	}
 }
+#endif
 
 static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
@@ -731,12 +751,14 @@ void SV_Map_f (void)
 			if (host_client->protocol == SCP_BAD)
 				continue;
 
+#ifdef NQPROT
 			if (ISNQCLIENT(host_client))
 			{
 				SVNQ_New_f();
 				host_client->send_message = true;
 			}
 			else
+#endif
 				SV_New_f();
 		}
 	}
@@ -849,10 +871,9 @@ void SV_EvaluatePenalties(client_t *cl)
 {
 	bannedips_t *banip;
 	unsigned int penalties = 0, delta, p;
-	char *penaltyreason[10];
-	char *activepenalties[10];
-	char *reasons[10] = {NULL};
-	char *penaltynames[10] = {"ban", "safe", "cuff", "mute", "crippled", "deaf", "lag", "vip", "blind", "spec"};
+	char *penaltyreason[countof(banflags)];
+	const char *activepenalties[countof(banflags)];
+	char *reasons[countof(banflags)] = {NULL};
 	int numpenalties = 0;
 	int numreasons = 0;
 	int i;
@@ -914,7 +935,10 @@ void SV_EvaluatePenalties(client_t *cl)
 
 	//deaf+mute sees no (other) penalty messages
 	if (((penalties|delta) & (BAN_MUTE|BAN_DEAF)) == (BAN_MUTE|BAN_DEAF))
-		delta = 0;
+		delta &= ~(BAN_MUTE|BAN_DEAF);
+
+	if (penalties & BAN_STEALTH)
+		delta = 0;	//don't announce ANY.
 
 	if (cl->controller)
 		delta = 0;	//don't spam it for every player in a splitscreen client.
@@ -928,20 +952,20 @@ void SV_EvaluatePenalties(client_t *cl)
 			SV_PrintToClient(cl, PRINT_HIGH, "VIP expired\n");
 	}
 
-	for (i = 0; i < sizeof(penaltyreason)/sizeof(penaltyreason[0]); i++)
+	for (i = 0; i < countof(banflags); i++)
 	{
-		p = 1u<<i;
+		p = banflags[i].banflag;
 		if (delta & p)
 		{
 			if (penalties & p)
 			{
-				if (penaltynames[i])
-					activepenalties[numpenalties++] = penaltynames[i];
+				if (banflags[i].names[0])
+					activepenalties[numpenalties++] = banflags[i].names[0];
 				if (reasons[i] && *reasons[i])
 					reasons[numreasons++] = reasons[i];
 			}
 			else
-				SV_PrintToClient(cl, PRINT_HIGH, va("Penalty expired: %s\n", penaltynames[i]));
+				SV_PrintToClient(cl, PRINT_HIGH, va("Penalty expired: %s\n", banflags[i].names[0]));
 		}
 	}
 
@@ -1146,11 +1170,15 @@ static void SV_FilterIP_f (void)
 	bannedips_t proto;
 	extern cvar_t filterban;
 	char *s;
+	int i;
 
 	if (Cmd_Argc() < 2)
 	{
 		Con_Printf("%s <address/mask|adress/maskbits> [flags] [+time] [reason]\n", Cmd_Argv(0));
-		Con_Printf("allowed flags: ban,safe,cuff,mute,cripple,deaf,lag,blind,spec. time is in seconds (omitting the plus will be taken to mean unix time).\n");
+		Con_Printf("allowed flags: %s", banflags[0].names[0]);
+		for (i = 1; i < countof(banflags); i++)
+			Con_Printf(",%s", banflags[i].names[0]);
+		Con_Printf(". time is in seconds (omitting the plus will be taken to mean unix time).\n");
 		return;
 	}
 
@@ -1172,28 +1200,16 @@ static void SV_FilterIP_f (void)
 	{
 		s=COM_ParseToken(s,",");
 		if (!Q_strcasecmp(com_token, ","))
-			;
-		else if (!Q_strcasecmp(com_token, "ban"))
-			proto.banflags |= BAN_BAN;
-		else if (!Q_strcasecmp(com_token, "safe") || !Q_strcasecmp(com_token, "permit"))
-			proto.banflags |= BAN_PERMIT;
-		else if (!Q_strcasecmp(com_token, "cuff"))
-			proto.banflags |= BAN_CUFF;
-		else if (!Q_strcasecmp(com_token, "mute"))
-			proto.banflags |= BAN_MUTE;
-		else if (!Q_strcasecmp(com_token, "cripple"))
-			proto.banflags |= BAN_CRIPPLED;
-		else if (!Q_strcasecmp(com_token, "deaf"))
-			proto.banflags |= BAN_DEAF;
-		else if (!Q_strcasecmp(com_token, "lag") || !Q_strcasecmp(com_token, "lagged"))
-			proto.banflags |= BAN_LAGGED;
-		else if (!Q_strcasecmp(com_token, "vip"))
-			proto.banflags |= BAN_VIP;
-		else if (!Q_strcasecmp(com_token, "blind"))
-			proto.banflags |= BAN_BLIND;
-		else if (!Q_strcasecmp(com_token, "spec"))
-			proto.banflags |= BAN_SPECONLY;
-		else
+			i = -1;
+		else for (i = 0; i < countof(banflags); i++)
+		{
+			if (!Q_strcasecmp(com_token, banflags[i].names[0]) || (banflags[i].names[1] && !Q_strcasecmp(com_token, banflags[i].names[1])))
+			{
+				proto.banflags |= banflags[i].banflag;
+				break;
+			}
+		}
+		if (i == countof(banflags))
 			Con_Printf("Unknown ban/penalty flag: %s. ignoring.\n", com_token);
 	}
 	//if no flags were specified, 
@@ -1256,45 +1272,32 @@ static void SV_FilterList_f (void)
 	int filtercount = 0;
 	bannedips_t *nb;
 	char adr[MAX_ADR_SIZE];
-	char banflags[1024];
+	char banflagtext[1024];
 	int i;
 	time_t curtime = SV_BanTime();
-	static const char *banflagnames[] = {
-		"ban",
-		"safe",
-		"cuff",
-		"mute",
-		"cripple",
-		"deaf",
-		"lag",
-		"vip",
-		"blind",
-		"spec",
-		NULL
-	};
 
 	SV_KillExpiredBans();
 
 	for (nb = svs.bannedips; nb; )
 	{
-		*banflags = 0;
-		for (i = 0; banflagnames[i]; i++)
+		*banflagtext = 0;
+		for (i = 0; i < countof(banflags); i++)
 		{
-			if (nb->banflags & (1u<<i))
+			if (nb->banflags & banflags[i].banflag)
 			{
-				if (*banflags)
-					Q_strncatz(banflags, ",", sizeof(banflags));
-				Q_strncatz(banflags, banflagnames[i], sizeof(banflags));
+				if (*banflagtext)
+					Q_strncatz(banflagtext, ",", sizeof(banflagtext));
+				Q_strncatz(banflagtext, banflags[i].names[0], sizeof(banflagtext));
 			}
 		}
 
 		if (nb->expiretime)
 		{
 			time_t secs = nb->expiretime - curtime;
-			Con_Printf("%s %s +"fPRIllu":%02u\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflags, (unsigned long long)(secs/60), (unsigned int)(secs%60));
+			Con_Printf("%s %s +"fPRIllu":%02u\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflagtext, (unsigned long long)(secs/60), (unsigned int)(secs%60));
 		}
 		else
-			Con_Printf("%s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflags);
+			Con_Printf("%s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflagtext);
 		filtercount++;
 		nb = nb->next;
 	}
@@ -1311,8 +1314,9 @@ static void SV_Unfilter_f (void)
 	netadr_t unbanadr = {0};
 	netadr_t unbanmask = {0};
 	char adr[MAX_ADR_SIZE];
-	unsigned int banflags, nf;
+	unsigned int clearbanflags, nf;
 	char *s;
+	int i;
 
 	SV_KillExpiredBans();
 
@@ -1334,48 +1338,36 @@ static void SV_Unfilter_f (void)
 	}
 
 	s = Cmd_Argv(2);
-	banflags = 0;
+	clearbanflags = 0;
 	while(*s)
 	{
 		s=COM_ParseToken(s,",");
 		if (!Q_strcasecmp(com_token, ","))
-			;
-		else if (!Q_strcasecmp(com_token, "ban"))
-			banflags |= BAN_BAN;
-		else if (!Q_strcasecmp(com_token, "safe") || !Q_strcasecmp(com_token, "permit"))
-			banflags |= BAN_PERMIT;
-		else if (!Q_strcasecmp(com_token, "cuff"))
-			banflags |= BAN_CUFF;
-		else if (!Q_strcasecmp(com_token, "mute"))
-			banflags |= BAN_MUTE;
-		else if (!Q_strcasecmp(com_token, "cripple"))
-			banflags |= BAN_CRIPPLED;
-		else if (!Q_strcasecmp(com_token, "deaf"))
-			banflags |= BAN_DEAF;
-		else if (!Q_strcasecmp(com_token, "lag") || !Q_strcasecmp(com_token, "lagged"))
-			banflags |= BAN_LAGGED;
-		else if (!Q_strcasecmp(com_token, "vip"))
-			banflags |= BAN_VIP;
-		else if (!Q_strcasecmp(com_token, "blind"))
-			banflags |= BAN_BLIND;
-		else if (!Q_strcasecmp(com_token, "spec"))
-			banflags |= BAN_SPECONLY;
-		else
+			i = -1;
+		else for (i = 0; i < countof(banflags); i++)
+		{
+			if (!Q_strcasecmp(com_token, banflags[i].names[0]) || (banflags[i].names[1] && !Q_strcasecmp(com_token, banflags[i].names[1])))
+			{
+				clearbanflags |= banflags[i].banflag;
+				break;
+			}
+		}
+		if (i == countof(banflags))
 			Con_Printf("Unknown ban/penalty flag: %s. ignoring.\n", com_token);
 	}
 	//if no flags were specified, assume all
-	if (!banflags)
-		banflags = BAN_BAN|BAN_PERMIT|BAN_CUFF|BAN_MUTE|BAN_CRIPPLED|BAN_DEAF|BAN_LAGGED|BAN_VIP|BAN_BLIND|BAN_SPECONLY;
+	if (!clearbanflags)
+		clearbanflags = BAN_ALL;
 
 	for (link = &svs.bannedips ; (nb = *link) ; )
 	{
-		if ((nb->banflags & banflags) && (all || (NET_CompareAdr(&nb->adr, &unbanadr) && NET_CompareAdr(&nb->adrmask, &unbanmask))))
+		if ((nb->banflags & clearbanflags) && (all || (NET_CompareAdr(&nb->adr, &unbanadr) && NET_CompareAdr(&nb->adrmask, &unbanmask))))
 		{
 			found = true;
 			if (!all)
 				Con_Printf("unfiltered %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask));
 
-			nf = nb->banflags & banflags;
+			nf = nb->banflags & clearbanflags;
 			nb->banflags -= nf;
 			if (!nb->banflags)
 			{
@@ -1457,19 +1449,8 @@ static void SV_WriteIP_f (void)
 	bannedips_t *bi;
 	char *s;
 	char adr[MAX_ADR_SIZE];
-	char banflags[1024];
+	char banflagtext[1024];
 	int i;
-	static const char *banflagnames[] = {
-		"ban",
-		"safe",
-		"cuff",
-		"mute",
-		"cripple",
-		"deaf",
-		"lag",
-		"vip",
-		NULL
-	};
 
 	SV_KillExpiredBans();
 
@@ -1487,22 +1468,22 @@ static void SV_WriteIP_f (void)
 	bi = svs.bannedips;
 	while (bi)
 	{
-		*banflags = 0;
-		for (i = 0; banflagnames[i]; i++)
+		*banflagtext = 0;
+		for (i = 0; i < countof(banflags); i++)
 		{
-			if (bi->banflags & (1u<<i))
+			if (bi->banflags & banflags[i].banflag)
 			{
-				if (*banflags)
-					Q_strncatz(banflags, ",", sizeof(banflags));
-				Q_strncatz(banflags, banflagnames[i], sizeof(banflags));
+				if (*banflagtext)
+					Q_strncatz(banflagtext, ",", sizeof(banflagtext));
+				Q_strncatz(banflagtext, banflags[i].names[0], sizeof(banflagtext));
 			}
 		}
 		if (bi->reason[0])
-			s = va("addip %s %s "fPRIllu" \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags, (unsigned long long) bi->expiretime, bi->reason);
+			s = va("addip %s %s "fPRIllu" \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (unsigned long long) bi->expiretime, bi->reason);
 		else if (bi->expiretime)
-			s = va("addip %s %s "fPRIllu"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags, (unsigned long long) bi->expiretime);
+			s = va("addip %s %s "fPRIllu"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (unsigned long long) bi->expiretime);
 		else
-			s = va("addip %s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflags);
+			s = va("addip %s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext);
 		VFS_WRITE(f, s, strlen(s));
 		bi = bi->next;
 	}
@@ -2757,7 +2738,9 @@ void SV_InitOperatorCommands (void)
 		Cmd_AddCommand ("user", SV_User_f);
 
 		Cmd_AddCommand ("god", SV_God_f);
+#ifdef QUAKESTATS
 		Cmd_AddCommand ("give", SV_Give_f);
+#endif
 		Cmd_AddCommand ("noclip", SV_Noclip_f);
 	}
 

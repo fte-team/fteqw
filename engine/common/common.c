@@ -5408,6 +5408,7 @@ char *COM_Effectinfo_ForNumber(unsigned int efnum)
 /*remaps map checksums from known non-cheat GPL maps to authentic id1 maps*/
 unsigned int COM_RemapMapChecksum(unsigned int checksum)
 {
+#ifndef NOLEGACY
 	static const struct {
 		char *name;
 		unsigned int gpl2;
@@ -5466,6 +5467,7 @@ unsigned int COM_RemapMapChecksum(unsigned int checksum)
 		if (checksum == sums[i].gpl2)
 			return sums[i].id12;
 	}
+#endif
 	return checksum;
 }
 

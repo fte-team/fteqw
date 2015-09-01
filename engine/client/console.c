@@ -1247,6 +1247,14 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 				break;
 			}
 
+			if (i == 50)
+			{
+				s = (conchar_t*)(con->completionline+1);
+				end = COM_ParseFunString((COLOR_WHITE<<CON_FGSHIFT), va("MORE"), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);
+				con->completionline->length = end - s;
+				break;
+			}
+
 			s = (conchar_t*)(con->completionline+1);
 //			if (desc)
 //				end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("^[^2/%s\\tip\\%s^]\t", cmd, desc), s+con->completionline->length, (con->completionline->maxlength-con->completionline->length)*sizeof(maskedtext[0]), true);

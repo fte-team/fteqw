@@ -1,6 +1,7 @@
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
 
 #include "qcc.h"
+#include <math.h>
 
 //FIXME: #define IAMNOTLAZY
 
@@ -4477,7 +4478,44 @@ static QCC_sref_t QCC_PR_Inline(QCC_sref_t fdef, QCC_sref_t *arglist, unsigned i
 	ctx.result = nullsref;
 	ctx.func = &functions[eval->function];
 	if ((int)ctx.func->code <= 0)
+	{
+		char *fname = ctx.func->name;
+		if (argcount == 1)
+		{
+			const QCC_eval_t *eval = QCC_SRef_EvalConst(arglist[0]);
+			if (eval && !strcmp(fname, "sin"))
+				return QCC_MakeFloatConst(sin(eval->_float));
+			if (eval && !strcmp(fname, "cos"))
+				return QCC_MakeFloatConst(cos(eval->_float));
+			if (eval && !strcmp(fname, "floor"))
+				return QCC_MakeFloatConst(floor(eval->_float));
+			if (eval && !strcmp(fname, "ceil"))
+				return QCC_MakeFloatConst(ceil(eval->_float));
+			if (eval && !strcmp(fname, "rint"))
+				return QCC_MakeFloatConst((int)((eval->_float>0)?(eval->_float+0.5):(eval->_float-0.5)));
+			if (eval && !strcmp(fname, "fabs"))
+				return QCC_MakeFloatConst(fabs(eval->_float));
+			if (eval && !strcmp(fname, "sqrt"))
+				return QCC_MakeFloatConst(sqrt(eval->_float));
+			if (eval && !strcmp(fname, "log"))
+				return QCC_MakeFloatConst(log(eval->_float));
+			if (eval && !strcmp(fname, "log10"))
+				return QCC_MakeFloatConst(log10(eval->_float));
+			if (eval && !strcmp(fname, "ftoi"))
+				return QCC_MakeIntConst(eval->_float);
+			if (eval && !strcmp(fname, "itof"))
+				return QCC_MakeFloatConst(eval->_int);
+		}
+		else if (argcount == 2)
+		{
+			const QCC_eval_t *a1 = QCC_SRef_EvalConst(arglist[0]);
+			const QCC_eval_t *a2 = QCC_SRef_EvalConst(arglist[1]);
+			if (a1 && a2 && !strcmp(fname, "pow"))
+				return QCC_MakeFloatConst(pow(a1->_float, a2->_float));
+		}
+
 		return nullsref;	//don't try to inline builtins. that simply cannot work.
+	}
 
 	//FIXME: inefficient: we can't revert this on failure, so make sure its done early, just in case.
 	if (argcount && arglist[0].sym->generatedfor == &def_ret)

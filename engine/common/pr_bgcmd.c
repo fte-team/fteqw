@@ -2530,9 +2530,13 @@ void QCBUILTIN PF_num_for_edict (pubprogfuncs_t *prinst, struct globalvars_s *pr
 
 void QCBUILTIN PF_edict_for_num(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
 	edict_t	*ent;
-	ent = (edict_t*)EDICT_NUM(prinst, G_FLOAT(OFS_PARM0));
+	unsigned int num = G_FLOAT(OFS_PARM0);
+	if (num >= w->num_edicts)
+		RETURN_EDICT(prinst, w->edicts);
 
+	ent = (edict_t*)EDICT_NUM(prinst, num);
 	RETURN_EDICT(prinst, ent);
 }
 
@@ -2612,6 +2616,33 @@ void QCBUILTIN PF_Spawn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	pr_globals = PR_globals(prinst, PR_CURRENT);
 	RETURN_EDICT(prinst, ed);
 }
+
+//EXTENSION: DP_QC_COPYENTITY
+
+//void(entity from, entity to) copyentity = #400
+//copies data from one entity to another
+void QCBUILTIN PF_copyentity (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	wedict_t *in, *out;
+
+	in = G_WEDICT(prinst, OFS_PARM0);
+	if (prinst->callargc <= 1)
+		out = (wedict_t*)ED_Alloc(prinst);
+	else
+		out = G_WEDICT(prinst, OFS_PARM1);
+
+	if (!out || out->isfree)
+		PR_BIError(prinst, "PF_copyentity: destination is free");
+	if (out->readonly)
+		PR_BIError(prinst, "PF_copyentity: destination is read-only");
+
+	memcpy(out->v, in->v, w->edict_size);
+	World_LinkEdict(w, out, false);
+
+	RETURN_EDICT(prinst, out);
+}
+
 
 //Entities
 ////////////////////////////////////////////////////

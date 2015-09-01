@@ -621,11 +621,13 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 		mouse_y *= sensitivity.value*in_sensitivityscale;
 	}
 
+#ifdef QUAKESTATS
 	if (cl.playerview[pnum].stats[STAT_VIEWZOOM])
 	{
 		mouse_x *= cl.playerview[pnum].stats[STAT_VIEWZOOM]/255.0f;
 		mouse_y *= cl.playerview[pnum].stats[STAT_VIEWZOOM]/255.0f;
 	}
+#endif
 
 	if (!movements)
 	{

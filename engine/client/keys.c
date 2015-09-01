@@ -2195,7 +2195,6 @@ qboolean Key_MouseShouldBeFree(void)
 	return false;
 }
 
-int Sbar_TranslateHudClick(void);
 /*
 ===================
 Key_Event

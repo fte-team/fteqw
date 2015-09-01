@@ -760,7 +760,15 @@ typedef struct
 
 	qboolean	paused;			// send over by server
 
-	int			intermission;	// don't change view angle, full screen, etc
+	enum
+	{
+		IM_NONE,		//off.
+		IM_NQSCORES,	//+showscores forced, view still attached to regular view
+		IM_NQFINALE,	//slow centerprint text etc, view still attached to regular view
+		IM_NQCUTSCENE,	//no overlay at all, nor hud.
+
+		IM_QWSCORES		//intermission, view locked at a specific point
+	} intermissionmode;	// don't change view angle, full screen, etc
 	float		completed_time;	// latched ffrom time at intermission start
 
 #define Q2MAX_VISIBLE_WEAPONS 32 //q2 has about 20.

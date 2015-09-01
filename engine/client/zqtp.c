@@ -30,7 +30,6 @@
 
 
 #include "quakedef.h"
-#if 1 //def ZQUAKETEAMPLAY
 
 //#include "version.h"
 #include "sound.h"
@@ -320,6 +319,7 @@ static char *Macro_Gamedir (void)
 	return macro_buf;
 }
 
+#ifdef QUAKESTATS
 static char *Macro_Health (void)
 {
 	sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_HEALTH]);
@@ -535,6 +535,7 @@ static char *Macro_Powerups (void)
 
 	return macro_buf;
 }
+#endif
 
 static char *Macro_Location (void)
 {
@@ -621,6 +622,7 @@ static char *Macro_PointNameAtLocation (void)
 		return vars.pointname;
 }
 
+#ifdef QUAKESTATS
 static char *Macro_Need (void)
 {
 	int i, weapon;
@@ -696,6 +698,7 @@ done:
 
 	return macro_buf;
 }
+#endif
 
 static char *Skin_To_TFSkin (char *myskin)
 {
@@ -832,6 +835,7 @@ static char *Macro_Point_LED(void)
 	return macro_buf;
 }
 
+#ifdef QUAKESTATS
 static char *Macro_MyStatus_LED(void)
 {
 	int count;
@@ -864,6 +868,7 @@ static char *Macro_MyStatus_LED(void)
 
 	return macro_buf;
 }
+#endif
 
 static void CountNearbyPlayers(qboolean dead)
 {
@@ -1035,6 +1040,7 @@ char *Macro_LastDropTime (void)
 	return macro_buf;
 }
 
+#ifdef QUAKESTATS
 char *Macro_CombinedHealth(void)
 {
 	float h;
@@ -1124,6 +1130,7 @@ char *Macro_LastTrigger_Match(void)
 {
 	return "---";
 }
+#endif
 
 /*
 $matchname
@@ -1153,6 +1160,7 @@ $triggermatch is the last chat message that exec'd a msg_trigger.
 static void TP_InitMacros(void)
 {
 	Cmd_AddMacro("latency", Macro_Latency, false);
+#ifdef QUAKESTATS
 	Cmd_AddMacro("health", Macro_Health, true);
 	Cmd_AddMacro("armortype", Macro_ArmorType, true);
 	Cmd_AddMacro("armor", Macro_Armor, true);
@@ -1167,6 +1175,8 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("bestweapon", Macro_BestWeapon, true);
 	Cmd_AddMacro("bestammo", Macro_BestAmmo, true);
 	Cmd_AddMacro("powerups", Macro_Powerups, true);
+	Cmd_AddMacro("droppedweapon", Macro_DroppedWeapon, true);
+#endif
 	Cmd_AddMacro("location", Macro_Location, false);
 	Cmd_AddMacro("deathloc", Macro_LastDeath, true);
 	Cmd_AddMacro("tookatloc", Macro_TookAtLoc, true);
@@ -1174,36 +1184,38 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("took", Macro_Took, true);
 	Cmd_AddMacro("tf_skin", Macro_TF_Skin, true);
 
-	Cmd_AddMacro("droppedweapon", Macro_DroppedWeapon, true);
-
 	//ones added by Spike, for fuhquake compatability
 	Cmd_AddMacro("connectiontype", Macro_ConnectionType, false);
 	Cmd_AddMacro("demoplayback", Macro_demoplayback, false);
-	Cmd_AddMacro("need", Macro_Need, true);
 	Cmd_AddMacro("point", Macro_PointName, true);
 	Cmd_AddMacro("pointatloc", Macro_PointNameAtLocation, true);
 	Cmd_AddMacro("pointloc", Macro_PointLocation, true);
 	Cmd_AddMacro("matchname", Macro_Match_Name, false);
 	Cmd_AddMacro("matchtype", Macro_Match_Type, false);
-
-	Cmd_AddMacro("ledpoint", Macro_Point_LED, true);
+#ifdef QUAKESTATS
+	Cmd_AddMacro("need", Macro_Need, true);
 	Cmd_AddMacro("ledstatus", Macro_MyStatus_LED, true);
-
+#endif
+	Cmd_AddMacro("ledpoint", Macro_Point_LED, true);
 	Cmd_AddMacro("droploc", Macro_LastDrop, true);
 	Cmd_AddMacro("droptime", Macro_LastDropTime, true);
-	Cmd_AddMacro("matchstatus", Macro_Match_Status, false);
-	Cmd_AddMacro("mp3info", Macro_MP3Info, false);
-	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match, false);
+//	Cmd_AddMacro("matchstatus", Macro_Match_Status, false);
+//	Cmd_AddMacro("mp3info", Macro_MP3Info, false);
+//	Cmd_AddMacro("triggermatch", Macro_LastTrigger_Match, false);
 
 	//new, fte only (at least when first implemented)
+#ifdef QUAKESTATS
 	Cmd_AddMacro("chealth", Macro_CombinedHealth, true);
+#endif
 
 	//added for ezquake compatability
-	Cmd_AddMacro("lastip", Macro_LastIP, false);
+//	Cmd_AddMacro("lastip", Macro_LastIP, false);
 	Cmd_AddMacro("ping", Macro_Latency, false);
+#ifdef QUAKESTATS
 	Cmd_AddMacro("colored_armor", Macro_Coloured_Armour, true);	//*shudder*
 	Cmd_AddMacro("colored_powerups", Macro_Coloured_Powerups, true);
 	Cmd_AddMacro("colored_short_powerups", Macro_Coloured_Short_Powerups, true);
+#endif
 	Cmd_AddMacro("gamedir", Macro_Gamedir, false);
 	Cmd_AddMacro("lastloc", Macro_Last_Location, true);
 	Cmd_AddMacro("lastpowerup", Macro_LastSeenPowerup, true);
@@ -1234,6 +1246,7 @@ static char *TP_ParseMacroString (char *s)
 		{
 			static char mbuf[MAX_MACRO_VALUE];
 			switch (s[2]) {
+#ifdef QUAKESTATS
 			case 'a':
 				macro_string = Macro_ArmorType();
 				if (!macro_string[0])
@@ -1262,7 +1275,7 @@ static char *TP_ParseMacroString (char *s)
 					mbuf[0] = 0;
 				macro_string = mbuf;
 				break;
-
+#endif
 				// todo: %[w], %[b]
 
 			default:
@@ -1282,13 +1295,17 @@ static char *TP_ParseMacroString (char *s)
 		{
 			switch (s[1])
 			{
+#ifdef QUAKESTATS
 				case 'a':	macro_string = Macro_Armor(); break;
 				case 'A':	macro_string = Macro_ArmorType(); break;
 				case 'b':	macro_string = Macro_BestWeaponAndAmmo(); break;
 				case 'c':	macro_string = Macro_Cells(); break;
+#endif
 				case 'd':	macro_string = Macro_LastDeath(); break;
 //				case 'D':
+#ifdef QUAKESTATS
 				case 'h':	macro_string = Macro_Health(); break;
+#endif
 				case 'i':	macro_string = Macro_TookAtLoc(); break;
 				case 'j':	macro_string = Macro_LastPointAtLoc(); break;
 				case 'k':	macro_string = Macro_LastTookOrPointed(); break;
@@ -1302,14 +1319,18 @@ static char *TP_ParseMacroString (char *s)
 				case 'E':	macro_string = Macro_Count_Last_NearbyEnemyPlayers(); break;
 
 				case 'P':
+#ifdef QUAKESTATS
 				case 'p':	macro_string = Macro_Powerups(); break;
+#endif
 				case 'q':	macro_string = Macro_LastSeenPowerup(); break;
 //				case 'r':	macro_string = Macro_LastReportedLoc(); break;
 				case 's':	macro_string = Macro_EnemyStatus_LED(); break;
 				case 'S':	macro_string = Macro_TF_Skin(); break;
 				case 't':	macro_string = Macro_PointNameAtLocation(); break;
+#ifdef QUAKESTATS
 				case 'u':	macro_string = Macro_Need(); break;
 				case 'w':	macro_string = Macro_WeaponAndAmmo(); break;
+#endif
 				case 'x':	macro_string = Macro_PointName(); break;
 				case 'X':	macro_string = Macro_Took(); break;
 				case 'y':	macro_string = Macro_PointLocation(); break;
@@ -2898,6 +2919,7 @@ void TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_
 
 void TP_CheckPickupSound (char *s, vec3_t org, int seat)
 {
+#ifndef QUAKETC
 	int entnum;
 	item_t	*item;
 	//if we're spectating, we don't want to do any actual triggers, so pretend it was someone else.
@@ -3004,6 +3026,7 @@ more:
 			return;
 		TP_ItemTaken (item->cvar->string, item->itemflag, org, entnum, item, seat);
 	}
+#endif
 }
 
 qboolean R_CullSphere (vec3_t org, float radius);
@@ -3389,7 +3412,7 @@ void TP_UpdateAutoStatus(void)
 void TP_StatChanged (int stat, int value)
 {
 	int		i;
-
+#ifdef QUAKESTATS
 	if (stat == STAT_HEALTH)
 	{
 		if (value > 0)
@@ -3453,7 +3476,7 @@ void TP_StatChanged (int stat, int value)
 			TP_ExecTrigger ("f_weaponchange", false);
 		vars.activeweapon = cl.playerview[SP].stats[STAT_ACTIVEWEAPON];
 	}
-
+#endif
 	vars.stat_framecounts[stat] = cls.framecount;
 
 	TP_UpdateAutoStatus();
@@ -3827,6 +3850,6 @@ void CL_SayTeam_f (void)
 	vars.autoteamstatus_time = realtime + 3;
 	CL_Say (true, NULL);
 }
-#endif
+
 
 

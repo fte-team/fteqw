@@ -788,12 +788,13 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		else
 		{
 			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORVERTEX, TRUE);
-//			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_COLOR1);
+//			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DIFFUSEMATERIALSOURCE, D3DMCS_COLOR1);	//default state anyway.
 			last = D3DTA_DIFFUSE;
 		}
 	}
 	else
 		last = D3DTA_CURRENT;
+
 	switch (pass->blendmode)
 	{
 	case PBM_DOTPRODUCT:
@@ -801,7 +802,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_DOTPRODUCT3);
 
-//		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, last);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, last);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
 		break;
@@ -818,9 +819,9 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		}
 		else
 		{
-	//		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, last);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, last);
 			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
-			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG2);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 		}
 		break;
 	case PBM_ADD:
@@ -837,12 +838,12 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 	case PBM_DECAL:
 		if (!tu)
 			goto forcemod;
-		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, last);
-		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, last);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_BLENDTEXTUREALPHA);
 
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, last);
-//		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 		break;
 	case PBM_OVERBRIGHT:
@@ -1130,7 +1131,7 @@ static void alphagenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *srcb, v
 
 			if (!Matrix3_Compare(shaderstate.curentity->axis, (void *)axisDefault))
 			{
-				Matrix3_Multiply_Vec3(shaderstate.curentity->axis, v2, v2);
+				Matrix3_Multiply_Vec3(shaderstate.curentity->axis, v1, v2);
 			}
 			else
 			{
@@ -1140,7 +1141,7 @@ static void alphagenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *srcb, v
 			for (i = 0; i < cnt; i++)
 			{
 				VectorSubtract(v2, mesh->xyz_array[i], v1);
-				f = DotProduct(v1, mesh->normals_array[i] ) * Q_rsqrt(DotProduct(v1,v1));
+				f = DotProduct(v1, mesh->normals_array[i]) * Q_rsqrt(DotProduct(v1,v1));
 				f = f * f * f * f * f;
 				dst[i][3] = bound (0.0f, (int)(f*255), 255);
 			}
@@ -1184,13 +1185,12 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 		else
 		{
 			allocvertexbuffer(shaderstate.dyncol_buff, shaderstate.dyncol_size, &shaderstate.dyncol_offs, (void**)&map, vertcount*sizeof(D3DCOLOR));
-			for (vertcount = 0, mno = 0; mno < shaderstate.nummeshes; mno++)
+			for (mno = 0; mno < shaderstate.nummeshes; mno++)
 			{
 				m = shaderstate.meshlist[mno];
 				colourgenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array[0], (byte_vec4_t*)map, m);
 				alphagenbyte(pass, m->numvertexes, m->colors4b_array, m->colors4f_array[0], (byte_vec4_t*)map, m);
 				map += m->numvertexes*4;
-				vertcount += m->numvertexes;
 			}
 			d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dyncol_buff));
 			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.dyncol_buff, shaderstate.dyncol_offs - vertcount*sizeof(D3DCOLOR), sizeof(D3DCOLOR)));
@@ -1209,9 +1209,19 @@ static void tcgen_environment(float *st, unsigned int numverts, float *xyz, floa
 
 	vec3_t		rorg;
 
+	if (!normal)
+	{
+		for (i = 0 ; i < numverts ; i++, st += 2 )
+		{
+			st[0] = xyz[0];
+			st[1] = xyz[1];
+		}
+		return;
+	}
+
 	RotateLightVector(shaderstate.curentity->axis, shaderstate.curentity->origin, r_origin, rorg);
 
-	for (i = 0 ; i < numverts ; i++, xyz += 3, normal += 3, st += 2 )
+	for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), normal += 3, st += 2 )
 	{
 		VectorSubtract (rorg, xyz, viewer);
 		VectorNormalizeFast (viewer);
@@ -1237,7 +1247,7 @@ static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t 
 	case TC_GEN_BASE:
 		return (float*)mesh->st_array;
 	case TC_GEN_LIGHTMAP:
-		return (float*)mesh->lmst_array;
+		return (float*)mesh->lmst_array[0];
 	case TC_GEN_NORMAL:
 		return (float*)mesh->normals_array;
 	case TC_GEN_SVECTOR:
@@ -1356,24 +1366,32 @@ static void GenerateTCMods(const shaderpass_t *pass, float *dest)
 	// unsigned int fvertex = 0; //unused variable
 	int i;
 	float *src;
+	float *out;
 	for (mno = 0; mno < shaderstate.nummeshes; mno++)
 	{
 		mesh = shaderstate.meshlist[mno];
-		src = tcgen(pass, mesh->numvertexes, dest + mesh->vbofirstvert*2, mesh);
+
+#if 0
+		out = dest + mesh->vbofirstvert*2;
+#else
+		out = dest;
+		dest += mesh->numvertexes*2;
+#endif
+
+		src = tcgen(pass, mesh->numvertexes, out, mesh);
 		//tcgen might return unmodified info
 		if (pass->numtcmods)
 		{
-			tcmod(&pass->tcmods[0], mesh->numvertexes, src, dest + mesh->vbofirstvert*2, mesh);
-			for (i = 1; i < pass->numtcmods; i++)
+			for (i = 0; i < pass->numtcmods; i++)
 			{
-				tcmod(&pass->tcmods[i], mesh->numvertexes, dest + mesh->vbofirstvert*2, dest + mesh->vbofirstvert*2, mesh);
+				tcmod(&pass->tcmods[i], mesh->numvertexes, src, out, mesh);
+				src = out;
 			}
 		}
-		else if (src != dest)
+		else if (src != out)
 		{
-			memcpy(dest + mesh->vbofirstvert*2, src, sizeof(vec2_t)*mesh->numvertexes);
+			memcpy(out, src, sizeof(vec2_t)*mesh->numvertexes);
 		}
-//		dest += mesh->numvertexes*2;
 	}
 }
 
@@ -1959,7 +1977,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertbase, unsigned in
 				vertcount += m->numvertexes;
 			}
 			d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[0]));
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.dynst_buff[0], shaderstate.dynst_offs[0] - vertcount*sizeof(byte_vec4_t), sizeof(byte_vec4_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.dynst_buff[0], shaderstate.dynst_offs[0] - vertcount*sizeof(byte_vec4_t), sizeof(byte_vec4_t)));
 		}
 	}
 
@@ -2123,7 +2141,8 @@ static void BE_DrawMeshChain_Internal(void)
 	int i;
 	unsigned int mno;
 	unsigned int passno = 0;
-	shaderpass_t *pass = shaderstate.curshader->passes;
+	shaderpass_t *pass;
+	shader_t *useshader = shaderstate.curshader;
 	extern cvar_t r_polygonoffset_submodel_factor;
 	float pushdepth;
 //	float pushfactor;
@@ -2143,9 +2162,33 @@ static void BE_DrawMeshChain_Internal(void)
 //		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SLOPESCALEDEPTHBIAS, *(DWORD*)&shaderstate.depthfactor);
 //	}
 
+	switch (shaderstate.mode)
+	{
+	case BEM_LIGHT:
+//		useshader = shaderstate.curshader->bemoverrides[shaderstate.lightmode];
+//		if (!useshader)
+			useshader = shaderstate.shader_rtlight;
+		if (!useshader->prog)
+			return;
+		break;
+	case BEM_DEPTHDARK:
+//		useshader = shaderstate.shader_depthblack;
+		return;
+		break;
+	case BEM_STENCIL:
+		return;
+	case BEM_DEPTHONLY:
+//		useshader = shaderstate.shader_depthonly;
+		return;
+		break;
+	default:
+		useshader = shaderstate.curshader;
+		break;	//no need to switch the shader
+	}
+
 	//if anything is dynamic ALL must be dynamic
 	//might want to flag this for multi-mesh batches on pre-t&l cards too, so that there's no gaps.
-	if (shaderstate.curshader->numdeforms)
+	if ((useshader->flags & SHADER_NEEDSARRAYS) && shaderstate.nummeshes > 0)
 		shaderstate.batchvbo = NULL;
 
 	if (shaderstate.batchvbo)
@@ -2202,7 +2245,7 @@ static void BE_DrawMeshChain_Internal(void)
 	/*index buffers are also common (note that we may still need to stream these when dealing with bsp geometry, to cope with gaps. this is faster than using multiple draw calls.)*/
 	if (shaderstate.batchvbo)
 	{
-		if (shaderstate.nummeshes != 1)
+		if (shaderstate.nummeshes != 1 || (useshader->flags & SHADER_NEEDSARRAYS))
 		{	//in this case, the vertex data is static, but the index data can have gaps.
 			//we're streaming index buffer data only so that we can avoid repeated draw calls. if this stuff was properly built in the first place we wouldn't need to do this. :s
 			idxcount = 0;
@@ -2256,6 +2299,7 @@ static void BE_DrawMeshChain_Internal(void)
 
 	switch (shaderstate.mode)
 	{
+#if 0
 	case BEM_LIGHT:
 		if (shaderstate.shader_rtlight->prog)
 			BE_RenderMeshProgram(shaderstate.shader_rtlight, vertbase, vertfirst, vertcount, idxfirst, idxcount);
@@ -2312,16 +2356,17 @@ static void BE_DrawMeshChain_Internal(void)
 		BE_SubmitMeshChain(vertbase, vertfirst, vertcount, idxfirst, idxcount);
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORWRITEENABLE, D3DCOLORWRITEENABLE_RED|D3DCOLORWRITEENABLE_GREEN|D3DCOLORWRITEENABLE_BLUE|D3DCOLORWRITEENABLE_ALPHA);
 		break;
+#endif
 	default:
 	case BEM_STANDARD:
-		if (shaderstate.curshader->prog)
+		if (useshader->prog)
 		{
-			BE_RenderMeshProgram(shaderstate.curshader, vertbase, vertfirst, vertcount, idxfirst, idxcount);
+			BE_RenderMeshProgram(useshader, vertbase, vertfirst, vertcount, idxfirst, idxcount);
 		}
 		else
 		{
 			/*now go through and flush each pass*/
-			for (passno = 0; passno < shaderstate.curshader->numpasses; passno += pass->numMergedPasses)
+			for (passno = 0, pass = useshader->passes; passno < shaderstate.curshader->numpasses; passno += pass->numMergedPasses)
 			{
 				if (!BE_DrawMeshChain_SetupPass(pass+passno, vertcount))
 					continue;
@@ -3212,6 +3257,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 	glplane[3] = -plane.dist;
 	IDirect3DDevice9_SetClipPlane(pD3DDev9, 0, glplane);
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CLIPPLANEENABLE, D3DCLIPPLANE0);
+	Surf_SetupFrame();
 	R_RenderScene();
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CLIPPLANEENABLE, 0);
 

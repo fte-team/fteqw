@@ -784,6 +784,9 @@ typedef struct
 #define BAN_VIP			(1u<<7)	//mods might give the user special rights, via the *VIP infokey. the engine itself currently does not do anything but track it.
 #define BAN_BLIND		(1u<<8)	//player's pvs is wiped.
 #define BAN_SPECONLY	(1u<<9) //player is forced to spectate
+#define BAN_STEALTH		(1u<<10)//player is not told of their bans
+
+#define BAN_ALL (BAN_BAN|BAN_PERMIT|BAN_CUFF|BAN_MUTE|BAN_CRIPPLED|BAN_DEAF|BAN_LAGGED|BAN_VIP|BAN_BLIND|BAN_SPECONLY|BAN_STEALTH)
 
 typedef struct bannedips_s {
 	unsigned int banflags;
@@ -1286,14 +1289,12 @@ void Rank_RegisterCommands(void);
 int Rank_GetPass (char *name);
 
 extern cvar_t rank_needlogin;
-
+qboolean ReloadRanking(client_t *cl, const char *newname);
+#endif
 
 client_t *SV_GetClientForString(const char *name, int *id);
 qboolean    SV_MayCheat(void);
 
-
-qboolean ReloadRanking(client_t *cl, const char *newname);
-#endif
 
 
 

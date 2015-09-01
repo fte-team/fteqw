@@ -486,6 +486,26 @@ qboolean GLInitialise (char *renderer)
 			hInstGL = NULL;
 
 		if (!hInstGL)
+		{	//gog has started shipping glquake using a 3dfxopengl->nglide->direct3d chain of wrappers.
+			//this bypasses issues with (not that) recent gl drivers giving up on limiting extension string lengths and paletted textures
+			//instead, we explicitly try to use the opengl32.dll from the windows system32 directory to try and avoid using the wrapper.
+			unsigned int emode;
+			wchar_t wbuffer[MAX_OSPATH];
+			GetSystemDirectoryW(wbuffer, countof(wbuffer));
+			narrowen(opengldllname, sizeof(opengldllname), wbuffer);
+			Q_strncatz(opengldllname, "\\opengl32.dll", sizeof(opengldllname));
+			Con_DPrintf ("Loading renderer dll \"%s\"", opengldllname);
+			emode = SetErrorMode(SEM_FAILCRITICALERRORS);
+			hInstGL = Sys_LoadLibrary(opengldllname, NULL);
+			SetErrorMode(emode);
+
+			if (hInstGL)
+				Con_DPrintf (" Success\n");
+			else
+				Con_DPrintf (" Failed\n");
+		}
+
+		if (!hInstGL)
 		{
 			unsigned int emode;
 			strcpy(opengldllname, "opengl32");

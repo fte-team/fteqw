@@ -29,7 +29,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <ctype.h>
 // callbacks
 void QDECL CL_Sbar_Callback(struct cvar_s *var, char *oldvalue);
+#ifdef NQPROT
 void QDECL Name_Callback(struct cvar_s *var, char *oldvalue);
+#else
+#define Name_Callback NULL
+#endif
 
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
@@ -204,7 +208,6 @@ entity_state_t	*cl_baselines;
 static_entity_t *cl_static_entities;
 unsigned int    cl_max_static_entities;
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
-//lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		*cl_dlights;
 unsigned int	cl_maxdlights; /*size of cl_dlights array*/
 
@@ -311,7 +314,10 @@ void CL_UpdateWindowTitle(void)
 				Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, cls.servername);
 			break;
 		case ca_disconnected:
-			Q_snprintfz(title, sizeof(title), "%s: disconnected", fs_gamename.string);
+			if (cl.worldmodel)	//pure csqc mods can have a world model and yet be disconnected. we don't really know what the current map should be called though.
+				Q_snprintfz(title, sizeof(title), "%s", fs_gamename.string);
+			else
+				Q_snprintfz(title, sizeof(title), "%s: disconnected", fs_gamename.string);
 			break;
 		}
 
@@ -750,6 +756,11 @@ void CL_CheckForResend (void)
 			}
 			else if (!strcmp(cl_loopbackprotocol.string, "qwid") || !strcmp(cl_loopbackprotocol.string, "idqw"))
 				cls.protocol = CP_QUAKEWORLD;
+#ifdef Q3CLIENT
+			else if (!strcmp(cl_loopbackprotocol.string, "q3"))
+				cls.protocol = CP_QUAKE3;
+#endif
+#ifdef NQPROT
 			else if (!strcmp(cl_loopbackprotocol.string, "fitz"))	//actually proquake, because we might as well use the extra angles
 			{
 				cls.protocol = CP_NETQUAKE;
@@ -765,8 +776,6 @@ void CL_CheckForResend (void)
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_ID;
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "q3"))
-				cls.protocol = CP_QUAKE3;
 			else if (!strcmp(cl_loopbackprotocol.string, "dp6") || !strcmp(cl_loopbackprotocol.string, "dpp6"))
 			{
 				cls.protocol = CP_NETQUAKE;
@@ -777,20 +786,23 @@ void CL_CheckForResend (void)
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_DP7;
 			}
-			else if (progstype == PROG_QW || progstype == PROG_H2)	//h2 depends on various extensions and doesn't really match either protocol.
-			{
-				cls.protocol = CP_QUAKEWORLD;
-				pext1 = Net_PextMask(1, false);
-				pext2 = Net_PextMask(2, false);
-			}
-			else
+			else if (progstype != PROG_QW && progstype != PROG_H2)	//h2 depends on various extensions and doesn't really match either protocol, but we go for qw because that gives us all sorts of extensions.
 			{
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_FITZ666;
 				//FIXME: pext
 			}
+#endif
+			else
+			{
+				cls.protocol = CP_QUAKEWORLD;
+				pext1 = Net_PextMask(1, false);
+				pext2 = Net_PextMask(2, false);
+			}
 
+#ifdef NETPREPARSE
 			if (dpcompat_nopreparse.ival)
+#endif
 			{
 				if (progstype == PROG_QW && cls.protocol != CP_QUAKEWORLD)
 				{
@@ -824,6 +836,7 @@ void CL_CheckForResend (void)
 		CL_FlushClientCommands();	//clear away all client->server clientcommands.
 
 		connectinfo.protocol = cls.protocol;
+#ifdef NQPROT
 		if (connectinfo.protocol == CP_NETQUAKE)
 		{
 			if (!NET_StringToAdr (cls.servername, connectinfo.defaultport, &connectinfo.adr))
@@ -868,6 +881,7 @@ void CL_CheckForResend (void)
 			connectinfo.trying = false;
 		}
 		else
+#endif
 		{
 			if (!connectinfo.challenge)
 				connectinfo.challenge = rand();
@@ -1491,8 +1505,10 @@ void CL_ClearState (void)
 		cl.playerview[i].maxspeed = 320;
 		cl.playerview[i].entgravity = 1;
 	}
-	for (i = 0; i < MAX_CLIENTS; i++)
+#ifdef QUAKESTATS
+	for (i = 0; i < MAX_CLIENTS; i++)	//in case some server doesn't support it
 		cl.players[i].stats[STAT_VIEWHEIGHT] = cl.players[i].statsf[STAT_VIEWHEIGHT] = DEFAULT_VIEWHEIGHT;
+#endif
 	cl.minpitch = -70;
 	cl.maxpitch = 80;
 
@@ -1604,7 +1620,7 @@ void CL_Disconnect (void)
 	r_worldentity.model = NULL;
 	cl.spectator = 0;
 	cl.sendprespawn = false;
-	cl.intermission = 0;
+	cl.intermissionmode = IM_NONE;
 	cl.oldgametime = 0;
 
 #ifdef NQPROT
@@ -2021,6 +2037,7 @@ void CL_CheckServerInfo(void)
 	if (cl.gamespeed < 0.1)
 		cl.gamespeed = 1;
 
+#ifdef QUAKESTATS
 	s = Info_ValueForKey(cl.serverinfo, "status");
 	oldstate = cl.matchstate;
 	if (!stricmp(s, "standby"))
@@ -2055,6 +2072,7 @@ void CL_CheckServerInfo(void)
 	}
 	if (oldstate != cl.matchstate)
 		cl.matchgametimestart = cl.gametime;
+#endif
 
 	CL_CheckServerPacks();
 
@@ -2492,7 +2510,7 @@ void CL_Changing_f (void)
 		SCR_BeginLoadingPlaque();
 
 	S_StopAllSounds (true);
-	cl.intermission = 0;
+	cl.intermissionmode = IM_NONE;
 	if (cls.state)
 	{
 		cls.state = ca_connected;	// not active anymore, but not disconnected
@@ -4973,7 +4991,7 @@ double Host_Frame (double time)
 	{
 		extern cvar_t scr_chatmodecvar;
 
-		if (scr_chatmodecvar.ival && !cl.intermission)
+		if (scr_chatmodecvar.ival && cl.intermissionmode == IM_NONE)
 			scr_chatmode = (cl.spectator&&cl.splitclients<2&&cls.state == ca_active)?2:1;
 		else
 			scr_chatmode = 0;
@@ -5236,6 +5254,13 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
 	COM_ParsePlusSets(true);
 
+#ifdef QUAKETC
+	def = COM_FDepthFile("default.cfg", true);
+	if (COM_FCheckExists ("config.cfg"))
+		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
+	if (COM_FCheckExists ("autoexec.cfg"))
+		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
+#else
 	//who should we imitate?
 	qrc = COM_FDepthFile("quake.rc", true);	//q1
 	hrc = COM_FDepthFile("hexen.rc", true);	//h2
@@ -5255,7 +5280,6 @@ void CL_ExecInitialConfigs(char *resetcommand)
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
-#ifndef QUAKETC
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
 #endif
 #ifdef QUAKESPYAPI

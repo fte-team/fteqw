@@ -4036,8 +4036,8 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 		Con_Printf("WARNING: Bad lightstyle %i.\n", style);
 		return;
 	}
-	if (strlen(val) > MAX_STYLESTRING-1)
-		Con_Printf("WARNING: Style string is longer than standard (%i). Some clients could crash.\n", MAX_STYLESTRING-1);
+	if (strlen(val) >= 64)
+		Con_Printf("WARNING: Style string is longer than standard (%i). Some clients could crash.\n", 63);
 
 
 // change the string in sv
@@ -4413,6 +4413,11 @@ sizebuf_t *NQWriteDest (int dest)
 
 	return NULL;
 }
+#else
+static sizebuf_t *NQWriteDest (int dest)
+{
+	return QWWriteDest(dest);
+}
 #endif
 
 client_t *Write_GetClient(void)
@@ -4446,6 +4451,7 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 #endif
 
+#ifdef NETPREPARSE
 	if (dpcompat_nopreparse.ival)
 		;
 	else if (progstype != PROG_QW)
@@ -4460,8 +4466,9 @@ void QCBUILTIN PF_WriteByte (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 	}
 #endif
+#endif
 	if (dest == MSG_ONE)
-	{
+	{	//WARNING: THIS IS BUGGY. DO NOT MAKE MODS THAT TAKE THIS PATH
 		client_t *cl = Write_GetClient();
 		if (!cl)
 			return;
@@ -4494,6 +4501,7 @@ void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 #endif
 
+#ifdef NETPREPARSE
 	if (dpcompat_nopreparse.ival)
 		;
 	else if (progstype != PROG_QW)
@@ -4507,6 +4515,7 @@ void QCBUILTIN PF_WriteChar (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		NPP_QWWriteChar(dest, val);
 		return;
 	}
+#endif
 #endif
 	if (dest == MSG_ONE)
 	{
@@ -4542,6 +4551,7 @@ void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 #endif
 
+#ifdef NETPREPARSE
 	if (dpcompat_nopreparse.ival)
 		;
 	else if (progstype != PROG_QW)
@@ -4556,6 +4566,8 @@ void QCBUILTIN PF_WriteShort (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 	}
 #endif
+#endif
+
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4589,6 +4601,7 @@ void QCBUILTIN PF_WriteLong (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 #endif
 
+#ifdef NETPREPARSE
 	if (dpcompat_nopreparse.ival)
 		;
 	else if (progstype != PROG_QW)
@@ -4603,6 +4616,8 @@ void QCBUILTIN PF_WriteLong (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		return;
 	}
 #endif
+#endif
+
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4636,6 +4651,7 @@ void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 #endif
 
+#ifdef NETPREPARSE
 	if (dpcompat_nopreparse.ival)
 		;
 	else if (progstype != PROG_QW)
@@ -4650,6 +4666,8 @@ void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 	}
 #endif
+#endif
+
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4683,6 +4701,7 @@ void QCBUILTIN PF_WriteCoord (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 #endif
 
+#ifdef NETPREPARSE
 	if (dpcompat_nopreparse.ival)
 		;
 	else if (progstype != PROG_QW)
@@ -4697,6 +4716,8 @@ void QCBUILTIN PF_WriteCoord (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 	}
 #endif
+#endif
+
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4730,6 +4751,7 @@ void QCBUILTIN PF_WriteFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 #endif
 
+#ifdef NETPREPARSE
 	if (dpcompat_nopreparse.ival)
 		;
 	else if (progstype != PROG_QW)
@@ -4744,6 +4766,8 @@ void QCBUILTIN PF_WriteFloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 	}
 #endif
+#endif
+
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4776,6 +4800,7 @@ void PF_WriteString_Internal (int target, const char *str)
 		)
 		return;
 
+#ifdef NETPREPARSE
 	if (dpcompat_nopreparse.ival)
 		;
 	else if (progstype != PROG_QW)
@@ -4790,6 +4815,8 @@ void PF_WriteString_Internal (int target, const char *str)
 		return;
 	}
 #endif
+#endif
+
 	if (target == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4830,6 +4857,7 @@ void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		)
 		return;
 
+#ifdef NETPREPARSE
 	if (dpcompat_nopreparse.ival)
 		;
 	else if (progstype != PROG_QW)
@@ -4844,6 +4872,8 @@ void QCBUILTIN PF_WriteEntity (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		return;
 	}
 #endif
+#endif
+
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -5447,7 +5477,9 @@ void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	o = G_VECTOR(OFS_PARM0);
 	to = G_FLOAT(OFS_PARM1);
 
+#ifdef NETPREPARSE
 	NPP_Flush();
+#endif
 
 	SV_Multicast (o, to);
 }
@@ -6390,22 +6422,6 @@ static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s
 }
 
 
-//EXTENSION: DP_QC_COPYENTITY
-
-//void(entity from, entity to) copyentity = #400
-//copies data from one entity to another
-static void QCBUILTIN PF_copyentity (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	edict_t *in, *out;
-
-	in = G_EDICT(prinst, OFS_PARM0);
-	out = G_EDICT(prinst, OFS_PARM1);
-
-	memcpy(out->v, in->v, sv.world.edict_size);
-	World_LinkEdict(&sv.world, (wedict_t*)out, false);
-}
-
-
 //EXTENSION: DP_QC_FINDCHAIN
 
 //entity(string field, string match) findchain = #402
@@ -6603,8 +6619,10 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 		//others are limited by packet sizes, so the count can vary...
 
 		//features
+#ifdef PEXT_VIEW2
 		if (pext1 & PEXT_VIEW2)
 			Info_SetValueForKey(clfeatures, "PEXT_VIEW2", "1", sizeof(clfeatures));
+#endif
 		if (pext1 & PEXT_LIGHTSTYLECOL)
 			Info_SetValueForKey(clfeatures, "PEXT_LIGHTSTYLECOL", "1", sizeof(clfeatures));
 		if ((pext1 & PEXT_CSQC) || (protocol == SCP_DARKPLACES6) || (protocol == SCP_DARKPLACES7))
@@ -7757,6 +7775,7 @@ void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 	MSG_WriteCoord(&sv.multicast, end[1]);
 	MSG_WriteCoord(&sv.multicast, end[2]);
 
+#ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svcdp_trailparticles);
 	MSG_WriteEntity(&sv.nqmulticast, ednum);
 	MSG_WriteShort(&sv.nqmulticast, efnum);
@@ -7766,6 +7785,7 @@ void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 	MSG_WriteCoord(&sv.nqmulticast, end[0]);
 	MSG_WriteCoord(&sv.nqmulticast, end[1]);
 	MSG_WriteCoord(&sv.nqmulticast, end[2]);
+#endif
 
 	SV_MulticastProtExt(start, MULTICAST_PHS, pr_global_struct->dimension_send, PEXT_CSQC, 0);
 #endif
@@ -7790,11 +7810,13 @@ void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 		MSG_WriteCoord(&sv.multicast, org[1]);
 		MSG_WriteCoord(&sv.multicast, org[2]);
 
+#ifdef NQPROT
 		MSG_WriteByte(&sv.nqmulticast, svcdp_pointparticles1);
 		MSG_WriteShort(&sv.nqmulticast, efnum);
 		MSG_WriteCoord(&sv.nqmulticast, org[0]);
 		MSG_WriteCoord(&sv.nqmulticast, org[1]);
 		MSG_WriteCoord(&sv.nqmulticast, org[2]);
+#endif
 	}
 	else
 	{
@@ -7808,6 +7830,7 @@ void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 		MSG_WriteCoord(&sv.multicast, vel[2]);
 		MSG_WriteShort(&sv.multicast, count);
 
+#ifdef NQPROT
 		MSG_WriteByte(&sv.nqmulticast, svcdp_pointparticles);
 		MSG_WriteShort(&sv.nqmulticast, efnum);
 		MSG_WriteCoord(&sv.nqmulticast, org[0]);
@@ -7817,6 +7840,7 @@ void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 		MSG_WriteCoord(&sv.nqmulticast, vel[1]);
 		MSG_WriteCoord(&sv.nqmulticast, vel[2]);
 		MSG_WriteShort(&sv.nqmulticast, count);
+#endif
 	}
 	SV_MulticastProtExt(org, MULTICAST_PHS, pr_global_struct->dimension_send, PEXT_CSQC, 0);
 #endif
@@ -9630,6 +9654,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"frameforname",	PF_frameforname,	0,		0,		0,		276,	D("float(float modidx, string framename)", "Looks up a framegroup from a model by name, avoiding the need for hardcoding. Returns -1 on error.")},// (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",	PF_frameduration,	0,		0,		0,		277,	D("float(float modidx, float framenum)", "Retrieves the duration (in seconds) of the specified framegroup.")},// (FTE_CSQC_SKELETONOBJECTS)
 
+#ifdef TERRAIN
 	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	D("void(float action, optional vector pos, optional float radius, optional float quant, ...)", "Realtime terrain editing. Actions are the TEREDIT_ constants.")},// (??FTE_TERRAIN_EDIT??
 
 #define qcbrushface				\
@@ -9651,7 +9676,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"brush_findinvolume",PF_brush_findinvolume,0,	0,		0,		0,		D("int(float modelid, vector *planes, float *dists, int numplanes, int *out_brushes, int *out_faces, int maxresults)", "Allows you to easily obtain a list of brushes+faces within the given bounding region. If out_faces is not null, the same brush might be listed twice.")},
 //	{"brush_editplane",	PF_brush_editplane,	0,		0,		0,		0,		D("float(float modelid, int brushid, int faceid, in brushface *face)", "Changes a surface's texture info.")},
 //	{"brush_transformselected",PF_brush_transformselected,0,0,0,	0,		D("int(float modelid, int brushid, float *matrix)", "Transforms selected brushes by the given transform")},
-
+#endif
 
 
 	{"touchtriggers",	PF_touchtriggers,	0,		0,		0,		279,	D("void(optional entity ent, optional vector neworigin)", "Triggers a touch events between self and every SOLID_TRIGGER entity that it is in contact with. This should typically just be the triggers touch functions. Also optionally updates the origin of the moved entity.")},//
@@ -9805,7 +9830,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP extras
 
 //DP_QC_COPYENTITY
-	{"copyentity",		PF_copyentity,		0,		0,		0,		400,	"void(entity from, entity to)"},// (DP_QC_COPYENTITY)
+	{"copyentity",		PF_copyentity,		0,		0,		0,		400,	D("entity(entity from, optional entity to)", "Copies all fields from one entity to another.")},// (DP_QC_COPYENTITY)
 //DP_SV_SETCOLOR
 	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	D("void(entity ent, float colours)", "Changes a player's colours. The bits 0-3 are the lower/trouser colour, bits 4-7 are the upper/shirt colours.")},//DP_SV_SETCOLOR
 //DP_QC_FINDCHAIN
@@ -10874,10 +10899,12 @@ void PR_DumpPlatform_f(void)
 		//not putting other svcs here, qc shouldn't otherwise need to generate svcs directly.
 		{"SVC_CGAMEPACKET",		"const float", QW|NQ, "Direct ssqc->csqc message. Must only be multicast. The data triggers a CSQC_Parse_Event call in the csqc for the csqc to read the contents. The server *may* insert length information for clients connected via proxies which are not able to cope with custom csqc payloads. This should only ever be used in conjunction with the MSG_MULTICAST destination.", svcfte_cgamepacket},
 
+#ifndef QUAKETC
 		{"MSG_BROADCAST",		"const float", QW|NQ, "The byte(s) will be unreliably sent to all players. MSG_ constants are valid arguments to the Write* builtin family.", MSG_BROADCAST},
-		{"MSG_ONE",				"const float", QW|NQ, "The byte(s) will be reliably sent to the player specified in the msg_entity global.", MSG_ONE},
+		{"MSG_ONE",				"const float", QW|NQ, "The byte(s) will be reliably sent to the player specified in the msg_entity global. WARNING: in quakeworld servers without network preparsing enabled, this can result in illegible server messages (due to individual reliable messages being split between multiple backbuffers/packets). NQ has larger reliable buffers which avoids this issue, but still kicks the client.", MSG_ONE},
 		{"MSG_ALL",				"const float", QW|NQ, "The byte(s) will be reliably sent to all players.", MSG_ALL},
 		{"MSG_INIT",			"const float", QW|NQ, "The byte(s) will be written into the signon buffer. Clients will see these messages when they connect later. This buffer is only flushed on map changes, so spamming it _WILL_ result in overflows.", MSG_INIT},
+#endif
 		{"MSG_MULTICAST",		"const float", QW|NQ, "The byte(s) will be written into the multicast buffer for more selective sending. Messages sent this way will never be split across packets, and using this for csqc-only messages will not break protocol translation.", MSG_MULTICAST},
 		{"MSG_ENTITY",			"const float", QW|NQ, "The byte(s) will be written into the entity buffer. This is a special value used only inside 'SendEntity' functions.", MSG_CSQC},
 
@@ -11027,6 +11054,7 @@ void PR_DumpPlatform_f(void)
 		{"HASH_REPLACE",		"const float", ALL, "Used with hash_add. Attempts to remove the old value instead of adding two values for a single key.", 256},
 		{"HASH_ADD",			"const float", ALL, "Used with hash_add. The new entry will be inserted in addition to the existing entry.", 512},
 
+#ifdef QUAKESTATS
 		{"STAT_HEALTH",			"const float", CS, "Player's health.", STAT_HEALTH},
 		{"STAT_WEAPONMODELI",	"const float", CS, "This is the modelindex of the current viewmodel (renamed from the original name 'STAT_WEAPON' due to confusions).", STAT_WEAPONMODELI},
 		{"STAT_AMMO",			"const float", CS, "player.currentammo", STAT_AMMO},
@@ -11047,6 +11075,7 @@ void PR_DumpPlatform_f(void)
 		{"STAT_VIEWZOOM",		"const float", CS, "Scales fov and sensitiity. Part of DP_VIEWZOOM.", STAT_VIEWZOOM},
 
 		{"STAT_USER",			"const float", QW|NQ|CS, "Custom user stats start here (lower values are reserved for engine use).", 32},
+#endif
 
 		{"VF_MIN",				"const float", CS|MENU, "The top-left of the 3d viewport in screenspace. The VF_ values are used via the setviewprop/getviewprop builtins.", VF_MIN},
 		{"VF_MIN_X",			"const float", CS|MENU, NULL, VF_MIN_X},
@@ -11153,6 +11182,7 @@ void PR_DumpPlatform_f(void)
 		{"LFLAG_SHADOWMAP",		"const float", CS, NULL, LFLAG_SHADOWMAP},
 		{"LFLAG_CREPUSCULAR",	"const float", CS, NULL, LFLAG_CREPUSCULAR},
 
+#ifdef TERRAIN
 		{"TEREDIT_RELOAD",		"const float", CS, NULL, ter_reload},
 		{"TEREDIT_SAVE",		"const float", CS, NULL, ter_save},
 		{"TEREDIT_SETHOLE",		"const float", CS, NULL, ter_sethole},
@@ -11179,6 +11209,7 @@ void PR_DumpPlatform_f(void)
 		{"TEREDIT_ENTS_WIPE",	"const float", CS, NULL, ter_ents_wipe},
 		{"TEREDIT_ENTS_CONCAT",	"const float", CS, NULL, ter_ents_concat},
 		{"TEREDIT_ENTS_GET",	"const float", CS, NULL, ter_ents_get},
+#endif
 
 		{"SLIST_HOSTCACHEVIEWCOUNT",	"const float", CS|MENU, NULL, SLIST_HOSTCACHEVIEWCOUNT},
 		{"SLIST_HOSTCACHETOTALCOUNT",	"const float", CS|MENU, NULL, SLIST_HOSTCACHETOTALCOUNT},

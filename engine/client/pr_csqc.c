@@ -1857,6 +1857,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	{
 		csqc_worldchanged = false;
 		Surf_NewMap();
+		CL_UpdateWindowTitle();
 	}
 
 	if (cl.worldmodel)
@@ -2282,6 +2283,9 @@ static model_t *csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int mode
 		{
 			cl.worldmodel = r_worldentity.model = csqc_world.worldmodel = model;
 			csqc_worldchanged = true;
+
+			VectorAdd(ent->v->origin, ent->v->mins, ent->v->absmin);
+			VectorAdd(ent->v->origin, ent->v->maxs, ent->v->absmax);
 		}
 	}
 	else
@@ -3298,8 +3302,16 @@ void QCBUILTIN PF_soundupdate (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	float			startoffset = (prinst->callargc>=8)?G_FLOAT(OFS_PARM7):0;
 
 	sfx_t		*sfx = S_PrecacheSound(sample);
+	vec3_t		org;
 
-	G_FLOAT(OFS_RETURN) = S_UpdateSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, startoffset, pitchpct, flags);
+	VectorCopy(entity->v->origin, org);
+	if (entity->v->solid == SOLID_BSP)
+	{
+		VectorMA(org, 0.5, entity->v->mins, org);
+		VectorMA(org, 0.5, entity->v->maxs, org);
+	}
+
+	G_FLOAT(OFS_RETURN) = S_UpdateSound(-entity->entnum, channel, sfx, org, volume, attenuation, startoffset, pitchpct, flags);
 }
 void QCBUILTIN PF_stopsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3327,6 +3339,7 @@ static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *p
 	float startoffset;
 
 	sfx_t *sfx;
+	vec3_t		org;
 
 	entity = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
@@ -3338,8 +3351,16 @@ static void QCBUILTIN PF_cs_sound(pubprogfuncs_t *prinst, struct globalvars_s *p
 	startoffset = (prinst->callargc>=8)?G_FLOAT(OFS_PARM7):0;
 
 	sfx = S_PrecacheSound(sample);
+
+	VectorCopy(entity->v->origin, org);
+	if (entity->v->solid == SOLID_BSP)
+	{
+		VectorMA(org, 0.5, entity->v->mins, org);
+		VectorMA(org, 0.5, entity->v->maxs, org);
+	}
+
 	if (sfx)
-		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, startoffset, pitchpct, flags);
+		S_StartSound(-entity->entnum, channel, sfx, org, volume, attenuation, startoffset, pitchpct, flags);
 };
 
 static void QCBUILTIN PF_cs_pointsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5190,6 +5211,7 @@ static struct {
 	{"frameforname",			PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",			PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
+#ifdef TERRAIN
 	{"terrain_edit",			PF_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
 	{"brush_get",				PF_brush_get,			0},
 	{"brush_create",			PF_brush_create,		0},
@@ -5198,6 +5220,7 @@ static struct {
 	{"brush_getfacepoints",		PF_brush_getfacepoints,	0},
 	{"brush_calcfacepoints",	PF_brush_calcfacepoints,0},
 	{"brush_findinvolume",		PF_brush_findinvolume,	0},
+#endif
 
 	{"touchtriggers",			PF_touchtriggers,		279},//void() touchtriggers = #279;
 	{"skel_ragupdate",			PF_skel_ragedit,		281},// (FTE_QC_RAGDOLL)
@@ -5779,7 +5802,7 @@ void CSQC_Event_Sound (float *origin, wedict_t *wentity, int channel, const char
 			origin = wentity->v->origin;
 	}
 
-	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume, attenuation, timeoffset, pitchadj, flags);
+	S_StartSound(NUM_FOR_EDICT(csqcprogs, (edict_t*)wentity), channel, S_PrecacheSound(sample), origin, volume/255.0, attenuation, timeoffset, pitchadj, flags);
 }
 
 qboolean CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
@@ -6309,6 +6332,8 @@ void CSQC_RendererRestarted(void)
 void CSQC_WorldLoaded(void)
 {
 	csqcedict_t *worldent;
+	int tmp;
+	int wmodelindex;
 
 	if (!csqcprogs)
 		return;
@@ -6326,7 +6351,10 @@ void CSQC_WorldLoaded(void)
 
 	worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
 	worldent->v->solid = SOLID_BSP;
-	csqc_setmodel(csqcprogs, worldent, cl.worldmodel?1:0);
+	wmodelindex = CS_FindModel(cl.worldmodel->name, &tmp);
+	tmp = csqc_worldchanged;
+	csqc_setmodel(csqcprogs, worldent, wmodelindex);
+	csqc_worldchanged = tmp;
 
 	worldent->readonly = false;	//just in case
 
@@ -6347,8 +6375,6 @@ void CSQC_WorldLoaded(void)
 	csqcmapentitydata = NULL;
 
 	worldent->readonly = true;
-
-	csqc_worldchanged = false;	//should be done elsewhere, don't do it for double-cost.
 }
 
 void CSQC_CoreDump(void)
@@ -6714,7 +6740,7 @@ qboolean CSQC_DrawView(void)
 			*csqcg.gamespeed = 0;
 	}
 	if (csqcg.intermission)
-		*csqcg.intermission = cl.intermission;
+		*csqcg.intermission = cl.intermissionmode;
 
 	//work out which packet entities are solid
 	CL_SetSolidEntities ();

@@ -1367,9 +1367,8 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	client->nextservertimeupdate = sv.physicstime;
 */
 
-	ent = client->edict;
-
 #ifdef NQPROT
+	ent = client->edict;
 	if (progstype != PROG_QW)
 	{
 		if (ISQWCLIENT(client))
@@ -1789,6 +1788,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 	else
 #endif
 	{
+#ifdef QUAKESTATS
 		statsf[STAT_HEALTH] = ent->v->health;	//sorry, but mneh
 		statsi[STAT_WEAPONMODELI] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
 		if ((unsigned)statsi[STAT_WEAPONMODELI] >= client->maxmodels)
@@ -1822,7 +1822,9 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsi[STAT_VIEWZOOM] = 255;
 		else
 			statsi[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
+#endif
 
+#ifdef NQPROT
 		if (client->protocol == SCP_DARKPLACES7 || (client->fteprotocolextensions2 & PEXT2_PREDINFO))
 		{
 			float	*statsfi;
@@ -1850,6 +1852,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_AIRACCEL_QW] = 1;
 			statsfi[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION] = sv_gravity.value;
 		}
+#endif
 
 		SV_UpdateQCStats(ent, statsi, statss, statsf);
 	}

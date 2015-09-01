@@ -552,7 +552,7 @@ static qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const q
 		return false;
 
 	Q_strncpyz(outptr, cl.serverinfo, outlen);
-	Q_strncatz(outptr, va("\\intermission\\%i", cl.intermission), outlen);
+	Q_strncatz(outptr, va("\\intermission\\%i", cl.intermissionmode), outlen);
 	switch(cls.demoplayback)
 	{
 	case DPB_NONE:
@@ -577,9 +577,11 @@ static qintptr_t VARGS Plug_GetServerInfo(void *offset, quintptr_t mask, const q
 	}
 	Q_strncatz(outptr, va("\\demotime\\%f", demtime-cls.demostarttime), outlen);
 
+#ifdef QUAKEHUD
 	if (cl.playerview[0].statsf[STAT_MATCHSTARTTIME])
 		Q_strncatz(outptr, va("\\matchstart\\%f", cl.playerview[0].statsf[STAT_MATCHSTARTTIME]/1000), outlen);
-	else 
+	else
+#endif
 		Q_strncatz(outptr, va("\\matchstart\\%f", cl.matchgametimestart), outlen);
 
 	return true;
@@ -697,6 +699,7 @@ static qintptr_t VARGS Plug_GetLocationName(void *offset, quintptr_t mask, const
 	return VM_LONG(arg[1]);
 }
 
+#ifdef QUAKEHUD
 typedef struct
 {
 	unsigned int client;
@@ -787,6 +790,7 @@ static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qin
 	
 	return VM_LONG(count);
 }
+#endif
 
 static qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1175,7 +1179,9 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, PLUG_BIF_NEEDSRENDERER);
 
+#ifdef QUAKEHUD
 	Plug_RegisterBuiltin("GetTeamInfo",				Plug_GetTeamInfo, PLUG_BIF_NEEDSRENDERER);
+#endif
 	Plug_RegisterBuiltin("GetLocationName",			Plug_GetLocationName, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("LocalPlayerNumber",		Plug_LocalPlayerNumber, PLUG_BIF_NEEDSRENDERER);

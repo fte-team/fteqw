@@ -2090,7 +2090,6 @@ void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
 
 static int clientNum;
 static int clientarea;
-static qbyte *areabits;
 static qbyte		*bitvector;
 
 static int VARGS SVQ3_QsortEntityStates( const void *arg1, const void *arg2 )
@@ -2115,7 +2114,7 @@ static int VARGS SVQ3_QsortEntityStates( const void *arg1, const void *arg2 )
 
 }
 
-static qboolean SVQ3_EntityIsVisible( q3sharedEntity_t *ent )
+static qboolean SVQ3_EntityIsVisible(q3client_frame_t *snap, q3sharedEntity_t *ent)
 {
 	q3serverEntity_t *sent;
 	int i;
@@ -2173,11 +2172,11 @@ static qboolean SVQ3_EntityIsVisible( q3sharedEntity_t *ent )
 	sent = SENTITY_FOR_GENTITY( ent );
 
 	// check area
-	if (sent->areanum < 0 || !(areabits[sent->areanum >> 3] & (1 << (sent->areanum & 7))))
+	if (sent->areanum < 0 || !(snap->areabits[sent->areanum >> 3] & (1 << (sent->areanum & 7))))
 	{
 		// doors can legally straddle two areas, so
 		// we may need to check another one
-		if (sent->areanum2 < 0 || !(areabits[sent->areanum2 >> 3] & (1 << (sent->areanum2 & 7))))
+		if (sent->areanum2 < 0 || !(snap->areabits[sent->areanum2 >> 3] & (1 << (sent->areanum2 & 7))))
 		{
 			return false;		// blocked by a door
 		}
@@ -2289,6 +2288,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	q3playerState_t		*ps;
 	int					portalarea;
 	int					i;
+	static qbyte pvsbuffer[(MAX_MAP_LEAFS+7)>>3];
 
 	if (!q3_snapshot_entities)
 	{
@@ -2332,7 +2332,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	org[2] += ps->viewheight;
 
 	clientarea = CM_PointLeafnum(sv.world.worldmodel, org);
-	bitvector = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, org), NULL, 0);
+	bitvector = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, clientarea), pvsbuffer, sizeof(pvsbuffer));
 	clientarea = CM_LeafArea(sv.world.worldmodel, clientarea);
 /*
 	if (client->areanum != clientarea)
@@ -2343,11 +2343,10 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 */
 
 	// calculate the visible areas
-	areabits = snap->areabits;
-	snap->areabytes = CM_WriteAreaBits(sv.world.worldmodel, areabits, clientarea);
+	snap->areabytes = CM_WriteAreaBits(sv.world.worldmodel, snap->areabits, clientarea, false);
 
 	// grab the current playerState_t
-	memcpy( &snap->ps, ps, sizeof( snap->ps ) );
+	memcpy(&snap->ps, ps, sizeof(snap->ps));
 
 	// build up the list of visible entities
 	snap->num_entities = 0;
@@ -2356,38 +2355,43 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	if (svs.gametype == GT_QUAKE3)
 	{
 	// check for SVF_PORTAL entities first
-		for( i=0 ; i<numq3entities ; i++ )
+		for( i=0 ; i<numq3entities ; i++)
 		{
-			ent = GENTITY_FOR_NUM( i );
+			unsigned int c;
+			qbyte *merge;
+			ent = GENTITY_FOR_NUM(i);
 
-			if( ent == clent )
+			if(ent == clent )
 				continue;
-			if( !(ent->r.svFlags & SVF_PORTAL) )
+			if(!(ent->r.svFlags & SVF_PORTAL))
 				continue;
-			if( !SVQ3_EntityIsVisible( ent ) )
+			if(!SVQ3_EntityIsVisible(snap, ent))
 				continue;
 
 			// merge PVS if portal
 			portalarea = CM_PointLeafnum(sv.world.worldmodel, ent->s.origin2);
+			//merge pvs bits so we can see other ents through it
+			merge = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, portalarea), NULL, 0);
+			c = (cl.worldmodel->numclusters+31)/32;
+			while (c-->0)
+				((int *)bitvector)[c] |= ((int *)merge)[c];
+			//and merge areas, so we can see the world too (client will calc its own pvs)
 			portalarea = CM_LeafArea(sv.world.worldmodel, portalarea);
-
-	//		CM_MergePVS ( ent->s.origin2 );
-
-	//		CM_MergeAreaBits( snap->areabits, portalarea );
+			CM_WriteAreaBits(sv.world.worldmodel, snap->areabits, portalarea, true);
 		}
 
 		// add all visible entities
-		for( i=0 ; i<numq3entities ; i++ )
+		for (i=0 ; i<numq3entities ; i++)
 		{
-			ent = GENTITY_FOR_NUM( i );
+			ent = GENTITY_FOR_NUM(i);
 
-				if (ent == clent)
+			if (ent == clent)
 				continue;
-			if( !SVQ3_EntityIsVisible( ent ) )
+			if (!SVQ3_EntityIsVisible(snap, ent))
 				continue;
 
-				if (ent->s.number != i)
-				{
+			if (ent->s.number != i)
+			{
 				Con_DPrintf( "FIXING ENT->S.NUMBER!!!\n" );
 				ent->s.number = i;
 			}

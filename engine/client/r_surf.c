@@ -2329,7 +2329,7 @@ void Surf_DrawWorld (void)
 			{	//generate the info each frame, as the gamecode didn't tell us what to use.
 				int leafnum = CM_PointLeafnum (cl.worldmodel, r_refdef.vieworg);
 				int clientarea = CM_LeafArea (cl.worldmodel, leafnum);
-				CM_WriteAreaBits(cl.worldmodel, r_refdef.areabits, clientarea);
+				CM_WriteAreaBits(cl.worldmodel, r_refdef.areabits, clientarea, false);
 				r_refdef.areabitsknown = true;
 			}
 #ifdef Q3BSPS

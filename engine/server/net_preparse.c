@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) && defined(NETPREPARSE)
 /*Testing this code should typically be done with the three following mods:
 Prydon gate
 Nexuiz
@@ -657,50 +657,49 @@ void NPP_NQFlush(void)
 		{
 			client_t *cl;
 			int i;
+			char *h2finale = NULL;
+			char *h2title = NULL;
+#ifdef HEXEN2
+			if (progstype == PROG_H2)
+			{
+				/*hexen2 does something like this in the client, but we don't support those protocols, so translate to something usable*/
+				char *title[13] = {"gfx/finale.lmp", "gfx/meso.lmp", "gfx/egypt.lmp", "gfx/roman.lmp", "gfx/castle.lmp", "gfx/castle.lmp", "gfx/end-1.lmp", "gfx/end-2.lmp", "gfx/end-3.lmp", "gfx/castle.lmp", "gfx/mpend.lmp", "gfx/mpmid.lmp", "gfx/end-3.lmp"};
+				int lookup[13] = {394, 395, 396, 397, 358, strcmp(T_GetString(400+5*2+1), "BAD STRING")?400+5*2+1:400+4*2, 386+6, 386+7, 386+8, 391, 538, 545, 561};
+				//5 is the demo sell screen, which changes depending on hexen2 vs portals.
+				if (buffer[1] < 13)
+				{
+					h2title = title[buffer[1]];
+					h2finale = T_GetString(lookup[buffer[1]]);
+				}
+			}
+#endif
+
 			for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
 			{
 				if (cl->state == cs_spawned && ISQWCLIENT(cl))
 				{
-#ifdef HEXEN2
-					char *h2finale = NULL;
-					char *h2title = NULL;
-/*
-					if (cl->zquake_extensions & Z_EXT_SERVERTIME)
-					{
-						ClientReliableCheckBlock(cl, 6);
-						ClientReliableWrite_Byte(cl, svc_updatestatlong);
-						ClientReliableWrite_Byte(cl, STAT_TIME);
-						ClientReliableWrite_Long(cl, (int)(sv.world.physicstime * 1000));
-						cl->nextservertimeupdate = sv.world.physicstime+10;
-					}
-*/
-					if (progstype == PROG_H2)
-					{
-						/*hexen2 does something like this in the client, but we don't support those protocols, so translate to something usable*/
-						char *title[13] = {"gfx/finale.lmp", "gfx/meso.lmp", "gfx/egypt.lmp", "gfx/roman.lmp", "gfx/castle.lmp", "gfx/castle.lmp", "gfx/end-1.lmp", "gfx/end-2.lmp", "gfx/end-3.lmp", "gfx/castle.lmp", "gfx/mpend.lmp", "gfx/mpmid.lmp", "gfx/end-3.lmp"};
-						int lookup[13] = {394, 395, 396, 397, 358, strcmp(T_GetString(400+5*2+1), "BAD STRING")?400+5*2+1:400+4*2, 386+6, 386+7, 386+8, 391, 538, 545, 561};
-						//5 is the demo sell screen, which changes depending on hexen2 vs portals.
-						if (buffer[1] < 13)
-						{
-							h2title = title[buffer[1]];
-							h2finale = T_GetString(lookup[buffer[1]]);
-						}
-					}
-
 					if (h2finale)
 					{
 						ClientReliableCheckBlock(cl, 3 + strlen(h2title) + 3 + strlen(h2finale) + 1);
 						ClientReliableWrite_Byte(cl, svc_finale);
+
 						ClientReliableWrite_Byte(cl, '/');
 						ClientReliableWrite_Byte(cl, 'I');
 						ClientReliableWrite_SZ(cl, h2title, strlen(h2title));
 						ClientReliableWrite_Byte(cl, ':');
+
 						ClientReliableWrite_Byte(cl, '/');
 						ClientReliableWrite_Byte(cl, 'P');
+
 						ClientReliableWrite_String(cl, h2finale);
 					}
+					else if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+					{	//special intermission mode to leave the view attached to the viewentity (as required for nq - especially rogue's finale) instead of hacking it to some specific point
+						ClientReliableCheckBlock(cl, 5);
+						ClientReliableWrite_Byte(cl, svc_finale);
+						ClientReliableWrite_String(cl, "/FI");
+					}
 					else
-#endif
 					{
 						ClientReliableCheckBlock(cl, 16);
 						ClientReliableWrite_Byte(cl, svc_intermission);
@@ -718,9 +717,17 @@ void NPP_NQFlush(void)
 			writedest = NULL;
 		}
 		break;
-//	case svc_finale:
+//	case svc_finale:	//finale does exist in vanilla qw. apparently. hurrah.
 //		bufferlen = 0;
 //		break;
+	case svc_cutscene:
+		//finale with no text. and explicitly no flags (which mostly prevents the 'completed' banner appearing), should be equivelent.
+		buffer[0] = svc_finale;
+		buffer[1] = '/';
+		buffer[2] = '.';
+		buffer[3] = 0;
+		bufferlen = 4;
+		break;
 	case svc_setview:
 		requireextension = PEXT_SETVIEW;
 
@@ -1005,7 +1012,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				protocollen = 1;
 			break;
 		case svc_finale:
-			protocollen = 2;
+			nullterms = 1;
 			break;
 		case svcdp_skybox:
 			protocollen = 2;//it's just a string
@@ -1023,7 +1030,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			ignoreprotocol = true;
 			break;
 		case svc_cutscene:
-			ignoreprotocol = true;
+			nullterms = 1;
 			break;
 		case 51:
 			protocollen = 3;
@@ -1993,7 +2000,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 1 + destprim->coordsize*3 + destprim->anglesize*3;
 			break;
 		case svc_finale:
-			protocollen = 2;
+			nullterms = 1;
 			break;
 		case svc_updatepl:
 		case svc_muzzleflash:

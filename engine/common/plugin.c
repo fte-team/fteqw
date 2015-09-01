@@ -23,7 +23,7 @@ struct
 	qintptr_t (*initfunction)(qintptr_t *args);
 } staticplugins[] = 
 {
-#ifdef USERBE
+#if defined(USERBE) && !defined(QUAKETC)
 //	{"Bullet", Plug_Bullet_Init},
 	{"ODE", Plug_ODE_Init},
 #endif
@@ -1631,7 +1631,12 @@ int Plug_ConnectionlessClientPacket(char *buffer, int size)
 #ifndef SERVERONLY
 void Plug_SBar(playerview_t *pv)
 {
+#ifdef QUAKEHUD
 	extern qboolean sb_showscores, sb_showteamscores;
+#else
+#define sb_showscores 0
+#define sb_showteamscores 0
+#endif
 
 	plugin_t *oc=currentplug;
 	int ret;

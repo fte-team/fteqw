@@ -1061,6 +1061,14 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
 	MINGL_EXE_NAME=../fteminglqw$(BITS)$(EXEPOSTFIX)
 	MINGL_DIR=mingl_mgw$(BITS)
+
+	ifeq ($(NOCOMPAT),1)
+		SV_EXE_NAME=../engine_sv$(BITS)$(EXEPOSTFIX)
+		GL_EXE_NAME=../engine_gl$(BITS)$(EXEPOSTFIX)
+		M_EXE_NAME=../engine$(BITS)$(EXEPOSTFIX)
+		D3D_EXE_NAME=../engine_d3d$(BITS)$(EXEPOSTFIX)
+		MINGL_EXE_NAME=../engine_cl_gl$(BITS)$(EXEPOSTFIX)
+	endif
 endif
 
 ifeq ($(FTE_TARGET),bsd)

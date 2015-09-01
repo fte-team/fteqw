@@ -134,7 +134,7 @@ void M_Menu_Save_f (void)
 	if (!sv.state)
 		return;
 
-	if (cl.intermission)
+	if (cl.intermissionmode != IM_NONE)
 		return;
 
 	Key_Dest_Add(kdm_emenu);

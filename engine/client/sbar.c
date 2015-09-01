@@ -22,9 +22,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "shader.h"
 
-extern cvar_t *hud_tracking_show;
-
 #define CON_ALTMASK (CON_2NDCHARSETTEXT|CON_WHITEMASK)
+
+#ifdef QUAKEHUD
+
+extern cvar_t *hud_tracking_show;
 
 cvar_t scr_scoreboard_drawtitle = CVARD("scr_scoreboard_drawtitle", "1", "Wastes screen space when looking at the scoreboard.");
 cvar_t scr_scoreboard_forcecolors = CVARD("scr_scoreboard_forcecolors", "0", "Makes the scoreboard colours obey enemycolor/teamcolor rules.");	//damn americans
@@ -172,6 +174,7 @@ int Sbar_BottomColour(player_info_t *p)
 		return p->rbottomcolor;
 }
 
+#endif
 //Draws a pre-marked-up string with no width limit. doesn't support new lines
 void Draw_ExpandedString(float x, float y, conchar_t *str)
 {
@@ -252,6 +255,7 @@ void Draw_FunStringWidth(float x, float y, const void *str, int width, int right
 	}
 	Font_EndString(font_default);
 }
+#ifdef QUAKEHUD
 
 static qboolean largegame = false;
 
@@ -1347,9 +1351,7 @@ void Sbar_Hexen2DrawNum (float x, float y, int num, int digits)
 
 //=============================================================================
 
-int		fragsort[MAX_CLIENTS];
 int		playerteam[MAX_CLIENTS];
-int		scoreboardlines;
 typedef struct {
 	char team[16+1];
 	int frags;
@@ -1384,6 +1386,22 @@ void Sbar_PQ_Team_Reset(void)
 	memset(nqteam, 0, sizeof(nqteam));
 }
 
+
+#endif
+
+unsigned int	Sbar_ColorForMap (unsigned int m)
+{
+	if (m >= 16)
+		return m;
+
+	m = (m < 0) ? 0 : ((m > 13) ? 13 : m);
+
+	m *= 16;
+	return m < 128 ? m + 8 : m + 8;
+}
+
+int		scoreboardlines;
+int		fragsort[MAX_CLIENTS];
 /*
 ===============
 Sbar_SortFrags
@@ -1413,15 +1431,17 @@ void Sbar_SortFrags (qboolean includespec, qboolean doteamsort)
 	for (i=0 ; i<scoreboardlines ; i++)
 		for (j = i + 1; j < scoreboardlines; j++)
 		{
+			int w1, w2;
+#ifdef QUAKEHUD
 			int t1 = playerteam[fragsort[i]];
 			int t2 = playerteam[fragsort[j]];
-			int w1, w2;
 
 			//teams are already sorted by frags
 			w1 = t1<0?-999:-teamsort[t1];
 			w2 = t2<0?-999:-teamsort[t2];
 			//okay, they're on the same team then? go ahead and sort by personal frags
 			if (!doteamsort || w1 == w2)
+#endif
 			{
 				w1 = cl.players[fragsort[i]].frags;
 				w2 = cl.players[fragsort[j]].frags;
@@ -1434,6 +1454,8 @@ void Sbar_SortFrags (qboolean includespec, qboolean doteamsort)
 			}
 		}
 }
+
+#ifdef QUAKEHUD
 
 void Sbar_SortTeams (playerview_t *pv)
 {
@@ -1527,18 +1549,6 @@ void Sbar_SortTeams (playerview_t *pv)
 				teamsort[j] = k;
 			}
 }
-
-unsigned int	Sbar_ColorForMap (unsigned int m)
-{
-	if (m >= 16)
-		return m;
-
-	m = (m < 0) ? 0 : ((m > 13) ? 13 : m);
-
-	m *= 16;
-	return m < 128 ? m + 8 : m + 8;
-}
-
 
 /*
 ===============
@@ -2107,7 +2117,7 @@ void Sbar_DrawNormal (playerview_t *pv)
 
 qboolean Sbar_ShouldDraw (void)
 {
-	#ifdef TEXTEDITOR
+#ifdef TEXTEDITOR
 	extern qboolean editoractive;
 #endif
 	qboolean headsup;
@@ -3794,4 +3804,4 @@ void Sbar_FinaleOverlay (void)
 		return;
 #endif
 }
-
+#endif

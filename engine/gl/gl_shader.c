@@ -787,7 +787,6 @@ static void Shader_DeformVertexes ( shader_t *shader, shaderpass_t *pass, char *
 	{
 		deformv->type = DEFORMV_BULGE;
 		Shader_ParseVector (shader, ptr, deformv->args);
-		shader->flags |= SHADER_DEFORMV_BULGE;
 	}
 	else if ( !Q_stricmp (token, "move") )
 	{
@@ -798,12 +797,10 @@ static void Shader_DeformVertexes ( shader_t *shader, shaderpass_t *pass, char *
 	else if ( !Q_stricmp (token, "autosprite") )
 	{
 		deformv->type = DEFORMV_AUTOSPRITE;
-		shader->flags |= SHADER_AUTOSPRITE;
 	}
 	else if ( !Q_stricmp (token, "autosprite2") )
 	{
 		deformv->type = DEFORMV_AUTOSPRITE2;
-		shader->flags |= SHADER_AUTOSPRITE;
 	}
 	else if ( !Q_stricmp (token, "projectionShadow") )
 		deformv->type = DEFORMV_PROJECTION_SHADOW;
@@ -4307,6 +4304,19 @@ done:;
 			Media_ShutdownCin(cin);
 #endif
 		s->passes->numMergedPasses = s->numpasses;
+	}
+	else if (s->numdeforms)
+		s->flags |= SHADER_NEEDSARRAYS;
+	else
+	{
+		for (i = 0; i < s->numpasses; i++)
+		{
+			if (s->passes[i].numtcmods || (s->passes[i].tcgen != TC_GEN_BASE && s->passes[i].tcgen != TC_GEN_LIGHTMAP) || !(s->passes[i].flags & SHADER_PASS_NOCOLORARRAY))
+			{
+				s->flags |= SHADER_NEEDSARRAYS;
+				break;
+			}
+		}
 	}
 }
 /*

@@ -449,7 +449,7 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 
 	prinst.max_fields_size = prinst.fields_size;
 
-	prinst.edicttable = PRHunkAlloc(progfuncs, prinst.maxedicts*sizeof(struct edicts_s *), "edicttable");
+	progfuncs->funcs.edicttable = prinst.edicttable = PRHunkAlloc(progfuncs, prinst.maxedicts*sizeof(struct edicts_s *), "edicttable");
 	sv_edicts = PRHunkAlloc(progfuncs, externs->edictsize, "edict0");
 	prinst.edicttable[0] = sv_edicts;
 	((edictrun_t*)prinst.edicttable[0])->fields = PRAddressableExtend(progfuncs, NULL, prinst.fields_size, prinst.max_fields_size-prinst.fields_size);
@@ -515,7 +515,7 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 
 	prinst.profiling = profiling;
 	prinst.maxedicts = 1;
-	prinst.edicttable = &sv_edicts;
+	progfuncs->funcs.edicttable = prinst.edicttable = &sv_edicts;
 	sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 	sv_edicts=(struct edict_s *)&tempedict;
 	tempedict.readonly = true;
@@ -1415,8 +1415,8 @@ static void PDECL PR_CloseProgs(pubprogfuncs_t *ppf)
 
 	for ( i=1 ; i<inst->inst.maxedicts; i++)
 	{
-		e = (edictrun_t *)(inst->inst.edicttable[i]);
-		inst->inst.edicttable[i] = NULL;
+		e = (edictrun_t *)(inst->funcs.edicttable[i]);
+		inst->funcs.edicttable[i] = NULL;
 		if (e)
 		{
 //			e->entnum = i;

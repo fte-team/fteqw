@@ -154,10 +154,35 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 //set any additional defines or libs in win32
-	#define SVRANKING
 	#define LOADERTHREAD
 
-	#ifdef MINIMAL
+	#ifdef NOLEGACY
+		//these are only the features that really make sense in a more modern engine
+		#define QUAKETC			//skip some legacy stuff
+		#define SPRMODELS		//quake1 sprite models
+		#define INTERQUAKEMODELS
+		#define RTLIGHTS		//realtime lighting
+		#define Q2BSPS			//quake 2 bsp support
+		#define Q3BSPS			//quake 3 bsp support
+//		#define TERRAIN			//heightmap support
+		#define ZLIB			//zip/pk3 support
+		#define WEBCLIENT		//http/ftp clients.
+		#define IMAGEFMT_DDS	//a sort of image file format.
+		#define PSET_SCRIPT
+//		#define PLUGINS			//qvm/dll plugins.
+//		#define SUPPORT_ICE		//Interactive Connectivity Establishment protocol, for peer-to-peer connections
+		#define CSQC_DAT	//support for csqc
+//		#define VOICECHAT
+
+		#undef AVAIL_JPEGLIB
+		#undef AVAIL_XZDEC
+
+#if defined(_WIN32) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
+		#define MULTITHREAD
+#endif
+	#elif defined(MINIMAL)
+		#define QUAKESTATS
+		#define QUAKEHUD
 		#define CL_MASTER		//this is useful
 
 		#undef AVAIL_JPEGLIB	//no jpeg support
@@ -178,6 +203,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 			#endif
 		#endif
 	#else
+		#define NETPREPARSE
+		#define QUAKESTATS
+		#define QUAKEHUD
+		#define SVRANKING
 		#define USE_SQLITE
 		#ifdef SERVERONLY
 			#define USE_MYSQL	//allow mysql in dedicated servers.
@@ -647,8 +676,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define UNUSED(x)	(x = x)	// for pesky compiler / lint warnings
 
-#define	MINIMUM_MEMORY	0x550000
-
 // up / down
 #define	PITCH	0
 
@@ -657,8 +684,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // fall over
 #define	ROLL	2
-
-#define	SOUND_CHANNELS		8
 
 
 #define	MAX_QPATH		128			// max length of a quake game pathname
@@ -686,7 +711,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define	MAX_EDICTS		((1<<22)-1)			// expandable up to 22 bits
 #define	MAX_EDICTS		((1<<18)-1)			// expandable up to 22 bits
 #endif
-#define	MAX_LIGHTSTYLES	255
+#define	MAX_LIGHTSTYLES	255					//255 = 'invalid', and thus only 0-254 are the valid indexes.
 #define MAX_STANDARDLIGHTSTYLES 64
 #define	MAX_PRECACHE_MODELS		2048			// these are sent over the net as bytes/shorts
 #define	MAX_PRECACHE_SOUNDS		1024			// so they cannot be blindly increased
@@ -707,6 +732,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //
 #define MAX_QW_STATS 32
 enum {
+#ifdef QUAKESTATS
 STAT_HEALTH			= 0,
 //STAT_FRAGS		= 1,
 STAT_WEAPONMODELI	= 2,
@@ -825,10 +851,11 @@ STAT_MOVEVARS_MAXAIRSPEED					= 252, // DP
 STAT_MOVEVARS_STEPHEIGHT					= 253, // DP
 STAT_MOVEVARS_AIRACCEL_QW					= 254, // DP
 STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
-
+#endif
 	MAX_CL_STATS = 256
 };
 
+#ifdef QUAKEHUD
 //
 // item flags
 //
@@ -869,6 +896,7 @@ STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
 #define	IT_SIGIL2				(1<<29)
 #define	IT_SIGIL3				(1<<30)
 #define	IT_SIGIL4				(1<<31)
+#endif
 
 //
 // print flags

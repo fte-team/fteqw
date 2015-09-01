@@ -537,10 +537,10 @@ struct shader_s
 		SHADER_NOPICMIP			= 1 << 2,
 		SHADER_CULL_FRONT		= 1 << 3,
 		SHADER_CULL_BACK		= 1 << 4,
-		SHADER_DEFORMV_BULGE	= 1 << 5,
-		SHADER_AUTOSPRITE		= 1 << 6,
+//		SHADER_DEFORMV_BULGE	= 1 << 5,
+//		SHADER_AUTOSPRITE		= 1 << 6,
 		SHADER_FLARE			= 1 << 7,
-		//8
+		SHADER_NEEDSARRAYS		= 1 << 8,	//shader uses deforms or rgbmod tcmods or something that will not work well with sparse vbos
 		SHADER_ENTITY_MERGABLE	= 1 << 9,
 		SHADER_VIDEOMAP			= 1 << 10,
 		SHADER_DEPTHWRITE		= 1 << 11,	//some pass already wrote depth. not used by the renderer.

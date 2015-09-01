@@ -1156,6 +1156,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		{
 			qglMatrixMode(GL_PROJECTION);
 			qglLoadMatrixf(r_refdef.m_projection);
+			qglMatrixMode(GL_MODELVIEW);
 		}
 		//portals to mask are relative to the old view still.
 		GLBE_SelectEntity(&r_worldentity);
@@ -1197,7 +1198,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	if (r_refdef.m_projection[5]<0)
 		r_refdef.flipcull ^= SHADER_CULL_FLIP;
 
-	r_framecount++;
+	Surf_SetupFrame();
 	//FIXME: just call Surf_DrawWorld instead?
 	R_RenderScene();
 //	if (qglClipPlane)
@@ -1227,6 +1228,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 		/*put GL back the way it was*/
 		qglMatrixMode(GL_PROJECTION);
 		qglLoadMatrixf(r_refdef.m_projection);
+		qglMatrixMode(GL_MODELVIEW);
 	}
 	GLBE_SelectEntity(&r_worldentity);
 

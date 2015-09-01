@@ -48,7 +48,11 @@ static int rand(void)
 
 #include "renderque.h"
 
+#ifdef NOLEGACY
+#define R_PARTSET_BUILTINS
+#else
 #include "r_partset.h"
+#endif
 
 struct
 {
@@ -3016,6 +3020,7 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 	cfg->next = loadedconfigs;
 	loadedconfigs = cfg;
 
+#ifdef PSET_CLASSIC
 	if (!strcmp(name, "classic"))
 	{
 		if (fallback)
@@ -3028,6 +3033,7 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 		}
 		return true;
 	}
+#endif
 
 	for (i = 0; partset_list[i].name; i++)
 	{

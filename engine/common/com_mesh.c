@@ -2451,7 +2451,7 @@ void Mod_GenerateMeshVBO(galiasinfo_t *galias)
 	vbobctx_t vboctx;
 
 	//don't fail on dedicated servers
-	if (!BE_VBO_Begin)
+	if (!BE_VBO_Begin || !galias->numverts)
 		return;
 
 	group = galias->ofsanimations;

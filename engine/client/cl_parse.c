@@ -4751,6 +4751,7 @@ static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 	if (cl.playerview[pnum].stats[stat] != ivalue)
 		Sbar_Changed ();
 
+#ifdef QUAKESTATS
 	if (stat == STAT_ITEMS)
 	{	// set flash times
 		for (j=0 ; j<32 ; j++)
@@ -4771,6 +4772,7 @@ static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 
 	if (stat == STAT_VIEWHEIGHT && ((cls.z_ext & Z_EXT_VIEWHEIGHT) || cls.protocol == CP_NETQUAKE))
 		cl.playerview[pnum].viewheight = fvalue;
+#endif
 
 	cl.playerview[pnum].stats[stat] = ivalue;
 	cl.playerview[pnum].statsf[stat] = fvalue;
@@ -4779,6 +4781,7 @@ static void CL_SetStat_Internal (int pnum, int stat, int ivalue, float fvalue)
 		TP_StatChanged(stat, ivalue);
 }
 
+#ifdef NQPROT
 void CL_SetStatMovevar(int pnum, int stat, float value)
 {
 	switch(stat)
@@ -4815,6 +4818,7 @@ void CL_SetStatMovevar(int pnum, int stat, float value)
 		break;
 	}
 }
+#endif
 
 //the two values are expected to be the same, they're just both provided for precision.
 static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
@@ -4823,6 +4827,7 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 		return;
 //		Host_EndGame ("CL_SetStat: %i is invalid", stat);
 
+#ifdef QUAKESTATS
 	if (stat == STAT_TIME && (cls.fteprotocolextensions & PEXT_ACCURATETIMINGS))
 	{
 		cl.oldgametime = cl.gametime;
@@ -4831,6 +4836,7 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 		cl.gametime = fvalue * 0.001;
 		cl.gametimemark = realtime;
 	}
+#endif
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
@@ -4845,9 +4851,12 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 	else
 		CL_SetStat_Internal(pnum, stat, ivalue, fvalue);
 
+#ifdef QUAKESTATS
 	if (stat == STAT_VIEWHEIGHT && ((cls.z_ext & Z_EXT_VIEWHEIGHT) || cls.protocol == CP_NETQUAKE))
 		cl.playerview[pnum].viewheight = fvalue;
+#endif
 
+#ifdef NQPROT
 	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
 	{
 		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
@@ -4855,6 +4864,7 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 		else
 			CL_SetStatMovevar(pnum, stat, *(float*)&ivalue);	//DP sucks.
 	}
+#endif
 }
 static void CL_SetStatInt (int pnum, int stat, int ivalue)
 {
@@ -5230,8 +5240,10 @@ char *CL_ParseChat(char *text, player_info_t **player, int *msgflags)
 		if (flags & (TPM_TEAM|TPM_OBSERVEDTEAM) && !TP_FilterMessage(text + offset))
 			return NULL;
 
+#ifdef QUAKEHUD
 		if (flags & (TPM_TEAM|TPM_OBSERVEDTEAM) && Sbar_UpdateTeamStatus(*player, text+offset))
 			return NULL;
+#endif
 
 
 		if ((int)msg_filter.value & flags)
@@ -6024,7 +6036,7 @@ void CLQW_ParseServerMessage (void)
 		inf->packet_entities.fixangles[0] = 2;
 		VectorCopy(demoangles, inf->packet_entities.fixedangles[0]);
 	}
-	else if (cl.intermission)
+	else if (cl.intermissionmode != IM_NONE)
 	{
 		for (destsplit = 0; destsplit < cl.splitclients; destsplit++)
 		{
@@ -6344,13 +6356,17 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_killedmonster:
 			//fixme: update all player stats
+#ifdef QUAKESTATS
 			cl.playerview[destsplit].stats[STAT_MONSTERS]++;
 			cl.playerview[destsplit].statsf[STAT_MONSTERS]++;
+#endif
 			break;
 		case svc_foundsecret:
 			//fixme: update all player stats
+#ifdef QUAKESTATS
 			cl.playerview[destsplit].stats[STAT_SECRETS]++;
 			cl.playerview[destsplit].statsf[STAT_SECRETS]++;
+#endif
 			break;
 
 		case svcqw_updatestatbyte:
@@ -6389,14 +6405,14 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_intermission:
-			if (!cl.intermission)
+			if (cl.intermissionmode == IM_NONE)
 			{
 				TP_ExecTrigger ("f_mapend", false);
 				if (cl.spectator)
 					TP_ExecTrigger ("f_specmapend", true);
+				cl.completed_time = cl.gametime;
 			}
-			cl.intermission = 1;
-			cl.completed_time = cl.gametime;
+			cl.intermissionmode = IM_QWSCORES;
 			for (i=0 ; i<3 ; i++)
 				cl.playerview[destsplit].simorg[i] = MSG_ReadCoord ();
 			for (i=0 ; i<3 ; i++)
@@ -6404,15 +6420,14 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_finale:
-			if (!cl.intermission)
+			if (cl.intermissionmode == IM_NONE)
 			{
 				for (i = 0; i < MAX_SPLITS; i++)
 					cl.playerview[i].simorg[2] += cl.playerview[i].viewheight;
 				VectorCopy (cl.playerview[destsplit].simangles, cl.playerview[destsplit].intermissionangles);
+				cl.completed_time = cl.gametime;
 			}
-
-			cl.intermission = 2;
-			cl.completed_time = cl.gametime;
+			cl.intermissionmode = IM_NQFINALE;
 			SCR_CenterPrint (destsplit, MSG_ReadString (), false);
 			break;
 
@@ -7251,21 +7266,31 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_intermission:
-			if (!cl.intermission)
+			if (cl.intermissionmode == IM_NONE)
+			{
 				TP_ExecTrigger ("f_mapend", false);
-			cl.intermission = 1;
-			cl.completed_time = cl.gametime;
+				cl.completed_time = cl.gametime;
+			}
+			cl.intermissionmode = IM_NQSCORES;
 			break;
 
 		case svc_finale:
-			cl.intermission = 2;
-			cl.completed_time = cl.gametime;
+			if (cl.intermissionmode == IM_NONE)
+			{
+				TP_ExecTrigger ("f_mapend", false);
+				cl.completed_time = cl.gametime;
+			}
+			cl.intermissionmode = IM_NQFINALE;
 			SCR_CenterPrint (0, MSG_ReadString (), false);
 			break;
 
 		case svc_cutscene:
-			cl.intermission = 3;
-			cl.completed_time = cl.gametime;
+			if (cl.intermissionmode == IM_NONE)
+			{
+				TP_ExecTrigger ("f_mapend", false);
+				cl.completed_time = cl.gametime;
+			}
+			cl.intermissionmode = IM_NQCUTSCENE;
 			SCR_CenterPrint (0, MSG_ReadString (), false);
 			break;
 

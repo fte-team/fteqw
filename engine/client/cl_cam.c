@@ -120,6 +120,7 @@ static float CL_TrackScoreProp(player_info_t *pl, char rule, float *weights)
 			}
 			return 0;
 		}
+#ifdef QUAKESTATS
 	case 'a':	//armour value
 		return pl->statsf[STAT_ARMOR];
 	case 'h':
@@ -147,6 +148,7 @@ static float CL_TrackScoreProp(player_info_t *pl, char rule, float *weights)
 		r += (pl->stats[STAT_ITEMS] & IT_QUAD)?weights[12]:0;
 		r += (pl->stats[STAT_ITEMS] & IT_INVULNERABILITY)?weights[13]:0;
 		return r;
+#endif
 	case 'f':	//frags
 		return pl->frags;
 //	case 'F':	//team frags
@@ -470,6 +472,7 @@ static int CL_FindHighTrack(int seat, char *rule)
 	{
 		i = cl.playerview[seat].cam_spec_track;
 		//extra hacks to prevent 'random' switching mid-game
+#ifdef QUAKESTATS
 		if ((cl.players[j].stats[STAT_ITEMS] ^ cl.players[i].stats[STAT_ITEMS]) & (IT_INVULNERABILITY|IT_QUAD))
 			;	//don't block if the players have different powerups
 		else if ((cl.players[j].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_LIGHTNING)) && !(cl.players[i].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_LIGHTNING)))
@@ -477,6 +480,7 @@ static int CL_FindHighTrack(int seat, char *rule)
 		else if ((cl.players[j].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_INVULNERABILITY))==(IT_ROCKET_LAUNCHER|IT_INVULNERABILITY) && (cl.players[i].stats[STAT_ITEMS] & (IT_ROCKET_LAUNCHER|IT_LIGHTNING)) != (IT_ROCKET_LAUNCHER|IT_INVULNERABILITY))
 			;	//don't block if we're switching to someone with pent+rl from someone that does not.
 		else
+#endif
 			return cl.playerview[seat].cam_spec_track;
 	}
 	return j;
@@ -569,9 +573,11 @@ void Cam_Lock(playerview_t *pv, int playernum)
 		pv->cam_state = cl_chasecam.ival?CAM_EYECAM:CAM_PENDING;	//instantly lock if the player is valid.
 		pv->viewentity = playernum+1;
 		*/
+
+#ifdef QUAKESTATS
 		if (cls.z_ext & Z_EXT_VIEWHEIGHT)
 			pv->viewheight = cl.players[playernum].statsf[STAT_VIEWHEIGHT];
-
+#endif
 	}
 
 	Sbar_Changed();

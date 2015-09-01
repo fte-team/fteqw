@@ -208,8 +208,6 @@ mpic_t          *scr_turtle;
 int                     clearconsole;
 int                     clearnotify;
 
-extern int                     sb_lines;
-
 viddef_t        vid;                            // global video state
 
 vrect_t         scr_vrect;
@@ -393,10 +391,14 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 	p = &scr_centerprint[pnum];
 	p->flags = 0;
 	p->titleimage[0] = 0;
-	if (cl.intermission)
+
+	if (*str != '/')
 	{
-		p->flags |= CPRINT_TYPEWRITER | CPRINT_PERSIST | CPRINT_TALIGN;
-		Q_strncpyz(p->titleimage, "gfx/finale.lmp", sizeof(p->titleimage));
+		if (cl.intermissionmode != IM_NONE)
+		{
+			p->flags |= CPRINT_TYPEWRITER | CPRINT_PERSIST | CPRINT_TALIGN;
+			Q_strncpyz(p->titleimage, "gfx/finale.lmp", sizeof(p->titleimage));
+		}
 	}
 
 	while (*str == '/')
@@ -428,6 +430,31 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 			p->flags ^= CPRINT_LALIGN;
 		else if (str[1] == 'R')
 			p->flags ^= CPRINT_RALIGN;
+		else if (str[1] == 'F')
+		{	//'F' is reserved for special handling via svc_finale
+			if (cl.intermissionmode == IM_NONE)
+				cl.completed_time = cl.time;
+			str+=2;
+			switch(*str++)
+			{
+			case 'R':
+				cl.intermissionmode = IM_NONE;
+				break;
+			case 'I':
+			case 'S':
+				cl.intermissionmode = IM_NQSCORES;
+				break;
+			case 'F':
+				cl.intermissionmode = IM_NQFINALE;
+				break;
+			case 0:
+				str--;
+				break;
+			default:
+				break;	//no idea. suck it up for compat.
+			}
+			continue;
+		}
 		else if (str[1] == 'I')
 		{
 			char *e = strchr(str+=2, ':');
@@ -624,7 +651,7 @@ void SCR_CheckDrawCenterString (void)
 	{
 		p = &scr_centerprint[pnum];
 
-		if (p->time_off <= 0 && !cl.intermission && !(p->flags & CPRINT_PERSIST))
+		if (p->time_off <= 0 && !(p->flags & CPRINT_PERSIST))
 			continue;	//'/P' prefix doesn't time out
 
 		p->time_off -= host_frametime;
@@ -632,8 +659,10 @@ void SCR_CheckDrawCenterString (void)
 		if (Key_Dest_Has(~kdm_game))	//don't let progs guis/centerprints interfere with the game menu
 			continue;
 
+#ifdef QUAKEHUD
 		if (sb_showscores)	//this was annoying
 			continue;
+#endif
 
 		if (cl.playerview[pnum].gamerectknown == cls.framecount)
 			SCR_DrawCenterString(&cl.playerview[pnum].gamerect, p, font_default);
@@ -1525,6 +1554,7 @@ void SCR_DrawClock(void)
 
 void SCR_DrawGameClock(void)
 {
+#ifdef QUAKESTATS
 	float showtime;
 	int minutes;
 	int seconds;
@@ -1556,6 +1586,7 @@ void SCR_DrawGameClock(void)
 	sprintf(str, " %02i:%02i", minutes, seconds);
 
 	SCR_StringXY(str, show_gameclock_x.value, show_gameclock_y.value);
+#endif
 }
 
 /*
@@ -2630,17 +2661,17 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 
 		SCR_ShowPics_Draw();
 	}
-	else if (cl.intermission == 1)
-	{
-		Sbar_IntermissionOverlay ();
-	}
-	else if (cl.intermission == 2)
+	else if (cl.intermissionmode == IM_NQFINALE)
 	{
 		Sbar_FinaleOverlay ();
 		SCR_CheckDrawCenterString ();
 	}
-	else if (cl.intermission == 3)
+	else if (cl.intermissionmode == IM_NQCUTSCENE)
 	{
+	}
+	else if (cl.intermissionmode != IM_NONE)
+	{
+		Sbar_IntermissionOverlay ();
 	}
 	else
 	{

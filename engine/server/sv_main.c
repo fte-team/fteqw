@@ -2329,7 +2329,7 @@ client_t *SVC_DirectConnect(void)
 	newcl = &temp;
 	memset (newcl, 0, sizeof(client_t));
 
-
+#ifdef NQPROT
 	if (protocol >= SCP_NETQUAKE && protocol < SCP_DARKPLACES6)
 	{	//NQ protocols lack stuff like protocol extensions.
 		//its the wild west where nothing is known about the client and everything breaks.
@@ -2356,6 +2356,7 @@ client_t *SVC_DirectConnect(void)
 			break;
 		}
 	}
+#endif
 
 	newcl->userid = nextuserid;
 	newcl->fteprotocolextensions = protextsupported;
@@ -2996,12 +2997,14 @@ client_t *SVC_DirectConnect(void)
 		PIN_ShowMessages(newcl);
 	}
 
+#ifdef NQPROT
 	if (ISNQCLIENT(newcl))
 	{
 		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
 		host_client = newcl;
 		SVNQ_New_f();
 	}
+#endif
 
 	newcl->redirect = redirect;
 
@@ -3815,6 +3818,7 @@ qboolean SV_ReadPackets (float *delay)
 
 				net_from = cl->netchan.remote_address;	//not sure if anything depends on this, but lets not screw them up willynilly
 
+#ifdef NQPROT
 				if (ISNQCLIENT(cl))
 				{
 					if (cl->state >= cs_connected)
@@ -3828,6 +3832,7 @@ qboolean SV_ReadPackets (float *delay)
 					}
 				}
 				else
+#endif
 				{
 					/*QW*/
 					if (Netchan_Process(&cl->netchan))
@@ -4966,7 +4971,10 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 	if (strncmp(newname, cl->name, sizeof(cl->namebuf)-1))
 	{
 		if ((cl->penalties & BAN_MUTE) && *cl->name && verbose)	//!verbose is a gamecode-forced update, where the gamecode is expected to know what its doing.
-			SV_ClientTPrintf (cl, PRINT_HIGH, "Muted players may not change their names\n");
+		{
+			if (!(cl->penalties & BAN_STEALTH))
+				SV_ClientTPrintf (cl, PRINT_HIGH, "Muted players may not change their names\n");
+		}
 		else
 		{
 
@@ -4999,8 +5007,6 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 #ifdef SVRANKING
 			if (ReloadRanking(cl, newname))
 			{
-#endif
-#ifdef SVRANKING
 			}
 			else if (cl->state >= cs_spawned && *rank_filename.string && verbose)
 				SV_ClientTPrintf(cl, PRINT_HIGH, "Your rankings name has not been changed\n");

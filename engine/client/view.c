@@ -161,7 +161,7 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 	if (cl.spectator)
 		return 0;
 
-	if (cl_bobcycle.value <= 0 || cl.intermission)
+	if (cl_bobcycle.value <= 0 || cl.intermissionmode != IM_NONE)
 		return 0;
 
 	if (!pv->onground || cl.paused)
@@ -654,6 +654,7 @@ V_CalcPowerupCshift
 */
 void V_CalcPowerupCshift (void)
 {
+#ifdef QUAKESTATS
 	int im = 0;
 	int s;
 
@@ -695,6 +696,7 @@ void V_CalcPowerupCshift (void)
 
 	if (cl.cshifts[CSHIFT_POWERUP].percent<0)
 		cl.cshifts[CSHIFT_POWERUP].percent=0;
+#endif
 }
 
 
@@ -1113,8 +1115,10 @@ void V_ApplyAFov(playerview_t *pv)
 		float afov = r_refdef.afov;
 		if (!afov)	//make sure its sensible.
 			afov = scr_fov.value;
+#ifdef QUAKESTATS
 		if (pv && pv->stats[STAT_VIEWZOOM])
 			afov *= pv->stats[STAT_VIEWZOOM]/255.0f;
+#endif
 		afov = min(afov, 170);
 
 		ws = 1;
@@ -1158,8 +1162,13 @@ void V_ApplyRefdef (void)
 		r_refdef.playerview->gamerect = r_refdef.grect;
 	}
 
+#ifndef QUAKEHUD
+	r_refdef.vrect = r_refdef.grect;
+#else
+
+
 // intermission is always full screen
-	if (cl.intermission || !r_refdef.drawsbar)
+	if (cl.intermissionmode != IM_NONE || !r_refdef.drawsbar)
 		size = 120;
 	else
 		size = scr_viewsize.value;
@@ -1184,7 +1193,7 @@ void V_ApplyRefdef (void)
 	else
 		size = scr_viewsize.value;
 
-	if (cl.intermission || !r_refdef.drawsbar)
+	if (cl.intermissionmode != IM_NONE || !r_refdef.drawsbar)
 	{
 		full = true;
 		size = 100.0;
@@ -1230,6 +1239,7 @@ void V_ApplyRefdef (void)
 	}
 	r_refdef.vrect.x += r_refdef.grect.x;
 	r_refdef.vrect.y += r_refdef.grect.y;
+#endif
 
 	if (r_refdef.dirty & RDFD_FOV)
 		V_ApplyAFov(r_refdef.playerview);
@@ -1283,7 +1293,7 @@ void V_ClearRefdef(playerview_t *pv)
 	r_refdef.fov_x = 0;
 	r_refdef.fov_y = 0;
 
-	r_refdef.drawsbar = !cl.intermission;
+	r_refdef.drawsbar = cl.intermissionmode == IM_NONE;
 	r_refdef.flags = 0;
 
 	r_refdef.areabitsknown = false;
@@ -1340,6 +1350,7 @@ void V_CalcRefdef (playerview_t *pv)
 	V_AddIdle (pv);
 
 	viewheight = pv->viewheight;
+#ifdef QUAKESTATS
 	if (viewheight == DEFAULT_VIEWHEIGHT)
 	{
 		if (view_message && view_message->flags & PF_GIB)
@@ -1348,18 +1359,18 @@ void V_CalcRefdef (playerview_t *pv)
 			viewheight = 16;	// corpse view height
 	}
 
-	viewheight += pv->crouch;
-
 	if (pv->stats[STAT_HEALTH] < 0 && (!cl.spectator || pv->cam_state == CAM_EYECAM) && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
 		if (!cl.spectator || cl_chasecam.ival)
 			r_refdef.viewangles[ROLL] = 80*v_deathtilt.value;	// dead view angle
 	}
 	else
+#endif
 	{
 		// v_viewheight only affects the view if the player is alive
 		viewheight += bob;
 	}
+	viewheight += pv->crouch;
 
 	VectorMA(r_refdef.vieworg, -viewheight, pv->gravitydir, r_refdef.vieworg);
 
@@ -1560,6 +1571,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		{255, 0, 0, 1}
 	};
 
+#ifdef QUAKESTATS
 	extern cvar_t tp_name_sg,tp_name_ssg,tp_name_ng,tp_name_sng,tp_name_gl,tp_name_rl,tp_name_lg;
 	static cvar_t *wbitnames[] =
 	{
@@ -1571,6 +1583,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		&tp_name_rl,
 		&tp_name_lg
 	};
+#endif
 
 	VectorCopy(org, tagcenter);
 	tagcenter[2] += 32;
@@ -1596,6 +1609,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	x = center[0]*r_refdef.vrect.width+r_refdef.vrect.x;
 	y = (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y;
 
+#ifdef QUAKESTATS
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		health = pl->statsf[STAT_HEALTH];
@@ -1605,6 +1619,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		haveinfo = true;
 	}
 	else
+#endif
 	{
 		health = pl->tinfo.health;
 		armour = pl->tinfo.armour;
@@ -1652,6 +1667,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	if (health <= 0)	//armour+weapons are not relevant when dead
 		return;
 
+#ifdef QUAKESTATS
 	if (scr_autoid_armour.ival)
 	{
 		//display armour bar above that
@@ -1704,6 +1720,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 				Draw_ExpandedString(x + barwidth*0.5 + 4, y, buffer);
 		}
 	}
+#endif
 }
 
 #include "pr_common.h"
@@ -1832,7 +1849,7 @@ void R_DrawNameTags(void)
 
 	if ((!cl.spectator && !cls.demoplayback || !scr_autoid.ival) && (!cl.teamplay || !scr_autoid_team.ival))
 		return;
-	if (cls.state != ca_active || !cl.validsequence || cl.intermission)
+	if (cls.state != ca_active || !cl.validsequence || cl.intermissionmode != IM_NONE)
 		return;
 
 	if (r_refdef.playerview->cam_state != CAM_FREECAM && r_refdef.playerview->cam_spec_track >= 0)
@@ -1910,7 +1927,7 @@ void V_RenderPlayerViews(playerview_t *pv)
 	oldstris = cl_numstris;
 	CL_LinkViewModel ();
 
-	if (cl.intermission)
+	if (cl.intermissionmode != IM_NONE)
 	{	// intermission / finale rendering
 		V_CalcIntermissionRefdef (pv);
 	}
@@ -2059,7 +2076,7 @@ void V_RenderView (void)
 	if (cls.state != ca_active)
 		return;
 
-	if (cl.intermission)
+	if (cl.intermissionmode != IM_NONE)
 		maxviews = 1;
 
 	R_PushDlights ();

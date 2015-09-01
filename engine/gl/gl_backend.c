@@ -1279,14 +1279,14 @@ static void Matrix3_Transpose (mat3_t in, mat3_t out)
 	out[2][0] = in[0][2];
 	out[2][1] = in[1][2];
 }
-static void Matrix3_Multiply_Vec3 (mat3_t a, vec3_t b, vec3_t product)
+static void Matrix3_Multiply_Vec3 (const mat3_t a, const vec3_t b, vec3_t product)
 {
 	product[0] = a[0][0]*b[0] + a[0][1]*b[1] + a[0][2]*b[2];
 	product[1] = a[1][0]*b[0] + a[1][1]*b[1] + a[1][2]*b[2];
 	product[2] = a[2][0]*b[0] + a[2][1]*b[1] + a[2][2]*b[2];
 }
 
-static int Matrix3_Compare(mat3_t in, mat3_t out)
+static int Matrix3_Compare(const mat3_t in, const mat3_t out)
 {
 	return memcmp(in, out, sizeof(mat3_t));
 }
@@ -2396,13 +2396,11 @@ static void alphagen(const shaderpass_t *pass, int cnt, avec4_t *const src, avec
 
 	case ALPHA_GEN_SPECULAR:
 		{
-			mat3_t axis;
-			AngleVectors(shaderstate.curentity->angles, axis[0], axis[1], axis[2]);
 			VectorSubtract(r_origin, shaderstate.curentity->origin, v1);
 
-			if (!Matrix3_Compare(axis, axisDefault))
+			if (!Matrix3_Compare(shaderstate.curentity->axis, axisDefault))
 			{
-				Matrix3_Multiply_Vec3(axis, v1, v2);
+				Matrix3_Multiply_Vec3(shaderstate.curentity->axis, v1, v2);
 			}
 			else
 			{
@@ -4390,6 +4388,32 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 		{
 			shaderstate.dummyvbo.normals.gl.addr = NULL;
 			shaderstate.dummyvbo.normals.gl.vbo = 0;
+		}
+
+		if (m->snormals_array)
+		{
+			memcpy(buffer+len, m->snormals_array, sizeof(*m->snormals_array) * m->numvertexes);
+			shaderstate.dummyvbo.svector.gl.addr = (void*)len;
+			shaderstate.dummyvbo.svector.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			len += sizeof(*m->snormals_array) * m->numvertexes;
+		}
+		else
+		{
+			shaderstate.dummyvbo.svector.gl.addr = NULL;
+			shaderstate.dummyvbo.svector.gl.vbo = 0;
+		}
+
+		if (m->tnormals_array)
+		{
+			memcpy(buffer+len, m->tnormals_array, sizeof(*m->tnormals_array) * m->numvertexes);
+			shaderstate.dummyvbo.tvector.gl.addr = (void*)len;
+			shaderstate.dummyvbo.tvector.gl.vbo = shaderstate.streamvbo[shaderstate.streamid];
+			len += sizeof(*m->tnormals_array) * m->numvertexes;
+		}
+		else
+		{
+			shaderstate.dummyvbo.tvector.gl.addr = NULL;
+			shaderstate.dummyvbo.tvector.gl.vbo = 0;
 		}
 
 		if (m->bonenums)

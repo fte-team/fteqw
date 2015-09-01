@@ -2537,7 +2537,7 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 	}
 }
 
-
+#ifdef NQPROT
 void SVNQ_EmitEntityState(sizebuf_t *msg, entity_state_t *ent)
 {
 	edict_t *ed = EDICT_NUM(svprogfuncs, ent->number);
@@ -2707,6 +2707,7 @@ int glowsize=0, glowcolor=0, colourmod=0;
 		if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->modelindex >> 8);
 	}
 }
+#endif
 
 typedef struct gibfilter_s {
 	struct gibfilter_s *next;
@@ -3084,6 +3085,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	if (state->effects & EF_FULLBRIGHT)	//wrap the field for fte clients (this is horrible)
 		state->hexen2flags |= MLS_FULLBRIGHT;
 
+#ifdef NQPROT
 	if (progstype != PROG_QW)
 	{
 		if (progstype == PROG_TENEBRAE)
@@ -3163,6 +3165,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			}
 		}
 	}
+#endif
 
 	if (!ent->xv->colormod[0] && !ent->xv->colormod[1] && !ent->xv->colormod[2])
 	{
@@ -3719,6 +3722,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	}
 	else
 	{
+#ifdef QUAKESTATS
 		// Z_EXT_TIME protocol extension
 		// every now and then, send an update so that extrapolation
 		// on client side doesn't stray too far off
@@ -3741,6 +3745,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				client->nextservertimeupdate = sv.world.physicstime+10;
 			}
 		}
+#endif
 
 		// send over the players in the PVS
 		if (svs.gametype != GT_HALFLIFE)

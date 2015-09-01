@@ -1089,8 +1089,10 @@ qboolean R_ApplyRenderer (rendererstate_t *newr)
 		return false;
 
 	time = Sys_DoubleTime();
-	
+
+#ifndef NOBUILTINMENUS
 	M_RemoveAllMenus(true);
+#endif
 	Media_CaptureDemoEnd();
 	R_ShutdownRenderer(true);
 	Con_DPrintf("video shutdown took %f seconds\n", Sys_DoubleTime() - time);
@@ -1355,6 +1357,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
 	{
+		cl.worldmodel = NULL;
 		CG_Stop();
 		CG_Start();
 		if (cl.worldmodel)
@@ -2000,8 +2003,11 @@ qbyte *R_MarkLeaves_Q3 (void)
 	mnode_t *node;
 	int portal = r_refdef.recurse;
 
-	if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
-		return cvis[portal];
+	if (!portal)
+	{
+		if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
+			return cvis[portal];
+	}
 
 	// development aid to let you run around and see exactly where
 	// the pvs ends
@@ -2125,7 +2131,7 @@ qbyte *R_MarkLeaves_Q2 (void)
 		if (r_viewcluster2 != r_viewcluster)
 		{
 			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL, sizeof(curframevis));
-			c = (cl.worldmodel->numleafs+31)/32;
+			c = (cl.worldmodel->numclusters+31)/32;
 			for (i=0 ; i<c ; i++)
 				((int *)curframevis[portal])[i] |= ((int *)vis)[i];
 			vis = curframevis[portal];

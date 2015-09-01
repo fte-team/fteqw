@@ -2550,7 +2550,9 @@ qboolean SV_Physics (void)
 			PR_ExecuteProgram (svprogfuncs, EndFrameQC);
 		}
 
+#ifdef NETPREPARSE
 		NPP_Flush();	//flush it just in case there was an error and we stopped preparsing. This is only really needed while debugging.
+#endif
 
 		sv.world.physicstime += host_frametime;
 	}

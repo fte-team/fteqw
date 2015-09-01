@@ -59,25 +59,8 @@ static int cdnumtracks;		//maximum cd track we can play.
 //cvar abuse
 static int music_playlist_last;
 static cvar_t music_playlist_index = CVAR("music_playlist_index", "-1");
-static cvar_t music_playlist_list[] =
-{
-	CVAR("music_playlist_list0", ""),
-	CVAR("music_playlist_list1", ""),
-	CVAR("music_playlist_list2", ""),
-	CVAR("music_playlist_list3", ""),
-	CVAR("music_playlist_list4", ""),
-	CVAR("music_playlist_list5", "")
-};
-static cvar_t music_playlist_sampleposition[] =
-{
-	CVAR("music_playlist_sampleposition0", "-1"),
-	CVAR("music_playlist_sampleposition1", "-1"),
-	CVAR("music_playlist_sampleposition2", "-1"),
-	CVAR("music_playlist_sampleposition3", "-1"),
-	CVAR("music_playlist_sampleposition4", "-1"),
-	CVAR("music_playlist_sampleposition5", "-1")
-};
-#define CVAR_ABUSE_LIMIT countof(music_playlist_list)
+//	created dynamically: CVAR("music_playlist_list0+", ""),
+//	created dynamically: CVAR("music_playlist_sampleposition0+", "-1"),
 
 
 static qboolean Media_Changed (unsigned int mediatype)
@@ -682,7 +665,7 @@ void M_Media_Remove_f (void)
 }
 
 
-#ifndef NOMEDIAMENU
+#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
 
 void Media_LoadTrackNames (char *listname);
 
@@ -1161,9 +1144,11 @@ float Media_CrossFade(int musicchanel, float vol, float time)
 	{
 		if (Media_Changed(MEDIA_CVARLIST))
 		{
-			if (music_playlist_last >= 0 && music_playlist_sampleposition[music_playlist_last].value != -1)
+			if (music_playlist_last >= 0)
 			{
-				Cvar_SetValue(&music_playlist_sampleposition[music_playlist_last], time);
+				cvar_t *sampleposition = Cvar_Get(va("music_playlist_sampleposition%i", music_playlist_last), "-1", 0, "compat");
+				if (sampleposition && sampleposition->value != -1)
+					Cvar_SetValue(sampleposition, time);
 			}
 			vol = -1;	//kill it NOW
 		}
@@ -1193,7 +1178,7 @@ char *Media_NextTrack(int musicchannelnum, float *starttime)
 	Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
 	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_PLAYLIST))
 	{
-#ifndef NOMEDIAMENU
+#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
 		if (!loadedtracknames)
 			Media_LoadTrackNames("sound/media.m3u");
 #endif
@@ -1205,15 +1190,25 @@ char *Media_NextTrack(int musicchannelnum, float *starttime)
 	}
 	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_CVARLIST))
 	{
-		if (music_playlist_index.ival >= 0 && music_playlist_index.ival < countof(music_playlist_list))
+		if (music_playlist_index.ival >= 0)
 		{
-			Q_snprintfz(media_currenttrack, sizeof(media_currenttrack), "sound/cdtracks/%s", music_playlist_list[music_playlist_index.ival].string);
-			Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
-			media_playlistcurrent = MEDIA_CVARLIST;
-			music_playlist_last = music_playlist_index.ival;
-			*starttime = music_playlist_sampleposition[music_playlist_last].value;
-			if (*starttime == -1)
-				*starttime = 0;
+			cvar_t *list = Cvar_Get(va("music_playlist_list%i", music_playlist_index.ival), "", 0, "compat");
+			if (list)
+			{
+				cvar_t *sampleposition = Cvar_Get(va("music_playlist_sampleposition%i", music_playlist_index.ival), "-1", 0, "compat");
+				Q_snprintfz(media_currenttrack, sizeof(media_currenttrack), "sound/cdtracks/%s", list->string);
+				Q_strncpyz(media_friendlyname, "", sizeof(media_friendlyname));
+				media_playlistcurrent = MEDIA_CVARLIST;
+				music_playlist_last = music_playlist_index.ival;
+				if (sampleposition)
+				{
+					*starttime = sampleposition->value;
+					if (*starttime == -1)
+						*starttime = 0;
+				}
+				else
+					*starttime = 0;
+			}
 		}
 	}
 	if (!media_playlistcurrent && (media_playlisttypes & MEDIA_GAMEMUSIC))
@@ -4343,10 +4338,10 @@ void Media_Init(void)
 	Cmd_AddCommand("music", Media_NamedTrack_f);
 
 	Cvar_Register(&music_playlist_index, "compat");
-	for (i = 0; i < countof(music_playlist_list); i++)
+	for (i = 0; i < 6; i++)
 	{
-		Cvar_Register(&music_playlist_list[i], "compat");
-		Cvar_Register(&music_playlist_sampleposition[i], "compat");
+		Cvar_Get(va("music_playlist_list%i", i), "", 0, "compat");
+		Cvar_Get(va("music_playlist_sampleposition%i", i), "-1", 0, "compat");
 	}
 	music_playlist_last = -1;
 
@@ -4386,7 +4381,9 @@ void Media_Init(void)
 	Cvar_Register(&media_repeat,	"Media player things");
 	Cmd_AddCommand ("media_add", M_Media_Add_f);
 	Cmd_AddCommand ("media_remove", M_Media_Remove_f);
+#if !defined(NOMEDIAMENU) && !defined(NOBUILTINMENUS)
 	Cmd_AddCommand ("menu_media", M_Menu_Media_f);
+#endif
 }
 
 

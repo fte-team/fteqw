@@ -90,7 +90,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define Z_EXT_VWEP			(1<<7)
 //#define Z_EXT_PF_SOLID		(1<<8)	//conflicts with many FTE extensions.
 
+#ifdef QUAKESTATS
 #define SUPPORTED_Z_EXTENSIONS (Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW|Z_EXT_VIEWHEIGHT|Z_EXT_SERVERTIME|Z_EXT_PITCHLIMITS|Z_EXT_JOIN_OBSERVE|Z_EXT_VWEP)
+#else
+#define SUPPORTED_Z_EXTENSIONS (Z_EXT_PM_TYPE|Z_EXT_PM_TYPE_NEW|Z_EXT_PITCHLIMITS|Z_EXT_JOIN_OBSERVE|Z_EXT_VWEP)
+#endif
 
 
 #define PROTOCOL_VERSION_FTE			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions.
@@ -825,8 +829,11 @@ enum clcq2_ops_e
 #define FITZ_B_ALPHA		(1<<2)
 #define RMQFITZ_B_SCALE		(1<<3)
 
-
+#ifdef QUAKESTATS
 #define	DEFAULT_VIEWHEIGHT	22
+#else
+#define DEFAULT_VIEWHEIGHT 0	//so csqc can position the camera without any worries.
+#endif
 
 
 // svc_print messages have an id, so messages can be filtered

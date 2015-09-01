@@ -109,7 +109,9 @@ unsigned int Net_PextMask(int maskset, qboolean fornq)
 		mask |= PEXT_VIEW2;
 	#endif
 	#ifdef PEXT_ACCURATETIMINGS
-		mask |= PEXT_ACCURATETIMINGS;
+		#ifdef QUAKESTATS	//needs stat_time
+			mask |= PEXT_ACCURATETIMINGS;
+		#endif
 	#endif
 	#ifdef PEXT_ZLIBDL
 		mask |= PEXT_ZLIBDL;

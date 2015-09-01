@@ -438,6 +438,7 @@ void SV_New_f (void)
 	host_client->prespawn_idx = 0;
 }
 
+#ifdef NQPROT
 void SVNQ_New_f (void)
 {
 	extern cvar_t coop;
@@ -499,7 +500,6 @@ void SVNQ_New_f (void)
 	op = host_client->protocol;
 	switch(host_client->protocol)
 	{
-#ifdef NQPROT
 	case SCP_NETQUAKE:
 	case SCP_PROQUAKE:
 	case SCP_FITZ666:
@@ -545,7 +545,6 @@ void SVNQ_New_f (void)
 		maxplayers = 255;
 		protoname = "DPP7";
 		break;
-#endif
 	default:
 		host_client->drop = true;
 		protoname = "?""?""?";
@@ -635,7 +634,7 @@ void SVNQ_New_f (void)
 
 	host_client->netchan.nqunreliableonly = 2;
 }
-
+#endif
 
 
 
@@ -1546,7 +1545,9 @@ void SVQW_Spawn_f (void)
 	client_t	*client, *split;
 	edict_t	*ent;
 
+#ifdef QUAKESTATS
 	int secret_total, secret_found, monsters_total, monsters_found;
+#endif
 
 	if (host_client->state != cs_connected)
 	{
@@ -1664,11 +1665,15 @@ void SVQW_Spawn_f (void)
 			memset (split->statss, 0, sizeof(split->statss));
 		}
 
+#ifdef QUAKESTATS
 		secret_total = pr_global_struct->total_secrets;
 		secret_found = pr_global_struct->found_secrets;
 		monsters_total = pr_global_struct->total_monsters;
 		monsters_found = pr_global_struct->killed_monsters;
+#endif
 	}
+
+#ifdef QUAKESTATS
 	ClientReliableWrite_Begin (host_client, svcqw_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_TOTALSECRETS);
 	ClientReliableWrite_Long (host_client, secret_total);
@@ -1684,6 +1689,8 @@ void SVQW_Spawn_f (void)
 	ClientReliableWrite_Begin (host_client, svcqw_updatestatlong, 6);
 	ClientReliableWrite_Byte (host_client, STAT_MONSTERS);
 	ClientReliableWrite_Long (host_client, monsters_found);
+#endif
+
 	// get the client to check and download skins
 	// when that is completed, a begin command will be issued
 	ClientReliableWrite_Begin (host_client, svc_stufftext, 8);
@@ -3197,7 +3204,7 @@ void SV_SayOne_f (void)
 	if (Cmd_Argc () < 3)
 		return;
 
-	if ((host_client->penalties & BAN_MUTE) && !(host_client->penalties & BAN_DEAF))
+	if ((host_client->penalties & BAN_MUTE) && !(host_client->penalties & (BAN_DEAF|BAN_STEALTH)))
 	{
 		SV_ClientTPrintf(host_client, PRINT_CHAT, "You are muted\n");
 		return;
@@ -3205,7 +3212,7 @@ void SV_SayOne_f (void)
 
 	while((to = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		if ((host_client->penalties & BAN_MUTE))
+		if ((host_client->penalties & BAN_MUTE) && to != host_client)
 			continue;
 		if (host_client->spectator)
 		{
@@ -3348,7 +3355,7 @@ void SV_Say (qboolean team)
 	else
 		Q_snprintfz (text, sizeof(text), "%s: ", host_client->name);
 
-	if ((host_client->penalties & BAN_MUTE) && !(host_client->penalties & BAN_DEAF))
+	if ((host_client->penalties & BAN_MUTE) && !(host_client->penalties & (BAN_DEAF|BAN_STEALTH)))
 	{
 		SV_ClientTPrintf(host_client, PRINT_CHAT, "You cannot chat while muted\n");
 		return;
@@ -3444,7 +3451,10 @@ void SV_Say (qboolean team)
 				continue;
 		}
 		else if (client->penalties & BAN_DEAF)
-			continue;
+		{
+			if (client != host_client || !(host_client->penalties & BAN_STEALTH))
+				continue;
+		}
 
 		cls |= 1 << j;
 
@@ -4273,6 +4283,7 @@ void Cmd_Give_f (void)
 	v = atoi (Cmd_Argv(2));
 
 	SV_LogPlayer(host_client, "give cheat");
+#ifdef QUAKESTATS
 	if (strlen(t) == 1 && (Cmd_Argc() == 3 || (*t>='0' && *t <= '9')))
 	{
 		switch (t[0])
@@ -4307,7 +4318,9 @@ void Cmd_Give_f (void)
 			SV_TPrintToClient(host_client, PRINT_HIGH, "give: unknown item\n");
 		}
 	}
-	else if (svprogfuncs->EvaluateDebugString)
+	else
+#endif
+		if (svprogfuncs->EvaluateDebugString)
 	{
 		if (developer.value < 2 && host_client->netchan.remote_address.type != NA_LOOPBACK)	//we don't want clients doing nasty things... like setting movetype 3123
 		{

@@ -2826,6 +2826,8 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 			if (!mods->shadertext)
 			{
 				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup));
+				if (!body)
+					break;
 				mods->shadertext = Z_StrDup(body);
 			}
 			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+16, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);

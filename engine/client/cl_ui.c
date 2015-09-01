@@ -614,7 +614,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	}
 
 	r_refdef.areabitsknown = true;
-	for (i = 0; i < sizeof(cl.q2frame.areabits)/sizeof(int); i++)
+	for (i = 0; i < MAX_MAP_AREA_BYTES/sizeof(int); i++)
 		((int*)r_refdef.areabits)[i] = ((int*)ref->areamask)[i] ^ ~0;
 	R_RenderView();
 	r_refdef.playerview = NULL;

@@ -2134,7 +2134,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 			sv_edicts=(struct edict_s *)&tempedict;
-			prinst.edicttable = &sv_edicts;
+			progfuncs->funcs.edicttable = prinst.edicttable = &sv_edicts;
 
 
 			sv_num_edicts = numents;	//should be fine

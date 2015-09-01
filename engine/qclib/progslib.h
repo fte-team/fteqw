@@ -157,13 +157,13 @@ struct pubprogfuncs_s
 
 	string_t (PDECL *TempString)				(pubprogfuncs_t *prinst, const char *str);
 
-	string_t (PDECL *StringToProgs)				(pubprogfuncs_t *prinst, const char *str);
+	string_t (PDECL *StringToProgs)				(pubprogfuncs_t *prinst, const char *str);	//commonly makes a semi-permanent mapping from some table to the string value. mapping can be removed via RemoveProgsString
 	const char *(ASMCALL *StringToNative)			(pubprogfuncs_t *prinst, string_t str);
 
 	int (PDECL *QueryField)						(pubprogfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
 
 	void (PDECL *EntClear)						(pubprogfuncs_t *progfuncs, struct edict_s *e);
-	void (PDECL *FindPrefixGlobals)				(pubprogfuncs_t *progfuncs, int prnum, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type, void *ctx), void *ctx);
+	void (PDECL *FindPrefixGlobals)				(pubprogfuncs_t *progfuncs, int prnum, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type, void *ctx), void *ctx);	//calls the callback for each named global found
 
 	void *(PDECL *AddressableAlloc)				(pubprogfuncs_t *progfuncs, unsigned int ammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
 
@@ -174,13 +174,15 @@ struct pubprogfuncs_s
 	void (PDECL *AddSharedVar)					(pubprogfuncs_t *progfuncs, int start, int size);
 	void (PDECL *AddSharedFieldVar)				(pubprogfuncs_t *progfuncs, int num, char *relstringtable);
 	char *(PDECL *RemoveProgsString)			(pubprogfuncs_t *progfuncs, string_t str);
-	int (PDECL *GetFuncArgCount)				(pubprogfuncs_t *progfuncs, func_t func);
-	void (PDECL *GenerateStatementString)		(pubprogfuncs_t *progfuncs, int statementnum, char *out, int outlen);
+	int (PDECL *GetFuncArgCount)				(pubprogfuncs_t *progfuncs, func_t func);	//ask how many args a function is meant to have
+	void (PDECL *GenerateStatementString)		(pubprogfuncs_t *progfuncs, int statementnum, char *out, int outlen);	//disassembles a specific statement. for debugging reports.
 	fdef_t *(PDECL *FieldInfo)					(pubprogfuncs_t *progfuncs, unsigned int *count);
 	char *(PDECL *UglyValueString)				(pubprogfuncs_t *progfuncs, etype_t type, union eval_s *val);
 	pbool (PDECL *ParseEval)					(pubprogfuncs_t *progfuncs, union eval_s *eval, int type, const char *s);
 	void (PDECL *SetStringField)				(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static);	//if ed is null, fld points to a global. if str_is_static, then s doesn't need its own memory allocated.
 	pbool (PDECL *DumpProfile)					(pubprogfuncs_t *progfuncs, pbool resetprofiles);
+
+	struct edict_s **edicttable;
 };
 
 typedef struct progexterns_s {
@@ -266,7 +268,11 @@ typedef union eval_s
 #define PR_LoadEnts(pf, s, kf)								(*pf->load_ents)			(pf, s, kf)
 #define PR_SaveEnts(pf, buf, size, maxsize, mode)			(*pf->save_ents)			(pf, buf, size, maxsize, mode)
 
+#if 0//def _DEBUG
 #define EDICT_NUM(pf, num)									(*pf->EDICT_NUM)			(pf, num)
+#else
+#define EDICT_NUM(pf, num)									(pf->edicttable[num])
+#endif
 #define NUM_FOR_EDICT(pf, e)								(*pf->NUM_FOR_EDICT)		(pf, (struct edict_s*)(e))
 #define SetGlobalEdict(pf, ed, ofs)							(*pf->SetGlobalEdict)		(pf, ed, ofs)
 #define PR_VarString(pf,first)								(*pf->VarString)			(pf,first)

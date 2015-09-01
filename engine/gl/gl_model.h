@@ -223,7 +223,7 @@ typedef struct {
 	void (*StainNode)			(struct mnode_s *node, float *parms);
 	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
 
-	int	(*ClusterForPoint)		(struct model_s *model, vec3_t point);	//pvs index. may be negative (ie: no pvs).
+	int	(*ClusterForPoint)		(struct model_s *model, vec3_t point);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
 	qbyte *(*ClusterPVS)		(struct model_s *model, int cluster, qbyte *buffer, unsigned int buffersize);
 } modelfuncs_t;
 
@@ -1041,7 +1041,7 @@ int		CM_ClusterSize (struct model_s *mod);
 int		CM_LeafContents (struct model_s *mod, int leafnum);
 int		CM_LeafCluster (struct model_s *mod, int leafnum);
 int		CM_LeafArea (struct model_s *mod, int leafnum);
-int		CM_WriteAreaBits (struct model_s *mod, qbyte *buffer, int area);
+int		CM_WriteAreaBits (struct model_s *mod, qbyte *buffer, int area, qboolean merge);
 int		CM_PointLeafnum (struct model_s *mod, vec3_t p);
 qbyte	*CM_ClusterPVS (struct model_s *mod, int cluster, qbyte *buffer, unsigned int buffersize);
 qbyte	*CM_ClusterPHS (struct model_s *mod, int cluster);

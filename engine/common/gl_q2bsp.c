@@ -6046,7 +6046,15 @@ qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer, unsigned int buf
 	if (buffersize < (mod->numclusters+7)>>3)
 		Sys_Error("CM_ClusterPVS with too small a buffer\n");
 
-	if (mod->fromgame != fg_quake2)
+	if (mod->fromgame == fg_quake2)
+	{
+		if (cluster == -1)
+			memset (buffer, 0, (mod->numclusters+7)>>3);
+		else
+			CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PVS], buffer);
+		return buffer;
+	}
+	else
 	{
 		if (cluster != -1 && prv->q3pvs->numclusters)
 		{
@@ -6058,12 +6066,6 @@ qbyte	*CM_ClusterPVS (model_t *mod, int cluster, qbyte *buffer, unsigned int buf
 			return buffer;
 		}
 	}
-
-	if (cluster == -1)
-		memset (buffer, 0, (mod->numclusters+7)>>3);
-	else
-		CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PVS], buffer);
-	return buffer;
 }
 
 qbyte	*CM_ClusterPHS (model_t *mod, int cluster)
@@ -6231,7 +6233,7 @@ that area in the same flood as the area parameter
 This is used by the client refreshes to cull visibility
 =================
 */
-int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area)
+int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area, qboolean merge)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int		i;
@@ -6242,11 +6244,13 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area)
 
 	if (map_noareas.value)
 	{	// for debugging, send everything
-		memset (buffer, 255, bytes);
+		if (!merge)
+			memset (buffer, 255, bytes);
 	}
 	else
 	{
-		memset (buffer, 0, bytes);
+		if (!merge)
+			memset (buffer, 0, bytes);
 
 		floodnum = prv->q2areas[area].floodnum;
 		for (i=0 ; i<prv->numareas ; i++)

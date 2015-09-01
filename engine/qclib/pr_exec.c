@@ -1466,6 +1466,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	unsigned short op;
 
 	eval_t	*switchref = (eval_t*)glob;
+	unsigned int num_edicts = sv_num_edicts;
 
 #define OPA ((eval_t *)&glob[st->a])
 #define OPB ((eval_t *)&glob[st->b])
@@ -1527,6 +1528,7 @@ static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	float tmpf;
 	int tmpi;
 	eval_t	*switchref = (eval_t*)glob;
+	unsigned int num_edicts = sv_num_edicts;
 
 	unsigned int op;
 

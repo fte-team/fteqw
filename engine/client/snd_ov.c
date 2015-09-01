@@ -429,7 +429,7 @@ static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdec
 	buffer->pos = 0;
 	if (p_ov_open_callbacks(buffer, &buffer->vf, NULL, 0, callbacks))
 	{
-		Con_Printf("Input does not appear to be an Ogg bitstream.\n");
+		Con_Printf("Input does not appear to be an Ogg Vorbis bitstream.\n");
 		return false;
 	}
 

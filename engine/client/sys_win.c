@@ -482,9 +482,6 @@ char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
 }
 #endif
 
-#define MINIMUM_WIN_MEMORY	MINIMUM_MEMORY
-#define MAXIMUM_WIN_MEMORY	0x8000000
-
 int		starttime;
 qboolean ActiveApp, Minimized;
 qboolean	WinNT;	//NT has a) proper unicode support that does not unconditionally result in errors. b) a few different registry paths.
@@ -3946,6 +3943,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		parms.binarydir = bindir;
 		COM_InitArgv (parms.argc, parms.argv);
 
+#ifdef PLUGINS
 		c = COM_CheckParm("--plugwrapper");
 		if (c)
 		{
@@ -3958,6 +3956,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				return thefunc();
 			return 0;
 		}
+#endif
 
 		c = COM_CheckParm("-qcdebug");
 		if (c)

@@ -772,13 +772,13 @@ qboolean SW_VID_ApplyGammaRamps		(unsigned short *ramps)
 {
 	return false;
 }
-char *SW_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidheight)
+char *SW_VID_GetRGBInfo(int *truevidwidth, int *truevidheight, enum uploadfmt *fmt)
 {
 	char *buf = NULL;
 	char *src, *dst;
 	int w, h;
-	buf = BZ_Malloc(prepad + (vid.pixelwidth * vid.pixelheight * 3));
-	dst = buf + prepad;
+	buf = BZ_Malloc((vid.pixelwidth * vid.pixelheight * 3));
+	dst = buf;
 	for (h = 0; h < vid.pixelheight; h++)
 	{
 		for (w = 0, src = (char*)screenbuffer + (h * vid.pixelwidth*4); w < vid.pixelwidth; w++, dst += 3, src += 4)
@@ -790,6 +790,7 @@ char *SW_VID_GetRGBInfo(int prepad, int *truevidwidth, int *truevidheight)
 	}
 	*truevidwidth = vid.pixelwidth;
 	*truevidheight = vid.pixelheight;
+	*fmt = TF_BGR24;
 	return buf;
 }
 void SW_VID_SetWindowCaption(char *msg)

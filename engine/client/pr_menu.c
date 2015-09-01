@@ -1318,32 +1318,6 @@ void QCBUILTIN PF_cl_getkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		G_FLOAT(OFS_RETURN) = 0;
 }
 
-//void	setmousetarget(float trg) = #603;
-void QCBUILTIN PF_cl_setmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	world_t *world = prinst->parms->user;
-	unsigned int target = world->keydestmask;
-	switch ((int)G_FLOAT(OFS_PARM0))
-	{
-	case 1:	//1 is delta-based (mt_menu).
-		key_dest_absolutemouse &= ~target;
-		break;
-	case 2:	//2 is absolute (mt_client).
-		key_dest_absolutemouse |= target;
-		break;
-	default:
-		PR_BIError(prinst, "PF_setmousetarget: not a valid destination\n");
-	}
-}
-
-//float	getmousetarget(void)	  = #604;
-void QCBUILTIN PF_cl_getmousetarget (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	world_t *world = prinst->parms->user;
-	unsigned int target = world->keydestmask;
-	G_FLOAT(OFS_RETURN) = (key_dest_absolutemouse&target)?2:1;
-}
-
 static void QCBUILTIN PF_Remove_ (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	menuedict_t *ed;

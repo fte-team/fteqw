@@ -3940,6 +3940,7 @@ void CL_LinkProjectiles (void)
 		ent->playerindex = -1;
 		ent->topcolour = TOP_DEFAULT;
 		ent->bottomcolour = BOTTOM_DEFAULT;
+		ent->framestate.g[FS_REG].lerpweight[0] = 1;
 
 #ifdef PEXT_SCALE
 		ent->scale = 1;
@@ -4037,11 +4038,13 @@ void CL_ParsePlayerinfo (void)
 		memcpy(state, prevstate, sizeof(player_state_t));
 		info->prevcount = cl.parsecount;
 
+#ifdef QUAKESTATS
 		if (cls.findtrack && info->stats[STAT_HEALTH] > 0)
 		{	//FIXME: is this still needed with the autotrack stuff?
 			Cam_Lock(&cl.playerview[0], num);
 			cls.findtrack = false;
 		}
+#endif
 
 		flags = MSG_ReadShort ();
 		state->flags = MVD_TranslateFlags(flags);
@@ -4104,6 +4107,7 @@ void CL_ParsePlayerinfo (void)
 		TP_ParsePlayerInfo(oldstate, state, info);
 
 
+#ifdef QUAKESTATS
 		//can't CL_SetStatInt as we don't know if its actually us or not
 		cl.players[num].stats[STAT_WEAPONFRAME] = state->weaponframe;
 		cl.players[num].statsf[STAT_WEAPONFRAME] = state->weaponframe;
@@ -4116,6 +4120,7 @@ void CL_ParsePlayerinfo (void)
 				pv->statsf[STAT_WEAPONFRAME] = state->weaponframe;
 			}
 		}
+#endif
 
 		//add a new splitscreen autotrack view if we can
 		if (cl.splitclients < MAX_SPLITS && !cl.players[num].spectator)
@@ -4342,6 +4347,7 @@ guess_pm_type:
 
 	TP_ParsePlayerInfo(oldstate, state, info);
 
+#ifdef QUAKESTATS
 	//can't CL_SetStatInt as we don't know if its actually us or not
 	for (i = 0; i < cl.splitclients; i++)
 	{
@@ -4352,6 +4358,7 @@ guess_pm_type:
 			pv->statsf[STAT_WEAPONFRAME] = state->weaponframe;
 		}
 	}
+#endif
 
 	if (cl.worldmodel && cl.do_lerp_players && cl_predict_players.ival)
 	{
@@ -4786,6 +4793,7 @@ void CL_LinkPlayers (void)
 
 void CL_LinkViewModel(void)
 {
+#ifdef QUAKESTATS
 	entity_t	ent;
 
 	unsigned int plnum;
@@ -4813,7 +4821,7 @@ void CL_LinkViewModel(void)
 	if (r_refdef.playerview->stats[STAT_HEALTH] <= 0)
 		return;
 
-	if (cl.intermission)
+	if (cl.intermissionmode != IM_NONE)
 		return;
 
 	if (pv->stats[STAT_WEAPONMODELI] <= 0 || pv->stats[STAT_WEAPONMODELI] >= MAX_PRECACHE_MODELS)
@@ -4936,6 +4944,7 @@ void CL_LinkViewModel(void)
 		ent.shaderRGBAf[3] = alpha;
 		ent.flags |= RF_TRANSLUCENT;
 	}
+#endif
 }
 
 //======================================================================

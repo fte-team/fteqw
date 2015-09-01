@@ -824,8 +824,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 		for (i = 0; i < svs.allocated_client_slots; i++)
 		{
+#ifdef SVRANKING
 			if (svs.clients[i].state && ISQWCLIENT(&svs.clients[i]))
 				ReloadRanking(&svs.clients[i], svs.clients[i].name);
+#endif
 
 			if (svs.clients[i].spawninfo)	//don't remember this stuff.
 				Z_Free(svs.clients[i].spawninfo);

@@ -1916,6 +1916,34 @@ char *particle_set_high =
 "}\n"
 "r_trail \"progs/lspike.mdl\" tr_lavaspike\n"
 
+/////////////////////////////////////////
+//rogue plasma gun
+"r_part tr_plasma\n"
+"{\n"
+"type texturedspark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"scale 15\n"
+"step 4\n"
+"alpha 0.3\n"
+"die 0.25\n"
+"rgb 128 128 255\n"
+"veladd -32\n"
+"spawnmode spiral\n"
+"spawnvel 16\n"
+"randomvel 32\n"
+"friction 0\n"
+"scalefactor 1\n"
+"blend add\n"
+"lighttime 0.2\n"
+"lightshadows 0\n"
+"lightradius 150\n"
+"lightrgb    1 1 2\n"
+"lightrgbfade    5 1 0.5\n"
+"lightcorona 2 0.5\n"
+"}\n"
+"r_trail \"progs/plasma.mdl\" tr_plasma\n"
+
 
 /////////////////////////////////////////
 //scrag missiles.

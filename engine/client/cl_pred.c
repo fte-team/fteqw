@@ -918,13 +918,13 @@ void CL_PredictMovePNum (int seat)
 		return;
 	}
 
-	if (0)//cl.intermission==1 && cls.protocol == CP_QUAKEWORLD)
+	if (cl.intermissionmode == IM_QWSCORES)
 	{
 		//quakeworld locks view position once you hit intermission.
 		VectorCopy (pv->intermissionangles, pv->simangles);
 		return;
 	}
-	else if (cl.intermission)
+	else if (cl.intermissionmode != IM_NONE)
 		lerpangles = false;	//will do angles later.
 	else
 	{
@@ -976,7 +976,7 @@ void CL_PredictMovePNum (int seat)
 
 	//these things also force-disable prediction
 	if ((cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) ||
-		cl.intermission || cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE || CAM_ISLOCKED(pv))
+		cl.intermissionmode != IM_NONE || cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE || CAM_ISLOCKED(pv))
 	{
 		nopred = true;
 	}
@@ -1099,12 +1099,14 @@ void CL_PredictMovePNum (int seat)
 					totime -= (pe->entities[i].u.q1.msec / 1000.0f);	//correct the time to match stale players. FIXME: this can push the simtime into the 'future' resulting in stuttering
 				if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 				{
+#ifdef QUAKESTATS
 					//putting weapon frames in there was probably a stupid idea.
 					if (!(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
 					{
 						pv->stats[STAT_WEAPONFRAME] = cl.players[pv->playernum].stats[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
 						pv->statsf[STAT_WEAPONFRAME] = cl.players[pv->playernum].statsf[STAT_WEAPONFRAME] = pe->entities[i].u.q1.weaponframe;
 					}
+#endif
 					pv->pmovetype = tostate->pm_type;
 				}
 				break;
@@ -1270,7 +1272,7 @@ void CL_PredictMovePNum (int seat)
 	else
 		VectorCopy(pmove.gravitydir, pv->gravitydir);
 
-	if (cl.intermission && le)
+	if (cl.intermissionmode != IM_NONE && le)
 	{
 		VectorCopy(le->angles, pv->simangles);
 		VectorCopy(pv->simangles, pv->viewangles);
@@ -1279,7 +1281,9 @@ void CL_PredictMovePNum (int seat)
 	{
 		//keep the entity tracking the prediction position, so mirrors don't go all weird
 		VectorMA(pv->simorg, -pv->crouch, pv->gravitydir, le->origin);
+#ifdef QUAKESTATS
 		if (pv->stats[STAT_HEALTH] > 0)
+#endif
 		{
 			VectorScale(pv->simangles, 1, le->angles);
 			if (pv->pmovetype == PM_6DOF)

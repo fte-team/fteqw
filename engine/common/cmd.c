@@ -3337,6 +3337,7 @@ void Cmd_Init (void)
 	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");
 	Cvar_Register (&cl_warncmd, "Warnings");
 	Cvar_Register (&cfg_save_all, "client operation options");
+	Cvar_Register (&cfg_save_auto, "client operation options");
 
 #ifndef SERVERONLY
 	rcon_level.ival = atof(rcon_level.enginevalue);	//client is restricted to not be allowed to change restrictions.

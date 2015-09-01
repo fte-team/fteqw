@@ -648,7 +648,7 @@ void SVQ2_BuildClientFrame (client_t *client)
 	clientcluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
 
 	// calculate the visible areas
-	frame->areabytes = CM_WriteAreaBits (sv.world.worldmodel, frame->areabits, clientarea);
+	frame->areabytes = CM_WriteAreaBits (sv.world.worldmodel, frame->areabits, clientarea, false);
 
 	// grab the current player_state_t
 	frame->ps = clent->client->ps;

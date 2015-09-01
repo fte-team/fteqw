@@ -2372,7 +2372,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 			portalarea = CM_PointLeafnum(sv.world.worldmodel, ent->s.origin2);
 			//merge pvs bits so we can see other ents through it
 			merge = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, portalarea), NULL, 0);
-			c = (cl.worldmodel->numclusters+31)/32;
+			c = (sv.world.worldmodel->numclusters+31)/32;
 			while (c-->0)
 				((int *)bitvector)[c] |= ((int *)merge)[c];
 			//and merge areas, so we can see the world too (client will calc its own pvs)

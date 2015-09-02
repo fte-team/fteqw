@@ -151,6 +151,8 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 
 	int outspeed = snd_speed;
 
+	int errorcode = 1;
+
 //	Con_Printf("Minlength = %03i   ", minlength);
 
 	start *= 2*dec->srcchannels;
@@ -158,6 +160,9 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 
 	if (start < dec->decodedbytestart)
 	{
+		Con_Printf("Rewound to %i\n", start);
+		dec->failed = false;
+
 		/*something rewound, purge clear the buffer*/
 		dec->decodedbytecount = 0;
 		dec->decodedbytestart = start;
@@ -184,14 +189,17 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 		{
 			dec->decodedbytecount = 0;
 			dec->decodedbytestart = start;
+			Con_Printf("trim < 0\n");
 		}
 		else if (trim > dec->decodedbytecount)
 		{
 			dec->decodedbytecount = 0;
 			dec->decodedbytestart = start;
+			Con_Printf("trim > count\n");
 		}
 		else
 		{
+			Con_Printf("trim retain\n");
 			//FIXME: retain an extra half-second for dual+ sound devices running slightly out of sync
 			memmove(dec->decodedbuffer, dec->decodedbuffer + trim, dec->decodedbytecount - trim);
 			dec->decodedbytecount -= trim;
@@ -201,7 +209,7 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 
 	for (;;)
 	{
-		if (start+length <= dec->decodedbytestart + dec->decodedbytecount)
+		if (dec->failed || start+length <= dec->decodedbytestart + dec->decodedbytecount)
 			break;
 
 		if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 128)	//expand if needed.
@@ -218,8 +226,9 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 			{
 				if (bytesread != 0)	//0==eof
 				{
+					dec->failed = true;
 					Con_Printf("ogg decoding failed\n");
-					return NULL;
+					break;
 				}
 				break;
 			}
@@ -242,10 +251,11 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 			{
 				if (bytesread != 0)	//0==eof
 				{
+					dec->failed = true;
 					Con_Printf("ogg decoding failed\n");
 					return NULL;
 				}
-				return NULL;
+				break;
 			}
 
 			SND_ResampleStream(dec->tempbuffer,
@@ -429,7 +439,7 @@ static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdec
 	buffer->pos = 0;
 	if (p_ov_open_callbacks(buffer, &buffer->vf, NULL, 0, callbacks))
 	{
-		Con_Printf("Input does not appear to be an Ogg Vorbis bitstream.\n");
+		Con_Printf("Input %s does not appear to be an Ogg Vorbis bitstream.\n", buffer->s->name);
 		return false;
 	}
 
@@ -442,6 +452,7 @@ static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdec
 	if (vi->channels < 1 || vi->channels > 2)
 	{
 		p_ov_clear (&buffer->vf);
+		Con_Printf("Input %s has %i channels.\n", buffer->s->name, vi->channels);
 		return false;
 	}
 

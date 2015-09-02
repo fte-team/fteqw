@@ -1350,8 +1350,7 @@ void V_CalcRefdef (playerview_t *pv)
 	V_AddIdle (pv);
 
 	viewheight = pv->viewheight;
-#ifdef QUAKESTATS
-	if (viewheight == DEFAULT_VIEWHEIGHT)
+	if (viewheight == DEFAULT_VIEWHEIGHT && cls.protocol == CP_QUAKEWORLD && !(cls.z_ext & Z_EXT_VIEWHEIGHT))
 	{
 		if (view_message && view_message->flags & PF_GIB)
 			viewheight = 8;	// gib view height
@@ -1359,6 +1358,7 @@ void V_CalcRefdef (playerview_t *pv)
 			viewheight = 16;	// corpse view height
 	}
 
+#ifdef QUAKESTATS
 	if (pv->stats[STAT_HEALTH] < 0 && (!cl.spectator || pv->cam_state == CAM_EYECAM) && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
 		if (!cl.spectator || cl_chasecam.ival)

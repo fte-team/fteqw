@@ -6144,11 +6144,18 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 	case MOVETYPE_NONE:
 		return PM_NONE;
 
+#ifdef NOLEGACY
+	case MOVETYPE_TOSS:
+	case MOVETYPE_BOUNCE:
+		return PM_DEAD;
+#endif
+
 	case MOVETYPE_WALK:
 	default:
+#ifndef NOLEGACY
 		if (ent->v->health <= 0)
 			return PM_DEAD;
-
+#endif
 		return PM_NORMAL;
 	}
 }

@@ -3172,7 +3172,7 @@ void QCC_PR_Lex (void)
 
 // if the first character is a valid identifier, parse until a non-id
 // character is reached
-	if ((c == '%') && pr_file_p[1] >= '0' && pr_file_p[1] <= '9')	//let's see which one we make into an operator first... possibly both...
+	if ((c == '%') && pr_file_p[1] >= '0' && pr_file_p[1] <= '9')
 	{
 		QCC_PR_ParseWarning(0, "%% prefixes to denote integers are deprecated. Please use a postfix of 'i'");
 		pr_file_p++;

@@ -673,6 +673,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 {
 	static float svphysicsmode = 2;
 	static float writeonly;
+	static int writeonly_int;
 	static float dimension_send_default;
 	static float dimension_default = 255;
 	static float zero_default;
@@ -720,6 +721,9 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalfloat		(false, trace_inwater);
 	globalfloat		(false, trace_endcontents);
 	globalfloat		(false, trace_surfaceflags);
+	globalstring	(false, trace_surfacename);
+	globalint		(false, trace_brush_id);
+	globalint		(false, trace_brush_faceid);
 	globalfloat		(false, cycle_wrapped);
 	globalint		(false, msg_entity);
 	globalfunc		(false, main);
@@ -760,6 +764,8 @@ void PR_LoadGlabalStruct(qboolean muted)
 	ensureglobal(dimension_default, dimension_default);
 	ensureglobal(trace_endcontents, writeonly);
 	ensureglobal(trace_surfaceflags, writeonly);
+	ensureglobal(trace_brush_id, writeonly_int);
+	ensureglobal(trace_brush_faceid, writeonly_int);
 
 	ensureglobal(input_timelength, input_timelength_default);
 	ensureglobal(input_impulse, input_impulse_default);
@@ -3117,7 +3123,11 @@ static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	pr_global_struct->trace_inwater = trace->inwater;
 	pr_global_struct->trace_inopen = trace->inopen;
 	pr_global_struct->trace_surfaceflags = trace->surface?trace->surface->flags:0;
+	if (pr_global_struct->trace_surfacename)
+		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_surfacename, trace->surface?trace->surface->name:NULL, true);
 	pr_global_struct->trace_endcontents = trace->contents;
+	pr_global_struct->trace_brush_id = trace->brush_id;
+	pr_global_struct->trace_brush_faceid = trace->brush_face;
 //	if (trace.fraction != 1)
 //		VectorMA (trace->endpos, 4, trace->plane.normal, P_VEC(trace_endpos));
 //	else

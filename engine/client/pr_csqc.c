@@ -153,6 +153,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalfloat(trace_plane_dist,		"trace_plane_dist");	/*float		written by traceline*/	\
 	globalentity(trace_ent,				"trace_ent");			/*entity	written by traceline*/	\
 	globalfloat(trace_surfaceflags,		"trace_surfaceflags");	/*float		written by traceline*/	\
+	globalstring(trace_surfacename,		"trace_surfacename");	/*string	written by traceline*/	\
 	globalfloat(trace_endcontents,		"trace_endcontents");	/*float		written by traceline EXT_CSQC_1*/	\
 	globalint(trace_brush_id,			"trace_brush_id");		/*int		written by traceline*/	\
 	globalint(trace_brush_faceid,		"trace_brush_faceid");	/*int		written by traceline*/	\
@@ -2036,25 +2037,6 @@ static void QCBUILTIN PF_cs_SetSize (pubprogfuncs_t *prinst, struct globalvars_s
 
 static void cs_settracevars(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *tr)
 {
-/*
-	world_t *w = prinst->parms->user;
-	*w->g.trace_allsolid = tr->allsolid;
-	*w->g.trace_startsolid = tr->startsolid;
-	*w->g.trace_fraction = tr->fraction;
-	*w->g.trace_inwater = tr->inwater;
-	*w->g.trace_inopen = tr->inopen;
-	VectorCopy (tr->endpos, w->g.trace_endpos);
-	VectorCopy (tr->plane.normal, w->g.trace_plane_normal);
-	*w->g.trace_plane_dist =  tr->plane.dist;
-	if (w->g.trace_surfaceflags)
-		*w->g.trace_surfaceflags = tr->surface?tr->surface->flags:0;
-	if (w->g.trace_endcontents)
-		*w->g.trace_endcontents = tr->contents;
-	if (tr->ent)
-		*w->g.trace_ent = EDICT_TO_PROG(prinst, (void*)tr->ent);
-	else
-		*w->g.trace_ent = EDICT_TO_PROG(prinst, (void*)w->edicts);
-*/
 	*csqcg.trace_allsolid = tr->allsolid;
 	*csqcg.trace_startsolid = tr->startsolid;
 	*csqcg.trace_fraction = tr->fraction;
@@ -2065,6 +2047,8 @@ static void cs_settracevars(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	*csqcg.trace_plane_dist =  tr->plane.dist;
 	if (csqcg.trace_surfaceflags)
 		*csqcg.trace_surfaceflags = tr->surface?tr->surface->flags:0;
+	if (csqcg.trace_surfacename)
+		prinst->SetStringField(prinst, NULL, csqcg.trace_surfacename, tr->surface?tr->surface->name:NULL, true);
 	if (csqcg.trace_endcontents)
 		*csqcg.trace_endcontents = tr->contents;
 	if (csqcg.trace_brush_id)

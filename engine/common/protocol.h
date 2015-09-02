@@ -829,11 +829,7 @@ enum clcq2_ops_e
 #define FITZ_B_ALPHA		(1<<2)
 #define RMQFITZ_B_SCALE		(1<<3)
 
-#ifdef QUAKESTATS
 #define	DEFAULT_VIEWHEIGHT	22
-#else
-#define DEFAULT_VIEWHEIGHT 0	//so csqc can position the camera without any worries.
-#endif
 
 
 // svc_print messages have an id, so messages can be filtered

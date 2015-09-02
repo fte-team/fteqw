@@ -3323,14 +3323,14 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			break;
 
 		case OP_BITCLR_I:
-			tmp = var_b;
-			var_b = var_a;
-			var_a = tmp;
 			if (QCC_OPCodeValid(&pr_opcodes[OP_BITCLRSTORE_I]))
 			{
 				op = &pr_opcodes[OP_BITCLRSTORE_I];
 				break;
 			}
+			tmp = var_b;
+			var_b = var_a;
+			var_a = tmp;
 			//fallthrough
 		case OP_BITCLRSTORE_I:
 			//b = var, a = bit field.
@@ -3342,14 +3342,14 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			var_c = ((op - pr_opcodes)==OP_BITCLRSTORE_I)?var_a:nullsref;
 			break;
 		case OP_BITCLR_F:
-			var_c = var_b;
-			var_b = var_a;
-			var_a = var_c;
 			if (QCC_OPCodeValid(&pr_opcodes[OP_BITCLRSTORE_F]))
 			{
 				op = &pr_opcodes[OP_BITCLRSTORE_F];
 				break;
 			}
+			var_c = var_b;
+			var_b = var_a;
+			var_a = var_c;
 			//fallthrough
 		case OP_BITCLRSTORE_F:
 			//b = var, a = bit field.
@@ -6496,6 +6496,24 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 			QCC_FreeTemp(z);
 			return QCC_DefToRef(refbuf, d);
 		}
+		if (QCC_SRef_IsNull(y) && QCC_SRef_IsNull(z))
+		{
+			QCC_FreeTemp(y);
+			QCC_FreeTemp(z);
+			return QCC_DefToRef(refbuf, QCC_PR_StatementFlags(pr_opcodes + OP_MUL_VF, QCC_MakeVectorConst(1, 0, 0), QCC_SupplyConversion(x, ev_float, true), NULL, 0));
+		}
+		if (QCC_SRef_IsNull(x) && QCC_SRef_IsNull(z))
+		{
+			QCC_FreeTemp(x);
+			QCC_FreeTemp(z);
+			return QCC_DefToRef(refbuf, QCC_PR_StatementFlags(pr_opcodes + OP_MUL_VF, QCC_MakeVectorConst(0, 1, 0), QCC_SupplyConversion(y, ev_float, true), NULL, 0));
+		}
+		if (QCC_SRef_IsNull(x) && QCC_SRef_IsNull(y))
+		{
+			QCC_FreeTemp(x);
+			QCC_FreeTemp(y);
+			return QCC_DefToRef(refbuf, QCC_PR_StatementFlags(pr_opcodes + OP_MUL_VF, QCC_MakeVectorConst(0, 0, 1), QCC_SupplyConversion(z, ev_float, true), NULL, 0));
+		}
 
 		//pack the variables into a vector
 		d = QCC_GetTemp(type_vector);
@@ -8175,14 +8193,14 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 			//if we have no int types, force all ints to floats here, just to ensure that we don't end up with non-constant ints that we then can't cope with.
 
 			QCC_sref_t val, r;
-			QCC_statement_t *fromj, *elsej;
+			QCC_statement_t *fromj, *elsej, *truthstore;
 			if (QCC_PR_CheckToken(":"))
 			{
 				//r=a?:b -> if (a) r=a else r=b;
 				val = QCC_RefToDef(lhsr, true);
 				fromj = QCC_Generate_OP_IFNOT(val, true);
 				r = QCC_GetTemp(val.cast);
-				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r.cast->size>=3)?OP_STORE_V:OP_STORE_F], val, r, NULL, STFL_PRESERVEB));
+				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r.cast->size>=3)?OP_STORE_V:OP_STORE_F], val, r, &truthstore, STFL_PRESERVEB));
 			}
 			else
 			{
@@ -8192,7 +8210,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				if (val.cast->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
 					val = QCC_SupplyConversion(val, ev_float, true);
 				r = QCC_GetTemp(val.cast);
-				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r.cast->size>=3)?OP_STORE_V:OP_STORE_F], val, r, NULL, STFL_PRESERVEB));
+				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[(r.cast->size>=3)?OP_STORE_V:OP_STORE_F], val, r, &truthstore, STFL_PRESERVEB));
 				//r can be stomped upon until its reused anyway
 
 				QCC_PR_Expect(":");
@@ -8203,15 +8221,17 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 			if (val.cast->type == ev_integer && !QCC_OPCodeValid(&pr_opcodes[OP_STORE_I]))
 				val = QCC_SupplyConversion(val, ev_float, true);
 
-/*			//cond?5:5.1  should be accepted
-			if ((val->type->type != val->type->type) &&
-				(val->type->type == ev_float || val->type->type == ev_integer) &&
-				(r->type->type == ev_float || r->type->type == ev_integer))
-			{
-				val = QCC_SupplyConversion(val, ev_float, true);
-				r = QCC_SupplyConversion(r, ev_float, true);
+			if (r.cast->type == ev_integer && val.cast->type == ev_float)
+			{	//cond?5i:5.1  should be accepted. change the initial store_f to a store_if.
+				truthstore->op = OP_STORE_IF;
+				r.cast = type_float;
 			}
-*/
+			else if (r.cast->type == ev_float && val.cast->type == ev_integer)
+			{
+				//cond?5.1:5i  should be accepted. change the just-parsed value to a float, as needed.
+				val = QCC_SupplyConversion(val, ev_float, true);
+			}
+
 			if (typecmp(val.cast, r.cast) != 0)
 			{
 				//if they're mixed int/float, cast to floats.

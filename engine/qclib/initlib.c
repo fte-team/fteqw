@@ -867,13 +867,18 @@ string_t PDECL PR_StringToProgs			(pubprogfuncs_t *ppf, const char *str)
 //if ed is null, fld points to a global. if str_is_static, then s doesn't need its own memory allocated.
 void PDECL PR_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed, string_t *fld, const char *str, pbool str_is_static)
 {
+	if (!str)
+		*fld = 0;
+	else
+	{
 #ifdef QCGC
-	*fld = PR_AllocTempString(progfuncs, str);
+		*fld = PR_AllocTempString(progfuncs, str);
 #else
-	if (!str_is_static)
-		str = PR_AddString(progfuncs, str, 0, false);
-	*fld = PR_StringToProgs(progfuncs, str);
+		if (!str_is_static)
+			str = PR_AddString(progfuncs, str, 0, false);
+		*fld = PR_StringToProgs(progfuncs, str);
 #endif
+	}
 }
 
 char *PDECL PR_RemoveProgsString				(pubprogfuncs_t *ppf, string_t str)

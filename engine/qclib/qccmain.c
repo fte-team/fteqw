@@ -3768,6 +3768,7 @@ pbool QCC_main (int argc, char **argv)	//as part of the quake engine
 
 
 	tempsused = 0;
+	s_file = 0;
 
 	QCC_PurgeTemps();
 

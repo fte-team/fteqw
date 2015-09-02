@@ -945,6 +945,8 @@ static void set_trace_globals(trace_t *trace)
 	pr_global_struct->trace_inwater = trace->inwater;
 	pr_global_struct->trace_inopen = trace->inopen;
 	pr_global_struct->trace_surfaceflags = trace->surface?trace->surface->flags:0;
+	if (pr_global_struct->trace_surfacename)
+		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_surfacename, tr->surface?tr->surface->name:"", true);
 	pr_global_struct->trace_endcontents = trace->contents;
 //	if (trace.fraction != 1)
 //		VectorMA (trace->endpos, 4, trace->plane.normal, P_VEC(trace_endpos));

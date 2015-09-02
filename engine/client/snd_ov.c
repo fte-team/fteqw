@@ -160,7 +160,7 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 
 	if (start < dec->decodedbytestart)
 	{
-		Con_Printf("Rewound to %i\n", start);
+//		Con_Printf("Rewound to %i\n", start);
 		dec->failed = false;
 
 		/*something rewound, purge clear the buffer*/
@@ -189,17 +189,17 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 		{
 			dec->decodedbytecount = 0;
 			dec->decodedbytestart = start;
-			Con_Printf("trim < 0\n");
+//			Con_Printf("trim < 0\n");
 		}
 		else if (trim > dec->decodedbytecount)
 		{
 			dec->decodedbytecount = 0;
 			dec->decodedbytestart = start;
-			Con_Printf("trim > count\n");
+//			Con_Printf("trim > count\n");
 		}
 		else
 		{
-			Con_Printf("trim retain\n");
+//			Con_Printf("trim retain\n");
 			//FIXME: retain an extra half-second for dual+ sound devices running slightly out of sync
 			memmove(dec->decodedbuffer, dec->decodedbuffer + trim, dec->decodedbytecount - trim);
 			dec->decodedbytecount -= trim;

@@ -9,6 +9,7 @@
 
 extern ID3D11Device *pD3DDev11;
 extern ID3D11DeviceContext *d3ddevctx;
+extern ID3D11DepthStencilView *fb_backdepthstencil;
 
 extern cvar_t r_shadow_realtime_world_lightmaps;
 extern cvar_t gl_overbright;
@@ -2462,195 +2463,6 @@ void D3D11BE_SelectEntity(entity_t *ent)
 	BE_RotateForEntity(ent, ent->model);
 }
 
-static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *mesh)
-{
-	static vbo_t tmpvbo;
-	D3D11_MAPPED_SUBRESOURCE msr;
-	int i;
-
-	D3D11_MAP type;
-	int sz;
-	ID3D11Buffer *buf;
-
-	//vbo first
-	{
-		vbovdata_t *out;
-
-		sz = sizeof(*out) * mesh->numvertexes;
-		if (shaderstate.purgevertexstream || shaderstate.vertexstreamoffset + sz > VERTEXSTREAMSIZE)
-		{
-			shaderstate.purgevertexstream = false;
-			shaderstate.vertexstreamoffset = 0;
-			type = D3D11_MAP_WRITE_DISCARD;
-			shaderstate.vertexstreamcycle++;
-			if (shaderstate.vertexstreamcycle == NUMVBUFFERS)
-				shaderstate.vertexstreamcycle = 0;
-		}
-		else
-		{
-			type = D3D11_MAP_WRITE_NO_OVERWRITE;	//yes sir, sorry sir, we promise to not break anything
-		}
-		buf = shaderstate.vertexstream[shaderstate.vertexstreamcycle];
-		if (FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)buf, 0, type, 0, &msr)))
-		{
-			Con_Printf("BE_RotateForEntity: failed to map vertex stream buffer start\n");
-			return false;
-		}
-
-		//figure out where our pointer is and mark it as consumed
-		out = (vbovdata_t*)((qbyte*)msr.pData + shaderstate.vertexstreamoffset);
-		//FIXME: do we actually need to bother setting all this junk?
-		tmpvbo.coord.d3d.buff = buf;
-		tmpvbo.coord.d3d.offs = (quintptr_t)&out[0].coord - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.texcoord.d3d.buff = buf;
-		tmpvbo.texcoord.d3d.offs = (quintptr_t)&out[0].tex - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.lmcoord[0].d3d.buff = buf;
-		tmpvbo.lmcoord[0].d3d.offs = (quintptr_t)&out[0].lm - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.normals.d3d.buff = buf;
-		tmpvbo.normals.d3d.offs = (quintptr_t)&out[0].ndir - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.svector.d3d.buff = buf;
-		tmpvbo.svector.d3d.offs = (quintptr_t)&out[0].sdir - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.tvector.d3d.buff = buf;
-		tmpvbo.tvector.d3d.offs = (quintptr_t)&out[0].tdir - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		tmpvbo.colours[0].d3d.buff = buf;
-		tmpvbo.colours[0].d3d.offs = (quintptr_t)&out[0].colorsb - (quintptr_t)&out[0] + shaderstate.vertexstreamoffset;
-		//consumed
-		shaderstate.vertexstreamoffset += sz;
-		
-		//now vomit into the buffer
-		if (!mesh->normals_array && mesh->colors4f_array[0])
-		{
-			//2d drawing
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				VectorCopy(mesh->xyz_array[i], out[i].coord);
-				Vector2Copy(mesh->st_array[i], out[i].tex);
-				VectorClear(out[i].ndir);
-				VectorClear(out[i].sdir);
-				VectorClear(out[i].tdir);
-				out[i].colorsb[0] = bound(0, mesh->colors4f_array[0][i][0]*255, 255);
-				out[i].colorsb[1] = bound(0, mesh->colors4f_array[0][i][1]*255, 255);
-				out[i].colorsb[2] = bound(0, mesh->colors4f_array[0][i][2]*255, 255);
-				out[i].colorsb[3] = bound(0, mesh->colors4f_array[0][i][3]*255, 255);
-			}
-		}
-		else if (!mesh->normals_array && mesh->colors4b_array)
-		{
-			//2d drawing, ish
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				VectorCopy(mesh->xyz_array[i], out[i].coord);
-				Vector2Copy(mesh->st_array[i], out[i].tex);
-				VectorClear(out[i].ndir);
-				VectorClear(out[i].sdir);
-				VectorClear(out[i].tdir);
-				*(unsigned int*)out[i].colorsb = *(unsigned int*)mesh->colors4b_array[i];
-			}
-		}
-		else if (mesh->normals_array && !mesh->colors4f_array[0] && !mesh->colors4b_array)
-		{
-			//hlsl-lit models
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				VectorCopy(mesh->xyz_array[i], out[i].coord);
-				Vector2Copy(mesh->st_array[i], out[i].tex);
-				VectorCopy(mesh->normals_array[i], out[i].ndir);
-				VectorCopy(mesh->snormals_array[i], out[i].sdir);
-				VectorCopy(mesh->tnormals_array[i], out[i].tdir);
-				*(unsigned int*)out[i].colorsb = 0xffffffff;	//write colours to ensure nothing is read back within the cpu cache block.
-			}
-		}
-		else
-		{
-			//common stuff
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				VectorCopy(mesh->xyz_array[i], out[i].coord);
-				Vector2Copy(mesh->st_array[i], out[i].tex);
-			}
-			//not so common stuff
-			if (mesh->normals_array)
-			{
-				for (i = 0; i < mesh->numvertexes; i++)
-				{
-					VectorCopy(mesh->normals_array[i], out[i].ndir);
-					VectorCopy(mesh->snormals_array[i], out[i].sdir);
-					VectorCopy(mesh->tnormals_array[i], out[i].tdir);
-				}
-			}
-			//some sort of colours
-			if (mesh->colors4b_array)
-			{
-				for (i = 0; i < mesh->numvertexes; i++)
-				{
-					Vector4Copy(mesh->colors4b_array[i], out[i].colorsb);
-				}
-			}
-			else if (mesh->colors4f_array[0])
-			{
-				for (i = 0; i < mesh->numvertexes; i++)
-				{
-					Vector4Scale(mesh->colors4f_array[0][i], 255, out[i].colorsb);
-				}
-			}
-			else
-			{
-				for (i = 0; i < mesh->numvertexes; i++)
-				{
-					Vector4Set(out[i].colorsb, 255, 255, 255, 255);
-				}
-			}
-		}
-
-		//and we're done
-		ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)buf, 0);
-	}
-
-	//now ebo
-	{
-		index_t *out;
-		sz = sizeof(*out) * mesh->numindexes;
-		if (shaderstate.purgeindexstream || shaderstate.indexstreamoffset + sz > VERTEXSTREAMSIZE)
-		{
-			shaderstate.purgeindexstream = false;
-			shaderstate.indexstreamoffset = 0;
-			type = D3D11_MAP_WRITE_DISCARD;
-			shaderstate.indexstreamcycle++;
-			if (shaderstate.indexstreamcycle == NUMVBUFFERS)
-				shaderstate.indexstreamcycle = 0;
-		}
-		else
-		{
-			type = D3D11_MAP_WRITE_NO_OVERWRITE;
-		}
-		buf = shaderstate.indexstream[shaderstate.indexstreamcycle];
-		if (FAILED(ID3D11DeviceContext_Map(d3ddevctx, (ID3D11Resource*)buf, 0, type, 0, &msr)))
-		{
-			Con_Printf("BE_RotateForEntity: failed to map vertex stream buffer start\n");
-			return false;
-		}
-
-		out = (index_t*)((qbyte*)msr.pData + shaderstate.indexstreamoffset);
-		tmpvbo.indicies.d3d.buff = buf;
-		tmpvbo.indicies.d3d.offs = shaderstate.indexstreamoffset;
-		//consumed
-		shaderstate.indexstreamoffset += sz;
-
-		memcpy(out, mesh->indexes, sz);
-
-		//and we're done
-		ID3D11DeviceContext_Unmap(d3ddevctx, (ID3D11Resource*)buf, 0);
-	}
-
-	tmpvbo.indexcount = mesh->numindexes;
-	tmpvbo.vertcount = mesh->numvertexes;
-	tmpvbo.next = NULL;
-
-	*vbo = &tmpvbo;
-
-	return true;
-}
-
 void D3D11BE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch)
 {
 	int maxvboelements;
@@ -2972,7 +2784,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 {
 	int i;
 	float ndr;
-	float mv[16], modelinv[16];
+	float modelinv[16];
 	float *m = shaderstate.m_model;
 	cbuf_entity_t *cbe;
 	D3D11_MAPPED_SUBRESOURCE msr;
@@ -3209,14 +3021,7 @@ void D3D11BE_SubmitBatch(batch_t *batch)
 		shaderstate.curtexnums = shader->defaulttextures;
 	shaderstate.flags = batch->flags;
 
-	/*if (!shaderstate.batchvbo)
-	{
-		if (!BE_GenTempMeshVBO(&shaderstate.batchvbo, batch->mesh[0]))
-			return;
-		BE_DrawMeshChain_Internal();
-	}
-	else*/
-		BE_DrawMeshChain_Internal();
+	BE_DrawMeshChain_Internal();
 }
 
 void D3D11BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums, unsigned int beflags)
@@ -3234,15 +3039,7 @@ void D3D11BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, v
 	shaderstate.nummeshes = nummeshes;
 	shaderstate.flags = beflags;
 
-	/*if (!shaderstate.batchvbo)
-	{
-		if (!BE_GenTempMeshVBO(&shaderstate.batchvbo, meshlist[0]))
-			return;
-		shaderstate.nummeshes = 1;
-		BE_DrawMeshChain_Internal();
-	}
-	else*/
-		BE_DrawMeshChain_Internal();
+	BE_DrawMeshChain_Internal();
 }
 
 void D3D11BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, unsigned int beflags)
@@ -3259,14 +3056,7 @@ void D3D11BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, un
 	shaderstate.nummeshes = 1;
 	shaderstate.flags = beflags;
 
-	/*if (!shaderstate.batchvbo)
-	{
-		if (!BE_GenTempMeshVBO(&shaderstate.batchvbo, meshchain))
-			return;
-		BE_DrawMeshChain_Internal();
-	}
-	else*/
-		BE_DrawMeshChain_Internal();
+	BE_DrawMeshChain_Internal();
 }
 
 static void BE_SubmitMeshesSortList(batch_t *sortlist)
@@ -3425,13 +3215,6 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 		VectorMA(result, d, viewa[i], result);
 	}
 }
-static void R_RenderScene(void)
-{
-//	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
-//	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
-	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
-	Surf_DrawWorld();
-}
 
 static void R_DrawPortal(batch_t *batch, batch_t **blist)
 {
@@ -3442,7 +3225,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
 	int sort;
 
-	if (r_refdef.recurse || !r_portalrecursion.ival)
+	if (r_refdef.recurse)// || !r_portalrecursion.ival)
 		return;
 
 	VectorCopy(mesh->normals_array[0], plane.normal);
@@ -3516,17 +3299,32 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 		batch->firstmesh = batch->meshes;
 	}
 
-	/*FIXME: can we get away with stenciling the screen?*/
-	/*Add to frustum culling instead of clip planes?*/
-	glplane[0] = plane.normal[0];
-	glplane[1] = plane.normal[1];
-	glplane[2] = plane.normal[2];
-	glplane[3] = -plane.dist;
-//	IDirect3DDevice9_SetClipPlane(pD3DDev9, 0, glplane);
-//	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CLIPPLANEENABLE, D3DCLIPPLANE0);
+
+
+	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+	/*FIXME: we need to borrow pretty much everything about portal positioning from the gl renderer. make it common code or something, because this is horrendous.
+	if (r_refdef.frustum_numplanes < MAXFRUSTUMPLANES)
+	{
+		extern int SignbitsForPlane (mplane_t *out);
+		mplane_t fp;
+		VectorCopy(plane.normal, fp.normal);
+		fp.dist = plane.dist;
+
+		fp.type = PLANE_ANYZ;
+		fp.signbits = SignbitsForPlane (&fp);
+
+		if (portaltype == 1 || portaltype == 2)
+			R_ObliqueNearClip(r_refdef.m_view, &fp);
+
+		//our own culling should be an epsilon forwards so we don't still draw things behind the line due to precision issues.
+		fp.dist += 0.01;
+		r_refdef.frustum[r_refdef.frustum_numplanes++] = fp;
+	}
+	*/
+
+	shaderstate.curentity = NULL;
 	Surf_SetupFrame();
-	R_RenderScene();
-//	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CLIPPLANEENABLE, 0);
+	Surf_DrawWorld();
 
 	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
 	for (batch = blist[sort]; batch; batch = batch->next)
@@ -3539,9 +3337,14 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
 
-//	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
-//	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+	shaderstate.curentity = NULL;
+
+	D3D11BE_SetupViewCBuffer();
+
+	//fixme: should be some other variable...
+	ID3D11DeviceContext_ClearDepthStencilView(d3ddevctx, fb_backdepthstencil, D3D11_CLEAR_DEPTH, 1, 0);	//is it faster to clear the stencil too?
+	//fixme: mask the batch's depth so that later batches don't break it.
 }
 
 static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
@@ -3581,9 +3384,6 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 				BE_SelectMode(BEM_STANDARD);
 
 				R_DrawPortal(batch, worldlist);
-
-				/*clear depth again*/
-//				IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0);
 			}
 		}
 	}

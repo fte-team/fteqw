@@ -1352,8 +1352,8 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts, shade
 	VectorSubtract(inverts+C*2, inverts+C*0, d2);
 	CrossProduct(d1, d2, n);
 	VectorNormalizeFast(n);
-//	if (DotProduct(n, dec->normal) > 0.1)
-//		return;	//faces too far way from the normal
+	if (DotProduct(n, dec->normal) < 0.1)
+		return;	//faces too far way from the normal
 
 	//clip to the first plane specially, so we don't have extra copys
 	numverts = Fragment_ClipPolyToPlane(inverts, verts, numverts, dec->planenorm[0], dec->planedist[0]);

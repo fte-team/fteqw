@@ -3360,17 +3360,19 @@ void Sh_CheckSettings(void)
 		canshadowless = true;
 		//the code still has a lot of ifdefs, so will crash if you try it in a merged build.
 		//its not really usable in d3d-only builds either, so no great loss.
-		canstencil = true;
+//		canstencil = true;
 		break;
 #endif
 #ifdef D3D11QUAKE
 	case QR_DIRECT3D11:
 		canshadowless = true;	//all feature levels
+/* shadows are buggy right now. tbh they've always been buggy... rendering seems fine, its just the shadowmaps that are bad
 		if (D3D11_BeginShadowMap(0, SHADOWMAP_SIZE*3, SHADOWMAP_SIZE*2))
 		{
 			D3D11_EndShadowMap();
 			cansmap = true;		//tends to not work properly until feature level 10 for one error or another.
 		}
+*/
 		break;
 #endif
 	default:

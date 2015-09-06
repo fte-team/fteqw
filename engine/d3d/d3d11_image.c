@@ -119,7 +119,10 @@ qboolean D3D11_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 	int i;
 
 	if (!sh_config.texfmt[mips->encoding])
+	{
+		Con_Printf("Texture encoding %i not supported by d3d11\n", mips->encoding);
 		return false;
+	}
 
 	tdesc.Width = mips->mip[0].width;
 	tdesc.Height = mips->mip[0].height;

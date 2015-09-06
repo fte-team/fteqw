@@ -9,7 +9,6 @@ extern ID3D11Device *pD3DDev11;
 
 //#include <D3D11Shader.h>	//apparently requires win8 sdk, despite being a win7 thing.
 
-
 #ifndef IID_ID3DBlob
 	//microsoft can be such a pain sometimes.
 	typedef struct _D3D_SHADER_MACRO
@@ -44,71 +43,73 @@ extern ID3D11Device *pD3DDev11;
 		STDMETHOD_(SIZE_T, GetBufferSize)(THIS) PURE;
 	};
 	#undef INTERFACE
+
+	#define D3D11_SHADER_VARIABLE_DESC void
+	typedef unsigned int D3D_SHADER_INPUT_TYPE;
+	typedef unsigned int D3D_RESOURCE_RETURN_TYPE;
+	typedef unsigned int D3D_SRV_DIMENSION;
+	typedef struct D3D11_SHADER_INPUT_BIND_DESC {
+		LPCSTR						Name;
+		D3D_SHADER_INPUT_TYPE		Type;
+		UINT						BindPoint;
+		UINT						BindCount;
+		UINT						uFlags;
+		D3D_RESOURCE_RETURN_TYPE	ReturnType;
+		D3D_SRV_DIMENSION			Dimension;
+		UINT						NumSamples;
+	} D3D11_SHADER_INPUT_BIND_DESC;
+	#define ID3D11ShaderReflectionConstantBuffer void
+	#define ID3D11ShaderReflectionType void
+	#define INTERFACE ID3D11ShaderReflectionVariable
+	DECLARE_INTERFACE(ID3D11ShaderReflectionVariable)
+	{
+		STDMETHOD(GetDesc)(THIS_ D3D11_SHADER_VARIABLE_DESC *pDesc) PURE;
+
+		STDMETHOD_(ID3D11ShaderReflectionType*, GetType)(THIS) PURE;
+		STDMETHOD_(ID3D11ShaderReflectionConstantBuffer*, GetBuffer)(THIS) PURE;
+
+		STDMETHOD_(UINT, GetInterfaceSlot)(THIS_ UINT uArrayIndex) PURE;
+	};
+	#undef INTERFACE
+	#define D3D11_SHADER_DESC void
+	#define D3D11_SIGNATURE_PARAMETER_DESC void
+	#define INTERFACE ID3D11ShaderReflection
+	DECLARE_INTERFACE_(INTERFACE, IUnknown)
+	{
+		STDMETHOD(QueryInterface)(THIS_ REFIID iid, LPVOID *ppv) PURE;
+		STDMETHOD_(ULONG, AddRef)(THIS) PURE;
+		STDMETHOD_(ULONG, Release)(THIS) PURE;
+
+		STDMETHOD(GetDesc)(THIS_ D3D11_SHADER_DESC *pDesc) PURE;
+
+		STDMETHOD_(ID3D11ShaderReflectionConstantBuffer*, GetConstantBufferByIndex)(THIS_ UINT Index) PURE;
+		STDMETHOD_(ID3D11ShaderReflectionConstantBuffer*, GetConstantBufferByName)(THIS_ LPCSTR Name) PURE;
+
+		STDMETHOD(GetResourceBindingDesc)(THIS_ UINT ResourceIndex,
+										  D3D11_SHADER_INPUT_BIND_DESC *pDesc) PURE;
+
+		STDMETHOD(GetInputParameterDesc)(THIS_ UINT ParameterIndex,
+										 D3D11_SIGNATURE_PARAMETER_DESC *pDesc) PURE;
+		STDMETHOD(GetOutputParameterDesc)(THIS_ UINT ParameterIndex,
+										  D3D11_SIGNATURE_PARAMETER_DESC *pDesc) PURE;
+		STDMETHOD(GetPatchConstantParameterDesc)(THIS_ UINT ParameterIndex,
+												 D3D11_SIGNATURE_PARAMETER_DESC *pDesc) PURE;
+
+		STDMETHOD_(ID3D11ShaderReflectionVariable*, GetVariableByName)(THIS_ LPCSTR Name) PURE;
+		STDMETHOD(GetResourceBindingDescByName)(THIS_ LPCSTR Name, D3D11_SHADER_INPUT_BIND_DESC *pDesc) PURE;
+		//more stuff
+	};
+	#define ID3D11ShaderReflection_GetVariableByName(r,v) r->lpVtbl->GetVariableByName(r,v)
+	#undef INTERFACE
+#else
+#include <d3d11shader.h>
 #endif
+
+const GUID IID_ID3D11ShaderReflection = {0x8d536ca1, 0x0cca, 0x4956, 0xa8, 0x37, 0x78, 0x69, 0x63, 0x75, 0x55, 0x84};
 #define ID3DBlob_GetBufferPointer(b) b->lpVtbl->GetBufferPointer(b)
 #define ID3DBlob_Release(b) b->lpVtbl->Release(b)
 #define ID3DBlob_GetBufferSize(b) b->lpVtbl->GetBufferSize(b)
-
-#define D3D11_SHADER_VARIABLE_DESC void
-typedef unsigned int D3D_SHADER_INPUT_TYPE;
-typedef unsigned int D3D_RESOURCE_RETURN_TYPE;
-typedef unsigned int D3D_SRV_DIMENSION;
-typedef struct D3D11_SHADER_INPUT_BIND_DESC {
-	LPCSTR						Name;
-	D3D_SHADER_INPUT_TYPE		Type;
-	UINT						BindPoint;
-	UINT						BindCount;
-	UINT						uFlags;
-	D3D_RESOURCE_RETURN_TYPE	ReturnType;
-	D3D_SRV_DIMENSION			Dimension;
-	UINT						NumSamples;
-} D3D11_SHADER_INPUT_BIND_DESC;
-#define ID3D11ShaderReflectionConstantBuffer void
-#define ID3D11ShaderReflectionType void
-#define INTERFACE ID3D11ShaderReflectionVariable
-DECLARE_INTERFACE(ID3D11ShaderReflectionVariable)
-{
-    STDMETHOD(GetDesc)(THIS_ D3D11_SHADER_VARIABLE_DESC *pDesc) PURE;
-    
-    STDMETHOD_(ID3D11ShaderReflectionType*, GetType)(THIS) PURE;
-    STDMETHOD_(ID3D11ShaderReflectionConstantBuffer*, GetBuffer)(THIS) PURE;
-
-    STDMETHOD_(UINT, GetInterfaceSlot)(THIS_ UINT uArrayIndex) PURE;
-};
-#undef INTERFACE
-#define D3D11_SHADER_DESC void
-#define D3D11_SIGNATURE_PARAMETER_DESC void
-const GUID IID_ID3D11ShaderReflection = {0x8d536ca1, 0x0cca, 0x4956, 0xa8, 0x37, 0x78, 0x69, 0x63, 0x75, 0x55, 0x84};
-#define INTERFACE ID3D11ShaderReflection
-DECLARE_INTERFACE_(INTERFACE, IUnknown)
-{
-	STDMETHOD(QueryInterface)(THIS_ REFIID iid, LPVOID *ppv) PURE;
-    STDMETHOD_(ULONG, AddRef)(THIS) PURE;
-    STDMETHOD_(ULONG, Release)(THIS) PURE;
-
-    STDMETHOD(GetDesc)(THIS_ D3D11_SHADER_DESC *pDesc) PURE;
-    
-    STDMETHOD_(ID3D11ShaderReflectionConstantBuffer*, GetConstantBufferByIndex)(THIS_ UINT Index) PURE;
-    STDMETHOD_(ID3D11ShaderReflectionConstantBuffer*, GetConstantBufferByName)(THIS_ LPCSTR Name) PURE;
-    
-    STDMETHOD(GetResourceBindingDesc)(THIS_ UINT ResourceIndex,
-                                      D3D11_SHADER_INPUT_BIND_DESC *pDesc) PURE;
-    
-    STDMETHOD(GetInputParameterDesc)(THIS_ UINT ParameterIndex,
-                                     D3D11_SIGNATURE_PARAMETER_DESC *pDesc) PURE;
-    STDMETHOD(GetOutputParameterDesc)(THIS_ UINT ParameterIndex,
-                                      D3D11_SIGNATURE_PARAMETER_DESC *pDesc) PURE;
-    STDMETHOD(GetPatchConstantParameterDesc)(THIS_ UINT ParameterIndex,
-                                             D3D11_SIGNATURE_PARAMETER_DESC *pDesc) PURE;
-
-    STDMETHOD_(ID3D11ShaderReflectionVariable*, GetVariableByName)(THIS_ LPCSTR Name) PURE;
-	STDMETHOD(GetResourceBindingDescByName)(THIS_ LPCSTR Name, D3D11_SHADER_INPUT_BIND_DESC *pDesc) PURE;
-	//more stuff
-};
-#define ID3D11ShaderReflection_GetVariableByName(r,v) r->lpVtbl->GetVariableByName(r,v)
 #define ID3D11ShaderReflection_Release IUnknown_Release
-#undef INTERFACE
-
 
 HRESULT (WINAPI *pD3DCompile) (
 	LPCVOID pSrcData,

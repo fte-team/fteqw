@@ -3201,14 +3201,14 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	if (!ent->xv->scale)
 		state->scale = 1*16;
 	else
-		state->scale = bound(0, ent->xv->scale*16, 255);
+		state->scale = bound(1, ent->xv->scale*16, 255);
 
 #endif
 #ifdef PEXT_TRANS
 	if (!ent->xv->alpha)
 		state->trans = 255;
 	else
-		state->trans = bound(0, ent->xv->alpha*255, 255);
+		state->trans = bound(1, ent->xv->alpha*255, 255);
 
 	//QSG_DIMENSION_PLANES - if the only shared dimensions are ghost dimensions, Set half alpha.
 	if (client && client->edict)

@@ -92,7 +92,7 @@ cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for serve
 cvar_t	fs_gamename = CVARAFD("com_fullgamename", NULL, "fs_gamename", CVAR_NOSET, "The filesystem is trying to run this game");
 cvar_t	fs_gamemanifest = CVARFD("fs_gamemanifest", "", CVAR_NOSET, "A small updatable file containing a description of the game, including download mirrors.");
 cvar_t	com_protocolname = CVARAD("com_protocolname", NULL, "com_gamename", "The protocol game name used for dpmaster queries. For compatibility with DP, you can set this to 'DarkPlaces-Quake' in order to be listed in DP's master server, and to list DP servers.");
-cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
+cvar_t	com_parseutf8 = CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 cvar_t	com_parseezquake = CVARD("com_parseezquake", "0", "Treat chevron chars from configs as a per-character flag. You should use this only for compat with nquake's configs.");
 cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
 cvar_t	com_nogamedirnativecode =  CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.\n");
@@ -3097,6 +3097,29 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				str+=2;
 				continue;
 			}
+			else if (str[1] == '`' && str[2] == 'u' && str[3] == '8' && str[4] == ':' && !keepmarkup)
+			{
+				int l;
+				char temp[1024];
+				str += 5;
+				while(*str)
+				{
+					l = 0;
+					while (*str && l < sizeof(temp)-32 && !(str[0] == '`' && str[1] == '='))
+						temp[l++] = *str++;
+					//recurse
+					temp[l] = 0;
+					l = COM_ParseFunString(ext, temp, out, outsize, PFS_FORCEUTF8) - out;
+					outsize -= l;
+					out += l;
+					if (str[0] == '`' && str[1] == '=')
+					{
+						str+=2;
+						break;
+					}
+				}
+				continue;
+			}
 			else if (str[1] == 'a')
 			{
 				ext ^= CON_2NDCHARSETTEXT;
@@ -3230,6 +3253,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				continue;
 			}
 		}
+#ifndef NOLEGACY
 		else if (*str == '&' && str[1] == 'c' && !(flags & PFS_NOMARKUP))
 		{
 			// ezQuake color codes
@@ -3289,29 +3313,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 			}
 			continue;
 		}
-		else if (str[0] == '=' && str[1] == '`' && str[2] == 'u' && str[3] == '8' && str[4] == ':' && !keepmarkup)
-		{
-			int l;
-			char temp[1024];
-			str += 5;
-			while(*str)
-			{
-				l = 0;
-				while (*str && l < sizeof(temp)-32 && !(str[0] == '`' && str[1] == '='))
-					temp[l++] = *str++;
-				//recurse
-				temp[l] = 0;
-				l = COM_ParseFunString(ext, temp, out, outsize, PFS_FORCEUTF8) - out;
-				outsize -= l;
-				out += l;
-				if (str[0] == '`' && str[1] == '=')
-				{
-					str+=2;
-					break;
-				}
-			}
-			continue;
-		}
+#endif
 
 /*
 		else if ((str[0] == 'h' && str[1] == 't' && str[2] == 't' && str[3] == 'p' && str[4] == ':' && !linkstart && !(flags & (PFS_NOMARKUP|PFS_KEEPMARKUP))) ||

@@ -204,17 +204,6 @@ ID3DInclude myd3dinclude =
 	&myd3dincludetab
 };
 
-typedef struct
-{
-	vecV_t coord;
-	vec2_t tex;
-	vec2_t lm;
-	vec3_t ndir;
-	vec3_t sdir;
-	vec3_t tdir;
-	byte_vec4_t colorsb;
-} vbovdata_t;
-
 void D3D11Shader_DeleteProg(program_t *prog, unsigned int permu)
 {
 	ID3D11InputLayout *layout;
@@ -266,40 +255,39 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 	{
 		D3D11_INPUT_ELEMENT_DESC decl[13];
 		int elements = 0;
-		vbovdata_t *foo = NULL;
 
 		decl[elements].SemanticName = "POSITION";
 		decl[elements].SemanticIndex = 0;
 		decl[elements].Format = DXGI_FORMAT_R32G32B32_FLOAT;
-		decl[elements].InputSlot = 0;
-		decl[elements].AlignedByteOffset = (char*)&foo->coord[0] - (char*)NULL;
+		decl[elements].InputSlot = D3D11_BUFF_POS;
+		decl[elements].AlignedByteOffset = 0;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
 
 		decl[elements].SemanticName = "TEXCOORD";
 		decl[elements].SemanticIndex = 0;
-		decl[elements].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		decl[elements].InputSlot = 0;
-		decl[elements].AlignedByteOffset = (char*)&foo->tex[0] - (char*)NULL;
+		decl[elements].Format = DXGI_FORMAT_R32G32_FLOAT;
+		decl[elements].InputSlot = D3D11_BUFF_TC;
+		decl[elements].AlignedByteOffset = 0;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
-		/*
+
 		decl[elements].SemanticName = "TEXCOORD";
 		decl[elements].SemanticIndex = 1;
 		decl[elements].Format = DXGI_FORMAT_R32G32_FLOAT;
-		decl[elements].InputSlot = 1;
-		decl[elements].AlignedByteOffset = (char*)&foo->lm[0] - (char*)NULL;
+		decl[elements].InputSlot = D3D11_BUFF_LMTC;
+		decl[elements].AlignedByteOffset = 0;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
-		*/
+
 		decl[elements].SemanticName = "COLOR";
 		decl[elements].SemanticIndex = 0;
 		decl[elements].Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		decl[elements].InputSlot = 0;
-		decl[elements].AlignedByteOffset = (char*)&foo->colorsb[0] - (char*)NULL;
+		decl[elements].InputSlot = D3D11_BUFF_COL;
+		decl[elements].AlignedByteOffset = 0;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
@@ -307,8 +295,8 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 		decl[elements].SemanticName = "NORMAL";
 		decl[elements].SemanticIndex = 0;
 		decl[elements].Format = DXGI_FORMAT_R32G32B32_FLOAT;
-		decl[elements].InputSlot = 0;
-		decl[elements].AlignedByteOffset = (char*)&foo->ndir[0] - (char*)NULL;
+		decl[elements].InputSlot = D3D11_BUFF_NORM;
+		decl[elements].AlignedByteOffset = sizeof(vec3_t)*0;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
@@ -316,8 +304,8 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 		decl[elements].SemanticName = "TANGENT";
 		decl[elements].SemanticIndex = 0;
 		decl[elements].Format = DXGI_FORMAT_R32G32B32_FLOAT;
-		decl[elements].InputSlot = 0;
-		decl[elements].AlignedByteOffset = (char*)&foo->sdir[0] - (char*)NULL;
+		decl[elements].InputSlot = D3D11_BUFF_NORM;
+		decl[elements].AlignedByteOffset = sizeof(vec3_t)*1;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
@@ -325,8 +313,8 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 		decl[elements].SemanticName = "BINORMAL";
 		decl[elements].SemanticIndex = 0;
 		decl[elements].Format = DXGI_FORMAT_R32G32B32_FLOAT;
-		decl[elements].InputSlot = 0;
-		decl[elements].AlignedByteOffset = (char*)&foo->tdir[0] - (char*)NULL;
+		decl[elements].InputSlot = D3D11_BUFF_NORM;
+		decl[elements].AlignedByteOffset = sizeof(vec3_t)*2;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 		decl[elements].InstanceDataStepRate = 0;
 		elements++;
@@ -335,7 +323,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 		decl[elements].SemanticName = "BLENDWEIGHT";
 		decl[elements].SemanticIndex = 0;
 		decl[elements].Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		decl[elements].InputSlot = 0;
+		decl[elements].InputSlot = D3D11_BUFF_SKEL;
 		decl[elements].AlignedByteOffset = 0;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 		decl[elements].InstanceDataStepRate = 0;
@@ -344,7 +332,7 @@ static qboolean D3D11Shader_CreateShaders(program_t *prog, const char *name, int
 		decl[elements].SemanticName = "BLENDINDICIES";
 		decl[elements].SemanticIndex = 0;
 		decl[elements].Format = DXGI_FORMAT_R8G8B8A8_UINT;
-		decl[elements].InputSlot = 0;
+		decl[elements].InputSlot = D3D11_BUFF_SKEL;
 		decl[elements].AlignedByteOffset = 0;
 		decl[elements].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
 		decl[elements].InstanceDataStepRate = 0;
@@ -666,7 +654,7 @@ qboolean D3D11Shader_CreateProgram (program_t *prog, const char *name, unsigned 
 			{
 				int tmu;
 				D3D11_SHADER_INPUT_BIND_DESC bdesc = {0};
-				for (i = prog->numsamplers; i < be_maxpasses; i++)
+				for (i = prog->numsamplers; i < 16; i++)
 				{
 					if (SUCCEEDED(freflect->lpVtbl->GetResourceBindingDescByName(freflect, va("t_t%i", i), &bdesc)))
 						prog->numsamplers = i+1;
@@ -746,9 +734,9 @@ qboolean D3D11Shader_Init(unsigned int flevel)
 	sh_config.pCreateProgram	= D3D11Shader_CreateProgram;
 	sh_config.pProgAutoFields	= NULL;
 
-	sh_config.tex_env_combine		= 1;
-	sh_config.nv_tex_env_combine4	= 1;
-	sh_config.env_add				= 1;
+//	sh_config.tex_env_combine		= 1;
+//	sh_config.nv_tex_env_combine4	= 1;
+//	sh_config.env_add				= 1;
 
 	d3dfeaturelevel = flevel;
 	return true;

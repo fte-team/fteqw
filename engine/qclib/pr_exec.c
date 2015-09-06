@@ -1184,7 +1184,7 @@ cont:
 	return ret;
 }
 
-int ShowStep(progfuncs_t *progfuncs, int statement, char *fault)
+int ShowStep(progfuncs_t *progfuncs, int statement, char *fault, pbool fatal)
 {
 //	return statement;
 //	texture realcursortex;
@@ -1202,6 +1202,8 @@ static const char *lastfile = 0;
 	if (!externs->useeditor)
 	{
 		PR_PrintStatement(progfuncs, statement);
+		if (fatal)
+			progfuncs->funcs.debug_trace = DEBUG_TRACE_ABORT;
 		return statement;
 	}
 
@@ -1224,7 +1226,7 @@ static const char *lastfile = 0;
 			lastfile = PR_StringToNative(&progfuncs->funcs, f->s_file);
 
 			faultline = lastline;
-			debugaction = externs->useeditor(&progfuncs->funcs, lastfile, ((lastline>0)?&lastline:NULL), &statement, fault);
+			debugaction = externs->useeditor(&progfuncs->funcs, lastfile, ((lastline>0)?&lastline:NULL), &statement, fault, fatal);
 
 			//if they changed the line to execute, we need to find a statement that is on that line
 			if (lastline && faultline != lastline)
@@ -1274,7 +1276,7 @@ static const char *lastfile = 0;
 			if (debugaction == DEBUG_TRACE_NORESUME)
 				continue;
 			else if(debugaction == DEBUG_TRACE_ABORT)
-				progfuncs->funcs.parms->Abort ("Debugging terminated");
+				progfuncs->funcs.parms->Abort ("Debugger Abort");
 			else if (debugaction == DEBUG_TRACE_OFF)
 			{
 				//if we're resuming, don't hit any lingering step-over triggers
@@ -1298,24 +1300,13 @@ static const char *lastfile = 0;
 	{
 		if (*(f->s_file+progfuncs->funcs.stringtable))	//if we can't get the filename, then it was stripped, and debugging it like this is useless
 			if (externs->useeditor)
-				externs->useeditor(&progfuncs->funcs, f->s_file+progfuncs->funcs.stringtable, NULL, NULL, fault);
+				externs->useeditor(&progfuncs->funcs, f->s_file+progfuncs->funcs.stringtable, NULL, NULL, fault, fatal);
 		return statement;
 	}
 
 	ignorestatement = statement+1;
 	return statement;
 }
-
-int ShowStepf(progfuncs_t *progfuncs, int statement, char *fault, ...)
-{
-	va_list		argptr;
-	char		faultstring[1024];
-	va_start (argptr,fault);
-	Q_vsnprintf (faultstring,sizeof(faultstring)-1, fault,argptr);
-	va_end (argptr);
-	return ShowStep(progfuncs, statement, faultstring);
-}
-
 
 //called by the qcvm when executing some statement that cannot be execed.
 int PR_HandleFault (pubprogfuncs_t *ppf, char *error, ...)
@@ -1332,7 +1323,7 @@ int PR_HandleFault (pubprogfuncs_t *ppf, char *error, ...)
 	PR_StackTrace (ppf, true);
 	ppf->parms->Printf ("%s\n", string);
 
-	resumestatement = ShowStep(progfuncs, pr_xstatement, string);
+	resumestatement = ShowStep(progfuncs, pr_xstatement, string, true);
 
 	if (resumestatement == 0)
 	{
@@ -1385,6 +1376,29 @@ pbool PR_RunWarning (pubprogfuncs_t *ppf, char *error, ...)
 	if (progfuncs->funcs.debug_trace == 0)
 	{
 		progfuncs->funcs.debug_trace = DEBUG_TRACE_INTO;
+		return true;
+	}
+	return false;
+}
+static pbool PR_ExecRunWarning (pubprogfuncs_t *ppf, int xstatement, char *error, ...)
+{
+	progfuncs_t *progfuncs = (progfuncs_t *)ppf;
+	va_list		argptr;
+	char		string[1024];
+
+	pr_xstatement = xstatement;
+
+	va_start (argptr,error);
+	Q_vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	progfuncs->funcs.parms->Printf ("%s", string);
+	if (pr_depth != 0)
+		PR_StackTrace (ppf, false);
+
+	if (progfuncs->funcs.debug_trace == 0)
+	{
+		pr_xstatement = ShowStep(progfuncs, xstatement, error, false);
 		return true;
 	}
 	return false;

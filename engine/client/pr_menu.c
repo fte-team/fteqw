@@ -1918,6 +1918,7 @@ static struct {
 	{"bound",					PF_bound,					45},
 	{"pow",						PF_pow,						46},
 	{"logarithm",				PF_Logarithm,				0},
+	{"entityprotection",		PF_entityprotection,		0},
 	{"copyentity",				PF_CopyEntity,				47},
 	{"fopen",					PF_fopen,					48},
 	{"fclose",					PF_fclose,					49},

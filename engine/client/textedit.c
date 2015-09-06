@@ -1206,17 +1206,23 @@ void Editor_Draw(void)
 	*/
 }
 
-int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *statement, int nump, char **parms)
+int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *statement, char *reason, pbool fatal)
 {
 	const char *f1, *f2;
 	if (!pr_debugger.ival)
 	{
 		Con_Printf("Set %s to trace\n", pr_debugger.name);
+		if (fatal)
+			return DEBUG_TRACE_ABORT;
 		return DEBUG_TRACE_OFF;	//get lost
 	}
 	//we can cope with no line info by displaying asm
 	if (editormodal || !statement)
+	{
+		if (fatal)
+			return DEBUG_TRACE_ABORT;
 		return DEBUG_TRACE_OFF;	//whoops
+	}
 
 	if (qrenderer == QR_NONE)
 	{
@@ -1305,7 +1311,6 @@ int QCLibEditor(pubprogfuncs_t *prfncs, const char *filename, int *line, int *st
 
 	executionblock = cursorblock;
 
-	if (!parms)
 	{
 		double oldrealtime = realtime;
 		editormodal = true;

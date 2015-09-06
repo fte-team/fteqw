@@ -244,7 +244,6 @@ enum
 	D3D_VDEC_SKEL = 1<<6,
 	D3D_VDEC_POS2 = 1<<7,
 	D3D_VDEC_MAX = 1<<8,
-
 };
 #define STRM_VERT	0
 #define STRM_COL	1
@@ -1143,7 +1142,7 @@ static void alphagenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *srcb, v
 				VectorSubtract(v2, mesh->xyz_array[i], v1);
 				f = DotProduct(v1, mesh->normals_array[i]) * Q_rsqrt(DotProduct(v1,v1));
 				f = f * f * f * f * f;
-				dst[i][3] = bound (0.0f, (int)(f*255), 255);
+				dst[i][3] = bound (0, (int)(f*255), 255);
 			}
 		}
 		break;
@@ -2832,25 +2831,75 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 	shaderstate.curentity = e;
 
-	m[0] = e->axis[0][0];
-	m[1] = e->axis[0][1];
-	m[2] = e->axis[0][2];
-	m[3] = 0;
+	if ((e->flags & RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
+	{
+		float em[16];
+		float vm[16];
 
-	m[4] = e->axis[1][0];
-	m[5] = e->axis[1][1];
-	m[6] = e->axis[1][2];
-	m[7] = 0;
+		vm[0] = r_refdef.playerview->vw_axis[0][0];
+		vm[1] = r_refdef.playerview->vw_axis[0][1];
+		vm[2] = r_refdef.playerview->vw_axis[0][2];
+		vm[3] = 0;
 
-	m[8] = e->axis[2][0];
-	m[9] = e->axis[2][1];
-	m[10] = e->axis[2][2];
-	m[11] = 0;
+		vm[4] = r_refdef.playerview->vw_axis[1][0];
+		vm[5] = r_refdef.playerview->vw_axis[1][1];
+		vm[6] = r_refdef.playerview->vw_axis[1][2];
+		vm[7] = 0;
 
-	m[12] = e->origin[0];
-	m[13] = e->origin[1];
-	m[14] = e->origin[2];
-	m[15] = 1;
+		vm[8] = r_refdef.playerview->vw_axis[2][0];
+		vm[9] = r_refdef.playerview->vw_axis[2][1];
+		vm[10] = r_refdef.playerview->vw_axis[2][2];
+		vm[11] = 0;
+
+		vm[12] = r_refdef.playerview->vw_origin[0];
+		vm[13] = r_refdef.playerview->vw_origin[1];
+		vm[14] = r_refdef.playerview->vw_origin[2];
+		vm[15] = 1;
+
+		em[0] = e->axis[0][0];
+		em[1] = e->axis[0][1];
+		em[2] = e->axis[0][2];
+		em[3] = 0;
+
+		em[4] = e->axis[1][0];
+		em[5] = e->axis[1][1];
+		em[6] = e->axis[1][2];
+		em[7] = 0;
+
+		em[8] = e->axis[2][0];
+		em[9] = e->axis[2][1];
+		em[10] = e->axis[2][2];
+		em[11] = 0;
+
+		em[12] = e->origin[0];
+		em[13] = e->origin[1];
+		em[14] = e->origin[2];
+		em[15] = 1;
+
+		Matrix4_Multiply(vm, em, m);
+	}
+	else
+	{
+		m[0] = e->axis[0][0];
+		m[1] = e->axis[0][1];
+		m[2] = e->axis[0][2];
+		m[3] = 0;
+
+		m[4] = e->axis[1][0];
+		m[5] = e->axis[1][1];
+		m[6] = e->axis[1][2];
+		m[7] = 0;
+
+		m[8] = e->axis[2][0];
+		m[9] = e->axis[2][1];
+		m[10] = e->axis[2][2];
+		m[11] = 0;
+
+		m[12] = e->origin[0];
+		m[13] = e->origin[1];
+		m[14] = e->origin[2];
+		m[15] = 1;
+	}
 
 	if (e->scale != 1 && e->scale != 0)	//hexen 2 stuff
 	{
@@ -2912,22 +2961,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		VectorScale((m+8), mod->clampscale, (m+8));
 	}
 
-	if (e->flags & RF_WEAPONMODEL)
-	{
-		/*FIXME: no bob*/
-		float iv[16];
-		Matrix4_Invert(r_refdef.m_view, iv);
-		Matrix4x4_CM_NewRotation(90, 1, 0, 0);
-		Matrix4_Multiply(iv, m, mv);
-		Matrix4_Multiply(mv, Matrix4x4_CM_NewRotation(-90, 1, 0, 0), iv);
-		Matrix4_Multiply(iv, Matrix4x4_CM_NewRotation(90, 0, 0, 1), m);
-
-		IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)m);
-	}
-	else
-	{
-		IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)m);
-	}
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)m);
 
 	{
 	D3DVIEWPORT9 vport;

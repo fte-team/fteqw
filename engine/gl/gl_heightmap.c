@@ -296,6 +296,7 @@ typedef struct heightmap_s
 	char skyname[MAX_QPATH];
 	char groundshadername[MAX_QPATH];
 	char defaultwatershader[MAX_QPATH];	//typically the name of the ocean or whatever.
+	unsigned int culldistance;
 	float defaultwaterheight;
 	float defaultgroundheight;
 	char defaultgroundtexture[MAX_QPATH];
@@ -359,7 +360,7 @@ typedef struct heightmap_s
 #endif
 
 
-
+	
 	char *texmask;	//for editing - visually masks off the areas which CANNOT accept this texture
 	struct relight_ctx_s *relightcontext;
 	struct llightinfo_s *lightthreadmem;
@@ -4203,34 +4204,53 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 typedef struct
 {
 	int id;
-	int x, y;
+	int pos[3];
 } hmpvs_t;
+typedef struct
+{
+	int id;
+	int min[3], max[3];
+} hmpvsent_t;
 unsigned int Heightmap_FatPVS		(model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned int pvssize, qboolean add)
 {
 	//embed the org onto the pvs
 	hmpvs_t *hmpvs = (hmpvs_t*)pvsbuffer;
 	hmpvs->id = 0xdeadbeef;
-	hmpvs->x = org[0];
-	hmpvs->y = org[1];
+	VectorCopy(org, hmpvs->pos);
 	return sizeof(*hmpvs);
 }
 
 #ifndef CLIENTONLY
 qboolean Heightmap_EdictInFatPVS	(model_t *mod, struct pvscache_s *edict, qbyte *pvsdata)
 {
-	int x,y;
+	heightmap_t *hm = mod->terrain;
+	int o[3], i;
 	hmpvs_t *hmpvs = (hmpvs_t*)pvsdata;
-	//check distance
-	x = edict->areanum - hmpvs->x;
-	y = edict->areanum2 - hmpvs->y;
+	hmpvsent_t *hmed = (hmpvsent_t*)edict;
 
-	return (x*x+y*y) < 4096*4096;
+	if (!hm->culldistance)
+		return true;
+
+	//check distance
+	for (i = 0; i < 3; i++)
+	{
+		if (hmpvs->pos[i] < hmed->min[i])
+			o[i] = hmed->min[i] - hmpvs->pos[i];
+		else if (hmpvs->pos[i] > hmed->max[i])
+			o[i] = hmed->max[i] - hmpvs->pos[i];
+		else
+			o[i] = 0;
+	}
+
+	return DotProduct(o,o) < hm->culldistance;
 }
 
 void Heightmap_FindTouchedLeafs	(model_t *mod, pvscache_t *ent, float *mins, float *maxs)
 {
-	ent->areanum = (mins[0] + maxs[0]) * 0.5;
-	ent->areanum2 = (mins[1] + maxs[1]) * 0.5;
+	hmpvsent_t *hmed = (hmpvsent_t*)ent;
+
+	VectorCopy(mins, hmed->min);
+	VectorCopy(maxs, hmed->max);
 }
 #endif
 
@@ -5054,6 +5074,7 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 
 	heightmap->sectionsize = 1024;
 	heightmap->mode = HMM_TERRAIN;
+	heightmap->culldistance = 4096;
 
 	heightmap->defaultgroundheight = 0;
 	heightmap->defaultwaterheight = 0;
@@ -5091,6 +5112,10 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 			Q_strncpyz(heightmap->defaultgroundtexture, value, sizeof(heightmap->defaultgroundtexture));
 		else if (!strcmp("defaultwatertexture", key))
 			Q_strncpyz(heightmap->defaultwatershader, value, sizeof(heightmap->defaultwatershader));
+		else if (!strcmp("culldistance", key))
+			heightmap->culldistance = atof(value);
+		else if (!strcmp("skybox", key))
+			Q_strncpyz(heightmap->skyname, value, sizeof(heightmap->skyname));
 		else if (!strcmp("tiles", key))
 		{
 			char *d;
@@ -6650,6 +6675,8 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 						if (submod->loadstate == MLS_NOTLOADED)
 						{
 							submod->type = mod_heightmap;
+							if (!submod->entities)
+								submod->entities = Z_Malloc(1);
 							subhm = submod->terrain = Mod_LoadTerrainInfo(submod, submod->name, true);
 
 							subhm->exteriorcontents = FTECONTENTS_EMPTY;

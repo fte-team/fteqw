@@ -445,7 +445,6 @@ void GLR_DeInit (void)
 
 //	Cmd_RemoveCommand ("makewad");
 
-	Cvar_Unhook(&r_skyboxname);
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&vid_conheight);
 	Cvar_Unhook(&vid_conwidth);

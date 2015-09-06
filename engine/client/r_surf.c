@@ -2682,9 +2682,9 @@ void Surf_BuildModelLightmaps (model_t *m)
 	currentmodel = m;
 	shift = Surf_LightmapShift(currentmodel);
 
-	if (*m->name == '*' && m->fromgame == fg_quake3)	//FIXME: should be all bsp formats
+	if (m->submodelof && m->fromgame == fg_quake3)	//FIXME: should be all bsp formats
 	{
-		if (!cl.model_precache[1] || cl.model_precache[1]->loadstate != MLS_LOADED)
+		if (m->submodelof->loadstate != MLS_LOADED)
 			return;
 		newfirst = cl.model_precache[1]->lightmaps.first;
 	}
@@ -2744,7 +2744,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 		int j;
 		unsigned char *src;
 		unsigned char *dst;
-		if (*m->name != '*')
+		if (!m->submodelof)
 		for (i = 0; i < m->lightmaps.count; i++)
 		{
 			if (lightmap[newfirst+i]->external)
@@ -2757,6 +2757,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 				if (lightmap_bgra && lightmap_bytes == 4)
 				{
 					for (j = min((m->lightdatasize-i*m->lightmaps.width*m->lightmaps.height*3)/3,m->lightmaps.width*m->lightmaps.height); j > 0; j--, dst += 4, src += 3)
+					//for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
 					{
 						dst[0] = src[2];
 						dst[1] = src[1];
@@ -2766,7 +2767,8 @@ void Surf_BuildModelLightmaps (model_t *m)
 				}
 				else if (!lightmap_bgra && lightmap_bytes == 4)
 				{
-					for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
+					for (j = min((m->lightdatasize-i*m->lightmaps.width*m->lightmaps.height*3)/3,m->lightmaps.width*m->lightmaps.height); j > 0; j--, dst += 4, src += 3)
+					//for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
 					{
 						dst[0] = src[0];
 						dst[1] = src[1];

@@ -4311,10 +4311,22 @@ done:;
 	{
 		for (i = 0; i < s->numpasses; i++)
 		{
-			if (s->passes[i].numtcmods || (s->passes[i].tcgen != TC_GEN_BASE && s->passes[i].tcgen != TC_GEN_LIGHTMAP) || !(s->passes[i].flags & SHADER_PASS_NOCOLORARRAY))
+			pass = &s->passes[i];
+			if (pass->numtcmods || (s->passes[i].tcgen != TC_GEN_BASE && s->passes[i].tcgen != TC_GEN_LIGHTMAP) || !(s->passes[i].flags & SHADER_PASS_NOCOLORARRAY))
 			{
 				s->flags |= SHADER_NEEDSARRAYS;
 				break;
+			}
+			if (!(pass->flags & SHADER_PASS_NOCOLORARRAY))
+			{
+				if (!(((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING) ||
+					(pass->rgbgen == RGB_GEN_VERTEX_EXACT) ||
+					(pass->rgbgen == RGB_GEN_ONE_MINUS_VERTEX)) &&
+					(pass->alphagen == ALPHA_GEN_VERTEX)))
+				{
+					s->flags |= SHADER_NEEDSARRAYS;
+					break;
+				}
 			}
 		}
 	}
@@ -5226,37 +5238,25 @@ void Shader_DefaultBSPQ1(const char *shortname, shader_t *s, const void *args)
 
 void Shader_DefaultBSPVertex(const char *shortname, shader_t *s, const void *args)
 {
-	shaderpass_t *pass;
-
-//	s->defaulttextures.base = R_LoadHiResTexture(va("%s_d.tga", shortname), NULL, 0);
+	char *builtin = NULL;
 
 	if (Shader_ParseShader("defaultvertexlit", s))
 		return;
 
-	pass = &s->passes[0];
-	pass->tcgen = TC_GEN_BASE;
-	pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
-	pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
-	pass->alphagen = ALPHA_GEN_IDENTITY;
-	pass->numMergedPasses = 1;
-	Shader_SetBlendmode(pass);
-
-/*	if (TEXVALID(s->defaulttextures.base))
+	if (!builtin)
 	{
-		pass->texgen = T_GEN_DIFFUSE;
-	}
-	else*/
-	{
-		s->defaulttextures->base = R_LoadHiResTexture(shortname, NULL, 0);
-		pass->texgen = T_GEN_DIFFUSE;
-		if (!TEXVALID(s->defaulttextures->base))
-			Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+		builtin = (
+			"{\n"
+				"{\n"
+					"map $diffuse\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+				"}\n"
+			"}\n"
+		);
 	}
 
-	s->numpasses = 1;
-	s->numdeforms = 0;
-	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
-	s->sort = SHADER_SORT_OPAQUE;
+	Shader_DefaultScript(shortname, s, builtin);
 }
 void Shader_DefaultBSPFlare(const char *shortname, shader_t *s, const void *args)
 {

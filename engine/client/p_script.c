@@ -3068,9 +3068,11 @@ static qboolean P_LoadParticleSet(char *name, qboolean implicit)
 	}
 	else
 	{
+#ifndef NOLEGACY
 		if (P_LoadParticleSet("high", true))
 			Con_Printf(CON_WARNING "Couldn't find particle description %s, loading 'high' instead\n", name);
 		else
+#endif
 		{
 			Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
 			return false;

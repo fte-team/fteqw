@@ -2589,7 +2589,7 @@ BOOL CopyFileU(const char *src, const char *dst, BOOL bFailIfExists)
 }
 
 //#define SVNREVISION 1
-#if defined(SVNREVISION) && !defined(MINIMAL)
+#if defined(SVNREVISION) && !defined(MINIMAL) && !defined(NOLEGACY)
 	#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
 	#if defined(OFFICIAL_RELEASE)
 		#define UPD_BUILDTYPE "rel"
@@ -2601,10 +2601,18 @@ BOOL CopyFileU(const char *src, const char *dst, BOOL bFailIfExists)
 		#define UPDATE_URL_TESTED	UPDATE_URL_ROOT "autoup/"
 		#define UPDATE_URL_NIGHTLY	UPDATE_URL_ROOT
 		#define UPDATE_URL_VERSION	"%sversion.txt"
-		#ifdef _WIN64
-			#define UPDATE_URL_BUILD "%swin64/fte" EXETYPE "64.exe"
+		#ifdef NOLEGACY
+			#ifdef _WIN64
+				#define UPDATE_URL_BUILD "%snocompat64/fte" EXETYPE "64.exe"
+			#else
+				#define UPDATE_URL_BUILD "%snocompat/fte" EXETYPE ".exe"
+			#endif
 		#else
-			#define UPDATE_URL_BUILD "%swin32/fte" EXETYPE ".exe"
+			#ifdef _WIN64
+				#define UPDATE_URL_BUILD "%swin64/fte" EXETYPE "64.exe"
+			#else
+				#define UPDATE_URL_BUILD "%swin32/fte" EXETYPE ".exe"
+			#endif
 		#endif
 	#endif
 #endif

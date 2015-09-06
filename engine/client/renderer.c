@@ -38,6 +38,16 @@ extern int gl_anisotropy_factor;
 void QDECL SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
+void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue)
+{
+	if (qrenderer != QR_NONE && cl.worldmodel)
+	{
+		if (*var->string)
+			R_SetSky(var->string);
+		else
+			R_SetSky(cl.skyname);
+	}
+}
 
 #ifdef FTE_TARGET_WEB	//webgl sucks too much to get a stable framerate without vsync.
 cvar_t vid_vsync							= CVARAF  ("vid_wait", "1",
@@ -138,8 +148,8 @@ cvar_t r_novis								= CVARF ("r_novis", "0", CVAR_ARCHIVE);
 cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												CVAR_ARCHIVE,
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
-cvar_t r_skyboxname							= SCVARF ("r_skybox", "",
-												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
+cvar_t r_skyboxname							= CVARFC ("r_skybox", "",
+												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM, R_SkyBox_Changed);
 cvar_t r_softwarebanding_cvar				= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
 qboolean r_softwarebanding;
 cvar_t r_speeds								= SCVAR ("r_speeds", "0");

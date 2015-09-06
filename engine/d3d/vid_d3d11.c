@@ -12,6 +12,9 @@
 ID3D11Device *pD3DDev11;
 ID3D11DeviceContext *d3ddevctx;
 
+//#include <d3d11_1.h>
+//ID3D11DeviceContext1 *d3ddevctx1;
+
 #ifdef WINRT	//winrt crap has its own non-hwnd window crap, after years of microsoft forcing everyone to use hwnds for everything. I wonder why they don't have that many winrt apps.
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "D3D11.lib")

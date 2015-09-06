@@ -102,7 +102,7 @@ static int debuggerstacky;
 #include <windows.h>
 void INS_UpdateGrabs(int fullscreen, int activeapp);
 #endif
-int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, int nump, char **parms);
+int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *error, pbool fatal);
 void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
 #if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
@@ -272,7 +272,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 	return true;
 }
 
-int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason)
+int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *reason, pbool fatal)
 {
 #if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
 	if (isPlugin >= 2)
@@ -282,6 +282,8 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		if (!*filename || !line || !*line)	//don't try editing an empty line, it won't work
 		{
 			Con_Printf("Unable to debug, please disable optimisations\n");
+			if (fatal)
+				return DEBUG_TRACE_ABORT;
 			return DEBUG_TRACE_OFF;
 		}
 		Sys_SendKeyEvents();
@@ -333,8 +335,11 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 #endif
 
 #ifdef TEXTEDITOR
-	return QCLibEditor(prinst, filename, line, statement, 0, NULL);
+	return QCLibEditor(prinst, filename, line, statement, reason, fatal);
 #else
+	if (fatal)
+		return DEBUG_TRACE_ABORT;
+	return DEBUG_TRACE_OFF;	//get lost
 	{
 		int i;
 		char buffer[8192];
@@ -374,6 +379,8 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			VFS_CLOSE(f);
 		}
 	}
+	if (reason)
+		return DEBUG_TRACE_ABORT;
 //PF_break(NULL);
 	return DEBUG_TRACE_OVER;
 #endif
@@ -2643,6 +2650,20 @@ void QCBUILTIN PF_copyentity (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	RETURN_EDICT(prinst, out);
 }
 
+void QCBUILTIN PF_entityprotection (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	wedict_t *e = G_WEDICT(prinst, OFS_PARM0);
+	int prot = G_FLOAT(OFS_PARM1);
+
+	if (e->isfree)
+		PR_BIError(prinst, "PF_entityprotection: entity is free");
+
+	G_FLOAT(OFS_RETURN) = prot;
+	if (prot < 0 || prot > 1)
+		return;
+	e->readonly = prot;
+}
 
 //Entities
 ////////////////////////////////////////////////////
@@ -4627,37 +4648,6 @@ void QCBUILTIN PF_changeyaw (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	ent = PROG_TO_WEDICT(prinst, *w->g.self);
 
 	World_changeyaw(ent);
-	/*
-	current = anglemod( ent->v->angles[1] );
-	ideal = ent->v->ideal_yaw;
-	speed = ent->v->yaw_speed;
-
-	if (current == ideal)
-		return;
-	move = ideal - current;
-	if (ideal > current)
-	{
-		if (move >= 180)
-			move = move - 360;
-	}
-	else
-	{
-		if (move <= -180)
-			move = move + 360;
-	}
-	if (move > 0)
-	{
-		if (move > speed)
-			move = speed;
-	}
-	else
-	{
-		if (move < -speed)
-			move = -speed;
-	}
-
-	ent->v->angles[1] = anglemod (current + move);
-*/
 }
 
 //void() changepitch = #63;
@@ -5754,7 +5744,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_PEXT_ACURATETIMINGS"},		//allows full interpolation
 	{"FTE_PEXT_SOUNDDBL"},	//twice the sound indexes
 	{"FTE_PEXT_FATNESS"},		//entities may be expanded along their vertex normals
-	{"DP_HALFLIFE_MAP"},		//entitiy can visit a hl bsp
+	{"DP_HALFLIFE_MAP"},		//entity can visit a hl bsp
 	{"FTE_PEXT_TE_BULLET"},	//additional particle effect. Like TE_SPIKE and TE_SUPERSPIKE
 	{"FTE_PEXT_HULLSIZE"},	//means we can tell a client to go to crouching hull
 	{"FTE_PEXT_MODELDBL"},	//max of 512 models

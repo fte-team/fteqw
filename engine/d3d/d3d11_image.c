@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #ifdef D3D11QUAKE
 #include "winquake.h"
+#include "shader.h"
 #define COBJMACROS
 #include <d3d11.h>
 extern ID3D11Device *pD3DDev11;
@@ -117,6 +118,9 @@ qboolean D3D11_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 	D3D11_SUBRESOURCE_DATA subresdesc[sizeof(mips->mip) / sizeof(mips->mip[0])];
 	int i;
 
+	if (!sh_config.texfmt[mips->encoding])
+		return false;
+
 	tdesc.Width = mips->mip[0].width;
 	tdesc.Height = mips->mip[0].height;
 	tdesc.ArraySize = 1;
@@ -190,6 +194,9 @@ qboolean D3D11_LoadTextureMips(image_t *tex, struct pendingtextureinfo *mips)
 //		bytesperpixel = 2;
 //		break;
 	case PTI_RGBA8:
+		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		bytesperpixel = 4;
+		break;
 	case PTI_RGBX8:	//d3d11 has no alphaless format. be sure to proprly disable alpha in the shader. 
 		tdesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 		bytesperpixel = 4;
@@ -268,7 +275,10 @@ void D3D11_UploadLightmap(lightmapinfo_t *lm)
 	mips.mip[0].needfree = false;
 	mips.mip[0].width = lm->width;
 	mips.mip[0].height = lm->height;
-	mips.encoding = PTI_RGBX8;
+	if (lightmap_bgra)
+		mips.encoding = PTI_BGRX8;
+	else
+		mips.encoding = PTI_RGBX8;	
 	mips.mipcount = 1;
 	D3D11_LoadTextureMips(tex, &mips);
 	tex->width = lm->width;

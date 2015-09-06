@@ -177,7 +177,7 @@ void LightReloadEntities(struct relight_ctx_s *ctx, char *entstring)
 		mapent->colour[1] = 0;
 		mapent->colour[2] = 0;
 		mapent->targetentnum = -1;
-		while(1)
+		while(entstring)
 		{
 			entstring = COM_ParseOut(entstring, key, sizeof(key));
 			if (!strcmp(key, "}"))

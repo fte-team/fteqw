@@ -94,7 +94,7 @@ typedef struct nqglobalvars_s
 	vec3_t *input_movevalues;
 	float *input_buttons;
 	float *spawnparamglobals[NUM_SPAWN_PARMS];
-	float *serverid;
+	int *serverid;
 } globalptrs_t;
 
 #define P_VEC(v) (pr_global_struct->v)

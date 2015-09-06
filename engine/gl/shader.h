@@ -785,6 +785,18 @@ void D3D11BE_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t 
 void D3D11BE_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray);
 void D3D11BE_VBO_Destroy(vboarray_t *vearray);
 void D3D11BE_Scissor(srect_t *rect);
+
+enum
+{	//these are the buffer indexes
+	D3D11_BUFF_POS,
+	D3D11_BUFF_COL,
+	D3D11_BUFF_TC,
+	D3D11_BUFF_LMTC,
+	D3D11_BUFF_NORM,
+	D3D11_BUFF_SKEL,
+	D3D11_BUFF_POS2,
+	D3D11_BUFF_MAX
+};
 #endif
 
 //Builds a hardware shader from the software representation

@@ -81,7 +81,11 @@ cvar_t	pr_csqc_memsize = CVAR("pr_csqc_memsize", "-1");
 cvar_t	cl_csqcdebug = CVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 cvar_t  cl_nocsqc = CVAR("cl_nocsqc", "0");
 cvar_t  pr_csqc_coreonerror = CVAR("pr_csqc_coreonerror", "1");
+#ifdef NOLEGACY
+cvar_t  pr_csqc_formenus = CVARF("pr_csqc_formenus", "1", CVAR_NOSET);
+#else
 cvar_t  pr_csqc_formenus = CVAR("pr_csqc_formenus", "0");
+#endif
 extern cvar_t dpcompat_stats;
 cvar_t  dpcompat_corruptglobals = CVAR("dpcompat_corruptglobals", "0");
 
@@ -4002,18 +4006,6 @@ static void QCBUILTIN PF_cs_droptofloor (pubprogfuncs_t *prinst, struct globalva
 	}
 }
 
-static void QCBUILTIN PF_cs_copyentity (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	csqcedict_t *in, *out;
-
-	in = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-	out = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
-
-	memcpy(out->v, in->v, csqcentsize);
-
-	World_LinkEdict (&csqc_world, (wedict_t*)out, false);
-}
-
 static void QCBUILTIN PF_cl_getlight (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	vec3_t ambient, diffuse, dir;
@@ -5352,9 +5344,9 @@ static struct {
 	{"con_input",				PF_SubConInput,				394},
 
 	{"cvars_haveunsaved",		PF_cvars_haveunsaved,		0},
-
+	{"entityprotection",		PF_entityprotection,		0},
 //400
-	{"copyentity",				PF_cs_copyentity,			400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
+	{"copyentity",				PF_copyentity,				400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
 	{"setcolors",				PF_NoCSQC,					401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
 	{"findchain",				PF_cs_findchain,			402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
 	{"findchainfloat",			PF_cs_findchainfloat,		403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)

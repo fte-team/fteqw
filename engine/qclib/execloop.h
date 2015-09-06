@@ -12,14 +12,12 @@
 //Appears to work fine.
 
 #if INTSIZE == 16
-#define cont cont16
 #define reeval reeval16
 #define pr_statements pr_statements16
 #define fakeop fakeop16
 #define dstatement_t dstatement16_t
 #define sofs signed short
 #elif INTSIZE == 32
-#define cont cont32
 #define reeval reeval32
 #define pr_statements pr_statements32
 #define fakeop fakeop32
@@ -50,7 +48,6 @@
 //rely upon just st
 {
 #ifdef DEBUGABLE
-cont:	//last statement may have been a breakpoint
 	s = st-pr_statements;
 	s+=1;
 
@@ -81,10 +78,10 @@ cont:	//last statement may have been a breakpoint
 //		prinst.watch_ptr = NULL;
 		progfuncs->funcs.debug_trace=DEBUG_TRACE_INTO;	//this is what it's for
 
-		s=ShowStep(progfuncs, s, "Watchpoint hit");
+		s=ShowStep(progfuncs, s, "Watchpoint hit", false);
 	}
 	else if (progfuncs->funcs.debug_trace)
-		s=ShowStep(progfuncs, s, NULL);
+		s=ShowStep(progfuncs, s, NULL, false);
 	st = pr_statements + s;
 	pr_xfunction->profile+=1;
 
@@ -412,12 +409,8 @@ reeval:
 	case OP_ADDRESS:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
 		{
-			pr_xstatement = st-pr_statements;
-			if (PR_RunWarning (&progfuncs->funcs, "OP_ADDRESS references invalid entity in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-			{
-				st--;
-				goto cont;
-			}
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_ADDRESS references invalid entity in %s\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+				return pr_xstatement;
 			break;
 		}
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
@@ -433,12 +426,8 @@ reeval:
 				fdef_t *f;
 				d16 = ED_GlobalAtOfs16(progfuncs, st->a);
 				f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->funcs.fieldadjust);
-				pr_xstatement = st-pr_statements;
-				if (PR_RunWarning(&progfuncs->funcs, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d16?PR_StringToNative(&progfuncs->funcs, d16->s_name):NULL, f?f->name:NULL))
-				{
-					st--;
-					goto cont;
-				}
+				if (PR_ExecRunWarning(&progfuncs->funcs, st-pr_statements, "assignment to read-only entity %i in %s (%s.%s)\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name), d16?PR_StringToNative(&progfuncs->funcs, d16->s_name):NULL, f?f->name:NULL))
+					return pr_xstatement;
 				OPC->_int = ~0;
 				break;
 			}
@@ -448,12 +437,8 @@ reeval:
 #ifdef NOLEGACY
 		errorif (ed->isfree)
 		{
-			pr_xstatement = st-pr_statements;
-			if (PR_RunWarning (&progfuncs->funcs, "assignment to free entitiy in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-			{
-				st--;
-				goto cont;
-			}
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "assignment to free entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+				return pr_xstatement;
 			break;
 		}
 #endif
@@ -470,12 +455,8 @@ reeval:
 	case OP_LOAD_FNC:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
 		{
-			pr_xstatement = st-pr_statements;
-			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD references invalid entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-			{
-				st--;
-				goto cont;
-			}
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references invalid entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+				return pr_xstatement;
 			OPC->_int = 0;
 			break;
 		}
@@ -485,7 +466,11 @@ reeval:
 #endif
 #ifdef NOLEGACY
 		if (ed->isfree)
+		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references free entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+				return pr_xstatement;
 			OPC->_int = 0;
+		}
 		else
 #endif
 		{
@@ -497,12 +482,8 @@ reeval:
 	case OP_LOAD_V:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
 		{
-			pr_xstatement = st-pr_statements;
-			if (PR_RunWarning (&progfuncs->funcs, "OP_LOAD_V references invalid entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
-			{
-				st--;
-				goto cont;
-			}
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD_V references invalid entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+				return pr_xstatement;
 			OPC->_vector[0] = 0;
 			OPC->_vector[1] = 0;
 			OPC->_vector[2] = 0;
@@ -515,6 +496,8 @@ reeval:
 #ifdef NOLEGACY
 		if (ed->isfree)
 		{
+			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references free entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
+				return pr_xstatement;
 			OPC->_vector[0] = 0;
 			OPC->_vector[1] = 0;
 			OPC->_vector[2] = 0;
@@ -1276,7 +1259,7 @@ reeval:
 			{
 				pr_xstatement = s;
 				printf("Break point hit in %s.\n", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
-				s = ShowStep(progfuncs, s, NULL);
+				s = ShowStep(progfuncs, s, NULL, false);
 				st = &pr_statements[s];	//let the user move execution
 				pr_xstatement = s = st-pr_statements;
 				op = st->op & ~0x8000;

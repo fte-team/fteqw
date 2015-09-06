@@ -5255,7 +5255,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	COM_ParsePlusSets(true);
 
 #ifdef QUAKETC
-	def = COM_FDepthFile("default.cfg", true);
+	Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
 	if (COM_FCheckExists ("config.cfg"))
 		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
 	if (COM_FCheckExists ("autoexec.cfg"))

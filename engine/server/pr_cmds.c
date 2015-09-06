@@ -71,7 +71,11 @@ cvar_t	pr_fixbrokenqccarrays = CVARFD("pr_fixbrokenqccarrays", "0", CVAR_LATCH, 
 /*other stuff*/
 cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_LATCH, "Maximum number of entities spawnable on the map at once. Low values will crash the server on some maps/mods. High values will result in excessive memory useage (see pr_ssqc_memsize). Illegible server messages may occur with old/other clients above 32k. FTE's network protocols have a maximum at a little over 4 million. Please don't ever make a mod that actually uses that many...");
 
+#ifdef NOLEGACY
+cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "1", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
+#else
 cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
+#endif
 cvar_t	pr_no_parsecommand = CVARFD("pr_no_parsecommand", "0", 0, "Provides a way around invalid mod usage of SV_ParseClientCommand, eg xonotic.");
 
 extern cvar_t pr_sourcedir;
@@ -85,7 +89,11 @@ cvar_t pr_compatabilitytest = CVARFD("pr_compatabilitytest", "0", CVAR_LATCH, "O
 cvar_t pr_ssqc_coreonerror = CVAR("pr_coreonerror", "1");
 
 cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
+#ifdef NOLEGACY
+cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "1", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
+#else
 cvar_t sv_gameplayfix_setmodelrealbox = CVARD("sv_gameplayfix_setmodelrealbox", "0", "Vanilla setmodel will setsize the entity to a hardcoded size for non-bsp models. This cvar will always use the real size of the model instead, but will require that the server actually loads the model.");
+#endif
 cvar_t sv_gameplayfix_setmodelsize_qw = CVARD("sv_gameplayfix_setmodelsize_qw", "0", "The setmodel builtin will act as a setsize for QuakeWorld mods also.");
 cvar_t dpcompat_nopreparse = CVARD("dpcompat_nopreparse", "0", "Xonotic uses svc_tempentity with unknowable lengths mixed with other data that needs to be translated. This cvar disables any attempt to translate or pre-parse network messages, including disabling nq/qw cross compatibility. NOTE: because preparsing will be disabled, messages might not get backbuffered correctly if too much reliable data is written.");
 
@@ -156,7 +164,9 @@ struct {
 
 	func_t RunClientCommand;	//EXT_CSQC_1
 
+#ifdef HEXEN2
 	func_t ClassChangeWeapon;//hexen2 support
+#endif
 	func_t AddDebugPolygons;
 	func_t CheckRejectConnection;
 } gfuncs;
@@ -747,11 +757,11 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalvec		(false, input_angles);
 	globalvec		(false, input_movevalues);
 	globalfloat		(false, input_buttons);
+	globalint		(false, serverid);
 
 	memset(&evalc_idealpitch, 0, sizeof(evalc_idealpitch));
 	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
 
-	pr_global_ptrs->serverid = (float *)PR_FindGlobal(svprogfuncs, "serverid", 0, NULL);
 	if (pr_global_ptrs->serverid)
 		*pr_global_ptrs->serverid = svs.clusterserverid;
 	for (i = 0; i < NUM_SPAWN_PARMS; i++)
@@ -847,7 +857,9 @@ void PR_LoadGlabalStruct(qboolean muted)
 
 	gfuncs.PausedTic = PR_FindFunction(svprogfuncs, "SV_PausedTic", PR_ANY);
 	gfuncs.ShouldPause = PR_FindFunction(svprogfuncs, "SV_ShouldPause", PR_ANY);
+#ifdef HEXEN2
 	gfuncs.ClassChangeWeapon = PR_FindFunction(svprogfuncs, "ClassChangeWeapon", PR_ANY);
+#endif
 	gfuncs.RunClientCommand = PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY);
 	gfuncs.AddDebugPolygons = PR_FindFunction(svprogfuncs, "SV_AddDebugPolygons", PR_ANY);
 	gfuncs.CheckRejectConnection = PR_FindFunction(svprogfuncs, "SV_CheckRejectConnection", PR_ANY);
@@ -3123,7 +3135,7 @@ static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	pr_global_struct->trace_inwater = trace->inwater;
 	pr_global_struct->trace_inopen = trace->inopen;
 	pr_global_struct->trace_surfaceflags = trace->surface?trace->surface->flags:0;
-	if (pr_global_struct->trace_surfacename)
+	if (pr_global_ptrs->trace_surfacename)
 		prinst->SetStringField(prinst, NULL, &pr_global_struct->trace_surfacename, trace->surface?trace->surface->name:NULL, true);
 	pr_global_struct->trace_endcontents = trace->contents;
 	pr_global_struct->trace_brush_id = trace->brush_id;
@@ -8808,9 +8820,9 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 	pmove.cmd.angles[2] = ANGLE2SHORT((pr_global_struct->input_angles)[2]);
 	VectorCopy(pr_global_struct->input_angles, pmove.angles);
 
-	pmove.cmd.forwardmove = (pr_global_struct->input_movevalues)[0];
-	pmove.cmd.sidemove = (pr_global_struct->input_movevalues)[1];
-	pmove.cmd.upmove = (pr_global_struct->input_movevalues)[2];
+	pmove.cmd.forwardmove = bound(-32767, (pr_global_struct->input_movevalues)[0], 32767);
+	pmove.cmd.sidemove = bound(-32767, (pr_global_struct->input_movevalues)[1], 32767);
+	pmove.cmd.upmove = bound(-32767, (pr_global_struct->input_movevalues)[2], 32767);
 	pmove.cmd.buttons = pr_global_struct->input_buttons;
 
 	pmove.safeorigin_known = true;
@@ -9835,6 +9847,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"con_draw",		PF_Fixme,			0,		0,		0,		393,	D("void(string conname, vector pos, vector size, float fontsize)", "Draws the named console.")},
 	{"con_input",		PF_Fixme,			0,		0,		0,		394,	D("float(string conname, float inevtype, float parama, float paramb, float paramc)", "Forwards input events to the named console. Mouse updates should be absolute only.")},
 	{"cvars_haveunsaved",PF_Fixme,			0,		0,		0,		0,		D("float()", "Returns true if any archived cvar has an unsaved value.")},
+
+	{"entityprotection",PF_entityprotection,0,		0,		0,		0,		D("float(entity e, float nowreadonly)", "Changes the protection on the specified entity to protect it from further edits from QC. The return value is the previous setting. Note that this can be used to unprotect the world, but doing so long term is not advised as you will no longer be able to detect invalid entity references. Also, world is not networked, so results might not be seen by clients (or in other words, world.avelocity_y=64 is a bad idea).")},
 //end fte extras
 
 //DP extras
@@ -10710,8 +10724,10 @@ void PR_DumpPlatform_f(void)
 		{"input_cursor_trace_endpos",	"vector",	CS/*|QW|NQ*/},
 		{"input_cursor_trace_entnum",	"float",	CS/*|QW|NQ*/},
 
-		{"trace_brush_id",			"int", QW|NQ|CS},
-		{"trace_brush_faceid",		"int", QW|NQ|CS},
+		{"trace_brush_id",		"int", QW|NQ|CS},
+		{"trace_brush_faceid",	"int", QW|NQ|CS},
+
+		{"serverid",			"int", QW|NQ|CS,	"The unique id of this server within the server cluster."},
 
 #define comfieldfloat(name,desc) {#name, ".float", FL, desc},
 #define comfieldvector(name,desc) {#name, ".vector", FL, desc},
@@ -10750,7 +10766,9 @@ void PR_DumpPlatform_f(void)
 		{"SV_PlayerPhysics",		"void()", QW|NQ, "Legacy method to tweak player input that does not reliably work with prediction (prediction WILL break). Mods that care about prediction should use SV_RunClientCommand instead. If pr_no_playerphysics is set to 1, this function will never be called, which will either fix prediction or completely break player movement depending on whether the feature was even useful."},
 		{"EndFrame",				"void()", QW|NQ, "Called after non-player entities have been run at the end of the physics frame. Player physics is performed out of order and can/will still occur between EndFrame and BeginFrame."},
 		{"SV_CheckRejectConnection","string(string addr, string uinfo, string features) ", QW|NQ, "Called to give the mod a chance to ignore connection requests based upon client protocol support or other properties. Use infoget to read the uinfo and features arguments."},
+#ifdef HEXEN2
 		{"ClassChangeWeapon",		"void()", H2, "Hexen2 support. Called when cl_playerclass changes. Self is set to the player who is changing class."},
+#endif
 		/* //mvdsv compat
 		{"UserInfo_Changed",		"//void()", QW},
 		{"localinfoChanged",		"//void()", QW},
@@ -10820,6 +10838,9 @@ void PR_DumpPlatform_f(void)
 		{"MOVETYPE_BOUNCE",			"const float", QW|NQ|CS, NULL, MOVETYPE_BOUNCE},
 		{"MOVETYPE_BOUNCEMISSILE",	"const float", QW|NQ|CS, NULL, MOVETYPE_BOUNCEMISSILE},
 		{"MOVETYPE_FOLLOW",			"const float", QW|NQ|CS, NULL, MOVETYPE_FOLLOW},
+		{"MOVETYPE_PUSHPULL",		"const float", H2,		 NULL, MOVETYPE_H2PUSHPULL, "Identical to MOVETYPE_STEP. QC may treat the entity differently (typically with movechains)."},
+		{"MOVETYPE_SWIM",			"const float", H2,		 NULL, MOVETYPE_H2SWIM, "Equivelent to MOVETYPE_STEP, but additionally walkmove/movetogoal will not allow a movetype_swim entity to move out of water."},
+		{"MOVETYPE_6DOF",			"const float", QW|NQ|CS, "A glorified MOVETYPE_FLY. Players using this movetype will get some flightsim-like physics, with fully independant rotations (order-dependant transforms).", MOVETYPE_6DOF},
 		{"MOVETYPE_WALLWALK",		"const float", QW|NQ|CS, "Players using this movetype will be able to orient themselves to walls, and then run up them.", MOVETYPE_WALLWALK},
 		{"MOVETYPE_PHYSICS",		"const float", QW|NQ|CS, "Enable the use of ODE physics upon this entity.", MOVETYPE_PHYSICS},
 

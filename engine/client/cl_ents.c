@@ -1440,7 +1440,7 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	{
 		read = MSG_ReadShort();
 		if (msg_badread)
-			Host_EndGame("Corrupt entitiy message packet\n");
+			Host_EndGame("Corrupt entity message packet\n");
 		remove = !!(read&0x8000);
 		read&=0x7fff;
 		if (remove && !read)

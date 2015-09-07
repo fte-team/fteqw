@@ -5162,6 +5162,7 @@ void CL_StartCinematicOrMenu(void)
 		else if (idcin_depth != 0x7fffffff)
 			Media_PlayFilm("video/idlog.cin", true);
 
+#ifndef NOLEGACY
 		//and for fun:
 		if (COM_FCheckExists("data/local/video/New_Bliz640x480.bik"))
 			Media_PlayFilm("av:data/local/video/New_Bliz640x480.bik", true);
@@ -5171,6 +5172,7 @@ void CL_StartCinematicOrMenu(void)
 			Media_PlayFilm("av:data/local/video/eng/d2intro640x292.bik", true);
 		if (COM_FCheckExists("Data/Local/Video/ENG/D2x_Intro_640x292.bik"))
 			Media_PlayFilm("av:Data/Local/Video/ENG/D2x_Intro_640x292.bik", true);
+#endif
 	}
 #endif
 

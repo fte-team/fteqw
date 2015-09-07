@@ -41,7 +41,7 @@ sh_config_t sh_config;
 
 //cvars that affect shader generation
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
-cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitup", CVAR_SHADERSYSTEM, "Reduce the shader to a single texture, and then make stuff up about its mother. The resulting fist fight results in more colour when you shine a light upon its face.\nSet to 2 to ignore 'depthfunc equal' and 'tcmod scale' in order to tolerate bizzare shaders made for a bizzare engine.");
+cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitup", CVAR_SHADERSYSTEM, "Reduce the shader to a single texture, and then make stuff up about its mother. The resulting fist fight results in more colour when you shine a light upon its face.\nSet to 2 to ignore 'depthfunc equal' and 'tcmod scale' in order to tolerate bizzare shaders made for a bizzare engine.\nBecause most shaders made for DP are by people who _clearly_ have no idea what the heck they're doing, you'll typically need the '2' setting.");
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
@@ -2407,7 +2407,7 @@ static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr
 		pass->tcgen = TC_GEN_BASE;
 	pass->flags |= SHADER_PASS_ANIMMAP;
 	pass->texgen = T_GEN_ANIMMAP;
-	pass->anim_fps = (int)Shader_ParseFloat (shader, ptr, 0);
+	pass->anim_fps = Shader_ParseFloat (shader, ptr, 0);
 	pass->anim_numframes = 0;
 
 	for ( ; ; )

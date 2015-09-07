@@ -3467,6 +3467,7 @@ void CL_LinkPacketEntities (void)
 #endif
 		ent->light_known = 0;
 		ent->forcedshader = NULL;
+		ent->shaderTime = 0;
 
 		memset(&ent->framestate, 0, sizeof(ent->framestate));
 

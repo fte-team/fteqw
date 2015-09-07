@@ -2388,6 +2388,16 @@ qboolean is_numeric (const char *c)
 		((*c == '-' || *c == '+') && (c[1] == '.' || (c[1]>='0' && c[1]<='9'))) ||
 		(*c == '.' && (c[1]>='0' && c[1]<='9'))?true:false;
 }
+qboolean is_true (const char *c)
+{
+	if (is_numeric(c))
+		return !!atof(c);
+	if (!Q_strcasecmp(c, "true") || !Q_strcasecmp(c, "yes"))
+		return true;
+	if (!Q_strcasecmp(c, "false") || !Q_strcasecmp(c, "no") || !Q_strcasecmp(c, "null") || !Q_strcasecmp(c, "nil"))
+		return false;
+	return !!*c;
+}
 #define IFPUNCT "(,{})(\':;=!><&|+*/-"
 const char *If_Token(const char *func, const char **end)
 {
@@ -2446,26 +2456,26 @@ const char *If_Token(const char *func, const char **end)
 		func = If_Token(s, end);
 		for (s = func; *s; s++);
 		if (func && *func)
-			return "";
+			s2 = "";
 		else
-			return "true";
+			s2 = "true";
 	}
 	else if (!strcmp(com_token, "int"))
 	{
 		func = If_Token(s, end);
-		return retint(atoi(func));
+		s2 = retint(atoi(func));
 	}
 	else if (!strcmp(com_token, "strlen"))
 	{
 		func = If_Token(s, end);
-		return retfloat(strlen(func));
+		s2 = retfloat(strlen(func));
 	}
 	else if (!strcmp(com_token, "defined"))	//functions
 	{
 		s = COM_ParseToken(s, IFPUNCT);
 		var = Cvar_FindVar(com_token);
 		*end = s;
-		return retstring((var != NULL)?"true":"");
+		s2 = retstring((var != NULL)?"true":"");
 	}
 	else if (!strcmp(com_token, "random"))
 	{
@@ -2586,7 +2596,7 @@ const char *If_Token(const char *func, const char **end)
 	{
 		func=COM_ParseToken(s, IFPUNCT);
 		if (*com_token == '&')
-			return retfloat(*s2&&*If_Token(s, end));
+			return retfloat(is_true(s2)&&is_true(If_Token(func, end)));
 		else
 			return retfloat(atoi(s2)&atoi(If_Token(s, end)));
 	}
@@ -2602,15 +2612,26 @@ const char *If_Token(const char *func, const char **end)
 	{
 		func=COM_ParseToken(s, IFPUNCT);
 		if (*com_token == '|')
-		{
-			func = If_Token(func, end);
-			return retfloat(atoi(s2)||atoi(func));
-		}
+			return retfloat(is_true(s2)||is_true(If_Token(func, end)));
 		else
 			return retfloat(atoi(s2)|atoi(If_Token(s, end)));
 	}
 
 	return s2;
+}
+
+qboolean If_EvaluateBoolean(const char *text, int restriction)
+{
+	qboolean ret;
+	const char *end;
+	tempstack_t *ts = If_Token_GetMark();
+	int restore = Cmd_ExecLevel;
+	Cmd_ExecLevel = restriction;
+	text = If_Token(text, &end);
+	ret = is_true(text);
+	If_Token_Clear(ts);
+	Cmd_ExecLevel = restore;
+	return ret;
 }
 
 void Cbuf_ExecBlock(int level)

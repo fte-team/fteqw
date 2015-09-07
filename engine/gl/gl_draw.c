@@ -73,7 +73,6 @@ void GLDraw_Init (void)
 				((int)vid.height - 48 - pic->height)/2, pic->width, pic->height, pic);
 	}
 
-	TRACE(("dbg: GLDraw_ReInit: GL_EndRendering\n"));
 	if (R2D_Flush)
 		R2D_Flush();
 	VID_SwapBuffers();

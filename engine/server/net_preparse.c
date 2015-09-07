@@ -1013,6 +1013,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			break;
 		case svc_finale:
 			nullterms = 1;
+			protocollen = 2;
 			break;
 		case svcdp_skybox:
 			protocollen = 2;//it's just a string
@@ -2001,6 +2002,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			break;
 		case svc_finale:
 			nullterms = 1;
+			protocollen = 2;
 			break;
 		case svc_updatepl:
 		case svc_muzzleflash:

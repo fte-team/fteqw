@@ -3138,7 +3138,7 @@ static void *Q1_LoadSkins_GL (model_t *loadmodel, daliasskintype_t *pskintype, u
 
 			frames[0].shader = NULL;
 			frames[0].defaultshader = NULL;
-			Q_snprintfz(frames[0].shadername, sizeof(frames[0].shadername), "%s_%i.lmp", basename, i);
+			Q_snprintfz(frames[0].shadername, sizeof(frames[0].shadername), "%s_%i.lmp", loadmodel->name, i);
 
 			Q_snprintfz(skinname, sizeof(skinname), "%s_%i.lmp", slash, i);
 			frames[0].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, skintranstype);
@@ -3255,7 +3255,7 @@ static void *Q1_LoadSkins_GL (model_t *loadmodel, daliasskintype_t *pskintype, u
 				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_pants.lmp", slash, i, t);
 				frames[t].texnums.loweroverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
 
-				Q_snprintfz(frames[t].shadername, sizeof(frames[t].shadername), "%s_%i_%i.lmp", basename, i, t);
+				Q_snprintfz(frames[t].shadername, sizeof(frames[t].shadername), "%s_%i_%i.lmp", loadmodel->name, i, t);
 				frames[t].defaultshader = NULL;
 			}
 			pskintype = (daliasskintype_t *)data;

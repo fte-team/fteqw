@@ -540,14 +540,18 @@ enum manifestdeptype_e
 {
 	mdt_invalid,
 	mdt_singlepackage,	//regular package, versioned.
-	mdt_installation	//allowed to install to the root.
+	mdt_installation	//allowed to install to the root, only downloaded as part of an initial install.
 };
 typedef struct
 {
 	qboolean blockupdate;	//set to block the updateurl from being used this session. this avoids recursive updates when manifests contain the same update url.
 	qboolean doinstall;		//manifest was embedded in the engine. don't assume its already installed, but ask to install it (also, enable some extra permissions for writing dlls)
 
-	int parsever;
+	enum
+	{
+		MANIFEST_UNSPECIFIED=0,
+		MANIFEST_CURRENTVER
+	} parsever;
 	int minver;	//if the engine svn revision is lower than this, the manifest will not be used as an 'upgrade'.
 	int maxver;	//if not 0, the manifest will not be used
 	qboolean disablehomedir;
@@ -569,8 +573,8 @@ typedef struct
 		char *path;			//the 'pure' name
 		qboolean crcknown;	//if the crc was specified
 		unsigned int crc;	//the public crc
-		char *extractname;	//if specified, this is the filename that should be extracted.
-		char *mirrors[8];	//a randomized (prioritized-on-load) list of http mirrors to use.
+		char *mirrors[8];	//a randomized (prioritized-on-load) list of mirrors to use. (may be 'prompt:game,package', 'unzip:file,url', 'xz:url', 'gz:url'
+		char *condition;	//only downloaded if this cvar is set | delimited allows multiple cvars.
 		int mirrornum;		//the index we last tried to download from, so we still work even if mirrors are down.
 	} package[64];
 } ftemanifest_t;

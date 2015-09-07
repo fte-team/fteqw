@@ -12,6 +12,7 @@
 #include "winquake.h"
 #endif
 
+void FS_BeginManifestUpdates(void);
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue);
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
@@ -214,7 +215,7 @@ void FS_Manifest_Free(ftemanifest_t *man)
 	for (i = 0; i < sizeof(man->package) / sizeof(man->package[0]); i++)
 	{
 		Z_Free(man->package[i].path);
-		Z_Free(man->package[i].extractname);
+		Z_Free(man->package[i].condition);
 		for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 			Z_Free(man->package[i].mirrors[j]);
 	}
@@ -251,8 +252,8 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 	{
 		if (oldm->package[i].path)
 			newm->package[i].path = Z_StrDup(oldm->package[i].path);
-		if (oldm->package[i].extractname)
-			newm->package[i].extractname = Z_StrDup(oldm->package[i].extractname);
+		if (oldm->package[i].condition)
+			newm->package[i].condition = Z_StrDup(oldm->package[i].condition);
 		for (j = 0; j < sizeof(newm->package[i].mirrors) / sizeof(newm->package[i].mirrors[0]); j++)
 			if (oldm->package[i].mirrors[j])
 				newm->package[i].mirrors[j] = Z_StrDup(oldm->package[i].mirrors[j]);
@@ -293,14 +294,15 @@ void FS_Manifest_Print(ftemanifest_t *man)
 	{
 		if (man->package[i].path)
 		{
-			if (man->package[i].extractname)
-				Con_Printf("archived");
-			if (man->package[i].crcknown)
-				Con_Printf("package %s 0x%x", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer), false), man->package[i].crc);
+			if (man->package[i].type == mdt_installation)
+				Con_Printf("library ");
 			else
-				Con_Printf("package %s -", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer), false));
-			if (man->package[i].extractname)
-				Con_Printf(" %s", COM_QuotedString(man->package[i].extractname, buffer, sizeof(buffer), false));
+				Con_Printf("package ");
+			Con_Printf("%s", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer), false));
+			if (man->package[i].condition)
+				Con_Printf(" condition=%s", COM_QuotedString(man->package[i].condition, buffer, sizeof(buffer), false));
+			if (man->package[i].crcknown)
+				Con_Printf(" crc=0x%x", man->package[i].crc);
 			for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 				if (man->package[i].mirrors[j])
 					Con_Printf(" %s", COM_QuotedString(man->package[i].mirrors[j], buffer, sizeof(buffer), false));
@@ -332,43 +334,121 @@ static ftemanifest_t *FS_Manifest_Create(const char *syspath)
 
 	man->formalname = Z_StrDup(FULLENGINENAME);
 
+#ifdef _DEBUG	//FOR TEMPORARY TESTING ONLY.
+//	man->doinstall = true;
+#endif
+
 	if (syspath)
 		man->updatefile = Z_StrDup(syspath);	//this should be a system path.
 	return man;
 }
 
-static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int type, char *path, unsigned int crc, qboolean crcknown, char *extractname, unsigned int mirrorarg)
+static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int type)
 {
+	char *path = "";
+	unsigned int crc = 0;
+	qboolean crcknown = false;
+	char *legacyextractname = NULL;
+	char *condition = NULL;
+	char *arch = NULL;
+	unsigned int arg = 1;
+	unsigned int mirrors = 0;
+	char *mirror[countof(man->package[0].mirrors)];
 	size_t i, j;
-	if (type == mdt_singlepackage)
+	char *a;
+
+	a = Cmd_Argv(0);
+	if (!Q_strcasecmp(a, "filedependancies") || !Q_strcasecmp(a, "archiveddependancies"))
+		arch = Cmd_Argv(arg++);
+
+	path = Cmd_Argv(arg++);
+
+#ifndef NOLEGACY
+	a = Cmd_Argv(arg);
+	if (!strcmp(a, "-"))
 	{
-		if (!strchr(path, '/') || strchr(path, ':') || strchr(path, '\\'))
+		arg++;
+	}
+	else if (*a)
+	{
+		crc = strtoul(a, &a, 0);
+		if (!*a)
 		{
-			Con_Printf("invalid package path specified in manifest (%s)\n", path);
-			return false;
+			crcknown = true;
+			arg++;
 		}
 	}
 
-	for (i = 0; i < sizeof(man->package) / sizeof(man->package[0]); i++)
+	if (!strncmp(Cmd_Argv(0), "archived", 8))
+		legacyextractname = Cmd_Argv(arg++);
+#endif
+
+	while (arg < Cmd_Argc())
+	{
+		a = Cmd_Argv(arg++);
+		if (!strcmp(a, "crc"))
+		{
+			crcknown = true;
+			crc = strtoul(Cmd_Argv(arg++), NULL, 0);
+		}
+		else if (!strcmp(a, "condition"))
+			condition = Cmd_Argv(arg++);
+		else if (!strcmp(a, "arch"))
+			arch = Cmd_Argv(arg++);
+		else if (!strcmp(a, "mirror"))
+		{
+			a = Cmd_Argv(arg++);
+			goto mirror;	//oo evil.
+		}
+		else if (strchr(a, ':') || man->parsever < 1)
+		{
+mirror:
+			if (mirrors == countof(mirror))
+				Con_Printf("too many mirrors for package %s\n", path);
+			else if (legacyextractname)
+			{
+				if (!strcmp(legacyextractname, "xz") || !strcmp(legacyextractname, "gz"))
+					mirror[mirrors++] = Z_StrDup(va("%s:%s", legacyextractname, a));
+				else
+					mirror[mirrors++] = Z_StrDup(va("unzip:%s,%s", legacyextractname, a));
+			}
+			else
+				mirror[mirrors++] = Z_StrDup(a);
+		}
+		else if (man->parsever <= MANIFEST_CURRENTVER)
+			Con_Printf("unknown mirror / property %s for package %s\n", a, path);
+	}
+
+	for (i = 0; i < countof(man->package); i++)
 	{
 		if (!man->package[i].path)
 		{
+			if (type == mdt_singlepackage && (!strchr(path, '/') || strchr(path, ':') || strchr(path, '\\')))
+			{
+				Con_Printf("invalid package path specified in manifest (%s)\n", path);
+				break;
+			}
+			if (arch)
+			{
+#ifdef PLATFORM
+				if (Q_strcasecmp(PLATFORM, arch))
+#endif
+					break;
+			}
 			man->package[i].type = type;
 			man->package[i].path = Z_StrDup(path);
+			man->package[i].condition = condition?Z_StrDup(condition):NULL;
 			man->package[i].crcknown = crcknown;
 			man->package[i].crc = crc;
-			if (extractname)
-				man->package[i].extractname = Z_StrDup(extractname);
-			else
-				man->package[i].extractname = NULL;
-			for (j = 0; mirrorarg+j < Cmd_Argc() && j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
-			{
-				man->package[i].mirrors[j] = Z_StrDup(Cmd_Argv(mirrorarg+j));
-			}
+			for (j = 0; j < mirrors; j++)
+				man->package[i].mirrors[j] = mirror[j];
 			return true;
 		}
 	}
-	Con_Printf("Too many packages specified in manifest\n");
+	if (i == countof(man->package))
+		Con_Printf("Too many packages specified in manifest\n");
+	for (j = 0; j < mirrors; j++)
+		Z_Free(mirror[j]);
 	return false;
 }
 
@@ -458,33 +538,19 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 			}
 		}
 	}
+#ifndef NOLEGACY
 	else if (!Q_strcasecmp(cmd, "filedependancies") || !Q_strcasecmp(cmd, "archiveddependancies"))
-	{
-		int arg = 1;
-		char *arch = Cmd_Argv(arg++);
-		char *files = Cmd_Argv(arg++);
-		char *extract = (!Q_strncasecmp(cmd, "archived", 8))?Cmd_Argv(arg++):NULL;
-
-#ifdef PLATFORM
-		//just ignore other archs
-		if (!Q_strcasecmp(arch, PLATFORM))
-			FS_Manifest_ParsePackage(man, mdt_installation, files, 0, false, extract, arg);
+		FS_Manifest_ParsePackage(man, mdt_installation);
+	else if (!Q_strcasecmp(cmd, "archivedpackage"))
+		FS_Manifest_ParsePackage(man, mdt_singlepackage);
 #endif
-	}
+	else if (!Q_strcasecmp(cmd, "library"))
+		FS_Manifest_ParsePackage(man, mdt_installation);
 	else if (!Q_strcasecmp(cmd, "package") || !Q_strcasecmp(cmd, "archivedpackage"))
-	{
-		int arg = 1;
-		char *fname = Cmd_Argv(arg++);
-
-		qboolean crcknown = (strcmp(Cmd_Argv(arg), "-") && *Cmd_Argv(arg));
-		int crc = strtoul(Cmd_Argv(arg++), NULL, 0);
-		char *extract = (!Q_strncasecmp(cmd, "archived", 8))?Cmd_Argv(arg++):NULL;
-
-		FS_Manifest_ParsePackage(man, mdt_singlepackage, fname, crc, crcknown, extract, arg);
-	}
+		FS_Manifest_ParsePackage(man, mdt_singlepackage);
 	else
 	{
-		Con_Printf("Unknown token: %s %s\n", cmd, Cmd_Args());
+		Con_Printf("Unknown token: %s\n", cmd);
 		result = false;
 	}
 	return result;
@@ -3252,6 +3318,8 @@ void FS_ReloadPackFiles_f(void)
 			FS_ReloadPackFilesFlags(~0);
 		Sys_UnlockMutex(fs_thread_mutex);
 	}
+	if (host_initialized)
+		FS_BeginManifestUpdates();
 }
 
 #if defined(_WIN32) && !defined(WINRT)
@@ -3771,6 +3839,14 @@ static char *FS_RelativeURL(char *base, char *file, char *buffer, int bufferlen)
 #ifdef WEBCLIENT
 static struct dl_download *curpackagedownload;
 static enum manifestdeptype_e fspdl_type;
+static enum {
+	X_DLONLY,
+	X_COPY,
+	X_MULTIUNZIP,
+	X_UNZIP,
+	X_GZ,
+	X_XZ
+} fspdl_extracttype;
 static char fspdl_internalname[MAX_QPATH];
 static char fspdl_temppath[MAX_OSPATH];
 static char fspdl_finalpath[MAX_OSPATH];
@@ -3907,13 +3983,13 @@ static void FS_PackageDownloaded(struct dl_download *dl)
 		//rename the file as needed.
 		COM_CreatePath(fspdl_finalpath);
 
-		if (*fspdl_internalname)	//if zip...
+		if (fspdl_extracttype == X_UNZIP || fspdl_extracttype == X_MULTIUNZIP)	//if zip...
 		{	//archive
 			searchpathfuncs_t *archive = FSZIP_LoadArchive(VFSOS_Open(fspdl_temppath, "rb"), dl->url);
 			if (archive)
 			{
 				flocation_t loc;
-				if (fspdl_type == mdt_installation)
+				if (fspdl_extracttype == X_MULTIUNZIP)
 				{
 					char *f = fspdl_internalname;
 					char *e;
@@ -3979,9 +4055,21 @@ static qboolean FS_BeginPackageDownload(struct manpack_s *pack, char *baseurl, q
 	vfsfile_t *tmpf;
 
 	char buffer[MAX_OSPATH], *url;
-	if (pack->type == mdt_installation)
+	qboolean multiex = false;
+
+	//check this package's conditional
+	if (pack->condition)
 	{
+		if (!If_EvaluateBoolean(pack->condition, RESTRICT_LOCAL))
+			return false;
+	}
+
+	if (pack->type == mdt_installation)
+	{	//libraries are in the root directory. we allow extracting multiple of them from a zip, etc.
+		//they are not packages and thus do NOT support crcs.
 		char *s, *e;
+		if (!allownoncache)	//don't even THINK about allowing the download unless its part of an initial install.
+			return false;
 		for (s = pack->path; *s; s = e)
 		{
 			while(*s == ':')
@@ -4033,44 +4121,31 @@ static qboolean FS_BeginPackageDownload(struct manpack_s *pack, char *baseurl, q
 
 	if (pack->type == mdt_installation)
 	{
-		//extract-all is only allowed when we're ALREADY writing to the base dir.
-		//this should only be possible when the manifest was embedded in the exe.
-		if (!allownoncache)
+		if (!strchr(pack->path, ':'))
 		{
-			*fspdl_internalname = 0;
-			return false;
-		}
-
-		if (!pack->extractname)
-		{
-			FS_NativePath(pack->path, FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath));
-			FS_NativePath(va("%s.tmp", pack->path), FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath));
-			Q_strncpyz(fspdl_internalname, "", sizeof(fspdl_internalname));
+			if (!FS_NativePath(pack->path, FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath)) ||
+				!FS_NativePath(va("%s.tmp", pack->path), FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath)))
+				return false;
 		}
 		else
 		{
-			if (pack->extractname && *pack->extractname)
-				Q_strncpyz(fspdl_internalname, pack->extractname, sizeof(fspdl_internalname));
-			else
-				Q_strncpyz(fspdl_internalname, pack->path, sizeof(fspdl_internalname));
-			FS_NativePath("", FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath));
-			FS_NativePath(va("%s.tmp", fs_manifest->installation), FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath));
+			if (!FS_NativePath("", FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath)) ||
+				!FS_NativePath(va("%s.tmp", fs_manifest->installation), FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath)))
+				return false;
+			multiex = true;
 		}
 	}
 	else
 	{
-		if (pack->extractname)
-			Q_strncpyz(fspdl_internalname, pack->extractname, sizeof(fspdl_internalname));
-		else
-			Q_strncpyz(fspdl_internalname, "", sizeof(fspdl_internalname));
-
 		//figure out a temp name and figure out where we're going to get it from.
-		FS_NativePath(buffer, FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath));
+		if (!FS_NativePath(buffer, FS_ROOT, fspdl_finalpath, sizeof(fspdl_finalpath)))
+			return false;
 		if (!pack->crcknown && allownoncache)
 			Q_strncpyz(buffer, va("%s.tmp", pack->path), sizeof(buffer));
 		else if (!FS_GenCachedPakName(va("%s.tmp", pack->path), crcstr, buffer, sizeof(buffer)))
 			return false;
-		FS_NativePath(buffer, FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath));
+		if (!FS_NativePath(buffer, FS_ROOT, fspdl_temppath, sizeof(fspdl_temppath)))
+			return false;
 	}
 
 	url = NULL;
@@ -4088,18 +4163,62 @@ static qboolean FS_BeginPackageDownload(struct manpack_s *pack, char *baseurl, q
 	if (!url)
 		return false;
 
+	fspdl_extracttype = X_DLONLY;
+	if (!strncmp(url, "gz:", 3))
+	{
+		url+=3;
+		fspdl_extracttype = X_GZ;
+	}
+	else if (!strncmp(url, "xz:", 3))
+	{
+		url+=3;
+		fspdl_extracttype = X_XZ;
+	}
+	else if (!strncmp(url, "unzip:", 6))
+	{
+		url+=6;
+		fspdl_extracttype = X_UNZIP;
+	}
+	else if (!strncmp(url, "prompt:", 7))
+	{
+		url+=7;
+		fspdl_extracttype = X_COPY;
+	}
+	else
+		fspdl_extracttype = X_DLONLY;
+
+	if (fspdl_extracttype == X_UNZIP || fspdl_extracttype == X_COPY)
+	{
+		char *o = fspdl_internalname;
+		while(o+1 < fspdl_internalname+sizeof(fspdl_internalname) && *url)
+		{
+			if (*url == ',')
+			{
+				url++;
+				break;
+			}
+			*o++ = *url++;
+		}
+		*o = 0;
+	}
+	else
+		*fspdl_internalname = 0;
+
+	if (multiex)
+	{
+		if (fspdl_extracttype != X_UNZIP && fspdl_extracttype != X_DLONLY)
+			return false;	//multiunzip is only supported with unzip urls... (or assumed if its a direct download
+		fspdl_extracttype = X_MULTIUNZIP;
+
+		if (!*fspdl_internalname)
+			Q_strncpyz(fspdl_internalname, pack->path, sizeof(fspdl_internalname));
+	}
+
 	fspdl_type = pack->type;
 
-	if (!Q_strncasecmp(url, "prompt:", 7) && !*fspdl_internalname && fspdl_type != mdt_installation)
+	if (fspdl_extracttype == X_COPY)
 	{
-		char file[MAX_QPATH];
-		char *game;
-		Q_strncpyz(file, url+7, sizeof(file));
-		game = strchr(file, ',');
-		if (game)
-			*game++ = 0;
-
-		FS_PackagePrompt(fspdl_finalpath, file, game);
+		FS_PackagePrompt(fspdl_finalpath, url, fspdl_internalname);
 		return false;
 	}
 
@@ -4108,25 +4227,24 @@ static qboolean FS_BeginPackageDownload(struct manpack_s *pack, char *baseurl, q
 
 	if (tmpf)
 	{
-		if (!strcmp(fspdl_internalname, "xz"))
+		switch(fspdl_extracttype)
 		{
+		case X_XZ:
 #ifdef AVAIL_XZDEC
 			tmpf = FS_XZ_DecompressWriteFilter(tmpf);
 #else
 			VFS_CLOSE(tmpf);
 			tmpf = NULL;
 #endif
-			*fspdl_internalname = 0;
-		}
-		if (!strcmp(fspdl_internalname, "gz"))
-		{
+			break;
+		case X_GZ:
 #ifdef AVAIL_ZLIB
 			tmpf = FS_GZ_DecompressWriteFilter(tmpf, true);
 #else
 			VFS_CLOSE(tmpf);
 			tmpf = NULL;
 #endif
-			*fspdl_internalname = 0;
+			break;
 		}
 
 		if (!tmpf)

@@ -832,7 +832,7 @@ static void ApplyPreset (int presetnum)
 	//this function is written backwards, to ensure things work properly in configs etc.
 
 	// TODO: work backwards and only set cvars once
-	Cbuf_InsertText("vid_reload\n", RESTRICT_LOCAL, true);
+	Cbuf_InsertText("\nfs_restart\nvid_reload\n", RESTRICT_LOCAL, true);
 	for (i = presetnum; i >= 0; i--)
 	{
 		Cbuf_InsertText(presetexec[i], RESTRICT_LOCAL, true);
@@ -905,7 +905,7 @@ void FPS_Preset_f (void)
 	{
 		char buffer[MAX_OSPATH];
 		COM_QuotedString(presetfname, buffer, sizeof(buffer), false);
-		Cbuf_AddText(va("\nexec %s\n", buffer), RESTRICT_LOCAL);
+		Cbuf_AddText(va("\nexec %s\nfs_restart\n", buffer), RESTRICT_LOCAL);
 		return;
 	}
 

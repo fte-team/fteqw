@@ -321,7 +321,7 @@ void Host_InitCommands (void);
 void Host_Init (quakeparms_t *parms);
 void Host_FinishInit(void);
 void Host_Shutdown(void);
-qboolean com_workererror;	//supresses shutdown prints+threads
+extern qboolean com_workererror;	//supresses shutdown prints+threads
 NORETURN void VARGS Host_Error (char *error, ...) LIKEPRINTF(1);
 NORETURN void VARGS Host_EndGame (char *message, ...) LIKEPRINTF(1);
 qboolean Host_SimulationTime(float time);

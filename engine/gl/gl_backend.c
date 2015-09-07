@@ -1075,8 +1075,8 @@ int GLBE_SetupForShadowMap(texid_t shadowmaptex, int texwidth, int texheight, fl
 
 	shaderstate.shaderbits &= ~SBITS_MISC_DEPTHWRITE;
 
-	if (qglShadeModel)
-		qglShadeModel(GL_FLAT);
+//	if (qglShadeModel)
+//		qglShadeModel(GL_FLAT);
 	GL_ForceDepthWritable();
 //	qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 

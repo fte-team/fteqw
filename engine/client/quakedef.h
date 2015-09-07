@@ -321,7 +321,6 @@ void Host_InitCommands (void);
 void Host_Init (quakeparms_t *parms);
 void Host_FinishInit(void);
 void Host_Shutdown(void);
-extern qboolean com_workererror;	//supresses shutdown prints+threads
 NORETURN void VARGS Host_Error (char *error, ...) LIKEPRINTF(1);
 NORETURN void VARGS Host_EndGame (char *message, ...) LIKEPRINTF(1);
 qboolean Host_SimulationTime(float time);
@@ -332,6 +331,7 @@ void VARGS Host_ClientCommands (char *fmt, ...) LIKEPRINTF(1);
 void Host_ShutdownServer (qboolean crash);
 
 #ifdef LOADERTHREAD
+extern qboolean com_workererror;	//supresses shutdown prints+threads
 extern cvar_t worker_flush;
 qboolean COM_DoWork(int thread, qboolean leavelocked);
 #define COM_MainThreadWork() while (COM_DoWork(0, false) && worker_flush.ival) /*called each frame to do any gl uploads or whatever*/
@@ -349,6 +349,7 @@ void COM_AssertMainThread(const char *msg);
 #define COM_AssertMainThread(msg)
 #endif
 #else
+#define com_workererror false
 #define COM_AddWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
 #define COM_WorkerPartialSync(c,a,v)
 #define COM_WorkerFullSync()

@@ -758,6 +758,104 @@ void P_Shutdown(void)
 //0 says hit nothing.
 //1 says hit world
 //>1 says hit some entity
+entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
+{
+	trace_t		trace;
+	float len, bestlen;
+	int i, j;
+	vec3_t delta, ts, te;
+	entity_t *pe;
+	entity_t *result=NULL;
+	vec3_t axis[3];
+	vec3_t movemins, movemaxs;
+
+	memset (&trace, 0, sizeof(trace));
+
+	VectorSubtract(end, start, delta);
+	bestlen = Length(delta);
+
+	VectorCopy (end, impact);
+
+	for (i = 0; i < 3; i++)
+	{
+		if (start[i] > end[i])
+		{
+			movemins[i] = end[i];
+			movemaxs[i] = start[i];
+		}
+		else
+		{
+			movemins[i] = start[i];
+			movemaxs[i] = end[i];
+		}
+	}
+
+	for (i=-1 ; i<cl_numvisedicts ; i++)
+	{
+		if (i == -1)
+			pe = &r_worldentity;
+		else
+			pe = &cl_visedicts[i];
+		if (pe->rtype != RT_MODEL || pe->shaderRGBAf[3] < 1 || (pe->flags & (RF_ADDITIVE|RF_NODEPTHTEST|RF_TRANSLUCENT|RF_EXTERNALMODEL)))
+			continue;
+		if (pe->model && pe->model->funcs.NativeTrace && pe->model->loadstate == MLS_LOADED)
+		{
+			//try to trivially reject the mesh.
+			float ext = 0;
+			float t;
+			for (j = 0; j < 3; j++)
+			{
+				t = fabs(pe->model->maxs[j]);
+				ext = max(ext, t);
+				t = fabs(pe->model->mins[j]);
+				ext = max(ext, t);
+			}
+			if (	movemins[0] > pe->origin[0]+ext
+				||	movemins[1] > pe->origin[1]+ext
+				||	movemins[2] > pe->origin[2]+ext
+				||	movemaxs[0] < pe->origin[0]-ext
+				||	movemaxs[1] < pe->origin[1]-ext
+				||	movemaxs[2] < pe->origin[2]-ext )
+				continue;
+
+			VectorSubtract(start, pe->origin, ts);
+			VectorSubtract(end, pe->origin, te);
+			pe->model->funcs.NativeTrace(pe->model, 0, pe->framestate.g[FS_REG].frame[pe->framestate.g[FS_REG].lerpweight[1] > pe->framestate.g[FS_REG].lerpweight[0]], pe->axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
+			if (trace.fraction<1)
+			{
+				VectorSubtract(trace.endpos, ts, delta);
+				len = Length(delta);
+				if (len < bestlen)
+				{
+					bestlen = len;
+					if (normal)
+						VectorCopy (trace.plane.normal, normal);
+					VectorAdd (pe->origin, trace.endpos, impact);
+				}
+
+				result = pe;
+			}
+			/*if (trace.startsolid)
+			{
+				VectorNormalize(delta);
+				if (normal)
+				{
+					normal[0] = -delta[0];
+					normal[1] = -delta[1];
+					normal[2] = -delta[2];
+				}
+				VectorCopy (end, impact);
+				return NULL;
+			}*/
+		}
+	}
+
+	return result;
+}
+
+//0 says hit nothing.
+//1 says hit world
+//>1 says hit some entity
 unsigned int TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 {
 	trace_t		trace;

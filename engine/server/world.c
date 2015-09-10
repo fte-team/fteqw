@@ -288,7 +288,7 @@ void World_ClearWorld (world_t *w)
 		w->areanodes = Z_Malloc(sizeof(*w->areanodes) * pow(2, w->areanodedepth+1));
 	}
 	else
-		memset (w->areanodes, 0, sizeof(w->areanodes));
+		memset (w->areanodes, 0, sizeof(*w->areanodes)*w->numareanodes);
 	w->numareanodes = 0;
 	World_CreateAreaNode (w, 0, mins, maxs);
 }

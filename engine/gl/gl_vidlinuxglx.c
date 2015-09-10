@@ -158,6 +158,7 @@ static struct
 	char *(*pXSetLocaleModifiers)(char *modifier_list);
 	Bool (*pXSupportsLocale)(void); 
 	XIM		(*pXOpenIM)(Display *display, struct _XrmHashBucketRec *db, char *res_name, char *res_class);
+	char *	(*pXGetIMValues)(XIM im, ...); 
 	XIC		(*pXCreateIC)(XIM im, ...);
 	void	(*pXSetICFocus)(XIC ic); 
 	char *  (*pXGetICValues)(XIC ic, ...); 
@@ -247,6 +248,7 @@ static qboolean x11_initlib(void)
 			x11.pXSetLocaleModifiers = Sys_GetAddressForName(x11.lib, "XSetLocaleModifiers");
 			x11.pXSupportsLocale	= Sys_GetAddressForName(x11.lib, "XSupportsLocale");
 			x11.pXOpenIM			= Sys_GetAddressForName(x11.lib, "XOpenIM");
+			x11.pXGetIMValues		= Sys_GetAddressForName(x11.lib, "XGetIMValues");
 			x11.pXCreateIC			= Sys_GetAddressForName(x11.lib, "XCreateIC");
 			x11.pXSetICFocus		= Sys_GetAddressForName(x11.lib, "XSetICFocus");
 			x11.pXGetICValues		= Sys_GetAddressForName(x11.lib, "XGetICValues");
@@ -601,7 +603,7 @@ static long X_InitUnicode(void)
 
 	if (!COM_CheckParm("-noxim"))
 	{
-		if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXCreateIC && x11.pXSetICFocus && x11.pXGetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
+		if (x11.pXSetLocaleModifiers && x11.pXSupportsLocale && x11.pXOpenIM && x11.pXGetIMValues && x11.pXCreateIC && x11.pXSetICFocus && x11.pXGetICValues && x11.pXFilterEvent && (x11.pXutf8LookupString || x11.pXwcLookupString) && x11.pXDestroyIC && x11.pXCloseIM)
 		{
 			setlocale(LC_CTYPE, "");	//just in case.
 			x11.pXSetLocaleModifiers("");
@@ -610,21 +612,51 @@ static long X_InitUnicode(void)
 				x11.inputmethod = x11.pXOpenIM(vid_dpy, NULL, NULL, NULL);
 				if (x11.inputmethod)
 				{
-					x11.unicodecontext = x11.pXCreateIC(x11.inputmethod,
-						XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
-						XNClientWindow, vid_window,
-						XNFocusWindow, vid_window,
-						NULL);
-					if (x11.unicodecontext)
+					XIMStyles *sup = NULL;
+					XIMStyle st = 0;
+					int i;
+					x11.pXGetIMValues(x11.inputmethod, XNQueryInputStyle, &sup, NULL);
+					for (i = 0; sup && i < sup->count_styles; i++)
+					{	//each style will have one of each bis set.
+#define prestyles (XIMPreeditNothing|XIMPreeditNone)
+#define statusstyles (XIMStatusNothing|XIMStatusNone)
+#define supstyles (prestyles|statusstyles)
+						if ((sup->supported_styles[i] & supstyles) != sup->supported_styles[i])
+							continue;
+						if ((st & prestyles) != (sup->supported_styles[i] & prestyles))
+						{
+							if ((sup->supported_styles[i] & XIMPreeditNothing) && !(st & XIMPreeditNothing))
+								st = sup->supported_styles[i];
+							else if ((sup->supported_styles[i] & XIMPreeditNone) && !(st & (XIMPreeditNone|XIMPreeditNothing)))
+								st = sup->supported_styles[i];
+						}
+						else
+						{
+							if ((sup->supported_styles[i] & XIMStatusNothing) && !(st & XIMStatusNothing))
+								st = sup->supported_styles[i];
+							else if ((sup->supported_styles[i] & XIMStatusNone) && !(st & (XIMStatusNone|XIMStatusNothing)))
+								st = sup->supported_styles[i];
+						}
+					}
+					x11.pXFree(sup);
+					if (st != 0)
 					{
-						x11.pXSetICFocus(x11.unicodecontext);
-						x11.dounicode = true;
+						x11.unicodecontext = x11.pXCreateIC(x11.inputmethod,
+							XNInputStyle, st,
+							XNClientWindow, vid_window,
+							XNFocusWindow, vid_window,
+							NULL);
+						if (x11.unicodecontext)
+						{
+							x11.pXSetICFocus(x11.unicodecontext);
+							x11.dounicode = true;
 
-						x11.pXGetICValues(x11.unicodecontext, XNFilterEvents, &requiredevents, NULL);
+							x11.pXGetICValues(x11.unicodecontext, XNFilterEvents, &requiredevents, NULL);
+						}
 					}
 				}
 			}
-//			setlocale(LC_CTYPE, "C");
+			setlocale(LC_CTYPE, "C");
 		}
 	}
 

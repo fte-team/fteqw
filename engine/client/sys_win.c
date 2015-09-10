@@ -3670,6 +3670,7 @@ static void Sys_MakeInstaller(const char *name)
 	qbyte *filedata;
 	unsigned int filelen;
 	char *error = NULL;
+	char *warn = NULL;
 	HANDLE bin;
 	char ourname[MAX_OSPATH];
 	char newname[MAX_OSPATH];
@@ -3687,11 +3688,6 @@ static void Sys_MakeInstaller(const char *name)
 		error = "BeginUpdateResource failed";
 	else
 	{
-		//nuke existing icons.
-		UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, NULL, 0);
-		UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(2), RESLANG, NULL, 0);
-//		UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(3), RESLANG, NULL, 0);
-
 		filehandle = VFSOS_Open(va("%s.png", name), "rb");
 		if (filehandle)
 		{
@@ -3706,6 +3702,11 @@ static void Sys_MakeInstaller(const char *name)
 			filedata = BZ_Malloc(filelen);
 			VFS_READ(filehandle, filedata, filelen);
 			VFS_CLOSE(filehandle);
+
+			//nuke existing icons.
+			UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(1), RESLANG, NULL, 0);
+			UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(2), RESLANG, NULL, 0);
+//			UpdateResource(bin, RT_GROUP_ICON, MAKEINTRESOURCE(3), RESLANG, NULL, 0);
 
 			rgbadata = Read32BitImageFile(filedata, filelen, &imgwidth, &imgheight, &hasalpha, va("%s.png", name));
 			if (!rgbadata)
@@ -3806,7 +3807,7 @@ static void Sys_MakeInstaller(const char *name)
 			BZ_Free(filedata);
 		}
 		else
-			error = va("%s.ico not found", name);
+			warn = va("%s.png not found", name);
 
 		filehandle = VFSOS_Open(va("%s.fmf", name), "rb");
 		if (filehandle)
@@ -3830,8 +3831,14 @@ static void Sys_MakeInstaller(const char *name)
 		MoveFile(tmpname, newname);
 	}
 
+	if (!error)
+		error = warn;
+
 	if (error)
+	{
+		Sys_Printf("%s", error);
 		Sys_Error("%s", error);
+	}
 }
 #endif
 

@@ -3139,7 +3139,11 @@ void CLNQ_ConnectionlessPacket(void)
 		//this is the port that we're meant to respond to.
 
 		if (port)
+		{
+			char buf[256];
 			net_from.port = port;
+			Con_DPrintf("redirecting to port %s\n", NET_AdrToString(buf, sizeof(buf), &net_from));
+		}
 
 		cls.protocol_nq = CPNQ_ID;
 		if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info

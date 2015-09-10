@@ -401,8 +401,17 @@ void R_RenderDlights (void)
 		/*coronas use depth testing to compute visibility*/
 		if (coronastyle)
 		{
-			if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
-				continue;
+			extern cvar_t temp1;
+			if (r_coronas_occlusion.ival)
+			{
+				if (TraceLineR(r_refdef.vieworg, l->origin, waste1, waste2))
+					continue;
+			}
+			else
+			{
+				if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
+					continue;
+			}
 		}
 
 		if (!R_BuildDlightMesh (l, intensity, cscale, coronastyle) && !coronastyle)

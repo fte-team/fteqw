@@ -106,6 +106,7 @@ pbool flag_typeexplicit;	//no implicit type conversions, you must do the casts y
 pbool flag_noboundchecks;	//Disable generation of bound check instructions.
 pbool flag_guiannotate;
 pbool flag_brokenarrays;	//return array; returns array[0] instead of &array;
+pbool flag_rootconstructor; //if true, class constructors are ordered to call the super constructor first, rather than the child constructor
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.
@@ -5935,8 +5936,10 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 	QCC_type_t *parenttype;
 
 	QCC_sref_t ed;
-	QCC_sref_t constructor = nullsref;
+	QCC_sref_t constructor;
 	int basictypefield[ev_union+1];
+
+	int src,dst;
 
 //	int func;
 
@@ -5972,8 +5975,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 
 	QCC_PR_EmitClassFunctionTable(basetype, basetype, ed);
 
-	//FIXME: these constructors are called in the wrong order
-	constructor = nullsref;
+	src = numstatements;
 	for (parenttype = basetype; parenttype; parenttype = parenttype->parentclass)
 	{
 		char membername[2048];
@@ -5981,22 +5983,25 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 		constructor = QCC_PR_GetSRef(NULL, membername, NULL, false, 0, false);
 
 		if (constructor.cast)
-		{	//self = ent;
-//			self = QCC_PR_GetDef(type_entity, "self", NULL, false, 0, false);
-//			oself = QCC_PR_GetDef(type_entity, "oself", scope, !constructed, 0, false);
-//			if (!constructed)
-//			{
-//				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], self, oself, NULL));
-//				constructed = true;
-//			}
+		{
 			constructor.sym->referenced = true;
-//			QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], ed, self, NULL));	//return to our old self.
 			QCC_PR_SimpleStatement(&pr_opcodes[OP_CALL0], constructor, nullsref, nullsref, false);
 			QCC_FreeTemp(constructor);
 		}
 	}
-//	if (constructed)
-//		QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_ENT], oself, self, NULL));
+
+	if (flag_rootconstructor)
+	{
+		dst = numstatements-1;
+		while(src < dst)
+		{
+			QCC_sref_t t = statements[src].a;
+			statements[src].a = statements[dst].a;
+			statements[dst].a = t;
+			src++;
+			dst--;
+		}
+	}
 
 	QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_DONE], nullsref, nullsref, NULL));
 

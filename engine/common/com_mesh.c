@@ -2035,6 +2035,7 @@ static float PlaneNearest(vec3_t normal, vec3_t mins, vec3_t maxs)
 	return result;
 }
 
+void CLQ1_DrawLine(shader_t *shader, vec3_t v1, vec3_t v2, float r, float g, float b, float a);
 qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	qboolean impacted = false;
@@ -2053,13 +2054,21 @@ qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, v
 	float frac;
 
 	vec3_t impactpoint;
+	shader_t *lineshader = NULL;
 
 	for (i = 0; i < numindexes; i+=3)
 	{
 		p1 = posedata[indexes[i+0]];
 		p2 = posedata[indexes[i+1]];
 		p3 = posedata[indexes[i+2]];
-
+/*
+		VectorAdd(p1, r_refdef.pvsorigin, edge1);
+		VectorAdd(p2, r_refdef.pvsorigin, edge2);
+		VectorAdd(p3, r_refdef.pvsorigin, edge3);
+		CLQ1_DrawLine(lineshader, edge1, edge2, 0, 0, 1, 1);
+		CLQ1_DrawLine(lineshader, edge2, edge3, 0, 0, 1, 1);
+		CLQ1_DrawLine(lineshader, edge3, edge1, 0, 0, 1, 1);
+*/
 		VectorSubtract(p1, p2, edge1);
 		VectorSubtract(p3, p2, edge2);
 		CrossProduct(edge1, edge2, normal);
@@ -2164,6 +2173,25 @@ qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, v
 
 //		if (fabs(normal[0]) != 1 && fabs(normal[1]) != 1 && fabs(normal[2]) != 1)
 //			Con_Printf("Non-axial impact\n");
+
+/*		if (!lineshader)
+			lineshader = R_RegisterShader("lineshader", SUF_NONE,
+					"{\n"
+					"polygonoffset\n"
+					"{\n"
+					"map $whiteimage\n"
+					"blendfunc add\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
+					"}\n"
+					"}\n");
+		VectorAdd(p1, r_refdef.pvsorigin, edge1);
+		VectorAdd(p2, r_refdef.pvsorigin, edge2);
+		VectorAdd(p3, r_refdef.pvsorigin, edge3);
+		CLQ1_DrawLine(lineshader, edge1, edge2, 0, 1, 0, 1);
+		CLQ1_DrawLine(lineshader, edge2, edge3, 0, 1, 0, 1);
+		CLQ1_DrawLine(lineshader, edge3, edge1, 0, 1, 0, 1);
+*/
 	}
 	return impacted;
 }
@@ -2199,20 +2227,31 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 		VectorCopy(end, end_l);
 	}
 
-	while(mod)
+	trace->fraction = trace->truefraction = 1;
+
+	for(; mod; mod = mod->nextsurf, surfnum++)
 	{
 		indexes = mod->ofs_indexes;
-#ifdef SKELETALMODELS
 		if (!mod->numanimations)
 		{
+#ifdef SKELETALMODELS
 			//certain models have no possibility of animation.
-			posedata = mod->ofs_skel_xyz;
+			//fixme: skeletal objects...
+			if (mod->ofs_skel_xyz)
+				posedata = mod->ofs_skel_xyz;
+			else
+#endif
+				continue;
 		}
 		else
-#endif
 		{
 			group = mod->ofsanimations;
-			pose = group[0].poseofs;
+			group += frame % mod->numanimations;
+			//FIXME: no support for frame blending.
+			if (!group->numposes)
+				continue;
+			pose = group->poseofs;
+			pose += 0%group->numposes;				//FIXME: no framegroup support
 			posedata = pose->ofsverts;
 #ifdef SKELETALMODELS
 			if (mod->numbones && mod->shares_verts != cursurfnum)
@@ -2259,9 +2298,6 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 			trace->endpos[1] = start[1] + trace->fraction*(end[1] - start[1]);
 			trace->endpos[2] = start[2] + trace->fraction*(end[2] - start[2]);
 		}
-
-		mod = mod->nextsurf;
-		surfnum++;
 	}
 
 	trace->allsolid = false;

@@ -351,7 +351,6 @@ struct
 static const char *q1qvmentstring;
 static vm_t *q1qvm;
 static pubprogfuncs_t q1qvmprogfuncs;
-static edict_t **q1qvmedicttable;
 
 
 static void *evars;	//pointer to the gamecodes idea of an edict_t
@@ -377,10 +376,10 @@ static edict_t *QDECL Q1QVMPF_EdictNum(pubprogfuncs_t *pf, unsigned int num)
 	if (/*num < 0 ||*/ num >= sv.world.max_edicts)
 		return NULL;
 
-	e = q1qvmedicttable[num];
+	e = q1qvmprogfuncs.edicttable[num];
 	if (!e)
 	{
-		e = q1qvmedicttable[num] = Z_TagMalloc(sizeof(edict_t)+sizeof(extentvars_t), VMFSID_Q1QVM);
+		e = q1qvmprogfuncs.edicttable[num] = Z_TagMalloc(sizeof(edict_t)+sizeof(extentvars_t), VMFSID_Q1QVM);
 		e->v = (stdentvars_t*)((char*)evars + (num * sv.world.edict_size) + WASTED_EDICT_T_SIZE);
 		e->xv = (extentvars_t*)(e+1);
 		e->entnum = num;
@@ -468,7 +467,7 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf)
 	}
 
 	sv.world.num_edicts++;
-	e = (edict_t*)EDICT_NUM(pf, i);
+	e = (edict_t*)Q1QVMPF_EdictNum(pf, i);
 
 // new ents come ready wiped
 //	Q1QVMED_ClearEdict (e, false);
@@ -602,7 +601,7 @@ static qintptr_t QVM_Remove_Ent (void *offset, quintptr_t mask, const qintptr_t 
 {
 	if (arg[0] >= sv.world.max_edicts)
 		return false;
-	Q1QVMPF_EntRemove(svprogfuncs, q1qvmedicttable[arg[0]]);
+	Q1QVMPF_EntRemove(svprogfuncs, q1qvmprogfuncs.edicttable[arg[0]]);
 	return true;
 }
 
@@ -1172,7 +1171,7 @@ static qintptr_t QVM_Find (void *offset, quintptr_t mask, const qintptr_t *arg)
 		match = "";
 	for (i = first+1; i < sv.world.num_edicts; i++)
 	{
-		e = q1qvmedicttable[i];
+		e = q1qvmprogfuncs.edicttable[i];
 		field = VM_POINTER(*((string_t*)e->v + ofs/4));
 		if (field == NULL)
 		{
@@ -1713,10 +1712,10 @@ void Q1QVM_Shutdown(void)
 		if (svprogfuncs == &q1qvmprogfuncs)
 			sv.world.progs = svprogfuncs = NULL;
 		Z_FreeTags(VMFSID_Q1QVM);
-		if (q1qvmedicttable)
+		if (q1qvmprogfuncs.edicttable)
 		{
-			Z_Free(q1qvmedicttable);
-			q1qvmedicttable = NULL;
+			Z_Free(q1qvmprogfuncs.edicttable);
+			q1qvmprogfuncs.edicttable = NULL;
 		}
 	}
 }
@@ -1821,7 +1820,7 @@ qboolean PR_LoadQ1QVM(void)
 	sv.world.max_edicts = 0;	//so clear these out, just in case
 	sv.world.edict_size = 0;	//if we get a division by zero, then at least its a safe crash
 
-	q1qvmedicttable = NULL;
+	q1qvmprogfuncs.edicttable = NULL;
 
 	q1qvmprogfuncs.stringtable = VM_MemoryBase(q1qvm);
 
@@ -1852,7 +1851,7 @@ qboolean PR_LoadQ1QVM(void)
 
 	sv.world.num_edicts = 1;
 	sv.world.max_edicts = bound(64, pr_maxedicts.ival, MAX_EDICTS);
-	q1qvmedicttable = Z_Malloc(sizeof(*q1qvmedicttable) * sv.world.max_edicts);
+	q1qvmprogfuncs.edicttable = Z_Malloc(sizeof(*q1qvmprogfuncs.edicttable) * sv.world.max_edicts);
 
 	limit = VM_MemoryMask(q1qvm);
 	if (gd->sizeofent < 0 || gd->sizeofent > (0xffffffff-(qintptr_t)gd->ents) / sv.world.max_edicts)
@@ -1941,7 +1940,7 @@ qboolean PR_LoadQ1QVM(void)
 
 
 	sv.world.progs = &q1qvmprogfuncs;
-	sv.world.edicts = (wedict_t*)EDICT_NUM(svprogfuncs, 0);
+	sv.world.edicts = (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, 0);
 	sv.world.usesolidcorpse = true;
 
 	if ((unsigned)gd->global->mapname && (unsigned)gd->global->mapname+MAPNAME_LEN < VM_MemoryMask(q1qvm))

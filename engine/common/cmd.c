@@ -2325,9 +2325,9 @@ typedef struct tempstack_s{
 	struct tempstack_s *next;
 	char str[1];
 } tempstack_t;
-tempstack_t *ifstack;
+static tempstack_t *ifstack;
 
-void If_Token_Clear (tempstack_t *mark)
+static void If_Token_Clear (tempstack_t *mark)
 {
 	tempstack_t *ois;
 	while(ifstack)
@@ -2340,15 +2340,14 @@ void If_Token_Clear (tempstack_t *mark)
 	}
 }
 
-tempstack_t *If_Token_GetMark (void)
+static tempstack_t *If_Token_GetMark (void)
 {
 	return ifstack;
 }
 
 
-const char *retstring(const char *s)
+static const char *retstring(const char *s)
 {
-//	return s;
 	tempstack_t *ret;
 	ret = (tempstack_t*)Z_Malloc(sizeof(tempstack_t)+strlen(s));
 	ret->next = ifstack;
@@ -2356,7 +2355,7 @@ const char *retstring(const char *s)
 	strcpy(ret->str, s);
 	return ret->str;
 }
-const char *retint(int f)
+static const char *retint(int f)
 {
 	char s[1024];
 	tempstack_t *ret;
@@ -2369,26 +2368,32 @@ const char *retint(int f)
 	strcpy(ret->str, s);
 	return ret->str;
 }
-const char *retfloat(float f)
+static const char *retbool(qboolean b)
+{
+	if (b)
+		return "1";
+	return "";
+}
+static const char *retfloat(float f)
 {
 	char s[1024];
 	tempstack_t *ret;
 	if (!f)
 		return "";
-	sprintf(s, "%f", f);
+	sprintf(s, "%g", f);
 	ret = (tempstack_t*)Z_Malloc(sizeof(tempstack_t)+strlen(s));
 	ret->next = ifstack;
 	ifstack=ret;
 	strcpy(ret->str, s);
 	return ret->str;
 }
-qboolean is_numeric (const char *c)
+static qboolean is_numeric (const char *c)
 {
 	return (*c >= '0' && *c <= '9') ||
 		((*c == '-' || *c == '+') && (c[1] == '.' || (c[1]>='0' && c[1]<='9'))) ||
 		(*c == '.' && (c[1]>='0' && c[1]<='9'))?true:false;
 }
-qboolean is_true (const char *c)
+static qboolean is_true (const char *c)
 {
 	if (is_numeric(c))
 		return !!atof(c);
@@ -2398,8 +2403,10 @@ qboolean is_true (const char *c)
 		return false;
 	return !!*c;
 }
-#define IFPUNCT "(,{})(\':;=!><&|+*/-"
-const char *If_Token(const char *func, const char **end)
+#define IF_PRI_MAX 12
+#define IFPUNCT "(,{})~\':;=!><&|+*/-"
+static const char *If_Token(const char *func, const char **end, int pri);
+static const char *If_Token_Term(const char *func, const char **end)
 {
 	const char *s, *s2;
 	cvar_t *var;
@@ -2445,37 +2452,44 @@ const char *If_Token(const char *func, const char **end)
 				level++;
 			s2++;
 		}
-		func = If_Token(s, end);
+		func = If_Token(s, end, IF_PRI_MAX);
 		*end = s2+1;
 		s = *end;
 		s2 = func;
-//		return func;
 	}
 	else if (*com_token == '!')
 	{
-		func = If_Token(s, end);
-		for (s = func; *s; s++);
-		if (func && *func)
-			s2 = "";
-		else
-			s2 = "true";
+		func = If_Token(s, end, 0);
+		s2 = retbool(!is_true(func));
+	}
+	else if (*com_token == '~')
+	{
+		func = If_Token(s, end, 0);
+		s2 = retbool(~atoi(func));
 	}
 	else if (!strcmp(com_token, "int"))
 	{
-		func = If_Token(s, end);
+		func = If_Token(s, end, 0);
 		s2 = retint(atoi(func));
 	}
 	else if (!strcmp(com_token, "strlen"))
 	{
-		func = If_Token(s, end);
+		func = If_Token(s, end, 0);
 		s2 = retfloat(strlen(func));
+	}
+	else if (!strcmp(com_token, "eval"))
+	{
+		//read the stuff to the right
+		func = If_Token(s, end, IFPUNCT);
+		//and evaluate it
+		s2 = If_Token(func, &func, IF_PRI_MAX);
 	}
 	else if (!strcmp(com_token, "defined"))	//functions
 	{
 		s = COM_ParseToken(s, IFPUNCT);
 		var = Cvar_FindVar(com_token);
 		*end = s;
-		s2 = retstring((var != NULL)?"true":"");
+		s2 = retbool(var != NULL);
 	}
 	else if (!strcmp(com_token, "random"))
 	{
@@ -2488,9 +2502,9 @@ const char *If_Token(const char *func, const char **end)
 		if (qrenderer == QR_NONE)
 			s2 = "";
 		else if (!strcmp(com_token, "width"))
-			s2 = retfloat(vid.width);
+			s2 = retint(vid.width);
 		else if (!strcmp(com_token, "height"))
-			s2 = retfloat(vid.height);
+			s2 = retint(vid.height);
 		else
 #endif
 			s2 = "";
@@ -2504,7 +2518,10 @@ const char *If_Token(const char *func, const char **end)
 		if (var)
 		{
 			if ((var->restriction?var->restriction:rcon_level.ival) > Cmd_ExecLevel)
+			{
+				Con_Printf("Console script attempted to read restricted cvar %s\n", var->name);
 				s2 = "RESTRICTED";
+			}
 			else
 				s2 = var->string;
 		}
@@ -2514,109 +2531,159 @@ const char *If_Token(const char *func, const char **end)
 
 	*end = s;
 
-	s = COM_ParseToken(s, IFPUNCT);
-	if (!strcmp(com_token, "="))	//comparisions
+	return s2;
+}
+enum
+{
+	IFOP_CAT,
+	IFOP_MUL,
+	IFOP_DIV,
+	IFOP_MOD,
+	IFOP_ADD,
+	IFOP_SUB,
+	IFOP_SHL,
+	IFOP_SHR,
+	IFOP_ISIN,
+	IFOP_ISNOTIN,
+	IFOP_LT,
+	IFOP_LE,
+	IFOP_GT,
+	IFOP_GE,
+	IFOP_EQ,
+	IFOP_NE,
+	IFOP_BA,
+	IFOP_XOR,
+	IFOP_BO,
+	IFOP_LA,
+	IFOP_LO
+};
+static const struct
+{
+	int opnamelen;
+	const char *opname;
+	int pri;
+	int op;
+} ifops[] =
+{
+	{3,	"cat",	3,	IFOP_CAT},
+	{1, "*",	3,	IFOP_MUL},
+	{3, "mul", 3,	IFOP_MUL},
+	{1, "/",	3,	IFOP_DIV},
+	{3,	"div",	3,	IFOP_DIV},
+	{1,	"%",	3,	IFOP_MOD},
+	{3,	"mod",	3,	IFOP_MOD},
+	{1,	"+",	4,	IFOP_ADD},
+	{3,	"add",	4,	IFOP_ADD},
+	{1,	"-",	4,	IFOP_SUB},
+	{3,	"sub",	4,	IFOP_SUB},
+	{2,	"<<",	5,	IFOP_SHL},
+	{2,	">>",	5,	IFOP_SHR},
+	{4,	"isin",5,	IFOP_ISIN},		//fuhquake
+	{5,	"!isin",5,	IFOP_ISNOTIN},	//fuhquake
+	{2,	"<=",	6,	IFOP_LE},
+	{1,	"<",	6,	IFOP_LT},
+	{2,	">=",	6,	IFOP_GE},
+	{1,	">",	6,	IFOP_GT},
+	{2,	"==",	7,	IFOP_EQ},
+	{1,	"=",	7,	IFOP_EQ},
+	{5,	"equal",7,	IFOP_EQ},	//qw262
+	{2,	"!=",	7,	IFOP_NE},
+	{2,	"&&",	11,	IFOP_LA},
+	{1,	"&",	8,	IFOP_BA},
+	{3,	"and",	8,	IFOP_BA},	//qw262
+	{1,	"^",	9,	IFOP_XOR},
+	{3,	"xor",	8,	IFOP_XOR},	//qw262
+	{2,	"||",	12,	IFOP_LO},
+	{1,	"|",	10,	IFOP_BO},
+	{2,	"or",	10,	IFOP_BO}	//qw262
+};
+static const char *If_Operator(int op, const char *left, const char *right)
+{
+	int r;
+	switch(op)
 	{
-		func=COM_ParseToken(s, IFPUNCT);
-		if (*com_token == '=')	//lol. "=" == "=="
-			return retfloat(!strcmp(s2, If_Token(func, end)));
+	case IFOP_CAT:
+		return retstring(va("%s%s", left, right));
+	case IFOP_MUL:
+		return retfloat(atof(left)*atof(right));
+	case IFOP_DIV:
+		return retfloat(atof(left)/atof(right));
+	case IFOP_MOD:
+		r = atoi(right);
+		if (r)
+			return retfloat(atoi(left)%r);
 		else
-			return retfloat(!strcmp(s2, If_Token(s, end)));
-	}
-	if (!strncmp(com_token, "equal", 5))
-		return retfloat(!strcmp(s2, If_Token(s, end)));
-	if (!strcmp(com_token, "!"))
-	{
-		func=COM_ParseToken(s, IFPUNCT);
-		if (*com_token == '=')
-		{
-			s = If_Token(func, end);
-			if (!is_numeric(s) || !is_numeric(s2))
-			{
-				if (strcmp(s2, s))
-					return "true";
-				else
-					return "";
-			}
-			return retfloat(atof(s2)!=atof(s));
-		}
-		else if (!strcmp(com_token, "isin"))
-			return retfloat(NULL==strstr(If_Token(s, end), s2));
-	}
-	if (!strcmp(com_token, ">"))
-	{
-		func=COM_ParseToken(s, IFPUNCT);
-		if (*com_token == '=')
-			return retfloat(atof(s2)>=atof(If_Token(func, end)));
-		else if (*com_token == '<')//vb?
-		{
-			s = If_Token(func, end);
-			if (is_numeric(s) && is_numeric(s2))
-			{
-				if (strcmp(s2, s))
-					return "true";
-				else
-					return "";
-			}
-			return retfloat(atof(s2)!=atof(s));
-		}
-		else
-			return retfloat(atof(s2)>atof(If_Token(s, end)));
-	}
-	if (!strcmp(com_token, "<"))
-	{
-		func=COM_ParseToken(s, IFPUNCT);
-		if (*com_token == '=')
-			return retfloat(atof(s2)<=atof(If_Token(func, end)));
-		else if (*com_token == '>')//vb?
-			return retfloat(atof(s2)!=atof(If_Token(func, end)));
-		else
-			return retfloat(atof(s2)<atof(If_Token(s, end)));
-	}
-	if (!strcmp(com_token, "isin"))//fuhq
-		return retfloat(NULL!=strstr(If_Token(s, end), s2));
-
-	if (!strcmp(com_token, "-"))	//subtract
-		return retfloat(atof(s2)-atof(If_Token(s, end)));
-	if (!strcmp(com_token, "+"))	//add
-		return retfloat(atof(s2)+atof(If_Token(s, end)));
-	if (!strcmp(com_token, "*"))
-		return retfloat(atof(s2)*atof(If_Token(s, end)));
-	if (!strcmp(com_token, "/"))
-		return retfloat(atof(s2)/atof(If_Token(s, end)));
-	if (!strcmp(com_token, "%"))
-	{
-		level = (int)atof(If_Token(s, end));
-		if (level == 0)
 			return retfloat(0);
+	case IFOP_ADD:
+		return retfloat(atof(left)+atof(right));
+	case IFOP_SUB:
+		return retfloat(atof(left)-atof(right));
+	case IFOP_SHL:
+		return retfloat(atoi(left)<<atoi(right));
+	case IFOP_SHR:
+		return retfloat(atoi(left)>>atoi(right));
+	case IFOP_ISIN:
+		return retfloat(!!strstr(right, left));
+	case IFOP_ISNOTIN:
+		return retfloat(!strstr(right, left));
+	case IFOP_LT:
+		return retfloat(atof(left)<atof(right));
+	case IFOP_LE:
+		return retfloat(atof(left)<=atof(right));
+	case IFOP_GT:
+		return retfloat(atof(left)>atof(right));
+	case IFOP_GE:
+		return retfloat(atof(left)>=atof(right));
+	case IFOP_EQ:
+		if (is_numeric(left) && is_numeric(right))
+			return retfloat(atof(left) == atof(right));
 		else
-			return retfloat((int)atof(s2)%level);
-	}
-	if (!strcmp(com_token, "&"))	//and
-	{
-		func=COM_ParseToken(s, IFPUNCT);
-		if (*com_token == '&')
-			return retfloat(is_true(s2)&&is_true(If_Token(func, end)));
+			return retfloat(!strcmp(left, right));
+	case IFOP_NE:
+		if (is_numeric(left) && is_numeric(right))
+			return retfloat(atof(left) != atof(right));
 		else
-			return retfloat(atoi(s2)&atoi(If_Token(s, end)));
+			return retfloat(!!strcmp(left, right));
+	case IFOP_BA:
+		return retfloat(atoi(left)&atoi(right));
+	case IFOP_XOR:
+		return retfloat(atoi(left)^atoi(right));
+	case IFOP_BO:
+		return retfloat(atoi(left)|atoi(right));
+	case IFOP_LA:
+		return retfloat(is_true(left)&&is_true(right));
+	case IFOP_LO:
+		return retfloat(is_true(left)||is_true(right));
+	default:
+		return retfloat(0);
 	}
-	if (!strcmp(com_token, "div"))	//qw262 compatability
-		return retfloat(atof(s2)/atof(If_Token(s, end)));
-	if (!strcmp(com_token, "or"))	//qw262 compatability
-		return retfloat(atoi(s2)|atoi(If_Token(s, end)));
-	if (!strcmp(com_token, "xor"))	//qw262 compatability
-		return retfloat(atoi(s2)^atoi(If_Token(s, end)));
-	if (!strcmp(com_token, "and"))	//qw262 compatability
-		return retfloat(atoi(s2)&atoi(If_Token(s, end)));
-	if (!strcmp(com_token, "|"))	//or
-	{
-		func=COM_ParseToken(s, IFPUNCT);
-		if (*com_token == '|')
-			return retfloat(is_true(s2)||is_true(If_Token(func, end)));
-		else
-			return retfloat(atoi(s2)|atoi(If_Token(s, end)));
-	}
+}
+static const char *If_Token(const char *func, const char **end, int pri)
+{
+	const char *s, *s2;
+	int i;
 
+	if (pri > 0)
+		s2 = If_Token(func, &s, pri-1);
+	else
+		s2 = If_Token_Term(func, &s);
+	*end = s;
+
+	while (*s == ' ' || *s == '\t')
+		s++;
+
+	for (i = 0; i < countof(ifops); i++)
+	{
+		if (!strncmp(s, ifops[i].opname, ifops[i].opnamelen))
+		{
+			if (pri == ifops[i].pri)
+			{
+				s = If_Token(s + ifops[i].opnamelen, end, pri);
+				s2 = If_Operator(ifops[i].op, s2, s);
+			}
+			break;
+		}
+	}
 	return s2;
 }
 
@@ -2627,7 +2694,7 @@ qboolean If_EvaluateBoolean(const char *text, int restriction)
 	tempstack_t *ts = If_Token_GetMark();
 	int restore = Cmd_ExecLevel;
 	Cmd_ExecLevel = restriction;
-	text = If_Token(text, &end);
+	text = If_Token(text, &end, IF_PRI_MAX);
 	ret = is_true(text);
 	If_Token_Clear(ts);
 	Cmd_ExecLevel = restore;
@@ -2767,7 +2834,7 @@ void Cmd_if_f(void)
 
 elseif:
 //	Con_Printf("if %s\n", text);
-	for(ret = If_Token(text, (const char **)&end); *ret; ret++) {if (*ret != '0' && *ret != '.')break;}
+	ret = If_Token(text, (const char **)&end, IF_PRI_MAX);
 	if (!end)
 	{
 		Con_TPrintf("Not terminated\n");
@@ -2938,7 +3005,7 @@ void Cmd_set_f(void)
 	{
 		Cmd_ShiftArgs(1, false);
 		text = Cmd_Args();
-		if (*text == '\"' || (*text == '\\' && text[1] == '\"'))	//if it's already quoted, dequote it, and ignore trailing stuff, for q2/q3 compatability
+		if (!docalc && (*text == '\"' || (*text == '\\' && text[1] == '\"')))	//if it's already quoted, dequote it, and ignore trailing stuff, for q2/q3 compatability
 			text = Cmd_Argv(1);
 		else
 		{
@@ -2990,18 +3057,18 @@ void Cmd_set_f(void)
 		else
 		{
 			if (docalc)
-				text = If_Token(text, &end);
+				text = If_Token(text, &end, IF_PRI_MAX);
 			Cvar_Set(var, text);
 			var->flags |= CVAR_USERCREATED | forceflags;
 
-			if (!stricmp(Cmd_Argv(0), "seta"))
+			if (!strncmp(Cmd_Argv(0), "seta", 4))
 				var->flags |= CVAR_ARCHIVE;
 		}
 	}
 	else
 	{
 		if (docalc)
-			text = If_Token(text, &end);
+			text = If_Token(text, &end, IF_PRI_MAX);
 		if (Cmd_FromGamecode())
 		{
 			var = Cvar_Get(Cmd_Argv(1), "", 0, "Game variables");
@@ -3013,7 +3080,7 @@ void Cmd_set_f(void)
 	}
 
 	if (var && !Cmd_FromGamecode())
-		if (!stricmp(Cmd_Argv(0), "seta"))
+		if (!strncmp(Cmd_Argv(0), "seta", 4))
 			var->flags |= CVAR_ARCHIVE|CVAR_USERCREATED;
 
 	If_Token_Clear(mark);

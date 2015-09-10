@@ -361,6 +361,7 @@ static qboolean OSS_InitCard(soundcardinfo_t *sc, const char *snddev)
 }
 
 #define SDRVNAME "OSS"
+#if defined(__linux__) && !defined(SNDCTL_SYSINFO)
 typedef struct oss_sysinfo {
 	char product[32];   /* E.g. SunOS Audio */
 	char version[32];   /* E.g. 4.0a */
@@ -380,7 +381,9 @@ typedef struct oss_sysinfo {
 	int filler[172];          /* Reserved */
 } oss_sysinfo;
 #define SNDCTL_SYSINFO          _IOR ('X', 1, oss_sysinfo)
+#endif
 
+#if defined(__linux__) && !defined(SNDCTL_AUDIOINFO)
 typedef struct oss_audioinfo {
 	int dev;  /* Device to query */
 	char name[64];  /* Human readable name */
@@ -415,9 +418,11 @@ typedef struct oss_audioinfo {
 	int filler[184];  /* reserved */
 } oss_audioinfo;
 #define SNDCTL_AUDIOINFO      _IOWR('X', 7, oss_audioinfo)
+#endif
 
 static qboolean QDECL OSS_Enumerate(void (QDECL *cb) (const char *drivername, const char *devicecode, const char *readablename))
 {
+#if defined(SNDCTL_SYSINFO) && defined(SNDCTL_AUDIOINFO)
 	int i;
 	int fd = open("/dev/mixer", O_RDWR, 0);
 	oss_sysinfo si;
@@ -444,6 +449,7 @@ static qboolean QDECL OSS_Enumerate(void (QDECL *cb) (const char *drivername, co
 	else
 		printf("OSS driver is too old to support device enumeration.\n");
 	close(fd);
+#endif
 	return false;	//enumeration failed.
 }
 

@@ -111,8 +111,8 @@ cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_globalskin_first						= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
 cvar_t r_globalskin_count						= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
-cvar_t r_coronas							= SCVARF ("r_coronas", "0",
-												CVAR_ARCHIVE);
+cvar_t r_coronas							= CVARFD ("r_coronas", "0",	CVAR_ARCHIVE, "Draw coronas on realtime lights. Overrides glquake-esque flashblends.");
+cvar_t r_coronas_occlusion					= CVARFD ("r_coronas_occlusion", "1", CVAR_ARCHIVE, "Specifies that coronas should be occluded more carefully.\n0: BSP occlusion only.\n1: non-bsp occlusion also");
 cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
 												CVAR_ARCHIVE);
 cvar_t r_flashblendscale					= SCVARF ("gl_flashblendscale", "0.35",
@@ -714,6 +714,7 @@ void Renderer_Init(void)
 	Cvar_Register(&r_stainfadeammount, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightprepass, GLRENDEREROPTIONS);
 	Cvar_Register (&r_coronas, GRAPHICALNICETIES);
+	Cvar_Register (&r_coronas_occlusion, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblend, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblendscale, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);

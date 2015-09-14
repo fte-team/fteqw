@@ -13,6 +13,9 @@ vector *ptr_trace_endpos;
 vector *ptr_trace_plane_normal;
 #define trace_plane_normal (*ptr_trace_plane_normal)
 
+entity *ptr_trace_ent;
+#define trace_ent (*ptr_trace_ent)
+
 entity *ptr_self;
 #define self 		(*ptr_self)
 
@@ -20,6 +23,7 @@ void() csfixups =
 {
 	ptr_trace_endpos		= (vector*)externvalue(0, "&trace_endpos");
 	ptr_trace_plane_normal	= (vector*)externvalue(0, "&trace_plane_normal");
+	ptr_trace_ent			= (entity*)externvalue(0, "&trace_ent");
 	ptr_self				= (entity*)externvalue(0, "&self");
 };
 
@@ -27,19 +31,26 @@ void() csfixups =
 vector mousenear;
 vector mousefar;
 float mousedown;
+float shiftdown;
+float ctrldown;
+float altdown;
 
 
 
 enum
 {
-	MODE_INITIAL=0,
+	MODE_OPTIONS,
 
-	MODE_LIGHTEDIT=1,
-	MODE_SPLINEEDIT=2,
-	MODE_TERRAINEDIT=3,
-	MODE_BRUSHEDIT=4,
-	MODE_PARTICLEEDIT=5,
-	MODE_ENTSEDIT=6,
+	MODE_LIGHTEDIT,
+	MODE_SPLINEEDIT,
+	MODE_TERRAINEDIT,
+	MODE_BRUSHEDIT,
+	MODE_PARTICLEEDIT,
+	MODE_ENTSEDIT,
+
+	MODE_COUNT
 };
 
-var string editornames[] = {"","LIGHTS","SPLINES", "TERRAIN", "BRUSHES", "PARTICLES", "ENTITIES"};
+var string editornames[MODE_COUNT] = {"OPTIONS","LIGHTS","SPLINES", "TERRAIN", "BRUSHES", "PARTICLES", "ENTITIES"};
+
+var float(float vismode) ca_checksave;

@@ -3687,7 +3687,7 @@ static void QCBUILTIN PF_h2dprintv (pubprogfuncs_t *prinst, struct globalvars_s 
 static void QCBUILTIN PF_h2spawn_temp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ed;
-	ed = ED_Alloc(prinst);
+	ed = ED_Alloc(prinst, false, 0);
 	RETURN_EDICT(prinst, ed);
 }
 #endif

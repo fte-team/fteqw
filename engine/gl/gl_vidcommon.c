@@ -105,12 +105,12 @@ void (APIENTRY *qglBegin) (GLenum mode);
 void (APIENTRY *qglCallList) (GLuint list);
 void (APIENTRY *qglClearDepth) (GLclampd depth);
 void (APIENTRY *qglClipPlane) (GLenum plane, const GLdouble *equation);
-void (APIENTRY *qglColor3f) (GLfloat red, GLfloat green, GLfloat blue);
-void (APIENTRY *qglColor3ub) (GLubyte red, GLubyte green, GLubyte blue);
+//void (APIENTRY *qglColor3f) (GLfloat red, GLfloat green, GLfloat blue);
+//void (APIENTRY *qglColor3ub) (GLubyte red, GLubyte green, GLubyte blue);
 void (APIENTRY *qglColor4f) (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
 void (APIENTRY *qglColor4fv) (const GLfloat *v);
-void (APIENTRY *qglColor4ub) (GLubyte red, GLubyte green, GLubyte blue, GLubyte alpha);
-void (APIENTRY *qglColor4ubv) (const GLubyte *v);
+//void (APIENTRY *qglColor4ub) (GLubyte red, GLubyte green, GLubyte blue, GLubyte alpha);
+//void (APIENTRY *qglColor4ubv) (const GLubyte *v);
 void (APIENTRY *qglDepthRange) (GLclampd zNear, GLclampd zFar);
 void (APIENTRY *qglDrawBuffer) (GLenum mode);
 void (APIENTRY *qglDrawPixels) (GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
@@ -394,6 +394,12 @@ void APIENTRY GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GL
 {
 	qglDrawElements(mode, count, type, indices);
 }
+
+void APIENTRY GL_Color4fv_Emul(const GLfloat *v)
+{
+	qglColor4f(v[0], v[1], v[2], v[3]);
+}
+
 void APIENTRY GL_BindBufferARBStub(GLenum target, GLuint id)
 {
 }
@@ -448,6 +454,15 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 			s++;
 		gl_minor_version = atoi(s);
 	}
+#ifdef _DEBUG
+	{ extern cvar_t vid_gl_context_es;
+	if (vid_gl_context_es.ival == 3)
+	{
+		gl_config.gles = true;
+		gl_major_version = 1;
+		gl_minor_version = 0;
+	} }
+#endif
 	if (webgl)	//webgl version 1 equates to gles 2.
 	{
 		if (gl_major_version < 1)
@@ -493,6 +508,14 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		if (!gl_extensions)
 			Sys_Error("no extensions\n");
 	}
+
+#ifdef _DEBUG
+	{ extern cvar_t vid_gl_context_es;
+	if (vid_gl_context_es.ival == 3)
+	{
+		gl_extensions = "";
+	} }
+#endif
 
 	if (gl_config.gles)
 		gl_config.nofixedfunc = gl_config.glversion >= 2;
@@ -2482,12 +2505,14 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglBegin			= (void *)getglcore("glBegin");
 	qglClearDepth		= (void *)getglcore("glClearDepth");
 	qglClipPlane 		= (void *)getglcore("glClipPlane");
-	qglColor3f			= (void *)getglcore("glColor3f");
-	qglColor3ub			= (void *)getglcore("glColor3ub");
+//	qglColor3f			= (void *)getglcore("glColor3f");
+//	qglColor3ub			= (void *)getglcore("glColor3ub");
 	qglColor4f			= (void *)getglcore("glColor4f");
-	qglColor4fv			= (void *)getglcore("glColor4fv");
-	qglColor4ub			= (void *)getglcore("glColor4ub");
-	qglColor4ubv		= (void *)getglcore("glColor4ubv");
+	qglColor4fv			= (void *)getglext("glColor4fv");
+	if (!qglColor4fv)
+		qglColor4fv = GL_Color4fv_Emul;	//can be missing in gles1
+//	qglColor4ub			= (void *)getglcore("glColor4ub");
+//	qglColor4ubv		= (void *)getglcore("glColor4ubv");
 	qglDepthRange		= (void *)getglcore("glDepthRange");
 	qglDrawBuffer		= (void *)getglcore("glDrawBuffer");
 	qglDrawPixels		= (void *)getglcore("glDrawPixels");

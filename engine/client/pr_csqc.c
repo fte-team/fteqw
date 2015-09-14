@@ -382,6 +382,7 @@ typedef struct csqcedict_s
 	qboolean	isfree;
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
+	unsigned int fieldsize;
 	qboolean	readonly;	//world
 #ifdef VM_Q1
 	csqcentvars_t	*v;
@@ -4384,7 +4385,7 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 		ent = csqcdelta_playerents[playernum];
 		if (!ent)
 		{
-			ent = (csqcedict_t *)ED_Alloc(csqcprogs);
+			ent = (csqcedict_t *)ED_Alloc(csqcprogs, false, 0);
 			ent->xv->drawmask = MASK_DELTA;
 		}
 
@@ -4460,7 +4461,7 @@ qboolean CSQC_DeltaUpdate(entity_state_t *src)
 			ent = oldent;
 		else
 		{
-			ent = (csqcedict_t *)ED_Alloc(csqcprogs);
+			ent = (csqcedict_t *)ED_Alloc(csqcprogs, false, 0);
 			ent->xv->drawmask = MASK_DELTA;
 		}
 
@@ -7300,7 +7301,7 @@ void CSQC_ParseEntities(void)
 			ent = csqcent[entnum];
 			if (!ent)
 			{
-				ent = (csqcedict_t*)ED_Alloc(csqcprogs);
+				ent = (csqcedict_t*)ED_Alloc(csqcprogs, false, 0);
 				csqcent[entnum] = ent;
 				ent->xv->entnum = entnum;
 				G_FLOAT(OFS_PARM0) = true;

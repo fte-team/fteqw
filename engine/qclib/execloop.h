@@ -834,12 +834,14 @@ reeval:
 		break;
 
 	case OP_LOADP_V:
-		i = OPA->_int + OPB->_int*4;	//NOTE: inconsistant!
+		i = OPA->_int + OPB->_int*4;	//NOTE: inconsistant, but a bit more practical for the qcc when structs etc are involved
 		errorif ((unsigned int)i > prinst.addressableused-sizeof(vec3_t))
 		{
 			if (i == -1)
 			{
-				OPC->_int = 0;
+				OPC->_vector[0] = 0;
+				OPC->_vector[1] = 0;
+				OPC->_vector[2] = 0;
 				break;
 			}
 			pr_xstatement = st-pr_statements;

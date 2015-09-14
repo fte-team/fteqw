@@ -3723,7 +3723,6 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	vec3_t d[2];
 	vec3_t p[4];
 	vec4_t n[6];
-	int t;
 	int i;
 
 #ifndef STRICTEDGES
@@ -5074,7 +5073,7 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 
 	heightmap->sectionsize = 1024;
 	heightmap->mode = HMM_TERRAIN;
-	heightmap->culldistance = 4096;
+	heightmap->culldistance = 4096*4096;
 
 	heightmap->defaultgroundheight = 0;
 	heightmap->defaultwaterheight = 0;
@@ -5113,7 +5112,10 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 		else if (!strcmp("defaultwatertexture", key))
 			Q_strncpyz(heightmap->defaultwatershader, value, sizeof(heightmap->defaultwatershader));
 		else if (!strcmp("culldistance", key))
+		{
 			heightmap->culldistance = atof(value);
+			heightmap->culldistance *= heightmap->culldistance;
+		}
 		else if (!strcmp("skybox", key))
 			Q_strncpyz(heightmap->skyname, value, sizeof(heightmap->skyname));
 		else if (!strcmp("tiles", key))
@@ -5247,7 +5249,7 @@ void Terr_FinishTerrain(model_t *mod)
 int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist);
 static size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *planes, size_t numplanes, vec4_t face)
 {
-	int p;
+	int p, a;
 	vec4_t verts[128];
 	vec4_t verts2[128];
 	vec4_t *cverts;
@@ -5314,7 +5316,14 @@ static size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *p
 		cverts = verts;
 	for (p = 0; p < numverts; p++)
 	{
-		VectorCopy(cverts[p], points[p]);
+		for (a = 0; a < 3; a++)
+		{
+			//if its within 1/1000th of a qu, just call it okay.
+			if ((int)points[p][a] * 1000 == (int)(points[p][a]*1000))
+				points[p][a] = floor(cverts[p][a] + 0.5);
+			else
+				points[p][a] = cverts[p][a];
+		}
 	}
 
 	return numverts;
@@ -5353,7 +5362,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 	//allocate lightmap space for all surfaces, and then rebuild all textures.
 	//if a surface is modified, clear its lightmap to -1 and when its batches are rebuilt, it'll unlight naturally.
 
-	if (hm->recalculatebrushlighting)
+	if (hm->recalculatebrushlighting && !r_fullbright.ival)
 	{
 		unsigned int lmcount;
 		unsigned int lmblocksize = 512;//LMBLOCK_SIZE_MAX
@@ -5439,7 +5448,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 		}
 	}
 
-	if (hm->relightcontext)
+	if (hm->relightcontext && !r_fullbright.ival)
 	for (i = 0, br = hm->wbrushes; i < hm->numbrushes; i++, br++)
 	{
 		for (j = 0; j < br->numplanes; j++)
@@ -5486,17 +5495,69 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 
 				in = br->faces[j].lightdata;
 				out = lm->lightmaps + (br->faces[j].lmbase[1] * lm->width + br->faces[j].lmbase[0]) * lightmap_bytes;
-				for (t = 0; t < br->faces[j].lmextents[1]; t++)
+				if (lightmap_bytes == 4)
 				{
-					for (s = 0; s < br->faces[j].lmextents[0]; s++)
+					if (lightmap_bgra)
 					{
-						*out++ = in[2];
-						*out++ = in[1];
-						*out++ = in[0];
-						*out++ = 0xff;
-						in+=3;
+						for (t = 0; t < br->faces[j].lmextents[1]; t++)
+						{
+							for (s = 0; s < br->faces[j].lmextents[0]; s++)
+							{
+								*out++ = in[2];
+								*out++ = in[1];
+								*out++ = in[0];
+								*out++ = 0xff;
+								in+=3;
+							}
+							out += (lm->width - br->faces[j].lmextents[0]) * 4;
+						}
 					}
-					out += (lm->width - br->faces[j].lmextents[0]) * lightmap_bytes;
+					else
+					{
+						for (t = 0; t < br->faces[j].lmextents[1]; t++)
+						{
+							for (s = 0; s < br->faces[j].lmextents[0]; s++)
+							{
+								*out++ = in[0];
+								*out++ = in[1];
+								*out++ = in[2];
+								*out++ = 0xff;
+								in+=3;
+							}
+							out += (lm->width - br->faces[j].lmextents[0]) * 4;
+						}
+					}
+				}
+				else if (lightmap_bytes == 3)
+				{
+					if (lightmap_bgra)
+					{
+						for (t = 0; t < br->faces[j].lmextents[1]; t++)
+						{
+							for (s = 0; s < br->faces[j].lmextents[0]; s++)
+							{
+								*out++ = in[2];
+								*out++ = in[1];
+								*out++ = in[0];
+								in+=3;
+							}
+							out += (lm->width - br->faces[j].lmextents[0]) * 3;
+						}
+					}
+					else
+					{
+						for (t = 0; t < br->faces[j].lmextents[1]; t++)
+						{
+							for (s = 0; s < br->faces[j].lmextents[0]; s++)
+							{
+								*out++ = in[0];
+								*out++ = in[1];
+								*out++ = in[2];
+								in+=3;
+							}
+							out += (lm->width - br->faces[j].lmextents[0]) * 3;
+						}
+					}
 				}
 			}
 		}
@@ -5507,25 +5568,33 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 	{
 		if (!bt->shader)
 		{
+			miptex_t *tx = W_GetMipTex(bt->shadername);
+
 			if (!Q_strcasecmp(bt->shadername, "clip"))
 				bt->shader = R_RegisterShader(bt->shadername, SUF_LIGHTMAP, "{\nsurfaceparm nodraw\n}");
 			else
 				bt->shader = R_RegisterCustom (bt->shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 //				bt->shader = R_RegisterShader_Lightmap(bt->shadername);
 
-			if (!Q_strncasecmp(bt->shadername, "sky", 3))
+			if (!Q_strncasecmp(bt->shadername, "sky", 3) && tx)
+				R_InitSky (bt->shader, bt->shadername, (qbyte*)tx + tx->offsets[0], tx->width, tx->height);
+			else if (tx)
 			{
-				miptex_t *tx = W_GetMipTex(bt->shadername);
-				if (tx)
-				{
-					R_InitSky (bt->shader, bt->shadername, (qbyte*)tx + tx->offsets[0], tx->width, tx->height);
-					BZ_Free(tx);
-				}
-				else
-					R_BuildDefaultTexnums(NULL, bt->shader);
+				qbyte *mips[4] = {(qbyte*)tx + tx->offsets[0], (qbyte*)tx + tx->offsets[1], (qbyte*)tx + tx->offsets[2], (qbyte*)tx + tx->offsets[3]};
+				unsigned int mapflags = SHADER_HASPALETTED | SHADER_HASDIFFUSE | SHADER_HASFULLBRIGHT | SHADER_HASNORMALMAP | SHADER_HASGLOSS;
+				R_BuildLegacyTexnums(bt->shader, tx->name, NULL, mapflags, TF_BGRA32, tx->width, tx->height, mips, NULL); 
 			}
 			else
 				R_BuildDefaultTexnums(NULL, bt->shader);
+
+			if (tx)
+			{
+				if (!bt->shader->width)
+					bt->shader->width = tx->width;
+				if (!bt->shader->height)
+					bt->shader->height = tx->height;
+				BZ_Free(tx);
+			}
 		}
 
 		if (bt->rebuild)
@@ -5565,7 +5634,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 
 					for (j = 0; j < br->numplanes; j++)
 					{
-						if (br->faces[j].tex == bt /*&& !br->selected*/ && br->faces[j].lightmap == lmnum)
+						if (br->faces[j].tex == bt && !br->selected && br->faces[j].lightmap == lmnum)
 						{
 							size_t k, o;
 							float s,t;
@@ -5640,7 +5709,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			{
 				j = 0;
 				if (bb->lightmap >= 0)
-					b->lightmap[j++] = hm->brushlmremaps[bb->lightmap];
+					b->lightmap[j++] = r_fullbright.ival?-1:hm->brushlmremaps[bb->lightmap];
 				for (; j < MAXRLIGHTMAPS; j++)
 					b->lightmap[j] = -1;
 				b->ent = e;
@@ -6035,7 +6104,7 @@ typedef struct
 	float	tbias;
 } qcbrushface_t;
 
-static void *validateqcpointer(pubprogfuncs_t *prinst, size_t qcptr, size_t elementsize, size_t elementcount)
+static void *validateqcpointer(pubprogfuncs_t *prinst, size_t qcptr, size_t elementsize, size_t elementcount, qboolean allownull)
 {
 	//make sure that the sizes can't overflow
 	if (elementcount > 0x10000)
@@ -6048,6 +6117,12 @@ static void *validateqcpointer(pubprogfuncs_t *prinst, size_t qcptr, size_t elem
 		PR_BIError(prinst, "brush: invalid qc pointer\n");
 		return NULL;
 	}
+	if (!qcptr)
+	{
+		if (!allownull)
+			PR_BIError(prinst, "brush: null qc pointer\n");
+		return NULL;
+	}
 	return prinst->stringtable + qcptr;
 }
 //	{"brush_get",		PF_brush_get,		0,		0,		0,		0,		D(qcbrushface "int(float modelidx, int brushid, brushface_t *out_faces, int maxfaces, int *out_contents)", "Queries a brush's information. You must pre-allocate the face array for the builtin to write to. Return value is the number of faces retrieved, 0 on error.")},
@@ -6058,14 +6133,14 @@ void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 	unsigned int	brushid			= G_INT(OFS_PARM1);
 	unsigned int	maxfaces		= G_INT(OFS_PARM3);
-	qcbrushface_t	*out_faces		= validateqcpointer(prinst, G_INT(OFS_PARM2), sizeof(*out_faces), maxfaces);
-	unsigned int	*out_contents	= validateqcpointer(prinst, G_INT(OFS_PARM4), sizeof(*out_contents), 1);
+	qcbrushface_t	*out_faces		= validateqcpointer(prinst, G_INT(OFS_PARM2), sizeof(*out_faces), maxfaces, true);
+	unsigned int	*out_contents	= validateqcpointer(prinst, G_INT(OFS_PARM4), sizeof(*out_contents), 1, true);
 	unsigned int	fa, i;
 	brushes_t		*br;
 	
 	//assume the worst.
 	G_INT(OFS_RETURN) = 0;
-	if (G_INT(OFS_PARM4))
+	if (out_contents)
 		*out_contents = 0;
 
 	if (!hm)
@@ -6076,9 +6151,9 @@ void QCBUILTIN PF_brush_get(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		br = &hm->wbrushes[i];
 		if (br->id == brushid)
 		{
-			if (G_INT(OFS_PARM4))
+			if (out_contents)
 				*out_contents = br->contents;
-			if (!G_INT(OFS_PARM2))
+			if (!out_faces)
 				G_INT(OFS_RETURN) = br->numplanes;
 			else
 			{
@@ -6110,7 +6185,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 	unsigned int	numfaces		= G_INT(OFS_PARM2);
-	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces);
+	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces, false);
 	unsigned int	contents		= G_INT(OFS_PARM3);
 
 	unsigned int			i;
@@ -6269,9 +6344,9 @@ void QCBUILTIN PF_brush_calcfacepoints(pubprogfuncs_t *prinst, struct globalvars
 {
 	unsigned int	faceid			= G_INT(OFS_PARM0);
 	unsigned int	numfaces		= G_INT(OFS_PARM2);
-	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces);
+	qcbrushface_t	*in_faces		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_faces), numfaces, false);
 	unsigned int	maxpoints		= G_INT(OFS_PARM4);
-	vec3_t			*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM3), sizeof(*out_verts), maxpoints);
+	vec3_t			*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM3), sizeof(*out_verts), maxpoints, false);
 	vecV_t			facepoints[256];
 	vec4_t			planes[256];
 	unsigned int	j, numpoints;
@@ -6325,7 +6400,7 @@ void QCBUILTIN PF_brush_getfacepoints(pubprogfuncs_t *prinst, struct globalvars_
 	unsigned int	brushid			= G_INT(OFS_PARM1);
 	unsigned int	faceid			= G_INT(OFS_PARM2);
 	unsigned int	maxpoints		= G_INT(OFS_PARM4), p;
-	vec3_t			*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM3), sizeof(*out_verts), maxpoints);
+	vec3_t			*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM3), sizeof(*out_verts), maxpoints, false);
 	size_t i;
 	brushes_t *br;
 
@@ -6374,11 +6449,11 @@ void QCBUILTIN PF_brush_findinvolume(pubprogfuncs_t *prinst, struct globalvars_s
 	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 	int				in_numplanes	= G_INT(OFS_PARM3);
-	vec3_t			*in_normals		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_normals), in_numplanes);
-	float			*in_distances	= validateqcpointer(prinst, G_INT(OFS_PARM2), sizeof(*in_distances), in_numplanes);
+	vec3_t			*in_normals		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*in_normals), in_numplanes, false);
+	float			*in_distances	= validateqcpointer(prinst, G_INT(OFS_PARM2), sizeof(*in_distances), in_numplanes, false);
 	unsigned int	maxresults		= G_INT(OFS_PARM6);
-	unsigned int	*out_brushids	= validateqcpointer(prinst, G_INT(OFS_PARM4), sizeof(*out_brushids), maxresults);
-	unsigned int	*out_faceids	= G_INT(OFS_PARM5)?validateqcpointer(prinst, G_INT(OFS_PARM5), sizeof(*out_faceids), maxresults):NULL;
+	unsigned int	*out_brushids	= validateqcpointer(prinst, G_INT(OFS_PARM4), sizeof(*out_brushids), maxresults, false);
+	unsigned int	*out_faceids	= G_INT(OFS_PARM5)?validateqcpointer(prinst, G_INT(OFS_PARM5), sizeof(*out_faceids), maxresults, false):NULL;
 	unsigned int	i, j, k, r = 0;
 	brushes_t *br;
 	vec3_t best;
@@ -6569,12 +6644,6 @@ void Mod_Terrain_Save_f(void)
 	}
 	else
 	{
-		if (mod->type != mod_brush)
-		{
-			Con_Printf("that model isn't a suitable worldmodel\n");
-			return;
-		}
-
 		FS_CreatePath(fname, FS_GAMEONLY);
 		file = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 		if (!file)
@@ -6721,9 +6790,9 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 		else if (inbrush)
 		{
 			//parse a plane
-			//( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname 0 -32 rotation sscale tscale
-			//( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
-			//( 0 0 1 16 ) texname [x y z d] [x y z d] rotation sscale tscale
+			//Quake: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname 0 -32 rotation sscale tscale
+			//Valve: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
+			//fte  : ( px py pz pd ) texname [sx sy sz sd] [tx ty tz td] 0 1 1
 			brushtex_t *bt;
 			vec3_t d1,d2;
 			vec3_t points[3];

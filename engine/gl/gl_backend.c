@@ -1018,7 +1018,7 @@ static void RevertToKnownState(void)
 	if (!gl_config_nofixedfunc)
 	{
 		BE_SetPassBlendMode(0, PBM_REPLACE);
-		qglColor3f(1,1,1);
+		qglColor4f(1,1,1,1);
 
 		GL_DeSelectProgram();
 	}

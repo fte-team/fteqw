@@ -4923,6 +4923,15 @@ QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the func cou
 				return QCC_MakeIntConst(sz);
 			}
 		}
+		if (!strcmp(funcname, "alloca"))
+		{	//FIXME: half of these functions with regular expression arguments should be handled later or something
+			QCC_sref_t sz;
+			sz = QCC_PR_Expression(TOP_PRIORITY, 0);
+			QCC_PR_Expect(")");
+			sz = QCC_SupplyConversion(sz, ev_integer, true);
+			sz = QCC_PR_Statement(&pr_opcodes[OP_PUSH], sz, nullsref, NULL);
+			return sz;
+		}
 		if (!strcmp(funcname, "_"))
 		{
 			if (!func.sym->initialized)

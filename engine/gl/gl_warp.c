@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <ctype.h>
 
 static void R_CalcSkyChainBounds (batch_t *s);
-static void GL_DrawSkyGrid (texture_t *tex);
+static void GL_DrawSkyGrid (texnums_t *tex);
 static void GL_DrawSkySphere (batch_t *fa, shader_t *shader);
 static void GL_SkyForceDepth(batch_t *fa);
 static void GL_DrawSkyBox (texid_t *texnums, batch_t *s);
@@ -90,12 +90,12 @@ void R_DrawSkyChain (batch_t *batch)
 	if (skyshader->numpasses)
 	{
 #if defined(GLQUAKE) && !defined(ANDROID)
-		if (*r_fastsky.string && qrenderer == QR_OPENGL && TEXVALID(batch->shader->defaulttextures->base) && TEXVALID(batch->shader->defaulttextures->fullbright))
+		if (*r_fastsky.string && qrenderer == QR_OPENGL && !gl_config_gles && !gl_config_nofixedfunc && TEXVALID(batch->shader->defaulttextures->base) && TEXVALID(batch->shader->defaulttextures->fullbright))
 		{
 			R_CalcSkyChainBounds(batch);
 
 			R_IBrokeTheArrays();
-			GL_DrawSkyGrid(batch->texture);
+			GL_DrawSkyGrid(skyshader->defaulttextures);
 			R_IBrokeTheArrays();
 		}
 		else
@@ -638,12 +638,12 @@ static void GL_DrawSkyGridFace (int axis)
 	qglEnd ();
 }
 
-static void GL_DrawSkyGrid (texture_t *tex)
+static void GL_DrawSkyGrid (texnums_t *tex)
 {
 	int i;
 	float time = cl.gametime+realtime-cl.gametimemark;
 
-	GL_LazyBind(0, GL_TEXTURE_2D, tex->shader->defaulttextures->base);
+	GL_LazyBind(0, GL_TEXTURE_2D, tex->base);
 
 	speedscale = time*8;
 	speedscale -= (int)speedscale & ~127;
@@ -655,19 +655,22 @@ static void GL_DrawSkyGrid (texture_t *tex)
 		GL_DrawSkyGridFace (i);
 	}
 
-	qglEnable (GL_BLEND);
-	GL_LazyBind(0, GL_TEXTURE_2D, tex->shader->defaulttextures->fullbright);
-
-	speedscale = time*16;
-	speedscale -= (int)speedscale & ~127;
-
-	for (i = 0; i < 6; i++)
+	if (tex->fullbright)
 	{
-		if ((skymins[0][i] >= skymaxs[0][i]	|| skymins[1][i] >= skymaxs[1][i]))
-			continue;
-		GL_DrawSkyGridFace (i);
+		qglEnable (GL_BLEND);
+		GL_LazyBind(0, GL_TEXTURE_2D, tex->fullbright);
+
+		speedscale = time*16;
+		speedscale -= (int)speedscale & ~127;
+
+		for (i = 0; i < 6; i++)
+		{
+			if ((skymins[0][i] >= skymaxs[0][i]	|| skymins[1][i] >= skymaxs[1][i]))
+				continue;
+			GL_DrawSkyGridFace (i);
+		}
+		qglDisable (GL_BLEND);
 	}
-	qglDisable (GL_BLEND);
 }
 
 #endif

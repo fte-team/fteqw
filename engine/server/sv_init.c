@@ -1266,7 +1266,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		{
 			svs.clients[i].viewent = 0;
 
-			ent = ED_Alloc(svprogfuncs);//EDICT_NUM(i+1);
+			ent = ED_Alloc(svprogfuncs, false, 0);//EDICT_NUM(i+1);
 			svs.clients[i].edict = ent;
 			ent->isfree = false;
 	//ZOID - make sure we update frags right

@@ -2619,7 +2619,17 @@ void QCBUILTIN PF_nextent (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 void QCBUILTIN PF_Spawn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	struct edict_s	*ed;
-	ed = ED_Alloc(prinst);
+	ed = ED_Alloc(prinst, false, 0);
+	pr_globals = PR_globals(prinst, PR_CURRENT);
+	RETURN_EDICT(prinst, ed);
+}
+
+void QCBUILTIN PF_spawn_object (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int obj = G_INT(OFS_PARM0);
+	int size = G_INT(OFS_PARM1);
+	struct edict_s	*ed;
+	ed = ED_Alloc(prinst, obj, size);
 	pr_globals = PR_globals(prinst, PR_CURRENT);
 	RETURN_EDICT(prinst, ed);
 }
@@ -2635,16 +2645,20 @@ void QCBUILTIN PF_copyentity (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	in = G_WEDICT(prinst, OFS_PARM0);
 	if (prinst->callargc <= 1)
-		out = (wedict_t*)ED_Alloc(prinst);
+		out = (wedict_t*)ED_Alloc(prinst, false, 0);
 	else
 		out = G_WEDICT(prinst, OFS_PARM1);
 
+	if (in->isfree)
+		PR_BIError(prinst, "PF_copyentity: source is free");
 	if (!out || out->isfree)
 		PR_BIError(prinst, "PF_copyentity: destination is free");
 	if (out->readonly)
 		PR_BIError(prinst, "PF_copyentity: destination is read-only");
+	if (out->fieldsize != in->fieldsize)
+		PR_BIError(prinst, "PF_copyentity: different object types");
 
-	memcpy(out->v, in->v, w->edict_size);
+	memcpy(out->v, in->v, out->fieldsize);
 	World_LinkEdict(w, out, false);
 
 	RETURN_EDICT(prinst, out);

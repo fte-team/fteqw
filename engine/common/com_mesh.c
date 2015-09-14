@@ -1535,14 +1535,14 @@ static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bo
 #else
 	PPL_RevertToKnownState();
 	BE_SelectEntity(currententity);
-	qglColor3f(1, 0, 0);
+	qglColor4f(1, 0, 0, 1);
 	{
 		int i;
 		int p;
 //		vec3_t org, dest;
 
 		qglBegin(GL_LINES);
-		qglColor3f(0, 0, 1);
+		qglColor4f(0, 0, 1, 1);
 		for (i = 0; i < basebone; i++)
 		{
 			p = bones[i].parent;
@@ -1551,7 +1551,7 @@ static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bo
 			qglVertex3f(bonepose[i*12+3], bonepose[i*12+7], bonepose[i*12+11]);
 			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
 		}
-		qglColor3f(1, 0, 0);
+		qglColor4f(1, 0, 0, 1);
 		for (; i < bonecount; i++)
 		{
 			p = bones[i].parent;
@@ -1561,7 +1561,7 @@ static void Alias_DrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bo
 			qglVertex3f(bonepose[p*12+3], bonepose[p*12+7], bonepose[p*12+11]);
 		}
 		qglEnd();
-		qglColor3f(1, 1, 1);
+		qglColor4f(1, 1, 1, 1);
 /*		qglBegin(GL_LINES);
 		for (i = 0; i < bonecount; i++)
 		{

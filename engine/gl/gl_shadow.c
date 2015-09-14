@@ -2790,9 +2790,13 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 
 	if (qrenderer == QR_DIRECT3D11)
 		return;
+	if (qrenderer != QR_OPENGL)
+		return;	//FIXME: uses glBegin specifics.
 #ifdef GLQUAKE
-	if (gl_config.nofixedfunc)
+	if (gl_config_nofixedfunc)
 		return;	/*hackzone*/
+	if (gl_config_gles)
+		return;	//FIXME: uses glBegin
 #endif
 
 	// draw sprites seperately, because of alpha blending
@@ -2943,7 +2947,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 		//	if (r_shadows.value == 666)	//testing (visible shadow volumes)
 			{
 				qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-				qglColor3f(dl->color[0], dl->color[1], dl->color[2]);
+				qglColor4f(dl->color[0], dl->color[1], dl->color[2], 1);
 				qglDisable(GL_STENCIL_TEST);
 //				qglEnable(GL_POLYGON_OFFSET_FILL);
 //				qglPolygonOffset(-1, -1);

@@ -67,6 +67,7 @@ typedef struct edict_s
 	qboolean	isfree;
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
+	unsigned int fieldsize;
 	qboolean	readonly;	//world
 #ifdef VM_Q1
 	stdentvars_t	*v;

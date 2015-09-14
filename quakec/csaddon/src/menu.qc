@@ -290,7 +290,7 @@ void(string fieldname, vector pos, vector *mousepos_in, float *value, float key)
 
 void(menu_t *menu, string fieldname, vector pos, int *value) checkboxi_widgit =
 {
-	local vector rpos, epos, spos, col;
+	local vector epos, spos, col;
 	local int render_only = 0;
 	local vector mousepos = *menu->mousepos;
 	local vector mousediff = menu->mousediff;
@@ -338,7 +338,7 @@ void(menu_t *menu, string fieldname, vector pos, int *value) checkboxi_widgit =
 
 int (menu_t *menu, string fieldname, vector pos) button_widget =
 {
-	local vector rpos, epos, spos, col;
+	local vector epos, spos, col;
 	local int render_only = 0;
 	local vector mousepos = *menu->mousepos;
 	local vector mousediff = menu->mousediff;

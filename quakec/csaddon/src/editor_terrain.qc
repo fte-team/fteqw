@@ -52,7 +52,7 @@ static var string tint[8] = {"1 1 1", "1.2 0.9 0.9", "0 1 0"};
 static string meshname;
 static var float curtool = ter_blank;
 static var float lasttool = ter_blank;
-static float painttex;
+static int painttex;
 static float mautorepeattime;
 static entity tempent;
 static var float texturesearch = -1;
@@ -147,6 +147,12 @@ void(vector m, float repeated) editor_do =
 			sendevent("teredit", "fvff", TEREDIT_HEIGHT_SPREAD, trace_endpos, eradius, epercent/100.0);
 		else
 			terrain_edit(TEREDIT_HEIGHT_SPREAD, trace_endpos, eradius, epercent/100.0);
+		break;
+	case ter_height_flatten:
+		if (autocvar_mod_terrain_networked && !isserver())
+			sendevent("teredit", "fvff", TEREDIT_HEIGHT_FLATTEN, trace_endpos, eradius, epercent/100.0);
+		else
+			terrain_edit(TEREDIT_HEIGHT_FLATTEN, trace_endpos, eradius, epercent/100.0);
 		break;
 	case ter_water_set:
 		if (autocvar_mod_terrain_networked && !isserver())
@@ -441,6 +447,10 @@ void(vector mousepos) editor_terrain_add =
 	float r;
 	vector tx, p, col;
 	float a;
+	
+	if (curtool == ter_tex_paint || curtool == ter_tex_paint_single || curtool == ter_tex)
+		terrain_edit(22, tex[painttex]);
+	
 	if (mousepos_x < 128)
 		return;
 
@@ -503,6 +513,9 @@ void(vector mousepos) editor_terrain_overlay =
 	float i;
 	vector pos;
 	vector colour;
+	
+//	if (curtool == ter_tex_paint || curtool == ter_tex_paint_single || curtool == ter_tex)
+		terrain_edit(22, 0);
 
 	float ctime = gettime(5);
 	if (mautorepeattime)

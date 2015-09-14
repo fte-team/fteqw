@@ -13,6 +13,7 @@ Available options:
 -O          - write to a different qc file
 */
 #pragma noref 1
+//#pragma flag enable logicops
 #pragma warning error Q101 /*too many parms*/
 #pragma warning error Q105 /*too few parms*/
 #pragma warning error Q208 /*system crc unknown*/
@@ -173,6 +174,7 @@ Available options:
 #define FTE_NPCCHAT
 #define FTE_QC_CHECKCOMMAND
 #define FTE_QC_CHECKPVS
+#define FTE_QC_HARDWARECURSORS /* setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits, it will be emulated using regular draws - this at least still avoids conflicting cursors. */
 #define FTE_QC_HASHTABLES
 #define FTE_QC_INTCONV
 #define FTE_QC_MATCHCLIENTNAME
@@ -271,6 +273,8 @@ vector input_cursor_screen;
 vector input_cursor_trace_start;
 vector input_cursor_trace_endpos;
 float input_cursor_trace_entnum;
+int trace_brush_id;
+int trace_brush_faceid;
 .vector punchangle;
 .float gravity;
 .float hull;	/* Overrides the hull used by the entity for walkmove/movetogoal and not traceline/tracebox. */
@@ -288,7 +292,7 @@ float input_cursor_trace_entnum;
 .entity tag_entity;
 .float tag_index;
 .float skeletonindex;	/* This object serves as a container for the skeletal bone states used to override the animation data. */
-.vector colormod;
+.vector colormod;	/* Provides a colour tint for the entity. */
 .vector glowmod;
 .vector gravitydir;	/* Specifies the direction in which gravity acts. Must be normalised. '0 0 0' also means down. Use '0 0 1' if you want the player to be able to run on ceilings. */
 .vector(vector org, vector ang) camera_transform;	/* Provides portal transform information for portal surfaces attached to this entity. Also used to open up pvs in ssqc. */
@@ -319,32 +323,33 @@ float input_cursor_trace_entnum;
 .float bonecontrol5;	/* Halflife model format bone controller. This typically affects the mouth. */
 .float subblendfrac;	/* Weird animation value specific to halflife models. On player models, this typically affects the spine's pitch. */
 .float basesubblendfrac;	/* See basebone */
-noref void(float reqid, float responsecode, string resourcebody) URI_Get_Callback;	/* Called as an eventual result of the uri_get builtin. */
-noref void(float apilevel, string enginename, float engineversion) CSQC_Init;	/* Called at startup. enginename and engineversion are arbitary hints and can take any form. enginename should be consistant between revisions, but this cannot truely be relied upon. */
-noref void() CSQC_WorldLoaded;	/* Called after model+sound precaches have been executed. Gives a chance for the qc to read the entity lump from the bsp. */
-noref void() CSQC_Shutdown;	/* Specifies that the csqc is going down. Save your persistant settings here. */
-noref void(float vwidth, float vheight, float notmenu) CSQC_UpdateView;	/* Called every single video frame. The CSQC is responsible for rendering the entire screen. */
-noref void(float vwidth, float vheight, float notmenu) CSQC_UpdateViewLoading;	/* Alternative to CSQC_UpdateView, called when the engine thinks there should be a loading screen. If present, will inhibit the engine's normal loading screen, deferring to qc to draw it. */
-noref void(string msg) CSQC_Parse_StuffCmd;	/* Gives the CSQC a chance to intercept stuffcmds. Use the tokenize builtin to parse the message. Unrecognised commands would normally be localcmded, but its probably better to drop unrecognised stuffcmds completely. */
-noref float(string msg) CSQC_Parse_CenterPrint;	/* Gives the CSQC a chance to intercept centerprints. Return true if you wish the engine to otherwise ignore the centerprint. */
-noref float(float save, float take, vector inflictororg) CSQC_Parse_Damage;	/* Called as a result of player.dmg_save or player.dmg_take being set on the server.
+void(float reqid, float responsecode, string resourcebody) URI_Get_Callback;	/* Called as an eventual result of the uri_get builtin. */
+void(float apilevel, string enginename, float engineversion) CSQC_Init;	/* Called at startup. enginename and engineversion are arbitary hints and can take any form. enginename should be consistant between revisions, but this cannot truely be relied upon. */
+void() CSQC_WorldLoaded;	/* Called after model+sound precaches have been executed. Gives a chance for the qc to read the entity lump from the bsp. */
+void() CSQC_Shutdown;	/* Specifies that the csqc is going down. Save your persistant settings here. */
+void(float vwidth, float vheight, float notmenu) CSQC_UpdateView;	/* Called every single video frame. The CSQC is responsible for rendering the entire screen. */
+void(float vwidth, float vheight, float notmenu) CSQC_UpdateViewLoading;	/* Alternative to CSQC_UpdateView, called when the engine thinks there should be a loading screen. If present, will inhibit the engine's normal loading screen, deferring to qc to draw it. */
+void(string msg) CSQC_Parse_StuffCmd;	/* Gives the CSQC a chance to intercept stuffcmds. Use the tokenize builtin to parse the message. Unrecognised commands would normally be localcmded, but its probably better to drop unrecognised stuffcmds completely. */
+float(string msg) CSQC_Parse_CenterPrint;	/* Gives the CSQC a chance to intercept centerprints. Return true if you wish the engine to otherwise ignore the centerprint. */
+float(float save, float take, vector inflictororg) CSQC_Parse_Damage;	/* Called as a result of player.dmg_save or player.dmg_take being set on the server.
 Return true to completely inhibit the engine's colour shift and damage rolls, allowing you to do your own thing.
 You can use punch_roll += (normalize(inflictororg-player.origin)*v_right)*(take+save)*autocvar_v_kickroll; as a modifier for the roll angle should the player be hit from the side, and slowly fade it away over time. */
-noref void(string printmsg, float printlvl) CSQC_Parse_Print;	/* Gives the CSQC a chance to intercept sprint/bprint builtin calls. CSQC should filter by the client's current msg setting and then pass the message on to the print command, or handle them itself. */
-noref void() CSQC_Parse_Event;	/* Called when the client receives an SVC_CGAMEPACKET. The csqc should read the data or call the error builtin if it does not recognise the message. */
-noref float(float evtype, float scanx, float chary, float devid) CSQC_InputEvent;	/* Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time. */
-noref void() CSQC_Input_Frame;	/* Called just before each time clientcommandframe is updated. You can edit the input_* globals in order to apply your own player inputs within csqc, which may allow you a convienient way to pass certain info to ssqc. */
-noref float(string cmd) CSQC_ConsoleCommand;	/* Called if the user uses any console command registed via registercommand. */
-noref float(string text, string info) CSQC_ConsoleLink;	/* Called if the user clicks a ^[text\infokey\infovalue^] link. Use infoget to read/check each supported key. Return true if you wish the engine to not attempt to handle the link itself. */
-noref void(float isnew) CSQC_Ent_Update;
-noref void() CSQC_Ent_Remove;
-noref float(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod) CSQC_Event_Sound;
-noref float(string resname, string restype) CSQC_LoadResource;	/* Called each time some resource is being loaded. CSQC can invoke various draw calls to provide a loading screen, until WorldLoaded is called. */
-noref float() CSQC_Parse_TempEntity;	/* Please don't use this. Use CSQC_Parse_Event and multicasts instead. */
-noref void(string cmdtext) GameCommand;
-noref void(float prevprogs) init;	/* Part of FTE_MULTIPROGS. Called as soon as a progs is loaded, called at a time when entities are not valid. This is the only time when it is safe to call addprogs without field assignment. As it is also called as part of addprogs, this also gives you a chance to hook functions in modules that are already loaded (via externget+externget). */
-noref void() initents;	/* Part of FTE_MULTIPROGS. Called after fields have been finalized. This is the first point at which it is safe to call spawn(), and is called before any entity fields have been parsed. You can use this entrypoint to send notifications to other modules. */
-var float physics_mode = 2;	/* 0: original csqc - physics are not run
+void(string printmsg, float printlvl) CSQC_Parse_Print;	/* Gives the CSQC a chance to intercept sprint/bprint builtin calls. CSQC should filter by the client's current msg setting and then pass the message on to the print command, or handle them itself. */
+void() CSQC_Parse_Event;	/* Called when the client receives an SVC_CGAMEPACKET. The csqc should read the data or call the error builtin if it does not recognise the message. */
+float(float evtype, float scanx, float chary, float devid) CSQC_InputEvent;	/* Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time. */
+__used void() CSQC_Input_Frame;	/* Called just before each time clientcommandframe is updated. You can edit the input_* globals in order to apply your own player inputs within csqc, which may allow you a convienient way to pass certain info to ssqc. */
+void(void) CSQC_RendererRestarted;	/* Called by the engine after the video was restarted. This serves to notify the CSQC that any render targets that it may have cached were purged, and will need to be regenerated. */
+float(string cmd) CSQC_ConsoleCommand;	/* Called if the user uses any console command registed via registercommand. */
+float(string text, string info) CSQC_ConsoleLink;	/* Called if the user clicks a ^[text\infokey\infovalue^] link. Use infoget to read/check each supported key. Return true if you wish the engine to not attempt to handle the link itself. */
+void(float isnew) CSQC_Ent_Update;
+void() CSQC_Ent_Remove;
+float(float entnum, float channel, string soundname, float vol, float attenuation, vector pos, float pitchmod, float flags) CSQC_Event_Sound;
+float(string resname, string restype) CSQC_LoadResource;	/* Called each time some resource is being loaded. CSQC can invoke various draw calls to provide a loading screen, until WorldLoaded is called. */
+float() CSQC_Parse_TempEntity;	/* Please don't use this. Use CSQC_Parse_Event and multicasts instead. */
+void(string cmdtext) GameCommand;
+void(float prevprogs) init;	/* Part of FTE_MULTIPROGS. Called as soon as a progs is loaded, called at a time when entities are not valid. This is the only time when it is safe to call addprogs without field assignment. As it is also called as part of addprogs, this also gives you a chance to hook functions in modules that are already loaded (via externget+externget). */
+void() initents;	/* Part of FTE_MULTIPROGS. Called after fields have been finalized. This is the first point at which it is safe to call spawn(), and is called before any entity fields have been parsed. You can use this entrypoint to send notifications to other modules. */
+__used var float physics_mode = 2;	/* 0: original csqc - physics are not run
 1: DP-compat. Thinks occur, but not true movetypes.
 2: movetypes occur just as they do in ssqc. */
 float gamespeed;	/* Set by the engine, this is the value of the sv_gamespeed cvar */
@@ -428,6 +433,9 @@ float drawfont;	/* Allows you to choose exactly which font is to be used to draw
 #define CHAN_VOICE 2
 #define CHAN_ITEM 3
 #define CHAN_BODY 4
+#define SOUNDFLAG_ABSVOLUME 16
+#define SOUNDFLAG_FORCELOOP 2
+#define SOUNDFLAG_NOSPACIALISE 4
 #define ATTN_NONE 0	/* Sounds with this attenuation can be heard throughout the map */
 #define ATTN_NORM 1	/* Standard attenuation */
 #define ATTN_IDLE 2	/* Extra attenuation so that sounds don't travel too far. */
@@ -457,6 +465,7 @@ Key will be empty if we are not loading. */
 files-remaining, total-size, unknown-sizes-flag, file-localname, file-remotename, file-percent, file-rate, file-received-bytes, file-total-bytes
 If the current file info is omitted, then we are waiting for a download to start. */
 #define SERVERKEY_PROTOCOL "protocol"	/* The protocol we are connected to the server with. */
+#define SERVERKEY_MAXPLAYERS "maxplayers"	/* The protocol we are connected to the server with. */
 #define FL_FLY 1
 #define FL_SWIM 2
 #define FL_CLIENT 8
@@ -493,6 +502,7 @@ If the current file info is omitted, then we are waiting for a download to start
 #define EF_ADDITIVE 32
 #define EF_BLUE 64
 #define EF_RED 128
+#define EF_GREEN 262144
 #define EF_FULLBRIGHT 512
 #define EF_NODEPTHTEST 8192
 #define MF_ROCKET 1
@@ -516,6 +526,7 @@ If the current file info is omitted, then we are waiting for a download to start
 #define EV_VARIANT 9
 hashtable gamestate;	/* Special hash table index for hash_add and hash_get. Entries in this table will persist over map changes (and doesn't need to be created/deleted). */
 #define HASH_REPLACE 256	/* Used with hash_add. Attempts to remove the old value instead of adding two values for a single key. */
+#define HASH_ADD 512	/* Used with hash_add. The new entry will be inserted in addition to the existing entry. */
 #define STAT_HEALTH 0	/* Player's health. */
 #define STAT_WEAPONMODELI 2	/* This is the modelindex of the current viewmodel (renamed from the original name 'STAT_WEAPON' due to confusions). */
 #define STAT_AMMO 3	/* player.currentammo */
@@ -561,7 +572,8 @@ hashtable gamestate;	/* Special hash table index for hash_add and hash_get. Entr
 #define VF_CL_VIEWANGLES_Y 35
 #define VF_CL_VIEWANGLES_Z 36
 #define VF_PERSPECTIVE 200	/* 1: regular rendering. Fov specifies the angle. 0: isometric-style. Fov specifies the number of Quake Units each side of the viewport. */
-#define VF_LPLAYER 202	/* The 'seat' number, used when running splitscreen. */
+#define VF_LPLAYER VF_ACTIVESEAT
+const float VF_ACTIVESEAT = 202;	/* The 'seat' number, used when running splitscreen. */
 #define VF_AFOV 203	/* Aproximate fov. Matches the 'fov' cvar. The engine handles the aspect ratio for you. */
 #define VF_SCREENVSIZE 204	/* Provides a reliable way to retrieve the current virtual screen size (even if the screen is automatically scaled to retain aspect). */
 #define VF_SCREENPSIZE 205	/* Provides a reliable way to retrieve the current physical screen size (cvars need vid_restart for them to take effect). */
@@ -636,13 +648,17 @@ Note that any rendertarget textures may be destroyed on video mode changes or so
 #define TEREDIT_TEX_UNIFY 11
 #define TEREDIT_TEX_NOISE 12
 #define TEREDIT_TEX_BLUR 13
+#define TEREDIT_TEX_REPLACE 19
+#define TEREDIT_TEX_SETMASK 25
 #define TEREDIT_WATER_SET 14
 #define TEREDIT_MESH_ADD 15
 #define TEREDIT_MESH_KILL 16
 #define TEREDIT_TINT 17
-#define TEREDIT_TEX_REPLACE 19
 #define TEREDIT_RESET_SECT 20
 #define TEREDIT_RELOAD_SECT 21
+#define TEREDIT_ENTS_WIPE 22
+#define TEREDIT_ENTS_CONCAT 23
+#define TEREDIT_ENTS_GET 24
 #define SLIST_HOSTCACHEVIEWCOUNT 0
 #define SLIST_HOSTCACHETOTALCOUNT 1
 #define SLIST_MASTERQUERYCOUNT 2
@@ -676,12 +692,13 @@ void(entity e, vector min, vector max) setsize = #4; /*
 float() random = #7; /*
 		Returns a random value between 0 and 1. Be warned, this builtin can return 1 in most engines, which can break arrays. */
 
-void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags) sound = #8; /*
+void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags, optional float timeofs) sound = #8; /*
 		Starts a sound centered upon the given entity.
 		chan is the entity sound channel to use, channel 0 will allow you to mix many samples at once, others will replace the old sample
 		'samp' must have been precached first
 		if specified, 'speedpct' should normally be around 100 (or =0), 200 for double speed or 50 for half speed.
-		flags&1 means the sound should be sent reliably. */
+		If flags is specified, the reliable flag in the channels argument is used for additional channels. Flags should be made from SOUNDFLAG_* constants
+		timeofs should be negative in order to provide a delay before the sound actually starts. */
 
 vector(vector v) normalize = #9; /*
 		Shorten or lengthen a direction vector such that it is only one quake unit long. */
@@ -758,7 +775,7 @@ float(float yaw, float dist, optional float settraceglobals) walkmove = #32; /*
 		This function will trigger touch events. */
 
 float() droptofloor = #34; /*
-		Instantly moves the entity downwards until it hits the ground. If the entity would need to drop more than 'pr_droptofloorunits' quake units, its position will be considered invalid and the builtin will abort. */
+		Instantly moves the entity downwards until it hits the ground. If the entity is in solid or would need to drop more than 'pr_droptofloorunits' quake units, its position will be considered invalid and the builtin will abort, returning FALSE, otherwise TRUE. */
 
 void(float lightstyle, string stylestring, optional vector rgb) lightstyle = #35; /*
 		Specifies an auto-animating string that specifies the light intensity for entities using that lightstyle.
@@ -797,18 +814,22 @@ void(vector pos, vector dir, float colour, float count) particle = #48; /*
 
 #define ChangeYaw changeyaw
 void() changeyaw = #49; /*
-		Changes the self.angles_y field towards self.ideal_yaw by up to self.yawspeed. */
+		Changes the self.angles_y field towards self.ideal_yaw by up to self.yaw_speed. */
 
 vector(vector fwd, optional vector up) vectoangles = #51; /*
 		Returns the angles (+x=UP) required to orient an entity to look in the given direction. The 'up' argument is required if you wish to set a roll angle, otherwise it will be limited to just monster-style turning. */
 
-float(float angle) sin = #60; /* Part of DP_QC_SINCOSSQRTPOW*/
+float(float angle) sin = #60; /* Part of DP_QC_SINCOSSQRTPOW
+		Forgive me father, for I have trigonometry homework. */
+
 float(float angle) cos = #61; /* Part of DP_QC_SINCOSSQRTPOW*/
 float(float value) sqrt = #62; /* Part of DP_QC_SINCOSSQRTPOW*/
 void(entity ent) changepitch = #63; /* Part of DP_QC_CHANGEPITCH*/
 void(entity ent, entity ignore) tracetoss = #64;
 string(entity ent) etos = #65; /* Part of DP_QC_ETOS*/
-void(float step) movetogoal = #67;
+void(float step) movetogoal = #67; /*
+		Runs lots and lots of fancy logic in order to try to step the entity the specified distance towards its goalentity. */
+
 string(string s) precache_file = #68; /*
 		This builtin does nothing. It was used only as a hint for pak generation. */
 
@@ -845,8 +866,15 @@ float(float minimum, float val, float maximum) bound = #96; /* Part of DP_QC_MIN
 		Returns val, unless minimum is higher, or maximum is less. */
 
 float(float value, float exp) pow = #97; /* Part of DP_QC_SINCOSSQRTPOW*/
+float(float v, optional float base) logarithm = #0/*:logarithm*/; /*
+		Determines the logarithm of the input value according to the specified base. This can be used to calculate how much something was shifted by. */
+
 entity(entity start, .float fld, float match) findfloat = #98; /* Part of DP_QC_FINDFLOAT
 		Equivelent to the find builtin, but instead of comparing strings, this builtin compares floats. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.
+		world is returned when there are no more entities. */
+
+entity(entity start, .entity fld, entity match) findentity = #98; /*
+		Equivelent to the find builtin, but instead of comparing strings, this builtin compares entities. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.
 		world is returned when there are no more entities. */
 
 float(string extname) checkextension = #99; /*
@@ -859,7 +887,7 @@ void(filestream fhandle) fclose = #111; /* Part of FRIK_FILE*/
 string(filestream fhandle) fgets = #112; /* Part of FRIK_FILE*/
 void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7) fputs = #113; /* Part of FRIK_FILE*/
 float(string s) strlen = #114; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
-string(string s1, optional string s2, ...) strcat = #115; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
+string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8) strcat = #115; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
 string(string s, float start, float length) substring = #116; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
 vector(string s) stov = #117; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS*/
 string(string s, ...) strzone = #118; /* Part of FRIK_FILE, FTE_STRINGS, ZQ_QC_STRINGS
@@ -952,6 +980,9 @@ float(string s1, string s2, float len, optional float s1ofs, optional float s2of
 		Compares up to 'len' chars in the two strings without case sensitivity. s1ofs allows you to treat s2 as a substring to compare against, or should be 0.
 		Returns 0 if they are equal. The sign of the return value may be significant, but should not be depended upon. */
 
+string(string s) strtrim = #0/*:strtrim*/; /*
+		Trims the whitespace from the start+end of the string. */
+
 void() calltimeofday = #231; /* Part of FTE_CALLTIMEOFDAY
 		Asks the engine to instantly call the qc's 'timeofday' function, before returning. For compatibility with mvdsv.
 		timeofday should have the prototype: void(float secs, float mins, float hour, float day, float mon, float year, string strvalue)
@@ -969,16 +1000,22 @@ void(vector org, optional float count) te_bloodqw = #239; /* Part of FTE_TE_STAN
 float(vector viewpos, entity entity) checkpvs = #240; /* Part of FTE_QC_CHECKPVS*/
 vector(entity ent, float tagnum) rotatevectorsbytag = #244;
 int(string) stoi = #259; /* Part of FTE_QC_INTCONV
-		Converts the given string into an integer. Base 8, 10, or 16 is determined based upon the format of the string. */
+		Converts the given string into a true integer. Base 8, 10, or 16 is determined based upon the format of the string. */
 
 string(int) itos = #260; /* Part of FTE_QC_INTCONV
-		Converts the passed integer into a base10 string. */
+		Converts the passed true integer into a base10 string. */
 
 int(string) stoh = #261; /* Part of FTE_QC_INTCONV
 		Reads a base-16 string (with or without 0x prefix) as an integer. Bugs out if given a base 8 or base 10 string. :P */
 
 string(int) htos = #262; /* Part of FTE_QC_INTCONV
 		Formats an integer as a base16 string, with leading 0s and no prefix. Always returns 8 characters. */
+
+int(float) ftoi = #0/*:ftoi*/; /*
+		Converts the given float into a true integer without depending on extended qcvm instructions. */
+
+float(int) itof = #0/*:itof*/; /*
+		Converts the given true integer into a float without depending on extended qcvm instructions. */
 
 float(float modlindex, optional float useabstransforms) skel_create = #263; /* Part of FTE_CSQC_SKELETONOBJECTS
 		Allocates a new uninitiaised skeletal object, with enough bone info to animate the given model.
@@ -1055,6 +1092,9 @@ float(float modelid, int brushid, int faceid, float selectedstate) brush_selecte
 
 int(float modelid, int brushid, int faceid, vector *points, int maxpoints) brush_getfacepoints = #0/*:brush_getfacepoints*/; /*
 		Returns the list of verticies surrounding the given face. If face is 0, returns the center of the brush (if space for 1 point) or the mins+maxs (if space for 2 points). */
+
+int(int faceid, brushface_t *in_faces, int numfaces, vector *points, int maxpoints) brush_calcfacepoints = #0/*:brush_calcfacepoints*/; /*
+		Determines the points of the specified face, if the specified brush were to actually be created. */
 
 int(float modelid, vector *planes, float *dists, int numplanes, int *out_brushes, int *out_faces, int maxresults) brush_findinvolume = #0/*:brush_findinvolume*/; /*
 		Allows you to easily obtain a list of brushes+faces within the given bounding region. If out_faces is not null, the same brush might be listed twice. */
@@ -1136,9 +1176,9 @@ void() renderscene = #304; /*
 float(vector org, float radius, vector lightcolours, optional float style, optional string cubemapname, optional float pflags) dynamiclight_add = #305; /*
 		Adds a temporary dlight, ready to be drawn via addscene. Cubemap orientation will be read from v_forward/v_right/v_up. */
 
-void(string texturename, optional float flags) R_BeginPolygon = #306; /*
+void(string texturename, optional float flags, optional float is2d) R_BeginPolygon = #306; /*
 		Specifies the shader to use for the following polygons, along with optional flags.
-		If flags&4, the polygon will be drawn as soon as the EndPolygon call is made, rather than waiting for renderscene. This allows complex 2d effects. */
+		If is2d, the polygon will be drawn as soon as the EndPolygon call is made, rather than waiting for renderscene. This allows complex 2d effects. */
 
 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex = #307; /*
 		Specifies a polygon vertex with its various properties. */
@@ -1259,10 +1299,13 @@ float(string keyname) stringtokeynum = #341; /*
 		Looks up the key name in the same way that the bind command would, returning the keycode for that key. */
 
 string(float keynum) getkeybind = #342; /*
-		Finds the current binding for the given key (ignores modifiers like shift/alt/ctrl). */
+		Returns the current binding for the given key (returning only the command executed when no modifiers are pressed). */
 
 void(float usecursor, optional string cursorimage, optional vector hotspot, optional float scale) setcursormode = #343; /*
 		Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking). If the image name is specified, the engine will use that image for a cursor (use an empty string to clear it again), in a way that will not conflict with the console. Images specified this way will be hardware accelerated, if supported by the platform/port. */
+
+float(float effective) getcursormode = #0/*:getcursormode*/; /*
+		Reports the cursor mode this module previously attempted to use. If 'effective' is true, reports the cursor mode currently active (if was overriden by a different module which has precidence, for instance, or if there is only a touchscreen and no mouse). */
 
 vector() getmousepos = #344; /*
 		Nasty convoluted DP extension. Typically returns deltas instead of positions. Use CSQC_InputEvent for such things in csqc mods. */
@@ -1374,6 +1417,9 @@ void(__variant *dst, float ofs, __variant val) memsetval = #389; /*
 __variant*(__variant *base, float ofs) memptradd = #390; /*
 		Perform some pointer maths. Woo. */
 
+float(string s) memstrsize = #0/*:memstrsize*/; /*
+		strlen, except ignores utf-8 */
+
 string(string conname, string field, optional string newvalue) con_getset = #391; /* Part of FTE_CSQC_ALTCONSOLES_WIP
 		Reads or sets a property from a console object. The old value is returned. Iterrate through consoles with the 'next' field. Valid properties: 	title, name, next, unseen, markup, forceutf8, close, clear, hidden, linecount */
 
@@ -1385,6 +1431,9 @@ void(string conname, vector pos, vector size, float fontsize) con_draw = #393; /
 
 float(string conname, float inevtype, float parama, float paramb, float paramc) con_input = #394; /* Part of FTE_CSQC_ALTCONSOLES_WIP
 		Forwards input events to the named console. Mouse updates should be absolute only. */
+
+float() cvars_haveunsaved = #0/*:cvars_haveunsaved*/; /*
+		Returns true if any archived cvar has an unsaved value. */
 
 void(entity from, entity to) copyentity = #400; /* Part of DP_QC_COPYENTITY*/
 entity(.string field, string match) findchain = #402; /* Part of DP_QC_FINDCHAIN*/
@@ -1468,9 +1517,15 @@ float(float s) asin = #471; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
 float(float c) acos = #472; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
 float(float t) atan = #473; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
 float(float c, float s) atan2 = #474; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
-float(float a) tan = #475; /* Part of DP_QC_ASINACOSATANATAN2TAN*/
-float(string s) strlennocol = #476; /* Part of DP_QC_STRINGCOLORFUNCTIONS*/
-string(string s) strdecolorize = #477; /* Part of DP_QC_STRINGCOLORFUNCTIONS*/
+float(float a) tan = #475; /* Part of DP_QC_ASINACOSATANATAN2TAN
+		Forgive me father, for I have a sunbed and I'm not afraid to use it. */
+
+float(string s) strlennocol = #476; /* Part of DP_QC_STRINGCOLORFUNCTIONS
+		Returns the number of characters in the string after any colour codes or other markup has been parsed. */
+
+string(string s) strdecolorize = #477; /* Part of DP_QC_STRINGCOLORFUNCTIONS
+		Flattens any markup/colours, removing them from the string. */
+
 string(float uselocaltime, string format, ...) strftime = #478; /* Part of DP_QC_STRFTIME*/
 float(string s, string separator1, ...) tokenizebyseparator = #479; /* Part of DP_QC_TOKENIZEBYSEPARATOR*/
 string(string s) strtolower = #480; /* Part of DP_QC_STRING_CASE_FUNCTIONS*/
@@ -1531,28 +1586,56 @@ __variant(float entnum, float fieldnum) getentity = #504; /*
 string(string in) uri_escape = #510; /* Part of DP_QC_URI_ESCAPE*/
 string(string in) uri_unescape = #511; /* Part of DP_QC_URI_ESCAPE*/
 float(entity ent) num_for_edict = #512;
+#define uri_post uri_get
 float(string uril, float id, optional string postmimetype, optional string postdata) uri_get = #513; /* Part of DP_QC_URI_GET, DP_QC_URI_POST
 		uri_get() gets content from an URL and calls a callback "uri_get_callback" with it set as string; an unique ID of the transfer is returned
-		returns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string */
+		returns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string
+		For a POST request, you will typically want the postmimetype set to application/x-www-form-urlencoded.
+		For a GET request, omit the mime+data entirely.
+		Consult your webserver/php/etc documentation for best-practise. */
 
-float(string str) tokenize_console = #514;
-float(float idx) argv_start_index = #515;
-float(float idx) argv_end_index = #516;
+float(string str) tokenize_console = #514; /*
+		Tokenize a string exactly as the console's tokenizer would do so. The regular tokenize builtin became bastardized for convienient string parsing, which resulted in a large disparity that can be exploited to bypass checks implemented in a naive SV_ParseClientCommand function, therefore you can use this builtin to make sure it exactly matches. */
+
+float(float idx) argv_start_index = #515; /*
+		Returns the character index that the tokenized arg started at. */
+
+float(float idx) argv_end_index = #516; /*
+		Returns the character index that the tokenized arg stopped at. */
+
 void(strbuf strbuf, string pattern, string antipattern) buf_cvarlist = #517;
-string(string cvarname) cvar_description = #518;
+string(string cvarname) cvar_description = #518; /*
+		Retrieves the description of a cvar, which might be useful for tooltips or help files. This may still not be useful. */
+
 float(optional float timetype) gettime = #519;
 string(float keynum) keynumtostring_omgwtf = #520;
-string(string command, optional float bindmap) findkeysforcommand = #521;
+string(string command, optional float bindmap) findkeysforcommand = #521; /*
+		Returns a list of keycodes that perform the given console command in a format that can only be parsed via tokenize (NOT tokenize_console). This only and always returns two values - if only one key is actually bound, -1 will be returned. The bindmap argument is listed for compatibility with dp-specific defs, but is ignored in FTE. */
+
+string(string command, optional float bindmap) findkeysforcommandex = #0/*:findkeysforcommandex*/; /*
+		Returns a list of key bindings in keyname format instead of keynums. Use tokenize to parse. This list may contain modifiers. May return large numbers of keys. */
+
 void(string s) loadfromdata = #529; /*
 		Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead. */
 
 void(string s) loadfromfile = #530; /*
 		Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead. */
 
-float(entity e, float channel) getsoundtime = #533;
-float(string sample) soundlength = #534;
-float(string filename, strbuf bufhandle) buf_loadfile = #535;
-float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings) buf_writefile = #536;
+float(entity e, float channel, string newsample, float volume, float attenuation, float pitchpct, float flags, float timeoffset) soundupdate = #0/*:soundupdate*/; /*
+		Changes the properties of the current sound being played on the given entity channel. newsample may be empty, and will be ignored in this case. timeoffset is relative to the current position (subtract the result of getsoundtime for absolute positions). Negative volume can be used to stop the sound. Return value is a fractional value based upon the number of audio devices that could be updated - test against TRUE rather than non-zero. */
+
+float(entity e, float channel) getsoundtime = #533; /*
+		Returns the current playback time of the sample on the given entity's channel. Beware CHAN_AUTO (in csqc, channels are not limited by network protocol). */
+
+float(string sample) soundlength = #534; /*
+		Provides a way to query the duration of a sound sample, allowing you to set up a timer to chain samples. */
+
+float(string filename, strbuf bufhandle) buf_loadfile = #535; /*
+		Appends the named file into a string buffer (which must have been created in advance). The return value merely says whether the file was readable. */
+
+float(filestream filehandle, strbuf bufhandle, optional float startpos, optional float numstrings) buf_writefile = #536; /*
+		Writes the contents of a string buffer onto the end of the supplied filehandle (you must have already used fopen). Additional optional arguments permit you to constrain the writes to a subsection of the stringbuffer. */
+
 void(entity e, float physics_enabled) physics_enable = #540; /*
 		Enable or disable the physics attached to a MOVETYPE_PHYSICS entity. Entities which have been disabled in this way will stop taking so much cpu time. */
 
@@ -1570,10 +1653,13 @@ void(.../*, string funcname*/) callfunction = #605; /*
 void(filestream fh, entity e) writetofile = #606; /*
 		Writes an entity's fields to the named frik_file file handle. */
 
-float(string s) isfunction = #607;
-vector(float vidmode, optional float forfullscreen) getresolution = #608;
+float(string s) isfunction = #607; /*
+		Returns true if the named function exists and can be called with the callfunction builtin. */
+
+vector(float vidmode, optional float forfullscreen) getresolution = #608; /*
+		Supposed to query the driver for supported video modes. FTE does not query drivers in this way, nor would it trust drivers anyway. */
+
 string(float keynum) keynumtostring_menu = #609;
-string(string command, optional float bindmap) findkeysforcommand_dp = #610;
 float(float type) gethostcachevalue = #611; /* Part of FTE_CSQC_SERVERBROWSER*/
 string(float type, float hostnr) gethostcachestring = #612; /* Part of FTE_CSQC_SERVERBROWSER*/
 void(entity e, string s) parseentitydata = #613; /*
@@ -1594,6 +1680,8 @@ string(string dnsname, optional float defport) netaddress_resolve = #625;
 string(string fmt, ...) sprintf = #627;
 float(entity e, float s) getsurfacenumtriangles = #628;
 vector(entity e, float s, float n) getsurfacetriangle = #629;
+vector() getbindmaps = #631;
+float(vector bm) setbindmaps = #632;
 string(string digest, string data, ...) digest_hex = #639;
 #if defined(CSQC) || defined(MENU)
 #define K_TAB	9
@@ -1707,28 +1795,11 @@ string(string digest, string data, ...) digest_hex = #639;
 #define K_CAPSLOCK	155
 #define K_SCROLLLOCK	156
 #define K_SEMICOLON	59
+#define K_PLUS	43
 #define K_TILDE	126
 #define K_BACKQUOTE	96
 #define K_BACKSLASH	92
 #endif
-
-#pragma target fte
-inline float(float a) retarg = {return a;};
-  var float glob = 9;
-inline float(vector a, vector b, float c) inlinedfunc =
-{
-//	float c = 4;
-	return a*b*c*glob * (retarg(c)*retarg(a_z));
-};
-float() itest =
-{
-	return 5*glob*inlinedfunc('0 1 2', '1 2 0', 4);
-};
-#pragma target fte
-
-
-
-
 accessor strbuf : float
 {
 	inline get float asfloat[float idx] = {return stof(bufstr_get(this, idx));};
@@ -1764,6 +1835,3 @@ accessor filestream : float
 	inline set string = {fputs(this,value);};
 };
 #pragma noref 0
-
-
-

@@ -89,7 +89,7 @@ struct pubprogfuncs_s
 	void	(VARGS *RunError)					(pubprogfuncs_t *prinst, char *msg, ...) LIKEPRINTF(2);		//builtins call this to say there was a problem
 	void	(PDECL *PrintEdict)					(pubprogfuncs_t *prinst, struct edict_s *ed);	//get a listing of all vars on an edict (sent back via 'print')
 
-	struct edict_s	*(PDECL *EntAlloc)			(pubprogfuncs_t *prinst);
+	struct edict_s	*(PDECL *EntAlloc)			(pubprogfuncs_t *prinst, pbool object, size_t extrasize);
 	void	(PDECL *EntFree)					(pubprogfuncs_t *prinst, struct edict_s *ed);
 
 	struct edict_s	*(PDECL *EDICT_NUM)			(pubprogfuncs_t *prinst, unsigned int n);		//get the nth edict
@@ -261,7 +261,7 @@ typedef union eval_s
 
 #define PR_RegisterFieldVar(pf,type,name,reqofs,qcofs)		(*pf->RegisterFieldVar)		(pf,type,name,reqofs,qcofs)
 
-#define ED_Alloc(pf)										(*pf->EntAlloc)				(pf)
+#define ED_Alloc(pf,isobj,extsize)							(*pf->EntAlloc)				(pf, isobj, extsize)
 #define ED_Free(pf, ed)										(*pf->EntFree)				(pf, ed)
 #define ED_Clear(pf, ed)									(*pf->EntClear)				(pf, ed)
 

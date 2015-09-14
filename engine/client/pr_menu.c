@@ -1057,6 +1057,7 @@ typedef struct menuedict_s
 	qboolean	isfree;
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
+	unsigned int fieldsize;
 	qboolean	readonly;	//world
 	void		*fields;
 } menuedict_t;

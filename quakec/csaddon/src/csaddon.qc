@@ -1,4 +1,3 @@
-
 float autocvar_ca_show;
 var float autocvar_ca_editormode = MODE_LIGHTEDIT;
 string autocvar_ca_colourtint;
@@ -13,6 +12,8 @@ float ctrldown;
 vector mousenear;
 vector mousefar;
 
+float releasedmouse;
+
 string pointedshadername;
 vector pointedsurfacenormal;
 entity pointedent;
@@ -20,12 +21,39 @@ float pointedsurface;
 
 float editorrsd[editornames.length];
 
+float(float key, float unic, vector mouse) editor_options_key =
+{
+	if (key == K_MOUSE1)
+		if (mouse_y >= 16 && mouse_y < 16+8)
+		{
+			cvar_set("ca_show", "0");
+			return TRUE;
+		}
+	return FALSE;
+};
+void(vector mouse) editor_options_overlay =
+{
+	if (mouse_y >= 16 && mouse_y < 16+8)
+		drawstring('0 16', "Close", '8 8', '0 0 1', 1, 0);
+	else
+		drawstring('0 16', "Close", '8 8', '1 1 1', 1, 0);
+};
+
 /*the renderscene builtin in the parent progs is redirected to here*/
 void() wrap_renderscene =
 {
 	float x;
 	vector col;
 	local float i;
+	
+	if (ca_checksave)
+	{
+		if (ca_checksave(autocvar_ca_show?autocvar_ca_editormode:0))
+		{
+			ca_checksave = __NULL__;
+			localcmd("changelevel . .\n");
+		}
+	}
 
 	//don't do anything if this is a subview. this avoids getting confused.
 	if (!(float)getproperty(VF_DRAWWORLD))
@@ -101,7 +129,31 @@ void() wrap_renderscene =
 				);
 			drawpic(getproperty(VF_MIN), shdrname, getproperty(VF_SIZE), '1 1 1', 1);
 		}
+
+		if (releasedmouse)
+		{	//remove the cursor if we activated it
+			releasedmouse = FALSE;
+			setcursormode(FALSE);
+		}
+		mousedown = 0;
 		return;
+	}
+	
+	if (mousedown == 2)
+	{	//RMB re-enables mlook
+		if (releasedmouse)
+		{
+			releasedmouse = FALSE;
+			setcursormode(FALSE);
+		}
+	}
+	else
+	{
+		if (FALSE == getcursormode(FALSE))
+		{	//only release it again if it should be released.
+			setcursormode(TRUE);
+			releasedmouse = TRUE;
+		}
 	}
 
 	/*hide hud and crosshair*/
@@ -149,7 +201,9 @@ void() wrap_renderscene =
 		editorrsd[i] = x;
 	}
 
-	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
+	if (autocvar_ca_editormode == MODE_OPTIONS)
+		editor_options_overlay(curmousepos);
+	else if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_overlay(curmousepos);
 #ifdef CAMQUAKE
 	else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
@@ -180,6 +234,8 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 			shiftdown = (event == IE_KEYDOWN);
 		if (parama == K_RCTRL || parama == K_LCTRL)
 			ctrldown = (event == IE_KEYDOWN);
+		if (parama == K_RALT || parama == K_LALT)
+			altdown = (event == IE_KEYDOWN);
 	}
 	if (autocvar_ca_show)
 	{
@@ -198,7 +254,12 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 				cvar_set("ca_editormode", ftos(nm));
 				return TRUE;
 			}
-			if (autocvar_ca_editormode == MODE_LIGHTEDIT)
+			if (autocvar_ca_editormode == MODE_OPTIONS)
+			{
+				if (editor_options_key(parama, paramb, curmousepos))
+					return TRUE;
+			}
+			else if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 			{
 				if (editor_lights_key(parama, paramb, curmousepos))
 					return TRUE;
@@ -315,9 +376,6 @@ void(float mask) wrap_addentities =
 var float autocvar_fov = 90;
 static void(float seat, vector mn, vector sz) renderscene_helper =
 {
-#ifndef VF_ACTIVESEAT
-#define VF_ACTIVESEAT VF_LPLAYER
-#endif
 	if (seat)
 	{
 		setproperty(VF_ACTIVESEAT, seat, TRUE);	//updates globals, true means resets view properties too (but not ents)
@@ -379,6 +437,9 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 void() CSQC_Input_Frame =
 {
 	vector t, o;
+	if (autocvar_ca_show)	//when we're using the UI, don't send any attack or jump stuff. these are generally annoying modifiers or so
+		input_buttons = 0;
+		
 	if ((input_buttons & 1) && pointedshadername == "")
 	{
 		t = mousefar;
@@ -491,6 +552,12 @@ float(string txt, string info) CSQC_ConsoleLink =
 };
 */
 
+float(string cmd) CSQC_ConsoleCommand =
+{
+	tokenize(cmd);
+	return editor_brushes_command();
+};
+
 /*this is a fallback function, in case the main progs does not have one*/
 float (float event, float parama, float paramb, float devid) CSQC_InputEvent =
 {
@@ -521,6 +588,9 @@ void(float prevprogs) init =
 	localcmd(sprintf("alias terrain_editor \"set ca_show 1; set ca_editormode %g\"\n", MODE_TERRAINEDIT));
 	localcmd(sprintf("alias r_part_editor \"set ca_show 1; set ca_editormode %g\"\n", MODE_PARTICLEEDIT));
 	localcmd(sprintf("alias entities_editor \"set ca_show 1; set ca_editormode %g\"\n", MODE_ENTSEDIT));
+	
+	//brush editor needs some commands for easier binds.
+	editor_brushes_registercommands();
 };
 
 void() CSQC_Shutdown =

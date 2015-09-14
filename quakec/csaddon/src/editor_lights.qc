@@ -75,9 +75,9 @@ static string(int fld, float foredit) readfield =
 			return ftos(selectedlight);
 		return strcat(ftos(selectedlight), " / ", ftos(dynamiclight_get(-1f, -1f)));
 	case 2:
-		return sprintf("%v", dynamiclight_get(selectedlight, LFIELD_ORIGIN));
+		return sprintf("%v", (vector)dynamiclight_get(selectedlight, LFIELD_ORIGIN));
 	case 3:
-		return sprintf("%v", dynamiclight_get(selectedlight, LFIELD_COLOUR));
+		return sprintf("%v", (vector)dynamiclight_get(selectedlight, LFIELD_COLOUR));
 	case 4:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_RADIUS));
 	case 5:
@@ -94,7 +94,7 @@ static string(int fld, float foredit) readfield =
 	case 6:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_STYLE));
 	case 7:
-		return sprintf("%v", dynamiclight_get(selectedlight, LFIELD_ANGLES));
+		return sprintf("%v", (vector)dynamiclight_get(selectedlight, LFIELD_ANGLES));
 	case 8:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_FOV));
 	case 9:
@@ -110,7 +110,7 @@ static string(int fld, float foredit) readfield =
 	case 14:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_SPECULARSCALE));
 	case 15:
-		return sprintf("%v", dynamiclight_get(selectedlight, LFIELD_ROTATION));
+		return sprintf("%v", (vector)dynamiclight_get(selectedlight, LFIELD_ROTATION));
 	default:
 		return "";
 	}
@@ -430,19 +430,16 @@ float(float keyc, float unic, vector m) editor_lights_key =
 	}
 	else if (unic == '[')
 	{
-		o = (vector)getproperty(11);
 		traceline(o, t, TRUE, world);
-		dynamiclight_set(selectedlight, LFIELD_ORIGIN, dynamiclight_get(selectedlight, LFIELD_ORIGIN) - trace_plane_normal);
+		dynamiclight_set(selectedlight, LFIELD_ORIGIN, (vector)dynamiclight_get(selectedlight, LFIELD_ORIGIN) - trace_plane_normal);
 	}
 	else if (unic == ']')
 	{
-		o = (vector)getproperty(11);
 		traceline(o, t, TRUE, world);
-		dynamiclight_set(selectedlight, LFIELD_ORIGIN, dynamiclight_get(selectedlight, LFIELD_ORIGIN) + trace_plane_normal);
+		dynamiclight_set(selectedlight, LFIELD_ORIGIN, (vector)dynamiclight_get(selectedlight, LFIELD_ORIGIN) + trace_plane_normal);
 	}
 	else if (unic == '\'' || unic == '@')
 	{
-		o = (vector)getproperty(11);
 		traceline(o, t, TRUE, world);
 		dynamiclight_set(selectedlight, LFIELD_RADIUS, 1.5*vlen(trace_endpos - (vector)dynamiclight_get(selectedlight, LFIELD_ORIGIN)));
 	}

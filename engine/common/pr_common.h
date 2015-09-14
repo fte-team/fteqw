@@ -10,6 +10,7 @@ typedef struct edict_s {
 
 	float		freetime;			// realtime when the object was freed
 	unsigned int entnum;
+	unsigned int fieldsize;
 	pbool	readonly;	//causes error when QC tries writing to it. (quake's world entity)
 	void	*v;
 } edict_t;
@@ -20,6 +21,7 @@ struct wedict_s
 	qboolean	isfree;
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
+	unsigned int fieldsize;
 	qboolean	readonly;	//world
 #ifdef VM_Q1
 	comentvars_t	*v;

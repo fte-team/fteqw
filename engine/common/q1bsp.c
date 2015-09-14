@@ -1015,7 +1015,7 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 	int outcount = 0;
 	int clippedcount = 0;
 	float d, *p1, *p2, *out;
-#define FRAG_EPSILON 0.5
+#define FRAG_EPSILON (1.0/32) //0.5
 
 	for (i = 0; i < incount; i++)
 	{

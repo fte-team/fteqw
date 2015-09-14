@@ -449,10 +449,10 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 
 	prinst.max_fields_size = prinst.fields_size;
 
-	progfuncs->funcs.edicttable = prinst.edicttable = PRHunkAlloc(progfuncs, prinst.maxedicts*sizeof(struct edicts_s *), "edicttable");
+	prinst.edicttable = (struct edictrun_s**)(progfuncs->funcs.edicttable = PRHunkAlloc(progfuncs, prinst.maxedicts*sizeof(struct edicts_s *), "edicttable"));
 	sv_edicts = PRHunkAlloc(progfuncs, externs->edictsize, "edict0");
-	prinst.edicttable[0] = sv_edicts;
-	((edictrun_t*)prinst.edicttable[0])->fields = PRAddressableExtend(progfuncs, NULL, prinst.fields_size, prinst.max_fields_size-prinst.fields_size);
+	progfuncs->funcs.edicttable[0] = sv_edicts;
+	prinst.edicttable[0]->fields = PRAddressableExtend(progfuncs, NULL, prinst.fields_size, prinst.max_fields_size-prinst.fields_size);
 	QC_ClearEdict(&progfuncs->funcs, sv_edicts);
 	sv_num_edicts = 1;
 
@@ -515,12 +515,12 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 
 	prinst.profiling = profiling;
 	prinst.maxedicts = 1;
-	progfuncs->funcs.edicttable = prinst.edicttable = &sv_edicts;
+	prinst.edicttable = (edictrun_t**)(progfuncs->funcs.edicttable = &sv_edicts);
 	sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 	sv_edicts=(struct edict_s *)&tempedict;
 	tempedict.readonly = true;
 	tempedict.fields = tempedictfields;
-	tempedict.isfree = false;
+	tempedict.ereftype = ER_ENTITY;
 }
 
 
@@ -543,7 +543,7 @@ struct globalvars_s *PDECL PR_globals (pubprogfuncs_t *ppf, progsnum_t pnum)
 struct entvars_s *PDECL PR_entvars (pubprogfuncs_t *ppf, struct edict_s *ed)
 {
 //	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	if (((edictrun_t *)ed)->isfree)
+	if (((edictrun_t *)ed)->ereftype != ER_ENTITY)
 		return NULL;
 
 	return (struct entvars_s *)edvars(ed);

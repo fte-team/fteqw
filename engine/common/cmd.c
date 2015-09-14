@@ -2480,7 +2480,7 @@ static const char *If_Token_Term(const char *func, const char **end)
 	else if (!strcmp(com_token, "eval"))
 	{
 		//read the stuff to the right
-		func = If_Token(s, end, IFPUNCT);
+		func = If_Token(s, end, IF_PRI_MAX);
 		//and evaluate it
 		s2 = If_Token(func, &func, IF_PRI_MAX);
 	}

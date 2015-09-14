@@ -24,21 +24,35 @@ void PDECL QC_ClearEdict (pubprogfuncs_t *ppf, struct edict_s *ed)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *e = (edictrun_t *)ed;
 	int num = e->entnum;
-	memset (e->fields, 0, prinst.fields_size);
-	e->isfree = false;
+	memset (e->fields, 0, e->fieldsize);
+	e->ereftype = ER_ENTITY;
 	e->entnum = num;
 }
 
-edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num)
+edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num, pbool object, unsigned int fields_size)
 {
 	edictrun_t *e;
 
-	prinst.edicttable[num] = *(struct edict_s **)&e = (void*)externs->memalloc(externs->edictsize);
-	memset(e, 0, externs->edictsize);
-	e->fields = PRAddressableExtend(progfuncs, NULL, prinst.fields_size, 0);
-	e->entnum = num;
-	QC_ClearEdict(&progfuncs->funcs, (struct edict_s*)e);
+	e = prinst.edicttable[num];
+	if (!e)
+	{
+		e = (void*)externs->memalloc(externs->edictsize);
+		prinst.edicttable[num] = e;
+		memset(e, 0, externs->edictsize);
+	}
+	if (e->fieldsize != fields_size)
+	{
+		if (e->fields)
+			progfuncs->funcs.AddressableFree(&progfuncs->funcs, e->fields);
+		e->fields = progfuncs->funcs.AddressableAlloc(&progfuncs->funcs, fields_size);
+		e->fieldsize = fields_size;
 
+//		e->fields = PRAddressableExtend(progfuncs, NULL, fields_size, 0);
+	}
+	e->entnum = num;
+	memset (e->fields, 0, e->fieldsize);
+
+	e->ereftype = object?ER_OBJECT:ER_ENTITY;
 	return e;
 }
 
@@ -53,11 +67,35 @@ instead of being removed and recreated, which can cause interpolated
 angles and bad trails.
 =================
 */
-struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf)
+struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf, pbool object, size_t extrasize)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int			i;
 	edictrun_t		*e;
+	unsigned int fields_size;
+	
+	fields_size = object?0:prinst.fields_size;
+	fields_size += extrasize;
+
+	if (object)
+	{
+		//objects are allocated at the end.
+		for ( i=prinst.maxedicts-1 ; i>0 ; i--)
+		{
+			e = (edictrun_t*)EDICT_NUM(progfuncs, i);
+			// the first couple seconds of server time can involve a lot of
+			// freeing and allocating, so relax the replacement policy
+			if (!e || (e->ereftype==ER_FREE && ( e->freetime < 2 || *externs->gametime - e->freetime > 0.5 ) ))
+			{
+				e = ED_AllocIntoTable(progfuncs, i, object, fields_size);
+
+				if (externs->entspawn)
+					externs->entspawn((struct edict_s *) e, false);
+				return (struct edict_s *)e;
+			}
+		}
+		Sys_Error ("ED_Alloc: no free edicts (max is %i)", prinst.maxedicts);
+	}
 
 	//define this to wastefully allocate extra ents, to test network capabilities.
 #define STEP 1//((i <= 32)?1:8)
@@ -67,12 +105,9 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf)
 		e = (edictrun_t*)EDICT_NUM(progfuncs, i);
 		// the first couple seconds of server time can involve a lot of
 		// freeing and allocating, so relax the replacement policy
-		if (!e || (e->isfree && ( e->freetime < 2 || *externs->gametime - e->freetime > 0.5 ) ))
+		if (!e || (e->ereftype==ER_FREE && ( e->freetime < 2 || *externs->gametime - e->freetime > 0.5 ) ))
 		{
-			if (!e)
-				e = ED_AllocIntoTable(progfuncs, i);
-			else
-				QC_ClearEdict (&progfuncs->funcs, (struct edict_s*)e);
+			e = ED_AllocIntoTable(progfuncs, i, object, fields_size);
 
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) e, false);
@@ -87,12 +122,9 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf)
 			e = (edictrun_t*)EDICT_NUM(progfuncs, i);
 			// the first couple seconds of server time can involve a lot of
 			// freeing and allocating, so relax the replacement policy
-			if (!e || (e->isfree))
+			if (!e || (e->ereftype==ER_FREE))
 			{
-				if (!e)
-					e = ED_AllocIntoTable(progfuncs, i);
-				else
-					QC_ClearEdict (&progfuncs->funcs, (struct edict_s*)e);
+				e = ED_AllocIntoTable(progfuncs, i, object, fields_size);
 
 				if (externs->entspawn)
 					externs->entspawn((struct edict_s *) e, false);
@@ -119,21 +151,16 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf)
 		e = (edictrun_t*)EDICT_NUM(progfuncs, sv_num_edicts);
 		if (!e)
 		{
-			e = ED_AllocIntoTable(progfuncs, sv_num_edicts);
+			e = ED_AllocIntoTable(progfuncs, sv_num_edicts, object, fields_size);
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) e, false);
-			e->isfree = true;
+			e->ereftype=ER_FREE;
 		}
 		sv_num_edicts++;
 	}
 	sv_num_edicts++;
-	e = (edictrun_t*)EDICT_NUM(progfuncs, i);
 
-	if (!e)
-		e = ED_AllocIntoTable(progfuncs, i);
-	else
-		QC_ClearEdict (&progfuncs->funcs, (struct edict_s*)e);
-
+	e = ED_AllocIntoTable(progfuncs, i, object, fields_size);
 	if (externs->entspawn)
 		externs->entspawn((struct edict_s *) e, false);
 
@@ -154,7 +181,7 @@ void PDECL ED_Free (pubprogfuncs_t *ppf, struct edict_s *ed)
 	edictrun_t *e = (edictrun_t *)ed;
 //	SV_UnlinkEdict (ed);		// unlink from world bsp
 
-	if (e->isfree)	//this happens on start.bsp where an onlyregistered trigger killtargets itself (when all of this sort die after 1 trigger anyway).
+	if (e->ereftype == ER_FREE)	//this happens on start.bsp where an onlyregistered trigger killtargets itself (when all of this sort die after 1 trigger anyway).
 	{
 		if (pr_depth)
 			printf("Tried to free free entity within %s\n", pr_xfunction->s_name+progfuncs->funcs.stringtable);
@@ -169,7 +196,7 @@ void PDECL ED_Free (pubprogfuncs_t *ppf, struct edict_s *ed)
 		if (!externs->entcanfree(ed))	//can stop an ent from being freed.
 			return;
 
-	e->isfree = true;
+	e->ereftype = ER_FREE;
 	e->freetime = (float)*externs->gametime;
 
 /*
@@ -966,7 +993,7 @@ void PDECL ED_Print (pubprogfuncs_t *ppf, struct edict_s *ed)
 	char	*name;
 	int		type;
 
-	if (((edictrun_t *)ed)->isfree)
+	if (((edictrun_t *)ed)->ereftype == ER_FREE)
 	{
 		printf ("FREE\n");
 		return;
@@ -1403,7 +1430,7 @@ cont:
 	}
 
 	if (!init)
-		ent->isfree = true;
+		ent->ereftype = ER_FREE;
 
 	return data;
 }
@@ -1757,7 +1784,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 
 			AddS ("{\n");
 
-			if (!ed->isfree)	//free entities write a {} with no data. the loader detects this specifically.
+			if (ed->ereftype == ER_ENTITY)	//free entities write a {} with no data. the loader detects this specifically.
 				ED_WriteEdict(progfuncs, ed, buf, bufofs, bufmax, true);
 
 			AddS ("}\n");
@@ -1817,7 +1844,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax,
 	{
 		edictrun_t *ed = (edictrun_t *)EDICT_NUM(progfuncs, a);
 
-		if (!ed || ed->isfree)
+		if (!ed || ed->ereftype != ER_ENTITY)
 			continue;
 
 		AddS (qcva("entity %i{\n", a));
@@ -1901,8 +1928,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 					if (!ed)
 					{
-						ed = ED_AllocIntoTable(progfuncs, num);
-						ed->isfree = true;
+						ed = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
+						ed->ereftype = ER_FREE;
 						if (externs->entspawn)
 							externs->entspawn((struct edict_s *) ed, true);
 					}
@@ -1915,7 +1942,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 			if (qcc_token[0] != '{')
 				Sys_Error("Progs loading found %s, not '{'", qcc_token);
 			if (!resethunk)
-				ed = (edictrun_t *)ED_Alloc(&progfuncs->funcs);
+				ed = (edictrun_t *)ED_Alloc(&progfuncs->funcs, false, 0);
 			else
 			{
 				ed = (edictrun_t *)EDICT_NUM(progfuncs, num);
@@ -1923,10 +1950,10 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 				if (!ed)
 				{
 					Sys_Error("Edict was not allocated\n");
-					ed = ED_AllocIntoTable(progfuncs, num);
+					ed = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
 				}
 			}
-			ed->isfree = false;
+			ed->ereftype = ER_ENTITY;
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) ed, true);
 			file = ED_ParseEdict(progfuncs, file, ed);
@@ -1938,7 +1965,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 				{
 					if ((int)var->_float & (int)killonspawnflags)
 					{
-						ed->isfree = true;
+						ed->ereftype = ER_FREE;
 						continue;
 					}
 				}
@@ -2015,8 +2042,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 					if (!ed)
 					{
-						ed = ED_AllocIntoTable(progfuncs, num);
-						ed->isfree = true;
+						ed = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
+						ed->ereftype = ER_FREE;
 					}
 
 					if (externs->entspawn)
@@ -2134,7 +2161,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
 			sv_edicts=(struct edict_s *)&tempedict;
-			progfuncs->funcs.edicttable = prinst.edicttable = &sv_edicts;
+			prinst.edicttable = (struct edictrun_s**)(progfuncs->funcs.edicttable = &sv_edicts);
 
 
 			sv_num_edicts = numents;	//should be fine
@@ -2192,12 +2219,12 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 				{
 					ed = (edictrun_t *)EDICT_NUM(progfuncs, numents);
 					if (!ed)
-						ed = ED_AllocIntoTable(progfuncs, numents);
+						ed = ED_AllocIntoTable(progfuncs, numents, false, prinst.fields_size);
 
 					if (externs->entspawn)
 						externs->entspawn((struct edict_s *) ed, true);
 
-					ed->isfree = false;
+					ed->ereftype = ER_ENTITY;
 					file = ED_ParseEdict (progfuncs, file, ed);
 				}
 				sv_num_edicts = ++numents;
@@ -2215,8 +2242,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 					if (!ed)
 					{
-						ed = ED_AllocIntoTable(progfuncs, num);
-						ed->isfree = true;
+						ed = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
+						ed->ereftype = ER_FREE;
 					}
 				}
 			}
@@ -2224,8 +2251,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 			if (!ed)	//first entity
 				ed = (edictrun_t *)EDICT_NUM(progfuncs, 0);
 			else
-				ed = (edictrun_t *)ED_Alloc(&progfuncs->funcs);
-			ed->isfree = false;
+				ed = (edictrun_t *)ED_Alloc(&progfuncs->funcs, false, 0);
+			ed->ereftype = ER_ENTITY;
 			if (externs->entspawn)
 				externs->entspawn((struct edict_s *) ed, true);
 			file = ED_ParseEdict(progfuncs, file, ed);
@@ -2237,7 +2264,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 				{
 					if ((int)var->_float & (int)killonspawnflags)
 					{
-						ed->isfree = true;
+						ed->ereftype = ER_FREE;
 						ed->freetime = 0;
 						continue;
 					}
@@ -2447,11 +2474,11 @@ struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, const char *buf, int *
 		Sys_Error("Restore Ent with no opening brace");
 
 	if (!ed)
-		ent = (edictrun_t *)ED_Alloc(&progfuncs->funcs);
+		ent = (edictrun_t *)ED_Alloc(&progfuncs->funcs, false, 0);
 	else
 		ent = (edictrun_t *)ed;
 
-	if (ent->isfree && externs->entspawn)
+	if (ent->ereftype == ER_FREE && externs->entspawn)
 		externs->entspawn((struct edict_s *) ent, false);
 
 	buf = ED_ParseEdict(progfuncs, buf, ent);
@@ -3445,7 +3472,7 @@ struct edict_s *PDECL QC_EDICT_NUM(pubprogfuncs_t *ppf, unsigned int n)
 	if (n >= prinst.maxedicts)
 		Sys_Error ("QCLIB: EDICT_NUM: bad number %i", n);
 
-	return prinst.edicttable[n];
+	return (struct edict_s*)prinst.edicttable[n];
 }
 
 unsigned int PDECL QC_NUM_FOR_EDICT(pubprogfuncs_t *ppf, struct edict_s *e)

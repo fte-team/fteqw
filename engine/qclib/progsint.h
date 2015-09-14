@@ -148,7 +148,7 @@ typedef struct prinst_s
 	size_t addressableused;
 	size_t addressablesize;
 
-	struct edict_s **edicttable;
+	struct edictrun_s **edicttable;
 } prinst_t;
 
 typedef struct progfuncs_s
@@ -254,13 +254,19 @@ typedef union eval_s
 } eval_t;
 #endif
 */
-
+enum ereftype_e
+{
+	ER_ENTITY,
+	ER_FREE,
+	ER_OBJECT	//custom sized, no vm/engine fields.
+};
 typedef struct edictrun_s
 {
-	pbool	isfree;
+	pbool	ereftype;
 
 	float		freetime;			// realtime when the object was freed
 	unsigned int entnum;
+	unsigned int fieldsize;
 	pbool	readonly;	//causes error when QC tries writing to it. (quake's world entity)
 	void	*fields;
 
@@ -364,7 +370,7 @@ void *PRHunkAlloc(progfuncs_t *progfuncs, int ammount, char *name);
 
 void PR_Profile_f (void);
 
-struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *progfuncs);
+struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *progfuncs, pbool object, size_t extrasize);
 void PDECL ED_Free (pubprogfuncs_t *progfuncs, struct edict_s *ed);
 
 pbool PR_RunGC			(progfuncs_t *progfuncs);

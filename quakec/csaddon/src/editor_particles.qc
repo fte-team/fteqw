@@ -200,7 +200,7 @@ static void() updateloadedparticles =
 			}
 		ls = le+1;
 	}
-
+	
 	cureffect = -1;
 	selecteffect(ce);
 };
@@ -213,6 +213,7 @@ static void(string descname) loadparticles =
 	if (particlesfile)
 		strunzone(particlesfile);
 	particlesfile = (string)0;
+	cureffect = 0;
 
 /*load new string*/
 	if (descname != "")
@@ -240,7 +241,7 @@ static void(string descname) saveparticle =
 	/*only do this if there's something to save*/
 	if (cureffect < 0)
 		return;
-
+		
 	newfile = textfield_strcat(&tf_particle);
 	newfile = strcat(substring(particlesfile, 0, pdesc[cureffect].start), newfile, substring(particlesfile, pdesc[cureffect].end, -1));
 
@@ -377,6 +378,8 @@ void(vector mousepos) editor_particles_overlay =
 
 			pointparticles(particleeffectnum(pdesc[cureffect].efname), trace_endpos, '0 0 -1', 1);
 		}
+		
+		//fixme: should ONLY be done if we started dragging.
 		trailparticles(particleeffectnum(pdesc[cureffect].efname), ptrailent, ptrailent.origin, trace_endpos);
 		ptrailent.origin = trace_endpos;
 	}

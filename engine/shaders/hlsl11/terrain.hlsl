@@ -1,7 +1,8 @@
 struct a2v
 {
 	float4 pos: POSITION;
-	float4 tc: TEXCOORD0;
+	float2 tc: TEXCOORD0;
+	float2 lmtc: TEXCOORD0;
 	float4 vcol: COLOR0;
 };
 struct v2f
@@ -23,8 +24,8 @@ struct v2f
 		outp.pos = mul(m_model, inp.pos);
 		outp.pos = mul(m_view, outp.pos);
 		outp.pos = mul(m_projection, outp.pos);
-		outp.tc = inp.tc.xy;
-		outp.lmtc = inp.tc.zw;
+		outp.tc = inp.tc;
+		outp.lmtc = inp.lmtc;
 		outp.vcol = inp.vcol;
 		return outp;
 	}

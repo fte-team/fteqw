@@ -1762,7 +1762,7 @@ void S_Startup (void)
 	}
 	if (!sndcardinfo && !nodefault)
 	{
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(FTE_SDL)
 		INS_SetupControllerAudioDevices();
 #endif
 		if (!sndcardinfo)

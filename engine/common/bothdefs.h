@@ -177,7 +177,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_JPEGLIB
 		#undef AVAIL_XZDEC
 
-#if defined(_WIN32) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
+#if defined(_WIN32) && !defined(FTE_SDL) !defined(MULTITHREAD) //always thread on win32 non-minimal builds
 		#define MULTITHREAD
 #endif
 	#elif defined(MINIMAL)
@@ -280,7 +280,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define VOICECHAT
 
-#if defined(_WIN32) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(MULTITHREAD) //always thread on win32 non-minimal builds
 		#define MULTITHREAD
 #endif
 	#endif

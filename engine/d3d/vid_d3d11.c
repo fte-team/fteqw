@@ -71,6 +71,7 @@ ID3D11RenderTargetView *fb_backbuffer;
 ID3D11DepthStencilView *fb_backdepthstencil;
 
 void *d3d11mod;
+static unsigned int d3d11multisample_count, d3d11multisample_quality;
 
 qboolean vid_initializing;
 
@@ -635,8 +636,8 @@ static qboolean resetd3dbackbuffer(int width, int height)
 	t2ddesc.MipLevels = 1;
 	t2ddesc.ArraySize = 1;
 	t2ddesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	t2ddesc.SampleDesc.Count = 1;
-	t2ddesc.SampleDesc.Quality = 0;
+	t2ddesc.SampleDesc.Count = d3d11multisample_count;
+	t2ddesc.SampleDesc.Quality = d3d11multisample_quality;
 	t2ddesc.Usage = D3D11_USAGE_DEFAULT;
 	t2ddesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 	t2ddesc.CPUAccessFlags = 0;
@@ -701,7 +702,8 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 	scd.Height = info->height;
 	scd.Format = info->srgb?DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:DXGI_FORMAT_B8G8R8A8_UNORM;
 	scd.Stereo = info->stereo;
-	scd.SampleDesc.Count = 1+info->multisample;
+	scd.SampleDesc.Count = d3d11multisample_count = max(1,info->multisample);
+	scd.SampleDesc.Quality = d3d11multisample_quality = (d3d11multisample_count>1)?D3D11_STANDARD_MULTISAMPLE_PATTERN:0;
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	scd.BufferCount = 2+info->triplebuffer;	//rt only supports fullscreen, so the frontbuffer needs to be created by us.
 	scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
@@ -779,7 +781,8 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	scd.BufferDesc.Format = info->srgb?DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:DXGI_FORMAT_R8G8B8A8_UNORM;	//32bit colour
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	scd.OutputWindow = hWnd;
-	scd.SampleDesc.Count = 1+info->multisample;	//as we're starting up windowed (and switching to fullscreen after), the frontbuffer is handled by windows.
+	scd.SampleDesc.Count = d3d11multisample_count = max(1, info->multisample);	//as we're starting up windowed (and switching to fullscreen after), the frontbuffer is handled by windows.
+	scd.SampleDesc.Quality = d3d11multisample_quality = (d3d11multisample_count>1)?D3D11_STANDARD_MULTISAMPLE_PATTERN:0;
 	scd.Windowed = TRUE;
 	scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;// | DXGI_SWAP_CHAIN_FLAG_NONPREROTATED;
 

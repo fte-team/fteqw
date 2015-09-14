@@ -426,7 +426,7 @@ static void QDECL Q1QVMPF_EntRemove(pubprogfuncs_t *pf, edict_t *e)
 	e->freetime = sv.time;
 }
 
-static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf)
+static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf, pbool object, size_t extrasize)
 {
 	int i;
 	edict_t *e;
@@ -594,7 +594,7 @@ static qintptr_t QVM_GetEntityToken (void *offset, quintptr_t mask, const qintpt
 
 static qintptr_t QVM_Spawn_Ent (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	return Q1QVMPF_EntAlloc(svprogfuncs)->entnum;
+	return Q1QVMPF_EntAlloc(svprogfuncs, false, 0)->entnum;
 }
 
 static qintptr_t QVM_Remove_Ent (void *offset, quintptr_t mask, const qintptr_t *arg)

@@ -119,7 +119,7 @@ typedef struct prinst_s
 #define pr_depth prinst.pr_depth
 	int spushed;
 
-#define	LOCALSTACK_SIZE		4096
+#define	LOCALSTACK_SIZE		16384
 	int localstack[LOCALSTACK_SIZE];
 	int localstack_used;
 

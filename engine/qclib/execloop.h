@@ -435,7 +435,7 @@ reeval:
 
 //Whilst the next block would technically be correct, we don't use it as it breaks too many quake mods.
 #ifdef NOLEGACY
-		errorif (ed->isfree)
+		errorif (ed->ereftype == ER_FREE)
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "assignment to free entity in %s", PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
 				return pr_xstatement;
@@ -465,7 +465,7 @@ reeval:
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
 #ifdef NOLEGACY
-		if (ed->isfree)
+		if (ed->ereftype == ER_FREE)
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references free entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
 				return pr_xstatement;
@@ -494,7 +494,7 @@ reeval:
 		NUM_FOR_EDICT(ed);		// make sure it's in range
 #endif
 #ifdef NOLEGACY
-		if (ed->isfree)
+		if (ed->ereftype == ER_FREE)
 		{
 			if (PR_ExecRunWarning (&progfuncs->funcs, st-pr_statements, "OP_LOAD references free entity %i in %s\n", OPA->edict, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name)))
 				return pr_xstatement;

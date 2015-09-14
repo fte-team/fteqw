@@ -1,7 +1,7 @@
 struct a2v
 {
 	float4 pos: POSITION;
-	float4 tc: TEXCOORD0;
+	float2 tc: TEXCOORD0;
 	float3 normal: NORMAL;
 };
 struct v2f

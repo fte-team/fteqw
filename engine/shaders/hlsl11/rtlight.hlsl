@@ -36,7 +36,7 @@
 struct a2v
 {
 	float4 pos: POSITION;
-	float4 tc: TEXCOORD0;
+	float2 tc: TEXCOORD0;
 	float3 n: NORMAL;
 	float3 s: TANGENT;
 	float3 t: BINORMAL;

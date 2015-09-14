@@ -58,6 +58,13 @@ ifneq (,$(BRANDING))
 	-include game_$(BRANDING).mak
 endif
 
+ifeq ($(BITS),64)
+	CC:=$(CC) -m64
+endif
+ifeq ($(BITS),32)
+	CC:=$(CC) -m32
+endif
+
 #correct the gcc build when cross compiling
 ifneq (,$(findstring win32,$(FTE_TARGET)))
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
@@ -412,7 +419,7 @@ PROFILE_CFLAGS=-pg
 DX7SDK=-I./libs/dxsdk7/include/
 
 GLCFLAGS?=-DGLQUAKE
-D3DCFLAGS?=-DD3D9QUAKE
+D3DCFLAGS?=-DD3D9QUAKE -DD3D11QUAKE
 NPFTECFLAGS=-DNPFTE
 SPEEXCFLAGS=-DSPEEX_STATIC -I$(BASE_DIR)/libs/speex/include -DFIXED_POINT -DUSE_KISS_FFT -DEXPORT=""
 
@@ -722,8 +729,10 @@ GLCL_EXE_NAME=../fteqwcl_gl$(FTE_FULLTARGET)
 #SDLCONFIG:=libs/sdl2_mingw/$(CC_MACHINE)/bin/sdl2-config --prefix=libs/sdl2_mingw/$(CC_MACHINE)
 ifdef windir
 	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 else
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) `$(SDLCONFIG) --static-libs`
+	M_LDFLAGS=$(MLDFLAGS) `$(SDLCONFIG) --static-libs` $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 endif
 GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) `$(SDLCONFIG) --cflags`
 GLB_DIR=gl_$(FTE_FULLTARGET)
@@ -742,13 +751,6 @@ M_EXE_NAME=../fteqw_$(FTE_FULLTARGET)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
 M_CFLAGS=$(GLCFLAGS) `$(SDLCONFIG) --cflags`
 M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
-
-ifdef windir
-	M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
-else
-	#pthread is needed because of SDL.
-	M_LDFLAGS=$(MLDFLAGS) `$(SDLCONFIG) --static-libs` $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
-endif
 
 ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
 	SV_LDFLAGS+=-lz
@@ -845,8 +847,12 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	GLCL_EXE_NAME=../fteqwcl_sdl$(BITS)$(EXEPOSTFIX)
 	ifdef windir
 		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
 	else
-		GL_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --static-libs` 
+		GL_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
+		M_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDL_CONFIG) --libs` $(IMAGELDFLAGS)
+		SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
 	endif
 	
 	GL_CFLAGS=-DFTE_SDL -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) -I$(LIBS_DIR) $(GLCFLAGS) -DLIBVORBISFILE_STATIC $(DX7SDK) $(SPEEXCFLAGS)
@@ -860,7 +866,6 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) $(LTO_END) resources.o $(LTO_START)
 	SV_EXE_NAME=../fteqw_sdl_sv$(BITS)$(EXEPOSTFIX)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DFTE_SDL
-	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
 
 	MINGL_DIR=mingl_sdlwin$(BITS)
 	MINGL_EXE_NAME=../fteqw_sdl_mingl$(BITS)$(EXEPOSTFIX)
@@ -876,12 +881,6 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(OGGVORBISLDFLAGS)
 	
-	ifdef windir
-		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
-	else
-		#pthread is needed because of SDL.
-		M_LDFLAGS=$(IMAGELDFLAGS) $(OGGVORBISLDFLAGS) -lws2_32 -lmingw32 -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDL_CONFIG) --libs` $(IMAGELDFLAGS)
-	endif
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(SPEEX_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../fted3d_sdl_qw$(BITS)$(EXEPOSTFIX)

@@ -172,10 +172,10 @@ reeval:
 		OPC->_int = (int)(OPA->_int >= OPB->_int);
 		break;
 	case OP_GE_IF:
-		OPC->_float = (float)(OPA->_int >= OPB->_float);
+		OPC->_int = (float)(OPA->_int >= OPB->_float);
 		break;
 	case OP_GE_FI:
-		OPC->_float = (float)(OPA->_float >= OPB->_int);
+		OPC->_int = (float)(OPA->_float >= OPB->_int);
 		break;
 
 	case OP_LE_F:
@@ -185,10 +185,10 @@ reeval:
 		OPC->_int = (int)(OPA->_int <= OPB->_int);
 		break;
 	case OP_LE_IF:
-		OPC->_float = (float)(OPA->_int <= OPB->_float);
+		OPC->_int = (float)(OPA->_int <= OPB->_float);
 		break;
 	case OP_LE_FI:
-		OPC->_float = (float)(OPA->_float <= OPB->_int);
+		OPC->_int = (float)(OPA->_float <= OPB->_int);
 		break;
 
 	case OP_GT_F:
@@ -198,10 +198,10 @@ reeval:
 		OPC->_int = (int)(OPA->_int > OPB->_int);
 		break;
 	case OP_GT_IF:
-		OPC->_float = (float)(OPA->_int > OPB->_float);
+		OPC->_int = (float)(OPA->_int > OPB->_float);
 		break;
 	case OP_GT_FI:
-		OPC->_float = (float)(OPA->_float > OPB->_int);
+		OPC->_int = (float)(OPA->_float > OPB->_int);
 		break;
 
 	case OP_LT_F:
@@ -211,10 +211,10 @@ reeval:
 		OPC->_int = (int)(OPA->_int < OPB->_int);
 		break;
 	case OP_LT_IF:
-		OPC->_float = (float)(OPA->_int < OPB->_float);
+		OPC->_int = (float)(OPA->_int < OPB->_float);
 		break;
 	case OP_LT_FI:
-		OPC->_float = (float)(OPA->_float < OPB->_int);
+		OPC->_int = (float)(OPA->_float < OPB->_int);
 		break;
 
 	case OP_AND_F:
@@ -244,7 +244,7 @@ reeval:
 		OPC->_float = (float)(OPA->_float == OPB->_float);
 		break;
 	case OP_EQ_IF:
-		OPC->_float = (float)(OPA->_int == OPB->_float);
+		OPC->_int = (float)(OPA->_int == OPB->_float);
 		break;
 	case OP_EQ_FI:
 		OPC->_float = (float)(OPA->_float == OPB->_int);

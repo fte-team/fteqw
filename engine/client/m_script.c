@@ -13,6 +13,7 @@ void M_Script_Option (menu_t *menu, char *optionvalue)
 	menuoption_t *mo;
 
 	char buf[8192];
+	int level;
 
 	Cbuf_AddText("wait\n", RESTRICT_LOCAL);
 
@@ -32,7 +33,8 @@ void M_Script_Option (menu_t *menu, char *optionvalue)
 		}
 	}
 	Cmd_TokenizeString(buf, false, false);
-	Cmd_ExpandString(menu->data, buf, sizeof(buf), RESTRICT_SERVER, true, true);
+	level = RESTRICT_SERVER;
+	Cmd_ExpandString(menu->data, buf, sizeof(buf), &level, true, true);
 
 	//and execute it as-is
 	Cbuf_AddText(buf, RESTRICT_LOCAL);

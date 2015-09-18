@@ -163,6 +163,9 @@ typedef struct
 	int numidx;
 	vector *p;
 	int *i;
+	
+	int selectedvert1;
+	int selectedvert2;
 } vertsoup_t;
 vertsoup_t vertedit;
 brushface_t tmp_faces[64];
@@ -184,6 +187,7 @@ enum int
 	BT_MERGE,
 	BT_PUSHFACE,
 	BT_CREATE,
+	BT_CREATEDRAG,
 	BT_CLONEDISPLACE,
 	BT_SLICE,
 	BT_MOVETEXTURE,
@@ -229,7 +233,7 @@ void(brushface_t *fa) reset_texturecoords =
 
 static int(brushface_t *fa, int famax, vector *points, int numpoints, float height) BrushFromPoints =
 {
-	int count = 0, p;
+	int count = 0;
 	
 	fa->planenormal = normalize(cross(points[2] - points[0], points[1] - points[0]));
 	fa->planedist = bt_point[0] * fa->planenormal + height;
@@ -244,7 +248,7 @@ static int(brushface_t *fa, int famax, vector *points, int numpoints, float heig
 	fa++;
 	count = 2;
 
-	for (p = 0; p < numpoints; p++)
+	for (int p = 0; p < numpoints; p++)
 	{
 		int n = p + 1;
 		if (n == numpoints)
@@ -256,7 +260,7 @@ static int(brushface_t *fa, int famax, vector *points, int numpoints, float heig
 		fa++;
 		count++;
 	}
-	
+
 	return count;
 }
 
@@ -265,7 +269,7 @@ vector(vector guess) brush_snappoint =
 {
 	if (nogrid)
 		return guess;
-	int facenum, points, point;
+	int facenum, points;
 	float bestdist = autocvar_ca_grid*autocvar_ca_grid;	//worst case value so we don't snap to grid when there's a vertex 0.001qu away from the grid.
 	vector best = guess * (1.0/autocvar_ca_grid);
 	best_x = rint(best_x);	//snap to grid
@@ -276,9 +280,9 @@ vector(vector guess) brush_snappoint =
 	//find surfaces within 32qu of the point (via plane volume). use a tetrahedron instead if you want something more circular
 	for (facenum = 0; facenum < axis.length; facenum++)
 		dists[facenum] = (guess * axis[facenum]) + autocvar_ca_grid;
-	int brushnum, numbrushes = brush_findinvolume(selectedbrushmodel, axis, dists, 6, brushlist, __NULL__, brushlist.length);
+	int numbrushes = brush_findinvolume(selectedbrushmodel, axis, dists, 6, brushlist, __NULL__, brushlist.length);
 
-	for (brushnum = 0; brushnum < numbrushes; brushnum++)
+	for (int brushnum = 0; brushnum < numbrushes; brushnum++)
 	{
 		for (facenum = 0; ; )
 		{
@@ -287,7 +291,7 @@ vector(vector guess) brush_snappoint =
 				break;	//end of face list, I guess
 
 			//walk the faces we found and use the point if its nearer than our previous guess.
-			for (point = 0; point < points; point++)
+			for (int point = 0; point < points; point++)
 			{
 				vector disp = facepoints[point] - guess;
 				float dist = disp*disp;
@@ -341,8 +345,7 @@ static void brushface_translate(brushface_t *fa, int numfaces, vector displaceme
 //translate before+after first in order to deal with pivots.
 static void brushface_rotate(brushface_t *fa, int numfaces)
 {
-	int i;
-	for (i = 0; i < numfaces; i++, fa++)
+	for (int i = 0; i < numfaces; i++, fa++)
 	{
 		vector orig = fa->planenormal;
 		fa->planenormal[0] = orig * v_forward;
@@ -412,14 +415,13 @@ vector(vector p1, vector p2, vector norm, float dist) planelinepoint =
 int(brushface_t *faces, int numfaces, vector *points, int numpoints) isconcave =
 {
 	int result = 0;
-	int f, p;
 
 	//if any of the points are outside the brush, then we know that one of the planes cut straight through in a concavey kind of way
-	for(f = 0; f < numfaces; f++)
+	for(int f = 0; f < numfaces; f++)
 	{
 		vector n = faces[f].planenormal;
 		float d = faces[f].planedist + EPSILON; //epsilon to cover precision issues
-		for (p = 0; p < numpoints; p++)
+		for (int p = 0; p < numpoints; p++)
 		{
 			if (points[p] * n > d)
 			{
@@ -598,6 +600,7 @@ void(brushface_t *faces, int numfaces, vector col, float alpha) DrawQCBrushTextu
 		{
 			//this is unfortunate. the built in shaders expect to use lightmaps. we don't have those.
 			//because lightmaps are special things, we end up in a real mess. so lets just make sure there's a shader now, because we can.
+			//FIXME: we don't manage to pick up the size of the original wad image
 			shaderforname(faces[f].shadername,
 				sprintf("{"
 					"{\n"
@@ -616,65 +619,130 @@ void(brushface_t *faces, int numfaces, vector col, float alpha) DrawQCBrushTextu
 	}
 };
 
-#if 0
-void(vertsoup_t *soup, brushface_t **trifaces, brushface_t **splits, int internalsplits, int drawit) Rebrushify_r =
+void(vector *p, int points, string shader, vector col, float alpha) DrawAxisExtensions =
 {
-	//clip the soup by the internal splits.
-	//if any triangle is outside, remove that plane from the sub-brush
-	//add the splits to the volume. call it done.
-	
-	brushface_t faces[64];
-	int numfaces;
-	int point;
-	
-	for(point = 0; point+2 < vertedit.numidx; point+=3)
+	R_BeginPolygon(shader);
+	for (int point = 0; point < points; point++)
 	{
-		vector v1 = vertedit.p[vertedit.i[point+0]];
-		vector v2 = vertedit.p[vertedit.i[point+1]];
-		vector v3 = vertedit.p[vertedit.i[point+2]];
-		
-		if (	v1 * s->planenormal < s->planedist &&
-			v2 * s->planenormal < s->planedist &&
-			v3 * s->planenormal < s->planedist)
-			continue;
-	}
-	
-	if (drawit)
-	{
-		//draw it wireframe without depth testing
-		DrawQCBrushWireframe(faces, numfaces, "chop", '1 0 0');
+		R_PolygonVertex(p[point] + [ 64, 0, 0], '0 0', col, alpha);
+		R_PolygonVertex(p[point] + [-64, 0, 0], '0 0', col, alpha);
+		R_EndPolygon();
+		R_PolygonVertex(p[point] + [0,  64, 0], '0 0', col, alpha);
+		R_PolygonVertex(p[point] + [0, -64, 0], '0 0', col, alpha);
+		R_EndPolygon();
+		R_PolygonVertex(p[point] + [0, 0,  64], '0 0', col, alpha);
+		R_PolygonVertex(p[point] + [0, 0, -64], '0 0', col, alpha);
+		R_EndPolygon();
 	}
 };
-#endif
+
+static float(vertsoup_t *soup, int *idx, __inout vector norm, __inout float dist) planenormal =
+{
+	vector v1 = soup->p[idx[0]];
+	vector v2 = soup->p[idx[1]];
+	vector v3 = soup->p[idx[2]];
+	vector d1 = v3 - v1;
+	vector d2 = v2 - v1;
+	vector d3 = v3 - v2;
+	norm = normalize(cross(d1, d2));
+	dist = norm * v1;
+
+	if (!d1 || !d2 || !d3 || !norm)
+		return FALSE;
+	return TRUE;
+};
 
 void(vertsoup_t *soup, int drawit) Rebrushify =
 {
-	brushface_t *internalsplit[64];
 	brushface_t faces[64];
-	brushface_t *trifaces[128];
 	int numfaces, f, point;
 	string shader = 0;
 	
+	vector n;
+	float d;
+		
+	
 	tmp_numfaces = brush_get(selectedbrushmodel, selectedbrush, tmp_faces, tmp_faces.length, &tmp_contents);
+	
+	//if any triangle's neighbour opposes it, reform the edge across the quad to try to keep it convex.
+	for(point = 0; point+2 < soup->numidx; point+=3)
+	{
+		int p1 = soup->i[point+0];
+		int p2 = soup->i[point+1];
+		int p3 = soup->i[point+2];
+		if (!planenormal(soup, &soup->i[point], n, d))
+			continue;	//degenerate
+		d += EPSILON;
+		for(f = point+3; f+2 < soup->numidx; f+=3)
+		{
+			int o1 = soup->i[f+0];
+			int o2 = soup->i[f+1];
+			int o3 = soup->i[f+2];
+			int o;
+p1p2edge:
+			if (o2 == p1 && o1 == p2)
+				o = o3;
+			else if (o3 == p1 && o2 == p2)
+				o = o1;
+			else if (o1 == p1 && o3 == p2)
+				o = o2;
+			else
+				goto p2p3edge;
+			if (soup->p[o] * n > d)
+			{
+				soup->i[f+0] = p3;
+				soup->i[f+1] = o;
+				soup->i[f+2] = p2;
+				p2 = o;
+			}
+			continue;
+p2p3edge:
+			if (o2 == p2 && o1 == p3)
+				o = o3;
+			else if (o3 == p2 && o2 == p3)
+				o = o1;
+			else if (o1 == p2 && o3 == p3)
+				o = o2;
+			else
+				goto p3p1edge;
+			if (soup->p[o] * n > d)
+			{
+				soup->i[f+0] = p1;
+				soup->i[f+1] = o;
+				soup->i[f+2] = p3;
+				p3 = o;
+			}
+			continue;
+p3p1edge:
+			if (o2 == p3 && o1 == p1)
+				o = o3;
+			else if (o3 == p3 && o2 == p1)
+				o = o1;
+			else if (o1 == p3 && o3 == p1)
+				o = o2;
+			else
+				continue;
+			if (soup->p[o] * n > d)
+			{
+				soup->i[f+0] = p2;
+				soup->i[f+1] = o;
+				soup->i[f+2] = p1;
+				p1 = o;
+			}
+			continue;
+		}
+		
+		soup->i[point+0] = p1;
+		soup->i[point+1] = p2;
+		soup->i[point+2] = p3;
+	}
 	
 	//generate the plane info
 	numfaces = 0;
-	for(point = 0; point+2 < vertedit.numidx; point+=3)
+	for(point = 0; point+2 < soup->numidx; point+=3)
 	{
-		vector v1 = vertedit.p[vertedit.i[point+0]];
-		vector v2 = vertedit.p[vertedit.i[point+1]];
-		vector v3 = vertedit.p[vertedit.i[point+2]];
-		vector d1 = v3 - v1;
-		vector d2 = v2 - v1;
-		vector d3 = v3 - v2;
-		vector n = normalize(cross(d1, d2));
-		float d = n * v1;
-
-		if (!d1 || !d2 || !d3 || !n)
-		{
-			trifaces[point/3] = 0;
+		if (!planenormal(soup, &soup->i[point], n, d))
 			continue;	//a degenerate triangle is one that probably got merged or something
-		}
 
 		for (f = 0; f < numfaces; f++)
 		{
@@ -682,10 +750,7 @@ void(vertsoup_t *soup, int drawit) Rebrushify =
 				break;
 		}
 		if (f < numfaces)
-		{
-			trifaces[point/3] = &faces[f];
 			continue;	//duplicate plane
-		}
 			
 		for (f = 0; f < tmp_numfaces; f++)
 		{
@@ -702,7 +767,6 @@ void(vertsoup_t *soup, int drawit) Rebrushify =
 				faces[numfaces].sbias = tmp_faces[f].sbias;
 				faces[numfaces].tdir = tmp_faces[f].tdir;
 				faces[numfaces].tbias = tmp_faces[f].tbias;
-				trifaces[point/3] = &faces[numfaces];
 				numfaces++;
 				break;
 			}
@@ -720,7 +784,6 @@ void(vertsoup_t *soup, int drawit) Rebrushify =
 		faces[numfaces].planenormal = n;
 		faces[numfaces].planedist = d;
 		reset_texturecoords(&faces[numfaces]);
-		trifaces[point/3] = &faces[numfaces];
 		numfaces++;
 	}
 	
@@ -740,20 +803,20 @@ void(vertsoup_t *soup, int drawit) Rebrushify =
 	{
 		n = faces[f].planenormal;
 		d = faces[f].planedist;
-		for (point = 0; point < vertedit.numidx; point++)	//would ideally use points, but I want to cover dead ones
+		for (point = 0; point < soup->numidx; point++)	//would ideally use points, but I want to cover dead ones
 		{
-			if (vertedit.p[vertedit.i[point]] * n > d + EPSILON)
+			if (soup->p[soup->i[point]] * n > d + EPSILON)
 			{
-				internalsplit[internals++] = &faces[f];
+				internals++;
 				break;
 			}
 		}
 	}
 	cprint(sprintf("%i internal splits, %i faces\n", internals, numfaces));
 	
-//	Rebrushify_r(soup, trifaces, internalsplit, internals, drawit);
+	if (numfaces <= 3)
+		return;	//can't possibly be valid.
 	
-
 	if (drawit)
 	{
 		//draw it wireframe WITH depth testing
@@ -763,7 +826,7 @@ void(vertsoup_t *soup, int drawit) Rebrushify =
 		DrawQCBrushTextured(faces, numfaces, '0.7 0.7 0.7', 1);
 		
 		//draw it wireframe without depth testing
-		DrawQCBrushWireframe(faces, numfaces, "chop", '0 0 1', 1);
+		DrawQCBrushWireframe(faces, numfaces, "chop", internals?'1 0 0':'0 0 1', 1);
 	}
 	else
 	{
@@ -772,8 +835,8 @@ void(vertsoup_t *soup, int drawit) Rebrushify =
 		selectedbrush = brush_history_create(selectedbrushmodel, faces, numfaces, 1i);
 		selectedbrushface = 0;
 		
-		vertedit.numidx = 0;
-		vertedit.numverts = 0;
+		soup->numidx = 0;
+		soup->numverts = 0;
 	}	
 };
 
@@ -787,6 +850,8 @@ void(void) Debrushify =
 	vector p;
 	vector *np;
 	static int fi[64];
+	vertedit.numidx = 0;
+	vertedit.numverts = 0;
 	for (i = 0; ; )
 	{
 		points = brush_getfacepoints(selectedbrushmodel, selectedbrush, ++i, facepoints, facepoints.length);
@@ -834,6 +899,48 @@ void(void) Debrushify =
 	}
 };
 
+//determines only the various points of the brush, without duplicates. doesn't care about indexes.
+void(brushface_t *faces, int numfaces) DebrushifyLite =
+{
+	int points, k;
+	vector p;
+	vector *np;
+	int fi[64];
+	vertedit.numidx = 0;
+	vertedit.numverts = 0;
+	for (int i = 0; ; )
+	{
+		points = brush_calcfacepoints(++i, faces, numfaces, facepoints, facepoints.length);
+		if (!points)
+			break;
+		
+		for (int j = 0; j < points; j++)
+		{
+			p = facepoints[j];
+			p_x = floor(p_x + 0.5);	//gah, bloomin inprecision.
+			p_y = floor(p_y + 0.5);
+			p_z = floor(p_z + 0.5);
+			for (k = 0; k < vertedit.numverts; k++)
+			{	//try to be nice and re-use verts.
+				if (vertedit.p[k] == p)
+					break;
+			}
+			if (k == vertedit.numverts)
+			{
+				//if it wasn't found, we need to allocate a new one
+				np = memalloc(sizeof(*np) * (vertedit.numverts+1));
+				memcpy(np, vertedit.p, sizeof(*np) * vertedit.numverts);
+				memfree(vertedit.p);
+				vertedit.p = np;
+				np += vertedit.numverts;
+				vertedit.numverts += 1;
+				*np = p;
+			}
+			fi[j] = k;
+		}
+	}
+};
+
 void(vector mousepos) editor_brushes_add =
 {
 	vector col = '0 0 0';
@@ -841,8 +948,10 @@ void(vector mousepos) editor_brushes_add =
 	int facenum;
 	float intensity = (sin(gettime(5)*4)+1)*0.05;
 	vector displace, tmp;
+	float bestdist, dist;
+	vector mid;
 	
-	if ((brushtool == BT_PUSHFACE || brushtool == BT_CLONEDISPLACE || brushtool == BT_MOVE || brushtool == BT_MOVETEXTURE) && bt_points)
+	if ((mousetool == BT_VERTEXEDIT || mousetool == BT_CREATEDRAG || brushtool == BT_PUSHFACE || brushtool == BT_CLONEDISPLACE || brushtool == BT_MOVE || brushtool == BT_MOVETEXTURE) && bt_points)
 	{
 		makevectors(input_angles);
 		vector dir = v_forward;
@@ -851,7 +960,8 @@ void(vector mousepos) editor_brushes_add =
 		tmp = normalize(mousefar-mousenear) + mousenear;
 		tmp = planelinepoint(mousenear, tmp, dir, bt_point[0] * dir); //find where the cursor impacts the screen grid (moved along the view vector to match where the drag was last frame)
 		displace = tmp - bt_point[0];
-		displace = brush_snappoint(displace);
+		if (mousetool != BT_VERTEXEDIT && mousetool != BT_CREATEDRAG)
+			displace = brush_snappoint(displace);
 		if (altdown)	//if alt is held, rotate the move by 90 degrees, and move ONLY in the axial dir instead of the screen's xy plane
 			bt_displace_z = (displace * v_right + displace * v_up);
 		else
@@ -860,6 +970,9 @@ void(vector mousepos) editor_brushes_add =
 			bt_displace_y = displace * axialize(v_up);
 		}
 		displace = bt_displace_x * axialize(v_right) + bt_displace_y * axialize(v_up) - bt_displace_z * axialize(v_forward);
+		
+		if (mousetool == BT_VERTEXEDIT)
+			displace = brush_snappoint(displace+bt_point[0]);
 	}
 	else if (brushtool == BT_ROTATE)
 	{
@@ -898,7 +1011,7 @@ void(vector mousepos) editor_brushes_add =
 				"nodepthtest\n"
 			"}\n"
 		"}");
-		
+
 	if (mousetool == BT_VERTEXEDIT && vertedit.numidx)
 	{
 #if 0
@@ -913,6 +1026,7 @@ void(vector mousepos) editor_brushes_add =
 			R_EndPolygon();
 		}
 #endif
+#if 1
 		//draw the wires (no depth)
 		R_BeginPolygon("chop");
 		for(point = 0; point+2 < vertedit.numidx; point+=3)
@@ -928,6 +1042,21 @@ void(vector mousepos) editor_brushes_add =
 			R_PolygonVertex(vertedit.p[vertedit.i[point+0]], '0 0', col, 1);
 			R_EndPolygon();
 		}
+#endif
+
+		DrawAxisExtensions(vertedit.p, vertedit.numverts, "terrainedit", '1 0.3 0.3', 1);
+
+		if (mousedown)
+		{
+			if (bt_points == 1 && vertedit.selectedvert1 != -1)
+			{
+				if (vertedit.selectedvert2 != -1)
+					vertedit.p[vertedit.selectedvert2] = displace + bt_point[2];
+				vertedit.p[vertedit.selectedvert1] = displace + bt_point[1];
+			}
+		}
+		else
+			bt_points = 0;
 
 		Rebrushify(&vertedit, TRUE);
 	}
@@ -939,6 +1068,56 @@ void(vector mousepos) editor_brushes_add =
 			
 			DrawQCBrushWireframe(tmp_faces, tmp_numfaces, "chop", '1 0 0', 1);
 		}
+	}
+	else if (mousetool == BT_CREATEDRAG)
+	{
+		if (bt_points)
+		{
+			displace -= axialize(v_forward)*autocvar_ca_grid;
+
+			mid = bt_point[0];
+			displace = brush_snappoint(mid + displace);
+			mid = brush_snappoint(mid);
+			displace = displace - mid;
+
+			tmp_faces[0].planenormal = '1 0 0';
+			tmp_faces[1].planenormal = '-1 0 0';
+			tmp_faces[2].planenormal = '0 1 0';
+			tmp_faces[3].planenormal = '0 -1 0';
+			tmp_faces[4].planenormal = '0 0 1';
+			tmp_faces[5].planenormal = '0 0 -1';
+			tmp_faces[0].planedist = mid[0];
+			tmp_faces[1].planedist = -mid[0];
+			tmp_faces[2].planedist = mid[1];
+			tmp_faces[3].planedist = -mid[1];
+			tmp_faces[4].planedist = mid[2];
+			tmp_faces[5].planedist = -mid[2];
+			tmp_numfaces = 6;
+			tmp_contents = 1;
+			
+			tmp_faces[0 + (displace_x<0.0)].planedist += fabs(displace_x);
+			tmp_faces[2 + (displace_y<0.0)].planedist += fabs(displace_y);
+			tmp_faces[4 + (displace_z<0.0)].planedist += fabs(displace_z);
+			
+			for (facenum = 0; facenum < tmp_numfaces; facenum++)
+			{
+				tmp_faces[facenum].shadername = autocvar_ca_newbrushtexture;
+				reset_texturecoords(&tmp_faces[facenum]);
+			}
+
+			DrawQCBrushWireframe(tmp_faces, tmp_numfaces, "chop", '1 0 0', 1);
+
+			if (!mousedown)
+			{
+				brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
+				selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, tmp_contents);
+				brush_selected(selectedbrushmodel, selectedbrush, selectedbrushface, TRUE);
+				bt_points = 0;
+				mousetool = BT_NONE;
+			}
+		}
+		else
+			mousedown = FALSE;
 	}
 	else if ((mousetool == BT_PUSHFACE || mousetool == BT_MOVETEXTURE || mousetool == BT_MOVE || mousetool == BT_CLONEDISPLACE || mousetool == BT_ROTATE) && bt_points)
 	{
@@ -1022,6 +1201,9 @@ void(vector mousepos) editor_brushes_add =
 		//draw it wireframe WITH depth testing
 		DrawQCBrushWireframe(tmp_faces, tmp_numfaces, "terrainedit", '0 0 1', 1);
 		
+		DebrushifyLite(tmp_faces, tmp_numfaces);
+		DrawAxisExtensions(vertedit.p, vertedit.numverts, "terrainedit", '0 0 0.3', 1);
+
 		if (!mousedown)
 		{
 			brush_selected(selectedbrushmodel, selectedbrush, -1, FALSE);
@@ -1053,13 +1235,10 @@ void(vector mousepos) editor_brushes_add =
 		//draw the other side wireframe
 		DrawQCBrushWireframe(tmp_faces, tmp_numfaces+1, "chop", '0 1 0', 1);
 	}
-	else
+	else if (selectedbrush)
 	{
 		if (brushtool == BT_PUSHFACE)
 		{	//selected face (not brush) follows cursor when we're not actively dragging a face
-			float bestdist = 0, dist;
-			vector mid;
-			
 			for(facenum = 0;;)
 			{
 				points = brush_getfacepoints(selectedbrushmodel, selectedbrush, ++facenum, facepoints, facepoints.length);
@@ -1115,6 +1294,10 @@ void(vector mousepos) editor_brushes_add =
 			R_PolygonVertex(facepoints[0], '0 0', col, 1);
 			R_EndPolygon();
 		}
+		
+		tmp_numfaces = brush_get(selectedbrushmodel, selectedbrush, tmp_faces, tmp_faces.length, &tmp_contents);
+		DebrushifyLite(tmp_faces, tmp_numfaces);
+		DrawAxisExtensions(vertedit.p, vertedit.numverts, "terrainedit", '0 0 0.3', 1);
 	}
 //	editor_drawbbox(selectedbrush);
 
@@ -1179,10 +1362,77 @@ void(vector mousepos) editor_brushes_add =
 
 void(vector mousepos) editor_brushes_overlay =
 {
+	int point;
+	vector mid;
+	float dist, bestdist;
+	if (vertedit.numidx)
+	{
+		if (!mousedown)
+		{
+			for(vertedit.selectedvert1 = -1, vertedit.selectedvert2 = -1, point = 0, bestdist = 16*16; point < vertedit.numverts; point++)
+			{
+				mid = project(vertedit.p[point]);
+				dist = (mousepos_x - mid_x) * (mousepos_x - mid_x) + (mousepos_y - mid_y) * (mousepos_y - mid_y);
+				if (dist < bestdist && mid_z > 0)
+				{
+					bestdist = dist;
+					vertedit.selectedvert1 = point;
+				}	
+			}
+			for(point = 0; point < vertedit.numidx; point+=3)
+			{
+				mid = project(0.5*(vertedit.p[vertedit.i[point+0]] + vertedit.p[vertedit.i[point+1]]));
+				dist = (mousepos_x - mid_x) * (mousepos_x - mid_x) + (mousepos_y - mid_y) * (mousepos_y - mid_y);
+				if (dist < bestdist && mid_z > 0)
+				{
+					bestdist = dist;
+					vertedit.selectedvert1 = vertedit.i[point+0];
+					vertedit.selectedvert2 = vertedit.i[point+1];
+				}
+				
+				mid = project(0.5*(vertedit.p[vertedit.i[point+1]] + vertedit.p[vertedit.i[point+2]]));
+				dist = (mousepos_x - mid_x) * (mousepos_x - mid_x) + (mousepos_y - mid_y) * (mousepos_y - mid_y);
+				if (dist < bestdist && mid_z > 0)
+				{
+					bestdist = dist;
+					vertedit.selectedvert1 = vertedit.i[point+1];
+					vertedit.selectedvert2 = vertedit.i[point+2];
+				}
+				
+				mid = project(0.5*(vertedit.p[vertedit.i[point+2]] + vertedit.p[vertedit.i[point+0]]));
+				dist = (mousepos_x - mid_x) * (mousepos_x - mid_x) + (mousepos_y - mid_y) * (mousepos_y - mid_y);
+				if (dist < bestdist && mid_z > 0)
+				{
+					bestdist = dist;
+					vertedit.selectedvert1 = vertedit.i[point+2];
+					vertedit.selectedvert2 = vertedit.i[point+0];
+				}
+			}
+		}
+		if (vertedit.selectedvert1 != -1)
+		{
+			mid = project(vertedit.p[vertedit.selectedvert1]);
+			if (mid_z >= 0)
+				drawfill([mid_x,mid_y] - '2 2', [4,4], [0.2,0.2,1], 1, 0);
+		}
+		if (vertedit.selectedvert2 != -1)
+		{
+			mid = project(vertedit.p[vertedit.selectedvert2]);
+			if (mid_z >= 0)
+				drawfill([mid_x,mid_y] - '2 2', [4,4], [0.2,0.2,1], 1, 0);
+		}
+		
+		drawrawstring('0 32 0', "Vertex Editor", '8 8 0', '1 1 1', 1);
+		return;
+	}
+
 	switch(brushtool)
 	{
 	case BT_CLONEDISPLACE:
 		drawrawstring('0 32 0', "Clone", '8 8 0', '1 1 1', 1);
+		break;
+	case BT_CREATEDRAG:
+		drawrawstring('0 32 0', "Drag+Create", '8 8 0', '1 1 1', 1);
 		break;
 	case BT_CREATE:
 		drawrawstring('0 32 0', "Paint+Create", '8 8 0', '1 1 1', 1);
@@ -1204,12 +1454,16 @@ void(vector mousepos) editor_brushes_overlay =
 	case BT_MOVETEXTURE:
 		drawrawstring('0 32 0', "Move Texture", '8 8 0', '1 1 1', 1);
 		break;
+	case BT_VERTEXEDIT:
+		drawrawstring('0 32 0', "Vertex Editor", '8 8 0', '1 1 1', 1);
+		break;
 	}
 };
 
 #define brusheditormodes
 //#append brusheditormodes brusheditormode("move", BT_MOVE)
 #append brusheditormodes brusheditormode("clone", BT_CLONEDISPLACE)
+#append brusheditormodes brusheditormode("draw", BT_CREATEDRAG)
 #append brusheditormodes brusheditormode("rotate", BT_ROTATE)
 #append brusheditormodes brusheditormode("pushface", BT_PUSHFACE)
 #append brusheditormodes brusheditormode("scrolltex", BT_MOVETEXTURE)
@@ -1306,7 +1560,7 @@ brusheditormodes
 		localcmd("menubind 0 40 \"brushedit_redo\" \"Redo\"\n");
 		localcmd("menubind 0 48 \"brushedit_nogrid\" \"Disable Grid\"\n");
 		
-		float foo = 48;
+		float foo = 56;
 #define brusheditormode(n,v) localcmd(sprintf("menubind 0 %g \"+brushedit_"n"\" \""n"\"\n", foo)); foo+=8;
 brusheditormodes
 #undef brusheditormode
@@ -1337,6 +1591,8 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 		t = o + normalize(t)*8192;
 	if (key == K_ESCAPE)
 	{
+		vertedit.numidx = 0;
+		vertedit.numverts = 0;
 		if (brushtool)
 			brushtool = BT_NONE;
 		else
@@ -1349,16 +1605,37 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 	}
 	if (key == K_MOUSE1)
 	{
+		if (vertedit.numidx)
+		{
+			if (vertedit.selectedvert1 != -1)
+			{
+				mousedown = TRUE;
+				mousetool = BT_VERTEXEDIT;
+				if (vertedit.selectedvert2 != -1)
+				{
+					bt_point[0] = 0.5 * (vertedit.p[vertedit.selectedvert1] + vertedit.p[vertedit.selectedvert2]);
+					bt_point[1] = vertedit.p[vertedit.selectedvert1] - bt_point[0];
+					bt_point[2] = vertedit.p[vertedit.selectedvert2] - bt_point[0];
+				}
+				else
+					bt_point[0] = vertedit.p[vertedit.selectedvert1];
+					bt_point[1] = vertedit.p[vertedit.selectedvert1] - bt_point[0];
+				bt_points = 1;
+				bt_displace = '0 0 0';
+			}
+			return TRUE;
+		}
+		
 		traceline(o, t, TRUE, world);
 		float tracemodel = trace_ent.modelindex;
 
-		if (brushtool == BT_PUSHFACE && selectedbrushface)
+		if (brushtool == BT_CREATEDRAG || (brushtool == BT_PUSHFACE && selectedbrushface))
 		{
 			trace_brush_faceid = selectedbrushface;
 			trace_brush_id = selectedbrush;
 			tracemodel = selectedbrushmodel;
 		}
-		if (brushtool != BT_PUSHFACE && brushtool != BT_MOVETEXTURE)
+		else if (brushtool != BT_PUSHFACE && brushtool != BT_MOVETEXTURE)
 			trace_brush_faceid = 0;
 			
 		if (brushtool == BT_SLICE || brushtool == BT_CREATE)
@@ -1410,21 +1687,36 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 			selectedbrush = trace_brush_id;
 			selectedbrushface = trace_brush_faceid;
 			selectedbrushmodel = tracemodel;
-			brush_selected(selectedbrushmodel, selectedbrush, selectedbrushface, TRUE);
+			if (trace_brush_faceid)
+				brush_selected(selectedbrushmodel, selectedbrush, selectedbrushface, TRUE);
 			
 			vertedit.numidx = 0;
 			vertedit.numverts = 0;
+			
+			if (selectedbrushface && (brushtool == BT_PUSHFACE || brushtool == BT_MOVETEXTURE))
+			{
+				mousedown = TRUE;
+				mousetool = brushtool;
+				vertedit.selectedvert1 = -1;
+				vertedit.selectedvert2 = -1;
+				bt_point[0] = brush_snappoint(trace_endpos);
+				bt_points = 1;
+				bt_displace = '0 0 0';
+			}
 		}
 		else if (selectedbrush == trace_brush_id && selectedbrushface == trace_brush_faceid && selectedbrushmodel == tracemodel)
 		{
 			mousedown = TRUE;
 			mousetool = brushtool;
+			vertedit.selectedvert1 = -1;
+			vertedit.selectedvert2 = -1;
 			bt_point[0] = brush_snappoint(trace_endpos);
 			bt_points = 1;
 			bt_displace = '0 0 0';
 		}
 		if (brushtool == BT_VERTEXEDIT && !vertedit.numidx && selectedbrush)
 		{
+			mousedown = FALSE;
 			Debrushify();
 			brush_selected(selectedbrushmodel, selectedbrush, selectedbrushface, TRUE);
 		}
@@ -1433,11 +1725,13 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 
 	if (key == K_ENTER)
 	{
-		if (mousetool == BT_VERTEXEDIT)
+		if (vertedit.numidx)
 		{
 			Rebrushify(&vertedit, FALSE);
 			mousetool = BT_NONE;
 			bt_points = 0;
+			vertedit.numidx = 0;
+			vertedit.numverts = 0;
 			mousedown = FALSE;
 			return TRUE;
 		}
@@ -1508,31 +1802,7 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 		}
 
 		return TRUE;
-	}
-	
-	if (vertedit.numidx)
-	{
-		vector dir = '0 0 0';
-		makevectors(input_angles);
-		if (key == K_KP_PLUS)
-			dir = axialize(v_up);
-		else if (key == K_KP_MINUS)
-			dir = -axialize(v_up);
-		else if (key == K_KP_UPARROW)
-			dir = axialize(v_forward);
-		else if (key == K_KP_DOWNARROW)
-			dir = -axialize(v_forward);
-		else if (key == K_KP_RIGHTARROW)
-			dir = axialize(v_right);
-		else if (key == K_KP_LEFTARROW)
-			dir = -axialize(v_right);
-		if (dir != '0 0 0')
-		{
-			vertedit.p[0] += dir;
-			return TRUE;
-		}	
-	}
-	
+	}	
 
 /*	if (key == 's')
 	{

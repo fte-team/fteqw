@@ -1639,6 +1639,7 @@ char *TP_LocationName (vec3_t location)
 	vec3_t	vec;
 	static qbool	recursive;
 	static char buf[MAX_LOC_NAME];
+	int level;
 
 	if (!loc_numentries || (cls.state != ca_active))
 		return tp_name_someplace.string;
@@ -1668,7 +1669,8 @@ char *TP_LocationName (vec3_t location)
 	}
 
 	recursive = true;
-	Cmd_ExpandString (locdata[minnum].name, buf, sizeof(buf), Cmd_ExecLevel, true, false);
+	level = Cmd_ExecLevel;
+	Cmd_ExpandString (locdata[minnum].name, buf, sizeof(buf), &level, true, false);
 	recursive = false;
 
 	return buf;
@@ -3376,12 +3378,14 @@ void TP_UpdateAutoStatus(void)
 {
 	char newstatusbuf[sizeof(vars.autoteamstatus)];
 	char *newstatus;
+	int level;
 
 	if (vars.autoteamstatus_time > realtime || !*tp_autostatus.string)
 		return;
 	vars.autoteamstatus_time = realtime + 3;
 
-	newstatus = Cmd_ExpandString(tp_autostatus.string, newstatusbuf, sizeof(newstatusbuf), tp_autostatus.restriction, true, true);
+	level = tp_autostatus.restriction;
+	newstatus = Cmd_ExpandString(tp_autostatus.string, newstatusbuf, sizeof(newstatusbuf), &level, true, true);
 	newstatus = TP_ParseMacroString(newstatus);
 
 	if (!strcmp(newstatus, vars.autoteamstatus))
@@ -3737,7 +3741,8 @@ void CL_Say (qboolean team, char *extra)
 		!strchr(s, '\x0d') /* explicit $\ in message overrides cl_fakename */)
 	{
 		char buf[1024];
-		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), Cmd_ExecLevel, true, true);
+		int level = Cmd_ExecLevel;
+		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), &level, true, true);
 		strcpy (buf, TP_ParseMacroString (buf));
 		Q_snprintfz (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf));
 	}

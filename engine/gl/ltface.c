@@ -144,7 +144,7 @@ struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, model_t *model, qb
 	ctx->models[ctx->nummodels++] = model;
 	return ctx;
 }
-void LightReloadEntities(struct relight_ctx_s *ctx, char *entstring)
+void LightReloadEntities(struct relight_ctx_s *ctx, char *entstring, qboolean ignorestyles)
 {
 #define DEFAULTLIGHTLEVEL 300
 	mentity_t *mapent;
@@ -254,6 +254,8 @@ void LightReloadEntities(struct relight_ctx_s *ctx, char *entstring)
 				mapent->style = switchedstyle++;
 		}
 
+		if (ignorestyles)
+			mapent->style = 0;
 
 		ctx->num_entities++;
 	}
@@ -771,7 +773,7 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 	if (!surf_rgbsamples)
 		return;
 
-	memset (l, 0, sizeof(*l));
+//	memset (l, 0, sizeof(*l));
 	l->ctx = ctx;
 
 //
@@ -796,7 +798,11 @@ void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *l, qbyte surf_s
 	i = 0;
 #ifndef UTILITY
 	for (; surf_styles[i] != 255 && i < 4; i++)
+	{
 		l->lightstyles[i] = surf_styles[i];
+		memset(&l->lightmaps[i], 0, sizeof(l->lightmaps[i][0])*l->numsurfpt);
+		memset(&l->lightnorm[i], 0, sizeof(l->lightnorm[i][0])*l->numsurfpt);
+	}
 #endif
 	l->numlightstyles = i;
 	for ( ; i<MAXQ1LIGHTMAPS ; i++)

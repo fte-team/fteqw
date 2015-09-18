@@ -98,7 +98,7 @@ void Cmd_AddMacro(char *s, char *(*f)(void), int disputableintentions)
 		macro_count++;
 }
 
-char *TP_MacroString (char *s, int *len)
+char *TP_MacroString (char *s, int *newaccesslevel, int *len)
 {
 	int i;
 	macro_command_t	*macro;
@@ -110,7 +110,7 @@ char *TP_MacroString (char *s, int *len)
 		{
 			if (macro->disputableintentions)
 				if (!tp_disputablemacros.ival)
-					continue;
+					*newaccesslevel = 0;
 			if (len)
 				*len = strlen(macro->name);
 			return macro->func();
@@ -1244,7 +1244,7 @@ void Cmd_ShiftArgs (int ammount, qboolean expandstring)
 	}
 }
 
-char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
+char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *newaccesslevel, int *len)
 {
 	char *ret = NULL, *end, *namestart;
 	char *fixup = NULL, fixval=0;
@@ -1291,6 +1291,9 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
 		if (var->restriction <= maxaccesslevel && !((var->flags & CVAR_NOUNSAFEEXPAND) && Cmd_IsInsecure()))
 		{
 			ret = var->string;
+
+			if (var->flags & CVAR_TEAMPLAYTAINT)	//if we're only allowed to expand this for teamplay, then switch access levels
+				*newaccesslevel = 0;
 		}
 	}
 	*fixup = fixval;
@@ -1312,7 +1315,7 @@ If not SERVERONLY, also expands $macro expressions
 Note: dest must point to a 1024 byte buffer
 ================
 */
-char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel, qboolean expandcvars, qboolean expandmacros)
+char *Cmd_ExpandString (char *data, char *dest, int destlen, int *accesslevel, qboolean expandcvars, qboolean expandmacros)
 {
 	unsigned int	c;
 	char	buf[255];
@@ -1322,6 +1325,7 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 	char	*bestvar;
 	int		name_length, var_length;
 	qboolean striptrailing;
+	int		maxaccesslevel = *accesslevel;
 
 	len = 0;
 
@@ -1349,9 +1353,9 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 				data++;
 				buf[i++] = c;
 				buf[i] = 0;
-				if (expandcvars && (str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, &var_length)))
+				if (expandcvars && (str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, accesslevel, &var_length)))
 					bestvar = str;
-				if (expandmacros && (str = TP_MacroString (buf+striptrailing, &var_length)))
+				if (expandmacros && (str = TP_MacroString (buf+striptrailing, accesslevel, &var_length)))
 					bestvar = str;
 			}
 
@@ -2122,7 +2126,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 	char dest[8192];
 
-	text = Cmd_ExpandString(text, dest, sizeof(dest), level, !Cmd_IsInsecure()?true:false, true);
+	text = Cmd_ExpandString(text, dest, sizeof(dest), &level, !Cmd_IsInsecure()?true:false, true);
 	Cmd_TokenizeString (text, level == RESTRICT_LOCAL?true:false, false);
 
 // execute the command line
@@ -2136,6 +2140,9 @@ void	Cmd_ExecuteString (char *text, int level)
 		{
 			if (strcmp (cmd_argv[0],cmd->name))
 				break;	//yes, I know we found it... (but it's the wrong case, go for an alias or cvar instead FIRST)
+
+			if (!level)
+				break;
 
 			if ((cmd->restriction?cmd->restriction:rcon_level.ival) > level)
 				Con_TPrintf("cmd '%s' was restricted.\n", cmd_argv[0]);
@@ -2186,15 +2193,20 @@ void	Cmd_ExecuteString (char *text, int level)
 				return;
 #endif
 
-			if ((a->restriction?a->restriction:rcon_level.ival) > level)
-			{
-				Con_TPrintf("alias '%s' was restricted.\n", cmd_argv[0]);
-				return;
-			}
-			if (a->execlevel)
-				execlevel = a->execlevel;
-			else
+			if (!level)
 				execlevel = level;
+			else
+			{
+				if ((a->restriction?a->restriction:rcon_level.ival) > level)
+				{
+					Con_TPrintf("alias '%s' was restricted.\n", cmd_argv[0]);
+					return;
+				}
+				if (a->execlevel)
+					execlevel = a->execlevel;
+				else
+					execlevel = level;
+			}
 
 			Cbuf_InsertText ("\n", execlevel, false);
 
@@ -2220,7 +2232,35 @@ void	Cmd_ExecuteString (char *text, int level)
 	if (Cvar_Command (level))
 		return;
 
-
+	if (!level)
+	{
+		char *tpcmds[] =
+		{
+			"if", "wait",						/*would be nice to include alias in here*/
+			"say", "say_team", "echo",			/*display stuff, because it would be useless otherwise*/
+			"set_tp", "set", "set_calc", "inc",	/*because scripting variables is fun. not.*/
+			"tp_point", "tp_pickup", "tp_took"	/*updates what the $took etc macros are allowed to generate*/
+		};
+		if (cmd)
+		{
+			for (level = 0; level < countof(tpcmds); level++)
+			{
+				if (!strcmp(cmd_argv[0], tpcmds[level]))
+				{
+					int olev = Cmd_ExecLevel;
+					Cmd_ExecLevel = 0;
+					if (!cmd->function)
+						Cmd_ForwardToServer ();
+					else
+						cmd->function();
+					Cmd_ExecLevel = olev;
+					return;
+				}
+			}
+		}
+		Con_TPrintf("'%s' is not permitted in combination with teamplay macros.\n", cmd_argv[0]);
+		return;
+	}
 
 	if (cmd)	//go for skipped ones
 	{
@@ -2843,7 +2883,7 @@ elseif:
 	}
 
 skipws:
-	while(*end <= ' ' && *end)	//skip leading whitespace.
+	while(*end == ' ' || *end == '\t')	//skip leading whitespace.
 		end++;
 
 	for (ws = end + strlen(end)-1; ws >= end && *ws <= ' '; ws--)	//skip trailing
@@ -2855,9 +2895,12 @@ skipws:
 		goto skipws;
 	}
 
+	while (*end == ' ' || *end == '\t')
+		end++;
+
 	if (!*end)
 	{
-		if (ret && *ret)	//equation was true.
+		if (is_true(ret))	//equation was true.
 		{
 			trueblock = true;
 			Cbuf_ExecBlock(level);
@@ -3028,7 +3071,7 @@ void Cmd_set_f(void)
 		forceflags = 0;
 	}
 
-	var = Cvar_Get (name, text, 0, "Custom variables");
+	var = Cvar_Get (name, text, CVAR_TEAMPLAYTAINT, "Custom variables");
 
 	mark = If_Token_GetMark();
 
@@ -3060,6 +3103,9 @@ void Cmd_set_f(void)
 				text = If_Token(text, &end, IF_PRI_MAX);
 			Cvar_Set(var, text);
 			var->flags |= CVAR_USERCREATED | forceflags;
+
+			if (Cmd_ExecLevel == RESTRICT_TEAMPLAY)
+				var->flags |= CVAR_TEAMPLAYTAINT;
 
 			if (!strncmp(Cmd_Argv(0), "seta", 4))
 				var->flags |= CVAR_ARCHIVE;
@@ -3114,7 +3160,13 @@ void Cvar_Inc_f (void)
 
 	delta = (c == 3) ? atof (Cmd_Argv(2)) : 1;
 
-	Cvar_SetValue (var, var->value + delta);
+	if (Cmd_ExecLevel == RESTRICT_TEAMPLAY || (var->flags & CVAR_TEAMPLAYTAINT))
+	{
+		Cvar_SetValue (var, var->value + delta);
+		var->flags |= CVAR_TEAMPLAYTAINT;
+	}
+	else
+		Cvar_SetValue (var, var->value + delta);
 }
 
 void Cmd_WriteConfig_f(void)

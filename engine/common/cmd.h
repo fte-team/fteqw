@@ -133,9 +133,10 @@ void	Cmd_ExecuteString (char *text, int restrictionlevel);
 void Cmd_Args_Set(const char *newargs);
 
 #define RESTRICT_MAX_TOTAL  31
-#define RESTRICT_MAX_USER	29	//1-64	it's all about bit size. This is max settable. servers are +1 or +2
-#define RESTRICT_DEFAULT	20	//rcon get's 63, local always gets 64
-#define RESTRICT_MIN		1	//rcon get's 63, local always gets 64
+#define RESTRICT_MAX_USER	29
+#define RESTRICT_DEFAULT	20
+#define RESTRICT_MIN		1
+#define RESTRICT_TEAMPLAY	0
 
 #define RESTRICT_MAX RESTRICT_MAX_USER
 
@@ -161,7 +162,7 @@ void Cmd_MessageTrigger (char *message, int type);
 
 void Cmd_ShiftArgs (int ammount, qboolean expandstring);
 
-char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel, qboolean expandcvars, qboolean expandmacros);
+char *Cmd_ExpandString (char *data, char *dest, int destlen, int *accesslevel, qboolean expandcvars, qboolean expandmacros);
 qboolean If_EvaluateBoolean(const char *text, int restriction);
 
 extern cvar_t rcon_level;

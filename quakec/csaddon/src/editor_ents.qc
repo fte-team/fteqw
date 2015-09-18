@@ -22,6 +22,8 @@ typedef struct
 
 static entedit_t *editents;
 static int numents;
+static int entsdirty;
+static float entsapplytime;
 
 struct
 {	//FIXME: should probably parse quakeed comments or something.
@@ -173,38 +175,43 @@ void(float num) editor_ents_delete =
 	}
 };
 
+void() updatemodelents =
+{
+	entsdirty = FALSE;
+	self = world;
+	terrain_edit(TEREDIT_ENTS_WIPE);
+	for (int e = 0; e < numents; e++)
+	{
+		local entedit_t *ent = &editents[e];
+		string n;
+		n = "{\n";
+		for (int i = 0; ; i++)
+		{
+			string key, value;
+			key = hash_getkey(ent->fields, i);
+			if not (key)
+				break;
+			value = ent->fields[key];
+			//inject markup into the value so that it doesn't get too corrupted
+			value = strreplace("\\", "\\\\", value);
+			value = strreplace("\"", "\\\"", value);
+			value = strreplace("\n", "\\n", value);
+			//these are more optional
+			value = strreplace("\t", "\\t", value);
+			value = strreplace("\r", "\\r", value);
+			n = strcat(n, key, " \"", value, "\"\n");
+		}
+		n = strcat(n, "}\n");
+		
+		terrain_edit(TEREDIT_ENTS_CONCAT, n);
+	}
+};
+
 float(float mode) editor_ents_poll =
 {
 	if (mode != MODE_ENTSEDIT)
 	{
-		int i, e;
-		self = world;
-		terrain_edit(TEREDIT_ENTS_WIPE);
-		for (e = 0; e < numents; e++)
-		{
-			local entedit_t *ent = &editents[e];
-			string n;
-			n = "{\n";
-			for (i = 0; ; i++)
-			{
-				string key, value;
-				key = hash_getkey(ent->fields, i);
-				if not (key)
-					break;
-				value = ent->fields[key];
-				//inject markup into the value so that it doesn't get too corrupted
-				value = strreplace("\\", "\\\\", value);
-				value = strreplace("\"", "\\\"", value);
-				value = strreplace("\n", "\\n", value);
-				//these are more optional
-				value = strreplace("\t", "\\t", value);
-				value = strreplace("\r", "\\r", value);
-				n = strcat(n, key, " \"", value, "\"\n");
-			}
-			n = strcat(n, "}\n");
-
-			terrain_edit(TEREDIT_ENTS_CONCAT, n);
-		}
+		updatemodelents();
 		localcmd("mod_terrain_save\n");	//saves a .ent if its a bsp, a .map if it has brushes, and a .hmp if otherwise. or something.
 		ca_checksave = __NULL__;
 		return TRUE;
@@ -214,6 +221,9 @@ float(float mode) editor_ents_poll =
 void() editor_ents_edited =
 {
 	ca_checksave = editor_ents_poll;
+
+	entsdirty = TRUE;
+	entsapplytime = cltime+2;
 }
 
 inline float(string model) modelindexforname =
@@ -433,6 +443,8 @@ float(float key, float unic, vector mousepos) editor_ents_key =
 		float bestfrac = 1;
 		int bestent = selectedent, e;
 		
+		//FIXME: we need some click+drag moving like the brush editor has
+		
 		if (mousepos_x < 128)
 		{
 			editfieldtype = editkey?2:1;
@@ -623,4 +635,7 @@ void(vector mousepos) editor_ents_overlay =
 		drawrawstring(pos, sprintf("%s: <UNDEFINED>", editkey==""?"<UNMNAMED>":editkey), '8 8 0', '0 0 1', 1);
 		pos_y += 8;
 	}
+	
+	if (entsdirty && cltime > entsapplytime)
+		updatemodelents();
 };

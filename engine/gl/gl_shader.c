@@ -4580,6 +4580,10 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 		*imagename = 0;
 	}
 
+	//for water texture replacements
+	while((h = strchr(imagename, '*')))
+		*h = '#';
+
 	loadflags &= shader->flags;
 
 	//skins can use an alternative path in certain cases, to work around dodgy models.

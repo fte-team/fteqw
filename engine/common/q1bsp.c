@@ -80,8 +80,13 @@ enum
 	rht_empty,
 	rht_impact
 };
-vec3_t rht_start, rht_end;
-static int Q1BSP_RecursiveHullTrace (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
+struct rhtctx_s
+{
+	vec3_t start, end;
+	mclipnode_t	*clipnodes;
+	mplane_t	*planes;
+};
+static int Q1BSP_RecursiveHullTrace (struct rhtctx_s *ctx, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
 {
 	mclipnode_t	*node;
 	mplane_t	*plane;
@@ -116,8 +121,8 @@ reenter:
 	/*its a node*/
 
 	/*get the node info*/
-	node = hull->clipnodes + num;
-	plane = hull->planes + node->planenum;
+	node = ctx->clipnodes + num;
+	plane = ctx->planes + node->planenum;
 
 	if (plane->type < 3)
 	{
@@ -146,13 +151,13 @@ reenter:
 
 	if (plane->type < 3)
 	{
-		t1 = rht_start[plane->type] - plane->dist;
-		t2 = rht_end[plane->type] - plane->dist;
+		t1 = ctx->start[plane->type] - plane->dist;
+		t2 = ctx->end[plane->type] - plane->dist;
 	}
 	else
 	{
-		t1 = DotProduct (plane->normal, rht_start) - plane->dist;
-		t2 = DotProduct (plane->normal, rht_end) - plane->dist;
+		t1 = DotProduct (plane->normal, ctx->start) - plane->dist;
+		t2 = DotProduct (plane->normal, ctx->end) - plane->dist;
 	}
 
 	side = t1 < 0;
@@ -160,12 +165,12 @@ reenter:
 	midf = t1 / (t1 - t2);
 	if (midf < p1f) midf = p1f;
 	if (midf > p2f) midf = p2f;
-	VectorInterpolate(rht_start, midf, rht_end, mid);
+	VectorInterpolate(ctx->start, midf, ctx->end, mid);
 
-	rht = Q1BSP_RecursiveHullTrace(hull, node->children[side], p1f, midf, p1, mid, trace);
+	rht = Q1BSP_RecursiveHullTrace(ctx, node->children[side], p1f, midf, p1, mid, trace);
 	if (rht != rht_empty)
 		return rht;
-	rht = Q1BSP_RecursiveHullTrace(hull, node->children[side^1], midf, p2f, mid, p2, trace);
+	rht = Q1BSP_RecursiveHullTrace(ctx, node->children[side^1], midf, p2f, mid, p2, trace);
 	if (rht != rht_solid)
 		return rht;
 
@@ -184,14 +189,14 @@ reenter:
 		midf = (t1 - DIST_EPSILON) / (t1 - t2);
 	}
 
-	t1 = DotProduct (trace->plane.normal, rht_start) - trace->plane.dist;
-	t2 = DotProduct (trace->plane.normal, rht_end) - trace->plane.dist;
+	t1 = DotProduct (trace->plane.normal, ctx->start) - trace->plane.dist;
+	t2 = DotProduct (trace->plane.normal, ctx->end) - trace->plane.dist;
 	midf = (t1 - DIST_EPSILON) / (t1 - t2);
 
-
+	midf = bound(0, midf, 1);
 	trace->fraction = midf;
 	VectorCopy (mid, trace->endpos);
-	VectorInterpolate(rht_start, midf, rht_end, trace->endpos);
+	VectorInterpolate(ctx->start, midf, ctx->end, trace->endpos);
 
 	return rht_impact;
 }
@@ -219,9 +224,12 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 	}
 	else
 	{
-		VectorCopy(p1, rht_start);
-		VectorCopy(p2, rht_end);
-		return Q1BSP_RecursiveHullTrace(hull, num, p1f, p2f, p1, p2, trace) != rht_impact;
+		struct rhtctx_s ctx;
+		VectorCopy(p1, ctx.start);
+		VectorCopy(p2, ctx.end);
+		ctx.clipnodes = hull->clipnodes;
+		ctx.planes = hull->planes;
+		return Q1BSP_RecursiveHullTrace(&ctx, num, p1f, p2f, p1, p2, trace) != rht_impact;
 	}
 }
 
@@ -832,6 +840,7 @@ hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, vec3_t mins, vec3_t m
 		hull = &model->hulls[forcehullnum-1];
 	else
 	{
+#ifdef HEXEN2
 		if (model->hulls[5].available)
 		{	//choose based on hexen2 sizes.
 
@@ -847,6 +856,7 @@ hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, vec3_t mins, vec3_t m
 				hull = &model->hulls[5];
 		}
 		else
+#endif
 		{
 			if (size[0] < 3 || !model->hulls[1].available)
 				hull = &model->hulls[0];
@@ -931,8 +941,12 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 
 	hull = Q1BSP_ChooseHull(model, forcehullnum, mins, maxs, offset);
 
-//	offset[0] = 0;
-//	offset[1] = 0;
+//fix for hexen2 monsters half-walking into walls.
+//	if (forent.flags & FL_MONSTER)
+//	{
+//		offset[0] = 0;
+//		offset[1] = 0;
+//	}
 
 	if (axis)
 	{

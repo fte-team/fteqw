@@ -270,6 +270,7 @@ typedef struct
 {
 	unsigned int	contents;
 	unsigned int	id;			//networked/gamecode id.
+	unsigned int	axialplanes;	//+x,+y,+z,-x,-y,-z. used for bevel stuff.
 	unsigned int	numplanes;
 	qboolean		selected;	//different shader stuff
 	vec4_t			*planes;
@@ -362,6 +363,7 @@ typedef struct heightmap_s
 
 	
 	char *texmask;	//for editing - visually masks off the areas which CANNOT accept this texture
+	qboolean entsdirty;	//ents were edited, so we need to reload all lighting...
 	struct relight_ctx_s *relightcontext;
 	struct llightinfo_s *lightthreadmem;
 	qboolean inheritedlightthreadmem;
@@ -3511,7 +3513,7 @@ typedef struct {
 #endif
 } hmtrace_t;
 
-static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
+static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes, brushes_t *brushinfo)
 {
 	qboolean startout;
 	float *enterplane;
@@ -3588,6 +3590,91 @@ static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 			if (exitfrac > f)
 			{
 				exitfrac = f;
+			}
+		}
+	}
+
+	//non-point traces need to clip against the brush's edges
+	if (brushinfo && tr->shape != ispoint && brushinfo->axialplanes != 0x3f)
+	{
+		static vec3_t axis[] = {{1,0,0},{0,1,0},{0,0,1},{-1,0,0},{0,-1,0},{0,0,-1}};
+		for (i = 0; i < 6; i++)
+		{
+//			if (brushinfo->axialplanes & (1u<<i))
+//				continue;	//should have already checked this plane.
+			if (i >= 3)
+			{
+				/*calculate the distance based upon the shape of the object we're tracing for*/
+				switch(tr->shape)
+				{
+				default:
+				case isbox:
+					dist = -tr->maxs[i-3];
+					dist = -brushinfo->mins[i-3] - dist;
+					break;
+				case iscapsule:
+					dist = -tr->up[i-3];
+					dist = dist*(tr->capsulesize[(dist<0)?1:2]) - tr->capsulesize[0];
+					dist = -brushinfo->mins[i-3] - dist;
+					break;
+				case ispoint:
+					dist = -brushinfo->mins[i-3];
+					break;
+				}
+				d1 = -tr->start[i-3] - dist;
+				d2 = -tr->end[i-3] - dist;
+			}
+			else
+			{
+				switch(tr->shape)
+				{
+				default:
+				case isbox:
+					dist = brushinfo->maxs[i] - tr->mins[i];
+					break;
+				case iscapsule:
+					dist = tr->up[i];
+					dist = dist*(tr->capsulesize[(dist<0)?1:2]) - tr->capsulesize[0];
+					dist = brushinfo->maxs[i] - dist;
+					break;
+				case ispoint:
+					dist = brushinfo->maxs[i];
+					break;
+				}
+				d1 = (tr->start[i]) - dist;
+				d2 = (tr->end[i]) - dist;
+			}
+
+			//if we're fully outside any plane, then we cannot possibly enter the brush, skip to the next one
+			if (d1 > 0 && d2 >= d1)
+				return false;
+
+			if (d1 > 0)
+				startout = true;
+
+			//if we're fully inside the plane, then whatever is happening is not relevent for this plane
+			if (d1 <= 0 && d2 <= 0)
+				continue;
+
+			f = (d1) / (d1-d2);
+			if (d1 > d2)
+			{
+				//entered the brush. favour the furthest fraction to avoid extended edges (yay for convex shapes)
+				if (enterfrac < f)
+				{
+					enterfrac = f;
+					nearfrac = (d1 - (0.03125)) / (d1-d2);
+					enterplane = axis[i];
+					enterdist = dist;
+				}
+			}
+			else
+			{
+				//left the brush, favour the nearest plane (smallest frac)
+				if (exitfrac > f)
+				{
+					exitfrac = f;
+				}
 			}
 		}
 	}
@@ -3752,7 +3839,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 			Vector4Set(n[1], -1, 0, 0, -(tx/(SECTHEIGHTSIZE-1) + 0 - CHUNKBIAS)*tr->hm->sectionsize);
 			Vector4Set(n[2], 0,  1, 0, (ty/(SECTHEIGHTSIZE-1) + 1 - CHUNKBIAS)*tr->hm->sectionsize);
 			Vector4Set(n[3], 0, -1, 0, -(ty/(SECTHEIGHTSIZE-1) + 0 - CHUNKBIAS)*tr->hm->sectionsize);
-			Heightmap_Trace_Brush(tr, n, 4);
+			Heightmap_Trace_Brush(tr, n, 4, NULL);
 		}
 		return;
 	}
@@ -3813,7 +3900,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 				n[3][3] = DotProduct(n[3], s->ents[i]->ent.origin) + -model->mins[1];
 				n[4][3] = DotProduct(n[4], s->ents[i]->ent.origin) + model->maxs[2];
 				n[5][3] = DotProduct(n[5], s->ents[i]->ent.origin) + -model->mins[2];
-				Heightmap_Trace_Brush(tr, n, 6);
+				Heightmap_Trace_Brush(tr, n, 6, NULL);
 			}
 			else
 			{
@@ -3858,7 +3945,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 		//top
 		Vector4Set(n[4], 0, 0, 1, s->heights[(tx+0)+(ty+0)*SECTHEIGHTSIZE]);
 
-		Heightmap_Trace_Brush(tr, n, 5);
+		Heightmap_Trace_Brush(tr, n, 5, NULL);
 		return;
 	case HMM_TERRAIN:
 		VectorSet(p[0], tr->htilesize*(sx+0), tr->htilesize*(sy+0), s->heights[(tx+0)+(ty+0)*SECTHEIGHTSIZE]);
@@ -3895,7 +3982,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 
 				n[5][3] = max(p[0][2], p[2][2]);
 				n[5][3] = max(n[5][3], p[3][2]);
-				Heightmap_Trace_Brush(tr, n, 6);
+				Heightmap_Trace_Brush(tr, n, 6, NULL);
 			}
 
 			{
@@ -3921,7 +4008,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 
 				n[5][3] = max(p[0][2], p[1][2]);
 				n[5][3] = max(n[5][3], p[3][2]);
-				Heightmap_Trace_Brush(tr, n, 6);
+				Heightmap_Trace_Brush(tr, n, 6, NULL);
 			}
 		}
 		else
@@ -3950,7 +4037,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 
 				n[5][3] = max(p[0][2], p[1][2]);
 				n[5][3] = max(n[5][3], p[2][2]);
-				Heightmap_Trace_Brush(tr, n, 6);
+				Heightmap_Trace_Brush(tr, n, 6, NULL);
 			}
 			{
 				VectorSubtract(p[3], p[2], d[0]);
@@ -3975,7 +4062,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 
 				n[5][3] = max(p[1][2], p[2][2]);
 				n[5][3] = max(n[5][3], p[3][2]);
-				Heightmap_Trace_Brush(tr, n, 6);
+				Heightmap_Trace_Brush(tr, n, 6, NULL);
 			}
 		}
 		break;
@@ -4168,7 +4255,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 					hmtrace.absmins[1] > brushes->maxs[1] ||
 					hmtrace.absmins[2] > brushes->maxs[2])
 					continue;
-				face = Heightmap_Trace_Brush(&hmtrace, brushes->planes, brushes->numplanes);
+				face = Heightmap_Trace_Brush(&hmtrace, brushes->planes, brushes->numplanes, brushes);
 				if (face)
 				{
 					trace->brush_id = brushes->id;
@@ -4829,6 +4916,11 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			mod->entities[oldlen + newlen] = 0;
 			Z_Free(olds);
 			G_FLOAT(OFS_RETURN) = oldlen + newlen;
+			if (mod->terrain)
+			{
+				hm = mod->terrain;
+				hm->entsdirty = true;
+			}
 		}
 		return;
 	case ter_ents_get:
@@ -5258,11 +5350,18 @@ static size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *p
 	size_t numverts;
 
 	//generate some huge quad/poly aligned with the plane
-	vec3_t tmp = {0.1,0.04,0.96};
+	vec3_t tmp;
 	vec3_t right, forward;
+	double t;
 	
 //	if (face[2] != 1)
 //		return 0;
+
+	t = fabs(face[2]);
+	if (t > fabs(face[0]) && t > fabs(face[1]))
+		VectorSet(tmp, 1, 0, 0);
+	else
+		VectorSet(tmp, 0, 0, 1);
 
 	CrossProduct(face, tmp, right);
 	VectorNormalize(right);
@@ -5318,11 +5417,13 @@ static size_t Terr_GenerateBrushFace(vecV_t *points, size_t maxpoints, vec4_t *p
 	{
 		for (a = 0; a < 3; a++)
 		{
-			//if its within 1/1000th of a qu, just call it okay.
-			if ((int)points[p][a] * 1000 == (int)(points[p][a]*1000))
-				points[p][a] = floor(cverts[p][a] + 0.5);
+			float f = cverts[p][a];
+			int rounded = floor(f + 0.5);
+			//if its within 1/1000th of a qu, just round it.
+			if (fabs(f - rounded) < 0.001)
+				points[p][a] = rounded;
 			else
-				points[p][a] = cverts[p][a];
+				points[p][a] = f;
 		}
 	}
 
@@ -5361,6 +5462,21 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 	//if we're enabling lightmaps, make sure all surfaces have known sizes first.
 	//allocate lightmap space for all surfaces, and then rebuild all textures.
 	//if a surface is modified, clear its lightmap to -1 and when its batches are rebuilt, it'll unlight naturally.
+
+	if (hm->entsdirty)
+	{
+		model_t *mod = e->model;
+		if (mod->submodelof)
+			mod = mod->submodelof;
+		hm->entsdirty = false;
+		LightReloadEntities(hm->relightcontext, mod->entities, true);
+
+		//FIXME: figure out some way to hint this without having to relight the entire frigging world.
+		for (bt = hm->brushtextures; bt; bt = bt->next)
+			for (i = 0, br = hm->wbrushes; i < hm->numbrushes; i++, br++)
+				for (j = 0; j < br->numplanes; j++)
+					br->faces[j].relight = true;
+	}
 
 	if (hm->recalculatebrushlighting && !r_fullbright.ival)
 	{
@@ -5782,6 +5898,7 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 	out = &hm->wbrushes[hm->numbrushes];
 	out->selected = false;
 	out->contents = brush->contents;
+	out->axialplanes = 0;
 
 	out->planes = BZ_Malloc((sizeof(*out->planes)+sizeof(*out->faces)) * brush->numplanes);
 	out->faces = (void*)(out->planes+brush->numplanes);
@@ -5815,6 +5932,19 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 		out->faces[oface].tex = brush->faces[iface].tex;
 		Vector4Copy(brush->faces[iface].stdir[0], out->faces[oface].stdir[0]);
 		Vector4Copy(brush->faces[iface].stdir[1], out->faces[oface].stdir[1]);
+
+		if (out->planes[oface][0] == 1)
+			out->axialplanes |= 1u<<0;
+		else if (out->planes[oface][1] == 1)
+			out->axialplanes |= 1u<<1;
+		else if (out->planes[oface][2] == 1)
+			out->axialplanes |= 1u<<2;
+		else if (out->planes[oface][0] == -1)
+			out->axialplanes |= 1u<<3;
+		else if (out->planes[oface][1] == -1)
+			out->axialplanes |= 1u<<4;
+		else if (out->planes[oface][2] == -1)
+			out->axialplanes |= 1u<<5;
 
 		//make sure this stuff is rebuilt properly.
 		out->faces[oface].tex->rebuild = true;
@@ -6675,6 +6805,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	model_t *submod = NULL;
 
 #ifdef RUNTIMELIGHTING
+	hm->entsdirty = true;
 	hm->relightcontext = LightStartup(NULL, mod, false);
 	hm->lightthreadmem = BZ_Malloc(lightthreadctxsize);
 	hm->inheritedlightthreadmem = false;
@@ -6791,6 +6922,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 		{
 			//parse a plane
 			//Quake: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname 0 -32 rotation sscale tscale
+			//hexen2: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname 0 -32 rotation sscale tscale utterlypointless
 			//Valve: ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) texname [x y z d] [x y z d] rotation sscale tscale
 			//fte  : ( px py pz pd ) texname [sx sy sz sd] [tx ty tz td] 0 1 1
 			brushtex_t *bt;
@@ -6900,6 +7032,13 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			entities = COM_ParseOut(entities, token, sizeof(token));
 			scale[1] = atof(token);
 
+			//hexen2 has some extra junk that is useless - some 'light' value, but its never used and should normally be -1.
+			while (*entities == ' ' || *entities == '\t')
+				entities++;
+			if (*entities == '-' || (*entities >= '0' && *entities <= '9'))
+				entities = COM_ParseOut(entities, token, sizeof(token));
+
+			//okay, that's all the actual parsing, now try to make sense of this plane.
 			if (p == 4)
 			{	//parsed an actual plane
 				VectorCopy(points[0], planes[numplanes]);
@@ -7073,7 +7212,10 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 
 #ifdef RUNTIMELIGHTING
 	if (hm->relightcontext)
-		LightReloadEntities(hm->relightcontext, mod->entities);
+	{
+		LightReloadEntities(hm->relightcontext, mod->entities, true);
+		hm->entsdirty = false;
+	}
 #endif
 
 	return true;

@@ -463,11 +463,15 @@ typedef struct {
 	char *ext[64];
 	int numext;
 
+	int dragscroll;
+	int mousedownpos;
+
 	demoitem_t *items;
 } demomenu_t;
 
 static void M_DemoDraw(int x, int y, menucustom_t *control, menu_t *menu)
 {
+	extern qboolean	keydown[K_MAX];
 	char *text;
 	demomenu_t *info = menu->data;
 	demoitem_t *item, *lostit;
@@ -499,20 +503,50 @@ static void M_DemoDraw(int x, int y, menucustom_t *control, menu_t *menu)
 	if (!item)
 		info->firstitem = info->items;
 
+	if (!info->dragscroll && keydown[K_MOUSE1])
+	{
+		info->dragscroll = 1;
+		info->mousedownpos = mousecursor_y;
+	}
+	if (info->dragscroll && keydown[K_MOUSE1])
+	{
+		if (info->mousedownpos >= mousecursor_y+8)
+		{
+			info->dragscroll = 2;
+			info->mousedownpos -= 8;
+			if (info->firstitem->next)
+			{
+				if (info->firstitem == info->selected)
+					info->selected = info->firstitem->next;
+				info->firstitem = info->firstitem->next;
+			}
+		}
+		if (info->mousedownpos+8 <= mousecursor_y)
+		{
+			info->dragscroll = 2;
+			info->mousedownpos += 8;
+			if (info->firstitem->prev)
+			{
+				if (ty <= 24)
+					info->selected = info->selected->prev;
+				info->firstitem = info->firstitem->prev;
+			}
+		}
+	}
 
 	item = info->firstitem;
 	while(item)
 	{
-		if (y+8 >= vid.height)
+		if (y >= vid.height)
 			return;
 		if (!item->isdir)
 			text = va("%-32.32s%6iKB", item->name+info->pathlen, item->size/1024);
 		else
 			text = item->name+info->pathlen;
 		if (item == info->selected)
-			Draw_AltFunString(x, y+8, text);
+			Draw_AltFunString(x, y, text);
 		else
-			Draw_FunString(x, y+8, text);
+			Draw_FunString(x, y, text);
 		y+=8;
 		item = item->next;
 	}
@@ -521,6 +555,7 @@ static void ShowDemoMenu (menu_t *menu, const char *path);
 static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned int unicode)
 {
 	demomenu_t *info = menu->data;
+	demoitem_t *it;
 	int i;
 
 	switch (key)
@@ -557,6 +592,26 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned
 				info->selected = info->selected->next;
 		}
 		break;
+	case K_MOUSE1:
+		if (info->dragscroll == 2)
+		{
+			info->dragscroll = 0;
+			break;
+		}
+		it = info->firstitem;
+		i = (mousecursor_y - control->common.posy) / 8;
+		while(i > 0 && it && it->next)
+		{
+			it = it->next;
+			i--;
+		}
+		if (info->selected != it)
+		{
+			info->selected = it;
+			info->dragscroll = 0;
+			break;
+		}
+		//fallthrough
 	case K_ENTER:
 	case K_KP_ENTER:
 		if (info->selected)
@@ -573,6 +628,9 @@ static qboolean M_DemoKey(menucustom_t *control, menu_t *menu, int key, unsigned
 
 				if (extnum == info->numext)	//wasn't on our list of extensions.
 					extnum = 0;
+
+				if (!info->command[extnum])
+					return true;	//FIXME: archives
 
 				Cbuf_AddText(va("%s \"%s%s\"\n", info->command[extnum], (info->fs->fsroot==FS_SYSTEM)?"#":"", info->selected->name), RESTRICT_LOCAL);
 				if (!shift_down)

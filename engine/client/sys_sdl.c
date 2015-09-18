@@ -73,22 +73,18 @@ void Sys_Printf (char *fmt, ...)
 unsigned int Sys_Milliseconds(void)
 {
 	static int first = true;
-	static unsigned long oldtime = 0, curtime = 0;
-	unsigned long newtime;
+	static unsigned long starttime = 0;
+	unsigned long now;
 
-	newtime = SDL_GetTicks();
+	now = SDL_GetTicks();
 
 	if (first)
 	{
 		first = false;
-		oldtime = newtime;
+		starttime = now;
 	}
-	if (newtime < oldtime)
-		Con_Printf("Sys_Milliseconds stepped backwards!\n");
-	else
-		curtime += newtime - oldtime;
-	oldtime = newtime;
-	return curtime;
+
+	return now - starttime;
 }
 
 //return the current time, in the form of a double

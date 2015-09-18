@@ -3285,6 +3285,9 @@ static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 	if (!mod->textures)
 		return;
 
+	if (mod->firstmodelsurface + mod->nummodelsurfaces > mod->numsurfaces)
+		Sys_Error("submodel %s surface range is out of bounds\n", mod->name);
+
 	if (bd)
 		meshlist = NULL;
 	else
@@ -4801,7 +4804,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 	if (lightmodel == mod)
 	{
 		lightcontext = LightStartup(NULL, lightmodel, true);
-		LightReloadEntities(lightcontext, lightmodel->entities);
+		LightReloadEntities(lightcontext, lightmodel->entities, false);
 	}
 #endif
 TRACE(("LoadBrushModel %i\n", __LINE__));

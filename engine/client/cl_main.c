@@ -4748,7 +4748,7 @@ double Host_Frame (double time)
 	realtime = newrealtime;
 
 	if (oldrealtime > realtime)
-		oldrealtime = 0;
+		oldrealtime = realtime;
 
 	if (cl.gamespeed<0.1)
 		cl.gamespeed = 1;
@@ -4831,7 +4831,10 @@ double Host_Frame (double time)
 
 #ifndef CLIENTONLY
 	if (sv.state && cls.state != ca_active)
+	{
+		maxfpsignoreserver = false;
 		maxfps = 0;
+	}
 	else
 #endif
 		if ((cl_netfps.value>0 || cls.demoplayback || cl_threadedphysics.ival))

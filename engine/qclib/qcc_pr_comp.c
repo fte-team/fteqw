@@ -173,6 +173,7 @@ QCC_sref_t	QCC_PR_GenerateFunctionCall (QCC_sref_t newself, QCC_sref_t func, QCC
 void		QCC_Marshal_Locals(int firststatement, int laststatement);
 QCC_sref_t	QCC_PR_ParseArrayPointer (QCC_sref_t d, pbool allowarrayassign, pbool makestructpointers);
 QCC_sref_t	QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, pbool preserve);
+void		 QCC_PR_ParseInitializerDef(QCC_def_t *def);
 
 QCC_ref_t *QCC_DefToRef(QCC_ref_t *ref, QCC_sref_t def);	//ref is a buffer to write into, to avoid excessive allocs
 QCC_sref_t	QCC_RefToDef(QCC_ref_t *ref, pbool freetemps);
@@ -8905,6 +8906,8 @@ void QCC_PR_ParseStatement (void)
 	{
 		int old_numstatements;
 		int numtemp, i;
+		QCC_def_t *subscopestop;
+		QCC_def_t *subscopestart = pr.local_tail;
 
 		QCC_statement_t		temp[256];
 
@@ -8914,9 +8917,23 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_Expect("(");
 		if (!QCC_PR_CheckToken(";"))
 		{
-			QCC_PR_DiscardExpression(TOP_PRIORITY, 0);
+			do
+			{
+				QCC_type_t *type = QCC_PR_ParseType (false, true);
+				if (type)
+				{
+					d = QCC_PR_GetDef (type, QCC_PR_ParseName(), pr_scope, true, 0, 0);
+					QCC_PR_Expect("=");
+					QCC_PR_ParseInitializerDef(d);
+					QCC_FreeDef(d);
+					QCC_FreeDef(d);
+				}
+				else
+					QCC_PR_DiscardExpression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+			} while(QCC_PR_CheckToken(","));
 			QCC_PR_Expect(";");
 		}
+		subscopestop = pr_subscopedlocals?NULL:pr.local_tail->nextlocal;
 
 		QCC_ClobberDef(NULL);
 
@@ -8989,6 +9006,18 @@ void QCC_PR_ParseStatement (void)
 				statements[pr_continues[i]].a.ofs = patch3 - patch1;
 			}
 			num_continues = continues;
+		}
+
+
+		//remove any new locals from the hashtable.
+		//typically this is just the stuff inside the for(here;;)
+		for (d = subscopestart->nextlocal; d != subscopestop; d = d->nextlocal)
+		{
+			if (!d->subscoped_away)
+			{
+				pHash_RemoveData(&localstable, d->name, d);
+				d->subscoped_away = true;
+			}
 		}
 
 		return;

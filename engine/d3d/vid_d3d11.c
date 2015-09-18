@@ -703,7 +703,7 @@ static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
 	scd.Format = info->srgb?DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:DXGI_FORMAT_B8G8R8A8_UNORM;
 	scd.Stereo = info->stereo;
 	scd.SampleDesc.Count = d3d11multisample_count = max(1,info->multisample);
-	scd.SampleDesc.Quality = d3d11multisample_quality = (d3d11multisample_count>1)?D3D11_STANDARD_MULTISAMPLE_PATTERN:0;
+	scd.SampleDesc.Quality = d3d11multisample_quality = (d3d11multisample_count>1)?~0:0;
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	scd.BufferCount = 2+info->triplebuffer;	//rt only supports fullscreen, so the frontbuffer needs to be created by us.
 	scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
@@ -782,7 +782,7 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	scd.OutputWindow = hWnd;
 	scd.SampleDesc.Count = d3d11multisample_count = max(1, info->multisample);	//as we're starting up windowed (and switching to fullscreen after), the frontbuffer is handled by windows.
-	scd.SampleDesc.Quality = d3d11multisample_quality = (d3d11multisample_count>1)?D3D11_STANDARD_MULTISAMPLE_PATTERN:0;
+	scd.SampleDesc.Quality = d3d11multisample_quality = 0;
 	scd.Windowed = TRUE;
 	scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;// | DXGI_SWAP_CHAIN_FLAG_NONPREROTATED;
 

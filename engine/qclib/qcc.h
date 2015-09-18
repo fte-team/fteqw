@@ -900,7 +900,7 @@ void QCC_PR_NewLine (pbool incomment);
 #define GDF_STATIC	2
 #define GDF_CONST	4
 #define GDF_STRIP	8	//always stripped, regardless of optimisations. used for class member fields
-#define GDF_SILENT	16	//used by the gui, to suppress ALL warnings.
+#define GDF_SILENT	16	//used by the gui, to suppress ALL warnings associated with querying the def.
 #define GDF_INLINE	32	//attempt to inline calls to this function
 #define GDF_USED	64	//don't strip this, ever.
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);

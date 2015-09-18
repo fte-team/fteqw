@@ -812,6 +812,8 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	var->value = Q_atof (var->string);
 	var->ival = Q_atoi (var->string);
 
+	var->flags &= ~CVAR_TEAMPLAYTAINT;
+
 	{
 		char *str = COM_Parse(var->string);
 		var->vec4[0] = atof(com_token);
@@ -1016,9 +1018,9 @@ void Cvar_SetValue (cvar_t *var, float value)
 {
 	char	val[32];
 
-	if (value == (int)value)
-		sprintf (val, "%i",(int)value);	//make it look nicer.
-	else
+//	if (value == (int)value)
+//		sprintf (val, "%i",(int)value);	//make it look nicer.
+//	else
 		sprintf (val, "%g",value);
 	Cvar_Set (var, val);
 }
@@ -1238,7 +1240,7 @@ qboolean	Cvar_Command (int level)
 	if (!v)
 		return false;
 
-	if ((v->restriction?v->restriction:rcon_level.ival) > level)
+	if (!level || (v->restriction?v->restriction:rcon_level.ival) > level)
 	{
 		Con_Printf ("You do not have the priveledges for %s\n", v->name);
 		return true;

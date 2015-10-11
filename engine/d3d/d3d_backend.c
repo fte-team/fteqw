@@ -2752,8 +2752,8 @@ static void BE_UploadLightmaps(qboolean force)
 		{
 			lm->rectchange.l = 0;
 			lm->rectchange.t = 0;
-			lm->rectchange.w = lm->width;
-			lm->rectchange.h = lm->height;
+			lm->rectchange.r = lm->width;
+			lm->rectchange.b = lm->height;
 		}
 
 		if (lightmap[i]->modified)
@@ -2764,6 +2764,7 @@ static void BE_UploadLightmaps(qboolean force)
 			RECT rect;
 			glRect_t *theRect = &lm->rectchange;
 			int r;
+			int w;
 
 			if (!TEXLOADED(lm->lightmap_texture))
 				lm->lightmap_texture = Image_CreateTexture("***lightmap***", NULL, (gl_lightmap_nearest.ival?IF_NEAREST:IF_LINEAR)|IF_NOMIPMAP);
@@ -2779,20 +2780,20 @@ static void BE_UploadLightmaps(qboolean force)
 			
 			lm->modified = 0;
 			rect.left = theRect->l;
-			rect.right = theRect->l + theRect->w;
+			rect.right = theRect->r;
 			rect.top = theRect->t;
-			rect.bottom = theRect->t + theRect->h;
+			rect.bottom = theRect->b;
 
 			IDirect3DTexture9_LockRect(tex, 0, &lock, &rect, 0);
-			for (r = 0; r < lightmap[i]->rectchange.h; r++)
+			for (r = 0, w = theRect->r-theRect->l; r < lightmap[i]->rectchange.b-lightmap[i]->rectchange.t; r++)
 			{
-				memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*lm->width))*lightmap_bytes, lightmap[i]->rectchange.w*lightmap_bytes);
+				memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*lm->width))*lightmap_bytes, w*lightmap_bytes);
 			}
 			IDirect3DTexture9_UnlockRect(tex, 0);
 			theRect->l = lm->width;
 			theRect->t = lm->height;
-			theRect->h = 0;
-			theRect->w = 0;
+			theRect->r = 0;
+			theRect->b = 0;
 		}
 	}
 }

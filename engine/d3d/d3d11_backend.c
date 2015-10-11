@@ -2667,8 +2667,8 @@ static void BE_UploadLightmaps(qboolean force)
 		{
 			lightmap[i]->rectchange.l = 0;
 			lightmap[i]->rectchange.t = 0;
-			lightmap[i]->rectchange.w = lightmap[i]->width;
-			lightmap[i]->rectchange.h = lightmap[i]->height;
+			lightmap[i]->rectchange.r = lightmap[i]->width;
+			lightmap[i]->rectchange.b = lightmap[i]->height;
 			lightmap[i]->modified = true;
 		}
 

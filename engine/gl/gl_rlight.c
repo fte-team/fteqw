@@ -418,7 +418,11 @@ void R_RenderDlights (void)
 				method = r_coronas_occlusion.ival;
 			if (method == 3 && qrenderer != QR_OPENGL)
 				method = 1;
-			if (method == 4 && (qrenderer != QR_OPENGL || !qglGenQueriesARB))
+			if (method == 4
+#ifdef GLQUAKE
+				&& (qrenderer != QR_OPENGL || !qglGenQueriesARB)
+#endif
+				)
 				method = 1;
 
 			switch(method)

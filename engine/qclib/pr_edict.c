@@ -1651,6 +1651,14 @@ char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buf, int *bufo
 #undef AddS
 }
 
+//just a simple helper that makes sure the s_name+s_file values are actually valid. some qccs generate really dodgy values intended to crash decompilers, but also crash debuggers too.
+static char *PR_StaticString(progfuncs_t *progfuncs, string_t thestring)
+{
+	if (thestring <= 0 || thestring >= progfuncs->funcs.stringtablesize)
+		return "???";
+	return thestring + progfuncs->funcs.stringtable;
+}
+
 char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax)
 {
 #define AddS(str) PR_Cat(buf, str, bufofs, bufmax)
@@ -1691,9 +1699,9 @@ char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufm
 				AddS (buffer);
 			}
 			if (!f->s_file)
-				sprintf(buffer, "\t\"%i:%s\"\n", progs, f->s_name+progfuncs->funcs.stringtable);
+				sprintf(buffer, "\t\"%i:%s\"\n", progs, PR_StaticString(progfuncs, f->s_name));
 			else
-				sprintf(buffer, "\t\"%i:%s\" //%s\n", progs, f->s_name+progfuncs->funcs.stringtable, f->s_file+progfuncs->funcs.stringtable);
+				sprintf(buffer, "\t\"%i:%s\" //%s\n", progs, PR_StaticString(progfuncs, f->s_name), PR_StaticString(progfuncs, f->s_file));
 			AddS (buffer);
 
 			AddS ("\t{\n");
@@ -1707,10 +1715,10 @@ char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufm
 				{
 					if (local->type == ev_entity)
 					{
-						sprintf(buffer, "\t\t\"%s\" \"entity %i\"\n", local->s_name+progfuncs->funcs.stringtable, ((eval_t*)(globalbase - f->locals+arg))->edict);
+						sprintf(buffer, "\t\t\"%s\" \"entity %i\"\n", PR_StaticString(progfuncs, local->s_name), ((eval_t*)(globalbase - f->locals+arg))->edict);
 					}
 					else
-						sprintf(buffer, "\t\t\"%s\"\t\"%s\"\n", local->s_name+progfuncs->funcs.stringtable, PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg), false));
+						sprintf(buffer, "\t\t\"%s\"\t\"%s\"\n", PR_StaticString(progfuncs, local->s_name), PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase - f->locals+arg), false));
 
 					if (local->type == ev_vector)
 						arg+=2;

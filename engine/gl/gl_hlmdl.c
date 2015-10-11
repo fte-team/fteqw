@@ -82,42 +82,16 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	hlmdl_tex_t	*tex;
 	hlmdl_bone_t	*bones;
 	hlmdl_bonecontroller_t	*bonectls;
-	shader_t **shaders;
+	struct hlmodelshaders_s *shaders;
 	void *texmem = NULL;
     /*~~*/
 
 
-	//checksum the model
-
-	if (mod->engineflags & MDLF_DOCRC)
-	{
-		unsigned short crc;
-		qbyte *p;
-		int len;
-		char st[40];
-
-		QCRC_Init(&crc);
-		for (len = com_filesize, p = buffer; len; len--, p++)
-			QCRC_ProcessByte(&crc, *p);
-
-		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo[0],
-			(mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-			st, sizeof(cls.userinfo[0]));
-
-		if (cls.state >= ca_connected)
-		{
-			CL_SendClientCommand(true, "setinfo %s %d",
-				(mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-				(int)crc);
-		}
-	}
-
 	//load the model into hunk
 	model = ZG_Malloc(&mod->memgroup, sizeof(hlmodelcache_t));
 
-	header = ZG_Malloc(&mod->memgroup, com_filesize);
-	memcpy(header, buffer, com_filesize);
+	header = ZG_Malloc(&mod->memgroup, fsize);
+	memcpy(header, buffer, fsize);
 
 #if defined(HLSERVER) && (defined(__powerpc__) || defined(__ppc__))
 //this is to let bigfoot know when he comes to port it all... And I'm lazy.
@@ -148,10 +122,12 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	texheader = NULL;
 	if (!header->numtextures)
 	{
+		size_t fz;
 		char texmodelname[MAX_QPATH];
 		COM_StripExtension(mod->name, texmodelname, sizeof(texmodelname));
+		Q_strncatz(texmodelname, "t.mdl", sizeof(texmodelname));
 		//no textures? eesh. They must be stored externally.
-		texheader = texmem = (hlmdl_header_t*)FS_LoadMallocFile(va("%st.mdl", texmodelname));
+		texheader = texmem = (hlmdl_header_t*)FS_LoadMallocFile(texmodelname, &fz);
 		if (texheader)
 		{
 			if (texheader->version != 10)
@@ -184,18 +160,19 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	memcpy(bonectls, (hlmdl_bonecontroller_t *) buffer, sizeof(hlmdl_bonecontroller_t)*header->numcontrollers);
 */
 
-	model->header = (char *)header - (char *)model;
-	model->texheader = (char *)texheader - (char *)model;
-	model->textures = (char *)tex - (char *)model;
-	model->bones = (char *)bones - (char *)model;
-	model->bonectls = (char *)bonectls - (char *)model;
+	model->header = header;
+	model->bones = bones;
+	model->bonectls = bonectls;
 
 	shaders = ZG_Malloc(&mod->memgroup, texheader->numtextures*sizeof(shader_t));
-	model->shaders = (char *)shaders - (char *)model;
+	model->shaders = shaders;
     for(i = 0; i < texheader->numtextures; i++)
     {
-		shaders[i] = R_RegisterSkin(va("%s_%i.tga", mod->name, i), mod->name);
-		shaders[i]->defaulttextures.base = R_LoadTexture8Pal24("", tex[i].w, tex[i].h, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, IF_NOALPHA|IF_NOGAMMA);
+		Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "%s_%i.tga", mod->name, i);
+		memset(&shaders[i].defaulttex, 0, sizeof(shaders[i].defaulttex));
+		shaders[i].defaulttex.base = Image_GetTexture(shaders[i].name, "", IF_NOALPHA, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, tex[i].w, tex[i].h, TF_8PAL24);
+		shaders[i].w = tex[i].w;
+		shaders[i].h = tex[i].h;
     }
 
 	model->numskins = texheader->numtextures;
@@ -219,7 +196,7 @@ void *Mod_GetHalfLifeModelData(model_t *mod)
 		return NULL;	//halflife models only, please
 
 	mc = Mod_Extradata(mod);
-	return (void*)((char*)mc + mc->header);
+	return (void*)mc->header;
 }
 #endif
 
@@ -234,7 +211,7 @@ int HLMod_FrameForName(model_t *mod, const char *name)
 
 	mc = Mod_Extradata(mod);
 
-	h = (hlmdl_header_t *)((char *)mc + mc->header);
+	h = mc->header;
 	seqs = (hlmdl_sequencelist_t*)((char*)h+h->seqindex);
 
 	for (i = 0; i < h->numseq; i++)
@@ -256,7 +233,7 @@ int HLMod_BoneForName(model_t *mod, char *name)
 
 	mc = Mod_Extradata(mod);
 
-	h = (hlmdl_header_t *)((char *)mc + mc->header);
+	h = mc->header;
 	bones = (hlmdl_bone_t*)((char*)h+h->boneindex);
 
 	for (i = 0; i < h->numbones; i++)
@@ -278,7 +255,8 @@ int HLMod_BoneForName(model_t *mod, char *name)
 void HL_CalculateBones
 (
     int				offset,
-    int				frame,
+    int				frame1,
+	int				frame2,
 	float			lerpfrac,
     vec4_t			adjust,
     hlmdl_bone_t	*bone,
@@ -290,7 +268,6 @@ void HL_CalculateBones
     int		i;
     vec3_t	angle;
 	float lerpifrac = 1-lerpfrac;
-	float t;
     /*~~~~~~~~~~*/
 
     /* For each vector */
@@ -305,41 +282,30 @@ void HL_CalculateBones
         if(animation->offset[o] != 0)
         {
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
-            int					tempframe = frame;
+            int					tempframe;
             hlmdl_animvalue_t	*animvalue = (hlmdl_animvalue_t *) ((qbyte *) animation + animation->offset[o]);
+			short	f1, f2;
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
             /* find values including the required frame */
+			tempframe = frame1;
             while(animvalue->num.total <= tempframe)
             {
                 tempframe -= animvalue->num.total;
                 animvalue += animvalue->num.valid + 1;
             }
-            if(animvalue->num.valid > tempframe)
+			f1 = animvalue[min(animvalue->num.valid-1, tempframe)+1].value;
+
+			/* frame2 is always higher than frame1, so keep searching for it, if its in a different block */
+			tempframe += frame2-frame1;
+			while(animvalue->num.total <= tempframe)
             {
-                if(animvalue->num.valid > (tempframe + 1))
-				{
-					//we can lerp that
-                    t = animvalue[tempframe + 1].value * lerpifrac + lerpfrac * animvalue[tempframe + 2].value;
-				}
-                else
-                    t = animvalue[animvalue->num.valid].value;
-                angle[i] = bone->value[o] + t * bone->scale[o];
+                tempframe -= animvalue->num.total;
+                animvalue += animvalue->num.valid + 1;
             }
-            else
-            {
-                if(animvalue->num.total < tempframe + 1)
-                {
-                    angle[i] +=
-                        (animvalue[animvalue->num.valid].value * lerpifrac +
-                         lerpfrac * animvalue[animvalue->num.valid + 2].value) *
-                        bone->scale[o];
-                }
-                else
-                {
-                    angle[i] += animvalue[animvalue->num.valid].value * bone->scale[o];
-                }
-            }
+			f2 = animvalue[min(animvalue->num.valid-1, tempframe)+1].value;
+
+			angle[i] += (f1 * lerpifrac + lerpfrac * f2) * bone->scale[o];
         }
 
         if(bone->bonecontroller[o] != -1)
@@ -414,32 +380,67 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
     static vec3_t			positions[2];
     static vec4_t			quaternions[2], blended;
 
-	int frame;
+	int frame1, frame2;
 
     hlmdl_sequencelist_t	*sequence = (hlmdl_sequencelist_t *) ((qbyte *) model->header + model->header->seqindex) +
 										 ((unsigned int)seqnum>=model->header->numseq?0:seqnum);
     hlmdl_sequencedata_t	*sequencedata = (hlmdl_sequencedata_t *)
                                          ((qbyte *) model->header + model->header->seqgroups) +
                                          sequence->seqindex;
-    hlmdl_anim_t			*animation = (hlmdl_anim_t *)
-                                ((qbyte *) model->header + sequencedata->data + sequence->index);
+    hlmdl_anim_t			*animation;
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+	if (sequencedata->name[32])
+	{
+		size_t fz;
+		if (sequence->seqindex >= MAX_ANIM_GROUPS)
+		{
+			Sys_Error("Too many animation sequence cache groups\n");
+			return;
+		}
+		if (!model->animcache[sequence->seqindex])
+			model->animcache[sequence->seqindex] = FS_LoadMallocGroupFile(model->memgroup, sequencedata->name+32, &fz);
+		if (!model->animcache[sequence->seqindex] || model->animcache[sequence->seqindex]->magic != *(int*)"IDSQ" || model->animcache[sequence->seqindex]->version != 10)
+		{
+			Sys_Error("Unable to load %s\n", sequencedata->name+32);
+			return;
+		}
+		animation = (hlmdl_anim_t *)((qbyte*)model->animcache[sequence->seqindex] + sequence->index);
+	}
+	else
+		animation = (hlmdl_anim_t *) ((qbyte *) model->header + sequencedata->data + sequence->index);
 
 	frametime *= sequence->timing;
 	if (frametime < 0)
 		frametime = 0;
 
-	frame = (int)frametime;
-	frametime -= frame;
+	frame1 = (int)frametime;
+	frametime -= frame1;
+	frame2 = frame1+1;
 
 	if (!sequence->numframes)
 		return;
-    if(frame >= sequence->numframes)
+    if(frame1 >= sequence->numframes)
 	{
 		if (sequence->loop)
-			frame %= sequence->numframes;
+			frame1 %= sequence->numframes;
 		else
-			frame = sequence->numframes-1;
+			frame1 = sequence->numframes-1;
+	}
+	if(frame2 >= sequence->numframes)
+	{
+		if (sequence->loop)
+			frame2 %= sequence->numframes;
+		else
+			frame2 = sequence->numframes-1;
+	}
+
+	if (frame2 < frame1)
+	{
+		i = frame2;
+		frame2 = frame1;
+		frame1 = i;
+		frametime = 1-frametime;
 	}
 
 	if (lastbone > model->header->numbones)
@@ -489,10 +490,10 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 			subblendfrac = 1;
 		for(i = firstbone; i < lastbone; i++)
 		{
-			HL_CalculateBones(0, frame, frametime, model->adjust, model->bones + i, animation + i, positions[0]);
-			HL_CalculateBones(3, frame, frametime, model->adjust, model->bones + i, animation + i, quaternions[0]);
+			HL_CalculateBones(0, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i, positions[0]);
+			HL_CalculateBones(3, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i, quaternions[0]);
 
-			HL_CalculateBones(3, frame, frametime, model->adjust, model->bones + i, animation + i + model->header->numbones, quaternions[1]);
+			HL_CalculateBones(3, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i + model->header->numbones, quaternions[1]);
 
 			QuaternionSlerp(quaternions[0], quaternions[1], subblendfrac, blended);
 			QuaternionGLMatrix(blended[0], blended[1], blended[2], blended[3], matrix);
@@ -522,8 +523,8 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 			 * convert it inside the routine - Inconsistant, but hey.. so's the whole model
 			 * format.
 			 */
-			HL_CalculateBones(0, frame, frametime, model->adjust, model->bones + i, animation + i, positions[0]);
-			HL_CalculateBones(3, frame, frametime, model->adjust, model->bones + i, animation + i, quaternions[0]);
+			HL_CalculateBones(0, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i, positions[0]);
+			HL_CalculateBones(3, frame1, frame2, frametime, model->adjust, model->bones + i, animation + i, quaternions[0]);
 
 			QuaternionGLMatrix(quaternions[0][0], quaternions[0][1], quaternions[0][2], quaternions[0][3], matrix);
 			matrix[0][3] = positions[0][0];
@@ -548,6 +549,7 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_model_t *amodel, entity_t *curent, 
 	static vecV_t xyz[2048];
 	static vec3_t norm[2048];
 	static vec2_t st[2048];
+	static byte_vec4_t vc[2048];
 	static index_t index[4096];
 	int count;
 	int b;
@@ -568,6 +570,7 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_model_t *amodel, entity_t *curent, 
 	mesh->snormals_array = norm; //for rtlighting
 	mesh->tnormals_array = norm; //for rtlighting
 	mesh->indexes = index;
+	mesh->colors4b_array = vc;
 
 	for (b = 0; b < MAX_BONE_CONTROLLERS; b++)
 		model->controller[b] = curent->framestate.bonecontrols[b];
@@ -646,8 +649,14 @@ void R_HL_BuildFrame(hlmodel_t *model, hlmdl_model_t *amodel, entity_t *curent, 
 			st[vert][0] = order[2] * tex_s;
 			st[vert][1] = order[3] * tex_t;
 
+			norm[vert][0] = 1;
 			norm[vert][1] = 1;
+			norm[vert][2] = 1;
 		
+			vc[vert][0] = 255;
+			vc[vert][1] = 255;
+			vc[vert][2] = 255;
+			vc[vert][3] = 255;
 
 			order += 4;
 			vert++;
@@ -673,12 +682,12 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 	static mesh_t bmesh, *mptr = &bmesh;
 
 	//general model
-	model.header	= (hlmdl_header_t *)			((char *)modelc + modelc->header);
-//	model.texheader	= (hlmdl_header_t *)			((char *)modelc + modelc->texheader);
-	model.textures	= (hlmdl_tex_t *)				((char *)modelc + modelc->textures);
-	model.bones		= (hlmdl_bone_t *)				((char *)modelc + modelc->bones);
-	model.bonectls	= (hlmdl_bonecontroller_t *)	((char *)modelc + modelc->bonectls);
-	model.shaders	= (shader_t **)					((char *)modelc + modelc->shaders);
+	model.header	= modelc->header;
+	model.bones		= modelc->bones;
+	model.bonectls	= modelc->bonectls;
+	model.shaders	= modelc->shaders;
+	model.animcache = modelc->animcache;
+	model.memgroup  = &rent->model->memgroup;
 
 	for (body = 0; body < model.header->numbodyparts; body++)
     {
@@ -696,34 +705,40 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
             hlmdl_mesh_t	*mesh = (hlmdl_mesh_t *) ((qbyte *) model.header + amodel->meshindex) + m;
             float			tex_w;
             float			tex_h;
+			struct hlmodelshaders_s *s;
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 			if (mesh->skinindex >= modelc->numskins)
 				continue;
 
+			s = &model.shaders[modelc->skins[mesh->skinindex]];
+
 			if (batches)
 			{
-				shader_t *shader;
-				int sort;
+				int sort, j;
 
 				b = BE_GetTempBatch();
 				if (!b)
 					return;
 
-				shader = model.shaders[modelc->skins[mesh->skinindex]];
+				if (!s->shader)
+				{
+					s->shader = R_RegisterSkin(s->name, rent->model->name);
+					R_BuildDefaultTexnums(&s->defaulttex, s->shader);
+				}
 				b->buildmeshes = R_HL_BuildMesh;
 				b->ent = rent;
 				b->mesh = NULL;
 				b->firstmesh = 0;
 				b->meshes = 1;
-				b->skin = &shader->defaulttextures;
+				b->skin = NULL;
 				b->texture = NULL;
-				b->shader = shader;
+				b->shader = s->shader;
 				for (j = 0; j < MAXRLIGHTMAPS; j++)
 					b->lightmap[j] = -1;
 				b->surf_first = batchid;
 				b->flags = 0;
-				sort = shader->sort;
+				sort = b->shader->sort;
 				//fixme: we probably need to force some blend modes based on the surface flags.
 				if (rent->flags & RF_FORCECOLOURMOD)
 					b->flags |= BEF_FORCECOLOURMOD;
@@ -755,8 +770,8 @@ void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
 			{
 				if (batchid == b->surf_first)
 				{
-					tex_w = 1.0f / model.textures[modelc->skins[mesh->skinindex]].w;
-					tex_h = 1.0f / model.textures[modelc->skins[mesh->skinindex]].h;
+					tex_w = 1.0f / s->w;
+					tex_h = 1.0f / s->h;
 	
 					b->mesh = &mptr;
 					R_HL_BuildFrame(&model, amodel, b->ent, (short *) ((qbyte *) model.header + mesh->index), tex_w, tex_h, b->mesh[0]);

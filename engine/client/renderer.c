@@ -112,7 +112,7 @@ cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 cvar_t r_globalskin_first						= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
 cvar_t r_globalskin_count						= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
 cvar_t r_coronas							= CVARFD ("r_coronas", "0",	CVAR_ARCHIVE, "Draw coronas on realtime lights. Overrides glquake-esque flashblends.");
-cvar_t r_coronas_occlusion					= CVARFD ("r_coronas_occlusion", "1", CVAR_ARCHIVE, "Specifies that coronas should be occluded more carefully.\n0: BSP occlusion only.\n1: non-bsp occlusion also");
+cvar_t r_coronas_occlusion					= CVARFD ("r_coronas_occlusion", "", CVAR_ARCHIVE, "Specifies that coronas should be occluded more carefully.\n0: No occlusion, at all.\n1: BSP occlusion only (simple tracelines).\n2: non-bsp occlusion also (complex tracelines).\n3: Depthbuffer reads (forces synchronisation).\n4: occlusion queries.");
 cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
 												CVAR_ARCHIVE);
 cvar_t r_flashblendscale					= SCVARF ("gl_flashblendscale", "0.35",
@@ -398,7 +398,7 @@ cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_A
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
 cvar_t r_slimestyle							= CVARFD ("r_slimestyle", "", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only slime. If empty, defers to r_waterstyle.");
 cvar_t r_lavastyle							= CVARFD ("r_lavastyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
-cvar_t r_telestyle							= CVARFD ("r_telestyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only lava. If empty, defers to r_waterstyle.");
+cvar_t r_telestyle							= CVARFD ("r_telestyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "See r_waterstyle, but affects only teleporters. If empty, defers to r_waterstyle.");
 
 cvar_t r_vertexdlights						= CVARD	("r_vertexdlights", "0", "Determine model lighting with respect to nearby dlights. Poor-man's rtlights.");
 
@@ -2209,7 +2209,7 @@ qbyte *R_CalcVis_Q1 (void)
 }
 #endif
 
-qbyte *R_MarkLeaves_Q1 (void)
+qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 {
 	static qbyte	*cvis[R_MAX_RECURSE];
 	qbyte *vis;
@@ -2271,7 +2271,9 @@ qbyte *R_MarkLeaves_Q1 (void)
 
 	r_visframecount++;
 
-	if (r_viewleaf && r_viewleaf->contents == Q1CONTENTS_SOLID)
+	if (getvisonly)
+		return vis;
+	else if (r_viewleaf && r_viewleaf->contents == Q1CONTENTS_SOLID)
 	{
 		//to improve spectating, when the camera is in a wall, we ignore any sky leafs.
 		//this prevents seeing the upwards-facing sky surfaces within the sky volumes.

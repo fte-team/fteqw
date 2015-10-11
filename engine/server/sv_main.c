@@ -1748,7 +1748,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 
 	//some gamecode can't cope with some extensions for some reasons... and I'm too lazy to fix the code to cope.
 	if (svs.gametype == GT_HALFLIFE)
-		client->fteprotocolextensions2 &= ~PEXT2_REPLACEMENTDELTAS;
+		client->fteprotocolextensions2 &= ~PEXT2_REPLACEMENTDELTAS;	//baseline issues
 
 	//
 	client->maxmodels = 256;
@@ -2593,6 +2593,7 @@ client_t *SVC_DirectConnect(void)
 				Con_TPrintf ("%s:gamecode reject\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
 				return NULL;
 			}
+			temp.hledict = newcl->hledict;
 		}
 
 		break;
@@ -5030,7 +5031,7 @@ void SV_ExtractFromUserinfo (client_t *cl, qboolean verbose)
 		cl->rate = ISNQCLIENT(cl)?10000:2500;	//an nq client cannot cope with quakeworld's default rate, and typically doesn't have rate set either.
 
 	val = Info_ValueForKey (cl->userinfo, "dupe");
-	cl->netchan.dupe = atoi(val);
+	cl->netchan.dupe = bound(0, atoi(val), 5);
 
 	val = Info_ValueForKey (cl->userinfo, "drate");
 	if (strlen(val))

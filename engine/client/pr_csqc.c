@@ -1864,6 +1864,9 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 		csqc_worldchanged = false;
 		Surf_NewMap();
 		CL_UpdateWindowTitle();
+
+		World_RBE_Shutdown(&csqc_world);
+		World_RBE_Start(&csqc_world);
 	}
 
 	if (cl.worldmodel)

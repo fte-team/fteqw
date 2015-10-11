@@ -4861,8 +4861,8 @@ double Host_Frame (double time)
 		)
 	{
 //		realtime += spare/1000;	//don't use it all!
-		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
-		if (!spare)
+		double newspare = CL_FilterTime((spare/1000 + realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
+		if (!newspare)
 		{
 			while(COM_DoWork(0, false))
 				;
@@ -4872,6 +4872,7 @@ double Host_Frame (double time)
 			spare = 0;	//uncapped.
 		if (spare > cl_sparemsec.ival)
 			spare = cl_sparemsec.ival;
+		spare = newspare;
 
 //		realtime -= spare/1000;	//don't use it all!
 	}
@@ -4889,7 +4890,7 @@ double Host_Frame (double time)
 			CL_ProgressDemoTime();
 		hadwork = haswork;
 	}
-	cl.stillloading = cl.sendprespawn || (cls.state < ca_active && COM_HasWork());
+	cl.stillloading = cl.sendprespawn || (cls.state < ca_active && worker_flush.ival && COM_HasWork());
 	COM_MainThreadWork();
 
 

@@ -417,7 +417,7 @@ typedef struct
 	unk (QDECL *ChangeYaw)(unk);
 	unk (QDECL *ChangePitch)(unk);
 	hledict_t *(QDECL *FindEntityByString)(hledict_t *last, char *field, char *value);
-	unk (QDECL *GetEntityIllum)(unk);
+	int (QDECL *GetEntityIllum)(hledict_t *ent);
 	hledict_t *(QDECL *FindEntityInSphere)(hledict_t *last, float *org, float radius);
 	hledict_t *(QDECL *FindClientInPVS)(hledict_t *ed);
 	unk (QDECL *EntitiesInPVS)(unk);
@@ -479,7 +479,7 @@ typedef struct
 	void *(QDECL *GetModelPtr)(hledict_t *ed);
 	int (QDECL *RegUserMsg)(char *msgname, int msgsize);
 	unk (QDECL *AnimationAutomove)(unk);
-	unk (QDECL *GetBonePosition)(unk);
+	void (QDECL *GetBonePosition)(hledict_t *ed, int bone, vec3_t org, vec3_t ang);
 	hlintptr_t (QDECL *FunctionFromName)(char *name);
 	char *(QDECL *NameForFunction)(hlintptr_t);
 	unk (QDECL *ClientPrintf)(unk);

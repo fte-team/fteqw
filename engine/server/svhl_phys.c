@@ -552,8 +552,8 @@ qboolean SVHL_PushAngles (hledict_t *pusher, vec3_t move, vec3_t amove)
 
 
 			// see if the ent's bbox is inside the pusher's final position
-		//	if (!SVHL_TestEntityPosition (check))
-		//		continue;
+			if (!SVHL_TestEntityPosition (check))
+				continue;
 		}
 
 		if ((pusher->v.movetype == MOVETYPE_PUSH) || (check->v.groundentity == pusher))
@@ -886,7 +886,7 @@ Entities that are "stuck" to another entity
 */
 void SVHL_Physics_Follow (hledict_t *ent)
 {
-	vec3_t vf, vr, vu, angles, v;
+//	vec3_t vf, vr, vu, angles, v;
 	hledict_t *e;
 
 	// regular thinking
@@ -1817,13 +1817,16 @@ void SVHL_RunFrame (void)
 
 	//only run physics tics if there's a client on the server.
 	//this fixes the bug where the train moves out before the player spawns, so the player doesn't fall to his death
-	for (i = 0; i < sv.allocated_client_slots; i++)
+	if (sv.state == ss_active)
 	{
-		if (svs.clients[i].state == cs_spawned)
-			break;
+		for (i = 0; i < sv.allocated_client_slots; i++)
+		{
+			if (svs.clients[i].state == cs_spawned)
+				break;
+		}
+		if (i == sv.allocated_client_slots)
+			return;
 	}
-	if (i == sv.allocated_client_slots)
-		return;
 
 
 	SVHL_Globals.frametime = host_frametime;

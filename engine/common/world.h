@@ -253,6 +253,7 @@ void QDECL World_ReleaseCollisionMesh(wedict_t *ed);
 
 void World_Destroy (world_t *w);
 void World_RBE_Start(world_t *world);
+void World_RBE_Shutdown(world_t *world);
 
 
 void World_ClearWorld (world_t *w);

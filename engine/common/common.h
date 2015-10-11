@@ -429,10 +429,16 @@ typedef struct {
 } flocation_t;
 struct vfsfile_s;
 
-typedef enum {FSLFRT_IFFOUND, FSLFRT_LENGTH, FSLFRT_DEPTH_OSONLY, FSLFRT_DEPTH_ANYPATH} FSLF_ReturnType_e;
+#define FSLF_IFFOUND			0		//returns true (found) / false (not found)
+#define FSLF_DEPTH_EXPLICIT		1		//retrieves relative depth (ie: lower = higher priority) for determining which gamedir a file was from
+#define FSLF_DEPTH_INEXPLICIT	2		//depth is incremented for EVERY package, not just system/explicit paths.
+#define FSLF_SECUREONLY			(1u<<4)	//ignore files from downloaded packages (ie: configs)
+#define FSLF_DONTREFERENCE		(1u<<5) //don't add any reference flags to packages
+#define FSLF_IGNOREPURE			(1u<<6) //use only the client's package list, ignore any lists obtained from the server (including any reordering)
+#define FSLF_IGNORELINKS		(1u<<7) //ignore any pak/pk3 symlinks. system ones may still be followed.
+
 //if loc is valid, loc->search is always filled in, the others are filled on success.
-//returns -1 if couldn't find.
-int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation_t *loc);
+int FS_FLocateFile(const char *filename, unsigned int flags, flocation_t *loc);
 struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
 char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced);
 
@@ -442,8 +448,8 @@ char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean
 qboolean FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);	//returns false if the name is invalid.
 void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 
-#define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,ignorepacks?FSLFRT_DEPTH_OSONLY:FSLFRT_DEPTH_ANYPATH, NULL)
-#define COM_FCheckExists(filename) FS_FLocateFile(filename,FSLFRT_IFFOUND, NULL)
+#define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,FSLF_DONTREFERENCE|(ignorepacks?FSLF_DEPTH_EXPLICIT:FSLF_DEPTH_INEXPLICIT), NULL)
+#define COM_FCheckExists(filename) FS_FLocateFile(filename,FSLF_IFFOUND, NULL)
 
 typedef struct vfsfile_s
 {

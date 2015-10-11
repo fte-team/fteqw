@@ -227,6 +227,7 @@ typedef struct part_type_s {
 	float orgadd, randomorgadd;		//spawn the particle this far along its velocity direction
 	float spawnvel, spawnvelvert; //spawn the particle with a velocity based upon its spawn type (generally so it flies outwards)
 	vec3_t orgbias;		//static 3d world-coord bias
+	float viewspacefrac;
 
 	float s1, t1, s2, t2;	//texture coords
 	float texsstride;	//addition for s for each random slot.
@@ -316,6 +317,7 @@ typedef struct part_type_s {
 #define PT_TROVERWATER		0x0200 // don't spawn if underwater
 #define PT_TRUNDERWATER		0x0400 // don't spawn if overwater
 #define PT_NODLSHADOW		0x0800 // dlights from this effect don't cast shadows.
+	unsigned int fluidmask;
 
 	unsigned int state;
 #define PS_INRUNLIST 0x1 // particle type is currently in execution list
@@ -953,6 +955,7 @@ static void P_ResetToDefaults(part_type_t *ptype)
 	ptype->inwater = P_INVALID;
 	ptype->cliptype = P_INVALID;
 	ptype->emit = P_INVALID;
+	ptype->fluidmask = FTECONTENTS_FLUID;
 	ptype->alpha = 1;
 	ptype->alphachange = 1;
 	ptype->clipbounce = 0.8;
@@ -1243,7 +1246,7 @@ void P_ParticleEffect_f(void)
 			ptype->alpha = atof(value);
 		else if (!strcmp(var, "alphachange"))
 		{
-			Con_DPrintf("alphachange is deprecated, use alphadelta\n");
+			Con_DPrintf("%s.%s: alphachange is deprecated, use alphadelta\n", ptype->config, ptype->name);
 			ptype->alphachange = atof(value);
 		}
 		else if (!strcmp(var, "alphadelta"))
@@ -1268,7 +1271,7 @@ void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "diesubrand"))
 		{
-			Con_DPrintf("diesubrand is deprecated, use die with two arguments\n");
+			Con_DPrintf("%s.%s: diesubrand is deprecated, use die with two arguments\n", ptype->config, ptype->name);
 			ptype->randdie = atof(value);
 		}
 
@@ -1338,6 +1341,49 @@ void P_ParticleEffect_f(void)
 			assoc = CheckAssosiation(config, value, pnum);
 			ptype = &part_type[pnum];
 			ptype->inwater = assoc;
+		}
+		else if (!strcmp(var, "underwater"))
+		{
+			ptype->flags |= PT_TRUNDERWATER;
+
+parsefluid:
+			if ((ptype->flags & (PT_TRUNDERWATER|PT_TROVERWATER)) == (PT_TRUNDERWATER|PT_TROVERWATER))
+			{
+				ptype->flags &= ~PT_TRUNDERWATER;
+				Con_Printf("%s.%s: both over and under water\n", ptype->config, ptype->name);
+			}
+			if (Cmd_Argc() == 1)
+				ptype->fluidmask = FTECONTENTS_FLUID;
+			else
+			{
+				int i = Cmd_Argc();
+				ptype->fluidmask = 0;
+				while (i --> 1)
+				{
+					char *value = Cmd_Argv(i);
+					if (!strcmp(value, "water"))
+						ptype->fluidmask |= FTECONTENTS_WATER;
+					else if (!strcmp(value, "slime"))
+						ptype->fluidmask |= FTECONTENTS_SLIME;
+					else if (!strcmp(value, "lava"))
+						ptype->fluidmask |= FTECONTENTS_LAVA;
+					else if (!strcmp(value, "sky"))
+						ptype->fluidmask |= FTECONTENTS_SKY;
+					else if (!strcmp(value, "fluid"))
+						ptype->fluidmask |= FTECONTENTS_FLUID;
+					else if (!strcmp(value, "solid"))
+						ptype->fluidmask |= FTECONTENTS_SOLID;
+					else if (!strcmp(value, "playerclip"))
+						ptype->fluidmask |= FTECONTENTS_PLAYERCLIP;
+					else
+						Con_Printf("%s.%s: unknown contents: %s\n", ptype->config, ptype->name, value);
+				}
+			}
+		}
+		else if (!strcmp(var, "notunderwater"))
+		{
+			ptype->flags |= PT_TROVERWATER;
+			goto parsefluid;
 		}
 		else if (!strcmp(var, "model"))
 		{
@@ -1623,7 +1669,7 @@ void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "isbeam"))
 		{
-			Con_DPrintf("isbeam is deprecated, use type beam\n");
+			Con_DPrintf("%s.%s: isbeam is deprecated, use type beam\n", ptype->config, ptype->name);
 			ptype->looks.type = PT_BEAM;
 		}
 		else if (!strcmp(var, "spawntime"))
@@ -1662,22 +1708,22 @@ void P_ParticleEffect_f(void)
 		// old names
 		else if (!strcmp(var, "areaspread"))
 		{
-			Con_DPrintf("areaspread is deprecated, use spawnorg\n");
+			Con_DPrintf("%s.%s: areaspread is deprecated, use spawnorg\n", ptype->config, ptype->name);
 			ptype->areaspread = atof(value);
 		}
 		else if (!strcmp(var, "areaspreadvert"))
 		{
-			Con_DPrintf("areaspreadvert is deprecated, use spawnorg\n");
+			Con_DPrintf("%s.%s: areaspreadvert is deprecated, use spawnorg\n", ptype->config, ptype->name);
 			ptype->areaspreadvert = atof(value);
 		}
 		else if (!strcmp(var, "offsetspread"))
 		{
-			Con_DPrintf("offsetspread is deprecated, use spawnvel\n");
+			Con_DPrintf("%s.%s: offsetspread is deprecated, use spawnvel\n", ptype->config, ptype->name);
 			ptype->spawnvel = atof(value);
 		}
 		else if (!strcmp(var, "offsetspreadvert"))
 		{
-			Con_DPrintf("offsetspreadvert is deprecated, use spawnvel\n");
+			Con_DPrintf("%s.%s: offsetspreadvert is deprecated, use spawnvel\n", ptype->config, ptype->name);
 			ptype->spawnvelvert  = atof(value);
 		}
 
@@ -1713,7 +1759,7 @@ void P_ParticleEffect_f(void)
 				ptype->rampmode = RAMP_NONE;
 			else if (!strcmp(value, "absolute"))
 			{
-				Con_DPrintf("'rampmode absolute' is deprecated, use 'rampmode nearest'\n");
+				Con_DPrintf("%s.%s: 'rampmode absolute' is deprecated, use 'rampmode nearest'\n", ptype->config, ptype->name);
 				ptype->rampmode = RAMP_NEAREST;
 			}
 			else if (!strcmp(value, "nearest"))
@@ -1805,6 +1851,8 @@ void P_ParticleEffect_f(void)
 
 			ptype->rampindexes++;
 		}
+		else if (!strcmp(var, "viewspace"))
+			ptype->viewspacefrac = (Cmd_Argc()>1)?atof(value):1;
 		else if (!strcmp(var, "perframe"))
 			ptype->flags |= PT_INVFRAMETIME;
 		else if (!strcmp(var, "averageout"))
@@ -1819,7 +1867,7 @@ void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "lightradius"))
 		{	//float version
 			ptype->dl_radius[0] = ptype->dl_radius[1] = atof(value);
-			if (Cmd_Argc()>3)
+			if (Cmd_Argc()>2)
 				ptype->dl_radius[1] = atof(Cmd_Argv(2));
 			ptype->dl_radius[1] -= ptype->dl_radius[0];
 		}
@@ -1862,7 +1910,7 @@ void P_ParticleEffect_f(void)
 			ptype->stain_rgb[2] = atof(Cmd_Argv(4));
 		}
 		else
-			Con_DPrintf("%s is not a recognised particle type field (in %s)\n", var, ptype->name);
+			Con_DPrintf("%s.%s: %s is not a recognised particle type field\n", ptype->config, ptype->name, var);
 	}
 	ptype->looks.invscalefactor = 1-ptype->looks.scalefactor;
 	ptype->loaded = part_parseweak?1:2;
@@ -1883,12 +1931,12 @@ void P_ParticleEffect_f(void)
 			if (ptype->scale)
 			{
 				ptype->looks.type = PT_SPARKFAN;
-				Con_DPrintf("effect %s lacks a texture. assuming type sparkfan.\n", ptype->name);
+				Con_DPrintf("%s.%s: effect lacks a texture. assuming type sparkfan.\n", ptype->config, ptype->name);
 			}
 			else
 			{
 				ptype->looks.type = PT_SPARK;
-				Con_DPrintf("effect %s lacks a texture. assuming type spark.\n", ptype->name);
+				Con_DPrintf("%s.%s: effect lacks a texture. assuming type spark.\n", ptype->config, ptype->name);
 			}
 		}
 		else if (ptype->looks.type == PT_SPARK)
@@ -1924,11 +1972,11 @@ void P_ParticleEffect_f(void)
 	if (ptype->rampmode && !ptype->ramp)
 	{
 		ptype->rampmode = RAMP_NONE;
-		Con_Printf("Particle type %s has a ramp mode but no ramp\n", ptype->name);
+		Con_Printf("%s.%s: Particle has a ramp mode but no ramp\n", ptype->config, ptype->name);
 	}
 	else if (ptype->ramp && !ptype->rampmode)
 	{
-		Con_Printf("Particle type %s has a ramp but no ramp mode\n", ptype->name);
+		Con_Printf("%s.%s: Particle has a ramp but no ramp mode\n", ptype->config, ptype->name);
 	}
 
 	P_LoadTexture(ptype, true);
@@ -2107,6 +2155,9 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			Q_strncatz(outstr, va("spawnvel %g %g\n", ptype->spawnvel, ptype->spawnvelvert), outstrlen);
 		if (ptype->areaspread || ptype->areaspreadvert)
 			Q_strncatz(outstr, va("spawnorg %g %g\n", ptype->areaspread, ptype->areaspreadvert), outstrlen);
+
+		if (ptype->viewspacefrac)
+			Q_strncatz(outstr, ((ptype->viewspacefrac==1)?"viewspace\n":va("viewspace %g\n", ptype->viewspacefrac)), outstrlen);
 
 		if (ptype->veladd || ptype->randomveladd)
 		{
@@ -3920,9 +3971,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			int cont;
 			cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org);
 
-			if ((ptype->flags & PT_TROVERWATER) && (cont & FTECONTENTS_FLUID))
+			if ((ptype->flags & PT_TROVERWATER) && (cont & ptype->fluidmask))
 				goto skip;
-			if ((ptype->flags & PT_TRUNDERWATER) && !(cont & FTECONTENTS_FLUID))
+			if ((ptype->flags & PT_TRUNDERWATER) && !(cont & ptype->fluidmask))
 				goto skip;
 		}
 
@@ -4724,9 +4775,9 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		int cont;
 		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, startpos);
 
-		if ((ptype->flags & PT_TROVERWATER) && (cont & FTECONTENTS_FLUID))
+		if ((ptype->flags & PT_TROVERWATER) && (cont & ptype->fluidmask))
 			return;
-		if ((ptype->flags & PT_TRUNDERWATER) && !(cont & FTECONTENTS_FLUID))
+		if ((ptype->flags & PT_TRUNDERWATER) && !(cont & ptype->fluidmask))
 			return;
 	}
 
@@ -5853,6 +5904,8 @@ static void R_AddTexturedParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 
 static void PScript_DrawParticleTypes (void)
 {
+	float viewtranslation[16];
+	static float lastviewmatrix[16];
 //	void (*sparklineparticles)(int count, particle_t **plist, plooks_t *type)=R_AddLineSparkParticle;
 	void (*sparkfanparticles)(int count, particle_t **plist, plooks_t *type)=GL_DrawTrifanParticle;
 	void (*sparktexturedparticles)(int count, particle_t **plist, plooks_t *type)=GL_DrawTexturedSparkParticle;
@@ -5923,6 +5976,14 @@ static void PScript_DrawParticleTypes (void)
 	tr = TraceLineN;
 
 	kill_list = kill_first = NULL;
+
+
+	{
+		float tmp[16];
+		Matrix4_Invert(r_refdef.m_view, tmp);
+		Matrix4_Multiply(tmp, lastviewmatrix, viewtranslation);
+		memcpy(lastviewmatrix, r_refdef.m_view, sizeof(tmp));
+	}
 
 	for (type = part_run_list, lastvalidtype = NULL; type != NULL; type = type->nexttorun)
 	{
@@ -6252,6 +6313,15 @@ static void PScript_DrawParticleTypes (void)
 					p->vel[2] *= friction[2];
 				}
 				p->vel[2] -= grav;
+			}
+
+			if (type->viewspacefrac)
+			{
+				vec3_t tmp;
+				Matrix4x4_CM_Transform3(viewtranslation, p->org, tmp);
+				VectorInterpolate(p->org, type->viewspacefrac, tmp, p->org);
+				Matrix4x4_CM_Transform3x3(viewtranslation, p->vel, tmp);
+				VectorInterpolate(p->vel, type->viewspacefrac, tmp, p->vel);
 			}
 
 			p->angle += p->rotationspeed*pframetime;

@@ -4597,6 +4597,9 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 	imageflags = (basefmt==TF_SOLID8 || basefmt == TF_MIP4_SOLID8)?IF_NOALPHA:0;
 	imageflags |= IF_MIPCAP;
 
+	if (basefmt == TF_MIP4_SOLID8 && palette && palette != host_basepal)
+		basefmt = TF_MIP4_8PAL24;
+
 	COM_StripExtension(imagename, imagename, sizeof(imagename));
 
 	aframes = max(1, shader->numdefaulttextures);
@@ -4710,8 +4713,8 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 			if (!TEXVALID(tex->fullbright))
 			{
 				int s=-1;
-				if (mipdata[0])
-				for(s = width*height; s-->0; )
+				if (mipdata[0] && (!palette || palette == host_basepal))
+				for(s = width*height-1; s>=0; s--)
 				{
 					if (mipdata[0][s] >= 256-vid.fullbright)
 						break;

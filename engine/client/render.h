@@ -302,7 +302,7 @@ void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);
 int Surf_LightmapShift (struct model_s *model);
 #define LMBLOCK_SIZE_MAX 2048	//single axis
 typedef struct glRect_s {
-	unsigned short l,t,w,h;
+	unsigned short l,t,r,b;
 } glRect_t;
 typedef unsigned char stmap;
 struct mesh_s;
@@ -488,7 +488,7 @@ double Media_TweekCaptureFrameTime(double oldtime, double time);
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
 
 void	R_PushDlights				(void);
-qbyte *R_MarkLeaves_Q1 (void);
+qbyte *R_MarkLeaves_Q1 (qboolean getvisonly);
 qbyte *R_CalcVis_Q1 (void);
 qbyte *R_MarkLeaves_Q2 (void);
 qbyte *R_MarkLeaves_Q3 (void);

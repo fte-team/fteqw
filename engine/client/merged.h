@@ -190,6 +190,7 @@ typedef enum uploadfmt
 		TF_LUM8,		/*8bit greyscale image*/
 		TF_MIP4_LUM8,	/*8bit 4-mip greyscale image*/
 		TF_MIP4_SOLID8,	/*8bit 4-mip image*/
+		TF_MIP4_8PAL24,	/*8bit 4-mip image*/
         TF_SOLID8,      /*8bit quake-palette image*/
         TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
         TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
@@ -427,7 +428,7 @@ typedef struct rendererinfo_s {
 	void	(*BE_SubmitBatch)(struct batch_s *batch);
 	struct batch_s *(*BE_GetTempBatch)(void);
 	//Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
-	void	(*BE_DrawWorld) (qboolean drawworld, qbyte *vis);
+	void	(*BE_DrawWorld) (struct batch_s **worldbatches, qbyte *vis);
 	//called at init, force the display to the right defaults etc
 	void	(*BE_Init)(void);
 	//Generates an optimised VBO, one for each texture on the map

@@ -844,7 +844,7 @@ enum clcq2_ops_e
 enum {
 	TE_SPIKE				= 0,
 	TE_SUPERSPIKE			= 1,
-	TE_GUNSHOT				= 2,
+	TE_GUNSHOT				= 2,	//qw has count byte, nq does not
 	TE_EXPLOSION			= 3,	//remapped to TEQW_EXPLOSIONNOSPRITE for nq.
 	TE_TAREXPLOSION			= 4,
 	TE_LIGHTNING1			= 5,
@@ -869,6 +869,7 @@ enum {
 	TEQW_BEAM				= 18,	//use the builtin, luke.
 	TEQW_EXPLOSION2			= 19,	//use the builtin, luke.
 	TEQW_EXPLOSIONNOSPRITE	= 20,
+	TE_GUNSHOT_NQCOMPAT		= 21,	//nq has count byte, qw does not
 
 	// hexen 2
 	TEH2_STREAM_LIGHTNING_SMALL	= 24,

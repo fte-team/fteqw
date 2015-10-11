@@ -739,7 +739,7 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 	if (bits & U_COLORMAP)
 		MSG_WriteByte (msg, to->colormap);
 	if (bits & U_SKIN)
-		MSG_WriteByte (msg, to->skinnum);
+		MSG_WriteByte (msg, to->skinnum&0xff);
 	if (bits & U_EFFECTS)
 		MSG_WriteByte (msg, to->effects&0x00ff);
 	if (bits & U_ORIGIN1)
@@ -3647,7 +3647,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 			cameras = NULL;
 #ifdef HLSERVER
 		else if (svs.gametype == GT_HALFLIFE)
-			pvs = SVHL_Snapshot_SetupPVS(client, pvsbuffer, sizeof(pvsbuffer));
+			SVHL_Snapshot_SetupPVS(client, cameras->pvs, sizeof(cameras->pvs));
 #endif
 		else 
 			SV_Snapshot_SetupPVS(client, cameras);
@@ -3682,7 +3682,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 	{
 #ifdef HLSERVER
 		if (svs.gametype == GT_HALFLIFE)
-			SVHL_Snapshot_Build(client, pack, pvs, clent, ignorepvs);
+			SVHL_Snapshot_Build(client, pack, cameras->pvs, clent, ignorepvs);
 		else
 #endif
 			SV_Snapshot_BuildQ1(client, pack, cameras, clent);

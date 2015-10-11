@@ -616,7 +616,7 @@ void Cmd_Exec_f (void)
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	if (!FS_FLocateFile(name, FSLFRT_IFFOUND, &loc) && !FS_FLocateFile(va("%s.cfg", name), FSLFRT_IFFOUND, &loc))
+	if (!FS_FLocateFile(name, FSLF_IFFOUND, &loc) && !FS_FLocateFile(va("%s.cfg", name), FSLF_IFFOUND, &loc))
 	{
 		Con_TPrintf ("couldn't exec %s\n", name);
 		return;

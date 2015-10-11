@@ -31,6 +31,7 @@ static void QDECL CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue);
 
 cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
+cvar_t	cl_c2sdupe = CVAR("cl_c2sdupe", "0");
 cvar_t	cl_c2spps = CVAR("cl_c2spps", "0");
 cvar_t	cl_c2sImpulseBackup = SCVAR("cl_c2sImpulseBackup","3");
 cvar_t	cl_netfps = CVAR("cl_netfps", "150");
@@ -1177,10 +1178,16 @@ float CL_FilterTime (double time, float wantfps, qboolean ignoreserver)	//now re
 			fps = bound (6.7, wantfps, fpscap);	//we actually cap ourselves to 150msecs (1000/7 = 142)
 	}
 
+	//its not time yet
 	if (time < ceil(1000 / fps))
 		return 0;
 
-	return time - ceil(1000 / fps);
+	//clamp it if we have over 1.5 frame banked somehow
+	if (time - (1000 / fps) > (1000 / fps)*1.5)
+		return (1000 / fps) * 1.5;
+
+	//report how much spare time the caller now has
+	return time - (1000 / fps);
 }
 
 qboolean allowindepphys;
@@ -1320,10 +1327,6 @@ int CL_IndepPhysicsThread(void *param)
 		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value, false);
 		if (spare)
 		{
-			//don't let them bank too much and get sudden bursts
-			if (spare > 15)
-				spare = 15;
-
 			time -= spare/1000.0f;
 			Sys_LockMutex(indeplock);
 			if (cls.state)
@@ -1529,7 +1532,8 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 		
 		cmd->lightlevel = 0;
 #ifdef CSQC_DAT
-		CSQC_Input_Frame(plnum, cmd);
+		if (!runningindepphys)
+			CSQC_Input_Frame(plnum, cmd);
 #endif
 		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
 	}
@@ -1631,8 +1635,10 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	static float	pps_balance = 0;
 	static int	dropcount = 0;
 	static double msecs;
+	static double msecsround;
 	int msecstouse;
 	qboolean	dontdrop=false;
+	float usetime;
 
 	clcmdbuf_t *next;
 
@@ -1739,39 +1745,28 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 #ifdef IRCCONNECT
 	if (cls.netchan.remote_address.type != NA_IRC)
 #endif
-	if (msecs>150)	//q2 has 200 slop.
-		msecs=150;
 
 	msecs += frametime*1000;
 //	Con_Printf("%f\n", msecs);
 
-	if (msecs<0)
-		msecs=0;	//erm.
-
-	msecstouse = (int)msecs; //casts round down.
-	if (msecstouse == 0)
-		return;
 #ifdef IRCCONNECT
 	if (cls.netchan.remote_address.type != NA_IRC)
 #endif
-	if (msecstouse > 200) // cap at 200 to avoid servers splitting movement more than four times
-		msecstouse = 200;
-
-	// align msecstouse to avoid servers wasting our msecs
-	if (msecstouse > 100)
-		msecstouse &= ~3; // align to 4
-	else if (msecstouse > 50)
-		msecstouse &= ~1; // align to 2
 
 	wantfps = cl_netfps.value;
 	fullsend = true;
 
+	msecstouse = 0;
+
 #ifndef CLIENTONLY
 	if (sv.state && cls.state != ca_active)
+	{
 		fullsend = -1;
+		msecstouse = usetime = msecs;
+		msecs = 0;
+	}
 	else 
 #endif
-		if (!runningindepphys)
 	{
 		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
 		if (cls.state < ca_active && !cls.download)
@@ -1783,22 +1778,41 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			#endif
 				wantfps = 12.5;
 		}
-		if (cl_netfps.value > 0 || !fullsend)
+		if (!runningindepphys && (cl_netfps.value > 0 || !fullsend))
 		{
 			float spare;
-			spare = CL_FilterTime(msecstouse, wantfps, false);
-			if (!spare && (msecstouse < 200
-#ifdef IRCCONNECT
-				|| cls.netchan.remote_address.type == NA_IRC
-#endif
-				))
+			spare = CL_FilterTime(msecs, wantfps, false);
+			usetime = msecsround + (msecs - spare);
+			msecstouse = (int)usetime;
+			if (!spare)
 				fullsend = false;
-			if (spare > cl_sparemsec.ival)
-				spare = cl_sparemsec.ival;
-			if (spare > 0)
-				msecstouse -= spare;
+			else
+			{
+				msecsround = usetime - msecstouse;
+				msecs = spare + msecstouse;
+			}
+		}
+		else
+		{
+			usetime = msecsround + msecs;
+			msecstouse = (int)usetime;
+			msecsround = usetime - msecstouse;
 		}
 	}
+
+	if (msecstouse > 200) // cap at 200 to avoid servers splitting movement more than four times
+		msecstouse = 200;
+
+	// align msecstouse to avoid servers wasting our msecs
+	if (msecstouse > 100)
+		msecstouse &= ~3; // align to 4
+	else if (msecstouse > 50)
+		msecstouse &= ~1; // align to 2
+
+	if (msecstouse < 0)	//FIXME
+		fullsend = false;
+	if (usetime <= 0)
+		return;	//infinite frame times = weirdness.
 
 #ifdef HLCLIENT
 	if (!CLHL_BuildUserInput(msecstouse, &independantphysics[0]))
@@ -1829,7 +1843,12 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	//	if (cl.spectator)
 		Cam_Track(&cl.playerview[plnum], &independantphysics[plnum]);
 		Cam_FinishMove(&cl.playerview[plnum], &independantphysics[plnum]);
-		independantphysics[plnum].msec = msecstouse;
+		independantphysics[plnum].msec = usetime;
+
+		//HACK: 1000/77 = 12.98. nudge it just under so we never appear to be using 83fps at 77fps (which can trip cheat detection in mods that expect 72 fps when many servers are configured for 77)
+		//so lets just never use 12.
+		if (fullsend && (independantphysics[plnum].msec > 12.9 && independantphysics[plnum].msec < 13) && cls.maxfps == 77)
+			independantphysics[plnum].msec = 13;
 	}
 
 	//the main loop isn't allowed to send
@@ -1839,8 +1858,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 //	if (skipcmd)
 //		return;
 
-	if (!fullsend || !msecstouse)
+	if (!fullsend)
 		return; // when we're actually playing we try to match netfps exactly to avoid gameplay problems
+
+	if (msecstouse == 12)
+		msecstouse = 13;
 
 //	if (msecstouse > 127)
 //		Con_Printf("%i\n", msecstouse, msecs);
@@ -2003,6 +2025,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 //
 // deliver the message
 //
+	cls.netchan.dupe = cl_c2sdupe.ival;
 	Netchan_Transmit (&cls.netchan, buf.cursize, buf.data, 2500);	
 
 	if (cls.netchan.fatal_error)
@@ -2051,6 +2074,7 @@ void CL_InitInput (void)
 
 	Cvar_Register (&prox_inmenu, inputnetworkcvargroup);
 
+	Cvar_Register (&cl_c2sdupe, inputnetworkcvargroup);
 	Cvar_Register (&cl_c2sImpulseBackup, inputnetworkcvargroup);
 	Cvar_Register (&cl_c2spps, inputnetworkcvargroup);
 	Cvar_Register (&cl_queueimpulses, inputnetworkcvargroup);

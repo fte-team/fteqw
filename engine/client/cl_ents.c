@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "particles.h"
 #include "shader.h"
+#include "glquake.h"
 
 extern	cvar_t	cl_predict_players;
 extern	cvar_t	cl_predict_players_frac;
@@ -100,8 +101,13 @@ void CL_FreeDlights(void)
 	int i;
 	if (cl_dlights)
 		for (i = 0; i < rtlights_max; i++)
+		{
 			if (cl_dlights[i].worldshadowmesh)
 				SH_FreeShadowMesh(cl_dlights[i].worldshadowmesh);
+
+			if (cl_dlights[i].coronaocclusionquery)
+				qglDeleteQueriesARB(1, &cl_dlights[i].coronaocclusionquery);
+		}
 #endif
 
 	rtlights_max = cl_maxdlights = 0;
@@ -110,6 +116,7 @@ void CL_FreeDlights(void)
 }
 void CL_InitDlights(void)
 {
+	CL_FreeDlights();
 	rtlights_max = cl_maxdlights = RTL_FIRST;
 	cl_dlights = BZ_Realloc(cl_dlights, sizeof(*cl_dlights)*cl_maxdlights);
 	memset(cl_dlights, 0, sizeof(*cl_dlights)*cl_maxdlights);
@@ -117,9 +124,12 @@ void CL_InitDlights(void)
 
 static void CL_ClearDlight(dlight_t *dl, int key)
 {
-	void *sm;
-	sm = dl->worldshadowmesh;
+	void *sm = dl->worldshadowmesh;
+	unsigned int oq = dl->coronaocclusionquery;
+	unsigned int oqr = (dl->key == key)?dl->coronaocclusionresult:false;
 	memset (dl, 0, sizeof(*dl));
+	dl->coronaocclusionquery = oq;
+	dl->coronaocclusionresult = oqr;
 	dl->rebuildcache = true;
 	dl->worldshadowmesh = sm;
 	dl->axis[0][0] = 1;
@@ -220,12 +230,6 @@ dlight_t *CL_NewDlight (int key, const vec3_t org, float radius, float time,
 	dl->color[2] = b;
 
 	return dl;
-}
-
-dlight_t *CL_NewDlightRGB(int key, const vec3_t org, float radius, float time,
-				   float r, float g, float b)
-{
-	return CL_NewDlight(key, org, radius, time, r*5, g*5, b*5);
 }
 
 
@@ -1911,7 +1915,7 @@ void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
 */
 int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float b)
 {
-	return CL_NewDlightRGB (entsource, org, quant, -0.1, r, g, b) - cl_dlights;
+	return CL_NewDlight (entsource, org, quant, -0.1, r*5, g*5, b*5) - cl_dlights;
 }
 
 void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float *matrix, float r, float g, float b, float a)
@@ -2290,7 +2294,7 @@ void CL_DrawDebugPlane(float *normal, float dist, float r, float g, float b, qbo
 	{
 //		int oldents = cl_numvisedicts;
 //		cl_numvisedicts = 0;
-		BE_DrawWorld(false, NULL);
+		BE_DrawWorld(NULL, NULL);
 		cl_numstris = 0;
 //		cl_numvisedicts = oldents;
 	}
@@ -2938,7 +2942,7 @@ void CL_LinkStaticEntities(void *pvs)
 	model_t		*clmodel;
 	extern cvar_t r_drawflame, gl_part_flame;
 
-	if (r_drawflame.ival < 0)
+	if (r_drawflame.ival < 0 || r_drawentities.ival == 0)
 		return;
 
 	if (!cl.worldmodel)

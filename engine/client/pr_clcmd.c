@@ -540,16 +540,26 @@ void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	const char *sample = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	sfx_t *sfx = S_PrecacheSound(sample);
+	if (sfx && sfx->loadstate == SLS_LOADING)
+		COM_WorkerPartialSync(sfx, &sfx->loadstate, SLS_LOADING);
 	if (!sfx || sfx->loadstate != SLS_LOADED)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
 		sfxcache_t cachebuf, *cache;
-		if (sfx->decoder.decodedata)
+		if (sfx->decoder.querydata)
+		{
+			G_FLOAT(OFS_RETURN) = sfx->decoder.querydata(sfx, NULL);
+			return;
+		}
+		else if (sfx->decoder.decodedata)
 			cache = sfx->decoder.decodedata(sfx, &cachebuf, 0x7ffffffe, 0);
 		else
 			cache = sfx->decoder.buf;
-		G_FLOAT(OFS_RETURN) = (cache->soundoffset+cache->length) / (float)snd_speed;
+		if (!cache)
+			G_FLOAT(OFS_RETURN) = 0;
+		else
+			G_FLOAT(OFS_RETURN) = (cache->soundoffset+cache->length) / (float)snd_speed;
 	}
 }
 

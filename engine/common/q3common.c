@@ -23,7 +23,7 @@ int VM_fopen (char *name, int *handle, int fmode, int owner)
 	size_t insize;
 
 	if (!handle)
-		return FS_FLocateFile(name, FSLFRT_IFFOUND, NULL);
+		return FS_FLocateFile(name, FSLF_IFFOUND, NULL);
 
 	*handle = 0;
 

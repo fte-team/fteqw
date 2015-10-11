@@ -1264,7 +1264,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		lightdir[2] = 1;
 	}
 
-	if (!r_vertexdlights.ival && r_dynamic.ival)
+	if (!r_vertexdlights.ival && r_dynamic.ival > 0)
 	{
 		float *org = e->origin;
 		if (e->flags & RF_WEAPONMODEL)

@@ -46,8 +46,6 @@ texture_t	r_notexture_mip_real;
 texture_t	*r_notexture_mip = &r_notexture_mip_real;
 #endif
 
-qboolean isnotmap = true;	//used to not warp ammo models.
-
 void CM_Init(void);
 void CM_Shutdown(void);
 
@@ -1258,7 +1256,7 @@ static const char *Mod_RemapBuggyTexture(const char *name, const qbyte *data, un
 }
 
 
-void Mod_FinishTexture(texture_t *tx, const char *loadname)
+void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadfromwads)
 {
 #ifndef SERVERONLY
 	extern cvar_t gl_shadeq1_name;
@@ -1267,34 +1265,45 @@ void Mod_FinishTexture(texture_t *tx, const char *loadname)
 	const char *origname = NULL;
 	const char *shadername = tx->name;
 
-
-	/*skies? just replace with the override sky*/
-	if (!strncmp(tx->name, "sky", 3) && *cl.skyname)
-		tx->shader = R_RegisterCustom (va("skybox_%s", cl.skyname), SUF_NONE, Shader_DefaultSkybox, NULL);	//just load the regular name.
-	else
+	if (!safetoloadfromwads)
 	{
-		//remap to avoid bugging out on textures with the same name and different images (vanilla content sucks)
-		shadername = Mod_RemapBuggyTexture(shadername, tx->mips[0], tx->width*tx->height);
-		if (shadername)
-			origname = tx->name;
-		else
-			shadername = tx->name;
 
-		//find the *
-		if (!*gl_shadeq1_name.string || !strcmp(gl_shadeq1_name.string, "*"))
-			;
-		else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
-			shadername = gl_shadeq1_name.string;
+		/*skies? just replace with the override sky*/
+		if (!strncmp(tx->name, "sky", 3) && *cl.skyname)
+			tx->shader = R_RegisterCustom (va("skybox_%s", cl.skyname), SUF_NONE, Shader_DefaultSkybox, NULL);	//just load the regular name.
 		else
 		{
-			strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
-			altname[star-gl_shadeq1_name.string] = '\0';
-			strcat(altname, shadername);	//insert the *
-			strcat(altname, star+1);	//add any final text.
-			shadername = altname;
+			//remap to avoid bugging out on textures with the same name and different images (vanilla content sucks)
+			shadername = Mod_RemapBuggyTexture(shadername, tx->mips[0], tx->width*tx->height);
+			if (shadername)
+				origname = tx->name;
+			else
+				shadername = tx->name;
+
+			//find the *
+			if (!*gl_shadeq1_name.string || !strcmp(gl_shadeq1_name.string, "*"))
+				;
+			else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
+				shadername = gl_shadeq1_name.string;
+			else
+			{
+				strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
+				altname[star-gl_shadeq1_name.string] = '\0';
+				strcat(altname, shadername);	//insert the *
+				strcat(altname, star+1);	//add any final text.
+				shadername = altname;
+			}
+
+			tx->shader = R_RegisterCustom (shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 		}
 
-		tx->shader = R_RegisterCustom (shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
+		if (!tx->mips[0] && !safetoloadfromwads)
+			return;
+	}
+	else
+	{	//already loaded. don't waste time / crash (this will be a dead pointer).
+		if (tx->mips[0])
+			return;
 	}
 
 	if (!strncmp(tx->name, "sky", 3))
@@ -1559,10 +1568,10 @@ void Mod_NowLoadExternal(model_t *loadmodel)
 		if (!tx)	//e1m2, this happens
 			continue;
 
-		if (tx->shader)
+		if (tx->mips[0])
 			continue;
 
-		Mod_FinishTexture(tx, loadname);
+		Mod_FinishTexture(tx, loadname, true);
 	}
 #endif
 }
@@ -1661,11 +1670,12 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	if (!litdata && r_loadlits.value)
 	{
 		char *litnames[] = {
-			"maps/%s.lit2",
-			"maps/%s.lit",
+			"%s.lit2",
+			"%s.lit",
 			"lits/%s.lit2",
 			"lits/%s.lit"
 		};
+		char litbasep[MAX_QPATH];
 		char litbase[MAX_QPATH];
 		int depth;
 		int bestdepth = 0x7fffffff;
@@ -1675,10 +1685,14 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		size_t litsize;
 		qboolean inhibitvalidation = false;
 
-		COM_StripExtension(loadmodel->name, litbase, sizeof(litbase));
+		COM_StripExtension(loadmodel->name, litbasep, sizeof(litbasep));
+		COM_FileBase(loadmodel->name, litbase, sizeof(litbase));
 		for (i = 0; i < sizeof(litnames)/sizeof(litnames[0]); i++)
 		{
-			Q_snprintfz(litname, sizeof(litname), litnames[i], litbase);
+			if (strchr(litnames[i], '/'))
+				Q_snprintfz(litname, sizeof(litname), litnames[i], litbase);
+			else
+				Q_snprintfz(litname, sizeof(litname), litnames[i], litbasep);
 			depth = COM_FDepthFile(litname, false);
 			if (depth < bestdepth)
 			{
@@ -1688,7 +1702,10 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		}
 		if (best >= 0)
 		{
-			Q_snprintfz(litname, sizeof(litname), litnames[best], litbase);
+			if (strchr(litnames[best], '/'))
+				Q_snprintfz(litname, sizeof(litname), litnames[best], litbase);
+			else
+				Q_snprintfz(litname, sizeof(litname), litnames[best], litbasep);
 			litdata = FS_LoadMallocGroupFile(&loadmodel->memgroup, litname, &litsize);
 		}
 		else
@@ -2179,8 +2196,7 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 Mod_LoadSubmodels
 =================
 */
-static qboolean hexen2map;
-qboolean Mod_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+qboolean Mod_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean *hexen2map)
 {
 	dq1model_t	*inq;
 	dh2model_t	*inh;
@@ -2193,7 +2209,7 @@ qboolean Mod_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	inh = (void *)(mod_base + l->fileofs);
 	if (!inq->numfaces)
 	{
-		hexen2map = true;
+		*hexen2map = true;
 		if (l->filelen % sizeof(*inh))
 		{
 			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
@@ -2231,7 +2247,7 @@ qboolean Mod_LoadSubmodels (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	}
 	else
 	{
-		hexen2map = false;
+		*hexen2map = false;
 		if (l->filelen % sizeof(*inq))
 		{
 			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
@@ -3204,7 +3220,7 @@ static void Mod_Batches_AllocLightmaps(model_t *mod)
 	}
 	samps /= 4;
 	samps = sqrt(samps);
-	if (j > 128 || !r_dynamic.ival)
+	if (j > 128 || r_dynamic.ival <= 0)
 		samps *= 2;
 	mod->lightmaps.width = bound(j, samps, LMBLOCK_SIZE_MAX);
 	mod->lightmaps.height = bound(j, samps, LMBLOCK_SIZE_MAX);
@@ -3500,7 +3516,7 @@ static qboolean Mod_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 Mod_LoadLeafs
 =================
 */
-static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, int lm, qbyte *ptr, size_t len)
+static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, int lm, qboolean isnotmap, qbyte *ptr, size_t len)
 {
 	mleaf_t 	*out;
 	int			i, j, count, p;
@@ -3784,7 +3800,7 @@ void Mod_LoadCrouchHull(model_t *loadmodel)
 Mod_LoadClipnodes
 =================
 */
-qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm)
+qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm, qboolean hexen2map)
 {
 	dsclipnode_t *ins;
 	dlclipnode_t *inl;
@@ -4443,7 +4459,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 			if (!strncmp(loadname, "b_", 2))
 				Q_strncpyz(loadname, "bmodels", sizeof(loadname));
 			for(a = 0; a < mod->numtextures; a++)
-				Mod_FinishTexture(mod->textures[a], loadname);
+				Mod_FinishTexture(mod->textures[a], loadname, false);
 		}
 	}
 	Mod_Batches_Build(mod, data);
@@ -4483,7 +4499,7 @@ static void Mod_FindVisPatch(struct vispatch_s *patch, model_t *mod, size_t leaf
 
 	//ignore the patch file if its in a different gamedir.
 	//this file format sucks too much for other verification.
-	if (FS_FLocateFile(mod->name,FSLFRT_DEPTH_OSONLY, NULL) != FS_FLocateFile(patchname,FSLFRT_DEPTH_OSONLY, NULL))
+	if (FS_FLocateFile(mod->name,FSLF_DEPTH_EXPLICIT, NULL) != FS_FLocateFile(patchname,FSLF_DEPTH_EXPLICIT, NULL))
 		return;
 
 	patch->filelen = FS_LoadFile(patchname, &patch->fileptr);
@@ -4547,6 +4563,8 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 	int longm = false;
 	char loadname[32];
 	qbyte *mod_base = buffer;
+	qboolean hexen2map = false;
+	qboolean isnotmap;
 #if (defined(ODE_STATIC) || defined(ODE_DYNAMIC))
 	qboolean ode = true;
 #else
@@ -4662,7 +4680,7 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 		noerrors = noerrors && Mod_LoadTextures (mod, mod_base, &header->lumps[LUMP_TEXTURES]);
 	}
 	TRACE(("Loading Submodels\n"));
-	noerrors = noerrors && Mod_LoadSubmodels (mod, mod_base, &header->lumps[LUMP_MODELS]);
+	noerrors = noerrors && Mod_LoadSubmodels (mod, mod_base, &header->lumps[LUMP_MODELS], &hexen2map);
 	if (noerrors)
 	{
 		TRACE(("Loading CH\n"));
@@ -4689,11 +4707,11 @@ qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsize)
 		TRACE(("Loading Vis\n"));
 		Mod_LoadVisibility (mod, mod_base, &header->lumps[LUMP_VISIBILITY], vispatch.visptr, vispatch.vislen);
 	}
-	noerrors = noerrors && Mod_LoadLeafs (mod, mod_base, &header->lumps[LUMP_LEAFS], longm, vispatch.leafptr, vispatch.leaflen);
+	noerrors = noerrors && Mod_LoadLeafs (mod, mod_base, &header->lumps[LUMP_LEAFS], longm, isnotmap, vispatch.leafptr, vispatch.leaflen);
 	TRACE(("Loading Nodes\n"));
 	noerrors = noerrors && Mod_LoadNodes (mod, mod_base, &header->lumps[LUMP_NODES], longm);
 	TRACE(("Loading Clipnodes\n"));
-	noerrors = noerrors && Mod_LoadClipnodes (mod, mod_base, &header->lumps[LUMP_CLIPNODES], longm);
+	noerrors = noerrors && Mod_LoadClipnodes (mod, mod_base, &header->lumps[LUMP_CLIPNODES], longm, hexen2map);
 	if (noerrors)
 	{
 		TRACE(("Loading hull 0\n"));

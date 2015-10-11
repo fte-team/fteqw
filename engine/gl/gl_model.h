@@ -138,7 +138,11 @@ typedef struct batch_s
 	/*caller-use, not interpreted by backend*/
 	union
 	{
-		unsigned int shadowbatch; //a unique index to accelerate shadowmesh generation (dlights, yay!)
+		struct
+		{
+			unsigned int shadowbatch; //a unique index to accelerate shadowmesh generation (dlights, yay!)
+			unsigned int ebobatch;	//
+		};
 		struct 
 		{
 			unsigned int surf_first;
@@ -952,6 +956,7 @@ typedef struct model_s
 	vbo_t *vbos;
 	void *terrain;
 	batch_t *batches[SHADER_SORT_COUNT];
+	unsigned int numbatches;
 	struct
 	{
 		int first;				//once built...

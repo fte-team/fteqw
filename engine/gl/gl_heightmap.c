@@ -512,8 +512,8 @@ static qboolean Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 		lightmap[s->lightmap]->modified = true;
 		lightmap[s->lightmap]->rectchange.l = 0;
 		lightmap[s->lightmap]->rectchange.t = 0;
-		lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
-		lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
+		lightmap[s->lightmap]->rectchange.r = HMLMSTRIDE;
+		lightmap[s->lightmap]->rectchange.b = HMLMSTRIDE;
 	}
 
 	return s->lightmap>=0;
@@ -1452,8 +1452,8 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 		lightmap[s->lightmap]->modified = true;
 		lightmap[s->lightmap]->rectchange.l = 0;
 		lightmap[s->lightmap]->rectchange.t = 0;
-		lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
-		lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
+		lightmap[s->lightmap]->rectchange.r = HMLMSTRIDE;
+		lightmap[s->lightmap]->rectchange.b = HMLMSTRIDE;
 	}
 	for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
 	{
@@ -2101,7 +2101,7 @@ qboolean Terrain_LocateSection(char *name, flocation_t *loc)
 	if (!Terr_SaveSection(hm, s, x, y, false))
 		return false;
 
-	return FS_FLocateFile(name, FSLFRT_IFFOUND, loc);
+	return FS_FLocateFile(name, FSLF_IFFOUND, loc);
 }
 #endif
 
@@ -2240,7 +2240,7 @@ static qboolean Terr_Collect(heightmap_t *hm)
 #endif
 
 /*purge all sections, but not root
-lightmaps only are purged whenever the client rudely kills lightmaps
+lightmaps only are purged whenever the client rudely kills lightmaps (purges all lightmaps on map changes, to cope with models/maps potentially being unloaded)
 we'll reload those when its next seen.
 (lightmaps will already have been destroyed, so no poking them)
 */
@@ -2312,6 +2312,7 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean light
 
 //	Con_Printf("PostPurge: %i lm chunks used, %i unused\n", hm->numusedlmsects, hm->numunusedlmsects);
 }
+
 void Terr_FreeModel(model_t *mod)
 {
 	heightmap_t *hm = mod->terrain;
@@ -2354,6 +2355,7 @@ void Terr_FreeModel(model_t *mod)
 		mod->terrain = NULL;
 	}
 }
+
 #ifndef SERVERONLY
 void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, struct hmwater_s *w)
 {
@@ -3831,7 +3833,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 
 	if (!s || s->loadstate != TSLS_LOADED)
 	{
-		if ((tr->contents & tr->hm->exteriorcontents) || s->loadstate != TSLS_FAILED)
+		if ((tr->hitcontentsmask & tr->hm->exteriorcontents) || s->loadstate != TSLS_FAILED)
 		{
 			//you're not allowed to walk into sections that have not loaded.
 			//might as well check the entire section instead of just one tile
@@ -4101,6 +4103,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	hmtrace.htilesize = hmtrace.hm->sectionsize / (SECTHEIGHTSIZE-1);
 	hmtrace.frac = 1;
 	hmtrace.contents = 0;
+	hmtrace.hitcontentsmask = against;
 
 	hmtrace.plane[0] = 0;
 	hmtrace.plane[1] = 0;
@@ -4389,8 +4392,8 @@ static unsigned char *ted_getlightmap(hmsection_t *s, int idx)
 	lightmap[s->lightmap]->modified = true;
 	lightmap[s->lightmap]->rectchange.l = 0;
 	lightmap[s->lightmap]->rectchange.t = 0;
-	lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
-	lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
+	lightmap[s->lightmap]->rectchange.r = HMLMSTRIDE;
+	lightmap[s->lightmap]->rectchange.b = HMLMSTRIDE;
 	lm = lightmap[s->lightmap]->lightmaps;
 	lm += ((s->lmy+y) * HMLMSTRIDE + (s->lmx+x)) * lightmap_bytes;
 	return lm;
@@ -4449,8 +4452,8 @@ static void ted_dorelight(heightmap_t *hm)
 	lightmap[s->lightmap]->modified = true;
 	lightmap[s->lightmap]->rectchange.l = 0;
 	lightmap[s->lightmap]->rectchange.t = 0;
-	lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
-	lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
+	lightmap[s->lightmap]->rectchange.r = HMLMSTRIDE;
+	lightmap[s->lightmap]->rectchange.b = HMLMSTRIDE;
 }
 static void ted_sethole(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
 {
@@ -5606,8 +5609,8 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 				lm->modified = true;
 				lm->rectchange.l = 0;
 				lm->rectchange.t = 0;
-				lm->rectchange.w = lm->width;
-				lm->rectchange.h = lm->height;
+				lm->rectchange.r = lm->width;
+				lm->rectchange.b = lm->height;
 
 				in = br->faces[j].lightdata;
 				out = lm->lightmaps + (br->faces[j].lmbase[1] * lm->width + br->faces[j].lmbase[0]) * lightmap_bytes;
@@ -6159,6 +6162,21 @@ void CL_Parse_BrushEdit(void)
 		brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
 		if (!Brush_Deserialise(hm, &brush))
 			Host_EndGame("CL_Parse_BrushEdit: unparsable brush\n");
+		if (brush.id)
+		{
+			int i;
+			if (cls.demoplayback)
+				Terr_Brush_DeleteId(hm, brush.id);
+			else
+			{
+				for (i = 0; i < hm->numbrushes; i++)
+				{
+					brushes_t *br = &hm->wbrushes[i];
+					if (br->id == brush.id)
+						return;	//we already have it. assume we just edited it.
+				}
+			}
+		}
 		Terr_Brush_Insert(mod, hm, &brush);
 	}
 	else
@@ -6608,7 +6626,7 @@ void QCBUILTIN PF_brush_findinvolume(pubprogfuncs_t *prinst, struct globalvars_s
 			}
 			dist = DotProduct (best, in_normals[j]);
 			dist = in_distances[j] - dist;
-			if (dist < 0)
+			if (dist <= 0)	//don't find coplanar brushes. add an epsilon if you need this.
 				break;
 		}
 		if (j == in_numplanes)
@@ -6658,6 +6676,10 @@ void Terr_WriteMapFile(vfsfile_t *file, model_t *mod)
 	int i;
 	unsigned int entnum = 0;
 	heightmap_t *hm;
+	
+	hm = mod->terrain;
+	if (hm && hm->exteriorcontents != FTECONTENTS_EMPTY)
+		VFS_WRITE(file, "terrain\n", 8);
 
 	start = entities;
 	while(entities)
@@ -7278,13 +7300,36 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force)
 	return hm;
 }
 
+#ifndef SERVERONLY
 void Mod_Terrain_Create_f(void)
 {
+	int x,y;
+	hmsection_t *s;
+	heightmap_t *hm;
 	char *mname;
-	char *mdata;
+	char *mapdesc;
+	char *skyname;
+	char *groundname;
+	char *watername;
+	char *groundheight;
+	char *waterheight;
+	vfsfile_t *file;
+	model_t mod;
+	memset(&mod, 0, sizeof(mod));
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("%s: NAME \"DESCRIPTION\" SKYNAME DEFAULTGROUNDTEX DEFAULTHEIGHT DEFAULTWATER DEFAULTWATERHEIGHT\nGenerates a fresh maps/foo.hmp file. You may wish to edit it with notepad later to customise it. You will need csaddon.dat in order to edit the actual terrain.\n", Cmd_Argv(0));
+		return;
+	}
 	mname = va("maps/%s.hmp", Cmd_Argv(1));
-	mdata = va(
-		"terrain\n"
+
+	mapdesc = Cmd_Argv(2); if (!*mapdesc) mapdesc = Cmd_Argv(1);
+	skyname = Cmd_Argv(3); if (!*skyname) skyname = "sky1";
+	groundname = Cmd_Argv(4); if (!*groundname) groundname = "default";
+	groundheight = Cmd_Argv(5); if (!*groundheight) groundheight = "0";
+	watername = Cmd_Argv(6); if (!*watername) watername = "";
+	waterheight = Cmd_Argv(7); if (!*waterheight) waterheight = "1024";
+	mod.entities = va(
 		"{\n"
 			"classname \"worldspawn\"\n"
 			"message \"%s\"\n"
@@ -7295,8 +7340,8 @@ void Mod_Terrain_Create_f(void)
 			"_minysegment -2048\n"
 			"_maxxsegment 2048\n"
 			"_maxysegment 2048\n"
-			"//_defaultgroundtexture city4_2\n"
-			"//_defaultwatertexture *water2\n"
+			"//_defaultgroundtexture \"city4_2\"\n"
+			"//_defaultwatertexture \"*water2\"\n"
 			"//_defaultgroundheight -1024\n"
 			"//_defaultwaterheight 0\n"	//hurrah, sea level.
 //			"_tiles 64 64 8 8\n"
@@ -7306,10 +7351,51 @@ void Mod_Terrain_Create_f(void)
 			"origin \"0 0 1024\"\n"
 		"}\n"
 		, Cmd_Argv(2));
-	COM_WriteFile(mname, FS_GAMEONLY, mdata, strlen(mdata));
 
-	//FIXME: create 4 sections around the origin
+	mod.type = mod_heightmap;
+	mod.terrain = hm = Z_Malloc(sizeof(*hm));
+	Terr_ParseEntityLump(mod.entities, hm);
+	hm->entitylock = Sys_CreateMutex();
+	ClearLink(&hm->recycle);
+	Q_strncpyz(hm->path, Cmd_Argv(1), sizeof(hm->path));
+	Q_strncpyz(hm->groundshadername, "terrainshader", sizeof(hm->groundshadername));
+	hm->exteriorcontents = FTECONTENTS_SOLID;
+
+
+	for (x = CHUNKBIAS-1; x < CHUNKBIAS+1; x++)
+		for (y = CHUNKBIAS-1; y < CHUNKBIAS+1; y++)
+			Terr_GetSection(hm, x, y, TGS_TRYLOAD|TGS_DEFAULTONFAIL);
+
+	for (x = CHUNKBIAS-1; x < CHUNKBIAS+1; x++)
+		for (y = CHUNKBIAS-1; y < CHUNKBIAS+1; y++)
+		{
+			s = Terr_GetSection(hm, x, y, TGS_WAITLOAD|TGS_DEFAULTONFAIL);
+			if (s && (s->flags & (TSF_EDITED|TSF_DIRTY)))
+			{
+				Terr_InitLightmap(s, false);
+				Terr_SaveSection(hm, s, x, y, true);
+			}
+		}
+
+	if (COM_FCheckExists(mname))
+	{
+		Con_Printf("%s: already exists, not overwriting.\n", mname);
+		return;
+	}
+	FS_CreatePath(mname, FS_GAMEONLY);
+	file = FS_OpenVFS(mname, "wb", FS_GAMEONLY);
+	if (!file)
+		Con_Printf("unable to open %s\n", mname);
+	else
+	{
+		Terr_WriteMapFile(file, &mod);
+		VFS_CLOSE(file);
+		Con_Printf("Wrote %s\n", mname);
+		FS_FlushFSHashWritten();
+	}
+	Terr_FreeModel(&mod);
 }
+#endif
 //reads in the terrain a tile at a time, and writes it out again.
 //the new version will match our current format version.
 //this is mostly so I can strip out old format revisions...
@@ -7426,9 +7512,9 @@ void Terr_Init(void)
 	Cvar_Register(&mod_terrain_defaulttexture, "Terrain");
 	Cvar_Register(&mod_terrain_savever, "Terrain");
 	Cmd_AddCommand("mod_terrain_save", Mod_Terrain_Save_f);
-	Cmd_AddCommand("mod_terrain_create", Mod_Terrain_Create_f);
 	Cmd_AddCommand("mod_terrain_reload", Mod_Terrain_Reload_f);
 #ifndef SERVERONLY
+	Cmd_AddCommand("mod_terrain_create", Mod_Terrain_Create_f);
 	Cmd_AddCommandD("mod_terrain_convert", Mod_Terrain_Convert_f, "mod_terrain_convert [mapname] [texkill]\nConvert a terrain to the current format. If texkill is specified, only tiles with the named texture will be converted, and tiles with that texture will be stripped. This is a slow operation.");
 #endif
 

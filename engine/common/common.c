@@ -4724,11 +4724,24 @@ void COM_ErrorMe_f(void)
 
 
 #ifdef LOADERTHREAD
-#define WORKERTHREADS (1+1+4)
+#define WG_MAIN		0
+#define WG_LOADER	1
+#define WG_COUNT	2 //main and loaders
+#define WORKERTHREADS 16	//max
 /*multithreading worker thread stuff*/
-static void *com_workercondition[WORKERTHREADS];
-static qboolean com_workerdone[WORKERTHREADS];
-static void *com_workerthread[WORKERTHREADS];
+static int com_liveworkers[WG_COUNT];
+static void *com_workercondition[WG_COUNT];
+static volatile int com_workeracksequence;
+static struct com_worker_s
+{
+	void *thread;
+	volatile enum {
+		WR_NONE,
+		WR_DIE,
+		WR_ACK	//updates ackseq to com_workeracksequence and sends a signal to WG_MAIN
+	} request;
+	volatile int ackseq;
+} com_worker[WORKERTHREADS];
 static unsigned int mainthreadid;
 qboolean com_workererror;
 static struct com_work_s
@@ -4739,77 +4752,12 @@ static struct com_work_s
 	void *data;
 	size_t a;
 	size_t b;
-} *com_work_head[WORKERTHREADS], *com_work_tail[WORKERTHREADS];
-static void Sys_ErrorThread(void *ctx, void *data, size_t a, size_t b)
-{
-	Sys_Error(data);
-}
-void COM_WorkerAbort(char *message)
-{
-	int us;
-	struct com_work_s work;
-	if (Sys_IsMainThread())
-		return;
-	com_workererror = true;
-
-	if (!com_workercondition[0])
-		return;	//Sys_IsMainThread was probably called too early...
-
-	memset(&work, 0, sizeof(work));
-	work.func = Sys_ErrorThread;
-	work.ctx = NULL;
-	work.data = message;
-	work.a = 0;
-	work.b = 0;
-
-	Sys_LockConditional(com_workercondition[0]);
-	if (com_work_tail[0])
-	{
-		com_work_tail[0]->next = &work;
-		com_work_tail[0] = &work;
-	}
-	else
-		com_work_head[0] = com_work_tail[0] = &work;
-	Sys_ConditionSignal(com_workercondition[0]);
-	Sys_UnlockConditional(com_workercondition[0]);
-
-	//find out which worker we are
-	for (us = WORKERTHREADS-1; us > 0; us--)
-		if (Sys_IsThread(com_workerthread[us]))
-			break;
-	if (us)
-	{
-		//and post any pending work we have back over to the main thread, because we're going down as soon as we can.
-		while(!com_workerdone[us])
-		{
-			struct com_work_s *w;
-			Sys_LockConditional(com_workercondition[us]);
-			w = com_work_head[us];
-			if (w)
-				com_work_head[us] = w->next;
-			if (!com_work_head[us])
-				com_work_head[us] = com_work_tail[us] = NULL;
-			Sys_UnlockConditional(com_workercondition[us]);
-			if (w)
-			{
-				COM_AddWork(0, w->func, w->ctx, w->data, w->a, w->b);
-				Z_Free(w);
-			}
-			else
-				Sys_ConditionSignal(com_workercondition[0]);
-
-			Sys_Sleep(0.1);
-		}
-		com_workerdone[0] = true;
-		Sys_ConditionSignal(com_workercondition[0]);
-	}
-	Sys_ThreadAbort();
-}
+} *com_work_head[WG_COUNT], *com_work_tail[WG_COUNT];
 //return if there's *any* loading that needs to be done anywhere.
 qboolean COM_HasWork(void)
 {
 	unsigned int i;
-	for (i = 0; i < WORKERTHREADS-1; i++)
+	for (i = 0; i < WG_COUNT; i++)
 	{
 		if (com_work_head[i])
 			return true;
@@ -4817,12 +4765,15 @@ qboolean COM_HasWork(void)
 	return false;
 }
 //thread==0 is main thread, thread==1 is a worker thread
-void COM_AddWork(int thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
+void COM_AddWork(int tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
 {
 	struct com_work_s *work;
 
+	if (tg >= WG_COUNT)
+		return;
+
 	//no worker there, just do it immediately on this thread instead of pushing it to the worker.
-	if (thread && (!com_workerthread[thread] || com_workererror))
+	if (!com_liveworkers[tg] || (tg!=WG_MAIN && com_workererror))
 	{
 		func(ctx, data, a, b);
 		return;
@@ -4837,19 +4788,19 @@ void COM_AddWork(int thread, void(*func)(void *ctx, void *data, size_t a, size_t
 	work->b = b;
 
 	//queue it (fifo)
-	Sys_LockConditional(com_workercondition[thread]);
-	if (com_work_tail[thread])
+	Sys_LockConditional(com_workercondition[tg]);
+	if (com_work_tail[tg])
 	{
-		com_work_tail[thread]->next = work;
-		com_work_tail[thread] = work;
+		com_work_tail[tg]->next = work;
+		com_work_tail[tg] = work;
 	}
 	else
-		com_work_head[thread] = com_work_tail[thread] = work;
+		com_work_head[tg] = com_work_tail[tg] = work;
 
 //	Sys_Printf("%x: Queued work %p (%s)\n", thread, work->ctx, work->ctx?(char*)work->ctx:"?");
 
-	Sys_ConditionSignal(com_workercondition[thread]);
-	Sys_UnlockConditional(com_workercondition[thread]);
+	Sys_ConditionSignal(com_workercondition[tg]);
+	Sys_UnlockConditional(com_workercondition[tg]);
 
 //	if (!com_workerthread[thread])
 //		while(COM_DoWork(thread, false))
@@ -4857,71 +4808,156 @@ void COM_AddWork(int thread, void(*func)(void *ctx, void *data, size_t a, size_t
 }
 //leavelocked = false == poll mode.
 //leavelocked = true == safe sleeping
-qboolean COM_DoWork(int thread, qboolean leavelocked)
+qboolean COM_DoWork(int tg, qboolean leavelocked)
 {
 	struct com_work_s *work;
+	if (tg >= WG_COUNT)
+		return false;
 	if (!leavelocked)
 	{
 		//skip the locks if it looks like we can be lazy.
-		if (!com_work_head[thread])
+		if (!com_work_head[tg])
 			return false;
-		Sys_LockConditional(com_workercondition[thread]);
+		Sys_LockConditional(com_workercondition[tg]);
 	}
-	work = com_work_head[thread];
+	work = com_work_head[tg];
 	if (work)
-		com_work_head[thread] = work->next;
-	if (!com_work_head[thread])
-		com_work_head[thread] = com_work_tail[thread] = NULL;
+		com_work_head[tg] = work->next;
+	if (!com_work_head[tg])
+		com_work_head[tg] = com_work_tail[tg] = NULL;
 
 	if (work)
 	{
 //		Sys_Printf("%x: Doing work %p (%s)\n", thread, work->ctx, work->ctx?(char*)work->ctx:"?");
-		Sys_UnlockConditional(com_workercondition[thread]);
+		Sys_UnlockConditional(com_workercondition[tg]);
 
 		work->func(work->ctx, work->data, work->a, work->b);
 		Z_Free(work);
 
 		if (leavelocked)
-			Sys_LockConditional(com_workercondition[thread]);
+			Sys_LockConditional(com_workercondition[tg]);
 
 		return true;	//did something, check again
 	}
 
 	if (!leavelocked)
-		Sys_UnlockConditional(com_workercondition[thread]);
+		Sys_UnlockConditional(com_workercondition[tg]);
 
 	//nothing going on, if leavelocked then noone can add anything until we sleep.
 	return false;
 }
-static void COM_WorkerSync_StopWorker(void *ctx, void *data, size_t a, size_t b)
+static void COM_WorkerSync_ThreadAck(void *ctx, void *data, size_t a, size_t b)
 {
-	com_workerdone[a] = true;
+	int us;
+	int *ackbuf = ctx;
+
+	Sys_LockConditional(com_workercondition[WG_MAIN]);
+	//find out which worker we are, and flag ourselves as having acked the main thread to clean us up
+	for (us = 0; us < WORKERTHREADS; us++)
+	{
+		if (com_worker[us].thread && Sys_IsThread(com_worker[us].thread))
+		{
+			ackbuf[us] = true;
+			break;
+		}
+	}
+	*(int*)data += 1;
+	//and tell the main thread it can stop being idle now
+	Sys_ConditionSignal(com_workercondition[WG_MAIN]);
+	Sys_UnlockConditional(com_workercondition[WG_MAIN]);
 }
-static void COM_WorkerSync_SignalMain(void *ctx, void *data, size_t a, size_t b)
+/*static void COM_WorkerSync_SignalMain(void *ctx, void *data, size_t a, size_t b)
 {
 	Sys_LockConditional(com_workercondition[a]);
 	com_workerdone[a] = true;
 	Sys_ConditionSignal(com_workercondition[a]);
 	Sys_UnlockConditional(com_workercondition[a]);
+}*/
+static void COM_WorkerSync_WorkerStopped(void *ctx, void *data, size_t a, size_t b)
+{
+	struct com_worker_s *thread = ctx;
+	if (thread->thread)
+	{
+		//the worker signaled us then stopped looping
+		Sys_WaitOnThread(thread->thread);
+		thread->thread = NULL;
+
+		Sys_LockConditional(com_workercondition[b]);
+		com_liveworkers[b] -= 1;
+		Sys_UnlockConditional(com_workercondition[b]);
+	}
+	else
+		Con_Printf("worker thread died twice?\n");
+
+	//if that was the last thread, make sure any work pending for that group is completed.
+	if (!com_liveworkers[b])
+	{
+		while(COM_DoWork(b, false))
+			;
+	}
 }
 static int COM_WorkerThread(void *arg)
 {
-	int thread = (void**)arg - com_workerthread;
-	Sys_LockConditional(com_workercondition[thread]);
-	do
+	struct com_worker_s *thread = arg;
+	int group = WG_LOADER;
+	Sys_LockConditional(com_workercondition[group]);
+	com_liveworkers[group]++;
+	for(;;)
 	{
-		while(COM_DoWork(thread, true))
+		while(COM_DoWork(group, true))
 			;
-		if (com_workerdone[thread])
+		if (thread->request)	//flagged from some work
+		{
+			if (thread->request == WR_DIE)
+				break;
+			if (thread->request == WR_ACK)
+			{
+				thread->request = WR_NONE;
+				thread->ackseq = com_workeracksequence;
+				Sys_UnlockConditional(com_workercondition[group]);
+				Sys_ConditionBroadcast(com_workercondition[WG_MAIN]); //try to wake up whoever wanted us to ack them
+				Sys_LockConditional(com_workercondition[group]);
+				continue;
+			}
+		}
+		else if (!Sys_ConditionWait(com_workercondition[group]))
 			break;
-	} while (Sys_ConditionWait(com_workercondition[thread]));
-	Sys_UnlockConditional(com_workercondition[thread]);
+	}
+	Sys_UnlockConditional(com_workercondition[group]);
 
-	//no more work please...
-	*(void**)arg = NULL;
-	//and wake up main thread
-	COM_WorkerSync_SignalMain(NULL, NULL, 0, 0);
+	//and wake up main thread to clean up our handle
+	COM_AddWork(WG_MAIN, COM_WorkerSync_WorkerStopped, thread, NULL, 0, group);
 	return 0;
+}
+static void Sys_ErrorThread(void *ctx, void *data, size_t a, size_t b)
+{
+	//posted to main thread from a worker.
+	Sys_Error(data);
+}
+void COM_WorkerAbort(char *message)
+{
+	int group = -1;
+	int us;
+	if (Sys_IsMainThread())
+		return;
+	com_workererror = true;
+
+	if (!com_workercondition[WG_MAIN])
+		return;	//Sys_IsMainThread was probably called too early...
+
+	//find out which worker we are, and tell the main thread to clean us up
+	for (us = 0; us < WORKERTHREADS; us++)
+		if (com_worker[us].thread && Sys_IsThread(com_worker[us].thread))
+		{
+			group = WG_LOADER;
+			COM_AddWork(WG_MAIN, COM_WorkerSync_WorkerStopped, &com_worker[us], NULL, 0, group);
+			break;
+		}
+
+	//now tell the main thread that it should be crashing, and why.
+	COM_AddWork(WG_MAIN, Sys_ErrorThread, NULL, Z_StrDup(message), 0, 0);
+
+	Sys_ThreadAbort();
 }
 
 #ifndef COM_AssertMainThread
@@ -4936,49 +4972,30 @@ void COM_AssertMainThread(const char *msg)
 void COM_DestroyWorkerThread(void)
 {
 	int i;
-	COM_WorkerFullSync();
+	if (!com_resourcemutex)
+		return;
 //	com_workererror = false;
+	Sys_LockConditional(com_workercondition[WG_LOADER]);
 	for (i = 0; i < WORKERTHREADS; i++)
-	{
-		if (com_workerthread[i])
-		{
-			void *thread = com_workerthread[i];
-			com_workerdone[0] = false;
-			//send it the terminate message
-			COM_AddWork(i, COM_WorkerSync_StopWorker, NULL, NULL, i, 0);
+		com_worker[i].request = WR_DIE;	//flag them all to die
+	Sys_ConditionBroadcast(com_workercondition[WG_LOADER]);	//and make sure they ALL wake up
+	Sys_UnlockConditional(com_workercondition[WG_LOADER]);
 
-			//wait for the response while servicing anything that it might be waiting for.
-			Sys_LockConditional(com_workercondition[0]);
-			do
-			{
-				if (com_workererror)
-					break;
-				while(COM_DoWork(0, true))
-					;
-				if (com_workerdone[0])
-					break;
-			} while (Sys_ConditionWait(com_workercondition[0]));
-			Sys_UnlockConditional(com_workercondition[0]);
+	while(COM_DoWork(WG_LOADER, false))	//finish any work that got posted to it that it neglected to finish.
+		;
+	while(COM_DoWork(WG_MAIN, false))
+		;
 
-			//and now that we know its going down and will not wait any more, we can block for its final moments
-			Sys_WaitOnThread(thread);
+	COM_WorkerFullSync();
 
-			//finish any work that got posted to it that it neglected to finish.
-			while(COM_DoWork(i, true))
-				;
-		}
-	}
-
-	for (i = 0; i < WORKERTHREADS; i++)
+	for (i = 0; i < WG_COUNT; i++)
 	{
 		if (com_workercondition[i])
 			Sys_DestroyConditional(com_workercondition[i]);
 		com_workercondition[i] = NULL;
-		com_workerthread[i] = NULL;
 	}
 
-	if (com_resourcemutex)
-		Sys_DestroyMutex(com_resourcemutex);
+	Sys_DestroyMutex(com_resourcemutex);
 	com_resourcemutex = NULL;
 }
 
@@ -4988,36 +5005,56 @@ void COM_WorkerFullSync(void)
 	qboolean repeat;
 	int i;
 
-	for (i = 1; i < WORKERTHREADS; i++)
-	{
-		if (!com_workerthread[i])
-			continue;
+	while(COM_DoWork(WG_MAIN, false))
+		;
 
-		//main thread asks worker thread to set main thread's 'done' flag.
-		//the worker might be posting work to the main thread and back (shaders with texures) so make sure that the only work we do before the reply is the reply itself.
-		do
+	if (!com_liveworkers[WG_LOADER])
+		return;
+
+	com_workeracksequence++;
+
+	Sys_LockConditional(com_workercondition[WG_MAIN]);
+	do
+	{
+		if (!COM_HasWork())
 		{
-			int cmds = 0;
-			com_workerdone[0] = false;
-			repeat = COM_HasWork();
-			COM_AddWork(i, COM_WorkerSync_SignalMain, NULL, NULL, 0, 0);
-			Sys_LockConditional(com_workercondition[0]);
-			do
+			Sys_UnlockConditional(com_workercondition[WG_MAIN]);
+			Sys_LockConditional(com_workercondition[WG_LOADER]);
+			repeat = false;
+			for (i = 0; i < WORKERTHREADS; i++)
 			{
-				if (com_workererror)
-					break;
-				while(COM_DoWork(0, true))
-					cmds++;
-				if (com_workerdone[0])
-					break;
-			} while (Sys_ConditionWait(com_workercondition[0]));
-			Sys_UnlockConditional(com_workercondition[0]);
-			if (com_workererror)
-				break;
-			if (cmds > 1)
-				repeat = true;
-		} while (COM_DoWork(0, false) || repeat);	//outer loop ensures there isn't anything pingponging between
-	}
+				if (com_worker[i].ackseq != com_workeracksequence && com_worker[i].request == WR_NONE)
+				{
+					com_worker[i].request = WR_ACK;
+					repeat = true;
+				}
+			}
+			if (repeat)	//we're unable to signal a specific thread due to only having one condition. oh well. WAKE UP GUYS!
+				Sys_ConditionBroadcast(com_workercondition[WG_LOADER]);
+			Sys_UnlockConditional(com_workercondition[WG_LOADER]);
+			Sys_LockConditional(com_workercondition[WG_MAIN]);
+		}
+
+		repeat = COM_DoWork(WG_MAIN, true);
+
+		if (repeat)
+		{	//if we just did something, we may have posted something new to a worker... bum.
+			com_workeracksequence++;
+		}
+		else
+		{
+			for (i = 0; i < WORKERTHREADS; i++)
+			{
+				if (com_worker[i].thread && com_worker[i].ackseq != com_workeracksequence)
+					repeat = true;
+			}
+			if (repeat)
+				Sys_ConditionWait(com_workercondition[WG_MAIN]);
+		}
+		if (com_workererror)
+			break;
+	} while(repeat);
+	Sys_UnlockConditional(com_workercondition[WG_MAIN]);
 }
 
 //main thread wants a specific object to be prioritised.
@@ -5032,18 +5069,20 @@ void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 
 //	Con_Printf("waiting for %p %s\n", priorityctx, priorityctx);
 
+	COM_DoWork(WG_MAIN, false);
+
 	//boost the priority of the object that we're waiting for on the other thread, if we can find it.
 	//this avoids waiting for everything.
 	//if we can't find it, then its probably currently being processed anyway.
 	//main thread is meant to do all loadstate value changes anyway, ensuring that we're woken up properly in this case.
 	if (priorityctx)
 	{
-		unsigned int thread;
+		unsigned int grp;
 		qboolean found = false;
-		for (thread = 1; thread < WORKERTHREADS && !found; thread++)
+		for (grp = WG_LOADER; grp < WG_MAIN && !found; grp++)
 		{
-			Sys_LockConditional(com_workercondition[thread]);
-			for (link = &com_work_head[thread], work = NULL; *link; link = &(*link)->next)
+			Sys_LockConditional(com_workercondition[grp]);
+			for (link = &com_work_head[grp], work = NULL; *link; link = &(*link)->next)
 			{
 				prev = work;
 				work = *link;
@@ -5052,30 +5091,30 @@ void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 
 					*link = work->next;
 					if (!work->next)
-						com_work_tail[thread] = prev;
+						com_work_tail[grp] = prev;
 					//link it in at the head, so its the next thing seen.
-					work->next = com_work_head[thread];
-					com_work_head[thread] = work;
+					work->next = com_work_head[grp];
+					com_work_head[grp] = work;
 					if (!work->next)
-						com_work_tail[thread] = work;
+						com_work_tail[grp] = work;
 					found = true;
 
 					break;	//found it, nothing else to do.
 				}
 			}
 			//we've not actually added any work, so no need to signal
-			Sys_UnlockConditional(com_workercondition[thread]);
+			Sys_UnlockConditional(com_workercondition[grp]);
 		}
 		if (!found)
 			Con_DPrintf("Might be in for a long wait for %s\n", (char*)priorityctx);
 	}
 
-	Sys_LockConditional(com_workercondition[0]);
+	Sys_LockConditional(com_workercondition[WG_MAIN]);
 	do
 	{
 		if (com_workererror)
 			break;
-		while(COM_DoWork(0, true))
+		while(COM_DoWork(WG_MAIN, true))
 		{
 			//give up as soon as we're done
 			if (*address != value)
@@ -5084,8 +5123,8 @@ void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 		//if our object's state has changed, we're done
 		if (*address != value)
 			break;
-	} while (Sys_ConditionWait(com_workercondition[0]));
-	Sys_UnlockConditional(com_workercondition[0]);
+	} while (Sys_ConditionWait(com_workercondition[WG_MAIN]));
+	Sys_UnlockConditional(com_workercondition[WG_MAIN]);
 
 //	Con_Printf("Waited %f for %s\n", Sys_DoubleTime() - time1, priorityctx);
 }
@@ -5094,7 +5133,7 @@ static void COM_WorkerPing(void *ctx, void *data, size_t a, size_t b)
 {
 	double *timestamp = data;
 	if (!b)
-		COM_AddWork(0, COM_WorkerPing, ctx, data, 0, 1);
+		COM_AddWork(WG_MAIN, COM_WorkerPing, ctx, data, 0, 1);
 	else
 	{
 		Con_Printf("Ping: %g\n", Sys_DoubleTime() - *timestamp);
@@ -5102,35 +5141,66 @@ static void COM_WorkerPing(void *ctx, void *data, size_t a, size_t b)
 }
 static void COM_WorkerTest_f(void)
 {
-	if (com_workerthread)
-	{
-		double *timestamp = Z_Malloc(sizeof(*timestamp));
-		*timestamp = Sys_DoubleTime();
-		COM_AddWork(1, COM_WorkerPing, NULL, timestamp, 0, 0);
-	}
-	else
-		Con_Printf("Worker is not active.\n");
+	double *timestamp = Z_Malloc(sizeof(*timestamp));
+	*timestamp = Sys_DoubleTime();
+	COM_AddWork(WG_LOADER, COM_WorkerPing, NULL, timestamp, 0, 0);
 }
 
+static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue)
+{
+	int i, count = var->ival;
 
-cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling.");
+	if (!*var->string)
+	{
+		count = 4;
+	}
+
+	//try to respond to any kill requests now, so we don't get surprised by the cvar changing too often.
+	while(COM_DoWork(WG_MAIN, false))
+		;
+
+	for (i = 0; i < WORKERTHREADS; i++)
+	{
+		if (i >= count)
+		{
+			//higher thread indexes need to die.
+			com_worker[i].request = WR_DIE;	//flag them all to die
+		}
+		else
+		{
+			//lower thread indexes need to be created
+			if (!com_worker[i].thread)
+			{
+				com_worker[i].request = WR_NONE;
+				com_worker[i].thread = Sys_CreateThread(va("loadworker_%i", i), COM_WorkerThread, &com_worker[i], 0, 256*1024);
+			}
+		}
+	}
+	Sys_ConditionBroadcast(com_workercondition[WG_LOADER]);	//and make sure they ALL wake up to check their new death values.
+}
+cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling the main thread.");
+cvar_t worker_count = CVARFDC("worker_count", "", CVAR_NOTFROMSERVER, "Specifies the number of worker threads to utilise.", COM_WorkerCount_Change);
 static void COM_InitWorkerThread(void)
 {
 	int i;
 
 	//in theory, we could run multiple workers, signalling a different one in turn for each bit of work.
 	com_resourcemutex = Sys_CreateMutex();
-	for (i = 0; i < WORKERTHREADS; i++)
+	for (i = 0; i < WG_COUNT; i++)
 	{
 		com_workercondition[i] = Sys_CreateConditional();
 	}
-	if (!COM_CheckParm("-noworker"))
+	com_liveworkers[WG_MAIN] = 1;
+
+	//technically its ready now...
+
+	if (COM_CheckParm("-noworker"))
 	{
-		for (i = 1; i < WORKERTHREADS; i++)
-		{
-			com_workerthread[i] = Sys_CreateThread(va("loadworker_%i", i), COM_WorkerThread, &com_workerthread[i], 0, 256*1024);
-		}
+		worker_count.string = "0";
+		worker_count.flags |= CVAR_NOSET;
 	}
+	Cvar_Register(&worker_count, NULL);
+	Cvar_ForceCallback(&worker_count);
 
 	Cmd_AddCommand ("worker_test", COM_WorkerTest_f);
 	Cvar_Register(&worker_flush, NULL);

@@ -3546,7 +3546,7 @@ qbool TP_CheckSoundTrigger (char *str)
 				COM_DefaultExtension (soundname, ".wav", sizeof(soundname));
 
 				// make sure we have it on disk (FIXME)
-				if (!FS_FLocateFile (va("sound/%s", soundname), FSLFRT_IFFOUND, NULL))
+				if (!FS_FLocateFile (va("sound/%s", soundname), FSLF_IFFOUND, NULL))
 					return false;
 
 				// now play the sound

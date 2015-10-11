@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "svhl_gcapi.h"
 
 hull_t	*World_HullForBox (vec3_t mins, vec3_t maxs);
-qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask);
+//qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask);
 /*
 
 entities never clip against themselves, or their owner
@@ -380,12 +380,12 @@ trace_t SVHL_ClipMoveToEntity (hledict_t *ent, vec3_t start, vec3_t mins, vec3_t
 	if (ent->v.solid != SOLID_BSP)
 	{
 		ent->v.angles[0]*=-1;	//carmack made bsp models rotate wrongly.
-		TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, &trace, ent->v.origin, ent->v.angles, clipmask);
+		World_TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, false, &trace, ent->v.origin, ent->v.angles, clipmask);
 		ent->v.angles[0]*=-1;
 	}
 	else
 	{
-		TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, &trace, ent->v.origin, ent->v.angles, clipmask);
+		World_TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, false, &trace, ent->v.origin, ent->v.angles, clipmask);
 	}
 
 // fix trace up by the offset
@@ -396,7 +396,7 @@ trace_t SVHL_ClipMoveToEntity (hledict_t *ent, vec3_t start, vec3_t mins, vec3_t
 			//okay, we hit the bbox
 
 			model_t *model;
-			if (ent->v.modelindex < 1 || ent->v.modelindex >= MAX_MODELS)
+			if (ent->v.modelindex < 1 || ent->v.modelindex >= MAX_PRECACHE_MODELS)
 				SV_Error("SV_ClipMoveToEntity: modelindex out of range\n");
 			model = sv.models[ (int)ent->v.modelindex ];
 			if (!model)
@@ -408,7 +408,7 @@ trace_t SVHL_ClipMoveToEntity (hledict_t *ent, vec3_t start, vec3_t mins, vec3_t
 			if (model && model->funcs.NativeTrace)
 			{
 				//do the second trace
-				TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, &trace, ent->v.origin, ent->v.angles, MASK_WORLDSOLID);
+				World_TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, false, &trace, ent->v.origin, ent->v.angles, MASK_WORLDSOLID);
 			}
 		}
 

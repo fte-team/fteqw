@@ -854,7 +854,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 	}
 
 	error = FT_Err_Cannot_Open_Resource;
-	if (FS_FLocateFile(fontfilename, FSLFRT_LENGTH, &loc)>0)
+	if (FS_FLocateFile(fontfilename, FSLF_IFFOUND, &loc))
 	{
 		if (*loc.rawname && !loc.offset)
 		{

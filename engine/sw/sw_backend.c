@@ -375,7 +375,6 @@ void SWBE_SelectMode(backendmode_t mode)
 
 void SWBE_TransformVerticies(swvert_t *v, mesh_t *mesh)
 {
-	extern cvar_t temp1;
 	int i;
 
 	vecV_t *xyz;

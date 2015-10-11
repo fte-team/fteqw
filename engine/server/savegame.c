@@ -608,7 +608,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 			return false;
 		}
 
-		if (!FS_FLocateFile(name, FSLFRT_IFFOUND, &loc))
+		if (!FS_FLocateFile(name, FSLF_IFFOUND, &loc))
 		{
 			Con_Printf("Couldn't find %s.\n", name);
 			return false;
@@ -1493,7 +1493,7 @@ void SV_Loadgame_f (void)
 	{
 		flocation_t loc;
 		char *name = va("saves/%s/game.gsv", savename);
-		if (!FS_FLocateFile(name, FSLFRT_IFFOUND, &loc))
+		if (!FS_FLocateFile(name, FSLF_IFFOUND, &loc))
 			Con_Printf("Couldn't find %s.\n", name);
 		else if (!*loc.rawname || loc.offset)
 			Con_Printf("%s is inside a package and cannot be used by the quake2 gamecode.\n", name);

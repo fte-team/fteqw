@@ -62,6 +62,15 @@ void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid*
 BINDTEXFUNCPTR qglBindTexture;
 
 
+void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);
+void (APIENTRY *qglDeleteQueriesARB)(GLsizei n, const GLuint *ids);
+//extern GLboolean (APIENTRY *qglIsQueryARB)(GLuint id);
+void (APIENTRY *qglBeginQueryARB)(GLenum target, GLuint id);
+void (APIENTRY *qglEndQueryARB)(GLenum target);
+//extern void (APIENTRY *qglGetQueryivARB)(GLenum target, GLenum pname, GLint *params);
+//extern void (APIENTRY *qglGetQueryObjectivARB)(GLuint id, GLenum pname, GLint *params);
+void (APIENTRY *qglGetQueryObjectuivARB)(GLuint id, GLenum pname, GLuint *params);
+
 /*glslang - arb_shader_objects
 gl core uses different names/distinctions from the extension
 */
@@ -1144,6 +1153,31 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 #endif
 
+	if (!gl_config.gles && gl_config.glversion >= 1.5)
+	{
+		qglGenQueriesARB		= (void *)getglext("glGenQueries");
+		qglDeleteQueriesARB		= (void *)getglext("glDeleteQueries");
+		qglBeginQueryARB		= (void *)getglext("glBeginQuery");
+		qglEndQueryARB			= (void *)getglext("glEndQuery");
+		qglGetQueryObjectuivARB	= (void *)getglext("glGetQueryObjectuiv");
+	}
+	else if (GL_CheckExtension("GL_ARB_occlusion_query"))
+	{
+		qglGenQueriesARB		= (void *)getglext("glGenQueriesARB");
+		qglDeleteQueriesARB		= (void *)getglext("glDeleteQueriesARB");
+		qglBeginQueryARB		= (void *)getglext("glBeginQueryARB");
+		qglEndQueryARB			= (void *)getglext("glEndQueryARB");
+		qglGetQueryObjectuivARB	= (void *)getglext("glGetQueryObjectuivARB");
+	}
+	else
+	{
+		qglGenQueriesARB		= NULL;
+		qglDeleteQueriesARB		= NULL;
+		qglBeginQueryARB		= NULL;
+		qglEndQueryARB			= NULL;
+		qglGetQueryObjectuivARB	= NULL;
+	}
+
 	if (!gl_config.gles && gl_config_nofixedfunc)
 		qglDisableClientState(GL_VERTEX_ARRAY);
 }
@@ -1822,7 +1856,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
-		if (ver >= 140)
+		if (ver >= 130)	//gl3+ deprecated the varying keyword for geometry shaders to work properly
 		{
 			prstrings[strings] =
 				"#define varying in\n"
@@ -1862,7 +1896,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
-		if (ver >= 140)
+		if (ver >= 130)
 		{
 			prstrings[strings] =
 				"#define attribute in\n"
@@ -1871,7 +1905,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
-		if (gl_config.nofixedfunc || ver >= 140)
+		if (gl_config.nofixedfunc || ver >= 130)
 		{
 			prstrings[strings] =
 					"attribute vec3 v_position1;\n"

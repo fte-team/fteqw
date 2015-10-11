@@ -984,7 +984,7 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 		}
 	}
 
-	if (r_vertexdlights.ival && r_dynamic.ival)
+	if (r_vertexdlights.ival && r_dynamic.ival > 0)
 	{
 		unsigned int lno, v;
 		vec3_t dir, rel;
@@ -2787,13 +2787,11 @@ void Mod_LoadAliasShaders(model_t *mod)
 
 //Q1 model loading
 #if 1
-static galiasinfo_t *galias;
-static dmdl_t *pq1inmodel;
 #define NUMVERTEXNORMALS	162
 extern float	r_avertexnormals[NUMVERTEXNORMALS][3];
 // mdltype 0 = q1, 1 = qtest, 2 = rapo/h2
 
-static void Alias_LoadPose(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype)
+static void Q1MDL_LoadPose(galiasinfo_t *galias, dmdl_t *pq1inmodel, vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype)
 {
 	int j;
 #ifdef HEXEN2
@@ -2830,7 +2828,7 @@ static void Alias_LoadPose(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t 
 		}
 	}
 }
-static void Alias_LoadPose16(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype)
+static void Q1MDL_LoadPose16(galiasinfo_t *galias, dmdl_t *pq1inmodel, vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype)
 {
 	//quakeforge's MD16 format has regular 8bit stuff, trailed by an extra low-order set of the verts providing the extra 8bits of precision.
 	//its worth noting that the model could be rendered using the high-order parts only, if your software renderer only supports that or whatever.
@@ -2855,7 +2853,7 @@ static void Alias_LoadPose16(vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_
 		}
 	}
 }
-static void *Alias_LoadFrameGroup (model_t *loadmodel, daliasframetype_t *pframetype, int *seamremaps, int mdltype)
+static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, model_t *loadmodel, daliasframetype_t *pframetype, int *seamremaps, int mdltype)
 {
 	galiaspose_t *pose;
 	galiasanimation_t *frame = galias->ofsanimations;
@@ -2910,12 +2908,12 @@ static void *Alias_LoadFrameGroup (model_t *loadmodel, daliasframetype_t *pframe
 
 			if (mdltype & 16)
 			{
-				Alias_LoadPose16(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+				Q1MDL_LoadPose16(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
 				pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts*2];
 			}
 			else
 			{
-				Alias_LoadPose(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+				Q1MDL_LoadPose(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
 				pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
 			}
 
@@ -2972,12 +2970,12 @@ static void *Alias_LoadFrameGroup (model_t *loadmodel, daliasframetype_t *pframe
 
 				if (mdltype & 16)
 				{
-					Alias_LoadPose16(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+					Q1MDL_LoadPose16(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
 					pinframe += pq1inmodel->numverts*2;
 				}
 				else
 				{
-					Alias_LoadPose(verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+					Q1MDL_LoadPose(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
 					pinframe += pq1inmodel->numverts;
 				}
 
@@ -3007,7 +3005,7 @@ static void *Alias_LoadFrameGroup (model_t *loadmodel, daliasframetype_t *pframe
 
 //greatly reduced version of Q1_LoadSkins
 //just skips over the data
-static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, unsigned int skintranstype)
+static void *Q1MDL_LoadSkins_SV (galiasinfo_t *galias, dmdl_t *pq1inmodel, daliasskintype_t *pskintype, unsigned int skintranstype)
 {
 	int i;
 	int s;
@@ -3038,7 +3036,7 @@ static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, unsigned int skintran
 }
 
 #ifndef SERVERONLY
-static void *Q1_LoadSkins_GL (model_t *loadmodel, daliasskintype_t *pskintype, uploadfmt_t skintranstype)
+static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model_t *loadmodel, daliasskintype_t *pskintype, uploadfmt_t skintranstype)
 {
 	skinframe_t *frames;
 	char skinname[MAX_QPATH];
@@ -3362,8 +3360,8 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 	dh2triangle_t *pinh2triangles;
 	qboolean rapo = false;
 #endif
-
-	pq1inmodel = (dmdl_t *)buffer;
+	galiasinfo_t *galias;
+	dmdl_t *pq1inmodel = (dmdl_t *)buffer;
 
 	hdrsize = sizeof(dmdl_t) - sizeof(int);
 
@@ -3450,11 +3448,11 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 	{
 	default:
 #ifndef SERVERONLY
-		pinstverts = (dstvert_t *)Q1_LoadSkins_GL(mod, skinstart, skintranstype);
+		pinstverts = (dstvert_t *)Q1MDL_LoadSkins_GL(galias, pq1inmodel, mod, skinstart, skintranstype);
 		break;
 #endif
 	case QR_NONE:
-		pinstverts = (dstvert_t *)Q1_LoadSkins_SV(skinstart, skintranstype);
+		pinstverts = (dstvert_t *)Q1MDL_LoadSkins_SV(galias, pq1inmodel, skinstart, skintranstype);
 		break;
 	}
 
@@ -3535,7 +3533,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 #endif
 		end = &pinh2triangles[pq1inmodel->numtris];
 
-		if (Alias_LoadFrameGroup(mod, (daliasframetype_t *)end, seamremap, 2) == NULL)
+		if (Q1MDL_LoadFrameGroup(galias, pq1inmodel, mod, (daliasframetype_t *)end, seamremap, 2) == NULL)
 		{
 			BZ_Free(seamremap);
 			ZG_FreeGroup(&mod->memgroup);
@@ -3612,7 +3610,7 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		end = &pinq1triangles[pq1inmodel->numtris];
 
 		//frames
-		if (Alias_LoadFrameGroup(mod, (daliasframetype_t *)end, seamremap, (sixteenbit?16:0) | (qtest?1:0)) == NULL)
+		if (Q1MDL_LoadFrameGroup(galias, pq1inmodel, mod, (daliasframetype_t *)end, seamremap, (sixteenbit?16:0) | (qtest?1:0)) == NULL)
 		{
 			BZ_Free(seamremap);
 			ZG_FreeGroup(&mod->memgroup);
@@ -3706,7 +3704,7 @@ typedef struct
 #define Q2NUMVERTEXNORMALS	162
 extern vec3_t	bytedirs[Q2NUMVERTEXNORMALS];
 
-static void Q2_LoadSkins(model_t *mod, md2_t *pq2inmodel, char *skins)
+static void Q2MD2_LoadSkins(galiasinfo_t *galias, model_t *mod, md2_t *pq2inmodel, char *skins)
 {
 #ifndef SERVERONLY
 	int i;
@@ -3777,6 +3775,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 	int numverts;
 
 	int size;
+	galiasinfo_t *galias;
 
 	mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 
@@ -3820,7 +3819,7 @@ qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 	galias->nextsurf = 0;
 
 //skins
-	Q2_LoadSkins(mod, pq2inmodel, ((char *)pq2inmodel+LittleLong(pq2inmodel->ofs_skins)));
+	Q2MD2_LoadSkins(galias, mod, pq2inmodel, ((char *)pq2inmodel+LittleLong(pq2inmodel->ofs_skins)));
 
 	//trianglelists;
 	pintri = (dmd2triangle_t *)((char *)pq2inmodel + LittleLong(pq2inmodel->ofs_tris));
@@ -4604,6 +4603,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 
 	md3Header_t		*header;
 	md3Surface_t	*surf;
+	galiasinfo_t	*galias;
 
 	header = buffer;
 

@@ -307,7 +307,8 @@ void HTTP_RunExisting (void)
 				ammount = recv(cl->datasock, cl->inbuffer+cl->inbufferused, ammount, 0);
 				if (ammount < 0)
 				{
-					if (neterrno() != NET_EWOULDBLOCK)	//they closed on us. Assume end.
+					int e = neterrno();
+					if (e != NET_EWOULDBLOCK)	//they closed on us. Assume end.
 					{
 						cl->closereason = "recv error";
 					}

@@ -181,7 +181,7 @@ typedef struct
     int		unknown7[2];
     float	unknown[4];
     int		unknown8;
-    int		seqindex;
+    unsigned int		seqindex;
     int		unknown9[4];
 } hlmdl_sequencelist_t;
 
@@ -193,10 +193,17 @@ typedef struct
 typedef struct
 {
     char			name[96];	/* should be split label[32] and name[64] */
-    void *		cache;
+    unsigned int	cache;
     int				data;
 } hlmdl_sequencedata_t;
 
+typedef struct
+{
+	int magic;		//IDSQ
+	int version;	//10
+	char name[64];
+	int unk1;
+} hlmdl_sequencefile_t;
 /*
  -----------------------------------------------------------------------------------------------------------------------
     halflife model internal structure
@@ -209,21 +216,27 @@ typedef struct
 
     /* Static pointers */
     hlmdl_header_t			*header;
-	hlmdl_header_t			*texheader;
-    hlmdl_tex_t				*textures;
     hlmdl_bone_t			*bones;
-    hlmdl_bonecontroller_t		*bonectls;
-	shader_t					**shaders;
+    hlmdl_bonecontroller_t	*bonectls;
+	struct hlmodelshaders_s	*shaders;
+	hlmdl_sequencefile_t	**animcache;
+	zonegroup_t				*memgroup;
 } hlmodel_t;
 
+#define MAX_ANIM_GROUPS	16	//submodel files containing anim data.
 typedef struct	//this is stored as the cache. an hlmodel_t is generated when drawing
 {
-    int header;
-	int texheader;
-    int textures;
-    int bones;
-    int bonectls;
-	int shaders;
+    hlmdl_header_t			*header;
+    hlmdl_bone_t			*bones;
+    hlmdl_bonecontroller_t	*bonectls;
+	hlmdl_sequencefile_t	*animcache[MAX_ANIM_GROUPS];
+	struct hlmodelshaders_s
+	{
+		char name[MAX_QPATH];
+		texnums_t defaulttex;
+		shader_t *shader;
+		int w, h;
+	} *shaders;
 	short *skins;
 	int numskins;
 } hlmodelcache_t;

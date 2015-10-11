@@ -759,7 +759,7 @@ void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int 
 	unsigned int stride = width;
 	width /= 2;
 
-	if (width < 1 || height < 1 || stride != width*2)
+	if (width < 1 || height < 1 || stride != width*2 || !src)
 		return;
 
 	if (width*height > countof(trans))

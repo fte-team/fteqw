@@ -354,23 +354,20 @@ qboolean Sys_ConditionWait(void *condv)
 #endif
 		EnterCriticalSection(&cv->countlock);
 		done = cv->release > 0 && cv->waitgeneration != mygen;
-		LeaveCriticalSection(&cv->countlock);
 		if (done)
+		{
+			cv->waiters--;
+			cv->release--;
+			done = cv->release == 0;
+			if (done)
+				ResetEvent(cv->evnt);
+			LeaveCriticalSection(&cv->countlock);
 			break;
+		}
+		LeaveCriticalSection(&cv->countlock);
 	}
 
 	EnterCriticalSection(&cv->mainlock); // lock as per condition variable definition
-
-	// update waiting count and alert signaling thread that we're done to avoid the deadlock condition
-	EnterCriticalSection(&cv->countlock);
-	cv->waiters--;
-	cv->release--;
-	done = cv->release == 0;
-	LeaveCriticalSection(&cv->countlock);
-
-	if (done)
-		ResetEvent(cv->evnt);
-
 	return true;
 }
 
@@ -384,7 +381,8 @@ qboolean Sys_ConditionSignal(void *condv)
 	EnterCriticalSection(&cv->countlock);
 	if (cv->waiters > cv->release)
 	{
-		SetEvent(cv->evnt);
+		if (!cv->release)
+			SetEvent(cv->evnt);
 		cv->release++;
 		cv->waitgeneration++;
 	}
@@ -405,7 +403,8 @@ qboolean Sys_ConditionBroadcast(void *condv)
 	EnterCriticalSection(&cv->countlock);
 	if (cv->waiters > 0)
 	{
-		SetEvent(cv->evnt);
+		if (!cv->release)
+			SetEvent(cv->evnt);
 		cv->release = cv->waiters;
 		cv->waitgeneration++;
 	}

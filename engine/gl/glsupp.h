@@ -764,4 +764,14 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_RGBA32F_ARB                      0x8814
 #endif
 
+
+#ifndef GL_SAMPLES_PASSED_ARB
+#define GL_SAMPLES_PASSED_ARB                             0x8914
+//#define GL_QUERY_COUNTER_BITS_ARB                         0x8864
+//#define GL_CURRENT_QUERY_ARB                              0x8865
+#define GL_QUERY_RESULT_ARB                               0x8866
+#define GL_QUERY_RESULT_AVAILABLE_ARB                     0x8867
+#endif
+
+
 #endif

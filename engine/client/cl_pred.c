@@ -1246,7 +1246,6 @@ void CL_PredictMovePNum (int seat)
 		{
 			for (i=0 ; i<3 ; i++)
 			{
-				extern cvar_t temp1;
 				pv->simorg[i] = (1-f)*fromstate->origin[i]   + f*tostate->origin[i];
 				pv->simvel[i] = (1-f)*fromstate->velocity[i] + f*tostate->velocity[i];
 

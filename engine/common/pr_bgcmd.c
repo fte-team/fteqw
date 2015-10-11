@@ -2145,7 +2145,7 @@ void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	qboolean makereferenced = prinst->callargc>1?G_FLOAT(OFS_PARM1):true;
 	flocation_t loc;
 
-	if (FS_FLocateFile(srcname, FSLFRT_IFFOUND, &loc))
+	if (FS_FLocateFile(srcname, FSLF_IFFOUND, &loc))
 	{
 		srcname = FS_WhichPackForLocation(&loc, makereferenced);
 		if (srcname == NULL)

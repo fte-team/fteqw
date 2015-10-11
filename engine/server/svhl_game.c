@@ -47,7 +47,7 @@ int lastusermessage;
 
 
 
-string_t QDECL GHL_AllocString(char *string)
+string_t QDECL GHL_AllocString(const char *string)
 {
 	char *news;
 	bi_begin();
@@ -58,7 +58,7 @@ string_t QDECL GHL_AllocString(char *string)
 	bi_end();
 	return news - SVHL_Globals.stringbase;
 }
-int QDECL GHL_PrecacheModel(char *name)
+int QDECL GHL_PrecacheModel(const char *name)
 {
 	int		i;
 	bi_trace();
@@ -69,7 +69,7 @@ int QDECL GHL_PrecacheModel(char *name)
 		return 0;
 	}
 
-	for (i=1 ; i<MAX_MODELS ; i++)
+	for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 	{
 		if (!sv.strings.model_precache[i])
 		{
@@ -117,7 +117,7 @@ int QDECL GHL_PrecacheSound(char *name)
 		return 0;
 	}
 
-	for (i=1 ; i<MAX_SOUNDS ; i++)
+	for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
 	{
 		if (!*sv.strings.sound_precache[i])
 		{
@@ -204,10 +204,156 @@ void QDECL GHL_VecToAngles(float *inv, float *outa)
 	bi_trace();
 	VectorAngles(inv, NULL, outa);
 }
+#define DEG2RAD( a ) ( a * M_PI ) / 180.0F
 void QDECL GHL_MoveToOrigin(hledict_t *ent, vec3_t dest, float dist, int moveflags)
 {
+	//mode 0: move_normal
+	//mode 1: no idea
+	//mode 2: test only
+//	float		dz;
+	vec3_t		oldorg, neworg, end;
+	trace_t		trace;
+//	int			i;
+	int eflags = ent->v.flags;
+	const vec3_t up = {0, 0, 1};
+	vec3_t move;
+	qboolean relink = true;
+	qboolean domove = true;
+
 	bi_trace();
-	ignore("GHL_MoveToOrigin");
+
+	if (moveflags)
+	{	//strafe. just move directly.
+		VectorSubtract(dest, ent->v.origin, move);
+		move[2] = 0;
+		VectorNormalize(move);
+		VectorMA(ent->v.origin, dist, move, move);
+	}
+	else
+	{
+		float yaw = DEG2RAD(ent->v.angles[1]);
+		move[0] = cos(yaw) * dist;
+		move[1] = sin(yaw) * dist;
+		move[2] = 0;
+	}
+
+// try the move	
+	VectorCopy (ent->v.origin, oldorg);
+	VectorAdd (ent->v.origin, move, neworg);
+
+#if 0
+// flying monsters don't step up
+	if (eflags & (FL_SWIM | FL_FLY))
+	{
+	// try one move with vertical motion, then one without
+		for (i=0 ; i<2 ; i++)
+		{
+			VectorAdd (ent->v.origin, move, neworg);
+			if (!noenemy)
+			{
+				enemy = (wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy);
+				if (i == 0 && enemy->entnum)
+				{
+					VectorSubtract(ent->v->origin, ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->origin, end);
+					dz = DotProduct(end, axis[2]);
+					if (eflags & FLH2_HUNTFACE) /*get the ent's origin_z to match its victims face*/
+						dz += ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->view_ofs[2];
+					if (dz > 40)
+						VectorMA(neworg, -8, up, neworg);
+					if (dz < 30)
+						VectorMA(neworg, 8, up, neworg);
+				}
+			}
+			trace = World_Move (world, ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
+			if (set_move_trace)
+				set_move_trace(world->progs, set_trace_globs, &trace);
+	
+			if (trace.fraction == 1)
+			{
+				if ( (eflags & FL_SWIM) && !(World_PointContents(world, trace.endpos) & FTECONTENTS_FLUID))
+					continue;	// swim monster left water
+	
+				if (domove)
+					VectorCopy (trace.endpos, ent->v->origin);
+				if (relink)
+					World_LinkEdict (world, ent, true);
+				return true;
+			}
+			
+			if (noenemy || !enemy->entnum)
+				break;
+		}
+		
+		return false;
+	}
+#endif
+
+// push down from a step height above the wished position
+	VectorMA(neworg, movevars.stepheight, up, neworg);
+	VectorMA(neworg, movevars.stepheight*-2, up, end);
+
+	trace = SVHL_Move(neworg, ent->v.mins, ent->v.maxs, end, 0, 0, ent);
+
+	if (trace.allsolid)
+		return false;
+
+	if (trace.startsolid)
+	{
+		//move up by an extra step, if needed
+		VectorMA(neworg, -movevars.stepheight, up, neworg);
+		trace = SVHL_Move (neworg, ent->v.mins, ent->v.maxs, end, 0, 0, ent);
+		if (trace.allsolid || trace.startsolid)
+			return false;
+	}
+	if (trace.fraction == 1)
+	{
+	// if monster had the ground pulled out, go ahead and fall
+		if ( (int)eflags & FL_PARTIALGROUND )
+		{
+			if (domove)
+			{
+				VectorAdd (ent->v.origin, move, ent->v.origin);
+				if (relink)
+					SVHL_LinkEdict (ent, true);
+				ent->v.flags = (int)eflags & ~FL_ONGROUND;
+			}
+//	Con_Printf ("fall down\n"); 
+			return true;
+		}
+	
+		return false;		// walked off an edge
+	}
+
+// check point traces down for dangling corners
+	if (domove)
+		VectorCopy (trace.endpos, ent->v.origin);
+	
+/*	if (!World_CheckBottom (world, ent, up))
+	{
+		if ( (int)ent->v->flags & FL_PARTIALGROUND )
+		{	// entity had floor mostly pulled out from underneath it
+			// and is trying to correct
+			if (relink)
+				SVHL_LinkEdict (ent, true);
+			return true;
+		}
+
+		if (domove)
+			VectorCopy (oldorg, ent->v->origin);
+		return false;
+	}
+*/
+	if ( (int)ent->v.flags & FL_PARTIALGROUND )
+	{
+//		Con_Printf ("back on ground\n"); 
+		ent->v.flags &= ~FL_PARTIALGROUND;
+	}
+	ent->v.groundentity = trace.ent;
+
+// the move is ok
+	if (relink)
+		SVHL_LinkEdict (ent, true);
+	return true;
 }
 unk QDECL GHL_ChangeYaw(unk){notimpf(__func__);}
 unk QDECL GHL_ChangePitch(unk){notimpf(__func__);}
@@ -243,7 +389,23 @@ hledict_t *QDECL GHL_FindEntityByString(hledict_t *last, char *field, char *valu
 	}
 	return SVHL_Edict;
 }
-unk QDECL GHL_GetEntityIllum(unk){notimpf(__func__);}
+void Sh_CalcPointLight(vec3_t point, vec3_t light);
+int QDECL GHL_GetEntityIllum(hledict_t *ent)
+{
+	vec3_t diffuse, ambient, dir;
+	float lev = 0;
+#if defined(RTLIGHTS) && !defined(SERVERONLY)
+	Sh_CalcPointLight(ent->v.origin, ambient);
+	lev += VectorLength(ambient);
+
+	if (!r_shadow_realtime_world.ival || r_shadow_realtime_world_lightmaps.value)
+#endif
+	{
+		sv.world.worldmodel->funcs.LightPointValues(sv.world.worldmodel, ent->v.origin, ambient, diffuse, dir);
+		lev += (VectorLength(ambient) + VectorLength(diffuse)/2.0)/256;
+	}
+	return lev * 255; //I assume its 0-255, no idea
+}
 hledict_t *QDECL GHL_FindEntityInSphere(hledict_t *last, float *org, float radius)
 {
 	int i, j;
@@ -281,7 +443,7 @@ hledict_t *QDECL GHL_FindClientInPVS(hledict_t *ed)
 	int best = 0, i;
 	float bestdist = 99999999;	//HL maps are limited in size anyway
 	float d;
-	int leafnum;
+	int clusternum;
 	vec3_t ofs;
 	hledict_t *other;
 
@@ -290,7 +452,7 @@ hledict_t *QDECL GHL_FindClientInPVS(hledict_t *ed)
 	//fixme: we need to track some state
 	//a different client should be returned each call _per ent_ (so it can be used once per frame)
 
-	viewerpvs = sv.world.worldmodel->funcs.LeafPVS(sv.world.worldmodel, sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, ed->v.origin), NULL, 0);
+	viewerpvs = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, ed->v.origin), NULL, 0);
 
 	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
@@ -302,8 +464,8 @@ hledict_t *QDECL GHL_FindClientInPVS(hledict_t *ed)
 			if (svs.clients[i].spectator)
 				continue;	//ignore spectators
 
-			leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, other->v.origin)-1;/*pvs is 1 based, leafs are 0 based*/
-			if (viewerpvs[leafnum>>3] & (1<<(leafnum&7)))
+			clusternum = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, other->v.origin)-1;/*pvs is 1 based, leafs are 0 based*/
+			if (viewerpvs[clusternum>>3] & (1<<(clusternum&7)))
 			{
 				VectorSubtract(ed->v.origin, other->v.origin, ofs);
 				d = DotProduct(ofs, ofs);
@@ -455,11 +617,145 @@ int QDECL GHL_DropToFloor(hledict_t *ed)
 	VectorCopy(tr.endpos, ed->v.origin);
 	return tr.fraction != 0 && tr.fraction != 1;
 }
-int QDECL GHL_WalkMove(hledict_t *ed, float yaw, float dist, int mode)
+int QDECL GHL_WalkMove(hledict_t *ent, float yaw, float dist, int mode)
 {
+	//mode 0: no idea
+	//mode 1: no idea
+	//mode 2: test only
+//	float		dz;
+	vec3_t		oldorg, neworg, end;
+	trace_t		trace;
+//	int			i;
+	int eflags = ent->v.flags;
+	const vec3_t up = {0, 0, 1};
+	vec3_t move;
+	qboolean relink = mode != 2;
+	qboolean domove = mode != 2;
+
 	bi_trace();
-	ignore("walkmove");
-	return 1;
+
+	yaw = DEG2RAD(yaw);
+	move[0] = cos(yaw) * dist;
+	move[1] = sin(yaw) * dist;
+	move[2] = 0;
+
+// try the move	
+	VectorCopy (ent->v.origin, oldorg);
+	VectorAdd (ent->v.origin, move, neworg);
+
+#if 0
+// flying monsters don't step up
+	if (eflags & (FL_SWIM | FL_FLY))
+	{
+	// try one move with vertical motion, then one without
+		for (i=0 ; i<2 ; i++)
+		{
+			VectorAdd (ent->v.origin, move, neworg);
+			if (!noenemy)
+			{
+				enemy = (wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy);
+				if (i == 0 && enemy->entnum)
+				{
+					VectorSubtract(ent->v->origin, ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->origin, end);
+					dz = DotProduct(end, axis[2]);
+					if (eflags & FLH2_HUNTFACE) /*get the ent's origin_z to match its victims face*/
+						dz += ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->view_ofs[2];
+					if (dz > 40)
+						VectorMA(neworg, -8, up, neworg);
+					if (dz < 30)
+						VectorMA(neworg, 8, up, neworg);
+				}
+			}
+			trace = World_Move (world, ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
+			if (set_move_trace)
+				set_move_trace(world->progs, set_trace_globs, &trace);
+	
+			if (trace.fraction == 1)
+			{
+				if ( (eflags & FL_SWIM) && !(World_PointContents(world, trace.endpos) & FTECONTENTS_FLUID))
+					continue;	// swim monster left water
+	
+				if (domove)
+					VectorCopy (trace.endpos, ent->v->origin);
+				if (relink)
+					World_LinkEdict (world, ent, true);
+				return true;
+			}
+			
+			if (noenemy || !enemy->entnum)
+				break;
+		}
+		
+		return false;
+	}
+#endif
+
+// push down from a step height above the wished position
+	VectorMA(neworg, movevars.stepheight, up, neworg);
+	VectorMA(neworg, movevars.stepheight*-2, up, end);
+
+	trace = SVHL_Move(neworg, ent->v.mins, ent->v.maxs, end, 0, 0, ent);
+
+	if (trace.allsolid)
+		return false;
+
+	if (trace.startsolid)
+	{
+		//move up by an extra step, if needed
+		VectorMA(neworg, -movevars.stepheight, up, neworg);
+		trace = SVHL_Move (neworg, ent->v.mins, ent->v.maxs, end, 0, 0, ent);
+		if (trace.allsolid || trace.startsolid)
+			return false;
+	}
+	if (trace.fraction == 1)
+	{
+	// if monster had the ground pulled out, go ahead and fall
+		if ( (int)eflags & FL_PARTIALGROUND )
+		{
+			if (domove)
+			{
+				VectorAdd (ent->v.origin, move, ent->v.origin);
+				if (relink)
+					SVHL_LinkEdict (ent, true);
+				ent->v.flags = (int)eflags & ~FL_ONGROUND;
+			}
+//	Con_Printf ("fall down\n"); 
+			return true;
+		}
+	
+		return false;		// walked off an edge
+	}
+
+// check point traces down for dangling corners
+	if (domove)
+		VectorCopy (trace.endpos, ent->v.origin);
+	
+/*	if (!World_CheckBottom (world, ent, up))
+	{
+		if ( (int)ent->v->flags & FL_PARTIALGROUND )
+		{	// entity had floor mostly pulled out from underneath it
+			// and is trying to correct
+			if (relink)
+				SVHL_LinkEdict (ent, true);
+			return true;
+		}
+
+		if (domove)
+			VectorCopy (oldorg, ent->v->origin);
+		return false;
+	}
+*/
+	if ( (int)ent->v.flags & FL_PARTIALGROUND )
+	{
+//		Con_Printf ("back on ground\n"); 
+		ent->v.flags &= ~FL_PARTIALGROUND;
+	}
+	ent->v.groundentity = trace.ent;
+
+// the move is ok
+	if (relink)
+		SVHL_LinkEdict (ent, true);
+	return true;
 }
 void QDECL GHL_SetOrigin(hledict_t *ed, float *neworg)
 {
@@ -470,12 +766,14 @@ void QDECL GHL_SetOrigin(hledict_t *ed, float *neworg)
 void QDECL GHL_EmitSound(hledict_t *ed, int chan, char *soundname, float vol, float atten, int flags, int pitch)
 {
 	bi_trace();
-	SV_StartSound(ed-SVHL_Edict, ed->v.origin, ~0, chan, soundname, vol*255, atten, pitch);
+	if (*soundname == '!')
+		return;	//would need us to parse sound/sentances.txt I guess
+	SV_StartSound(ed-SVHL_Edict, ed->v.origin, ~0, chan, soundname, vol*255, atten, pitch, 0, 0);
 }
 void QDECL GHL_EmitAmbientSound(hledict_t *ed, float *org, char *soundname, float vol, float atten, unsigned int flags, int pitch)
 {
 	bi_trace();
-	SV_StartSound(0, org, ~0, 0, soundname, vol*255, atten, 0);
+	SV_StartSound(0, org, ~0, 0, soundname, vol*255, atten, pitch, 0, 0);
 }
 void QDECL GHL_TraceLine(float *start, float *end, int flags, hledict_t *ignore, hltraceresult_t *result)
 {
@@ -522,7 +820,7 @@ char *QDECL GHL_TraceTexture(hledict_t *againstent, vec3_t start, vec3_t end)
 {
 	trace_t tr;
 	bi_trace();
-	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, MASK_WORLDSOLID, &tr);
+	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &tr);
 	return tr.surface->name;
 }
 unk QDECL GHL_TraceSphere(unk){notimpf(__func__);}
@@ -530,6 +828,8 @@ unk QDECL GHL_GetAimVector(unk){notimpf(__func__);}
 void QDECL GHL_ServerCommand(char *cmd)
 {
 	bi_trace();
+	if (!strcmp(cmd, "reload\n"))
+		cmd = "restart\n";
 	Cbuf_AddText(cmd, RESTRICT_PROGS);
 }
 void QDECL GHL_ServerExecute(void)
@@ -541,8 +841,9 @@ unk QDECL GHL_ClientCommand(unk){notimpf(__func__);}
 unk QDECL GHL_ParticleEffect(unk){notimpf(__func__);}
 void QDECL GHL_LightStyle(int stylenum, char *stylestr)
 {
+	vec3_t rgb = {1,1,1};
 	bi_trace();
-	PF_applylightstyle(stylenum, stylestr, 7);
+	PF_applylightstyle(stylenum, stylestr, rgb);
 }
 int QDECL GHL_DecalIndex(char *decalname)
 {
@@ -619,6 +920,9 @@ void QDECL GHL_MessageEnd(unk)
 	case MSG_MULTICAST+1:
 		SV_Multicast(svhl_messageorigin, MULTICAST_PHS);
 		break;
+	case 9:
+		//spectators only
+		break;
 	default:
 		Con_Printf("GHL_MessageEnd: dest type %i not supported\n", svhl_messagedest);
 		break;
@@ -629,7 +933,7 @@ void QDECL GHL_MessageEnd(unk)
 void QDECL GHL_WriteByte(int value)
 {
 	bi_trace();
-	MSG_WriteByte(&sv.multicast, value);
+	MSG_WriteByte(&sv.multicast, value & 0xff);
 }
 void QDECL GHL_WriteChar(int value)
 {
@@ -730,7 +1034,102 @@ int QDECL GHL_RegUserMsg(char *msgname, int msgsize)
 	return lastusermessage--;
 }
 unk QDECL GHL_AnimationAutomove(unk){notimpf(__func__);}
-unk QDECL GHL_GetBonePosition(unk){notimpf(__func__);}
+
+static void GHL_GetFrameState(hledict_t *ent, framestate_t *fstate)
+{
+	memset(fstate, 0, sizeof(*fstate));
+		
+	fstate->g[FS_REG].frametime[0] = (SVHL_Globals.time - ent->v.framestarttime) * ent->v.framerate;
+	fstate->g[FS_REG].frame[0] = ent->v.frame;
+	fstate->g[FS_REG].lerpweight[0] = 1;
+	fstate->g[FS_REG].subblendfrac = ent->v.blending[0]; //fixme: which is upper?
+
+	//FIXME: no lower parts.
+	
+	fstate->bonecontrols[0] = ent->v.controller[0] / 255.0;
+	fstate->bonecontrols[1] = ent->v.controller[1] / 255.0;
+	fstate->bonecontrols[2] = ent->v.controller[2] / 255.0;
+	fstate->bonecontrols[3] = ent->v.controller[3] / 255.0;
+}
+static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
+{
+	out[0] = vx[0];
+	out[1] = -vy[0];
+	out[2] = vz[0];
+	out[3] = t[0];
+	out[4] = vx[1];
+	out[5] = -vy[1];
+	out[6] = vz[1];
+	out[7] = t[1];
+	out[8] = vx[2];
+	out[9] = -vy[2];
+	out[10] = vz[2];
+	out[11] = t[2];
+}
+static void bonemat_fromidentity(float *out)
+{
+	out[0] = 1;
+	out[1] = 0;
+	out[2] = 0;
+	out[3] = 0;
+
+	out[4] = 0;
+	out[5] = 1;
+	out[6] = 0;
+	out[7] = 0;
+
+	out[8] = 0;
+	out[9] = 0;
+	out[10] = 1;
+	out[11] = 0;
+}
+static void bonemat_toqcvectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
+{
+	vx[0] = in[0];
+	vx[1] = in[4];
+	vx[2] = in[8];
+	vy[0] = -in[1];
+	vy[1] = -in[5];
+	vy[2] = -in[9];
+	vz[0] = in[2];
+	vz[1] = in[6];
+	vz[2] = in[10];
+	t [0] = in[3];
+	t [1] = in[7];
+	t [2] = in[11];
+}
+static void bonemat_fromhlentity(hledict_t *ed, float *trans)
+{
+	vec3_t d[3], a;
+	a[0] = -ed->v.angles[0];
+	a[1] = ed->v.angles[1];
+	a[2] = ed->v.angles[2];
+	AngleVectors(a, d[0], d[1], d[2]);
+	bonemat_fromqcvectors(trans, d[0], d[1], d[2], ed->v.origin);
+}
+void QDECL GHL_GetBonePosition(hledict_t *ed, int bone, vec3_t org, vec3_t ang)
+{
+	float transent[12];
+	float transforms[12];
+	float result[12];
+	model_t *mod = sv.models[ed->v.modelindex];
+	vec3_t axis[3];
+	framestate_t fstate;
+	GHL_GetFrameState(ed, &fstate);
+
+	bone += 1;	//I *think* the bones are 0-based unlike our tag-based bone numbers
+
+	if (!Mod_GetTag(mod, bone, &fstate, transforms))
+	{
+		bonemat_fromidentity(transforms);
+	}
+
+	bonemat_fromhlentity(ed, transent);
+	R_ConcatTransforms((void*)transent, (void*)transforms, (void*)result);
+
+	bonemat_toqcvectors(result, axis[0], axis[1], axis[2], org);
+	VectorAngles(axis[0], axis[2], ang);
+}
 
 hlintptr_t QDECL GHL_FunctionFromName(char *name)
 {
@@ -772,7 +1171,7 @@ int QDECL GHL_Cmd_Argc(unk)
 unk QDECL GHL_GetAttachment(unk){notimpf(__func__);}
 void QDECL GHL_CRC32_Init(hlcrc_t *crc)
 {
-	unsigned short crc16 = *crc;
+	unsigned short crc16;
 	bi_trace();
 	QCRC_Init(&crc16);
 	*crc = crc16;
@@ -1324,11 +1723,12 @@ void SV_ReadLibListDotGam(void)
 	char value[1024];
 	char *file;
 	char *s;
+	size_t fsize;
 
 	Info_SetValueForStarKey(svs.info, "*gamedll", "", sizeof(svs.info));
 	Info_SetValueForStarKey(svs.info, "*cldll", "", sizeof(svs.info));
 
-	file = COM_LoadTempFile("liblist.gam");
+	file = COM_LoadTempFile("liblist.gam", &fsize);
 	if (!file)
 		return;
 
@@ -1368,6 +1768,8 @@ int SVHL_InitGame(void)
 		{NULL, NULL}
 	};
 
+	memset(&SVHL_Globals, 0, sizeof(SVHL_Globals));
+
 	if (sizeof(long) != sizeof(void*))
 	{
 		Con_Printf("sizeof(long)!=sizeof(ptr): Cannot run halflife gamecode on this platform\n");
@@ -1387,7 +1789,8 @@ int SVHL_InitGame(void)
 
 	gamedll = Info_ValueForKey(svs.info, "*gamedll");
 	iterator = NULL;
-	while(COM_IteratePaths(&iterator, path, sizeof(path)))
+	//FIXME: game dlls from game paths are evil/exploitable.
+	while(COM_IteratePaths(&iterator, path, sizeof(path), NULL, 0))
 	{
 		snprintf (fullname, sizeof(fullname), "%s%s", path, gamedll);
 		hlgamecode = Sys_LoadLibrary(fullname, hlgamefuncs);
@@ -1404,7 +1807,7 @@ int SVHL_InitGame(void)
 
 	if (!GetEntityAPI(&SVHL_GameFuncs, HALFLIFE_API_VERSION))
 	{
-		Con_Printf(CON_ERROR "Error: %s is incompatible (FTE is compiled for %i)\n", fullname, HALFLIFE_API_VERSION);
+		Con_Printf(CON_ERROR "Error: %s is incompatible (Engine is compiled for %i)\n", fullname, HALFLIFE_API_VERSION);
 		if (GetEntityAPI(&SVHL_GameFuncs, 138))
 			Con_Printf(CON_ERROR "mod is 138\n");
 		Sys_CloseLibrary(hlgamecode);
@@ -1446,7 +1849,12 @@ void SVHL_SpawnEntities(char *entstring)
 	SVHL_Globals.deathmatch = deathmatch.value;
 	SVHL_Globals.coop = coop.value;
 	SVHL_Globals.serverflags = 0;
-	SVHL_Globals.mapname = GHL_AllocString(sv.name);
+	if (!strncmp(sv.modelname, "maps/", 5))
+		COM_StripExtension(sv.modelname+5, value, sizeof(value));
+	else
+		COM_StripExtension(sv.modelname, value, sizeof(value));
+	SVHL_Globals.mapname = GHL_AllocString(value);
+	SVHL_Globals.time = 0;
 
 	SVHL_NumActiveEnts = 0;
 
@@ -1474,8 +1882,12 @@ void SVHL_SpawnEntities(char *entstring)
 	sv.strings.model_precache[1] = sv.modelname;	//the qvm doesn't have access to this array
 	for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 	{
-		sv.strings.model_precache[1+i] = localmodels[i];
-		sv.models[i+1] = Mod_ForName (Mod_FixName(localmodels[i], sv.modelname), false);
+		const char *s = va("*%i", i);
+		char *n;
+		n = ZG_Malloc(&hlmapmemgroup, strlen(s)+1);
+		strcpy(n, s);
+		sv.strings.model_precache[1+i] = n;
+		sv.models[i+1] = Mod_ForName (Mod_FixName(n, sv.modelname), false);
 	}
 
 	while (entstring)
@@ -1574,6 +1986,19 @@ qboolean HLSV_ClientCommand(client_t *client)
 	hledict_t *ed = &SVHL_Edict[client - svs.clients + 1];
 	if (!hlgamecode)
 		return false;
+	if (!strcmp("noclip", Cmd_Argv(0)))
+	{
+		if (ed->v.movetype != MOVETYPE_NOCLIP)
+			ed->v.movetype = MOVETYPE_NOCLIP;
+		else
+			ed->v.movetype = MOVETYPE_WALK;
+		return true;
+	}
+	if (!strcmp("kill", Cmd_Argv(0)))
+	{
+		SVHL_GameFuncs.ClientKill(ed);
+		return true;
+	}
 	bi_begin();
 	SVHL_GameFuncs.ClientCommand(ed);
 	bi_end();
@@ -1589,7 +2014,8 @@ qboolean SVHL_ClientConnect(client_t *client, netadr_t adr, char rejectmessage[1
 
 	sv.skipbprintclient = client;
 	bi_begin();
-	result = SVHL_GameFuncs.ClientConnect(&SVHL_Edict[client-svs.clients+1], client->name, ipadr, rejectmessage);
+	client->hledict = &SVHL_Edict[client-svs.clients+1];
+	result = SVHL_GameFuncs.ClientConnect(client->hledict, client->name, ipadr, rejectmessage);
 	bi_end();
 	sv.skipbprintclient = NULL;
 
@@ -1602,7 +2028,7 @@ void SVHL_BuildStats(client_t *client, int *si, float *sf, char **ss)
 
 	si[STAT_HEALTH] = ed->v.health;
 	si[STAT_VIEWHEIGHT] = ed->v.view_ofs[2];
-	si[STAT_WEAPON] = SV_ModelIndex(SVHL_Globals.stringbase+ed->v.vmodelindex);
+	si[STAT_WEAPONMODELI] = SV_ModelIndex(SVHL_Globals.stringbase+ed->v.vmodelindex);
 	si[STAT_ITEMS] = ed->v.weapons;
 }
 
@@ -1621,6 +2047,7 @@ void SVHL_DropClient(client_t *drop)
 	bi_begin();
 	SVHL_GameFuncs.ClientDisconnect(&SVHL_Edict[drop-svs.clients+1]);
 	bi_end();
+	drop->hledict = NULL;
 	ed->isfree = true;
 }
 
@@ -1636,8 +2063,9 @@ extern cvar_t temp1;
 		usercmd_t cmd = *ucmd;
 
 		cmd.msec = ucmd->msec/2;
+		cmd.msec_compat = floor(cmd.msec);
 		SVHL_RunCmdR (ed, &cmd);
-		cmd.msec = ucmd->msec/2 + (ucmd->msec&1);	//give them back their msec.
+		cmd.msec_compat = ucmd->msec - cmd.msec_compat;
 		cmd.impulse = 0;
 		SVHL_RunCmdR (ed, &cmd);
 		return;
@@ -1649,7 +2077,22 @@ extern cvar_t temp1;
 		host_frametime = 0.1;
 
 	pmove.cmd = *ucmd;
-	pmove.pm_type = temp1.value;//PM_NORMAL;//FLY;
+	switch(ed->v.movetype)
+	{
+	default:
+	case MOVETYPE_WALK:
+		pmove.pm_type = PM_NORMAL;
+		break;
+	case MOVETYPE_FLY:
+		pmove.pm_type = PM_FLY;
+		break;
+	case MOVETYPE_NOCLIP:
+		pmove.pm_type = PM_SPECTATOR;
+		break;
+	case MOVETYPE_NONE:
+		pmove.pm_type = PM_NONE;
+		break;
+	}
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.world.worldmodel;
 	pmove.physents[0].info = 0;
@@ -1742,8 +2185,8 @@ extern cvar_t temp1;
 		}
 	}
 
-	VectorCopy(ed->v.mins, player_mins);
-	VectorCopy(ed->v.maxs, player_maxs);
+	VectorCopy(ed->v.mins, pmove.player_mins);
+	VectorCopy(ed->v.maxs, pmove.player_maxs);
 
 	VectorCopy(ed->v.origin, pmove.origin);
 	VectorCopy(ed->v.velocity, pmove.velocity);
@@ -1823,6 +2266,8 @@ void SVHL_RunCmd(client_t *cl, usercmd_t *ucmd)
 	ed->v.angles[1] = SHORT2ANGLE(ucmd->angles[1]);
 	ed->v.angles[2] = SHORT2ANGLE(ucmd->angles[2]);
 
+	if (IS_NAN(ed->v.velocity[0]) || IS_NAN(ed->v.velocity[1]) || IS_NAN(ed->v.velocity[2]))
+		VectorClear(ed->v.velocity);
 
 	bi_begin();
 	SVHL_GameFuncs.PlayerPreThink(ed);
@@ -1890,12 +2335,43 @@ void SVHL_Snapshot_Build(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 		s->number = i;
 		s->modelindex = e->v.modelindex;
 		s->frame = e->v.sequence1;
-		s->effects = e->v.effects;
+		s->effects = e->v.effects & 0x0f;
+		s->dpflags = 0;
 		s->skinnum = e->v.skin;
 		s->scale = 16;
 		s->trans = 255;
+		s->colormod[0] = nullentitystate.colormod[0];
+		s->colormod[1] = nullentitystate.colormod[1];
+		s->colormod[2] = nullentitystate.colormod[2];
 		VectorCopy(e->v.angles, s->angles);
 		VectorCopy(e->v.origin, s->origin);
+
+		if (!e->v.velocity[0] && !e->v.velocity[1] && !e->v.velocity[2])
+			s->dpflags |= RENDER_STEP;
+
+		s->trans = e->v.renderamt*255;
+		switch (e->v.rendermode)
+		{
+		case 0:
+			s->trans = 255;
+			break;
+		case 1:	//used on laser beams, apparently
+			break;
+		case 2:	//transparent windows.
+			break;
+		case 3:	//used on coronarey sprites.
+			s->effects |= NQEF_ADDITIVE;
+			break;
+		case 4:	//used on fence textures, apparently. we already deal with these clientside.
+			s->trans = 255;
+			break;
+		case 5:	//used on the torch at the start.
+			s->effects |= NQEF_ADDITIVE;
+			break;
+		default:
+			Con_Printf("Rendermode %s %i\n", SVHL_Globals.stringbase+e->v.model, e->v.rendermode);
+			break;
+		}
 	}
 }
 

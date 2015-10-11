@@ -27,6 +27,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "com_mesh.h"
 #include <math.h>
 
+#if defined(GLQUAKE) && defined(MULTITHREAD)
+#define THREADEDWORLD
+#endif
+
 extern cvar_t r_ambient;
 
 static vec3_t			modelorg;	/*set before recursively entering the visible surface finder*/
@@ -574,7 +578,7 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 
 
 
-static void Surf_BuildDeluxMap (msurface_t *surf, qbyte *dest, unsigned int lmwidth)
+static void Surf_BuildDeluxMap (msurface_t *surf, qbyte *dest, unsigned int lmwidth, vec3_t *blocknormals)
 {
 	int			smax, tmax;
 	int			i, j, size;
@@ -704,19 +708,16 @@ enum lm_mode
 just unpacks the internal lightmap block into texture info ready for upload
 merges stains and oversaturates overbrights.
 */
-static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shift, enum lm_mode lm_mode, stmap *stainsrc, unsigned int lmwidth)
+static void Surf_StoreLightmap(qbyte *dest, unsigned int *bl, int smax, int tmax, unsigned int shift, enum lm_mode lm_mode, stmap *stainsrc, unsigned int lmwidth)
 {
 	int r, g, b, t, m;
 	unsigned int i, j;
-	unsigned int *bl;
 	int stride;
 
 	switch (lm_mode)
 	{
 	case bgra4_os:
 		stride = lmwidth*4 - (smax<<2);
-
-		bl = blocklights;
 
 		for (i=0 ; i<tmax ; i++, dest += stride)
 		{
@@ -806,7 +807,6 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 */
 	case rgb3_os:
 		stride = lmwidth*3 - (smax*3);
-		bl = blocklights;
 
 		for (i=0 ; i<tmax ; i++, dest += stride)
 		{
@@ -844,7 +844,6 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 		break;
 	case lum:
 		stride = lmwidth;
-		bl = blocklights;
 		for (i=0 ; i<tmax ; i++, dest += stride)
 		{
 			for (j=0 ; j<smax ; j++)
@@ -901,7 +900,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	}
 
 	if (currentmodel->deluxdata)
-		Surf_BuildDeluxMap(surf, deluxdest, lmwidth);
+		Surf_BuildDeluxMap(surf, deluxdest, lmwidth, blocknormals);
 
 #ifdef PEXT_LIGHTSTYLECOL
 	if (lightmap_bytes == 4 || lightmap_bytes == 3)
@@ -1082,14 +1081,14 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 		{
 			if (lightmap_bgra)
 			{
-				Surf_StoreLightmap(dest, smax, tmax, shift, bgra4_os, stainsrc, lmwidth);
+				Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgra4_os, stainsrc, lmwidth);
 			}
 			else
 			{
 				/*if (!r_stains.value || !surf->stained)
-					Surf_StoreLightmap(dest, smax, tmax, shift, rgba4, NULL);
+					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, NULL);
 				else
-					Surf_StoreLightmap(dest, smax, tmax, shift, rgba4, stainsrc);
+					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, stainsrc);
 				*/
 			}
 		}
@@ -1099,14 +1098,14 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 			{
 				/*
 				if (!r_stains.value || !surf->stained)
-					Surf_StoreLightmap(dest, smax, tmax, shift, bgr3, NULL);
+					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgr3, NULL);
 				else
-					Surf_StoreLightmap(dest, smax, tmax, shift, bgr3, stainsrc);
+					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgr3, stainsrc);
 				*/
 			}
 			else
 			{
-				Surf_StoreLightmap(dest, smax, tmax, shift, rgb3_os, stainsrc, lmwidth);
+				Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgb3_os, stainsrc, lmwidth);
 			}
 		}
 	}
@@ -1166,7 +1165,303 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 				Surf_AddDynamicLights (surf);
 		}
 
-		Surf_StoreLightmap(dest, smax, tmax, shift, lum, stainsrc, lmwidth);
+		Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, lum, stainsrc, lmwidth);
+	}
+}
+
+
+static void Surf_BuildLightMap_Worker (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift, int ambient, unsigned int lmwidth)
+{
+	int			smax, tmax;
+	int			t;
+	int			i, j;
+	size_t		size;
+	qbyte		*lightmap;
+	unsigned	scale;
+	int			maps;
+	unsigned	*bl;
+
+	static size_t maxblocksize;
+	static vec3_t *blocknormals;
+	static unsigned int *blocklights;
+
+	//int stride = LMBLOCK_WIDTH*lightmap_bytes; //warning: unused variable ‘stride’
+
+	shift += 7; // increase to base value
+	surf->cached_dlight = false;
+
+	smax = (surf->extents[0]>>surf->lmshift)+1;
+	tmax = (surf->extents[1]>>surf->lmshift)+1;
+	size = (size_t)smax*tmax;
+	lightmap = surf->samples;
+
+	if (size > maxblocksize)
+	{	//fixme: fill in?
+		maxblocksize = size;
+		blocknormals = BZ_Realloc(blocknormals, maxblocksize * sizeof(*blocknormals));	//already a vector
+		blocklights = BZ_Realloc(blocklights, maxblocksize * 3*sizeof(*blocklights));
+	}
+
+	if (currentmodel->deluxdata)
+		Surf_BuildDeluxMap(surf, deluxdest, lmwidth, blocknormals);
+
+#ifdef PEXT_LIGHTSTYLECOL
+	if (lightmap_bytes == 4 || lightmap_bytes == 3)
+	{
+		// set to full bright if no light data
+		if (ambient < 0)
+		{
+			t = (-1-ambient)*255;
+			for (i=0 ; i<size*3 ; i++)
+			{
+				blocklights[i] = t;
+			}
+
+			for (maps = 0 ; maps < MAXQ1LIGHTMAPS ; maps++)
+			{
+				surf->cached_light[maps] = -1-ambient;
+				surf->cached_colour[maps] = 0xff;
+			}
+		}
+		else if (r_fullbright.value>0)	//not qw
+		{
+			for (i=0 ; i<size*3 ; i++)
+			{
+				blocklights[i] = r_fullbright.value*255*256;
+			}
+		}
+		else if (!currentmodel->lightdata)
+		{
+			/*fullbright if map is not lit. but not overbright*/
+			for (i=0 ; i<size*3 ; i++)
+			{
+				blocklights[i] = 128*256;
+			}
+		}
+		else if (!surf->samples)
+		{
+			/*no samples, but map is otherwise lit = pure black*/
+			for (i=0 ; i<size*3 ; i++)
+			{
+				blocklights[i] = 0;
+			}
+			surf->cached_light[0] = 0;
+			surf->cached_colour[0] = 0;
+		}
+		else
+		{
+// clear to no light
+			t = ambient;
+			if (t == 0)
+				memset(blocklights, 0, size*3*sizeof(*bl));
+			else
+			{
+				for (i=0 ; i<size*3 ; i++)
+				{
+					blocklights[i] = t;
+				}
+			}
+
+// add all the lightmaps
+			if (lightmap)
+			{
+				if (currentmodel->fromgame == fg_quake3)	//rgb
+				{
+					/*q3 lightmaps are meant to be pre-built
+					this code is misguided, and ought never be executed anyway.
+					*/
+					bl = blocklights;
+					for (i = 0; i < tmax; i++)
+					{
+						for (j = 0; j < smax; j++)
+						{
+							bl[0]		= 255*lightmap[(i*lmwidth+j)*3];
+							bl[1]		= 255*lightmap[(i*lmwidth+j)*3+1];
+							bl[2]		= 255*lightmap[(i*lmwidth+j)*3+2];
+							bl+=3;
+						}
+					}
+				}
+				else if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
+				{
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
+						 maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+
+						if (scale)
+						{
+							if (cl_lightstyle[surf->styles[maps]].colours[0] == 1 && cl_lightstyle[surf->styles[maps]].colours[1] == 1 && cl_lightstyle[surf->styles[maps]].colours[2] == 1)	//hopefully a faster alternative.
+							{
+								bl = blocklights;
+								for (i=0 ; i<size*3 ; i++)
+								{
+									*bl++		+=   *lightmap++ * scale;
+								}
+							}
+							else
+							{
+								if (cl_lightstyle[surf->styles[maps]].colours[0])
+								{
+									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[0];
+									for (i=0 ; i<size ; i++)
+										blocklights[i+0]	+= lightmap[i*3+0] * scale;
+								}
+								if (cl_lightstyle[surf->styles[maps]].colours[1])
+								{
+									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[1];
+									for (i=0 ; i<size ; i++)
+										blocklights[i+1]	+= lightmap[i*3+1] * scale;
+								}
+								if (cl_lightstyle[surf->styles[maps]].colours[2])
+								{
+									scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[2];
+									for (i=0 ; i<size ; i++)
+										blocklights[i+2]	+= lightmap[i*3+2] * scale;
+								}
+								lightmap += size*3;	// skip to next lightmap
+							}
+						}
+						else
+							lightmap += size*3;	// skip to next lightmap
+					}
+				}
+				else
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
+						 maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+
+						if (cl_lightstyle[surf->styles[maps]].colours[0] == 1 && cl_lightstyle[surf->styles[maps]].colours[1] == 1 && cl_lightstyle[surf->styles[maps]].colours[2] == 1)	//hopefully a faster alternative.
+						{
+							bl = blocklights;
+							for (i=0 ; i<size ; i++)
+							{
+								*bl++		+= *lightmap * scale;
+								*bl++		+= *lightmap * scale;
+								*bl++		+= *lightmap * scale;
+								lightmap++;
+							}
+						}
+						else
+						{
+							if (cl_lightstyle[surf->styles[maps]].colours[0])
+							{
+								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[0];
+								for (i=0, bl = blocklights; i<size; i++, bl+=3)
+									*bl += lightmap[i] * scale;
+							}
+							if (cl_lightstyle[surf->styles[maps]].colours[1])
+							{
+								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[1];
+								for (i=0, bl = blocklights+1; i<size; i++, bl+=3)
+									*bl += lightmap[i] * scale;
+							}
+							if (cl_lightstyle[surf->styles[maps]].colours[2])
+							{
+								scale = d_lightstylevalue[surf->styles[maps]] * cl_lightstyle[surf->styles[maps]].colours[2];
+								for (i=0, bl = blocklights+2; i<size; i++, bl+=3)
+									*bl += lightmap[i] * scale;
+							}
+							lightmap += size;	// skip to next lightmap
+						}
+					}
+			}
+		}
+
+		if (!r_stains.value || !surf->stained)
+			stainsrc = NULL;
+
+		if (lightmap_bytes == 4)
+		{
+			if (lightmap_bgra)
+			{
+				Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgra4_os, stainsrc, lmwidth);
+			}
+			else
+			{
+				/*if (!r_stains.value || !surf->stained)
+					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, NULL);
+				else
+					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgba4, stainsrc);
+				*/
+			}
+		}
+		else if (lightmap_bytes == 3)
+		{
+			if (lightmap_bgra)
+			{
+				/*
+				if (!r_stains.value || !surf->stained)
+					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgr3, NULL);
+				else
+					Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, bgr3, stainsrc);
+				*/
+			}
+			else
+			{
+				Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, rgb3_os, stainsrc, lmwidth);
+			}
+		}
+	}
+	else
+#endif
+	{
+	// set to full bright if no light data
+		if (!surf->samples || !currentmodel->lightdata)
+		{
+			for (i=0 ; i<size*3 ; i++)
+			{
+				blocklights[i] = 255*256;
+			}
+			surf->cached_light[0] = d_lightstylevalue[0];
+			surf->cached_colour[0] = cl_lightstyle[0].colourkey;
+		}
+		else if (r_fullbright.ival)
+		{
+			for (i=0 ; i<size ; i++)
+				blocklights[i] = 255*256;
+		}
+		else
+		{
+// clear to no light
+			for (i=0 ; i<size ; i++)
+				blocklights[i] = 0;
+
+// add all the lightmaps
+			if (lightmap)
+			{
+				if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
+						 maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]]/3;
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						for (i=0 ; i<size ; i++)
+							blocklights[i] += (lightmap[i*3]+lightmap[i*3+1]+lightmap[i*3+2]) * scale;
+						lightmap += size*3;	// skip to next lightmap
+					}
+
+				else
+					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
+						 maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						for (i=0 ; i<size ; i++)
+							blocklights[i] += lightmap[i] * scale;
+						lightmap += size;	// skip to next lightmap
+					}
+			}
+		}
+
+		Surf_StoreLightmap(dest, blocklights, smax, tmax, shift, lum, stainsrc, lmwidth);
 	}
 }
 
@@ -1234,41 +1529,28 @@ dynamic:
 		tmax = (fa->extents[1]>>fa->lmshift)+1;
 
 		theRect = &lm->rectchange;
-		if (fa->light_t[0] < theRect->t) {
-			if (theRect->h)
-				theRect->h += theRect->t - fa->light_t[0];
+		if (theRect->t > fa->light_t[0])
 			theRect->t = fa->light_t[0];
-		}
-		if (fa->light_s[0] < theRect->l) {
-			if (theRect->w)
-				theRect->w += theRect->l - fa->light_s[0];
+		if (theRect->b < fa->light_t[0]+tmax)
+			theRect->b = fa->light_t[0]+tmax;
+		if (theRect->l > fa->light_s[0])
 			theRect->l = fa->light_s[0];
-		}
-		if ((theRect->w + theRect->l) < (fa->light_s[0] + smax))
-			theRect->w = (fa->light_s[0]-theRect->l)+smax;
-		if ((theRect->h + theRect->t) < (fa->light_t[0] + tmax))
-			theRect->h = (fa->light_t[0]-theRect->t)+tmax;
+		if (theRect->r < fa->light_s[0]+smax)
+			theRect->r = fa->light_s[0]+smax;
 
 		if (lm->hasdeluxe)
 		{
 			dlm = lightmap[fa->lightmaptexturenums[0]+1];
 			dlm->modified = true;
 			theRect = &dlm->rectchange;
-			if (fa->light_t[0] < theRect->t) {
-				if (theRect->h)
-					theRect->h += theRect->t - fa->light_t[0];
+			if (theRect->t > fa->light_t[0])
 				theRect->t = fa->light_t[0];
-			}
-			if (fa->light_s[0] < theRect->l) {
-				if (theRect->w)
-					theRect->w += theRect->l - fa->light_s[0];
+			if (theRect->b < fa->light_t[0]+tmax)
+				theRect->b = fa->light_t[0]+tmax;
+			if (theRect->l > fa->light_s[0])
 				theRect->l = fa->light_s[0];
-			}
-
-			if ((theRect->w + theRect->l) < (fa->light_s[0] + smax))
-				theRect->w = (fa->light_s[0]-theRect->l)+smax;
-			if ((theRect->h + theRect->t) < (fa->light_t[0] + tmax))
-				theRect->h = (fa->light_t[0]-theRect->t)+tmax;
+			if (theRect->r < fa->light_s[0]+smax)
+				theRect->r = fa->light_s[0]+smax;
 
 			luxbase = dlm->lightmaps;
 			luxbase += (fa->light_t[0] * dlm->width + fa->light_s[0]) * lightmap_bytes;
@@ -1286,6 +1568,90 @@ dynamic:
 		RSpeedEnd(RSPEED_DYNAMIC);
 	}
 }
+
+#ifdef THREADEDWORLD
+static void Surf_RenderDynamicLightmaps_Worker (msurface_t *fa)
+{
+	qbyte		*base, *luxbase;
+	stmap *stainbase;
+	int			maps;
+	glRect_t    *theRect;
+	int smax, tmax;
+	lightmapinfo_t *lm, *dlm;
+
+	//surfaces without lightmaps
+	if (fa->lightmaptexturenums[0]<0 || !lightmap)
+		return;
+
+	// check for lightmap modification
+	if (!fa->samples)
+	{
+		if (fa->cached_light[0] != 0
+			|| fa->cached_colour[0] != 0)
+			goto dynamic;
+	}
+	else
+	{
+		for (maps = 0 ; maps < MAXQ1LIGHTMAPS && fa->styles[maps] != 255 ;
+			 maps++)
+			if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps]
+				|| cl_lightstyle[fa->styles[maps]].colourkey != fa->cached_colour[maps])
+				goto dynamic;
+	}
+
+	return;
+
+dynamic:
+
+#ifdef _DEBUG
+	if ((unsigned)fa->lightmaptexturenums[0] >= numlightmaps)
+		Sys_Error("Invalid lightmap index\n");
+#endif
+
+	lm = lightmap[fa->lightmaptexturenums[0]];
+
+	smax = (fa->extents[0]>>fa->lmshift)+1;
+	tmax = (fa->extents[1]>>fa->lmshift)+1;
+
+	theRect = &lm->rectchange;
+	if (theRect->t > fa->light_t[0])
+		theRect->t = fa->light_t[0];
+	if (theRect->b < fa->light_t[0]+tmax)
+		theRect->b = fa->light_t[0]+tmax;
+	if (theRect->l > fa->light_s[0])
+		theRect->l = fa->light_s[0];
+	if (theRect->r < fa->light_s[0]+smax)
+		theRect->r = fa->light_s[0]+smax;
+
+	if (lm->hasdeluxe)
+	{
+		dlm = lightmap[fa->lightmaptexturenums[0]+1];
+		dlm->modified = true;
+		theRect = &dlm->rectchange;
+		if (theRect->t > fa->light_t[0])
+			theRect->t = fa->light_t[0];
+		if (theRect->b < fa->light_t[0]+tmax)
+			theRect->b = fa->light_t[0]+tmax;
+		if (theRect->l > fa->light_s[0])
+			theRect->l = fa->light_s[0];
+		if (theRect->r < fa->light_s[0]+smax)
+			theRect->r = fa->light_s[0]+smax;
+
+		luxbase = dlm->lightmaps;
+		luxbase += (fa->light_t[0] * dlm->width + fa->light_s[0]) * lightmap_bytes;
+	}
+	else
+		luxbase = NULL;
+
+	base = lm->lightmaps;
+	base += (fa->light_t[0] * lm->width + fa->light_s[0]) * lightmap_bytes;
+	stainbase = lm->stainmaps;
+	stainbase += (fa->light_t[0] * lm->width + fa->light_s[0]) * 3;
+	Surf_BuildLightMap_Worker (fa, base, luxbase, stainbase, lightmap_shift, r_ambient.value*255, lm->width);
+
+	lm->modified = true;
+}
+#endif //THREADEDWORLD
 
 void Surf_RenderAmbientLightmaps (msurface_t *fa, int ambient)
 {
@@ -1320,45 +1686,28 @@ dynamic:
 		tmax = (fa->extents[1]>>fa->lmshift)+1;
 
 		theRect = &lm->rectchange;
-		if (fa->light_t[0] < theRect->t)
-		{
-			if (theRect->h)
-				theRect->h += theRect->t - fa->light_t[0];
+		if (theRect->t > fa->light_t[0])
 			theRect->t = fa->light_t[0];
-		}
-		if (fa->light_s[0] < theRect->l)
-		{
-			if (theRect->w)
-				theRect->w += theRect->l - fa->light_s[0];
+		if (theRect->l > fa->light_s[0])
 			theRect->l = fa->light_s[0];
-		}
-		if ((theRect->w + theRect->l) < (fa->light_s[0] + smax))
-			theRect->w = (fa->light_s[0]-theRect->l)+smax;
-		if ((theRect->h + theRect->t) < (fa->light_t[0] + tmax))
-			theRect->h = (fa->light_t[0]-theRect->t)+tmax;
+		if (theRect->r < fa->light_s[0]+smax)
+			theRect->r = fa->light_s[0]+smax;
+		if (theRect->b < fa->light_t[0]+tmax)
+			theRect->b = fa->light_t[0]+tmax;
 
 		if (lm->hasdeluxe)
 		{
 			dlm = lightmap[fa->lightmaptexturenums[0]+1];
 			lm->modified = true;
 			theRect = &lm->rectchange;
-			if (fa->light_t[0] < theRect->t)
-			{
-				if (theRect->h)
-					theRect->h += theRect->t - fa->light_t[0];
+			if (theRect->t > fa->light_t[0])
 				theRect->t = fa->light_t[0];
-			}
-			if (fa->light_s[0] < theRect->l)
-			{
-				if (theRect->w)
-					theRect->w += theRect->l - fa->light_s[0];
+			if (theRect->l > fa->light_s[0])
 				theRect->l = fa->light_s[0];
-			}
-
-			if ((theRect->w + theRect->l) < (fa->light_s[0] + smax))
-				theRect->w = (fa->light_s[0]-theRect->l)+smax;
-			if ((theRect->h + theRect->t) < (fa->light_t[0] + tmax))
-				theRect->h = (fa->light_t[0]-theRect->t)+tmax;
+			if (theRect->r < fa->light_s[0]+smax)
+				theRect->r = fa->light_s[0]+smax;
+			if (theRect->b < fa->light_t[0]+tmax)
+				theRect->b = fa->light_t[0]+tmax;
 
 			luxbase = dlm->lightmaps;
 			luxbase += (fa->light_t[0] * dlm->width + fa->light_s[0]) * lightmap_bytes;
@@ -1919,7 +2268,7 @@ start:
 }
 #endif
 
-static void Surf_PushChains(model_t *model)
+static void Surf_PushChains(batch_t **batches)
 {
 	batch_t *batch;
 	int i;
@@ -1930,7 +2279,7 @@ static void Surf_PushChains(model_t *model)
 	if (!r_refdef.recurse)
 	{
 		for (i = 0; i < SHADER_SORT_COUNT; i++)
-		for (batch = model->batches[i]; batch; batch = batch->next)
+		for (batch = batches[i]; batch; batch = batch->next)
 		{
 			batch->firstmesh = 0;
 		}
@@ -1939,7 +2288,7 @@ static void Surf_PushChains(model_t *model)
 	else if (r_refdef.recurse > 1)
 	{
 		for (i = 0; i < SHADER_SORT_COUNT; i++)
-		for (batch = model->batches[i]; batch; batch = batch->next)
+		for (batch = batches[i]; batch; batch = batch->next)
 		{
 			batch->recursefirst[r_refdef.recurse] = batch->firstmesh;
 			batch->firstmesh = batch->meshes;
@@ -1949,13 +2298,13 @@ static void Surf_PushChains(model_t *model)
 	else
 	{
 		for (i = 0; i < SHADER_SORT_COUNT; i++)
-		for (batch = model->batches[i]; batch; batch = batch->next)
+		for (batch = batches[i]; batch; batch = batch->next)
 		{
 			batch->firstmesh = batch->meshes;
 		}
 	}
 }
-static void Surf_PopChains(model_t *model)
+static void Surf_PopChains(batch_t **batches)
 {
 	batch_t *batch;
 	int i;
@@ -1963,7 +2312,7 @@ static void Surf_PopChains(model_t *model)
 	if (!r_refdef.recurse)
 	{
 		for (i = 0; i < SHADER_SORT_COUNT; i++)
-		for (batch = model->batches[i]; batch; batch = batch->next)
+		for (batch = batches[i]; batch; batch = batch->next)
 		{
 			batch->meshes = 0;
 		}
@@ -1972,7 +2321,7 @@ static void Surf_PopChains(model_t *model)
 	else if (r_refdef.recurse > 1)
 	{
 		for (i = 0; i < SHADER_SORT_COUNT; i++)
-		for (batch = model->batches[i]; batch; batch = batch->next)
+		for (batch = batches[i]; batch; batch = batch->next)
 		{
 			batch->meshes = batch->firstmesh;
 			batch->firstmesh = batch->recursefirst[r_refdef.recurse];
@@ -1982,7 +2331,7 @@ static void Surf_PopChains(model_t *model)
 	else
 	{
 		for (i = 0; i < SHADER_SORT_COUNT; i++)
-		for (batch = model->batches[i]; batch; batch = batch->next)
+		for (batch = batches[i]; batch; batch = batch->next)
 		{
 			batch->meshes = batch->firstmesh;
 			batch->firstmesh = 0;
@@ -2197,7 +2546,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 
 		currententity = ent;
 		currentmodel = ent->model;
-		if (model->nummodelsurfaces != 0 && r_dynamic.ival)
+		if (model->nummodelsurfaces != 0 && r_dynamic.ival > 0)
 		{
 			for (k=rtlights_first; k<RTL_FIRST; k++)
 			{
@@ -2284,6 +2633,175 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 	}
 }
 
+#ifdef THREADEDWORLD
+struct webostate_s
+{
+	char dbgid[12];
+	model_t *wmodel;
+	mleaf_t *leaf[2];
+	qbyte pvs[MAX_MAP_LEAFS/8];
+	int ebo;
+	size_t idxcount;
+	int numbatches;
+	double goodtime;	//time that the webo is no longer 'good', resulting in an update (lightstyles).
+
+	batch_t *rbatches[SHADER_SORT_COUNT];
+
+	struct wesbatch_s
+	{
+		size_t numidx;
+		size_t maxidx;
+		index_t *idxbuffer;
+		batch_t b;
+		mesh_t m;
+		mesh_t *pm;
+	} batches[1];
+};
+static struct webostate_s *webostate;
+static struct webostate_s *webogenerating;
+static int webogeneratingstate;	//1 if generating, 0 if not, for waiting for sync.
+void R_DestroyWorldEBO(struct webostate_s *es)
+{
+	if (!es)
+		return;
+	qglDeleteBuffersARB(1, &es->ebo);
+	BZ_Free(es);
+}
+void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
+{
+	size_t idxcount;
+	unsigned int i;
+	model_t *mod;
+	batch_t *b, *batch;
+	mesh_t *m;
+	int sortid;
+	R_DestroyWorldEBO(webostate);
+	webostate = ctx;
+	webogenerating = NULL;
+	webogeneratingstate = 0;
+	mod = webostate->wmodel;
+
+	qglGenBuffersARB(1, &webostate->ebo);
+	for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
+		idxcount += webostate->batches[i].numidx;
+	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, webostate->ebo);
+	qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, idxcount*sizeof(index_t), NULL, GL_STATIC_DRAW_ARB);
+	for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
+	{
+		qglBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, idxcount*sizeof(index_t), webostate->batches[i].numidx*sizeof(index_t), webostate->batches[i].idxbuffer);
+		BZ_Free(webostate->batches[i].idxbuffer);
+		webostate->batches[i].idxbuffer = (index_t*)NULL + idxcount;
+		idxcount += webostate->batches[i].numidx;
+	}
+
+	//should be doing this on the worker, but whatever
+	for (i = 0, sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	{
+		webostate->rbatches[sortid] = NULL;
+		for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next, i++)
+		{
+			if (!webostate->batches[i].numidx)
+				continue;
+
+			m = &webostate->batches[i].m;
+			webostate->batches[i].pm = m;
+			b = &webostate->batches[i].b;
+			memcpy(b, batch, sizeof(*b));
+			memset(m, 0, sizeof(*m));
+			m->numvertexes = webostate->batches[i].b.vbo->vertcount;
+			b->mesh = &webostate->batches[i].pm;
+			b->meshes = 1;
+			m->numindexes = webostate->batches[i].numidx;
+			m->vbofirstelement = webostate->batches[i].idxbuffer - (index_t*)NULL;
+			m->vbofirstvert = 0;
+			m->indexes = NULL;
+			b->vbo->indicies.gl.vbo = webostate->ebo;
+			b->vbo->indicies.gl.addr = NULL;
+			b->vbo->vao = 0;
+
+			b->next = webostate->rbatches[sortid];
+			webostate->rbatches[sortid] = b;
+		}
+	}
+}
+static void Surf_SimpleWorld(struct webostate_s *es, qbyte *pvs)
+{
+	mleaf_t		*leaf;
+	msurface_t	*surf, **mark, **end;
+	mesh_t		*mesh;
+	int l;
+	int fc = -r_framecount;
+	for (leaf = es->wmodel->leafs+es->wmodel->numclusters, l = es->wmodel->numclusters; l-- > 0; leaf--)
+	{
+		if ((pvs[l>>3] & (1u<<(l&7))) && leaf->nummarksurfaces)
+		{
+			mark = leaf->firstmarksurface;
+			end = mark+leaf->nummarksurfaces;
+			while(mark < end)
+			{
+				surf = *mark++;
+				if (surf->visframe != fc)
+				{
+					int i;
+					struct wesbatch_s *eb;
+					surf->visframe = fc;
+					Surf_RenderDynamicLightmaps_Worker (surf);
+
+					mesh = surf->mesh;
+					eb = &es->batches[surf->sbatch->ebobatch];
+					if (eb->maxidx < eb->numidx + mesh->numindexes)
+					{
+						//FIXME: pre-allocate
+//						continue;
+						eb->maxidx = eb->numidx + surf->mesh->numindexes;
+						eb->idxbuffer = BZ_Realloc(eb->idxbuffer, eb->maxidx * sizeof(index_t));
+					}
+					for (i = 0; i < mesh->numindexes; i++)
+						eb->idxbuffer[eb->numidx+i] = mesh->indexes[i] + mesh->vbofirstvert;
+					eb->numidx += mesh->numindexes;
+				}
+			}
+		}
+	}
+}
+void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
+{
+	int i;
+	struct webostate_s *es = ctx;
+	qbyte *pvs;
+
+	es->numbatches = es->wmodel->numbatches;
+
+	//maybe we should just use fatpvs instead, and wait for completion when outside?
+	if (es->leaf[1])
+	{	//view is near to a water boundary. this implies the water crosses the near clip plane.
+		qbyte tmppvs[MAX_MAP_LEAFS/8];
+		int c;
+		Q1BSP_LeafPVS (es->wmodel, es->leaf[0], es->pvs, sizeof(es->pvs));
+		Q1BSP_LeafPVS (es->wmodel, es->leaf[1], tmppvs, sizeof(tmppvs));
+		c = (es->wmodel->numclusters+31)/32;
+		for (i=0 ; i<c ; i++)
+			((int *)es->pvs)[i] |= ((int *)tmppvs)[i];
+		pvs = es->pvs;
+	}
+	else
+	{
+		pvs = Q1BSP_LeafPVS (es->wmodel, es->leaf[0], es->pvs, sizeof(es->pvs));
+	}
+
+	for (i = 0; i < es->numbatches; i++)
+	{
+		es->batches[i].numidx = 0;
+		es->batches[i].maxidx = 0;
+		es->batches[i].idxbuffer = NULL;
+	}
+
+	Surf_SimpleWorld(es, pvs);
+
+	COM_AddWork(0, R_GeneratedWorldEBO, es, NULL, 0, 0);
+}
+#endif
+
 /*
 =============
 R_DrawWorld
@@ -2295,12 +2813,13 @@ void Surf_DrawWorld (void)
 	//surfvis vs entvis - the key difference is that surfvis is surfaces while entvis is volume. though surfvis should be frustum culled also for lighting. entvis doesn't care.
 	qbyte *surfvis, *entvis;
 	qbyte frustumvis_[MAX_MAP_LEAFS/8];
+	extern cvar_t temp1;
 	RSpeedLocals();
 
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
 	{
 		r_refdef.flags |= RDF_NOWORLDMODEL;
-		BE_DrawWorld(false, NULL);
+		BE_DrawWorld(NULL, NULL);
 		return;
 	}
 	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
@@ -2317,7 +2836,71 @@ void Surf_DrawWorld (void)
 
 		Surf_LightmapShift(cl.worldmodel);
 
-		Surf_PushChains(cl.worldmodel);
+#ifdef THREADEDWORLD
+		if (r_dynamic.ival < 0 && !r_refdef.recurse && cl.worldmodel->type == mod_brush && cl.worldmodel->fromgame == fg_quake)
+		{
+			if (webostate && webostate->wmodel != cl.worldmodel)
+			{
+				R_DestroyWorldEBO(webostate);
+				webostate = NULL;
+			}
+			if (webostate && webostate->leaf[0] == r_viewleaf && webostate->leaf[1] == r_viewleaf2 && webostate->goodtime > cl.time)
+			{
+			}
+			else
+			{
+				if (!webogenerating)
+				{
+					if (!cl.worldmodel->numbatches)
+					{
+						int sortid;
+						batch_t *batch;
+						cl.worldmodel->numbatches = 0;
+						for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+							for (batch = cl.worldmodel->batches[sortid]; batch != NULL; batch = batch->next)
+							{
+								batch->ebobatch = cl.worldmodel->numbatches;
+								cl.worldmodel->numbatches++;
+							}
+					}
+					webogeneratingstate = true;
+					webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (cl.worldmodel->numbatches-1));
+					webogenerating->wmodel = cl.worldmodel;
+					webogenerating->leaf[0] = r_viewleaf;
+					webogenerating->leaf[1] = r_viewleaf2;
+					webogenerating->goodtime = cl.time;	//stupid lightstyle animations.
+					if (r_lightstylesmooth.ival)
+						webogenerating->goodtime += 1.0/60;
+					else
+						webogenerating->goodtime += 0.1;
+					Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
+					COM_AddWork(1, R_GenWorldEBO, webogenerating, NULL, 0, 0);
+				}
+			}
+			if (webostate)
+			{
+				entvis = surfvis = webostate->pvs;
+
+				RSpeedEnd(RSPEED_WORLDNODE);
+
+				CL_LinkStaticEntities(entvis);
+				TRACE(("dbg: calling R_DrawParticles\n"));
+				if (!r_refdef.recurse)
+					P_DrawParticles ();
+
+				TRACE(("dbg: calling BE_DrawWorld\n"));
+				BE_DrawWorld(webostate->rbatches, surfvis);
+
+				/*FIXME: move this away*/
+				if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
+					Surf_LessenStains();
+				return;
+			}
+		}
+#endif
+
+
+		Surf_PushChains(cl.worldmodel->batches);
 
 #ifdef Q2BSPS
 		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
@@ -2380,7 +2963,7 @@ void Surf_DrawWorld (void)
 //				entvis = surfvis = R_MarkLeafSurfaces_Q1();
 //			else
 			{
-				entvis = R_MarkLeaves_Q1 ();
+				entvis = R_MarkLeaves_Q1 (false);
 				if (!(r_novis.ival & 2))
 					VectorCopy (r_origin, modelorg);
 
@@ -2395,6 +2978,8 @@ void Surf_DrawWorld (void)
 			}
 		}
 
+		RSpeedEnd(RSPEED_WORLDNODE);
+
 		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 		{
 			CL_LinkStaticEntities(entvis);
@@ -2403,15 +2988,14 @@ void Surf_DrawWorld (void)
 				P_DrawParticles ();
 		}
 
-		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling BE_DrawWorld\n"));
-		BE_DrawWorld(true, surfvis);
+		BE_DrawWorld(cl.worldmodel->batches, surfvis);
+
+		Surf_PopChains(cl.worldmodel->batches);
 
 		/*FIXME: move this away*/
 		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
 			Surf_LessenStains();
-
-		Surf_PopChains(cl.worldmodel);
 	}
 }
 
@@ -2432,6 +3016,13 @@ unsigned int Surf_CalcMemSize(msurface_t *surf)
 void Surf_DeInit(void)
 {
 	int i;
+
+#ifdef THREADEDWORLD
+	while(webogenerating)
+		COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
+	R_DestroyWorldEBO(webostate);
+	webostate = NULL;
+#endif
 
 	for (i = 0; i < numlightmaps; i++)
 	{
@@ -2459,6 +3050,14 @@ void Surf_Clear(model_t *mod)
 	vbo_t *vbo;
 	if (mod->fromgame == fg_doom3)
 		return;/*they're on the hunk*/
+
+#ifdef THREADEDWORLD
+	while(webogenerating)
+		COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
+	R_DestroyWorldEBO(webostate);
+	webostate = NULL;
+#endif
+
 	while(mod->vbos)
 	{
 		vbo = mod->vbos;
@@ -2580,8 +3179,8 @@ int Surf_NewLightmaps(int count, int width, int height, qboolean deluxe)
 
 		lightmap[i]->rectchange.l = 0;
 		lightmap[i]->rectchange.t = 0;
-		lightmap[i]->rectchange.h = lightmap[i]->height;
-		lightmap[i]->rectchange.w = lightmap[i]->width;
+		lightmap[i]->rectchange.b = lightmap[i]->height;
+		lightmap[i]->rectchange.r = lightmap[i]->width;
 
 
 		lightmap[i]->lightmap_texture = r_nulltex;
@@ -2849,6 +3448,13 @@ void Surf_BuildModelLightmaps (model_t *m)
 void Surf_ClearLightmaps(void)
 {
 	lightmap_bytes = 0;
+
+#ifdef THREADEDWORLD
+	while(webogenerating)
+		COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
+	R_DestroyWorldEBO(webostate);
+	webostate = NULL;
+#endif
 }
 
 /*

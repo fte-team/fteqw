@@ -620,10 +620,11 @@ static unsigned int fs_pureseed;	//used as a key so the server knows we're obeyi
 
 int QDECL COM_FileSize(const char *path)
 {
-	int len;
 	flocation_t loc;
-	len = FS_FLocateFile(path, FSLFRT_LENGTH, &loc);
-	return len;
+	if (FS_FLocateFile(path, FSLF_IFFOUND, &loc))
+		return loc.len;
+	else
+		return -1;
 }
 
 //appends a / on the end of the directory if it does not already have one.
@@ -744,7 +745,7 @@ void COM_Locate_f (void)
 	char *f = Cmd_Argv(1);
 	if (strchr(f, '^'))	//fte's filesystem is assumed to be utf-8, but that doesn't mean that console input is. and I'm too lazy to utf-8ify the string (in part because markup can be used to exploit ascii assumptions).
 		Con_Printf("Warning: filename contains markup. If this is because of unicode, set com_parseutf8 1\n");
-	if (FS_FLocateFile(f, FSLFRT_LENGTH, &loc)>=0)
+	if (FS_FLocateFile(f, FSLF_IFFOUND, &loc))
 	{
 		if (!*loc.rawname)
 		{
@@ -1000,7 +1001,7 @@ Sets com_filesize and one of handle or file
 */
 //if loc is valid, loc->search is always filled in, the others are filled on success.
 //returns -1 if couldn't find.
-int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation_t *loc)
+int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 {
 	int depth=0;
 	searchpath_t	*search;
@@ -1026,7 +1027,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 		goto fail;
 	}
 
-	if (com_fs_cache.ival && !com_fschanged)
+	if (com_fs_cache.ival && !com_fschanged && !(lflags & FSLF_IGNOREPURE))
 	{
 		pf = Hash_GetInsensitive(&filesystemhash, filename);
 		if (!pf)
@@ -1035,17 +1036,19 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 	else
 		pf = NULL;
 
-	if (com_purepaths && found == FF_NOTFOUND)
+	if (com_purepaths && found == FF_NOTFOUND && !(lflags & FSLF_IGNOREPURE))
 	{
 		//check if its in one of the 'pure' packages. these override the default ones.
 		for (search = com_purepaths ; search ; search = search->nextpure)
 		{
-			depth += ((search->flags & SPF_EXPLICIT) || returntype == FSLFRT_DEPTH_ANYPATH);
+			if ((lflags & FSLF_SECUREONLY) && !(search->flags & SPF_UNTRUSTED))
+				continue;
+			depth += ((search->flags & SPF_EXPLICIT) || (lflags & FSLF_DEPTH_EXPLICIT));
 			fs_finds++;
 			found = search->handle->FindFile(search->handle, loc, filename, pf);
 			if (found)
 			{
-				if (returntype != FSLFRT_DEPTH_OSONLY && returntype != FSLFRT_DEPTH_ANYPATH)
+				if (!(lflags & FSLF_DONTREFERENCE))
 				{
 					if ((search->flags & fs_referencetype) != fs_referencetype)
 						Con_DPrintf("%s became referenced due to %s\n", search->purepath, filename);
@@ -1057,17 +1060,19 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 		}
 	}
 
-	if (fs_puremode < 2 && found == FF_NOTFOUND)
+	if (((lflags & FSLF_IGNOREPURE) || fs_puremode < 2) && found == FF_NOTFOUND)
 	{
 		// optionally check the non-pure paths too.
 		for (search = com_searchpaths ; search ; search = search->next)
 		{
-			depth += ((search->flags & SPF_EXPLICIT) || returntype == FSLFRT_DEPTH_ANYPATH);
+			if ((lflags & FSLF_SECUREONLY) && !(search->flags & SPF_UNTRUSTED))
+				continue;
+			depth += ((search->flags & SPF_EXPLICIT) || (lflags & FSLF_DEPTH_EXPLICIT));
 			fs_finds++;
 			found = search->handle->FindFile(search->handle, loc, filename, pf);
 			if (found)
 			{
-				if (returntype != FSLFRT_DEPTH_OSONLY && returntype != FSLFRT_DEPTH_ANYPATH)
+				if (!(lflags & FSLF_DONTREFERENCE))
 				{
 					if ((search->flags & fs_referencetype) != fs_referencetype)
 						Con_DPrintf("%s became referenced due to %s\n", search->purepath, filename);
@@ -1079,7 +1084,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 		}
 	}
 fail:
-	if (found == FF_SYMLINK)
+	if (found == FF_SYMLINK && !(lflags & FSLF_IGNORELINKS))
 	{
 		static int blocklink;
 		if (blocklink < 4 && loc->len < MAX_QPATH)
@@ -1125,7 +1130,7 @@ fail:
 
 			//and locate that instead.
 			blocklink++;
-			depth = FS_FLocateFile(mergedname, returntype, loc);
+			depth = FS_FLocateFile(mergedname, lflags, loc);
 			blocklink--;
 			if (!loc->search)
 				Con_Printf("Symlink %s -> %s (%s) is dead\n", filename, targname, mergedname);
@@ -1143,20 +1148,14 @@ fail:
 	else
 		Con_Printf("Failed\n");
 */
-	if (returntype == FSLFRT_IFFOUND)
-		return (found != FF_NOTFOUND) && (loc->len != -1);
-	else if (returntype == FSLFRT_LENGTH)
-	{
-		if (found == FF_NOTFOUND)
-			return -1;
-		return loc->len;
-	}
-	else
+	if (lflags & (FSLF_DEPTH_EXPLICIT | FSLF_DEPTH_INEXPLICIT))
 	{
 		if (found == FF_NOTFOUND)
 			return 0x7fffffff;
 		return depth;
 	}
+	else
+		return (found != FF_NOTFOUND) && (loc->len != -1); 
 }
 
 char *FS_WhichPackForLocation(flocation_t *loc, qboolean makereferenced)
@@ -1704,7 +1703,7 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 		break;
 	}
 
-	FS_FLocateFile(filename, FSLFRT_IFFOUND, &loc);
+	FS_FLocateFile(filename, FSLF_IFFOUND, &loc);
 
 	if (loc.search)
 	{
@@ -1856,9 +1855,8 @@ qbyte *COM_LoadFile (const char *path, int usehunk, size_t *filesize)
 	qbyte *buf;
 	qofs_t len;
 	flocation_t loc;
-	FS_FLocateFile(path, FSLFRT_LENGTH, &loc);
-
-	if (!loc.search)
+	
+	if (!FS_FLocateFile(path, FSLF_IFFOUND, &loc) || !loc.search)
 		return NULL;	//wasn't found
 
 	if (loc.len > 0x7fffffff)	//don't malloc 5000gb sparse files or anything crazy on a 32bit system...
@@ -2834,7 +2832,7 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 			if (search)
 				found = search->FindFile(search, &loc, name, NULL);
 			else
-				found = FS_FLocateFile(name, FSLFRT_IFFOUND, &loc); 
+				found = FS_FLocateFile(name, FSLF_IFFOUND, &loc); 
 			if (found)
 			{
 				f = (search?search:loc.search->handle)->OpenVFS(search?search:loc.search->handle, &loc, "rb");
@@ -2855,7 +2853,7 @@ vfsfile_t *CL_OpenFileInPackage(searchpathfuncs_t *search, char *name)
 					if (search)
 						found = search->FindFile(search, &loc, name, NULL);
 					else
-						found = FS_FLocateFile(name, FSLFRT_IFFOUND, &loc); 
+						found = FS_FLocateFile(name, FSLF_IFFOUND, &loc); 
 					if (found)
 					{
 						f = (search?search:loc.search->handle)->OpenVFS(search?search:loc.search->handle, &loc, "rb");
@@ -2939,13 +2937,19 @@ char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum)
 	int numpaks = 0;
 	searchpath_t *sp;
 
-	FS_FLocateFile("vm/cgame.qvm", FSLFRT_LENGTH, &loc);
-	Q_strncatz(buffer, va("%i ", loc.search->crc_reply), maxlen);
-	basechecksum ^= loc.search->crc_reply;
+	if (FS_FLocateFile("vm/cgame.qvm", FSLF_IFFOUND, &loc))
+	{
+		Q_strncatz(buffer, va("%i ", loc.search->crc_reply), maxlen);
+		basechecksum ^= loc.search->crc_reply;
+	}
+	else Q_strncatz(buffer, va("%i ", 0), maxlen);
 
-	FS_FLocateFile("vm/ui.qvm", FSLFRT_LENGTH, &loc);
-	Q_strncatz(buffer, va("%i ", loc.search->crc_reply), maxlen);
-	basechecksum ^= loc.search->crc_reply;
+	if (FS_FLocateFile("vm/ui.qvm", FSLF_IFFOUND, &loc))
+	{
+		Q_strncatz(buffer, va("%i ", loc.search->crc_reply), maxlen);
+		basechecksum ^= loc.search->crc_reply;
+	}
+	else Q_strncatz(buffer, va("%i ", 0), maxlen);
 
 	Q_strncatz(buffer, "@ ", maxlen);
 
@@ -4509,12 +4513,12 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 	for (i = 0; i < countof(vidfile); i++)
 	{
-		FS_FLocateFile(vidfile[i], FSLFRT_IFFOUND, &loc);	//q1
+		FS_FLocateFile(vidfile[i], FSLF_IFFOUND, &loc);	//q1
 		vidpath[i] = loc.search?loc.search->handle:NULL;
 	}
 	for (i = 0; i < countof(conffile); i++)
 	{
-		FS_FLocateFile(conffile[i], FSLFRT_IFFOUND, &loc);	//q1
+		FS_FLocateFile(conffile[i], FSLF_IFFOUND, &loc);	//q1
 		confpath[i] = loc.search?loc.search->handle:NULL;
 	}
 
@@ -4689,7 +4693,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			{
 				for (i = 0; i < countof(vidfile); i++)
 				{
-					FS_FLocateFile(vidfile[i], FSLFRT_IFFOUND, &loc);
+					FS_FLocateFile(vidfile[i], FSLF_IFFOUND, &loc);
 					if (vidpath[i] != (loc.search?loc.search->handle:NULL))
 					{
 						vidrestart = true;
@@ -4700,7 +4704,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 			for (i = 0; i < countof(conffile); i++)
 			{
-				FS_FLocateFile(conffile[i], FSLFRT_IFFOUND, &loc);
+				FS_FLocateFile(conffile[i], FSLF_IFFOUND, &loc);
 				if (confpath[i] != (loc.search?loc.search->handle:NULL))
 				{
 					reloadconfigs = true;

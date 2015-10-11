@@ -223,7 +223,7 @@ baseline will be transmitted
 
 void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client);
 
-void SVNQ_CreateBaseline (void)
+void SVQ1_CreateBaseline (void)
 {
 	edict_t			*svent;
 	int				entnum;
@@ -1587,7 +1587,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	// create a baseline for more efficient communications
 //	SV_CreateBaseline ();
 	if (svprogfuncs)
-		SVNQ_CreateBaseline();
+		SVQ1_CreateBaseline();
 #ifdef Q2SERVER
 	SVQ2_BuildBaselines();
 #endif

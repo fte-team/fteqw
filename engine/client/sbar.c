@@ -2165,7 +2165,7 @@ void Sbar_DrawScoreboard (void)
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
-		if (cl.spectator)
+		if (cl.spectator && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
 		{
 			int t = cl.playerview[pnum].cam_spec_track;
 			if (t < 0 || !CAM_ISLOCKED(&cl.playerview[pnum]))

@@ -1365,7 +1365,12 @@ void Plug_Initialise(qboolean fromgamedir)
 	if (!numplugbuiltins)
 	{
 		Cvar_Register(&plug_sbar, "plugins");
-		Cvar_Register(&plug_loaddefault, "plugins");
+#ifdef SUBSERVERS
+		if (!SSV_IsSubServer())
+#endif
+
+			Cvar_Register(&plug_loaddefault, "plugins");
+
 		Cmd_AddCommand("plug_closeall", Plug_CloseAll_f);
 		Cmd_AddCommand("plug_close", Plug_Close_f);
 		Cmd_AddCommand("plug_load", Plug_Load_f);

@@ -1096,6 +1096,7 @@ void CL_ParseTEnt (void)
 	if (nqprot)
 	{
 		//easiest way to handle these
+		//should probably also do qwgunshot ones with nq protocols or something
 		switch(type)
 		{
 		case TENQ_EXPLOSION2:
@@ -1107,10 +1108,41 @@ void CL_ParseTEnt (void)
 		case TE_EXPLOSION:
 			type = TEQW_EXPLOSIONNOSPRITE;
 			break;
+		case TE_GUNSHOT:
+			type = TE_GUNSHOT_NQCOMPAT;
+			break;
+		case TE_GUNSHOT_NQCOMPAT:
+			type = TE_GUNSHOT;
+			break;
 		default:
 			break;
 		}
 	}
+
+	//right, nq vs qw doesn't matter now, supposedly.
+	
+	if (cl_shownet.ival >= 2)
+	{
+		static char *te_names[] = {
+			"spike", "superspike", "qwgunshot", "qwexplosion",
+			"tarexplosion", "lightning1", "lightning2", "wizspike",
+			"knightspike", "lightning3", "lavasplash", "teleport",
+			"blood", "lightningblood", "bullet", "superbullet",	//bullets deprecated
+			"railtrail", "beam", "explosion2", "nqexplosion",
+			"nqgunshot", "?", "?", "?",
+#ifdef HEXEN2
+			"h2lightsml", "h2chain", "h2sunstf1", "h2sunstf2",
+			"h2light", "h2cb", "h2ic", "h2gaze",
+			"h2famine", "h2partexp"
+#endif
+		};
+
+		if (type < countof(te_names))
+			Con_Printf("  te_%s\n", te_names[type]);
+		else
+			Con_Printf("  te_%i\n", type);
+	}
+
 	switch (type)
 	{
 	case TE_WIZSPIKE:			// spike hitting wall
@@ -1509,8 +1541,10 @@ void CL_ParseTEnt (void)
 				P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		break;
+
 	case TE_GUNSHOT:			// bullet hitting wall
-		if (nqprot)
+	case TE_GUNSHOT_NQCOMPAT:
+		if (type == TE_GUNSHOT_NQCOMPAT)
 			cnt = 1;
 		else
 			cnt = MSG_ReadByte ();
@@ -3301,7 +3335,7 @@ fixme:
 		ex = CL_AllocExplosion (pos);
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
+		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0.1*5, 0*5);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_muzzleflash");
 		break;
 	case CRTE_BLUE_MUZZLEFLASH:
@@ -3309,7 +3343,7 @@ fixme:
 		ex = CL_AllocExplosion (pos);
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
+		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0.1*5, 0*5);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_blue_muzzleflash");
 		break;
 	case CRTE_SMART_MUZZLEFLASH:
@@ -3317,7 +3351,7 @@ fixme:
 		ex = CL_AllocExplosion (pos);
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0, 0.2);
+		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0*5, 0.2*5);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_smart_muzzleflash");
 		break;
 	case CRTE_LEADERFIELD:
@@ -3328,7 +3362,7 @@ fixme:
 		VectorCopy (pos, ex->origin);
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0, 0.2);
+		CL_NewDlight(0, pos, 350, 0.5, 0.2*5, 0*5, 0.2*5);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_deathfield");
 		break;
 	case CRTE_BLASTERBEAM:

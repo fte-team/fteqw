@@ -192,6 +192,7 @@ index_t flashblend_indexes[FLASHBLEND_VERTS*3];
 index_t flashblend_fsindexes[6] = {0, 1, 2, 0, 2, 3};
 mesh_t flashblend_mesh;
 mesh_t flashblend_fsmesh;
+shader_t *occluded_shader;
 shader_t *flashblend_shader;
 shader_t *lpplight_shader;
 
@@ -261,6 +262,15 @@ void R_InitFlashblends(void)
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
 				"nodepth\n"
+			"}\n"
+		"}\n"
+		);
+	occluded_shader = R_RegisterShader("flashblend_occlusiontest", SUF_NONE,
+		"{\n"
+			"program defaultadditivesprite\n"
+			"{\n"
+				"maskcolor\n"
+				"maskalpha\n"
 			"}\n"
 		"}\n"
 		);
@@ -401,16 +411,97 @@ void R_RenderDlights (void)
 		/*coronas use depth testing to compute visibility*/
 		if (coronastyle)
 		{
-			extern cvar_t temp1;
-			if (r_coronas_occlusion.ival)
+			int method;
+			if (!*r_coronas_occlusion.string)
+				method = 4;
+			else
+				method = r_coronas_occlusion.ival;
+			if (method == 3 && qrenderer != QR_OPENGL)
+				method = 1;
+			if (method == 4 && (qrenderer != QR_OPENGL || !qglGenQueriesARB))
+				method = 1;
+
+			switch(method)
 			{
+			case 2:
 				if (TraceLineR(r_refdef.vieworg, l->origin, waste1, waste2))
 					continue;
-			}
-			else
-			{
+				break;
+			default:
+			case 1:
 				if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
 					continue;
+				break;
+			case 0:
+				break;
+#ifdef GLQUAKE
+			case 3:
+				{
+					float depth;
+					vec3_t out;
+					float v[4], tempv[4];
+					float mvp[16];
+
+					v[0] = l->origin[0];
+					v[1] = l->origin[1];
+					v[2] = l->origin[2];
+					v[3] = 1;
+
+					Matrix4_Multiply(r_refdef.m_projection, r_refdef.m_view, mvp);
+					Matrix4x4_CM_Transform4(mvp, v, tempv);
+
+					tempv[0] /= tempv[3];
+					tempv[1] /= tempv[3];
+					tempv[2] /= tempv[3];
+
+					out[0] = (1+tempv[0])/2;
+					out[1] = (1+tempv[1])/2;
+					out[2] = (1+tempv[2])/2;
+
+					out[0] = out[0]*r_refdef.pxrect.width + r_refdef.pxrect.x;
+					out[1] = out[1]*r_refdef.pxrect.height + r_refdef.pxrect.y;
+					if (tempv[3] < 0)
+						out[2] *= -1;
+
+					if (out[2] < 0)
+						continue;
+
+					//FIXME: in terms of performance, mixing reads+draws is BAD BAD BAD. SERIOUSLY BAD
+					qglReadPixels(out[0], out[1], 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+					if (depth < out[2])
+						continue;
+				}
+			case 4:
+				{
+					GLuint res;
+					qboolean requery = true;
+					if (l->coronaocclusionquery)
+					{
+						qglGetQueryObjectuivARB(l->coronaocclusionquery, GL_QUERY_RESULT_AVAILABLE_ARB, &res);
+						if (res)
+							qglGetQueryObjectuivARB(l->coronaocclusionquery, GL_QUERY_RESULT_ARB, &l->coronaocclusionresult);
+						else if (!l->coronaocclusionresult)
+							continue;	//query still running, nor currently visible.
+						else
+							requery = false;
+					}
+					else
+					{
+						qglGenQueriesARB(1, &l->coronaocclusionquery);
+					}
+
+					if (requery)
+					{
+						qglBeginQueryARB(GL_SAMPLES_PASSED_ARB, l->coronaocclusionquery);
+						R_BuildDlightMesh (l, intensity*10, 0.01, coronastyle);
+						BE_DrawMesh_Single(occluded_shader, &flashblend_mesh, NULL, beflags);
+						qglEndQueryARB(GL_SAMPLES_PASSED_ARB);
+					}
+
+					if (!l->coronaocclusionresult)
+						continue;
+				}
+#endif
 			}
 		}
 
@@ -530,7 +621,7 @@ void R_PushDlights (void)
 		return;
 #endif
 
-	if (!r_dynamic.ival || !cl.worldmodel)
+	if (r_dynamic.ival <= 0|| !cl.worldmodel)
 		return;
 
 	if (!cl.worldmodel->nodes)

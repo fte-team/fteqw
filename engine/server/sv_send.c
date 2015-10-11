@@ -1367,6 +1367,11 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	client->nextservertimeupdate = sv.physicstime;
 */
 
+#ifdef HLSERVER
+	if (svs.gametype == GT_HALFLIFE)
+		return;
+#endif
+
 #ifdef NQPROT
 	ent = client->edict;
 	if (progstype != PROG_QW)

@@ -4870,7 +4870,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 //				r_refdef.waterheight = DotProduct(batch->mesh[0]->xyz_array[0], batch->mesh[0]->normals_array[0]);
 
 				r_refdef.recurse+=1; //paranoid, should stop potential infinite loops
-				GLBE_SubmitMeshes(true, SHADER_SORT_RIPPLE, SHADER_SORT_RIPPLE);
+				GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_RIPPLE, SHADER_SORT_RIPPLE);
 				r_refdef.recurse-=1;
 				GLBE_FBO_Pop(oldfbo);
 
@@ -4886,25 +4886,24 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 	}
 }
 
-void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop)
+void GLBE_SubmitMeshes (batch_t **worldbatches, int start, int stop)
 {
-	model_t *model = cl.worldmodel;
 	int i;
 	int portaldepth = r_portalrecursion.ival;
 
 	for (i = start; i <= stop; i++)
 	{
-		if (drawworld)
+		if (worldbatches)
 		{
 			if (i == SHADER_SORT_PORTAL && r_refdef.recurse < portaldepth)
 			{
-				GLBE_SubmitMeshesPortals(model->batches, shaderstate.mbatches[i]);
+				GLBE_SubmitMeshesPortals(worldbatches, shaderstate.mbatches[i]);
 
 				if (!r_refdef.recurse && r_portalonly.ival)
 					return;
 			}
 
-			GLBE_SubmitMeshesSortList(model->batches[i]);
+			GLBE_SubmitMeshesSortList(worldbatches[i]);
 		}
 		GLBE_SubmitMeshesSortList(shaderstate.mbatches[i]);
 	}
@@ -4941,6 +4940,8 @@ static void BE_UpdateLightmaps(void)
 			continue;
 		if (lm->modified)
 		{
+			int t = lm->rectchange.t;	//pull them out now, in the hopes that it'll be more robust with respect to r_dynamic -1
+			int b = lm->rectchange.b;
 			lm->modified = false;
 			if (!TEXVALID(lm->lightmap_texture))
 			{
@@ -4957,14 +4958,14 @@ static void BE_UpdateLightmaps(void)
 			else
 			{
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, lm->rectchange.t,
-						lm->width, lm->rectchange.h, glformat, gltype,
-						lm->lightmaps+(lm->rectchange.t) *lm->width*lightmap_bytes);
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, t,
+						lm->width, b-t, glformat, gltype,
+						lm->lightmaps+t *lm->width*lightmap_bytes);
 			}
 			lm->rectchange.l = lm->width;
 			lm->rectchange.t = lm->height;
-			lm->rectchange.h = 0;
-			lm->rectchange.w = 0;
+			lm->rectchange.r = 0;
+			lm->rectchange.b = 0;
 		}
 	}
 }
@@ -4990,7 +4991,7 @@ void GLBE_BaseEntTextures(void)
 	batch_t **ob = shaderstate.mbatches;
 	shaderstate.mbatches = batches;
 	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
-	GLBE_SubmitMeshes(false, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
+	GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_SEETHROUGH+1);
 	GLBE_SelectEntity(&r_worldentity);
 	shaderstate.mbatches = ob;
 }
@@ -5340,7 +5341,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	}
 	/*do portals*/
 	BE_SelectMode(BEM_STANDARD);
-	GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_PORTAL);
+	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_PORTAL, SHADER_SORT_PORTAL);
 
 	BE_SelectMode(BEM_DEPTHNORM);
 	if (!shaderstate.depthnormshader)
@@ -5393,7 +5394,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	}
 
 	/*draw surfaces that can be drawn this way*/
-	GLBE_SubmitMeshes(true, SHADER_SORT_OPAQUE, SHADER_SORT_OPAQUE);
+	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_OPAQUE, SHADER_SORT_OPAQUE);
 
 	/*reconfigure - now drawing diffuse light info using the previous fb image as a source image*/
 	GLBE_FBO_Sources(shaderstate.tex_normals, r_nulltex);
@@ -5405,7 +5406,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 
 	GLBE_SelectEntity(&r_worldentity);
 	/*now draw the prelights*/
-	GLBE_SubmitMeshes(true, SHADER_SORT_PRELIGHT, SHADER_SORT_PRELIGHT);
+	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_PRELIGHT, SHADER_SORT_PRELIGHT);
 
 	/*final reconfigure - now drawing final surface data onto true framebuffer*/
 	GLBE_FBO_Pop(oldfbo);
@@ -5414,7 +5415,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 
 	/*now draw the postlight passes (this includes blended stuff which will NOT be lit)*/
 	GLBE_SelectEntity(&r_worldentity);
-	GLBE_SubmitMeshes(true, SHADER_SORT_SKY, SHADER_SORT_NEAREST);
+	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_SKY, SHADER_SORT_NEAREST);
 
 #ifdef RTLIGHTS
 	/*regular lighting now*/
@@ -5426,7 +5427,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	qglClearColor (1,0,0,1);
 }
 
-void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
+void GLBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 {
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 	batch_t *batches[SHADER_SORT_COUNT];
@@ -5479,7 +5480,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	GLBE_SelectEntity(&r_worldentity);
 
 	BE_UpdateLightmaps();
-	if (drawworld)
+	if (worldbatches)
 	{
 		if (gl_overbright.modified)
 		{
@@ -5493,7 +5494,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		}
 
 #ifdef RTLIGHTS
-		if (drawworld && r_shadow_realtime_world.ival)
+		if (worldbatches && r_shadow_realtime_world.ival)
 			shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
@@ -5517,11 +5518,11 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 				BE_SelectMode(BEM_STANDARD);
 
 			RSpeedRemark();
-			GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+			GLBE_SubmitMeshes(worldbatches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 			RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
-			if (drawworld)
+			if (worldbatches)
 			{
 				RSpeedRemark();
 				TRACE(("GLBE_DrawWorld: drawing lights\n"));
@@ -5535,7 +5536,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 
 		shaderstate.identitylighting = 1;
 
-		GLBE_SubmitMeshes(true, SHADER_SORT_DECAL, SHADER_SORT_NEAREST);
+		GLBE_SubmitMeshes(worldbatches, SHADER_SORT_DECAL, SHADER_SORT_NEAREST);
 
 /*		if (r_refdef.gfog_alpha)
 		{
@@ -5550,7 +5551,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		{
 			BE_SelectMode(BEM_WIREFRAME);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+			GLBE_SubmitMeshes(worldbatches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 			BE_SelectMode(BEM_STANDARD);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}
@@ -5559,14 +5560,14 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	}
 	else
 	{
-		GLBE_SubmitMeshes(false, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+		GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 
 #ifdef GL_LINE	//no gles
 		if (r_wireframe.ival && qglPolygonMode)
 		{
 			BE_SelectMode(BEM_WIREFRAME);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			GLBE_SubmitMeshes(false, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+			GLBE_SubmitMeshes(NULL, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 			BE_SelectMode(BEM_STANDARD);
 			qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		}

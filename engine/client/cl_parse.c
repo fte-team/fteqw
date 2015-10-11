@@ -5835,7 +5835,7 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			{
 				flocation_t loc;
 				Cmd_TokenizeString(stufftext+2, false, false);
-				if (FS_FLocateFile(Cmd_Argv(1), FSLFRT_IFFOUND, &loc))
+				if (FS_FLocateFile(Cmd_Argv(1), FSLF_IFFOUND, &loc))
 					Con_Printf("You have been kicked due to the file \"%s\" being modified.\n", Cmd_Argv(1));
 			}
 #ifdef PLUGINS
@@ -6568,12 +6568,12 @@ void CLQW_ParseServerMessage (void)
 
 		case svcfte_cgamepacket:
 			csqcpacket = true;
-#ifdef CSQC_DAT
-			if (CSQC_ParseGamePacket())
-				break;
-#endif
 #ifdef HLCLIENT
 			if (CLHL_ParseGamePacket())
+				break;
+#endif
+#ifdef CSQC_DAT
+			if (CSQC_ParseGamePacket())
 				break;
 #endif
 			Con_Printf("Unable to parse gamecode packet\n");

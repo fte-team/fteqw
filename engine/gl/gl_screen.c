@@ -212,11 +212,11 @@ void GLSCR_UpdateScreen (void)
 	Media_RecordFrame();
 #endif
 
+	RSpeedShow();
+
 	if (R2D_Flush)
 		R2D_Flush();
-
 	RSpeedEnd(RSPEED_TOTALREFRESH);
-	RSpeedShow();
 
 	RSpeedRemark();
 	VID_SwapBuffers();

@@ -25,12 +25,6 @@ static void		Headless_IMG_UpdateFiltering	(image_t *imagelist, int filtermip[3],
 }
 static qboolean	Headless_IMG_LoadTextureMips	(texid_t tex, struct pendingtextureinfo *mips)
 {
-	int i;
-	for (i = 0; i < mips->mipcount; i++)
-		if (mips->mip[i].needfree)
-			Z_Free(mips->mip[i].data);
-	if (mips->extrafree)
-		Z_Free(mips->extrafree);
 	return true;
 }
 static void		Headless_IMG_DestroyTexture		(texid_t tex)
@@ -141,6 +135,8 @@ static qboolean Headless_VID_Init				(rendererstate_t *info, unsigned char *pale
 		Shell_NotifyIconA(NIM_ADD, &data);
 	}
 #endif
+
+	memset(&sh_config, 0, sizeof(sh_config));
 	return true;
 }
 static void	 Headless_VID_DeInit				(void)
@@ -196,7 +192,7 @@ static struct batch_s *Headless_BE_GetTempBatch	(void)
 {
 	return NULL;
 }
-static void	Headless_BE_DrawWorld	(qboolean drawworld, qbyte *vis)
+static void	Headless_BE_DrawWorld	(struct batch_s **worldbatches, qbyte *vis)
 {
 }
 static void	Headless_BE_Init	(void)

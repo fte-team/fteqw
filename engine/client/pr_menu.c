@@ -2327,6 +2327,15 @@ pbool PDECL Menu_CheckHeaderCrc(pubprogfuncs_t *inst, progsnum_t idx, int crc)
 	return crc == 10020;
 }
 
+static int QDECL MP_PRFileSize (const char *path)
+{
+	flocation_t loc;
+	if (FS_FLocateFile(path, FSLF_IFFOUND|FSLF_SECUREONLY, &loc))
+		return loc.len;
+	else
+		return -1;
+}
+
 double  menutime;
 qboolean MP_Init (void)
 {
@@ -2350,7 +2359,7 @@ qboolean MP_Init (void)
 
 	menuprogparms.progsversion = PROGSTRUCT_VERSION;
 	menuprogparms.ReadFile = COM_LoadStackFile;//char *(*ReadFile) (char *fname, void *buffer, int *len);
-	menuprogparms.FileSize = COM_FileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
+	menuprogparms.FileSize = MP_PRFileSize;//int (*FileSize) (char *fname);	//-1 if file does not exist
 	menuprogparms.WriteFile = QC_WriteFile;//bool (*WriteFile) (char *name, void *data, int len);
 	menuprogparms.Printf = (void *)Con_Printf;//Con_Printf;//void (*printf) (char *, ...);
 	menuprogparms.Sys_Error = Sys_Error;

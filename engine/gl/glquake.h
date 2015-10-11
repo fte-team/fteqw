@@ -693,6 +693,15 @@ extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 extern void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 
 
+extern void (APIENTRY *qglGenQueriesARB)(GLsizei n, GLuint *ids);
+extern void (APIENTRY *qglDeleteQueriesARB)(GLsizei n, const GLuint *ids);
+//extern GLboolean (APIENTRY *qglIsQueryARB)(GLuint id);
+extern void (APIENTRY *qglBeginQueryARB)(GLenum target, GLuint id);
+extern void (APIENTRY *qglEndQueryARB)(GLenum target);
+//extern void (APIENTRY *qglGetQueryivARB)(GLenum target, GLenum pname, GLint *params);
+//extern void (APIENTRY *qglGetQueryObjectivARB)(GLuint id, GLenum pname, GLint *params);
+extern void (APIENTRY *qglGetQueryObjectuivARB)(GLuint id, GLenum pname, GLuint *params);
+
 //glslang - arb_shader_objects
 extern FTEPFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
 extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;

@@ -47,8 +47,8 @@ cvar_t	sv_spectalk	= SCVAR("sv_spectalk", "1");
 cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 
 cvar_t	sv_fullredirect = CVARD("sv_fullredirect", "", "This is the ip:port to redirect players to when the server is full");
-cvar_t	sv_antilag			= CVARFD("sv_antilag", "1", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag. 0=completely off. 1=mod-controlled. 2=forced, which might break certain uses of traceline.");
-cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
+cvar_t	sv_antilag			= CVARFD("sv_antilag", "", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag. 0=completely off. 1=mod-controlled. 2=forced, which might break certain uses of traceline.");
+cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "", CVAR_SERVERINFO);
 #ifndef NEWSPEEDCHEATPROT
 cvar_t	sv_cheatpc				= CVARD("sv_cheatpc", "125", "If the client tried to claim more than this percentage of time within any speed-cheat period, the client will be deemed to have cheated.");
 cvar_t	sv_cheatspeedchecktime	= CVARD("sv_cheatspeedchecktime", "30", "The interval between each speed-cheat check.");
@@ -56,6 +56,9 @@ cvar_t	sv_cheatspeedchecktime	= CVARD("sv_cheatspeedchecktime", "30", "The inter
 cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
 cvar_t	sv_ping_ignorepl		= CVARD("sv_ping_ignorepl", "0", "If 1, ping times reported for players will ignore the effects of packetloss on ping times. 0 is slightly more honest, but less useful for connection diagnosis.");
 cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "0", "Specifies the default protocol to use for new NQ clients. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
+
+cvar_t	sv_minpitch		 = CVARAFD("minpitch", "",	"sv_minpitch", CVAR_SERVERINFO, "Assumed to be -70");
+cvar_t	sv_maxpitch		 = CVARAFD("maxpitch", "",	"sv_maxpitch", CVAR_SERVERINFO, "Assumed to be 80");
 
 cvar_t	sv_cmdlikercon	= SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
 cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
@@ -2853,7 +2856,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 	}
 #endif
 	else
-		found = FS_FLocateFile(name, FSLFRT_IFFOUND, loc);
+		found = FS_FLocateFile(name, FSLF_IFFOUND, loc);
 
 	//nexuiz names certain files as .wav but they're really .ogg on disk.
 	if (!found && replacementname)
@@ -2865,7 +2868,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 			COM_StripExtension(name, tryogg, sizeof(tryogg));
 			COM_DefaultExtension(tryogg, ".ogg", sizeof(tryogg));
 
-			found = FS_FLocateFile(tryogg, FSLFRT_IFFOUND, loc);
+			found = FS_FLocateFile(tryogg, FSLF_IFFOUND, loc);
 			if (found)
 			{
 				name = *replacementname = va("%s", tryogg);
@@ -2909,7 +2912,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 			if (pakname && SV_AllowDownload(pakname))
 			{
 				//return loc of the pak instead.
-				if (FS_FLocateFile(name, FSLFRT_IFFOUND, loc))
+				if (FS_FLocateFile(name, FSLF_IFFOUND, loc))
 				{
 					//its inside a pak file, return the name of this file instead
 					*replacementname = pakname;
@@ -4367,6 +4370,14 @@ void Cmd_Spiderpig_f(void)
 }
 void Cmd_Noclip_f (void)
 {
+#ifdef HLSERVER
+	if (svs.gametype == GT_HALFLIFE)
+	{
+		HLSV_ClientCommand(host_client);
+		return;
+	}
+#endif
+
 	if (!SV_MayCheat())
 	{
 		SV_TPrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
@@ -6991,7 +7002,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 					cl->delay = 0.2;
 		}
 
-		if (sv_antilag.ival)
+		if (sv_antilag.ival || !*sv_antilag.string)
 		{
 			/*
 			extern cvar_t temp1;
@@ -7009,7 +7020,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 			}
 			cl->laggedents_count = sv.allocated_client_slots;
 
-			cl->laggedents_frac = sv_antilag_frac.value;
+			cl->laggedents_frac = !*sv_antilag_frac.string?1:sv_antilag_frac.value;
 		}
 		else
 			cl->laggedents_count = 0;
@@ -7719,6 +7730,9 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_chatfilter, cvargroup_serverpermissions);
 	Cvar_Register (&sv_spectalk, cvargroup_servercontrol);
 	Cvar_Register (&sv_mapcheck, cvargroup_servercontrol);
+
+	Cvar_Register (&sv_minpitch, cvargroup_servercontrol);
+	Cvar_Register (&sv_maxpitch, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_fullredirect, cvargroup_servercontrol);
 	Cvar_Register (&sv_antilag, cvargroup_servercontrol);

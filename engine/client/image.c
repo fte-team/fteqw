@@ -28,7 +28,9 @@ char *r_defaultimageextensions =
 #if defined(AVAIL_JPEGLIB) || defined(FTE_TARGET_WEB)
 	" jpg"	//q3 uses some jpegs, for some reason
 #endif
+#ifndef NOLEGACY
 	" pcx"	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
+#endif
 	;
 static void QDECL R_ImageExtensions_Callback(struct cvar_s *var, char *oldvalue);
 cvar_t r_imageexensions = CVARCD("r_imageexensions", NULL, R_ImageExtensions_Callback, "The list of image file extensions which fte should attempt to load.");
@@ -2783,7 +2785,9 @@ static struct
 	{3, "textures/%s/%s%s", 1},	/*fuhquake compatibility*/
 	{3, "%s/%s%s", 1},			/*fuhquake compatibility*/
 	{2, "textures/%s%s", 1},	/*directly named texture with textures/ prefix*/
+#ifndef NOLEGACY
 	{2, "override/%s%s", 1}		/*tenebrae compatibility*/
+#endif
 };
 
 static void Image_MipMap8888 (qbyte *in, int inwidth, int inheight, qbyte *out, int outwidth, int outheight)
@@ -3676,6 +3680,54 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		freedata = true;
 		break;
 
+	case TF_MIP4_8PAL24:
+		//8bit opaque data
+		{
+			unsigned int pixels =
+					(imgwidth>>0) * (imgheight>>0) + 
+					(imgwidth>>1) * (imgheight>>1) +
+					(imgwidth>>2) * (imgheight>>2) +
+					(imgwidth>>3) * (imgheight>>3);
+			palettedata = (qbyte*)rawdata + pixels;
+			Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+			flags |= IF_NOPICMIP;
+			if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && sh_config.texfmt[PTI_RGBX8])
+			{
+				unsigned int pixels =
+					(imgwidth>>0) * (imgheight>>0) + 
+					(imgwidth>>1) * (imgheight>>1) +
+					(imgwidth>>2) * (imgheight>>2) +
+					(imgwidth>>3) * (imgheight>>3);
+
+				mips->encoding = PTI_RGBX8;
+				rgbadata = BZ_Malloc(pixels*4);
+				for (i = 0; i < pixels; i++)
+				{
+					qbyte *p = ((qbyte*)palettedata) + ((qbyte*)rawdata)[i]*3;
+					//FIXME: endian
+					rgbadata[i] = 0xff000000 | (p[0]<<0) | (p[1]<<8) | (p[2]<<16);
+				}
+
+				for (i = 0; i < 4; i++)
+				{
+					mips->mip[i].width = imgwidth>>i;
+					mips->mip[i].height = imgheight>>i;
+					mips->mip[i].datasize = mips->mip[i].width * mips->mip[i].height * 4;
+					mips->mip[i].needfree = false;
+				}
+				mips->mipcount = i;
+				mips->mip[0].data = rgbadata;
+				mips->mip[1].data = (qbyte*)mips->mip[0].data + mips->mip[0].datasize;
+				mips->mip[2].data = (qbyte*)mips->mip[1].data + mips->mip[1].datasize;
+				mips->mip[3].data = (qbyte*)mips->mip[2].data + mips->mip[2].datasize;
+
+				mips->extrafree = rgbadata;
+				if (freedata)
+					BZ_Free(rawdata);
+				return true;
+			}
+		}
+		//fall through
 	case TF_8PAL24:
 		if (!palettedata)
 		{
@@ -4458,6 +4510,8 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 		case TF_BGRA32:
 			b *= 4;
 			break;
+		case TF_MIP4_8PAL24:
+			pb = 3*256;
 		case TF_MIP4_LUM8:
 		case TF_MIP4_SOLID8:
 			b = (fallbackwidth>>0)*(fallbackheight>>0) +
@@ -4508,9 +4562,9 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 		else
 #endif
 			if (lowpri)
-			COM_AddWork(5, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
+			COM_AddWork(1, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
 		else
-			COM_AddWork(2+(seq++%3), Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
+			COM_AddWork(1, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
 	}
 	return tex;
 }
@@ -4711,6 +4765,7 @@ void Image_List_f(void)
 //may not create any images yet.
 void Image_Init(void)
 {
+	wadmutex = Sys_CreateMutex();
 	memset(imagetablebuckets, 0, sizeof(imagetablebuckets));
 	Hash_InitTable(&imagetable, sizeof(imagetablebuckets)/sizeof(imagetablebuckets[0]), imagetablebuckets);
 
@@ -4736,6 +4791,10 @@ void Image_Shutdown(void)
 	}
 	if (i)
 		Con_DPrintf("Destroyed %i/%i images\n", j, i);
+
+	if (wadmutex)
+		Sys_DestroyMutex(wadmutex);
+	wadmutex = NULL;
 }
 
 //load the named file, without failing.

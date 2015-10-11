@@ -93,6 +93,7 @@ void	*W_GetLumpName (char *name);
 void	*W_SafeGetLumpName (const char *name);
 void	*W_GetLumpNum (int num);
 void Wads_Flush (void);
+extern void *wadmutex;
 
 void SwapPic (qpic_t *pic);
 

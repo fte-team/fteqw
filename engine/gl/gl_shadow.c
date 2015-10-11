@@ -3144,8 +3144,6 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], 
 	Sh_DrawEntLighting(dl, colour);
 }
 
-void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
-
 void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 {
 #ifdef GLQUAKE
@@ -3221,7 +3219,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 
 	BE_SelectMode(BEM_CREPUSCULAR);
 	BE_SelectDLight(dl, colours, dl->axis, LSHADER_STANDARD);
-	GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
+	GLBE_SubmitMeshes(cl.worldmodel->batches, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
 
 	GLBE_FBO_Pop(oldfbo);
 

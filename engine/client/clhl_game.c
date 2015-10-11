@@ -309,8 +309,8 @@ typedef struct
 	void (QDECL *player_setkey) (char *key, char *value);	//wait, no pnum?
 
 	qboolean (QDECL *getcdkey) (int playernum, char key[16]);
-	int trackerfromplayer;
-	int playerfromtracker;
+	int (QDECL *trackerfromplayer) (int pl);
+	int (QDECL *playerfromtracker) (int tr);
 	int (QDECL *sendcmd_unreliable) (char *cmd);
 	void (QDECL *getsysmousepos) (long *xandy);
 	void (QDECL *setsysmousepos) (int x, int y);
@@ -707,8 +707,8 @@ void QDECL CLGHL_getplayerinfo (int entnum, hlplayerinfo_t *result)
 	result->isus = true;
 	result->isspec = player->spectator;
 	result->pl = player->pl;
-	if (player->skin)
-		result->model = player->skin->name;
+	if (player->qwskin)
+		result->model = player->qwskin->name;
 	else
 		result->model = "";
 }
@@ -722,7 +722,7 @@ void QDECL CLGHL_startsound_name (char *name, float vol)
 		Con_Printf ("CLGHL_startsound_name: can't cache %s\n", name);
 		return;
 	}
-	S_StartSound (-1, -1, sfx, vec3_origin, vol, 1, 0, 0);
+	S_StartSound (-1, -1, sfx, vec3_origin, vol, 1, 0, 0, 0);
 }
 void QDECL CLGHL_startsound_idx (int idx, float vol)
 {
@@ -733,7 +733,7 @@ void QDECL CLGHL_startsound_idx (int idx, float vol)
 		Con_Printf ("CLGHL_startsound_name: index not precached %s\n", name);
 		return;
 	}
-	S_StartSound (-1, -1, sfx, vec3_origin, vol, 1, 0, 0);
+	S_StartSound (-1, -1, sfx, vec3_origin, vol, 1, 0, 0, 0);
 }
 
 void QDECL CLGHL_anglevectors (float *ina, float *outf, float *outr, float *outu)
@@ -1175,8 +1175,8 @@ CLHL_enginecgamefuncs_t CLHL_enginecgamefuncs =
 	CLGHL_player_setkey,
 
 	CLGHL_getcdkey,
-	(void*)0xdeaddead,//CLGHL_trackerfromplayer;
-	(void*)0xdeaddead,//CLGHL_playerfromtracker;
+	CLGHL_trackerfromplayer,
+	CLGHL_playerfromtracker,
 	CLGHL_sendcmd_unreliable,
 	CLGHL_getsysmousepos,
 	CLGHL_setsysmousepos,
@@ -1186,7 +1186,7 @@ CLHL_enginecgamefuncs_t CLHL_enginecgamefuncs =
 	0xdeadbeef
 };
 
-dllhandle_t clg;
+dllhandle_t *clg;
 
 int CLHL_GamecodeDoesMouse(void)
 {
@@ -1270,7 +1270,8 @@ void CLHL_LoadClientGame(void)
 
 	clg = NULL;
 	iterator = NULL;
-	while(COM_IteratePaths(&iterator, path, sizeof(path)))
+	//FIXME: dlls in gamepaths is evil 
+	while(COM_IteratePaths(&iterator, path, sizeof(path), NULL, 0))
 	{
 		snprintf (fullname, sizeof(fullname), "%s%s", path, "cl_dlls/client");
 		clg = Sys_LoadLibrary(fullname, funcs);
@@ -1308,6 +1309,20 @@ void CLHL_LoadClientGame(void)
 		CLHL_cgamefuncs.HUD_Init();
 	if (CLHL_cgamefuncs.HUD_VidInit)
 		CLHL_cgamefuncs.HUD_VidInit();
+	{
+		struct hlkbutton_s
+		{
+			int		down[2];		// key nums holding it down
+			int		state;			// low bit is down state
+		} *but;
+		struct hlkbutton_s *(QDECL *pKB_Find) (const char *foo) = (void*)Sys_GetAddressForName(clg, "KB_Find");
+		if (pKB_Find)
+		{
+			but = pKB_Find("in_mlook");
+			if (but)
+				but->state |= 1;
+		}
+	}
 }
 
 int CLHL_BuildUserInput(int msecs, usercmd_t *cmd)
@@ -1329,7 +1344,7 @@ int CLHL_BuildUserInput(int msecs, usercmd_t *cmd)
 	cmd->upmove = hlcmd.upmove;
 	cmd->weapon = hlcmd.weaponselect;
 	cmd->impulse = hlcmd.impulse;
-	cmd->buttons = hlcmd.buttons;
+	cmd->buttons = hlcmd.buttons & 0xff;	//FIXME: quake's protocols are more limited than this
 	cmd->lightlevel = hlcmd.lightlevel;
 	return true;
 #else
@@ -1365,7 +1380,7 @@ int CLHL_DrawHud(void)
 
 	CLHL_cgamefuncs.HUD_UpdateClientData(&state, cl.time);
 
-	ret = CLHL_cgamefuncs.HUD_Redraw(cl.time, cl.intermission);	
+	ret = CLHL_cgamefuncs.HUD_Redraw(cl.time, cl.intermissionmode != IM_NONE);	
 	return ret;
 }
 
@@ -1383,7 +1398,7 @@ int CLHL_AnimateViewEntity(entity_t *ent)
 	return true;
 }
 
-explosion_t *CL_AllocExplosion (void);
+explosion_t *CL_AllocExplosion (vec3_t org);
 
 int CLHL_ParseGamePacket(void)
 {
@@ -1445,19 +1460,18 @@ int CLHL_ParseGamePacket(void)
 				if (!(flags & 8))
 					P_RunParticleEffectType(startp, NULL, 1, pt_explosion);
 				if (!(flags & 4))
-					S_StartSound(0, 0, S_PrecacheSound("explosion"), startp, 1, 1, 0, 0);
+					S_StartSound(0, 0, S_PrecacheSound("explosion"), startp, 1, 1, 0, 0, 0);
 				if (!(flags & 2))
 					CL_NewDlight(0, startp, 200, 1, 2.0,2.0,2.0);
 
-				ef = CL_AllocExplosion();
-				VectorCopy(startp, ef->origin);
+				ef = CL_AllocExplosion(startp);
 				ef->start = cl.time;
 				ef->model = cl.model_precache[midx];
 				ef->framerate = mrate;
 				ef->firstframe = 0;
 				ef->numframes = ef->model->numframes;
 				if (!(flags & 1))
-					ef->flags = Q2RF_ADDITIVE;
+					ef->flags = RF_ADDITIVE;
 				else
 					ef->flags = 0;
 				break;
@@ -1503,8 +1517,7 @@ int CLHL_ParseGamePacket(void)
 				MSG_ReadByte();
 				lifetime = MSG_ReadByte();
 
-				ef = CL_AllocExplosion();
-				VectorCopy(startp, ef->origin);
+				ef = CL_AllocExplosion(startp);
 				ef->start = cl.time;
 				ef->angles[1] = ang;
 				ef->model = cl.model_precache[midx];
@@ -1554,7 +1567,7 @@ int CLHL_ParseGamePacket(void)
 		break;
 	case svc_intermission:
 		//nothing.
-		cl.intermission = true;
+		cl.intermissionmode = IM_NQSCORES;
 		break;
 	case svc_cdtrack:
 		{
@@ -1572,7 +1585,7 @@ int CLHL_ParseGamePacket(void)
 		break;
 	case 37: //svc_roomtype
 		tempi = MSG_ReadShort();
-		S_SetUnderWater(tempi==14||tempi==15||tempi==16);
+//		S_SetUnderWater(tempi==14||tempi==15||tempi==16);
 		break;
 	default:
 		Con_Printf("Unrecognised gamecode packet %i (%s)\n", subcode, usermsgs[subcode].name);

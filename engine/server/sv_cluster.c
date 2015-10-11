@@ -221,7 +221,10 @@ void MSV_MapCluster_f(void)
 
 	//child processes return 0 and fall through
 	memset(&sv, 0, sizeof(sv));
-	if (atoi(Cmd_Argv(1)))
+	Q_strncpyz(sv.modelname, Cmd_Argv(1), sizeof(sv.modelname));
+	if (!*sv.modelname)
+		Q_strncpyz(sv.modelname, "start", sizeof(sv.modelname));
+	if (atoi(Cmd_Argv(2)))
 	{
 		Con_Printf("Opening database \"%s\"\n", sqlparams[3]);
 		sv.logindatabase = SQL_NewServer("sqlite", sqlparams);
@@ -626,7 +629,7 @@ void SSV_ReadFromControlServer(void)
 			char *addr = MSG_ReadString();
 			int i;
 
-			Con_Printf("%s: got tookplayer\n", sv.name);
+			Con_Printf("%s: got tookplayer\n", sv.modelname);
 
 			for (i = 0; i < svs.allocated_client_slots; i++)
 			{
@@ -640,19 +643,19 @@ void SSV_ReadFromControlServer(void)
 			{
 				if (!*addr)
 				{
-					Con_Printf("%s: tookplayer: failed\n", sv.name);
+					Con_Printf("%s: tookplayer: failed\n", sv.modelname);
 					Info_SetValueForStarKey(cl->userinfo, "*transfer", "", sizeof(cl->userinfo));
 				}
 				else
 				{
-					Con_Printf("%s: tookplayer: do transfer\n", sv.name);
+					Con_Printf("%s: tookplayer: do transfer\n", sv.modelname);
 //					SV_StuffcmdToClient(cl, va("connect \"%s\"\n", addr));
 					SV_StuffcmdToClient(cl, va("cl_transfer \"%s\"\n", addr));
 					cl->redirect = 2;
 				}
 			}
 			else
-				Con_Printf("%s: tookplayer: invalid player.\n", sv.name);
+				Con_Printf("%s: tookplayer: invalid player.\n", sv.modelname);
 		}
 		break;
 
@@ -723,7 +726,7 @@ void SSV_ReadFromControlServer(void)
 			}
 			else
 			{
-				Con_Printf("%s: server full!\n", sv.name);
+				Con_Printf("%s: server full!\n", sv.modelname);
 			}
 
 			j = MSG_ReadByte();
@@ -838,7 +841,7 @@ void SSV_UpdateAddresses(void)
 	send.cursize = 2;
 	MSG_WriteByte(&send, ccmd_serveraddress);
 
-	MSG_WriteString(&send, sv.name);
+	MSG_WriteString(&send, sv.modelname);
 	for (i = 0; i < count; i++)
 		MSG_WriteString(&send, NET_AdrToString(buf, sizeof(buf), &addr[i]));
 	MSG_WriteByte(&send, 0);
@@ -971,7 +974,7 @@ qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serv
 	pubsubserver_t *s = NULL;
 
 	if (!s)
-		s = MSV_FindSubServerName(":start");
+		s = MSV_FindSubServerName(va(":%s", sv.modelname));
 
 	if (!s || !MSV_AddressForServer(&serveraddr, clientaddr->type, s))
 		SV_RejectMessage(SCP_QUAKEWORLD, "Unable to find lobby.\n");

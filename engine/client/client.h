@@ -303,6 +303,9 @@ typedef struct dlight_s
 	unsigned int flags;
 	char	cubemapname[64];
 
+	int coronaocclusionquery;
+	unsigned int coronaocclusionresult;
+
 	//the following are used for rendering (client code should clear on create)
 	qboolean rebuildcache;
 	struct	shadowmesh_s *worldshadowmesh;
@@ -975,7 +978,6 @@ void CL_FreeDlights(void);
 dlight_t *CL_AllocDlight (int key);
 dlight_t *CL_AllocSlight (void);	//allocates a static light
 dlight_t *CL_NewDlight (int key, const vec3_t origin, float radius, float time, float r, float g, float b);
-dlight_t *CL_NewDlightRGB (int key, const vec3_t origin, float radius, float time, float r, float g, float b);
 dlight_t *CL_NewDlightCube (int key, const vec3_t origin, vec3_t angles, float radius, float time, vec3_t colours);
 void	CL_DecayLights (void);
 

@@ -433,6 +433,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	int mfwt;
 	qboolean strafe_x, strafe_y;
 	int wpnum;
+	extern qboolean runningindepphys;
 
 	//small performance boost
 	if (mouse->type == M_INVALID)
@@ -570,7 +571,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 #ifdef PEXT_CSQC
 	if (mouse->type == M_TOUCH)
 	{
-		if (CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
+		if (!runningindepphys && CSQC_MousePosition(mouse->oldpos[0], mouse->oldpos[1], mouse->qdeviceid))
 		{
 			mx = 0;
 			my = 0;
@@ -579,7 +580,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 	else
 	{
 		if (mx || my)
-		if (CSQC_MouseMove(mx, my, mouse->qdeviceid))
+		if (!runningindepphys && CSQC_MouseMove(mx, my, mouse->qdeviceid))
 		{
 			mx = 0;
 			my = 0;

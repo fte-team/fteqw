@@ -1651,7 +1651,7 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 		return NULL;
 
 
-	FS_FLocateFile(name, FSLFRT_DEPTH_OSONLY, &loc);
+	FS_FLocateFile(name, FSLF_IFFOUND, &loc);
 
 	if (!loc.offset && *loc.rawname && !qAVIFileOpenA(&pavi, loc.rawname, OF_READ, NULL))//!AVIStreamOpenFromFile(&pavi, name, streamtypeVIDEO, 0, OF_READ, NULL))
 	{
@@ -4424,6 +4424,15 @@ static void S_MP3_Purge(sfx_t *sfx)
 	sfx->loadstate = SLS_NOTLOADED;
 }
 
+float S_MP3_Query(sfx_t *sfx, sfxcache_t *buf)
+{
+	//we don't know unless we decode it all
+	if (buf)
+	{
+	}
+	return 0;
+}
+
 /*must be thread safe*/
 sfxcache_t *S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, ssamplepos_t start, int length)
 {
@@ -4552,6 +4561,7 @@ qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	s->decoder.ended = S_MP3_Purge;
 	s->decoder.purge = S_MP3_Purge;
 	s->decoder.decodedata = S_MP3_Locate;
+	s->decoder.querydata = S_MP3_Query;
 	
 	dec->dstdata = NULL;
 	dec->dstcount = 0;

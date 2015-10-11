@@ -1072,17 +1072,17 @@ void PR_Compile_f(void)
 			argv[4] = Cmd_Argv(1);
 			argc = 5;
 		}
-		if (!FS_FLocateFile(va("%s/%s", argv[2], argv[4]), FSLFRT_IFFOUND, NULL))
+		if (!FS_FLocateFile(va("%s/%s", argv[2], argv[4]), FSLF_IFFOUND, NULL))
 		{
 			//try the qc path
 			argv[2] = "qc";
 		}
-		if (!FS_FLocateFile(va("%s/%s", argv[2], argv[4]), FSLFRT_IFFOUND, NULL))
+		if (!FS_FLocateFile(va("%s/%s", argv[2], argv[4]), FSLF_IFFOUND, NULL))
 		{
 			//try the progs path (yeah... gah)
 			argv[2] = "progs";
 		}
-		if (!FS_FLocateFile(va("%s/%s", argv[2], argv[4]), FSLFRT_IFFOUND, NULL))
+		if (!FS_FLocateFile(va("%s/%s", argv[2], argv[4]), FSLF_IFFOUND, NULL))
 		{
 			//try the gamedir path
 			argv[1] = argv[3];
@@ -3782,7 +3782,7 @@ static void QCBUILTIN PF_precache_file (pubprogfuncs_t *prinst, struct globalvar
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 
 	/*touch the file, so any packs will be referenced. this is fte-specific behaviour.*/
-	FS_FLocateFile(s, FSLFRT_IFFOUND, NULL);
+	FS_FLocateFile(s, FSLF_IFFOUND, NULL);
 }
 
 int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
@@ -3802,7 +3802,7 @@ int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
 			Q_strncpyz(sv.strings.sound_precache[i], s, sizeof(sv.strings.sound_precache[i]));
 
 			/*touch the file, so any packs will be referenced*/
-			FS_FLocateFile(s, FSLFRT_IFFOUND, NULL);
+			FS_FLocateFile(s, FSLF_IFFOUND, NULL);
 
 			if (sv.state != ss_loading)
 			{
@@ -3868,7 +3868,7 @@ int PF_precache_model_Internal (pubprogfuncs_t *prinst, const char *s, qboolean 
 			else
 			{
 				/*touch the file, so any packs will be referenced*/
-				FS_FLocateFile(s, FSLFRT_IFFOUND, NULL);
+				FS_FLocateFile(s, FSLF_IFFOUND, NULL);
 			}
 
 			if (sv.state != ss_loading)
@@ -11346,6 +11346,7 @@ void PR_DumpPlatform_f(void)
 
 	VFS_PRINTF(f, "#pragma warning error Q101 /*too many parms*/\n");
 	VFS_PRINTF(f, "#pragma warning error Q105 /*too few parms*/\n");
+	VFS_PRINTF(f, "#pragma warning error Q106 /*assignment to constant/lvalue*/\n");
 	VFS_PRINTF(f, "#pragma warning error Q208 /*system crc unknown*/\n");
 	VFS_PRINTF(f, "#pragma warning enable F301 /*non-utf-8 strings*/\n");
 	VFS_PRINTF(f, "#pragma warning enable F302 /*uninitialised locals*/\n");

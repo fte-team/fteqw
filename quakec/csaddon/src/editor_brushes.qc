@@ -110,7 +110,8 @@ int(int mod, brushface_t *faces, int numfaces, int contents) brush_history_creat
 
 	h->id = brush_create(h->brushmodel, h->brushdata, h->numfaces, h->contents);
 
-	history++;
+	if (h->id)
+		history++;
 	history_max = history;	//always break any pending redos
 	if (history_min < history_max - historyring.length)
 		history_min = history_max - historyring.length;
@@ -941,6 +942,75 @@ void(brushface_t *faces, int numfaces) DebrushifyLite =
 	}
 };
 
+void(vector org, vector ang) editor_brushes_simpleclone =
+{
+	vector midpoint;
+	if (!selectedbrush)
+		return;
+
+	tmp_numfaces = brush_get(selectedbrushmodel, selectedbrush, tmp_faces, tmp_faces.length, &tmp_contents);
+	if (ang != '0 0 0')
+	{
+		brush_getfacepoints(selectedbrushmodel, selectedbrush, 0, &midpoint, 1);
+		brushface_translate(tmp_faces, tmp_numfaces, -midpoint);
+		makevectors(ang);
+		brushface_rotate(tmp_faces, tmp_numfaces);
+		brushface_translate(tmp_faces, tmp_numfaces, midpoint + org);
+	}
+	else
+		brushface_translate(tmp_faces, tmp_numfaces, org);
+	selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, tmp_contents);
+};
+
+void() brushedit_subtract =
+{
+	int discard;
+	vector selnormals[tmp_faces.length];
+	float seldists[tmp_faces.length];
+	
+	int planecount = brush_get(selectedbrushmodel, selectedbrush, tmp_faces, tmp_faces.length, &tmp_contents);		
+	for (int i = 0; i < planecount; i++)
+	{
+		selnormals[i] = tmp_faces[i].planenormal;
+		seldists[i] = tmp_faces[i].planedist;
+	}
+	int numbrushes = brush_findinvolume(selectedbrushmodel, selnormals, seldists, planecount, brushlist, __NULL__, brushlist.length);
+
+	while (numbrushes --> 0)
+	{
+		int br = brushlist[numbrushes];
+		if (br == selectedbrush)
+			continue;
+
+		int counto = brush_get(selectedbrushmodel, br, tmp_faces, tmp_faces.length, &tmp_contents);
+		int counts = counto + brush_get(selectedbrushmodel, selectedbrush, tmp_faces+counto, tmp_faces.length-counto, &discard);
+
+		brush_history_delete(selectedbrushmodel, br);
+		while(counts --> counto)
+		{
+			//only consider the resulting brush if the new face actually contributed anything.
+			//this reduces dupes.
+			if (brush_calcfacepoints(1+counts, tmp_faces, counts+1, facepoints, facepoints.length))
+			{
+				//determine the brush defined by this plane
+				tmp_faces[counts].planenormal *= -1;
+				tmp_faces[counts].planedist *= -1;
+				brush_history_create(selectedbrushmodel, tmp_faces, counts+1, tmp_contents);
+			}
+		}
+	}
+};
+
+void() brushedit_resettextures =
+{
+	int planecount = brush_get(selectedbrushmodel, selectedbrush, tmp_faces, tmp_faces.length, &tmp_contents);		
+	for (int i = 0; i < planecount; i++)
+		reset_texturecoords(&tmp_faces[i]);
+
+	brush_history_delete(selectedbrushmodel, selectedbrush);
+	selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, planecount, tmp_contents);
+};
+
 void(vector mousepos) editor_brushes_add =
 {
 	vector col = '0 0 0';
@@ -1482,29 +1552,12 @@ brusheditormodes
 	registercommand("brushedit_matchface");
 	registercommand("brushedit_resettexcoords");
 	registercommand("brushedit_settexture");
+	registercommand("brushedit_subtract");
 	registercommand("brushedit_binds");
 	registercommand("+brushedit_nogrid");
 	registercommand("-brushedit_nogrid");
 };
-void(vector org, vector ang) editor_brushes_simpleclone =
-{
-	vector midpoint;
-	if (!selectedbrush)
-		return;
 
-	tmp_numfaces = brush_get(selectedbrushmodel, selectedbrush, tmp_faces, tmp_faces.length, &tmp_contents);
-	if (ang != '0 0 0')
-	{
-		brush_getfacepoints(selectedbrushmodel, selectedbrush, 0, &midpoint, 1);
-		brushface_translate(tmp_faces, tmp_numfaces, -midpoint);
-		makevectors(ang);
-		brushface_rotate(tmp_faces, tmp_numfaces);
-		brushface_translate(tmp_faces, tmp_numfaces, midpoint + org);
-	}
-	else
-		brushface_translate(tmp_faces, tmp_numfaces, org);
-	selectedbrush = brush_history_create(selectedbrushmodel, tmp_faces, tmp_numfaces, tmp_contents);
-};
 float() editor_brushes_command =
 {
 	switch(argv(0))
@@ -1537,14 +1590,15 @@ brusheditormodes
 		bt_points = 0;
 		break;
 	case "brushedit_resettexcoords":
-		//IMPLEMENTME
-		brushtool = BT_NONE;
-		bt_points = 0;
+		brushedit_resettextures();
 		break;
 	case "brushedit_settexture":
 		//IMPLEMENTME
 		brushtool = BT_NONE;
 		bt_points = 0;
+		break;
+	case "brushedit_subtract":
+		brushedit_subtract();
 		break;
 	case "brushedit_delete":
 		if (selectedbrushmodel && selectedbrush)
@@ -1553,15 +1607,16 @@ brusheditormodes
 		break;
 	case "brushedit_binds":
 		localcmd("conmenu \"\"\n");
-		localcmd("menubind 0 8 \"brushedit_create\" \"Creation Tool\"\n");
-		localcmd("menubind 0 16 \"brushedit_slice\" \"Slice Tool\"\n");
-		localcmd("menubind 0 24 \"brushedit_delete\" \"Delete\"\n");
-		localcmd("menubind 0 32 \"brushedit_undo\" \"Undo\"\n");
-		localcmd("menubind 0 40 \"brushedit_redo\" \"Redo\"\n");
-		localcmd("menubind 0 48 \"brushedit_nogrid\" \"Disable Grid\"\n");
+		float foo = 0;
+		localcmd(sprintf("menubind 0 %g \"brushedit_create\" \"Creation Tool\"\n", foo+=8));
+		localcmd(sprintf("menubind 0 %g \"brushedit_slice\" \"Slice Tool\"\n", foo+=8));
+		localcmd(sprintf("menubind 0 %g \"brushedit_delete\" \"Delete\"\n", foo+=8));
+		localcmd(sprintf("menubind 0 %g \"brushedit_subtract\" \"Subtract\"\n", foo+=8));
+		localcmd(sprintf("menubind 0 %g \"brushedit_undo\" \"Undo\"\n", foo+=8));
+		localcmd(sprintf("menubind 0 %g \"brushedit_redo\" \"Redo\"\n", foo+=8));
+		localcmd(sprintf("menubind 0 %g \"brushedit_nogrid\" \"Disable Grid\"\n", foo+=8));
 		
-		float foo = 56;
-#define brusheditormode(n,v) localcmd(sprintf("menubind 0 %g \"+brushedit_"n"\" \""n"\"\n", foo)); foo+=8;
+#define brusheditormode(n,v) localcmd(sprintf("menubind 0 %g \"+brushedit_"n"\" \""n"\"\n", foo+=8));
 brusheditormodes
 #undef brusheditormode
 		break;
@@ -1804,11 +1859,5 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 		return TRUE;
 	}	
 
-/*	if (key == 's')
-	{
-		//CSG subtraction is actually quite easy...
-		//for each brush that intersects us, split it by every single one of our planes that intesect
-		//drop the resulting brushes if they contain contain points only within the subtraction region
-	}
-*/	return FALSE;
+	return FALSE;
 };

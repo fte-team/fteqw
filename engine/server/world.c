@@ -2097,7 +2097,7 @@ qboolean QDECL World_RegisterPhysicsEngine(const char *enginename, void(QDECL*st
 	world_current_physics_engine = startupfunc;
 	return true;
 }
-static void World_ShutdownPhysics(world_t *world)
+void World_RBE_Shutdown(world_t *world)
 {
 	unsigned int u;
 	wedict_t *ed;
@@ -2124,11 +2124,11 @@ void QDECL World_UnregisterPhysicsEngine(const char *enginename)
 #if defined(CSQC_DAT) && !defined(SERVERONLY)
 	{
 		extern world_t csqc_world;
-		World_ShutdownPhysics(&csqc_world);
+		World_RBE_Shutdown(&csqc_world);
 	}
 #endif
 #if !defined(CLIENTONLY)
-	World_ShutdownPhysics(&sv.world);
+	World_RBE_Shutdown(&sv.world);
 #endif
 
 	world_current_physics_engine = NULL;
@@ -2136,12 +2136,15 @@ void QDECL World_UnregisterPhysicsEngine(const char *enginename)
 void World_RBE_Start(world_t *world)
 {
 	if (world_current_physics_engine)
-		world_current_physics_engine(world);
+	{
+		if (world->worldmodel)
+			world_current_physics_engine(world);
+	}
 }
 
 void World_Destroy(world_t *world)
 {
-	World_ShutdownPhysics(world);
+	World_RBE_Shutdown(world);
 
 	Z_Free(world->areanodes);
 	world->areanodes = NULL;

@@ -2509,6 +2509,7 @@ qboolean SV_Physics (void)
 		if (svs.gametype == GT_HALFLIFE)
 		{
 			SVHL_RunFrame();
+			sv.world.physicstime += host_frametime;
 			continue;
 		}
 #endif

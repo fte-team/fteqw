@@ -971,6 +971,17 @@ void VARGS Con_SafeTPrintf (translation_t text, ...)
 	Con_Printf ("%s", msg);
 }
 
+static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
+{
+	if (!developer.value)
+		Con_Log(data);
+	else
+	{
+		Sys_Printf ("%s", data);	// also echo to debugging console
+		Con_PrintCon(&con_main, data, con_main.parseflags);
+	}
+	BZ_Free(data);
+}
 /*
 ================
 Con_DPrintf
@@ -998,6 +1009,13 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 	va_start (argptr,fmt);
 	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
 	va_end (argptr);
+
+	if (!Sys_IsMainThread())
+	{
+		if (developer.ival)
+			COM_AddWork(0, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		return;
+	}
 
 	if (!developer.value)
 		Con_Log(msg);

@@ -244,6 +244,14 @@ void SwapPic (qpic_t *pic)
 //FIXME: convert to linked list. is hunk possible?
 //hash tables?
 #define TEXWAD_MAXIMAGES 16384
+
+typedef struct wadfile_s
+{
+	vfsfile_t *file;
+	struct wadfile_s *next;
+	char name[1];
+} wadfile_t;
+
 typedef struct
 {
 	char name[16];
@@ -253,18 +261,15 @@ typedef struct
 } texwadlump_t;
 int numwadtextures;
 static texwadlump_t texwadlump[TEXWAD_MAXIMAGES];
-
-typedef struct wadfile_s {
-	vfsfile_t *file;
-	struct wadfile_s *next;
-	char name[1];
-} wadfile_t;
+void *wadmutex;
 
 wadfile_t *openwadfiles;
 
 void Wads_Flush (void)
 {
 	wadfile_t *wf;
+	if (wadmutex)
+		Sys_LockMutex(wadmutex);
 	while(openwadfiles)
 	{
 		VFS_CLOSE(openwadfiles->file);
@@ -275,6 +280,8 @@ void Wads_Flush (void)
 	}
 
 	numwadtextures=0;
+	if (wadmutex)
+		Sys_UnlockMutex(wadmutex);
 }
 /*
 ====================
@@ -411,12 +418,23 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, size_t lumpsize, int *width, int *hei
 		tex->offsets[1] == tex->offsets[0] + (tex->width)*(tex->height) &&
 		tex->offsets[2] == tex->offsets[1] + (tex->width>>1)*(tex->height>>1) && 
 		tex->offsets[3] == tex->offsets[2] + (tex->width>>2)*(tex->height>>2) && 
-		lumpsize == tex->offsets[3] + (tex->width>>3)*(tex->height>>3) + 2 + 768)
+		((lumpsize+3)&~3) >= ((tex->offsets[3] + (tex->width>>3)*(tex->height>>3) + 2 + 768+3)&~3))
 		pal = (qbyte *)tex + tex->offsets[3] + (tex->width>>3)*(tex->height>>3) + 2;
 	else
 		pal = host_basepal;
 
-	for (d = 0;d < tex->width * tex->height;d++)	
+	if (tex->offsets[0] + tex->width * tex->height > lumpsize)
+	{	//fucked texture.
+		for (d = 0;d < tex->width * tex->height;d++)	
+		{
+			out[0] = 0;
+			out[1] = 255;
+			out[2] = 0;
+			out[3] = 255;
+			out += 4;
+		}
+	}
+	else for (d = 0;d < tex->width * tex->height;d++)	
 	{
 		p = *in++;
 		if (alpha==1 && p == 255)	//only allow alpha on '{' textures
@@ -473,30 +491,34 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, qboolean *usesalp
 
 	texname[16] = 0;
 	W_CleanupName (name, texname);
+	Sys_LockMutex(wadmutex);
 	for (i = 0;i < numwadtextures;i++)
 	{
 		if (!strcmp(texname, texwadlump[i].name)) // found it
 		{
 			file = texwadlump[i].file;
-			if (!VFS_SEEK(file, texwadlump[i].position))
-			{Con_Printf("W_GetTexture: corrupt WAD3 file");return NULL;}
 
-			tex = BZ_Malloc(texwadlump[i].size);	//temp buffer for disk info (was hunk_tempalloc, but that wiped loading maps and the like
-			if (!tex)
-				return NULL;
-			if (VFS_READ(file, tex, texwadlump[i].size) < texwadlump[i].size)
-			{Con_Printf("W_GetTexture: corrupt WAD3 file");return NULL;}
+			if (VFS_SEEK(file, texwadlump[i].position))
+			{
+				tex = BZ_Malloc(texwadlump[i].size);	//temp buffer for disk info (was hunk_tempalloc, but that wiped loading maps and the like
+				if (tex && VFS_READ(file, tex, texwadlump[i].size) == texwadlump[i].size)
+				{
+					Sys_UnlockMutex(wadmutex);
+					tex->width = LittleLong(tex->width);
+					tex->height = LittleLong(tex->height);
+					for (j = 0;j < MIPLEVELS;j++)
+						tex->offsets[j] = LittleLong(tex->offsets[j]);
 
-			tex->width = LittleLong(tex->width);
-			tex->height = LittleLong(tex->height);
-			for (j = 0;j < MIPLEVELS;j++)
-				tex->offsets[j] = LittleLong(tex->offsets[j]);
-
-			data = W_ConvertWAD3Texture(tex, texwadlump[i].size, width, height, usesalpha);
-			BZ_Free(tex);
-			return data;
+					data = W_ConvertWAD3Texture(tex, texwadlump[i].size, width, height, usesalpha);
+					BZ_Free(tex);
+					return data;
+				}
+			}
+			Con_Printf("W_GetTexture: corrupt WAD3 file\n");
+			break;
 		}
 	}	
+	Sys_UnlockMutex(wadmutex);
 	return NULL;
 }
 
@@ -509,27 +531,30 @@ miptex_t *W_GetMipTex(const char *name)
 
 	texname[16] = 0;
 	W_CleanupName (name, texname);
+	Sys_LockMutex(wadmutex);
 	for (i = 0;i < numwadtextures;i++)
 	{
 		if (!strcmp(texname, texwadlump[i].name)) // found it
 		{
 			file = texwadlump[i].file;
-			if (!VFS_SEEK(file, texwadlump[i].position))
-			{Con_Printf("W_GetTexture: corrupt WAD3 file");return NULL;}
-
-			tex = BZ_Malloc(texwadlump[i].size);	//temp buffer for disk info (was hunk_tempalloc, but that wiped loading maps and the like
-			if (!tex)
-				return NULL;
-			if (VFS_READ(file, tex, texwadlump[i].size) < texwadlump[i].size)
-			{Con_Printf("W_GetTexture: corrupt WAD3 file");return NULL;}
-
-			tex->width = LittleLong(tex->width);
-			tex->height = LittleLong(tex->height);
-			for (j = 0;j < MIPLEVELS;j++)
-				tex->offsets[j] = LittleLong(tex->offsets[j]);
-			return tex;
+			if (VFS_SEEK(file, texwadlump[i].position))
+			{
+				tex = BZ_Malloc(texwadlump[i].size);	//temp buffer for disk info (was hunk_tempalloc, but that wiped loading maps and the like
+				if (tex && VFS_READ(file, tex, texwadlump[i].size) == texwadlump[i].size)
+				{
+					Sys_UnlockMutex(wadmutex);
+					tex->width = LittleLong(tex->width);
+					tex->height = LittleLong(tex->height);
+					for (j = 0;j < MIPLEVELS;j++)
+						tex->offsets[j] = LittleLong(tex->offsets[j]);
+					return tex;
+				}
+			}
+			Con_Printf("W_GetTexture: corrupt WAD3 file\n");
+			break;
 		}
 	}	
+	Sys_UnlockMutex(wadmutex);
 	return NULL;
 }
 
@@ -689,12 +714,14 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 			key[3] = ' ';
 			Q_strncpyz(key+4, token, sizeof(key)-4);
 			Cbuf_AddText(key, RESTRICT_INSECURE);
+			Cbuf_AddText("\n", RESTRICT_INSECURE);
 		}
 		else if (!strcmp("waterfog", key))	//q1 extension. FIXME: should be made temporary.
 		{
 			memcpy(key, "waterfog ", 9);
 			Q_strncpyz(key+9, token, sizeof(key)-9);
 			Cbuf_AddText(key, RESTRICT_INSECURE);
+			Cbuf_AddText("\n", RESTRICT_INSECURE);
 		}
 		else if (!strncmp("cvar_", key, 5)) //override cvars so mappers don't end up hacking cvars and fucking over configs (at least in other engines).
 		{

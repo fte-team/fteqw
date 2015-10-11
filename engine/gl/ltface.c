@@ -558,8 +558,6 @@ static void LightCalcPoints (llightinfo_t *l, float lmscale)
 				VectorSubtract (facemid, surf, move);
 				VectorNormalize (move);
 				VectorMA (surf, 8, move, surf);
-
-				P_RunParticleEffectType(surf, NULL, 1, pt_wizspike);
 			}
 		}
 	}

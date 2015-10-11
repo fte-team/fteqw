@@ -133,6 +133,10 @@ inwater <effectname>
 	Specifies a replacement effect to use when this one is spawned underwater.
 	assoc used is the replacement effect. the assoc value from the replaced effect is ignored (this includes +foo chains).
 
+overwater
+	specifies that this
+underwater
+
 colorindex <index> [rand]
 	Specifies a palette index to spawn the particle with.
 	The index used is between index and index+rand.
@@ -278,6 +282,10 @@ emitstart <seconds>
 
 spawnorg <horiz> [vert]
 spawnvel <horiz> [vert]
+
+viewspace [frac]
+	Specifies that this particle type should move relative to the camera.
+	Not compatible with splitscreen.
 
 perframe
 	apply inverse frametime to count (causes emits to be per frame)

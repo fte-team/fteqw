@@ -329,6 +329,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 		BZ_Free(vbo->vertdata);
 		vbo->vertdata = NULL;
 	}
+	vbo->vertcount = vcount;
 
 	vbo->next = *vbochain;
 	*vbochain = vbo;
@@ -506,6 +507,7 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 			BZ_Free(vbo->vertdata);
 			vbo->vertdata = NULL;
 		}
+		vbo->vertcount = vcount;
 	}
 #endif
 }
@@ -524,8 +526,8 @@ void GLBE_UploadAllLightmaps(void)
 		lm = lightmap[i];
 		lm->rectchange.l = lm->width;
 		lm->rectchange.t = lm->height;
-		lm->rectchange.w = 0;
-		lm->rectchange.h = 0;
+		lm->rectchange.r = 0;
+		lm->rectchange.b = 0;
 		if (!lm->modified)
 			continue;
 		lm->modified = false;

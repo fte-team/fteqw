@@ -1976,7 +1976,12 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 				if (touch == clip.passedict)
 					continue;
 				if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
-					Host_Error ("Trigger (%s) in clipping list", PR_GetString(w->progs, touch->v->classname));
+				{
+					if (!(clip.type & MOVE_TRIGGERS))
+						continue;
+					if (!((int)touch->v->flags & FL_FINDABLE_NONSOLID))
+						continue;
+				}
 
 				if (clip.type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
 					continue;

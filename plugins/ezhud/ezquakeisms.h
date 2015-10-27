@@ -129,10 +129,9 @@ char *TP_ItemName(unsigned int itbit);
 
 void Replace_In_String(char *string, size_t strsize, char leadchar, int patterns, ...);
 static qbool Utils_RegExpMatch(char *regexp, char *term) {return true;}
-#define strlen_color strlen
 
 #define clamp(v,min,max) v=bound(min,v,max)
-
+#define strlen_color(line) (pDraw_StringWidth(8, 0, line)/8.0)
 
 #define TIMETYPE_CLOCK 0
 #define TIMETYPE_GAMECLOCK 1

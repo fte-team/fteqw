@@ -744,7 +744,7 @@ static int bi_lua_stuffcmd(lua_State *L)
 	entnum = lua.tointegerx(L, -1, NULL);
 	str = lua.tolstring(L, 2, NULL);
 
-	PF_stuffcmd_Internal(entnum, str);
+	PF_stuffcmd_Internal(entnum, str, 0);
 	return 0;
 }
 static int bi_lua_centerprint(lua_State *L)

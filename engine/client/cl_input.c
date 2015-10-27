@@ -298,7 +298,7 @@ void IN_JumpDown (void)
 		KeyDown(&in_up);
 	else
 #endif
-		if (condition && cl.spectator && !CAM_ISLOCKED(&cl.playerview[pnum]))
+		if (condition && cl.spectator && cl.playerview[pnum].cam_state == CAM_FREECAM)
 		KeyDown(&in_up);
 	else
 		KeyDown(&in_jump);
@@ -2026,7 +2026,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 // deliver the message
 //
 	cls.netchan.dupe = cl_c2sdupe.ival;
-	Netchan_Transmit (&cls.netchan, buf.cursize, buf.data, 2500);	
+	Netchan_Transmit (&cls.netchan, buf.cursize, buf.data, 2500);
+
+	//don't bank too much, because that results in banking speedcheats
+	if (msecs > 200)
+		msecs = 200;
 
 	if (cls.netchan.fatal_error)
 	{

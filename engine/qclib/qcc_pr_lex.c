@@ -220,6 +220,12 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath, pbool
 		}
 	}
 
+	while (doubledots-- > 0)
+	{
+		strcpy(end, "../");
+		end += 3;
+	}
+
 	strcpy(end, newfile);
 
 	if (verbose)

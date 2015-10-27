@@ -1021,7 +1021,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	//certain drivers (*cough* mesa *cough*) update vao0 state even when a different vao is bound.
 	//they also don't support client arrays, so are unusable without glsl or vertex streaming (which is *really* hard to optimise for - especially with webgl etc)
 	//so only use them with gl3+ core contexts where vbo is mandatory anyway.
-	if (!gl_config.nofixedfunc)
+	if (!gl_config_nofixedfunc)
 	{
 		//don't bother if we've no glsl
 		qglGenVertexArrays	= NULL;
@@ -1833,11 +1833,6 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 	length[strings] = strlen(prstrings[strings]);
 	strings++;
 
-	//prstrings[strings] = "invariant gl_Position;\n";
-	//length[strings] = strlen(prstrings[strings]);
-	//strings++;
-
-
 	switch (shadertype)
 	{
 	case GL_FRAGMENT_SHADER_ARB:
@@ -1884,6 +1879,12 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 		prstrings[strings] = "#define VERTEX_SHADER\n";
 		length[strings] = strlen(prstrings[strings]);
 		strings++;
+		if (!r_shadow_shadowmapping.ival && ver >= 120)
+		{
+			prstrings[strings] = "invariant gl_Position;\n";
+			length[strings] = strlen(prstrings[strings]);
+			strings++;
+		}
 		if (gl_config.gles)
 		{
 			prstrings[strings] =
@@ -1905,7 +1906,7 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
-		if (gl_config.nofixedfunc || ver >= 130)
+		if (gl_config_nofixedfunc || ver >= 130)
 		{
 			prstrings[strings] =
 					"attribute vec3 v_position1;\n"
@@ -2029,7 +2030,7 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 			Con_Printf("%s shader (%s) compilation error:\n----------\n%s----------\n", typedesc, name, str);
 
 			//if there's no fixed function then failure to compile the default2d shader should be considered fatal. this should help avoid black screens on android.
-			if (gl_config.nofixedfunc && !strcmp(name, "default2d"))
+			if (gl_config_nofixedfunc && !strcmp(name, "default2d"))
 				Sys_Error("%s shader (%s) compilation error:\n----------\n%s----------\n", typedesc, name, str);
 
 			if (developer.ival)
@@ -2658,7 +2659,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 
 		qglDrawRangeElements = GL_DrawRangeElementsEmul;
 	}
-	else if (gl_config.nofixedfunc)
+	else if (gl_config_nofixedfunc)
 	{
 		qglLoadMatrixf = NULL;
 		qglPolygonMode = NULL;
@@ -2773,7 +2774,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 		sh_config.pProgAutoFields	= GLSlang_ProgAutoFields;
 	}
 
-	if (gl_config.nofixedfunc)
+	if (gl_config_nofixedfunc)
 	{
 		sh_config.tex_env_combine		= 1;
 		sh_config.nv_tex_env_combine4	= 1;

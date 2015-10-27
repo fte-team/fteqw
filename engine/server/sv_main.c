@@ -1858,6 +1858,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 				ptr += sizeof(*client->frameunion.frames[i].resendentnum)*maxents;
 				client->frameunion.frames[i].resendentbits = (void*)ptr;
 				ptr += sizeof(*client->frameunion.frames[i].resendentbits)*maxents;
+				client->frameunion.frames[i].senttime = realtime;
 			}
 
 			//make sure the reset is sent.
@@ -1870,6 +1871,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 			{
 				client->frameunion.frames[i].entities.max_entities = maxpacketentities;
 				client->frameunion.frames[i].entities.entities = (entity_state_t*)(client->frameunion.frames+UPDATE_BACKUP) + i*client->frameunion.frames[i].entities.max_entities;
+				client->frameunion.frames[i].senttime = realtime;
 			}
 		}
 		break;
@@ -4116,6 +4118,7 @@ SV_GetConsoleCommands
 Add them exactly as if they had been typed at the console
 ===================
 */
+qboolean QCExternalDebuggerCommand(char *text);
 void SV_GetConsoleCommands (void)
 {
 	char	*cmd;
@@ -4125,8 +4128,11 @@ void SV_GetConsoleCommands (void)
 		cmd = Sys_ConsoleInput ();
 		if (!cmd)
 			break;
+		if (QCExternalDebuggerCommand(cmd))
+			continue;
 		Log_String(LOG_CONSOLE, cmd);
 		Cbuf_AddText (cmd, RESTRICT_LOCAL);
+		Cbuf_AddText ("\n", RESTRICT_LOCAL);
 	}
 }
 
@@ -4309,17 +4315,18 @@ float SV_Frame (void)
 {
 	extern cvar_t pr_imitatemvdsv;
 	static double	start, end, idletime;
+	static int oldpackets;
 	float oldtime;
 	qboolean isidle;
 	static int oldpaused;
 	float timedelta;
 	float delay;
 
-	COM_MainThreadWork();
-
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
 	end = start;
+
+	COM_MainThreadWork();
 
 	//qw qc uses this for newmis handling
 	svs.framenum++;
@@ -4564,16 +4571,28 @@ void SV_MVDStream_Poll(void);
 // collect timing statistics
 	end = Sys_DoubleTime ();
 	svs.stats.active += end-start;
-	if (++svs.stats.count == STATFRAMES)
+	if (svs.stats.maxresponse < end-start)
+		svs.stats.maxresponse = end-start;
+	if (svs.stats.maxpackets < svs.stats.packets-oldpackets)
+		svs.stats.maxpackets = svs.stats.packets-oldpackets;
+	svs.stats.count++;
+	if (svs.stats.latched_time < end)
 	{
 		svs.stats.latched_active = svs.stats.active;
 		svs.stats.latched_idle = svs.stats.idle;
 		svs.stats.latched_packets = svs.stats.packets;
+		svs.stats.latched_count = svs.stats.count;
+		svs.stats.latched_maxpackets = svs.stats.maxpackets;
+		svs.stats.latched_maxresponse = svs.stats.maxresponse;
+		svs.stats.latched_time = end + SVSTATS_PERIOD;
 		svs.stats.active = 0;
 		svs.stats.idle = 0;
 		svs.stats.packets = 0;
 		svs.stats.count = 0;
+		svs.stats.maxresponse = 0;
+		svs.stats.maxpackets = 0;
 	}
+	oldpackets = svs.stats.packets;
 	return delay;
 }
 

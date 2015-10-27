@@ -15,7 +15,7 @@ else
 	BASE_DIR:=$(realpath .)
 endif
 
-SVNREVISION:=-DSVNREVISION=$(shell test -d .svn && svnversion || echo -)
+SVNREVISION:=-DSVNREVISION=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR) || echo -)
 
 WHOAMI:=$(shell whoami)
 

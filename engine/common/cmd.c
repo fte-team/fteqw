@@ -688,6 +688,8 @@ void Cmd_Echo_f (void)
 
 	for (i=1 ; i<Cmd_Argc() ; i++)
 	{
+		if (i >= 2)
+			Con_Printf (" ");
 #ifdef SERVERONLY
 		Con_Printf ("%s", Cmd_Argv(i));
 #else

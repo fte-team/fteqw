@@ -704,7 +704,10 @@ void deleetstring(char *result, const char *leet)
 			s2++;
 			continue;
 		}
-		*s = *s2 & ~128;
+		if (*s2 >= 0xa0)
+			*s = *s2 & ~128;
+		else
+			*s = *s2;
 		s2++;
 		if (*s == '3')
 			*s = 'e';
@@ -4724,6 +4727,11 @@ void COM_ErrorMe_f(void)
 
 
 #ifdef LOADERTHREAD
+static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue);
+cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling the main thread.");
+cvar_t worker_count = CVARFDC("worker_count", "", CVAR_NOTFROMSERVER, "Specifies the number of worker threads to utilise.", COM_WorkerCount_Change);
+cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "Causes workers to sleep for a period of time after each job.");
+
 #define WG_MAIN		0
 #define WG_LOADER	1
 #define WG_COUNT	2 //main and loaders
@@ -4801,11 +4809,26 @@ void COM_AddWork(int tg, void(*func)(void *ctx, void *data, size_t a, size_t b),
 
 	Sys_ConditionSignal(com_workercondition[tg]);
 	Sys_UnlockConditional(com_workercondition[tg]);
-
-//	if (!com_workerthread[thread])
-//		while(COM_DoWork(thread, false))
-//			;
 }
+
+void COM_PrintWork(void)
+{
+	struct com_work_s *work;
+	int tg;
+	Sys_Printf("--------- BEGIN WORKER LIST ---------\n");
+	for (tg = 0; tg < WG_COUNT; tg++)
+	{
+		Sys_LockConditional(com_workercondition[tg]);
+		work = com_work_head[tg];
+		while (work)
+		{
+			Sys_Printf("thread%i: %s\n", tg, (char*)work->ctx);
+			work = work->next;
+		}
+		Sys_UnlockConditional(com_workercondition[tg]);
+	}
+}
+
 //leavelocked = false == poll mode.
 //leavelocked = true == safe sleeping
 qboolean COM_DoWork(int tg, qboolean leavelocked)
@@ -4905,7 +4928,14 @@ static int COM_WorkerThread(void *arg)
 	for(;;)
 	{
 		while(COM_DoWork(group, true))
-			;
+		{
+			if (worker_sleeptime.value)
+			{
+				Sys_UnlockConditional(com_workercondition[group]);
+				Sys_Sleep(worker_sleeptime.value);
+				Sys_LockConditional(com_workercondition[group]);
+			}
+		}
 		if (thread->request)	//flagged from some work
 		{
 			if (thread->request == WR_DIE)
@@ -5065,7 +5095,7 @@ void COM_WorkerFullSync(void)
 void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 {
 	struct com_work_s **link, *work, *prev;
-	double time1 = Sys_DoubleTime();
+//	double time1 = Sys_DoubleTime();
 
 //	Con_Printf("waiting for %p %s\n", priorityctx, priorityctx);
 
@@ -5106,7 +5136,15 @@ void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 			Sys_UnlockConditional(com_workercondition[grp]);
 		}
 		if (!found)
-			Con_DPrintf("Might be in for a long wait for %s\n", (char*)priorityctx);
+		{
+			while(COM_DoWork(WG_MAIN, false))
+			{
+				//give up as soon as we're done
+				if (*address != value)
+					return;
+			}
+//			Con_Printf("Might be in for a long wait for %s\n", (char*)priorityctx);
+		}
 	}
 
 	Sys_LockConditional(com_workercondition[WG_MAIN]);
@@ -5178,8 +5216,6 @@ static void QDECL COM_WorkerCount_Change(cvar_t *var, char *oldvalue)
 	}
 	Sys_ConditionBroadcast(com_workercondition[WG_LOADER]);	//and make sure they ALL wake up to check their new death values.
 }
-cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire load queue, loading stuff faster but at the risk of stalling the main thread.");
-cvar_t worker_count = CVARFDC("worker_count", "", CVAR_NOTFROMSERVER, "Specifies the number of worker threads to utilise.", COM_WorkerCount_Change);
 static void COM_InitWorkerThread(void)
 {
 	int i;
@@ -5200,10 +5236,11 @@ static void COM_InitWorkerThread(void)
 		worker_count.flags |= CVAR_NOSET;
 	}
 	Cvar_Register(&worker_count, NULL);
-	Cvar_ForceCallback(&worker_count);
 
 	Cmd_AddCommand ("worker_test", COM_WorkerTest_f);
 	Cvar_Register(&worker_flush, NULL);
+	Cvar_Register(&worker_sleeptime, NULL);
+	Cvar_ForceCallback(&worker_count);
 }
 #endif
 

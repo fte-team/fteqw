@@ -2923,7 +2923,7 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 
 	info->players=details.numplayers = 0;
 	if (!strchr(msg, '\n'))
-		info->players = atoi(Info_ValueForKey(details.info, "clients"));
+		info->numhumans = info->players = atoi(Info_ValueForKey(details.info, "clients"));
 	else
 	{
 		int clnum;

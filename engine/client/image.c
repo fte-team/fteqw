@@ -4384,6 +4384,9 @@ static image_t *Image_CreateTexture_Internal (const char *identifier, const char
 	buck = (bucket_t*)(tex+1);
 	tex->ident = (char*)(buck+1);
 	strcpy(tex->ident, identifier);
+#ifdef _DEBUG
+	Q_strncpyz(tex->dbgident, identifier, sizeof(tex->dbgident));
+#endif
 	if (subdir && *subdir)
 	{
 		tex->subpath = tex->ident + strlen(identifier)+1;

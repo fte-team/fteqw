@@ -5725,8 +5725,71 @@ void CL_ParsePrint(char *msg, int level)
 	}
 }
 
+static void CL_ParseWeaponStats(void)
+{
+#ifdef QUAKEHUD
+	int pl = atoi(Cmd_Argv(0));
+	char *wname = Cmd_Argv(1);
+	unsigned int total = strtoul(Cmd_Argv(2), NULL, 0);
+	unsigned int hit = strtoul(Cmd_Argv(3), NULL, 0);
+	unsigned int idx;
 
-void CL_ParseTeamInfo(void)
+	if (pl >= cl.allocated_client_slots)
+		return;
+
+	for (idx = 0; idx < countof(cl.players[pl].weaponstats); idx++)
+	{
+		if (!strcmp(cl.players[pl].weaponstats[idx].wname, wname) || !*cl.players[pl].weaponstats[idx].wname)
+		{
+			Q_strncpyz(cl.players[pl].weaponstats[idx].wname, wname, sizeof(cl.players[pl].weaponstats[idx].wname));
+			cl.players[pl].weaponstats[idx].total = total;
+			cl.players[pl].weaponstats[idx].hit = hit;
+			return;
+		}
+	}
+#endif
+}
+
+static void CL_ParseItemTimer(void)
+{
+	float timeout = atof(Cmd_Argv(0));
+	vec3_t org = {	atof(Cmd_Argv(1)),
+					atof(Cmd_Argv(2)),
+					atof(Cmd_Argv(3))};
+	float radius =	atof(Cmd_Argv(4));
+	//unsigned int rgb = strtoul(Cmd_Argv(5), NULL, 16);
+	char *timername =	Cmd_Argv(6);
+	unsigned int entnum = strtoul(Cmd_Argv(7), NULL, 0);
+	struct itemtimer_s *timer;
+
+	if (!timeout)
+		timeout = FLT_MAX;
+	if (!radius)
+		radius = 32;
+
+	for (timer = cl.itemtimers; timer; timer = timer->next)
+	{
+		if (VectorCompare(timer->origin, org) && timer->entnum == entnum)
+			break;
+	}
+	if (!timer)
+	{	//didn't find it.
+		timer = Z_Malloc(sizeof(*timer));
+		timer->next = cl.itemtimers;
+		cl.itemtimers = timer;
+	}
+
+	VectorCopy(org, timer->origin);
+	timer->start = cl.time;
+	timer->duration = timeout;
+	timer->radius = radius;
+	timer->duration = timeout;
+	timer->entnum = entnum;
+	timer->start = cl.time;
+	timer->end = cl.time + timer->duration;
+}
+
+static void CL_ParseTeamInfo(void)
 {
 	unsigned int pidx = atoi(Cmd_Argv(1));
 	vec3_t org =
@@ -5828,8 +5891,8 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			}
 			else if (!strncmp(stufftext, "//wps ", 5))
 			{
-				//weapon stats, eg:
-				//wps CLIENT WNAME attacks hits
+				Cmd_TokenizeString(stufftext+5, false, false);
+				CL_ParseWeaponStats();
 			}
 			else if (!strncmp(stufftext, "//kickfile ", 11))
 			{
@@ -5837,6 +5900,11 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 				Cmd_TokenizeString(stufftext+2, false, false);
 				if (FS_FLocateFile(Cmd_Argv(1), FSLF_IFFOUND, &loc))
 					Con_Printf("You have been kicked due to the file \"%s\" being modified.\n", Cmd_Argv(1));
+			}
+			else if (!strncmp(stufftext, "//it ", 5))
+			{
+				Cmd_TokenizeString(stufftext+5, false, false);
+				CL_ParseItemTimer();
 			}
 #ifdef PLUGINS
 			else if (!strncmp(stufftext, "//tinfo ", 8))
@@ -7002,6 +7070,11 @@ void CLNQ_ParseServerMessage (void)
 			CLNQ_ParseProtoVersion();
 			break;
 		case svc_serverdata:
+			if (*printtext)
+			{	//work around a missing-eol proquake bug.
+				CL_PrintStandardMessage(printtext, PRINT_HIGH);
+				printtext[0] = 0;
+			}
 			Cbuf_Execute ();		// make sure any stuffed commands are done
 			CLNQ_ParseServerData ();
 			break;

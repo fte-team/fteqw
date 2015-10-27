@@ -1179,6 +1179,10 @@ cvar_t *Cvar_Get2(const char *name, const char *defaultvalue, int flags, const c
 	if (!description)
 		description = "";
 
+	//don't allow cvars with certain funny chars in their name. ever. such things get really messy when saved in configs or whatever.
+	if (!*name || strchr(name, '\"') || strchr(name, '^') || strchr(name, '$') || strchr(name, ' ') || strchr(name, '\t') || strchr(name, '\r') || strchr(name, '\n') || strchr(name, ';'))
+		return NULL;
+
 	var = (cvar_t*)Z_Malloc(sizeof(cvar_t)+strlen(name)+1+(description?(strlen(description)+1):0));
 	var->name = (char *)(var+1);
 	strcpy(var->name, name);
@@ -1259,31 +1263,31 @@ qboolean	Cvar_Command (int level)
 		{
 			if (v->flags & CVAR_LATCH)
 			{
-				Con_Printf ("\"%s\" is currently %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), false));
-				Con_Printf ("Will be changed to %s on the next map\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), false));
+				Con_Printf ("\"%s\" is currently \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
+				Con_Printf ("Will be changed to \"%s\" on the next map\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
 			}
 			else if (v->flags & CVAR_RENDERERLATCH)
 			{
-				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), false));
-				Con_Printf ("Will be changed to %s on vid_restart\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), false));
+				Con_Printf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
+				Con_Printf ("Will be changed to \"%s\" on vid_restart\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
 			}
 			else
 			{
-				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->latched_string, buffer, sizeof(buffer), false));
-				Con_Printf ("Effective value is %s\n", COM_QuotedString(v->string, buffer, sizeof(buffer), false));
+				Con_Printf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));
+				Con_Printf ("Effective value is \"%s\"\n", COM_QuotedString(v->string, buffer, sizeof(buffer), true));
 			}
 			if (v->defaultstr)
-				Con_Printf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), false));
+				Con_Printf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), true));
 		}
 		else
 		{
 			if (v->defaultstr && !strcmp(v->string, v->defaultstr))
-				Con_Printf ("\"%s\" is %s (default)\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), false));
+				Con_Printf ("\"%s\" is \"%s\" (default)\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
 			else
 			{
-				Con_Printf ("\"%s\" is %s\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), false));
+				Con_Printf ("\"%s\" is \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
 				if (v->defaultstr)
-					Con_Printf("Default: %s\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), false));
+					Con_Printf("Default: \"%s\"\n", COM_QuotedString(v->defaultstr, buffer, sizeof(buffer), true));
 			}
 		}
 		return true;
@@ -1309,9 +1313,9 @@ qboolean	Cvar_Command (int level)
 		{	//don't bother even changing the cvar locally, just update the server's version.
 			//fixme: quake2/quake3 latching.
 			if (seat)
-				CL_SendClientCommand(true, "%i setinfo %s \"%s\"", seat+1, v->name, str);
+				CL_SendClientCommand(true, "%i setinfo %s %s", seat+1, v->name, COM_QuotedString(str, buffer, sizeof(buffer), false));
 			else
-				CL_SendClientCommand(true, "setinfo %s \"%s\"", v->name, str);
+				CL_SendClientCommand(true, "setinfo %s %s", v->name, COM_QuotedString(str, buffer, sizeof(buffer), false));
 		}
 		else
 			CL_SetInfo(seat, v->name, str);

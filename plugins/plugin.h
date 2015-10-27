@@ -235,6 +235,8 @@ EBUILTIN(int, GetLocalPlayerNumbers, (int firstseat, int numseats, int *playernu
 EBUILTIN(void, GetServerInfo, (char *info, int infolen));
 EBUILTIN(void, SetUserInfo, (const char *key, const char *value));
 EBUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
+EBUILTIN(int, GetLastInputFrame, (int seat, usercmd_t *playercmd));
+EBUILTIN(float, GetTrackerOwnFrags, (int seat, char *text, size_t textsize));
 
 typedef struct
 {
@@ -246,6 +248,8 @@ typedef struct
 	char nick[16];
 } teamplayerinfo_t;
 EBUILTIN(int, GetTeamInfo, (teamplayerinfo_t *clients, unsigned int maxclients, int showenemies, int showself));
+struct wstats_s;
+EBUILTIN(int, GetWeaponStats, (int player, struct wstats_s *result, unsigned int maxresults));
 
 typedef struct {
 	int seats;
@@ -305,7 +309,8 @@ EBUILTIN(void, Draw_Line, (float x1, float y1, float x2, float y2));
 EBUILTIN(void, Draw_Character, (int x, int y, unsigned int character));
 EBUILTIN(void, Draw_String, (float x, float y, const char *string));
 EBUILTIN(void, Draw_CharacterH, (float x, float y, float h, unsigned int flags, unsigned int character));
-EBUILTIN(void, Draw_StringH, (float x, float y, float h, unsigned int flags, const char *string));
+EBUILTIN(void, Draw_StringH, (float x, float y, float h, unsigned int flags, const char *string));	//returns the vpixel width of the (coloured) string, in the current (variable-width) font.
+EBUILTIN(float, Draw_StringWidth, (float h, unsigned int flags, const char *string));
 EBUILTIN(void, Draw_Colourpa, (int palcol, float a));
 EBUILTIN(void, Draw_Colourp, (int palcol));
 EBUILTIN(void, Draw_Colour3f, (float r, float g, float b));

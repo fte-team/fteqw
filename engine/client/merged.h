@@ -137,6 +137,7 @@ enum mlverbosity_e
 {
 	MLV_SILENT,
 	MLV_WARN,
+	MLV_WARNSYNC,
 	MLV_ERROR
 };
 
@@ -225,6 +226,9 @@ enum
 };
 typedef struct image_s
 {
+#ifdef _DEBUG
+	char dbgident[32];
+#endif
 	char *ident;	//allocated on end
 	char *subpath;	//allocated on end
 	int regsequence;

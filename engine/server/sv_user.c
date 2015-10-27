@@ -2012,8 +2012,8 @@ void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg)
 
 	size = 1024;	//fixme
 
-	if (size > cl->datagram.maxsize - cl->datagram.cursize)
-		size = cl->datagram.maxsize - cl->datagram.cursize - 16;
+	if (size > msg->maxsize - msg->cursize)
+		size = msg->maxsize - msg->cursize - 16;
 
 	if (size > MAXDPDOWNLOADCHUNK)	//don't clog it too much
 		size = MAXDPDOWNLOADCHUNK;
@@ -2843,6 +2843,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 		vfsfile_t *f = FS_OpenVFS(name+8, "rb", FS_ROOT);
 		if (f)
 		{
+			loc->len = VFS_GETLEN(f);
 			VFS_CLOSE(f);
 			return -5;	//found package
 		}
@@ -6533,7 +6534,11 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	pmove.player_maxs[1] = sv_player->v->maxs[1];
 	pmove.player_maxs[2] = sv_player->v->maxs[2];
 
-	VectorCopy(sv_player->xv->gravitydir, pmove.gravitydir);
+	if (sv_player->xv->gravitydir[2] || sv_player->xv->gravitydir[1] || sv_player->xv->gravitydir[0])
+		VectorCopy(sv_player->xv->gravitydir, pmove.gravitydir);
+	else
+		VectorCopy(sv.world.g.defaultgravitydir, pmove.gravitydir);
+
 	VectorCopy(sv_player->v->origin, pmove.origin);
 	VectorCopy(sv_player->v->oldorigin, pmove.safeorigin);
 	pmove.safeorigin_known = true;

@@ -381,6 +381,9 @@ enum
 #define SPECPRINT_SPRINT	0x2
 #define SPECPRINT_STUFFCMD	0x4
 
+#define STUFFCMD_IGNOREINDEMO (   1<<0) // do not put in mvd demo
+#define STUFFCMD_DEMOONLY     (   1<<1) // put in mvd demo only
+
 typedef struct client_s
 {
 	client_conn_state_t	state;
@@ -748,18 +751,23 @@ typedef struct
 
 //=============================================================================
 
-
-#define	STATFRAMES	100
+#define SVSTATS_PERIOD 10
 typedef struct
 {
 	double	active;
 	double	idle;
 	int		count;
 	int		packets;
+	double	maxresponse;	//longest (active) frame time within the current period
+	int		maxpackets;		//max packet count in a single frame
 
-	double	latched_active;
+	double	latched_time;	//time that the current period ends
+	double	latched_active;	//active time in the last period
 	double	latched_idle;
+	int		latched_count;
 	int		latched_packets;
+	int		latched_maxpackets;
+	double	latched_maxresponse;
 } svstats_t;
 
 // MAX_CHALLENGES is made large to prevent a denial

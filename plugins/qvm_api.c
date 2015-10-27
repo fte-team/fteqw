@@ -21,7 +21,8 @@ int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
 	float _float;
 	int i;
 	int use0s;
-	int precision, useprepad, plus;
+	int width, useprepad, plus;
+	int precision;
 
 	if (!maxlen)
 		return 0;
@@ -33,9 +34,10 @@ maxlen--;
 		{
 		case '%':
 			plus = 0;
-			precision= 0;
+			width= 0;
+			precision=-1;
 			useprepad=0;
-			use0s=0;
+			use0s= 0;
 retry:
 			switch(*(++format))
 			{
@@ -45,8 +47,13 @@ retry:
 			case '+':
 				plus = true;
 				goto retry;
+			case '.':
+				precision = 0;
+				while (format[1] >= '0' && format[1] <= '9')
+					precision = precision*10+*++format-'0';
+				goto retry;
 			case '0':
-				if (!precision)
+				if (!width)
 				{
 					use0s=true;
 					goto retry;
@@ -60,7 +67,7 @@ retry:
 			case '7':
 			case '8':
 			case '9':
-				precision=precision*10+*format-'0';
+				width=width*10+*format-'0';
 				goto retry;
 			case '%':	/*emit a %*/
 				if (maxlen-- == 0) 
@@ -71,9 +78,9 @@ retry:
 				string = va_arg(vargs, char *);
 				if (!string)
 					string = "(null)";
-				if (precision)
+				if (width)
 				{
-					while (*string && precision--)
+					while (*string && width--)
 					{
 						if (maxlen-- == 0) 
 							{*buffer++='\0';return tokens;}
@@ -120,15 +127,15 @@ retry:
 					string[1] = '\0';
 				}
 
-				precision -= 62-i;
-				while (precision>0)
+				width -= 62-i;
+				while (width>0)
 				{
 					string--;
 					if (use0s)
 						*string = '0';
 					else
 						*string = ' ';
-					precision--;
+					width--;
 				}
 
 				while (*string)
@@ -203,15 +210,15 @@ Con_Printf("%i bytes left\n", maxlen);
 					string[1] = '\0';
 				}
 
-				precision -= 62-i;
-/*				while (precision>0)
+				width -= 62-i;
+/*				while (width>0)
 				{
 					string--;
 					*string = ' ';
-					precision--;
+					width--;
 				}
 */
-				while(precision>0)
+				while(width>0)
 				{
 					if (maxlen-- == 0) 
 						{*buffer++='\0';return tokens;}
@@ -219,7 +226,7 @@ Con_Printf("%i bytes left\n", maxlen);
 						*buffer++ = '0';
 					else
 						*buffer++ = ' ';
-					precision--;
+					width--;
 				}
 
 				while (*string)
@@ -270,9 +277,11 @@ Con_Printf("%i bytes left\n", maxlen);
 				_float -= (int)_float;
 				i = 0;
 				tempbuffer[i++] = '.';
+				if (precision < 0)
+					precision = 7;
 				while(_float - (int)_float)
 				{
-					if (i + _int > 7)	//remove the excess presision.
+					if (i > precision)	//remove the excess presision.
 						break;
 
 					_float*=10;

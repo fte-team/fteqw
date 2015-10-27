@@ -253,7 +253,30 @@ void M_Menu_Options_f (void)
 	};
 	menu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
-	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+	y = MC_AddBulk(menu, &resel, bulk, 16, 216, y);
+
+#ifdef PLUGINS
+	if (Cmd_Exists("ezhud_nquake"))
+	{
+		extern cvar_t plug_sbar;
+		static const char *hudplugopts[] = {
+			"Never",
+			"Deathmatch",
+			"Single Player/Coop",
+			"Always",
+			NULL
+		};
+		static const char *hudplugvalues[] = {
+			"0",
+			"1",
+			"2",
+			"3",
+			NULL
+		};
+		MC_AddCvarCombo(menu, 16, 216, y, "Use Hud Plugin", &plug_sbar, hudplugopts, hudplugvalues);			y += 8;
+	}
+#endif
+
 
 	menu->data = updatecbo;
 	menu->remove = M_Options_Remove;
@@ -1213,6 +1236,9 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 			cvarsrds = "1";
 			break;
 		case 4:
+			cvard = "-1";
+			break;
+		case 5:
 			cvard = "1";
 			cvarvd = "1";
 			break;
@@ -1259,6 +1285,7 @@ void M_Menu_Lighting_f (void)
 		"Standard",
 		"Realtime",
 		"RT+Shadows",
+		"Threaded Lightmaps",
 #ifndef MINIMAL
 		"Vertex",
 #endif
@@ -1352,11 +1379,13 @@ void M_Menu_Lighting_f (void)
 		else
 			dlightselect = 2;
 	}
+	else if (r_dynamic.ival < 0)
+		dlightselect = 4;
 #ifndef MINIMAL
 	else if (r_vertexdlights.ival)
-		dlightselect = 4;
+		dlightselect = 5;
 #endif
-	else if (r_dynamic.ival)
+	else if (r_dynamic.ival > 0)
 		dlightselect = 1;
 	else
 		dlightselect = 0;
@@ -2706,6 +2735,9 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct menu_
 	vec2_t fs = {8,8};
 
 	modelview_t *mods = c->dptr;
+
+	if (R2D_Flush)
+		R2D_Flush();
 
 	memset(&pv, 0, sizeof(pv));
 

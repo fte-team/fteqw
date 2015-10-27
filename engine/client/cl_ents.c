@@ -1517,6 +1517,8 @@ void CLNQ_ParseEntity(unsigned int bits)
 	entity_state_t	*base;
 	packet_entities_t	*pack;
 
+	qboolean isnehahra = false;//(cls.protocol_nq == CPNQ_ID && cls.demoplayback);
+
 	if (cls.signon == 4 - 1)
 	{	// first update is the final signon stage
 		cls.signon = 4;
@@ -1530,15 +1532,19 @@ void CLNQ_ParseEntity(unsigned int bits)
 		i = MSG_ReadByte ();
 		bits |= (i<<8);
 	}
-	if (bits & DPU_EXTEND1)
+
+	if (!isnehahra)
 	{
-		i = MSG_ReadByte ();
-		bits |= (i<<16);
-	}
-	if (bits & DPU_EXTEND2)
-	{
-		i = MSG_ReadByte ();
-		bits |= (i<<24);
+		if (bits & DPU_EXTEND1)
+		{
+			i = MSG_ReadByte ();
+			bits |= (i<<16);
+		}
+		if (bits & DPU_EXTEND2)
+		{
+			i = MSG_ReadByte ();
+			bits |= (i<<24);
+		}
 	}
 
 	if (bits & NQU_LONGENTITY)
@@ -1603,7 +1609,21 @@ void CLNQ_ParseEntity(unsigned int bits)
 	if (bits & NQU_ANGLE3)
 		state->angles[2] = MSG_ReadAngle();
 
-	if (cls.protocol_nq == CPNQ_FITZ666)
+	if (isnehahra)
+	{
+		if (bits & DPU_EXTEND1)	//U_TRANS
+		{
+			float tmp = MSG_ReadFloat();
+			float alpha = MSG_ReadFloat();
+			if (tmp == 2)
+			{
+				if (MSG_ReadFloat() > 0.5)
+					state->effects |= EF_FULLBRIGHT;
+			}
+			state->trans = bound(0, 255 * alpha, 255);
+		}
+	}
+	else if (cls.protocol_nq == CPNQ_FITZ666)
 	{
 		if (bits & FITZU_ALPHA)
 			state->trans = MSG_ReadByte();
@@ -1711,7 +1731,8 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 		if ((ps->dpflags & RENDER_EXTERIORMODEL) || r_refdef.playerview->viewentity == ps->number)
 			ent->flags |= RF_EXTERNALMODEL;
 
-		if (ent->playerindex == -1 && ps->colormap > 0 && ps->colormap <= cl.allocated_client_slots)
+		//hack for xonotic.
+		if ((ent->flags & RF_WEAPONMODEL) && ent->playerindex == -1 && ps->colormap > 0 && ps->colormap <= cl.allocated_client_slots)
 		{
 			ent->playerindex = ps->colormap-1;
 			ent->topcolour    = cl.players[ent->playerindex].ttopcolor;
@@ -1828,7 +1849,7 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 			parent[10] = axis[2][2];
 			parent[11] = org[2];
 
-			R_ConcatTransforms((void*)old, (void*)parent, (void*)result);
+			R_ConcatTransforms((void*)parent, (void*)old, (void*)result);
 
 			ent->axis[0][0] = result[0];
 			ent->axis[1][0] = result[1];
@@ -3436,11 +3457,14 @@ void CL_LinkPacketEntities (void)
 		else
 		{
 			timerlink = &(*timerlink)->next;
-			if (timer->entnum >= cl.maxlerpents)
-				continue;
-			le = &cl.lerpents[timer->entnum];
-			if (le->sequence != cl.lerpentssequence)
-				continue;
+			if (timer->entnum)
+			{
+				if (timer->entnum >= cl.maxlerpents)
+					continue;
+				le = &cl.lerpents[timer->entnum];
+				if (le->sequence != cl.lerpentssequence)
+					continue;
+			}
 			R_AddItemTimer(timer->origin, cl.time*90 + timer->origin[0] + timer->origin[1] + timer->origin[2], timer->radius, (cl.time - timer->start) / timer->duration);
 		}
 	}

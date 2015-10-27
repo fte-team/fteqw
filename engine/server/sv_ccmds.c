@@ -1699,7 +1699,7 @@ static void SV_Status_f (void)
 {
 	int			i;
 	client_t	*cl;
-	float		cpu, avg, pak;
+	float		cpu;
 	char		*s, *p;
 	char		adr[MAX_ADR_SIZE];
 	float pi, po, bi, bo;
@@ -1728,12 +1728,10 @@ static void SV_Status_f (void)
 	cpu = (svs.stats.latched_active+svs.stats.latched_idle);
 	if (cpu)
 		cpu = 100*svs.stats.latched_active/cpu;
-	avg = 1000*svs.stats.latched_active / STATFRAMES;
-	pak = (float)svs.stats.latched_packets/ STATFRAMES;
 
 	Con_Printf("cpu utilization  : %3i%%\n",(int)cpu);
-	Con_Printf("avg response time: %i ms\n",(int)avg);
-	Con_Printf("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
+	Con_Printf("avg response time: %i ms (%i max)\n",(int)(1000*svs.stats.latched_active/svs.stats.latched_count), (int)(1000*svs.stats.latched_maxresponse));
+	Con_Printf("packets/frame    : %5.2f (%i max)\n", (float)svs.stats.latched_packets/svs.stats.latched_count, svs.stats.latched_maxpackets);	//not relevent as a limit.
 	if (NET_GetRates(svs.sockets, &pi, &po, &bi, &bo))
 		Con_Printf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
 	Con_Printf("server uptime    : %s\n", ShowTime(realtime));

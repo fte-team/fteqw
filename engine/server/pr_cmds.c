@@ -425,6 +425,7 @@ void PR_SV_FillWorldGlobals(world_t *w)
 	w->g.v_forward = *pr_global_ptrs->v_forward;
 	w->g.v_right = *pr_global_ptrs->v_right;
 	w->g.v_up = *pr_global_ptrs->v_up;
+	w->g.defaultgravitydir = *pr_global_ptrs->global_gravitydir;
 }
 
 static void PDECL PR_SSQC_Relocated(pubprogfuncs_t *pr, char *oldb, char *newb, int oldlen)
@@ -692,6 +693,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	static float input_impulse_default;
 	static vec3_t input_angles_default;
 	static vec3_t input_movevalues_default;
+	static vec3_t global_gravitydir_default;
 	int i;
 	int *v;
 	globalptrs_t *pr_globals = pr_global_ptrs;
@@ -758,6 +760,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalvec		(false, input_movevalues);
 	globalfloat		(false, input_buttons);
 	globalint		(false, serverid);
+	globalvec		(false, global_gravitydir);
 
 	memset(&evalc_idealpitch, 0, sizeof(evalc_idealpitch));
 	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
@@ -782,6 +785,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	ensureglobal(input_angles, input_angles_default);
 	ensureglobal(input_movevalues, input_movevalues_default);
 	ensureglobal(input_buttons, input_buttons_default);
+	ensureglobal(global_gravitydir, global_gravitydir_default);
 
 	// qtest renames and missing variables
 	if (!(pr_globals)->trace_plane_normal)
@@ -2452,7 +2456,7 @@ void PF_setmodel_Internal (pubprogfuncs_t *prinst, edict_t *e, const char *m)
 			//qw dedicated servers only load bsps (better)
 			if (mod)
 			{
-				mod = Mod_ForName (Mod_FixName(m, sv.modelname), MLV_WARN);
+				mod = Mod_ForName (Mod_FixName(m, sv.modelname), MLV_WARNSYNC);
 				if (mod)
 				{
 					while(mod->loadstate == MLS_LOADING)
@@ -3456,8 +3460,10 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 
 	slen = strlen(str);
 
-	SV_StuffcmdToClient(cl, str);
+	if (!(flags & STUFFCMD_DEMOONLY))
+		SV_StuffcmdToClient(cl, str);
 
+	if (!(flags & STUFFCMD_IGNOREINDEMO))
 	if (sv.mvdrecording)
 	{
 		sizebuf_t *msg = MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
@@ -3466,6 +3472,7 @@ void PF_stuffcmd_Internal(int entnum, const char *str, unsigned int flags)
 	}
 
 	//this seems a little dangerous. v_cshift could leave a spectator's machine unusable if they switch players at unfortunate times.
+	if (!(flags & STUFFCMD_DEMOONLY))
 	if (sv_specprint.ival & SPECPRINT_STUFFCMD)
 	{
 		client_t *spec;
@@ -3492,6 +3499,11 @@ stuffcmd (clientent, value)
 static void QCBUILTIN PF_stuffcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	PF_stuffcmd_Internal(G_EDICTNUM(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1), 0);
+}
+
+static void QCBUILTIN PF_stuffcmdflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	PF_stuffcmd_Internal(G_EDICTNUM(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM2), G_FLOAT(OFS_PARM1));
 }
 
 //DP_QC_DROPCLIENT
@@ -3864,7 +3876,7 @@ int PF_precache_model_Internal (pubprogfuncs_t *prinst, const char *s, qboolean 
 				sv.strings.model_precache[i] = PR_AddString(prinst, s, 0, false);
 			s = sv.strings.model_precache[i];
 			if (!strcmp(s + strlen(s) - 4, ".bsp") || sv_gameplayfix_setmodelrealbox.ival)
-				sv.models[i] = Mod_ForName(Mod_FixName(s, sv.modelname), MLV_WARN);
+				sv.models[i] = Mod_ForName(Mod_FixName(s, sv.modelname), MLV_WARNSYNC);
 			else
 			{
 				/*touch the file, so any packs will be referenced*/
@@ -5371,11 +5383,22 @@ char *PF_infokey_Internal (int entnum, const char *key)
 	{
 		value = ov;
 		if (!strcmp(key, "ip"))
-			NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].netchan.remote_address);
+		{
+			if (svs.clients[entnum-1].state > cs_zombie && svs.clients[entnum-1].protocol == SCP_BAD)
+				sprintf(ov, "bot");	//bots don't have valid ips
+			else if (svs.clients[entnum-1].netchan.remote_address.type == NA_INVALID)
+				sprintf(ov, "");	//bots don't have valid ips
+			else
+				NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].netchan.remote_address);
+		}
 		else if (!strcmp(key, "realip"))
 		{
-			if (svs.clients[entnum-1].realip_status)
+			if (svs.clients[entnum-1].state > cs_zombie && svs.clients[entnum-1].protocol == SCP_BAD)
+				sprintf(ov, "bot");	//bots don't have valid ips
+			else if (svs.clients[entnum-1].realip_status)
 				NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].realip);
+			else if (svs.clients[entnum-1].netchan.remote_address.type == NA_INVALID)
+				sprintf(ov, "");	//bots don't have valid ips
 			else	//FIXME: should we report the spoofable/proxy address if the real ip is not known?
 				NET_BaseAdrToString (ov, sizeof(ov), &svs.clients[entnum-1].netchan.remote_address);
 		}
@@ -6017,7 +6040,7 @@ static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalva
 			}
 			else if (!PR_EnableEBFSBuiltin(ext->builtinnames[i], 0))
 			{
-				Con_Printf("Failed to initialise builtin \"%s\" for extension \"%s\"", ext->builtinnames[i], s);
+				Con_Printf("Failed to initialise builtin \"%s\" for extension \"%s\"\n", ext->builtinnames[i], s);
 				return;	//whoops, we failed.
 			}
 		}
@@ -8491,7 +8514,13 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 	}
 	else if (entnum <= sv.allocated_client_slots)
 	{	//woo. we found a client.
-		char *oldvalue = Info_ValueForKey(svs.clients[entnum-1].userinfo, key);
+		char *oldvalue;
+		if (svs.clients[entnum-1].state == cs_free)
+		{
+			Con_DPrintf("PF_ForceInfoKey: inactive client\n");
+			return 0;
+		}
+		oldvalue = Info_ValueForKey(svs.clients[entnum-1].userinfo, key);
 		if (strcmp(oldvalue, value))
 		{
 			Info_SetValueForStarKey(svs.clients[entnum-1].userinfo, key, value, sizeof(svs.clients[entnum-1].userinfo));
@@ -8622,7 +8651,7 @@ static void QCBUILTIN PF_ShowPic(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM5)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			PR_RunError (prinst, "WriteDest: not a client");
+			PR_RunError (prinst, "PF_ShowPic: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -8655,7 +8684,7 @@ static void QCBUILTIN PF_HidePic(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM1)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			PR_RunError (prinst, "WriteDest: not a client");
+			PR_RunError (prinst, "PF_HidePic: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -8690,7 +8719,7 @@ static void QCBUILTIN PF_MovePic(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM4)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			PR_RunError (prinst, "WriteDest: not a client");
+			PR_RunError (prinst, "PF_MovePic: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -8723,7 +8752,7 @@ static void QCBUILTIN PF_ChangePic(pubprogfuncs_t *prinst, struct globalvars_s *
 	{	//to a single client
 		entnum = G_EDICTNUM(prinst, OFS_PARM2)-1;
 		if (entnum < 0 || entnum >= sv.allocated_client_slots)
-			PR_RunError (prinst, "WriteDest: not a client");
+			PR_RunError (prinst, "PF_ChangePic: not a client");
 
 		if (!(svs.clients[entnum].fteprotocolextensions & PEXT_SHOWPIC))
 			return;	//need an extension for this. duh.
@@ -9313,6 +9342,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_sound",	PF_precache_sound,	19,		19,		19,		0,	D("string(string s)", "Precaches a sound, making it known to clients and loading it from disk. This builtin (strongly) should be called during spawn functions. This builtin must be called for the sound before the sound builtin is called, or it might not even be heard.")},
 	{"precache_model",	PF_precache_model,	20,		20,		20,		0,	D("string(string s)", "Precaches a model, making it known to clients and loading it from disk if it has a .bsp extension. This builtin (strongly) should be called during spawn functions. This must be called for each model name before setmodel may use that model name.\nModelindicies precached in SSQC will always be positive. CSQC precaches will be negative if they are not also on the server.")},
 	{"stuffcmd",		PF_stuffcmd,		21,		21,		21,		0,	D("void(entity client, string s)", "Sends a console command (or cvar) to the client, where it will be executed. Different clients support different commands. Do NOT forget the final \\n.\nThis builtin is generally considered evil.")},
+	{"stuffcmdflags",	PF_stuffcmdflags,	0,		0,		0,		0,	D("void(entity client, float flags, string s)", "Sends a console command (or cvar) to the client, where it will be executed. Different clients support different commands. Do NOT forget the final \\n.\nThis (just as evil) variant allows specifying some flags too. See the STUFFCMD_* constants.")},
 	{"findradius",		PF_findradius,		22,		22,		22,		0,	D("entity(vector org, float rad)", "Finds all entities within a distance of the 'org' specified. One entity is returned directly, while other entities are returned via that entity's .chain field.")},
 	//both bprint and sprint accept different arguments in QW vs NQ/H2
 	{"bprint",			PF_bprint,			23,		0,		23,		0,	D("void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "NQ: Concatenates all arguments, and prints the messsage on the console of all connected clients.")},
@@ -10155,7 +10185,7 @@ static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	Con_Printf("\n");
 
-	if (progstype == PROG_QW)
+	if (progstype == PROG_QW && (binum >= 83 && binum < 105))
 		prinst->RunError(prinst, "\nBuiltin %i:%s not implemented.\nMods designed for mvdsv may need pr_imitatemvdsv to be enabled.", binum, fname);
 	else
 		prinst->RunError(prinst, "\nBuiltin %i:%s not implemented.\nMod is not compatible.", binum, fname);
@@ -10851,6 +10881,7 @@ void PR_DumpPlatform_f(void)
 		{"SOLID_BSP",				"const float", QW|NQ|CS, "Does not collide against other SOLID_BSP entities. Normally paired with MOVETYPE_PUSH.", SOLID_BSP},
 		{"SOLID_CORPSE",			"const float", QW|NQ|CS, "Non-solid to SOLID_SLIDEBOX or other SOLID_CORPSE entities. For hitscan weapons to hit corpses, change the player's .solid value to SOLID_BBOX or so, perform the traceline, then revert the player's .solid value.", SOLID_CORPSE},
 		{"SOLID_LADDER",			"const float", QW|NQ|CS, "Obsolete and may be removed at some point. Use skin=CONTENT_LADDER and solid_bsp or solid_trigger instead.", SOLID_LADDER},
+		{"SOLID_PORTAL",			"const float", QW|NQ|CS, "CSG subtraction volume combined with entity transformations on impact.", SOLID_PORTAL},
 		{"SOLID_PHYSICS_BOX",		"const float", QW|NQ|CS, NULL, SOLID_PHYSICS_BOX},
 		{"SOLID_PHYSICS_SPHERE",	"const float", QW|NQ|CS, NULL, SOLID_PHYSICS_SPHERE},
 		{"SOLID_PHYSICS_CAPSULE",	"const float", QW|NQ|CS, NULL, SOLID_PHYSICS_CAPSULE},
@@ -10999,6 +11030,14 @@ void PR_DumpPlatform_f(void)
 		{"SERVERKEY_DLSTATE",	"const string", CS,	"The progress of any current downloads. Empty string if no download is active, otherwise a tokenizable string containing this info:\nfiles-remaining, total-size, unknown-sizes-flag, file-localname, file-remotename, file-percent, file-rate, file-received-bytes, file-total-bytes\nIf the current file info is omitted, then we are waiting for a download to start.", 0, "\"dlstate\""},
 		{"SERVERKEY_PROTOCOL",	"const string", CS,	"The protocol we are connected to the server with.", 0, "\"protocol\""},
 		{"SERVERKEY_MAXPLAYERS","const string", CS,	"The protocol we are connected to the server with.", 0, "\"maxplayers\""},
+
+		{"STUFFCMD_IGNOREINDEMO","const float",	QW|NQ,	"The protocol we are connected to the server with.", STUFFCMD_IGNOREINDEMO},
+		{"STUFFCMD_DEMOONLY",	"const float",	QW|NQ,	"The protocol we are connected to the server with.", STUFFCMD_DEMOONLY},
+
+		{"SOUND_RELIABLE",		"const float",	QW|NQ,	"The sound will be sent reliably, and without regard to phs.", CF_RELIABLE},
+		{"SOUND_FORCELOOP",		"const float",	QW|NQ|CS,"The sound will restart once it reaches the end of the sample.", CF_FORCELOOP},
+		{"SOUND_NOSPACIALISE",	"const float",	QW|NQ|CS,"The different audio channels are played at the same volume regardless of which way the player is facing, without needing to use 0 attenuation.", CF_NOSPACIALISE},
+		{"SOUND_ABSVOLUME",		"const float",	QW|NQ|CS,"The sample's volume is not scaled by the volume cvar. Use with caution", CF_ABSVOLUME},
 
 		// edict.flags
 		{"FL_FLY",				"const float", QW|NQ|CS, NULL, FL_FLY},

@@ -60,6 +60,9 @@ float		con_cursorspeed = 4;
 
 cvar_t		con_numnotifylines = SCVAR("con_notifylines","4");		//max lines to show
 cvar_t		con_notifytime = SCVAR("con_notifytime","3");		//seconds
+cvar_t		con_notify_x = SCVAR("con_notify_x","0");
+cvar_t		con_notify_y = SCVAR("con_notify_y","0");
+cvar_t		con_notify_w = SCVAR("con_notify_w","1");
 cvar_t		con_centernotify = SCVAR("con_centernotify", "0");
 cvar_t		con_displaypossibilities = SCVAR("con_displaypossibilities", "1");
 cvar_t		con_maxlines = SCVAR("con_maxlines", "1024");
@@ -622,8 +625,11 @@ void Con_Init (void)
 //
 // register our commands
 //
-	Cvar_Register (&con_notifytime, "Console controls");
 	Cvar_Register (&con_centernotify, "Console controls");
+	Cvar_Register (&con_notifytime, "Console controls");
+	Cvar_Register (&con_notify_x, "Console controls");
+	Cvar_Register (&con_notify_y, "Console controls");
+	Cvar_Register (&con_notify_w, "Console controls");
 	Cvar_Register (&con_numnotifylines, "Console controls");
 	Cvar_Register (&con_displaypossibilities, "Console controls");
 	Cvar_Register (&cl_chatmode, "Console controls");
@@ -1036,6 +1042,8 @@ void Con_Footerf(console_t *con, qboolean append, char *fmt, ...)
 	conline_t *newf;
 	if (!con)
 		con = con_current;
+	if (!con)
+		return;
 
 	va_start (argptr,fmt);
 	vsnprintf (msg,sizeof(msg)-1, fmt,argptr);
@@ -1422,7 +1430,9 @@ void Con_DrawNotify (void)
 	con_main.flags |= CONF_NOTIFY;
 	/*keep the main console up to date*/
 	con_main.notif_l = con_numnotifylines.ival;
-	con_main.notif_w = 1;
+	con_main.notif_w = con_notify_w.value;
+	con_main.notif_x = con_notify_x.value;
+	con_main.notif_y = con_notify_y.value;
 	con_main.notif_t = con_notifytime.value;
 
 	if (con_chat)
@@ -1540,7 +1550,7 @@ static int Con_DrawProgress(int left, int right, int y)
 	char *progresstext = NULL;
 	char *txt;
 	int x, tw;
-	int i, j;
+	int i;
 	int barwidth, barleft;
 	float progresspercent = 0;
 	unsigned int codeflags, codepoint;
@@ -1761,7 +1771,6 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 	int linecount;
 	conchar_t *starts[64], *ends[sizeof(starts)/sizeof(starts[0])];
 	conchar_t *s, *e, *c;
-	int i;
 	int x;
 	int charh = Font_CharHeight();
 	unsigned int codeflags, codepoint;

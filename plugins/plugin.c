@@ -150,6 +150,13 @@ BUILTIN(void, GetServerInfo, (char *info, int infolen));
 #define ARGNAMES ,key,value
 BUILTIN(void, SetUserInfo, (const char *key, const char *value));
 #undef ARGNAMES
+#define ARGNAMES ,seat,playercmd
+BUILTINR(int, GetLastInputFrame, (int seat, usercmd_t *playercmd));
+#undef ARGNAMES
+#define ARGNAMES ,seat,text,textsize
+BUILTINR(float, GetTrackerOwnFrags, (int seat, char *text, size_t textsize));
+#undef ARGNAMES
+
 
 #define ARGNAMES ,pos,buffer,bufferlen
 BUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
@@ -157,6 +164,9 @@ BUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
 
 #define ARGNAMES ,clients,maxclients,showenemies,showself
 BUILTINR(int, GetTeamInfo, (teamplayerinfo_t *clients, unsigned int maxclients, int showenemies, int showself));
+#undef ARGNAMES
+#define ARGNAMES ,player,result,maxresults
+BUILTINR(int, GetWeaponStats, (int player, struct wstats_s *result, unsigned int maxresults));
 #undef ARGNAMES
 
 #define ARGNAMES ,soundname
@@ -203,6 +213,9 @@ BUILTIN(void, Draw_CharacterH, (float x, float y, float h, unsigned int flags, u
 #undef ARGNAMES
 #define ARGNAMES ,PASSFLOAT(x),PASSFLOAT(y),PASSFLOAT(h),flags,string
 BUILTIN(void, Draw_StringH, (float x, float y, float h, unsigned int flags, const char *string));
+#undef ARGNAMES
+#define ARGNAMES ,PASSFLOAT(h),flags,string
+BUILTINR(float, Draw_StringWidth, (float h, unsigned int flags, const char *string));
 #undef ARGNAMES
 #define ARGNAMES ,palcol,PASSFLOAT(a)
 BUILTIN(void, Draw_Colourpa, (int palcol, float a));
@@ -421,6 +434,8 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(GetPlayerInfo);
 	CHECKBUILTIN(LocalPlayerNumber);
 	CHECKBUILTIN(GetLocalPlayerNumbers);
+	CHECKBUILTIN(GetLastInputFrame);
+	CHECKBUILTIN(GetTrackerOwnFrags);
 	CHECKBUILTIN(GetServerInfo);
 	CHECKBUILTIN(SetUserInfo);
 	CHECKBUILTIN(LocalSound);
@@ -428,6 +443,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Key_GetKeyCode);
 	CHECKBUILTIN(GetLocationName);
 	CHECKBUILTIN(GetTeamInfo);
+	CHECKBUILTIN(GetWeaponStats);
 	CHECKBUILTIN(GetNetworkInfo);
 
 	//drawing routines
@@ -442,6 +458,7 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Draw_String);
 	CHECKBUILTIN(Draw_CharacterH);
 	CHECKBUILTIN(Draw_StringH);
+	CHECKBUILTIN(Draw_StringWidth);
 	CHECKBUILTIN(Draw_Colourpa);
 	CHECKBUILTIN(Draw_Colourp);
 	CHECKBUILTIN(Draw_Colour3f);

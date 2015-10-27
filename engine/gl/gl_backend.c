@@ -248,18 +248,16 @@ void GLBE_PolyOffsetStencilShadow(qboolean pushdepth)
 {
 	extern cvar_t r_polygonoffset_stencil_offset, r_polygonoffset_stencil_factor;
 	polyoffset_t po;
+	po.factor = r_polygonoffset_stencil_factor.value;
+	po.unit = r_polygonoffset_stencil_offset.value;
+
 	if (pushdepth)
 	{
 		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
 		we move them back very slightly using polygonoffset to avoid really ugly z-fighting*/
 		extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
-		po.factor = r_polygonoffset_submodel_factor.value + r_polygonoffset_stencil_factor.value;
-		po.unit = r_polygonoffset_submodel_offset.value + r_polygonoffset_stencil_offset.value;
-	}
-	else
-	{
-		po.factor = r_polygonoffset_stencil_factor.value;
-		po.unit = r_polygonoffset_stencil_offset.value;
+		po.factor += r_polygonoffset_submodel_factor.value;
+		po.unit += r_polygonoffset_submodel_offset.value;
 	}
 
 #ifndef FORCESTATE
@@ -903,7 +901,8 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 	shaderstate.sourcevbo = &shaderstate.dummyvbo;
 	shaderstate.dummyvbo.indicies.gl.vbo = ibo;
 
-	GLBE_PolyOffsetShadowMap(false);
+	if (shaderstate.mode != BEM_STENCIL)
+		GLBE_PolyOffsetShadowMap(false);
 
 	if (shaderstate.allblackshader.glsl.handle)
 	{
@@ -4942,7 +4941,11 @@ static void BE_UpdateLightmaps(void)
 		{
 			int t = lm->rectchange.t;	//pull them out now, in the hopes that it'll be more robust with respect to r_dynamic -1
 			int b = lm->rectchange.b;
-			lm->modified = false;
+#ifdef _DEBUG
+			if (t >= b)
+				Con_Printf("Dodgy lightmaps\n");
+			else
+#endif
 			if (!TEXVALID(lm->lightmap_texture))
 			{
 				extern cvar_t gl_lightmap_nearest;
@@ -4962,6 +4965,7 @@ static void BE_UpdateLightmaps(void)
 						lm->width, b-t, glformat, gltype,
 						lm->lightmaps+t *lm->width*lightmap_bytes);
 			}
+			lm->modified = false;
 			lm->rectchange.l = lm->width;
 			lm->rectchange.t = lm->height;
 			lm->rectchange.r = 0;

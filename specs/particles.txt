@@ -87,10 +87,11 @@ alpha <value>
 alphadelta <value>
 	specifies how much the alpha value of the effect changes per second (subtracted)
 
-die <maximum age> 
+die <maximum age> <minimum age>
 	specifies the maximum age of the particle
 
 diesubrand <value>
+	obsolete (set by die)
 	specifies the maximum starting age of the particle.
 	basically the particle will live up to this much less time. the alpha value will also be aged by the amount chosen by this value
 
@@ -104,8 +105,8 @@ veladd <value>
 orgadd <value>
 	biases how much to add to the starting origin relative to the requested velocity.
 
-friction <1> <2> <3>
-	FIXME
+friction <<xyz>|<xy> <z> | <x> <y> <z>>
+	Proportion of the particle's speed that should be lost from friction. Negative values are accepted.
 
 gravity <value>
 	amount that the particle's velocity changes per second, in quake units.
@@ -130,12 +131,19 @@ assoc <effectname>
 	Thus allowing two sets of particles from one effect.
 
 inwater <effectname>
+	obsolete
 	Specifies a replacement effect to use when this one is spawned underwater.
 	assoc used is the replacement effect. the assoc value from the replaced effect is ignored (this includes +foo chains).
 
-overwater
-	specifies that this
-underwater
+overwater [content names]
+	Specifies that this particle should ONLY be spawned when out of water.
+	The particle will not spawn under water (this does not affect assoc chains).
+	Content names are a space-separated list of: water slime lava sky solid fluid. Default is fluid if not specified.
+	The r_part_contentswitch cvar must be enabled for this to function correctly.
+
+underwater [content names]
+	Specifies that this particle should ONLY be spawned when underwater.
+	The particle will not spawn if the spawn position is non-water (this does not affect assoc chains).
 
 colorindex <index> [rand]
 	Specifies a palette index to spawn the particle with.
@@ -282,13 +290,15 @@ emitstart <seconds>
 
 spawnorg <horiz> [vert]
 spawnvel <horiz> [vert]
+	obsolete
 
 viewspace [frac]
 	Specifies that this particle type should move relative to the camera.
 	Not compatible with splitscreen.
+	Should not normally be used in combination with clipping/bouncing.
 
 perframe
-	apply inverse frametime to count (causes emits to be per frame)
+	apply inverse frametime to count (causes emits to be per frame).
 
 averageout
 	average trail points from start to end, useful with t_lightning, etc

@@ -94,7 +94,6 @@ void WPhys_Init(void)
 #define	MOVE_EPSILON	0.01
 
 static void WPhys_Physics_Toss (world_t *w, wedict_t *ent);
-const vec3_t standardgravity = {0, 0, -1};
 
 // warning: ‘SV_CheckAllEnts’ defined but not used
 /*
@@ -1295,7 +1294,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
 		gravitydir = ent->xv->gravitydir;
 	else
-		gravitydir = standardgravity;
+		gravitydir = w->g.defaultgravitydir;
 
 // if onground, return without moving
 	if ( ((int)ent->v->flags & FL_ONGROUND) )
@@ -1426,7 +1425,7 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 	if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
 		gravitydir = ent->xv->gravitydir;
 	else
-		gravitydir = standardgravity;
+		gravitydir = w->g.defaultgravitydir;
 
 	if (-DotProduct(gravitydir, ent->v->velocity) >= (1.0 / 32.0) && (fl & FL_ONGROUND))
 	{
@@ -2153,7 +2152,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
 			gravitydir = ent->xv->gravitydir;
 		else
-			gravitydir = standardgravity;
+			gravitydir = w->g.defaultgravitydir;
 
 		if (!WPhys_CheckWater (w, ent) && ! ((int)ent->v->flags & FL_WATERJUMP) )
 			WPhys_AddGravity (w, ent, gravitydir, ent->xv->gravity);
@@ -2282,6 +2281,14 @@ void World_Physics_Frame(world_t *w)
 	qboolean retouch;
 	wedict_t *ent;
 	extern cvar_t sv_nqplayerphysics;
+
+	if (w->g.defaultgravitydir)
+	{
+		w->g.defaultgravitydir[0] = 0;
+		w->g.defaultgravitydir[1] = 0;
+		w->g.defaultgravitydir[2] = -1;
+		VectorNormalize(w->g.defaultgravitydir);
+	}
 
 	w->framenum++;
 
@@ -2456,9 +2463,9 @@ qboolean SV_Physics (void)
 					SV_PreRunCmd();
 
 					ucmd.msec = ms;
-					ucmd.angles[0] = (int)(sv_player->v->v_angle[0] * (65535/360.0f));
-					ucmd.angles[1] = (int)(sv_player->v->v_angle[1] * (65535/360.0f));
-					ucmd.angles[2] = (int)(sv_player->v->v_angle[2] * (65535/360.0f));
+					ucmd.angles[0] = (short)(sv_player->v->v_angle[0] * (65535/360.0f));
+					ucmd.angles[1] = (short)(sv_player->v->v_angle[1] * (65535/360.0f));
+					ucmd.angles[2] = (short)(sv_player->v->v_angle[2] * (65535/360.0f));
 					ucmd.forwardmove = sv_player->xv->movement[0];
 					ucmd.sidemove = sv_player->xv->movement[1];
 					ucmd.upmove = sv_player->xv->movement[2];

@@ -640,6 +640,22 @@ qintptr_t EZHud_Draw(qintptr_t *args)
 	cls.mvdplayback = !strcmp(val, "mvd");
 	cls.demoplayback = strcmp(val, "");
 
+	
+	{
+		static cvar_t *pscr_viewsize = NULL;
+		int size;
+		if (!pscr_viewsize)
+			pscr_viewsize = pCvar_GetNVFDG("viewsize", "100", 0, NULL, NULL);
+		size = cl.intermission ? 120 : pscr_viewsize->value;
+		if (size >= 120)
+			sb_lines = 0;           // no status bar at all
+		else if (size >= 110)
+			sb_lines = 24;          // no inventory
+		else
+			sb_lines = 24 + 16 + 8;
+	}
+
+
 	//cl.faceanimtime
 	//cl.simvel
 	//cl.item_gettime

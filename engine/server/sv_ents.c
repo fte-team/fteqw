@@ -2010,9 +2010,9 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 			else
 			{
 				memset(&cmd, 0, sizeof(cmd));
-				cmd.angles[0] = (int)(ent->angles[0] * 65535/360.0f);
-				cmd.angles[1] = (int)(ent->angles[1] * 65535/360.0f);
-				cmd.angles[2] = (int)(ent->angles[2] * 65535/360.0f);
+				cmd.angles[0] = (short)(ent->angles[0] * 65535/360.0f);
+				cmd.angles[1] = (short)(ent->angles[1] * 65535/360.0f);
+				cmd.angles[2] = (short)(ent->angles[2] * 65535/360.0f);
 			}
 
 			if (ent->health <= 0)
@@ -2035,7 +2035,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		{
 			for (i=0 ; i<3 ; i++)
 				if (pflags & (PF_VELOCITY1<<i) )
-					MSG_WriteShort (msg, ent->velocity[i]);
+					MSG_WriteShort (msg, (short)(ent->velocity[i]));
 		}
 		else
 		{
@@ -3055,10 +3055,25 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->lightpflags = ent->xv->pflags;
 	state->u.q1.traileffectnum = ent->xv->traileffectnum;
 
-	if ((!ent->xv->gravitydir[0] && !ent->xv->gravitydir[1] && !ent->xv->gravitydir[2]) || (ent->xv->gravitydir[2] == -1))
+	if (ent->xv->gravitydir[2] == -1)
 	{
 		state->u.q1.gravitydir[0] = 0;
 		state->u.q1.gravitydir[1] = 0;
+	}
+	else if ((!ent->xv->gravitydir[0] && !ent->xv->gravitydir[1] && !ent->xv->gravitydir[2]))// || (ent->xv->gravitydir[2] == -1))
+	{
+		vec3_t ang;
+		if (sv.world.g.defaultgravitydir[2] == -1)
+		{
+			state->u.q1.gravitydir[0] = 0;
+			state->u.q1.gravitydir[1] = 0;
+		}
+		else
+		{
+			vectoangles(sv.world.g.defaultgravitydir, ang);
+			state->u.q1.gravitydir[0] = ((ang[0]/360) * 256) - 192;
+			state->u.q1.gravitydir[1] = (ang[1]/360) * 256;
+		}
 	}
 	else
 	{

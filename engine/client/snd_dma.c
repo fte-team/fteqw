@@ -2572,26 +2572,23 @@ void S_StopAllSounds(qboolean clear)
 
 	for (sc = sndcardinfo; sc; sc = sc->next)
 	{
-		for (i=0 ; i<sc->total_chans ; i++)
+		for (i=sc->total_chans ; i --> 0 ; )
 		{
 			if (i >= MUSIC_FIRST && i < MUSIC_FIRST+NUM_MUSICS && sc->selfpainting)
 				continue;	//don't reset music if is safe to continue playing it without stuttering
-			if (sc->channel[i].sfx)
+			s = sc->channel[i].sfx;
+			if (s)
 			{
-				s = sc->channel[i].sfx;
-				if (s->loadstate == SLS_LOADING)
-					COM_WorkerPartialSync(s, &s->loadstate, SLS_LOADING);
-//				else
+				sc->channel[i].sfx = NULL;
+				if (s->loadstate == SLS_LOADED && s->decoder.ended)
+				if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
 				{
-					sc->channel[i].sfx = NULL;
 					if (s->decoder.ended)
-					if (!S_IsPlayingSomewhere(s))	//if we aint playing it elsewhere, free it compleatly.
-					{
 						s->decoder.ended(s);
-					}
-					if (sc->ChannelUpdate)
-						sc->ChannelUpdate(sc, &sc->channel[i], true);
 				}
+
+				if (sc->ChannelUpdate)
+					sc->ChannelUpdate(sc, &sc->channel[i], true);
 			}
 		}
 

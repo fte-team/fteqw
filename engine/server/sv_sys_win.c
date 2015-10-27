@@ -37,6 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 static HANDLE hconsoleout;
+extern int				isPlugin;	//if 2, we qcdebug to external program
 
 
 qboolean	WinNT;	//if true, use utf-16 file paths. if false, hope that paths are in ascii.
@@ -1358,7 +1359,10 @@ void Sys_Init (void)
 
 	Cmd_AddCommand("hide", Sys_HideConsole);
 
-	hconsoleout = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (isPlugin)
+		hconsoleout = CreateFileA("CONOUT$",GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ,0,OPEN_EXISTING,0,0);
+	else
+		hconsoleout = GetStdHandle(STD_OUTPUT_HANDLE);
 
 //	SetConsoleCP(CP_UTF8);
 //	SetConsoleOutputCP(CP_UTF8);
@@ -1386,6 +1390,7 @@ void StartQuakeServer(void)
 {
 	quakeparms_t	parms;
 	static	char	bindir[MAX_OSPATH];
+	int c;
 
 	memset(&parms, 0, sizeof(parms));
 
@@ -1399,6 +1404,23 @@ void StartQuakeServer(void)
 	parms.basedir = "./";
 
 	TL_InitLanguages(parms.basedir);
+
+	c = COM_CheckParm("-qcdebug");
+	if (c)
+		isPlugin = 3;
+	else
+	{
+		c = COM_CheckParm("-plugin");
+		if (c)
+		{
+			if (c < com_argc && !strcmp(com_argv[c+1], "qcdebug"))
+				isPlugin = 2;
+			else
+				isPlugin = 1;
+		}
+		else
+			isPlugin = 0;
+	}
 
 	SV_Init (&parms);
 

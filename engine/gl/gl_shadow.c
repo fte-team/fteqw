@@ -2755,6 +2755,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	int		i;
 	struct shadowmesh_s *sm;
 	entity_t *ent;
+	model_t *emodel;
 
 	sm = SHM_BuildShadowMesh(dl, lvis, vvis, SMT_STENCILVOLUME);
 	if (!sm)
@@ -2804,25 +2805,37 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	{
 		ent = &cl_visedicts[i];
 
+		if (ent->rtype != RT_MODEL)
+			continue;
+
 		if (ent->flags & (RF_NOSHADOW|Q2RF_BEAM))
 			continue;
 
 		if (ent->keynum == dl->key && ent->keynum)
 			continue;
 
-		if (!ent->model)
+		emodel = ent->model;
+		if (!emodel)
 			continue;
 
 		if (cls.allow_anyparticles)	//allowed or static
 		{
-			if (ent->model->engineflags & MDLF_ENGULPHS)
+			if (emodel->engineflags & MDLF_ENGULPHS)
 			{
 				if (gl_part_flame.value)
 					continue;
 			}
 		}
 
-		switch (ent->model->type)
+		if (emodel->loadstate == MLS_NOTLOADED)
+		{
+			if (!Mod_LoadModel(emodel, MLV_WARN))
+				continue;
+		}
+		if (emodel->loadstate != MLS_LOADED)
+			continue;
+
+		switch (emodel->type)
 		{
 		case mod_alias:
 			R_DrawGAliasShadowVolume (ent, dl->origin, dl->radius);
@@ -2940,7 +2953,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 			}
 		#endif
 			//our stencil writes.
-			if (gl_config.arb_depth_clamp)
+			if (gl_config.arb_depth_clamp && gl_maxdist.value != 0)
 				qglEnable(GL_DEPTH_CLAMP_ARB);
 
 		#if 0 //def _DEBUG

@@ -200,6 +200,15 @@ typedef struct player_info_s
 
 	int prevcount;
 
+#ifdef QUAKEHUD	
+	struct wstats_s 
+	{
+		char wname[16];
+		unsigned int hit;
+		unsigned int total;
+	} weaponstats[16];
+#endif
+
 	int stats[MAX_CL_STATS];
 	float statsf[MAX_CL_STATS];
 } player_info_t;

@@ -370,6 +370,32 @@ static qintptr_t VARGS Plug_Draw_StringH(void *offset, quintptr_t mask, const qi
 	return 0;
 }
 
+static qintptr_t VARGS Plug_Draw_StringWidth(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	qintptr_t ret;
+	float h = VM_FLOAT(arg[0]);
+	unsigned int flags = VM_LONG(arg[1]);
+	char *instr = VM_POINTER(arg[2]);
+	conchar_t buffer[2048], *str, cmask = CON_WHITEMASK;
+	unsigned int parseflags = 0;
+	float px,py;
+	if (qrenderer == QR_NONE)
+		return 0;
+	if (flags & 1)
+		cmask |= CON_2NDCHARSETTEXT;
+	if (flags & 2)
+		parseflags |= PFS_FORCEUTF8;
+	str = COM_ParseFunString(CON_WHITEMASK, instr, buffer, sizeof(buffer), parseflags);
+	
+	Font_BeginScaledString(font_default, 0, 0, h, h, &px, &py);
+	px = Font_LineScaleWidth(buffer, str);
+	Font_EndString(NULL);
+	
+	//put it back in virtual space
+	VM_FLOAT(ret) = (px*(float)vid.width) / (float)vid.rotpixelwidth;
+	return ret;
+}
+
 static qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	float x, y, width, height;
@@ -791,6 +817,38 @@ static qintptr_t VARGS Plug_GetTeamInfo(void *offset, quintptr_t mask, const qin
 	return VM_LONG(count);
 }
 #endif
+#ifdef QUAKEHUD
+static qintptr_t VARGS Plug_GetWeaponStats(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int self = VM_LONG(arg[0]);
+	struct wstats_s *result = VM_POINTER(arg[1]);
+	size_t maxresults = VM_LONG(arg[2]);
+
+	int count = 0;
+	int i;
+
+	if (VM_OOB(arg[0], maxresults*sizeof(*result)))
+		return 0;
+	
+	//FIXME: we should support some way to clear this to 0 again, other than nosave.
+	Cvar_Get("wpsx", "1", CVAR_USERINFO|CVAR_NOSAVE, "Hacks because ktx sucks. Must be 1 in order to receive weapon stats information in ktx.");
+
+	if (self < 0)
+	{
+		unsigned int seat = (unsigned)(-self-1)%MAX_SPLITS;
+		self = cl.playerview[seat].playernum;
+		if (cl.playerview[seat].cam_state != CAM_FREECAM)
+			self = cl.playerview[seat].cam_spec_track;
+	}
+	if (self < 0)
+		return 0;
+
+	if (maxresults > countof(cl.players[i].weaponstats))
+		maxresults = countof(cl.players[i].weaponstats);
+	memcpy(result, cl.players[self].weaponstats, sizeof(*result) * maxresults);
+	return VM_LONG(maxresults);
+}
+#endif
 
 static qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1158,6 +1216,7 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("Draw_CharacterH",			Plug_Draw_CharacterH, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_String",				Plug_Draw_String, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_StringH",			Plug_Draw_StringH, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("Draw_StringWidth",		Plug_Draw_StringWidth, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Fill",				Plug_Draw_Fill, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Line",				Plug_Draw_Line, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("Draw_Colourp",			Plug_Draw_ColourP, PLUG_BIF_NEEDSRENDERER);
@@ -1181,6 +1240,7 @@ void Plug_Client_Init(void)
 
 #ifdef QUAKEHUD
 	Plug_RegisterBuiltin("GetTeamInfo",				Plug_GetTeamInfo, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("GetWeaponStats",			Plug_GetWeaponStats, PLUG_BIF_NEEDSRENDERER);
 #endif
 	Plug_RegisterBuiltin("GetLocationName",			Plug_GetLocationName, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);

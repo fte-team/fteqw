@@ -105,19 +105,29 @@ void INS_UpdateGrabs(int fullscreen, int activeapp);
 int QCLibEditor(pubprogfuncs_t *prinst, const char *filename, int *line, int *statement, char *error, pbool fatal);
 void QCLoadBreakpoints(const char *vmname, const char *progsname)
 {	//this asks the gui to reapply any active breakpoints and waits for them so that any spawn functions can be breakpointed properly.
-#if defined(_WIN32) && !defined(SERVERONLY) && !defined(FTE_SDL)
+#if defined(_WIN32) && !defined(FTE_SDL)
 	extern int				isPlugin;
 	if (isPlugin >= 2)
 	{
+#ifdef SERVERONLY
+		SV_GetConsoleCommands();
+#else
 		Sys_SendKeyEvents();
+#endif
 		debuggerresume = -1;
 		printf("qcreloaded \"%s\" \"%s\"\n", vmname, progsname);
 		fflush(stdout);
+#ifndef SERVERONLY
 		INS_UpdateGrabs(false, false);
+#endif
 		while(debuggerresume == -1 && !wantquit)
 		{
 			Sleep(10);
+#ifdef SERVERONLY
+			SV_GetConsoleCommands();
+#else
 			Sys_SendKeyEvents();
+#endif
 		}
 	}
 #endif
@@ -129,6 +139,8 @@ size_t debuggerwnd;
 
 qboolean QCExternalDebuggerCommand(char *text)
 {
+	if (!isPlugin)
+		return false;
 	if ((!strncmp(text, "qcstep", 6) && (text[6] == 0 || text[6] == ' ')) || (!strncmp(text, "qcresume", 8) && (text[8] == 0 || text[8] == ' ')))
 	{
 //		int l;
@@ -321,6 +333,8 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 				if (debuggerstacky)
 					PR_StackTrace(prinst, 2);
 				debuggerstacky = 0;
+				if (R2D_Flush)
+					R2D_Flush();
 				VID_SwapBuffers();
 			}
 		}
@@ -4575,14 +4589,13 @@ void QCBUILTIN PF_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	vec3_t		start;
 	trace_t		trace;
 	const float *gravitydir;
-	extern const vec3_t standardgravity;
 
 	ent = PROG_TO_WEDICT(prinst, *world->g.self);
 
 	if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
 		gravitydir = ent->xv->gravitydir;
 	else
-		gravitydir = standardgravity;
+		gravitydir = world->g.defaultgravitydir;
 
 	VectorCopy (ent->v->origin, end);
 	if (pr_droptofloorunits.value > 0)
@@ -5960,9 +5973,11 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_TRACETRIGGER"},
 	{"FTE_SOLID_LADDER"},	//Allows a simple trigger to remove effects of gravity (solid 20). obsolete. will prolly be removed at some point as it is not networked properly. Use FTE_ENT_SKIN_CONTENTS
 
+#ifdef SQL
 	// serverside SQL functions for managing an SQL database connection
 	{"FTE_SQL",							9, NULL, {"sqlconnect","sqldisconnect","sqlopenquery","sqlclosequery","sqlreadfield","sqlerror","sqlescape","sqlversion",
 												  "sqlreadfloat"}},
+#endif
 
 	//eperimental advanced strings functions.
 	//reuses the FRIK_FILE builtins (with substring extension)

@@ -370,9 +370,18 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 
 		split = *u;
 		split.msec = u->msec / 2;	//special care to avoid forgetting an msec here and there
-		CL_PredictUsercmd (pnum, entnum, from, &temp, &split);
-		split.msec = u->msec - split.msec;
-		CL_PredictUsercmd (pnum, entnum, &temp, to, &split);
+
+		if (split.msec > 500)
+		{
+			split.msec = 500;
+			CL_PredictUsercmd (pnum, entnum, from, to, &split);
+		}
+		else
+		{
+			CL_PredictUsercmd (pnum, entnum, from, &temp, &split);
+			split.msec = u->msec - split.msec;
+			CL_PredictUsercmd (pnum, entnum, &temp, to, &split);
+		}
 		return;
 	}
 	if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
@@ -972,7 +981,7 @@ void CL_PredictMovePNum (int seat)
 	if (!cl.ackedmovesequence)
 		nopred = true;
 	else if (cl.movesequence - cl.ackedmovesequence >= UPDATE_BACKUP-1)
-		return;
+		nopred = true;
 
 	//these things also force-disable prediction
 	if ((cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) ||

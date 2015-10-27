@@ -281,7 +281,10 @@ static void QDECL VFSW32_Flush(struct vfsfile_s *file)
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 	if (intfile->mmap)
 		FlushViewOfFile(intfile->mmap, intfile->length);
-	FlushFileBuffers(intfile->hand);
+
+	//we only really flush things to ensure that we don't get a stall later.
+	//in windows, FlushFileBuffers can have significant costs, so lets see if anyone complains about us not flushing.
+//	FlushFileBuffers(intfile->hand);
 }
 static qofs_t QDECL VFSW32_GetSize (struct vfsfile_s *file)
 {

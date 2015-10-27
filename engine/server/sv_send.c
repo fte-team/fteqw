@@ -932,19 +932,39 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	if (sv.mvdrecording && ((demo.recorder.fteprotocolextensions & with) == with) && !(demo.recorder.fteprotocolextensions & without))
 	{
 		sizebuf_t *msg;
-		if (!mask)
+
+		switch(to)
 		{
-			/*no distinction between reliable or not*/
-			msg = MVDWrite_Begin(dem_single, pnum, sv.multicast.cursize);
-		}
-		else
-		{
-			if (reliable)
+		//mvds have no idea where the receiver's camera will be.
+		//as such, they cannot have any support for pvs/phs
+		case MULTICAST_INIT:
+		default:
+		case MULTICAST_ALL_R:
+		case MULTICAST_PHS_R:
+		case MULTICAST_PVS_R:
+			msg = MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
+			break;
+		case MULTICAST_ALL:
+		case MULTICAST_PHS:
+		case MULTICAST_PVS:
+			msg = &demo.datagram;
+			break;
+
+		//mvds are all reliables really.
+		case MULTICAST_ONE_R:
+		case MULTICAST_ONE:
+			if (svprogfuncs)
 			{
-				msg = MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
+				edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
+				pnum = NUM_FOR_EDICT(svprogfuncs, ent) - 1;
 			}
 			else
-				msg = &demo.datagram;
+			{
+				pnum = 0;	//FIXME
+				Con_Printf("SV_MulticastProtExt: unsupported unicast\n");
+			}
+			msg = MVDWrite_Begin(dem_single, pnum, sv.multicast.cursize);
+			break;
 		}
 		SZ_Write(msg, sv.multicast.data, sv.multicast.cursize);
 	}

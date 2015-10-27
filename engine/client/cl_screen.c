@@ -1889,6 +1889,8 @@ void SCR_ImageName (char *mapname)
 
 	if (qrenderer)
 	{
+		R_LoadHiResTexture(levelshotname, NULL, IF_NOWORKER|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
+
 		if (!R_GetShaderSizes(R2D_SafeCachePic (levelshotname), NULL, NULL, true))
 		{
 			*levelshotname = '\0';

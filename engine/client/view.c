@@ -580,37 +580,68 @@ When you run over an item, the server sends this command
 */
 void V_BonusFlash_f (void)
 {
-	if (v_bonusflash.value || !Cmd_FromGamecode())
+	float frac;
+	if (!gl_cshiftenabled.ival)
+		frac = 0;
+	else if (Cmd_FromGamecode())
+		frac = v_bonusflash.value;
+	else
+		frac = 1;
+
+	{
+		//still adheres to gl_cshiftpercent even when forced.
+		float minfrac = atof(Cmd_Argv(5));
+		if (frac < minfrac)
+			frac = minfrac;
+	}
+
+	frac *= gl_cshiftpercent.value / 100.0;
+
+	if (frac)
 	{
 		if (Cmd_Argc() > 1)
 		{	//this is how I understand DP expects them.
-			cl.cshifts[CSHIFT_BONUS].destcolor[0] = atof(Cmd_Argv(1));
-			cl.cshifts[CSHIFT_BONUS].destcolor[1] = atof(Cmd_Argv(2));
-			cl.cshifts[CSHIFT_BONUS].destcolor[2] = atof(Cmd_Argv(3));
-			cl.cshifts[CSHIFT_BONUS].percent = atof(Cmd_Argv(4))*255*v_bonusflash.value;
+			cl.cshifts[CSHIFT_BONUS].destcolor[0] = atof(Cmd_Argv(1))*255;
+			cl.cshifts[CSHIFT_BONUS].destcolor[1] = atof(Cmd_Argv(2))*255;
+			cl.cshifts[CSHIFT_BONUS].destcolor[2] = atof(Cmd_Argv(3))*255;
+			cl.cshifts[CSHIFT_BONUS].percent = atof(Cmd_Argv(4))*255*frac;
 		}
 		else
 		{
 			cl.cshifts[CSHIFT_BONUS].destcolor[0] = 215;
 			cl.cshifts[CSHIFT_BONUS].destcolor[1] = 186;
 			cl.cshifts[CSHIFT_BONUS].destcolor[2] = 69;
-			cl.cshifts[CSHIFT_BONUS].percent = 50*v_bonusflash.value;
+			cl.cshifts[CSHIFT_BONUS].percent = 50*frac;
 		}
 	}
 }
 void V_DarkFlash_f (void)
 {
+	float frac;
+	if (!gl_cshiftenabled.ival)
+		frac = 0;
+	else
+		frac = 1;
+	frac *= gl_cshiftpercent.value / 100.0;
+
 	cl.cshifts[CSHIFT_BONUS].destcolor[0] = 0;
 	cl.cshifts[CSHIFT_BONUS].destcolor[1] = 0;
 	cl.cshifts[CSHIFT_BONUS].destcolor[2] = 0;
-	cl.cshifts[CSHIFT_BONUS].percent = 255;
+	cl.cshifts[CSHIFT_BONUS].percent = 255*frac;
 }
 void V_WhiteFlash_f (void)
 {
+	float frac;
+	if (!gl_cshiftenabled.ival)
+		frac = 0;
+	else
+		frac = 1;
+	frac *= gl_cshiftpercent.value / 100.0;
+
 	cl.cshifts[CSHIFT_BONUS].destcolor[0] = 255;
 	cl.cshifts[CSHIFT_BONUS].destcolor[1] = 255;
 	cl.cshifts[CSHIFT_BONUS].destcolor[2] = 255;
-	cl.cshifts[CSHIFT_BONUS].percent = 255;
+	cl.cshifts[CSHIFT_BONUS].percent = 255*frac;
 }
 
 /*
@@ -718,7 +749,7 @@ void V_CalcBlend (float *hw_blend)
 	//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
 	for (j=0 ; j<NUM_CSHIFTS ; j++)
 	{
-		if (j != CSHIFT_SERVER)
+		if (j != CSHIFT_SERVER && j != CSHIFT_BONUS)
 		{
 			if (!gl_cshiftpercent.value || !gl_cshiftenabled.ival)
 				continue;

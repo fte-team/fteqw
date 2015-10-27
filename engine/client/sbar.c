@@ -1423,8 +1423,6 @@ void Sbar_SortFrags (qboolean includespec, qboolean doteamsort)
 		{
 			fragsort[scoreboardlines] = i;
 			scoreboardlines++;
-			if (cl.players[i].spectator)
-				cl.players[i].frags = -999;
 		}
 	}
 
@@ -1443,8 +1441,8 @@ void Sbar_SortFrags (qboolean includespec, qboolean doteamsort)
 			if (!doteamsort || w1 == w2)
 #endif
 			{
-				w1 = cl.players[fragsort[i]].frags;
-				w2 = cl.players[fragsort[j]].frags;
+				w1 = cl.players[fragsort[i]].spectator==1?-999:cl.players[fragsort[i]].frags;
+				w2 = cl.players[fragsort[j]].spectator==1?-999:cl.players[fragsort[j]].frags;
 			}
 			if (w1 < w2)
 			{

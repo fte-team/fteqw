@@ -1575,9 +1575,9 @@ static void Surf_RenderDynamicLightmaps_Worker (msurface_t *fa)
 	qbyte		*base, *luxbase;
 	stmap *stainbase;
 	int			maps;
-	glRect_t    *theRect;
+	glRect_t    *lmr, *dlmr = NULL;
 	int smax, tmax;
-	lightmapinfo_t *lm, *dlm;
+	lightmapinfo_t *lm, *dlm = NULL;
 
 	//surfaces without lightmaps
 	if (fa->lightmaptexturenums[0]<0 || !lightmap)
@@ -1613,29 +1613,11 @@ dynamic:
 	smax = (fa->extents[0]>>fa->lmshift)+1;
 	tmax = (fa->extents[1]>>fa->lmshift)+1;
 
-	theRect = &lm->rectchange;
-	if (theRect->t > fa->light_t[0])
-		theRect->t = fa->light_t[0];
-	if (theRect->b < fa->light_t[0]+tmax)
-		theRect->b = fa->light_t[0]+tmax;
-	if (theRect->l > fa->light_s[0])
-		theRect->l = fa->light_s[0];
-	if (theRect->r < fa->light_s[0]+smax)
-		theRect->r = fa->light_s[0]+smax;
-
+	lmr = &lm->rectchange;
 	if (lm->hasdeluxe)
 	{
 		dlm = lightmap[fa->lightmaptexturenums[0]+1];
-		dlm->modified = true;
-		theRect = &dlm->rectchange;
-		if (theRect->t > fa->light_t[0])
-			theRect->t = fa->light_t[0];
-		if (theRect->b < fa->light_t[0]+tmax)
-			theRect->b = fa->light_t[0]+tmax;
-		if (theRect->l > fa->light_s[0])
-			theRect->l = fa->light_s[0];
-		if (theRect->r < fa->light_s[0]+smax)
-			theRect->r = fa->light_s[0]+smax;
+		dlmr = &dlm->rectchange;
 
 		luxbase = dlm->lightmaps;
 		luxbase += (fa->light_t[0] * dlm->width + fa->light_s[0]) * lightmap_bytes;
@@ -1649,6 +1631,26 @@ dynamic:
 	stainbase += (fa->light_t[0] * lm->width + fa->light_s[0]) * 3;
 	Surf_BuildLightMap_Worker (fa, base, luxbase, stainbase, lightmap_shift, r_ambient.value*255, lm->width);
 
+	if (dlm)
+	{
+		if (dlmr->t > fa->light_t[0])
+			dlmr->t = fa->light_t[0];
+		if (dlmr->b < fa->light_t[0]+tmax)
+			dlmr->b = fa->light_t[0]+tmax;
+		if (dlmr->l > fa->light_s[0])
+			dlmr->l = fa->light_s[0];
+		if (dlmr->r < fa->light_s[0]+smax)
+			dlmr->r = fa->light_s[0]+smax;
+		dlm->modified = true;
+	}
+	if (lmr->t > fa->light_t[0])
+		lmr->t = fa->light_t[0];
+	if (lmr->b < fa->light_t[0]+tmax)
+		lmr->b = fa->light_t[0]+tmax;
+	if (lmr->l > fa->light_s[0])
+		lmr->l = fa->light_s[0];
+	if (lmr->r < fa->light_s[0]+smax)
+		lmr->r = fa->light_s[0]+smax;
 	lm->modified = true;
 }
 #endif //THREADEDWORLD
@@ -3584,7 +3586,7 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 		{
 			//unfortunately, we need to know the actual size so that we can get this right. bum.
 			if (cl_static_entities[i].ent.model->loadstate == MLS_NOTLOADED)
-				Mod_LoadModel(cl_static_entities[i].ent.model, MLV_SILENT);
+				Mod_LoadModel(cl_static_entities[i].ent.model, MLV_WARNSYNC);
 			if (cl_static_entities[i].ent.model->loadstate == MLS_LOADING)
 				COM_WorkerPartialSync(cl_static_entities[i].ent.model, &cl_static_entities[i].ent.model->loadstate, MLS_LOADING);
 			VectorAdd(cl_static_entities[i].ent.origin, cl_static_entities[i].ent.model->mins, mins);

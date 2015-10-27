@@ -1065,7 +1065,7 @@ int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 		// optionally check the non-pure paths too.
 		for (search = com_searchpaths ; search ; search = search->next)
 		{
-			if ((lflags & FSLF_SECUREONLY) && !(search->flags & SPF_UNTRUSTED))
+			if ((lflags & FSLF_SECUREONLY) && (search->flags & SPF_UNTRUSTED))
 				continue;
 			depth += ((search->flags & SPF_EXPLICIT) || (lflags & FSLF_DEPTH_EXPLICIT));
 			fs_finds++;
@@ -3636,8 +3636,11 @@ static void FS_FreePaths(void)
 void FS_Shutdown(void)
 {
 	FS_FreePaths();
-	Sys_DestroyMutex(fs_thread_mutex);
-	fs_thread_mutex = NULL;
+	if (fs_thread_mutex)
+	{
+		Sys_DestroyMutex(fs_thread_mutex);
+		fs_thread_mutex = NULL;
+	}
 
 	Cvar_SetEngineDefault(&fs_gamename, NULL);
 	Cvar_SetEngineDefault(&com_protocolname, NULL);

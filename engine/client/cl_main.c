@@ -4890,7 +4890,11 @@ double Host_Frame (double time)
 			CL_ProgressDemoTime();
 		hadwork = haswork;
 	}
-	cl.stillloading = cl.sendprespawn || (cls.state < ca_active && worker_flush.ival && COM_HasWork());
+	cl.stillloading = cl.sendprespawn
+#ifdef LOADERTHREAD
+		|| (cls.state < ca_active && worker_flush.ival && COM_HasWork())
+#endif
+		;
 	COM_MainThreadWork();
 
 

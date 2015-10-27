@@ -946,17 +946,17 @@ static texid_t Font_LoadReplacementConchars(void)
 {
 	texid_t tex;
 	//q1 replacement
-	tex = R_LoadReplacementTexture("gfx/conchars.lmp", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, NULL, 0, 0, TF_INVALID);
+	tex = R_LoadReplacementTexture("gfx/conchars.lmp", NULL, IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, NULL, 0, 0, TF_INVALID);
 	TEXDOWAIT(tex);
 	if (TEXLOADED(tex))
 		return tex;
 	//q2
-	tex = R_LoadHiResTexture("pics/conchars.pcx", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("pics/conchars.pcx", NULL, IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	TEXDOWAIT(tex);
 	if (TEXLOADED(tex))
 		return tex;
 	//q3
-	tex = R_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadHiResTexture("gfx/2d/bigchars.tga", NULL, IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	TEXDOWAIT(tex);
 	if (TEXLOADED(tex))
 		return tex;
@@ -980,7 +980,7 @@ static texid_t Font_LoadQuakeConchars(void)
 			if (lump[i] == 0)
 				lump[i] = 255;	// proper transparent color
 
-		return R_LoadTexture8("charset", 128, 128, (void*)lump, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, 1);
+		return R_LoadTexture8("charset", 128, 128, (void*)lump, IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, 1);
 	}
 	return r_nulltex;
 }
@@ -1066,7 +1066,7 @@ static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 		for (i=0 ; i<128*128 ; i++)
 			if (outbuf[i] == 0)
 				outbuf[i] = 255;	// proper transparent color
-		tex = R_LoadTexture8 (iso88591?"gfx/menu/8859-1.lmp":"charset", 128, 128, outbuf, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, 1);
+		tex = R_LoadTexture8 (iso88591?"gfx/menu/8859-1.lmp":"charset", 128, 128, outbuf, IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA, 1);
 		Z_Free(outbuf);
 		return tex;
 	}
@@ -1123,7 +1123,7 @@ static texid_t Font_LoadFallbackConchars(void)
 		Font_CopyGlyph(']', 130, lump);
 		Font_CopyGlyph('o', 131, lump);
 	}
-	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	tex = R_LoadTexture32("charset", width, height, (void*)lump, IF_LOADNOW|IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	BZ_Free(lump);
 	return tex;
 }

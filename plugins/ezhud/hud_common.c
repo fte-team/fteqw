@@ -796,7 +796,6 @@ void SCR_HUD_DrawClock(hud_t *hud)
 // draw HUD notify
 //
 
-#ifdef HAXX
 static void SCR_HUD_DrawNotify(hud_t* hud)
 {
 	static cvar_t* hud_notify_rows = NULL;
@@ -817,15 +816,20 @@ static void SCR_HUD_DrawNotify(hud_t* hud)
        hud_notify_time  = HUD_FindVar(hud, "time");
 	}
 
-	height = Q_rint((con_linewidth / hud_notify_cols->ival) * hud_notify_rows->ival * 8 * hud_notify_scale->value);
+	height = hud_notify_rows->ival * 8 * hud_notify_scale->value;
 	width  = 8 * hud_notify_cols->ival * hud_notify_scale->value;
 
 	if (HUD_PrepareDraw(hud, width, height, &x, &y))
 	{
-		SCR_DrawNotify(x, y, hud_notify_scale->value, hud_notify_time->ival, hud_notify_rows->ival, hud_notify_cols->ival);
+		pCvar_SetFloat("con_notify_x",		(float)x / vid.width);
+		pCvar_SetFloat("con_notify_y",		(float)y / vid.height);
+		pCvar_SetFloat("con_notify_w",		(float)width / vid.width);
+		pCvar_SetFloat("con_numnotifylines",(int)(height/(8*hud_notify_scale->value) + 0.01));
+		pCvar_SetFloat("con_notifytime",	(float)hud_notify_time->ival);
+		pCvar_SetFloat("con_textsize",		8.0 * hud_notify_scale->value);
+//		SCR_DrawNotify(x, y, hud_notify_scale->value, hud_notify_time->ival, hud_notify_rows->ival, hud_notify_cols->ival);
 	}
 }
-#endif
 
 //---------------------
 //
@@ -2253,11 +2257,71 @@ void SCR_HUD_DrawArmor(hud_t *hud)
         scale->value, style->value, digits->value, align->string);
 }
 
-void Draw_AMFStatLoss (int stat, hud_t* hud);
-#if HAXX
+//void Draw_AMFStatLoss (int stat, hud_t* hud);
+static int vxdamagecount, vxdamagecount_time, vxdamagecount_oldhealth;
+static int vxdamagecountarmour, vxdamagecountarmour_time, vxdamagecountarmour_oldhealth;
+void Amf_Reset_DamageStats(void)
+{
+	vxdamagecount = vxdamagecount_time = vxdamagecount_oldhealth = 0;
+	vxdamagecountarmour = vxdamagecountarmour_time = vxdamagecountarmour_oldhealth = 0;
+}
+void Draw_AMFStatLoss (int stat, hud_t* hud) {
+	//fixme: should reset these on pov change
+    int * vxdmgcnt, * vxdmgcnt_t, * vxdmgcnt_o;
+	int x;
+    float alpha;
+	int elem;
+
+	if (stat == STAT_HEALTH) {
+        vxdmgcnt = &vxdamagecount;
+        vxdmgcnt_t = &vxdamagecount_time;
+        vxdmgcnt_o = &vxdamagecount_oldhealth;
+		x = 136;
+		elem = 0;
+    } else {
+        vxdmgcnt = &vxdamagecountarmour;
+        vxdmgcnt_t = &vxdamagecountarmour_time;
+        vxdmgcnt_o = &vxdamagecountarmour_oldhealth;
+		x = 24;
+		elem = 1;
+    }
+
+    //VULT STAT LOSS
+	//Pretty self explanitory, I just thought it would be a nice feature to go with my "what the hell is going on?" theme
+	//and obscure even more of the screen
+	if (cl.stats[stat] < (*vxdmgcnt_o - 1))
+    {
+      	if (*vxdmgcnt_t > cl.time) //add to damage
+        		*vxdmgcnt = *vxdmgcnt + (*vxdmgcnt_o - cl.stats[stat]);
+      	else
+        		*vxdmgcnt = *vxdmgcnt_o - cl.stats[stat];
+      	*vxdmgcnt_t = cl.time + 2 * (HUD_FindVar(hud, "duration")->value);
+    }
+    *vxdmgcnt_o = cl.stats[stat];
+
+    if (*vxdmgcnt_t > cl.time)
+      	alpha = min(1, (*vxdmgcnt_t - cl.time));
+	else
+		alpha = 0;
+
+	pDraw_Colour4f(1,1,1,alpha);
+	{
+		static cvar_t *scale[2] = {NULL}, *style[2], *digits[2], *align[2];
+		if (scale[elem] == NULL)  // first time called
+		{
+			scale[elem]  = HUD_FindVar(hud, "scale");
+			style[elem]  = HUD_FindVar(hud, "style");
+			digits[elem] = HUD_FindVar(hud, "digits");
+			align[elem]  = HUD_FindVar(hud, "align");
+		}
+		SCR_HUD_DrawNum (hud, abs(*vxdmgcnt), 1,
+            scale[elem]->value, style[elem]->value, digits[elem]->ival, align[elem]->string);
+	}
+	pDraw_Colour4f(1,1,1,1);
+}
+
 static void SCR_HUD_DrawHealthDamage(hud_t *hud)
 {
-	// TODO: This is very naughty, HUD_PrepareDraw(hud, width, height, &x, &y); MUST be called.
 	Draw_AMFStatLoss (STAT_HEALTH, hud);
 	if (HUD_Stats(STAT_HEALTH) <= 0)
 	{
@@ -2267,10 +2331,8 @@ static void SCR_HUD_DrawHealthDamage(hud_t *hud)
 
 static void SCR_HUD_DrawArmorDamage(hud_t *hud)
 {
-	// TODO: NAUGHTY!! HUD_PrepareDraw(hud, width, height, &x, &y); plz
 	Draw_AMFStatLoss (STAT_ARMOR, hud);
 }
-#endif
 
 void SCR_HUD_DrawAmmo(hud_t *hud, int num,
                       float scale, int style, int digits, char *s_align)
@@ -5760,18 +5822,18 @@ void SCR_HUD_DrawScoresTeam(hud_t *hud)
 
 void SCR_HUD_DrawScoresEnemy(hud_t *hud)
 {
-    static cvar_t *scale = NULL, *style, *digits, *align, *colorize;
+	static cvar_t *scale = NULL, *style, *digits, *align, *colorize;
 	int value = 0;
 	int i;
 
-    if (scale == NULL)  // first time called
-    {
-        scale		= HUD_FindVar(hud, "scale");
-        style		= HUD_FindVar(hud, "style");
-        digits		= HUD_FindVar(hud, "digits");
-        align		= HUD_FindVar(hud, "align");
+	if (scale == NULL)  // first time called
+	{
+		scale		= HUD_FindVar(hud, "scale");
+		style		= HUD_FindVar(hud, "style");
+		digits		= HUD_FindVar(hud, "digits");
+		align		= HUD_FindVar(hud, "align");
 		colorize	= HUD_FindVar(hud, "colorize");
-    }
+	}
 	
 	//
 	// AAS: voodoo, again
@@ -5806,23 +5868,23 @@ void SCR_HUD_DrawScoresEnemy(hud_t *hud)
 		}
 	}
 
-    SCR_HUD_DrawNum(hud, value, (colorize->ival) ? (value < 0 || colorize->ival > 1) : false, scale->value, style->value, digits->value, align->string);
+	SCR_HUD_DrawNum(hud, value, (colorize->ival) ? (value < 0 || colorize->ival > 1) : false, scale->value, style->value, digits->value, align->string);
 }
 
 void SCR_HUD_DrawScoresDifference(hud_t *hud)
 {
-    static cvar_t *scale = NULL, *style, *digits, *align, *colorize;
+	static cvar_t *scale = NULL, *style, *digits, *align, *colorize;
 	int value = 0;
 	int i;
 
-    if (scale == NULL)  // first time called
-    {
-        scale		= HUD_FindVar(hud, "scale");
-        style		= HUD_FindVar(hud, "style");
-        digits		= HUD_FindVar(hud, "digits");
-        align		= HUD_FindVar(hud, "align");
+	if (scale == NULL)  // first time called
+	{
+		scale		= HUD_FindVar(hud, "scale");
+		style		= HUD_FindVar(hud, "style");
+		digits		= HUD_FindVar(hud, "digits");
+		align		= HUD_FindVar(hud, "align");
 		colorize	= HUD_FindVar(hud, "colorize");
-    }
+	}
 
 	//
 	// AAS: more voodoo
@@ -5876,23 +5938,23 @@ void SCR_HUD_DrawScoresDifference(hud_t *hud)
 		}
 	}
 
-    SCR_HUD_DrawNum(hud, value, (colorize->ival) ? (value < 0 || colorize->ival > 1) : false, scale->value, style->value, digits->value, align->string);
+	SCR_HUD_DrawNum(hud, value, (colorize->ival) ? (value < 0 || colorize->ival > 1) : false, scale->value, style->value, digits->value, align->string);
 }
 
 void SCR_HUD_DrawScoresPosition(hud_t *hud)
 {
-    static cvar_t *scale = NULL, *style, *digits, *align, *colorize;
+	static cvar_t *scale = NULL, *style, *digits, *align, *colorize;
 	int value = 0;
 	int i;
 
-    if (scale == NULL)  // first time called
-    {
-        scale		= HUD_FindVar(hud, "scale");
-        style		= HUD_FindVar(hud, "style");
-        digits		= HUD_FindVar(hud, "digits");
-        align		= HUD_FindVar(hud, "align");
+	if (scale == NULL)  // first time called
+	{
+		scale		= HUD_FindVar(hud, "scale");
+		style		= HUD_FindVar(hud, "style");
+		digits		= HUD_FindVar(hud, "digits");
+		align		= HUD_FindVar(hud, "align");
 		colorize	= HUD_FindVar(hud, "colorize");
-    }
+	}
 
 	//
 	// AAS: someone, please stop me
@@ -5924,7 +5986,7 @@ void SCR_HUD_DrawScoresPosition(hud_t *hud)
 		}
 	}
 
-    SCR_HUD_DrawNum(hud, value, (colorize->ival) ? (value < 0 || colorize->ival > 1) : false, scale->value, style->value, digits->value, align->string);
+	SCR_HUD_DrawNum(hud, value, (colorize->ival) ? (value < 0 || colorize->ival > 1) : false, scale->value, style->value, digits->value, align->string);
 }
 
 /*
@@ -5943,13 +6005,13 @@ void SCR_HUD_DrawScoresBar(hud_t *hud)
 	char	buf[256];
 	char	c, *out, *temp,	*in;
 
-    if (scale == NULL)  // first time called
-    {
-        scale		= HUD_FindVar(hud, "scale");
-        style		= HUD_FindVar(hud, "style");
+	if (scale == NULL)  // first time called
+	{
+		scale		= HUD_FindVar(hud, "scale");
+		style		= HUD_FindVar(hud, "style");
 		format_big	= HUD_FindVar(hud, "format_big");
 		format_small= HUD_FindVar(hud, "format_small");
-    }
+	}
 
 	//
 	// AAS: nightmare comes back
@@ -6170,7 +6232,7 @@ void SCR_HUD_DrawBarArmor(hud_t *hud)
 	qbool	alive = cl.stats[STAT_HEALTH] > 0;
 	
 	if (width == NULL)  // first time called
-    {
+	{
 		width			= HUD_FindVar(hud, "width");
 		height			= HUD_FindVar(hud, "height");
 		direction		= HUD_FindVar(hud, "direction");
@@ -6190,7 +6252,7 @@ void SCR_HUD_DrawBarArmor(hud_t *hud)
 		{
 			SCR_HUD_DrawBar(direction->ival, 100, 100.0, color_unnatural->vec4, x, y, width->ival, height->ival);
 		}
-        else  if (HUD_Stats(STAT_ITEMS) & IT_ARMOR3 && alive)
+		else  if (HUD_Stats(STAT_ITEMS) & IT_ARMOR3 && alive)
 		{
 			SCR_HUD_DrawBar(direction->ival, 100, 100.0, color_noarmor->vec4, x, y, width->ival, height->ival);
 			SCR_HUD_DrawBar(direction->ival, armor, 200.0, color_ra->vec4, x, y, width->ival, height->ival);
@@ -6200,7 +6262,7 @@ void SCR_HUD_DrawBarArmor(hud_t *hud)
 			SCR_HUD_DrawBar(direction->ival, 100, 100.0, color_noarmor->vec4, x, y, width->ival, height->ival);
 			SCR_HUD_DrawBar(direction->ival, armor, 150.0, color_ya->vec4, x, y, width->ival, height->ival);
 		}
-        else if (HUD_Stats(STAT_ITEMS) & IT_ARMOR1 && alive)
+		else if (HUD_Stats(STAT_ITEMS) & IT_ARMOR1 && alive)
 		{
 			SCR_HUD_DrawBar(direction->ival, 100, 100.0, color_noarmor->vec4, x, y, width->ival, height->ival);
 			SCR_HUD_DrawBar(direction->ival, armor, 100.0, color_ga->vec4, x, y, width->ival, height->ival);
@@ -6219,7 +6281,7 @@ void SCR_HUD_DrawBarHealth(hud_t *hud)
 	int		health = cl.stats[STAT_HEALTH];
 
 	if (width == NULL)  // first time called
-    {
+	{
 		width			= HUD_FindVar(hud, "width");
 		height			= HUD_FindVar(hud, "height");
 		direction		= HUD_FindVar(hud, "direction");
@@ -6262,59 +6324,176 @@ void SCR_HUD_DrawBarHealth(hud_t *hud)
 	}
 }
 
-#ifdef WITH_PNG
-
 void SCR_HUD_DrawOwnFrags(hud_t *hud)
 {
-    // not implemented yet: scale, color
-    // fixme: add appropriate opengl functions that will add alpha, scale and color
-    int width = VX_OwnFragTextLen() * LETTERWIDTH;
-    int height = LETTERHEIGHT;
-    int x, y;
-    double alpha;
-    static cvar_t
-        *hud_ownfrags_timeout = NULL,
-        *hud_ownfrags_scale = NULL;
-//        *hud_ownfrags_color = NULL;
+	// not implemented yet: scale, color
+	// fixme: add appropriate opengl functions that will add alpha, scale and color
+	char ownfragtext[256];
+	float age;
+	int width;
+	int height = 8;
+	int x, y;
+	double alpha;
+	static cvar_t
+		*hud_ownfrags_timeout = NULL,
+		*hud_ownfrags_scale = NULL;
+//		*hud_ownfrags_color = NULL;
 	extern qbool hud_editor;
 
 	if (hud_ownfrags_timeout == NULL)    // first time
-    {
+	{
 		hud_ownfrags_scale				= HUD_FindVar(hud, "scale");
-        // hud_ownfrags_color               = HUD_FindVar(hud, "color");
-        hud_ownfrags_timeout            = HUD_FindVar(hud, "timeout");
-    }
+		// hud_ownfrags_color			= HUD_FindVar(hud, "color");
+		hud_ownfrags_timeout			= HUD_FindVar(hud, "timeout");
+	}
 
 	if (hud_editor)
-			HUD_PrepareDraw(hud, 10 * LETTERWIDTH , height * hud_ownfrags_scale->value, &x, &y);
+	{
+		strcpy(ownfragtext, "Own Frags");
+		age = 0;
+	}
+	else if (BUILTINISVALID(GetTrackerOwnFrags))
+		age = pGetTrackerOwnFrags(0, ownfragtext, sizeof(ownfragtext));
+	else
+	{
+		strcpy(ownfragtext, "Engine does not support OwnFrags");
+		age = 0;
+	}
+	width = strlen(ownfragtext);
+
+	width *= hud_ownfrags_scale->value;
+	height *= hud_ownfrags_scale->value;
+
+	alpha = 2 - hud_ownfrags_timeout->value / age * 2;
+	alpha = bound(0, alpha, 1);
+
+	if (!HUD_PrepareDraw(hud, width , height, &x, &y))
+		return;
 
 	if (!width)
 		return;
 
-    if (VX_OwnFragTime() > hud_ownfrags_timeout->value)
+	if (age > hud_ownfrags_timeout->value)
 		return;
 
-    width *= hud_ownfrags_scale->value;
-    height *= hud_ownfrags_scale->value;
+	if (age < hud_ownfrags_timeout->value)
+		Draw_SString(x, y, ownfragtext, hud_ownfrags_scale->value);
+}
 
-    alpha = 2 - hud_ownfrags_timeout->value / VX_OwnFragTime() * 2;
-    alpha = bound(0, alpha, 1);
+static struct wstats_s *findweapon(struct wstats_s *w, size_t wc, char *wn)
+{
+	for (; wc>0; wc--, w++)
+	{
+		if (!strcmp(wn, w->wname))
+			return w;
+	}
+	return NULL;
+}
+static void SCR_HUD_DrawWeaponStats(hud_t *hud)
+{
+	char line[1024], *o, *i;
+	int width;
+	int height = 8;
+	int x, y;
+	static cvar_t *hud_weaponstats_scale = NULL;
+	static cvar_t *hud_weaponstats_fmt = NULL;
+	extern qbool hud_editor;
 
-    if (!HUD_PrepareDraw(hud, width , height, &x, &y))
-        return;
+	int ws;
+	struct wstats_s wstats[16];
+	if (BUILTINISVALID(GetWeaponStats))
+		ws = pGetWeaponStats(-1, wstats, countof(wstats));
+	else
+		ws = 0;
 
-    if (VX_OwnFragTime() < hud_ownfrags_timeout->value)
-        Draw_SString(x, y, VX_OwnFragText(), hud_ownfrags_scale->value);
+	if (hud_editor)
+	{
+		ws = 0;
+		strcpy(wstats[ws].wname, "axe");
+		wstats[ws].hit = 20;
+		wstats[ws].total = 100;
+		ws++;
+		strcpy(wstats[ws].wname, "rl");
+		wstats[ws].hit = 60;
+		wstats[ws].total = 120;
+		ws++;
+		strcpy(wstats[ws].wname, "lg");
+		wstats[ws].hit = 20;
+		wstats[ws].total = 100;
+		ws++;
+	}
+
+	if (hud_weaponstats_scale == NULL)    // first time
+	{
+		hud_weaponstats_scale				= HUD_FindVar(hud, "scale");
+		hud_weaponstats_fmt					= HUD_FindVar(hud, "fmt");
+//		"&c990sg&r:[%sg] &c099ssg&r:[%ssg] &c900rl&r:[#rl] &c009lg&r:[%lg]"
+	}
+
+	height = 8;
+	for (o = line, i = hud_weaponstats_fmt->string; ws && *i && o < line+countof(line)-1; )
+	{
+		if (i[0] == '[' && (i[1] == '%' || i[1] == '#'))
+		{
+			struct wstats_s *w;
+			char wname[16];
+			int pct = i[1]=='%', j;
+			i+=2;
+			for (j = 0; *i && j < countof(wname)-1; j++)
+			{
+				if (*i == ']')
+				{
+					i++;
+					break;
+				}
+				wname[j] = *i++;
+			}
+			wname[j] = 0;
+			w = findweapon(wstats, ws, wname);
+			if (pct && w && w->total)
+				snprintf(wname, sizeof(wname), "%.1f", (100.0 * w->hit) / w->total);
+			else if (pct)
+				snprintf(wname, sizeof(wname), "%.1f", 0.0);
+			else if (w)
+				snprintf(wname, sizeof(wname), "%u", w->hit);
+			else
+				snprintf(wname, sizeof(wname), "%u", 0);
+
+			for (j = 0; wname[j] && o < line+countof(line)-1; j++)
+				*o++ = wname[j];
+		}
+		else if (*i == '\n')
+		{
+			height += 8;
+			*o++ = *i++;
+		}
+		else
+			*o++ = *i++;
+	}
+	*o++ = 0;
+
+	width = 8*strlen_color(line);
+
+	width *= hud_weaponstats_scale->value;
+	height *= hud_weaponstats_scale->value;
+
+	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
+		return;
+
+	Draw_SString(x, y, line, hud_weaponstats_scale->value);
 }
 
 void SCR_HUD_DrawKeys(hud_t *hud)
 {
-	char line1[4], line2[4];
+	char line1[32], line2[32];
 	int width, height, x, y;
-	usermainbuttons_t b = CL_GetLastCmd();
-	int i;
+	usercmd_t b;
 	static cvar_t* vscale = NULL;
 	float scale;
+
+	memset(&b, 0, sizeof(b));
+	if (BUILTINISVALID(GetLastInputFrame))
+		pGetLastInputFrame(0, &b);
 
 	if (!vscale) {
 		vscale = HUD_FindVar(hud, "scale");
@@ -6323,27 +6502,26 @@ void SCR_HUD_DrawKeys(hud_t *hud)
 	scale = vscale->value;
 	scale = max(0, scale);
 
-	i = 0;
-	line1[i++] = b.attack  ? 'x' + 128 : 'x';
-	line1[i++] = b.forward ? '^' + 128 : '^';
-	line1[i++] = b.jump    ? 'J' + 128 : 'J';
-	line1[i++] = '\0';
-	i = 0;
-	line2[i++] = b.left    ? '<' + 128 : '<';
-	line2[i++] = b.back    ? '_' + 128 : '_';
-	line2[i++] = b.right   ? '>' + 128 : '>';
-	line2[i++] = '\0';
+	snprintf(line1, sizeof(line1), "^{%x}^{%x}^{%x}", 
+		0xe000 + 'x' + ((b.buttons & 1)?0x80:0),
+		0xe000 + '^' + ((b.forwardmove > 0)?0x80:0),
+		0xe000 + 'J' + ((b.buttons & 2)?0x80:0));
+	snprintf(line2, sizeof(line2), "^{%x}^{%x}^{%x}", 
+		0xe000 + '<' + ((b.sidemove < 0)?0x80:0),
+		0xe000 + '_' + ((b.forwardmove < 0)?0x80:0),
+		0xe000 + '>' + ((b.sidemove > 0)?0x80:0));
 
-	width = LETTERWIDTH * strlen(line1) * scale;
-	height = LETTERHEIGHT * 2 * scale;
+	width = 8 * 3 * scale;
+	height = 8 * 2 * scale;
 
-    if (!HUD_PrepareDraw(hud, width ,height, &x, &y))
-        return;
+	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
+		return;
 
 	Draw_SString(x, y, line1, scale);
-	Draw_SString(x, y + LETTERHEIGHT*scale, line2, scale);
+	Draw_SString(x, y + 8*scale, line2, scale);
 }
 
+#ifdef WITH_PNG
 // What stats to draw.
 #define HUD_RADAR_STATS_NONE				0
 #define HUD_RADAR_STATS_BOTH_TEAMS_HOLD		1
@@ -7485,6 +7663,30 @@ void HUD_AfterDraw()
 {
 }
 
+
+#ifndef HAXX
+static void SCR_HUD_DrawNotImplemented(hud_t *hud)
+{
+	char line1[64];
+	int width, height, x, y;
+
+	snprintf(line1, sizeof(line1), "%s not implemented", hud->name);
+
+	width = 8 * strlen(line1);
+	height = 8;
+
+    if (!HUD_PrepareDraw(hud, width, height, &x, &y))
+        return;
+
+	Draw_SString(x, y, line1, 1);
+}
+#define SCR_HUD_DrawSpeed SCR_HUD_DrawNotImplemented
+#define SCR_HUD_DrawTeamHoldBar SCR_HUD_DrawNotImplemented
+#define SCR_HUD_DrawTeamHoldInfo SCR_HUD_DrawNotImplemented
+#define SCR_HUD_DrawItemsClock SCR_HUD_DrawNotImplemented
+#endif
+
+
 // ----------------
 // Init
 // and add some common elements to hud (clock etc)
@@ -7543,7 +7745,6 @@ void CommonDraw_Init(void)
 		"offset","0",
         NULL);
 
-#ifdef HAXX
 	HUD_Register("notify", NULL, "Shows last console lines",
 		HUD_PLUSMINUS, ca_disconnected, 8, SCR_HUD_DrawNotify,
 		"0", "top", "left", "top", "0", "0", "0", "0 0 0", NULL,
@@ -7552,7 +7753,6 @@ void CommonDraw_Init(void)
 		"scale", "1",
 		"time", "4",
 		NULL);
-#endif
 
 	// fps
 	HUD_Register("fps", NULL,
@@ -7622,7 +7822,6 @@ void CommonDraw_Init(void)
         "period",  "1",
         NULL);
 
-#ifdef HAXX
     // init speed
     HUD_Register("speed", NULL, "Shows your current running speed. It is measured over XY or XYZ axis depending on \'xyz\' property.",
         HUD_PLUSMINUS, ca_active, 7, SCR_HUD_DrawSpeed,
@@ -7642,7 +7841,6 @@ void CommonDraw_Init(void)
 		"text_align", "1",
 		"style", "0",
 		NULL);
-#endif
 
     // Init speed2 (half circle thingie).
     HUD_Register("speed2", NULL, "Shows your current running speed. It is measured over XY or XYZ axis depending on \'xyz\' property.",
@@ -7993,7 +8191,6 @@ void CommonDraw_Init(void)
         "pic_scalemode", "0",
         NULL);
 
-#ifdef HAXX
     // healthdamage
     HUD_Register("healthdamage", NULL, "Shows amount of damage done to your health.",
         HUD_INVENTORY, ca_active, 0, SCR_HUD_DrawHealthDamage,
@@ -8015,7 +8212,6 @@ void CommonDraw_Init(void)
         "digits", "3",
 		"duration", "0.8",
         NULL);
-#endif
 
     HUD_Register("frags", NULL, "Show list of player frags in short form.",
         0, ca_active, 0, SCR_HUD_DrawFrags,
@@ -8123,7 +8319,6 @@ void CommonDraw_Init(void)
         NULL);
 #endif // WITH_PNG
 
-#ifdef HAXX
 	HUD_Register("teamholdbar", NULL, "Shows how much of the level (in percent) that is currently being held by either team.",
         HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawTeamHoldBar,
         "0", "top", "left", "bottom", "0", "0", "0", "0 0 0", NULL,
@@ -8135,9 +8330,7 @@ void CommonDraw_Init(void)
 		"show_text", "1",
 		"onlytp", "0",
         NULL);
-#endif
 
-#ifdef HAXX
 	HUD_Register("teamholdinfo", NULL, "Shows which important items in the level that are being held by the teams.",
         HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawTeamHoldInfo,
         "0", "top", "left", "bottom", "0", "0", "0", "0 0 0", NULL,
@@ -8148,9 +8341,7 @@ void CommonDraw_Init(void)
 		"style", "1",
 		"itemfilter", "quad ra ya ga mega pent rl quad",
         NULL);
-#endif
 
-#ifdef WITH_PNG
     HUD_Register("ownfrags" /* jeez someone give me a better name please */, NULL, "Highlights your own frags",
         0, ca_active, 1, SCR_HUD_DrawOwnFrags,
         "1", "screen", "center", "top", "0", "50", "0.2", "0 0 100", NULL,
@@ -8168,9 +8359,7 @@ void CommonDraw_Init(void)
 		"scale", "2",
 		NULL
 		);
-#endif
 
-#ifdef HAXX
 	HUD_Register("itemsclock", NULL, "Displays upcoming item respawns",
 		0, ca_active, 1, SCR_HUD_DrawItemsClock,
 		"0", "screen", "right", "center", "0", "0", "0", "0 0 0", NULL,
@@ -8178,7 +8367,6 @@ void CommonDraw_Init(void)
 		"style", "0",
 		NULL
 		);
-#endif
 
     HUD_Register("score_team", NULL, "Own scores or team scores.",
         0, ca_active, 0, SCR_HUD_DrawScoresTeam,
@@ -8260,6 +8448,14 @@ void CommonDraw_Init(void)
 		"color_mega", "64 96 128 128",
 		"color_twomega", "128 128 255 128",
 		"color_unnatural", "255 255 255 128",
+        NULL
+		);
+
+	HUD_Register("weaponstats", NULL, "Weapon Stats",
+        HUD_PLUSMINUS, ca_active, 0, SCR_HUD_DrawWeaponStats,
+        "0", "screen", "right", "center", "0", "0", "0", "0 0 0", NULL,
+		"scale", "1",
+		"fmt", "&c990sg&r:[%sg] &c099ssg&r:[%ssg] &c900rl&r:[#rl] &c009lg&r:[%lg]",
         NULL
 		);
 

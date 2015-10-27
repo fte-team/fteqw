@@ -481,7 +481,11 @@ void Mod_Purge(enum mod_purge_e ptype)
 		if (unused || ptype != MP_MAPCHANGED)
 		{
 			if (mod->loadstate == MLS_LOADING)
+			{
+				if (ptype == MP_MAPCHANGED && !mod->submodelof)
+					continue;	//don't bother waiting for it on map changes.
 				COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+			}
 
 			if (unused)
 				Con_DPrintf("model \"%s\" no longer needed\n", mod->name);
@@ -944,6 +948,7 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 	case MLV_ERROR:
 		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 		break;
+	case MLV_WARNSYNC:
 	case MLV_WARN:
 		if (*mod->name != '*' && strcmp(mod->name, "null") && mod_warnmodels.ival && !previouslyfailed)
 			Con_Printf(CON_ERROR "Unable to load %s\n", mod->name);
@@ -1168,6 +1173,9 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 //		if (verbose == MLV_ERROR)	//if its fatal on failure (ie: world), do it on the main thread and block to wait for it.
 //			Mod_LoadModelWorker(mod, MLV_WARN, 0);
 //		else
+		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
+			COM_AddWork(0, Mod_LoadModelWorker, mod, NULL, verbose, 0);
+		else
 			COM_AddWork(1, Mod_LoadModelWorker, mod, NULL, verbose, 0);
 	}
 
@@ -1689,6 +1697,8 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		COM_FileBase(loadmodel->name, litbase, sizeof(litbase));
 		for (i = 0; i < sizeof(litnames)/sizeof(litnames[0]); i++)
 		{
+			if (temp_lit2support.ival && !(i & 1))
+				continue;
 			if (strchr(litnames[i], '/'))
 				Q_snprintfz(litname, sizeof(litname), litnames[i], litbase);
 			else

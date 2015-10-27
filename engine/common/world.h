@@ -213,6 +213,7 @@ struct world_s
 		float	*v_forward;
 		float	*v_right;
 		float	*v_up;
+		float	*defaultgravitydir;
 
 		//used by menu+csqc.
 		float *drawfont;

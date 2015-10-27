@@ -790,7 +790,7 @@ void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player)
 		msg = MVDWrite_Begin (dem_all, 0, 4);
 	MSG_WriteByte (msg, svc_updateping);
 	MSG_WriteByte (msg, player - svs.clients);
-	MSG_WriteShort (msg, SV_CalcPing(player, false));
+	MSG_WriteShort (msg, SV_CalcPing(player, false)&0xffff);
 
 	if (dosizes)
 		msg = MVDWrite_Begin (dem_all, 0, 3);
@@ -1191,7 +1191,7 @@ qboolean SV_MVDWritePackets (int num)
 				MSG_WriteByte (&msg, cl->info.skinnum);
 
 			if (flags & DF_EFFECTS)
-				MSG_WriteByte (&msg, cl->info.effects);
+				MSG_WriteByte (&msg, cl->info.effects & 0xff);
 
 			if (flags & DF_WEAPONFRAME)
 				MSG_WriteByte (&msg, cl->info.weaponframe);

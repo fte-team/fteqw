@@ -1757,10 +1757,12 @@ void QDECL Q1QVMPF_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed,
 
 qboolean PR_LoadQ1QVM(void)
 {
+	static int writable_int;
 	static float writable;
 	static float dimensionsend = 255;
 	static float dimensiondefault = 255;
 	static float physics_mode = 2;
+	static vec3_t defaultgravity = {0,0,-1};
 	int i;
 	gameDataN_t *gd, gdm;
 	gameData32_t *gd32;
@@ -1923,6 +1925,15 @@ qboolean PR_LoadQ1QVM(void)
 	pr_global_ptrs->dimension_default = &dimensiondefault;
 	pr_global_ptrs->dimension_send = &dimensionsend;
 	pr_global_ptrs->physics_mode = &physics_mode;
+	pr_global_ptrs->trace_brush_id = &writable_int;
+	pr_global_ptrs->trace_brush_faceid = &writable_int;
+	pr_global_ptrs->global_gravitydir = &defaultgravity;
+
+//	ensureglobal(input_timelength, input_timelength_default);
+//	ensureglobal(input_impulse, input_impulse_default);
+//	ensureglobal(input_angles, input_angles_default);
+//	ensureglobal(input_movevalues, input_movevalues_default);
+//	ensureglobal(input_buttons, input_buttons_default);
 
 	dimensionsend = dimensiondefault = 255;
 	for (i = 0; i < 16; i++)

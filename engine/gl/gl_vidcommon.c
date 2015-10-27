@@ -1879,12 +1879,14 @@ static GLhandleARB GLSlang_CreateShader (const char *name, int ver, const char *
 		prstrings[strings] = "#define VERTEX_SHADER\n";
 		length[strings] = strlen(prstrings[strings]);
 		strings++;
+#ifdef RTLIGHTS
 		if (!r_shadow_shadowmapping.ival && ver >= 120)
 		{
 			prstrings[strings] = "invariant gl_Position;\n";
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
 		}
+#endif
 		if (gl_config.gles)
 		{
 			prstrings[strings] =

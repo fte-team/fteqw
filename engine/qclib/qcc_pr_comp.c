@@ -680,8 +680,14 @@ pbool OpAssignsToC(unsigned int op)
 	  return false; <- add STOREP_*?*/
 	if(op == OP_STOREP_C || op == OP_LOADP_C)
 		return false;
+	if (op >= OP_STORE_F && op <= OP_STOREP_FNC)
+		return false;	//actually they do.
 	if(op >= OP_MULSTORE_F && op <= OP_SUBSTOREP_V)
 		return false;	//actually they do.
+	if (op >= OP_STORE_I && op <= OP_STORE_FI)
+		return false;
+	if (op == OP_BOUNDCHECK || op == OP_UNUSED || op == OP_POP)
+		return false;
 	return true;
 }
 pbool OpAssignsToB(unsigned int op)
@@ -698,6 +704,83 @@ pbool OpAssignsToB(unsigned int op)
 		return true;
 	return false;
 }
+#define OpAssignsToA(op) false
+int OpAssignsCount(unsigned int op)
+{
+	switch(op)
+	{
+	case OP_DONE:
+	case OP_RETURN:
+		return 0;	//eep
+	case OP_CALL0:
+	case OP_CALL1:
+	case OP_CALL2:
+	case OP_CALL3:
+	case OP_CALL4:
+	case OP_CALL5:
+	case OP_CALL6:
+	case OP_CALL7:
+	case OP_CALL8:
+	case OP_CALL1H:
+	case OP_CALL2H:
+	case OP_CALL3H:
+	case OP_CALL4H:
+	case OP_CALL5H:
+	case OP_CALL6H:
+	case OP_CALL7H:
+	case OP_CALL8H:
+		return 0;	//also, eep.
+	case OP_STATE:
+	case OP_CSTATE:
+	case OP_CWSTATE:
+	case OP_THINKTIME:
+		return 0;	//egads
+	case OP_RAND0:
+	case OP_RAND1:
+	case OP_RAND2:
+	case OP_RANDV0:
+	case OP_RANDV1:
+	case OP_RANDV2:
+	case OP_UNUSED:
+	case OP_POP:
+		return 0;	//FIXME
+	//branches have no side effects, other than the next instruction (or runaway loop)
+	case OP_SWITCH_F:
+	case OP_SWITCH_V:
+	case OP_SWITCH_S:
+	case OP_SWITCH_E:
+	case OP_SWITCH_FNC:
+	case OP_SWITCH_I:
+	case OP_GOTO:
+	case OP_IF_I:
+	case OP_IFNOT_I:
+	case OP_IF_S:
+	case OP_IFNOT_S:
+	case OP_IF_F:
+	case OP_IFNOT_F:
+	case OP_CASE:
+	case OP_CASERANGE:
+		return 0;
+	case OP_BOUNDCHECK:
+		return 0;
+	default:	//the majority will write c
+		return 1;
+	}
+}
+#ifdef _DEBUG
+static void OpAssignsTo_Debug(void)
+{
+	int i;
+	for (i = 0; i < OP_NUMREALOPS; i++)
+	{
+		if (OpAssignsToA(i) + OpAssignsToB(i) + OpAssignsToC(i) != OpAssignsCount(i))
+		{
+			//we don't know what it assigns to. bug.
+			QCC_PR_ParseError(0, "opcode %s metadata is bugged", pr_opcodes[i].opname);
+		}
+	}
+}
+#endif
 /*pbool OpAssignedTo(QCC_def_t *v, unsigned int op)
 {
 	if(OpAssignsToC(op))
@@ -10394,8 +10477,6 @@ void QCC_CommonSubExpressionRemoval(int first, int last)
 }
 */
 
-#define OpAssignsToA(op) false
-
 //follow branches (by recursing).
 //stop on first read(error, return statement) or write(no error, return -1)
 //end-of-block returns 0, done/return/goto returns -2
@@ -13345,5 +13426,9 @@ void QCC_Cleanup(void)
 	pr_cases = NULL;
 	pr_casesdef = NULL;
 	pr_casesdef2 = NULL;
+
+#ifdef _DEBUG
+	OpAssignsTo_Debug();
+#endif
 }
 #endif

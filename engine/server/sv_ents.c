@@ -1328,7 +1328,37 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		if (msg->cursize + 50 > msg->maxsize)
 			break; /*give up if it gets full*/
 		if (outno >= outmax)
+		{	//expand the frames. may need some copying...
+			client_frame_t *newframes;
+			char *ptr;
+			int maxents = outmax * 2;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+			if (maxents > client->max_net_ents)
+				maxents = client->max_net_ents;
+			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
+							sizeof(*client->pendingentbits)*client->max_net_ents+
+							sizeof(unsigned int)*maxents*UPDATE_BACKUP+
+							sizeof(unsigned int)*maxents*UPDATE_BACKUP);
+			newframes = (void*)ptr;
+			memcpy(newframes, client->frameunion.frames, sizeof(client_frame_t)*UPDATE_BACKUP);
+			ptr += sizeof(client_frame_t)*UPDATE_BACKUP;
+			memcpy(ptr, client->pendingentbits, sizeof(*client->pendingentbits)*client->max_net_ents);
+			client->pendingentbits = (void*)ptr;
+			ptr += sizeof(*client->pendingentbits)*client->max_net_ents;
+			for (i = 0; i < UPDATE_BACKUP; i++)
+			{
+				newframes[i].entities.max_entities = maxents;
+				newframes[i].resendentnum = (void*)ptr;
+				memcpy(newframes[i].resendentnum, client->frameunion.frames[i].resendentnum, sizeof(unsigned int)*client->frameunion.frames[i].entities.num_entities);
+				ptr += sizeof(*newframes[i].resendentnum)*maxents;
+				newframes[i].resendentbits = (void*)ptr;
+				memcpy(newframes[i].resendentbits, client->frameunion.frames[i].resendentbits, sizeof(unsigned int)*client->frameunion.frames[i].entities.num_entities);
+				ptr += sizeof(*newframes[i].resendentbits)*maxents;
+				newframes[i].senttime = realtime;
+			}
+			Z_Free(client->frameunion.frames);
+			client->frameunion.frames = newframes;
 			break;
+		}
 		client->pendingentbits[j] = 0;
 
 		if (bits & UF_REMOVE)

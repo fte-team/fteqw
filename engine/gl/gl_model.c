@@ -1245,6 +1245,8 @@ static const struct
 static const char *Mod_RemapBuggyTexture(const char *name, const qbyte *data, unsigned int datalen)
 {
 	unsigned int i;
+	if (!data)
+		return NULL;
 	for (i = 0; i < sizeof(buggytextures)/sizeof(buggytextures[0]); i++)
 	{
 		if (!strcmp(name, buggytextures[i].oldname))
@@ -1938,6 +1940,30 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 		}
 	}
 #endif
+
+	if (!overrides->shifts)
+	{
+		int size;
+		overrides->shifts = Q1BSPX_FindLump("LMSHIFT", &size);
+		if (size != loadmodel->numsurfaces)
+			overrides->shifts = NULL;
+
+		//if we have shifts, then we probably also have legacy data in the surfaces that we want to override
+		if (!overrides->offsets)
+		{
+			int size;
+			overrides->offsets = Q1BSPX_FindLump("LMOFFSET", &size);
+			if (size != loadmodel->numsurfaces * sizeof(int))
+				overrides->offsets = NULL;
+		}
+		if (!overrides->styles)
+		{
+			int size;
+			overrides->styles = Q1BSPX_FindLump("LMSTYLE", &size);
+			if (size != loadmodel->numsurfaces * sizeof(qbyte)*MAXQ1LIGHTMAPS)
+				overrides->styles = NULL;
+		}
+	}
 	
 	if (luxdata && luxtmp)
 	{

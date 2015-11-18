@@ -5870,7 +5870,7 @@ void Shader_DoReload(void)
 		Con_DPrintf("Reloading shaders\n");
 	}
 	shader_reload_needed = false;
-	Font_InvalidateColour();
+	R2D_ImageColours(1,1,1,1);
 	Shader_ReloadGenerics();
 
 	for (i = 0; i < r_numshaders; i++)

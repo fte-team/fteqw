@@ -1648,7 +1648,7 @@ typedef struct {
 	} eval;
 	int statnum;
 } qcstat_t;
-qcstat_t qcstats[MAX_CL_STATS-32];
+qcstat_t qcstats[MAX_CL_STATS];
 int numqcstats;
 void SV_QCStatEval(int type, char *name, evalc_t *field, eval_t *global, int statnum)
 {
@@ -2205,11 +2205,10 @@ qboolean SV_SendClientDatagram (client_t *client)
 	qbyte		buf[MAX_OVERALLMSGLEN];
 	sizebuf_t	msg;
 	unsigned int sentbytes;
-	client_frame_t *frame = NULL;
 
 	if (ISQWCLIENT(client) || ISNQCLIENT(client))
 	{
-		frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
+		client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
 		frame->numresendstats = 0;
 	}
 
@@ -2248,6 +2247,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 			{
 				int pnum=1;
 				client_t *c;
+				client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
 				SV_UpdateClientStats (client, 0, &msg, frame);
 
 				for (c = client->controlled; c; c = c->controlled,pnum++)
@@ -2286,8 +2286,11 @@ qboolean SV_SendClientDatagram (client_t *client)
 	// send the datagram
 	sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
 
-	if (frame)
+	if (ISQWCLIENT(client) || ISNQCLIENT(client))
+	{
+		client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
 		frame->packetsizeout += sentbytes;
+	}
 	return true;
 }
 

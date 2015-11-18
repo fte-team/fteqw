@@ -78,6 +78,7 @@ void Mod_FlushSkin(skinid_t id)
 }
 void Mod_WipeSkin(skinid_t id)
 {
+	//FIXME: skin objects should persist for a frame.
 	skinfile_t *sk;
 	int i;
 	id--;
@@ -584,7 +585,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			if (sk->q1lower != Q1UNSPECIFIED)
 				bc = e->bottomcolour = sk->q1lower;
 			if (sk->q1upper != Q1UNSPECIFIED)
-				bc = e->topcolour = sk->q1upper;
+				tc = e->topcolour = sk->q1upper;
 			plskin = sk->qwskin;
 		}
 	}

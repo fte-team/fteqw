@@ -228,11 +228,19 @@ typedef enum
 
 typedef struct
 {
-	string_t	name;
+	quintptr_t	name;
 	int			ofs;
 	fieldtype_t	type;
 //	int			flags;
-} field_t;
+} fieldN_t;
+
+typedef struct
+{
+	unsigned int		name;
+	int					ofs;
+	fieldtype_t			type;
+//	int					flags;
+} field32_t;
 
 
 
@@ -296,21 +304,32 @@ typedef struct {
 //this is not directly usable in 64bit to refer to a 32bit qvm (hence why we have two versions).
 typedef struct
 {
-	struct vmedict_s		*ents;
-	int		sizeofent;
-	q1qvmglobalvars_t	*global;
-	field_t		*fields;
-	int 		APIversion;
-} gameDataN_t;
+	unsigned int		APIversion;
+	unsigned int		sizeofent;
+	unsigned int		maxedicts;
+
+	quintptr_t			global;
+	quintptr_t			fields;
+	quintptr_t			ents;
+} gameDataPrivate_t;
 
 typedef struct
 {
 	unsigned int	ents;
-	int		sizeofent;
+	int				sizeofent;
 	unsigned int	global;
 	unsigned int	fields;
-	int		APIversion;
+	int				APIversion;
 } gameData32_t;
+
+typedef struct
+{
+	quintptr_t		ents;
+	int				sizeofent;
+	quintptr_t		global;
+	quintptr_t		fields;
+	int				APIversion;
+} gameDataN_t;
 
 typedef enum {
 	FS_READ_BIN,
@@ -354,7 +373,7 @@ static pubprogfuncs_t q1qvmprogfuncs;
 
 
 static void *evars;	//pointer to the gamecodes idea of an edict_t
-static qintptr_t vevars;	//offset into the vm base of evars
+static quintptr_t vevars;	//offset into the vm base of evars
 
 /*
 static char *Q1QVMPF_AddString(pubprogfuncs_t *pf, char *base, int minlength)
@@ -485,8 +504,22 @@ static int QDECL Q1QVMPF_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, flo
 	return sv.world.edict_size;
 }
 
+static int QDECL Q1QVMPF_QueryField(pubprogfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache)
+{
+	*type = ev_void;
+	*name = "?";
+
+	fieldcache->varname = NULL;
+	fieldcache->spare[0] = fieldoffset;
+	return true;
+}
+
 static eval_t *QDECL Q1QVMPF_GetEdictFieldValue(pubprogfuncs_t *pf, edict_t *e, char *fieldname, evalc_t *cache)
 {
+	if (cache && !cache->varname)
+	{
+		return (eval_t*)((char*)e->v + cache->spare[0]-WASTED_EDICT_T_SIZE);
+	}
 	if (!strcmp(fieldname, "message"))
 	{
 		return (eval_t*)&e->v->message;
@@ -506,17 +539,31 @@ static globalvars_t *QDECL Q1QVMPF_Globals(pubprogfuncs_t *prinst, int prnum)
 
 static string_t QDECL Q1QVMPF_StringToProgs(pubprogfuncs_t *prinst, const char *str)
 {
-	string_t ret = (string_t)(str - (char*)VM_MemoryBase(q1qvm));
+	quintptr_t ret = (str - (char*)VM_MemoryBase(q1qvm));
 	if (ret >= VM_MemoryMask(q1qvm))
 		return 0;
+	if (ret >= 0xffffffff)
+		return 0;	//invalid string! blame 64bit.
+	return ret;
+}
+
+static void *ASMCALL QDECL Q1QVMPF_PointerToNative(pubprogfuncs_t *prinst, quintptr_t str)
+{
+	void *ret;
+	if (!str || (quintptr_t)str >= VM_MemoryMask(q1qvm))
+		return NULL;	//null or invalid pointers.
+	ret = (char*)VM_MemoryBase(q1qvm) + str;
 	return ret;
 }
 
 static const char *ASMCALL QDECL Q1QVMPF_StringToNative(pubprogfuncs_t *prinst, string_t str)
 {
-	char *ret = (char*)VM_MemoryBase(q1qvm) + str;
-	if (!ret)	//qvms can never return a null. make sure native code can't crash things either.
-		return "";
+	char *ret;
+	if (str == ~0)
+		return " ";	//models are weird. yes, this is a hack.
+	if (!str || (quintptr_t)str >= VM_MemoryMask(q1qvm))
+		return "";	//null or invalid pointers.
+	ret = (char*)VM_MemoryBase(q1qvm) + str;
 	return ret;
 }
 
@@ -851,13 +898,25 @@ static qintptr_t QVM_SetSpawnParams (void *offset, quintptr_t mask, const qintpt
 }
 static qintptr_t QVM_ChangeLevel (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	WrapQCBuiltin(PF_changelevel, offset, mask, arg, "s");
-	return 0;
+	char newmap[MAX_QPATH];
+	if (sv.mapchangelocked)
+		return 0;
+	sv.mapchangelocked = true;
+	COM_QuotedString(VM_POINTER(arg[0]), newmap, sizeof(newmap), false);
+	Cbuf_AddText (va("\nchangelevel %s\n", newmap), RESTRICT_LOCAL);
+	return 1;
 }
 static qintptr_t QVM_ChangeLevel2 (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	WrapQCBuiltin(PF_changelevel, offset, mask, arg, "ss");
-	return 0;
+	char newmap[MAX_QPATH];
+	char startspot[MAX_QPATH];
+	if (sv.mapchangelocked)
+		return 0;
+	sv.mapchangelocked = true;
+	COM_QuotedString(VM_POINTER(arg[0]), newmap, sizeof(newmap), false);
+	COM_QuotedString(VM_POINTER(arg[1]), startspot, sizeof(startspot), false);
+	Cbuf_AddText (va("\nchangelevel %s %s\n", newmap, startspot), RESTRICT_LOCAL);
+	return 1;
 }
 static qintptr_t QVM_LogFrag (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -866,9 +925,31 @@ static qintptr_t QVM_LogFrag (void *offset, quintptr_t mask, const qintptr_t *ar
 }
 static qintptr_t QVM_Precache_VWep_Model (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	int i = WrapQCBuiltin(PF_precache_vwep_model, offset, mask, arg, "s");
-	float f = *(float*)&i;
-	return f;
+	const char *s = VM_POINTER(arg[0]);
+	int i;
+
+	if (!*s || strchr(s, '\"') || strchr(s, ';') || strchr(s, '\t') || strchr(s, '\n'))
+		Con_Printf("QVM_Precache_VWep_Model: bad string\n");
+	else
+	{
+		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
+		{
+			if (!sv.strings.vw_model_precache[i])
+			{
+				if (sv.state != ss_loading)
+				{
+					Con_Printf("QVM_Precache_VWep_Model: not spawning\n");
+					return 0;
+				}
+				sv.strings.vw_model_precache[i] = s;
+				return i;
+			}
+			if (!strcmp(sv.strings.vw_model_precache[i], s))
+				return i;
+		}
+		Con_Printf("QVM_Precache_VWep_Model: overflow\n");
+	}
+	return 0;
 }
 static qintptr_t QVM_GetInfoKey (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1492,6 +1573,27 @@ static qintptr_t QVM_pointparticles (void *offset, quintptr_t mask, const qintpt
 	return WrapQCBuiltin(PF_sv_pointparticles, offset, mask, arg, "ivvi");
 }
 
+static qintptr_t QVM_clientstat (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int num = VM_LONG(arg[0]);
+	int type = VM_LONG(arg[1]);
+	int fieldofs = VM_LONG(arg[2]);
+
+
+//	SV_QCStatEval(type, "", &cache, NULL, num);
+
+	SV_QCStatFieldIdx(type, fieldofs, num);
+	return 0;
+}
+static qintptr_t QVM_pointerstat (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int num = VM_LONG(arg[0]);
+	int type = VM_LONG(arg[1]);
+	void *ptr = VM_POINTER(arg[2]);
+	SV_QCStatPtr(type, ptr, num);
+	return 0;
+}
+
 static qintptr_t QVM_Map_Extension (void *offset, quintptr_t mask, const qintptr_t *arg);
 
 typedef qintptr_t (*traps_t) (void *offset, quintptr_t mask, const qintptr_t *arg);
@@ -1607,6 +1709,8 @@ struct
 	{"particleeffectnum",	QVM_particleeffectnum},
 	{"trailparticles",		QVM_trailparticles},
 	{"pointparticles",		QVM_pointparticles},
+	{"clientstat",			QVM_clientstat},	//csqc extension
+	{"pointerstat",			QVM_pointerstat},	//csqc extension
 
 	//sql?
 	//model querying?
@@ -1717,6 +1821,7 @@ void Q1QVM_Shutdown(void)
 			Z_Free(q1qvmprogfuncs.edicttable);
 			q1qvmprogfuncs.edicttable = NULL;
 		}
+		vevars = 0;
 	}
 }
 
@@ -1751,8 +1856,13 @@ void QDECL Q1QVMPF_SetStringField(pubprogfuncs_t *progfuncs, struct edict_s *ed,
 	string_t newval = progfuncs->StringToProgs(progfuncs, str);
 	if (newval || !str)
 		*fld = newval;
+	else if (!str)
+		*fld = 0;
 	else
-		Con_DPrintf("Ignoring string set outside of progs VM\n");
+	{
+		*fld = ~0;
+//		Con_DPrintf("Ignoring string set outside of progs VM\n");
+	}
 }
 
 qboolean PR_LoadQ1QVM(void)
@@ -1764,8 +1874,10 @@ qboolean PR_LoadQ1QVM(void)
 	static float physics_mode = 2;
 	static vec3_t defaultgravity = {0,0,-1};
 	int i;
-	gameDataN_t *gd, gdm;
+	gameDataPrivate_t gd;
+	gameDataN_t *gdn;
 	gameData32_t *gd32;
+	q1qvmglobalvars_t *global;
 	qintptr_t ret;
 	qintptr_t limit;
 	extern cvar_t	pr_maxedicts;
@@ -1807,6 +1919,7 @@ qboolean PR_LoadQ1QVM(void)
 	q1qvmprogfuncs.load_ents = Q1QVMPF_LoadEnts;
 	q1qvmprogfuncs.globals = Q1QVMPF_Globals;
 	q1qvmprogfuncs.GetEdictFieldValue = Q1QVMPF_GetEdictFieldValue;
+	q1qvmprogfuncs.QueryField = Q1QVMPF_QueryField;
 	q1qvmprogfuncs.StringToProgs = Q1QVMPF_StringToProgs;
 	q1qvmprogfuncs.StringToNative = Q1QVMPF_StringToNative;
 	q1qvmprogfuncs.SetStringField = Q1QVMPF_SetStringField;
@@ -1834,48 +1947,63 @@ qboolean PR_LoadQ1QVM(void)
 	}
 
 	if (VM_NonNative(q1qvm))
-	{
+	{	//when non native, this can only be a 32bit qvm in a 64bit server.
 		gd32 = (gameData32_t*)((char*)VM_MemoryBase(q1qvm) + ret);	//qvm is 32bit
 
-		//when running native64, we need to convert these to real types, so we can use em below
-		//double casts to silence warnings
-		gd = &gdm;
-		gd->ents = (struct vmedict_s *)(qintptr_t)gd32->ents;
-		gd->sizeofent = gd32->sizeofent;
-		gd->global = (q1qvmglobalvars_t *)(qintptr_t)gd32->global;
-		gd->fields = (field_t *)(qintptr_t)gd32->fields;
-		gd->APIversion = gd32->APIversion;
+		gd.APIversion = gd32->APIversion;
+		gd.sizeofent = gd32->sizeofent;
+
+		gd.ents = gd32->ents;
+		gd.global = gd32->global;
+		gd.fields = gd32->fields;
+
+		gd.maxedicts = pr_maxedicts.ival;	//FIXME
 	}
 	else
 	{
-		gd = (gameDataN_t*)((char*)VM_MemoryBase(q1qvm) + ret);	//qvm is 32bit
+		gdn = (gameDataN_t*)((char*)VM_MemoryBase(q1qvm) + ret);
+		gd.APIversion = gdn->APIversion;
+		gd.sizeofent = gdn->sizeofent;
+		
+		gd.ents = gdn->ents;
+		gd.global = gdn->global;
+		gd.fields = gdn->fields;
+
+		gd.maxedicts = pr_maxedicts.ival;	//FIXME
 	}
 
 	sv.world.num_edicts = 1;
-	sv.world.max_edicts = bound(64, pr_maxedicts.ival, MAX_EDICTS);
+	sv.world.max_edicts = bound(64, gd.maxedicts, MAX_EDICTS);
 	q1qvmprogfuncs.edicttable = Z_Malloc(sizeof(*q1qvmprogfuncs.edicttable) * sv.world.max_edicts);
 
 	limit = VM_MemoryMask(q1qvm);
-	if (gd->sizeofent < 0 || gd->sizeofent > (0xffffffff-(qintptr_t)gd->ents) / sv.world.max_edicts)
-		gd->sizeofent = 0xffffffff / MAX_EDICTS;
-	if ((quintptr_t)gd->ents+(gd->sizeofent*MAX_Q1QVM_EDICTS) < (quintptr_t)gd->ents || (quintptr_t)gd->ents > (quintptr_t)limit)
-		gd->ents = NULL;
-	if ((quintptr_t)(gd->global+1) < (quintptr_t)gd->global || (quintptr_t)gd->global > (quintptr_t)limit)
-		gd->global = NULL;
-	if (/*(quintptr_t)gd->fields < (quintptr_t)gd->fields ||*/ (quintptr_t)gd->fields > limit)
-		gd->fields = NULL;
+	if (gd.sizeofent < 0 || gd.sizeofent > 0xffffffff / gd.maxedicts)
+		gd.sizeofent = 0xffffffff / gd.maxedicts;
+	if ((quintptr_t)gd.ents+(gd.sizeofent*gd.maxedicts) < (quintptr_t)gd.ents || (quintptr_t)gd.ents > (quintptr_t)limit)
+		gd.ents = 0;
+	if ((quintptr_t)(gd.global+1) < (quintptr_t)gd.global || (quintptr_t)gd.global > (quintptr_t)limit)
+		gd.global = 0;
+	if (/*(quintptr_t)gd.fields < (quintptr_t)gd.fields ||*/ (quintptr_t)gd.fields > limit)
+		gd.fields = 0;
 
-	sv.world.edict_size = gd->sizeofent;
-	vevars = (qintptr_t)gd->ents;
-	evars = ((char*)VM_MemoryBase(q1qvm) + vevars);
+	sv.world.edict_size = gd.sizeofent;
+	vevars = gd.ents;
+	evars = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, vevars);
+	global = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, gd.global);
+
+	if (!evars || !global)
+	{
+		Q1QVM_Shutdown();
+		return false;
+	}
 
 //WARNING: global is not remapped yet...
 //This code is written evilly, but works well enough
-#define globalint(required, name) pr_global_ptrs->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)	//the logic of this is somewhat crazy
-#define globalfloat(required, name) pr_global_ptrs->name = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
-#define globalstring(required, name) pr_global_ptrs->name = (string_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
-#define globalvec(required, name) pr_global_ptrs->name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
-#define globalfunc(required, name) pr_global_ptrs->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalint(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)	//the logic of this is somewhat crazy
+#define globalfloat(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
+#define globalstring(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
+#define globalvec(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
+#define globalfunc(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&global->name)
 #define globalfloatnull(required, name) pr_global_ptrs->name = NULL
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -1937,27 +2065,42 @@ qboolean PR_LoadQ1QVM(void)
 
 	dimensionsend = dimensiondefault = 255;
 	for (i = 0; i < 16; i++)
-		pr_global_ptrs->spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&gd->global->parm1 + i));
+		pr_global_ptrs->spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&global->parm1 + i));
 	for (; i < NUM_SPAWN_PARMS; i++)
 		pr_global_ptrs->spawnparamglobals[i] = NULL;
 
-	for (i = 0; gd->fields[i].name; i++)
+#define emufield(n,t) if (field[i].type == t && !strcmp(#n, fname)) {fofs.n = (field[i].ofs - WASTED_EDICT_T_SIZE)/sizeof(float); continue;}
+	if (VM_NonNative(q1qvm))
 	{
-		const char *fname = Q1QVMPF_StringToNative(&q1qvmprogfuncs, gd->fields[i].name);
-#define emufield(n,t) if (gd->fields[i].type == t && !strcmp(#n, fname)) {fofs.n = (gd->fields[i].ofs - WASTED_EDICT_T_SIZE)/sizeof(float); continue;}
-		emufields
-#undef emufield
+		field32_t *field = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, gd.fields);
+		if (field)
+		for (i = 0; field[i].name; i++)
+		{
+			const char *fname = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, field[i].name);
+			emufields
+		}
 	}
+	else
+	{
+		fieldN_t *field = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, gd.fields);
+		if (field)
+		for (i = 0; field[i].name; i++)
+		{
+			const char *fname = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, field[i].name);
+			emufields
+		}
+	}
+#undef emufield
 
 
 	sv.world.progs = &q1qvmprogfuncs;
 	sv.world.edicts = (wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, 0);
 	sv.world.usesolidcorpse = true;
 
-	if ((unsigned)gd->global->mapname && (unsigned)gd->global->mapname+MAPNAME_LEN < VM_MemoryMask(q1qvm))
-		Q_strncpyz((char*)VM_MemoryBase(q1qvm) + gd->global->mapname, svs.name, MAPNAME_LEN);
+	if ((quintptr_t)global->mapname && (quintptr_t)global->mapname+MAPNAME_LEN < VM_MemoryMask(q1qvm))
+		Q_strncpyz((char*)VM_MemoryBase(q1qvm) + global->mapname, svs.name, MAPNAME_LEN);
 	else
-		gd->global->mapname = Q1QVMPF_StringToProgs(sv.world.progs, svs.name);
+		global->mapname = Q1QVMPF_StringToProgs(sv.world.progs, svs.name);
 
 	PR_SV_FillWorldGlobals(&sv.world);
 	return true;
@@ -1981,7 +2124,7 @@ void Q1QVM_ClientConnect(client_t *cl)
 		cl->name = cl->namebuf;
 		cl->edict->v->netname = Q1QVMPF_StringToProgs(svprogfuncs, cl->namebuf);
 
-		Con_DPrintf("WARNING: Mod provided no netname buffer and will not function correctly when compiled as a qvm.\n");
+//		Con_DPrintf("WARNING: Mod provided no netname buffer and will not function correctly when compiled as a qvm.\n");
 	}
 	else
 		Con_Printf("WARNING: Mod provided no netname buffer. Player names will not be set properly.\n");

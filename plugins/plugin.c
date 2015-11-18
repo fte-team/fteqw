@@ -150,9 +150,11 @@ BUILTIN(void, GetServerInfo, (char *info, int infolen));
 #define ARGNAMES ,key,value
 BUILTIN(void, SetUserInfo, (const char *key, const char *value));
 #undef ARGNAMES
+#ifdef FTEPLUGIN
 #define ARGNAMES ,seat,playercmd
 BUILTINR(int, GetLastInputFrame, (int seat, usercmd_t *playercmd));
 #undef ARGNAMES
+#endif
 #define ARGNAMES ,seat,text,textsize
 BUILTINR(float, GetTrackerOwnFrags, (int seat, char *text, size_t textsize));
 #undef ARGNAMES

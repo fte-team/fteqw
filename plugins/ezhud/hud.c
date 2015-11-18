@@ -785,6 +785,43 @@ void HUD_Recalculate_f(void)
     HUD_Recalculate();
 }
 
+void HUD_Export_f(void)
+{
+	char line[8192];
+	qhandle_t handle;
+	hud_t *hud;
+	cvar_t *var;
+	int i;
+
+	char *fname = "foo";
+	char *fdesc = "OMG ITS FOO";
+
+	snprintf(line, sizeof(line), "configs/hud_%s.cfg", fname);
+
+	if (pFS_Open(line, &handle, 0) < 0)
+		Com_Printf("Couldn't open %s\n", line);
+	else
+	{
+		//FIXME: should print the result of an flocate, but plugins are not really aware of that stuff.
+		Com_Printf("Writing %s\n", line);
+		snprintf(line, sizeof(line), "//desc:%s\n\n//hud cvar settings, for use with FTEQW's ezhud plugin.\n", fdesc);
+		pFS_Write(handle, line, strlen(line));
+
+		for (hud = hud_huds; hud; hud = hud->next)
+		{
+			for (i = 0; i < hud->num_params; i++)
+			{
+				var = hud->params[i];
+				//fixme: deal with " and \n
+				snprintf(line, sizeof(line), "set %s \"%s\"\n", var->name, var->string);
+				pFS_Write(handle, line, strlen(line));
+			}
+		}
+
+		pFS_Close(handle);
+	}
+}
+
 //
 // Initialize HUD.
 //
@@ -794,18 +831,19 @@ void HUD_Init(void)
 	void HUD_Inputlag_hit_f(void);
 
 	// Commands.
-    Cmd_AddCommand ("show", HUD_Show_f);
-    Cmd_AddCommand ("hide", HUD_Hide_f);
-    Cmd_AddCommand ("move", HUD_Move_f);
-    Cmd_AddCommand ("place", HUD_Place_f);
+	Cmd_AddCommand ("show", HUD_Show_f);
+	Cmd_AddCommand ("hide", HUD_Hide_f);
+	Cmd_AddCommand ("move", HUD_Move_f);
+	Cmd_AddCommand ("place", HUD_Place_f);
 	Cmd_AddCommand ("reset", HUD_Reset_f);
 	Cmd_AddCommand ("order", HUD_Order_f);
-    Cmd_AddCommand ("togglehud", HUD_Toggle_f);
-    Cmd_AddCommand ("align", HUD_Align_f);
-    Cmd_AddCommand ("hud_recalculate", HUD_Recalculate_f);
+	Cmd_AddCommand ("togglehud", HUD_Toggle_f);
+	Cmd_AddCommand ("align", HUD_Align_f);
+	Cmd_AddCommand ("hud_recalculate", HUD_Recalculate_f);
+	Cmd_AddCommand ("hud_export", HUD_Export_f);
 
 	// Register the hud items.
-    CommonDraw_Init();
+	CommonDraw_Init();
 
 	// Sort the elements.
 	HUD_Sort();

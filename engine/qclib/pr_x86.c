@@ -62,42 +62,42 @@ struct jitstate
 	unsigned int cachereg;
 };
 
-static void EmitByte(struct jitstate *jit, unsigned char byte)
+static void Jit_EmitByte(struct jitstate *jit, unsigned char byte)
 {
 	jit->code[jit->codesize++] = byte;
 }
-static void Emit4Byte(struct jitstate *jit, unsigned int value)
+static void Jit_Emit4Byte(struct jitstate *jit, unsigned int value)
 {
 	jit->code[jit->codesize++] = (value>> 0)&0xff;
 	jit->code[jit->codesize++] = (value>> 8)&0xff;
 	jit->code[jit->codesize++] = (value>>16)&0xff;
 	jit->code[jit->codesize++] = (value>>24)&0xff;
 }
-static void EmitAdr(struct jitstate *jit, void *value)
+static void Jit_EmitAdr(struct jitstate *jit, void *value)
 {
-	Emit4Byte(jit, (unsigned int)value);
+	Jit_Emit4Byte(jit, (unsigned int)value);
 }
-static void EmitFloat(struct jitstate *jit, float value)
+static void Jit_EmitFloat(struct jitstate *jit, float value)
 {
 	union {float f; unsigned int i;} u;
 	u.f = value;
-	Emit4Byte(jit, u.i);
+	Jit_Emit4Byte(jit, u.i);
 }
-static void Emit2Byte(struct jitstate *jit, unsigned short value)
+static void Jit_Emit2Byte(struct jitstate *jit, unsigned short value)
 {
 	jit->code[jit->codesize++] = (value>> 0)&0xff;
 	jit->code[jit->codesize++] = (value>> 8)&0xff;
 }
 
-static void EmitFOffset(struct jitstate *jit, void *func, int bias)
+static void Jit_EmitFOffset(struct jitstate *jit, const void *func, int bias)
 {
-	union {void *f; unsigned int i;} u;
+	union {const void *f; unsigned int i;} u;
 	u.f = func;
 	u.i -= (unsigned int)&jit->code[jit->codesize+bias];
-	Emit4Byte(jit, u.i);
+	Jit_Emit4Byte(jit, u.i);
 }
 
-static void Emit4ByteJump(struct jitstate *jit, int statementnum, int offset)
+static void Jit_Emit4ByteJump(struct jitstate *jit, int statementnum, int offset)
 {
 	jit->statementjumps[jit->numjumps++] = jit->codesize;
 	jit->statementjumps[jit->numjumps++] = statementnum;
@@ -107,12 +107,16 @@ static void Emit4ByteJump(struct jitstate *jit, int statementnum, int offset)
 	jit->codesize += 4;
 }
 
+#ifdef _WIN32
+#undef REG_NONE
+#endif
+
 enum
 {
 	REG_EAX,
 	REG_ECX,
 	REG_EDX,
-	REG_EBX,
+	REG_EBX,	//note: edicttable
 	REG_ESP,
 	REG_EBP,
 	REG_ESI,
@@ -132,6 +136,17 @@ enum
 
 #define ARGREGS(a,b,c)	GCache_Load(jit, op[i].a, a, op[i].b, b, op[i].c, c)
 #define RESULTREG(r) GCache_Store(jit, op[i].c, r)
+
+
+#define EmitByte(v) Jit_EmitByte(jit, v)
+#define EmitAdr(v) Jit_EmitAdr(jit, v)
+#define EmitFOffset(a,b) Jit_EmitFOffset(jit, a, b)
+#define Emit4ByteJump(a,b) Jit_Emit4ByteJump(jit, a, b)
+#define Emit4Byte(v) Jit_Emit4Byte(jit, v)
+#define EmitFloat(v) Jit_EmitFloat(jit, v)
+
+#define LocalJmp(v) Jit_LocalJmp(jit, v)
+#define LocalLoc() Jit_LocalLoc(jit)
 
 //for the purposes of the cache, 'temp' offsets are only read when they have been written only within the preceeding control block.
 //if they were read at any other time, then we must write them out in full.
@@ -187,7 +202,7 @@ static void GCache_Load(struct jitstate *jit, int ao, int ar, int bo, int br, in
 		break;
 	case REG_S0:
 		//flds glob[A]
-		EmitByte(0xd9);EmitByte(0x05);EmitAdr(jit->glob + op[i].a);
+		EmitByte(0xd9);EmitByte(0x05);EmitAdr(jit->glob + ao);
 		break;
 	default:
 		LOADREG(jit->glob + ao, ar);
@@ -200,7 +215,7 @@ static void GCache_Load(struct jitstate *jit, int ao, int ar, int bo, int br, in
 		break;
 	case REG_S0:
 		//flds glob[A]
-		EmitByte(0xd9);EmitByte(0x05);EmitAdr(jit->glob + op[i].b);
+		EmitByte(0xd9);EmitByte(0x05);EmitAdr(jit->glob + bo);
 		break;
 	default:
 		LOADREG(jit->glob + bo, br);
@@ -213,7 +228,7 @@ static void GCache_Load(struct jitstate *jit, int ao, int ar, int bo, int br, in
 		break;
 	case REG_S0:
 		//flds glob[A]
-		EmitByte(0xd9);EmitByte(0x05);EmitAdr(jit->glob + op[i].c);
+		EmitByte(0xd9);EmitByte(0x05);EmitAdr(jit->glob + co);
 		break;
 	default:
 		LOADREG(jit->glob + co, cr);
@@ -241,31 +256,31 @@ static void GCache_Store(struct jitstate *jit, int ofs, int reg)
 #endif
 }
 
-static void *LocalLoc(struct jitstate *jit)
+static void *Jit_LocalLoc(struct jitstate *jit)
 {
 	return &jit->code[jit->codesize];
 }
-static void *LocalJmp(struct jitstate *jit, int cond)
+static void *Jit_LocalJmp(struct jitstate *jit, int cond)
 {
 	/*floating point ops don't set the sign flag, thus we use the 'above/below' instructions instead of 'greater/less' instructions*/
 	if (cond == OP_GOTO)
-		EmitByte(jit, 0xeb);	//jmp
+		Jit_EmitByte(jit, 0xeb);	//jmp
 	else if (cond == OP_LE_F)
-		EmitByte(jit, 0x76);	//jbe
+		Jit_EmitByte(jit, 0x76);	//jbe
 	else if (cond == OP_GE_F)
-		EmitByte(jit, 0x73);	//jae
+		Jit_EmitByte(jit, 0x73);	//jae
 	else if (cond == OP_LT_F)
-		EmitByte(jit, 0x72);	//jb
+		Jit_EmitByte(jit, 0x72);	//jb
 	else if (cond == OP_GT_F)
-		EmitByte(jit, 0x77);	//ja
+		Jit_EmitByte(jit, 0x77);	//ja
 	else if (cond == OP_LE_I)
-		EmitByte(jit, 0x7e);	//jle
+		Jit_EmitByte(jit, 0x7e);	//jle
 	else if (cond == OP_LT_I)
-		EmitByte(jit, 0x7c);	//jl
+		Jit_EmitByte(jit, 0x7c);	//jl
 	else if ((cond >= OP_NE_F && cond <= OP_NE_FNC) || cond == OP_NE_I)
-		EmitByte(jit, 0x75);	//jne
+		Jit_EmitByte(jit, 0x75);	//jne
 	else if ((cond >= OP_EQ_F && cond <= OP_EQ_FNC) || cond == OP_EQ_I)
-		EmitByte(jit, 0x74);	//je
+		Jit_EmitByte(jit, 0x74);	//je
 #if defined(DEBUG) && defined(_WIN32)
 	else
 	{
@@ -274,9 +289,9 @@ static void *LocalJmp(struct jitstate *jit, int cond)
 	}
 #endif
 
-	EmitByte(jit, 0);
+	Jit_EmitByte(jit, 0);
 
-	return LocalLoc(jit);
+	return Jit_LocalLoc(jit);
 }
 static void LocalJmpLoc(void *jmp, void *loc)
 {
@@ -336,19 +351,96 @@ void PR_CloseJit(struct jitstate *jit)
 #else
 		free(jit->code);
 #endif
-		free(jit)
+		free(jit);
 	}
 }
 
-#define EmitByte(v) EmitByte(jit, v)
-#define EmitAdr(v) EmitAdr(jit, v)
-#define EmitFOffset(a,b) EmitFOffset(jit, a, b)
-#define Emit4ByteJump(a,b) Emit4ByteJump(jit, a, b)
-#define Emit4Byte(v) Emit4Byte(jit, v)
-#define EmitFloat(v) EmitFloat(jit, v)
-#define LocalJmp(v) LocalJmp(jit, v)
-#define LocalLoc() LocalLoc(jit)
+#if 0
+//called from jit code
+static PDECL PR_CallFuncion(progfuncs_t *progfuncs, int fnum)
+{
+	int callerprogs;
+	int newpr;
+	unsigned int fnum;
 
+	fnum = OPA->function;
+
+	glob = NULL;	//try to derestrict it.
+
+	callerprogs=prinst.pr_typecurrent;			//so we can revert to the right caller.
+	newpr = (fnum & 0xff000000)>>24;	//this is the progs index of the callee
+	fnum &= ~0xff000000;				//the callee's function index.
+
+	//if it's an external call, switch now (before any function pointers are used)
+	if (callerprogs != newpr || !fnum || fnum > pr_progs->numfunctions)
+	{
+		char *msg = fnum?"OP_CALL references invalid function in %s\n":"NULL function from qc (inside %s).\n";
+		PR_SwitchProgsParms(progfuncs, callerprogs);
+
+		glob = pr_globals;
+		if (!progfuncs->funcs.debug_trace)
+			QCFAULT(&progfuncs->funcs, msg, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+
+		//skip the instruction if they just try stepping over it anyway.
+		PR_StackTrace(&progfuncs->funcs, 0);
+		printf(msg, PR_StringToNative(&progfuncs->funcs, pr_xfunction->s_name));
+
+		pr_globals[OFS_RETURN] = 0;
+		pr_globals[OFS_RETURN+1] = 0;
+		pr_globals[OFS_RETURN+2] = 0;
+		break;
+	}
+
+	newf = &pr_cp_functions[fnum & ~0xff000000];
+
+	if (newf->first_statement <= 0)
+	{	// negative statements are built in functions
+		/*calling a builtin in another progs may affect that other progs' globals instead, is the theory anyway, so args and stuff need to move over*/
+		if (prinst.pr_typecurrent != 0)
+		{
+			//builtins quite hackily refer to only a single global.
+			//for builtins to affect the globals of other progs, we need to first switch to the progs that it will affect, so they'll be correct when we switch back
+			PR_SwitchProgsParms(progfuncs, 0);
+		}
+		i = -newf->first_statement;
+//			p = pr_typecurrent;
+		if (i < externs->numglobalbuiltins)
+		{
+#ifndef QCGC
+			prinst.numtempstringsstack = prinst.numtempstrings;
+#endif
+			(*externs->globalbuiltins[i]) (&progfuncs->funcs, (struct globalvars_s *)current_progstate->globals);
+
+			//in case ed_alloc was called
+			num_edicts = sv_num_edicts;
+
+			if (prinst.continuestatement!=-1)
+			{
+				st=&pr_statements[prinst.continuestatement];
+				prinst.continuestatement=-1;
+				glob = pr_globals;
+				break;
+			}
+		}
+		else
+		{
+//					if (newf->first_statement == -0x7fffffff)
+//						((builtin_t)newf->profile) (progfuncs, (struct globalvars_s *)current_progstate->globals);
+//					else
+				PR_RunError (&progfuncs->funcs, "Bad builtin call number - %i", -newf->first_statement);
+		}
+//			memcpy(&pr_progstate[p].globals[OFS_RETURN], &current_progstate->globals[OFS_RETURN], sizeof(vec3_t));
+		PR_SwitchProgsParms(progfuncs, (progsnum_t)callerprogs);
+
+		//decide weather non debugger wants to start debugging.
+		s = st-pr_statements;
+		return s;
+	}
+//		PR_SwitchProgsParms((OPA->function & 0xff000000)>>24);
+	s = PR_EnterFunction (progfuncs, newf, callerprogs);
+	st = &pr_statements[s];
+}
+#endif
 
 struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 {
@@ -360,15 +452,19 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 	unsigned int i;
 	dstatement16_t *op = (dstatement16_t*)current_progstate->statements;
 	unsigned int numstatements = current_progstate->progs->numstatements;
+	unsigned int numglobals = current_progstate->progs->numglobals+3;	//vectors are annoying.
 	int *glob = (int*)current_progstate->globals;
+	unsigned int numfunctions = current_progstate->progs->numfunctions;
+	mfunction_t *func;
+//	pbyte *isconst;
+	pbool failed = false;
 
-	if (current_progstate->numbuiltins)
-		return NULL;
 	jit = malloc(sizeof(*jit));
 	jit->jitstatements = numstatements;
 
-	jit->statementjumps = malloc(numstatements*12);
-	jit->statementoffsets = malloc(numstatements*4);
+//	isconst = malloc(numglobals*sizeof(*isconst));
+	jit->statementjumps = malloc(numstatements*3*sizeof(int));
+	jit->statementoffsets = malloc(numstatements*sizeof(*jit->statementoffsets));
 #ifndef _WIN32
 	jit->code = mmap(NULL, numstatements*500, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 #else
@@ -380,14 +476,76 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 	jit->numjumps = 0;
 	jit->codesize = 0;
 
-
-
+	for (i = 0; i < numstatements; i++)
+		jit->statementoffsets[i] = NULL;
+//	for (i = 0; i < numglobals; i++)
+//		isconst[i] = true;
+	for (i = 0; i < numfunctions; i++)
+	{
+		
+	}
 	for (i = 0; i < numstatements; i++)
 	{
+		//figure out which statements are jumped to. these are statements that must flush registers prior to execution.
+		switch(op[i].op)
+		{
+		case OP_GOTO:
+			jit->statementoffsets[i + (short)op[i].a] = (void*)~0;
+			break;
+		case OP_IF_I:
+		case OP_IFNOT_I:
+		case OP_IF_F:
+		case OP_IFNOT_F:
+		case OP_IF_S:
+		case OP_IFNOT_S:
+		case OP_CASE:
+			jit->statementoffsets[i + (short)op[i].b] = (void*)~0;
+			break;
+		case OP_CASERANGE:
+			jit->statementoffsets[i + (short)op[i].c] = (void*)~0;
+			break;
+		}
+		//we probably can't do anything about consts.
+		//we might be able to do something about locals, but we would need to fix this to generate per-function.
+		//we CAN do something about consts, most of them anyway.
+		//visible types 
+/*
+		if (OpAssignsToA(op[i].op))
+		{
+			if (op[i].a >= numglobals)
+				failed = true;
+			else
+				isconst[op[i].a] = false;
+		}
+		if (OpAssignsToB(op[i].op))
+		{
+			if (op[i].b >= numglobals)
+				failed = true;
+			else
+				isconst[op[i].b] = false;
+		}
+		if (OpAssignsToC(op[i].op))
+		{
+			if (op[i].c >= numglobals)
+				failed = true;
+			else
+				isconst[op[i].c] = false;
+		}
+*/
+	}
+
+	for (i = 0; i < numstatements && !failed; i++)
+	{
+		if (jit->statementoffsets[i])
+		{
+			//FIXME: flush any registers.
+		}
 		jit->statementoffsets[i] = &jit->code[jit->codesize];
 
+#ifdef _DEBUG
 		/*DEBUG*/
 		SETREGI(op[i].op, REG_ESI);
+#endif
 
 		switch(op[i].op)
 		{
@@ -453,7 +611,7 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 //			movl pr_depth,%edx
 			EmitByte(0x8b);EmitByte(0x15);EmitAdr(&pr_depth);
 //			cmp prinst->exitdepth,%edx
-			EmitByte(0x3b);EmitByte(0x15);EmitAdr(&prinst->exitdepth);
+			EmitByte(0x3b);EmitByte(0x15);EmitAdr(&prinst.exitdepth);
 //			je returntoc
 			j1 = LocalJmp(OP_EQ_E);
 //				mov statementoffsets[%eax*4],%eax
@@ -485,7 +643,7 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 			//movl $i, pr_xstatement
 			EmitByte( 0xc7);EmitByte(0x05);EmitAdr(&pr_xstatement);Emit4Byte(i);
 			//movl $(op[i].op-OP_CALL0), pr_argc
-			EmitByte( 0xc7);EmitByte(0x05);EmitAdr(&pr_argc);Emit4Byte(op[i].op-OP_CALL0);
+			EmitByte( 0xc7);EmitByte(0x05);EmitAdr(&progfuncs->funcs.callargc);Emit4Byte(op[i].op-OP_CALL0);
 
 		//figure out who we're calling, and what that involves
 			//%eax = glob[A]
@@ -498,6 +656,7 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 			EmitByte(0xc1); EmitByte(0xe9); EmitByte(0x18);
 		//ecx is now the progs num for the new func
 
+/*
 			//cmp %ecx,pr_typecurrent
 			EmitByte(0x39); EmitByte(0x0d); EmitAdr(&pr_typecurrent);
 			//je sameprogs
@@ -522,6 +681,7 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 			//sameprogs:
 			l1 = LocalLoc();
 			LocalJmpLoc(j1,l1);
+*/
 
 			//andl $0x00ffffff, %eax
 			EmitByte(0x25);Emit4Byte(0x00ffffff);
@@ -531,7 +691,7 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 			//mul %edx
 			EmitByte(0xf7); EmitByte(0xe2);
 			//add pr_functions,%eax
-			EmitByte(0x05); EmitAdr(pr_functions);
+			EmitByte(0x05); EmitAdr(current_progstate->functions);
 
 		//eax is now the dfunction_t to be called
 		//edx is clobbered.
@@ -579,14 +739,14 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 
 		//but that builtin might have been Abort()
 
-			LOADREG(&prinst->continuestatement, REG_EAX);
+			LOADREG(&prinst.continuestatement, REG_EAX);
 			//cmp $-1,%eax
 			EmitByte(0x83);EmitByte(0xf8);EmitByte(0xff);
 			//je donebuiltincall
 			j1 = LocalJmp(OP_EQ_I);
 			{
 				//mov $-1,prinst->continuestatement
-				EmitByte(0xc7);EmitByte(0x05);EmitAdr(&prinst->continuestatement);Emit4Byte((unsigned int)-1);
+				EmitByte(0xc7);EmitByte(0x05);EmitAdr(&prinst.continuestatement);Emit4Byte((unsigned int)-1);
 
 				//jmp statementoffsets[%eax*4]
 				EmitByte(0xff);EmitByte(0x24);EmitByte(0x85);EmitAdr(jit->statementoffsets);
@@ -695,18 +855,18 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 		//edx is now the field array for that ent
 
 			//mov fieldajust(%edx,%ecx,4),%eax
-			EmitByte(0x8b); EmitByte(0x84); EmitByte(0x8a); Emit4Byte(progfuncs->fieldadjust*4);
+			EmitByte(0x8b); EmitByte(0x84); EmitByte(0x8a); Emit4Byte(progfuncs->funcs.fieldadjust*4);
 
 			STOREREG(REG_EAX, glob + op[i].c)
 
 			if (op[i].op == OP_LOAD_V)
 			{
 				//mov fieldajust+4(%edx,%ecx,4),%eax
-				EmitByte(0x8b); EmitByte(0x84); EmitByte(0x8a); Emit4Byte(4+progfuncs->fieldadjust*4);
+				EmitByte(0x8b); EmitByte(0x84); EmitByte(0x8a); Emit4Byte(4+progfuncs->funcs.fieldadjust*4);
 				STOREREG(REG_EAX, glob + op[i].c+1)
 
 				//mov fieldajust+8(%edx,%ecx,4),%eax
-				EmitByte(0x8b); EmitByte(0x84); EmitByte(0x8a); Emit4Byte(8+progfuncs->fieldadjust*4);
+				EmitByte(0x8b); EmitByte(0x84); EmitByte(0x8a); Emit4Byte(8+progfuncs->funcs.fieldadjust*4);
 				STOREREG(REG_EAX, glob + op[i].c+2)
 			}
 			break;
@@ -727,8 +887,8 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 			EmitByte(0x8b);EmitByte(0x50);EmitByte((int)&((edictrun_t*)NULL)->fields);
 		//edx is now the field array for that ent
 			//mov fieldajust(%edx,%ecx,4),%eax	//offset = progfuncs->fieldadjust
-			//EmitByte(0x8d); EmitByte(0x84); EmitByte(0x8a); EmitByte(progfuncs->fieldadjust*4);
-			EmitByte(0x8d); EmitByte(0x84); EmitByte(0x8a); Emit4Byte(progfuncs->fieldadjust*4);
+			//EmitByte(0x8d); EmitByte(0x84); EmitByte(0x8a); EmitByte(progfuncs->funcs.fieldadjust*4);
+			EmitByte(0x8d); EmitByte(0x84); EmitByte(0x8a); Emit4Byte(progfuncs->funcs.fieldadjust*4);
 			STOREREG(REG_EAX, glob + op[i].c);
 			break;
 
@@ -1385,12 +1545,18 @@ LOADREG(glob + op[i].b, REG_EDI);
 			}
 
 
-			free(jit->statementjumps);	//[MAX_STATEMENTS]
-			free(jit->statementoffsets); //[MAX_STATEMENTS]
-			free(jit->code);
-			free(jit);
-			return NULL;
+			failed = true;
+			break;
 		}
+	}
+
+	if(1)//failed)
+	{	
+		free(jit->statementjumps);	//[MAX_STATEMENTS]
+		free(jit->statementoffsets); //[MAX_STATEMENTS]
+		free(jit->code);
+		free(jit);
+		return NULL;
 	}
 
 	FixupJumps(jit);
@@ -1413,7 +1579,7 @@ LOADREG(glob + op[i].b, REG_EDI);
 	return jit;
 }
 
-float foo(float arg)
+static float foo(float arg)
 {
 	float f;
 	if (!arg)
@@ -1427,10 +1593,10 @@ void PR_EnterJIT(progfuncs_t *progfuncs, struct jitstate *jit, int statement)
 {
 #ifdef __GNUC__
 	//call, it clobbers pretty much everything.
-	asm("call *%0" :: "r"(jit->statementoffsets[statement+1]),"b"(prinst->edicttable):"cc","memory","eax","ecx","edx");
+	asm("call *%0" :: "r"(jit->statementoffsets[statement+1]),"b"(prinst->edicttable):"cc","memory","eax","ecx","edx","esi","edi");
 #elif defined(_MSC_VER)
 	void *entry = jit->statementoffsets[statement+1];
-	void *edicttable = prinst->edicttable;
+	void *edicttable = prinst.edicttable;
 	__asm {
 		pushad
 		mov eax,entry

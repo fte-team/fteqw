@@ -545,6 +545,8 @@ void R2D_ImageColours(float r, float g, float b, float a)
 	draw_active_colour[1] = g;
 	draw_active_colour[2] = b;
 	draw_active_colour[3] = a;
+
+	Font_InvalidateColour(draw_active_colour);
 }
 void R2D_ImagePaletteColour(unsigned int i, float a)
 {
@@ -552,6 +554,8 @@ void R2D_ImagePaletteColour(unsigned int i, float a)
 	draw_active_colour[1] = host_basepal[i*3+1]/255.0;
 	draw_active_colour[2] = host_basepal[i*3+2]/255.0;
 	draw_active_colour[3] = a;
+
+	Font_InvalidateColour(draw_active_colour);
 }
 
 //awkward and weird to use
@@ -1521,11 +1525,11 @@ void R2D_DrawCrosshair(void)
 			Font_BeginScaledString(font_default, sx, sy, size, size, &sx, &sy);
 			sx -= Font_CharScaleWidth(CON_WHITEMASK, '+' | 0xe000)/2;
 			sy -= Font_CharScaleHeight()/2;
-			Font_ForceColour(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
+			R2D_ImageColours(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
 			Font_DrawScaleChar(sx, sy, CON_WHITEMASK, '+' | 0xe000);
-			Font_InvalidateColour();
 			Font_EndString(font_default);
 		}
+		R2D_ImageColours(1,1,1,1);
 		return;
 	}
 

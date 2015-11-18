@@ -306,7 +306,7 @@ void VARGS SV_Error (char *error, ...)
 
 		if (svprogfuncs && pr_ssqc_coreonerror.value && svprogfuncs->save_ents)
 		{
-			int size = 1024*1024*8;
+			size_t size = 1024*1024*8;
 			char *buffer = BZ_Malloc(size);
 			svprogfuncs->save_ents(svprogfuncs, buffer, &size, size, 3);
 			COM_WriteFile("ssqccore.txt", FS_GAMEONLY, buffer, size);
@@ -1842,7 +1842,9 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))// || ISDPCLIENT(&temp))
 		{
 			char *ptr;
-			int maxents = /*client->max_net_ents;//*/maxpacketentities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+			int maxents = maxpacketentities*4;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+			if (maxents > client->max_net_ents)
+				maxents = client->max_net_ents;
 			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
 							sizeof(*client->pendingentbits)*client->max_net_ents+
 							sizeof(unsigned int)*maxents*UPDATE_BACKUP+

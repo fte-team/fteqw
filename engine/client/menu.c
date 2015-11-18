@@ -128,7 +128,7 @@ int M_FindKeysForBind (int bindmap, const char *command, int *keylist, int *keym
 		lastmod = KEY_MODIFIER_ALTBINDMAP;
 	}
 
-	for (j=0 ; j<256 ; j++)
+	for (j=0 ; j<K_MAX ; j++)
 	{
 		for (m = firstmod; m < lastmod; m++)
 		{

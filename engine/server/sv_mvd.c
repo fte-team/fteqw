@@ -1013,6 +1013,14 @@ void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time)
 void SV_MVD_WriteReliables(void)
 {
 	int i;
+
+	//chuck in the broadcast reliables
+	ClientReliableCheckBlock(&demo.recorder, sv.reliable_datagram.cursize);
+	ClientReliableWrite_SZ(&demo.recorder, sv.reliable_datagram.data, sv.reliable_datagram.cursize);
+	//and the broadcast unreliables. everything is reliables when it comes to mvds
+	ClientReliableCheckBlock(&demo.recorder, sv.datagram.cursize);
+	ClientReliableWrite_SZ(&demo.recorder, sv.datagram.data, sv.datagram.cursize);
+
 	if (demo.recorder.netchan.message.cursize)
 	{
 		SV_WriteMVDMessage(&demo.recorder.netchan.message, dem_all, 0, sv.time);
@@ -1022,7 +1030,8 @@ void SV_MVD_WriteReliables(void)
 	{
 		demo.recorder.backbuf.data = demo.recorder.backbuf_data[i];
 		demo.recorder.backbuf.cursize = demo.recorder.backbuf_size[i];
-		SV_WriteMVDMessage(&demo.recorder.backbuf, dem_all, 0, sv.time);
+		if (demo.recorder.backbuf.cursize)
+			SV_WriteMVDMessage(&demo.recorder.backbuf, dem_all, 0, sv.time);
 		demo.recorder.backbuf_size[i] = 0;
 	}
 	demo.recorder.num_backbuf = 0;

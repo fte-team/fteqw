@@ -138,7 +138,7 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf, pbool object, size_t extras
 		}
 		if (i >= prinst.maxedicts-1)
 		{
-			int size;
+			size_t size;
 			char *buf;
 			buf = PR_SaveEnts(&progfuncs->funcs, NULL, &size, 0, 0);
 			progfuncs->funcs.parms->WriteFile("edalloc.dump", buf, size);
@@ -577,7 +577,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 		if (verbose && (unsigned)val->edict < (unsigned)sv_num_edicts)
 		{
 			struct edict_s *ed = EDICT_NUM(progfuncs, val->edict);
-			int size = strlen(line);
+			size_t size = strlen(line);
 			if (ed)
 				PR_SaveEnt(&progfuncs->funcs, line, &size, sizeof(line), ed);
 		}
@@ -1436,9 +1436,9 @@ cont:
 }
 #endif
 
-static void PR_Cat(char *out, const char *in, int *len, int max)
+static void PR_Cat(char *out, const char *in, size_t *len, size_t max)
 {
-	int newl = strlen(in);
+	size_t newl = strlen(in);
 	max-=1;
 	if (*len + newl > max)
 		newl = max - *len;	//truncate
@@ -1462,7 +1462,7 @@ to call ED_CallSpawnFunctions () to let the objects initialize themselves.
 ================
 */
 
-char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax)	//switch first.
+char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t bufmax)	//switch first.
 {
 #define AddS(str) PR_Cat(buf, str, bufofs, bufmax)
 	int		*v;
@@ -1604,7 +1604,7 @@ add32:
 #undef AddS
 }
 
-char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buf, int *bufofs, int bufmax, pbool q1compatible)
+char *ED_WriteEdict(progfuncs_t *progfuncs, edictrun_t *ed, char *buf, size_t *bufofs, size_t bufmax, pbool q1compatible)
 {
 #define AddS(str) PR_Cat(buf, str, bufofs, bufmax)
 	fdef_t	*d;
@@ -1659,7 +1659,7 @@ static char *PR_StaticString(progfuncs_t *progfuncs, string_t thestring)
 	return thestring + progfuncs->funcs.stringtable;
 }
 
-char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufmax)
+char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, size_t *bufofs, size_t bufmax)
 {
 #define AddS(str) PR_Cat(buf, str, bufofs, bufmax)
 	char buffer[8192];
@@ -1740,7 +1740,7 @@ char *PR_SaveCallStack (progfuncs_t *progfuncs, char *buf, int *bufofs, int bufm
 //there are two ways of saving everything.
 //0 is to save just the entities.
 //1 is to save the entites, and all the progs info so that all the variables are saved off, and it can be reloaded to exactly how it was (provided no files or data has been changed outside, like the progs.dat for example)
-char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, int *bufofs, int bufmax, int alldata)
+char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t bufmax, int alldata)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 #define AddS(str) PR_Cat(buf, str, bufofs, bufmax)
@@ -2388,7 +2388,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 }
 
 //FIXME: maxsize is ignored.
-char *PDECL PR_SaveEnt (pubprogfuncs_t *ppf, char *buf, int *size, int maxsize, struct edict_s *ed)
+char *PDECL PR_SaveEnt (pubprogfuncs_t *ppf, char *buf, size_t *size, size_t maxsize, struct edict_s *ed)
 {
 #define AddS(str) PR_Cat(buf, str, size, maxsize)
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
@@ -2468,7 +2468,7 @@ char *PDECL PR_SaveEnt (pubprogfuncs_t *ppf, char *buf, int *size, int maxsize, 
 
 	return buf;
 }
-struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, const char *buf, int *size, struct edict_s *ed)
+struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, const char *buf, size_t *size, struct edict_s *ed)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *ent;

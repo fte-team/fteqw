@@ -4600,6 +4600,7 @@ CL_UpdateUserinfo
 */
 void CL_ProcessUserInfo (int slot, player_info_t *player)
 {
+	int i;
 	char *col;
 	Q_strncpyz (player->name, Info_ValueForKey (player->userinfo, "name"), sizeof(player->name));
 	Q_strncpyz (player->team, Info_ValueForKey (player->userinfo, "team"), sizeof(player->team));
@@ -4616,7 +4617,10 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 	else
 		player->rbottomcolor = atoi(col);
 
-	if (atoi(Info_ValueForKey (player->userinfo, "*spectator")))
+	i = atoi(Info_ValueForKey (player->userinfo, "*spectator"));
+	if (i == 2)
+		player->spectator = 2;
+	else if (i)
 		player->spectator = true;
 	else
 		player->spectator = false;
@@ -4849,7 +4853,16 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 				CL_SetStat_Internal(pnum, stat, ivalue, fvalue);
 	}
 	else
+	{
+		unsigned int pl = cl.playerview[pnum].playernum;
+		if (pl < MAX_CLIENTS)
+		{
+			cl.players[pl].stats[stat]=ivalue;
+			cl.players[pl].statsf[stat]=fvalue;
+		}
+
 		CL_SetStat_Internal(pnum, stat, ivalue, fvalue);
+	}
 
 #ifdef QUAKESTATS
 	if (stat == STAT_VIEWHEIGHT && ((cls.z_ext & Z_EXT_VIEWHEIGHT) || cls.protocol == CP_NETQUAKE))

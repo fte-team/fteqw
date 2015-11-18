@@ -62,6 +62,7 @@ cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be smoother, but they may be more laggy. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
 cvar_t	*hud_tracking_show;
+cvar_t	*hud_miniscores_show;
 extern cvar_t net_compress;
 
 cvar_t	cl_defaultport		= CVARAFD("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0, "The default port to connect to servers.\nQW: "STRINGIFY(PORT_QWSERVER)", NQ: "STRINGIFY(PORT_NQSERVER)", Q2: "STRINGIFY(PORT_Q2SERVER)".");
@@ -761,6 +762,20 @@ void CL_CheckForResend (void)
 				cls.protocol = CP_QUAKE3;
 #endif
 #ifdef NQPROT
+			else if (!strcmp(cl_loopbackprotocol.string, "random"))
+			{	//for debugging.
+				if (rand() & 1)
+				{
+					cls.protocol = CP_NETQUAKE;
+					cls.protocol_nq = CPNQ_FITZ666;
+				}
+				else
+				{
+					cls.protocol = CP_QUAKEWORLD;
+					pext1 = Net_PextMask(1, false);
+					pext2 = Net_PextMask(2, false);
+				}
+			}
 			else if (!strcmp(cl_loopbackprotocol.string, "fitz"))	//actually proquake, because we might as well use the extra angles
 			{
 				cls.protocol = CP_NETQUAKE;
@@ -794,7 +809,7 @@ void CL_CheckForResend (void)
 			}
 #endif
 			else
-			{
+			{	//protocol wasn't recognised, and we didn't take the nq fallback, so that must mean we're going for qw.
 				cls.protocol = CP_QUAKEWORLD;
 				pext1 = Net_PextMask(1, false);
 				pext2 = Net_PextMask(2, false);
@@ -804,7 +819,10 @@ void CL_CheckForResend (void)
 			if (dpcompat_nopreparse.ival)
 #endif
 			{
-				if (progstype == PROG_QW && cls.protocol != CP_QUAKEWORLD)
+				//disabling preparsing with hexen2 is unsupported.
+				if (progstype == PROG_H2)
+					Con_Printf("dpcompat_nopreparse is unsupported with hexen2\n");
+				else if (progstype == PROG_QW && cls.protocol != CP_QUAKEWORLD)
 				{
 					cls.protocol = CP_QUAKEWORLD;
 					pext1 = Net_PextMask(1, false);
@@ -3847,6 +3865,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_countpendingpl,				cl_controlgroup);
 	Cvar_Register (&cl_threadedphysics,				cl_controlgroup);
 	hud_tracking_show = Cvar_Get("hud_tracking_show", "1", 0, "statusbar");
+	hud_miniscores_show = Cvar_Get("hud_miniscores_show", "1", 0, "statusbar");
 	Cvar_Register (&cl_download_mapsrc,				cl_controlgroup);
 
 	Cvar_Register (&cl_dlemptyterminate,				cl_controlgroup);

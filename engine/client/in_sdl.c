@@ -97,7 +97,7 @@ static void J_JoystickAdded(int enumid)
 		return;
 	sdljoy[i].id = SDL_JoystickInstanceID(sdljoy[i].joystick);
 
-	cname = SDL_GameControllerName(sdljoy[i].controller);
+	cname = SDL_JoystickName(sdljoy[i].joystick);
 	if (!cname)
 		cname = "Unknown Joystick";
 	Con_Printf("Found new joystick (%i): %s\n", i, cname);

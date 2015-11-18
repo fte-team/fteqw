@@ -119,7 +119,7 @@ static time_t Sys_FileTimeToTime(FILETIME ft)
 void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *f), void *parm)
 {
 	HANDLE r;
-	WIN32_FIND_DATA fd;	
+	WIN32_FIND_DATAA fd;	
 	char apath[MAX_OSPATH];
 	char file[MAX_OSPATH];
 	char *s;
@@ -135,10 +135,10 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, ti
 	*s = '\0';	
 	
 	strcpy(file, match);
-	r = FindFirstFile(file, &fd);
+	r = FindFirstFileA(file, &fd);
 	if (r==(HANDLE)-1)
 		return;
-    go = true;
+	go = true;
 	do
 	{
 		if (*fd.cFileName == '.');
@@ -153,7 +153,7 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, ti
 			go = func(file, fd.nFileSizeLow, Sys_FileTimeToTime(fd.ftLastWriteTime), parm, NULL);
 		}
 	}
-	while(FindNextFile(r, &fd) && go);
+	while(FindNextFileA(r, &fd) && go);
 	FindClose(r);
 }
 

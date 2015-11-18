@@ -1566,6 +1566,7 @@ int Stats_GetTouches(int playernum);
 int Stats_GetCaptures(int playernum);
 qboolean Stats_HaveFlags(int mode);
 qboolean Stats_HaveKills(void);
+float Stats_GetLastOwnFrag(int seat, char *res, int reslen);
 void VARGS Stats_Message(char *msg, ...) LIKEPRINTF(1);
 qboolean Stats_ParsePrintLine(char *line);
 void Stats_NewMap(void);

@@ -13,14 +13,62 @@ static cvar_t m_strafeonright = CVARFD("m_strafeonright", "1", CVAR_ARCHIVE, "If
 static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.2", CVAR_ARCHIVE, "How fat your thumb has to be to register a fat press (touchscreens).");
 static cvar_t m_touchmajoraxis = CVARFD("m_touchmajoraxis", "1", CVAR_ARCHIVE, "When using a touchscreen, use only the major axis for strafing.");
 static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "10", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event (touchscreens).");
+
+void QDECL joyaxiscallback(cvar_t *var, char *oldvalue)
+{
+	int sign;
+	char *end;
+	strtol(var->string, &end, 0);
+	if (!*end)	//okay, its missing or an actual number.
+		return;
+
+	end = var->string;
+	if (*end == '-')
+	{
+		end++;
+		sign = -1;
+	}
+	else if (*end == '+')
+	{
+		end++;
+		sign = 1;
+	}
+	else
+		sign = 1;
+	if (!Q_strcasecmp(end, "forward") || !Q_strcasecmp(end, "moveforward"))
+		var->ival = 1*sign;
+	else if (!Q_strcasecmp(end, "back") || !Q_strcasecmp(end, "moveback"))
+		var->ival = 1*sign*-1;
+	else if (!Q_strcasecmp(end, "lookup") || !Q_strcasecmp(end, "pitchup"))
+		var->ival = 2*sign;
+	else if (!Q_strcasecmp(end, "lookdown") || !Q_strcasecmp(end, "pitchdown"))
+		var->ival = 2*sign*-1;
+	else if (!Q_strcasecmp(end, "moveright"))
+		var->ival = 3*sign;
+	else if (!Q_strcasecmp(end, "moveleft"))
+		var->ival = 3*sign*-1;
+	else if (!Q_strcasecmp(end, "right") || !Q_strcasecmp(end, "turnright"))
+		var->ival = 4*sign;
+	else if (!Q_strcasecmp(end, "left") || !Q_strcasecmp(end, "turnleft"))
+		var->ival = 4*sign;
+	else if (!Q_strcasecmp(end, "up") || !Q_strcasecmp(end, "moveup"))
+		var->ival = 5*sign;
+	else if (!Q_strcasecmp(end, "down") || !Q_strcasecmp(end, "movedown"))
+		var->ival = 5*sign*-1;
+	else if (!Q_strcasecmp(end, "rollright"))
+		var->ival = 6*sign;
+	else if (!Q_strcasecmp(end, "rollleft"))
+		var->ival = 6*sign*-1;
+}
+
 static cvar_t	joy_advaxis[6] =
 {
-	CVARD("joyadvaxisx", "4", "Provides a way to remap each joystick/controller axis.\n0:dead, 1:fwd, 2:pitch, 3:side, 4:yaw, 5:up, 6:roll"),
-	CVAR("joyadvaxisy", "2"),
-	CVAR("joyadvaxisz", "5"),
-	CVAR("joyadvaxisr", "3"),
-	CVAR("joyadvaxisu", "1"),
-	CVAR("joyadvaxisv", "6")
+	CVARCD("joyadvaxisx", "turnright", joyaxiscallback, "Provides a way to remap each joystick/controller axis.\n0:dead, 1:fwd, 2:pitch, 3:side, 4:yaw, 5:up, 6:roll"),
+	CVARC("joyadvaxisy", "lookup", joyaxiscallback),
+	CVARC("joyadvaxisz", "moveup", joyaxiscallback),
+	CVARC("joyadvaxisr", "moveright", joyaxiscallback),
+	CVARC("joyadvaxisu", "moveforward", joyaxiscallback),
+	CVARC("joyadvaxisv", "rollright", joyaxiscallback)
 };
 static cvar_t	joy_advaxisscale[6] =
 {
@@ -704,28 +752,31 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 
 	for (i = 0; i < 6; i++)
 	{
-		switch(joy_advaxis[i].ival)
+		int ax = joy_advaxis[i].ival;
+		switch(ax)
 		{
 		default:
 		case 0:	//dead axis
 			break;
 		case 1:
-			jstrafe[0] += joy->axis[i] * joy_advaxisscale[i].value;
-			break;
-		case 2:
-			jlook[0] += joy->axis[i] * joy_advaxisscale[i].value;
-			break;
 		case 3:
-			jstrafe[1] += joy->axis[i] * joy_advaxisscale[i].value;
-			break;
-		case 4:
-			jlook[1] += joy->axis[i] * joy_advaxisscale[i].value;
-			break;
 		case 5:
-			jstrafe[2] += joy->axis[i] * joy_advaxisscale[i].value;
+			jstrafe[(ax-1)/2] += joy->axis[i] * joy_advaxisscale[i].value;
 			break;
+		case -1:
+		case -3:
+		case -5:
+			jstrafe[(-ax-1)/2] -= joy->axis[i] * joy_advaxisscale[i].value;
+
+		case 2:
+		case 4:
 		case 6:
-			jlook[2] += joy->axis[i] * joy_advaxisscale[i].value;
+			jlook[(ax-2)/2] += joy->axis[i] * joy_advaxisscale[i].value;
+			break;
+		case -2:
+		case -4:
+		case -6:
+			jlook[(-ax-2)/2] -= joy->axis[i] * joy_advaxisscale[i].value;
 			break;
 		}
 	}
@@ -788,9 +839,9 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		V_StopPitchDrift (&cl.playerview[pnum]);
 
 	//movement
-	movements[0] -= joy_movesens[0].value * cl_forwardspeed.value * jstrafe[0];
-	movements[1] -= joy_movesens[1].value * cl_sidespeed.value * jstrafe[1];
-	movements[2] -= joy_movesens[2].value * cl_upspeed.value * jstrafe[2];
+	movements[0] += joy_movesens[0].value * cl_forwardspeed.value * jstrafe[0];
+	movements[1] += joy_movesens[1].value * cl_sidespeed.value * jstrafe[1];
+	movements[2] += joy_movesens[2].value * cl_upspeed.value * jstrafe[2];
 }
 
 void IN_Move (float *movements, int pnum, float frametime)

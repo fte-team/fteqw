@@ -1825,7 +1825,7 @@ start:
 	if (node->visframe != r_visframecount)
 		return;
 
-	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numplanes; c++, clipplane++)
+	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numworldplanes; c++, clipplane++)
 	{
 		if (!(clipflags & (1 << c)))
 			continue;	// don't need to clip against it
@@ -1934,7 +1934,7 @@ static void Surf_OrthoRecursiveWorldNode (mnode_t *node, unsigned int clipflags)
 	if (node->visframe != r_visframecount)
 		return;
 
-	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numplanes; c++, clipplane++)
+	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numworldplanes; c++, clipplane++)
 	{
 		if (!(clipflags & (1 << c)))
 			continue;	// don't need to clip against it
@@ -2192,7 +2192,7 @@ start:
 	if (node->visframe != r_visframecount)
 		return;
 
-	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numplanes; c++, clipplane++)
+	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numworldplanes; c++, clipplane++)
 	{
 		if (!(clipflags & (1 << c)))
 			continue;	// don't need to clip against it
@@ -2921,7 +2921,7 @@ void Surf_DrawWorld (void)
 			if (cl.worldmodel->fromgame == fg_quake3)
 			{
 				entvis = surfvis = R_MarkLeaves_Q3 ();
-				Surf_RecursiveQ3WorldNode (cl.worldmodel->nodes, (1<<r_refdef.frustum_numplanes)-1);
+				Surf_RecursiveQ3WorldNode (cl.worldmodel->nodes, (1<<r_refdef.frustum_numworldplanes)-1);
 				//Surf_LeafWorldNode ();
 			}
 			else

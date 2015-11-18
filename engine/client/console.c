@@ -1381,7 +1381,7 @@ void Con_DrawNotifyOne (console_t *con)
 	while (lines < con->notif_l)
 	{
 		x = 0;
-		Font_ForceColour(1, 1, 1, alphas[lines]);
+		R2D_ImageColours(1, 1, 1, alphas[lines]);
 		if (con->flags & CONF_NOTIFY_RIGHT)
 		{
 			for (c = starts[lines]; c < ends[lines]; )
@@ -1409,7 +1409,7 @@ void Con_DrawNotifyOne (console_t *con)
 
 	Font_EndString(font_console);
 
-	Font_InvalidateColour();
+	R2D_ImageColours(1,1,1,1);
 }
 
 void Con_ClearNotify(void)

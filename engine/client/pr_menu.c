@@ -440,7 +440,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &px, &py);
 	ipx = px;
-	Font_ForceColour(r, g, b, alpha);
+	R2D_ImageColours(r, g, b, alpha);
 	while(*str)
 	{
 		str = Font_Decode(str, &codeflags, &codepoint);
@@ -451,7 +451,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (pubprogfuncs_t *prinst, struct globalva
 		else
 			px = Font_DrawScaleChar(px, py, codeflags, codepoint);
 	}
-	Font_InvalidateColour();
+	R2D_ImageColours(1,1,1,1);
 	Font_EndString(NULL);
 	r2d_be_flags = 0;
 }
@@ -700,9 +700,9 @@ void QCBUILTIN PF_CL_drawcharacter (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &x, &y);
-	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	Font_DrawScaleChar(x, y, CON_WHITEMASK, chara);
-	Font_InvalidateColour();
+	R2D_ImageColours(1,1,1,1);
 	Font_EndString(NULL);
 	r2d_be_flags = 0;
 
@@ -730,7 +730,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	PR_CL_BeginString(prinst, pos[0], pos[1], size[0], size[1], &x, &y);
-	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 
 	while(*text)
 	{
@@ -748,7 +748,7 @@ void QCBUILTIN PF_CL_drawrawstring (pubprogfuncs_t *prinst, struct globalvars_s 
 		}
 		x = Font_DrawScaleChar(x, y, CON_WHITEMASK, c);
 	}
-	Font_InvalidateColour();
+	R2D_ImageColours(1,1,1,1);
 	Font_EndString(NULL);
 	r2d_be_flags = 0;
 }

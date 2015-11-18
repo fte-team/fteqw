@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef QUAKEHUD
 
 extern cvar_t *hud_tracking_show;
+extern cvar_t *hud_miniscores_show;
 
 cvar_t scr_scoreboard_drawtitle = CVARD("scr_scoreboard_drawtitle", "1", "Wastes screen space when looking at the scoreboard.");
 cvar_t scr_scoreboard_forcecolors = CVARD("scr_scoreboard_forcecolors", "0", "Makes the scoreboard colours obey enemycolor/teamcolor rules.");	//damn americans
@@ -1951,6 +1952,8 @@ void Sbar_DrawFrags (playerview_t *pv)
 		Sbar_FillPC (sbar_rect.x+x*8 + 10, sbar_rect.y+y, 28, 4, top);
 		Sbar_FillPC (sbar_rect.x+x*8 + 10, sbar_rect.y+y+4, 28, 3, bottom);
 
+		R2D_ImageColours(1, 1, 1, 1);
+
 	// draw number
 		f = s->frags;
 		sprintf (num, "%3i",f);
@@ -2736,7 +2739,7 @@ void Sbar_Draw (playerview_t *pv)
 
 	R2D_ImageColours(1, 1, 1, 1);
 
-	minidmoverlay = cl.deathmatch;
+	minidmoverlay = cl.deathmatch && hud_miniscores_show->ival;
 	sbar_rect = r_refdef.grect;
 
 	sbarwidth = 320;
@@ -2780,7 +2783,7 @@ void Sbar_Draw (playerview_t *pv)
 			Sbar_Hexen2DrawMinimal(pv);
 		Sbar_Hexen2DrawInventory(pv);
 
-		if (cl.deathmatch)
+		if (minidmoverlay)
 			Sbar_MiniDeathmatchOverlay (pv);
 
 		Sbar_Hexen2DrawActiveStuff(pv);
@@ -2861,7 +2864,7 @@ void Sbar_Draw (playerview_t *pv)
 				Sbar_DrawInventory (pv);
 			else if (cl_sbar.ival)
 				Sbar_DrawPic (0, -24, 320, 24, sb_scorebar);	//make sure we don't get HoM
-			if ((!headsup || sbar_rect.width<512) && cl.deathmatch)
+			if ((!headsup || sbar_rect.width<512) && cl.deathmatch && hud_miniscores_show->ival)
 				Sbar_DrawFrags (pv);
 		}
 
@@ -3069,6 +3072,8 @@ void Sbar_TeamOverlay (void)
 			R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
 			R2D_FillBlock (startx - 3, y, 1, 8); // Electro - Border - Left
 			R2D_FillBlock (startx - 3 + rank_width - 2, y, 1, 8); // Electro - Border - Right
+
+			R2D_ImageColours(1, 1, 1, 1);
 		}
 
 	// draw pings
@@ -3161,7 +3166,7 @@ ping time frags name
 #define COLUMN_FRAGS COLUMN(frags, 5*8,					\
 {	\
 	int cx; int cy;										\
-	if (s->spectator)									\
+	if (s->spectator && s->spectator != 2)				\
 	{													\
 		Draw_FunStringWidth(x, y, "spectator", 5*8, false, false);	\
 	}													\
@@ -3349,6 +3354,8 @@ void Sbar_DeathmatchOverlay (int start)
 		// Electro's scoreboard eyecandy: Draw the title row background
 		R2D_ImagePaletteColour (1, scr_scoreboard_fillalpha.value);
 		R2D_FillBlock(startx - 2, y, rank_width - 3, 9);
+
+		R2D_ImageColours(1, 1, 1, 1);
 	}
 
 	x = startx;
@@ -3650,6 +3657,7 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 		Sbar_FillPC ( x, py+4, 40, 4, bottom);
 		py += 8;
 	}
+	R2D_ImageColours(1, 1, 1, 1);
 	for (/* */ ; i < scoreboardlines && y < sbar_rect.y + sbar_rect.height - 8 + 1; i++)
 	{
 		k = fragsort[i];

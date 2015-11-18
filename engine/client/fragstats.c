@@ -118,6 +118,30 @@ qboolean Stats_HaveKills(void)
 	return fragstats.readkills;
 }
 
+static char lastownfragplayer[64];
+static float lastownfragtime;
+float Stats_GetLastOwnFrag(int seat, char *res, int reslen)
+{
+	if (seat)
+	{
+		if (reslen)
+			*res = 0;
+		return 0;
+	}
+
+	//erk, realtime was reset?
+	if (lastownfragtime > (float)realtime)
+		lastownfragtime = 0;
+
+	Q_strncpyz(res, lastownfragplayer, reslen);
+	return realtime - lastownfragtime;
+};
+static void Stats_OwnFrag(char *name)
+{
+	Q_strncpyz(lastownfragplayer, name, sizeof(lastownfragplayer));
+	lastownfragtime = realtime;
+}
+
 void VARGS Stats_Message(char *msg, ...);
 
 qboolean Stats_TrackerImageLoaded(char *in)
@@ -332,7 +356,10 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 
 		Stats_FragMessage(-4, wid, p1, false);
 		if (u1)
+		{
+			Stats_OwnFrag("someone");
 			Stats_Message("You killed someone\n%s kills: %i\n", fragstats.weapontotals[wid].fullname, fragstats.weapontotals[wid].ownkills);
+		}
 		break;
 	case ff_tkbonus:
 		if (u1)
@@ -350,7 +377,9 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		Stats_FragMessage(-1, wid, p1, true);
 
 		if (u1)
+		{
 			Stats_Message("You killed your teammate\n%s teamkills: %i\n", fragstats.weapontotals[wid].fullname, fragstats.weapontotals[wid].ownteamkills);
+		}
 		break;
 	case ff_flagtouch:
 		fragstats.clienttotals[p1].grabs++;
@@ -397,6 +426,7 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		fragstats.totalkills++;
 		if (u2)
 		{
+			Stats_OwnFrag(cl.players[p1].name);
 			fragstats.weapontotals[wid].ownkills++;
 			Stats_Message("You killed %s\n%s kills: %i (%i/%i)\n", cl.players[p1].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills, fragstats.totalkills);
 		}
@@ -453,7 +483,10 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		if (u1)
 			Stats_Message("%s killed you\n%s deaths: %i (%i/%i)\n", cl.players[p2].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].owndeaths, fragstats.weapontotals[wid].owndeaths, fragstats.totaldeaths);
 		if (u2)
+		{
+			Stats_OwnFrag(cl.players[p1].name);
 			Stats_Message("You killed %s\n%s kills: %i (%i/%i)\n", cl.players[p1].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills, fragstats.totalkills);
+		}
 		break;
 	}
 }

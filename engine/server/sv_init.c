@@ -326,7 +326,7 @@ void SV_SaveSpawnparmsClient(client_t *client, float *transferparms)
 	if (PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL))
 	{//oooh, evil.
 		char buffer[65536*4];
-		int bufsize = 0;
+		size_t bufsize = 0;
 		char *buf;
 		for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
 			client->spawn_parms[j] = 0;
@@ -1081,6 +1081,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #ifdef VM_Q1
 	if (PR_LoadQ1QVM())
 		newgametype = GT_Q1QVM;
+
 	else
 #endif
 	{

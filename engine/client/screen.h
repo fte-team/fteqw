@@ -114,8 +114,7 @@ int Font_CharEndCoord(struct font_s *font, int x, unsigned int charflags, unsign
 int Font_DrawChar(int px, int py, unsigned int charflags, unsigned int codepoint);
 float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned int codepoint); /*avoid using*/
 void Font_EndString(struct font_s *font);
-void Font_ForceColour(float r, float g, float b, float a);	//This colour will be applied while the char mask remains WHITE. If you print char by char, make sure to include the mask.
-void Font_InvalidateColour(void);
+void Font_InvalidateColour(vec4_t newcolour);
 /*these three functions deal with formatted blocks of text (including tabs and new lines)*/
 fte_inline conchar_t *Font_Decode(conchar_t *start, unsigned int *codeflags, unsigned int *codepoint)
 {

@@ -1749,10 +1749,6 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	msecs += frametime*1000;
 //	Con_Printf("%f\n", msecs);
 
-#ifdef IRCCONNECT
-	if (cls.netchan.remote_address.type != NA_IRC)
-#endif
-
 	wantfps = cl_netfps.value;
 	fullsend = true;
 

@@ -1939,7 +1939,10 @@ void CL_QTVPoll (void)
 	{
 		if (len < 0)
 		{
-			Con_Printf("invalid QTV handshake\n");
+			if (!qtvrequestsize)
+				Con_Printf("Connection to QTV server closed without any reply.\n");
+			else
+				Con_Printf("invalid QTV handshake\n");
 			SCR_SetLoadingStage(LS_NONE);
 			VFS_CLOSE(qtvrequest);
 			qtvrequest = NULL;

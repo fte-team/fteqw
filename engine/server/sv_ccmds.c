@@ -736,7 +736,7 @@ void SV_Map_f (void)
 
 		if (preserveplayers && svprogfuncs && host_client->state == cs_spawned && host_client->spawninfo)
 		{
-			int j = 0;
+			size_t j = 0;
 			svprogfuncs->restoreent(svprogfuncs, host_client->spawninfo, &j, host_client->edict);
 			host_client->istobeloaded = true;
 			host_client->state=cs_connected;
@@ -871,7 +871,7 @@ void SV_EvaluatePenalties(client_t *cl)
 {
 	bannedips_t *banip;
 	unsigned int penalties = 0, delta, p;
-	char *penaltyreason[countof(banflags)];
+	char *penaltyreason[countof(banflags)] = {NULL};
 	const char *activepenalties[countof(banflags)];
 	char *reasons[countof(banflags)] = {NULL};
 	int numpenalties = 0;
@@ -923,8 +923,8 @@ void SV_EvaluatePenalties(client_t *cl)
 	if ((penalties & (BAN_BAN | BAN_PERMIT)) == BAN_BAN)
 	{
 		//we should only reach here by a player getting banned mid-game.
-		if (penaltyreason[0])
-			SV_BroadcastPrintf(PRINT_HIGH, "%s was banned: %s\n", cl->name, penaltyreason[0]);
+		if (penaltyreason[BAN_BAN])
+			SV_BroadcastPrintf(PRINT_HIGH, "%s was banned: %s\n", cl->name, penaltyreason[BAN_BAN]);
 		else
 			SV_BroadcastPrintf(PRINT_HIGH, "%s was banned\n", cl->name);
 		cl->drop = true;

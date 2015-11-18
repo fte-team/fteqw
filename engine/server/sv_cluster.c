@@ -101,7 +101,7 @@ pubsubserver_t *MSV_StartSubServer(unsigned int id, const char *mapname)
 		MSG_WriteByte(&send, ccmd_acceptserver);
 		MSG_WriteLong(&send, s->id);
 		MSG_WriteString(&send, s->name);
-		Sys_InstructSlave(s, &send);
+		s->funcs.InstructSlave(s, &send);
 	}
 	return s;
 }
@@ -185,13 +185,13 @@ void MSV_InstructSlave(unsigned int id, sizebuf_t *cmd)
 	if (!id)
 	{
 		for (s = subservers; s; s = s->next)
-			Sys_InstructSlave(s, cmd);
+			s->funcs.InstructSlave(s, cmd);
 	}
 	else
 	{
 		s = MSV_FindSubServer(id);
 		if (s)
-			Sys_InstructSlave(s, cmd);
+			s->funcs.InstructSlave(s, cmd);
 	}
 }
 
@@ -381,7 +381,7 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 					MSG_WriteByte(&send, ccmd_transferedplayer);
 					MSG_WriteLong(&send, s->id);
 					MSG_WriteLong(&send, plid);
-					Sys_InstructSlave(pl->server, &send);
+					pl->server->funcs.InstructSlave(pl->server, &send);
 				}
 				pl->server = s;
 				break;
@@ -431,7 +431,7 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 				while(c--)
 					MSG_WriteFloat(&send, MSG_ReadFloat());
 
-				Sys_InstructSlave(toptr, &send);
+				toptr->funcs.InstructSlave(toptr, &send);
 			}
 			else
 			{
@@ -447,7 +447,7 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 				MSG_WriteLong(&send, plid);
 				MSG_WriteString(&send, "");
 
-				Sys_InstructSlave(s, &send);
+				s->funcs.InstructSlave(s, &send);
 			}
 		}
 		break;
@@ -534,21 +534,21 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 			if (!*dest)	//broadcast if no dest
 			{
 				for (s = subservers; s; s = s->next)
-					Sys_InstructSlave(s, &send);
+					s->funcs.InstructSlave(s, &send);
 			}
 			else if (*dest == '\\')
 			{
 				//send to a specific server (backslashes should not be valid in infostrings, and thus not in names.
 				//FIXME: broadcasting for now.
 				for (s = subservers; s; s = s->next)
-					Sys_InstructSlave(s, &send);
+					s->funcs.InstructSlave(s, &send);
 			}
 			else
 			{
 				//send it to the server that the player is currently on.
 				clusterplayer_t *pl = MSV_FindPlayerName(dest);
 				if (pl)
-					Sys_InstructSlave(pl->server, &send);
+					pl->server->funcs.InstructSlave(pl->server, &send);
 				else if (!pl && strncmp(cmd, "error:", 6))
 				{
 					//player not found. send it back to the sender, but add an error prefix.
@@ -559,7 +559,7 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 					SZ_Write(&send, "error:", 6);
 					MSG_WriteString(&send, cmd);
 					MSG_WriteString(&send, info);
-					Sys_InstructSlave(s, &send);
+					s->funcs.InstructSlave(s, &send);
 				}
 			}
 		}
@@ -574,7 +574,7 @@ void MSV_PollSlaves(void)
 	pubsubserver_t **link, *s;
 	for (link = &subservers; (s=*link); )
 	{
-		switch(Sys_SubServerRead(s))
+		switch(s->funcs.SubServerRead(s))
 		{
 		case -1:
 			//error - server is dead and needs to be freed.
@@ -644,7 +644,8 @@ void SSV_ReadFromControlServer(void)
 				if (!*addr)
 				{
 					Con_Printf("%s: tookplayer: failed\n", sv.modelname);
-					Info_SetValueForStarKey(cl->userinfo, "*transfer", "", sizeof(cl->userinfo));
+					Z_Free(cl->transfer);
+					cl->transfer = NULL;
 				}
 				else
 				{
@@ -662,7 +663,6 @@ void SSV_ReadFromControlServer(void)
 	case ccmd_transferedplayer:
 		{
 			client_t *cl;
-			char *to;
 			int toserver = MSG_ReadLong();
 			int playerid = MSG_ReadLong();
 			int i;
@@ -673,8 +673,7 @@ void SSV_ReadFromControlServer(void)
 				{
 					cl = &svs.clients[i];
 					cl->drop = true;
-					to = Info_ValueForKey(cl->userinfo, "*transfer");
-					Con_Printf("%s transfered to %s\n", cl->name, to);
+					Con_Printf("%s transfered to %s\n", cl->name, cl->transfer);
 					break;
 				}
 			}
@@ -850,7 +849,6 @@ void SSV_UpdateAddresses(void)
 
 void SSV_SavePlayerStats(client_t *cl, int reason)
 {
-	//called when the *transfer userinfo gets set to the new map
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_QWMSGLEN];
 	int i;
@@ -878,7 +876,6 @@ void SSV_SavePlayerStats(client_t *cl, int reason)
 }
 void SSV_Send(const char *dest, const char *src, const char *cmd, const char *msg)
 {
-	//called when the *transfer userinfo gets set to the new map
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_QWMSGLEN];
 	if (!SSV_IsSubServer())
@@ -899,7 +896,6 @@ void SSV_Send(const char *dest, const char *src, const char *cmd, const char *ms
 }
 void SSV_InitiatePlayerTransfer(client_t *cl, const char *newserver)
 {
-	//called when the *transfer userinfo gets set to the new map
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_QWMSGLEN];
 	int i;
@@ -1005,7 +1001,7 @@ qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serv
 
 		MSG_WriteByte(&send, statsblobsize/4);
 		SZ_Write(&send, statsblob, statsblobsize&~3);
-		Sys_InstructSlave(s, &send);
+		s->funcs.InstructSlave(s, &send);
 
 		if (serveraddr.type == NA_INVALID)
 		{

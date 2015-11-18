@@ -693,7 +693,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	static float input_impulse_default;
 	static vec3_t input_angles_default;
 	static vec3_t input_movevalues_default;
-	static vec3_t global_gravitydir_default;
+	static vec3_t global_gravitydir_default = {0,0,-1};
 	int i;
 	int *v;
 	globalptrs_t *pr_globals = pr_global_ptrs;
@@ -1115,7 +1115,8 @@ void PR_ApplyCompilation_f (void)
 {
 	edict_t *ent;
 	char *s;
-	int len, i;
+	size_t len;
+	int i;
 	if (sv.state < ss_active)
 	{
 		Con_Printf("Can't apply: Server isn't running or is still loading\n");
@@ -1248,7 +1249,7 @@ void PR_SSCoreDump_f(void)
 	}
 
 	{
-		int size = 1024*1024*8;
+		size_t size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
 		svprogfuncs->save_ents(svprogfuncs, buffer, &size, size, 3);
 		COM_WriteFile("ssqccore.txt", FS_GAMEONLY, buffer, size);
@@ -3959,12 +3960,7 @@ void QCBUILTIN PF_precache_vwep_model (pubprogfuncs_t *prinst, struct globalvars
 					G_FLOAT(OFS_RETURN) = 0;
 					return;
 				}
-#ifdef VM_Q1
-				if (svs.gametype == GT_Q1QVM)
-					sv.strings.vw_model_precache[i] = s;
-				else
-#endif
-					sv.strings.vw_model_precache[i] = PR_AddString(prinst, s, 0, false);
+				sv.strings.vw_model_precache[i] = PR_AddString(prinst, s, 0, false);
 				return;
 			}
 			if (!strcmp(sv.strings.vw_model_precache[i], s))
@@ -8532,16 +8528,31 @@ int PF_ForceInfoKey_Internal(unsigned int entnum, const char *key, const char *v
 			MSG_WriteString (&sv.reliable_datagram, key);
 			MSG_WriteString (&sv.reliable_datagram, Info_ValueForKey(svs.clients[entnum-1].userinfo, key));
 
+#ifdef NQPROT
+			if (!strcmp(key, "name"))
+			{
+				MSG_WriteByte(&sv.nqreliable_datagram, svc_updatename);
+				MSG_WriteByte(&sv.nqreliable_datagram, entnum-1);
+				MSG_WriteString (&sv.nqreliable_datagram, Info_ValueForKey(svs.clients[entnum-1].userinfo, key));
+			}
+			else if (!strcmp(key, "topcolor") || !strcmp(key, "bottomcolor"))
+			{
+				int c;
+				//this sucks, but whatever.
+				c = (atoi(Info_ValueForKey(svs.clients[entnum-1].userinfo, "topcolor"   )) & 0xf)<<4;
+				c|= (atoi(Info_ValueForKey(svs.clients[entnum-1].userinfo, "bottomcolor")) & 0xf);
+				MSG_WriteByte(&sv.nqreliable_datagram, svc_updatecolors);
+				MSG_WriteByte(&sv.nqreliable_datagram, entnum-1);
+				MSG_WriteByte (&sv.nqreliable_datagram, c);
+			}
+#endif
+
 			if (!strcmp(key, "*spectator"))
 				svs.clients[entnum-1].spectator = !!atoi(value);
+#ifdef _DEBUG
 			if (!strcmp(key, "*transfer"))
-			{
-#ifdef SUBSERVERS
-				SSV_InitiatePlayerTransfer(&svs.clients[entnum-1], value);
-#else
-				PF_ForceInfoKey_Internal(entnum, key, "");
+				Con_Printf("WARNING: *transfer is no longer supported\n");
 #endif
-			}
 		}
 
 		return 1;
@@ -9205,6 +9216,42 @@ static void QCBUILTIN PF_clusterevent(pubprogfuncs_t *prinst, struct globalvars_
 	SSV_Send(dest, src, cmd, info);
 #endif
 }
+static void QCBUILTIN PF_clustertransfer(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifdef SUBSERVERS
+	int p = G_EDICT(prinst, OFS_PARM0)->entnum - 1;
+	const char *dest = (prinst->callargc >= 2)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
+
+	G_INT(OFS_RETURN) = 0;
+
+	if (p < 0 || p >= sv.allocated_client_slots)
+	{
+		PR_BIError (prinst, "PF_clustertransfer: not a player\n");
+		return;
+	}
+
+	if (dest)
+	{
+		if (!SSV_IsSubServer())
+		{
+			Con_DPrintf("PF_clustertransfer: not running in mapcluster mode\n", svs.clients[p].transfer, dest);
+			return;
+		}
+		if (svs.clients[p].transfer)
+		{
+			Con_DPrintf("PF_clustertransfer: Already transferring to %s, ignoring transfer to %s\n", svs.clients[p].transfer, dest);
+			return;
+		}
+		svs.clients[p].transfer = Z_StrDup(svs.clients[p].transfer);
+		SSV_InitiatePlayerTransfer(&svs.clients[p], svs.clients[p].transfer);
+	}
+
+	if (svs.clients[p].transfer)
+		RETURN_TSTRING(svs.clients[p].transfer);
+#else
+	G_INT(OFS_RETURN) = 0;
+#endif
+}
 
 
 
@@ -9749,7 +9796,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"checkcommand",	PF_checkcommand,	0,		0,		0,		294,	D("float(string name)", "Checks to see if the supplied name is a valid command, cvar, or alias. Returns 0 if it does not exist.")},
 	{"argescape",		PF_argescape,		0,		0,		0,		295,	D("string(string s)", "Marks up a string so that it can be reliably tokenized as a single argument later.")},
 //	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		???,	"void(string cvarname, optional string value)"},
-	{"clusterevent",	PF_clusterevent,	0,		0,		0,		296,	D("void(string dest, string from, string cmd, string info)", "Only functions in mapcluster mode. Sends an event to whichever server the named player is on. The destination server can then dispatch the event to the client or handle it itself via the SV_ParseClusterEvent entrypoint. If dest is empty, the event is broadcast to ALL servers. If the named player can't be found, the event will be returned to this server with the cmd prefixed with 'error:'.")},
+	{"clusterevent",	PF_clusterevent,	0,		0,		0,		0,		D("void(string dest, string from, string cmd, string info)", "Only functions in mapcluster mode. Sends an event to whichever server the named player is on. The destination server can then dispatch the event to the client or handle it itself via the SV_ParseClusterEvent entrypoint. If dest is empty, the event is broadcast to ALL servers. If the named player can't be found, the event will be returned to this server with the cmd prefixed with 'error:'.")},
+	{"clustertransfer",	PF_clustertransfer,	0,		0,		0,		0,		D("string(entity player, optional string newnode)", "Only functions in mapcluster mode. Initiate transfer of the player to a different node. Can take some time. If dest is specified, returns null on error. Otherwise returns the current/new target node (or null if not transferring).")},
 
 
 	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	D("void()", "Forgets all rentities, polygons, and temporary dlights. Resets all view properties to their default values.")},// (EXT_CSQC)
@@ -9797,7 +9845,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //330
 	{"getstati",		PF_Fixme,	0,		0,		0,		330,	D("float(float stnum)", "Retrieves the numerical value of the given EV_INTEGER or EV_ENTITY stat (converted to a float).")},// (EXT_CSQC)
 	{"getstatf",		PF_Fixme,	0,		0,		0,		331,	D("#define getstatbits getstatf\nfloat(float stnum, optional float firstbit, optional float bitcount)", "Retrieves the numerical value of the given EV_FLOAT stat. If firstbit and bitcount are specified, retrieves the upper bits of the STAT_ITEMS stat.")},// (EXT_CSQC)
-	{"getstats",		PF_Fixme,	0,		0,		0,		332,	D("string(float firststnum)", "Retrieves the value of the given EV_STRING stat, as a tempstring.\nOlder engines may use 4 consecutive integer stats, with a limit of 15 chars (yes, really. 15.), but "FULLENGINENAME" uses a separate namespace for string stats and has a much higher length limit.")},
+	{"getstats",		PF_Fixme,	0,		0,		0,		332,	D("string(float stnum)", "Retrieves the value of the given EV_STRING stat, as a tempstring.\nOlder engines may use 4 consecutive integer stats, with a limit of 15 chars (yes, really. 15.), but "FULLENGINENAME" uses a separate namespace for string stats and has a much higher length limit.")},
+	{"getplayerstat",	PF_Fixme,	0,		0,		0,		0,		D("__variant(float playernum, float statnum, float stattype)", "Retrieves a specific player's stat, matching the type specified on the server. This builtin is primarily intended for mvd playback where ALL players are known. For EV_ENTITY, world will be returned if the entity is not in the pvs, use type-punning with EV_INTEGER to get the entity number if you just want to see if its set. STAT_ITEMS should be queried as an EV_INTEGER on account of runes and items2 being packed into the upper bits.")},
 
 //EXT_CSQC
 	{"setmodelindex",	PF_Fixme,	0,		0,		0,		333,	D("void(entity e, float mdlindex)", "Sets a model by precache index instead of by name. Otherwise identical to setmodel.")},//
@@ -10757,6 +10806,7 @@ void PR_DumpPlatform_f(void)
 		{"trace_brush_id",		"int", QW|NQ|CS},
 		{"trace_brush_faceid",	"int", QW|NQ|CS},
 
+		{"global_gravitydir",	"vector", QW|NQ|CS,	"The direction gravity should act in if not otherwise specified per entity.", 0,"'0 0 -1'"},
 		{"serverid",			"int", QW|NQ|CS,	"The unique id of this server within the server cluster."},
 
 #define comfieldfloat(name,desc) {#name, ".float", FL, desc},
@@ -10928,6 +10978,25 @@ void PR_DumpPlatform_f(void)
 		{"GE_ABSMAX",		"const float", CS, "Valid for getentity. Guesses the entity's .absmax vector.", GE_ABSMAX},
 //		{"GE_LIGHT",		"const float", CS, NULL, GE_LIGHT},
 
+		{"GE_MODELINDEX",	"const float", CS, "Valid for getentity. Guesses the entity's .modelindex float.", GE_MODELINDEX},
+		{"GE_MODELINDEX2",	"const float", CS, "Valid for getentity. Guesses the entity's .vw_index float.", GE_MODELINDEX2},
+		{"GE_EFFECTS",		"const float", CS, "Valid for getentity. Guesses the entity's .effects float.", GE_EFFECTS},
+		{"GE_FRAME",		"const float", CS, "Valid for getentity. Guesses the entity's .frame float.", GE_FRAME},
+		{"GE_ANGLES",		"const float", CS, "Valid for getentity. Guesses the entity's .angles vector.", GE_ANGLES},
+		{"GE_FATNESS",		"const float", CS, "Valid for getentity. Guesses the entity's .fatness float.", GE_FATNESS},
+		{"GE_DRAWFLAGS",	"const float", CS, "Valid for getentity. Guesses the entity's .drawflags float.", GE_DRAWFLAGS},
+		{"GE_ABSLIGHT",		"const float", CS, "Valid for getentity. Guesses the entity's .abslight float.", GE_ABSLIGHT},
+		{"GE_GLOWMOD",		"const float", CS, "Valid for getentity. Guesses the entity's .glowmod vector.", GE_GLOWMOD},
+		{"GE_GLOWSIZE",		"const float", CS, "Valid for getentity. Guesses the entity's .glowsize float.", GE_GLOWSIZE},
+		{"GE_GLOWCOLOUR",	"const float", CS, "Valid for getentity. Guesses the entity's .glowcolor float.", GE_GLOWCOLOUR},
+		{"GE_RTSTYLE",		"const float", CS, "Valid for getentity. Guesses the entity's .style float.", GE_RTSTYLE},
+		{"GE_RTPFLAGS",		"const float", CS, "Valid for getentity. Guesses the entity's .pflags float.", GE_RTPFLAGS},
+		{"GE_RTCOLOUR",		"const float", CS, "Valid for getentity. Guesses the entity's .color vector.", GE_RTCOLOUR},
+		{"GE_RTRADIUS",		"const float", CS, "Valid for getentity. Guesses the entity's .light_lev float.", GE_RTRADIUS},
+		{"GE_TAGENTITY",	"const float", CS, "Valid for getentity. Guesses the entity's .tag_entity float.", GE_TAGENTITY},
+		{"GE_TAGINDEX",		"const float", CS, "Valid for getentity. Guesses the entity's .tag_index float.", GE_TAGINDEX},
+		{"GE_GRAVITYDIR",	"const float", CS, "Valid for getentity. Guesses the entity's .gravitydir vector.", GE_GRAVITYDIR},
+		{"GE_TRAILEFFECTNUM","const float",CS, "Valid for getentity. Guesses the entity's .traileffectnum float.", GE_TRAILEFFECTNUM},
 
 		{"DAMAGE_NO",		"const float", QW|NQ, NULL, DAMAGE_NO},
 		{"DAMAGE_YES",		"const float", QW|NQ, NULL, DAMAGE_YES},

@@ -407,6 +407,7 @@ typedef struct client_s
 	int challenge;
 	int				userid;							// identifying number
 	char			userinfo[EXTENDED_INFO_STRING];		// infostring
+	char			*transfer;
 
 	usercmd_t		lastcmd;			// for filling in big drops and partial predictions
 	double			localtime;			// of last message
@@ -1057,6 +1058,12 @@ void SV_FixupName(char *in, char *out, unsigned int outlen);
 //cluster stuff
 typedef struct pubsubserver_s
 {
+	struct
+	{
+		void (*InstructSlave)(struct pubsubserver_s *ps, sizebuf_t *cmd);	//send to
+		int (*SubServerRead)(struct pubsubserver_s *ps);	//read from. fills up net_message
+	} funcs;
+
 	struct pubsubserver_s *next;
 	unsigned int id;
 	char name[64];
@@ -1073,8 +1080,6 @@ void SSV_ReadFromControlServer(void);
 void SSV_SavePlayerStats(client_t *cl, int reason);	//initial, periodic (in case of node crashes), part
 void SSV_RequestShutdown(void); //asks the cluster to not send us new players
 
-void Sys_InstructSlave(pubsubserver_t *s, sizebuf_t *cmd);
-int Sys_SubServerRead(pubsubserver_t *s);	//1: yes. 0: no. -1: error
 pubsubserver_t *Sys_ForkServer(void);
 
 #define SSV_IsSubServer() isClusterSlave

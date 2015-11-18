@@ -111,7 +111,7 @@ void SCR_DrawWadString(float x, float y, float scale, char *str);
 
 void Draw_SAlphaSubPic2(float x, float y, mpic_t *pic, float s1, float t1, float s2, float t2, float w, float h, float alpha);
 
-void Draw_AlphaFill(float x, float y, float w, float h, qbyte pal, float alpha);
+void Draw_AlphaFill(float x, float y, float w, float h, unsigned int pal, float alpha);
 void Draw_AlphaPic(float x, float y, mpic_t *pic, float alpha);
 void Draw_AlphaSubPic(float x, float y, mpic_t *pic, float s1, float t1, float s2, float t2, float alpha);
 void SCR_HUD_DrawBar(int direction, int value, float max_value, float *rgba, int x, int y, int width, int height);

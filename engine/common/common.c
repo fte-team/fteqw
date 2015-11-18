@@ -3537,6 +3537,11 @@ char *COM_ParseStringSet (const char *data, char *out, size_t outsize)
 		data++;
 	}
 
+	if (*data == '\"')
+	{
+		return COM_ParseCString(data, out, outsize, NULL);
+	}
+
 // parse a regular word
 	do
 	{

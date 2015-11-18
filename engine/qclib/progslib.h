@@ -16,8 +16,10 @@
 	#define VARGS
 #endif
 
-#if defined(_M_IX86) || defined(__i386__)
-//#define QCJIT
+#if defined(_M_IX86) || defined(__i386__)	//supported arch
+	#if defined(__GNUC__) || defined(_MSC_VER)	//supported compilers (yay for inline asm)
+	//#define QCJIT
+	#endif
 #endif
 
 #define QCBUILTIN ASMCALL
@@ -108,11 +110,11 @@ struct pubprogfuncs_s
 	char	*(PDECL *filefromnewprogs)			(pubprogfuncs_t *prinst, char *prname, char *fname, size_t *size, char *buffer);	//reveals encoded/added files from a progs on the disk somewhere
 
 	void	(PDECL *ED_Print)					(pubprogfuncs_t *prinst, struct edict_s *ed);
-	char	*(PDECL *save_ents)					(pubprogfuncs_t *prinst, char *buf, int *size, int maxsize, int mode);	//dump the entire progs info into one big self allocated string
+	char	*(PDECL *save_ents)					(pubprogfuncs_t *prinst, char *buf, size_t *size, size_t maxsize, int mode);	//dump the entire progs info into one big self allocated string
 	int		(PDECL *load_ents)					(pubprogfuncs_t *prinst, const char *s, float killonspawnflags);	//restore the entire progs state (or just add some more ents) (returns edicts ize)
 
-	char	*(PDECL *saveent)					(pubprogfuncs_t *prinst, char *buf, int *size, int maxsize, struct edict_s *ed);	//will save just one entities vars
-	struct edict_s	*(PDECL *restoreent)		(pubprogfuncs_t *prinst, const char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
+	char	*(PDECL *saveent)					(pubprogfuncs_t *prinst, char *buf, size_t *size, size_t maxsize, struct edict_s *ed);	//will save just one entities vars
+	struct edict_s	*(PDECL *restoreent)		(pubprogfuncs_t *prinst, const char *buf, size_t *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
 
 	union eval_s	*(PDECL *FindGlobal)		(pubprogfuncs_t *prinst, const char *name, progsnum_t num, etype_t *type);	//find a pointer to the globals value
 	char	*(PDECL *AddString)					(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup);	//dump a string into the progs memory (for setting globals and whatnot)

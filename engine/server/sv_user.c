@@ -1804,7 +1804,7 @@ void SV_Begin_Core(client_t *split)
 				if (eval && eval->function && split->spawninfo)
 				{
 					globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-					int j;
+					size_t j;
 					edict_t *ent;
 					ent = split->edict;
 					j = strlen(split->spawninfo);
@@ -3745,7 +3745,7 @@ void SV_Drop_f (void)
 	if (!host_client->drop)
 	{
 		if (host_client->redirect == 2)
-			SV_BroadcastPrintf (PRINT_HIGH, "%s transfered to %s\n", host_client->name, Info_ValueForKey(host_client->userinfo, "*transfer"));
+			SV_BroadcastPrintf (PRINT_HIGH, "%s transfered to %s\n", host_client->name, host_client->transfer);
 		else if (host_client->redirect)
 			SV_BroadcastPrintf (PRINT_HIGH, "%s redirected to %s\n", host_client->name, sv_fullredirect.string);
 		else
@@ -5679,6 +5679,9 @@ void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 	ucmd_t	*u;
 	client_t *oldhost = host_client;
 	char adr[MAX_ADR_SIZE];
+
+	if (host_client->state < cs_connected)
+		return;
 
 	Con_DPrintf("Client command: %s\n", s);
 

@@ -2494,15 +2494,11 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 
 	r_refdef.frustum_numplanes++;
 
+	r_refdef.frustum_numworldplanes = r_refdef.frustum_numplanes;
+
 	//do far plane
 	//fog will logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
-	if (r_refdef.globalfog.density
-#ifdef TERRAIN
-	&& cl.worldmodel && cl.worldmodel->type == mod_heightmap
-#else
-	&& 0
-#endif
-		)
+	if (r_refdef.globalfog.density)
 	{
 		float culldist;
 		float fog;
@@ -2533,9 +2529,9 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 		r_refdef.frustum[r_refdef.frustum_numplanes].dist      = mvp[15] - mvp[14];
 
 		scale = 1/sqrt(DotProduct(r_refdef.frustum[r_refdef.frustum_numplanes].normal, r_refdef.frustum[r_refdef.frustum_numplanes].normal));
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] *= scale;
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] *= scale;
-		r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] *= scale;
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[0] *= -scale;
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[1] *= -scale;
+		r_refdef.frustum[r_refdef.frustum_numplanes].normal[2] *= -scale;
 //		r_refdef.frustum[r_refdef.frustum_numplanes].dist *= scale;
 		r_refdef.frustum[r_refdef.frustum_numplanes].dist	= DotProduct(r_origin, r_refdef.frustum[r_refdef.frustum_numplanes].normal)-culldist;
 

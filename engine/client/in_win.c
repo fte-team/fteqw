@@ -102,7 +102,7 @@ static cvar_t in_simulatemultitouch = CVAR("in_simulatemultitouch", "0");
 static cvar_t	in_nonstandarddeadkeys = CVARD("in_nonstandarddeadkeys", "1", "Discard input events that result in multiple keys. Only the last key will be used. This results in behaviour that differs from eg notepad. To use a dead key, press it twice instead of the dead key followed by space.");
 
 static cvar_t	xinput_leftvibrator = CVARFD("xinput_leftvibrator","0", CVAR_ARCHIVE, "");
-static cvar_t	xinput_rightvibrator = CVARFD("xinput_rightvibrator","0", CVAR_ARCHIVE, "Enables the use of xinput for controllers.\nNote that if you have a headset plugged in, that headset will be used for audio playback if no specific audio device is configured (may require snd_restart too).");
+static cvar_t	xinput_rightvibrator = CVARFD("xinput_rightvibrator","0", CVAR_ARCHIVE, "");
 
 static cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
 static cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
@@ -1853,14 +1853,14 @@ qboolean INS_ReadJoystick (struct wjoy_s *joy)
 		XINPUT_VIBRATION vibrator;
 		HRESULT hr = pXInputGetState(joy->id, &xistate);
 
-#if 1
+#if 0//def _DEBUG
 		//I don't have a controller to test this with, so we fake stuff.
 		if (joy->id == 3)
 		{
 			POINT p;
 			GetCursorPos(&p);
 			hr = ERROR_SUCCESS;
-			xistate.Gamepad.wButtons = 0;
+			xistate.Gamepad.wButtons = 0;//rand() & 0xfff0;
 			xistate.Gamepad.sThumbRX = 0;//(p.x/1920.0)*0xffff - 0x8000;
 			xistate.Gamepad.sThumbRY = 0;//(p.y/1080.0)*0xffff - 0x8000;
 			xistate.Gamepad.sThumbLX = (p.x/1920.0)*0xffff - 0x8000;

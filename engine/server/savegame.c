@@ -350,7 +350,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 
 void SV_LegacySavegame_f (void)
 {
-	int len;
+	size_t len;
 	char *s = NULL;
 	client_t *cl;
 	int clnum;
@@ -550,7 +550,8 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	char	mapname[MAX_QPATH];
 	float	time;
 	char	str[32768];
-	int		i,j;
+	int		i;
+	size_t	j;
 	edict_t	*ent;
 	int		version;
 
@@ -848,7 +849,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 {
-	int len;
+	size_t len;
 	char *s;
 	client_t *cl;
 	int clnum;

@@ -6364,20 +6364,21 @@ void SCR_HUD_DrawOwnFrags(hud_t *hud)
 	width *= hud_ownfrags_scale->value;
 	height *= hud_ownfrags_scale->value;
 
-	alpha = 2 - hud_ownfrags_timeout->value / age * 2;
+	alpha = 2 - age / hud_ownfrags_timeout->value * 2;
 	alpha = bound(0, alpha, 1);
 
-	if (!HUD_PrepareDraw(hud, width , height, &x, &y))
+	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
 		return;
 
 	if (!width)
 		return;
 
-	if (age > hud_ownfrags_timeout->value)
+	if (age >= hud_ownfrags_timeout->value)
 		return;
 
-	if (age < hud_ownfrags_timeout->value)
-		Draw_SString(x, y, ownfragtext, hud_ownfrags_scale->value);
+	pDraw_Colour4f(1, 1, 1, alpha);
+	Draw_SString(x, y, ownfragtext, hud_ownfrags_scale->value);
+	pDraw_Colour4f(1, 1, 1, 1);
 }
 
 static struct wstats_s *findweapon(struct wstats_s *w, size_t wc, char *wn)

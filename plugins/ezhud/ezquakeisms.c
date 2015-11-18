@@ -112,10 +112,12 @@ void Draw_SAlphaSubPic2(float x, float y, mpic_t *pic, float s1, float t1, float
 	pDraw_Colour4f(1, 1, 1, 1);
 }
 
-void Draw_AlphaFill(float x, float y, float w, float h, qbyte pal, float alpha)
+void Draw_AlphaFill(float x, float y, float w, float h, unsigned int pal, float alpha)
 {
-	pDraw_Colour4f(1, 1, 1, alpha * alphamul);
-	pDraw_Colourp(pal);
+	if (pal >= 256)
+		pDraw_Colour4f(((pal>>16)&0xff)/255.0, ((pal>>8)&0xff)/255.0, ((pal>>0)&0xff)/255.0, alpha * alphamul);
+	else
+		pDraw_Colourpa(pal, alpha * alphamul);
 	pDraw_Fill(x, y, w, h);
 	pDraw_Colour4f(1, 1, 1, 1);
 }

@@ -235,7 +235,9 @@ EBUILTIN(int, GetLocalPlayerNumbers, (int firstseat, int numseats, int *playernu
 EBUILTIN(void, GetServerInfo, (char *info, int infolen));
 EBUILTIN(void, SetUserInfo, (const char *key, const char *value));
 EBUILTIN(void, GetLocationName, (const float *pos, char *buffer, int bufferlen));
+#ifdef FTEPLUGIN
 EBUILTIN(int, GetLastInputFrame, (int seat, usercmd_t *playercmd));
+#endif
 EBUILTIN(float, GetTrackerOwnFrags, (int seat, char *text, size_t textsize));
 
 typedef struct

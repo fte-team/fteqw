@@ -2282,14 +2282,6 @@ void World_Physics_Frame(world_t *w)
 	wedict_t *ent;
 	extern cvar_t sv_nqplayerphysics;
 
-	if (w->g.defaultgravitydir)
-	{
-		w->g.defaultgravitydir[0] = 0;
-		w->g.defaultgravitydir[1] = 0;
-		w->g.defaultgravitydir[2] = -1;
-		VectorNormalize(w->g.defaultgravitydir);
-	}
-
 	w->framenum++;
 
 	i = *w->g.physics_mode;

@@ -191,6 +191,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	globalvector(input_cursor_impact,	"input_cursor_trace_endpos");	/*float		filled by getinputstate*/ \
 	globalfloat(input_cursor_entitynumber,	"input_cursor_entitynumber");	/*float		filled by getinputstate*/ \
 	\
+	globalvector(global_gravitydir,		"global_gravitydir");	/*vector	used when .gravitydir is 0 0 0 */ \
 	globalfloat(dimension_default,		"dimension_default");	/*float		default value for dimension_hit+dimension_solid*/ \
 	globalfloat(autocvar_vid_conwidth,	"autocvar_vid_conwidth");	/*float		hackfix for dp mods*/	\
 	globalfloat(autocvar_vid_conheight,	"autocvar_vid_conheight");	/*float		hackfix for dp mods*/	\
@@ -287,6 +288,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 {
 	static float csphysicsmode = 0;
 	static float dimension_default = 255;
+	static vec3_t defaultgravity = {0, 0, -1};
 #define globalfloat(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalint(name,qcname) csqcg.name = (int*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
@@ -308,6 +310,9 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	if (csqcg.cltime)
 		*csqcg.cltime = realtime;
 
+	if (!csqcg.global_gravitydir)
+		csqcg.global_gravitydir = defaultgravity;
+
 	CSQC_ChangeLocalPlayer(cl_forceseat.ival?(cl_forceseat.ival - 1) % cl.splitclients:0);
 
 	csqc_world.g.self = csqcg.self;
@@ -320,6 +325,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	csqc_world.g.v_forward = csqcg.forward;
 	csqc_world.g.v_right = csqcg.right;
 	csqc_world.g.v_up = csqcg.up;
+	csqc_world.g.defaultgravitydir = csqcg.global_gravitydir;
 	csqc_world.g.drawfont = (float*)PR_FindGlobal(csqcprogs, "drawfont", 0, NULL);
 	csqc_world.g.drawfontscale = (float*)PR_FindGlobal(csqcprogs, "drawfontscale", 0, NULL);
 
@@ -4235,6 +4241,7 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 
 	ent->xv->entnum = src->number;
 	ent->v->modelindex = src->modelindex;
+//	ent->xv->vw_index = src->modelindex2;
 //	ent->v->flags = src->flags;
 	ent->v->effects = src->effects;
 
@@ -4307,6 +4314,7 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 	ent->xv->entnum = pnum+1;
 
 	ent->v->modelindex = srcp->modelindex;
+//	ent->xv->vw_index = srcp->modelindex2;
 	ent->v->skin = srcp->skinnum;
 
 	CSQC_LerpStateToCSQC(&cl.lerpplayers[pnum], ent, true);
@@ -4543,6 +4551,8 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 {
 	int entnum = G_FLOAT(OFS_PARM0);
 	int fldnum = G_FLOAT(OFS_PARM1);
+	lerpents_t *le;
+	entity_state_t *es;
 
 	if (fldnum == GE_MAXENTS)
 	{
@@ -4557,6 +4567,8 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 		VectorCopy(vec3_origin, G_VECTOR(OFS_RETURN));
 		return;
 	}
+	le = &cl.lerpents[entnum];
+	es = le->entstate;
 	switch(fldnum)
 	{
 	case GE_ACTIVE:
@@ -4564,76 +4576,202 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 		break;
 	case GE_ORIGIN:
 		/*lerped position*/
-		VectorCopy(cl.lerpents[entnum].origin, G_VECTOR(OFS_RETURN));
+		VectorCopy(le->origin, G_VECTOR(OFS_RETURN));
 		break;
 	case GE_SCALE:
-		G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->scale / 16.0f;
+		G_FLOAT(OFS_RETURN) = es->scale / 16.0f;
 		break;
 	case GE_ALPHA:
-		G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->trans / 255.0f;
+		G_FLOAT(OFS_RETURN) = es->trans / 255.0f;
 		break;
 	case GE_COLORMOD:
-		G_FLOAT(OFS_RETURN+0) = cl.lerpents[entnum].entstate->colormod[0] / 8.0f;
-		G_FLOAT(OFS_RETURN+1) = cl.lerpents[entnum].entstate->colormod[1] / 8.0f;
-		G_FLOAT(OFS_RETURN+2) = cl.lerpents[entnum].entstate->colormod[2] / 8.0f;
+		G_FLOAT(OFS_RETURN+0) = es->colormod[0] / 8.0f;
+		G_FLOAT(OFS_RETURN+1) = es->colormod[1] / 8.0f;
+		G_FLOAT(OFS_RETURN+2) = es->colormod[2] / 8.0f;
 		break;
 	case GE_SKIN:
-		G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->skinnum;
-		break;
-	case GE_LIGHT:
-		G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->abslight;
+		G_FLOAT(OFS_RETURN) = es->skinnum;
 		break;
 	case GE_MINS:
-		G_FLOAT(OFS_RETURN+0) = -(cl.lerpents[entnum].entstate->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = -(cl.lerpents[entnum].entstate->solid & 31);
-		G_FLOAT(OFS_RETURN+2) = -((cl.lerpents[entnum].entstate->solid>>5) & 31);
+		G_FLOAT(OFS_RETURN+0) = -(es->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = -(es->solid & 31);
+		G_FLOAT(OFS_RETURN+2) = -((es->solid>>5) & 31);
 		break;
 	case GE_MAXS:
-		G_FLOAT(OFS_RETURN+0) = (cl.lerpents[entnum].entstate->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = (cl.lerpents[entnum].entstate->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = ((cl.lerpents[entnum].entstate->solid>>10) & 63) - 32;
+		G_FLOAT(OFS_RETURN+0) = (es->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = (es->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = ((es->solid>>10) & 63) - 32;
 		break;
 	case GE_ABSMIN:
-		G_FLOAT(OFS_RETURN+0) = cl.lerpents[entnum].origin[0] + -(cl.lerpents[entnum].entstate->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = cl.lerpents[entnum].origin[1] + -(cl.lerpents[entnum].entstate->solid & 31);
-		G_FLOAT(OFS_RETURN+2) = cl.lerpents[entnum].origin[2] + -((cl.lerpents[entnum].entstate->solid>>5) & 31);
+		G_FLOAT(OFS_RETURN+0) = le->origin[0] + -(es->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = le->origin[1] + -(es->solid & 31);
+		G_FLOAT(OFS_RETURN+2) = le->origin[2] + -((es->solid>>5) & 31);
 		break;
 	case GE_ABSMAX:
-		G_FLOAT(OFS_RETURN+0) = cl.lerpents[entnum].origin[0] + (cl.lerpents[entnum].entstate->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = cl.lerpents[entnum].origin[1] + (cl.lerpents[entnum].entstate->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = cl.lerpents[entnum].origin[2] + ((cl.lerpents[entnum].entstate->solid>>10) & 63) - 32;
+		G_FLOAT(OFS_RETURN+0) = le->origin[0] + (es->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = le->origin[1] + (es->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = le->origin[2] + ((es->solid>>10) & 63) - 32;
 		break;
 	case GE_ORIGINANDVECTORS:
-		VectorCopy(cl.lerpents[entnum].origin, G_VECTOR(OFS_RETURN));
-		AngleVectors(cl.lerpents[entnum].angles, csqcg.forward, csqcg.right, csqcg.up);
+		VectorCopy(le->origin, G_VECTOR(OFS_RETURN));
+		AngleVectors(le->angles, csqcg.forward, csqcg.right, csqcg.up);
 		break;
 	case GE_FORWARD:
-		AngleVectors(cl.lerpents[entnum].angles, G_VECTOR(OFS_RETURN), NULL, NULL);
+		AngleVectors(le->angles, G_VECTOR(OFS_RETURN), NULL, NULL);
 		break;
 	case GE_RIGHT:
-		AngleVectors(cl.lerpents[entnum].angles, NULL, G_VECTOR(OFS_RETURN), NULL);
+		AngleVectors(le->angles, NULL, G_VECTOR(OFS_RETURN), NULL);
 		break;
 	case GE_UP:
-		AngleVectors(cl.lerpents[entnum].angles, NULL, NULL, G_VECTOR(OFS_RETURN));
+		AngleVectors(le->angles, NULL, NULL, G_VECTOR(OFS_RETURN));
 		break;
 	case GE_PANTSCOLOR:
-		if (cl.lerpents[entnum].entstate->colormap <= cl.allocated_client_slots && !(cl.lerpents[entnum].entstate->dpflags & RENDER_COLORMAPPED))
-			G_FLOAT(OFS_RETURN) = cl.players[cl.lerpents[entnum].entstate->colormap].tbottomcolor;
+		if (es->colormap <= cl.allocated_client_slots && !(es->dpflags & RENDER_COLORMAPPED))
+			G_FLOAT(OFS_RETURN) = cl.players[es->colormap].tbottomcolor;
 		else
-			G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->colormap & 15;
+			G_FLOAT(OFS_RETURN) = es->colormap & 15;
 		break;
 	case GE_SHIRTCOLOR:
-		if (cl.lerpents[entnum].entstate->colormap <= cl.allocated_client_slots && !(cl.lerpents[entnum].entstate->dpflags & RENDER_COLORMAPPED))
-			G_FLOAT(OFS_RETURN) = cl.players[cl.lerpents[entnum].entstate->colormap].ttopcolor;
+		if (es->colormap <= cl.allocated_client_slots && !(es->dpflags & RENDER_COLORMAPPED))
+			G_FLOAT(OFS_RETURN) = cl.players[es->colormap].ttopcolor;
 		else
-			G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->colormap>>4;
+			G_FLOAT(OFS_RETURN) = es->colormap>>4;
 		break;
+	case GE_LIGHT:
+		G_FLOAT(OFS_RETURN) = 0;
+		break;
+
+	case GE_MODELINDEX:
+		G_FLOAT(OFS_RETURN) = es->modelindex;
+		break;
+	case GE_MODELINDEX2:
+		G_FLOAT(OFS_RETURN) = es->modelindex2;
+		break;
+	case GE_EFFECTS:
+		G_FLOAT(OFS_RETURN) = es->effects;
+		break;
+	case GE_FRAME:
+		G_FLOAT(OFS_RETURN) = es->frame;
+		break;
+	case GE_ANGLES:
+		VectorCopy(le->angles, G_VECTOR(OFS_RETURN));
+		break;
+	case GE_FATNESS:
+		G_FLOAT(OFS_RETURN) = es->fatness;
+		break;
+	case GE_DRAWFLAGS:
+		G_FLOAT(OFS_RETURN) = es->hexen2flags;
+		break;
+	case GE_ABSLIGHT:
+		G_FLOAT(OFS_RETURN) = es->abslight;
+		break;
+	case GE_GLOWMOD:
+		VectorScale(es->glowmod, 1/8.0, G_VECTOR(OFS_RETURN));
+		break;
+	case GE_GLOWSIZE:
+		G_FLOAT(OFS_RETURN) = es->glowsize;
+		break;
+	case GE_GLOWCOLOUR:
+		G_FLOAT(OFS_RETURN) = es->glowcolour;
+		break;
+	case GE_RTSTYLE:
+		G_FLOAT(OFS_RETURN) = es->lightstyle;
+		break;
+	case GE_RTPFLAGS:
+		G_FLOAT(OFS_RETURN) = es->lightpflags;
+		break;
+	case GE_RTCOLOUR:
+		VectorScale(es->light, 1/1024.0, G_VECTOR(OFS_RETURN));
+		break;
+	case GE_RTRADIUS:
+		G_FLOAT(OFS_RETURN) = es->light[3];
+		break;
+	case GE_TAGENTITY:
+		G_FLOAT(OFS_RETURN) = es->tagentity;
+		break;
+	case GE_TAGINDEX:
+		G_FLOAT(OFS_RETURN) = es->tagindex;
+		break;
+	case GE_GRAVITYDIR:
+		{
+			vec3_t a;
+			a[0] = ((-192-es->u.q1.gravitydir[0])/256.0f) * 360;
+			a[1] = (es->u.q1.gravitydir[1]/256.0f) * 360;
+			a[2] = 0;
+			AngleVectors(a, G_VECTOR(OFS_RETURN), NULL, NULL);
+		}
+		break;
+	case GE_TRAILEFFECTNUM:
+		G_FLOAT(OFS_RETURN) = es->u.q1.traileffectnum;
+		break;
+
 	default:
 		Con_Printf("PF_getentity: field %i is not supported\n", fldnum);
 		VectorCopy(vec3_origin, G_VECTOR(OFS_RETURN));
 		break;
 	}
 }
+
+
+static void QCBUILTIN PF_cs_getplayerstat(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int playernum = G_FLOAT(OFS_PARM0);
+	unsigned int statnum = G_FLOAT(OFS_PARM1);
+	unsigned int stattype = G_FLOAT(OFS_PARM2);
+	unsigned int i, j;
+	if (playernum >= cl.allocated_client_slots || statnum >= MAX_CL_STATS)
+		stattype = ev_void;
+
+	switch(stattype)
+	{
+	default:
+	case ev_void:
+		G_FLOAT(OFS_RETURN+0) = 0;
+		G_FLOAT(OFS_RETURN+1) = 0;
+		G_FLOAT(OFS_RETURN+2) = 0;
+		break;
+
+	case ev_integer:
+	case ev_field:		//Hopefully NOT useful, certainly not reliable
+	case ev_function:	//Hopefully NOT useful
+	case ev_pointer:	//NOT useful in a networked capacity.
+		G_INT(OFS_RETURN) = cl.players[playernum].stats[statnum];
+		break;
+
+	case ev_float:
+		G_FLOAT(OFS_RETURN) = cl.players[playernum].statsf[statnum];
+		break;
+	case ev_vector:
+		G_FLOAT(OFS_RETURN+0) = (statnum+0 >= MAX_CL_STATS)?0:cl.players[playernum].statsf[statnum+0];
+		G_FLOAT(OFS_RETURN+1) = (statnum+1 >= MAX_CL_STATS)?0:cl.players[playernum].statsf[statnum+1];
+		G_FLOAT(OFS_RETURN+2) = (statnum+2 >= MAX_CL_STATS)?0:cl.players[playernum].statsf[statnum+2];
+		break;
+	case ev_entity:
+		j = cl.players[playernum].stats[statnum];
+		if (j < maxcsqcentities && csqcent[j])
+			G_INT(OFS_RETURN) = EDICT_TO_PROG(csqcprogs, csqcent[j]);
+		else if (j <= cl.allocated_client_slots && j > 0 && csqcdelta_playerents[j])
+			G_INT(OFS_RETURN) = EDICT_TO_PROG(csqcprogs, csqcdelta_playerents[j]);
+		else
+		{
+			G_INT(OFS_RETURN) = 0;
+			//scan for the delta entity reference.
+			for (i = 0; i < csqcdelta_pack_new.numents; i++)
+			{
+				if (csqcdelta_pack_old.e[i].n == j && csqcdelta_pack_old.e[i].e)
+				{
+					G_INT(OFS_RETURN) = EDICT_TO_PROG(csqcprogs, csqcdelta_pack_old.e[i].e);
+					break;
+				}
+			}
+		}
+		break;
+	case ev_string:
+		G_INT(OFS_RETURN) = 0;	//FIXME: no info, these are not currently tracked in mvds apparently.
+		break;
+	}
+}
+
 
 static void QCBUILTIN PF_V_CalcRefdef(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4954,8 +5092,6 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 
 void QCBUILTIN PF_CL_DrawTextField (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
-#define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
-
 //prefixes:
 //PF_ - common, works on any vm
 //PF_cs_ - works in csqc only (dependant upon globals or fields)
@@ -5268,6 +5404,7 @@ static struct {
 	{"getstati",				PF_cs_getstati,					330},	// #330 float(float stnum) getstati (EXT_CSQC)
 	{"getstatf",				PF_cs_getstatbits,				331},	// #331 float(float stnum) getstatf (EXT_CSQC)
 	{"getstats",				PF_cs_getstats,					332},	// #332 string(float firststnum) getstats (EXT_CSQC)
+	{"getplayerstat",			PF_cs_getplayerstat,			0},		// #0 __variant(float playernum, float statnum, float stattype) getplayerstat
 	{"setmodelindex",			PF_cs_SetModelIndex,			333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
 	{"modelnameforindex",		PF_cs_ModelnameForIndex,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
 

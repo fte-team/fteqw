@@ -285,7 +285,7 @@ int MP_TranslateQCtoFTECodes(int code)
 void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
-	int bindmap = G_FLOAT(OFS_PARM1);
+	int bindmap = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
 	int keynums[2];
 	char keyname[512];
 
@@ -302,7 +302,7 @@ void QCBUILTIN PF_cl_findkeysforcommand (pubprogfuncs_t *prinst, struct globalva
 void QCBUILTIN PF_cl_findkeysforcommandex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
-	int bindmap = G_FLOAT(OFS_PARM1);
+	int bindmap = (prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
 	int keynums[256];
 	int keymods[countof(keynums)];
 	char keyname[512];

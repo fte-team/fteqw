@@ -238,7 +238,8 @@ typedef struct
 	float		m_view[16];
 
 	mplane_t	frustum[MAXFRUSTUMPLANES];
-	int			frustum_numplanes;
+	int			frustum_numworldplanes;	//all but far, which isn't culled because this wouldn't cover the entire screen.
+	int			frustum_numplanes;	//includes far plane (which is reduced with fog).
 
 	fogstate_t	globalfog;
 	float		hdr_value;

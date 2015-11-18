@@ -710,6 +710,19 @@ static qintptr_t VARGS Plug_GetNetworkInfo(void *offset, quintptr_t mask, const 
 }
 #undef has
 
+static qintptr_t VARGS Plug_GetTrackerOwnFrags(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	int ret;
+	int seat = VM_LONG(arg[0]);
+	char *outptr = VM_POINTER(arg[1]);
+	size_t outlen = VM_LONG(arg[2]);
+	if (VM_OOB(arg[1], outlen) || !outlen)
+		VM_FLOAT(ret) = 0;
+	else
+		VM_FLOAT(ret) = Stats_GetLastOwnFrag(seat, outptr, outlen);
+	return ret;
+}
+
 static qintptr_t VARGS Plug_GetLocationName(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	float *locpoint = VM_POINTER(arg[0]);
@@ -1249,6 +1262,7 @@ void Plug_Client_Init(void)
 	Plug_RegisterBuiltin("GetServerInfo",			Plug_GetServerInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SetUserInfo",				Plug_SetUserInfo, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetNetworkInfo",			Plug_GetNetworkInfo, PLUG_BIF_NEEDSRENDERER);
+	Plug_RegisterBuiltin("GetTrackerOwnFrags",		Plug_GetTrackerOwnFrags, PLUG_BIF_NEEDSRENDERER);
 	
 	Plug_RegisterBuiltin("S_RawAudio",				Plug_S_RawAudio, PLUG_BIF_NEEDSRENDERER);
 	

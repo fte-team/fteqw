@@ -206,6 +206,15 @@ static qboolean Ignorelist_VAdd(int slot)
 	S_Voip_Ignore(slot, true);
 	return true;
 }
+static qboolean Ignorelist_VDel(int slot)
+{
+	if (!cl.players[slot].vignored)
+		return false;
+
+	cl.players[slot].vignored = false;
+	S_Voip_Ignore(slot, false);
+	return true;
+}
 
 static qboolean Ignorelist_Del(int slot)
 {
@@ -244,9 +253,40 @@ static void VIgnore_f(void)
 	else
 	{
 		if (Ignorelist_VAdd(slot))
-			Con_Printf("Added user %s to ignore list\n", cl.players[slot].name);
+			Con_Printf("Added user %s to mute list\n", cl.players[slot].name);
 		else
-			Con_Printf ("User %s is already ignored\n", cl.players[slot].name);
+			Con_Printf ("User %s is already mute\n", cl.players[slot].name);
+	}
+}
+static void VUnignore_f(void)
+{
+	int c, slot;
+
+	if ((c = Cmd_Argc()) == 1)
+	{
+		Display_Ignorelist();
+		return;
+	}
+	else if (c != 2)
+	{
+		Con_Printf("Usage: %s [userid | name]\n", Cmd_Argv(0));
+		return;
+	}
+
+	if ((slot = Player_StringtoSlot(Cmd_Argv(1))) == PLAYER_ID_NOMATCH)
+	{
+		Con_Printf("%s : no player with userid %d\n", Cmd_Argv(0), Q_atoi(Cmd_Argv(1)));
+	}
+	else if (slot == PLAYER_NAME_NOMATCH)
+	{
+		Con_Printf("%s : no player with name %s\n", Cmd_Argv(0), Cmd_Argv(1));
+	}
+	else
+	{
+		if (Ignorelist_VDel(slot))
+			Con_Printf("Removed user %s from mute list\n", cl.players[slot].name);
+		else
+			Con_Printf ("User %s already wasn't muted\n", cl.players[slot].name);
 	}
 }
 
@@ -613,6 +653,7 @@ void Ignore_Init(void)
 	Cvar_Register (&ignore_opponents, IGNOREGROUP);
 
 	Cmd_AddCommand ("cl_voip_mute", VIgnore_f);
+	Cmd_AddCommand ("cl_voip_unmute", VUnignore_f);
 	Cmd_AddCommand ("ignore", Ignore_f);
 	Cmd_AddCommand ("ignorelist", IgnoreList_f);			
 	Cmd_AddCommand ("unignore", Unignore_f);				

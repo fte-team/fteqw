@@ -261,7 +261,7 @@ static texid_t font_texture;
 static int font_colourmask;
 static byte_vec4_t font_forecolour;
 static byte_vec4_t font_backcolour;
-static vec4_t font_foretint;
+static avec4_t	font_foretint;
 
 static struct font_s *curfont;
 static float curfont_scale[2];
@@ -1806,9 +1806,9 @@ void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end)
 
 /*Note: *all* strings after the current one will inherit the same colour, until one changes it explicitly
 correct usage of this function thus requires calling this with 1111 before Font_EndString*/
-void Font_ForceColour(float r, float g, float b, float a)
+void Font_InvalidateColour(vec4_t newcolour)
 {
-	if (font_foretint[0] == r && font_foretint[1] == b && font_foretint[2] == b && font_foretint[3] == a)
+	if (font_foretint[0] == newcolour[0] && font_foretint[1] == newcolour[1] && font_foretint[2] == newcolour[2] && font_foretint[3] == newcolour[3])
 		return;
 
 	if (font_colourmask & CON_NONCLEARBG)
@@ -1818,19 +1818,12 @@ void Font_ForceColour(float r, float g, float b, float a)
 	}
 	font_colourmask = CON_WHITEMASK;
 
-	font_foretint[0] = r;
-	font_foretint[1] = g;
-	font_foretint[2] = b;
-	font_foretint[3] = a;
+	Vector4Copy(newcolour, font_foretint);
 	Vector4Scale(font_foretint, 255, font_forecolour);
 
 	font_backcolour[3] = 0;
 
 	/*Any drawchars that are now drawn will get the forced colour*/
-}
-void Font_InvalidateColour(void)
-{
-	Font_ForceColour(1,1,1,1);
 }
 
 //draw a character from the current font at a pixel location.

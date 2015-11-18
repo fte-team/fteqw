@@ -2452,7 +2452,7 @@ void QCBUILTIN PF_loadfromfile (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	const char	*filename = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *file = COM_LoadTempFile(filename, NULL);
 
-	int size;
+	size_t size;
 
 	if (!file)
 	{
@@ -2475,7 +2475,7 @@ void QCBUILTIN PF_writetofile(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	char buffer[65536];
 	char *entstr;
-	int buflen;
+	size_t buflen;
 
 	buflen = 0;
 	entstr = prinst->saveent(prinst, buffer, &buflen, sizeof(buffer), ed);	//will save just one entities vars
@@ -2489,7 +2489,7 @@ void QCBUILTIN PF_loadfromdata (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 {
 	const char	*file = PR_GetStringOfs(prinst, OFS_PARM0);
 
-	int size;
+	size_t size;
 
 	if (!*file)
 	{
@@ -2510,7 +2510,7 @@ void QCBUILTIN PF_parseentitydata(pubprogfuncs_t *prinst, struct globalvars_s *p
 	void	*ed = G_EDICT(prinst, OFS_PARM0);
 	const char	*file = PR_GetStringOfs(prinst, OFS_PARM1);
 
-	int size;
+	size_t size;
 
 	if (!*file)
 	{
@@ -4964,7 +4964,7 @@ void QCBUILTIN PF_traceoff (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 }
 void QCBUILTIN PF_coredump (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int size = 1024*1024*8;
+	size_t size = 1024*1024*8;
 	char *buffer = BZ_Malloc(size);
 	prinst->save_ents(prinst, buffer, &size, size, 3);
 	COM_WriteFile("core.txt", FS_GAMEONLY, buffer, size);
@@ -4972,8 +4972,8 @@ void QCBUILTIN PF_coredump (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 }
 void QCBUILTIN PF_eprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int max = 1024*1024;
-	int size = 0;
+	size_t max = 1024*1024;
+	size_t size = 0;
 	char *buffer = BZ_Malloc(max);
 	char *buf;
 	buf = prinst->saveent(prinst, buffer, &size, max, (struct edict_s*)G_WEDICT(prinst, OFS_PARM0));

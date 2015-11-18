@@ -443,47 +443,10 @@ typedef struct slaveserver_s
 	int inbufsize;
 } winsubserver_t;
 
-
-pubsubserver_t *Sys_ForkServer(void)
+static void Sys_InstructSlave(pubsubserver_t *ps, sizebuf_t *cmd)
 {
-	char exename[256];
-	char curdir[256];
-	char cmdline[8192];
-	PROCESS_INFORMATION childinfo;
-	STARTUPINFO startinfo;
-	SECURITY_ATTRIBUTES pipesec = {sizeof(pipesec), NULL, TRUE};
-	winsubserver_t *ctx = Z_Malloc(sizeof(*ctx));
-
-	GetModuleFileName(NULL, exename, sizeof(exename));
-	GetCurrentDirectory(sizeof(curdir), curdir);
-	Q_snprintfz(cmdline, sizeof(cmdline), "foo -noreset -clusterslave %s", FS_GetManifestArgs());	//fixme: include which manifest is in use, so configs get set up the same.
-
-	memset(&startinfo, 0, sizeof(startinfo));
-	startinfo.cb = sizeof(startinfo);
-	startinfo.hStdInput = NULL;
-	startinfo.hStdError = NULL;
-	startinfo.hStdOutput = NULL;
-	startinfo.dwFlags |= STARTF_USESTDHANDLES;
-
-	//create pipes for the stdin/stdout.
-	CreatePipe(&ctx->inpipe, &startinfo.hStdOutput, &pipesec, 0);
-	CreatePipe(&startinfo.hStdInput, &ctx->outpipe, &pipesec, 0);
-
-	SetHandleInformation(ctx->inpipe, HANDLE_FLAG_INHERIT, 0);
-	SetHandleInformation(ctx->outpipe, HANDLE_FLAG_INHERIT, 0);
-	SetHandleInformation(startinfo.hStdOutput, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
-	SetHandleInformation(startinfo.hStdInput, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
-
-	CreateProcess(exename, cmdline, NULL, NULL, TRUE, 0, NULL, curdir, &startinfo, &childinfo);
-
-	//these ends of the pipes were inherited by now, so we can discard them in the caller.
-	CloseHandle(startinfo.hStdOutput);
-	CloseHandle(startinfo.hStdInput);
-	return &ctx->pub;
-}
-
-void Sys_InstructSlave(pubsubserver_t *ps, sizebuf_t *cmd)
-{
+	//FIXME: this is blocking. this is bad if the target is also blocking while trying to write to us.
+	//FIXME: merge buffering logic with SSV_InstructMaster, and allow for failure if full
 	winsubserver_t *s = (winsubserver_t*)ps;
 	DWORD written = 0;
 	cmd->data[0] = cmd->cursize & 0xff;
@@ -491,16 +454,7 @@ void Sys_InstructSlave(pubsubserver_t *ps, sizebuf_t *cmd)
 	WriteFile(s->outpipe, cmd->data, cmd->cursize, &written, NULL);
 }
 
-void SSV_InstructMaster(sizebuf_t *cmd)
-{
-	HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
-	DWORD written = 0;
-	cmd->data[0] = cmd->cursize & 0xff;
-	cmd->data[1] = (cmd->cursize>>8) & 0xff;
-	WriteFile(output, cmd->data, cmd->cursize, &written, NULL);
-}
-
-int Sys_SubServerRead(pubsubserver_t *ps)
+static int Sys_SubServerRead(pubsubserver_t *ps)
 {
 	DWORD avail;
 	winsubserver_t *s = (winsubserver_t*)ps;
@@ -536,5 +490,62 @@ int Sys_SubServerRead(pubsubserver_t *ps)
 	}
 	return 0;
 }
+
+pubsubserver_t *Sys_ForkServer(void)
+{
+	wchar_t exename[256];
+	wchar_t curdir[256];
+	char cmdline[8192];
+	wchar_t wtmp[countof(cmdline)];
+	PROCESS_INFORMATION childinfo;
+	STARTUPINFOW startinfo;
+	SECURITY_ATTRIBUTES pipesec = {sizeof(pipesec), NULL, TRUE};
+	winsubserver_t *ctx = Z_Malloc(sizeof(*ctx));
+
+	GetModuleFileNameW(NULL, exename, countof(exename));
+	GetCurrentDirectoryW(countof(curdir), curdir);
+	Q_snprintfz(cmdline, sizeof(cmdline), "foo -noreset -clusterslave %s", FS_GetManifestArgs());	//fixme: include which manifest is in use, so configs get set up the same.
+
+	memset(&startinfo, 0, sizeof(startinfo));
+	startinfo.cb = sizeof(startinfo);
+	startinfo.hStdInput = NULL;
+	startinfo.hStdError = NULL;
+	startinfo.hStdOutput = NULL;
+	startinfo.dwFlags |= STARTF_USESTDHANDLES;
+
+	//create pipes for the stdin/stdout.
+	CreatePipe(&ctx->inpipe, &startinfo.hStdOutput, &pipesec, 0);
+	CreatePipe(&startinfo.hStdInput, &ctx->outpipe, &pipesec, 0);
+
+	SetHandleInformation(ctx->inpipe, HANDLE_FLAG_INHERIT, 0);
+	SetHandleInformation(ctx->outpipe, HANDLE_FLAG_INHERIT, 0);
+	SetHandleInformation(startinfo.hStdOutput, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+	SetHandleInformation(startinfo.hStdInput, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT);
+
+	CreateProcessW(exename, widen(wtmp, sizeof(wtmp), cmdline), NULL, NULL, TRUE, 0, NULL, curdir, &startinfo, &childinfo);
+
+	//child will close when its pipes are closed. we don't need to hold on to the child process handle.
+	CloseHandle(childinfo.hProcess);
+	CloseHandle(childinfo.hThread);
+
+	//these ends of the pipes were inherited by now, so we can discard them in the caller.
+	CloseHandle(startinfo.hStdOutput);
+	CloseHandle(startinfo.hStdInput);
+
+	ctx->pub.funcs.InstructSlave = Sys_InstructSlave;
+	ctx->pub.funcs.SubServerRead = Sys_SubServerRead;
+	return &ctx->pub;
+}
+
+void SSV_InstructMaster(sizebuf_t *cmd)
+{
+	//FIXME: this is blocking. this is bad if the target is also blocking while trying to write to us.
+	HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
+	DWORD written = 0;
+	cmd->data[0] = cmd->cursize & 0xff;
+	cmd->data[1] = (cmd->cursize>>8) & 0xff;
+	WriteFile(output, cmd->data, cmd->cursize, &written, NULL);
+}
+
 #endif
 

@@ -616,7 +616,12 @@ static void Q1BSP_RecursiveBrushCheck (struct traceinfo_s *traceinfo, mnode_t *n
 	}
 
 // put the crosspoint DIST_EPSILON pixels on the near side
-	if (t1 < 0)
+	if (t1 == t2)
+	{
+		side = 0;
+		frac = 0;
+	}
+	else if (t1 < 0)
 	{
 		frac = (t1 + DIST_EPSILON)/(t1-t2);
 		side = 1;

@@ -616,6 +616,15 @@ void Cmd_Exec_f (void)
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
+	if (!strncmp(name, "../", 3) || !strncmp(name, "..\\", 3) || !strncmp(name, "./", 2) || !strncmp(name, ".\\", 2))
+	{	//filesystem will correctly block this (and more), but it does look dodgy when servers try doing this dodgy shit anyway.
+		if (Cmd_IsInsecure())
+			Con_TPrintf ("exec: %s is an invalid path (from server)\n", name);
+		else
+			Con_TPrintf ("exec: %s is an invalid path\n", name);
+		return;
+	}
+
 	if (!FS_FLocateFile(name, FSLF_IFFOUND, &loc) && !FS_FLocateFile(va("%s.cfg", name), FSLF_IFFOUND, &loc))
 	{
 		Con_TPrintf ("couldn't exec %s\n", name);

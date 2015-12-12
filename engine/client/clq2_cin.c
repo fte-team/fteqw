@@ -379,7 +379,7 @@ int CIN_RunCinematic (cinematics_t *cin, qbyte **outdata, int *outwidth, int *ou
 	}
 	if (frame > cin->cinematicframe+1)
 	{
-		Con_Printf ("Dropped frame: %i > %i\n", frame, cin->cinematicframe+1);
+		Con_DPrintf ("Dropped frame: %i > %i\n", frame, cin->cinematicframe+1);
 		cin->cinematictime = realtime*1000 - cin->cinematicframe*1000/14;
 	}
 	if (cin->pic)
@@ -485,7 +485,7 @@ cinematics_t *CIN_PlayCinematic (char *arg)
 
 		cin->cinematicframe = 0;
 		cin->pic = CIN_ReadNextFrame (cin);
-		cin->cinematictime = Sys_DoubleTime ()*1000+0.001;
+		cin->cinematictime = realtime*1000;
 	}
 	else
 	{

@@ -182,9 +182,10 @@ typedef struct {
 	char name[MAX_QPATH];
 	model_t *model;
 	float framestart;
-	float frameend;
+	float framecount;
 	float framerate;
 	float alpha;
+	int skin;
 	int traileffect;
 	unsigned int rflags;
 #define RF_USEORIENTATION Q2RF_CUSTOMSKIN	//private flag
@@ -1244,11 +1245,13 @@ void P_ParticleEffect_f(void)
 
 		else if (!strcmp(var, "alpha"))
 			ptype->alpha = atof(value);
+#ifndef NOLEGACY
 		else if (!strcmp(var, "alphachange"))
 		{
 			Con_DPrintf("%s.%s: alphachange is deprecated, use alphadelta\n", ptype->config, ptype->name);
 			ptype->alphachange = atof(value);
 		}
+#endif
 		else if (!strcmp(var, "alphadelta"))
 		{
 			ptype->alphachange = atof(value);
@@ -1269,11 +1272,13 @@ void P_ParticleEffect_f(void)
 				ptype->randdie = mx-mn;
 			}
 		}
+#ifndef NOLEGACY
 		else if (!strcmp(var, "diesubrand"))
 		{
 			Con_DPrintf("%s.%s: diesubrand is deprecated, use die with two arguments\n", ptype->config, ptype->name);
 			ptype->randdie = atof(value);
 		}
+#endif
 
 		else if (!strcmp(var, "randomvel"))
 		{
@@ -1395,9 +1400,10 @@ parsefluid:
 			mod = &ptype->models[ptype->nummodels++];
 
 			mod->framestart = 0;
-			mod->frameend = 1;
+			mod->framecount = 1;
 			mod->framerate = 10;
 			mod->alpha = 1;
+			mod->skin = 0;
 			mod->traileffect = P_INVALID;
 			mod->rflags = RF_NOSHADOW;
 
@@ -1411,12 +1417,21 @@ parsefluid:
 				{
 					e = Cmd_Argv(p);
 
-					if (!Q_strncasecmp(e, "framestart=", 11))
+					if (!Q_strncasecmp(e, "frame=", 6))
+					{
+						mod->framestart = atof(e+6);
+						mod->framecount = 1;
+					}
+					else if (!Q_strncasecmp(e, "framestart=", 11))
 						mod->framestart = atof(e+11);
-					else if (!Q_strncasecmp(e, "frameend=", 9))
-						mod->frameend = atof(e+9);
+					else if (!Q_strncasecmp(e, "frameend=", 9))	//misnomer.
+						mod->framecount = atof(e+9);
+					else if (!Q_strncasecmp(e, "frames=", 7))
+						mod->framecount = atof(e+7);
 					else if (!Q_strncasecmp(e, "framerate=", 10))
 						mod->framerate = atof(e+10);
+					else if (!Q_strncasecmp(e, "skin=", 5))
+						mod->skin = atoi(e+5);
 					else if (!Q_strncasecmp(e, "alpha=", 6))
 						mod->alpha = atof(e+6);
 					else if (!Q_strncasecmp(e, "trail=", 6))
@@ -1443,7 +1458,7 @@ parsefluid:
 			else
 			{
 				mod->framestart = atof(Cmd_Argv(2));
-				mod->frameend = atof(Cmd_Argv(3));
+				mod->framecount = atof(Cmd_Argv(3));
 				mod->framerate = atof(Cmd_Argv(4));
 				mod->alpha = atof(Cmd_Argv(5));
 				if (*Cmd_Argv(6))
@@ -1636,7 +1651,13 @@ parsefluid:
 			else if (!strcmp(value, "uniformcircle"))
 				ptype->spawnmode = SM_UNICIRCLE;
 			else if (!strcmp(value, "syncfield"))
+			{
 				ptype->spawnmode = SM_FIELD;
+#ifndef NOLEGACY
+				ptype->spawnparam1 = 16;
+				ptype->spawnparam2 = 0;
+#endif
+			}
 			else if (!strcmp(value, "distball"))
 				ptype->spawnmode = SM_DISTBALL;
 			else
@@ -1667,11 +1688,13 @@ parsefluid:
 				ptype->looks.type = PT_NORMAL;
 			settype = true;
 		}
+#ifndef NOLEGACY
 		else if (!strcmp(var, "isbeam"))
 		{
 			Con_DPrintf("%s.%s: isbeam is deprecated, use type beam\n", ptype->config, ptype->name);
 			ptype->looks.type = PT_BEAM;
 		}
+#endif
 		else if (!strcmp(var, "spawntime"))
 			ptype->spawntime = atof(value);
 		else if (!strcmp(var, "spawnchance"))
@@ -1705,6 +1728,7 @@ parsefluid:
 		else if (!strcmp(var, "emitstart"))
 			ptype->emitstart = atof(value);
 
+#ifndef NOLEGACY
 		// old names
 		else if (!strcmp(var, "areaspread"))
 		{
@@ -1726,6 +1750,7 @@ parsefluid:
 			Con_DPrintf("%s.%s: offsetspreadvert is deprecated, use spawnvel\n", ptype->config, ptype->name);
 			ptype->spawnvelvert  = atof(value);
 		}
+#endif
 
 		// current names
 		else if (!strcmp(var, "spawnorg"))
@@ -1743,13 +1768,21 @@ parsefluid:
 				ptype->spawnvelvert = atof(Cmd_Argv(2));
 		}
 
+#ifndef NOLEGACY
 		// spawn mode param fields
 		else if (!strcmp(var, "spawnparam1"))
+		{
 			ptype->spawnparam1 = atof(value);
+			Con_DPrintf("%s.%s: 'spawnparam1' is deprecated, use 'spawnmode foo X'\n", ptype->config, ptype->name);
+		}
 		else if (!strcmp(var, "spawnparam2"))
+		{
 			ptype->spawnparam2 = atof(value);
+			Con_DPrintf("%s.%s: 'spawnparam2' is deprecated, use 'spawnmode foo X Y'\n", ptype->config, ptype->name);
+		}
 /*		else if (!strcmp(var, "spawnparam3"))
 			ptype->spawnparam3 = atof(value); */
+#endif
 
 		else if (!strcmp(var, "up"))
 			ptype->orgbias[2] = atof(value);
@@ -1757,11 +1790,13 @@ parsefluid:
 		{
 			if (!strcmp(value, "none"))
 				ptype->rampmode = RAMP_NONE;
+#ifndef NOLEGACY
 			else if (!strcmp(value, "absolute"))
 			{
 				Con_DPrintf("%s.%s: 'rampmode absolute' is deprecated, use 'rampmode nearest'\n", ptype->config, ptype->name);
 				ptype->rampmode = RAMP_NEAREST;
 			}
+#endif
 			else if (!strcmp(value, "nearest"))
 				ptype->rampmode = RAMP_NEAREST;
 			else if (!strcmp(value, "lerp"))	//don't use the name 'linear'. ramps are there to avoid linear...
@@ -2066,7 +2101,24 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 
 		for (i = 0; i < ptype->nummodels; i++)
 		{
-			Q_strncatz(outstr, va("model \"%s\" %g %g %g %g \"%s\"\n", ptype->models[i].name, ptype->models[i].framestart, ptype->models[i].frameend, ptype->models[i].framerate, ptype->models[i].alpha, ptype->models[i].traileffect==P_INVALID?"":part_type[ptype->models[i].traileffect].name), outstrlen);
+			Q_strncatz(outstr, va("model \"%s\" framestart=%g frames=%g framerate=%g alpha=%g skin=%i",
+				ptype->models[i].name, ptype->models[i].framestart, ptype->models[i].framecount, ptype->models[i].framerate, ptype->models[i].alpha, ptype->models[i].skin
+				), outstrlen);
+			if (ptype->models[i].traileffect!=P_INVALID)
+				Q_strncatz(outstr, va(" trail=%s", part_type[ptype->models[i].traileffect].name), outstrlen);
+			if (ptype->models[i].rflags&RF_USEORIENTATION)
+				Q_strncatz(outstr, " orient", outstrlen);
+			if (ptype->models[i].rflags&RF_ADDITIVE)
+				Q_strncatz(outstr, " additive", outstrlen);
+			if (ptype->models[i].rflags&RF_TRANSLUCENT)
+				Q_strncatz(outstr, " transparent", outstrlen);
+			if (ptype->models[i].rflags&Q2RF_FULLBRIGHT)
+				Q_strncatz(outstr, " fullbright", outstrlen);
+			if (ptype->models[i].rflags&RF_NOSHADOW)
+				Q_strncatz(outstr, " noshadow", outstrlen);
+			else
+				Q_strncatz(outstr, " shadow", outstrlen);
+			Q_strncatz(outstr, "\n", outstrlen);
 		}
 		for (i = 0; i < ptype->numsounds; i++)
 		{
@@ -3650,17 +3702,22 @@ static void PScript_ApplyOrgVel(vec3_t oorg, vec3_t ovel, vec3_t eforg, vec3_t e
 		VectorScale(ofsvec, ptype->areaspread, arsvec);
 		break;
 	case SM_FIELD:
-		arsvec[0] = cl.time * (avelocities[i][0] + m);
-		arsvec[1] = cl.time * (avelocities[i][1] + m);
+		arsvec[0] = (cl.time * avelocities[i][0]) + m;
+		arsvec[1] = (cl.time * avelocities[i][1]) + m;
 		arsvec[2] = cos(arsvec[1]);
 
 		ofsvec[0] = arsvec[2]*cos(arsvec[0]);
 		ofsvec[1] = arsvec[2]*sin(arsvec[0]);
 		ofsvec[2] = -sin(arsvec[1]);
 
-		arsvec[0] = r_avertexnormals[j][0]*ptype->areaspread + ofsvec[0]*BEAMLENGTH;
-		arsvec[1] = r_avertexnormals[j][1]*ptype->areaspread + ofsvec[1]*BEAMLENGTH;
-		arsvec[2] = r_avertexnormals[j][2]*ptype->areaspreadvert + ofsvec[2]*BEAMLENGTH;
+//		arsvec[0] = r_avertexnormals[j][0]*ptype->areaspread + ofsvec[0]*BEAMLENGTH;
+//		arsvec[1] = r_avertexnormals[j][1]*ptype->areaspread + ofsvec[1]*BEAMLENGTH;
+//		arsvec[2] = r_avertexnormals[j][2]*ptype->areaspreadvert + ofsvec[2]*BEAMLENGTH;
+
+		l = ptype->spawnparam2 * sin(cl.time+j+m);
+		arsvec[0] = r_avertexnormals[j][0]*(ptype->areaspread+l) + ofsvec[0]*ptype->spawnparam1;
+		arsvec[1] = r_avertexnormals[j][1]*(ptype->areaspread+l) + ofsvec[1]*ptype->spawnparam1;
+		arsvec[2] = r_avertexnormals[j][2]*(ptype->areaspreadvert+l) + ofsvec[2]*ptype->spawnparam1;
 
 		VectorNormalize(ofsvec);
 
@@ -3762,7 +3819,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3]
 			{
 				vec3_t morg, mdir;
 				PScript_ApplyOrgVel(morg, mdir, org, axis[0], i, count, ptype);
-				CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?axis[2]:NULL, mod->model, mod->framestart, (mod->frameend?mod->frameend:(mod->model->numframes - mod->framestart)), mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION);
+				CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?axis[2]:NULL, mod->model, mod->framestart, (mod->framecount?mod->framecount:(mod->model->numframes - mod->framestart)), mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION, mod->skin);
 			}
 		}
 	}
@@ -4139,11 +4196,8 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		}
 
 		/*this is a hack, use countextra=1, count=0*/
-		if (!ptype->die && ptype->count == 1 && ptype->countrand == 0)
-		{
-			i = 0;
+		if (!ptype->die && ptype->count == 1 && ptype->countrand == 0 && pcount < 1)
 			pcount = 1;
-		}
 
 		// particle spawning loop
 		for (i = 0; i < pcount; i++)
@@ -4299,17 +4353,22 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				VectorScale(ofsvec, ptype->areaspread, arsvec);
 				break;
 			case SM_FIELD:
-				arsvec[0] = cl.time * (avelocities[i][0] + m);
-				arsvec[1] = cl.time * (avelocities[i][1] + m);
+				arsvec[0] = (cl.time * avelocities[i][0]) + m;
+				arsvec[1] = (cl.time * avelocities[i][1]) + m;
 				arsvec[2] = cos(arsvec[1]);
 
 				ofsvec[0] = arsvec[2]*cos(arsvec[0]);
 				ofsvec[1] = arsvec[2]*sin(arsvec[0]);
 				ofsvec[2] = -sin(arsvec[1]);
 
-				arsvec[0] = r_avertexnormals[j][0]*ptype->areaspread + ofsvec[0]*BEAMLENGTH;
-				arsvec[1] = r_avertexnormals[j][1]*ptype->areaspread + ofsvec[1]*BEAMLENGTH;
-				arsvec[2] = r_avertexnormals[j][2]*ptype->areaspreadvert + ofsvec[2]*BEAMLENGTH;
+//				arsvec[0] = r_avertexnormals[j][0]*ptype->areaspread + ofsvec[0]*BEAMLENGTH;
+//				arsvec[1] = r_avertexnormals[j][1]*ptype->areaspread + ofsvec[1]*BEAMLENGTH;
+//				arsvec[2] = r_avertexnormals[j][2]*ptype->areaspreadvert + ofsvec[2]*BEAMLENGTH;
+
+				orgadd = ptype->spawnparam2 * sin(cl.time+j+m);
+				arsvec[0] = r_avertexnormals[j][0]*(ptype->areaspread+orgadd) + ofsvec[0]*ptype->spawnparam1;
+				arsvec[1] = r_avertexnormals[j][1]*(ptype->areaspread+orgadd) + ofsvec[1]*ptype->spawnparam1;
+				arsvec[2] = r_avertexnormals[j][2]*(ptype->areaspreadvert+orgadd) + ofsvec[2]*ptype->spawnparam1;
 
 				VectorNormalize(ofsvec);
 
@@ -4373,9 +4432,8 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			VectorMA(p->vel, ofsvec[0]*ptype->spawnvel, axis[0], p->vel);
 			VectorMA(p->vel, ofsvec[1]*ptype->spawnvel, axis[1], p->vel);
 			VectorMA(p->vel, veladd+ofsvec[2]*ptype->spawnvelvert, axis[2], p->vel);
-			
-			VectorCopy(org, p->org);
-			VectorMA(p->org, arsvec[0], axis[0], p->org);
+
+			VectorMA(org, arsvec[0], axis[0], p->org);
 			VectorMA(p->org, arsvec[1], axis[1], p->org);
 			VectorMA(p->org, orgadd+arsvec[2], axis[2], p->org);
 #else
@@ -6138,6 +6196,22 @@ static void PScript_DrawParticleTypes (void)
 			{
 				if (scenetri)
 				{
+					if (cl_numstrisvert - scenetri->firstvert >= MAX_INDICIES-6)
+					{
+						//generate a new mesh if the old one overflowed. yay smc...
+						if (cl_numstris == cl_maxstris)
+						{
+							cl_maxstris+=8;
+							cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+						}
+						scenetri = &cl_stris[cl_numstris++];
+						scenetri->shader = scenetri[-1].shader;
+						scenetri->firstidx = cl_numstrisidx;
+						scenetri->firstvert = cl_numstrisvert;
+						scenetri->flags = scenetri[-1].flags;
+						scenetri->numvert = 0;
+						scenetri->numidx = 0;
+					}
 					tdraw(scenetri, p, type->slooks);
 				}
 				else if (pdraw)

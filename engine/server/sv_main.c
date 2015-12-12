@@ -2337,7 +2337,15 @@ client_t *SVC_DirectConnect(void)
 	if (protocol >= SCP_NETQUAKE && protocol < SCP_DARKPLACES6)
 	{	//NQ protocols lack stuff like protocol extensions.
 		//its the wild west where nothing is known about the client and everything breaks.
-		switch(sv_protocol_nq.ival)
+		if (!strcmp(sv_protocol_nq.string, "fitz"))
+			protocol = SCP_FITZ666;
+		else if (!strcmp(sv_protocol_nq.string, "dp6"))
+			protocol = SCP_DARKPLACES6;
+		else if (!strcmp(sv_protocol_nq.string, "dp7"))
+			protocol = SCP_DARKPLACES6;
+		else if (!strcmp(sv_protocol_nq.string, "id") || !strcmp(sv_protocol_nq.string, "vanilla"))
+			protocol = (protocol==SCP_PROQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;
+		else switch(sv_protocol_nq.ival)
 		{
 		case RMQ_PROTOCOL_VERSION:
 		case FITZ_PROTOCOL_VERSION:
@@ -5136,12 +5144,22 @@ void SV_Demo_Init(void);
 
 void SV_ExecInitialConfigs(char *defaultexec)
 {
+	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
+	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults
+	Cbuf_AddText("alias restart \"changelevel .\"\n",RESTRICT_LOCAL);
+	Cbuf_AddText(defaultexec, RESTRICT_LOCAL);
+	Cbuf_AddText("\n", RESTRICT_LOCAL);
+
 	if (COM_FileSize("server.cfg") != -1)
-		Cbuf_InsertText ("exec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
+		Cbuf_AddText ("cl_warncmd 1\nexec server.cfg\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
 	else if (COM_FileSize("quake.rc") != -1)
-		Cbuf_InsertText ("cl_warncmd 0\nexec quake.rc\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
+		Cbuf_AddText ("cl_warncmd 0\nexec quake.rc\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
+#ifdef HEXEN2
+	else if (COM_FileSize("hexen.rc") != -1)	//fixme: some kind of priority thing.
+		Cbuf_AddText ("cl_warncmd 0\nexec hexen.rc\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
+#endif
 	else
-		Cbuf_InsertText ("cl_warncmd 0\nexec default.cfg\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL, false);
+		Cbuf_AddText ("cl_warncmd 0\nexec default.cfg\ncl_warncmd 1\nexec ftesrv.cfg\n", RESTRICT_LOCAL);
 
 // process command line arguments
 	Cbuf_Execute ();

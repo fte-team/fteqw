@@ -11,7 +11,6 @@
 #define Cvar_SetValue(var,val) pCvar_SetFloat(var->name,val)
 #define Cvar_Set(var,val) pCvar_SetString(var->name,val)
 #define Cmd_Argc pCmd_Argc
-#define Cmd_Argv(x) ""
 #define Cbuf_AddText(x) pCmd_AddText(x,false)
 #define Sys_Error(x) pSys_Error(x)
 #define Q_calloc calloc

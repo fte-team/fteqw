@@ -1741,6 +1741,7 @@ void SCR_DrawLoading (qboolean opaque)
 					R2D_FillBlock(x+sizex, y, 192-sizex, 16);
 				}
 
+				R2D_ImageColours(1, 1, 1, 1);
 				Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
 					(loading_stage == LS_SERVER) ? "server" : "client",
 					current_loading_size * 100 / total_loading_size));
@@ -2663,6 +2664,11 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 
 		SCR_ShowPics_Draw();
 	}
+	else if (nohud)
+	{
+		SCR_DrawFPS ();
+		SCR_CheckDrawCenterString ();
+	}
 	else if (cl.intermissionmode == IM_NQFINALE)
 	{
 		Sbar_FinaleOverlay ();
@@ -2677,21 +2683,16 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	}
 	else
 	{
-		if (!nohud)
-		{
-			R2D_DrawCrosshair();
+		R2D_DrawCrosshair();
 
-			SCR_DrawNet ();
-			SCR_DrawDisk();
-			SCR_DrawFPS ();
-			SCR_DrawClock();
-			SCR_DrawGameClock();
-			SCR_DrawTurtle ();
-			SCR_DrawPause ();
-			SCR_ShowPics_Draw();
-		}
-		else
-			SCR_DrawFPS ();
+		SCR_DrawNet ();
+		SCR_DrawDisk();
+		SCR_DrawFPS ();
+		SCR_DrawClock();
+		SCR_DrawGameClock();
+		SCR_DrawTurtle ();
+		SCR_DrawPause ();
+		SCR_ShowPics_Draw();
 		SCR_CheckDrawCenterString ();
 	}
 

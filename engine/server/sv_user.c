@@ -55,7 +55,7 @@ cvar_t	sv_cheatspeedchecktime	= CVARD("sv_cheatspeedchecktime", "30", "The inter
 #endif
 cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
 cvar_t	sv_ping_ignorepl		= CVARD("sv_ping_ignorepl", "0", "If 1, ping times reported for players will ignore the effects of packetloss on ping times. 0 is slightly more honest, but less useful for connection diagnosis.");
-cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "0", "Specifies the default protocol to use for new NQ clients. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
+cvar_t	sv_protocol_nq		= CVARD("sv_protocol_nq", "", "Specifies the default protocol to use for new NQ clients. Supported values are\n0 = autodetect\n15 = vanilla\n666 = fitzquake\n999 = rmq protocol\nThe sv_bigcoords cvar forces upgrades as required.");
 
 cvar_t	sv_minpitch		 = CVARAFD("minpitch", "",	"sv_minpitch", CVAR_SERVERINFO, "Assumed to be -70");
 cvar_t	sv_maxpitch		 = CVARAFD("maxpitch", "",	"sv_maxpitch", CVAR_SERVERINFO, "Assumed to be 80");
@@ -288,7 +288,7 @@ void SV_New_f (void)
 */
 	if (svs.netprim.coordsize > 2 && !(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
 	{
-		SV_ClientPrintf(host_client, 2, "\n\n\n\nSorry, but your client does not appear to support FTE's bigcoords\nFTE users will need to set cl_nopext to 0 and then reconnect, or to upgrade\n");
+		SV_ClientPrintf(host_client, 2, "\n\n\n\nPlease set cl_nopext to 0 and then reconnect.\nIf that doesn't work, please update your engine - "ENGINEWEBSITE"\n");
 		Con_Printf("%s does not support bigcoords\n", host_client->name);
 		host_client->drop = true;
 		return;
@@ -5597,7 +5597,7 @@ ucmd_t ucmdsq2[] = {
 //	{"topten", Rank_ListTop10_f, true},
 //#endif
 
-	{"drop", SV_Drop_f, true},
+	//quakeworld uses 'drop', quake2 commonly uses that to chuck items away / to a friend.
 	{"disconnect", SV_Drop_f, true},
 
 	{NULL, NULL}

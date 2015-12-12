@@ -2674,18 +2674,23 @@ enum uploadfmt pbo_format;
 #endif
 int pbo_oldest;
 
+#define CAPTUREDRIVERDESC_DEFAULT	"raw"
+#define CAPTURECODECDESC_DEFAULT	"tga"
+#ifdef WINAVI
+#define CAPTUREDRIVERDESC_AVI "avi: capture directly to avi (capturecodec should be a fourcc value).\n"
+#define CAPTURECODECDESC_AVI "With (win)avi, this should be a fourcc code like divx or xvid, may be blank for raw video.\n"
+#else
+#define CAPTUREDRIVERDESC_AVI
+#define CAPTURECODECDESC_AVI
+#endif
+
 qboolean capturepaused;
 extern cvar_t vid_conautoscale;
-cvar_t capturerate = CVAR("capturerate", "30");
-cvar_t capturewidth = CVARD("capturedemowidth", "0", "When using capturedemo, this specifies the width of the FBO image used.");
-cvar_t captureheight = CVARD("capturedemoheight", "0", "When using capturedemo, this specifies the width of the FBO image used.");
-#if 0//defined(WINAVI)
-cvar_t capturedriver = CVARD("capturedriver", "avi", "The driver to use to capture the demo. avformat can be supported via a plugin.\navi: capture directly to avi (capturecodec should be a fourcc value).\nraw: capture to a series of screenshots.");
-cvar_t capturecodec = CVAR("capturecodec", "divx");
-#else
-cvar_t capturedriver = CVARD("capturedriver", "raw", "The driver to use to capture the demo. avformat can be supported via a plugin.\nraw: capture to a series of screenshots.");
-cvar_t capturecodec = CVARD("capturecodec", "tga", "the compression/encoding codec to use. With raw capturing, this should be one of tga,png,jpg,pcx (ie: screenshot extensions).\nWith (win)avi, this should be a fourcc code like divx or xvid.");
-#endif
+cvar_t capturerate = CVARD("capturerate", "30", "The framerate of the video to capture");
+cvar_t capturewidth = CVARD("capturedemowidth", "0", "When using capturedemo, this specifies the width of the FBO image used. Can be larger than your physical monitor.");
+cvar_t captureheight = CVARD("capturedemoheight", "0", "When using capturedemo, this specifies the height of the FBO image used.");
+cvar_t capturedriver = CVARD("capturedriver", CAPTUREDRIVERDESC_DEFAULT, "The driver to use to capture the demo. avformat can be supported via a plugin.\n"CAPTUREDRIVERDESC_AVI"raw: capture to a series of screenshots.");
+cvar_t capturecodec = CVARD("capturecodec", CAPTURECODECDESC_DEFAULT, "the compression/encoding codec to use.\n"CAPTURECODECDESC_AVI"With raw capturing, this should be one of tga,png,jpg,pcx (ie: screenshot extensions).");
 cvar_t capturesound = CVARD("capturesound", "1", "Enables the capturing of game voice. If not using capturedemo, this can be combined with cl_voip_test to capture your own voice.");
 cvar_t capturesoundchannels = CVAR("capturesoundchannels", "1");
 cvar_t capturesoundbits = CVAR("capturesoundbits", "8");
@@ -3593,7 +3598,12 @@ void CL_PlayDemo(char *demoname, qboolean usesystempath);
 void Media_RecordDemo_f(void)
 {
 	if (Cmd_Argc() < 2)
+	{
+		Con_Printf(	"capturedemo demoname outputname\n"
+					"captures a demo to video frames using offline rendering for smoother results\n"
+					"see also: apropos capture\n");
 		return;
+	}
 	if (Cmd_FromGamecode())
 		return;
 

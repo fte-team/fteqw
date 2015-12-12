@@ -135,10 +135,10 @@ void GLSCR_UpdateScreen (void)
 	{
 		M_Draw(0);
 		V_UpdatePalette (false);
+		R2D_BrightenScreen();
 #if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
 #endif
-		R2D_BrightenScreen();
 		if (R2D_Flush)
 			R2D_Flush();
 		GL_Set2D (false);

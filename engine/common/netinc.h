@@ -254,7 +254,7 @@ typedef struct ftenet_generic_connection_s {
 	char name[MAX_QPATH];
 
 	int (*GetLocalAddresses)(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, int maxaddresses);
-	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, const char *newaddress);
+	qboolean (*ChangeLocalAddress)(struct ftenet_generic_connection_s *con, netadr_t *newadr);
 	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
 	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, const void *data, netadr_t *to);
 	void (*Close)(struct ftenet_generic_connection_s *con);

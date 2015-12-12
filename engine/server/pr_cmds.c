@@ -3956,7 +3956,7 @@ void QCBUILTIN PF_precache_vwep_model (pubprogfuncs_t *prinst, struct globalvars
 			{
 				if (sv.state != ss_loading)
 				{
-					Con_Printf("PF_precache_vwep_model: not spawning\n");
+					Con_Printf("PF_precache_vwep_model: not spawn-time\n");
 					G_FLOAT(OFS_RETURN) = 0;
 					return;
 				}

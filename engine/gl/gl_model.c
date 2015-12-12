@@ -1674,7 +1674,12 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	if (interleaveddeluxe)
 		samples >>= 1;
 	if (!samples)
-		return;
+	{
+		litdata = Q1BSPX_FindLump("RGBLIGHTING", &samples);
+		samples /= 3;
+		if (!samples)
+			return;
+	}
 
 #ifndef SERVERONLY
 	if (!litdata && r_loadlits.value)
@@ -1941,7 +1946,7 @@ void Mod_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean 
 	}
 #endif
 
-	if (!overrides->shifts)
+	if (overrides && !overrides->shifts)
 	{
 		int size;
 		overrides->shifts = Q1BSPX_FindLump("LMSHIFT", &size);

@@ -823,10 +823,29 @@ void NPP_NQFlush(void)
 				buffer[1] = TEQW_EXPLOSIONNOSPRITE;
 			}
 			break;
+		case TENQ_BEAM:
+			requireextension = PEXT_TE_BULLET;
+			//should translate it to lightning or something for old clients
+			buffer[1] = TEQW_BEAM;
+			break;
 		case TENQ_EXPLOSION2:	//happens with rogue.
-			//bufferlen -= 2;	//trim the colour
-			//buffer[1] = TE_EXPLOSION;
-			buffer[1] = TEQW_EXPLOSION2;
+			requireextension = PEXT_TE_BULLET;
+			if (writedest == &sv.datagram || writedest == &sv.multicast)
+			{
+				vec3_t org;
+				coorddata cd;
+				memcpy(&cd, &buffer[2+destprim->coordsize*0], destprim->coordsize);
+				org[0] = MSG_FromCoord(cd, destprim->coordsize);
+				memcpy(&cd, &buffer[2+destprim->coordsize*1], destprim->coordsize);
+				org[1] = MSG_FromCoord(cd, destprim->coordsize);
+				memcpy(&cd, &buffer[2+destprim->coordsize*2], destprim->coordsize);
+				org[2] = MSG_FromCoord(cd, destprim->coordsize);
+
+				buffer[1] = TE_EXPLOSION;					//use a generic crappy explosion
+				SZ_Write(&sv.multicast, buffer, bufferlen-2);	//trim the two trailing colour bytes
+				SV_MulticastProtExt(org, multicasttype, pr_global_struct->dimension_send, 0, requireextension);
+			}
+			buffer[1] = TEQW_EXPLOSION2;	//TENQ_EXPLOSION2 conflicts with TEQW_BLOOD
 			break;
 		}
 		break;
@@ -1128,8 +1147,6 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			switch(data)
 			{
 			case TENQ_BEAM:
-				data = TEQW_BEAM;	//QW doesn't do te_beam. Replace with lightning1.
-						//fallthrough
 			case TE_LIGHTNING1:
 			case TE_LIGHTNING2:
 			case TE_LIGHTNING3:
@@ -1171,7 +1188,6 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				ignoreprotocol = true;
 				break;
 			case TENQ_EXPLOSION2:
-				data = TEQW_EXPLOSION2;
 				protocollen = sizeof(qbyte)*4 + destprim->coordsize*3;
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS;

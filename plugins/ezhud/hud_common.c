@@ -6359,21 +6359,23 @@ void SCR_HUD_DrawOwnFrags(hud_t *hud)
 		strcpy(ownfragtext, "Engine does not support OwnFrags");
 		age = 0;
 	}
-	width = strlen(ownfragtext);
+	width = strlen(ownfragtext)*8;
 
 	width *= hud_ownfrags_scale->value;
 	height *= hud_ownfrags_scale->value;
 
+	if (age >= hud_ownfrags_timeout->value)
+		width = 0;
+
 	alpha = 2 - age / hud_ownfrags_timeout->value * 2;
 	alpha = bound(0, alpha, 1);
 
-	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
-		return;
-
 	if (!width)
+	{
+		HUD_PrepareDraw(hud, width, height, NULL, NULL);
 		return;
-
-	if (age >= hud_ownfrags_timeout->value)
+	}
+	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
 		return;
 
 	pDraw_Colour4f(1, 1, 1, alpha);

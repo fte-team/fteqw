@@ -66,7 +66,7 @@ cvar_t		con_notify_w = SCVAR("con_notify_w","1");
 cvar_t		con_centernotify = SCVAR("con_centernotify", "0");
 cvar_t		con_displaypossibilities = SCVAR("con_displaypossibilities", "1");
 cvar_t		con_maxlines = SCVAR("con_maxlines", "1024");
-cvar_t		cl_chatmode = SCVAR("cl_chatmode", "2");
+cvar_t		cl_chatmode = CVARD("cl_chatmode", "2", "0(nq) - everything is assumed to be a console command. prefix with 'say', or just use a messagemode bind\n1(q3) - everything is assumed to be chat, unless its prefixed with a /\n2(qw) - anything explicitly recognised as a command will be used as a command, anything unrecognised will be a chat message.\n/ prefix is supported in all cases.\nctrl held when pressing enter always makes any implicit chat into team chat instead.");
 cvar_t		con_numnotifylines_chat = CVAR("con_numnotifylines_chat", "8");
 cvar_t		con_notifytime_chat = CVAR("con_notifytime_chat", "8");
 cvar_t		con_separatechat = CVAR("con_separatechat", "0");
@@ -532,6 +532,8 @@ Con_Clear_f
 */
 void Con_Clear_f (void)
 {
+	if (Cmd_IsInsecure())
+		return;
 	Con_ClearCon(&con_main);
 }
 

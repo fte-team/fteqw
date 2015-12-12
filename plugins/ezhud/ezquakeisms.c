@@ -16,6 +16,15 @@ cvar_t *scr_newHud;
 BUILTINR(cvar_t*, Cvar_GetNVFDG, (const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname));
 #undef ARGNAMES
 
+char *Cmd_Argv(int arg)
+{
+	static char buf[4][128];
+	if (arg >= 4)
+		return "";
+	pCmd_Argv(arg, buf[arg], sizeof(buf[arg]));
+	return buf[arg];
+}
+
 float infofloat(char *info, char *findkey, float def);
 
 void Draw_SetOverallAlpha(float a)
@@ -90,11 +99,11 @@ void Draw_EZString(float x, float y, char *str, float scale, qboolean red)
 #define Draw_STransPic Draw_SPic
 void Draw_Character(float x, float y, unsigned int ch)
 {
-	pDraw_Character(x, y, ch);
+	pDraw_Character(x, y, 0xe000|ch);
 }
 void Draw_SCharacter(float x, float y, unsigned int ch, float scale)
 {
-	pDraw_CharacterH(x, y, 8*scale, 0, ch);
+	pDraw_CharacterH(x, y, 8*scale, 0, 0xe000|ch);
 }
 
 void SCR_DrawWadString(float x, float y, float scale, char *str)

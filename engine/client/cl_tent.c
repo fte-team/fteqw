@@ -24,172 +24,113 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 entity_state_t *CL_FindPacketEntity(int num);
 
 #ifdef Q2CLIENT
-typedef enum
-{
-	Q2TE_GUNSHOT,	//0
-	Q2TE_BLOOD,
-	Q2TE_BLASTER,
-	Q2TE_RAILTRAIL,
-	Q2TE_SHOTGUN,
-	Q2TE_EXPLOSION1,
-	Q2TE_EXPLOSION2,
-	Q2TE_ROCKET_EXPLOSION,
-	Q2TE_GRENADE_EXPLOSION,
-	Q2TE_SPARKS,
-	Q2TE_SPLASH,	//10
-	Q2TE_BUBBLETRAIL,
-	Q2TE_SCREEN_SPARKS,
-	Q2TE_SHIELD_SPARKS,
-	Q2TE_BULLET_SPARKS,
-	Q2TE_LASER_SPARKS,
-	Q2TE_PARASITE_ATTACK,
-	Q2TE_ROCKET_EXPLOSION_WATER,
-	Q2TE_GRENADE_EXPLOSION_WATER,
-	Q2TE_MEDIC_CABLE_ATTACK,
-	Q2TE_BFG_EXPLOSION,	//20
-	Q2TE_BFG_BIGEXPLOSION,
-	Q2TE_BOSSTPORT,			// used as '22' in a map, so DON'T RENUMBER!!!
-	Q2TE_BFG_LASER,
-	Q2TE_GRAPPLE_CABLE,
-	Q2TE_WELDING_SPARKS,
-	Q2TE_GREENBLOOD,
-	Q2TE_BLUEHYPERBLASTER,
-	Q2TE_PLASMA_EXPLOSION,
-	Q2TE_TUNNEL_SPARKS,
-//ROGUE
-	Q2TE_BLASTER2,	//30
-	Q2TE_RAILTRAIL2,
-	Q2TE_FLAME,
-	Q2TE_LIGHTNING,
-	Q2TE_DEBUGTRAIL,
-	Q2TE_PLAIN_EXPLOSION,
-	Q2TE_FLASHLIGHT,
-	Q2TE_FORCEWALL,
-	Q2TE_HEATBEAM,
-	Q2TE_MONSTER_HEATBEAM,
-	Q2TE_STEAM,		//40
-	Q2TE_BUBBLETRAIL2,
-	Q2TE_MOREBLOOD,
-	Q2TE_HEATBEAM_SPARKS,
-	Q2TE_HEATBEAM_STEAM,
-	Q2TE_CHAINFIST_SMOKE,
-	Q2TE_ELECTRIC_SPARKS,
-	Q2TE_TRACKER_EXPLOSION,
-	Q2TE_TELEPORT_EFFECT,
-	Q2TE_DBALL_GOAL,
-	Q2TE_WIDOWBEAMOUT,	//50
-	Q2TE_NUKEBLAST,
-	Q2TE_WIDOWSPLASH,
-	Q2TE_EXPLOSION1_BIG,
-	Q2TE_EXPLOSION1_NP,
-	Q2TE_FLECHETTE,
-//ROGUE
-
-
-//CODERED
-	CRTE_LEADERBLASTER,	//56
-	CRTE_BLASTER_MUZZLEFLASH,
-	CRTE_BLUE_MUZZLEFLASH,
-	CRTE_SMART_MUZZLEFLASH,
-	CRTE_LEADERFIELD,	//60
-	CRTE_DEATHFIELD,
-	CRTE_BLASTERBEAM,
-	CRTE_STAIN,
-	CRTE_FIRE,
-	CRTE_CABLEGUT,
-	CRTE_SMOKE,
-//CODERED
-	Q2TE_MAX
-} temp_event_t;
-
-#define Q2SPLASH_UNKNOWN		0
-#define Q2SPLASH_SPARKS		1
-#define Q2SPLASH_BLUE_WATER	2
-#define Q2SPLASH_BROWN_WATER	3
-#define Q2SPLASH_SLIME		4
-#define	Q2SPLASH_LAVA			5
-#define Q2SPLASH_BLOOD		6
-#define Q2SPLASH_MAX		7
-
 static const char	*q2efnames[] =
 {
-	"GUNSHOT",
-	"BLOOD",
-	"BLASTER",
-	"RAILTRAIL",
-	"SHOTGUN",
-	"EXPLOSION1",
-	"EXPLOSION2",
-	"ROCKET_EXPLOSION",
-	"GRENADE_EXPLOSION",
-	"SPARKS",
-	"SPLASH",
-	"BUBBLETRAIL",
-	"SCREEN_SPARKS",
-	"SHIELD_SPARKS",
-	"BULLET_SPARKS",
-	"LASER_SPARKS",
-	"PARASITE_ATTACK",
-	"ROCKET_EXPLOSION_WATER",
-	"GRENADE_EXPLOSION_WATER",
-	"MEDIC_CABLE_ATTACK",
-	"BFG_EXPLOSION",
-	"BFG_BIGEXPLOSION",
-	"BOSSTPORT",
-	"BFG_LASER",
-	"GRAPPLE_CABLE",
-	"WELDING_SPARKS",
-	"GREENBLOOD",
-	"BLUEHYPERBLASTER",
-	"PLASMA_EXPLOSION",
-	"TUNNEL_SPARKS",
-	"BLASTER2",
-	"RAILTRAIL2",
-	"FLAME",
-	"LIGHTNING",
-	"DEBUGTRAIL",
-	"PLAIN_EXPLOSION",
-	"FLASHLIGHT",
-	"FORCEWALL",
-	"HEATBEAM",
-	"MONSTER_HEATBEAM",
-	"STEAM",
-	"BUBBLETRAIL2",
-	"MOREBLOOD",
-	"HEATBEAM_SPARKS",
-	"HEATBEAM_STEAM",
-	"CHAINFIST_SMOKE",
-	"ELECTRIC_SPARKS",
-	"TRACKER_EXPLOSION",
-	"TELEPORT_EFFECT",
-	"DBALL_GOAL",
-	"WIDOWBEAMOUT",
-	"NUKEBLAST",
-	"WIDOWSPLASH",
-	"EXPLOSION1_BIG",
-	"EXPLOSION1_NP",
-	"FLECHETTE",
-	"CR_LEADERBLASTER",
-	"CR_BLASTER_MUZZLEFLASH",
-	"CR_BLUE_MUZZLEFLASH",
-	"CR_SMART_MUZZLEFLASH",
-	"CR_LEADERFIELD",
-	"CR_DEATHFIELD",
-	"CR_BLASTERBEAM",
-	"CR_STAIN",
-	"CR_FIRE",
-	"CR_CABLEGUT",
-	"CR_SMOKE",
+	"TEQ2_GUNSHOT",
+	"TEQ2_BLOOD",
+	"TEQ2_BLASTER",
+	"TEQ2_RAILTRAIL",
+	"TEQ2_SHOTGUN",
+	"TEQ2_EXPLOSION1",
+	"TEQ2_EXPLOSION2",
+	"TEQ2_ROCKET_EXPLOSION",
+	"TEQ2_GRENADE_EXPLOSION",
+	"TEQ2_SPARKS",
+	NULL,//"TEQ2_SPLASH",
+	"TEQ2_BUBBLETRAIL",
+	"TEQ2_SCREEN_SPARKS",
+	"TEQ2_SHIELD_SPARKS",
+	"TEQ2_BULLET_SPARKS",
+	NULL,//"TEQ2_LASER_SPARKS",
+	NULL,//"TEQ2_PARASITE_ATTACK",
+	"TEQ2_ROCKET_EXPLOSION_WATER",
+	"TEQ2_GRENADE_EXPLOSION_WATER",
+	NULL,//"TEQ2_MEDIC_CABLE_ATTACK",
+	"TEQ2_BFG_EXPLOSION",
+	"TEQ2_BFG_BIGEXPLOSION",
+	"TEQ2_BOSSTPORT",
+	NULL,//"TEQ2_BFG_LASER",
+	NULL,//"TEQ2_GRAPPLE_CABLE",
+	"TEQ2_WELDING_SPARKS",
+	"TEQ2_GREENBLOOD",
+	"TEQ2_BLUEHYPERBLASTER",
+	"TEQ2_PLASMA_EXPLOSION",
+	"TEQ2_TUNNEL_SPARKS",
+	"TEQ2_BLASTER2",
+	"TEQ2_RAILTRAIL2",
+	"TEQ2_FLAME",
+	NULL,//"TEQ2_LIGHTNING",
+	"TEQ2_DEBUGTRAIL",
+	"TEQ2_PLAIN_EXPLOSION",
+	"TEQ2_FLASHLIGHT",
+	"TEQ2_FORCEWALL",
+	NULL,//"TEQ2_HEATBEAM",
+	NULL,//"TEQ2_MONSTER_HEATBEAM",
+	"TEQ2_STEAM",
+	"TEQ2_BUBBLETRAIL2",
+	"TEQ2_MOREBLOOD",
+	"TEQ2_HEATBEAM_SPARKS",
+	"TEQ2_HEATBEAM_STEAM",
+	"TEQ2_CHAINFIST_SMOKE",
+	"TEQ2_ELECTRIC_SPARKS",
+	"TEQ2_TRACKER_EXPLOSION",
+	"TEQ2_TELEPORT_EFFECT",
+	"TEQ2_DBALL_GOAL",
+	"TEQ2_WIDOWBEAMOUT",
+	"TEQ2_NUKEBLAST",
+	"TEQ2_WIDOWSPLASH",
+	"TEQ2_EXPLOSION1_BIG",
+	"TEQ2_EXPLOSION1_NP",
+	"TEQ2_FLECHETTE",
 
 
-	//q2te_max+
-	"SPLASH_UNKNOWN",
-	"SPLASH_SPARKS",
-	"SPLASH_BLUE_WATER",
-	"SPLASH_BROWN_WATER",
-	"SPLASH_SLIME",
-	"SPLASH_LAVA",
-	"SPLASH_BLOOD",
+	NULL,//"TEQ2_CR_LEADERBLASTER",
+	NULL,//"TEQ2_CR_BLASTER_MUZZLEFLASH",
+	NULL,//"TEQ2_CR_BLUE_MUZZLEFLASH",
+	NULL,//"TEQ2_CR_SMART_MUZZLEFLASH",
+	NULL,//"TEQ2_CR_LEADERFIELD",
+	NULL,//"TEQ2_CR_DEATHFIELD",
+	NULL,//"TEQ2_CR_BLASTERBEAM",
+	NULL,//"TEQ2_CR_STAIN",
+	NULL,//"TEQ2_CR_FIRE",
+	NULL,//"TEQ2_CR_CABLEGUT",
+	NULL,//"TEQ2_CR_SMOKE",
+
+	//the rest have no specific value meanings
+
+	//slashes block
+	"te_splashunknown",
+	"te_splashsparks",
+	"te_splashbluewater",
+	"te_splashbrownwater",
+	"te_splashslime",
+	"te_splashlava",
+	"te_splashblood",
+
+	"TR_BLASTERTRAIL",
+	"TR_BLASTERTRAIL2",
+	"TRQ2_GIB",
+	"TRQ2_GREENGIB",
+	"TRQ2_ROCKET",
+	"TRQ2_GRENADE",
+
+	"TR_TRAP",
+	"TR_FLAG1",
+	"TR_FLAG2",
+	"TR_TAGTRAIL",
+	"TR_TRACKER",
+	"TR_IONRIPPER",
+	"TR_PLASMA",
+
+	"EF_BFGPARTICLES",
+	"EF_FLIES",
+	"EF_TRAP",
+	"EF_TRACKERSHELL",
+
+	
+	"ev_item_respawn",
+	"ev_player_teleport",
+	"ev_footstep",
 };
 int pt_q2[sizeof(q2efnames)/sizeof(q2efnames[0])];
 #endif
@@ -234,15 +175,6 @@ int
 	ptqw_blood=P_INVALID,
 	ptqw_lightningblood=P_INVALID,
 
-	ptq2_blood=P_INVALID,
-	rtq2_railtrail=P_INVALID,
-	rtq2_blastertrail=P_INVALID,
-	ptq2_blasterparticles=P_INVALID,
-	rtq2_bubbletrail=P_INVALID,
-	rtq2_gib=P_INVALID,
-	rtq2_rocket=P_INVALID,
-	rtq2_grenade=P_INVALID,
-
 	rtqw_railtrail=P_INVALID,
 	ptfte_bullet=P_INVALID,
 	ptfte_superbullet=P_INVALID;
@@ -260,8 +192,8 @@ typedef struct {
 	int ef_impact;
 } tentmodels_t;
 
-typedef struct
-{
+typedef struct beam_s beam_t;
+struct beam_s {
 	tentmodels_t *info;
 	int		entity;
 	short	tag;
@@ -279,7 +211,7 @@ typedef struct
 //	int		particlecolour;	//some effects have specific colours. which is weird.
 	trailstate_t *trailstate;
 	trailstate_t *emitstate;
-} beam_t;
+};
 
 beam_t		*cl_beams;
 int			cl_beams_max;
@@ -316,25 +248,26 @@ static int beams_running;
 
 static tentmodels_t beamtypes[] =
 {
-	{"progs/bolt.mdl",				"TE_LIGHTNING1",				"TE_LIGHTNING1_END"},
-	{"progs/bolt2.mdl",				"TE_LIGHTNING2",				"TE_LIGHTNING2_END"},
-	{"progs/bolt3.mdl",				"TE_LIGHTNING3",				"TE_LIGHTNING3_END"},
-	{"progs/beam.mdl",				"te_beam",						"te_beam_end"},	//a CTF addition, but has other potential uses, sadly.
+	{"progs/bolt.mdl",							"TE_LIGHTNING1",				"TE_LIGHTNING1_END"},
+	{"progs/bolt2.mdl",							"TE_LIGHTNING2",				"TE_LIGHTNING2_END"},
+	{"progs/bolt3.mdl",							"TE_LIGHTNING3",				"TE_LIGHTNING3_END"},
+	{"progs/beam.mdl",							"te_beam",						"te_beam_end"},	//a CTF addition, but has other potential uses, sadly.
 
-	{"q2cl_mod_parasite_segment",	"te_parasite_attack",			"te_parasite_attack_end"},
-	{"q2cl_mod_grapple_cable",		"te_grapple_cable",				"te_grapple_cable_end"},
-	{"models/proj/beam/tris.md2",	"te_heatbeam",					"te_heatbeam_end"},
+	{"models/monsters/parasite/segment/tris.md2","te_parasite_attack",			"te_parasite_attack_end"},
+	{"models/ctf/segment/tris.md2",				"te_grapple_cable",				"te_grapple_cable_end"},
+	{"models/proj/beam/tris.md2",				"te_heatbeam",					"te_heatbeam_end"},
+	{"models/proj/lightning/tris.md2",			"TE_LIGHTNING2",				"TE_LIGHTNING2_END"},
 
-	{"models/stltng2.mdl",			"te_stream_lightning_small",	NULL},
-	{"models/stchain.mdl",			"te_stream_chain",				NULL},
-	{"models/stsunsf1.mdl",			"te_stream_sunstaff1",			NULL},
-	{"models/stsunsf2.mdl",			NULL,							NULL},
-	{"models/stsunsf1.mdl",			"te_stream_sunstaff2",			NULL},
-	{"models/stlghtng.mdl",			"te_stream_lightning",			NULL},
-	{"models/stclrbm.mdl",			"te_stream_colorbeam",			NULL},
-	{"models/stice.mdl",			"te_stream_icechunks",			NULL},
-	{"models/stmedgaz.mdl",			"te_stream_gaze",				NULL},
-	{"models/fambeam.mdl",			"te_stream_famine",				NULL},
+	{"models/stltng2.mdl",						"te_stream_lightning_small",	NULL},
+	{"models/stchain.mdl",						"te_stream_chain",				NULL},
+	{"models/stsunsf1.mdl",						"te_stream_sunstaff1",			NULL},
+	{"models/stsunsf2.mdl",						NULL,							NULL},
+	{"models/stsunsf1.mdl",						"te_stream_sunstaff2",			NULL},
+	{"models/stlghtng.mdl",						"te_stream_lightning",			NULL},
+	{"models/stclrbm.mdl",						"te_stream_colorbeam",			NULL},
+	{"models/stice.mdl",						"te_stream_icechunks",			NULL},
+	{"models/stmedgaz.mdl",						"te_stream_gaze",				NULL},
+	{"models/fambeam.mdl",						"te_stream_famine",				NULL},
 };
 
 
@@ -585,29 +518,37 @@ void CL_RegisterParticles(void)
 	if (cls.protocol == CP_QUAKE2)
 	{
 		for (i = 0; i < sizeof(pt_q2)/sizeof(pt_q2[0]); i++)
-			pt_q2[i] = P_FindParticleType(va("q2part.TEQ2_%s", q2efnames[i]));
+		{
+			if (!q2efnames[i])
+			{
+				pt_q2[i] = P_INVALID;
+				continue;
+			}
+			pt_q2[i] = P_FindParticleType(va("q2part.%s", q2efnames[i]));
 
-		ptq2_blood				= P_FindParticleType("q2part.TEQ2_BLOOD");
+#ifdef _DEBUG
+			if (pt_q2[i] == P_INVALID && pt_q2[0] != P_INVALID)
+				Con_Printf("effect q2part.%s was not declared\n", q2efnames[i]);
+#endif
+		}
+
+		/*ptq2_blood				= P_FindParticleType("q2part.TEQ2_BLOOD");
 		rtq2_railtrail			= P_FindParticleType("q2part.TR_RAILTRAIL");
 		rtq2_blastertrail		= P_FindParticleType("q2part.TR_BLASTERTRAIL");
-		ptq2_blasterparticles	= P_FindParticleType("TE_BLASTERPARTICLES");
-		rtq2_bubbletrail		= P_FindParticleType("TE_BUBBLETRAIL");
-		rtq2_gib				= P_FindParticleType("TR_GIB");
-		rtq2_rocket				= P_FindParticleType("TR_ROCKET");
-		rtq2_grenade			= P_FindParticleType("TR_GRENADE");
+		ptq2_blasterparticles	= P_FindParticleType("q2part.TE_BLASTERPARTICLES");
+		rtq2_bubbletrail		= P_FindParticleType("q2part.TE_BUBBLETRAIL");
+		rtq2_gib				= P_FindParticleType("q2part.TR_GIB");
+		rtq2_rocket				= P_FindParticleType("q2part.TR_ROCKET");
+		rtq2_grenade			= P_FindParticleType("q2part.TR_GRENADE");
+		ptq2_bfgparticles		= P_FindParticleType("q2part.TR_BFGPARTICLES");
+		ptq2_flies				= P_FindParticleType("q2part.TR_FLIES");
+		ptq2_trap				= P_FindParticleType("q2part.TR_TRAP");
+		ptq2_trackershell		= P_FindParticleType("q2part.TR_TRACKERSHELL");*/
 	}
 	else
 	{
 		for (i = 0; i < sizeof(pt_q2)/sizeof(pt_q2[0]); i++)
 			pt_q2[i] = P_INVALID;
-		ptq2_blood				= P_INVALID;
-		rtq2_railtrail			= P_INVALID;
-		rtq2_blastertrail		= P_INVALID;
-		ptq2_blasterparticles	= P_INVALID;
-		rtq2_bubbletrail		= P_INVALID;
-		rtq2_gib				= P_INVALID;
-		rtq2_rocket				= P_INVALID;
-		rtq2_grenade			= P_INVALID;
 	}
 #endif
 
@@ -805,7 +746,7 @@ beam_t	*CL_NewBeam (int entity, int tag, tentmodels_t *btype)
 }
 #define STREAM_ATTACHED			16
 #define STREAM_TRANSLUCENT		32
-void CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ numbers instead of 0 - 5
+beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ numbers instead of 0 - 5
 {
 	beam_t	*b;
 
@@ -824,7 +765,7 @@ void CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//fixm
 			// TODO: add support for those finnicky colored railtrails...
 			if (P_ParticleTrail(start, end, rtqw_railtrail, -ent, NULL, NULL))
 				P_ParticleTrailIndex(start, end, 208, 8, NULL);
-			return;
+			return NULL;
 		}
 		break;
 	case BT_Q1LIGHTNING2:
@@ -886,7 +827,7 @@ void CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//fixm
 	if (!b)
 	{
 		Con_Printf ("beam list overflow!\n");
-		return;
+		return NULL;
 	}
 
 	b->rflags = RF_NOSHADOW;
@@ -904,8 +845,31 @@ void CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//fixm
 		P_RunParticleEffectState (impact, normal, 1, etype, &(b->emitstate));
 		if (cl_legacystains.ival) Surf_AddStain(end, -10, -10, -10, 20);
 	}
+	return b;
 }
-void CL_ParseBeam (enum beamtype_e tent)
+void CL_ParseBeamOffset (enum beamtype_e tent)
+{
+	int		ent;
+	vec3_t	start, end, offset;
+	beam_t *b;
+
+	ent = MSGCL_ReadEntity ();
+
+	start[0] = MSG_ReadCoord ();
+	start[1] = MSG_ReadCoord ();
+	start[2] = MSG_ReadCoord ();
+
+	end[0] = MSG_ReadCoord ();
+	end[1] = MSG_ReadCoord ();
+	end[2] = MSG_ReadCoord ();
+
+	MSG_ReadPos(offset);
+
+	b = CL_AddBeam(tent, ent, start, end);
+	if (b)
+		VectorCopy(offset, b->offset);
+}
+beam_t *CL_ParseBeam (enum beamtype_e tent)
 {
 	int		ent;
 	vec3_t	start, end;
@@ -920,7 +884,7 @@ void CL_ParseBeam (enum beamtype_e tent)
 	end[1] = MSG_ReadCoord ();
 	end[2] = MSG_ReadCoord ();
 
-	CL_AddBeam(tent, ent, start, end);
+	return CL_AddBeam(tent, ent, start, end);
 }
 
 //finds the latest non-lerped position
@@ -1599,8 +1563,7 @@ void CL_ParseTEnt (void)
 		pos2[2] = MSG_ReadCoord ();
 
 		if (P_ParticleTrail(pos, pos2, rtqw_railtrail, 0, NULL, NULL))
-			if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL, NULL))
-				P_ParticleTrailIndex(pos, pos2, 208, 8, NULL);
+			P_ParticleTrailIndex(pos, pos2, 208, 8, NULL);
 		break;
 
 	case TEH2_STREAM_LIGHTNING_SMALL:
@@ -2311,7 +2274,7 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect, unsigned int renderflags)
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum)
 {
 	explosion_t	*ex;
 
@@ -2321,7 +2284,7 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t 
 	ex->firstframe = startframe;
 	ex->numframes = framecount;
 	ex->framerate = framerate;
-	ex->skinnum = 0;
+	ex->skinnum = skinnum;
 	ex->traileffect = traileffect;
 
 	ex->flags |= renderflags;
@@ -2404,7 +2367,7 @@ void CL_ParseEffect (qboolean effect2)
 	framerate = MSG_ReadByte();
 
 	mod = cl.model_precache[modelindex];
-	CL_SpawnSpriteEffect(org, NULL, NULL, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 0, 0, P_INVALID, 0);
+	CL_SpawnSpriteEffect(org, NULL, NULL, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 0, 0, P_INVALID, 0, 0);
 }
 
 #ifdef Q2CLIENT
@@ -2468,6 +2431,7 @@ void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float
 }
 void CLQ2_ParseTEnt (void)
 {
+	beam_t *b;
 	int		type;
 	int		pt;
 	vec3_t	pos, pos2, dir;
@@ -2480,13 +2444,17 @@ void CLQ2_ParseTEnt (void)
 
 	type = MSG_ReadByte ();
 
-	if (type < sizeof(q2efnames)/sizeof(q2efnames[0]))
+	if (type <= Q2TE_MAX)
+	{
 		pt = pt_q2[type];
+		if (pt == P_INVALID && q2efnames[type])
+		{
+			Con_Printf("Q2TE legacy code: te %i\n", type);
+			goto fixme;
+		}
+	}
 	else
 		pt = P_INVALID;
-
-	if (pt == P_INVALID)
-		goto fixme;
 	switch (type)
 	{
 	case Q2TE_GUNSHOT:	//grey tall thing with smoke+sparks
@@ -2508,9 +2476,14 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadDir (dir);
 		P_RunParticleEffectType(pos, dir, 1, pt);
 		break;
+	case Q2TE_BFG_LASER:
+		MSG_ReadPos (pos);
+		MSG_ReadPos (pos2);
+		CL_Laser(pos, pos2, 0xd0d1d2d3);
+		break;
 	case Q2TE_RAILTRAIL:	//blue spiral, grey particles
 	case Q2TE_BUBBLETRAIL:	//grey sparse trail, slow riser
-	case Q2TE_BFG_LASER:	//green lazor
+//	case Q2TE_BFG_LASER:	//green laser
 	case Q2TE_DEBUGTRAIL:	//long lived blue trail
 	case Q2TE_BUBBLETRAIL2:	//grey rising trail
 	case Q2TE_BLUEHYPERBLASTER:	//TE_BLASTER without model+light
@@ -2544,10 +2517,10 @@ void CLQ2_ParseTEnt (void)
 		cnt = MSG_ReadByte ();
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
-		r = MSG_ReadByte ();
-		if (r >= Q2SPLASH_MAX)
+		r = MSG_ReadByte () + Q2SPLASH_UNKNOWN;
+		if (r > Q2SPLASH_MAX)
 			r = Q2SPLASH_UNKNOWN;
-		pt = pt_q2[Q2TE_MAX + r];
+		pt = pt_q2[r];
 		P_RunParticleEffectType(pos, NULL, 1, pt);
 		break;
 
@@ -2556,27 +2529,42 @@ void CLQ2_ParseTEnt (void)
 		CL_ParseBeam (BT_Q2PARASITE);
 		break;
 	case Q2TE_HEATBEAM:
+		b = CL_ParseBeam (BT_Q2HEATBEAM);	//2, 7, -3
+		if (b)
+		{
+			b->bflags |= STREAM_ATTACHED;
+			VectorSet(b->offset, 2, 7, -3);
+		}
+		break;
 	case Q2TE_MONSTER_HEATBEAM:
-		CL_ParseBeam (BT_Q2HEATBEAM);
+		b = CL_ParseBeam (BT_Q2HEATBEAM);
+		if (b)
+			b->bflags |= STREAM_ATTACHED;
 		break;
 	case Q2TE_GRAPPLE_CABLE:
-		CL_ParseBeam (BT_Q2GRAPPLE);
-		MSG_ReadPos (pos);
+		CL_ParseBeamOffset (BT_Q2GRAPPLE);
 		break;
 
 	case Q2TE_LIGHTNING:
 		ent = MSGCL_ReadEntity ();
-		/*toent =*/ MSGCL_ReadEntity ();
+		/*toent =*/ MSGCL_ReadEntity ();	//ident only.
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 		pos2[0] = MSG_ReadCoord ();
 		pos2[1] = MSG_ReadCoord ();
 		pos2[2] = MSG_ReadCoord ();
-		CL_AddBeam(BT_Q1LIGHTNING1, ent, pos, pos2);
+		CL_AddBeam(BT_Q2LIGHTNING, ent, pos, pos2);
 		break;
 
-
+	case Q2TE_LASER_SPARKS:
+		cnt = MSG_ReadByte ();
+		MSG_ReadPos (pos);
+		MSG_ReadDir (dir);
+		color = MSG_ReadByte ();
+		//FIXME: should use q2's vertical puff thing
+		P_RunParticleEffect (pos, dir, color, cnt);
+		break;
 
 /*
 	case Q2TE_LASER_SPARKS:
@@ -2586,8 +2574,6 @@ void CLQ2_ParseTEnt (void)
 
 	//Q2TE_RAILTRAIL2,	?
 	//Q2TE_FLAME,			?
-	case Q2TE_LIGHTNING:
-		break;
 
 	case Q2TE_FLASHLIGHT:
 		break;
@@ -2603,18 +2589,20 @@ void CLQ2_ParseTEnt (void)
 
 
 	default:
+//		Con_Printf("CLQ2_ParseTEnt: bad/non-implemented type %i\n", type);
 		goto fixme;
 //		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 //		break;
 	}
 	return;
 fixme:
+	Con_DPrintf("Q2TE legacy code: te %i\n", type);
 	switch(type)
 	{
 	case Q2TE_BLOOD:			// bullet hitting flesh
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
-		if (P_RunParticleEffectType(pos, dir, 1, ptq2_blood))
+		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLOOD]))
 			if (P_RunParticleEffectType(pos, dir, 1, ptqw_blood))
 				P_RunParticleEffect(pos, dir, 0xe8, 60);
 		if (cl_legacystains.ival) Surf_AddStain(pos, 0, -10, -10, 40);
@@ -2675,7 +2663,7 @@ fixme:
 		r = MSG_ReadByte ();
 		if (r > sizeof(q2splash_info)/sizeof(q2splash_info[0]))
 			r = 0;
-		if (P_RunParticleEffectTypeString(pos, dir, cnt, q2splash_info[r].name))
+		if (P_RunParticleEffectType(pos, dir, cnt, pt_q2[Q2SPLASH_UNKNOWN+r]))
 			P_RunParticleEffect (pos, dir, q2splash_info[r].colour, cnt);
 		if (r == Q2SPLASH_SPARKS)
 		{
@@ -2701,15 +2689,16 @@ fixme:
 	case Q2TE_BLUEHYPERBLASTER:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (dir);
-		if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
-			P_RunParticleEffect (pos, dir, 0xe0, 40);
+		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLUEHYPERBLASTER]))
+			if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER]))
+				P_RunParticleEffect (pos, dir, 0xe0, 40);
 		break;
 
 	case Q2TE_BLASTER:			// blaster hitting wall
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 
-		if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
+		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER]))
 			P_RunParticleEffect (pos, dir, 0xe0, 40);
 
 		if (cl_legacystains.ival) Surf_AddStain(pos, 0, -5, -10, 20);
@@ -2757,7 +2746,7 @@ fixme:
 	case Q2TE_RAILTRAIL:			// railgun effect
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL, NULL))
+		if (P_ParticleTrail(pos, pos2, pt_q2[Q2TE_RAILTRAIL], 0, NULL, NULL))
 			P_ParticleTrailIndex(pos, pos2, 0x74, 8, NULL);
 		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/railgf1a.wav"), 1, ATTN_NORM, 0);
 		break;
@@ -2965,13 +2954,13 @@ fixme:
 	case Q2TE_BUBBLETRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, rtq2_bubbletrail, 0, NULL, NULL))
+		if (P_ParticleTrail(pos, pos2, pt_q2[Q2TE_BUBBLETRAIL], 0, NULL, NULL))
 			P_ParticleTrailIndex(pos, pos2, 4, 8, NULL);
 		break;
 
 	case Q2TE_PARASITE_ATTACK:
 	case Q2TE_MEDIC_CABLE_ATTACK:
-		CL_ParseBeam (3);
+		CL_ParseBeam (BT_Q2PARASITE);
 		break;
 
 	case Q2TE_BOSSTPORT:			// boss teleporting to station
@@ -2981,7 +2970,7 @@ fixme:
 		break;
 
 	case Q2TE_GRAPPLE_CABLE:
-		CL_ParseBeam (4);
+		CL_ParseBeam (BT_Q2GRAPPLE);
 		MSG_ReadPos (pos);
 		break;
 
@@ -3035,8 +3024,8 @@ fixme:
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 
-		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_blaster2"))
-			if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
+		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER2]))
+			if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER]))
 				P_RunParticleEffect (pos, dir, 0xd0, 40);
 
 		if (cl_legacystains.ival) Surf_AddStain(pos, -10, 0, -10, 20);
@@ -3084,8 +3073,8 @@ fixme:
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 
-		if (P_RunParticleEffectTypeString(pos, dir, 1, "te_blaster2"))
-			if (P_RunParticleEffectType(pos, dir, 1, ptq2_blasterparticles))
+		if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_FLECHETTE]))
+			if (P_RunParticleEffectType(pos, dir, 1, pt_q2[Q2TE_BLASTER]))
 				P_RunParticleEffect (pos, dir, 0x6f, 40);
 
 		if (cl_legacystains.ival) Surf_AddStain(pos, -10, -2, 0, 20);
@@ -3131,7 +3120,7 @@ fixme:
 
 
 	case Q2TE_LIGHTNING:
-		CL_ParseBeam(TE_LIGHTNING1);
+		CL_ParseBeam(BT_Q1LIGHTNING1);
 		Q2S_StartSound (pos, 0, 0, S_PrecacheSound("weapons/tesla.wav"), 1, ATTN_NORM, 0);
 		break;
 
@@ -3368,7 +3357,7 @@ fixme:
 	case CRTE_BLASTERBEAM:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		CLQ2_BlasterTrail2 (pos, pos2);
+		P_ParticleTrail(pos, pos2, P_FindParticleType("q2part.TR_BLASTERTRAIL2"), 0, NULL, NULL);
 		break;
 	case CRTE_STAIN:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
@@ -3483,6 +3472,9 @@ void CL_UpdateBeams (void)
 //							vieworg = pl->origin;
 //						}
 //						else
+						if (cls.protocol == CP_QUAKE2)
+							vieworg = cl.predicted_origin;
+						else
 							vieworg = pv->simorg;
 
 						if (cl_truelightning.ival > 1 && cl.movesequence > cl_truelightning.ival)
@@ -3541,11 +3533,13 @@ void CL_UpdateBeams (void)
 					}
 				}
 			}
+			VectorCopy (b->start, org);
 		}
 #ifdef CSQC_DAT
 		else if ((b->bflags & 1) && b->entity > MAX_EDICTS)
 		{
-			CSQC_GetEntityOrigin(b->entity-MAX_EDICTS, b->start);
+			CSQC_GetEntityOrigin(b->entity-MAX_EDICTS, org);
+			VectorCopy (b->start, org);
 		}
 #endif
 		else if (b->bflags & STREAM_ATTACHED)
@@ -3554,17 +3548,20 @@ void CL_UpdateBeams (void)
 			st = CL_FindPacketEntity(b->entity);
 			if (st)
 			{
-				VectorAdd(st->origin, b->offset, b->start);
+				VectorCopy(st->origin, b->start);
 			}
 			else if (b->entity <= cl.allocated_client_slots && b->entity > 0)
 			{
 				pl = &cl.inframes[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
-				VectorAdd(pl->origin, b->offset, b->start);
+				VectorCopy(pl->origin, b->start);
 			}
+	
+			VectorCopy (b->start, org);
 		}
+		VectorAdd(org, b->offset, org);
 
 	// calculate pitch and yaw
-		VectorSubtract (b->end, b->start, dist);
+		VectorSubtract (b->end, org, dist);
 
 		if (dist[1] == 0 && dist[0] == 0)
 		{
@@ -3587,7 +3584,7 @@ void CL_UpdateBeams (void)
 		}
 
 		if (ruleset_allow_particle_lightning.ival || !type->modelname)
-			if (type->ef_beam >= 0 && !P_ParticleTrail(b->start, b->end, type->ef_beam, b->entity, NULL, &b->trailstate))
+			if (type->ef_beam >= 0 && !P_ParticleTrail(org, b->end, type->ef_beam, b->entity, NULL, &b->trailstate))
 				continue;
 		if (!type->model)
 		{
@@ -3597,7 +3594,6 @@ void CL_UpdateBeams (void)
 		}
 
 	// add new entities for the lightning
-		VectorCopy (b->start, org);
 		d = VectorNormalize(dist);
 
 		if(b->bflags & 2)

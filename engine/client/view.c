@@ -100,7 +100,7 @@ cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
 cvar_t	v_projectionmode = SCVAR("v_projectionmode", "0");
 
 cvar_t	scr_autoid				= CVARD("scr_autoid", "1", "Display nametags above all players while spectating.");
-cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "1", "Display nametags above team members (regardless of occlusion).");
+cvar_t	scr_autoid_team			= CVARD("scr_autoid_team", "1", "Display nametags above team members. 0: off. 1: display with half-alpha if occluded. 2: hide when occluded.");
 cvar_t	scr_autoid_health		= CVARD("scr_autoid_health", "1", "Display health as part of nametags (when known).");
 cvar_t	scr_autoid_armour		= CVARD("scr_autoid_armor", "1", "Display armour as part of nametags (when known).");
 cvar_t	scr_autoid_weapon		= CVARD("scr_autoid_weapon", "1", "Display the player's best weapon as part of their nametag (when known).");
@@ -1631,6 +1631,8 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 		textflags = scr_autoid_enemycolour.ival << CON_FGSHIFT;
 	if (obscured)
 	{
+		if (scr_autoid_team.ival == 2)
+			return;
 		textflags |= CON_HALFALPHA;
 		alpha = 0.25;
 	}
@@ -1769,6 +1771,8 @@ void R_DrawNameTags(void)
 
 	if (r_projection.ival)	//we don't actually know how to transform the points unless the projection is coded in advance. and it isn't.
 		return;
+	if (cls.protocol == CP_QUAKE2)
+		return;	//FIXME: q2 has its own ent logic, which messes stuff up here.
 
 	if (r_showfields.ival && cls.allow_cheats)
 	{
@@ -1805,7 +1809,10 @@ void R_DrawNameTags(void)
 				state = &pak->entities[i];
 
 				mod = cl.model_precache[state->modelindex];
-				VectorInterpolate(mod->mins, 0.5, mod->maxs, org);
+				if (mod && mod->loadstate == MLS_LOADED)
+					VectorInterpolate(mod->mins, 0.5, mod->maxs, org);
+				else
+					VectorClear(org);
 				VectorAdd(org, state->origin, org);
 				if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
 				{

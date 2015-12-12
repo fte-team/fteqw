@@ -298,6 +298,7 @@ typedef struct heightmap_s
 	char groundshadername[MAX_QPATH];
 	char defaultwatershader[MAX_QPATH];	//typically the name of the ocean or whatever.
 	unsigned int culldistance;
+	qboolean forcedefault;
 	float defaultwaterheight;
 	float defaultgroundheight;
 	char defaultgroundtexture[MAX_QPATH];
@@ -2016,7 +2017,7 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int 
 			COM_MainThreadFlush();	//make sure any associated lightmaps also got read+handled
 
 		//if it failed, generate a default (for editing)
-		if (section->loadstate == TSLS_FAILED && (flags & TGS_DEFAULTONFAIL))
+		if (section->loadstate == TSLS_FAILED && ((flags & TGS_DEFAULTONFAIL) || hm->forcedefault))
 		{
 			section->flags = (section->flags & ~TSF_EDITED);
 			section->loadstate = TSLS_LOADED;
@@ -3824,10 +3825,9 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 
 	sx = tx/(SECTHEIGHTSIZE-1);
 	sy = ty/(SECTHEIGHTSIZE-1);
-	if (sx < tr->hm->firstsegx || sx >= tr->hm->maxsegx)
-		return;//s = NULL;
-	else if (sy < tr->hm->firstsegy || sy >= tr->hm->maxsegy)
-		return;//s = NULL;
+	if (sx < tr->hm->firstsegx || sx >= tr->hm->maxsegx ||
+		sy < tr->hm->firstsegy || sy >= tr->hm->maxsegy)
+		s = NULL;
 	else
 		s = Terr_GetSection(tr->hm, sx, sy, TGS_TRYLOAD|TGS_WAITLOAD|TGS_ANYSTATE);
 
@@ -5169,6 +5169,7 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 	heightmap->sectionsize = 1024;
 	heightmap->mode = HMM_TERRAIN;
 	heightmap->culldistance = 4096*4096;
+	heightmap->forcedefault = false;
 
 	heightmap->defaultgroundheight = 0;
 	heightmap->defaultwaterheight = 0;
@@ -5198,6 +5199,8 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 			heightmap->maxsegx = atoi(value);
 		else if (!strcmp("maxysegment", key))
 			heightmap->maxsegy = atoi(value);
+		else if (!strcmp("forcedefault", key))
+			heightmap->forcedefault = !!atoi(value);
 		else if (!strcmp("defaultwaterheight", key))
 			heightmap->defaultwaterheight = atof(value);
 		else if (!strcmp("defaultgroundheight", key))

@@ -95,6 +95,7 @@ static void SL_DrawColumnTitle (int *x, int y, int xlen, int mx, char *str, qboo
 		*filldraw = true;
 		R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
 		R2D_FillBlock(xmin, y, xlen, 8);
+		R2D_ImageColours(1,1,1,1);
 	}
 	Draw_FunStringWidth(xmin, y, str, xlen, false, false);
 
@@ -291,6 +292,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		}
 		R2D_FillBlock(0, y, ths->common.width, 8);
 
+		R2D_ImageColours(1,1,1,1);
 		if (sb_showtimelimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->tl), 3*8, false, false); x-=4*8;}
 		if (sb_showfraglimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->fl), 3*8, false, false); x-=4*8;}
 		if (sb_showplayers.value)	{Draw_FunStringWidth((x-5*8), y, va("%2i/%2i", si->numhumans, si->maxplayers), 5*8, false, false); x-=6*8;}
@@ -877,6 +879,7 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 		R2D_ImageColours(0.35, 0.35, 0.55, 1.0);
 		R2D_FillBlock(x, y, 8, 8);
+		R2D_ImageColours(1,1,1,1);
 	}
 
 	if (keydown[K_MOUSE1])

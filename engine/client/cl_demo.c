@@ -496,8 +496,27 @@ qboolean CL_GetDemoMessage (void)
 		}
 
 #ifdef Q2CLIENT
-		if (cls.demoplayback == DPB_QUAKE2 && (cls.netchan.last_received == realtime || cls.netchan.last_received > realtime-0.1))
-			return 0;
+		//q2 uses a fixed 10fps packet rate, even demos enforce it.
+		if (cls.demoplayback == DPB_QUAKE2)
+		{
+			if (cls.timedemo)
+			{
+				if (demoframe == host_framecount)
+					return 0;
+				demoframe = host_framecount;
+			}
+#if 1
+			else if (demtime < cl.gametime && cl.gametime)
+			{
+				if (demtime <= cl.gametime-1)
+					demtime = cl.gametime;
+				return 0;
+			}
+#else
+			else if (cls.netchan.last_received == realtime || cls.netchan.last_received > realtime-0.1)
+				return 0;
+#endif
+		}
 		else
 #endif
 			if (cls.demoplayback == DPB_NETQUAKE && cls.signon == 4/*SIGNONS*/)
@@ -526,11 +545,22 @@ qboolean CL_GetDemoMessage (void)
 			}
 			demoframe = host_framecount;
 		}
-		if (cls.signon < 4)
+		else if (cls.signon < 4)
 			demtime = 0;
 		if (readdemobytes(&demopos, &msglength, 4) != 4)
 		{
 			return 0;
+		}
+		msglength = LittleLong (msglength);
+		if (msglength == -1)
+		{
+			int tmppos = demopos;
+			//q2 writes a length of -1 to mark eof. if this peek fails then it really is eof and we shouldn't fail from weird message length checks.
+			if (readdemobytes(&tmppos, &msglength, 4) != 4)
+			{
+				endofdemo = true;
+				return 0;
+			}
 		}
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
@@ -543,7 +573,6 @@ qboolean CL_GetDemoMessage (void)
 
 		olddemotime = demtime;
 
-		msglength = LittleLong (msglength);
 		if (msglength > MAX_NQMSGLEN)
 		{
 			Con_Printf ("Demo message > MAX_MSGLEN");
@@ -1736,7 +1765,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 		VFS_SEEK(f, start);
 		len = LittleLong(len);
 		protocol = LittleLong(protocol);
-		if (len > 5 && type == svcq2_serverdata && protocol == PROTOCOL_VERSION_Q2)
+		if (len > 5 && type == svcq2_serverdata && protocol != 0)
 		{
 			CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKE2, 0);
 			return;
@@ -1818,6 +1847,15 @@ void CL_PlayDemo(char *demoname, qboolean usesystempath)
 	{
 		Q_strncpyz (name, demoname, sizeof(name));
 		COM_DefaultExtension (name, ".mvd", sizeof(name));
+		if (usesystempath)
+			f = VFSOS_Open(name, "rb");
+		else
+			f = FS_OpenVFS(name, "rb", FS_GAME);
+	}
+	if (!f)
+	{
+		Q_strncpyz (name, demoname, sizeof(name));
+		COM_DefaultExtension (name, ".dm2", sizeof(name));
 		if (usesystempath)
 			f = VFSOS_Open(name, "rb");
 		else

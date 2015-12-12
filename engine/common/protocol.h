@@ -106,6 +106,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PROTOCOL_INFO_GUID				(('G'<<0) + ('U'<<8) + ('I'<<16) + ('D' << 24))	//globally 'unique' client id info.
 
 #define	PROTOCOL_VERSION_QW 28
+#define	PROTOCOL_VERSION_Q2_DEMO_MIN 26
 #define	PROTOCOL_VERSION_Q2_MIN 31
 #define	PROTOCOL_VERSION_Q2 34
 

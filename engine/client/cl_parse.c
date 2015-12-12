@@ -1019,7 +1019,7 @@ qboolean CL_CheckQ2BspWals(char *file)
 		{
 			if (!CL_CheckDLFile(va("textures/%s.wal", tinf[i].texture)))
 				if (!CL_CheckDLFile(va("textures/%s.tga", tinf[i].texture)))
-					if (!CL_CheckOrEnqueDownloadFile(tinf[i].texture, NULL, 0))
+					if (!CL_CheckOrEnqueDownloadFile(va("textures/%s.wal", tinf[i].texture), NULL, 0))
 						gotone = true;
 		}
 	}
@@ -3117,9 +3117,9 @@ void CLQ2_ParseServerData (void)
 
 // parse protocol version number
 	i = MSG_ReadLong ();
-//	cls.serverProtocol = i;
+	cls.protocol_q2 = i;
 
-	if (i > PROTOCOL_VERSION_Q2 || i < PROTOCOL_VERSION_Q2_MIN)
+	if (i > PROTOCOL_VERSION_Q2 || i < (cls.demoplayback?PROTOCOL_VERSION_Q2_DEMO_MIN:PROTOCOL_VERSION_Q2_MIN))
 		Host_EndGame ("Server returned version %i, not %i", i, PROTOCOL_VERSION_Q2);
 
 	svcnt = MSG_ReadLong ();
@@ -3127,18 +3127,14 @@ void CLQ2_ParseServerData (void)
 
 	// game directory
 	str = MSG_ReadString ();
-//	strncpy (cl.gamedir, str, sizeof(cl.gamedir)-1);
-
 	// set gamedir
 	if (!*str)
 		COM_Gamedir("baseq2", NULL);
 	else
 		COM_Gamedir(str, NULL);
-//	if ((*str && (!fs_gamedirvar->string || !*fs_gamedirvar->string || strcmp(fs_gamedirvar->string, str))) || (!*str && (fs_gamedirvar->string || *fs_gamedirvar->string)))
-//		Cvar_Set("game", str);
 
 	Cvar_Get("timescale", "1", 0, "Q2Admin hacks");	//Q2Admin will kick players who have a timescale set to something other than 1
-													//FTE doesn't actually have a timescale cvar, so create one to fool q2admin.
+													//FTE doesn't actually have a timescale cvar, so create one to 'fool' q2admin.
 													//I can't really blame q2admin for rejecting engines that don't have this cvar, as it could have been renamed via a hex-edit.
 
 	CL_ClearState ();
@@ -4646,7 +4642,14 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 	// If it's us
 	if (slot == cl.playerview[0].playernum && player->name[0])
 	{
-		cl.spectator = player->spectator;
+		if (cl.spectator != player->spectator)
+		{
+			cl.spectator = player->spectator;
+			for (i = 0; i < cl.splitclients; i++)
+			{
+				Cam_Unlock(&cl.playerview[i]);
+			}
+		}
 
 		// Update the rules since spectators can bypass everything but players can't
 		CL_CheckServerInfo();
@@ -6792,13 +6795,13 @@ void CLQ2_ParseServerMessage (void)
 			CL_ParseDownload();
 			break;
 		case svcq2_playerinfo:	//17			// variable
-			Host_EndGame ("CL_ParseServerMessage: svcq2_playerinfo not implemented");
+			Host_EndGame ("CL_ParseServerMessage: svcq2_playerinfo not as part of svcq2_frame");
 			return;
 		case svcq2_packetentities://18			// [...]
-			Host_EndGame ("CL_ParseServerMessage: svcq2_packetentities not implemented");
+			Host_EndGame ("CL_ParseServerMessage: svcq2_packetentities not as part of svcq2_frame");
 			return;
 		case svcq2_deltapacketentities://19	// [...]
-			Host_EndGame ("CL_ParseServerMessage: svcq2_deltapacketentities not implemented");
+			Host_EndGame ("CL_ParseServerMessage: svcq2_deltapacketentities not as part of svcq2_frame");
 			return;
 		case svcq2_frame:			//20 (the bastard to implement.)
 			CLQ2_ParseFrame();

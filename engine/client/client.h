@@ -450,6 +450,8 @@ typedef struct
 	} protocol_nq;
 	#define CPNQ_IS_DP (cls.protocol_nq >= CPNQ_DP5)
 
+	int protocol_q2;
+
 
 	qboolean resendinfo;
 	qboolean findtrack;
@@ -1087,6 +1089,7 @@ enum beamtype_e
 	BT_Q2PARASITE,
 	BT_Q2GRAPPLE,
 	BT_Q2HEATBEAM,
+	BT_Q2LIGHTNING,
 
 	BT_H2LIGHTNING_SMALL,
 	BT_H2CHAIN,
@@ -1099,7 +1102,8 @@ enum beamtype_e
 	BT_H2GAZE,
 	BT_H2FAMINE,
 };
-void CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end);
+typedef struct beam_s beam_t;
+beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end);
 
 void CL_ClearState (void);
 void CLQ2_ClearState(void);
@@ -1249,7 +1253,7 @@ void CL_ParseParticleEffect4 (void);
 int CL_TranslateParticleFromServer(int sveffect);
 void CL_ParseTrailParticles(void);
 void CL_ParsePointParticles(qboolean compact);
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect, unsigned int renderflags);	/*called from the particlesystem*/
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum);	/*called from the particlesystem*/
 
 //
 // cl_ents.c

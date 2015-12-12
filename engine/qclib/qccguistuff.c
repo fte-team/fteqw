@@ -18,6 +18,9 @@ char enginebinary[MAX_PATH];
 char enginebasedir[MAX_PATH];
 char enginecommandline[8192];
 
+char *GUIReadFile(const char *fname, void *buffer, int blen, size_t *sz);
+int GUIFileSize(const char *fname);
+
 int qccpersisthunk = 1;
 int Grep(char *filename, char *string)
 {
@@ -25,15 +28,29 @@ int Grep(char *filename, char *string)
 	char *last, *found, *linestart;
 	int line = 1;
 	int sz;
+	int caseinsens = 0;
+	int szlen = caseinsens?strlen(string)+1:0;
 	char *buf;
 	if (!filename)
 		return foundcount;
-	sz = QCC_RawFileSize(filename);
+	sz = GUIFileSize(filename);
 	if (sz <= 0)
 		return foundcount;
-	buf = malloc(sz+1);
+	buf = malloc(sz+1 + szlen);
 	buf[sz] = 0;
-	QCC_ReadFile(filename, buf, sz, NULL);
+	GUIReadFile(filename, buf, sz, NULL);
+
+	if (caseinsens)
+	{
+		memcpy(buf+sz+1, string, szlen);
+		string = buf+sz+1+szlen;
+		for (found = buf; found < string; found++)
+		{
+			if (*found >= 'A' && *found <= 'Z')
+				*found = *found-'A' + 'a';
+		}
+		string = buf+sz+1;
+	}
 
 	linestart = last = found = buf;
 	while ((found = strstr(found, string)))

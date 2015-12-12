@@ -457,7 +457,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			Draw_FunString (x+32, y+16, va("Ping:  %i", ping));
 			Draw_FunString (x+32, y+24, va("Time:  %i", time));
 
-			p = R2D_SafeCachePic(va("players/%s_i.pcx", cl.players[value].qwskin->name));
+			p = R2D_SafeCachePic(va("players/%s_i.pcx", Info_ValueForKey(cl.players[value].userinfo, "skin")));
 			if (!p || !R_GetShaderSizes(p, NULL, NULL, false))	//display a default if the icon couldn't be found.
 				p = R2D_SafeCachePic("players/male/grunt_i.pcx");
 			R2D_ScalePic (x, y, 32, 32, p);
@@ -2174,7 +2174,7 @@ void Sbar_DrawScoreboard (void)
 			if (cl.players[t].statsf[STAT_HEALTH] <= 0)
 				deadcount++;
 		}
-		else if (cl.playerview[pnum].statsf[STAT_HEALTH] <= 0)
+		else if (!cl.spectator && cl.playerview[pnum].statsf[STAT_HEALTH] <= 0)
 			deadcount++;
 	}
 
@@ -3003,6 +3003,7 @@ void Sbar_TeamOverlay (void)
 		// Electro's scoreboard eyecandy: Draw the title row background
 		R2D_ImagePaletteColour (1, scr_scoreboard_fillalpha.value);
 		R2D_FillBlock(startx - 2, y, rank_width - 3, 9);
+		R2D_ImageColours (1,1,1,1);
 	}
 
 #define COLUMN(title, cwidth, code) Draw_FunString(x, y, title), x+=cwidth + 8;

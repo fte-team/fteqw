@@ -10936,7 +10936,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 	{
 		if (!*pr_parm_names[u])
 			QCC_PR_ParseError(ERR_PARAMWITHNONAME, "Parameter is not named");
-		parm = QCC_PR_GetSRef (type->params[u].type, pr_parm_names[u], pr_scope, true, 0, false);
+		parm = QCC_PR_GetSRef (type->params[u].type, pr_parm_names[u], pr_scope, 2, 0, false);
 		parm.sym->used = true;	//make sure system parameters get seen by the engine, even if the names are stripped..
 		parm.sym->referenced = true;
 		QCC_FreeTemp(parm);
@@ -10948,7 +10948,7 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 	{
 		if (!*pr_parm_names[u])
 			QCC_PR_ParseError(ERR_PARAMWITHNONAME, "Parameter is not named");
-		parm = QCC_PR_GetSRef (type->params[u].type, pr_parm_names[u], pr_scope, true, 0, false);
+		parm = QCC_PR_GetSRef (type->params[u].type, pr_parm_names[u], pr_scope, 2, 0, false);
 		parm.sym->referenced = true;
 
 		if (!extra_parms[u - MAX_PARMS].sym)
@@ -11767,10 +11767,13 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_function_t *scope, 
 PR_GetDef
 
 If type is NULL, it will match any type
-If allocate is true, a new def will be allocated if it can't be found
 If arraysize=0, its not an array and has 1 element.
 If arraysize>0, its an array and requires array notation
 If arraysize<0, its an array with undefined size - GetDef will fail if its not already allocated.
+
+If allocate is 0, will only get the def
+If allocate is 1, a new def will be allocated if it can't be found
+If allocate is 2, a new def will be allocated, and it'll error if there's a dupe with scope (for ensuring that arguments are created properly)
 ============
 */
 
@@ -11836,6 +11839,8 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *s
 					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match",name);
 				if (allocate && scope)
 				{
+					if (allocate == 2)
+						QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Duplicate definition of %s.", name);
 					QCC_PR_ParseWarning (WARN_DUPLICATEDEFINITION, "%s duplicate definition ignored", name);
 					QCC_PR_ParsePrintDef(WARN_DUPLICATEDEFINITION, def);
 	//				if (!scope)
@@ -11916,6 +11921,8 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, struct QCC_function_s *s
 				QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match",name);
 			if (allocate && scope)
 			{
+				if (allocate == 2)
+					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Duplicate definition of %s.", name);
 				if (pr_scope)
 				{	//warn? or would that be pointless?
 					def = pHash_GetNext(&globalstable, name, def);

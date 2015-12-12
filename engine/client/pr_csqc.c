@@ -3456,7 +3456,7 @@ void QCBUILTIN PF_cl_effect(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	mdl = Mod_ForName(name, MLV_WARN);
 	if (mdl)
-		CL_SpawnSpriteEffect(org, NULL, NULL, mdl, startframe, endframe, framerate, mdl->type==mod_sprite?-1:1, 0, 0, P_INVALID, 0);
+		CL_SpawnSpriteEffect(org, NULL, NULL, mdl, startframe, endframe, framerate, mdl->type==mod_sprite?-1:1, 0, 0, P_INVALID, 0, 0);
 	else
 		Con_Printf("PF_cl_effect: Couldn't load model %s\n", name);
 }

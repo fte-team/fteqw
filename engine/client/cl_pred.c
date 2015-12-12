@@ -242,9 +242,9 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 
 //	if (cl_paused->value)
 //		return;
-
+	
 #ifdef Q2BSPS
-	if (cl_nopred.value || (cl.q2frame.playerstate.pmove.pm_flags & Q2PMF_NO_PREDICTION))
+	if (cl_nopred.value || cls.demoplayback || (cl.q2frame.playerstate.pmove.pm_flags & Q2PMF_NO_PREDICTION))
 #endif
 	{	// just set angles
 		for (i=0 ; i<3 ; i++)
@@ -301,13 +301,13 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 		Q2_Pmove (&pm);
 	}
 
-	oldframe = (ack-2) & (UPDATE_MASK);
+	oldframe = (ack-1) & (UPDATE_MASK);
 	oldz = cl_predicted_origins[oldframe][2];
 	step = pm.s.origin[2] - oldz;
 	if (step > 63 && step < 160 && (pm.s.pm_flags & Q2PMF_ON_GROUND) )
 	{
 		cl.predicted_step = step * 0.125;
-		cl.predicted_step_time = realtime - host_frametime * 0.5;
+		cl.predicted_step_time = realtime;// - host_frametime;// * 0.5;
 	}
 
 	cl.playerview[0].onground = !!(pm.s.pm_flags & Q2PMF_ON_GROUND);
@@ -569,8 +569,12 @@ void CL_CalcClientTime(void)
 			extern float olddemotime;
 			cl.servertime = olddemotime;
 		}
-		if (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !cls.demoplayback)) && cls.demoplayback != DPB_MVD)
-		{
+		//q2 has no drifting.
+		//q3 always drifts.
+		//nq+qw code can drift
+		//default is to drift in demos but not live (oh noes! added latency!)
+		if (cls.protocol == CP_QUAKE2 || (cls.protocol != CP_QUAKE3 && (!cl_predict_smooth.ival || (cl_predict_smooth.ival == 2 && !cls.demoplayback)) && cls.demoplayback != DPB_MVD))
+		{	//no drift logic
 			float f;
 			f = cl.gametime - cl.oldgametime;
 			if (f > 0.1)
@@ -580,7 +584,7 @@ void CL_CalcClientTime(void)
 			cl.servertime = cl.gametime*f + cl.oldgametime*(1-f);
 		}
 		else
-		{
+		{	//funky magic drift logic. we be behind the most recent frame in order to attempt to cover network congestions (which is apparently common in germany).
 			float min, max;
 
 //			oldst = cl.servertime;

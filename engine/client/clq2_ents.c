@@ -77,6 +77,7 @@ float LerpAngle (float a2, float a1, float frac)
 #define Q2MAX_STATS	32
 
 
+void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs);
 
 typedef struct q2centity_s
 {
@@ -87,20 +88,117 @@ typedef struct q2centity_s
 	int			serverframe;		// if not current, this ent isn't in the frame
 
 	trailstate_t *trailstate;
+	trailstate_t *emitstate;
 //	float		trailcount;			// for diminishing grenade trails
 	vec3_t		lerp_origin;		// for trails (variable hz)
 
-//	int			fly_stoptime;
+	float		fly_stoptime;
 } q2centity_t;
 
+sfx_t *S_PrecacheSexedSound(int entnum, const char *soundname)
+{
+	if (soundname[0] == '*')
+	{	//a 'sexed' sound
+		if (entnum > 0 && entnum <= MAX_CLIENTS)
+		{
+			char *model = Info_ValueForKey(cl.players[entnum-1].userinfo, "skin");
+			char *skin;
+			skin = strchr(model, '/');
+			if (skin)
+				*skin = '\0';
+			if (*model)
+			{
+				sfx_t *sfx = S_PrecacheSound(va("players/%s/%s", model, soundname+1));
+				if (sfx && sfx->loadstate != SLS_FAILED)	//warning: the sound might still be loading (and later fail).
+					return sfx;
+			}
+		}
+		return S_PrecacheSound(va("players/male/%s", soundname+1));
+	}
+	return S_PrecacheSound(soundname);
+}
 
-void CLQ2_EntityEvent(entity_state_t *es){};
+
+void CLQ2_EntityEvent(entity_state_t *es)
+{
+	float ATTN_IDLE = 2;
+	switch (es->u.q2.event)
+	{
+	case Q2EV_NONE:
+	case Q2EV_OTHER_TELEPORT:	//inihibits interpolation. not an event in itself.
+		break;
+	case Q2EV_ITEM_RESPAWN:
+		pe->RunParticleEffectState(es->origin, NULL, 1, pt_q2[Q2PT_RESPAWN], NULL);
+		break;
+	case Q2EV_PLAYER_TELEPORT:
+		pe->RunParticleEffectState(es->origin, NULL, 1, pt_q2[Q2PT_PLAYER_TELEPORT], NULL);
+		break;
+	case Q2EV_FOOTSTEP:
+		pe->RunParticleEffectState(es->origin, NULL, 1, pt_q2[Q2PT_FOOTSTEP], NULL);
+		break;
+	case Q2EV_FALLSHORT:
+		Q2S_StartSound (NULL, es->number, CHAN_AUTO, S_PrecacheSound ("player/land1.wav"), 1, ATTN_NORM, 0);
+		break;
+	case Q2EV_FALL:
+		Q2S_StartSound (NULL, es->number, CHAN_AUTO, S_PrecacheSexedSound (es->number, "*fall2.wav"), 1, ATTN_NORM, 0);
+		break;
+	case Q2EV_FALLFAR:
+		Q2S_StartSound (NULL, es->number, CHAN_AUTO, S_PrecacheSexedSound (es->number, "*fall1.wav"), 1, ATTN_NORM, 0);
+		break;
+	default:
+		Con_Printf("event %u not supported\n", es->u.q2.event);
+		break;
+	}
+};
 void CLQ2_TeleporterParticles(entity_state_t *es){};
-void CLQ2_Tracker_Shell(vec3_t org){};
-void CLQ2_TrapParticles(entity_t *ent){};
-void CLQ2_BfgParticles(entity_t *ent){};
-void CLQ2_FlyEffect(q2centity_t *ent, vec3_t org){};
-void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg){};
+
+/*these are emissive effects (ie: emitted each frame), but they're also mutually exclusive, so sharing emitstate is fine*/
+void CLQ2_Tracker_Shell(q2centity_t *ent, vec3_t org)
+{
+	P_EmitEffect (org, pt_q2[Q2PT_TRACKERSHELL], &(ent->emitstate));
+};
+void CLQ2_BfgParticles(q2centity_t *ent, vec3_t org)
+{
+	P_EmitEffect (org, pt_q2[Q2PT_BFGPARTICLES], &(ent->emitstate));
+};
+void CLQ2_FlyEffect(q2centity_t *ent, vec3_t org)
+{
+	float starttime, n;
+	float cltime = cl.time;
+	int count;
+	if (cl.paused)
+		return;
+
+	//q2 ramps up to 162 within the first 20 secs, sits at 162 for the next 20, then ramps back down for the 20 after that.
+	//I have no idea how pvs issues are handled.
+
+	if (ent->fly_stoptime < cltime)
+	{
+		starttime = cltime;
+		ent->fly_stoptime = cltime + 60;
+	}
+	else
+	{
+		starttime = ent->fly_stoptime - 60;
+	}
+
+	n = cltime - starttime;
+	if (n < 20)
+		count = n * 162 / 20.0;
+	else
+	{
+		n = ent->fly_stoptime - cltime;
+		if (n < 20)
+			count = n * 162 / 20.0;
+		else
+			count = 162;
+	}
+	if (count < 0)
+		return;
+
+	//these are assumed to be spawned anew 
+	pe->RunParticleEffectState(org, NULL, count, pt_q2[Q2PT_FLIES], &(ent->emitstate));
+};
 
 
 #define MAX_Q2EDICTS 1024
@@ -110,7 +208,6 @@ void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg){};
 static q2centity_t cl_entities[MAX_Q2EDICTS];
 entity_state_t	clq2_parse_entities[MAX_PARSE_ENTITIES];
 
-void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs);
 void CL_SmokeAndFlash(vec3_t origin);
 
 void CLQ2_ClearState(void)
@@ -764,7 +861,7 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 			
 			oldindex++;
 
-			if (oldindex >= oldframe->num_entities)
+			if (!oldframe || oldindex >= oldframe->num_entities)
 				oldnum = 99999;
 			else
 			{
@@ -782,7 +879,7 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 
 			oldindex++;
 
-			if (oldindex >= oldframe->num_entities)
+			if (!oldframe || oldindex >= oldframe->num_entities)
 				oldnum = 99999;
 			else
 			{
@@ -1029,10 +1126,12 @@ void CLQ2_ParseFrame (void)
 	cl.gametime = cl.q2frame.servertime/1000.f;
 	cl.gametimemark = realtime;
 
-	i = MSG_ReadByte ();
-
-	for (j=0 ; j<i ; j++)
-		cl.outframes[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].latency = -2;
+	if (cls.protocol_q2 > 26)
+	{
+		i = MSG_ReadByte ();
+		for (j=0 ; j<i ; j++)
+			cl.outframes[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].latency = -2;
+	}
 
 	if (cl_shownet.value == 3)
 		Con_Printf ("   frame:%i  delta:%i\n", cl.q2frame.serverframe, cl.q2frame.deltaframe);
@@ -1053,8 +1152,10 @@ void CLQ2_ParseFrame (void)
 		if (!old->valid)
 		{	// should never happen
 			Con_Printf ("Delta from invalid frame (not supposed to happen!).\n");
+			cl.q2frame.valid = true;		// uncompressed frame
+			old = NULL;
 		}
-		if (old->serverframe != cl.q2frame.deltaframe)
+		else if (old->serverframe != cl.q2frame.deltaframe)
 		{	// The frame that the server did the delta from
 			// is too old, so we can't reconstruct it properly.
 			Con_Printf ("Delta frame too old.\n");
@@ -1094,6 +1195,7 @@ void CLQ2_ParseFrame (void)
 	// save the frame off in the backup array for later delta comparisons
 	cl.q2frames[cl.q2frame.serverframe & Q2UPDATE_MASK] = cl.q2frame;
 
+	cl.parsecount = cl.q2frame.serverframe;
 	if (cl.q2frame.valid)
 	{
 		// getting a valid frame message ends the connection process
@@ -1117,6 +1219,8 @@ void CLQ2_ParseFrame (void)
 #ifdef Q2BSPS
 		CLQ2_CheckPredictionError ();
 #endif
+
+		cl.validsequence = cl.q2frame.serverframe;
 	}
 }
 
@@ -1486,6 +1590,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		// add to refresh list
 		V_AddEntity (&ent);
 		ent.light_known = false;
+		ent.customskin = 0;
 
 
 		// color shells generate a seperate entity for the main model
@@ -1537,6 +1642,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.forcedshader = R_RegisterCustom("q2/shell", SUF_NONE, Shader_DefaultSkinShell, NULL);
 			ent.fatness = 2;
 			V_AddEntity (&ent);
+			ent.fatness = 0;
 		}
 		ent.forcedshader = NULL;
 
@@ -1562,21 +1668,16 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				if (skin) *skin = '\0';
 
 				i = (s1->skinnum >> 8); // 0 is default weapon model
-				if (i >= 0 && i < cl.numq2visibleweapons)
-					ent.model = Mod_ForName(va("players/%s/%s", modelname, cl.q2visibleweapons[i]), MLV_WARN);
-				/*
-				ci = &cl.clientinfo[s1->skinnum & 0xff];
-				i = (s1->skinnum >> 8); // 0 is default weapon model
-				if (!cl_vwep->value || i > MAX_CLIENTWEAPONMODELS - 1)
+				if (i < 0 || i >= cl.numq2visibleweapons)
+					i = 0;	//0 is always valid
+				ent.model = Mod_ForName(va("players/%s/%s", modelname, cl.q2visibleweapons[i]), MLV_WARN);
+				if (ent.model->loadstate == MLS_FAILED && i)
+				{
 					i = 0;
-				ent.model = ci->weaponmodel[i];
-				if (!ent.model) {
-					if (i != 0)
-						ent.model = ci->weaponmodel[0];
-					if (!ent.model)
-						ent.model = cl.baseclientinfo.weaponmodel[0];
+					ent.model = Mod_ForName(va("players/%s/%s", modelname, cl.q2visibleweapons[i]), MLV_WARN);
 				}
-				*/
+				if (ent.model->loadstate == MLS_FAILED && strcmp(modelname, "male"))
+					ent.model = Mod_ForName(va("players/%s/%s", "male", cl.q2visibleweapons[i]), MLV_WARN);
 			}
 			else
 				ent.model = cl.model_precache[s1->modelindex2];
@@ -1586,16 +1687,18 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 /*			if (!Q_strcasecmp (cl.model_name[(s1->modelindex2)], "models/items/shell/tris.md2"))
 			{
 				ent.alpha = 0.32;
-				ent.flags = Q2RF_TRANSLUCENT;
+				ent.flags |= Q2RF_TRANSLUCENT;
+
+				V_AddEntity (&ent);
+
+				// make sure these get reset.
+				ent.flags &= RF_EXTERNALMODEL;
+				ent.shaderRGBAf[3] = 1;
 			}
+			else
 */			// pmm
 
-			V_AddEntity (&ent);
-
-			//PGM - make sure these get reset.
-			ent.flags = 0;
-			ent.shaderRGBAf[3] = 1;
-			//PGM
+				V_AddEntity (&ent);
 		}
 		if (s1->u.q2.modelindex3)
 		{
@@ -1610,13 +1713,13 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 		if ( effects & Q2EF_POWERSCREEN )
 		{
-/*			ent.model = cl_mod_powerscreen;
-			ent.oldframe = 0;
-			ent.frame = 0;
-			ent.flags |= (Q2RF_TRANSLUCENT | Q2RF_SHELL_GREEN);
-			ent.alpha = 0.30;
-			V_AddLerpEntity (&ent);
-*/		}
+			ent.model = Mod_ForName("models/items/armor/effect/tris.md2", MLV_WARN);
+			ent.framestate.g[FS_REG].frame[0] = 0;
+			ent.framestate.g[FS_REG].frame[0] = 0;
+			ent.flags |= (RF_TRANSLUCENT | Q2RF_SHELL_GREEN);
+			ent.shaderRGBAf[3] = 0.30;
+			V_AddEntity (&ent);
+		}
 
 		// add automatic particle trails
 		if ( (effects&~Q2EF_ROTATE) )
@@ -1624,11 +1727,12 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			if (effects & Q2EF_ROCKET)
 			{
 				//FIXME: cubemap orientation
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_rocket, ent.keynum, NULL, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_ROCKET], ent.keynum, NULL, &cent->trailstate))
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, ent.keynum, NULL, &cent->trailstate))
+					{
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xdc, 4, &cent->trailstate);
-
-				V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.1, 0.05);
+						V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.1, 0.05);
+					}
 			}
 			// PGM - Do not reorder EF_BLASTER and EF_HYPERBLASTER. 
 			// EF_BLASTER | EF_TRACKER is a special case for EF_BLASTER2... Cheese!
@@ -1637,14 +1741,17 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 //PGM
 				if (effects & Q2EF_TRACKER)	// lame... problematic?
 				{
-					CLQ2_BlasterTrail2 (cent->lerp_origin, ent.origin);
-					V_AddLight (ent.keynum, ent.origin, 200, 0, 0.2, 0);		
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_BLASTERTRAIL2], ent.keynum, NULL, &cent->trailstate))
+						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xd0, 1, &cent->trailstate);
+					V_AddLight (ent.keynum, ent.origin, 200, 0, 0.2, 0);
 				}
 				else
 				{
-					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, ent.keynum, NULL, &cent->trailstate))
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_BLASTERTRAIL], ent.keynum, NULL, &cent->trailstate))
+					{
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe0, 1, &cent->trailstate);
-					V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
+						V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
+					}
 				}
 //PGM
 			}
@@ -1657,13 +1764,13 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 			else if (effects & Q2EF_GIB)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_gib, ent.keynum, NULL, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_GIB], ent.keynum, NULL, &cent->trailstate))
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blood, ent.keynum, NULL, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe8, 8, &cent->trailstate);
 			}
 			else if (effects & Q2EF_GRENADE)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_grenade, ent.keynum, NULL, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_GRENADE], ent.keynum, NULL, &cent->trailstate))
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_grenade, ent.keynum, NULL, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 4, 8, &cent->trailstate);
 			}
@@ -1677,7 +1784,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 				if (effects & Q2EF_ANIM_ALLFAST)
 				{
-					CLQ2_BfgParticles (&ent);
+					CLQ2_BfgParticles (cent, ent.origin);
 					i = 200;
 				}
 				else
@@ -1690,29 +1797,33 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			else if (effects & Q2EF_TRAP)
 			{
 				ent.origin[2] += 32;
-				CLQ2_TrapParticles (&ent);
-				i = (rand()%100) + 100;
-				V_AddLight (ent.keynum, ent.origin, i, 0.2, 0.16, 0.05);
+				P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_TRAP], ent.keynum, NULL, &cent->trailstate);
 			}
 			else if (effects & Q2EF_FLAG1)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag1"), ent.keynum, NULL, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_FLAG1], ent.keynum, NULL, &cent->trailstate))
+				{
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 242, 1, &cent->trailstate);
-				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
+					V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
+				}
 			}
 			else if (effects & Q2EF_FLAG2)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag2"), ent.keynum, NULL, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_FLAG2], ent.keynum, NULL, &cent->trailstate))
+				{
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 115, 1, &cent->trailstate);
-				V_AddLight (ent.keynum, ent.origin, 225, 0.05, 0.05, 0.2);
+					V_AddLight (ent.keynum, ent.origin, 225, 0.05, 0.05, 0.2);
+				}
 			}
 //======
 //ROGUE
 			else if (effects & Q2EF_TAGTRAIL)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tagtrail"), ent.keynum, NULL, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_TAGTRAIL], ent.keynum, NULL, &cent->trailstate))
+				{
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 220, 1, &cent->trailstate);
-				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.2, 0.0);
+					V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.2, 0.0);
+				}
 			}
 			else if (effects & Q2EF_TRACKERTRAIL)
 			{
@@ -1727,30 +1838,34 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				}
 				else
 				{
-					CLQ2_Tracker_Shell (cent->lerp_origin);
+					CLQ2_Tracker_Shell (cent, cent->lerp_origin);
 					V_AddLight (ent.keynum, ent.origin, 155, -0.2, -0.2, -0.2);
 				}
 			}
 			else if (effects & Q2EF_TRACKER)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tracker"), ent.keynum, NULL, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_TRACKER], ent.keynum, NULL, &cent->trailstate))
+				{
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0, 1, &cent->trailstate);
-				V_AddLight (ent.keynum, ent.origin, 200, -0.2, -0.2, -0.2);
+					V_AddLight (ent.keynum, ent.origin, 200, -0.2, -0.2, -0.2);
+				}
 			}
 //ROGUE
 //======
 			// RAFAEL
 			else if (effects & Q2EF_GREENGIB)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_greengib"), ent.keynum, NULL, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_GREENGIB], ent.keynum, NULL, &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 219, 8, &cent->trailstate);
 			}
 			// RAFAEL
 			else if (effects & Q2EF_IONRIPPER)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_ionripper"), ent.keynum, NULL, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_IONRIPPER], ent.keynum, NULL, &cent->trailstate))
+				{
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 228, 4, &cent->trailstate);
-				V_AddLight (ent.keynum, ent.origin, 100, 0.2, 0.1, 0.1);
+					V_AddLight (ent.keynum, ent.origin, 100, 0.2, 0.1, 0.1);
+				}
 			}
 			// RAFAEL
 			else if (effects & Q2EF_BLUEHYPERBLASTER)
@@ -1762,7 +1877,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (effects & Q2EF_ANIM_ALLFAST)
 				{
-					P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, ent.keynum, NULL, &cent->trailstate);
+					P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_PLASMA], ent.keynum, NULL, &cent->trailstate);
 				}
 				V_AddLight (ent.keynum, ent.origin, 130, 0.2, 0.1, 0.1);
 			}
@@ -1886,7 +2001,7 @@ void CLQ2_CalcViewValues (void)
 	lerp = cl.lerpfrac;
 
 	// calculate the origin
-	if (cl.worldmodel && (!cl_nopred.value) && !(cl.q2frame.playerstate.pmove.pm_flags & Q2PMF_NO_PREDICTION))
+	if (cl.worldmodel && (!cl_nopred.value) && !(cl.q2frame.playerstate.pmove.pm_flags & Q2PMF_NO_PREDICTION) && !cls.demoplayback)
 	{	// use predicted values
 		float	delta;
 
@@ -1913,7 +2028,7 @@ void CLQ2_CalcViewValues (void)
 	}
 
 	// if not running a demo or on a locked frame, add the local angle movement
-	if (cl.worldmodel && cl.q2frame.playerstate.pmove.pm_type < Q2PM_DEAD )
+	if (cl.worldmodel && cl.q2frame.playerstate.pmove.pm_type < Q2PM_DEAD && !cls.demoplayback)
 	{	// use predicted values
 		for (i=0 ; i<3 ; i++)
 			r_refdef.viewangles[i] = cl.predicted_angles[i];
@@ -1986,21 +2101,22 @@ void CLQ2_AddEntities (void)
 #endif
 	CL_UpdateTEnts ();
 
-
+#ifdef _DEBUG
 	if (chase_active.ival)
 	{
 		playerview_t *pv = &cl.playerview[0];
 		vec3_t axis[3];
 		vec3_t camorg;
-		trace_t tr;
+//		trace_t tr;
 		AngleVectors(r_refdef.viewangles, axis[0], axis[1], axis[2]);
 		VectorMA(r_refdef.vieworg, -chase_back.value, axis[0], camorg);
 		VectorMA(camorg, -chase_up.value, pv->gravitydir, camorg);
-//		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, MASK_WORLDSOLID, &tr))
+//		if (cl.worldmodel && cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, r_refdef.vieworg, camorg, vec3_origin, vec3_origin, true, MASK_WORLDSOLID, &tr))
 		VectorCopy(camorg, r_refdef.vieworg);
 
 		CL_EditExternalModels(0, NULL, 0);
 	}
+#endif
 }
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang)

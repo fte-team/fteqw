@@ -75,6 +75,7 @@ void HUD_Plus_f(void)
 {
     char *t;
     hud_t *hud;
+	char buf[64];
 
     if (Cmd_Argc() < 1)
         return;
@@ -1121,12 +1122,15 @@ qbool HUD_PrepareDraw(hud_t *hud, int width, int height, // In.
 
     y += hud->pos_y->value;
 
-    // Draw frame.
-    HUD_DrawFrame(hud, x, y, width, height);
+	if (ret_x)
+	{
+		// Draw frame.
+		HUD_DrawFrame(hud, x, y, width, height);
 
-    // Assign values.
-    *ret_x = x + frame_left;
-    *ret_y = y + frame_top;
+		// Assign values.
+		*ret_x = x + frame_left;
+		*ret_y = y + frame_top;
+	}
 
     // Remember values for children.
     hud->lx = x + frame_left;

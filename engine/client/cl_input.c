@@ -74,13 +74,6 @@ int CL_TargettedSplit(qboolean nowrap)
 		mod = cl.splitclients;
 	if (mod < 1)
 		return 0;
-	c = Cmd_Argv(0);
-	pnum = atoi(c+strlen(c)-1);
-	if (pnum && !(c[1] == 'b'&&c[2] == 'u' && !atoi(c+strlen(c)-2)))
-	{
-		pnum--;
-		return pnum;
-	}
 
 	if (con_splitmodifier > 0)
 		return (con_splitmodifier - 1) % mod;
@@ -98,12 +91,12 @@ void CL_Split_f(void)
 	tmp = con_splitmodifier;
 	if (*c == '+' || *c == '-')
 	{
-		con_splitmodifier = c[2];
+		con_splitmodifier = c[2]-'0';
 		Cmd_ExecuteString(va("%c%s", *c, Cmd_Args()), Cmd_ExecLevel);
 	}
 	else
 	{
-		con_splitmodifier = c[1];
+		con_splitmodifier = c[1]-'0';
 		Cmd_ExecuteString(Cmd_Args(), Cmd_ExecLevel);
 	}
 	con_splitmodifier = tmp;
@@ -1447,6 +1440,10 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 // if the last packet was dropped, it can be recovered
 	i = cl.movesequence & UPDATE_MASK;
 	cmd = &cl.outframes[i].cmd[0];
+
+	//q2admin is retarded and kicks you if you get a stall.
+	if (cmd->msec > 100)
+		cmd->msec = 100;
 
 	if (cls.resendinfo)
 	{

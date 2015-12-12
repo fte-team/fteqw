@@ -503,20 +503,6 @@ struct texture_s *R_TextureAnimation_Q2 (struct texture_s *base);	//mostly depre
 void RQ_Init(void);
 void RQ_Shutdown(void);
 
-void CLQ2_EntityEvent(entity_state_t *es);
-void CLQ2_TeleporterParticles(entity_state_t *es);
-void CLQ2_IonripperTrail(vec3_t oldorg, vec3_t neworg);
-void CLQ2_TrackerTrail(vec3_t oldorg, vec3_t neworg, int flags);
-void CLQ2_Tracker_Shell(vec3_t org);
-void CLQ2_TagTrail(vec3_t oldorg, vec3_t neworg, int flags);
-void CLQ2_FlagTrail(vec3_t oldorg, vec3_t neworg, int flags);
-void CLQ2_TrapParticles(entity_t *ent);
-void CLQ2_BfgParticles(entity_t *ent);
-struct q2centity_s;
-void CLQ2_FlyEffect(struct q2centity_s *ent, vec3_t org);
-void CLQ2_DiminishingTrail(vec3_t oldorg, vec3_t neworg, struct q2centity_s *ent, unsigned int effects);
-void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg);
-
 void WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *hasalpha, int asgrey);

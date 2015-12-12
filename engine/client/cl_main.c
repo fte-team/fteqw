@@ -776,7 +776,7 @@ void CL_CheckForResend (void)
 					pext2 = Net_PextMask(2, false);
 				}
 			}
-			else if (!strcmp(cl_loopbackprotocol.string, "fitz"))	//actually proquake, because we might as well use the extra angles
+			else if (!strcmp(cl_loopbackprotocol.string, "fitz") || !strcmp(cl_loopbackprotocol.string, "666") || !strcmp(cl_loopbackprotocol.string, "999"))
 			{
 				cls.protocol = CP_NETQUAKE;
 				cls.protocol_nq = CPNQ_FITZ666;
@@ -2593,8 +2593,8 @@ void CL_ConnectionlessPacket (void)
 	int		c;
 	char	adr[MAX_ADR_SIZE];
 
-    MSG_BeginReading (msg_nullnetprim);
-    MSG_ReadLong ();        // skip the -1
+	MSG_BeginReading (msg_nullnetprim);
+	MSG_ReadLong ();        // skip the -1
 
 	Cmd_TokenizeString(net_message.data+4, false, false);
 
@@ -2717,10 +2717,27 @@ void CL_ConnectionlessPacket (void)
 		static netadr_t lastadr;
 		unsigned int curtime = Sys_Milliseconds();
 		unsigned long pext = 0, pext2 = 0, huffcrc=0, mtu=0;
-		Con_TPrintf ("challenge\n");
 
 		s = MSG_ReadString ();
 		COM_Parse(s);
+
+#ifdef Q3CLIENT
+		if (!strcmp(com_token, "onnectResponse"))
+		{
+			connectinfo.protocol = CP_QUAKE3;
+			goto client_connect;
+		}
+#endif
+#ifdef Q2CLIENT
+		if (!strcmp(com_token, "lient_connect"))
+		{
+			connectinfo.protocol = CP_QUAKE2;
+			goto client_connect;
+		}
+#endif
+
+		Con_TPrintf ("challenge\n");
+
 		if (!strcmp(com_token, "hallengeResponse"))
 		{
 			/*Quake3*/
@@ -2791,20 +2808,6 @@ void CL_ConnectionlessPacket (void)
 #endif
 			s+=9;
 		}
-#ifdef Q3CLIENT
-		else if (!strcmp(com_token, "onnectResponse"))
-		{
-			connectinfo.protocol = CP_QUAKE3;
-			goto client_connect;
-		}
-#endif
-#ifdef Q2CLIENT
-		else if (!strcmp(com_token, "lient_connect"))
-		{
-			connectinfo.protocol = CP_QUAKE2;
-			goto client_connect;
-		}
-#endif
 
 		/*no idea, assume a QuakeWorld challenge response ('c' packet)*/
 
@@ -2983,7 +2986,7 @@ void CL_ConnectionlessPacket (void)
 	if (c == S2C_CONNECTION)
 	{
 		connectinfo.protocol = CP_QUAKEWORLD;
-#ifdef Q2CLIENT
+#if defined(Q2CLIENT) || defined(Q3CLIENT)
 client_connect:	//fixme: make function
 #endif
 		if (net_from.type == NA_INVALID)
@@ -5274,12 +5277,12 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
 	SCR_ShowPic_Clear(true);
 
-	Cbuf_AddText("alias restart_ents \"changelevel . .\"\n",RESTRICT_LOCAL);
-	Cbuf_AddText("alias restart \"changelevel .\"\n",RESTRICT_LOCAL);
-	Cbuf_AddText("alias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("unbindall\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind volup \"inc volume 0.1\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("bind voldown \"inc volume -0.1\"\n", RESTRICT_LOCAL);
+	Cbuf_AddText("alias restart_ents \"changelevel . .\"\n",RESTRICT_LOCAL);
+	Cbuf_AddText("alias restart \"changelevel .\"\n",RESTRICT_LOCAL);
+	Cbuf_AddText("alias startmap_sp \"map start\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
 	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults

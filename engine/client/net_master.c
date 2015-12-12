@@ -3042,7 +3042,10 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 
 			MasterInfo_AddPlayer(&info->adr, details.players[clnum].name, details.players[clnum].ping, details.players[clnum].frags, details.players[clnum].topc*4 | details.players[clnum].botc, details.players[clnum].skin, details.players[clnum].team);
 
-			if (details.players[clnum].ping == 807 || !strncmp(details.players[clnum].name, "BOT:", 4))
+			//807 excludes the numerous bot names on some annoying qwtf server
+			//BOT: excludes fte's botclients (which always have a bot: prefix)
+			//WallFly is some q2 bot
+			if (details.players[clnum].ping == 807 || !strncmp(details.players[clnum].name, "BOT:", 4) || !strncmp(details.players[clnum].name, "WallFly", 7))
 				info->numbots++;
 			else if (details.players[clnum].isspec)
 				info->numspectators++;

@@ -1724,7 +1724,7 @@ void FTENET_Loop_Close(ftenet_generic_connection_t *con)
 	Z_Free(con);
 }
 
-static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean isserver, const char *address)
+static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
 	ftenet_generic_connection_t *newcon;
 	int sock;
@@ -1764,22 +1764,22 @@ ftenet_connections_t *FTENET_CreateCollection(qboolean listen)
 	col->islisten = listen;
 	return col;
 }
-static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean isserver, const char *address);
-static ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, const char *address);
-static ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, const char *address);
-static ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, const char *address);
-static ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, const char *address);
-static ftenet_generic_connection_t *FTENET_TLS4Connect_EstablishConnection(qboolean isserver, const char *address);
-static ftenet_generic_connection_t *FTENET_TLS6Connect_EstablishConnection(qboolean isserver, const char *address);
+static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_TLS4Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_TLS6Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 #ifdef USEIPX
-static ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, const char *address);
+static ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 #endif
 #ifdef HAVE_WEBSOCKCL
-static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address);
+static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 #endif
-static ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address);
+static ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 #ifdef HAVE_NATPMP
-static ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver, const char *address);
+static ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 #endif
 
 #ifdef HAVE_NATPMP
@@ -2015,12 +2015,10 @@ void FTENET_NATPMP_Close(struct ftenet_generic_connection_s *con)
 	Z_Free(con);
 }
 //qboolean Net_OpenUDPPort(char *privateip, int privateport, char *publicip, size_t publiciplen, int *publicport);
-ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver, const char *address)
+ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver, const char *address, netadr_t pmpadr)
 {
 	pmpcon_t *pmp;
-	netadr_t pmpadr;
 
-	NET_PortToAdr(NA_IP, address, &pmpadr);
 	if (pmpadr.type == NA_NATPMP)
 		pmpadr.type = NA_IP;
 	if (pmpadr.type != NA_IP)
@@ -2045,7 +2043,7 @@ ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver
 }
 #endif
 
-qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char *name, const char *address, ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address), qboolean islisten)
+static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char *name, ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address, netadr_t adr), qboolean islisten, const char *address, netadr_t *adr)
 {
 	int count = 0;
 	int i;
@@ -2060,10 +2058,10 @@ qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char *name,
 			if (col->conn[i])
 			if (col->conn[i]->name && !strcmp(col->conn[i]->name, name))
 			{
-				if (address && *address)
+				if (adr && adr->type != NA_INVALID && islisten)
 				if (col->conn[i]->ChangeLocalAddress)
 				{
-					if (col->conn[i]->ChangeLocalAddress(col->conn[i], address))
+					if (col->conn[i]->ChangeLocalAddress(col->conn[i], adr))
 						return true;
 				}
 
@@ -2073,22 +2071,18 @@ qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char *name,
 		}
 	}
 
-	if (address && *address && establish)
+	if (adr && establish)
 	{
 		for (i = 0; i < MAX_CONNECTIONS; i++)
 		{
 			if (!col->conn[i])
 			{
-				address = COM_Parse(address);
-				col->conn[i] = establish(islisten, com_token);
+				col->conn[i] = establish(islisten, address, *adr);
 				if (!col->conn[i])
 					break;
 				if (name)
 					Q_strncpyz(col->conn[i]->name, name, sizeof(col->conn[i]->name));
 				count++;
-
-				if (address && *address)
-					continue;
 				break;
 			}
 		}
@@ -2097,7 +2091,7 @@ qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char *name,
 }
 qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten)
 {
-	ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address) = NULL;
+	ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address, netadr_t adr) = NULL;
 	netadr_t adr;
 
 	//resolve the address to something sane so we can determine the address type and thus the connection type to use
@@ -2148,7 +2142,7 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 #endif
 	}
 
-	return FTENET_AddToCollection_Ptr(col, name, address, establish, islisten);
+	return FTENET_AddToCollection_Ptr(col, name, establish, islisten, address, &adr);
 }
 
 void FTENET_CloseCollection(ftenet_connections_t *col)
@@ -2611,7 +2605,16 @@ qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a)
 	return false;
 }
 
-ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, int protocol, qboolean isserver, const char *address)
+/*just here to prevent the client from spamming new sockets, which can be a problem with certain q2 servers*/
+qboolean FTENET_Generic_ChangeLocalAddress(struct ftenet_generic_connection_s *con, netadr_t *adr)
+{
+	if (adr->type == con->addrtype[0] || adr->type == con->addrtype[1])
+		if (adr->port == 0)
+			return true;	//they want to use addr_any. it doesn't matter one jot which port we're currently listening on then.
+	return false;
+}
+
+ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, int protocol, qboolean isserver, const char *address, netadr_t adr)
 {
 #ifndef HAVE_PACKET
 	return NULL;
@@ -2622,7 +2625,6 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	unsigned long _true = true;
 	SOCKET newsocket = INVALID_SOCKET;
 	int temp;
-	netadr_t adr;
 	struct sockaddr_qstorage qs;
 	int family;
 	int port;
@@ -2630,10 +2632,10 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	int bufsz;
 	qboolean hybrid = false;
 
-
-	if (!NET_PortToAdr(adrfamily, address, &adr))
+	if (adr.type != adrfamily)
 	{
-		Con_Printf("unable to resolve local address %s\n", address);
+		if (adr.type == NA_INVALID)
+			Con_Printf("unable to resolve local address %s\n", address);
 		return NULL;	//couldn't resolve the name
 	}
 	temp = NetadrToSockadr(&adr, &qs);
@@ -2735,6 +2737,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 		newcon->GetPacket = FTENET_Generic_GetPacket;
 		newcon->SendPacket = FTENET_Generic_SendPacket;
 		newcon->Close = FTENET_Generic_Close;
+		newcon->ChangeLocalAddress = FTENET_Generic_ChangeLocalAddress;
 
 		newcon->islisten = isserver;
 		if (hybrid)
@@ -2761,21 +2764,21 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 }
 
 #ifdef IPPROTO_IPV6
-ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, const char *address)
+ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
-	return FTENET_Generic_EstablishConnection(NA_IPV6, IPPROTO_UDP, isserver, address);
+	return FTENET_Generic_EstablishConnection(NA_IPV6, IPPROTO_UDP, isserver, address, adr);
 }
 #endif
 #ifdef HAVE_IPV4
-ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, const char *address)
+ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
-	return FTENET_Generic_EstablishConnection(NA_IP, IPPROTO_UDP, isserver, address);
+	return FTENET_Generic_EstablishConnection(NA_IP, IPPROTO_UDP, isserver, address, adr);
 }
 #endif
 #ifdef USEIPX
-ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, const char *address)
+ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
-	return FTENET_Generic_EstablishConnection(NA_IPX, NSPROTO_IPX, isserver, address);
+	return FTENET_Generic_EstablishConnection(NA_IPX, NSPROTO_IPX, isserver, address, adr);
 }
 #endif
 
@@ -3829,21 +3832,21 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 }
 
 #ifdef IPPROTO_IPV6
-ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, const char *address)
+ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
 	return FTENET_TCPConnect_EstablishConnection(NA_TCPV6, isserver, address);
 }
-ftenet_generic_connection_t *FTENET_TLS6Connect_EstablishConnection(qboolean isserver, const char *address)
+ftenet_generic_connection_t *FTENET_TLS6Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
 	return FTENET_TCPConnect_EstablishConnection(NA_TLSV6, isserver, address);
 }
 #endif
 
-ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, const char *address)
+ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
 	return FTENET_TCPConnect_EstablishConnection(NA_TCP, isserver, address);
 }
-ftenet_generic_connection_t *FTENET_TLS4Connect_EstablishConnection(qboolean isserver, const char *address)
+ftenet_generic_connection_t *FTENET_TLS4Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
 	return FTENET_TCPConnect_EstablishConnection(NA_TLSV4, isserver, address);
 }
@@ -4397,11 +4400,10 @@ void FTENET_IRCConnect_Close(ftenet_generic_connection_t *gcon)
 	FTENET_Generic_Close(gcon);
 }
 
-struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address)
+struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr)
 {
 	//this is written to support either ipv4 or ipv6, depending on the remote addr.
 	ftenet_ircconnect_connection_t *newcon;
-	netadr_t adr;
 
 	if (!NET_StringToAdr(address, 6667, &adr))
 		return NULL;	//couldn't resolve the name

@@ -73,6 +73,23 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
+/*
+glibc SUCKS. 64bit glibc is depending upon glibc 2.14 because of some implementation-defined copy direction change that breaks flash.
+or something.
+anyway, the actual interface is the same. the old version might be slower, but when updating glibc generally results in also installing systemd, requiring the new version is NOT an option.
+*/
+#if defined(__GNUC__) && defined(__LP64__)
+	#include <features.h>       /* for glibc version */
+		#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 14)
+		__asm__(".symver oldmemcpy,memcpy@GLIBC_2.2.5");
+		__attribute__ ((visibility ("hidden"))) void *memcpy(void *__restrict dst, const void *__restrict src, size_t len)
+		{
+			return oldmemcpy(dst,src,len);
+		}
+	#endif
+#endif
+/*end glibc workaround*/
+
 #define NUM_SAFE_ARGVS	6
 
 usercmd_t nullcmd; // guarenteed to be zero

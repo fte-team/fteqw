@@ -93,6 +93,7 @@ static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t
 	void *pr_globals = PR_globals(w->progs, PR_CURRENT);
 	int i;
 	int tmp;
+	float f;
 
 	*w->g.self = EDICT_TO_PROG(w->progs, portal);
 	//transform origin+velocity etc
@@ -120,6 +121,16 @@ static qboolean PM_PortalTransform(world_t *w, int portalnum, vec3_t org, vec3_t
 		VectorCopy(w->g.v_forward, newvel);
 		VectorCopy(w->g.v_right, move);
 //		VectorCopy(w->g.v_up, pmove.gravitydir);
+
+		//floor+floor, ish
+		if (DotProduct(w->g.v_up, pmove.gravitydir) < 0.7)
+		{
+			f = DotProduct(newvel, newvel);
+			if (f < 200*200)
+			{
+				VectorScale(newvel, 200 / sqrt(f), newvel);
+			}
+		}
 
 
 		//transform the angles too

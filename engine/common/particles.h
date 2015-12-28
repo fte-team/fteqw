@@ -217,6 +217,7 @@ int P_FindParticleType(const char *efname);
 #define P_RunParticleEffect2 pe->RunParticleEffect2
 #define P_RunParticleEffect3 pe->RunParticleEffect3
 #define P_RunParticleEffect4 pe->RunParticleEffect4
+#define P_RunParticleEffectPalette pe->RunParticleEffectPalette
 
 #define P_ParticleTrailIndex pe->ParticleTrailIndex
 #define P_EmitSkyEffectTris pe->EmitSkyEffectTris
@@ -241,6 +242,7 @@ typedef struct {
 	void (*RunParticleEffect2) (vec3_t org, vec3_t dmin, vec3_t dmax, int color, int effect, int count);
 	void (*RunParticleEffect3) (vec3_t org, vec3_t box, int color, int effect, int count);
 	void (*RunParticleEffect4) (vec3_t org, float radius, int color, int effect, int count);
+	void (*RunParticleEffectPalette) (const char *nameprefix, vec3_t org, vec3_t dir, int color, int count);
 
 	void (*ParticleTrailIndex) (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk);
 	void (*EmitSkyEffectTris) (struct model_s *mod, struct msurface_s *fa, int ptype);

@@ -1368,7 +1368,8 @@ endif
 # This is for linking the FTE icon to the MinGW target
 $(OUT_DIR)/resources.o : winquake.rc
 	@$(WINDRES) $(BRANDFLAGS) -I$(CLIENT_DIR) -O coff $< $@
-
+$(OUT_DIR)/fteqcc.o : fteqcc.rc
+	@$(WINDRES) $(BRANDFLAGS) -I$(PROGS_DIR)  -O coff $< $@
 #npAPI stuff requires some extra resources
 $(OUT_DIR)/npplug.o : ftequake/npplug.rc
 	@$(WINDRES) $(BRANDFLAGS) -I$(CLIENT_DIR) -O coff $< $@
@@ -1553,11 +1554,11 @@ _qcc-tmp: $(REQDIR)
 qcc-rel:
 	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qcctui.o"
 qccgui-rel:
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui" OUT_DIR="$(RELEASE_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 qcc-dbg:
 	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qcctui.o"
 qccgui-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui" OUT_DIR="$(DEBUG_DIR)/qcc" SOBJS="qccgui.o qccguistuff.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 
 #scintilla is messy as fuck when building statically. but at least we can strip out the lexers we don't use this way.

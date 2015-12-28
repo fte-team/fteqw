@@ -2657,9 +2657,8 @@ qboolean Mod_LoadFaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, lump_t *
 void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *cookie)
 {
 	unsigned int vertidx;
-	int i, lindex;
+	int i, lindex, edgevert;
 	mesh_t *mesh = surf->mesh;
-	medge_t *pedge;
 	float *vec;
 	float s, t, d;
 	int sty;
@@ -2692,17 +2691,13 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 	for (i=0 ; i<mesh->numvertexes ; i++)
 	{
 		lindex = mod->surfedges[surf->firstedge + i];
-
-		if (lindex > 0)
-		{
-			pedge = &mod->edges[lindex];
-			vertidx = pedge->v[0];
-		}
+		edgevert = lindex <= 0;
+		if (edgevert)
+			lindex = -lindex;
+		if (lindex < 0 || lindex >= mod->numedges)
+			vertidx = 0;
 		else
-		{
-			pedge = &mod->edges[-lindex];
-			vertidx = pedge->v[1];
-		}
+			vertidx = mod->edges[lindex].v[edgevert];
 		vec = mod->vertexes[vertidx].position;
 
 		s = DotProduct (vec, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3];
@@ -2973,6 +2968,7 @@ static int Mod_Batches_Generate(model_t *mod)
 	mod->lightmaps.count /= merge;
 	mod->lightmaps.height *= merge;
 
+	mod->numbatches = 0;
 
 	//for each surface, find a suitable batch to insert it into.
 	//we use 'firstmesh' to avoid chucking out too many verts in a single vbo (gl2 hardware tends to have a 16bit limit)

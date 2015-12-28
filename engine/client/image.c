@@ -3616,7 +3616,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
 		for (i = 0, valid = false; i < imgwidth * imgheight; i++)
 		{
-			if (((qbyte*)rawdata)[i] < 256-vid.fullbright)
+			if (((qbyte*)rawdata)[i] == 255 || ((qbyte*)rawdata)[i] < 256-vid.fullbright)
 				rgbadata[i] = 0;
 			else
 			{

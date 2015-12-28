@@ -890,7 +890,6 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 		{
 			if (AudioInputPlugins[i](s, data, filesize, snd_speed))
 			{
-				s->loadstate = SLS_LOADED;
 				//wake up the main thread in case it decided to wait for us.
 				COM_AddWork(0, S_LoadedOrFailed, s, NULL, SLS_LOADED, 0);
 				BZ_Free(data);

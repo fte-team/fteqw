@@ -470,8 +470,6 @@ typedef struct
 
 	char		servername[MAX_OSPATH];	// name of server from original connect
 
-	int			qport;
-
 	struct ftenet_connections_s *sockets;
 
 	qdownload_t *download;
@@ -797,6 +795,7 @@ typedef struct
 	char		sound_name[MAX_PRECACHE_SOUNDS][MAX_QPATH];
 	char		*particle_ssname[MAX_SSPARTICLESPRE];
 #ifdef Q2CLIENT
+	char		*configstring_general[Q2MAX_CLIENTS|Q2MAX_GENERAL];
 	char		*image_name[Q2MAX_IMAGES];
 	char		*item_name[Q2MAX_ITEMS];
 	short		inventory[Q2MAX_ITEMS];
@@ -1288,7 +1287,7 @@ qboolean CL_MayLerp(void);
 #ifdef Q3CLIENT
 void VARGS CLQ3_SendClientCommand(const char *fmt, ...) LIKEPRINTF(1);
 void CLQ3_SendAuthPacket(netadr_t *gameserver);
-void CLQ3_SendConnectPacket(netadr_t *to);
+void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport);
 void CLQ3_SendCmd(usercmd_t *cmd);
 qboolean CLQ3_Netchan_Process(void);
 void CLQ3_ParseServerMessage (void);
@@ -1475,7 +1474,7 @@ void CLQ2_ParseTEnt (void);
 void CLQ2_AddEntities (void);
 void CLQ2_ParseBaseline (void);
 void CLQ2_ClearParticleState(void);
-void CLQ2_ParseFrame (void);
+void CLQ2_ParseFrame (int extrabits);
 void CLQ2_RunMuzzleFlash2 (int ent, int flash_number);
 int CLQ2_RegisterTEntModels (void);
 #endif

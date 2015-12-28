@@ -196,7 +196,10 @@ void Sys_Error (const char *error, ...)
 
 	tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
 
-*(int*)-3 = 0;
+	//we used to fire sigsegv. this resulted in people reporting segfaults and not the error message that appeared above. resulting in wasted debugging.
+	//abort should trigger a SIGABRT and still give us the same stack trace. should be more useful that way.
+	abort();
+
 	exit (1);
 }
 
@@ -616,6 +619,7 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 	case SIGILL:	strcpy(signame, "SIGILL");	break;
 	case SIGFPE:	strcpy(signame, "SIGFPE");	break;
 	case SIGBUS:	strcpy(signame, "SIGBUS");	break;
+	case SIGABRT:	strcpy(signame, "SIGABRT");	break;
 	case SIGSEGV:	Q_snprintfz(signame, sizeof(signame), "SIGSEGV (%p)", info->si_addr);	break;
 	default:	Q_snprintfz(signame, sizeof(signame), "%i", sig);	break;
 	}
@@ -707,6 +711,7 @@ int main(int argc, char *argv[])
 		sigaction(SIGILL, &act, NULL);
 		sigaction(SIGFPE, &act, NULL);
 		sigaction(SIGSEGV, &act, NULL);
+		sigaction(SIGABRT, &act, NULL);
 		sigaction(SIGBUS, &act, NULL);
 	}
 #endif

@@ -34,6 +34,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PF_sqlescape		PF_Fixme
 #define PF_sqlversion		PF_Fixme
 #define PF_sqlreadfloat		PF_Fixme
+#define PF_sqlreadblob		PF_Fixme
+#define PF_sqlescapeblob	PF_Fixme
 #endif
 
 #ifndef CLIENTONLY
@@ -3752,13 +3754,17 @@ void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars
 */
 	int		i;
 
+	G_FLOAT(OFS_RETURN) = 0;
+
 	if (s[0] <= ' ')
 	{
-		PR_BIError (prinst, "PF_precache_particles: Bad string");
+		/*if (!ssqc_deprecated_warned)
+		{
+			PR_RunWarning(prinst, "PF_precache_particles: Bad string");
+			ssqc_deprecated_warned = true;
+		}*/
 		return;
 	}
-
-	G_FLOAT(OFS_RETURN) = 0;
 
 	for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
 	{
@@ -3769,14 +3775,16 @@ void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars
 			if (sv.state != ss_loading)
 			{
 				Con_DPrintf("Delayed particle precache: %s\n", s);
-				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
-				MSG_WriteShort(&sv.reliable_datagram, i|PC_PARTICLE);
-				MSG_WriteString(&sv.reliable_datagram, s);
+				MSG_WriteByte(&sv.multicast, svcfte_precache);
+				MSG_WriteShort(&sv.multicast, i|PC_PARTICLE);
+				MSG_WriteString(&sv.multicast, s);
 #ifdef NQPROT
-				MSG_WriteByte(&sv.nqreliable_datagram, svcdp_precache);
-				MSG_WriteShort(&sv.nqreliable_datagram, i|PC_PARTICLE);
-				MSG_WriteString(&sv.nqreliable_datagram, s);
+				MSG_WriteByte(&sv.nqmulticast, svcdp_precache);
+				MSG_WriteShort(&sv.nqmulticast, i|PC_PARTICLE);
+				MSG_WriteString(&sv.nqmulticast, s);
 #endif
+
+				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, pr_global_struct->dimension_send, PEXT_CSQC, 0);
 			}
 		}
 		if (!strcmp(sv.strings.particle_precache[i], s))
@@ -5869,6 +5877,83 @@ void QCBUILTIN PF_sqlreadfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
+void QCBUILTIN PF_sqlreadblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	sqlserver_t *server;
+	queryresult_t *qres;
+	char *data;
+
+	int serveridx = G_FLOAT(OFS_PARM0);
+	int queryidx = G_FLOAT(OFS_PARM1);
+	int row = G_FLOAT(OFS_PARM2);
+	int column = G_FLOAT(OFS_PARM3);
+	int dst = G_INT(OFS_PARM4);
+	int dstsize = G_INT(OFS_PARM5);
+
+	if (dst <= 0 || dst+dstsize >= prinst->stringtablesize)
+	{	//FIXME: this check should be some utility function.
+		PR_BIError(prinst, "PF_sqlreadblob: invalid dest\n");
+		return;
+	}
+
+	if (SQL_Available())
+	{
+		server = SQL_GetServer(serveridx, false);
+		if (server)
+		{
+			qres = SQL_GetQueryResult(server, queryidx, row);
+			if (qres)
+			{
+				size_t blobsize;
+				data = SQL_ReadField(server, qres, row, column, true, &blobsize);
+				if (data)
+				{	//unsure how to handle overflows. we truncate for now.
+					blobsize = min(blobsize, dstsize);
+					G_INT(OFS_RETURN) = blobsize;
+					memcpy(prinst->stringtable + dst, data, blobsize);
+					return;
+				}
+			}
+			else
+			{
+				Con_Printf("Invalid sql request/row\n");
+				PR_StackTrace(prinst, false);
+			}
+		}
+	}
+	// else we failed to get anything
+	G_INT(OFS_RETURN) = 0;
+}
+void QCBUILTIN PF_sqlescapeblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char hex[16] = "0123456789abcdef";
+//	int serveridx = G_FLOAT(OFS_PARM0);	//fixme
+	int qcptr = G_INT(OFS_PARM1);
+	int size = G_INT(OFS_PARM2);
+	char *out;
+
+	qbyte *blob = prinst->stringtable + qcptr;
+	
+	if (qcptr <= 0 || qcptr+size >= prinst->stringtablesize)
+	{	//FIXME: this check should be some utility function.
+		PR_BIError(prinst, "PF_sqlescapeblob: invalid blob\n");
+		return;
+	}
+
+	G_INT(OFS_RETURN) = prinst->AllocTempString(prinst, &out, size*2+4);
+
+	//"x'DEADBEEF'"
+	*out++ = 'x';
+	*out++ = '\'';
+	for (; size > 0; size--, blob++)
+	{
+		*out++ = hex[*blob>>4];
+		*out++ = hex[*blob&15];
+	}
+	*out++ = '\'';
+	*out++ = 0;
+}
+
 void QCBUILTIN PF_sqlerror (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
@@ -7806,6 +7891,16 @@ void QCBUILTIN PF_sv_trailparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 		ednum = G_EDICTNUM(prinst, OFS_PARM1);
 	}
 
+	if (efnum <= 0)
+	{
+//		if (!ssqc_deprecated_warned)
+//		{
+//			PR_RunWarning(prinst, "PF_sv_trailparticles: invalid effect");
+//			ssqc_deprecated_warned = true;
+//		}
+		return;
+	}
+
 	MSG_WriteByte(&sv.multicast, svcfte_trailparticles);
 	MSG_WriteEntity(&sv.multicast, ednum);
 	MSG_WriteShort(&sv.multicast, efnum);
@@ -7839,6 +7934,16 @@ void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 	float *org = G_VECTOR(OFS_PARM1);
 	float *vel = (prinst->callargc < 3)?vec3_origin:G_VECTOR(OFS_PARM2);
 	int count = (prinst->callargc < 4)?1:G_FLOAT(OFS_PARM3);
+
+	if (efnum <= 0)
+	{
+//		if (!ssqc_deprecated_warned)
+//		{
+//			PR_RunWarning(prinst, "PF_sv_pointparticles: invalid effect");
+//			ssqc_deprecated_warned = true;
+//		}
+		return;
+	}
 
 	if (count > 65535)
 		count = 65535;
@@ -8648,10 +8753,10 @@ static void ParamNegateFix ( float * xx, float * yy, int Zone )
 static void QCBUILTIN PF_ShowPic(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
-	const char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
-	float x		= G_FLOAT(OFS_PARM2);
-	float y		= G_FLOAT(OFS_PARM3);
-	float zone	= G_FLOAT(OFS_PARM4);
+	const char *picname	= PR_GetStringOfs(prinst, OFS_PARM1);
+	float x				= G_FLOAT(OFS_PARM2);
+	float y				= G_FLOAT(OFS_PARM3);
+	unsigned int zone	= G_FLOAT(OFS_PARM4);
 	int entnum;
 
 	client_t *cl;
@@ -9090,9 +9195,18 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 			if (delta[0] || delta[1] || delta[2])
 			{
 				//eular angle changes suck
-				client_t *cl = ClientReliableWrite_BeginSplit(client, svcfte_setangledelta, 7);
-				for (i=0 ; i < 3 ; i++)
-					ClientReliableWrite_Angle16 (cl, delta[i]);
+				if (client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA)
+				{
+					client_t *cl = ClientReliableWrite_BeginSplit(client, svcfte_setangledelta, 7);
+					for (i=0 ; i < 3 ; i++)
+						ClientReliableWrite_Angle16 (cl, delta[i]);
+				}
+				else
+				{
+					client_t *cl = ClientReliableWrite_BeginSplit(client, svc_setangle, 7);
+					for (i=0 ; i < 3 ; i++)
+						ClientReliableWrite_Angle (cl, sv_player->v->v_angle[i]);
+				}
 			}
 
 		}
@@ -9729,6 +9843,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"sqlescape",		PF_sqlescape,		0,		0,		0,		256,	"string(float serveridx, string data)"}, // sqlescape (FTE_SQL)
 	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257,	"string(float serveridx)"}, // sqlversion (FTE_SQL)
 	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258,	"float(float serveridx, float queryidx, float row, float column)"}, // sqlreadfloat (FTE_SQL)
+	{"sqlreadblob",		PF_sqlreadblob,		0,		0,		0,		0,		"int(float serveridx, float queryidx, float row, float column, _variant *ptr, int maxsize)"},
+	{"sqlescapeblob",	PF_sqlescapeblob,	0,		0,		0,		0,		"string(float serveridx, _variant *ptr, int maxsize)"},
 
 	{"stoi",			PF_stoi,			0,		0,		0,		259,	D("int(string)", "Converts the given string into a true integer. Base 8, 10, or 16 is determined based upon the format of the string.")},
 	{"itos",			PF_itos,			0,		0,		0,		260,	D("string(int)", "Converts the passed true integer into a base10 string.")},
@@ -11017,10 +11133,10 @@ void PR_DumpPlatform_f(void)
 		{"CHAN_BODY",		"const float", QW|NQ|CS, NULL, CHAN_BODY},
 		{"CHANF_RELIABLE",	"const float", QW,		 NULL, 8},
 
-		{"SOUNDFLAG_RELIABLE",		"const float",	QW|NQ,	 NULL, CF_RELIABLE},
-		{"SOUNDFLAG_ABSVOLUME",		"const float",	/*QW|NQ|*/CS,NULL, CF_ABSVOLUME},
-		{"SOUNDFLAG_FORCELOOP",		"const float",	/*QW|NQ|*/CS,NULL, CF_FORCELOOP},
-		{"SOUNDFLAG_NOSPACIALISE",	"const float",	/*QW|NQ|*/CS,NULL, CF_NOSPACIALISE},
+		{"SOUNDFLAG_RELIABLE",		"const float",	QW|NQ,	 "The sound will be sent reliably, and without regard to phs.", CF_RELIABLE},
+		{"SOUNDFLAG_ABSVOLUME",		"const float",	/*QW|NQ|*/CS,"The sample's volume is not scaled by the volume cvar. Use with caution", CF_ABSVOLUME},
+		{"SOUNDFLAG_FORCELOOP",		"const float",	/*QW|NQ|*/CS,"The sound will restart once it reaches the end of the sample.", CF_FORCELOOP},
+		{"SOUNDFLAG_NOSPACIALISE",	"const float",	/*QW|NQ|*/CS,"The different audio channels are played at the same volume regardless of which way the player is facing, without needing to use 0 attenuation.", CF_NOSPACIALISE},
 
 		{"ATTN_NONE",		"const float", QW|NQ|CS, "Sounds with this attenuation can be heard throughout the map", ATTN_NONE},
 		{"ATTN_NORM",		"const float", QW|NQ|CS, "Standard attenuation", ATTN_NORM},
@@ -11103,11 +11219,11 @@ void PR_DumpPlatform_f(void)
 		{"STUFFCMD_IGNOREINDEMO","const float",	QW|NQ,	"The protocol we are connected to the server with.", STUFFCMD_IGNOREINDEMO},
 		{"STUFFCMD_DEMOONLY",	"const float",	QW|NQ,	"The protocol we are connected to the server with.", STUFFCMD_DEMOONLY},
 
-		{"SOUND_RELIABLE",		"const float",	QW|NQ,	"The sound will be sent reliably, and without regard to phs.", CF_RELIABLE},
+/*		{"SOUND_RELIABLE",		"const float",	QW|NQ,	"The sound will be sent reliably, and without regard to phs.", CF_RELIABLE},
 		{"SOUND_FORCELOOP",		"const float",	QW|NQ|CS,"The sound will restart once it reaches the end of the sample.", CF_FORCELOOP},
 		{"SOUND_NOSPACIALISE",	"const float",	QW|NQ|CS,"The different audio channels are played at the same volume regardless of which way the player is facing, without needing to use 0 attenuation.", CF_NOSPACIALISE},
 		{"SOUND_ABSVOLUME",		"const float",	QW|NQ|CS,"The sample's volume is not scaled by the volume cvar. Use with caution", CF_ABSVOLUME},
-
+*/
 		// edict.flags
 		{"FL_FLY",				"const float", QW|NQ|CS, NULL, FL_FLY},
 		{"FL_SWIM",				"const float", QW|NQ|CS, NULL, FL_SWIM},
@@ -11170,6 +11286,17 @@ void PR_DumpPlatform_f(void)
 		{"MF_ZOMGIB",			"const float", QW|NQ|CS, NULL, EF_MF_ZOMGIB>>24},
 		{"MF_TRACER2",			"const float", QW|NQ|CS, NULL, EF_MF_TRACER2>>24},
 		{"MF_TRACER3",			"const float", QW|NQ|CS, NULL, EF_MF_TRACER3>>24},
+
+
+		{"SL_ORG_TL",			"const float", QW|NQ, NULL, SL_ORG_TL},
+		{"SL_ORG_TR",			"const float", QW|NQ, NULL, SL_ORG_TR},
+		{"SL_ORG_BL",			"const float", QW|NQ, NULL, SL_ORG_BL},
+		{"SL_ORG_BR",			"const float", QW|NQ, NULL, SL_ORG_BR},
+		{"SL_ORG_MM",			"const float", QW|NQ, NULL, SL_ORG_MM},
+		{"SL_ORG_TM",			"const float", QW|NQ, NULL, SL_ORG_TM},
+		{"SL_ORG_BM",			"const float", QW|NQ, NULL, SL_ORG_BM},
+		{"SL_ORG_ML",			"const float", QW|NQ, NULL, SL_ORG_ML},
+		{"SL_ORG_MR",			"const float", QW|NQ, NULL, SL_ORG_MR},
 
 		{"PFLAGS_NOSHADOW",		"const float", QW|NQ|CS, "Associated RT lights attached will not cast shadows, making them significantly faster to draw.", PFLAGS_NOSHADOW},
 		{"PFLAGS_CORONA",		"const float", QW|NQ|CS, "Enables support of coronas on the associated rtlights.", PFLAGS_CORONA},

@@ -75,7 +75,6 @@ void HUD_Plus_f(void)
 {
     char *t;
     hud_t *hud;
-	char buf[64];
 
     if (Cmd_Argc() < 1)
         return;

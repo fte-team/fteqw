@@ -5290,7 +5290,10 @@ void SV_Init (quakeparms_t *parms)
 	#endif
 
 		if (sv.state == ss_dead)
-			SV_Error ("Couldn't load a map");
+		{
+			Cmd_ExecuteString("path", RESTRICT_LOCAL);
+			SV_Error ("Couldn't load a map. You may need to use the -basedir argument.");
+		}
 
 	}
 }

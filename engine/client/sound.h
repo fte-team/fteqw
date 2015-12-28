@@ -194,7 +194,7 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch);
 void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int insamps, void *out, int outrate, int outwidth, int outchannels, int resampstyle);
 
 // restart entire sound subsystem (doesn't flush old sounds, so make sure that happens)
-void S_DoRestart (void);
+void S_DoRestart (qboolean onlyifneeded);
 
 void S_Restart_f (void);
 

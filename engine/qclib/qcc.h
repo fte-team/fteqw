@@ -464,6 +464,7 @@ struct QCC_function_s
 	const char			*file;
 	int					line;
 	char				*name;		//internal name of function
+	struct QCC_function_s *parentscope;	//for nested functions
 	struct QCC_type_s	*type;		//same as the def's type
 	struct QCC_def_s	*def;
 	struct QCC_def_s	*firstlocal;

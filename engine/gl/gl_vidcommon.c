@@ -2878,18 +2878,12 @@ void DumpGLState(void)
 //			qglGetPointerv(GL_FOG_COORD_ARRAY_POINTER, &ptr);
 //			Sys_Printf("GL_FOG_COORDINATE_ARRAY_EXT: %i (%lx)\n", (int) qglIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT), (int) ptr);
 //		}
-//		if (qglIsEnabled(GL_INDEX_ARRAY))
 		{
 			if (qglBindBufferARB)
 				qglGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
 			else
 				rval = 0;
-#ifndef GL_INDEX_ARRAY_POINTER
 			Sys_Printf("GL_ELEMENT_ARRAY_BUFFER_BINDING: %i:%p\n", rval, (void*)0);
-#else
-			qglGetPointerv(GL_INDEX_ARRAY_POINTER, &ptr);
-			Sys_Printf("GL_INDEX_ARRAY: %s %i:%p\n", qglIsEnabled(GL_INDEX_ARRAY)?"en":"dis", rval, ptr);
-#endif
 		}
 		if (qglIsEnabled(GL_NORMAL_ARRAY))
 		{

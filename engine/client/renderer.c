@@ -1025,7 +1025,7 @@ void D3DSucks(void)
 		Sys_Error("Failed to reload content after mode switch\n");
 }
 
-void R_ShutdownRenderer(qboolean videotoo)
+void R_ShutdownRenderer(qboolean devicetoo)
 {
 	//make sure the worker isn't still loading stuff
 	COM_WorkerFullSync();
@@ -1048,7 +1048,7 @@ void R_ShutdownRenderer(qboolean videotoo)
 	if (Draw_Shutdown)
 		Draw_Shutdown();
 
-	if (VID_DeInit && videotoo)
+	if (VID_DeInit && devicetoo)
 	{
 		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
 		VID_DeInit();
@@ -1070,7 +1070,10 @@ void R_ShutdownRenderer(qboolean videotoo)
 
 	RQ_Shutdown();
 
-	S_Shutdown(false);
+	if (devicetoo)
+		S_Shutdown(false);
+	else
+		S_StopAllSounds (true);
 }
 
 void R_GenPaletteLookup(void)
@@ -1363,7 +1366,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 
 	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
 	if (!isDedicated)
-		S_DoRestart();
+		S_DoRestart(true);
 
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)

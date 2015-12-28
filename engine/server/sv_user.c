@@ -81,10 +81,10 @@ cvar_t	sv_floodprotect_suicide		= CVAR("sv_floodprotect_suicide", "1");
 cvar_t	sv_floodprotect_sendmessage	= CVARAF("sv_floodprotect_sendmessage", "",
 											 "floodprotmsg", 0);
 
-cvar_t	votelevel	= SCVAR("votelevel", "0");
-cvar_t	voteminimum	= SCVAR("voteminimum", "4");
-cvar_t	votepercent	= SCVAR("votepercent", "-1");
-cvar_t	votetime	= SCVAR("votetime", "10");
+cvar_t	votelevel	= CVARD("votelevel", "0", "This is the restriction level of commands that players may vote for. You can reconfigure commands, cvars, or aliases individually. Additionally, aliases can be configured via aliaslevel to be executed at a different level from their restriction level. This can be used to indirectly allow voting for 'map dm4' for instance, without allowing people to vote for every map.");
+cvar_t	voteminimum	= CVARD("voteminimum", "4", "At least this many players must vote the same way for the vote to pass.");
+cvar_t	votepercent	= CVARD("votepercent", "-1", "At least this percentage of players must vote the same way for the vote to pass.");
+cvar_t	votetime	= CVARD("votetime", "10", "Votes will be discarded after this many minutes");
 
 cvar_t	pr_allowbutton1 = CVARFD("pr_allowbutton1", "1", CVAR_LATCH, "The button1 field is believed to have been intended to work with the +use command, but it was never hooked up. In NetQuake, this field was often repurposed for other things as it was not otherwise used (and cannot be removed without breaking the crc), while third-party QuakeWorld engines did decide to implement it as believed was intended. As a result, this cvar only applies to QuakeWorld mods and a value of 1 is only likely to cause issues with NQ mods that were ported to QW.");
 extern cvar_t sv_minping;
@@ -445,13 +445,15 @@ void SV_New_f (void)
 void SVNQ_New_f (void)
 {
 	extern cvar_t coop;
-	char			message[2048];
-	int i;
-	int maxplayers = 0;
-	int op;
+	char	message[2048];
+	char	build[256], mapname[128];
+	int		i;
+	int		maxplayers = 0;
+	int		op;
 	unsigned int protext1 = 0, protext2 = 0, protmain = 0, protfl = 0;
 	char *protoname;
 	extern cvar_t sv_listen_nq;
+	const char *gamedir;
 
 	host_client->prespawn_stage = PRESPAWN_INVALID;
 	host_client->prespawn_idx = 0;
@@ -554,8 +556,28 @@ void SVNQ_New_f (void)
 		break;
 	}
 
+#ifdef OFFICIAL_RELEASE
+	Q_snprintfz(build, sizeof(build), "v%i.%02i", FTE_VER_MAJOR, FTE_VER_MINOR);
+#else
+#if defined(SVNREVISION)
+	if (strcmp(STRINGIFY(SVNREVISION), "-"))
+		Q_snprintfz(build, sizeof(build), "SVN %s", STRINGIFY(SVNREVISION));
+	else
+#endif
+		Q_snprintfz(build, sizeof(build), "%s", __DATE__);
+#endif
+
+	gamedir = Info_ValueForKey (svs.info, "*gamedir");
+	if (!gamedir[0])
+	{
+		gamedir = FS_GetGamedir(true);
+	}
+	COM_FileBase(sv.modelname, mapname, sizeof(mapname));
+
+	Q_snprintfz (message, sizeof(message), "%c\n%s - "DISTRIBUTION" (%s%s%s%s %s) - %s", 2, gamedir,
+		protoname,(protext1||(protext2&~(PEXT2_REPLACEMENTDELTAS|PEXT2_VOICECHAT)))?"+":"",(protext2&PEXT2_REPLACEMENTDELTAS)?"F":"",(protext2&PEXT2_VOICECHAT)?"V":"",
+		build,	mapname);
 	MSG_WriteByte (&host_client->netchan.message, svc_print);
-	Q_snprintfz (message, sizeof(message), "%c\n%s %s%s%s%s server\n", 2, version_string(), (protext2&PEXT2_REPLACEMENTDELTAS)?"FTE":"", protoname, (protext1||(protext2&~(PEXT2_REPLACEMENTDELTAS|PEXT2_VOICECHAT)))?"+":"", (protext2&PEXT2_VOICECHAT)?"V":"");
 	MSG_WriteString (&host_client->netchan.message,message);
 
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
@@ -4145,12 +4167,23 @@ void SV_Vote_f (void)
 
 	if (!votelevel.value || ((host_client->penalties & (BAN_MUTE|BAN_DEAF)) == (BAN_MUTE|BAN_DEAF)))
 	{
-		SV_ClientTPrintf(host_client, PRINT_HIGH, "Voting was dissallowed\n");
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "Voting is dissallowed on this server\n");
+		return;
+	}
+	if (!*command)
+	{
+		char cmds[900];
+		Cmd_EnumerateLevel(votelevel.value, cmds, sizeof(cmds));
+		SV_ClientTPrintf(host_client, PRINT_HIGH, "Allowed commands:\n%s\n", cmds);
 		return;
 	}
 	if (host_client->penalties & BAN_MUTE)
 	{
-		SV_ClientTPrintf(host_client, PRINT_HIGH, "Sorry, you cannot vote when muted as it may allow you to send a message.\n");
+		//pretend to vote for it
+		if (host_client->penalties & BAN_STEALTH)
+			SV_ClientTPrintf(host_client, PRINT_HIGH, "%s casts a vote for '%s'\n", host_client->name, command);
+		else
+			SV_ClientTPrintf(host_client, PRINT_HIGH, "Sorry, you cannot vote when muted as it may allow you to send a message.\n");
 		return;
 	}
 
@@ -5591,7 +5624,7 @@ ucmd_t ucmdsq2[] = {
 
 	{"nextserver", SVQ2_NextServer_f, true},
 
-	{"vote", SV_Vote_f, true},
+	{"ftevote", SV_Vote_f, true},
 
 //#ifdef SVRANKING
 //	{"topten", Rank_ListTop10_f, true},
@@ -6930,10 +6963,18 @@ done:
 	args[i] = 0;
 	rname = MSG_ReadString();
 	if (i)
-		rname = va("Cmd_%s_%s", rname, args);
+		rname = va("CSEv_%s_%s", rname, args);
 	else
-		rname = va("Cmd_%s", rname);
+		rname = va("CSEv_%s", rname);
 	f = PR_FindFunction(svprogfuncs, rname, PR_ANY);
+	if (!f)
+	{
+		if (i)
+			rname = va("Cmd_%s_%s", rname, args);
+		else
+			rname = va("Cmd_%s", rname);
+		f = PR_FindFunction(svprogfuncs, rname, PR_ANY);
+	}
 	if (f)
 	{
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);

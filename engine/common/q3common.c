@@ -734,7 +734,7 @@ void Netchan_TransmitNextFragment( netchan_t *chan )
 	// Send the qport if we are a client
 	if( chan->sock == NS_CLIENT )
 	{
-		MSG_WriteShort( &send, cls.qport);
+		MSG_WriteShort( &send, chan->qport);
 	}
 #endif
 	fragmentLength = chan->reliable_length - chan->reliable_start;
@@ -833,7 +833,7 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 	// Send the qport if we are a client
 	if( chan->sock == NS_CLIENT )
 	{
-		MSG_WriteShort( &send, cls.qport);
+		MSG_WriteShort( &send, chan->qport);
 	}
 #endif
 	// Copy the message to the packet

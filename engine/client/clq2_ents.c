@@ -708,13 +708,25 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 		to->origin[1] = MSG_ReadCoord ();
 	if (bits & Q2U_ORIGIN3)
 		to->origin[2] = MSG_ReadCoord ();
-		
-	if (bits & Q2U_ANGLE1)
-		to->angles[0] = MSG_ReadAngle();
-	if (bits & Q2U_ANGLE2)
-		to->angles[1] = MSG_ReadAngle();
-	if (bits & Q2U_ANGLE3)
-		to->angles[2] = MSG_ReadAngle();
+	
+	if ((bits & Q2UX_ANGLE16) && (net_message.prim.q2flags & NPQ2_ANG16))
+	{
+		if (bits & Q2U_ANGLE1)
+			to->angles[0] = MSG_ReadAngle16();
+		if (bits & Q2U_ANGLE2)
+			to->angles[1] = MSG_ReadAngle16();
+		if (bits & Q2U_ANGLE3)
+			to->angles[2] = MSG_ReadAngle16();
+	}
+	else
+	{
+		if (bits & Q2U_ANGLE1)
+			to->angles[0] = MSG_ReadAngle();
+		if (bits & Q2U_ANGLE2)
+			to->angles[1] = MSG_ReadAngle();
+		if (bits & Q2U_ANGLE3)
+			to->angles[2] = MSG_ReadAngle();
+	}
 
 	if (bits & Q2U_OLDORIGIN)
 		MSG_ReadPos (to->u.q2.old_origin);
@@ -728,7 +740,12 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 		to->u.q2.event = 0;
 
 	if (bits & Q2U_SOLID)
-		to->solid = MSG_ReadShort ();
+	{
+		if (net_message.prim.q2flags & NPQ2_SIZE32)
+			to->solid = MSG_ReadLong();
+		else
+			to->solid = MSG_ReadShort ();
+	}
 }
 
 void CLQ2_ClearParticleState(void)
@@ -956,7 +973,7 @@ void CLQ2_ParseBaseline (void)
 CL_ParsePlayerstate
 ===================
 */
-void CLQ2_ParsePlayerstate (q2frame_t *oldframe, q2frame_t *newframe)
+void CLQ2_ParsePlayerstate (q2frame_t *oldframe, q2frame_t *newframe, int extflags)
 {
 	int			flags;
 	q2player_state_t	*state;
@@ -983,15 +1000,21 @@ void CLQ2_ParsePlayerstate (q2frame_t *oldframe, q2frame_t *newframe)
 	{
 		state->pmove.origin[0] = MSG_ReadShort ();
 		state->pmove.origin[1] = MSG_ReadShort ();
-		state->pmove.origin[2] = MSG_ReadShort ();
+		if (extflags & Q2PSX_OLD)
+			state->pmove.origin[2] = MSG_ReadShort ();
 	}
+	if (extflags & Q2PSX_M_ORIGIN2)
+		state->pmove.origin[2] = MSG_ReadShort ();
 
 	if (flags & Q2PS_M_VELOCITY)
 	{
 		state->pmove.velocity[0] = MSG_ReadShort ();
 		state->pmove.velocity[1] = MSG_ReadShort ();
-		state->pmove.velocity[2] = MSG_ReadShort ();
+		if (extflags & Q2PSX_OLD)
+			state->pmove.velocity[2] = MSG_ReadShort ();
 	}
+	if (extflags & Q2PSX_M_VELOCITY2)
+		state->pmove.velocity[2] = MSG_ReadShort ();
 
 	if (flags & Q2PS_M_TIME)
 		state->pmove.pm_time = MSG_ReadByte ();
@@ -1026,8 +1049,11 @@ void CLQ2_ParsePlayerstate (q2frame_t *oldframe, q2frame_t *newframe)
 	{
 		state->viewangles[0] = MSG_ReadAngle16 ();
 		state->viewangles[1] = MSG_ReadAngle16 ();
-		state->viewangles[2] = MSG_ReadAngle16 ();
+		if (extflags & Q2PSX_OLD)
+			state->viewangles[2] = MSG_ReadAngle16 ();
 	}
+	if (extflags & Q2PSX_VIEWANGLE2)
+		state->viewangles[2] = MSG_ReadAngle16 ();
 
 	if (flags & Q2PS_KICKANGLES)
 	{
@@ -1044,9 +1070,24 @@ void CLQ2_ParsePlayerstate (q2frame_t *oldframe, q2frame_t *newframe)
 	if (flags & Q2PS_WEAPONFRAME)
 	{
 		state->gunframe = MSG_ReadByte ();
+		if (extflags & Q2PSX_OLD)
+		{
+			state->gunoffset[0] = MSG_ReadChar ()*0.25;
+			state->gunoffset[1] = MSG_ReadChar ()*0.25;
+			state->gunoffset[2] = MSG_ReadChar ()*0.25;
+			state->gunangles[0] = MSG_ReadChar ()*0.25;
+			state->gunangles[1] = MSG_ReadChar ()*0.25;
+			state->gunangles[2] = MSG_ReadChar ()*0.25;
+		}
+	}
+	if (extflags & Q2PSX_GUNOFFSET)
+	{
 		state->gunoffset[0] = MSG_ReadChar ()*0.25;
 		state->gunoffset[1] = MSG_ReadChar ()*0.25;
 		state->gunoffset[2] = MSG_ReadChar ()*0.25;
+	}
+	if (extflags & Q2PSX_GUNANGLES)
+	{
 		state->gunangles[0] = MSG_ReadChar ()*0.25;
 		state->gunangles[1] = MSG_ReadChar ()*0.25;
 		state->gunangles[2] = MSG_ReadChar ()*0.25;
@@ -1067,10 +1108,19 @@ void CLQ2_ParsePlayerstate (q2frame_t *oldframe, q2frame_t *newframe)
 		state->rdflags = MSG_ReadByte ();
 
 	// parse stats
-	statbits = MSG_ReadLong ();
-	for (i=0 ; i<Q2MAX_STATS ; i++)
-		if (statbits & (1<<i) )
-			state->stats[i] = MSG_ReadShort();
+	if (extflags & (Q2PSX_OLD|Q2PSX_STATS))
+		statbits = MSG_ReadLong ();
+	else
+		statbits = 0;
+	if (statbits)
+	{
+		for (i=0 ; i<Q2MAX_STATS ; i++)
+			if (statbits & (1<<i) )
+				state->stats[i] = MSG_ReadShort();
+	}
+
+	if (extflags & Q2PSX_CLIENTNUM)
+		/*state->viewent =*/ MSG_ReadByte();
 }
 
 
@@ -1104,12 +1154,12 @@ void CLQ2_FireEntityEvents (q2frame_t *frame)
 CL_ParseFrame
 ================
 */
-void CLQ2_ParseFrame (void)
+void CLQ2_ParseFrame (int extrabits)
 {
 	int			cmd;
 	int			len;
 	q2frame_t		*old;
-	int i,j;
+	int i,j, chokecount;
 
 	memset (&cl.q2frame, 0, sizeof(cl.q2frame));
 
@@ -1117,8 +1167,31 @@ void CLQ2_ParseFrame (void)
 	CLQ2_ClearProjectiles(); // clear projectiles for new frame
 #endif
 
-	cl.q2frame.serverframe = MSG_ReadLong ();
-	cl.q2frame.deltaframe = MSG_ReadLong ();
+	if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+	{
+		unsigned int bits = MSG_ReadLong();
+		cl.q2frame.serverframe = bits & 0x07ffffff;
+		i = bits >> 27;
+		if (i == 31)
+			cl.q2frame.deltaframe = -1;
+		else
+			cl.q2frame.deltaframe = cl.q2frame.serverframe - i;
+		bits = MSG_ReadByte();
+		chokecount = bits & 0xf;
+		extrabits = (extrabits<<4) | (bits>>4);
+	}
+	else
+	{
+		cl.q2frame.serverframe = MSG_ReadLong ();
+		cl.q2frame.deltaframe = MSG_ReadLong ();
+		if (cls.protocol_q2 > 26)
+			chokecount = MSG_ReadByte ();
+		else
+			chokecount = 0;
+
+		extrabits = Q2PSX_OLD;
+	}
+
 	cl.q2frame.servertime = cl.q2frame.serverframe*100;
 
 	cl.oldgametime = cl.gametime;
@@ -1126,12 +1199,8 @@ void CLQ2_ParseFrame (void)
 	cl.gametime = cl.q2frame.servertime/1000.f;
 	cl.gametimemark = realtime;
 
-	if (cls.protocol_q2 > 26)
-	{
-		i = MSG_ReadByte ();
-		for (j=0 ; j<i ; j++)
-			cl.outframes[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].latency = -2;
-	}
+	for (j=0 ; j<chokecount ; j++)
+		cl.outframes[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].latency = -2;
 
 	if (cl_shownet.value == 3)
 		Con_Printf ("   frame:%i  delta:%i\n", cl.q2frame.serverframe, cl.q2frame.deltaframe);
@@ -1179,17 +1248,23 @@ void CLQ2_ParseFrame (void)
 	MSG_ReadData (&cl.q2frame.areabits, len);
 
 	// read playerinfo
-	cmd = MSG_ReadByte ();
-//	SHOWNET(svc_strings[cmd]);
-	if (cmd != svcq2_playerinfo)
-		Host_EndGame ("CL_ParseFrame: not playerinfo");
-	CLQ2_ParsePlayerstate (old, &cl.q2frame);
+	if (cls.protocol_q2 != PROTOCOL_VERSION_R1Q2 && cls.protocol_q2 != PROTOCOL_VERSION_Q2PRO)
+	{
+		cmd = MSG_ReadByte ();
+	//	SHOWNET(svc_strings[cmd]);
+		if (cmd != svcq2_playerinfo)
+			Host_EndGame ("CL_ParseFrame: not playerinfo");
+	}
+	CLQ2_ParsePlayerstate (old, &cl.q2frame, extrabits);
 
 	// read packet entities
-	cmd = MSG_ReadByte ();
+	if (cls.protocol_q2 != PROTOCOL_VERSION_R1Q2 && cls.protocol_q2 != PROTOCOL_VERSION_Q2PRO)
+	{
+		cmd = MSG_ReadByte ();
 //	SHOWNET(svc_strings[cmd]);
-	if (cmd != svcq2_packetentities)
-		Host_EndGame ("CL_ParseFrame: not packetentities");
+		if (cmd != svcq2_packetentities)
+			Host_EndGame ("CL_ParseFrame: not packetentities");
+	}
 	CLQ2_ParsePacketEntities (old, &cl.q2frame);
 
 	// save the frame off in the backup array for later delta comparisons
@@ -1742,8 +1817,10 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				if (effects & Q2EF_TRACKER)	// lame... problematic?
 				{
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, pt_q2[Q2RT_BLASTERTRAIL2], ent.keynum, NULL, &cent->trailstate))
+					{
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xd0, 1, &cent->trailstate);
-					V_AddLight (ent.keynum, ent.origin, 200, 0, 0.2, 0);
+						V_AddLight (ent.keynum, ent.origin, 200, 0, 0.2, 0);
+					}
 				}
 				else
 				{

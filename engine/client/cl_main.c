@@ -242,7 +242,11 @@ static struct
 	netadr_t		adr;			//address that we're trying to transfer to.
 	int				mtu;
 	unsigned int	compresscrc;
-	int				protocol;		//tracked as part of guesswork based upon what replies we get.
+	int				protocol;		//nq/qw/q2/q3. guessed based upon server replies
+	int				subprotocol;	//the monkeys are trying to eat me.
+	unsigned int	fteext1;
+	unsigned int	fteext2;
+	int				qport;
 	int				challenge;		//tracked as part of guesswork based upon what replies we get.
 	double			time;			//for connection retransmits
 	int				defaultport;
@@ -541,8 +545,8 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		fteprotextsupported = 0;
 #endif
 
-	cls.fteprotocolextensions = fteprotextsupported;
-	cls.fteprotocolextensions2 = fteprotextsupported2;
+	connectinfo.fteext1 = fteprotextsupported;
+	connectinfo.fteext2 = fteprotextsupported2;
 #endif
 
 	t1 = Sys_DoubleTime ();
@@ -574,8 +578,12 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 
 	connectinfo.time = realtime+t2-t1;	// for retransmit requests
 
-	cls.qport = qport.value;
-	Cvar_SetValue(&qport, (cls.qport+1)&0xffff);
+	//fixme: we shouldn't cycle these so much
+	connectinfo.qport = qport.value;
+	Cvar_SetValue(&qport, (connectinfo.qport+1)&0xffff);
+
+	if (connectinfo.protocol == CP_QUAKE2 && (connectinfo.subprotocol == PROTOCOL_VERSION_R1Q2 || connectinfo.subprotocol == PROTOCOL_VERSION_Q2PRO))
+		connectinfo.qport &= 0xff;
 
 //	Info_SetValueForStarKey (cls.userinfo, "*ip", NET_AdrToString(adr), MAX_INFO_STRING);
 
@@ -601,8 +609,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 #ifdef Q3CLIENT
 	if (connectinfo.protocol == CP_QUAKE3)
 	{	//q3 requires some very strange things.
-		cls.challenge = connectinfo.challenge;
-		CLQ3_SendConnectPacket(to);
+		CLQ3_SendConnectPacket(to, connectinfo.challenge, connectinfo.qport);
 		return;
 	}
 #endif
@@ -612,15 +619,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	if (clients>1)	//splitscreen 'connect' command specifies the number of userinfos sent.
 		Q_strncatz(data, va("%i", clients), sizeof(data));
 
-#ifdef Q2CLIENT
-	if (connectinfo.protocol == CP_QUAKE2)
-		Q_strncatz(data, va(" %i", PROTOCOL_VERSION_Q2), sizeof(data));
-	else
-#endif
-		Q_strncatz(data, va(" %i", PROTOCOL_VERSION_QW), sizeof(data));
-
-
-	Q_strncatz(data, va(" %i %i", cls.qport, connectinfo.challenge), sizeof(data));
+	Q_strncatz(data, va(" %i %i %i", connectinfo.subprotocol, connectinfo.qport, connectinfo.challenge), sizeof(data));
 
 	//userinfo0 has some twiddles for extensions from other qw engines.
 	Q_strncatz(data, " \"", sizeof(data));
@@ -638,9 +637,12 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 
 	Q_strncatz(data, "\"", sizeof(data));
 	for (c = 1; c < clients; c++)
-	{
 		Q_strncatz(data, va(" \"%s\"", cls.userinfo[c]), sizeof(data));
-	}
+
+	if (connectinfo.protocol == CP_QUAKE2 && connectinfo.subprotocol == PROTOCOL_VERSION_R1Q2)
+		Q_strncatz(data, va(" %d %d", mtu, 1905), sizeof(data));	//mti, sub-sub-version
+	else if (connectinfo.protocol == CP_QUAKE2 && connectinfo.subprotocol == PROTOCOL_VERSION_Q2PRO)
+		Q_strncatz(data, va(" %d 0 0 %d", mtu, 1021), sizeof(data));	//mtu, netchan-fragmentation, zlib, sub-sub-version
 
 	Q_strncatz(data, "\n", sizeof(data));
 
@@ -681,8 +683,6 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		Q_strncatz(data, va("0x%x \"%s\"\n", PROTOCOL_INFO_GUID, info), sizeof(data));
 
 	NET_SendPacket (NS_CLIENT, strlen(data), data, to);
-
-	cl.splitclients = 0;
 }
 
 char *CL_TryingToConnect(void)
@@ -718,9 +718,7 @@ void CL_CheckForResend (void)
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
 	{
 		extern cvar_t dpcompat_nopreparse;
-		unsigned int pext1, pext2;
-		pext1 = 0;
-		pext2 = 0;
+		memset(&connectinfo, 0, sizeof(connectinfo));
 		connectinfo.trying = true;
 		connectinfo.istransfer = false;
 
@@ -735,28 +733,29 @@ void CL_CheckForResend (void)
 		{
 #ifdef Q3CLIENT
 		case GT_QUAKE3:
-			pext1 = 0;
-			pext2 = 0;
-			cls.protocol = CP_QUAKE3;
+			connectinfo.protocol = CP_QUAKE3;
 			break;
 #endif
 #ifdef Q2CLIENT
 		case GT_QUAKE2:
-			pext1 = 0;
-			pext2 = 0;
-			cls.protocol = CP_QUAKE2;
+			connectinfo.protocol = CP_QUAKE2;
+			connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
 			break;
 #endif
 		default:
 			cl.movesequence = 0;
 			if (!strcmp(cl_loopbackprotocol.string, "qw"))
 			{	//qw with all supported extensions -default
-				pext1 = Net_PextMask(1, false);
-				pext2 = Net_PextMask(2, false);
-				cls.protocol = CP_QUAKEWORLD;
+				connectinfo.fteext1 = Net_PextMask(1, false);
+				connectinfo.fteext2 = Net_PextMask(2, false);
+				connectinfo.protocol = CP_QUAKEWORLD;
+				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 			}
 			else if (!strcmp(cl_loopbackprotocol.string, "qwid") || !strcmp(cl_loopbackprotocol.string, "idqw"))
-				cls.protocol = CP_QUAKEWORLD;
+			{
+				connectinfo.protocol = CP_QUAKEWORLD;
+				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
+			}
 #ifdef Q3CLIENT
 			else if (!strcmp(cl_loopbackprotocol.string, "q3"))
 				cls.protocol = CP_QUAKE3;
@@ -766,53 +765,55 @@ void CL_CheckForResend (void)
 			{	//for debugging.
 				if (rand() & 1)
 				{
-					cls.protocol = CP_NETQUAKE;
-					cls.protocol_nq = CPNQ_FITZ666;
+					connectinfo.protocol = CP_NETQUAKE;
+					connectinfo.subprotocol = CPNQ_FITZ666;
 				}
 				else
 				{
-					cls.protocol = CP_QUAKEWORLD;
-					pext1 = Net_PextMask(1, false);
-					pext2 = Net_PextMask(2, false);
+					connectinfo.protocol = CP_QUAKEWORLD;
+					connectinfo.subprotocol = PROTOCOL_VERSION_QW;
+					connectinfo.fteext1 = Net_PextMask(1, false);
+					connectinfo.fteext2 = Net_PextMask(2, false);
 				}
 			}
 			else if (!strcmp(cl_loopbackprotocol.string, "fitz") || !strcmp(cl_loopbackprotocol.string, "666") || !strcmp(cl_loopbackprotocol.string, "999"))
 			{
-				cls.protocol = CP_NETQUAKE;
-				cls.protocol_nq = CPNQ_FITZ666;
+				connectinfo.protocol = CP_NETQUAKE;
+				connectinfo.subprotocol = CPNQ_FITZ666;
 			}
 			else if (!strcmp(cl_loopbackprotocol.string, "nq"))	//actually proquake, because we might as well use the extra angles
 			{
-				cls.protocol = CP_NETQUAKE;
-				cls.protocol_nq = CPNQ_PROQUAKE3_4;
+				connectinfo.protocol = CP_NETQUAKE;
+				connectinfo.subprotocol = CPNQ_PROQUAKE3_4;
 			}
 			else if (!strcmp(cl_loopbackprotocol.string, "nqid") || !strcmp(cl_loopbackprotocol.string, "idnq"))
 			{
-				cls.protocol = CP_NETQUAKE;
-				cls.protocol_nq = CPNQ_ID;
+				connectinfo.protocol = CP_NETQUAKE;
+				connectinfo.subprotocol = CPNQ_ID;
 			}
 			else if (!strcmp(cl_loopbackprotocol.string, "dp6") || !strcmp(cl_loopbackprotocol.string, "dpp6"))
 			{
-				cls.protocol = CP_NETQUAKE;
-				cls.protocol_nq = CPNQ_DP6;
+				connectinfo.protocol = CP_NETQUAKE;
+				connectinfo.subprotocol = CPNQ_DP6;
 			}
 			else if (!strcmp(cl_loopbackprotocol.string, "dp7") || !strcmp(cl_loopbackprotocol.string, "dpp7"))
 			{
-				cls.protocol = CP_NETQUAKE;
-				cls.protocol_nq = CPNQ_DP7;
+				connectinfo.protocol = CP_NETQUAKE;
+				connectinfo.subprotocol = CPNQ_DP7;
 			}
 			else if (progstype != PROG_QW && progstype != PROG_H2)	//h2 depends on various extensions and doesn't really match either protocol, but we go for qw because that gives us all sorts of extensions.
 			{
-				cls.protocol = CP_NETQUAKE;
-				cls.protocol_nq = CPNQ_FITZ666;
+				connectinfo.protocol = CP_NETQUAKE;
+				connectinfo.subprotocol = CPNQ_FITZ666;
 				//FIXME: pext
 			}
 #endif
 			else
 			{	//protocol wasn't recognised, and we didn't take the nq fallback, so that must mean we're going for qw.
-				cls.protocol = CP_QUAKEWORLD;
-				pext1 = Net_PextMask(1, false);
-				pext2 = Net_PextMask(2, false);
+				connectinfo.protocol = CP_QUAKEWORLD;
+				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
+				connectinfo.fteext1 = Net_PextMask(1, false);
+				connectinfo.fteext2 = Net_PextMask(2, false);
 			}
 
 #ifdef NETPREPARSE
@@ -824,28 +825,30 @@ void CL_CheckForResend (void)
 					Con_Printf("dpcompat_nopreparse is unsupported with hexen2\n");
 				else if (progstype == PROG_QW && cls.protocol != CP_QUAKEWORLD)
 				{
-					cls.protocol = CP_QUAKEWORLD;
-					pext1 = Net_PextMask(1, false);
-					pext2 = Net_PextMask(2, false);
+					connectinfo.protocol = CP_QUAKEWORLD;
+					connectinfo.subprotocol = PROTOCOL_VERSION_QW;
+					connectinfo.fteext1 = Net_PextMask(1, false);
+					connectinfo.fteext2 = Net_PextMask(2, false);
 				}
 				else if (progstype != PROG_QW && cls.protocol == CP_QUAKEWORLD)
 				{
-					cls.protocol = CP_NETQUAKE;
-					cls.protocol_nq = CPNQ_DP7;	//dpcompat_nopreparse is only really needed for DP mods that send unknowable svc_tempentity messages to the client.
+					connectinfo.protocol = CP_NETQUAKE;
+					connectinfo.subprotocol = CPNQ_DP7;	//dpcompat_nopreparse is only really needed for DP mods that send unknowable svc_tempentity messages to the client.
 				}
 			}
 
 			//make sure the protocol within demos is actually correct/sane
 			if (cls.demorecording == 1 && cls.protocol != CP_QUAKEWORLD)
 			{
-				cls.protocol = CP_QUAKEWORLD;
-				pext1 = Net_PextMask(1, false);
-				pext2 = Net_PextMask(2, false);
+				connectinfo.protocol = CP_QUAKEWORLD;
+				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
+				connectinfo.fteext1 = Net_PextMask(1, false);
+				connectinfo.fteext2 = Net_PextMask(2, false);
 			}
 			else if (cls.demorecording == 2 && cls.protocol != CP_NETQUAKE)
 			{
-				cls.protocol = CP_NETQUAKE;
-				cls.protocol_nq = CPNQ_FITZ666;
+				connectinfo.protocol = CP_NETQUAKE;
+				connectinfo.subprotocol = CPNQ_FITZ666;
 				//FIXME: use pext.
 			}
 			break;
@@ -853,7 +856,6 @@ void CL_CheckForResend (void)
 
 		CL_FlushClientCommands();	//clear away all client->server clientcommands.
 
-		connectinfo.protocol = cls.protocol;
 #ifdef NQPROT
 		if (connectinfo.protocol == CP_NETQUAKE)
 		{
@@ -873,21 +875,21 @@ void CL_CheckForResend (void)
 			net_message.packing = SZ_RAWBYTES;
 			net_message.cursize = 0;
 
-			if (cls.protocol_nq == CPNQ_ID)
+			if (connectinfo.subprotocol == CPNQ_ID)
 			{
 				net_from = connectinfo.adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
 
 				SVC_DirectConnect();
 			}
-			else if (cls.protocol_nq == CPNQ_FITZ666)
+			else if (connectinfo.subprotocol == CPNQ_FITZ666)
 			{
 				net_from = connectinfo.adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\666\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
 
 				SVC_DirectConnect();
 			}
-			else if (cls.protocol_nq == CPNQ_PROQUAKE3_4)
+			else if (connectinfo.subprotocol == CPNQ_PROQUAKE3_4)
 			{
 				net_from = connectinfo.adr;
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\1\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
@@ -903,8 +905,7 @@ void CL_CheckForResend (void)
 		{
 			if (!connectinfo.challenge)
 				connectinfo.challenge = rand();
-			cls.challenge = connectinfo.challenge;
-			CL_SendConnectPacket (NULL, 8192-16, pext1, pext2, false);
+			CL_SendConnectPacket (NULL, 8192-16, connectinfo.fteext1, connectinfo.fteext2, false);
 		}
 		return;
 	}
@@ -2797,7 +2798,10 @@ void CL_ConnectionlessPacket (void)
 
 #ifdef Q2CLIENT
 			if (connectinfo.protocol == CP_QUAKE2 || connectinfo.protocol == CP_UNKNOWN)
+			{
 				connectinfo.protocol = CP_QUAKE2;
+				connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
+			}
 			else
 			{
 				Con_Printf("\nChallenge from another protocol, ignoring Q2 challenge\n");
@@ -2812,7 +2816,10 @@ void CL_ConnectionlessPacket (void)
 		/*no idea, assume a QuakeWorld challenge response ('c' packet)*/
 
 		else if (connectinfo.protocol == CP_QUAKEWORLD || connectinfo.protocol == CP_UNKNOWN)
+		{
 			connectinfo.protocol = CP_QUAKEWORLD;
+			connectinfo.subprotocol = PROTOCOL_VERSION_QW;
+		}
 		else
 		{
 			Con_Printf("\nChallenge from another protocol, ignoring QW challenge\n");
@@ -2825,7 +2832,30 @@ void CL_ConnectionlessPacket (void)
 		lasttime = curtime;
 		lastadr = net_from;
 
-		connectinfo.challenge = atoi(s);
+		s = COM_Parse(s);
+		connectinfo.challenge = atoi(com_token);
+
+		while((s = COM_Parse(s)))
+		{
+			if (connectinfo.protocol == CP_QUAKE2 && !strncmp(com_token, "p=", 2))
+			{
+				char *p = com_token+2;
+				do
+				{
+					switch(strtoul(p, &p, 0))
+					{
+					case PROTOCOL_VERSION_R1Q2:
+						if (connectinfo.subprotocol < PROTOCOL_VERSION_R1Q2)
+							connectinfo.subprotocol = PROTOCOL_VERSION_R1Q2;
+						break;
+					case PROTOCOL_VERSION_Q2PRO:
+						if (connectinfo.subprotocol < PROTOCOL_VERSION_Q2PRO)
+							connectinfo.subprotocol = PROTOCOL_VERSION_Q2PRO;
+						break;
+					}
+				} while (*p++ == ',');
+			}
+		}
 
 		for(;;)
 		{
@@ -2917,7 +2947,7 @@ void CL_ConnectionlessPacket (void)
 		{
 			Con_Printf ("accept\n");
 			Validation_Apply_Ruleset();
-			Netchan_Setup(NS_CLIENT, &cls.netchan, &net_from, cls.qport);
+			Netchan_Setup(NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
 			CL_ParseEstablished();
 			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
 
@@ -2986,6 +3016,7 @@ void CL_ConnectionlessPacket (void)
 	if (c == S2C_CONNECTION)
 	{
 		connectinfo.protocol = CP_QUAKEWORLD;
+		connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 #if defined(Q2CLIENT) || defined(Q3CLIENT)
 client_connect:	//fixme: make function
 #endif
@@ -3018,9 +3049,18 @@ client_connect:	//fixme: make function
 			}
 		}
 		connectinfo.trying = false;
+		cl.splitclients = 0;
 		cls.protocol = connectinfo.protocol;
+		cls.fteprotocolextensions = connectinfo.fteext1;
+		cls.fteprotocolextensions2 = connectinfo.fteext2;
 		cls.challenge = connectinfo.challenge;
-		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, cls.qport);
+		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
+		if (cls.protocol == CP_QUAKE2)
+		{
+			cls.protocol_q2 = connectinfo.subprotocol;
+			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+				cls.netchan.qportsize = 1;
+		}
 		cls.netchan.fragmentsize = connectinfo.mtu;
 		if (connectinfo.mtu >= 64)
 			cls.netchan.message.maxsize = sizeof(cls.netchan.message_buf);
@@ -3184,7 +3224,9 @@ void CLNQ_ConnectionlessPacket(void)
 
 		Validation_Apply_Ruleset();
 
-		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, cls.qport);
+		cls.fteprotocolextensions = connectinfo.fteext1;
+		cls.fteprotocolextensions2 = connectinfo.fteext2;
+		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
 		CL_ParseEstablished();
 		cls.netchan.isnqprotocol = true;
 		cls.netchan.compresstable = NULL;

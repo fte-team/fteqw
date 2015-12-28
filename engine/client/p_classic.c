@@ -1110,7 +1110,10 @@ static void PClassic_RunParticleEffect (vec3_t org, vec3_t dir, int color, int c
 {
 	Classic_RunParticleEffect(org, dir, color, count);
 }
-
+static void PClassic_RunParticleEffectPalette (const char *nameprefix, vec3_t org, vec3_t dir, int color, int count)
+{
+	Classic_RunParticleEffect(org, dir, color, count);
+}
 
 particleengine_t pe_classic =
 {
@@ -1129,6 +1132,7 @@ particleengine_t pe_classic =
 	PClassic_RunParticleEffect2,
 	PClassic_RunParticleEffect3,
 	PClassic_RunParticleEffect4,
+	PClassic_RunParticleEffectPalette,
 
 	PClassic_ParticleTrailIndex,
 	PClassic_EmitSkyEffectTris,

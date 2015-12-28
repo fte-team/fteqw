@@ -335,6 +335,8 @@ char *Get_Q2ConfigString(int i)
 		return cl.item_name[i-Q2CS_ITEMS]?cl.item_name[i-Q2CS_ITEMS]:"";
 	if (i == Q2CS_STATUSBAR)
 		return cl.q2statusbar;
+	if (i == Q2CS_NAME)
+		return cl.levelname;
 
 	if (i >= Q2CS_MODELS && i < Q2CS_MODELS	+ Q2MAX_MODELS)
 		return cl.model_name [i-Q2CS_MODELS];
@@ -342,6 +344,8 @@ char *Get_Q2ConfigString(int i)
 		return cl.model_name [i-Q2CS_SOUNDS];
 	if (i == Q2CS_AIRACCEL)
 		return "4";
+	if (i >= Q2CS_PLAYERSKINS && i < Q2CS_GENERAL+Q2MAX_GENERAL)
+		return cl.configstring_general[i-Q2CS_PLAYERSKINS]?cl.configstring_general[i-Q2CS_PLAYERSKINS]:"";
 //#define	Q2CS_LIGHTS				(Q2CS_IMAGES	+Q2MAX_IMAGES)
 //#define	Q2CS_ITEMS				(Q2CS_LIGHTS	+Q2MAX_LIGHTSTYLES)
 //#define	Q2CS_PLAYERSKINS		(Q2CS_ITEMS		+Q2MAX_ITEMS)
@@ -763,6 +767,10 @@ void Sbar_ShowScores (void)
 
 void Sbar_Hexen2InvLeft_f(void)
 {
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
 	if (cls.protocol == CP_QUAKE2)
 	{
 		CL_SendClientCommand(true, "invprev");
@@ -786,6 +794,10 @@ void Sbar_Hexen2InvLeft_f(void)
 }
 void Sbar_Hexen2InvRight_f(void)
 {
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
 	if (cls.protocol == CP_QUAKE2)
 	{
 		CL_SendClientCommand(true, "invnext");
@@ -809,6 +821,11 @@ void Sbar_Hexen2InvRight_f(void)
 }
 void Sbar_Hexen2InvUse_f(void)
 {
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
+
 	if (cls.protocol == CP_QUAKE2)
 	{
 		CL_SendClientCommand(true, "invuse");
@@ -823,21 +840,37 @@ void Sbar_Hexen2InvUse_f(void)
 void Sbar_Hexen2ShowInfo_f(void)
 {
 	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
 	pv->sb_hexen2_extra_info = true;
 }
 void Sbar_Hexen2DontShowInfo_f(void)
 {
 	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
 	pv->sb_hexen2_extra_info = false;
 }
 void Sbar_Hexen2PInfoPlaque_f(void)
 {
 	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
 	pv->sb_hexen2_infoplaque = true;
 }
 void Sbar_Hexen2MInfoPlaque_f(void)
 {
 	playerview_t *pv = &cl.playerview[CL_TargettedSplit(false)];
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(Cmd_Argv(0)))
+		return;
+#endif
 	pv->sb_hexen2_infoplaque = false;
 }
 
@@ -2326,7 +2359,7 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 
 	pclass = cl.players[pv->playernum].h2playerclass;
 	if (pclass >= sizeof(pclassname)/sizeof(pclassname[0]))
-		pclass = sizeof(pclassname)/sizeof(pclassname[0]) - 1;
+		pclass = 0;
 
 
 	//adjust it so there's space

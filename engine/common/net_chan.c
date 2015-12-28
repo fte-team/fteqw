@@ -342,6 +342,8 @@ void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport)
 	chan->message.maxsize = MAX_QWMSGLEN;
 
 	chan->qport = qport;
+
+	chan->qportsize = 2;
 }
 
 
@@ -701,7 +703,12 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	// send the qport if we are a client
 #ifndef SERVERONLY
 	if (chan->sock == NS_CLIENT)
-		MSG_WriteShort (&send, cls.qport);
+	{
+		if (chan->qportsize == 2)
+			MSG_WriteShort (&send, chan->qport);
+		else if (chan->qportsize == 1)
+			MSG_WriteByte (&send, chan->qport&0xff);
+	}
 #endif
 
 	if (chan->fragmentsize)
@@ -742,7 +749,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	if (!cls.demoplayback)
 #endif
 	{
-		int hsz = 10 + ((chan->sock == NS_CLIENT)?2:0); /*header size, if fragmentation is in use*/
+		int hsz = 10 + ((chan->sock == NS_CLIENT)?chan->qportsize:0); /*header size, if fragmentation is in use*/
 
 		if ((!chan->fragmentsize) || send.cursize-hsz < ((chan->fragmentsize - hsz)&~7))
 		{
@@ -778,7 +785,12 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				*(int*)&send.data[(offset) + 4] = LittleLong(w2);
 #ifndef SERVERONLY
 				if (chan->sock == NS_CLIENT)
-					*(short*)&send.data[offset + hsz-4] = LittleShort(cls.qport);
+				{
+					if (chan->qportsize == 2)
+						*(short*)&send.data[offset + hsz-4] = LittleShort(chan->qport);
+					else if (chan->qportsize == 1)
+						*(qbyte*)&send.data[offset + hsz-3] = chan->qport&0xff;
+				}
 #endif
 				*(short*)&send.data[offset + hsz-2] = LittleShort((offset>>2) | (more?1:0));
 

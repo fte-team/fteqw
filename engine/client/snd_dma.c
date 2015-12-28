@@ -1785,9 +1785,11 @@ void S_Startup (void)
 
 //why isn't this part of S_Restart_f anymore?
 //so that the video code can call it directly without flushing the models it's just loaded.
-void S_DoRestart (void)
+void S_DoRestart (qboolean onlyifneeded)
 {
 	int i;
+	if (onlyifneeded && sound_started)
+		return;	//don't need to if its already running.
 
 	S_StopAllSounds (true);
 	S_Shutdown(false);
@@ -1810,7 +1812,7 @@ void S_DoRestart (void)
 
 void S_Restart_f (void)
 {
-	S_DoRestart();
+	S_DoRestart(false);
 }
 
 void S_Control_f (void)
@@ -2114,7 +2116,14 @@ void S_Purge(qboolean retaintouched)
 		sfx = &known_sfx[i];
 		/*don't hurt sounds if they're being processed by a worker thread*/
 		if (sfx->loadstate == SLS_LOADING)
-			continue;
+		{
+			if (retaintouched)
+				continue;	//don't bother waiting
+
+			//trying to shut down or something.
+			//make sure there's no worker about to write to sfx after the memory is freed
+			COM_WorkerPartialSync(sfx, &sfx->loadstate, SLS_LOADING);
+		}
 
 		/*don't purge the file if its still relevent*/
 		if (retaintouched && sfx->touched)

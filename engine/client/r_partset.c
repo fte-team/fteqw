@@ -3442,6 +3442,21 @@ char *particle_set_q2part =
 "scalefactor 0.8\n"
 "}\n"
 
+"r_part TEQ2_LASER_SPARKS\n"
+"{\n"
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"count 1\n"
+"scale 1\n"
+"alpha 1\n"
+"die 0.3 0.8\n"
+"randomvel 20\n"
+"orgadd 0 7\n"
+"spawnorg 4\n"
+"gravity 40\n"
+"scalefactor 0.8\n"
+"}\n"
+
 "r_part te_splashsparks\n"
 "{\n"
 "texture \"classicparticle\"\n"
@@ -3692,7 +3707,7 @@ char *particle_set_q2part =
 "lightradius 150\n"
 "lightradiusfade 400\n"
 "lightrgb 1 1 0\n"
-"lightshadows 0\n"
+"lightshadows 1\n"
 "sound \"weapons/lashit.wav\" 1 1 0 0\n"
 "}\n"
 "r_part teq2_blaster2\n"
@@ -3714,7 +3729,7 @@ char *particle_set_q2part =
 "lightradius 150\n"
 "lightradiusfade 400\n"
 "lightrgb 0.05 1.0 0.05\n"
-"lightshadows 0\n"
+"lightshadows 1\n"
 "sound \"weapons/lashit.wav\" 1 1 0 0\n"
 "}\n"
 "r_part TR_BLASTERTRAIL\n"
@@ -3729,6 +3744,10 @@ char *particle_set_q2part =
 "randomvel 5\n"
 "die 0.3 0.5\n"
 "colorindex 0xe0\n"
+"lightradius 200\n"
+"lightradiusfade 400\n"
+"lightrgb 1.0 1.0 0.0\n"
+"lightshadows 1\n"
 "}\n"
 
 //green version
@@ -3744,6 +3763,10 @@ char *particle_set_q2part =
 "randomvel 5\n"
 "die 0.3 0.5\n"
 "colorindex 0xd0\n"
+"lightradius 200\n"
+"lightradiusfade 400\n"
+"lightrgb 0.0 1.0 0.0\n"
+"lightshadows 1\n"
 "}\n"
 
 
@@ -3914,12 +3937,25 @@ char *particle_set_q2part =
 "}\n"
 "r_part trq2_gib\n"
 "{\n"
-"assoc tr_gib\n"
+"texture \"particles/quake\"\n"
+"step 3\n"
+"scale 4\n"
+"die 1.0 1.4\n"
+"colorindex 0xe8 7\n"
+"spawnorg 1\n"
+"spawnvel 5\n"
+"gravity -20\n"
 "}\n"
-//FIXME: implement
 "r_part trq2_greengib\n"
 "{\n"
-"assoc tr_gib\n"
+"texture \"particles/quake\"\n"
+"step 3\n"
+"scale 4\n"
+"die 1.0 1.4\n"
+"colorindex 0xdb 7\n"
+"spawnorg 1\n"
+"spawnvel 5\n"
+"gravity -20\n"
 "}\n"
 
 "r_part TR_PLASMA\n"
@@ -3949,6 +3985,14 @@ char *particle_set_q2part =
 "lighttime 0\n"
 "lightradius 225\n"
 "lightrgb 1.0 1.0 0.0\n"
+"}\n"
+
+//FIXME: add particles
+"r_part tr_trap\n"
+"{\n"
+"lighttime 0\n"
+"lightradius 100 200\n"
+"lightrgb 1.0 0.8 0.25\n"
 "}\n"
 
 //flags do NOT use coronas, because it obscures the holding player's skin colour
@@ -3987,15 +4031,6 @@ char *particle_set_q2part =
 "lightcorona 0.0 0.0\n"
 "lightradius 225\n"
 "lightrgb 0.25 0.25 1.0\n"
-"}\n"
-
-
-//FIXME: add particles
-"r_part tr_trap\n"
-"{\n"
-"lighttime 0\n"
-"lightradius 100 200\n"
-"lightrgb 1.0 0.8 0.25\n"
 "}\n"
 
 "r_part EF_FLIES\n"
@@ -4094,6 +4129,28 @@ char *particle_set_q2part =
 "lightrgbfade 0.0 0.0 0.0\n"
 "sound \"weapons/xpld_wat.wav\" 1 1 0 0\n"
 "model \"sprites/s_bfg2.sp2\" framestart=0 frameend=4 alpha=0.3 transparent fullbright noshadow\n"
+"}\n"
+
+
+//31qu cylinder, 8-98 high
+//should look like its sucked up into some thingie above
+"r_part TEQ2_BOSSTPORT\n"
+"{\n"
+"texture \"classicparticle\"\n"
+"tcoords 0 0 16 16 32\n"
+"count 800\n"
+"scale 1\n"
+"alpha 1\n"
+"die 0.5 0.8\n"
+"orgadd 8 -98\n"
+"veladd 100 200\n"
+"spawnmode circle\n"
+"spawnorg 48 0\n"
+"spawnvel -50 30\n"
+"randomvel 32 31\n"
+"gravity -800\n"
+"rgbf 1 1 1\n"
+"scalefactor 0.8\n"
 "}\n"
 ;
 #endif

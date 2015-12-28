@@ -436,7 +436,9 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(GetPlayerInfo);
 	CHECKBUILTIN(LocalPlayerNumber);
 	CHECKBUILTIN(GetLocalPlayerNumbers);
+#ifdef FTEPLUGIN
 	CHECKBUILTIN(GetLastInputFrame);
+#endif
 	CHECKBUILTIN(GetTrackerOwnFrags);
 	CHECKBUILTIN(GetServerInfo);
 	CHECKBUILTIN(SetUserInfo);

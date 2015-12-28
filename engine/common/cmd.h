@@ -73,6 +73,7 @@ then searches for a command or variable that matches the first token.
 typedef void (*xcommand_t) (void);
 
 int Cmd_Level(char *name);
+void Cmd_EnumerateLevel(int level, char *buf, size_t bufsize);
 
 void	Cmd_Init (void);
 void	Cmd_Shutdown(void);

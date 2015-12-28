@@ -1232,17 +1232,17 @@ reeval:
 			return s;
 */		}
 		break;
-/*	case OP_PUSH:
-		OPC->_int = ENGINEPOINTER(&localstack[localstack_used+pr_spushed]);
-		pr_spushed += OPA->_int;
-		if (pr_spushed + localstack_used >= LOCALSTACK_SIZE)
+	case OP_PUSH:
+		OPC->_int = ENGINEPOINTER(&prinst.localstack[prinst.localstack_used+prinst.spushed]);
+		prinst.spushed += OPA->_int;
+		if (prinst.spushed + prinst.localstack_used >= LOCALSTACK_SIZE)
 		{
-			pr_spushed = 0;
+			prinst.spushed = 0;
 			pr_xstatement = st-pr_statements;
-			PR_RunError(progfuncs, "Progs pushed too much");
+			PR_RunError(&progfuncs->funcs, "Progs pushed too much");
 		}
 		break;
-	case OP_POP:
+/*	case OP_POP:
 		pr_spushed -= OPA->_int;
 		if (pr_spushed < 0)
 		{

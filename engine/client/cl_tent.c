@@ -2562,8 +2562,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		MSG_ReadDir (dir);
 		color = MSG_ReadByte ();
-		//FIXME: should use q2's vertical puff thing
-		P_RunParticleEffect (pos, dir, color, cnt);
+		P_RunParticleEffectPalette("q2part.TEQ2_LASER_SPARKS", pos, dir, color, cnt);
 		break;
 
 /*
@@ -3660,15 +3659,29 @@ void CL_UpdateExplosions (void)
 
 	for (i=0, ex=cl_explosions; i < explosions_running; i++, ex++)
 	{
-		if (!ex->model && !ex->flags)
+		if (!ex->model && !(ex->flags&Q2RF_BEAM))
 			continue;
 
 		lastrunningexplosion = i;
+		if (ex->model->loadstate == MLS_LOADING)
+			continue;
+		if (ex->model->loadstate != MLS_LOADED)
+		{
+			ex->model = NULL;
+			ex->flags = 0;
+			P_DelinkTrailstate(&(ex->trailstate));
+			continue;
+		}
+
 		f = ex->framerate*(cl.time - ex->start);
+
 		if (ex->firstframe >= 0)
 		{
 			firstframe = ex->firstframe;
 			numframes = ex->numframes;
+
+			if (!numframes)
+				numframes = ex->model->numframes - firstframe;
 		}
 		else
 		{

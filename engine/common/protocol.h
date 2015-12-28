@@ -105,10 +105,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define PROTOCOL_INFO_GUID				(('G'<<0) + ('U'<<8) + ('I'<<16) + ('D' << 24))	//globally 'unique' client id info.
 
-#define	PROTOCOL_VERSION_QW 28
-#define	PROTOCOL_VERSION_Q2_DEMO_MIN 26
-#define	PROTOCOL_VERSION_Q2_MIN 31
-#define	PROTOCOL_VERSION_Q2 34
+#define	PROTOCOL_VERSION_QW				28
+
+#define	PROTOCOL_VERSION_Q2_DEMO_MIN	26
+#define	PROTOCOL_VERSION_Q2_MIN			31
+#define	PROTOCOL_VERSION_Q2				34
+#define	PROTOCOL_VERSION_R1Q2			35
+#define	PROTOCOL_VERSION_Q2PRO			36
 
 //=========================================
 
@@ -392,7 +395,13 @@ enum svcq2_ops_e
 	svcq2_playerinfo,	//17			// variable
 	svcq2_packetentities,//18			// [...]
 	svcq2_deltapacketentities,//19	// [...]
-	svcq2_frame			//20 (the bastard to implement.)
+	svcq2_frame,			//20 (the bastard to implement.)
+
+
+	svcr1q2_zpacket = 21,
+	svcr1q2_zdownload = 22,
+	svcq2pro_gamestate = 23, // q2pro specific, means svc_playerupdate in r1q2
+	svcq2pro_setting = 24,
 };
 
 enum clcq2_ops_e
@@ -766,6 +775,7 @@ enum clcq2_ops_e
 #define	Q2U_ANGLE1	(1<<10)
 #define	Q2U_MODEL		(1<<11)
 #define Q2U_RENDERFX8	(1<<12)		// fullbright, etc
+#define Q2UX_ANGLE16	(1<<13)
 #define	Q2U_EFFECTS8	(1<<14)		// autorotate, trails, etc
 #define	Q2U_MOREBITS2	(1<<15)		// read one additional qbyte
 
@@ -784,6 +794,12 @@ enum clcq2_ops_e
 #define	Q2U_SKIN16	(1<<25)
 #define	Q2U_SOUND		(1<<26)
 #define	Q2U_SOLID		(1<<27)
+#define Q2UX_UNUSED4	(1<<28)
+#define Q2UX_UNUSED3	(1<<29)
+#define Q2UX_UNUSED2	(1<<30)
+#define Q2UX_UNUSED1	(1<<31)
+
+#define Q2UX_UNUSED		(Q2UX_UNUSED1|Q2UX_UNUSED2|Q2UX_UNUSED3|Q2UX_UNUSED4)
 
 
 //==============================================
@@ -1009,6 +1025,7 @@ typedef struct entity_state_s
 			vec3_t predorg;
 		} q1;
 	} u;
+
 	unsigned short		modelindex2;	//q2/vweps
 	unsigned short		frame;
 
@@ -1031,13 +1048,13 @@ typedef struct entity_state_s
 
 	qbyte lightstyle;
 	qbyte lightpflags;
-	unsigned short solid;
+	unsigned short tagindex;
+	unsigned int tagentity;
+
+	unsigned int solid;
 #define ES_SOLID_BSP 31
 
 	unsigned short light[4];
-
-	unsigned short tagentity;
-	unsigned short tagindex;
 } entity_state_t;
 extern entity_state_t nullentitystate;
 
@@ -1178,6 +1195,14 @@ typedef struct q1usercmd_s
 #define	Q2PS_WEAPONFRAME		(1<<13)
 #define	Q2PS_RDFLAGS			(1<<14)
 
+#define Q2PSX_GUNOFFSET			(1<<0)
+#define Q2PSX_GUNANGLES			(1<<1)
+#define Q2PSX_M_VELOCITY2		(1<<2)
+#define Q2PSX_M_ORIGIN2			(1<<3)
+#define Q2PSX_VIEWANGLE2		(1<<4)
+#define Q2PSX_STATS				(1<<5)
+#define Q2PSX_CLIENTNUM			(1<<6)
+#define Q2PSX_OLD				(1<<8)	//not part of the protocol, just lazy handling.
 
 
 // entity_state_t->renderfx flags

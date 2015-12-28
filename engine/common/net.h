@@ -167,6 +167,7 @@ typedef struct
 	netadr_t	remote_address;
 	netsrc_t	sock;
 	int			qport;
+	int			qportsize;
 
 // bandwidth estimator
 	double		cleartime;			// if realtime > nc->cleartime, free to go

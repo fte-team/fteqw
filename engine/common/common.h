@@ -108,8 +108,12 @@ typedef enum {false, true}	qboolean;
 
 struct netprim_s
 {
-	int coordsize;
-	int anglesize;
+	qbyte coordsize;
+	qbyte anglesize;
+#define NPQ2_ANG16 (1<<0)
+#define NPQ2_SIZE32 (1<<0)
+	qbyte q2flags;
+	qbyte pad;
 };
 //============================================================================
 

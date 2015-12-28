@@ -220,7 +220,7 @@ static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t en
 	VectorSubtract (end, origin, end_l);
 
 	// sweep the box through the model
-	if (model)
+	if (model && model->funcs.NativeTrace)
 	{
 		if (angles[0] || angles[1] || angles[2])
 		{

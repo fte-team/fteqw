@@ -1042,7 +1042,7 @@ void CLQ3_SendAuthPacket(netadr_t *gameserver)
 	}
 }
 
-void CLQ3_SendConnectPacket(netadr_t *to)
+void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport)
 {
 	char data[2048];
 	char adrbuf[MAX_ADR_SIZE];
@@ -1056,7 +1056,7 @@ void CLQ3_SendConnectPacket(netadr_t *to)
 	msg.overflowed = msg.allowoverflow = 0;
 	msg.maxsize = sizeof(data);
 	MSG_WriteLong(&msg, -1);
-	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", cls.challenge, cls.qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), &net_local_cl_ipadr), cls.userinfo[0]));
+	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", challenge, qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), &net_local_cl_ipadr), cls.userinfo[0]));
 #ifdef HUFFNETWORK
 	Huff_EncryptPacket(&msg, 12);
 	if (!Huff_CompressionCRC(HUFFCRC_QUAKE3))

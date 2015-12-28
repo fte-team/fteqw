@@ -83,7 +83,7 @@ void QCBUILTIN PF_CL_drawresetcliparea (pubprogfuncs_t *prinst, struct globalvar
 	G_FLOAT(OFS_RETURN) = 1;
 }
 
-#define FONT_SLOTS 16
+#define FONT_SLOTS 32
 #define FONT_SIZES 16
 struct {
 	unsigned int owner;	//kdm_foo. whoever has an interest in this font. font is purged when this becomes 0.
@@ -150,6 +150,17 @@ int PR_findnamedfont(const char *name, qboolean isslotname)
 			if (!stricmp(fontslot[i].facename, name))
 				return i;
 		}
+	}
+	return -1;
+}
+int PR_findunusedfont(void)
+{
+	int i;
+	//don't find slot 0.
+	for (i = FONT_SLOTS; i-- > 1; )
+	{
+		if (!*fontslot[i].slotname && !*fontslot[i].facename)
+			return i;
 	}
 	return -1;
 }
@@ -232,7 +243,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	else if (slotnum < 0)
 		slotnum = PR_findnamedfont(facename, false);
 	if (slotnum < 0)
-		slotnum = PR_findnamedfont("", true);
+		slotnum = PR_findunusedfont();
 	if (slotnum < 0)
 		return;	//eep.
 

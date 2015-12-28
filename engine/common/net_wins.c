@@ -2089,60 +2089,86 @@ static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char
 	}
 	return count > 0;
 }
-qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *address, netadrtype_t addrtype, qboolean islisten)
+qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *addresslist, netadrtype_t addrtype, qboolean islisten)
 {
-	ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address, netadr_t adr) = NULL;
-	netadr_t adr;
+	netadr_t adr[8];
+	ftenet_generic_connection_t *(*establish[countof(adr)])(qboolean isserver, const char *address, netadr_t adr);
+	char address[countof(adr)][256];
+	unsigned int i, j;
+	qboolean success;
 
-	//resolve the address to something sane so we can determine the address type and thus the connection type to use
-	if (!address || !*address)
-		adr.type = NA_INVALID;
-	else if (islisten)
-		NET_PortToAdr(addrtype, address, &adr);
-	else
-		NET_StringToAdr(address, 0, &adr);
+	if (strchr(name, ':'))
+		return false;
 
-	switch(adr.type)
+	for (i = 0; addresslist && *addresslist && i < countof(adr); i++)
 	{
-	default:			establish = NULL;	break;
+		addresslist = COM_ParseStringSet(addresslist, address[i], sizeof(address[i]));
+		//resolve the address to something sane so we can determine the address type and thus the connection type to use
+		if (!*address[i])
+			adr[i].type = NA_INVALID;
+		else if (islisten)
+			NET_PortToAdr(addrtype, address[i], &adr[i]);
+		else
+			NET_StringToAdr(address[i], 0, &adr[i]);
+
+		switch(adr[i].type)
+		{
+		default:			establish[i] = NULL;	break;
 #ifdef HAVE_NATPMP
-	case NA_NATPMP:		establish = FTENET_NATPMP_EstablishConnection; break;
+		case NA_NATPMP:		establish[i] = FTENET_NATPMP_EstablishConnection; break;
 #endif
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
-	case NA_LOOPBACK:	establish = FTENET_Loop_EstablishConnection; break;
+		case NA_LOOPBACK:	establish[i] = FTENET_Loop_EstablishConnection; break;
 #endif
 #ifdef HAVE_IPV4
-	case NA_IP:			establish = FTENET_UDP4_EstablishConnection; break;
+		case NA_IP:			establish[i] = FTENET_UDP4_EstablishConnection; break;
 #endif
 #ifdef IPPROTO_IPV6
-	case NA_IPV6:		establish = FTENET_UDP6_EstablishConnection; break;
+		case NA_IPV6:		establish[i] = FTENET_UDP6_EstablishConnection; break;
 #endif
 #ifdef USEIPX
-	case NA_IPX:		establish = FTENET_IPX_EstablishConnection;	break;
+		case NA_IPX:		establish[i] = FTENET_IPX_EstablishConnection;	break;
 #endif
-	case NA_WEBSOCKET:
+		case NA_WEBSOCKET:
 #ifdef HAVE_WEBSOCKCL
-		if (!islisten)
-			establish = FTENET_WebSocket_EstablishConnection;
+			if (!islisten)
+				establish[i] = FTENET_WebSocket_EstablishConnection;
 #endif
 #ifdef TCPCONNECT
-		establish = FTENET_TCP4Connect_EstablishConnection;
+			establish[i] = FTENET_TCP4Connect_EstablishConnection;
 #endif
-		break;
+			break;
 #ifdef IRCCONNECT
-	case NA_IRC:		establish = FTENET_IRCConnect_EstablishConnection;	break;
+		case NA_IRC:		establish[i] = FTENET_IRCConnect_EstablishConnection;	break;
 #endif
 #ifdef TCPCONNECT
-	case NA_TCP:		establish = FTENET_TCP4Connect_EstablishConnection;	break;
-	case NA_TLSV4:		establish = FTENET_TLS4Connect_EstablishConnection;	break;
+		case NA_TCP:		establish[i] = FTENET_TCP4Connect_EstablishConnection;	break;
+		case NA_TLSV4:		establish[i] = FTENET_TLS4Connect_EstablishConnection;	break;
 #endif
 #if defined(TCPCONNECT) && defined(IPPROTO_IPV6)
-	case NA_TCPV6:		establish = FTENET_TCP6Connect_EstablishConnection;	break;
-	case NA_TLSV6:		establish = FTENET_TLS6Connect_EstablishConnection;	break;
+		case NA_TCPV6:		establish[i] = FTENET_TCP6Connect_EstablishConnection;	break;
+		case NA_TLSV6:		establish[i] = FTENET_TLS6Connect_EstablishConnection;	break;
 #endif
+		}
 	}
 
-	return FTENET_AddToCollection_Ptr(col, name, establish, islisten, address, &adr);
+	if (i == 1)
+	{
+		success |= FTENET_AddToCollection_Ptr(col, name, establish[0], islisten, address[0], &adr[0]);
+		i = 0;
+	}
+	else
+		success |= FTENET_AddToCollection_Ptr(col, name, NULL, islisten, NULL, NULL);
+
+	for (j = 0; j < i; j++)
+	{
+		success |= FTENET_AddToCollection_Ptr(col, va("%s:%i", name, j), establish[j], islisten, address[j], &adr[j]);
+	}
+	for (; j < countof(adr); j++)
+	{
+		success |= FTENET_AddToCollection_Ptr(col, va("%s:%i", name, j), NULL, islisten, NULL, NULL);
+	}
+	return success;
 }
 
 void FTENET_CloseCollection(ftenet_connections_t *col)
@@ -2589,7 +2615,11 @@ qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a)
 	char *e;
 	if (net_enabled.ival || adrfamily == NA_LOOPBACK)
 	{
-		int port = strtoul(s, &e, 10);
+		int port;
+		if (!strncmp(s, "natpmp:", 7))
+			return NET_StringToAdr2(s, 0, a, 1);
+
+		port = strtoul(s, &e, 10);
 		if (*e)	//if *e then its not just a single number in there, so treat it as a proper address.
 			return NET_StringToAdr(s, 0, a);
 		else if (e != s)	//if we actually read something (even a 0)

@@ -1456,8 +1456,13 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 	MSG_WriteByte (buf, clcq2_move);
 
 	// save the position for a checksum qbyte
-	checksumIndex = buf->cursize;
-	MSG_WriteByte (buf, 0);
+	if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+		checksumIndex = -1;
+	else
+	{
+		checksumIndex = buf->cursize;
+		MSG_WriteByte (buf, 0);
+	}
 
 	if (!cl.q2frame.valid || cl_nodelta.ival)
 		MSG_WriteLong (buf, -1);	// no compression
@@ -1484,11 +1489,14 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 // calculate a checksum over the move commands
 	dontdrop = CL_WriteDeltas(0, buf);
 
-	buf->data[checksumIndex] = Q2COM_BlockSequenceCRCByte(
-		buf->data + checksumIndex + 1, buf->cursize - checksumIndex - 1,
-		seq_hash);
+	if (checksumIndex >= 0)
+	{
+		buf->data[checksumIndex] = Q2COM_BlockSequenceCRCByte(
+			buf->data + checksumIndex + 1, buf->cursize - checksumIndex - 1,
+			seq_hash);
+	}
 
-	if (cl.sendprespawn)
+	if (cl.sendprespawn || !cls.protocol_q2)
 		buf->cursize = 0;	//tastyspleen.net is alergic.
 
 	return dontdrop;

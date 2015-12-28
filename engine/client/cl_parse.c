@@ -3102,9 +3102,9 @@ void CLQ2_ParseServerData (void)
 	int svcnt;
 //	int cflag;
 
+	memset(&cls.netchan.netprim, 0, sizeof(cls.netchan.netprim));
 	cls.netchan.netprim.coordsize = 2;
 	cls.netchan.netprim.anglesize = 1;
-	MSG_ChangePrimitives(cls.netchan.netprim);
 
 	Con_DPrintf ("Serverdata packet received.\n");
 //
@@ -3119,8 +3119,12 @@ void CLQ2_ParseServerData (void)
 	i = MSG_ReadLong ();
 	cls.protocol_q2 = i;
 
-	if (i > PROTOCOL_VERSION_Q2 || i < (cls.demoplayback?PROTOCOL_VERSION_Q2_DEMO_MIN:PROTOCOL_VERSION_Q2_MIN))
-		Host_EndGame ("Server returned version %i, not %i", i, PROTOCOL_VERSION_Q2);
+	if (i == PROTOCOL_VERSION_R1Q2)
+		Con_DPrintf("Using R1Q2 protocol\n");
+	else if (i == PROTOCOL_VERSION_Q2PRO)
+		Con_DPrintf("Using Q2PRO protocol\n");
+	else if (i > PROTOCOL_VERSION_Q2 || i < (cls.demoplayback?PROTOCOL_VERSION_Q2_DEMO_MIN:PROTOCOL_VERSION_Q2_MIN))
+		Host_EndGame ("Q2 Server returned version %i, not %i", i, PROTOCOL_VERSION_Q2);
 
 	svcnt = MSG_ReadLong ();
 	/*cl.attractloop =*/ MSG_ReadByte ();
@@ -3159,6 +3163,40 @@ void CLQ2_ParseServerData (void)
 	// get the full level name
 	str = MSG_ReadString ();
 	Q_strncpyz (cl.levelname, str, sizeof(cl.levelname));
+
+
+	if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2)
+	{
+		unsigned short r1q2ver;
+		qboolean isenhanced = MSG_ReadByte();
+		if (isenhanced)
+			Host_EndGame ("R1Q2 server is running an unsupported mod");
+		r1q2ver = MSG_ReadShort();	//protocol version... limit... yeah, buggy.
+		if (r1q2ver < 1903 || r1q2ver > 1905)
+			Host_EndGame ("R1Q2 server version %i not supported", r1q2ver);
+		MSG_ReadByte();	//'used to be advanced deltas'
+		MSG_ReadByte(); //strafejump hack
+
+		if (r1q2ver >= 1905)
+			cls.netchan.netprim.q2flags |= NPQ2_SIZE32;
+	}
+	else if (cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+	{
+		unsigned short q2prover = MSG_ReadShort();	//q2pro protocol version
+		if (q2prover < 1011 || q2prover > 1021)
+			Host_EndGame ("Q2PRO server version %i not supported", q2prover);
+		MSG_ReadByte();	//server state (ie: demo playback vs actual game)
+		MSG_ReadByte(); //strafejump hack
+		MSG_ReadByte(); //q2pro qw-mode. kinda silly for us tbh.
+		if (q2prover >= 1014)
+			cls.netchan.netprim.q2flags |= NPQ2_SIZE32;
+		if (q2prover >= 1018)
+			cls.netchan.netprim.q2flags |= NPQ2_ANG16;
+		if (q2prover >= 1015)
+			MSG_ReadByte();	//some kind of waterjump hack enable
+	}
+
+	MSG_ChangePrimitives(cls.netchan.netprim);
 
 	if (cl.playerview[0].playernum == -1)
 	{	// playing a cinematic or showing a pic, not a level
@@ -3801,6 +3839,9 @@ void CLQ2_ParseClientinfo(int i, char *s)
 	player_info_t *player;
 	//s contains "name\model/skin"
 
+	if (i >= MAX_CLIENTS)
+		return;
+
 	player = &cl.players[i];
 
 	*player->userinfo = '\0';
@@ -3857,7 +3898,11 @@ void CLQ2_ParseConfigString (void)
 
 	// do something apropriate
 
-	if (i == Q2CS_SKY)
+	if (i == Q2CS_NAME)
+	{
+		Q_strncpyz (cl.levelname, s, sizeof(cl.levelname));
+	}
+	else if (i == Q2CS_SKY)
 	{
 		Q_strncpyz (cl.skyname, s, sizeof(cl.skyname));
 	}
@@ -3921,9 +3966,16 @@ void CLQ2_ParseConfigString (void)
 		Z_Free(cl.item_name[i-Q2CS_ITEMS]);
 		cl.item_name[i-Q2CS_ITEMS] = Z_StrDup(s);
 	}
+	else if (i >= Q2CS_GENERAL && i < Q2CS_GENERAL+Q2MAX_GENERAL)
+	{
+		Z_Free(cl.configstring_general[i-Q2CS_PLAYERSKINS]);
+		cl.configstring_general[i-Q2CS_PLAYERSKINS] = Z_StrDup(s);
+	}
 	else if (i >= Q2CS_PLAYERSKINS && i < Q2CS_PLAYERSKINS+Q2MAX_CLIENTS)
 	{
 		CLQ2_ParseClientinfo (i-Q2CS_PLAYERSKINS, s);
+		Z_Free(cl.configstring_general[i-Q2CS_PLAYERSKINS]);
+		cl.configstring_general[i-Q2CS_PLAYERSKINS] = Z_StrDup(s);
 	}
 	else if (i == Q2CS_MAPCHECKSUM)
 	{
@@ -6715,6 +6767,19 @@ void CLQ2_ParseServerMessage (void)
 		switch (cmd)
 		{
 		default:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+			{
+				switch(cmd & 0x1f)
+				{
+				case svcq2_frame:			//20 (the bastard to implement.)
+					CLQ2_ParseFrame(cmd>>5);
+					break;
+				default:
+					Host_EndGame ("CLQ2_ParseServerMessage: Illegible server message (%i)", cmd);
+					return;
+				}
+				break;
+			}
 			Host_EndGame ("CLQ2_ParseServerMessage: Illegible server message (%i)", cmd);
 			return;
 
@@ -6750,10 +6815,16 @@ void CLQ2_ParseServerMessage (void)
 			else
 				Host_EndGame ("Server disconnected");
 			return;
-		case svcq2_reconnect:	//8
+		case svcq2_reconnect:	//8. this is actually kinda weird to have
 			Con_TPrintf ("reconnecting...\n");
+#if 1
+			CL_Disconnect();
+			CL_BeginServerReconnect();
+			return;
+#else
 			CL_SendClientCommand(true, "new");
 			break;
+#endif
 		case svcq2_sound:		//9			// <see code>
 			CLQ2_ParseStartSoundPacket();
 			break;
@@ -6804,7 +6875,7 @@ void CLQ2_ParseServerMessage (void)
 			Host_EndGame ("CL_ParseServerMessage: svcq2_deltapacketentities not as part of svcq2_frame");
 			return;
 		case svcq2_frame:			//20 (the bastard to implement.)
-			CLQ2_ParseFrame();
+			CLQ2_ParseFrame(0);
 			break;
 		}
 	}

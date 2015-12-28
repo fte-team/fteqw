@@ -2683,10 +2683,12 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 	webogeneratingstate = 0;
 	mod = webostate->wmodel;
 
+	GL_DeselectVAO();
+
 	qglGenBuffersARB(1, &webostate->ebo);
 	for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
 		idxcount += webostate->batches[i].numidx;
-	qglBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, webostate->ebo);
+	GL_SelectEBO(webostate->ebo);
 	qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, idxcount*sizeof(index_t), NULL, GL_STATIC_DRAW_ARB);
 	for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
 	{
@@ -2755,7 +2757,7 @@ static void Surf_SimpleWorld(struct webostate_s *es, qbyte *pvs)
 					{
 						//FIXME: pre-allocate
 //						continue;
-						eb->maxidx = eb->numidx + surf->mesh->numindexes;
+						eb->maxidx = eb->numidx + surf->mesh->numindexes + 512;
 						eb->idxbuffer = BZ_Realloc(eb->idxbuffer, eb->maxidx * sizeof(index_t));
 					}
 					for (i = 0; i < mesh->numindexes; i++)

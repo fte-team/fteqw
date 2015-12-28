@@ -14,6 +14,8 @@
 
 #define EMBEDDEBUG
 
+#define IDI_ICON_FTEQCC MAKEINTRESOURCE(101)
+
 void AddSourceFile(const char *parentsrc, const char *filename);
 void GUI_ParseCommandLine(char *args);
 void GUI_RevealOptions(void);
@@ -2145,7 +2147,7 @@ void EditFile(char *name, int line, pbool setcontrol)
     wndclass.cbClsExtra    = 0;
     wndclass.cbWndExtra    = 0;
     wndclass.hInstance     = ghInstance;
-    wndclass.hIcon         = 0;
+	wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
     wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wndclass.hbrBackground = (void *)COLOR_WINDOW;
     wndclass.lpszMenuName  = 0;
@@ -3429,7 +3431,7 @@ void OptionsDialog(void)
     wndclass.cbClsExtra    = 0;
     wndclass.cbWndExtra    = 0;
     wndclass.hInstance     = ghInstance;
-    wndclass.hIcon         = 0;
+    wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
     wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wndclass.hbrBackground = (void *)COLOR_WINDOW;
     wndclass.lpszMenuName  = 0;
@@ -4719,7 +4721,7 @@ void CreateOutputWindow(pbool doannoates)
 		wndclass.cbClsExtra    = 0;
 		wndclass.cbWndExtra    = 0;
 		wndclass.hInstance     = ghInstance;
-		wndclass.hIcon         = 0;
+		wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
 		wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
 		wndclass.hbrBackground = (void *)COLOR_WINDOW;
 		wndclass.lpszMenuName  = 0;
@@ -5076,7 +5078,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     wndclass.cbClsExtra    = 0;
     wndclass.cbWndExtra    = 0;
     wndclass.hInstance     = ghInstance;
-    wndclass.hIcon         = 0;
+    wndclass.hIcon         = LoadIcon(ghInstance, IDI_ICON_FTEQCC);
     wndclass.hCursor       = LoadCursor (NULL,IDC_ARROW);
 	wndclass.hbrBackground = (void *)COLOR_WINDOW;
     wndclass.lpszMenuName  = 0;

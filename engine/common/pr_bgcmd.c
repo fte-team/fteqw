@@ -807,6 +807,8 @@ void QCBUILTIN PF_getsurfacenearpoint(pubprogfuncs_t *prinst, struct globalvars_
 	if (!model || model->type != mod_brush)
 		return;
 
+	bestdist = 256;
+
 	if (model->fromgame == fg_quake || model->fromgame == fg_quake2)
 	{
 		//all polies, we can skip parts. special case.
@@ -5823,6 +5825,7 @@ lh_extension_t QSG_Extensions[] = {
 //	{"DP_ENT_COLORMOD"},
 	{"DP_ENT_CUSTOMCOLORMAP"},
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
+	{"DP_ENT_TRAILEFFECTNUM",			1,	NULL, {"particleeffectnum"}, "self.traileffectnum=particleeffectnum(\"myeffectname\n\"); can be used to attach a particle trail to the given server entity. This is equivelent to calling trailparticles each frame."},
 	//only in dp6 currently {"DP_ENT_GLOW"},
 	{"DP_ENT_VIEWMODEL"},
 	{"DP_GECKO_SUPPORT",				7,	NULL, {"gecko_create", "gecko_destroy", "gecko_navigate", "gecko_keyevent", "gecko_mousemove", "gecko_resize", "gecko_get_texture_extent"}},
@@ -5832,6 +5835,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_HALFLIFE_MAP_CVAR"},
 	//to an extend {"DP_HALFLIFE_SPRITE"},
 	{"DP_INPUTBUTTONS"},
+	{"DP_LIGHTSTYLE_STATICVALUE"},
 	{"DP_LITSUPPORT"},
 	{"DP_MD3_TAGSINFO",					2,	NULL, {"gettagindex", "gettaginfo"}},
 	{"DP_MONSTERWALK",					0,	NULL, {NULL}, "MOVETYPE_WALK is valid on non-player entities. Note that only players receive acceleration etc in line with none/bounce/fly/noclip movetypes on the player, thus you will have to provide your own accelerations (incluing gravity) yourself."},
@@ -5858,7 +5862,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_MINMAXBOUND",				3,	NULL, {"min", "max", "bound"}},
 	{"DP_QC_MULTIPLETEMPSTRINGS",		0,	NULL, {NULL}, "Superseded by DP_QC_UNLIMITEDTEMPSTRINGS. Functions that return a temporary string will not overwrite/destroy previous temporary strings until at least 16 strings are returned (or control returns to the engine)."},
 	{"DP_QC_RANDOMVEC",					1,	NULL, {"randomvec"}},
-	{"DP_QC_RENDER_SCENE"},	//clear+addentity+setviewprop+renderscene+setmodel are available to menuqc.
+	{"DP_QC_RENDER_SCENE",				0,	NULL, {NULL}, "clearscene+addentity+setviewprop+renderscene+setmodel are available to menuqc. WARNING: DP advertises this extension without actually supporting it, FTE does actually support it."},
 	{"DP_QC_SINCOSSQRTPOW",				4,	NULL, {"sin", "cos", "sqrt", "pow"}},
 	{"DP_QC_STRFTIME",					1,	NULL, {"strftime"}},
 	{"DP_QC_STRING_CASE_FUNCTIONS",		2,	NULL, {"strtolower", "strtoupper"}},
@@ -5871,7 +5875,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_QC_TRACE_MOVETYPE_HITMODEL"},
 	{"DP_QC_TRACE_MOVETYPE_WORLDONLY"},
 	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add annother extension...
-	{"DP_QC_UNLIMITEDTEMPSTRINGS",		0,	NULL, {NULL}, "Supersedes DP_QC_MULTIPLETEMPSTRINGS, superseded by FTE_QC_PERSISTENTTEMPSTRINGS. All temp strings will be valid at least until the QCVM returns."},
+	{"DP_QC_UNLIMITEDTEMPSTRINGS",		0,	NULL, {NULL}, "Supersedes DP_QC_MULTIPLETEMPSTRINGS, superseded by FTE_QC_PERSISTENTTEMPSTRINGS. Specifies that all temp strings will be valid at least until the QCVM returns."},
 	{"DP_QC_URI_ESCAPE",				2,	NULL, {"uri_escape", "uri_unescape"}},
 #ifdef WEBCLIENT
 	{"DP_QC_URI_GET",					1,	NULL, {"uri_get"}},
@@ -5889,23 +5893,23 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_SOLIDCORPSE"},
 	{"DP_SPRITE32"},				//hmm... is it legal to advertise this one?
 	{"DP_SV_BOTCLIENT",					2,	NULL, {"spawnclient", "clienttype"}},
-	{"DP_SV_CLIENTCOLORS"},
-	{"DP_SV_CLIENTNAME"},
+	{"DP_SV_CLIENTCOLORS",				0,	NULL, {NULL}, "Provided only for compatibility with DP."},
+	{"DP_SV_CLIENTNAME",				0,	NULL, {NULL}, "Provided only for compatibility with DP."},
 	{"DP_SV_DRAWONLYTOCLIENT"},
-	{"DP_SV_DROPCLIENT",				1,	NULL, {"dropclient"}},
+	{"DP_SV_DROPCLIENT",				1,	NULL, {"dropclient"}, "Equivelent to quakeworld's stuffcmd(self,\"disconnect\\n\"); hack"},
 	{"DP_SV_EFFECT",					1,	NULL, {"effect"}},
 	{"DP_SV_EXTERIORMODELFORCLIENT"},
 	{"DP_SV_NODRAWTOCLIENT"},		//I prefer my older system. Guess I might as well remove that older system at some point.
-	{"DP_SV_PLAYERPHYSICS"},
-	//FTE cannot implement this one, because dp's arguments are the wrong way around. its otherwise implemented. {"DP_SV_POINTPARTICLES"},
+	{"DP_SV_PLAYERPHYSICS",				0,	NULL, {NULL}, "Allows reworking parts of NQ player physics. USE AT OWN RISK - this necessitates NQ physics and is thus guarenteed to break prediction."},
+	{"DP_SV_POINTPARTICLES",			3,	NULL, {"particleeffectnum", "pointparticles", "trailparticles"}, "Specifies that pointparticles (and trailparticles) exists in ssqc as well as csqc (and that dp's trailparticles argument fuckup will normally work). ssqc values can be passed to csqc for use, the reverse is not true. Does NOT mean that DP's effectinfo.txt is supported, only that ssqc has functionality equivelent to csqc."},
 	{"DP_SV_POINTSOUND",				1,	NULL, {"pointsound"}},
-	{"DP_SV_PRECACHEANYTIME"},
+	{"DP_SV_PRECACHEANYTIME",			0,	NULL, {NULL}, "Specifies that the various precache builtins can be called at any time. WARNING: precaches are sent reliably while sound events, modelindexes, and particle events are not. This can mean sounds and particles might not work the first time around, or models may take a while to appear (after the reliables are received and the model is loaded from disk). Always attempt to precache a little in advance in order to reduce these issues (preferably at the start of the map...)"},
 	{"DP_SV_SETCOLOR"},
 	{"DP_SV_SPAWNFUNC_PREFIX"},
 	{"DP_SV_WRITEPICTURE",				1,	NULL, {"WritePicture"}},
 	{"DP_SV_WRITEUNTERMINATEDSTRING",	1,	NULL, {"WriteUnterminatedString"}},
 	{"DP_TE_BLOOD",						1,	NULL, {"te_blood"}},
-	{"DP_TE_BLOODSHOWER",				1,	NULL, {"te_bloodshower"}},
+	{"_DP_TE_BLOODSHOWER",				1,	NULL, {"te_bloodshower"}},
 	{"DP_TE_CUSTOMFLASH",				1,	NULL, {"te_customflash"}},
 	{"DP_TE_EXPLOSIONRGB",				1,	NULL, {"te_explosionrgb"}},
 	{"_DP_TE_FLAMEJET",					1,	NULL, {"te_flamejet"}},
@@ -5937,7 +5941,7 @@ lh_extension_t QSG_Extensions[] = {
 													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_mul_bone", "skel_mul_bones", "skel_copybones",
 													"skel_delete", "frameforname", "frameduration"}},
 	{"FTE_CSQC_RENDERTARGETS_WIP",		0,	NULL, {NULL}, "VF_DESTCOLOUR etc exist and are supported"},
-	{"FTE_ENT_SKIN_CONTENTS"},			//self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder.
+	{"FTE_ENT_SKIN_CONTENTS",			0,	NULL, {NULL}, "self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder."},
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
 	{"FTE_FORCESHADER",					1,	NULL, {"shaderforname"}},	//I'd rename this to _CSQC_ but it does technically provide this builtin to menuqc too, not that the forceshader entity field exists there... but whatever.
@@ -5946,9 +5950,11 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}, "Allows you to check if a client has too many reliable messages pending."},
 	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memfill8"}, "Allows dynamically allocating memory. Use pointers to access this memory. Memory will not be saved into saved games."},
 #ifndef NOMEDIA
-	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
-	{"FTE_MEDIA_CIN"},	//playfilm command supports q2 cin files.
-	{"FTE_MEDIA_ROQ"},	//playfilm command supports q3 roq files
+	#if defined(_WIN32) && !defined(WINRT)
+	{"FTE_MEDIA_AVI",					0,	NULL, {NULL}, "playfilm command supports avi files."},
+	#endif
+	{"FTE_MEDIA_CIN",					0,	NULL, {NULL}, "playfilm command supports q2 cin files."},
+	{"FTE_MEDIA_ROQ",					0,	NULL, {NULL}, "playfilm command supports q3 roq files."},
 #endif
 	{"FTE_MULTIPROGS",					5,	NULL, {"externcall", "addprogs", "externvalue", "externset", "instr"}, "Multiple progs.dat files can be loaded inside the same qcvm."},	//multiprogs functions are available.
 	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
@@ -5958,7 +5964,7 @@ lh_extension_t QSG_Extensions[] = {
 #ifdef SVCHAT
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
 #endif
-	{"FTE_QC_CHECKCOMMAND",				1,	NULL, {"checkcommand"}},
+	{"FTE_QC_CHECKCOMMAND",				1,	NULL, {"checkcommand"}, "Provides a way to test if a console command exists, and whether its a command/alias/cvar. Does not say anything about the expected meanings of any arguments or values."},
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
 	{"FTE_QC_HARDWARECURSORS",			0,	NULL, {NULL}, "setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits, it will be emulated using regular draws - this at least still avoids conflicting cursors."},
 	{"FTE_QC_HASHTABLES",				6,	NULL, {"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}},
@@ -5971,6 +5977,18 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_RAGDOLL_WIP",				1,	NULL, {"ragupdate", "skel_set_bone_world", "skel_mmap"}},
 	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},	//includes the SV_ParseConnectionlessPacket event.
 	{"FTE_QC_TRACETRIGGER"},
+#ifdef Q2CLIENT
+	{"FTE_QUAKE2_CLIENT",				0,	NULL, {NULL}, "This engine is able to act as a quake2 client"},
+#endif
+#ifdef Q2SERVER
+	{"FTE_QUAKE2_SERVER",				0,	NULL, {NULL}, "This engine is able to act as a quake2 server"},
+#endif
+#ifdef Q3CLIENT
+	{"FTE_QUAKE3_CLIENT",				0,	NULL, {NULL}, "This engine is able to act as a quake3 client"},
+#endif
+#ifdef Q3SERVER
+	{"FTE_QUAKE3_SERVER",				0,	NULL, {NULL}, "This engine is able to act as a quake3 server"},
+#endif
 	{"FTE_SOLID_LADDER"},	//Allows a simple trigger to remove effects of gravity (solid 20). obsolete. will prolly be removed at some point as it is not networked properly. Use FTE_ENT_SKIN_CONTENTS
 
 #ifdef SQL
@@ -5986,6 +6004,10 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_SV_REENTER"},
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
 												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}},
+#ifdef TERRAIN
+	{"FTE_TERRAIN_MAP",					0,	NULL, {NULL}, "This engine supports .hmp files, as well as terrain embedded within bsp files."},
+	{"FTE_RAW_MAP",						0,	NULL, {NULL}, "This engine supports directly loading .map files, as well as realtime editing of the various brushes."},
+#endif
 
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	3,	NULL, {"clientcommand", "tokenize", "argv"}},	//very very similar to the mvdsv system.
 	{"NEH_CMD_PLAY2"},

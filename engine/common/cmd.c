@@ -1778,6 +1778,36 @@ void Cmd_RestrictCommand_f (void)
 	return;
 }
 
+void Cmd_EnumerateLevel(int level, char *buf, size_t bufsize)
+{
+	cmdalias_t *a;
+	cmd_function_t *cmds;
+	int cmdlevel;
+	*buf = 0;
+	for (cmds = cmd_functions; cmds; cmds=cmds->next)
+	{
+		cmdlevel = cmds->restriction?cmds->restriction:rcon_level.ival;
+
+		if (level == cmdlevel)
+		{
+			if (*buf)
+				Q_strncatz(buf, "\t", bufsize);
+			Q_strncatz(buf, cmds->name, bufsize);
+		}
+	}
+	for (a=cmd_alias ; a ; a=a->next)
+	{
+		cmdlevel = a->restriction?a->restriction:rcon_level.ival;
+
+		if (level == cmdlevel)
+		{
+			if (*buf)
+				Q_strncatz(buf, "\t", bufsize);
+			Q_strncatz(buf, cmds->name, bufsize);
+		}
+	}
+}
+
 int Cmd_Level(char *name)
 {
 	cmdalias_t *a;
@@ -1793,7 +1823,7 @@ int Cmd_Level(char *name)
 	{
 		if (!strcmp(a->name, name))
 		{
-			return a->restriction?a->restriction:Cmd_ExecLevel;
+			return a->restriction?a->restriction:rcon_level.ival;
 		}
 	}
 	return -1;

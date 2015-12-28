@@ -4593,24 +4593,24 @@ static void QCBUILTIN PF_getentity(pubprogfuncs_t *prinst, struct globalvars_s *
 		G_FLOAT(OFS_RETURN) = es->skinnum;
 		break;
 	case GE_MINS:
-		G_FLOAT(OFS_RETURN+0) = -(es->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = -(es->solid & 31);
-		G_FLOAT(OFS_RETURN+2) = -((es->solid>>5) & 31);
+		G_FLOAT(OFS_RETURN+0) = -(int)(es->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = -(int)(es->solid & 31);
+		G_FLOAT(OFS_RETURN+2) = -(int)((es->solid>>5) & 31);
 		break;
 	case GE_MAXS:
 		G_FLOAT(OFS_RETURN+0) = (es->solid & 31);
 		G_FLOAT(OFS_RETURN+1) = (es->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = ((es->solid>>10) & 63) - 32;
+		G_FLOAT(OFS_RETURN+2) = ((es->solid>>10) & 63) - 32;
 		break;
 	case GE_ABSMIN:
-		G_FLOAT(OFS_RETURN+0) = le->origin[0] + -(es->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = le->origin[1] + -(es->solid & 31);
-		G_FLOAT(OFS_RETURN+2) = le->origin[2] + -((es->solid>>5) & 31);
+		G_FLOAT(OFS_RETURN+0) = le->origin[0] + -(int)(es->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = le->origin[1] + -(int)(es->solid & 31);
+		G_FLOAT(OFS_RETURN+2) = le->origin[2] + -(int)((es->solid>>5) & 31);
 		break;
 	case GE_ABSMAX:
 		G_FLOAT(OFS_RETURN+0) = le->origin[0] + (es->solid & 31);
 		G_FLOAT(OFS_RETURN+1) = le->origin[1] + (es->solid & 31);
-		G_FLOAT(OFS_RETURN+1) = le->origin[2] + ((es->solid>>10) & 63) - 32;
+		G_FLOAT(OFS_RETURN+2) = le->origin[2] + ((es->solid>>10) & 63) - 32;
 		break;
 	case GE_ORIGINANDVECTORS:
 		VectorCopy(le->origin, G_VECTOR(OFS_RETURN));
@@ -5408,7 +5408,7 @@ static struct {
 	{"setmodelindex",			PF_cs_SetModelIndex,			333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
 	{"modelnameforindex",		PF_cs_ModelnameForIndex,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
 
-	{"particleeffectnum",		PF_cs_particleeffectnum,			335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
+	{"particleeffectnum",		PF_cs_particleeffectnum,		335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
 	{"trailparticles",			PF_cs_trailparticles,			336},	// #336 void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
 	{"trailparticles_dp",		PF_cs_trailparticles,			336},	// #336 DP sucks
 	{"pointparticles",			PF_cs_pointparticles,			337},	// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)

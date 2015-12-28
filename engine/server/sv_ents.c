@@ -2705,10 +2705,10 @@ int glowsize=0, glowcolor=0, colourmod=0;
 	else
 		MSG_WriteByte (msg,ent->number);
 
-	if (bits & NQU_MODEL)		MSG_WriteByte (msg,	ent->modelindex);
-	if (bits & NQU_FRAME)		MSG_WriteByte (msg, ent->frame);
-	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->colormap);
-	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->skinnum);
+	if (bits & NQU_MODEL)		MSG_WriteByte (msg,	ent->modelindex & 0xff);
+	if (bits & NQU_FRAME)		MSG_WriteByte (msg, ent->frame & 0xff);
+	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->colormap & 0xff);
+	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->skinnum & 0xff);
 	if (bits & NQU_EFFECTS)		MSG_WriteByte (msg, eff & 0x00ff);
 	if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->origin[0]);
 	if (bits & NQU_ANGLE1)		MSG_WriteAngle(msg, ent->angles[0]);
@@ -2723,18 +2723,18 @@ int glowsize=0, glowcolor=0, colourmod=0;
 		if (bits & RMQU_SCALE)		MSG_WriteByte(msg, ent->scale);
 		if (bits & FITZU_FRAME2)	MSG_WriteByte(msg, ent->frame>>8);
 		if (bits & FITZU_MODEL2)	MSG_WriteByte(msg, ent->modelindex>>8);
-		if (bits & FITZU_LERPFINISH)MSG_WriteByte(msg, (ed->v->nextthink - sv.world.physicstime) * 255);
+		if (bits & FITZU_LERPFINISH)MSG_WriteByte(msg, bound(0, (int)((ed->v->nextthink - sv.world.physicstime) * 255), 255));
 	}
 	else
 	{
-		if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->trans*255);
-		if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->scale*16);
+		if (bits & DPU_ALPHA)		MSG_WriteByte(msg, ent->trans);
+		if (bits & DPU_SCALE)		MSG_WriteByte(msg, ent->scale);
 		if (bits & DPU_EFFECTS2)	MSG_WriteByte(msg, eff >> 8);
 		if (bits & DPU_GLOWSIZE)	MSG_WriteByte(msg, glowsize);
 		if (bits & DPU_GLOWCOLOR)	MSG_WriteByte(msg, glowcolor);
 		if (bits & DPU_COLORMOD)	MSG_WriteByte(msg, colourmod);
-		if (bits & DPU_FRAME2)		MSG_WriteByte(msg, (int)ent->frame >> 8);
-		if (bits & DPU_MODEL2)		MSG_WriteByte(msg, (int)ent->modelindex >> 8);
+		if (bits & DPU_FRAME2)		MSG_WriteByte(msg, ent->frame >> 8);
+		if (bits & DPU_MODEL2)		MSG_WriteByte(msg, ent->modelindex >> 8);
 	}
 }
 #endif

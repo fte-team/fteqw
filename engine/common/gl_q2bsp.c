@@ -83,6 +83,7 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s)
 	mvertex_t	*v;
 	mtexinfo_t	*tex;
 	int		bmins[2], bmaxs[2];
+	int idx;
 
 	mins[0] = mins[1] = 999999;
 	maxs[0] = maxs[1] = -99999;
@@ -92,10 +93,13 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s)
 	for (i=0 ; i<s->numedges ; i++)
 	{
 		e = mod->surfedges[s->firstedge+i];
-		if (e >= 0)
-			v = &mod->vertexes[mod->edges[e].v[0]];
+		idx = e < 0;
+		if (idx)
+			e = -e;
+		if (e < 0 || e >= mod->numedges)
+			v = &mod->vertexes[0];
 		else
-			v = &mod->vertexes[mod->edges[-e].v[1]];
+			v = &mod->vertexes[mod->edges[e].v[idx]];
 
 		for (j=0 ; j<2 ; j++)
 		{

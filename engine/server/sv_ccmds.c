@@ -540,6 +540,7 @@ void SV_Map_f (void)
 	if (strlen(level) > 4 &&
 		(!strcmp(level + strlen(level)-4, ".cin") ||
 		!strcmp(level + strlen(level)-4, ".roq") ||
+		!strcmp(level + strlen(level)-4, ".pcx") ||
 		!strcmp(level + strlen(level)-4, ".avi")))
 	{
 		cinematic = true;
@@ -2590,7 +2591,7 @@ static void SV_SendGameCommand_f(void)
 	}
 	else
 #endif
-		Con_Printf("This command requires a Q2 sever\n");
+		Con_Printf("Mod-specific command not known\n");
 }
 
 

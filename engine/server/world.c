@@ -2166,6 +2166,8 @@ static qboolean GenerateCollisionMesh_BSP(world_t *world, model_t *mod, wedict_t
 	mesh_t *mesh;
 	unsigned int numverts;
 	unsigned int numindexes,i;
+	int *ptr_elements;
+	float *ptr_verts;
 
 	numverts = 0;
 	numindexes = 0;
@@ -2192,8 +2194,8 @@ static qboolean GenerateCollisionMesh_BSP(world_t *world, model_t *mod, wedict_t
 		Con_DPrintf("entity %i (classname %s) has no geometry\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
 		return false;
 	}
-	ed->ode.ode_element3i = (int*)BZ_Malloc(numindexes*sizeof(*ed->ode.ode_element3i));
-	ed->ode.ode_vertex3f = (float*)BZ_Malloc(numverts*sizeof(vec3_t));
+	ptr_elements = (int*)BZ_Malloc(numindexes*sizeof(*ptr_elements));
+	ptr_verts = (float*)BZ_Malloc(numverts*sizeof(vec3_t));
 
 	numverts = 0;
 	numindexes = 0;
@@ -2207,13 +2209,13 @@ static qboolean GenerateCollisionMesh_BSP(world_t *world, model_t *mod, wedict_t
 		{
 			mesh = surf->mesh;
 			for (i = 0; i < mesh->numvertexes; i++)
-				VectorSubtract(mesh->xyz_array[i], geomcenter, (ed->ode.ode_vertex3f + 3*(numverts+i)));
+				VectorSubtract(mesh->xyz_array[i], geomcenter, (ptr_verts + 3*(numverts+i)));
 			for (i = 0; i < mesh->numindexes; i+=3)
 			{
 				//flip the triangles as we go
-				ed->ode.ode_element3i[numindexes+i+0] = numverts+mesh->indexes[i+2];
-				ed->ode.ode_element3i[numindexes+i+1] = numverts+mesh->indexes[i+1];
-				ed->ode.ode_element3i[numindexes+i+2] = numverts+mesh->indexes[i+0];
+				ptr_elements[numindexes+i+0] = numverts+mesh->indexes[i+2];
+				ptr_elements[numindexes+i+1] = numverts+mesh->indexes[i+1];
+				ptr_elements[numindexes+i+2] = numverts+mesh->indexes[i+0];
 			}
 			numverts += mesh->numvertexes;
 			numindexes += i;
@@ -2238,19 +2240,21 @@ static qboolean GenerateCollisionMesh_BSP(world_t *world, model_t *mod, wedict_t
 					vec = mod->vertexes[edge->v[1]].position;
 				}
 			
-				VectorSubtract(vec, geomcenter, (ed->ode.ode_vertex3f + 3*(numverts+i)));
+				VectorSubtract(vec, geomcenter, (ptr_verts + 3*(numverts+i)));
 			}
 			for (i = 2; i < surf->numedges; i++)
 			{
 				//quake is backwards, not ode
-				ed->ode.ode_element3i[numindexes++] = numverts+i;
-				ed->ode.ode_element3i[numindexes++] = numverts+i-1;
-				ed->ode.ode_element3i[numindexes++] = numverts;
+				ptr_elements[numindexes++] = numverts+i;
+				ptr_elements[numindexes++] = numverts+i-1;
+				ptr_elements[numindexes++] = numverts;
 			}
 			numverts += surf->numedges;
 		}
 	}
 
+	ed->ode.ode_element3i = ptr_elements;
+	ed->ode.ode_vertex3f = ptr_verts;
 	ed->ode.ode_numvertices = numverts;
 	ed->ode.ode_numtriangles = numindexes/3;
 	return true;
@@ -2265,6 +2269,8 @@ static qboolean GenerateCollisionMesh_Alias(world_t *world, model_t *mod, wedict
 	galiasinfo_t *inf;
 	unsigned int surfnum = 0;
 	entity_t re;
+	int *ptr_elements;
+	float *ptr_verts;
 
 	numverts = 0;
 	numindexes = 0;
@@ -2287,8 +2293,8 @@ static qboolean GenerateCollisionMesh_Alias(world_t *world, model_t *mod, wedict
 		Con_DPrintf("entity %i (classname %s) has no geometry\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
 		return false;
 	}
-	ed->ode.ode_element3i = (int*)BZ_Malloc(numindexes*sizeof(*ed->ode.ode_element3i));
-	ed->ode.ode_vertex3f = (float*)BZ_Malloc(numverts*sizeof(vec3_t));
+	ptr_elements = (int*)BZ_Malloc(numindexes*sizeof(*ptr_elements));
+	ptr_verts = (float*)BZ_Malloc(numverts*sizeof(vec3_t));
 
 	numverts = 0;
 	numindexes = 0;
@@ -2298,13 +2304,13 @@ static qboolean GenerateCollisionMesh_Alias(world_t *world, model_t *mod, wedict
 	{
 		Alias_GAliasBuildMesh(&mesh, NULL, inf, surfnum++, &re, false);
 		for (i = 0; i < mesh.numvertexes; i++)
-			VectorSubtract(mesh.xyz_array[i], geomcenter, (ed->ode.ode_vertex3f + 3*(numverts+i)));
+			VectorSubtract(mesh.xyz_array[i], geomcenter, (ptr_verts + 3*(numverts+i)));
 		for (i = 0; i < mesh.numindexes; i+=3)
 		{
 			//flip the triangles as we go
-			ed->ode.ode_element3i[numindexes+i+0] = numverts+mesh.indexes[i+2];
-			ed->ode.ode_element3i[numindexes+i+1] = numverts+mesh.indexes[i+1];
-			ed->ode.ode_element3i[numindexes+i+2] = numverts+mesh.indexes[i+0];
+			ptr_elements[numindexes+i+0] = numverts+mesh.indexes[i+2];
+			ptr_elements[numindexes+i+1] = numverts+mesh.indexes[i+1];
+			ptr_elements[numindexes+i+2] = numverts+mesh.indexes[i+0];
 		}
 		numverts += inf->numverts;
 		numindexes += inf->numindexes;
@@ -2313,13 +2319,15 @@ static qboolean GenerateCollisionMesh_Alias(world_t *world, model_t *mod, wedict
 
 	Alias_FlushCache();	//it got built using an entity on the stack, make sure other stuff doesn't get hurt.
 
+	ed->ode.ode_element3i = ptr_elements;
+	ed->ode.ode_vertex3f = ptr_verts;
 	ed->ode.ode_numvertices = numverts;
 	ed->ode.ode_numtriangles = numindexes/3;
 	return true;
 }
 
 //Bullet has a fit if we have any degenerate triangles, so make sure we can determine some surface normal
-static void World_Bullet_CleanupMesh(wedict_t *ed)
+static void CollisionMesh_CleanupMesh(wedict_t *ed)
 {
 	float *v1, *v2, *v3;
 	vec3_t d1, d2, cr;
@@ -2363,7 +2371,7 @@ qboolean QDECL World_GenerateCollisionMesh(world_t *world, model_t *mod, wedict_
 
 	if (result)
 	{
-		World_Bullet_CleanupMesh(ed);
+		CollisionMesh_CleanupMesh(ed);
 		if (ed->ode.ode_numtriangles > 0)
 			return true;
 	}

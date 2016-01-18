@@ -215,20 +215,33 @@ struct remapctx
 	char *type;
 	char *devicename;
 	int newdevid;
+	unsigned int found;
+	unsigned int failed;
 };
-static void IN_DeviceIDs_DoRemap(void *vctx, char *type, char *devicename, int *qdevid)
+static void IN_DeviceIDs_DoRemap(void *vctx, const char *type, const char *devicename, int *qdevid)
 {
 	struct remapctx *ctx = vctx;
+	if (!qdevid)
+		return;
+
 	if (!strcmp(ctx->type, type))
 		if (!strcmp(ctx->devicename, devicename))
-			*qdevid = ctx->newdevid;
+		{
+			if (qdevid)
+				*qdevid = ctx->newdevid;
+			else
+				ctx->failed++;
+			ctx->found++;
+		}
 }
-void IN_DeviceIDs_Enumerate(void *ctx, char *type, char *devicename, int *qdevid)
+void IN_DeviceIDs_Enumerate(void *ctx, const char *type, const char *devicename, int *qdevid)
 {
+	char buf[8192];
+	devicename = COM_QuotedString(devicename, buf, sizeof(buf), false);
 	if (!qdevid)
-		Con_Printf("%s (%s): %s\n", type, devicename, "device cannot be remapped");
+		Con_Printf("%s\t%s\t%s\n", type, "N/A", devicename);
 	else
-		Con_Printf("%s (%s): %i\n", type, devicename, *qdevid);
+		Con_Printf("%s\t%i\t%s\n", type, *qdevid, devicename);
 }
 
 void IN_DeviceIDs_f(void)
@@ -237,13 +250,24 @@ void IN_DeviceIDs_f(void)
 
 	if (Cmd_Argc() > 3)
 	{
+		ctx.found = 0;
 		ctx.type = Cmd_Argv(1);
-		ctx.devicename = Cmd_Argv(2);
-		ctx.newdevid = atoi(Cmd_Argv(3));
+		ctx.newdevid = atoi(Cmd_Argv(2));
+		ctx.devicename = Cmd_Argv(3);
 		INS_EnumerateDevices(&ctx, IN_DeviceIDs_DoRemap);
+
+		if (ctx.failed)
+			Con_Printf("device cannot be remapped\n");
+		else if (!ctx.found)
+			Con_Printf("%s \"%s\" not known\n", ctx.type, ctx.devicename);
+		else if (!cl_warncmd.ival)
+			Con_Printf("device remapped\n");
 	}
 	else
+	{
+		Con_Printf("Type\tMapping\tName\n");
 		INS_EnumerateDevices(NULL, IN_DeviceIDs_Enumerate);
+	}
 }
 
 float IN_DetermineMouseRate(void)

@@ -3389,19 +3389,18 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 	}
 }
 
-void D3D11BE_SubmitMeshes (qboolean drawworld, batch_t **blist, int first, int stop)
+void D3D11BE_SubmitMeshes (batch_t **worldbatches, batch_t **blist, int first, int stop)
 {
-	model_t *model = cl.worldmodel;
 	int i;
 
 	for (i = first; i < stop; i++)
 	{
-		if (drawworld)
+		if (worldbatches)
 		{
 			if (i == SHADER_SORT_PORTAL /*&& !r_noportals.ival*/ && !r_refdef.recurse)
-				BE_SubmitMeshesPortals(model->batches, blist[i]);
+				BE_SubmitMeshesPortals(worldbatches, blist[i]);
 
-			BE_SubmitMeshesSortList(model->batches[i]);
+			BE_SubmitMeshesSortList(worldbatches[i]);
 		}
 		BE_SubmitMeshesSortList(blist[i]);
 	}
@@ -3412,7 +3411,7 @@ void D3D11BE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
-	D3D11BE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+	D3D11BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 	BE_SelectEntity(&r_worldentity);
 }
 
@@ -3505,7 +3504,7 @@ void D3D11BE_DoneShadows(void)
 }
 #endif
 
-void D3D11BE_DrawWorld (qboolean drawworld, qbyte *vis)
+void D3D11BE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
@@ -3556,7 +3555,7 @@ void D3D11BE_DrawWorld (qboolean drawworld, qbyte *vis)
 		BE_SelectMode(BEM_STANDARD);
 
 		RSpeedRemark();
-		D3D11BE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+		D3D11BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 		RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
@@ -3566,13 +3565,13 @@ void D3D11BE_DrawWorld (qboolean drawworld, qbyte *vis)
 		RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
 
-		D3D11BE_SubmitMeshes(true, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);
+		D3D11BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);
 	}
 	else
 	{
 		RSpeedRemark();
 		shaderstate.identitylighting = 1;
-		D3D11BE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_COUNT);
+		D3D11BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_COUNT);
 		RSpeedEnd(RSPEED_DRAWENTITIES);
 	}
 

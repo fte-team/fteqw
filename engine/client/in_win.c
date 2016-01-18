@@ -118,6 +118,7 @@ typedef struct {
 	union {
 		HANDLE rawinputhandle;
 	} handles;
+	char sysname[MAX_OSPATH];
 
 	int qdeviceid;
 } keyboard_t;
@@ -126,6 +127,7 @@ typedef struct {
 	union {
 		HANDLE rawinputhandle; // raw input
 	} handles;
+	char sysname[MAX_OSPATH];
 
 	int numbuttons;
 	int oldbuttons;
@@ -280,8 +282,8 @@ static int rawkbdcount;
 static RAWINPUT *raw;
 static int ribuffersize;
 
-static cvar_t in_rawinput = CVARD("in_rawinput", "0", "Enables rawinput support for mice in XP onwards. Rawinput permits independant device identification (ie: splitscreen clients can each have their own mouse)");
-static cvar_t in_rawinput_keyboard = CVARD("in_rawinput_keyboard", "0", "Enables rawinput support for keyboards in XP onwards as well as just mice. Requires in_rawinput to be set.");
+static cvar_t in_rawinput_mice = CVARD("in_rawinput", "0", "Enables rawinput support for mice in XP onwards. Rawinput permits independant device identification (ie: splitscreen clients can each have their own mouse)");
+static cvar_t in_rawinput_keyboard = CVARD("in_rawinput_keyboard", "0", "Enables rawinput support for keyboards in XP onwards as well as just mice.");
 static cvar_t in_rawinput_rdp = CVARD("in_rawinput_rdp", "0", "Activate Remote Desktop Protocol devices too.");
 
 void INS_RawInput_MouseDeRegister(void);
@@ -899,25 +901,25 @@ void INS_RawInput_Init(void)
 	_RRID = (pRegisterRawInputDevices)GetProcAddress(user32,"RegisterRawInputDevices");
 	if (!_RRID)
 	{
-		Con_SafePrintf("Raw input: function RegisterRawInputDevices could not be registered\n");
+		Con_SafePrintf("Raw input: function RegisterRawInputDevices is not available\n");
 		return;
 	}
 	_GRIDL = (pGetRawInputDeviceList)GetProcAddress(user32,"GetRawInputDeviceList");
 	if (!_GRIDL)
 	{
-		Con_SafePrintf("Raw input: function GetRawInputDeviceList could not be registered\n");
+		Con_SafePrintf("Raw input: function GetRawInputDeviceList is not available\n");
 		return;
 	}
 	_GRIDIA = (pGetRawInputDeviceInfoA)GetProcAddress(user32,"GetRawInputDeviceInfoA");
 	if (!_GRIDIA)
 	{
-		Con_SafePrintf("Raw input: function GetRawInputDeviceInfoA could not be registered\n");
+		Con_SafePrintf("Raw input: function GetRawInputDeviceInfoA is not available\n");
 		return;
 	}
 	_GRID = (pGetRawInputData)GetProcAddress(user32,"GetRawInputData");
 	if (!_GRID)
 	{
-		Con_SafePrintf("Raw input: function GetRawInputData could not be registered\n");
+		Con_SafePrintf("Raw input: function GetRawInputData is not available\n");
 		return;
 	}
 
@@ -958,6 +960,9 @@ void INS_RawInput_Init(void)
 		switch (pRawInputDeviceList[i].dwType)
 		{
 		case RIM_TYPEMOUSE:
+			if (!in_rawinput_mice.ival)
+				continue;
+
 			mtemp++;
 			break;
 		case RIM_TYPEKEYBOARD:
@@ -995,9 +1000,14 @@ void INS_RawInput_Init(void)
 		switch (pRawInputDeviceList[i].dwType)
 		{
 		case RIM_TYPEMOUSE:
+			if (!in_rawinput_mice.ival)
+				continue;
+
 			// set handle
 			rawmice[rawmicecount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
-			rawmice[rawmicecount].numbuttons = 10;
+			Q_strncpyz(rawmice[rawmicecount].sysname, dname, sizeof(rawmice[rawmicecount].sysname));
+			rawmice[rawmicecount].numbuttons = 16;
+			rawmice[rawmicecount].oldbuttons = 0;
 			rawmice[rawmicecount].qdeviceid = rawmicecount;
 			rawmicecount++;
 			break;
@@ -1006,6 +1016,7 @@ void INS_RawInput_Init(void)
 				continue;
 
 			rawkbd[rawkbdcount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
+			Q_strncpyz(rawkbd[rawkbdcount].sysname, dname, sizeof(rawkbd[rawkbdcount].sysname));
 			rawkbd[rawkbdcount].qdeviceid = rawkbdcount;
 			rawkbdcount++;
 			break;
@@ -1023,7 +1034,7 @@ void INS_RawInput_Init(void)
 				break;
 			}
 		}
-		Con_SafePrintf("Raw input type %i: [%i] %s\n", (int)pRawInputDeviceList[i].dwType, i, dname);
+		Con_DPrintf("Raw input type %i: [%i] %s\n", (int)pRawInputDeviceList[i].dwType, i, dname);
 	}
 
 
@@ -1108,7 +1119,7 @@ INS_Init
 void INS_ReInit (void)
 {
 #ifdef USINGRAWINPUT
-	if (in_rawinput.value)
+	if (in_rawinput_mice.ival || in_rawinput_keyboard.ival)
 	{
 		INS_RawInput_Init();
 	}
@@ -1164,7 +1175,7 @@ void INS_Init (void)
 	uiWheelMessage = RegisterWindowMessageA ( "MSWHEEL_ROLLMSG" );
 
 #ifdef USINGRAWINPUT
-	Cvar_Register (&in_rawinput, "Input Controls");
+	Cvar_Register (&in_rawinput_mice, "Input Controls");
 	Cvar_Register (&in_rawinput_keyboard, "Input Controls");
 	Cvar_Register (&in_rawinput_rdp, "Input Controls");
 #endif
@@ -1967,9 +1978,9 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char
 	int idx;
 
 	for (idx = 0; idx < rawmicecount; idx++)
-		callback(ctx, "mouse", va("raw%i", idx), &rawmice[idx].qdeviceid);
+		callback(ctx, "mouse", rawmice[idx].sysname?rawmice[idx].sysname:va("raw%i", idx), &rawmice[idx].qdeviceid);
 	for (idx = 0; idx < rawkbdcount; idx++)
-		callback(ctx, "keyboard", va("raw%i", idx), &rawkbd[idx].qdeviceid);
+		callback(ctx, "keyboard", rawkbd[idx].sysname?rawkbd[idx].sysname:va("rawk%i", idx), &rawkbd[idx].qdeviceid);
 
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 	if (dinput >= DINPUT_VERSION_DX7 && g_pMouse7)

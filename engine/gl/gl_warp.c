@@ -67,7 +67,7 @@ void R_SetSky(char *skyname)
 GL_DrawSkyChain
 =================
 */
-void R_DrawSkyChain (batch_t *batch)
+qboolean R_DrawSkyChain (batch_t *batch)
 {
 	shader_t *skyshader;
 	texid_t *skyboxtex;
@@ -76,6 +76,9 @@ void R_DrawSkyChain (batch_t *batch)
 		skyshader = forcedskyshader;
 	else
 		skyshader = batch->shader;
+
+	if (skyshader->prog)
+		return false;
 
 	if (skyshader->skydome)
 		skyboxtex = skyshader->skydome->farbox_textures;
@@ -112,6 +115,8 @@ void R_DrawSkyChain (batch_t *batch)
 	//you can't please them all.
 	if (r_worldentity.model->fromgame != fg_quake3)
 		GL_SkyForceDepth(batch);
+
+	return true;
 }
 
 /*

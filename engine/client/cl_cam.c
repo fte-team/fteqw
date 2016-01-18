@@ -51,6 +51,7 @@ static void QDECL CL_AutoTrackChanged(cvar_t *v, char *oldval)
 	Cam_AutoTrack_Update(v->string);
 }
 // track high fragger
+cvar_t cl_autotrack_team = CVARD("cl_autotrack_team", "", "Specifies a team name that should be auto-tracked (players on other teams will not be candidates for autotracking). Accepts * and ? wildcards for awkward chars.");
 cvar_t cl_autotrack = CVARCD("cl_autotrack", "auto", CL_AutoTrackChanged, "Specifies the default tracking mode at the start of the map. Use the 'autotrack' command to reset/apply an auto-tracking mode without changing the default.\nValid values are: high, ^hkiller^h, mod, user. Other values are treated as weighting scripts for mvd playback, where available.");
 cvar_t cl_hightrack = CVARD("cl_hightrack", "0", "Obsolete. If you want hightrack, use '[cl_]autotrack high' instead.");
 
@@ -346,11 +347,13 @@ static float CL_TrackScore(player_info_t *pl, char **rule, float *weights, int p
 	*rule = s;
 	return l;
 }
-static qboolean CL_MayTrack(int seat, int player)
+static qboolean CL_MayAutoTrack(int seat, int player)
 {
 	if (player < 0)
 		return false;
 	if (!cl.players[player].userid || !cl.players[player].name[0] || cl.players[player].spectator)
+		return false;
+	if (*cl_autotrack_team.string && !wildcmp(cl_autotrack_team.string, cl.players[player].team))
 		return false;
 	for (seat--; seat >= 0; seat--)
 	{
@@ -418,7 +421,7 @@ static int CL_FindHighTrack(int seat, char *rule)
 
 	//set a default to the currently tracked player, to reuse the current player we're tracking if someone lower equalises.
 	j = cl.playerview[seat].cam_spec_track;
-	if (CL_MayTrack(seat, j))
+	if (CL_MayAutoTrack(seat, j))
 	{
 		p = rule;
 		max = CL_TrackScore(&cl.players[j], &p, weights, PRI_TOP);
@@ -434,7 +437,7 @@ static int CL_FindHighTrack(int seat, char *rule)
 		s = &cl.players[i];
 		if (j == i)	//this was our default.
 			continue;
-		if (!CL_MayTrack(seat, i))
+		if (!CL_MayAutoTrack(seat, i))
 			continue;
 		if (cl.teamplay && seat && cl.playerview[0].cam_spec_track >= 0 && strcmp(cl.players[cl.playerview[0].cam_spec_track].team, s->team))
 			continue;	//when using multiview, keep tracking the team
@@ -449,12 +452,13 @@ static int CL_FindHighTrack(int seat, char *rule)
 	if (j == -1 && cl.teamplay && seat)
 	{
 		//do it again, but with the teamplay check inverted
+		//fixme: should probably reduce seat count instead, at least in demos.
 		for (i = 0; i < cl.allocated_client_slots; i++)
 		{
 			s = &cl.players[i];
 			if (j == i)	//this was our default.
 				continue;
-			if (!CL_MayTrack(seat, i))
+			if (!CL_MayAutoTrack(seat, i))
 				continue;
 			if (!(cl.teamplay && seat && cl.playerview[0].cam_spec_track >= 0 && strcmp(cl.players[cl.playerview[0].cam_spec_track].team, s->team)))
 				continue;	//when using multiview, keep tracking the team
@@ -468,7 +472,7 @@ static int CL_FindHighTrack(int seat, char *rule)
 		}
 	}
 
-	if (j != -1 && CL_MayTrack(seat, cl.playerview[seat].cam_spec_track) && !instant)
+	if (j != -1 && CL_MayAutoTrack(seat, cl.playerview[seat].cam_spec_track) && !instant)
 	{
 		i = cl.playerview[seat].cam_spec_track;
 		//extra hacks to prevent 'random' switching mid-game
@@ -1323,6 +1327,7 @@ void Cam_Track4_f(void)
 void CL_InitCam(void)
 {
 	Cvar_Register (&cl_autotrack, cl_spectatorgroup);
+	Cvar_Register (&cl_autotrack_team, cl_spectatorgroup);
 	Cvar_Register (&cl_hightrack, cl_spectatorgroup);
 	Cvar_Register (&cl_chasecam, cl_spectatorgroup);
 //	Cvar_Register (&cl_camera_maxpitch, cl_spectatorgroup);

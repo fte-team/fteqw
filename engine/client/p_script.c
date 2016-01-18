@@ -279,7 +279,8 @@ typedef struct part_type_s {
 		SM_LAVASPLASH, //lavasplash = q1-style lavasplash
 		SM_UNICIRCLE, //unicircle = uniform circle
 		SM_FIELD, //field = synced field (brightfield, etc)
-		SM_DISTBALL // uneven distributed ball
+		SM_DISTBALL, // uneven distributed ball
+		SM_MESHSURFACE //distributed roughly evenly over the surface of the mesh
 	} spawnmode;
 
 	float gravity;
@@ -1186,7 +1187,7 @@ void P_ParticleEffect_f(void)
 			float tscale;
 
 			tscale = atof(Cmd_Argv(5));
-			if (tscale < 0)
+			if (tscale <= 0)
 				tscale = 1;
 
 			ptype->s1 = atof(value)/tscale;
@@ -1199,6 +1200,51 @@ void P_ParticleEffect_f(void)
 
 			if (ptype->randsmax < 1 || ptype->texsstride == 0)
 				ptype->randsmax = 1;
+		}
+		else if (!strcmp(var, "atlas"))
+		{	//atlas countineachaxis first [last]
+			int dims;
+			int i;
+			int m;
+
+			dims = atof(Cmd_Argv(1));
+			i = atoi(Cmd_Argv(2));
+			m = atoi(Cmd_Argv(3));
+			if (dims < 1)
+				dims = 1;
+
+			if (m > (m/dims)*dims+dims-1)
+			{
+				m = (m/dims)*dims+dims-1;
+				Con_Printf("effect %s wraps across an atlased line\n", ptype->name);
+			}
+			if (m < i)
+				m = i;
+
+			ptype->s1 = 1.0/dims * (i%dims);
+			ptype->s2 = 1.0/dims * (1+(i%dims));
+			ptype->t1 = 1.0/dims * (i/dims);
+			ptype->t2 = 1.0/dims * (1+(i/dims));
+
+			ptype->randsmax = m-i;
+			ptype->texsstride = ptype->s2-ptype->s1;
+
+			//its modulo
+			ptype->randsmax++;
+		}
+		else if (!strcmp(var, "rotation"))
+		{
+			ptype->rotationstartmin = atof(value)*M_PI/180;
+			if (Cmd_Argc()>2)
+				ptype->rotationstartrand = atof(Cmd_Argv(2))*M_PI/180-ptype->rotationstartmin;
+			else
+				ptype->rotationstartrand = 0;
+
+			ptype->rotationmin = atof(Cmd_Argv(3))*M_PI/180;
+			if (Cmd_Argc()>4)
+				ptype->rotationrand = atof(Cmd_Argv(4))*M_PI/180-ptype->rotationmin;
+			else
+				ptype->rotationrand = 0;
 		}
 		else if (!strcmp(var, "rotationstart"))
 		{
@@ -1517,23 +1563,66 @@ parsefluid:
 		}
 		else if (!strcmp(var, "sound"))
 		{
+			char *e;
 			ptype->sounds = BZ_Realloc(ptype->sounds, sizeof(partsounds_t)*(ptype->numsounds+1));
 			Q_strncpyz(ptype->sounds[ptype->numsounds].name, Cmd_Argv(1), sizeof(ptype->sounds[ptype->numsounds].name));
 			if (*ptype->sounds[ptype->numsounds].name)
 				S_PrecacheSound(ptype->sounds[ptype->numsounds].name);
-			ptype->sounds[ptype->numsounds].vol = atof(Cmd_Argv(2));
-			if (!ptype->sounds[ptype->numsounds].vol)
-				ptype->sounds[ptype->numsounds].vol = 1;
-			ptype->sounds[ptype->numsounds].atten = atof(Cmd_Argv(3));
-			if (!ptype->sounds[ptype->numsounds].atten)
-				ptype->sounds[ptype->numsounds].atten = 1;
-			ptype->sounds[ptype->numsounds].pitch = atof(Cmd_Argv(4));
-			if (!ptype->sounds[ptype->numsounds].pitch)
-				ptype->sounds[ptype->numsounds].pitch = 100;
-			ptype->sounds[ptype->numsounds].delay = atof(Cmd_Argv(5));
-			if (!ptype->sounds[ptype->numsounds].delay)
-				ptype->sounds[ptype->numsounds].delay = 0;
-			ptype->sounds[ptype->numsounds].weight = atof(Cmd_Argv(6));
+
+			ptype->sounds[ptype->numsounds].vol = 1;
+			ptype->sounds[ptype->numsounds].atten = 1;
+			ptype->sounds[ptype->numsounds].pitch = 100;
+			ptype->sounds[ptype->numsounds].delay = 0;
+			ptype->sounds[ptype->numsounds].weight = 0;
+
+			strtoul(Cmd_Argv(2), &e, 0);
+			while(*e == ' ' || *e == '\t')
+				e++;
+			if (*e)
+			{
+				int p;
+				for(p = 2; p < Cmd_Argc(); p++)
+				{
+					e = Cmd_Argv(p);
+
+					if (!Q_strncasecmp(e, "vol=", 4) || !Q_strncasecmp(e, "volume=", 7))
+						ptype->sounds[ptype->numsounds].vol = atof(strchr(e, '=')+1);
+					else if (!Q_strncasecmp(e, "attn=", 5) || !Q_strncasecmp(e, "atten=", 6) || !Q_strncasecmp(e, "attenuation=", 12))
+					{
+						e = strchr(e, '=')+1;
+						if (!strcmp(e, "none"))
+							ptype->sounds[ptype->numsounds].atten = 0;
+						else if (!strcmp(e, "normal"))
+							ptype->sounds[ptype->numsounds].atten = 1;
+						else
+							ptype->sounds[ptype->numsounds].atten = atof(e);
+					}
+					else if (!Q_strncasecmp(e, "pitch=", 6))
+						ptype->sounds[ptype->numsounds].pitch = atof(strchr(e, '=')+1);
+					else if (!Q_strncasecmp(e, "delay=", 6))
+						ptype->sounds[ptype->numsounds].delay = atof(strchr(e, '=')+1);
+					else if (!Q_strncasecmp(e, "weight=", 7))
+						ptype->sounds[ptype->numsounds].weight = atof(strchr(e, '=')+1);
+					else
+						Con_Printf("Bad named argument: %s\n", e);
+				}
+			}
+			else
+			{
+				ptype->sounds[ptype->numsounds].vol = atof(Cmd_Argv(2));
+				if (!ptype->sounds[ptype->numsounds].vol)
+					ptype->sounds[ptype->numsounds].vol = 1;
+				ptype->sounds[ptype->numsounds].atten = atof(Cmd_Argv(3));
+				if (!ptype->sounds[ptype->numsounds].atten)
+					ptype->sounds[ptype->numsounds].atten = 1;
+				ptype->sounds[ptype->numsounds].pitch = atof(Cmd_Argv(4));
+				if (!ptype->sounds[ptype->numsounds].pitch)
+					ptype->sounds[ptype->numsounds].pitch = 100;
+				ptype->sounds[ptype->numsounds].delay = atof(Cmd_Argv(5));
+				if (!ptype->sounds[ptype->numsounds].delay)
+					ptype->sounds[ptype->numsounds].delay = 0;
+				ptype->sounds[ptype->numsounds].weight = atof(Cmd_Argv(6));
+			}
 			if (!ptype->sounds[ptype->numsounds].weight)
 				ptype->sounds[ptype->numsounds].weight = 1;
 			ptype->numsounds++;
@@ -2729,7 +2818,6 @@ static void P_ImportEffectInfo(char *config, char *line)
 
 			ptype->colorindex = -1;
 			ptype->spawnchance = 1;
-			ptype->randsmax = 1;
 			ptype->looks.scalefactor = 2;
 			ptype->looks.invscalefactor = 0;
 			ptype->looks.type = PT_NORMAL;
@@ -2738,6 +2826,14 @@ static void P_ImportEffectInfo(char *config, char *line)
 			ptype->looks.stretch = 1;
 
 			ptype->dl_time = 0;
+
+			i = 63; //default texture is 63.
+			ptype->s1 = teximages[i][0];
+			ptype->s2 = teximages[i][1];
+			ptype->t1 = teximages[i][2];
+			ptype->t2 = teximages[i][3];
+			ptype->texsstride = 0;
+			ptype->randsmax = 1;
 		}
 		else if (!ptype)
 		{
@@ -2887,7 +2983,8 @@ static void P_ImportEffectInfo(char *config, char *line)
 		else if (!strcmp(arg[0], "bounce") && args == 2)
 		{
 			ptype->clipbounce = atof(arg[1]);
-			ptype->cliptype = ptype - part_type;
+			if (ptype->clipbounce < 0)
+				ptype->cliptype = ptype - part_type;
 		}
 		else if (!strcmp(arg[0], "airfriction") && args == 2)
 			ptype->friction[2] = ptype->friction[1] = ptype->friction[0] = atof(arg[1]);
@@ -2974,16 +3071,16 @@ static void P_ImportEffectInfo(char *config, char *line)
 			ptype->dl_corona_scale = atof(arg[2]);
 		}
 #if 1
-		else if (!strcmp(arg[0], "staincolor") && args == 3)
-			Con_Printf("Particle effect token %s not supported\n", arg[0]);
-		else if (!strcmp(arg[0], "stainalpha") && args == 3)
-			Con_Printf("Particle effect token %s not supported\n", arg[0]);
-		else if (!strcmp(arg[0], "stainsize") && args == 3)
-			Con_Printf("Particle effect token %s not supported\n", arg[0]);
-		else if (!strcmp(arg[0], "staintex") && args == 3)
-			Con_Printf("Particle effect token %s not supported\n", arg[0]);
+		else if (!strcmp(arg[0], "staincolor") && args == 3)	//stainmaps multiplier
+			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+		else if (!strcmp(arg[0], "stainalpha") && args == 3)	//affects stainmaps AND stain-decals.
+			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+		else if (!strcmp(arg[0], "stainsize") && args == 3)		//affects stainmaps AND stain-decals.
+			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
+		else if (!strcmp(arg[0], "staintex") && args == 3)		//actually spawns a decal
+			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
 		else if (!strcmp(arg[0], "stainless") && args == 2)
-			Con_Printf("Particle effect token %s not supported\n", arg[0]);
+			Con_DPrintf("Particle effect token %s not supported\n", arg[0]);
 #endif
 		else if (!strcmp(arg[0], "rotate") && args == 5)
 		{
@@ -3839,8 +3936,8 @@ static void PScript_ApplyOrgVel(vec3_t oorg, vec3_t ovel, vec3_t eforg, vec3_t a
 			}
 		}
 
-		j = 0;
-		m = 0;
+		j = pno%NUMVERTEXNORMALS;
+		m = pno/NUMVERTEXNORMALS;
 		break;
 	default:	//others don't need intitialisation
 		break;
@@ -4035,6 +4132,7 @@ static void PScript_ApplyOrgVel(vec3_t oorg, vec3_t ovel, vec3_t eforg, vec3_t a
 		ovel[2] += crand() * ptype->velwrand[2];
 		VectorAdd(ovel, ptype->velbias, ovel);
 	}
+
 	VectorAdd(oorg, ptype->orgbias, oorg);
 }
 
@@ -4208,6 +4306,8 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	particle_t	*p;
 	beamseg_t *b, *bfirst;
 	vec3_t ofsvec, arsvec; // offsetspread vec, areaspread vec
+
+	float orgadd, veladd;
 	trailstate_t *ts;
 
 	if (typenum >= FALLBACKBIAS && fallback)
@@ -4414,6 +4514,13 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			j = 0;
 			m = 0;
 			break;
+//		case SM_MESHSURFACE:
+//			meshsurface = querymesh;
+//			totalarea = gah;
+//			density = count / totalarea;
+//			area = 0;
+//			tri = -1;
+//			break;
 		default:	//others don't need intitialisation
 			break;
 		}
@@ -4518,17 +4625,29 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			p->rgba[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
 			p->rgba[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
-#if 1
+#if 0
 			PScript_ApplyOrgVel(p->org, p->vel, org, axis, i, pcount, ptype);
 #else
-			// randomvel
-			p->vel[0] = crandom()*ptype->randomvel;
-			p->vel[1] = crandom()*ptype->randomvel;
-			p->vel[2] = crandom()*ptype->randomvelvert + ptype->randomvelvertbias;
+			p->vel[0] = 0;
+			p->vel[1] = 0;
+			p->vel[2] = 0;
 
 			// handle spawn modes (org/vel)
 			switch (ptype->spawnmode)
 			{
+/*			case SM_MESHSURFACE:
+				if (area <= 0)
+				{
+					tri++;
+					area += calcarea(tri);
+					arsvec[] = calcnormal(tri);
+				}
+
+				ofsvec[] = randompointintriangle(tri);
+
+				area -= density;
+				break;
+*/
 			case SM_BOX:
 				ofsvec[0] = crandom();
 				ofsvec[1] = crandom();
@@ -4701,8 +4820,19 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				p->org[2] -= orgadd;
 			}
 #endif
+			if (ptype->flags & PT_WORLDSPACERAND)
+			{
+				p->org[0] += crand() * ptype->orgwrand[0];
+				p->org[1] += crand() * ptype->orgwrand[1];
+				p->org[2] += crand() * ptype->orgwrand[2];
+				p->vel[0] += crand() * ptype->velwrand[0];
+				p->vel[1] += crand() * ptype->velwrand[1];
+				p->vel[2] += crand() * ptype->velwrand[2];
+				VectorAdd(p->vel, ptype->velbias, p->vel);
+			}
 			VectorAdd(p->org, ptype->orgbias, p->org);
 #endif
+
 			p->die = particletime + ptype->die - p->die;
 		}
 
@@ -6759,7 +6889,12 @@ static void PScript_DrawParticleTypes (void)
 											p->rgba[0]*-10+p->rgba[1]*-10,
 											30*p->rgba[3]*r_bloodstains.value);
 
-					if (part_type + type->cliptype == type)
+					if (type->clipbounce < 0)
+					{
+						p->die = -1;
+						continue;
+					}
+					else if (part_type + type->cliptype == type)
 					{	//bounce
 						dist = DotProduct(p->vel, normal);// * (-1-(rand()/(float)0x7fff)/2);
 						dist *= -type->clipbounce;
@@ -6776,6 +6911,7 @@ static void PScript_DrawParticleTypes (void)
 					{
 						p->die = -1;
 						VectorNormalize(p->vel);
+
 						if (type->clipbounce)
 						{
 							VectorScale(normal, type->clipbounce, normal);

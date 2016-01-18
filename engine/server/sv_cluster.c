@@ -220,7 +220,7 @@ void MSV_MapCluster_f(void)
 	NET_InitServer();
 
 	//child processes return 0 and fall through
-	memset(&sv, 0, sizeof(sv));
+	SV_WipeServerState();
 	Q_strncpyz(sv.modelname, Cmd_Argv(1), sizeof(sv.modelname));
 	if (!*sv.modelname)
 		Q_strncpyz(sv.modelname, "start", sizeof(sv.modelname));

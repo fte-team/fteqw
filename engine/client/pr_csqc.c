@@ -632,6 +632,33 @@ static void QCBUILTIN PF_NoCSQC (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	prinst->RunError(prinst, "\nBuiltin %i:%s does not make sense in csqc.\nCSQC is not compatible.", binum, fname);
 	PR_BIError (prinst, "bulitin not implemented");
 }
+static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	func_t funcref = G_INT(OFS_PARM0);
+	char *funcname = NULL;
+	int args;
+	int builtinno;
+	if (prinst->GetFunctionInfo(prinst, funcref, &args, &builtinno, funcname, sizeof(funcname)))
+	{	//qc defines the function at least. nothing weird there...
+		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
+		{
+			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme || prinst->parms->globalbuiltins[builtinno] == PF_NoCSQC)
+				G_FLOAT(OFS_RETURN) = false;	//the builtin with that number isn't defined.
+			else
+			{
+				G_FLOAT(OFS_RETURN) = true;		//its defined, within the sane range, mapped, everything. all looks good.
+				//we should probably go through the available builtins and validate that the qc's name matches what would be expected
+				//this is really intended more for builtins defined as #0 though, in such cases, mismatched assumptions are impossible.
+			}
+		}
+		else
+			G_FLOAT(OFS_RETURN) = false;	//not a valid builtin (#0 builtins get remapped according to the function name)
+	}
+	else
+	{	//not valid somehow.
+		G_FLOAT(OFS_RETURN) = false;
+	}
+}
 
 static void QCBUILTIN PF_cl_cprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -704,7 +731,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	effects = in->v->effects;
 	if (effects & NQEF_ADDITIVE)
 		out->flags |= RF_ADDITIVE;
-	if (effects & DPEF_NOSHADOW)
+	if (effects & EF_NOSHADOW)
 		out->flags |= RF_NOSHADOW;
 	if (effects & EF_NODEPTHTEST)
 		out->flags |= RF_NODEPTHTEST;
@@ -1885,7 +1912,6 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	V_ApplyRefdef();
 	R_RenderView();
 	R2D_PolyBlend ();
-	R_DrawNameTags();
 
 	if (r_refdef.grect.x || r_refdef.grect.y || r_refdef.grect.width != vid.fbvwidth || r_refdef.grect.height != vid.fbvheight)
 	{
@@ -1902,6 +1928,8 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	}
 	else
 		scissored = false;
+
+	R_DrawNameTags();
 
 	if (r_refdef.drawsbar)
 	{
@@ -4516,7 +4544,7 @@ static void QCBUILTIN PF_DeltaListen(pubprogfuncs_t *prinst, struct globalvars_s
 	func_t func = G_INT(OFS_PARM1);
 	unsigned int flags = G_FLOAT(OFS_PARM2);
 
-	if (prinst->GetFuncArgCount(prinst, func) < 0)
+	if (!prinst->GetFunctionInfo(prinst, func, NULL, NULL, NULL, 0))
 	{
 		Con_Printf("PF_DeltaListen: Bad function index\n");
 		return;
@@ -5215,6 +5243,7 @@ static struct {
 	{"findfloat",				PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
 	{"findentity",				PF_FindFloat,	98},			// #98 entity(entity start, .float fld, float match) findfloat (DP_QC_FINDFLOAT)
 	{"checkextension",			PF_checkextension,	99},		// #99 float(string extname) checkextension (EXT_CSQC)
+	{"checkbuiltin",			PF_checkbuiltin,	0},
 	{"anglemod",				PF_anglemod,		102},
 
 //110
@@ -5806,7 +5835,7 @@ void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 
 	if (pr_csqc_coreonerror.value)
 	{
-		int size = 1024*1024*8;
+		size_t size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
 		csqcprogs->save_ents(csqcprogs, buffer, &size, size, 3);
 		COM_WriteFile("csqccore.txt", FS_GAMEONLY, buffer, size);
@@ -6503,7 +6532,7 @@ void CSQC_CoreDump(void)
 	}
 
 	{
-		int size = 1024*1024*8;
+		size_t size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
 		csqcprogs->save_ents(csqcprogs, buffer, &size, size, 3);
 		COM_WriteFile("csqccore.txt", FS_GAMEONLY, buffer, size);

@@ -5022,6 +5022,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		}
 	}
 
+	InitCommonControls();
+
 	if (!fl_acc && !*progssrcname)
 	{
 		strcpy(progssrcname, "preprogs.src");
@@ -5101,7 +5103,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		return 0;
 	}
 
-	InitCommonControls();
 /*
 	outputbox=CreateWindowEx(WS_EX_CLIENTEDGE,
 		"EDIT",

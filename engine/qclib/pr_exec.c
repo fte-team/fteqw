@@ -1942,8 +1942,20 @@ pbool	PDECL PR_GetBuiltinCallInfo	(pubprogfuncs_t *ppf, int *builtinnum, char *f
 	int op;
 	int a;
 	const char *fname;
-	op = pr_statements16[st].op;
-	a = pr_statements16[st].a;
+	
+	switch (current_progstate->structtype)
+	{
+	case PST_DEFAULT:
+	case PST_QTEST:
+		op = pr_statements16[st].op;
+		a = pr_statements16[st].a;
+		break;
+	case PST_KKQWSV:
+	case PST_FTE32:
+		op = pr_statements32[st].op;
+		a = pr_statements32[st].a;
+		break;
+	}
 
 	*builtinnum = 0;
 	*function = 0;

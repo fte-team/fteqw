@@ -19,67 +19,120 @@ typedef struct {
 	shader_t *picshader;
 } loadsavemenuinfo_t;
 
-#define	MAX_SAVEGAMES		20
+#define SAVEFIRST_AUTO 1
+#define SAVECOUNT_AUTO 3
+#define SAVEFIRST_STANDARD (SAVEFIRST_AUTO + SAVECOUNT_AUTO)
+#define SAVECOUNT_STANDARD 20
+#define	MAX_SAVEGAMES		(1+SAVECOUNT_AUTO+SAVECOUNT_STANDARD)
 struct
 {
-	char	map[22+1];
+	qboolean loadable;
+	qbyte	saveable; //0=autosave, 1=regular, 2=quick
+	char	sname[9];
+	char	desc[22+1];
 	char	kills[39-22+1];
 	char	time[64];
+	char	map[32];
 } m_saves[MAX_SAVEGAMES];
-int		loadable[MAX_SAVEGAMES];
 
-void M_ScanSaves (void)
+static void M_ScanSave(unsigned int slot, const char *name, qboolean savable)
 {
-	int		i, j;
+	char	*in, *out, *end;
+	int		j;
 	char	line[MAX_OSPATH];
 	vfsfile_t	*f;
 	int		version;
 
-	for (i=0 ; i<MAX_SAVEGAMES ; i++)
-	{
-		Q_strncpyz (m_saves[i].map, "--- UNUSED SLOT ---", sizeof(m_saves[i].map));
-		Q_strncpyz (m_saves[i].kills, "", sizeof(m_saves[i].kills));
-		Q_strncpyz (m_saves[i].time, "", sizeof(m_saves[i].time));
-		loadable[i] = false;
+	m_saves[slot].saveable = savable;
+	m_saves[slot].loadable = false;
+	Q_strncpyz (m_saves[slot].sname, name, sizeof(m_saves[slot].sname));
+	Q_strncpyz (m_saves[slot].desc, "--- UNUSED SLOT ---", sizeof(m_saves[slot].desc));
+	Q_strncpyz (m_saves[slot].kills, "", sizeof(m_saves[slot].kills));
+	Q_strncpyz (m_saves[slot].time, "", sizeof(m_saves[slot].time));
 
-		snprintf (line, sizeof(line), "saves/s%i/info.fsv", i);
+	snprintf (line, sizeof(line), "saves/%s/info.fsv", m_saves[slot].sname);
+	f = FS_OpenVFS (line, "rb", FS_GAME);
+	if (!f)
+	{	//legacy saved games from some other engine
+		snprintf (line, sizeof(line), "%s.sav", m_saves[slot].sname);
 		f = FS_OpenVFS (line, "rb", FS_GAME);
-		if (!f)
-		{	//legacy saved games from some other engine
-			snprintf (line, sizeof(line), "s%i.sav", i);
-			f = FS_OpenVFS (line, "rb", FS_GAME);
-		}
-		if (f)
-		{
-			VFS_GETS(f, line, sizeof(line));
-			version = atoi(line);
-			if (version != 5 && version != 6 && (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX))
-			{
-				Q_strncpyz (m_saves[i].map, "Incompatible version", sizeof(m_saves[i].map));
-				VFS_CLOSE (f);
-				continue;
-			}
-
-			// read the desc, change _ back to space, fill the separate fields
-			VFS_GETS(f, line, sizeof(line));
-			for (j=0 ; line[j] ; j++)
-				if (line[j] == '_')
-					line[j] = ' ';
-			for (; j < sizeof(line[j]); j++)
-				line[j] = '\0';
-			memcpy(m_saves[i].map, line, 22);
-			m_saves[i].map[22] = 0;
-			memcpy(m_saves[i].kills, line+22, 39-22);
-			m_saves[i].kills[39-22] = 0;
-			Q_strncpyz(m_saves[i].time, line+39, sizeof(m_saves[i].time));
-
-
-			loadable[i] = true;
-			VFS_CLOSE (f);
-
-			continue;
-		}
 	}
+	if (f)
+	{
+		VFS_GETS(f, line, sizeof(line));
+		version = atoi(line);
+		if (version != 5 && version != 6 && (version < FTESAVEGAME_VERSION || version >= FTESAVEGAME_VERSION+GT_MAX))
+		{
+			Q_strncpyz (m_saves[slot].desc, "Incompatible version", sizeof(m_saves[slot].desc));
+			VFS_CLOSE (f);
+			return;
+		}
+
+		// read the desc, change _ back to space, fill the separate fields
+		VFS_GETS(f, line, sizeof(line));
+		for (j=0 ; line[j] ; j++)
+			if (line[j] == '_')
+				line[j] = ' ';
+		for (; j < sizeof(line[j]); j++)
+			line[j] = '\0';
+		memcpy(m_saves[slot].desc, line, 22);
+		m_saves[slot].desc[22] = 0;
+
+		for (in = line+22, out = m_saves[slot].kills, end = line+39; in < end && *in == ' '; )
+			in++;
+		for (out = m_saves[slot].kills; in < end; )
+			*out++ = *in++;
+		for (end = m_saves[slot].kills; out > end && out[-1] == ' '; )
+			out--;
+		*out = 0;
+
+		Q_strncpyz(m_saves[slot].time, line+39, sizeof(m_saves[slot].time));
+
+
+		if (version == 5 || version == 6)
+		{
+			for (j = 0; j < 16; j++)
+				VFS_GETS(f, line, sizeof(line));	//16 parms
+			VFS_GETS(f, line, sizeof(line));	//skill
+			VFS_GETS(f, m_saves[slot].map, sizeof(m_saves[slot].map));
+		}
+
+		m_saves[slot].loadable = true;
+		VFS_CLOSE (f);
+	}
+}
+
+const char *M_ChooseAutoSave(void)
+{
+	int i, j;
+
+	for (i = SAVEFIRST_AUTO; i < SAVEFIRST_AUTO+SAVECOUNT_AUTO; i++)
+	{
+		M_ScanSave(i, va("a%i", i-SAVEFIRST_AUTO), false);
+		if (!m_saves[i].loadable)
+			return m_saves[i].sname;
+	}
+
+	for (i = SAVEFIRST_AUTO; i < SAVEFIRST_AUTO+SAVECOUNT_AUTO; i++)
+	{
+		for (j = SAVEFIRST_AUTO; j < SAVEFIRST_AUTO+SAVECOUNT_AUTO; j++)
+			if (strcmp(m_saves[i].time, m_saves[j].time) > 0)
+				break;
+		if (j == SAVEFIRST_AUTO+SAVECOUNT_AUTO)
+			return m_saves[i].sname;		
+	}
+
+	return m_saves[SAVEFIRST_AUTO].sname;
+}
+
+static void M_ScanSaves (void)
+{
+	int i;
+	M_ScanSave(0, "quick", 2);
+	for (i=SAVEFIRST_AUTO ; i<SAVEFIRST_AUTO+SAVECOUNT_AUTO ; i++)
+		M_ScanSave(i, va("a%i", i-SAVEFIRST_AUTO), false);
+	for (i=SAVEFIRST_STANDARD ; i<SAVEFIRST_STANDARD+SAVECOUNT_STANDARD ; i++)
+		M_ScanSave(i, va("s%i", i-SAVEFIRST_STANDARD), true);
 }
 
 static void M_Menu_LoadSave_Remove(menu_t *menu)
@@ -110,18 +163,57 @@ static void M_Menu_LoadSave_Preview_Draw(int x, int y, menucustom_t *item, menu_
 				Image_UnloadTexture(info->picshader->defaulttextures->base);
 				R_UnloadShader(info->picshader);
 			}
-			info->picshader = R_RegisterPic(va("saves/s%i/screeny.tga", slot));
+			info->picshader = R_RegisterPic(va("saves/%s/screeny.tga", m_saves[slot].sname));
 		}
 		if (info->picshader)
 		{
-			if (R_GetShaderSizes(info->picshader, &width, &height, false) > 0)
+			shader_t *pic = NULL;
+			switch(R_GetShaderSizes(info->picshader, &width, &height, false))
 			{
-				//FIXME: maintain aspect
-				R2D_ScalePic (x, y, 160,120/*item->common.width, item->common.height*/, info->picshader);
+			case 1:
+				pic = info->picshader;
+				break;
+			case 0:
+				if (*m_saves[slot].map)
+					pic = R_RegisterPic(va("levelshots/%s", m_saves[slot].map));
+				break;
+			}
+			if (pic)
+			{
+				int w = 160;
+				int h = 120;
+				if (R_GetShaderSizes(pic, &width, &height, false) <= 0)
+				{
+					width = 64;
+					height = 64;
+				}
+	
+				if ((float)width/height > (float)w/h)
+				{
+					w = 160;
+					h = ((float)w*height) / width;
+				}
+				else
+				{
+					h = 120;
+					w = ((float)h*width) / height;
+				}
+				R2D_ScalePic (x + (160-w)/2, y + (120-h)/2, w, h, pic);
 			}
 		}
 		Draw_FunStringWidth(x, y+120+0, m_saves[slot].time, 160, 2, false);
 		Draw_FunStringWidth(x, y+120+8, m_saves[slot].kills, 160, 2, false);
+
+		switch(m_saves[slot].saveable)
+		{
+		case 2:
+			Draw_FunStringWidth(x, y+120+16, "Quick Save", 160, 2, false);
+			break;
+		case 0:
+			Draw_FunStringWidth(x, y+120+16, "Autosave", 160, 2, false);
+			break;
+		}
+		Draw_FunStringWidth(x, y+120+24, m_saves[slot].sname, 160, 2, false);
 	}
 }
 
@@ -151,7 +243,10 @@ void M_Menu_Save_f (void)
 
 	for (i=0 ; i< MAX_SAVEGAMES; i++)
 	{
-		op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 192, 32+8*i, false, m_saves[i].map, "savegame s%i\nclosemenu\n", i);
+		if (m_saves[i].saveable)
+			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 192, 32+8*i, false, m_saves[i].desc, "savegame %s\nclosemenu\n", m_saves[i].sname);
+		else
+			MC_AddWhiteText(menu, 16, 170, 32+8*i, m_saves[i].desc, false);
 		if (!menu->selecteditem)
 			menu->selecteditem = op;
 	}
@@ -171,20 +266,22 @@ void M_Menu_Load_f (void)
 	menu->data = menu+1;
 	
 	MC_AddCenterPicture(menu, 4, 24, "gfx/p_load.lmp");	
-	menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, 32, NULL, false);	
 	menu->remove = M_Menu_LoadSave_Remove;
 
 	M_ScanSaves ();
 
 	for (i=0 ; i< MAX_SAVEGAMES; i++)
 	{
-		if (loadable[i])
-			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 170, 32+8*i, false, m_saves[i].map, "loadgame s%i\nclosemenu\n", i);
+		if (m_saves[i].loadable)
+			op = (menuoption_t *)MC_AddConsoleCommandf(menu, 16, 170, 32+8*i, false, m_saves[i].desc, "loadgame %s\nclosemenu\n", m_saves[i].sname);
 		else
-			MC_AddWhiteText(menu, 16, 170, 32+8*i, m_saves[i].map, false);
+			MC_AddWhiteText(menu, 16, 170, 32+8*i, m_saves[i].desc, false);
 		if (!menu->selecteditem && op)
 			menu->selecteditem = op;
 	}
+
+	if (menu->selecteditem)
+		menu->cursoritem = (menuoption_t *)MC_AddRedText(menu, 8, 0, menu->selecteditem->common.posy, NULL, false);	
 
 	MC_AddCustom(menu, 192, 60-16, NULL, 0)->draw = M_Menu_LoadSave_Preview_Draw;
 }

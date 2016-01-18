@@ -578,7 +578,7 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 
 
 
-static void Surf_BuildDeluxMap (msurface_t *surf, qbyte *dest, unsigned int lmwidth, vec3_t *blocknormals)
+static void Surf_BuildDeluxMap (model_t *wmodel, msurface_t *surf, qbyte *dest, unsigned int lmwidth, vec3_t *blocknormals)
 {
 	int			smax, tmax;
 	int			i, j, size;
@@ -601,7 +601,7 @@ static void Surf_BuildDeluxMap (msurface_t *surf, qbyte *dest, unsigned int lmwi
 	lightmap = surf->samples;
 
 	// set to full bright if no light data
-	if (!currentmodel->deluxdata)
+	if (!wmodel->deluxdata)
 	{
 		for (i=0 ; i<size ; i++)
 		{
@@ -612,10 +612,10 @@ static void Surf_BuildDeluxMap (msurface_t *surf, qbyte *dest, unsigned int lmwi
 		goto store;
 	}
 
-	if (currentmodel->engineflags & MDLF_RGBLIGHTING)
-		deluxmap = surf->samples - currentmodel->lightdata + currentmodel->deluxdata;
+	if (wmodel->engineflags & MDLF_RGBLIGHTING)
+		deluxmap = surf->samples - wmodel->lightdata + wmodel->deluxdata;
 	else
-		deluxmap = (surf->samples - currentmodel->lightdata)*3 + currentmodel->deluxdata;
+		deluxmap = (surf->samples - wmodel->lightdata)*3 + wmodel->deluxdata;
 
 
 // clear to no light
@@ -629,9 +629,9 @@ static void Surf_BuildDeluxMap (msurface_t *surf, qbyte *dest, unsigned int lmwi
 // add all the lightmaps
 	if (lightmap)
 	{
-		if (currentmodel->engineflags & MDLF_RGBLIGHTING)
+		if (wmodel->engineflags & MDLF_RGBLIGHTING)
 		{
-			deluxmap = surf->samples - currentmodel->lightdata + currentmodel->deluxdata;
+			deluxmap = surf->samples - wmodel->lightdata + wmodel->deluxdata;
 
 			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 				 maps++)
@@ -650,7 +650,7 @@ static void Surf_BuildDeluxMap (msurface_t *surf, qbyte *dest, unsigned int lmwi
 		}
 		else
 		{
-			deluxmap = (surf->samples - currentmodel->lightdata)*3 + currentmodel->deluxdata;
+			deluxmap = (surf->samples - wmodel->lightdata)*3 + wmodel->deluxdata;
 
 			for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 				 maps++)
@@ -900,7 +900,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	}
 
 	if (currentmodel->deluxdata)
-		Surf_BuildDeluxMap(surf, deluxdest, lmwidth, blocknormals);
+		Surf_BuildDeluxMap(currentmodel, surf, deluxdest, lmwidth, blocknormals);
 
 #ifdef PEXT_LIGHTSTYLECOL
 	if (lightmap_bytes == 4 || lightmap_bytes == 3)
@@ -1170,7 +1170,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 }
 
 
-static void Surf_BuildLightMap_Worker (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift, int ambient, unsigned int lmwidth)
+static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift, int ambient, unsigned int lmwidth, int *d_lightstylevalue)
 {
 	int			smax, tmax;
 	int			t;
@@ -1202,8 +1202,8 @@ static void Surf_BuildLightMap_Worker (msurface_t *surf, qbyte *dest, qbyte *del
 		blocklights = BZ_Realloc(blocklights, maxblocksize * 3*sizeof(*blocklights));
 	}
 
-	if (currentmodel->deluxdata)
-		Surf_BuildDeluxMap(surf, deluxdest, lmwidth, blocknormals);
+	if (wmodel->deluxdata)
+		Surf_BuildDeluxMap(wmodel, surf, deluxdest, lmwidth, blocknormals);
 
 #ifdef PEXT_LIGHTSTYLECOL
 	if (lightmap_bytes == 4 || lightmap_bytes == 3)
@@ -1230,7 +1230,7 @@ static void Surf_BuildLightMap_Worker (msurface_t *surf, qbyte *dest, qbyte *del
 				blocklights[i] = r_fullbright.value*255*256;
 			}
 		}
-		else if (!currentmodel->lightdata)
+		else if (!wmodel->lightdata)
 		{
 			/*fullbright if map is not lit. but not overbright*/
 			for (i=0 ; i<size*3 ; i++)
@@ -1265,7 +1265,7 @@ static void Surf_BuildLightMap_Worker (msurface_t *surf, qbyte *dest, qbyte *del
 // add all the lightmaps
 			if (lightmap)
 			{
-				if (currentmodel->fromgame == fg_quake3)	//rgb
+				if (wmodel->fromgame == fg_quake3)	//rgb
 				{
 					/*q3 lightmaps are meant to be pre-built
 					this code is misguided, and ought never be executed anyway.
@@ -1282,7 +1282,7 @@ static void Surf_BuildLightMap_Worker (msurface_t *surf, qbyte *dest, qbyte *del
 						}
 					}
 				}
-				else if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
+				else if (wmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
 				{
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						 maps++)
@@ -1412,7 +1412,7 @@ static void Surf_BuildLightMap_Worker (msurface_t *surf, qbyte *dest, qbyte *del
 #endif
 	{
 	// set to full bright if no light data
-		if (!surf->samples || !currentmodel->lightdata)
+		if (!surf->samples || !wmodel->lightdata)
 		{
 			for (i=0 ; i<size*3 ; i++)
 			{
@@ -1435,7 +1435,7 @@ static void Surf_BuildLightMap_Worker (msurface_t *surf, qbyte *dest, qbyte *del
 // add all the lightmaps
 			if (lightmap)
 			{
-				if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
+				if (wmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
 					for (maps = 0 ; maps < MAXQ1LIGHTMAPS && surf->styles[maps] != 255 ;
 						 maps++)
 					{
@@ -1570,7 +1570,7 @@ dynamic:
 }
 
 #ifdef THREADEDWORLD
-static void Surf_RenderDynamicLightmaps_Worker (msurface_t *fa)
+static void Surf_RenderDynamicLightmaps_Worker (model_t *wmodel, msurface_t *fa, int *d_lightstylevalue)
 {
 	qbyte		*base, *luxbase;
 	stmap *stainbase;
@@ -1629,7 +1629,7 @@ dynamic:
 	base += (fa->light_t[0] * lm->width + fa->light_s[0]) * lightmap_bytes;
 	stainbase = lm->stainmaps;
 	stainbase += (fa->light_t[0] * lm->width + fa->light_s[0]) * 3;
-	Surf_BuildLightMap_Worker (fa, base, luxbase, stainbase, lightmap_shift, r_ambient.value*255, lm->width);
+	Surf_BuildLightMap_Worker (wmodel, fa, base, luxbase, stainbase, lightmap_shift, r_ambient.value*255, lm->width, d_lightstylevalue);
 
 	if (dlm)
 	{
@@ -2496,9 +2496,7 @@ void Surf_SetupFrame(void)
 		//first scene is the 'main' scene and audio defaults to that (unless overridden later in the frame)
 		r_refdef.playerview->audio.defaulted = false;
 		VectorCopy(r_refdef.vieworg, r_refdef.playerview->audio.origin);
-		VectorCopy(vpn, r_refdef.playerview->audio.forward);
-		VectorCopy(vright, r_refdef.playerview->audio.right);
-		VectorCopy(vup, r_refdef.playerview->audio.up);
+		AngleVectors(r_refdef.viewangles, r_refdef.playerview->audio.forward,r_refdef.playerview->audio.right, r_refdef.playerview->audio.up);
 		if (r_viewcontents & FTECONTENTS_FLUID)
 			r_refdef.playerview->audio.inwater = true;
 		else
@@ -2645,7 +2643,7 @@ struct webostate_s
 	int ebo;
 	size_t idxcount;
 	int numbatches;
-	double goodtime;	//time that the webo is no longer 'good', resulting in an update (lightstyles).
+	int lightstylevalues[MAX_LIGHTSTYLES];	//when using workers that only reprocessing lighting at 10fps, things get too ugly when things go out of sync
 
 	batch_t *rbatches[SHADER_SORT_COUNT];
 
@@ -2735,7 +2733,8 @@ static void Surf_SimpleWorld(struct webostate_s *es, qbyte *pvs)
 	mesh_t		*mesh;
 	int l;
 	int fc = -r_framecount;
-	for (leaf = es->wmodel->leafs+es->wmodel->numclusters, l = es->wmodel->numclusters; l-- > 0; leaf--)
+	model_t *wmodel = es->wmodel;
+	for (leaf = wmodel->leafs+wmodel->numclusters, l = wmodel->numclusters; l-- > 0; leaf--)
 	{
 		if ((pvs[l>>3] & (1u<<(l&7))) && leaf->nummarksurfaces)
 		{
@@ -2749,7 +2748,7 @@ static void Surf_SimpleWorld(struct webostate_s *es, qbyte *pvs)
 					int i;
 					struct wesbatch_s *eb;
 					surf->visframe = fc;
-					Surf_RenderDynamicLightmaps_Worker (surf);
+					Surf_RenderDynamicLightmaps_Worker (wmodel, surf, es->lightstylevalues);
 
 					mesh = surf->mesh;
 					eb = &es->batches[surf->sbatch->ebobatch];
@@ -2841,20 +2840,29 @@ void Surf_DrawWorld (void)
 		Surf_LightmapShift(cl.worldmodel);
 
 #ifdef THREADEDWORLD
-		if (r_dynamic.ival < 0 && !r_refdef.recurse && cl.worldmodel->type == mod_brush && cl.worldmodel->fromgame == fg_quake)
+		if ((r_dynamic.ival < 0 || cl.worldmodel->numbatches) && !r_refdef.recurse && cl.worldmodel->type == mod_brush && cl.worldmodel->fromgame == fg_quake)
 		{
+			int i = MAX_LIGHTSTYLES;
 			if (webostate && webostate->wmodel != cl.worldmodel)
 			{
 				R_DestroyWorldEBO(webostate);
 				webostate = NULL;
 			}
-			if (webostate && webostate->leaf[0] == r_viewleaf && webostate->leaf[1] == r_viewleaf2 && webostate->goodtime > cl.time)
+
+			if (webostate && !webogenerating)
+				for (i = 0; i < MAX_LIGHTSTYLES; i++)
+				{
+					if (webostate->lightstylevalues[i] != d_lightstylevalue[i])
+						break;
+				}
+			if (webostate && webostate->leaf[0] == r_viewleaf && webostate->leaf[1] == r_viewleaf2 && i == MAX_LIGHTSTYLES)
 			{
 			}
 			else
 			{
 				if (!webogenerating)
 				{
+					int i;
 					if (!cl.worldmodel->numbatches)
 					{
 						int sortid;
@@ -2872,11 +2880,8 @@ void Surf_DrawWorld (void)
 					webogenerating->wmodel = cl.worldmodel;
 					webogenerating->leaf[0] = r_viewleaf;
 					webogenerating->leaf[1] = r_viewleaf2;
-					webogenerating->goodtime = cl.time;	//stupid lightstyle animations.
-					if (r_lightstylesmooth.ival)
-						webogenerating->goodtime += 1.0/60;
-					else
-						webogenerating->goodtime += 0.1;
+					for (i = 0; i < MAX_LIGHTSTYLES; i++)
+						webogenerating->lightstylevalues[i] = d_lightstylevalue[i];
 					Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
 					COM_AddWork(1, R_GenWorldEBO, webogenerating, NULL, 0, 0);
 				}

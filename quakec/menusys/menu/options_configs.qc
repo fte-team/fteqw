@@ -1,0 +1,63 @@
+/***************************************************************************
+Uses the engine command to apply the preset, and tries an exec instead if a config file exists.
+Doesn't track the current one or anything.
+Really simple and stupid menu.
+no background tint, so the game is still visible so you can preview it.
+
+you should probably remove the fps_preset part. I left it in so that I don't have to bother with providing cfg files. note that this isn't a valid solution for dp, but whatever.
+the great thing about providing source is that you can change it.
+you can instead just shove your preset settings directly into the quotes instead of exec.
+*/
+
+struct
+{
+	string name;
+	string preset;
+	string config;
+} configs[] =
+{
+//	{"Simple Deathmatch",	"simple",		"configs/game_simple.cfg"},
+	{"Deathmatch",			"deathmatch",	"configs/game_deathmatch.cfg"},
+	{"Mod Compatibility",		"compat",		"configs/game_compat.cfg"},
+	{"Standard",			"normal",		"configs/game_normal.cfg"}
+};
+
+nonstatic void(mitem_desktop desktop) M_Configs =
+{
+	local float i;
+	mitem_exmenu m;
+	m = spawn(mitem_exmenu, item_text:_("Game Presets / Configs"), item_flags:IF_SELECTABLE, item_command:"m_options");
+	desktop.add(m, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX, '0 0', '0 0');
+	desktop.item_focuschange(m, IF_KFOCUSED);
+	m.totop();
+
+
+	float h = 200*0.5;
+	//draw title art above the options
+	mitem_pic banner = spawn(mitem_pic, item_text:"gfx/p_option.lmp", item_size_y:24, item_flags:IF_CENTERALIGN);
+	m.add(banner, RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_OWN_MIN|RS_Y_MAX_PARENT_MID, [(160-60-banner.item_size_x)*0.5, -h-32], [banner.item_size_x, -h-8]);
+	
+	//spawn a container frame for the actual options. this provides a scrollbar if we have too many items.
+	mitem_frame fr = spawn(mitem_frame, item_flags: IF_SELECTABLE, frame_hasscroll:TRUE);
+	m.add(fr, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, -h], [0, h*2]);
+	
+	float fl = RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN;
+
+	//add the options
+	for (i = 0; i < configs.length; i++)
+	{
+		fr.add(spawn(mitem_text, item_text:configs[i].name, item_command:sprintf("exec \"%s\"", configs[i].config), item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, i*16], [100, 16]);
+	}
+
+	//random art for style
+#if 1//def CSQC
+	m.addm(spawn (mitem_spinnymodel, item_text: "progs/g_rock2.mdl", zbias:-16), [-160-60, 12*-16/2], [-60, 12*16/2]);
+#else
+	//menuqc doesn't support entities. shove some random crappy static image there instead.
+	local mitem_pic plaque = spawn (mitem_pic, item_text:"gfx/qplaque.lmp", item_alpha:1);
+	m.addm(plaque, [(-160-plaque.item_size_x)*0.5, 12*-16/2], [(-160+plaque.item_size_x)*0.5, 12*16/2]);
+#endif
+
+	addmenuback(m);
+};
+

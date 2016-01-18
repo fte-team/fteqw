@@ -766,7 +766,7 @@ entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 	vec3_t delta, ts, te;
 	entity_t *pe;
 	entity_t *result=NULL;
-	vec3_t axis[3];
+//	vec3_t axis[3];
 	vec3_t movemins, movemaxs;
 
 	memset (&trace, 0, sizeof(trace));

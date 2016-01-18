@@ -1324,7 +1324,6 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 
 	if (!noworld)
 	{
-		R2D_PolyBlend ();
 		R2D_BrightenScreen();
 	}
 
@@ -1434,7 +1433,7 @@ static void D3D11_SetupViewPort(void)
 
 	/*view matrix*/
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
-	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
+	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, bound(0.1, gl_mindist.value, 4));
 }
 
 static void	(D3D11_R_RenderView)				(void)

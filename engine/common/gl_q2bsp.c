@@ -1346,12 +1346,10 @@ qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, char *map
 
 		if (out->flags & TI_SKY)
 			Q_snprintfz(sname, sizeof(sname), "sky/%s", in->texture);
-		else if (out->flags & (TI_WARP|TI_FLOWING))
-			Q_snprintfz(sname, sizeof(sname), "warp/%s", in->texture);
-		else if (out->flags & (TI_TRANS33|TI_TRANS66))
-			Q_snprintfz(sname, sizeof(sname), "trans/%s", in->texture);
 		else
-			Q_snprintfz(sname, sizeof(sname), "wall/%s", in->texture);
+			Q_snprintfz(sname, sizeof(sname), "%s", in->texture);
+		if (out->flags & (TI_WARP|TI_FLOWING))
+			Q_strncatz(sname, "#WARP", sizeof(sname));
 		if (out->flags & TI_FLOWING)
 			Q_strncatz(sname, "#FLOW", sizeof(sname));
 		if (out->flags & TI_TRANS66)

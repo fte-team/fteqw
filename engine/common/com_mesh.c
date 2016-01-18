@@ -2791,9 +2791,14 @@ void Mod_LoadAliasShaders(model_t *mod)
 extern float	r_avertexnormals[NUMVERTEXNORMALS][3];
 // mdltype 0 = q1, 1 = qtest, 2 = rapo/h2
 
-static void Q1MDL_LoadPose(galiasinfo_t *galias, dmdl_t *pq1inmodel, vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype)
+static void Q1MDL_LoadPose(galiasinfo_t *galias, dmdl_t *pq1inmodel, vecV_t *verts, vec3_t *normals, vec3_t *svec, vec3_t *tvec, dtrivertx_t *pinframe, int *seamremaps, int mdltype, unsigned int bbox[6])
 {
 	int j;
+#ifdef _DEBUG
+	bbox[0] = bbox[1] = bbox[2] = ~0;
+	bbox[3] = bbox[4] = bbox[5] = 0;
+#endif
+
 #ifdef HEXEN2
 	if (mdltype == 2)
 	{
@@ -2812,6 +2817,14 @@ static void Q1MDL_LoadPose(galiasinfo_t *galias, dmdl_t *pq1inmodel, vecV_t *ver
 	{
 		for (j = 0; j < pq1inmodel->numverts; j++)
 		{
+#ifdef _DEBUG
+			bbox[0] = min(bbox[0], pinframe[j].v[0]);
+			bbox[1] = min(bbox[1], pinframe[j].v[1]);
+			bbox[2] = min(bbox[2], pinframe[j].v[2]);
+			bbox[3] = max(bbox[3], pinframe[j].v[0]);
+			bbox[4] = max(bbox[4], pinframe[j].v[1]);
+			bbox[5] = max(bbox[5], pinframe[j].v[2]);
+#endif
 			verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
 			verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
 			verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
@@ -2868,6 +2881,8 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 	vecV_t *verts;
 	int aliasframesize = (mdltype == 1) ? sizeof(daliasframe_t)-16 : sizeof(daliasframe_t);
 
+	unsigned int bbox[6];
+
 #ifdef SERVERONLY
 	normals = NULL;
 	svec = NULL;
@@ -2913,9 +2928,21 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 			}
 			else
 			{
-				Q1MDL_LoadPose(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+				Q1MDL_LoadPose(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype, bbox);
 				pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
 			}
+
+#ifdef _DEBUG
+			if ((bbox[3] > frameinfo->bboxmax.v[0] || bbox[4] > frameinfo->bboxmax.v[1] || bbox[5] > frameinfo->bboxmax.v[2] ||
+				bbox[0] < frameinfo->bboxmin.v[0] || bbox[1] < frameinfo->bboxmin.v[1] || bbox[2] < frameinfo->bboxmin.v[2]) && !galias->warned)
+#else
+			if (pinframe[0].v[2] > frameinfo->bboxmax.v[2] && !galias->warned)
+#endif
+			{
+				Con_Printf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
+				galias->warned = true;
+			}
+
 
 //			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
 
@@ -2975,8 +3002,21 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 				}
 				else
 				{
-					Q1MDL_LoadPose(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype);
+					Q1MDL_LoadPose(galias, pq1inmodel, verts, normals, svec, tvec, pinframe, seamremaps, mdltype, bbox);
 					pinframe += pq1inmodel->numverts;
+				}
+
+#ifdef _DEBUG
+				if ((bbox[3] > frameinfo->bboxmax.v[0] || bbox[4] > frameinfo->bboxmax.v[1] || bbox[5] > frameinfo->bboxmax.v[2] ||
+					bbox[0] < frameinfo->bboxmin.v[0] || bbox[1] < frameinfo->bboxmin.v[1] || bbox[2] < frameinfo->bboxmin.v[2] ||
+#else
+				if ((pinframe[0].v[2] > frameinfo->bboxmax.v[2] ||
+#endif
+					frameinfo->bboxmin.v[0] < ingroup->bboxmin.v[0] || frameinfo->bboxmin.v[1] < ingroup->bboxmin.v[1] || frameinfo->bboxmin.v[2] < ingroup->bboxmin.v[2] ||
+					frameinfo->bboxmax.v[0] > ingroup->bboxmax.v[0] || frameinfo->bboxmax.v[1] > ingroup->bboxmax.v[1] || frameinfo->bboxmax.v[2] > ingroup->bboxmax.v[2]) && !galias->warned)
+				{
+					Con_Printf(CON_WARNING"%s has incorrect frame bounds\n", loadmodel->name);
+					galias->warned = true;
 				}
 
 #ifndef SERVERONLY
@@ -3594,17 +3634,25 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 		galias->ofs_indexes = indexes;
 		for (i=0 ; i<pq1inmodel->numtris ; i++)
 		{
+			unsigned int v1 = LittleLong(pinq1triangles[i].vertindex[0]);
+			unsigned int v2 = LittleLong(pinq1triangles[i].vertindex[1]);
+			unsigned int v3 = LittleLong(pinq1triangles[i].vertindex[2]);
+			if (v1 >= pq1inmodel->numverts || v2 >= pq1inmodel->numverts || v3 >= pq1inmodel->numverts)
+			{
+				Con_Printf(CON_ERROR"%s has invalid triangle (%u %u %u > %u)\n", mod->name, v1, v2, v3, pq1inmodel->numverts);
+				v1 = v2 = v3 = 0;
+			}
 			if (!pinq1triangles[i].facesfront)
 			{
-				indexes[i*3+0] = seamremap[LittleLong(pinq1triangles[i].vertindex[0])];
-				indexes[i*3+1] = seamremap[LittleLong(pinq1triangles[i].vertindex[1])];
-				indexes[i*3+2] = seamremap[LittleLong(pinq1triangles[i].vertindex[2])];
+				indexes[i*3+0] = seamremap[v1];
+				indexes[i*3+1] = seamremap[v2];
+				indexes[i*3+2] = seamremap[v3];
 			}
 			else
 			{
-				indexes[i*3+0] = LittleLong(pinq1triangles[i].vertindex[0]);
-				indexes[i*3+1] = LittleLong(pinq1triangles[i].vertindex[1]);
-				indexes[i*3+2] = LittleLong(pinq1triangles[i].vertindex[2]);
+				indexes[i*3+0] = v1;
+				indexes[i*3+1] = v2;
+				indexes[i*3+2] = v3;
 			}
 		}
 		end = &pinq1triangles[pq1inmodel->numtris];
@@ -4268,6 +4316,8 @@ int Mod_TagNumForName(model_t *model, const char *name)
 	md3tag_t *t;
 
 	if (!model)
+		return 0;
+	if (model->loadstate != MLS_LOADED)
 		return 0;
 #ifdef HALFLIFEMODELS
 	if (model->type == mod_halflife)

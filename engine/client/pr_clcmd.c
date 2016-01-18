@@ -390,7 +390,19 @@ void QCBUILTIN PF_cl_getcursormode (pubprogfuncs_t *prinst, struct globalvars_s 
 
 void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = !!cls.demoplayback;
+	switch(cls.demoplayback)
+	{
+	case DPB_NONE:
+		G_FLOAT(OFS_RETURN) = 0;
+		break;
+	case DPB_MVD:
+	case DPB_EZTV:
+		G_FLOAT(OFS_RETURN) = 2;
+		break;
+	default:
+		G_FLOAT(OFS_RETURN) = 1;
+		break;
+	}
 }
 
 void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

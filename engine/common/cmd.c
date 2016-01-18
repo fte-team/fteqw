@@ -2138,7 +2138,7 @@ void Cmd_ForwardToServer_f (void)
 
 	if (Cmd_Argc() > 1)
 	{
-		int split = CL_TargettedSplit(true);
+		int split = CL_TargettedSplit(false);
 		if (split)
 			CL_SendClientCommand(true, "%i %s", split+1, Cmd_Args());
 		else
@@ -2229,6 +2229,7 @@ void	Cmd_ExecuteString (char *text, int level)
 
 #ifndef SERVERONLY	//an emergency escape mechansim, to avoid infinatly recursing aliases.
 			extern qboolean keydown[];
+			extern int con_splitmodifier;
 
 			if (keydown[K_SHIFT] && (keydown[K_LCTRL]||keydown[K_RCTRL]) && (keydown[K_LALT]||keydown[K_RALT]))
 				return;
@@ -2263,6 +2264,15 @@ void	Cmd_ExecuteString (char *text, int level)
 
 			Cmd_ExpandStringArguments (a->value, dest, sizeof(dest));
 			Cbuf_InsertText (dest, execlevel, false);
+
+#ifndef SERVERONLY
+			if (con_splitmodifier > 0)
+			{	//if the alias was execed via p1/p2 etc, make sure that propagates properly (at least for simple aliases like impulses)
+				//fixme: should probably prefix each line. that may have different issues however.
+				//don't need to care about + etc
+				Cbuf_InsertText (va("p %i ", con_splitmodifier), execlevel, false);
+			}
+#endif
 
 			Con_DPrintf("Execing alias %s:\n%s\n", a->name, a->value);
 			return;
@@ -3054,6 +3064,9 @@ void Cmd_set_f(void)
 	else
 		docalc = false;
 
+	if (!strncmp(Cmd_Argv(0), "seta", 4) && !Cmd_FromGamecode())
+		forceflags |= CVAR_ARCHIVE;
+
 	Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
 	if (!strcmp(Cmd_Argv(0), "setfl") || Cmd_FromGamecode())	//AAHHHH!!! Q2 set command is different
@@ -3109,7 +3122,7 @@ void Cmd_set_f(void)
 
 			}
 		}
-		forceflags = 0;
+		forceflags |= 0;
 	}
 
 	var = Cvar_Get (name, text, CVAR_TEAMPLAYTAINT, "Custom variables");
@@ -3147,9 +3160,6 @@ void Cmd_set_f(void)
 
 			if (Cmd_ExecLevel == RESTRICT_TEAMPLAY)
 				var->flags |= CVAR_TEAMPLAYTAINT;
-
-			if (!strncmp(Cmd_Argv(0), "seta", 4))
-				var->flags |= CVAR_ARCHIVE;
 		}
 	}
 	else
@@ -3163,12 +3173,10 @@ void Cmd_set_f(void)
 				Cvar_LockFromServer(var, text);
 		}
 		else
-			var = Cvar_Get(Cmd_Argv(1), text, 0, "User variables");
-	}
+			var = Cvar_Get(Cmd_Argv(1), text, CVAR_USERCREATED, "User variables");
 
-	if (var && !Cmd_FromGamecode())
-		if (!strncmp(Cmd_Argv(0), "seta", 4))
-			var->flags |= CVAR_ARCHIVE|CVAR_USERCREATED;
+		var->flags |= forceflags;
+	}
 
 	If_Token_Clear(mark);
 }
@@ -3234,7 +3242,7 @@ void Cmd_WriteConfig_f(void)
 		snprintf(fname, sizeof(fname), "fte.cfg");
 #endif
 
-		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 3, "quake.rc", "*.cfg", "configs/*.cfg");
+		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 3, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg");
 
 		all = cfg_save_all.ival;
 	}

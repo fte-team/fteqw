@@ -116,6 +116,7 @@ typedef struct
 	unsigned int csqcchecksum;
 	qboolean	mapchangelocked;
 
+	double		autosave_time;
 	double		time;
 	double		starttime;
 	int framenum;
@@ -137,18 +138,23 @@ typedef struct
 	union {
 #ifdef Q2SERVER
 		struct {
-			char configstring[Q2MAX_CONFIGSTRINGS][MAX_QPATH];
+			const char *configstring[Q2MAX_CONFIGSTRINGS];
+			const char	*q2_extramodels[MAX_PRECACHE_MODELS];	// NULL terminated
+			const char	*q2_extrasounds[MAX_PRECACHE_SOUNDS];	// NULL terminated
 		};
 #endif
 		struct {
-			const char		*vw_model_precache[32];
+			const char	*vw_model_precache[32];
 			const char	*model_precache[MAX_PRECACHE_MODELS];	// NULL terminated
-			char		particle_precache[MAX_SSPARTICLESPRE][MAX_QPATH];	// NULL terminated
-			char		sound_precache[MAX_PRECACHE_SOUNDS][MAX_QPATH];	// NULL terminated
-			const char		*lightstyles[MAX_LIGHTSTYLES];
-			vec3_t		lightstylecolours[MAX_LIGHTSTYLES];
+			const char	*particle_precache[MAX_SSPARTICLESPRE];	// NULL terminated
+			const char	*sound_precache[MAX_PRECACHE_SOUNDS];	// NULL terminated
+			const char	*lightstyles[MAX_LIGHTSTYLES];
 		};
+		const char *ptrs[1];
 	} strings;
+	qboolean	stringsalloced;	//if true, we need to free the string pointers safely rather than just memsetting them to 0
+	vec3_t		lightstylecolours[MAX_LIGHTSTYLES];
+
 	char		h2miditrack[MAX_QPATH];
 	qbyte		h2cdtrack;
 
@@ -286,6 +292,7 @@ typedef struct
 
 	int		*csqcentversion;//prevents ent versions from going backwards
 } server_t;
+void SV_WipeServerState(void);
 
 typedef enum
 {
@@ -322,7 +329,8 @@ typedef struct	//merge?
 {
 	int					areabytes;
 	qbyte				areabits[MAX_Q2MAP_AREAS/8];		// portalarea visibility bits
-	q2player_state_t	ps;
+	q2player_state_t	ps[MAX_SPLITS];		//yuck
+	int					clientnum[MAX_SPLITS];
 	int					num_entities;
 	int					first_entity;		// into the circular sv_packet_entities[]
 	int					senttime;			// for ping calculations
@@ -888,6 +896,7 @@ typedef struct
 
 //=============================================================================
 
+/*
 // edict->movetype values
 #define	MOVETYPE_NONE			0		// never moves
 #define	MOVETYPE_ANGLENOCLIP	1
@@ -920,6 +929,7 @@ typedef struct
 #define	DAMAGE_NO				0
 #define	DAMAGE_YES				1
 #define	DAMAGE_AIM				2
+*/
 
 #define PVSF_NORMALPVS		0x0
 #define PVSF_NOTRACECHECK	0x1
@@ -1024,6 +1034,7 @@ void SV_DropClient (client_t *drop);
 struct quakeparms_s;
 void SV_Init (struct quakeparms_s *parms);
 void SV_ExecInitialConfigs(char *defaultexec);
+void SV_ArgumentOverrides(void);
 
 int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, client_t *to);
@@ -1038,9 +1049,9 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id);
 void SV_GetNewSpawnParms(client_t *cl);
 void SV_SaveSpawnparms (void);
 void SV_SaveSpawnparmsClient(client_t *client, float *transferparms);	//if transferparms, calls SetTransferParms instead, and does not modify the player.
-void SV_SaveLevelCache(char *savename, qboolean dontharmgame);
-void SV_Savegame (char *savename);
-qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolean ignoreplayers);
+void SV_SaveLevelCache(const char *savename, qboolean dontharmgame);
+void SV_Savegame (const char *savename, qboolean autosave);
+qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *startspot, qboolean ignoreplayers);
 
 void SV_Physics_Client (edict_t	*ent, int num);
 
@@ -1101,7 +1112,7 @@ void MSV_Status(void);
 //
 // sv_init.c
 //
-void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean usecinematic);
+void SV_SpawnServer (const char *server, const char *startspot, qboolean noents, qboolean usecinematic);
 void SV_UnspawnServer (void);
 void SV_FlushSignon (void);
 void SV_UpdateMaxPlayers(int newmax);
@@ -1159,12 +1170,12 @@ void SVQ1_StartSound (float *origin, wedict_t *entity, int channel, const char *
 void SV_PrintToClient(client_t *cl, int level, const char *string);
 void SV_TPrintToClient(client_t *cl, int level, const char *string);
 void SV_StuffcmdToClient(client_t *cl, const char *string);
-void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...) LIKEPRINTF(3);
+void VARGS SV_ClientPrintf (client_t *cl, int level, const char *fmt, ...) LIKEPRINTF(3);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
-void VARGS SV_BroadcastPrintf (int level, char *fmt, ...) LIKEPRINTF(2);
+void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...) LIKEPRINTF(2);
 void VARGS SV_BroadcastTPrintf (int level, translation_t fmt, ...);
-void VARGS SV_BroadcastCommand (char *fmt, ...) LIKEPRINTF(1);
-void SV_SendServerInfoChange(char *key, const char *value);
+void VARGS SV_BroadcastCommand (const char *fmt, ...) LIKEPRINTF(1);
+void SV_SendServerInfoChange(const char *key, const char *value);
 void SV_SendMessagesToAll (void);
 void SV_FindModelNumbers (void);
 
@@ -1227,7 +1238,7 @@ qboolean PR_ShouldTogglePause(client_t *initiator, qboolean pausedornot);
 // sv_ents.c
 //
 void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs);
-void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, client_t *client);
+void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, unsigned int pext2);
 void SVQ3Q1_BuildEntityPacket(client_t *client, packet_entities_t *pack);
 int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs);
 void SV_GibFilterInit(void);
@@ -1435,7 +1446,13 @@ void SV_FlushDemoSignon (void);
 void DestFlush(qboolean compleate);
 
 // savegame.c
+void SV_LegacySavegame_f(void);
+void SV_Savegame_f (void);
+void SV_Loadgame_f (void);
+void SV_AutoSave(void);
 void SV_FlushLevelCache(void);
+extern cvar_t sv_autosave;
+
 
 int SV_RateForClient(client_t *cl);
 

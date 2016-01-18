@@ -526,6 +526,7 @@ pbool QDECL ED_CanFree (edict_t *ed);
 #define MOVETYPE_6DOF			30		// flightsim mode
 #define MOVETYPE_WALLWALK		31		// walks up walls and along ceilings
 #define MOVETYPE_PHYSICS		32
+#define MOVETYPE_FLY_WORLDONLY	33
 
 // edict->solid values
 #define	SOLID_NOT				0		// no interaction with other objects

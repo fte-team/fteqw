@@ -1270,6 +1270,33 @@ static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	prinst->RunError(prinst, "\nBuiltin %i:%s not implemented.\nMenu is not compatible.", binum, fname);
 	PR_BIError (prinst, "bulitin not implemented");
 }
+static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	func_t funcref = G_INT(OFS_PARM0);
+	char *funcname = NULL;
+	int args;
+	int builtinno;
+	if (prinst->GetFunctionInfo(prinst, funcref, &args, &builtinno, funcname, sizeof(funcname)))
+	{	//qc defines the function at least. nothing weird there...
+		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
+		{
+			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme)
+				G_FLOAT(OFS_RETURN) = false;	//the builtin with that number isn't defined.
+			else
+			{
+				G_FLOAT(OFS_RETURN) = true;		//its defined, within the sane range, mapped, everything. all looks good.
+				//we should probably go through the available builtins and validate that the qc's name matches what would be expected
+				//this is really intended more for builtins defined as #0 though, in such cases, mismatched assumptions are impossible.
+			}
+		}
+		else
+			G_FLOAT(OFS_RETURN) = false;	//not a valid builtin (#0 builtins get remapped according to the function name)
+	}
+	else
+	{	//not valid somehow.
+		G_FLOAT(OFS_RETURN) = false;
+	}
+}
 
 
 
@@ -1875,6 +1902,7 @@ static struct {
 	int ebfsnum;
 }  BuiltinList[] = {
 	{"checkextension",			PF_menu_checkextension,		1},
+	{"checkbuiltin",			PF_checkbuiltin,			0},
 	{"error",					PF_error,					2},
 	{"objerror",				PF_nonfatalobjerror,		3},
 	{"print",					PF_print,					4},
@@ -2308,7 +2336,7 @@ void VARGS Menu_Abort (char *format, ...)
 	if (pr_menuqc_coreonerror.value)
 	{
 		char *buffer;
-		int size = 1024*1024*8;
+		size_t size = 1024*1024*8;
 		buffer = Z_Malloc(size);
 		menu_world.progs->save_ents(menu_world.progs, buffer, &size, size, 3);
 		COM_WriteFile("menucore.txt", FS_GAMEONLY, buffer, size);
@@ -2504,7 +2532,7 @@ void MP_CoreDump_f(void)
 	}
 
 	{
-		int size = 1024*1024*8;
+		size_t size = 1024*1024*8;
 		char *buffer = BZ_Malloc(size);
 		menu_world.progs->save_ents(menu_world.progs, buffer, &size, size, 3);
 		COM_WriteFile("menucore.txt", FS_GAMEONLY, buffer, size);

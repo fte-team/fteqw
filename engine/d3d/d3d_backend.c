@@ -3357,19 +3357,18 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 	}
 }
 
-void D3D9BE_SubmitMeshes (qboolean drawworld, batch_t **blist, int first, int stop)
+void D3D9BE_SubmitMeshes (batch_t **worldbatches, batch_t **blist, int first, int stop)
 {
-	model_t *model = cl.worldmodel;
 	int i;
 
 	for (i = first; i < stop; i++)
 	{
-		if (drawworld)
+		if (worldbatches)
 		{
 			if (i == SHADER_SORT_PORTAL /*&& !r_noportals.ival*/ && !r_refdef.recurse)
-				BE_SubmitMeshesPortals(model->batches, blist[i]);
+				BE_SubmitMeshesPortals(worldbatches, blist[i]);
 
-			BE_SubmitMeshesSortList(model->batches[i]);
+			BE_SubmitMeshesSortList(worldbatches[i]);
 		}
 		BE_SubmitMeshesSortList(blist[i]);
 	}
@@ -3380,7 +3379,7 @@ void D3D9BE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	BE_GenModelBatches(batches, shaderstate.curdlight, shaderstate.mode);
-	D3D9BE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+	D3D9BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 	BE_SelectEntity(&r_worldentity);
 }
 
@@ -3410,7 +3409,7 @@ void D3D9BE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vb
 }
 #endif
 
-void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
+void D3D9BE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
@@ -3432,7 +3431,7 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 	shaderstate.curdlight = NULL;
 	BE_GenModelBatches(batches, shaderstate.curdlight, BEM_STANDARD);
 
-	if (drawworld)
+	if (worldbatches)
 	{
 		float shaderstate_identitylighting;
 		BE_UploadLightmaps(false);
@@ -3447,7 +3446,7 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 		r_worldentity.axis[2][2] = 1;
 
 #ifdef RTLIGHTS
-		if (drawworld && r_shadow_realtime_world.ival)
+		if (worldbatches && r_shadow_realtime_world.ival)
 			shaderstate_identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
@@ -3461,7 +3460,7 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 			BE_SelectMode(BEM_STANDARD);
 
 		RSpeedRemark();
-		D3D9BE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+		D3D9BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 		RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
@@ -3476,12 +3475,12 @@ void D3D9BE_DrawWorld (qboolean drawworld, qbyte *vis)
 
 		BE_SelectMode(BEM_STANDARD);
 
-		D3D9BE_SubmitMeshes(true, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);
+		D3D9BE_SubmitMeshes(worldbatches, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);
 	}
 	else
 	{
 		RSpeedRemark();
-		D3D9BE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_COUNT);
+		D3D9BE_SubmitMeshes(NULL, batches, SHADER_SORT_PORTAL, SHADER_SORT_COUNT);
 		RSpeedEnd(RSPEED_DRAWENTITIES);
 	}
 

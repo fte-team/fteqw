@@ -1006,6 +1006,11 @@ void MSG_WriteCoord (sizebuf_t *sb, float f)
 	coorddata i = MSG_ToCoord(f, sb->prim.coordsize);
 	SZ_Write (sb, (void*)&i, sb->prim.coordsize);
 }
+void MSG_WriteCoord24 (sizebuf_t *sb, float f)
+{
+	coorddata i = MSG_ToCoord(f, 3);
+	SZ_Write (sb, (void*)&i, 3);
+}
 
 void MSG_WriteAngle16 (sizebuf_t *sb, float f)
 {
@@ -1564,6 +1569,12 @@ float MSG_ReadCoord (void)
 		net_message.prim.coordsize = 2;
 	MSG_ReadData(&c, net_message.prim.coordsize);
 	return MSG_FromCoord(c, net_message.prim.coordsize);
+}
+float MSG_ReadCoord24 (void)
+{
+	coorddata c = {{0}};
+	MSG_ReadData(&c, 3);
+	return MSG_FromCoord(c, 3);
 }
 
 void MSG_ReadPos (vec3_t pos)
@@ -3408,10 +3419,8 @@ messedup:
 //unicode-to-ascii is not provided. you're expected to utf-8 the result or something.
 //does not handle colour codes or hidden chars. add your own escape sequences if you need that.
 //does not guarentee removal of control codes if eg the code was specified as an explicit unicode char.
-unsigned int COM_DeQuake(conchar_t chr)
+unsigned int COM_DeQuake(unsigned int chr)
 {
-	chr &= CON_CHARMASK;
-
 	/*only this range are quake chars*/
 	if (chr >= 0xe000 && chr < 0xe100)
 	{
@@ -5189,15 +5198,15 @@ void COM_WorkerPartialSync(void *priorityctx, int *address, int value)
 //	Con_Printf("Waited %f for %s\n", Sys_DoubleTime() - time1, priorityctx);
 }
 
-static void COM_WorkerPing(void *ctx, void *data, size_t a, size_t b)
+static void COM_WorkerPong(void *ctx, void *data, size_t a, size_t b)
 {
 	double *timestamp = data;
-	if (!b)
-		COM_AddWork(WG_MAIN, COM_WorkerPing, ctx, data, 0, 1);
-	else
-	{
-		Con_Printf("Ping: %g\n", Sys_DoubleTime() - *timestamp);
-	}
+	Con_Printf("Ping: %g\n", Sys_DoubleTime() - *timestamp);
+	Z_Free(timestamp);
+}
+static void COM_WorkerPing(void *ctx, void *data, size_t a, size_t b)
+{
+	COM_AddWork(WG_MAIN, COM_WorkerPong, ctx, data, 0, 0);
 }
 static void COM_WorkerTest_f(void)
 {

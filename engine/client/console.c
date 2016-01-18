@@ -538,7 +538,19 @@ void Con_Clear_f (void)
 }
 
 
-
+void Cmd_ConEchoCenter_f(void)
+{
+	console_t *con;
+	con = Con_FindConsole(Cmd_Argv(1));
+	if (!con)
+		con = Con_Create(Cmd_Argv(1), 0);
+	if (con)
+	{
+		Cmd_ShiftArgs(1, false);
+		Con_PrintCon(con, Cmd_Args(), con->parseflags|PFS_NONOTIFY|PFS_CENTERED );
+		Con_PrintCon(con, "\n", con->parseflags|PFS_NONOTIFY|PFS_CENTERED);
+	}
+}
 void Cmd_ConEcho_f(void)
 {
 	console_t *con;
@@ -651,6 +663,7 @@ void Con_Init (void)
 	Cmd_AddCommand ("qterm", Con_QTerm_f);
 #endif
 
+	Cmd_AddCommand ("conecho_center", Cmd_ConEchoCenter_f);
 	Cmd_AddCommand ("conecho", Cmd_ConEcho_f);
 	Cmd_AddCommand ("conclear", Cmd_ConClear_f);
 	Cmd_AddCommand ("conclose", Cmd_ConClose_f);
@@ -688,7 +701,7 @@ If no console is visible, the notify window will pop up.
 ================
 */
 
-void Con_PrintConChars (console_t *con, conchar_t *c, int len)
+static void Con_PrintConChars (console_t *con, conchar_t *c, int len)
 {
 	conline_t *oc;
 	conchar_t *o;
@@ -717,7 +730,7 @@ void Con_PrintConChars (console_t *con, conchar_t *c, int len)
 	con->current->length+=len;
 }
 
-void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
+void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 {
 	conchar_t expanded[4096];
 	conchar_t *c;
@@ -768,10 +781,11 @@ void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 				con->linecount--;
 			}
 			con->linecount++;
-			if (con->flags & CONF_NOTIMES)
+			if ((con->flags & CONF_NOTIMES) || (parseflags & PFS_NONOTIFY))
 				con->current->time = 0;
 			else
 				con->current->time = realtime + con->notif_t;
+			con->current->flags = (parseflags & PFS_CENTERED)?CONL_CENTERED:0;
 
 #if defined(_WIN32) && !defined(NOMEDIA) && !defined(WINRT)
 			if (con->current)
@@ -803,7 +817,7 @@ void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 				con->cr = false;
 			}
 
-			if (!con->current->length && con_timestamps.ival)
+			if (!con->current->length && con_timestamps.ival && !(parseflags & PFS_CENTERED))
 			{
 				char timeasc[64];
 				conchar_t timecon[64], *timeconend;
@@ -843,17 +857,25 @@ void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags)
 	}
 
 	
-	if (con->flags & CONF_NOTIMES)
+	if ((con->flags & CONF_NOTIMES) || (parseflags & PFS_NONOTIFY))
 		con->current->time = 0;
 	else
 		con->current->time = realtime + con->notif_t;
 }
 
-void Con_Print (char *txt)
+void Con_CenterPrint(const char *txt)
+{
+	int flags = con_main.parseflags|PFS_NONOTIFY|PFS_CENTERED;
+	Con_PrintCon(&con_main, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f\n", flags);
+	Con_PrintCon(&con_main, txt, flags);	//client console
+	Con_PrintCon(&con_main, "\n^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f\n", flags);
+}
+
+void Con_Print (const char *txt)
 {
 	Con_PrintCon(&con_main, txt, con_main.parseflags);	//client console
 }
-void Con_PrintFlags(char *txt, unsigned int setflags, unsigned int clearflags)
+void Con_PrintFlags(const char *txt, unsigned int setflags, unsigned int clearflags)
 {
 	setflags |= con_main.parseflags;
 	setflags &= ~clearflags;
@@ -938,7 +960,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 	Con_Print (msg);
 }
 
-void VARGS Con_SafePrintf (char *fmt, ...)
+void VARGS Con_SafePrintf (const char *fmt, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
@@ -1035,7 +1057,7 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 }
 
 /*description text at the bottom of the console*/
-void Con_Footerf(console_t *con, qboolean append, char *fmt, ...)
+void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
@@ -1924,7 +1946,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 
 		}
 
-		l->lines = linecount;
+		l->numlines = linecount;
 
 		while(linecount-- > 0)
 		{
@@ -1944,8 +1966,8 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 					{
 						int sstart;
 						int send;
-						sstart = sx+picw;
-						send = sstart;
+						int center;
+						send = sstart = picw;
 						for (c = s; c < e; )
 						{
 							c = Font_Decode(c, &codeflags, &codepoint);
@@ -1955,6 +1977,10 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 						//show something on blank lines
 						if (send == sstart)
 							send = Font_CharEndCoord(font_console, send, CON_WHITEMASK, ' ');
+
+						center = sx;
+						if (l->flags&CONL_CENTERED)
+							center += ((ex-sx) - send)/2;
 
 						if (y+charh >= seley && y < selsy)
 						{	//if they're both on the same line, make sure sx is to the left of ex, so our stuff makes sense
@@ -1974,7 +2000,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 								c = Font_Decode(c, &codeflags, &codepoint);
 								send = Font_CharEndCoord(font_console, send, codeflags, codepoint);
 
-								if (send > selex)
+								if (send+center > selex)
 									break;
 							}
 
@@ -1990,7 +2016,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 							{
 								Font_Decode(c, &codeflags, &codepoint);
 								x = Font_CharEndCoord(font_console, sstart, codeflags, codepoint);
-								if (x > selsx)
+								if (x+center > selsx)
 									break;
 								c = Font_Decode(c, &codeflags, &codepoint);
 								sstart = x;
@@ -2002,6 +2028,9 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 							else
 								con->selstartoffset = 0;
 						}
+
+						sstart += center;
+						send += center;
 
 						if (selactive == 1)
 						{
@@ -2018,6 +2047,19 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, int sx, int ex, in
 			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 
 			x = sx + picw;
+
+			if (l->flags&CONL_CENTERED)
+			{
+				int send = 0;
+				for (c = s; c < e; )
+				{
+					c = Font_Decode(c, &codeflags, &codepoint);
+					send = Font_CharEndCoord(font_console, send, codeflags, codepoint);
+				}
+
+				x += ((ex-sx) - send)/2;
+			}
+
 			Font_LineDraw(x, y, s, e);
 
 			if (y < top)
@@ -2402,9 +2444,9 @@ char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink)
 
 		if (outlen+3 > maxlen)
 			break;
-#ifdef _WIN32
-		result[outlen++] = '\r';
-#endif
+//#ifdef _WIN32
+//		result[outlen++] = '\r';
+//#endif
 		result[outlen++] = '\n';
 		cur = (conchar_t*)(l+1);
 	}

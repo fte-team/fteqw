@@ -110,16 +110,36 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 		bits |= Q2U_EVENT;
 	
 	if ( to->modelindex != from->modelindex )
+	{
 		bits |= Q2U_MODEL;
+		if (to->modelindex > 0xff)
+			bits |= Q2UX_INDEX16;
+	}
 	if ( to->modelindex2 != from->modelindex2 )
+	{
 		bits |= Q2U_MODEL2;
+		if (to->modelindex2 > 0xff)
+			bits |= Q2UX_INDEX16;
+	}
 	if ( to->modelindex3 != from->modelindex3 )
+	{
 		bits |= Q2U_MODEL3;
+		if (to->modelindex3 > 0xff)
+			bits |= Q2UX_INDEX16;
+	}
 	if ( to->modelindex4 != from->modelindex4 )
+	{
 		bits |= Q2U_MODEL4;
+		if (to->modelindex4 > 0xff)
+			bits |= Q2UX_INDEX16;
+	}
 
 	if ( to->sound != from->sound )
+	{
 		bits |= Q2U_SOUND;
+		if (to->sound > 0xff)
+			bits |= Q2UX_INDEX16;
+	}
 
 	if (newentity || (to->renderfx & Q2RF_BEAM))
 		bits |= Q2U_OLDORIGIN;
@@ -165,13 +185,33 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 		MSG_WriteByte (msg,	to->number);
 
 	if (bits & Q2U_MODEL)
-		MSG_WriteByte (msg,	to->modelindex);
+	{
+		if (bits & Q2UX_INDEX16)
+			MSG_WriteShort	(msg,	to->modelindex);
+		else
+			MSG_WriteByte	(msg,	to->modelindex);
+	}
 	if (bits & Q2U_MODEL2)
-		MSG_WriteByte (msg,	to->modelindex2);
+	{
+		if (bits & Q2UX_INDEX16)
+			MSG_WriteShort	(msg,	to->modelindex2);
+		else
+			MSG_WriteByte	(msg,	to->modelindex2);
+	}
 	if (bits & Q2U_MODEL3)
-		MSG_WriteByte (msg,	to->modelindex3);
+	{
+		if (bits & Q2UX_INDEX16)
+			MSG_WriteShort	(msg,	to->modelindex3);
+		else
+			MSG_WriteByte	(msg,	to->modelindex3);
+	}
 	if (bits & Q2U_MODEL4)
-		MSG_WriteByte (msg,	to->modelindex4);
+	{
+		if (bits & Q2UX_INDEX16)
+			MSG_WriteShort	(msg,	to->modelindex4);
+		else
+			MSG_WriteByte	(msg,	to->modelindex4);
+	}
 
 	if (bits & Q2U_FRAME8)
 		MSG_WriteByte (msg, to->frame);
@@ -222,11 +262,22 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 	}
 
 	if (bits & Q2U_SOUND)
-		MSG_WriteByte (msg, to->sound);
+	{
+		if (bits & Q2UX_INDEX16)
+			MSG_WriteShort	(msg,	to->sound);
+		else
+			MSG_WriteByte	(msg,	to->sound);
+	}
+
 	if (bits & Q2U_EVENT)
 		MSG_WriteByte (msg, to->event);
 	if (bits & Q2U_SOLID)
-		MSG_WriteShort (msg, to->solid);
+	{
+		if (net_message.prim.q2flags & NPQ2_SOLID32)
+			MSG_WriteLong (msg, to->solid);
+		else
+			MSG_WriteShort (msg, to->solid);
+	}
 }
 
 
@@ -346,7 +397,7 @@ SV_WritePlayerstateToClient
 
 =============
 */
-void SVQ2_WritePlayerstateToClient (q2client_frame_t *from, q2client_frame_t *to, sizebuf_t *msg)
+void SVQ2_WritePlayerstateToClient (unsigned int pext, int seat, int extflags, q2client_frame_t *from, q2client_frame_t *to, sizebuf_t *msg)
 {
 	int				i;
 	int				pflags;
@@ -354,19 +405,23 @@ void SVQ2_WritePlayerstateToClient (q2client_frame_t *from, q2client_frame_t *to
 	q2player_state_t	dummy;
 	int				statbits;
 
-	ps = &to->ps;
+	ps = &to->ps[seat];
 	if (!from)
 	{
 		memset (&dummy, 0, sizeof(dummy));
 		ops = &dummy;
 	}
 	else
-		ops = &from->ps;
+		ops = &from->ps[seat];
 
 	//
 	// determine what needs to be sent
 	//
 	pflags = 0;
+
+	if (pext & PEXT_SPLITSCREEN)
+		if (!from || from->clientnum[seat] != to->clientnum[seat])
+			pflags |= Q2PS_CLIENTNUM;
 
 	if (ps->pmove.pm_type != ops->pmove.pm_type)
 		pflags |= Q2PS_M_TYPE;
@@ -426,13 +481,27 @@ void SVQ2_WritePlayerstateToClient (q2client_frame_t *from, q2client_frame_t *to
 	if (ps->gunframe != ops->gunframe)
 		pflags |= Q2PS_WEAPONFRAME;
 
-	pflags |= Q2PS_WEAPONINDEX;
+	if (ps->gunindex != ops->gunindex)
+		pflags |= Q2PS_WEAPONINDEX;
+
+	if (pext & PEXT_MODELDBL)
+	{
+		if ((pflags & Q2PS_WEAPONINDEX) && ps->gunindex > 0xff)
+			pflags |= Q2PS_INDEX16;
+		if ((pflags & Q2PS_WEAPONFRAME) && ps->gunframe > 0xff)
+			pflags |= Q2PS_INDEX16;
+	}
+
+	if (pflags > 0xffff)
+		pflags |= Q2PS_EXTRABITS;
 
 	//
 	// write it
 	//
 	MSG_WriteByte (msg, svcq2_playerinfo);
-	MSG_WriteShort (msg, pflags);
+	MSG_WriteShort (msg, pflags&0xffff);
+	if (pflags & Q2PS_EXTRABITS)
+		MSG_WriteByte (msg, pflags>>16);
 
 	//
 	// write the pmove_state_t
@@ -497,12 +566,18 @@ void SVQ2_WritePlayerstateToClient (q2client_frame_t *from, q2client_frame_t *to
 
 	if (pflags & Q2PS_WEAPONINDEX)
 	{
-		MSG_WriteByte (msg, ps->gunindex);
+		if (pflags & Q2PS_INDEX16)
+			MSG_WriteShort(msg, ps->gunindex);
+		else
+			MSG_WriteByte (msg, ps->gunindex);
 	}
 
 	if (pflags & Q2PS_WEAPONFRAME)
 	{
-		MSG_WriteByte (msg, ps->gunframe);
+		if (pflags & Q2PS_INDEX16)
+			MSG_WriteShort (msg, ps->gunframe);
+		else
+			MSG_WriteByte (msg, ps->gunframe);
 		MSG_WriteChar (msg, ps->gunoffset[0]*4);
 		MSG_WriteChar (msg, ps->gunoffset[1]*4);
 		MSG_WriteChar (msg, ps->gunoffset[2]*4);
@@ -533,6 +608,9 @@ void SVQ2_WritePlayerstateToClient (q2client_frame_t *from, q2client_frame_t *to
 	for (i=0 ; i<Q2MAX_STATS ; i++)
 		if (statbits & (1<<i) )
 			MSG_WriteShort (msg, ps->stats[i]);
+
+	if ((extflags & Q2PSX_CLIENTNUM) || (pflags & Q2PS_CLIENTNUM))
+		MSG_WriteByte(msg, to->clientnum[seat]);
 }
 
 
@@ -545,6 +623,9 @@ void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 {
 	q2client_frame_t		*frame, *oldframe;
 	int					lastframe;
+	client_t			*split;
+	int seat;
+	int extflags = 0;
 
 //Com_Printf ("%i -> %i\n", client->lastframe, sv.framenum);
 	// this is the frame we are creating
@@ -571,6 +652,7 @@ void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 	MSG_WriteLong (msg, sv.framenum);
 	MSG_WriteLong (msg, lastframe);	// what we are delta'ing from
 	MSG_WriteByte (msg, client->chokecount&0xff);	// rate dropped packets
+	extflags |= Q2PSX_OLD;
 	client->chokecount = 0;
 
 	// send over the areabits
@@ -578,7 +660,8 @@ void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 	SZ_Write (msg, frame->areabits, frame->areabytes);
 
 	// delta encode the playerstate
-	SVQ2_WritePlayerstateToClient (oldframe, frame, msg);
+	for (split = client, seat = 0; split; split = split->controlled, seat++)
+		SVQ2_WritePlayerstateToClient (client->fteprotocolextensions, seat, extflags, oldframe, frame, msg);
 
 	// delta encode the entities
 	SVQ2_EmitPacketEntities (oldframe, frame, msg);
@@ -605,27 +688,24 @@ void SVQ2_Ents_Init(void);
 void SVQ2_BuildClientFrame (client_t *client)
 {
 	int		e, i;
-	vec3_t	org;
+	vec3_t org[MAX_SPLITS];
+	int		clientarea[MAX_SPLITS];
+	q2edict_t	*clent[MAX_SPLITS];
+	client_t	*split;
 	q2edict_t	*ent;
-	q2edict_t	*clent;
 	q2client_frame_t	*frame;
 	q2entity_state_t	*state;
 	int		l;
-	int		clientarea, clientcluster;
-	int		leafnum;
+	int		seat;
 	int		c_fullsend;
 	qbyte	clientpvs[(MAX_MAP_LEAFS+7)>>3];
-	qbyte	*clientphs;
+	qbyte	*clientphs = NULL;
+	int		seats;
 
 	if (client->state < cs_spawned)
 		return;
 
 	SVQ2_Ents_Init();
-
-	clent = client->q2edict;
-
-	if (!clent->client)
-		return;
 
 #if 0
 	numprojs = 0; // no projectiles yet
@@ -639,26 +719,48 @@ void SVQ2_BuildClientFrame (client_t *client)
 	// this is the frame we are creating
 	frame = &client->frameunion.q2frames[sv.framenum & Q2UPDATE_MASK];
 
-	// find the client's PVS
-	for (i=0 ; i<3 ; i++)
-		org[i] = clent->client->ps.pmove.origin[i]*0.125 + clent->client->ps.viewoffset[i];
-
-	leafnum = CM_PointLeafnum (sv.world.worldmodel, org);
-	clientarea = CM_LeafArea (sv.world.worldmodel, leafnum);
-	clientcluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-
-	// calculate the visible areas
-	frame->areabytes = CM_WriteAreaBits (sv.world.worldmodel, frame->areabits, clientarea, false);
-
 	// grab the current player_state_t
-	frame->ps = clent->client->ps;
+	for (seat = 0, split = client; split; split = split->controlled, seat++)
+	{
+		int		clientcluster;
+		int		leafnum;
 
-	if (sv.paused)
-		frame->ps.pmove.pm_type = Q2PM_FREEZE;
+		clent[seat] = split->q2edict;
+		frame->clientnum[seat] = split - svs.clients;
 
+		if (!split->q2edict->client)
+		{	//shouldn't happen
+			VectorClear(org[seat]);
+			clientarea[seat] = 0;
+			memset(&frame->ps[seat], 0, sizeof(frame->ps[seat]));
+			frame->ps[seat].pmove.pm_type = Q2PM_FREEZE;
+			continue;
+		}
 
-	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org, clientpvs, sizeof(clientpvs), false);
-	clientphs = CM_ClusterPHS (sv.world.worldmodel, clientcluster);
+		// find the client's PVS
+		for (i=0 ; i<3 ; i++)
+			org[seat][i] = clent[seat]->client->ps.pmove.origin[i]*0.125 + clent[seat]->client->ps.viewoffset[i];
+
+		leafnum = CM_PointLeafnum (sv.world.worldmodel, org[seat]);
+		clientarea[seat] = CM_LeafArea (sv.world.worldmodel, leafnum);
+		clientcluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+
+		// calculate the visible areas
+		frame->areabytes = CM_WriteAreaBits (sv.world.worldmodel, frame->areabits, clientarea[seat], seat != 0);
+
+		sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org[seat], clientpvs, sizeof(clientpvs), seat!=0);
+		clientphs = CM_ClusterPHS (sv.world.worldmodel, clientcluster);
+
+		frame->ps[seat] = clent[seat]->client->ps;
+		if (sv.paused)
+			frame->ps[seat].pmove.pm_type = Q2PM_FREEZE;
+	}
+	seats = seat;
+	for (; seat < MAX_SPLITS; seat++)
+	{
+		memset(&frame->ps[seat], 0, sizeof(frame->ps[seat]));
+		frame->clientnum[seat] = 0xff;	//invalid
+	}
 
 	// build up the list of visible entities
 	frame->num_entities = 0;
@@ -679,60 +781,67 @@ void SVQ2_BuildClientFrame (client_t *client)
 			&& !ent->s.event)
 			continue;
 
-		// ignore if not touching a PV leaf
-		if (ent != clent)
+		for (seat = 0; seat < seats; seat++)
 		{
-			// check area
-			if (!CM_AreasConnected (sv.world.worldmodel, clientarea, ent->areanum))
-			{	// doors can legally straddle two areas, so
-				// we may need to check another one
-				if (!ent->areanum2
-					|| !CM_AreasConnected (sv.world.worldmodel, clientarea, ent->areanum2))
-					continue;		// blocked by a door
-			}
-
-			// beams just check one point for PHS
-			if (ent->s.renderfx & Q2RF_BEAM)
+			// ignore if not touching a PV leaf
+			if (ent != clent[seat])
 			{
-				l = ent->clusternums[0];
-				if ( !(clientphs[l >> 3] & (1 << (l&7) )) )
-					continue;
-			}
-			else
-			{
-				// FIXME: if an ent has a model and a sound, but isn't
-				// in the PVS, only the PHS, clear the model
+				// check area
+				if (!CM_AreasConnected (sv.world.worldmodel, clientarea[seat], ent->areanum))
+				{	// doors can legally straddle two areas, so
+					// we may need to check another one
+					if (!ent->areanum2
+						|| !CM_AreasConnected (sv.world.worldmodel, clientarea[seat], ent->areanum2))
+						continue;		// blocked by a door
+				}
 
-				if (ent->num_clusters == -1)
-				{	// too many leafs for individual check, go by headnode
-					if (!CM_HeadnodeVisible (sv.world.worldmodel, ent->headnode, clientpvs))
+				// beams just check one point for PHS
+				if (ent->s.renderfx & Q2RF_BEAM)
+				{
+					l = ent->clusternums[0];
+					if ( !(clientphs[l >> 3] & (1 << (l&7) )) )
 						continue;
-					c_fullsend++;
 				}
 				else
-				{	// check individual leafs
-					for (i=0 ; i < ent->num_clusters ; i++)
-					{
-						l = ent->clusternums[i];
-						if (clientpvs[l >> 3] & (1 << (l&7) ))
-							break;
+				{
+					// FIXME: if an ent has a model and a sound, but isn't
+					// in the PVS, only the PHS, clear the model
+
+					if (ent->num_clusters == -1)
+					{	// too many leafs for individual check, go by headnode
+						if (!CM_HeadnodeVisible (sv.world.worldmodel, ent->headnode, clientpvs))
+							continue;
+						c_fullsend++;
 					}
-					if (i == ent->num_clusters)
-						continue;		// not visible
-				}
+					else
+					{	// check individual leafs
+						for (i=0 ; i < ent->num_clusters ; i++)
+						{
+							l = ent->clusternums[i];
+							if (clientpvs[l >> 3] & (1 << (l&7) ))
+								break;
+						}
+						if (i == ent->num_clusters)
+							continue;		// not visible
+					}
 
-				if (!ent->s.modelindex)
-				{	// don't send sounds if they will be attenuated away
-					vec3_t	delta;
-					float	len;
+					if (!ent->s.modelindex)
+					{	// don't send sounds if they will be attenuated away
+						vec3_t	delta;
+						float	len;
 
-					VectorSubtract (org, ent->s.origin, delta);
-					len = Length (delta);
-					if (len > 400)
-						continue;
+						VectorSubtract (org[seat], ent->s.origin, delta);
+						len = Length (delta);
+						if (len > 400)
+							continue;
+					}
 				}
 			}
+			break;
 		}
+		if (seat == seats)
+			continue;	//not visible to any seat
+		seat = 0; //FIXME
 
 		// add it to the circular client_entities array
 		state = &svs_client_entities[svs_next_client_entities%svs_num_client_entities];
@@ -744,7 +853,7 @@ void SVQ2_BuildClientFrame (client_t *client)
 		*state = ent->s;
 
 		// don't mark players missiles as solid
-		if (ent->owner == client->q2edict)
+		if (ent->owner == clent[seat])
 			state->solid = 0;
 
 		svs_next_client_entities++;

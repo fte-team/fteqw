@@ -3232,7 +3232,7 @@ retry:
 		PR_CleanUpStatements16(progfuncs, st16, hexencalling);
 		break;
 
-	case PST_KKQWSV:	//24 sucks. Guess why.
+	case PST_KKQWSV:
 	case PST_FTE32:
 		for (i=0 ; i<pr_progs->numstatements ; i++)
 		{

@@ -98,12 +98,14 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define isextendedcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || x == '-')
 #define ishexcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || (x >= 'a' && x <= 'f'))
 
+#define CONL_CENTERED (1u<<0)
 typedef struct conline_s {
 	struct conline_s *older;
 	struct conline_s *newer;
 	unsigned short length;
 	unsigned short maxlength;
-	unsigned short lines;
+	unsigned char numlines;	//updated so we scroll properly
+	unsigned char flags;	
 	unsigned short id;
 	float time;
 } conline_t;
@@ -204,13 +206,14 @@ struct font_s;
 void Con_DrawOneConsole(console_t *con, qboolean focused, struct font_s *font, float fx, float fy, float fsx, float fsy);
 void Con_DrawConsole (int lines, qboolean noback);
 char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink);
-void Con_Print (char *txt);
-void Con_PrintFlags(char *text, unsigned int setflags, unsigned int clearflags);
+void Con_Print (const char *txt);
+void Con_CenterPrint(const char *txt);
+void Con_PrintFlags(const char *text, unsigned int setflags, unsigned int clearflags);
 void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
 void VARGS Con_DPrintf (const char *fmt, ...) LIKEPRINTF(1);
-void VARGS Con_SafePrintf (char *fmt, ...) LIKEPRINTF(1);
-void Con_Footerf(console_t *con, qboolean append, char *fmt, ...) LIKEPRINTF(3); 
+void VARGS Con_SafePrintf (const char *fmt, ...) LIKEPRINTF(1);
+void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...) LIKEPRINTF(3); 
 void Con_Clear_f (void);
 void Con_DrawNotify (void);
 void Con_ClearNotify (void);
@@ -229,7 +232,7 @@ qboolean Con_NameForNum(int num, char *buffer, int buffersize);
 console_t *Con_FindConsole(const char *name);
 console_t *Con_Create(const char *name, unsigned int flags);
 void Con_SetVisible (console_t *con);
-void Con_PrintCon (console_t *con, char *txt, unsigned int parseflags);
+void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags);
 
 void Con_NotifyBox (char *text);	// during startup for sound / cd warnings
 

@@ -138,6 +138,7 @@ cvar_t snd_voip_micamp			= CVARAFDC("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "
 cvar_t snd_voip_codec			= CVARAFDC("cl_voip_codec", "0", NULL, CVAR_ARCHIVE, "0: speex(@11khz). 1: raw. 2: opus. 3: speex(@8khz). 4: speex(@16). 5:speex(@32).", 0);
 cvar_t snd_voip_noisefilter		= CVARAFDC("cl_voip_noisefilter", "1", NULL, CVAR_ARCHIVE, "Enable the use of the noise cancelation filter.", 0);
 cvar_t snd_voip_autogain		= CVARAFDC("cl_voip_autogain", "0", NULL, CVAR_ARCHIVE, "Attempts to normalize your voice levels to a standard level. Useful for lazy people, but interferes with voice activation levels.", 0);
+cvar_t snd_voip_bitrate			= CVARAFDC("cl_voip_bitrate", "0", NULL, CVAR_ARCHIVE, "For codecs with non-specific bitrates, this specifies the target bitrate to use (in kb).", 0);
 #endif
 
 extern vfsfile_t *rawwritefile;
@@ -297,12 +298,14 @@ static struct
 	float voiplevel;	/*your own voice level*/
 	unsigned int dumps;	/*trigger a new generation thing after a bit*/
 	unsigned int keeps;	/*for vad_delay*/
+	int curbitrate;
 
 	snd_capture_driver_t *cdriver;/*capture driver's functions*/
 	void *cdriverctx;	/*capture driver context*/
 } s_voip;
 
 #define OPUS_APPLICATION_VOIP				2048
+#define OPUS_SET_BITRATE_REQUEST			4002
 #define OPUS_RESET_STATE					4028
 #ifdef OPUS_STATIC
 #include "opus.h"
@@ -1024,18 +1027,20 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			if (!s_voip.encoder)
 				return;
 
-//			opus_encoder_ctl(enc, OPUS_SET_BITRATE(bitrate_bps));
-//			opus_encoder_ctl(enc, OPUS_SET_BANDWIDTH(OPUS_BANDWIDTH_NARROWBAND));
-//			opus_encoder_ctl(enc, OPUS_SET_VBR(use_vbr));
-//			opus_encoder_ctl(enc, OPUS_SET_VBR_CONSTRAINT(cvbr));
-//			opus_encoder_ctl(enc, OPUS_SET_COMPLEXITY(complexity));
-//			opus_encoder_ctl(enc, OPUS_SET_INBAND_FEC(use_inbandfec));
-//			opus_encoder_ctl(enc, OPUS_SET_FORCE_CHANNELS(forcechannels));
-//			opus_encoder_ctl(enc, OPUS_SET_DTX(use_dtx));
-//			opus_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(packet_loss_perc));
+			s_voip.curbitrate = 0;
 
-//			opus_encoder_ctl(enc, OPUS_GET_LOOKAHEAD(&skip));
-//			opus_encoder_ctl(enc, OPUS_SET_LSB_DEPTH(16));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_BITRATE(bitrate_bps));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_BANDWIDTH(OPUS_BANDWIDTH_NARROWBAND));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_VBR(use_vbr));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_VBR_CONSTRAINT(cvbr));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_COMPLEXITY(complexity));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_INBAND_FEC(use_inbandfec));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_FORCE_CHANNELS(forcechannels));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_DTX(use_dtx));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_PACKET_LOSS_PERC(packet_loss_perc));
+
+//			opus_encoder_ctl(s_voip.encoder, OPUS_GET_LOOKAHEAD(&skip));
+//			opus_encoder_ctl(s_voip.encoder, OPUS_SET_LSB_DEPTH(16));
 
 
 			break;
@@ -1192,6 +1197,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			{
 				//opus rtp only supports/allows a single chunk in each packet.
 				int frames;
+				int nrate;
 				//densely pack the frames.
 				start = (short*)(s_voip.capturebuf + encpos);
 				frames = (s_voip.capturepos-encpos)/2;
@@ -1213,6 +1219,16 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 					Con_Printf("invalid Opus frame size\n");
 					frames = 0;
 				}
+
+				nrate = snd_voip_bitrate.value * 1000;
+				if (nrate != s_voip.curbitrate)
+				{
+					s_voip.curbitrate = nrate;
+					if (nrate == 0)
+						nrate = -1000;
+					qopus_encoder_ctl(s_voip.encoder, OPUS_SET_BITRATE_REQUEST, (int)nrate);
+				}
+
 //				Con_Printf("Encoding %i frames", frames);
 				level += S_Voip_Preprocess(start, frames, micamp);
 				len = qopus_encode(s_voip.encoder, start, frames, outbuf+outpos, sizeof(outbuf) - outpos);
@@ -1660,6 +1676,8 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 				else
 					snd_speed = sc->sn.speed;
 
+				if (sc->seat == -1 && sc->ListenerUpdate)
+					sc->seat = 0;	//hardware rendering won't cope with seat=-1
 				sc->next = sndcardinfo;
 				sndcardinfo = sc;
 				return sc;
@@ -1757,7 +1775,7 @@ void S_Startup (void)
 			sep = strchr(com_token, ':');
 			if (sep)
 				*sep++ = 0;
-			SNDDMA_Init(com_token, sep, 0);
+			SNDDMA_Init(com_token, sep, -1);
 		}
 	}
 	if (!sndcardinfo && !nodefault)
@@ -1766,7 +1784,7 @@ void S_Startup (void)
 		INS_SetupControllerAudioDevices();
 #endif
 		if (!sndcardinfo)
-			SNDDMA_Init(NULL, NULL, 0);
+			SNDDMA_Init(NULL, NULL, -1);
 	}
 
 	sound_started = true;
@@ -2213,25 +2231,25 @@ SND_PickChannel
 */
 channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 {
-    int ch_idx;
-    int oldestpos;
-    int oldest;
+	int ch_idx;
+	int oldestpos;
+	int oldest;
 
 // Check for replacement sound, or find the best one to replace
-    oldest = -1;
-    oldestpos = -1;
-    for (ch_idx=DYNAMIC_FIRST; ch_idx < DYNAMIC_STOP ; ch_idx++)
-    {
+	oldest = -1;
+	oldestpos = -1;
+	for (ch_idx=DYNAMIC_FIRST; ch_idx < DYNAMIC_STOP ; ch_idx++)
+	{
 		if (entchannel != 0		// channel 0 never overrides
 		&& sc->channel[ch_idx].entnum == entnum
-		&& (sc->channel[ch_idx].entchannel == entchannel || entchannel == -1))
+		&& sc->channel[ch_idx].entchannel == entchannel)
 		{	// always override sound from same entity
 			oldest = ch_idx;
 			break;
 		}
 
 		// don't let monster sounds override player sounds
-		if (sc->channel[ch_idx].entnum == listener[sc->seat].entnum && entnum != listener[sc->seat].entnum && sc->channel[ch_idx].sfx)
+		if (sc->seat != -1 && sc->channel[ch_idx].entnum == listener[sc->seat].entnum && entnum != listener[sc->seat].entnum && sc->channel[ch_idx].sfx)
 			continue;
 
 		if (!sc->channel[ch_idx].sfx)
@@ -2254,15 +2272,10 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 
 	if (sc->total_chans <= oldest)
 		sc->total_chans = oldest+1;
-    return &sc->channel[oldest];
+	return &sc->channel[oldest];
 }
 
-/*
-=================
-SND_Spatialize
-=================
-*/
-void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
+static void SND_AccumulateSpacialization(soundcardinfo_t *sc, channel_t *ch, vec3_t origin)
 {
 	vec3_t listener_vec;
 	vec_t dist;
@@ -2270,27 +2283,141 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	vec3_t world_vec;
 	int i, v;
 	float volscale;
+	int seat;
 
+	if (ch->flags & CF_ABSVOLUME)
+		volscale = 1;
+	else
+		volscale = volume.value * voicevolumemod;
+
+	if (sc->seat == -1)
+	{
+		seat = 0;
+		VectorSubtract(origin, listener[seat].origin, world_vec);
+		dist = DotProduct(world_vec,world_vec);
+		for (i = 1; i < cl.splitclients; i++)
+		{
+			VectorSubtract(origin, listener[i].origin, world_vec);
+			scale = DotProduct(world_vec,world_vec);
+			if (scale < dist)
+			{
+				dist = scale;
+				seat = i;
+			}
+		}
+	}
+	else
+	{
+		seat = sc->seat;
+	}
+
+	// anything coming from the view entity will always be full volume
+	if (ch->entnum == listener[seat].entnum)
+	{
+		v = ch->master_vol * (ruleset_allow_localvolume.value ? snd_playersoundvolume.value : 1) * volscale;
+		v = bound(0, v, 255);
+		for (i = 0; i < sc->sn.numchannels; i++)
+			ch->vol[i] = v;
+		return;
+	}
+
+// calculate stereo seperation and distance attenuation
+	VectorSubtract(origin, listener[seat].origin, world_vec);
+
+	dist = VectorNormalize(world_vec) * ch->dist_mult;
+
+	if (ch->flags & CF_NOSPACIALISE)
+	{
+		scale = 1;
+		scale = (1.0 - dist) * scale;
+		v = ch->master_vol * scale * volscale;
+		for (i = 0; i < sc->sn.numchannels; i++)
+			ch->vol[i] += bound(0, v, 255);
+		return;
+	}
+
+	//rotate the world_vec into listener space, so that the audio direction stored in the speakerdir array can be used directly.
+	listener_vec[0] = DotProduct(listener[seat].forward, world_vec);
+	listener_vec[1] = DotProduct(listener[seat].right, world_vec);
+	listener_vec[2] = DotProduct(listener[seat].up, world_vec);
+
+	if (snd_leftisright.ival)
+		listener_vec[1] = -listener_vec[1];
+
+	for (i = 0; i < sc->sn.numchannels; i++)
+	{
+		scale = 1 + DotProduct(listener_vec, sc->speakerdir[i]);
+		scale = (1.0 - dist) * scale * sc->dist[i];
+		v = ch->master_vol * scale * volscale;
+		ch->vol[i] += bound(0, v, 255);
+	}
+}
+/*
+=================
+SND_Spatialize
+=================
+*/
+static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
+{
+	vec3_t listener_vec;
+	vec_t dist;
+	vec_t scale;
+	vec3_t world_vec;
+	int i, v;
+	float volscale;
+	int seat;
+
+/*
+	if ((ch->flags & CF_FOLLOW) && ch->entnum > 0 && ch->entnum < cl.maxlerpents)
+	{	//sounds following ents should update their position to match that ent's position.
+		//its important that they do not snap back to where they were if the entity vanishes, so we just overwrite the channel origin for that. its simpler.
+		lerpents_t *le = cl.lerpents+ch->entnum;
+		if (le->sequence == cl.lerpentssequence)
+			VectorCopy(le->origin, ch->origin);	//fixme: bmodels should use their center rather than their origin. check le->state->solid?
+
+		//FIXME: update rate to provide doppler
+	}
+*/
 	//sounds with absvolume ignore all volume etc cvars+settings
 	if (ch->flags & CF_ABSVOLUME)
 		volscale = 1;
 	else
 		volscale = volume.value * voicevolumemod;
 
+	if (sc->seat == -1)
+	{
+		seat = 0;
+		VectorSubtract(ch->origin, listener[seat].origin, world_vec);
+		dist = DotProduct(world_vec,world_vec);
+		for (i = 1; i < cl.splitclients; i++)
+		{
+			VectorSubtract(ch->origin, listener[i].origin, world_vec);
+			scale = DotProduct(world_vec,world_vec);
+			if (scale < dist)
+			{
+				dist = scale;
+				seat = i;
+			}
+		}
+	}
+	else
+	{
+		seat = sc->seat;
+	}
+
 	// anything coming from the view entity will always be full volume
-	if (ch->entnum == listener[sc->seat].entnum)
+	// (no, I don't like this hack)
+	if (ch->entnum == listener[seat].entnum)
 	{
 		v = ch->master_vol * (ruleset_allow_localvolume.value ? snd_playersoundvolume.value : 1) * volscale;
 		v = bound(0, v, 255);
 		for (i = 0; i < sc->sn.numchannels; i++)
-		{
 			ch->vol[i] = v;
-		}
 		return;
 	}
 
 // calculate stereo seperation and distance attenuation
-	VectorSubtract(ch->origin, listener[sc->seat].origin, world_vec);
+	VectorSubtract(ch->origin, listener[seat].origin, world_vec);
 
 	dist = VectorNormalize(world_vec) * ch->dist_mult;
 
@@ -2305,9 +2432,9 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	}
 
 	//rotate the world_vec into listener space, so that the audio direction stored in the speakerdir array can be used directly.
-	listener_vec[0] = DotProduct(listener[sc->seat].forward, world_vec);
-	listener_vec[1] = DotProduct(listener[sc->seat].right, world_vec);
-	listener_vec[2] = DotProduct(listener[sc->seat].up, world_vec);
+	listener_vec[0] = DotProduct(listener[seat].forward, world_vec);
+	listener_vec[1] = DotProduct(listener[seat].right, world_vec);
+	listener_vec[2] = DotProduct(listener[seat].up, world_vec);
 
 	if (snd_leftisright.ival)
 		listener_vec[1] = -listener_vec[1];
@@ -2352,7 +2479,14 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	memset (target_chan, 0, sizeof(*target_chan));
 	if (!origin)
 	{
-		VectorCopy(listener[sc->seat].origin, target_chan->origin);
+		if (sc->seat == -1)
+		{
+			VectorClear(target_chan->origin);
+			attenuation = 0;
+			flags |= CF_NOSPACIALISE;
+		}
+		else
+			VectorCopy(listener[sc->seat].origin, target_chan->origin);
 	}
 	else
 	{
@@ -2763,9 +2897,9 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 {
 	mleaf_t		*l;
 	float		vol, oldvol;
-	int			ambient_channel;
 	channel_t	*chan;
 	int i;
+	int ambientlevel[NUM_AMBIENTS];
 
 	if (!snd_ambient)
 		return;
@@ -2835,55 +2969,67 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 	if (!cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame != fg_quake || cl.worldmodel->loadstate != MLS_LOADED)
 		return;
 
-	l = Q1BSP_LeafForPoint(cl.worldmodel, listener[sc->seat].origin);
-	if (!l || ambient_level.value <= 0)
+	for (i = 0; i < NUM_AMBIENTS; i++)
+		ambientlevel[i] = 0;
+	if (ambient_level.value)
 	{
-		for (ambient_channel = 0 ; ambient_channel< NUM_AMBIENTS ; ambient_channel++)
+		if (sc->seat < 0)
 		{
-			chan = &sc->channel[AMBIENT_FIRST+ambient_channel];
-			chan->sfx = NULL;
-			if (sc->ChannelUpdate)
-				sc->ChannelUpdate(sc, chan, true);
+			int seat = max(1,cl.splitclients);
+			while(seat --> 0)
+			{
+				l = Q1BSP_LeafForPoint(cl.worldmodel, listener[seat].origin);
+				if (!l)
+					continue;
+
+				for (i = 0; i < NUM_AMBIENTS; i++)
+					ambientlevel[i] = max(ambientlevel[i], l->ambient_sound_level[i]);
+			}
 		}
-		return;
+		else
+		{
+			l = Q1BSP_LeafForPoint(cl.worldmodel, listener[sc->seat].origin);
+			if (l)
+				for (i = 0; i < NUM_AMBIENTS; i++)
+					ambientlevel[i] = l->ambient_sound_level[i];
+		}
 	}
 
-	for (ambient_channel = 0 ; ambient_channel< NUM_AMBIENTS ; ambient_channel++)
+	for (i = 0 ; i< NUM_AMBIENTS ; i++)
 	{
-		static float level[NUM_AMBIENTS];
-		chan = &sc->channel[AMBIENT_FIRST+ambient_channel];
-		chan->sfx = ambient_sfx[AMBIENT_FIRST+ambient_channel];
-		chan->entnum = -1;
+		chan = &sc->channel[AMBIENT_FIRST+i];
+		chan->sfx = ambient_sfx[AMBIENT_FIRST+i];
+		chan->entnum = 0;
 		chan->flags = CF_FORCELOOP | CF_NOSPACIALISE;
 		chan->rate = 1<<PITCHSHIFT;
 
-		VectorCopy(listener[sc->seat].origin, chan->origin);
+		VectorClear(chan->origin);
 
-		vol = ambient_level.value * l->ambient_sound_level[ambient_channel];
+		vol = ambient_level.value * ambientlevel[i];
 		if (vol < 8)
 			vol = 0;
 
-		oldvol = level[ambient_channel];
+		oldvol = sc->ambientlevels[i];
 
 	// don't adjust volume too fast
-		if (level[ambient_channel] < vol)
+		if (sc->ambientlevels[i] < vol)
 		{
-			level[ambient_channel] += host_frametime * ambient_fade.value;
-			if (level[ambient_channel] > vol)
-				level[ambient_channel] = vol;
+			sc->ambientlevels[i] += host_frametime * ambient_fade.value;
+			if (sc->ambientlevels[i] > vol)
+				sc->ambientlevels[i] = vol;
 		}
 		else if (chan->master_vol > vol)
 		{
-			level[ambient_channel] -= host_frametime * ambient_fade.value;
-			if (level[ambient_channel] < vol)
-				level[ambient_channel] = vol;
+			sc->ambientlevels[i] -= host_frametime * ambient_fade.value;
+			if (sc->ambientlevels[i] < vol)
+				sc->ambientlevels[i] = vol;
 		}
 
-		chan->master_vol = level[ambient_channel];
+		chan->master_vol = sc->ambientlevels[i];
 		chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = bound(0, chan->master_vol * (volume.value*voicevolumemod), 255);
 
 		if (sc->ChannelUpdate)
-			sc->ChannelUpdate(sc, chan, (oldvol == 0) ^ (level[ambient_channel] == 0));
+			sc->ChannelUpdate(sc, chan, (oldvol == 0) ^ (sc->ambientlevels[i] == 0));
 	}
 }
 
@@ -2897,14 +3043,14 @@ Called once each time through the main loop
 void S_UpdateListener(int seat, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean underwater)
 {
 	soundcardinfo_t *sc;
-	listener[seat].entnum = cl.playerview[seat].playernum+1;
+	listener[seat].entnum = cl.playerview[seat].viewentity;
 	VectorCopy(origin, listener[seat].origin);
 	VectorCopy(forward, listener[seat].forward);
 	VectorCopy(right, listener[seat].right);
 	VectorCopy(up, listener[seat].up);
 
 	for (sc = sndcardinfo; sc; sc=sc->next)
-		if (sc->SetWaterDistortion && sc->seat == seat)
+		if (sc->SetWaterDistortion && (sc->seat == seat || (sc->seat == -1 && seat == 0)))
 			sc->SetWaterDistortion(sc, underwater);
 }
 
@@ -2914,6 +3060,102 @@ void S_GetListenerInfo(int seat, float *origin, float *forward, float *right, fl
 	VectorCopy(listener[seat].forward, forward);
 	VectorCopy(listener[seat].right, right);
 	VectorCopy(listener[seat].up, up);
+}
+
+static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
+{
+	vec3_t positions[2048];
+	int entnums[countof(positions)];
+	sfx_t *sounds[countof(positions)];
+	unsigned int count;
+	unsigned int j;
+	channel_t *c;
+
+#ifdef Q2CLIENT
+	if (cls.protocol == CP_QUAKE2)
+		count = CLQ2_GatherSounds(positions, entnums, sounds, countof(sounds));
+	else
+#endif
+		return;
+	
+	while(count --> 0)
+	{
+		sfx_t *sfx = sounds[count];
+		if (!sfx)
+			continue;
+		if (sfx->loadstate == SLS_NOTLOADED)
+			S_LoadSound(sfx);
+		if (sfx->loadstate != SLS_LOADED)
+			continue;	//not ready yet
+
+		if (sc->ChannelUpdate)
+		{
+			for (c = NULL, j=DYNAMIC_FIRST; j < DYNAMIC_STOP ; j++)
+			{
+				if (sc->channel[j].entnum == entnums[count] && !sc->channel[j].entchannel && (sc->channel[j].flags & CF_AUTOSOUND))
+				{
+					c = &sc->channel[j];
+					break;
+				}
+			}
+		}
+		else
+		{
+			for (c = NULL, j=DYNAMIC_FIRST; j < DYNAMIC_STOP ; j++)
+			{
+				if (sc->channel[j].sfx == sfx && (sc->channel[j].flags & CF_AUTOSOUND))
+				{
+					c = &sc->channel[j];
+					break;
+				}
+			}
+		}
+		if (!c)
+		{
+			c = SND_PickChannel(sc, 0, 0);
+			if (!c)
+				continue;
+			c->flags = CF_AUTOSOUND|CF_FORCELOOP;
+			c->entnum = sc->ChannelUpdate?entnums[count]:0;
+			c->entchannel = 0;
+			c->dist_mult = 3 / sound_nominal_clip_dist;
+			c->master_vol = 255 * 1;
+			c->pos = 0<<PITCHSHIFT;	//q2 does weird stuff with the pos. we just forceloop and detect when it became irrelevant. this is required for stream decoding or openal
+			c->rate = 1<<PITCHSHIFT;
+			for (j = 0; j < countof(c->vol); j++)
+				c->vol[j] = 0;
+			c->sfx = NULL;
+		}
+		if (sc->ChannelUpdate)
+		{	//hardware mixing doesn't support merging
+			SND_Spatialize(sc, c);
+		}
+		else
+		{	//merge with any other ents, if we can
+			for (j = 0; j <= count; j++)
+			{
+				if (sounds[j] == sfx)
+				{
+					sounds[j] = NULL;
+					SND_AccumulateSpacialization(sc, c, positions[j]);
+				}
+			}
+		}
+		if (!c->sfx)
+		{
+			for (j = 0; j < countof(c->vol); j++)
+				if (c->vol[j])
+					break;
+			if (j == countof(c->vol))
+				c->sfx = NULL;	//err, never mind
+			else
+			{
+				c->sfx = sfx;
+				if (sc->ChannelUpdate)
+					sc->ChannelUpdate(sc, c, true);
+			}
+		}
+	}
 }
 
 static void S_UpdateCard(soundcardinfo_t *sc)
@@ -2949,6 +3191,17 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 	{
 		if (!ch->sfx)
 			continue;
+		if (ch->flags & CF_AUTOSOUND)
+		{
+			if (!ch->vol[0] && !ch->vol[1] && !ch->vol[2] && !ch->vol[3] && !ch->vol[4] && !ch->vol[5])
+			{
+				ch->sfx = NULL;
+				if (sc->ChannelUpdate)
+					sc->ChannelUpdate(sc, ch, true);
+			}
+			ch->vol[0] = ch->vol[1] = ch->vol[2] = ch->vol[3] = ch->vol[4] = ch->vol[5] = 0;
+			continue;
+		}
 
 		if (sc->ChannelUpdate)
 		{
@@ -3003,6 +3256,8 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 			}
 		}
 	}
+
+	S_Q2_AddEntitySounds(sc);
 
 //
 // debugging output
@@ -3186,7 +3441,7 @@ console functions
 */
 
 void S_Play(void)
-{
+{	//plays a sound located around the player
 	int 	i;
 	char name[256];
 	sfx_t	*sfx;
@@ -3202,7 +3457,7 @@ void S_Play(void)
 		else
 			Q_strncpyz(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
-		S_StartSound(listener[0].entnum, -1, sfx, vec3_origin, 1.0, 0.0, 0, 0, CF_NOSPACIALISE);
+		S_StartSound(0, -1, sfx, NULL, 1.0, 0.0, 0, 0, CF_NOSPACIALISE);
 		i++;
 	}
 }
@@ -3226,7 +3481,7 @@ void S_PlayVol(void)
 			Q_strncpy(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
 		vol = Q_atof(Cmd_Argv(i+1));
-		S_StartSound(listener[0].entnum, -1, sfx, vec3_origin, vol, 0.0, 0, 0, CF_NOSPACIALISE);
+		S_StartSound(0, -1, sfx, NULL, vol, 0.0, 0, 0, CF_NOSPACIALISE);
 		i+=2;
 	}
 }
@@ -3297,7 +3552,7 @@ void S_LocalSound (const char *sound)
 		Con_Printf ("S_LocalSound: can't cache %s\n", sound);
 		return;
 	}
-	S_StartSound (0, -1, sfx, vec3_origin, 1, 1, 0, 0, CF_NOSPACIALISE);
+	S_StartSound (0, -1, sfx, NULL, 1, 0, 0, 0, CF_NOSPACIALISE);
 }
 
 
@@ -3505,7 +3760,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			if (c)
 			{
 				c->flags = CF_ABSVOLUME|CF_NOSPACIALISE;
-				c->entnum = -1;
+				c->entnum = 0;
 				c->entchannel = 0;
 				c->dist_mult = 0;
 				c->master_vol = 255 * volume;

@@ -292,7 +292,7 @@ typedef enum
 	PST_DEFAULT,//everything 16bit
 	PST_FTE32,	//everything 32bit
 	PST_KKQWSV, //32bit statements, 16bit globaldefs. NO SAVED GAMES.
-	PST_QTEST,	//16bit statements, 32bit globaldefs(differences converted on load)
+	PST_QTEST,	//16bit statements, 32bit globaldefs(other differences converted on load)
 } progstructtype_t;
 
 #ifndef COMPILER

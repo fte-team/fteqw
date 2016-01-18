@@ -5047,14 +5047,15 @@ void Shader_DefaultBSPQ2(const char *shortname, shader_t *s, const void *args)
 				"{\n"
 					"surfaceparm nodlight\n"
 					"skyparms - - -\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 			);
 	}
-	else if (!strncmp(shortname, "warp/", 5) || !strncmp(shortname, "warp33/", 7) || !strncmp(shortname, "warp66/", 7))
+	else if (Shader_FloatArgument(s, "#WARP"))//!strncmp(shortname, "warp/", 5) || !strncmp(shortname, "warp33/", 7) || !strncmp(shortname, "warp66/", 7))
 	{
 		Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(s, shortname));
 	}
-	else if (!strncmp(shortname, "trans/", 6))
+	else if (Shader_FloatArgument(s, "#ALPHA"))//   !strncmp(shortname, "trans/", 6))
 	{
 		Shader_DefaultScript(shortname, s,
 				"{\n"

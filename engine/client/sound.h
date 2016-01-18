@@ -91,9 +91,12 @@ typedef struct
 
 #define CF_RELIABLE		1	// serverside only. yeah, evil. screw you.
 #define CF_FORCELOOP	2	// forces looping. set on static sounds.
-#define CF_NOSPACIALISE 4	// these sounds are played at a fixed volume
+#define CF_NOSPACIALISE 4	// these sounds are played at a fixed volume in both speakers, but still gets quieter with distance.
 //#define CF_PAUSED		8	// rate = 0. or something.
 #define CF_ABSVOLUME	16	// ignores volume cvar.
+
+#define CF_UNICAST		256 // serverside only. the sound is sent to msg_entity only.
+#define CF_AUTOSOUND	512	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
 
 typedef struct
 {
@@ -187,9 +190,6 @@ qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int i
 
 // picks a channel based on priorities, empty slots, number of channels
 channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel);
-
-// spatializes a channel
-void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch);
 
 void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int insamps, void *out, int outrate, int outwidth, int outchannels, int resampstyle);
 
@@ -295,6 +295,8 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	//FIXME: use a linked list
 	channel_t   channel[MAX_CHANNELS];
 	int			total_chans;
+
+	float	ambientlevels[NUM_AMBIENTS];	//we use a float instead of the channel's int volume value to avoid framerate dependancies with slow transitions.
 
 //mixer
 	volatile dma_t sn;	//why is this volatile?

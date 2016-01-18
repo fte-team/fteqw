@@ -277,7 +277,7 @@ void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
 void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);
 void R_LightArrays(const entity_t *entity, vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals, float scale);
 
-void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
+qboolean R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
 void R_InitSky (shader_t *shader, const char *skyname, qbyte *src, unsigned int width, unsigned int height);	/*generate q1 sky texnums*/
 
 void R_Clutter_Emit(struct batch_s **batches);
@@ -485,6 +485,7 @@ void Media_RecordFrame (void);
 qboolean Media_PausedDemo (qboolean fortiming);
 int Media_Capturing (void);
 double Media_TweekCaptureFrameTime(double oldtime, double time);
+void Media_WriteCurrentTrack(sizebuf_t *buf);
 
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
 

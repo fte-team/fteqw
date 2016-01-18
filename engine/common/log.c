@@ -72,7 +72,7 @@ void Log_String (logtype_t lognum, char *s)
 	char fbase[MAX_QPATH];
 	char fname[MAX_QPATH];
 	conchar_t cline[2048], *c;
-	unsigned int u;
+	unsigned int u, flags;
 
 	f = NULL;
 	switch(lognum)
@@ -107,14 +107,13 @@ void Log_String (logtype_t lognum, char *s)
 
 	COM_ParseFunString(CON_WHITEMASK, s, cline, sizeof(cline), !(log_readable.ival & 2));
 	t = utf8;
-	for (c = cline; *c; c++)
+	for (c = cline; *c; )
 	{
-		if ((*c & CON_HIDDEN) && (log_readable.ival & 2))
+		c = Font_Decode(c, &flags, &u);
+		if ((flags & CON_HIDDEN) && (log_readable.ival & 2))
 			continue;
 		if (log_readable.ival&1)
-			u = COM_DeQuake(*c);
-		else
-			u = *c&CON_CHARMASK;
+			u = COM_DeQuake(u);
 
 		//at the start of a new line, we might want a timestamp (so timestamps are correct for the first char of the line, instead of the preceeding \n)
 		if (log_newline[lognum])

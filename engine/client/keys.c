@@ -752,7 +752,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		else
 		{
 			char cmdprefix[6];
-			snprintf(cmdprefix, sizeof(cmdprefix), "%i ", i);
+			snprintf(cmdprefix, sizeof(cmdprefix), "%i ", i+1);
 
 			//hey look! its you!
 
@@ -762,7 +762,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 			}
 			else
 			{
-				Con_Footerf(con, true, " ^[Suicide\\cmd\\kill^]");
+				Con_Footerf(con, true, " ^[Suicide\\cmd\\%skill^]", cmdprefix);
 	#ifndef CLIENTONLY
 				if (!sv.state)
 					Con_Footerf(con, true, " ^[Disconnect\\cmd\\disconnect^]");
@@ -772,9 +772,9 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 				if (cls.allow_cheats)
 	#endif
 				{
-					Con_Footerf(con, true, " ^[Noclip\\cmd\\noclip^]");
-					Con_Footerf(con, true, " ^[Fly\\cmd\\fly^]");
-					Con_Footerf(con, true, " ^[God\\cmd\\god^]");
+					Con_Footerf(con, true, " ^[Noclip\\cmd\\%snoclip^]", cmdprefix);
+					Con_Footerf(con, true, " ^[Fly\\cmd\\%sfly^]", cmdprefix);
+					Con_Footerf(con, true, " ^[God\\cmd\\%sgod^]", cmdprefix);
 					Con_Footerf(con, true, " ^[Give\\impulse\\9^]");
 				}
 			}
@@ -2213,10 +2213,9 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 
 //	Con_Printf ("%i : %i : %i\n", key, unicode, down); //@@@
 
-	//bug: my keyboard doesn't fire release events if the other shift is already pressed.
+	//bug: two of my keyboard doesn't fire release events if the other shift is already pressed (so I assume this is a common thing).
 	//hack around that by just force-releasing eg left if right is pressed, but only on inital press to avoid potential infinite loops if the state got bad.
 	//ctrl+alt don't seem to have the problem.
-	//you can still see a difference in that 
 	if (key == K_LSHIFT && !keydown[K_LSHIFT] && keydown[K_RSHIFT])
 		Key_Event(devid, K_RSHIFT, 0, false);
 	if (key == K_RSHIFT && !keydown[K_RSHIFT] && keydown[K_LSHIFT])
@@ -2488,7 +2487,9 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		return;
 
 	//first player is normally assumed anyway.
-	if (devid)
+	if (cl_forceseat.ival>0)
+		Q_snprintfz (p, sizeof(p), "p %i ", cl_forceseat.ival);
+	else if (devid)
 		Q_snprintfz (p, sizeof(p), "p %i ", devid+1);
 	else
 		*p = 0;

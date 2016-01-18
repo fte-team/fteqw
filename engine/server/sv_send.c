@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sv_main.c -- server main program
 
 #include "quakedef.h"
+#include "pr_common.h"
 
 #ifndef CLIENTONLY
 
@@ -353,7 +354,7 @@ Sends text across to be displayed if the level passes
 Is included in mvds.
 =================
 */
-void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...)
+void VARGS SV_ClientPrintf (client_t *cl, int level, const char *fmt, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -416,7 +417,7 @@ SV_BroadcastPrintf
 Sends text to all active clients
 =================
 */
-void VARGS SV_BroadcastPrintf (int level, char *fmt, ...)
+void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -515,7 +516,7 @@ SV_BroadcastCommand
 Sends text to all active clients
 =================
 */
-void VARGS SV_BroadcastCommand (char *fmt, ...)
+void VARGS SV_BroadcastCommand (const char *fmt, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -571,7 +572,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	int			cluster;
 	int			j;
 	qboolean	reliable;
-	int pnum = -1;
+	client_t	*oneclient = NULL, *split;
 
 	if (to == MULTICAST_INIT)
 	{
@@ -603,6 +604,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	}
 
 #ifdef Q2BSPS
+	//in theory, this q2/q3 path is only still different thanks to areas, but it also supports q2 gamecode properly.
 	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
 	{
 		int			area1, area2, leafnum;
@@ -651,8 +653,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (svprogfuncs)
 			{
 				edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
-				pnum = NUM_FOR_EDICT(svprogfuncs, ent) - 1;
+				oneclient = svs.clients + NUM_FOR_EDICT(svprogfuncs, ent) - 1;
 			}
+			else
+				oneclient = NULL;	//unsupported in this game mode
 			mask = NULL;
 			break;
 
@@ -662,54 +666,64 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		}
 
 		// send the data to all relevent clients
-		for (j = 0, client = svs.clients; j < svs.allocated_client_slots; j++, client++)
+		for (j = 0; j < svs.allocated_client_slots; j++)
 		{
+			client = &svs.clients[j];
 			if (client->state != cs_spawned)
 				continue;
 
-			if (client->protocol == SCP_QUAKEWORLD)
-			{
-				if (client->fteprotocolextensions & without)
-				{
-		//			Con_Printf ("Version supressed multicast - without pext\n");
-					continue;
-				}
-				if (!(~client->fteprotocolextensions & ~with))
-				{
-		//			Con_Printf ("Version supressed multicast - with pext\n");
-					continue;
-				}
-			}
+			if (client->controller)
+				continue;	//FIXME: send if at least one of the players is near enough.
 
-			if (pnum >= 0)
+			for (split = client; split; split = split->controlled)
 			{
-				if (pnum != j)
-					continue;
-			}
-			else if (mask)
-			{
-				if (client->penalties & BAN_BLIND)
-					continue;
-#ifdef Q2SERVER
-				if (ge)
-					leafnum = CM_PointLeafnum (sv.world.worldmodel, client->q2edict->s.origin);
-				else
-#endif
+				if (client->protocol == SCP_QUAKEWORLD)
 				{
-					if (svprogfuncs)
+					if (client->fteprotocolextensions & without)
 					{
-						if (!((int)client->edict->xv->dimension_see & dimension_mask))
-							continue;
+			//			Con_Printf ("Version supressed multicast - without pext\n");
+						continue;
 					}
-					leafnum = CM_PointLeafnum (sv.world.worldmodel, client->edict->v->origin);
+					if (!(~client->fteprotocolextensions & ~with))
+					{
+			//			Con_Printf ("Version supressed multicast - with pext\n");
+						continue;
+					}
 				}
-				cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-				area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
-				if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
-					continue;
-				if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
-					continue;
+
+				if (oneclient)
+				{
+					if (oneclient != split)
+						continue;
+				}
+				else if (mask)
+				{
+					if (split->penalties & BAN_BLIND)
+						continue;
+	#ifdef Q2SERVER
+					if (ge)
+						leafnum = CM_PointLeafnum (sv.world.worldmodel, split->q2edict->s.origin);
+					else
+	#endif
+					{
+						if (svprogfuncs)
+						{
+							if (!((int)split->edict->xv->dimension_see & dimension_mask))
+								continue;
+						}
+						leafnum = CM_PointLeafnum (sv.world.worldmodel, split->edict->v->origin);
+					}
+					cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+					area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
+					if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
+						continue;
+					if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
+						continue;
+				}
+				break;
 			}
+			if (!split)
+				continue;
 
 			switch (client->protocol)
 			{
@@ -804,8 +818,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (svprogfuncs)
 			{
 				edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
-				pnum = NUM_FOR_EDICT(svprogfuncs, ent) - 1;
+				oneclient = svs.clients + NUM_FOR_EDICT(svprogfuncs, ent) - 1;
 			}
+			else
+				oneclient = NULL;
 			mask = NULL;
 			break;
 
@@ -821,52 +837,51 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				continue;
 
 			if (client->controller)
-				continue;	//FIXME: send if at least one of the players is near enough.
-
-			if (client->protocol == SCP_QUAKEWORLD)
-			{
-				if (client->fteprotocolextensions & without)
-				{
-		//			Con_Printf ("Version supressed multicast - without pext\n");
-					continue;
-				}
-				if (!(client->fteprotocolextensions & with) && with)
-				{
-		//			Con_Printf ("Version supressed multicast - with pext\n");
-					continue;
-				}
-			}
-
-			if (client->penalties & BAN_BLIND)
 				continue;
 
-			if (pnum >= 0)
+			for (split = client; split; split = split->controlled)
 			{
-				if (pnum != j)
-					continue;
-			}
-			else if (svprogfuncs)
-			{
-				client_t *seat = client;
-				for(seat = client; seat; seat = seat->controlled)
+				if (split->protocol == SCP_QUAKEWORLD)
 				{
-					if (!((int)seat->edict->xv->dimension_see & dimension_mask))
+					if (split->fteprotocolextensions & without)
+					{
+			//			Con_Printf ("Version supressed multicast - without pext\n");
+						continue;
+					}
+					if (!(split->fteprotocolextensions & with) && with)
+					{
+			//			Con_Printf ("Version supressed multicast - with pext\n");
+						continue;
+					}
+				}
+
+				if (split->penalties & BAN_BLIND)
+					continue;
+
+				if (oneclient)
+				{
+					if (oneclient != split)
+						continue;
+				}
+				else if (svprogfuncs)
+				{
+					if (!((int)split->edict->xv->dimension_see & dimension_mask))
 						continue;
 
 					if (!mask)	//no pvs? broadcast.
-						goto inrange;
+						break;
 
 					if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
 					{
 						vec3_t delta;
-						VectorSubtract(origin, seat->edict->v->origin, delta);
+						VectorSubtract(origin, split->edict->v->origin, delta);
 						if (DotProduct(delta, delta) <= 1024*1024)
-							goto inrange;
+							break;
 					}
 
 					{
 						vec3_t pos;
-						VectorAdd(seat->edict->v->origin, seat->edict->v->view_ofs, pos);
+						VectorAdd(split->edict->v->origin, split->edict->v->view_ofs, pos);
 						cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos);
 						if (cluster>= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )
 						{
@@ -875,9 +890,11 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 						}
 					}
 				}
+				break;
 			}
+			if (!split)
+				continue;
 
-	inrange:
 			switch (client->protocol)
 			{
 			case SCP_BAD:
@@ -953,17 +970,20 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		//mvds are all reliables really.
 		case MULTICAST_ONE_R:
 		case MULTICAST_ONE:
-			if (svprogfuncs)
 			{
-				edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
-				pnum = NUM_FOR_EDICT(svprogfuncs, ent) - 1;
+				int pnum;
+				if (svprogfuncs)
+				{
+					edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
+					pnum = NUM_FOR_EDICT(svprogfuncs, ent) - 1;
+				}
+				else
+				{
+					pnum = 0;	//FIXME
+					Con_Printf("SV_MulticastProtExt: unsupported unicast\n");
+				}
+				msg = MVDWrite_Begin(dem_single, pnum, sv.multicast.cursize);
 			}
-			else
-			{
-				pnum = 0;	//FIXME
-				Con_Printf("SV_MulticastProtExt: unsupported unicast\n");
-			}
-			msg = MVDWrite_Begin(dem_single, pnum, sv.multicast.cursize);
 			break;
 		}
 		SZ_Write(msg, sv.multicast.data, sv.multicast.cursize);
@@ -1035,17 +1055,17 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 	else
 	{
 		for (sound_num=1 ; sound_num<MAX_PRECACHE_SOUNDS
-			&& *sv.strings.sound_precache[sound_num] ; sound_num++)
+			&& sv.strings.sound_precache[sound_num] ; sound_num++)
 			if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
 				break;
 
-		if ( sound_num == MAX_PRECACHE_SOUNDS || !*sv.strings.sound_precache[sound_num] )
+		if ( sound_num == MAX_PRECACHE_SOUNDS || !sv.strings.sound_precache[sound_num] )
 		{
 			if (sound_num < MAX_PRECACHE_SOUNDS)
 			{
 				Con_Printf("WARNING: SV_StartSound: sound %s not precached\n", sample);
 				//late precache it. use multicast to ensure that its sent NOW (and to all). normal reliables would mean it would arrive after the svc_sound
-				Q_strncpyz(sv.strings.sound_precache[sound_num], sample, sizeof(sv.strings.sound_precache[sound_num]));
+				sv.strings.sound_precache[sound_num] = PR_AddString(svprogfuncs, sample, 0, false);
 				Con_DPrintf("Delayed sound precache: %s\n", sample);
 				MSG_WriteByte(&sv.multicast, svcfte_precache);
 				MSG_WriteShort(&sv.multicast, sound_num+PC_SOUND);
@@ -1076,6 +1096,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 //		reliable = true;
 
 	extfield_mask = 0;
+	extfield_mask |= (flags & CF_NOSPACIALISE) << 8;
 	if (volume != DEFAULT_SOUND_PACKET_VOLUME)
 		extfield_mask |= NQSND_VOLUME;
 	if (attenuation != DEFAULT_SOUND_PACKET_ATTENUATION)
@@ -1088,13 +1109,18 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 		extfield_mask |= FTESND_PITCHADJ;
 	if (timeofs != 0)
 		extfield_mask |= FTESND_TIMEOFS;
+	if (extfield_mask > 0xff)
+		extfield_mask |= FTESND_MOREFLAGS;
+
 
 #ifdef PEXT_SOUNDDBL
-	if (channel >= 8 || ent >= 2048 || sound_num > 0xff || (pitchadj && pitchadj != 100) || timeofs)
+	if (channel >= 8 || ent >= 2048 || (extfield_mask & ~(NQSND_VOLUME|NQSND_ATTENUATION)))
 	{
 		//if any of the above conditions evaluates to true, then we can't use standard qw protocols
 		MSG_WriteByte (&sv.multicast, svcfte_soundextended);
-		MSG_WriteByte (&sv.multicast, extfield_mask);
+		MSG_WriteByte (&sv.multicast, extfield_mask&0xff);
+		if (extfield_mask & FTESND_MOREFLAGS)
+			MSG_WriteByte (&sv.multicast, extfield_mask>>8);
 		if (extfield_mask & NQSND_VOLUME)
 			MSG_WriteByte (&sv.multicast, bound(0, volume, 255));
 		if (extfield_mask & NQSND_ATTENUATION)
@@ -1174,10 +1200,18 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, const cha
 	for (i=0 ; i<3 ; i++)
 		MSG_WriteCoord (&sv.nqmulticast, origin[i]);
 #endif
-	if (use_phs)
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, seenmask, requiredextensions, 0);
+
+	if (flags & CF_UNICAST)
+	{
+		SV_MulticastProtExt(origin, reliable ? MULTICAST_ONE_R : MULTICAST_ONE, seenmask, requiredextensions, 0);
+	}
 	else
-		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
+	{
+		if (use_phs)
+			SV_MulticastProtExt(origin, reliable ? MULTICAST_PHS_R : MULTICAST_PHS, seenmask, requiredextensions, 0);
+		else
+			SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
+	}
 }
 
 void SVQ1_StartSound (float *origin, wedict_t *wentity, int channel, const char *sample, int volume, float attenuation, int pitchadj, float timeofs, unsigned int flags)
@@ -1253,6 +1287,8 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	float newa;
 
 	ent = client->edict;
+	if (client->controller)
+		client = client->controller;
 
 	if (!ent)
 		return;
@@ -1281,6 +1317,13 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	// a fixangle might get lost in a dropped packet.  Oh well.
 	if (ent->v->fixangle)
 	{
+		if (!client->lockangles)
+		{
+			//try to keep them vaugely reliable.
+			if (client->netchan.message.cursize < client->netchan.message.maxsize/2)
+				msg = &client->netchan.message;
+		}
+
 		if (pnum)
 		{
 			MSG_WriteByte(msg, svcfte_choosesplitclient);
@@ -1502,7 +1545,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		if (ent->v->armorvalue)
 			bits |= SU_ARMOR;
 
-		weaponmodelindex = SV_ModelIndex(ent->v->weaponmodel + svprogfuncs->stringtable);
+		weaponmodelindex = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
 
 		if (weaponmodelindex)
 			bits |= SU_WEAPONMODEL;

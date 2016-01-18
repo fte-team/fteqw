@@ -794,7 +794,7 @@ enum clcq2_ops_e
 #define	Q2U_SKIN16	(1<<25)
 #define	Q2U_SOUND		(1<<26)
 #define	Q2U_SOLID		(1<<27)
-#define Q2UX_UNUSED4	(1<<28)
+#define Q2UX_INDEX16	(1<<28)		//model or sound is 16bit
 #define Q2UX_UNUSED3	(1<<29)
 #define Q2UX_UNUSED2	(1<<30)
 #define Q2UX_UNUSED1	(1<<31)
@@ -830,8 +830,9 @@ enum clcq2_ops_e
 #define	NQSND_VOLUME		(1<<0)		// a qbyte
 #define	NQSND_ATTENUATION	(1<<1)		// a qbyte
 //#define DPSND_LOOPING		(1<<2)		// a long, supposedly
-#define FTESND_FLAGS		(1<<2)		//
+#define FTESND_MOREFLAGS	(1<<2)		// actually, chan flags
 #define DPSND_LARGEENTITY	(1<<3)
+
 #define DPSND_LARGESOUND	(1<<4)
 //#define	DPSND_SPEEDUSHORT4000	(1<<5)		// ushort speed*4000 (speed is usually 1.0, a value of 0.0 is the same as 1.0)
 #define FTESND_TIMEOFS		(1<<6)		//signed short, in milliseconds.
@@ -1178,22 +1179,30 @@ typedef struct q1usercmd_s
 
 
 //for the local player
-#define	Q2PS_M_TYPE			(1<<0)
+#define	Q2PS_M_TYPE				(1<<0)
 #define	Q2PS_M_ORIGIN			(1<<1)
-#define	Q2PS_M_VELOCITY		(1<<2)
-#define	Q2PS_M_TIME			(1<<3)
+#define	Q2PS_M_VELOCITY			(1<<2)
+#define	Q2PS_M_TIME				(1<<3)
 #define	Q2PS_M_FLAGS			(1<<4)
-#define	Q2PS_M_GRAVITY		(1<<5)
-#define	Q2PS_M_DELTA_ANGLES	(1<<6)
-
-#define	Q2PS_VIEWOFFSET		(1<<7)
-#define	Q2PS_VIEWANGLES		(1<<8)
-#define	Q2PS_KICKANGLES		(1<<9)
-#define	Q2PS_BLEND			(1<<10)
+#define	Q2PS_M_GRAVITY			(1<<5)
+#define	Q2PS_M_DELTA_ANGLES		(1<<6)
+#define	Q2PS_VIEWOFFSET			(1<<7)
+#define	Q2PS_VIEWANGLES			(1<<8)
+#define	Q2PS_KICKANGLES			(1<<9)
+#define	Q2PS_BLEND				(1<<10)
 #define	Q2PS_FOV				(1<<11)
 #define	Q2PS_WEAPONINDEX		(1<<12)
 #define	Q2PS_WEAPONFRAME		(1<<13)
 #define	Q2PS_RDFLAGS			(1<<14)
+#define	Q2PS_EXTRABITS			(1<<15)
+#define Q2PS_INDEX16			(1<<16)
+#define Q2PS_CLIENTNUM			(1<<17)
+#define Q2PS_UNUSED6			(1<<18)
+#define Q2PS_UNUSED5			(1<<19)
+#define Q2PS_UNUSED4			(1<<20)
+#define Q2PS_UNUSED3			(1<<21)
+#define Q2PS_UNUSED2			(1<<22)
+#define Q2PS_UNUSED1			(1<<23)
 
 #define Q2PSX_GUNOFFSET			(1<<0)
 #define Q2PSX_GUNANGLES			(1<<1)
@@ -1254,11 +1263,14 @@ typedef struct q1usercmd_s
 
 
 
-#define	Q2SND_VOLUME		(1<<0)		// a qbyte
-#define	Q2SND_ATTENUATION	(1<<1)		// a qbyte
-#define	Q2SND_POS			(1<<2)		// three coordinates
-#define	Q2SND_ENT			(1<<3)		// a short 0-2: channel, 3-12: entity
-#define	Q2SND_OFFSET		(1<<4)		// a qbyte, msec offset from frame start
+#define	Q2SND_VOLUME		(1u<<0)		// a qbyte
+#define	Q2SND_ATTENUATION	(1u<<1)		// a qbyte
+#define	Q2SND_POS			(1u<<2)		// three coordinates
+#define	Q2SND_ENT			(1u<<3)		// a short 0-2: channel, 3-12: entity
+#define	Q2SND_OFFSET		(1u<<4)		// a qbyte, msec offset from frame start
+#define Q2SND_LARGEIDX		(1u<<5)		// idx is a short
+#define Q2SND_LARGEPOS		(1u<<6)		// float coord
+#define Q2SND_EXTRABITS		(1u<<7)		// unused for now, reserved.
 
 #define Q2DEFAULT_SOUND_PACKET_VOLUME	1.0
 #define Q2DEFAULT_SOUND_PACKET_ATTENUATION 1.0

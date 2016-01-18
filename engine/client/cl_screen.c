@@ -184,19 +184,20 @@ float           scr_conlines;           // lines of console to display
 
 qboolean		scr_con_forcedraw;
 
-extern cvar_t          scr_viewsize;
-extern cvar_t          scr_fov;
-extern cvar_t          scr_conspeed;
-extern cvar_t          scr_centertime;
-extern cvar_t          scr_showturtle;
+extern cvar_t			scr_viewsize;
+extern cvar_t			scr_fov;
+extern cvar_t			scr_conspeed;
+extern cvar_t			scr_centertime;
+extern cvar_t			scr_logcenterprint;
+extern cvar_t			scr_showturtle;
 extern cvar_t			scr_turtlefps;
-extern cvar_t          scr_showpause;
-extern cvar_t          scr_printspeed;
+extern cvar_t			scr_showpause;
+extern cvar_t			scr_printspeed;
 extern cvar_t			scr_allowsnap;
 extern cvar_t			scr_sshot_type;
 extern cvar_t			scr_sshot_prefix;
 extern cvar_t			scr_sshot_compression;
-extern  		cvar_t  crosshair;
+extern cvar_t			crosshair;
 extern cvar_t			scr_consize;
 cvar_t			scr_neticontimeout = CVAR("scr_neticontimeout", "0.3");
 
@@ -470,6 +471,17 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 			break;
 		str += 2;
 	}
+
+	if (((scr_logcenterprint.ival && !cl.deathmatch) || scr_logcenterprint.ival == 2) && !(p->flags & CPRINT_PERSIST))
+	{
+		//don't spam too much.
+		if (*str && strncmp(cl.lastcenterprint, str, sizeof(cl.lastcenterprint)-1))
+		{
+			Q_strncpyz(cl.lastcenterprint, str, sizeof(cl.lastcenterprint));
+			Con_CenterPrint(str);
+		}
+	}
+
 	p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, sizeof(p->string), false) - p->string;
 	p->time_off = scr_centertime.value;
 	p->time_start = cl.time;
@@ -1384,13 +1396,13 @@ void SCR_DrawTurtle (void)
 
 void SCR_DrawDisk (void)
 {
-	if (!draw_disc)
+//	if (!draw_disc)
 		return;
 
-	if (!COM_HasWork())
-		return;
+//	if (!COM_HasWork())
+//		return;
 
-	R2D_ScalePic (scr_vrect.x + vid.width-24, scr_vrect.y, 24, 24, draw_disc);
+//	R2D_ScalePic (scr_vrect.x + vid.width-24, scr_vrect.y, 24, 24, draw_disc);
 }
 
 /*
@@ -1883,7 +1895,7 @@ void SCR_EndLoadingPlaque (void)
 	scr_drawloading = false;
 }
 
-void SCR_ImageName (char *mapname)
+void SCR_ImageName (const char *mapname)
 {
 	strcpy(levelshotname, "levelshots/");
 	COM_FileBase(mapname, levelshotname + strlen(levelshotname), sizeof(levelshotname)-strlen(levelshotname));
@@ -2392,6 +2404,11 @@ void SCR_ScreenShot_Mega_f(void)
 #ifdef CSQC_DAT
 	if (!okay && CSQC_DrawView())
 		okay = true;
+//	if (!*r_refdef.rt_destcolour[0].texname)
+	{	//csqc protects its own. lazily.
+		Q_strncpyz(r_refdef.rt_destcolour[0].texname, "megascreeny", sizeof(r_refdef.rt_destcolour[0].texname));
+		BE_RenderToTextureUpdate2d(true);
+	}
 #endif
 	if (!okay && r_worldentity.model)
 	{
@@ -2607,12 +2624,13 @@ void SCR_BringDownConsole (void)
 	int pnum;
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
+	{
 		scr_centerprint[pnum].charcount = 0;
+		cl.playerview[pnum].cshifts[CSHIFT_CONTENTS].percent = 0;              // no area contents palette on next frame
+	}
 
-	for (i=0 ; i<20 && scr_conlines != scr_con_current ; i++)
-		SCR_UpdateScreen ();
-
-	cl.cshifts[CSHIFT_CONTENTS].percent = 0;              // no area contents palette on next frame
+//	for (i=0 ; i<20 && scr_conlines != scr_con_current ; i++)
+//		SCR_UpdateScreen ();
 }
 
 void SCR_TileClear (int skipbottom)
@@ -2683,8 +2701,6 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	}
 	else
 	{
-		R2D_DrawCrosshair();
-
 		SCR_DrawNet ();
 		SCR_DrawDisk();
 		SCR_DrawFPS ();

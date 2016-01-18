@@ -182,10 +182,10 @@ struct q2edict_s
 typedef struct
 {
 	// special messages
-	void	(VARGS *bprintf) (int printlevel, char *fmt, ...) LIKEPRINTF(2);
-	void	(VARGS *dprintf) (char *fmt, ...) LIKEPRINTF(1);
-	void	(VARGS *cprintf) (q2edict_t *ent, int printlevel, char *fmt, ...) LIKEPRINTF(3);
-	void	(VARGS *centerprintf) (q2edict_t *ent, char *fmt, ...) LIKEPRINTF(2);
+	void	(VARGS *bprintf) (int printlevel, const char *fmt, ...) LIKEPRINTF(2);
+	void	(VARGS *dprintf) (const char *fmt, ...) LIKEPRINTF(1);
+	void	(VARGS *cprintf) (q2edict_t *ent, int printlevel, const char *fmt, ...) LIKEPRINTF(3);
+	void	(VARGS *centerprintf) (q2edict_t *ent, const char *fmt, ...) LIKEPRINTF(2);
 	void	(VARGS *sound) (q2edict_t *ent, int channel, int soundindex, float volume, float attenuation, float timeofs);
 	void	(VARGS *positioned_sound) (vec3_t origin, q2edict_t *ent, int channel, int soundinedex, float volume, float attenuation, float timeofs);
 
@@ -193,16 +193,16 @@ typedef struct
 	// and misc data like the sky definition and cdtrack.
 	// All of the current configstrings are sent to clients when
 	// they connect, and changes are sent to all connected clients.
-	void	(VARGS *configstring) (int num, char *string);
+	void	(VARGS *configstring) (int num, const char *string);
 
-	void	(VARGS *error) (char *fmt, ...) LIKEPRINTF(1);
+	void	(VARGS *error) (const char *fmt, ...) LIKEPRINTF(1);
 
 	// the *index functions create configstrings and some internal server state
-	int		(VARGS *modelindex) (char *name);
-	int		(VARGS *soundindex) (char *name);
-	int		(VARGS *imageindex) (char *name);
+	int		(VARGS *modelindex) (const char *name);
+	int		(VARGS *soundindex) (const char *name);
+	int		(VARGS *imageindex) (const char *name);
 
-	void	(VARGS *setmodel) (q2edict_t *ent, char *name);
+	void	(VARGS *setmodel) (q2edict_t *ent, const char *name);
 
 	// collision detection
 	q2trace_t	(VARGS *trace) (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, q2edict_t *passent, int contentmask);
@@ -228,7 +228,7 @@ typedef struct
 	void	(VARGS *WriteShort) (int c);
 	void	(VARGS *WriteLong) (int c);
 	void	(VARGS *WriteFloat) (float f);
-	void	(VARGS *WriteString) (char *s);
+	void	(VARGS *WriteString) (const char *s);
 	void	(VARGS *WritePosition) (vec3_t pos);	// some fractional bits
 	void	(VARGS *WriteDir) (vec3_t pos);		// single byte encoded, very coarse
 	void	(VARGS *WriteAngle) (float f);
@@ -239,9 +239,9 @@ typedef struct
 	void	(VARGS *FreeTags) (int tag);
 
 	// console variable interaction
-	cvar_t	*(VARGS *cvar) (char *var_name, char *value, int flags);
-	cvar_t	*(VARGS *cvar_set) (char *var_name, char *value);
-	cvar_t	*(VARGS *cvar_forceset) (char *var_name, char *value);
+	cvar_t	*(VARGS *cvar) (const char *var_name, const char *value, int flags);
+	cvar_t	*(VARGS *cvar_set) (const char *var_name, const char *value);
+	cvar_t	*(VARGS *cvar_forceset) (const char *var_name, const char *value);
 
 	// ClientCommand and ServerCommand parameter access
 	int		(VARGS *argc) (void);
@@ -250,7 +250,7 @@ typedef struct
 
 	// add commands to the server console as if they were typed in
 	// for map changing, etc
-	void	(VARGS *AddCommandString) (char *text);
+	void	(VARGS *AddCommandString) (const char *text);
 
 	void	(VARGS *DebugGraph) (float value, int color);
 } game_import_t;
@@ -269,19 +269,19 @@ typedef struct
 	void		(VARGS *Shutdown) (void);
 
 	// each new level entered will cause a call to SpawnEntities
-	void		(VARGS *SpawnEntities) (char *mapname, char *entstring, char *spawnpoint);
+	void		(VARGS *SpawnEntities) (const char *mapname, const char *entstring, const char *spawnpoint);
 
 	// Read/Write Game is for storing persistant cross level information
 	// about the world state and the clients.
 	// WriteGame is called every time a level is exited.
 	// ReadGame is called on a loadgame.
-	void		(VARGS *WriteGame) (char *filename, qboolean autosave);
-	void		(VARGS *ReadGame) (char *filename);
+	void		(VARGS *WriteGame) (const char *filename, qboolean autosave);
+	void		(VARGS *ReadGame) (const char *filename);
 
 	// ReadLevel is called after the default map information has been
 	// loaded with SpawnEntities
-	void		(VARGS *WriteLevel) (char *filename);
-	void		(VARGS *ReadLevel) (char *filename);
+	void		(VARGS *WriteLevel) (const char *filename);
+	void		(VARGS *ReadLevel) (const char *filename);
 
 	qboolean	(VARGS *ClientConnect) (q2edict_t *ent, char *userinfo);
 	void		(VARGS *ClientBegin) (q2edict_t *ent);

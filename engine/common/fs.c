@@ -2631,7 +2631,8 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
 }
 
-#define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\nsv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n"
+/*quake requires a few settings for compatibility*/
+#define QCFG "set com_parseutf8 0\nset allow_download_refpackages 0\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n"
 /*stuff that makes dp-only mods work a bit better*/
 #define DPCOMPAT QCFG "set _cl_playermodel \"\"\n set dpcompat_set 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 /*nexuiz/xonotic has a few quirks/annoyances...*/
@@ -2667,55 +2668,58 @@ const gamemode_info_t gamemode_info[] = {
 //whereas the quake mission packs replace start.bsp making the original episodes unreachable.
 //for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
 
-	//cmdline switch exename    protocol name(dpmaster)  identifying file		exec     dir1       dir2    dir3       dir(fte)     full name
-	{"-quake",		"q1",		MASTER_PREFIX"Quake",	{"id1/pak0.pak",
-														 "id1/quake.rc"},		QCFG,	{"id1",		"qw",				"*fte"},		"Quake"/*,    "id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
-	{"-hipnotic",	"hipnotic",	MASTER_PREFIX"Hipnotic",{"hipnotic/pak0.pak"},	QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},		"Quake: Scourge of Armagon"},
-	{"-rogue",		"rogue",	MASTER_PREFIX"Rogue",	{"rogue/pak0.pak"},		QCFG,	{"id1",		"qw",	"rogue",	"*fte"},		"Quake: Dissolution of Eternity"},
+	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
+	{"-quake",		"q1",		MASTER_PREFIX"Quake",	{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},		"Quake"/*,    "id1/pak0.pak|http://quakeservers.nquake.com/qsw106.zip|http://nquake.localghost.net/qsw106.zip|http://qw.quakephil.com/nquake/qsw106.zip|http://fnu.nquake.com/qsw106.zip"*/},
+	//quake's mission packs should not be favoured over the base game nor autodetected
+	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
+	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity
+	//so just make these require the same files as good ol' quake.
+	{"-hipnotic",	"hipnotic",	MASTER_PREFIX"Hipnotic",{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},		"Quake: Scourge of Armagon"},
+	{"-rogue",		"rogue",	MASTER_PREFIX"Rogue",	{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},		"Quake: Dissolution of Eternity"},
 
-	//various quake-based mods.
-	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},			NEXCFG,	{"data",						"*ftedata"},	"Nexuiz"},
-	{"-xonotic",	"xonotic",	"Xonotic",				{"xonotic.exe"},		NEXCFG,	{"data",						"*ftedata"},	"Xonotic"},
+	//various quake-based standalone mods.
+	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},	"Nexuiz"},
+	{"-xonotic",	"xonotic",	"Xonotic",				{"xonotic.exe"},				NEXCFG,	{"data",						"*ftedata"},	"Xonotic"},
 //	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
 //														 "base/qwprogs.dat",
-//														 "base/pak0.pak"},		DMFCFG,	{"base",						         },	"Spark"},
+//														 "base/pak0.pak"},				DMFCFG,	{"base",						         },	"Spark"},
 //	{"-scouts",		"scouts",	"FTE-SJ",				{"basesj/src/progs.src",
 //														 "basesj/progs.dat",
-//														 "basesj/pak0.pak"},	NULL,	{"basesj",						         },	"Scouts Journey"},
-//	{"-rmq",		"rmq",		"RMQ",					{NULL},					RMQCFG,	{"id1",		"qw",	"rmq",		"*fte"},		"Remake Quake"},
+//														 "basesj/pak0.pak"},			NULL,	{"basesj",						         },	"Scouts Journey"},
+//	{"-rmq",		"rmq",		"RMQ",					{NULL},							RMQCFG,	{"id1",		"qw",	"rmq",		"*fte"},		"Remake Quake"},
 
 #ifdef HEXEN2
 	//hexen2's mission pack generally takes precedence if both are installed.
 	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
-														 "portals/pak3.pak"},	HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP"},
-	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},		HEX2CFG,{"data1",						"*fteh2"},	"Hexen II"},
+														 "portals/pak3.pak"},			HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP"},
+	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},				HEX2CFG,{"data1",						"*fteh2"},	"Hexen II"},
 #endif
 #if defined(Q2CLIENT) || defined(Q2SERVER)
-	{"-quake2",		"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},	Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II"},
+	{"-quake2",		"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II"},
 	//mods of the above that should generally work.
-	{"-dday",		"dday",		"FTE-Quake2",			{"dday/pak0.pak"},		Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
+	{"-dday",		"dday",		"FTE-Quake2",			{"dday/pak0.pak"},				Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
 #endif
 
 #if defined(Q3CLIENT) || defined(Q3SERVER)
-	{"-quake3",		"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},	Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena"},
+	{"-quake3",		"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena"},
 	//the rest are not supported in any real way. maps-only mostly, if that
-//	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
-//	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},	NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},
+//	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},			NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
+//	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},			NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},
 
-//	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},	NULL,	{"base",						"*ftejk2"},	"Jedi Knight II: Jedi Outcast"},
-//	{"-warsow",		"warsow",	"FTE-Warsow",			{"basewsw/pak0.pk3"},	NULL,	{"basewsw",						"*ftewsw"},	"Warsow"},
+//	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},			NULL,	{"base",						"*ftejk2"},	"Jedi Knight II: Jedi Outcast"},
+//	{"-warsow",		"warsow",	"FTE-Warsow",			{"basewsw/pak0.pk3"},			NULL,	{"basewsw",						"*ftewsw"},	"Warsow"},
 #endif
 #if !defined(QUAKETC) && !defined(MINIMAL)
-//	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},			NULL,	{"*",							"*ftedoom"},	"Doom"},
-//	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},			NULL,	{"*",							"*ftedoom"},	"Doom2"},
-//	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},			NULL,	{"based3",						"*ftedoom3"},"Doom3"},
+//	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},					NULL,	{"*",							"*ftedoom"},	"Doom"},
+//	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},					NULL,	{"*",							"*ftedoom"},	"Doom2"},
+//	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},					NULL,	{"based3",						"*ftedoom3"},"Doom3"},
 
 	//for the luls
-//	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},		NULL,	{"*",							"*fted2"},	"Diablo 2"},
+//	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},				NULL,	{"*",							"*fted2"},	"Diablo 2"},
 #endif
 #if defined(HLSERVER) || defined(HLCLIENT)
 	//can run in windows, needs hl gamecode enabled. maps can always be viewed, but meh.
-	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},	NULL,	{"valve",						"*ftehl"},	"Half-Life"},
+	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},			NULL,	{"valve",						"*ftehl"},	"Half-Life"},
 #endif
 
 	{NULL}

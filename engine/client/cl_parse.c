@@ -589,9 +589,13 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 	Q_strncpyz(dl->rname, filename, sizeof(dl->rname));
 	Q_strncpyz(dl->localname, localname, sizeof(dl->localname));
 	dl->next = cl.downloadlist;
-	cl.downloadlist = dl;
 	dl->size = 0;
 	dl->flags = flags | DLLF_SIZEUNKNOWN;
+
+	if (!cl.downloadlist)
+		flags &= ~DLLF_VERBOSE;
+
+	cl.downloadlist = dl;
 
 	if (!webdl && (cls.fteprotocolextensions & (PEXT_CHUNKEDDOWNLOADS
 #ifdef PEXT_PK3DOWNLOADS
@@ -1068,7 +1072,6 @@ void Model_CheckDownloads (void)
 
 //	Con_TPrintf (TLC_CHECKINGMODELS);
 
-	R_SetSky(cl.skyname);
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
@@ -1573,13 +1576,18 @@ void CL_RequestNextDownload (void)
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
 
-#ifdef warningmsg
-#pragma warningmsg("timedemo timer should start here")
-#endif
-
 		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		{
-			Con_Printf("\n\n-------------\nCouldn't download %s - cannot fully connect\n", cl.worldmodel->name);
+			Con_Printf("\n\n-------------\n" CON_ERROR "Couldn't download \"%s\" - cannot fully connect\n", cl.worldmodel?cl.worldmodel->name:"unknown");
+#if !defined(NOMEDIA)
+			if (cls.demoplayback && Media_Capturing())
+			{
+				Con_Printf(CON_ERROR "Aborting capture\n");
+				CL_StopPlayback();
+			}
+#endif
+			//else should probably force the demo speed really fast or something
+
 			SCR_SetLoadingStage(LS_NONE);
 			return;
 		}
@@ -3105,6 +3113,9 @@ void CLQ2_ParseServerData (void)
 	memset(&cls.netchan.netprim, 0, sizeof(cls.netchan.netprim));
 	cls.netchan.netprim.coordsize = 2;
 	cls.netchan.netprim.anglesize = 1;
+	cls.fteprotocolextensions = 0;
+	cls.fteprotocolextensions2 = 0;
+	cls.demohadkeyframe = true;	//assume that it did, so this stuff all gets recorded.
 
 	Con_DPrintf ("Serverdata packet received.\n");
 //
@@ -3117,6 +3128,25 @@ void CLQ2_ParseServerData (void)
 
 // parse protocol version number
 	i = MSG_ReadLong ();
+
+	if (i == PROTOCOL_VERSION_FTE)
+	{
+		cls.fteprotocolextensions = i = MSG_ReadLong();
+//		if (i & PEXT_FLOATCOORDS)
+//			i -= PEXT_FLOATCOORDS;
+		if (i & PEXT_SOUNDDBL)
+			i -= PEXT_SOUNDDBL;
+		if (i & PEXT_MODELDBL)
+			i -= PEXT_MODELDBL;
+		if (i & PEXT_SPLITSCREEN)
+			i -= PEXT_SPLITSCREEN;
+		if (i)
+			Host_EndGame ("Unsupported q2 protocol extensions: %x", i);
+		i = MSG_ReadLong ();
+
+		if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
+			cls.netchan.netprim.coordsize = 4;
+	}
 	cls.protocol_q2 = i;
 
 	if (i == PROTOCOL_VERSION_R1Q2)
@@ -3178,7 +3208,7 @@ void CLQ2_ParseServerData (void)
 		MSG_ReadByte(); //strafejump hack
 
 		if (r1q2ver >= 1905)
-			cls.netchan.netprim.q2flags |= NPQ2_SIZE32;
+			cls.netchan.netprim.q2flags |= NPQ2_SOLID32;
 	}
 	else if (cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
 	{
@@ -3189,7 +3219,7 @@ void CLQ2_ParseServerData (void)
 		MSG_ReadByte(); //strafejump hack
 		MSG_ReadByte(); //q2pro qw-mode. kinda silly for us tbh.
 		if (q2prover >= 1014)
-			cls.netchan.netprim.q2flags |= NPQ2_SIZE32;
+			cls.netchan.netprim.q2flags |= NPQ2_SOLID32;
 		if (q2prover >= 1018)
 			cls.netchan.netprim.q2flags |= NPQ2_ANG16;
 		if (q2prover >= 1015)
@@ -3882,14 +3912,38 @@ void CLQ2_ParseClientinfo(int i, char *s)
 
 void CLQ2_ParseConfigString (void)
 {
-	int		i;
+	unsigned int		i;
 	char	*s;
 //	char	olds[MAX_QPATH];
 
-	i = MSG_ReadShort ();
+	i = (unsigned short)MSG_ReadShort ();
+	s = MSG_ReadString();
+
+	if (i >= 0x8000 && i < 0x8000+MAX_PRECACHE_MODELS)
+	{
+		Q_strncpyz(cl.model_name[i-0x8000], s, MAX_QPATH);
+		if (cl.model_name[i-0x8000][0] == '#')
+		{
+			if (cl.numq2visibleweapons < Q2MAX_VISIBLE_WEAPONS)
+			{
+				cl.q2visibleweapons[cl.numq2visibleweapons] = cl.model_name[i-0x8000]+1;
+				cl.numq2visibleweapons++;
+			}
+			cl.model_precache[i-0x8000] = NULL;
+		}
+		else
+			cl.model_precache[i-0x8000] = Mod_ForName (cl.model_name[i-0x8000], MLV_WARN);
+		return;
+	}
+	else if (i >= 0xc000 && i < 0xc000+MAX_PRECACHE_SOUNDS)
+	{
+		Q_strncpyz(cl.sound_name[i-0xc000], s, MAX_QPATH);
+		cl.sound_precache[i-0xc000] = S_PrecacheSound (s);
+		return;
+	}
+
 	if (i < 0 || i >= Q2MAX_CONFIGSTRINGS)
 		Host_EndGame ("configstring > Q2MAX_CONFIGSTRINGS");
-	s = MSG_ReadString();
 
 //	strncpy (olds, cl.configstrings[i], sizeof(olds));
 //	olds[sizeof(olds) - 1] = 0;
@@ -4196,7 +4250,7 @@ void CL_ParseStatic (int version)
 		ent->flags |= RF_ADDITIVE;
 	if (es.effects & EF_NODEPTHTEST)
 		ent->flags |= RF_NODEPTHTEST;
-	if (es.effects & DPEF_NOSHADOW)
+	if (es.effects & EF_NOSHADOW)
 		ent->flags |= RF_NOSHADOW;
 	if (es.trans != 0xff)
 		ent->flags |= RF_TRANSLUCENT;
@@ -4340,7 +4394,11 @@ void CLQ2_ParseStartSoundPacket(void)
 	sfx_t	*sfx;
 
 	flags = MSG_ReadByte ();
-	sound_num = MSG_ReadByte ();
+
+	if ((flags & Q2SND_LARGEIDX) && (cls.fteprotocolextensions & PEXT_SOUNDDBL))
+		sound_num = MSG_ReadShort();
+	else
+		sound_num = MSG_ReadByte ();
 
     if (flags & Q2SND_VOLUME)
 		volume = MSG_ReadByte () / 255.0;
@@ -4374,7 +4432,14 @@ void CLQ2_ParseStartSoundPacket(void)
 
 	if (flags & Q2SND_POS)
 	{	// positioned in space
-		MSG_ReadPos (pos_v);
+		if ((flags & Q2SND_LARGEPOS) && (cls.fteprotocolextensions & PEXT_FLOATCOORDS))
+		{
+			pos_v[0] = MSG_ReadFloat();
+			pos_v[1] = MSG_ReadFloat();
+			pos_v[2] = MSG_ReadFloat();
+		}
+		else
+			MSG_ReadPos (pos_v);
 
 		pos = pos_v;
 	}
@@ -4426,6 +4491,9 @@ void CLNQ_ParseStartSoundPacket(void)
 
 	field_mask = MSG_ReadByte();
 
+	if (field_mask & FTESND_MOREFLAGS)
+		field_mask |= MSG_ReadByte()<<8;
+
 	if (field_mask & NQSND_VOLUME)
 		volume = MSG_ReadByte ();
 	else
@@ -4446,10 +4514,8 @@ void CLNQ_ParseStartSoundPacket(void)
 	else
 		timeofs = 0;
 
-//	if (field_mask & FTESND_FLAGS)
-//		flags = MSG_ReadByte();
-//	else
-		flags = 0;
+	flags = field_mask>>8;
+	flags &= CF_FORCELOOP;
 
 	if (field_mask & DPSND_LARGEENTITY)
 	{
@@ -4469,7 +4535,7 @@ void CLNQ_ParseStartSoundPacket(void)
 	if (field_mask & DPSND_LARGESOUND)
 		sound_num = (unsigned short)MSG_ReadShort();
 	else
-		sound_num = MSG_ReadByte ();
+		sound_num = (unsigned char)MSG_ReadByte ();
 
 	if (ent > MAX_EDICTS)
 		Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
@@ -5262,11 +5328,11 @@ void CLQ2_ParseMuzzleFlash2 (void)
 	CLQ2_RunMuzzleFlash2(ent, flash_number);
 }
 
-void CLQ2_ParseInventory (void)
+void CLQ2_ParseInventory (int seat)
 {
 	unsigned int		i;
 	for (i=0 ; i<Q2MAX_ITEMS ; i++)
-		cl.inventory[i] = MSG_ReadShort ();
+		cl.inventory[seat][i] = MSG_ReadShort ();
 }
 #endif
 
@@ -6719,12 +6785,15 @@ void CLQW_ParseServerMessage (void)
 }
 
 #ifdef Q2CLIENT
+void CL_WriteDemoMessage (sizebuf_t *msg, int payloadoffset);
 void CLQ2_ParseServerMessage (void)
 {
-	int			cmd;
-	char		*s;
-	int			i;
-//	int			j;
+	int				cmd;
+	char			*s;
+	int				i;
+	unsigned int	seat;
+//	int				j;
+	int startpos = msg_readcount;
 
 	received_framecount = host_framecount;
 	cl.last_servermessage = realtime;
@@ -6753,6 +6822,16 @@ void CLQ2_ParseServerMessage (void)
 		}
 
 		cmd = MSG_ReadByte ();
+
+		seat = 0;
+		if (cmd == svcq2_playerinfo && (cls.fteprotocolextensions & PEXT_SPLITSCREEN))
+		{
+			SHOWNET(va("%i", cmd));
+			seat = MSG_ReadByte ();
+			if (seat >= MAX_SPLITS)
+				Host_EndGame ("CLQ2_ParseServerMessage: Invalid seat", cmd);
+			cmd = MSG_ReadByte ();
+		}
 
 		if (cmd == -1)
 		{
@@ -6795,13 +6874,13 @@ void CLQ2_ParseServerMessage (void)
 			break;
 		case svcq2_layout:
 			s = MSG_ReadString ();
-			Q_strncpyz (cl.q2layout, s, sizeof(cl.q2layout));
+			Q_strncpyz (cl.q2layout[seat], s, sizeof(cl.q2layout[seat]));
 #ifdef VM_UI
 			UI_Q2LayoutChanged();
 #endif
 			break;
 		case svcq2_inventory:
-			CLQ2_ParseInventory();
+			CLQ2_ParseInventory(seat);
 			break;
 
 	// the rest are private to the client and server
@@ -6858,9 +6937,9 @@ void CLQ2_ParseServerMessage (void)
 			s = MSG_ReadString();
 
 #ifdef PLUGINS
-			if (Plug_CenterPrintMessage(s, 0))
+			if (Plug_CenterPrintMessage(s, seat))
 #endif
-				SCR_CenterPrint (0, s, false);
+				SCR_CenterPrint (seat, s, false);
 			break;
 		case svcq2_download:		//16		// [short] size [size bytes]
 			CL_ParseDownload();
@@ -6880,6 +6959,9 @@ void CLQ2_ParseServerMessage (void)
 		}
 	}
 	CL_SetSolidEntities ();
+
+	if (cls.demohadkeyframe)
+		CL_WriteDemoMessage(&net_message, startpos);	//FIXME: incomplete frames might be awkward
 }
 #endif
 

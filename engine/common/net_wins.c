@@ -5823,8 +5823,6 @@ cvar_t sv_port_natpmp = CVARCD("sv_port_natpmp", NATPMP_DEFAULT_PORT, SV_Port_Na
 
 void SVNET_RegisterCvars(void)
 {
-	int p;
-
 #if defined(TCPCONNECT) && defined(HAVE_IPV4)
 	Cvar_Register (&sv_port_tcp,	"networking");
 	sv_port_tcp.restriction = RESTRICT_MAX;
@@ -5849,29 +5847,6 @@ void SVNET_RegisterCvars(void)
 	Cvar_Register (&sv_port_natpmp,	"networking");
 	sv_port_natpmp.restriction = RESTRICT_MAX;
 #endif
-
-	// parse params for cvars
-	p = COM_CheckParm ("-port");
-	if (!p)
-		p = COM_CheckParm ("-svport");
-	if (p && p < com_argc)
-	{
-		int port = atoi(com_argv[p+1]);
-		if (!port)
-			port = PORT_QWSERVER;
-#ifdef HAVE_IPV4
-		if (*sv_port_ipv4.string)
-			Cvar_SetValue(&sv_port_ipv4, port);
-#endif
-#ifdef IPPROTO_IPV6
-		if (*sv_port_ipv6.string)
-			Cvar_SetValue(&sv_port_ipv6, port);
-#endif
-#ifdef USEIPX
-		if (*sv_port_ipx.string)
-			Cvar_SetValue(&sv_port_ipx, port);
-#endif
-	}
 }
 
 void NET_CloseServer(void)

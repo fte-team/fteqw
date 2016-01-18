@@ -171,6 +171,7 @@ typedef struct galiasinfo_s
 	int numtagframes;
 	int numtags;
 	md3tag_t *ofstags;
+	unsigned int warned;	//passed around at load time, so we don't spam warnings
 } galiasinfo_t;
 
 typedef struct

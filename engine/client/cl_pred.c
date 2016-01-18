@@ -47,7 +47,7 @@ void VARGS Q2_Pmove (q2pmove_t *pmove);
 #define Q2PMF_NO_PREDICTION	64	// temporarily disables prediction (used for grappling hook)
 #endif
 
-vec3_t cl_predicted_origins[UPDATE_BACKUP];
+vec3_t cl_predicted_origins[MAX_SPLITS][UPDATE_BACKUP];
 
 
 /*
@@ -62,34 +62,43 @@ void CLQ2_CheckPredictionError (void)
 	int		delta[3];
 	int		i;
 	int		len;
+	int		seat;
+	q2player_state_t *ps;
+	playerview_t *pv;
 
-	if (cl_nopred.value || (cl.q2frame.playerstate.pmove.pm_flags & Q2PMF_NO_PREDICTION))
-		return;
-
-	// calculate the last usercmd_t we sent that the server has processed
-	frame = cls.netchan.incoming_acknowledged;
-	frame &= (UPDATE_MASK);
-
-	// compare what the server returned with what we had predicted it to be
-	VectorSubtract (cl.q2frame.playerstate.pmove.origin, cl_predicted_origins[frame], delta);
-
-	// save the prediction error for interpolation
-	len = abs(delta[0]) + abs(delta[1]) + abs(delta[2]);
-	if (len > 640)	// 80 world units
-	{	// a teleport or something
-		VectorClear (cl.prediction_error);
-	}
-	else
+	for (seat = 0; seat < cl.splitclients; seat++)
 	{
-//		if (/*cl_showmiss->value && */(delta[0] || delta[1] || delta[2]) )
-//			Con_Printf ("prediction miss on %i: %i\n", cl.q2frame.serverframe,
-//			delta[0] + delta[1] + delta[2]);
+		ps = &cl.q2frame.playerstate[seat];
+		pv = &cl.playerview[seat];
 
-		VectorCopy (cl.q2frame.playerstate.pmove.origin, cl_predicted_origins[frame]);
+		if (cl_nopred.value || (ps->pmove.pm_flags & Q2PMF_NO_PREDICTION))
+			continue;
 
-		// save for error itnerpolation
-		for (i=0 ; i<3 ; i++)
-			cl.prediction_error[i] = delta[i]*0.125;
+		// calculate the last usercmd_t we sent that the server has processed
+		frame = cls.netchan.incoming_acknowledged;
+		frame &= (UPDATE_MASK);
+
+		// compare what the server returned with what we had predicted it to be
+		VectorSubtract (ps->pmove.origin, cl_predicted_origins[seat][frame], delta);
+
+		// save the prediction error for interpolation
+		len = abs(delta[0]) + abs(delta[1]) + abs(delta[2]);
+		if (len > 640)	// 80 world units
+		{	// a teleport or something
+			VectorClear (pv->prediction_error);
+		}
+		else
+		{
+//			if (/*cl_showmiss->value && */(delta[0] || delta[1] || delta[2]) )
+//				Con_Printf ("prediction miss on %i: %i\n", cl.q2frame.serverframe,
+//				delta[0] + delta[1] + delta[2]);
+
+			VectorCopy (ps->pmove.origin, cl_predicted_origins[seat][frame]);
+
+			// save for error itnerpolation
+			for (i=0 ; i<3 ; i++)
+				pv->prediction_error[i] = delta[i]*0.125;
+		}
 	}
 }
 
@@ -100,6 +109,7 @@ CL_ClipMoveToEntities
 
 ====================
 */
+int predignoreentitynum;
 void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, trace_t *tr )
 {
 	int			i, x, zd, zu;
@@ -118,7 +128,7 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 		if (!ent->solid)
 			continue;
 
-		if (ent->number == cl.playerview[0].playernum+1)
+		if (ent->number == predignoreentitynum)
 			continue;
 
 		if (ent->solid == ES_SOLID_BSP)
@@ -130,7 +140,7 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 		}
 		else
 		{	// encoded bbox
-			if (cls.netchan.netprim.q2flags & NPQ2_SIZE32)
+			if (cls.netchan.netprim.q2flags & NPQ2_SOLID32)
 			{
 				x = ent->solid & 255;
 				zd = (ent->solid >> 8) & 255;
@@ -232,7 +242,7 @@ CL_PredictMovement
 Sets cl.predicted_origin and cl.predicted_angles
 =================
 */
-void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
+static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 {
 #ifdef Q2BSPS
 	int			ack, current;
@@ -244,7 +254,8 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 	int			oldz;
 #endif
 	int			i;
-	int pnum = 0;
+	q2player_state_t *ps = &cl.q2frame.playerstate[seat];
+	playerview_t *pv = &cl.playerview[seat];
 
 	if (cls.state != ca_active)
 		return;
@@ -253,12 +264,12 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 //		return;
 	
 #ifdef Q2BSPS
-	if (cl_nopred.value || cls.demoplayback || (cl.q2frame.playerstate.pmove.pm_flags & Q2PMF_NO_PREDICTION))
+	if (cl_nopred.value || cls.demoplayback || (ps->pmove.pm_flags & Q2PMF_NO_PREDICTION))
 #endif
 	{	// just set angles
 		for (i=0 ; i<3 ; i++)
 		{
-			cl.predicted_angles[i] = cl.playerview[pnum].viewangles[i] + SHORT2ANGLE(cl.q2frame.playerstate.pmove.delta_angles[i]);
+			pv->predicted_angles[i] = pv->viewangles[i] + SHORT2ANGLE(ps->pmove.delta_angles[i]);
 		}
 		return;
 	}
@@ -281,53 +292,55 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 
 	pm_airaccelerate = atof(Get_Q2ConfigString(Q2CS_AIRACCEL));
 
-	pm.s = cl.q2frame.playerstate.pmove;
+	pm.s = ps->pmove;
 
 //	SCR_DebugGraph (current - ack - 1, 0);
 
 	frame = 0;
 
+	predignoreentitynum = cl.q2frame.clientnum[seat]+1;//cl.playerview[seat].playernum+1;
+
 	// run frames
 	while (++ack < current)
 	{
 		frame = ack & (UPDATE_MASK);
-		cmd = (q2usercmd_t*)&cl.outframes[frame].cmd[0];
-		cmd->msec = cl.outframes[frame].cmd[0].msec;
+		cmd = (q2usercmd_t*)&cl.outframes[frame].cmd[seat];
+		cmd->msec = cl.outframes[frame].cmd[seat].msec;
 
 		pm.cmd = *cmd;
 		Q2_Pmove (&pm);
 
 		// save for debug checking
-		VectorCopy (pm.s.origin, cl_predicted_origins[frame]);
+		VectorCopy (pm.s.origin, cl_predicted_origins[seat][frame]);
 	}
 
-	if (independantphysics[0].msec)
+	if (independantphysics[seat].msec)
 	{
-		cmd = (q2usercmd_t*)&independantphysics[0];
-		cmd->msec = independantphysics[0].msec;
+		cmd = (q2usercmd_t*)&independantphysics[seat];
+		cmd->msec = independantphysics[seat].msec;
 
 		pm.cmd = *cmd;
 		Q2_Pmove (&pm);
 	}
 
 	oldframe = (ack-1) & (UPDATE_MASK);
-	oldz = cl_predicted_origins[oldframe][2];
+	oldz = cl_predicted_origins[seat][oldframe][2];
 	step = pm.s.origin[2] - oldz;
 	if (step > 63 && step < 160 && (pm.s.pm_flags & Q2PMF_ON_GROUND) )
 	{
-		cl.predicted_step = step * 0.125;
-		cl.predicted_step_time = realtime;// - host_frametime;// * 0.5;
+		pv->predicted_step = step * 0.125;
+		pv->predicted_step_time = realtime;// - host_frametime;// * 0.5;
 	}
 
-	cl.playerview[0].onground = !!(pm.s.pm_flags & Q2PMF_ON_GROUND);
+	pv->onground = !!(pm.s.pm_flags & Q2PMF_ON_GROUND);
 
 
 	// copy results out for rendering
-	cl.predicted_origin[0] = pm.s.origin[0]*0.125;
-	cl.predicted_origin[1] = pm.s.origin[1]*0.125;
-	cl.predicted_origin[2] = pm.s.origin[2]*0.125;
+	pv->predicted_origin[0] = pm.s.origin[0]*0.125;
+	pv->predicted_origin[1] = pm.s.origin[1]*0.125;
+	pv->predicted_origin[2] = pm.s.origin[2]*0.125;
 
-	VectorCopy (pm.viewangles, cl.predicted_angles);
+	VectorCopy (pm.viewangles, pv->predicted_angles);
 #endif
 }
 
@@ -927,7 +940,7 @@ void CL_PredictMovePNum (int seat)
 		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 			return;
 		pv->crouch = 0;
-		CLQ2_PredictMovement();
+		CLQ2_PredictMovement(seat);
 		return;
 	}
 #endif

@@ -375,21 +375,27 @@ void SV_New_f (void)
 			if (sv.state == ss_cinematic)
 				playernum = -1;
 
-			if (ISQ2CLIENT(host_client))
-				ClientReliableWrite_Short (host_client, playernum);
-			else
-				ClientReliableWrite_Byte (host_client, playernum);
-
 			split->state = cs_connected;
 			split->connection_started = realtime;
 		#ifdef SVRANKING
 			split->stats_started = realtime;
 		#endif
 			splitnum++;
+
+			if (ISQ2CLIENT(host_client))
+			{
+				ClientReliableWrite_Short (host_client, playernum);
+				break;
+			}
+			else
+				ClientReliableWrite_Byte (host_client, playernum);
 		}
 
-		if (host_client->fteprotocolextensions & PEXT_SPLITSCREEN)
-			ClientReliableWrite_Byte (host_client, 128);
+		if (!ISQ2CLIENT(host_client))
+		{
+			if (host_client->fteprotocolextensions & PEXT_SPLITSCREEN)
+				ClientReliableWrite_Byte (host_client, 128);
+		}
 	}
 
 	// send full levelname
@@ -640,7 +646,7 @@ void SVNQ_New_f (void)
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
 	//fixme: don't send too many sounds.
-	for (i = 1; *sv.strings.sound_precache[i] ; i++)
+	for (i = 1; sv.strings.sound_precache[i] ; i++)
 		MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
@@ -667,8 +673,8 @@ void SVNQ_New_f (void)
 #ifdef Q2SERVER
 void SVQ2_ConfigStrings_f (void)
 {
-	int			start;
-	char *str;
+	unsigned int			start;
+	const char *str;
 
 	Con_DPrintf ("Configstrings() from %s\n", host_client->name);
 
@@ -701,136 +707,50 @@ void SVQ2_ConfigStrings_f (void)
 		&& start < Q2MAX_CONFIGSTRINGS)
 	{
 		str = sv.strings.configstring[start];
-		if (*str)
+		if (str && *str)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
 			MSG_WriteShort (&host_client->netchan.message, start);
 			MSG_WriteString (&host_client->netchan.message, str);
 		}
-			/*
-		//choose range to grab from.
-		if (start < Q2CS_CDTRACK)
+		start++;
+	}
+
+	//model overflows
+	if (start == Q2MAX_CONFIGSTRINGS)
+		start = 0x8000;
+	while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
+		&& start < 0x8000+MAX_PRECACHE_MODELS)
+	{
+		str = sv.strings.q2_extramodels[start-0x8000];
+		if (str && *str)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
 			MSG_WriteShort (&host_client->netchan.message, start);
-			MSG_WriteString (&host_client->netchan.message, sv.name);
+			MSG_WriteString (&host_client->netchan.message, str);
 		}
-		else if (start < Q2CS_SKY)
+		start++;
+	}
+
+	//sound overflows
+	if (start == 0x8000+MAX_PRECACHE_MODELS)
+		start = 0xc000;
+	while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
+		&& start < 0xc000+MAX_PRECACHE_SOUNDS)
+	{
+		str = sv.strings.q2_extrasounds[start-0xc000];
+		if (str && *str)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
 			MSG_WriteShort (&host_client->netchan.message, start);
-			if (svprogfuncs)
-				MSG_WriteString (&host_client->netchan.message, va("%i", sv.edicts->v->sounds));
-			else
-				MSG_WriteString (&host_client->netchan.message, "0");
+			MSG_WriteString (&host_client->netchan.message, str);
 		}
-		else if (start < Q2CS_SKYAXIS)
-		{
-			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, start);
-			MSG_WriteString (&host_client->netchan.message, "unit1_");
-		}
-		else if (start < Q2CS_SKYROTATE)
-		{
-			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, start);
-			MSG_WriteString (&host_client->netchan.message, "0");
-		}
-		else if (start < Q2CS_STATUSBAR)
-		{
-			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, start);
-			MSG_WriteString (&host_client->netchan.message, "0");
-		}
-		else if (start < Q2CS_AIRACCEL)
-		{//show status bar
-			if (start == Q2CS_STATUSBAR)
-			{
-				MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-				MSG_WriteShort (&host_client->netchan.message, start);
-				MSG_WriteString (&host_client->netchan.message, sv.statusbar);
-			}
-		}
-		else if (start < Q2CS_MAXCLIENTS)
-		{
-			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, start);
-			MSG_WriteString (&host_client->netchan.message, va("%i", (int)1));
-		}
-		else if (start < Q2CS_MAPCHECKSUM)
-		{
-			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, start);
-			MSG_WriteString (&host_client->netchan.message, va("%i", (int)32));
-		}
-		else if (start < Q2CS_MODELS)
-		{
-			extern int map_checksum;
-			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, start);
-			MSG_WriteString (&host_client->netchan.message, va("%i", map_checksum));
-		}
-		else if (start < Q2CS_SOUNDS)
-		{
-			if (*sv.model_precache[start-Q2CS_MODELS])
-			{
-				MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-				MSG_WriteShort (&host_client->netchan.message, start);
-				MSG_WriteString (&host_client->netchan.message, sv.model_precache[start-Q2CS_MODELS]);
-			}
-		}
-		else if (start < Q2CS_IMAGES)
-		{
-			if (*sv.sound_precache[start-Q2CS_SOUNDS])
-			{
-				MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-				MSG_WriteShort (&host_client->netchan.message, start);
-				MSG_WriteString (&host_client->netchan.message, sv.sound_precache[start-Q2CS_SOUNDS]);
-			}
-		}
-		else if (start < Q2CS_LIGHTS)
-		{
-			if (*sv.image_precache[start-Q2CS_IMAGES])
-			{
-				MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-				MSG_WriteShort (&host_client->netchan.message, start);
-				MSG_WriteString (&host_client->netchan.message, sv.image_precache[start-Q2CS_IMAGES]);
-			}
-		}
-		else if (start < Q2CS_ITEMS)
-		{
-			if (start-Q2CS_LIGHTS < MAX_LIGHTSTYLES && sv.lightstyles[start-Q2CS_LIGHTS])
-			{
-				MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-				MSG_WriteShort (&host_client->netchan.message, start);
-				MSG_WriteString (&host_client->netchan.message, sv.lightstyles[start-Q2CS_LIGHTS]);
-			}
-		}
-		else if (start < Q2CS_PLAYERSKINS)
-		{
-//			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-//			MSG_WriteShort (&host_client->netchan.message, start);
-//			MSG_WriteString (&host_client->netchan.message, sv.configstrings[start-Q2CS_ITEMS]);
-		}
-		else if (start < Q2CS_GENERAL)
-		{
-//			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-//			MSG_WriteShort (&host_client->netchan.message, start);
-//			MSG_WriteString (&host_client->netchan.message, sv.configstrings[start]);
-		}
-		else
-		{
-//			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-//			MSG_WriteShort (&host_client->netchan.message, start);
-//			MSG_WriteString (&host_client->netchan.message, sv.configstrings[start]);
-		}
-		*/
 		start++;
 	}
 
 	// send next command
 
-	if (start == Q2MAX_CONFIGSTRINGS)
+	if (start == 0xc000+MAX_PRECACHE_SOUNDS)
 	{
 		MSG_WriteByte (&host_client->netchan.message, svcq2_stufftext);
 		MSG_WriteString (&host_client->netchan.message, va("cmd baselines %i 0\n",svs.spawncount) );
@@ -1055,9 +975,9 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				}
 				client->prespawn_idx++;
 
-				if (client->prespawn_idx >= maxclientsupportedsounds || !*sv.strings.sound_precache[client->prespawn_idx])
+				if (client->prespawn_idx >= maxclientsupportedsounds || !sv.strings.sound_precache[client->prespawn_idx])
 				{
-					if (*sv.strings.sound_precache[client->prespawn_idx] && !(client->plimitwarned & PLIMIT_SOUNDS))
+					if (sv.strings.sound_precache[client->prespawn_idx] && !(client->plimitwarned & PLIMIT_SOUNDS))
 					{
 						client->plimitwarned |= PLIMIT_SOUNDS;
 						SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i sounds. Please upgrade or enable extensions.\n", client->prespawn_idx);
@@ -1205,7 +1125,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				break;
 			}
 
-			if (*sv.strings.particle_precache[client->prespawn_idx])
+			if (sv.strings.particle_precache[client->prespawn_idx])
 			{
 				ClientReliableWrite_Begin (client, ISNQCLIENT(client)?svcdp_precache:svcfte_precache, 4 + strlen(sv.strings.particle_precache[client->prespawn_idx]));
 				ClientReliableWrite_Short (client, client->prespawn_idx | PC_PARTICLE);
@@ -1298,7 +1218,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			{
 				MSG_WriteByte(&client->netchan.message, svcfte_spawnstatic2);
-				SVFTE_EmitBaseline(state, false, &client->netchan.message, client);
+				SVFTE_EmitBaseline(state, false, &client->netchan.message, client->fteprotocolextensions2);
 				continue;
 			}
 			if (client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
@@ -1402,7 +1322,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			else if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			{
 				MSG_WriteByte(&client->netchan.message, svcfte_spawnbaseline2);
-				SVFTE_EmitBaseline(state, true, &client->netchan.message, client);
+				SVFTE_EmitBaseline(state, true, &client->netchan.message, client->fteprotocolextensions2);
 			}
 			else if (client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
 			{
@@ -1625,15 +1545,15 @@ void SVQW_Spawn_f (void)
 				if (!sv.strings.lightstyles[i])
 					continue;
 #ifdef PEXT_LIGHTSTYLECOL
-			if ((host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (sv.strings.lightstylecolours[i][0]!=1||sv.strings.lightstylecolours[i][1]!=1||sv.strings.lightstylecolours[i][2]!=1) && sv.strings.lightstyles[i])
+			if ((host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (sv.lightstylecolours[i][0]!=1||sv.lightstylecolours[i][1]!=1||sv.lightstylecolours[i][2]!=1) && sv.strings.lightstyles[i])
 			{
 				ClientReliableWrite_Begin (host_client, svcfte_lightstylecol,
 					10 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));
 				ClientReliableWrite_Byte (host_client, (char)i);
 				ClientReliableWrite_Char (host_client, 0x87);
-				ClientReliableWrite_Short (host_client, sv.strings.lightstylecolours[i][0]*1024);
-				ClientReliableWrite_Short (host_client, sv.strings.lightstylecolours[i][1]*1024);
-				ClientReliableWrite_Short (host_client, sv.strings.lightstylecolours[i][2]*1024);
+				ClientReliableWrite_Short (host_client, sv.lightstylecolours[i][0]*1024);
+				ClientReliableWrite_Short (host_client, sv.lightstylecolours[i][1]*1024);
+				ClientReliableWrite_Short (host_client, sv.lightstylecolours[i][2]*1024);
 				ClientReliableWrite_String (host_client, sv.strings.lightstyles[i]);
 			}
 			else
@@ -1889,6 +1809,7 @@ void SV_Begin_Core(client_t *split)
 							split->edict->v->maxs[2] = 32;
 							split->edict->v->movetype = MOVETYPE_NOCLIP;
 						}
+						VectorCopy(split->edict->v->origin, split->edict->v->oldorigin);	//make sure oldorigin isn't 0 0 0 or anything too clumsy like that. stuck somewhere killable is better than stuck outside the map.
 					}
 
 					oh = host_client;
@@ -2830,14 +2751,6 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 			*p = (char)tolower((unsigned char)*p);
 	}
 
-	
-
-	if (!SV_AllowDownload(name))
-	{
-		Sys_Printf ("%s denied download of %s due to path/name rules\n", host_client->name, name);
-		return -2;	//not permitted (even if it exists).
-	}
-
 	//mvdsv demo downloading support demonum/ -> demos/XXXX (sets up the client paths)
 	if (!strncmp(name, "demonum/", 8))
 	{
@@ -2851,9 +2764,15 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 				Sys_Printf ("%s requested invalid demonum %s\n", host_client->name, name+8);
 				return -1;	//not found
 			}
-			*replacementname = va("demos/%s\n", mvdname);
-			return -4;	//redirect
+			name = *replacementname = va("demos/%s", mvdname);
+			return -4;
 		}
+	}
+
+	if (!SV_AllowDownload(name))
+	{
+		Sys_Printf ("%s denied download of %s due to path/name rules\n", host_client->name, name);
+		return -2;	//not permitted (even if it exists).
 	}
 
 	//mvdsv demo downloading support. demos/ -> demodir (sets up the server paths)
@@ -3073,12 +2992,27 @@ void SV_BeginDownload_f(void)
 		if (result == -4)
 		{
 #ifdef PEXT_CHUNKEDDOWNLOADS
-			if (host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)
+			qboolean isezquake = !strncmp(Info_ValueForKey(host_client->userinfo, "*client"), "ezQuake", 7);
+			if ((host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS) && !isezquake)
 			{
 				//redirect the client (before the message saying download failed)
-				char *s = va("dlsize \"%s\" r \"%s\"\n", name, redirection);
+//				char *s = va("dlsize \"%s\" r \"%s\"\n", name, redirection);
+//				ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
+//				ClientReliableWrite_String (host_client, s);
+
+				ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
+				ClientReliableWrite_Long (host_client, -1);
+				ClientReliableWrite_Long (host_client, result);
+				ClientReliableWrite_String (host_client, redirection);
+				return;
+			}
+			else
+			{	//crappy hack for crappy clients. tell them to download the new file instead without telling them about any failure.
+				//this will seriously mess with any download queues or anything like that
+				char *s = va("download \"%s\"\n", redirection);
 				ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
 				ClientReliableWrite_String (host_client, s);
+				return;
 			}
 #endif
 		}
@@ -3719,6 +3653,9 @@ static void SV_UpdateSeats(client_t *controller)
 		curclients++;
 	}
 
+	if (controller->protocol == SCP_QUAKE2)
+		return;	//wait for the clientinfo stuff instead.
+
 	ClientReliableWrite_Begin(controller, svc_signonnum, 2+curclients);
 	ClientReliableWrite_Byte(controller, curclients);
 	for (curclients = 0, cl = controller; cl; cl = cl->controlled, curclients++)
@@ -3976,6 +3913,13 @@ void SV_SetInfo_f (void)
 
 	if (!strcmp(Info_ValueForKey(host_client->userinfo, key), oldval))
 		return; // key hasn't changed
+
+	if (svs.gametype == GT_QUAKE2)
+	{
+		ge->ClientUserinfoChanged (host_client->q2edict, host_client->userinfo);	//tell the gamecode
+		SV_ExtractFromUserinfo(host_client, true);	//let the server routines know
+		return;
+	}
 
 	// process any changed values
 	SV_ExtractFromUserinfo (host_client, true);
@@ -5614,8 +5558,6 @@ ucmd_t ucmdsq2[] = {
 	{"baselines", SVQ2_BaseLines_f, true},
 	{"begin", SV_Begin_f, true},
 
-//	{"setinfo", SV_SetInfo_f, true},
-
 	{"serverinfo", SV_ShowServerinfo_f, true},
 	{"info", SV_ShowServerinfo_f, true},
 
@@ -5624,7 +5566,10 @@ ucmd_t ucmdsq2[] = {
 
 	{"nextserver", SVQ2_NextServer_f, true},
 
-	{"ftevote", SV_Vote_f, true},
+	//fte stuff
+	{"setinfo", SV_SetInfo_f, true},
+	{"ftevote", SV_Vote_f, true},	//voting... kinda messed up by 'vote' being common in mods
+	{"addseat", Cmd_AddSeat_f, true},		//for splitscreen
 
 //#ifdef SVRANKING
 //	{"topten", Rank_ListTop10_f, true},
@@ -6647,8 +6592,9 @@ if (sv_player->v->health > 0 && before && !after )
 
 	{
 		vec3_t delta;
-		VectorSubtract (pmove.angles, sv_player->v->v_angle, delta);
-
+		delta[0] = pmove.angles[0] - SHORT2ANGLE(pmove.cmd.angles[0]);
+		delta[1] = pmove.angles[1] - SHORT2ANGLE(pmove.cmd.angles[1]);
+		delta[2] = pmove.angles[2] - SHORT2ANGLE(pmove.cmd.angles[2]);
 		if (delta[0] || delta[1] || delta[2])
 		{
 			if (host_client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA)
@@ -6700,7 +6646,22 @@ if (sv_player->v->health > 0 && before && !after )
 
 	VectorCopy (pmove.safeorigin, sv_player->v->oldorigin);
 	VectorCopy (pmove.origin, sv_player->v->origin);
-	VectorCopy (pmove.angles, sv_player->v->v_angle);
+	if (!sv_player->v->fixangle)
+	{
+		VectorCopy (pmove.angles, sv_player->v->v_angle);
+
+		//some clients (especially NQ ones) attempt to cheat. don't let it benefit them.
+		//some things would break though.
+		if ((!sv_player->xv->gravitydir[0] && !sv_player->xv->gravitydir[1] && !sv_player->xv->gravitydir[2]) && sv_player->v->movetype == MOVETYPE_WALK)
+		{
+			float minpitch = *sv_minpitch.string?sv_minpitch.value:-70;
+			float maxpitch = *sv_maxpitch.string?sv_maxpitch.value:80;
+			if (sv_player->v->v_angle[0] < minpitch)
+				sv_player->v->v_angle[0] = minpitch;
+			if (sv_player->v->v_angle[0] > maxpitch)
+				sv_player->v->v_angle[0] = maxpitch;
+		}
+	}
 
 //	VectorCopy (pmove.gravitydir, sv_player->xv->gravitydir);
 	if (pmove.gravitydir[0] || pmove.gravitydir[1] || (pmove.gravitydir[2] && pmove.gravitydir[2] != -1))
@@ -7346,11 +7307,12 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 	char	*s;
 	usercmd_t	oldest, oldcmd, newcmd;
 	q2client_frame_t	*frame;
-	qboolean	move_issued = false; //only allow one move command
+	int		move_issued = 0; //only allow one move command
 	int		checksumIndex;
 	qbyte	checksum, calculatedChecksum;
 	int		seq_hash;
 	int lastframe;
+	client_t *split;
 
 	if (!ge)
 	{
@@ -7432,75 +7394,88 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			break;
 
 		case clcq2_move:
-			if (move_issued)
+			if (move_issued >= MAX_SPLITS)
 				return;		// someone is trying to cheat...
 
-			move_issued = true;
+			for (checksumIndex = 0, split = cl; split && checksumIndex < move_issued; checksumIndex++)
+				split = split->controlled;
 
-			checksumIndex = MSG_GetReadCount();
-			checksum = (qbyte)MSG_ReadByte ();
-
-
-			lastframe = MSG_ReadLong();
-			if (lastframe != host_client->delta_sequence)
+			if (move_issued)
 			{
-				cl->delta_sequence = lastframe;
+				checksumIndex = -1;
+				checksum = 0;
+			}
+			else
+			{
+				checksumIndex = MSG_GetReadCount();
+				checksum = (qbyte)MSG_ReadByte ();
+
+
+				lastframe = MSG_ReadLong();
+				if (lastframe != split->delta_sequence)
+				{
+					split->delta_sequence = lastframe;
+				}
 			}
 
 			MSGQ2_ReadDeltaUsercmd (&nullcmd, &oldest);
 			MSGQ2_ReadDeltaUsercmd (&oldest, &oldcmd);
 			MSGQ2_ReadDeltaUsercmd (&oldcmd, &newcmd);
 
-			if ( cl->state != cs_spawned )
-				break;
-
-			// if the checksum fails, ignore the rest of the packet
-			calculatedChecksum = Q2COM_BlockSequenceCRCByte(
-				net_message.data + checksumIndex + 1,
-				MSG_GetReadCount() - checksumIndex - 1,
-				seq_hash);
-
-			if (calculatedChecksum != checksum)
+			if ( split && split->state == cs_spawned )
 			{
-				Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n",
-					cl->name, cl->netchan.incoming_sequence, checksum, calculatedChecksum);
-				return;
-			}
-
-			if (cl->penalties & BAN_CRIPPLED)
-			{
-				cl->lastcmd.forwardmove = 0;	//hmmm.... does this work well enough?
-				oldest.forwardmove = 0;
-				newcmd.forwardmove = 0;
-
-				cl->lastcmd.sidemove = 0;
-				oldest.sidemove = 0;
-				newcmd.sidemove = 0;
-
-				cl->lastcmd.upmove = 0;
-				oldest.upmove = 0;
-				newcmd.upmove = 0;
-			}
-
-			host_client->q2edict->client->ping = SV_CalcPing (host_client, false);
-			if (!sv.paused)
-			{
-				if (net_drop < 20)
+				if (checksumIndex != -1)
 				{
-					while (net_drop > 2)
-					{
-						ge->ClientThink (host_client->q2edict, (q2usercmd_t*)&cl->lastcmd);
-						net_drop--;
-					}
-					if (net_drop > 1)
-						ge->ClientThink (host_client->q2edict, (q2usercmd_t*)&oldest);
-					if (net_drop > 0)
-						ge->ClientThink (host_client->q2edict, (q2usercmd_t*)&oldcmd);
-				}
-				ge->ClientThink (host_client->q2edict, (q2usercmd_t*)&newcmd);
-			}
+					// if the checksum fails, ignore the rest of the packet
+					calculatedChecksum = Q2COM_BlockSequenceCRCByte(
+						net_message.data + checksumIndex + 1,
+						MSG_GetReadCount() - checksumIndex - 1,
+						seq_hash);
 
-			cl->lastcmd = newcmd;
+					if (calculatedChecksum != checksum)
+					{
+						Con_DPrintf ("Failed command checksum for %s(%d) (%d != %d)\n",
+							cl->name, cl->netchan.incoming_sequence, checksum, calculatedChecksum);
+						return;
+					}
+				}
+
+				if (split->penalties & BAN_CRIPPLED)
+				{
+					split->lastcmd.forwardmove = 0;	//hmmm.... does this work well enough?
+					oldest.forwardmove = 0;
+					newcmd.forwardmove = 0;
+
+					split->lastcmd.sidemove = 0;
+					oldest.sidemove = 0;
+					newcmd.sidemove = 0;
+
+					split->lastcmd.upmove = 0;
+					oldest.upmove = 0;
+					newcmd.upmove = 0;
+				}
+
+				split->q2edict->client->ping = SV_CalcPing (split, false);
+				if (!sv.paused)
+				{
+					if (net_drop < 20)
+					{
+						while (net_drop > 2)
+						{
+							ge->ClientThink (split->q2edict, (q2usercmd_t*)&split->lastcmd);
+							net_drop--;
+						}
+						if (net_drop > 1)
+							ge->ClientThink (split->q2edict, (q2usercmd_t*)&oldest);
+						if (net_drop > 0)
+							ge->ClientThink (split->q2edict, (q2usercmd_t*)&oldcmd);
+					}
+					ge->ClientThink (split->q2edict, (q2usercmd_t*)&newcmd);
+				}
+
+				split->lastcmd = newcmd;
+			}
+			move_issued++;
 			break;
 
 		case clcq2_userinfo:

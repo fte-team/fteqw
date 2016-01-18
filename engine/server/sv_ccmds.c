@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
 #include "quakedef.h"
+#include "pr_common.h"
 
 #ifndef CLIENTONLY
 
@@ -776,7 +777,8 @@ void SV_Map_f (void)
 
 	if (q2savetos0)
 	{
-		SV_Savegame("s0");
+		if (sv.state != ss_cinematic)	//too weird.
+			SV_Savegame("s0", true);
 	}
 
 
@@ -1761,7 +1763,7 @@ static void SV_Status_f (void)
 				break;
 		Con_Printf("models           : %i/%i\n", count, MAX_PRECACHE_MODELS);
 		for (count = 1; count < MAX_PRECACHE_SOUNDS; count++)
-			if (!*sv.strings.sound_precache[count])
+			if (!sv.strings.sound_precache[count])
 				break;
 		Con_Printf("sounds           : %i/%i\n", count, MAX_PRECACHE_SOUNDS);
 	}
@@ -2023,7 +2025,7 @@ for (i = sv.mvdrecording?-1:0; i < sv.allocated_client_slots; i++)	\
 if ((cl = (i==-1?&demo.recorder:&svs.clients[i])))	\
 if ((i == -1) || cl->state >= cs_connected)
 
-void SV_SendServerInfoChange(char *key, const char *value)
+void SV_SendServerInfoChange(const char *key, const char *value)
 {
 	int i;
 	client_t *cl;

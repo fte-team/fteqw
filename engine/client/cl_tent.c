@@ -66,7 +66,7 @@ static const char	*q2efnames[] =
 	"TEQ2_FORCEWALL",
 	NULL,//"TEQ2_HEATBEAM",
 	NULL,//"TEQ2_MONSTER_HEATBEAM",
-	"TEQ2_STEAM",
+	NULL,//"TEQ2_STEAM",
 	"TEQ2_BUBBLETRAIL2",
 	"TEQ2_MOREBLOOD",
 	"TEQ2_HEATBEAM_SPARKS",
@@ -76,8 +76,8 @@ static const char	*q2efnames[] =
 	"TEQ2_TRACKER_EXPLOSION",
 	"TEQ2_TELEPORT_EFFECT",
 	"TEQ2_DBALL_GOAL",
-	"TEQ2_WIDOWBEAMOUT",
-	"TEQ2_NUKEBLAST",
+	NULL,//"TEQ2_WIDOWBEAMOUT",
+	NULL,//"TEQ2_NUKEBLAST",
 	"TEQ2_WIDOWSPLASH",
 	"TEQ2_EXPLOSION1_BIG",
 	"TEQ2_EXPLOSION1_NP",
@@ -2408,6 +2408,27 @@ void CL_Laser (vec3_t start, vec3_t end, int colors)
 	ex->framerate = 100; // smoother fading
 }
 
+void CLQ2_ParseSteam(void)
+{
+	vec3_t pos, dir;
+	qbyte colour;
+	short magnitude;
+	unsigned int duration;
+	signed int id = MSG_ReadShort();
+	qbyte count = MSG_ReadByte();
+	MSG_ReadPos(pos);
+	MSG_ReadPos(dir);
+	colour = MSG_ReadByte();
+	magnitude = MSG_ReadShort();
+
+	if (id == -1)
+		duration = MSG_ReadLong();
+	else
+		duration = 0;
+
+	Con_Printf("FIXME: CLQ2_ParseSteam: stub\n");
+}
+
 static struct{
 	qbyte colour;
 	char *name;
@@ -2579,12 +2600,12 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_FORCEWALL:
 		break;
 
-	case Q2TE_STEAM:
-		break;
-	
 	case Q2TE_WIDOWBEAMOUT:
 		break;
 */
+	case Q2TE_STEAM:
+		CLQ2_ParseSteam();
+		break;
 
 
 	default:
@@ -3471,9 +3492,11 @@ void CL_UpdateBeams (void)
 //							vieworg = pl->origin;
 //						}
 //						else
+#ifdef Q2CLIENT
 						if (cls.protocol == CP_QUAKE2)
-							vieworg = cl.predicted_origin;
+							vieworg = pv->predicted_origin;
 						else
+#endif
 							vieworg = pv->simorg;
 
 						if (cl_truelightning.ival > 1 && cl.movesequence > cl_truelightning.ival)
@@ -3557,6 +3580,8 @@ void CL_UpdateBeams (void)
 	
 			VectorCopy (b->start, org);
 		}
+		else
+			VectorCopy (b->start, org);
 		VectorAdd(org, b->offset, org);
 
 	// calculate pitch and yaw
@@ -3663,14 +3688,17 @@ void CL_UpdateExplosions (void)
 			continue;
 
 		lastrunningexplosion = i;
-		if (ex->model->loadstate == MLS_LOADING)
-			continue;
-		if (ex->model->loadstate != MLS_LOADED)
+		if (ex->model)
 		{
-			ex->model = NULL;
-			ex->flags = 0;
-			P_DelinkTrailstate(&(ex->trailstate));
-			continue;
+			if (ex->model->loadstate == MLS_LOADING)
+				continue;
+			if (ex->model->loadstate != MLS_LOADED)
+			{
+				ex->model = NULL;
+				ex->flags = 0;
+				P_DelinkTrailstate(&(ex->trailstate));
+				continue;
+			}
 		}
 
 		f = ex->framerate*(cl.time - ex->start);

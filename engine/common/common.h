@@ -110,8 +110,8 @@ struct netprim_s
 {
 	qbyte coordsize;
 	qbyte anglesize;
-#define NPQ2_ANG16 (1<<0)
-#define NPQ2_SIZE32 (1<<0)
+#define NPQ2_ANG16		(1u<<0)
+#define NPQ2_SOLID32	(1u<<1)
 	qbyte q2flags;
 	qbyte pad;
 };
@@ -347,12 +347,14 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 #define PFS_FORCEUTF8		2	//force utf-8 decoding
 #define PFS_NOMARKUP		4	//strip markup completely
 #define PFS_EZQUAKEMARKUP	8	//aim for compat with ezquake instead of q3 compat
+#define PFS_CENTERED		16	//flag used by console prints (text should remain centered)
+#define PFS_NONOTIFY		32	//flag used by console prints (text won't be visible other than by looking at the console)
 conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, int keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 unsigned int utf8_decode(int *error, const void *in, char **out);
 unsigned int utf8_encode(void *out, unsigned int unicode, int maxlen);
 unsigned int iso88591_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
 unsigned int qchar_encode(char *out, unsigned int unicode, int maxlen, qboolean markup);
-unsigned int COM_DeQuake(conchar_t chr);
+unsigned int COM_DeQuake(unsigned int unichar);
 
 void COM_BiDi_Shutdown(void);
 

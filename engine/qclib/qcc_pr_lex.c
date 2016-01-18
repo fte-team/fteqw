@@ -239,6 +239,7 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath, pbool
 }
 
 pbool defaultnoref;
+pbool defaultnosave;
 pbool defaultstatic;
 int ForcedCRC;
 int QCC_PR_LexInteger (void);
@@ -955,13 +956,11 @@ pbool QCC_PR_Precompiler(void)
 				ForcedCRC = atoi(msg);
 			}
 			else if (!QC_strcasecmp(qcc_token, "noref"))
-			{
 				defaultnoref = !!atoi(msg);
-			}
+			else if (!QC_strcasecmp(qcc_token, "nosave"))
+				defaultnosave = !!atoi(msg);
 			else if (!QC_strcasecmp(qcc_token, "defaultstatic"))
-			{
 				defaultstatic = !!atoi(msg);
-			}
 			else if (!QC_strcasecmp(qcc_token, "autoproto"))
 			{
 				if (!autoprototyped)

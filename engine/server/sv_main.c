@@ -21,11 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "netinc.h"
 #include <sys/types.h>
 #ifndef CLIENTONLY
-#define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
+#define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+(i)*ge->edict_size)
 
-void SV_LegacySavegame_f(void);
-void SV_Savegame_f (void);
-void SV_Loadgame_f (void);
 #define INVIS_CHAR1 12
 #define INVIS_CHAR2 (char)138
 #define INVIS_CHAR3 (char)160
@@ -1742,6 +1739,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	int i;
 	int maxpacketentities;
 	extern cvar_t pr_maxedicts;
+	client_t *seat;
 
 	client->fteprotocolextensions  &= Net_PextMask(1, ISNQCLIENT(client));
 	client->fteprotocolextensions2 &= Net_PextMask(2, ISNQCLIENT(client));
@@ -1878,6 +1876,14 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		}
 		break;
 	}
+
+	//make sure we have the right limits for splitscreen clients too (mostly for viewmodel safety checks)
+	for (seat = client->controlled; seat; seat = seat->controlled)
+	{
+		seat->max_net_clients = client->max_net_clients;
+		seat->max_net_ents = client->max_net_ents;
+		seat->maxmodels = client->maxmodels;
+	}
 }
 
 
@@ -1947,6 +1953,9 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	cl->fteprotocolextensions2 = controller->fteprotocolextensions2;
 	cl->penalties = controller->penalties;
 	cl->protocol = controller->protocol;
+	cl->maxmodels = controller->maxmodels;
+	cl->max_net_clients = controller->max_net_clients;
+	cl->max_net_ents = controller->max_net_ents;
 
 
 	Q_strncatz(cl->guid, va("%s:%i", controller->guid, curclients), sizeof(cl->guid));
@@ -1958,7 +1967,38 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 
 	cl->playerclass = 0;
 	cl->pendingentbits = NULL;
-	cl->edict = EDICT_NUM(svprogfuncs, i+1);
+
+	cl->edict = NULL;
+#ifdef Q2SERVER
+	cl->q2edict = NULL;
+#endif
+	switch(svs.gametype)
+	{
+#ifdef Q2SERVER
+	case GT_QUAKE2:
+		cl->q2edict = Q2EDICT_NUM(i+1);
+
+		if (!ge->ClientConnect(cl->q2edict, cl->userinfo))
+		{
+			const char *reject = Info_ValueForKey(cl->userinfo, "rejmsg");
+			if (*reject)
+				SV_ClientPrintf(controller, PRINT_HIGH, "Splitscreen Refused: %s\n", reject);
+			else
+				SV_ClientPrintf(controller, PRINT_HIGH, "Splitscreen Refused\n");
+			Con_DPrintf ("Game rejected a connection.\n");
+
+			*cl->userinfo = 0;
+			cl->namebuf[0] = 0;
+			return NULL;
+		}
+
+		ge->ClientUserinfoChanged(cl->q2edict, cl->userinfo);
+		break;
+#endif
+	default:
+		cl->edict = EDICT_NUM(svprogfuncs, i+1);
+		break;
+	}
 
 	prev->controlled = cl;
 	prev = cl;
@@ -1985,7 +2025,8 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	if (cl->state >= cs_connected)
 	{
 		cl->sendinfo = true;
-		SV_SetUpClientEdict(cl, cl->edict);
+		if (svprogfuncs)
+			SV_SetUpClientEdict(cl, cl->edict);
 	}
 	if (cl->state >= cs_spawned)
 		SV_Begin_Core(cl);
@@ -2229,7 +2270,7 @@ client_t *SVC_DirectConnect(void)
 		switch(Q_atoi(Cmd_Argv(0)))
 		{
 		case PROTOCOL_VERSION_FTE:
-			if (protocol == SCP_QUAKEWORLD)
+			if (protocol == SCP_QUAKEWORLD || protocol == SCP_QUAKE2)
 			{
 				protextsupported = Q_atoi(Cmd_Argv(1));
 				Con_DPrintf("Client supports 0x%x fte extensions\n", protextsupported);
@@ -4496,7 +4537,12 @@ void SV_MVDStream_Poll(void);
 			isidle = true;
 #endif
 		if (SV_Physics ())
+		{
 			isidle = false;
+
+			if (sv.time > sv.autosave_time)
+				SV_AutoSave();
+		}
 	}
 	else
 	{
@@ -4773,6 +4819,9 @@ void SV_InitLocal (void)
 
 	Cmd_AddCommand ("openroute", SV_OpenRoute_f);
 
+#ifndef SERVERONLY
+	Cvar_Register(&sv_autosave, cvargroup_servercontrol);
+#endif
 	Cmd_AddCommand ("savegame_legacy", SV_LegacySavegame_f);
 	Cmd_AddCommand ("savegame", SV_Savegame_f);
 	Cmd_AddCommand ("loadgame", SV_Loadgame_f);
@@ -5142,6 +5191,17 @@ SV_Init
 void SV_Demo_Init(void);
 #endif
 
+void SV_ArgumentOverrides(void)
+{
+	int p;
+	// parse params for cvars
+	p = COM_CheckParm ("-svport");
+	if (!p)
+		p = COM_CheckParm ("-port");
+	if (p && p < com_argc)
+		Cvar_Set(Cvar_FindVar("sv_port"), com_argv[p+1]);
+}
+
 void SV_ExecInitialConfigs(char *defaultexec)
 {
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
@@ -5163,6 +5223,8 @@ void SV_ExecInitialConfigs(char *defaultexec)
 
 // process command line arguments
 	Cbuf_Execute ();
+
+	SV_ArgumentOverrides();
 }
 
 void SV_Init (quakeparms_t *parms)

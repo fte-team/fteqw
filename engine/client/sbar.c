@@ -341,7 +341,7 @@ char *Get_Q2ConfigString(int i)
 	if (i >= Q2CS_MODELS && i < Q2CS_MODELS	+ Q2MAX_MODELS)
 		return cl.model_name [i-Q2CS_MODELS];
 	if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS	+ Q2MAX_SOUNDS)
-		return cl.model_name [i-Q2CS_SOUNDS];
+		return cl.sound_name [i-Q2CS_SOUNDS];
 	if (i == Q2CS_AIRACCEL)
 		return "4";
 	if (i >= Q2CS_PLAYERSKINS && i < Q2CS_GENERAL+Q2MAX_GENERAL)
@@ -352,7 +352,7 @@ char *Get_Q2ConfigString(int i)
 //#define Q2CS_GENERAL			(Q2CS_PLAYERSKINS	+Q2MAX_CLIENTS)
 	return "";
 }
-void Sbar_ExecuteLayoutString (char *s)
+void Sbar_ExecuteLayoutString (char *s, int seat)
 {
 	int		x, y;
 	int		value;
@@ -361,6 +361,7 @@ void Sbar_ExecuteLayoutString (char *s)
 	int pw, ph;
 //	q2clientinfo_t	*ci;
 	mpic_t *p;
+	q2player_state_t *ps = &cl.q2frame.playerstate[seat];
 
 	if (cls.state != ca_active)
 		return;
@@ -416,7 +417,7 @@ void Sbar_ExecuteLayoutString (char *s)
 		if (!strcmp(com_token, "pic"))
 		{	// draw a pic from a stat number
 			s = COM_Parse (s);
-			value = cl.q2frame.playerstate.stats[atoi(com_token)];
+			value = ps->stats[atoi(com_token)];
 			if (value >= Q2MAX_IMAGES || value < 0)
 				Host_EndGame ("Pic >= Q2MAX_IMAGES");
 			if (*Get_Q2ConfigString(Q2CS_IMAGES+value))
@@ -435,9 +436,9 @@ void Sbar_ExecuteLayoutString (char *s)
 			int		score, ping, time;
 
 			s = COM_Parse (s);
-			x = sbar_rect.width/2 - 160 + atoi(com_token);
+			x = sbar_rect.x + sbar_rect.width/2 - 160 + atoi(com_token);
 			s = COM_Parse (s);
-			y = sbar_rect.height/2 - 120 + atoi(com_token);
+			y = sbar_rect.y + sbar_rect.height/2 - 120 + atoi(com_token);
 //			SCR_AddDirtyPoint (x, y);
 //			SCR_AddDirtyPoint (x+159, y+31);
 
@@ -474,9 +475,9 @@ void Sbar_ExecuteLayoutString (char *s)
 			char	block[80];
 
 			s = COM_Parse (s);
-			x = sbar_rect.width/2 - 160 + atoi(com_token);
+			x = sbar_rect.x + sbar_rect.width/2 - 160 + atoi(com_token);
 			s = COM_Parse (s);
-			y = sbar_rect.height/2 - 120 + atoi(com_token);
+			y = sbar_rect.y + sbar_rect.height/2 - 120 + atoi(com_token);
 //			SCR_AddDirtyPoint (x, y);
 //			SCR_AddDirtyPoint (x+159, y+31);
 
@@ -518,7 +519,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			s = COM_Parse (s);
 			width = atoi(com_token);
 			s = COM_Parse (s);
-			value = cl.q2frame.playerstate.stats[atoi(com_token)];
+			value = ps->stats[atoi(com_token)];
 			SCR_DrawField (x, y, 0, width, value);
 			continue;
 		}
@@ -528,7 +529,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			int		color;
 
 			width = 3;
-			value = cl.q2frame.playerstate.stats[Q2STAT_HEALTH];
+			value = ps->stats[Q2STAT_HEALTH];
 			if (value > 25)
 				color = 0;	// green
 			else if (value > 0)
@@ -536,7 +537,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			else
 				color = 1;
 
-			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 1)
+			if (ps->stats[Q2STAT_FLASHES] & 1)
 			{
 				p = Sbar_Q2CachePic("field_3");
 				if (p && R_GetShaderSizes(p, &pw, &ph, false)>0)
@@ -552,7 +553,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			int		color;
 
 			width = 3;
-			value = cl.q2frame.playerstate.stats[Q2STAT_AMMO];
+			value = ps->stats[Q2STAT_AMMO];
 			if (value > 5)
 				color = 0;	// green
 			else if (value >= 0)
@@ -560,7 +561,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			else
 				continue;	// negative number = don't show
 
-			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 4)
+			if (ps->stats[Q2STAT_FLASHES] & 4)
 			{
 				p = Sbar_Q2CachePic("field_3");
 				if (p && R_GetShaderSizes(p, &pw, &ph, false)>0)
@@ -576,13 +577,13 @@ void Sbar_ExecuteLayoutString (char *s)
 			int		color;
 
 			width = 3;
-			value = cl.q2frame.playerstate.stats[Q2STAT_ARMOR];
+			value = ps->stats[Q2STAT_ARMOR];
 			if (value < 1)
 				continue;
 
 			color = 0;	// green
 
-			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 2)
+			if (ps->stats[Q2STAT_FLASHES] & 2)
 				R2D_ScalePic (x, y, 64, 64, R2D_SafeCachePic("field_3"));
 
 			SCR_DrawField (x, y, color, width, value);
@@ -596,7 +597,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			index = atoi(com_token);
 			if (index < 0 || index >= Q2MAX_CONFIGSTRINGS)
 				Host_EndGame ("Bad stat_string index");
-			index = cl.q2frame.playerstate.stats[index];
+			index = ps->stats[index];
 			if (index < 0 || index >= Q2MAX_CONFIGSTRINGS)
 				Host_EndGame ("Bad stat_string index");
 			Draw_FunString (x, y, Get_Q2ConfigString(index));
@@ -634,7 +635,7 @@ void Sbar_ExecuteLayoutString (char *s)
 		if (!strcmp(com_token, "if"))
 		{	// draw a number
 			s = COM_Parse (s);
-			value = cl.q2frame.playerstate.stats[atoi(com_token)];
+			value = ps->stats[atoi(com_token)];
 			if (!value)
 			{	// skip to endif
 				while (s && strcmp(com_token, "endif") )
@@ -650,17 +651,20 @@ void Sbar_ExecuteLayoutString (char *s)
 	}
 }
 
-static void Sbar_Q2DrawInventory(void)
+static void Sbar_Q2DrawInventory(int seat)
 {
 	int keys[1], keymods[1];
 	char cmd[1024];
 	const char *boundkey;
-	unsigned int validlist[Q2MAX_ITEMS], rows, i, item, selected = cl.q2frame.playerstate.stats[Q2STAT_SELECTED_ITEM];
+	q2player_state_t *ps = &cl.q2frame.playerstate[seat];
+	unsigned int validlist[Q2MAX_ITEMS], rows, i, item, selected = ps->stats[Q2STAT_SELECTED_ITEM];
 	int first;
 	unsigned int maxrows = ((240-24*2-8*2)/8);
 	//draw background
-	float x = (vid.width - 256)/2;
-	float y = (vid.height - 240)/2;
+	float x = sbar_rect.x + (sbar_rect.width - 256)/2;
+	float y = sbar_rect.y + (sbar_rect.height - 240)/2;
+	if (y < sbar_rect.y)
+		y = sbar_rect.y;	//try to fix small-res 3-way splitscreen slightly
 	R2D_ScalePic(x, y, 256, 240, Sbar_Q2CachePic("inventory"));
 	//move into the frame
 	x += 24;
@@ -669,7 +673,7 @@ static void Sbar_Q2DrawInventory(void)
 	//figure out which items we have
 	for (i = 0, rows = 0, first = -1; i < Q2MAX_ITEMS; i++)
 	{
-		if (!cl.inventory[i])
+		if (!cl.inventory[seat][i])
 			continue;
 		if (i <= selected)
 			first = rows;
@@ -693,7 +697,7 @@ static void Sbar_Q2DrawInventory(void)
 		else
 			boundkey = Key_KeynumToString(keys[0], keymods[0]);
 
-		Q_snprintfz(cmd, sizeof(cmd), "%6s %3i %s", boundkey, cl.inventory[item], Get_Q2ConfigString(Q2CS_ITEMS+item));
+		Q_snprintfz(cmd, sizeof(cmd), "%6s %3i %s", boundkey, cl.inventory[seat][item], Get_Q2ConfigString(Q2CS_ITEMS+item));
 		Draw_FunStringWidth(x, y, cmd, 256-24*2+8, false, item != selected);	y+=8;
 	}
 }
@@ -2756,14 +2760,19 @@ void Sbar_Draw (playerview_t *pv)
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
+		int seat = pv - cl.playerview;
+		if (seat >= cl.splitclients)
+			seat = cl.splitclients-1;
+		if (seat < 0)
+			seat = 0;
 		sbar_rect = r_refdef.grect;
 		R2D_ImageColours(1, 1, 1, 1);
 		if (*cl.q2statusbar)
-			Sbar_ExecuteLayoutString(cl.q2statusbar);
-		if (*cl.q2layout && (cl.q2frame.playerstate.stats[Q2STAT_LAYOUTS] & 1))
-			Sbar_ExecuteLayoutString(cl.q2layout);
-		if (cl.q2frame.playerstate.stats[Q2STAT_LAYOUTS] & 2)
-			Sbar_Q2DrawInventory();
+			Sbar_ExecuteLayoutString(cl.q2statusbar, seat);
+		if (*cl.q2layout && (cl.q2frame.playerstate[seat].stats[Q2STAT_LAYOUTS] & 1))
+			Sbar_ExecuteLayoutString(cl.q2layout[seat], seat);
+		if (cl.q2frame.playerstate[seat].stats[Q2STAT_LAYOUTS] & 2)
+			Sbar_Q2DrawInventory(seat);
 		return;
 	}
 #endif

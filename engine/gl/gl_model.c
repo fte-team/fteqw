@@ -4890,7 +4890,7 @@ SPRITES
 				"if gl_blendsprites\n"						\
 					"program defaultsprite\n"				\
 				"else\n"									\
-					"program defaultsprite#MASK=1\n"		\
+					"program defaultsprite#MASK=0.666\n"	\
 				"endif\n"									\
 				"{\n"										\
 					"map $diffuse\n"						\

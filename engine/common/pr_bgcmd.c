@@ -1046,6 +1046,8 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		model = world->Get_CModel(world, tagentity->v->modelindex);
 		if (model)
 		{
+			if (model && model->loadstate == MLS_LOADING)
+				COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
 			tagidx = Mod_TagNumForName(model, tagname);
 			if (tagidx == 0)
 				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), model->name);
@@ -1806,7 +1808,7 @@ qboolean QC_FixFileName(const char *name, const char **result, const char **fall
 
 	*fallbackread = name;
 	//if its a user config, ban any fallback locations so that csqc can't read passwords or whatever.
-	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) && !stricmp(COM_FileExtension(name, ext, sizeof(ext)), "cfg") && strnicmp(name, "particles/", 10))
+	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) && !stricmp(COM_FileExtension(name, ext, sizeof(ext)), "cfg") && strnicmp(name, "particles/", 10) && strnicmp(name, "models/", 7))
 		*fallbackread = NULL;
 	*result = va("data/%s", name);
 	return true;
@@ -5818,9 +5820,12 @@ lh_extension_t QSG_Extensions[] = {
 #ifndef SERVERONLY
 	{"DP_CON_SETA",						0,	NULL, {NULL}, "The 'seta' console command exists, like the 'set' command, but also marks the cvar for archiving, allowing it to be written into the user's config. Use this command in your default.cfg file."},
 #endif
+	{"DP_EF_ADDITIVE"},
 	{"DP_EF_BLUE"},						//hah!! This is QuakeWorld!!!
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
+	{"DP_EF_NODEPTHTEST"},				//for cheats
 	{"DP_EF_NODRAW"},					//implemented by sending it with no modelindex
+	{"DP_EF_NOSHADOW"},
 	{"DP_EF_RED"},
 //	{"DP_ENT_COLORMOD"},
 	{"DP_ENT_CUSTOMCOLORMAP"},
@@ -5901,7 +5906,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"DP_SV_EXTERIORMODELFORCLIENT"},
 	{"DP_SV_NODRAWTOCLIENT"},		//I prefer my older system. Guess I might as well remove that older system at some point.
 	{"DP_SV_PLAYERPHYSICS",				0,	NULL, {NULL}, "Allows reworking parts of NQ player physics. USE AT OWN RISK - this necessitates NQ physics and is thus guarenteed to break prediction."},
-	{"DP_SV_POINTPARTICLES",			3,	NULL, {"particleeffectnum", "pointparticles", "trailparticles"}, "Specifies that pointparticles (and trailparticles) exists in ssqc as well as csqc (and that dp's trailparticles argument fuckup will normally work). ssqc values can be passed to csqc for use, the reverse is not true. Does NOT mean that DP's effectinfo.txt is supported, only that ssqc has functionality equivelent to csqc."},
+//	{"DP_SV_POINTPARTICLES",			3,	NULL, {"particleeffectnum", "pointparticles", "trailparticles"}, "Specifies that pointparticles (and trailparticles) exists in ssqc as well as csqc (and that dp's trailparticles argument fuckup will normally work). ssqc values can be passed to csqc for use, the reverse is not true. Does NOT mean that DP's effectinfo.txt is supported, only that ssqc has functionality equivelent to csqc."},
 	{"DP_SV_POINTSOUND",				1,	NULL, {"pointsound"}},
 	{"DP_SV_PRECACHEANYTIME",			0,	NULL, {NULL}, "Specifies that the various precache builtins can be called at any time. WARNING: precaches are sent reliably while sound events, modelindexes, and particle events are not. This can mean sounds and particles might not work the first time around, or models may take a while to appear (after the reliables are received and the model is loaded from disk). Always attempt to precache a little in advance in order to reduce these issues (preferably at the start of the map...)"},
 	{"DP_SV_SETCOLOR"},
@@ -5929,7 +5934,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"EXT_DIMENSION_GHOST"},
 	{"FRIK_FILE",						11, NULL, {"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
-	{"FTE_CSQC_ALTCONSOLES_WIP",		4,	NULL, {"con_getset", "con_printf", "con_draw", "con_input"}},
+	{"FTE_CSQC_ALTCONSOLES",			4,	NULL, {"con_getset", "con_printf", "con_draw", "con_input"}, "The engine tracks multiple consoles. These may or may not be directly visible to the user."},
 	{"FTE_CSQC_BASEFRAME",				0,  NULL, {NULL}, "Specifies that .basebone, .baseframe, .baselerpfrac, etc exist. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations."},
 #ifdef HALFLIFEMODELS
 	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
@@ -5940,13 +5945,14 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_CSQC_SKELETONOBJECTS",		15,	NULL, {	"skel_create", "skel_build", "skel_get_numbones", "skel_get_bonename", "skel_get_boneparent", "skel_find_bone",
 													"skel_get_bonerel", "skel_get_boneabs", "skel_set_bone", "skel_mul_bone", "skel_mul_bones", "skel_copybones",
 													"skel_delete", "frameforname", "frameduration"}},
-	{"FTE_CSQC_RENDERTARGETS_WIP",		0,	NULL, {NULL}, "VF_DESTCOLOUR etc exist and are supported"},
+	{"FTE_CSQC_RENDERTARGETS",			0,	NULL, {NULL}, "VF_DESTCOLOUR etc exist and are supported"},
 	{"FTE_ENT_SKIN_CONTENTS",			0,	NULL, {NULL}, "self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder."},
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
 	{"FTE_FORCESHADER",					1,	NULL, {"shaderforname"}},	//I'd rename this to _CSQC_ but it does technically provide this builtin to menuqc too, not that the forceshader entity field exists there... but whatever.
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
-	{"FTE_GFX_QUAKE3SHADERS"},
+	{"FTE_GFX_QUAKE3SHADERS",			0,	NULL, {NULL},	"specifies that the engine has full support for vanilla quake3 shaders"},
+	{"FTE_GFX_REMAPSHADER",				0,	NULL, {NULL},	"With the raw power of stuffcmds, the r_remapshader console command is exposed! This mystical command can be used to remap any shader to another. Remapped shaders that specify $diffuse etc in some form will inherit the textures implied by the surface."},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}, "Allows you to check if a client has too many reliable messages pending."},
 	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memfill8"}, "Allows dynamically allocating memory. Use pointers to access this memory. Memory will not be saved into saved games."},
 #ifndef NOMEDIA
@@ -5958,11 +5964,19 @@ lh_extension_t QSG_Extensions[] = {
 #endif
 	{"FTE_MULTIPROGS",					5,	NULL, {"externcall", "addprogs", "externvalue", "externset", "instr"}, "Multiple progs.dat files can be loaded inside the same qcvm."},	//multiprogs functions are available.
 	{"FTE_MULTITHREADED",				3,	NULL, {"sleep", "fork", "abort"}},
+	{"FTE_MVD_PLAYERSTATS",				0,	NULL, {NULL}, "In csqc, getplayerstat can be used to query any player's stats when playing back MVDs. isdemo will return 2 in this case."},
 #ifdef SERVER_DEMO_PLAYBACK
 	{"FTE_MVD_PLAYBACK"},
 #endif
 #ifdef SVCHAT
 	{"FTE_NPCCHAT",						1,	NULL, {"chat"}},	//server looks at chat files. It automagically branches through calling qc functions as requested.
+#endif
+#ifdef PSET_SCRIPT
+	{"FTE_PART_SCRIPT",					0,	NULL, {NULL}, "Specifies that the r_particledesc cvar can be used to select a list of particle effects to load from particles/*.cfg, the format of which is documented elsewhere."},
+	{"FTE_PART_NAMESPACES",				0,	NULL, {NULL}, "Specifies that the engine can use foo.bar to load effect foo from particle description bar. When used via ssqc, this should cause the client to download whatever effects as needed."},
+#ifndef NOLEGACY
+	{"FTE_PART_NAMESPACE_EFFECTINFO",	0,	NULL, {NULL}, "Specifies that effectinfo.bar can load effects from effectinfo.txt for DP compatibility."},
+#endif
 #endif
 	{"FTE_QC_CHECKCOMMAND",				1,	NULL, {"checkcommand"}, "Provides a way to test if a console command exists, and whether its a command/alias/cvar. Does not say anything about the expected meanings of any arguments or values."},
 	{"FTE_QC_CHECKPVS",					1,	NULL, {"checkpvs"}},
@@ -6001,6 +6015,7 @@ lh_extension_t QSG_Extensions[] = {
 	//reuses the FRIK_FILE builtins (with substring extension)
 	{"FTE_STRINGS",						17, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone",
 												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp", "strpad"}},
+	{"FTE_SV_POINTPARTICLES",			3,	NULL, {"particleeffectnum", "pointparticles", "trailparticles"}, "Specifies that particleeffectnum, pointparticles, and trailparticles exist in ssqc as well as csqc. particleeffectnum acts as a precache, allowing ssqc values to be networked up with csqc for use. Use in combination with FTE_PART_SCRIPT+FTE_PART_NAMESPACES to use custom effects. This extension is functionally identical to the DP version, but avoids any misplaced assumptions about the format of the client's particle descriptions."},
 	{"FTE_SV_REENTER"},
 	{"FTE_TE_STANDARDEFFECTBUILTINS",	14,	NULL, {"te_gunshot", "te_spike", "te_superspike", "te_explosion", "te_tarexplosion", "te_wizspike", "te_knightspike", "te_lavasplash",
 												   "te_teleport", "te_lightning1", "te_lightning2", "te_lightning3", "te_lightningblood", "te_bloodqw"}},
@@ -6017,6 +6032,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"QW_ENGINE",						3,	NULL, {"infokey", "stof", "logfrag"}},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
 	{"QWE_MVD_RECORD"},	//Quakeworld extended get the credit for this one. (mvdsv)
 	{"TEI_MD3_MODEL"},
+	{"TENEBRAE_GFX_DLIGHTS",			0, NULL,{NULL}, "Allows ssqc to attach rtlights to entities with various special properties."},
 //	{"TQ_RAILTRAIL"},	//treat this as the ZQ style railtrails which the client already supports, okay so the preparse stuff needs strengthening.
 	{"ZQ_MOVETYPE_FLY"},
 	{"ZQ_MOVETYPE_NOCLIP"},

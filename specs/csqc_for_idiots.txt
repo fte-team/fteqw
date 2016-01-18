@@ -411,15 +411,15 @@ float(entity to, float sendflags) MySendEntity =
 	WriteByte(MSG_ENTITY, sendflags);	//tell the csqc what is actually present.
 	if (sendflags & 1)
 	{
-		WriteCoord(self.origin_x);
-		WriteCoord(self.origin_y);
-		WriteCoord(self.origin_z);
+		WriteCoord(MSG_ENTITY, self.origin_x);
+		WriteCoord(MSG_ENTITY, self.origin_y);
+		WriteCoord(MSG_ENTITY, self.origin_z);
 	}
 	if (sendflags & 2)
-		WriteByte(self.frame);
+		WriteByte(MSG_ENTITY, self.frame);
 
 	if (sendflags & 128)
-		WriteByte(self.modelindex);	//sending a modelindex is smaller than sending an entire string.
+		WriteByte(MSG_ENTITY, self.modelindex);	//sending a modelindex is smaller than sending an entire string.
 };
 
 In your spawn function:

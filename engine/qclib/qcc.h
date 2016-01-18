@@ -976,6 +976,7 @@ extern int maxtypeinfos;
 
 extern int ForcedCRC;
 extern pbool defaultnoref;
+extern pbool defaultnosave;
 extern pbool defaultstatic;
 
 extern int *qcc_tempofs;

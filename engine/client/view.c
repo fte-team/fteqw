@@ -324,7 +324,6 @@ qbyte		gammatable[256];	// palette is sent through this
 
 unsigned short		ramps[3][256];
 //extern qboolean		gammaworks;
-float		sw_blend[4];		// rgba 0.0 - 1.0
 float		hw_blend[4];		// rgba 0.0 - 1.0
 /*
 void BuildGammaTable (float g)
@@ -459,29 +458,29 @@ void V_ParseDamage (playerview_t *pv)
 	if (v_damagecshift.value >= 0)
 		count *= v_damagecshift.value;
 
-	cl.cshifts[CSHIFT_DAMAGE].percent += 3*count;
-	if (cl.cshifts[CSHIFT_DAMAGE].percent < 0)
-		cl.cshifts[CSHIFT_DAMAGE].percent = 0;
-	if (cl.cshifts[CSHIFT_DAMAGE].percent > 150)
-		cl.cshifts[CSHIFT_DAMAGE].percent = 150;
+	pv->cshifts[CSHIFT_DAMAGE].percent += 3*count;
+	if (pv->cshifts[CSHIFT_DAMAGE].percent < 0)
+		pv->cshifts[CSHIFT_DAMAGE].percent = 0;
+	if (pv->cshifts[CSHIFT_DAMAGE].percent > 150)
+		pv->cshifts[CSHIFT_DAMAGE].percent = 150;
 
 	if (armor > blood)
 	{
-		cl.cshifts[CSHIFT_DAMAGE].destcolor[0] = 200;
-		cl.cshifts[CSHIFT_DAMAGE].destcolor[1] = 100;
-		cl.cshifts[CSHIFT_DAMAGE].destcolor[2] = 100;
+		pv->cshifts[CSHIFT_DAMAGE].destcolor[0] = 200;
+		pv->cshifts[CSHIFT_DAMAGE].destcolor[1] = 100;
+		pv->cshifts[CSHIFT_DAMAGE].destcolor[2] = 100;
 	}
 	else if (armor)
 	{
-		cl.cshifts[CSHIFT_DAMAGE].destcolor[0] = 220;
-		cl.cshifts[CSHIFT_DAMAGE].destcolor[1] = 50;
-		cl.cshifts[CSHIFT_DAMAGE].destcolor[2] = 50;
+		pv->cshifts[CSHIFT_DAMAGE].destcolor[0] = 220;
+		pv->cshifts[CSHIFT_DAMAGE].destcolor[1] = 50;
+		pv->cshifts[CSHIFT_DAMAGE].destcolor[2] = 50;
 	}
 	else
 	{
-		cl.cshifts[CSHIFT_DAMAGE].destcolor[0] = 255;
-		cl.cshifts[CSHIFT_DAMAGE].destcolor[1] = 0;
-		cl.cshifts[CSHIFT_DAMAGE].destcolor[2] = 0;
+		pv->cshifts[CSHIFT_DAMAGE].destcolor[0] = 255;
+		pv->cshifts[CSHIFT_DAMAGE].destcolor[1] = 0;
+		pv->cshifts[CSHIFT_DAMAGE].destcolor[2] = 0;
 	}
 
 //
@@ -510,6 +509,7 @@ V_cshift_f
 void V_cshift_f (void)
 {
 	int r, g, b, p;
+	playerview_t *pv = &cl.playerview[CL_TargettedSplit(true)];
 
 	r = g = b = p = 0;
 
@@ -551,10 +551,10 @@ void V_cshift_f (void)
 			Con_DPrintf("broken v_cshift from gamecode\n");
 
 		// ensure we always clear out or set for nehahra
-		cl.cshifts[CSHIFT_SERVER].destcolor[0] = r;
-		cl.cshifts[CSHIFT_SERVER].destcolor[1] = g;
-		cl.cshifts[CSHIFT_SERVER].destcolor[2] = b;
-		cl.cshifts[CSHIFT_SERVER].percent = p;
+		pv->cshifts[CSHIFT_SERVER].destcolor[0] = r;
+		pv->cshifts[CSHIFT_SERVER].destcolor[1] = g;
+		pv->cshifts[CSHIFT_SERVER].destcolor[2] = b;
+		pv->cshifts[CSHIFT_SERVER].percent = p;
 		return;
 	}
 
@@ -580,6 +580,7 @@ When you run over an item, the server sends this command
 */
 void V_BonusFlash_f (void)
 {
+	playerview_t *pv = &cl.playerview[CL_TargettedSplit(true)];
 	float frac;
 	if (!gl_cshiftenabled.ival)
 		frac = 0;
@@ -601,22 +602,23 @@ void V_BonusFlash_f (void)
 	{
 		if (Cmd_Argc() > 1)
 		{	//this is how I understand DP expects them.
-			cl.cshifts[CSHIFT_BONUS].destcolor[0] = atof(Cmd_Argv(1))*255;
-			cl.cshifts[CSHIFT_BONUS].destcolor[1] = atof(Cmd_Argv(2))*255;
-			cl.cshifts[CSHIFT_BONUS].destcolor[2] = atof(Cmd_Argv(3))*255;
-			cl.cshifts[CSHIFT_BONUS].percent = atof(Cmd_Argv(4))*255*frac;
+			pv->cshifts[CSHIFT_BONUS].destcolor[0] = atof(Cmd_Argv(1))*255;
+			pv->cshifts[CSHIFT_BONUS].destcolor[1] = atof(Cmd_Argv(2))*255;
+			pv->cshifts[CSHIFT_BONUS].destcolor[2] = atof(Cmd_Argv(3))*255;
+			pv->cshifts[CSHIFT_BONUS].percent = atof(Cmd_Argv(4))*255*frac;
 		}
 		else
 		{
-			cl.cshifts[CSHIFT_BONUS].destcolor[0] = 215;
-			cl.cshifts[CSHIFT_BONUS].destcolor[1] = 186;
-			cl.cshifts[CSHIFT_BONUS].destcolor[2] = 69;
-			cl.cshifts[CSHIFT_BONUS].percent = 50*frac;
+			pv->cshifts[CSHIFT_BONUS].destcolor[0] = 215;
+			pv->cshifts[CSHIFT_BONUS].destcolor[1] = 186;
+			pv->cshifts[CSHIFT_BONUS].destcolor[2] = 69;
+			pv->cshifts[CSHIFT_BONUS].percent = 50*frac;
 		}
 	}
 }
 void V_DarkFlash_f (void)
 {
+	playerview_t *pv = &cl.playerview[CL_TargettedSplit(true)];
 	float frac;
 	if (!gl_cshiftenabled.ival)
 		frac = 0;
@@ -624,13 +626,14 @@ void V_DarkFlash_f (void)
 		frac = 1;
 	frac *= gl_cshiftpercent.value / 100.0;
 
-	cl.cshifts[CSHIFT_BONUS].destcolor[0] = 0;
-	cl.cshifts[CSHIFT_BONUS].destcolor[1] = 0;
-	cl.cshifts[CSHIFT_BONUS].destcolor[2] = 0;
-	cl.cshifts[CSHIFT_BONUS].percent = 255*frac;
+	pv->cshifts[CSHIFT_BONUS].destcolor[0] = 0;
+	pv->cshifts[CSHIFT_BONUS].destcolor[1] = 0;
+	pv->cshifts[CSHIFT_BONUS].destcolor[2] = 0;
+	pv->cshifts[CSHIFT_BONUS].percent = 255*frac;
 }
 void V_WhiteFlash_f (void)
 {
+	playerview_t *pv = &cl.playerview[CL_TargettedSplit(true)];
 	float frac;
 	if (!gl_cshiftenabled.ival)
 		frac = 0;
@@ -638,10 +641,10 @@ void V_WhiteFlash_f (void)
 		frac = 1;
 	frac *= gl_cshiftpercent.value / 100.0;
 
-	cl.cshifts[CSHIFT_BONUS].destcolor[0] = 255;
-	cl.cshifts[CSHIFT_BONUS].destcolor[1] = 255;
-	cl.cshifts[CSHIFT_BONUS].destcolor[2] = 255;
-	cl.cshifts[CSHIFT_BONUS].percent = 255*frac;
+	pv->cshifts[CSHIFT_BONUS].destcolor[0] = 255;
+	pv->cshifts[CSHIFT_BONUS].destcolor[1] = 255;
+	pv->cshifts[CSHIFT_BONUS].destcolor[2] = 255;
+	pv->cshifts[CSHIFT_BONUS].percent = 255*frac;
 }
 
 /*
@@ -656,25 +659,27 @@ FIXME: Uses Q1 contents
 void V_SetContentsColor (int contents)
 {
 	int i;
+	playerview_t *pv = r_refdef.playerview;
+
 	if (contents & FTECONTENTS_LAVA)
-		cl.cshifts[CSHIFT_CONTENTS] = cshift_lava;
+		pv->cshifts[CSHIFT_CONTENTS] = cshift_lava;
 	else if (contents & (FTECONTENTS_SLIME | FTECONTENTS_SOLID))
-		cl.cshifts[CSHIFT_CONTENTS] = cshift_slime;
+		pv->cshifts[CSHIFT_CONTENTS] = cshift_slime;
 	else if (contents & FTECONTENTS_WATER)
-		cl.cshifts[CSHIFT_CONTENTS] = cshift_water;
+		pv->cshifts[CSHIFT_CONTENTS] = cshift_water;
 	else
-		cl.cshifts[CSHIFT_CONTENTS] = cshift_empty;
+		pv->cshifts[CSHIFT_CONTENTS] = cshift_empty;
 
-	cl.cshifts[CSHIFT_CONTENTS].percent *= v_contentblend.value;
+	pv->cshifts[CSHIFT_CONTENTS].percent *= v_contentblend.value;
 
-	if (cl.cshifts[CSHIFT_CONTENTS].percent)
+	if (pv->cshifts[CSHIFT_CONTENTS].percent)
 	{	//bound contents so it can't go negative
-		if (cl.cshifts[CSHIFT_CONTENTS].percent < 0)
-			cl.cshifts[CSHIFT_CONTENTS].percent = 0;
+		if (pv->cshifts[CSHIFT_CONTENTS].percent < 0)
+			pv->cshifts[CSHIFT_CONTENTS].percent = 0;
 
 		for (i = 0; i < 3; i++)
-			if (cl.cshifts[CSHIFT_CONTENTS].destcolor[0] < 0)
-				cl.cshifts[CSHIFT_CONTENTS].destcolor[0] = 0;
+			if (pv->cshifts[CSHIFT_CONTENTS].destcolor[0] < 0)
+				pv->cshifts[CSHIFT_CONTENTS].destcolor[0] = 0;
 	}
 }
 
@@ -683,50 +688,44 @@ void V_SetContentsColor (int contents)
 V_CalcPowerupCshift
 =============
 */
-void V_CalcPowerupCshift (void)
+void V_CalcPowerupCshift (playerview_t *pv)
 {
 #ifdef QUAKESTATS
-	int im = 0;
-	int s;
-
-	//we only have one palette, so combine the mask
-
-	for (s = 0; s < cl.splitclients; s++)
-		im |= cl.playerview[s].stats[STAT_ITEMS];
+	int im = pv->stats[STAT_ITEMS];
 
 	if (im & IT_QUAD)
 	{
-		cl.cshifts[CSHIFT_POWERUP].destcolor[0] = 0;
-		cl.cshifts[CSHIFT_POWERUP].destcolor[1] = 0;
-		cl.cshifts[CSHIFT_POWERUP].destcolor[2] = 255;
-		cl.cshifts[CSHIFT_POWERUP].percent = 30*v_quadcshift.value;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[0] = 0;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[1] = 0;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[2] = 255;
+		pv->cshifts[CSHIFT_POWERUP].percent = 30*v_quadcshift.value;
 	}
 	else if (im & IT_SUIT)
 	{
-		cl.cshifts[CSHIFT_POWERUP].destcolor[0] = 0;
-		cl.cshifts[CSHIFT_POWERUP].destcolor[1] = 255;
-		cl.cshifts[CSHIFT_POWERUP].destcolor[2] = 0;
-		cl.cshifts[CSHIFT_POWERUP].percent = 20*v_suitcshift.value;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[0] = 0;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[1] = 255;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[2] = 0;
+		pv->cshifts[CSHIFT_POWERUP].percent = 20*v_suitcshift.value;
 	}
 	else if (im & IT_INVISIBILITY)
 	{
-		cl.cshifts[CSHIFT_POWERUP].destcolor[0] = 100;
-		cl.cshifts[CSHIFT_POWERUP].destcolor[1] = 100;
-		cl.cshifts[CSHIFT_POWERUP].destcolor[2] = 100;
-		cl.cshifts[CSHIFT_POWERUP].percent = 100*v_ringcshift.value;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[0] = 100;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[1] = 100;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[2] = 100;
+		pv->cshifts[CSHIFT_POWERUP].percent = 100*v_ringcshift.value;
 	}
 	else if (im & IT_INVULNERABILITY)
 	{
-		cl.cshifts[CSHIFT_POWERUP].destcolor[0] = 255;
-		cl.cshifts[CSHIFT_POWERUP].destcolor[1] = 255;
-		cl.cshifts[CSHIFT_POWERUP].destcolor[2] = 0;
-		cl.cshifts[CSHIFT_POWERUP].percent = 30*v_pentcshift.value;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[0] = 255;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[1] = 255;
+		pv->cshifts[CSHIFT_POWERUP].destcolor[2] = 0;
+		pv->cshifts[CSHIFT_POWERUP].percent = 30*v_pentcshift.value;
 	}
 	else
-		cl.cshifts[CSHIFT_POWERUP].percent = 0;
+		pv->cshifts[CSHIFT_POWERUP].percent = 0;
 
-	if (cl.cshifts[CSHIFT_POWERUP].percent<0)
-		cl.cshifts[CSHIFT_POWERUP].percent=0;
+	if (pv->cshifts[CSHIFT_POWERUP].percent<0)
+		pv->cshifts[CSHIFT_POWERUP].percent=0;
 #endif
 }
 
@@ -740,58 +739,71 @@ void V_CalcBlend (float *hw_blend)
 {
 	extern qboolean r2d_canhwgamma;
 	float	a2;
-	int		j;
+	int		j, seat;
 	float *blend;
+	playerview_t *pv;
 
 	memset(hw_blend, 0, sizeof(float)*4);
-	memset(sw_blend, 0, sizeof(float)*4);
-
-	//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
-	for (j=0 ; j<NUM_CSHIFTS ; j++)
+	for (seat = 0; seat < cl.splitclients; seat++)
 	{
-		if (j != CSHIFT_SERVER && j != CSHIFT_BONUS)
+		pv = &cl.playerview[seat];
+		memset(pv->screentint, 0, sizeof(pv->screentint));
+
+		//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
+		for (j=0 ; j<NUM_CSHIFTS ; j++)
 		{
-			if (!gl_cshiftpercent.value || !gl_cshiftenabled.ival)
+			if (j != CSHIFT_SERVER && j != CSHIFT_BONUS)
+			{
+				if (!gl_cshiftpercent.value || !gl_cshiftenabled.ival)
+					continue;
+
+				a2 = ((pv->cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;
+			}
+			else
+			{
+				a2 = pv->cshifts[j].percent / 255.0;	//don't allow modification of this one.
+			}
+
+			if (!a2)
 				continue;
 
-			a2 = ((cl.cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;
-		}
-		else
-		{
-			a2 = cl.cshifts[j].percent / 255.0;	//don't allow modification of this one.
+			if (j == CSHIFT_SERVER)
+			{
+				/*server blend always goes into sw, ALWAYS*/
+				blend = pv->screentint;
+			}
+			else
+			{
+				/*flashing things should not change hardware gamma ramps - windows is too slow*/
+				/*splitscreen should only use hw gamma ramps if they're all equal, and they're probably not*/
+				/*hw blends may also not be supported or may be disabled*/
+				if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival || !r2d_canhwgamma || cl.splitclients > 1)
+					blend = pv->screentint;
+				else	//powerup or contents?
+					blend = hw_blend;
+			}
+
+			blend[3] = blend[3] + a2*(1-blend[3]);
+			a2 = a2/blend[3];
+			blend[0] = blend[0]*(1-a2) + pv->cshifts[j].destcolor[0]*a2/255.0;
+			blend[1] = blend[1]*(1-a2) + pv->cshifts[j].destcolor[1]*a2/255.0;
+			blend[2] = blend[2]*(1-a2) + pv->cshifts[j].destcolor[2]*a2/255.0;
 		}
 
-		if (!a2)
-			continue;
-
-		if (j == CSHIFT_SERVER)
-		{
-			/*server blend always goes into sw, ALWAYS*/
-			blend = sw_blend;
-		}
-		else
-		{
-			if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival || !r2d_canhwgamma)
-				blend = sw_blend;
-			else	//powerup or contents?
-				blend = hw_blend;
-		}
-
-		blend[3] = blend[3] + a2*(1-blend[3]);
-		a2 = a2/blend[3];
-		blend[0] = blend[0]*(1-a2) + cl.cshifts[j].destcolor[0]*a2/255.0;
-		blend[1] = blend[1]*(1-a2) + cl.cshifts[j].destcolor[1]*a2/255.0;
-		blend[2] = blend[2]*(1-a2) + cl.cshifts[j].destcolor[2]*a2/255.0;
+		if (pv->screentint[3] > 1)
+			pv->screentint[3] = 1;
+		if (pv->screentint[3] < 0)
+			pv->screentint[3] = 0;
 	}
-
+	for (; seat < MAX_SPLITS; seat++)
+	{
+		pv = &cl.playerview[seat];
+		memset(pv->screentint, 0, sizeof(pv->screentint));
+	}
 	if (hw_blend[3] > 1)
 		hw_blend[3] = 1;
 	if (hw_blend[3] < 0)
 		hw_blend[3] = 0;
-	if (sw_blend[3] > 1)
-		sw_blend[3] = 1;
-	if (sw_blend[3] < 0)
-		sw_blend[3] = 0;
 }
 
 /*
@@ -815,17 +827,20 @@ void V_UpdatePalette (qboolean force)
 	if (ftime < 0)
 		ftime = 0;
 
-	V_CalcPowerupCshift ();
+	for (i = 0; i < MAX_SPLITS; i++)
+	{
+		playerview_t *pv = &cl.playerview[i];
+		V_CalcPowerupCshift(pv);
+	// drop the damage value
+		pv->cshifts[CSHIFT_DAMAGE].percent -= ftime*150;
+		if (pv->cshifts[CSHIFT_DAMAGE].percent <= 0)
+			pv->cshifts[CSHIFT_DAMAGE].percent = 0;
 
-// drop the damage value
-	cl.cshifts[CSHIFT_DAMAGE].percent -= ftime*150;
-	if (cl.cshifts[CSHIFT_DAMAGE].percent <= 0)
-		cl.cshifts[CSHIFT_DAMAGE].percent = 0;
-
-// drop the bonus value
-	cl.cshifts[CSHIFT_BONUS].percent -= ftime*100;
-	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
-		cl.cshifts[CSHIFT_BONUS].percent = 0;
+	// drop the bonus value
+		pv->cshifts[CSHIFT_BONUS].percent -= ftime*100;
+		if (pv->cshifts[CSHIFT_BONUS].percent <= 0)
+			pv->cshifts[CSHIFT_BONUS].percent = 0;
+	}
 
 	V_CalcBlend(newhw_blend);
 
@@ -877,10 +892,11 @@ V_UpdatePalette
 
 void V_ClearCShifts (void)
 {
-	int i;
+	int i, seat;
 
-	for (i = 0; i < NUM_CSHIFTS; i++)
-		cl.cshifts[i].percent = 0;
+	for (seat = 0; seat < MAX_SPLITS; seat++)
+		for (i = 0; i < NUM_CSHIFTS; i++)
+			cl.playerview[seat].cshifts[i].percent = 0;
 }
 
 /*
@@ -1351,7 +1367,11 @@ void V_CalcRefdef (playerview_t *pv)
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
+	{
+		VectorCopy (pv->simorg, r_refdef.vieworg);
+		VectorCopy (pv->simangles, r_refdef.viewangles);
 		return;
+	}
 #endif
 
 	if (v_viewheight.value < -7)
@@ -1619,7 +1639,9 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	VectorCopy(org, tagcenter);
 	tagcenter[2] += 32;
 	if (!Matrix4x4_CM_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
-		return;	//offscreen
+		return;	//behind the camera
+	if (center[0] < 0 || center[0] > 1 || center[1] < 0 || center[1] > 1)
+		return;	//off the side of the screen
 
 	obscured = !TP_IsPlayerVisible(org);
 	
@@ -1979,6 +2001,9 @@ void V_RenderPlayerViews(playerview_t *pv)
 	R_RenderView ();
 	R2D_PolyBlend ();
 	R_DrawNameTags();
+
+	if(cl.intermissionmode == IM_NONE)
+		R2D_DrawCrosshair();
 
 	cl_numvisedicts = oldnuments;
 	cl_numstris = oldstris;

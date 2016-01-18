@@ -1167,13 +1167,13 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 }
 
 /*dump out the delta from baseline (used for baselines and statics, so has no svc)*/
-void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, client_t *client)
+void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, unsigned int pext2)
 {
 	unsigned int bits;
 	if (numberisimportant)
 		MSG_WriteEntity(msg, to->number);
 	bits = UF_RESET | SVFTE_DeltaCalcBits(&nullentitystate, to);
-	SVFTE_WriteUpdate(bits, to, msg, client->fteprotocolextensions2);
+	SVFTE_WriteUpdate(bits, to, msg, pext2);
 }
 
 /*SVFTE_EmitPacketEntities

@@ -175,7 +175,7 @@ m*_t structures are in-memory
 #define EF_FULLBRIGHT			(1<<9)	//abslight=1
 #define DPEF_FLAME				(1<<10)	//'onfire'
 #define DPEF_STARDUST			(1<<11)	//'showering sparks'
-#define DPEF_NOSHADOW			(1<<12)	//doesn't cast a shadow
+#define EF_NOSHADOW		 		(1<<12)	//doesn't cast a shadow
 #define EF_NODEPTHTEST			(1<<13)	//shows through walls.
 #define		DPEF_SELECTABLE_		(1<<14)	//highlights when prydoncursored
 #define		DPEF_DOUBLESIDED_		(1<<15)	//disables culling

@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "pr_common.h"
 #ifndef CLIENTONLY
 extern int			total_loading_size, current_loading_size, loading_stage;
 char *T_GetString(int num);
@@ -754,6 +755,18 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 	sv.num_signon_buffers = 1;
 }
 
+void SV_WipeServerState(void)
+{
+	if (sv.stringsalloced)
+	{
+		unsigned int i;
+		for (i = 0; i < sizeof(sv.strings) / sizeof(sv.strings.ptrs[0]); i++)
+			Z_Free((char*)sv.strings.ptrs[i]);
+	}
+	memset (&sv, 0, sizeof(sv));
+	sv.logindatabase = -1;
+}
+
 /*
 ================
 SV_SpawnServer
@@ -764,7 +777,7 @@ clients along with it.
 This is only called from the SV_Map_f() function.
 ================
 */
-void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean usecinematic)
+void SV_SpawnServer (const char *server, const char *startspot, qboolean noents, qboolean usecinematic)
 {
 	extern cvar_t allow_download_refpackages;
 	func_t f;
@@ -880,8 +893,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		BZ_Free(sv.csqcentversion);
 
 	// wipe the entire per-level structure
-	memset (&sv, 0, sizeof(sv));
-	sv.logindatabase = -1;
+	SV_WipeServerState();
 
 	SV_SetupNetworkBuffers(sv_bigcoords.ival);
 
@@ -1119,7 +1131,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (svs.gametype == GT_Q1QVM)
 	{
 		int subs;
-		strcpy(sv.strings.sound_precache[0], "");
+		sv.strings.sound_precache[0] = "";
 		sv.strings.model_precache[0] = "";
 
 		subs = sv.world.worldmodel->numsubmodels;
@@ -1152,9 +1164,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		)
 	{
 		int subs;
-		strcpy(sv.strings.sound_precache[0], "");
-		sv.strings.model_precache[0] = "";
-
+		sv.strings.model_precache[0] = PR_AddString(svprogfuncs, "", 0, false);
 		sv.strings.model_precache[1] = PR_AddString(svprogfuncs, sv.modelname, 0, false);
 
 		subs = sv.world.worldmodel->numsubmodels;
@@ -1180,31 +1190,37 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		extern int map_checksum;
 		extern cvar_t sv_airaccelerate;
 
-		memset(sv.strings.configstring, 0, sizeof(sv.strings.configstring));
+		sv.stringsalloced = true;
+		memset(&sv.strings, 0, sizeof(sv.strings));
 
 		if (deathmatch.value)
-			sprintf(sv.strings.configstring[Q2CS_AIRACCEL], "%g", sv_airaccelerate.value);
+			sv.strings.configstring[Q2CS_AIRACCEL] = Z_StrDup(va("%g", sv_airaccelerate.value));
 		else
-			strcpy(sv.strings.configstring[Q2CS_AIRACCEL], "0");
+			sv.strings.configstring[Q2CS_AIRACCEL] = Z_StrDup("0");
 
 		// init map checksum config string but only for Q2/Q3 maps
 		if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
-			sprintf(sv.strings.configstring[Q2CS_MAPCHECKSUM], "%i", map_checksum);
+			sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDup(va("%i", map_checksum));
 		else
-			strcpy(sv.strings.configstring[Q2CS_MAPCHECKSUM], "0");
+			sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDup("0");
 
 		subs = sv.world.worldmodel->numsubmodels;
-		if (subs > Q2MAX_MODELS-2)
+		if (subs > MAX_PRECACHE_MODELS-1)
 		{
 			Con_Printf("Warning: worldmodel has too many submodels\n");
-			subs = Q2MAX_MODELS-2;
+			subs = MAX_PRECACHE_MODELS-1;
 		}
 
-		strcpy(sv.strings.configstring[Q2CS_MODELS+1], sv.modelname);
-		for (i=1; i<sv.world.worldmodel->numsubmodels; i++)
+		sv.strings.configstring[Q2CS_MODELS+1] = Z_StrDup(sv.modelname);
+		for (i=1; i<subs && i < Q2MAX_MODELS-2; i++)
 		{
-			Q_snprintfz(sv.strings.configstring[Q2CS_MODELS+1+i], sizeof(sv.strings.configstring[Q2CS_MODELS+1+i]), "*%u", i);
+			sv.strings.configstring[Q2CS_MODELS+1+i] = Z_StrDup(va("*%u", i));
 			sv.models[i+1] = Mod_ForName (Mod_FixName(sv.strings.configstring[Q2CS_MODELS+1+i], sv.modelname), MLV_WARN);
+		}
+		for ( ; i<subs; i++)
+		{
+			sv.strings.q2_extramodels[1+i] = Z_StrDup(va("*%u", i));
+			sv.models[i+1] = Mod_ForName (Mod_FixName(sv.strings.q2_extramodels[1+i], sv.modelname), MLV_WARN);
 		}
 	}
 #endif
@@ -1727,6 +1743,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SV_SetMoveVars();
 
 	sv.starttime = Sys_DoubleTime() - sv.time;
+	sv.autosave_time = sv.time + sv_autosave.value*60;
 }
 
 #endif

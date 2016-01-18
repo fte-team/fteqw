@@ -113,7 +113,7 @@ typedef struct
 } q2pmove_state_t;
 
 typedef struct
-{	//shared with q2 dll
+{	//shared with q2 dll so cannot be changed
 
 	q2pmove_state_t	pmove;		// for prediction
 
@@ -251,7 +251,8 @@ typedef struct
 	int				servertime;		// server time the message is valid for (in msec)
 	int				deltaframe;
 	qbyte			areabits[MAX_Q2MAP_AREAS/8];		// portalarea visibility bits
-	q2player_state_t	playerstate;
+	q2player_state_t	playerstate[MAX_SPLITS];
+	int				clientnum[MAX_SPLITS];
 	int				num_entities;
 	int				parse_entities;	// non-masked index into cl_parse_entities array
 } q2frame_t;
@@ -480,7 +481,6 @@ typedef struct
 
 // demo recording info must be here, because record is started before
 // entering a map (and clearing client_state_t)
-	int			demorecording;	//1=QW, 2=NQ
 	vfsfile_t	*demooutfile;
 
 	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,DPB_EZTV,
@@ -490,7 +490,8 @@ typedef struct
 #ifdef Q2CLIENT
 		DPB_QUAKE2
 #endif
-	}	demoplayback;
+	}	demoplayback, demorecording;
+	qboolean	demohadkeyframe;	//q2 needs to wait for a packet with a key frame, supposedly.
 	qboolean	demoseeking;
 	float		demoseektime;
 	qboolean	timedemo;
@@ -638,6 +639,14 @@ struct playerview_s
 	float		viewheight;
 	int			waterlevel;		//for smartjump
 
+#ifdef Q2CLIENT
+	vec3_t predicted_origin;
+	vec3_t predicted_angles;
+	vec3_t prediction_error;
+	float predicted_step_time;
+	float predicted_step;
+#endif
+
 	float		punchangle;		// temporary view kick from weapon firing
 
 	float		v_dmg_time;		//various view knockbacks.
@@ -663,7 +672,10 @@ struct playerview_s
 		CAM_EYECAM	= 3			//locked, cl_chasecam=1. we know where they are, we're in their eyes.
 
 #define CAM_ISLOCKED(pv) ((pv)->cam_state > CAM_PENDING)
-	} cam_state;				//
+	} cam_state;
+
+	cshift_t	cshifts[NUM_CSHIFTS];	// color shifts for damage, powerups and content types
+	vec4_t		screentint;
 
 	vec3_t		vw_axis[3];	//weapons should be positioned relative to this
 	vec3_t		vw_origin;	//weapons should be positioned relative to this
@@ -743,8 +755,6 @@ typedef struct
 	int			lerpentssequence;
 	lerpents_t	lerpplayers[MAX_CLIENTS];
 
-	cshift_t	cshifts[NUM_CSHIFTS];	// color shifts for damage, powerups and content types
-
 	//when running splitscreen, we have multiple viewports all active at once
 	int			splitclients;	//we are running this many clients split screen.
 	playerview_t	playerview[MAX_SPLITS];
@@ -798,7 +808,7 @@ typedef struct
 	char		*configstring_general[Q2MAX_CLIENTS|Q2MAX_GENERAL];
 	char		*image_name[Q2MAX_IMAGES];
 	char		*item_name[Q2MAX_ITEMS];
-	short		inventory[Q2MAX_ITEMS];
+	short		inventory[MAX_SPLITS][Q2MAX_ITEMS];
 #endif
 
 	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
@@ -841,15 +851,15 @@ typedef struct
 
 	qboolean gamedirchanged;
 
+#ifdef Q2CLIENT
 	char		q2statusbar[1024];
-	char		q2layout[1024];
+	char		q2layout[MAX_SPLITS][1024];
 	int parse_entities;
 	float lerpfrac;
-	vec3_t predicted_origin;
-	vec3_t predicted_angles;
-	vec3_t prediction_error;
-	float predicted_step_time;
-	float predicted_step;
+#endif
+
+	char lastcenterprint[1024];	//prevents too much spam with console centerprint logging.
+
 
 
 	struct itemtimer_s
@@ -1139,6 +1149,7 @@ qboolean CL_GetMessage (void);
 void CL_WriteDemoCmd (usercmd_t *pcmd);
 void CL_Demo_ClientCommand(char *commandtext);	//for QTV.
 
+void CL_WriteRecordQ2DemoMessage(sizebuf_t *msg);
 void CL_Stop_f (void);
 void CL_Record_f (void);
 void CL_ReRecord_f (void);
@@ -1351,7 +1362,7 @@ void CSQC_CvarChanged(cvar_t *var);
 //
 void CL_InitPrediction (void);
 void CL_PredictMove (void);
-void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state_t *to, usercmd_t *u);
+void CL_PredictUsercmd (int seat, int entnum, player_state_t *from, player_state_t *to, usercmd_t *u);
 #ifdef Q2CLIENT
 void CLQ2_CheckPredictionError (void);
 #endif
@@ -1470,6 +1481,7 @@ extern	qboolean care_f_modified;
 //random files (fixme: clean up)
 
 #ifdef Q2CLIENT
+unsigned int CLQ2_GatherSounds(vec3_t *positions, unsigned int *entnums, sfx_t **sounds, unsigned int max);
 void CLQ2_ParseTEnt (void);
 void CLQ2_AddEntities (void);
 void CLQ2_ParseBaseline (void);
@@ -1477,6 +1489,7 @@ void CLQ2_ClearParticleState(void);
 void CLQ2_ParseFrame (int extrabits);
 void CLQ2_RunMuzzleFlash2 (int ent, int flash_number);
 int CLQ2_RegisterTEntModels (void);
+void CLQ2_WriteDemoBaselines(sizebuf_t *buf);
 #endif
 
 #ifdef HLCLIENT

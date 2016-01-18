@@ -713,11 +713,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define	MAX_EDICTS		((1<<22)-1)			// expandable up to 22 bits
 #define	MAX_EDICTS		((1<<18)-1)			// expandable up to 22 bits
 #endif
-#define	MAX_LIGHTSTYLES	255					//255 = 'invalid', and thus only 0-254 are the valid indexes.
+#define	MAX_LIGHTSTYLES	255					// 8bit. 255 = 'invalid', and thus only 0-254 are the valid indexes.
 #define MAX_STANDARDLIGHTSTYLES 64
-#define	MAX_PRECACHE_MODELS		2048			// these are sent over the net as bytes/shorts
-#define	MAX_PRECACHE_SOUNDS		1024			// so they cannot be blindly increased
-#define MAX_SSPARTICLESPRE 1024			// precached particle effect names, for server-side pointparticles/trailparticles.
+#define	MAX_PRECACHE_MODELS		2048		// 14bit.
+#define	MAX_PRECACHE_SOUNDS		1024		// 14bit.
+#define MAX_SSPARTICLESPRE 1024				// 14bit. precached particle effect names, for server-side pointparticles/trailparticles.
 #define MAX_VWEP_MODELS 32
 
 #define	MAX_CSMODELS		1024			// these live entirly clientside

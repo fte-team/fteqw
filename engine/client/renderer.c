@@ -186,6 +186,7 @@ cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
 												CVAR_NOTFROMSERVER);
 cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "2");
 cvar_t scr_centertime						= CVAR  ("scr_centertime", "2");
+cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "");
 cvar_t scr_chatmodecvar						= CVAR  ("scr_chatmode", "0");
 cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
 												Cvar_Limiter_ZeroToOne_Callback);
@@ -756,6 +757,7 @@ void Renderer_Init(void)
 	Cvar_Register (&scr_turtlefps, SCREENOPTIONS);
 	Cvar_Register (&scr_showpause, SCREENOPTIONS);
 	Cvar_Register (&scr_centertime, SCREENOPTIONS);
+	Cvar_Register (&scr_logcenterprint, SCREENOPTIONS);
 	Cvar_Register (&scr_printspeed, SCREENOPTIONS);
 	Cvar_Register (&scr_allowsnap, SCREENOPTIONS);
 	Cvar_Register (&scr_consize, SCREENOPTIONS);

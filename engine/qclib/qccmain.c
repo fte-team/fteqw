@@ -1435,7 +1435,7 @@ pbool QCC_WriteData (int crc)
 		if (!precache_model[i].used)
 			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_model[i].filename, precache_model[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Model \"%s\" was precached but not directly used%s", precache_model[i].name, dupewarncount?"":" (annotate the usage with the used_model intrinsic to silence this warning)");
 		else if (!precache_model[i].block)
-			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_model[i].filename, precache_model[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Model \"%s\" was used but not precached", precache_model[i].name);
+			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_model[i].filename, precache_model[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Model \"%s\" was used but not directly precached", precache_model[i].name);
 	}
 
 	for (i = 0; i < numsounds; i++)
@@ -1443,7 +1443,7 @@ pbool QCC_WriteData (int crc)
 		if (!precache_sound[i].used)
 			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Sound \"%s\" was precached but not directly used", precache_sound[i].name, dupewarncount?"":" (annotate the usage with the used_sound intrinsic to silence this warning)");
 		else if (!precache_sound[i].block)
-			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Sound \"%s\" was used but not precached", precache_sound[i].name);
+			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Sound \"%s\" was used but not directly precached", precache_sound[i].name);
 	}
 
 	if (dupewarncount > 10 && !verbose)

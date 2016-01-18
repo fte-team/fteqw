@@ -499,11 +499,11 @@ void R_SetupGL (float stereooffset)
 		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
 		//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
 
-				Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
+				Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, bound(0.1, gl_mindist.value, 4), gl_maxdist.value);
 			}
 			else
 			{
-				Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
+				Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, bound(0.1, gl_mindist.value, 4));
 			}
 		}
 		else
@@ -1407,6 +1407,7 @@ qboolean R_RenderScene_Cubemap(void)
 	int oldfbo = -1;
 	qboolean usefbo = true;		//this appears to be a 20% speedup in my tests.
 	static fbostate_t fbostate;	//FIXME
+	qboolean fboreset = false;
 
 	/*needs glsl*/
 	if (!gl_config.arb_shader_objects)
@@ -1477,6 +1478,7 @@ qboolean R_RenderScene_Cubemap(void)
 			if (ffov.value > 270)
 				facemask |= 1<<5; /*back view*/
 		}
+		facemask = 0x3f;
 		break;
 	case 4:
 		shader = R_RegisterShader("postproc_laea", SUF_NONE,
@@ -1509,10 +1511,14 @@ qboolean R_RenderScene_Cubemap(void)
 
 	if (sh_config.texture_non_power_of_two_pic)
 	{
-		if (prect.width < prect.height)
-			cmapsize = prect.width;
+		if (usefbo)
+		{
+			cmapsize = prect.width > prect.height?prect.width:prect.height;
+			if (cmapsize > 4096)//sh_config.texture_maxsize)
+				cmapsize = 4096;//sh_config.texture_maxsize;
+		}
 		else
-			cmapsize = prect.height;
+			cmapsize = prect.width < prect.height?prect.width:prect.height;
 	}
 	else if (!usefbo)
 	{
@@ -1540,6 +1546,13 @@ qboolean R_RenderScene_Cubemap(void)
 			scenepp_postproc_cube = Image_CreateTexture("***fish***", NULL, IF_CUBEMAP|IF_RENDERTARGET|IF_CLAMP|IF_LINEAR);
 			qglGenTextures(1, &scenepp_postproc_cube->num);
 		}
+		else
+		{
+			qglDeleteTextures(1, &scenepp_postproc_cube->num);
+			scenepp_postproc_cube->num = 0;
+			GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
+			qglGenTextures(1, &scenepp_postproc_cube->num);
+		}
 
 		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
 		for (i = 0; i < 6; i++)
@@ -1550,12 +1563,14 @@ qboolean R_RenderScene_Cubemap(void)
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
 		scenepp_postproc_cube_size = cmapsize;
+
+		fboreset = true;
 	}
 
 	vrect = r_refdef.vrect;	//save off the old vrect
 
-	r_refdef.vrect.width = (cmapsize * vid.width) / vid.pixelwidth;
-	r_refdef.vrect.height = (cmapsize * vid.height) / vid.pixelheight;
+	r_refdef.vrect.width = (cmapsize * vid.fbvwidth) / vid.fbpwidth;
+	r_refdef.vrect.height = (cmapsize * vid.fbvheight) / vid.fbpheight;
 	r_refdef.vrect.x = 0;
 	r_refdef.vrect.y = prect.y;
 
@@ -1578,7 +1593,8 @@ qboolean R_RenderScene_Cubemap(void)
 
 		if (usefbo)
 		{
-			int r = GLBE_FBO_Update(&fbostate, FBO_RB_DEPTH, &scenepp_postproc_cube, 1, r_nulltex,  cmapsize, cmapsize, i);
+			int r = GLBE_FBO_Update(&fbostate, FBO_RB_DEPTH|(fboreset?FBO_RESET:0), &scenepp_postproc_cube, 1, r_nulltex,  cmapsize, cmapsize, i);
+			fboreset = false;
 			if (oldfbo < 0)
 				oldfbo = r;
 		}
@@ -1601,7 +1617,7 @@ qboolean R_RenderScene_Cubemap(void)
 		if (!usefbo)
 		{
 			GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
-			qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
+			qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, 0, 0, 0, vid.fbpheight - (prect.y + cmapsize), cmapsize, cmapsize);
 		}
 	}
 
@@ -1623,15 +1639,21 @@ qboolean R_RenderScene_Cubemap(void)
 	qglLoadIdentity ();
 */
 	// draw it through the shader
-	if (vrect.width > vrect.height)
+	if (r_projection.ival == 3)
+	{
+		float saspect = .5;
+		float taspect = vrect.height / vrect.width * ffov.value / 90;//(0.5 * vrect.width) / vrect.height;
+		R2D_Image(vrect.x, vrect.y, vrect.width, vrect.height, -saspect, taspect, saspect, -taspect, shader);
+	}
+	else if (vrect.width > vrect.height)
 	{
 		float aspect = (0.5 * vrect.height) / vrect.width;
-		R2D_Image(0, 0, vid.width, vid.height, -0.5, aspect, 0.5, -aspect, shader);
+		R2D_Image(vrect.x, vrect.y, vrect.width, vrect.height, -0.5, aspect, 0.5, -aspect, shader);
 	}
 	else
 	{
 		float aspect = (0.5 * vrect.width) / vrect.height;
-		R2D_Image(0, 0, vid.width, vid.height, -aspect, 0.5, aspect, -0.5, shader);
+		R2D_Image(vrect.x, vrect.y, vrect.width, vrect.height, -aspect, 0.5, aspect, -0.5, shader);
 	}
 
 	//revert the matricies
@@ -1719,7 +1741,7 @@ void GLR_RenderView (void)
 
 	//check if we're underwater (this also limits damage from stereo wallhacks).
 	Surf_SetupFrame();
-	r_refdef.flags &= ~RDF_ALLPOSTPROC;
+	r_refdef.flags &= ~(RDF_ALLPOSTPROC|RDF_RENDERSCALE);
 
 	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 		if (R_CanBloom())
@@ -1885,7 +1907,7 @@ void GLR_RenderView (void)
 		time1 = Sys_DoubleTime ();
 	}
 
-	if (!dofbo && !(r_refdef.flags & RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
 	{
 
 	}

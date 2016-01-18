@@ -150,6 +150,7 @@ DYNAMIC LIGHTS BLEND RENDERING
 void AddLightBlend (float r, float g, float b, float a2)
 {
 	float	a;
+	float *sw_blend = r_refdef.playerview->screentint;
 
 	r = bound(0, r, 1);
 	g = bound(0, g, 1);

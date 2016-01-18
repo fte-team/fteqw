@@ -4690,11 +4690,8 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 		{
 			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)// || shaderstate.mode == BEM_WIREFRAME)
 			{
-				if (!bs->prog)
-				{
-					R_DrawSkyChain (batch);
+				if (R_DrawSkyChain(batch))
 					continue;
-				}
 			}
 			else if (shaderstate.mode != BEM_FOG && shaderstate.mode != BEM_CREPUSCULAR && shaderstate.mode != BEM_WIREFRAME)
 				continue;

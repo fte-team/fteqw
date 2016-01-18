@@ -1060,6 +1060,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	if (flags & ZFL_DEFLATED)
 	{
 #ifdef ZIPCRYPT
+		//FIXME: Cvar_Get is not threadsafe.
 		char *password = (flags & ZFL_WEAKENCRYPT)?Cvar_Get("fs_zip_password", "thisispublic", 0, "Filesystem")->string:NULL;
 #else
 		char *password = NULL;

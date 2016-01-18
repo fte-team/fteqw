@@ -49,7 +49,7 @@ qboolean SCR_RSShot (void);
 void GLSCR_UpdateScreen (void);
 #endif
 
-void SCR_ImageName (char *mapname);
+void SCR_ImageName (const char *mapname);
 
 //this stuff is internal to the screen systems.
 void RSpeedShow(void);

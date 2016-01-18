@@ -1683,13 +1683,14 @@ static void Q1BSP_RFindTouchedLeafs (model_t *wm, struct pvscache_s *ent, mnode_
 	int			sides;
 	int			leafnum;
 
-	if (node->contents == Q1CONTENTS_SOLID)
-		return;
-
 // add an efrag if the node is a leaf
 
-	if ( node->contents < 0)
+	if (node->contents < 0)
 	{
+		//ignore solid leafs. this should include leaf 0 (which has no pvs info)
+		if (node->contents == Q1CONTENTS_SOLID)
+			return;
+
 		if (ent->num_leafs >= MAX_ENT_LEAFS)
 		{
 			ent->num_leafs = MAX_ENT_LEAFS+1;	//too many. mark it as such so we can trivially accept huge mega-big brush models.

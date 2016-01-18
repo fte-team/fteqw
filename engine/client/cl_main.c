@@ -35,6 +35,8 @@ void QDECL Name_Callback(struct cvar_s *var, char *oldvalue);
 #define Name_Callback NULL
 #endif
 
+void CL_ForceStopDownload (qdownload_t *dl, qboolean finish);
+
 // we need to declare some mouse variables here, because the menu system
 // references them even when on a unix system.
 
@@ -157,7 +159,7 @@ cvar_t	cl_proxyaddr			= CVAR("cl_proxyaddr", "");
 cvar_t	cl_sendguid				= CVARD("cl_sendguid", "0", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.\nIf set to 2, all servers will see the same guid. Be warned that this can show other people the guid that you're using.");
 cvar_t	cl_downloads			= CVARFD("cl_downloads", "1", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
 cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
-cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. 2 allows redirection only to named packages files. Also allows the server to send nearly arbitary download commands.");
+cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. Also allows the server to send nearly arbitary download commands.\n2: allows redirection only to named packages files (and demos/*.mvd), which is a bit safer.");
 cvar_t  cl_download_mapsrc		= CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
 cvar_t	cl_download_packages	= CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
 cvar_t	requiredownloads		= CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
@@ -535,15 +537,26 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 	}
 
 #ifdef PROTOCOL_VERSION_FTE
-	CL_SupportedFTEExtensions(&fteprotextsupported, &fteprotextsupported2);
-
-	fteprotextsupported &= ftepext;
-	fteprotextsupported2 &= ftepext2;
-
 #ifdef Q2CLIENT
-	if (connectinfo.protocol != CP_QUAKEWORLD)
-		fteprotextsupported = 0;
+	if (connectinfo.protocol == CP_QUAKE2)
+	{
+		fteprotextsupported = ftepext & (PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN);
+		fteprotextsupported2 = 0;
+	}
+	else
 #endif
+	{
+		CL_SupportedFTEExtensions(&fteprotextsupported, &fteprotextsupported2);
+
+		fteprotextsupported &= ftepext;
+		fteprotextsupported2 &= ftepext2;
+
+		if (connectinfo.protocol != CP_QUAKEWORLD)
+		{
+			fteprotextsupported = 0;
+			fteprotextsupported2 = 0;
+		}
+	}
 
 	connectinfo.fteext1 = fteprotextsupported;
 	connectinfo.fteext2 = fteprotextsupported2;
@@ -602,7 +615,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 		clients = MAX_SPLITS;
 
 #ifdef Q2CLIENT
-	if (connectinfo.protocol == CP_QUAKE2)	//sorry - too lazy.
+	if (connectinfo.protocol == CP_QUAKE2)	//q2 only supports after-connect seats
 		clients = 1;
 #endif
 
@@ -740,6 +753,8 @@ void CL_CheckForResend (void)
 		case GT_QUAKE2:
 			connectinfo.protocol = CP_QUAKE2;
 			connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
+			connectinfo.fteext1 = PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN;
+			connectinfo.fteext2 = 0;
 			break;
 #endif
 		default:
@@ -838,17 +853,24 @@ void CL_CheckForResend (void)
 			}
 
 			//make sure the protocol within demos is actually correct/sane
-			if (cls.demorecording == 1 && cls.protocol != CP_QUAKEWORLD)
+			if (cls.demorecording == DPB_QUAKEWORLD && cls.protocol != CP_QUAKEWORLD)
 			{
 				connectinfo.protocol = CP_QUAKEWORLD;
 				connectinfo.subprotocol = PROTOCOL_VERSION_QW;
 				connectinfo.fteext1 = Net_PextMask(1, false);
 				connectinfo.fteext2 = Net_PextMask(2, false);
 			}
-			else if (cls.demorecording == 2 && cls.protocol != CP_NETQUAKE)
+			else if (cls.demorecording == DPB_NETQUAKE && cls.protocol != CP_NETQUAKE)
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
+				//FIXME: use pext.
+			}
+			else if (cls.demorecording == DPB_QUAKE2 && cls.protocol != CP_NETQUAKE)
+			{
+				connectinfo.protocol = CP_QUAKE2;
+				connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
+				connectinfo.fteext1 = PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN;
 				//FIXME: use pext.
 			}
 			break;
@@ -1485,6 +1507,14 @@ void CL_ClearState (void)
 		}
 	}
 
+#ifdef Q2CLIENT
+	for (i = 0; i < countof(cl.configstring_general); i++)
+	{
+		if (cl.configstring_general)
+			Z_Free(cl.configstring_general[i]);
+	}
+#endif
+
 	for (i = 0; i < MAX_SPLITS; i++)
 	{
 		for (j = 0; j < MAX_CL_STATS; j++)
@@ -1765,7 +1795,7 @@ void CL_Users_f (void)
 	{
 		if (cl.players[i].name[0])
 		{
-			Con_TPrintf ("%6i %4i %s\n", cl.players[i].userid, cl.players[i].frags, cl.players[i].name);
+			Con_TPrintf ("%6i %4i ^[%s\\player\\%i^]\n", cl.players[i].userid, cl.players[i].frags, cl.players[i].name, i);
 			c++;
 		}
 	}
@@ -1832,7 +1862,7 @@ void CL_Color_f (void)
 //	else if (server_owns_colour)
 //		Cvar_LockFromServer(&topcolor, num);
 	else
-		Cvar_Set (&topcolor, num);
+		CL_SetInfo(pnum, "topcolor", num);
 	Q_snprintfz (num, sizeof(num), (bottom&0xff000000)?"0x%06x":"%i", bottom & 0xffffff);
 	if (bottom == 0)
 		*num = '\0';
@@ -1841,7 +1871,7 @@ void CL_Color_f (void)
 	else if (server_owns_colour)
 		Cvar_LockFromServer(&bottomcolor, num);
 	else
-		Cvar_Set (&bottomcolor, num);
+		CL_SetInfo (pnum, "bottomcolor", num);
 #ifdef NQPROT
 	if (cls.protocol == CP_NETQUAKE)
 		Cmd_ForwardToServer();
@@ -2167,8 +2197,13 @@ void CL_FullInfo_f (void)
 	while (*s)
 	{
 		o = key;
-		while (*s && *s != '\\')
+		while (*s && *s != '\\' && o < key + sizeof(key))
 			*o++ = *s++;
+		if (o == key + sizeof(key))
+		{
+			Con_Printf ("key length too long\n");
+			return;
+		}
 		*o = 0;
 
 		if (!*s)
@@ -2179,8 +2214,13 @@ void CL_FullInfo_f (void)
 
 		o = value;
 		s++;
-		while (*s && *s != '\\')
+		while (*s && *s != '\\' && o < value + sizeof(value))
 			*o++ = *s++;
+		if (o == value + sizeof(value))
+		{
+			Con_Printf ("value length too long\n");
+			return;
+		}
 		*o = 0;
 
 		if (*s)
@@ -2209,11 +2249,15 @@ void CL_SetInfo (int pnum, char *key, char *value)
 	Info_SetValueForStarKey (cls.userinfo[pnum], key, value, sizeof(cls.userinfo[pnum]));
 	if (cls.state >= ca_connected && !cls.demoplayback)
 	{
+		if (pnum >= cl.splitclients)
+			return;
+
 #ifdef Q2CLIENT
-		if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)
+		if ((cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3) && !cls.fteprotocolextensions)
 			cls.resendinfo = true;
 		else
 #endif
+			if (cls.protocol != CP_NETQUAKE || (cls.fteprotocolextensions & PEXT_BIGUSERINFOS))
 		{
 			if (pnum)
 				CL_SendClientCommand(true, "%i setinfo %s \"%s\"", pnum+1, key, value);
@@ -3433,7 +3477,7 @@ qboolean CL_AllowArbitaryDownload(char *localfile)
 	{
 		char ext[8];
 		COM_FileExtension(localfile, ext, sizeof(ext));
-		if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4"))
+		if (!strcmp(ext, "pak") || !strcmp(ext, "pk3") || !strcmp(ext, "pk4") || (!strncmp(localfile, "demos/", 6) && !strcmp(ext, "mvd")))
 			return true;
 		else
 		{
@@ -3508,6 +3552,9 @@ void CL_Download_f (void)
 
 	if (Cmd_IsInsecure())	//mark server specified downloads.
 	{
+		if (cls.download && cls.download->method == DL_QWPENDING)
+			DL_Abort(cls.download, QDL_FAILED);
+
 		//don't let gamecode order us to download random junk
 		if (!CL_AllowArbitaryDownload(localname))
 			return;
@@ -3584,8 +3631,13 @@ void CL_ForceStopDownload (qdownload_t *dl, qboolean finish)
 
 	if (!dl->file)
 	{
-		Con_Printf("No files downloading by QW protocol\n");
-		return;
+		if (dl->method == DL_QWPENDING)
+			finish = false;
+		else
+		{
+			Con_Printf("No files downloading by QW protocol\n");
+			return;
+		}
 	}
 
 	if (finish)
@@ -4826,7 +4878,10 @@ double Host_Frame (double time)
 	if (r_blockvidrestart)
 	{
 		if (waitingformanifest)
+		{
+			COM_MainThreadWork();
 			return 0.1;
+		}
 		Host_FinishLoading();
 		return 0;
 	}
@@ -4865,6 +4920,10 @@ double Host_Frame (double time)
 		double idlesec = 1.0 / cl_idlefps.value;
 		if (idlesec > 0.1)
 			idlesec = 0.1; // limit to at least 10 fps
+#if !defined(NOMEDIA)
+		if (Media_Capturing())
+			idlesec = 0;
+#endif
 		if ((realtime - oldrealtime) < idlesec)
 		{
 #ifndef CLIENTONLY
@@ -5332,9 +5391,10 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
 	COM_ParsePlusSets(true);
 
+	def = COM_FDepthFile("default.cfg", true);	//q2/q3/tc
 #ifdef QUAKETC
 	Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
-	if (COM_FCheckExists ("config.cfg"))
+	if (COM_FDepthFile ("config.cfg", true) <= def)
 		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
 	if (COM_FCheckExists ("autoexec.cfg"))
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
@@ -5342,23 +5402,32 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	//who should we imitate?
 	qrc = COM_FDepthFile("quake.rc", true);	//q1
 	hrc = COM_FDepthFile("hexen.rc", true);	//h2
-	def = COM_FDepthFile("default.cfg", true);	//q2/q3
 
 	if (qrc <= def && qrc <= hrc && qrc!=0x7fffffff)
+	{
 		Cbuf_AddText ("exec quake.rc\n", RESTRICT_LOCAL);
+		def = qrc;
+	}
 	else if (hrc <= def && hrc!=0x7fffffff)
+	{
 		Cbuf_AddText ("exec hexen.rc\n", RESTRICT_LOCAL);
+		def = hrc;
+	}
 	else
 	{	//they didn't give us an rc file!
 	//	Cbuf_AddText ("bind ` toggleconsole\n", RESTRICT_LOCAL);	//in case default.cfg does not exist. :(
 		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
-		if (COM_FCheckExists ("config.cfg"))
+		if (COM_FDepthFile ("config.cfg", true) <= def)
 			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
-		if (COM_FCheckExists ("q3config.cfg"))
+		if (COM_FDepthFile ("q3config.cfg", true) <= def)
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
-	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
+	qrc = COM_FDepthFile("fte.cfg", true);
+	if (qrc <= def)	//don't use it if we're running a mod with a default.cfg that is in a stronger path than fte.cfg, as this indicates that fte.cfg is from fte/ and not $currentmod/.
+		Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
+	else if (qrc != 0x7fffffff)
+		Cbuf_AddText ("echo skipping fte.cfg from wrong gamedir\n", RESTRICT_LOCAL);
 #endif
 #ifdef QUAKESPYAPI
 	if (COM_FCheckExists ("frontend.cfg"))
@@ -5380,6 +5449,9 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	//the configs should be fully loaded.
 	//so convert the backwards compable commandline parameters in cvar sets.
 	CL_ArgumentOverrides();
+#ifndef CLIENTONLY
+	SV_ArgumentOverrides();
+#endif
 
 	//and disable the 'you have unsaved stuff' prompt.
 	Cvar_Saved();
@@ -5403,6 +5475,9 @@ void Host_FinishLoading(void)
 	Cbuf_Execute ();
 
 	CL_ArgumentOverrides();
+#ifndef CLIENTONLY
+	SV_ArgumentOverrides();
+#endif
 
 	Con_Printf ("\n%s\n", version_string());
 
@@ -5605,7 +5680,7 @@ void Host_Shutdown(void)
 	Memory_DeInit();
 
 #ifndef CLIENTONLY
-	memset(&sv, 0, sizeof(sv));
+	SV_WipeServerState();
 	memset(&svs, 0, sizeof(svs));
 #endif
 	Sys_Shutdown();

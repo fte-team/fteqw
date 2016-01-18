@@ -1553,14 +1553,25 @@ void VARGS Sys_Printf (char *fmt, ...)
 	out = wide;
 	in = msg;
 	wlen = 0;
-	for (in = msg; in < end; )
+	for (in = msg; in < end && wlen+3 < countof(wide); )
 	{
 		unsigned int flags, cp;
 		in = Font_Decode(in, &flags, &cp);
 		if (!(flags & CON_HIDDEN))
 		{
-			*out++ = COM_DeQuake(cp);
-			wlen++;
+			cp = COM_DeQuake(cp);
+			if (cp > 0xffff)
+			{
+				cp -= 0x10000;
+				*out++ = 0xD800 | (cp>>10);
+				*out++ = 0xDC00 | (cp&0x3ff);
+				wlen += 2;
+			}
+			else
+			{
+				*out++ = cp;
+				wlen++;
+			}
 		}
 	}
 	*out = 0;
@@ -1788,7 +1799,7 @@ void Sys_SaveClipboard(char *text)
 		return;
 	EmptyClipboard();
 
-	if (com_parseutf8.ival > 0)
+	if (WinNT)
 	{
 		glob = GlobalAlloc(GMEM_MOVEABLE, (strlen(text) + 1)*4);
 		if (glob)
@@ -1799,7 +1810,7 @@ void Sys_SaveClipboard(char *text)
 				int error;
 				while(*text)
 				{
-					codepoint = utf8_decode(&error, text, &text);
+					codepoint = unicode_decode(&error, text, &text, false);
 					if (codepoint == '\n')
 					{	//windows is stupid and annoying.
 						*tempw++ = '\r';
@@ -1824,7 +1835,7 @@ void Sys_SaveClipboard(char *text)
 	}
 	else
 	{
-		glob = GlobalAlloc(GMEM_MOVEABLE, strlen(text) + 1);
+		glob = GlobalAlloc(GMEM_MOVEABLE, strlen(text)*2 + 1);
 		if (glob)
 		{
 			//yes, quake chars will get mangled horribly.
@@ -1834,8 +1845,10 @@ void Sys_SaveClipboard(char *text)
 				int error;
 				while (*text)
 				{
-					//NOTE: should be \r\n and not just \n
-					*temp++ = utf8_decode(&error, text, &text) & 0xff;
+					codepoint = unicode_decode(&error, text, &text, false);
+					if (codepoint == '\n')
+						*temp++ = '\r';
+					*temp++ = codepoint;
 				}
 				*temp = 0;
 				strcpy(temp, text);

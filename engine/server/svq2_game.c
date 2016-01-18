@@ -126,6 +126,24 @@ static void VARGS PFQ2_Unicast (q2edict_t *ent, qboolean reliable)
 	if (client->state < cs_connected)
 		return;
 
+	if (client->controller)
+	{
+		client_t	*peer;
+		for (p = 0, peer = client->controller; peer; peer = peer->controlled, p++)
+		{
+			if (peer == client)
+				break;
+		}
+		client = client->controller;
+
+		//svcq2_playerinfo is not normally valid except within the svc_frame message.
+		//this means its 'free' to repurpose for things like splitscreen. woot.
+		MSG_WriteShort(&sv.q2multicast, 0);
+		memmove(sv.q2multicast.data+2, sv.q2multicast.data, sv.q2multicast.cursize-2);
+		sv.q2multicast.data[0] = svcq2_playerinfo;
+		sv.q2multicast.data[1] = p;
+	}
+
 	if (reliable)
 		SZ_Write (&client->netchan.message, sv.q2multicast.data, sv.q2multicast.cursize);
 	else
@@ -142,7 +160,7 @@ PF_dprintf
 Debug print to server console
 ===============
 */
-static void VARGS PFQ2_dprintf (char *fmt, ...)
+static void VARGS PFQ2_dprintf (const char *fmt, ...)
 {
 	char		msg[1024];
 	va_list		argptr;
@@ -162,7 +180,7 @@ PF_cprintf
 Print to a single client
 ===============
 */
-static void VARGS PFQ2_cprintf (q2edict_t *ent, int level, char *fmt, ...)
+static void VARGS PFQ2_cprintf (q2edict_t *ent, int level, const char *fmt, ...)
 {
 	char		msg[1024];
 	va_list		argptr;
@@ -202,7 +220,7 @@ PF_centerprintf
 centerprint to a single client
 ===============
 */
-static void VARGS PFQ2_centerprintf (q2edict_t *ent, char *fmt, ...)
+static void VARGS PFQ2_centerprintf (q2edict_t *ent, const char *fmt, ...)
 {
 	char		msg[1024];
 	va_list		argptr;
@@ -232,7 +250,7 @@ PF_error
 Abort the server with a game error
 ===============
 */
-static void VARGS PFQ2_error (char *fmt, ...)
+static void VARGS PFQ2_error (const char *fmt, ...)
 {
 	char		msg[1024];
 	va_list		argptr;
@@ -250,7 +268,7 @@ PF_Configstring
 
 ===============
 */
-static void VARGS PFQ2_Configstring (int i, char *val)
+static void VARGS PFQ2_Configstring (int i, const char *val)
 {
 	if (i < 0 || i >= Q2MAX_CONFIGSTRINGS)
 		Sys_Error ("configstring: bad index %i\n", i);
@@ -258,52 +276,11 @@ static void VARGS PFQ2_Configstring (int i, char *val)
 	if (!val)
 		val = "";
 
-	strcpy(sv.strings.configstring[i], val);
+	Z_Free((char*)sv.strings.configstring[i]);
+	sv.strings.configstring[i] = Z_StrDup(val);
 
 	if (i == Q2CS_NAME)
 		Q_strncpyz(sv.mapname, val, sizeof(sv.mapname));
-
-/*
-	//work out range
-	if (i >= Q2CS_LIGHTS && i < Q2CS_LIGHTS+Q2MAX_LIGHTSTYLES)
-	{
-		j = i - Q2CS_LIGHTS;
-		if (j < MAX_LIGHTSTYLES)
-		{
-			if (sv.lightstyles[j])
-				Z_Free(sv.lightstyles[j]);
-			sv.lightstyles[j] = Z_Malloc(strlen(val)+1);
-			strcpy(sv.lightstyles[j], val);
-		}
-	}
-	else if (i >= Q2CS_MODELS && i < Q2CS_MODELS+Q2MAX_MODELS)
-	{
-		Q_strncpyS(sv.model_precache[i-Q2CS_MODELS], val, MAX_QPATH-1);
-	}
-	else if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS+Q2MAX_SOUNDS)
-	{
-		Q_strncpyS(sv.sound_precache[i-Q2CS_SOUNDS], val, MAX_QPATH-1);
-	}
-	else if (i >= Q2CS_IMAGES && i < Q2CS_IMAGES+Q2MAX_IMAGES)
-	{
-		Q_strncpyS(sv.image_precache[i-Q2CS_IMAGES], val, MAX_QPATH-1);
-	}
-	else if (i == Q2CS_STATUSBAR)
-	{
-		if (sv.statusbar)
-			Z_Free(sv.statusbar);
-		sv.statusbar = Z_Malloc(strlen(val)+1);
-		strcpy(sv.statusbar, val);
-	}
-	else if (i == Q2CS_NAME)
-	{
-		Q_strncpyz(sv.mapname, val, sizeof(sv.name));
-	}
-	else
-	{
-		Con_Printf("Ignoring configstring %i\n", i);
-	}
-*/
 
 	if (sv.state != ss_loading)
 	{	// send the update to everyone
@@ -316,25 +293,69 @@ static void VARGS PFQ2_Configstring (int i, char *val)
 	}
 }
 
-static int SVQ2_FindIndex (char *name, int start, int max, qboolean create)
+static int SVQ2_FindIndex (const char *name, int start, int max, int overflowtype)
 {
 	int		i;
-	int stringlength = MAX_QPATH;
-	char *strings = sv.strings.configstring[start];
-	strings += stringlength;
+	const char *strings;
 	
 	if (!name || !name[0])
 		return 0;
 
-	for (i=1 ; i<max && strings[0] ; i++, strings+=stringlength)
+	for (i=1 ; i<max ; i++)
+	{
+		strings = sv.strings.configstring[start+i];
+		if (!strings || !*strings)
+			break;
 		if (!strcmp(strings, name))
 			return i;
-
-	if (!create)
-		return 0;
+	}
 
 	if (i == max)
+	{
+		if (overflowtype)
+		{
+			const char **overflowstrings;
+			switch(overflowtype)
+			{
+			case 1:
+				overflowstrings = sv.strings.q2_extramodels;
+				max = countof(sv.strings.q2_extramodels);
+				i++;	//do not allow 255 to be allocated, ever. just live with the gap.
+				start = 0x8000;
+				break;
+			case 2:
+				overflowstrings = sv.strings.q2_extrasounds;
+				max = countof(sv.strings.q2_extrasounds);
+				start = 0x8000|0x4000;
+				break;
+			default:
+				overflowstrings = NULL;	//ssh
+				max = i;
+				break;
+			}
+
+			for ( ; i<max ; i++)
+			{
+				strings = overflowstrings[i];
+				if (!strings || !*strings)
+				{
+					overflowstrings[i] = Z_StrDup(name);
+					if (sv.state != ss_loading)
+					{
+						SZ_Clear (&sv.q2multicast);
+						MSG_WriteChar (&sv.q2multicast, svcq2_configstring);
+						MSG_WriteShort (&sv.q2multicast, start+i);
+						MSG_WriteString (&sv.q2multicast, name);
+						SV_Multicast (vec3_origin, MULTICAST_ALL_R);
+					}
+					return i;
+				}
+				if (!strcmp(strings, name))
+					return i;
+			}
+		}
 		Sys_Error ("*Index: overflow");
+	}
 
 	PFQ2_Configstring(start + i, name);
 
@@ -342,19 +363,20 @@ static int SVQ2_FindIndex (char *name, int start, int max, qboolean create)
 }
 
 
-static int VARGS SVQ2_ModelIndex (char *name)
+static int VARGS SVQ2_ModelIndex (const char *name)
 {
-	return SVQ2_FindIndex (name, Q2CS_MODELS, Q2MAX_MODELS, true);
+	//model 255 is special for players. don't use it.
+	return SVQ2_FindIndex (name, Q2CS_MODELS, Q2MAX_MODELS-1, 1);
 }
 
-static int VARGS SVQ2_SoundIndex (char *name)
+static int VARGS SVQ2_SoundIndex (const char *name)
 {
-	return SVQ2_FindIndex (name, Q2CS_SOUNDS, Q2MAX_SOUNDS, true);
+	return SVQ2_FindIndex (name, Q2CS_SOUNDS, Q2MAX_SOUNDS, 2);
 }
 
-static int VARGS SVQ2_ImageIndex (char *name)
+static int VARGS SVQ2_ImageIndex (const char *name)
 {
-	return SVQ2_FindIndex (name, Q2CS_IMAGES, Q2MAX_IMAGES, true);
+	return SVQ2_FindIndex (name, Q2CS_IMAGES, Q2MAX_IMAGES, 0);
 }
 
 /*
@@ -364,7 +386,7 @@ PF_setmodel
 Also sets mins and maxs for inline bmodels
 =================
 */
-static void VARGS PFQ2_setmodel (q2edict_t *ent, char *name)
+static void VARGS PFQ2_setmodel (q2edict_t *ent, const char *name)
 {
 	int		i;
 	model_t	*mod;
@@ -410,7 +432,7 @@ static void VARGS PFQ2_WriteByte (int c) {MSG_WriteByte (&sv.q2multicast, c & 0x
 static void VARGS PFQ2_WriteShort (int c) {MSG_WriteShort (&sv.q2multicast, c & 0xffff);}
 static void VARGS PFQ2_WriteLong (int c) {MSG_WriteLong (&sv.q2multicast, c);}
 static void VARGS PFQ2_WriteFloat (float f) {MSG_WriteFloat (&sv.q2multicast, f);}
-static void VARGS PFQ2_WriteString (char *s) {MSG_WriteString (&sv.q2multicast, s);}
+static void VARGS PFQ2_WriteString (const char *s) {MSG_WriteString (&sv.q2multicast, s);}
 static void VARGS PFQ2_WriteAngle (float f) {MSG_WriteAngle (&sv.q2multicast, f);}
 static void VARGS PFQ2_WritePos (vec3_t pos) {	MSG_WriteCoord (&sv.q2multicast, pos[0]);
 									MSG_WriteCoord (&sv.q2multicast, pos[1]);
@@ -487,15 +509,6 @@ qboolean VARGS PFQ2_AreasConnected(unsigned int area1, unsigned int area2)
 }
 
 
-#define	Q2SND_VOLUME		(1<<0)		// a byte
-#define	Q2SND_ATTENUATION	(1<<1)		// a byte
-#define	Q2SND_POS			(1<<2)		// three coordinates
-#define	Q2SND_ENT			(1<<3)		// a short 0-2: channel, 3-12: entity
-#define	Q2SND_OFFSET		(1<<4)		// a byte, msec offset from frame start
-
-#define Q2DEFAULT_SOUND_PACKET_VOLUME	1.0
-#define Q2DEFAULT_SOUND_PACKET_ATTENUATION 1.0
-
 
 
 #define	Q2ATTN_NONE				0	// full volume the entire level
@@ -508,7 +521,7 @@ qboolean VARGS PFQ2_AreasConnected(unsigned int area1, unsigned int area2)
 #define Q2CHAN_NO_PHS_ADD		8
 #define	Q2CHAN_RELIABLE			16
 
-void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
+static void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 					int soundindex, float volume,
 					float attenuation, float timeofs)
 {       
@@ -518,6 +531,7 @@ void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 	int			ent;
 	vec3_t		origin_v;
 	qboolean	use_phs;
+	unsigned int needext = 0;
 
 	if (volume < 0 || volume > 1.0)
 		Sys_Error ("SV_StartSound: volume = %f", volume);
@@ -545,6 +559,11 @@ void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 		flags |= Q2SND_VOLUME;
 	if (attenuation != Q2DEFAULT_SOUND_PACKET_ATTENUATION)
 		flags |= Q2SND_ATTENUATION;
+	if (soundindex > 0xff)
+	{
+		flags |= Q2SND_LARGEIDX;
+		needext |= PEXT_SOUNDDBL;
+	}
 
 	// the client doesn't know that bmodels have weird origins
 	// the origin can also be explicitly set
@@ -572,11 +591,25 @@ void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 		{
 			VectorCopy (entity->s.origin, origin_v);
 		}
+
+		if (flags & Q2SND_POS)
+		{
+			for (i=0 ; i<3 ; i++)
+				if (-32768/8.0 > origin_v[i] || origin_v[i] > 32767/8.0)
+				{
+					flags |= Q2SND_LARGEPOS;
+					needext |= PEXT_FLOATCOORDS;
+					break;
+				}
+		}
 	}
 
 	MSG_WriteByte (&sv.q2multicast, svcq2_sound);
 	MSG_WriteByte (&sv.q2multicast, flags);
-	MSG_WriteByte (&sv.q2multicast, soundindex);
+	if (flags & Q2SND_LARGEIDX)
+		MSG_WriteShort (&sv.q2multicast, soundindex);
+	else
+		MSG_WriteByte (&sv.q2multicast, soundindex);
 
 	if (flags & Q2SND_VOLUME)
 		MSG_WriteByte (&sv.q2multicast, volume*255);
@@ -590,9 +623,18 @@ void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 
 	if (flags & Q2SND_POS)
 	{
-		MSG_WriteCoord (&sv.q2multicast, origin[0]);
-		MSG_WriteCoord (&sv.q2multicast, origin[1]);
-		MSG_WriteCoord (&sv.q2multicast, origin[2]);
+		if (flags & Q2SND_LARGEPOS)
+		{
+			MSG_WriteFloat (&sv.q2multicast, origin[0]);
+			MSG_WriteFloat (&sv.q2multicast, origin[1]);
+			MSG_WriteFloat (&sv.q2multicast, origin[2]);
+		}
+		else
+		{
+			MSG_WriteCoord (&sv.q2multicast, origin[0]);
+			MSG_WriteCoord (&sv.q2multicast, origin[1]);
+			MSG_WriteCoord (&sv.q2multicast, origin[2]);
+		}
 	}
 
 	// if the sound doesn't attenuate,send it to everyone
@@ -601,19 +643,9 @@ void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel,
 		use_phs = false;
 
 	if (channel & Q2CHAN_RELIABLE)
-	{
-		if (use_phs)
-			SV_Multicast (origin, MULTICAST_PHS_R);
-		else
-			SV_Multicast (origin, MULTICAST_ALL_R);
-	}
+		SV_MulticastProtExt(origin, use_phs?MULTICAST_PHS_R:MULTICAST_ALL_R, FULLDIMENSIONMASK, needext, 0);
 	else
-	{
-		if (use_phs)
-			SV_Multicast (origin, MULTICAST_PHS);
-		else
-			SV_Multicast (origin, MULTICAST_ALL);
-	}
+		SV_MulticastProtExt(origin, use_phs?MULTICAST_PHS:MULTICAST_ALL, FULLDIMENSIONMASK, needext, 0);
 }  
 
 static void VARGS PFQ2_StartSound (q2edict_t *entity, int channel, int sound_num, float volume,
@@ -653,7 +685,7 @@ static int VARGS SVQ2_PointContents (vec3_t p)
 //	return CM_PointContents(p, 0);
 }
 
-static cvar_t *VARGS Q2Cvar_Get (char *var_name, char *value, int flags)
+static cvar_t *VARGS Q2Cvar_Get (const char *var_name, const char *value, int flags)
 {
 	cvar_t *var = Cvar_Get(var_name, value, flags, "Quake2 game variables");
 	if (!var)
@@ -664,7 +696,7 @@ static cvar_t *VARGS Q2Cvar_Get (char *var_name, char *value, int flags)
 	return var;
 }
 
-cvar_t *VARGS Q2Cvar_Set (char *var_name, char *value)
+cvar_t *VARGS Q2Cvar_Set (const char *var_name, const char *value)
 {
 	cvar_t *var = Cvar_FindVar(var_name);
 	if (!var)
@@ -674,7 +706,7 @@ cvar_t *VARGS Q2Cvar_Set (char *var_name, char *value)
 	}
 	return Cvar_Set(var, value);
 }
-cvar_t *VARGS Q2Cvar_ForceSet (char *var_name, char *value)
+cvar_t *VARGS Q2Cvar_ForceSet (const char *var_name, const char *value)
 {
 	cvar_t *var = Cvar_FindVar(var_name);
 	if (!var)
@@ -704,7 +736,7 @@ void VARGS SVQ2_ShutdownGameProgs (void)
 	ge = NULL;
 }
 
-static void VARGS AddCommandString(char *command)
+static void VARGS AddCommandString(const char *command)
 {
 	Cbuf_AddText(command, RESTRICT_LOCAL);
 }
@@ -717,7 +749,7 @@ Init the game subsystem for a new map
 ===============
 */
 
-void VARGS Q2SCR_DebugGraph(float value, int color)
+static void VARGS Q2SCR_DebugGraph(float value, int color)
 {return;}
 
 static void	VARGS SVQ2_LinkEdict (q2edict_t *ent)

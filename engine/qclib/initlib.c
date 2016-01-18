@@ -490,6 +490,8 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 	{
 #if defined(_WIN64) && !defined(WINRT)
 		addressable_size = 0x80000000;	//use of virtual address space rather than physical memory means we can just go crazy and use the max of 2gb.
+#elif defined(FTE_TARGET_WEB)
+		addressable_size = 8*1024*1024;
 #else
 		addressable_size = 32*1024*1024;
 #endif
@@ -549,7 +551,7 @@ struct entvars_s *PDECL PR_entvars (pubprogfuncs_t *ppf, struct edict_s *ed)
 	return (struct entvars_s *)edvars(ed);
 }
 
-int PDECL PR_GetFuncArgCount(pubprogfuncs_t *ppf, func_t func)
+pbool PDECL PR_GetFunctionInfo(pubprogfuncs_t *ppf, func_t func, int *args, int *builtinnum, char *funcname, size_t funcnamesize)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 
@@ -561,13 +563,26 @@ int PDECL PR_GetFuncArgCount(pubprogfuncs_t *ppf, func_t func)
 	fnum = (func & 0x00ffffff);
 
 	if (pnum >= prinst.maxprogs || !pr_progstate[pnum].functions)
-		return -1;
+		return false;
 	else if (fnum >= pr_progstate[pnum].progs->numfunctions)
-		return -1;
+		return false;
 	else
 	{
 		f = pr_progstate[pnum].functions + fnum;
-		return f->numparms;
+		if (args)
+			*args = f->numparms;
+		if (builtinnum)
+			*builtinnum = -f->first_statement;
+		if (funcname)
+		{
+			const char *srcname = PR_StringToNative(ppf, f->s_name);
+			size_t nlen = strlen(srcname);
+			if (nlen < funcnamesize)
+				memcpy(funcname, srcname, nlen+1);
+			else
+				*funcname = 0;
+		}
+		return true;
 	}
 }
 
@@ -1327,7 +1342,7 @@ pubprogfuncs_t deffuncs = {
 	QC_AddSharedVar,
 	QC_AddSharedFieldVar,
 	PR_RemoveProgsString,
-	PR_GetFuncArgCount,
+	PR_GetFunctionInfo,
 	PR_GenerateStatementString,
 	ED_FieldInfo,
 	PR_UglyValueString,

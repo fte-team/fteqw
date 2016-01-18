@@ -6,6 +6,11 @@
 
 vecV_t vertbuf[65535];
 
+swimage_t sw_nulltex =
+{
+	1, 1, 0, 0, 0, 0
+};
+
 static struct
 {
 	int foo;
@@ -420,6 +425,7 @@ void SWBE_TransformVerticies(swvert_t *v, mesh_t *mesh)
 //		v->colour[3] = mesh->colors4b_array[i][3];
 	}
 }
+
 static void SWBE_DrawMesh_Internal(shader_t *shader, mesh_t *mesh, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags)
 {
 	wqcom_t *com;
@@ -438,7 +444,10 @@ static void SWBE_DrawMesh_Internal(shader_t *shader, mesh_t *mesh, struct vbo_s 
 	{
 		com = SWRast_BeginCommand(&commandqueue, WTC_TRIFAN, mesh->numvertexes*sizeof(swvert_t) + sizeof(com->trifan) - sizeof(com->trifan.verts));
 
-		com->trifan.texture = texnums->base->ptr;
+		if (texnums->base)
+			com->trifan.texture = texnums->base->ptr;
+		else
+			com->trifan.texture = &sw_nulltex;
 		com->trifan.numverts = mesh->numvertexes;
 
 		SWBE_TransformVerticies(com->trifan.verts, mesh);
@@ -449,7 +458,10 @@ static void SWBE_DrawMesh_Internal(shader_t *shader, mesh_t *mesh, struct vbo_s 
 	{
 		com = SWRast_BeginCommand(&commandqueue, WTC_TRISOUP, (mesh->numvertexes*sizeof(swvert_t)) + sizeof(com->trisoup) - sizeof(com->trisoup.verts) + (sizeof(index_t)*mesh->numindexes));
 		
-		com->trisoup.texture = texnums->base->ptr;
+		if (texnums->base)
+			com->trisoup.texture = texnums->base->ptr;
+		else
+			com->trisoup.texture = &sw_nulltex;
 		com->trisoup.numverts = mesh->numvertexes;
 		com->trisoup.numidx = mesh->numindexes;
 
@@ -530,19 +542,18 @@ static void SWBE_SubmitMeshesSortList(batch_t *sortlist)
 	}
 }
 
-void SWBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop)
+void SWBE_SubmitMeshes (batch_t **worldbatches, batch_t **blist, int start, int stop)
 {
-	model_t *model = cl.worldmodel;
 	int i;
 
 	for (i = start; i <= stop; i++)
 	{
-		if (drawworld)
+		if (worldbatches)
 		{
 //			if (i == SHADER_SORT_PORTAL && !r_noportals.ival && !r_refdef.recurse)
-//				SWBE_SubmitMeshesPortals(model->batches, blist[i]);
+//				SWBE_SubmitMeshesPortals(worldbatches, blist[i]);
 
-			SWBE_SubmitMeshesSortList(model->batches[i]);
+			SWBE_SubmitMeshesSortList(worldbatches[i]);
 		}
 		SWBE_SubmitMeshesSortList(blist[i]);
 	}
@@ -599,7 +610,7 @@ void SWBE_Set2D(void)
 
 	SWBE_UpdateUniforms();
 }
-void SWBE_DrawWorld(qboolean drawworld, qbyte *vis)
+void SWBE_DrawWorld(batch_t **worldbatches, qbyte *vis)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 
@@ -621,7 +632,7 @@ void SWBE_DrawWorld(qboolean drawworld, qbyte *vis)
 	shaderstate.curentity = NULL;
 	SWBE_SelectEntity(&r_worldentity);
 
-	SWBE_SubmitMeshes(drawworld, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+	SWBE_SubmitMeshes(worldbatches, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 
 	SWBE_Set2D();
 }

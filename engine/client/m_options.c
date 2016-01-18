@@ -182,7 +182,7 @@ void M_Options_Remove(menu_t *m)
 //options menu.
 void M_Menu_Options_f (void)
 {
-	extern cvar_t crosshair, r_projection;
+	extern cvar_t crosshair, r_projection, sv_autosave;
 	int y;
 
 	menuoption_t *updatecbo;
@@ -211,6 +211,25 @@ void M_Menu_Options_f (void)
 		NULL
 	};
 
+	static const char *autosaveopts[] = {
+		"Off",
+		"30 secs",
+		"60 secs",
+		"90 secs",
+		"120 secs",
+		"5 mins",
+		NULL
+	};
+	static const char *autsavevals[] = {
+		"0",
+		"0.5",
+		"1",
+		"1.5",
+		"2",
+		"5",
+		NULL
+	};
+
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
 		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
@@ -226,7 +245,10 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXCVAR("Lookspring", lookspring, 0),
 		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
 		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
-		MB_COMBORETURN("Auto Update", autoupopts, Sys_GetAutoUpdateSetting(), updatecbo, "Hello World"),
+		MB_COMBORETURN("Auto Update", autoupopts, Sys_GetAutoUpdateSetting(), updatecbo, "This downloads engine updates from the internet, when a new build is available."),
+#ifndef CLIENTONLY
+		MB_COMBOCVAR("Auto Save", sv_autosave, autosaveopts, autsavevals, NULL),
+#endif
 		MB_SPACING(4),
 		// removed hud options (cl_sbar, cl_hudswap, old-style chat, old-style msg)
 		MB_CONSOLECMD("Video Options", "menu_video\n", "Set video resolution, color depth, refresh rate, and anti-aliasing options."),
@@ -244,7 +266,7 @@ void M_Menu_Options_f (void)
 #endif
 #ifdef TEXTEDITOR
 		//this option is a bit strange in q2.
-		MB_CHECKBOXCVAR("QC Debugger", pr_debugger, 0),
+//		MB_CHECKBOXCVAR("QC Debugger", pr_debugger, 0),
 #endif
 		// removed downloads (is this still appropriate?)
 		// removed teamplay
@@ -1050,9 +1072,11 @@ void M_Menu_Render_f (void)
 		"1",
 		NULL
 	};
+	static const char *logcenteropts[] = {"Off", "Singleplayer", "Always", NULL};
+	static const char *logcentervalues[] = {"0", "1", "2", NULL};
 
 	menu_t *menu;
-	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation;
+	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation, scr_logcenterprint;
 #ifdef GLQUAKE
 	extern cvar_t r_bloom;
 #endif
@@ -1073,6 +1097,7 @@ void M_Menu_Render_f (void)
 		MB_SLIDER("Viewmodel Alpha", r_drawviewmodel, 0, 1, 0.1, NULL),
 		MB_CHECKBOXCVAR("Poly Blending", gl_cshiftenabled, 0),
 		MB_CHECKBOXCVAR("Disable Colormap", gl_nocolors, 0),
+		MB_COMBOCVAR("Log Centerprints", scr_logcenterprint, logcenteropts, logcentervalues, "Display centerprints in the console also."),
 #ifdef GLQUAKE
 		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
 #endif

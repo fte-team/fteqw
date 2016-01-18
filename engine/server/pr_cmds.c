@@ -227,6 +227,13 @@ void PDECL ED_Spawned (struct edict_s *ent, int loading)
 
 		ent->xv->Version = sv.csqcentversion[ent->entnum];
 		ent->xv->uniquespawnid = sv.csqcentversion[ent->entnum];
+
+		if (!ent->baseline.number)
+		{	//make sure it has a valid baseline
+			extern entity_state_t nullentitystate;
+			memcpy(&ent->baseline, &nullentitystate, sizeof(ent->baseline));
+			ent->baseline.number = ent->entnum;
+		}
 	}
 }
 
@@ -2094,7 +2101,7 @@ static void SV_Effect(vec3_t org, int mdlidx, int startframe, int endframe, int 
 #endif
 	}
 
-	SV_Multicast(org, MULTICAST_PVS);
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, 0);
 }
 
 #ifdef HEXEN2
@@ -2848,7 +2855,7 @@ static void QCBUILTIN PF_te_blooddp (pubprogfuncs_t *prinst, globalvars_t *pr_gl
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
 	MSG_WriteCoord (&sv.multicast, org[2]);
-	SV_Multicast(org, MULTICAST_PVS);
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, 0);
 }
 
 #ifdef HEXEN2
@@ -3117,9 +3124,9 @@ static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s 
 }
 
 //an evil one from telejano.
+#ifndef SERVERONLY
 static void QCBUILTIN PF_LocalSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#ifndef SERVERONLY
 	sfx_t	*sfx;
 
 	const char * s = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -3131,8 +3138,10 @@ static void QCBUILTIN PF_LocalSound(pubprogfuncs_t *prinst, struct globalvars_s 
 		if ((sfx = S_PrecacheSound(s)))
 			S_StartSound(cl.playerview[0].playernum, chan, sfx, cl.playerview[0].simorg, vol, 0.0, 0, 0, CF_NOSPACIALISE);
 	}
-#endif
 };
+#else
+#define PF_LocalSound PF_Fixme
+#endif
 
 static void set_trace_globals(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals, trace_t *trace)
 {
@@ -3768,9 +3777,9 @@ void QCBUILTIN PF_sv_particleeffectnum(pubprogfuncs_t *prinst, struct globalvars
 
 	for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
 	{
-		if (!*sv.strings.particle_precache[i])
+		if (!sv.strings.particle_precache[i])
 		{
-			strcpy(sv.strings.particle_precache[i], s);
+			sv.strings.particle_precache[i] = PR_AddString(prinst, s, 0, false);
 
 			if (sv.state != ss_loading)
 			{
@@ -3818,9 +3827,9 @@ int PF_precache_sound_Internal (pubprogfuncs_t *prinst, const char *s)
 
 	for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
 	{
-		if (!*sv.strings.sound_precache[i])
+		if (!sv.strings.sound_precache[i])
 		{
-			Q_strncpyz(sv.strings.sound_precache[i], s, sizeof(sv.strings.sound_precache[i]));
+			sv.strings.sound_precache[i] = PR_AddString(prinst, s, 0, false);
 
 			/*touch the file, so any packs will be referenced*/
 			FS_FLocateFile(s, FSLF_IFFOUND, NULL);
@@ -4084,7 +4093,7 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 	sv.strings.lightstyles[style] = Z_StrDup(val);
 
 #ifdef PEXT_LIGHTSTYLECOL
-	VectorCopy(rgb, sv.strings.lightstylecolours[style]);
+	VectorCopy(rgb, sv.lightstylecolours[style]);
 #endif
 
 // send message to all clients on this server
@@ -5530,7 +5539,7 @@ void QCBUILTIN PF_multicast (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	NPP_Flush();
 #endif
 
-	SV_Multicast (o, to);
+	SV_MulticastProtExt(o, to, pr_global_struct->dimension_send, 0, 0);
 }
 
 static void QCBUILTIN PF_Ignore(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6136,6 +6145,33 @@ static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalva
 		G_FLOAT(OFS_RETURN) = false;
 }
 
+static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	func_t funcref = G_INT(OFS_PARM0);
+	char *funcname = NULL;
+	int args;
+	int builtinno;
+	if (prinst->GetFunctionInfo(prinst, funcref, &args, &builtinno, funcname, sizeof(funcname)))
+	{	//qc defines the function at least. nothing weird there...
+		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
+		{
+			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme)
+				G_FLOAT(OFS_RETURN) = false;	//the builtin with that number isn't defined.
+			else
+			{
+				G_FLOAT(OFS_RETURN) = true;		//its defined, within the sane range, mapped, everything. all looks good.
+				//we should probably go through the available builtins and validate that the qc's name matches what would be expected
+				//this is really intended more for builtins defined as #0 though, in such cases, mismatched assumptions are impossible.
+			}
+		}
+		else
+			G_FLOAT(OFS_RETURN) = false;	//not a valid builtin (#0 builtins get remapped according to the function name)
+	}
+	else
+	{	//not valid somehow.
+		G_FLOAT(OFS_RETURN) = false;
+	}
+}
 
 static void QCBUILTIN PF_builtinsupported (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -7699,7 +7735,7 @@ static void QCBUILTIN PF_h2rain_go(pubprogfuncs_t *prinst, struct globalvars_s *
 	MSG_WriteShort(&sv.multicast, min(count, 65535));
 	// colour
 	MSG_WriteByte(&sv.multicast, (int)colour&0xff);
-	SV_Multicast(NULL, MULTICAST_ALL);
+	SV_MulticastProtExt (NULL, MULTICAST_ALL, pr_global_struct->dimension_send, 0, 0);
 }
 
 static void QCBUILTIN PF_h2StopSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8290,7 +8326,7 @@ static void QCBUILTIN PF_te_spark(pubprogfuncs_t *prinst, struct globalvars_s *p
 	// count
 	MSG_WriteByte(&sv.nqmulticast, bound(0, (int) G_FLOAT(OFS_PARM2), 255));
 #endif
-	SV_Multicast(org, MULTICAST_PVS);
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, 0);
 }
 
 // #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
@@ -8338,7 +8374,7 @@ static void QCBUILTIN PF_te_customflash(pubprogfuncs_t *prinst, struct globalvar
 	MSG_WriteByte(&sv.nqmulticast, bound(0, G_VECTOR(OFS_PARM3)[1] * 255, 255));
 	MSG_WriteByte(&sv.nqmulticast, bound(0, G_VECTOR(OFS_PARM3)[2] * 255, 255));
 #endif
-	SV_Multicast(org, MULTICAST_PVS);
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, 0);
 }
 
 //#408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
@@ -8395,7 +8431,7 @@ static void QCBUILTIN PF_te_particlecube(pubprogfuncs_t *prinst, struct globalva
 
 	VectorAdd(min, max, org);
 	VectorScale(org, 0.5, org);
-	SV_Multicast(org, MULTICAST_PVS);
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, 0);
 }
 
 static void QCBUILTIN PF_te_explosionrgb(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8425,7 +8461,7 @@ static void QCBUILTIN PF_te_explosionrgb(pubprogfuncs_t *prinst, struct globalva
 	MSG_WriteByte(&sv.nqmulticast, bound(0, (int) (colour[1] * 255), 255));
 	MSG_WriteByte(&sv.nqmulticast, bound(0, (int) (colour[2] * 255), 255));
 #endif
-	SV_Multicast(org, MULTICAST_PVS);
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, 0);
 }
 
 static void QCBUILTIN PF_te_particlerain(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8479,7 +8515,7 @@ static void QCBUILTIN PF_te_particlerain(pubprogfuncs_t *prinst, struct globalva
 	MSG_WriteByte(&sv.nqmulticast, colour);
 #endif
 
-	SV_Multicast(NULL, MULTICAST_ALL);
+	SV_MulticastProtExt (NULL, MULTICAST_ALL, pr_global_struct->dimension_send, 0, 0);
 }
 
 static void QCBUILTIN PF_te_particlesnow(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8533,7 +8569,7 @@ static void QCBUILTIN PF_te_particlesnow(pubprogfuncs_t *prinst, struct globalva
 	MSG_WriteByte(&sv.nqmulticast, colour);
 #endif
 
-	SV_Multicast(NULL, MULTICAST_ALL);
+	SV_MulticastProtExt (NULL, MULTICAST_ALL, pr_global_struct->dimension_send, 0, 0);
 }
 
 // #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
@@ -8580,7 +8616,7 @@ static void QCBUILTIN PF_te_bloodshower(pubprogfuncs_t *prinst, struct globalvar
 
 	VectorAdd(min, max, org);
 	VectorScale(org, 0.5, org);
-	SV_Multicast(org, MULTICAST_PVS);	//fixme: should this be phs instead?
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, 0, 0);	//fixme: should this be phs instead?
 }
 
 //DP_SV_EFFECT
@@ -9706,10 +9742,10 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"logarithm",		PF_Logarithm,		0,		0,		0,		0,	D("float(float v, optional float base)", "Determines the logarithm of the input value according to the specified base. This can be used to calculate how much something was shifted by.")},
 	{"tj_cvar_string",	PF_cvar_string,		0,		0,		0,		97, D("string(string cvarname)",NULL), true},	//telejano
 //DP_QC_FINDFLOAT
-	{"findfloat",		PF_FindFloat,		0,		0,		0,		98, D("entity(entity start, .float fld, float match)", "Equivelent to the find builtin, but instead of comparing strings, this builtin compares floats. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.\nworld is returned when there are no more entities.")},	// #98 (DP_QC_FINDFLOAT)
-	{"findentity",		PF_FindFloat,		0,		0,		0,		98, D("entity(entity start, .entity fld, entity match)", "Equivelent to the find builtin, but instead of comparing strings, this builtin compares entities. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.\nworld is returned when there are no more entities.")},	// #98 (DP_QC_FINDFLOAT)
+	{"findfloat",		PF_FindFloat,		0,		0,		0,		98, D("#define findentity findfloat\nentity(entity start, .__variant fld, __variant match)", "Equivelent to the find builtin, but instead of comparing strings contents, this builtin compares the raw values. This builtin requires multiple calls in order to scan all entities - set start to the previous call's return value.\nworld is returned when there are no more entities.")},	// #98 (DP_QC_FINDFLOAT)
 
 	{"checkextension",	PF_checkextension,	99,		99,		0,		99,	D("float(string extname)", "Checks for an extension by its name (eg: checkextension(\"FRIK_FILE\") says that its okay to go ahead and use strcat).\nUse cvar(\"pr_checkextension\") to see if this builtin exists.")},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
+	{"checkbuiltin",	PF_checkbuiltin,	0,		0,		0,		0,	D("float(__variant funcref)", "Checks to see if the specified builtin is supported/mapped. This is intended as a way to check for #0 functions, allowing for simple single-builtin functions.")},
 	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100,	D("float(string builtinname)", "Looks to see if the named builtin is valid, and returns the builtin number it exists at.")},	// #100	//per builtin system.
 	{"anglemod",		PF_anglemod,		0,		0,		0,		102,	"float(float value)"},
 	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	D("string(string cvarname)","An old/legacy equivelent of more recent/common builtins in order to read a cvar's string value."), true},
@@ -9843,8 +9879,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"sqlescape",		PF_sqlescape,		0,		0,		0,		256,	"string(float serveridx, string data)"}, // sqlescape (FTE_SQL)
 	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257,	"string(float serveridx)"}, // sqlversion (FTE_SQL)
 	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258,	"float(float serveridx, float queryidx, float row, float column)"}, // sqlreadfloat (FTE_SQL)
-	{"sqlreadblob",		PF_sqlreadblob,		0,		0,		0,		0,		"int(float serveridx, float queryidx, float row, float column, _variant *ptr, int maxsize)"},
-	{"sqlescapeblob",	PF_sqlescapeblob,	0,		0,		0,		0,		"string(float serveridx, _variant *ptr, int maxsize)"},
+	{"sqlreadblob",		PF_sqlreadblob,		0,		0,		0,		0,		"int(float serveridx, float queryidx, float row, float column, __variant *ptr, int maxsize)"},
+	{"sqlescapeblob",	PF_sqlescapeblob,	0,		0,		0,		0,		"string(float serveridx, __variant *ptr, int maxsize)"},
 
 	{"stoi",			PF_stoi,			0,		0,		0,		259,	D("int(string)", "Converts the given string into a true integer. Base 8, 10, or 16 is determined based upon the format of the string.")},
 	{"itos",			PF_itos,			0,		0,		0,		260,	D("string(int)", "Converts the passed true integer into a base10 string.")},
@@ -10573,7 +10609,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 void PR_SVExtensionList_f(void)
 {
-	int i;
+	int i, j;
 	int ebi;
 	int bi;
 	lh_extension_t *extlist;
@@ -10630,6 +10666,8 @@ void PR_SVExtensionList_f(void)
 			{
 				for (bi = 0; BuiltinList[bi].name; bi++)
 				{
+					if (BuiltinList[bi].bifunc == PF_Fixme)
+						continue;	//this builtin is unusable in ssqc. some of them are listed because of menuqc
 					if (!strcmp(BuiltinList[bi].name, extlist[i].builtinnames[ebi]))
 						break;
 				}
@@ -10650,7 +10688,17 @@ void PR_SVExtensionList_f(void)
 					else
 					{
 						if (showflags & SHOW_NOTACTIVEEXT)
+						{
 							Con_Printf("^4%s was overridden (builtin: %s#%i)\n", extlist[i].name, BuiltinList[bi].name, BuiltinList[bi].ebfsnum);
+							for (j = 0; BuiltinList[j].name; j++)
+							{
+								if (BuiltinList[j].bifunc == pr_builtin[BuiltinList[bi].ebfsnum])
+								{
+									Con_Printf("^4%s is currently %s (#%i)\n", extlist[i].name, BuiltinList[j].name, BuiltinList[j].ebfsnum);
+									break;
+								}
+							}
+						}
 					}
 					break;
 				}
@@ -10659,10 +10707,20 @@ void PR_SVExtensionList_f(void)
 			{
 				if (showflags & SHOW_ACTIVEEXT)
 				{
-					if (!extlist[i].numbuiltins)
-						Con_Printf("%s is supported\n", extlist[i].name);
-					else
-						Con_Printf("%s is currently active\n", extlist[i].name);
+					if (extlist[i].description)
+					{
+						if (!extlist[i].numbuiltins)
+							Con_Printf("^[%s\\tip\\%s^] is supported\n", extlist[i].name, extlist[i].description);
+						else
+							Con_Printf("^[%s\\tip\\%s^] is currently active\n", extlist[i].name, extlist[i].description);
+					}
+					else 
+					{
+						if (!extlist[i].numbuiltins)
+							Con_Printf("%s is supported\n", extlist[i].name);
+						else
+							Con_Printf("%s is currently active\n", extlist[i].name);
+					}
 				}
 			}
 		}
@@ -11131,12 +11189,13 @@ void PR_DumpPlatform_f(void)
 		{"CHAN_VOICE",		"const float", QW|NQ|CS, NULL, CHAN_VOICE},
 		{"CHAN_ITEM",		"const float", QW|NQ|CS, NULL, CHAN_ITEM},
 		{"CHAN_BODY",		"const float", QW|NQ|CS, NULL, CHAN_BODY},
-		{"CHANF_RELIABLE",	"const float", QW,		 NULL, 8},
+		{"CHANF_RELIABLE",	"const float", QW,		 "Only valid if the flags argument is not specified. The sound will be sent reliably, which is important if it is intended to replace looping sounds on doors etc.", 8},
 
 		{"SOUNDFLAG_RELIABLE",		"const float",	QW|NQ,	 "The sound will be sent reliably, and without regard to phs.", CF_RELIABLE},
 		{"SOUNDFLAG_ABSVOLUME",		"const float",	/*QW|NQ|*/CS,"The sample's volume is not scaled by the volume cvar. Use with caution", CF_ABSVOLUME},
-		{"SOUNDFLAG_FORCELOOP",		"const float",	/*QW|NQ|*/CS,"The sound will restart once it reaches the end of the sample.", CF_FORCELOOP},
+		{"SOUNDFLAG_FORCELOOP",		"const float",	QW|NQ|CS,"The sound will restart once it reaches the end of the sample.", CF_FORCELOOP},
 		{"SOUNDFLAG_NOSPACIALISE",	"const float",	/*QW|NQ|*/CS,"The different audio channels are played at the same volume regardless of which way the player is facing, without needing to use 0 attenuation.", CF_NOSPACIALISE},
+		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,	"The sound will be heard only by the player specified by msg_entity.", CF_UNICAST},
 
 		{"ATTN_NONE",		"const float", QW|NQ|CS, "Sounds with this attenuation can be heard throughout the map", ATTN_NONE},
 		{"ATTN_NORM",		"const float", QW|NQ|CS, "Standard attenuation", ATTN_NORM},
@@ -11274,6 +11333,7 @@ void PR_DumpPlatform_f(void)
 		{"EF_RED",				"const float", QW|NQ|CS, NULL, EF_RED},
 		{"EF_GREEN",			"const float", QW|NQ|CS, NULL, EF_GREEN},
 		{"EF_FULLBRIGHT",		"const float", QW|NQ|CS, NULL, EF_FULLBRIGHT},
+		{"EF_NOSHADOW",			"const float", QW|NQ|CS, NULL, EF_NOSHADOW},
 		{"EF_NODEPTHTEST",		"const float", QW|NQ|CS, NULL, EF_NODEPTHTEST},
 
 		{"EF_NOMODELFLAGS",		"const float", QW|NQ, "Surpresses the normal flags specified in the model.", EF_NOMODELFLAGS},

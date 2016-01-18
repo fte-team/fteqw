@@ -210,6 +210,45 @@ entity_state_t	clq2_parse_entities[MAX_PARSE_ENTITIES];
 
 void CL_SmokeAndFlash(vec3_t origin);
 
+void CLQ2_WriteDemoBaselines(sizebuf_t *buf)
+{
+	int i;
+	q2entity_state_t	nullstate = {0};
+	for (i = 0; i < MAX_Q2EDICTS; i++)
+	{
+		q2entity_state_t	es;
+		entity_state_t		*base = &cl_entities[i].baseline;
+		if (!base->modelindex)
+			continue;
+
+		//I brought these copies on myself...
+		es.number = i;
+		VectorCopy(base->origin, es.origin);
+		VectorCopy(base->angles, es.angles);
+		VectorCopy(base->u.q2.old_origin, es.old_origin);
+		es.modelindex = base->modelindex;
+		es.modelindex2 = base->modelindex2;
+		es.modelindex3 = base->u.q2.modelindex3;
+		es.modelindex4 = base->u.q2.modelindex4;
+		es.frame = base->frame;
+		es.skinnum = base->skinnum;
+		es.effects = base->effects;
+		es.renderfx = base->u.q2.renderfx;
+		es.solid = base->solid;
+		es.sound = base->u.q2.sound;
+		es.event = base->u.q2.event;
+
+		if (buf->cursize > buf->maxsize/2)
+		{
+			CL_WriteRecordQ2DemoMessage (buf);
+			SZ_Clear (buf);
+		}
+
+		MSG_WriteByte (buf, svcq2_spawnbaseline);
+		MSGQ2_WriteDeltaEntity(&nullstate, &es, buf, true, true);
+	}
+}
+
 void CLQ2_ClearState(void)
 {
 	memset(cl_entities, 0, sizeof(cl_entities));
@@ -668,13 +707,33 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 	to->number = number;
 
 	if (bits & Q2U_MODEL)
-		to->modelindex = MSG_ReadByte ();
+	{
+		if (bits & Q2UX_INDEX16)
+			to->modelindex = MSG_ReadShort();
+		else
+			to->modelindex = MSG_ReadByte ();
+	}
 	if (bits & Q2U_MODEL2)
-		to->modelindex2 = MSG_ReadByte ();
+	{
+		if (bits & Q2UX_INDEX16)
+			to->modelindex2 = MSG_ReadShort();
+		else
+			to->modelindex2 = MSG_ReadByte ();
+	}
 	if (bits & Q2U_MODEL3)
-		to->u.q2.modelindex3 = MSG_ReadByte ();
+	{
+		if (bits & Q2UX_INDEX16)
+			to->u.q2.modelindex3 = MSG_ReadShort();
+		else
+			to->u.q2.modelindex3 = MSG_ReadByte ();
+	}
 	if (bits & Q2U_MODEL4)
-		to->u.q2.modelindex4 = MSG_ReadByte ();
+	{
+		if (bits & Q2UX_INDEX16)
+			to->u.q2.modelindex4 = MSG_ReadShort();
+		else
+			to->u.q2.modelindex4 = MSG_ReadByte ();
+	}
 		
 	if (bits & Q2U_FRAME8)
 		to->frame = MSG_ReadByte ();
@@ -732,7 +791,12 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 		MSG_ReadPos (to->u.q2.old_origin);
 
 	if (bits & Q2U_SOUND)
-		to->u.q2.sound = MSG_ReadByte ();
+	{
+		if (bits & Q2UX_INDEX16)
+			to->u.q2.sound = MSG_ReadShort();
+		else
+			to->u.q2.sound = MSG_ReadByte ();
+	}
 
 	if (bits & Q2U_EVENT)
 		to->u.q2.event = MSG_ReadByte ();
@@ -741,7 +805,7 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 
 	if (bits & Q2U_SOLID)
 	{
-		if (net_message.prim.q2flags & NPQ2_SIZE32)
+		if (net_message.prim.q2flags & NPQ2_SOLID32)
 			to->solid = MSG_ReadLong();
 		else
 			to->solid = MSG_ReadShort ();
@@ -973,22 +1037,30 @@ void CLQ2_ParseBaseline (void)
 CL_ParsePlayerstate
 ===================
 */
-void CLQ2_ParsePlayerstate (q2frame_t *oldframe, q2frame_t *newframe, int extflags)
+void CLQ2_ParsePlayerstate (int seat, q2frame_t *oldframe, q2frame_t *newframe, int extflags)
 {
 	int			flags;
 	q2player_state_t	*state;
 	int			i;
 	int			statbits;
 
-	state = &newframe->playerstate;
+	state = &newframe->playerstate[seat];
 
 	// clear to old value before delta parsing
 	if (oldframe)
-		*state = oldframe->playerstate;
+	{
+		*state = oldframe->playerstate[seat];
+		newframe->clientnum[seat] = oldframe->clientnum[seat];
+	}
 	else
+	{
 		memset (state, 0, sizeof(*state));
+		newframe->clientnum[seat] = cl.playerview[seat].playernum;
+	}
 
-	flags = MSG_ReadShort ();
+	flags = (unsigned short)MSG_ReadShort ();
+	if (flags & Q2PS_EXTRABITS)
+		flags |= MSG_ReadByte()<<16;
 
 	//
 	// parse the pmove_state_t
@@ -1064,12 +1136,18 @@ void CLQ2_ParsePlayerstate (q2frame_t *oldframe, q2frame_t *newframe, int extfla
 
 	if (flags & Q2PS_WEAPONINDEX)
 	{
-		state->gunindex = MSG_ReadByte ();
+		if (flags & Q2PS_INDEX16)
+			state->gunindex = MSG_ReadShort ();
+		else
+			state->gunindex = MSG_ReadByte ();
 	}
 
 	if (flags & Q2PS_WEAPONFRAME)
 	{
-		state->gunframe = MSG_ReadByte ();
+		if (flags & Q2PS_INDEX16)
+			state->gunframe = MSG_ReadShort ();
+		else
+			state->gunframe = MSG_ReadByte ();
 		if (extflags & Q2PSX_OLD)
 		{
 			state->gunoffset[0] = MSG_ReadChar ()*0.25;
@@ -1119,8 +1197,8 @@ void CLQ2_ParsePlayerstate (q2frame_t *oldframe, q2frame_t *newframe, int extfla
 				state->stats[i] = MSG_ReadShort();
 	}
 
-	if (extflags & Q2PSX_CLIENTNUM)
-		/*state->viewent =*/ MSG_ReadByte();
+	if ((extflags & Q2PSX_CLIENTNUM) || (flags & Q2PS_CLIENTNUM))
+		newframe->clientnum[seat] = MSG_ReadByte();
 }
 
 
@@ -1213,7 +1291,7 @@ void CLQ2_ParseFrame (int extrabits)
 	{
 		cl.q2frame.valid = true;		// uncompressed frame
 		old = NULL;
-//		cls.demowaiting = false;	// we can start recording now
+		cls.demohadkeyframe = true;	//yay! all is right with the world!
 	}
 	else
 	{
@@ -1247,25 +1325,34 @@ void CLQ2_ParseFrame (int extrabits)
 	len = MSG_ReadByte ();
 	MSG_ReadData (&cl.q2frame.areabits, len);
 
-	// read playerinfo
+	// normally playerstate then packet entities
+	//in splitscreen we may have multiple player states, one per player.
 	if (cls.protocol_q2 != PROTOCOL_VERSION_R1Q2 && cls.protocol_q2 != PROTOCOL_VERSION_Q2PRO)
 	{
-		cmd = MSG_ReadByte ();
-	//	SHOWNET(svc_strings[cmd]);
-		if (cmd != svcq2_playerinfo)
-			Host_EndGame ("CL_ParseFrame: not playerinfo");
-	}
-	CLQ2_ParsePlayerstate (old, &cl.q2frame, extrabits);
-
-	// read packet entities
-	if (cls.protocol_q2 != PROTOCOL_VERSION_R1Q2 && cls.protocol_q2 != PROTOCOL_VERSION_Q2PRO)
-	{
-		cmd = MSG_ReadByte ();
-//	SHOWNET(svc_strings[cmd]);
+		cl.splitclients = 0;
+		for (cl.splitclients = 0; ; )
+		{
+			cmd = MSG_ReadByte ();
+//			SHOWNET(svc_strings[cmd]);
+			if (cmd == svcq2_playerinfo && cl.splitclients < MAX_SPLITS)
+				CLQ2_ParsePlayerstate (cl.splitclients++, old, &cl.q2frame, extrabits);
+			else
+				break;
+		}
+		if (!cl.splitclients)
+			Host_EndGame ("CL_ParseFrame: no playerinfo");
 		if (cmd != svcq2_packetentities)
 			Host_EndGame ("CL_ParseFrame: not packetentities");
 	}
+	else
+	{
+		cl.splitclients = 1;
+		CLQ2_ParsePlayerstate (0, old, &cl.q2frame, extrabits);
+	}
 	CLQ2_ParsePacketEntities (old, &cl.q2frame);
+
+	for (cmd = 0; cmd < MAX_SPLITS; cmd++)
+		cl.playerview[cmd].viewentity = cl.q2frame.clientnum[cmd]+1;
 
 	// save the frame off in the backup array for later delta comparisons
 	cl.q2frames[cl.q2frame.serverframe & Q2UPDATE_MASK] = cl.q2frame;
@@ -1279,10 +1366,10 @@ void CLQ2_ParseFrame (int extrabits)
 			CL_MakeActive("Quake2");
 
 //			cl.force_refdef = true;
-			cl.predicted_origin[0] = cl.q2frame.playerstate.pmove.origin[0]*0.125;
-			cl.predicted_origin[1] = cl.q2frame.playerstate.pmove.origin[1]*0.125;
-			cl.predicted_origin[2] = cl.q2frame.playerstate.pmove.origin[2]*0.125;
-			VectorCopy (cl.q2frame.playerstate.viewangles, cl.predicted_angles);
+//			cl.predicted_origin[0] = cl.q2frame.playerstate[0].pmove.origin[0]*0.125;
+//			cl.predicted_origin[1] = cl.q2frame.playerstate[0].pmove.origin[1]*0.125;
+//			cl.predicted_origin[2] = cl.q2frame.playerstate[0].pmove.origin[2]*0.125;
+//			VectorCopy (cl.q2frame.playerstate[0].viewangles, cl.predicted_angles);
 //			if (cls.disable_servercount != cl.servercount
 //				&& cl.refresh_prepped)
 				SCR_EndLoadingPlaque ();	// get rid of loading plaque
@@ -1357,13 +1444,45 @@ struct model_s *S_RegisterSexedModel (entity_state_t *ent, char *base)
 
 */
 
+//returns a list of all the ents currently trying to play a sound.
+unsigned int CLQ2_GatherSounds(vec3_t *positions, unsigned int *entnums, sfx_t **sounds, unsigned int max)
+{
+	entity_state_t		*s1;
+	sfx_t *sfx;
+	unsigned int pnum;
+	unsigned int count = 0;
+	q2frame_t *frame = &cl.q2frame;
+	for (pnum = 0 ; pnum<frame->num_entities ; pnum++)
+	{
+		s1 = &clq2_parse_entities[(frame->parse_entities+pnum)&(MAX_PARSE_ENTITIES-1)];
+		if (s1->u.q2.sound > 0 && s1->u.q2.sound < MAX_PRECACHE_SOUNDS)
+		{
+			sfx = cl.sound_precache[s1->u.q2.sound];
+			if (sfx)
+			{
+				if (count == max)
+				{
+					Con_DPrintf("Exceeded limit of %d looped sounds\n", max);
+					break;
+				}
+				//fixme: sexed sounds
+				entnums[count] = s1->number;
+				VectorCopy(s1->origin, positions[count]);
+				sounds[count] = sfx;
+				count++;
+			}
+		}
+	}
+	return count;
+}
+
 /*
 ===============
 CL_AddPacketEntities
 
 ===============
 */
-void CLQ2_AddPacketEntities (q2frame_t *frame)
+static void CLQ2_AddPacketEntities (q2frame_t *frame)
 {
 	entity_t			ent;
 	entity_state_t		*s1;
@@ -1971,12 +2090,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 CL_AddViewWeapon
 ==============
 */
-void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
+static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t *ops)
 {
 	entity_t	gun;		// view model
 	extern cvar_t cl_gunx, cl_guny, cl_gunz;
 	extern cvar_t cl_gunanglex, cl_gunangley, cl_gunanglez;
-	playerview_t *pv = &cl.playerview[0];
+	playerview_t *pv = &cl.playerview[seat];
+
+	pv->vm.oldmodel = NULL;
 
 	// allow the gun to be completely removed
 	if (!r_drawviewmodel.value)
@@ -1990,19 +2111,22 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 		return;
 
 	//generate root matrix..
-	VectorCopy(cl.playerview[0].simorg, pv->vw_origin);
-	AngleVectors(cl.playerview[0].simangles, pv->vw_axis[0], pv->vw_axis[1], pv->vw_axis[2]);
+	VectorCopy(pv->simorg, pv->vw_origin);
+	AngleVectors(pv->simangles, pv->vw_axis[0], pv->vw_axis[1], pv->vw_axis[2]);
 	VectorInverse(pv->vw_axis[1]);
 
 	memset (&gun, 0, sizeof(gun));
 
-//	if (gun_model)
-//		gun.model = gun_model;	// development tool
-//	else
-		gun.model = cl.model_precache[ps->gunindex];
-	if (!gun.model)
+	pv->vm.oldmodel = cl.model_precache[ps->gunindex];
+	if (!pv->vm.oldmodel)
 		return;
 
+	pv->vm.oldframe = ps->gunframe;
+	if (ps->gunindex != ops->gunindex)
+		pv->vm.prevframe = ps->gunframe;
+	else
+		pv->vm.prevframe = ops->gunframe;
+/*
 	gun.shaderRGBAf[0] = 1;
 	gun.shaderRGBAf[1] = 1;
 	gun.shaderRGBAf[2] = 1;
@@ -2037,6 +2161,7 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 	gun.framestate.g[FS_REG].lerpweight[1] = 1-cl.lerpfrac;
 	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
 	V_AddEntity (&gun);
+*/
 }
 
 
@@ -2047,7 +2172,7 @@ CL_CalcViewValues
 Sets r_refdef view values
 ===============
 */
-void CLQ2_CalcViewValues (void)
+void CLQ2_CalcViewValues (int seat)
 {
 	extern cvar_t v_gunkick_q2;
 	int			i;
@@ -2055,6 +2180,7 @@ void CLQ2_CalcViewValues (void)
 	q2frame_t		*oldframe;
 	q2player_state_t	*ps, *ops;
 	extern cvar_t gl_cshiftenabled;
+	playerview_t *pv = &cl.playerview[seat];
 
 	r_refdef.areabitsknown = true;
 	memcpy(r_refdef.areabits, cl.q2frame.areabits, sizeof(r_refdef.areabits));
@@ -2062,12 +2188,12 @@ void CLQ2_CalcViewValues (void)
 	r_refdef.useperspective = true;
 
 	// find the previous frame to interpolate from
-	ps = &cl.q2frame.playerstate;
+	ps = &cl.q2frame.playerstate[seat];
 	i = (cl.q2frame.serverframe - 1) & Q2UPDATE_MASK;
 	oldframe = &cl.q2frames[i];
 	if (oldframe->serverframe != cl.q2frame.serverframe-1 || !oldframe->valid)
 		oldframe = &cl.q2frame;		// previous frame was dropped or involid
-	ops = &oldframe->playerstate;
+	ops = &oldframe->playerstate[seat];
 
 	// see if the player entity was teleported this frame
 	if ( fabs(ops->pmove.origin[0] - ps->pmove.origin[0]) > 256*8
@@ -2078,49 +2204,47 @@ void CLQ2_CalcViewValues (void)
 	lerp = cl.lerpfrac;
 
 	// calculate the origin
-	if (cl.worldmodel && (!cl_nopred.value) && !(cl.q2frame.playerstate.pmove.pm_flags & Q2PMF_NO_PREDICTION) && !cls.demoplayback)
+	if (cl.worldmodel && (!cl_nopred.value) && !(cl.q2frame.playerstate[seat].pmove.pm_flags & Q2PMF_NO_PREDICTION) && !cls.demoplayback)
 	{	// use predicted values
 		float	delta;
 
 		backlerp = 1.0 - lerp;
 		for (i=0 ; i<3 ; i++)
 		{
-			r_refdef.vieworg[i] = cl.predicted_origin[i] + ops->viewoffset[i] 
+			pv->simorg[i] = pv->predicted_origin[i] + ops->viewoffset[i] 
 				+ cl.lerpfrac * (ps->viewoffset[i] - ops->viewoffset[i])
-				- backlerp * cl.prediction_error[i];
+				- backlerp * pv->prediction_error[i];
 		}
 
 		// smooth out stair climbing
-		delta = realtime - cl.predicted_step_time;
+		delta = realtime - pv->predicted_step_time;
 		if (delta < 0.1)
-			r_refdef.vieworg[2] -= cl.predicted_step * (0.1 - delta)*10;
+			pv->simorg[2] -= pv->predicted_step * (0.1 - delta)*10;
 	}
 	else
 	{	// just use interpolated values
 		for (i=0 ; i<3 ; i++)
-			r_refdef.vieworg
+			pv->simorg
 			[i] = ops->pmove.origin[i]*0.125 + ops->viewoffset[i] 
 				+ lerp * (ps->pmove.origin[i]*0.125 + ps->viewoffset[i] 
 				- (ops->pmove.origin[i]*0.125 + ops->viewoffset[i]) );
 	}
 
 	// if not running a demo or on a locked frame, add the local angle movement
-	if (cl.worldmodel && cl.q2frame.playerstate.pmove.pm_type < Q2PM_DEAD && !cls.demoplayback)
+	if (cl.worldmodel && ps->pmove.pm_type < Q2PM_DEAD && !cls.demoplayback)
 	{	// use predicted values
 		for (i=0 ; i<3 ; i++)
-			r_refdef.viewangles[i] = cl.predicted_angles[i];
+			pv->simangles[i] = pv->predicted_angles[i];
 	}
 	else
 	{	// just use interpolated values
 		for (i=0 ; i<3 ; i++)
-			r_refdef.viewangles[i] = LerpAngle (ops->viewangles[i], ps->viewangles[i], lerp);
+			pv->simangles[i] = LerpAngle (ops->viewangles[i], ps->viewangles[i], lerp);
 	}
 
 	for (i=0 ; i<3 ; i++)
-		r_refdef.viewangles[i] += v_gunkick_q2.value * LerpAngle (ops->kick_angles[i], ps->kick_angles[i], lerp);
+		pv->simangles[i] += v_gunkick_q2.value * LerpAngle (ops->kick_angles[i], ps->kick_angles[i], lerp);
 
-	VectorCopy(r_refdef.vieworg, cl.playerview[0].simorg);
-	VectorCopy(r_refdef.viewangles, cl.playerview[0].simangles);
 //	VectorCopy(r_refdef.viewangles, cl.viewangles);
 
 //	AngleVectors (r_refdef.viewangles, v_forward, v_right, v_up);
@@ -2128,13 +2252,17 @@ void CLQ2_CalcViewValues (void)
 	// interpolate field of view
 	r_refdef.fov_x = ops->fov + lerp * (ps->fov - ops->fov);
 
+	//do interpolate blend alpha, but only if the rgb didn't change
 	// don't interpolate blend color
 	for (i=0 ; i<3 ; i++)
-		sw_blend[i] = ps->blend[i];
-	sw_blend[3] = ps->blend[3]*gl_cshiftenabled.value;
+		pv->screentint[i] = ps->blend[i];
+	if (ps->blend[0] == ops->blend[0] && ps->blend[1] == ops->blend[1] && ps->blend[2] == ops->blend[2] && (!ps->blend[3]) == (!ops->blend[3]))
+		pv->screentint[3] = (ops->blend[3] + lerp * (ps->blend[3]-ops->blend[3]))*gl_cshiftenabled.value;
+	else
+		pv->screentint[3] = ps->blend[3]*gl_cshiftenabled.value;
 
 	// add the weapon
-	CLQ2_AddViewWeapon (ps, ops);
+	CLQ2_AddViewWeapon (seat, ps, ops);
 }
 
 /*
@@ -2147,6 +2275,7 @@ Emits all entities, particles, and lights to the refresh
 void CLQ2_AddEntities (void)
 {
 	extern cvar_t chase_active, chase_back, chase_up;
+	int seat;
 	if (cls.state != ca_active)
 		return;
 
@@ -2171,7 +2300,8 @@ void CLQ2_AddEntities (void)
 	else
 		cl.lerpfrac = 1.0 - (cl.q2frame.servertime - cl.time*1000) * 0.01;
 */
-	CLQ2_CalcViewValues ();
+	for (seat = 0; seat < cl.splitclients; seat++)
+		CLQ2_CalcViewValues (seat);
 	CLQ2_AddPacketEntities (&cl.q2frame);
 #if 0
 	CLQ2_AddProjectiles ();

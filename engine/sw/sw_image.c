@@ -103,11 +103,11 @@ qboolean	SW_LoadTextureMips		(texid_t tex, struct pendingtextureinfo *mips)
 				imgdata[i+3] = 255;
 	}
 
-	for (i = 0; i < mips->mipcount; i++)
-		if (mips->mip[i].needfree)
-			Z_Free(mips->mip[i].data);
-	if (mips->extrafree)
-		Z_Free(mips->extrafree);
+//	for (i = 0; i < mips->mipcount; i++)
+//		if (mips->mip[i].needfree)
+//			Z_Free(mips->mip[i].data);
+//	if (mips->extrafree)
+//		Z_Free(mips->extrafree);
 
 	return true;
 }

@@ -417,7 +417,7 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, fl
 			impact = trace.ent;
 		}
 
-		if (trace.startsolid)
+		if (trace.allsolid)//should be (trace.startsolid), but that breaks compat. *sigh*
 		{	// entity is trapped in another solid
 			VectorClear (ent->v->velocity);
 			return 3;

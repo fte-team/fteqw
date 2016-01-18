@@ -416,6 +416,7 @@ bindnames_t q2bindnames[] =
 {
 {"+attack", 		"attack        "},
 {"cmd weapnext", 	"next weapon   "},
+{"cmd weapprev", 	"prev weapon   "},
 {"+forward", 		"walk forward  "},
 {"+back", 			"backpedal     "},
 {"+left", 			"turn left     "},
@@ -506,6 +507,7 @@ void M_Menu_Keys_f (void)
 	int y;
 	menu_t *menu;
 	vfsfile_t *bindslist;
+	extern cvar_t cl_splitscreen;
 
 	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;
@@ -534,7 +536,7 @@ void M_Menu_Keys_f (void)
 		break;
 	}
 
-	if (cl_forceseat.ival)
+	if (cl.splitclients || cl_splitscreen.ival || cl_forceseat.ival)
 	{
 		static char *texts[MAX_SPLITS+2] =
 		{

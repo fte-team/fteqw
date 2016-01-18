@@ -2274,7 +2274,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				case OP_MUL_FI:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
 					optres_constantarithmatic++;
-					return QCC_MakeIntConst(eval_a->_float * eval_b->_int);
+					return QCC_MakeFloatConst(eval_a->_float * eval_b->_int);
 				case OP_DIV_I:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
 					optres_constantarithmatic++;
@@ -12547,8 +12547,8 @@ void QCC_PR_ParseEnum(pbool flags)
 	const char *name;
 	QCC_sref_t		sref;
 	pbool wantint = false;
-	int iv = 0;
-	float fv = 0;
+	int iv = flags?1:0;
+	float fv = iv;
 
 	if (QCC_PR_CheckKeyword(keyword_integer, "integer") || QCC_PR_CheckKeyword(keyword_int, "int"))
 		wantint = true;
@@ -12657,7 +12657,7 @@ void QCC_PR_ParseDefs (char *classname)
 	pbool isconstant = false;
 	pbool isvar = false;
 	pbool noref = defaultnoref;
-	pbool nosave = false;
+	pbool nosave = defaultnosave;
 	pbool allocatenew = true;
 	pbool inlinefunction = false;
 	pbool allowinline = false;
@@ -13273,7 +13273,7 @@ void QCC_PR_ParseDefs (char *classname)
 		else
 		{
 			if (type->type == ev_function)
-				isconstant = !isvar;
+				isconstant |= !isvar && !pr_scope;
 
 			if (dostrip)
 			{

@@ -1699,7 +1699,7 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 	vec3_t axis[3];
 	float transform[12], parent[12], result[12], old[12], temp[12];
 
-	int model;
+	model_t *model;
 	framestate_t fstate;
 
 	if (parenttagent >= cl.maxlerpents)
@@ -1707,6 +1707,20 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 		Con_Printf("tag entity out of range!\n");
 		return;
 	}
+
+	//old is the entity's relative transform (relative to the parent entity's tag)
+	old[0] = ent->axis[0][0];
+	old[1] = ent->axis[1][0];
+	old[2] = ent->axis[2][0];
+	old[3] = ent->origin[0];
+	old[4] = ent->axis[0][1];
+	old[5] = ent->axis[1][1];
+	old[6] = ent->axis[2][1];
+	old[7] = ent->origin[1];
+	old[8] = ent->axis[0][2];
+	old[9] = ent->axis[1][2];
+	old[10] = ent->axis[2][2];
+	old[11] = ent->origin[2];
 
 	memset(&fstate, 0, sizeof(fstate));
 
@@ -1716,12 +1730,44 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 	ps = CL_FindPacketEntity(parenttagent);
 	if (ps)
 	{
-		if (ps->tagentity)
-			CL_RotateAroundTag(ent, entnum, ps->tagentity, ps->tagindex);
+		if (parenttagent >= cl.maxlerpents)
+		{
+			org = ps->origin;
+			ang = ps->angles;
+		}
+		else
+		{
+			lerpents_t *le = &cl.lerpents[parenttagent];
+			org = le->origin;
+			ang = le->angles;
+		}
 
-		org = ps->origin;
-		ang = ps->angles;
-		model = ps->modelindex;
+		if (ps->modelindex <= countof(cl.model_precache) && cl.model_precache[ps->modelindex] && cl.model_precache[ps->modelindex]->loadstate == MLS_LOADED)
+			model = cl.model_precache[ps->modelindex];
+		else
+			model = NULL;
+		if (model && model->type == mod_alias)
+		{
+			ang[0]*=-1;
+			AngleVectors(ang, axis[0], axis[1], axis[2]);
+			ang[0]*=-1;
+		}
+		else
+			AngleVectors(ang, axis[0], axis[1], axis[2]);
+		VectorInverse(axis[1]);
+
+		parent[0] = axis[0][0];
+		parent[1] = axis[1][0];
+		parent[2] = axis[2][0];
+		parent[3] = org[0];
+		parent[4] = axis[0][1];
+		parent[5] = axis[1][1];
+		parent[6] = axis[2][1];
+		parent[7] = org[1];
+		parent[8] = axis[0][2];
+		parent[9] = axis[1][2];
+		parent[10] = axis[2][2];
+		parent[11] = org[2];
 
 		CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpents[parenttagent]);
 
@@ -1755,7 +1801,7 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 				org = cl.inframes[parsecountmod].playerstate[parenttagent-1].origin;
 				ang = cl.inframes[parsecountmod].playerstate[parenttagent-1].viewangles;
 			}
-			model = cl.inframes[parsecountmod].playerstate[parenttagent-1].modelindex;
+			model = cl.model_precache[cl.inframes[parsecountmod].playerstate[parenttagent-1].modelindex];
 
 			CL_LerpNetFrameState(FS_REG, &fstate, &cl.lerpplayers[parenttagent-1]);
 		}
@@ -1766,47 +1812,17 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 		}
 	}
 
-	if (ang)
 	{
-		ang[0]*=-1;
-		AngleVectors(ang, axis[0], axis[1], axis[2]);
-		ang[0]*=-1;
-		VectorInverse(axis[1]);
-
 //		fstate.g[FS_REG].lerpfrac = CL_EntLerpFactor(tagent);
 //		fstate.g[FS_REG].frametime[0] = cl.time - cl.lerpents[tagent].framechange;
 //		fstate.g[FS_REG].frametime[1] = cl.time - cl.lerpents[tagent].oldframechange;
 
-		if (Mod_GetTag(cl.model_precache[model], parenttagnum, &fstate, transform))
+		if (Mod_GetTag(model, parenttagnum, &fstate, transform))
 		{
-			old[0] = ent->axis[0][0];
-			old[1] = ent->axis[1][0];
-			old[2] = ent->axis[2][0];
-			old[3] = ent->origin[0];
-			old[4] = ent->axis[0][1];
-			old[5] = ent->axis[1][1];
-			old[6] = ent->axis[2][1];
-			old[7] = ent->origin[1];
-			old[8] = ent->axis[0][2];
-			old[9] = ent->axis[1][2];
-			old[10] = ent->axis[2][2];
-			old[11] = ent->origin[2];
+//			parent -> transform -> old
 
-			parent[0] = axis[0][0];
-			parent[1] = axis[1][0];
-			parent[2] = axis[2][0];
-			parent[3] = org[0];
-			parent[4] = axis[0][1];
-			parent[5] = axis[1][1];
-			parent[6] = axis[2][1];
-			parent[7] = org[1];
-			parent[8] = axis[0][2];
-			parent[9] = axis[1][2];
-			parent[10] = axis[2][2];
-			parent[11] = org[2];
-
-			R_ConcatTransforms((void*)old, (void*)parent, (void*)temp);
-			R_ConcatTransforms((void*)temp, (void*)transform, (void*)result);
+			R_ConcatTransforms((void*)parent, (void*)transform, (void*)temp);
+			R_ConcatTransforms((void*)temp, (void*)old, (void*)result);
 
 			ent->axis[0][0] = result[0];
 			ent->axis[1][0] = result[1];
@@ -1823,32 +1839,6 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 		}
 		else	//hrm.
 		{
-			old[0] = ent->axis[0][0];
-			old[1] = ent->axis[1][0];
-			old[2] = ent->axis[2][0];
-			old[3] = ent->origin[0];
-			old[4] = ent->axis[0][1];
-			old[5] = ent->axis[1][1];
-			old[6] = ent->axis[2][1];
-			old[7] = ent->origin[1];
-			old[8] = ent->axis[0][2];
-			old[9] = ent->axis[1][2];
-			old[10] = ent->axis[2][2];
-			old[11] = ent->origin[2];
-
-			parent[0] = axis[0][0];
-			parent[1] = axis[1][0];
-			parent[2] = axis[2][0];
-			parent[3] = org[0];
-			parent[4] = axis[0][1];
-			parent[5] = axis[1][1];
-			parent[6] = axis[2][1];
-			parent[7] = org[1];
-			parent[8] = axis[0][2];
-			parent[9] = axis[1][2];
-			parent[10] = axis[2][2];
-			parent[11] = org[2];
-
 			R_ConcatTransforms((void*)parent, (void*)old, (void*)result);
 
 			ent->axis[0][0] = result[0];
@@ -1865,6 +1855,9 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 			ent->origin[2] = result[11];
 		}
 	}
+
+	if (ps && ps->tagentity)
+		CL_RotateAroundTag(ent, entnum, ps->tagentity, ps->tagindex);
 }
 
 void V_AddAxisEntity(entity_t *in)
@@ -3652,7 +3645,7 @@ void CL_LinkPacketEntities (void)
 			ent->flags |= RF_ADDITIVE;
 		if (state->effects & EF_NODEPTHTEST)
 			ent->flags |= RF_NODEPTHTEST;
-		if (state->effects & DPEF_NOSHADOW)
+		if (state->effects & EF_NOSHADOW)
 			ent->flags |= RF_NOSHADOW;
 		if (state->trans != 0xff)
 			ent->flags |= RF_TRANSLUCENT;
@@ -4840,7 +4833,22 @@ void CL_LinkViewModel(void)
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
+	{
+		V_ClearEntity(&ent);
+		ent.model = pv->vm.oldmodel;
+
+		ent.framestate.g[FS_REG].frame[0] = pv->vm.prevframe;
+		ent.framestate.g[FS_REG].frame[1] = pv->vm.oldframe;
+		ent.framestate.g[FS_REG].frametime[0] = pv->vm.lerptime;
+		ent.framestate.g[FS_REG].frametime[1] = pv->vm.oldlerptime;
+		ent.framestate.g[FS_REG].lerpweight[0] = 1 - cl.lerpfrac;
+		ent.framestate.g[FS_REG].lerpweight[1] = cl.lerpfrac;
+
+		ent.flags |= RF_WEAPONMODEL|RF_DEPTHHACK|RF_NOSHADOW;
+
+		V_AddEntity (&ent);
 		return;
+	}
 #endif
 
 	if (!r_drawentities.ival)
@@ -4863,7 +4871,7 @@ void CL_LinkViewModel(void)
 	else
 		alpha = 1;
 
-	if ((r_refdef.playerview->stats[STAT_ITEMS] & IT_INVISIBILITY)
+	if ((pv->stats[STAT_ITEMS] & IT_INVISIBILITY)
 		&& r_drawviewmodelinvis.value > 0
 		&& r_drawviewmodelinvis.value < 1)
 		alpha *= r_drawviewmodelinvis.value;

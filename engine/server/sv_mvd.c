@@ -1990,14 +1990,14 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 			if (!sv.strings.lightstyles[i])
 				continue;
 #ifdef PEXT_LIGHTSTYLECOL
-		if ((demo.recorder.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (sv.strings.lightstylecolours[i][0]!=1||sv.strings.lightstylecolours[i][1]!=1||sv.strings.lightstylecolours[i][2]!=1) && sv.strings.lightstyles[i])
+		if ((demo.recorder.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && (sv.lightstylecolours[i][0]!=1||sv.lightstylecolours[i][1]!=1||sv.lightstylecolours[i][2]!=1) && sv.strings.lightstyles[i])
 		{
 			MSG_WriteByte (&buf, svcfte_lightstylecol);
 			MSG_WriteByte (&buf, (unsigned char)i);
 			MSG_WriteByte (&buf, 0x87);
-			MSG_WriteShort(&buf, sv.strings.lightstylecolours[i][0]*1024);
-			MSG_WriteShort(&buf, sv.strings.lightstylecolours[i][1]*1024);
-			MSG_WriteShort(&buf, sv.strings.lightstylecolours[i][2]*1024);
+			MSG_WriteShort(&buf, sv.lightstylecolours[i][0]*1024);
+			MSG_WriteShort(&buf, sv.lightstylecolours[i][1]*1024);
+			MSG_WriteShort(&buf, sv.lightstylecolours[i][2]*1024);
 			MSG_WriteString (&buf, sv.strings.lightstyles[i]);
 		}
 		else

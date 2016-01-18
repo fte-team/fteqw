@@ -340,10 +340,10 @@ void GUI_LoadConfig(void)
 			QC_strlcpy(enginebasedir, GUI_ParseInPlace(&str), sizeof(enginebasedir));
 		else if (!stricmp(token, "engineargs"))
 			QC_strlcpy(enginecommandline, GUI_ParseInPlace(&str), sizeof(enginecommandline));
-		else if (!stricmp(token, "srcfile"))
-			QC_strlcpy(progssrcname, GUI_ParseInPlace(&str), sizeof(progssrcname));
-		else if (!stricmp(token, "src"))
-			QC_strlcpy(progssrcdir, GUI_ParseInPlace(&str), sizeof(progssrcdir));
+//		else if (!stricmp(token, "srcfile"))
+//			QC_strlcpy(progssrcname, GUI_ParseInPlace(&str), sizeof(progssrcname));
+//		else if (!stricmp(token, "src"))
+//			QC_strlcpy(progssrcdir, GUI_ParseInPlace(&str), sizeof(progssrcdir));
 		else if (!stricmp(token, "parameters"))
 			QC_strlcpy(parameters, GUI_ParseInPlace(&str), sizeof(parameters));
 

@@ -84,6 +84,13 @@ static qboolean Media_Changed (unsigned int mediatype)
 	return true;
 }
 
+void Media_WriteCurrentTrack(sizebuf_t *buf)
+{
+	//fixme: for demo playback
+	MSG_WriteByte (buf, svc_cdtrack);
+	MSG_WriteByte (buf, 0);
+}
+
 //fake cd tracks.
 qboolean Media_NamedTrack(const char *track, const char *looptrack)
 {
@@ -4628,7 +4635,7 @@ double Media_TweekCaptureFrameTime(double oldtime, double time) { return oldtime
 void Media_RecordFrame (void) {}
 void Media_CaptureDemoEnd(void) {}
 void Media_RecordDemo_f(void) {}
-void Media_RecordAudioFrame (short *sample_buffer, int samples) {}
+//void Media_RecordAudioFrame (short *sample_buffer, int samples) {}
 void Media_StopRecordFilm_f (void) {}
 void Media_RecordFilm_f (void){}
 void M_Menu_Media_f (void) {}

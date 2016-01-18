@@ -52,13 +52,11 @@ usercmd_t independantphysics[MAX_SPLITS];
 vec3_t mousemovements[MAX_SPLITS];
 
 /*kinda a hack...*/
-static int		con_splitmodifier;
+int		con_splitmodifier;
 cvar_t	cl_forceseat = CVARAD("in_forceseat", "0", "in_forcesplitclient", "Overrides the device identifiers to control a specific client from any device. This can be used for debugging mods, where you only have one keyboard/mouse.");
 extern cvar_t cl_splitscreen;
 int CL_TargettedSplit(qboolean nowrap)
 {
-	char *c;
-	int pnum;
 	int mod;
 
 	//explicitly targetted at some seat number from the server
@@ -376,6 +374,8 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all)
 				VFS_PRINTF(f, "-p%i %s\n", s+1, buttons[b].name);
 		}
 	}
+
+	//FIXME: save device remappings to config.
 }
 
 //is this useful?
@@ -465,6 +465,8 @@ void IN_Restart (void)
 {
 	IN_Shutdown();
 	IN_ReInit();
+
+	//FIXME: re-assert explicit device re-mappings
 }
 
 /*
@@ -855,7 +857,7 @@ void CL_ClampPitch (int pnum)
 	if (cls.protocol == CP_QUAKE2)
 	{
 		float	pitch;
-		pitch = SHORT2ANGLE(cl.q2frame.playerstate.pmove.delta_angles[PITCH]);
+		pitch = SHORT2ANGLE(cl.q2frame.playerstate[pnum].pmove.delta_angles[PITCH]);
 		if (pitch > 180)
 			pitch -= 360;
 
@@ -1387,6 +1389,41 @@ static void QDECL CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue)
 	}
 }
 
+void CL_UpdateSeats(void)
+{
+	if (!cls.netchan.message.cursize && cl.allocated_client_slots > 1 && cls.state == ca_active && cl.splitclients && (cls.fteprotocolextensions & PEXT_SPLITSCREEN) && cl.worldmodel)
+	{
+		int targ = cl_splitscreen.ival+1;
+		if (targ > MAX_SPLITS)
+			targ = MAX_SPLITS;
+		if (cl.splitclients < targ)
+		{
+			char buffer[2048];
+			char newinfo[2048];
+			Q_strncpyz(newinfo, cls.userinfo[cl.splitclients], sizeof(newinfo));
+
+			//some userinfos should always have a value
+			if (!*Info_ValueForKey(newinfo, "name"))	//$name-2
+				Info_SetValueForKey(newinfo, "name", va("%s-%i\n", Info_ValueForKey(cls.userinfo[0], "name"), cl.splitclients+1), sizeof(newinfo));
+			if (cls.protocol != CP_QUAKE2)
+			{
+				if (!*Info_ValueForKey(newinfo, "team"))	//put players on the same team by default. this avoids team damage in coop, and if you're playing on the same computer then you probably want to be on the same team anyway.
+					Info_SetValueForKey(newinfo, "team", Info_ValueForKey(cls.userinfo[0], "team"), sizeof(newinfo));
+				if (!*Info_ValueForKey(newinfo, "bottomcolor"))	//bottom colour implies team in nq
+					Info_SetValueForKey(newinfo, "bottomcolor", Info_ValueForKey(cls.userinfo[0], "bottomcolor"), sizeof(newinfo));
+				if (!*Info_ValueForKey(newinfo, "topcolor"))	//should probably pick a random top colour or something
+					Info_SetValueForKey(newinfo, "topcolor", Info_ValueForKey(cls.userinfo[0], "topcolor"), sizeof(newinfo));
+			}
+			if (!*Info_ValueForKey(newinfo, "skin"))	//give players the same skin by default, because we can. q2 cares for teams. qw might as well (its not like anyone actually uses them thanks to enemy-skin forcing).
+				Info_SetValueForKey(newinfo, "skin", Info_ValueForKey(cls.userinfo[0], "skin"), sizeof(newinfo));
+
+			CL_SendClientCommand(true, "addseat %i %s", cl.splitclients, COM_QuotedString(newinfo, buffer, sizeof(buffer), false));
+		}
+		else if (cl.splitclients > targ)
+			CL_SendClientCommand(true, "addseat %i", targ);
+	}
+}
+
 
 /*
 =================
@@ -1428,76 +1465,91 @@ qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
 qboolean CLQ2_SendCmd (sizebuf_t *buf)
 {
 	int seq_hash;
-	qboolean dontdrop;
+	qboolean dontdrop = false;
 	usercmd_t *cmd;
 	int checksumIndex, i;
 	int lightlev;
+	int seat;
 
 	cl.movesequence = cls.netchan.outgoing_sequence;	//make sure its correct even over map changes.
 	seq_hash = cl.movesequence;
 
-// send this and the previous cmds in the message, so
-// if the last packet was dropped, it can be recovered
-	i = cl.movesequence & UPDATE_MASK;
-	cmd = &cl.outframes[i].cmd[0];
-
-	//q2admin is retarded and kicks you if you get a stall.
-	if (cmd->msec > 100)
-		cmd->msec = 100;
-
-	if (cls.resendinfo)
+	for (seat = 0; seat < cl.splitclients; seat++)
 	{
-		MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
-		MSG_WriteString (&cls.netchan.message, cls.userinfo[0]);
+		// send this and the previous cmds in the message, so
+		// if the last packet was dropped, it can be recovered
+		i = cl.movesequence & UPDATE_MASK;
+		cmd = &cl.outframes[i].cmd[seat];
 
-		cls.resendinfo = false;
-	}
+		//q2admin is retarded and kicks you if you get a stall.
+		if (cmd->msec > 100)
+			cmd->msec = 100;
 
-	MSG_WriteByte (buf, clcq2_move);
+		if (cls.resendinfo)
+		{
+			MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
+			MSG_WriteString (&cls.netchan.message, cls.userinfo[seat]);
+			cls.resendinfo = false;
+		}
 
-	// save the position for a checksum qbyte
-	if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
-		checksumIndex = -1;
-	else
-	{
-		checksumIndex = buf->cursize;
-		MSG_WriteByte (buf, 0);
-	}
+		MSG_WriteByte (buf, clcq2_move);
 
-	if (!cl.q2frame.valid || cl_nodelta.ival)
-		MSG_WriteLong (buf, -1);	// no compression
-	else
-		MSG_WriteLong (buf, cl.q2frame.serverframe);
+		if (seat)
+		{
+			//multi-seat still has an extra clc_move per seat
+			//but no checksum (pointless when its opensource anyway)
+			//no sequence (only seat 0 reports that)
+			checksumIndex = -1;
+		}
+		else
+		{
+			// save the position for a checksum qbyte
+			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+				checksumIndex = -1;
+			else
+			{
+				checksumIndex = buf->cursize;
+				MSG_WriteByte (buf, 0);
+			}
 
-	lightlev = R_LightPoint(cl.playerview[0].simorg);
+			if (!cl.q2frame.valid || cl_nodelta.ival || (cls.demorecording && !cls.demohadkeyframe))
+				MSG_WriteLong (buf, -1);	// no compression
+			else
+				MSG_WriteLong (buf, cl.q2frame.serverframe);
+		}
 
-//	msecs = msecs - (double)msecstouse;
+		lightlev = R_LightPoint(cl.playerview[seat].simorg);
 
-	i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-	cmd = &cl.outframes[i].cmd[0];
-	*cmd = independantphysics[0];
-	
-	cmd->lightlevel = (lightlev>255)?255:lightlev;
+	//	msecs = msecs - (double)msecstouse;
 
-	cl.outframes[i].senttime = realtime;
-	cl.outframes[i].latency = -1;
-	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
+		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
+		cmd = &cl.outframes[i].cmd[seat];
+		*cmd = independantphysics[seat];
+		
+		cmd->lightlevel = (lightlev>255)?255:lightlev;
 
-	if (cmd->buttons)
-		cmd->buttons |= 128;	//fixme: this isn't really what's meant by the anykey.
+		cl.outframes[i].senttime = realtime;
+		cl.outframes[i].latency = -1;
+		memset(&independantphysics[seat], 0, sizeof(independantphysics[0]));
 
-// calculate a checksum over the move commands
-	dontdrop = CL_WriteDeltas(0, buf);
+		if (cmd->buttons)
+			cmd->buttons |= 128;	//fixme: this isn't really what's meant by the anykey.
 
-	if (checksumIndex >= 0)
-	{
-		buf->data[checksumIndex] = Q2COM_BlockSequenceCRCByte(
-			buf->data + checksumIndex + 1, buf->cursize - checksumIndex - 1,
-			seq_hash);
+	// calculate a checksum over the move commands
+		dontdrop |= CL_WriteDeltas(seat, buf);
+
+		if (checksumIndex >= 0)
+		{
+			buf->data[checksumIndex] = Q2COM_BlockSequenceCRCByte(
+				buf->data + checksumIndex + 1, buf->cursize - checksumIndex - 1,
+				seq_hash);
+		}
 	}
 
 	if (cl.sendprespawn || !cls.protocol_q2)
 		buf->cursize = 0;	//tastyspleen.net is alergic.
+	else
+		CL_UpdateSeats();
 
 	return dontdrop;
 }
@@ -1608,22 +1660,7 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 	if (cl.sendprespawn || !actuallysend)
 		buf->cursize = st;	//don't send movement commands while we're still supposedly downloading. mvdsv does not like that.
 	else
-	{
-		//FIXME: user a timer.
-		if (!cls.netchan.message.cursize && cl.allocated_client_slots > 1 && cl.splitclients && (cls.fteprotocolextensions & PEXT_SPLITSCREEN))
-		{
-			int targ = cl_splitscreen.ival+1;
-			if (targ > MAX_SPLITS)
-				targ = MAX_SPLITS;
-			if (cl.splitclients < targ)
-			{
-				char buffer[2048];
-				CL_SendClientCommand(true, "addseat %i %s", cl.splitclients, COM_QuotedString(cls.userinfo[cl.splitclients], buffer, sizeof(buffer), false));
-			}
-			else if (cl.splitclients > targ)
-				CL_SendClientCommand(true, "addseat %i", targ);
-		}
-	}
+		CL_UpdateSeats();
 
 	return dontdrop;
 }

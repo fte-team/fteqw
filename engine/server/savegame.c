@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#include "pr_common.h"
 
 #ifndef CLIENTONLY
 
@@ -94,6 +95,7 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 	char *file;
 
 	char *modelnames[MAX_PRECACHE_MODELS];
+	char *soundnames[MAX_PRECACHE_SOUNDS];
 
 	if (version != 667 && version != 5 && version != 6)	//5 for NQ, 6 for ZQ/FQ
 	{
@@ -265,6 +267,15 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		}
 		modelnames[i] = Z_StrDup(sv.strings.model_precache[i]);
 	}
+	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
+	{
+		if (!sv.strings.sound_precache[i])
+		{
+			soundnames[i] = NULL;
+			break;
+		}
+		soundnames[i] = Z_StrDup(sv.strings.sound_precache[i]);
+	}
 
 // load the edicts out of the savegame file
 // the rest of the file is sent directly to the progs engine.
@@ -288,6 +299,14 @@ void SV_Loadgame_Legacy(char *filename, vfsfile_t *f, int version)
 		if (!modelnames[i])
 			break;
 		sv.strings.model_precache[i] = PR_AddString(svprogfuncs, modelnames[i], 0, false);
+		Z_Free(modelnames[i]);
+	}
+	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
+	{
+		if (!soundnames[i])
+			break;
+		sv.strings.sound_precache[i] = PR_AddString(svprogfuncs, soundnames[i], 0, false);
+		Z_Free(soundnames[i]);
 	}
 
 	filepos = VFS_TELL(f);
@@ -521,14 +540,14 @@ void LoadModelsAndSounds(vfsfile_t *f)
 	for (; i < MAX_PRECACHE_MODELS; i++)
 		sv.strings.model_precache[i] = NULL;
 
-//	sv.sound_precache[0] = PR_AddString(svprogfuncs, "", 0);
+	sv.strings.sound_precache[0] = PR_AddString(svprogfuncs, "", 0, false);
 	for (i=1; i < MAX_PRECACHE_SOUNDS; i++)
 	{
 		VFS_GETS(f, str, sizeof(str));
 		if (!*str)
 			break;
 
-//		sv.sound_precache[i] = PR_AddString(svprogfuncs, str, 0);
+		sv.strings.sound_precache[i] = PR_AddString(svprogfuncs, str, 0, false);
 	}
 	if (i == MAX_PRECACHE_SOUNDS)
 	{
@@ -537,11 +556,11 @@ void LoadModelsAndSounds(vfsfile_t *f)
 			SV_Error("Too many sound precaches in loadgame cache");
 	}
 	for (; i < MAX_PRECACHE_SOUNDS; i++)
-		*sv.strings.sound_precache[i] = 0;
+		sv.strings.sound_precache[i] = NULL;
 }
 
 /*ignoreplayers - says to not tell gamecode (a loadgame rather than a level change)*/
-qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolean isloadgame)
+qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *startspot, qboolean isloadgame)
 {
 	eval_t *eval, *e2;
 
@@ -847,7 +866,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	return true;	//yay
 }
 
-void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
+void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 {
 	size_t len;
 	char *s;
@@ -887,10 +906,9 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	}
 
 	if (savedir)
-		Q_snprintfz (name, sizeof(name), "saves/%s/%s", savedir, svs.name);
+		Q_snprintfz (name, sizeof(name), "saves/%s/%s.lvc", savedir, svs.name);
 	else
-		Q_snprintfz (name, sizeof(name), "saves/%s", svs.name);
-	COM_DefaultExtension (name, ".lvc", sizeof(name));
+		Q_snprintfz (name, sizeof(name), "saves/%s.lvc", svs.name);
 
 	FS_CreatePath(name, FS_GAMEONLY);
 
@@ -985,15 +1003,15 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 
 		for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 			if (sv.strings.lightstyles[i])
-				VFS_PRINTF (f, "lstyle %i %s %f %f %f\n", i, COM_QuotedString(sv.strings.lightstyles[i], buf, sizeof(buf), false), sv.strings.lightstylecolours[i][0], sv.strings.lightstylecolours[i][1], sv.strings.lightstylecolours[i][2]);
+				VFS_PRINTF (f, "lstyle %i %s %f %f %f\n", i, COM_QuotedString(sv.strings.lightstyles[i], buf, sizeof(buf), false), sv.lightstylecolours[i][0], sv.lightstylecolours[i][1], sv.lightstylecolours[i][2]);
 		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 			if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
 				VFS_PRINTF (f, "model %i %s\n", i, COM_QuotedString(sv.strings.model_precache[i], buf, sizeof(buf), false));
 		for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
-			if (*sv.strings.sound_precache[i])
+			if (sv.strings.sound_precache[i] && *sv.strings.sound_precache[i])
 				VFS_PRINTF (f, "sound %i %s\n", i, COM_QuotedString(sv.strings.sound_precache[i], buf, sizeof(buf), false));
 		for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
-			if (*sv.strings.particle_precache[i])
+			if (sv.strings.particle_precache[i] && *sv.strings.particle_precache[i])
 				VFS_PRINTF (f, "particles %i %s\n", i, sv.strings.particle_precache[i]);
 		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
 			VFS_PRINTF (f, "vwep %i %s\n", i, COM_QuotedString(sv.strings.vw_model_precache[i], buf, sizeof(buf), false));
@@ -1038,7 +1056,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		VFS_PRINTF (f,"\n");
 		for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
 		{
-			if (*sv.strings.sound_precache[i])
+			if (sv.strings.sound_precache[i] && *sv.strings.sound_precache[i])
 				VFS_PRINTF (f, "%s\n", sv.strings.sound_precache[i]);
 			else
 				break;
@@ -1063,7 +1081,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 
 #define FTESAVEGAME_VERSION 25000
 
-void SV_Savegame (char *savename)
+void SV_Savegame (const char *savename, qboolean mapchange)
 {
 	extern cvar_t	nomonsters;
 	extern cvar_t	gamecfg;
@@ -1091,9 +1109,14 @@ void SV_Savegame (char *savename)
 	char str[MAX_LOCALINFO_STRING+1];
 	char *savefilename;
 
-	if (!sv.state)
+	if (!sv.state || sv.state == ss_clustermode)
 	{
 		Con_Printf("Server is not active - unable to save\n");
+		return;
+	}
+	if (sv.state == ss_cinematic)
+	{
+		Con_Printf("Server is playing a cinematic - unable to save\n");
 		return;
 	}
 
@@ -1109,7 +1132,7 @@ void SV_Savegame (char *savename)
 
 	/*catch invalid names*/
 	if (!*savename || strstr(savename, ".."))
-		savename = "quicksav";
+		savename = "quick";
 
 	savefilename = va("saves/%s/info.fsv", savename);
 	FS_CreatePath(savefilename, FS_GAMEONLY);
@@ -1126,6 +1149,12 @@ void SV_Savegame (char *savename)
 	VFS_PRINTF(f, "%i\n", sv.allocated_client_slots);
 	for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)
 	{
+		//FIXME: the qc is only told about the new client when the client finally sends a begin.
+		//		 this means that if we save a client that is still connecting, the loading code HAS to assume that the qc already knows about the player.
+		//		 this means that such players would not be loaded properly anyway, and would bug out the server.
+		//		 so its best to not bother saving them at all. pro-top: don't save shortly after a map change in coop/sp.
+		//istobeloaded means that the qc has already been told about the client from a previous saved game, regardless of the fact that they're still technically connecting (this may even be a zombie with no actual client connection).
+		//note that autosave implies that we're saving on a map boundary. this is for q2 gamecode. q1 can't cope.
 		if (cl->state < cs_spawned && !cl->istobeloaded)	//don't save if they are still connecting
 		{
 			VFS_PRINTF(f, "\n");
@@ -1194,7 +1223,8 @@ void SV_Savegame (char *savename)
 
 #ifndef SERVERONLY
 	//try to save screenshots automagically.
-	savefilename = va("saves/%s/screeny.%s", savename, scr_sshot_type.string);
+	Q_snprintfz(comment, sizeof(comment), "saves/%s/screeny.%s", savename, "tga");//scr_sshot_type.string);
+	savefilename = comment;
 	FS_Remove(savefilename, FS_GAMEONLY);
 	if (cls.state == ca_active && qrenderer > QR_NONE)
 	{
@@ -1255,7 +1285,7 @@ void SV_Savegame (char *savename)
 		char syspath[256];
 		if (!FS_NativePath(va("saves/%s/game.gsv", savename), FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
-		ge->WriteGame(syspath, false);
+		ge->WriteGame(syspath, mapchange);
 		FS_FlushFSHashReally(true);
 	}
 	else
@@ -1269,10 +1299,56 @@ void SV_Savegame (char *savename)
 void SV_Savegame_f (void)
 {
 	if (Cmd_Argc() <= 2)
-		SV_Savegame(Cmd_Argv(1));
+		SV_Savegame(Cmd_Argv(1), false);
 	else
 		Con_Printf("%s: invalid number of arguments\n", Cmd_Argv(0));
 }
+
+cvar_t sv_autosave = CVARD("sv_autosave", "1", "Interval for autosaves, in minutes.");
+void SV_AutoSave(void)
+{
+#ifndef SERVERONLY
+	const char *autosavename;
+	int i;
+	if (sv_autosave.value <= 0)
+		return;
+	if (sv.state != ss_active)
+		return;
+
+	//don't bother to autosave multiplayer games.
+	//this may be problematic with splitscreen, but coop rules tend to apply there anyway.
+	if (sv.allocated_client_slots != 1)
+		return;
+
+	for (i = 0; i < sv.allocated_client_slots; i++)
+	{
+		if (svs.clients[i].state == cs_spawned)
+		{
+			if (svs.clients[i].edict->v->health <= 0)
+				return;	//autosaves with a dead player are just cruel.
+
+			if ((int)svs.clients[i].edict->v->flags & (FL_GODMODE | FL_NOTARGET))
+				return;	//autosaves to highlight cheaters is also just spiteful.
+
+			if (svs.clients[i].edict->v->movetype != MOVETYPE_WALK)
+				return;	//noclip|fly are cheaters, toss|bounce are bad at playing. etc.
+
+			if (!((int)svs.clients[i].edict->v->flags & FL_ONGROUND))
+				return;	//autosaves while people are jumping are awkward.
+
+			if (svs.clients[i].edict->v->velocity[0] || svs.clients[i].edict->v->velocity[1] || svs.clients[i].edict->v->velocity[2])
+				return;	//people running around are likely to result in poor saves
+		}
+	}
+
+	autosavename = M_ChooseAutoSave();
+	Con_Printf("Autosaving to %s\n", autosavename);
+	SV_Savegame(autosavename, false);
+
+	sv.autosave_time = sv.time + sv_autosave.value * 60;
+#endif
+}
+
 void SV_Loadgame_f (void)
 {
 	levelcache_t *cache;
@@ -1292,7 +1368,7 @@ void SV_Loadgame_f (void)
 	Q_strncpyz(savename, Cmd_Argv(1), sizeof(savename));
 
 	if (!*savename || strstr(savename, ".."))
-		strcpy(savename, "quicksav");
+		strcpy(savename, "quick");
 
 	Q_snprintfz (filename, sizeof(filename), "saves/%s/info.fsv", savename);
 	f = FS_OpenVFS (filename, "rb", FS_GAME);
@@ -1511,5 +1587,7 @@ void SV_Loadgame_f (void)
 	SV_LoadLevelCache(savename, str, "", true);
 	sv.allocated_client_slots = slots;
 	sv.spawned_client_slots += loadzombies;
+
+	sv.autosave_time = sv.time + sv_autosave.value*60;
 }
 #endif

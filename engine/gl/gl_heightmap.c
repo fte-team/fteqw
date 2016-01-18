@@ -3833,7 +3833,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 
 	if (!s || s->loadstate != TSLS_LOADED)
 	{
-		if ((tr->hitcontentsmask & tr->hm->exteriorcontents) || s->loadstate != TSLS_FAILED)
+		if ((tr->hitcontentsmask & tr->hm->exteriorcontents) || (s && s->loadstate != TSLS_FAILED))
 		{
 			//you're not allowed to walk into sections that have not loaded.
 			//might as well check the entire section instead of just one tile

@@ -541,6 +541,17 @@ static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t 
 	FindClose(h);
 	if (loc)
 	{
+		if (attr & FILE_ATTRIBUTE_REPARSE_POINT)
+		{	//when looking for reparse points, FindFirstFile only reports info about the link, not the file. which means the size is wrong.
+			HANDLE f = CreateFileW(widen(wide, sizeof(wide), netpath), 0, FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (f)
+			{
+				LARGE_INTEGER wsize;
+				GetFileSizeEx(f, &wsize);
+				CloseHandle(f);
+				len = qofs_Make(wsize.LowPart, wsize.HighPart);
+			}
+		}
 		loc->len = len;
 		loc->offset = 0;
 		loc->index = 0;

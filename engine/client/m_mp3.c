@@ -2770,7 +2770,7 @@ static void QDECL capture_raw_video (void *vctx, void *data, int frame, int widt
 	char filename[MAX_OSPATH];
 	ctx->frames = frame+1;
 	Q_snprintfz(filename, sizeof(filename), "%s%8.8i.%s", ctx->videonameprefix, frame, ctx->videonameextension);
-	SCR_ScreenShot(filename, ctx->fsroot, data, width, height, fmt);
+	SCR_ScreenShot(filename, ctx->fsroot, &data, 1, width, height, fmt);
 }
 static void QDECL capture_raw_audio (void *vctx, void *data, int bytes)
 {

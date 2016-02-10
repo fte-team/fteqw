@@ -25,7 +25,7 @@ static cvar_t	sb_showtimelimit	= CVARF("sb_showtimelimit",	"0",	CVAR_ARCHIVE);
 
 static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.7",	CVAR_ARCHIVE);
 
-vrect_t joinbutton;
+vrect_t joinbutton, specbutton;
 static float refreshedtime;
 static int isrefreshing;
 static int serverpreview;
@@ -62,6 +62,7 @@ void M_Serverlist_Init(void)
 }
 
 typedef struct {
+	int servers_top;
 	int visibleslots;
 	int scrollpos;
 	int selectedpos;
@@ -278,7 +279,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 				serverhighlight[(int)stype][2],
 				1.0);
 		}
-		else if (thisone == info->scrollpos + (int)(mousecursor_y-16)/8 && mousecursor_x < x)
+		else if (thisone == info->scrollpos + (int)(mousecursor_y-info->servers_top)/8 && mousecursor_x < x)
 			R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, sb_alpha.value);
 		else if (selectedserver.inuse && NET_CompareAdr(&si->adr, &selectedserver.adr))
 			R2D_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, sb_alpha.value);
@@ -317,7 +318,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key, unsigned
 	if (key == K_MOUSE1)
 	{
 		oldselection = info->selectedpos;
-		info->selectedpos = info->scrollpos + (mousecursor_y-16)/8;
+		info->selectedpos = info->scrollpos + (mousecursor_y-info->servers_top)/8;
 		server = Master_SortedServer(info->selectedpos);
 
 		selectedserver.inuse = true;
@@ -559,6 +560,7 @@ static void SL_PostDraw	(menu_t *menu)
 						R2D_FillBlock (x, y+1, 32, 3);
 						R2D_ImagePaletteColour (Sbar_ColorForMap(server->moreinfo->players[i].botc), 1.0);
 						R2D_FillBlock (x, y+4, 32, 4);
+						R2D_ImageColours (1.0, 1.0, 1.0, 1.0);
 						Draw_FunStringWidth (x, y, va("%3i", server->moreinfo->players[i].frags), 32-4, true, false);
 					}
 					x += 32+8;
@@ -586,24 +588,53 @@ static void SL_PostDraw	(menu_t *menu)
 			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, "Please wait", 200, 2, false);
 		}
 
+		if ((server->special & SS_PROTOCOLMASK) == SS_QUAKEWORLD)
 		{
 			int lx = vid.width/2 - w/2;
 			int y = vid.height/2 - h/2 - 4 + h;
-			int sw;
+			int bh, bw;
 			qboolean active = false;
-			w += 16;
-			h = 24;
+			bw = w+16+12;
+			bh = 24;
+//			lx += bw-12;
+			bw = strlen("Observe")*8 + 24;
+			bw = ((bw+15)/16) * 16;	//width must be a multiple of 16
+//			lx -= bw;
+
+			specbutton.x = lx;
+			specbutton.y = y;
+			specbutton.width = bw + 16;
+			specbutton.height = bh + 16;
+			R2D_ImageColours(1,1,1,1);
+			Draw_TextBox(lx, y, bw/8, bh/8);
+			y += 8;
+			lx += 8;
+
+			if (mousecursor_x >= specbutton.x && mousecursor_x < specbutton.x+specbutton.width)
+				if (mousecursor_y >= specbutton.y && mousecursor_y < specbutton.y+specbutton.height)
+					active = true;
+
+			Draw_FunStringWidth(lx, y + (bh-8)/2, "Observe", bw, 2, active);y+=8;
+		}
+
+		{
+			int lx = vid.width/2 - w/2;
+			int y = vid.height/2 - h/2 - 4 + h;
+			int bw, bh;
+			qboolean active = false;
+			bw = w+16;
+			bh = 24;
 			lx += w-12;
-			w = strlen("join")*8 + 24;
-			w = ((w+15)/16) * 16;	//width must be a multiple of 16
-			lx -= w;
+			bw = strlen("Join")*8 + 24;
+			bw = ((bw+15)/16) * 16;	//width must be a multiple of 16
+			lx -= bw;
 
 			joinbutton.x = lx;
 			joinbutton.y = y;
-			joinbutton.width = w + 16;
-			joinbutton.height = h + 16;
+			joinbutton.width = bw + 16;
+			joinbutton.height = bh + 16;
 			R2D_ImageColours(1,1,1,1);
-			Draw_TextBox(lx, y, w/8, h/8);
+			Draw_TextBox(lx, y, bw/8, bh/8);
 			y += 8;
 			lx += 8;
 
@@ -611,7 +642,7 @@ static void SL_PostDraw	(menu_t *menu)
 				if (mousecursor_y >= joinbutton.y && mousecursor_y < joinbutton.y+joinbutton.height)
 					active = true;
 
-			Draw_FunStringWidth(lx, y + (h-8)/2, "Join", w, 2, active);y+=8;
+			Draw_FunStringWidth(lx, y + (bh-8)/2, "Join", bw, 2, active);y+=8;
 		}
 	}
 	else if (isrefreshing)
@@ -658,7 +689,13 @@ static qboolean SL_Key	(int key, menu_t *menu)
 				if (mousecursor_y >= joinbutton.y && mousecursor_y < joinbutton.y+joinbutton.height)
 				{
 					serverpreview = false;
-					goto doconnect;
+					goto dojoin;
+				}
+			if (mousecursor_x >= specbutton.x && mousecursor_x < specbutton.x+joinbutton.width)
+				if (mousecursor_y >= specbutton.y && mousecursor_y < specbutton.y+joinbutton.height)
+				{
+					serverpreview = false;
+					goto dospec;
 				}
 			return true;
 		}
@@ -698,10 +735,13 @@ static qboolean SL_Key	(int key, menu_t *menu)
 		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER)	//join
 		{
 			if (key == 's' || key == 'o')
+			{
+dospec:
 				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
+			}
 			else if (key == 'j')
 			{
-doconnect:
+dojoin:
 				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
 			}
 
@@ -834,7 +874,7 @@ static void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 					R2D_FillBlock (x, y, 32, 4);
 					R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
 					R2D_FillBlock (x, y+4, 32, 4);
-
+					R2D_ImageColours (1.0, 1.0, 1.0, 1.0);
 					Draw_FunStringWidth (x, y, va("%3i", selectedserver.detail->players[i].frags), 32-4, true, false);
 				}
 
@@ -1047,14 +1087,16 @@ void M_Menu_ServerList2_f(void)
 
 	info = (serverlist_t*)(menu + 1);
 
-	y = 8;
+	y = 16;
 	cust = MC_AddCustom(menu, 0, y, NULL, 0);
 	cust->draw = SL_TitlesDraw;
 	cust->key = SL_TitlesKey;
 	cust->common.height = 8;
 	cust->common.width = vid.width-8;
+	y+=8;
 
-	info->visibleslots = (vid.height-16 - 64);
+	info->servers_top = y;
+	info->visibleslots = (vid.height-info->servers_top - 64);
 
 	cust = MC_AddCustom(menu, vid.width-8, 16, NULL, 0);
 	cust->draw = SL_SliderDraw;
@@ -1063,7 +1105,7 @@ void M_Menu_ServerList2_f(void)
 	cust->common.width = 8;
 
 	info->visibleslots = (info->visibleslots-8)/8;
-	for (i = 0, y = 16; i <= info->visibleslots; y +=8, i++)
+	for (i = 0, y = info->servers_top; i <= info->visibleslots; y +=8, i++)
 	{
 		cust = MC_AddCustom(menu, 0, y, NULL, i);
 		if (i==0)

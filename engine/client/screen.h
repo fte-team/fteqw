@@ -81,7 +81,7 @@ void SCR_ShowPic_Remove_f(void);
 void Draw_TextBox (int x, int y, int width, int lines);
 enum fs_relative;
 enum uploadfmt;
-qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void *rgb_buffer, int width, int height, enum uploadfmt fmt);
+qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int width, int height, enum uploadfmt fmt);
 
 void SCR_DrawTwoDimensional(int uimenu, qboolean nohud);
 

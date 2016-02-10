@@ -72,7 +72,7 @@ typedef struct {
 	int			numframes;
 	synctype_t	synctype;
 //qtest stops here
-	int			flags;
+	int			flags;		//offset 0x4c
 	float		size;
 //quake stops here
 	int			num_st;

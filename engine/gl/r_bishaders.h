@@ -1837,6 +1837,41 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 },
 #endif
 #ifdef GLQUAKE
+{QR_OPENGL, 110, "postproc_equirectangular",
+"!!cvarf ffov\n"
+
+//equirectangular view rendering, commonly used for sphere->2d map projections.
+
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"varying vec2 texcoord;\n"
+"void main()\n"
+"{\n"
+"texcoord = v_texcoord.xy;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"uniform samplerCube s_t0;\n"
+"varying vec2 texcoord;\n"
+"uniform float cvar_ffov;\n"
+
+"#define PI 3.1415926535897932384626433832795\n"
+"void main()\n"
+"{\n"
+"vec3 tc;\n"
+"float lng = (texcoord.x - 0.5) * PI * 2.0;\n"
+"float lat = (texcoord.y) * PI * 1.0;\n"
+
+"tc.z = cos(lng) * sin(lat); \n"
+"tc.x = sin(lng) * sin(lat);\n"
+"tc.y = cos(lat);\n"
+"gl_FragColor = textureCube(s_t0, tc);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
 {QR_OPENGL, 110, "fxaa",
 //
 //This shader implements super-sampled anti-aliasing.

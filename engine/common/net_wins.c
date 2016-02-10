@@ -3399,12 +3399,12 @@ handshakeerror:
 							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+7]<< 0ull;
 						if (ullpaylen < 0x10000)
 						{
-							Con_Printf ("%s: payload size ("fPRIllu") encoded badly\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), ullpaylen);
+							Con_Printf ("%s: payload size (%"PRIu64") encoded badly\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), ullpaylen);
 							goto closesvstream; 
 						}
 						if (ullpaylen > 0x10000)
 						{
-							Con_Printf ("%s: payload size ("fPRIllu") is abusive\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), ullpaylen);
+							Con_Printf ("%s: payload size (%"PRIu64") is abusive\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), ullpaylen);
 							goto closesvstream; 
 						}
 						paylen = ullpaylen;

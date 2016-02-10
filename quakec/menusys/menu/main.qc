@@ -47,7 +47,7 @@ nonstatic void(mitem_desktop desktop) M_Main =
 	local mitem_exmenu m;
 
 	//no dupes please.
-	m = (mitem_exmenu)desktop.findchild(_("Main Menu"));
+	m = (mitem_exmenu)desktop.findchildtext(_("Main Menu"));
 	if (m)
 	{
 		m.totop();

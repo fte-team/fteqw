@@ -996,13 +996,13 @@ void SW_SCR_UpdateScreen(void)
 	V_UpdatePalette (false);
 }
 
-void SW_VBO_Begin(vbobctx_t *ctx, unsigned int maxsize)
+void SW_VBO_Begin(vbobctx_t *ctx, size_t maxsize)
 {
 }
-void SW_VBO_Data(vbobctx_t *ctx, void *data, unsigned int size, vboarray_t *varray)
+void SW_VBO_Data(vbobctx_t *ctx, void *data, size_t size, vboarray_t *varray)
 {
 }
-void SW_VBO_Finish(vbobctx_t *ctx, void *edata, unsigned int esize, vboarray_t *earray)
+void SW_VBO_Finish(vbobctx_t *ctx, void *edata, size_t esize, vboarray_t *earray)
 {
 }
 void SW_VBO_Destroy(vboarray_t *vearray)

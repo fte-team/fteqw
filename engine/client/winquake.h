@@ -90,7 +90,7 @@ extern BOOL (STDAPICALLTYPE *pShell_NotifyIconW)(DWORD dwMessage, PNOTIFYICONDAT
 #endif
 
 extern HWND			mainwindow;
-extern qboolean		ActiveApp, Minimized;
+extern qboolean		Minimized;
 
 extern qboolean	WinNT;
 

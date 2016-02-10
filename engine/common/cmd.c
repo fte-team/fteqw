@@ -1876,9 +1876,9 @@ typedef struct {
 	qboolean allowcutdown;
 	qboolean cutdown;
 	char result[256];
-	char *desc;
+	const char *desc;
 } match_t;
-void Cmd_CompleteCheck(char *check, match_t *match, char *desc)	//compare cumulative strings and join the result
+void Cmd_CompleteCheck(char *check, match_t *match, const char *desc)	//compare cumulative strings and join the result
 {
 	if (*match->result)
 	{
@@ -1907,7 +1907,7 @@ void Cmd_CompleteCheck(char *check, match_t *match, char *desc)	//compare cumula
 		match->desc = desc;
 	}
 }
-char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, char **descptr)
+char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr)
 {
 	extern cvar_group_t *cvar_groups;
 	cmd_function_t	*cmd;

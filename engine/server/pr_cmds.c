@@ -1512,7 +1512,10 @@ void Q_InitProgs(void)
 
 	if (a)
 	{
-		as = strstr(a, "extraqwprogs=");
+		if (progstype == PROG_QW)
+			as = strstr(a, "extraqwprogs=");
+		else
+			as = strstr(a, "extraprogs=");
 		if (as)
 		{
 		for (a = as+13; *a; a++)
@@ -1630,7 +1633,10 @@ void Q_InitProgs(void)
 	a = as = COM_LoadStackFile(va("maps/%s.inf", svs.name), addons, sizeof(addons), NULL);
 	if (a)
 	{
-		as = strstr(a, "qwprogs=");
+		if (progstype == PROG_QW)
+			as = strstr(a, "qwprogs=");
+		else
+			as = strstr(a, "progs=");
 		if (as)
 		{
 		for (a = as+11; *a; a++)
@@ -10038,7 +10044,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"serverkey",		PF_Fixme,	0,		0,		0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string")},//
 	{"getentitytoken",	PF_Fixme,	0,		0,		0,		355,	D("string(optional string resetstring)", "Grab the next token in the map's entity lump.\nIf resetstring is not specified, the next token will be returned with no other sideeffects.\nIf empty, will reset from the map before returning the first token, probably {.\nIf not empty, will tokenize from that string instead.\nAlways returns tempstrings.")},//;
 	{"findfont",		PF_Fixme,	0,		0,		0,		356,	D("float(string s)", "Looks up a named font slot. Matches the actual font name as a last resort.")},//;
-	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"foo\", \"cour\", \"16\", 0, 0, 0); to switch to the courier font, if you have the freetype2 library in windows..")},
+	{"loadfont",		PF_Fixme,	0,		0,		0,		357,	D("float(string fontname, string fontmaps, string sizes, float slot, optional float fix_scale, optional float fix_voffset)", "too convoluted for me to even try to explain correct usage. Try drawfont = loadfont(\"\", \"cour\", \"16\", -1, 0, 0); to switch to the courier font (optimised for 16 virtual pixels high), if you have the freetype2 library in windows..")},
 	{"sendevent",		PF_Fixme,	0,		0,		0,		359,	D("void(string evname, string evargs, ...)", "Invoke Cmd_evname_evargs in ssqc. evargs must be a string of initials refering to the types of the arguments to pass. v=vector, e=entity(.entnum field is sent), f=float, i=int. 6 arguments max - you can get more if you pack your floats into vectors.")},// (EXT_CSQC_1)
 
 	{"readbyte",		PF_Fixme,	0,		0,		0,		360,	"float()"},// (EXT_CSQC)
@@ -11328,27 +11334,28 @@ void PR_DumpPlatform_f(void)
 		{"EF_DIMLIGHT",			"const float", QW|NQ|CS, NULL, EF_DIMLIGHT},
 		{"EF_FLAG1",			"const float", QW      , NULL, QWEF_FLAG1},
 		{"EF_FLAG2",			"const float", QW      , NULL, QWEF_FLAG2},
-		{"EF_ADDITIVE",			"const float",    NQ|CS, NULL, NQEF_ADDITIVE},
-		{"EF_BLUE",				"const float", QW|NQ|CS, NULL, EF_BLUE},
-		{"EF_RED",				"const float", QW|NQ|CS, NULL, EF_RED},
-		{"EF_GREEN",			"const float", QW|NQ|CS, NULL, EF_GREEN},
-		{"EF_FULLBRIGHT",		"const float", QW|NQ|CS, NULL, EF_FULLBRIGHT},
-		{"EF_NOSHADOW",			"const float", QW|NQ|CS, NULL, EF_NOSHADOW},
-		{"EF_NODEPTHTEST",		"const float", QW|NQ|CS, NULL, EF_NODEPTHTEST},
+		{"EF_NODRAW",			"const float",    NQ|CS, NULL, NQEF_NODRAW},
+		{"EF_ADDITIVE",			"const float",    NQ|CS, "The entity will be drawn with an additive blend.", NQEF_ADDITIVE},
+		{"EF_BLUE",				"const float", QW|NQ|CS, "A blue glow", EF_BLUE},
+		{"EF_RED",				"const float", QW|NQ|CS, "A red glow", EF_RED},
+		{"EF_GREEN",			"const float", QW|NQ|CS, "A green glow", EF_GREEN},
+		{"EF_FULLBRIGHT",		"const float", QW|NQ|CS, "This entity will ignore lighting", EF_FULLBRIGHT},
+		{"EF_NOSHADOW",			"const float", QW|NQ|CS, "This entity will not cast shadows", EF_NOSHADOW},
+		{"EF_NODEPTHTEST",		"const float", QW|NQ|CS, "This entity will be drawn over the top of other things that are closer.", EF_NODEPTHTEST},
 
 		{"EF_NOMODELFLAGS",		"const float", QW|NQ, "Surpresses the normal flags specified in the model.", EF_NOMODELFLAGS},
 
 		{"MF_ROCKET",			"const float", QW|NQ|CS, NULL, EF_MF_ROCKET>>24},
 		{"MF_GRENADE",			"const float", QW|NQ|CS, NULL, EF_MF_GRENADE>>24},
-		{"MF_GIB",				"const float", QW|NQ|CS, NULL, EF_MF_GIB>>24},
+		{"MF_GIB",				"const float", QW|NQ|CS, "Regular blood trail", EF_MF_GIB>>24},
 		{"MF_ROTATE",			"const float", QW|NQ|CS, NULL, EF_MF_ROTATE>>24},
-		{"MF_TRACER",			"const float", QW|NQ|CS, NULL, EF_MF_TRACER>>24},
-		{"MF_ZOMGIB",			"const float", QW|NQ|CS, NULL, EF_MF_ZOMGIB>>24},
-		{"MF_TRACER2",			"const float", QW|NQ|CS, NULL, EF_MF_TRACER2>>24},
-		{"MF_TRACER3",			"const float", QW|NQ|CS, NULL, EF_MF_TRACER3>>24},
+		{"MF_TRACER",			"const float", QW|NQ|CS, "AKA: green scrag trail", EF_MF_TRACER>>24},
+		{"MF_ZOMGIB",			"const float", QW|NQ|CS, "Dark blood trail", EF_MF_ZOMGIB>>24},
+		{"MF_TRACER2",			"const float", QW|NQ|CS, "AKA: hellknight projectile trail", EF_MF_TRACER2>>24},
+		{"MF_TRACER3",			"const float", QW|NQ|CS, "AKA: purple vore trail", EF_MF_TRACER3>>24},
 
 
-		{"SL_ORG_TL",			"const float", QW|NQ, NULL, SL_ORG_TL},
+		{"SL_ORG_TL",			"const float", QW|NQ, "Used with showpic etc, specifies that the x+y values are relative to the top-left of the screen", SL_ORG_TL},
 		{"SL_ORG_TR",			"const float", QW|NQ, NULL, SL_ORG_TR},
 		{"SL_ORG_BL",			"const float", QW|NQ, NULL, SL_ORG_BL},
 		{"SL_ORG_BR",			"const float", QW|NQ, NULL, SL_ORG_BR},
@@ -11464,6 +11471,7 @@ void PR_DumpPlatform_f(void)
 		{"IE_ACCELEROMETER",	"const float", CS, NULL, CSIE_ACCELEROMETER},
 		{"IE_FOCUS",			"const float", CS, "Specifies that input focus was given. parama says mouse focus, paramb says keyboard focus. If either are -1, then it is unchanged.", CSIE_FOCUS},
 		{"IE_JOYAXIS",			"const float", CS, "Specifies that what value a joystick/controller axis currently specifies. x=axis, y=value. Will be called multiple times, once for each axis of each active controller.", CSIE_JOYAXIS},
+		{"IE_GYROSCOPE",		"const float", CS, NULL, CSIE_GYROSCOPE},
 
 		{"CLIENTTYPE_DISCONNECTED","const float", QW|NQ, "Return value from clienttype() builtin. This entity is a player slot that is currently empty.", CLIENTTYPE_DISCONNECTED},
 		{"CLIENTTYPE_REAL",		"const float", QW|NQ, "This is a real player, and not a bot.", CLIENTTYPE_REAL},

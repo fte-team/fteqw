@@ -18,6 +18,9 @@ int QCC_PR_CheckCompConst(void);
 pbool QCC_Include(char *filename);
 void QCC_FreeDef(QCC_def_t *def);
 
+#define MAXINCLUDEDIRS 8
+char	qccincludedir[MAXINCLUDEDIRS][256];	//the -src path, for #includes
+
 char *compilingfile;
 
 int			pr_source_line;
@@ -104,7 +107,32 @@ void QCC_PR_LexWhitespace (pbool inhibitpreprocessor);
 qcc_includechunk_t *currentchunk;
 void QCC_PR_CloseProcessor(void)
 {
+	int i;
+	for (i = 0; i < MAXINCLUDEDIRS; i++)
+		*qccincludedir[i] = 0;
 	currentchunk = NULL;
+}
+void QCC_PR_AddIncludePath(char *newinc)
+{
+	int i;
+	
+	for (i = 0; i < MAXINCLUDEDIRS; i++)
+	{
+		if (!*qccincludedir[i])
+		{
+			QC_strlcpy(qccincludedir[i], newinc, sizeof(qccincludedir));
+			break;
+		}
+		if (!strcmp(qccincludedir[i], newinc))
+			break;
+	}
+	if (i == MAXINCLUDEDIRS)
+	{
+		if (!s_file)
+			QCC_PR_Warning(WARN_STRINGTOOLONG, "cmdline", 0, "Too many include dirs. Ignoring and hoping the stars align.");
+		else
+			QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Too many include dirs. Ignoring and hoping the stars align.");
+	}
 }
 void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst)
 {
@@ -165,18 +193,11 @@ void QCC_PR_PrintNextLine (void)
 	printf ("\n");
 }
 
-extern char qccmsourcedir[];
-//also meant to include it.
-void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath, pbool verbose)
+void QCC_Canonicalize(char *fullname, size_t fullnamesize, char *newfile, char *base)
 {
-	char fullname[1024];
 	int doubledots;
-
 	char *end = fullname;
-
-	if (!*newfile)
-		return;
-
+	
 	doubledots = 0;
 	/*count how far up we need to go*/
 	while(!strncmp(newfile, "../", 3) || !strncmp(newfile, "..\\", 3))
@@ -185,25 +206,11 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath, pbool
 		doubledots++;
 	}
 
-#if 0
-	currentfile += strlen(rootpath);	//could this be bad?
-	strcpy(fullname, rootpath);
-
-	end = fullname+strlen(end);
-	if (*fullname && end[-1] != '/')
-	{
-		strcpy(end, "/");
-		end = end+strlen(end);
-	}
-	strcpy(end, currentfile);
-	end = end+strlen(end);
-#else
-	if (currentfile)
-		strcpy(fullname, currentfile);
+	if (base)
+		strcpy(fullname, base);
 	else
 		*fullname = 0;
 	end = fullname+strlen(fullname);
-#endif
 
 	while (end > fullname)
 	{
@@ -227,6 +234,40 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath, pbool
 	}
 
 	strcpy(end, newfile);
+}
+
+extern char qccmsourcedir[];
+//also meant to include it.
+void QCC_FindBestInclude(char *newfile, char *currentfile, pbool verbose)
+{
+	int includepath = 0;
+	char fullname[1024];
+
+	if (!*newfile)
+		return;
+
+	while(1)
+	{
+		if (includepath)
+		{
+			if (includepath > MAXINCLUDEDIRS || !*qccincludedir[includepath-1])
+				QCC_Error(ERR_COULDNTOPENFILE, "Couldn't open file %s", newfile);
+
+			currentfile = qccincludedir[includepath-1];
+		}
+
+		QCC_Canonicalize(fullname, sizeof(fullname), newfile, currentfile);
+
+		{
+			extern progfuncs_t *qccprogfuncs;
+			if (qccprogfuncs->funcs.parms->FileSize(fullname) == -1)
+			{
+				includepath++;
+				continue;
+			}
+		}
+		break;
+	}
 
 	if (verbose)
 	{
@@ -794,7 +835,7 @@ pbool QCC_PR_Precompiler(void)
 					break;
 				}
 
-				QCC_FindBestInclude(pr_token, compilingfile, qccmsourcedir, true);
+				QCC_FindBestInclude(pr_token, compilingfile, true);
 
 				if (*pr_file_p == '\r')
 					pr_file_p++;
@@ -835,7 +876,7 @@ pbool QCC_PR_Precompiler(void)
 			}
 			msg[a] = 0;
 
-			QCC_FindBestInclude(msg, compilingfile, qccmsourcedir, false);
+			QCC_FindBestInclude(msg, compilingfile, false);
 
 			pr_file_p++;
 
@@ -954,6 +995,22 @@ pbool QCC_PR_Precompiler(void)
 			else if (!QC_strcasecmp(qcc_token, "forcecrc"))
 			{
 				ForcedCRC = atoi(msg);
+			}
+			else if (!QC_strcasecmp(qcc_token, "includedir"))
+			{
+				char newinc[1024];
+				int i;
+				QCC_COM_Parse(msg);
+
+				if (*qcc_token)
+				{
+					 i = qcc_token[strlen(qcc_token)-1];
+					 if (i != '/' && i != '\\')
+						 QC_strlcat(qcc_token, "/", sizeof(qcc_token));
+				}
+
+				QCC_Canonicalize(newinc, sizeof(newinc), qcc_token, compilingfile);
+				QCC_PR_AddIncludePath(newinc);
 			}
 			else if (!QC_strcasecmp(qcc_token, "noref"))
 				defaultnoref = !!atoi(msg);
@@ -1110,50 +1167,11 @@ pbool QCC_PR_Precompiler(void)
 			{	//doesn't make sence, but silenced if you are switching between using a certain precompiler app used with CuTF.
 				extern char		destfile[1024];
 				char olddest[1024];
-#ifndef QCCONLY
-				extern char qccmfilename[1024];
-				int p;
-				char *s, *s2;
-#endif
 				Q_strlcpy(olddest, destfile, sizeof(olddest));
 				QCC_COM_Parse(msg);
 
-#ifndef QCCONLY
-	p=0;
-	s2 = qcc_token;
-	if (!strncmp(s2, "./", 2))
-		s2+=2;
-	else
-	{
-		while(!strncmp(s2, "../", 3))
-		{
-			s2+=3;
-			p++;
-		}
-	}
-	strcpy(qccmfilename, qccmsourcedir);
-	for (s=qccmfilename+strlen(qccmfilename);p && s>=qccmfilename; s--)
-	{
-		if (*s == '/' || *s == '\\')
-		{
-			*(s+1) = '\0';
-			p--;
-		}
-	}
-	QC_snprintfz(destfile, sizeof(destfile), "%s", s2);
+				QCC_Canonicalize(destfile, sizeof(destfile), qcc_token, compilingfile);
 
-	while (p>0)
-	{
-		memmove(destfile+3, destfile, strlen(destfile)+1);
-		destfile[0] = '.';
-		destfile[1] = '.';
-		destfile[2] = '/';
-		p--;
-	}
-#else
-
-				strcpy(destfile, qcc_token);
-#endif
 				if (strcmp(destfile, olddest))
 					printf("Outputfile: %s\n", destfile);
 			}

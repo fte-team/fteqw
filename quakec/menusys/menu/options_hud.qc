@@ -19,9 +19,9 @@ nonstatic void(mitem_desktop desktop) M_Options_Hud =
 	mitem_frame fr = spawn(mitem_frame, item_flags: IF_SELECTABLE, frame_hasscroll:TRUE);
 	m.add(fr, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, -h], [0, h*2]);
 
-	float fs = search_begin("configs/hud_*.cfg", TRUE, TRUE);
+	float fs = search_begin("hud/*.cfg", TRUE, TRUE);
 	float fc = search_getsize(fs);
-	
+
 	//add the options
 	for (i = 0, float y = 0; i < fc; i++)
 	{

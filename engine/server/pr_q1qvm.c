@@ -1527,19 +1527,19 @@ static qintptr_t QVM_uri_query (void *offset, quintptr_t mask, const qintptr_t *
 	
 	if (!pr_enable_uriget.ival)
 	{
-		Con_Printf("QVM_uri_query(\"%s\","fPRIp"): %s disabled\n", url, cb_context, pr_enable_uriget.name);
+		Con_Printf("QVM_uri_query(\"%s\",%"PRIxPTR"): %s disabled\n", url, (qintptr_t)cb_context, pr_enable_uriget.name);
 		return 0;
 	}
 
 	if (mimetype && *mimetype)
 	{
 		VALIDATEPOINTER(arg[4],datasize);
-		Con_DPrintf("QVM_uri_query(%s,"fPRIp")\n", url, cb_context);
+		Con_DPrintf("QVM_uri_query(%s,%"PRIxPTR")\n", url, (qintptr_t)cb_context);
 		dl = HTTP_CL_Put(url, mimetype, data, datasize, QVM_uri_query_callback);
 	}
 	else
 	{
-		Con_DPrintf("QVM_uri_query(%s,"fPRIp")\n", url, cb_context);
+		Con_DPrintf("QVM_uri_query(%s,%"PRIxPTR")\n", url, (qintptr_t)cb_context);
 		dl = HTTP_CL_Get(url, NULL, QVM_uri_query_callback);
 	}
 	if (dl)
@@ -1751,26 +1751,25 @@ static qintptr_t QVM_Map_Extension (void *offset, quintptr_t mask, const qintptr
 }
 
 //============== general Quake services ==================
-
-#if FTE_WORDSIZE == 32 && !defined(NACL)
 static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
 {
-	if (fn >= countof(traps))
-		return QVM_NotYetImplemented(offset, mask, arg);
-	return traps[fn](offset, mask, arg);
+	if (sizeof(int) == sizeof(qintptr_t))
+	{	//should allow the slow copy below to be optimised out
+		if (fn >= countof(traps))
+			return QVM_NotYetImplemented(offset, mask, (qintptr_t*)arg);
+		return traps[fn](offset, mask, (qintptr_t*)arg);
+	}
+	else
+	{
+		qintptr_t args[13];
+		int i;
+		for (i = 0; i < 13; i++)
+			args[i] = arg[i];
+		if (fn >= countof(traps))
+			return QVM_NotYetImplemented(offset, mask, args);
+		return traps[fn](offset, mask, args);
+	}
 }
-#else
-static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
-{
-	qintptr_t args[13];
-	int i;
-	for (i = 0; i < 13; i++)
-		args[i] = arg[i];
-	if (fn >= countof(traps))
-		return QVM_NotYetImplemented(offset, mask, args);
-	return traps[fn](offset, mask, args);
-}
-#endif
 
 static qintptr_t EXPORT_FN syscallnative (qintptr_t arg, ...)
 {

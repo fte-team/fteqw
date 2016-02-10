@@ -1855,7 +1855,7 @@ void QDECL COM_StripExtension (const char *in, char *out, int outlen)
 	}
 }
 
-void COM_StripAllExtensions (char *in, char *out, int outlen)
+void COM_StripAllExtensions (const char *in, char *out, int outlen)
 {
 	char *s;
 
@@ -1998,7 +1998,7 @@ void COM_FileBase (const char *in, char *out, int outlen)
 COM_DefaultExtension
 ==================
 */
-void COM_DefaultExtension (char *path, char *extension, int maxlen)
+void COM_DefaultExtension (char *path, const char *extension, int maxlen)
 {
 	char    *src;
 //
@@ -2022,7 +2022,7 @@ void COM_DefaultExtension (char *path, char *extension, int maxlen)
 //adds .ext only if it isn't already present (either case).
 //extension *must* contain a leading . as this is really a requiresuffix rather than an actual extension
 //returns false if truncated. will otherwise still succeed.
-qboolean COM_RequireExtension(char *path, char *extension, int maxlen)
+qboolean COM_RequireExtension(char *path, const char *extension, int maxlen)
 {
 	qboolean okay = true;
 	int plen = strlen(path);

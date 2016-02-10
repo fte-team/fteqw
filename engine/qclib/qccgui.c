@@ -3401,13 +3401,23 @@ static LRESULT CALLBACK OptionsWndProc(HWND hWnd,UINT message,
 	}
 	return 0;
 }
+static void AddTip(HWND tipwnd, HWND tool, char *message)
+{
+	TOOLINFO toolInfo = { 0 };
+	toolInfo.cbSize = sizeof(toolInfo);
+	toolInfo.hwnd = tool;
+	toolInfo.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+	toolInfo.uId = (UINT_PTR)tool;
+	toolInfo.lpszText = message;
+	SendMessage(tipwnd, TTM_ADDTOOL, 0, (LPARAM)&toolInfo);
+}
 void OptionsDialog(void)
 {
 	char nicername[256], *us;
 	HWND subsection;
 	RECT r;
 	WNDCLASS wndclass;
-	HWND wnd;
+	HWND wnd, tipwnd;
 	int i;
 	int flagcolums=1;
 
@@ -3486,6 +3496,10 @@ void OptionsDialog(void)
 	optionsmenu=CreateWindowEx(WS_EX_CONTEXTHELP, OPTIONS_WINDOW_CLASS_NAME, "Options - FTE QuakeC compiler", WS_CAPTION|WS_SYSMENU,
 		r.left, r.top, r.right-r.left, r.bottom-r.top, NULL, NULL, ghInstance, NULL);
 
+	tipwnd = CreateWindow(TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+		CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, optionsmenu, NULL, ghInstance, NULL);
+	SetWindowPos(tipwnd, HWND_TOPMOST,0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
 	subsection = CreateWindow("BUTTON", "Optimisations", WS_CHILD|WS_VISIBLE|BS_GROUPBOX,
 		0, 0, 400, height-40*4+24, optionsmenu, NULL, ghInstance, NULL);
 
@@ -3518,51 +3532,59 @@ void OptionsDialog(void)
 		if (!fl_nondfltopts)
 			EnableWindow(wnd, FALSE);
 
+		AddTip(tipwnd, wnd,	optimisations[i].description);
+
 		num++;
 	}
 
-	CreateWindow("BUTTON","O0",
+	wnd = CreateWindow("BUTTON","O0",
 		   WS_CHILD | WS_VISIBLE,
 		   8,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL0,
 		   ghInstance,
 		   NULL);
-	CreateWindow("BUTTON","O1",
+	AddTip(tipwnd, wnd,	"Disable optimisations completely, giving code more similar to vanilla.");
+	wnd = CreateWindow("BUTTON","O1",
 		   WS_CHILD | WS_VISIBLE,
 		   8+64,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL1,
 		   ghInstance,
 		   NULL);
-	CreateWindow("BUTTON","O2",
+	AddTip(tipwnd, wnd,	"Enable simple optimisations (primarily size). Probably still breaks decompilers.");
+	wnd = CreateWindow("BUTTON","O2",
 		   WS_CHILD | WS_VISIBLE,
 		   8+64*2,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL2,
 		   ghInstance,
 		   NULL);
-	CreateWindow("BUTTON","O3",
+	AddTip(tipwnd, wnd,	"Enable most optimisations. Does not optimise anything that is likely to break any engines.");
+	wnd = CreateWindow("BUTTON","O3",
 		   WS_CHILD | WS_VISIBLE,
 		   8+64*3,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_LEVEL3,
 		   ghInstance,
 		   NULL);
-	CreateWindow("BUTTON","Debug",
+	AddTip(tipwnd, wnd,	"Enable unsafe optimisations. The extra optimisations may cause the progs to fail in certain cases, especially if used to compile addon modules.");
+	wnd = CreateWindow("BUTTON","Debug",
 		   WS_CHILD | WS_VISIBLE,
 		   8+64*4,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_DEBUG,
 		   ghInstance,
 		   NULL);
-	CreateWindow("BUTTON","Default",
+	AddTip(tipwnd, wnd,	"Disable any optimisations that might interfere with debugging somehow.");
+	wnd = CreateWindow("BUTTON","Default",
 		   WS_CHILD | WS_VISIBLE,
 		   8+64*5,height-40*5+24,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_DEFAULT,
 		   ghInstance,
 		   NULL);
+	AddTip(tipwnd, wnd,	"Default optimsations are aimed at increasing capacity without breaking debuggers or common decompilers (although gotos, switches, arrays, etc, will still result in issues).");
 
 #ifdef EMBEDDEBUG
 	w_enginebinary = CreateWindowEx(WS_EX_CLIENTEDGE,
@@ -3592,29 +3614,36 @@ void OptionsDialog(void)
 		(HMENU)IDI_O_ENGINECOMMANDLINE,
 		ghInstance,
 		NULL);
+
+	AddTip(tipwnd, w_enginebinary,		"This is the engine that you wish to debug with.\nCurrently only FTEQW supports actual debugging, while specifying other engines here merely provides you with a quick way to start them up");
+	AddTip(tipwnd, w_enginebasedir,		"This is your base directory (typically the directory your engine executable is in)");
+	AddTip(tipwnd, w_enginecommandline,	"This is the commandline to use to invoke your mod.\nYou'll likely want -game here.\n-window is also handy.\n-nohome can be used to inhibit the use of home directories.\nYou may also want to add '+map start' or some such.");
 #endif
 
-	CreateWindow("BUTTON","Apply",
+	wnd = CreateWindow("BUTTON","Apply",
 		   WS_CHILD | WS_VISIBLE,
 		   8,height-40,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_APPLY,
 		   ghInstance,
 		   NULL);
-	CreateWindow("BUTTON","Save",
+	AddTip(tipwnd, wnd,		"Use selected settings without saving them to disk.");
+	wnd = CreateWindow("BUTTON","Save",
 		   WS_CHILD | WS_VISIBLE,
 		   8+64,height-40,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_APPLYSAVE,
 		   ghInstance,
 		   NULL);
-	CreateWindow("BUTTON","progs.src",
+	AddTip(tipwnd, wnd,		"Use selected settings and save them to disk so that they're also used the next time you start fteqccgui.");
+	wnd = CreateWindow("BUTTON","progs.src",
 		   WS_CHILD | WS_VISIBLE,
 		   8+64*2,height-40,64,32,
 		   optionsmenu,
 		   (HMENU)IDI_O_CHANGE_PROGS_SRC,
 		   ghInstance,
 		   NULL);
+	AddTip(tipwnd, wnd,		"Change the initial src file.");
 
 
 
@@ -3631,6 +3660,7 @@ void OptionsDialog(void)
 		Button_SetCheck(wnd, 1);
 	else
 		Button_SetCheck(wnd, 0);
+	AddTip(tipwnd, wnd,	"Compile for hexen2.\nThis changes the opcodes slightly, the progs crc, and enables some additional keywords.");
 
 	targitem_fte = wnd = CreateWindow("BUTTON","Extended Instructions",
 		   WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
@@ -3644,6 +3674,7 @@ void OptionsDialog(void)
 		Button_SetCheck(wnd, 1);
 	else
 		Button_SetCheck(wnd, 0);
+	AddTip(tipwnd, wnd,	"Enables the use of additional opcodes, which only FTE supports at this time.\nThis gives both smaller and faster code, as well as allowing pointers, ints, and other extensions not possible with the vanilla QCVM.");
 
 /*	autohighlight_item = wnd = CreateWindow("BUTTON","Syntax Highlighting",
 		   WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
@@ -3690,6 +3721,7 @@ void OptionsDialog(void)
 			Button_SetCheck(wnd, 1);
 		else
 			Button_SetCheck(wnd, 0);
+		AddTip(tipwnd, wnd,	compiler_flag[i].description);
 	}
 
 	CreateWindow("STATIC","Extra Parameters:",
@@ -3708,6 +3740,7 @@ void OptionsDialog(void)
 		   (HMENU)IDI_O_ADDITIONALPARAMETERS,
 		   ghInstance,
 		   NULL);
+	AddTip(tipwnd, extraparmsitem,	"You can specify any additional commandline arguments here.\nAdd -DFOO=bar to define the FOO preprocessor constant as bar.");
 
 	ShowWindow(optionsmenu, SW_SHOWDEFAULT);
 }
@@ -4882,6 +4915,7 @@ void AddSourceFile(const char *parentpath, const char *filename)
 		{	//add a directory.
 			item.hParent = pi;
 			item.item.lParam = !slash;	//lparam = false if we're only adding this node to get at a child.
+			item.item.state = ((*item.item.pszText!='.')?TVIS_EXPANDED:0);	//directories with a leading . should not be expanded by default
 			pi = (HANDLE)SendMessage(projecttree,TVM_INSERTITEM,0,(LPARAM)&item);
 			item.hParent = pi;
 		}
@@ -5142,11 +5176,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	}
 	else
 	{
-		if (mdibox)
-		{
-			buttons[ID_EDIT].washit = true;
-		}
-		else
+		if (!mdibox)
 		{
 			GUIprintf("Welcome to FTE QCC\n");
 			GUIprintf("Source file: ");

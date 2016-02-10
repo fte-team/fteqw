@@ -61,6 +61,7 @@ typedef struct
 
 typedef struct
 {
+	qboolean		activeapp;
 	qboolean		isminimized;	//can omit rendering as it won't be seen anyway.
 	int				fullbright;		// index of first fullbright color
 
@@ -79,6 +80,9 @@ typedef struct
 	unsigned		rotpixelheight; /*pixel after rotation in pixels*/
 	unsigned		pixelwidth; /*true height in pixels*/
 	unsigned		pixelheight; /*true width in pixels*/
+
+	float			dpi_x;
+	float			dpi_y;
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state

@@ -2009,7 +2009,7 @@ void CL_ParseChunkedDownload(qdownload_t *dl)
 
 		if (flag < 0)
 		{
-			if (flag == -4)
+			if (flag == DLERR_REDIRECTFILE)
 			{
 				if (CL_AllowArbitaryDownload(svname))
 				{
@@ -2019,11 +2019,11 @@ void CL_ParseChunkedDownload(qdownload_t *dl)
 				}
 				svname = dl->remotename;
 			}
-			else if (flag == -3)
+			else if (flag == DLERR_UNKNOWN)
 				Con_Printf("Server reported an error when downloading file \"%s\"\n", svname);
-			else if (flag == -2)
+			else if (flag == DLERR_PERMISSIONS)
 				Con_Printf("Server permissions deny downloading file \"%s\"\n", svname);
-			else
+			else //if (flag == DLERR_FILENOTFOUND)
 				Con_Printf("Couldn't find file \"%s\" on the server\n", svname);
 
 			if (dl)
@@ -2292,7 +2292,7 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 					for (b = dl->dlblocks; b; b = n)
 					{
 						if (b->state == DLB_RECEIVED)
-							VFS_PRINTF(parts, "c "fPRIllx" "fPRIllx"\n", (long long)b->start, (long long)b->end);
+							VFS_PRINTF(parts, "c %"PRIx64" %"PRIx64"\n", (long long)b->start, (long long)b->end);
 						else
 						{
 							for(;;)
@@ -2307,7 +2307,7 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 								}
 								break;
 							}
-							VFS_PRINTF(parts, "m "fPRIllx" "fPRIllx"\n", (long long)b->start, (long long)b->end);
+							VFS_PRINTF(parts, "m %"PRIx64" %"PRIx64"\n", (long long)b->start, (long long)b->end);
 						}
 
 						n = b->next;
@@ -4774,6 +4774,8 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 
 		Skin_FlushPlayers();
 	}
+	else if (cl.teamplay && cl.spectator && slot == Cam_TrackNum(&cl.playerview[0]))	//skin forcing cares about the team of the guy we're tracking.
+		Skin_FlushPlayers();
 	else if (cls.state == ca_active)
 		Skin_Find (player);
 

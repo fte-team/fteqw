@@ -6921,7 +6921,7 @@ qboolean CSQC_DrawView(void)
 		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 		G_FLOAT(OFS_PARM0) = vid.width;
 		G_FLOAT(OFS_PARM1) = vid.height;
-		G_FLOAT(OFS_PARM2) = !m_state;
+		G_FLOAT(OFS_PARM2) = !m_state && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
 	}
 	//end EXT_CSQC_1
 	if (csqcg.f_updateviewloading && cls.state && cls.state < ca_active)
@@ -6943,7 +6943,7 @@ qboolean CSQC_DrawView(void)
 
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 {
-	static qbyte csqckeysdown[K_MAX/8];
+	static qbyte csqckeysdown[K_MAX];
 	void *pr_globals;
 #ifdef TEXTEDITOR
 	extern qboolean editormodal;
@@ -6962,18 +6962,24 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 	G_FLOAT(OFS_PARM2) = unicode;
 	G_FLOAT(OFS_PARM3) = devid;
 
+	//small sanity check, so things don't break too much if things get big.
+	if (devid < 0 || (unsigned)devid >= sizeof(csqckeysdown[0])*8)
+		devid = sizeof(csqckeysdown[0])*8-1;
+	if (key < 0 || key >= K_MAX)
+		key = 0;	//panic. everyone panic.
+
 	if (down)
 	{
 		qcinput_scan = G_FLOAT(OFS_PARM1);
 		qcinput_unicode = G_FLOAT(OFS_PARM2);
 
-		csqckeysdown[key>>3] |= (1<<(key&7));
+		csqckeysdown[key] |= (1u<<devid);
 	}
 	else
 	{
-		if (key && !(csqckeysdown[key>>3] & (1<<(key&7))))
-			return false;
-		csqckeysdown[key>>3] &= ~(1<<(key&7));
+		if (key && !(csqckeysdown[key] & (1u<<devid)))
+			return false;	//prevent up events being able to leak 
+		csqckeysdown[key] &= ~(1u<<devid);
 	}
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 	qcinput_scan = 0;	//and stop replay attacks
@@ -7039,6 +7045,20 @@ qboolean CSQC_Accelerometer(float x, float y, float z)
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 
 	G_FLOAT(OFS_PARM0) = CSIE_ACCELEROMETER;
+	G_FLOAT(OFS_PARM1) = x;
+	G_FLOAT(OFS_PARM2) = y;
+	G_FLOAT(OFS_PARM3) = z;
+	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
+	return G_FLOAT(OFS_RETURN);
+}
+qboolean CSQC_Gyroscope(float x, float y, float z)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.input_event)
+		return false;
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+
+	G_FLOAT(OFS_PARM0) = CSIE_GYROSCOPE;
 	G_FLOAT(OFS_PARM1) = x;
 	G_FLOAT(OFS_PARM2) = y;
 	G_FLOAT(OFS_PARM3) = z;

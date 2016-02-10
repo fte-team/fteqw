@@ -200,6 +200,7 @@ void M_Menu_Options_f (void)
 		"Fisheye",
 		"Panoramic",
 		"Lambert Azimuthal Equal-Area",
+		"Equirectangular",
 		NULL
 	};
 	static const char *projectionvalues[] = {

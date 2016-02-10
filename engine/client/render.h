@@ -202,6 +202,29 @@ typedef struct
 void CL_BlendFog(fogstate_t *result, fogstate_t *oldf, float time, fogstate_t *newf);
 void CL_ResetFog(int fogtype);
 
+typedef enum {
+	STEREO_OFF,
+	STEREO_QUAD,
+	STEREO_RED_CYAN,
+	STEREO_RED_BLUE,
+	STEREO_RED_GREEN,
+	STEREO_CROSSEYED,
+
+	//these are internal methods and do not form part of any public API
+	STEREO_LEFTONLY,
+	STEREO_RIGHTONLY
+} stereomethod_t;
+
+typedef enum
+{
+	PROJ_STANDARD			= 0,
+	PROJ_STEREOGRAPHIC		= 1,	//aka panini
+	PROJ_FISHEYE			= 2,	//standard fisheye
+	PROJ_PANORAMA			= 3,	//for nice panoramas
+	PROJ_LAEA				= 4,	//lambert azimuthal equal-area 
+	PROJ_EQUIRECTANGULAR	= 5		//projects a sphere into 2d. used by vr screenshots.
+} qprojection_t;
+
 typedef struct {
 	char texname[MAX_QPATH];
 } rtname_t;
@@ -220,6 +243,8 @@ typedef struct
 	vec3_t		vieworg;			/*logical view center*/
 	vec3_t		viewangles;
 	vec3_t		viewaxis[3];		/*forward, left, up (NOT RIGHT)*/
+	vec3_t		headaxis[3];		/*this is for head mounted displays. this is relative to the view*/
+	vec3_t		eyeoffset;			/*world space, for vr screenies*/
 
 	float		fov_x, fov_y, afov;
 
@@ -251,6 +276,7 @@ typedef struct
 	unsigned int	flipcull;	/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0)*/
 	qboolean	useperspective; /*not orthographic*/
 
+	stereomethod_t stereomethod;
 	rtname_t	rt_destcolour[R_MAX_RENDERTARGETS];	/*used for 2d. written by 3d*/
 	rtname_t	rt_sourcecolour;	/*read by 2d. not used for 3d. */
 	rtname_t	rt_depth;			/*read by 2d. used by 3d (renderbuffer used if not set)*/

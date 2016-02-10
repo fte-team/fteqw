@@ -417,7 +417,7 @@ void R_SaveRTLights_f(void);
 void GLR_DoomWorld();
 #endif
 #ifdef MAP_PROC
-qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf);
+qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, char *buf, size_t bufsize);
 unsigned char *D3_CalcVis(model_t *mod, vec3_t org);
 void D3_GenerateAreas(model_t *mod);
 #endif

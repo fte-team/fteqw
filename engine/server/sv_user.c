@@ -2629,6 +2629,7 @@ qboolean SV_AllowDownload (const char *name)
 	extern	cvar_t	allow_download_root;
 	extern	cvar_t	allow_download_logs;
 	extern	cvar_t	allow_download_configs;
+	extern	cvar_t	allow_download_locs;
 	extern	cvar_t	allow_download_copyrighted;
 	extern	cvar_t	allow_download_other;
 	char cleanname[MAX_QPATH];
@@ -2700,8 +2701,11 @@ qboolean SV_AllowDownload (const char *name)
 	if (strncmp(name,	"textures/", 9) == 0)
 		return !!allow_download_textures.value;
 
-	if (strncmp(name,	"config/", 9) == 0)
+	if (strncmp(name,	"config/", 7) == 0)
 		return !!allow_download_configs.value;
+
+	if (strncmp(name,	"locs/", 5) == 0)
+		return !!allow_download_locs.value;
 
 	//wads
 	if (strncmp(name,	"wads/", 5) == 0)
@@ -2739,6 +2743,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 	extern cvar_t sv_demoDir;
 	qboolean protectedpak;
 	qboolean found;
+	static char tmpname[MAX_QPATH];
 
 	if (replacementname)
 		*replacementname = NULL;
@@ -2765,19 +2770,22 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 				return -1;	//not found
 			}
 			name = *replacementname = va("demos/%s", mvdname);
-			return -4;
+			return DLERR_REDIRECTFILE;
 		}
 	}
 
 	if (!SV_AllowDownload(name))
 	{
 		Sys_Printf ("%s denied download of %s due to path/name rules\n", host_client->name, name);
-		return -2;	//not permitted (even if it exists).
+		return DLERR_PERMISSIONS;	//not permitted (even if it exists).
 	}
 
 	//mvdsv demo downloading support. demos/ -> demodir (sets up the server paths)
 	if (!strncmp(name, "demos/", 6))
-		name = va("%s/%s", sv_demoDir.string, name+6);
+	{
+		Q_snprintfz(tmpname, sizeof(tmpname), "%s/%s", sv_demoDir.string, name+6);
+		name = tmpname;
+	}
 
 	if (!strncmp(name, "package/", 8))
 	{
@@ -2786,10 +2794,10 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 		{
 			loc->len = VFS_GETLEN(f);
 			VFS_CLOSE(f);
-			return -5;	//found package
+			return DLERR_PACKAGE;	//found package
 		}
 		else
-			return -1;	//not found/unable to open
+			return DLERR_FILENOTFOUND;	//not found/unable to open
 	}
 #ifdef TERRAIN
 	else if (Terrain_LocateSection(name, loc))
@@ -2800,37 +2808,44 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 	else
 		found = FS_FLocateFile(name, FSLF_IFFOUND, loc);
 
-	//nexuiz names certain files as .wav but they're really .ogg on disk.
 	if (!found && replacementname)
 	{
-		char ext[8];
-		if (!strcmp(COM_FileExtension(name, ext, sizeof(ext)), "wav"))
-		{
-			char tryogg[MAX_QPATH];
-			COM_StripExtension(name, tryogg, sizeof(tryogg));
-			COM_DefaultExtension(tryogg, ".ogg", sizeof(tryogg));
+		size_t alt;
+		static const char *alternatives[][4] = {
+			//orig-path, orig-ext, new-path, new-ext
+			//nexuiz qc names [sound/]sound/foo.wav but expects sound/foo.ogg and variations of that (the [sound/] is implied, but ignored)
+			{"",		"", ".wav", ".ogg"},//nexuiz qc names .wav, but the paks use .ogg
+			{"sound/", "",	".wav",	".wav"},	//nexuiz qc names sound/ but that's normally implied, resulting in doubles that don't exist in the filesystem
+			{"sound/", "",	".wav",	".ogg"}	//both of nexuiz's issues
+		};
 
-			found = FS_FLocateFile(tryogg, FSLF_IFFOUND, loc);
-			if (found)
-			{
-				name = *replacementname = va("%s", tryogg);
-			}
-		}
-	}
-	//nexuiz also names files with absolute paths (yet sounds are meant to have an extra prefix)
-	//this results in clients asking for sound/sound/blah.wav (or sound/sound/blah.ogg for nexuiz)
-	if (!found && replacementname)
-	{
-		if (!strncmp(name, "sound/", 6))
+		for (alt = 0; alt < countof(alternatives); alt++)
 		{
-			int result;
-			result = SV_LocateDownload(name+6, loc, replacementname, redirectpaks);
-			if (!result)
-			{	//if that was successful... redirect to it.
-				result = -4;
-				*replacementname = name+6;
+			char tryalt[MAX_QPATH];
+			char ext[8];
+			if (strncmp(name, alternatives[alt][0], strlen(alternatives[alt][0])))
+			{
+				if (*alternatives[alt][2])
+				{
+					if (strcmp(COM_FileExtension(name, ext, sizeof(ext)), alternatives[alt][2]+1))
+						continue;
+					memcpy(tryalt, alternatives[alt][1], strlen(alternatives[alt][1]));
+					COM_StripExtension(name+strlen(alternatives[alt][0]), tryalt+strlen(alternatives[alt][1]), sizeof(tryalt)-strlen(alternatives[alt][1]));
+					COM_DefaultExtension(tryalt, alternatives[alt][3], sizeof(tryalt));
+				}
+				else
+				{
+					memcpy(tryalt, alternatives[alt][1], strlen(alternatives[alt][1]));
+					Q_strncpyz(tryalt+strlen(alternatives[alt][1]), name+strlen(alternatives[alt][0]), sizeof(tryalt)-strlen(alternatives[alt][1]));
+				}
+				found = FS_FLocateFile(tryalt, FSLF_IFFOUND, loc);
+				if (found)
+				{
+					Q_snprintfz(tmpname, sizeof(tmpname), "%s", tryalt);
+					name = *replacementname = tmpname;
+					break;
+				}
 			}
-			return result;
 		}
 	}
 
@@ -2844,7 +2859,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 			if (!allow_download_anymap.value && !strncmp(name, "maps/", 5))
 			{
 				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name+8);
-				return -2;
+				return DLERR_PERMISSIONS;
 			}
 		}
 
@@ -2858,7 +2873,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 				{
 					//its inside a pak file, return the name of this file instead
 					*replacementname = pakname;
-					return -4;	//redirect
+					return DLERR_REDIRECTPACK;	//redirect
 				}
 				else
 					Con_Printf("Failed to read %s\n", pakname);
@@ -2870,12 +2885,12 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 			if (!allow_download_pakcontents.value)
 			{
 				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name+8);
-				return -2;
+				return DLERR_PERMISSIONS;
 			}
 		}
 
 		if (replacementname && *replacementname)
-			return -4;
+			return DLERR_REDIRECTPACK;
 		return 0;
 	}
 	return -1;	//not found
@@ -2980,7 +2995,7 @@ void SV_BeginDownload_f(void)
 
 	result = SV_LocateDownload(name, &loc, &redirection, false);
 
-	if (result == -5)
+	if (result == DLERR_PACKAGE)
 	{
 		//package download
 		result = 0;
@@ -2989,11 +3004,11 @@ void SV_BeginDownload_f(void)
 	else
 	{
 		//redirection protocol-specific code goes here.
-		if (result == -4)
+		if (result == DLERR_REDIRECTPACK || result == DLERR_REDIRECTFILE)
 		{
 #ifdef PEXT_CHUNKEDDOWNLOADS
-			qboolean isezquake = !strncmp(Info_ValueForKey(host_client->userinfo, "*client"), "ezQuake", 7);
-			if ((host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS) && !isezquake)
+			//ezquake etc cannot cope with proper redirects
+			if ((host_client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS) && (host_client->fteprotocolextensions & PEXT_CSQC))
 			{
 				//redirect the client (before the message saying download failed)
 //				char *s = va("dlsize \"%s\" r \"%s\"\n", name, redirection);
@@ -3002,13 +3017,14 @@ void SV_BeginDownload_f(void)
 
 				ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(name));
 				ClientReliableWrite_Long (host_client, -1);
-				ClientReliableWrite_Long (host_client, result);
+				ClientReliableWrite_Long (host_client, DLERR_REDIRECTFILE);
 				ClientReliableWrite_String (host_client, redirection);
 				return;
 			}
-			else
+			else if (result == DLERR_REDIRECTFILE && host_client->protocol == SCP_QUAKEWORLD)
 			{	//crappy hack for crappy clients. tell them to download the new file instead without telling them about any failure.
 				//this will seriously mess with any download queues or anything like that
+				//this doesn't apply to packages, because these shitty clients won't know to actually load said packages before attempting to request more files, meaning the same package gets downloaded 80 times and then only actually used AFTER they restart the client.
 				char *s = va("download \"%s\"\n", redirection);
 				ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
 				ClientReliableWrite_String (host_client, s);
@@ -3032,14 +3048,23 @@ void SV_BeginDownload_f(void)
 		char *error;
 		switch(result)
 		{
+		case DLERR_FILENOTFOUND:
 		default:
+			result = DLERR_FILENOTFOUND;
 			error = "Download could not be found\n";
 			break;
-		case -2:
+		case DLERR_UNKNOWN:
+			error = "Filesystem error\n";
+			break;
+		case DLERR_PERMISSIONS:
 			error = "Download permission denied\n";
 			break;
-		case -4:
-			result = -1;
+		case DLERR_REDIRECTFILE:
+			result = DLERR_PERMISSIONS;
+			error = "Client doesn't support file redirection\n";
+			break;
+		case DLERR_REDIRECTPACK:
+			result = DLERR_PERMISSIONS;
 			error = "Package contents not available individually\n";
 			break;
 		}
@@ -3849,6 +3874,7 @@ qboolean SV_UserInfoIsBasic(char *infoname)
 		"skin",
 		"topcolor",
 		"bottomcolor",
+		"chat",	//ezquake's afk indicators
 
 		NULL};
 
@@ -3914,12 +3940,14 @@ void SV_SetInfo_f (void)
 	if (!strcmp(Info_ValueForKey(host_client->userinfo, key), oldval))
 		return; // key hasn't changed
 
+#ifdef Q2SERVER
 	if (svs.gametype == GT_QUAKE2)
 	{
 		ge->ClientUserinfoChanged (host_client->q2edict, host_client->userinfo);	//tell the gamecode
 		SV_ExtractFromUserinfo(host_client, true);	//let the server routines know
 		return;
 	}
+#endif
 
 	// process any changed values
 	SV_ExtractFromUserinfo (host_client, true);
@@ -6864,7 +6892,7 @@ void SV_ReadQCRequest(void)
 {
 	int e;
 	char args[8];
-	char *rname;
+	char *rname, *fname;
 	func_t f;
 	int i;
 	globalvars_t *pr_globals;
@@ -6924,10 +6952,10 @@ done:
 	args[i] = 0;
 	rname = MSG_ReadString();
 	if (i)
-		rname = va("CSEv_%s_%s", rname, args);
+		fname = va("CSEv_%s_%s", rname, args);
 	else
-		rname = va("CSEv_%s", rname);
-	f = PR_FindFunction(svprogfuncs, rname, PR_ANY);
+		fname = va("CSEv_%s", rname);
+	f = PR_FindFunction(svprogfuncs, fname, PR_ANY);
 	if (!f)
 	{
 		if (i)
@@ -6942,7 +6970,7 @@ done:
 		PR_ExecuteProgram(svprogfuncs, f);
 	}
 	else
-		SV_ClientPrintf(host_client, PRINT_HIGH, "qcrequest \"%s\" not supported\n", rname);
+		SV_ClientPrintf(host_client, PRINT_HIGH, "qcrequest \"%s\" not supported\n", fname);
 }
 
 void SV_AckEntityFrame(client_t *cl, int framenum)

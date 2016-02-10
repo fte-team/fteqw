@@ -48,16 +48,6 @@ class particlesmenu : mitem_frame
 			thelist = strtrim(strcat(thelist, " ", cmd));
 		UpdateSelections();
 	};
-	//to avoid dupes
-	nonvirtual float(string n) HasChild =
-	{
-		for (mitem ch = item_children; ch; ch = ch.item_next)
-		{
-			if (!strcasecmp(n, ch.item_command))
-				return TRUE;
-		}
-		return FALSE;
-	};
 };
 
 string(string fname, string dflt) GetFirstLineComment =
@@ -124,7 +114,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Particles =
 		string fname = search_getfilename(fs, i);
 		string iname = substring(fname, 10, -5);
 		string dname = GetFirstLineComment(fname, iname);
-		if (dname && !fr.HasChild(iname))
+		if (dname && !fr.findchildcmd(iname))
 			fr.add(spawn(mitem_text, item_text:dname, item_command:iname, item_scale:8, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=8], '0 8');
 	}
 	search_end(fs);
@@ -134,7 +124,7 @@ nonstatic void(mitem_desktop desktop) M_Options_Particles =
 		string fname = search_getfilename(fs, i);
 		string iname = substring(fname, 10, -5);
 		string dname = GetFirstLineComment(fname, iname);
-		if (dname && !fr.HasChild(iname))
+		if (dname && !fr.findchildcmd(iname))
 			fr.add(spawn(mitem_text, item_text:dname, item_command:iname, item_scale:8, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=8], '0 8');
 	}
 	search_end(fs);

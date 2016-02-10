@@ -164,6 +164,7 @@ void S_EndPrecaching (void);
 void S_PaintChannels(soundcardinfo_t *sc, int endtime);
 void S_InitPaintChannels (soundcardinfo_t *sc);
 
+soundcardinfo_t *S_SetupDeviceSeat(char *driver, char *device, int seat);
 void S_ShutdownCard (soundcardinfo_t *sc);
 
 void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc);
@@ -340,7 +341,5 @@ typedef struct
 	void (QDECL *Stop) (void *ctx);		/*stop grabbing new data, old data may remain*/
 	void (QDECL *Shutdown) (void *ctx);	/*destroy everything*/
 } snd_capture_driver_t;
-
-void S_SetupDeviceSeat(char *driver, char *device, int seat);
 
 #endif

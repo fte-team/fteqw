@@ -20,6 +20,8 @@ qboolean isDedicated = false;
 void *sys_window; /*public so the renderer can attach to the correct place*/
 static int sys_running = false;
 int sys_glesversion;
+extern qboolean r_blockvidrestart;
+float sys_dpi_x, sys_dpi_y;
 int sys_soundflags;	/*1 means active. 2 means reset (so claim that its not active for one frame to force a reset)*/
 static void *sys_memheap;
 static unsigned int sys_lastframe;
@@ -110,10 +112,12 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject
 }
 
 JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj,
-				jfloat ax, jfloat ay, jfloat az)
+				jfloat ax, jfloat ay, jfloat az,
+				jfloat gx, jfloat gy, jfloat gz)
 {
 	int ret;
-	static vec3_t oac;
+	static vec3_t oacc;
+	static vec3_t ogyro;
 
 	//if we had an error, don't even run a frame any more.
 	if (*errormessage || !sys_running)
@@ -122,20 +126,29 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 		return 8;
 	}
 
+//	Sys_Printf("starting frame\n");
+
 	#ifdef SERVERONLY
 	SV_Frame();
 	#else
 	unsigned int now = Sys_Milliseconds();
 	double tdelta = (now - sys_lastframe) * 0.001;
-	if (oac[0] != ax || oac[1] != ay || oac[2] != az)
+	if (oacc[0] != ax || oacc[1] != ay || oacc[2] != az)
 	{
 		//down: x= +9.8
 		//left: y= -9.8
 		//up:   z= +9.8
 		CSQC_Accelerometer(ax, ay, az);
-		oac[0] = ax;
-		oac[1] = ay;
-		oac[2] = az;
+		oacc[0] = ax;
+		oacc[1] = ay;
+		oacc[2] = az;
+	}
+	if (ogyro[0] != gx || ogyro[1] != gy || ogyro[2] != gz)
+	{
+		CSQC_Gyroscope(gx * 180.0/M_PI, gy * 180.0/M_PI, gz * 180.0/M_PI);
+		ogyro[0] = gx;
+		ogyro[1] = gy;
+		ogyro[2] = gz;
 	}
 	Host_Frame(tdelta);
 	sys_lastframe = now;
@@ -148,7 +161,7 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 		ret |= 2;
 	if (sys_keepscreenon.ival)
 		ret |= 4;
-	if (*errormessage)
+	if (*errormessage || !sys_running)
 		ret |= 8;
 	if (sys_orientation.modified || sys_glesversion_cvar.modified)
 		ret |= 16;
@@ -159,7 +172,23 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 		else
 			ret |= 32;
 	}
+//	Sys_Printf("frame ended\n");
 	return ret;
+}
+
+//tells us that our old gl context is about to be nuked.
+JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_killglcontext(JNIEnv *env, jobject obj)
+{
+	if (!sys_running)
+		return;
+	if (qrenderer == QR_NONE)
+		return;	//not initialised yet...
+	Sys_Printf("Killing resources\n");
+	R_ShutdownRenderer(true);
+	qrenderer = QR_NONE;
+	sys_glesversion = 0;
+	if (!r_blockvidrestart)
+		r_blockvidrestart = 3;	//so video is restarted properly for the next frame
 }
 
 //tells us that our old gl context got completely obliterated
@@ -176,13 +205,14 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_openfile(JNIEnv *env, jobje
 				jstring openfile)
 {
 	const char *fname = (*env)->GetStringUTFChars(env, openfile, NULL);
-	Host_RunFile(fname, strlen(fname), NULL);
+	if (sys_running)
+		Host_RunFile(fname, strlen(fname), NULL);
 	(*env)->ReleaseStringUTFChars(env, openfile, fname);
 }
 
 //called for init or resizes
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
-				jint width, jint height, jint glesversion, jstring japkpath, jstring jusrpath)
+				jint width, jint height, jfloat dpix, jfloat dpiy, jint glesversion, jstring japkpath, jstring jusrpath)
 {
 	const char *tmp;
 
@@ -192,13 +222,17 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
 	sys_glesversion = glesversion;
+	sys_dpi_x = dpix;
+	sys_dpi_y = dpiy;
 	if (sys_running)
 	{
-		Sys_Printf("vid size changed\n");
-		if (1)//FFS sys_running == 2)
+		if (!glesversion)
+			return;	//gah!
+		Sys_Printf("vid size changed (%i %i gles%i)\n", width, height, glesversion);
+		if (!r_blockvidrestart)
 		{
 			//if our textures got destroyed, we need to reload them all
-			Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+			Cmd_ExecuteString("vid_reload\n", RESTRICT_LOCAL);
 		}
 		else
 		{
@@ -246,6 +280,11 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		sys_running = true;
 		sys_lastframe = Sys_Milliseconds();
 		sys_orientation.modified = true;
+
+		while(r_blockvidrestart == 1)
+			Java_com_fteqw_FTEDroidEngine_frame(env, obj, 0,0,0, 0,0,0);
+
+		Sys_Printf("Engine started\n");
 	}
 }
 
@@ -321,6 +360,7 @@ void Sys_Quit(void)
 	SV_Shutdown();
 #endif
 
+	sys_running = false;
 	LOGI("%s", "quitting");
 
 	longjmp(host_abort, 1);

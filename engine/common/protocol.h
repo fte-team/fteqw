@@ -441,6 +441,13 @@ enum clcq2_ops_e
 
 //==============================================
 
+#define DLERR_FILENOTFOUND	-1	//server cannot serve the file
+#define DLERR_PERMISSIONS	-2	//server refuses to serve the file
+#define DLERR_UNKNOWN		-3	//server bugged out while trying to serve the request
+#define DLERR_REDIRECTFILE	-4	//client should download the specified file instead.
+#define DLERR_REDIRECTPACK	-5	//client should download the specified package instead.
+#define DLERR_PACKAGE		-6	//not networked. packages require special file access.
+
 //these flags are sent as part of the svc_precache index, for any-time precaches. using the upper two bits means we still have 16k available models/sounds/etc
 #define PC_TYPE			0xc000
 #define PC_MODEL		0x0000

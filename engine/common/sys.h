@@ -127,12 +127,12 @@ qboolean Sys_ConditionSignal(void *condv);		//lock first
 qboolean Sys_ConditionBroadcast(void *condv);	//lock first
 void Sys_DestroyConditional(void *condv);
 #else
-#define Sys_IsMainThread() true
-#define Sys_CreateMutex() NULL
-#define Sys_LockMutex(m) true
-#define Sys_UnlockMutex(m) true
+#define Sys_IsMainThread() (true)
+#define Sys_CreateMutex() (NULL)
+#define Sys_LockMutex(m) (true)
+#define Sys_UnlockMutex(m) (true)
 #define Sys_DestroyMutex(m)
-#define Sys_IsThread(t) !t
+#define Sys_IsThread(t) (!t)
 #endif
 
 void Sys_Sleep(double seconds);

@@ -1564,6 +1564,7 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 	int clientcount, lost;
 	int curframe;
 	int st = buf->cursize;
+	int chatstate;
 
 	cl.movesequence = cls.netchan.outgoing_sequence;	//make sure its correct even over map changes.
 	curframe = cl.movesequence & UPDATE_MASK;
@@ -1582,8 +1583,20 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 		clientcount = 1;
 
 
+	chatstate = 0;
+	chatstate |= Key_Dest_Has(~kdm_game)?1:0;
+	chatstate |= vid.activeapp?0:2;
 	for (plnum = 0; plnum<clientcount; plnum++)
 	{
+		if (cl.playerview[plnum].chatstate != chatstate)
+		{
+			if (chatstate)
+				CL_SetInfo(plnum, "chat", va("%i", chatstate));
+			else
+				CL_SetInfo(plnum, "chat", "");
+			cl.playerview[plnum].chatstate = chatstate;
+		}
+
 		cmd = &cl.outframes[curframe].cmd[plnum];
 		*cmd = independantphysics[plnum];
 		

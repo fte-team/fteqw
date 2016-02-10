@@ -8,7 +8,6 @@ SDL_Window *sdlwindow;
 extern SDL_Surface *sdlsurf;
 #endif
 
-qboolean ActiveApp;
 qboolean mouseactive;
 extern qboolean mouseusedforgui;
 extern qboolean vid_isfullscreen;
@@ -705,10 +704,10 @@ void Sys_SendKeyEvents(void)
 				}
 				break;
 			case SDL_WINDOWEVENT_FOCUS_GAINED:
-				ActiveApp = true;
+				vid.activeapp = true;
 				break;
 			case SDL_WINDOWEVENT_FOCUS_LOST:
-				ActiveApp = false;
+				vid.activeapp = false;
 				break;
 			case SDL_WINDOWEVENT_CLOSE:
 				Cbuf_AddText("quit prompt\n", RESTRICT_LOCAL);
@@ -720,7 +719,7 @@ void Sys_SendKeyEvents(void)
 		case SDL_ACTIVEEVENT:
 			if (event.active.state & SDL_APPINPUTFOCUS)
 			{	//follow keyboard status
-				ActiveApp = !!event.active.gain;
+				vid.activeapp = !!event.active.gain;
 				break;
 			}
 			break;

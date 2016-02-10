@@ -31,7 +31,6 @@ extern qboolean vid_isfullscreen;
 unsigned short intitialgammaramps[3][256];
 #endif
 
-qboolean ActiveApp;
 qboolean mouseactive;
 extern qboolean mouseusedforgui;
 
@@ -229,7 +228,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 #endif
-	ActiveApp = true;
+	vid.activeapp = true;
 
 	GL_Init(GLVID_getsdlglfunction);
 
@@ -275,7 +274,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 void GLVID_DeInit (void)
 {
-	ActiveApp = false;
+	vid.activeapp = false;
 
 	IN_DeactivateMouse();
 
@@ -321,7 +320,7 @@ void GLVID_SwapBuffers (void)
 		}
 		else
 		{
-			if (!Key_MouseShouldBeFree() && ActiveApp)
+			if (!Key_MouseShouldBeFree() && vid.activeapp)
 				IN_ActivateMouse ();
 			else
 				IN_DeactivateMouse ();

@@ -94,6 +94,9 @@ void TL_InitLanguages(char *newlangpath)
 	int i;
 	char *lang;
 
+	if (!newlangpath)
+		newlangpath = "";
+
 	Q_strncpyz(langpath, newlangpath, sizeof(langpath));
 
 	//lang can override any environment or system settings.

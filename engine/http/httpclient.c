@@ -279,6 +279,7 @@ It doesn't use persistant connections.
 */
 
 #define COOKIECOOKIECOOKIE
+#ifdef COOKIECOOKIECOOKIE
 typedef struct cookie_s
 {
 	struct cookie_s *next;
@@ -293,6 +294,7 @@ cookie_t *cookies;
 void Cookie_Feed(char *domain, int secure, char *name, char *value)
 {
 	cookie_t **link, *c;
+	Sys_LockMutex(com_resourcemutex);
 	for(link = &cookies; c = *link; link = &(*link)->next)
 	{
 		if (!strcmp(c->domain, domain) && c->secure == secure && !strcmp(c->name, name))
@@ -304,23 +306,25 @@ void Cookie_Feed(char *domain, int secure, char *name, char *value)
 		*link = c->next;
 		Z_Free(c);
 	}
-	if (!value || !*value)
+	if (value && *value)
 	{
-//		Con_Printf("Deleting cookie http%s://%s/ %s\n", secure?"s":"", domain, name);
-		//no new value, hurrah.
-		return;
+//		Con_Printf("Setting cookie http%s://%s/ %s=%s\n", secure?"s":"", domain, name, value);
+		c = Z_Malloc(sizeof(*c) + strlen(domain) + strlen(name) + strlen(value) + 3);
+		c->domain = (char*)(c+1);
+		strcpy(c->domain, domain);
+		c->secure = secure;
+		c->name = c->domain+strlen(c->domain)+1;
+		strcpy(c->name, name);
+		c->value = c->name+strlen(c->name)+1;
+		strcpy(c->value, value);
+		c->next = cookies;
+		cookies = c;
 	}
-//	Con_Printf("Setting cookie http%s://%s/ %s=%s\n", secure?"s":"", domain, name, value);
-	c = Z_Malloc(sizeof(*c) + strlen(domain) + strlen(name) + strlen(value) + 3);
-	c->domain = (char*)(c+1);
-	strcpy(c->domain, domain);
-	c->secure = secure;
-	c->name = c->domain+strlen(c->domain)+1;
-	strcpy(c->name, name);
-	c->value = c->name+strlen(c->name)+1;
-	strcpy(c->value, value);
-	c->next = cookies;
-	cookies = c;
+	else
+	{
+//		Con_Printf("Deleted cookie http%s://%s/ %s\n", secure?"s":"", domain, name);
+	}
+	Sys_UnlockMutex(com_resourcemutex);
 }
 
 //just removes all the cookies it can.
@@ -359,7 +363,7 @@ void Cookie_Parse(char *domain, int secure, char *line, char *end)
 	*end = 0;
 	Cookie_Feed(domain, secure, line, e+1);
 }
-//outputs a complete http line: Cookie a=v1; b=v2\r\n
+//outputs a complete http line: Cookie: a=v1; b=v2\r\n
 void Cookie_Regurgitate(char *domain, int secure, char *buffer, size_t buffersize)
 {
 	qboolean hascookies = false;
@@ -367,6 +371,7 @@ void Cookie_Regurgitate(char *domain, int secure, char *buffer, size_t buffersiz
 	char *l = buffer;
 	buffersize -= 3;	//\r\n\0
 	*buffer = 0;
+	Sys_LockMutex(com_resourcemutex);
 	for (c = cookies; c; c = c->next)
 	{
 		if (!strcmp(c->domain, domain) && c->secure == secure)
@@ -401,6 +406,7 @@ void Cookie_Regurgitate(char *domain, int secure, char *buffer, size_t buffersiz
 			buffer += vlen;
 		}
 	}
+	Sys_UnlockMutex(com_resourcemutex);
 
 	if (hascookies)
 		strcpy(buffer, "\r\n");
@@ -410,6 +416,7 @@ void Cookie_Regurgitate(char *domain, int secure, char *buffer, size_t buffersiz
 //	if (*l)
 //		Con_Printf("Sending cookie(s) to http%s://%s/ %s\n", secure?"s":"", domain, l);
 }
+#endif
 
 struct http_dl_ctx_s {
 //	struct dl_download *dlctx;

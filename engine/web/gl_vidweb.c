@@ -8,7 +8,6 @@ extern int gammaworks;
 
 extern qboolean vid_isfullscreen;
 
-qboolean ActiveApp;
 qboolean mouseactive;
 extern qboolean mouseusedforgui;
 
@@ -221,7 +220,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
-	ActiveApp = true;
+	vid.activeapp = true;
 
 	GL_Init(GLVID_getsdlglfunction);
 
@@ -236,7 +235,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 void GLVID_DeInit (void)
 {
-	ActiveApp = false;
+	vid.activeapp = false;
 
 	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
@@ -261,9 +260,9 @@ void GLVID_SwapBuffers (void)
 		}
 		else
 		{
-			if ((key_dest == key_game||mouseusedforgui) && ActiveApp)
+			if ((key_dest == key_game||mouseusedforgui) && vid.activeapp)
 				IN_ActivateMouse ();
-			else if (!(key_dest == key_game || mouseusedforgui) || !ActiveApp)
+			else if (!(key_dest == key_game || mouseusedforgui) || !vid.activeapp)
 				IN_DeactivateMouse ();
 		}
 	}

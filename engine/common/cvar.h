@@ -70,7 +70,7 @@ typedef struct cvar_s
 	char			*name2;
 
 	void			(QDECL *callback) (struct cvar_s *var, char *oldvalue);
-	char			*description;
+	const char		*description;
 	char			*enginevalue;		//when changing manifest dir, the cvar will be reset to this value. never freed.
 	char			*defaultstr;		//this is the current mod's default value. set on first update.
 
@@ -164,6 +164,7 @@ cvar_t	*Cvar_ForceSet (cvar_t *var, const char *value);
 cvar_t 	*Cvar_Set (cvar_t *var, const char *value);
 // equivelant to "<name> <variable>" typed at the console
 
+void	Cvar_ForceSetValue (cvar_t *var, float value);
 void	Cvar_SetValue (cvar_t *var, float value);
 // expands value to a string and calls Cvar_Set
 

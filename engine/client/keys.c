@@ -323,7 +323,7 @@ int con_commandmatch;
 void CompleteCommand (qboolean force)
 {
 	char	*cmd, *s;
-	char *desc;
+	const char *desc;
 
 	s = key_lines[edit_line]+1;
 	if (*s == '\\' || *s == '/')
@@ -2172,7 +2172,7 @@ qboolean Key_MouseShouldBeFree(void)
 	if (Key_Dest_Has(kdm_editor))
 		return true;
 
-//	if (!ActiveApp)
+//	if (!vid.activeapp)
 //		return true;
 
 	if (Key_Dest_Has(kdm_emenu))

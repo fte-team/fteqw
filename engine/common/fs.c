@@ -4672,13 +4672,24 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 #ifdef ANDROID
 	{
+		//write a .nomedia file to avoid people from getting random explosion sounds etc interspersed with their music
 		vfsfile_t *f;
-		//write a .nomedia file to avoid people from getting random explosion sounds etc intersperced with their music
-		f = FS_OpenVFS(".nomedia", "rb", FS_ROOT);
+		char nomedia[MAX_OSPATH];
+		//figure out the path we're going to end up writing to
+		if (com_homepathenabled)
+			snprintf(nomedia, sizeof(nomedia), "%s%s", com_homepath, ".nomedia");
+		else
+			snprintf(nomedia, sizeof(nomedia), "%s%s", com_gamepath, ".nomedia");
+
+		//make sure it exists.
+		f = VFSOS_Open(nomedia, "rb");
+		if (!f)	//don't truncate
+		{
+			COM_CreatePath(nomedia);
+			f = VFSOS_Open(nomedia, "wb");
+		}
 		if (f)
 			VFS_CLOSE(f);
-		else
-			FS_WriteFile(".nomedia", NULL, 0, FS_ROOT);
 	}
 #endif
 

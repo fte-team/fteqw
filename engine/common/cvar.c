@@ -1024,6 +1024,16 @@ void Cvar_SetValue (cvar_t *var, float value)
 		sprintf (val, "%g",value);
 	Cvar_Set (var, val);
 }
+void Cvar_ForceSetValue (cvar_t *var, float value)
+{
+	char	val[32];
+
+//	if (value == (int)value)
+//		sprintf (val, "%i",(int)value);	//make it look nicer.
+//	else
+		sprintf (val, "%g",value);
+	Cvar_ForceSet (var, val);
+}
 
 void Cvar_Free(cvar_t *tbf)
 {
@@ -1190,8 +1200,9 @@ cvar_t *Cvar_Get2(const char *name, const char *defaultvalue, int flags, const c
 	var->flags = flags|CVAR_POINTER|CVAR_USERCREATED;
 	if (description)
 	{
-		var->description = var->name+strlen(var->name)+1;
-		strcpy(var->description, description);
+		char *desc = var->name+strlen(var->name)+1;
+		strcpy(desc, description);
+		var->description = desc;
 	}
 
 	if (!Cvar_Register(var, group))

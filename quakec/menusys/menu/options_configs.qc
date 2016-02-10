@@ -3,24 +3,8 @@ Uses the engine command to apply the preset, and tries an exec instead if a conf
 Doesn't track the current one or anything.
 Really simple and stupid menu.
 no background tint, so the game is still visible so you can preview it.
-
-you should probably remove the fps_preset part. I left it in so that I don't have to bother with providing cfg files. note that this isn't a valid solution for dp, but whatever.
-the great thing about providing source is that you can change it.
-you can instead just shove your preset settings directly into the quotes instead of exec.
 */
 
-struct
-{
-	string name;
-	string preset;
-	string config;
-} configs[] =
-{
-//	{"Simple Deathmatch",	"simple",		"configs/game_simple.cfg"},
-	{"Deathmatch",			"deathmatch",	"configs/game_deathmatch.cfg"},
-	{"Mod Compatibility",		"compat",		"configs/game_compat.cfg"},
-	{"Standard",			"normal",		"configs/game_normal.cfg"}
-};
 
 nonstatic void(mitem_desktop desktop) M_Configs =
 {
@@ -41,13 +25,24 @@ nonstatic void(mitem_desktop desktop) M_Configs =
 	mitem_frame fr = spawn(mitem_frame, item_flags: IF_SELECTABLE, frame_hasscroll:TRUE);
 	m.add(fr, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, -h], [0, h*2]);
 	
-	float fl = RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN;
 
-	//add the options
-	for (i = 0; i < configs.length; i++)
+
+
+	float fs, y=0;
+	fs = search_begin("configs/game_*.cfg", TRUE, TRUE);	
+	float c = search_getsize(fs);
+	for (i = 0; i < c; i++)
 	{
-		fr.add(spawn(mitem_text, item_text:configs[i].name, item_command:sprintf("exec \"%s\"", configs[i].config), item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, i*16], [100, 16]);
+		string fname = search_getfilename(fs, i);
+		string iname = substring(fname, 10, -5);
+		string dname = GetFirstLineComment(fname, iname);
+		iname = sprintf("exec \"%s\"", iname);
+		if (dname && !fr.findchildcmd(iname))
+			fr.add(spawn(mitem_text, item_text:dname, item_command:iname, item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=16], '100 16');
 	}
+	search_end(fs);	
+	if (c <= 0)
+		fr.add(spawn(mitem_text, item_text:"No configs found", item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y], '100 16');
 
 	//random art for style
 #if 1//def CSQC

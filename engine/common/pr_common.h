@@ -722,6 +722,7 @@ enum csqc_input_event
 	CSIE_ACCELEROMETER = 4,	/*x, y, z*/
 	CSIE_FOCUS = 5,			/*mouse, key, devid.		if has, the game window has focus. (true/false/-1)*/
 	CSIE_JOYAXIS = 6,		/*axis, value, devid*/
+	CSIE_GYROSCOPE = 7,		/*x, y, z					rotational acceleration*/
 };
 
 #ifdef TERRAIN

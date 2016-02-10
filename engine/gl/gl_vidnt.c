@@ -1168,7 +1168,7 @@ static qboolean CreateMainWindow(rendererstate_t *info)
 
 	Win_Touch_Init(mainwindow);
 
-	INS_UpdateGrabs(info->fullscreen, ActiveApp);
+	INS_UpdateGrabs(info->fullscreen, vid.activeapp);
 
 	return stat;
 }
@@ -1816,7 +1816,7 @@ void GLVID_SwapBuffers (void)
 
 // handle the mouse state when windowed if that's changed
 
-	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+	INS_UpdateGrabs(modestate != MS_WINDOWED, vid.activeapp);
 }
 
 void OblitterateOldGamma(void)
@@ -1843,7 +1843,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned short *ramps)
 		if (vid_hardwaregamma.value == 1 && modestate == MS_WINDOWED)
 			return false;	//don't do hardware gamma in windowed mode
 
-		if (ActiveApp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
+		if (vid.activeapp && vid_hardwaregamma.value)	//this is needed because ATI drivers don't work properly (or when task-switched out).
 		{
 			if (gammaworks)
 			{	//we have hardware gamma applied - if we're doing a BF, we don't want to reset to the default gamma (yuck)
@@ -2174,25 +2174,25 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 {
 	static BOOL	sound_active;
 
-	if (ActiveApp == fActive && Minimized == minimize)
+	if (vid.activeapp == fActive && Minimized == minimize)
 		return false;	//so windows doesn't crash us over and over again.
 
-	ActiveApp = fActive;// && (foregroundwindow==mainwindow);
+	vid.activeapp = fActive;// && (foregroundwindow==mainwindow);
 	Minimized = minimize;
 
 // enable/disable sound on focus gain/loss
-	if (!ActiveApp && sound_active)
+	if (!vid.activeapp && sound_active)
 	{
 		S_BlockSound ();
 		sound_active = false;
 	}
-	else if (ActiveApp && !sound_active)
+	else if (vid.activeapp && !sound_active)
 	{
 		S_UnblockSound ();
 		sound_active = true;
 	}
 
-	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+	INS_UpdateGrabs(modestate != MS_WINDOWED, vid.activeapp);
 
 	if (fActive)
 	{
@@ -2657,7 +2657,7 @@ void VID_Init8bitPalette(void)
 void GLVID_DeInit (void)
 {
 	GLVID_Shutdown();
-	ActiveApp = false;
+	vid.activeapp = false;
 
 	Cvar_Unhook(&vid_vsync);
 	Cvar_Unhook(&vid_wndalpha);
@@ -2710,7 +2710,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	if (isPlugin >= 2)
 	{
-		fprintf(stdout, "refocuswindow "fPRIp"\n", mainwindow);
+		fprintf(stdout, "refocuswindow %"PRIxPTR"\n", mainwindow);
 		fflush(stdout);
 	}
 

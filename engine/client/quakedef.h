@@ -200,48 +200,37 @@ extern "C" {
 #include <crtdbg.h>
 #endif
 
-
 //msvcrt lacks any and all c99 support.
 #ifdef _WIN32
-	#define fPRIp "%p"
+	#define PRIxPTR "p"
 	//totally different from any other system
-	#define fPRIllx "%I64x"
-	#define fPRIllu "%I64u"
-	#define fPRIlli "%I64i"
-#else
-	//make SURE we get 0xdeadbeef for this
-	#if FTE_WORDSIZE != 32
-		#define fPRIp "%#zx"
-	#else
-		#define fPRIp "%#x"
-	#endif
+	#define PRIx64 "I64x"
+	#define PRIu64 "I64u"
+	#define PRIi64 "I64i"
 
-	//assume some c99 support where we print long long int types.
-	#define fPRIllx "%llx"
-	#define fPRIllu "%llu"
-	#define fPRIlli "%lli"
-#endif
-#ifdef _WIN32
-	//windows does not follow c99 at all
 	#ifdef _WIN64
-		#define fPRIzx "%Ix"
-		#define fPRIzu "%Iu"
-		#define fPRIzi "%Ii"
+		#define PRIxSIZE "Ix"
+		#define PRIuSIZE "Iu"
+		#define PRIiSIZE "Ii"
 	#else
-		#define fPRIzx "%x"
-		#define fPRIzu "%u"
-		#define fPRIzi "%i"
+		#define PRIxSIZE "x"
+		#define PRIuSIZE "u"
+		#define PRIiSIZE "i"
 	#endif
-#elif FTE_WORDSIZE != 32
-	//64bit systems are expected to have an awareness of c99
-	#define fPRIzx "%zx"
-	#define fPRIzu "%zu"
-	#define fPRIzi "%zi"
 #else
-	//regular old c89 for 32bit platforms.
-	#define fPRIzx "%x"
-	#define fPRIzu "%u"
-	#define fPRIzi "%i"
+	#include <inttypes.h>
+	//these are non-standard. c99 would expect people to just use %zx etc
+	#if FTE_WORDSIZE != 32
+		//64bit systems are expected to have an awareness of c99
+		#define PRIxSIZE "zx"
+		#define PRIuSIZE "zu"
+		#define PRIiSIZE "zi"
+	#else
+		//regular old c89 for 32bit platforms.
+		#define PRIxSIZE "x"
+		#define PRIuSIZE "u"
+		#define PRIiSIZE "i"
+	#endif
 #endif
 
 

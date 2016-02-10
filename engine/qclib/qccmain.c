@@ -934,7 +934,52 @@ void QCC_UnmarshalLocals(void)
 	if (verbose)
 		printf("%i shared locals, %i private, %i total\n", biggest - onum, onum - eog, numpr_globals-eog);
 }
+static void QCC_GenerateFieldDefs(QCC_def_t *def, char *fieldname, int ofs, QCC_type_t *type)
+{
+	string_t sname;
+	QCC_ddef32_t *dd;
+	if (type->type == ev_struct || type->type == ev_union)
+	{	//the qcvm cannot cope with struct fields. so we need to generate lots of fake ones.
+		char sub[256];
+		unsigned int p, a;
+		int parms = type->num_parms;
+		if (type->type == ev_union)
+			parms = 1;	//unions only generate the first element. it simplifies things (should really just be the biggest).
+		for (p = 0; p < parms; p++)
+		{
+			if (type->params[p].arraysize)
+			{
+				for (a = 0; a < type->params[p].arraysize; a++)
+				{
+					QC_snprintfz(sub, sizeof(sub), "%s.%s[%u]", fieldname, type->params[p].paramname, a);
+					QCC_GenerateFieldDefs(def, sub, ofs + type->params[p].ofs + a * type->params[p].type->size, type->params[p].type);
+				}
+			}
+			else
+			{
+				QC_snprintfz(sub, sizeof(sub), "%s.%s", fieldname, type->params[p].paramname);
+				QCC_GenerateFieldDefs(def, sub, ofs + type->params[p].ofs, type->params[p].type);
+			}
+		}
+		return;
+	}
+	if (numfielddefs >= MAX_FIELDS)
+		QCC_PR_ParseError(0, "Too many fields. Limit is %u\n", MAX_FIELDS);
+	dd = &fields[numfielddefs];
+	numfielddefs++;
+	dd->type = type->type;
+	dd->s_name = sname = QCC_CopyString (fieldname);
+	dd->ofs = def->symboldata[ofs]._int;
 
+	if (numglobaldefs >= MAX_GLOBALS)
+		QCC_PR_ParseError(0, "Too many globals. Limit is %u\n", MAX_GLOBALS);
+	//and make sure that there's a global defined too, so field remapping isn't screwed.
+	dd = &qcc_globals[numglobaldefs];
+	numglobaldefs++;
+	dd->type = ev_field;
+	dd->ofs = ofs;
+	dd->s_name = sname;
+}
 
 
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(char *def);
@@ -1300,13 +1345,8 @@ pbool QCC_WriteData (int crc)
 		}
 		else if (def->type->type == ev_field && def->constant && (!def->scope || def->isstatic || def->initialized))
 		{
-			if (numfielddefs >= MAX_FIELDS)
-				QCC_PR_ParseError(0, "Too many fields. Limit is %u\n", MAX_FIELDS);
-			dd = &fields[numfielddefs];
-			numfielddefs++;
-			dd->type = def->type->aux_type->type;
-			dd->s_name = QCC_CopyString (def->name);
-			dd->ofs = def->symboldata[def->ofs]._int;
+			QCC_GenerateFieldDefs(def, def->name, def->ofs, def->type->aux_type);
+			continue;
 		}
 		else if ((def->scope||def->constant) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
 		{
@@ -3166,6 +3206,14 @@ void QCC_PR_CommandLinePrecompilerOptions (void)
 				cnst->value = qccHunkAlloc(strlen(val)+1);
 				memcpy(cnst->value, val, strlen(val)+1);
 			}
+		}
+		else if ( !strncmp(myargv[i], "-I", 2) )
+		{
+			name = myargv[i] + 2;
+			if (!*name && i+1<myargc)
+				name = myargv[++i];
+
+			QCC_PR_AddIncludePath(name);
 		}
 
 		//optimisations.

@@ -632,6 +632,8 @@ struct playerview_s
 	float		rollangle;
 	float		hdr_last;
 
+	int			chatstate;	//1=talking, 2=afk
+
 	float		crouch;			// local amount for smoothing stepups
 	vec3_t		oldorigin;		// to track step smoothing
 	float		oldz, extracrouch, crouchspeed; // to track step smoothing
@@ -1341,6 +1343,7 @@ qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid);
 qboolean CSQC_MousePosition(float xabs, float yabs, int devid);
 qboolean CSQC_JoystickAxis(int axis, float value, int devid);
 qboolean CSQC_Accelerometer(float x, float y, float z);
+qboolean CSQC_Gyroscope(float x, float y, float z);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation, float pitchmod, float timeofs, unsigned int flags);
 void CSQC_ParseEntities(void);
 void CSQC_ResetTrails(void);

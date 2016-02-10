@@ -219,11 +219,6 @@ float           scr_disabled_time;
 
 float oldsbar = 0;
 
-void SCR_ScreenShot_f (void);
-void SCR_ScreenShot_Mega_f(void);
-void SCR_RSShot_f (void);
-void SCR_CPrint_f(void);
-
 cvar_t	con_stayhidden = CVARFD("con_stayhidden", "0", CVAR_NOTFROMSERVER, "0: allow console to pounce on the user\n1: console stays hidden unless explicitly invoked\n2:toggleconsole command no longer works\n3: shift+escape key no longer works");
 cvar_t	show_fps	= SCVARF("show_fps", "0", CVAR_ARCHIVE);
 cvar_t	show_fps_x	= SCVAR("show_fps_x", "-1");
@@ -242,6 +237,15 @@ cvar_t	scr_showloading	= CVAR("scr_showloading", "1");
 cvar_t	scr_showobituaries = CVAR("scr_showobituaries", "0");
 
 void *scr_curcursor;
+
+
+static void SCR_CPrint_f(void)
+{
+	if (Cmd_Argc() == 2)
+		SCR_CenterPrint(0, Cmd_Argv(1), true);
+	else
+		SCR_CenterPrint(0, Cmd_Args(), true);
+}
 
 extern char cl_screengroup[];
 void CLSCR_Init(void)
@@ -506,14 +510,6 @@ void VARGS Stats_Message(char *msg, ...)
 	p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, sizeof(p->string), false) - p->string;
 	p->time_off = scr_centertime.value;
 	p->time_start = cl.time;
-}
-
-void SCR_CPrint_f(void)
-{
-	if (Cmd_Argc() == 2)
-		SCR_CenterPrint(0, Cmd_Argv(1), true);
-	else
-		SCR_CenterPrint(0, Cmd_Args(), true);
 }
 
 #define MAX_CPRINT_LINES 128
@@ -1320,56 +1316,6 @@ void SCR_SizeDown_f (void)
 //============================================================================
 
 /*
-==================
-SCR_Init
-==================
-*/
-void SCR_Init (void)
-{
-//
-// register our commands
-//
-	Cmd_AddCommandD ("screenshot_mega",SCR_ScreenShot_Mega_f, "screenshot_mega <name> [width] [height]\nTakes a screenshot with explicit sizes that are not tied to the size of your monitor, allowing for true monstrosities.");
-	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
-	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
-	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);
-
-	scr_net = R2D_SafePicFromWad ("net");
-	scr_turtle = R2D_SafePicFromWad ("turtle");
-
-	scr_initialized = true;
-}
-
-void SCR_DeInit (void)
-{
-	int i;
-	if (scr_curcursor)
-	{
-		rf->VID_SetCursor(scr_curcursor);
-		scr_curcursor = NULL;
-	}
-	for (i = 0; i < countof(key_customcursor); i++)
-	{
-		if (key_customcursor[i].handle)
-		{
-			rf->VID_DestroyCursor(key_customcursor[i].handle);
-			key_customcursor[i].handle = NULL;
-		}
-		key_customcursor[i].dirty = true;
-	}
-	if (scr_initialized)
-	{
-		scr_initialized = false;
-
-		Cmd_RemoveCommand ("screenshot");
-		Cmd_RemoveCommand ("screenshot_mega");
-		Cmd_RemoveCommand ("sizeup");
-		Cmd_RemoveCommand ("sizedown");
-	}
-}
-
-
-/*
 ==============
 SCR_DrawTurtle
 ==============
@@ -2082,7 +2028,7 @@ typedef struct _TargaHeader {
 qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression, qbyte *screendata, int screenwidth, int screenheight, enum uploadfmt fmt);
 #endif
 #ifdef AVAIL_PNGLIB
-int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, qbyte *pixels, int width, int height, enum uploadfmt fmt);
+int Image_WritePNG (char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, int width, int height, enum uploadfmt fmt);
 #endif
 void WriteBMPFile(char *filename, enum fs_relative fsroot, qbyte *in, int width, int height);
 
@@ -2202,7 +2148,7 @@ int MipColor(int r, int g, int b)
 	return best;
 }
 
-qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void *rgb_buffer, int width, int height, enum uploadfmt fmt)
+qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void **buffer, int numbuffers, int width, int height, enum uploadfmt fmt)
 {
 #if defined(AVAIL_PNGLIB) || defined(AVAIL_JPEGLIB)
 	extern cvar_t scr_sshot_compression;
@@ -2212,35 +2158,33 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void *rgb_buff
 
 	COM_FileExtension(filename, ext, sizeof(ext));
 
-	if (!rgb_buffer)
-		return false;
-
 #ifdef AVAIL_PNGLIB
-	if (!Q_strcasecmp(ext, "png"))
+	if (!Q_strcasecmp(ext, "png") || !Q_strcasecmp(ext, "pns"))
 	{
 		//png can do bgr+rgb
 		//rgba bgra will result in an extra alpha chan
-		return Image_WritePNG(filename, fsroot, scr_sshot_compression.value, rgb_buffer, width, height, fmt);
+		//actual stereo is also supported. huzzah.
+		return Image_WritePNG(filename, fsroot, scr_sshot_compression.value, buffer, numbuffers, width, height, fmt);
 	}
 	else
 #endif
 #ifdef AVAIL_JPEGLIB
 		if (!Q_strcasecmp(ext, "jpeg") || !Q_strcasecmp(ext, "jpg"))
 	{
-		return screenshotJPEG(filename, fsroot, scr_sshot_compression.value, rgb_buffer, width, height, fmt);
+		return screenshotJPEG(filename, fsroot, scr_sshot_compression.value, buffer[0], width, height, fmt);
 	}
 	else
 #endif
 	/*	if (!Q_strcasecmp(ext, "bmp"))
 	{
-		return WriteBMPFile(pcxname, rgb_buffer, width, height);
+		return WriteBMPFile(pcxname, buffer[0], width, height);
 	}
 	else*/
 		if (!Q_strcasecmp(ext, "pcx"))
 	{
 		int y, x, s;
 		qbyte *src, *dest;
-		qbyte *newbuf = rgb_buffer;
+		qbyte *newbuf = buffer[0];
 		if (fmt == TF_RGB24 || fmt == TF_RGBA32)
 		{
 			s = (fmt == TF_RGB24)?3:4;
@@ -2277,7 +2221,7 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void *rgb_buff
 		WritePCXfile (filename, fsroot, newbuf, width, height, width, host_basepal, false);
 	}
 	else if (!Q_strcasecmp(ext, "tga"))	//tga
-		return WriteTGA(filename, fsroot, rgb_buffer, width, height, fmt);
+		return WriteTGA(filename, fsroot, buffer[0], width, height, fmt);
 	else	//extension / type not recognised.
 		return false;
 	return true;
@@ -2288,7 +2232,7 @@ qboolean SCR_ScreenShot (char *filename, enum fs_relative fsroot, void *rgb_buff
 SCR_ScreenShot_f
 ==================
 */
-void SCR_ScreenShot_f (void)
+static void SCR_ScreenShot_f (void)
 {
 	char			sysname[1024];
 	char            pcxname[MAX_QPATH];
@@ -2325,7 +2269,7 @@ void SCR_ScreenShot_f (void)
 	//
 		for (i=0 ; i<stop ; i++)
 		{
-			Q_snprintfz(pcxname, sizeof(pcxname), "%s-%s-%i.%s", scr_sshot_prefix.string, date, i, scr_sshot_type.string);
+			Q_snprintfz(pcxname, sizeof(pcxname), "%s%s-%i.%s", scr_sshot_prefix.string, date, i, scr_sshot_type.string);
 
 			if (!(vfs = FS_OpenVFS(pcxname, "rb", FS_GAMEONLY)))
 				break;  // file doesn't exist
@@ -2343,7 +2287,7 @@ void SCR_ScreenShot_f (void)
 	rgbbuffer = VID_GetRGBInfo(&width, &height, &fmt);
 	if (rgbbuffer)
 	{
-		if (SCR_ScreenShot(pcxname, FS_GAMEONLY, rgbbuffer, width, height, fmt))
+		if (SCR_ScreenShot(pcxname, FS_GAMEONLY, &rgbbuffer, 1, width, height, fmt))
 		{
 			Con_Printf ("Wrote %s\n", sysname);
 			BZ_Free(rgbbuffer);
@@ -2354,42 +2298,11 @@ void SCR_ScreenShot_f (void)
 	Con_Printf ("Couldn't write %s\n", sysname);
 }
 
-void SCR_ScreenShot_Mega_f(void)
+void *SCR_ScreenShot_FBO(int fbwidth, int fbheight, enum uploadfmt *fmt)
 {
-	int width;
-	int height;
-	qbyte *rgbbuffer;
-	char filename[MAX_QPATH];
-	enum uploadfmt fmt;
-
-	//poke the various modes into redrawing the screen (without huds), to avoid any menus or console drawn over the top of the current backbuffer.
-	//FIXME: clear-to-black first
+	int width, height;
+	void *buf;
 	qboolean okay = false;
-
-	char *screenyname = Cmd_Argv(1);
-	unsigned int fbwidth = strtoul(Cmd_Argv(2), NULL, 0);
-	unsigned int fbheight = strtoul(Cmd_Argv(3), NULL, 0);
-
-	if (Cmd_IsInsecure())
-		return;
-
-	if (qrenderer <= QR_HEADLESS)
-	{
-		Con_Printf("No renderer active\n");
-		return;
-	}
-
-	if (!fbwidth)
-		fbwidth = sh_config.texture_maxsize;
-	fbwidth = bound(0, fbwidth, sh_config.texture_maxsize);
-	if (!fbheight)
-		fbheight = (fbwidth * 3)/4;
-	fbheight = bound(0, fbheight, sh_config.texture_maxsize);
-	if (!*screenyname)
-		screenyname = "megascreeny";
-
-	Q_snprintfz(filename, sizeof(filename), "%s-%s", scr_sshot_prefix.string, screenyname);
-	COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
 
 	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "megascreeny", sizeof(r_refdef.rt_destcolour[0].texname));
 	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, fbwidth, fbheight, 1);
@@ -2415,33 +2328,254 @@ void SCR_ScreenShot_Mega_f(void)
 		V_RenderView ();
 		okay = true;
 	}
-
-	//okay, we drew something, we're good to save a screeny.
-	if (okay)
+	//fixme: add a way to get+save the depth values too
+	if (!okay)
 	{
-		rgbbuffer = VID_GetRGBInfo(&width, &height, &fmt);
-		if (rgbbuffer)
-		{
-			if (SCR_ScreenShot(filename, FS_GAMEONLY, rgbbuffer, width, height, fmt))
-			{
-				char			sysname[1024];
-				FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-				Con_Printf ("Wrote %s\n", sysname);
-			}
-			BZ_Free(rgbbuffer);
-		}
+		buf = NULL;
+		width = height = 0;
+		*fmt = TF_INVALID;
 	}
+	else
+		buf = VID_GetRGBInfo(&width, &height, fmt);
 
 	R2D_RT_Configure(r_refdef.rt_destcolour[0].texname, 0, 0, 0);
 	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
 	BE_RenderToTextureUpdate2d(true);
+
+	if (width != fbwidth || height != fbheight)
+	{
+		BZ_Free(buf);
+		return NULL;
+	}
+	return buf;
+}
+
+static void SCR_ScreenShot_Mega_f(void)
+{
+	int width[2];
+	int height[2];
+	void *buffers[2];
+	enum uploadfmt fmt[2];
+	int numbuffers = 0;
+	int buf;
+	char filename[MAX_QPATH];
+	stereomethod_t osm = r_refdef.stereomethod;
+
+	//massage the rendering code to redraw the screen with an fbo forced.
+	//this allows us to generate screenshots which are not otherwise possible to actually draw.
+	//this includes larger resolutions (although the lack of stiching leaves us subject to gpu limits of about 16k)
+
+	char *screenyname = Cmd_Argv(1);
+	unsigned int fbwidth = strtoul(Cmd_Argv(2), NULL, 0);
+	unsigned int fbheight = strtoul(Cmd_Argv(3), NULL, 0);
+	char ext[8];
+
+	if (Cmd_IsInsecure())
+		return;
+
+	if (qrenderer <= QR_HEADLESS)
+	{
+		Con_Printf("No renderer active\n");
+		return;
+	}
+
+	if (!fbwidth)
+		fbwidth = sh_config.texture_maxsize;
+	fbwidth = bound(0, fbwidth, sh_config.texture_maxsize);
+	if (!fbheight)
+		fbheight = (fbwidth * 3)/4;
+	fbheight = bound(0, fbheight, sh_config.texture_maxsize);
+
+	if (strstr (screenyname, "..") || strchr(screenyname, ':') || *screenyname == '.' || *screenyname == '/')
+		screenyname = "";
+	if (!*screenyname)
+	{
+		screenyname = "megascreeny";
+		Q_snprintfz(filename, sizeof(filename), "%s%s", scr_sshot_prefix.string, screenyname);
+	}
+	else
+	{
+		char *mangle;
+		Q_snprintfz(filename, sizeof(filename), "%s", scr_sshot_prefix.string);
+		mangle = COM_SkipPath(filename);
+		Q_snprintfz(mangle, sizeof(filename) - (mangle-filename), "%s", screenyname);
+	}
+	if (!strcmp(Cmd_Argv(0), "screenshot_stereo"))
+		COM_DefaultExtension (filename, "png", sizeof(filename));
+	else
+		COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
+
+	COM_FileExtension(filename, ext, sizeof(ext));
+	if (!strcmp(Cmd_Argv(0), "screenshot_stereo") || !strcmp(ext, "pns") || osm == STEREO_QUAD)
+		numbuffers = 2;	//stereo png
+	else
+		numbuffers = 1;
+
+	if (numbuffers == 2 && Q_strcasecmp(ext, "png") && Q_strcasecmp(ext, "pns"))
+	{
+		Con_Printf("Only png format is supported for stereo screenshots\n");
+		return;
+	}
+
+	for(buf = 0; buf < numbuffers; buf++)
+	{
+		if (numbuffers == 2)
+		{
+			if (buf)
+				r_refdef.stereomethod = STEREO_RIGHTONLY;
+			else
+				r_refdef.stereomethod = STEREO_LEFTONLY;
+		}
+
+		buffers[buf] = SCR_ScreenShot_FBO(fbwidth, fbheight, &fmt[buf]);
+
+		if (width[buf] != width[0] || height[buf] != height[0] || fmt[buf] != fmt[0])
+		{	//invalid is better than unmatched.
+			BZ_Free(buffers[buf]);
+			buffers[buf] = NULL;
+		}
+	}
+
+	if (numbuffers == 2 && !buffers[1])
+		numbuffers = 1;
+
+	//okay, we drew something, we're good to save a screeny.
+	if (buffers[0])
+	{
+		if (SCR_ScreenShot(filename, FS_GAMEONLY, buffers, numbuffers, width[0], height[0], fmt[0]))
+		{
+			char			sysname[1024];
+			FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+			Con_Printf ("Wrote %s\n", sysname);
+		}
+	}
+	else
+		Con_Printf("Unable to capture screenshot\n");
+
+	for(buf = 0; buf < numbuffers; buf++)
+		BZ_Free(buffers[buf]);
+
+	r_refdef.stereomethod = osm;
+}
+
+static void SCR_ScreenShot_VR_f(void)
+{
+	char *screenyname = Cmd_Argv(1);
+	int width = atoi(Cmd_Argv(2));
+	//we spin the camera around, taking slices from equirectangular screenshots
+	char filename[MAX_QPATH];
+	int height;	//equirectangular 360 * 180 gives a nice clean ratio
+	int px = 4;
+	int step = atof(Cmd_Argv(3));
+	unsigned int *left_buffer;
+	unsigned int *right_buffer;
+	unsigned int *buf;
+	enum uploadfmt fmt;
+	int lx, rx, x, y;
+	vec3_t baseang;
+	float ang;
+	extern cvar_t r_projection, r_stereo_separation;
+	VectorCopy(r_refdef.viewangles, baseang);
+
+	if (width <= 2)
+		width = 2048;
+	height = width/2;
+	if (step <= 0)
+		step = 5;
+
+	left_buffer = BZF_Malloc (width*height*2*px);
+	right_buffer = left_buffer + width*height;
+
+	if (strstr (screenyname, "..") || strchr(screenyname, ':') || *screenyname == '.' || *screenyname == '/')
+		screenyname = "";
+	if (!*screenyname)
+	{
+		screenyname = "vr";
+		Q_snprintfz(filename, sizeof(filename), "%s%s", scr_sshot_prefix.string, screenyname);
+	}
+	else
+	{
+		char *mangle;
+		Q_snprintfz(filename, sizeof(filename), "%s", scr_sshot_prefix.string);
+		mangle = COM_SkipPath(filename);
+		Q_snprintfz(mangle, sizeof(filename) - (mangle-filename), "%s", screenyname);
+	}
+	COM_DefaultExtension (filename, scr_sshot_type.string, sizeof(filename));
+
+
+
+	if (!left_buffer)
+	{
+		Con_Printf("out of memory\n");
+		return;
+	}
+
+	r_projection.ival = PROJ_EQUIRECTANGULAR;
+	for (lx = 0; lx < width; lx = rx)
+	{
+		rx = lx + step;
+		if (rx > width)
+			rx = width;
+
+		r_refdef.stereomethod = STEREO_OFF;
+
+		cl.playerview->simangles[0] = 0;	//pitch is BAD
+		cl.playerview->simangles[1] = baseang[1];// - 360.0*(lx + 0.5*(rx-lx)) / width;
+		cl.playerview->simangles[2] = 0; //roll is BAD
+		VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
+
+		//FIXME: it should be possible to do this more inteligently, and get both strips with a single render.
+
+		ang = M_PI*2*(baseang[1]/360.0 + (lx+0.5*(rx-lx))/width);
+		r_refdef.eyeoffset[0] = sin(ang) * r_stereo_separation.value * 0.5;
+		r_refdef.eyeoffset[1] = cos(ang) * r_stereo_separation.value * 0.5;
+		r_refdef.eyeoffset[2] = 0;
+		buf = SCR_ScreenShot_FBO(width, height, &fmt);
+		if (buf && fmt == TF_BGRA32)
+		{
+			for (y = 0; y < height; y++)
+			for (x = lx; x < rx; x++)
+				left_buffer[y*width + x] = buf[y*width + /*(width-step)/2 +*/ x];
+		}
+		BZ_Free(buf);
+
+		r_refdef.eyeoffset[0] *= -1;
+		r_refdef.eyeoffset[1] *= -1;
+		r_refdef.eyeoffset[2] = 0;
+		buf = SCR_ScreenShot_FBO(width, height, &fmt);
+		if (buf && fmt == TF_BGRA32)
+		{
+			for (y = 0; y < height; y++)
+			for (x = lx; x < rx; x++)
+				right_buffer[y*width + x] = buf[y*width + /*(width-step)/2 +*/ x];
+		}
+		BZ_Free(buf);
+	}
+
+	if (SCR_ScreenShot(filename, FS_GAMEONLY, &left_buffer, 1, width, height*2, TF_BGRA32))
+	{
+		char			sysname[1024];
+		FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+		Con_Printf ("Wrote %s\n", sysname);
+	}
+
+	BZ_Free(left_buffer);
+
+	r_projection.ival = r_projection.value;
+	VectorCopy(baseang, r_refdef.viewangles);
+	VectorClear(r_refdef.eyeoffset);
+}
+
+void SCR_ScreenShot_EnvMap_f(void)
+{
+	Con_Printf("Not implemented\n");
 }
 
 
 // from gl_draw.c
 qbyte		*draw_chars;				// 8*8 graphic characters
 
-void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
+static void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
 {
 	int		row, col;
 	qbyte	*source;
@@ -2472,7 +2606,7 @@ void SCR_DrawCharToSnap (int num, qbyte *dest, int width)
 
 }
 
-void SCR_DrawStringToSnap (const char *s, qbyte *buf, int x, int y, int width)
+static void SCR_DrawStringToSnap (const char *s, qbyte *buf, int x, int y, int width)
 {
 	qbyte *dest;
 	const unsigned char *p;
@@ -2537,6 +2671,7 @@ qboolean SCR_RSShot (void)
 		BZ_Free(newbuf);
 		return false;
 	}
+	//FIXME: bgra
 
 	w = RSSHOT_WIDTH;
 	h = RSSHOT_HEIGHT;
@@ -2620,7 +2755,6 @@ Brings the console down and fades the palettes back to normal
 */
 void SCR_BringDownConsole (void)
 {
-	int             i;
 	int pnum;
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
@@ -2628,9 +2762,6 @@ void SCR_BringDownConsole (void)
 		scr_centerprint[pnum].charcount = 0;
 		cl.playerview[pnum].cshifts[CSHIFT_CONTENTS].percent = 0;              // no area contents palette on next frame
 	}
-
-//	for (i=0 ; i<20 && scr_conlines != scr_con_current ; i++)
-//		SCR_UpdateScreen ();
 }
 
 void SCR_TileClear (int skipbottom)
@@ -2737,4 +2868,64 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		R2D_Flush();
 
 	RSpeedEnd(RSPEED_2D);
+}
+
+
+
+
+
+
+/*
+==================
+SCR_Init
+==================
+*/
+void SCR_Init (void)
+{
+//
+// register our commands
+//
+	Cmd_AddCommandD ("screenshot_mega",SCR_ScreenShot_Mega_f, "screenshot_mega <name> [width] [height]\nTakes a screenshot with explicit sizes that are not tied to the size of your monitor, allowing for true monstrosities.");
+	Cmd_AddCommandD ("screenshot_stereo",SCR_ScreenShot_Mega_f, "screenshot_stereo <name> [width] [height]\nTakes a simple stereo screenshot.");
+	Cmd_AddCommandD ("screenshot_vr",SCR_ScreenShot_VR_f, "screenshot_vr <name> [width]\nTakes a spherical stereoscopic panorama image, for viewing with VR displays.");
+	Cmd_AddCommand ("envmap",SCR_ScreenShot_EnvMap_f);
+	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
+	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
+	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);
+
+	scr_net = R2D_SafePicFromWad ("net");
+	scr_turtle = R2D_SafePicFromWad ("turtle");
+
+	scr_initialized = true;
+}
+
+void SCR_DeInit (void)
+{
+	int i;
+	if (scr_curcursor)
+	{
+		rf->VID_SetCursor(scr_curcursor);
+		scr_curcursor = NULL;
+	}
+	for (i = 0; i < countof(key_customcursor); i++)
+	{
+		if (key_customcursor[i].handle)
+		{
+			rf->VID_DestroyCursor(key_customcursor[i].handle);
+			key_customcursor[i].handle = NULL;
+		}
+		key_customcursor[i].dirty = true;
+	}
+	if (scr_initialized)
+	{
+		scr_initialized = false;
+
+		Cmd_RemoveCommand ("screenshot");
+		Cmd_RemoveCommand ("screenshot_mega");
+		Cmd_RemoveCommand ("screenshot_stereo");
+		Cmd_RemoveCommand ("screenshot_vr");
+		Cmd_RemoveCommand ("envmap");
+		Cmd_RemoveCommand ("sizeup");
+		Cmd_RemoveCommand ("sizedown");
+	}
 }

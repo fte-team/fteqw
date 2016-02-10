@@ -513,7 +513,6 @@ static qboolean XI2_Init(void)
 
 //qboolean is8bit = false;
 //qboolean isPermedia = false;
-qboolean ActiveApp = false;
 extern qboolean sys_gracefulexit;
 
 #define SYS_CLIPBOARD_SIZE 512
@@ -1099,7 +1098,7 @@ static void GetEvent(void)
 /*
 		if (fullscreenflags & FULLSCREEN_LEGACY)
 		if (fullscreenflags & FULLSCREEN_VMODE)
-		if (!ActiveApp)
+		if (!vid.activeapp)
 		{	//KDE doesn't seem to like us, in that you can't alt-tab back or click to activate.
 			//This allows us to steal input focus back from the window manager
 			x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
@@ -1144,7 +1143,7 @@ static void GetEvent(void)
 
 	case FocusIn:
 		//activeapp is if the game window is focused
-		ActiveApp = true;
+		vid.activeapp = true;
 
 		//but change modes to track the desktop window
 //		if (!(fullscreenflags & FULLSCREEN_ACTIVE) || event.xfocus.window != vid_decoywindow)
@@ -1173,7 +1172,7 @@ static void GetEvent(void)
 
 		if (event.xfocus.window == mw || event.xfocus.window == vid_window)
 		{
-			ActiveApp = false;
+			vid.activeapp = false;
 			if (old_windowed_mouse)
 			{
 				Con_DPrintf("uninstall grabs\n");
@@ -1336,9 +1335,9 @@ qboolean GLVID_ApplyGammaRamps(unsigned short *ramps)
 	if (ramps)
 	{
 		//hardwaregamma==1 skips hardware gamma when we're not fullscreen, in favour of software glsl based gamma.
-//		if (vid_hardwaregamma.value == 1 && !ActiveApp && !(fullscreenflags & FULLSCREEN_ACTIVE))
+//		if (vid_hardwaregamma.value == 1 && !vid.activeapp && !(fullscreenflags & FULLSCREEN_ACTIVE))
 //			return false;
-//		if (!ActiveApp)
+//		if (!vid.activeapp)
 //			return false;
 //		if (!vid_hardwaregamma.value)
 //			return false;
@@ -1751,7 +1750,7 @@ qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int psl)
 		break;	//erm
 	}
 
-	ActiveApp = false;
+	vid.activeapp = false;
 	if (fullscreenflags & FULLSCREEN_LEGACY)
 	{
 		vid_decoywindow = X_CreateWindow(false, visinfo, 640, 480, false);
@@ -1977,7 +1976,7 @@ void Sys_SendKeyEvents(void)
 			return;
 
 		wantwindowed = !!_windowed_mouse.value;
-		if (!ActiveApp)
+		if (!vid.activeapp)
 			wantwindowed = false;
 		if (Key_MouseShouldBeFree() && !fullscreenflags)
 			wantwindowed = false;

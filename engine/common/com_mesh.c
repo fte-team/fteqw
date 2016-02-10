@@ -521,7 +521,7 @@ const float *Alias_ConvertBoneData(skeltype_t sourcetype, const float *sourcedat
 	//a->ia->ir
 
 	if (bonecount > destbonecount || bonecount > MAX_BONES)
-		Sys_Error("Alias_ConvertBoneData: too many bones "fPRIzu">"fPRIzu"\n", bonecount, destbonecount);
+		Sys_Error("Alias_ConvertBoneData: too many bones %"PRIuSIZE">%"PRIuSIZE"\n", bonecount, destbonecount);
 
 	//r(->a)->ia(->ir)
 	if (desttype == SKEL_INVERSE_RELATIVE && sourcetype == SKEL_RELATIVE)
@@ -3611,6 +3611,12 @@ qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 			if (pinstverts[i].onseam)
 			{
+				if (pinstverts[i].onseam != 0x20 && !galias->warned)
+				{
+					Con_Printf(CON_WARNING "Model %s has an invalid seam flag, which may crash software-rendered engines\n", mod->name);
+					//1 == ALIAS_LEFT_CLIP
+					galias->warned = true;
+				}
 				st_array[j][0] = st_array[i][0]+0.5;
 				st_array[j][1] = st_array[i][1];
 				seamremap[i] = j;
@@ -6613,7 +6619,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer, size_t fsize)
 	}
 	if (h->filesize != fsize)
 	{
-		Con_Printf("%s: size (%u != "fPRIzu")\n", mod->name, h->filesize, fsize);
+		Con_Printf("%s: size (%u != %"PRIuSIZE")\n", mod->name, h->filesize, fsize);
 		return NULL;
 	}
 

@@ -55,6 +55,7 @@ typedef struct _XINPUT_VIBRATION {
 } XINPUT_VIBRATION, *PXINPUT_VIBRATION;
 DWORD (WINAPI *pXInputGetState)(DWORD dwUserIndex, XINPUT_STATE *pState);
 DWORD (WINAPI *pXInputSetState)(DWORD dwUserIndex, XINPUT_VIBRATION *pState);
+DWORD (WINAPI *pXInputGetDSoundAudioDeviceGuids)(DWORD dwUserIndex, GUID* pDSoundRenderGuid, GUID* pDSoundCaptureGuid);
 enum
 {
 	XINPUT_GAMEPAD_DPAD_UP			= 0x0001,
@@ -72,6 +73,7 @@ enum
 	XINPUT_GAMEPAD_X				= 0x4000,
 	XINPUT_GAMEPAD_Y				= 0x8000
 };
+static qboolean xinput_useaudio;
 #endif
 
 
@@ -173,6 +175,7 @@ static struct wjoy_s {
 	DWORD	oldpovstate;
 	DWORD	buttonstate;
 	DWORD	oldbuttonstate;
+	soundcardinfo_t *audiodev;
 } wjoy[MAX_JOYSTICKS];
 static int joy_count;
 
@@ -351,6 +354,51 @@ static void INS_HideMouse (void)
 	}
 }
 
+//scan for an unused device id for joysticks (now that something was pressed).
+static int Joy_AllocateDevID(void)
+{
+	int id = 0, j;
+	for (id = 0; ; id++)
+	{
+		for (j = 0; j < joy_count; j++)
+		{
+			if (wjoy[j].devid == id)
+				break;
+		}
+		if (j == joy_count)
+			return id;
+	}
+}
+#ifdef USINGRAWINPUT
+static int Mouse_AllocateDevID(void)
+{
+	int id = 0, j;
+	for (id = 0; ; id++)
+	{
+		for (j = 0; j < rawmicecount; j++)
+		{
+			if (rawmice[j].qdeviceid == id)
+				break;
+		}
+		if (j == rawmicecount)
+			return id;
+	}
+}
+static int Keyboard_AllocateDevID(void)
+{
+	int id = 0, j;
+	for (id = 0; ; id++)
+	{
+		for (j = 0; j < rawkbdcount; j++)
+		{
+			if (rawkbd[j].qdeviceid == id)
+				break;
+		}
+		if (j == rawkbdcount)
+			return id;
+	}
+}
+#endif
 
 /*
 ===========
@@ -1008,7 +1056,7 @@ void INS_RawInput_Init(void)
 			Q_strncpyz(rawmice[rawmicecount].sysname, dname, sizeof(rawmice[rawmicecount].sysname));
 			rawmice[rawmicecount].numbuttons = 16;
 			rawmice[rawmicecount].oldbuttons = 0;
-			rawmice[rawmicecount].qdeviceid = rawmicecount;
+			rawmice[rawmicecount].qdeviceid = DEVID_UNSET;
 			rawmicecount++;
 			break;
 		case RIM_TYPEKEYBOARD:
@@ -1017,7 +1065,7 @@ void INS_RawInput_Init(void)
 
 			rawkbd[rawkbdcount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
 			Q_strncpyz(rawkbd[rawkbdcount].sysname, dname, sizeof(rawkbd[rawkbdcount].sysname));
-			rawkbd[rawkbdcount].qdeviceid = rawkbdcount;
+			rawkbd[rawkbdcount].qdeviceid = DEVID_UNSET;
 			rawkbdcount++;
 			break;
 		default:
@@ -1229,13 +1277,13 @@ void INS_MouseEvent (int mstate)
 			if ( (mstate & (1<<i)) &&
 				!(sysmouse.oldbuttons & (1<<i)) )
 			{
-				IN_KeyEvent (0, true, K_MOUSE1 + i, 0);
+				IN_KeyEvent (sysmouse.qdeviceid, true, K_MOUSE1 + i, 0);
 			}
 
 			if ( !(mstate & (1<<i)) &&
 				(sysmouse.oldbuttons & (1<<i)) )
 			{
-				IN_KeyEvent (0, false, K_MOUSE1 + i, 0);
+				IN_KeyEvent (sysmouse.qdeviceid, false, K_MOUSE1 + i, 0);
 			}
 		}
 
@@ -1343,7 +1391,7 @@ INS_Move
 */
 void INS_Move (float *movements, int pnum)
 {
-	if (ActiveApp && !Minimized)
+	if (vid.activeapp && !Minimized)
 	{
 		INS_MouseMove (movements, pnum);
 		INS_JoyMove (movements, pnum);
@@ -1406,6 +1454,17 @@ void INS_RawInput_MouseRead(void)
 	if (i == rawmicecount) // we're not tracking this device
 		return;
 	mouse = &rawmice[i];
+
+	if (mouse->qdeviceid == DEVID_UNSET)
+	{
+		if ((raw->data.mouse.usButtonFlags & (RI_MOUSE_BUTTON_1_DOWN|RI_MOUSE_BUTTON_2_DOWN|RI_MOUSE_BUTTON_3_DOWN|RI_MOUSE_BUTTON_4_DOWN|RI_MOUSE_BUTTON_5_DOWN|RI_MOUSE_WHEEL))
+			|| (raw->data.mouse.ulRawButtons & RI_RAWBUTTON_MASK) || raw->data.mouse.lLastX || raw->data.mouse.lLastY)
+		{
+			mouse->qdeviceid = Mouse_AllocateDevID();
+		}
+		else
+			return;
+	}
 
 	multicursor_active[mouse->qdeviceid&7] = 0;
 
@@ -1507,6 +1566,9 @@ void INS_RawInput_KeyboardRead(void)
 	if (i == rawkbdcount) // not tracking this device
 		return;
 
+	if (rawkbd[i].qdeviceid == DEVID_UNSET)
+		rawkbd[i].qdeviceid = Keyboard_AllocateDevID();
+
 	down = !(raw->data.keyboard.Flags & RI_KEY_BREAK);
 	wParam = raw->data.keyboard.VKey ;//(-down) & 0xC0000000;
 	lParam = (MapVirtualKey(raw->data.keyboard.VKey, 0)<<16) | ((!!(raw->data.keyboard.Flags & RI_KEY_E0))<<24);
@@ -1575,7 +1637,7 @@ static void INS_StartupJoystickId(unsigned int id)
 	joy = &wjoy[joy_count];
 	memset(joy, 0, sizeof(*joy));
 	joy->id = id;
-	joy->devid = 1+joy_count;	//FIXME: this is a hack. make joysticks 1-based. this means mouse0 controls 1st player, joy0 controls 2nd player (controls wrap so joy1 controls 1st player too.
+	joy->devid = DEVID_UNSET;//1+joy_count;	//FIXME: this is a hack. make joysticks 1-based. this means mouse0 controls 1st player, joy0 controls 2nd player (controls wrap so joy1 controls 1st player too.
 
 	// get the capabilities of the selected joystick
 	// abort startup if command fails
@@ -1597,45 +1659,52 @@ static void INS_StartupJoystickId(unsigned int id)
 
 	joy_count++;
 }
-void INS_SetupControllerAudioDevices(void)
+static void IN_XInput_SetupAudio(struct wjoy_s *joy)
+{
+#ifdef AVAIL_XINPUT
+	char audiodevicename[MAX_QPATH];
+	wchar_t mssuck[MAX_QPATH];
+	static GUID GUID_NULL;
+	GUID gplayback = GUID_NULL;
+	GUID gcapture = GUID_NULL;
+
+	if (joy->audiodev)
+	{
+		S_ShutdownCard(joy->audiodev);
+		joy->audiodev = NULL;
+	}
+
+	if (!xinput_useaudio)
+		return;
+
+	if (!joy->isxinput)
+		return;
+	if (joy->devid == DEVID_UNSET)
+		return;
+
+	if (pXInputGetDSoundAudioDeviceGuids(joy->id, &gplayback, &gcapture) != ERROR_SUCCESS)
+		return;	//probably not plugged in
+
+	if (!memcmp(&gplayback, &GUID_NULL, sizeof(gplayback)))
+		return;	//we have a controller, but no headset.
+
+	StringFromGUID2(&gplayback, mssuck, sizeof(mssuck)/sizeof(mssuck[0]));
+	narrowen(audiodevicename, sizeof(audiodevicename), mssuck);
+	Con_Printf("Controller %i uses audio device %s\n", joy->id, audiodevicename);
+	joy->audiodev = S_SetupDeviceSeat("DirectSound", audiodevicename, joy->devid);
+#endif
+}
+void INS_SetupControllerAudioDevices(qboolean enabled)
 {
 #ifdef AVAIL_XINPUT
 	int i;
-	static DWORD (WINAPI *pXInputGetDSoundAudioDeviceGuids)(DWORD dwUserIndex, GUID* pDSoundRenderGuid, GUID* pDSoundCaptureGuid);
-	static dllhandle_t *xinput;
-	if (!xinput)
-	{
-		dllfunction_t funcs[] =
-		{
-			{(void**)&pXInputGetDSoundAudioDeviceGuids, "XInputGetDSoundAudioDeviceGuids"},
-			{NULL}
-		};
-		xinput = Sys_LoadLibrary(AVAIL_XINPUT_DLL, funcs);
-	}
 
 	if (!pXInputGetDSoundAudioDeviceGuids)
 		return;
 
+	xinput_useaudio = enabled;
 	for (i = 0; i < joy_count; i++)
-	{
-		char audiodevicename[MAX_QPATH];
-		wchar_t mssuck[MAX_QPATH];
-		static GUID GUID_NULL;
-		GUID gplayback = GUID_NULL;
-		GUID gcapture = GUID_NULL;
-		if (!wjoy[i].isxinput)
-			continue;
-		if (pXInputGetDSoundAudioDeviceGuids(wjoy[i].id, &gplayback, &gcapture) != ERROR_SUCCESS)
-			continue;	//probably not plugged in
-
-		if (!memcmp(&gplayback, &GUID_NULL, sizeof(gplayback)))
-			continue;	//we have a controller, but no headset.
-
-		StringFromGUID2(&gplayback, mssuck, sizeof(mssuck)/sizeof(mssuck[0]));
-		narrowen(audiodevicename, sizeof(audiodevicename), mssuck);
-		Con_Printf("Controller %i uses audio device %s\n", wjoy[i].id, audiodevicename);
-		S_SetupDeviceSeat("DirectSound", audiodevicename, wjoy[i].devid);
-	}
+		IN_XInput_SetupAudio(&wjoy[i]);
 #endif
 }
 void INS_StartupJoystick (void)
@@ -1659,12 +1728,12 @@ void INS_StartupJoystick (void)
 				{NULL}
 			};
 			xinput = Sys_LoadLibrary(AVAIL_XINPUT_DLL, funcs);
+
+			if (xinput)
+				pXInputGetDSoundAudioDeviceGuids = Sys_GetAddressForName(xinput, "XInputGetDSoundAudioDeviceGuids");
 		}
 		if (pXInputGetState)
 		{
-			DWORD (WINAPI *pXInputGetDSoundAudioDeviceGuids)(DWORD dwUserIndex, GUID* pDSoundRenderGuid, GUID* pDSoundCaptureGuid);
-			pXInputGetDSoundAudioDeviceGuids = Sys_GetAddressForName(xinput, "XInputGetDSoundAudioDeviceGuids");
-
 			for (id = 0; id < 4; id++)
 			{
 				if (joy_count == countof(wjoy))
@@ -1672,7 +1741,7 @@ void INS_StartupJoystick (void)
 				memset(&wjoy[id], 0, sizeof(wjoy[id]));
 				wjoy[joy_count].isxinput = true;
 				wjoy[joy_count].id = id;
-				wjoy[joy_count].devid = id;
+				wjoy[joy_count].devid = DEVID_UNSET;//id;
 				wjoy[joy_count].numbuttons = 16;
 				joy_count++;
 			}
@@ -1790,29 +1859,38 @@ void INS_Commands (void)
 		// loop through the joystick buttons
 		// key a joystick event or auxillary event for higher number buttons for each state change
 		buttonstate = joy->buttonstate;
-		if (joy->isxinput)
+		if (buttonstate != joy->oldbuttonstate)
 		{
-			for (i=0 ; i < joy->numbuttons ; i++)
+			if (joy->devid == DEVID_UNSET)
 			{
-				if ( (buttonstate & (1<<i)) && !(joy->oldbuttonstate & (1<<i)) )
-					Key_Event (joy->devid, xinputjbuttons[i], 0, true);
-
-				if ( !(buttonstate & (1<<i)) && (joy->oldbuttonstate & (1<<i)) )
-					Key_Event (joy->devid, xinputjbuttons[i], 0, false);
+				joy->devid = Joy_AllocateDevID();
+				IN_XInput_SetupAudio(joy);
 			}
-		}
-		else
-		{
-			for (i=0 ; i < joy->numbuttons ; i++)
+
+			if (joy->isxinput)
 			{
-				if ( (buttonstate & (1<<i)) && !(joy->oldbuttonstate & (1<<i)) )
-					Key_Event (joy->devid, dinputjbuttons[i], 0, true);
+				for (i=0 ; i < joy->numbuttons ; i++)
+				{
+					if ( (buttonstate & (1<<i)) && !(joy->oldbuttonstate & (1<<i)) )
+						Key_Event (joy->devid, xinputjbuttons[i], 0, true);
 
-				if ( !(buttonstate & (1<<i)) && (joy->oldbuttonstate & (1<<i)) )
-					Key_Event (joy->devid, dinputjbuttons[i], 0, false);
+					if ( !(buttonstate & (1<<i)) && (joy->oldbuttonstate & (1<<i)) )
+						Key_Event (joy->devid, xinputjbuttons[i], 0, false);
+				}
 			}
+			else
+			{
+				for (i=0 ; i < joy->numbuttons ; i++)
+				{
+					if ( (buttonstate & (1<<i)) && !(joy->oldbuttonstate & (1<<i)) )
+						Key_Event (joy->devid, dinputjbuttons[i], 0, true);
+
+					if ( !(buttonstate & (1<<i)) && (joy->oldbuttonstate & (1<<i)) )
+						Key_Event (joy->devid, dinputjbuttons[i], 0, false);
+				}
+			}
+			joy->oldbuttonstate = buttonstate;
 		}
-		joy->oldbuttonstate = buttonstate;
 
 		if (joy->haspov)
 		{
@@ -1831,20 +1909,26 @@ void INS_Commands (void)
 				if (joy->povstate == JOY_POVLEFT)
 					povstate |= 0x08;
 			}
-			// determine which bits have changed and key an auxillary event for each change
-			for (i=0 ; i < 4 ; i++)
+			if (joy->oldpovstate != povstate)
 			{
-				if ( (povstate & (1<<i)) && !(joy->oldpovstate & (1<<i)) )
-				{
-					Key_Event (joy->devid, K_AUX29 + i, 0, true);
-				}
+				if (joy->devid == DEVID_UNSET)
+					joy->devid = Joy_AllocateDevID();
 
-				if ( !(povstate & (1<<i)) && (joy->oldpovstate & (1<<i)) )
+				// determine which bits have changed and key an auxillary event for each change
+				for (i=0 ; i < 4 ; i++)
 				{
-					Key_Event (joy->devid, K_AUX29 + i, 0, false);
+					if ( (povstate & (1<<i)) && !(joy->oldpovstate & (1<<i)) )
+					{
+						Key_Event (joy->devid, K_AUX29 + i, 0, true);
+					}
+
+					if ( !(povstate & (1<<i)) && (joy->oldpovstate & (1<<i)) )
+					{
+						Key_Event (joy->devid, K_AUX29 + i, 0, false);
+					}
 				}
+				joy->oldpovstate = povstate;
 			}
-			joy->oldpovstate = povstate;
 		}
 	}
 }
@@ -1886,16 +1970,19 @@ qboolean INS_ReadJoystick (struct wjoy_s *joy)
 			//do we care about the dwPacketNumber?
 			joy->buttonstate = xistate.Gamepad.wButtons & 0xffff;
 
-			IN_JoystickAxisEvent(joy->devid, 0, xistate.Gamepad.sThumbRX / 32768.0);
-			IN_JoystickAxisEvent(joy->devid, 1, xistate.Gamepad.sThumbRY / 32768.0);
-			IN_JoystickAxisEvent(joy->devid, 2, xistate.Gamepad.bRightTrigger/255.0);
-			IN_JoystickAxisEvent(joy->devid, 3, xistate.Gamepad.sThumbLX / 32768.0);
-			IN_JoystickAxisEvent(joy->devid, 4, xistate.Gamepad.sThumbLY / 32768.0);
-			IN_JoystickAxisEvent(joy->devid, 5, xistate.Gamepad.bLeftTrigger/255.0);
+			if (joy->devid != DEVID_UNSET)
+			{
+				IN_JoystickAxisEvent(joy->devid, 0, xistate.Gamepad.sThumbRX / 32768.0);
+				IN_JoystickAxisEvent(joy->devid, 1, xistate.Gamepad.sThumbRY / 32768.0);
+				IN_JoystickAxisEvent(joy->devid, 2, xistate.Gamepad.bRightTrigger/255.0);
+				IN_JoystickAxisEvent(joy->devid, 3, xistate.Gamepad.sThumbLX / 32768.0);
+				IN_JoystickAxisEvent(joy->devid, 4, xistate.Gamepad.sThumbLY / 32768.0);
+				IN_JoystickAxisEvent(joy->devid, 5, xistate.Gamepad.bLeftTrigger/255.0);
 
-			vibrator.wLeftMotorSpeed = xinput_leftvibrator.value * 0xffff;
-			vibrator.wRightMotorSpeed = xinput_rightvibrator.value * 0xffff;
-			pXInputSetState(joy->id, &vibrator);
+				vibrator.wLeftMotorSpeed = xinput_leftvibrator.value * 0xffff;
+				vibrator.wRightMotorSpeed = xinput_rightvibrator.value * 0xffff;
+				pXInputSetState(joy->id, &vibrator);
+			}
 			return true;
 		}
 	}
@@ -1910,24 +1997,30 @@ qboolean INS_ReadJoystick (struct wjoy_s *joy)
 		{
 			joy->povstate = ji.dwPOV;
 			joy->buttonstate = ji.dwButtons;
-			IN_JoystickAxisEvent(joy->devid, 0, (ji.dwXpos - 32768.0) / 32768);
-			IN_JoystickAxisEvent(joy->devid, 1, (ji.dwYpos - 32768.0) / 32768);
-			IN_JoystickAxisEvent(joy->devid, 2, (ji.dwZpos - 32768.0) / 32768);
-			IN_JoystickAxisEvent(joy->devid, 3, (ji.dwRpos - 32768.0) / 32768);
-			IN_JoystickAxisEvent(joy->devid, 4, (ji.dwUpos - 32768.0) / 32768);
-			IN_JoystickAxisEvent(joy->devid, 5, (ji.dwVpos - 32768.0) / 32768);
+			if (joy->devid != DEVID_UNSET)
+			{
+				IN_JoystickAxisEvent(joy->devid, 0, (ji.dwXpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, 1, (ji.dwYpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, 2, (ji.dwZpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, 3, (ji.dwRpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, 4, (ji.dwUpos - 32768.0) / 32768);
+				IN_JoystickAxisEvent(joy->devid, 5, (ji.dwVpos - 32768.0) / 32768);
+			}
 			return true;
 		}
 	}
 
 	joy->povstate = 0;
 	joy->buttonstate = 0;
-	IN_JoystickAxisEvent(joy->devid, 0, 0);
-	IN_JoystickAxisEvent(joy->devid, 1, 0);
-	IN_JoystickAxisEvent(joy->devid, 2, 0);
-	IN_JoystickAxisEvent(joy->devid, 3, 0);
-	IN_JoystickAxisEvent(joy->devid, 4, 0);
-	IN_JoystickAxisEvent(joy->devid, 5, 0);
+	if (joy->devid != DEVID_UNSET)
+	{
+		IN_JoystickAxisEvent(joy->devid, 0, 0);
+		IN_JoystickAxisEvent(joy->devid, 1, 0);
+		IN_JoystickAxisEvent(joy->devid, 2, 0);
+		IN_JoystickAxisEvent(joy->devid, 3, 0);
+		IN_JoystickAxisEvent(joy->devid, 4, 0);
+		IN_JoystickAxisEvent(joy->devid, 5, 0);
+	}
 
 	// read error occurred
 	// turning off the joystick seems too harsh for 1 read error,
@@ -1977,10 +2070,12 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char
 {
 	int idx;
 
-	for (idx = 0; idx < rawmicecount; idx++)
-		callback(ctx, "mouse", rawmice[idx].sysname?rawmice[idx].sysname:va("raw%i", idx), &rawmice[idx].qdeviceid);
 	for (idx = 0; idx < rawkbdcount; idx++)
 		callback(ctx, "keyboard", rawkbd[idx].sysname?rawkbd[idx].sysname:va("rawk%i", idx), &rawkbd[idx].qdeviceid);
+	callback(ctx, "keyboard", "system", NULL);
+
+	for (idx = 0; idx < rawmicecount; idx++)
+		callback(ctx, "mouse", rawmice[idx].sysname?rawmice[idx].sysname:va("raw%i", idx), &rawmice[idx].qdeviceid);
 
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 	if (dinput >= DINPUT_VERSION_DX7 && g_pMouse7)
@@ -1993,10 +2088,13 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char
 
 	for (idx = 0; idx < joy_count; idx++)
 	{
+		int odevid = wjoy[idx].devid;
 		if (wjoy[idx].isxinput)
 			callback(ctx, "joy", va("xi%i", wjoy[idx].id), &wjoy[idx].devid);
 		else
 			callback(ctx, "joy", va("mmj%i", wjoy[idx].id), &wjoy[idx].devid);
+		if (odevid != wjoy[idx].devid)
+			IN_XInput_SetupAudio(&wjoy[idx]);
 	}
 }
 

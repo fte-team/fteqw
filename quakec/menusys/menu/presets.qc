@@ -63,14 +63,30 @@ nonstatic void(mitem_desktop desktop) M_Preset =
 	m.add(fr, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, -h], [0, h*2]);
 	float fl = RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN;
 
-	//add the options
-	for (i = 0, float pos = 0; i < presets.length; i++)
+	float fs, y=0;
+	fs = search_begin("configs/preset_*.cfg", TRUE, TRUE);	
+	float c = search_getsize(fs);
+	for (i = 0; i < c; i++)
 	{
-		if (checkfileexists(presets[i].config))	//file exists, try to exec it
-			fr.add(spawn(mitem_text, item_text:presets[i].name, item_command:sprintf("exec \"%s\";vid_reload", presets[i].config), item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [100, 16]);
-		else	//okay, no file exists, depend upon the engine for it.
+		string fname = search_getfilename(fs, i);
+		string iname = substring(fname, 10, -5);
+		string dname = GetFirstLineComment(fname, iname);
+		iname = sprintf("exec \"%s\";vid_reload", iname);
+		if (dname && !fr.findchildcmd(iname))
+		{
+			fr.add(spawn(mitem_text, item_text:dname, item_command:iname, item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, y], '100 16');
+			y+=16;
+		}
+	}
+	search_end(fs);	
+	if (c <= 0)
+	{
+		//add the default options
+		for (i = 0, float pos = 0; i < presets.length; i++)
+		{
 			fr.add(spawn(mitem_text, item_text:presets[i].name, item_command:sprintf("fps_preset %s", presets[i].preset), item_scale:16, item_flags:IF_CENTERALIGN), fl, [0, pos], [100, 16]);
-		pos += 16;
+			pos += 16;
+		}
 	}
 
 	//random art for style

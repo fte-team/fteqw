@@ -29,6 +29,7 @@ char shaders[][64] =
 	"postproc_panorama",
 	"postproc_laea",
 	"postproc_stereographic",
+	"postproc_equirectangular",
 	"fxaa",
 	"rtlight",
 	"underwaterwarp",

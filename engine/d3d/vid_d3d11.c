@@ -261,25 +261,25 @@ static qboolean D3D11AppActivate(BOOL fActive, BOOL minimize)
 {
 	static BOOL	sound_active;
 
-	if (ActiveApp == fActive && Minimized == minimize)
+	if (vid.activeapp == fActive && Minimized == minimize)
 		return false;	//so windows doesn't crash us over and over again.
 
-	ActiveApp = fActive;
+	vid.activeapp = fActive;
 	Minimized = minimize;
 
 // enable/disable sound on focus gain/loss
-	if (!ActiveApp && sound_active)
+	if (!vid.activeapp && sound_active)
 	{
 		S_BlockSound ();
 		sound_active = false;
 	}
-	else if (ActiveApp && !sound_active)
+	else if (vid.activeapp && !sound_active)
 	{
 		S_UnblockSound ();
 		sound_active = true;
 	}
 
-	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+	INS_UpdateGrabs(modestate != MS_WINDOWED, vid.activeapp);
 
 	return true;
 }
@@ -557,7 +557,7 @@ static LRESULT WINAPI D3D11_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 
 			if (modestate == MS_FULLSCREEN)
 			{
-				IDXGISwapChain_SetFullscreenState(d3dswapchain, ActiveApp, d3dscreen);
+				IDXGISwapChain_SetFullscreenState(d3dswapchain, vid.activeapp, d3dscreen);
 				D3D11_DoResize();
 			}
 			Cvar_ForceCallback(&v_gamma);
@@ -1356,7 +1356,7 @@ static void	(D3D11_SCR_UpdateScreen)			(void)
 	window_center_y = (window_rect.top + window_rect.bottom)/2;
 
 
-	INS_UpdateGrabs(modestate != MS_WINDOWED, ActiveApp);
+	INS_UpdateGrabs(modestate != MS_WINDOWED, vid.activeapp);
 }
 
 

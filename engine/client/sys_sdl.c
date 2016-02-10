@@ -26,7 +26,6 @@ SDL_Window *sdlwindow;
 #ifndef isDedicated
 qboolean isDedicated;
 #endif
-extern qboolean ActiveApp;
 
 void Sys_Error (const char *error, ...)
 {
@@ -502,7 +501,7 @@ int QDECL main(int argc, char **argv)
 
 	// yield the CPU for a little while when paused, minimized, or not the focus
 #if SDL_MAJOR_VERSION >= 2
-			if (!ActiveApp)
+			if (!vid.activeapp)
 				SDL_Delay(1);
 #else
 			if (!(SDL_GetAppState() & SDL_APPINPUTFOCUS))

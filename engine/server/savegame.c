@@ -1257,7 +1257,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 			rgbbuffer = VID_GetRGBInfo(&width, &height, &fmt);
 			if (rgbbuffer)
 			{
-				SCR_ScreenShot(savefilename, FS_GAMEONLY, rgbbuffer, width, height, fmt);
+				SCR_ScreenShot(savefilename, FS_GAMEONLY, &rgbbuffer, 1, width, height, fmt);
 				BZ_Free(rgbbuffer);
 	
 
@@ -1307,6 +1307,7 @@ void SV_Savegame_f (void)
 cvar_t sv_autosave = CVARD("sv_autosave", "1", "Interval for autosaves, in minutes.");
 void SV_AutoSave(void)
 {
+#ifndef NOBUILTINMENUS
 #ifndef SERVERONLY
 	const char *autosavename;
 	int i;
@@ -1342,10 +1343,11 @@ void SV_AutoSave(void)
 	}
 
 	autosavename = M_ChooseAutoSave();
-	Con_Printf("Autosaving to %s\n", autosavename);
+	Con_DPrintf("Autosaving to %s\n", autosavename);
 	SV_Savegame(autosavename, false);
 
 	sv.autosave_time = sv.time + sv_autosave.value * 60;
+#endif
 #endif
 }
 

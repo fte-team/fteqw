@@ -1398,7 +1398,7 @@ static pbool PR_ExecRunWarning (pubprogfuncs_t *ppf, int xstatement, char *error
 
 	if (progfuncs->funcs.debug_trace == 0)
 	{
-		pr_xstatement = ShowStep(progfuncs, xstatement, error, false);
+		pr_xstatement = ShowStep(progfuncs, xstatement, string, false);
 		return true;
 	}
 	return false;

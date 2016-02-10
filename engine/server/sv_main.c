@@ -88,6 +88,7 @@ cvar_t	allow_download_packages		= CVARD("allow_download_packages", "1", "if 1, p
 cvar_t	allow_download_refpackages	= CVARD("allow_download_refpackages", "1", "If set to 1, packages that contain files needed during spawn functions will be become 'referenced' and automatically downloaded to clients.\nThis cvar should probably not be set if you have large packages that provide replacement pickup models on public servers.\nThe path command will show a '(ref)' tag next to packages which clients will automatically attempt to download.");
 cvar_t	allow_download_wads			= CVARD("allow_download_wads", "1", "0 blocks downloading of any file in the wads/ directory, or is in the root directory with the extension .wad");
 cvar_t	allow_download_configs		= CVARD("allow_download_configs", "0", "1 allows downloading of config files, either with the extension .cfg or in the subdir configs/.\n"CON_ERROR"THIS IS DANGEROUS AS IT CAN ALLOW PEOPLE TO READ YOUR RCON PASSWORD.");
+cvar_t	allow_download_locs		= CVARD("allow_download_locs", "1", "0 blocks downloading of any file in the locs/ directory");
 cvar_t	allow_download_copyrighted	= CVARD("allow_download_copyrighted", "0", "0 blocks download of packages that are considered copyrighted. Specifically, this means packages with a leading 'pak' prefix on the filename.\nIf you take your copyrights seriously, you should also set allow_download_pakmaps 0 and allow_download_pakcontents 0.");
 cvar_t	allow_download_other		= CVARD("allow_download_other", "0", "0 blocks downloading of any file that was not covered by any of the directory download blocks.");
 
@@ -4777,6 +4778,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_pakcontents,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_textures,cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_configs,	cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_locs,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_packages,cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_refpackages,cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_wads,	cvargroup_serverpermissions);
@@ -4819,8 +4821,10 @@ void SV_InitLocal (void)
 
 	Cmd_AddCommand ("openroute", SV_OpenRoute_f);
 
+#ifndef NOBUILTINMENUS
 #ifndef SERVERONLY
 	Cvar_Register(&sv_autosave, cvargroup_servercontrol);
+#endif
 #endif
 	Cmd_AddCommand ("savegame_legacy", SV_LegacySavegame_f);
 	Cmd_AddCommand ("savegame", SV_Savegame_f);

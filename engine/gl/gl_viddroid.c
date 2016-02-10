@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 
 extern int sys_glesversion;
+extern float sys_dpi_x;
+extern float sys_dpi_y;
 
 static dllhandle_t *sys_gl_module = NULL;
 
@@ -76,6 +78,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		GLVID_DeInit();
 		return false;
 	}
+
+	vid.dpi_x = sys_dpi_x;
+	vid.dpi_y = sys_dpi_y;
+
+	vid.activeapp = true;
 
 	GL_Init(GLES_GetSymbol);
 	return true;

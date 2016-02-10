@@ -1577,6 +1577,9 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 	memset(sc, 0, sizeof(*sc));
 	sc->seat = seat;
 
+	sc->next = sndcardinfo;
+	sndcardinfo = sc;
+
 	// set requested rate
 	if (snd_khz.ival >= 1000)
 		sc->sn.speed = snd_khz.ival;
@@ -1632,7 +1635,7 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 			if (st)
 			{
 				S_DefaultSpeakerConfiguration(sc);
-				if (sndcardinfo)
+				if (snd_speed)
 				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
 					if (snd_speed != sc->sn.speed)
 					{
@@ -1644,8 +1647,8 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 				else
 					snd_speed = sc->sn.speed;
 
-				sc->next = sndcardinfo;
-				sndcardinfo = sc;
+				if (sc->seat == -1 && sc->ListenerUpdate)
+					sc->seat = 0;	//hardware rendering won't cope with seat=-1
 				return sc;
 			}
 		}
@@ -1664,7 +1667,8 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 			if (st == 1)
 			{
 				S_DefaultSpeakerConfiguration(sc);
-				if (sndcardinfo)
+
+				if (snd_speed)
 				{	//if the sample speeds of multiple soundcards do not match, it'll fail.
 					if (snd_speed != sc->sn.speed)
 					{
@@ -1678,14 +1682,13 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 
 				if (sc->seat == -1 && sc->ListenerUpdate)
 					sc->seat = 0;	//hardware rendering won't cope with seat=-1
-				sc->next = sndcardinfo;
-				sndcardinfo = sc;
 				return sc;
 			}
 		}
 	}
 
-	Z_Free(sc);
+	S_ShutdownCard(sc);
+
 	if (!driver)
 		Con_TPrintf("Could not start audio device \"%s\"\n", device?device:"default");
 	else
@@ -1693,9 +1696,9 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 	return NULL;
 }
 
-void S_SetupDeviceSeat(char *driver, char *device, int seat)
+soundcardinfo_t *S_SetupDeviceSeat(char *driver, char *device, int seat)
 {
-	SNDDMA_Init(driver, device, seat);
+	return SNDDMA_Init(driver, device, seat);
 	/*
 	soundcardinfo_t *sc;
 	for (sc = sndcardinfo; sc; sc = sc->next)
@@ -1781,7 +1784,7 @@ void S_Startup (void)
 	if (!sndcardinfo && !nodefault)
 	{
 #if defined(_WIN32) && !defined(FTE_SDL)
-		INS_SetupControllerAudioDevices();
+		INS_SetupControllerAudioDevices(true);
 #endif
 		if (!sndcardinfo)
 			SNDDMA_Init(NULL, NULL, -1);
@@ -2021,25 +2024,27 @@ void S_Init (void)
 
 void S_ShutdownCard(soundcardinfo_t *sc)
 {
-	soundcardinfo_t *prev;
+	soundcardinfo_t **link;
 
-	if (sndcardinfo == sc)
-		sndcardinfo = sc->next;
-	else
+	for (link = &sndcardinfo; *link; link = &(*link)->next)
 	{
-		for (prev = sndcardinfo; prev->next; prev = prev->next)
+		if (*link == sc)
 		{
-			if (prev->next == sc)
-				prev->next = sc->next;
+			*link = sc->next;
+			if (sc->Shutdown)
+				sc->Shutdown(sc);
+			Z_Free(sc);
+			break;
 		}
 	}
-
-	sc->Shutdown(sc);
-	Z_Free(sc);
 }
 void S_Shutdown(qboolean final)
 {
 	soundcardinfo_t *sc, *next;
+
+#if defined(_WIN32) && !defined(FTE_SDL)
+	INS_SetupControllerAudioDevices(false);
+#endif
 
 	for (sc = sndcardinfo; sc; sc=next)
 	{

@@ -1090,12 +1090,14 @@ void CL_RecordMap_f (void)
 			CL_Disconnect_f();
 			return;
 		}
+#ifdef NQPROT
 		if (!strcmp(demoext, "dem"))
 		{
 			cls.demorecording = DPB_NETQUAKE;
 			VFS_PUTS(cls.demooutfile, "-1\n");
 		}
 		else
+#endif
 			cls.demorecording = DPB_QUAKEWORLD;
 		CL_WriteSetDemoMessage();
 	}
@@ -1343,19 +1345,25 @@ void CL_Record_f (void)
 		{
 			char buffer[1024];
 			FS_GetPackNames(buffer, sizeof(buffer), 2, true); /*retain extensions, or we'd have to assume pk3*/
-			MSG_WriteByte(&buf, svc_stufftext);
-			SZ_Write(&buf, "//paknames ", 11);
-			SZ_Write(&buf, buffer, strlen(buffer));
-			MSG_WriteString(&buf, "\n");
+			if (*buffer)
+			{
+				MSG_WriteByte(&buf, svc_stufftext);
+				SZ_Write(&buf, "//paknames ", 11);
+				SZ_Write(&buf, buffer, strlen(buffer));
+				MSG_WriteString(&buf, "\n");
+			}
 		}
 		//Paks
 		{
 			char buffer[1024];
 			FS_GetPackHashes(buffer, sizeof(buffer), false);
-			MSG_WriteByte(&buf, svc_stufftext);
-			SZ_Write(&buf, "//paks ", 7);
-			SZ_Write(&buf, buffer, strlen(buffer));
-			MSG_WriteString(&buf, "\n");
+			if (*buffer)
+			{
+				MSG_WriteByte(&buf, svc_stufftext);
+				SZ_Write(&buf, "//paks ", 7);
+				SZ_Write(&buf, buffer, strlen(buffer));
+				MSG_WriteString(&buf, "\n");
+			}
 		}
 		
 		//FIXME: //at

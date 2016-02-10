@@ -372,7 +372,7 @@ nonstatic void(mitem_desktop desktop) M_Servers =
 	}
 #endif
 
-	o = (mitem_menu)desktop.findchild(_("Servers List"));
+	o = (mitem_menu)desktop.findchildtext(_("Servers List"));
 	if (o)
 		o.totop();
 	else

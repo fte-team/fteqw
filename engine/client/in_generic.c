@@ -6,13 +6,18 @@
 extern qboolean mouse_active;
 
 static cvar_t m_filter = CVARF("m_filter", "0", CVAR_ARCHIVE);
-static cvar_t m_accel = CVARF("m_accel", "0", CVAR_ARCHIVE);
 static cvar_t m_forcewheel = CVARD("m_forcewheel", "1", "0: ignore mousewheels in apis where it is abiguous.\n1: Use mousewheel when it is treated as a third axis. Motion above a threshold is ignored, to avoid issues with an unknown threshold.\n2: Like 1, but excess motion is retained. The threshold specifies exact z-axis distance per notice.");
 static cvar_t m_forcewheel_threshold = CVARD("m_forcewheel_threshold", "32", "Mousewheel graduations smaller than this will not trigger mousewheel deltas.");
 static cvar_t m_strafeonright = CVARFD("m_strafeonright", "1", CVAR_ARCHIVE, "If 1, touching the right half of the touchscreen will strafe/move, while the left side will turn.");
 static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.2", CVAR_ARCHIVE, "How fat your thumb has to be to register a fat press (touchscreens).");
 static cvar_t m_touchmajoraxis = CVARFD("m_touchmajoraxis", "1", CVAR_ARCHIVE, "When using a touchscreen, use only the major axis for strafing.");
 static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "10", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event (touchscreens).");
+
+static cvar_t m_accel			= CVARAFD("m_accel",		"0",	"cl_mouseAccel", CVAR_ARCHIVE, "Values >0 will amplify mouse movement proportional to velocity. Small values have great effect. A lot of good Quake Live players use around the 0.1-0.2 mark, but this depends on your mouse CPI and polling rate.");
+static cvar_t m_accel_style		= CVARAD("m_accel_style",	"1",	"cl_mouseAccelStyle",	"1 = Quake Live mouse acceleration, 0 = Old style accelertion.");
+static cvar_t m_accel_power		= CVARAD("m_accel_power",	"2",	"cl_mouseAccelPower",	"Used when m_accel_style is 1.\nValues 1 or below are dumb. 2 is linear and the default. 99% of accel users use this. Above 2 begins to amplify exponentially and you will get more acceleration at higher velocities. Great if you want low accel for slow movements, and high accel for fast movements. Good in combination with a sensitivity cap.");
+static cvar_t m_accel_offset	= CVARAD("m_accel_offset",	"0",	"cl_mouseAccelOffset",	"Used when m_accel_style is 1.\nAcceleration will not be active until the mouse movement exceeds this speed (counts per millisecond). Negative values are supported, which has the effect of causing higher rates of acceleration to happen at lower velocities.");
+static cvar_t m_accel_senscap	= CVARAD("m_accel_senscap",	"0",	"cl_mouseSensCap",		"Used when m_accel_style is 1.\nSets an upper limit on the amplified mouse movement. Great for tuning acceleration around lower velocities while still remaining in control of fast motion such as flicking.");
 
 void QDECL joyaxiscallback(cvar_t *var, char *oldvalue)
 {
@@ -63,12 +68,13 @@ void QDECL joyaxiscallback(cvar_t *var, char *oldvalue)
 
 static cvar_t	joy_advaxis[6] =
 {
-	CVARCD("joyadvaxisx", "turnright", joyaxiscallback, "Provides a way to remap each joystick/controller axis.\n0:dead, 1:fwd, 2:pitch, 3:side, 4:yaw, 5:up, 6:roll"),
-	CVARC("joyadvaxisy", "lookup", joyaxiscallback),
-	CVARC("joyadvaxisz", "moveup", joyaxiscallback),
-	CVARC("joyadvaxisr", "moveright", joyaxiscallback),
-	CVARC("joyadvaxisu", "moveforward", joyaxiscallback),
-	CVARC("joyadvaxisv", "rollright", joyaxiscallback)
+#define ADVAXISDESC (const char *)"Provides a way to remap each joystick/controller axis.\nShould be set to one of: moveforward, moveback, lookup, lookdown, turnleft, turnright, moveleft, moveright, moveup, movedown, rollleft, rollright"
+	CVARCD("joyadvaxisx", "turnright", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisy", "lookup", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisz", "moveup", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisr", "moveright", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisu", "moveforward", joyaxiscallback, ADVAXISDESC),
+	CVARCD("joyadvaxisv", "rollright", joyaxiscallback, ADVAXISDESC)
 };
 static cvar_t	joy_advaxisscale[6] =
 {
@@ -240,6 +246,8 @@ void IN_DeviceIDs_Enumerate(void *ctx, const char *type, const char *devicename,
 	devicename = COM_QuotedString(devicename, buf, sizeof(buf), false);
 	if (!qdevid)
 		Con_Printf("%s\t%s\t%s\n", type, "N/A", devicename);
+	else if (*qdevid == DEVID_UNSET)
+		Con_Printf("%s\t%s\t%s\n", type, "Unset", devicename);
 	else
 		Con_Printf("%s\t%i\t%s\n", type, *qdevid, devicename);
 }
@@ -291,13 +299,17 @@ void IN_Init(void)
 	events_used = 0;
 
 	Cvar_Register (&m_filter, "input controls");
-	Cvar_Register (&m_accel, "input controls");
 	Cvar_Register (&m_forcewheel, "Input Controls");
 	Cvar_Register (&m_forcewheel_threshold, "Input Controls");
 	Cvar_Register (&m_strafeonright, "input controls");
 	Cvar_Register (&m_fatpressthreshold, "input controls");
 	Cvar_Register (&m_slidethreshold, "input controls");
 	Cvar_Register (&m_touchmajoraxis, "input controls");
+	Cvar_Register (&m_accel, "input controls");
+	Cvar_Register (&m_accel_style, "input controls");
+	Cvar_Register (&m_accel_power, "input controls");
+	Cvar_Register (&m_accel_offset, "input controls");
+	Cvar_Register (&m_accel_senscap, "input controls");
 
 	for (i = 0; i < 6; i++)
 	{
@@ -498,7 +510,7 @@ void IN_Commands(void)
 	}
 }
 
-void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
+void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frametime)
 {
 	int mx, my;
 	double mouse_x, mouse_y, mouse_deltadist;
@@ -684,9 +696,30 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum)
 
 	if (m_accel.value)
 	{
-		mouse_deltadist = sqrt(mx*mx + my*my);
-		mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
-		mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
+		if (m_accel_style.ival)
+		{
+			float accelsens = sensitivity.value*in_sensitivityscale;
+			float mousespeed = (sqrt (mx * mx + my * my)) / (1000.0f * (float) frametime);
+			mousespeed -= m_accel_offset.value;
+			if (mousespeed > 0)
+			{
+				mousespeed *= m_accel.value;
+				if (m_accel_power.value > 1)
+					accelsens += exp((m_accel_power.value - 1) * log(mousespeed));
+				else
+					accelsens = 1;
+			}
+			if (m_accel_senscap.value > 0 && accelsens > m_accel_senscap.value)
+				accelsens = m_accel_senscap.value;
+			mouse_x *= accelsens;
+			mouse_y *= accelsens;
+		}
+		else
+		{
+			mouse_deltadist = sqrt(mx*mx + my*my);
+			mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
+			mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
+		}
 	}
 	else
 	{
@@ -873,7 +906,7 @@ void IN_Move (float *movements, int pnum, float frametime)
 	int i;
 	INS_Move(movements, pnum);
 	for (i = 0; i < MAXPOINTERS; i++)
-		IN_MoveMouse(&ptr[i], movements, pnum);
+		IN_MoveMouse(&ptr[i], movements, pnum, frametime);
 
 	for (i = 0; i < MAXJOYSTICKS; i++)
 		IN_MoveJoystick(&joy[i], movements, pnum, frametime);

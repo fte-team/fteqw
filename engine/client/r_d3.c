@@ -6,7 +6,7 @@
 #endif
 
 void Mod_SetParent (mnode_t *node, mnode_t *parent);
-static int	D3_LeafnumForPoint (struct model_s *model, vec3_t point);
+static int	D3_ClusterForPoint (struct model_s *model, vec3_t point);
 
 #ifndef SERVERONLY
 static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
@@ -118,7 +118,7 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 				m[surf].numindexes = numindicies;
 				vdata = ZG_Malloc(&model->memgroup, numverts * (sizeof(vecV_t) + sizeof(vec2_t) + sizeof(vec3_t) + sizeof(vec4_t)) + numindicies * sizeof(index_t));
 
-				m[surf].colors4f_array = (vec4_t*)vdata;vdata += sizeof(vec4_t)*numverts;
+				m[surf].colors4f_array[0] = (vec4_t*)vdata;vdata += sizeof(vec4_t)*numverts;
 				m[surf].xyz_array = (vecV_t*)vdata;vdata += sizeof(vecV_t)*numverts;
 				m[surf].st_array = (vec2_t*)vdata;vdata += sizeof(vec2_t)*numverts;
 				m[surf].normals_array = (vec3_t*)vdata;vdata += sizeof(vec3_t)*numverts;
@@ -156,22 +156,22 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 							sub->mins[j] = f;
 					}
 
-					m[surf].colors4f_array[v][0] = 255;
-					m[surf].colors4f_array[v][1] = 255;
-					m[surf].colors4f_array[v][2] = 255;
-					m[surf].colors4f_array[v][3] = 255;
+					m[surf].colors4f_array[0][v][0] = 255;
+					m[surf].colors4f_array[0][v][1] = 255;
+					m[surf].colors4f_array[0][v][2] = 255;
+					m[surf].colors4f_array[0][v][3] = 255;
 
 					data = COM_ParseOut(data, token, sizeof(token));
 					/*if its not closed yet, there's an optional colour value*/
 					if (strcmp(token, ")"))
 					{
-						m[surf].colors4f_array[v][0] = atof(token)/255;
+						m[surf].colors4f_array[0][v][0] = atof(token)/255;
 						data = COM_ParseOut(data, token, sizeof(token));
-						m[surf].colors4f_array[v][1] = atof(token)/255;
+						m[surf].colors4f_array[0][v][1] = atof(token)/255;
 						data = COM_ParseOut(data, token, sizeof(token));
-						m[surf].colors4f_array[v][2] = atof(token)/255;
+						m[surf].colors4f_array[0][v][2] = atof(token)/255;
 						data = COM_ParseOut(data, token, sizeof(token));
-						m[surf].colors4f_array[v][3] = atof(token)/255;
+						m[surf].colors4f_array[0][v][3] = atof(token)/255;
 
 						data = COM_ParseOut(data, token, sizeof(token));
 						if (strcmp(token, ")"))
@@ -190,7 +190,7 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 			data = COM_ParseOut(data, token, sizeof(token));
 			if (strcmp(token, "}"))
 				return false;
-			sub->needload = false;
+//			sub->loadstate = MLS_LOADED;
 			sub->fromgame = fg_doom3;
 			sub->type = mod_brush;
 
@@ -396,7 +396,7 @@ unsigned char *D3_CalcVis(model_t *mod, vec3_t org)
 	static unsigned char vis[256];
 	vec_t newbounds[4];
 
-	start = D3_LeafnumForPoint(mod, org);
+	start = D3_ClusterForPoint(mod, org);
 	/*figure out which area we're in*/
 	if (start < 0)
 	{
@@ -452,7 +452,7 @@ void D3_GenerateAreas(model_t *mod)
 		cl_static_entities[cl.num_statics].pvscache.num_leafs = 1;
 		cl_static_entities[cl.num_statics].pvscache.leafnums[0] = area;
 
-		if (ent->model && !ent->model->needload)
+		if (ent->model && ent->model->loadstate != MLS_NOTLOADED)
 			cl.num_statics++;
 		else
 			break;
@@ -465,12 +465,12 @@ void D3_GenerateAreas(model_t *mod)
 static void D3_FindTouchedLeafs (struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
 {
 }
-static qbyte *D3_LeafPVS (struct model_s *model, int num, qbyte *buffer, unsigned int buffersize)
+static qbyte *D3_ClusterPVS (struct model_s *model, int num, qbyte *buffer, unsigned int buffersize)
 {
 	memset(buffer, 0xff, buffersize);
 	return buffer;
 }
-static int	D3_LeafnumForPoint (struct model_s *model, vec3_t point)
+static int	D3_ClusterForPoint (struct model_s *model, vec3_t point)
 {
 	float p;
 	int c;
@@ -841,7 +841,7 @@ return;
 	D3_RecursiveSurfCheck (node->child[side^1], midf, p2f, mid, p2);
 }
 
-static qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, struct trace_s *trace)
+static qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int hitcontentsmask, struct trace_s *trace)
 {
 	int i;
 	float e1,e2;
@@ -1008,7 +1008,7 @@ typedef struct
 	int v[2];
 	int fl[2];
 } d3edge_t;
-qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
+qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize)
 {
 	int pedges[64];
 	cm_surface_t *surf;
@@ -1296,17 +1296,17 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 
 	/*load up the .map so we can get some entities (anyone going to bother making a qc mod compatible with this?)*/
 	COM_StripExtension(mod->name, token, sizeof(token));
-	mod->entities = FS_LoadMallocFile(va("%s.map", token));
+	mod->entities = FS_LoadMallocFile(va("%s.map", token), NULL);
 
 	mod->funcs.FindTouchedLeafs = D3_FindTouchedLeafs;
 	mod->funcs.NativeTrace = D3_Trace;
 	mod->funcs.PointContents = D3_PointContents;
 	mod->funcs.FatPVS = D3_FatPVS;
-	mod->funcs.LeafnumForPoint = D3_LeafnumForPoint;
+	mod->funcs.ClusterForPoint = D3_ClusterForPoint;
 	mod->funcs.StainNode = D3_StainNode;
 	mod->funcs.LightPointValues = D3_LightPointValues;
 	mod->funcs.EdictInFatPVS = D3_EdictInFatPVS;
-	mod->funcs.LeafPVS = D3_LeafPVS;
+	mod->funcs.ClusterPVS = D3_ClusterPVS;
 
 	mod->fromgame = fg_doom3;
 
@@ -1315,7 +1315,7 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 	if (!isDedicated)
 	{
 		COM_StripExtension(mod->name, token, sizeof(token));
-		buf = FS_LoadMallocFile(va("%s.proc", token));
+		buf = FS_LoadMallocFile(va("%s.proc", token), NULL);
 		Mod_LoadMap_Proc(mod, buf);
 		BZ_Free(buf);
 	}

@@ -49,7 +49,6 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;	//13.35+
 
 #ifdef WINRT	//you're going to need a different sys_ port.
 qboolean isDedicated = false;
-qboolean ActiveApp;
 void VARGS Sys_Error (const char *error, ...){}	//eep
 void VARGS Sys_Printf (char *fmt, ...){}		//safe, but not ideal (esp for debugging)
 void Sys_SendKeyEvents (void){}					//safe, but not ideal
@@ -483,7 +482,7 @@ char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
 #endif
 
 int		starttime;
-qboolean ActiveApp, Minimized;
+qboolean Minimized;
 qboolean	WinNT;	//NT has a) proper unicode support that does not unconditionally result in errors. b) a few different registry paths.
 
 static HANDLE		hinput, houtput;
@@ -928,7 +927,7 @@ cvar_t	sys_disableTaskSwitch = SCVARF("sys_disableTaskSwitch", "0", CVAR_NOTFROM
 LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 {
 	KBDLLHOOKSTRUCT *pkbhs = (KBDLLHOOKSTRUCT *) lParam;
-	if (ActiveApp)
+	if (vid.activeapp)
 	switch (nCode)
 	{
 	case HC_ACTION:
@@ -4246,7 +4245,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				sleeptime = Host_Frame (time);
 				oldtime = newtime;
 
-				SetHookState(ActiveApp);
+				SetHookState(vid.activeapp);
 
 				/*sleep if its not yet time for a frame*/
 				if (sleeptime)

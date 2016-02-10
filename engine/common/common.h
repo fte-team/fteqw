@@ -372,11 +372,11 @@ unsigned int unicode_charcount(const char *in, size_t buffersize, qboolean marku
 
 char *COM_SkipPath (const char *pathname);
 void QDECL COM_StripExtension (const char *in, char *out, int outlen);
-void COM_StripAllExtensions (char *in, char *out, int outlen);
+void COM_StripAllExtensions (const char *in, char *out, int outlen);
 void COM_FileBase (const char *in, char *out, int outlen);
 int QDECL COM_FileSize(const char *path);
-void COM_DefaultExtension (char *path, char *extension, int maxlen);
-qboolean COM_RequireExtension(char *path, char *extension, int maxlen);
+void COM_DefaultExtension (char *path, const char *extension, int maxlen);
+qboolean COM_RequireExtension(char *path, const char *extension, int maxlen);
 char *COM_FileExtension (const char *in, char *result, size_t sizeofresult);
 void COM_CleanUpPath(char *str);
 

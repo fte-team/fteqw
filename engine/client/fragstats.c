@@ -309,6 +309,11 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 	u1 = (p1 == (cl.playerview[0].playernum));
 	u2 = (p2 == (cl.playerview[0].playernum));
 
+	if (p1 == -1)
+		p1 = p2;
+	if (p2 == -1)
+		p2 = p1;
+
 	//messages are killed weapon killer
 	switch(mt)
 	{
@@ -320,7 +325,8 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		}
 
 		fragstats.weapontotals[wid].kills++;
-		fragstats.clienttotals[p1].deaths++;
+		if (p1 >= 0)
+			fragstats.clienttotals[p1].deaths++;
 		fragstats.totaldeaths++;
 
 		Stats_FragMessage(p1, wid, -3, true);
@@ -338,8 +344,11 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 
 		fragstats.weapontotals[wid].suicides++;
 		fragstats.weapontotals[wid].kills++;
-		fragstats.clienttotals[p1].suicides++;
-		fragstats.clienttotals[p1].deaths++;
+		if (p1 >= 0)
+		{
+			fragstats.clienttotals[p1].suicides++;
+			fragstats.clienttotals[p1].deaths++;
+		}
 		fragstats.totalsuicides++;
 		fragstats.totaldeaths++;
 
@@ -351,7 +360,8 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		if (u1)
 			fragstats.weapontotals[wid].ownkills++;
 		fragstats.weapontotals[wid].kills++;
-		fragstats.clienttotals[p1].kills++;
+		if (p1 >= 0)
+			fragstats.clienttotals[p1].kills++;
 		fragstats.totalkills++;
 
 		Stats_FragMessage(-4, wid, p1, false);
@@ -371,7 +381,8 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		if (u1)
 			fragstats.weapontotals[wid].ownteamkills++;
 		fragstats.weapontotals[wid].teamkills++;
-		fragstats.clienttotals[p1].teamkills++;
+		if (p1 >= 0)
+			fragstats.clienttotals[p1].teamkills++;
 		fragstats.totalteamkills++;
 
 		Stats_FragMessage(-1, wid, p1, true);
@@ -385,25 +396,27 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		fragstats.clienttotals[p1].grabs++;
 		fragstats.totaltouches++;
 
-		if (u1)
+		if (u1 && p1 >= 0)
 		{
 			Stats_Message("You grabbed the flag\nflag grabs: %i (%i)\n", fragstats.clienttotals[p1].grabs, fragstats.totaltouches);
 		}
 		break;
 	case ff_flagcaps:
-		fragstats.clienttotals[p1].caps++;
+		if (p1 >= 0)
+			fragstats.clienttotals[p1].caps++;
 		fragstats.totalcaps++;
 
-		if (u1)
+		if (u1 && p1 >= 0)
 		{
 			Stats_Message("You captured the flag\nflag captures: %i (%i)\n", fragstats.clienttotals[p1].caps, fragstats.totalcaps);
 		}
 		break;
 	case ff_flagdrops:
-		fragstats.clienttotals[p1].drops++;
+		if (p1 >= 0)
+			fragstats.clienttotals[p1].drops++;
 		fragstats.totaldrops++;
 
-		if (u1)
+		if (u1 && p1 >= 0)
 		{
 			Stats_Message("You dropped the flag\nflag drops: %i (%i)\n", fragstats.clienttotals[p1].drops, fragstats.totaldrops);
 		}
@@ -414,21 +427,26 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 	case ff_fragedby:
 		fragstats.weapontotals[wid].kills++;
 
-		fragstats.clienttotals[p1].deaths++;
+		if (p1 >= 0)
+			fragstats.clienttotals[p1].deaths++;
 		fragstats.totaldeaths++;
 		if (u1)
 		{
 			fragstats.weapontotals[wid].owndeaths++;
-			Stats_Message("%s killed you\n%s deaths: %i (%i/%i)\n", cl.players[p2].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].owndeaths, fragstats.weapontotals[wid].owndeaths, fragstats.totaldeaths);
+			if (p1 >= 0 && p2 >= 0)
+				Stats_Message("%s killed you\n%s deaths: %i (%i/%i)\n", cl.players[p2].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].owndeaths, fragstats.weapontotals[wid].owndeaths, fragstats.totaldeaths);
 		}
 
-		fragstats.clienttotals[p2].kills++;
+		if (p2 >= 0)
+			fragstats.clienttotals[p2].kills++;
 		fragstats.totalkills++;
 		if (u2)
 		{
-			Stats_OwnFrag(cl.players[p1].name);
+			if (p1 >= 0)
+				Stats_OwnFrag(cl.players[p1].name);
 			fragstats.weapontotals[wid].ownkills++;
-			Stats_Message("You killed %s\n%s kills: %i (%i/%i)\n", cl.players[p1].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills, fragstats.totalkills);
+			if (p1 >= 0 && p2 >= 0)
+				Stats_Message("You killed %s\n%s kills: %i (%i/%i)\n", cl.players[p1].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills, fragstats.totalkills);
 		}
 
 		Stats_FragMessage(p1, wid, p2, false);
@@ -464,8 +482,11 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 			fragstats.weapontotals[wid].ownteamdeaths++;
 			fragstats.weapontotals[wid].owndeaths++;
 		}
-		fragstats.clienttotals[p1].teamdeaths++;
-		fragstats.clienttotals[p1].deaths++;
+		if (p1 >= 0)
+		{
+			fragstats.clienttotals[p1].teamdeaths++;
+			fragstats.clienttotals[p1].deaths++;
+		}
 		fragstats.totaldeaths++;
 
 		if (u2)
@@ -473,16 +494,19 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 			fragstats.weapontotals[wid].ownkills++;
 			fragstats.weapontotals[wid].ownkills++;
 		}
-		fragstats.clienttotals[p2].teamkills++;
-		fragstats.clienttotals[p2].kills++;
+		if (p2 >= 0)
+		{
+			fragstats.clienttotals[p2].teamkills++;
+			fragstats.clienttotals[p2].kills++;
+		}
 		fragstats.totalkills++;
 
 		fragstats.totalteamkills++;
 
 		Stats_FragMessage(p1, wid, p2, false);
-		if (u1)
+		if (u1 && p2 >= 0)
 			Stats_Message("%s killed you\n%s deaths: %i (%i/%i)\n", cl.players[p2].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].owndeaths, fragstats.weapontotals[wid].owndeaths, fragstats.totaldeaths);
-		if (u2)
+		if (u2 && p1 >= 0 && p2 >= 0)
 		{
 			Stats_OwnFrag(cl.players[p1].name);
 			Stats_Message("You killed %s\n%s kills: %i (%i/%i)\n", cl.players[p1].name, fragstats.weapontotals[wid].fullname, fragstats.clienttotals[p2].kills, fragstats.weapontotals[wid].kills, fragstats.totalkills);

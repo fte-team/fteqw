@@ -230,9 +230,9 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	const char *slotname = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *facename = PR_GetStringOfs(prinst, OFS_PARM1);
 	const char *sizestr = PR_GetStringOfs(prinst, OFS_PARM2);
-	int slotnum = G_FLOAT(OFS_PARM3);
-	//float fix_scale = G_FLOAT(OFS_PARM4);
-	//float fix_voffset = G_FLOAT(OFS_PARM5);
+	int slotnum = (prinst->callargc>3)?G_FLOAT(OFS_PARM3):-1;
+	//float fix_scale = (prinst->callargc>4)?G_FLOAT(OFS_PARM4):0;
+	//float fix_voffset = (prinst->callargc>5)G_FLOAT(OFS_PARM5):0;
 	int i, sz;
 	world_t *world = prinst->parms->user;
 

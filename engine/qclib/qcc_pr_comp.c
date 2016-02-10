@@ -6465,10 +6465,11 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 			QCC_FreeTemp(idx);
 			return QCC_PR_BuildRef(retbuf, REF_GLOBAL, QCC_MakeIntConst(arraysize), nullsref, type_integer, true);
 		}
-		else if (((t->type == ev_pointer && !arraysize) || t->type == ev_struct || t->type == ev_union) && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
+		else if (((t->type == ev_pointer && !arraysize) || (t->type == ev_field && (t->aux_type->type == ev_struct || t->aux_type->type == ev_union)) || t->type == ev_struct || t->type == ev_union) && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
 		{
 			char *tname;
 			unsigned int i;
+			pbool fld = t->type == ev_field;
 			if (!idx.cast && t->type == ev_pointer && !arraysize)
 			{
 				t = t->aux_type;
@@ -6478,6 +6479,12 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 
 			if (t->type == ev_struct || t->type == ev_union)
 			{
+				if (!t->size)
+					QCC_PR_ParseError(0, "%s was not defined yet", tname);
+			}
+			else if (fld)
+			{
+				t = t->aux_type;
 				if (!t->size)
 					QCC_PR_ParseError(0, "%s was not defined yet", tname);
 			}
@@ -6511,6 +6518,9 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 			}
 			arraysize = t->params[i].arraysize;
 			t = t->params[i].type;
+
+			if (fld)
+				t = QCC_PR_FieldType(t);
 		}
 		else
 			break;
@@ -7841,6 +7851,7 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	case REF_ARRAY:
 		if (ref->index.cast)
 		{
+			//FIXME: array reads of array[immediate+offset] should generate (array+immediate)[offset] instead.
 			//FIXME: this needs to be deprecated
 			const QCC_eval_t *idxeval = QCC_SRef_EvalConst(ref->index);
 			if (idxeval && (ref->index.cast->type == ev_float || ref->index.cast->type == ev_integer))

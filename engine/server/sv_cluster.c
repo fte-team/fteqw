@@ -226,9 +226,11 @@ void MSV_MapCluster_f(void)
 		Q_strncpyz(sv.modelname, "start", sizeof(sv.modelname));
 	if (atoi(Cmd_Argv(2)))
 	{
+#ifdef SQL
 		Con_Printf("Opening database \"%s\"\n", sqlparams[3]);
 		sv.logindatabase = SQL_NewServer("sqlite", sqlparams);
 		if (sv.logindatabase == -1)
+#endif
 		{
 			SV_UnspawnServer();
 			Con_Printf("Unable to open account database\n");
@@ -934,13 +936,14 @@ struct logininfo_s
 	char guid[64];
 	char name[64];
 };
-#endif
 qboolean SV_IgnoreSQLResult(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof)
 {
 	return false;
 }
+#endif
 void MSV_UpdatePlayerStats(unsigned int playerid, unsigned int serverid, int numstats, float *stats)
 {
+#ifdef SQL
 	queryrequest_t *req;
 	sqlserver_t *srv;
 	static char hex[16] = "0123456789abcdef";
@@ -961,6 +964,7 @@ void MSV_UpdatePlayerStats(unsigned int playerid, unsigned int serverid, int num
 		if (srv)
 			SQL_NewQuery(srv, SV_IgnoreSQLResult, sql, &req);
 	}
+#endif
 }
 
 qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serverid, unsigned int playerid, char *playername, char *clientguid, netadr_t *clientaddr, void *statsblob, size_t statsblobsize)
@@ -1023,6 +1027,7 @@ qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serv
 	return false;
 }
 
+#ifdef SQL
 qboolean MSV_ClusterLoginSQLResult(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof)
 {
 	sqlserver_t *sql = SQL_GetServer(req->srvid, true);
@@ -1061,16 +1066,12 @@ qboolean MSV_ClusterLoginSQLResult(queryrequest_t *req, int firstrow, int numrow
 	pendinglookups--;
 	return false;
 }
+#endif
 
 //returns true to block entry to this server.
 extern int	nextuserid;
 qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize)
 {
-	char escname[64], escpasswd[64];
-	sqlserver_t *sql;
-	queryrequest_t *req;
-	struct logininfo_s *info;
-
 	if (sv.state != ss_clustermode)
 		return false;
 
@@ -1080,8 +1081,13 @@ qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize)
 		return false;
 	}*/
 
+#ifdef SQL
 	if (sv.logindatabase != -1)
 	{
+		char escname[64], escpasswd[64];
+		struct logininfo_s *info;
+		sqlserver_t *sql;
+		queryrequest_t *req;
 		if (pendinglookups > 10)
 			return true;
 		sql = SQL_GetServer(sv.logindatabase, false);
@@ -1097,7 +1103,9 @@ qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize)
 			info->clientaddr = net_from;
 		}
 	}
-/*	else if (0)
+	else
+#endif
+/*		if (0)
 	{
 		char tmpbuf[256];
 		netadr_t redir;
@@ -1107,8 +1115,8 @@ qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize)
 			return false;
 		}
 		return true;
-	}*/
-	else
+	}
+	else*/
 		MSV_ClusterLoginReply(NULL, 0, ++nextuserid, Info_ValueForKey(userinfo, "name"), guid, &net_from, NULL, 0);
 	return true;
 }

@@ -258,25 +258,25 @@ qboolean SWAppActivate(BOOL fActive, BOOL minimize)
 {
 	static BOOL	sound_active;
 
-	if (ActiveApp == fActive && Minimized == minimize)
+	if (vid.activeapp == fActive && Minimized == minimize)
 		return false;	//so windows doesn't crash us over and over again.
 
-	ActiveApp = fActive;
+	vid.activeapp = fActive;
 	Minimized = minimize;
 
 // enable/disable sound on focus gain/loss
-	if (!ActiveApp && sound_active)
+	if (!vid.activeapp && sound_active)
 	{
 		S_BlockSound ();
 		sound_active = false;
 	}
-	else if (ActiveApp && !sound_active)
+	else if (vid.activeapp && !sound_active)
 	{
 		S_UnblockSound ();
 		sound_active = true;
 	}
 
-	INS_UpdateGrabs(false, ActiveApp);
+	INS_UpdateGrabs(false, vid.activeapp);
 
 /*
 	if (fActive)
@@ -704,7 +704,7 @@ void SW_VID_SwapBuffers(void)
 	DIB_SwapBuffers();
 	framenumber++;
 
-	INS_UpdateGrabs(false, ActiveApp);
+	INS_UpdateGrabs(false, vid.activeapp);
 
 //	memset( pDIBBase, 0, vid.pixelwidth * vid.pixelheight * 4);
 

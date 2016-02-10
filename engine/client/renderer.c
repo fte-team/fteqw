@@ -202,7 +202,7 @@ cvar_t scr_showturtle						= SCVAR  ("showturtle", "0");
 cvar_t scr_turtlefps						= SCVAR  ("scr_turtlefps", "10");
 cvar_t scr_sshot_compression				= SCVAR  ("scr_sshot_compression", "75");
 cvar_t scr_sshot_type						= SCVAR  ("scr_sshot_type", "png");
-cvar_t scr_sshot_prefix						= SCVAR  ("scr_sshot_prefix", "screenshots/fte"); 
+cvar_t scr_sshot_prefix						= SCVAR  ("scr_sshot_prefix", "screenshots/fte-"); 
 cvar_t scr_viewsize							= CVARFC("viewsize", "100",
 												CVAR_ARCHIVE,
 												SCR_Viewsize_Callback);
@@ -248,8 +248,10 @@ cvar_t vid_wndalpha							= CVARD ("vid_wndalpha", "1", "When running windowed, 
 //more readable defaults to match conwidth/conheight.
 cvar_t vid_width							= CVARFD ("vid_width", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "The screen width to attempt to use, in physical pixels. 0 means use desktop resolution.");
+cvar_t vid_dpi_x							= CVARFD ("vid_dpi_x", "0", CVAR_NOSET, "For mods that need to determine the physical screen size (like with touchscreens). 0 means unknown");
+cvar_t vid_dpi_y							= CVARFD ("vid_dpi_y", "0", CVAR_NOSET, "For mods that need to determine the physical screen size (like with touchscreens). 0 means unknown");
 
-cvar_t	r_stereo_separation					= CVARD("r_stereo_separation", "4", "How far your eyes are apart, in quake units. A non-zero value will enable stereoscoping rendering. You might need some of them retro 3d glasses. Hardware support is recommended, see r_stereo_context.");
+cvar_t	r_stereo_separation					= CVARD("r_stereo_separation", "4", "How far apart your eyes are, in quake units. A non-zero value will enable stereoscoping rendering. You might need some of them retro 3d glasses. Hardware support is recommended, see r_stereo_context.");
 cvar_t	r_stereo_method						= CVARFD("r_stereo_method", "0", CVAR_ARCHIVE, "Value 0 = Off.\nValue 1 = Attempt hardware acceleration. Requires vid_restart.\nValue 2 = red/cyan.\nValue 3 = red/blue.\nValue 4=red/green.\nValue 5=eye strain.");
 
 extern cvar_t r_dodgytgafiles;
@@ -392,7 +394,7 @@ cvar_t r_shadow_heightscale_bumpmap			= CVARD  ("r_shadow_heightscale_bumpmap", 
 
 cvar_t r_glsl_offsetmapping					= CVARFD  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Enables the use of paralax mapping, adding fake depth to textures.");
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
-cvar_t r_glsl_offsetmapping_reliefmapping = CVARFD("r_glsl_offsetmapping_reliefmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer, but noticably more expensive at high resolutions. r_glsl_offsetmapping must be set.");
+cvar_t r_glsl_offsetmapping_reliefmapping	= CVARFD("r_glsl_offsetmapping_reliefmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer, but noticably more expensive at high resolutions. r_glsl_offsetmapping must be set.");
 cvar_t r_glsl_turbscale						= CVARFD  ("r_glsl_turbscale", "1", CVAR_ARCHIVE, "Controls the strength of water ripples (used by the altwater glsl code).");
 
 cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.\n");
@@ -684,6 +686,8 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_refreshrate, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_srgb, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_dpi_x, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_dpi_y, GLRENDEREROPTIONS);
 
 	Cvar_Register (&vid_desktopsettings, VIDCOMMANDGROUP);
 
@@ -837,7 +841,7 @@ void Renderer_Init(void)
 
 qboolean Renderer_Started(void)
 {
-	return !!currentrendererstate.renderer;
+	return !r_blockvidrestart && !!currentrendererstate.renderer;
 }
 
 void Renderer_Start(void)
@@ -1046,14 +1050,17 @@ void R_ShutdownRenderer(qboolean devicetoo)
 		TRACE(("dbg: R_ApplyRenderer: R_DeInit\n"));
 		R_DeInit();
 	}
+	R_DeInit = NULL;
 
 	if (Draw_Shutdown)
 		Draw_Shutdown();
+	Draw_Shutdown = NULL;
 
 	if (VID_DeInit && devicetoo)
 	{
 		TRACE(("dbg: R_ApplyRenderer: VID_DeInit\n"));
 		VID_DeInit();
+		VID_DeInit = NULL;
 	}
 
 	TRACE(("dbg: R_ApplyRenderer: SCR_DeInit\n"));
@@ -1142,6 +1149,9 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 	r_softwarebanding = r_softwarebanding_cvar.ival;
 	r_deluxemapping = r_deluxemapping_cvar.ival;
+
+	vid.dpi_x = 0;
+	vid.dpi_y = 0;
 
 	if (qrenderer != QR_NONE)	//graphics stuff only when not dedicated
 	{
@@ -1259,6 +1269,9 @@ TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 	Mod_Init(false);
 
 //	host_hunklevel = Hunk_LowMark();
+
+	Cvar_ForceSetValue(&vid_dpi_x, vid.dpi_x);
+	Cvar_ForceSetValue(&vid_dpi_y, vid.dpi_y);
 
 
 	TRACE(("dbg: R_ApplyRenderer: R_PreNewMap (how handy)\n"));

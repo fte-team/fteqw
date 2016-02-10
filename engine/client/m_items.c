@@ -805,8 +805,9 @@ menubind_t *MC_AddBind(menu_t *menu, int cx, int bx, int y, const char *caption,
 	strcpy(n->command, command);
 	if (tooltip)
 	{
-		n->common.tooltip = n->command+strlen(n->command)+1;
-		strcpy(n->common.tooltip, tooltip);
+		char *tip = n->command+strlen(n->command)+1;
+		n->common.tooltip = tip;
+		strcpy(tip, tooltip);
 	}
 	n->common.width = n->captionwidth + 64;
 	n->common.height = 8;

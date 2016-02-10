@@ -35,7 +35,8 @@ class mitem_frame : mitem
 	vector 	item_framesize;	//x=sides, y=top, z=bottom
 	float frame_hasscroll;
 
-	static mitem(string title) findchild;
+	static mitem(string title) findchildtext;
+	static mitem(string title) findchildcmd;
 	static void(mitem newitem, float originflags, vector originmin, vector originmax) add;
 	static void(mitem newitem, vector pos) adda;
 	static void(mitem newitem, vector originmin, vector originmax) addm;
@@ -56,7 +57,7 @@ void(mitem fromitem, string cmd) mitem_frame::item_execcommand =
 		localcmd(strcat(cmd, "\n"));
 };
 
-mitem(string title) mitem_frame::findchild =
+mitem(string title) mitem_frame::findchildtext =
 {
 	mitem ch;
 	for (ch = item_children; ch; ch = ch.item_next)
@@ -66,6 +67,17 @@ mitem(string title) mitem_frame::findchild =
 	}
 	return __NULL__;
 };
+mitem(string title) mitem_frame::findchildcmd =
+{
+	mitem ch;
+	for (ch = item_children; ch; ch = ch.item_next)
+	{
+		if (ch.item_command == title)
+			return ch;
+	}
+	return __NULL__;
+};
+
 
 //adds an item with the desired origin settings
 void(mitem newitem, float originflags, vector originmin, vector originmax) mitem_frame::add =

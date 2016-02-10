@@ -37,9 +37,183 @@ public class FTEDroidActivity extends Activity
 {
 	private SensorManager sensorman;
 	private Sensor sensoracc;
+	private Sensor sensorgyro;
 	private FTEView view;
 	float acc_x, acc_y, acc_z; /*might be some minor race condition on these*/
+	float gyro_x, gyro_y, gyro_z; /*might be some minor race condition on these*/
 	private String basedir, userdir;
+	
+	
+	private audiothreadclass audiothread;
+	private class audiothreadclass extends Thread
+	{
+		boolean timetodie;
+		int schannels;
+		int sspeed;
+		int sbits;
+		@Override
+		public void run()
+		{
+			byte[] audbuf = new byte[2048];
+			int avail;
+			AudioTrack at;
+			
+			int chans;
+			try
+			{
+				if (schannels >= 8)	//the OUT enumeration allows specific speaker control. but also api level 5+
+					chans = AudioFormat.CHANNEL_OUT_7POINT1;
+				else if (schannels >= 6)
+					chans = AudioFormat.CHANNEL_OUT_5POINT1;
+				else if (schannels >= 4)
+					chans = AudioFormat.CHANNEL_OUT_QUAD;
+				else if (schannels >= 2)
+					chans = AudioFormat.CHANNEL_CONFIGURATION_STEREO;
+				else
+					chans = AudioFormat.CHANNEL_CONFIGURATION_MONO;
+				int enc = (sbits == 8)?AudioFormat.ENCODING_PCM_8BIT:AudioFormat.ENCODING_PCM_16BIT;
+				
+				int sz = 2*AudioTrack.getMinBufferSize(sspeed, chans, enc);
+
+//				if (sz < sspeed * 0.05)
+//					sz = sspeed * 0.05;
+
+				at = new AudioTrack(AudioManager.STREAM_MUSIC, sspeed, chans, enc, sz, AudioTrack.MODE_STREAM);
+			}
+			catch(IllegalArgumentException e)
+			{
+				//fixme: tell the engine that its bad and that it should configure some different audio attributes, instead of simply muting.
+				return;
+			}
+
+			at.setStereoVolume(1, 1);
+			at.play();
+		
+			while(!timetodie)
+			{
+				avail = FTEDroidEngine.paintaudio(audbuf, audbuf.length);
+				at.write(audbuf, 0, avail);
+			}
+			
+			at.stop();
+		}
+		public void killoff()
+		{
+			timetodie = true;
+			try
+			{
+				join();
+			}
+			catch(InterruptedException e)
+			{
+			}
+			timetodie = false;
+		}
+	};
+	private void audioInit(int sspeed, int schannels, int sbits)
+	{
+		if (audiothread == null)
+		{
+			audiothread = new audiothreadclass();
+			audiothread.schannels = schannels;
+			audiothread.sspeed = sspeed;
+			audiothread.sbits = sbits;
+			audiothread.start();
+		}
+	}
+	public void audioStop()
+	{
+		if (audiothread != null)
+		{
+			audiothread.killoff();
+			audiothread = null;
+		}
+	}
+	public void audioResume()
+	{
+		if (audiothread != null)
+		{
+			audiothread.killoff();
+			audiothread.start();
+		}
+	}
+	
+	
+	
+	class FTEMultiTouchInputEvent extends FTELegacyInputEvent
+	{
+		/*Requires API level 5+ (android 2.0+)*/
+		private void domove(MotionEvent event)
+		{
+			final int pointerCount = event.getPointerCount();
+			int i;
+			for (i = 0; i < pointerCount; i++)
+				FTEDroidEngine.motion(0, event.getPointerId(i), event.getX(i), event.getY(i), event.getSize(i));
+		}
+		
+		public boolean go(MotionEvent event)
+		{
+			int id;
+			float x, y, size;
+			final int act = event.getAction();
+			
+			domove(event);
+			
+			switch(act & event.ACTION_MASK)
+			{
+			case MotionEvent.ACTION_DOWN:
+			case MotionEvent.ACTION_POINTER_DOWN:
+				id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
+				x = event.getX(id);
+				y = event.getY(id);
+				size = event.getSize(id);
+				id = event.getPointerId(id);
+				FTEDroidEngine.motion(1, id, x, y, size);
+				break;
+			case MotionEvent.ACTION_UP:
+			case MotionEvent.ACTION_POINTER_UP:
+				id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
+				x = event.getX(id);
+				y = event.getY(id);
+				size = event.getSize(id);
+				id = event.getPointerId(id);
+				FTEDroidEngine.motion(2, id, x, y, size);
+				break;
+			case MotionEvent.ACTION_MOVE:
+				break;
+			default:
+				return false;
+			}
+			return true;
+		}
+	}
+	class FTELegacyInputEvent
+	{
+		public boolean go(MotionEvent event)
+		{
+			final int act = event.getAction();
+			final float x = event.getX();
+			final float y = event.getY();
+			final float size = event.getSize();
+
+			FTEDroidEngine.motion(0, 0, x, y, size);
+
+			switch(act)
+			{
+			case MotionEvent.ACTION_DOWN:
+				FTEDroidEngine.motion(1, 0, x, y, size);
+				break;
+			case MotionEvent.ACTION_UP:
+				FTEDroidEngine.motion(2, 0, x, y, size);
+				break;
+			case MotionEvent.ACTION_MOVE:
+				break;
+			default:
+				return false;
+			}
+			return true;
+		}
+	}
 	
 	private class FTEEGLConfig implements GLSurfaceView.EGLConfigChooser
 	{
@@ -176,8 +350,11 @@ public class FTEDroidActivity extends Activity
 			act = parent;
 			theview = view;
 			
-			FTEDroidEngine.init(0, 0, 0, basedir, userdir);
-			inited = true;
+			if (!inited)
+			{
+				FTEDroidEngine.init(0, 0, 0, 0, 0, basedir, userdir);
+				inited = true;
+			}
 			
 			cfgchooser = new FTEEGLConfig();
 //			theview.setEGLConfigChooser(cfgchooser);
@@ -190,7 +367,7 @@ public class FTEDroidActivity extends Activity
 			if (inited == true)
 			{
 				int flags;
-				flags = FTEDroidEngine.frame(act.acc_x, act.acc_y, act.acc_z);
+				flags = FTEDroidEngine.frame(act.acc_x, act.acc_y, act.acc_z, act.gyro_x, act.gyro_y, act.gyro_z);
 				if (flags != notifiedflags)
 				{
 					if (((flags ^ notifiedflags) & 1) != 0)
@@ -254,7 +431,7 @@ public class FTEDroidActivity extends Activity
 						
 						inited = false;
 						
-						if (errormsg == "")
+						if (errormsg.equals(""))
 						{
 							finish();
 							System.exit(0);
@@ -287,7 +464,7 @@ public class FTEDroidActivity extends Activity
 					if (((flags ^ notifiedflags) & 16) != 0)
 					{		
 						//16 means orientation cvar change				
-						Runnable r = new Runnable() 
+						Runnable r = new Runnable()
 						{
 							public void run()
 							{
@@ -323,13 +500,44 @@ public class FTEDroidActivity extends Activity
 							}
 						};
 						act.runOnUiThread(r);
+
+						//fixme: move to proper vid_restart thing.
+						int wantver = FTEDroidEngine.getpreferedglesversion();
+						if (wantver != 0 && this.glesversion != 0 && wantver != this.glesversion)
+						{
+							inited = false;
+							wantver = FTEDroidEngine.getpreferedglesversion();
+							android.util.Log.i("FTEDroid", "Killing old gl state");
+							FTEDroidEngine.killglcontext();
+							android.util.Log.i("FTEDroid", "old gl state killed, queueing context kill");
+							r = new Runnable()
+							{
+								public void run()
+								{
+									android.util.Log.i("FTEDroid", "Attempting to restart view");
+									//create a new view and use that, because the desired gl context version might have changed
+									view = new FTEView(act);
+									setContentView(view);
+								}
+							};
+							act.runOnUiThread(r);
+						}
 					}
+
 					if (((flags ^ notifiedflags) & 32) != 0)
 					{
-						if ((flags & 32) != 0)
-							view.audioInit(FTEDroidEngine.audioinfo(0), FTEDroidEngine.audioinfo(1), FTEDroidEngine.audioinfo(2));
-						else
-							view.audioStop();
+						final int fl = flags;
+						Runnable r = new Runnable()
+						{
+							public void run()
+							{
+								if ((fl & 32) != 0)
+									act.audioInit(FTEDroidEngine.audioinfo(0), FTEDroidEngine.audioinfo(1), FTEDroidEngine.audioinfo(2));
+								else
+									act.audioStop();
+							}
+						};
+						act.runOnUiThread(r);
 					}
 
 					//clear anything which is an impulse
@@ -341,10 +549,12 @@ public class FTEDroidActivity extends Activity
 		public void onSurfaceChanged(GL10 gl, int width, int height)
 		{
 			android.util.Log.i("FTEDroid", "Surface changed, now " + width + " by " + height + ".");
-			if (glesversion != 0)
+			if (glesversion != 0 && inited)
 			{
-				FTEDroidEngine.init(width, height, glesversion, basedir, userdir);
-				inited = true;
+				android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+				getWindowManager().getDefaultDisplay().getMetrics(metrics);
+ 
+				FTEDroidEngine.init(width, height, metrics.xdpi, metrics.ydpi, glesversion, basedir, userdir);
 			}
 		}
 		@Override
@@ -357,101 +567,6 @@ public class FTEDroidActivity extends Activity
 	private class FTEView extends GLSurfaceView implements SensorEventListener
 	{
 		private final FTERenderer rndr;
-
-		private audiothreadclass audiothread;
-		private class audiothreadclass extends Thread
-		{
-			boolean timetodie;
-			int schannels;
-			int sspeed;
-			int sbits;
-			@Override
-			public void run()
-			{
-				byte[] audbuf = new byte[2048];
-				int avail;
-				AudioTrack at;
-				
-				int chans;
-				try
-				{
-					if (schannels >= 8)	//the OUT enumeration allows specific speaker control. but also api level 5+
-						chans = AudioFormat.CHANNEL_OUT_7POINT1;
-					else if (schannels >= 6)
-						chans = AudioFormat.CHANNEL_OUT_5POINT1;
-					else if (schannels >= 4)
-						chans = AudioFormat.CHANNEL_OUT_QUAD;
-					else if (schannels >= 2)
-						chans = AudioFormat.CHANNEL_CONFIGURATION_STEREO;
-					else
-						chans = AudioFormat.CHANNEL_CONFIGURATION_MONO;
-					int enc = (sbits == 8)?AudioFormat.ENCODING_PCM_8BIT:AudioFormat.ENCODING_PCM_16BIT;
-					
-					int sz = 2*AudioTrack.getMinBufferSize(sspeed, chans, enc);
-
-	//				if (sz < sspeed * 0.05)
-	//					sz = sspeed * 0.05;
-
-					at = new AudioTrack(AudioManager.STREAM_MUSIC, sspeed, chans, enc, sz, AudioTrack.MODE_STREAM);
-				}
-				catch(IllegalArgumentException e)
-				{
-					//fixme: tell the engine that its bad and that it should configure some different audio attributes, instead of simply muting.
-					return;
-				}
-
-				at.setStereoVolume(1, 1);
-				at.play();
-			
-				while(!timetodie)
-				{
-					avail = FTEDroidEngine.paintaudio(audbuf, audbuf.length);
-					at.write(audbuf, 0, avail);
-				}
-				
-				at.stop();
-			}
-			public void killoff()
-			{
-				timetodie = true;
-				try
-				{
-					join();
-				}
-				catch(InterruptedException e)
-				{
-				}
-				timetodie = false;
-			}
-		};
-
-		private void audioInit(int sspeed, int schannels, int sbits)
-		{
-			if (audiothread == null)
-			{
-				audiothread = new audiothreadclass();
-				audiothread.schannels = schannels;
-				audiothread.sspeed = sspeed;
-				audiothread.sbits = sbits;
-				audiothread.start();
-			}
-		}
-		public void audioStop()
-		{
-			if (audiothread != null)
-			{
-				audiothread.killoff();
-				audiothread = null;
-			}
-		}
-		public void audioResume()
-		{
-			if (audiothread != null)
-			{
-				audiothread.killoff();
-				audiothread.start();
-			}
-		}
 		
 /*		private FTEJoystickInputEvent joystickevent;
 		class FTEJoystickInputEvent
@@ -479,80 +594,6 @@ public class FTEDroidActivity extends Activity
 		}
 */		
 		private FTELegacyInputEvent inputevent;
-		class FTEMultiTouchInputEvent extends FTELegacyInputEvent
-		{
-			/*Requires API level 5+ (android 2.0+)*/
-			private void domove(MotionEvent event)
-			{
-				final int pointerCount = event.getPointerCount();
-				int i;
-				for (i = 0; i < pointerCount; i++)
-					FTEDroidEngine.motion(0, event.getPointerId(i), event.getX(i), event.getY(i), event.getSize(i));
-			}
-			
-			public boolean go(MotionEvent event)
-			{
-				int id;
-				float x, y, size;
-				final int act = event.getAction();
-				
-				domove(event);
-				
-				switch(act & event.ACTION_MASK)
-				{
-				case MotionEvent.ACTION_DOWN:
-				case MotionEvent.ACTION_POINTER_DOWN:
-					id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
-					x = event.getX(id);
-					y = event.getY(id);
-					size = event.getSize(id);
-					id = event.getPointerId(id);
-					FTEDroidEngine.motion(1, id, x, y, size);
-					break;
-				case MotionEvent.ACTION_UP:
-				case MotionEvent.ACTION_POINTER_UP:
-					id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
-					x = event.getX(id);
-					y = event.getY(id);
-					size = event.getSize(id);
-					id = event.getPointerId(id);
-					FTEDroidEngine.motion(2, id, x, y, size);
-					break;
-				case MotionEvent.ACTION_MOVE:
-					break;
-				default:
-					return false;
-				}
-				return true;
-			}
-		}
-		class FTELegacyInputEvent
-		{
-			public boolean go(MotionEvent event)
-			{
-				final int act = event.getAction();
-				final float x = event.getX();
-				final float y = event.getY();
-				final float size = event.getSize();
-
-				FTEDroidEngine.motion(0, 0, x, y, size);
-
-				switch(act)
-				{
-				case MotionEvent.ACTION_DOWN:
-					FTEDroidEngine.motion(1, 0, x, y, size);
-					break;
-				case MotionEvent.ACTION_UP:
-					FTEDroidEngine.motion(2, 0, x, y, size);
-					break;
-				case MotionEvent.ACTION_MOVE:
-					break;
-				default:
-					return false;
-				}
-				return true;
-			}
-		}
 
 		public FTEView(FTEDroidActivity context)
 		{
@@ -713,9 +754,18 @@ public class FTEDroidActivity extends Activity
 
 		public void onSensorChanged(final SensorEvent event)
 		{
-			acc_x = event.values[0];
-			acc_y = event.values[1];
-			acc_z = event.values[2];
+			if (event.sensor == sensoracc)
+			{
+				acc_x = event.values[0];
+				acc_y = event.values[1];
+				acc_z = event.values[2];
+			}
+			else if (event.sensor == sensorgyro)
+			{
+				gyro_x = event.values[0];
+				gyro_y = event.values[1];
+				gyro_z = event.values[2];
+			}
 		}
 	}
 	
@@ -776,6 +826,8 @@ public class FTEDroidActivity extends Activity
 		{
 			android.util.Log.i("FTEDroid", "init accelerometer");
 			sensoracc = sensorman.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+			android.util.Log.i("FTEDroid", "init gyro");
+			sensorgyro = sensorman.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
 		}
 		android.util.Log.i("FTEDroid", "done");
 	}
@@ -786,8 +838,10 @@ public class FTEDroidActivity extends Activity
 		super.onResume();
 		if (sensorman != null && sensoracc != null)
 			sensorman.registerListener((SensorEventListener)view, sensoracc, SensorManager.SENSOR_DELAY_GAME);
+		if (sensorman != null && sensorgyro != null)
+			sensorman.registerListener((SensorEventListener)view, sensorgyro, SensorManager.SENSOR_DELAY_GAME);
 
-		view.audioResume();
+		audioResume();
 	}
 	
 	@Override
@@ -822,18 +876,18 @@ public class FTEDroidActivity extends Activity
 	@Override
 	protected void onStop()
 	{
-		if (sensorman != null && sensoracc != null)
+		if (sensorman != null && (sensoracc != null || sensorgyro != null))
 			sensorman.unregisterListener(view);
-		view.audioStop();
+		audioStop();
 		super.onStop();
 	}
 
 	@Override
 	protected void onPause()
 	{
-		if (sensorman != null && sensoracc != null)
+		if (sensorman != null && (sensoracc != null || sensorgyro != null))
 			sensorman.unregisterListener(view);
-		view.audioStop();
+		audioStop();
 		super.onPause();
 	}
 }

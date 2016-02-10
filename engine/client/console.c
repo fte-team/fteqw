@@ -1121,9 +1121,6 @@ return value is the top of the region
 */
 int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y, qboolean selactive, int selsx, int selex, int selsy, int seley)
 {
-#ifdef _WIN32
-	extern qboolean ActiveApp;
-#endif
 	int		i;
 	int lhs, rhs;
 	int p;
@@ -1203,11 +1200,9 @@ int Con_DrawInput (console_t *con, qboolean focused, int left, int right, int y,
 //	else
 //		Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
 
-#ifdef _WIN32
-	if (!ActiveApp)
+	if (!vid.activeapp)
 		cursorframe = 0;
 	else
-#endif
 		cursorframe = ((int)(realtime*con_cursorspeed)&1);
 
 	//FIXME: support tab somehow

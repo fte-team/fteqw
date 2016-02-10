@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h> // for isdigit();
 
-cvar_t r_projection = CVARD("r_projection", "0", "0: regular perspective.\n1: stereographic (aka: pannini).\n2: fisheye.\n3: panoramic.\n4: lambert azimuthal equal-area.");
+cvar_t r_projection = CVARD("r_projection", "0", "0: regular perspective.\n1: stereographic (aka: pannini).\n2: fisheye.\n3: panoramic.\n4: lambert azimuthal equal-area.\n5: Equirectangular");
 cvar_t ffov = CVARFD("ffov", "", 0, "Allows you to set a specific field of view for when a custom projection is specified. If empty, will use regular fov cvar, which might get messy.");
 #if defined(_WIN32) && !defined(MINIMAL)
 //amusing gimmick / easteregg.
@@ -1156,7 +1156,7 @@ void V_ApplyAFov(playerview_t *pv)
 	//aproximate fov is our regular fov value. explicit is settable by gamecode for weird aspect ratios
 	if (!r_refdef.fov_x || !r_refdef.fov_y)
 	{
-		extern cvar_t r_stereo_method, r_stereo_separation;
+		extern cvar_t r_stereo_separation;
 		float ws;
 
 		float afov = r_refdef.afov;
@@ -1169,13 +1169,13 @@ void V_ApplyAFov(playerview_t *pv)
 		afov = min(afov, 170);
 
 		ws = 1;
-		if (r_stereo_method.ival == 5 && r_stereo_separation.value)
+		if (r_refdef.stereomethod == STEREO_CROSSEYED && r_stereo_separation.value)
 			ws = 0.5;
 
 		//attempt to retain a classic fov
 		if (ws*r_refdef.vrect.width < (r_refdef.vrect.height*640)/432)
 		{
-			r_refdef.fov_y = CalcFov(afov, (ws*r_refdef.vrect.width*r_refdef.pxrect.width)/vid.width, (r_refdef.vrect.height*r_refdef.pxrect.height)/vid.height);
+			r_refdef.fov_y = CalcFov(afov, (ws*r_refdef.vrect.width*r_refdef.pxrect.width)/vid.fbvwidth, (r_refdef.vrect.height*r_refdef.pxrect.height)/vid.fbvheight);
 			r_refdef.fov_x = afov;//CalcFov(r_refdef.fov_y, 432, 640);
 		}
 		else
@@ -1552,7 +1552,7 @@ static void SCR_VRectForPlayer(vrect_t *vrect, int pnum, unsigned maxseats)
 	case 3:
 #ifdef GLQUAKE
 		if (qrenderer == QR_OPENGL && vid.rotpixelwidth > vid.rotpixelheight * 2
-			&& r_projection.ival == 2 /*panoramic view always stacks player views*/
+			&& r_projection.ival == PROJ_PANORAMA /*panoramic view always stacks player views*/
 			)
 		{	//over twice as wide as high, assume dual moniter, horizontal.
 			vrect->width = vid.fbvwidth/cl.splitclients;
@@ -1888,7 +1888,7 @@ void R_DrawNameTags(void)
 				{
 					char asciibuffer[8192];
 					char *entstr;
-					int buflen;
+					size_t buflen;
 					int x, y;
 
 					sprintf(asciibuffer, "entity %i ", e->entnum);

@@ -291,11 +291,17 @@ SV_Give_f
 */
 static void SV_Give_f (void)
 {
-	char	*t;
+	char	*t = Cmd_Argv(2);
 	int		v;
 
 	if (!svprogfuncs)
 		return;
+
+	if (!strcmp(t, "damn"))
+	{
+		Con_TPrintf ("%s not given.\n", t);
+		return;
+	}
 
 	if (!SV_MayCheat())
 	{
@@ -319,7 +325,6 @@ static void SV_Give_f (void)
 
 	SV_LogPlayer(host_client, "give cheat");
 
-	t = Cmd_Argv(2);
 	v = atoi (Cmd_Argv(3));
 
 	switch ((t[1]==0)?t[0]:0)
@@ -1259,7 +1264,7 @@ static void SV_BanList_f (void)
 		{
 			*middlebit = 0;
 			if (nb->expiretime)
-				Q_strncatz(middlebit, va(",\t+"fPRIllu, (unsigned long long)nb->expiretime - bantime), sizeof(middlebit));
+				Q_strncatz(middlebit, va(",\t+%"PRIu64, (unsigned long long)nb->expiretime - bantime), sizeof(middlebit));
 			if (nb->reason[0])
 				Q_strncatz(middlebit, ",\t", sizeof(middlebit));
 			Con_Printf("%s%s%s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), middlebit, nb->reason);
@@ -1297,7 +1302,7 @@ static void SV_FilterList_f (void)
 		if (nb->expiretime)
 		{
 			time_t secs = nb->expiretime - curtime;
-			Con_Printf("%s %s +"fPRIllu":%02u\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflagtext, (unsigned long long)(secs/60), (unsigned int)(secs%60));
+			Con_Printf("%s %s +%"PRIu64":%02u\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflagtext, (unsigned long long)(secs/60), (unsigned int)(secs%60));
 		}
 		else
 			Con_Printf("%s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflagtext);
@@ -1482,9 +1487,9 @@ static void SV_WriteIP_f (void)
 			}
 		}
 		if (bi->reason[0])
-			s = va("addip %s %s "fPRIllu" \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (unsigned long long) bi->expiretime, bi->reason);
+			s = va("addip %s %s %"PRIu64" \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (unsigned long long) bi->expiretime, bi->reason);
 		else if (bi->expiretime)
-			s = va("addip %s %s "fPRIllu"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (unsigned long long) bi->expiretime);
+			s = va("addip %s %s %"PRIu64"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (unsigned long long) bi->expiretime);
 		else
 			s = va("addip %s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext);
 		VFS_WRITE(f, s, strlen(s));
@@ -2713,7 +2718,7 @@ void SV_MemInfo_f(void)
 
 			csfr = sizeof(*cl->csqcentversions) * cl->max_net_ents;
 	
-			Con_Printf(fPRIzu" minping=%i frame=%i, csqc=%i\n", sizeof(svs.clients[i]), sz, fr, csfr);
+			Con_Printf("%"PRIuSIZE" minping=%i frame=%i, csqc=%i\n", sizeof(svs.clients[i]), sz, fr, csfr);
 		}
 	}
 

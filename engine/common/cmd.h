@@ -95,7 +95,7 @@ char *Cmd_AliasExist(const char *name, int restrictionlevel);
 
 char *Cmd_Describe (char *cmd_name);
 
-char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, char **descptr);
+char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum, const char **descptr);
 qboolean Cmd_IsCommand (char *line);
 // attempts to match a partial command for automatic command line completion
 // returns NULL if nothing fits

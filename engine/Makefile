@@ -266,11 +266,14 @@ ifeq ($(FTE_TARGET),linux64)
 	CC=gcc -m64
 	BITS=64
 endif
+ifeq ($(FTE_TARGET),cygwin)
+	FTE_TARGET=cyg
+endif
 
 
 ifeq ($(FTE_TARGET),) 	#user didn't specify prefered target
 	ifneq ($(shell uname 2>&1 | grep CYGWIN),)
-		FTE_TARGET=cygwin
+		FTE_TARGET=cyg
 		ANDROID_SCRIPT=android.bat
 	endif
 	ifneq ($(shell $(CC) -v 2>&1 | grep mingw),)
@@ -341,7 +344,7 @@ DO_CC=$(DO_ECHO) $(CC) $(LTO_CC) $(ALL_CFLAGS) -o $@ -c $<
 ifeq ($(FTE_TARGET),vc)
 	BASELDFLAGS=
 endif
-ifeq ($(FTE_TARGET),cygwin)
+ifeq ($(FTE_TARGET),cyg)
 	BASELDFLAGS=-lm
 endif
 ifeq ($(FTE_TARGET),morphos)
@@ -618,7 +621,8 @@ SERVER_OBJS = 		\
 	httpserver.o
 
 SERVERONLY_OBJS =		\
-	sv_sys_unix.o
+	sv_sys_unix.o		\
+	sys_linux_threads.o
 
 WINDOWSSERVERONLY_OBJS = \
 	net_ssl_winsspi.o \
@@ -1220,8 +1224,7 @@ ifeq ($(FTE_TARGET),morphos)
 endif
 
 
-ifeq ($(FTE_TARGET),cygwin)
-
+ifeq ($(FTE_TARGET),cyg)
 	SV_DIR=sv_cygwin
 	SV_LDFLAGS=-lz
 

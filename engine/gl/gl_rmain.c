@@ -402,10 +402,33 @@ void R_SetupGL (float stereooffset)
 
 	if (!r_refdef.recurse)
 	{
-		AngleVectors (r_refdef.viewangles, vpn, vright, vup);
-		VectorCopy (r_refdef.vieworg, r_origin);
+		newa[0] = r_refdef.viewangles[0];
+		newa[1] = r_refdef.viewangles[1];
+		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
+		if (1)
+		{
+			vec3_t paxis[3];
+			AngleVectors (newa, paxis[0], paxis[1], paxis[2]);
 
-		VectorMA(r_origin, stereooffset, vright, r_origin);
+			//R_ConcatRotations(r_refdef.headaxis, paxis, vpn);
+
+			VectorMA(vec3_origin,	r_refdef.headaxis[0][0], paxis[0], vpn);
+			VectorMA(vpn,			r_refdef.headaxis[0][1], paxis[1], vpn);
+			VectorMA(vpn,			r_refdef.headaxis[0][2], paxis[2], vpn);
+
+			VectorMA(vec3_origin,	r_refdef.headaxis[1][0], paxis[0], vright);
+			VectorMA(vright,		r_refdef.headaxis[1][1], paxis[1], vright);
+			VectorMA(vright,		r_refdef.headaxis[1][2], paxis[2], vright);
+
+			VectorMA(vec3_origin,	r_refdef.headaxis[2][0], paxis[0], vup);
+			VectorMA(vup,			r_refdef.headaxis[2][1], paxis[1], vup);
+			VectorMA(vup,			r_refdef.headaxis[2][2], paxis[2], vup);
+		}
+		else
+			AngleVectors (newa, vpn, vright, vup);
+
+		VectorMA(r_refdef.vieworg, stereooffset, vright, r_origin);
+		VectorAdd(r_origin, r_refdef.eyeoffset, r_origin);
 
 		//
 		// set up viewpoint
@@ -457,10 +480,10 @@ void R_SetupGL (float stereooffset)
 			w = x2 - x;
 			h = y2 - y;
 
-			if (stereooffset && r_stereo_method.ival == 5)
+			if (stereooffset && r_refdef.stereomethod == STEREO_CROSSEYED)
 			{
 				w /= 2;
-				if (stereooffset > 0)
+				if (stereooffset < 0)
 					x += vid.fbpwidth/2;
 			}
 
@@ -511,10 +534,7 @@ void R_SetupGL (float stereooffset)
 			Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, gl_mindist.value, gl_maxdist.value>=1?gl_maxdist.value:9999);
 		}
 
-		newa[0] = r_refdef.viewangles[0];
-		newa[1] = r_refdef.viewangles[1];
-		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
-		Matrix4x4_CM_ModelViewMatrix(r_refdef.m_view, newa, r_origin);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
 	}
 
 	if (qglLoadMatrixf)
@@ -584,15 +604,15 @@ void R_RenderScene (void)
 	int tmpvisents = cl_numvisedicts;	/*world rendering is allowed to add additional ents, but we don't want to keep them for recursive views*/
 	int cull = r_refdef.flipcull;
 
-	stereomode = r_stereo_method.ival;
-	if (stereomode == 1)
+	stereomode = r_refdef.stereomethod;
+	if (stereomode == STEREO_QUAD)
 	{
 #ifdef GL_STEREO
 		GLint glb;
 		qglGetIntegerv(GL_STEREO, &glb);
 		if (!glb || !qglDrawBuffer)
 #endif
-			stereomode = 0;	//we are not a stereo context, so no stereoscopic rendering (this encourages it to otherwise be left enabled, which means the user is more likely to spot that they asked it to give a slower context.
+			stereomode = STEREO_OFF;	//we are not a stereo context, so no stereoscopic rendering (this encourages it to otherwise be left enabled, which means the user is more likely to spot that they asked it to give a slower context.
 	}
 
 
@@ -600,12 +620,12 @@ void R_RenderScene (void)
 	{
 		stereooffset[0] = 0;
 		stereoframes = 1;
-		stereomode = 0;
+		stereomode = STEREO_OFF;
 	}
 	else	
 	{
-		stereooffset[0] = -r_stereo_separation.value;
-		stereooffset[1] = r_stereo_separation.value;
+		stereooffset[0] = -0.5*r_stereo_separation.value;
+		stereooffset[1] = +0.5*r_stereo_separation.value;
 		stereoframes = 2;
 	}
 
@@ -614,37 +634,46 @@ void R_RenderScene (void)
 		switch (stereomode)
 		{
 		default:
-		case 0:	//off
+		case STEREO_OFF:	//off
 			if (i)
 				return;
 			break;
 #ifdef GL_STEREO
-		case 1:	//proper gl stereo rendering
+		case STEREO_QUAD:	//proper gl stereo rendering
 			if (stereooffset[i] < 0)
 				qglDrawBuffer(GL_BACK_LEFT);
 			else
 				qglDrawBuffer(GL_BACK_RIGHT);
 			break;
 #endif
-		case 2:	//red/cyan(green+blue)
+		case STEREO_RED_CYAN:	//red/cyan(green+blue)
 			if (stereooffset[i] < 0)
 				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
 			else
 				qglColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
 			break;
-		case 3: //red/blue
+		case STEREO_RED_BLUE: //red/blue
 			if (stereooffset[i] < 0)
 				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
 			else
 				qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_TRUE);
 			break;
-		case 4:	//red/green
+		case STEREO_RED_GREEN:	//red/green
 			if (stereooffset[i] < 0)
 				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
 			else
 				qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_TRUE);
 			break;
-		case 5:	//eyestrain
+		case STEREO_CROSSEYED:	//eyestrain
+			break;
+		case STEREO_LEFTONLY:
+			if (i != 0)
+				continue;
+			break;
+		case STEREO_RIGHTONLY:
+			if (i != 1)
+				continue;
+			//fixme: depth buffer doesn't need clearing
 			break;
 		}
 		if (i)
@@ -683,21 +712,16 @@ void R_RenderScene (void)
 	switch (stereomode)
 	{
 	default:
-	case 0:
+	case STEREO_OFF:
+	case STEREO_LEFTONLY:
+	case STEREO_RIGHTONLY:
 		break;
-	case 1:
+	case STEREO_QUAD:
 		qglDrawBuffer(GL_BACK);
 		break;
-	case 3:
-		qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
-		qglClear(GL_COLOR_BUFFER_BIT);
-		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-		break;
-	case 4:
-		qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
-		qglClear(GL_COLOR_BUFFER_BIT);
-		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-	case 2:
+	case STEREO_RED_BLUE:	//green should have already been cleared.
+	case STEREO_RED_GREEN:	//blue should have already been cleared.
+	case STEREO_RED_CYAN:
 		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		break;
 	case 5:
@@ -1397,6 +1421,7 @@ qboolean R_RenderScene_Cubemap(void)
 					{90, 0, 0}, {-90, 0, 0},
 					{0, 0, 0}, {0, -180, 0}	};
 	vec3_t saveang;
+	vec3_t saveorg;
 
 	vrect_t vrect;
 	pxrect_t prect;
@@ -1408,6 +1433,7 @@ qboolean R_RenderScene_Cubemap(void)
 	qboolean usefbo = true;		//this appears to be a 20% speedup in my tests.
 	static fbostate_t fbostate;	//FIXME
 	qboolean fboreset = false;
+	int osm = r_refdef.stereomethod;
 
 	/*needs glsl*/
 	if (!gl_config.arb_shader_objects)
@@ -1423,7 +1449,7 @@ qboolean R_RenderScene_Cubemap(void)
 	{
 	default:	//invalid.
 		return false;
-	case 1:
+	case PROJ_STEREOGRAPHIC:
 		shader = R_RegisterShader("postproc_stereographic", SUF_NONE,
 				"{\n"
 					"program postproc_stereographic\n"
@@ -1443,7 +1469,7 @@ qboolean R_RenderScene_Cubemap(void)
 				facemask |= 1<<5; /*back view*/
 		}
 		break;
-	case 2:
+	case PROJ_FISHEYE:
 		shader = R_RegisterShader("postproc_fisheye", SUF_NONE,
 				"{\n"
 					"program postproc_fisheye\n"
@@ -1460,7 +1486,7 @@ qboolean R_RenderScene_Cubemap(void)
 		if (ffov.value > 270)
 			facemask |= 1<<5; /*back view*/
 		break;
-	case 3:
+	case PROJ_PANORAMA:
 		shader = R_RegisterShader("postproc_panorama", SUF_NONE,
 				"{\n"
 					"program postproc_panorama\n"
@@ -1480,7 +1506,7 @@ qboolean R_RenderScene_Cubemap(void)
 		}
 		facemask = 0x3f;
 		break;
-	case 4:
+	case PROJ_LAEA:
 		shader = R_RegisterShader("postproc_laea", SUF_NONE,
 				"{\n"
 					"program postproc_laea\n"
@@ -1497,6 +1523,28 @@ qboolean R_RenderScene_Cubemap(void)
 			if (ffov.value > 270)
 				facemask |= 1<<5; /*back view*/
 		}
+		break;
+
+	case PROJ_EQUIRECTANGULAR:
+		shader = R_RegisterShader("postproc_equirectangular", SUF_NONE,
+				"{\n"
+					"program postproc_equirectangular\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		facemask = 0x3f;
+#if 0
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 90)
+		{
+			facemask |= (1<<0) | (1<<1) | (1<<2) | (1<<3); /*side/top/bottom views*/
+			if (ffov.value > 270)
+				facemask |= 1<<5; /*back view*/
+		}
+#endif
 		break;
 	}
 
@@ -1536,8 +1584,11 @@ qboolean R_RenderScene_Cubemap(void)
 
 	//FIXME: gl_max_size
 
+	VectorCopy(r_refdef.vieworg, saveorg);
 	VectorCopy(r_refdef.viewangles, saveang);
 	saveang[2] = 0;
+
+	r_refdef.stereomethod = STEREO_OFF;
 
 	if (!TEXVALID(scenepp_postproc_cube) || cmapsize != scenepp_postproc_cube_size)
 	{
@@ -1626,6 +1677,8 @@ qboolean R_RenderScene_Cubemap(void)
 
 	r_refdef.vrect = vrect;
 	r_refdef.pxrect = prect;
+	VectorCopy(saveorg, r_refdef.vieworg);
+	r_refdef.stereomethod = osm;
 
 	//GL_ViewportUpdate();
 	GL_Set2D(false);
@@ -1639,7 +1692,12 @@ qboolean R_RenderScene_Cubemap(void)
 	qglLoadIdentity ();
 */
 	// draw it through the shader
-	if (r_projection.ival == 3)
+	if (r_projection.ival == PROJ_EQUIRECTANGULAR)
+	{
+		//note vr screenshots have requirements here
+		R2D_Image(vrect.x, vrect.y, vrect.width, vrect.height, 0, 1, 1, 0, shader);
+	}
+	else if (r_projection.ival == PROJ_PANORAMA)
 	{
 		float saspect = .5;
 		float taspect = vrect.height / vrect.width * ffov.value / 90;//(0.5 * vrect.width) / vrect.height;

@@ -860,19 +860,23 @@ void CL_CheckForResend (void)
 				connectinfo.fteext1 = Net_PextMask(1, false);
 				connectinfo.fteext2 = Net_PextMask(2, false);
 			}
+#ifdef NQPROT
 			else if (cls.demorecording == DPB_NETQUAKE && cls.protocol != CP_NETQUAKE)
 			{
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
 				//FIXME: use pext.
 			}
-			else if (cls.demorecording == DPB_QUAKE2 && cls.protocol != CP_NETQUAKE)
+#endif
+#ifdef Q2CLIENT
+			else if (cls.demorecording == DPB_QUAKE2 && cls.protocol != CP_QUAKE2)
 			{
 				connectinfo.protocol = CP_QUAKE2;
 				connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
 				connectinfo.fteext1 = PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN;
 				//FIXME: use pext.
 			}
+#endif
 			break;
 		}
 
@@ -1553,6 +1557,8 @@ void CL_ClearState (void)
 		cl.playerview[i].viewheight = DEFAULT_VIEWHEIGHT;
 		cl.playerview[i].maxspeed = 320;
 		cl.playerview[i].entgravity = 1;
+
+		cl.playerview[i].chatstate = atoi(Info_ValueForKey(cls.userinfo[i], "chat"));
 	}
 #ifdef QUAKESTATS
 	for (i = 0; i < MAX_CLIENTS; i++)	//in case some server doesn't support it
@@ -1671,6 +1677,8 @@ void CL_Disconnect (void)
 	cl.sendprespawn = false;
 	cl.intermissionmode = IM_NONE;
 	cl.oldgametime = 0;
+
+	memset(&r_refdef, 0, sizeof(r_refdef));
 
 #ifdef NQPROT
 	cls.signon=0;
@@ -3811,9 +3819,6 @@ void CL_Init (void)
 		ver = va("%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
 
 	Info_SetValueForStarKey (cls.userinfo[0], "*ver", ver, sizeof(cls.userinfo[0]));
-	Info_SetValueForStarKey (cls.userinfo[1], "*ss", "1", sizeof(cls.userinfo[1]));
-	Info_SetValueForStarKey (cls.userinfo[2], "*ss", "1", sizeof(cls.userinfo[2]));
-	Info_SetValueForStarKey (cls.userinfo[3], "*ss", "1", sizeof(cls.userinfo[3]));
 
 	InitValidation();
 
@@ -4821,6 +4826,54 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	return true;
 }
 
+void CL_UpdateHeadAngles(void)
+{
+/*FIXME: no idea what I'm doing with this. lets just not break anything for now
+	//identity, for now
+	vec3_t headchange[3] =
+	{
+		{1,0,0},
+		{0,1,0},
+		{0,0,1}
+	};
+	vec3_t tmp[3], tmp2[3];
+	playerview_t *pv = &cl.playerview[0];
+
+	tmp2[0][0] = 0;
+	tmp2[0][1] = host_frametime*90;
+	tmp2[0][2] = 0;
+	AngleVectorsFLU(tmp2[0], headchange[0], headchange[1], headchange[2]);
+
+	switch(cl_headmode.ival)
+	{
+	case 3: //head angles change both
+		R_ConcatRotations(headchange, r_refdef.headaxis, tmp);
+		break;
+	case 2:	//head changes are entirely relative to the 'view' angle
+		R_ConcatRotations(headchange, r_refdef.headaxis, tmp);
+		memcpy(r_refdef.headaxis, tmp, sizeof(r_refdef.headaxis));
+		break;
+	case 1:	//head changes change the view angle directly.
+
+		AngleVectorsFLU(pv->viewangles, tmp[0], tmp[1], tmp[2]);
+		R_ConcatRotations(headchange, tmp, tmp2);
+		VectorAngles(tmp2[0], tmp2[2], pv->viewangles);
+		pv->viewangles[0] *= -1;
+
+		//fall through
+	default:
+	case 0:	//off
+		VectorSet(r_refdef.headaxis[0], 1, 0, 0);
+		VectorSet(r_refdef.headaxis[1], 0, 1, 0);
+		VectorSet(r_refdef.headaxis[2], 0, 0, 1);
+		break;
+	}
+	*/
+	VectorSet(r_refdef.headaxis[0], 1, 0, 0);
+	VectorSet(r_refdef.headaxis[1], 0, 1, 0);
+	VectorSet(r_refdef.headaxis[2], 0, 0, 1);
+}
+
 /*
 ==================
 Host_Frame
@@ -4903,9 +4956,7 @@ double Host_Frame (double time)
 		Key_Dest_Has(kdm_gmenu) || 
 		Key_Dest_Has(kdm_emenu) || 
 		Key_Dest_Has(kdm_editor) ||
-#ifdef _WIN32
-		!ActiveApp ||
-#endif
+		!vid.activeapp ||
 		cl.paused
 		;
 	// TODO: check if minimized or unfocused
@@ -5124,12 +5175,15 @@ double Host_Frame (double time)
 
 	if (SCR_UpdateScreen && !vid.isminimized)
 	{
-		extern cvar_t scr_chatmodecvar;
+		extern cvar_t scr_chatmodecvar, r_stereo_method;
 
 		if (scr_chatmodecvar.ival && cl.intermissionmode == IM_NONE)
 			scr_chatmode = (cl.spectator&&cl.splitclients<2&&cls.state == ca_active)?2:1;
 		else
 			scr_chatmode = 0;
+
+		r_refdef.stereomethod = r_stereo_method.ival;
+		CL_UpdateHeadAngles();
 
 		SCR_UpdateScreen ();
 
@@ -5239,7 +5293,7 @@ void CL_StartCinematicOrMenu(void)
 	}
 	if (startuppending)
 	{
-		if (startuppending == 2)
+		if (startuppending == 2)	//installer finished.
 			Cbuf_AddText("\nfs_restart\nvid_restart\n", RESTRICT_LOCAL);
 		startuppending = false;
 		Key_Dest_Remove(kdm_console);	//make sure console doesn't stay up weirdly.
@@ -5461,45 +5515,64 @@ void CL_ExecInitialConfigs(char *resetcommand)
 
 void Host_FinishLoading(void)
 {
-	//the filesystem has retrieved its manifest, but might still be waiting for paks to finish downloading.
+	extern qboolean	r_blockvidrestart;
+	if (r_blockvidrestart == true)
+	{
+		//1 means we need to init the filesystem
 
-	//make sure the filesystem has some default if no manifest was loaded.
-	FS_ChangeGame(NULL, true, true);
+		//the filesystem has retrieved its manifest, but might still be waiting for paks to finish downloading.
 
-	if (waitingformanifest)
+		//make sure the filesystem has some default if no manifest was loaded.
+		FS_ChangeGame(NULL, true, true);
+
+		if (waitingformanifest)
+			return;
+
+		Con_History_Load();
+
+		Cmd_StuffCmds();
+		Cbuf_Execute ();
+
+		CL_ArgumentOverrides();
+	#ifndef CLIENTONLY
+		SV_ArgumentOverrides();
+	#endif
+
+		Con_Printf ("\n%s\n", version_string());
+
+		Con_DPrintf("This program is free software; you can redistribute it and/or "
+					"modify it under the terms of the GNU General Public License "
+					"as published by the Free Software Foundation; either version 2 "
+					"of the License, or (at your option) any later version."
+					"\n"
+					"This program is distributed in the hope that it will be useful, "
+					"but WITHOUT ANY WARRANTY; without even the implied warranty of "
+					"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. "
+					"\n"
+					"See the GNU General Public License for more details.\n");
+
+	#if defined(_WIN32) && !defined(FTE_SDL) && defined(WEBCLIENT)
+		if (Sys_RunInstaller())
+			Sys_Quit();
+	#endif
+
+		r_blockvidrestart = 2;
+	}
+
+#ifdef ANDROID
+	//android needs to wait a bit longer before it's allowed to init its video properly.
+	extern int sys_glesversion;
+	if (!sys_glesversion)
 		return;
-
-	Con_History_Load();
-
-	Cmd_StuffCmds();
-	Cbuf_Execute ();
-
-	CL_ArgumentOverrides();
-#ifndef CLIENTONLY
-	SV_ArgumentOverrides();
 #endif
 
-	Con_Printf ("\n%s\n", version_string());
-
-	Con_DPrintf("This program is free software; you can redistribute it and/or "
-				"modify it under the terms of the GNU General Public License "
-				"as published by the Free Software Foundation; either version 2 "
-				"of the License, or (at your option) any later version."
-				"\n"
-				"This program is distributed in the hope that it will be useful, "
-				"but WITHOUT ANY WARRANTY; without even the implied warranty of "
-				"MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. "
-				"\n"
-				"See the GNU General Public License for more details.\n");
-
-#if defined(_WIN32) && !defined(FTE_SDL) && defined(WEBCLIENT)
-	if (Sys_RunInstaller())
-		Sys_Quit();
-#endif
-
-	Renderer_Start();
-
-	CL_StartCinematicOrMenu();
+	if (r_blockvidrestart == 2)
+	{	//2 is part of the initial startup
+		Renderer_Start();
+		CL_StartCinematicOrMenu();
+	}
+	else	//3 flags for a renderer restart
+		Renderer_Start();
 }
 
 /*

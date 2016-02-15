@@ -397,8 +397,9 @@ typedef struct {
 	size_t maxfrags;
 	size_t numfrags;
 } q3markFragment_ctx_t;
-static void CG_MarkFragments_Callback(q3markFragment_ctx_t *ctx, vec3_t *fte_restrict points, size_t numtris, shader_t *shader)
+static void CG_MarkFragments_Callback(void *vctx, vec3_t *fte_restrict points, size_t numtris, shader_t *shader)
 {
+	q3markFragment_ctx_t *ctx = vctx;
 	size_t i;
 	if (numtris > ctx->maxfrags-ctx->numfrags)
 		numtris = ctx->maxfrags-ctx->numfrags;

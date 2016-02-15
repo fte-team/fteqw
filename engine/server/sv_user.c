@@ -500,7 +500,7 @@ void SVNQ_New_f (void)
 
 	protext1 = host_client->fteprotocolextensions;
 	protext2 = host_client->fteprotocolextensions2;
-	protmain = NQ_PROTOCOL_VERSION;
+	protmain = PROTOCOL_VERSION_NQ;
 	protfl = 0;
 	//force floatcoords as required.
 	if (sv.nqdatagram.prim.coordsize >= 4)
@@ -525,33 +525,33 @@ void SVNQ_New_f (void)
 			if (protfl)
 			{
 				protext1 &= ~PEXT_FLOATCOORDS;		//never report floatcoords when using rmq protocol, as the base protocol allows us to be more specific anyway.
-				protmain = RMQ_PROTOCOL_VERSION;
+				protmain = PROTOCOL_VERSION_RMQ;
 				protoname = "RMQ";
 			}
 			else
 			{
-				protmain = FITZ_PROTOCOL_VERSION;
+				protmain = PROTOCOL_VERSION_FITZ;
 				protoname = "666";
 			}
 		}
 		else
 		{
 			host_client->protocol = (host_client->protocol!=SCP_NETQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;	//identical other than the client->server angles
-			protmain = NQ_PROTOCOL_VERSION;
+			protmain = PROTOCOL_VERSION_NQ;
 			protoname = "NQ";
 		}
 		maxplayers = 16;
 		break;
 	case SCP_DARKPLACES6:
 		SV_LogPlayer(host_client, "new (DP6)");
-		protmain = DP6_PROTOCOL_VERSION;
+		protmain = PROTOCOL_VERSION_DP6;
 		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
 		maxplayers = 255;
 		protoname = "DPP6";
 		break;
 	case SCP_DARKPLACES7:
 		SV_LogPlayer(host_client, "new (DP7)");
-		protmain = DP7_PROTOCOL_VERSION;
+		protmain = PROTOCOL_VERSION_DP7;
 		protext1 &= ~PEXT_FLOATCOORDS;	//always enabled, try not to break things
 		maxplayers = 255;
 		protoname = "DPP7";
@@ -580,11 +580,18 @@ void SVNQ_New_f (void)
 	}
 	COM_FileBase(sv.modelname, mapname, sizeof(mapname));
 
-	Q_snprintfz (message, sizeof(message), "%c\n%s - "DISTRIBUTION" (%s%s%s%s %s) - %s", 2, gamedir,
-		protoname,(protext1||(protext2&~(PEXT2_REPLACEMENTDELTAS|PEXT2_VOICECHAT)))?"+":"",(protext2&PEXT2_REPLACEMENTDELTAS)?"F":"",(protext2&PEXT2_VOICECHAT)?"V":"",
-		build,	mapname);
-	MSG_WriteByte (&host_client->netchan.message, svc_print);
-	MSG_WriteString (&host_client->netchan.message,message);
+//	if (host_client->netchan.remote_address.type != NA_LOOPBACK) //don't display this to localhost, because its just spam at the end of the day. you don't want to see it in single player.
+	{
+		//note that certain clients glitch out if this does not have a trailing new line.
+		//note that those clients will also glitch out from vanilla servers too.
+		//vanilla prints something like: VERSION 1.08 SERVER (%i CRC)
+		//which isn't all that useful. so lets customise it to advertise properly, as well as provide gamedir and map (file)name info
+		Q_snprintfz (message, sizeof(message), "%c\n%s - "DISTRIBUTION" (%s%s%s%s %s) - %s", 2, gamedir,
+			protoname,(protext1||(protext2&~(PEXT2_REPLACEMENTDELTAS|PEXT2_VOICECHAT)))?"+":"",(protext2&PEXT2_REPLACEMENTDELTAS)?"F":"",(protext2&PEXT2_VOICECHAT)?"V":"",
+			build,	mapname);
+		MSG_WriteByte (&host_client->netchan.message, svc_print);
+		MSG_WriteString (&host_client->netchan.message,message);
+	}
 
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 	{
@@ -625,7 +632,7 @@ void SVNQ_New_f (void)
 		MSG_WriteLong (&host_client->netchan.message, protext2);
 	}
 	MSG_WriteLong (&host_client->netchan.message, protmain);
-	if (protmain == RMQ_PROTOCOL_VERSION)
+	if (protmain == PROTOCOL_VERSION_RMQ)
 		MSG_WriteLong (&host_client->netchan.message, protfl);
 	MSG_WriteByte (&host_client->netchan.message, (sv.allocated_client_slots>maxplayers)?maxplayers:sv.allocated_client_slots);
 
@@ -3669,17 +3676,14 @@ void SV_Pause_f (void)
 
 static void SV_UpdateSeats(client_t *controller)
 {
-	client_t *cl, *prev;
+	client_t *cl;
 	int curclients;
 	
-	for (curclients = 0, cl = controller; cl; cl = cl->controlled)
-	{
-		prev = cl;
-		curclients++;
-	}
-
 	if (controller->protocol == SCP_QUAKE2)
 		return;	//wait for the clientinfo stuff instead.
+
+	for (curclients = 0, cl = controller; cl; cl = cl->controlled)
+		curclients++;
 
 	ClientReliableWrite_Begin(controller, svc_signonnum, 2+curclients);
 	ClientReliableWrite_Byte(controller, curclients);
@@ -5234,13 +5238,15 @@ void SVNQ_Begin_f (void)
 				// call the spawn function
 				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+				if (pr_global_ptrs->ClientConnect)
+					PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 				sv.skipbprintclient = NULL;
 
 				// actually spawn the player
 				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+				if (pr_global_ptrs->PutClientInServer)
+					PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 			}
 		}
 	}
@@ -5311,7 +5317,28 @@ void SVNQ_PreSpawn_f (void)
 		host_client->prespawn_idx = 0;
 
 		if (sv_mapcheck.value)
-			Con_Printf("Warning: %s cannot be enforced on NQ clients.\n", sv_mapcheck.name);	//as you can fake it in a client anyway, this is hardly a significant issue.
+		{
+			const char *prot = "";
+			switch(host_client->protocol)
+			{
+			case SCP_NETQUAKE:
+				prot = " (nq)";
+				break;
+			case SCP_PROQUAKE:
+				prot = " (pq)";
+				break;
+			case SCP_FITZ666:
+				prot = " (fitz)";
+				break;
+			case SCP_DARKPLACES6:
+				prot = " (dpp6)";
+				break;
+			case SCP_DARKPLACES7:
+				prot = " (dpp7)";
+				break;
+			}
+			Con_Printf("Warning: %s cannot be enforced on player %s%s.\n", sv_mapcheck.name, host_client->name, prot);	//as you can fake it in a client anyway, this is hardly a significant issue.
+		}
 	}
 
 	host_client->send_message = true;
@@ -6222,7 +6249,6 @@ SV_RunCmd
 */
 void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 {
-	extern int	isPlugin;
 	edict_t		*ent;
 	int			i, n;
 	int			oldmsec;
@@ -6254,10 +6280,11 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 		if ((tmp_time = realtime - host_client->last_check) >= sv_cheatspeedchecktime.value)
 		{
+			extern int	isPlugin;
 			double  tmp_time;
 			tmp_time = tmp_time * 1000.0 * sv_cheatpc.value/100.0;
 			if (host_client->msecs > tmp_time &&
-				isPlugin < 2)	//debugging can result in WEIRD timings, so don't warn about weird timings if we're likely to get blocked out for long periods
+				isPlugin < 2)	//qc-debugging can result in WEIRD timings, so don't warn about weird timings if we're likely to get blocked out for long periods
 			{
 				host_client->msec_cheating++;
 				SV_BroadcastTPrintf(PRINT_HIGH,

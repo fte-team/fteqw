@@ -2389,18 +2389,18 @@ client_t *SVC_DirectConnect(void)
 			protocol = (protocol==SCP_PROQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;
 		else switch(sv_protocol_nq.ival)
 		{
-		case RMQ_PROTOCOL_VERSION:
-		case FITZ_PROTOCOL_VERSION:
+		case PROTOCOL_VERSION_RMQ:
+		case PROTOCOL_VERSION_FITZ:
 			protocol = SCP_FITZ666;
 			break;
 		case 15:
 			//don't trip up on proquake's angle change.
 			protocol = (protocol==SCP_PROQUAKE)?SCP_PROQUAKE:SCP_NETQUAKE;
 			break;
-		case DP6_PROTOCOL_VERSION:
+		case PROTOCOL_VERSION_DP6:
 			protocol = SCP_DARKPLACES6;
 			break;
-		case DP7_PROTOCOL_VERSION:
+		case PROTOCOL_VERSION_DP7:
 			protocol = SCP_DARKPLACES7;
 			break;
 		default:
@@ -3812,12 +3812,13 @@ void SV_OpenRoute_f(void)
 	netadr_t to;
 	char data[64];
 
-	NET_StringToAdr(Cmd_Argv(1), PORT_QWCLIENT, &to);
+	if (NET_StringToAdr(Cmd_Argv(1), PORT_QWCLIENT, &to))
+	{
+		sprintf(data, "\xff\xff\xff\xff%c", S2C_CONNECTION);
 
-	sprintf(data, "\xff\xff\xff\xff%c", S2C_CONNECTION);
-
-	Netchan_OutOfBandPrint(NS_SERVER, &to, "hello");
-//	NET_SendPacket (strlen(data)+1, data, to);
+		Netchan_OutOfBandPrint(NS_SERVER, &to, "hello");
+//		NET_SendPacket (strlen(data)+1, data, to);
+	}
 }
 
 //============================================================================

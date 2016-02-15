@@ -37,11 +37,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#include <stdint.h>
 	#define qintptr_t intptr_t
 	#define quintptr_t uintptr_t
+	#define qint32_t qint32_t
+	#define quint32_t quint32_t
+	#define qint64_t qint64_t
+	#define quint64_t quint64_t
 #else
+	#define qint32_t int
+	#define quint32_t unsigned qint32_t
 	#if defined(_WIN64)
 		#define qintptr_t __int64
 		#define FTE_WORDSIZE 64
 		#define quintptr_t unsigned qintptr_t
+		#define qint64_t __int64
+		#define quint64_t unsigned __int64
 	#elif defined(_WIN32)
 		#ifndef _MSC_VER
 			#define __w64
@@ -50,16 +58,25 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		typedef unsigned __int32 __w64 quintptr_t;
 //		#define qintptr_t __int32
 //		#define quintptr_t unsigned qintptr_t
+		#define qint64_t __int64
+		#define quint64_t unsigned __int64
 		#define FTE_WORDSIZE 32
 	#else
-		#if __WORDSIZE == 64
+		#ifdef __LP64__
+			#define qintptr_t long
+			#define qint64_t long
+			#define FTE_WORDSIZE 64
+		#elif __WORDSIZE == 64
 			#define qintptr_t long long
+			#define qint64_t long long
 			#define FTE_WORDSIZE 64
 		#else
 			#define qintptr_t long
+			#define qint64_t long long
 			#define FTE_WORDSIZE 32
 		#endif
 		#define quintptr_t unsigned qintptr_t
+		#define quint64_t unsigned qint64_t
 	#endif
 #endif
 
@@ -397,13 +414,13 @@ extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 	#define FS_64BIT
 #endif
 #if 1//def FS_64BIT
-	typedef unsigned long long qofs_t;	//type to use for a file offset
+	typedef quint64_t qofs_t;	//type to use for a file offset
 	#define qofs_Make(low,high) (low | (((qofs_t)(high))<<32))
 	#define qofs_Low(o) ((o)&0xffffffffu)
 	#define qofs_High(o) ((o)>>32)
 	#define qofs_Error(o) ((o) == ~0ull)
 #else
-	typedef unsigned int qofs_t;	//type to use for a file offset
+	typedef quint32_t qofs_t;	//type to use for a file offset
 	#define qofs_Make(low,high) (low)
 	#define qofs_Low(o) (o)
 	#define qofs_High(o) (0)

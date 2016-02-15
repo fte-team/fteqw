@@ -777,9 +777,9 @@ dojoin:
 			char safename[128];
 			Q_strncpyz(safename, server->name, sizeof(safename));
 			//ALWAYS sanitize your inputs.
-			while(s = strchr(safename, ';'))
+			while((s = strchr(safename, ';')))
 				*s = ' ';
-			while(s = strchr(safename, '\n'))
+			while((s = strchr(safename, '\n')))
 				*s = ' ';
 			if (key == 'c')
 				Sys_SaveClipboard(va("%s - %s\n", server->name, NET_AdrToString(buf, sizeof(buf), &server->adr)));

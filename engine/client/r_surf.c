@@ -2801,7 +2801,7 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 
 	Surf_SimpleWorld(es, pvs);
 
-	COM_AddWork(0, R_GeneratedWorldEBO, es, NULL, 0, 0);
+	COM_AddWork(WG_MAIN, R_GeneratedWorldEBO, es, NULL, 0, 0);
 }
 #endif
 
@@ -2816,7 +2816,6 @@ void Surf_DrawWorld (void)
 	//surfvis vs entvis - the key difference is that surfvis is surfaces while entvis is volume. though surfvis should be frustum culled also for lighting. entvis doesn't care.
 	qbyte *surfvis, *entvis;
 	qbyte frustumvis_[MAX_MAP_LEAFS/8];
-	extern cvar_t temp1;
 	RSpeedLocals();
 
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
@@ -2883,7 +2882,7 @@ void Surf_DrawWorld (void)
 					for (i = 0; i < MAX_LIGHTSTYLES; i++)
 						webogenerating->lightstylevalues[i] = d_lightstylevalue[i];
 					Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
-					COM_AddWork(1, R_GenWorldEBO, webogenerating, NULL, 0, 0);
+					COM_AddWork(WG_LOADER, R_GenWorldEBO, webogenerating, NULL, 0, 0);
 				}
 			}
 			if (webostate)
@@ -3057,8 +3056,8 @@ void Surf_Clear(model_t *mod)
 {
 	int i;
 	vbo_t *vbo;
-	if (mod->fromgame == fg_doom3)
-		return;/*they're on the hunk*/
+//	if (mod->fromgame == fg_doom3)
+//		return;/*they're on the hunk*/
 
 #ifdef THREADEDWORLD
 	while(webogenerating)
@@ -3579,11 +3578,6 @@ TRACE(("dbg: Surf_NewMap: ui\n"));
 TRACE(("dbg: Surf_NewMap: tp\n"));
 	TP_NewMap();
 	R_SetSky(cl.skyname);
-
-#ifdef MAP_PROC
-	if (cl.worldmodel->fromgame == fg_doom3)
-		D3_GenerateAreas(cl.worldmodel);
-#endif
 
 	for (i = 0; i < cl.num_statics; i++)
 	{

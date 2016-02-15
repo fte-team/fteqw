@@ -36,7 +36,7 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 		for (len = buffersize, p = buffer; len; len--, p++)
 			QCRC_ProcessByte(&crc, *p);
 
-		COM_AddWork(0, Mod_UpdateCRC, (mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name, NULL, crc, 0);
+		COM_AddWork(WG_MAIN, Mod_UpdateCRC, (mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name, NULL, crc, 0);
 
 		if (!(mod->engineflags & MDLF_PLAYER))
 		{	//eyes
@@ -1025,14 +1025,8 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 		}
 	}
 }
-#endif
-
 static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, float expand, float lerpcutoff)
 {
-#ifdef SERVERONLY
-	//no lerping in dedicated servers. too lazy.
-	mesh->xyz_array = p1->ofsverts;
-#else
 	extern cvar_t r_nolerp; // r_nolightdir is unused
 	float blerp = 1-lerp;
 	int i;
@@ -1124,8 +1118,8 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 			}
 		}
 	}
-#endif
 }
+#endif
 #endif
 
 #ifdef SKELETALMODELS
@@ -1151,7 +1145,9 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, struct framestateregion
 	galiasanimation_t *g;
 	unsigned int b;
 	float totalweight = 0;
+#ifndef SERVERONLY
 	extern cvar_t r_nolerp;
+#endif
 
 	lerps->skeltype = SKEL_IDENTITY;	//sometimes nothing else is valid.
 
@@ -1623,16 +1619,20 @@ void Alias_Shutdown(void)
 
 qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean usebones)
 {
-	extern cvar_t r_nolerp;
 	galiasanimation_t *g1, *g2;
+#ifndef SERVERONLY
+	extern cvar_t r_nolerp;
 	float lerpcutoff;
+#endif
 
 	int frame1;
 	int frame2;
 	float lerp;
 	float fg1time;
 //	float fg2time;
+#ifdef SKELETALMODELS
 	qboolean bytecolours = false;
+#endif
 
 	if (!inf->numanimations)
 	{
@@ -1670,7 +1670,9 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #ifndef SERVERONLY
 	mesh->colors4f_array[0] = inf->ofs_rgbaf;
 	mesh->colors4b_array = inf->ofs_rgbaub;
+#ifdef SKELETALMODELS
 	bytecolours = !!inf->ofs_rgbaub;
+#endif
 	mesh->st_array = inf->ofs_st_array;
 #endif
 	mesh->trneighbors = inf->ofs_trineighbours;
@@ -1923,9 +1925,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			frame2=0;
 		}
 
-		lerpcutoff = inf->lerpcutoff * r_lerpmuzzlehack.value;
-
 #ifndef SERVERONLY
+		lerpcutoff = inf->lerpcutoff * r_lerpmuzzlehack.value;
 		if (/*qrenderer != QR_OPENGL ||*/ Sh_StencilShadowsActive() || e->fatness || lerpcutoff)
 		{
 			mesh->xyz2_array = NULL;
@@ -1937,7 +1938,9 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #endif
 		{
 			galiaspose_t *p1 = &g1->poseofs[frame1];
+#ifndef SERVERONLY
 			galiaspose_t *p2 = &g2->poseofs[frame2];
+#endif
 
 			meshcache.vbo.indicies = inf->vboindicies;
 			meshcache.vbo.indexcount = inf->numindexes;
@@ -2054,7 +2057,7 @@ qboolean Mod_Trace_Trisoup(vecV_t *posedata, index_t *indexes, int numindexes, v
 	float frac;
 
 	vec3_t impactpoint;
-	shader_t *lineshader = NULL;
+//	shader_t *lineshader = NULL;
 
 	for (i = 0; i < numindexes; i+=3)
 	{
@@ -2208,7 +2211,9 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 	vecV_t *posedata;
 	index_t *indexes;
 	int surfnum = 0;
+#ifdef SKELETALMODELS
 	int cursurfnum = -1;
+#endif
 
 	vec3_t start_l, end_l;
 
@@ -2348,6 +2353,7 @@ static void Mod_ClampModelSize(model_t *mod)
 #endif
 }
 
+#ifndef SERVERONLY
 static int R_FindTriangleWithEdge (index_t *indexes, int numtris, int start, int end, int ignore)
 {
 	int i;
@@ -2377,27 +2383,27 @@ static int R_FindTriangleWithEdge (index_t *indexes, int numtris, int start, int
 
 	return match;
 }
-static void Mod_BuildTriangleNeighbours ( int *neighbours, index_t *indexes, int numtris )
-{
-	int i, *n;
-	index_t *index;
+#endif
 
-	for (i = 0, index = indexes, n = neighbours; i < numtris; i++, index += 3, n += 3)
-	{
-		n[0] = R_FindTriangleWithEdge (indexes, numtris, index[1], index[0], i);
-		n[1] = R_FindTriangleWithEdge (indexes, numtris, index[2], index[1], i);
-		n[2] = R_FindTriangleWithEdge (indexes, numtris, index[0], index[2], i);
-	}
-}
 void Mod_CompileTriangleNeighbours(model_t *loadmodel, galiasinfo_t *galias)
 {
 #ifndef SERVERONLY
 	if (Sh_StencilShadowsActive())
 	{
+		int i, *n;
+		index_t *index;
+		index_t *indexes = galias->ofs_indexes;
+		int numtris = galias->numindexes/3;
 		int *neighbours;
-		neighbours = ZG_Malloc(&loadmodel->memgroup, sizeof(int)*galias->numindexes/3*3);
+		neighbours = ZG_Malloc(&loadmodel->memgroup, sizeof(int)*numtris*3);
 		galias->ofs_trineighbours = neighbours;
-		Mod_BuildTriangleNeighbours(neighbours, galias->ofs_indexes, galias->numindexes/3);
+
+		for (i = 0, index = indexes, n = neighbours; i < numtris; i++, index += 3, n += 3)
+		{
+			n[0] = R_FindTriangleWithEdge (indexes, numtris, index[1], index[0], i);
+			n[1] = R_FindTriangleWithEdge (indexes, numtris, index[2], index[1], i);
+			n[2] = R_FindTriangleWithEdge (indexes, numtris, index[0], index[2], i);
+		}
 	}
 #endif
 }
@@ -2571,7 +2577,6 @@ void Mod_BuildTextureVectors(galiasinfo_t *galias)
 	vec3_t *nv, *sv, *tv;
 	vec2_t *tc;
 	index_t *idx;
-	int vbospace = 0;
 
 	//don't fail on dedicated servers
 	if (!BE_VBO_Begin)
@@ -3170,39 +3175,6 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 				frames[0].texels = saved;
 				memcpy(saved, pskintype+1, s);
 				Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
-
-#if 0
-//the extra underscore is to stop replacement matches
-				if (!TEXVALID(texture))
-				{
-					snprintf(skinname, sizeof(skinname), "%s__%i.", basename, i);
-					switch (skintranstype)
-					{
-					default:
-						texture = r_nulltex;//R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_SOLID8, saved, IF_NOALPHA|IF_NOGAMMA);
-						if (r_fb_models.ival)
-						{
-							snprintf(skinname, sizeof(skinname), "%s__%i_luma.", basename, i);
-							fbtexture = r_nulltex;//R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
-						}
-						if (r_loadbumpmapping)
-						{
-							snprintf(skinname, sizeof(skinname), "%s__%i_bump.", basename, i);
-							bumptexture = r_nulltex;//R_LoadTexture8BumpPal(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
-						}
-						break;
-					case 2:
-						texture = r_nulltex;//R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_T7G1, saved, IF_NOGAMMA);
-						break;
-					case 3:
-						texture = r_nulltex;//R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_TRANS8_0, saved, IF_NOGAMMA);
-						break;
-					case 4:
-						texture = r_nulltex;//R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_T4A4, saved, IF_NOGAMMA);
-						break;
-					}
-				}
-#endif
 			}
 			else
 				frames = ZG_Malloc(&loadmodel->memgroup, sizeof(*frames));
@@ -3344,7 +3316,7 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 
 void Mesh_HandleFramegroupsFile(model_t *mod, galiasinfo_t *galias)
 {
-	unsigned int numanims, a, p, n, g, oldnumanims = galias->numanimations, targpose;
+	unsigned int numanims, a, p, g, oldnumanims = galias->numanimations, targpose;
 	galiasanimation_t *o, *oldanims = galias->ofsanimations, *frame;
 	frameinfo_t *framegroups = ParseFrameInfo(mod->name, &numanims);
 	if (framegroups)
@@ -3356,7 +3328,7 @@ void Mesh_HandleFramegroupsFile(model_t *mod, galiasinfo_t *galias)
 			for (p = 0; p < framegroups[a].posecount; p++)
 			{
 				targpose = framegroups[a].firstpose + p;
-				for (n = 0, g = 0, frame = oldanims; g < oldnumanims; g++, frame++)
+				for (g = 0, frame = oldanims; g < oldnumanims; g++, frame++)
 				{
 					if (targpose < frame->numposes)
 						break;
@@ -4635,6 +4607,7 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 	vec3_t *tvector;
 	vec2_t *st_array;
 	md3Shader_t		*inshader;
+	int externalskins;
 #endif
 //	int version;
 	int s, i, j, d;
@@ -4655,7 +4628,6 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 
 
 	int size;
-	int externalskins;
 
 	md3Header_t		*header;
 	md3Surface_t	*surf;
@@ -4671,8 +4643,6 @@ qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 
 #ifndef SERVERONLY
 	externalskins = Mod_CountSkinFiles(mod->name);
-#else
-	externalskins = 0;
 #endif
 
 	min[0] = min[1] = min[2] = 0;
@@ -5994,7 +5964,6 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 	unsigned int *index;	index_t *outdex;	// groan...
 
 	int numtransforms;
-	int numverts;
 
 	header = buffer;
 
@@ -6048,7 +6017,6 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 		mesh->ofs_groupids = BigLong(mesh->ofs_groupids);
 
 
-		numverts = mesh->num_verts;
 		numtransforms = 0;
 		//count and byteswap the transformations
 		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);
@@ -6064,11 +6032,11 @@ qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t fsize)
 #ifdef SERVERONLY
 		transforms = ZG_Malloc(&mod->memgroup, numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
 #else
-		outst = ZG_Malloc(&mod->memgroup, numverts*sizeof(vec2_t) + numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
+		outst = ZG_Malloc(&mod->memgroup, mesh->num_verts*sizeof(vec2_t) + numtransforms*sizeof(galisskeletaltransforms_t) + mesh->num_tris*3*sizeof(index_t));
 		m->ofs_st_array = (vec2_t*)outst;
 		m->numverts = mesh->num_verts;
 		inst = (float*)((char*)buffer + mesh->ofs_texcoords);
-		for (j = 0; j < numverts; j++, outst+=2, inst+=2)
+		for (j = 0; j < mesh->num_verts; j++, outst+=2, inst+=2)
 		{
 			outst[0] = BigFloat(inst[0]);
 			outst[1] = BigFloat(inst[1]);

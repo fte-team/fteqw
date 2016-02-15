@@ -2298,7 +2298,7 @@ static void SCR_ScreenShot_f (void)
 	Con_Printf ("Couldn't write %s\n", sysname);
 }
 
-void *SCR_ScreenShot_FBO(int fbwidth, int fbheight, enum uploadfmt *fmt)
+void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, enum uploadfmt *fmt)
 {
 	int width, height;
 	void *buf;
@@ -2342,8 +2342,9 @@ void *SCR_ScreenShot_FBO(int fbwidth, int fbheight, enum uploadfmt *fmt)
 	Q_strncpyz(r_refdef.rt_destcolour[0].texname, "", sizeof(r_refdef.rt_destcolour[0].texname));
 	BE_RenderToTextureUpdate2d(true);
 
-	if (width != fbwidth || height != fbheight)
+	if (!buf || width != fbwidth || height != fbheight)
 	{
+		*fmt = TF_INVALID;
 		BZ_Free(buf);
 		return NULL;
 	}
@@ -2427,7 +2428,7 @@ static void SCR_ScreenShot_Mega_f(void)
 				r_refdef.stereomethod = STEREO_LEFTONLY;
 		}
 
-		buffers[buf] = SCR_ScreenShot_FBO(fbwidth, fbheight, &fmt[buf]);
+		buffers[buf] = SCR_ScreenShot_Capture(fbwidth, fbheight, &fmt[buf]);
 
 		if (width[buf] != width[0] || height[buf] != height[0] || fmt[buf] != fmt[0])
 		{	//invalid is better than unmatched.
@@ -2467,14 +2468,13 @@ static void SCR_ScreenShot_VR_f(void)
 	int height;	//equirectangular 360 * 180 gives a nice clean ratio
 	int px = 4;
 	int step = atof(Cmd_Argv(3));
-	unsigned int *left_buffer;
-	unsigned int *right_buffer;
-	unsigned int *buf;
+	void *left_buffer, *right_buffer, *buf;
 	enum uploadfmt fmt;
 	int lx, rx, x, y;
 	vec3_t baseang;
 	float ang;
-	extern cvar_t r_projection, r_stereo_separation;
+	qboolean fail = false;
+	extern cvar_t r_projection, r_stereo_separation, r_stereo_convergence;;
 	VectorCopy(r_refdef.viewangles, baseang);
 
 	if (width <= 2)
@@ -2484,7 +2484,7 @@ static void SCR_ScreenShot_VR_f(void)
 		step = 5;
 
 	left_buffer = BZF_Malloc (width*height*2*px);
-	right_buffer = left_buffer + width*height;
+	right_buffer = (qbyte*)left_buffer + width*height*px;
 
 	if (strstr (screenyname, "..") || strchr(screenyname, ':') || *screenyname == '.' || *screenyname == '/')
 		screenyname = "";
@@ -2520,7 +2520,7 @@ static void SCR_ScreenShot_VR_f(void)
 		r_refdef.stereomethod = STEREO_OFF;
 
 		cl.playerview->simangles[0] = 0;	//pitch is BAD
-		cl.playerview->simangles[1] = baseang[1];// - 360.0*(lx + 0.5*(rx-lx)) / width;
+		cl.playerview->simangles[1] = baseang[1] + r_stereo_convergence.value*0.5;
 		cl.playerview->simangles[2] = 0; //roll is BAD
 		VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
 
@@ -2530,29 +2530,68 @@ static void SCR_ScreenShot_VR_f(void)
 		r_refdef.eyeoffset[0] = sin(ang) * r_stereo_separation.value * 0.5;
 		r_refdef.eyeoffset[1] = cos(ang) * r_stereo_separation.value * 0.5;
 		r_refdef.eyeoffset[2] = 0;
-		buf = SCR_ScreenShot_FBO(width, height, &fmt);
-		if (buf && fmt == TF_BGRA32)
+		buf = SCR_ScreenShot_Capture(width, height, &fmt);
+		switch(fmt)
 		{
+		case TF_BGRA32:
 			for (y = 0; y < height; y++)
 			for (x = lx; x < rx; x++)
-				left_buffer[y*width + x] = buf[y*width + /*(width-step)/2 +*/ x];
+				((unsigned int*)left_buffer)[y*width + x] = ((unsigned int*)buf)[y*width + x];
+			break;
+		case TF_RGB24:
+			for (y = 0; y < height; y++)
+			for (x = lx; x < rx; x++)
+			{
+				((qbyte*)left_buffer)[(y*width + x)*4+0] = ((qbyte*)buf)[(y*width + x)*3+2];
+				((qbyte*)left_buffer)[(y*width + x)*4+1] = ((qbyte*)buf)[(y*width + x)*3+1];
+				((qbyte*)left_buffer)[(y*width + x)*4+2] = ((qbyte*)buf)[(y*width + x)*3+0];
+				((qbyte*)left_buffer)[(y*width + x)*4+3] = 255;
+			}
+			break;
+		default:
+			fail = true;
+			break;
 		}
 		BZ_Free(buf);
+
+
+		cl.playerview->simangles[0] = 0;	//pitch is BAD
+		cl.playerview->simangles[1] = baseang[1] - r_stereo_convergence.value*0.5;
+		cl.playerview->simangles[2] = 0; //roll is BAD
+		VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
+
 
 		r_refdef.eyeoffset[0] *= -1;
 		r_refdef.eyeoffset[1] *= -1;
 		r_refdef.eyeoffset[2] = 0;
-		buf = SCR_ScreenShot_FBO(width, height, &fmt);
-		if (buf && fmt == TF_BGRA32)
+		buf = SCR_ScreenShot_Capture(width, height, &fmt);
+		switch(fmt)
 		{
+		case TF_BGRA32:
 			for (y = 0; y < height; y++)
 			for (x = lx; x < rx; x++)
-				right_buffer[y*width + x] = buf[y*width + /*(width-step)/2 +*/ x];
+				((unsigned int*)right_buffer)[y*width + x] = ((unsigned int*)buf)[y*width + x];
+			break;
+		case TF_RGB24:
+			for (y = 0; y < height; y++)
+			for (x = lx; x < rx; x++)
+			{
+				((qbyte*)right_buffer)[(y*width + x)*4+0] = ((qbyte*)buf)[(y*width + x)*3+2];
+				((qbyte*)right_buffer)[(y*width + x)*4+1] = ((qbyte*)buf)[(y*width + x)*3+1];
+				((qbyte*)right_buffer)[(y*width + x)*4+2] = ((qbyte*)buf)[(y*width + x)*3+0];
+				((qbyte*)right_buffer)[(y*width + x)*4+3] = 255;
+			}
+			break;
+		default:
+			fail = true;
+			break;
 		}
 		BZ_Free(buf);
 	}
 
-	if (SCR_ScreenShot(filename, FS_GAMEONLY, &left_buffer, 1, width, height*2, TF_BGRA32))
+	if (fail)
+		Con_Printf ("Unable to capture suitable screen image\n");
+	else if (SCR_ScreenShot(filename, FS_GAMEONLY, &left_buffer, 1, width, height*2, TF_BGRA32))
 	{
 		char			sysname[1024];
 		FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));

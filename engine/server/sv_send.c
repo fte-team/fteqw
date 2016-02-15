@@ -1835,7 +1835,7 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char const** statss, float *sta
 }
 
 /*this function calculates the current stat values for the given client*/
-void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], char const **statss)
+void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], const char **statss)
 {
 	edict_t *ent;
 	ent = client->edict;
@@ -1938,7 +1938,7 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 {
 	int		statsi[MAX_CL_STATS];
 	float	statsf[MAX_CL_STATS];
-	char	*statss[MAX_CL_STATS];
+	const char	*statss[MAX_CL_STATS];
 	int		i, m;
 
 	/*figure out what the stat values should be*/
@@ -1963,8 +1963,7 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 		//diff string stats.
 		for (i=0 ; i<m ; i++)
 		{
-			char *blank="";
-			char *o=client->statss[i], *n=statss[i];
+			const char *o=client->statss[i], *n=statss[i];
 			if (o != n)
 			{
 				if (!o)
@@ -1974,8 +1973,8 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 				if (strcmp(o, n))
 					client->pendingstats[(i+MAX_CL_STATS)>>5u] |= 1u<<((i+MAX_CL_STATS)&0x1f);
 				//FIXME: we could always just run the QCGC on the player's string stats too. wouldn't need string compares that way
-				if (client->statss)
-					Z_Free(client->statss[i]);
+				if (client->statss[i])
+					Z_Free((void*)client->statss[i]);
 				client->statss[i] = (statss[i]&&*statss[i])?Z_StrDup(statss[i]):NULL;
 			}
 		}
@@ -2041,7 +2040,7 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 		{
 			if (client->pendingstats[(i+MAX_CL_STATS)>>5u] & (1u<<((i+MAX_CL_STATS)&0x1f)))
 			{
-				char *s = client->statss[i];
+				const char *s = client->statss[i];
 				if (!s)
 					s = "";
 
@@ -2105,7 +2104,13 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 				if (statss[i] || client->statss[i])
 				if (strcmp(statss[i]?statss[i]:"", client->statss[i]?client->statss[i]:""))
 				{
-					client->statss[i] = statss[i];
+					if (client->statss[i])
+						Z_Free((void*)client->statss[i]);
+					if (statss[i] && *statss[i])
+						client->statss[i] = Z_StrDup(statss[i]);
+					else
+						client->statss[i] = NULL;
+
 					if (pnum)
 					{
 						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5+strlen(statss[i]));
@@ -2884,7 +2889,7 @@ void SV_SendClientMessages (void)
 				c->netchan.nqunreliableonly = false;
 				c->send_message = false;
 				//nq sends one packet only for each server physics frame
-				if (c->nextservertimeupdate < pt && c->state >= ca_connected)
+				if (c->nextservertimeupdate < pt && c->state >= cs_connected)
 				{
 					c->send_message = true;
 					c->nextservertimeupdate = pt + 1.0/77;
@@ -2953,7 +2958,7 @@ void SV_SendMVDMessage(void)
 	sizebuf_t	msg;
 	int		statsi[MAX_CL_STATS];
 	float	statsf[MAX_CL_STATS];
-	char	*statss[MAX_CL_STATS];
+	const char	*statss[MAX_CL_STATS];
 	float		min_fps;
 	extern		cvar_t sv_demofps;
 	extern		cvar_t sv_demoPings;
@@ -3032,7 +3037,14 @@ void SV_SendMVDMessage(void)
 				if (strcmp(statss[j]?statss[j]:"", demo.statss[i][j]?demo.statss[i][j]:""))
 				{
 					sizebuf_t *msg = MVDWrite_Begin(dem_stats, i, 3+strlen(statss[j]));
-					demo.statss[i][j] = statss[j];
+
+					if (demo.statss[i][j])
+						Z_Free(demo.statss[i][j]);
+					if (statss[j] && *statss[j])
+						demo.statss[i][j] = Z_StrDup(statss[j]);
+					else
+						demo.statss[i][j] = NULL;
+
 					MSG_WriteByte(msg, svcfte_updatestatstring);
 					MSG_WriteByte(msg, j);
 					MSG_WriteString(msg, statss[j]);

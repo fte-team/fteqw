@@ -36,7 +36,9 @@ static char media_friendlyname[MAX_QPATH];
 #define MEDIA_GAMEMUSIC (1u<<0)	//cd music. also music command etc.
 #define MEDIA_CVARLIST	(1u<<1)	//cvar abuse. handy for preserving times when switching tracks.
 #define MEDIA_PLAYLIST	(1u<<2)	//
+#if !defined(NOMEDIA)
 static unsigned int media_playlisttypes;
+#endif
 static unsigned int media_playlistcurrent;
 
 static int cdplayingtrack;	//currently playing cd track (becomes 0 when paused)
@@ -57,10 +59,12 @@ static int cdnumtracks;		//maximum cd track we can play.
 
 
 //cvar abuse
+#if !defined(NOMEDIA)
 static int music_playlist_last;
 static cvar_t music_playlist_index = CVAR("music_playlist_index", "-1");
 //	created dynamically: CVAR("music_playlist_list0+", ""),
 //	created dynamically: CVAR("music_playlist_sampleposition0+", "-1"),
+#endif
 
 
 static qboolean Media_Changed (unsigned int mediatype)
@@ -115,9 +119,9 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 	};
 	char trackname[MAX_QPATH];
 	int ie, ip;
+	qboolean found = false;
 #endif
 	char *trackend;
-	qboolean found = false;
 
 	if (!track || !*track)			//ignore calls if the primary track is invalid. whatever is already playing will continue to play.
 		return false;
@@ -138,9 +142,7 @@ qboolean Media_NamedTrack(const char *track, const char *looptrack)
 
 	if (!strcmp(looptrack, "-"))	//- for the looptrack argument can be used to prevent looping.
 		looptrack = "";
-#if defined(NOMEDIA)
-	found = false;
-#else
+#ifndef NOMEDIA
 	for(ip = 0; path[ip] && !found; ip++)
 	{
 		if (tracknum)
@@ -3233,6 +3235,8 @@ void Media_RecordFrame (void)
 		case TF_RGBA32:
 			qglReadPixels(0, 0, vid.fbpwidth, vid.fbpheight, GL_RGBA, GL_UNSIGNED_BYTE, 0);
 			break;
+		default:
+			break;
 		}
 		qglBindBufferARB(GL_PIXEL_PACK_BUFFER_ARB, 0);
 	}
@@ -3444,7 +3448,6 @@ void Media_StopRecordFilm_f (void)
 	if (pbo_format)
 	{
 		int i;
-		int imagesize = vid.fbpwidth * vid.fbpheight * 4;
 		while (pbo_oldest < captureframe)
 		{
 			qbyte *buffer;
@@ -3559,7 +3562,7 @@ static void Media_RecordFilm (char *recordingname, qboolean demo)
 #ifdef CAN_USE_PBOS
 	pbo_format = TF_INVALID;
 	if (qrenderer == QR_OPENGL && !gl_config.gles && gl_config.glversion >= 2.1)
-	{	//both tgas and vfw favour bgr24, so lets get the gl drivers to suffer instead of us.
+	{	//both tgas and vfw favour bgr24, so lets get the gl drivers to suffer instead of us, where possible.
 		if (vid.fbpwidth & 3)
 			pbo_format = TF_BGRA32;	//don't bother changing pack alignment, just use something that is guarenteed to not need anything.
 		else

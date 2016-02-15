@@ -668,13 +668,15 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 	{
 		Z_Free(con->stunserver);
 		con->stunserver = Z_StrDup(value);
-		NET_StringToAdr(con->stunserver, con->stunport, &con->pubstunserver);
+		if (!NET_StringToAdr(con->stunserver, con->stunport, &con->pubstunserver))
+			return false;
 	}
 	else if (!strcmp(prop, "stunport"))
 	{
 		con->stunport = atoi(value);
 		if (con->stunserver)
-			NET_StringToAdr(con->stunserver, con->stunport, &con->pubstunserver);
+			if (!NET_StringToAdr(con->stunserver, con->stunport, &con->pubstunserver))
+				return false;
 	}
 /*
 	else if (!strcmp(prop, "sdp"))
@@ -785,7 +787,7 @@ qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *val
 		return false;
 	return true;
 }
-qboolean QDECL ICE_Get(struct icestate_s *con, char *prop, char *value, int valuelen)
+qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *value, int valuelen)
 {
 	if (!strcmp(prop, "sid"))
 		Q_strncpyz(value, con->conname, valuelen);
@@ -983,9 +985,7 @@ void ICE_Tick(void)
 			{
 				struct icecandidate_s *rc;
 				rc = con->rc;
-				if (rc)
-					NET_StringToAdr(rc->info.addr, rc->info.port, &con->chosenpeer);
-				else
+				if (!rc || !NET_StringToAdr(rc->info.addr, rc->info.port, &con->chosenpeer))
 					con->chosenpeer.type = NA_INVALID;
 				ICE_Set(con, "state", STRINGIFY(ICE_CONNECTED));
 			}

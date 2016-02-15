@@ -2026,7 +2026,7 @@ void INS_ReInit(void)
 void INS_Shutdown(void)
 {
 }
-void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char *devicename, int *qdevid))
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, int *qdevid))
 {
 }
 

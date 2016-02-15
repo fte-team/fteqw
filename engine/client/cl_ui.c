@@ -802,13 +802,15 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 					{
 						serverinfo_t *info;
 						COM_Parse(cmdtext + 5);
-						NET_StringToAdr(com_token, 0, &ui_pings[i]);
-						info = Master_InfoForServer(&ui_pings[i]);
-						if (info)
+						if (NET_StringToAdr(com_token, 0, &ui_pings[i]))
 						{
-							info->special |= SS_KEEPINFO;
-							info->sends++;
-							Master_QueryServer(info);
+							info = Master_InfoForServer(&ui_pings[i]);
+							if (info)
+							{
+								info->special |= SS_KEEPINFO;
+								info->sends++;
+								Master_QueryServer(info);
+							}
 						}
 						break;
 					}
@@ -819,8 +821,8 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				netadr_t na;
 				MasterInfo_Refresh();
 
-				NET_StringToAdr("255.255.255.255", PORT_Q3SERVER, &na);
-				NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), na);
+				if (NET_StringToAdr("255.255.255.255", PORT_Q3SERVER, &na))
+					NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), na);
 			}
 			else
 #endif

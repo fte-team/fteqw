@@ -295,7 +295,7 @@ void Cookie_Feed(char *domain, int secure, char *name, char *value)
 {
 	cookie_t **link, *c;
 	Sys_LockMutex(com_resourcemutex);
-	for(link = &cookies; c = *link; link = &(*link)->next)
+	for(link = &cookies; (c=*link)!=NULL; link = &(*link)->next)
 	{
 		if (!strcmp(c->domain, domain) && c->secure == secure && !strcmp(c->name, name))
 			break;
@@ -368,7 +368,7 @@ void Cookie_Regurgitate(char *domain, int secure, char *buffer, size_t buffersiz
 {
 	qboolean hascookies = false;
 	cookie_t *c;
-	char *l = buffer;
+//	char *l = buffer;
 	buffersize -= 3;	//\r\n\0
 	*buffer = 0;
 	Sys_LockMutex(com_resourcemutex);
@@ -1328,7 +1328,7 @@ static int DL_Thread_Work(void *arg)
 	}
 
 #if defined(LOADERTHREAD) && !defined(NPFTE)
-	COM_AddWork(0, HTTP_Wake_Think, NULL, NULL, 0, 0);
+	COM_AddWork(WG_MAIN, HTTP_Wake_Think, NULL, NULL, 0, 0);
 #endif
 	return 0;
 }

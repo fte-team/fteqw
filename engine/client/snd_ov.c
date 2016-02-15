@@ -151,8 +151,6 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 
 	int outspeed = snd_speed;
 
-	int errorcode = 1;
-
 //	Con_Printf("Minlength = %03i   ", minlength);
 
 	start *= 2*dec->srcchannels;
@@ -287,12 +285,12 @@ static sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, ssam
 	}
 	return buf;
 }
-static void OV_CanceledDecoder(void *ctx, void *data, size_t a, size_t b)
+/*static void OV_CanceledDecoder(void *ctx, void *data, size_t a, size_t b)
 {
 	sfx_t *s = ctx;
 	if (s->loadstate != SLS_LOADING)
 		s->loadstate = SLS_NOTLOADED;
-}
+}*/
 static void OV_CancelDecoder(sfx_t *s)
 {
 	ovdecoderbuffer_t *dec;
@@ -320,7 +318,7 @@ static void OV_CancelDecoder(sfx_t *s)
 	//due to the nature of message passing, we can get into a state where the main thread is going to flag us as loaded when we have already failed.
 	//that is bad.
 	//so post a message to the main thread to override it, just in case.
-//	COM_AddWork(0, OV_CanceledDecoder, s, NULL, SLS_NOTLOADED, 0);
+//	COM_AddWork(WG_MAIN, OV_CanceledDecoder, s, NULL, SLS_NOTLOADED, 0);
 	s->loadstate = SLS_NOTLOADED;
 }
 

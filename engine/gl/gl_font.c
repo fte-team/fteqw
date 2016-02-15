@@ -1784,7 +1784,7 @@ float Font_LineScaleWidth(conchar_t *start, conchar_t *end)
 	int x = 0;
 	struct font_s *font = curfont;
 	unsigned int codeflags, codepoint;
-	for (; start < end; start)
+	while(start < end)
 	{
 		start = Font_Decode(start, &codeflags, &codepoint);
 		x = Font_CharEndCoord(font, x, codeflags, codepoint);

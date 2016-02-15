@@ -238,7 +238,7 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 	{
 		if ((filter[1] && !(flags & IF_NEAREST)) || (flags & IF_LINEAR))
 		{
-			if (filter[0] && !(flags & IF_NEAREST) || (flags & IF_LINEAR))
+			if ((filter[0] && !(flags & IF_NEAREST)) || (flags & IF_LINEAR))
 				min = GL_LINEAR_MIPMAP_LINEAR;
 			else
 				min = GL_NEAREST_MIPMAP_LINEAR;

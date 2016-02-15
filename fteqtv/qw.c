@@ -1601,8 +1601,8 @@ void SendNQClientData(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			WriteByte (msg, 0);
 	}
 
-// [always sent]	if (bits & SU_ITEMS)
-	WriteLong (msg, pl->stats[STAT_ITEMS]);
+	if (bits & SU_ITEMS)
+		WriteLong (msg, pl->stats[STAT_ITEMS]);
 
 	if (bits & SU_WEAPONFRAME)
 		WriteByte (msg, pl->current.weaponframe);

@@ -78,10 +78,10 @@ glibc SUCKS. 64bit glibc is depending upon glibc 2.14 because of some implementa
 or something.
 anyway, the actual interface is the same. the old version might be slower, but when updating glibc generally results in also installing systemd, requiring the new version is NOT an option.
 */
-#if defined(__GNUC__) && defined(__LP64__)
+#if defined(__GNUC__) && defined(__LP64__) && defined(__linux__)
 	#include <features.h>       /* for glibc version */
 		#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 14)
-		__asm__(".symver oldmemcpy,memcpy@GLIBC_2.2.5");
+		__asm__(".symver oldmemcpy,memcpy@GLIBC_2.2.5"); void *oldmemcpy(void *__restrict dst, const void *__restrict src, size_t len);
 		__attribute__ ((visibility ("hidden"))) void *memcpy(void *__restrict dst, const void *__restrict src, size_t len)
 		{
 			return oldmemcpy(dst,src,len);
@@ -4763,9 +4763,6 @@ cvar_t worker_flush = CVARD("worker_flush", "1", "If set, process the entire loa
 cvar_t worker_count = CVARFDC("worker_count", "", CVAR_NOTFROMSERVER, "Specifies the number of worker threads to utilise.", COM_WorkerCount_Change);
 cvar_t worker_sleeptime = CVARFD("worker_sleeptime", "0", CVAR_NOTFROMSERVER, "Causes workers to sleep for a period of time after each job.");
 
-#define WG_MAIN		0
-#define WG_LOADER	1
-#define WG_COUNT	2 //main and loaders
 #define WORKERTHREADS 16	//max
 /*multithreading worker thread stuff*/
 static int com_liveworkers[WG_COUNT];
@@ -4781,7 +4778,6 @@ static struct com_worker_s
 	} request;
 	volatile int ackseq;
 } com_worker[WORKERTHREADS];
-static unsigned int mainthreadid;
 qboolean com_workererror;
 static struct com_work_s
 {
@@ -4803,8 +4799,7 @@ qboolean COM_HasWork(void)
 	}
 	return false;
 }
-//thread==0 is main thread, thread==1 is a worker thread
-void COM_AddWork(int tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
+void COM_AddWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b)
 {
 	struct com_work_s *work;
 
@@ -4900,7 +4895,7 @@ qboolean COM_DoWork(int tg, qboolean leavelocked)
 	//nothing going on, if leavelocked then noone can add anything until we sleep.
 	return false;
 }
-static void COM_WorkerSync_ThreadAck(void *ctx, void *data, size_t a, size_t b)
+/*static void COM_WorkerSync_ThreadAck(void *ctx, void *data, size_t a, size_t b)
 {
 	int us;
 	int *ackbuf = ctx;
@@ -4920,6 +4915,7 @@ static void COM_WorkerSync_ThreadAck(void *ctx, void *data, size_t a, size_t b)
 	Sys_ConditionSignal(com_workercondition[WG_MAIN]);
 	Sys_UnlockConditional(com_workercondition[WG_MAIN]);
 }
+*/
 /*static void COM_WorkerSync_SignalMain(void *ctx, void *data, size_t a, size_t b)
 {
 	Sys_LockConditional(com_workercondition[a]);
@@ -5261,9 +5257,9 @@ static void COM_InitWorkerThread(void)
 
 	//technically its ready now...
 
-	if (COM_CheckParm("-noworker"))
+	if (COM_CheckParm("-noworker") || COM_CheckParm("-noworkers"))
 	{
-		worker_count.string = "0";
+		worker_count.enginevalue = "0";
 		worker_count.flags |= CVAR_NOSET;
 	}
 	Cvar_Register(&worker_count, NULL);

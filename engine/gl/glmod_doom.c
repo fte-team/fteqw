@@ -2221,7 +2221,7 @@ qboolean QDECL Mod_LoadDoomLevel(model_t *mod, void *buffer, size_t fsize)
 
 	QuakifyThings(mod, thingsl);
 
-	COM_AddWork(0, Doom_LoadShaders, mod, NULL, 0, 0);
+	COM_AddWork(WG_MAIN, Doom_LoadShaders, mod, NULL, 0, 0);
 	return true;
 }
 

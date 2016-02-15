@@ -603,7 +603,7 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, char *key, eval_t **result, etype_
 	char *c, *c2;
 	etype_t type = ev_void;
 	struct edictrun_s *ed;
-	etype_t ptrtype = ev_void;
+//	etype_t ptrtype = ev_void;
 
 	c = strchr(key, '.');
 	if (c) *c = '\0';
@@ -807,7 +807,7 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, char *key)
 	{
 		if (!LocateDebugTerm(progfuncs, key+1, &val, &type, &fakeval) && val != &fakeval)
 			return "(unable to evaluate)";
-		QC_snprintfz(buf, sizeof(buf), "(%s*)%#x", ((type>=10)?"???":basictypenames[type]), (char*)val - progfuncs->funcs.stringtable);
+		QC_snprintfz(buf, sizeof(buf), "(%s*)%#x", ((type>=10)?"???":basictypenames[type]), (unsigned int)((char*)val - progfuncs->funcs.stringtable));
 		return buf;
 	}
 
@@ -1954,6 +1954,10 @@ pbool	PDECL PR_GetBuiltinCallInfo	(pubprogfuncs_t *ppf, int *builtinnum, char *f
 	case PST_FTE32:
 		op = pr_statements32[st].op;
 		a = pr_statements32[st].a;
+		break;
+	default:
+		op = OP_DONE;
+		a = 0;
 		break;
 	}
 

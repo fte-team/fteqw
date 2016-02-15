@@ -48,17 +48,17 @@ static const struct banflags_s
 	const char *names[2];
 } banflags[] =
 {
-	{BAN_BAN,		"ban"},
-	{BAN_PERMIT,	"safe",		"permit"},
-	{BAN_CUFF,		"cuff"},
-	{BAN_MUTE,		"mute"},
-	{BAN_CRIPPLED,	"cripple"},
-	{BAN_DEAF,		"deaf"},
-	{BAN_LAGGED,	"lag",		"lagged"},
-	{BAN_VIP,		"vip"},
-	{BAN_BLIND,		"blind"},
-	{BAN_SPECONLY,	"spec"},
-	{BAN_STEALTH,	"stealth"}
+	{BAN_BAN,		{"ban"}},
+	{BAN_PERMIT,	{"safe",		"permit"}},
+	{BAN_CUFF,		{"cuff"}},
+	{BAN_MUTE,		{"mute"}},
+	{BAN_CRIPPLED,	{"cripple"}},
+	{BAN_DEAF,		{"deaf"}},
+	{BAN_LAGGED,	{"lag",		"lagged"}},
+	{BAN_VIP,		{"vip"}},
+	{BAN_BLIND,		{"blind"}},
+	{BAN_SPECONLY,	{"spec"}},
+	{BAN_STEALTH,	{"stealth"}}
 };
 
 //generic helper function for naming players.
@@ -434,7 +434,6 @@ void SV_Map_f (void)
 	qboolean waschangelevel	= false;
 	int i;
 	char *startspot;
-	float oldtime;
 
 	nextserver = 0;
 
@@ -651,7 +650,6 @@ void SV_Map_f (void)
 	MP_Toggle(0);
 #endif
 
-	oldtime = sv.time;
 	if (preserveplayers && svprogfuncs)
 	{
 		for (i=0 ; i<svs.allocated_client_slots ; i++)	//we need to drop all q2 clients. We don't mix q1w with q2.
@@ -1264,7 +1262,7 @@ static void SV_BanList_f (void)
 		{
 			*middlebit = 0;
 			if (nb->expiretime)
-				Q_strncatz(middlebit, va(",\t+%"PRIu64, (unsigned long long)nb->expiretime - bantime), sizeof(middlebit));
+				Q_strncatz(middlebit, va(",\t+%"PRIu64, (quint64_t)(nb->expiretime - bantime)), sizeof(middlebit));
 			if (nb->reason[0])
 				Q_strncatz(middlebit, ",\t", sizeof(middlebit));
 			Con_Printf("%s%s%s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), middlebit, nb->reason);
@@ -1302,7 +1300,7 @@ static void SV_FilterList_f (void)
 		if (nb->expiretime)
 		{
 			time_t secs = nb->expiretime - curtime;
-			Con_Printf("%s %s +%"PRIu64":%02u\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflagtext, (unsigned long long)(secs/60), (unsigned int)(secs%60));
+			Con_Printf("%s %s +%"PRIu64":%02u\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflagtext, (quint64_t)(secs/60), (unsigned int)(secs%60));
 		}
 		else
 			Con_Printf("%s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &nb->adr, &nb->adrmask), banflagtext);
@@ -1487,9 +1485,9 @@ static void SV_WriteIP_f (void)
 			}
 		}
 		if (bi->reason[0])
-			s = va("addip %s %s %"PRIu64" \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (unsigned long long) bi->expiretime, bi->reason);
+			s = va("addip %s %s %"PRIu64" \"%s\"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (quint64_t) bi->expiretime, bi->reason);
 		else if (bi->expiretime)
-			s = va("addip %s %s %"PRIu64"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (unsigned long long) bi->expiretime);
+			s = va("addip %s %s %"PRIu64"\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext, (quint64_t) bi->expiretime);
 		else
 			s = va("addip %s %s\n", NET_AdrToStringMasked(adr, sizeof(adr), &bi->adr, &bi->adrmask), banflagtext);
 		VFS_WRITE(f, s, strlen(s));

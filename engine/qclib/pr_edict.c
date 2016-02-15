@@ -21,7 +21,7 @@ Sets everything to NULL
 */
 void PDECL QC_ClearEdict (pubprogfuncs_t *ppf, struct edict_s *ed)
 {
-	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+//	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *e = (edictrun_t *)ed;
 	int num = e->entnum;
 	memset (e->fields, 0, e->fieldsize);
@@ -1882,7 +1882,6 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 	char filename[128];
 	int num;
-	int numbuiltins;
 	edictrun_t *ed=NULL;
 	ddef16_t *d16;
 	ddef32_t *d32;
@@ -2005,7 +2004,6 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, float killonspawnfl
 
 			filename[0] = '\0';
 			header_crc = 0;
-			numbuiltins = 0;
 
 			while(1)
 			{

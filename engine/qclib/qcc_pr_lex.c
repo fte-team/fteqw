@@ -112,7 +112,7 @@ void QCC_PR_CloseProcessor(void)
 		*qccincludedir[i] = 0;
 	currentchunk = NULL;
 }
-void QCC_PR_AddIncludePath(char *newinc)
+void QCC_PR_AddIncludePath(const char *newinc)
 {
 	int i;
 	
@@ -1445,13 +1445,25 @@ void QCC_PR_LexString (void)
 			if (!c)
 				QCC_PR_ParseError (ERR_EOF, "EOF inside quote");
 
-			if (!qccwarningaction[WARN_NOTUTF8] && c < 0 && utf8_check(&pr_token[c-1], &code))
+			/*
+			if (!qccwarningaction[WARN_NOTUTF8] && (c&0x80))
 			{
 				//convert 0xe000 private-use area to quake's charset (if they don't have the utf-8 warning enabled)
 				//note: this may have a small false-positive risk.
-				if (code >= 0xe000 && code <= 0xe0ff)
-					pr_file_p += utf8_check(&pr_token[c-1], &code)-1;
+				if (utf8_check(pr_file_p-1, &code))
+				{
+					if (code >= 0xe000 && code <= 0xe0ff)
+					{
+						pr_file_p += utf8_check(pr_file_p-1, &code)-1;
+						c = code & 0xff;
+					}
+					else
+						QCC_PR_ParseWarning(WARN_DODGYCHARSET, "non-ascii chars outside of quake-mapped private-use area", sizeof(pr_token)-1);
+				}
+				else
+					QCC_PR_ParseWarning(WARN_DODGYCHARSET, "source file is not unicode", sizeof(pr_token)-1);
 			}
+			*/
 
 /*			//these two conditions are generally part of the C preprocessor.
 			if (c == '\\' && *pr_file_p == '\r' && pr_file_p[1] == '\n')
@@ -4722,9 +4734,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			pbool isnonvirt = false;
 			pbool isstatic = false;
 			pbool isignored = false;
-			pbool ispublic = false;
-			pbool isprivate = false;
-			pbool isprotected = false;
+//			pbool ispublic = false;
+//			pbool isprivate = false;
+//			pbool isprotected = false;
 			while(1)
 			{
 				if (QCC_PR_CheckKeyword(1, "nonvirtual"))
@@ -4738,11 +4750,11 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				else if (QCC_PR_CheckKeyword(1, "strip"))
 					isignored = true;
 				else if (QCC_PR_CheckKeyword(1, "public"))
-					ispublic = true;
+					/*ispublic = true*/;
 				else if (QCC_PR_CheckKeyword(1, "private"))
-					isprivate = true;
+					/*isprivate = true*/;
 				else if (QCC_PR_CheckKeyword(1, "protected"))
-					isprotected = true;
+					/*isprotected = true*/;
 				else
 					break;
 			}

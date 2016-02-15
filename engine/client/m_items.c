@@ -411,7 +411,6 @@ static qboolean MI_Selectable(menuoption_t *op)
 static void M_CheckMouseMove(void)
 {
 	qboolean foundexclusive = false;
-	int mgt;
 	menu_t *menu;
 	menuoption_t *option;
 
@@ -424,8 +423,6 @@ static void M_CheckMouseMove(void)
 
 	if (mousemoved)
 	{
-		mgt = M_GameType();
-
 		for (menu = firstmenu; menu; menu = menu->parent)
 		{
 			if (menu->exclusive)
@@ -450,7 +447,7 @@ static void M_CheckMouseMove(void)
 									if (!option->common.noselectionsound)
 									{
 #ifdef HEXEN2
-										if (mgt == MGT_HEXEN2)
+										if (M_GameType() == MGT_HEXEN2)
 											S_LocalSound ("raven/menu1.wav");
 										else
 #endif
@@ -930,7 +927,6 @@ menuoption_t *MC_AddCursorSmall(menu_t *menu, menuresel_t *reselection, int x, i
 
 menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *reselection, int x, int y)
 {
-	int mgt;
 	menupicture_t *n = Z_Malloc(sizeof(menupicture_t));
 	if (reselection)
 		menu->reselection = reselection;
@@ -944,8 +940,7 @@ menupicture_t *MC_AddCursor(menu_t *menu, menuresel_t *reselection, int x, int y
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
 
-	mgt = M_GameType();
-	switch(mgt)
+	switch(M_GameType())
 	{
 #ifdef Q2CLIENT
 	case MGT_QUAKE2:
@@ -1806,9 +1801,6 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 
 void M_Complex_Key(int key, int unicode)
 {
-	int mgt;
-	mgt = M_GameType();
-
 	if (!currentmenu)
 		return;	//erm...
 
@@ -1832,7 +1824,7 @@ void M_Complex_Key(int key, int unicode)
 				return;
 
 #ifdef HEXEN2
-			if (mgt == MGT_HEXEN2)
+			if (M_GameType() == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
 			else
 #endif
@@ -1869,7 +1861,7 @@ void M_Complex_Key(int key, int unicode)
 		//remove
 		M_RemoveMenu(currentmenu);
 #ifdef HEXEN2
-		if (mgt == MGT_HEXEN2)
+		if (M_GameType() == MGT_HEXEN2)
 			S_LocalSound ("raven/menu3.wav");
 		else
 #endif
@@ -1882,7 +1874,7 @@ void M_Complex_Key(int key, int unicode)
 		if (currentmenu->selecteditem)
 		{
 #ifdef HEXEN2
-			if (mgt == MGT_HEXEN2)
+			if (M_GameType() == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
 			else
 #endif
@@ -1898,7 +1890,7 @@ void M_Complex_Key(int key, int unicode)
 		if (currentmenu->selecteditem)
 		{
 #ifdef HEXEN2
-			if (mgt == MGT_HEXEN2)
+			if (M_GameType() == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
 			else
 #endif
@@ -1932,7 +1924,7 @@ void M_Complex_Key(int key, int unicode)
 			{
 				Cbuf_AddText(currentmenu->selecteditem->button.command, RESTRICT_LOCAL);
 #ifdef HEXEN2
-				if (mgt == MGT_HEXEN2)
+				if (M_GameType() == MGT_HEXEN2)
 					S_LocalSound ("raven/menu2.wav");
 				else
 #endif
@@ -1964,107 +1956,12 @@ void M_Complex_Key(int key, int unicode)
 
 
 
-
-typedef struct {
-	int itemselected;
-	menu_t *dropout;
-	menutext_t *op[64];
-	char *text[64];
-
-	menu_t *parent;
-} guiinfo_t;
-
-static qboolean MC_GuiKey(int key, menu_t *menu)
-{
-	guiinfo_t *info = (guiinfo_t *)menu->data;
-	switch(key)
-	{
-	case K_ESCAPE:
-		if (info->dropout)
-			MC_GuiKey(key, info->dropout);
-		else
-		{
-			guiinfo_t *gui;
-			M_RemoveMenu(menu);
-			if (menu->parent)
-			{
-				gui = (guiinfo_t *)menu->parent->data;
-				gui->dropout = NULL;
-			}
-		}
-		break;
-
-	case K_ENTER:
-	case K_KP_ENTER:
-	case K_RIGHTARROW:
-		if (info->dropout)
-			MC_GuiKey(key, info->dropout);
-		else
-		{
-			int y, i;
-			guiinfo_t *gui;
-			info->dropout = M_CreateMenu(sizeof(guiinfo_t));
-			currentmenu = info->dropout;
-			info->dropout->key = MC_GuiKey;
-			info->dropout->exclusive = false;
-			info->dropout->parent = menu;
-			info->dropout->xpos = 0;
-			info->dropout->ypos = menu->ypos+info->itemselected*8;
-			for (i = 0; info->text[i]; i++)
-				if (info->dropout->xpos < strlen(info->text[i]))
-					info->dropout->xpos = strlen(info->text[i]);
-			info->dropout->xpos*=8;
-			info->dropout->xpos+=menu->xpos;
-			gui = (guiinfo_t *)info->dropout->data;
-			gui->text[0] = "Hello";
-			gui->text[1] = "Hello again";
-			gui->text[2] = "Hello yet again";
-			for (y = 0, i = 0; gui->text[i]; i++, y+=1*8)
-			{
-				info->op[i] = MC_AddRedText(info->dropout, 0, 0, y, gui->text[i], false);
-			}
-		}
-		break;
-	case K_LEFTARROW:
-		if (info->dropout)
-			MC_GuiKey(key, info->dropout);
-		else
-		{
-			guiinfo_t *gui;
-			M_RemoveMenu(menu);
-			if (menu->parent)
-			{
-				gui = (guiinfo_t *)menu->parent->data;
-				gui->dropout = NULL;
-			}
-		}
-		break;
-	case K_UPARROW:
-		info->op[info->itemselected]->isred = true;
-		if (info->itemselected)
-			info->itemselected--;
-		info->op[info->itemselected]->isred = false;
-		break;
-	case K_DOWNARROW:
-		if (!info->op[info->itemselected])
-			break;
-		info->op[info->itemselected]->isred = true;
-		if (info->text[info->itemselected+1])
-			info->itemselected++;
-		info->op[info->itemselected]->isred = false;
-		break;
-	}
-
-	return true;
-}
-
-
 extern int m_save_demonum;
 qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 {
 	if (key == K_ESCAPE || key == K_MOUSE2)
 	{
-		extern cvar_t cl_demoreel, con_stayhidden;
+		extern cvar_t con_stayhidden;
 
 		//don't spam menu open+close events if we're not going to be allowing the console to appear
 		if (con_stayhidden.ival && cls.state == ca_disconnected)
@@ -2073,15 +1970,6 @@ qboolean MC_Main_Key (int key, menu_t *menu)	//here purly to restart demos.
 
 		Key_Dest_Remove(kdm_emenu);
 		m_state = m_none;
-/*		if (m_save_demonum != -1)
-		{
-			cls.demonum = m_save_demonum;
-			m_save_demonum = -1;
-
-			if (cls.demonum != -1 && !cls.demoplayback && cls.state == ca_disconnected && cl_demoreel.ival)
-				CL_NextDemo ();
-		}
-*/
 		return true;
 	}
 	return false;
@@ -2094,8 +1982,6 @@ void M_Menu_Main_f (void)
 	menu_t *mainm;
 	mpic_t *p;
 	static menuresel_t resel;
-
-	int mgt;
 
 #ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(va("%s %s", Cmd_Argv(0), Cmd_Args())))
@@ -2137,9 +2023,8 @@ void M_Menu_Main_f (void)
 
 	S_LocalSound ("misc/menu2.wav");
 
-	mgt = M_GameType();
 #ifdef Q2CLIENT
-	if (mgt == MGT_QUAKE2)	//quake2 main menu.
+	if (M_GameType() == MGT_QUAKE2)	//quake2 main menu.
 	{
 		if (R_GetShaderSizes(R2D_SafeCachePic("pics/m_main_quit"), NULL, NULL, true) > 0)
 		{
@@ -2195,7 +2080,7 @@ void M_Menu_Main_f (void)
 	else
 #endif
 #ifdef HEXEN2
-		if (mgt == MGT_HEXEN2)
+		if (M_GameType() == MGT_HEXEN2)
 	{
 		p = R2D_SafeCachePic("gfx/menu/title0.lmp");
 		if (R_GetShaderSizes(p, NULL, NULL, true) <= 0)

@@ -211,7 +211,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define SVRANKING
 		#define USE_SQLITE
 		#ifdef SERVERONLY
-			#define USE_MYSQL	//allow mysql in dedicated servers.
+//			#define USE_MYSQL	//allow mysql in dedicated servers.
 		#endif
 		#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) 
 			#define SUBSERVERS	//use subserver code.

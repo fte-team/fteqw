@@ -2249,7 +2249,7 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 			for (j = 0; j < 4; j++)
 			{
 				VectorSubtract(quad[j], rot_centre, tv);
-				Matrix3_Multiply_Vec3(result, tv, quad[j]);
+				Matrix3_Multiply_Vec3((const vec3_t*)result, tv, quad[j]);
 				VectorAdd(rot_centre, quad[j], quad[j]);
 			}
 		}
@@ -2397,7 +2397,7 @@ static void alphagen(const shaderpass_t *pass, int cnt, avec4_t *const src, avec
 		{
 			VectorSubtract(r_origin, shaderstate.curentity->origin, v1);
 
-			if (!Matrix3_Compare(shaderstate.curentity->axis, axisDefault))
+			if (!Matrix3_Compare((const vec3_t*)shaderstate.curentity->axis, (const vec3_t*)axisDefault))
 			{
 				Matrix3_Multiply_Vec3(shaderstate.curentity->axis, v1, v2);
 			}
@@ -2844,7 +2844,10 @@ static void BE_SubmitMeshChain(qboolean usetesselation)
 #ifndef GLSLONLY
 static void DrawPass(const shaderpass_t *pass)
 {
-	int i, j, k;
+	int i;
+#if MAXRLIGHTMAPS > 1
+	int j, k;
+#endif
 	int tmu;
 	int lastpass = pass->numMergedPasses;
 	unsigned int attr = (1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR);
@@ -3717,7 +3720,9 @@ static qboolean GLBE_RegisterLightShader(int mode)
 
 qboolean GLBE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned int lmode)
 {
+#ifdef RTLIGHTS
 	extern cvar_t gl_specular;
+#endif
 
 	shaderstate.lastuniform = 0;
 	shaderstate.curdlight = dl;
@@ -5430,7 +5435,9 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 
 void GLBE_DrawWorld (batch_t **worldbatches, qbyte *vis)
 {
+#ifdef RTLIGHTS
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
+#endif
 	batch_t *batches[SHADER_SORT_COUNT];
 	batch_t **ob = shaderstate.mbatches;
 	RSpeedLocals();

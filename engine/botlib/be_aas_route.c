@@ -1739,10 +1739,11 @@ int AAS_AreaRouteToGoalArea(int areanum, vec3_t origin, int goalareanum, int tra
 		//		into the portal area
 		t += aasworld.portalmaxtraveltimes[portalnum];
 		//
+
+		*reachnum = aasworld.areasettings[areanum].firstreachablearea +
+						areacache->reachabilities[clusterareanum];
 		if (origin)
 		{
-			*reachnum = aasworld.areasettings[areanum].firstreachablearea +
-							areacache->reachabilities[clusterareanum];
 			reach = aasworld.reachability + *reachnum;
 			t += AAS_AreaTravelTime(areanum, origin, reach->start);
 		} //end if

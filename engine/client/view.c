@@ -1907,7 +1907,7 @@ void R_DrawNameTags(void)
 		}
 	}
 
-	if ((!cl.spectator && !cls.demoplayback || !scr_autoid.ival) && (!cl.teamplay || !scr_autoid_team.ival))
+	if (((!cl.spectator && !cls.demoplayback) || !scr_autoid.ival) && (!cl.teamplay || !scr_autoid_team.ival))
 		return;
 	if (cls.state != ca_active || !cl.validsequence || cl.intermissionmode != IM_NONE)
 		return;

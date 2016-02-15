@@ -198,6 +198,7 @@ static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[
 	out[10] = vz[2];
 	out[11] = t[2];
 }
+#ifndef SERVERONLY
 static void bonemat_fromaxisorg(float *out, vec3_t axis[3], const float t[3])
 {
 	out[0] = axis[0][0];
@@ -213,6 +214,7 @@ static void bonemat_fromaxisorg(float *out, vec3_t axis[3], const float t[3])
 	out[10]= axis[2][2];
 	out[11]= t[2];
 }
+#endif
 static void bonemat_fromentity(world_t *w, wedict_t *ed, float *trans)
 {
 	vec3_t d[3], a;
@@ -932,7 +934,9 @@ void skel_info_f(void)
 	{
 		if (skelobjects[i].world)
 		{
+#ifndef SERVERONLY
 			extern world_t csqc_world;
+#endif
 			Con_Printf("doll %i:\n", i);
 #ifndef CLIENTONLY
 			if (skelobjects[i].world == &sv.world)

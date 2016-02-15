@@ -574,7 +574,6 @@ short LerpAngles16(short to, short from, float frac)
 
 void CL_CalcClientTime(void)
 {
-	extern float demtime;
 	if (!cls.state)
 	{
 		cl.servertime += host_frametime;
@@ -989,7 +988,6 @@ void CL_PredictMovePNum (int seat)
 		if ((cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[pv->cam_spec_track].messagenum == cl.validsequence) ||
 			(pv->cam_spec_track+1 < cl.maxlerpents && cl.lerpents[pv->cam_spec_track+1].sequence == cl.lerpentssequence))
 		{
-			extern cvar_t cl_chasecam;
 			pv->cam_state = CAM_EYECAM;
 			pv->viewentity = pv->cam_spec_track+1;
 			cam_nowlocked = true;

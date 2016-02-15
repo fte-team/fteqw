@@ -135,10 +135,10 @@ void Plug_RegisterBuiltin(char *name, Plug_Builtin_t bi, int flags)
 
 static qintptr_t VARGS Plug_GetNativePointer(void *offset, quintptr_t mask, const qintptr_t *args)
 {
+#ifdef SUPPORT_ICE
 	char *p = (char *)VM_POINTER(args[0]);
 	if (offset)	//QVMs are not allowed to call this
 		return 0;
-#ifdef SUPPORT_ICE
 	if (!strcmp(p, ICE_API_CURRENT))
 		return (qintptr_t)&iceapi;
 #endif

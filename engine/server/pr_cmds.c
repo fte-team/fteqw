@@ -9297,8 +9297,8 @@ static void QCBUILTIN PF_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s 
 	const char *address = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *contents = PF_VarString(prinst, 1, pr_globals);
 
-	NET_StringToAdr(address, 0, &to);
-	NET_SendPacket(NS_SERVER, strlen(contents), contents, &to);
+	if (NET_StringToAdr(address, 0, &to))
+		NET_SendPacket(NS_SERVER, strlen(contents), contents, &to);
 }
 
 //be careful to not touch the resource unless we're meant to, to avoid stalling
@@ -9356,6 +9356,11 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 			}
 		}
 		break;
+	case RESTYPE_PARTICLE:
+	case RESTYPE_SHADER:
+	case RESTYPE_SKIN:
+	case RESTYPE_TEXTURE:
+		//FIXME
 	default:
 		G_FLOAT(OFS_RETURN) = -1;
 		break;

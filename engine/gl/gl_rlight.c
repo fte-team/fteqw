@@ -1670,7 +1670,9 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 {
 	vec3_t		end;
 	float *r;
+#ifdef RTLIGHTS
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
+#endif
 
 	if (!model->lightdata || r_fullbright.ival)
 	{

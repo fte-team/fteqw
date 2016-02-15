@@ -201,7 +201,7 @@ typedef struct
 
 #define CAFILE "/etc/ssl/certs/ca-certificates.crt"
 
-static void QDECL SSL_Close(vfsfile_t *vfs)
+static qboolean QDECL SSL_Close(vfsfile_t *vfs)
 {
 	gnutlsfile_t *file = (void*)vfs;
 
@@ -213,6 +213,7 @@ static void QDECL SSL_Close(vfsfile_t *vfs)
 	if (file->stream)
 		VFS_CLOSE(file->stream);
 	file->stream = NULL;
+	return true;
 }
 static int QDECL SSL_CheckCert(gnutls_session_t session)
 {

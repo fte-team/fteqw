@@ -127,12 +127,23 @@ qboolean Sys_ConditionSignal(void *condv);		//lock first
 qboolean Sys_ConditionBroadcast(void *condv);	//lock first
 void Sys_DestroyConditional(void *condv);
 #else
-#define Sys_IsMainThread() (true)
-#define Sys_CreateMutex() (NULL)
-#define Sys_LockMutex(m) (true)
-#define Sys_UnlockMutex(m) (true)
-#define Sys_DestroyMutex(m)
-#define Sys_IsThread(t) (!t)
+	#ifdef __GNUC__	//gcc complains about if (true) when these are maros. msvc complains about static not being called in headers. gah.
+		static inline qboolean Sys_MutexStub(void) {return true;}
+		static inline void *Sys_CreateMutex(void) {return NULL;}
+		#define Sys_IsMainThread() Sys_MutexStub()
+		#define Sys_DestroyMutex(m) Sys_MutexStub()
+		#define Sys_IsMainThread() Sys_MutexStub()
+		#define Sys_LockMutex(m) Sys_MutexStub()
+		#define Sys_UnlockMutex(m) Sys_MutexStub()
+		static inline qboolean Sys_IsThread(void *thread) {return !thread;}
+	#else
+		#define Sys_IsMainThread() (qboolean)(true)
+		#define Sys_CreateMutex() (void*)(NULL)
+		#define Sys_LockMutex(m) (qboolean)(true)
+		#define Sys_UnlockMutex(m) (qboolean)(true)
+		#define Sys_DestroyMutex(m) (void)0
+		#define Sys_IsThread(t) (!t)
+	#endif
 #endif
 
 void Sys_Sleep(double seconds);

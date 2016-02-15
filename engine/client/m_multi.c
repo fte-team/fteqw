@@ -420,16 +420,14 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 
 void M_Menu_Setup_f (void)
 {
-	int mgt;
 	setupmenu_t *info;
 	menu_t *menu;
 	menucustom_t *ci;
 	menubutton_t *b;
 	static menuresel_t resel;
 
-	mgt = M_GameType();
 #ifdef Q2CLIENT
-	if (mgt == MGT_QUAKE2)	//quake2 main menu.
+	if (M_GameType() == MGT_QUAKE2)	//quake2 main menu.
 	{
 		if (R2D_SafeCachePic("pics/m_banner_player_setup"))
 		{
@@ -481,7 +479,7 @@ void M_Menu_Setup_f (void)
 	(info->teamedit = MC_AddEdit(menu, 64, 160, 56, "Your team", team.string));
 #ifdef HEXEN2
 	info->ticlass = -1;
-	if (mgt == MGT_HEXEN2)
+	if (M_GameType() == MGT_HEXEN2)
 	{
 		static const char *classnames[] =
 		{
@@ -597,7 +595,6 @@ qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key
 }
 void M_Menu_GameOptions_f (void)
 {
-	extern cvar_t pr_maxedicts;
 	static const char *deathmatchoptions[] = {
 		"Cooperative",
 		"Deathmatch 1",

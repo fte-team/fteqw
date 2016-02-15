@@ -2516,7 +2516,7 @@ qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize)
 {
 	const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
 	char tmp[MAX_QPATH];
-	char *o = tmp, *e = o + sizeof(tmp)-1;
+	char *o = tmp;
 	const char *i = url;
 	strcpy(o, "downloads/");
 	o += strlen(o);
@@ -3814,6 +3814,7 @@ static ftemanifest_t *FS_GenerateLegacyManifest(char *newbasedir, int sizeof_new
 	return man;
 }
 
+#ifdef WEBCLIENT
 static char *FS_RelativeURL(char *base, char *file, char *buffer, int bufferlen)
 {
 	//fixme: cope with windows paths
@@ -3847,16 +3848,15 @@ static char *FS_RelativeURL(char *base, char *file, char *buffer, int bufferlen)
 	return buffer;
 }
 
-#ifdef WEBCLIENT
 static struct dl_download *curpackagedownload;
 static enum manifestdeptype_e fspdl_type;
 static enum {
-	X_DLONLY,
-	X_COPY,
-	X_MULTIUNZIP,
-	X_UNZIP,
-	X_GZ,
-	X_XZ
+	X_DLONLY,		//simple pk3 file
+	X_COPY,			//we copy it from an existing install (ie: special install path for total conversion)
+	X_MULTIUNZIP,	//zip with multiple files that need extracting
+	X_UNZIP,		//pull a single file from a zip
+	X_GZ,			//dlonly+ungzip
+	X_XZ			//dlonly+unxzip
 } fspdl_extracttype;
 static char fspdl_internalname[MAX_QPATH];
 static char fspdl_temppath[MAX_OSPATH];
@@ -4255,6 +4255,8 @@ static qboolean FS_BeginPackageDownload(struct manpack_s *pack, char *baseurl, q
 			VFS_CLOSE(tmpf);
 			tmpf = NULL;
 #endif
+			break;
+		default:
 			break;
 		}
 
@@ -4697,11 +4699,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	{
 		FS_ReloadPackFilesFlags(~0);
 
+		Sys_UnlockMutex(fs_thread_mutex);
+
 		FS_BeginManifestUpdates();
 
 		COM_CheckRegistered();
-
-		Sys_UnlockMutex(fs_thread_mutex);
 
 		if (allowreloadconfigs)
 		{
@@ -4751,10 +4753,12 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	#endif
 				}
 			}
-#ifndef SERVERONLY
 			else if (vidrestart)
+			{
+#ifndef SERVERONLY
 				Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
 #endif
+			}
 		}
 
 		//rebuild the cache now, should be safe to waste some cycles on it

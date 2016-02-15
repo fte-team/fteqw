@@ -444,12 +444,16 @@ typedef struct
 	{
 		CPNQ_ID,
 		CPNQ_PROQUAKE3_4,
+		CPNQ_BJP1,	//16bit models, strict 8bit sounds
+		CPNQ_BJP2,	//16bit models, strict 16bit sounds
+		CPNQ_BJP3,	//16bit models, flagged 16bit sounds
 		CPNQ_FITZ666, /*and rmqe999 protocol*/
 		CPNQ_DP5,
 		CPNQ_DP6,
 		CPNQ_DP7
 	} protocol_nq;
 	#define CPNQ_IS_DP (cls.protocol_nq >= CPNQ_DP5)
+	#define CPNQ_IS_BJP (cls.protocol_nq >= CPNQ_BJP1 && cls.protocol_nq <= CPNQ_BJP3)
 
 	int protocol_q2;
 
@@ -1549,10 +1553,10 @@ int CIN_RunCinematic (struct cinematics_s *cin, qbyte **outdata, int *outwidth, 
 typedef struct cin_s cin_t;
 #ifdef NOMEDIA
 #define Media_Playing() false
-#define Media_Init() 0
+#define Media_Init() (void)0
 #define Media_PlayingFullScreen() false
 #define Media_PlayFilm(n,e) false
-#define Media_StopFilm(a) true
+#define Media_StopFilm(a) (void)true
 #else
 /*media playing system*/
 qboolean Media_PlayingFullScreen(void);

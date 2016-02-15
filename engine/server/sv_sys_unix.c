@@ -689,7 +689,6 @@ int main(int argc, char *argv[])
 	quakeparms_t	parms;
 //	fd_set	fdset;
 //	extern	int		net_socket;
-	int j;
 
 	signal(SIGPIPE, SIG_IGN);
 	tcgetattr(STDIN_FILENO, &orig);

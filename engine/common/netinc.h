@@ -235,8 +235,8 @@ struct icestate_s;
 typedef struct
 {
 	struct icestate_s *(QDECL *ICE_Create)(void *module, char *conname, char *peername, enum icemode_e mode, enum iceproto_e proto);	//doesn't start pinging anything.
-	qboolean (QDECL *ICE_Set)(struct icestate_s *con, char *prop, char *value);
-	qboolean (QDECL *ICE_Get)(struct icestate_s *con, char *prop, char *value, int valuesize);
+	qboolean (QDECL *ICE_Set)(struct icestate_s *con, const char *prop, const char *value);
+	qboolean (QDECL *ICE_Get)(struct icestate_s *con, const char *prop, char *value, int valuesize);
 	struct icecandinfo_s *(QDECL *ICE_GetLCandidateInfo)(struct icestate_s *con);		//retrieves candidates that need reporting to the peer.
 	void (QDECL *ICE_AddRCandidateInfo)(struct icestate_s *con, struct icecandinfo_s *cand);		//stuff that came from the peer.
 	void (QDECL *ICE_Close)(struct icestate_s *con);	//bye then.

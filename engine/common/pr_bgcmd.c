@@ -96,7 +96,9 @@ char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_g
 static int debuggerresume;
 static int debuggerresumeline;
 extern int isPlugin;	//if 2, we were invoked by a debugger, and we need to give it debug locations (and it'll feed us continue/steps/breakpoints)
+#ifndef SERVERONLY
 static int debuggerstacky;
+#endif
 
 #if defined(_WIN32) && !defined(FTE_SDL)
 #include <windows.h>
@@ -139,6 +141,13 @@ size_t debuggerwnd;
 
 qboolean QCExternalDebuggerCommand(char *text)
 {
+#if defined(CSQC_DAT) && !defined(SERVERONLY)
+	extern world_t csqc_world;
+#endif
+#if defined(MENU_DAT) && !defined(SERVERONLY)
+	extern world_t menu_world;
+#endif
+
 	if (!isPlugin)
 		return false;
 	if ((!strncmp(text, "qcstep", 6) && (text[6] == 0 || text[6] == ' ')) || (!strncmp(text, "qcresume", 8) && (text[8] == 0 || text[8] == ' ')))
@@ -187,16 +196,15 @@ qboolean QCExternalDebuggerCommand(char *text)
 	else if (!strncmp(text, "qcinspect ", 10))
 	{
 		//called on mouse-over events in the gui
-		extern world_t csqc_world, menu_world;
 		char *variable;
-		char *function;
+//		char *function;
 		char resultbuffer[8192], tmpbuffer[8192];
 		char *vmnames[4] = {"cur: ", "ssqc: ", "csqc: ", "menu: "};
 		char *values[4] = {NULL, NULL, NULL, NULL};
 		int i;
 		Cmd_TokenizeString(text, false, false);
 		variable = Cmd_Argv(1);
-		function = Cmd_Argv(2);
+//		function = Cmd_Argv(2);
 
 		
 		//togglebreakpoint just finds the first statement (via the function table for file names) with the specified line number, and sets some unused high bit that causes it to be an invalid opcode.
@@ -243,7 +251,7 @@ qboolean QCExternalDebuggerCommand(char *text)
 	}
 	else if (!strncmp(text, "qcreload", 8))
 	{
-#ifdef MENU_DAT
+#if defined(MENU_DAT) && !defined(SERVERONLY)
 		Cbuf_AddText("menu_restart\n", RESTRICT_LOCAL);
 #endif
 #ifndef CLIENTONLY
@@ -255,7 +263,6 @@ qboolean QCExternalDebuggerCommand(char *text)
 	}
 	else if (!strncmp(text, "qcbreakpoint ", 13))
 	{
-		extern world_t csqc_world, menu_world;
 		int mode;
 		char *filename;
 		int line;
@@ -1744,7 +1751,7 @@ void QCBUILTIN PF_hash_createtab (pubprogfuncs_t *prinst, struct globalvars_s *p
 	}
 	if (i == pf_hash_maxtables)
 	{	//all slots taken, expand list
-		if (!ZF_ReallocElements(&pf_hashtab, &pf_hash_maxtables, pf_hash_maxtables+64, sizeof(*pf_hashtab)))
+		if (!ZF_ReallocElements((void**)&pf_hashtab, &pf_hash_maxtables, pf_hash_maxtables+64, sizeof(*pf_hashtab)))
 		{
 			G_FLOAT(OFS_RETURN) = 0;
 			return;
@@ -2684,7 +2691,6 @@ void QCBUILTIN PF_copyentity (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 
 void QCBUILTIN PF_entityprotection (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	world_t *w = prinst->parms->user;
 	wedict_t *e = G_WEDICT(prinst, OFS_PARM0);
 	int prot = G_FLOAT(OFS_PARM1);
 
@@ -3547,7 +3553,7 @@ void QCBUILTIN PF_buf_create  (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	int i;
 
 	const char *type = ((prinst->callargc>0)?PR_GetStringOfs(prinst, OFS_PARM0):"string");
-	unsigned int flags = ((prinst->callargc>1)?G_FLOAT(OFS_PARM1):0);
+//	unsigned int flags = ((prinst->callargc>1)?G_FLOAT(OFS_PARM1):1);
 
 	if (!Q_strcasecmp(type, "string"))
 		;

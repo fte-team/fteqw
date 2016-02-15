@@ -5,10 +5,17 @@
 #include "shader.h"
 #endif
 
+//FIXME: shadowmaps should build a cache of the nearby area surfaces and flag those models as RF_NOSHADOW or something
+
 void Mod_SetParent (mnode_t *node, mnode_t *parent);
 static int	D3_ClusterForPoint (struct model_s *model, vec3_t point);
 
 #ifndef SERVERONLY
+void ModD3_GenAreaVBO(void *ctx, void *data, size_t a, size_t b)
+{
+	model_t *sub = ctx;
+	BE_GenBrushModelVBO(sub);
+}
 static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 {
 	char token[256];
@@ -106,6 +113,7 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 
 				data = COM_ParseOut(data, token, sizeof(token));
 				b[surf].shader = R_RegisterShader_Vertex(token);
+//				R_BuildDefaultTexnums(NULL, b[surf].shader);
 				data = COM_ParseOut(data, token, sizeof(token));
 				numverts = atoi(token);
 				data = COM_ParseOut(data, token, sizeof(token));
@@ -116,7 +124,7 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 
 				m[surf].numvertexes = numverts;
 				m[surf].numindexes = numindicies;
-				vdata = ZG_Malloc(&model->memgroup, numverts * (sizeof(vecV_t) + sizeof(vec2_t) + sizeof(vec3_t) + sizeof(vec4_t)) + numindicies * sizeof(index_t));
+				vdata = ZG_Malloc(&sub->memgroup, numverts * (sizeof(vecV_t) + sizeof(vec2_t) + sizeof(vec3_t) + sizeof(vec4_t)) + numindicies * sizeof(index_t));
 
 				m[surf].colors4f_array[0] = (vec4_t*)vdata;vdata += sizeof(vec4_t)*numverts;
 				m[surf].xyz_array = (vecV_t*)vdata;vdata += sizeof(vecV_t)*numverts;
@@ -194,7 +202,8 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 			sub->fromgame = fg_doom3;
 			sub->type = mod_brush;
 
-			BE_GenBrushModelVBO(sub);
+			COM_AddWork(WG_MAIN, ModD3_GenAreaVBO, sub, NULL, MLS_LOADED, 0);
+			COM_AddWork(WG_MAIN, Mod_ModelLoaded, sub, NULL, MLS_LOADED, 0);
 		}
 		else if (!strcmp(token, "shadowModel"))
 		{
@@ -358,7 +367,8 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 
 static int walkno;
-/*convert each portal to a 2d box, because its much much simpler than true poly clipping*/
+/*fixme: convert each portal to a 2d box, because its much much simpler than true poly clipping*/
+/*fixme: use occlusion tests, with temporal coherance (draw the portal as black or something if we think its invisible)*/
 static void D3_WalkPortal(model_t *mod, int start, vec_t bounds[4], unsigned char *vis)
 {
 	int i;
@@ -393,70 +403,56 @@ static void D3_WalkPortal(model_t *mod, int start, vec_t bounds[4], unsigned cha
 unsigned char *D3_CalcVis(model_t *mod, vec3_t org)
 {
 	int start;
-	static unsigned char vis[256];
+	static qbyte visbuf[256];
+	qbyte *usevis;
 	vec_t newbounds[4];
+
+	int area;
+	entity_t ent;
 
 	start = D3_ClusterForPoint(mod, org);
 	/*figure out which area we're in*/
 	if (start < 0)
 	{
 		/*outside the world, just make it all visible, and take the fps hit*/
-		memset(vis, 255, 4);
-		return vis;
+		memset(visbuf, 255, 4);
+		usevis = visbuf;
 	}
 	else if (r_novis.value)
-		return vis;
+		usevis = visbuf;
 	else
 	{
-		memset(vis, 0, 4);
+		memset(visbuf, 0, 4);
 		/*make a bounds the size of the view*/
 		newbounds[0] = -1;
 		newbounds[1] = 1;
 		newbounds[2] = -1;
 		newbounds[3] = 1;
 		walkno++;
-		D3_WalkPortal(mod, start, newbounds, vis);
+		D3_WalkPortal(mod, start, newbounds, visbuf);
 //		Con_Printf("%x %x %x %x\n", vis[0], vis[1], vis[2], vis[3]);
-		return vis;
+		usevis = visbuf;
 	}
-}
 
-/*emits static entities, one for each area, which is only visible if that area is in the vis*/
-void D3_GenerateAreas(model_t *mod)
-{
-	entity_t *ent;
-
-	int area;
-
+	//now generate the various entities for that region.
+	memset(&ent, 0, sizeof(ent));
 	for (area = 0; area < 256*8; area++)
 	{
-		if (cl.num_statics == cl_max_static_entities)
+		if (usevis[area>>3] & (1u<<(area&7)))
 		{
-			cl_max_static_entities += 16;
-			cl_static_entities = BZ_Realloc(cl_static_entities, sizeof(*cl_static_entities) * cl_max_static_entities);
+			ent.model = Mod_FindName(va("*_area%i", area));
+			ent.scale = 1;
+			AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+			VectorInverse(ent.axis[1]);
+			ent.shaderRGBAf[0] = 1;
+			ent.shaderRGBAf[1] = 1;
+			ent.shaderRGBAf[2] = 1;
+			ent.shaderRGBAf[3] = 1;
+
+			V_AddEntity(&ent);
 		}
-
-		ent = &cl_static_entities[cl.num_statics].ent;
-		cl_static_entities[cl.num_statics].mdlidx = 0;
-		memset(ent, 0, sizeof(*ent));
-		ent->model = Mod_FindName(va("*_area%i", area));
-		ent->scale = 1;
-		AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
-		VectorInverse(ent->axis[1]);
-		ent->shaderRGBAf[0] = 1;
-		ent->shaderRGBAf[1] = 1;
-		ent->shaderRGBAf[2] = 1;
-		ent->shaderRGBAf[3] = 1;
-
-		/*put it in that area*/
-		cl_static_entities[cl.num_statics].pvscache.num_leafs = 1;
-		cl_static_entities[cl.num_statics].pvscache.leafnums[0] = area;
-
-		if (ent->model && ent->model->loadstate != MLS_NOTLOADED)
-			cl.num_statics++;
-		else
-			break;
 	}
+	return usevis;
 }
 
 #endif
@@ -526,7 +522,7 @@ typedef struct cm_surface_s
 	int numedges;
 	vec4_t *edge;
 
-	shader_t *shader;
+//	shader_t *shader;
 	struct cm_surface_s *next;
 } cm_surface_t;
 
@@ -1167,7 +1163,8 @@ qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize)
 
 				buf = COM_ParseOut(buf, token, sizeof(token));
 #ifndef SERVERONLY
-				surf->shader = R_RegisterShader_Vertex(token);
+//				surf->shader = R_RegisterShader_Vertex(token);
+//				R_BuildDefaultTexnums(NULL, surf->shader);
 #endif
 
 				if (filever == 3)
@@ -1320,6 +1317,8 @@ qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize)
 		BZ_Free(buf);
 	}
 #endif
+
+
 	return true;
 }
 

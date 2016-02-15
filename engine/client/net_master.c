@@ -333,7 +333,7 @@ void SV_Master_Worker_Resolve(void *ctx, void *data, size_t a, size_t b)
 		first = false;
 	}
 	work->success = !!found;
-	COM_AddWork(0, SV_Master_Worker_Resolved, NULL, work, a, b);
+	COM_AddWork(WG_MAIN, SV_Master_Worker_Resolved, NULL, work, a, b);
 }
 
 /*
@@ -388,7 +388,7 @@ void SV_Master_Heartbeat (void)
 				struct thr_res *work = Z_Malloc(sizeof(*work) + strlen(net_masterlist[i].cv.string));
 				strcpy(work->str, net_masterlist[i].cv.string);
 				net_masterlist[i].resolving = true;	//don't spam work
-				COM_AddWork(0, SV_Master_Worker_Resolve, NULL, work, i, 0);
+				COM_AddWork(WG_MAIN, SV_Master_Worker_Resolve, NULL, work, i, 0);
 			}
 		}
 		else
@@ -1259,9 +1259,10 @@ serverinfo_t *Master_FindRoute(netadr_t target)
 		if (chain)
 			*chain = 0;
 
-		NET_StringToAdr(cl_proxyaddr.string, 0, &pa);
-
-		prox = Master_InfoForServer(&pa);
+		if (NET_StringToAdr(cl_proxyaddr.string, 0, &pa))
+			prox = Master_InfoForServer(&pa);
+		else
+			prox = NULL;
 		if (chain)
 			*chain = '@';
 	}
@@ -1419,7 +1420,7 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 
 	//add the main ip address
 	work->adr = adrs[0];
-	COM_AddWork(0, CLMaster_AddMaster_Worker_Resolved, NULL, work, a, b);
+	COM_AddWork(WG_MAIN, CLMaster_AddMaster_Worker_Resolved, NULL, work, a, b);
 
 	//add dupes too (eg: ipv4+ipv6)
 	for (i = 1; i < found; i++)
@@ -1445,7 +1446,7 @@ void CLMaster_AddMaster_Worker_Resolve(void *ctx, void *data, size_t a, size_t b
 			alt->sends = 1;
 			alt->nosave = true;
 			alt->adr = adrs[i];
-			COM_AddWork(0, CLMaster_AddMaster_Worker_Resolved, NULL, alt, a, b);
+			COM_AddWork(WG_MAIN, CLMaster_AddMaster_Worker_Resolved, NULL, alt, a, b);
 		}
 	}
 }
@@ -1468,7 +1469,7 @@ void Master_AddMaster (char *address, enum mastertype_e mastertype, enum masterp
 	strcpy(mast->address, address);
 	mast->sends = 1;
 
-	COM_AddWork(1, CLMaster_AddMaster_Worker_Resolve, NULL, mast, 0, 0);
+	COM_AddWork(WG_LOADER, CLMaster_AddMaster_Worker_Resolve, NULL, mast, 0, 0);
 }
 
 void MasterInfo_Shutdown(void)
@@ -2104,7 +2105,10 @@ char *jsonnode(int level, char *node)
 			if (level == 1)
 			{
 				if (!strcmp(key, "IPAddress"))
-					NET_StringToAdr(com_token, 0, &adr);
+				{
+					if (!NET_StringToAdr(com_token, 0, &adr))
+						adr.type = NA_INVALID;
+				}
 				if (!strcmp(key, "Port"))
 					port = atoi(com_token);
 				if (!strcmp(key, "DNS"))
@@ -2843,14 +2847,14 @@ int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favor
 		{
 		case PROTOCOL_VERSION_QW:	info->special = SS_QUAKEWORLD;	break;
 #ifdef NQPROT
-		case NQ_PROTOCOL_VERSION:	info->special = SS_NETQUAKE;	break;
-		case H2_PROTOCOL_VERSION:	info->special = SS_NETQUAKE;	break;	//erk
-		case NEHD_PROTOCOL_VERSION:	info->special = SS_NETQUAKE;	break;
-		case FITZ_PROTOCOL_VERSION:	info->special = SS_NETQUAKE;	break;
-		case RMQ_PROTOCOL_VERSION:	info->special = SS_NETQUAKE;	break;
-		case DP5_PROTOCOL_VERSION:	info->special = SS_DARKPLACES;	break;	//dp actually says 3... but hey, that's dp being WEIRD.
-		case DP6_PROTOCOL_VERSION:	info->special = SS_DARKPLACES;	break;
-		case DP7_PROTOCOL_VERSION:	info->special = SS_DARKPLACES;	break;
+		case PROTOCOL_VERSION_NQ:	info->special = SS_NETQUAKE;	break;
+		case PROTOCOL_VERSION_H2:	info->special = SS_NETQUAKE;	break;	//erk
+		case PROTOCOL_VERSION_NEHD:	info->special = SS_NETQUAKE;	break;
+		case PROTOCOL_VERSION_FITZ:	info->special = SS_NETQUAKE;	break;
+		case PROTOCOL_VERSION_RMQ:	info->special = SS_NETQUAKE;	break;
+		case PROTOCOL_VERSION_DP5:	info->special = SS_DARKPLACES;	break;	//dp actually says 3... but hey, that's dp being WEIRD.
+		case PROTOCOL_VERSION_DP6:	info->special = SS_DARKPLACES;	break;
+		case PROTOCOL_VERSION_DP7:	info->special = SS_DARKPLACES;	break;
 #endif
 		default:
 			if (PROTOCOL_VERSION_Q2 >= info->protocol && info->protocol >= PROTOCOL_VERSION_Q2_MIN)

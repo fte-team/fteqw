@@ -57,11 +57,12 @@ qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm);
 qboolean Mod_LoadSurfedges (model_t *loadmodel, qbyte *mod_base, lump_t *l);
 
-
+#ifdef Q2BSPS
 static qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
 static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 static unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 static int CM_PointCluster (model_t *mod, vec3_t p);
+#endif
 
 float RadiusFromBounds (vec3_t mins, vec3_t maxs)
 {
@@ -3875,9 +3876,11 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	char			loadname[32];
 	qbyte			*mod_base = (qbyte *)filein;
 
+#ifndef SERVERONLY
 	void (*buildmeshes)(model_t *mod, msurface_t *surf, builddata_t *cookie) = NULL;
 	qbyte *facedata = NULL;
 	unsigned int facesize = 0;
+#endif
 	cminfo_t	*prv;
 
 	COM_FileBase (mod->name, loadname, sizeof(loadname));
@@ -4263,7 +4266,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			bd->buildfunc = buildmeshes;
 			memcpy(bd+1, facedata + mod->firstmodelsurface*facesize, facesize*mod->nummodelsurfaces);
 		}
-		COM_AddWork(0, ModBrush_LoadGLStuff, mod, bd, 0, 0);
+		COM_AddWork(WG_MAIN, ModBrush_LoadGLStuff, mod, bd, 0, 0);
 	}
 #endif
 
@@ -4320,10 +4323,10 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				bd->buildfunc = buildmeshes;
 				memcpy(bd+1, facedata + mod->firstmodelsurface*facesize, facesize*mod->nummodelsurfaces);
 			}
-			COM_AddWork(0, ModBrush_LoadGLStuff, mod, bd, i, 0);
+			COM_AddWork(WG_MAIN, ModBrush_LoadGLStuff, mod, bd, i, 0);
 		}
 #endif
-		COM_AddWork(0, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
+		COM_AddWork(WG_MAIN, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
 	}
 
 #ifdef TERRAIN
@@ -4426,7 +4429,6 @@ can just be stored out and get a proper clipping hull structure.
 void CM_InitBoxHull (void)
 {
 	int			i;
-	int			side;
 	mplane_t	*p;
 	q2cbrushside_t	*s;
 
@@ -4455,8 +4457,6 @@ void CM_InitBoxHull (void)
 
 	for (i=0 ; i<6 ; i++)
 	{
-		side = i&1;
-
 		//the pointers
 		s = &box_sides[i];
 		p = &box_planes[i];

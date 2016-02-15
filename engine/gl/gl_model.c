@@ -971,7 +971,9 @@ void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 	unsigned *buf = NULL;
 	char mdlbase[MAX_QPATH];
 	char *replstr;
+#ifdef DSPMODELS
 	qboolean doomsprite = false;
+#endif
 	unsigned int magic, i;
 	size_t filesize;
 	char ext[8];
@@ -986,7 +988,7 @@ void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		mod->maxs[1] = 16;
 		mod->maxs[2] = 16;
 		mod->engineflags = 0;
-		COM_AddWork(0, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
+		COM_AddWork(WG_MAIN, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
 		return;
 	}
 	
@@ -1042,11 +1044,13 @@ void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 	COM_FileExtension(mod->name, ext, sizeof(ext));
 	if (!Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "sp2"))
 		replstr = ""; // sprite
+#ifdef DSPMODELS
 	else if (!Q_strcasecmp(ext, "dsp")) // doom sprite
 	{
 		replstr = "";
 		doomsprite = true;
 	}
+#endif
 	else // assume models
 		replstr = r_replacemodels.string;
 
@@ -1080,7 +1084,7 @@ void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 					TRACE(("Mod_LoadModel: doomsprite: \"%s\"\n", mod->name));
 					Mod_LoadDoomSprite(mod);
 					BZ_Free(buf);
-					COM_AddWork(0, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
+					COM_AddWork(WG_MAIN, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
 					return;
 				}
 #endif
@@ -1149,7 +1153,7 @@ void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 
 		BZ_Free(buf);
 
-		COM_AddWork(0, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
+		COM_AddWork(WG_MAIN, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
 		return;
 	}
 
@@ -1161,7 +1165,7 @@ void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 	mod->maxs[1] = 16;
 	mod->maxs[2] = 16;
 	mod->engineflags = 0;
-	COM_AddWork(0, Mod_ModelLoaded, mod, NULL, MLS_FAILED, verbose);
+	COM_AddWork(WG_MAIN, Mod_ModelLoaded, mod, NULL, MLS_FAILED, verbose);
 }
 
 
@@ -1174,9 +1178,9 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 //			Mod_LoadModelWorker(mod, MLV_WARN, 0);
 //		else
 		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
-			COM_AddWork(0, Mod_LoadModelWorker, mod, NULL, verbose, 0);
+			COM_AddWork(WG_MAIN, Mod_LoadModelWorker, mod, NULL, verbose, 0);
 		else
-			COM_AddWork(1, Mod_LoadModelWorker, mod, NULL, verbose, 0);
+			COM_AddWork(WG_LOADER, Mod_LoadModelWorker, mod, NULL, verbose, 0);
 	}
 
 	if (verbose == MLV_ERROR)
@@ -1216,7 +1220,7 @@ model_t *Mod_ForName (const char *name, enum mlverbosity_e verbosity)
 
 ===============================================================================
 */
-
+#ifndef SERVERONLY
 static const struct
 {
 	const char *oldname;
@@ -1264,6 +1268,7 @@ static const char *Mod_RemapBuggyTexture(const char *name, const qbyte *data, un
 	}
 	return NULL;
 }
+#endif
 
 
 void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadfromwads)
@@ -4830,12 +4835,12 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 		TRACE(("LoadBrushModel %i\n", __LINE__));
 		if (!isDedicated || ode)
 		{
-			COM_AddWork(0, ModBrush_LoadGLStuff, submod, NULL, i, 0);
+			COM_AddWork(WG_MAIN, ModBrush_LoadGLStuff, submod, NULL, i, 0);
 		}
 		TRACE(("LoadBrushModel %i\n", __LINE__));
 
 		if (i)
-			COM_AddWork(0, Mod_ModelLoaded, submod, NULL, MLS_LOADED, 0);
+			COM_AddWork(WG_MAIN, Mod_ModelLoaded, submod, NULL, MLS_LOADED, 0);
 		if (i < submod->numsubmodels-1)
 		{	// duplicate the basic information
 			char	name[MAX_QPATH];

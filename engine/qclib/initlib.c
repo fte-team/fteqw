@@ -733,13 +733,6 @@ eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_
 	return NULL;
 }
 
-//fixme: remove?
-static void PDECL SetGlobalEdict(pubprogfuncs_t *ppf, struct edict_s *ed, int ofs)
-{
-	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	((int*)pr_globals)[ofs] = EDICT_TO_PROG(progfuncs, ed);
-}
-
 char *PDECL PR_VarString (pubprogfuncs_t *ppf, int	first)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
@@ -1027,7 +1020,8 @@ string_t PDECL PR_AllocTempString			(pubprogfuncs_t *ppf, const char *str)
 		return 0;
 	len = strlen(str)+1;
 	res = PR_AllocTempStringLen(ppf, &out, len);
-	memcpy(out, str, len);
+	if (res)
+		memcpy(out, str, len);
 	return res;
 #else
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;

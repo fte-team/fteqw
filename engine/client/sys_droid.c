@@ -84,7 +84,7 @@ void INS_Move(float *movements, int pnum)
 void INS_Commands(void)
 {
 }
-void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, char *type, char *devicename, int *qdevid))
+void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, int *qdevid))
 {
 }
 void INS_Init(void)

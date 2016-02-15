@@ -919,7 +919,6 @@ void Cam_Track(playerview_t *pv, usercmd_t *cmd)
 void Cam_SetModAutoTrack(int userid)
 {	//this is a hint from the server about who to track
 	int slot;
-	playerview_t *pv = &cl.playerview[0];
 	cl.autotrack_hint = -1;
 	for (slot = 0; slot < cl.allocated_client_slots; slot++)
 	{

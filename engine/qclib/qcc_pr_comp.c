@@ -8605,7 +8605,7 @@ QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags)
 				}
 
 				if (priority > 1 && exprflags & EXPR_WARN_ABOVE_1)
-					QCC_PR_ParseWarning(WARN_UNARYNOTSCOPE, "unary-not applies to non-unary expression");
+					QCC_PR_ParseWarning(WARN_UNARYNOTSCOPE, "suggest parenthesis for unary operator that applies to multiple terms");
 
 				break;
 			}
@@ -12661,7 +12661,7 @@ void QCC_PR_ParseDefs (char *classname)
 	QCC_def_t		*def, *d;
 	QCC_sref_t		dynlength;
 	QCC_function_t	*f;
-	int			i = 0; // warning: ‘i’ may be used uninitialized in this function
+//	int			i = 0; // warning: ‘i’ may be used uninitialized in this function
 	pbool shared=false;
 	pbool isstatic=defaultstatic;
 	pbool externfnc=false;

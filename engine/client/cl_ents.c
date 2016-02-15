@@ -1580,7 +1580,12 @@ void CLNQ_ParseEntity(unsigned int bits)
 	state->dpflags = (bits & NQU_NOLERP)?RENDER_STEP:0;
 
 	if (bits & NQU_MODEL)
-		state->modelindex = MSG_ReadByte ();
+	{
+		if (CPNQ_IS_BJP)
+			state->modelindex = MSG_ReadShort ();
+		else
+			state->modelindex = MSG_ReadByte ();
+	}
 
 	if (bits & NQU_FRAME)
 		state->frame = MSG_ReadByte();
@@ -2438,7 +2443,6 @@ void CLQ1_AddVisibleBBoxes(void)
 	wedict_t *e;
 	int i;
 	shader_t *s;
-	extern world_t csqc_world;
 	vec3_t min, max, size;
 
 	switch(r_showbboxes.ival & 3)
@@ -2453,7 +2457,10 @@ void CLQ1_AddVisibleBBoxes(void)
 	#endif
 	#ifdef CSQC_DAT
 	case 2:
-		w = &csqc_world;
+		{
+			extern world_t csqc_world;
+			w = &csqc_world;
+		}
 		break;
 	#endif
 	case 3:

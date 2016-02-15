@@ -206,6 +206,7 @@ static ALC_API ALCboolean      (ALC_APIENTRY *palcIsExtensionPresent)( ALCdevice
 //#include "AL/al.h"
 //#include "AL/alext.h"
 
+#if defined(VOICECHAT)
 //capture-specific stuff
 static ALC_API void           (ALC_APIENTRY *palcGetIntegerv)( ALCdevice *device, ALCenum param, ALCsizei size, ALCint *data );
 static ALC_API ALCdevice *    (ALC_APIENTRY *palcCaptureOpenDevice)( const ALCchar *devicename, ALCuint frequency, ALCenum format, ALCsizei buffersize );
@@ -216,6 +217,7 @@ static ALC_API void           (ALC_APIENTRY *palcCaptureSamples)( ALCdevice *dev
 #define ALC_CAPTURE_DEVICE_SPECIFIER             0x310
 #define ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER     0x311
 #define ALC_CAPTURE_SAMPLES                      0x312
+#endif
 
 #endif
 

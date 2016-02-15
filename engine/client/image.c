@@ -2561,7 +2561,7 @@ static qboolean Image_ReadDDSFile(texid_t tex, unsigned int flags, char *fname, 
 
 	mips->mipcount = mipnum;
 
-	COM_AddWork(0, Image_LoadTextureMips, tex, mips, 0, 0);
+	COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
 	return true;
 }
 #endif
@@ -2606,8 +2606,6 @@ static qboolean Image_ReadBLPFile(texid_t tex, unsigned int flags, char *fname, 
 
 	if (blp->encoding == 2)
 	{
-		int blocksize;
-
 		//s3tc/dxt
 		switch(blp->alphaencoding)
 		{
@@ -2617,15 +2615,12 @@ static qboolean Image_ReadBLPFile(texid_t tex, unsigned int flags, char *fname, 
 				mips->encoding = PTI_S3RGBA1;
 			else
 				mips->encoding = PTI_S3RGB1;
-			blocksize = 8;
 			break;
 		case 1: //dxt2/3
 			mips->encoding = PTI_S3RGBA3;
-			blocksize = 16;
 			break;
 		case 7: //dxt4/5
 			mips->encoding = PTI_S3RGBA5;
-			blocksize = 16;
 			break;
 		}
 		for (miplevel = 0; miplevel < 16; )
@@ -2735,7 +2730,7 @@ static qboolean Image_ReadBLPFile(texid_t tex, unsigned int flags, char *fname, 
 		mips->mipcount = miplevel;
 	}
 
-	COM_AddWork(0, Image_LoadTextureMips, tex, mips, 0, 0);
+	COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
 
 	return true;
 }
@@ -4049,7 +4044,7 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 		if (flags & IF_NOWORKER)
 			Image_LoadTexture_Failed(tex, NULL, 0, 0);
 		else
-			COM_AddWork(0, Image_LoadTexture_Failed, tex, NULL, 0, 0);
+			COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
 		return false;
 	}
 	Image_GenerateMips(mips, flags);
@@ -4061,7 +4056,7 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 	if (flags & IF_NOWORKER)
 		Image_LoadTextureMips(tex, mips, 0, 0);
 	else
-		COM_AddWork(0, Image_LoadTextureMips, tex, mips, 0, 0);
+		COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
 	return true;
 }
 
@@ -4154,7 +4149,7 @@ qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, 
 		if (flags & IF_NOWORKER)
 			Image_LoadTextureMips(tex, mips, 0, 0);
 		else
-			COM_AddWork(0, Image_LoadTextureMips, tex, mips, 0, 0);
+			COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
 		return true;
 	}
 #endif
@@ -4252,7 +4247,7 @@ static qboolean Image_LoadCubemapTexture(texid_t tex, char *nicename)
 	if (tex->flags & IF_NOWORKER)
 		Image_LoadTextureMips(tex, mips, 0, 0);
 	else
-		COM_AddWork(0, Image_LoadTextureMips, tex, mips, 0, 0);
+		COM_AddWork(WG_MAIN, Image_LoadTextureMips, tex, mips, 0, 0);
 	return true;
 }
 
@@ -4291,7 +4286,7 @@ void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 			if (tex->flags & IF_NOWORKER)
 				Image_LoadTexture_Failed(tex, NULL, 0, 0);
 			else
-				COM_AddWork(0, Image_LoadTexture_Failed, tex, NULL, 0, 0);
+				COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
 		}
 		return;
 	}
@@ -4481,7 +4476,7 @@ void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t b)
 	if (tex->flags & IF_NOWORKER)
 		Image_LoadTexture_Failed(tex, NULL, 0, 0);
 	else
-		COM_AddWork(0, Image_LoadTexture_Failed, tex, NULL, 0, 0);
+		COM_AddWork(WG_MAIN, Image_LoadTexture_Failed, tex, NULL, 0, 0);
 }
 
 
@@ -4589,7 +4584,6 @@ void Image_Downloaded(struct dl_download *dl)
 image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
 {
 	image_t *tex;
-	static int seq;
 
 	qboolean dontposttoworker = (flags & (IF_NOWORKER | IF_LOADNOW));
 	qboolean lowpri = (flags & IF_LOWPRIORITY);
@@ -4701,9 +4695,9 @@ image_t *Image_GetTexture(const char *identifier, const char *subpath, unsigned 
 		else
 #endif
 			if (lowpri)
-			COM_AddWork(1, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
+			COM_AddWork(WG_LOADER, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
 		else
-			COM_AddWork(1, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
+			COM_AddWork(WG_LOADER, Image_LoadHiResTextureWorker, tex, NULL, 0, 0);
 	}
 	return tex;
 }

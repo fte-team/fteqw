@@ -60,6 +60,7 @@ cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
 extern cvar_t	r_stereo_separation;
+extern cvar_t	r_stereo_convergence;
 extern cvar_t	r_stereo_method;
 extern cvar_t	r_postprocshader, r_fxaa;
 
@@ -405,7 +406,9 @@ void R_SetupGL (float stereooffset)
 		newa[0] = r_refdef.viewangles[0];
 		newa[1] = r_refdef.viewangles[1];
 		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
-		if (1)
+		if (stereooffset)
+			newa[1] += r_stereo_convergence.value * ((stereooffset>0)?-0.5:0.5);	//can we get away with this cheapness? rip 6dof
+		if (0)
 		{
 			vec3_t paxis[3];
 			AngleVectors (newa, paxis[0], paxis[1], paxis[2]);

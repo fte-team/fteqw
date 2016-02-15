@@ -732,14 +732,14 @@ void CL_CheckForResend (void)
 	{
 		extern cvar_t dpcompat_nopreparse;
 		memset(&connectinfo, 0, sizeof(connectinfo));
+		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
+		Cvar_ForceSet(&cl_servername, cls.servername);
+		if (!NET_StringToAdr(cls.servername, 0, &connectinfo.adr))
+			return;	//erk?
 		connectinfo.trying = true;
 		connectinfo.istransfer = false;
 
 		NET_InitClient(true);
-
-		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
-		Cvar_ForceSet(&cl_servername, cls.servername);
-		NET_StringToAdr(cls.servername, 0, &connectinfo.adr);
 
 		cls.state = ca_disconnected;
 		switch (svs.gametype)
@@ -1363,7 +1363,11 @@ void CL_Rcon_f (void)
 
 			return;
 		}
-		NET_StringToAdr (rcon_address.string, PORT_QWSERVER, &to);
+		if (!NET_StringToAdr (rcon_address.string, PORT_QWSERVER, &to))
+		{
+			Con_Printf("Unable to resolve target address\n");
+			return;
+		}
 	}
 
 	NET_SendPacket (NS_CLIENT, strlen(message)+1, message, &to);
@@ -1715,7 +1719,7 @@ void CL_Disconnect (void)
 	Alias_WipeStuffedAliases();
 
 	//now start up the csqc/menu module again.
-//	CSQC_UnconnectedInit();
+//	(void)CSQC_UnconnectedInit();
 }
 
 #undef serverrunning
@@ -1732,7 +1736,7 @@ void CL_Disconnect_f (void)
 
 	connectinfo.trying = false;
 
-	CSQC_UnconnectedInit();
+	(void)CSQC_UnconnectedInit();
 }
 
 /*
@@ -2730,14 +2734,16 @@ void CL_ConnectionlessPacket (void)
 			netadr_t adr;
 			char *data = MSG_ReadStringLine();
 			Con_TPrintf ("redirect to %s\n", data);
-			NET_StringToAdr(data, PORT_QWSERVER, &adr);
-			data = "\xff\xff\xff\xffgetchallenge\n";
-
-			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			if (NET_StringToAdr(data, PORT_QWSERVER, &adr))
 			{
-				connectinfo.istransfer = true;
-				connectinfo.adr = adr;
-				NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
+				data = "\xff\xff\xff\xffgetchallenge\n";
+
+				if (NET_CompareAdr(&connectinfo.adr, &net_from))
+				{
+					connectinfo.istransfer = true;
+					connectinfo.adr = adr;
+					NET_SendPacket (NS_CLIENT, strlen(data), data, &adr);
+				}
 			}
 			return;
 		}
@@ -4463,6 +4469,7 @@ void Host_RunFilePrompted(void *ctx, int button)
 	Host_DoRunFile(f);
 }
 
+#ifdef WEBCLIENT
 static qboolean isurl(char *url)
 {
 #ifdef FTE_TARGET_WEB
@@ -4470,6 +4477,7 @@ static qboolean isurl(char *url)
 #endif
 	return /*!strncmp(url, "data:", 5) || */!strncmp(url, "http://", 7) || !strncmp(url, "https://", 8);
 }
+#endif
 
 qboolean FS_FixupGamedirForExternalFile(char *input, char *filename, size_t fnamelen);
 
@@ -5058,7 +5066,6 @@ double Host_Frame (double time)
 
 	if (cls.demoplayback && !cl.stillloading)
 	{
-		extern qboolean shader_reload_needed; //this can take some time when you have weird glsl.
 		qboolean haswork = cl.sendprespawn || COM_HasWork();
 		if (!hadwork && !haswork)
 			CL_ProgressDemoTime();
@@ -5427,7 +5434,6 @@ void CL_ArgumentOverrides(void)
 void CL_ExecInitialConfigs(char *resetcommand)
 {
 	int qrc, hrc, def;
-	extern cvar_t fs_gamename, com_protocolname;	//these come from the manifest, so shouldn't be reset by cvarreset
 
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
 	SCR_ShowPic_Clear(true);

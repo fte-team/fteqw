@@ -295,8 +295,8 @@ void M_Menu_SinglePlayer_f (void)
 #ifndef CLIENTONLY
 	menubutton_t *b;
 	mpic_t *p;
-#endif
 	static menuresel_t resel;
+#endif
 
 	Key_Dest_Add(kdm_emenu);
 	m_state = m_complex;

@@ -1747,16 +1747,23 @@ void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *m
 
 void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t *msg)
 {
-	client_frame_t	*fromframe;
 	packet_entities_t *from;
 	int		oldindex, newindex;
 	int		oldnum, newnum;
 	int		oldmax;
 
 	// this is the frame that we are going to delta update from
-	fromframe = &client->frameunion.frames[client->netchan.incoming_sequence-1 & UPDATE_MASK];
-	from = &fromframe->entities;
-	oldmax = from->num_entities;
+	if (!client->netchan.incoming_sequence)
+	{
+		oldmax = 0;
+		from = NULL;
+	}
+	else
+	{
+		client_frame_t	*fromframe = &client->frameunion.frames[(client->netchan.incoming_sequence-1) & UPDATE_MASK];
+		from = &fromframe->entities;
+		oldmax = from->num_entities;
+	}
 
 //	Con_Printf ("frame %i\n", client->netchan.incoming_sequence);
 

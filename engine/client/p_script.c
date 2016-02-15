@@ -2356,6 +2356,9 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		case SM_BOX:
 			Q_strncatz(outstr, va("spawnmode box %g %g\n", ptype->spawnparam1, ptype->spawnparam2), outstrlen);
 			break;
+		case SM_MESHSURFACE:
+			Q_strncatz(outstr, va("spawnmode meshsurface\n"), outstrlen);
+			break;
 		}
 		if (ptype->spawnvel || ptype->spawnvelvert || all)
 			Q_strncatz(outstr, va("spawnvel %g %g\n", ptype->spawnvel, ptype->spawnvelvert), outstrlen);
@@ -4138,7 +4141,6 @@ static void PScript_ApplyOrgVel(vec3_t oorg, vec3_t ovel, vec3_t eforg, vec3_t a
 
 static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3], int dlkey, float countscale)
 {
-	extern cvar_t r_rocketlight;
 	extern cvar_t r_lightflicker;
 	if (ptype->nummodels)
 	{

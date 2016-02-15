@@ -831,7 +831,7 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 		else
 		{
 			Con_SafePrintf ("Couldn't load %s\n", namebuffer);
-			COM_AddWork(0, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
+			COM_AddWork(WG_MAIN, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
 			return;
 		}
 	}
@@ -880,7 +880,7 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 	{
 		//FIXME: check to see if queued for download.
 		Con_DPrintf ("Couldn't load %s\n", namebuffer);
-		COM_AddWork(0, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
+		COM_AddWork(WG_MAIN, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
 		return;
 	}
 
@@ -891,7 +891,7 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 			if (AudioInputPlugins[i](s, data, filesize, snd_speed))
 			{
 				//wake up the main thread in case it decided to wait for us.
-				COM_AddWork(0, S_LoadedOrFailed, s, NULL, SLS_LOADED, 0);
+				COM_AddWork(WG_MAIN, S_LoadedOrFailed, s, NULL, SLS_LOADED, 0);
 				BZ_Free(data);
 				return;
 			}
@@ -901,7 +901,7 @@ void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t a, size_t b)
 	if (s->loadstate != SLS_FAILED)
 		Con_Printf ("Format not recognised: %s\n", namebuffer);
 
-	COM_AddWork(0, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
+	COM_AddWork(WG_MAIN, S_LoadedOrFailed, s, NULL, SLS_FAILED, 0);
 	BZ_Free(data);
 	return;
 }
@@ -911,7 +911,7 @@ qboolean S_LoadSound (sfx_t *s)
 	if (s->loadstate == SLS_NOTLOADED && sndcardinfo)
 	{
 		s->loadstate = SLS_LOADING;
-		COM_AddWork(1, S_LoadSoundWorker, s, NULL, 0, 0);
+		COM_AddWork(WG_LOADER, S_LoadSoundWorker, s, NULL, 0, 0);
 	}
 	if (s->loadstate == SLS_FAILED)
 		return false;	//it failed to load once before, don't bother trying again.

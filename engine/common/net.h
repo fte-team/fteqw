@@ -62,11 +62,7 @@ struct sockaddr_qstorage
 {
 	short dontusesa_family;
 	unsigned char dontusesa_pad[6];
-#if defined(_MSC_VER) || defined(MINGW)
-	__int64 sa_align;
-#else
-	int sa_align[2];
-#endif
+	qint64_t sa_align;
 	unsigned char sa_pad2[112];
 };
 
@@ -269,14 +265,17 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 #define CCREP_RULE_INFO		0x85
 
 //server->client protocol info
-#define NQ_PROTOCOL_VERSION 15
-#define H2_PROTOCOL_VERSION 19
-#define NEHD_PROTOCOL_VERSION 250
-#define FITZ_PROTOCOL_VERSION 666
-#define RMQ_PROTOCOL_VERSION 999
-#define DP5_PROTOCOL_VERSION 3502
-#define DP6_PROTOCOL_VERSION 3503
-#define DP7_PROTOCOL_VERSION 3504
+#define PROTOCOL_VERSION_NQ		15
+#define PROTOCOL_VERSION_H2		19
+#define PROTOCOL_VERSION_NEHD	250
+#define PROTOCOL_VERSION_FITZ	666
+#define PROTOCOL_VERSION_RMQ	999
+#define PROTOCOL_VERSION_DP5	3502
+#define PROTOCOL_VERSION_DP6	3503
+#define PROTOCOL_VERSION_DP7	3504
+#define PROTOCOL_VERSION_BJP1	10000
+#define PROTOCOL_VERSION_BJP2	10001
+#define PROTOCOL_VERSION_BJP3	10002
 
 /*RMQ protocol flags*/
 #define RMQFL_SHORTANGLE	(1 << 1)

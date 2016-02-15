@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLDP_ParseDarkPlaces5Entities(void);
 static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue);
-static void CL_SetStatInt (int pnum, int stat, int ivalue);
+#define CL_SetStatInt(pnum,stat,ival) do{int thevalue=ival; CL_SetStatNumeric(pnum,stat,thevalue,thevalue);}while(0)
 static qboolean CL_CheckModelResources (char *name);
 
 char cl_dp_csqc_progsname[128];
@@ -2292,7 +2292,7 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 					for (b = dl->dlblocks; b; b = n)
 					{
 						if (b->state == DLB_RECEIVED)
-							VFS_PRINTF(parts, "c %"PRIx64" %"PRIx64"\n", (long long)b->start, (long long)b->end);
+							VFS_PRINTF(parts, "c %"PRIx64" %"PRIx64"\n", (quint64_t)b->start, (quint64_t)b->end);
 						else
 						{
 							for(;;)
@@ -2307,7 +2307,7 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 								}
 								break;
 							}
-							VFS_PRINTF(parts, "m %"PRIx64" %"PRIx64"\n", (long long)b->start, (long long)b->end);
+							VFS_PRINTF(parts, "m %"PRIx64" %"PRIx64"\n", (quint64_t)b->start, (quint64_t)b->end);
 						}
 
 						n = b->next;
@@ -3297,15 +3297,15 @@ void CLNQ_ParseProtoVersion(void)
 	cls.protocol_nq = (cls.protocol_nq==CPNQ_PROQUAKE3_4)?CPNQ_PROQUAKE3_4:CPNQ_ID;
 	cls.z_ext = 0;
 
-	if (protover == NEHD_PROTOCOL_VERSION)
+	if (protover == PROTOCOL_VERSION_NEHD)
 		Host_EndGame ("Nehahra demo net protocol is not supported\n");
-	else if (protover == FITZ_PROTOCOL_VERSION)
+	else if (protover == PROTOCOL_VERSION_FITZ)
 	{
 		//fitzquake 0.85
 		cls.protocol_nq = CPNQ_FITZ666;
 		Con_DPrintf("FitzQuake 666 protocol\n");
 	}
-	else if (protover == RMQ_PROTOCOL_VERSION)
+	else if (protover == PROTOCOL_VERSION_RMQ)
 	{
 		int fl;
 		cls.protocol_nq = CPNQ_FITZ666;
@@ -3323,7 +3323,7 @@ void CLNQ_ParseProtoVersion(void)
 		if (fl & ~(RMQFL_SHORTANGLE|RMQFL_FLOATANGLE|RMQFL_24BITCOORD|RMQFL_FLOATCOORD|RMQFL_EDICTSCALE))
 			Con_Printf("WARNING: Server is using unsupported RMQ extensions\n");
 	}
-	else if (protover == DP5_PROTOCOL_VERSION)
+	else if (protover == PROTOCOL_VERSION_DP5)
 	{
 		//darkplaces5
 		cls.protocol_nq = CPNQ_DP5;
@@ -3332,7 +3332,7 @@ void CLNQ_ParseProtoVersion(void)
 
 		Con_DPrintf("DP5 protocols\n");
 	}
-	else if (protover == DP6_PROTOCOL_VERSION)
+	else if (protover == PROTOCOL_VERSION_DP6)
 	{
 		//darkplaces6 (it's a small difference from dp5)
 		cls.protocol_nq = CPNQ_DP6;
@@ -3343,7 +3343,7 @@ void CLNQ_ParseProtoVersion(void)
 
 		Con_DPrintf("DP6 protocols\n");
 	}
-	else if (protover == DP7_PROTOCOL_VERSION)
+	else if (protover == PROTOCOL_VERSION_DP7)
 	{
 		//darkplaces7 (it's a small difference from dp5)
 		cls.protocol_nq = CPNQ_DP7;
@@ -3354,18 +3354,29 @@ void CLNQ_ParseProtoVersion(void)
 
 		Con_DPrintf("DP7 protocols\n");
 	}
-	else if (protover == H2_PROTOCOL_VERSION)
+	else if (protover == PROTOCOL_VERSION_H2)
 	{
 		Host_EndGame ("\nUnable to connect to standard Hexen2 servers. Host the game with "DISTRIBUTION"\n");
 	}
-	else if (protover != NQ_PROTOCOL_VERSION)
+	else if (protover == PROTOCOL_VERSION_BJP1)
 	{
-		Host_EndGame ("Server is using protocol version %i, which is not supported by this version of " FULLENGINENAME ".", protover);
+		cls.protocol_nq = CPNQ_BJP1;
+		Con_DPrintf("bjp1 %i protocol\n", PROTOCOL_VERSION_BJP1);
 	}
-	else
+	else if (protover == PROTOCOL_VERSION_BJP2)
 	{
+		cls.protocol_nq = CPNQ_BJP2;
+		Con_DPrintf("bjp2 %i protocol\n", PROTOCOL_VERSION_BJP2);
+	}
+	else if (protover == PROTOCOL_VERSION_BJP3)
+	{
+		cls.protocol_nq = CPNQ_BJP3;
+		Con_DPrintf("bjp3 %i protocol\n", PROTOCOL_VERSION_BJP2);
+	}
+	else if (protover == PROTOCOL_VERSION_NQ)
 		Con_DPrintf("Standard NQ protocols\n");
-	}
+	else
+		Host_EndGame ("Server is using protocol version %i, which is not supported by this version of " FULLENGINENAME ".", protover);
 	if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
 	{
 		if (netprim.anglesize < 2)
@@ -3639,7 +3650,13 @@ void CLNQ_ParseClientdata (void)
 
 		if (bits & SU_WEAPONFRAME)	weaponframe |= (unsigned char)MSG_ReadByte();
 		if (bits & SU_ARMOR)		armour |= (unsigned char)MSG_ReadByte();
-		if (bits & SU_WEAPONMODEL)	weaponmodel |= (unsigned char)MSG_ReadByte();
+		if (bits & SU_WEAPONMODEL)
+		{
+			if (CPNQ_IS_BJP)
+				weaponmodel |= (unsigned short)MSG_ReadShort();
+			else
+				weaponmodel |= (unsigned char)MSG_ReadByte();
+		}
 		health |= MSG_ReadShort();
 		currentammo |= MSG_ReadByte();
 		shells |= MSG_ReadByte();
@@ -4086,7 +4103,10 @@ void CL_ParseBaseline (entity_state_t *es)
 
 	memcpy(es, &nullentitystate, sizeof(entity_state_t));
 
- 	es->modelindex = MSG_ReadByte ();
+	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_BJP)
+		es->modelindex = MSG_ReadShort ();
+	else
+ 		es->modelindex = MSG_ReadByte ();
 	es->frame = MSG_ReadByte ();
 	es->colormap = MSG_ReadByte();
 	es->skinnum = MSG_ReadByte();
@@ -4298,7 +4318,7 @@ void CL_ParseStaticSound (qboolean large)
 
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
-	if (large)
+	if (large || (cls.protocol == CP_NETQUAKE && cls.protocol_nq == CPNQ_BJP2))
 		sound_num = (unsigned short)MSG_ReadShort();
 	else
 		sound_num = MSG_ReadByte ();
@@ -4532,7 +4552,7 @@ void CLNQ_ParseStartSoundPacket(void)
 	/*unpack mangling*/
 	channel = (channel & 7) | ((channel & 0x0f1) << 1);
 
-	if (field_mask & DPSND_LARGESOUND)
+	if ((field_mask & DPSND_LARGESOUND) || (cls.protocol == CP_NETQUAKE && (cls.protocol_nq == CPNQ_BJP2 || cls.protocol_nq == CPNQ_BJP3))) //bjp2 kinda sucks
 		sound_num = (unsigned short)MSG_ReadShort();
 	else
 		sound_num = (unsigned char)MSG_ReadByte ();
@@ -5001,10 +5021,6 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 			CL_SetStatMovevar(pnum, stat, *(float*)&ivalue);	//DP sucks.
 	}
 #endif
-}
-static void CL_SetStatInt (int pnum, int stat, int ivalue)
-{
-	CL_SetStatNumeric(pnum,stat,ivalue,ivalue);
 }
 
 void CL_SetStatString (int pnum, int stat, char *value)
@@ -5894,7 +5910,7 @@ static void CL_ParseItemTimer(void)
 					atof(Cmd_Argv(3))};
 	float radius =	atof(Cmd_Argv(4));
 	//unsigned int rgb = strtoul(Cmd_Argv(5), NULL, 16);
-	char *timername =	Cmd_Argv(6);
+//	char *timername =	Cmd_Argv(6);
 	unsigned int entnum = strtoul(Cmd_Argv(7), NULL, 0);
 	struct itemtimer_s *timer;
 
@@ -6180,6 +6196,8 @@ void CL_ParsePortalState(void)
 			a1 = MSG_ReadByte();
 #ifdef Q2BSPS
 		CMQ2_SetAreaPortalState(cl.worldmodel, a1, !!(mode&1));
+#else
+		(void)a1;
 #endif
 		break;
 	case 0xc0:
@@ -6195,6 +6213,9 @@ void CL_ParsePortalState(void)
 		}
 #ifdef Q3BSPS
 		CMQ3_SetAreaPortalState(cl.worldmodel, a1, a2, !!(mode&1));
+#else
+		(void)a1;
+		(void)a2;
 #endif
 		break;
 
@@ -6827,11 +6848,12 @@ void CLQ2_ParseServerMessage (void)
 
 		seat = 0;
 		if (cmd == svcq2_playerinfo && (cls.fteprotocolextensions & PEXT_SPLITSCREEN))
-		{
+		{	//playerinfo should not normally be seen here.
+			//so we can just 'borrow' it for seat numbers for targetted svcs.
 			SHOWNET(va("%i", cmd));
 			seat = MSG_ReadByte ();
 			if (seat >= MAX_SPLITS)
-				Host_EndGame ("CLQ2_ParseServerMessage: Invalid seat", cmd);
+				Host_EndGame ("CLQ2_ParseServerMessage: Unsupported seat (%i)", seat);
 			cmd = MSG_ReadByte ();
 		}
 

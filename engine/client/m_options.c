@@ -172,19 +172,27 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 	}
 }
 
+#if defined(WEBCLIENT) && defined(_WIN32)
+#define HAVEAUTOUPDATE
 void M_Options_Remove(menu_t *m)
 {
 	menucombo_t *c = m->data;
 	if (c)
 		Sys_SetAutoUpdateSetting(c->selectedoption);
 }
+#endif
 
 //options menu.
 void M_Menu_Options_f (void)
 {
-	extern cvar_t crosshair, r_projection, sv_autosave;
+	extern cvar_t crosshair, r_projection;
+#ifndef CLIENTONLY
+	extern cvar_t sv_autosave;
+#endif
 	int y;
 
+#ifdef HAVEAUTOUPDATE
+#define HAVEAUTOUPDATE
 	menuoption_t *updatecbo;
 	static const char *autoupopts[] = {
 		"Revert",
@@ -193,7 +201,7 @@ void M_Menu_Options_f (void)
 		"Untested(Latest)",
 		NULL
 	};
-
+#endif
 	static const char *projections[] = {
 		"Regular",
 		"Stereographic",
@@ -209,9 +217,11 @@ void M_Menu_Options_f (void)
 		"2",
 		"3",
 		"4",
+		"5",
 		NULL
 	};
 
+#ifndef CLIENTONLY
 	static const char *autosaveopts[] = {
 		"Off",
 		"30 secs",
@@ -221,7 +231,7 @@ void M_Menu_Options_f (void)
 		"5 mins",
 		NULL
 	};
-	static const char *autsavevals[] = {
+	static const char *autosavevals[] = {
 		"0",
 		"0.5",
 		"1",
@@ -230,6 +240,7 @@ void M_Menu_Options_f (void)
 		"5",
 		NULL
 	};
+#endif
 
 	menubulk_t bulk[] = {
 		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
@@ -246,9 +257,11 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXCVAR("Lookspring", lookspring, 0),
 		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
 		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
+#ifdef HAVEAUTOUPDATE
 		MB_COMBORETURN("Auto Update", autoupopts, Sys_GetAutoUpdateSetting(), updatecbo, "This downloads engine updates from the internet, when a new build is available."),
+#endif
 #ifndef CLIENTONLY
-		MB_COMBOCVAR("Auto Save", sv_autosave, autosaveopts, autsavevals, NULL),
+		MB_COMBOCVAR("Auto Save", sv_autosave, autosaveopts, autosavevals, NULL),
 #endif
 		MB_SPACING(4),
 		// removed hud options (cl_sbar, cl_hudswap, old-style chat, old-style msg)
@@ -300,9 +313,10 @@ void M_Menu_Options_f (void)
 	}
 #endif
 
-
+#ifdef HAVEAUTOUPDATE
 	menu->data = updatecbo;
 	menu->remove = M_Options_Remove;
+#endif
 }
 
 #ifndef __CYGWIN__
@@ -1220,6 +1234,7 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 	if (key != K_ENTER && key != K_KP_ENTER && key != K_MOUSE1)
 		return false;
 
+#ifdef RTLIGHTS
 	{
 		char *cvarsrw = "0";
 		char *cvarsrws = "0";
@@ -1243,6 +1258,7 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 		Cbuf_AddText(va("r_vertexlight %s;r_shadow_realtime_world %s;r_shadow_realtime_world_shadows %s\n", cvarv, cvarsrw, cvarsrws), RESTRICT_LOCAL);
 #endif
 	}
+#endif
 
 	{
 		char *cvard = "0";
@@ -1269,11 +1285,20 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 			cvarvd = "1";
 			break;
 		}
+#ifdef RTLIGHTS
 #ifdef MINIMAL
 		Cbuf_AddText(va("r_shadow_realtime_dlight %s;r_shadow_realtime_dlight_shadows %s;r_dynamic %s\n", cvarsrd, cvarsrds, cvard), RESTRICT_LOCAL);
 #else
 		Cbuf_AddText(va("r_shadow_realtime_dlight %s;r_shadow_realtime_dlight_shadows %s;r_dynamic %s;r_vertexdlight %s\n", cvarsrd, cvarsrds, cvard, cvarvd), RESTRICT_LOCAL);
 #endif
+#else
+#ifdef MINIMAL
+		Cbuf_AddText(va("r_dynamic %s\n", cvard), RESTRICT_LOCAL);
+#else
+		Cbuf_AddText(va("r_dynamic %s;r_vertexdlight %s\n", cvard, cvarvd), RESTRICT_LOCAL);
+#endif
+#endif
+		(void)cvarsrd, (void)cvarsrds, (void)cvard, (void)cvarvd;
 	}
 
 	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
@@ -1288,9 +1313,11 @@ void M_Menu_Lighting_f (void)
 #ifndef MINIMAL
 	extern cvar_t r_vertexlight, r_vertexdlights;
 #endif
-	extern cvar_t r_stains, r_shadows, r_shadow_realtime_world, r_loadlits, r_dynamic;
+	extern cvar_t r_stains, r_shadows, r_loadlits;
 	extern cvar_t r_lightstylesmooth, r_nolightdir;
-	extern cvar_t r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
+#ifdef RTLIGHTS
+	extern cvar_t r_dynamic, r_shadow_realtime_world, r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
+#endif
 	extern cvar_t r_fb_models, r_rocketlight, r_powerupglow;
 	extern cvar_t v_powerupshell, r_explosionlight;
 	//extern cvar_t r_fb_bmodels, r_shadow_realtime_world_lightmaps, r_lightstylespeed;
@@ -1298,10 +1325,12 @@ void M_Menu_Lighting_f (void)
 	static const char *lightingopts[] =
 	{
 		"Standard",
+#ifdef RTLIGHTS
 		"Realtime",
 		"RT+Shadows",
 #ifndef MINIMAL
 		"Vertex",
+#endif
 #endif
 		NULL
 	};
@@ -1309,11 +1338,13 @@ void M_Menu_Lighting_f (void)
 	{
 		"None",
 		"Standard",
+#ifdef RTLIGHTS
 		"Realtime",
 		"RT+Shadows",
 		"Threaded Lightmaps",
 #ifndef MINIMAL
 		"Vertex",
+#endif
 #endif
 		NULL
 	};
@@ -1381,9 +1412,9 @@ void M_Menu_Lighting_f (void)
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(lightingmenuinfo_t));
 
-#ifdef RTLIGHTS
 	int lightselect, dlightselect;
 
+#ifdef RTLIGHTS
 	if (r_shadow_realtime_world.ival)
 	{
 		if (r_shadow_realtime_world_shadows.ival)
@@ -1391,13 +1422,16 @@ void M_Menu_Lighting_f (void)
 		else
 			lightselect = 1;
 	}
-#ifndef MINIMAL
-	else if (r_vertexlight.ival)
-		lightselect = 3;
-#endif
 	else
+#endif
+#ifndef MINIMAL
+	if (r_vertexlight.ival)
+		lightselect = 3;
+	else
+#endif
 		lightselect = 0;
 
+#ifdef RTLIGHTS
 	if (r_shadow_realtime_dlight.ival)
 	{
 		if (r_shadow_realtime_dlight_shadows.ival)
@@ -1411,11 +1445,12 @@ void M_Menu_Lighting_f (void)
 	else if (r_vertexdlights.ival)
 		dlightselect = 5;
 #endif
-	else if (r_dynamic.ival > 0)
+	else
+#endif
+	if (r_dynamic.ival > 0)
 		dlightselect = 1;
 	else
 		dlightselect = 0;
-#endif
 
 	{
 		lightingmenuinfo_t *info = menu->data;
@@ -1423,9 +1458,9 @@ void M_Menu_Lighting_f (void)
 		{
 			MB_REDTEXT("Lighting Options", false),
 			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", false),
-#ifdef RTLIGHTS
 			MB_COMBORETURN("Lighting Mode", lightingopts, lightselect, info->lightcombo, "Selects method used for world lighting. Realtime lighting requires appropriate realtime lighting files for maps."),
 			MB_COMBORETURN("Dynamic Lighting Mode", dlightopts, dlightselect, info->dlightcombo, "Selects method used for dynamic lighting such as explosion lights and muzzle flashes."),
+#ifdef RTLIGHTS
 			MB_CHECKBOXCVARTIP("Soft Shadows", r_shadow_shadowmapping, 0, "Enables softer shadows instead of course-edged pixelated shadows."),
 			MB_CMD("Apply Lighting", M_VideoApplyShadowLighting, "Applies set lighting modes and restarts video."),
 			MB_SPACING(4),
@@ -1456,6 +1491,7 @@ menucombo_t *skillcombo;
 menucombo_t *mapcombo;
 } singleplayerinfo_t;
 
+#ifndef CLIENTONLY
 static const char *maplist_q1[] =
 {
 	"start",
@@ -1528,7 +1564,7 @@ static const char *mapoptions_q1[] =
 	NULL
 };
 
-
+#ifdef Q2CLIENT
 static const char *maplist_q2[] =
 {
 	"base1",
@@ -1614,6 +1650,8 @@ static const char *mapoptions_q2[] =
 	"boss2 (Unit 9 Boss Levels: Final Showdown)",
 	NULL
 };
+#endif
+#endif
 
 qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
 {
@@ -1638,8 +1676,10 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
 		break;
 	}
 
+#ifndef CLIENTONLY
 	if ((unsigned int)info->mapcombo->selectedoption >= sizeof(maplist_q1)/sizeof(maplist_q1[0]))
 		Cbuf_AddText(va("map %s\n", maplist_q1[info->mapcombo->selectedoption]), RESTRICT_LOCAL);
+#endif
 
 	M_RemoveMenu(menu);
 	Cbuf_AddText("menu_spcheats\n", RESTRICT_LOCAL);
@@ -1649,6 +1689,7 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
 
 void M_Menu_Singleplayer_Cheats_Quake (void)
 {
+	#ifndef CLIENTONLY
 	static const char *skilloptions[] =
 	{
 		"Easy",
@@ -1658,15 +1699,13 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 		"None Set",
 		NULL
 	};
-
-	singleplayerinfo_t *info;
-	int cursorpositionY;
-	#ifndef CLIENTONLY
 	int currentskill;
 	int currentmap;
 	extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
 	extern cvar_t host_mapname;
 	#endif
+	singleplayerinfo_t *info;
+	int cursorpositionY;
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
@@ -1725,6 +1764,7 @@ void M_Menu_Singleplayer_Cheats_Quake (void)
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, 0, cursorpositionY, NULL, false);
 }
 
+#ifdef Q2CLIENT
 // Quake 2
 
 typedef struct {
@@ -1759,7 +1799,6 @@ qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct menu_s *menu,int ke
 	Cbuf_AddText("menu_spcheats\n", RESTRICT_LOCAL);
 	return true;
 }
-
 
 void M_Menu_Singleplayer_Cheats_Quake2 (void)
 {
@@ -1848,11 +1887,9 @@ void M_Menu_Singleplayer_Cheats_Quake2 (void)
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, 0, cursorpositionY, NULL, false);
 }
+#endif	// Quake 2
 
-// Hexen 2
-
-// Quake 2
-
+#ifdef HEXEN2 // Hexen 2
 typedef struct {
 menucombo_t *skillcombo;
 menucombo_t *mapcombo;
@@ -2203,6 +2240,7 @@ void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 250, 0, cursorpositionY, NULL, false);
 }
+#endif
 
 void M_Menu_Singleplayer_Cheats_f (void)
 {

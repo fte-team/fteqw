@@ -1057,6 +1057,7 @@ static void inline QCC_PR_Expect (char *string)
 
 void editbadfile(char *fname, int line);
 char *TypeName(QCC_type_t *type, char *buffer, int buffersize);
+void QCC_PR_AddIncludePath(const char *newinc);
 void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename);
 void QCC_PR_IncludeChunkEx(char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst);
 void QCC_PR_CloseProcessor(void);

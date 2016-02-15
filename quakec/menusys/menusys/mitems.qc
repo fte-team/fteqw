@@ -51,8 +51,13 @@ var float dp_workarounds;
 #define TD_RGT '0.2 0.2 0.2'
 #define TD_BOT '0.0 0.0 0.0'
 
-#define MENUBACK_RGB '0.5 0.5 0.6'
+#ifndef MENUBACK_RGB
+#define MENUBACK_RGB '0.4 0.365 0.29'
+//#define MENUBACK_RGB '0.5 0.5 0.6'
+#endif
+#ifndef MENUBACK_ALPHA
 #define MENUBACK_ALPHA 0.8
+#endif
 
 //#ifdef TARGET_FTE
 //#pragma TARGET FTE

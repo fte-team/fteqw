@@ -1986,7 +1986,10 @@ vfsfile_t *CL_OpenFileInZipOrSys(char *name, qboolean usesystempath)
 //tries to determine the demo type
 void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 {
-	qofs_t start;
+#if defined(Q2CLIENT) || defined(NQPROT)
+	//figure out where we started
+	qofs_t start = VFS_TELL(f);
+#endif
 
 	if (!VFS_GETLEN (f))
 	{
@@ -1994,9 +1997,6 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 		Con_Printf ("demo \"%s\" is empty.\n", demoname);
 		return;
 	}
-
-	//figure out where we started
-	start = VFS_TELL(f);
 
 #ifdef Q2CLIENT
 	{
@@ -2015,6 +2015,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 			CL_PlayDemoStream(f, NULL, demoname, issyspath, DPB_QUAKE2, 0);
 			return;
 		}
+		VFS_SEEK(f, start);
 	}
 #endif
 

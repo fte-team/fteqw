@@ -2359,7 +2359,7 @@ LONG WINAPI GLMainWndProc (
 			{
 				COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lParam;
 #ifdef WTHREAD
-				COM_AddWork(0, MainThreadWndProc, NULL, memcpy(Z_Malloc(cds->cbData), cds->lpData, cds->cbData), uMsg, cds->cbData);
+				COM_AddWork(WG_MAIN, MainThreadWndProc, NULL, memcpy(Z_Malloc(cds->cbData), cds->lpData, cds->cbData), uMsg, cds->cbData);
 #else
 				Host_RunFile(cds->lpData, cds->cbData, NULL);
 #endif
@@ -2368,7 +2368,7 @@ LONG WINAPI GLMainWndProc (
 			break;
 		case WM_KILLFOCUS:
 #ifdef WTHREAD
-			COM_AddWork(0, MainThreadWndProc, NULL, NULL, uMsg, 0);
+			COM_AddWork(WG_MAIN, MainThreadWndProc, NULL, NULL, uMsg, 0);
 #else
 			GLAppActivate(FALSE, Minimized);//FIXME: thread
 			if (modestate == MS_FULLDIB)
@@ -2378,7 +2378,7 @@ LONG WINAPI GLMainWndProc (
 			break;
 		case WM_SETFOCUS:
 #ifdef WTHREAD
-			COM_AddWork(0, MainThreadWndProc, NULL, NULL, uMsg, 0);
+			COM_AddWork(WG_MAIN, MainThreadWndProc, NULL, NULL, uMsg, 0);
 #else
 			if (!GLAppActivate(TRUE, Minimized))//FIXME: thread
 				break;
@@ -2396,7 +2396,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_MOVE:
 			VID_UpdateWindowStatus (hWnd);
 #ifdef WTHREAD
-			COM_AddWork(0, MainThreadWndProc, NULL, NULL, uMsg, 0);
+			COM_AddWork(WG_MAIN, MainThreadWndProc, NULL, NULL, uMsg, 0);
 #else
 			Cvar_ForceCallback(&vid_conautoscale);
 #endif
@@ -2535,7 +2535,7 @@ LONG WINAPI GLMainWndProc (
 			{
 				VID_UpdateWindowStatus (hWnd);
 #ifdef WTHREAD
-				COM_AddWork(0, MainThreadWndProc, NULL, NULL, uMsg, 0);
+				COM_AddWork(WG_MAIN, MainThreadWndProc, NULL, NULL, uMsg, 0);
 #else
 				Cvar_ForceCallback(&vid_conautoscale);
 #endif

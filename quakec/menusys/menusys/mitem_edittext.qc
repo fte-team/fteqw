@@ -24,11 +24,11 @@ void(vector pos) mitem_edit::item_draw =
 	super::item_draw(pos);
 
 	pos_x += item_size_x / 2;
-	ui.drawfill(pos, [item_size_x/2, 1], TD_BOT, item_alpha, 0);
+/*	ui.drawfill(pos, [item_size_x/2, 1], TD_BOT, item_alpha, 0);
 	ui.drawfill(pos, [1, self.item_size_y - 1], TD_RGT, item_alpha, 0);
 	ui.drawfill(pos + [item_size_x/2-1, 1], [1, item_size_y - 1], TD_LFT, item_alpha, 0);
 	ui.drawfill(pos + [0, item_size_y-1], [item_size_x/2, 1], TD_TOP, item_alpha, 0);
-	pos_y += (item_size_y - item_scale)*0.5;
+*/	pos_y += (item_size_y - item_scale)*0.5;
 	pos_x += 1;
 
 	spos = min(spos, strlen(curval));

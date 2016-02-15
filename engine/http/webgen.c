@@ -15,7 +15,7 @@ static char lastrecordedmvd[MAX_QPATH];
 
 static IWeb_FileGen_t *IWeb_GenerationBuffer;
 static size_t IWeb_GenerationBufferTotal;
-
+/*
 static void IWeb_MoreGeneratedResize(size_t newsize)
 {
 	IWeb_FileGen_t *ob;
@@ -37,6 +37,7 @@ static void IWeb_MoreGeneratedResize(size_t newsize)
 
 	IWeb_GenerationBufferTotal = newsize;
 }
+*/
 static void IWeb_Generate(const char *buf)
 {
 	size_t count = strlen(buf);
@@ -72,6 +73,7 @@ static void IWeb_Generate(const char *buf)
 
 int Rank_Enumerate (unsigned int first, unsigned int last, void (*callback) (const rankinfo_t *ri));	//leader first.
 
+/*
 static void IWeb_ParseForm(char *info, int infolen, char *text)
 {
 	char *eq, *and;
@@ -196,7 +198,7 @@ static void IWeb_GenerateAdminFile(char *parms, char *content, int contentlength
 		IWeb_Generate("<H1>Remote administration is not enabled.<H2>");
 	IWeb_Generate("</BODY></HTML>");
 }
-
+*/
 
 static void IWeb_GenerateRankingsFileCallback(const rankinfo_t *ri)
 {

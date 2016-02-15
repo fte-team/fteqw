@@ -517,7 +517,13 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 	int mfwt;
 	qboolean strafe_x, strafe_y;
 	int wpnum;
+#ifdef PEXT_CSQC
+#ifdef MULTITHREAD
 	extern qboolean runningindepphys;
+#else
+	const qboolean runningindepphys = false;
+#endif
+#endif
 
 	//small performance boost
 	if (mouse->type == M_INVALID)

@@ -2411,20 +2411,20 @@ void CL_Laser (vec3_t start, vec3_t end, int colors)
 void CLQ2_ParseSteam(void)
 {
 	vec3_t pos, dir;
-	qbyte colour;
+	/*qbyte colour;
 	short magnitude;
-	unsigned int duration;
+	unsigned int duration;*/
 	signed int id = MSG_ReadShort();
-	qbyte count = MSG_ReadByte();
+	/*qbyte count =*/ MSG_ReadByte();
 	MSG_ReadPos(pos);
 	MSG_ReadPos(dir);
-	colour = MSG_ReadByte();
-	magnitude = MSG_ReadShort();
+	/*colour =*/ MSG_ReadByte();
+	/*magnitude =*/ MSG_ReadShort();
 
 	if (id == -1)
-		duration = MSG_ReadLong();
+		/*duration =*/ MSG_ReadLong();
 	else
-		duration = 0;
+		/*duration = 0;*/
 
 	Con_Printf("FIXME: CLQ2_ParseSteam: stub\n");
 }

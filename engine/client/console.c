@@ -931,7 +931,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 
 	if (!Sys_IsMainThread())
 	{
-		COM_AddWork(0, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+		COM_AddWork(WG_MAIN, Con_PrintFromThread, NULL, Z_StrDup(msg), 0, 0);
 		return;
 	}
 
@@ -1007,7 +1007,7 @@ static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
 		Con_Log(data);
 	else
 	{
-		Sys_Printf ("%s", data);	// also echo to debugging console
+		Sys_Printf ("%s", (const char*)data);	// also echo to debugging console
 		Con_PrintCon(&con_main, data, con_main.parseflags);
 	}
 	BZ_Free(data);
@@ -1043,7 +1043,7 @@ void VARGS Con_DPrintf (const char *fmt, ...)
 	if (!Sys_IsMainThread())
 	{
 		if (developer.ival)
-			COM_AddWork(0, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
+			COM_AddWork(WG_MAIN, Con_DPrintFromThread, NULL, Z_StrDup(msg), 0, 0);
 		return;
 	}
 

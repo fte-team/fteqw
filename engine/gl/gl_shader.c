@@ -832,7 +832,7 @@ static void Shader_ClutterParms(shader_t *shader, shaderpass_t *pass, char **ptr
 static void Shader_SkyParms(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	skydome_t *skydome;
-	float skyheight;
+//	float skyheight;
 	char *boxname;
 
 	if (shader->skydome)
@@ -846,7 +846,7 @@ static void Shader_SkyParms(shader_t *shader, shaderpass_t *pass, char **ptr)
 	boxname = Shader_ParseString(ptr);
 	Shader_ParseSkySides(shader->name, boxname, skydome->farbox_textures);
 
-	skyheight = Shader_ParseFloat(shader, ptr, 512);
+	/*skyheight =*/ Shader_ParseFloat(shader, ptr, 512);
 
 	boxname = Shader_ParseString(ptr);
 	Shader_ParseSkySides(shader->name, boxname, skydome->nearbox_textures);
@@ -1867,10 +1867,10 @@ static void Shader_HLSL11ProgramName (shader_t *shader, shaderpass_t *pass, char
 
 static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
+#if 1
+	Con_DPrintf("shader %s: 'param' no longer supported\n", shader->name);
+#elif defined(GLQUAKE)
 	cvar_t *cv = NULL;
-	int specialint = 0;
-	float specialfloat = 0;
-	vec3_t specialvec = {0};
 	enum shaderprogparmtype_e parmtype = SP_BAD;
 	char *token;
 	qboolean silent = false;
@@ -1952,9 +1952,12 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	else
 		token = Shader_ParseSensString(ptr);
 
-#if 0//def GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
+		int specialint = 0;
+		float specialfloat = 0;
+		vec3_t specialvec = {0};
+
 		int p;
 		qboolean foundone;
 		unsigned int uniformloc;
@@ -2493,11 +2496,10 @@ static void Shaderpass_ClampMap (shader_t *shader, shaderpass_t *pass, char **pt
 
 static void Shaderpass_VideoMap (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	char		*token;
-
-	token = Shader_ParseSensString (ptr);
+	char		*token = Shader_ParseSensString (ptr);
 
 #ifdef NOMEDIA
+	(void)token;
 #else
 	if (pass->cin)
 		Z_Free (pass->cin);

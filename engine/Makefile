@@ -1104,6 +1104,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	SV_DIR=sv_linux$(BITS)
 	SV_EXE_NAME=../fteqw.sv$(BITS)
 	SV_LDFLAGS=
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DMULTITHREAD
 	
 	NPFTE_OBJS=httpclient.o image.o sys_linux_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o
 	NPFTE_DLL_NAME=../npfte$(BITS).so

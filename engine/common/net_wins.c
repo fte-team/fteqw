@@ -81,7 +81,6 @@ cvar_t	net_enabled		= CVARD("net_enabled", "1", "If 0, disables all network acce
 
 extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
 
-static qboolean allowconnects = false;
 
 
 
@@ -439,7 +438,7 @@ static void NET_AdrToStringDoResolve(void *ctx, void *data, size_t a, size_t b)
 			NET_BaseAdrToString(adrstring, NI_MAXHOST, n);
 		}
 	}
-	COM_AddWork(0, resolved, ctx, adrstring, a, b);
+	COM_AddWork(WG_MAIN, resolved, ctx, adrstring, a, b);
 	Z_Free(n);
 }
 
@@ -448,7 +447,7 @@ void NET_AdrToStringResolve (netadr_t *adr, void (*resolved)(void *ctx, void *da
 	netadr_t *n = Z_Malloc(sizeof(*n) + sizeof(void*));
 	*n = *adr;
 	*(void**)(n+1) = resolved;
-	COM_AddWork(2, NET_AdrToStringDoResolve, ctx, n, a, b);
+	COM_AddWork(WG_LOADER, NET_AdrToStringDoResolve, ctx, n, a, b);
 }
 */
 
@@ -824,6 +823,7 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qs
 		char dupbase[256];
 		int len;
 		size_t i;
+		double restime = Sys_DoubleTime();
 
 		memset(&udp6hint, 0, sizeof(udp6hint));
 		udp6hint.ai_family = 0;//Any... we check for AF_INET6 or 4
@@ -863,6 +863,13 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, struct sockaddr_qs
 			if (error)	//failed, try string with no port.
 				error = pgetaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
 		}
+
+		restime = Sys_DoubleTime()-restime;
+		if (restime > 0.5)
+		{	//adding this in an attempt to debug somewhat periodic stalls that I'm being told about.
+			Con_DPrintf("DNS resolution of %s %s %f seconds (on %s thread)\n", s, error?"failed after":"took", restime, Sys_IsMainThread()?"main":"worker");
+		}
+
 		if (error)
 		{
 			return false;
@@ -1764,20 +1771,26 @@ ftenet_connections_t *FTENET_CreateCollection(qboolean listen)
 	col->islisten = listen;
 	return col;
 }
+#if !defined(SERVERONLY) && !defined(CLIENTONLY)
 static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+#endif
 static ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 static ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+#ifdef TCPCONNECT
 static ftenet_generic_connection_t *FTENET_TCP4Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 static ftenet_generic_connection_t *FTENET_TCP6Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 static ftenet_generic_connection_t *FTENET_TLS4Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 static ftenet_generic_connection_t *FTENET_TLS6Connect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+#endif
 #ifdef USEIPX
 static ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 #endif
 #ifdef HAVE_WEBSOCKCL
 static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 #endif
+#ifdef IRCCONNECT
 static ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
+#endif
 #ifdef HAVE_NATPMP
 static ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(qboolean isserver, const char *address, netadr_t adr);
 #endif
@@ -2095,7 +2108,7 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 	ftenet_generic_connection_t *(*establish[countof(adr)])(qboolean isserver, const char *address, netadr_t adr);
 	char address[countof(adr)][256];
 	unsigned int i, j;
-	qboolean success;
+	qboolean success = false;
 
 	if (strchr(name, ':'))
 		return false;
@@ -2109,7 +2122,10 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 		else if (islisten)
 			NET_PortToAdr(addrtype, address[i], &adr[i]);
 		else
-			NET_StringToAdr(address[i], 0, &adr[i]);
+		{
+			if (!NET_StringToAdr(address[i], 0, &adr[i]))
+				return false;
+		}
 
 		switch(adr[i].type)
 		{
@@ -3377,7 +3393,7 @@ handshakeerror:
 				}
 				if ((ctrl & 0x7f) == 127)
 				{
-					unsigned long long ullpaylen;
+					quint64_t ullpaylen;
 					//as a payload is not allowed to be encoded as too large a type, and quakeworld never used packets larger than 1450 bytes anyway, this code isn't needed (65k is the max even without this)
 					if (sizeof(ullpaylen) < 8)
 					{
@@ -3389,14 +3405,14 @@ handshakeerror:
 						if (payoffs + 8 > st->inlen)
 							break;
 						ullpaylen = 
-							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+0]<<56ull |
-							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+1]<<48ull |
-							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+2]<<40ull |
-							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+3]<<32ull |
-							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+4]<<24ull |
-							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+5]<<16ull |
-							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+6]<< 8ull |
-							(unsigned long long)((unsigned char*)st->inbuffer)[payoffs+7]<< 0ull;
+							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+0]<<56ull |
+							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+1]<<48ull |
+							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+2]<<40ull |
+							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+3]<<32ull |
+							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+4]<<24ull |
+							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+5]<<16ull |
+							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+6]<< 8ull |
+							(quint64_t)((unsigned char*)st->inbuffer)[payoffs+7]<< 0ull;
 						if (ullpaylen < 0x10000)
 						{
 							Con_Printf ("%s: payload size (%"PRIu64") encoded badly\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr), ullpaylen);
@@ -3936,7 +3952,8 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 			cvar_t *ircsomething = Cvar_Get("ircsomething", "moo", 0, "IRC Connect");
 			cvar_t *ircclientaddr = Cvar_Get("ircclientaddr", "127.0.0.1", 0, "IRC Connect");
 
-			NET_StringToAdr(con->ircserver.address.irc.host, 6667, &ip);
+			if (!NET_StringToAdr(con->ircserver.address.irc.host, 6667, &ip))
+				return false;
 			con->generic.thesocket = TCP_OpenStream(&ip);
 
 			//when hosting, the specified nick is the name we're using.
@@ -5002,23 +5019,24 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 {
 	netadr_t adr;
 
-	NET_StringToAdr(host, 0, &adr);
-
-	switch(adr.type)
+	if (NET_StringToAdr(host, 0, &adr))
 	{
-	case NA_WEBSOCKET:
-	case NA_TLSV4:
-	case NA_TLSV6:
-	case NA_TCP:
-	case NA_TCPV6:
-	case NA_IRC:
-		if (!FTENET_AddToCollection(collection, routename, host, adr.type, islisten))
-			return false;
-		Con_Printf("Establishing connection to %s\n", host);
-		break;
-	default:
-		//not recognised, or not needed
-		break;
+		switch(adr.type)
+		{
+		case NA_WEBSOCKET:
+		case NA_TLSV4:
+		case NA_TLSV6:
+		case NA_TCP:
+		case NA_TCPV6:
+		case NA_IRC:
+			if (!FTENET_AddToCollection(collection, routename, host, adr.type, islisten))
+				return false;
+			Con_Printf("Establishing connection to %s\n", host);
+			break;
+		default:
+			//not recognised, or not needed
+			break;
+		}
 	}
 	return true;
 }
@@ -5557,7 +5575,8 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 	buff[512-1] = 0;
 
 	if (!NET_StringToAdr (buff, 0, &adr))	//urm
-		NET_StringToAdr ("127.0.0.1", 0, &adr);
+		if (!NET_StringToAdr ("127.0.0.1", 0, &adr))
+			return;
 
 
 	namelen = sizeof(address);
@@ -5648,6 +5667,7 @@ void NET_ClientPort_f(void)
 
 qboolean NET_WasSpecialPacket(netsrc_t netsrc)
 {
+#ifdef HAVE_NATPMP
 	ftenet_connections_t *collection = NULL;
 	if (netsrc == NS_SERVER)
 	{
@@ -5661,6 +5681,7 @@ qboolean NET_WasSpecialPacket(netsrc_t netsrc)
 		collection = cls.sockets;
 #endif
 	}
+#endif
 
 #ifdef SUPPORT_ICE
 	if (ICE_WasStun(netsrc))
@@ -5851,8 +5872,6 @@ void SVNET_RegisterCvars(void)
 
 void NET_CloseServer(void)
 {
-	allowconnects = false;
-
 	FTENET_CloseCollection(svs.sockets);
 	svs.sockets = NULL;
 }
@@ -5868,8 +5887,6 @@ void NET_InitServer(void)
 			FTENET_AddToCollection(svs.sockets, "SVLoopback", STRINGIFY(PORT_QWSERVER), NA_LOOPBACK, true);
 #endif
 		}
-
-		allowconnects = true;
 
 #ifdef HAVE_IPV4
 		Cvar_ForceCallback(&sv_port_ipv4);

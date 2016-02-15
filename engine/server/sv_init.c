@@ -760,8 +760,9 @@ void SV_WipeServerState(void)
 	if (sv.stringsalloced)
 	{
 		unsigned int i;
+		char **ptrs = (char**)&sv.strings;
 		for (i = 0; i < sizeof(sv.strings) / sizeof(sv.strings.ptrs[0]); i++)
-			Z_Free((char*)sv.strings.ptrs[i]);
+			Z_Free(ptrs[i]);
 	}
 	memset (&sv, 0, sizeof(sv));
 	sv.logindatabase = -1;

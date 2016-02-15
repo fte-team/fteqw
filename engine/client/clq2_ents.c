@@ -121,7 +121,6 @@ sfx_t *S_PrecacheSexedSound(int entnum, const char *soundname)
 
 void CLQ2_EntityEvent(entity_state_t *es)
 {
-	float ATTN_IDLE = 2;
 	switch (es->u.q2.event)
 	{
 	case Q2EV_NONE:
@@ -2092,9 +2091,6 @@ CL_AddViewWeapon
 */
 static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t *ops)
 {
-	entity_t	gun;		// view model
-	extern cvar_t cl_gunx, cl_guny, cl_gunz;
-	extern cvar_t cl_gunanglex, cl_gunangley, cl_gunanglez;
 	playerview_t *pv = &cl.playerview[seat];
 
 	pv->vm.oldmodel = NULL;
@@ -2115,8 +2111,6 @@ static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t
 	AngleVectors(pv->simangles, pv->vw_axis[0], pv->vw_axis[1], pv->vw_axis[2]);
 	VectorInverse(pv->vw_axis[1]);
 
-	memset (&gun, 0, sizeof(gun));
-
 	pv->vm.oldmodel = cl.model_precache[ps->gunindex];
 	if (!pv->vm.oldmodel)
 		return;
@@ -2126,42 +2120,6 @@ static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t
 		pv->vm.prevframe = ps->gunframe;
 	else
 		pv->vm.prevframe = ops->gunframe;
-/*
-	gun.shaderRGBAf[0] = 1;
-	gun.shaderRGBAf[1] = 1;
-	gun.shaderRGBAf[2] = 1;
-	if (r_drawviewmodel.value < 1 || r_drawviewmodel.value > 0)
-		gun.shaderRGBAf[3] = r_drawviewmodel.value;
-	else
-		gun.shaderRGBAf[3] = 1;
-
-	// set up gun position
-#ifdef PEXT_SCALE
-	gun.scale = 1;
-#endif
-
-	gun.origin[0] = cl_gunz.value;
-	gun.origin[1] = -cl_gunx.value;
-	gun.origin[2] = -cl_guny.value;
-
-	gun.angles[0] = cl_gunanglex.value;
-	gun.angles[1] = cl_gunangley.value;
-	gun.angles[2] = cl_gunanglez.value;
-
-	gun.framestate.g[FS_REG].frame[0] = ps->gunframe;
-	if (gun.framestate.g[FS_REG].frame[0] == 0)
-		gun.framestate.g[FS_REG].frame[1] = 0;	// just changed weapons, don't lerp from old
-	else
-		gun.framestate.g[FS_REG].frame[1] = ops->gunframe;
-
-	gun.playerindex = -1;
-
-	gun.flags = Q2RF_MINLIGHT | RF_DEPTHHACK | RF_WEAPONMODEL;
-	gun.framestate.g[FS_REG].lerpweight[0] = cl.lerpfrac;
-	gun.framestate.g[FS_REG].lerpweight[1] = 1-cl.lerpfrac;
-	VectorCopy (gun.origin, gun.oldorigin);	// don't lerp at all
-	V_AddEntity (&gun);
-*/
 }
 
 
@@ -2274,7 +2232,9 @@ Emits all entities, particles, and lights to the refresh
 */
 void CLQ2_AddEntities (void)
 {
+#ifdef _DEBUG
 	extern cvar_t chase_active, chase_back, chase_up;
+#endif
 	int seat;
 	if (cls.state != ca_active)
 		return;

@@ -2194,7 +2194,6 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 	vec4_t *rgba;
 	scenetris_t *t;
 
-	extern cvar_t gl_blendsprites;
 	shader_t *shader = NULL;
 	mspriteframe_t *frame;
 
@@ -2260,9 +2259,9 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 	}
 	else
 	{
+#ifdef RTLIGHTS
 		extern cvar_t r_shadow_realtime_world_lightmaps;
 		//lit sprites need to sample the world lighting. with rtlights that generally means they're 0.
-#ifdef RTLIGHTS
 		if (r_shadow_realtime_world.ival)
 			lightmap = r_shadow_realtime_world_lightmaps.value;
 		else
@@ -2498,8 +2497,8 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	model_t *emodel;
 	unsigned int orig_numstris = cl_numstris;
 	unsigned int orig_numvisedicts = cl_numvisedicts;
-	unsigned int orig_numstrisidx = cl_numstrisidx;
-	unsigned int orig_numstrisvert = cl_numstrisvert;
+//	unsigned int orig_numstrisidx = cl_numstrisidx;
+//	unsigned int orig_numstrisvert = cl_numstrisvert;
 
 	/*clear the batch list*/
 	for (i = 0; i < SHADER_SORT_COUNT; i++)

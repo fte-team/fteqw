@@ -6,6 +6,8 @@ Will show actual value when focused, and will show readable value when not.
 The possible values is a separate popup.
 */
 
+//FIXME: should probably set up a grabs to intercept right-click / escape outside of the item
+
 class mitem_combo;
 class mitem_combo_popup;
 
@@ -20,11 +22,7 @@ class mitem_combo : mitem
 	float		firstrow;
 	float		visrows;
 
-	virtual void() item_remove =
-	{
-		strunzone(mstrlist);
-		super::item_remove();
-	};
+	virtual void() item_remove;
 };
 
 class mitem_combo_popup : mitem
@@ -34,6 +32,22 @@ class mitem_combo_popup : mitem
 	virtual void(mitem newfocus, float changedflag)				item_focuschange;
 
 	mitem_combo 		pfriend;
+	
+	virtual void() item_remove =
+	{
+		if (pfriend)
+			pfriend.cfriend = 0;
+		super::item_remove();
+	};
+};
+
+void() mitem_combo::item_remove =
+{
+	mitem_combo_popup p = cfriend;
+	if (p)
+		p.item_remove();
+	strunzone(mstrlist);
+	super::item_remove();
 };
 
 void(vector pos) mitem_combo::item_draw =
@@ -63,11 +77,13 @@ void(vector pos) mitem_combo::item_draw =
 
 	pos_x += item_size_x / 2;
 
+
+/*	//border
 	ui.drawfill(pos, [item_size_x/2, 1], TD_BOT, item_alpha, 0);
 	ui.drawfill(pos, [1, item_size_y - 1], TD_RGT, item_alpha, 0);
 	ui.drawfill(pos + [item_size_x/2-1, 1], [1, item_size_y - 1], TD_LFT, item_alpha, 0);
 	ui.drawfill(pos + [0, item_size_y-1], [item_size_x/2, 1], TD_TOP, item_alpha, 0);
-
+*/
 	//silly strings need to get cut off properly.
 	ui.setcliparea(pos[0], pos[1], item_size_x/2, item_size_y);
 	pos_y += (item_size_y - item_scale)*0.5;
@@ -109,11 +125,12 @@ void(vector pos) mitem_combo_popup::item_draw =
 
 	ui.drawfill(pos, item_size, item_rgb, item_alpha, 0);
 
+/*	//border
 	ui.drawfill(pos, [item_size_x, 1], TD_BOT, item_alpha, 0);
 	ui.drawfill(pos, [1, item_size_y - 1], TD_RGT, item_alpha, 0);
 	ui.drawfill(pos + [item_size_x-1, 1], [1, item_size_y - 1], TD_LFT, item_alpha, 0);
 	ui.drawfill(pos + [0, item_size_y-1], [item_size_x, 1], TD_TOP, item_alpha, 0);
-	pos_x += 1;
+*/	pos_x += 1;
 
 	v = tokenize(f.mstrlist);
 	for (c = 0; c < v; c += 2)
@@ -179,8 +196,15 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 		}
 	}
 
-	if (scan == K_ESCAPE)
+	if (scan == K_ESCAPE || scan == K_MOUSE2)
+	{
+		if (cfriend)
+		{
+			cfriend.item_remove();
+			return TRUE;
+		}
 		return FALSE;
+	}
 	else if (scan == K_MWHEELUP || (scan == K_UPARROW && cfriend))
 	{
 		i -= 2;

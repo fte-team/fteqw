@@ -1097,7 +1097,6 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	extern cvar_t	temp1;
 	extern cvar_t	noexit;
 	extern cvar_t	pr_maxedicts;
-	extern cvar_t	scr_sshot_type;
 
 
 	client_t *cl;
@@ -1230,7 +1229,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	{
 		int width;
 		int height;
-		qbyte *rgbbuffer;
+		void *rgbbuffer;
 		image_t *img;
 
 		//poke the various modes into redrawing the screen (without huds), to avoid any menus or console drawn over the top of the current backbuffer.
@@ -1257,6 +1256,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 			rgbbuffer = VID_GetRGBInfo(&width, &height, &fmt);
 			if (rgbbuffer)
 			{
+//				extern cvar_t	scr_sshot_type;
 				SCR_ScreenShot(savefilename, FS_GAMEONLY, &rgbbuffer, 1, width, height, fmt);
 				BZ_Free(rgbbuffer);
 	

@@ -837,7 +837,6 @@ static qintptr_t VARGS Plug_GetWeaponStats(void *offset, quintptr_t mask, const 
 	struct wstats_s *result = VM_POINTER(arg[1]);
 	size_t maxresults = VM_LONG(arg[2]);
 
-	int count = 0;
 	int i;
 
 	if (VM_OOB(arg[0], maxresults*sizeof(*result)))

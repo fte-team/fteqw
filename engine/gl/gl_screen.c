@@ -296,8 +296,8 @@ char *GLVID_GetRGBInfo(int *truewidth, int *trueheight, enum uploadfmt *fmt)
 		}
 		ret = BZ_Realloc(ret, (*truewidth)*(*trueheight)*3);
 	}
-#ifdef _DEBUG
-	else if (!gl_config.gles && gl_config.glversion >= 1.2)
+#if 1//def _DEBUG
+	else if (!gl_config.gles && sh_config.texfmt[PTI_BGRA8])
 	{
 		*fmt = TF_BGRA32;
 		ret = BZ_Malloc((*truewidth)*(*trueheight)*4);

@@ -1276,7 +1276,7 @@ void M_Reinit(void)
 	{
 		M_Init_Internal();
 
-		CSQC_UnconnectedInit();
+		(void)CSQC_UnconnectedInit();
 	}
 }
 
@@ -1329,7 +1329,7 @@ void M_Reinit(void)
 	if (!MP_Init())
 #endif
 	{
-		CSQC_UnconnectedInit();
+		(void)CSQC_UnconnectedInit();
 	}
 }
 void M_Init (void)

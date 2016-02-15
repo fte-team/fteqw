@@ -1104,7 +1104,7 @@ qboolean MSV_ClusterLogin(char *guid, char *userinfo, size_t userinfosize);
 void MSV_PollSlaves(void);
 void MSV_Status(void);
 #else
-#define SSV_UpdateAddresses() false
+#define SSV_UpdateAddresses() ((void)0)
 #define MSV_ClusterLogin(guid,info,infosize) false
 #define SSV_IsSubServer() false
 #endif

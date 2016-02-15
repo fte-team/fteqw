@@ -381,16 +381,18 @@ typedef struct heightmap_s
 
 #ifndef SERVERONLY
 static void ted_dorelight(heightmap_t *hm);
-#endif
+static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b);
 static qboolean Terr_Collect(heightmap_t *hm);
+#endif
 static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int flags);
 static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b);
-static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b);
 static void Terr_WorkerLoadedSection(void *ctx, void *data, size_t a, size_t b);
 static void Terr_WorkerFailedSection(void *ctx, void *data, size_t a, size_t b);
 
 static void Terr_Brush_DeleteIdx(heightmap_t *hm, size_t idx);
+#ifndef SERVERONLY
 static void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e);
+#endif
 
 #ifndef SERVERONLY
 static texid_t Terr_LoadTexture(char *name)
@@ -692,7 +694,7 @@ static hmsection_t *Terr_GenerateSection(heightmap_t *hm, int sx, int sy, qboole
 #ifdef LOADERTHREAD
 		Sys_UnlockMutex(com_resourcemutex);
 #endif
-		COM_AddWork(1, Terr_LoadSectionWorker, s, hm, sx, sy);
+		COM_AddWork(WG_LOADER, Terr_LoadSectionWorker, s, hm, sx, sy);
 		return s;
 	}
 	if (scheduleload)
@@ -722,6 +724,7 @@ static void *Terr_GenerateWater(hmsection_t *s, float maxheight)
 	return w;
 }
 
+#ifndef SERVERONLY
 //embeds a mesh
 static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t epos, vec3_t axis[3], float scale)
 {
@@ -840,6 +843,7 @@ static void Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, vec3_t ep
 	}
 	Sys_UnlockMutex(hm->entitylock);
 }
+#endif
 
 static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 {
@@ -884,7 +888,7 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	/*load in the mixture/lighting*/
 	lmstart = BZ_Malloc(SECTTEXSIZE*SECTTEXSIZE*4);
 	memcpy(lmstart, ds->texmap, SECTTEXSIZE*SECTTEXSIZE*4);
-	COM_AddWork(0, Terr_WorkerLoadedSectionLightmap, hm, lmstart, s->sx, s->sy);
+	COM_AddWork(WG_MAIN, Terr_WorkerLoadedSectionLightmap, hm, lmstart, s->sx, s->sy);
 
 	s->mesh.colors4f_array[0] = s->colours;
 	if (flags & TSF_HASCOLOURS)
@@ -1199,6 +1203,7 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	VFS_WRITE(f, strm.buffer, strm.pos);
 	strm.pos = 0;
 }
+#ifndef SERVERONLY
 static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b)
 {
 	heightmap_t *hm = ctx;
@@ -1222,6 +1227,7 @@ static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, si
 
 	BZ_Free(data);
 }
+#endif
 #endif
 static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 {
@@ -1363,7 +1369,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 	}
 
 	if (lmstart)
-		COM_AddWork(0, Terr_WorkerLoadedSectionLightmap, hm, lmstart, s->sx, s->sy);
+		COM_AddWork(WG_MAIN, Terr_WorkerLoadedSectionLightmap, hm, lmstart, s->sx, s->sy);
 
 	/*load any static ents*/
 	j = Terr_Read_SInt(&strm);
@@ -1597,9 +1603,9 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int ver, v
 
 	s->loadstate = TSLS_LOADING2;
 	if (failed)
-		COM_AddWork(0, Terr_WorkerFailedSection, s, NULL, s->sx, s->sy);
+		COM_AddWork(WG_MAIN, Terr_WorkerFailedSection, s, NULL, s->sx, s->sy);
 	else
-		COM_AddWork(0, Terr_WorkerLoadedSection, s, NULL, s->sx, s->sy);
+		COM_AddWork(WG_MAIN, Terr_WorkerLoadedSection, s, NULL, s->sx, s->sy);
 
 	return s;
 }
@@ -1638,9 +1644,9 @@ qboolean Terr_DownloadedSection(char *fname)
 }
 #endif
 
+#ifndef SERVERONLY
 static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, unsigned int flags)
 {
-#ifndef SERVERONLY
 	//when using networked terrain, the client will never load a section from disk, but will only load it from the server
 	//one section at a time.
 	if (mod_terrain_networked.ival && !sv.state)
@@ -1653,20 +1659,19 @@ static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, un
 			CL_CheckOrEnqueDownloadFile(Terr_DiskSectionName(hm, sx, sy, fname, sizeof(fname)), Terr_TempDiskSectionName(hm, sx, sy), DLLF_OVERWRITE|DLLF_TEMPORARY);
 		return;
 	}
-#endif
 
 	if (!s)
 	{
 		Terr_GenerateSection(hm, sx, sy, true);
 	}
 }
+#endif
 static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b)
 {
 	heightmap_t *hm = data;
 	hmsection_t *s = ctx;
 	int sx = a;
 	int sy = b;
-	int flags = 0;
 	void *diskimage;
 	qofs_t len;
 	char fname[MAX_QPATH];
@@ -2199,6 +2204,7 @@ static void Terr_DoEditNotify(heightmap_t *hm)
 	}
 }
 
+#ifndef SERVERONLY
 //garbage collect the oldest section, to make space for another
 static qboolean Terr_Collect(heightmap_t *hm)
 {
@@ -2238,6 +2244,7 @@ static qboolean Terr_Collect(heightmap_t *hm)
 	}
 	return false;
 }
+#endif
 #endif
 
 /*purge all sections, but not root
@@ -4345,8 +4352,6 @@ void Heightmap_FindTouchedLeafs	(model_t *mod, pvscache_t *ent, float *mins, flo
 
 void Heightmap_LightPointValues	(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
-	float time = realtime;
-
 	res_diffuse[0] = 128;
 	res_diffuse[1] = 128;
 	res_diffuse[2] = 128;
@@ -5249,8 +5254,8 @@ void Terr_ParseEntityLump(char *data, heightmap_t *heightmap)
 
 void Terr_FinishTerrain(model_t *mod)
 {
-	heightmap_t *hm = mod->terrain;
 #ifndef SERVERONLY
+	heightmap_t *hm = mod->terrain;
 	if (qrenderer != QR_NONE)
 	{
 		if (*hm->skyname)
@@ -6453,7 +6458,7 @@ void QCBUILTIN PF_brush_selected(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	model_t			*mod			= vmw->Get_CModel(vmw, G_FLOAT(OFS_PARM0));
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 	unsigned int	brushid			= G_INT(OFS_PARM1);
-	unsigned int	faceid			= G_INT(OFS_PARM2);
+//	unsigned int	faceid			= G_INT(OFS_PARM2);
 	unsigned int	state			= G_FLOAT(OFS_PARM3);
 	unsigned int	i;
 	brushes_t		*br;

@@ -52,15 +52,19 @@ void *zlib_handle;
 #endif
 #endif
 
+#ifndef Z_U4
+#define z_crc_t uLongf
+#endif
+
 //#pragma comment(lib, MSVCLIBSPATH "zlib.lib")
 
 static int (ZEXPORT *qinflateEnd) (z_streamp strm) ZSTATIC(inflateEnd);
 static int (ZEXPORT *qinflate) (z_streamp strm, int flush) ZSTATIC(inflate);
 static int (ZEXPORT *qinflateInit2_) (z_streamp strm, int  windowBits,
                                       const char *version, int stream_size) ZSTATIC(inflateInit2_);
-//static uLong (ZEXPORT *qcrc32)   (uLong crc, const Bytef *buf, uInt len) ZSTATIC(crc32);
+//static z_crc_t (ZEXPORT *qcrc32)   (uLong crc, const Bytef *buf, uInt len) ZSTATIC(crc32);
 #ifdef ZIPCRYPT
-static const uLongf *(ZEXPORT *qget_crc_table)   (void) ZSTATIC(get_crc_table);
+static const z_crc_t *(ZEXPORT *qget_crc_table)   (void) ZSTATIC(get_crc_table);
 #endif
 
 #define qinflateInit2(strm, windowBits) \
@@ -288,7 +292,7 @@ static int QDECL FS_GZ_Dec_Write(vfsfile_t *f, const void *buffer, int len)
 		{
 			if (n->inlen >= 8)
 			{
-				unsigned int crc = (n->in[0]<<0) | (n->in[1]<<8) | (n->in[2]<<16) | (n->in[3]<<24);
+				//unsigned int crc = (n->in[0]<<0) | (n->in[1]<<8) | (n->in[2]<<16) | (n->in[3]<<24);
 				unsigned int isize = (n->in[4]<<0) | (n->in[5]<<8) | (n->in[6]<<16) | (n->in[7]<<24);
 				if (n->strm.total_out != isize)
 					return -1;	//the file we just received decoded to a different length (yay, concat...).
@@ -853,7 +857,7 @@ static vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress
 	zipfile_t *source = decompress->source;
 	qboolean encrypted = decompress->encrypted;
 	unsigned int cryptkeys[3];
-	const uLongf *crctab = decompress->crctable;
+	const z_crc_t *crctab = decompress->crctable;
 
 	memcpy(cryptkeys, decompress->initialkey, sizeof(cryptkeys));
 

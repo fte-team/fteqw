@@ -252,6 +252,7 @@ cvar_t vid_dpi_x							= CVARFD ("vid_dpi_x", "0", CVAR_NOSET, "For mods that ne
 cvar_t vid_dpi_y							= CVARFD ("vid_dpi_y", "0", CVAR_NOSET, "For mods that need to determine the physical screen size (like with touchscreens). 0 means unknown");
 
 cvar_t	r_stereo_separation					= CVARD("r_stereo_separation", "4", "How far apart your eyes are, in quake units. A non-zero value will enable stereoscoping rendering. You might need some of them retro 3d glasses. Hardware support is recommended, see r_stereo_context.");
+cvar_t	r_stereo_convergence				= CVARD("r_stereo_convergence", "0", "Nudges the angle of each eye inwards when using stereoscopic rendering.");
 cvar_t	r_stereo_method						= CVARFD("r_stereo_method", "0", CVAR_ARCHIVE, "Value 0 = Off.\nValue 1 = Attempt hardware acceleration. Requires vid_restart.\nValue 2 = red/cyan.\nValue 3 = red/blue.\nValue 4=red/green.\nValue 5=eye strain.");
 
 extern cvar_t r_dodgytgafiles;
@@ -737,6 +738,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_wireframe_smooth, GRAPHICALNICETIES);
 	Cvar_Register (&r_refract_fbo, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_separation, GRAPHICALNICETIES);
+	Cvar_Register (&r_stereo_convergence, GRAPHICALNICETIES);
 	Cvar_Register (&r_stereo_method, GRAPHICALNICETIES);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
